@@ -84,7 +84,7 @@ let delete = (d: Direction.t, z: t): option(t) => {
 /* Unwrap a string/comment/label: delete the token and re-insert
  * its content character-by-character, as if the user had typed it.
  * This is the inverse of selection wrapping for quote delimiters. */
-let unwrap_quote = (d: Direction.t, t: Token.t, z: t): option(t) => {
+let unwrap_quote = (d: Direction.t, t: Token.t, z: t, ~root): option(t) => {
   let content = String.sub(t, 1, String.length(t) - 2);
   let+ z = delete(d, z);
   if (String.length(content) == 0) {
@@ -96,7 +96,7 @@ let unwrap_quote = (d: Direction.t, t: Token.t, z: t): option(t) => {
            (z_opt, c) =>
              switch (z_opt) {
              | None => None
-             | Some(z) => Insert.go(c, z)
+             | Some(z) => Insert.go(c, z, ~root)
              },
            Some(z),
          );
@@ -107,51 +107,52 @@ let unwrap_quote = (d: Direction.t, t: Token.t, z: t): option(t) => {
   };
 };
 
-let outer = (d: Direction.t, z: t): option(t) =>
+let outer = (d: Direction.t, z: t, ~root): option(t) =>
   switch (Zipper.neighbor_token(d, z)) {
   | Some(t) when Token.length(t) > 1 && !Token.is_string_or_comment(t) =>
-    Insert.replace_shard(d, Token.rm_edge(d, t), z)
-  | Some(t) when Token.is_string_or_comment(t) => unwrap_quote(d, t, z)
+    Insert.replace_shard(d, Token.rm_edge(d, t), z, ~root)
+  | Some(t) when Token.is_string_or_comment(t) =>
+    unwrap_quote(d, t, z, ~root)
   | _ => delete(d, z)
   };
 
-let rm_nth_right = (idx, t, z) =>
-  Insert.replace_shard(Right, Token.rm_nth(t, idx), z);
+let rm_nth_right = (idx, t, z, ~root) =>
+  Insert.replace_shard(Right, Token.rm_nth(t, idx), z, ~root);
 
-let inner_left = (idx: int, z: t): option(t) =>
+let inner_left = (idx: int, z: t, ~root): option(t) =>
   switch (Zipper.neighbor_token(Right, z)) {
   | Some(t) when Token.is_string_or_comment(t) && idx == 0 =>
-    unwrap_quote(Right, t, z |> Caret.set(Outer))
+    unwrap_quote(Right, t, z |> Caret.set(Outer), ~root)
   | Some(t) =>
     let z = Caret.set(idx == 0 ? Outer : Inner(idx - 1), z);
-    let+ z_init = rm_nth_right(idx, t, z);
-    let z_final = Zipper.remold_regrout(Left, z_init);
+    let+ z_init = rm_nth_right(idx, t, z, ~root);
+    let z_final = Zipper.remold_regrout(Left, z_init, ~root);
     Insert.adjust_caret_pos(~z_final, ~z_init);
   | None => z |> Caret.set(Outer) |> delete(Right)
   };
 
 let is_last_inner_pos = (t, idx) => Token.length(t) - 2 == idx;
 
-let inner_right = (idx: int, z: t): option(t) =>
+let inner_right = (idx: int, z: t, ~root): option(t) =>
   switch (Zipper.neighbor_token(Right, z)) {
   | Some(t) when Token.is_string_or_comment(t) && is_last_inner_pos(t, idx) =>
-    unwrap_quote(Right, t, z |> Caret.set(Outer))
+    unwrap_quote(Right, t, z |> Caret.set(Outer), ~root)
   | Some(t) =>
-    let* z = rm_nth_right(idx + 1, t, z);
+    let* z = rm_nth_right(idx + 1, t, z, ~root);
     is_last_inner_pos(t, idx)
       ? z |> Caret.set(Outer) |> Zipper.move(Right) : Some(z);
   | None => z |> Caret.set(Outer) |> delete(Left)
   };
 
-let destruct = (d: Direction.t, z: t): option(t) =>
+let destruct = (d: Direction.t, z: t, ~root): option(t) =>
   switch (z.caret) {
   | _ when z.selection.content != [] =>
     Some(z |> capture |> destroy_selection)
-  | Outer => outer(d, z)
+  | Outer => outer(d, z, ~root)
   | Inner(idx) =>
     switch (d) {
-    | Left => inner_left(idx, z)
-    | Right => inner_right(idx, z)
+    | Left => inner_left(idx, z, ~root)
+    | Right => inner_right(idx, z, ~root)
     }
   };
 
@@ -202,16 +203,19 @@ let delete_token = (d: Direction.t, z: t): option(t) => {
  * Applies the dev-side cleanup of double-merge + rescan_reassemble
  * so grout cleanup around the caret gets a second merge opportunity
  * after remold_regrout. */
-let destruct_with_cleanup = (d: Direction.t, z: t): option(t) => {
-  let+ z = destruct(d, z);
+let destruct_with_cleanup = (d: Direction.t, z: t, ~root): option(t) => {
+  let+ z = destruct(d, z, ~root);
   let z =
-    z |> Insert.merge_or_noop |> remold_regrout(d) |> Insert.merge_or_noop;
-  Zipper.rescan_reassemble(d, z);
+    z
+    |> Insert.merge_or_noop(~root)
+    |> remold_regrout(d, ~root)
+    |> Insert.merge_or_noop(~root);
+  Zipper.rescan_reassemble(d, z, ~root);
 };
 
 /* Delete from cursor to start of line (Cmd+Backspace on Mac).
    This is the "Delete All Left" behavior in VS Code. */
-let delete_to_line_start = (z: t): option(t) => {
+let delete_to_line_start = (z: t, ~root): option(t) => {
   /* First, clear any selection by unselecting */
   let z = Zipper.unselect(z);
   /* Select from current position back to line start */
@@ -224,14 +228,15 @@ let delete_to_line_start = (z: t): option(t) => {
     let z = destroy_selection(z);
     let z =
       z
-      |> Insert.merge_or_noop
-      |> remold_regrout(Left)
-      |> Insert.merge_or_noop;
-    Some(Zipper.rescan_reassemble(Left, z));
+      |> Insert.merge_or_noop(~root)
+      |> remold_regrout(Left, ~root)
+      |> Insert.merge_or_noop(~root);
+    Some(Zipper.rescan_reassemble(Left, z, ~root));
   };
 };
 
-let go_local = (d: Direction.t, chunk: Action.chunkiness, z: t): option(t) => {
+let go_local =
+    (d: Direction.t, chunk: Action.chunkiness, z: t, ~root): option(t) => {
   Grout.suppressed_space := None;
   switch (Triggers.destruct(z)) {
   | Some(z) => Some(z)
@@ -245,11 +250,11 @@ let go_local = (d: Direction.t, chunk: Action.chunkiness, z: t): option(t) => {
         let+ z = delete_spaces(to_delete, z);
         let z =
           z
-          |> Insert.merge_or_noop
-          |> remold_regrout(d)
-          |> Insert.merge_or_noop;
-        Zipper.rescan_reassemble(d, z);
-      | _ => destruct_with_cleanup(d, z)
+          |> Insert.merge_or_noop(~root)
+          |> remold_regrout(d, ~root)
+          |> Insert.merge_or_noop(~root);
+        Zipper.rescan_reassemble(d, z, ~root);
+      | _ => destruct_with_cleanup(d, z, ~root)
       }
     | Action.ByToken =>
       /* Check if we're in a whitespace run */
@@ -258,27 +263,27 @@ let go_local = (d: Direction.t, chunk: Action.chunkiness, z: t): option(t) => {
         let+ z = hungry_delete(z, false);
         let z =
           z
-          |> Insert.merge_or_noop
-          |> remold_regrout(d)
-          |> Insert.merge_or_noop;
-        Zipper.rescan_reassemble(d, z);
+          |> Insert.merge_or_noop(~root)
+          |> remold_regrout(d, ~root)
+          |> Insert.merge_or_noop(~root);
+        Zipper.rescan_reassemble(d, z, ~root);
       } else {
         /* Delete by token */
         let+ z = delete_token(d, z);
         let z =
           z
-          |> Insert.merge_or_noop
-          |> remold_regrout(d)
-          |> Insert.merge_or_noop;
-        Zipper.rescan_reassemble(d, z);
+          |> Insert.merge_or_noop(~root)
+          |> remold_regrout(d, ~root)
+          |> Insert.merge_or_noop(~root);
+        Zipper.rescan_reassemble(d, z, ~root);
       }
     }
   };
 };
 
-let go = (destruct: Action.destruct, z: t): option(t) =>
+let go = (destruct: Action.destruct, z: t, ~root): option(t) =>
   switch (destruct) {
-  | Local(d, chunk) => go_local(d, chunk, z)
-  | Line(Left) => delete_to_line_start(z)
+  | Local(d, chunk) => go_local(d, chunk, z, ~root)
+  | Line(Left) => delete_to_line_start(z, ~root)
   | Line(Right) => None /* Not yet implemented */
   };

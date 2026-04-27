@@ -272,7 +272,7 @@ let basic_reference_migration = () => {
 
   /* Verify round-trip: reparsing migrated backup_text should match migrated segment */
   let reparsed =
-    switch (Parser.to_segment(migrated.backup_text)) {
+    switch (Parser.to_segment(migrated.backup_text, ~root=Exp)) {
     | Some(seg) => seg
     | None => Alcotest.fail("Failed to parse migrated backup_text")
     };
@@ -387,7 +387,7 @@ let test_all_web_docs_migration = () => {
 
       /* Verify round-trip */
       let reparsed =
-        switch (Parser.to_segment(migrated.backup_text)) {
+        switch (Parser.to_segment(migrated.backup_text, ~root=Exp)) {
         | Some(seg) => seg
         | None => Alcotest.fail("Failed to parse migrated " ++ filename)
         };
@@ -419,7 +419,7 @@ let debug_adts_migration = () => {
 
   /* Parse migrated backup_text */
   let reparsed =
-    switch (Parser.to_segment(migrated.backup_text)) {
+    switch (Parser.to_segment(migrated.backup_text, ~root=Exp)) {
     | Some(seg) => seg
     | None => Alcotest.fail("Failed to parse migrated backup_text")
     };

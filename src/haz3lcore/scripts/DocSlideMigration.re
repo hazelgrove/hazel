@@ -20,7 +20,7 @@ let migrate = (persisted: PersistentSegment.t): PersistentSegment.t => {
     try(persisted.segment |> Sexplib.Sexp.of_string |> Segment.t_of_sexp) {
     | _ =>
       /* Fallback: parse from backup_text */
-      switch (Parser.to_segment(persisted.backup_text)) {
+      switch (Parser.to_segment(persisted.backup_text, ~root=Sort.Exp)) {
       | Some(seg) => seg
       | None => Segment.empty
       }

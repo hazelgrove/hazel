@@ -16,7 +16,7 @@ let string_testable = testable(Fmt.string, String.equal);
 
 /* Parse a string to a segment */
 let must_parse = (s: string): Segment.t => {
-  switch (Parser.to_zipper(s)) {
+  switch (Parser.to_zipper(~root=Exp, s)) {
   | exception _ => failwith("Failed to parse: " ++ s)
   | None => failwith("Failed to parse: " ++ s)
   | Some(z) => Zipper.unselect_and_zip(~erase_buffer=true, z)

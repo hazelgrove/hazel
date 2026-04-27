@@ -147,6 +147,7 @@ type t =
   | Introduce
   | Probe(probe)
   | Format
+  | PrettyPrint
   | Dump
   | ToggleLineComment
   | Structural(Structural.t);
@@ -186,6 +187,7 @@ let is_edit: t => bool =
   | Destruct(_)
   | Put_down
   | Introduce
+  | PrettyPrint
   | Buffer(Accept | Clear | Set(_))
   | Format
   | Structural(_)
@@ -224,6 +226,7 @@ let is_historic: t => bool =
   | Put_down
   | Introduce
   | Format
+  | PrettyPrint
   | Structural(_)
   | Dump
   | ToggleLineComment => true
@@ -255,6 +258,7 @@ let prevent_in_read_only_editor = (a: t) =>
   | Put_down
   | Introduce
   | Format
+  | PrettyPrint
   | Structural(_)
   | Dump
   | ToggleLineComment => true
@@ -299,6 +303,7 @@ let should_animate: t => bool =
   | Structural(_)
   | Probe(_)
   | Format
+  | PrettyPrint
   | Dump
   | ToggleLineComment => true
   | Project(p) =>

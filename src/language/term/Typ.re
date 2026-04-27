@@ -4,6 +4,7 @@ open OptUtil.Syntax;
 [@deriving (show({with_path: false}), sexp, yojson, enumerate, eq)]
 type cls =
   | Atom(Atom.cls)
+  | DrvQuoteTy
   | Invalid
   | EmptyHole
   | MultiHole
@@ -83,6 +84,7 @@ let cls_of_term: Grammar.typ_term('a) => cls =
   | Unknown(SynSwitch) => SynSwitch
   | Unknown(Internal) => Internal
   | Atom(c) => Atom(c)
+  | DrvQuoteTy(_) => DrvQuoteTy
   | List(_) => List
   | Arrow(_) => Arrow
   | Var(_) => Var
@@ -108,6 +110,7 @@ let show_cls: cls => string =
   | SynSwitch => "Synthetic type"
   | Internal => "Internal type"
   | Atom(_) => "Base type"
+  | DrvQuoteTy => "Derivation-Mode Quotation Type"
   | Var => "Type variable"
   | Constructor => "Sum constructor"
   | List => "List type"
@@ -134,6 +137,7 @@ let rec is_arrow = (typ: t) => {
   | Arrow(_) => true
   | Unknown(_)
   | Atom(_)
+  | DrvQuoteTy(_)
   | List(_)
   | Label(_)
   | ExplicitNonlabel
@@ -152,6 +156,7 @@ let rec is_arrow = (typ: t) => {
 let is_atom = (ty: t): bool =>
   switch (ty.term) {
   | Atom(_) => true
+  | DrvQuoteTy(_)
   | ProofOf(_)
   | Parens(_)
   | Projector(_)
@@ -182,6 +187,7 @@ let rec has_fun = (typ: t) =>
   | ProofOf(_) => true
   | Unknown(_)
   | Atom(_)
+  | DrvQuoteTy(_)
   | Label(_)
   | ExplicitNonlabel
   | Var(_) => false
@@ -208,6 +214,7 @@ let rec is_poly = (typ: t) => {
   | ProofOf(_)
   | Unknown(_)
   | Atom(_)
+  | DrvQuoteTy(_)
   | Arrow(_)
   | List(_)
   | Label(_)
@@ -236,6 +243,14 @@ type source = {
   id: Id.t,
   ty: t,
 };
+
+let add_source =
+  List.map2((id, ty) =>
+    {
+      id,
+      ty,
+    }
+  );
 
 /* Strip location information from a list of sources */
 let of_source = List.map((source: source) => source.ty);
@@ -277,6 +292,7 @@ let rec free_vars = (~bound=[], ty: t): list(Var.t) =>
   switch (term_of(ty)) {
   | Unknown(_)
   | Atom(_)
+  | DrvQuoteTy(_)
   | Label(_)
   | ExplicitNonlabel => []
   | Var(v) => List.mem(v, bound) ? [] : [v]
@@ -299,6 +315,7 @@ let rec free_vars = (~bound=[], ty: t): list(Var.t) =>
 let rec vars = (ty: t): list(Var.t) =>
   switch (ty.term) {
   | Atom(_)
+  | DrvQuoteTy(_) => []
   | Unknown(_) => []
   | Var(x) => [x]
   | Arrow(ty1, ty2) => vars(ty1) @ vars(ty2)
@@ -357,6 +374,7 @@ let fresh_var = (var_name: string) => {
 let rec num_nodes = (ty: t): int => {
   switch (ty.term) {
   | Atom(_)
+  | DrvQuoteTy(_)
   | Unknown(_) => 1
   | Var(_) => 1
   | Arrow(t1, t2) => 1 + num_nodes(t1) + num_nodes(t2)
@@ -394,6 +412,7 @@ let rec count_unknowns = (ty: t): int =>
   switch (ty.term) {
   | Unknown(_) => 1
   | Atom(_)
+  | DrvQuoteTy(_)
   | Var(_) => 0
   | Arrow(t1, t2) => count_unknowns(t1) + count_unknowns(t2)
   | Prod(tys) =>
@@ -426,6 +445,7 @@ let rec count_unknowns = (ty: t): int =>
 let rec contains_sum_or_var = (ty: t): bool =>
   switch (ty.term) {
   | Atom(_)
+  | DrvQuoteTy(_)
   | Unknown(_) => false
   | Var(_)
   | Sum(_) => true
@@ -446,10 +466,27 @@ let rec contains_sum_or_var = (ty: t): bool =>
   | Sig(_) => false
   };
 
+/* Capture-avoiding substitution of `s` for `x` in `ty`.
+
+   When recursing under a type binder `Poly(tp2, body)` or `Rec(tp2, body)`
+   whose name occurs free in `s`, naive substitution would let occurrences of
+   that name introduced by substituting `s` be captured by the binder. To
+   avoid this, we alpha-rename the clashing binder to a fresh name (via
+   `fresh_var`) before recursing. The inner subst used for renaming is itself
+   capture-avoiding, so repeated collisions are handled naturally. */
 let rec subst = (s: t, x: TPat.t, ty: t): t => {
+  let avoid_capture = (tp2: TPat.t, body: t): (TPat.t, t) =>
+    switch (TPat.tyvar_of_utpat(tp2)) {
+    | Some(name) when List.mem(name, free_vars(s)) =>
+      let fresh = fresh_var(name);
+      let tp2': TPat.t = Var(fresh) |> TPat.fresh;
+      let body' = subst(Var(fresh) |> temp, tp2, body);
+      (tp2', body');
+    | _ => (tp2, body)
+    };
   switch (TPat.tyvar_of_utpat(x)) {
   | Some(str) =>
-    let (term, rewrap) = Grammar.Annotated.unwrap(ty);
+    let (term, rewrap) = Annotated.unwrap(ty);
     switch (term) {
     | Atom(_) => ty
     | Label(name) => Grammar.Label(name) |> rewrap
@@ -463,10 +500,14 @@ let rec subst = (s: t, x: TPat.t, ty: t): t => {
       Sum(ConstructorMap.map(Option.map(subst(s, x)), sm)) |> rewrap
     | Poly(tp2, ty) when TPat.tyvar_of_utpat(x) == TPat.tyvar_of_utpat(tp2) =>
       Poly(tp2, ty) |> rewrap
-    | Poly(tp2, ty) => Poly(tp2, subst(s, x, ty)) |> rewrap
+    | Poly(tp2, ty) =>
+      let (tp2', ty') = avoid_capture(tp2, ty);
+      Poly(tp2', subst(s, x, ty')) |> rewrap;
     | Rec(tp2, ty) when TPat.tyvar_of_utpat(x) == TPat.tyvar_of_utpat(tp2) =>
       Rec(tp2, ty) |> rewrap
-    | Rec(tp2, ty) => Rec(tp2, subst(s, x, ty)) |> rewrap
+    | Rec(tp2, ty) =>
+      let (tp2', ty') = avoid_capture(tp2, ty);
+      Rec(tp2', subst(s, x, ty')) |> rewrap;
     | List(ty) => List(subst(s, x, ty)) |> rewrap
     | Var(y) => str == y ? s : Var(y) |> rewrap
     | Parens(ty) => Parens(subst(s, x, ty)) |> rewrap
@@ -477,6 +518,7 @@ let rec subst = (s: t, x: TPat.t, ty: t): t => {
       ProdExtension(subst(s, x, t1), subst(s, x, t2)) |> rewrap
     | ProofOf(e) => ProofOf(e) |> rewrap
     | Sig(_) => ty
+    | DrvQuoteTy(_) => ty
     };
   | None => ty
   };
@@ -564,7 +606,9 @@ let rec weak_head_normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
     failwith("weak_head_normalize exceeded 1000 recursive calls");
   };
   switch (term_of(ty)) {
-  | Parens(t) => weak_head_normalize(~rec_counter=rec_counter + 1, ctx, t)
+  | Parens(t)
+  | Projector(_, t) =>
+    weak_head_normalize(~rec_counter=rec_counter + 1, ctx, t)
   | Var(x) =>
     switch (Ctx.lookup_alias(ctx, x)) {
     | Some(ty) => weak_head_normalize(~rec_counter=rec_counter + 1, ctx, ty)
@@ -624,6 +668,7 @@ let rec normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
     }
   | Unknown(_)
   | Atom(_)
+  | DrvQuoteTy(_)
   | ExplicitNonlabel
   | Label(_) => ty
   | Parens(t)
@@ -631,7 +676,14 @@ let rec normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
   | List(t) => List(normalize(ctx, t)) |> rewrap
   | Arrow(t1, t2) =>
     Arrow(normalize(ctx, t1), normalize(ctx, t2)) |> rewrap
-  | Prod(ts) => Prod(List.map(normalize(ctx), ts)) |> rewrap
+  | Prod(ts) =>
+    let ts = List.map(normalize(ctx), ts);
+    let duplicate_labels =
+      LabeledTuple.get_duplicate_labels(match_tup_label, ts);
+    let ts =
+      List.is_empty(duplicate_labels)
+        ? ts : remove_duplicate_labels(~duplicate_labels, ts);
+    Prod(ts) |> rewrap;
   | ProdProjection(_) => weak_head_normalize(ctx, ty) |> normalize(ctx)
   | ProdExtension(_) => weak_head_normalize(ctx, ty) |> normalize(ctx)
   | TupLabel({term: ExplicitNonlabel, _}, ty) => normalize(ctx, ty) // Drop ExplicitNonlabel in normalization
@@ -720,6 +772,7 @@ let rec desugar_sig = (ctx: Ctx.t, ty: t): t => {
     | _ => Prod(fields) |> rewrap
     };
   | Parens(t) => Parens(desugar_sig(ctx, t)) |> rewrap
+  | Projector(_, t) => desugar_sig(ctx, t)
   | Arrow(t1, t2) =>
     Arrow(desugar_sig(ctx, t1), desugar_sig(ctx, t2)) |> rewrap
   | Prod(ts) => Prod(List.map(desugar_sig(ctx), ts)) |> rewrap
@@ -791,15 +844,17 @@ let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
     let ctx = Ctx.extend_dummy_tvar(ctx, x2);
     let+ ty_body = meet(ctx, ty1', ty2);
     Poly(x2, ty_body) |> temp;
-  /* Note for above: there is no danger of free variable capture as
-     subst itself performs capture avoiding substitution. However this
-     may generate internal type variable names that in corner cases can
-     be exposed to the user. We preserve the variable name of the
-     second type to preserve synthesized type variable names, which
-     come from user annotations. */
+  /* Note for above: `subst` is capture-avoiding (see its definition),
+     so renaming `x1` to `x2` via substitution is safe. In rare cases
+     where capture does trigger, `subst` generates fresh internal type
+     variable names via `fresh_var` that may be exposed to the user. We
+     preserve the variable name of the second type to preserve
+     synthesized type variable names, which come from user annotations. */
   | (Poly(_), _) => None
   | (Atom(c1), Atom(c2)) when c1 == c2 => Some(ty1)
   | (Atom(_), _) => None
+  | (DrvQuoteTy(d1), DrvQuoteTy(d2)) when d1 == d2 => Some(ty1)
+  | (DrvQuoteTy(_), _) => None
   | (Label(_), Label("")) => Some(ty1)
   | (Label(""), Label(_)) => Some(ty2)
   | (Label(name1), Label(name2))
@@ -868,6 +923,7 @@ let rec match_synswitch = (t1: t, t2: t) => {
   // These cases can't have a synswitch inside
   | (Unknown(_), _)
   | (Atom(_), _)
+  | (DrvQuoteTy(_), _)
   | (Label(_), _)
   | (ExplicitNonlabel, _)
   | (Var(_), _)
@@ -924,33 +980,6 @@ let is_more_precise = (ctx: Ctx.t, ty1: t, ty2: t): bool => {
   };
 };
 
-let rec matched_arrow_strict = (ctx, ty) =>
-  switch (term_of(weak_head_normalize(ctx, ty))) {
-  | Parens(ty) => matched_arrow_strict(ctx, ty)
-  | Arrow(ty_in, ty_out) => Some((ty_in, ty_out))
-  | Unknown(SynSwitch) =>
-    Some((Unknown(SynSwitch) |> temp, Unknown(SynSwitch) |> temp))
-  | _ => None
-  };
-
-let matched_arrow = (ctx, ty) =>
-  matched_arrow_strict(ctx, ty)
-  |> Option.value(
-       ~default=(Unknown(Internal) |> temp, Unknown(Internal) |> temp),
-     );
-
-let rec matched_poly_strict = (ctx, ty) =>
-  switch (term_of(weak_head_normalize(ctx, ty))) {
-  | Parens(ty) => matched_poly_strict(ctx, ty)
-  | Poly(t, ty) => Some((Some(t), ty))
-  | Unknown(SynSwitch) => Some((None, Unknown(SynSwitch) |> temp))
-  | _ => None
-  };
-
-let matched_poly = (ctx, ty) =>
-  matched_poly_strict(ctx, ty)
-  |> Option.value(~default=(None, Unknown(Internal) |> temp));
-
 let rec get_labels = (ctx, ty): list(option(string)) => {
   let ty = weak_head_normalize(ctx, ty);
   switch (term_of(ty)) {
@@ -959,80 +988,6 @@ let rec get_labels = (ctx, ty): list(option(string)) => {
   | _ => []
   };
 };
-
-let rec matched_prod_strict:
-  type a.
-    (Ctx.t, list(a), a => option((string, a)), t, (string, a) => a) =>
-    (list(a), option(list(t))) =
-  (ctx: Ctx.t, es, get_label_es, ty: t, constructor) => {
-    switch (term_of(weak_head_normalize(ctx, ty))) {
-    | Parens(ty) =>
-      matched_prod_strict(ctx, es, get_label_es, ty, constructor)
-    | Prod(tys: list(t)) =>
-      if (List.length(es) != List.length(tys)) {
-        (es, None);
-      } else {
-        (
-          LabeledTuple.rearrange(
-            match_tup_label,
-            get_label_es,
-            tys,
-            es,
-            constructor,
-          ),
-          Some(tys),
-        );
-      }
-    | Unknown(SynSwitch) => (
-        es,
-        Some(List.init(List.length(es), _ => Unknown(SynSwitch) |> temp)),
-      )
-    | _ => (es, None)
-    };
-  };
-
-let matched_prod = (ctx, es, get_label_es, ty, constructor) => {
-  let (es, tys_opt) =
-    matched_prod_strict(ctx, es, get_label_es, ty, constructor);
-  (
-    es,
-    tys_opt
-    |> Option.value(
-         ~default=List.init(List.length(es), _ => Unknown(Internal) |> temp),
-       ),
-  );
-};
-
-let rec matched_list_strict = (ctx, ty) =>
-  switch (term_of(weak_head_normalize(ctx, ty))) {
-  | Parens(ty) => matched_list_strict(ctx, ty)
-  | List(ty) => Some(ty)
-  | Unknown(SynSwitch) => Some(Unknown(SynSwitch) |> temp)
-  | _ => None
-  };
-
-let matched_list = (ctx, ty) =>
-  matched_list_strict(ctx, ty)
-  |> Option.value(~default=Unknown(Internal) |> temp);
-
-let rec matched_args_strict = (ctx, ty, arity): Either.t('a, int) => {
-  switch (term_of(weak_head_normalize(ctx, ty))) {
-  | Parens(ty) => matched_args_strict(ctx, ty, arity)
-  | Prod(tys) when List.length(tys) == arity => L(tys)
-  | Prod(tys) => R(List.length(tys))
-  | _ when arity == 1 => L([ty])
-  | Unknown(_) => L(List.init(arity, _ => Unknown(Internal) |> temp))
-  | _ => R(1)
-  };
-};
-
-let matched_label = (ctx, ty): option((t, t)) =>
-  switch (term_of(weak_head_normalize(ctx, ty))) {
-  | TupLabel({term: Label(ml), _}, ty) => Some((Label(ml) |> temp, ty))
-  | Unknown(SynSwitch) =>
-    Some((Unknown(SynSwitch) |> temp, Unknown(SynSwitch) |> temp))
-  | _ => None
-  };
 
 let rec get_sum_constructors = (ctx: Ctx.t, ty: t): option(sum_map) => {
   let ty = weak_head_normalize(ctx, ty);
@@ -1075,6 +1030,7 @@ let rec is_syn = (ty: t): bool =>
   | Unknown(SynSwitch) => true
   | Unknown(_)
   | Atom(_)
+  | DrvQuoteTy(_)
   | Label(_)
   | Var(_)
   | Rec(_)
@@ -1096,6 +1052,7 @@ let rec is_ana_atom = (ty: t) =>
   | Parens(x)
   | Projector(_, x) => is_ana_atom(x)
   | Atom(a) => Some(a)
+  | DrvQuoteTy(_)
   | Unknown(_)
   | ExplicitNonlabel
   | Label(_)
@@ -1123,6 +1080,7 @@ let rec is_syn_plus = (ty: t): bool =>
   | ProofOf(_)
   | Unknown(_)
   | Atom(_)
+  | DrvQuoteTy(_)
   | ExplicitNonlabel
   | Label(_)
   | Var(_)
@@ -1135,6 +1093,16 @@ let rec is_syn_plus = (ty: t): bool =>
   | Sig(_) => false
   };
 
+let rec is_arrow_like = (ty: t): bool =>
+  switch (term_of(ty)) {
+  | Unknown(_) => true
+  | Arrow(_, _) => true
+  | Poly(_, t) => is_arrow_like(t)
+  | Parens(t)
+  | Projector(_, t) => is_arrow_like(t)
+  | _ => false
+  };
+
 /* Does the type require parentheses when on the left of an arrow for printing? */
 let rec needs_parens = (ty: t): bool =>
   switch (term_of(ty)) {
@@ -1144,6 +1112,7 @@ let rec needs_parens = (ty: t): bool =>
   | Atom(_)
   | ExplicitNonlabel
   | Label(_)
+  | DrvQuoteTy(_)
   | List(_) /* is already wrapped in [] */
   | ProofOf(_)
   | Var(_) => false
@@ -1176,6 +1145,7 @@ let rec pretty_print = (ty: t): string =>
   | Atom(Float) => "Float"
   | Atom(Bool) => "Bool"
   | Atom(String) => "String"
+  | DrvQuoteTy(d) => DrvSort.to_string(d)
   | Atom(Nat) => "Nat"
   | Atom(SInt) => "SInt"
   | Var(tvar) => tvar

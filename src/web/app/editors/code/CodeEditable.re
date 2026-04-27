@@ -80,6 +80,7 @@ module Update = {
              | Cut
              | Reparse
              | Introduce
+             | PrettyPrint
              | Probe(StepInto(_))
              | Format
              | Dump
@@ -95,6 +96,7 @@ module Update = {
     | Perform(action) =>
       settings.core.flip_animations && Action.should_animate(action)
         ? Animation.request([Animation.Actions.move("caret")]) : ();
+
       perform(action, model);
     | DebugConsole(key) =>
       DebugConsole.print(~settings, model, key);
@@ -139,13 +141,155 @@ module Selection = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = unit;
 
-  let get_cursor_info = (~selection as (), model: Model.t): cursor(Update.t) => {
+  let is_command_palette_open = (): bool => {
+    let palette = JsUtil.get_elem_by_id("ninja-keys");
+    Js.Unsafe.get(palette, "opened");
+  };
+
+  let get_cursor_info =
+      (
+        ~inject: Update.t => Ui_effect.t(unit),
+        ~selection as (),
+        model: Model.t,
+      )
+      : cursor(Update.t) => {
+    let meta = Keyboard.meta();
+    let mk = ContextualAction.mk;
+    let action = a => inject(Perform(a));
     {
       ...
         CodeWithStatics.Model.get_cursor_info(model)
         |> map(x => Update.Perform(x)),
       editor_read_only: false,
-    };
+    }
+    |> Cursor.with_actions([
+         /* Navigation */
+         mk(
+           ~hotkey="F12",
+           ~mdIcon="arrow_forward",
+           ~section="Navigation",
+           ~action=action(Move(Goal(BindingSiteOfIndicatedVar))),
+           "Go to Definition",
+         ),
+         mk(
+           ~hotkey="shift+tab",
+           ~mdIcon="arrow_upward",
+           ~section="Navigation",
+           ~action=action(Move(Goal(NextProblem(Left)))),
+           "Go to Previous Problem",
+         ),
+         mk(
+           ~mdIcon="arrow_downward",
+           ~section="Navigation",
+           ~action=action(Move(Goal(NextProblem(Right)))),
+           "Go to Next Problem",
+         ),
+         /* Selection */
+         mk(
+           ~hotkey=meta ++ "+d",
+           ~mdIcon="select_all",
+           ~section="Selection",
+           ~action=action(Select(Term(Current))),
+           "Select current term",
+         ),
+         mk(
+           ~mdIcon="select_all",
+           ~hotkey=meta ++ "+a",
+           ~section="Selection",
+           ~action=action(Select(All)),
+           "Select All",
+         ),
+         mk(
+           ~mdIcon="flip_horizontal",
+           ~section="Selection",
+           ~action=action(Select(ToggleFocus)),
+           "Toggle Selection Focus",
+         ),
+         mk(
+           ~mdIcon="border_left",
+           ~section="Selection",
+           ~hotkey=meta ++ "+alt+shift+left",
+           ~action=action(Select(SetFocus(Left))),
+           "Set Selection Focus Left",
+         ),
+         mk(
+           ~mdIcon="border_right",
+           ~section="Selection",
+           ~hotkey=meta ++ "+alt+shift+right",
+           ~action=action(Select(SetFocus(Right))),
+           "Set Selection Focus Right",
+         ),
+         mk(
+           ~mdIcon="chevron_left",
+           ~section="Selection",
+           ~hotkey="alt+shift+left",
+           ~action=action(Select(Resize(Local(Left, ByToken)))),
+           "Extend Selection Left by Token",
+         ),
+         mk(
+           ~mdIcon="chevron_right",
+           ~section="Selection",
+           ~hotkey="alt+shift+right",
+           ~action=action(Select(Resize(Local(Right, ByToken)))),
+           "Extend Selection Right by Token",
+         ),
+         /* Projection */
+         mk(
+           ~hotkey="alt+f",
+           ~mdIcon="camera",
+           ~section="Projection",
+           ~action=action(Project(SetIndicated(Specific(Fold)))),
+           "Fold",
+         ),
+         mk(
+           ~hotkey=meta ++ "+e",
+           ~mdIcon="camera",
+           ~section="Projection",
+           ~action=action(Probe(ToggleManual)),
+           "Probe",
+         ),
+         mk(
+           ~hotkey="alt+t",
+           ~mdIcon="camera",
+           ~section="Projection",
+           ~action=action(Probe(ToggleStatics)),
+           "Statics",
+         ),
+         mk(
+           ~hotkey="alt+l",
+           ~mdIcon="camera",
+           ~section="Projection",
+           ~action=action(Project(SetIndicated(ChooseLivelit))),
+           "Livelit",
+         ),
+         /* Editor tools */
+         mk(
+           ~hotkey=meta ++ "+/",
+           ~mdIcon="assistant",
+           ~action=action(Buffer(Set(TyDi))),
+           "TyDi Assistant",
+         ),
+         mk(
+           ~section="Diagnostics",
+           ~mdIcon="refresh",
+           ~action=inject(Perform(Reparse)),
+           "Reparse Current Editor",
+         ),
+         mk(
+           ~mdIcon="bolt",
+           ~section="Refactoring",
+           ~hotkey=meta ++ "+i",
+           ~action=action(Introduce),
+           "Introduce",
+         ),
+         mk(
+           ~mdIcon="format_align_left",
+           ~section="Formatting",
+           ~hotkey=meta ++ "+s",
+           ~action=action(PrettyPrint),
+           "Pretty Print",
+         ),
+       ]);
   };
 
   /* Focus the indicated probe (if any) */
@@ -187,6 +331,9 @@ module Selection = {
   let handle_key_event =
       (~selection as (), model: Model.t): (Key.t => option(Update.t)) =>
     fun
+    | {key: D("Escape"), _} when is_command_palette_open() =>
+      /* Let Escape bubble so NinjaKeys can close itself. */
+      None
     | {key: D("Tab"), sys: _, shift: Up, meta: Up, ctrl: Up, alt: Up, _} =>
       Some(Update.TAB)
     /* Cmd+Enter (Mac) / Ctrl+Enter (PC) focuses indicated probe */
@@ -303,7 +450,9 @@ module View = {
     current_target
     |> Js.Opt.get(_, _ => failwith(""))
     |> JsUtil.get_child_with_class(_, "code-container")
-    |> Option.get;
+    |> OptUtil.value_exn(
+         ~none=Invalid_argument("CodeEditable.View.container_target"),
+       );
 
   module PointerCapture = {
     /* This uses the Pointer Capture API to keep mouse movement data flowing
@@ -338,7 +487,14 @@ module View = {
         ~font_metrics=globals.font_metrics,
         z,
       ),
-      Arms.Indicated.term(~font_metrics=globals.font_metrics, ~syntax, z),
+      Arms.Indicated.term(
+        ~refine_sort=
+          (id, mold_out) =>
+            Language.Info.refine_sort_from_mold(~info_map, ~id, mold_out),
+        ~font_metrics=globals.font_metrics,
+        ~syntax,
+        z,
+      ),
       (
         expand_selection
           ? Highlight.selection_expanded(~term_data=syntax.term_data)
@@ -389,14 +545,24 @@ module View = {
       (
         ~globals: Globals.t,
         ~signal: event => Ui_effect.t(unit),
-        ~inject: Update.t => Ui_effect.t(unit),
-        ~selected: bool,
+        ~edit_mode: EditMode.t(Update.t, unit),
         ~overlays: list(Node.t)=[],
         ~lines: bool=false,
         ~dynamics: Language.Dynamics.Map.t,
         ~expand_selection=?,
         model: Model.t,
       ) => {
+    let selected = EditMode.is_active(edit_mode);
+    let inject =
+      switch (edit_mode) {
+      | ReadOnly => (_ => Ui_effect.Ignore)
+      | Editable({inject, _}) => inject
+      };
+    let escape =
+      switch (edit_mode) {
+      | ReadOnly => (_ => Ui_effect.Ignore)
+      | Editable({escape, _}) => escape
+      };
     /* Sync document-level click listener for closing context menu */
     ContextMenuListener.sync(
       selected && Model.context_menu_is_open(model),
@@ -596,6 +762,62 @@ module View = {
 
     let display_line_numbers: bool = lines && globals.settings.line_numbers;
 
+    let key_handler_attr =
+      if (!selected) {
+        /* Always focusable so first click gives DOM focus.
+         * Key events are ignored when not selected — they bubble
+         * to Page.re which handles page-level shortcuts. */
+        Attr.tabindex(
+          0,
+        );
+      } else {
+        let z = model.editor.state.zipper;
+        Key.handler(~f=key => {
+          /* 1. Check for arrow key escape at boundaries FIRST.
+           *    Keyboard.handle_key_event always returns Some for arrows,
+           *    so boundary escape must be checked before delegation. */
+          switch (key) {
+          | {
+              key: D("ArrowLeft" | "ArrowUp"),
+              shift: Up,
+              meta: Up,
+              ctrl: Up,
+              alt: Up,
+              _,
+            }
+              when
+                z.caret == Outer
+                && z.relatives.ancestors == []
+                && fst(Siblings.neighbors(z.relatives.siblings)) == None =>
+            Effect.Many([Effect.Prevent_default, escape(Left)])
+          | {
+              key: D("ArrowRight" | "ArrowDown"),
+              shift: Up,
+              meta: Up,
+              ctrl: Up,
+              alt: Up,
+              _,
+            }
+              when
+                z.caret == Outer
+                && z.relatives.ancestors == []
+                && snd(Siblings.neighbors(z.relatives.siblings)) == None =>
+            Effect.Many([Effect.Prevent_default, escape(Right)])
+          | _ =>
+            /* 2. Normal editor key handling:
+             *    context menu → projector handoff → Keyboard */
+            switch (Selection.handle_key_event(~selection=(), model, key)) {
+            | Some(action) =>
+              Effect.Many([
+                Effect.Prevent_default,
+                Effect.Stop_propagation,
+                inject(action),
+              ])
+            | None => Effect.Ignore
+            }
+          }
+        });
+      };
     Node.div(
       ~attrs=[
         Attr.classes(
@@ -603,6 +825,7 @@ module View = {
           @ (selected ? ["selected"] : [])
           @ (display_line_numbers ? ["has-line-numbers"] : []),
         ),
+        key_handler_attr,
         Attr.on_contextmenu(evt =>
           switch (Pointer.Event.mk(evt)) {
           | {button: Right, ctrl: Up, _} =>

@@ -10,7 +10,7 @@ let string_testable = testable(Fmt.string, String.equal);
 
 /* Parse a string to a segment */
 let parse_segment = (s: string): option(Segment.t) => {
-  switch (Parser.to_zipper(s)) {
+  switch (Parser.to_zipper(~root=Exp, s)) {
   | exception _ => None
   | None => None
   | Some(z) => Some(Zipper.unselect_and_zip(~erase_buffer=true, z))

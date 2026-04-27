@@ -41,16 +41,16 @@ let restore = (persisted: t): Zipper.t =>
   |> Zipper.unzip(~direction=Left)
   |> Zipper.update_refractors(_, restore_refractors(persisted.refractors));
 
-let restore_from_backup_text = (backup_text: string): Zipper.t =>
+let restore_from_backup_text = (backup_text: string, ~root): Zipper.t =>
   (
-    switch (Parser.to_segment(backup_text)) {
+    switch (Parser.to_segment(backup_text, ~root)) {
     | None => Segment.empty
     | Some(z) => z
     }
   )
   |> Zipper.unzip(~direction=Left);
 
-let unpersist = (persisted: t): PersistentZipper.t => {
+let unpersist = (persisted: t, ~root): PersistentZipper.t => {
   zipper:
     (
       try(restore(persisted)) {
@@ -58,7 +58,7 @@ let unpersist = (persisted: t): PersistentZipper.t => {
         print_endline(
           "Warning: using backup text! Serialization may be for an older version of Hazel.",
         );
-        restore_from_backup_text(persisted.backup_text);
+        restore_from_backup_text(persisted.backup_text, ~root);
       }
     )
     |> Zipper.sexp_of_t

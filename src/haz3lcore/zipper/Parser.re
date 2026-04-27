@@ -16,7 +16,8 @@ let set_segment_cache = (seg: option(Segment.t), str: string): unit =>
 /* Try pasting from segment cache. Returns Some if cache hits and
    guards pass (caret Outer, no token merging at boundaries).
    The segment gets fresh IDs to support multiple pastes. */
-let try_segment_paste = (clipboard: string, z: Zipper.t): option(Zipper.t) => {
+let try_segment_paste =
+    (clipboard: string, z: Zipper.t, ~root): option(Zipper.t) => {
   let trim = Util.StringUtil.trim_leading;
   switch (segment_cache^) {
   | Some((cached, seg)) when trim(cached) == trim(clipboard) =>
@@ -42,7 +43,7 @@ let try_segment_paste = (clipboard: string, z: Zipper.t): option(Zipper.t) => {
           };
         if (no_left_merge && no_right_merge) {
           let seg = Segment.IDs.replace(seg);
-          Some(Zipper.insert_segment(z, seg));
+          Some(Zipper.insert_segment(z, seg, ~root));
         } else {
           None;
         };
@@ -54,18 +55,19 @@ let try_segment_paste = (clipboard: string, z: Zipper.t): option(Zipper.t) => {
 
 /* Insert characters one-by-one into a zipper. Used for paste and
    other operations that start from an existing zipper state. */
-let to_zipper = (~zipper_init=Zipper.init(), str: string): option(Zipper.t) => {
+let to_zipper =
+    (~root, ~zipper_init=Zipper.init(), str: string): option(Zipper.t) => {
   let insert = (z: option(Zipper.t), c: string): option(Zipper.t) => {
     let* z = z;
     /* Disable auto_indent so Parser faithfully reproduces input without adding spaces */
-    try(c == "\r" ? Some(z) : Insert.go(~auto_indent=false, c, z)) {
+    try(c == "\r" ? Some(z) : Insert.go(~auto_indent=false, c, z, ~root)) {
     | exn =>
       print_endline("WARN: Parser.to_zipper: " ++ Printexc.to_string(exn));
       None;
     };
   };
   let+ z = str |> Token.to_list |> List.fold_left(insert, Some(zipper_init));
-  Zipper.rescan_reassemble(~with_parent=true, Left, z);
+  Zipper.rescan_reassemble(~with_parent=true, Left, z, ~root);
 };
 
 /* Check if the zipper is at a "safe split point": top level with
@@ -100,7 +102,7 @@ let strip_trailing_grout = (seg: Segment.t): Segment.t => {
    is parsed independently; trailing grout (from Zipper.init) is
    stripped, segments are concatenated, and a final top-level regrout
    ensures shape consistency across boundaries. */
-let to_segment = (str: string): option(Segment.t) => {
+let to_segment = (str: string, ~root): option(Segment.t) => {
   let chars = str |> Token.to_list;
   let segments = ref([]);
   let current_z = ref(Some(Zipper.init()));
@@ -111,7 +113,7 @@ let to_segment = (str: string): option(Segment.t) => {
     let* z = z;
     /* Disable auto_indent so Parser faithfully reproduces input without
      * adding spaces. Matches to_zipper's behavior. */
-    try(c == "\r" ? Some(z) : Insert.go(~auto_indent=false, c, z)) {
+    try(c == "\r" ? Some(z) : Insert.go(~auto_indent=false, c, z, ~root)) {
     | exn =>
       print_endline("WARN: Parser.to_segment: " ++ Printexc.to_string(exn));
       None;
@@ -126,7 +128,7 @@ let to_segment = (str: string): option(Segment.t) => {
       | None => ()
       | Some(z) =>
         if (chars_since_split^ >= min_segment_size && is_split_point(c, z)) {
-          let z = Zipper.remold_regrout(Left, z);
+          let z = Zipper.remold_regrout(Left, z, ~root);
           let seg = Zipper.unselect_and_zip(~erase_buffer=true, z);
           segments := [strip_trailing_grout(seg), ...segments^];
           current_z := Some(Zipper.init());
@@ -138,7 +140,7 @@ let to_segment = (str: string): option(Segment.t) => {
   );
 
   let+ z = current_z^;
-  let z = Zipper.remold_regrout(Left, z);
+  let z = Zipper.remold_regrout(Left, z, ~root);
   let final_seg = Zipper.unselect_and_zip(~erase_buffer=true, z);
   let all_segments = List.rev([final_seg, ...segments^]);
   let combined = List.concat(all_segments);
@@ -179,13 +181,13 @@ let has_balanced_delimiters = (s: string): bool => {
    char-by-char insertion. Requires: caret between tokens, top level,
    no incomplete tiles, Exp sort, no token merging at boundaries,
    and balanced delimiters in clipboard. */
-let can_fast_paste = (clipboard: string, z: Zipper.t): bool => {
+let can_fast_paste = (clipboard: string, z: Zipper.t, ~root): bool => {
   let len = String.length(clipboard);
   len > 0
   && z.caret == Outer
   && z.relatives.ancestors == []
   && Zipper.local_backpack(z) == []
-  && Relatives.sort(z.relatives) == Sort.Exp
+  && Relatives.sort(~root, z.relatives) == Sort.Exp
   && has_balanced_delimiters(clipboard)
   && {
     let chars = Token.to_list(clipboard);
@@ -206,16 +208,15 @@ let can_fast_paste = (clipboard: string, z: Zipper.t): bool => {
 };
 
 /* Fast paste: parse clipboard in isolation using segmented parser,
-   then splice the resulting segment into the zipper and regrout.
-   O(n) instead of O(n^2) for large clipboards. */
-let fast_paste = (clipboard: string, z: Zipper.t): option(Zipper.t) => {
-  let+ seg = to_segment(clipboard);
-  let z = Zipper.insert_segment(z, seg);
-  Zipper.rescan_reassemble(Left, z);
+   then splice the resulting segment into the zipper and regrout. */
+let fast_paste = (clipboard: string, z: Zipper.t, ~root): option(Zipper.t) => {
+  let+ seg = to_segment(clipboard, ~root);
+  let z = Zipper.insert_segment(z, seg, ~root);
+  Zipper.rescan_reassemble(Left, z, ~root);
 };
 
-let to_term = (s: string): option(Language.Exp.t) => {
-  let+ seg = to_segment(s);
+let to_term = (s: string, ~root): option(Language.Exp.t) => {
+  let+ seg = to_segment(s, ~root);
   let z = Zipper.unzip(seg);
-  MakeTerm.from_zip_for_sem(z).term;
+  MakeTerm.from_zip_for_sem(z, ~root).term;
 };
