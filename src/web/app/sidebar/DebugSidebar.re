@@ -608,6 +608,14 @@ let indicated_piece_fields = (p: Haz3lcore.Piece.t): list(Node.t) =>
         ];
       },
       _ => [field_str("kind", "Projector")],
+      (s: Haz3lcore.Base.splice) =>
+        [
+          field_str("kind", "Splice"),
+          field_str(
+            "content.pieces",
+            string_of_int(List.length(s.content)),
+          ),
+        ],
       p,
     );
 

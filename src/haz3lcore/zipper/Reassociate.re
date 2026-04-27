@@ -256,7 +256,7 @@ let flatten_generation =
     : (Siblings.t, Id.Map.t((Id.t, list(int)))) => {
   let (left_dis, right_dis) = Ancestor.disassemble(ancestor);
   let (right_dis, fresh_map) =
-    freshen_ancestor_shards(ancestor.id, fresh_map, right_dis);
+    freshen_ancestor_shards(Ancestor.id(ancestor), fresh_map, right_dis);
   (
     Siblings.concat([siblings, (left_dis, right_dis), parent_sibs]),
     fresh_map,

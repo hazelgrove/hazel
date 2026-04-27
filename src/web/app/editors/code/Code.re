@@ -185,7 +185,8 @@ let view =
         }
       | Grout(g) => [of_grout(g)]
       | Secondary(s) => [of_secondary(s)]
-      | Projector(pr) => [of_projector(pr)],
+      | Projector(pr) => [of_projector(pr)]
+      | Splice(_) => [],
       seg,
     );
 

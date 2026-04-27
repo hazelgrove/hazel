@@ -50,11 +50,21 @@ module Shards = {
       };
 };
 
+/* Intrinsic geometric info about a splice. The splice's content is
+ * measured in its own coordinate frame (origin = (0,0)); the [size] is
+ * the bounding box of that content. Pieces inside the splice are stored
+ * in the top-level [t] maps with their splice-local coordinates (piece
+ * ids are globally unique so this does not collide with outer pieces). */
+[@deriving (show({with_path: false}), sexp, yojson)]
+type splice_info = {size: Point.t};
+
 type t = {
   tiles: Id.Map.t(Shards.t),
   grout: Id.Map.t(measurement),
   secondary: Id.Map.t(measurement),
   projectors: Id.Map.t(measurement),
+  /* Intrinsic size and parent info for each splice, keyed by splice id. */
+  splices: Id.Map.t(splice_info),
   rows: Rows.t,
   piece_rows: list(list(Piece.t)) /* NOTE: sublists are reversed */
 };
@@ -64,6 +74,7 @@ let empty = {
   grout: Id.Map.empty,
   secondary: Id.Map.empty,
   projectors: Id.Map.empty,
+  splices: Id.Map.empty,
   rows: Rows.empty,
   piece_rows: [],
 };
@@ -95,6 +106,29 @@ let add_w = (w: Secondary.t, m, map) => {
 let add_pr = (p: Base.projector, m, map) => {
   ...map,
   projectors: map.projectors |> Id.Map.add(p.id, m),
+};
+
+let add_splice_info = (s: Base.splice, info: splice_info, map) => {
+  ...map,
+  splices: map.splices |> Id.Map.add(s.id, info),
+};
+
+/* Merge the splice-local inner map (measurements of pieces inside a splice)
+ * into the top-level map. Splice-local pieces are stored with their local
+ * coordinates; because piece ids are globally unique, these do not
+ * collide with outer entries. [rows] and [piece_rows] from the inner
+ * map are discarded (they belong to the splice's coordinate frame). */
+let merge_inner = (inner: t, outer: t): t => {
+  let join = (a, b) => Id.Map.union((_, _, v2) => Some(v2), a, b);
+  {
+    tiles: join(outer.tiles, inner.tiles),
+    grout: join(outer.grout, inner.grout),
+    secondary: join(outer.secondary, inner.secondary),
+    projectors: join(outer.projectors, inner.projectors),
+    splices: join(outer.splices, inner.splices),
+    rows: outer.rows,
+    piece_rows: outer.piece_rows,
+  };
 };
 
 let add_row = (row: int, shape: Rows.shape, map) => {
@@ -164,6 +198,28 @@ let find_t = (t: Tile.t, map): measurement => {
     last: last.last,
   };
 };
+let find_splice_info = (~msg="", s: Base.splice, map): splice_info =>
+  try(Id.Map.find(s.id, map.splices)) {
+  | _ => failwith("find_splice_info: " ++ msg)
+  };
+let find_splice_info_opt = (s: Base.splice, map): option(splice_info) =>
+  Id.Map.find_opt(s.id, map.splices);
+
+/* A splice consumes zero width in its parent's coordinate frame; its
+ * intrinsic size is recorded separately in [map.splices] and the splice's
+ * actual on-screen placement is decided by its parent projector's view. */
+let find_splice_placeholder = (s: Base.splice, map): measurement => {
+  let origin =
+    switch (Id.Map.find_opt(s.id, map.grout)) {
+    | Some(m) => m.origin
+    | None => Point.zero
+    };
+  {
+    origin,
+    last: origin,
+  };
+};
+
 let find_p = (~msg="", p: Piece.t, map): measurement =>
   try(
     p
@@ -172,6 +228,7 @@ let find_p = (~msg="", p: Piece.t, map): measurement =>
          g => find_g(g, map),
          t => find_t(t, map),
          p => find_pr(p, map),
+         s => find_splice_placeholder(s, map),
        )
   ) {
   | _ => failwith("find_p: " ++ msg ++ "id: " ++ Id.to_string(p |> Piece.id))
@@ -305,26 +362,6 @@ let of_segment_inner =
     );
   };
 
-  let add_projector = ((seg, indent, origin, map): acc, pr: Base.projector) => {
-    let size = DeferredLinebreaks.of_projector(pr, shape_map);
-    let shape = ProjectorCore.Shape.Map.lookup(pr.id, shape_map);
-    let indent =
-      switch (shape.vertical) {
-      | Inline
-      | Block(0)
-      | Tab(_) => indent
-      | Block(_) => origin.col
-      };
-    let (measure, map) = calc(indent, origin, map, size);
-    let map =
-      size.row == 0
-        ? map
-        : add_piece_row(origin.row, [Piece.Projector(pr), ...seg], map);
-    let map = size.row == 0 ? map : add_n_empty_piece_rows(size.row - 1, map);
-    let seg = size.row == 0 ? [Piece.Projector(pr), ...seg] : [];
-    (seg, indent, measure.last, add_pr(pr, measure, map));
-  };
-
   let add_secondary = ((seg, prev_indent, origin, map): acc, w: Secondary.t) => {
     let (seg, new_indent, size, map) =
       switch (indent_of_linebreak(w)) {
@@ -379,6 +416,14 @@ let of_segment_inner =
     | Secondary(w) => add_secondary(acc, w)
     | Grout(g) => add_grout(acc, g)
     | Projector(p) => add_projector(acc, p)
+    | Splice(s) =>
+      /* A Splice appearing directly in the outer segment (not inside a
+       * projector) consumes zero width at its position. Its interior is
+       * still measured for completeness so clicks inside the splice have
+       * valid targets. */
+      let (seg, indent, origin, map) = acc;
+      let map = measure_splice(s, map);
+      (seg, indent, origin, map);
     | Tile(t) =>
       switch (Id.Map.find_opt(t.id, refractor_shape_map)) {
       | Some(_) =>
@@ -391,7 +436,53 @@ let of_segment_inner =
         (acc, seg) => add_shard(go(~top_level=false, acc, seg), t),
         Aba.mk(t.shards, t.children),
       );
-    };
+    }
+  and add_projector = ((seg, indent, origin, map): acc, pr: Base.projector) => {
+    let size = DeferredLinebreaks.of_projector(pr, shape_map);
+    let shape = ProjectorCore.Shape.Map.lookup(pr.id, shape_map);
+    let indent =
+      switch (shape.vertical) {
+      | Inline
+      | Block(0)
+      | Tab(_) => indent
+      | Block(_) => origin.col
+      };
+    let (measure, map) = calc(indent, origin, map, size);
+    let map =
+      size.row == 0
+        ? map
+        : add_piece_row(origin.row, [Piece.Projector(pr), ...seg], map);
+    let map = size.row == 0 ? map : add_n_empty_piece_rows(size.row - 1, map);
+    let seg = size.row == 0 ? [Piece.Projector(pr), ...seg] : [];
+    /* Walk the projector's syntax looking for Splice children: measure
+     * each splice's content in its own coordinate frame (origin = 0,0),
+     * merge the resulting piece measurements back into the outer map,
+     * and record the splice's intrinsic size. Non-splice pieces inside
+     * the projector are not rendered inline, so they are left unmeasured. */
+    let map = measure_splices_in(pr.syntax, map);
+    (seg, indent, measure.last, add_pr(pr, measure, map));
+  }
+  /* Measure a splice's content in its own coordinate frame (origin 0,0).
+   * Returns the outer map augmented with the splice's inner piece
+   * measurements and the splice's intrinsic size. */
+  and measure_splice = (s: Base.splice, outer: t): t => {
+    let (_, _, last, inner) =
+      go(~top_level=false, ([], 0, Point.zero, empty), s.content);
+    let outer = merge_inner(inner, outer);
+    add_splice_info(s, {size: last}, outer);
+  }
+  /* Scan a projector's syntax for Splice children and measure each. */
+  and measure_splices_in = (syntax: Segment.t, map: t): t =>
+    List.fold_left(
+      (map, p: Piece.t) =>
+        switch (p) {
+        | Splice(s) => measure_splice(s, map)
+        | Projector(pr) => measure_splices_in(pr.syntax, map)
+        | _ => map
+        },
+      map,
+      syntax,
+    );
   let (_, _, _, map) = go(~top_level=true, ([], 0, Point.zero, empty), seg);
   map;
 };
@@ -418,4 +509,68 @@ let start_row_width = (measurement: measurement, measured: t): int =>
   switch (IntMap.find_opt(measurement.origin.row, measured.rows)) {
   | None => 0
   | Some(row) => row.max_col
+  };
+
+/* Compute the bounding box of a segment measured from the origin (0,0).
+ * Returns a Point.t where row is the number of linebreaks and col is
+ * the max column reached on the last row. Useful for computing splice
+ * sizes independently of the parent segment's layout. */
+let segment_bbox = (seg: Segment.t): Point.t => {
+  let m =
+    of_segment_inner(
+      Id.Map.empty,
+      false,
+      seg,
+      ProjectorCore.Shape.Map.empty,
+      Id.Map.empty,
+    );
+  let rows = m.rows |> Rows.bindings;
+  switch (rows) {
+  | [] => Point.zero
+  | _ =>
+    let max_row = List.fold_left((r, (k, _)) => max(r, k), 0, rows);
+    let col =
+      switch (Rows.find_opt(max_row, m.rows)) {
+      | Some(shape) => shape.max_col
+      | None => 0
+      };
+    {
+      row: max_row,
+      col,
+    };
+  };
+};
+
+/* Pre-pass that walks [seg] (potentially recursing into projectors and
+ * splices) and returns a map from splice id to intrinsic size. This is
+ * intended to be used before the full Measured map is computed, e.g.
+ * when projectors need splice sizes at placeholder-time to size the
+ * shape they leave for themselves in the base editor. */
+let rec splice_sizes = (seg: Segment.t): Id.Map.t(Point.t) =>
+  List.fold_left(
+    (acc, p: Piece.t) =>
+      switch (p) {
+      | Base.Splice(s) =>
+        let size = segment_bbox(s.content);
+        let acc = Id.Map.add(s.id, size, acc);
+        Id.Map.union((_, _, v2) => Some(v2), acc, splice_sizes(s.content));
+      | Base.Projector(pr) =>
+        Id.Map.union((_, _, v2) => Some(v2), acc, splice_sizes(pr.syntax))
+      | Base.Tile(t) =>
+        List.fold_left(
+          (acc, child) =>
+            Id.Map.union((_, _, v2) => Some(v2), acc, splice_sizes(child)),
+          acc,
+          t.children,
+        )
+      | _ => acc
+      },
+    Id.Map.empty,
+    seg,
+  );
+
+let splice_size_of = (sizes: Id.Map.t(Point.t), id: Id.t): Point.t =>
+  switch (Id.Map.find_opt(id, sizes)) {
+  | Some(p) => p
+  | None => Point.zero
   };

@@ -119,6 +119,7 @@ module MapPiece = {
     | Tile(t) => Tile(of_tile(f, t))
     | Grout(_)
     | Projector(_)
+    | Splice(_)
     | Secondary(_) => piece
     };
   }
@@ -134,15 +135,24 @@ module MapPiece = {
     of_segment(f, snd(sibs)),
   );
 
-  let of_ancestor = (f: updater, ancestor: Ancestor.t): Ancestor.t => {
-    {
-      ...ancestor,
-      children: (
-        List.map(of_segment(f), fst(ancestor.children)),
-        List.map(of_segment(f), snd(ancestor.children)),
-      ),
+  let of_ancestor = (f: updater, ancestor: Ancestor.t): Ancestor.t =>
+    switch (ancestor) {
+    | Tile(a) =>
+      Ancestor.Tile({
+        ...a,
+        children: (
+          List.map(of_segment(f), fst(a.children)),
+          List.map(of_segment(f), snd(a.children)),
+        ),
+      })
+    | Projector(a) =>
+      Ancestor.Projector({
+        ...a,
+        before: of_segment(f, a.before),
+        after: of_segment(f, a.after),
+      })
+    | Splice(_) => ancestor
     };
-  };
 
   let of_generation =
       (f: updater, generation: Ancestors.generation): Ancestors.generation => (

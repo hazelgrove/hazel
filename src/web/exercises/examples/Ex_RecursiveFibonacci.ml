@@ -371,110 +371,112 @@ let exercise : Exercise.t =
                   [ Secondary { id = Id.mk (); content = Whitespace "\n" } ] );
               ancestors =
                 [
-                  ( {
-                      id = Id.mk ();
-                      label = [ "let"; "="; "in" ];
-                      mold =
-                        {
-                          out = Exp;
-                          in_ = [ Pat; Exp ];
-                          nibs =
-                            ( { shape = Convex; sort = Exp },
-                              { shape = Concave 14; sort = Exp } );
-                        };
-                      shards = ([ 0; 1 ], [ 2 ]);
-                      children =
-                        ( [
-                            [
-                              Secondary
-                                { id = Id.mk (); content = Whitespace " " };
-                              Tile
-                                {
-                                  id = Id.mk ();
-                                  label = [ "fib" ];
-                                  mold =
-                                    {
-                                      out = Pat;
-                                      in_ = [];
-                                      nibs =
-                                        ( { shape = Convex; sort = Pat },
-                                          { shape = Convex; sort = Pat } );
-                                    };
-                                  shards = [ 0 ];
-                                  children = [];
-                                };
-                              Tile
-                                {
-                                  id = Id.mk ();
-                                  label = [ ":" ];
-                                  mold =
-                                    {
-                                      out = Pat;
-                                      in_ = [];
-                                      nibs =
-                                        ( { shape = Concave 10; sort = Pat },
-                                          { shape = Concave 10; sort = Typ } );
-                                    };
-                                  shards = [ 0 ];
-                                  children = [];
-                                };
-                              Secondary
-                                { id = Id.mk (); content = Whitespace " " };
-                              Tile
-                                {
-                                  id = Id.mk ();
-                                  label = [ "Int" ];
-                                  mold =
-                                    {
-                                      out = Typ;
-                                      in_ = [];
-                                      nibs =
-                                        ( { shape = Convex; sort = Typ },
-                                          { shape = Convex; sort = Typ } );
-                                    };
-                                  shards = [ 0 ];
-                                  children = [];
-                                };
-                              Secondary
-                                { id = Id.mk (); content = Whitespace " " };
-                              Tile
-                                {
-                                  id = Id.mk ();
-                                  label = [ "->" ];
-                                  mold =
-                                    {
-                                      out = Typ;
-                                      in_ = [];
-                                      nibs =
-                                        ( { shape = Concave 6; sort = Typ },
-                                          { shape = Concave 6; sort = Typ } );
-                                    };
-                                  shards = [ 0 ];
-                                  children = [];
-                                };
-                              Secondary
-                                { id = Id.mk (); content = Whitespace " " };
-                              Tile
-                                {
-                                  id = Id.mk ();
-                                  label = [ "Int" ];
-                                  mold =
-                                    {
-                                      out = Typ;
-                                      in_ = [];
-                                      nibs =
-                                        ( { shape = Convex; sort = Typ },
-                                          { shape = Convex; sort = Typ } );
-                                    };
-                                  shards = [ 0 ];
-                                  children = [];
-                                };
-                              Secondary
-                                { id = Id.mk (); content = Whitespace " " };
-                            ];
-                          ],
-                          [] );
-                    },
+                  ( Tile
+                      {
+                        id = Id.mk ();
+                        label = [ "let"; "="; "in" ];
+                        mold =
+                          {
+                            out = Exp;
+                            in_ = [ Pat; Exp ];
+                            nibs =
+                              ( { shape = Convex; sort = Exp },
+                                { shape = Concave 14; sort = Exp } );
+                          };
+                        shards = ([ 0; 1 ], [ 2 ]);
+                        children =
+                          ( [
+                              [
+                                Secondary
+                                  { id = Id.mk (); content = Whitespace " " };
+                                Tile
+                                  {
+                                    id = Id.mk ();
+                                    label = [ "fib" ];
+                                    mold =
+                                      {
+                                        out = Pat;
+                                        in_ = [];
+                                        nibs =
+                                          ( { shape = Convex; sort = Pat },
+                                            { shape = Convex; sort = Pat } );
+                                      };
+                                    shards = [ 0 ];
+                                    children = [];
+                                  };
+                                Tile
+                                  {
+                                    id = Id.mk ();
+                                    label = [ ":" ];
+                                    mold =
+                                      {
+                                        out = Pat;
+                                        in_ = [];
+                                        nibs =
+                                          ( { shape = Concave 10; sort = Pat },
+                                            { shape = Concave 10; sort = Typ }
+                                          );
+                                      };
+                                    shards = [ 0 ];
+                                    children = [];
+                                  };
+                                Secondary
+                                  { id = Id.mk (); content = Whitespace " " };
+                                Tile
+                                  {
+                                    id = Id.mk ();
+                                    label = [ "Int" ];
+                                    mold =
+                                      {
+                                        out = Typ;
+                                        in_ = [];
+                                        nibs =
+                                          ( { shape = Convex; sort = Typ },
+                                            { shape = Convex; sort = Typ } );
+                                      };
+                                    shards = [ 0 ];
+                                    children = [];
+                                  };
+                                Secondary
+                                  { id = Id.mk (); content = Whitespace " " };
+                                Tile
+                                  {
+                                    id = Id.mk ();
+                                    label = [ "->" ];
+                                    mold =
+                                      {
+                                        out = Typ;
+                                        in_ = [];
+                                        nibs =
+                                          ( { shape = Concave 6; sort = Typ },
+                                            { shape = Concave 6; sort = Typ } );
+                                      };
+                                    shards = [ 0 ];
+                                    children = [];
+                                  };
+                                Secondary
+                                  { id = Id.mk (); content = Whitespace " " };
+                                Tile
+                                  {
+                                    id = Id.mk ();
+                                    label = [ "Int" ];
+                                    mold =
+                                      {
+                                        out = Typ;
+                                        in_ = [];
+                                        nibs =
+                                          ( { shape = Convex; sort = Typ },
+                                            { shape = Convex; sort = Typ } );
+                                      };
+                                    shards = [ 0 ];
+                                    children = [];
+                                  };
+                                Secondary
+                                  { id = Id.mk (); content = Whitespace " " };
+                              ];
+                            ],
+                            [] );
+                      },
                     ( [],
                       [
                         Secondary { id = Id.mk (); content = Whitespace " " };

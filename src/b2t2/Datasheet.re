@@ -7,11 +7,9 @@ let string_exp = IdTagged.FreshGrammar.Exp.string(content);
 let z =
   ProjectorInit.init(
     TextArea,
-    Segment.parenthesize(
-      ExpToSegment.exp_to_segment(
-        ~settings=ExpToSegment.Settings.editable(~inline=true),
-        string_exp,
-      ),
+    ExpToSegment.exp_to_segment(
+      ~settings=ExpToSegment.Settings.editable(~inline=true),
+      string_exp,
     ),
     Exp(string_exp),
   )

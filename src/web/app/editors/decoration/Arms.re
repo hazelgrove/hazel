@@ -363,7 +363,8 @@ let term =
 
 let term_range = (~syntax: CachedSyntax.t, p: Piece.t) => {
   switch (p) {
-  | Secondary(_) => None
+  | Secondary(_)
+  | Splice(_) => None
   | Grout(_)
   | Projector(_)
   | Tile(_) =>
@@ -448,7 +449,8 @@ module Indicated = {
       : list(Node.t) => {
     switch (p) {
     | Grout(_)
-    | Secondary(_) => []
+    | Secondary(_)
+    | Splice(_) => []
     | Projector(p) =>
       switch (Measured.find_pr_opt(p, CachedSyntax.measured(syntax))) {
       | Some(measurement) => [
@@ -459,7 +461,13 @@ module Indicated = {
               tips: p |> ProjectorCore.shapes |> ShardDec.tips_of_shapes,
             },
             [
-              p.syntax |> Piece.sort |> fst |> Sort.to_string,
+              (
+                switch (p.syntax) {
+                | [] => Sort.Any
+                | [head, ..._] => Piece.sort(head) |> fst
+                }
+              )
+              |> Sort.to_string,
               "caret",
               "indicated",
             ],

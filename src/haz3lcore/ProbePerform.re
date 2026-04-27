@@ -1418,7 +1418,7 @@ let current_toplevel_def =
   | None =>
     switch (z.relatives.ancestors) {
     | [] => None
-    | [(ancestor, _), ..._] => try_id(ancestor.id)
+    | [(ancestor, _), ..._] => try_id(Ancestor.id(ancestor))
     }
   };
 };

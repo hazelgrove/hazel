@@ -25,6 +25,7 @@ let shard_svg =
       None,
     )
   | Projector(p) => p |> ProjectorCore.shapes |> ShardDec.tips_of_shapes
+  | Splice(_) => (Some(Nib.Shape.Convex), Some(Nib.Shape.Convex))
   },
 );
 
@@ -84,6 +85,7 @@ let rows_of_segment =
       switch (p) {
       | Tile(t) => of_tile(~start_shape, t)
       | Projector(p) => of_projector(~start_shape, p)
+      | Splice(_) => [None]
       | Grout(g) => [Some(shard_svg(~start_shape, find_g(g), p))]
       | Secondary(w) when Secondary.is_linebreak(w) => [None]
       | Secondary(w) => [

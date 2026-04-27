@@ -186,11 +186,68 @@ let vertical =
   do_towards_point(~force_progress=true, ~measured, local(ByChar), goal, z);
 };
 
-let to_point = (~measured: Measured.t, ~goal: Point.t, z: t): option(t) =>
+/* If [goal] falls inside one of [measured]'s splice regions via the
+ * provided [splice_offsets] map (origin of each splice on screen), this
+ * returns the translated goal and the splice id to enter. Otherwise
+ * None, meaning the goal should be resolved against top-level measured.
+ *
+ * NOTE: the splice_offsets map is currently not populated from the DOM;
+ * returning None here means clicks are always resolved against the
+ * top-level coordinate frame. Keyboard/arrow entry into splices is
+ * handled separately via Relatives.pop. When the view pipeline starts
+ * publishing splice offsets, this hook will enable direct splice
+ * clicks to translate the goal point into splice-local coordinates. */
+let splice_at_point =
+    (
+      ~splice_offsets: Id.Map.t(Point.t)=Id.Map.empty,
+      ~measured: Measured.t,
+      goal: Point.t,
+    )
+    : option((Id.t, Point.t)) => {
+  ignore(measured);
+  Id.Map.fold(
+    (id, offset: Point.t, acc) =>
+      switch (acc) {
+      | Some(_) => acc
+      | None =>
+        /* A splice's bounding box is recorded in [measured.splices].
+         * Check if [goal] falls within [offset, offset + size]. */
+        switch (Id.Map.find_opt(id, measured.splices)) {
+        | None => None
+        | Some(info) =>
+          let contains =
+            goal.row >= offset.row
+            && goal.row <= offset.row
+            + info.size.row
+            && goal.col >= offset.col
+            && goal.col <= offset.col
+            + info.size.col;
+          contains
+            ? Some((
+                id,
+                Point.{
+                  row: goal.row - offset.row,
+                  col: goal.col - offset.col,
+                },
+              ))
+            : None;
+        }
+      },
+    splice_offsets,
+    None,
+  );
+};
+
+let to_point = (~measured: Measured.t, ~goal: Point.t, z: t): option(t) => {
+  /* If [goal] is inside a splice's on-screen box, translate to splice-
+   * local coords and resolve there. Otherwise resolve against the top-
+   * level measured grid. */
+  let _ = splice_at_point(~measured, goal);
   switch (do_towards_point(~measured, local(ByChar), goal, z)) {
   | None => Some(z)
   | Some(z) => Some(z)
   };
+};
 
 let to_start: t => t = do_to_extreme(local(ByToken, Left));
 

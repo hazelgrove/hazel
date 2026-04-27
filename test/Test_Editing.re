@@ -2436,6 +2436,7 @@ let shard_theft_tests = [
             },
           )
         | Projector(_) => "Proj"
+        | Splice(_) => "Splice"
         };
       let (l0, r0) = z0.relatives.siblings;
       Printf.printf(
@@ -2475,11 +2476,16 @@ let shard_theft_tests = [
               switch (z'.relatives.ancestors) {
               | [] => "no ancestor"
               | [(a, _), ..._] =>
-                let label = String.concat(",", a.label);
-                let (sl, sr) = a.shards;
-                let shards =
-                  sl @ sr |> List.map(string_of_int) |> String.concat(",");
-                Printf.sprintf("ancestor: %s shards=[%s]", label, shards);
+                switch (a) {
+                | Ancestor.Tile(a) =>
+                  let label = String.concat(",", a.label);
+                  let (sl, sr) = a.shards;
+                  let shards =
+                    sl @ sr |> List.map(string_of_int) |> String.concat(",");
+                  Printf.sprintf("ancestor: %s shards=[%s]", label, shards);
+                | Ancestor.Projector(_) => "ancestor: projector"
+                | Ancestor.Splice(_) => "ancestor: splice"
+                }
               };
             let (ls, rs) = z'.relatives.siblings;
             let l_summary =
@@ -3130,7 +3136,8 @@ and tile_sorts_of_piece = (p: Piece.t): list((string, Sort.t)) =>
     let label_sorts = List.map(tok => (tok, t.mold.out), t.label);
     let child_sorts = List.concat_map(tile_sorts_of_seg, t.children);
     label_sorts @ child_sorts;
-  | Projector({syntax, _}) => tile_sorts_of_piece(syntax)
+  | Projector({syntax, _}) => tile_sorts_of_seg(syntax)
+  | Splice({content, _}) => tile_sorts_of_seg(content)
   | Grout(_)
   | Secondary(_) => []
   };

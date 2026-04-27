@@ -12,9 +12,11 @@ open Language;
  * of currently available projectors */
 
 /* The type of syntax which a projector can replace.
- * Right now projectors can replace a single piece */
+ * A projector's syntax is a segment (list of pieces) which may
+ * contain Splice pieces whose contents are separately-editable
+ * sub-regions. */
 [@deriving (show({with_path: false}), sexp, yojson)]
-type syntax = Base.piece;
+type syntax = Base.segment;
 
 /* Global actions available to handlers in all projectors */
 type external_action =
@@ -24,6 +26,7 @@ type external_action =
   | Escape(Util.Direction.t) /* Pass focus to parent editor */
   | EscapeToLineEnd(ProjectorCore.Kind.t) /* Pass focus to parent editor, move to end of line */
   | SetSyntax(Base.segment) /* Set underlying syntax */
+  | SetTerm(Any.t, bool) /* Set underlying term, optionally preserving original splices */
   | FocusById(Util.Id.t); /* Focus a projector by its term id */
 
 /* Syntax utility functions/values for projector use,
@@ -41,6 +44,8 @@ type utility = {
    * (currently all degenerate cases) will throw an error */
   lift_syntax:
     (~inline: bool, Any.t => Any.t, Base.segment) => option(Base.segment),
+  /* Lifts term->term functions over the projector's syntax term. */
+  lift_term: (Any.t => Any.t, Base.segment) => option(Any.t),
 };
 
 module Focusable = {
@@ -136,9 +141,20 @@ module View = {
       ~background: bool=?,
       ~text_only: bool=?,
       Sort.t,
-      list(syntax)
+      Base.segment
     ) =>
     Node.t;
+
+  /* Thunk returning the view for a splice by its id. Thunked so that
+   * expensive splice rendering only happens for splices the projector
+   * actually places in its view. */
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type splice_view = Id.t => Node.t;
+
+  /* Intrinsic bounding box size of a splice's content, in the splice's
+   * own coordinate frame. */
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type splice_size = Id.t => Util.Point.t;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type args('model, 'action) = {
@@ -151,6 +167,13 @@ module View = {
     /* Creates a non-interactive embedded syntax view,
      * provided here to address a dependency cycle */
     view_seg: seg,
+    /* Thunked splice views; call to render an inner editor for a splice
+     * contained in this projector's syntax */
+    splice_view,
+    /* Intrinsic size of a splice's content */
+    splice_size,
+    /* All splice children of this projector in document order */
+    splices: list(Base.splice),
     /* Parent editor context on the projector */
     status,
     /* Core settings for feature flags */
@@ -191,8 +214,16 @@ module type Projector = {
   type action;
   /* Init should return None if the projector doesn't want
    * to handle the provided term. Otherwise, it should
-   * return the desired initial state of the model. */
-  let init: Any.t => option(model);
+   * return the desired initial state of the model, along with
+   * an optional replacement syntax. [init] receives the original
+   * [Base.segment] the user selected (in addition to the parsed
+   * term); when [Some(seg)] is returned as the second component,
+   * the projector's stored syntax is set to [seg] instead of the
+   * selected segment. This lets projectors transform their
+   * underlying syntax at init time (e.g. to wrap list items in
+   * splices). Return [None] for the second component to keep the
+   * selected syntax unchanged. */
+  let init: (Any.t, Base.segment) => option((model, option(Base.segment)));
   /* Does this projector have some notion of internal
    * positions, whose handling should override the editor
    * caret & keyboard handlers? If so, provide handlers
@@ -237,8 +268,11 @@ module type Projector = {
   let elaborate_syntax: bool;
   /* Renders the DOM views for the projector */
   let view: View.args(model, action) => View.t;
-  /* The space left for the projector in the base editor */
-  let placeholder: (model, info) => ProjectorCore.Shape.t;
+  /* The space left for the projector in the base editor. The projector
+   * receives [splice_size] so that it may size itself around its splice
+   * children; splice sizes are intrinsic (independent of the layout of
+   * the parent projector) and may be looked up by splice id. */
+  let placeholder: (model, info, View.splice_size) => ProjectorCore.Shape.t;
   /* Update the local projector model given an action */
   let update: (model, info, action) => model;
   /* Report an error if the projector can't render properly */
@@ -261,7 +295,8 @@ module Cook = (C: Projector) : Cooked => {
   let deserialize_m = s => s |> Sexplib.Sexp.of_string |> C.model_of_sexp;
   let serialize_a = a => a |> C.sexp_of_action |> Sexplib.Sexp.to_string;
   let deserialize_a = s => s |> Sexplib.Sexp.of_string |> C.action_of_sexp;
-  let init = any => C.init(any) |> Option.map(serialize_m);
+  let init = (any, seg) =>
+    C.init(any, seg) |> Option.map(((m, seg)) => (serialize_m(m), seg));
   let focusable = C.focusable;
   let dynamics = C.dynamics;
   let elaborate_syntax = C.elaborate_syntax;
@@ -272,11 +307,18 @@ module Cook = (C: Projector) : Cooked => {
       local: a => args.local(serialize_a(a)),
       parent: args.parent,
       view_seg: args.view_seg,
+      splice_view: args.splice_view,
+      splice_size: args.splice_size,
+      splices: args.splices,
       status: args.status,
       core_settings: args.core_settings,
     });
-  let placeholder = m =>
-    m |> Sexplib.Sexp.of_string |> C.model_of_sexp |> C.placeholder;
+  let placeholder = (m, info, splice_size) =>
+    C.placeholder(
+      m |> Sexplib.Sexp.of_string |> C.model_of_sexp,
+      info,
+      splice_size,
+    );
   let update = (m, i, a) =>
     C.update(m |> deserialize_m, i, a |> deserialize_a) |> serialize_m;
   let error = (m, i) => C.error(m |> deserialize_m, i);

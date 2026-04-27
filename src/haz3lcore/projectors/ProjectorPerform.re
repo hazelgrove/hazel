@@ -1,4 +1,3 @@
-open ProjectorBase;
 open Util;
 open OptUtil.Syntax;
 
@@ -22,7 +21,6 @@ open OptUtil.Syntax;
  * syntax is rooted at an infix expression, and after projection a
  * neighboring infix operation was added which binds tighter. Again,
  * this is the same as would happen if unparenthesizing a subterm. */
-
 /* Get the root term ID from a segment, if it's a well-formed term */
 let seg_root_id = (seg: Base.segment): option(Id.t) =>
   try(Some(Segment.root_id(Segment.skel(seg), seg))) {
@@ -39,20 +37,20 @@ let init =
       seg: Base.segment,
       ~elaborated: Language.Exp.t,
     )
-    : option(syntax) => {
+    : option(Base.piece) => {
   let (module P) = ProjectorInit.to_module(kind);
-  let orig_piece = Segment.parenthesize(seg);
   let any = MakeTerm.for_projection(seg);
 
   /* Try raw syntax first; for elaborate_syntax projectors, fall back to the
      elaborated form keyed by the term's id. */
-  switch (Option.bind(any, ProjectorInit.init(kind, orig_piece, _)), any) {
+  switch (Option.bind(any, ProjectorInit.init(kind, seg, _)), any) {
   | (Some(_) as result, _) => result
   | (None, Some(Exp(exp))) when P.elaborate_syntax =>
     let* elab_exp =
       Language.Exp.find_by_id(Language.Exp.rep_id(exp), elaborated);
-    let+ model_str = P.init(Exp(elab_exp));
-    Base.Projector(ProjectorCore.mk(kind, orig_piece, model_str));
+    let+ (model_str, override) = P.init(Exp(elab_exp), seg);
+    let syntax = Option.value(override, ~default=seg);
+    Base.Projector(ProjectorCore.mk(kind, syntax, model_str));
   | (None, _) => None
   };
 };
@@ -76,14 +74,46 @@ let replace_selection_and_unselect =
   |> Zipper.replace_selection(focus, [piece])
   |> Zipper.directional_unselect(focus);
 
-let remove = (piece: Base.piece, focus: Direction.t, z: Zipper.t): Zipper.t => {
-  let seg = Piece.unparenthesize(piece);
+let remove = (seg: Base.segment, focus: Direction.t, z: Zipper.t): Zipper.t =>
   /* If it's a convex tile, unselect; otherwise, leave selection to guarantee you can toggle */
   switch (seg) {
   | [piece] => replace_selection_and_unselect(piece, Right, z)
   | _ => Zipper.replace_selection(focus, seg, z)
   };
-};
+
+let rec unsplice_segment = (seg: Base.segment): Base.segment =>
+  List.concat_map(
+    (p: Base.piece) =>
+      switch (p) {
+      | Splice(s) => unsplice_segment(s.content)
+      | Tile(t) => [
+          Tile({
+            ...t,
+            children: List.map(unsplice_segment, t.children),
+          }),
+        ]
+      | Projector(_)
+      | Grout(_)
+      | Secondary(_) => [p]
+      },
+    seg,
+  );
+
+let term_to_segment =
+    (~original_syntax: Base.segment, ~preserve_splices: bool, term) =>
+  ExpToSegment.any_to_projector_segment(
+    ~settings={
+      ...
+        ExpToSegment.Settings.of_core(
+          ~inline=true,
+          Language.CoreSettings.off,
+        ),
+      show_unknown_as_hole: false,
+    },
+    ~original_syntax,
+    ~preserve_splices,
+    term,
+  );
 
 let update_piece =
     (f: Base.projector => Base.projector, id: Id.t, piece: Base.piece)
@@ -97,6 +127,70 @@ let update =
     (f: Base.projector => Base.projector, id: Id.t, z: ZipperBase.t)
     : ZipperBase.t =>
   ZipperBase.MapPiece.fast_local_seg(update_piece(f, id), id, z);
+
+let inside_projector = (id: Id.t, z: Zipper.t): bool =>
+  List.exists(
+    ((ancestor, _)) =>
+      switch (ancestor) {
+      | Ancestor.Projector({id: projector_id, _}) => projector_id == id
+      | _ => false
+      },
+    z.relatives.ancestors,
+  );
+
+let containing_projector = (z: Zipper.t): option(Id.t) =>
+  List.find_map(
+    ((ancestor, _)) =>
+      switch (ancestor) {
+      | Ancestor.Projector({id, _}) => Some(id)
+      | _ => None
+      },
+    z.relatives.ancestors,
+  );
+
+let update_from_root =
+    (f: Base.projector => Base.projector, id: Id.t, z: Zipper.t): Zipper.t => {
+  let segment =
+    Zipper.unselect_and_zip(z)
+    |> ZipperBase.MapPiece.of_segment(update_piece(f, id));
+  {
+    ...Zipper.unzip(segment),
+    refractors: z.refractors,
+  };
+};
+
+let rec find_projector =
+        (id: Id.t, seg: Base.segment): option(Base.projector) =>
+  List.find_map(
+    (p: Base.piece) =>
+      switch (p) {
+      | Projector(pr) when pr.id == id => Some(pr)
+      | Tile(t) => List.find_map(find_projector(id), t.children)
+      | _ => None
+      },
+    seg,
+  );
+
+let remove_from_root = (id: Id.t, z: Zipper.t): option(Zipper.t) => {
+  let segment = Zipper.unselect_and_zip(z);
+  let* pr = find_projector(id, segment);
+  let z =
+    switch (seg_root_id(pr.syntax)) {
+    | Some(term_id) => migrate_refractor(pr.id, term_id, z)
+    | None => z
+    };
+  let segment =
+    ZipperBase.MapPiece.of_segment(
+      fun
+      | Projector(pr') when pr'.id == id => unsplice_segment(pr'.syntax)
+      | p => [p],
+      segment,
+    );
+  Some({
+    ...Zipper.unzip(segment),
+    refractors: z.refractors,
+  });
+};
 
 let go =
     (
@@ -128,7 +222,14 @@ let go =
     Selection.is_empty(z.selection)
       ? switch (select_term(z), Indicated.direction(z)) {
         | (Some(z), Some(d)) => Some((Direction.toggle(d), z))
-        | _ => None
+        | _ =>
+          switch (Indicated.for_index(z)) {
+          | Some({piece: Projector(_), side, _}) =>
+            let focus = Direction.toggle(side);
+            let+ z = Select.local(focus, z);
+            (focus, z);
+          | _ => None
+          }
         }
       : Some((z.selection.focus, z));
 
@@ -140,17 +241,15 @@ let go =
     switch (z.selection.content) {
     | [Projector(pr)] when pr.kind == kind =>
       /* Remove projector: restore original syntax */
-      let restore_syntax = pr.syntax;
-      let underlying_seg = Piece.unparenthesize(restore_syntax);
       let z =
-        switch (seg_root_id(underlying_seg)) {
+        switch (seg_root_id(pr.syntax)) {
         | Some(term_id) => migrate_refractor(pr.id, term_id, z)
         | None => z
         };
-      Some(remove(restore_syntax, focus, z));
+      Some(remove(unsplice_segment(pr.syntax), focus, z));
     | [Projector(pr)] =>
       /* Switch projector kind: migrate refractor to new projector */
-      let+ piece = init(kind, Piece.unparenthesize(pr.syntax), ~elaborated);
+      let+ piece = init(kind, unsplice_segment(pr.syntax), ~elaborated);
       let z =
         switch (piece) {
         | Projector(new_pr) => migrate_refractor(pr.id, new_pr.id, z)
@@ -174,14 +273,13 @@ let go =
     let* (focus, z) = setup_selection(z);
     switch (z.selection.content) {
     | [Projector(pr)] =>
-      let restore_syntax = pr.syntax;
-      let underlying_seg = Piece.unparenthesize(restore_syntax);
+      /* Migrate refractor back to underlying term */
       let z =
-        switch (seg_root_id(underlying_seg)) {
+        switch (seg_root_id(pr.syntax)) {
         | Some(term_id) => migrate_refractor(pr.id, term_id, z)
         | None => z
         };
-      Some(remove(restore_syntax, focus, z));
+      Some(remove(unsplice_segment(pr.syntax), focus, z));
     | _ => None
     };
   };
@@ -203,10 +301,30 @@ let go =
     | [] => Error(Cant_project)
     }
   | RemoveIndicated =>
-    switch (remove_indicated(z)) {
+    let removed_from_root = {
+      let indicated_projector =
+        switch (Indicated.for_index(z)) {
+        | Some({piece: Projector({id, _}), _}) => Some(id)
+        | _ => None
+        };
+      let projector_id =
+        switch (containing_projector(z)) {
+        | Some(_) as id => id
+        | None => indicated_projector
+        };
+      switch (projector_id) {
+      | Some(id) => remove_from_root(id, z)
+      | None => None
+      };
+    };
+    switch (removed_from_root) {
     | Some(z) => Ok(z)
-    | None => Error(Cant_project)
-    }
+    | None =>
+      switch (remove_indicated(z)) {
+      | Some(z) => Ok(z)
+      | None => Error(Cant_project)
+      }
+    };
   | SetSyntax(idx, kind, seg) =>
     let id = idx_to_id(kind, idx);
     /* Strip trailing whitespace/newlines before parenthesizing,
@@ -223,21 +341,17 @@ let go =
         List.assoc_opt(id, z.refractors.manuals)
         |> Option.map((pr: Refractors.entry) => pr.model);
       let is_ephemeral = Id.Map.mem(id, z.refractors.multis.ephemerals);
-      /* Select the term range and replace with new syntax.
-       * Don't unselect/remold here — the normal update cycle handles that. */
       let do_replace = () => {
         let* (l, r) = TermData.extremes_shards(id, term_data);
         let+ z = Select.shard_range(l, r, z);
         Zipper.replace_selection(Right, parenthesized_seg, z);
       };
       if (is_ephemeral && Option.is_none(manual_model)) {
-        /* Ephemeral refractor: replace syntax only, auto system re-detects */
         switch (do_replace()) {
         | Some(z) => Ok(z)
         | None => Error(Cant_project)
         };
       } else {
-        /* Manual or fallback: replace and re-register */
         let new_id =
           MakeTerm.from_zip_for_sem(
             Zipper.unzip(~direction=Right, parenthesized_seg),
@@ -259,13 +373,24 @@ let go =
           p =>
             {
               ...p,
-              syntax: parenthesized_piece,
+              syntax: [parenthesized_piece],
             },
           id,
           z,
         ),
       );
     };
+  | SetTerm(idx, term, preserve_splices) =>
+    let id = projector_idx_to_id(idx);
+    let f = (p: Base.projector) => {
+      ...p,
+      syntax:
+        term_to_segment(~original_syntax=p.syntax, ~preserve_splices, term),
+    };
+    Ok(
+      inside_projector(id, z)
+        ? update_from_root(f, id, z) : update(f, id, z),
+    );
   | SetModel(idx, kind, new_model) =>
     let id = idx_to_id(kind, idx);
     Ok(
@@ -390,7 +515,8 @@ let try_place_syntax_projector =
     switch (z.selection.content) {
     | [Projector(pr)] when pr.kind == kind => Some(z)
     | [Projector(pr)] =>
-      let* piece = init(kind, Piece.unparenthesize(pr.syntax), ~elaborated);
+      let* piece =
+        init(kind, Segment.unparenthesize(pr.syntax), ~elaborated);
       let z =
         switch (piece) {
         | Projector(new_pr) => migrate_refractor(pr.id, new_pr.id, z)
@@ -423,7 +549,7 @@ let try_toggle_syntax_projector =
   with_selection_after_term(~term_data, id, z, (focus, z) =>
     switch (z.selection.content) {
     | [Projector(pr)] when pr.kind == kind =>
-      let underlying_seg = Piece.unparenthesize(pr.syntax);
+      let underlying_seg = Segment.unparenthesize(pr.syntax);
       let z =
         switch (seg_root_id(underlying_seg)) {
         | Some(term_id) => migrate_refractor(pr.id, term_id, z)
@@ -431,7 +557,8 @@ let try_toggle_syntax_projector =
         };
       Some(remove(pr.syntax, focus, z));
     | [Projector(pr)] =>
-      let* piece = init(kind, Piece.unparenthesize(pr.syntax), ~elaborated);
+      let* piece =
+        init(kind, Segment.unparenthesize(pr.syntax), ~elaborated);
       let z =
         switch (piece) {
         | Projector(new_pr) => migrate_refractor(pr.id, new_pr.id, z)
@@ -457,7 +584,7 @@ let try_remove_syntax_projector =
   with_selection_after_term(~term_data, id, z, (focus, z) =>
     switch (z.selection.content) {
     | [Projector(pr)] =>
-      let underlying_seg = Piece.unparenthesize(pr.syntax);
+      let underlying_seg = Segment.unparenthesize(pr.syntax);
       let z =
         switch (seg_root_id(underlying_seg)) {
         | Some(term_id) => migrate_refractor(pr.id, term_id, z)
@@ -512,8 +639,20 @@ let revalidate_projectors_in_segment =
       );
     | Grout(_)
     | Secondary(_) => (z, [piece], false)
+    | Splice(s) =>
+      let (z', content, ch) = go_seg(z, s.content);
+      (
+        z',
+        [
+          Splice({
+            ...s,
+            content,
+          }),
+        ],
+        ch,
+      );
     | Projector(pr) =>
-      let inner0 = Piece.unparenthesize(pr.syntax);
+      let inner0 = Segment.unparenthesize(pr.syntax);
       let (z1, inner_seg, inner_ch) = go_seg(z, inner0);
       switch (MakeTerm.for_projection(inner_seg)) {
       | None =>
@@ -525,7 +664,11 @@ let revalidate_projectors_in_segment =
         (z2, inner_seg, true);
       | Some(any) =>
         switch (
-          ProjectorInit.init(pr.kind, Segment.parenthesize(inner_seg), any)
+          ProjectorInit.init(
+            pr.kind,
+            [Segment.parenthesize(inner_seg)],
+            any,
+          )
         ) {
         | None =>
           let z2 =

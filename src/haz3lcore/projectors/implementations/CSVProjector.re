@@ -22,13 +22,13 @@ module M: Projector = {
     | ToggleHeaders
     | Reset;
 
-  let init = (a: Language.Any.t): option(model) => {
+  let init = (a: Language.Any.t, _) => {
     switch (a) {
-    | Exp({term: ListLit([]), _}) => Some(NoFile) // No file selected
+    | Exp({term: ListLit([]), _}) => Some((NoFile, None)) // No file selected
     | _ => None
     };
   };
-  let put = (info, rows: CsvUtil.csv_data): Base.segment => {
+  let put = (info, rows: CsvUtil.csv_data): Language.Any.t => {
     let exp: Language.Exp.term =
       switch (rows) {
       | CsvUtil.WithHeaders(rows) =>
@@ -73,8 +73,7 @@ module M: Projector = {
       };
 
     switch (
-      info.utility.lift_syntax(
-        ~inline=true,
+      info.utility.lift_term(
         fun
         | Exp(any) =>
           Exp({
@@ -90,14 +89,14 @@ module M: Projector = {
     };
   };
 
-  let reset_syntax = (info: info): Base.segment => {
+  let reset_syntax = (info: info): Language.Any.t => {
     put(info, CsvUtil.WithoutHeaders([]));
   };
 
   let focusable = Focusable.non;
   let dynamics = false;
   let elaborate_syntax = false;
-  let placeholder = (m, _) =>
+  let placeholder = (m, _, _) =>
     switch (m) {
     | FileLoaded({filename, _}) =>
       ProjectorCore.Shape.inline(String.length(filename) + 6) // Account for reset button and toggle
@@ -187,7 +186,7 @@ module M: Projector = {
                             content,
                           }),
                         ),
-                        parent(SetSyntax(put(info, csv_data))),
+                        parent(SetTerm(put(info, csv_data), false)),
                       ]),
                     );
                   },
@@ -206,7 +205,7 @@ module M: Projector = {
                     Attr.on_click(_ => {
                       Effect.Many([
                         local(Reset),
-                        parent(SetSyntax(reset_syntax(info))),
+                        parent(SetTerm(reset_syntax(info), false)),
                       ])
                     }),
                     Attr.class_("reset-button"),
@@ -236,7 +235,7 @@ module M: Projector = {
                         };
                       Effect.Many([
                         local(ToggleHeaders),
-                        parent(SetSyntax(put(info, csv_data))),
+                        parent(SetTerm(put(info, csv_data), false)),
                       ]);
                     }),
                     Attr.title("Toggle headers"),

@@ -30,13 +30,13 @@ module M: Projector = {
   type action =
     | Toggle;
 
-  let init = _ => Some(default);
+  let init = (_, _) => Some((default, None: option(Base.segment)));
 
   let focusable = Focusable.non;
   let dynamics = false;
   let elaborate_syntax = false;
 
-  let placeholder = (m, _) =>
+  let placeholder = (m, _, _) =>
     ProjectorCore.Shape.inline(m.text == "⋱" ? 2 : m.text |> String.length);
   let update = (m, _, _) => {
     ...m,
