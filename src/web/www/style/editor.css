@@ -48,8 +48,7 @@
 }
 
 /* The default background color for Documentation and Scratch, when not selected, is still cell-active, not --ui-bkg */
-#main.Documentation .line-numbers,
-#main.Scratch .line-numbers {
+:is(#main.Documentation, #main.Scratch):not(.Derivations) .line-numbers {
   background-color: var(--cell-active);
   border-color: var(--cell-active);
 }
@@ -91,6 +90,9 @@
 }
 .code .token.Typ {
   color: var(--token-typ);
+}
+.code .token.Drv {
+  color: var(--token-drv);
 }
 .code .token.Rul {
   color: var(--token-rul);
@@ -224,6 +226,9 @@ svg.shard.indicated.Pat {
 svg.shard.indicated.Typ {
   filter: drop-shadow(var(--off-x) var(--off-y) var(--blur) var(--token-typ));
 }
+svg.shard.indicated.Drv {
+  filter: drop-shadow(var(--off-x) var(--off-y) var(--blur) var(--token-drv));
+}
 svg.shard.indicated.Rul {
   filter: drop-shadow(
     var(--off-x) var(--off-y) var(--blur) var(--shard-lines-rul)
@@ -253,6 +258,9 @@ svg.shard.indicated.Pat > path {
 }
 svg.shard.indicated.Typ > path {
   fill: var(--shard-typ);
+}
+svg.shard.indicated.Drv > path {
+  fill: var(--shard-drv);
 }
 svg.shard.indicated.Rul > path {
   fill: var(--shard-rul);
@@ -456,6 +464,9 @@ svg:has(.child-line) {
 }
 .child-line.Typ {
   stroke: var(--token-typ);
+}
+.child-line.Drv {
+  stroke: var(--token-drv);
 }
 .child-line.Rul {
   stroke: var(--shard-lines-rul);

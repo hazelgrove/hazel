@@ -20,7 +20,7 @@ let segmentize =
 let format =
     (~width=80, ~settings=PrettySegment.default_settings, input: string)
     : string => {
-  switch (Parser.to_term(input)) {
+  switch (Parser.to_term(input, ~root=Exp)) {
   | Some(exp) =>
     let segment = segmentize(exp);
     let pretty = PrettySegment.prettify(~width, ~settings, segment);
@@ -35,7 +35,7 @@ let format =
 let format_seg =
     (~width=80, ~settings=PrettySegment.default_settings, input: string)
     : string => {
-  switch (Parser.to_segment(input)) {
+  switch (Parser.to_segment(input, ~root=Exp)) {
   | Some(segment) =>
     let pretty = PrettySegment.prettify(~width, ~settings, segment);
     Printer.of_segment(~holes="?", ~indent=" ", pretty)

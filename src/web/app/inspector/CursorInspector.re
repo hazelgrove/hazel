@@ -55,12 +55,24 @@ let ctx_toggle = (~globals: Globals.t): Node.t =>
   );
 
 let term_view = (~globals: Globals.t, ci) => {
-  let sort = Info.is_label(ci) ? "Label" : ci |> Info.sort_of |> Sort.show;
-
+  /* Drv(_) sorts have verbose type-level names like "DrvJdmt"/"DrvProp"
+     via Sort.to_string (needed for pretty-printing `DrvQuoteTy`). For the
+     inspector header we prefer the terse form ("Jdmt", "Prop", ...),
+     keeping the ALFA prefix for object-language sorts. */
+  let sort_text =
+    Info.is_label(ci)
+      ? "Label"
+      : (
+        switch (Info.sort_of(ci)) {
+        | Drv(s) => DrvSort.to_string_short(s)
+        | s => Sort.to_string(s)
+        }
+      );
+  let sort_class = Info.is_label(ci) ? "Label" : ci |> Info.class_of;
   div(
     ~attrs=[
       clss(
-        ["ci-header", sort]
+        ["ci-header", sort_class]
         @ (
           Info.is_error(ci)
             ? [errc]
@@ -71,7 +83,7 @@ let term_view = (~globals: Globals.t, ci) => {
     ],
     [
       ctx_toggle(~globals),
-      div(~attrs=[clss(["term-tag"])], [text(sort)]),
+      div(~attrs=[clss(["term-tag"])], [text(sort_text)]),
       div(~attrs=[clss(["divider"])], [text("/")]),
       cls_view(ci),
     ],
@@ -1045,6 +1057,7 @@ let view_of_info = (~globals, ci): list(Node.t) => {
     wrapper(typ_view(~globals, cls, ~marks, ~message))
   | InfoTPat({cls, marks, message, _}) =>
     wrapper(tpat_view(~globals, cls, ~marks, ~message))
+  | InfoDrv(ci) => wrapper(DrvCursorInspector.drv_view(~globals, ci))
   };
 };
 

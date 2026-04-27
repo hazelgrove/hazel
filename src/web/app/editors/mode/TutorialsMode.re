@@ -478,6 +478,7 @@ module View = {
             model.current,
             titles,
           ),
+        (),
       );
     // };
   };
