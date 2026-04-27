@@ -98,6 +98,7 @@ let rec in_exp = (env: Environment.t(Exp.t), exp: Exp.t) =>
         | Filter(_)
         | Parens(_)
         | Projector(_)
+        | Splice(_)
         | Cons(_)
         | ListConcat(_)
         | UnOp(_)
@@ -154,6 +155,9 @@ and in_pat =
   | Projector(data, p1) =>
     let (env', p1') = in_pat(env_outer, env_acc, p1);
     (env', Projector(data, p1') |> Pat.fresh);
+  | Splice(p1) =>
+    let (env', p1') = in_pat(env_outer, env_acc, p1);
+    (env', Splice(p1') |> Pat.fresh);
   | Tuple(l) =>
     let (env', l') =
       List.fold_left(
@@ -218,6 +222,7 @@ and in_typ = (env: Environment.t(Exp.t), typ: Typ.t) =>
         | TupLabel(_, _)
         | Parens(_)
         | Projector(_)
+        | Splice(_)
         | Rec(_, _)
         | Poly(_, _)
         | ProdProjection(_, _)

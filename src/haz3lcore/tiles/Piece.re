@@ -215,11 +215,13 @@ let mk_grout = (~id=Id.mk(), shape: Grout.shape): t =>
     shape,
   });
 
-let mk_splice = (~id=Id.mk(), content: segment): t =>
+let mk_splice = (~id=Id.mk(), content: segment): t => {
+  let content = content == [] ? [mk_grout(Convex)] : content;
   splice({
     id,
     content,
   });
+};
 
 let mk_tile: (Form.t, list(list(t))) => t =
   (form, children) =>

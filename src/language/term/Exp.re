@@ -133,7 +133,8 @@ let rec cls_of_term: type a. Grammar.exp_term(a) => cls =
   | Parens(e) => cls_of_term(e.term)
   // We're bypassing projectors from cls because they're breaking cursor inspector messages.
   // Future work could be to specialize projectors in the cursor inspector.
-  | Projector(_, e) => cls_of_term(e.term)
+  | Projector(_, e)
+  | Splice(e) => cls_of_term(e.term)
   | Cons(_) => Cons
   | ListConcat(_) => ListConcat
   | UnOp(op, _) => UnOp(op)
@@ -225,7 +226,8 @@ let get_label: t => option(LabeledTuple.label) = {
 let rec is_fun = (e: t) => {
   switch (e.term) {
   | Parens(e)
-  | Projector(_, e) => is_fun(e)
+  | Projector(_, e)
+  | Splice(e) => is_fun(e)
   | Asc(e, _) => is_fun(e)
   | TypFun(_)
   | Fun(_)
@@ -296,6 +298,7 @@ let rec is_tuple_of_functions = (e: t) =>
     | Asc(e, _)
     | Parens(e)
     | Projector(_, e)
+    | Splice(e)
     | TupLabel(_, e) => is_tuple_of_functions(e)
     | Tuple(es) => es |> List.for_all(is_fun)
     | Dot(e1, e2) =>
@@ -378,6 +381,7 @@ let rec get_num_of_functions = (e: t) =>
     switch (e.term) {
     | Parens(e)
     | Projector(_, e)
+    | Splice(e)
     | TupLabel(_, e)
     | Dot(e, _) => get_num_of_functions(e)
     | Tuple(es) => is_tuple_of_functions(e) ? Some(List.length(es)) : None

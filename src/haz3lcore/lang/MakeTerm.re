@@ -1428,13 +1428,33 @@ and unsorted = (sort: Sort.t, skel: Skel.t, seg: Segment.t): unsorted => {
     switch (p) {
     | Secondary(_)
     | Grout(_) => []
-    | Splice({content, _}) =>
+    | Splice({content, id, _}) =>
       /* Splices are transparent wrappers: their content becomes the
        * single kid of the SPLICE_WRAP tile. The SPLICE_WRAP case at
        * term-construction time unwraps `body.term` straight through. */
       let sk = Segment.skel(content);
       let sort = Segment.sort_of(sk, content);
-      [go_s(sort, sk, content)];
+      let inner = go_s(sort, sk, content);
+      let wrapped =
+        switch (inner) {
+        | Grammar.Exp(e) =>
+          Grammar.Exp({
+            term: Splice(e),
+            annotation: IdTagged.IdTag.mk([id], get_secondary([id])),
+          })
+        | Grammar.Pat(p) =>
+          Grammar.Pat({
+            term: Splice(p),
+            annotation: IdTagged.IdTag.mk([id], get_secondary([id])),
+          })
+        | Grammar.Typ(t) =>
+          Grammar.Typ({
+            term: Splice(t),
+            annotation: IdTagged.IdTag.mk([id], get_secondary([id])),
+          })
+        | _ => inner
+        };
+      [wrapped];
     | Projector({id, kind, model, syntax} as pr) =>
       let _ = log_projector(pr);
       let sk = Segment.skel(syntax);

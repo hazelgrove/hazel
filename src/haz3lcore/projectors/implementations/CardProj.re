@@ -105,6 +105,7 @@ module SyntaxTerm = {
       | Tuple(_) => p
       | _ => strip_wraps_pat(inner)
       }
+    | Splice(inner) => strip_wraps_pat(inner)
     | _ => p
     };
   };
@@ -115,6 +116,7 @@ module SyntaxTerm = {
       | Tuple(_) => e
       | _ => strip_wraps_exp(inner)
       }
+    | Splice(inner) => strip_wraps_exp(inner)
     | _ => e
     };
   };

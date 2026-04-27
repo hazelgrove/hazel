@@ -94,7 +94,8 @@ let cls_of_term: Grammar.typ_term('a) => cls =
   | Label(_) => Label
   | ExplicitNonlabel => ExplicitNonlabel
   | Parens(_) => Parens
-  | Projector(_) => Projector
+  | Projector(_)
+  | Splice(_) => Projector
   | Sum(_) => Sum
   | Rec(_) => Rec
   | Poly(_) => Poly
@@ -134,6 +135,7 @@ let rec is_arrow = (typ: t) => {
   switch (typ.term) {
   | Parens(typ)
   | Projector(_, typ)
+  | Splice(typ)
   | TupLabel(_, typ) => is_arrow(typ)
   | Arrow(_) => true
   | Unknown(_)
@@ -161,6 +163,7 @@ let is_atom = (ty: t): bool =>
   | ProofOf(_)
   | Parens(_)
   | Projector(_)
+  | Splice(_)
   | TupLabel(_)
   | Arrow(_)
   | Unknown(_)
@@ -181,6 +184,7 @@ let rec has_fun = (typ: t) =>
   switch (typ.term) {
   | Parens(typ)
   | Projector(_, typ)
+  | Splice(typ)
   | TupLabel(_, typ)
   | ProdProjection(typ, _) => has_fun(typ)
   | Arrow(_)
@@ -210,6 +214,7 @@ let rec is_poly = (typ: t) => {
   switch (typ.term) {
   | Parens(typ)
   | Projector(_, typ)
+  | Splice(typ)
   | TupLabel(_, typ) => is_poly(typ)
   | Poly(_) => true
   | ProofOf(_)
@@ -298,7 +303,8 @@ let rec free_vars = (~bound=[], ty: t): list(Var.t) =>
   | ExplicitNonlabel => []
   | Var(v) => List.mem(v, bound) ? [] : [v]
   | Parens(ty)
-  | Projector(_, ty) => free_vars(~bound, ty)
+  | Projector(_, ty)
+  | Splice(ty) => free_vars(~bound, ty)
   | List(ty) => free_vars(~bound, ty)
   | ProdExtension(t1, t2)
   | Arrow(t1, t2) => free_vars(~bound, t1) @ free_vars(~bound, t2)
@@ -335,7 +341,8 @@ let rec vars = (ty: t): list(Var.t) =>
   | Rec(_, ty) => vars(ty)
   | List(ty) => vars(ty)
   | Parens(ty)
-  | Projector(_, ty) => vars(ty)
+  | Projector(_, ty)
+  | Splice(ty) => vars(ty)
   | Poly({term: Var(x), _}, ty) =>
     vars(ty) |> List.filter((x': string) => x' != x)
   | Poly(_, ty) => vars(ty)
@@ -397,7 +404,8 @@ let rec num_nodes = (ty: t): int => {
   | Rec(_, ty) => 1 + num_nodes(ty)
   | List(ty) => 1 + num_nodes(ty)
   | Parens(ty)
-  | Projector(_, ty) => 1 + num_nodes(ty)
+  | Projector(_, ty)
+  | Splice(ty) => 1 + num_nodes(ty)
   | Poly(_, ty) => 1 + num_nodes(ty)
   | ExplicitNonlabel
   | Label(_) => 1
@@ -433,7 +441,8 @@ let rec count_unknowns = (ty: t): int =>
   | Rec(_, ty) => count_unknowns(ty)
   | List(ty) => count_unknowns(ty)
   | Parens(ty)
-  | Projector(_, ty) => count_unknowns(ty)
+  | Projector(_, ty)
+  | Splice(ty) => count_unknowns(ty)
   | Poly(_, ty) => count_unknowns(ty)
   | ProofOf(_) => 0
   | ExplicitNonlabel
@@ -458,7 +467,8 @@ let rec contains_sum_or_var = (ty: t): bool =>
   | Rec(_, ty) => contains_sum_or_var(ty)
   | List(ty) => contains_sum_or_var(ty)
   | Parens(ty)
-  | Projector(_, ty) => contains_sum_or_var(ty)
+  | Projector(_, ty)
+  | Splice(ty) => contains_sum_or_var(ty)
   | Poly(_, ty) => contains_sum_or_var(ty)
   | ProofOf(_) => false
   | ProdProjection(ty1, _) => contains_sum_or_var(ty1)
@@ -516,6 +526,7 @@ let rec subst = (s: t, x: TPat.t, ty: t): t => {
     | Var(y) => str == y ? s : Var(y) |> rewrap
     | Parens(ty) => Parens(subst(s, x, ty)) |> rewrap
     | Projector(data, ty) => Projector(data, subst(s, x, ty)) |> rewrap
+    | Splice(ty) => Splice(subst(s, x, ty)) |> rewrap
     | ProdProjection(t1, t2) =>
       ProdProjection(subst(s, x, t1), subst(s, x, t2)) |> rewrap
     | ProdExtension(t1, t2) =>
@@ -701,7 +712,8 @@ let rec normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
   | ExplicitNonlabel
   | Label(_) => ty
   | Parens(t)
-  | Projector(_, t) => normalize(ctx, t)
+  | Projector(_, t)
+  | Splice(t) => normalize(ctx, t)
   | List(t) => List(normalize(ctx, t)) |> rewrap
   | Arrow(t1, t2) =>
     Arrow(normalize(ctx, t1), normalize(ctx, t2)) |> rewrap
@@ -819,9 +831,11 @@ let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
   let meet' = meet(ctx);
   switch (term_of(ty1), term_of(ty2)) {
   | (_, Parens(ty2))
-  | (_, Projector(_, ty2)) => meet'(ty1, ty2)
+  | (_, Projector(_, ty2))
+  | (_, Splice(ty2)) => meet'(ty1, ty2)
   | (Parens(ty1), _)
-  | (Projector(_, ty1), _) => meet'(ty1, ty2)
+  | (Projector(_, ty1), _)
+  | (Splice(ty1), _) => meet'(ty1, ty2)
   | (TupLabel({term: ExplicitNonlabel, _}, ty1'), _) => meet'(ty1', ty2)
   | (_, TupLabel({term: ExplicitNonlabel, _}, ty2')) => meet'(ty1, ty2')
   | (Unknown(p1), Unknown(p2)) =>
@@ -948,6 +962,7 @@ let rec match_synswitch = (t1: t, t2: t) => {
   | (Parens(t1), _) => Parens(match_synswitch(t1, t2)) |> rewrap1
   | (Projector(data, t1), _) =>
     Projector(data, match_synswitch(t1, t2)) |> rewrap1
+  | (Splice(t1), _) => Splice(match_synswitch(t1, t2)) |> rewrap1
   | (Unknown(SynSwitch), _) => t2
   // These cases can't have a synswitch inside
   | (Unknown(_), _)
@@ -1055,7 +1070,8 @@ let rec is_syn = (ty: t): bool =>
   switch (ty |> term_of) {
   | TupLabel(_, x)
   | Parens(x)
-  | Projector(_, x) => is_syn(x)
+  | Projector(_, x)
+  | Splice(x) => is_syn(x)
   | Unknown(SynSwitch) => true
   | Unknown(_)
   | Atom(_)
@@ -1079,7 +1095,8 @@ let rec is_ana_atom = (ty: t) =>
   switch (ty |> term_of) {
   | TupLabel(_, x)
   | Parens(x)
-  | Projector(_, x) => is_ana_atom(x)
+  | Projector(_, x)
+  | Splice(x) => is_ana_atom(x)
   | Atom(a) => Some(a)
   | DrvQuoteTy(_)
   | Unknown(_)
@@ -1102,7 +1119,8 @@ let rec is_syn_plus = (ty: t): bool =>
   switch (ty |> term_of) {
   | TupLabel(_, x)
   | Parens(x)
-  | Projector(_, x) => is_syn_plus(x)
+  | Projector(_, x)
+  | Splice(x) => is_syn_plus(x)
   | Unknown(SynSwitch) => true
   | Arrow(t1, t2) => is_syn(t1) && is_syn_plus(t2)
   | Poly(_, t) => is_syn(t)
@@ -1136,7 +1154,8 @@ let rec is_arrow_like = (ty: t): bool =>
 let rec needs_parens = (ty: t): bool =>
   switch (term_of(ty)) {
   | Parens(ty)
-  | Projector(_, ty) => needs_parens(ty)
+  | Projector(_, ty)
+  | Splice(ty) => needs_parens(ty)
   | Unknown(_)
   | Atom(_)
   | ExplicitNonlabel
@@ -1168,7 +1187,8 @@ let pretty_print_tvar = (tv: TPat.t): string =>
 let rec pretty_print = (ty: t): string =>
   switch (term_of(ty)) {
   | Parens(ty)
-  | Projector(_, ty) => pretty_print(ty)
+  | Projector(_, ty)
+  | Splice(ty) => pretty_print(ty)
   | Unknown(_) => "?"
   | Atom(Int) => "Int"
   | Atom(Float) => "Float"
