@@ -223,6 +223,7 @@ let get_var_names_from_pat = (curr: Info.t): list(string) => {
     | TupLabel(pat1, pat2)
     | Cons(pat1, pat2) => go(pat1, vars) @ go(pat2, vars)
     | Parens(pat)
+    | Splice(pat)
     | Asc(pat, _) => go(pat, vars)
     | ListLit(pats)
     | Tuple(pats) =>

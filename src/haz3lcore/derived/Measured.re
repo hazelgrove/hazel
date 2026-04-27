@@ -54,9 +54,16 @@ module Shards = {
  * measured in its own coordinate frame (origin = (0,0)); the [size] is
  * the bounding box of that content. Pieces inside the splice are stored
  * in the top-level [t] maps with their splice-local coordinates (piece
- * ids are globally unique so this does not collide with outer pieces). */
-[@deriving (show({with_path: false}), sexp, yojson)]
-type splice_info = {size: Point.t};
+ * ids are globally unique so this does not collide with outer pieces).
+ *
+ * [rows] and [piece_rows] preserve the splice-local row frame for
+ * sub-editor viewports. The main editor's [t.rows] remains the outer
+ * document frame. */
+type splice_info = {
+  size: Point.t,
+  rows: Rows.t,
+  piece_rows: list(list(Piece.t)),
+};
 
 type t = {
   tiles: Id.Map.t(Shards.t),
@@ -205,6 +212,17 @@ let find_splice_info = (~msg="", s: Base.splice, map): splice_info =>
 let find_splice_info_opt = (s: Base.splice, map): option(splice_info) =>
   Id.Map.find_opt(s.id, map.splices);
 
+let for_splice = (id: Id.t, map: t): option(t) =>
+  switch (Id.Map.find_opt(id, map.splices)) {
+  | None => None
+  | Some({rows, piece_rows, _}) =>
+    Some({
+      ...map,
+      rows,
+      piece_rows,
+    })
+  };
+
 /* A splice consumes zero width in its parent's coordinate frame; its
  * intrinsic size is recorded separately in [map.splices] and the splice's
  * actual on-screen placement is decided by its parent projector's view. */
@@ -323,7 +341,7 @@ let of_segment_inner =
     Id.Map.is_empty(indent_level) && !is_single_line
       ? Indentation.level_map(seg) : indent_level;
 
-  let indent_of_linebreak = (w: Secondary.t): option(int) =>
+  let indent_of_linebreak = (indent_level, w: Secondary.t): option(int) =>
     Secondary.is_linebreak(w) ? Id.Map.find_opt(w.id, indent_level) : None;
 
   let calc = (indent: int, origin: Point.t, map: t, size: Point.t) => {
@@ -362,10 +380,10 @@ let of_segment_inner =
     );
   };
 
-
-  let add_secondary = ((seg, prev_indent, origin, map): acc, w: Secondary.t) => {
+  let add_secondary =
+      (~indent_level, (seg, prev_indent, origin, map): acc, w: Secondary.t) => {
     let (seg, new_indent, size, map) =
-      switch (indent_of_linebreak(w)) {
+      switch (indent_of_linebreak(indent_level, w)) {
       | Some(new_indent) =>
         let size =
           Point.mk(
@@ -407,24 +425,29 @@ let of_segment_inner =
     (seg, indent, origin, map);
   };
 
-  let rec go = (~top_level: bool, acc: acc, seg: Segment.t): acc =>
+  let rec go =
+          (
+            ~indent_level=indent_level,
+            ~top_level: bool,
+            acc: acc,
+            seg: Segment.t,
+          )
+          : acc =>
     switch (seg) {
     | [] => add_top_level(~top_level, acc)
-    | [hd, ...tl] => go(~top_level, of_piece(acc, hd), tl)
+    | [hd, ...tl] =>
+      go(~indent_level, ~top_level, of_piece(~indent_level, acc, hd), tl)
     }
-  and of_piece = (acc: acc, p: Piece.t): acc =>
+  and of_piece = (~indent_level, acc: acc, p: Piece.t): acc =>
     switch (p) {
-    | Secondary(w) => add_secondary(acc, w)
+    | Secondary(w) => add_secondary(~indent_level, acc, w)
     | Grout(g) => add_grout(acc, g)
     | Projector(p) => add_projector(acc, p)
     | Splice(s) =>
-      /* A Splice appearing directly in the outer segment (not inside a
-       * projector) consumes zero width at its position. Its interior is
-       * still measured for completeness so clicks inside the splice have
-       * valid targets. */
-      let (seg, indent, origin, map) = acc;
-      let map = measure_splice(s, map);
-      (seg, indent, origin, map);
+      /* If a splice wrapper leaks into a normal editor segment, render it as
+       * transparent syntax. Projector-owned splices are measured separately by
+       * [measure_splices_in] from the projector's stored syntax. */
+      go(~indent_level, ~top_level=false, acc, s.content)
     | Tile(t) =>
       switch (Id.Map.find_opt(t.id, refractor_shape_map)) {
       | Some(_) =>
@@ -434,7 +457,8 @@ let of_segment_inner =
       };
       Aba.fold_left(
         add_shard(acc, t),
-        (acc, seg) => add_shard(go(~top_level=false, acc, seg), t),
+        (acc, seg) =>
+          add_shard(go(~indent_level, ~top_level=false, acc, seg), t),
         Aba.mk(t.shards, t.children),
       );
     }
@@ -467,10 +491,24 @@ let of_segment_inner =
    * Returns the outer map augmented with the splice's inner piece
    * measurements and the splice's intrinsic size. */
   and measure_splice = (s: Base.splice, outer: t): t => {
+    let indent_level = Indentation.level_map(s.content);
     let (_, _, last, inner) =
-      go(~top_level=false, ([], 0, Point.zero, empty), s.content);
+      go(
+        ~indent_level,
+        ~top_level=true,
+        ([], 0, Point.zero, empty),
+        s.content,
+      );
     let outer = merge_inner(inner, outer);
-    add_splice_info(s, {size: last}, outer);
+    add_splice_info(
+      s,
+      {
+        size: last,
+        rows: inner.rows,
+        piece_rows: inner.piece_rows,
+      },
+      outer,
+    );
   }
   /* Scan a projector's syntax for Splice children and measure each. */
   and measure_splices_in = (syntax: Segment.t, map: t): t =>
@@ -479,7 +517,18 @@ let of_segment_inner =
         switch (p) {
         | Splice(s) => measure_splice(s, map)
         | Projector(pr) => measure_splices_in(pr.syntax, map)
-        | _ => map
+        /* Tiles in a projector's syntax are not rendered inline, but they
+         * may contain splices in their children (e.g. VList wraps its
+         * items as splices inside a list-literal tile). Recurse into
+         * every child segment so those nested splices get measured. */
+        | Tile(t) =>
+          List.fold_left(
+            (map, child) => measure_splices_in(child, map),
+            map,
+            t.children,
+          )
+        | Grout(_)
+        | Secondary(_) => map
         },
       map,
       syntax,
@@ -531,10 +580,11 @@ let segment_bbox = (seg: Segment.t): Point.t => {
   | _ =>
     let max_row = List.fold_left((r, (k, _)) => max(r, k), 0, rows);
     let col =
-      switch (Rows.find_opt(max_row, m.rows)) {
-      | Some(shape) => shape.max_col
-      | None => 0
-      };
+      List.fold_left(
+        (c, (_, shape: Rows.shape)) => max(c, shape.max_col),
+        0,
+        rows,
+      );
     {
       row: max_row,
       col,
@@ -560,11 +610,7 @@ let rec splice_sizes = (seg: Segment.t): Id.Map.t(Point.t) =>
       | Base.Tile(t) =>
         List.fold_left(
           (acc, child) =>
-            Id.Map.union(
-              (_, _, v2) => Some(v2),
-              acc,
-              splice_sizes(child),
-            ),
+            Id.Map.union((_, _, v2) => Some(v2), acc, splice_sizes(child)),
           acc,
           t.children,
         )

@@ -332,11 +332,7 @@ module F =
       switch (focus) {
       | Scrut(a) =>
         let+ ci =
-          CodeEditable.Selection.get_cursor_info(
-            ~inject=a => inject(ScrutUpdate(a)),
-            ~selection=a,
-            model.scrut,
-          );
+          CodeEditable.Selection.get_cursor_info(~selection=a, model.scrut);
         ScrutUpdate(ci);
       | Case(i, a) =>
         switch (List.nth_opt(model.cases, i)) {
@@ -383,18 +379,13 @@ module F =
         ~signal=
           fun
           | MakeActive => take_focus(Scrut()),
-        ~edit_mode=
-          EditMode.Editable({
-            inject: x => inject(ScrutUpdate(x)),
-            escape: _ => Ui_effect.Ignore,
-            take_focus: _ => Ui_effect.Ignore,
-            focus:
-              switch (focus) {
-              | Some(Scrut(_)) => Some()
-              | Some(_)
-              | None => None
-              },
-          }),
+        ~inject=x => inject(ScrutUpdate(x)),
+        ~selected=
+          switch (focus) {
+          | Some(Scrut(_)) => true
+          | Some(_)
+          | None => false
+          },
         ~dynamics=Dynamics.Map.empty,
         model.scrut,
       );

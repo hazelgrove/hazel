@@ -31,7 +31,8 @@ let rec find_var_upat = (name: string, upat: Pat.t): bool => {
   | Tuple(l) =>
     List.fold_left((acc, up) => {acc || find_var_upat(name, up)}, false, l)
   | Parens(up)
-  | Projector(_, up) => find_var_upat(name, up)
+  | Projector(_, up)
+  | Splice(up) => find_var_upat(name, up)
   | Ap(up1, up2) => find_var_upat(name, up1) || find_var_upat(name, up2)
   | Asc(up, _) => find_var_upat(name, up)
   };
@@ -48,11 +49,14 @@ let rec find_in_let =
         (name: string, upat: Pat.t, def: Exp.t, l: list(Exp.t)): list(Exp.t) => {
   switch (upat.term, def.term) {
   | (Parens(up), Parens(ue))
-  | (Projector(_, up), Projector(_, ue)) => find_in_let(name, up, ue, l)
+  | (Projector(_, up), Projector(_, ue))
+  | (Splice(up), Splice(ue)) => find_in_let(name, up, ue, l)
   | (Parens(up), _)
-  | (Projector(_, up), _) => find_in_let(name, up, def, l)
+  | (Projector(_, up), _)
+  | (Splice(up), _) => find_in_let(name, up, def, l)
   | (_, Parens(ue))
-  | (_, Projector(_, ue)) => find_in_let(name, upat, ue, l)
+  | (_, Projector(_, ue))
+  | (_, Splice(ue)) => find_in_let(name, upat, ue, l)
   | (Asc(up, _), _) => find_in_let(name, up, def, l)
   | (Var(x), Fun(_)) => x == name ? [def, ...l] : l
   | (TupLabel(_, up), TupLabel(_, ue)) => find_in_let(name, up, ue, l)
@@ -102,6 +106,7 @@ let rec find_fn = (name: string, uexp: Exp.t, l: list(Exp.t)): list(Exp.t) => {
   | TypAp(u1, _)
   | Parens(u1)
   | Projector(_, u1)
+  | Splice(u1)
   | Asc(u1, _)
   | UnOp(_, u1)
   | TyAlias(_, _, u1)
@@ -189,6 +194,7 @@ let rec var_mention_upat = (name: string, upat: Pat.t): bool => {
     )
   | Parens(up)
   | Projector(_, up)
+  | Splice(up)
   | TupLabel(_, up) => var_mention_upat(name, up)
   | Ap(up1, up2) =>
     var_mention_upat(name, up1) || var_mention_upat(name, up2)
@@ -258,6 +264,7 @@ let rec var_mention = (name: string, uexp: Exp.t): bool => {
   | HintedTest(u, _)
   | Parens(u)
   | Projector(_, u)
+  | Splice(u)
   | UnOp(_, u)
   | TyAlias(_, _, u)
   | Use(_, u)
@@ -350,6 +357,7 @@ let rec var_applied = (name: string, uexp: Exp.t): bool => {
   | HintedTest(u, _)
   | Parens(u)
   | Projector(_, u)
+  | Splice(u)
   | UnOp(_, u)
   | TyAlias(_, _, u)
   | Use(_, u)
@@ -479,7 +487,8 @@ let rec tail_check = (name: string, uexp: Exp.t): bool => {
   | TypFun(_, u, _)
   | TypAp(u, _)
   | Parens(u)
-  | Projector(_, u) => tail_check(name, u)
+  | Projector(_, u)
+  | Splice(u) => tail_check(name, u)
   | UnOp(_, u) => !var_mention(name, u)
   | Ap(_, u1, u2) => var_mention(name, u2) ? false : tail_check(name, u1)
   | DeferredAp(fn, args) =>

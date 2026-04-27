@@ -1218,6 +1218,14 @@ module Transition = (EV: EV_MODE) => {
         kind: RemoveParens,
         is_value: false,
       });
+    | Splice(d') =>
+      let. _ = otherwise(env, d);
+      Step({
+        expr: d',
+        side_effects: [],
+        kind: RemoveParens,
+        is_value: false,
+      });
     | TyAlias(_, _, d) =>
       let. _ = otherwise(env, d);
       Step({

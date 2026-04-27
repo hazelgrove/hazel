@@ -65,17 +65,8 @@ module Update = {
 module Selection = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = CodeEditable.Selection.t;
-  let get_cursor_info = (~inject, ~selection, model) =>
-    CodeEditable.Selection.get_cursor_info(
-      ~inject=
-        a =>
-          switch (Update.convert_action(a)) {
-          | Some(action) => inject(action)
-          | None => Ui_effect.Ignore
-          },
-      ~selection,
-      model,
-    )
+  let get_cursor_info = (~inject as _, ~selection, model) =>
+    CodeEditable.Selection.get_cursor_info(~selection, model)
     |> (
       ci =>
         Cursor.{
@@ -89,24 +80,45 @@ module Selection = {
 module View = {
   type event = CodeEditable.View.event;
 
-  let wrap_edit_mode =
-      (edit_mode: EditMode.t(Update.t, unit))
-      : EditMode.t(CodeEditable.Update.t, unit) =>
+  let props_of_edit_mode = (edit_mode: EditMode.t(Update.t, unit)) =>
     switch (edit_mode) {
-    | ReadOnly => ReadOnly
-    | Editable({inject, escape, take_focus, focus}) =>
-      Editable({
-        inject: a =>
-          switch (Update.convert_action(a)) {
-          | Some(action) => inject(action)
-          | None => Ui_effect.Ignore
-          },
+    | ReadOnly => ((_ => Ui_effect.Ignore), false, (_ => Ui_effect.Ignore))
+    | Editable({inject, escape, take_focus: _, focus}) => (
+        (
+          a =>
+            switch (Update.convert_action(a)) {
+            | Some(action) => inject(action)
+            | None => Ui_effect.Ignore
+            }
+        ),
+        focus != None,
         escape,
-        take_focus,
-        focus,
-      })
+      )
     };
 
-  let view = (~edit_mode) =>
-    CodeEditable.View.view(~edit_mode=wrap_edit_mode(edit_mode));
+  let view =
+      (
+        ~edit_mode,
+        ~globals,
+        ~signal,
+        ~overlays=?,
+        ~lines=?,
+        ~dynamics,
+        ~expand_selection=?,
+        model,
+      ) => {
+    let (inject, selected, escape) = props_of_edit_mode(edit_mode);
+    CodeEditable.View.view(
+      ~globals,
+      ~signal,
+      ~inject,
+      ~selected,
+      ~escape,
+      ~overlays?,
+      ~lines?,
+      ~dynamics,
+      ~expand_selection?,
+      model,
+    );
+  };
 };

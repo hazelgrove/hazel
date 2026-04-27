@@ -186,11 +186,7 @@ module Selection = {
     switch (selection) {
     | MainEditor =>
       let+ ci =
-        CodeEditable.Selection.get_cursor_info(
-          ~inject=a => inject(MainEditor(a)),
-          ~selection=(),
-          model.editor,
-        );
+        CodeEditable.Selection.get_cursor_info(~selection=(), model.editor);
       Update.MainEditor(ci);
     | Result(selection) =>
       let+ ci =
@@ -267,19 +263,14 @@ module View = {
               ? _ => Ui_effect.Ignore
               : fun
                 | MakeActive => signal(MakeActive(MainEditor)),
-          ~edit_mode=
+          ~inject=
             locked
-              ? EditMode.ReadOnly
-              : Editable({
-                  inject: action => inject(MainEditor(action)),
-                  escape: _ => Ui_effect.Ignore,
-                  take_focus: _ => Ui_effect.Ignore,
-                  focus: selected == Some(MainEditor) ? Some() : None,
-                }),
+              ? _ => Ui_effect.Ignore
+              : (action => inject(MainEditor(action))),
+          ~selected=!locked && selected == Some(MainEditor),
           ~overlays=overlays(model.editor.editor),
           ~lines,
           ~dynamics=EvalResult.Model.dynamics(model.result),
-          ~incr_eval=EvalResult.Model.incr_eval(model.result),
           model.editor,
         ),
       ]

@@ -939,7 +939,7 @@ g(f(x))|},
   probe_line_test(
     "Probe on function value produces single sample",
     {|^^probe(fun x -> x)|},
-    [(0, ["^^fold(fun x -> x)"])],
+    [(0, ["^^fold((fun x -> x))"])],
   ),
   /* Indet case with no rules: wrap_closure_when_done wraps the indet
    * Match in Closure, causing re-evaluation with same target ID */

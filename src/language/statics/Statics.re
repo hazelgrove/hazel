@@ -702,6 +702,16 @@ and uexp_to_info_map =
         ~probe_targets=e.probe_targets,
         m,
       );
+    | Splice(e) =>
+      let (e, e_elab, m) = go(~ana, e, m);
+      add(
+        ~elab_term=Splice(e_elab) |> rewrap,
+        ~elab_syn_ty=e.elab_syn_ty,
+        ~marks=e.marks,
+        ~co_ctx=e.co_ctx,
+        ~probe_targets=e.probe_targets,
+        m,
+      );
     | UnOp(op, e) =>
       let op = Operators.replace_un_op(op, ctx.use_mode); // Replace op if necessary due to `use`
       let op_semantics = Operators.semantics_of_un_op(op);
@@ -3514,6 +3524,17 @@ and upat_to_info_map =
         ~constraint_=p.constraint_,
         m,
       );
+    | Splice(p) =>
+      let (p, p_elab, m) = go(~ctx, ~ana, p, ~duplicate_bindings, m);
+      add(
+        ~elab_term=Splice(p_elab) |> rewrap,
+        ~elab_syn_ty=p.elab_syn_ty,
+        ~marks=p.marks,
+        ~ctx=p.ctx,
+        ~probe_targets=p.probe_targets,
+        ~constraint_=p.constraint_,
+        m,
+      );
     | Constructor(ctr, ty) =>
       let (syn_ctr, cms_ctr) =
         ConstructorStaticsHelpers.syn_marks_ctr(ctx, ctr, ana, ty);
@@ -3802,7 +3823,8 @@ and utyp_to_info_map =
     add(m)
   | List(t)
   | Parens(t)
-  | Projector(_, t) => add(go(t, m) |> snd)
+  | Projector(_, t)
+  | Splice(t) => add(go(t, m) |> snd)
   | Arrow(t1, t2) =>
     let m = go(t1, m) |> snd;
     let m = go(t2, m) |> snd;

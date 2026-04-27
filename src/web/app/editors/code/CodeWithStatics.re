@@ -222,12 +222,19 @@ module View = {
         ~refine_sort,
         segment,
       );
+    /* Errors/warnings on pieces inside splices are rendered by their
+     * owning splice viewport at splice-local coords; restrict the main
+     * viewport to the top-level segment's own ids. */
+    let main_own_ids =
+      Segment.own_ids(segment)
+      |> List.fold_left((m, id) => Id.Map.add(id, (), m), Id.Map.empty);
+    let in_main = id => Id.Map.mem(id, main_own_ids);
     let error_decos =
       Arms.Errors.of_ids(
         ~refine_sort,
         ~font_metrics=globals.font_metrics,
         ~syntax=model.editor.syntax,
-        model.statics.error_ids,
+        List.filter(in_main, model.statics.error_ids),
       );
     let warning_ids =
       globals.settings.core.display_warnings ? model.statics.warning_ids : [];
@@ -237,7 +244,7 @@ module View = {
         ~is_warning=true,
         ~font_metrics=globals.font_metrics,
         ~syntax=model.editor.syntax,
-        warning_ids,
+        List.filter(in_main, warning_ids),
       );
     let container_classes =
       ["code-container"]

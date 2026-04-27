@@ -34,7 +34,7 @@ setup-student:
 
 dev-helper: setup-zarith
 	dune fmt --auto-promote || true
-	dune build @ocaml-index @src/fmt --auto-promote src --profile dev
+	dune build @ocaml-index @src/fmt src/web/www/hazel.js src/web/www/worker.js src/web/www/bundled.js --auto-promote src --profile dev
 
 dev: setup-instructor dev-helper
 
@@ -44,16 +44,16 @@ fmt:
 	dune fmt --auto-promote
 
 watch: setup-instructor setup-zarith
-	dune build @ocaml-index @src/fmt --auto-promote src --profile dev --watch
+	dune build @ocaml-index @src/fmt src/web/www/hazel.js src/web/www/worker.js src/web/www/bundled.js --auto-promote src --profile dev --watch
 
 watch-release: setup-instructor setup-zarith
-	dune build @src/fmt --auto-promote src --profile release --watch
+	dune build @src/fmt src/web/www/hazel.js src/web/www/worker.js src/web/www/bundled.js --auto-promote src --profile release --watch
 
 release: setup-instructor setup-zarith
-	dune build @src/fmt --auto-promote src --profile release
+	dune build @src/fmt src/web/www/hazel.js src/web/www/worker.js src/web/www/bundled.js --auto-promote src --profile release
 
 release-student: setup-student setup-zarith
-	dune build @src/fmt --auto-promote src --profile dev # Uses dev profile for performance reasons. It may be worth it to retest since the ocaml upgrade
+	dune build @src/fmt src/web/www/hazel.js src/web/www/worker.js src/web/www/bundled.js --auto-promote src --profile dev # Uses dev profile for performance reasons. It may be worth it to retest since the ocaml upgrade
 
 echo-html-dir:
 	@echo $(HTML_DIR)

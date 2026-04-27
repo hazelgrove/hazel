@@ -1424,6 +1424,28 @@ and rul = (unsorted): Rul.t => {
 and unsorted = (sort: Sort.t, skel: Skel.t, seg: Segment.t): unsorted => {
   /* Remove projectors. We do this here as opposed to removing
    * them in an external call to save a whole-syntax pass. */
+  let invalid_for_sort = (sort: Sort.t, token: Token.t): Any.t =>
+    switch (sort) {
+    | Pat => Pat(Pat.fresh(Invalid(token)))
+    | Typ => Typ(Typ.fresh(Unknown(Hole(Invalid(token)))))
+    | TPat => TPat(TPat.fresh(Invalid(token)))
+    | Mod => Mod(Mod.fresh(Invalid(token)))
+    | Sig => Sig(Sig.fresh(Invalid(token)))
+    | MPat => MPat(MPat.fresh(Invalid(token)))
+    | Exp
+    | Any
+    | Rul
+    | Drv(_) => Exp(Exp.fresh(Invalid(token)))
+    };
+  let splice_content_or_invalid =
+      (ambient_sort: Sort.t, content: Segment.t): Any.t =>
+    try({
+      let sk = Segment.skel(content);
+      let sort = Segment.sort_of(sk, content);
+      go_s(sort, sk, content);
+    }) {
+    | _ => invalid_for_sort(ambient_sort, "?")
+    };
   let tile_kids = (p: Piece.t): list(Any.t) =>
     switch (p) {
     | Secondary(_)
@@ -1431,10 +1453,11 @@ and unsorted = (sort: Sort.t, skel: Skel.t, seg: Segment.t): unsorted => {
     | Splice({content, _}) =>
       /* Splices are transparent wrappers: their content becomes the
        * single kid of the SPLICE_WRAP tile. The SPLICE_WRAP case at
-       * term-construction time unwraps `body.term` straight through. */
-      let sk = Segment.skel(content);
-      let sort = Segment.sort_of(sk, content);
-      [go_s(sort, sk, content)];
+       * term-construction time unwraps `body.term` straight through.
+       * While editing, splice content can contain incomplete syntax. Parse it
+       * through the total term path so tokens like "[" become Invalid terms,
+       * while still keeping the splice wrapper visible. */
+      [splice_content_or_invalid(sort, content)]
     | Projector({id, kind, model, syntax} as pr) =>
       let _ = log_projector(pr);
       let sk = Segment.skel(syntax);

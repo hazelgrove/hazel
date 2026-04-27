@@ -34,6 +34,7 @@ type move =
    * Move(Point(...)), which always lands the caret at the closest
    * grid position. */
   | Point(Point.t, option(chunkiness))
+  | SplicePoint([@equal (_, _) => true] Id.t, Point.t)
   | Goal(goal);
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]

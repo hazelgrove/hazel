@@ -409,6 +409,19 @@ let flex_code =
         segment,
       );
 
+let rec contains_splice = (seg: Base.segment): bool =>
+  List.exists(
+    (p: Base.piece) =>
+      switch (p) {
+      | Splice(_) => true
+      | Tile(t) => List.exists(contains_splice, t.children)
+      | Projector(_)
+      | Grout(_)
+      | Secondary(_) => false
+      },
+    seg,
+  );
+
 /* Default fallback splice renderer: non-interactive simple_code. Used
  * when a ProjectorView caller does not provide a richer ~render_splice
  * callback (e.g. read-only code viewers). */
@@ -448,18 +461,23 @@ let mk_view =
       }: Model.projector_data,
       projector_list: list(Id.t),
     )
-    : View.t =>
+    : View.t => {
+  let cacheable = !contains_splice(p.syntax);
   switch (
-    ViewCache.lookup(
-      p.id,
-      ~statics_map,
-      ~dynamics_map,
-      ~sample_focus,
-      ~elaborated,
-      ~core_settings,
-      ~status,
-      ~model=p.model,
-    )
+    if (cacheable) {
+      ViewCache.lookup(
+        p.id,
+        ~statics_map,
+        ~dynamics_map,
+        ~sample_focus,
+        ~elaborated,
+        ~core_settings,
+        ~status,
+        ~model=p.model,
+      );
+    } else {
+      None;
+    }
   ) {
   | Some(view) =>
     ViewCache.hits := ViewCache.hits^ + 1;
@@ -529,19 +547,22 @@ let mk_view =
         status,
         core_settings,
       });
-    ViewCache.store(
-      p.id,
-      ~statics_map,
-      ~dynamics_map,
-      ~sample_focus,
-      ~elaborated,
-      ~core_settings,
-      ~status,
-      ~model=p.model,
-      ~view,
-    );
+    if (cacheable) {
+      ViewCache.store(
+        p.id,
+        ~statics_map,
+        ~dynamics_map,
+        ~sample_focus,
+        ~elaborated,
+        ~core_settings,
+        ~status,
+        ~model=p.model,
+        ~view,
+      );
+    };
     view;
   };
+};
 
 /* Extract and collate different layers of the resulting view
  * in order to stratify z-levels across all projectors */

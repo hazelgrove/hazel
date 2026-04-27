@@ -253,6 +253,13 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
           Projector(data, Asc(pe, t) |> DHExp.fresh) |> DHExp.fresh,
         ),
       )
+    | (Splice(pe), _) =>
+      Some(
+        IdTagged.fast_copy(
+          DHExp.rep_id(e),
+          Splice(Asc(pe, t) |> DHExp.fresh) |> DHExp.fresh,
+        ),
+      )
     // We _could_ do this, but it would be a bit weird
     | (Use(_), _) // I'm scaredto do Use because the type-directed literals might make this look weird in the stepper
     | (BuiltinFun(_), _)

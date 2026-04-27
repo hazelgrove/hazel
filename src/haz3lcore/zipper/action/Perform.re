@@ -112,6 +112,8 @@ let go =
         ),
       ~col_target=Option.value(col_target, ~default=0),
       ~measured=syntax.measured,
+      ~projector_list=syntax.projector_list,
+      ~projectors=syntax.projectors,
       d,
       z,
     )
@@ -149,6 +151,17 @@ let go =
       };
     Select.to_point(~chunkiness, ~measured=syntax.measured, ~goal, z)
     |> return(Cant_select);
+  | Select(Resize(SplicePoint(splice_id, goal))) =>
+    z
+    |> Move.to_splice_point(
+         ~measured=syntax.measured,
+         ~projector_list=syntax.projector_list,
+         ~projectors=syntax.projectors,
+         ~splice_id,
+         ~goal,
+       )
+    |> OptUtil.and_then(Select.to_point(~measured=syntax.measured, ~goal))
+    |> return(Cant_select)
   | Select(Resize(Goal(_))) => failwith("Select not implemented for goals")
   | Select(All) => Ok(Select.all(z))
   | Select(PointToPoint((p1, p2))) =>

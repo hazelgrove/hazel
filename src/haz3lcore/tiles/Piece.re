@@ -9,14 +9,7 @@ let tile = t => Tile(t);
 let splice = s => Splice(s);
 
 let get =
-    (
-      f_w,
-      f_g,
-      f_t: tile => _,
-      f_p: projector => _,
-      f_s: splice => _,
-      p: t,
-    ) =>
+    (f_w, f_g, f_t: tile => _, f_p: projector => _, f_s: splice => _, p: t) =>
   switch (p) {
   | Secondary(w) => f_w(w)
   | Grout(g) => f_g(g)
@@ -222,11 +215,13 @@ let mk_grout = (~id=Id.mk(), shape: Grout.shape): t =>
     shape,
   });
 
-let mk_splice = (~id=Id.mk(), content: segment): t =>
+let mk_splice = (~id=Id.mk(), content: segment): t => {
+  let content = content == [] ? [mk_grout(Convex)] : content;
   splice({
     id,
     content,
   });
+};
 
 let mk_tile: (Form.t, list(list(t))) => t =
   (form, children) =>

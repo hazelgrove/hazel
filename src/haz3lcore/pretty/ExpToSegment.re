@@ -128,6 +128,7 @@ let rec external_precedence = (exp: Exp.t): Precedence.t => {
   // Same goes for forms which are already surrounded
   | Parens(_)
   | Projector(_)
+  | Splice(_)
   | ListLit(_)
   | Test(_)
   | HintedTest(_)
@@ -183,7 +184,8 @@ let external_precedence_pat = (dp: Pat.t) =>
   // Same goes for forms which are already surrounded
   | ListLit(_)
   | Parens(_)
-  | Projector(_) => Precedence.max
+  | Projector(_)
+  | Splice(_) => Precedence.max
 
   // Other forms
   | Cons(_) => Precedence.cons
@@ -213,6 +215,7 @@ let external_precedence_typ = (tp: Typ.t) =>
   // Same goes for forms which are already surrounded
   | Parens(_)
   | Projector(_)
+  | Splice(_)
   | ProofOf(_)
   | List(_) => Precedence.max
 
@@ -527,6 +530,8 @@ let rec parenthesize =
     |> rewrap
   | Projector(data, e) =>
     Projector(data, parenthesize(e) |> paren_at(Precedence.min)) |> rewrap
+  | Splice(e) =>
+    Splice(parenthesize(e) |> paren_at(Precedence.min)) |> rewrap
   | Cons(e1, e2) =>
     Cons(
       parenthesize(e1) |> paren_at(Precedence.cons),
@@ -635,6 +640,8 @@ and parenthesize_pat =
   | Projector(data, p) =>
     Projector(data, parenthesize_pat(p) |> paren_pat_at(Precedence.min))
     |> rewrap
+  | Splice(p) =>
+    Splice(parenthesize_pat(p) |> paren_pat_at(Precedence.min)) |> rewrap
   | Cons(p1, p2) =>
     Cons(
       parenthesize_pat(p1) |> paren_pat_at(Precedence.cons),
@@ -722,6 +729,8 @@ and parenthesize_typ =
   | Projector(data, t) =>
     Projector(data, parenthesize_typ(t) |> paren_typ_at(Precedence.min))
     |> rewrap
+  | Splice(t) =>
+    Splice(parenthesize_typ(t) |> paren_typ_at(Precedence.min)) |> rewrap
   | List(t) =>
     List(parenthesize_typ(t) |> paren_typ_at(Precedence.min)) |> rewrap
   | Prod([]) => typ
@@ -2193,6 +2202,10 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
       exp,
       [Piece.Projector(ProjectorCore.mk(~id, kind, syntax, model))],
     );
+  | Splice(e) =>
+    let id = exp |> Exp.rep_id;
+    let+ inner_seg = go(e);
+    wrap(exp, [Piece.mk_splice(~id, inner_seg)]);
   | Cons(e1, e2) =>
     // TODO: Add optional newlines
     let id = exp |> Exp.rep_id;
@@ -2530,6 +2543,10 @@ and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
       pat,
       [Piece.Projector(ProjectorCore.mk(~id, kind, syntax, model))],
     );
+  | Splice(p) =>
+    let id = pat |> Pat.rep_id;
+    let+ inner_seg = go(p);
+    wrap(pat, [Piece.mk_splice(~id, inner_seg)]);
   | MultiHole(es) =>
     let+ es = es |> List.map(any_to_pretty(~settings: Settings.t)) |> all;
     /* Use IDs from the term for grout pieces, like Tuple uses for commas. */
@@ -2782,6 +2799,10 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
       typ,
       [Piece.Projector(ProjectorCore.mk(~id, kind, syntax, model))],
     );
+  | Splice(t) =>
+    let id = typ |> Typ.rep_id;
+    let+ inner_seg = go(t);
+    wrap(typ, [Piece.mk_splice(~id, inner_seg)]);
   | Rec(tp, t) =>
     let id = typ |> Typ.rep_id;
     let+ tp = tpat_to_pretty(~settings: Settings.t, tp)

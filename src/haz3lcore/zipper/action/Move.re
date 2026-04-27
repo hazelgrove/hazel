@@ -2,10 +2,58 @@ open Util;
 open OptUtil.Syntax;
 open Zipper;
 
+let enter_neighbor = (d: Direction.t, z: t): option(t) => {
+  switch (z.caret, Selection.is_empty(z.selection)) {
+  | (Outer, true) =>
+    switch (Siblings.pop(d, z.relatives.siblings)) {
+    | Some((Projector(pr), siblings)) =>
+      let+ relatives =
+        Relatives.enter_projector(d, pr, siblings, z.relatives.ancestors);
+      {
+        ...z,
+        relatives,
+      };
+    | Some((Splice(sp), siblings)) =>
+      Some({
+        ...z,
+        relatives:
+          Relatives.enter_splice(
+            d,
+            sp,
+            ~sort=Sort.Any,
+            siblings,
+            z.relatives.ancestors,
+          ),
+      })
+    | _ => None
+    }
+  | _ => None
+  };
+};
+
+let exit_current_splice = (d: Direction.t, z: t): option(t) => {
+  let+ relatives = Relatives.exit_splice(d, z.relatives);
+  {
+    ...z,
+    relatives: Relatives.reassemble(relatives),
+  };
+};
+
+let structural_move = (d: Direction.t, z: t): option(t) =>
+  switch (enter_neighbor(d, z)) {
+  | Some(_) as entered => entered
+  | None =>
+    switch (move(d, z)) {
+    | Some(_) as moved => moved
+    | None => exit_current_splice(d, z)
+    }
+  };
+
 let by_char_left = (z: t): option(t) =>
   switch (z.caret, Caret.nhbr_max_idx(Left, z)) {
-  | (Outer, None) => move(Left, z)
-  | (Outer, Some(max_idx)) => z |> Caret.set(Inner(max_idx)) |> move(Left)
+  | (Outer, None) => structural_move(Left, z)
+  | (Outer, Some(max_idx)) =>
+    z |> Caret.set(Inner(max_idx)) |> structural_move(Left)
   | (Inner(char), None | Some(_)) when char == 0 =>
     z |> Caret.set(Outer) |> Option.some
   | (Inner(char), None | Some(_)) =>
@@ -14,7 +62,7 @@ let by_char_left = (z: t): option(t) =>
 
 let by_char_right = (z: t): option(t) =>
   switch (z.caret, Caret.nhbr_max_idx(Right, z)) {
-  | (Outer, None) => move(Right, z)
+  | (Outer, None) => structural_move(Right, z)
   | (Outer, Some(_)) => z |> Caret.set(Inner(0)) |> Option.some
   | (Inner(char), Some(max_idx)) when char >= max_idx =>
     z |> Caret.set(Outer) |> move(Right)
@@ -40,12 +88,12 @@ let by_char = (d: Direction.t, z: t): option(t) =>
 
 let by_token = (d: Direction.t, z: t): option(t) =>
   switch (z.caret) {
-  | Outer => move(d, z)
+  | Outer => structural_move(d, z)
   | Inner(_) =>
     let z = Caret.set(Outer, z);
     switch (d) {
     | Left => Some(z)
-    | Right => move(Right, z)
+    | Right => structural_move(Right, z)
     };
   };
 
@@ -249,6 +297,116 @@ let to_point = (~measured: Measured.t, ~goal: Point.t, z: t): option(t) => {
   };
 };
 
+let rec collect_splices = (seg: Base.segment): list(Base.splice) =>
+  List.concat_map(
+    (p: Base.piece) =>
+      switch (p) {
+      | Splice(s) => [s, ...collect_splices(s.content)]
+      | Tile(t) => List.concat_map(collect_splices, t.children)
+      | Projector(_)
+      | Grout(_)
+      | Secondary(_) => []
+      },
+    seg,
+  );
+
+let nth_opt = (xs: list('a), i: int): option('a) =>
+  i < 0
+    ? None
+    : (
+      try(Some(List.nth(xs, i))) {
+      | _ => None
+      }
+    );
+
+let split_projector =
+    (~projector_id: Id.t, seg: Base.segment)
+    : option((Segment.t, Base.projector, Segment.t)) => {
+  let rec scan = (pre: Segment.t, rest: Segment.t) =>
+    switch (rest) {
+    | [] => None
+    | [Projector(pr), ...suf] when pr.id == projector_id =>
+      Some((List.rev(pre), pr, suf))
+    | [p, ...suf] => scan([p, ...pre], suf)
+    };
+  scan([], seg);
+};
+
+let find_projector_containing_splice =
+    (
+      ~projector_list: list(Id.t),
+      ~projectors: Id.Map.t(Base.projector),
+      ~splice_id: Id.t,
+    )
+    : option((Id.t, Base.projector)) =>
+  List.find_map(
+    projector_id => {
+      let* projector = Id.Map.find_opt(projector_id, projectors);
+      List.exists(
+        (s: Base.splice) => s.id == splice_id,
+        collect_splices(projector.syntax),
+      )
+        ? Some((projector_id, projector)) : None;
+    },
+    projector_list,
+  );
+
+let enter_splice_id =
+    (
+      ~projector_list: list(Id.t),
+      ~projectors: Id.Map.t(Base.projector),
+      ~splice_id: Id.t,
+      z: t,
+    )
+    : option(t) => {
+  let* (projector_id, _cached_projector) =
+    find_projector_containing_splice(
+      ~projector_list,
+      ~projectors,
+      ~splice_id,
+    );
+  let full_segment = Zipper.unselect_and_zip(z);
+  let* (outer_left, projector, outer_right) =
+    split_projector(~projector_id, full_segment);
+  let pred = (s: Base.splice) => s.id == splice_id;
+  let* (descent_ancs, splice_sibs, _splice, before, after) =
+    Relatives.find_splice_descent_when(Right, pred, projector.syntax);
+  let proj_anc: Ancestor.proj_anc = {
+    id: projector.id,
+    kind: projector.kind,
+    model: projector.model,
+    before,
+    after,
+  };
+  Some({
+    ...z,
+    caret: Outer,
+    relatives: {
+      siblings: splice_sibs,
+      ancestors:
+        descent_ancs
+        @ [(Ancestor.Projector(proj_anc), (outer_left, outer_right))],
+    },
+  });
+};
+
+let to_splice_point =
+    (
+      ~measured: Measured.t,
+      ~projector_list: list(Id.t),
+      ~projectors: Id.Map.t(Base.projector),
+      ~splice_id: Id.t,
+      ~goal: Point.t,
+      z: t,
+    )
+    : option(t) => {
+  let* z = enter_splice_id(~projector_list, ~projectors, ~splice_id, z);
+  switch (do_towards_point(~measured, local(ByChar), goal, z)) {
+  | None => Some(z)
+  | Some(z) => Some(z)
+  };
+};
+
 let to_start: t => t = do_to_extreme(local(ByToken, Left));
 
 let to_end: t => t = do_to_extreme(local(ByToken, Right));
@@ -311,6 +469,8 @@ let move_dispatch =
       ~problem_ids: Seq.t(Id.t),
       ~col_target: int,
       ~measured: Measured.t,
+      ~projector_list: list(Id.t),
+      ~projectors: Id.Map.t(Base.projector),
       d: Action.move,
       z: t,
     )
@@ -322,6 +482,15 @@ let move_dispatch =
   | Line(d) => to_linebreak(d, z)
   | Vertical(d, _) => vertical(~measured, ~col_target, d, z)
   | Point(goal, _) => to_point(~measured, ~goal, z)
+  | SplicePoint(splice_id, goal) =>
+    to_splice_point(
+      ~measured,
+      ~projector_list,
+      ~projectors,
+      ~splice_id,
+      ~goal,
+      z,
+    )
   | Goal(Hole(d)) => to_next_grout(d, z)
   | Goal(NextProblem(d)) => to_next_problem(~measured, ~problem_ids, d, z)
   | Goal(TileId(id)) => jump_to_id_indicated(z, id)
@@ -341,6 +510,7 @@ let pre_unselect = (a: Action.move, z: t): t => {
     | End
     | Line(_)
     | Point(_)
+    | SplicePoint(_, _)
     | Goal(_) => z.selection.focus
     };
   let landing_at_anchor = d != z.selection.focus;
@@ -361,12 +531,23 @@ let go =
       ~problem_ids: Seq.t(Id.t),
       ~col_target: int,
       ~measured: Measured.t,
+      ~projector_list: list(Id.t),
+      ~projectors: Id.Map.t(Base.projector),
       a: Action.move,
       z: t,
     )
     : option(t) =>
   if (Selection.is_empty(z.selection)) {
-    move_dispatch(~statics, ~problem_ids, ~col_target, ~measured, a, z);
+    move_dispatch(
+      ~statics,
+      ~problem_ids,
+      ~col_target,
+      ~measured,
+      ~projector_list,
+      ~projectors,
+      a,
+      z,
+    );
   } else {
     let z = pre_unselect(a, z);
     switch (a) {
@@ -375,7 +556,16 @@ let go =
     | Local(Right, ByChar | BySmart) => Some(z)
     | _ =>
       switch (
-        move_dispatch(~statics, ~problem_ids, ~col_target, ~measured, a, z)
+        move_dispatch(
+          ~statics,
+          ~problem_ids,
+          ~col_target,
+          ~measured,
+          ~projector_list,
+          ~projectors,
+          a,
+          z,
+        )
       ) {
       | Some(z) => Some(z)
       /* Always empty selection on move action,

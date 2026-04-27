@@ -77,6 +77,7 @@ module Utils = {
     | UnOp(_, e)
     | Test(e)
     | Parens(e)
+    | Splice(e)
     | Filter(_, e)
     | Closure(_, e)
     | Asc(e, _)
@@ -232,6 +233,7 @@ module Namer = {
     | Constructor(name, _)
     | Label(name) => name
     | Parens(pat)
+    | Splice(pat)
     | Asc(pat, _) => mk_name_from_pat(pat)
     | Cons(pat1, pat2) =>
       mk_name_from_pat(pat1) ++ "::" ++ mk_name_from_pat(pat2)

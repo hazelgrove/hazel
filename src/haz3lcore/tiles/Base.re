@@ -39,7 +39,11 @@ let rec map_piece = (~f_piece, x: piece) => {
     | Grout(_)
     | Secondary(_)
     | Projector(_) => piece
-    | Splice(s) => Splice({...s, content: s.content |> List.map(map_piece(~f_piece))})
+    | Splice(s) =>
+      Splice({
+        ...s,
+        content: s.content |> List.map(map_piece(~f_piece)),
+      })
     };
   };
   x |> f_piece(rec_call);

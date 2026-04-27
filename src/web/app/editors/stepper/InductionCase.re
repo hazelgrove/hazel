@@ -275,11 +275,7 @@ module F = (Stepper: STEPPER) => {
       switch (focus) {
       | Pattern(a) =>
         let+ ci =
-          CodeEditable.Selection.get_cursor_info(
-            ~inject=a => inject(PatternUpdate(a)),
-            ~selection=a,
-            model.pattern,
-          );
+          CodeEditable.Selection.get_cursor_info(~selection=a, model.pattern);
         PatternUpdate(ci);
       | Stepper(a) =>
         let+ ci =
@@ -316,17 +312,12 @@ module F = (Stepper: STEPPER) => {
         ~signal=
           fun
           | MakeActive => take_focus(Pattern()),
-        ~edit_mode=
-          EditMode.Editable({
-            inject: x => inject(PatternUpdate(x)),
-            escape: _ => Ui_effect.Ignore,
-            take_focus: _ => Ui_effect.Ignore,
-            focus:
-              switch (focus) {
-              | Some(Pattern ()) => Some()
-              | _ => None
-              },
-          }),
+        ~inject=x => inject(PatternUpdate(x)),
+        ~selected=
+          switch (focus) {
+          | Some(Pattern ()) => true
+          | _ => false
+          },
         ~dynamics=Dynamics.Map.empty,
         model.pattern,
       );
