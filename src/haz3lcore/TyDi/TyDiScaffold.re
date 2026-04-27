@@ -11,11 +11,11 @@ let rec unwrap_parens = (ty: Typ.t): Typ.t =>
   };
 
 /* Look up a piece in the info map and extract the function
- * argument type via matched_arrow. */
+ * argument type via MatchedTyp.arrow_tolerant. */
 let fn_arg_type = (info_map: Statics.Map.t, piece: Piece.t): option(Typ.t) =>
   switch (Id.Map.find_opt(Piece.id(piece), info_map)) {
   | Some(InfoExp({ty, ctx, _})) =>
-    let (arg_ty, _) = Typ.matched_arrow(ctx, ty);
+    let (arg_ty, _) = MatchedTyp.arrow_tolerant(ctx, ty);
     Some(arg_ty);
   | _ => None
   };
@@ -272,8 +272,8 @@ let has_inner_errors =
     List.exists(
       (p: Piece.t) =>
         switch (Id.Map.find_opt(Piece.id(p), info_map)) {
-        | Some(InfoExp({status: InHole(_), _})) => true
-        | _ => false
+        | Some(ci) => Info.is_error(ci)
+        | None => false
         },
       inner_seg,
     )
@@ -308,14 +308,10 @@ let should_suppress =
       false;
     } else {
       switch (Id.Map.find_opt(Piece.id(p), info_map)) {
-      | Some(InfoExp({self, ctx, _})) =>
-        switch (Self.typ_of_exp(self)) {
-        | Some(syn_ty) =>
-          switch (Typ.term_of(syn_ty)) {
-          | Unknown(_) => false
-          | _ => Typ.is_consistent(ctx, syn_ty, expected_ty)
-          }
-        | None => false
+      | Some(InfoExp({elab_syn_ty, ctx, _})) =>
+        switch (Typ.term_of(elab_syn_ty)) {
+        | Unknown(_) => false
+        | _ => Typ.is_consistent(ctx, elab_syn_ty, expected_ty)
         }
       | _ => false
       };
@@ -581,7 +577,7 @@ let split_leading_comments = (content: Segment.t): (string, Segment.t) => {
   go("", content);
 };
 
-let reify = (z: Zipper.t): Zipper.t =>
+let reify = (~root, z: Zipper.t): Zipper.t =>
   if (is_scaffold(z)) {
     let (leading_text, structural) =
       split_leading_comments(z.selection.content);
@@ -592,7 +588,7 @@ let reify = (z: Zipper.t): Zipper.t =>
       switch (leading_text) {
       | "" => z
       | text =>
-        switch (Parser.to_zipper(~zipper_init=z, text)) {
+        switch (Parser.to_zipper(~root, ~zipper_init=z, text)) {
         | Some(z) => z
         | None => z
         }

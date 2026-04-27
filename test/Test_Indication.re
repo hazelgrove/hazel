@@ -38,6 +38,7 @@ let perform = (zip: Zipper.t, actions: list(Action.t)): Zipper.t => {
       ~settings=Language.CoreSettings.off,
       ~statics=CachedStatics.empty,
       ~syntax=CachedSyntax.init(z),
+      ~root=Exp,
       a,
       {
         zipper: z,

@@ -26,9 +26,6 @@ let empty: t = {
   targets: Sample.no_targets,
 };
 
-let elaborate =
-  Core.Memo.general(~cache_size_bound=1000, Elaborator.uexp_elab);
-
 let dh_err = (error: string): DHExp.t => Var(error) |> DHExp.fresh;
 
 /* Predicate for whether a term should be probed when ProbeAll is on.
@@ -64,10 +61,13 @@ let compute_targets =
   Id.Map.fold(
     (id, (), acc) => {
       let refs =
-        switch (Statics.Map.lookup(id, info_map)) {
-        | Some(InfoExp(_)) => Statics.Map.refs_in(info_map, id) /* Expression target */
-        | Some(InfoPat(_)) => Statics.Map.bound_in(info_map, id) /* Pattern target */
-        | _ => [] /* Unknown - no refs */
+        switch (Statics.Map.lookup_exp(id, info_map)) {
+        | Some(_) => Statics.Map.refs_in(info_map, id)
+        | None =>
+          switch (Statics.Map.lookup_pat(id, info_map)) {
+          | Some(_) => Statics.Map.bound_in(info_map, id)
+          | None => []
+          }
         };
       let spec: Sample.capture_spec = {refs: refs};
       Id.Map.add(id, spec, acc);
@@ -92,7 +92,7 @@ let init_from_term =
       ~default=Builtins.ctx_init(is_dynamic_term ? None : Some(Int)),
       ctx,
     );
-  let info_map = Statics.mk(~ana?, settings, ctx_init, term);
+  let (info_map, elaborated) = Statics.mk(~ana?, settings, ctx_init, term);
   let error_ids = Statics.Map.error_ids(info_map);
   let warning_ids = Statics.Map.warning_ids(info_map);
   let elaborated =
@@ -100,11 +100,7 @@ let init_from_term =
     | _ when !settings.statics => dh_err("Statics disabled")
     | _ when !settings.dynamics && !settings.elaborate =>
       dh_err("Dynamics & Elaboration disabled")
-    | _ =>
-      switch (elaborate(info_map, term)) {
-      | DoesNotElaborate => dh_err("Elaboration returns None")
-      | Elaborates(d, _) => d
-      }
+    | _ => elaborated
     };
   let targets = compute_targets(~settings, ~info_map, ~probe_ids);
   {
@@ -123,14 +119,15 @@ let init =
       ~is_dynamic_term,
       ~stitch,
       ~ctx=?,
+      ~root,
       ~ana=?,
       z: Zipper.t,
     )
     : t => {
   /* Reify scaffold buffer: virtually insert scaffold commas so statics
    * sees the tuple structure (e.g., Ap(f, Tuple([1, ⬚])) not Ap(f, 1)) */
-  let z_for_sem = TyDiScaffold.reify(z);
-  let make_term_result = MakeTerm.from_zip_for_sem(z_for_sem);
+  let z_for_sem = TyDiScaffold.reify(~root, z);
+  let make_term_result = MakeTerm.from_zip_for_sem(z_for_sem, ~root);
   let term = make_term_result.term |> stitch;
   /* Extract probe IDs directly from zipper's refractors (manuals + ephemerals).
    * Map values to unit since we only need the IDs as keys. */
@@ -150,11 +147,13 @@ let init =
       ~is_dynamic_term,
       ~stitch,
       ~ctx=?,
+      ~root,
       ~ana=?,
       z: Zipper.t,
     ) =>
   settings.statics
-    ? init(~settings, ~stitch, ~ctx?, ~is_dynamic_term, ~ana?, z) : empty;
+    ? init(~settings, ~stitch, ~ctx?, ~is_dynamic_term, ~root, ~ana?, z)
+    : empty;
 
 /* Compute the correct assist buffer and statics together, resolving
  * the circular dependency between them:
@@ -173,6 +172,7 @@ let init_with_assist =
       ~is_dynamic_term,
       ~stitch,
       ~ctx=?,
+      ~root,
       ~ana=?,
       z: Zipper.t,
     )
@@ -180,7 +180,7 @@ let init_with_assist =
   /* Step 1: statics on bare zipper */
   let clean_z = Zipper.clear_unparsed_buffer(z);
   let statics =
-    init(~settings, ~is_dynamic_term, ~stitch, ~ctx?, ~ana?, clean_z);
+    init(~settings, ~is_dynamic_term, ~stitch, ~ctx?, ~root, ~ana?, clean_z);
 
   if (!settings.assist || !settings.statics) {
     (clean_z, statics);
@@ -198,6 +198,7 @@ let init_with_assist =
           ~is_dynamic_term,
           ~stitch,
           ~ctx?,
+          ~root,
           ~ana?,
           z_with_buffer,
         );

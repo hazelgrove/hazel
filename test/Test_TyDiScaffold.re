@@ -7,8 +7,8 @@ open Language;
 let assist_suggest = (code: string): option(string) => {
   let actions = Test_Editing.mk(code);
   let z = Test_Editing.perform(Zipper.init(), actions);
-  let MakeTerm.{term, _} = MakeTerm.from_zip_for_sem(z);
-  let info_map =
+  let MakeTerm.{term, _} = MakeTerm.from_zip_for_sem(z, ~root=Exp);
+  let (info_map, _) =
     Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
   let z = Buffer.set_assist_buffer(~info_map, z);
   TyDi.get_unparsed_buffer(z);
@@ -24,8 +24,8 @@ let scaffold_test = (~name, ~code, ~expect) =>
 let scaffold_accept = (code: string): string => {
   let actions = Test_Editing.mk(code);
   let z = Test_Editing.perform(Zipper.init(), actions);
-  let MakeTerm.{term, _} = MakeTerm.from_zip_for_sem(z);
-  let info_map =
+  let MakeTerm.{term, _} = MakeTerm.from_zip_for_sem(z, ~root=Exp);
+  let (info_map, _) =
     Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
   let z = Buffer.set_assist_buffer(~info_map, z);
   /* Accept the buffer (Tab) */
@@ -42,8 +42,8 @@ let multi_accept = (code: string, n_tabs: int): string => {
     if (remaining <= 0) {
       z;
     } else {
-      let MakeTerm.{term, _} = MakeTerm.from_zip_for_sem(z);
-      let info_map =
+      let MakeTerm.{term, _} = MakeTerm.from_zip_for_sem(z, ~root=Exp);
+      let (info_map, _) =
         Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
       let z = Buffer.set_assist_buffer(~info_map, z);
       let z = Test_Editing.perform(z, [Action.Buffer(Accept)]);
@@ -958,8 +958,8 @@ string_replace(
 let scaffold_segment_ok = (code: string): bool => {
   let actions = Test_Editing.mk(code);
   let z = Test_Editing.perform(Zipper.init(), actions);
-  let MakeTerm.{term, _} = MakeTerm.from_zip_for_sem(z);
-  let info_map =
+  let MakeTerm.{term, _} = MakeTerm.from_zip_for_sem(z, ~root=Exp);
+  let (info_map, _) =
     Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
   let z = TyDiScaffold.set(~info_map, z);
   /* This is what CachedSyntax.mk does — if it crashes, the UI crashes */
@@ -1216,6 +1216,7 @@ let init_with_assist_result = (code: string): (option(string), bool) => {
       ~settings=CoreSettings.on,
       ~is_dynamic_term=false,
       ~stitch=x => x,
+      ~root=Exp,
       z,
     );
   let buffer = TyDi.get_unparsed_buffer(z);

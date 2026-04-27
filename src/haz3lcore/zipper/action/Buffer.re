@@ -58,7 +58,7 @@ let set_llm_buffer = (z: Zipper.t, response: string): Zipper.t =>
   switch (
     {
       //TODO: Check for incomplete syntax, report errors
-      let+ res = Parser.to_zipper(response);
+      let+ res = Parser.to_zipper(response, ~root=Exp);
       Zipper.zip(res);
     }
   ) {
@@ -149,7 +149,7 @@ let buffer_accept = (z: Zipper.t): option(Zipper.t) =>
      * post-hoc space insertion needed. */
     let to_emit = scaffold_emit_text(z.selection.content);
     let z = Zipper.clear_unparsed_buffer(z);
-    Parser.to_zipper(~zipper_init=z, to_emit);
+    Parser.to_zipper(~root=Exp, ~zipper_init=z, to_emit);
   | Buffer(Unparsed) =>
     switch (TyDi.get_unparsed_buffer(z)) {
     | None => None
@@ -169,11 +169,11 @@ let buffer_accept = (z: Zipper.t): option(Zipper.t) =>
          * want the caret to end up to the left of the first hole, whereas
          * pasting would leave it to the left of the second. Thus we move
          * left to the previous hole. */
-        let* z = Parser.to_zipper(~zipper_init=z, completion);
+        let* z = Parser.to_zipper(~root=Exp, ~zipper_init=z, completion);
         let* z = Move.to_next_grout(Left, z);
         Move.local(ByToken, Left, z);
       } else {
-        Parser.to_zipper(~zipper_init=z, completion);
+        Parser.to_zipper(~root=Exp, ~zipper_init=z, completion);
       };
     }
   };

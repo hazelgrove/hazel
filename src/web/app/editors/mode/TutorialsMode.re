@@ -300,21 +300,17 @@ module Selection = {
   open Cursor;
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = TutorialMode.Selection.t;
-  let get_cursor_info = (~selection, model: Model.t): cursor(Update.t) => {
+  let get_cursor_info =
+      (~inject: Update.t => Ui_effect.t(unit), ~selection, model: Model.t)
+      : cursor(Update.t) => {
     let+ ci =
       TutorialMode.Selection.get_cursor_info(
+        ~inject=a => inject(Tutorial(a)),
         ~selection,
         List.nth(model.exercises, model.current),
       );
     Update.Tutorial(ci);
   };
-  let handle_key_event = (~selection, ~event, model: Model.t) =>
-    TutorialMode.Selection.handle_key_event(
-      ~selection,
-      ~event,
-      List.nth(model.exercises, model.current),
-    )
-    |> Option.map(a => Update.Tutorial(a));
   let jump_to_tile =
       (~settings, tile, model: Model.t): option((Update.t, t)) =>
     TutorialMode.Selection.jump_to_tile(
@@ -482,6 +478,7 @@ module View = {
             model.current,
             titles,
           ),
+        (),
       );
     // };
   };
