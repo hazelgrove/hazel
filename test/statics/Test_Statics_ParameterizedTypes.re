@@ -32,6 +32,48 @@ let x : Option(Int) = ? in x
         List.map(ms => Marks([ms]), marks),
       );
     }),
+    test_case("expected Option(Int) drives Some(Int)", `Quick, () => {
+      let marks =
+        static_errors({|
+type Option(a) = + None + Some(a) in
+let x : Option(Int) = Some(3) in x
+|});
+
+      Alcotest.check(
+        list(testable_issue),
+        "Static Errors",
+        [],
+        List.map(ms => Marks([ms]), marks),
+      );
+    }),
+    test_case("wrong parameterized constructor payload is rejected", `Quick, () => {
+      let marks =
+        static_errors({|
+type Option(a) = + None + Some(a) in
+let x : Option(Int) = Some(true) in x
+|});
+
+      check(
+        bool,
+        "payload mismatch",
+        true,
+        !List.is_empty(marks),
+      );
+    }),
+    test_case("recursive List(Int) constructor payload checks", `Quick, () => {
+      let marks =
+        static_errors({|
+type List(a) = + Nil + Cons(a, List(a)) in
+let xs : List(Int) = Nil in xs
+|});
+
+      Alcotest.check(
+        list(testable_issue),
+        "Static Errors",
+        [],
+        List.map(ms => Marks([ms]), marks),
+      );
+    }),
     test_case("bare type constructor rejected in Type position", `Quick, () => {
       let marks =
         static_errors({|

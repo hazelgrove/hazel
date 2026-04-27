@@ -173,7 +173,44 @@ let lookup_alias = (ctx: t, name: string): option(TermBase.Typ.t) =>
     )
   };
 
-let add_ctrs = (ctx: t, name: string, ctrs: TermBase.Typ.sum_map): t => {
+let result_type_for_params = (name: string, params: list(TermBase.TPat.t)) =>
+  List.fold_left(
+    (acc, param) =>
+      switch (TermBase.TPat.tyvar_of_utpat(param)) {
+      | Some(param_name) =>
+        (
+          TypApp(
+            acc,
+            (Var(param_name): TermBase.Typ.term)
+            |> IdTagged.fresh,
+          ): TermBase.Typ.term
+        )
+        |> IdTagged.fresh
+      | None => acc
+      },
+    (Var(name): TermBase.Typ.term) |> IdTagged.fresh,
+    params,
+  );
+
+let quantify_params = (params: list(TermBase.TPat.t), ty: TermBase.Typ.t) =>
+  List.fold_right(
+    (param, body) =>
+      (
+        Poly(param, body): TermBase.Typ.term
+      )
+      |> IdTagged.fresh,
+    params,
+    ty,
+  );
+
+let add_ctrs_with_params =
+    (
+      ctx: t,
+      name: string,
+      params: list(TermBase.TPat.t),
+      ctrs: TermBase.Typ.sum_map,
+    )
+    : t => {
   ...ctx,
   entries:
     List.filter_map(
@@ -181,22 +218,21 @@ let add_ctrs = (ctx: t, name: string, ctrs: TermBase.Typ.sum_map): t => {
       | ConstructorMap.Variant(ctr, ann, typ) => {
           assert(ann.ids != []);
           let ctr_id = List.hd(ann.ids);
+          let result_ty = result_type_for_params(name, params);
+          let typ =
+            switch (typ) {
+            | None => result_ty
+            | Some(typ) =>
+              (
+                Arrow(typ, result_ty): TermBase.Typ.term
+              )
+              |> IdTagged.fresh
+            };
           Some(
             ConstructorEntry({
               name: ctr,
               id: ctr_id,
-              typ:
-                switch (typ) {
-                | None => (Var(name): TermBase.typ_term) |> IdTagged.fresh
-                | Some(typ) =>
-                  (
-                    Arrow(
-                      typ,
-                      (Var(name): TermBase.typ_term) |> IdTagged.fresh,
-                    ): TermBase.typ_term
-                  )
-                  |> IdTagged.fresh
-                },
+              typ: quantify_params(params, typ),
               custom_statics: None,
             }),
           );
@@ -206,6 +242,9 @@ let add_ctrs = (ctx: t, name: string, ctrs: TermBase.Typ.sum_map): t => {
     )
     @ ctx.entries,
 };
+
+let add_ctrs = (ctx: t, name: string, ctrs: TermBase.Typ.sum_map): t =>
+  add_ctrs_with_params(ctx, name, [], ctrs);
 
 let set_use_mode = (ctx: t, use_mode: option(Operators.mode)): t => {
   ...ctx,

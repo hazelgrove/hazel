@@ -657,12 +657,8 @@ let rec weak_head_normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
         ctx,
         subst(arg, param, body),
       )
-    | Rec(_) =>
-      weak_head_normalize(
-        ~rec_counter=rec_counter + 1,
-        ctx,
-        TypApp(unroll(fn_whnf), arg) |> rewrap,
-      )
+    | Rec(param, body) =>
+      Rec(param, TypApp(body, arg) |> rewrap) |> rewrap
     | fn' => TypApp(fn' |> temp, arg) |> rewrap
     }
   | TupLabel({term: ExplicitNonlabel, _}, ty) =>
@@ -856,6 +852,7 @@ let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
   | (Projector(_, ty1), _) => meet'(ty1, ty2)
   | (TupLabel({term: ExplicitNonlabel, _}, ty1'), _) => meet'(ty1', ty2)
   | (_, TupLabel({term: ExplicitNonlabel, _}, ty2')) => meet'(ty1, ty2')
+  | _ when Equality.syntactic.typ(ty1, ty2) => Some(ty1)
   | (Unknown(p1), Unknown(p2)) =>
     Some(Unknown(meet_type_provenance(p1, p2)) |> temp)
   | (Unknown(_), _) => Some(ty2)
@@ -1070,10 +1067,14 @@ let rec get_labels = (ctx, ty): list(option(string)) => {
   };
 };
 
-let rec get_sum_constructors = (ctx: Ctx.t, ty: t): option(sum_map) => {
+let rec get_sum_constructors =
+    (~rec_counter=0, ctx: Ctx.t, ty: t): option(sum_map) => {
+  if (rec_counter > 1000) {
+    None;
+  } else {
   let ty = weak_head_normalize(ctx, ty);
   switch (term_of(ty)) {
-  | Parens(ty) => get_sum_constructors(ctx, ty)
+  | Parens(ty) => get_sum_constructors(~rec_counter=rec_counter + 1, ctx, ty)
   | Sum(sm) => Some(sm)
   | Rec(_) =>
     /* Note: We must unroll here to get right ctr types;
@@ -1095,11 +1096,9 @@ let rec get_sum_constructors = (ctx: Ctx.t, ty: t): option(sum_map) => {
         }
       | _ => ty
       };
-    switch (ty |> term_of) {
-    | Sum(sm) => Some(sm)
-    | _ => None
-    };
+    get_sum_constructors(~rec_counter=rec_counter + 1, ctx, ty);
   | _ => None
+  };
   };
 };
 

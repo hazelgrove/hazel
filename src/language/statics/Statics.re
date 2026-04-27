@@ -2256,8 +2256,8 @@ and uexp_to_info_map =
           };
         let ctx_for_def = extend_param_ctx(ctx_def);
         let ctx_body =
-          switch (Typ.get_sum_constructors(ctx_for_def, ty_def)) {
-          | Some(sm) => Ctx.add_ctrs(ctx_body, name, sm)
+          switch (Typ.get_sum_constructors(ctx_for_def, utyp_desugared)) {
+          | Some(sm) => Ctx.add_ctrs_with_params(ctx_body, name, params, sm)
           | None => ctx_body
           };
         let ({co_ctx, elab_syn_ty: ty_body, _}: Info.exp, body_elab, m) =
