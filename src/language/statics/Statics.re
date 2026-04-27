@@ -922,10 +922,18 @@ and uexp_to_info_map =
                   ~label_is_empty_hole=label.term == EmptyHole,
                   ~malformed_source=Exp(label),
                 );
+              /* Use the child `e`'s rewrap, NOT the outer Tuple's `rewrap`
+               * shadowed at the top of uexp_to_info_map. Falling back to the
+               * Tuple's rewrap stamps every elaborated TupLabel with the
+               * Tuple's id, so multiple labelled children all collide on a
+               * single rep_id — which silently corrupts IncrEval's id-keyed
+               * cache (last write wins). The Pat-tuple loop already does
+               * this correctly; mirror it here. */
+              let (_, e_rewrap) = Exp.unwrap(e);
               let (e_info, elab, m) =
                 add(
                   ~user_term=e,
-                  ~elab_term=TupLabel(label, value_elab) |> rewrap,
+                  ~elab_term=TupLabel(label, value_elab) |> e_rewrap,
                   ~ctx,
                   ~ana,
                   ~ancestors=ancestors_inclusive,
