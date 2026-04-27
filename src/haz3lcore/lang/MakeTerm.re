@@ -1267,7 +1267,12 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
 }
 and tpat = unsorted => {
   let term = tpat_term(unsorted);
-  let ids = ids(unsorted);
+  let inner_ids =
+    switch (unsorted) {
+    | Post(TPat(head), _) => IdTagged.ids(head)
+    | _ => []
+    };
+  let ids = ids(unsorted) @ inner_ids;
   return(ty => TPat(ty), ids, IdTagged.mk(ids, get_secondary(ids), term));
 }
 and tpat_term: unsorted => TPat.term = {

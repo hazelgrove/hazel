@@ -1024,7 +1024,7 @@ let tpat_view =
     | Some(TPatOk(Message.Empty)) =>
       div_ok([text("Fillable with a new alias")])
     | Some(TPatOk(TypeAlias({name, kind}))) =>
-      div_ok([ContextInspector.alias_view(name), ...kind_view(kind)])
+      div_ok([code(name), ...kind_view(kind)])
     | Some(TPatOk(TypeParameter({name, kind}))) =>
       div_ok([
         code(name),
