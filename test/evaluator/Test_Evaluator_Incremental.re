@@ -523,9 +523,95 @@ let test_probe_replay_on_reuse = () => {
   );
 };
 
+/* Regression for a counterexample shrunk out of
+ * `qcheck_incremental_matches_fresh_after_edit`:
+ *
+ *   exp     = let (()) = (a=B, a=false) in 0
+ *   edit    = 0 -> 1
+ *   claim   = eval(edited, prev=empty) == eval(edited, prev=eval(exp).cache)
+ *
+ * The PBT reported the two sides disagreeing semantically. Both sides see
+ * the same elaboration (we're only mutating the body literal in-place), so
+ * any divergence implicates cache reuse, not semantics. The pattern is
+ * intentionally weird (a 1-tuple of unit on the LHS, a 2-tuple with
+ * duplicate label `a` on the RHS) to exercise whatever indet/error path
+ * the generator stumbled onto. */
+let test_pbt_regression_unit_pat_dup_label_dh_let = () => {
+  let src = "let (()) = (a=B, a=false) in 0";
+  let exp1 = parse_exp(src);
+  let exp2 = replace_int_lit(~from=0, ~to_=1, exp1);
+  check(
+    bool,
+    "replace_int_lit actually changed the expression",
+    true,
+    !Exp.fast_equal(exp1, exp2),
+  );
+  let (r_fresh, _, _) = eval_incr(exp2);
+  let (_, _, incr_prev) = eval_incr(exp1);
+  let (r_incr, _, _) = eval_incr(~prev=incr_prev, exp2);
+  check(
+    dhexp_typ,
+    "Incremental eval of edited matches fresh eval of edited",
+    r_fresh,
+    r_incr,
+  );
+};
+
+/* Statics-level invariant: distinct TupLabel siblings of an elaborated
+ * Tuple must have distinct rep_ids. The IncrEval cache is keyed by
+ * rep_id; if two siblings collide on the same id, the cache silently
+ * "last-write-wins" and one sibling's value gets returned for the
+ * other's lookup whenever reuse fires below the parent.
+ *
+ * Regression for an earlier bug in Statics.uexp_to_info_map's Tuple arm:
+ * the elaborated TupLabel was wrapped using the *outer Tuple's* rewrap
+ * (the top-level shadow), so every elaborated TupLabel in a tuple
+ * inherited the Tuple's id. This test pins that down by checking the
+ * elaboration directly, independent of the evaluator. */
+let test_tuple_elab_gives_distinct_tuplabel_ids = () => {
+  let exp = parse_exp("let (()) = (a=B, a=false) in 0");
+  let (_, elab) = statics_and_elab(exp);
+  let rhs_tuple_elts =
+    switch (elab.term) {
+    | Let(_, rhs, _) =>
+      switch (rhs.term) {
+      | Tuple(elts) => elts
+      | _ => []
+      }
+    | _ => []
+    };
+  let ids = List.map(Exp.rep_id, rhs_tuple_elts);
+  check(
+    int,
+    "RHS tuple has 2 elements after elaboration",
+    2,
+    List.length(rhs_tuple_elts),
+  );
+  switch (ids) {
+  | [id0, id1] =>
+    check(
+      bool,
+      "TupLabel siblings have distinct rep_ids (no cache-key collision)",
+      true,
+      !Id.equal(id0, id1),
+    )
+  | _ => check(bool, "expected exactly 2 ids", true, false)
+  };
+};
+
 let tests = (
   "Evaluator.Incremental",
   [
+    test_case(
+      "PBT regression: let (()) = (a=B, a=false) in 0, edit 0 -> 1",
+      `Quick,
+      test_pbt_regression_unit_pat_dup_label_dh_let,
+    ),
+    test_case(
+      "Tuple elab gives distinct rep_ids to TupLabel siblings",
+      `Quick,
+      test_tuple_elab_gives_distinct_tuplabel_ids,
+    ),
     test_case(
       "Populates entries on fresh run",
       `Quick,
