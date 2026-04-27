@@ -20,7 +20,7 @@ let render_exp = (exp: Exp.t): string => {
 
 /* Parse source string, abbreviate at given budget, render to string */
 let abbreviate_and_render = (~available: int, src: string): string => {
-  switch (Parser.to_term(src)) {
+  switch (Parser.to_term(src, ~root=Exp)) {
   | Some(term) =>
     let (abbreviated, _length) = Abbreviate.abbreviate_exp(~available, term);
     render_exp(abbreviated);
@@ -35,7 +35,7 @@ let rendered_length = (~available: int, src: string): int => {
 
 /* Full-length render (no abbreviation) */
 let full_render = (src: string): string => {
-  switch (Parser.to_term(src)) {
+  switch (Parser.to_term(src, ~root=Exp)) {
   | Some(term) => render_exp(term)
   | None => failwith("Failed to parse: " ++ src)
   };

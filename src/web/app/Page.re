@@ -82,13 +82,24 @@ module Store = {
 module Update = {
   open Updated;
 
-  let get_editor = (model: Model.t): CodeEditable.Model.t =>
+  let get_editor = (model: Model.t): CodeEditable.Model.t => {
+    let get_scratchpad_editor = (m: ScratchMode.Model.t) => {
+      let sp = List.nth(m.scratchpads, m.current);
+      switch (sp.kind) {
+      | Code({editor, _}) => editor.editor
+      /* For Drv scratch slides, expose the Setup editor so the sidebar's
+         problem panel reflects errors from Setup only and ignores problems
+         inside the derivation trees themselves. */
+      | Drv(dm) => dm.cells.setup.editor
+      };
+    };
     switch (model.editors) {
-    | Scratch(m) => List.nth(m.scratchpads, m.current).editor.editor
-    | Documentation(m) => List.nth(m.scratchpads, m.current).editor.editor
+    | Scratch(m) => get_scratchpad_editor(m)
+    | Documentation(m) => get_scratchpad_editor(m)
     | Tutorial(m) => List.nth(m.exercises, m.current).cells.user_impl.editor
     | Exercises(m) => ExercisesMode.Model.get_editor(m)
     };
+  };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type benchmark_action =
@@ -102,6 +113,7 @@ module Update = {
     | ExplainThis(ExplainThisUpdate.update)
     | MakeActive(selection)
     | Benchmark(benchmark_action)
+    | Refresh
     | Start
     | Save;
 
@@ -210,45 +222,55 @@ module Update = {
       );
       Store.load() |> return;
     | ExportForInit =>
-      let (filename, content) =
+      let (filename, contents) =
         switch (model.editors) {
         | Scratch(model)
         | Documentation(model) =>
           let current = List.nth(model.scratchpads, model.current);
           let filename =
             (current.name |> StringUtil.sanitize_filename) ++ ".ml";
-
-          let content =
-            Haz3lcore.(
-              [%derive.show: (string, PersistentSegment.t)]((
-                current.name,
-                current.editor.editor.editor.state.zipper
-                |> PersistentSegment.persist,
-              ))
-            );
-          (filename, content);
+          let contents =
+            switch (current.kind) {
+            | Code({editor, _}) =>
+              let serialized =
+                Haz3lcore.(
+                  [%derive.show: (string, PersistentSegment.t)]((
+                    current.name,
+                    editor.editor.editor.state.zipper
+                    |> PersistentSegment.persist,
+                  ))
+                );
+              "let out : string * Haz3lcore.PersistentSegment.t = "
+              ++ serialized;
+            | Drv(m) => DerivationExercise.export_doc_slide_module(m.editors)
+            };
+          (filename, contents);
         | Tutorial(model) =>
-          let current = List.nth(model.exercises, model.current);
+          let current = TutorialsMode.Model.get_current(model);
           let filename = current.editors.module_name ++ ".ml";
-          let content = "not supported";
-          (filename, content);
+          let contents =
+            Tutorial.export_module(
+              current.editors.module_name,
+              {eds: current.editors},
+            );
+          (filename, contents);
         | Exercises(model) =>
           let current = List.nth(model.exercises, model.current);
           let filename =
-            ExercisesMode.Model.get_exercise_name(current) ++ ".ml";
-          let content = "not supported";
-          (filename, content);
+            ExercisesMode.Model.get_exercise_module_name(current) ++ ".ml";
+          let contents = ExercisesMode.Model.export_exercise_module(current);
+          (filename, contents);
         };
       JsUtil.download_string_file(
         ~filename,
         ~content_type="text/plain",
-        ~contents=
-          "let out : string * Haz3lcore.PersistentSegment.t = " ++ content,
+        ~contents,
       );
       model |> return_quiet;
     | ActiveEditor(action) =>
       let cursor_info =
         Editors.Selection.get_cursor_info(
+          ~inject=_ => Ui_effect.Ignore,
           ~selection=model.selection,
           model.editors,
         );
@@ -339,7 +361,8 @@ module Update = {
     | Benchmark(Finish) =>
       Benchmark.finish();
       model |> Updated.return_quiet;
-    | Start => model |> return
+    | Refresh => model |> Updated.return_quiet(~recalculate=true)
+    | Start => model |> return // Triggers recalculation at the start
     | Save =>
       print_endline("Saving...");
       Store.save(model);
@@ -354,6 +377,7 @@ module Update = {
     | ExplainThis(action) => ExplainThisUpdate.can_undo(action)
     | MakeActive(_)
     | Benchmark(_) => false
+    | Refresh => false
     | Start => false
     | Save => false
     };
@@ -375,10 +399,17 @@ module Update = {
         ~is_edited,
         model.editors,
       );
+    /* Compute cursor info against the POST-calculate editors: some modes
+       (e.g. CodeExerciseMode, DerivationExerciseMode) only resync their
+       stitched `cells` during calculate, not during update. Reading cursor
+       info from `model.editors` (pre-calculate) would see stale cell state
+       and yield the wrong ExplainThis highlights for a click/move-only
+       action, which doesn't trigger a full statics rebuild. */
     let cursor_info =
       Editors.Selection.get_cursor_info(
+        ~inject=_ => Ui_effect.Ignore,
         ~selection=model.selection,
-        model.editors,
+        editors,
       );
     let color_highlights =
       ExplainThis.get_color_map(
@@ -386,6 +417,27 @@ module Update = {
         ~explainThisModel=model.explain_this,
         cursor_info.info,
       );
+    /* When the user's cursor is inside a derivation tree cell, the
+       deduction-specific highlight map takes precedence over the generic
+       ExplainThis one. We consult the live selection here (rather than
+       Editors.Model.get_derivation_info, which reads the stale `model.pos`
+       inside DerivationExerciseMode) so that focus on Prelude/Setup doesn't
+       get misclassified as focus on the derivation. */
+    let derivation_info =
+      Editors.Selection.get_derivation_info(
+        ~selection=model.selection,
+        editors,
+      );
+    let color_highlights =
+      switch (derivation_info) {
+      | Some(_) =>
+        ExplainThis.get_color_map_deduction(
+          ~globals=model.globals,
+          ~explainThisModel=model.explain_this,
+          derivation_info,
+        )
+      | None => color_highlights
+      };
     let globals = Globals.Update.calculate(color_highlights, model.globals);
     {
       ...model,
@@ -399,107 +451,136 @@ module Selection = {
   open Cursor;
 
   type t = selection;
-
-  let handle_key_event =
-      (~selection, ~event: Key.t, model: Model.t): option(Update.t) => {
-    switch (event) {
-    | {
-        key: D("F7"),
-        sys: Mac | PC,
-        shift: Down,
-        meta: Up,
-        ctrl: Up,
-        alt: Up,
-        _,
-      } =>
-      Some(Update.Benchmark(Start))
-    | {
-        key: D("Z" | "z"),
-        sys: Mac,
-        shift: Down,
-        meta: Down,
-        ctrl: Up,
-        alt: Up,
-        _,
-      }
-    | {
-        key: D("Z" | "z"),
-        sys: PC,
-        shift: Down,
-        meta: Up,
-        ctrl: Down,
-        alt: Up,
-        _,
-      } =>
-      Some(Update.Globals(Redo))
-    | {
-        key: D("Z" | "z"),
-        sys: Mac,
-        shift: Up,
-        meta: Down,
-        ctrl: Up,
-        alt: Up,
-        _,
-      }
-    | {
-        key: D("Z" | "z"),
-        sys: PC,
-        shift: Up,
-        meta: Up,
-        ctrl: Down,
-        alt: Up,
-        _,
-      } =>
-      Some(Update.Globals(Undo))
-    /* Toggle Zen mode: Cmd+K (Mac) or Ctrl+K (PC) */
-    | {
-        key: D("K" | "k"),
-        sys: Mac,
-        shift: Up,
-        meta: Down,
-        ctrl: Up,
-        alt: Up,
-        _,
-      }
-    | {
-        key: D("K" | "k"),
-        sys: PC,
-        shift: Up,
-        meta: Up,
-        ctrl: Down,
-        alt: Up,
-        _,
-      } =>
-      Some(Update.Globals(Set(Zen)))
-    /* Toggle auto-probe mode: Cmd+P (Mac) or Ctrl+P (PC) */
-    | {
-        key: D("P" | "p"),
-        sys: Mac,
-        shift: Up,
-        meta: Down,
-        ctrl: Up,
-        alt: Up,
-        _,
-      }
-    | {
-        key: D("P" | "p"),
-        sys: PC,
-        shift: Up,
-        meta: Up,
-        ctrl: Down,
-        alt: Up,
-        _,
-      } =>
-      Some(Update.Globals(Set(AutoprobeMode)))
-    | _ =>
-      Editors.Selection.handle_key_event(~selection, ~event, model.editors)
-      |> Option.map(x => Update.Editors(x))
-    };
-  };
-
   let get_cursor_info =
-      (~selection: t, model: Model.t): cursor(Editors.Update.t) => {
-    Editors.Selection.get_cursor_info(~selection, model.editors);
+      (~inject: Update.t => Ui_effect.t(unit), ~selection: t, model: Model.t)
+      : cursor(Editors.Update.t) => {
+    let meta = Keyboard.meta();
+    let mk = ContextualAction.mk;
+    Editors.Selection.get_cursor_info(
+      ~inject=a => inject(Editors(a)),
+      ~selection,
+      model.editors,
+    )
+    |> Cursor.with_actions([
+         /* Undo / Redo */
+         mk(
+           ~mdIcon="undo",
+           ~hotkey=meta ++ "+z",
+           ~action=inject(Globals(Undo)),
+           "Undo",
+         ),
+         mk(
+           ~mdIcon="redo",
+           ~hotkey=meta ++ "+shift+z",
+           ~action=inject(Globals(Redo)),
+           "Redo",
+         ),
+         /* Settings */
+         mk(
+           ~section="Settings",
+           ~mdIcon="tune",
+           ~action=inject(Globals(Set(Statics))),
+           "Toggle Statics",
+         ),
+         mk(
+           ~section="Settings",
+           ~mdIcon="tune",
+           ~action=inject(Globals(Set(Assist))),
+           "Toggle Completion",
+         ),
+         mk(
+           ~section="Settings",
+           ~mdIcon="tune",
+           ~action=inject(Globals(Set(SecondaryIcons))),
+           "Toggle Show Whitespace",
+         ),
+         mk(
+           ~section="Settings",
+           ~mdIcon="tune",
+           ~action=inject(Globals(Set(Benchmark))),
+           "Toggle Print Benchmarks",
+         ),
+         mk(
+           ~section="Settings",
+           ~mdIcon="tune",
+           ~action=inject(Globals(Set(Dynamics))),
+           "Toggle Dynamics",
+         ),
+         mk(
+           ~section="Settings",
+           ~mdIcon="tune",
+           ~action=inject(Globals(Set(Elaborate))),
+           "Toggle Show Elaboration",
+         ),
+         mk(
+           ~section="Settings",
+           ~mdIcon="tune",
+           ~action=inject(Globals(Set(Evaluation(ShowFnBodies)))),
+           "Toggle Show Function Bodies",
+         ),
+         mk(
+           ~section="Settings",
+           ~mdIcon="tune",
+           ~action=inject(Globals(Set(Evaluation(ShowCaseClauses)))),
+           "Toggle Show Case Clauses",
+         ),
+         mk(
+           ~section="Settings",
+           ~mdIcon="tune",
+           ~action=inject(Globals(Set(Evaluation(ShowFixpoints)))),
+           "Toggle Show fixpoints",
+         ),
+         mk(
+           ~section="Settings",
+           ~mdIcon="tune",
+           ~action=inject(Globals(Set(Evaluation(ShowAscriptionSteps)))),
+           "Toggle Show Ascription Steps",
+         ),
+         mk(
+           ~section="Settings",
+           ~mdIcon="tune",
+           ~action=inject(Globals(Set(Evaluation(ShowLookups)))),
+           "Toggle Show Lookup Steps",
+         ),
+         mk(
+           ~section="Settings",
+           ~mdIcon="tune",
+           ~action=inject(Globals(Set(Evaluation(ShowFilters)))),
+           "Toggle Show Stepper Filters",
+         ),
+         mk(
+           ~section="Settings",
+           ~mdIcon="tune",
+           ~action=inject(Globals(Set(Evaluation(ShowHiddenSteps)))),
+           "Toggle Show Hidden Steps",
+         ),
+         mk(
+           ~section="Settings",
+           ~mdIcon="tune",
+           ~action=inject(Globals(Set(Sidebar(ToggleShow)))),
+           "Toggle Show Sidebar",
+         ),
+         mk(
+           ~section="Settings",
+           ~mdIcon="tune",
+           ~action=inject(Globals(Set(ExplainThis(ToggleShowFeedback)))),
+           "Toggle Show Docs Feedback",
+         ),
+         /* Export / Diagnostics */
+         mk(
+           ~mdIcon="download",
+           ~section="Export",
+           ~action=inject(Globals(ExportForInit)),
+           "Export For Init",
+         ),
+         mk(
+           ~mdIcon="timer",
+           ~section="Diagnostics",
+           ~hotkey="F7",
+           ~action=inject(Benchmark(Start)),
+           "Run Benchmark",
+         ),
+       ]);
   };
 };
 
@@ -559,24 +640,68 @@ module View = {
         ~cursor: Cursor.cursor(Editors.Update.t),
         model: Model.t,
       ) => {
-    let update_meta =
-        (evt: Js.t(Dom_html.keyboardEvent)): list(Effect.t(unit)) => {
-      let meta_down = Js.to_bool(evt##.metaKey);
-      model.globals.meta_down == meta_down
-        ? [] : [inject(Globals(SetMetaDown(meta_down)))];
-    };
-    let key_handler =
-        (~inject, ~dir: Key.dir, evt: Js.t(Dom_html.keyboardEvent))
-        : Effect.t(unit) => {
-      let meta_effects = update_meta(evt);
+    let handle_key_event = (key: Key.t): Effect.t(unit) => {
+      let meta_down = key.meta == Down;
+      let meta_effects =
+        model.globals.meta_down == meta_down
+          ? [] : [inject(Globals(SetMetaDown(meta_down)))];
+      /* Page-level keys only. Editor-specific keys are handled by
+       * each editor's own Key.handler and won't bubble here
+       * (they call Stop_propagation). */
+      let page_action =
+        switch (key) {
+        | {
+            key: D("F7"),
+            sys: Mac | PC,
+            shift: Down,
+            meta: Up,
+            ctrl: Up,
+            alt: Up,
+            _,
+          } =>
+          Some(Update.Benchmark(Start))
+        | {
+            key: D("Z" | "z"),
+            sys: Mac,
+            shift: Down,
+            meta: Down,
+            ctrl: Up,
+            alt: Up,
+            _,
+          }
+        | {
+            key: D("Z" | "z"),
+            sys: PC,
+            shift: Down,
+            meta: Up,
+            ctrl: Down,
+            alt: Up,
+            _,
+          } =>
+          Some(Update.Globals(Redo))
+        | {
+            key: D("Z" | "z"),
+            sys: Mac,
+            shift: Up,
+            meta: Down,
+            ctrl: Up,
+            alt: Up,
+            _,
+          }
+        | {
+            key: D("Z" | "z"),
+            sys: PC,
+            shift: Up,
+            meta: Up,
+            ctrl: Down,
+            alt: Up,
+            _,
+          } =>
+          Some(Update.Globals(Undo))
+        | _ => None
+        };
       Effect.(
-        switch (
-          Selection.handle_key_event(
-            ~selection=Some(model.selection),
-            ~event=Key.mk(dir, evt),
-            model,
-          )
-        ) {
+        switch (page_action) {
         | None => meta_effects == [] ? Ignore : Many(meta_effects)
         | Some(action) =>
           Many(
@@ -587,8 +712,7 @@ module View = {
       );
     };
     [
-      Attr.on_keyup(key_handler(~inject, ~dir=KeyUp)),
-      Attr.on_keydown(key_handler(~inject, ~dir=KeyDown)),
+      Key.listener(~f=handle_key_event),
       Attr.on_blur(_ => {
         JsUtil.focus_clipboard_shim();
         model.globals.meta_down
@@ -628,24 +752,10 @@ module View = {
             Effect.Ignore;
           } else {
             copy(cursor);
-            Option.map(
-              inject,
-              Selection.handle_key_event(
-                ~selection=Some(model.selection),
-                ~event=
-                  Key.{
-                    key: D("Delete"),
-                    code: "Delete",
-                    sys: Os.is_mac^ ? Mac : PC,
-                    shift: Up,
-                    meta: Up,
-                    ctrl: Up,
-                    alt: Up,
-                  },
-                model,
-              ),
-            )
-            |> Option.value(~default=Effect.Ignore);
+            switch (cursor.editor_action(Destruct(Right))) {
+            | Some(action) => inject(Editors(action))
+            | None => Effect.Ignore
+            };
           };
         | None => Effect.Ignore
         };
@@ -703,10 +813,7 @@ module View = {
                 NinjaKeys.open_command_palette();
                 Effect.Ignore;
               },
-              ~tooltip=
-                "Command Palette ("
-                ++ Keyboard.meta(Os.is_mac^ ? Mac : PC)
-                ++ " + k)",
+              ~tooltip="Command Palette (" ++ Keyboard.meta() ++ " + k)",
             ),
             link(
               Icons.github,
@@ -782,6 +889,7 @@ module View = {
         ~explainThisModel,
         ~editors_inject=(a: Editors.Update.t) => inject(Editors(a)),
         ~editors,
+        ~selection=model.selection,
         ~editor=Update.get_editor(model),
         ~signal=
           fun
@@ -856,7 +964,8 @@ module View = {
           Attr.id("main"),
           Attr.classes(
             [Editors.Model.mode_string(editors)]
-            @ (globals.settings.zen ? ["zen"] : []),
+            @ (globals.settings.zen ? ["zen"] : [])
+            @ Editors.Model.extra_main_classes(editors),
           ),
           Attr.on_scroll(on_scroll),
         ],
@@ -865,6 +974,7 @@ module View = {
       sidebar,
       bottom_bar,
       ContextInspector.view(~globals, cursor.info),
+      HoverRuleSpec.view(~globals),
     ];
   };
 
@@ -875,7 +985,9 @@ module View = {
         ~inject: Update.t => Ui_effect.t(unit),
         model: Model.t,
       ) => {
-    let cursor = Selection.get_cursor_info(~selection=model.selection, model);
+    let cursor =
+      Selection.get_cursor_info(~inject, ~selection=model.selection, model);
+    NinjaKeys.initialize(cursor.contextual_actions);
     div(
       ~attrs=[Attr.id("page"), ...handlers(~cursor, ~inject, model)],
       [FontSpecimen.view, JsUtil.clipboard_shim]

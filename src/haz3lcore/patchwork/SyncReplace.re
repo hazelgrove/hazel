@@ -64,6 +64,7 @@ let should_send_state = (a: Action.t): bool =>
   | Cut
   | Structural(_)
   | ToggleLineComment
+  | PrettyPrint
   | Dump => true
   };
 

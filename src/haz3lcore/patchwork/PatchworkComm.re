@@ -72,7 +72,12 @@ module JsConvert = {
     | Mod => `L_s7_Mod
     | Sig => `L_s12_Sig
     | MPat => `L_s6_MPat
-    | Any => `L_s0_Any;
+    | Any => `L_s0_Any
+    /* TODO: stubbed — see merge brief. The Patchwork iframe protocol
+       (FlatDoc.Sort) does not yet have a Drv variant. Mapping to Any so
+       Drv-sort tiles are visible to the parent but lose their derivation
+       sort. Update FlatDoc.mli + protocol when adding derivation support. */
+    | Drv(_) => `L_s0_Any;
 
   let of_nib_shape: Nib.Shape.t => FlatDoc.NibShape.t =
     fun

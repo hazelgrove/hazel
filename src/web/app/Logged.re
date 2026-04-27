@@ -219,16 +219,6 @@ module Update = {
   };
 };
 
-module Selection = {
-  type t = History.Selection.t;
-
-  let handle_key_event = (model: Model.t) =>
-    History.Selection.handle_key_event(model.current);
-
-  let get_cursor_info = (model: Model.t) =>
-    History.Selection.get_cursor_info(model.current);
-};
-
 module View = {
   let view =
       (~get_log_and, ~inject: Update.t => Ui_effect.t(unit), model: Model.t) => {

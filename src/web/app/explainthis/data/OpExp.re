@@ -207,16 +207,6 @@ let bool_or2_ex = {
   term: mk_example("3 < 4 \\/ false"),
   message: "The left operand evaluates to true, so the right operand is not evaluated. The whole expression evaluates to true.",
 };
-let str_eq1_ex = {
-  sub_id: StringEqualFalse,
-  term: mk_example("\"abc\" $== \"xyz\""),
-  message: "\"abc\" does not equal \"xyz\", so the expression evaluates to false.",
-};
-let str_eq2_ex = {
-  sub_id: StringEqualTrue,
-  term: mk_example("\"abc\" $== \"abc\""),
-  message: "\"abc\" is equal to \"abc\", so the expression evaluates to true.",
-};
 let _unop_exp_coloring_ids =
     (sf_exp_id: Id.t, ~exp_id: Id.t): list((Id.t, Id.t)) => [
   (sf_exp_id, exp_id),
@@ -731,26 +721,6 @@ let bool_or_exp: form = {
 };
 let _exp1 = exp("e1");
 let _exp2 = exp("e2");
-let str_eq_exp_coloring_ids =
-    (~left_id: Id.t, ~right_id: Id.t): list((Id.t, Id.t)) =>
-  _binop_exp_coloring_ids(
-    Piece.id(_exp1),
-    Piece.id(_exp2),
-    ~left_id,
-    ~right_id,
-  );
-let str_eq_exp: form = {
-  let explanation = "If the [*left operand*](%s) is equal to the [*right operand*](%s), evaluates to `true`. Otherwise, evaluates to `false`.";
-  {
-    id: BinOpExp(String(Equals)),
-    syntactic_form: [_exp1, space(), sequals(), space(), _exp2],
-    expandable_id: None,
-    explanation,
-    examples: [str_eq1_ex, str_eq2_ex],
-  };
-};
-let _exp1 = exp("e1");
-let _exp2 = exp("e2");
 let str_concat_exp_coloring_ids =
     (~left_id: Id.t, ~right_id: Id.t): list((Id.t, Id.t)) =>
   _binop_exp_coloring_ids(
@@ -888,11 +858,6 @@ let bool_and: group = {
 let bool_or: group = {
   id: BinOpExp(Bool(Or)),
   forms: [bool_or_exp],
-};
-
-let string_equal: group = {
-  id: BinOpExp(String(Equals)),
-  forms: [str_eq_exp],
 };
 
 let string_concat: group = {

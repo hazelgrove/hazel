@@ -151,10 +151,9 @@ let start = default_model => {
         Js.string("MAC"),
       )
       >= 0;
-    NinjaKeys.initialize(Shortcut.options(schedule_action));
     Haz3lcore.PatchworkComm.init_iframe(a =>
       schedule_action(
-        Editors(Scratch(CellAction(MainEditor(Perform(a))))),
+        Page.Update.Editors(Scratch(CellAction(MainEditor(Perform(a))))),
       )
     );
     JsUtil.focus_clipboard_shim();

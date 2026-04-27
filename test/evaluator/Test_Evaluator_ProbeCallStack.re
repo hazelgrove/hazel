@@ -17,8 +17,7 @@ open Test_Evaluator_Prelude;
 
 /* Helper to get all samples from evaluated code with probes */
 let get_all_samples = (code: string): list(Sample.t) => {
-  let (term, info_map, targets) = parse_with_probes(code);
-  let elaborated = elaborate_with_info(info_map, term);
+  let (_term, elaborated, _info_map, targets) = parse_with_probes(code);
   let (_, state) =
     Evaluator.evaluate(~targets, ~env=Builtins.env_init, elaborated);
   let probes = EvaluatorState.get_probes(state);
