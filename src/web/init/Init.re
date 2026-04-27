@@ -1,14 +1,19 @@
 open Haz3lcore;
 open Util;
 
-let empty_cell_editor_persistent: unit => CellEditor.Model.persistent =
-  () => {
-    editor: Zipper.init() |> PersistentZipper.persist,
-    result: EvalResult.Model.init |> EvalResult.Model.persist,
-  };
+let empty_cell_editor_persistent = (~root): CellEditor.Model.persistent => {
+  editor:
+    Zipper.init()
+    |> PersistentZipper.persist
+    |> Editor.Model.mk_persistent(~root),
+  result: EvalResult.Model.init |> EvalResult.Model.persist,
+};
 
 let startup: PersistentData.t = {
-  scratch: (0, [("Scratchpad 1", empty_cell_editor_persistent())]),
+  scratch: (
+    0,
+    [("Scratchpad 1", empty_cell_editor_persistent(~root=Exp))],
+  ),
   documentation: (
     0,
     [
@@ -29,7 +34,10 @@ let startup: PersistentData.t = {
          (
            name,
            {
-             editor: content |> PersistentSegment.unpersist,
+             editor:
+               content
+               |> PersistentSegment.unpersist(~root=Exp)
+               |> Editor.Model.mk_persistent(~root=Exp),
              result: EvalResult.Model.init |> EvalResult.Model.persist,
            }: CellEditor.Model.persistent,
          )
@@ -68,7 +76,12 @@ let get_original_doc_segment = (name: string): option(Segment.t) => {
         startup.documentation
         |> snd
         |> List.map(((n, pce: CellEditor.Model.persistent)) =>
-             (n, pce.editor |> PersistentZipper.unpersist |> Zipper.zip)
+             (
+               n,
+               pce.editor.zipper
+               |> PersistentZipper.unpersist(~root=pce.editor.root)
+               |> Zipper.zip,
+             )
            )
         |> List.to_seq
         |> Maps.StringMap.of_seq;
@@ -81,7 +94,31 @@ let get_original_doc_segment = (name: string): option(Segment.t) => {
 let default_documentation_slide_name =
     (name: string): CellEditor.Model.persistent => {
   OptUtil.get(
-    () => empty_cell_editor_persistent(),
+    () => empty_cell_editor_persistent(~root=Exp),
     find_documentation_slide(name),
   );
 };
+
+/* Derivation slides included in the Documentation mode under the
+   "Derivations" section. The section prefix makes the slide names split
+   into nested dropdowns (matches how "B2T2 / ..." slides work). */
+let documentation_drv_slides: list((string, DerivationExercise.spec)) =
+  [
+    Ex_Conjunction_Commutativity.exercise,
+    Ex_Curried_Function_Derivation.exercise,
+    Ex_PairMap_Derivation.exercise,
+    Ex_Shadowing_And_Closures.exercise,
+    Ex_Type_Validation_Derivation.exercise,
+  ]
+  |> List.map((spec: DerivationExercise.spec) =>
+       ("Derivations / " ++ spec.title, spec)
+     );
+
+let find_documentation_drv_spec =
+    (name: string): option(DerivationExercise.spec) =>
+  documentation_drv_slides
+  |> List.find_opt(((n, _)) => n == name)
+  |> Option.map(snd);
+
+let documentation_drv_slide_names = (): list(string) =>
+  List.map(fst, documentation_drv_slides);

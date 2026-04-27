@@ -151,7 +151,6 @@ let start = default_model => {
         Js.string("MAC"),
       )
       >= 0;
-    NinjaKeys.initialize(Shortcut.options(schedule_action));
     JsUtil.focus_clipboard_shim();
     /* Strudel is now loaded lazily when first Player projector is used */
     /* Re-measure font metrics on zoom (DPR change). ResizeObserver

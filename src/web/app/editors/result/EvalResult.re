@@ -255,7 +255,13 @@ module Update = {
             and.calc result = result;
             switch (result) {
             | ResultOk({result: exp, _}) =>
-              Some((exp, exp |> CodeSelectable.Model.mk_from_exp(~settings)))
+              /* Evaluation always produces an Exp-sorted value (Drv-sorted
+                 subterms only appear wrapped in DrvQuote, which is itself Exp),
+                 so the result editor is rooted at Exp. */
+              Some((
+                exp,
+                exp |> CodeSelectable.Model.mk_from_exp(~settings, ~root=Exp),
+              ))
             | ResultFail(_)
             | ResultPending => ev_display |> Calc.get_saved_opt |> Option.join
             };
@@ -332,35 +338,35 @@ module Selection = {
     | Stepper(StepperView.Focus.t)
     | Theorems(Theorems.Focus.t);
 
-  let get_cursor_info = (~selection: t, mr: Model.t): cursor(Update.t) =>
+  let get_cursor_info =
+      (~inject, ~selection: t, mr: Model.t): cursor(Update.t) =>
     switch (selection, mr.display) {
     | (Evaluation(selection), Evaluation(Calculated(Some((_, editor))))) =>
-      let+ ci = CodeSelectable.Selection.get_cursor_info(~selection, editor);
+      let+ ci =
+        CodeSelectable.Selection.get_cursor_info(
+          ~inject=x => inject(Update.EvalEditorAction(x)),
+          ~selection,
+          editor,
+        );
       Update.EvalEditorAction(ci);
     | (Stepper(focus), Stepper(s)) =>
-      let+ ci = StepperView.Focus.get_cursor_info(~focus, s);
+      let+ ci =
+        StepperView.Focus.get_cursor_info(
+          ~inject=x => inject(Update.StepperAction(x)),
+          ~focus,
+          s,
+        );
       Update.StepperAction(ci);
     | (Evaluation(_), _) => Cursor.empty
     | (Stepper(_), _) => Cursor.empty
     | (Theorems(focus), _) =>
-      let+ ci = Theorems.Focus.get_cursor_info(~focus, mr.theorems);
+      let+ ci =
+        Theorems.Focus.get_cursor_info(
+          ~inject=x => inject(Update.TheoremsAction(x)),
+          ~focus,
+          mr.theorems,
+        );
       Update.TheoremsAction(ci);
-    };
-
-  let handle_key_event =
-      (~selection: t, ~event, mr: Model.t): option(Update.t) =>
-    switch (selection, mr.display) {
-    | (Evaluation(selection), Evaluation(Calculated(Some((_, editor))))) =>
-      CodeSelectable.Selection.handle_key_event(~selection, editor, event)
-      |> Option.map(x => Update.EvalEditorAction(x))
-    | (Stepper(focus), Stepper(s)) =>
-      StepperView.Focus.handle_key_event(~focus, s, ~event)
-      |> Option.map(x => Update.StepperAction(x))
-    | (Evaluation(_), _) => None
-    | (Stepper(_), _) => None
-    | (Theorems(focus), _) =>
-      Theorems.Focus.handle_key_event(~focus, ~event, mr.theorems)
-      |> Option.map(x => Update.TheoremsAction(x))
     };
 };
 
@@ -403,9 +409,14 @@ module View = {
             ~signal=
               fun
               | MakeActive => signal(MakeActive(Evaluation())),
-            ~inject=a => inject(EvalEditorAction(a)),
+            ~edit_mode=
+              EditMode.Editable({
+                inject: a => inject(EvalEditorAction(a)),
+                escape: _ => Ui_effect.Ignore,
+                take_focus: _ => Ui_effect.Ignore,
+                focus: selected ? Some() : None,
+              }),
             ~globals,
-            ~selected,
             ~dynamics=editor.dynamics,
             editor,
           ),
@@ -591,6 +602,7 @@ module View = {
                    Settings.of_core(~inline=false, globals.settings.core),
                )
              )
+          |> Haz3lcore.PrettySegment.prettify
           |> CodeViewable.view_segment(~globals)
         | None => text("No elaboration found")
         },
