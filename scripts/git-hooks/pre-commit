@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+set -u
+
+# Capture which files are staged for this commit. After running the formatter,
+# we'll re-add these (and only these) so the commit picks up any formatting
+# fixes — without sweeping in unrelated unstaged changes the developer may have.
+staged=$(git diff --cached --name-only --diff-filter=ACMR)
+
+echo "[pre-commit] dune fmt --auto-promote"
+dune fmt --auto-promote || true
+
+if [ -n "$staged" ]; then
+    while IFS= read -r f; do
+        [ -e "$f" ] && git add -- "$f"
+    done <<<"$staged"
+fi
