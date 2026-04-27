@@ -1208,8 +1208,8 @@ let rec needs_parens = (ty: t): bool =>
 let rec pretty_print_tvar = (tv: TPat.t): string =>
   switch (IdTagged.term_of(tv)) {
   | Var(x) => x
-  | Param(name, params) =>
-    name
+  | Param(head, params) =>
+    pretty_print_tvar(head)
     ++ "("
     ++ String.concat(", ", List.map(pretty_print_tvar, params))
     ++ ")"

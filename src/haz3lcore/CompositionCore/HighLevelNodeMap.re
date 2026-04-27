@@ -253,11 +253,11 @@ module Namer = {
     };
   };
 
-  let mk_name_from_tpat = (tpat: TermBase.tpat_t) => {
+  let rec mk_name_from_tpat = (tpat: TermBase.tpat_t) => {
     switch (tpat.term) {
     | Var(name)
     | Invalid(name) => name
-    | Param(name, _) => name
+    | Param(head, _) => mk_name_from_tpat(head)
     | EmptyHole => "{empty type pattern hole}"
     | MultiHole(_) => "{multi type pattern hole}"
     };

@@ -571,7 +571,7 @@ and TPat: {
     | EmptyHoleTPat => empty_hole()
     | VarTPat(s) => var(s)
     | ParamTPat(name, params) =>
-      param(name, List.map(of_menhir_ast, params))
+      param(var(name), List.map(of_menhir_ast, params))
     };
   };
 
@@ -579,7 +579,14 @@ and TPat: {
     switch (tpat.term) {
     | EmptyHole => EmptyHoleTPat
     | Var(x) => VarTPat(x)
-    | Param(name, params) => ParamTPat(name, List.map(of_core, params))
+    | Param(head, params) =>
+      let name =
+        switch (head.term) {
+        | Var(x) => x
+        | Invalid(s) => s
+        | _ => "?"
+        };
+      ParamTPat(name, List.map(of_core, params));
     | Invalid(i) => InvalidTPat(i)
     | MultiHole(_) => raise(Failure("MultiHole not supported"))
     };

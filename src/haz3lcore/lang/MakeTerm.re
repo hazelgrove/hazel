@@ -1267,12 +1267,7 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
 }
 and tpat = unsorted => {
   let term = tpat_term(unsorted);
-  let inner_ids =
-    switch (unsorted) {
-    | Post(TPat(head), _) => IdTagged.ids(head)
-    | _ => []
-    };
-  let ids = ids(unsorted) @ inner_ids;
+  let ids = ids(unsorted);
   return(ty => TPat(ty), ids, IdTagged.mk(ids, get_secondary(ids), term));
 }
 and tpat_term: unsorted => TPat.term = {
@@ -1300,18 +1295,10 @@ and tpat_term: unsorted => TPat.term = {
     | _ => ret(hole(tm))
     }
   | Post(TPat(head), tiles) as tm =>
-    switch (head.term, tiles) {
-    | (Var(name), ([(_id, (["(", ")"], [TPat(params)]))], [])) =>
+    switch (tiles) {
+    | ([(_id, (["(", ")"], [TPat(params)]))], []) =>
       switch (params_of_tpat(params)) {
-      | Some(params) => ret(Param(name, params))
-      | None => ret(hole(tm))
-      }
-    | (
-        Param(name, existing_params),
-        ([(_id, (["(", ")"], [TPat(params)]))], []),
-      ) =>
-      switch (params_of_tpat(params)) {
-      | Some(params) => ret(Param(name, existing_params @ params))
+      | Some(params) => ret(Param(head, params))
       | None => ret(hole(tm))
       }
     | _ => ret(hole(tm))

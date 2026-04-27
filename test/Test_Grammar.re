@@ -205,7 +205,7 @@ let sample_tpat = (cls_tpat: TPat.cls): Grammar.UnitGrammar.tpat => {
       | Invalid => invalid("invalid")
       | EmptyHole => empty_hole()
       | Var => var("x")
-      | Param => param("F", [var("x")])
+      | Param => param(var("F"), [var("x")])
       | MultiHole => multi_hole([TPat(empty_hole()), TPat(empty_hole())])
       }
     )

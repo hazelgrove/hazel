@@ -1844,15 +1844,12 @@ and abbreviate_tpat = (tpat: TPat.t): TPat.t =>
             : abbreviate_str(available^, str);
         Invalid(abbreviated);
       | Var(v) => Var(abbreviate_str(available^, v))
-      | Param(name, params) =>
+      | Param(head, params) =>
         if (available^ <= 2) {
           indet_term_tpat;
         } else {
           available := available^ - 2;
-          Param(
-            abbreviate_str(available^, name),
-            List.map(abbreviate_tpat, params),
-          );
+          Param(abbreviate_tpat(head), List.map(abbreviate_tpat, params));
         }
       | MultiHole(things) =>
         if (available^ <= 1) {

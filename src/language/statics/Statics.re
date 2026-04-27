@@ -2202,7 +2202,13 @@ and uexp_to_info_map =
          This ensures meet/join can unify them with module expression types. */
       let utyp_desugared = Typ.desugar_sig(ctx, utyp);
       switch (typat.term) {
-      | Param(name, params) when !Ctx.is_base_typ(name) =>
+      | Param(head, params)
+          when
+            switch (TPat.head_name_of(head)) {
+            | Some(name) => !Ctx.is_base_typ(name)
+            | None => false
+            } =>
+        let name = TPat.head_name_of(head) |> Option.get;
         let param_names = List.filter_map(TPat.tyvar_of_utpat, params);
         let type_ctor_kind =
           TypKind.of_param_count(List.length(param_names));
@@ -4044,19 +4050,23 @@ and utpat_to_info_map =
           ),
         )
       }
-    | Param(name, _) when Ctx.is_base_typ(name) => (
-        [TPatShadowsType(name, BaseTyp)],
-        None,
-      )
-    | Param(name, params) => (
-        [],
-        Some(
-          Message.TypeAlias({
-            name,
-            kind: TypKind.of_param_count(List.length(params)),
-          }),
-        ),
-      )
+    | Param(head, params) =>
+      switch (TPat.head_name_of(head)) {
+      | Some(name) when Ctx.is_base_typ(name) => (
+          [TPatShadowsType(name, BaseTyp)],
+          None,
+        )
+      | Some(name) => (
+          [],
+          Some(
+            Message.TypeAlias({
+              name,
+              kind: TypKind.of_param_count(List.length(params)),
+            }),
+          ),
+        )
+      | None => ([TPatNotAVar(Other)], None)
+      }
     | Invalid(_) => ([TPatNotAVar(NotCapitalized)], None)
     | MultiHole(_) => ([TPatNotAVar(Other)], None)
     };
@@ -4083,7 +4093,45 @@ and utpat_to_info_map =
   | Invalid(_)
   | EmptyHole
   | Var(_) => add(m)
-  | Param(_, params) =>
+  | Param(head, params) =>
+    /* The head is a sibling AST node with its own tile id. Recurse so the
+       head gets its own info entry at its own id (not merged with the
+       Param node's annotation.ids), then override the head's info with
+       one whose kind reflects the constructor's arity. The base recursion
+       runs first so any inner marks (e.g. shadowing) are still recorded. */
+    let m =
+      utpat_to_info_map(~ctx, ~ancestors=ancestors_inclusive, head, m) |> snd;
+    let head_kind = TypKind.of_param_count(List.length(params));
+    let head_message =
+      switch (TPat.head_name_of(head)) {
+      | Some(name) when Ctx.is_base_typ(name) => None
+      | Some(name) =>
+        Some(
+          Message.TPatOk(
+            Message.TypeAlias({
+              name,
+              kind: head_kind,
+            }),
+          ),
+        )
+      | None => None
+      };
+    let head_info: Info.tpat = {
+      cls: Cls.TPat(TPat.cls_of_term(head.term)),
+      ancestors: ancestors_inclusive,
+      marks:
+        switch (TPat.head_name_of(head)) {
+        | Some(name) when Ctx.is_base_typ(name) => [
+            TPatShadowsType(name, BaseTyp),
+          ]
+        | _ => []
+        },
+      message: head_message,
+      warnings: [],
+      ctx,
+      user_term: head,
+    };
+    let m = add_info(IdTagged.ids(head), InfoTPat(head_info), m);
     let param_ctx =
       List.fold_left(
         (ctx, param) =>

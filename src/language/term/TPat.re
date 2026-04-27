@@ -43,9 +43,20 @@ let temp: term => t =
     annotation: IdTagged.IdTag.temp(),
   };
 
+let rec head_name_of = (tpat: t): option(string) =>
+  switch (tpat.term) {
+  | Var(name) => Some(name)
+  | Param(head, _) => head_name_of(head)
+  | _ => None
+  };
+
 let alias_head = (tpat: t): option((string, list(t))) =>
   switch (tpat.term) {
   | Var(name) => Some((name, []))
-  | Param(name, params) => Some((name, params))
+  | Param(head, params) =>
+    switch (head_name_of(head)) {
+    | Some(name) => Some((name, params))
+    | None => None
+    }
   | _ => None
   };

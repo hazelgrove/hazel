@@ -778,14 +778,18 @@ let equality =
     | (Var(x), Var(y)) when type_alpha => Some(Alphas.singleton(x, y))
     | (Var(x), Var(y)) when x == y => Some(Alphas.singleton(x, x))
     | (Var(_), _) => None
-    | (Param(n1, ps1), Param(n2, ps2))
-        when n1 == n2 && List.length(ps1) == List.length(ps2) =>
-      ListUtil.fold_left_opt(
-        (alphas, (p1, p2)) =>
-          tpat(p1, p2) |> Option.map(Alphas.combine(_, alphas)),
-        Alphas.empty,
-        List.combine(ps1, ps2),
-      )
+    | (Param(h1, ps1), Param(h2, ps2))
+        when List.length(ps1) == List.length(ps2) =>
+      switch (tpat(h1, h2)) {
+      | Some(alphas_head) =>
+        ListUtil.fold_left_opt(
+          (alphas, (p1, p2)) =>
+            tpat(p1, p2) |> Option.map(Alphas.combine(_, alphas)),
+          alphas_head,
+          List.combine(ps1, ps2),
+        )
+      | None => None
+      }
     | (Param(_, _), _) => None
 
     // Holes: equal if provenance is ignored

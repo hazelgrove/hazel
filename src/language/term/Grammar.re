@@ -124,7 +124,7 @@ and tpat_term('a) =
   | EmptyHole
   | MultiHole(list(any_t('a)))
   | Var(string)
-  | Param(string, list(tpat_t('a)))
+  | Param(tpat_t('a), list(tpat_t('a)))
 and tpat_t('a) = Annotated.t(tpat_term('a), 'a)
 and rul_term('a) =
   | Invalid(string)
@@ -414,8 +414,11 @@ and map_tpat_annotation: 'a 'b. ('a => 'b, tpat_t('a)) => tpat_t('b) =
         | MultiHole(l) =>
           MultiHole(List.map(x => map_any_annotation(f, x), l))
         | Var(s) => Var(s)
-        | Param(name, params) =>
-          Param(name, List.map(x => map_tpat_annotation(f, x), params))
+        | Param(head, params) =>
+          Param(
+            map_tpat_annotation(f, head),
+            List.map(x => map_tpat_annotation(f, x), params),
+          )
         },
       annotation: new_annotation,
     };
@@ -1004,8 +1007,8 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       term: Var(s),
       annotation: default_annotation(ann),
     };
-    let param = (~ann=?, name, params): tpat_t(DefaultAnnotation.t) => {
-      term: Param(name, params),
+    let param = (~ann=?, head, params): tpat_t(DefaultAnnotation.t) => {
+      term: Param(head, params),
       annotation: default_annotation(ann),
     };
   };

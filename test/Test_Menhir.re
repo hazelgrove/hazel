@@ -288,7 +288,7 @@ let tests =
       full_parser_test(
         "Parameterized type alias",
         ty_alias(
-          TPat.param("Option", [TPat.var("a")]),
+          TPat.param(TPat.var("Option"), [TPat.var("a")]),
           Typ.sum([
             Variant("None", ConstructorMap.empty_variant_ann, None),
             Variant(

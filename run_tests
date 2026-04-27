@@ -9,6 +9,6 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-dune build test --profile dev
+dune build test/idb_stub.js test --profile dev
 
 "$SCRIPT_DIR/test/run_node.sh" "$@"

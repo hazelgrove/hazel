@@ -2927,15 +2927,11 @@ and tpat_to_pretty = (~settings: Settings.t, tpat: TPat.t): pretty => {
       };
     wrap(tpat, seg);
   | Var(v) => wrap(tpat, text_to_pretty(tpat |> TPat.rep_id, Sort.TPat, v))
-  | Param(name, params) =>
-    let ids = IdTagged.ids(tpat);
+  | Param(head, params) =>
     let app_id = tpat |> TPat.rep_id;
-    let head_id = ids |> List.nth_opt(_, 1) |> Option.value(~default=app_id);
-    let comma_ids =
-      ListUtil.sublist((min(2, List.length(ids)), List.length(ids)), ids)
-      |> pad_ids(max(0, List.length(params) - 1));
     let mk_form = mk_form(~secondary=settings.secondary);
-    let+ params =
+    let+ head = tpat_to_pretty(~settings: Settings.t, head)
+    and+ params =
       params |> List.map(tpat_to_pretty(~settings: Settings.t)) |> all;
     let params =
       switch (params) {
@@ -2946,16 +2942,12 @@ and tpat_to_pretty = (~settings: Settings.t, tpat: TPat.t): pretty => {
             List.map2(
               (comma_id, param) =>
                 [mk_form(CommaTPat, comma_id, [])] @ param,
-              comma_ids,
+              IdTagged.ids(tpat) |> pad_ids(List.length(rest)),
               rest,
             ),
           )
       };
-    wrap(
-      tpat,
-      text_to_pretty(head_id, Sort.TPat, name)
-      @ [mk_form(ApTPat, app_id, [params])],
-    );
+    wrap(tpat, head @ [mk_form(ApTPat, app_id, [params])]);
   };
 }
 and mod_to_pretty = (~settings: Settings.t, item: Mod.t): pretty => {

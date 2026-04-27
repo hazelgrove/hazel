@@ -2989,8 +2989,13 @@ let get_doc =
           ),
         VarTPat.var_typ_pats(v),
       )
-    | Param(name, _) =>
-      simple("`" ++ name ++ "` is a parameterized type declaration.")
+    | Param(head, _) =>
+      let name =
+        switch (TPat.head_name_of(head)) {
+        | Some(name) => name
+        | None => "?"
+        };
+      simple("`" ++ name ++ "` is a parameterized type declaration.");
     }
   | Some(InfoDrv({term, _})) =>
     let (syntax, msg) =
