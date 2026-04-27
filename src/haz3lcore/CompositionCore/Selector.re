@@ -749,8 +749,8 @@ let nth_child_exp = (n: int, e: Exp.t): option(focus_target) => {
   | Label(_)
   | ExplicitNonlabel
   | LivelitName(_)
-  | DrvQuote(_) /* TODO: stubbed — see merge brief */
   | MultiHole(_) => None
+  | DrvQuote(_) => failwith("Selector: derivation quotes are not supported")
 
   /* 1 Exp child */
   | DynamicErrorHole(e1, _)
@@ -841,8 +841,9 @@ let nth_child_typ = (n: int, t: Typ.t): option(focus_target) => {
   | Label(_)
   | ExplicitNonlabel
   | Sum(_)
-  | DrvQuoteTy(_) /* TODO: stubbed — see merge brief */
   | Sig(_) => None
+  | DrvQuoteTy(_) =>
+    failwith("Selector: derivation quote types are not supported")
   | List(t1)
   | Parens(t1)
   | Projector(_, t1)
@@ -2718,8 +2719,9 @@ let rec find_in_exp = (target: Id.t, e: Exp.t): option(list(int)) =>
       | Label(_)
       | ExplicitNonlabel
       | LivelitName(_)
-      | DrvQuote(_) /* TODO: stubbed — see merge brief */
       | MultiHole(_) => []
+      | DrvQuote(_) =>
+        failwith("Selector: derivation quotes are not supported")
 
       /* 1 Exp child */
       | DynamicErrorHole(e1, _)
@@ -2891,8 +2893,9 @@ and find_in_typ = (target: Id.t, t: Typ.t): option(list(int)) =>
       | Label(_)
       | ExplicitNonlabel
       | Sum(_)
-      | DrvQuoteTy(_) /* TODO: stubbed — see merge brief */
       | Sig(_) => []
+      | DrvQuoteTy(_) =>
+        failwith("Selector: derivation quote types are not supported")
       | List(t1)
       | Parens(t1)
       | Projector(_, t1)
