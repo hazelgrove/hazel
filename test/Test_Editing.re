@@ -241,6 +241,194 @@ let test_with_settings = (~settings, ~name, ~acts, ~goal): test_case(_) =>
     )
   );
 
+let parse_segment = (s: string): Segment.t =>
+  switch (Parser.to_zipper(~root=Exp, ~zipper_init=Zipper.init(), s)) {
+  | Some(z) => Zipper.unselect_and_zip(z)
+  | None => Alcotest.fail("Failed to parse segment: " ++ s)
+  };
+
+let mk_vlist_projector_zipper =
+    (items: list(string)): (Zipper.t, list(Id.t)) => {
+  let splice_piece = (item: string) => Piece.mk_splice(parse_segment(item));
+  let comma_piece = () => Piece.mk_tile(Form.get(CommaExp), []);
+  let rec interleave = (pieces: list(Piece.t)): list(Piece.t) =>
+    switch (pieces) {
+    | [] => []
+    | [p] => [p]
+    | [p, ...rest] => [p, comma_piece(), ...interleave(rest)]
+    };
+  let splices = List.map(splice_piece, items);
+  let splice_ids =
+    List.map(
+      fun
+      | Piece.Splice(s) => s.id
+      | _ => Id.invalid,
+      splices,
+    );
+  let list_piece =
+    Piece.mk_tile(Form.get(ListLitExp), [interleave(splices)]);
+  let projector =
+    ProjectorCore.mk(
+      ~id=Id.mk(),
+      ProjectorCore.Kind.VList,
+      [list_piece],
+      "()",
+    );
+  (Zipper.unzip([Piece.Projector(projector)]), splice_ids);
+};
+
+let vlist_syntax = (items: list(string)): Segment.t => {
+  let splice_piece = (item: string) => Piece.mk_splice(parse_segment(item));
+  let comma_piece = () => Piece.mk_tile(Form.get(CommaExp), []);
+  let empty_list_piece = () =>
+    Base.Tile({
+      id: Id.mk(),
+      label: ["[]"],
+      mold: Mold.mk_op(Sort.Exp, []),
+      shards: [0],
+      children: [],
+    });
+  let rec interleave = (pieces: list(Piece.t)): list(Piece.t) =>
+    switch (pieces) {
+    | [] => []
+    | [p] => [p]
+    | [p, ...rest] => [p, comma_piece(), ...interleave(rest)]
+    };
+  switch (interleave(List.map(splice_piece, items))) {
+  | [] => [empty_list_piece()]
+  | inner => [Piece.mk_tile(Form.get(ListLitExp), [inner])]
+  };
+};
+
+let trim_secondary = (seg: Segment.t): Segment.t => {
+  let drop_while = (p: Piece.t => bool, xs) =>
+    List.fold_left(
+      (acc, x) =>
+        switch (acc) {
+        | [] when p(x) => []
+        | _ => acc @ [x]
+        },
+      [],
+      xs,
+    );
+  let is_secondary = (p: Piece.t) =>
+    switch (p) {
+    | Secondary(_) => true
+    | _ => false
+    };
+  seg
+  |> drop_while(is_secondary)
+  |> List.rev
+  |> drop_while(is_secondary)
+  |> List.rev;
+};
+
+let vlist_term_from_splices = (splices: list(Base.splice)): Language.Any.t => {
+  let splice_to_exp = (s: Base.splice): Language.Exp.t => {
+    let exp =
+      switch (MakeTerm.for_projection(trim_secondary(s.content))) {
+      | Some(Exp(exp)) => exp
+      | _ => Language.Exp.fresh(EmptyHole)
+      };
+    Language.IdTagged.fast_copy(
+      s.id,
+      (Splice(exp): Language.Exp.term) |> Language.Exp.fresh,
+    );
+  };
+  let list_term =
+    (ListLit(List.map(splice_to_exp, splices)): Language.Exp.term)
+    |> Language.Exp.fresh;
+  Exp(list_term);
+};
+
+let vlist_term = (items: list(string)): Language.Any.t => {
+  let splice_piece = (item: string) => Piece.mk_splice(parse_segment(item));
+  let splices =
+    List.map(
+      fun
+      | Piece.Splice(s) => s
+      | _ => Alcotest.fail("Expected splice"),
+      List.map(splice_piece, items),
+    );
+  vlist_term_from_splices(splices);
+};
+let splice_with_content = (s: Base.splice, content: string): Base.splice => {
+  id: s.id,
+  content: parse_segment(content),
+};
+
+let splice_with_trailing_newlines = (s: Base.splice, count: int): Base.splice => {
+  id: s.id,
+  content:
+    s.content
+    @ List.init(count, _ => Base.Secondary(Secondary.mk_newline(Id.mk()))),
+};
+
+let rec collect_splices = (seg: Segment.t): list(Base.splice) =>
+  List.concat_map(
+    (p: Piece.t) =>
+      switch (p) {
+      | Splice(s) => [s, ...collect_splices(s.content)]
+      | Tile(t) => List.concat_map(collect_splices, t.children)
+      | Projector(pr) => collect_splices(pr.syntax)
+      | Grout(_)
+      | Secondary(_) => []
+      },
+    seg,
+  );
+
+let vlist_splices = (z: Zipper.t): list(Base.splice) =>
+  collect_splices(Zipper.unselect_and_zip(z));
+
+let splice_content_text = (z: Zipper.t, splice_idx: int): string =>
+  switch (List.nth_opt(vlist_splices(z), splice_idx)) {
+  | Some(s) =>
+    Printer.of_segment(
+      ~holes=convex_char,
+      ~concave_holes=concave_char,
+      s.content,
+    )
+  | None =>
+    let segment = Zipper.unselect_and_zip(z);
+    Alcotest.fail(
+      "Missing splice at index "
+      ++ string_of_int(splice_idx)
+      ++ " in "
+      ++ Printer.of_segment(
+           ~holes=convex_char,
+           ~concave_holes=concave_char,
+           segment,
+         ),
+    );
+  };
+
+let is_boundary_grout = (content: Segment.t): (bool, bool) =>
+  switch (content, ListUtil.last_opt(content)) {
+  | ([], _) => (false, false)
+  | ([Grout(_), ..._], Some(Grout(_))) => (true, true)
+  | ([Grout(_), ..._], _) => (true, false)
+  | (_, Some(Grout(_))) => (false, true)
+  | _ => (false, false)
+  };
+
+let check_splice_edge =
+    (~name: string, ~id: Id.t, ~left_edge: bool, z: Zipper.t): unit => {
+  Alcotest.check(
+    Alcotest.bool,
+    name ++ " splice context",
+    true,
+    Zipper.splice_context(z) == Some(id),
+  );
+  let at_left_edge = z.caret == Outer && fst(z.relatives.siblings) == [];
+  let at_right_edge = z.caret == Outer && snd(z.relatives.siblings) == [];
+  Alcotest.check(
+    Alcotest.bool,
+    name ++ " edge",
+    true,
+    left_edge ? at_left_edge : at_right_edge,
+  );
+};
+
 let basic_tests = [
   test(
     ~name="Initialize caret position from string",
@@ -4680,6 +4868,537 @@ let drag_to_zero_width_tests = [
   ),
 ];
 
+let projector_tests = [
+  test_case(
+    "VList moving right exits at left edge of next splice",
+    `Quick,
+    () => {
+      let (z, splice_ids) = mk_vlist_projector_zipper(["1", "2", "3"]);
+      let z =
+        perform(
+          z,
+          [
+            Move(
+              SplicePoint(
+                List.nth(splice_ids, 0),
+                Point.{
+                  row: 0,
+                  col: 1,
+                },
+              ),
+            ),
+          ],
+        );
+      let first_id = List.nth(splice_ids, 0);
+      check_splice_edge(
+        ~name="first splice",
+        ~id=first_id,
+        ~left_edge=false,
+        z,
+      );
+      let z = perform(z, [Move(Local(Right, ByChar))]);
+      let second_id = List.nth(splice_ids, 1);
+      check_splice_edge(
+        ~name="second splice",
+        ~id=second_id,
+        ~left_edge=true,
+        z,
+      );
+    },
+  ),
+  test_case(
+    "VList splice supports 3 -> 33 edit",
+    `Quick,
+    () => {
+      let (z, splice_ids) = mk_vlist_projector_zipper(["3"]);
+      let z =
+        perform(
+          z,
+          [
+            Move(
+              SplicePoint(
+                List.nth(splice_ids, 0),
+                Point.{
+                  row: 0,
+                  col: 1,
+                },
+              ),
+            ),
+            Insert("3"),
+          ],
+        );
+      Alcotest.check(
+        Alcotest.string,
+        "third splice text",
+        "33",
+        splice_content_text(z, 0),
+      );
+      ignore(MakeTerm.go(Zipper.unselect_and_zip(z)));
+    },
+  ),
+  test_case(
+    "VList splice keeps projector while editing incomplete list",
+    `Quick,
+    () => {
+      let (z, splice_ids) = mk_vlist_projector_zipper(["1"]);
+      let z =
+        perform(
+          z,
+          [
+            Move(
+              SplicePoint(
+                List.nth(splice_ids, 0),
+                Point.{
+                  row: 0,
+                  col: 1,
+                },
+              ),
+            ),
+            Insert("["),
+          ],
+        );
+      Alcotest.check(
+        Alcotest.int,
+        "splice count",
+        1,
+        List.length(vlist_splices(z)),
+      );
+      let MakeTerm.{projector_list, _} =
+        MakeTerm.go(Zipper.unselect_and_zip(z));
+      Alcotest.check(
+        Alcotest.int,
+        "projector remains collected",
+        1,
+        List.length(projector_list),
+      );
+    },
+  ),
+  test_case(
+    "VList [1,2,3] edit third item 3 -> 33",
+    `Quick,
+    () => {
+      let (z, splice_ids) = mk_vlist_projector_zipper(["1", "2", "3"]);
+      let z =
+        perform(
+          z,
+          [
+            Move(
+              SplicePoint(
+                List.nth(splice_ids, 2),
+                Point.{
+                  row: 0,
+                  col: 1,
+                },
+              ),
+            ),
+          ],
+        );
+      let target_id =
+        switch (List.nth_opt(splice_ids, 2)) {
+        | Some(id) => id
+        | None => Id.invalid
+        };
+      Alcotest.check(
+        Alcotest.bool,
+        "Moved into third splice",
+        true,
+        Zipper.splice_context(z) == Some(target_id),
+      );
+      let z = perform(z, [Insert("3")]);
+      Alcotest.check(
+        Alcotest.string,
+        "third splice text",
+        "33",
+        splice_content_text(z, 2),
+      );
+      ignore(MakeTerm.go(Zipper.unselect_and_zip(z)));
+    },
+  ),
+  test_case(
+    "VList editing does not add boundary grout around splice content",
+    `Quick,
+    () => {
+      let (z, splice_ids) = mk_vlist_projector_zipper(["1", "2", "3"]);
+      let z =
+        perform(
+          z,
+          [
+            Move(
+              SplicePoint(
+                List.nth(splice_ids, 2),
+                Point.{
+                  row: 0,
+                  col: 1,
+                },
+              ),
+            ),
+            Insert("3"),
+          ],
+        );
+      switch (List.nth_opt(vlist_splices(z), 2)) {
+      | None => Alcotest.fail("Missing third splice")
+      | Some(s) =>
+        let (left_grout, right_grout) = is_boundary_grout(s.content);
+        Alcotest.check(
+          Alcotest.bool,
+          "left boundary grout",
+          false,
+          left_grout,
+        );
+        Alcotest.check(
+          Alcotest.bool,
+          "right boundary grout",
+          false,
+          right_grout,
+        );
+      };
+    },
+  ),
+  test_case(
+    "VList inner splice tile has cursor info",
+    `Quick,
+    () => {
+      let (z, splice_ids) = mk_vlist_projector_zipper(["1", "2", "3"]);
+      let z =
+        perform(
+          z,
+          [
+            Move(
+              SplicePoint(
+                List.nth(splice_ids, 2),
+                Point.{
+                  row: 0,
+                  col: 1,
+                },
+              ),
+            ),
+            Insert("3"),
+          ],
+        );
+      let MakeTerm.{term, _} = MakeTerm.go(Zipper.unselect_and_zip(z));
+      let (info_map, _) =
+        Language.Statics.mk(
+          Language.CoreSettings.on,
+          Language.Builtins.ctx_init(Some(Int)),
+          term,
+        );
+      Alcotest.check(
+        Alcotest.bool,
+        "cursor info exists",
+        true,
+        Indicated.ci_of(z, info_map) != None,
+      );
+    },
+  ),
+  test_case(
+    "VList [1,2,3] can move into third splice",
+    `Quick,
+    () => {
+      let (z, splice_ids) = mk_vlist_projector_zipper(["1", "2", "3"]);
+      let z =
+        perform(
+          z,
+          [
+            Move(
+              SplicePoint(
+                List.nth(splice_ids, 2),
+                Point.{
+                  row: 0,
+                  col: 1,
+                },
+              ),
+            ),
+          ],
+        );
+      ignore(MakeTerm.go(Zipper.unselect_and_zip(z)));
+    },
+  ),
+  test_case(
+    "VList splice insertion context has Exp sort",
+    `Quick,
+    () => {
+      let (z, splice_ids) = mk_vlist_projector_zipper(["1", "2", "3"]);
+      let z =
+        perform(
+          z,
+          [
+            Move(
+              SplicePoint(
+                List.nth(splice_ids, 2),
+                Point.{
+                  row: 0,
+                  col: 1,
+                },
+              ),
+            ),
+          ],
+        );
+      Alcotest.check(
+        Alcotest.string,
+        "splice sort",
+        Sort.show(Exp),
+        Sort.show(Relatives.sort(z.relatives, ~root=Exp)),
+      );
+    },
+  ),
+  test_case(
+    "Removing VList projector preserves list item contents",
+    `Quick,
+    () => {
+      let (z, _splice_ids) = mk_vlist_projector_zipper(["1", "2", "3"]);
+      let z = perform(z, [Project(RemoveIndicated)]);
+      Alcotest.check(
+        Alcotest.string,
+        "unprojected list",
+        "[1,2,3]¦",
+        printer(z),
+      );
+    },
+  ),
+  test_case(
+    "Removing VList projector after splice edit preserves list item contents",
+    `Quick,
+    () => {
+      let (z, splice_ids) = mk_vlist_projector_zipper(["1", "2", "3"]);
+      let z =
+        perform(
+          z,
+          [
+            Move(
+              SplicePoint(
+                List.nth(splice_ids, 2),
+                Point.{
+                  row: 0,
+                  col: 1,
+                },
+              ),
+            ),
+            Insert("3"),
+            Project(RemoveIndicated),
+          ],
+        );
+      Alcotest.check(
+        Alcotest.string,
+        "unprojected edited list",
+        "[1,2,33]¦",
+        printer(z),
+      );
+    },
+  ),
+  test_case(
+    "VList SetSyntax updates while caret is inside splice",
+    `Quick,
+    () => {
+      let (z, splice_ids) = mk_vlist_projector_zipper(["1", "2", "3"]);
+      let z =
+        perform(
+          z,
+          [
+            Move(
+              SplicePoint(
+                List.nth(splice_ids, 1),
+                Point.{
+                  row: 0,
+                  col: 1,
+                },
+              ),
+            ),
+            Project(SetTerm(0, vlist_term(["1", "2", "3", "?"]), true)),
+          ],
+        );
+      Alcotest.check(
+        Alcotest.int,
+        "splice count",
+        4,
+        List.length(vlist_splices(z)),
+      );
+    },
+  ),
+  test_case(
+    "VList SetSyntax preserves existing splice segments by annotation id",
+    `Quick,
+    () => {
+      let (z, splice_ids) = mk_vlist_projector_zipper(["1", "2"]);
+      let z =
+        perform(
+          z,
+          [
+            Move(
+              SplicePoint(
+                List.nth(splice_ids, 1),
+                Point.{
+                  row: 0,
+                  col: 1,
+                },
+              ),
+            ),
+            Insert("3"),
+          ],
+        );
+      let splices = vlist_splices(z);
+      let replacement_term =
+        splices
+        |> List.map((s: Base.splice) => splice_with_content(s, "999"))
+        |> vlist_term_from_splices;
+      let z = perform(z, [Project(SetTerm(0, replacement_term, true))]);
+      Alcotest.check(
+        Alcotest.string,
+        "preserved edited splice",
+        "23",
+        splice_content_text(z, 1),
+      );
+    },
+  ),
+  test_case(
+    "VList SetSyntax tolerates trailing splice newlines",
+    `Quick,
+    () => {
+      let (z, _splice_ids) = mk_vlist_projector_zipper(["1"]);
+      let splices =
+        vlist_splices(z)
+        |> List.map((s: Base.splice) => splice_with_trailing_newlines(s, 3));
+      let z =
+        perform(
+          z,
+          [Project(SetTerm(0, vlist_term_from_splices(splices), true))],
+        );
+      Alcotest.check(
+        Alcotest.string,
+        "preserved splice expression",
+        "1",
+        splice_content_text(z, 0) |> String.split_on_char('\n') |> List.hd,
+      );
+      Alcotest.check(
+        Alcotest.int,
+        "splice count",
+        1,
+        List.length(vlist_splices(z)),
+      );
+    },
+  ),
+  test_case(
+    "VList SetSyntax adds fresh splice when no original id exists",
+    `Quick,
+    () => {
+      let (z, _splice_ids) = mk_vlist_projector_zipper(["1"]);
+      let new_splice =
+        switch (Piece.mk_splice(parse_segment("?"))) {
+        | Splice(s) => s
+        | _ => Alcotest.fail("Expected splice")
+        };
+      let term = vlist_term_from_splices(vlist_splices(z) @ [new_splice]);
+      let z = perform(z, [Project(SetTerm(0, term, true))]);
+      Alcotest.check(
+        Alcotest.int,
+        "splice count",
+        2,
+        List.length(vlist_splices(z)),
+      );
+      Alcotest.check(
+        Alcotest.string,
+        "fresh splice content",
+        "?",
+        splice_content_text(z, 1),
+      );
+    },
+  ),
+  test_case(
+    "VList SetSyntax removes a preserved splice",
+    `Quick,
+    () => {
+      let (z, _splice_ids) = mk_vlist_projector_zipper(["1", "2", "3"]);
+      let remaining =
+        switch (vlist_splices(z)) {
+        | [first, _second, third] => [first, third]
+        | _ => Alcotest.fail("Expected three splices")
+        };
+      let z =
+        perform(
+          z,
+          [Project(SetTerm(0, vlist_term_from_splices(remaining), true))],
+        );
+      Alcotest.check(
+        Alcotest.int,
+        "splice count",
+        2,
+        List.length(vlist_splices(z)),
+      );
+      Alcotest.check(
+        Alcotest.string,
+        "second remaining",
+        "3",
+        splice_content_text(z, 1),
+      );
+    },
+  ),
+  test_case(
+    "VList SetSyntax can produce an empty list",
+    `Quick,
+    () => {
+      let (z, _splice_ids) = mk_vlist_projector_zipper(["1"]);
+      let z = perform(z, [Project(SetTerm(0, vlist_term([]), true))]);
+      Alcotest.check(
+        Alcotest.int,
+        "splice count",
+        0,
+        List.length(vlist_splices(z)),
+      );
+      let z = perform(z, [Project(RemoveIndicated)]);
+      Alcotest.check(
+        Alcotest.string,
+        "unprojected empty list",
+        "[]¦",
+        printer(z),
+      );
+    },
+  ),
+  test_case(
+    "VList splice drag resize creates a splice-local selection",
+    `Quick,
+    () => {
+      let (z, splice_ids) = mk_vlist_projector_zipper(["123"]);
+      let z =
+        perform(
+          z,
+          [
+            Move(
+              SplicePoint(
+                List.nth(splice_ids, 0),
+                Point.{
+                  row: 0,
+                  col: 0,
+                },
+              ),
+            ),
+            Select(
+              Resize(
+                SplicePoint(
+                  List.nth(splice_ids, 0),
+                  Point.{
+                    row: 0,
+                    col: 2,
+                  },
+                ),
+              ),
+            ),
+          ],
+        );
+      Alcotest.check(
+        Alcotest.bool,
+        "selection exists",
+        true,
+        z.selection.content != [],
+      );
+      Alcotest.check(
+        Alcotest.bool,
+        "still in splice",
+        true,
+        Option.is_some(Zipper.splice_context(z)),
+      );
+    },
+  ),
+];
+
 let tests = [
   ("Editing.DragToZeroWidth", drag_to_zero_width_tests),
   ("Editing.MoveAfterCharSelect", move_after_char_select_tests),
@@ -4706,4 +5425,5 @@ let tests = [
   ("Editing.MultiDelimSelectionBugs", multi_delim_selection_bug_tests),
   ("Editing.MultiDelimBackpackBugs", multi_delim_backpack_tests),
   ("Editing.CrossBoundary", cross_boundary_tests),
+  ("Editing.Projector", projector_tests),
 ];

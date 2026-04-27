@@ -1,0 +1,79 @@
+/* Vertical-list projector
+ *
+ * A simple stack of splice editors with +/- buttons. */
+
+.projector .vlist {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.35em;
+  min-width: max-content;
+  padding: 0.45em 0.75em 0.55em 0.85em;
+}
+
+.projector .vlist-buttons {
+  align-self: flex-end;
+  display: flex;
+  gap: 4px;
+  justify-content: flex-end;
+  margin-bottom: 0.05em;
+}
+
+.projector .vlist-btn {
+  width: 1.5em;
+  height: 1.5em;
+  font: inherit;
+  cursor: pointer;
+  border: 1px solid var(--BG4);
+  background: var(--BG1);
+  color: var(--F1);
+  border-radius: 3px;
+  line-height: 1;
+  padding: 0;
+}
+
+.projector .vlist-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.projector .vlist-row {
+  display: flex;
+  align-items: center;
+}
+
+/* Splice editor viewport
+ *
+ * Splice divs are the positioning context for their inner caret,
+ * selection, indication, and error decorations. All such decorations
+ * are CSS-absolutely-positioned using pixel coordinates derived from
+ * splice-local text grid coordinates. */
+
+.splice-container {
+  position: relative;
+  display: inline-block;
+  min-width: 2em;
+  min-height: 1em;
+  cursor: text;
+}
+
+.projector .vlist .splice-container.inline-editor-wrapper {
+  padding: 0.15em 0.45em;
+}
+
+.splice-container .sub-editor-surface {
+  position: relative;
+  display: inline-block;
+}
+
+.splice-container .sub-editor-surface > .code {
+  position: relative;
+}
+
+.splice-container .sub-editor-surface > .code-deco {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+}
