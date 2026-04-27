@@ -136,6 +136,8 @@ module Ctr = {
     | DrvQuoteTy(_)
     | Arrow(_)
     | Poly(_)
+    | TypLam(_)
+    | TypApp(_)
     | ProdProjection(_)
     | ProdExtension(_)
     | Var(_) => Infinite
@@ -419,6 +421,8 @@ module UnseenPatternList: UnseenPatternList = {
       )
     | Arrow(_)
     | Poly(_)
+    | TypLam(_)
+    | TypApp(_)
     | ProofOf(_)
     | DrvQuoteTy(_)
     | Var(_) => unseen_pattern
@@ -558,6 +562,8 @@ module UnseenPatternList: UnseenPatternList = {
       cons_ctr(first_unused_str(""), col_type, unseen_pattern);
     | Arrow(_)
     | Poly(_)
+    | TypLam(_)
+    | TypApp(_)
     | ProofOf(_)
     | DrvQuoteTy(_)
     | Var(_) => cons_wild(unseen_pattern)
@@ -623,6 +629,8 @@ module UnseenPatternList: UnseenPatternList = {
     | Atom(String) => cons_wild(unseen_pattern)
     | Arrow(_)
     | Poly(_)
+    | TypLam(_)
+    | TypApp(_)
     | ProofOf(_)
     | DrvQuoteTy(_)
     | Var(_) => cons_wild(unseen_pattern)

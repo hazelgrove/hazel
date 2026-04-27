@@ -469,6 +469,7 @@ and Typ: {
       tup_label(of_menhir_ast(t1), of_menhir_ast(t2))
     | ArrayType(t) => list(of_menhir_ast(t))
     | ArrowType(t1, t2) => arrow(of_menhir_ast(t1), of_menhir_ast(t2))
+    | TypApp(t1, t2) => typ_app(of_menhir_ast(t1), of_menhir_ast(t2))
     | ProdProjection(t1, t2) =>
       prod_projection(of_menhir_ast(t1), of_menhir_ast(t2))
     | ProdExtension(t1, t2) =>
@@ -526,6 +527,8 @@ and Typ: {
     | Prod(ts) => TupleType(List.map(of_core, ts))
     | List(t) => ArrayType(of_core(t))
     | Arrow(t1, t2) => ArrowType(of_core(t1), of_core(t2))
+    | TypLam(_, _) => raise(Failure("TypLam not supported in Menhir syntax"))
+    | TypApp(t1, t2) => TypApp(of_core(t1), of_core(t2))
     | Unknown(p) => UnknownType(of_core_type_provenance(p))
     | Poly(tp, t) => PolyType(TPat.of_core(tp), of_core(t))
     | Rec(tp, t) => RecType(TPat.of_core(tp), of_core(t))
@@ -561,18 +564,21 @@ and TPat: {
   let of_core: IndicatedG.tpat => AST.tpat;
 } = {
   open IndicatedG.TPat;
-  let of_menhir_ast = (tpat: AST.tpat): IndicatedG.tpat => {
+  let rec of_menhir_ast = (tpat: AST.tpat): IndicatedG.tpat => {
     switch (tpat) {
     | InvalidTPat(s) => invalid(s)
     | EmptyHoleTPat => empty_hole()
     | VarTPat(s) => var(s)
+    | ParamTPat(name, params) =>
+      param(name, List.map(of_menhir_ast, params))
     };
   };
 
-  let of_core = (tpat: IndicatedG.tpat): AST.tpat => {
+  let rec of_core = (tpat: IndicatedG.tpat): AST.tpat => {
     switch (tpat.term) {
     | EmptyHole => EmptyHoleTPat
     | Var(x) => VarTPat(x)
+    | Param(name, params) => ParamTPat(name, List.map(of_core, params))
     | Invalid(i) => InvalidTPat(i)
     | MultiHole(_) => raise(Failure("MultiHole not supported"))
     };

@@ -207,6 +207,7 @@ let external_precedence_typ = (tp: Typ.t) =>
   | TupLabel(_) => Precedence.max
   | ProdProjection(_) => Precedence.dot
   | ProdExtension(_) => Precedence.ap
+  | TypApp(_) => Precedence.type_sum_ap
   // Same goes for forms which are already surrounded
   | Parens(_)
   | Projector(_)
@@ -219,6 +220,7 @@ let external_precedence_typ = (tp: Typ.t) =>
   | Sum(_) => Precedence.type_plus
   | Rec(_, _) => Precedence.let_
   | Poly(_, _) => Precedence.let_
+  | TypLam(_, _) => Precedence.let_
 
   // Matt: I think multiholes are min because we don't know the precedence of the `⟩?⟨`s
   | Unknown(Hole(MultiHole(_))) => Precedence.min
@@ -792,6 +794,18 @@ and parenthesize_typ =
       parenthesize_typ(t2) |> paren_typ_assoc_at(Precedence.type_arrow),
     )
     |> rewrap
+  | TypLam(tp, t) =>
+    TypLam(
+      tp,
+      parenthesize_typ(t) |> paren_typ_assoc_at(Precedence.type_binder),
+    )
+    |> rewrap
+  | TypApp(t1, t2) =>
+    TypApp(
+      parenthesize_typ(t1) |> paren_typ_assoc_at(Precedence.type_sum_ap),
+      parenthesize_typ(t2) |> paren_typ_at(Precedence.min),
+    )
+    |> rewrap
   | Sum(ts) =>
     Sum(
       ConstructorMap.map(
@@ -835,6 +849,7 @@ and parenthesize_tpat =
   switch (term) {
   // Indivisible forms dont' change
   | Var(_)
+  | Param(_)
   | Invalid(_)
   | EmptyHole => tpat
 
@@ -2772,6 +2787,16 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
     let+ t1 = go(t1)
     and+ t2 = go(t2);
     wrap(typ, t1 @ [mk_form(TypeArrow, id, [])] @ t2);
+  | TypLam(tp, t) =>
+    let id = typ |> Typ.rep_id;
+    let+ tp = tpat_to_pretty(~settings: Settings.t, tp)
+    and+ t = go(t);
+    wrap(typ, text_to_pretty(id, Sort.Typ, "typfun") @ tp @ t);
+  | TypApp(t1, t2) =>
+    let id = typ |> Typ.rep_id;
+    let+ t1 = go(t1)
+    and+ t2 = go(t2);
+    wrap(typ, t1 @ [mk_form(ApTyp, id, [t2])]);
   | Sum([]) => failwith("Empty Sums are not allowed")
   | Sum([t]) =>
     let id = typ |> Typ.rep_id;
@@ -2902,6 +2927,26 @@ and tpat_to_pretty = (~settings: Settings.t, tpat: TPat.t): pretty => {
       };
     wrap(tpat, seg);
   | Var(v) => wrap(tpat, text_to_pretty(tpat |> TPat.rep_id, Sort.TPat, v))
+  | Param(name, params) =>
+    let text =
+      name
+      ++ "("
+      ++ String.concat(
+           ", ",
+           List.map(
+             (param: TPat.t) =>
+               switch (param.term) {
+               | Var(v) => v
+               | EmptyHole => "?"
+               | Invalid(s) => s
+               | MultiHole(_) => "?"
+               | Param(n, _) => n
+               },
+             params,
+           ),
+         )
+      ++ ")";
+    wrap(tpat, text_to_pretty(tpat |> TPat.rep_id, Sort.TPat, text))
   };
 }
 and mod_to_pretty = (~settings: Settings.t, item: Mod.t): pretty => {

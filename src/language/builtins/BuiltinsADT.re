@@ -185,6 +185,7 @@ let create_type_alias = (name: string, typ: Typ.t): Ctx.entry =>
     name,
     id: Id.invalid,
     kind: Ctx.Singleton(typ),
+    typ_kind: TypKind.Type,
   });
 
 // Convert type aliases to context entries

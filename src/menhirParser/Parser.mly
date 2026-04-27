@@ -252,6 +252,10 @@ typ:
     | POLY; a = tpat; DASH_ARROW; t = typ { PolyType(a, t) }
     | t = tupleType { t }
     | OPEN_SQUARE_BRACKET; t = typ; CLOSE_SQUARE_BRACKET { ArrayType(t) }
+    | t1 = typ; OPEN_PAREN; t2 = typ; CLOSE_PAREN { TypApp(t1, t2) }
+    | t1 = typ; OPEN_PAREN; t2 = typ; COMMA; ts = separated_nonempty_list(COMMA, typ); CLOSE_PAREN {
+        List.fold_left (fun acc t -> TypApp(acc, t)) (TypApp(t1, t2)) ts
+      }
     | t1 = typ; DASH_ARROW; t2 = typ { ArrowType(t1, t2) }
     | s = sumTyp; { SumTyp(s) }
     | REC; c=tpat; DASH_ARROW; t = typ { RecType(c, t) }
@@ -322,6 +326,8 @@ tpat:
     | TP_TPAT; s = STRING {InvalidTPat(s)}
     | p = PROJECTOR_INVOKE {InvalidTPat(p)}
     | QUESTION {EmptyHoleTPat}
+    | v = IDENT; OPEN_PAREN; ps = separated_list(COMMA, tpat); CLOSE_PAREN {ParamTPat(v, ps)}
+    | v = CONSTRUCTOR_IDENT; OPEN_PAREN; ps = separated_list(COMMA, tpat); CLOSE_PAREN {ParamTPat(v, ps)}
     | v = IDENT {VarTPat v}
     | v = CONSTRUCTOR_IDENT {VarTPat v}
 

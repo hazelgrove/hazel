@@ -103,6 +103,8 @@ and typ_term('a) =
   | Var(string)
   | List(typ_t('a))
   | Arrow(typ_t('a), typ_t('a))
+  | TypLam(tpat_t('a), typ_t('a))
+  | TypApp(typ_t('a), typ_t('a))
   | Sum(ConstructorMap.t(typ_t('a)))
   | Prod(list(typ_t('a)))
   | ExplicitNonlabel
@@ -122,6 +124,7 @@ and tpat_term('a) =
   | EmptyHole
   | MultiHole(list(any_t('a)))
   | Var(string)
+  | Param(string, list(tpat_t('a)))
 and tpat_t('a) = Annotated.t(tpat_term('a), 'a)
 and rul_term('a) =
   | Invalid(string)
@@ -366,6 +369,10 @@ and map_typ_annotation: 'a 'b. ('a => 'b, typ_t('a)) => typ_t('b) =
         | List(t) => List(map_typ_annotation(f, t))
         | Arrow(t1, t2) =>
           Arrow(map_typ_annotation(f, t1), map_typ_annotation(f, t2))
+        | TypLam(tp, t) =>
+          TypLam(map_tpat_annotation(f, tp), map_typ_annotation(f, t))
+        | TypApp(t1, t2) =>
+          TypApp(map_typ_annotation(f, t1), map_typ_annotation(f, t2))
         | Parens(t) => Parens(map_typ_annotation(f, t))
         | Projector(data, t) => Projector(data, map_typ_annotation(f, t))
         | Rec(tp, t) =>
@@ -407,6 +414,8 @@ and map_tpat_annotation: 'a 'b. ('a => 'b, tpat_t('a)) => tpat_t('b) =
         | MultiHole(l) =>
           MultiHole(List.map(x => map_any_annotation(f, x), l))
         | Var(s) => Var(s)
+        | Param(name, params) =>
+          Param(name, List.map(x => map_tpat_annotation(f, x), params))
         },
       annotation: new_annotation,
     };
@@ -916,6 +925,14 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       term: Arrow(t1, t2),
       annotation: default_annotation(ann),
     };
+    let typ_lam = (~ann=?, tp, t): typ_t(DefaultAnnotation.t) => {
+      term: TypLam(tp, t),
+      annotation: default_annotation(ann),
+    };
+    let typ_app = (~ann=?, t1, t2): typ_t(DefaultAnnotation.t) => {
+      term: TypApp(t1, t2),
+      annotation: default_annotation(ann),
+    };
     let sum = (~ann=?, m): typ_t(DefaultAnnotation.t) => {
       term: Sum(m),
       annotation: default_annotation(ann),
@@ -985,6 +1002,10 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
     };
     let var = (~ann=?, s): tpat_t(DefaultAnnotation.t) => {
       term: Var(s),
+      annotation: default_annotation(ann),
+    };
+    let param = (~ann=?, name, params): tpat_t(DefaultAnnotation.t) => {
+      term: Param(name, params),
       annotation: default_annotation(ann),
     };
   };

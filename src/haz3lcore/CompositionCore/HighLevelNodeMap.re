@@ -257,6 +257,7 @@ module Namer = {
     switch (tpat.term) {
     | Var(name)
     | Invalid(name) => name
+    | Param(name, _) => name
     | EmptyHole => "{empty type pattern hole}"
     | MultiHole(_) => "{multi type pattern hole}"
     };

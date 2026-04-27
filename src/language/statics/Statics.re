@@ -1715,6 +1715,7 @@ and uexp_to_info_map =
                 name,
                 id: TPat.rep_id(utpat),
                 kind: Abstract,
+                typ_kind: TypKind.Type,
               },
             );
           (mode_body, ctx_body);
@@ -2201,6 +2202,88 @@ and uexp_to_info_map =
          This ensures meet/join can unify them with module expression types. */
       let utyp_desugared = Typ.desugar_sig(ctx, utyp);
       switch (typat.term) {
+      | Param(name, params) when !Ctx.is_base_typ(name) =>
+        let param_names =
+          List.filter_map(TPat.tyvar_of_utpat, params);
+        let type_ctor_kind = TypKind.of_param_count(List.length(param_names));
+        let extend_param_ctx = ctx =>
+          List.fold_left(
+            (ctx, param) =>
+              switch (TPat.tyvar_of_utpat(param)) {
+              | Some(param_name) =>
+                Ctx.extend_tvar(
+                  ctx,
+                  {
+                    name: param_name,
+                    id: TPat.rep_id(param),
+                    kind: Abstract,
+                    typ_kind: TypKind.Type,
+                  },
+                )
+              | None => ctx
+              },
+            ctx,
+            params,
+          );
+        let ty_lam =
+          List.fold_right(
+            (param, body) => TypLam(param, body) |> Typ.temp,
+            params,
+            utyp_desugared,
+          );
+        let (ty_def, ctx_def, ctx_body) =
+          if (List.mem(name, Typ.free_vars(utyp_desugared))) {
+            let ty_rec = Rec(Var(name) |> TPat.fresh, ty_lam) |> Typ.temp;
+            let ctx_def =
+              Ctx.extend_alias(
+                ctx,
+                name,
+                TPat.rep_id(typat),
+                ~typ_kind=type_ctor_kind,
+                ty_rec,
+              );
+            (ty_rec, ctx_def, ctx_def);
+          } else {
+            let ctx_body =
+              Ctx.extend_alias(
+                ctx,
+                name,
+                TPat.rep_id(typat),
+                ~typ_kind=type_ctor_kind,
+                ty_lam,
+              );
+            (ty_lam, ctx, ctx_body);
+          };
+        let ctx_for_def = extend_param_ctx(ctx_def);
+        let ctx_body =
+          switch (Typ.get_sum_constructors(ctx_for_def, ty_def)) {
+          | Some(sm) => Ctx.add_ctrs(ctx_body, name, sm)
+          | None => ctx_body
+          };
+        let ({co_ctx, elab_syn_ty: ty_body, _}: Info.exp, body_elab, m) =
+          go(~ctx=ctx_body, ~ana, body, m);
+        let ty_escape = Typ.subst(ty_def, Var(name) |> TPat.temp, ty_body);
+        let m =
+          utyp_to_info_map(
+            ~ctx=ctx_for_def,
+            ~ancestors=ancestors_inclusive,
+            utyp,
+            m,
+          )
+          |> snd;
+        let typ_refs =
+          ModuleHelpers.collect_module_refs_in_typ(
+            ctx,
+            Typ.rep_id(utyp),
+            utyp,
+          );
+        add(
+          ~elab_term=body_elab,
+          ~elab_syn_ty=ty_escape,
+          ~marks=[],
+          ~co_ctx=CoCtx.union([co_ctx, typ_refs]),
+          m,
+        );
       | Var(name) when !Ctx.is_base_typ(name) =>
         /* NOTE(andrew): Currently, Typ.to_typ returns Unknown(TypeHole)
            for any type variable reference not in its ctx. So any free variables
@@ -2275,6 +2358,7 @@ and uexp_to_info_map =
           m,
         );
       | Var(_)
+      | Param(_)
       | Invalid(_)
       | EmptyHole
       | MultiHole(_) =>
@@ -3501,6 +3585,10 @@ and utyp_to_info_map =
     let m = go(t1, m) |> snd;
     let m = go(t2, m) |> snd;
     add(m);
+  | TypApp(t1, t2) =>
+    let m = go(t1, m) |> snd;
+    let m = go(t2, m) |> snd;
+    add(m);
   | Prod(ts) =>
     let duplicate_labels =
       LabeledTuple.get_duplicate_labels(Typ.match_tup_label, ts);
@@ -3603,6 +3691,7 @@ and utyp_to_info_map =
           name,
           id: TPat.rep_id(utpat),
           kind: Abstract,
+          typ_kind: TypKind.Type,
         },
       );
     let m =
@@ -3630,6 +3719,42 @@ and utyp_to_info_map =
     let m =
       utpat_to_info_map(~ctx, ~ancestors=ancestors_inclusive, utpat, m) |> snd;
     add(m); // TODO: check with andrew
+  | TypLam({term: Var(name), _} as utpat, tbody) =>
+    let body_ctx =
+      Ctx.extend_tvar(
+        ctx,
+        {
+          name,
+          id: TPat.rep_id(utpat),
+          kind: Abstract,
+          typ_kind: TypKind.Type,
+        },
+      );
+    let m =
+      utyp_to_info_map(
+        tbody,
+        ~ctx=body_ctx,
+        ~ancestors=ancestors_inclusive,
+        ~expects=TypeExpected,
+        m,
+      )
+      |> snd;
+    let m =
+      utpat_to_info_map(~ctx, ~ancestors=ancestors_inclusive, utpat, m) |> snd;
+    add(m);
+  | TypLam(utpat, tbody) =>
+    let m =
+      utyp_to_info_map(
+        tbody,
+        ~ctx,
+        ~ancestors=ancestors_inclusive,
+        ~expects=TypeExpected,
+        m,
+      )
+      |> snd;
+    let m =
+      utpat_to_info_map(~ctx, ~ancestors=ancestors_inclusive, utpat, m) |> snd;
+    add(m);
   | ProofOf(e) =>
     let (_, _, m) =
       uexp_to_info_map(
@@ -3648,6 +3773,7 @@ and utyp_to_info_map =
           name,
           id: TPat.rep_id(utpat),
           kind: Singleton(utyp),
+          typ_kind: TypKind.Type,
         },
       );
     let m =
@@ -3707,6 +3833,11 @@ and utpat_to_info_map =
         None,
       )
     | Var(name) => ([], Some(Message.Var(name)))
+    | Param(name, _) when Ctx.is_base_typ(name) => (
+        [TPatShadowsType(name, BaseTyp)],
+        None,
+      )
+    | Param(name, _) => ([], Some(Message.Var(name)))
     | Invalid(_) => ([TPatNotAVar(NotCapitalized)], None)
     | MultiHole(_) => ([TPatNotAVar(Other)], None)
     };
@@ -3733,6 +3864,16 @@ and utpat_to_info_map =
   | Invalid(_)
   | EmptyHole
   | Var(_) => add(m)
+  | Param(_, params) =>
+    let m =
+      List.fold_left(
+        (m, param) =>
+          utpat_to_info_map(~ctx, ~ancestors=ancestors_inclusive, param, m)
+          |> snd,
+        m,
+        params,
+      );
+    add(m)
   };
 }
 and variant_to_info_map =

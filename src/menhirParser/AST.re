@@ -77,7 +77,8 @@ type typ_provenance =
 type tpat =
   | InvalidTPat(string)
   | EmptyHoleTPat
-  | VarTPat(string);
+  | VarTPat(string)
+  | ParamTPat(string, list(tpat));
 
 [@deriving (show({with_path: false}), sexp, eq)]
 type typ =
@@ -92,6 +93,7 @@ type typ =
   | TupleType(list(typ))
   | ArrayType(typ)
   | ArrowType(typ, typ)
+  | TypApp(typ, typ)
   | TypVar(string)
   | InvalidTyp(string)
   | PolyType(tpat, typ)
@@ -1193,6 +1195,16 @@ and shrink_typ: QCheck.Shrink.t(typ) =
           <+> {
             let* shrunk2 = shrink_typ(t2);
             return(ArrowType(t1, shrunk2));
+          }
+        | TypApp(t1, t2) =>
+          of_list([t1, t2])
+          <+> {
+            let* shrunk1 = shrink_typ(t1);
+            return(TypApp(shrunk1, t2));
+          }
+          <+> {
+            let* shrunk2 = shrink_typ(t2);
+            return(TypApp(t1, shrunk2));
           }
         | TypVar(x) => Shrink.string(x) >|= ((x: string) => TypVar(x))
         | PolyType(tpat, t) =>

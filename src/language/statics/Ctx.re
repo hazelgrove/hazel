@@ -27,6 +27,7 @@ type tvar_entry = {
   name: string,
   id: Id.t,
   kind,
+  typ_kind: TypKind.t,
 };
 
 type node_or_list =
@@ -59,13 +60,22 @@ let extend = (ctx: t, entry): t => {
 let extend_tvar = (ctx: t, tvar_entry: tvar_entry): t =>
   extend(ctx, TVarEntry(tvar_entry));
 
-let extend_alias = (ctx: t, name: string, id: Id.t, ty: TermBase.Typ.t): t =>
+let extend_alias =
+    (
+      ctx: t,
+      name: string,
+      id: Id.t,
+      ~typ_kind=TypKind.Type,
+      ty: TermBase.Typ.t,
+    )
+    : t =>
   extend_tvar(
     ctx,
     {
       name,
       id,
       kind: Singleton(ty),
+      typ_kind,
     },
   );
 
@@ -76,6 +86,7 @@ let extend_dummy_tvar = (ctx: t, tvar: TPat.t) =>
       ctx,
       {
         kind: Abstract,
+        typ_kind: TypKind.Type,
         name,
         id: Id.invalid,
       },
@@ -87,6 +98,14 @@ let lookup_tvar = (ctx: t, name: string): option(kind) =>
   List.find_map(
     fun
     | TVarEntry(v) when v.name == name => Some(v.kind)
+    | _ => None,
+    ctx.entries,
+  );
+
+let lookup_tvar_typ_kind = (ctx: t, name: string): option(TypKind.t) =>
+  List.find_map(
+    fun
+    | TVarEntry(v) when v.name == name => Some(v.typ_kind)
     | _ => None,
     ctx.entries,
   );

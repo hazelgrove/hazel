@@ -168,6 +168,7 @@ let derive_typ_tests = [
             name: "T",
             id: Id.invalid,
             kind: Abstract,
+            typ_kind: TypKind.Type,
           },
         );
       let ty = Var("T") |> Typ.temp;

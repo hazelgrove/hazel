@@ -1660,6 +1660,24 @@ and abbreviate_typ = (typ: Typ.t): Typ.t => {
             );
           };
         }
+      | TypLam(tp, t) =>
+        if (available^ <= 6) {
+          available := available^ - 1;
+          indet_term_typ;
+        } else {
+          available := available^ - 3;
+          let tp' = abbreviate_tpat(tp);
+          let t' = abbreviate_typ(t);
+          TypLam(tp', t');
+        }
+      | TypApp(t1, t2) =>
+        if (available^ <= 2) {
+          available := available^ - 1;
+          indet_term_typ;
+        } else {
+          available := available^ - 2;
+          TypApp(abbreviate_typ(t1), abbreviate_typ(t2));
+        }
       | TupLabel(t1, t2) =>
         if (available^ < 3) {
           available := available^ - 1;
@@ -1826,6 +1844,16 @@ and abbreviate_tpat = (tpat: TPat.t): TPat.t =>
             : abbreviate_str(available^, str);
         Invalid(abbreviated);
       | Var(v) => Var(abbreviate_str(available^, v))
+      | Param(name, params) =>
+        if (available^ <= 2) {
+          indet_term_tpat;
+        } else {
+          available := available^ - 2;
+          Param(
+            abbreviate_str(available^, name),
+            List.map(abbreviate_tpat, params),
+          );
+        }
       | MultiHole(things) =>
         if (available^ <= 1) {
           indet_term_tpat;

@@ -23,6 +23,8 @@ type cls =
   | Projector
   | Rec
   | Poly
+  | TypLam
+  | TypApp
   | ProofOf
   | ProdProjection
   | ProdExtension
@@ -97,6 +99,8 @@ let cls_of_term: Grammar.typ_term('a) => cls =
   | Sum(_) => Sum
   | Rec(_) => Rec
   | Poly(_) => Poly
+  | TypLam(_) => TypLam
+  | TypApp(_) => TypApp
   | ProofOf(_) => ProofOf
   | ProdProjection(_) => ProdProjection
   | ProdExtension(_) => ProdExtension
@@ -124,6 +128,8 @@ let show_cls: cls => string =
   | Projector => "Projector type"
   | Rec => "Recursive type"
   | Poly => "Type quantifier"
+  | TypLam => "Type-level function"
+  | TypApp => "Type-level application"
   | ProofOf => "Proof type"
   | ProdProjection => "Tuple projection"
   | ProdExtension => "Tuple extension"
@@ -143,6 +149,8 @@ let rec is_arrow = (typ: t) => {
   | ExplicitNonlabel
   | Prod(_)
   | Var(_)
+  | TypLam(_)
+  | TypApp(_)
   | Sum(_)
   | Poly(_)
   | ProofOf(_)
@@ -170,6 +178,8 @@ let is_atom = (ty: t): bool =>
   | Var(_)
   | Sum(_)
   | Poly(_)
+  | TypLam(_)
+  | TypApp(_)
   | Rec(_)
   | ProdProjection(_)
   | ProdExtension(_)
@@ -184,6 +194,7 @@ let rec has_fun = (typ: t) =>
   | ProdProjection(typ, _) => has_fun(typ)
   | Arrow(_)
   | Poly(_)
+  | TypLam(_)
   | ProofOf(_) => true
   | Unknown(_)
   | Atom(_)
@@ -191,6 +202,7 @@ let rec has_fun = (typ: t) =>
   | Label(_)
   | ExplicitNonlabel
   | Var(_) => false
+  | TypApp(t1, t2) => has_fun(t1) || has_fun(t2)
   | List(t) => has_fun(t)
   | Rec(_, t) => has_fun(t)
   | Sum(sm) =>
@@ -222,6 +234,8 @@ let rec is_poly = (typ: t) => {
   | Prod(_)
   | Var(_)
   | Sum(_)
+  | TypLam(_)
+  | TypApp(_)
   | Rec(_)
   | ProdProjection(_)
   | ProdExtension(_)
@@ -296,6 +310,7 @@ let rec free_vars = (~bound=[], ty: t): list(Var.t) =>
   | Label(_)
   | ExplicitNonlabel => []
   | Var(v) => List.mem(v, bound) ? [] : [v]
+  | TypApp(t1, t2) => free_vars(~bound, t1) @ free_vars(~bound, t2)
   | Parens(ty)
   | Projector(_, ty) => free_vars(~bound, ty)
   | List(ty) => free_vars(~bound, ty)
@@ -306,7 +321,8 @@ let rec free_vars = (~bound=[], ty: t): list(Var.t) =>
   | ProdProjection(t1, _) => free_vars(~bound, t1)
   | TupLabel(_, ty) => free_vars(~bound, ty)
   | Rec(x, ty)
-  | Poly(x, ty) =>
+  | Poly(x, ty)
+  | TypLam(x, ty) =>
     free_vars(~bound=(x |> TPat.tyvar_of_utpat |> Option.to_list) @ bound, ty)
   | ProofOf(_) => []
   | Sig(_) => []
@@ -318,6 +334,7 @@ let rec vars = (ty: t): list(Var.t) =>
   | DrvQuoteTy(_) => []
   | Unknown(_) => []
   | Var(x) => [x]
+  | TypApp(ty1, ty2) => vars(ty1) @ vars(ty2)
   | Arrow(ty1, ty2) => vars(ty1) @ vars(ty2)
   | Prod(tys) => List.concat_map(vars, tys)
   | Sum(sm) =>
@@ -338,6 +355,9 @@ let rec vars = (ty: t): list(Var.t) =>
   | Poly({term: Var(x), _}, ty) =>
     vars(ty) |> List.filter((x': string) => x' != x)
   | Poly(_, ty) => vars(ty)
+  | TypLam({term: Var(x), _}, ty) =>
+    vars(ty) |> List.filter((x': string) => x' != x)
+  | TypLam(_, ty) => vars(ty)
   | ProofOf(_) => []
   | ExplicitNonlabel
   | Label(_) => []
@@ -377,6 +397,7 @@ let rec num_nodes = (ty: t): int => {
   | DrvQuoteTy(_)
   | Unknown(_) => 1
   | Var(_) => 1
+  | TypApp(t1, t2) => 1 + num_nodes(t1) + num_nodes(t2)
   | Arrow(t1, t2) => 1 + num_nodes(t1) + num_nodes(t2)
   | Prod(tys) =>
     1 + List.fold_left((acc, ty) => acc + num_nodes(ty), 0, tys)
@@ -396,7 +417,8 @@ let rec num_nodes = (ty: t): int => {
   | List(ty) => 1 + num_nodes(ty)
   | Parens(ty)
   | Projector(_, ty) => 1 + num_nodes(ty)
-  | Poly(_, ty) => 1 + num_nodes(ty)
+  | Poly(_, ty)
+  | TypLam(_, ty) => 1 + num_nodes(ty)
   | ExplicitNonlabel
   | Label(_) => 1
   | TupLabel(_, ty) => 1 + num_nodes(ty)
@@ -414,6 +436,7 @@ let rec count_unknowns = (ty: t): int =>
   | Atom(_)
   | DrvQuoteTy(_)
   | Var(_) => 0
+  | TypApp(t1, t2) => count_unknowns(t1) + count_unknowns(t2)
   | Arrow(t1, t2) => count_unknowns(t1) + count_unknowns(t2)
   | Prod(tys) =>
     List.fold_left((acc, ty) => acc + count_unknowns(ty), 0, tys)
@@ -432,7 +455,8 @@ let rec count_unknowns = (ty: t): int =>
   | List(ty) => count_unknowns(ty)
   | Parens(ty)
   | Projector(_, ty) => count_unknowns(ty)
-  | Poly(_, ty) => count_unknowns(ty)
+  | Poly(_, ty)
+  | TypLam(_, ty) => count_unknowns(ty)
   | ProofOf(_) => 0
   | ExplicitNonlabel
   | Label(_) => 0
@@ -448,6 +472,7 @@ let rec contains_sum_or_var = (ty: t): bool =>
   | DrvQuoteTy(_)
   | Unknown(_) => false
   | Var(_)
+  | TypApp(_, _)
   | Sum(_) => true
   | Arrow(t1, t2) => contains_sum_or_var(t1) || contains_sum_or_var(t2)
   | Prod(tys) => List.exists(contains_sum_or_var, tys)
@@ -455,7 +480,8 @@ let rec contains_sum_or_var = (ty: t): bool =>
   | List(ty) => contains_sum_or_var(ty)
   | Parens(ty)
   | Projector(_, ty) => contains_sum_or_var(ty)
-  | Poly(_, ty) => contains_sum_or_var(ty)
+  | Poly(_, ty)
+  | TypLam(_, ty) => contains_sum_or_var(ty)
   | ProofOf(_) => false
   | ProdProjection(ty1, _) => contains_sum_or_var(ty1)
   | ProdExtension(ty1, ty2) =>
@@ -494,6 +520,8 @@ let rec subst = (s: t, x: TPat.t, ty: t): t => {
     | Unknown(prov) => Unknown(prov) |> rewrap
     | Arrow(ty1, ty2) =>
       Arrow(subst(s, x, ty1), subst(s, x, ty2)) |> rewrap
+    | TypApp(ty1, ty2) =>
+      TypApp(subst(s, x, ty1), subst(s, x, ty2)) |> rewrap
     | Prod(tys) => Prod(List.map(subst(s, x), tys)) |> rewrap
     | TupLabel(label, ty) => TupLabel(label, subst(s, x, ty)) |> rewrap
     | Sum(sm) =>
@@ -503,6 +531,11 @@ let rec subst = (s: t, x: TPat.t, ty: t): t => {
     | Poly(tp2, ty) =>
       let (tp2', ty') = avoid_capture(tp2, ty);
       Poly(tp2', subst(s, x, ty')) |> rewrap;
+    | TypLam(tp2, ty) when TPat.tyvar_of_utpat(x) == TPat.tyvar_of_utpat(tp2) =>
+      TypLam(tp2, ty) |> rewrap
+    | TypLam(tp2, ty) =>
+      let (tp2', ty') = avoid_capture(tp2, ty);
+      TypLam(tp2', subst(s, x, ty')) |> rewrap;
     | Rec(tp2, ty) when TPat.tyvar_of_utpat(x) == TPat.tyvar_of_utpat(tp2) =>
       Rec(tp2, ty) |> rewrap
     | Rec(tp2, ty) =>
@@ -614,6 +647,17 @@ let rec weak_head_normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
     | Some(ty) => weak_head_normalize(~rec_counter=rec_counter + 1, ctx, ty)
     | None => ty
     }
+  | TypApp(fn, arg) =>
+    let (_, rewrap) = unwrap(ty);
+    switch (weak_head_normalize(~rec_counter=rec_counter + 1, ctx, fn).term) {
+    | TypLam(param, body) =>
+      weak_head_normalize(
+        ~rec_counter=rec_counter + 1,
+        ctx,
+        subst(arg, param, body),
+      )
+    | fn' => TypApp(fn' |> temp, arg) |> rewrap
+    }
   | TupLabel({term: ExplicitNonlabel, _}, ty) =>
     weak_head_normalize(~rec_counter=rec_counter + 1, ctx, ty)
   | ProdProjection(ty, label) =>
@@ -674,6 +718,7 @@ let rec normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
   | Parens(t)
   | Projector(_, t) => normalize(ctx, t)
   | List(t) => List(normalize(ctx, t)) |> rewrap
+  | TypApp(_, _) => weak_head_normalize(ctx, ty) |> normalize(ctx)
   | Arrow(t1, t2) =>
     Arrow(normalize(ctx, t1), normalize(ctx, t2)) |> rewrap
   | Prod(ts) =>
@@ -698,6 +743,8 @@ let rec normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
     Rec(tpat, normalize(Ctx.extend_dummy_tvar(ctx, tpat), ty)) |> rewrap
   | Poly(name, ty) =>
     Poly(name, normalize(Ctx.extend_dummy_tvar(ctx, name), ty)) |> rewrap
+  | TypLam(name, ty) =>
+    TypLam(name, normalize(Ctx.extend_dummy_tvar(ctx, name), ty)) |> rewrap
   | ProofOf(_) => ty // Todo: should we normalize this?
   | Sig(items) =>
     /* Desugar signature to labeled tuple type:
@@ -775,8 +822,11 @@ let rec desugar_sig = (ctx: Ctx.t, ty: t): t => {
   | Projector(_, t) => desugar_sig(ctx, t)
   | Arrow(t1, t2) =>
     Arrow(desugar_sig(ctx, t1), desugar_sig(ctx, t2)) |> rewrap
+  | TypApp(t1, t2) =>
+    TypApp(desugar_sig(ctx, t1), desugar_sig(ctx, t2)) |> rewrap
   | Prod(ts) => Prod(List.map(desugar_sig(ctx), ts)) |> rewrap
   | List(t) => List(desugar_sig(ctx, t)) |> rewrap
+  | TypLam(tp, t) => TypLam(tp, desugar_sig(ctx, t)) |> rewrap
   | TupLabel(label, ty) =>
     TupLabel(desugar_sig(ctx, label), desugar_sig(ctx, ty)) |> rewrap
   | _ => ty
@@ -825,6 +875,18 @@ let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
   | (_, ProdProjection(_)) => meet'(ty1, weak_head_normalize(ctx, ty2))
   | (ProdExtension(_), _) => meet'(weak_head_normalize(ctx, ty1), ty2)
   | (_, ProdExtension(_)) => meet'(ty1, weak_head_normalize(ctx, ty2))
+  | (TypApp(_), _) => meet'(weak_head_normalize(ctx, ty1), ty2)
+  | (_, TypApp(_)) => meet'(ty1, weak_head_normalize(ctx, ty2))
+  | (TypLam(x1, ty1), TypLam(x2, ty2)) =>
+    let ty1' =
+      switch (TPat.tyvar_of_utpat(x2)) {
+      | Some(x2) => subst(Var(x2) |> temp, x1, ty1)
+      | None => ty1
+      };
+    let ctx = Ctx.extend_dummy_tvar(ctx, x2);
+    let+ ty_body = meet(ctx, ty1', ty2);
+    TypLam(x2, ty_body) |> temp;
+  | (TypLam(_), _) => None
   | (Rec(tp1, ty1), Rec(tp2, ty2)) =>
     let ctx = Ctx.extend_dummy_tvar(ctx, tp1);
     let ty1' =
@@ -928,12 +990,16 @@ let rec match_synswitch = (t1: t, t2: t) => {
   | (ExplicitNonlabel, _)
   | (Var(_), _)
   | (Rec(_), _)
+  | (TypLam(_), _)
   | (ProofOf(_), _)
   | (ProdProjection(_), _)
   | (ProdExtension(_), _) => t1
   // These might
   | (List(ty1), List(ty2)) => List(match_synswitch(ty1, ty2)) |> rewrap1
   | (List(_), _) => t1
+  | (TypApp(t1a, t1b), TypApp(t2a, t2b)) =>
+    TypApp(match_synswitch(t1a, t2a), match_synswitch(t1b, t2b)) |> rewrap1
+  | (TypApp(_), _) => t1
   | (Arrow(ty1, ty2), Arrow(ty1', ty2')) =>
     Arrow(match_synswitch(ty1, ty1'), match_synswitch(ty2, ty2')) |> rewrap1
   | (Arrow(_), _) => t1
@@ -1035,6 +1101,8 @@ let rec is_syn = (ty: t): bool =>
   | Var(_)
   | Rec(_)
   | Poly(_)
+  | TypLam(_)
+  | TypApp(_)
   | ProofOf(_)
   | List(_)
   | Arrow(_)
@@ -1059,6 +1127,8 @@ let rec is_ana_atom = (ty: t) =>
   | Var(_)
   | Rec(_)
   | Poly(_)
+  | TypLam(_)
+  | TypApp(_)
   | ProofOf(_)
   | List(_)
   | Arrow(_)
@@ -1077,6 +1147,7 @@ let rec is_syn_plus = (ty: t): bool =>
   | Unknown(SynSwitch) => true
   | Arrow(t1, t2) => is_syn(t1) && is_syn_plus(t2)
   | Poly(_, t) => is_syn(t)
+  | TypLam(_, t) => is_syn(t)
   | ProofOf(_)
   | Unknown(_)
   | Atom(_)
@@ -1085,6 +1156,7 @@ let rec is_syn_plus = (ty: t): bool =>
   | Label(_)
   | Var(_)
   | Rec(_)
+  | TypApp(_)
   | List(_)
   | Prod(_)
   | Sum(_)
@@ -1121,15 +1193,22 @@ let rec needs_parens = (ty: t): bool =>
   | TupLabel(_, _)
   | Rec(_, _)
   | Poly(_, _)
+  | TypLam(_, _)
+  | TypApp(_, _)
   | Arrow(_, _)
   | Prod(_)
   | Sum(_) => true /* disambiguate between (A + B) -> C and A + (B -> C) */
   | Sig(_) => false /* already wrapped in {} */
   };
 
-let pretty_print_tvar = (tv: TPat.t): string =>
+let rec pretty_print_tvar = (tv: TPat.t): string =>
   switch (IdTagged.term_of(tv)) {
   | Var(x) => x
+  | Param(name, params) =>
+    name
+    ++ "("
+    ++ String.concat(", ", List.map(pretty_print_tvar, params))
+    ++ ")"
   | Invalid(_)
   | EmptyHole
   | MultiHole(_) => "?"
@@ -1149,6 +1228,10 @@ let rec pretty_print = (ty: t): string =>
   | Atom(Nat) => "Nat"
   | Atom(SInt) => "SInt"
   | Var(tvar) => tvar
+  | TypLam(tv, t) =>
+    "typfun " ++ pretty_print_tvar(tv) ++ " -> " ++ pretty_print(t)
+  | TypApp(t1, t2) =>
+    pretty_print(t1) ++ "(" ++ pretty_print(t2) ++ ")"
   | List(t) => "[" ++ pretty_print(t) ++ "]"
   | Arrow(t1, t2) => paren_pretty_print(t1) ++ " -> " ++ pretty_print(t2)
   | Sum(sm) =>

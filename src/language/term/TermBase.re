@@ -415,6 +415,8 @@ and Typ: {
         | ExplicitNonlabel
         | Var(_) => term
         | List(t) => List(typ_map_term(t))
+        | TypLam(tp, t) => TypLam(tpat_map_term(tp), typ_map_term(t))
+        | TypApp(t1, t2) => TypApp(typ_map_term(t1), typ_map_term(t2))
         | Unknown(Hole(MultiHole(things))) =>
           Unknown(Hole(MultiHole(List.map(any_map_term, things))))
         | Prod(xs) => Prod(List.map(typ_map_term, xs))
@@ -518,6 +520,8 @@ and TPat: {
         | Invalid(_)
         | Var(_) => term
         | MultiHole(things) => MultiHole(List.map(any_map_term, things))
+        | Param(name, params) =>
+          Param(name, List.map(TPat.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any), params))
         },
     };
     x |> f_tpat(rec_call);

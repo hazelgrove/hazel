@@ -211,6 +211,8 @@ and in_typ = (env: Environment.t(Exp.t), typ: Typ.t) =>
         | Var(_)
         | List(_)
         | Arrow(_, _)
+        | TypLam(_, _)
+        | TypApp(_, _)
         | Sum(_)
         | Prod(_)
         | ExplicitNonlabel

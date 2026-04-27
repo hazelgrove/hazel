@@ -159,6 +159,8 @@ let sample_type = (cls_typ: Typ.cls): Grammar.UnitGrammar.typ => {
       | DrvQuoteTy => drv_typ(DrvSort.Jdmt)
       | List => list(unknown(Hole(EmptyHole)))
       | Arrow => arrow(unknown(Hole(EmptyHole)), unknown(Hole(EmptyHole)))
+      | TypLam => typ_lam(TPat.var("x"), unknown(Hole(EmptyHole)))
+      | TypApp => typ_app(var("F"), unknown(Hole(EmptyHole)))
       | Var => var("x")
       | Prod => prod([])
       | TupLabel =>
@@ -203,6 +205,7 @@ let sample_tpat = (cls_tpat: TPat.cls): Grammar.UnitGrammar.tpat => {
       | Invalid => invalid("invalid")
       | EmptyHole => empty_hole()
       | Var => var("x")
+      | Param => param("F", [var("x")])
       | MultiHole => multi_hole([TPat(empty_hole()), TPat(empty_hole())])
       }
     )

@@ -21,9 +21,10 @@
 let bound_vars_of_pat = (pat: Pat.t): list(Var.t) => Pat.bound_vars(pat);
 
 /* Collect type variable names bound by a type pattern */
-let bound_vars_of_tpat = (tpat: TPat.t): list(Var.t) =>
+let rec bound_vars_of_tpat = (tpat: TPat.t): list(Var.t) =>
   switch (tpat.term) {
   | Var(name) => [name]
+  | Param(name, params) => [name] @ List.concat_map(bound_vars_of_tpat, params)
   | Invalid(_)
   | EmptyHole
   | MultiHole(_) => []

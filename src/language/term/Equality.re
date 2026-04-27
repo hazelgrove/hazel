@@ -640,6 +640,13 @@ let equality =
       | None => false
       }
     | (Poly(_, _), _) => false
+    | (TypLam(tp1, t1), TypLam(tp2, t2)) =>
+      switch (tpat'(tp1, tp2)) {
+      | Some(alphas_typ') =>
+        typ(alphas_exp, Alphas.combine(alphas_typ', alphas_typ), t1, t2)
+      | None => false
+      }
+    | (TypLam(_, _), _) => false
 
     // Type variables: special case depending on alpha equivalence.
     | (Var(x), Var(y)) =>
@@ -672,6 +679,9 @@ let equality =
     | (Label(_), _) => false
     | (List(ty1), List(ty2)) => typ'(ty1, ty2)
     | (List(_), _) => false
+    | (TypApp(t11, t12), TypApp(t21, t22)) =>
+      typ'(t11, t21) && typ'(t12, t22)
+    | (TypApp(_, _), _) => false
     | (Prod(tys1), Prod(tys2)) when List.length(tys1) == List.length(tys2) =>
       List.equal(typ', tys1, tys2)
     | (Prod(_), _) => false
@@ -768,6 +778,15 @@ let equality =
     | (Var(x), Var(y)) when type_alpha => Some(Alphas.singleton(x, y))
     | (Var(x), Var(y)) when x == y => Some(Alphas.singleton(x, x))
     | (Var(_), _) => None
+    | (Param(n1, ps1), Param(n2, ps2))
+        when n1 == n2 && List.length(ps1) == List.length(ps2) =>
+      ListUtil.fold_left_opt(
+        (alphas, (p1, p2)) =>
+          tpat(p1, p2) |> Option.map(Alphas.combine(_, alphas)),
+        Alphas.empty,
+        List.combine(ps1, ps2),
+      )
+    | (Param(_, _), _) => None
 
     // Holes: equal if provenance is ignored
     | (
