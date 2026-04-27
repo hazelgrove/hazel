@@ -2946,7 +2946,7 @@ and tpat_to_pretty = (~settings: Settings.t, tpat: TPat.t): pretty => {
            ),
          )
       ++ ")";
-    wrap(tpat, text_to_pretty(tpat |> TPat.rep_id, Sort.TPat, text))
+    wrap(tpat, text_to_pretty(tpat |> TPat.rep_id, Sort.TPat, text));
   };
 }
 and mod_to_pretty = (~settings: Settings.t, item: Mod.t): pretty => {

@@ -51,3 +51,35 @@ The first implementation is intentionally first-order: formal parameters always
 have kind `Type`. The internal kind language still has arrow kinds so Hazel can
 distinguish ordinary types from type constructors and report kind errors for
 misuse such as writing `Option` where `Option(Int)` is required.
+
+Type declarations are elaborated into internal type-level functions. For
+example, `type Option(a) = ...` introduces `Option` with kind `Type -> Type`,
+and `Option(Int)` beta-reduces the internal function body with `a := Int`.
+
+Recursive parameterized aliases use the same implicit recursion rule as existing
+Hazel aliases. A self-reference such as `List(a)` in the body is represented as
+an application of the recursive family and unfolds enough to expose the top-level
+sum constructors for typechecking.
+
+Sum constructors from parameterized declarations are registered with polymorphic
+schemas. For `Option(a)`, `None` has a schema equivalent to `poly a -> Option(a)`
+and `Some` has a schema equivalent to `poly a -> a -> Option(a)`. When an
+expected type is available, such as `Option(Int)`, constructor checking uses the
+instantiated sum so `Some(3)` is checked against `Int -> Option(Int)`.
+
+## Tests
+
+Focused coverage lives in:
+
+- `test/Test_Menhir.re` for `type Option(a)` and `Option(Int)` parsing.
+- `test/statics/Test_Statics_ParameterizedTypes.re` for kind errors and
+  constructor checking.
+- `test/Test_Typ.re` for beta-normalization and recursive family lookup.
+
+Useful targeted commands while iterating:
+
+```sh
+./run_tests test 'MenhirParser' -q
+./run_tests test 'Statics.ParameterizedTypes' -q
+./run_tests test 'Typ.normalize' -q
+```

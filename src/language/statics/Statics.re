@@ -2203,9 +2203,9 @@ and uexp_to_info_map =
       let utyp_desugared = Typ.desugar_sig(ctx, utyp);
       switch (typat.term) {
       | Param(name, params) when !Ctx.is_base_typ(name) =>
-        let param_names =
-          List.filter_map(TPat.tyvar_of_utpat, params);
-        let type_ctor_kind = TypKind.of_param_count(List.length(param_names));
+        let param_names = List.filter_map(TPat.tyvar_of_utpat, params);
+        let type_ctor_kind =
+          TypKind.of_param_count(List.length(param_names));
         let extend_param_ctx = ctx =>
           List.fold_left(
             (ctx, param) =>
@@ -3427,7 +3427,13 @@ and utyp_to_info_map =
         marks
         @ (
           TypKind.equal(k, type_)
-            ? [] : [Mark.TypKindMismatch({expected: type_, actual: k})]
+            ? []
+            : [
+              Mark.TypKindMismatch({
+                expected: type_,
+                actual: k,
+              }),
+            ]
         ),
       );
     | Arrow(t1, t2)
@@ -3439,7 +3445,13 @@ and utyp_to_info_map =
         children
         |> List.filter_map(((k, _)) =>
              TypKind.equal(k, type_)
-               ? None : Some(Mark.TypKindMismatch({expected: type_, actual: k}))
+               ? None
+               : Some(
+                   Mark.TypKindMismatch({
+                     expected: type_,
+                     actual: k,
+                   }),
+                 )
            );
       (type_, combine(children) @ mismatch_marks);
     | Prod(ts) =>
@@ -3448,7 +3460,13 @@ and utyp_to_info_map =
         children
         |> List.filter_map(((k, _)) =>
              TypKind.equal(k, type_)
-               ? None : Some(Mark.TypKindMismatch({expected: type_, actual: k}))
+               ? None
+               : Some(
+                   Mark.TypKindMismatch({
+                     expected: type_,
+                     actual: k,
+                   }),
+                 )
            );
       (type_, combine(children) @ mismatch_marks);
     | Sum(variants) =>
@@ -3465,7 +3483,13 @@ and utyp_to_info_map =
         children
         |> List.filter_map(((k, _)) =>
              TypKind.equal(k, type_)
-               ? None : Some(Mark.TypKindMismatch({expected: type_, actual: k}))
+               ? None
+               : Some(
+                   Mark.TypKindMismatch({
+                     expected: type_,
+                     actual: k,
+                   }),
+                 )
            );
       (type_, combine(children) @ mismatch_marks);
     | Poly(param, body) =>
@@ -3476,7 +3500,13 @@ and utyp_to_info_map =
         marks
         @ (
           TypKind.equal(body_kind, type_)
-            ? [] : [Mark.TypKindMismatch({expected: type_, actual: body_kind})]
+            ? []
+            : [
+              Mark.TypKindMismatch({
+                expected: type_,
+                actual: body_kind,
+              }),
+            ]
         ),
       );
     | TypLam(param, body) =>
@@ -3487,17 +3517,25 @@ and utyp_to_info_map =
       let (fn_kind, fn_marks) = kind_of_typ(ctx, fn);
       let (arg_kind, arg_marks) = kind_of_typ(ctx, arg);
       switch (fn_kind) {
-      | TypKind.Arrow(expected, result) =>
-        (
+      | TypKind.Arrow(expected, result) => (
           result,
           fn_marks
           @ arg_marks
           @ (
             TypKind.equal(expected, arg_kind)
-              ? [] : [Mark.TypKindMismatch({expected, actual: arg_kind})]
+              ? []
+              : [
+                Mark.TypKindMismatch({
+                  expected,
+                  actual: arg_kind,
+                }),
+              ]
           ),
         )
-      | _ => (type_, fn_marks @ arg_marks @ [Mark.TypApplyNonArrowKind(fn_kind)])
+      | _ => (
+          type_,
+          fn_marks @ arg_marks @ [Mark.TypApplyNonArrowKind(fn_kind)],
+        )
       };
     | Rec(param, body) =>
       let body_ctx = Ctx.extend_dummy_tvar(ctx, param);
@@ -3512,7 +3550,12 @@ and utyp_to_info_map =
     @ (
       TypKind.equal(actual, TypKind.Type)
         ? []
-        : [Mark.TypKindMismatch({expected: TypKind.Type, actual})]
+        : [
+          Mark.TypKindMismatch({
+            expected: TypKind.Type,
+            actual,
+          }),
+        ]
     );
   };
   let ids = IdTagged.ids(utyp);
@@ -3632,10 +3675,11 @@ and utyp_to_info_map =
         }
       | true =>
         switch (kind_marks) {
-        | [] => ok(Message.TypeAlias(name, Typ.weak_head_normalize(ctx, utyp)))
+        | [] =>
+          ok(Message.TypeAlias(name, Typ.weak_head_normalize(ctx, utyp)))
         | [mark, ..._] => err(mark)
         }
-      }
+      };
     | (TypeExpected, Label(_))
     | (LabelExpected(Unique, _), Label(_)) => ok(Message.Type(utyp))
     | (LabelExpected(Duplicate, dupes), Label(name)) =>
@@ -3998,7 +4042,7 @@ and utpat_to_info_map =
         m,
         params,
       );
-    add(m)
+    add(m);
   };
 }
 and variant_to_info_map =

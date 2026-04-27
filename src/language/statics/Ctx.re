@@ -179,11 +179,7 @@ let result_type_for_params = (name: string, params: list(TermBase.TPat.t)) =>
       switch (TermBase.TPat.tyvar_of_utpat(param)) {
       | Some(param_name) =>
         (
-          TypApp(
-            acc,
-            (Var(param_name): TermBase.Typ.term)
-            |> IdTagged.fresh,
-          ): TermBase.Typ.term
+          TypApp(acc, (Var(param_name): TermBase.Typ.term) |> IdTagged.fresh): TermBase.Typ.term
         )
         |> IdTagged.fresh
       | None => acc
@@ -195,10 +191,7 @@ let result_type_for_params = (name: string, params: list(TermBase.TPat.t)) =>
 let quantify_params = (params: list(TermBase.TPat.t), ty: TermBase.Typ.t) =>
   List.fold_right(
     (param, body) =>
-      (
-        Poly(param, body): TermBase.Typ.term
-      )
-      |> IdTagged.fresh,
+      (Poly(param, body): TermBase.Typ.term) |> IdTagged.fresh,
     params,
     ty,
   );
@@ -223,10 +216,7 @@ let add_ctrs_with_params =
             switch (typ) {
             | None => result_ty
             | Some(typ) =>
-              (
-                Arrow(typ, result_ty): TermBase.Typ.term
-              )
-              |> IdTagged.fresh
+              (Arrow(typ, result_ty): TermBase.Typ.term) |> IdTagged.fresh
             };
           Some(
             ConstructorEntry({

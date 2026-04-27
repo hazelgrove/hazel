@@ -527,7 +527,8 @@ and Typ: {
     | Prod(ts) => TupleType(List.map(of_core, ts))
     | List(t) => ArrayType(of_core(t))
     | Arrow(t1, t2) => ArrowType(of_core(t1), of_core(t2))
-    | TypLam(_, _) => raise(Failure("TypLam not supported in Menhir syntax"))
+    | TypLam(_, _) =>
+      raise(Failure("TypLam not supported in Menhir syntax"))
     | TypApp(t1, t2) => TypApp(of_core(t1), of_core(t2))
     | Unknown(p) => UnknownType(of_core_type_provenance(p))
     | Poly(tp, t) => PolyType(TPat.of_core(tp), of_core(t))

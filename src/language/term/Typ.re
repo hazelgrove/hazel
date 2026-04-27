@@ -531,7 +531,8 @@ let rec subst = (s: t, x: TPat.t, ty: t): t => {
     | Poly(tp2, ty) =>
       let (tp2', ty') = avoid_capture(tp2, ty);
       Poly(tp2', subst(s, x, ty')) |> rewrap;
-    | TypLam(tp2, ty) when TPat.tyvar_of_utpat(x) == TPat.tyvar_of_utpat(tp2) =>
+    | TypLam(tp2, ty)
+        when TPat.tyvar_of_utpat(x) == TPat.tyvar_of_utpat(tp2) =>
       TypLam(tp2, ty) |> rewrap
     | TypLam(tp2, ty) =>
       let (tp2', ty') = avoid_capture(tp2, ty);
@@ -657,10 +658,9 @@ let rec weak_head_normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
         ctx,
         subst(arg, param, body),
       )
-    | Rec(param, body) =>
-      Rec(param, TypApp(body, arg) |> rewrap) |> rewrap
+    | Rec(param, body) => Rec(param, TypApp(body, arg) |> rewrap) |> rewrap
     | fn' => TypApp(fn' |> temp, arg) |> rewrap
-    }
+    };
   | TupLabel({term: ExplicitNonlabel, _}, ty) =>
     weak_head_normalize(~rec_counter=rec_counter + 1, ctx, ty)
   | ProdProjection(ty, label) =>
@@ -723,7 +723,8 @@ let rec normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
   | List(t) => List(normalize(ctx, t)) |> rewrap
   | TypApp(t1, t2) =>
     switch (weak_head_normalize(ctx, ty).term) {
-    | TypApp(_, _) => TypApp(normalize(ctx, t1), normalize(ctx, t2)) |> rewrap
+    | TypApp(_, _) =>
+      TypApp(normalize(ctx, t1), normalize(ctx, t2)) |> rewrap
     | _ as whnf => normalize(ctx, whnf |> temp)
     }
   | Arrow(t1, t2) =>
@@ -885,10 +886,10 @@ let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
   | (_, ProdExtension(_)) => meet'(ty1, weak_head_normalize(ctx, ty2))
   | (TypApp(_), _) =>
     let ty1_whnf = weak_head_normalize(ctx, ty1);
-    Equality.syntactic.typ(ty1_whnf, ty1) ? None : meet'(ty1_whnf, ty2)
+    Equality.syntactic.typ(ty1_whnf, ty1) ? None : meet'(ty1_whnf, ty2);
   | (_, TypApp(_)) =>
     let ty2_whnf = weak_head_normalize(ctx, ty2);
-    Equality.syntactic.typ(ty2_whnf, ty2) ? None : meet'(ty1, ty2_whnf)
+    Equality.syntactic.typ(ty2_whnf, ty2) ? None : meet'(ty1, ty2_whnf);
   | (TypLam(x1, ty1), TypLam(x2, ty2)) =>
     let ty1' =
       switch (TPat.tyvar_of_utpat(x2)) {
@@ -1068,39 +1069,39 @@ let rec get_labels = (ctx, ty): list(option(string)) => {
 };
 
 let rec get_sum_constructors =
-    (~rec_counter=0, ctx: Ctx.t, ty: t): option(sum_map) => {
+        (~rec_counter=0, ctx: Ctx.t, ty: t): option(sum_map) =>
   if (rec_counter > 1000) {
     None;
   } else {
-  let ty = weak_head_normalize(ctx, ty);
-  switch (term_of(ty)) {
-  | Parens(ty) => get_sum_constructors(~rec_counter=rec_counter + 1, ctx, ty)
-  | Sum(sm) => Some(sm)
-  | Rec(_) =>
-    /* Note: We must unroll here to get right ctr types;
-       otherwise the rec parameter will leak. However, seeing
-       as substitution is too expensive to be used here, we
-       currently making the optimization that, since all
-       recursive types are type alises which use the alias name
-       as the recursive parameter, and type aliases cannot be
-       shadowed, it is safe to simply remove the Rec constructor,
-       provided we haven't escaped the context in which the alias
-       is bound. If either of the above assumptions become invalid,
-       the below code will be incorrect! */
-    let ty =
-      switch (ty |> term_of) {
-      | Rec({term: Var(x), _}, _ty_body) =>
-        switch (Ctx.lookup_alias(ctx, x)) {
-        | None => unroll(ty)
-        | Some(_) => unroll(ty)
-        }
-      | _ => ty
-      };
-    get_sum_constructors(~rec_counter=rec_counter + 1, ctx, ty);
-  | _ => None
+    let ty = weak_head_normalize(ctx, ty);
+    switch (term_of(ty)) {
+    | Parens(ty) =>
+      get_sum_constructors(~rec_counter=rec_counter + 1, ctx, ty)
+    | Sum(sm) => Some(sm)
+    | Rec(_) =>
+      /* Note: We must unroll here to get right ctr types;
+         otherwise the rec parameter will leak. However, seeing
+         as substitution is too expensive to be used here, we
+         currently making the optimization that, since all
+         recursive types are type alises which use the alias name
+         as the recursive parameter, and type aliases cannot be
+         shadowed, it is safe to simply remove the Rec constructor,
+         provided we haven't escaped the context in which the alias
+         is bound. If either of the above assumptions become invalid,
+         the below code will be incorrect! */
+      let ty =
+        switch (ty |> term_of) {
+        | Rec({term: Var(x), _}, _ty_body) =>
+          switch (Ctx.lookup_alias(ctx, x)) {
+          | None => unroll(ty)
+          | Some(_) => unroll(ty)
+          }
+        | _ => ty
+        };
+      get_sum_constructors(~rec_counter=rec_counter + 1, ctx, ty);
+    | _ => None
+    };
   };
-  };
-};
 
 let rec is_syn = (ty: t): bool =>
   switch (ty |> term_of) {
@@ -1244,8 +1245,7 @@ let rec pretty_print = (ty: t): string =>
   | Var(tvar) => tvar
   | TypLam(tv, t) =>
     "typfun " ++ pretty_print_tvar(tv) ++ " -> " ++ pretty_print(t)
-  | TypApp(t1, t2) =>
-    pretty_print(t1) ++ "(" ++ pretty_print(t2) ++ ")"
+  | TypApp(t1, t2) => pretty_print(t1) ++ "(" ++ pretty_print(t2) ++ ")"
   | List(t) => "[" ++ pretty_print(t) ++ "]"
   | Arrow(t1, t2) => paren_pretty_print(t1) ++ " -> " ++ pretty_print(t2)
   | Sum(sm) =>

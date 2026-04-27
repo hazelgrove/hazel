@@ -521,7 +521,13 @@ and TPat: {
         | Var(_) => term
         | MultiHole(things) => MultiHole(List.map(any_map_term, things))
         | Param(name, params) =>
-          Param(name, List.map(TPat.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any), params))
+          Param(
+            name,
+            List.map(
+              TPat.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any),
+              params,
+            ),
+          )
         },
     };
     x |> f_tpat(rec_call);
