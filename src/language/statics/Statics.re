@@ -2209,6 +2209,10 @@ and uexp_to_info_map =
             | None => false
             } =>
         let name = TPat.head_name_of(head) |> Option.get;
+        /* Use the head tile's id (not the whole Param rep_id, which points
+           at the postfix application tile) as the binding site so
+           jump-to-definition lands on the alias name itself. */
+        let binding_id = TPat.rep_id(head);
         let param_names = List.filter_map(TPat.tyvar_of_utpat, params);
         let type_ctor_kind =
           TypKind.of_param_count(List.length(param_names));
@@ -2244,7 +2248,7 @@ and uexp_to_info_map =
               Ctx.extend_alias(
                 ctx,
                 name,
-                TPat.rep_id(typat),
+                binding_id,
                 ~typ_kind=type_ctor_kind,
                 ty_rec,
               );
@@ -2254,7 +2258,7 @@ and uexp_to_info_map =
               Ctx.extend_alias(
                 ctx,
                 name,
-                TPat.rep_id(typat),
+                binding_id,
                 ~typ_kind=type_ctor_kind,
                 ty_lam,
               );
