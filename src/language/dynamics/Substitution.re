@@ -76,6 +76,7 @@ let rec in_exp = (env: Environment.t(Exp.t), exp: Exp.t) =>
         | DynamicErrorHole(_)
         | Deferral(_)
         | Atom(_)
+        | DrvQuote(_)
         | ListLit(_)
         | Constructor(_)
         | TypFun(_)
@@ -222,7 +223,8 @@ and in_typ = (env: Environment.t(Exp.t), typ: Typ.t) =>
         | ProdProjection(_, _)
         | ProdExtension(_, _)
         | ProofOf(_)
-        | Sig(_) => cont(t)
+        | Sig(_)
+        | DrvQuoteTy(_) => cont(t)
         };
       },
     typ,

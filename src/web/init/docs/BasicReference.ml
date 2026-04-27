@@ -2002,8 +2002,10 @@ let out : string * Haz3lcore.PersistentSegment.t =
          \"))))(Tile((id \
          638e7c54-61e1-426b-8c1b-1386bbfb8af2)(label(x))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
-         Exp))))))(shards(0))(children())))(Tile((id \
-         034eb069-86e0-4c4f-94c2-638c9b127aa1)(label($==))(mold((out \
+         Exp))))))(shards(0))(children())))(Secondary((id \
+         367b97c4-54f2-4e55-b59a-6b488bdad5b8)(content(Whitespace\" \
+         \"))))(Tile((id \
+         034eb069-86e0-4c4f-94c2-638c9b127aa1)(label(==))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 31))(sort Exp))((shape(Concave \
          31))(sort Exp))))))(shards(0))(children())))(Secondary((id \
          b5127dd5-89fa-48ef-ade8-4300341c9abb)(content(Whitespace\" \
@@ -2061,8 +2063,10 @@ let out : string * Haz3lcore.PersistentSegment.t =
          5900d179-d0df-47f1-b7c4-386887b59bce)(content(Whitespace\"\\n\"))))(Tile((id \
          d1f4e073-151e-4d4d-9597-ac629913878e)(label(x1))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
-         Exp))))))(shards(0))(children())))(Tile((id \
-         64c1d34b-526d-44a1-aa69-5a9696085991)(label($==))(mold((out \
+         Exp))))))(shards(0))(children())))(Secondary((id \
+         9ad37980-6895-4eb9-9aae-b68d94a75574)(content(Whitespace\" \
+         \"))))(Tile((id \
+         64c1d34b-526d-44a1-aa69-5a9696085991)(label(==))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 31))(sort Exp))((shape(Concave \
          31))(sort Exp))))))(shards(0))(children())))(Secondary((id \
          f6a49613-8a73-4449-b279-edb74db77802)(content(Whitespace\" \
@@ -2903,9 +2907,9 @@ let out : string * Haz3lcore.PersistentSegment.t =
          let exp_equal: (Exp, Exp) -> Bool =\n\
          fun es ->\n\
          case es\n\
-         | Var(x), Var(y) => x$== y\n\
+         | Var(x), Var(y) => x == y\n\
          | Lam(x1, e1), Lam(x2, e2) =>\n\
-         x1$== x2 && exp_equal(e1, e2)\n\
+         x1 == x2 && exp_equal(e1, e2)\n\
          | Ap(e1, e2), Ap(e3, e4) =>\n\
          exp_equal(e1, e3) && exp_equal(e2, e4)\n\
          | _ => false\n\

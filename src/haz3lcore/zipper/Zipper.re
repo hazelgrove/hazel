@@ -54,15 +54,16 @@ let regrout = (d: Direction.t, z: t): t => {
   };
 };
 
-let remold = (z: t): t => {
+let remold = (z: t, ~root): t => {
   assert(Selection.is_empty(z.selection));
   {
     ...z,
-    relatives: Relatives.remold(z.relatives),
+    relatives: Relatives.remold(z.relatives, root),
   };
 };
 
-let remold_regrout = (d: Direction.t, z: t): t => z |> remold |> regrout(d);
+let remold_regrout = (d: Direction.t, z: t, ~root): t =>
+  z |> remold(~root) |> regrout(d);
 
 /* Convert singleton shard tiles in siblings whose token matches a
  * missing shard of an ancestor tile, giving them the ancestor's ID
@@ -235,7 +236,7 @@ let rescan_parent_shards = (z: t): t => {
  * a standalone monotile should retroactively become a shard
  * of an incomplete tile (e.g. standalone `->` matching `fun`).
  * Should be called after edits, not during cursor movement. */
-let rescan_reassemble = (~with_parent=false, d: Direction.t, z: t): t => {
+let rescan_reassemble = (~with_parent=false, d: Direction.t, z: t, ~root): t => {
   let siblings = Siblings.rescan(z.relatives.siblings);
   let z =
     if (siblings == z.relatives.siblings) {
@@ -247,7 +248,7 @@ let rescan_reassemble = (~with_parent=false, d: Direction.t, z: t): t => {
           siblings,
         }
         |> Relatives.reassemble
-        |> Relatives.remold
+        |> (r => Relatives.remold(r, root))
         |> Relatives.regrout(d);
       {
         ...z,
@@ -268,7 +269,7 @@ let rescan_reassemble = (~with_parent=false, d: Direction.t, z: t): t => {
        * the updated relatives (no need to flatten/delete_parent since
        * try_absorb already restructured the ancestors in place). */
       let relatives =
-        z'.relatives |> Relatives.remold |> Relatives.regrout(d);
+        Relatives.remold(z'.relatives, root) |> Relatives.regrout(d);
       {
         ...z',
         relatives,
@@ -831,8 +832,11 @@ let backpack_find = (tok: Token.t, z: t): option(Tile.t) =>
     );
   };
 
-let insert_segment = (z: t, seg: Segment.t): t =>
-  z |> replace_selection(Right, seg) |> unselect |> remold_regrout(Right);
+let insert_segment = (z: t, seg: Segment.t, ~root): t =>
+  z
+  |> replace_selection(Right, seg)
+  |> unselect
+  |> remold_regrout(Right, ~root);
 
 let adj_pos = (d: Direction.t, z: t): t =>
   switch (d) {
@@ -872,14 +876,17 @@ let can_put_down = z =>
   | _ => z.caret == Outer
   };
 
-let put_down_target = (d: Direction.t, target: Tile.t, z: t): t =>
-  z |> put_down_core([Tile(target)]) |> remold_regrout(Left) |> adj_pos(d);
+let put_down_target = (d: Direction.t, target: Tile.t, z: t, ~root): t =>
+  z
+  |> put_down_core([Tile(target)])
+  |> remold_regrout(Left, ~root)
+  |> adj_pos(d);
 
-let put_down = (z: t): option(t) =>
+let put_down = (z: t, ~root): option(t) =>
   z.caret == Outer
     ? {
       let+ target = backpack_hd(z);
-      put_down_target(Left, target, z);
+      put_down_target(Left, target, z, ~root);
     }
     : None;
 

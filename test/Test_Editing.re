@@ -38,7 +38,7 @@ let perform =
     (~settings=default_settings, zip: Zipper.t, actions: list(Action.t))
     : Zipper.t => {
   let perform = (a: Action.t, z: Zipper.t) => {
-    let term = MakeTerm.from_zip_for_sem(z).term;
+    let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
     let statics =
       CachedStatics.init_from_term(~settings, ~is_dynamic_term=true, term);
     Perform.go(
@@ -54,7 +54,7 @@ let perform =
   };
   List.fold_left(
     (z: Zipper.t, a: Action.t) =>
-      switch (perform(a, z)) {
+      switch (perform(a, z, ~root=Exp)) {
       | Ok(z) => z
       | Error(err) =>
         print_endline("Zipper: " ++ Zipper.show(z));
@@ -2525,9 +2525,9 @@ let segment_cache_test =
     () => {
       let z = perform(Zipper.init(), mk(setup));
       /* Populate the segment cache */
-      let seg = Parser.to_segment(cache_text);
+      let seg = Parser.to_segment(cache_text, ~root=Exp);
       Parser.set_segment_cache(seg, cache_text);
-      let result = Parser.try_segment_paste(paste_text, z);
+      let result = Parser.try_segment_paste(paste_text, z, ~root=Exp);
       let got =
         switch (result) {
         | Some(_) => `Hit
@@ -2590,7 +2590,7 @@ let segment_cache_tests = [
     ~name="Paste with warm cache produces same result as cold paste",
     ~acts={
       let text = "2 + 3";
-      let seg = Parser.to_segment(text);
+      let seg = Parser.to_segment(text, ~root=Exp);
       Parser.set_segment_cache(seg, text);
       mk("1 + ¦") @ [Paste(text)];
     },

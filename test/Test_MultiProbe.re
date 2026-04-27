@@ -93,7 +93,7 @@ let test_probe_placement = (~name: string, ~code: string): test_case(_) => {
 
       /* Parse the clean code into a zipper */
       let zipper =
-        switch (Parser.to_zipper(clean_code)) {
+        switch (Parser.to_zipper(~root=Exp, clean_code)) {
         | Some(z) => z
         | None => fail("Failed to parse code: " ++ clean_code)
         };

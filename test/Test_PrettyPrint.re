@@ -20,7 +20,7 @@ let segmentize =
 let format =
     (~width=80, ~settings=PrettySegment.default_settings, input: string)
     : string => {
-  switch (Parser.to_term(input)) {
+  switch (Parser.to_term(input, ~root=Exp)) {
   | Some(exp) =>
     let segment = segmentize(exp);
     let pretty = PrettySegment.prettify(~width, ~settings, segment);
@@ -35,7 +35,7 @@ let format =
 let format_seg =
     (~width=80, ~settings=PrettySegment.default_settings, input: string)
     : string => {
-  switch (Parser.to_segment(input)) {
+  switch (Parser.to_segment(input, ~root=Exp)) {
   | Some(segment) =>
     let pretty = PrettySegment.prettify(~width, ~settings, segment);
     Printer.of_segment(~holes="?", ~indent=" ", pretty)
@@ -579,9 +579,9 @@ let comment_tests = [
       "let x = (canvas = 1, # The 2D grid # brush = 2, # Selected emoji # palette = 3 # Available emojis #) in x",
     ~expected=
       {|let x = (
-  canvas= 1, # The 2D grid #
-  brush= 2, # Selected emoji #
-  palette= 3 # Available emojis #
+  canvas = 1, # The 2D grid #
+  brush = 2, # Selected emoji #
+  palette = 3 # Available emojis #
 ) in
 x|},
     (),
@@ -591,16 +591,16 @@ x|},
     ~name="Record trailing comments flat",
     ~width=80,
     ~input="let x = (a = 1, # field a # b = 2, # field b # c = 3) in x",
-    ~expected={|let x = (a= 1, # field a # b= 2, # field b # c= 3) in
+    ~expected={|let x = (a = 1, # field a # b = 2, # field b # c = 3) in
 x|},
     (),
   ),
   /* Simple trailing comment after comma */
   test_format_seg(
     ~name="Trailing comment after comma",
-    ~width=30,
+    ~width=35,
     ~input="let x = (a = 1, # hi # b = 2) in x",
-    ~expected={|let x = (a= 1, # hi # b= 2) in
+    ~expected={|let x = (a = 1, # hi # b = 2) in
 x|},
     (),
   ),
@@ -701,10 +701,10 @@ f|},
     ~expected=
       {|let closeDay =
   fun ledger -> (
-    harvests= 1,
-    totalValue= 2,
-    streakBonus= 0,
-    lastQuality= 3
+    harvests = 1,
+    totalValue = 2,
+    streakBonus = 0,
+    lastQuality = 3
   ) in
 1|},
     (),
@@ -894,23 +894,23 @@ let labeled_tuple_tests = [
   test_format(
     ~name="Labeled tuple flat",
     ~input="(a= 1, b = 2)",
-    ~expected="(a= 1, b= 2)",
+    ~expected="(a = 1, b = 2)",
     (),
   ),
   test_format(
     ~name="Labeled tuple breaks vertically",
-    ~width=15,
+    ~width=20,
     ~input="(firsts = [1, 2], seconds = [3, 4])",
     ~expected={|(
-    firsts= [1, 2],
-    seconds= [3, 4]
+    firsts = [1, 2],
+    seconds = [3, 4]
 )|},
     (),
   ),
   test_format(
     ~name="Labeled tuple single entry",
     ~input="(a= 1)",
-    ~expected="(a= 1)",
+    ~expected="(a = 1)",
     (),
   ),
 ];

@@ -772,7 +772,7 @@ and Stepper: {
         and.calc expr = expr
         and.calc _ctx = ctx
         and.calc _ana = ana;
-        expr |> CodeWithStatics.Model.mk_from_exp(~settings);
+        expr |> CodeWithStatics.Model.mk_from_exp(~settings, ~root=Exp);
       };
     let info_map =
       info_map

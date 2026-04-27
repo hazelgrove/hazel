@@ -66,13 +66,24 @@ module Store = {
 module Update = {
   open Updated;
 
-  let get_editor = (model: Model.t): CodeEditable.Model.t =>
+  let get_editor = (model: Model.t): CodeEditable.Model.t => {
+    let get_scratchpad_editor = (m: ScratchMode.Model.t) => {
+      let sp = List.nth(m.scratchpads, m.current);
+      switch (sp.kind) {
+      | Code({editor, _}) => editor.editor
+      /* For Drv scratch slides, expose the Setup editor so the sidebar's
+         problem panel reflects errors from Setup only and ignores problems
+         inside the derivation trees themselves. */
+      | Drv(dm) => dm.cells.setup.editor
+      };
+    };
     switch (model.editors) {
-    | Scratch(m) => List.nth(m.scratchpads, m.current).editor.editor
-    | Documentation(m) => List.nth(m.scratchpads, m.current).editor.editor
+    | Scratch(m) => get_scratchpad_editor(m)
+    | Documentation(m) => get_scratchpad_editor(m)
     | Tutorial(m) => List.nth(m.exercises, m.current).cells.user_impl.editor
     | Exercises(m) => ExercisesMode.Model.get_editor(m)
     };
+  };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type benchmark_action =
@@ -86,6 +97,7 @@ module Update = {
     | ExplainThis(ExplainThisUpdate.update)
     | MakeActive(selection)
     | Benchmark(benchmark_action)
+    | Refresh
     | Start
     | Save;
 
@@ -194,40 +206,49 @@ module Update = {
       );
       Store.load() |> return;
     | ExportForInit =>
-      let (filename, content) =
+      let (filename, contents) =
         switch (model.editors) {
         | Scratch(model)
         | Documentation(model) =>
           let current = List.nth(model.scratchpads, model.current);
           let filename =
             (current.name |> StringUtil.sanitize_filename) ++ ".ml";
-
-          let content =
-            Haz3lcore.(
-              [%derive.show: (string, PersistentSegment.t)]((
-                current.name,
-                current.editor.editor.editor.state.zipper
-                |> PersistentSegment.persist,
-              ))
-            );
-          (filename, content);
+          let contents =
+            switch (current.kind) {
+            | Code({editor, _}) =>
+              let serialized =
+                Haz3lcore.(
+                  [%derive.show: (string, PersistentSegment.t)]((
+                    current.name,
+                    editor.editor.editor.state.zipper
+                    |> PersistentSegment.persist,
+                  ))
+                );
+              "let out : string * Haz3lcore.PersistentSegment.t = "
+              ++ serialized;
+            | Drv(m) => DerivationExercise.export_doc_slide_module(m.editors)
+            };
+          (filename, contents);
         | Tutorial(model) =>
-          let current = List.nth(model.exercises, model.current);
+          let current = TutorialsMode.Model.get_current(model);
           let filename = current.editors.module_name ++ ".ml";
-          let content = "not supported";
-          (filename, content);
+          let contents =
+            Tutorial.export_module(
+              current.editors.module_name,
+              {eds: current.editors},
+            );
+          (filename, contents);
         | Exercises(model) =>
           let current = List.nth(model.exercises, model.current);
           let filename =
-            ExercisesMode.Model.get_exercise_name(current) ++ ".ml";
-          let content = "not supported";
-          (filename, content);
+            ExercisesMode.Model.get_exercise_module_name(current) ++ ".ml";
+          let contents = ExercisesMode.Model.export_exercise_module(current);
+          (filename, contents);
         };
       JsUtil.download_string_file(
         ~filename,
         ~content_type="text/plain",
-        ~contents=
-          "let out : string * Haz3lcore.PersistentSegment.t = " ++ content,
+        ~contents,
       );
       model |> return_quiet;
     | ActiveEditor(action) =>
@@ -324,7 +345,8 @@ module Update = {
     | Benchmark(Finish) =>
       Benchmark.finish();
       model |> Updated.return_quiet;
-    | Start => model |> return
+    | Refresh => model |> Updated.return_quiet(~recalculate=true)
+    | Start => model |> return // Triggers recalculation at the start
     | Save =>
       print_endline("Saving...");
       Store.save(model);
@@ -339,6 +361,7 @@ module Update = {
     | ExplainThis(action) => ExplainThisUpdate.can_undo(action)
     | MakeActive(_)
     | Benchmark(_) => false
+    | Refresh => false
     | Start => false
     | Save => false
     };
@@ -360,11 +383,17 @@ module Update = {
         ~is_edited,
         model.editors,
       );
+    /* Compute cursor info against the POST-calculate editors: some modes
+       (e.g. CodeExerciseMode, DerivationExerciseMode) only resync their
+       stitched `cells` during calculate, not during update. Reading cursor
+       info from `model.editors` (pre-calculate) would see stale cell state
+       and yield the wrong ExplainThis highlights for a click/move-only
+       action, which doesn't trigger a full statics rebuild. */
     let cursor_info =
       Editors.Selection.get_cursor_info(
         ~inject=_ => Ui_effect.Ignore,
         ~selection=model.selection,
-        model.editors,
+        editors,
       );
     let color_highlights =
       ExplainThis.get_color_map(
@@ -372,6 +401,27 @@ module Update = {
         ~explainThisModel=model.explain_this,
         cursor_info.info,
       );
+    /* When the user's cursor is inside a derivation tree cell, the
+       deduction-specific highlight map takes precedence over the generic
+       ExplainThis one. We consult the live selection here (rather than
+       Editors.Model.get_derivation_info, which reads the stale `model.pos`
+       inside DerivationExerciseMode) so that focus on Prelude/Setup doesn't
+       get misclassified as focus on the derivation. */
+    let derivation_info =
+      Editors.Selection.get_derivation_info(
+        ~selection=model.selection,
+        editors,
+      );
+    let color_highlights =
+      switch (derivation_info) {
+      | Some(_) =>
+        ExplainThis.get_color_map_deduction(
+          ~globals=model.globals,
+          ~explainThisModel=model.explain_this,
+          derivation_info,
+        )
+      | None => color_highlights
+      };
     let globals = Globals.Update.calculate(color_highlights, model.globals);
     {
       ...model,
@@ -829,6 +879,7 @@ module View = {
         ~explainThisModel,
         ~editors_inject=(a: Editors.Update.t) => inject(Editors(a)),
         ~editors,
+        ~selection=model.selection,
         ~editor=Update.get_editor(model),
         ~signal=
           fun
@@ -901,7 +952,10 @@ module View = {
       div(
         ~attrs=[
           Attr.id("main"),
-          Attr.class_(Editors.Model.mode_string(editors)),
+          Attr.classes(
+            [Editors.Model.mode_string(editors)]
+            @ Editors.Model.extra_main_classes(editors),
+          ),
           Attr.on_scroll(on_scroll),
         ],
         editors_view,
@@ -909,6 +963,7 @@ module View = {
       sidebar,
       bottom_bar,
       ContextInspector.view(~globals, cursor.info),
+      HoverRuleSpec.view(~globals),
     ];
   };
 

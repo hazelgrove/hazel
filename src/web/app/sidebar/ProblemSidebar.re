@@ -65,7 +65,8 @@ let problem_status_view = (~globals, ci: Language.Info.t): Node.t =>
   | Secondary(_)
   | InfoMod(_)
   | InfoSig(_)
-  | InfoMPat(_) => div([])
+  | InfoMPat(_)
+  | InfoDrv(_) => div([])
   };
 
 let line_num_view =

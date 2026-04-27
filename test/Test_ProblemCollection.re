@@ -7,15 +7,16 @@ let from_string =
     : option(
         (ProblemCollection.problem_context, list(ProblemCollection.problem)),
       ) =>
-  switch (Haz3lcore.Parser.to_zipper(s)) {
+  switch (Haz3lcore.Parser.to_zipper(~root=Exp, s)) {
   | None => None
   | Some(z) =>
-    let editor = Haz3lcore.Editor.Model.mk(z);
+    let editor = Haz3lcore.Editor.Model.mk(z, ~root=Exp);
     let statics =
       Haz3lcore.CachedStatics.init(
         ~settings=Language.CoreSettings.on,
         ~is_dynamic_term=false,
         ~stitch=Fun.id,
+        ~root=Exp,
         editor.state.zipper,
       );
     let ctx =

@@ -114,7 +114,7 @@ module PlainTests = {
   open IdTagged.FreshGrammar;
 
   let parse_exp = (s: string) => {
-    switch (Haz3lcore.Parser.to_term(s)) {
+    switch (Haz3lcore.Parser.to_term(s, ~root=Exp)) {
     | Some(e) => e
     | None => Alcotest.fail("Failed to parse expression: " ++ s)
     };
@@ -320,16 +320,6 @@ module PlainTests = {
         )
       ),
     );
-
-  let unquote_elaborates = () =>
-    alco_check(
-      "$e elaborates to unquote constructor",
-      Exp.(constructor("$e", Some(Some(Typ.unknown(Internal))))),
-      dhexp_of_uexp(Exp.(un_op(Meta(Unquote), var("e")))),
-    );
-
-  let unquote_ids_present = () =>
-    assert_elab_ids_present(Exp.(un_op(Meta(Unquote), var("e"))));
 
   /*
      Labeled Tuple Elaboration Test
@@ -539,14 +529,9 @@ module PlainTests = {
       ap_of_deferral_of_hole,
     ),
     test_case(
-      "Unquote elaborates to constructor",
+      "Rules print all",
       `Quick,
-      unquote_elaborates,
-    ),
-    test_case(
-      "Unquote elaboration ids are in statics map",
-      `Quick,
-      unquote_ids_present,
+      RuleVerify.__print_all_specs_and_tests,
     ),
     test_case("Labeled tuple elaboration", `Quick, elaborated_labeled_tuple),
     test_case("Rearranged labeled tuple", `Quick, rearranged_labeled_tuple),

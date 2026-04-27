@@ -429,6 +429,50 @@ let infoIcon = Node.text("❖");
 
 let hamburger = Node.text("☰");
 
+/* Entailment turnstile (⊢), drawn to match `new_buffer` so the two icons
+   sit side-by-side in the scratch toolbar with identical stroke width,
+   bar length, and vertical extent. Two rounded rectangles:
+     - vertical bar: centered at x=300, y spans 168.8..1031.2 (matches +)
+     - horizontal bar: y centered at 600, x spans 300..1031.2
+   Stroke thickness 97.6 and corner radius 48.8 are borrowed from the + SVG. */
+let entail =
+  Node.create_svg(
+    "svg",
+    ~attrs=
+      Attr.[
+        create("viewBox", "0 0 1200 1200"),
+        create("width", Printf.sprintf("%fpx", icon_size)),
+        create("height", Printf.sprintf("%fpx", icon_size)),
+        create("preserveAspectRatio", "none"),
+      ],
+    [
+      Node.create_svg(
+        "rect",
+        ~attrs=
+          Attr.[
+            create("x", "251.2"),
+            create("y", "168.8"),
+            create("width", "97.6"),
+            create("height", "862.4"),
+            create("rx", "48.8"),
+          ],
+        [],
+      ),
+      Node.create_svg(
+        "rect",
+        ~attrs=
+          Attr.[
+            create("x", "300"),
+            create("y", "551.2"),
+            create("width", "731.2"),
+            create("height", "97.6"),
+            create("rx", "48.8"),
+          ],
+        [],
+      ),
+    ],
+  );
+
 let add_file =
   simple_icon(
     ~view="0 0 24 24",
