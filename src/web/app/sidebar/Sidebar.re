@@ -283,6 +283,7 @@ let view =
       ~log_count: int,
       ~editors_inject,
       ~editors: Editors.Model.t,
+      ~selection: Editors.Selection.t,
       ~editor: CodeWithStatics.Model.t,
       ~signal,
       ~cell_editor: option(CellEditor.Model.t),
@@ -294,6 +295,10 @@ let view =
       ~syntax=editor.editor.syntax,
     );
   let counts = Haz3lcore.ProblemCollection.counts_of_context(ctx);
+  /* See Page.calculate: use the live selection so Prelude/Setup focus
+     doesn't show up as "in a derivation" via the stale model.pos. */
+  let derivation_info =
+    Editors.Selection.get_derivation_info(~selection, editors);
   let sub =
     globals.settings.sidebar.show
       ? div(
@@ -306,7 +311,10 @@ let view =
                 ~globals,
                 ~inject=explain_this_inject,
                 ~explainThisModel,
-                cursor.info,
+                {
+                  cursor: cursor.info,
+                  deduction: derivation_info,
+                },
               )
             | HelpfulAssistant =>
               AgentView.view(~globals, ~editors_inject, ~editors, ~signal)

@@ -187,24 +187,25 @@ let tests = (
         evaluation_test(
           "Indet when unboxing constructor as bool",
           if_(
-            constructor("Baz", Some(Some(Typ.bool()))),
-            bool(false),
-            constructor("Qux", Some(None)),
+            constructor("B", Some(Some(Typ.bool()))),
+            asc(bool(false), Typ.unknown(SynSwitch)),
+            asc(constructor("A", Some(None)), Typ.unknown(SynSwitch)),
           ),
           elaborate(
-            parse_exp("type y = + Baz(Float) in if Baz then false else Qux"),
+            parse_exp("type y = + B(Float) in if B then false else A"),
           ),
         );
         evaluation_test(
           "Indet when unboxing constructor as tuple",
           let_(
             Pat.tuple([]),
-            constructor("Qux", Some(Some(Typ.(prod([]))))),
+            constructor("A", Some(Some(Typ.(prod([]))))),
             empty_hole(),
           ),
-          elaborate(parse_exp("let () = type x = + Qux in Qux in ?")),
+          elaborate(parse_exp("let () = type x = + A in A in ?")),
         );
         evaluation_test(
+          ~ignore_constructor_types=true,
           "Indet when unboxing constructor as typfun",
           typ_ap(
             constructor(

@@ -1,6 +1,7 @@
 let tests =
   [
     Test_Statics_Functions.tests,
+    Test_Statics_FunctionSugar.tests,
     Test_Statics_Tuples.tests,
     Test_Statics_Lists.tests,
     Test_Statics_Polymorphism.tests,

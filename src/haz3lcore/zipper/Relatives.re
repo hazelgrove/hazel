@@ -85,8 +85,8 @@ let delete_parent = ({siblings, ancestors}: t): t => {
  * annotation ':' in patterns). This looks at the right nib
  * of the last tile to the left, which determines what sort
  * should come next - the same logic used by Segment.remold. */
-let sort = ({siblings: (pre, _), ancestors}: t): Sort.t => {
-  let outer_sort = Ancestors.sort(ancestors);
+let sort = (~root, {siblings: (pre, _), ancestors}: t): Sort.t => {
+  let outer_sort = Ancestors.sort(root, ancestors);
   let rec find_last_tile =
     fun
     | [] => None
@@ -109,11 +109,11 @@ let sort = ({siblings: (pre, _), ancestors}: t): Sort.t => {
  * complete `(...)`) leaves the caret inside, and the parent
  * tile needs a different mold (e.g. `ap(...)` instead of
  * plain parens) to fit its neighbors. */
-let remold_parent = (ancestors: Ancestors.t): Ancestors.t =>
+let remold_parent = (~root, ancestors: Ancestors.t): Ancestors.t =>
   switch (ancestors) {
   | [] => []
   | [(a, sibs), ...rest] =>
-    let outer_sort = Ancestors.sort(rest);
+    let outer_sort = Ancestors.sort(root, rest);
     let (pre, _) = sibs;
     let sort = {
       let rec find_last_tile = (
@@ -158,10 +158,10 @@ let remold_parent = (ancestors: Ancestors.t): Ancestors.t =>
     };
   };
 
-let remold = ({siblings, ancestors}: t): t => {
-  let s = Ancestors.sort(ancestors);
+let remold = ({siblings, ancestors}: t, root: Sort.t): t => {
+  let s = Ancestors.sort(root, ancestors);
   let siblings = Siblings.remold(siblings, s);
-  let ancestors = remold_parent(ancestors);
+  let ancestors = remold_parent(~root, ancestors);
   {
     ancestors,
     siblings,

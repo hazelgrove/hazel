@@ -451,9 +451,9 @@ let constructors: Ctx.t = {
   List.fold_left(
     (ctx, (name, typ)) => {
       switch (Typ.term_of(typ)) {
-      | Sum(cons_map) => Ctx.add_ctrs(ctx, name, Id.invalid, cons_map)
+      | Sum(cons_map) => Ctx.add_ctrs(ctx, name, cons_map)
       | Rec(_, {term: Sum(cons_map), _}) =>
-        Ctx.add_ctrs(ctx, name, Id.invalid, cons_map)
+        Ctx.add_ctrs(ctx, name, cons_map)
       | _ => ctx // Product types have no constructors to add
       }
     },

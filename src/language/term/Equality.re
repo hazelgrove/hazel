@@ -129,10 +129,7 @@ let equality =
       let filter' = filter(alphas_exp, alphas_typ);
       let any' = any(alphas_exp, alphas_typ);
       let mod' = mod_(alphas_exp, alphas_typ);
-      switch (
-        e1 |> Grammar.Annotated.term_of,
-        e2 |> Grammar.Annotated.term_of,
-      ) {
+      switch (e1 |> Annotated.term_of, e2 |> Annotated.term_of) {
       // Wrappers when ignored: unwrap. These cases must come first.
       | (DynamicErrorHole(x, _), _) when ignore_dynamic_errors =>
         exp'(x, e2)
@@ -449,6 +446,8 @@ let equality =
         | None => false
         }
       | (ModuleExp(_, _, _), _) => false
+      | (DrvQuote(d1, s1), DrvQuote(d2, s2)) => s1 == s2 && d1 == d2
+      | (DrvQuote(_, _), _) => false
       };
     }
   /* Compare patterns with literal variable names (no alpha-renaming).
@@ -457,7 +456,7 @@ let equality =
       (alphas_exp: Alphas.t, alphas_typ: Alphas.t, p1: Pat.t, p2: Pat.t): bool => {
     let pne = pat_names_equal(alphas_exp, alphas_typ);
     let typ' = typ(alphas_exp, alphas_typ);
-    switch (p1 |> Grammar.Annotated.term_of, p2 |> Grammar.Annotated.term_of) {
+    switch (p1 |> Annotated.term_of, p2 |> Annotated.term_of) {
     | (Parens(x), _) when ignore_parens => pne(x, p2)
     | (_, Parens(x)) when ignore_parens => pne(p1, x)
     | (Var(x), Var(y)) => x == y
@@ -486,7 +485,7 @@ let equality =
     let any' = any(alphas_exp, alphas_typ);
     let mpat' = (mp1, mp2) =>
       Option.is_some(mpat(alphas_exp, alphas_typ, mp1, mp2));
-    switch (m1 |> Grammar.Annotated.term_of, m2 |> Grammar.Annotated.term_of) {
+    switch (m1 |> Annotated.term_of, m2 |> Annotated.term_of) {
     | (EmptyHole, EmptyHole) => true
     | (EmptyHole, _) => false
     | (Invalid(s1), Invalid(s2)) => s1 == s2
@@ -515,7 +514,7 @@ let equality =
     let pat' = pat(alphas_exp, alphas_typ);
     let typ' = typ(alphas_exp, alphas_typ);
     let any' = any(alphas_exp, alphas_typ);
-    switch (p1 |> Grammar.Annotated.term_of, p2 |> Grammar.Annotated.term_of) {
+    switch (p1 |> Annotated.term_of, p2 |> Annotated.term_of) {
     // Wrappers when ignored: unwrap.
     | (Parens(x), _) when ignore_parens => pat'(x, p2)
     | (_, Parens(x)) when ignore_parens => pat'(p1, x)
@@ -627,10 +626,7 @@ let equality =
       let exp' = exp(alphas_exp, alphas_typ);
       let typ' = typ(alphas_exp, alphas_typ);
       let tpat' = tpat;
-      switch (
-        t1 |> Grammar.Annotated.term_of,
-        t2 |> Grammar.Annotated.term_of,
-      ) {
+      switch (t1 |> Annotated.term_of, t2 |> Annotated.term_of) {
       // Wrappers when ignored: unwrap.
       | (Parens(x), _) when ignore_parens => typ'(x, t2)
       | (_, Parens(x)) when ignore_parens => typ'(t1, x)
@@ -725,6 +721,8 @@ let equality =
         List.length(items1) == List.length(items2)
         && List.for_all2(sig_(alphas_exp, alphas_typ), items1, items2)
       | (Sig(_), _) => false
+      | (DrvQuoteTy(s1), DrvQuoteTy(s2)) => s1 == s2
+      | (DrvQuoteTy(_), _) => false
       };
     }
   /* Compare patterns with literal variable names (no alpha-renaming).
@@ -740,7 +738,7 @@ let equality =
     let typ' = typ(alphas_exp, alphas_typ);
     let tpat' = (tp1, tp2) => Option.is_some(tpat(tp1, tp2));
     let any' = any(alphas_exp, alphas_typ);
-    switch (s1 |> Grammar.Annotated.term_of, s2 |> Grammar.Annotated.term_of) {
+    switch (s1 |> Annotated.term_of, s2 |> Annotated.term_of) {
     | (EmptyHole, EmptyHole) => true
     | (EmptyHole, _) => false
     | (Invalid(s1), Invalid(s2)) => s1 == s2
@@ -766,10 +764,7 @@ let equality =
       )
       : option(Alphas.t) => {
     let any' = any(alphas_exp, alphas_typ);
-    switch (
-      mp1 |> Grammar.Annotated.term_of,
-      mp2 |> Grammar.Annotated.term_of,
-    ) {
+    switch (mp1 |> Annotated.term_of, mp2 |> Annotated.term_of) {
     | (EmptyHole, EmptyHole) => Some(Alphas.empty)
     | (EmptyHole, _) => None
     | (Invalid(s1), Invalid(s2)) => s1 == s2 ? Some(Alphas.empty) : None
@@ -792,10 +787,7 @@ let equality =
     };
   }
   and tpat = (tp1: TPat.t, tp2: TPat.t): option(Alphas.t) => {
-    switch (
-      tp1 |> Grammar.Annotated.term_of,
-      tp2 |> Grammar.Annotated.term_of,
-    ) {
+    switch (tp1 |> Annotated.term_of, tp2 |> Annotated.term_of) {
     // Variables: special case depending on alpha equivalence.
     | (Var(x), Var(y)) when type_alpha => Some(Alphas.singleton(x, y))
     | (Var(x), Var(y)) when x == y => Some(Alphas.singleton(x, x))
@@ -824,7 +816,7 @@ let equality =
       (alphas_exp: Alphas.t, alphas_typ: Alphas.t, r1: Rul.t, r2: Rul.t): bool => {
     let pat' = pat(alphas_exp, alphas_typ);
     let exp' = exp(alphas_exp, alphas_typ);
-    switch (r1 |> Grammar.Annotated.term_of, r2 |> Grammar.Annotated.term_of) {
+    switch (r1 |> Annotated.term_of, r2 |> Annotated.term_of) {
     | (Rules(e1, rls1), Rules(e2, rls2))
         when List.length(rls1) == List.length(rls2) =>
       exp'(e1, e2)
@@ -899,6 +891,8 @@ let equality =
     | (MPat(_), _) => false
     | (Any (), Any ()) => true
     | (Any (), _) => false
+    | (Drv(d1), Drv(d2)) => d1 == d2
+    | (Drv(_), _) => false
     };
   };
 

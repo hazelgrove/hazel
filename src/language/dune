@@ -2,7 +2,7 @@
 
 (library
  (name language)
- (libraries util)
+ (libraries util variantslib)
  (js_of_ocaml)
  (instrumentation
   (backend bisect_ppx))
@@ -11,6 +11,7 @@
    ppx_yojson_conv
    ppx_sexp_conv
    ppx_enumerate
+   ppx_variants_conv
    ppx_deriving.show
    ppx_deriving.eq)))
 

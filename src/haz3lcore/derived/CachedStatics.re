@@ -26,9 +26,6 @@ let empty: t = {
   targets: Sample.no_targets,
 };
 
-let elaborate =
-  Core.Memo.general(~cache_size_bound=1000, Elaborator.uexp_elab);
-
 let dh_err = (error: string): DHExp.t => Var(error) |> DHExp.fresh;
 
 /* Predicate for whether a term should be probed when ProbeAll is on.
@@ -64,10 +61,13 @@ let compute_targets =
   Id.Map.fold(
     (id, (), acc) => {
       let refs =
-        switch (Statics.Map.lookup(id, info_map)) {
-        | Some(InfoExp(_)) => Statics.Map.refs_in(info_map, id) /* Expression target */
-        | Some(InfoPat(_)) => Statics.Map.bound_in(info_map, id) /* Pattern target */
-        | _ => [] /* Unknown - no refs */
+        switch (Statics.Map.lookup_exp(id, info_map)) {
+        | Some(_) => Statics.Map.refs_in(info_map, id)
+        | None =>
+          switch (Statics.Map.lookup_pat(id, info_map)) {
+          | Some(_) => Statics.Map.bound_in(info_map, id)
+          | None => []
+          }
         };
       let spec: Sample.capture_spec = {refs: refs};
       Id.Map.add(id, spec, acc);
@@ -96,7 +96,7 @@ let init_from_term =
     );
 
   let statics_start = TimeUtil.now_ms();
-  let info_map = Statics.mk(~ana?, settings, ctx_init, term);
+  let (info_map, elaborated) = Statics.mk(~ana?, settings, ctx_init, term);
   TimeUtil.log_time("  Statics.mk", statics_start);
 
   let error_ids = Statics.Map.error_ids(info_map);
@@ -108,11 +108,7 @@ let init_from_term =
     | _ when !settings.statics => dh_err("Statics disabled")
     | _ when !settings.dynamics && !settings.elaborate =>
       dh_err("Dynamics & Elaboration disabled")
-    | _ =>
-      switch (elaborate(info_map, term)) {
-      | DoesNotElaborate => dh_err("Elaboration returns None")
-      | Elaborates(d, _) => d
-      }
+    | _ => elaborated
     };
   TimeUtil.log_time("  Elaboration", elab_start);
 
@@ -138,11 +134,12 @@ let init =
       ~is_dynamic_term,
       ~stitch,
       ~ctx=?,
+      ~root,
       ~ana=?,
       z: Zipper.t,
     )
     : t => {
-  let make_term_result = MakeTerm.from_zip_for_sem(z);
+  let make_term_result = MakeTerm.from_zip_for_sem(z, ~root);
   let term = make_term_result.term |> stitch;
   /* Extract probe IDs directly from zipper's refractors (manuals + ephemerals).
    * Map values to unit since we only need the IDs as keys. */
@@ -162,8 +159,10 @@ let init =
       ~is_dynamic_term,
       ~stitch,
       ~ctx=?,
+      ~root,
       ~ana=?,
       z: Zipper.t,
     ) =>
   settings.statics
-    ? init(~settings, ~stitch, ~ctx?, ~is_dynamic_term, ~ana?, z) : empty;
+    ? init(~settings, ~stitch, ~ctx?, ~is_dynamic_term, ~root, ~ana?, z)
+    : empty;

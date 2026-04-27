@@ -12,7 +12,7 @@ open Haz3lcore;
 /* Round-trip test: parse then print should give back the original. */
 let test_round_trip = (~name: string, ~code: string): test_case(_) =>
   test_case(name, `Quick, () => {
-    switch (Parser.to_zipper(code)) {
+    switch (Parser.to_zipper(~root=Exp, code)) {
     | None => fail("Failed to parse: " ++ code)
     | Some(z) =>
       let result = Printer.of_zipper(z);
