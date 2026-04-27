@@ -1014,13 +1014,23 @@ let tpat_view =
     (~globals, _: Cls.t, ~marks: list(Mark.t), ~message: option(Message.t))
     : Node.t => {
   let view_type = view_type(~globals);
+  let kind_view = kind => [
+    text("has kind "),
+    code(TypKind.to_string(kind)),
+  ];
   switch (marks) {
   | [] =>
     switch (message) {
     | Some(TPatOk(Message.Empty)) =>
       div_ok([text("Fillable with a new alias")])
-    | Some(TPatOk(Var(name))) =>
-      div_ok([ContextInspector.alias_view(name)])
+    | Some(TPatOk(TypeAlias({name, kind}))) =>
+      div_ok([ContextInspector.alias_view(name), ...kind_view(kind)])
+    | Some(TPatOk(TypeParameter({name, kind}))) =>
+      div_ok([
+        code(name),
+        text("is a type parameter and "),
+        ...kind_view(kind),
+      ])
     | Some(Pat(_) | Exp(_) | TypOk(_)) =>
       div_err([text("(internal) expected TPatOk")])
     | None => div_err([text("(internal) missing tpat ok payload")])

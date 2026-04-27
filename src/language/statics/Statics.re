@@ -4001,12 +4001,49 @@ and utpat_to_info_map =
         [TPatShadowsType(name, BaseTyp)],
         None,
       )
-    | Var(name) => ([], Some(Message.Var(name)))
+    | Var(name) =>
+      switch (Ctx.lookup_tvar_typ_kind(ctx, name)) {
+      | Some(kind) when Ctx.is_abstract(ctx, name) => (
+          [],
+          Some(
+            Message.TypeParameter({
+              name,
+              kind,
+            }),
+          ),
+        )
+      | Some(kind) => (
+          [],
+          Some(
+            Message.TypeAlias({
+              name,
+              kind,
+            }),
+          ),
+        )
+      | None => (
+          [],
+          Some(
+            Message.TypeAlias({
+              name,
+              kind: TypKind.Type,
+            }),
+          ),
+        )
+      }
     | Param(name, _) when Ctx.is_base_typ(name) => (
         [TPatShadowsType(name, BaseTyp)],
         None,
       )
-    | Param(name, _) => ([], Some(Message.Var(name)))
+    | Param(name, params) => (
+        [],
+        Some(
+          Message.TypeAlias({
+            name,
+            kind: TypKind.of_param_count(List.length(params)),
+          }),
+        ),
+      )
     | Invalid(_) => ([TPatNotAVar(NotCapitalized)], None)
     | MultiHole(_) => ([TPatNotAVar(Other)], None)
     };
@@ -4034,10 +4071,34 @@ and utpat_to_info_map =
   | EmptyHole
   | Var(_) => add(m)
   | Param(_, params) =>
+    let param_ctx =
+      List.fold_left(
+        (ctx, param) =>
+          switch (TPat.tyvar_of_utpat(param)) {
+          | Some(name) =>
+            Ctx.extend_tvar(
+              ctx,
+              {
+                name,
+                id: TPat.rep_id(param),
+                kind: Abstract,
+                typ_kind: TypKind.Type,
+              },
+            )
+          | None => ctx
+          },
+        ctx,
+        params,
+      );
     let m =
       List.fold_left(
         (m, param) =>
-          utpat_to_info_map(~ctx, ~ancestors=ancestors_inclusive, param, m)
+          utpat_to_info_map(
+            ~ctx=param_ctx,
+            ~ancestors=ancestors_inclusive,
+            param,
+            m,
+          )
           |> snd,
         m,
         params,

@@ -2928,25 +2928,28 @@ and tpat_to_pretty = (~settings: Settings.t, tpat: TPat.t): pretty => {
     wrap(tpat, seg);
   | Var(v) => wrap(tpat, text_to_pretty(tpat |> TPat.rep_id, Sort.TPat, v))
   | Param(name, params) =>
-    let text =
-      name
-      ++ "("
-      ++ String.concat(
-           ", ",
-           List.map(
-             (param: TPat.t) =>
-               switch (param.term) {
-               | Var(v) => v
-               | EmptyHole => "?"
-               | Invalid(s) => s
-               | MultiHole(_) => "?"
-               | Param(n, _) => n
-               },
-             params,
-           ),
-         )
-      ++ ")";
-    wrap(tpat, text_to_pretty(tpat |> TPat.rep_id, Sort.TPat, text));
+    let id = tpat |> TPat.rep_id;
+    let mk_form = mk_form(~secondary=settings.secondary);
+    let+ params =
+      params |> List.map(tpat_to_pretty(~settings: Settings.t)) |> all;
+    let params =
+      switch (params) {
+      | [] => []
+      | [first, ...rest] =>
+        first
+        @ List.flatten(
+            List.map2(
+              (comma_id, param) =>
+                [mk_form(CommaTPat, comma_id, [])] @ param,
+              IdTagged.ids(tpat) |> List.tl |> pad_ids(List.length(rest)),
+              rest,
+            ),
+          )
+      };
+    wrap(
+      tpat,
+      text_to_pretty(id, Sort.TPat, name) @ [mk_form(ApTPat, id, [params])],
+    );
   };
 }
 and mod_to_pretty = (~settings: Settings.t, item: Mod.t): pretty => {

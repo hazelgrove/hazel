@@ -58,7 +58,14 @@ type ok_typ =
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type ok_tpat =
   | Empty
-  | Var(string);
+  | TypeAlias({
+      name: string,
+      kind: TypKind.t,
+    })
+  | TypeParameter({
+      name: string,
+      kind: TypKind.t,
+    });
 
 /* Single inspector payload for all sorts (non-error branch); errors use marks. */
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
