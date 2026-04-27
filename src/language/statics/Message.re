@@ -51,6 +51,7 @@ type ok_typ =
       unnormalized: Typ.t,
       whnormalized: Typ.t,
     })
+  | Kind(TypKind.t)
   | Type(Typ.t)
   | EmptyLabel
   | TypeUnderdetermined(underdetermined_typ);

@@ -496,6 +496,7 @@ let typ_ok_view = (~globals, cls: Cls.t, ok: Message.ok_typ) => {
       text("is equal to"),
       view_type(whnormalized),
     ]
+  | Kind(kind) => [text("has kind "), code(TypKind.to_string(kind))]
   | Variant(name, sum_ty) => [
       view_type(Var(name) |> Typ.fresh),
       text("is a sum type constuctor of type"),

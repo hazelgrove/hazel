@@ -3755,7 +3755,20 @@ and utyp_to_info_map =
   | TypApp(t1, t2) =>
     /* The callee of a type-level application is expected to have arrow kind,
        so do not validate it as an ordinary Type on its own. */
-    let _ = t1;
+    let (fn_kind, fn_kind_marks) = kind_of_typ(ctx, t1);
+    let fn_info: Info.typ = {
+      cls: Cls.Typ(Typ.cls_of_term(t1.term)),
+      ctx,
+      ancestors: ancestors_inclusive,
+      marks: fn_kind_marks,
+      message:
+        fn_kind_marks == []
+          ? Some(Message.TypOk(Message.Kind(fn_kind))) : None,
+      expects,
+      warnings: [],
+      user_term: t1,
+    };
+    let m = add_info(IdTagged.ids(t1), InfoTyp(fn_info), m);
     let m = go(t2, m) |> snd;
     add(m);
   | Prod(ts) =>
