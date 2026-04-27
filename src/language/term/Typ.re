@@ -649,12 +649,19 @@ let rec weak_head_normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
     }
   | TypApp(fn, arg) =>
     let (_, rewrap) = unwrap(ty);
-    switch (weak_head_normalize(~rec_counter=rec_counter + 1, ctx, fn).term) {
+    let fn_whnf = weak_head_normalize(~rec_counter=rec_counter + 1, ctx, fn);
+    switch (fn_whnf.term) {
     | TypLam(param, body) =>
       weak_head_normalize(
         ~rec_counter=rec_counter + 1,
         ctx,
         subst(arg, param, body),
+      )
+    | Rec(_) =>
+      weak_head_normalize(
+        ~rec_counter=rec_counter + 1,
+        ctx,
+        TypApp(unroll(fn_whnf), arg) |> rewrap,
       )
     | fn' => TypApp(fn' |> temp, arg) |> rewrap
     }
