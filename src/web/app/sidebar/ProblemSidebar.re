@@ -74,9 +74,15 @@ let line_num_view =
       id: Id.t,
       measured: Haz3lcore.Measured.t,
       row_to_line: int => option(int),
+      nearest_measured_id: Id.t => option(Id.t),
     )
-    : Node.t =>
-  switch (Haz3lcore.Measured.find_by_id(id, measured)) {
+    : Node.t => {
+  let resolved =
+    switch (nearest_measured_id(id)) {
+    | Some(anc) => Haz3lcore.Measured.find_by_id(anc, measured)
+    | None => None
+    };
+  switch (resolved) {
   | Some({origin, _}) =>
     switch (row_to_line(origin.row)) {
     | Some(line) =>
@@ -90,6 +96,7 @@ let line_num_view =
   | None =>
     span(~attrs=[clss(["problem-line-num", "no-line"])], [text("L?")])
   };
+};
 
 let row_view =
     (
@@ -98,6 +105,7 @@ let row_view =
       ~expanded: list(Id.t),
       ~measured: Haz3lcore.Measured.t,
       ~row_to_line: int => option(int),
+      ~nearest_measured_id: Id.t => option(Id.t),
       ~cls: string,
       id: Id.t,
       content: Node.t,
@@ -125,13 +133,18 @@ let row_view =
       [text(is_expanded ? "▾" : "▸")],
     );
   let scroll_attr = is_active ? scroll_active_into_view : Attr.empty;
+  let jump_id = Option.value(nearest_measured_id(id), ~default=id);
   div(
     ~attrs=[
       clss(classes),
-      Attr.on_pointerdown(jump_to(~globals, id)),
+      Attr.on_pointerdown(jump_to(~globals, jump_id)),
       scroll_attr,
     ],
-    [chevron, line_num_view(id, measured, row_to_line), content],
+    [
+      chevron,
+      line_num_view(id, measured, row_to_line, nearest_measured_id),
+      content,
+    ],
   );
 };
 
@@ -189,6 +202,7 @@ let problem_row =
       ~expanded: list(Id.t),
       ~measured: Haz3lcore.Measured.t,
       ~row_to_line: int => option(int),
+      ~nearest_measured_id: Id.t => option(Id.t),
       problem: problem,
     )
     : Node.t => {
@@ -205,6 +219,7 @@ let problem_row =
     ~expanded,
     ~measured,
     ~row_to_line,
+    ~nearest_measured_id,
     ~cls,
     problem.id,
     content,
@@ -316,12 +331,21 @@ let view =
         ~expanded=problems_settings.expanded,
         ~measured=g.measured,
         ~row_to_line=g.row_to_line,
+        ~nearest_measured_id=g.nearest_measured_id,
         problem,
       );
     if (problems_settings.flat) {
       let pos = id =>
-        switch (Haz3lcore.Measured.find_by_id(id, g.measured)) {
-        | Some(m) => m.origin
+        switch (g.nearest_measured_id(id)) {
+        | Some(anc) =>
+          switch (Haz3lcore.Measured.find_by_id(anc, g.measured)) {
+          | Some(m) => m.origin
+          | None =>
+            Point.{
+              row: max_int,
+              col: max_int,
+            }
+          }
         | None =>
           Point.{
             row: max_int,

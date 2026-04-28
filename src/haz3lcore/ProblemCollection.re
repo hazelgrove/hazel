@@ -35,6 +35,29 @@ type problem_context = {
   measured: Measured.t,
   row_to_line: int => option(int),
   pos: Id.t => Point.t,
+  /* Nearest ancestor of id (including id itself) that appears in
+     `measured`. Ids beneath a projector are absent from `measured` but
+     still live in the editor's term; this resolver lets the sidebar
+     attribute such problems to the projector's visible line. */
+  nearest_measured_id: Id.t => option(Id.t),
+};
+
+/* Walk `id` and its ancestors (innermost-first via Statics.Map) and
+   return the first one present in `measured`. */
+let nearest_measured_id =
+    (~info_map: Statics.Map.t, ~measured: Measured.t, id: Id.t): option(Id.t) => {
+  let rec walk =
+    fun
+    | [] => None
+    | [anc, ...rest] =>
+      switch (Measured.find_by_id(anc, measured)) {
+      | Some(_) => Some(anc)
+      | None => walk(rest)
+      };
+  switch (Measured.find_by_id(id, measured)) {
+  | Some(_) => Some(id)
+  | None => walk(Statics.Map.ancestors_of(id, info_map))
+  };
 };
 
 let make_problem_context =
@@ -63,9 +86,17 @@ let make_problem_context =
     row => row >= 0 && row < num_rows ? mapping[row] : None;
   };
   let info_map = statics.info_map;
+  let resolve_nearest = id => nearest_measured_id(~info_map, ~measured, id);
   let pos = id =>
-    switch (Measured.find_by_id(id, measured)) {
-    | Some(m) => m.origin
+    switch (resolve_nearest(id)) {
+    | Some(anc) =>
+      switch (Measured.find_by_id(anc, measured)) {
+      | Some(m) => m.origin
+      | None => {
+          row: max_int,
+          col: max_int,
+        }
+      }
     | None => {
         row: max_int,
         col: max_int,
@@ -75,8 +106,12 @@ let make_problem_context =
      multiple editors (e.g. Exercise mode's `user_tests` statics covers
      `user_impl_term ⊕ your_tests.tests`). Filter error/warning ids to
      those whose piece actually lives in *this* editor's segment; otherwise
-     a type error in `your_impl` would leak into the "Your Tests" group. */
-  let id_in_this_editor = id => Measured.find_by_id(id, measured) != None;
+     a type error in `your_impl` would leak into the "Your Tests" group.
+     Using TermData (not Measured) so ids hidden under a projector — which
+     are absent from `measured` but still part of the term — are correctly
+     recognized as belonging to this editor. */
+  let id_in_this_editor = id =>
+    TermData.root_piece(id, syntax.term_data) != None;
   /* Partition error_ids into syntax and static in a single pass */
   let (syntax_error_ids, static_error_ids) =
     List.fold_right(
@@ -123,6 +158,7 @@ let make_problem_context =
     measured,
     row_to_line,
     pos,
+    nearest_measured_id: resolve_nearest,
   };
 };
 
@@ -240,6 +276,8 @@ type problem_group = {
   label: string,
   measured: Measured.t,
   row_to_line: int => option(int),
+  /* See `problem_context.nearest_measured_id`. */
+  nearest_measured_id: Id.t => option(Id.t),
   problems_by_category: list((problem_category, list(problem))),
   counts: list((problem_category, int)),
 };
@@ -300,6 +338,7 @@ let make =
           label: input.label,
           measured: ctx.measured,
           row_to_line: ctx.row_to_line,
+          nearest_measured_id: ctx.nearest_measured_id,
           problems_by_category,
           counts,
         };
