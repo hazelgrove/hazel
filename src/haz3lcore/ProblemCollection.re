@@ -43,11 +43,12 @@ type problem_context = {
 };
 
 /* Walk `id` and its ancestors (innermost-first via Statics.Map) and
-   return the first one present in `measured`. */
+   return the first one present in `measured`. The ancestor lookup is
+   only forced if `id` itself is missing from `measured`. */
 let nearest_measured_id =
     (~info_map: Statics.Map.t, ~measured: Measured.t, id: Id.t): option(Id.t) =>
-  [id, ...Statics.Map.ancestors_of(id, info_map)]
-  |> List.find_opt(anc => Measured.find_by_id(anc, measured) != None);
+  Seq.cons(id, () => List.to_seq(Statics.Map.ancestors_of(id, info_map), ()))
+  |> Seq.find(anc => Measured.find_by_id(anc, measured) != None);
 
 let make_problem_context =
     (
