@@ -84,6 +84,49 @@ let mark_reused = (id: Id.t, incr: t): t => {
   reused: [id, ...incr.reused],
 };
 
+/* The set of ids the UI should paint as "frozen" this run.
+ *
+ * `reused` only contains ids the evaluator explicitly short-circuited
+ * via `reuse_check`. When that fires at id X the evaluator returns the
+ * cached value without descending into X's subtree, so descendant ids
+ * end up in neither `reused` nor `recalculated` — leaving them un-tinted
+ * even though they're effectively frozen.
+ *
+ * This is especially visible across module boundaries: `ExpandModule.expand`
+ * desugars `{ let bb=12; let x=fib(bb); ... }` into a chain
+ * `Let(bb,12, Let(x,..., Let(...,Tuple(...))))`. Surface-sibling ModLets
+ * become elab-ancestors of one another, so reuse at the outermost wrapper
+ * short-circuits all the inner ones; without this closure they'd appear
+ * untinted in the editor.
+ *
+ * The walk is over the elab tree (not the surface tree), so the parent-
+ * reversal introduced by module expansion is handled naturally —
+ * surface-siblings of the cached id appear as elab-descendants and
+ * therefore land in the frozen set. Fresh ids minted during elaboration
+ * (e.g. `build_labeled_tuple`'s inner Tuple children) are also collected
+ * but have no surface tile, so the renderer silently produces no
+ * decoration for them. */
+let frozen_ids = (incr: t): list(Id.t) => {
+  let acc = ref([]);
+  let collect_subtree = (root: Exp.t): unit => {
+    let f_exp = (continue, e: Exp.t) => {
+      acc := [Exp.rep_id(e), ...acc^];
+      continue(e);
+    };
+    let _ = TermBase.Exp.map_term(~f_exp, root);
+    ();
+  };
+  List.iter(
+    id =>
+      switch (Id.Map.find_opt(id, incr.entries)) {
+      | Some(entry) => collect_subtree(entry.prev_elab)
+      | None => acc := [id, ...acc^]
+      },
+    incr.reused,
+  );
+  acc^;
+};
+
 /* Names that a Let/FixF binder's rhs has dirtied on the current run: if the
  * rhs produced a value different from its cached one, the pattern's bound
  * vars become dirty inside the body.

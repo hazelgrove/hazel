@@ -539,12 +539,16 @@ let colors =
   );
 
 /* Tint the background behind "frozen" ids — the ones the incremental
- * evaluator reused from the previous run (cache hit) and therefore did
- * not need to recalculate this frame. Styled with a cool, icy motif so
- * frozen code reads as "preserved / skipped" while untinted code reads
- * as "live / being worked on". Recalculated ids are intentionally left
- * untinted: they're the complement of frozen within the evaluated part
- * of the program. */
+ * evaluator skipped re-evaluating this frame because their cached value
+ * is still valid. Styled with a cool, icy motif so frozen code reads as
+ * "preserved / skipped" while untinted code reads as "live / being
+ * worked on". Recalculated ids are intentionally left untinted: they're
+ * the complement of frozen within the evaluated part of the program.
+ *
+ * We use `IncrEval.frozen_ids` rather than `incr.reused` directly so
+ * that descendants of a short-circuited cache hit also get tinted —
+ * otherwise reuse at e.g. a module's outermost expansion-let leaves the
+ * surface-sibling inner items un-tinted (see `IncrEval.frozen_ids`). */
 let incr_eval =
     (
       ~font_metrics: FontMetrics.t,
@@ -555,6 +559,6 @@ let incr_eval =
     "incremental-highlights",
     List.concat_map(
       id => color(~syntax, ~font_metrics, ["incremental-frozen"], id),
-      incr.reused,
+      Language.IncrEval.frozen_ids(incr),
     ),
   );

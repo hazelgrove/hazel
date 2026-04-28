@@ -557,6 +557,110 @@ let test_pbt_regression_unit_pat_dup_label_dh_let = () => {
   );
 };
 
+/* Cross-module incremental reuse / UI tinting: when we edit a literal
+ * inside module `a`, the unrelated module `c` should be visibly frozen
+ * — every surface tile inside `c` should appear in the editor's
+ * "frozen" decoration set.
+ *
+ * Background:
+ *   `ExpandModule.expand` desugars `{ let bb = 12; let x = ... }` into
+ *   a chain `Let(bb, 12, Let(x, ..., Let(...,Tuple(...))))`. The chain
+ *   inverts surface nesting: the surface-outer Module M becomes the
+ *   elab-innermost Tuple, and surface-sibling ModLets become elab-
+ *   ancestors of one another.
+ *
+ *   When the evaluator hits the OUTERMOST elab Let on run 2 and finds
+ *   its cached entry, it short-circuits via `Evaluator.re:158-164` and
+ *   marks only that one id as reused (`IncrEval.mark_reused`). The
+ *   surface-sibling inner ModLets `let x = fib(b)`, `let y = fib(b)`,
+ *   `let z = x + y` are never visited and so end up in NEITHER
+ *   `incr.reused` NOR `incr.recalculated` — leaving them un-tinted in
+ *   the editor even though they're effectively frozen.
+ *
+ *   The fix is to derive a "frozen set" from `incr.reused` by walking
+ *   each reused id's `prev_elab` and unioning all rep_ids encountered.
+ *   That set is what the UI should paint as frozen. This test pins down
+ *   the desired contents of that set. */
+let test_module_c_inner_ids_in_frozen_set_after_edit_in_module_a = () => {
+  let src = {|let fib = fun n ->
+  if n < 2 then 1 else fib(n - 1) + fib(n - 2) in
+let a = {
+  let aa = 13;
+  let xy = fib(aa);
+  let yy = fib(aa);
+  let zy = xy + yy
+} in
+let c = {
+  let bb = 12;
+  let x = fib(bb);
+  let y = fib(bb);
+  let z = x + y
+} in (a, c)|};
+  let exp1 = parse_exp(src);
+  let exp2 = replace_int_lit(~from=13, ~to_=14, exp1);
+  check(
+    bool,
+    "replace_int_lit actually changed the expression",
+    true,
+    !Exp.fast_equal(exp1, exp2),
+  );
+  /* Locate module c's RHS — the third top-level `let` (after fib, a). */
+  let rec find_c_rhs = (depth, e: Exp.t): option(Exp.t) =>
+    switch (e.term) {
+    | Let(_, rhs, _) when depth == 2 => Some(rhs)
+    | Let(_, _, body) => find_c_rhs(depth + 1, body)
+    | _ => None
+    };
+  let c_rhs =
+    switch (find_c_rhs(0, exp1)) {
+    | Some(rhs) => rhs
+    | None => failwith("could not locate module c's RHS module-block")
+    };
+  /* Pull out the surface ids of the inner ModLet items: `let x = fib(b)`,
+   * `let y = fib(b)`, `let z = x + y`. We assert these all end up in the
+   * frozen set after the edit. (The first item `let bb = 12` becomes the
+   * elab-outermost wrapper that DOES get reused directly, so it's not the
+   * interesting case here.) */
+  let c_inner_modlet_ids: list(Id.t) =
+    switch (c_rhs.term) {
+    | Module(items) =>
+      switch (items) {
+      | [_first, ...rest] =>
+        List.filter_map(
+          (item: Mod.t) =>
+            switch (item.term) {
+            | ModLet(_, _) => Some(Mod.rep_id(item))
+            | _ => None
+            },
+          rest,
+        )
+      | [] => []
+      }
+    | _ => failwith("c_rhs is not a Module")
+    };
+  check(
+    int,
+    "expected 3 inner ModLet items in module c (let x, let y, let z)",
+    3,
+    List.length(c_inner_modlet_ids),
+  );
+  let (_, _, incr1) = eval_incr(exp1);
+  let (_, _, incr2) = eval_incr(~prev=incr1, exp2);
+  /* The "frozen set" is what the UI should paint as frozen. Currently
+   * `incr.reused` only contains ids that the evaluator actually visited
+   * and short-circuited. The intended fix expands that to the elab-
+   * descendant closure: for every reused id, walk its cached prev_elab
+   * (in `incr.entries`) and union all rep_ids. */
+  let frozen = IncrEval.frozen_ids(incr2);
+  let missing = List.filter(id => !List.mem(id, frozen), c_inner_modlet_ids);
+  check(
+    int,
+    "all inner ModLet ids of module c land in the frozen set",
+    0,
+    List.length(missing),
+  );
+};
+
 /* Statics-level invariant: distinct TupLabel siblings of an elaborated
  * Tuple must have distinct rep_ids. The IncrEval cache is keyed by
  * rep_id; if two siblings collide on the same id, the cache silently
@@ -611,6 +715,11 @@ let tests = (
       "Tuple elab gives distinct rep_ids to TupLabel siblings",
       `Quick,
       test_tuple_elab_gives_distinct_tuplabel_ids,
+    ),
+    test_case(
+      "Module c inner ids land in frozen set after edit in module a",
+      `Quick,
+      test_module_c_inner_ids_in_frozen_set_after_edit_in_module_a,
     ),
     test_case(
       "Populates entries on fresh run",

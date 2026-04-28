@@ -267,8 +267,7 @@ let collect_int_lits = (exp: Exp.t): list((Id.t, Bigint.t)) => {
 
 /* Replace the Atom(Int _) payload at the given id with `to_`, preserving
  * the id on the edited node (and on every other node). */
-let replace_int_lit_by_id =
-    (~target: Id.t, ~to_: Bigint.t, exp: Exp.t): Exp.t => {
+let replace_int_lit_by_id = (~target: Id.t, ~to_: Bigint.t, exp: Exp.t): Exp.t => {
   let f_exp = (continue, e: Exp.t): Exp.t =>
     if (Id.equal(Exp.rep_id(e), target)) {
       switch (e.term) {
@@ -311,9 +310,7 @@ let qcheck_incremental_matches_fresh_after_edit =
       /* Only swallow known-benign static/dynamic failures so real
        * incremental-eval disagreements surface as clean PBT failures. */
       let try_eval = (~prev=?, info_slice, elab) =>
-        try(
-          Some(eval_limited(~prev?, ~info_slice, ~step_limit=10000, elab))
-        ) {
+        try(Some(eval_limited(~prev?, ~info_slice, ~step_limit=10000, elab))) {
         | Failure(msg)
             when
               List.exists(
@@ -337,7 +334,10 @@ let qcheck_incremental_matches_fresh_after_edit =
         let edited =
           replace_int_lit_by_id(~target=target_id, ~to_=new_value, exp);
         switch (try_statics(exp), try_statics(edited)) {
-        | (Some((info_map_orig, elab_orig)), Some((info_map_edit, elab_edit))) =>
+        | (
+            Some((info_map_orig, elab_orig)),
+            Some((info_map_edit, elab_edit)),
+          ) =>
           let info_slice_orig = IncrEval.InfoSlice.of_info_map(info_map_orig);
           let info_slice_edit = IncrEval.InfoSlice.of_info_map(info_map_edit);
           /* Baseline run (no prev) of the original — its incr_eval becomes
