@@ -212,9 +212,63 @@ let inconsistent_exp = (kind: inconsistent_kind): list(Mark.t) =>
     ]
   };
 
+/* Property: for every expression-info id, the elab_syn_ty produced by static
+   analysis run *with* live-typing dynamics is more precise than (or equal to)
+   the elab_syn_ty produced by the static-only analysis. Refinement only ever
+   moves down the precision lattice. */
+let precision_property = (exp: Exp.t): bool =>
+  try({
+    let exp_with_ids =
+      Grammar.map_exp_annotation(_ => IdTagged.IdTag.fresh(), exp);
+    let ctx = Builtins.ctx_init(Some(Int));
+    let (static_map, elaborated) =
+      Statics.mk(CoreSettings.on, ctx, exp_with_ids);
+    if (StaticsBase.Map.has_errors(static_map)) {
+      true;
+    } else {
+      let targets =
+        Haz3lcore.CachedStatics.compute_targets(
+          ~settings=CoreSettings.on,
+          ~info_map=static_map,
+          ~probe_ids=Id.Map.empty,
+        );
+      let (_, state) =
+        Evaluator.evaluate(~targets, ~env=Builtins.env_init, elaborated);
+      let dynamics =
+        mk_live_typing(
+          EvaluatorState.get_probes(state),
+          EvaluatorState.get_type_insts(state),
+        );
+      let (live_map, _) =
+        Statics.mk(~dynamics, CoreSettings.on, ctx, exp_with_ids);
+      Id.Map.for_all(
+        (id, info_static) =>
+          switch (info_static, StaticsBase.Map.lookup(id, live_map)) {
+          | (Info.InfoExp(s), Some(Info.InfoExp(l))) =>
+            Typ.is_more_precise(ctx, l.elab_syn_ty, s.elab_syn_ty)
+          | _ => true
+          },
+        static_map,
+      );
+    };
+  }) {
+  | _ => true
+  };
+
+let precision_property_test =
+  QCheck_alcotest.to_alcotest(
+    QCheck.Test.make(
+      ~name="Live type refines synthesized static type",
+      ~count=500,
+      QCheck_Util.arb_exp(~minimal_idents=true, 10),
+      precision_property,
+    ),
+  );
+
 let tests = (
   "Evaluator.LiveTyping",
   [
+    precision_property_test,
     test_case(
       "dynamic in-editor feedback",
       `Slow,

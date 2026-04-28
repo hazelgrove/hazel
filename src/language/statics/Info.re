@@ -355,11 +355,7 @@ let refine_typ_with_dynamics =
     | Some(entry) =>
       let exps = List.map((s: LiveTyping.sample) => s.exp, entry);
       let dyn_typs = OptUtil.traverse(calculate_dynamic_type, exps);
-      let dyn_typ =
-        Option.bind(
-          dyn_typs,
-          Typ.meet_all(~empty=Unknown(Internal) |> Typ.temp, ctx),
-        );
+      let dyn_typ = Option.bind(dyn_typs, Typ.meet_all(~empty=ty, ctx));
       switch (dyn_typ) {
       | None => ty
       | Some(t) => t
