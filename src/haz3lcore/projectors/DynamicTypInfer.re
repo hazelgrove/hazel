@@ -3,7 +3,7 @@ open Language;
 /* Infer a type from a single sample value by running statics on it.
    Uses the provided context so user-defined types are visible. */
 let type_of_sample = (~ctx: Ctx.t, sample: Sample.t): option(Typ.t) => {
-  let info_map = Statics.mk(CoreSettings.on, ctx, sample.value);
+  let (info_map, _elab) = Statics.mk(CoreSettings.on, ctx, sample.value);
   IdTagged.rep_id(sample.value)
   |> Id.Map.find_opt(_, info_map)
   |> Option.bind(

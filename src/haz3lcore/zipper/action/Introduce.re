@@ -266,7 +266,7 @@ let introduce = (ci: option(Info.t), z: Zipper.t) => {
   | Some(
       InfoExp({
         cls: Exp(EmptyHole),
-        status: NotInHole(Common(Ana(Consistent({ana, _})))),
+        message: Exp(Common(Ana(Consistent({ana, _})))),
         ctx,
         _,
       }),
@@ -277,7 +277,7 @@ let introduce = (ci: option(Info.t), z: Zipper.t) => {
   | Some(
       InfoPat({
         cls: Pat(EmptyHole),
-        status: NotInHole(Ana(Consistent({ana, _}))),
+        message: Pat(Common(Ana(Consistent({ana, _})))),
         ctx,
         _,
       }),

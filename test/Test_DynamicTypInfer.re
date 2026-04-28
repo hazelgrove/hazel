@@ -6,17 +6,17 @@ open Language;
    Returns (samples_by_probe_id, info_map) so tests can exercise
    DynamicTypInfer.dynamic_typ_of_samples with the real program context. */
 let evaluate_probes = (code: string): (Sample.Map.t, Statics.Map.t) => {
-  switch (Parser.to_zipper(code)) {
+  switch (Parser.to_zipper(~root=Exp, code)) {
   | None => (Sample.Map.empty, Statics.Map.empty)
   | Some(z) =>
-    let MakeTerm.{term, _} = MakeTerm.from_zip_for_sem(z);
+    let MakeTerm.{term, _} = MakeTerm.from_zip_for_sem(z, ~root=Exp);
     let probe_ids =
       Id.Map.union(
         (_, _, _) => Some(),
         Id.Map.map(_ => (), Id.Map.of_list(z.refractors.manuals)),
         Id.Map.map(_ => (), z.refractors.multis.ephemerals),
       );
-    let info_map =
+    let (info_map, elaborated) =
       Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
     let targets: Sample.targets =
       Id.Map.fold(
@@ -32,7 +32,6 @@ let evaluate_probes = (code: string): (Sample.Map.t, Statics.Map.t) => {
         probe_ids,
         Id.Map.empty,
       );
-    let elaborated = Elaborator.elaborate(info_map, term) |> fst;
     let (_, state) =
       Evaluator.evaluate(~targets, ~env=Builtins.env_init, elaborated);
     (EvaluatorState.get_probes(state), info_map);

@@ -15,7 +15,8 @@ type cls =
   | Tuple
   | Parens
   | Projector
-  | Ap
+  | ApFunc
+  | ApCons
   | Asc;
 
 include TermBase.Pat;
@@ -57,7 +58,8 @@ let cls_of_term: Grammar.pat_term('a) => cls =
   | Tuple(_) => Tuple
   | Parens(_) => Parens
   | Projector(_) => Projector
-  | Ap(_) => Ap
+  | Ap({term: Constructor(_), _}, _) => ApCons
+  | Ap(_) => ApFunc
   | Asc(_) => Asc;
 
 let show_cls: cls => string =
@@ -82,7 +84,8 @@ let show_cls: cls => string =
   | Tuple => "Tuple"
   | Parens => "Parenthesized pattern"
   | Projector => "Projector"
-  | Ap => "Constructor application"
+  | ApCons => "Constructor application"
+  | ApFunc => "Function definition"
   | Asc => "Annotation";
 
 let rec is_var = (pat: t): option(Var.t) => {

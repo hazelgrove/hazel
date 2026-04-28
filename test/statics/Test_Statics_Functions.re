@@ -71,14 +71,14 @@ let tests = (
           deferred_ap(
             ~ann=
               Some(
-                Exp(
-                  BadPartialAp(
+                Marks([
+                  IsBadPartialAp(
                     ArityMismatch({
                       expected: 3,
                       actual: 4,
                     }),
                   ),
-                ),
+                ]),
               ),
             var("string_sub"),
             [deferral(InAp), deferral(InAp), int(2), int(3)],
@@ -119,7 +119,7 @@ let tests = (
           bin_op(
             Int(Plus),
             int(1),
-            deferral(~ann=Some(Exp(UnusedDeferral)), OutsideAp),
+            deferral(~ann=Some(Marks([IsDeferral(OutsideAp)])), OutsideAp),
           )
         ),
       )

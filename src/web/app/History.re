@@ -144,16 +144,6 @@ module Update = {
   };
 };
 
-module Selection = {
-  type t = Page.selection;
-
-  let handle_key_event = (model: Model.t) =>
-    Page.Selection.handle_key_event(model.current);
-
-  let get_cursor_info = (model: Model.t) =>
-    Page.Selection.get_cursor_info(model.current);
-};
-
 module View = {
   let view =
       (~get_log_and, ~inject: Update.t => Ui_effect.t(unit), model: Model.t) => {
