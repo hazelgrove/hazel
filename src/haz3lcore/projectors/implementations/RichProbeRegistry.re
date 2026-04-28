@@ -6,4 +6,5 @@
 
 let renderers: list(RichProbe.packed_renderer) = [
   RichProbe.pack_renderer((module TableRenderer), "table"),
+  RichProbe.pack_renderer((module CardRenderer), "card"),
 ];
