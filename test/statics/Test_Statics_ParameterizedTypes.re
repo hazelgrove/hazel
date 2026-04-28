@@ -12,6 +12,47 @@ let static_errors = src => {
   statics(exp) |> errors |> List.map(snd) |> List.flatten;
 };
 
+/* Run the elaborator and walk the result looking for a predicate. */
+let elaboration_contains = (src, predicate) => {
+  let exp = parse_menhir_exp(src);
+  let (_info_map, elab) =
+    Statics.mk(CoreSettings.on, Language.Builtins.ctx_init(Some(Int)), exp);
+  let found = ref(false);
+  let rec walk = (e: TermBase.Exp.t): unit => {
+    if (predicate(e)) {
+      found := true;
+    };
+    switch (e.term) {
+    | TypAp(inner, _) => walk(inner)
+    | Ap(_, f, a) =>
+      walk(f);
+      walk(a);
+    | Let(_, def, body) =>
+      walk(def);
+      walk(body);
+    | TyAlias(_, _, body) => walk(body)
+    | Use(_, body) => walk(body)
+    | Tuple(xs) => List.iter(walk, xs)
+    | Fun(_, b, _, _)
+    | TypFun(_, b, _) => walk(b)
+    | Asc(inner, _)
+    | Parens(inner) => walk(inner)
+    | Match(scrut, rules) =>
+      walk(scrut);
+      List.iter(((_, r)) => walk(r), rules);
+    | _ => ()
+    };
+  };
+  walk(elab);
+  found^;
+};
+
+let is_typ_ap_of_constructor = (name, e: TermBase.Exp.t): bool =>
+  switch (e.term) {
+  | TypAp({term: Constructor(c, _), _}, _) => c == name
+  | _ => false
+  };
+
 let has_mark = (expected: Mark.t, marks: list(Mark.t)): bool =>
   List.exists(mark => equal_mark(mark, expected), marks);
 
@@ -119,6 +160,50 @@ let x : Option = ? in x
         );
       },
     ),
+    test_case("elaboration wraps Some in TypAp for Option(Int)", `Quick, () => {
+      check(
+        bool,
+        "TypAp(Some, ...) appears in elab",
+        true,
+        elaboration_contains(
+          {|
+type Option(a) = + None + Some(a) in
+let x : Option(Int) = Some(3) in x
+|},
+          is_typ_ap_of_constructor("Some"),
+        ),
+      )
+    }),
+    test_case("elaboration wraps recursive Cons/Nil in TypAp", `Quick, () => {
+      check(
+        bool,
+        "TypAp(Cons, ...) appears in elab",
+        true,
+        elaboration_contains(
+          {|
+type List(a) = + Nil + Cons(a, List(a)) in
+let xs : List(Int) = Cons((1, Nil)) in xs
+|},
+          is_typ_ap_of_constructor("Cons"),
+        ),
+      )
+    }),
+    test_case(
+      "elaboration wraps constructor via Type-kinded alias", `Quick, () => {
+      check(
+        bool,
+        "TypAp(Some, ...) appears via IntOption alias",
+        true,
+        elaboration_contains(
+          {|
+type Option(a) = + None + Some(a) in
+type IntOption = Option(Int) in
+let x : IntOption = Some(3) in x
+|},
+          is_typ_ap_of_constructor("Some"),
+        ),
+      )
+    }),
     test_case(
       "non-constructor type application rejected",
       `Quick,

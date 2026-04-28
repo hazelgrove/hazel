@@ -1407,7 +1407,24 @@ and uexp_to_info_map =
         }
       | _ =>
         let ctor_ty = fixed_typ(ctx, ana, syn_res) |> Typ.normalize(ctx);
-        let elab_term = Constructor(ctr, Some(Some(ctor_ty))) |> rewrap;
+        /* If the constructor has a polymorphic schema, make the implicit
+           instantiation explicit in the elaborated term by wrapping the
+           bare constructor in TypAp nodes. This keeps the elaboration
+           well-typed after pretty-printing and re-parsing; the constructor
+           no longer needs a clinging type ascription for round-trip. */
+        let type_args =
+          ty == None
+            ? ConstructorStaticsHelpers.instantiation_args_for(ctx, ctr, ana)
+            : [];
+        let elab_term =
+          switch (type_args) {
+          | [] => Constructor(ctr, Some(Some(ctor_ty))) |> rewrap
+          | _ =>
+            ConstructorStaticsHelpers.wrap_type_apps(
+              Constructor(ctr, None) |> Exp.fresh,
+              type_args,
+            )
+          };
         /* Manually emit ExpectationMismatch based on the clean syn_res
            (not ctor_ty), since ctor_ty has already been reconciled with ana
            and would otherwise silently meet. */
@@ -2338,9 +2355,19 @@ and uexp_to_info_map =
           };
         };
         let ctx_body =
-          switch (Typ.get_sum_constructors(ctx, ty_def)) {
-          | Some(sm) => Ctx.add_ctrs(ctx_body, name, sm)
-          | None => ctx_body
+          /* Only register new constructors when the alias RHS literally
+             defines a sum structurally (e.g. `type T = + A + B`). When the
+             RHS is a reference to an existing parameterized type constructor
+             (e.g. `type IntOption = Option(Int)`), reusing add_ctrs would
+             shadow the polymorphic schemas of Some/None with monomorphic
+             ones under the alias name, breaking implicit instantiation. */
+          switch (utyp_desugared.term) {
+          | Sum(_) =>
+            switch (Typ.get_sum_constructors(ctx, ty_def)) {
+            | Some(sm) => Ctx.add_ctrs(ctx_body, name, sm)
+            | None => ctx_body
+            }
+          | _ => ctx_body
           };
         let ({co_ctx, elab_syn_ty: ty_body, _}: Info.exp, body_elab, m) =
           go(~ctx=ctx_body, ~ana, body, m);
