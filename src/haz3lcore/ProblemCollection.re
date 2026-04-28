@@ -45,20 +45,9 @@ type problem_context = {
 /* Walk `id` and its ancestors (innermost-first via Statics.Map) and
    return the first one present in `measured`. */
 let nearest_measured_id =
-    (~info_map: Statics.Map.t, ~measured: Measured.t, id: Id.t): option(Id.t) => {
-  let rec walk =
-    fun
-    | [] => None
-    | [anc, ...rest] =>
-      switch (Measured.find_by_id(anc, measured)) {
-      | Some(_) => Some(anc)
-      | None => walk(rest)
-      };
-  switch (Measured.find_by_id(id, measured)) {
-  | Some(_) => Some(id)
-  | None => walk(Statics.Map.ancestors_of(id, info_map))
-  };
-};
+    (~info_map: Statics.Map.t, ~measured: Measured.t, id: Id.t): option(Id.t) =>
+  [id, ...Statics.Map.ancestors_of(id, info_map)]
+  |> List.find_opt(anc => Measured.find_by_id(anc, measured) != None);
 
 let make_problem_context =
     (
