@@ -79,14 +79,25 @@ Ap(TypAp(Cons, Int), (0, Ap(TypAp(Cons, Int), (1, TypAp(Nil, Int)))))
 ```
 
 The inner `Constructor` node keeps its *polymorphic schema* as its type
-ascription (e.g. `poly a -> a -> List(a)` for `Cons`) so that re-statics
-on the elaborated term — TypAp expects a `Poly`-typed callee — agrees
-with the annotation. At runtime, `TypAp(Constructor(c, Some(Some(Poly(a,
+ascription, fully normalized so no alias names leak into the elab. For
+`Cons` the annotation is the `poly`-quantified form of the result sum
+(aliases like `List` expand to their underlying `Rec` body inside the
+`Poly`). Re-statics on the elaborated term is now well-typed because
+`TypAp` expects a `Poly`-typed callee and the constructor carries
+exactly that. At runtime, `TypAp(Constructor(c, Some(Some(Poly(a,
 body)))), tau)` specializes the schema by substituting `tau` for `a`,
 stepping to `Constructor(c, Some(Some(subst(tau, a, body))))`. The
-constructor stays a final value, now carrying a monomorphic ascription;
-this is the form the result view, the stepper, and `DHExp.ty_comparable`
-consume.
+constructor stays a final value, now carrying a monomorphic (and still
+normalized) ascription; this is the form the result view, the stepper,
+and `DHExp.ty_comparable` consume.
+
+Monomorphic constructors (e.g. `B` in `type T2 = +A(Int->Int)+B`) have
+a ctx schema that is just their declaring alias `Var("T2")` — an opaque
+name that would hide arrow types inside the sum from
+`DHExp.ty_comparable`'s `Typ.has_fun` check. Their annotation uses the
+site-normalized specialized type instead, which unfolds the alias to
+`Sum[A(Int->Int), B]` and lets dynamics reject equality comparisons on
+values that might hide functions.
 
 Constructors whose schema is not actually polymorphic (e.g. a bare tag
 from `type x = + A`) are never wrapped: writing `A @<?>` keeps the

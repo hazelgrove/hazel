@@ -1413,23 +1413,44 @@ and uexp_to_info_map =
            letting implicit instantiation be inserted at every level. */
         let ctor_ty = fixed_typ(ctx, ana, syn_res);
         let ctor_ty_for_ann = Typ.normalize(ctx, ctor_ty);
-        /* If the constructor has a polymorphic schema, make the implicit
-           instantiation explicit in the elaborated term by wrapping the
-           bare constructor in TypAp nodes. The inner constructor carries
-           its *polymorphic* schema so that re-statics on the elab agrees
-           with the `Poly` expectation of TypAp, and dynamics can
-           specialize the schema with the applied type argument. */
+        /* Compute the annotation the elaborated `Constructor` carries.
+           The annotation is always fully normalized: free alias names
+           like `Var("T2")` or `Var("List")` would otherwise leak into
+           results (dynamics can't look them up without a context), so
+           we unfold them eagerly. For polymorphic constructors we start
+           from the ctx schema so the annotation is a `Poly` — that's
+           what re-statics needs for `TypAp` to type-check and what the
+           TypAp reduction rule specializes at runtime. For monomorphic
+           constructors the ctx schema is just the alias name, so we use
+           the site-normalized `ctor_ty_for_ann`, which exposes the
+           underlying `Sum` (and any hidden arrows inside variants).
+           Prior explicit ascriptions on the constructor are preserved
+           as-is. */
+        let normalize = Typ.normalize(ctx);
+        let poly_schema =
+          switch (Ctx.lookup_ctr(ctx, ctr)) {
+          | Some({typ: {term: Poly(_), _} as schema, _}) =>
+            Some(normalize(schema))
+          | _ => None
+          };
         let type_args =
           ty == None
             ? ConstructorStaticsHelpers.instantiation_args_for(ctx, ctr, ana)
             : [];
         let elab_term =
           switch (type_args) {
-          | [] => Constructor(ctr, Some(Some(ctor_ty_for_ann))) |> rewrap
+          | [] =>
+            let annotation =
+              switch (ty, poly_schema) {
+              | (Some(Some(_)), _) => ctor_ty_for_ann
+              | (_, Some(schema)) => schema
+              | (_, None) => ctor_ty_for_ann
+              };
+            Constructor(ctr, Some(Some(annotation))) |> rewrap;
           | _ =>
             let schema =
-              switch (Ctx.lookup_ctr(ctx, ctr)) {
-              | Some({typ, _}) => typ
+              switch (poly_schema) {
+              | Some(schema) => schema
               | None => ctor_ty_for_ann
               };
             ConstructorStaticsHelpers.wrap_type_apps(
