@@ -68,8 +68,6 @@ module Selection = {
   type t = CodeSelectable.Selection.t;
 
   let get_cursor_info = CodeSelectable.Selection.get_cursor_info;
-
-  let handle_key_event = CodeSelectable.Selection.handle_key_event;
 };
 
 module View = {
@@ -181,9 +179,14 @@ module View = {
       ~signal=
         fun
         | MakeActive => signal(MakeActive),
-      ~selected,
+      ~edit_mode=
+        EditMode.Editable({
+          inject,
+          escape: _ => Ui_effect.Ignore,
+          take_focus: _ => Ui_effect.Ignore,
+          focus: selected ? Some() : None,
+        }),
       ~globals,
-      ~inject,
       ~overlays=
         overlays
         @ deco(

@@ -5,17 +5,19 @@ open Action;
 open Util;
 
 let mk_zipper = (code: string): Zipper.t => {
-  switch (Parser.to_zipper(code)) {
+  switch (Parser.to_zipper(~root=Exp, code)) {
   | Some(z) => z
   | None => Alcotest.fail("Failed to parse: " ++ code)
   };
 };
 
 let mk_statics = (z: Zipper.t): StaticsBase.Map.t =>
-  Statics.mk(
-    CoreSettings.on,
-    Builtins.ctx_init(Some(Operators.default_mode)),
-    MakeTerm.from_zip_for_sem(z).term,
+  fst(
+    Statics.mk(
+      CoreSettings.on,
+      Builtins.ctx_init(Some(Operators.default_mode)),
+      MakeTerm.from_zip_for_sem(z, ~root=Exp).term,
+    ),
   );
 
 let render_zipper = (z: Zipper.t): string =>
@@ -27,6 +29,7 @@ let run_agent_action = (code: string, a: Action.Structural.t) => {
     ~settings=CoreSettings.on,
     ~statics=CachedStatics.empty,
     ~syntax=CachedSyntax.init(z),
+    ~root=Exp,
     Structural(a),
     {
       zipper: z,
@@ -66,7 +69,7 @@ let run_initialize = (code: string, new_code: string) => {
           ),
         );
       } else {
-        Ok(Dump.to_zipper(new_z));
+        Ok(Dump.to_zipper(new_z, ~root=Exp));
       };
     };
   };
@@ -1752,6 +1755,7 @@ let sequential_operations_tests = (
             ~settings=CoreSettings.on,
             ~statics=CachedStatics.empty,
             ~syntax=CachedSyntax.init(z),
+            ~root=Exp,
             Structural(Update(Definition, "b", "a + 1")),
             {
               zipper: z,
@@ -1790,6 +1794,7 @@ let sequential_operations_tests = (
             ~settings=CoreSettings.on,
             ~statics=CachedStatics.empty,
             ~syntax=CachedSyntax.init(z),
+            ~root=Exp,
             Structural(Update(Body, "b", "a * b")),
             {
               zipper: z,
@@ -1824,6 +1829,7 @@ let sequential_operations_tests = (
             ~settings=CoreSettings.on,
             ~statics=CachedStatics.empty,
             ~syntax=CachedSyntax.init(z),
+            ~root=Exp,
             Structural(Insert(Before, "c", "let d = a * 2 in")),
             {
               zipper: z,
@@ -1865,6 +1871,7 @@ let sequential_operations_tests = (
             ~settings=CoreSettings.on,
             ~statics=CachedStatics.empty,
             ~syntax=CachedSyntax.init(z),
+            ~root=Exp,
             Structural(Update(Definition, "x", "100")),
             {
               zipper: z,

@@ -42,32 +42,31 @@ let jump_to = (~globals: Globals.t, id: Id.t, _) =>
 
 let problem_status_view = (~globals, ci: Language.Info.t): Node.t =>
   switch (ci) {
-  | InfoExp({cls, status, _} as ie) =>
+  | InfoExp({cls, message, _} as ie) =>
     CursorInspector.exp_view(
       ~globals,
-      ~live_typing_info=None,
       ~show_type_colon=false,
       cls,
-      status,
+      message,
       ie,
     )
-  | InfoPat({cls, status, _} as ip) =>
+  | InfoPat({cls, message, _} as ip) =>
     CursorInspector.pat_view(
       ~globals,
-      ~live_typing_info=None,
       ~show_type_colon=false,
       cls,
-      status,
+      message,
       ip,
     )
-  | InfoTyp({cls, status, _}) =>
-    CursorInspector.typ_view(~globals, cls, status)
-  | InfoTPat({cls, status, _}) =>
-    CursorInspector.tpat_view(~globals, cls, status)
+  | InfoTyp({cls, marks, message, _}) =>
+    CursorInspector.typ_view(~globals, cls, ~marks, ~message)
+  | InfoTPat({cls, marks, message, _}) =>
+    CursorInspector.tpat_view(~globals, cls, ~marks, ~message)
   | Secondary(_)
   | InfoMod(_)
   | InfoSig(_)
-  | InfoMPat(_) => div([])
+  | InfoMPat(_)
+  | InfoDrv(_) => div([])
   };
 
 let line_num_view =

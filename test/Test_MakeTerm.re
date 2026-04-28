@@ -11,7 +11,7 @@ let exp_typ =
   );
 
 let parse_exp = (s: string) => {
-  switch (Haz3lcore.Parser.to_term(s)) {
+  switch (Haz3lcore.Parser.to_term(s, ~root=Exp)) {
   | Some(e) => e
   | None => Alcotest.fail("Failed to parse expression: " ++ s)
   };

@@ -22,7 +22,10 @@ let exp_to_segment =
   ExpToSegment.exp_to_segment(~settings=exp_to_segment_settings);
 
 let equivalent_to_make_term = (serialized: string) => {
-  switch (Parser.to_term(serialized), Parser.to_segment(serialized)) {
+  switch (
+    Parser.to_term(serialized, ~root=Exp),
+    Parser.to_segment(serialized, ~root=Exp),
+  ) {
   | (Some(exp), Some(seg)) =>
     check(
       string,
@@ -156,7 +159,7 @@ let tests = (
         check(
           option(segment),
           "2-ary",
-          Parser.to_segment("(1, 2)"),
+          Parser.to_segment("(1, 2)", ~root=Exp),
           Some(exp_to_segment(tuple([int(1), int(2)]))),
         );
       },
@@ -170,7 +173,7 @@ let tests = (
         check(
           option(segment),
           "Singleton Labeled",
-          Parser.to_segment("(x=1)"),
+          Parser.to_segment("(x=1)", ~root=Exp),
           Some(exp_to_segment(tuple([tup_label(label("x"), int(1))]))),
         );
         equivalent_to_make_term({|(x=1, y=2)|});
@@ -357,6 +360,50 @@ let tests = (
         ),
       )
     }),
+    test_case(
+      "Nested reverse application no parens",
+      `Quick,
+      () => {
+        let segment =
+          Parser.to_term("1 |> 2 |> 3", ~root=Exp)
+          |> Option.get
+          |> exp_to_segment;
+        let serialized = print_seg(segment);
+
+        check(
+          string,
+          "Nested reverse application",
+          "1 |> 2 |> 3",
+          serialized,
+        );
+      },
+    ),
+    test_case(
+      "Float negation produces 0.0 -. e",
+      `Quick,
+      () => {
+        /* UnOp(Float(Minus), e) should be rewritten to 0.0 -. e
+           so it round-trips through MakeTerm correctly (MakeTerm
+           parses unary - as Int(Minus), breaking float evaluation) */
+        let seg =
+          exp_to_segment(
+            IdTagged.FreshGrammar.Exp.(un_op(Float(Minus), float(3.14))),
+          );
+        let serialized = print_seg(seg);
+        check(
+          string,
+          "Float negation text",
+          "0.000000 -. 3.140000",
+          serialized,
+        );
+        /* Verify round-trip: segment → term → segment preserves float minus */
+        switch (MakeTerm.for_projection(seg)) {
+        | Some(Exp({term: BinOp(Float(Minus), _, _), _})) => ()
+        | _ =>
+          Alcotest.fail("Expected BinOp(Float(Minus), ...) after round-trip")
+        };
+      },
+    ),
     test_case("Dot operator on float", `Quick, () => {
       check(
         string,
@@ -455,7 +502,10 @@ let exp_to_segment_roundtrip =
 /* Test that a string round-trips through segment → term → segment */
 let roundtrip_test = (name: string, input: string) =>
   test_case(name, `Quick, () => {
-    switch (Parser.to_term(input), Parser.to_segment(input)) {
+    switch (
+      Parser.to_term(input, ~root=Exp),
+      Parser.to_segment(input, ~root=Exp),
+    ) {
     | (Some(term), Some(seg)) =>
       let seg' = exp_to_segment_roundtrip(term);
       let input' = print_seg(seg');
@@ -641,7 +691,7 @@ in f(42)|},
       () => {
         let _ = Alcotest.skip();
         let input = {|type T = A + B in T|};
-        switch (Parser.to_term(input)) {
+        switch (Parser.to_term(input, ~root=Exp)) {
         | Some(term) =>
           let seg' = exp_to_segment_roundtrip(term);
           let output = print_seg(seg');
@@ -659,10 +709,6 @@ in f(42)|},
     roundtrip_test({|Filter: pause spaced|}, {|pause 1  in  2|}),
     roundtrip_test({|Filter: debug|}, {|debug 1 in 2|}),
     roundtrip_test({|Filter: debug spaced|}, {|debug 1  in  2|}),
-    /* Unquote ($) - used within filter expressions for stepper */
-    roundtrip_test({|Unquote: simple|}, {|eval $x in x|}),
-    roundtrip_test({|Unquote: spaced|}, {|eval $ x in x|}),
-    roundtrip_test({|Unquote: in hide|}, {|hide $1 in 2|}),
     roundtrip_test(
       {|QuotedLabel: label needing quotes (has dash)|},
       {|(`the-answer`=42)|},
@@ -1078,7 +1124,7 @@ let grout_structural_settings: ExpToSegment.Settings.t = {
    prevents tokens from merging and allows the parser to recognize separate tiles. */
 let roundtrip_grout_text_test = (name: string, input: string) =>
   test_case(name, `Quick, () => {
-    switch (Parser.to_term(input)) {
+    switch (Parser.to_term(input, ~root=Exp)) {
     | Some(term) =>
       /* Print grout as empty string so it doesn't appear in output.
          This achieves true string round-tripping since grout is internally

@@ -38,14 +38,20 @@ module Model = {
     };
   };
 
-  let mk_from_exp = (~settings: CoreSettings.t, ~inline=false, term: Exp.t) => {
-    ExpToSegment.exp_to_segment(
-      term,
-      ~settings=ExpToSegment.Settings.of_core(~inline, settings),
-    )
-    |> Zipper.unzip
-    |> Editor.Model.mk
-    |> mk;
+  let mk_from_exp =
+      (
+        ~settings: Language.CoreSettings.t,
+        ~inline=false,
+        ~root: Sort.t,
+        term: Language.Exp.t,
+      ) => {
+    let seg =
+      ExpToSegment.exp_to_segment(
+        term,
+        ~settings=ExpToSegment.Settings.of_core(~inline, settings),
+      );
+    let seg = inline ? seg : PrettySegment.prettify(seg);
+    seg |> Zipper.unzip |> Editor.Model.mk(~root) |> mk;
   };
 
   let get_statics = (model: t) => model.statics;
@@ -83,17 +89,16 @@ module Model = {
       undo_action: None,
       redo_action: None,
       error_ids: model.statics.error_ids,
+      contextual_actions: [],
     };
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type persistent = PersistentZipper.t;
-  let persist = (model: t) =>
-    model.editor.state.zipper |> PersistentZipper.persist;
-  let to_string = (model: t) =>
-    model.editor.state.zipper |> PersistentZipper.to_string;
-  let unpersist = p =>
-    p |> PersistentZipper.unpersist |> Editor.Model.mk |> mk;
+  type persistent = Editor.Model.persistent;
+  let persist = (model: t) => model.editor |> Editor.Model.persist;
+  let to_string = (model: t) => model.editor |> Editor.Model.to_string;
+  let unpersist = p => p |> Editor.Model.unpersist |> mk;
+  let sort = (model: t): Sort.t => model.editor.root;
 };
 
 type statics_mode =
@@ -202,6 +207,7 @@ module Update = {
             ~ctx?,
             ~ana?,
             ~is_dynamic_term,
+            ~root=editor.root,
             editor.state.zipper,
           )
         : statics;
@@ -245,7 +251,7 @@ module Update = {
                 filtered_dynamics.type_inst_map,
               );
 
-            let live_typing_info_map =
+            let (live_typing_info_map, _) =
               Statics.mk(
                 ~dynamics={
                   exp_probes: dynamic_expressions,
@@ -307,19 +313,23 @@ module View = {
         },
       _,
     }: Model.t = model;
+    let info_map = model.statics.info_map;
+    let refine_sort = (id, mold_out) =>
+      Language.Info.refine_sort_from_mold(~info_map, ~id, mold_out);
     let code_text_view =
       CodeViewable.view(
         ~globals,
         ~measured,
         ~term_data,
         ~buffer_ids=Selection.is_buffer(z.selection) ? selection_ids : [],
-        ~segment,
         ~shape_map,
         ~refractor_shape_map=Id.Map.empty,
-        (),
+        ~refine_sort,
+        segment,
       );
     let error_decos =
       Arms.Errors.of_ids(
+        ~refine_sort,
         ~font_metrics=globals.font_metrics,
         ~syntax=model.editor.syntax,
         model.statics.error_ids,
@@ -329,6 +339,7 @@ module View = {
     let warning_decos =
       Arms.Errors.of_ids(
         ~kind=Warning,
+        ~refine_sort,
         ~font_metrics=globals.font_metrics,
         ~syntax=model.editor.syntax,
         warning_ids,
@@ -336,6 +347,7 @@ module View = {
     let live_typing_decos =
       Arms.Errors.of_ids(
         ~kind=LiveTypingError,
+        ~refine_sort,
         ~font_metrics=globals.font_metrics,
         ~syntax=model.editor.syntax,
         model.statics.live_typing_error_ids,

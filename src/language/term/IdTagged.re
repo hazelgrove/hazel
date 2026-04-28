@@ -49,7 +49,7 @@ module IdTag = {
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type t('a) = Grammar.Annotated.t('a, IdTag.t);
+type t('a) = Annotated.t('a, IdTag.t);
 
 // To be used if you want to remove the id from the debug output
 // let pp: ((Format.formatter, 'a) => unit, Format.formatter, t('a)) => unit =
@@ -84,7 +84,7 @@ let mk = (ids: list(Id.t), secondary: IdTag.secondary_runs, term: 'a): t('a) => 
   annotation: IdTag.mk(ids, secondary),
 };
 
-let term_of = (x: Grammar.Annotated.t('a, 'b)) => x.term;
+let term_of = (x: Annotated.t('a, 'b)) => x.term;
 let unwrap = (x: t('a)) => (
   x.term,
   term' => {
@@ -92,7 +92,7 @@ let unwrap = (x: t('a)) => (
     term: term',
   },
 );
-let rep_id = ({annotation: {ids, _}, _}: Grammar.Annotated.t('a, IdTag.t)) =>
+let rep_id = ({annotation: {ids, _}, _}: Annotated.t('a, IdTag.t)) =>
   List.hd(ids);
 
 /* Copy term with a new id, discarding secondary.

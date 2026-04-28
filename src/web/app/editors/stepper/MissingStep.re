@@ -85,7 +85,10 @@ module Update = {
         | NoneOpen
         | AxiomsOpen(_) =>
           Model.RewritesOpen({
-            editor: CodeEditable.Model.mk(Editor.Model.mk(Zipper.init())),
+            editor:
+              CodeEditable.Model.mk(
+                Editor.Model.mk(Zipper.init(), ~root=Exp),
+              ),
             cached_exp: Calc.Pending,
             cached_result: None,
           })
@@ -301,29 +304,22 @@ module Selection = {
     | RewriteEditor(CodeEditable.Selection.t)
     | AxiomBoxSelection(AxiomsBox.Selection.t);
 
-  let get_cursor_info = (~selection: t, model: Model.t): cursor(Update.t) => {
+  let get_cursor_info =
+      (~inject, ~selection: t, model: Model.t): cursor(Update.t) => {
     switch (selection, model.open_box) {
     | (RewriteEditor(selection), RewritesOpen({editor, _})) =>
-      let+ ci = CodeEditable.Selection.get_cursor_info(~selection, editor);
+      let+ ci =
+        CodeEditable.Selection.get_cursor_info(
+          ~inject=a => inject(Update.RewriteEditorAction(a)),
+          ~selection,
+          editor,
+        );
       Update.RewriteEditorAction(ci);
     | (RewriteEditor(_), _) => empty
     | (AxiomBoxSelection(selection), AxiomsOpen(m)) =>
       let+ ci = AxiomsBox.Selection.get_cursor_info(~selection, m);
       Update.AxiomBoxAction(ci);
     | (AxiomBoxSelection(_), _) => empty
-    };
-  };
-
-  let handle_key_event = (~selection: t, ~event, ~model: Model.t) => {
-    switch (selection, model.open_box) {
-    | (RewriteEditor(selection), RewritesOpen({editor, _})) =>
-      CodeEditable.Selection.handle_key_event(~selection, editor, event)
-      |> Option.map(x => Update.RewriteEditorAction(x))
-    | (RewriteEditor(_), _) => None
-    | (AxiomBoxSelection(selection), AxiomsOpen(m)) =>
-      AxiomsBox.Selection.handle_key_event(~selection, m, event)
-      |> Option.map(x => Update.AxiomBoxAction(x))
-    | (AxiomBoxSelection(_), _) => None
     };
   };
 };
@@ -618,12 +614,18 @@ module View = {
                                 fun
                                 | MakeActive =>
                                   signal(MakeActive(RewriteEditor())),
-                              ~inject=x => inject(RewriteEditorAction(x)),
-                              ~selected=
-                                switch (selected) {
-                                | Some(RewriteEditor ()) => true
-                                | _ => false
-                                },
+                              ~edit_mode=
+                                EditMode.Editable({
+                                  inject: x =>
+                                    inject(RewriteEditorAction(x)),
+                                  escape: _ => Ui_effect.Ignore,
+                                  take_focus: _ => Ui_effect.Ignore,
+                                  focus:
+                                    switch (selected) {
+                                    | Some(RewriteEditor ()) => Some()
+                                    | _ => None
+                                    },
+                                }),
                               ~dynamics=Dynamics.Map.empty,
                               editor,
                             ),

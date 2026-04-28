@@ -1522,8 +1522,8 @@ module Agent = {
                 ),
               );
             } else {
-              let new_z = Dump.to_zipper(new_z);
-              let new_editor_model = Editor.Model.mk(new_z);
+              let new_z = Dump.to_zipper(new_z, ~root=Exp);
+              let new_editor_model = Editor.Model.mk(new_z, ~root=Exp);
               let new_code_with_statics =
                 CodeWithStatics.Model.mk(new_editor_model);
               Ok((agent, new_code_with_statics));
@@ -1624,8 +1624,8 @@ module Agent = {
             | ToggleProbe(p) => p
             };
           let (new_z, paths_to_expand) = apply_probe_action(z, paths);
-          let new_z = Dump.to_zipper(new_z);
-          let new_editor_model = Editor.Model.mk(new_z);
+          let new_z = Dump.to_zipper(new_z, ~root=Exp);
+          let new_editor_model = Editor.Model.mk(new_z, ~root=Exp);
           let new_cws =
             CodeWithStatics.Model.mk(
               ~dynamics=editor.dynamics,
@@ -2945,7 +2945,7 @@ module Agent = {
           | Some(_) => model.restore_editor_state
           };
         let new_zipper = Zipper.unzip(~direction=Right, segment);
-        let new_editor_model = Editor.Model.mk(new_zipper);
+        let new_editor_model = Editor.Model.mk(new_zipper, ~root=Exp);
         let new_code_with_statics =
           CodeWithStatics.Model.mk(new_editor_model);
         (
@@ -2964,7 +2964,7 @@ module Agent = {
         switch (model.restore_editor_state) {
         | Some(saved_segment) =>
           let new_zipper = Zipper.unzip(~direction=Right, saved_segment);
-          let new_editor_model = Editor.Model.mk(new_zipper);
+          let new_editor_model = Editor.Model.mk(new_zipper, ~root=Exp);
           let new_code_with_statics =
             CodeWithStatics.Model.mk(new_editor_model);
           (
@@ -2984,7 +2984,7 @@ module Agent = {
       | LoadSegmentIntoEditor(segment) =>
         // Replace editor with segment by converting to zipper
         let new_zipper = Zipper.unzip(~direction=Right, segment);
-        let new_editor_model = Editor.Model.mk(new_zipper);
+        let new_editor_model = Editor.Model.mk(new_zipper, ~root=Exp);
         let new_code_with_statics =
           CodeWithStatics.Model.mk(new_editor_model);
         (

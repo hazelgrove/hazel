@@ -14,7 +14,7 @@ let subtree_of =
     : Statics.Map.t => {
   let map =
     switch (info) {
-    | InfoExp({term, _}) =>
+    | InfoExp({user_term: term, _}) =>
       switch (Exp.term_of(term)) {
       | Let(pat, def, body) =>
         let pat_info = pat_to_pat(pat, orig_info_map);
@@ -23,52 +23,54 @@ let subtree_of =
 
         let pat_map =
           of_pat
-            ? Statics.upat_to_info_map(
-                ~dynamics=LiveTyping.Map.empty,
-                ~is_synswitch=false,
-                ~ctx=pat_info.ctx,
-                ~co_ctx=pat_info.co_ctx,
-                ~ana=pat_info.ana,
-                ~ancestors=pat_info.ancestors,
-                ~duplicate_bindings=[],
-                pat,
-                Statics.Map.empty,
-              )
-              |> snd
+            ? {
+              let (_, _, m) =
+                Statics.upat_to_info_map(
+                  ~is_synswitch=false,
+                  ~ctx=pat_info.ctx,
+                  ~co_ctx=pat_info.co_ctx,
+                  ~ana=pat_info.ana,
+                  ~ancestors=pat_info.ancestors,
+                  ~duplicate_bindings=[],
+                  pat,
+                  Statics.Map.empty,
+                );
+              m;
+            }
             : Statics.Map.empty;
 
         let def_map =
           of_def
-            ? Statics.uexp_to_info_map(
-                ~dynamics=LiveTyping.Map.empty,
-                ~ctx=def_info.ctx,
-                ~ana=def_info.ana,
-                ~is_in_filter=false,
-                ~ancestors=def_info.ancestors,
-                ~duplicates=[],
-                ~expected_labels=None,
-                ~label_sort=false,
-                def,
-                pat_map,
-              )
-              |> snd
+            ? {
+              let (_, _, m) =
+                Statics.uexp_to_info_map(
+                  ~dynamics=LiveTyping.Map.empty,
+                  ~ctx=def_info.ctx,
+                  ~ana=def_info.ana,
+                  ~is_in_filter=false,
+                  ~ancestors=def_info.ancestors,
+                  def,
+                  pat_map,
+                );
+              m;
+            }
             : pat_map;
 
         let body_map =
           of_body
-            ? Statics.uexp_to_info_map(
-                ~dynamics=LiveTyping.Map.empty,
-                ~ctx=body_info.ctx,
-                ~ana=body_info.ana,
-                ~is_in_filter=false,
-                ~ancestors=body_info.ancestors,
-                ~duplicates=[],
-                ~expected_labels=None,
-                ~label_sort=false,
-                body,
-                def_map,
-              )
-              |> snd
+            ? {
+              let (_, _, m) =
+                Statics.uexp_to_info_map(
+                  ~dynamics=LiveTyping.Map.empty,
+                  ~ctx=body_info.ctx,
+                  ~ana=body_info.ana,
+                  ~is_in_filter=false,
+                  ~ancestors=body_info.ancestors,
+                  body,
+                  def_map,
+                );
+              m;
+            }
             : def_map;
 
         body_map;
@@ -81,7 +83,6 @@ let subtree_of =
         let tpat_map =
           of_pat
             ? Statics.utpat_to_info_map(
-                ~dynamics=LiveTyping.Map.empty,
                 ~ctx=tpat_info.ctx,
                 ~ancestors=tpat_info.ancestors,
                 tpat,
@@ -92,7 +93,6 @@ let subtree_of =
         let tpat_map =
           of_def
             ? Statics.utyp_to_info_map(
-                ~dynamics=LiveTyping.Map.empty,
                 ~ctx=tdef_info.ctx,
                 ~ancestors=tdef_info.ancestors,
                 tdef,
@@ -103,19 +103,19 @@ let subtree_of =
 
         let body_map =
           of_body
-            ? Statics.uexp_to_info_map(
-                ~dynamics=LiveTyping.Map.empty,
-                ~ctx=body_info.ctx,
-                ~ana=body_info.ana,
-                ~is_in_filter=false,
-                ~ancestors=body_info.ancestors,
-                ~duplicates=[],
-                ~expected_labels=None,
-                ~label_sort=false,
-                body,
-                tpat_map,
-              )
-              |> snd
+            ? {
+              let (_, _, m) =
+                Statics.uexp_to_info_map(
+                  ~dynamics=LiveTyping.Map.empty,
+                  ~ctx=body_info.ctx,
+                  ~ana=body_info.ana,
+                  ~is_in_filter=false,
+                  ~ancestors=body_info.ancestors,
+                  body,
+                  tpat_map,
+                );
+              m;
+            }
             : tpat_map;
 
         body_map;
@@ -131,36 +131,36 @@ let subtree_of =
 
         let def_map =
           of_def
-            ? Statics.uexp_to_info_map(
-                ~dynamics=LiveTyping.Map.empty,
-                ~ctx=def_info.ctx,
-                ~ana=def_info.ana,
-                ~is_in_filter=false,
-                ~ancestors=def_info.ancestors,
-                ~duplicates=[],
-                ~expected_labels=None,
-                ~label_sort=false,
-                def,
-                mp_map,
-              )
-              |> snd
+            ? {
+              let (_, _, m) =
+                Statics.uexp_to_info_map(
+                  ~dynamics=LiveTyping.Map.empty,
+                  ~ctx=def_info.ctx,
+                  ~ana=def_info.ana,
+                  ~is_in_filter=false,
+                  ~ancestors=def_info.ancestors,
+                  def,
+                  mp_map,
+                );
+              m;
+            }
             : mp_map;
 
         let body_map =
           of_body
-            ? Statics.uexp_to_info_map(
-                ~dynamics=LiveTyping.Map.empty,
-                ~ctx=body_info.ctx,
-                ~ana=body_info.ana,
-                ~is_in_filter=false,
-                ~ancestors=body_info.ancestors,
-                ~duplicates=[],
-                ~expected_labels=None,
-                ~label_sort=false,
-                body,
-                def_map,
-              )
-              |> snd
+            ? {
+              let (_, _, m) =
+                Statics.uexp_to_info_map(
+                  ~dynamics=LiveTyping.Map.empty,
+                  ~ctx=body_info.ctx,
+                  ~ana=body_info.ana,
+                  ~is_in_filter=false,
+                  ~ancestors=body_info.ancestors,
+                  body,
+                  def_map,
+                );
+              m;
+            }
             : def_map;
 
         body_map;
@@ -186,10 +186,10 @@ let get_refs_to = (curr: Info.t, info_map: Id.Map.t(Info.t)): CoCtx.t => {
   let exp_to_info = (term: Exp.t): Info.t => exp_to_info(term, info_map);
 
   switch (curr) {
-  | InfoExp(term) =>
-    let entire_coctx = term.co_ctx;
+  | InfoExp(info) =>
+    let entire_coctx = info.co_ctx;
     let body_coctx =
-      switch (Exp.term_of(term.term)) {
+      switch (Exp.term_of(info.user_term)) {
       | Let(_, _, body)
       | TyAlias(_, _, body)
       | ModuleExp(_, _, body) =>
@@ -245,7 +245,7 @@ let get_var_names_from_pat = (curr: Info.t): list(string) => {
   };
   let pat =
     switch (curr) {
-    | InfoPat({term, _}) => term
+    | InfoPat({user_term: term, _}) => term
     | _ => raise(Failure("Pat is not a pattern"))
     };
   go(pat, []);
@@ -268,7 +268,7 @@ let update_use_sites_of_var =
             let id = entry.CoCtx.id;
             switch (Select.tile(id, acc_z')) {
             | Some(z') =>
-              switch (Parser.to_zipper(~zipper_init=z', new_name)) {
+              switch (Parser.to_zipper(~root=Exp, ~zipper_init=z', new_name)) {
               | Some(z'') => z''
               | None => z'
               }

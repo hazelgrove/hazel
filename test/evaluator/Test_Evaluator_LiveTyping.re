@@ -5,15 +5,17 @@ open Language;
 [@deriving show({with_path: false})]
 type error =
   | NoError
-  | StaticError(Info.error)
-  | DynamicError(Info.error);
+  | StaticError(list(Mark.t))
+  | DynamicError(list(Mark.t));
 
 let testable_error =
   testable(Fmt.using(show_error, Fmt.string), (a: error, b: error) =>
     switch (a, b) {
     | (NoError, NoError) => true
-    | (StaticError(e1), StaticError(e2)) => Info.equal_error(e1, e2)
-    | (DynamicError(e1), DynamicError(e2)) => Info.equal_error(e1, e2)
+    | (StaticError(e1), StaticError(e2)) =>
+      List.equal((m1, m2) => m1 == m2, e1, e2)
+    | (DynamicError(e1), DynamicError(e2)) =>
+      List.equal((m1, m2) => m1 == m2, e1, e2)
     | _ => false
     }
   );
@@ -63,8 +65,22 @@ let mk_live_typing =
  * Simplifies the nested switch logic with pattern matching.
  */
 let map_error_annotation = (static_info, live_typing_info) => {
-  let static_error = Option.bind(static_info, Info.error_of);
-  let live_typing_error = Option.bind(live_typing_info, Info.error_of);
+  let static_error =
+    Option.map(Info.marks_of, static_info)
+    |> Option.bind(_, ms =>
+         switch (ms) {
+         | [] => None
+         | _ => Some(ms)
+         }
+       );
+  let live_typing_error =
+    Option.map(Info.marks_of, live_typing_info)
+    |> Option.bind(_, ms =>
+         switch (ms) {
+         | [] => None
+         | _ => Some(ms)
+         }
+       );
 
   switch (static_error, live_typing_error) {
   | (Some(e), _) => StaticError(e)
@@ -100,17 +116,17 @@ let test_live_typing = (~test_name=?, expected_exp: FError.exp) => {
       test_name,
     );
 
-  // Perform initial static analysis
-  let initial_statics =
+  // Perform initial static analysis (also produces elaborated expression).
+  let (initial_statics, elaborated_exp) =
     Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), exp_with_ids);
 
   let original_errors =
     StaticsBase.Map.errors(initial_statics) |> List.map(snd);
   Alcotest.check(
-    Alcotest.list(Test_Statics_Prelude.testable_error),
+    Alcotest.int,
     "Expect no static errors initially",
-    [],
-    original_errors,
+    0,
+    List.length(original_errors),
   );
 
   // Compute targets for expressions with unknown types (needed for live typing)
@@ -120,10 +136,6 @@ let test_live_typing = (~test_name=?, expected_exp: FError.exp) => {
       ~info_map=initial_statics,
       ~probe_ids=Id.Map.empty,
     );
-
-  // Elaborate the expression
-  let elaborated_exp =
-    Elaborator.elaborate(initial_statics, exp_with_ids) |> fst;
 
   // Evaluate the elaborated expression to collect dynamic information
   let (_, evaluation_state) =
@@ -137,7 +149,7 @@ let test_live_typing = (~test_name=?, expected_exp: FError.exp) => {
   let dynamic_expressions = mk_live_typing(probe_data, type_insts);
 
   // Re-run static analysis with dynamic information
-  let live_typing_statics =
+  let (live_typing_statics, _) =
     Statics.mk(
       ~dynamics=dynamic_expressions,
       CoreSettings.on,
@@ -165,16 +177,40 @@ let test_live_typing = (~test_name=?, expected_exp: FError.exp) => {
       exp_with_ids,
     );
 
+  let testable_annotated: testable(Grammar.exp_t(error)) =
+    testable(
+      Fmt.using([%derive.show: Grammar.exp_t(error)], Fmt.string),
+      Grammar.equal_exp_t((a: error, b: error) =>
+        switch (a, b) {
+        | (NoError, NoError) => true
+        | (StaticError(e1), StaticError(e2)) =>
+          List.equal((m1, m2) => m1 == m2, e1, e2)
+        | (DynamicError(e1), DynamicError(e2)) =>
+          List.equal((m1, m2) => m1 == m2, e1, e2)
+        | _ => false
+        }
+      ),
+    );
   // Verify that the actual error annotations match expectations
-  check(
-    Test_Statics_Prelude.annotated_exp(testable_error),
-    test_name,
-    expected_exp,
-    actual_exp,
-  );
+  check(testable_annotated, test_name, expected_exp, actual_exp);
 };
-let inconsistent_exp: Info.error_inconsistent => Info.error =
-  e => Exp(Common(Inconsistent(e)));
+/* Adapter: previous tests wrote `inconsistent_exp(Expectation({ana, syn}))`.
+   In the new architecture, type-mismatch errors are represented as the single
+   Mark `ExpectationMismatch({ana, syn})`. */
+type inconsistent_kind =
+  | Expectation({
+      ana: Typ.t,
+      syn: Typ.t,
+    });
+let inconsistent_exp = (kind: inconsistent_kind): list(Mark.t) =>
+  switch (kind) {
+  | Expectation({ana, syn}) => [
+      Mark.ExpectationMismatch({
+        ana,
+        syn,
+      }),
+    ]
+  };
 
 let tests = (
   "Evaluator.LiveTyping",
@@ -213,12 +249,8 @@ in
 (results).`2`
 |hazel};
         let exp = parse_exp(program);
-        let elaborated =
-          Elaborator.elaborate(
-            Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), exp),
-            exp,
-          )
-          |> fst;
+        let (_, elaborated) =
+          Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), exp);
         let (result, state: EvaluatorState.t) =
           Evaluator.evaluate(~env=Builtins.env_init, elaborated);
 
@@ -256,16 +288,12 @@ in
                 asc(
                   ~ann=
                     DynamicError(
-                      Exp(
-                        Common(
-                          Inconsistent(
-                            Test_Statics_Prelude.FTemp.Typ.(
-                              Expectation({
-                                ana: string(),
-                                syn: int(),
-                              })
-                            ),
-                          ),
+                      inconsistent_exp(
+                        Test_Statics_Prelude.FTemp.Typ.(
+                          Expectation({
+                            ana: string(),
+                            syn: int(),
+                          })
                         ),
                       ),
                     ),
@@ -404,16 +432,12 @@ in
                     asc(
                       ~ann=
                         DynamicError(
-                          Exp(
-                            Common(
-                              Inconsistent(
-                                Test_Statics_Prelude.FTemp.Typ.(
-                                  Expectation({
-                                    ana: var("a"),
-                                    syn: string(),
-                                  })
-                                ),
-                              ),
+                          inconsistent_exp(
+                            Test_Statics_Prelude.FTemp.Typ.(
+                              Expectation({
+                                ana: var("a"),
+                                syn: string(),
+                              })
                             ),
                           ),
                         ),

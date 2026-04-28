@@ -313,10 +313,11 @@ let rec transition =
     | (Deferral(_), _)
     | (LivelitName(_), _)
     | (TupleExtension(_, _), _)
+    | (ListConcat(_), _) => SampleWriter.return(None)
     // These are handled above and must have the wrong type
     | (Atom(_), _)
+    | (DrvQuote(_), _)
     | (ListLit(_), _)
-    | (ListConcat(_), _)
     | (TupLabel(_), _)
     | (Tuple(_), _)
     | (Fun(_), _)

@@ -188,6 +188,7 @@ let r_path =
  * shard to the rightwards edge of the term */
 let paths =
     (
+      ~refine_sort: (Id.t, Sort.t) => Sort.t=(_, sort) => sort,
       tiles: tile_data,
       line_clss: list(string),
       font_metrics: FontMetrics.t,
@@ -197,10 +198,11 @@ let paths =
     : list(Node.t) =>
   switch (tiles) {
   | [] => []
-  | [(_, {out: sort, _}, _), ..._] =>
+  | [(id, {out: mold_out, _}, _), ..._] =>
+    let sort = refine_sort(id, mold_out);
     let shards = shards_of_tiles(tiles);
     assert(shards != []);
-    let path_cls = ["child-line", Sort.to_string(sort)] @ line_clss;
+    let path_cls = ["child-line", Sort.class_of(sort)] @ line_clss;
     let hx = abs_float(ShardDec.offset_of(fst(rep_tips(tiles))));
     let min_col = min_col(~first, ~last, ~rows);
     let shard_rows = Shards.split_by_row(shards);
@@ -224,6 +226,7 @@ let paths =
  * i.e. the hexagons under the term's delimiters */
 let shards =
     (
+      ~refine_sort: (Id.t, Sort.t) => Sort.t=(_, sort) => sort,
       ~attr: option(list(Attr.t))=?,
       ~font_metrics: FontMetrics.t,
       ~base_clss: option(string),
@@ -231,7 +234,8 @@ let shards =
     )
     : list(Node.t) =>
   List.concat_map(
-    ((_, mold: Mold.t, shards: list(Shards.shard))) =>
+    ((id, mold: Mold.t, shards: list(Shards.shard))) => {
+      let sort = refine_sort(id, mold.out);
       List.map(
         ((index: int, measurement: Measured.measurement)) =>
           ShardDec.simple(
@@ -241,11 +245,11 @@ let shards =
               measurement,
               tips: ShardDec.tips_of_shapes(Mold.nib_shapes(~index, mold)),
             },
-            Option.to_list(base_clss)
-            @ ["indicated", Sort.to_string(mold.out)],
+            Option.to_list(base_clss) @ ["indicated", Sort.class_of(sort)],
           ),
         shards,
-      ),
+      );
+    },
     tiles,
   );
 
@@ -253,6 +257,7 @@ let shards =
  * decorations and paths between the shards and the edges of the term */
 let term =
     (
+      ~refine_sort: (Id.t, Sort.t) => Sort.t=(_, sort) => sort,
       ~attr: option(list(Attr.t))=?,
       ~font_metrics: FontMetrics.t,
       ~rows: Rows.t,
@@ -262,8 +267,8 @@ let term =
       range: (Point.t, Point.t),
     )
     : list(Node.t) =>
-  shards(~attr?, ~font_metrics, ~base_clss, tiles)
-  @ paths(tiles, line_clss, font_metrics, rows, range);
+  shards(~refine_sort, ~attr?, ~font_metrics, ~base_clss, tiles)
+  @ paths(~refine_sort, tiles, line_clss, font_metrics, rows, range);
 
 let tiles_data =
     (
@@ -284,6 +289,7 @@ let tiles_data =
 
 let term =
     (
+      ~refine_sort: (Id.t, Sort.t) => Sort.t=(_, sort) => sort,
       ~term_data: TermData.t,
       ~terms: TermMap.t,
       ~measured: Measured.t,
@@ -315,6 +321,7 @@ let term =
     switch (TermData.root_tile(tile.id, term_data)) {
     | Some(t) =>
       shards(
+        ~refine_sort,
         ~attr?,
         ~font_metrics,
         ~base_clss=None,
@@ -327,14 +334,27 @@ let term =
     | Some((l, r)) =>
       let tiles = tiles_data(~term_data, ~terms, ~measured, tile);
       let tiles = is_module ? List.filter(is_not_semi_tile, tiles) : tiles;
-      term(~font_metrics, ~rows=measured.rows, ~tiles, (l, r), ~attr?);
+      term(
+        ~refine_sort,
+        ~font_metrics,
+        ~rows=measured.rows,
+        ~tiles,
+        (l, r),
+        ~attr?,
+      );
     | _ => []
     };
   };
 };
 
-let term = (~syntax: CachedSyntax.t, ~font_metrics: FontMetrics.t) =>
+let term =
+    (
+      ~refine_sort: (Id.t, Sort.t) => Sort.t=(_, sort) => sort,
+      ~syntax: CachedSyntax.t,
+      ~font_metrics: FontMetrics.t,
+    ) =>
   term(
+    ~refine_sort,
     ~term_data=syntax.term_data,
     ~terms=syntax.terms,
     ~measured=syntax.measured,
@@ -381,6 +401,7 @@ module Errors = {
   let of_id =
       (
         ~kind=Error,
+        ~refine_sort: (Id.t, Sort.t) => Sort.t=(_, sort) => sort,
         ~font_metrics: FontMetrics.t,
         ~syntax: CachedSyntax.t,
         id: Id.t,
@@ -410,7 +431,7 @@ module Errors = {
         }
       | None =>
         switch (TermData.root_tile(id, syntax.term_data)) {
-        | Some(t) => term(~syntax, ~font_metrics, t)
+        | Some(t) => term(~refine_sort, ~syntax, ~font_metrics, t)
         | None => []
         }
       },
@@ -419,19 +440,28 @@ module Errors = {
   let of_ids =
       (
         ~kind=Error,
+        ~refine_sort: (Id.t, Sort.t) => Sort.t=(_, sort) => sort,
         ~font_metrics: FontMetrics.t,
         ~syntax: CachedSyntax.t,
         error_ids,
       ) =>
     div_c(
       group_cls(kind),
-      List.map(of_id(~kind, ~font_metrics, ~syntax), error_ids),
+      List.map(
+        of_id(~kind, ~refine_sort, ~font_metrics, ~syntax),
+        error_ids,
+      ),
     );
 };
 
 module Indicated = {
   let of_piece =
-      (~font_metrics: FontMetrics.t, ~syntax: CachedSyntax.t, p: Piece.t)
+      (
+        ~refine_sort: (Id.t, Sort.t) => Sort.t=(_, sort) => sort,
+        ~font_metrics: FontMetrics.t,
+        ~syntax: CachedSyntax.t,
+        p: Piece.t,
+      )
       : list(Node.t) => {
     switch (p) {
     | Grout(_)
@@ -458,22 +488,33 @@ module Indicated = {
       if (Piece.is_infix_delimiter_op_prefix(p)) {
         [];
       } else {
-        term(~font_metrics, ~syntax, t);
+        term(~refine_sort, ~font_metrics, ~syntax, t);
       }
     };
   };
 
   let indicated_piece =
-      (~font_metrics: FontMetrics.t, ~syntax: CachedSyntax.t, z: Zipper.t)
+      (
+        ~refine_sort: (Id.t, Sort.t) => Sort.t=(_, sort) => sort,
+        ~font_metrics: FontMetrics.t,
+        ~syntax: CachedSyntax.t,
+        z: Zipper.t,
+      )
       : list(Node.t) =>
     switch (Indicated.for_decoration(z)) {
     | _ when z.selection.content != [] => []
-    | Some({piece: p, _}) => of_piece(~font_metrics, ~syntax, p)
+    | Some({piece: p, _}) =>
+      of_piece(~refine_sort, ~font_metrics, ~syntax, p)
     | _ => []
     };
 
   let term =
-      (~font_metrics: FontMetrics.t, ~syntax: CachedSyntax.t, z: Zipper.t) => {
+      (
+        ~refine_sort: (Id.t, Sort.t) => Sort.t=(_, sort) => sort,
+        ~font_metrics: FontMetrics.t,
+        ~syntax: CachedSyntax.t,
+        z: Zipper.t,
+      ) => {
     let id = Indicated.index(z) |> Option.value(~default=Id.invalid);
     let refractor_kind = ProbePerform.refractor_kind(id, z);
     let base_cls =
@@ -484,7 +525,7 @@ module Indicated = {
       |> Option.map(ProjectorCore.Kind.name)
       |> Option.value(~default="");
     let cls = kind_cls == "" ? base_cls : base_cls ++ " " ++ kind_cls;
-    div_c(cls, indicated_piece(~font_metrics, ~syntax, z));
+    div_c(cls, indicated_piece(~refine_sort, ~font_metrics, ~syntax, z));
   };
 };
 

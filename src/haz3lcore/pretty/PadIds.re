@@ -75,6 +75,7 @@ let rec freshen_variant_anns = (ty: Typ.t): Typ.t => {
       ProdExtension(freshen_variant_anns(t1), freshen_variant_anns(t2))
     | Unknown(_)
     | Atom(_)
+    | DrvQuoteTy(_)
     | Label(_)
     | ExplicitNonlabel
     | Var(_)
@@ -124,6 +125,7 @@ let rec pad_variant_anns = (ty: Typ.t): Typ.t => {
       ProdExtension(pad_variant_anns(t1), pad_variant_anns(t2))
     | Unknown(_)
     | Atom(_)
+    | DrvQuoteTy(_)
     | Label(_)
     | ExplicitNonlabel
     | Var(_)
