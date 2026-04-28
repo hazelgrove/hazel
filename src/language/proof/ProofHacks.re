@@ -447,6 +447,7 @@ let rec replace_exp =
         | DynamicErrorHole(_, _)
         | Deferral(_)
         | Atom(_)
+        | DrvQuote(_, _)
         | ListLit(_)
         | Constructor(_)
         | TypFun(_)

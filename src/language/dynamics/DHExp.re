@@ -115,6 +115,7 @@ let ty_subst = (s: Typ.t, tpat: TPat.t, exp: t): t => {
           | Constructor(_)
           | Var(_)
           | Atom(_)
+          | DrvQuote(_)
           | MultiHole(_)
           | Deferral(_)
           | TyAlias(_)
@@ -188,6 +189,8 @@ let rec ty_comparable = (d1, d2) => {
     | (Float(_), _) => false
     }
   | (Atom(_), _) => false
+  | (DrvQuote(_, t1), DrvQuote(_, t2)) => t1 == t2
+  | (DrvQuote(_, _), _) => false
   | (Label(l1), Label(l2)) => l1 == l2
   | (Label(_), _) => false
   | (TupLabel(l1, d1), TupLabel(l2, d2)) =>
@@ -197,8 +200,8 @@ let rec ty_comparable = (d1, d2) => {
   | (TupLabel(_), _) => false
   | (ExplicitNonlabel, ExplicitNonlabel) => true
   | (ExplicitNonlabel, _) => false
-  // Note(zhiyao): Listlit checks the consistency of all elements,
-  // which is different from Tuple (check pairwise consistency).
+  /* [ListLit] checks that *all* elements (across both literals) are mutually
+     consistent, unlike [Tuple] below, which checks pairwise consistency. */
   | (ListLit(ds1), ListLit(ds2)) =>
     switch (ds1 @ ds2) {
     | [] => true
@@ -298,6 +301,9 @@ let rec poly_equal = (d1, d2): option(bool) => {
     )
     |> Option.some
   | (Atom(_), _) => None
+  | (DrvQuote(d1, _), DrvQuote(d2, _)) =>
+    Drv.Any.eq(d1, d2, ~skip_hole=false) |> Option.some
+  | (DrvQuote(_, _), _) => None
   | (Label(l1), Label(l2)) => l1 == l2 ? Some(true) : None
   | (Label(_), _) => None
   | (ExplicitNonlabel, ExplicitNonlabel) => Some(true)

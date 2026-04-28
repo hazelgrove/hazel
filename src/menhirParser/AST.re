@@ -40,8 +40,7 @@ type op_bin_int =
 
 [@deriving (show({with_path: false}), sexp, qcheck, eq)]
 type op_bin_string =
-  | Concat
-  | Equals;
+  | Concat;
 
 [@deriving (show({with_path: false}), sexp, qcheck, eq)]
 type op_bin_poly =
@@ -57,10 +56,6 @@ type bin_op =
   | PolyOp(op_bin_poly);
 
 [@deriving (show({with_path: false}), sexp, qcheck, eq)]
-type op_un_meta =
-  | Unquote;
-
-[@deriving (show({with_path: false}), sexp, qcheck, eq)]
 type op_un_int =
   | Minus;
 
@@ -70,7 +65,6 @@ type op_un_bool =
 
 [@deriving (show({with_path: false}), sexp, qcheck, eq)]
 type op_un =
-  | Meta(op_un_meta)
   | Int(op_un_int)
   | Bool(op_un_bool);
 

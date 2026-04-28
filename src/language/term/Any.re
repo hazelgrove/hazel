@@ -15,6 +15,23 @@ let is_typ: t => option(TermBase.Typ.t) =
   fun
   | Typ(t) => Some(t)
   | _ => None;
+let is_drv_exp: t => option(DrvTermBase.Exp.t) =
+  fun
+  | Drv(Exp(e)) => Some(e)
+  | _ => None;
+
+let drv_hole = (tms: list(TermBase.Any.t)): DrvTermBase.type_hole =>
+  tms
+  |> List.filter_map(
+       fun
+       | Grammar.Drv(exp) => Some(exp)
+       | _ => None,
+     )
+  |> (
+    fun
+    | [] => DrvGrammar.EmptyHole
+    | tms => DrvGrammar.MultiHole(tms)
+  );
 
 let is_mod: t => option(TermBase.Mod.t) =
   fun
@@ -33,6 +50,7 @@ let rec ids: TermBase.any_t => list(Id.t) =
   | Typ(tm) => IdTagged.ids(tm)
   | TPat(tm) => IdTagged.ids(tm)
   | Rul(tm) => Rul.ids(~any_ids=ids, tm)
+  | Drv(tm) => Drv.Any.ids(tm)
   | Mod(tm) => IdTagged.ids(tm)
   | Sig(tm) => IdTagged.ids(tm)
   | MPat(tm) => IdTagged.ids(tm)
@@ -56,6 +74,7 @@ let rep_id =
   | Typ(tm) => Typ.rep_id(tm)
   | TPat(tm) => TPat.rep_id(tm)
   | Rul(tm) => Rul.rep_id(~any_ids=ids, tm)
+  | Drv(tm) => Drv.Any.rep_id(tm)
   | Mod(tm) => IdTagged.rep_id(tm)
   | Sig(tm) => IdTagged.rep_id(tm)
   | MPat(tm) => IdTagged.rep_id(tm)

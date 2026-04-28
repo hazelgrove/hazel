@@ -55,12 +55,24 @@ let ctx_toggle = (~globals: Globals.t): Node.t =>
   );
 
 let term_view = (~globals: Globals.t, ci) => {
-  let sort = Info.is_label(ci) ? "Label" : ci |> Info.sort_of |> Sort.show;
-
+  /* Drv(_) sorts have verbose type-level names like "DrvJdmt"/"DrvProp"
+     via Sort.to_string (needed for pretty-printing `DrvQuoteTy`). For the
+     inspector header we prefer the terse form ("Jdmt", "Prop", ...),
+     keeping the ALFA prefix for object-language sorts. */
+  let sort_text =
+    Info.is_label(ci)
+      ? "Label"
+      : (
+        switch (Info.sort_of(ci)) {
+        | Drv(s) => DrvSort.to_string_short(s)
+        | s => Sort.to_string(s)
+        }
+      );
+  let sort_class = Info.is_label(ci) ? "Label" : ci |> Info.class_of;
   div(
     ~attrs=[
       clss(
-        ["ci-header", sort]
+        ["ci-header", sort_class]
         @ (
           Info.is_error(ci)
             ? [errc]
@@ -71,7 +83,7 @@ let term_view = (~globals: Globals.t, ci) => {
     ],
     [
       ctx_toggle(~globals),
-      div(~attrs=[clss(["term-tag"])], [text(sort)]),
+      div(~attrs=[clss(["term-tag"])], [text(sort_text)]),
       div(~attrs=[clss(["divider"])], [text("/")]),
       cls_view(ci),
     ],
@@ -323,7 +335,10 @@ let common_ok_view =
       | Label(l) => [label_view(l)]
       | _ => colon_prefix(show_type_colon) @ [view_type(syn)]
       }
-    | (Pat(Var) | Pat(Wild), Ana(Consistent({ana, _}))) =>
+    | (Pat(Var) | Pat(Wild) | Pat(ApFunc), Ana(Consistent({ana, _}))) =>
+      /* Pat(ApFunc) is only produced by the `let f(args) = ...` function
+         sugar (see FunctionSugar.re), where it denotes the function binder
+         as a whole. Render it the same way as a plain variable binder. */
       colon_prefix(show_type_colon) @ [view_type(ana)]
     | (_, Ana(Consistent({ana, syn, _})))
         when Equality.semantic.typ(ana, syn) =>
@@ -1042,6 +1057,7 @@ let view_of_info = (~globals, ci): list(Node.t) => {
     wrapper(typ_view(~globals, cls, ~marks, ~message))
   | InfoTPat({cls, marks, message, _}) =>
     wrapper(tpat_view(~globals, cls, ~marks, ~message))
+  | InfoDrv(ci) => wrapper(DrvCursorInspector.drv_view(~globals, ci))
   };
 };
 

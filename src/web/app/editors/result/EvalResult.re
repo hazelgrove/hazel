@@ -255,7 +255,13 @@ module Update = {
             and.calc result = result;
             switch (result) {
             | ResultOk({result: exp, _}) =>
-              Some((exp, exp |> CodeSelectable.Model.mk_from_exp(~settings)))
+              /* Evaluation always produces an Exp-sorted value (Drv-sorted
+                 subterms only appear wrapped in DrvQuote, which is itself Exp),
+                 so the result editor is rooted at Exp. */
+              Some((
+                exp,
+                exp |> CodeSelectable.Model.mk_from_exp(~settings, ~root=Exp),
+              ))
             | ResultFail(_)
             | ResultPending => ev_display |> Calc.get_saved_opt |> Option.join
             };
@@ -595,6 +601,7 @@ module View = {
                    Settings.of_core(~inline=false, globals.settings.core),
                )
              )
+          |> Haz3lcore.PrettySegment.prettify
           |> CodeViewable.view_segment(~globals)
         | None => text("No elaboration found")
         },

@@ -54,10 +54,11 @@ let format_sample_value = (value: Exp.t): string => {
  * Uses TermData to look up probe positions. */
 let get_samples_by_line = (code: string): IntMap.t(list(string)) => {
   /* Parse to zipper */
-  switch (Parser.to_zipper(code)) {
+  switch (Parser.to_zipper(~root=Exp, code)) {
   | None => IntMap.empty
   | Some(z) =>
-    let MakeTerm.{term, term_data, _} = MakeTerm.from_zip_for_sem(z);
+    let MakeTerm.{term, term_data, _} =
+      MakeTerm.from_zip_for_sem(z, ~root=Exp);
     /* Extract probe IDs directly from zipper's refractors.
      * Map values to unit since we only need the IDs as keys. */
     let probe_ids =
@@ -255,16 +256,6 @@ let operator_tests = [
     "Probe on string concat",
     {|^^probe("hello" ++ " world")|},
     [(0, ["\"hello world\""])],
-  ),
-  probe_line_test(
-    "Probe on string equality",
-    {|^^probe("abc" $== "abc")|},
-    [(0, ["true"])],
-  ),
-  probe_line_test(
-    "Probe on string inequality",
-    {|^^probe("abc" $== "def")|},
-    [(0, ["false"])],
   ),
   probe_line_test(
     "Probe on boolean and",
