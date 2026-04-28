@@ -243,14 +243,6 @@ let collect_category =
        )
   };
 
-/* ---------- Counts summary ---------- */
-
-let counts_of_context =
-    (ctx: problem_context): list((problem_category, int)) => {
-  all_of_problem_category
-  |> List.map(cat => (cat, collect_category(ctx, cat) |> Seq.length));
-};
-
 /* ---------- Convenience: all problems ---------- */
 
 let collect_all_problems = (ctx: problem_context): list(problem) => {
