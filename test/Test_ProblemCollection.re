@@ -7,15 +7,16 @@ let from_string =
     : option(
         (ProblemCollection.problem_context, list(ProblemCollection.problem)),
       ) =>
-  switch (Haz3lcore.Parser.to_zipper(s)) {
+  switch (Haz3lcore.Parser.to_zipper(~root=Exp, s)) {
   | None => None
   | Some(z) =>
-    let editor = Haz3lcore.Editor.Model.mk(z);
+    let editor = Haz3lcore.Editor.Model.mk(z, ~root=Exp);
     let statics =
       Haz3lcore.CachedStatics.init(
         ~settings=Language.CoreSettings.on,
         ~is_dynamic_term=false,
         ~stitch=Fun.id,
+        ~root=Exp,
         editor.state.zipper,
       );
     let ctx =
@@ -58,10 +59,15 @@ let has_multihole_error = (problems: list(ProblemCollection.problem)) =>
   List.exists(
     (p: ProblemCollection.problem) =>
       switch (p.source) {
-      | FromInfo(InfoExp({status: InHole(Common(NoType(MultiHole))), _})) =>
-        true
-      | FromInfo(InfoPat({status: InHole(Common(NoType(MultiHole))), _})) =>
-        true
+      | FromInfo(ci) =>
+        List.exists(
+          m =>
+            switch (m) {
+            | Language.Mark.IsMulti => true
+            | _ => false
+            },
+          Language.Info.marks_of(ci),
+        )
       | _ => false
       },
     problems,

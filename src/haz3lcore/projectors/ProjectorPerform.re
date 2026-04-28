@@ -126,6 +126,7 @@ let go =
       projector_list: list(Id.t),
       refractor_list: list(Id.t),
       ~elaborated: Language.Exp.t,
+      ~root,
     )
     : result(ZipperBase.t, Action.Failure.t) => {
   let projector_idx_to_id = (idx: int): Id.t =>
@@ -260,6 +261,7 @@ let go =
         let new_id =
           MakeTerm.from_zip_for_sem(
             Zipper.unzip(~direction=Right, parenthesized_seg),
+            ~root,
           ).
             term
           |> Language.Exp.rep_id;

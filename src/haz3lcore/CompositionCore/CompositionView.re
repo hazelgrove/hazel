@@ -22,7 +22,7 @@ module Local = {
   module Utils = {
     let get_individual_ids_of_let = (term: Info.t): (Id.t, Id.t, Id.t) => {
       switch (term) {
-      | InfoExp({term, _}) =>
+      | InfoExp({user_term: term, _}) =>
         switch (Exp.term_of(term)) {
         | Let(pat, def, body) => (
             Pat.rep_id(pat),
@@ -43,7 +43,7 @@ module Local = {
   };
 
   module ViewUtils = {
-    let rec fold_terms = (z: Zipper.t, ids: list(Id.t)) => {
+    let rec fold_terms = (z: Zipper.t, ids: list(Id.t), ~root) => {
       switch (ids) {
       | [] => z
       | [id, ...rest] =>
@@ -66,12 +66,13 @@ module Local = {
               [],
               [],
               ~elaborated=CachedStatics.empty.elaborated,
+              ~root,
             )
           ) {
-          | Ok(z'') => fold_terms(z'', rest)
-          | _ => fold_terms(z', rest)
+          | Ok(z'') => fold_terms(z'', rest, ~root)
+          | _ => fold_terms(z', rest, ~root)
           }
-        | None => fold_terms(z, rest)
+        | None => fold_terms(z, rest, ~root)
         }
       };
     };
@@ -95,7 +96,7 @@ module Local = {
       };
     };
 
-    let collapse_terms = (~z: Zipper.t, ~ids: list(Id.t)) => {
+    let collapse_terms = (~z: Zipper.t, ~ids: list(Id.t), ~root) => {
       // Retain only the ids which are not folded
       let ids =
         List.filter_map(
@@ -107,11 +108,11 @@ module Local = {
             },
           ids,
         );
-      fold_terms(z, ids);
+      fold_terms(z, ids, ~root);
     };
 
     let collapse_definitions =
-        (~z: Zipper.t, ~ids: list(Id.t), ~info_map: Id.Map.t(Info.t)) => {
+        (~z: Zipper.t, ~ids: list(Id.t), ~info_map: Id.Map.t(Info.t), ~root) => {
       let infos =
         List.map((id: Id.t) => Id.Map.find_opt(id, info_map), ids);
       let def_ids =
@@ -124,7 +125,7 @@ module Local = {
           infos,
         )
         |> List.filter((id: Id.t) => id != Id.invalid);
-      collapse_terms(~z, ~ids=def_ids);
+      collapse_terms(~z, ~ids=def_ids, ~root);
     };
   };
 
@@ -270,7 +271,12 @@ module Local = {
         let ids_to_collapse =
           all_top_level_ids
           |> List.filter((id: Id.t) => !List.mem(id, expanded_ids));
-        ViewUtils.collapse_definitions(~z, ~ids=ids_to_collapse, ~info_map);
+        ViewUtils.collapse_definitions(
+          ~z,
+          ~ids=ids_to_collapse,
+          ~info_map,
+          ~root=editor.root,
+        );
       };
     };
 

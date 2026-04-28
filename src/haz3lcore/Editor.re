@@ -2,18 +2,28 @@ open Util;
 open OptUtil.Syntax;
 open Language;
 
+/* The `root` field records the sort of this editor's root context. We
+   can't recover it from the zipper alone: an empty zipper has no surviving
+   ancestors to infer sort from. Two places need it:
+     1. Ancestors.sort falls back to `root` when the ancestor stack is
+        empty, which remolding and regrouting rely on to pick Drv(Exp)
+        molds inside derivation editors.
+     2. Editor.Model.mk(~root) propagates this sort to the term builder so
+        the initial zipper is constructed with the correct sort. */
 module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type state = Perform.state;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
+    root: Sort.t,
     state,
     [@opaque]
     syntax: CachedSyntax.t /* Calculated */
   };
 
-  let mk = (zipper: Zipper.t): t => {
+  let mk = (zipper: Zipper.t, ~root): t => {
+    root,
     state: {
       zipper,
       col_target: None,
@@ -21,12 +31,27 @@ module Model = {
     syntax: CachedSyntax.init(zipper),
   };
 
-  type persistent = PersistentZipper.t;
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type persistent = {
+    root: Sort.t,
+    zipper: PersistentZipper.t,
+  };
 
-  let persist = (model: t): persistent =>
-    model.state.zipper |> PersistentZipper.persist;
+  let persist = (model: t): persistent => {
+    root: model.root,
+    zipper: model.state.zipper |> PersistentZipper.persist,
+  };
 
-  let unpersist = (p: persistent): t => p |> PersistentZipper.unpersist |> mk;
+  let unpersist = (p: persistent): t =>
+    p.zipper |> PersistentZipper.unpersist(~root=p.root) |> mk(~root=p.root);
+
+  let mk_persistent = (zipper: PersistentZipper.t, ~root): persistent => {
+    root,
+    zipper,
+  };
+
+  let to_string = (model: t): string =>
+    model.state.zipper |> PersistentZipper.to_string;
 
   let trailing_hole_ctx =
       (ed: t, info_map: Language.Statics.Map.t): option(Ctx.t) => {
@@ -35,8 +60,7 @@ module Model = {
       |> Zipper.unselect_and_zip
       |> Segment.convex_grout
       |> Util.ListUtil.last_opt;
-    let+ info = Language.Statics.Map.lookup(grout.id, info_map);
-    Language.Info.ctx_of(info);
+    Language.Statics.Map.ctx_of(grout.id, info_map);
   };
 };
 
@@ -125,7 +149,7 @@ module Update = {
         a: Action.t,
         old_statics: CachedStatics.t,
         old_dynamics: Dynamics.Map.t,
-        {state, syntax}: Model.t,
+        {state, syntax, root}: Model.t,
       )
       : Action.Result.t(Model.t) => {
     open Result.Syntax;
@@ -147,9 +171,10 @@ module Update = {
 
     /* 3. Update the zipper */
     let+ zipper =
-      Perform.go(~settings, ~statics=old_statics, ~syntax, a, state);
+      Perform.go(~settings, ~statics=old_statics, ~syntax, a, state, ~root);
 
     Model.{
+      root,
       state: {
         ...state,
         zipper,
@@ -165,7 +190,7 @@ module Update = {
         ~is_edited,
         statics: CachedStatics.t,
         new_dynamics: Dynamics.Map.t,
-        {syntax, state}: Model.t,
+        {syntax, state, root}: Model.t,
       )
       : Model.t => {
     /* 1. Recalculate the autocomplete buffer if necessary.
@@ -236,6 +261,7 @@ module Update = {
       };
 
     Model.{
+      root,
       state: {
         ...state,
         zipper,

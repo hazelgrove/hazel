@@ -21,7 +21,7 @@ let table = IdTagged.FreshGrammar.Exp.var("table");
 let assert_transforms = (transforms, expected_str) => {
   let result = TableTransforms.apply_transforms(table, transforms);
   let expected =
-    switch (Parser.to_term(expected_str)) {
+    switch (Parser.to_term(expected_str, ~root=Sort.Exp)) {
     | Some(exp) => exp
     | None => fail("Failed to parse expected: " ++ expected_str)
     };

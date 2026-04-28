@@ -302,7 +302,7 @@ let introduce_data = (ci: option(Language.Info.t)): list(menu_item_data) =>
   | Some(
       Language.Info.InfoExp({
         cls: Exp(EmptyHole),
-        status: NotInHole(Common(Ana(Consistent({ana, _})))),
+        message: Language.Message.Exp(Common(Ana(Consistent({ana, _})))),
         ctx,
         _,
       }),
@@ -320,7 +320,7 @@ let introduce_data = (ci: option(Language.Info.t)): list(menu_item_data) =>
   | Some(
       Language.Info.InfoPat({
         cls: Pat(EmptyHole),
-        status: NotInHole(Ana(Consistent({ana, _}))),
+        message: Language.Message.Pat(Common(Ana(Consistent({ana, _})))),
         ctx,
         _,
       }),

@@ -109,11 +109,6 @@ module Selection = {
       (~selection as (): t, _model: Model.t): cursor(Update.t) => {
     empty;
   };
-
-  let handle_key_event =
-      (~selection as (): t, _model: Model.t, _event): option(Update.t) => {
-    None;
-  };
 };
 
 module View = {

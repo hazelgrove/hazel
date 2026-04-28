@@ -154,17 +154,14 @@ let lookup_alias = (ctx: t, name: string): option(TermBase.Typ.t) =>
     )
   };
 
-let add_ctrs = (ctx: t, name: string, id: Id.t, ctrs: TermBase.Typ.sum_map): t => {
+let add_ctrs = (ctx: t, name: string, ctrs: TermBase.Typ.sum_map): t => {
   ...ctx,
   entries:
     List.filter_map(
       fun
       | ConstructorMap.Variant(ctr, ann, typ) => {
-          let ctr_id =
-            switch (ann.ids) {
-            | [id, ..._] => id
-            | [] => id
-            };
+          assert(ann.ids != []);
+          let ctr_id = List.hd(ann.ids);
           Some(
             ConstructorEntry({
               name: ctr,
@@ -292,7 +289,14 @@ let is_base_typ = (name: string): bool =>
   || name == "Int"
   || name == "Nat"
   || name == "SInt"
-  || name == "String";
+  || name == "String"
+  || name == "DrvJdmt"
+  || name == "DrvCtx"
+  || name == "DrvProp"
+  || name == "ALFAExp"
+  || name == "DrvPat"
+  || name == "ALFATyp"
+  || name == "DrvTPat";
 
 let empty_pre_elaboration = {
   use_mode: Some(Operators.default_mode),
