@@ -53,18 +53,45 @@ let elaboration_contains = (src, predicate) => {
   found^;
 };
 
-/* A "fallback" constructor is one that landed in the
-   `Constructor(_, Some(Some(_)))` form because no type-application
-   wrapping was inserted. Constructors inside `TypAp(Constructor(_, None), _)`
-   are NOT counted: those are the wrapped form we want. */
+/* A "fallback" constructor is a `Constructor` node that appears in the
+   elaboration *without* a surrounding `TypAp` wrapper. The TypAp spine
+   is what records the constructor's implicit type instantiation, so a
+   constructor that should be polymorphic but lacks a TypAp wrapper is
+   considered a fallback. We count by walking the elaboration but
+   skipping any `Constructor` directly inside a `TypAp`. */
 let count_fallback_constructors = (src, name): int => {
   let count = ref(0);
-  walk_elaboration(src, e =>
+  let exp = parse_menhir_exp(src);
+  let (_info_map, elab) =
+    Statics.mk(CoreSettings.on, Language.Builtins.ctx_init(Some(Int)), exp);
+  let rec walk = (~inside_typ_ap=false, e: TermBase.Exp.t): unit => {
     switch (e.term) {
-    | Constructor(c, Some(Some(_))) when c == name => incr(count)
+    | Constructor(c, Some(Some(_))) when c == name && !inside_typ_ap =>
+      incr(count)
     | _ => ()
-    }
-  );
+    };
+    switch (e.term) {
+    | TypAp(inner, _) => walk(~inside_typ_ap=true, inner)
+    | Ap(_, f, a) =>
+      walk(f);
+      walk(a);
+    | Let(_, def, body) =>
+      walk(def);
+      walk(body);
+    | TyAlias(_, _, body) => walk(body)
+    | Use(_, body) => walk(body)
+    | Tuple(xs) => List.iter(walk, xs)
+    | Fun(_, b, _, _)
+    | TypFun(_, b, _) => walk(b)
+    | Asc(inner, _)
+    | Parens(inner) => walk(inner)
+    | Match(scrut, rules) =>
+      walk(scrut);
+      List.iter(((_, r)) => walk(r), rules);
+    | _ => ()
+    };
+  };
+  walk(elab);
   count^;
 };
 

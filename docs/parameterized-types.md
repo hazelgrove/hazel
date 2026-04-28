@@ -67,6 +67,32 @@ and `Some` has a schema equivalent to `poly a -> a -> Option(a)`. When an
 expected type is available, such as `Option(Int)`, constructor checking uses the
 instantiated sum so `Some(3)` is checked against `Int -> Option(Int)`.
 
+## Elaboration of polymorphic constructors
+
+When a polymorphic constructor appears in an analytic position — at any
+nesting depth — elaboration makes the implicit type instantiation explicit
+by wrapping the bare constructor in a spine of `TypAp` nodes. For example,
+`Cons(0, Cons(1, Nil)) : List(Int)` elaborates (roughly) to
+
+```text
+Ap(TypAp(Cons, Int), (0, Ap(TypAp(Cons, Int), (1, TypAp(Nil, Int)))))
+```
+
+The inner `Constructor` node keeps its *polymorphic schema* as its type
+ascription (e.g. `poly a -> a -> List(a)` for `Cons`) so that re-statics
+on the elaborated term — TypAp expects a `Poly`-typed callee — agrees
+with the annotation. At runtime, `TypAp(Constructor(c, Some(Some(Poly(a,
+body)))), tau)` specializes the schema by substituting `tau` for `a`,
+stepping to `Constructor(c, Some(Some(subst(tau, a, body))))`. The
+constructor stays a final value, now carrying a monomorphic ascription;
+this is the form the result view, the stepper, and `DHExp.ty_comparable`
+consume.
+
+Constructors whose schema is not actually polymorphic (e.g. a bare tag
+from `type x = + A`) are never wrapped: writing `A @<?>` keeps the
+explicit `TypAp` Indet, matching the pre-existing behavior of type
+application over non-`TypFun` values.
+
 ## Tests
 
 Focused coverage lives in:

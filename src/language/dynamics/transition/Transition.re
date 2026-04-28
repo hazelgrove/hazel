@@ -610,24 +610,47 @@ module Transition = (EV: EV_MODE) => {
     | TypAp(d, tau) =>
       let. _ = otherwise(env, d => TypAp(d, tau) |> rewrap)
       and. d' = req_final(req(env), d => TypAp(d, tau) |> wrap_ctx, d);
-      let-unbox typfun = (TypFun, d');
-      switch (typfun) {
-      | TypFun(utpat, tfbody, name) =>
-        /* Rule ITTLam */
+      switch (DHExp.term_of(d')) {
+      | Constructor(name, Some(Some({term: Poly(tpat, body), _})))
+          when TPat.tyvar_of_utpat(tpat) != None =>
+        /* Specialize a polymorphic constructor's schema with the applied
+           type argument. This mirrors `TypFun`/`TypAp` reduction but
+           keeps the `Constructor` as a final value — just with a
+           monomorphic type ascription after instantiation.
+
+           Only fires when the constructor's schema is a `Poly` with a
+           bound type variable (i.e. the constructor is actually
+           polymorphic). Constructors with a non-Poly ascription, or a
+           Poly with `EmptyHole` binder, stay Indet so explicit TypAp on
+           a monomorphic constructor behaves like applying a non-TypFun. */
+        let specialized = Typ.subst(tau, tpat, body);
         Step({
           expr:
-            DHExp.assign_name_if_none(
-              /* Inherit name for user clarity */
-              DHExp.ty_subst(tau, utpat, tfbody),
-              Option.map(
-                x => x ++ "@<" ++ Typ.pretty_print(tau) ++ ">",
-                name,
-              ),
-            ),
+            Constructor(name, Some(Some(specialized))) |> DHExp.fresh,
           side_effects: [],
           kind: TypFunAp,
-          is_value: false,
-        })
+          is_value: true,
+        });
+      | _ =>
+        let-unbox typfun = (TypFun, d');
+        switch (typfun) {
+        | TypFun(utpat, tfbody, name) =>
+          /* Rule ITTLam */
+          Step({
+            expr:
+              DHExp.assign_name_if_none(
+                /* Inherit name for user clarity */
+                DHExp.ty_subst(tau, utpat, tfbody),
+                Option.map(
+                  x => x ++ "@<" ++ Typ.pretty_print(tau) ++ ">",
+                  name,
+                ),
+              ),
+            side_effects: [],
+            kind: TypFunAp,
+            is_value: false,
+          })
+        };
       };
     | DeferredAp(d1, ds) =>
       let. _ = otherwise(env, (d1, ds) => DeferredAp(d1, ds) |> rewrap)

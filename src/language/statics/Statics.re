@@ -1410,19 +1410,15 @@ and uexp_to_info_map =
            `TypApp(Var("List"), Int)` form for parameterized aliases). It
            flows out as elab_syn_ty so the surrounding `Ap` can propagate
            the same parameterized result into nested constructor analyses,
-           letting implicit instantiation be inserted at every level.
-
-           `ctor_ty_for_ann` is the fully normalized form used inside the
-           Constructor's type ascription, where dynamics inspect the
-           underlying shape (e.g. `DHExp.ty_comparable`/`Typ.has_fun`
-           rely on seeing through aliases to detect hidden arrows). */
+           letting implicit instantiation be inserted at every level. */
         let ctor_ty = fixed_typ(ctx, ana, syn_res);
         let ctor_ty_for_ann = Typ.normalize(ctx, ctor_ty);
         /* If the constructor has a polymorphic schema, make the implicit
            instantiation explicit in the elaborated term by wrapping the
-           bare constructor in TypAp nodes. This keeps the elaboration
-           well-typed after pretty-printing and re-parsing; the constructor
-           no longer needs a clinging type ascription for round-trip. */
+           bare constructor in TypAp nodes. The inner constructor carries
+           its *polymorphic* schema so that re-statics on the elab agrees
+           with the `Poly` expectation of TypAp, and dynamics can
+           specialize the schema with the applied type argument. */
         let type_args =
           ty == None
             ? ConstructorStaticsHelpers.instantiation_args_for(ctx, ctr, ana)
@@ -1431,10 +1427,15 @@ and uexp_to_info_map =
           switch (type_args) {
           | [] => Constructor(ctr, Some(Some(ctor_ty_for_ann))) |> rewrap
           | _ =>
+            let schema =
+              switch (Ctx.lookup_ctr(ctx, ctr)) {
+              | Some({typ, _}) => typ
+              | None => ctor_ty_for_ann
+              };
             ConstructorStaticsHelpers.wrap_type_apps(
-              Constructor(ctr, None) |> Exp.fresh,
+              Constructor(ctr, Some(Some(schema))) |> Exp.fresh,
               type_args,
-            )
+            );
           };
         /* Manually emit ExpectationMismatch based on the clean syn_res
            (not ctor_ty), since ctor_ty has already been reconciled with ana
