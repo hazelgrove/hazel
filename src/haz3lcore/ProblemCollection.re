@@ -78,15 +78,12 @@ let make_problem_context =
   let info_map = statics.info_map;
   let resolve_nearest = id => nearest_measured_id(~info_map, ~measured, id);
   let pos = id =>
-    switch (resolve_nearest(id)) {
-    | Some(anc) =>
-      switch (Measured.find_by_id(anc, measured)) {
-      | Some(m) => m.origin
-      | None => {
-          row: max_int,
-          col: max_int,
-        }
-      }
+    switch (
+      Option.bind(resolve_nearest(id), anc =>
+        Measured.find_by_id(anc, measured)
+      )
+    ) {
+    | Some(m) => m.origin
     | None => {
         row: max_int,
         col: max_int,
@@ -260,6 +257,7 @@ type problem_group = {
   row_to_line: int => option(int),
   /* See `problem_context.nearest_measured_id`. */
   nearest_measured_id: Id.t => option(Id.t),
+  pos: Id.t => Point.t,
   problems_by_category: list((problem_category, list(problem))),
   counts: list((problem_category, int)),
 };
@@ -321,6 +319,7 @@ let make =
           measured: ctx.measured,
           row_to_line: ctx.row_to_line,
           nearest_measured_id: ctx.nearest_measured_id,
+          pos: ctx.pos,
           problems_by_category,
           counts,
         };

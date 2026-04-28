@@ -335,27 +335,10 @@ let view =
         problem,
       );
     if (problems_settings.flat) {
-      let pos = id =>
-        switch (g.nearest_measured_id(id)) {
-        | Some(anc) =>
-          switch (Haz3lcore.Measured.find_by_id(anc, g.measured)) {
-          | Some(m) => m.origin
-          | None =>
-            Point.{
-              row: max_int,
-              col: max_int,
-            }
-          }
-        | None =>
-          Point.{
-            row: max_int,
-            col: max_int,
-          }
-        };
       let all_problems =
         g.problems_by_category
         |> List.concat_map(snd)
-        |> List.sort((a: problem, b) => compare(pos(a.id), pos(b.id)));
+        |> List.sort((a: problem, b) => compare(g.pos(a.id), g.pos(b.id)));
       List.map(render, all_problems);
     } else {
       List.filter_map(
