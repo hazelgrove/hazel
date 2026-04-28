@@ -89,12 +89,17 @@ module Update = {
      Labels are only shown when there are multiple groups (Exercise mode),
      so single-editor modes pass an empty label. */
   let get_problem_editors =
-      (model: Model.t): list((string, CodeEditable.Model.t)) =>
+      (model: Model.t): list((string, CodeEditable.Model.t)) => {
+    let scratchpad_editor = (m: ScratchMode.Model.t) => {
+      let sp = List.nth(m.scratchpads, m.current);
+      switch (sp.kind) {
+      | Code({editor, _}) => editor.editor
+      | Drv(dm) => dm.cells.setup.editor
+      };
+    };
     switch (model.editors) {
-    | Scratch(m) => [("", List.nth(m.scratchpads, m.current).editor.editor)]
-    | Documentation(m) => [
-        ("", List.nth(m.scratchpads, m.current).editor.editor),
-      ]
+    | Scratch(m) => [("", scratchpad_editor(m))]
+    | Documentation(m) => [("", scratchpad_editor(m))]
     | Tutorial(m) => [
         ("", List.nth(m.exercises, m.current).cells.user_impl.editor),
       ]
@@ -104,6 +109,7 @@ module Update = {
         m,
       )
     };
+  };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type benchmark_action =
