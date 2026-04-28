@@ -256,6 +256,23 @@ let xs : List(Int) = Cons(0, Cons(1, Cons(2, Nil))) in xs
           0,
           count_fallback_constructors(src, "Nil"),
         );
+        /* Verify there are actually multiple TypAp(Cons, Int) wrappers in
+           the elaboration — the fallback count being 0 could be vacuous
+           if no constructors existed at all. */
+        let count_typ_ap_cons = ref(0);
+        walk_elaboration(src, e =>
+          switch (e.term) {
+          | TypAp({term: Constructor("Cons", _), _}, _) =>
+            incr(count_typ_ap_cons)
+          | _ => ()
+          }
+        );
+        check(
+          int,
+          "three Cons constructors are each wrapped in TypAp",
+          3,
+          count_typ_ap_cons^,
+        );
       },
     ),
     test_case(
