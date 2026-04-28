@@ -1406,7 +1406,18 @@ and uexp_to_info_map =
           );
         }
       | _ =>
-        let ctor_ty = fixed_typ(ctx, ana, syn_res) |> Typ.normalize(ctx);
+        /* `ctor_ty` is the user-visible specialization (e.g. preserves
+           `TypApp(Var("List"), Int)` form for parameterized aliases). It
+           flows out as elab_syn_ty so the surrounding `Ap` can propagate
+           the same parameterized result into nested constructor analyses,
+           letting implicit instantiation be inserted at every level.
+
+           `ctor_ty_for_ann` is the fully normalized form used inside the
+           Constructor's type ascription, where dynamics inspect the
+           underlying shape (e.g. `DHExp.ty_comparable`/`Typ.has_fun`
+           rely on seeing through aliases to detect hidden arrows). */
+        let ctor_ty = fixed_typ(ctx, ana, syn_res);
+        let ctor_ty_for_ann = Typ.normalize(ctx, ctor_ty);
         /* If the constructor has a polymorphic schema, make the implicit
            instantiation explicit in the elaborated term by wrapping the
            bare constructor in TypAp nodes. This keeps the elaboration
@@ -1418,7 +1429,7 @@ and uexp_to_info_map =
             : [];
         let elab_term =
           switch (type_args) {
-          | [] => Constructor(ctr, Some(Some(ctor_ty))) |> rewrap
+          | [] => Constructor(ctr, Some(Some(ctor_ty_for_ann))) |> rewrap
           | _ =>
             ConstructorStaticsHelpers.wrap_type_apps(
               Constructor(ctr, None) |> Exp.fresh,

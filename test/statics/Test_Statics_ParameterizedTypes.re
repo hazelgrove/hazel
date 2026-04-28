@@ -12,16 +12,13 @@ let static_errors = src => {
   statics(exp) |> errors |> List.map(snd) |> List.flatten;
 };
 
-/* Run the elaborator and walk the result looking for a predicate. */
-let elaboration_contains = (src, predicate) => {
+/* Run the elaborator and walk the entire result. */
+let walk_elaboration = (src, visit) => {
   let exp = parse_menhir_exp(src);
   let (_info_map, elab) =
     Statics.mk(CoreSettings.on, Language.Builtins.ctx_init(Some(Int)), exp);
-  let found = ref(false);
   let rec walk = (e: TermBase.Exp.t): unit => {
-    if (predicate(e)) {
-      found := true;
-    };
+    visit(e);
     switch (e.term) {
     | TypAp(inner, _) => walk(inner)
     | Ap(_, f, a) =>
@@ -44,7 +41,31 @@ let elaboration_contains = (src, predicate) => {
     };
   };
   walk(elab);
+};
+
+let elaboration_contains = (src, predicate) => {
+  let found = ref(false);
+  walk_elaboration(src, e =>
+    if (predicate(e)) {
+      found := true;
+    }
+  );
   found^;
+};
+
+/* A "fallback" constructor is one that landed in the
+   `Constructor(_, Some(Some(_)))` form because no type-application
+   wrapping was inserted. Constructors inside `TypAp(Constructor(_, None), _)`
+   are NOT counted: those are the wrapped form we want. */
+let count_fallback_constructors = (src, name): int => {
+  let count = ref(0);
+  walk_elaboration(src, e =>
+    switch (e.term) {
+    | Constructor(c, Some(Some(_))) when c == name => incr(count)
+    | _ => ()
+    }
+  );
+  count^;
 };
 
 let is_typ_ap_of_constructor = (name, e: TermBase.Exp.t): bool =>
@@ -188,6 +209,28 @@ let xs : List(Int) = Cons((1, Nil)) in xs
         ),
       )
     }),
+    test_case(
+      "elaboration wraps every nested Cons/Nil, not just the outermost",
+      `Quick,
+      () => {
+        let src = {|
+type List(a) = + Nil + Cons(a, List(a)) in
+let xs : List(Int) = Cons(0, Cons(1, Cons(2, Nil))) in xs
+|};
+        check(
+          int,
+          "no Cons should fall back to the type-ascribed form",
+          0,
+          count_fallback_constructors(src, "Cons"),
+        );
+        check(
+          int,
+          "no Nil should fall back to the type-ascribed form",
+          0,
+          count_fallback_constructors(src, "Nil"),
+        );
+      },
+    ),
     test_case(
       "elaboration wraps constructor via Type-kinded alias", `Quick, () => {
       check(
