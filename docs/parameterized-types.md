@@ -78,22 +78,6 @@ comma-list automatically. The application `pair@<Int, Bool>` parses as
 peels one binder per `TypTuple` element, re-applying any residual tuple to
 the resulting body.
 
-The static rule for `TypAp` mirrors the dynamics: when the type argument
-arrives as a `TypTuple([t1, …, tn])`, the elaborator peels `n` `Poly`
-binders from the function's type, substituting each `tk` for the
-corresponding binder in one step. This matters for recursive multi-binder
-uses such as
-`let map : poly a, b -> ... = typfun a, b -> ... map@<a, b>(...) ...`
-where peeling only one `Poly` would leave a residual `poly b -> …` and
-make a subsequent ordinary application fail with an arrow-vs-poly
-mismatch.
-
-For display, the pretty-printers (both the plain string `Typ.pretty_print`
-and the structured-editor `ExpToSegment`) collapse a chain of nested
-`Poly(a, Poly(b, body))` (and analogously `TypFun`) into a single
-`poly a, b -> body` / `typfun a, b -> body` tile, so the displayed type
-matches the multi-binder syntax the user wrote.
-
 ## Naming
 
 Hazel has two related "type application" concepts that used to be named
