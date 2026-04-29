@@ -2,9 +2,309 @@ open Alcotest;
 open Language;
 open Test_Evaluator_Prelude;
 
+let step_status = exp =>
+  EvaluatorStep.get_status(~settings=CoreSettings.on, exp, Environment.empty);
+
+let rec steps_until_available = (~limit, exp) =>
+  if (limit <= 0) {
+    Alcotest.fail("expected available steps before step limit");
+  } else {
+    switch (step_status(exp)) {
+    | AutoStep(step) =>
+      switch (EvaluatorStep.take_step(step)) {
+      | None => Alcotest.fail("expected auto step")
+      | Some(exp') => steps_until_available(~limit=limit - 1, exp')
+      }
+    | AvailableSteps(steps) => steps
+    };
+  };
+
+let rec count_available_steps = (~limit, exp, count) =>
+  if (limit <= 0) {
+    Alcotest.fail("step count exceeded limit");
+  } else {
+    switch (step_status(exp)) {
+    | AutoStep(step) =>
+      switch (EvaluatorStep.take_step(step)) {
+      | None => count
+      | Some(exp') => count_available_steps(~limit=limit - 1, exp', count)
+      }
+    | AvailableSteps(steps) =>
+      switch (steps) {
+      | [] => count
+      | [step, ..._] =>
+        switch (EvaluatorStep.take_step(step)) {
+        | None => count
+        | Some(exp') =>
+          count_available_steps(~limit=limit - 1, exp', count + 1)
+        }
+      }
+    };
+  };
+
 let tests = (
   "Evaluator.Stepper",
   [
+    test_case(
+      "Eval filter auto-steps",
+      `Quick,
+      () => {
+        let exp =
+          parse_exp("debug eval($e) in (1 + 2) + (3 + 4)") |> elaborate;
+        switch (step_status(exp)) {
+        | AutoStep(step) =>
+          switch (EvaluatorStep.take_step(step)) {
+          | None => Alcotest.fail("expected auto step")
+          | Some(exp') =>
+            switch (step_status(exp')) {
+            | AutoStep(_) => ()
+            | AvailableSteps(_) =>
+              Alcotest.fail("expected auto step to continue")
+            }
+          }
+        | AvailableSteps(_) => Alcotest.fail("expected AutoStep")
+        };
+      },
+    ),
+    test_case(
+      "Hide filter only auto-steps once",
+      `Quick,
+      () => {
+        let exp =
+          parse_exp("debug hide(1 + 2) in (1 + 2) + (3 + 4)") |> elaborate;
+        /* Auto-step through all hidden steps (RemoveParens, filter match, etc.)
+           until we get AvailableSteps. The hide filter with (Eval, One) should
+           cause stepping to stop after one filter-matched step. */
+        let steps = steps_until_available(~limit=20, exp);
+        check(bool, "expected visible steps", true, steps != []);
+      },
+    ),
+    test_case(
+      "Hide filter does not match non-values",
+      `Quick,
+      () => {
+        let exp = parse_exp("debug hide($v) in 1 + 2") |> elaborate;
+        /* $v should not match the non-value expression 1 + 2, so after
+           auto-stepping through any hidden steps, we should get visible steps */
+        let steps = steps_until_available(~limit=20, exp);
+        check(bool, "expected visible steps", true, steps != []);
+      },
+    ),
+    test_case(
+      "Stop filter yields visible steps",
+      `Quick,
+      () => {
+        let exp =
+          parse_exp("debug stop($v + $v) in (1 + 2) + (3 + 4)") |> elaborate;
+        /* stop = (Step, One): after auto-stepping through hidden steps
+           (RemoveParens etc.), we should get visible steps */
+        let steps = steps_until_available(~limit=20, exp);
+        check(bool, "expected visible steps", true, steps != []);
+      },
+    ),
+    test_case(
+      "Step filter yields visible steps",
+      `Quick,
+      () => {
+        let exp =
+          parse_exp("debug step($v + $v) in (1 + 2) + (3 + 4)") |> elaborate;
+        /* step = (Step, All): after auto-stepping through hidden steps,
+           we should get visible steps */
+        let steps = steps_until_available(~limit=20, exp);
+        check(bool, "expected visible steps", true, steps != []);
+      },
+    ),
+    test_case(
+      "Stop filter on map hits square application",
+      `Quick,
+      () => {
+        let program = {|
+debug hide($e) in
+let map =
+  fun xs, f ->
+    case xs
+      | [] => []
+      | hd :: tl => f(hd) :: map(tl, f)
+    end
+in
+let square = fun x -> x * x in
+debug stop(square($v)) in
+map([1, 2, 3], square)|};
+        let exp = parse_exp(program) |> elaborate;
+        let steps = steps_until_available(~limit=200, exp);
+        check(bool, "expected visible steps", true, steps != []);
+      },
+    ),
+    test_case(
+      "Stop filter map requires multiple steps",
+      `Quick,
+      () => {
+        let program = {|
+debug hide($e) in
+let map =
+  fun xs, f ->
+    case xs
+      | [] => []
+      | hd :: tl => f(hd) :: map(tl, f)
+    end
+in
+let square = fun x -> x * x in
+debug stop(square($v)) in
+map([1, 2, 3], square)|};
+        let exp = parse_exp(program) |> elaborate;
+        let steps = count_available_steps(~limit=500, exp, 0);
+        check(int, "expected exact 3 steps", 3, steps);
+      },
+    ),
+    test_case(
+      "Stop on 1+2 with repeated subterms: persist+refresh roundtrip",
+      `Quick,
+      () => {
+        let program = {|
+debug eval($e) in
+debug stop(1 + 2) in
+1 + 2 + 3 + (1 + 2 + 3 + (1 + 2 + 3))|};
+        let exp = parse_exp(program) |> elaborate;
+        let rec loop = (n, exp) =>
+          if (n <= 0) {
+            ();
+          } else {
+            switch (step_status(exp)) {
+            | AutoStep(step) =>
+              switch (EvaluatorStep.take_step(step)) {
+              | None => ()
+              | Some(exp') => loop(n - 1, exp')
+              }
+            | AvailableSteps(steps) =>
+              List.iter(
+                (step: EvaluatorStep.step) => {
+                  let persistent = EvaluatorStep.persist(step);
+                  switch (
+                    EvaluatorStep.refresh_step(
+                      ~settings=CoreSettings.on,
+                      exp,
+                      Environment.empty,
+                      persistent,
+                    )
+                  ) {
+                  | Some(_) => ()
+                  | None =>
+                    Alcotest.fail("refresh_step returned None after persist")
+                  };
+                  ();
+                },
+                steps,
+              );
+              switch (steps) {
+              | [] => ()
+              | [step, ..._] =>
+                switch (EvaluatorStep.take_step(step)) {
+                | None => ()
+                | Some(exp') => loop(n - 1, exp')
+                }
+              };
+            };
+          };
+        loop(500, exp);
+        check(bool, "no failure", true, true);
+      },
+    ),
+    test_case(
+      "Stop filter on fac: persist then refresh_step roundtrip",
+      `Quick,
+      () => {
+        let program = {|
+debug eval($e) in
+let fac : Int -> Int =
+  fun n ->
+    if n < 2 then 1 else n * fac(n - 1)
+in
+debug stop(fac($v)) in
+fac(3)|};
+        let exp = parse_exp(program) |> elaborate;
+        let rec loop = (n, exp) =>
+          if (n <= 0) {
+            ();
+          } else {
+            switch (step_status(exp)) {
+            | AutoStep(step) =>
+              switch (EvaluatorStep.take_step(step)) {
+              | None => ()
+              | Some(exp') => loop(n - 1, exp')
+              }
+            | AvailableSteps(steps) =>
+              List.iter(
+                (step: EvaluatorStep.step) => {
+                  let persistent = EvaluatorStep.persist(step);
+                  switch (
+                    EvaluatorStep.refresh_step(
+                      ~settings=CoreSettings.on,
+                      exp,
+                      Environment.empty,
+                      persistent,
+                    )
+                  ) {
+                  | Some(_) => ()
+                  | None =>
+                    Alcotest.fail("refresh_step returned None after persist")
+                  };
+                  ();
+                },
+                steps,
+              )
+            };
+          };
+        loop(500, exp);
+        check(bool, "no failure", true, true);
+      },
+    ),
+    test_case(
+      "Stop filter on fac: persist each step and take manual steps",
+      `Quick,
+      () => {
+        let program = {|
+debug eval($e) in
+let fac : Int -> Int =
+  fun n ->
+    if n < 2 then 1 else n * fac(n - 1)
+in
+debug stop(fac($v)) in
+fac(3)|};
+        let exp = parse_exp(program) |> elaborate;
+        let rec loop = (n, exp) =>
+          if (n <= 0) {
+            ();
+          } else {
+            switch (step_status(exp)) {
+            | AutoStep(step) =>
+              let _ = EvaluatorStep.persist(step);
+              switch (EvaluatorStep.take_step(step)) {
+              | None => ()
+              | Some(exp') => loop(n - 1, exp')
+              };
+            | AvailableSteps(steps) =>
+              List.iter(
+                (step: EvaluatorStep.step) => {
+                  let _ = EvaluatorStep.persist(step);
+                  ();
+                },
+                steps,
+              );
+              // Simulate user clicking the first available step.
+              switch (steps) {
+              | [] => ()
+              | [step, ..._] =>
+                switch (EvaluatorStep.take_step(step)) {
+                | None => ()
+                | Some(exp') => loop(n - 1, exp')
+                }
+              };
+            };
+          };
+        loop(500, exp);
+        check(bool, "no failure during manual stepping", true, true);
+      },
+    ),
     test_case(
       "Simple arithmetic",
       `Quick,

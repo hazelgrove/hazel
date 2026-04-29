@@ -60,6 +60,18 @@ type let_examples =
   | Ap;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type filter_action_examples =
+  | Step
+  | Eval
+  | Hide
+  | Stop;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type filter_selector_examples =
+  | Exp
+  | Val;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type numeric_bin_op_examples =
   | Plus
   | Minus
@@ -137,11 +149,8 @@ type example_id =
   | CaseBool
   | VoidAbsurd
   | Pipeline1
-  | FilterStep
-  | FilterEval
-  | FilterHide
-  | FilterDebug
-  | FilterSelector
+  | Filter(filter_action_examples)
+  | FilterSelector(filter_selector_examples)
   | Undefined1
   | Undefined2
   | Asc1
@@ -291,11 +300,9 @@ type form_id =
   | MultiHoleTPat
   | VarTPat
   | PipelineExp
-  | FilterPause
-  | FilterEval
-  | FilterDebug
-  | FilterHide
-  | FilterSelector
+  | FilterExp(Language.FilterAction.t)
+  | FilterAction
+  | FilterSelector(Language.FilterSelector.t)
   | AscExp
   | TupleExtensionExp
   | ModuleExp

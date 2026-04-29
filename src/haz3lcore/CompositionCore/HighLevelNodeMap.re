@@ -105,7 +105,9 @@ module Utils = {
     | Forall(_, _)
     | Projector(_, _)
     | Var(_)
-    | Module(_) => []
+    | Module(_)
+    | FilterAction(_)
+    | FilterSelector(_) => []
     | ModuleExp(_, def, body) => [def, body]
     | DrvQuote(_) => []
     };

@@ -117,6 +117,7 @@ let rows_of: family => list(row) =
   | Divide => [mk_infix(Exp, P.mult)]
   | Equals => [mk_infix(Exp, P.eqs), mk_infix(Drv(Exp), P.eqs)]
   | StringConcat => [mk_infix(Exp, P.concat)]
+  | StringEquals => [mk_infix(Exp, P.eqs)]
   | Lt => [mk_infix(Exp, P.eqs), mk_infix(Drv(Exp), P.eqs)]
   | Gt => [mk_infix(Exp, P.eqs), mk_infix(Drv(Exp), P.eqs)]
   | NotEquals => [mk_infix(Exp, P.eqs)]
@@ -247,10 +248,7 @@ let rows_of: family => list(row) =
       ),
     ]
   | Pipeline => [mk_infix(Exp, P.eqs)] // in OCaml, pipeline precedence is in same class as '=', '<', etc.
-  | FilterHide => [mk_pre_c(L, P.let_, Exp, [Exp])]
-  | FilterEval => [mk_pre_c(L, P.let_, Exp, [Exp])]
-  | FilterPause => [mk_pre_c(L, P.let_, Exp, [Exp])]
-  | FilterDebug => [mk_pre_c(L, P.let_, Exp, [Exp])]
+  | Filter => [mk_pre_c(L, P.let_, Exp, [Exp])]
   | Use => [mk_pre_c(L, P.let_, Exp, [Typ])]
   | OfProp => [mk_op_c(L, Exp, [Drv(Exp)])]
   | OfCtx => [mk_op_c(L, Exp, [Drv(Exp)])]
@@ -479,6 +477,7 @@ let is_ambiguous_polymorph: Token.t => bool = {
 let get_atomic_form: atomic_form => (Token.t => bool, list(Mold.t)) =
   fun
   | Var => (Token.is_var, [op(Exp), op(Pat)])
+  | FilterSelector => (Token.is_filter_selector, [op(Exp)])
   | InfixDelimiterPrefix => (
       is_infix_delimiter_op_prefix,
       infix_delimiter_prefix_molds,

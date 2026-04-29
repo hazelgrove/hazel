@@ -792,6 +792,8 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
         ret(Atom(Float(float_of_string(t))));
       | (F(Tok(t)), []) when Token.is_livelit(t) =>
         ret(LivelitName(Token.parse_livelit(t)))
+      | (F(Tok("$e")), []) => ret(FilterSelector(Exp))
+      | (F(Tok("$v")), []) => ret(FilterSelector(Val))
       | (F(Tok(t)), []) when Token.is_var(t) => ret(Var(t))
       | (F(Tok(t)), []) when Token.is_ctr(t) => ret(Constructor(t, None))
       | (F(Compound(ModBody)), [Mod(body)]) =>
@@ -916,38 +918,30 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
           ModuleExp(mp, def, r)
         | (F(Compound(Theorem)), [Pat(pat), Exp(thm)]) =>
           Theorem(pat, thm, r)
-        | (F(Compound(FilterHide)), [Exp(filter)]) =>
-          Filter(
-            Filter({
-              act: (Eval, One),
-              pat: filter,
-            }),
-            r,
-          )
-        | (F(Compound(FilterEval)), [Exp(filter)]) =>
-          Filter(
-            Filter({
-              act: (Eval, All),
-              pat: filter,
-            }),
-            r,
-          )
-        | (F(Compound(FilterPause)), [Exp(filter)]) =>
-          Filter(
-            Filter({
-              act: (Step, One),
-              pat: filter,
-            }),
-            r,
-          )
-        | (F(Compound(FilterDebug)), [Exp(filter)]) =>
-          Filter(
-            Filter({
-              act: (Step, All),
-              pat: filter,
-            }),
-            r,
-          )
+        | (F(Compound(Filter)), [Exp(filter)]) =>
+          switch (filter.term) {
+          | Ap(Forward, {term: Var(name), annotation}, pat) =>
+            switch (FilterAction.t_of_string(name)) {
+            | Some(act) =>
+              Filter(
+                Unresolved({
+                  ...filter,
+                  term:
+                    Ap(
+                      Forward,
+                      {
+                        term: FilterAction(act),
+                        annotation,
+                      },
+                      pat,
+                    ),
+                }),
+                r,
+              )
+            | None => Filter(Unresolved(filter), r)
+            }
+          | _ => Filter(Unresolved(filter), r)
+          }
         | (F(Compound(Use)), [Typ(ty)]) => Use(ty, r)
         | (F(Compound(TypeAlias)), [TPat(tpat), Typ(def)]) =>
           TyAlias(tpat, def, r)

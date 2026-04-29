@@ -37,7 +37,8 @@ type atomic_form =
   | Ctr
   | MPatName
   | Type
-  | InfixDelimiterPrefix;
+  | InfixDelimiterPrefix
+  | FilterSelector;
 
 /* Compound forms, up to sort. A family is an equivalence class of
  * form definitions sharing the same label AND the same outer-nib
@@ -59,6 +60,7 @@ type family =
   | Divide
   | Equals
   | StringConcat
+  | StringEquals
   | Lt
   | Gt
   | NotEquals
@@ -105,10 +107,7 @@ type family =
   | Rec
   | Rule
   | Pipeline
-  | FilterHide
-  | FilterEval
-  | FilterPause
-  | FilterDebug
+  | Filter
   | Use
   | OfProp
   | OfCtx
@@ -176,6 +175,7 @@ let label_of_family: family => Label.t =
   | Divide => ["/"]
   | Equals => ["=="]
   | StringConcat => ["++"]
+  | StringEquals => ["$=="]
   | Lt => ["<"]
   | Gt => [">"]
   | NotEquals => ["!="]
@@ -222,10 +222,7 @@ let label_of_family: family => Label.t =
   | Rec => ["rec", "->"]
   | Rule => ["|", "=>"]
   | Pipeline => ["|>"]
-  | FilterHide => ["hide", "in"]
-  | FilterEval => ["eval", "in"]
-  | FilterPause => ["pause", "in"]
-  | FilterDebug => ["debug", "in"]
+  | Filter => ["debug", "in"]
   | Use => ["use", "in"]
   | OfProp => ["of_prop", "end"]
   | OfCtx => ["of_ctx", "end"]

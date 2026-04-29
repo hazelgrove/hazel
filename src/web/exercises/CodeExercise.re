@@ -521,13 +521,10 @@ let wrap_filter =
       Filter({
         act: Language.FilterAction.(act, One),
         pat: {
-          term:
-            Constructor(
-              "$e",
-              Some(Some(Unknown(Internal) |> Language.Typ.fresh)),
-            ),
+          term: FilterSelector(Exp),
           annotation: Language.IdTagged.IdTag.fresh(),
         },
+        ids: Language.IdTagged.IdTag.fresh(),
       }),
       term,
     ),
