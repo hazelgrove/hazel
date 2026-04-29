@@ -172,13 +172,23 @@ let view =
     List.concat_map(
       fun
       | Piece.Tile(t) => {
+          /* Iterate shards/children LEFT-TO-RIGHT. Aba.join evaluates
+             side effects right-to-left (it uses fold_right2 internally),
+             which means the recursive of_segment calls — which consume
+             DeferredLinebreaks at any internal newline — fire in
+             reverse order. That misroutes the deferred linebreaks for
+             a refractor probe far past the probed term. fold_left here
+             matches Measured.re's order so the extras fire at the right
+             newline. */
           let body =
-            Aba.mk(t.shards, t.children)
-            |> Aba.join(i => [of_delim(t, i)], of_segment)
-            |> List.concat;
+            Aba.fold_left(
+              a => [of_delim(t, a)],
+              (acc, b, a) => acc @ of_segment(b) @ [of_delim(t, a)],
+              Aba.mk(t.shards, t.children),
+            );
           /* Queue deferred linebreaks AFTER the tile's contents so the
-             extras fire on the line where the probe sample anchors (the
-             tile's last line), not on its first. Mirrors Measured.re. */
+             extras fire on the line where the probe sample anchors
+             (the tile's last line), not on its first. Mirrors Measured.re. */
           switch (Id.Map.find_opt(t.id, refractor_shape_map)) {
           | Some(num_lb) when num_lb > 0 =>
             DeferredLinebreaks.update(num_lb) |> ignore;
