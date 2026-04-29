@@ -74,15 +74,15 @@ let rec result_of_arrow = (ty: Typ.t): Typ.t =>
   };
 
 /* Extract a left-to-right type-application spine from a type. Handles
-   both the new multi-arg form `TypApp(T, TypTuple([a, b]))` and the
-   curried-by-elaboration form `TypApp(TypApp(T, a), b)` (which can
+   both the new multi-arg form `TypParamAp(T, TypTuple([a, b]))` and the
+   curried-by-elaboration form `TypParamAp(TypParamAp(T, a), b)` (which can
    still appear in some constructor schemas). For the new form the
    spine is the TypTuple's contents in order. */
-let type_app_spine = (ty: Typ.t): list(Typ.t) => {
+let typ_param_ap_spine = (ty: Typ.t): list(Typ.t) => {
   let rec go = (ty: Typ.t, acc) =>
     switch (ty.term) {
-    | TypApp(fn, {term: TypTuple(args), _}) => go(fn, args @ acc)
-    | TypApp(fn, arg) => go(fn, [arg, ...acc])
+    | TypParamAp(fn, {term: TypTuple(args), _}) => go(fn, args @ acc)
+    | TypParamAp(fn, arg) => go(fn, [arg, ...acc])
     | _ => acc
     };
   go(ty, []);
@@ -106,7 +106,7 @@ let schema_arity = (ty: Typ.t): int => {
    `Cons(0, Nil) : List(Int)`  →  `TypAp(Cons, TypTuple([Int]))` (1 arg
    case keeps a bare single arg for cleaner display) and
    `A(3) : Either(Int, Bool)` →  `TypAp(A, TypTuple([Int, Bool]))`. */
-let wrap_type_apps = (ctor: Exp.t, args: list(Typ.t)): Exp.t =>
+let wrap_typ_param_aps = (ctor: Exp.t, args: list(Typ.t)): Exp.t =>
   switch (args) {
   | [] => ctor
   | [arg] => TypAp(ctor, arg) |> Exp.fresh
@@ -116,7 +116,7 @@ let wrap_type_apps = (ctor: Exp.t, args: list(Typ.t)): Exp.t =>
 /* Resolve surface wrappers and `Type`-kinded aliases without unrolling
    `Rec` or unfolding type-constructor aliases. Used by constructor
    instantiation to read the user-visible type-application spine. Unlike
-   `Typ.normalize`, this preserves `TypApp(Var("List"), Int)` so we can
+   `Typ.normalize`, this preserves `TypParamAp(Var("List"), Int)` so we can
    pick out `[Int]` as the argument, while still letting aliases such as
    `type IntList = List(Int)` reduce to the same spine. */
 let rec surface_resolve = (ctx: Ctx.t, ty: Typ.t): Typ.t =>
@@ -153,7 +153,7 @@ let instantiation_args_for =
   | Some({typ, _}) when schema_arity(typ) > 0 =>
     let arity = schema_arity(typ);
     let target = result_of_arrow_surface(ctx, ana);
-    let args = type_app_spine(target);
+    let args = typ_param_ap_spine(target);
     /* Only wrap when the spine length matches the schema arity so we don't
        emit partial specializations that would fail re-statics. */
     List.length(args) == arity ? args : [];

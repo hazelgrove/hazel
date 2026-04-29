@@ -265,8 +265,8 @@ let core_mark_err_view =
     | ExpectedConstructor
     | TypFreeTypeVariable(_)
     | TypKindMismatch(_)
-    | TypApplyNonArrowKind(_)
-    | TypApplyArityMismatch(_)
+    | TypParamApplyNonArrowKind(_)
+    | TypParamApplyArityMismatch(_)
     | TypDuplicateConstructor(_)
     | TypDuplicateLabels(_, _)
     | TypWantTypeFoundAp
@@ -523,11 +523,11 @@ let typ_mark_err_view = (~globals, m: Mark.t) => {
       text(", found "),
       code(TypKind.to_string(actual)),
     ]
-  | TypApplyNonArrowKind(kind) => [
+  | TypParamApplyNonArrowKind(kind) => [
       text("Cannot apply a type of kind "),
       code(TypKind.to_string(kind)),
     ]
-  | TypApplyArityMismatch({callee, expected, actual, _}) => [
+  | TypParamApplyArityMismatch({callee, expected, actual, _}) => [
       code(Typ.pretty_print(callee)),
       text(" expects "),
       code(string_of_int(expected)),
@@ -757,8 +757,8 @@ let exp_mark_err_view =
     ])
   | TypFreeTypeVariable(_)
   | TypKindMismatch(_)
-  | TypApplyNonArrowKind(_)
-  | TypApplyArityMismatch(_)
+  | TypParamApplyNonArrowKind(_)
+  | TypParamApplyArityMismatch(_)
   | TypDuplicateConstructor(_)
   | TypDuplicateLabels(_, _)
   | TypWantTypeFoundAp

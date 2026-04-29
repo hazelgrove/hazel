@@ -160,7 +160,7 @@ let sample_type = (cls_typ: Typ.cls): Grammar.UnitGrammar.typ => {
       | List => list(unknown(Hole(EmptyHole)))
       | Arrow => arrow(unknown(Hole(EmptyHole)), unknown(Hole(EmptyHole)))
       | TypLam => typ_lam(TPat.var("x"), unknown(Hole(EmptyHole)))
-      | TypApp => typ_app(var("F"), unknown(Hole(EmptyHole)))
+      | TypParamAp => typ_param_ap(var("F"), unknown(Hole(EmptyHole)))
       | TypTuple =>
         typ_tuple([
           unknown(Hole(EmptyHole)),

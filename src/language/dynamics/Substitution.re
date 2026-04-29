@@ -212,7 +212,7 @@ and in_typ = (env: Environment.t(Exp.t), typ: Typ.t) =>
         | List(_)
         | Arrow(_, _)
         | TypLam(_, _)
-        | TypApp(_, _)
+        | TypParamAp(_, _)
         | TypTuple(_)
         | Sum(_)
         | Prod(_)

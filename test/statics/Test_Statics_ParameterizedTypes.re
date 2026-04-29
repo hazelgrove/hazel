@@ -426,7 +426,7 @@ let x : IntOption = Some(3) in x
           bool,
           "apply non-arrow kind",
           true,
-          has_mark(Mark.TypApplyNonArrowKind(TypKind.Type), marks),
+          has_mark(Mark.TypParamApplyNonArrowKind(TypKind.Type), marks),
         );
       },
     ),
@@ -465,7 +465,7 @@ let x : Either(Int) = A(3) in x
           true,
           List.exists(
             fun
-            | Mark.TypApplyArityMismatch({expected: 2, actual: 1, _}) => true
+            | Mark.TypParamApplyArityMismatch({expected: 2, actual: 1, _}) => true
             | _ => false,
             marks,
           ),
@@ -493,7 +493,7 @@ let x : Either((Int, Bool)) = A(0) in x
           true,
           List.exists(
             fun
-            | Mark.TypApplyArityMismatch({expected: 2, actual: 1, _}) => true
+            | Mark.TypParamApplyArityMismatch({expected: 2, actual: 1, _}) => true
             | _ => false,
             marks,
           ),
@@ -527,7 +527,7 @@ let x : List(Int, Bool) = ? in x
         let arity_marks =
           List.filter(
             fun
-            | Mark.TypApplyArityMismatch(_) => true
+            | Mark.TypParamApplyArityMismatch(_) => true
             | _ => false,
             marks,
           );

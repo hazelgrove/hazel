@@ -83,8 +83,8 @@ type t =
       expected: TypKind.t,
       actual: TypKind.t,
     })
-  | TypApplyNonArrowKind(TypKind.t)
-  | TypApplyArityMismatch({
+  | TypParamApplyNonArrowKind(TypKind.t)
+  | TypParamApplyArityMismatch({
       callee: Typ.t,
       callee_kind: TypKind.t,
       expected: int,

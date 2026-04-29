@@ -112,7 +112,7 @@ let rec equal_mark: (Mark.t, Mark.t) => bool =
         TypKindMismatch({expected: e2, actual: a2}),
       ) =>
       TypKind.equal(e1, e2) && TypKind.equal(a1, a2)
-    | (TypApplyNonArrowKind(a), TypApplyNonArrowKind(b)) =>
+    | (TypParamApplyNonArrowKind(a), TypParamApplyNonArrowKind(b)) =>
       TypKind.equal(a, b)
     | (TypDuplicateConstructor(c1), TypDuplicateConstructor(c2)) =>
       Constructor.equal(c1, c2)

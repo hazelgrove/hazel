@@ -498,7 +498,7 @@ let tests = (
           true,
           List.exists(
             mark =>
-              equal_mark(mark, Mark.TypApplyNonArrowKind(TypKind.Type)),
+              equal_mark(mark, Mark.TypParamApplyNonArrowKind(TypKind.Type)),
             marks,
           ),
         );

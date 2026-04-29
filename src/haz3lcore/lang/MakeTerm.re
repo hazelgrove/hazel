@@ -272,7 +272,7 @@ let parse_sum_term: Typ.t => ConstructorMap.variant(Typ.t) =
     )
   | {
       term:
-        TypApp(
+        TypParamAp(
           {
             term: Var(ctr),
             annotation: {ids: ids_ctr, secondary: (inner_before, _)},
@@ -283,7 +283,7 @@ let parse_sum_term: Typ.t => ConstructorMap.variant(Typ.t) =
     } => {
       /* `Cons(a, b)` in a sum-type position is a *constructor variant* with
          a tuple payload, not a type-level multi-argument application. The
-         outer parser produces `TypApp(Cons, TypTuple([a, b]))` because the
+         outer parser produces `TypParamAp(Cons, TypTuple([a, b]))` because the
          comma-list looked like a multi-arg apply syntactically; here we
          unwrap the TypTuple back to a `Prod` so the payload is a regular
          tuple type. */
@@ -332,11 +332,11 @@ let parse_sum_term: Typ.t => ConstructorMap.variant(Typ.t) =
     )
   | t => BadEntry(t);
 
-let apply_type_args = (fn: Typ.t, arg: Typ.t): Typ.term => {
+let apply_typ_param_args = (fn: Typ.t, arg: Typ.t): Typ.term => {
   /* `T(a, b, …)` is a multi-argument type application: the comma-
      separated list parses as a `Prod`, but the user means
-     `TypApp(T, TypTuple([a, b, …]))` (a single application against
-     `T`'s tuple-arrow kind), not `TypApp(T, Prod([a, b]))` (a
+     `TypParamAp(T, TypTuple([a, b, …]))` (a single application against
+     `T`'s tuple-arrow kind), not `TypParamAp(T, Prod([a, b]))` (a
      single-argument application whose argument happens to be a
      tuple). The latter is reserved for `T((a, b))` (extra parens),
      which produces `Parens(Prod([a, b]))` here. */
@@ -344,8 +344,8 @@ let apply_type_args = (fn: Typ.t, arg: Typ.t): Typ.term => {
   | Prod(ts) =>
     /* Reuse the original Prod's IDs/secondary on the new TypTuple node
        so the structured editor's tile mappings stay aligned. */
-    TypApp(fn, {term: TypTuple(ts), annotation: arg.annotation})
-  | _ => TypApp(fn, arg)
+    TypParamAp(fn, {term: TypTuple(ts), annotation: arg.annotation})
+  | _ => TypParamAp(fn, arg)
   };
 };
 
@@ -1209,7 +1209,7 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
   | Post(Typ(t), tiles) as tm =>
     switch (tiles) {
     | ([(_id, (["(", ")"], [Typ(arg)]))], []) =>
-      ret(apply_type_args(t, arg))
+      ret(apply_typ_param_args(t, arg))
     | _ => ret(hole(tm))
     }
   /* poly and rec have to be before sum so that they bind tighter.

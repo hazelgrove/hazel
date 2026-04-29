@@ -205,7 +205,7 @@ let normalize_tests = (
       () => {
         let ctx = Builtins.ctx_init(None);
         let ty =
-          typ_app(typ_lam(Var("a") |> TPat.temp, list(var("a"))), int());
+          typ_param_ap(typ_lam(Var("a") |> TPat.temp, list(var("a"))), int());
         check(
           typ,
           "beta-normalized type application",
@@ -242,7 +242,7 @@ let normalize_tests = (
             ~typ_kind=TypKind.of_param_count(1),
             option_ty,
           );
-        let normalized = Typ.normalize(ctx, typ_app(var("Option"), int()));
+        let normalized = Typ.normalize(ctx, typ_param_ap(var("Option"), int()));
         check(
           typ,
           "instantiated option",
@@ -264,7 +264,7 @@ let normalize_tests = (
       () => {
         let list_name = "List";
         let param = Var("a") |> TPat.temp;
-        let recursive_list_a = typ_app(var(list_name), var("a"));
+        let recursive_list_a = typ_param_ap(var(list_name), var("a"));
         let list_body =
           typ_lam(
             param,
@@ -292,7 +292,7 @@ let normalize_tests = (
             list_ty,
           );
         let constructors =
-          Typ.get_sum_constructors(ctx, typ_app(var(list_name), int()));
+          Typ.get_sum_constructors(ctx, typ_param_ap(var(list_name), int()));
         check(
           Alcotest.bool,
           "recursive list constructors found",

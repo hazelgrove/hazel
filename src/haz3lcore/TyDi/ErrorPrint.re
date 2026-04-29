@@ -157,8 +157,8 @@ let exp_mark_to_string = (ctx: Ctx.t, ana: Typ.t, m: Mark.t): string => {
     }
   | TypFreeTypeVariable(_)
   | TypKindMismatch(_)
-  | TypApplyNonArrowKind(_)
-  | TypApplyArityMismatch(_)
+  | TypParamApplyNonArrowKind(_)
+  | TypParamApplyArityMismatch(_)
   | TypDuplicateConstructor(_)
   | TypDuplicateLabels(_, _)
   | TypWantTypeFoundAp

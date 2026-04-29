@@ -24,7 +24,7 @@ type cls =
   | Rec
   | Poly
   | TypLam
-  | TypApp
+  | TypParamAp
   | TypTuple
   | ProofOf
   | ProdProjection
@@ -101,7 +101,7 @@ let cls_of_term: Grammar.typ_term('a) => cls =
   | Rec(_) => Rec
   | Poly(_) => Poly
   | TypLam(_) => TypLam
-  | TypApp(_) => TypApp
+  | TypParamAp(_) => TypParamAp
   | TypTuple(_) => TypTuple
   | ProofOf(_) => ProofOf
   | ProdProjection(_) => ProdProjection
@@ -131,8 +131,8 @@ let show_cls: cls => string =
   | Rec => "Recursive type"
   | Poly => "Type quantifier"
   | TypLam => "Type-level function"
-  | TypApp => "Type-level application"
-  | TypTuple => "Type-application argument tuple"
+  | TypParamAp => "Type parameter application"
+  | TypTuple => "Type parameter argument tuple"
   | ProofOf => "Proof type"
   | ProdProjection => "Tuple projection"
   | ProdExtension => "Tuple extension"
@@ -153,7 +153,7 @@ let rec is_arrow = (typ: t) => {
   | Prod(_)
   | Var(_)
   | TypLam(_)
-  | TypApp(_)
+  | TypParamAp(_)
   | TypTuple(_)
   | Sum(_)
   | Poly(_)
@@ -183,7 +183,7 @@ let is_atom = (ty: t): bool =>
   | Sum(_)
   | Poly(_)
   | TypLam(_)
-  | TypApp(_)
+  | TypParamAp(_)
   | TypTuple(_)
   | Rec(_)
   | ProdProjection(_)
@@ -207,7 +207,7 @@ let rec has_fun = (typ: t) =>
   | Label(_)
   | ExplicitNonlabel
   | Var(_) => false
-  | TypApp(t1, t2) => has_fun(t1) || has_fun(t2)
+  | TypParamAp(t1, t2) => has_fun(t1) || has_fun(t2)
   | TypTuple(ts) => List.exists(has_fun, ts)
   | List(t) => has_fun(t)
   | Rec(_, t) => has_fun(t)
@@ -241,7 +241,7 @@ let rec is_poly = (typ: t) => {
   | Var(_)
   | Sum(_)
   | TypLam(_)
-  | TypApp(_)
+  | TypParamAp(_)
   | TypTuple(_)
   | Rec(_)
   | ProdProjection(_)
@@ -317,7 +317,7 @@ let rec free_vars = (~bound=[], ty: t): list(Var.t) =>
   | Label(_)
   | ExplicitNonlabel => []
   | Var(v) => List.mem(v, bound) ? [] : [v]
-  | TypApp(t1, t2) => free_vars(~bound, t1) @ free_vars(~bound, t2)
+  | TypParamAp(t1, t2) => free_vars(~bound, t1) @ free_vars(~bound, t2)
   | TypTuple(ts) => List.concat_map(free_vars(~bound), ts)
   | Parens(ty)
   | Projector(_, ty) => free_vars(~bound, ty)
@@ -342,7 +342,7 @@ let rec vars = (ty: t): list(Var.t) =>
   | DrvQuoteTy(_) => []
   | Unknown(_) => []
   | Var(x) => [x]
-  | TypApp(ty1, ty2) => vars(ty1) @ vars(ty2)
+  | TypParamAp(ty1, ty2) => vars(ty1) @ vars(ty2)
   | TypTuple(ts) => List.concat_map(vars, ts)
   | Arrow(ty1, ty2) => vars(ty1) @ vars(ty2)
   | Prod(tys) => List.concat_map(vars, tys)
@@ -406,7 +406,7 @@ let rec num_nodes = (ty: t): int => {
   | DrvQuoteTy(_)
   | Unknown(_) => 1
   | Var(_) => 1
-  | TypApp(t1, t2) => 1 + num_nodes(t1) + num_nodes(t2)
+  | TypParamAp(t1, t2) => 1 + num_nodes(t1) + num_nodes(t2)
   | TypTuple(ts) =>
     1 + List.fold_left((acc, ty) => acc + num_nodes(ty), 0, ts)
   | Arrow(t1, t2) => 1 + num_nodes(t1) + num_nodes(t2)
@@ -447,7 +447,7 @@ let rec count_unknowns = (ty: t): int =>
   | Atom(_)
   | DrvQuoteTy(_)
   | Var(_) => 0
-  | TypApp(t1, t2) => count_unknowns(t1) + count_unknowns(t2)
+  | TypParamAp(t1, t2) => count_unknowns(t1) + count_unknowns(t2)
   | TypTuple(ts) =>
     List.fold_left((acc, ty) => acc + count_unknowns(ty), 0, ts)
   | Arrow(t1, t2) => count_unknowns(t1) + count_unknowns(t2)
@@ -485,7 +485,7 @@ let rec contains_sum_or_var = (ty: t): bool =>
   | DrvQuoteTy(_)
   | Unknown(_) => false
   | Var(_)
-  | TypApp(_, _)
+  | TypParamAp(_, _)
   | Sum(_) => true
   | TypTuple(ts) => List.exists(contains_sum_or_var, ts)
   | Arrow(t1, t2) => contains_sum_or_var(t1) || contains_sum_or_var(t2)
@@ -534,8 +534,8 @@ let rec subst = (s: t, x: TPat.t, ty: t): t => {
     | Unknown(prov) => Unknown(prov) |> rewrap
     | Arrow(ty1, ty2) =>
       Arrow(subst(s, x, ty1), subst(s, x, ty2)) |> rewrap
-    | TypApp(ty1, ty2) =>
-      TypApp(subst(s, x, ty1), subst(s, x, ty2)) |> rewrap
+    | TypParamAp(ty1, ty2) =>
+      TypParamAp(subst(s, x, ty1), subst(s, x, ty2)) |> rewrap
     | TypTuple(ts) => TypTuple(List.map(subst(s, x), ts)) |> rewrap
     | Prod(tys) => Prod(List.map(subst(s, x), tys)) |> rewrap
     | TupLabel(label, ty) => TupLabel(label, subst(s, x, ty)) |> rewrap
@@ -583,10 +583,10 @@ let unroll = (ty: t): t =>
 
    - For `Rec(name, body)` (kind `*` — body has no top-level `TypLam`):
      standard unfold `body[Rec/name]`, same as `unroll`.
-   - For `TypApp(Rec(name, TypLam(p, body)), arg)` (kind `*` —
+   - For `TypParamAp(Rec(name, TypLam(p, body)), arg)` (kind `*` —
      instantiation of a higher-kinded recursive family): substitute the
      whole `Rec` for `Var(name)` in the `TypLam` body, then β-reduce with
-     `arg`. The result has `TypApp(Rec(name, TypLam(...)), …)` self-
+     `arg`. The result has `TypParamAp(Rec(name, TypLam(...)), …)` self-
      references at the same `Rec` (with possibly different arguments),
      which is the canonical encoding of the recursive family's
      specializations.
@@ -595,7 +595,7 @@ let unroll = (ty: t): t =>
    uniform recursion where the recursive type cannot be expressed as a
    finite kind-`*` `Rec(...)`. */
 /* Apply a list of arguments one at a time to a curried `TypLam` chain.
-   Used by `unfold_one` and TypApp reduction when the argument is a
+   Used by `unfold_one` and TypParamAp reduction when the argument is a
    `TypTuple` bundling multiple args for a single source-level
    application like `Either(Int, Bool)`. */
 let rec apply_args = (fn: t, args: list(t)): t =>
@@ -607,8 +607,8 @@ let rec apply_args = (fn: t, args: list(t)): t =>
     | _ =>
       /* Out of TypLams to peel; preserve the residual application. */
       switch (rest) {
-      | [] => TypApp(fn, arg) |> temp
-      | _ => TypApp(fn, TypTuple([arg, ...rest]) |> temp) |> temp
+      | [] => TypParamAp(fn, arg) |> temp
+      | _ => TypParamAp(fn, TypTuple([arg, ...rest]) |> temp) |> temp
       }
     }
   };
@@ -616,7 +616,7 @@ let rec apply_args = (fn: t, args: list(t)): t =>
 let unfold_one = (ty: t): t =>
   switch (term_of(ty)) {
   | Rec(tp, body) => subst(ty, tp, body)
-  | TypApp(fn, arg) =>
+  | TypParamAp(fn, arg) =>
     switch (term_of(fn)) {
     | Rec(tp, body) =>
       let unrolled = subst(fn, tp, body);
@@ -625,7 +625,7 @@ let unfold_one = (ty: t): t =>
       | _ =>
         switch (term_of(unrolled)) {
         | TypLam(p, inner) => subst(arg, p, inner)
-        | _ => TypApp(unrolled, arg) |> temp
+        | _ => TypParamAp(unrolled, arg) |> temp
         }
       };
     | _ => ty
@@ -717,7 +717,7 @@ let rec weak_head_normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
     | Some(ty) => weak_head_normalize(~rec_counter=rec_counter + 1, ctx, ty)
     | None => ty
     }
-  | TypApp(fn, arg) =>
+  | TypParamAp(fn, arg) =>
     let (_, rewrap) = unwrap(ty);
     let fn_whnf = weak_head_normalize(~rec_counter=rec_counter + 1, ctx, fn);
     switch (fn_whnf.term, term_of(arg)) {
@@ -732,7 +732,7 @@ let rec weak_head_normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
         weak_head_normalize(
           ~rec_counter=rec_counter + 1,
           ctx,
-          TypApp(body', TypTuple(rest) |> temp) |> rewrap,
+          TypParamAp(body', TypTuple(rest) |> temp) |> rewrap,
         )
       };
     | (TypLam(param, body), TypTuple([])) =>
@@ -747,16 +747,16 @@ let rec weak_head_normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
         subst(arg, param, body),
       )
     | (Rec(_), _) =>
-      /* `TypApp(Rec(name, body), arg)` is the canonical normal form for a
+      /* `TypParamAp(Rec(name, body), arg)` is the canonical normal form for a
          higher-kinded recursive family applied at `arg`
          (i.e. `(μX:* → *. body)(arg)`). We do *not* push the application
          inside the `Rec` and β-reduce — doing so would expose the body's
-         self-references `TypApp(Var(name), …)` to a binder that no longer
+         self-references `TypParamAp(Var(name), …)` to a binder that no longer
          wraps a `TypLam`, leaving them structurally ill-formed (see
          `Typ.unfold_one` for the one-step unrolling used by callers that
          need to peer inside, like `get_sum_constructors`). */
-      TypApp(fn_whnf, arg) |> rewrap
-    | (fn', _) => TypApp(fn' |> temp, arg) |> rewrap
+      TypParamAp(fn_whnf, arg) |> rewrap
+    | (fn', _) => TypParamAp(fn' |> temp, arg) |> rewrap
     };
   | TupLabel({term: ExplicitNonlabel, _}, ty) =>
     weak_head_normalize(~rec_counter=rec_counter + 1, ctx, ty)
@@ -818,11 +818,11 @@ let rec normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
   | Parens(t)
   | Projector(_, t) => normalize(ctx, t)
   | List(t) => List(normalize(ctx, t)) |> rewrap
-  | TypApp(t1, t2) =>
+  | TypParamAp(t1, t2) =>
     let arg_normalized = normalize(ctx, t2);
     switch (weak_head_normalize(ctx, ty).term) {
-    | TypApp({term: Rec(_), _} as fn_whnf, _) =>
-      /* `TypApp(Rec(name, TypLam(p, body)), arg)` is the canonical
+    | TypParamAp({term: Rec(_), _} as fn_whnf, _) =>
+      /* `TypParamAp(Rec(name, TypLam(p, body)), arg)` is the canonical
          normal form for a higher-kinded recursive family applied at
          `arg`. Don't unfold it — that would expand infinitely for
          non-uniform recursion (and produce ill-formed types if the
@@ -830,8 +830,8 @@ let rec normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
          body is left in its original (typically `TypLam`-wrapped) form
          so that `unfold_one` can correctly substitute the recursive
          family for self-references when callers need to peer inside. */
-      TypApp(fn_whnf, arg_normalized) |> rewrap
-    | TypApp(_, _) => TypApp(normalize(ctx, t1), arg_normalized) |> rewrap
+      TypParamAp(fn_whnf, arg_normalized) |> rewrap
+    | TypParamAp(_, _) => TypParamAp(normalize(ctx, t1), arg_normalized) |> rewrap
     | _ as whnf => normalize(ctx, whnf |> temp)
     };
   | Arrow(t1, t2) =>
@@ -839,7 +839,7 @@ let rec normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
   | TypTuple(ts) =>
     /* `TypTuple` is the multi-argument bundle in a type-level
        application; normalize each argument independently. It only
-       appears as the second arg of a `TypApp`; its shape is preserved
+       appears as the second arg of a `TypParamAp`; its shape is preserved
        so kind checking can match it against the callee's tuple-arrow
        arity. */
     TypTuple(List.map(normalize(ctx), ts)) |> rewrap
@@ -944,8 +944,8 @@ let rec desugar_sig = (ctx: Ctx.t, ty: t): t => {
   | Projector(_, t) => desugar_sig(ctx, t)
   | Arrow(t1, t2) =>
     Arrow(desugar_sig(ctx, t1), desugar_sig(ctx, t2)) |> rewrap
-  | TypApp(t1, t2) =>
-    TypApp(desugar_sig(ctx, t1), desugar_sig(ctx, t2)) |> rewrap
+  | TypParamAp(t1, t2) =>
+    TypParamAp(desugar_sig(ctx, t1), desugar_sig(ctx, t2)) |> rewrap
   | Prod(ts) => Prod(List.map(desugar_sig(ctx), ts)) |> rewrap
   | List(t) => List(desugar_sig(ctx, t)) |> rewrap
   | TypLam(tp, t) => TypLam(tp, desugar_sig(ctx, t)) |> rewrap
@@ -999,27 +999,27 @@ let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
   | (ProdExtension(_), _) => meet'(weak_head_normalize(ctx, ty1), ty2)
   | (_, ProdExtension(_)) => meet'(ty1, weak_head_normalize(ctx, ty2))
   | (
-      TypApp({term: Rec(_), _} as r1, a1),
-      TypApp({term: Rec(_), _} as r2, a2),
+      TypParamAp({term: Rec(_), _} as r1, a1),
+      TypParamAp({term: Rec(_), _} as r2, a2),
     ) =>
       /* Higher-kinded recursive families: meet structurally. The same
          `Rec` applied at the same argument is the same type; otherwise
          try unfolding both sides one step and re-meeting (this catches
          e.g. `(μX. λa. F)(Int)` ≡ `F[μX/X, Int/a]`). */
       switch (meet'(r1, r2), meet'(a1, a2)) {
-      | (Some(r), Some(a)) => Some(TypApp(r, a) |> temp)
+      | (Some(r), Some(a)) => Some(TypParamAp(r, a) |> temp)
       | _ => meet'(unfold_one(ty1), unfold_one(ty2))
       }
-  | (TypApp({term: Rec(_), _}, _), _) =>
+  | (TypParamAp({term: Rec(_), _}, _), _) =>
     let unfolded = unfold_one(ty1);
     Equality.syntactic.typ(unfolded, ty1) ? None : meet'(unfolded, ty2);
-  | (_, TypApp({term: Rec(_), _}, _)) =>
+  | (_, TypParamAp({term: Rec(_), _}, _)) =>
     let unfolded = unfold_one(ty2);
     Equality.syntactic.typ(unfolded, ty2) ? None : meet'(ty1, unfolded);
-  | (TypApp(_), _) =>
+  | (TypParamAp(_), _) =>
     let ty1_whnf = weak_head_normalize(ctx, ty1);
     Equality.syntactic.typ(ty1_whnf, ty1) ? None : meet'(ty1_whnf, ty2);
-  | (_, TypApp(_)) =>
+  | (_, TypParamAp(_)) =>
     let ty2_whnf = weak_head_normalize(ctx, ty2);
     Equality.syntactic.typ(ty2_whnf, ty2) ? None : meet'(ty1, ty2_whnf);
   | (TypLam(x1, ty1), TypLam(x2, ty2)) =>
@@ -1156,9 +1156,9 @@ let rec match_synswitch = (t1: t, t2: t) => {
   // These might
   | (List(ty1), List(ty2)) => List(match_synswitch(ty1, ty2)) |> rewrap1
   | (List(_), _) => t1
-  | (TypApp(t1a, t1b), TypApp(t2a, t2b)) =>
-    TypApp(match_synswitch(t1a, t2a), match_synswitch(t1b, t2b)) |> rewrap1
-  | (TypApp(_), _) => t1
+  | (TypParamAp(t1a, t1b), TypParamAp(t2a, t2b)) =>
+    TypParamAp(match_synswitch(t1a, t2a), match_synswitch(t1b, t2b)) |> rewrap1
+  | (TypParamAp(_), _) => t1
   | (TypTuple(ts1), TypTuple(ts2))
       when List.length(ts1) == List.length(ts2) =>
     TypTuple(List.map2(match_synswitch, ts1, ts2)) |> rewrap1
@@ -1228,11 +1228,11 @@ let rec get_sum_constructors =
     | Parens(ty) =>
       get_sum_constructors(~rec_counter=rec_counter + 1, ctx, ty)
     | Sum(sm) => Some(sm)
-    | TypApp({term: Rec(_), _}, _) =>
+    | TypParamAp({term: Rec(_), _}, _) =>
       /* Higher-kinded recursive family applied at an argument; unfold one
-         step and recurse. The unfolded result has `TypApp(Rec, …)` self-
+         step and recurse. The unfolded result has `TypParamAp(Rec, …)` self-
          references at the (possibly different) recursive arguments,
-         which `get_sum_constructors` would handle as another `TypApp(Rec, _)`
+         which `get_sum_constructors` would handle as another `TypParamAp(Rec, _)`
          if recursed into. */
       get_sum_constructors(~rec_counter=rec_counter + 1, ctx, unfold_one(ty))
     | Rec({term: Var(x), _}, ty_body) =>
@@ -1267,7 +1267,7 @@ let rec is_syn = (ty: t): bool =>
   | Rec(_)
   | Poly(_)
   | TypLam(_)
-  | TypApp(_)
+  | TypParamAp(_)
   | TypTuple(_)
   | ProofOf(_)
   | List(_)
@@ -1294,7 +1294,7 @@ let rec is_ana_atom = (ty: t) =>
   | Rec(_)
   | Poly(_)
   | TypLam(_)
-  | TypApp(_)
+  | TypParamAp(_)
   | TypTuple(_)
   | ProofOf(_)
   | List(_)
@@ -1323,7 +1323,7 @@ let rec is_syn_plus = (ty: t): bool =>
   | Label(_)
   | Var(_)
   | Rec(_)
-  | TypApp(_)
+  | TypParamAp(_)
   | TypTuple(_)
   | List(_)
   | Prod(_)
@@ -1362,9 +1362,9 @@ let rec needs_parens = (ty: t): bool =>
   | Rec(_, _)
   | Poly(_, _)
   | TypLam(_, _)
-  | TypApp(_, _)
+  | TypParamAp(_, _)
   | TypTuple(_) /* TypTuple is the bare argument bundle in `T(a, b)`; if
-                   it ever appears outside a TypApp position we wrap so
+                   it ever appears outside a TypParamAp position we wrap so
                    downstream readers don't conflate it with a tuple. */
   | Arrow(_, _)
   | Prod(_)
@@ -1401,7 +1401,7 @@ let rec pretty_print = (ty: t): string =>
   | Var(tvar) => tvar
   | TypLam(tv, t) =>
     "typfun " ++ pretty_print_tvar(tv) ++ " -> " ++ pretty_print(t)
-  | TypApp(t1, t2) => pretty_print(t1) ++ "(" ++ pretty_print(t2) ++ ")"
+  | TypParamAp(t1, t2) => pretty_print(t1) ++ "(" ++ pretty_print(t2) ++ ")"
   | TypTuple(ts) => String.concat(", ", List.map(pretty_print, ts))
   | List(t) => "[" ++ pretty_print(t) ++ "]"
   | Arrow(t1, t2) => paren_pretty_print(t1) ++ " -> " ++ pretty_print(t2)

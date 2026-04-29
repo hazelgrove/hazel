@@ -469,7 +469,7 @@ and Typ: {
       tup_label(of_menhir_ast(t1), of_menhir_ast(t2))
     | ArrayType(t) => list(of_menhir_ast(t))
     | ArrowType(t1, t2) => arrow(of_menhir_ast(t1), of_menhir_ast(t2))
-    | TypApp(t1, t2) => typ_app(of_menhir_ast(t1), of_menhir_ast(t2))
+    | TypParamAp(t1, t2) => typ_param_ap(of_menhir_ast(t1), of_menhir_ast(t2))
     | TypTuple(ts) => typ_tuple(List.map(of_menhir_ast, ts))
     | ProdProjection(t1, t2) =>
       prod_projection(of_menhir_ast(t1), of_menhir_ast(t2))
@@ -530,7 +530,7 @@ and Typ: {
     | Arrow(t1, t2) => ArrowType(of_core(t1), of_core(t2))
     | TypLam(_, _) =>
       raise(Failure("TypLam not supported in Menhir syntax"))
-    | TypApp(t1, t2) => TypApp(of_core(t1), of_core(t2))
+    | TypParamAp(t1, t2) => TypParamAp(of_core(t1), of_core(t2))
     /* `TypTuple` is the multi-argument bundle in a type-level
        application like `Either(a, b)`; round-trip it as the matching
        Menhir AST node. */

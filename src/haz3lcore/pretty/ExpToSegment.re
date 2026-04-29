@@ -207,7 +207,7 @@ let external_precedence_typ = (tp: Typ.t) =>
   | TupLabel(_) => Precedence.max
   | ProdProjection(_) => Precedence.dot
   | ProdExtension(_) => Precedence.ap
-  | TypApp(_) => Precedence.type_sum_ap
+  | TypParamAp(_) => Precedence.type_sum_ap
   | TypTuple(_) => Precedence.comma
   // Same goes for forms which are already surrounded
   | Parens(_)
@@ -801,8 +801,8 @@ and parenthesize_typ =
       parenthesize_typ(t) |> paren_typ_assoc_at(Precedence.type_binder),
     )
     |> rewrap
-  | TypApp(t1, t2) =>
-    TypApp(
+  | TypParamAp(t1, t2) =>
+    TypParamAp(
       parenthesize_typ(t1) |> paren_typ_assoc_at(Precedence.type_sum_ap),
       parenthesize_typ(t2) |> paren_typ_at(Precedence.min),
     )
@@ -2796,14 +2796,14 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
     let+ tp = tpat_to_pretty(~settings: Settings.t, tp)
     and+ t = go(t);
     wrap(typ, text_to_pretty(id, Sort.Typ, "typfun") @ tp @ t);
-  | TypApp(t1, t2) =>
+  | TypParamAp(t1, t2) =>
     let id = typ |> Typ.rep_id;
     let+ t1 = go(t1)
     and+ t2 = go(t2);
     wrap(typ, t1 @ [mk_form(ApTyp, id, [t2])]);
   | TypTuple(ts) =>
     /* Render as a comma-separated list (no surrounding parens — the
-       enclosing TypApp's parens carry it). */
+       enclosing TypParamAp's parens carry it). */
     let id = typ |> Typ.rep_id;
     let+ rendered =
       List.fold_left(

@@ -179,7 +179,7 @@ let result_type_for_params = (name: string, params: list(TermBase.TPat.t)) =>
       switch (TermBase.TPat.tyvar_of_utpat(param)) {
       | Some(param_name) =>
         (
-          TypApp(acc, (Var(param_name): TermBase.Typ.term) |> IdTagged.fresh): TermBase.Typ.term
+          TypParamAp(acc, (Var(param_name): TermBase.Typ.term) |> IdTagged.fresh): TermBase.Typ.term
         )
         |> IdTagged.fresh
       | None => acc

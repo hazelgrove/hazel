@@ -93,7 +93,7 @@ type typ =
   | TupleType(list(typ))
   | ArrayType(typ)
   | ArrowType(typ, typ)
-  | TypApp(typ, typ)
+  | TypParamAp(typ, typ)
   | TypTuple(list(typ))
   | TypVar(string)
   | InvalidTyp(string)
@@ -1197,15 +1197,15 @@ and shrink_typ: QCheck.Shrink.t(typ) =
             let* shrunk2 = shrink_typ(t2);
             return(ArrowType(t1, shrunk2));
           }
-        | TypApp(t1, t2) =>
+        | TypParamAp(t1, t2) =>
           of_list([t1, t2])
           <+> {
             let* shrunk1 = shrink_typ(t1);
-            return(TypApp(shrunk1, t2));
+            return(TypParamAp(shrunk1, t2));
           }
           <+> {
             let* shrunk2 = shrink_typ(t2);
-            return(TypApp(t1, shrunk2));
+            return(TypParamAp(t1, shrunk2));
           }
         | TypTuple(l) =>
           let* shrunk = Shrink.list(l, ~shrink=shrink_typ);

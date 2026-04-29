@@ -300,7 +300,7 @@ let tests =
           let_(
             Pat.asc(
               Pat.var("x"),
-              Typ.typ_app(Typ.var("Option"), Typ.int()),
+              Typ.typ_param_ap(Typ.var("Option"), Typ.int()),
             ),
             ap(Forward, constructor("Some", None), int(3)),
             var("x"),

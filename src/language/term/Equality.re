@@ -679,9 +679,9 @@ let equality =
     | (Label(_), _) => false
     | (List(ty1), List(ty2)) => typ'(ty1, ty2)
     | (List(_), _) => false
-    | (TypApp(t11, t12), TypApp(t21, t22)) =>
+    | (TypParamAp(t11, t12), TypParamAp(t21, t22)) =>
       typ'(t11, t21) && typ'(t12, t22)
-    | (TypApp(_, _), _) => false
+    | (TypParamAp(_, _), _) => false
     | (TypTuple(ts1), TypTuple(ts2))
         when List.length(ts1) == List.length(ts2) =>
       List.equal(typ', ts1, ts2)

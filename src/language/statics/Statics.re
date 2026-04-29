@@ -1407,7 +1407,7 @@ and uexp_to_info_map =
         }
       | _ =>
         /* `ctor_ty` is the user-visible specialization (e.g. preserves
-           `TypApp(Var("List"), Int)` form for parameterized aliases). It
+           `TypParamAp(Var("List"), Int)` form for parameterized aliases). It
            flows out as elab_syn_ty so the surrounding `Ap` can propagate
            the same parameterized result into nested constructor analyses,
            letting implicit instantiation be inserted at every level. */
@@ -1422,7 +1422,7 @@ and uexp_to_info_map =
            when re-statics on the result runs without the alias context,
            constructor annotations and ascription types meet structurally
            even after `get_sum_constructors`/`unroll` produces
-           `TypApp(Rec(…), Int)` residues from both sides.
+           `TypParamAp(Rec(…), Int)` residues from both sides.
 
            Monomorphic constructors use the site-normalized
            `ctor_ty_for_ann`, which exposes their underlying `Sum` (and
@@ -1454,7 +1454,7 @@ and uexp_to_info_map =
               | Some(schema) => schema
               | None => ctor_ty_for_ann
               };
-            ConstructorStaticsHelpers.wrap_type_apps(
+            ConstructorStaticsHelpers.wrap_typ_param_aps(
               Constructor(ctr, Some(Some(schema))) |> Exp.fresh,
               type_args,
             );
@@ -3509,12 +3509,12 @@ and utyp_to_info_map =
          neutral fallback so isolated `TypTuple` nodes don't poison the
          rest of kind checking — `status_for_node` reports the error
          at the TypTuple node itself when it appears outside a
-         `TypApp` argument position. */
+         `TypParamAp` argument position. */
       type_
     | TypLam(param, body) =>
       let body_ctx = Ctx.extend_dummy_tvar(ctx, param);
       TypKind.arrows([type_], kind_of_typ(body_ctx, body));
-    | TypApp(fn, arg) =>
+    | TypParamAp(fn, arg) =>
       let fn_kind = kind_of_typ(ctx, fn);
       let arg_kinds =
         switch (arg.term) {
@@ -3682,19 +3682,19 @@ and utyp_to_info_map =
     | (VariantExpected(_), _) => err(TypWantConstructorFoundType(utyp))
     | (_, Parens(t)) => status_for_node(~expects, t)
     | (TypeExpected, TypTuple(_)) =>
-      /* `TypTuple` is the multi-argument bundle inside a `TypApp` and
+      /* `TypTuple` is the multi-argument bundle inside a `TypParamAp` and
          is *not* a stand-alone type — its elements are checked at the
-         enclosing `TypApp` site. Emit the class-only message so the
+         enclosing `TypParamAp` site. Emit the class-only message so the
          inspector shows just the form name without "is a type"
          (which would be misleading: comma-separated args aren't a
          tuple type). */
       ok(Message.Default)
-    | (TypeExpected, TypApp(fn, arg)) =>
+    | (TypeExpected, TypParamAp(fn, arg)) =>
       /* Tuple-arrow kinds are atomic: applying `T : (k1, …, kN) -> R`
          requires exactly N arguments at once. Multi-argument
          applications `T(a, b, …)` arrive as
-         `TypApp(T, TypTuple([a, b, …]))`; single-argument applications
-         like `T(a)` arrive as `TypApp(T, a)` and we treat them as a
+         `TypParamAp(T, TypTuple([a, b, …]))`; single-argument applications
+         like `T(a)` arrive as `TypParamAp(T, a)` and we treat them as a
          length-1 argument list. There is no curried partial
          application — `Either(Int)` (1 arg, kind expects 2) is an
          arity error, not a residual `Type -> Type` kind. */
@@ -3710,7 +3710,7 @@ and utyp_to_info_map =
         let n_actual = List.length(arg_kinds);
         if (n_expected != n_actual) {
           err(
-            Mark.TypApplyArityMismatch({
+            Mark.TypParamApplyArityMismatch({
               callee: fn,
               callee_kind: fn_kind,
               expected: n_expected,
@@ -3742,7 +3742,7 @@ and utyp_to_info_map =
         } else {
           ok(Message.Type(utyp));
         };
-      | _ => err(Mark.TypApplyNonArrowKind(fn_kind))
+      | _ => err(Mark.TypParamApplyNonArrowKind(fn_kind))
       };
     | (TypeExpected, _) =>
       switch (kind_marks_for_expected_type(utyp)) {
@@ -3798,9 +3798,10 @@ and utyp_to_info_map =
     let m = go(t1, m) |> snd;
     let m = go(t2, m) |> snd;
     add(m);
-  | TypApp(t1, t2) =>
-    /* The callee of a type-level application is expected to have arrow kind,
-       so do not validate it as an ordinary Type on its own. */
+  | TypParamAp(t1, t2) =>
+    /* The callee of a type parameter application is expected to have
+       arrow kind, so do not validate it as an ordinary Type on its
+       own. */
     let fn_kind = kind_of_typ(ctx, t1);
     let fn_info: Info.typ = {
       cls: Cls.Typ(Typ.cls_of_term(t1.term)),
@@ -3816,7 +3817,7 @@ and utyp_to_info_map =
     let m = go(t2, m) |> snd;
     add(m);
   | TypTuple(ts) =>
-    /* TypTuple is the multi-arg bundle in a TypApp. Recurse into each
+    /* TypTuple is the multi-arg bundle in a TypParamAp. Recurse into each
        element so they get their own kind info; the TypTuple node
        itself is checked at its parent's site. */
     let m = map_m(go, ts, m) |> snd;

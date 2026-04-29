@@ -1670,13 +1670,13 @@ and abbreviate_typ = (typ: Typ.t): Typ.t => {
           let t' = abbreviate_typ(t);
           TypLam(tp', t');
         }
-      | TypApp(t1, t2) =>
+      | TypParamAp(t1, t2) =>
         if (available^ <= 2) {
           available := available^ - 1;
           indet_term_typ;
         } else {
           available := available^ - 2;
-          TypApp(abbreviate_typ(t1), abbreviate_typ(t2));
+          TypParamAp(abbreviate_typ(t1), abbreviate_typ(t2));
         }
       | TypTuple(ts) =>
         if (available^ <= List.length(ts) + 1) {

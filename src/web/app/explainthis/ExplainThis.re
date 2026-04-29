@@ -2750,7 +2750,7 @@ let get_doc =
       simple(
         "This is an internal type-level function introduced by a parameterized type declaration.",
       )
-    | TypApp(_, _) =>
+    | TypParamAp(_, _) =>
       simple(
         "This applies a parameterized type constructor to a type argument.",
       )

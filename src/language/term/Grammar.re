@@ -104,16 +104,17 @@ and typ_term('a) =
   | List(typ_t('a))
   | Arrow(typ_t('a), typ_t('a))
   | TypLam(tpat_t('a), typ_t('a))
-  | TypApp(typ_t('a), typ_t('a))
-  /* TypTuple is the multi-argument bundle for type-level applications
-     like `Either(a, b)`. It only appears as the second argument of
-     `TypApp` and never as a stand-alone type — it has no kind by
+  | TypParamAp(typ_t('a), typ_t('a))
+  /* TypTuple is the multi-argument bundle for type parameter
+     applications like `Either(a, b)`. It only appears as the second
+     argument of `TypParamAp` and never as a stand-alone type — it has
+     no kind by
      itself; its arguments must match the tuple-arrow kind of the
      callee. Single-argument applications and applications whose
-     argument is itself a parenthesized tuple use plain `TypApp(T, t)`
+     argument is itself a parenthesized tuple use plain `TypParamAp(T, t)`
      without `TypTuple` (so `Either((Int, Bool))` is a partial
      application of `Either` to a `Prod`, distinct from `Either(Int,
-     Bool)` which becomes `TypApp(Either, TypTuple([Int, Bool]))`). */
+     Bool)` which becomes `TypParamAp(Either, TypTuple([Int, Bool]))`). */
   | TypTuple(list(typ_t('a)))
   | Sum(ConstructorMap.t(typ_t('a)))
   | Prod(list(typ_t('a)))
@@ -381,8 +382,8 @@ and map_typ_annotation: 'a 'b. ('a => 'b, typ_t('a)) => typ_t('b) =
           Arrow(map_typ_annotation(f, t1), map_typ_annotation(f, t2))
         | TypLam(tp, t) =>
           TypLam(map_tpat_annotation(f, tp), map_typ_annotation(f, t))
-        | TypApp(t1, t2) =>
-          TypApp(map_typ_annotation(f, t1), map_typ_annotation(f, t2))
+        | TypParamAp(t1, t2) =>
+          TypParamAp(map_typ_annotation(f, t1), map_typ_annotation(f, t2))
         | TypTuple(ts) =>
           TypTuple(List.map(x => map_typ_annotation(f, x), ts))
         | Parens(t) => Parens(map_typ_annotation(f, t))
@@ -944,8 +945,8 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       term: TypLam(tp, t),
       annotation: default_annotation(ann),
     };
-    let typ_app = (~ann=?, t1, t2): typ_t(DefaultAnnotation.t) => {
-      term: TypApp(t1, t2),
+    let typ_param_ap = (~ann=?, t1, t2): typ_t(DefaultAnnotation.t) => {
+      term: TypParamAp(t1, t2),
       annotation: default_annotation(ann),
     };
     let typ_tuple = (~ann=?, ts): typ_t(DefaultAnnotation.t) => {

@@ -120,19 +120,19 @@ that takes `a` and produces the sum body — i.e.
 \]
 
 Hazel stores this as `Rec(List, TypLam(a, Sum[Nil, Cons(a,
-TypApp(Var("List"), a))]))`: the `Rec` binder names the higher-kinded
+TypParamAp(Var("List"), a))]))`: the `Rec` binder names the higher-kinded
 fixed point and the inner `TypLam` exposes the type-level abstraction
 over `a`. Inside the body, `Var("List")` refers to the `Rec` binder and
-its kind is `* → *`, so `TypApp(Var("List"), arg)` is well-formed for
+its kind is `* → *`, so `TypParamAp(Var("List"), arg)` is well-formed for
 any `arg`.
 
-The application `TypApp(Var("List"), Int)` is the canonical normal form
+The application `TypParamAp(Var("List"), Int)` is the canonical normal form
 for `List(Int)`. After alias resolution it becomes
-`TypApp(Rec(List, TypLam(a, …)), Int)`, and `weak_head_normalize`
+`TypParamAp(Rec(List, TypLam(a, …)), Int)`, and `weak_head_normalize`
 intentionally leaves it in that shape — *it is the WHNF*. Eagerly
 β-reducing through the `TypLam` would expose the body's self-references
 to a binder that no longer wraps a `TypLam`, leaving them ill-formed
-and producing `TypApp(Rec(_, Sum[…]), arg)` artifacts in downstream
+and producing `TypParamAp(Rec(_, Sum[…]), arg)` artifacts in downstream
 type comparisons.
 
 To peer inside a higher-kinded recursive type (for constructor
@@ -144,10 +144,10 @@ use `Typ.unfold_one`. It performs one step of the standard
   \mu X{:}\kappa.\; F \;\equiv\; F[\mu X / X]
 \]
 
-For `TypApp(Rec(name, TypLam(p, body)), arg)` it substitutes the whole
+For `TypParamAp(Rec(name, TypLam(p, body)), arg)` it substitutes the whole
 `Rec(name, …)` for `Var(name)` in `body`, then β-reduces with `arg`.
 The resulting body has self-references of the shape
-`TypApp(Rec(name, TypLam(p, body)), <inner_arg>)` — each one is the
+`TypParamAp(Rec(name, TypLam(p, body)), <inner_arg>)` — each one is the
 recursive family applied at the relevant inner argument, exactly the
 canonical encoding for that specialization. For uniform recursion
 `<inner_arg> = arg`, so every self-reference is the same outer type;
@@ -157,15 +157,15 @@ from the outer one.
 
 ### Where this matters
 
-- `get_sum_constructors` calls `unfold_one` on `TypApp(Rec, _)` to
+- `get_sum_constructors` calls `unfold_one` on `TypParamAp(Rec, _)` to
   extract the constructor map for a parameterized recursive type.
-- `meet` compares two `TypApp(Rec, _)` structurally (same `Rec`, meet
+- `meet` compares two `TypParamAp(Rec, _)` structurally (same `Rec`, meet
   arguments) and falls back to one-step unfolding when one side is a
   `Sum`/`Rec` form that needs to be rolled into the other's shape.
-- `normalize` treats `TypApp(Rec(_, TypLam(_, _)), _)` as a normal
+- `normalize` treats `TypParamAp(Rec(_, TypLam(_, _)), _)` as a normal
   form, so recursive types do not infinitely expand.
 - Constructor elaboration carries the canonical
-  `TypApp(Rec(_, TypLam(_, _)), _)` form in
+  `TypParamAp(Rec(_, TypLam(_, _)), _)` form in
   `Constructor(_, Some(Some(_)))` annotations, so re-statics on
   evaluated results meets and unfolds them correctly even after the
   original `type List(a) = …` alias has been stripped from the
@@ -176,17 +176,17 @@ from the outer one.
 Non-uniform parameterized aliases like `type List(a) = + Nil + Cons(a,
 List((Int, a)))` use the recursive family at a *different* type than
 the outer parameter. Each `Cons`'s self-application has the form
-`TypApp(Var("List"), Prod(Int, a))` where the argument is a
+`TypParamAp(Var("List"), Prod(Int, a))` where the argument is a
 *transformation* of the parameter, not the parameter itself. With the
 higher-kinded representation this is straightforward: after one
-unfolding the resulting body has `TypApp(Rec(List, TypLam(a, …)),
+unfolding the resulting body has `TypParamAp(Rec(List, TypLam(a, …)),
 Prod(Int, Int))` self-references at the same `Rec`, applied at the
 inner argument. Static type-checking elaborates each nested
 constructor with its own `TypAp(Cons, …)` wrapper at the right level,
 evaluation runs to completion, and re-statics on the evaluated result
 produces no marks — the result type is well-formed and the constructor
 annotations agree with the outer ascription via structural meet on
-`TypApp(Rec, …)`.
+`TypParamAp(Rec, …)`.
 
 Constructors whose schema is not actually polymorphic (e.g. a bare tag
 from `type x = + A`) are never wrapped: writing `A @<?>` keeps the
