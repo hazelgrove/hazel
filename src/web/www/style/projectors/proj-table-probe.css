@@ -110,6 +110,19 @@
   z-index: calc(var(--projector-z) + 5);
 }
 
+/* CardRenderer's wrapper carries the .projector class (via projector_attrs
+   so its modal/standalone uses share styling), but .projector defaults to
+   position: absolute. Inside a probe sample's .value.rich that yanks each
+   sample's card out of the .sample-group flex row, so multiple samples'
+   cards collapse to the same origin and overlap. Restore inline flow
+   when the projector is rendered as a probe's rich value. */
+.live-offside .value.rich > .projector.card,
+.live-offside .value.rich .projector.card {
+  position: static;
+  display: inline-block;
+  z-index: auto;
+}
+
 /* Add Column Header Button */
 .table th.add-column-header {
     cursor: pointer;
