@@ -473,8 +473,49 @@ module ValueState = {
   let mousedown: ref(option(Js.t(Dom_html.element))) = ref(Option.None);
 };
 
+/* Build the rich-probe rendering for a sample, if active and parseable.
+   Replaces the inline value seg so the table appears in place of the
+   sample (saves the vertical space the modal-below-sample needed). */
+let rich_value_content =
+    (
+      ~model: probe_model,
+      ~info: info,
+      ctx: probe_ctx,
+      ~rich_view_seg: (Sort.t, Segment.t) => Node.t,
+      local,
+      sample: Sample.t,
+    )
+    : option(Node.t) =>
+  switch (model.active_renderer) {
+  | Some({renderer_id, model_state}) =>
+    switch (List.find_opt(r => r.id == renderer_id, renderers)) {
+    | Some(renderer) when renderer.can_handle(ctx.sort, sample.value) =>
+      renderer.render_packed(
+        model_state,
+        ~info,
+        ~exp=sample.value,
+        ~view_seg=rich_view_seg,
+        ~local=action => local(RendererAction(action)),
+        ~parent=ctx.parent,
+        ~sort=ctx.sort,
+        (),
+      )
+    | _ => None
+    }
+  | None => None
+  };
+
 let value_view =
-    (ctx: probe_ctx, ~num_total, view_seg, local, sample: Sample.t) => {
+    (
+      ~model: probe_model,
+      ~info: info,
+      ~rich_view_seg: (Sort.t, Segment.t) => Node.t,
+      ctx: probe_ctx,
+      ~num_total,
+      view_seg,
+      local,
+      sample: Sample.t,
+    ) => {
   let {settings, ap_id, utility, _} = ctx;
   let val_pointerdown = (e: Js.t(Dom_html.pointerEvent)) => {
     if (Js.to_bool(e##.shiftKey)) {
@@ -519,10 +560,24 @@ let value_view =
     };
   let (seg, length) = abbreviated_seg_of(utility, length, sample.value);
 
+  /* If a rich-probe view is active and parses this sample, render the
+     rich content (e.g. a resizable table) inside the .value div instead
+     of the inline value segment. The .value coloring stays so the user
+     still sees the dynamic-value background under the table header. */
+  let rich =
+    rich_value_content(~model, ~info, ctx, ~rich_view_seg, local, sample);
+  let inner =
+    switch (rich) {
+    | Some(node) => [node]
+    | None => [view_seg(~text_only=false, seg)]
+    };
+  let is_rich = Option.is_some(rich);
+
   div(
     ~attrs=[
       Attr.classes(
         ["value", length_cls(length)]
+        @ (is_rich ? ["rich"] : [])
         @ cursor_clss(
             ~settings=ctx.settings,
             ~ap_id=ctx.ap_id,
@@ -541,7 +596,7 @@ let value_view =
       Attr.on_pointerup(val_pointerup),
       Attr.on_mousemove(val_mousemove),
     ],
-    [view_seg(~text_only=false, seg)],
+    inner,
   );
 };
 
@@ -956,6 +1011,9 @@ let hide_env = (statics: Language.Statics.Info.t): bool =>
 
 let sample_view =
     (
+      ~model: probe_model,
+      ~info: info,
+      ~rich_view_seg: (Sort.t, Segment.t) => Node.t,
       ctx: probe_ctx,
       ~indicated_sample_id,
       ~num_total,
@@ -977,7 +1035,18 @@ let sample_view =
           ? SafeTriangle.CSSDropdown.trigger_attrs(dropdown_id(sample.id))
           : []
       ),
-    [value_view(ctx, ~num_total, view_seg, local, sample)]
+    [
+      value_view(
+        ~model,
+        ~info,
+        ~rich_view_seg,
+        ctx,
+        ~num_total,
+        view_seg,
+        local,
+        sample,
+      ),
+    ]
     @ pin_view(ctx, sample)
     @ (
       has_dropdown
@@ -1302,6 +1371,7 @@ let empty_view = (~id: Id.t, ~settings: settings) =>
 
 let offside_view =
     (
+      ~model: probe_model,
       info: info,
       local,
       parent,
@@ -1394,8 +1464,13 @@ let offside_view =
           );
         let indicated_sample_id =
           indicated_sample(ctx) |> Option.map((s: Sample.t) => s.id);
+        let rich_view_seg = (sort: Sort.t, segment) =>
+          view_seg(~background=false, ~text_only=false, sort, segment);
         let sample_view =
           sample_view(
+            ~model,
+            ~info,
+            ~rich_view_seg,
             ctx,
             ~indicated_sample_id,
             ~num_total,
@@ -1553,66 +1628,6 @@ module M: Projector = {
     };
   };
 
-  /* Modal overlay for dynamic renderer display */
-  let modal_overlay =
-      (
-        ~settings,
-        model,
-        info,
-        ~local: action => Ui_effect.t(unit),
-        ~parent,
-        ~view_seg,
-        ~sort,
-      )
-      : list(Node.t) => {
-    switch (model.active_renderer, get_current(~settings, info)) {
-    | (Some({renderer_id, model_state, _}), Some(exp)) =>
-      /* Find the renderer and check if it can still handle the expression */
-      switch (List.find_opt(r => r.id == renderer_id, renderers)) {
-      | Some(renderer) when renderer.can_handle(sort, exp) =>
-        let rendered =
-          renderer.render_packed(
-            model_state,
-            ~info,
-            ~exp,
-            ~view_seg,
-            ~local=action => local(RendererAction(action)),
-            ~parent,
-            ~sort,
-            (),
-          );
-        switch (rendered) {
-        | None => []
-        | Some(content) => [
-            div(
-              ~attrs=[Attr.classes(["modal-backdrop", "live-offside"])],
-              [
-                div(
-                  ~attrs=[
-                    Attr.classes(["modal"]),
-                    Attr.on_click(_ => Effect.Stop_propagation),
-                  ],
-                  [
-                    div(
-                      ~attrs=[
-                        Attr.classes(["modal-close-btn"]),
-                        Attr.title("Close"),
-                        Attr.on_click(_ => local(ToggleModal(None))),
-                      ],
-                      [text({js|×|js})],
-                    ),
-                    content,
-                  ],
-                ),
-              ],
-            ),
-          ]
-        };
-      | _ => []
-      }
-    | _ => []
-    };
-  };
   let error = (_, _): option(ProjectorBase.error) => None;
   let view =
       (
@@ -1626,18 +1641,17 @@ module M: Projector = {
       overlay: Some(overlay_view(~settings, ~sort, info)),
       offside:
         Some(
-          div(
-            [offside_view(info, local, parent, ~settings, ~sort, view_seg)]
-            @ modal_overlay(
-                ~settings,
-                model,
-                info,
-                ~local,
-                ~parent,
-                ~view_seg,
-                ~sort,
-              ),
-          ),
+          div([
+            offside_view(
+              ~model,
+              info,
+              local,
+              parent,
+              ~settings,
+              ~sort,
+              view_seg,
+            ),
+          ]),
         ),
       error: false,
     };
