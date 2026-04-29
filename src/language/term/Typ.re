@@ -1086,13 +1086,39 @@ let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
     let unfolded = unfold_one(ty2);
     Equality.syntactic.typ(unfolded, ty2) ? None : meet'(ty1, unfolded);
   | (Poly(x1, ty1), Poly(x2, ty2)) =>
+    /* A Poly binder is a single tpat that may itself be a `Tuple` of
+       binder elements (multi-binder forms). To meet two `Poly`s, we
+       require their binder lists to have the same arity, then
+       alpha-rename ty1's binders to the names from x2. As a special
+       case, a binder consisting entirely of holes (e.g. the
+       `Poly(EmptyHole, _)` placeholder used as the analysis target
+       for `TypAp` callees) is treated as a wildcard — it imposes no
+       constraint on the other side's arity, and the meet keeps the
+       other side's binder. */
     let bs1 = TPat.binders_of(x1);
     let bs2 = TPat.binders_of(x2);
-    if (List.length(bs1) != List.length(bs2)) {
+    let is_wildcard = (bs: list(TPat.t)): bool =>
+      List.for_all(
+        (b: TPat.t) =>
+          switch (b.term) {
+          | EmptyHole
+          | Invalid(_)
+          | MultiHole(_) => true
+          | _ => false
+          },
+        bs,
+      );
+    if (is_wildcard(bs1)) {
+      let ctx = Ctx.extend_dummy_tvar(ctx, x2);
+      let+ ty_body = meet(ctx, ty1, ty2);
+      Poly(x2, ty_body) |> temp;
+    } else if (is_wildcard(bs2)) {
+      let ctx = Ctx.extend_dummy_tvar(ctx, x1);
+      let+ ty_body = meet(ctx, ty1, ty2);
+      Poly(x1, ty_body) |> temp;
+    } else if (List.length(bs1) != List.length(bs2)) {
       None;
     } else {
-      /* Element-wise alpha-rename ty1's binders to the corresponding
-         names from x2 so the two share a binder list. */
       let ty1' =
         List.fold_left2(
           (body, b1, b2) =>

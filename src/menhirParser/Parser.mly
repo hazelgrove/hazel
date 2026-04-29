@@ -249,7 +249,7 @@ typ:
     | UNKNOWN; INTERNAL { UnknownType(Internal) }
     | QUESTION { UnknownType(EmptyHole) }
     | UNIT { TupleType([]) }
-    | POLY; a = tpat; DASH_ARROW; t = typ { PolyType(a, t) }
+    | POLY; a = polyTpat; DASH_ARROW; t = typ { PolyType(a, t) }
     | t = tupleType { t }
     | OPEN_SQUARE_BRACKET; t = typ; CLOSE_SQUARE_BRACKET { ArrayType(t) }
     | t1 = typ; OPEN_PAREN; t2 = typ; CLOSE_PAREN { TypParamAp(t1, t2) }
@@ -331,6 +331,13 @@ tpat:
     | v = IDENT {VarTPat v}
     | v = CONSTRUCTOR_IDENT {VarTPat v}
 
+(* `poly a, b -> t` and `typfun a, b -> e` allow a comma-separated list of
+   binders directly. The list of one collapses to a single tpat; two or
+   more becomes a `TupleTPat`. *)
+polyTpat:
+    | t = tpat { t }
+    | t = tpat; COMMA; ts = separated_nonempty_list(COMMA, tpat) { TupleTPat(t :: ts) }
+
 unExp:
     | MINUS; e = exp {UnOp(Int(Minus), e)} %prec UMINUS
     | L_NOT; e = exp {UnOp(Bool(Not), e)}
@@ -371,7 +378,7 @@ exp:
     | f = funExp {f}
     | FALSE { Atom (Bool false) }
     | FIX;  p = funPat; DASH_ARROW; e = exp { FixF(p, e) }
-    | TYP_FUN; t = tpat; DASH_ARROW; e = exp {TypFun(t, e)}
+    | TYP_FUN; t = polyTpat; DASH_ARROW; e = exp {TypFun(t, e)}
     | QUESTION { EmptyHole }
     | a = filterAction; cond = exp; IN; body = exp { Filter(a, cond, body)} %prec LET_EXP
     | TEST; e = exp; END { Test(e) }
@@ -381,6 +388,7 @@ exp:
     |  E_EXP; s = STRING; { InvalidExp(s) }
     |  WILD {Deferral}
     | e = exp; TYP_AP_SYMBOL; ty = typ; GREATER_THAN; {TypAp(e, ty)}
+    | e = exp; TYP_AP_SYMBOL; ty = typ; COMMA; tys = separated_nonempty_list(COMMA, typ); GREATER_THAN; {TypAp(e, TypTuple(ty :: tys))}
     | TYP; tp = tpat; SINGLE_EQUAL; ty = typ; IN; e = exp {TyAlias(tp, ty, e)} %prec LET_EXP
     | LESS_THAN; LESS_THAN; e = exp; QUESTION; s = QUOTED_LABEL; GREATER_THAN; GREATER_THAN {DynamicErrorHole(e, s)}
     | UNDEF; {Undefined}

@@ -671,5 +671,101 @@ let x : Either(Int, Bool) = A(3) in x
         );
       },
     ),
+    test_case(
+      "Multi-binder poly parses as a single Poly with TPat.Tuple binder",
+      `Quick,
+      () => {
+        /* `poly a, b -> ...` should be a SINGLE `Poly` whose binder is
+           a `TPat.Tuple([a, b])` — not a curried chain `Poly(a, Poly(b,
+           …))`. Explicit nesting (`poly a -> poly b -> …`) remains
+           structurally distinct as a chain. */
+        let src = {|
+let pair : poly a, b -> a -> b -> (a, b) =
+  typfun a, b -> fun x : a -> fun y : b -> (x, y) in pair
+|};
+        let exp = Haz3lcore.Parser.to_term(src, ~root=Exp) |> Option.get;
+        /* Walk the AST looking for the user's `poly a, b -> …` annotation
+           and the `typfun a, b -> …` value. Both should have a single
+           `Poly`/`TypFun` node whose binder is a `TPat.Tuple([_, _])`,
+           not a chain of two `Poly`/`TypFun`s. */
+        let poly_tuple_binders = ref(0);
+        let typfun_tuple_binders = ref(0);
+        let nested_poly = ref(0);
+        let nested_typfun = ref(0);
+        let rec walk_typ = (t: Typ.t): unit => {
+          switch (t.term) {
+          | Poly({term: Tuple([_, _]), _}, body) =>
+            incr(poly_tuple_binders);
+            walk_typ(body);
+          | Poly(_, {term: Poly(_), _}) =>
+            incr(nested_poly);
+          | Poly(_, body) => walk_typ(body)
+          | _ => ()
+          };
+        };
+        let rec walk_pat = (p: Pat.t): unit =>
+          switch (p.term) {
+          | Asc(inner, t) =>
+            walk_pat(inner);
+            walk_typ(t);
+          | Parens(inner) => walk_pat(inner)
+          | _ => ()
+          };
+        let rec walk_exp = (e: Exp.t): unit => {
+          switch (e.term) {
+          | TypFun({term: Tuple([_, _]), _}, body, _) =>
+            incr(typfun_tuple_binders);
+            walk_exp(body);
+          | TypFun(_, {term: TypFun(_), _}, _) =>
+            incr(nested_typfun);
+          | TypFun(_, body, _) => walk_exp(body)
+          | Let(p, def, body) =>
+            walk_pat(p);
+            walk_exp(def);
+            walk_exp(body);
+          | Asc(inner, t) =>
+            walk_exp(inner);
+            walk_typ(t);
+          | Fun(_, body, _, _) => walk_exp(body)
+          | Parens(inner) => walk_exp(inner)
+          | _ => ()
+          };
+        };
+        walk_exp(exp);
+        check(int, "exactly one Poly with a TPat.Tuple binder", 1, poly_tuple_binders^);
+        check(int, "no curried Poly chains for the multi-binder form", 0, nested_poly^);
+        check(int, "exactly one TypFun with a TPat.Tuple binder", 1, typfun_tuple_binders^);
+        check(int, "no curried TypFun chains for the multi-binder form", 0, nested_typfun^);
+      },
+    ),
+    test_case(
+      "Recursive map@<a, b> specializes both binders in one statics step",
+      `Quick,
+      () => {
+        /* The user's example: a recursive `map` declared with the
+           multi-binder `poly a, b -> ...` annotation. The recursive
+           call `map@<a, b>(tl, f)` must specialize BOTH binders in a
+           single `TypAp` step; otherwise a residual `poly b -> …`
+           leaks out and the subsequent ordinary application
+           `(tl, f)` would fail with an arrow-vs-poly mismatch. */
+        Alcotest.check(
+          list(testable_issue),
+          "no static errors on the recursive multi-binder map",
+          [],
+          static_errors(
+            {|
+let map : poly a, b -> ([a], a -> b) -> [b] =
+  typfun a, b -> fun (xs, f) ->
+    case xs
+    | [] => []
+    | hd::tl => f(hd)::map@<a, b>(tl, f)
+    end in
+map@<Int, Int>([1, 2, 3], fun x -> x * 2)
+|},
+          )
+          |> List.map(ms => Marks([ms])),
+        );
+      },
+    ),
   ],
 );
