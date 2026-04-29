@@ -380,17 +380,24 @@ let of_segment_inner =
     | Grout(g) => add_grout(acc, g)
     | Projector(p) => add_projector(acc, p)
     | Tile(t) =>
+      let acc =
+        Aba.fold_left(
+          add_shard(acc, t),
+          (acc, seg) => add_shard(go(~top_level=false, acc, seg), t),
+          Aba.mk(t.shards, t.children),
+        );
+      /* Queue deferred linebreaks AFTER processing the tile's shards so
+         the extras fire at the natural newline that follows the tile's
+         last shard — i.e., after the line where the probe sample renders.
+         Queuing at the start would push the tile's own inner lines down,
+         which is wrong for any multi-line probed term. */
       switch (Id.Map.find_opt(t.id, refractor_shape_map)) {
-      | Some(_) =>
-        DeferredLinebreaks.update(2) |> ignore;
+      | Some(num_lb) when num_lb > 0 =>
+        DeferredLinebreaks.update(num_lb) |> ignore;
         ();
-      | None => ()
+      | _ => ()
       };
-      Aba.fold_left(
-        add_shard(acc, t),
-        (acc, seg) => add_shard(go(~top_level=false, acc, seg), t),
-        Aba.mk(t.shards, t.children),
-      );
+      acc;
     };
   let (_, _, _, map) = go(~top_level=true, ([], 0, Point.zero, empty), seg);
   map;

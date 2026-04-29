@@ -36,6 +36,14 @@ let parse = (_sort: Sort.t, exp: Exp.t): option(value) =>
 
 let init = (_: value) => {mode: Show};
 
+/* Card art is 47px tall (--card-height in proj-cards.css); a code row is
+   roughly 17-18px. Reserve 4 rows so the modal margin and chrome fit too. */
+let placeholder = (_: value, _: m): ProjectorCore.Shape.t =>
+  ProjectorCore.Shape.{
+    vertical: Block(4),
+    horizontal: 0,
+  };
+
 let update: (m, a) => m =
   (_, action) =>
     switch (action) {

@@ -98,6 +98,30 @@
   position: relative;
 }
 
+/* The rich-probe table modal sizes itself from inline width/height set in
+   TableRenderer.render — those dimensions are the same width_blocks /
+   height_blocks the placeholder reports through refractor_shape_map, so
+   the modal's visual size matches the code rows pushed down for it.
+   No padding so the table covers the modal edge-to-edge — otherwise
+   --df-bg shows as a halo around the table. */
+.modal-backdrop.live-offside .modal > .rich-probe-table-inner {
+  position: relative;
+  overflow: auto;
+  box-sizing: border-box;
+  padding: 0;
+  border-radius: 8px;
+}
+
+.modal-backdrop.live-offside .modal > .rich-probe-table-inner > table.table {
+  width: 100%;
+  height: 100%;
+}
+
+.modal-backdrop.live-offside .modal > .rich-probe-table-inner .table th {
+  position: sticky;
+  top: 0;
+}
+
 .modal-backdrop.live-offside .modal .modal-close-btn {
   position: absolute;
   top: 0;

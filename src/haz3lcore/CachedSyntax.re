@@ -28,6 +28,10 @@ type t = {
    * underlying editor. In principle calculating this can involve
    * both static and dynamic information, so we cache this for perf */
   shape_map: ProjectorCore.Shape.Map.t,
+  /* Per-refractor extra-row reservation (Tab-style deferred linebreaks).
+   * Mirrors shape_map but for refractor probes — pushes code below a
+   * probe down by N rows when its rich-probe modal is open. */
+  refractor_shape_map: Id.Map.t(int),
   /* Errors reported by projectors (e.g. "can't render as table") */
   projector_errors: Id.Map.t(ProjectorBase.error),
   cached_backpack: list(Tile.t),
@@ -45,6 +49,84 @@ let t_of_sexp = _ => failwith("Editor.Meta.t_of_sexp");
 let yojson_of_t = _ => failwith("Editor.Meta.yojson_of_t");
 let t_of_yojson = _ => failwith("Editor.Meta.t_of_yojson");
 
+/* Compute refractor_shape_map: for each refractor (probe), ask its
+ * projector module how many extra rows it wants to reserve. Currently only
+ * ProbeProj returns non-zero — and only when a rich-probe modal is open —
+ * but the mechanism is general so any future refractor can opt in.
+ *
+ * The int is consumed by Measured.re's refractor branch as deferred
+ * (Tab-style) linebreaks, so code below the probe shifts down to fit
+ * the modal. */
+let line_count_of_shape = (shape: ProjectorCore.Shape.t): int =>
+  switch (shape.vertical) {
+  | Inline => 0
+  | Tab(n) => n
+  | Block(n) => n
+  };
+
+let refractor_lines =
+    (
+      sample_focus: Language.Sample.Focus.t,
+      statics: Language.Statics.Map.t,
+      dynamics: Language.Dynamics.Map.t,
+      ~elaborated: option(Language.Exp.t),
+      term_data: TermData.t,
+      id: Id.t,
+      entry: Refractors.entry,
+    )
+    : int => {
+  /* Mirror RefractorView.mk_data's syntax extraction so the projector
+   * sees the same piece it sees at render time. */
+  let syntax_piece =
+    Option.value(
+      TermData.segment(id, term_data)
+      |> Option.map(Segment.unparenthesize)
+      |> Option.map(Segment.trim_secondary(Left))
+      |> Option.map(Segment.trim_secondary(Right))
+      |> Option.map(Segment.parenthesize),
+      ~default=
+        Base.Secondary({
+          id: Id.invalid,
+          content: Whitespace(""),
+        }),
+    );
+  let p = Refractors.to_projector(syntax_piece, id, entry);
+  let info =
+    ProjectorInfo.mk_info(p, ~sample_focus, ~statics, ~dynamics, ~elaborated);
+  let (module P) = ProjectorInit.to_module(entry.kind);
+  line_count_of_shape(P.placeholder(p.model, info));
+};
+
+let mk_refractor_shape_map =
+    (
+      refractors: Zipper.Refractor.t,
+      statics: Language.Statics.Map.t,
+      dynamics: Language.Dynamics.Map.t,
+      ~elaborated: option(Language.Exp.t),
+      term_data: TermData.t,
+    )
+    : Id.Map.t(int) => {
+  let entries =
+    refractors.manuals @ Id.Map.bindings(refractors.multis.ephemerals);
+  List.fold_left(
+    (acc, (id, entry)) => {
+      let n =
+        refractor_lines(
+          refractors.sample_focus,
+          statics,
+          dynamics,
+          ~elaborated,
+          term_data,
+          id,
+          entry,
+        );
+      n > 0 ? Id.Map.add(id, n, acc) : acc;
+    },
+    Id.Map.empty,
+    entries,
+  );
+};
+
 let mk = (~info_map, ~dyn_map, ~elaborated=None, z): t => {
   let segment = Zipper.unselect_and_zip(z);
   let MakeTerm.{term: _, terms, projectors, projector_list, term_data} =
@@ -57,7 +139,14 @@ let mk = (~info_map, ~dyn_map, ~elaborated=None, z): t => {
       dyn_map,
       ~elaborated,
     );
-  let refractor_shape_map = Id.Map.empty; // z.refractors.map |> Id.Map.map(_p => 2);
+  let refractor_shape_map =
+    mk_refractor_shape_map(
+      z.refractors,
+      info_map,
+      dyn_map,
+      ~elaborated,
+      term_data,
+    );
   let measured =
     Measured.of_segment(segment, projector_shapes, refractor_shape_map);
   {
@@ -70,6 +159,7 @@ let mk = (~info_map, ~dyn_map, ~elaborated=None, z): t => {
     projectors,
     projector_list,
     shape_map: projector_shapes,
+    refractor_shape_map,
     projector_errors,
     cached_backpack: Segment.global_missing_shards(segment),
     shape_info_map: info_map,
@@ -102,12 +192,20 @@ let refresh_shapes =
       dyn_map,
       ~elaborated,
     );
-  let refractor_shape_map = Id.Map.empty;
+  let refractor_shape_map =
+    mk_refractor_shape_map(
+      z.refractors,
+      info_map,
+      dyn_map,
+      ~elaborated,
+      old.term_data,
+    );
   let measured =
     Measured.of_segment(old.segment, shape_map, refractor_shape_map);
   {
     ...old,
     shape_map,
+    refractor_shape_map,
     projector_errors,
     measured,
     shape_info_map: info_map,

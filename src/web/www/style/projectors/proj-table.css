@@ -43,13 +43,14 @@ table.table {
     background-color: var(--df-hover-bg);
 }
 
-/* Threshold of 10 rows must stay in sync with scroll_threshold_rows
-   in TableProj.re's placeholder sizing — if either moves, both must. */
-div.projector.table:has(tbody tr:nth-child(10)) > .table-inner {
+/* The projector reserves explicit width × height in code blocks
+   (TableProj.placeholder); if the table content exceeds that, scroll
+   internally and pin the headers. */
+.projector.table > .table-inner {
     overflow-y: auto;
 }
 
-div.projector.table:has(tbody tr:nth-child(10)) .table th {
+.projector.table .table th {
     position: sticky;
     top: 0;
 }
@@ -59,7 +60,7 @@ div.projector.table:has(tbody tr:nth-child(10)) .table th {
     height: 100%;
     width: 100%;
     overflow: visible;
-    box-sizing: content-box;
+    box-sizing: border-box;
 
     display: flex;
     flex-direction: initial;
@@ -69,10 +70,31 @@ div.projector.table:has(tbody tr:nth-child(10)) .table th {
 }
 
 .projector.table > .table-inner {
+    position: relative;
     width: 100%;
     height: 100%;
     padding: 0 5px;
     box-sizing: border-box;
+}
+
+/* Drag handle pinned to the bottom-right corner of the projector. The
+   handle stays put when the table scrolls so it remains discoverable.
+   metaKey-gated in the JS handler so a stray click doesn't start a drag. */
+.projector.table .table-resize-handle,
+.modal-backdrop .table-resize-handle {
+    position: sticky;
+    bottom: 0;
+    left: 100%;
+    width: 14px;
+    height: 14px;
+    margin-top: -14px;
+    cursor: nwse-resize;
+    background: linear-gradient(135deg, transparent 50%, rgba(0, 0, 0, 0.25) 50%);
+    border-top: 1px solid rgba(0, 0, 0, 0.15);
+    border-left: 1px solid rgba(0, 0, 0, 0.15);
+    border-top-left-radius: 2px;
+    z-index: calc(var(--projector-z) + 2);
+    pointer-events: auto;
 }
 
 .projector.table .code {

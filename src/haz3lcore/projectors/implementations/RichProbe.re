@@ -29,6 +29,11 @@ module type RichProbe = {
   /* Initialize the probe's state from a parsed value. Assumes value is valid. */
   let init: value => model;
 
+  /* Reports the projector shape (vertical line count) needed to fit
+     the rendered modal. ProbeProj routes this into refractor_shape_map
+     so code below the probe shifts down instead of being overlapped. */
+  let placeholder: (value, model) => ProjectorCore.Shape.t;
+
   let badge: Node.t;
 
   let render:
@@ -67,6 +72,8 @@ type packed_renderer = {
     ) =>
     option(Virtual_dom.Vdom.Node.t),
   update_packed: (string, string) => string,
+  placeholder_packed:
+    (string /*model*/, string /*value*/) => ProjectorCore.Shape.t,
   badge: Virtual_dom.Vdom.Node.t,
 };
 
@@ -124,6 +131,11 @@ let pack_renderer =
     update_packed: (model_str, action_str) =>
       R.update(deserialize_model(model_str), deserialize_action(action_str))
       |> serialize_model,
+    placeholder_packed: (model_str, value_str) => {
+      let v = value_str |> Sexplib.Sexp.of_string |> R.value_of_sexp;
+      let m = model_str |> Sexplib.Sexp.of_string |> R.model_of_sexp;
+      R.placeholder(v, m);
+    },
     badge: R.badge,
   };
 };

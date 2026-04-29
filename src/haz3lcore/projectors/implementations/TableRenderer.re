@@ -13,12 +13,17 @@ type v = (list(option(string)), list(list(Exp.t))); /* (headers, rows) */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type menu_state = option((int, list(string)));
 [@deriving (show({with_path: false}), sexp, yojson)]
-type m = {menu_state};
+type m = {
+  menu_state,
+  width_blocks: int,
+  height_blocks: int,
+};
 [@deriving (show({with_path: false}), sexp, yojson)]
 type a =
   | CloseMenu
   | ShowMenu(int)
-  | ShowSubmenu(list(string));
+  | ShowSubmenu(list(string))
+  | ResizeTo(int, int);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type model = m;
@@ -57,8 +62,31 @@ let icon_button = (~tooltip="", icon_text, action) =>
 /* Parse an expression into table structure */
 let parse = (_sort: Sort.t, exp: Exp.t) => parse_table(exp);
 
-/* Initialize table model from parsed value */
-let init = (_: v) => {menu_state: None};
+/* Initialize table model from parsed value, picking a default size that
+   fits the data. Width/height in code "blocks" — the same unit ProbeProj
+   reports through refractor_shape_map so the page layout matches. */
+let init = ((headers, rows): v) => {
+  let (w, h) = default_size_for_table(headers, rows);
+  {
+    menu_state: None,
+    width_blocks: w,
+    height_blocks: h,
+  };
+};
+
+/* Placeholder uses the model's current dimensions so a drag-resize
+   immediately re-flows the code below the probe. ProbeProj routes this
+   shape into refractor_shape_map. Height is clamped to the data's row
+   count so a stale model from before the data shrunk doesn't reserve
+   empty space. */
+let placeholder = ((headers, rows): v, model: m): ProjectorCore.Shape.t => {
+  let header_rows = headers == [] ? 0 : 1;
+  let max_height_blocks = header_rows + List.length(rows);
+  ProjectorCore.Shape.{
+    vertical: Block(min(model.height_blocks, max_height_blocks)),
+    horizontal: model.width_blocks,
+  };
+};
 
 /* Menu system */
 let menu_item = (~tooltip="", text, action) =>
@@ -462,31 +490,76 @@ let render =
       header_cells;
     };
 
-  table_view(
-    ~header_cells,
-    ~rows=
-      List.map(
-        row => {
-          let cells = row_cells(info.utility, view_seg, row);
-          is_readonly ? cells : cells @ [Node.td([])];
-        },
-        rows,
+  let table_node =
+    table_view(
+      ~header_cells,
+      ~rows=
+        List.map(
+          row => {
+            let cells = row_cells(info.utility, view_seg, row);
+            is_readonly ? cells : cells @ [Node.td([])];
+          },
+          rows,
+        ),
+    );
+  /* Cap the height drag at the actual data height — header + data rows.
+     Without this the user can drag the modal taller than its content and
+     end up with empty SAND-colored space below the last row. The update
+     function is (model, action) => model with no `info`/value access, so
+     the clamp lives in the dispatch closure where `value` is in scope. */
+  let header_rows = headers == [] ? 0 : 1;
+  let max_height_blocks = header_rows + List.length(rows);
+  let clamped_height = min(model.height_blocks, max_height_blocks);
+  let dispatch = (w, h) => local(ResizeTo(w, min(h, max_height_blocks)));
+  let handle =
+    resize_handle(
+      ~dispatch,
+      ~width_blocks=model.width_blocks,
+      ~height_blocks=clamped_height,
+    );
+  Node.div(
+    ~attrs=[
+      Attr.classes(["table-inner", "rich-probe-table-inner"]),
+      Attr.create(
+        "style",
+        Printf.sprintf(
+          "width: calc(var(--col-width-px) * %d); height: calc(var(--row-height-px) * %d);",
+          model.width_blocks,
+          clamped_height,
+        ),
       ),
+    ],
+    [table_node, handle],
   );
 };
 
 let update: (model, action) => model =
   (model, action) => {
     switch (action) {
-    | CloseMenu => {menu_state: None}
-    | ShowMenu(i) when Some(i) == Option.map(fst, model.menu_state) => {
+    | CloseMenu => {
+        ...model,
         menu_state: None,
       }
-    | ShowMenu(i) => {menu_state: Some((i, []))}
+    | ShowMenu(i) when Some(i) == Option.map(fst, model.menu_state) => {
+        ...model,
+        menu_state: None,
+      }
+    | ShowMenu(i) => {
+        ...model,
+        menu_state: Some((i, [])),
+      }
     | ShowSubmenu(path) =>
       switch (model.menu_state) {
-      | Some((col, _)) => {menu_state: Some((col, path))}
+      | Some((col, _)) => {
+          ...model,
+          menu_state: Some((col, path)),
+        }
       | None => model
+      }
+    | ResizeTo(w, h) => {
+        ...model,
+        width_blocks: clamp_width_blocks(w),
+        height_blocks: clamp_height_blocks(h),
       }
     };
   };

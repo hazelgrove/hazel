@@ -2,12 +2,17 @@
 [@deriving (show({with_path: false}), sexp, yojson)]
 type menu_state = option((int, list(string)));
 [@deriving (show({with_path: false}), sexp, yojson)]
-type m = {menu_state};
+type m = {
+  menu_state,
+  width_blocks: int,
+  height_blocks: int,
+};
 [@deriving (show({with_path: false}), sexp, yojson)]
 type a =
   | CloseMenu
   | ShowMenu(int)
-  | ShowSubmenu(list(string));
+  | ShowSubmenu(list(string))
+  | ResizeTo(int, int);
 type v = (list(option(string)), list(list(Language.Exp.t))); /* (headers, rows) */
 
 include

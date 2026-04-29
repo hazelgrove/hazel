@@ -18,6 +18,24 @@ let row_cells:
 let table_view:
   (~header_cells: list(Node.t), ~rows: list(list(Node.t))) => Node.t;
 
+/* --- Resize Machinery --- */
+
+let min_width_blocks: int;
+let min_height_blocks: int;
+let clamp_width_blocks: int => int;
+let clamp_height_blocks: int => int;
+
+let default_size_for_table:
+  (list(option(string)), list(list(Exp.t))) => (int, int);
+
+let resize_handle:
+  (
+    ~dispatch: (int, int) => Virtual_dom.Vdom.Effect.t(unit),
+    ~width_blocks: int,
+    ~height_blocks: int
+  ) =>
+  Node.t;
+
 /* --- Table Parsing --- */
 
 type table_data = (list(option(string)), list(list(Exp.t)));

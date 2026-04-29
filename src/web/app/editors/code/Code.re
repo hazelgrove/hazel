@@ -172,16 +172,20 @@ let view =
     List.concat_map(
       fun
       | Piece.Tile(t) => {
-          let _ =
-            switch (Id.Map.find_opt(t.id, refractor_shape_map)) {
-            | Some(_) =>
-              DeferredLinebreaks.update(2) |> ignore;
-              ();
-            | None => ()
-            };
-          Aba.mk(t.shards, t.children)
-          |> Aba.join(i => [of_delim(t, i)], of_segment)
-          |> List.concat;
+          let body =
+            Aba.mk(t.shards, t.children)
+            |> Aba.join(i => [of_delim(t, i)], of_segment)
+            |> List.concat;
+          /* Queue deferred linebreaks AFTER the tile's contents so the
+             extras fire on the line where the probe sample anchors (the
+             tile's last line), not on its first. Mirrors Measured.re. */
+          switch (Id.Map.find_opt(t.id, refractor_shape_map)) {
+          | Some(num_lb) when num_lb > 0 =>
+            DeferredLinebreaks.update(num_lb) |> ignore;
+            ();
+          | _ => ()
+          };
+          body;
         }
       | Grout(g) => [of_grout(g)]
       | Secondary(s) => [of_secondary(s)]

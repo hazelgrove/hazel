@@ -1487,7 +1487,29 @@ module M: Projector = {
       keyboard: None,
     };
 
-  let placeholder = (_, _) => ProjectorCore.Shape.default;
+  /* For refractor probes, ProbeProj's placeholder is consumed by
+     Measured via refractor_shape_map (see CachedSyntax.refractor_shape_map
+     and Measured.re refractor branch). When a rich-probe modal is open we
+     report the active renderer's desired Block(N) so the layout reserves
+     N rows below the probe and code below shifts down instead of being
+     overlapped by the modal. When no modal is open, default (Inline) keeps
+     the existing zero-reservation behavior. */
+  let placeholder = (model: probe_model, info: info) => {
+    let settings = Settings.s^;
+    switch (model.active_renderer, get_current(~settings, info)) {
+    | (Some({renderer_id, model_state}), Some(exp)) =>
+      switch (List.find_opt(r => r.id == renderer_id, renderers)) {
+      | Some(renderer) =>
+        switch (renderer.parse_packed(Sort.Exp, exp)) {
+        | Some(value_str) =>
+          renderer.placeholder_packed(model_state, value_str)
+        | None => ProjectorCore.Shape.default
+        }
+      | None => ProjectorCore.Shape.default
+      }
+    | _ => ProjectorCore.Shape.default
+    };
+  };
 
   let update = (model: probe_model, _info: info, action: action): probe_model => {
     switch (action) {

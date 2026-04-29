@@ -42,13 +42,38 @@ let table =
 
 module M: Projector = {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type model = unit;
+  type model = {
+    width_blocks: int,
+    height_blocks: int,
+  };
+  let default_model = {
+    width_blocks: 40,
+    height_blocks: 10,
+  };
+  let model_of_sexp = (sexp: Sexplib.Sexp.t): model =>
+    switch (model_of_sexp(sexp)) {
+    | exception _ => default_model
+    | m => m
+    };
+  let model_of_yojson = (json: Yojson.Safe.t): model =>
+    switch (model_of_yojson(json)) {
+    | exception _ => default_model
+    | m => m
+    };
+
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type action = unit;
+  type action =
+    | ResizeTo(int, int);
 
   let init = (any: Any.t) =>
     switch (table_of(any)) {
-    | Some(_) => Some()
+    | Some((header, rows)) =>
+      let (w, h) =
+        default_size_for_table(List.map(h => Some(h), header), rows);
+      Some({
+        width_blocks: w,
+        height_blocks: h,
+      });
     | None => None
     };
 
@@ -59,7 +84,7 @@ module M: Projector = {
     };
   let dynamics = false;
   let elaborate_syntax = true;
-  let placeholder = (_, info) =>
+  let placeholder = (model, info) =>
     switch (get(info)) {
     | None =>
       let s = info.utility.seg_to_string(info.syntax);
@@ -71,57 +96,40 @@ module M: Projector = {
           0,
           lines,
         );
-      /* +1 vertical line reserved for the inline error banner
-       * rendered above the raw syntax in the error view. */
       ProjectorCore.Shape.{
         vertical: Block(n_lines),
         horizontal: max(max_width, String.length(error_message)),
       };
-    | Some((header, rows)) =>
-      /* Outer space reserved for the table frame itself (border + the
-       * .table-inner wrapper's 5px horizontal padding, approximated). */
-      let outer_padding_chars = 4;
-      /* Approximate per-column cell padding, in characters. */
-      let per_column_padding_chars = 2;
-      /* Beyond this row count the table switches to scrolled mode with
-       * sticky headers — see proj-table.css's `:has(tbody tr:nth-child(10))`
-       * selector. Must stay in sync with that threshold. */
-      let scroll_threshold_rows = 10;
-
-      let header_row_chars =
-        header |> List.map(String.length) |> List.fold_left((+), 0);
-      let widest_row_chars =
-        rows
-        |> List.map(row =>
-             row
-             |> List.map(e =>
-                  Abbreviate.abbreviate_exp(~available=max_column_length, e)
-                  |> snd
-                )
-             |> List.fold_left((+), 0, _)
-           )
-        |> List.fold_left(max, 0, _);
-      let content_chars = max(header_row_chars, widest_row_chars);
-
-      let num_rows = List.length(rows);
-      let num_cols = List.length(header);
+    | Some(_) =>
       ProjectorCore.Shape.{
-        vertical: Block(min(num_rows, scroll_threshold_rows)),
-        horizontal:
-          outer_padding_chars
-          + content_chars
-          + num_cols
-          * per_column_padding_chars,
+        vertical: Block(model.height_blocks),
+        horizontal: model.width_blocks,
+      }
+    };
+  let update = (_model, info, action) =>
+    switch (action) {
+    | ResizeTo(w, h) =>
+      /* Don't grow taller than the data; the table scrolls internally past
+         a soft cap regardless. */
+      let max_h =
+        switch (get(info)) {
+        | None => h
+        | Some((_, rows)) => List.length(rows)
+        };
+      {
+        width_blocks: clamp_width_blocks(w),
+        height_blocks: clamp_height_blocks(min(h, max_h)),
       };
     };
-  let update = (model, _, _) => model;
   let error = (_, info) =>
     switch (get(info)) {
     | Some(_) => None
     | None => Some(ProjectorBase.{message: error_message})
     };
 
-  let view = ({info, parent, view_seg, _}: View.args(model, action)): View.t =>
+  let view =
+      ({model, info, parent, view_seg, local, _}: View.args(model, action))
+      : View.t =>
     switch (get(info)) {
     | None =>
       let seg = Segment.unparenthesize(info.syntax);
@@ -139,11 +147,18 @@ module M: Projector = {
         ),
       );
     | Some(data) =>
+      let dispatch = (w, h) => local(ResizeTo(w, h));
+      let handle =
+        resize_handle(
+          ~dispatch,
+          ~width_blocks=model.width_blocks,
+          ~height_blocks=model.height_blocks,
+        );
       View.mk(
         Node.div(
           ~attrs=[Attr.classes(["table-inner"])],
-          [table(info, ~view_seg, ~parent, data)],
+          [table(info, ~view_seg, ~parent, data), handle],
         ),
-      )
+      );
     };
 };
