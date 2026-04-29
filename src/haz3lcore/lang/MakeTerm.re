@@ -1364,7 +1364,27 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
 }
 and tpat = unsorted => {
   let term = tpat_term(unsorted);
-  let ids = ids(unsorted);
+  /* For the Param form `T(a, b, …)` the separator commas between
+     params live in the `params` kid (a `Bin`-built `MultiHole`) and
+     get dropped when `tpat_term` extracts the bare list of tpats.
+     Thread those ids back onto the outer Param's annotation so the
+     comma tiles still land in the info map (so e.g. putting the
+     cursor on the `,` in `type Either(a, b) = …` shows the alias
+     head's info, not "Whitespace or comment"). */
+  let extra_ids =
+    switch (unsorted) {
+    | Post(TPat(_), tiles) =>
+      switch (tiles) {
+      | ([(_, (["(", ")"], [TPat(params)]))], []) =>
+        switch (params.term) {
+        | MultiHole(_) => IdTagged.ids(params)
+        | _ => []
+        }
+      | _ => []
+      }
+    | _ => []
+    };
+  let ids = ids(unsorted) @ extra_ids;
   return(ty => TPat(ty), ids, IdTagged.mk(ids, get_secondary(ids), term));
 }
 and tpat_term: unsorted => TPat.term = {
