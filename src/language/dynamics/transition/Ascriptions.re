@@ -110,19 +110,38 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
         ),
       )
     | (TypFun(tp, body, name), Poly(tp', t')) =>
-      let new_ty: Typ.t =
-        switch (TPat.tyvar_of_utpat(tp)) {
-        | Some(tyvar) => Var(tyvar) |> Typ.temp
-        | None => Unknown(Internal) |> Typ.temp
+      /* Push the ascription inwards: the body of the `TypFun` should
+         be ascribed against the body of the matching `Poly` with the
+         outer binders substituted. Both `tp` and `tp'` may be
+         multi-binder (`TPat.Tuple([…])`). When their arities match,
+         substitute element-wise; otherwise substitute the leading
+         binder once with `Unknown(Internal)` to keep some progress. */
+      let user_binders = TPat.binders_of(tp);
+      let outer_binders = TPat.binders_of(tp');
+      let body_ty =
+        if (List.length(user_binders) == List.length(outer_binders)) {
+          let args =
+            List.map(
+              (b: TPat.t): Typ.t =>
+                switch (TPat.tyvar_of_utpat(b)) {
+                | Some(tyvar) => Var(tyvar) |> Typ.temp
+                | None => Unknown(Internal) |> Typ.temp
+                },
+              user_binders,
+            );
+          Typ.subst_many(args, outer_binders, t');
+        } else {
+          let new_ty: Typ.t =
+            switch (TPat.tyvar_of_utpat(tp)) {
+            | Some(tyvar) => Var(tyvar) |> Typ.temp
+            | None => Unknown(Internal) |> Typ.temp
+            };
+          Typ.subst(new_ty, tp', t');
         };
       Some(
         IdTagged.fast_copy(
           DHExp.rep_id(e),
-          TypFun(
-            tp,
-            recur(Asc(body, Typ.subst(new_ty, tp', t')) |> DHExp.fresh),
-            name,
-          )
+          TypFun(tp, recur(Asc(body, body_ty) |> DHExp.fresh), name)
           |> DHExp.fresh,
         ),
       );

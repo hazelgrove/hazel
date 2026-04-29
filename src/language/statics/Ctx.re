@@ -193,12 +193,21 @@ let result_type_for_params = (name: string, params: list(TermBase.TPat.t)) =>
   );
 
 let quantify_params = (params: list(TermBase.TPat.t), ty: TermBase.Typ.t) =>
-  List.fold_right(
-    (param, body) =>
-      (Poly(param, body): TermBase.Typ.term) |> IdTagged.fresh,
-    params,
-    ty,
-  );
+  /* A parameterized type's constructor schema gets a single `Poly`
+     wrapping. Single-parameter types use the bare param as the binder
+     (`Poly(a, ty)`); multi-parameter types wrap the params into a
+     `TPat.Tuple` so the schema mirrors the source-level multi-binder
+     form `poly a, b -> …` (`Poly(Tuple([a, b]), ty)`). This way both
+     the user's `pair@<Int, Bool>` and constructor specialization in
+     elaboration peel one binder layer in one step. */
+  switch (params) {
+  | [] => ty
+  | [param] => (Poly(param, ty): TermBase.Typ.term) |> IdTagged.fresh
+  | _ =>
+    let tuple_binder: TermBase.TPat.t =
+      (Tuple(params): TermBase.TPat.term) |> IdTagged.fresh;
+    (Poly(tuple_binder, ty): TermBase.Typ.term) |> IdTagged.fresh;
+  };
 
 let add_ctrs_with_params =
     (

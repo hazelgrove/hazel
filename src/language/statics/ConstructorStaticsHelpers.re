@@ -88,12 +88,19 @@ let typ_param_ap_spine = (ty: Typ.t): list(Typ.t) => {
   go(ty, []);
 };
 
-/* Count the outermost Poly binders in a constructor's schema, e.g.
-   `poly a -> poly b -> ...` has arity 2. */
+/* Count the type-parameter arity of a constructor's schema. With the
+   multi-binder representation, a multi-parameter type's schema is a
+   single `Poly` whose binder is a `TPat.Tuple([…])`, so the arity is
+   the length of that tuple. Single-parameter schemas are
+   `Poly(<var>, …)` with arity 1, and the legacy curried form
+   `Poly(_, Poly(_, …))` (used by explicit nesting) flattens via the
+   recursive count. */
 let schema_arity = (ty: Typ.t): int => {
   let rec go = (ty: Typ.t, n) =>
     switch (ty.term) {
-    | Poly(_, body) => go(body, n + 1)
+    | Poly(b, body) =>
+      let arity = List.length(TPat.binders_of(b));
+      go(body, n + arity);
     | _ => n
     };
   go(ty, 0);
