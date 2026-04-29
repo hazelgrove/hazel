@@ -29,6 +29,27 @@ let tests =
       ),
       test_case("Empty Hole", `Quick, () => exp_check(empty_hole(), "?")),
       test_case("Free Variable", `Quick, () => exp_check(var("x"), "x")),
+      test_case("Variable with prime", `Quick, () =>
+        exp_check(var("x'"), "x'")
+      ),
+      test_case("Variable with double prime", `Quick, () =>
+        exp_check(var("x''"), "x''")
+      ),
+      test_case("Constructor with prime", `Quick, () =>
+        exp_check(constructor("Some'", None), "Some'")
+      ),
+      test_case("Type alias with prime", `Quick, () =>
+        exp_check(
+          ty_alias(
+            TPat.var("T'"),
+            Typ.int(),
+            let_(Pat.asc(Pat.var("x"), Typ.var("T'")), int(3), var("x")),
+          ),
+          "type T' = Int in
+let x : T' = 3 in
+x",
+        )
+      ),
       test_case("Parenthesized Expression", `Quick, () =>
         exp_check(parens(int(0)), "(0)")
       ),
