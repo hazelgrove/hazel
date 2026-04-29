@@ -209,7 +209,7 @@ let is_var = str =>
   && !is_wild(str)
   && match(var_regexp, str);
 
-let capitalized_name_regexp = regexp("^[A-Z][A-Za-z0-9_]*$");
+let capitalized_name_regexp = regexp("^[A-Z][A-Za-z0-9_']*$");
 let is_ctr = match(capitalized_name_regexp);
 
 let quote_label_when_necessary = (l: string): string =>

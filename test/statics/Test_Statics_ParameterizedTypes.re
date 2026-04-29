@@ -561,6 +561,28 @@ let x : List((Int, Bool)) = Nil in x
       },
     ),
     test_case(
+      "Trailing primes are allowed in type names and type variables",
+      `Quick,
+      () => {
+        /* Both lowercase type variables (`a'`, `b''`) and capitalized
+           type names (`Option'`, `T'`) should accept trailing primes. */
+        Alcotest.check(
+          list(testable_issue),
+          "no static errors with primes",
+          [],
+          static_errors(
+            {|
+type Option'(a') =
+  + None'
+  + Some'(a') in
+let x : Option'(Int) = Some'(3) in x
+|},
+          )
+          |> List.map(ms => Marks([ms])),
+        );
+      },
+    ),
+    test_case(
       "Multi-param Either evaluates to a self-typed constructor",
       `Quick,
       () => {
