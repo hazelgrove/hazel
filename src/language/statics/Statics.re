@@ -1858,20 +1858,21 @@ and uexp_to_info_map =
       let p_ana_ctx =
         switch (module_items) {
         | Some(items) =>
-          switch (ExpandModule.single_bound_var(p)) {
+          switch (ModuleHelpers.single_bound_var(p)) {
           | Some(name) =>
-            let exports = ExpandModule.collect_type_exports(ctx, items);
-            switch (exports) {
-            | [] => p_ana_ctx
-            | _ =>
-              let exports_ty = ExpandModule.build_type_exports_type(exports);
-              Ctx.extend_alias(p_ana_ctx, name, Pat.rep_id(p), exports_ty);
+            let exports_ty =
+              ModuleHelpers.collect_type_exports(ctx, items)
+              |> ModuleHelpers.type_exports_alias_type;
+            switch (exports_ty) {
+            | Some(exports_ty) =>
+              Ctx.extend_alias(p_ana_ctx, name, Pat.rep_id(p), exports_ty)
+            | None => p_ana_ctx
             };
           | None => p_ana_ctx
           }
         | None =>
           /* Phase 1b: variable aliasing — propagate TVarEntry from RHS */
-          switch (ExpandModule.single_bound_var(p), def_rhs_var) {
+          switch (ModuleHelpers.single_bound_var(p), def_rhs_var) {
           | (Some(name), Some(rhs)) =>
             switch (Ctx.lookup_tvar(ctx, rhs)) {
             | Some(Singleton(exports_ty)) =>
@@ -2354,12 +2355,13 @@ and uexp_to_info_map =
          annotations, and the Module's own add() checks the overall type against
          ana. Using ~ana here would double-count type inconsistencies (once on
          the expansion's inner tuple, once on the Module expression). */
-      let expanded = ExpandModule.expand(~ana, items);
-      let (expanded_info, expanded_elab, m) = go(expanded, m);
+      let lowered = ModuleHelpers.lower(~ctx, ~ana, items);
+      let (expanded_info, expanded_elab, m) = go(lowered.expanded, m);
       let m = ModuleHelpers.reclassify_expanded_module_items(items, m);
       /* Build actual Prod type from module's exported bindings, rather than
          using expanded_info.ty which masks width errors via fixed_typ. */
-      let actual_ty = ModuleHelpers.module_actual_type(items, m);
+      let actual_ty =
+        ModuleHelpers.module_actual_type(lowered.value_exports, m);
       let module_elab =
         ModuleHelpers.module_elab(
           ~module_exp_id=Exp.rep_id(uexp),
@@ -2377,7 +2379,7 @@ and uexp_to_info_map =
          Process the MPat for cursor info, then expand to Let and type-check. */
       let (_, _, m) =
         any_to_info_map(~ctx, ~ancestors=ancestors_inclusive, MPat(mp), m);
-      let pat = ExpandModule.mpat_to_pat(mp);
+      let pat = ModuleHelpers.mpat_to_pat(mp);
       let expanded =
         IdTagged.fast_copy(
           Exp.rep_id(uexp),
