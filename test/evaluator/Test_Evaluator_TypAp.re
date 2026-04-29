@@ -75,6 +75,26 @@ pair@<Int, Bool>(3)(true)|},
       )
     ),
     test_case(
+      "Recursive map with multi-binder typfun, recursive call uses @<a, b>",
+      `Quick,
+      () =>
+        /* The recursive call `map@<a, b>(tl, f)` requires the TypAp
+           statics to peel BOTH `Poly` binders on `map` in a single
+           step (via `TypTuple([a, b])`), otherwise the residual
+           `poly b -> …` leaks out and the subsequent `(tl, f)` Ap
+           would fail with an arrow-vs-poly mismatch. */
+        parse_and_evaluate_test(
+          "[2, 4, 6]",
+          {|let map : poly a, b -> ([a], a -> b) -> [b] =
+  typfun a, b -> fun (xs, f) ->
+    case xs
+    | [] => []
+    | hd::tl => f(hd)::map@<a, b>(tl, f)
+    end in
+map@<Int, Int>([1, 2, 3], fun x -> x * 2)|},
+        ),
+    ),
+    test_case(
       "Parameterized Some(3) evaluates to self-typed constructor",
       `Quick,
       () => {

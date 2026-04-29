@@ -1598,19 +1598,36 @@ and uexp_to_info_map =
       let (_, m) =
         utyp_to_info_map(~ctx, ~ancestors=ancestors_inclusive, utyp, m);
       let elab_term = TypAp(fn_elab, Typ.normalize(ctx, utyp)) |> rewrap;
-      let (option_name, ty_body) = MatchedTyp.poly_pair_tolerant(ctx, fn.ty);
-      switch (option_name) {
-      | Some(name) =>
-        add(
-          ~elab_term,
-          ~elab_syn_ty=Typ.subst(utyp, name, ty_body),
-          ~marks=[],
-          ~co_ctx=fn.co_ctx,
-          m,
-        )
-      | None =>
-        add(~elab_term, ~elab_syn_ty=ty_body, ~marks=[], ~co_ctx=fn.co_ctx, m) /* invalid name matches with no free type variables. */
-      };
+      /* For multi-argument applications `f@<a, b>` the type argument
+         arrives as `TypTuple([a, b])`. Peel one `Poly` per element so
+         the result type is fully specialized — otherwise the
+         remaining `Poly` layers leak out and downstream uses (e.g. an
+         immediately-following ordinary application) see a polymorphic
+         type where they expect an arrow. */
+      let arg_typs =
+        switch (utyp.term) {
+        | TypTuple(ts) => ts
+        | _ => [utyp]
+        };
+      let rec specialize = (ty: Typ.t, args: list(Typ.t)): Typ.t =>
+        switch (args) {
+        | [] => ty
+        | [arg, ...rest] =>
+          let (option_name, body) =
+            MatchedTyp.poly_pair_tolerant(ctx, ty);
+          switch (option_name) {
+          | Some(name) => specialize(Typ.subst(arg, name, body), rest)
+          | None => body
+          };
+        };
+      let elab_syn_ty = specialize(fn.ty, arg_typs);
+      add(
+        ~elab_term,
+        ~elab_syn_ty,
+        ~marks=[],
+        ~co_ctx=fn.co_ctx,
+        m,
+      );
     | DeferredAp(fn, args) =>
       /* If this is a builtin with custom statics */
       let custom_statics =
