@@ -113,15 +113,40 @@
   left: 0;
 }
 
-/* TableRenderer's wrapper is sized in code blocks via inline style.
-   Make it scroll if data exceeds the reserved height. */
+/* TableRenderer's wrapper. The inline width/height in code blocks
+   is a *minimum* — let the table grow to its natural width so we
+   don't get a horizontal scrollbar from sub-pixel mismatches between
+   the requested block-grid size and the actual rendered cell widths.
+   Vertical content beyond the requested height does scroll, since
+   that's the point of clamping height_blocks at the data rows. */
 .live-offside .value.rich > .rich-probe-table-inner {
-  overflow: auto;
+  overflow-x: visible;
+  overflow-y: auto;
   border-radius: 2px;
+  width: auto !important;
+  min-width: 0;
 }
 .live-offside .value.rich > .rich-probe-table-inner > table.table {
-  width: 100%;
   height: 100%;
+}
+
+/* Make the resize handle in the rich-probe context — the existing
+   .projector.table / .modal-backdrop selectors don't reach into the
+   inline .value.rich, so the handle would have no dimensions. */
+.live-offside .value.rich .table-resize-handle {
+  position: sticky;
+  bottom: 0;
+  left: 100%;
+  width: 14px;
+  height: 14px;
+  margin-top: -14px;
+  cursor: nwse-resize;
+  background: linear-gradient(135deg, transparent 50%, rgba(0, 0, 0, 0.25) 50%);
+  border-top: 1px solid rgba(0, 0, 0, 0.15);
+  border-left: 1px solid rgba(0, 0, 0, 0.15);
+  border-top-left-radius: 2px;
+  z-index: calc(var(--projector-z) + 2);
+  pointer-events: auto;
 }
 
 /* Sticky header for in-table scroll. */
@@ -137,6 +162,16 @@
    raise its z so overflow:auto doesn't clip it. */
 .live-offside .value.rich .column-menu {
   z-index: calc(var(--projector-z) + 5);
+}
+
+/* Cell .value tokens inherit `.live-offside .sample:has(.value.X)
+   .value { background-color: ... }` from proj-probe.css — that rule
+   uses descendant selectors, so it cascades into every nested .value
+   inside the rich content (including each table cell's value
+   display) and overrides zebra stripes. Reset nested .value bg so
+   only the outer .value.rich frame carries the sample color. */
+.live-offside .value.rich .value {
+  background-color: transparent !important;
 }
 
 /* Add Column Header Button */
