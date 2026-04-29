@@ -131,7 +131,7 @@ let tests = (
         check(
           Alcotest.string,
           "ascribed sum type constructor in pattern",
-          "let []:(+ Jg) = ? in ?",
+          "let []:(+ Jg) =  ?in?",
           serialized,
         );
       },
@@ -1077,23 +1077,23 @@ in process([1, -2, 3, -4, 5])|},
 );
 
 /* ============================================================================
-   GROUT ROUND-TRIP TESTS
+   HOLE ROUND-TRIP TESTS
 
-   Grout represents incomplete/erroneous syntax:
-   - Convex grout: EmptyHole - represents an empty/missing expression
-   - Concave grout: MultiHole - represents multiple disconnected pieces
+   Holes represent incomplete/erroneous syntax:
+   - Convex holes: EmptyHole - represents an empty/missing expression
+   - Concave holes: MultiHole - represents multiple disconnected pieces
 
    Round-trip path: Term → ExpToSegment → Segment → MakeTerm → Term
 
    Key behaviors verified:
-   1. EmptyHole produces convex Grout, which parses back to EmptyHole
-   2. MultiHole produces elements with concave Grout between them
-   3. Consecutive concave grouts combine into a single MultiHole (chainable)
-   4. Secondary (whitespace) is preserved around grout pieces
+   1. EmptyHole produces convex hole tile, which parses back to EmptyHole
+   2. MultiHole produces elements with concave hole tiles between them
+   3. Consecutive concave holes combine into a single MultiHole (chainable)
+   4. Secondary (whitespace) is preserved around hole tiles
    ============================================================================ */
 
-/* Settings for structural grout tests */
-let grout_structural_settings: ExpToSegment.Settings.t = {
+/* Settings for structural hole tests */
+let hole_structural_settings: ExpToSegment.Settings.t = {
   secondary: PreserveExact,
   parenthesization: Structural,
   label_format: QuoteWhenNecessary,
@@ -1106,56 +1106,52 @@ let grout_structural_settings: ExpToSegment.Settings.t = {
   show_unknown_as_hole: true,
 };
 
-/* String-to-string grout tests: parse strings, verify round-trip preserves text.
+/* String-to-string hole tests: parse strings, verify round-trip preserves text.
 
    Note: We only compare text, not segments, because Parser produces Tile({label: ["?"]})
-   for explicit holes while ExpToSegment produces Grout({shape: Convex}). These are
+   for explicit holes while ExpToSegment produces hole tiles. These are
    semantically equivalent but structurally different.
 
    Important: These tests require whitespace between tokens (e.g., "1 2" not "12").
    While the segment data structure technically allows tiles to be directly adjacent
-   with no intervening grout, this cannot occur in the editor - adjacent tiles would
-   immediately glom together into a single token. Since grout is internally inserted
-   by the parser/regrouter (not explicitly typed by users), we print it as empty string
+   with no intervening holes, this cannot occur in the editor - adjacent tiles would
+   immediately glom together into a single token. Since holes are internally inserted
+   by regrout (not explicitly typed by users), we print them as empty string
    to achieve true string round-tripping. The whitespace in the input string is what
    prevents tokens from merging and allows the parser to recognize separate tiles. */
-let roundtrip_grout_text_test = (name: string, input: string) =>
+let roundtrip_hole_text_test = (name: string, input: string) =>
   test_case(name, `Quick, () => {
     switch (Parser.to_term(input, ~root=Exp)) {
     | Some(term) =>
-      /* Print grout as empty string so it doesn't appear in output.
-         This achieves true string round-tripping since grout is internally
+      /* Print holes as empty string so they don't appear in output.
+         This achieves true string round-tripping since holes are internally
          inserted, not explicitly typed by users. */
-      let print_seg_grout =
+      let print_seg_holes =
         Printer.of_segment(~holes="", ~concave_holes="", ~refractors=[]);
       let seg' = exp_to_segment_roundtrip(term);
-      let output = print_seg_grout(seg');
+      let output = print_seg_holes(seg');
       check(string, {|Round-trip text|}, input, output);
     | None => Alcotest.fail({|Failed to parse|})
     }
   });
 
-let roundtrip_grout_string_tests = (
-  "Round-Trip: Grout (String)",
+let roundtrip_hole_string_tests = (
+  "Round-Trip: Holes (String)",
   [
-    /* Incomplete syntax that should produce actual grout (not Tile with "?" label) */
-    /* These test whether the parser inserts grout for incomplete expressions */
-    roundtrip_grout_text_test({|Incomplete: no term|}, {||}),
-    roundtrip_grout_text_test({|Incomplete: convex grout|}, {|1+|}),
-    roundtrip_grout_text_test(
-      {|Incomplete: convex grout with secondary|},
+    /* Incomplete syntax that should produce holes */
+    roundtrip_hole_text_test({|Incomplete: no term|}, {||}),
+    roundtrip_hole_text_test({|Incomplete: convex hole|}, {|1+|}),
+    roundtrip_hole_text_test(
+      {|Incomplete: convex hole with secondary|},
       {|1+ |},
     ),
-    roundtrip_grout_text_test({|Incomplete: two adjacent terms|}, {|1 2|}),
-    roundtrip_grout_text_test(
-      {|Incomplete: three adjacent terms|},
-      {|1 2 3|},
-    ),
-    roundtrip_grout_text_test(
+    roundtrip_hole_text_test({|Incomplete: two adjacent terms|}, {|1 2|}),
+    roundtrip_hole_text_test({|Incomplete: three adjacent terms|}, {|1 2 3|}),
+    roundtrip_hole_text_test(
       {|Incomplete: terms with extra spaces|},
       {|1  2  3|},
     ),
-    roundtrip_grout_text_test({|Incomplete: var then int|}, {|x 1|}),
+    roundtrip_hole_text_test({|Incomplete: var then int|}, {|x 1|}),
   ],
 );
 
@@ -1175,8 +1171,8 @@ let roundtrip_grout_string_tests = (
    collects IDs from all skeleton pieces (e.g., N-1 IDs for N-element MultiHole).
    This causes strict equality to fail even though the term content is identical.
 
-   String-based tests (grout_term_to_seg_to_string_tests, roundtrip_grout_string_tests)
-   still provide coverage for grout round-tripping. */
+   String-based tests (roundtrip_hole_string_tests)
+   still provide coverage for hole round-tripping. */
 
 /* ============================================================================
    PROJECTOR ROUND-TRIP TESTS
@@ -1219,6 +1215,6 @@ let all = [
   roundtrip_tests,
   roundtrip_defensive_paren_tests,
   roundtrip_larger_programs,
-  roundtrip_grout_string_tests,
+  roundtrip_hole_string_tests,
   roundtrip_projector_tests,
 ];

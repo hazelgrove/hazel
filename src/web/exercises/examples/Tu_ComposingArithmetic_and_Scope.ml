@@ -22,11 +22,7 @@ let exercise : Tutorial.spec =
     your_impl =
       {
         selection = { focus = Left; content = []; mode = Normal };
-        relatives =
-          {
-            siblings = ([ Grout { id = Id.mk (); shape = Convex } ], []);
-            ancestors = [];
-          };
+        relatives = { siblings = ([], []); ancestors = [] };
         caret = Outer;
         refractors = Haz3lcore.ZipperBase.Refractor.init;
       };
@@ -128,7 +124,7 @@ let exercise : Tutorial.spec =
                         };
                       Secondary { id = Id.mk (); content = Whitespace "\n" };
                     ],
-                    [ Grout { id = Id.mk (); shape = Convex } ] );
+                    [] );
                 ancestors = [];
               };
             caret = Outer;
@@ -160,11 +156,7 @@ let scope_exercise : Tutorial.spec =
     your_impl =
       {
         selection = { focus = Left; content = []; mode = Normal };
-        relatives =
-          {
-            siblings = ([ Grout { id = Id.mk (); shape = Convex } ], []);
-            ancestors = [];
-          };
+        relatives = { siblings = ([], []); ancestors = [] };
         caret = Outer;
         refractors = Haz3lcore.ZipperBase.Refractor.init;
       };
@@ -266,7 +258,7 @@ let scope_exercise : Tutorial.spec =
                         };
                       Secondary { id = Id.mk (); content = Whitespace "\n" };
                     ],
-                    [ Grout { id = Id.mk (); shape = Convex } ] );
+                    [] );
                 ancestors = [];
               };
             caret = Outer;

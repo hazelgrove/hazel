@@ -2,31 +2,7 @@ open Zipper;
 open Util;
 open OptUtil.Syntax;
 
-/* Captures the UUID of a single grout or tile about to be deleted
- * so as to transfer that id to its replacement if possible. See
- * also Insert.preserve_grout_id */
-let capture = (z): t => {
-  let junk_id =
-    switch (z.selection.content) {
-    | [Tile(t)] when List.length(t.label) == 1 => Some(t.id)
-    | [Tile(t)]
-        when
-          List.length(Tile.effective_label(t)) == 1
-          && !
-               List.exists(
-                 (tt: Tile.t) => tt.id == t.id,
-                 Relatives.local_missing_shards(z.relatives),
-               ) =>
-      /* Don't want to capture the UUID if there are other shards
-       * that will persist with that id. This is a subtle condition,
-       * reliant on the selection being length 1 */
-      Some(t.id)
-    | [Grout(g)] => Some(g.id)
-    | _ => None
-    };
-  Grout.cache_id(junk_id);
-  z;
-};
+let capture = (z): t => z;
 
 let delete = (d: Direction.t, z: t): option(t) => {
   let+ z = select(d, z);
@@ -78,9 +54,8 @@ let inner_left = (idx: int, z: t, ~root): option(t) =>
     unwrap_quote(Right, t, z |> Caret.set(Outer), ~root)
   | Some(t) =>
     let z = Caret.set(idx == 0 ? Outer : Inner(idx - 1), z);
-    let+ z_init = rm_nth_right(idx, t, z, ~root);
-    let z_final = Zipper.remold_regrout(Left, z_init, ~root);
-    Insert.adjust_caret_pos(~z_final, ~z_init);
+    let+ z = rm_nth_right(idx, t, z, ~root);
+    Zipper.remold_regrout(Left, z, ~root);
   | None => z |> Caret.set(Outer) |> delete(Right)
   };
 
@@ -110,12 +85,13 @@ let destruct = (d: Direction.t, z: t, ~root): option(t) =>
   };
 
 let go = (d: Direction.t, z: t, ~root): option(t) => {
-  Grout.suppressed_space := None;
   switch (Triggers.destruct(z)) {
   | Some(z) => Some(z)
   | None =>
     let+ z = destruct(d, z, ~root);
-    /* If grout disappears we may have a second merge opportunity */
+    /* In the virtual-grout world, regrout is a no-op, but we keep
+     * the call shape so the merge_or_noop pass still has a chance
+     * to coalesce tokens after deletion. */
     let z =
       z
       |> Insert.merge_or_noop(~root)

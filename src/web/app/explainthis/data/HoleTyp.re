@@ -6,12 +6,7 @@ let empty_hole_typ: form = {
   let explanation = "This marks a type that needs to be filled in.";
   {
     id: EmptyHoleTyp,
-    syntactic_form: [
-      Grout({
-        id: Id.mk(),
-        shape: Convex,
-      }),
-    ],
+    syntactic_form: [Piece.mk_hole(Nib.Shape.Concave(Precedence.min))],
     expandable_id: None,
     explanation,
     examples: [],

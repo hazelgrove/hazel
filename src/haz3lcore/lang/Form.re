@@ -115,8 +115,8 @@ type atomic_form =
   | TyVarP
   | Ctr
   | MPatName
-  | Type
-  | InfixDelimiterPrefix;
+  | Type;
+//| InfixDelimiterPrefix;
 
 /* C. Compound Forms:
    Order in this type determines relative remolding
@@ -602,15 +602,15 @@ let is_ambiguous_polymorph = List.mem(_, amiguous_polymorphs);
 let get_atomic_form: atomic_form => (Token.t => bool, list(Mold.t)) =
   fun
   | Var => (Token.is_var, [op(Exp), op(Pat)])
-  | InfixDelimiterPrefix => (
-      is_infix_delimiter_op_prefix,
-      [
-        Mold.mk_bin(Precedence.concave_grout, Exp, []),
-        Mold.mk_bin(Precedence.concave_grout, Pat, []),
-        Mold.mk_bin(Precedence.concave_grout, Typ, []),
-        Mold.mk_bin(Precedence.concave_grout, TPat, []),
-      ],
-    )
+  // | InfixDelimiterPrefix => (
+  //     is_infix_delimiter_op_prefix,
+  //     [
+  //       Mold.mk_bin(Precedence.concave_hole, Exp, []),
+  //       Mold.mk_bin(Precedence.concave_hole, Pat, []),
+  //       Mold.mk_bin(Precedence.concave_hole, Typ, []),
+  //       Mold.mk_bin(Precedence.concave_hole, TPat, []),
+  //     ],
+  //   )
   | ExplicitHole => (
       Token.is_explicit_hole,
       [op(Exp), op(Pat), op(Typ), op(TPat), op(Drv(Typ))],

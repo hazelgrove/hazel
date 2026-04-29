@@ -4,23 +4,19 @@ include Base;
 type t = piece;
 
 let secondary = w => Secondary(w);
-let grout = g => Grout(g);
 let tile = t => Tile(t);
 
-let get = (f_w, f_g, f_t: tile => _, f_p: projector => _, p: t) =>
+let get = (f_w, f_t: tile => _, f_p: projector => _, p: t) =>
   switch (p) {
   | Secondary(w) => f_w(w)
-  | Grout(g) => f_g(g)
   | Tile(t) => f_t(t)
   | Projector(p) => f_p(p)
   };
 
-let id =
-  get(Secondary.id, Grout.id, tile => tile.id, projector => projector.id);
+let id = get(Secondary.id, tile => tile.id, projector => projector.id);
 
 let sort =
   get(
-    _ => (Sort.Any, []),
     _ => (Sort.Any, []),
     t => (t.mold.out, t.mold.in_),
     _ => (Sort.Any, []),
@@ -29,21 +25,6 @@ let sort =
 let nibs =
   get(
     _ => None,
-    g => {
-      let (l, r) = Grout.shapes(g);
-      Some(
-        Nib.(
-          {
-            shape: l,
-            sort: Any,
-          },
-          {
-            shape: r,
-            sort: Any,
-          },
-        ),
-      );
-    },
     t => Some(Tile.nibs(t)),
     p => {
       let (l, r) = ProjectorCore.shapes(p);
@@ -65,7 +46,6 @@ let nibs =
 let nib_sorts =
   get(
     _ => (Sort.Any, Sort.Any),
-    _ => (Sort.Any, Sort.Any),
     t => {
       let (l, r) = Tile.nibs(t);
       (l.sort, r.sort);
@@ -73,26 +53,23 @@ let nib_sorts =
     _ => (Sort.Any, Sort.Any),
   );
 
-let sorted_children = get(_ => [], _ => [], Tile.sorted_children, _ => []);
+let sorted_children = get(_ => [], Tile.sorted_children, _ => []);
 
 let pop_l = (p: t): (t, segment) =>
   switch (p) {
   | Tile(t) => Tile.pop_l(t)
-  | Grout(_)
   | Secondary(_)
   | Projector(_) => (p, [])
   };
 let pop_r = (p: t): (segment, t) =>
   switch (p) {
   | Tile(t) => Tile.pop_r(t)
-  | Grout(_)
   | Secondary(_)
   | Projector(_) => ([], p)
   };
 
 let disassemble = (p: t): segment =>
   switch (p) {
-  | Grout(_)
   | Secondary(_)
   | Projector(_) => [p]
   | Tile(t) => Tile.disassemble(t)
@@ -101,7 +78,6 @@ let disassemble = (p: t): segment =>
 let shapes =
   get(
     _ => None,
-    g => Some(Grout.shapes(g)),
     t => Some(Tile.shapes(t)),
     p => Some(ProjectorCore.shapes(p)),
   );
@@ -112,10 +88,13 @@ let is_convex = (p: t): bool =>
   | _ => false
   };
 
-let is_grout: t => bool =
+let is_hole: t => bool =
   fun
-  | Grout(_) => true
+  | Tile(t) => Tile.is_hole(t)
   | _ => false;
+
+let mk_hole = (boundary_shape: Nib.Shape.t): t =>
+  Tile(Tile.mk_hole(boundary_shape));
 
 let is_secondary: t => bool =
   fun
@@ -149,11 +128,6 @@ let replace_id = (id: Id.t, p: t): t =>
       ...t,
       id,
     })
-  | Grout(g) =>
-    Grout({
-      ...g,
-      id,
-    })
   | Secondary(w) =>
     Secondary({
       ...w,
@@ -168,12 +142,6 @@ let replace_id = (id: Id.t, p: t): t =>
 
 let mk_secondary = (id, content) => Secondary(Secondary.mk(id, content));
 
-let mk_grout = (~id=Id.mk(), shape: Grout.shape): t =>
-  grout({
-    id,
-    shape,
-  });
-
 let mk_tile: (Form.t, list(list(t))) => t =
   (form, children) =>
     Tile({
@@ -186,7 +154,6 @@ let mk_tile: (Form.t, list(list(t))) => t =
 
 let is_term = (p: t) =>
   switch (p) {
-  | Grout(_)
   | Projector(_)
   | Tile({
       label: [_],
@@ -213,7 +180,6 @@ let token_of = (p: t): option(Token.t) =>
     | _ => None
     }
   | Secondary(w) => Some(Secondary.get_string(w.content))
-  | Grout(_) => None
   | Projector(_) => None
   };
 

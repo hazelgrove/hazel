@@ -16,11 +16,7 @@ let exercise : Exercise.t =
       prelude =
         {
           selection = { focus = Left; content = []; mode = Normal };
-          relatives =
-            {
-              siblings = ([ Grout { id = Id.mk (); shape = Convex } ], []);
-              ancestors = [];
-            };
+          relatives = { siblings = ([], []); ancestors = [] };
           caret = Outer;
           refractors = Haz3lcore.ZipperBase.Refractor.init;
         };
@@ -462,10 +458,8 @@ let exercise : Exercise.t =
                           [] );
                     },
                     ( [],
-                      [
-                        Secondary { id = Id.mk (); content = Whitespace " " };
-                        Grout { id = Id.mk (); shape = Convex };
-                      ] ) );
+                      [ Secondary { id = Id.mk (); content = Whitespace " " } ]
+                    ) );
                 ];
             };
           caret = Outer;
@@ -476,11 +470,7 @@ let exercise : Exercise.t =
           tests =
             {
               selection = { focus = Left; content = []; mode = Normal };
-              relatives =
-                {
-                  siblings = ([], [ Grout { id = Id.mk (); shape = Convex } ]);
-                  ancestors = [];
-                };
+              relatives = { siblings = ([], []); ancestors = [] };
               caret = Outer;
               refractors = Haz3lcore.ZipperBase.Refractor.init;
             };
@@ -655,14 +645,12 @@ let exercise : Exercise.t =
                                 };
                               Secondary
                                 { id = Id.mk (); content = Whitespace " " };
-                              Grout { id = Id.mk (); shape = Convex };
                               Secondary
                                 { id = Id.mk (); content = Whitespace "\n" };
                             ];
                           ];
                       };
                     Secondary { id = Id.mk (); content = Whitespace " " };
-                    Grout { id = Id.mk (); shape = Convex };
                   ],
                   [] );
               ancestors = [];
@@ -1445,7 +1433,7 @@ let exercise : Exercise.t =
                             };
                           Secondary { id = Id.mk (); content = Whitespace " " };
                         ],
-                        [ Grout { id = Id.mk (); shape = Convex } ] );
+                        [] );
                     ancestors = [];
                   };
                 caret = Outer;
@@ -2078,7 +2066,7 @@ let exercise : Exercise.t =
                             };
                           Secondary { id = Id.mk (); content = Whitespace " " };
                         ],
-                        [ Grout { id = Id.mk (); shape = Convex } ] );
+                        [] );
                     ancestors = [];
                   };
                 caret = Outer;
@@ -3258,7 +3246,7 @@ let exercise : Exercise.t =
                           };
                         Secondary { id = Id.mk (); content = Whitespace "\n" };
                       ],
-                      [ Grout { id = Id.mk (); shape = Convex } ] );
+                      [] );
                   ancestors = [];
                 };
               caret = Outer;

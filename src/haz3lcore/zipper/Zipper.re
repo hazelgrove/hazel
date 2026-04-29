@@ -6,15 +6,7 @@ let init: unit => t =
   () => {
     selection: Selection.mk([]),
     relatives: {
-      siblings: (
-        [],
-        [
-          Grout({
-            id: Id.mk(),
-            shape: Convex,
-          }),
-        ],
-      ),
+      siblings: ([], []),
       ancestors: [],
     },
     caret: Outer,
@@ -45,15 +37,6 @@ let unzip = (~direction: Direction.t=Right, seg: Segment.t): t => {
   refractors: Refractor.init,
 };
 
-let regrout = (d: Direction.t, z: t): t => {
-  assert(Selection.is_empty(z.selection));
-  let relatives = Relatives.regrout(d, z.relatives);
-  {
-    ...z,
-    relatives,
-  };
-};
-
 let remold = (z: t, ~root): t => {
   assert(Selection.is_empty(z.selection));
   {
@@ -61,6 +44,12 @@ let remold = (z: t, ~root): t => {
     relatives: Relatives.remold(z.relatives, root),
   };
 };
+
+/* In the virtual-grout world, edit-state segments contain no Grout
+ * pieces (holes are structural, derived in Skel). The legacy
+ * `regrout` step is therefore a no-op; we keep the function to
+ * preserve call-site shape. */
+let regrout = (_d: Direction.t, z: t): t => z;
 
 let remold_regrout = (d: Direction.t, z: t, ~root): t =>
   z |> remold(~root) |> regrout(d);
@@ -141,9 +130,7 @@ let rescan_parent_shards = (z: t): t => {
               shards: target.shards |> PairUtil.map_fst(ss => ss @ shards_l),
               children:
                 target.children
-                |> PairUtil.map_fst(kids =>
-                     Segment.inner_regrout(kids @ [outer_l, ...kids_l])
-                   ),
+                |> PairUtil.map_fst(kids => kids @ [outer_l, ...kids_l]),
             };
             (target, inner_l);
           };
@@ -157,9 +144,7 @@ let rescan_parent_shards = (z: t): t => {
               shards: target.shards |> PairUtil.map_snd(ss => shards_r @ ss),
               children:
                 target.children
-                |> PairUtil.map_snd(kids =>
-                     Segment.inner_regrout([outer_r, ...kids_r] @ kids)
-                   ),
+                |> PairUtil.map_snd(kids => [outer_r, ...kids_r] @ kids),
             };
             (target, inner_r);
           };
@@ -215,7 +200,7 @@ let rescan_parent_shards = (z: t): t => {
   };
 };
 
-let rescan_reassemble = (~with_parent=false, d: Direction.t, z: t, ~root): t => {
+let rescan_reassemble = (~with_parent=false, _d: Direction.t, z: t, ~root): t => {
   let siblings = Siblings.rescan(z.relatives.siblings);
   let z =
     if (siblings == z.relatives.siblings) {
@@ -227,8 +212,7 @@ let rescan_reassemble = (~with_parent=false, d: Direction.t, z: t, ~root): t => 
           siblings,
         }
         |> Relatives.reassemble
-        |> (r => Relatives.remold(r, root))
-        |> Relatives.regrout(d);
+        |> (r => Relatives.remold(r, root));
       {
         ...z,
         relatives,
@@ -238,8 +222,7 @@ let rescan_reassemble = (~with_parent=false, d: Direction.t, z: t, ~root): t => 
     let z' = rescan_parent_shards(z);
     if (z'.relatives.ancestors != z.relatives.ancestors
         || z'.relatives.siblings != z.relatives.siblings) {
-      let relatives =
-        Relatives.remold(z'.relatives, root) |> Relatives.regrout(d);
+      let relatives = Relatives.remold(z'.relatives, root);
       {
         ...z',
         relatives,
@@ -596,9 +579,27 @@ let base_point = (measured: Measured.t, z: t): Point.t => {
       let m = Measured.find_p(~msg="base_point", p, measured);
       m.origin;
     };
-  | None => {
-      row: 0,
-      col: 0,
+  | None =>
+    /* No sibling pieces: we're in an empty child segment.
+     * Use the parent ancestor's left delimiter as reference. */
+    switch (Ancestors.parent(z.relatives.ancestors)) {
+    | Some(a) =>
+      let shards_l = fst(a.shards);
+      switch (ListUtil.last_opt(shards_l)) {
+      | Some(shard_idx) =>
+        let shard_measurements = Id.Map.find(a.id, measured.tiles);
+        let (_, m) =
+          List.find(((i, _)) => i == shard_idx, shard_measurements);
+        m.last;
+      | None => {
+          row: 0,
+          col: 0,
+        }
+      };
+    | None => {
+        row: 0,
+        col: 0,
+      }
     }
   };
 };
@@ -654,20 +655,75 @@ module Caret = {
     | _ => 0
     };
 
+  /* Visual direction at a boundary between two neighbors.
+   * Tile+secondary → tile's facing direction.
+   * Tile+tile → agreed direction if they fit, None if conflict.
+   * Secondary+secondary → None.
+   * Edge (None on a side) → face away from the edge. */
+  let direction_between =
+      (neighbors: (option(Piece.t), option(Piece.t))): option(Direction.t) =>
+    switch (neighbors) {
+    | (None, _) => Some(Left)
+    | (_, None) => Some(Right)
+    | (Some(l), Some(r))
+        when !Piece.is_secondary(l) && !Piece.is_secondary(r) =>
+      /* Both tiles: check if facing directions agree */
+      let ld =
+        l
+        |> Piece.shapes
+        |> Option.map(snd)
+        |> Option.map(Nib.Shape.absolute(Right));
+      let rd =
+        r
+        |> Piece.shapes
+        |> Option.map(fst)
+        |> Option.map(Nib.Shape.absolute(Left));
+      switch (ld, rd) {
+      | (Some(ld), Some(rd)) when ld == rd => Some(ld)
+      | _ => None /* Shape conflict (virtual grout) */
+      };
+    | (Some(l), _) when !Piece.is_secondary(l) =>
+      l
+      |> Piece.shapes
+      |> Option.map(snd)
+      |> Option.map(Nib.Shape.absolute(Right))
+    | (_, Some(r)) when !Piece.is_secondary(r) =>
+      r
+      |> Piece.shapes
+      |> Option.map(fst)
+      |> Option.map(Nib.Shape.absolute(Left))
+    | (Some(_), Some(_)) => None /* Both secondary */
+    };
+
+  /* Tip shape for a highlight edge, given the visual direction
+   * and which side the edge is on. Uses Nib.Shape.relative so that
+   * direction_of(edge_side, tip) recovers the original direction. */
+  let tip_of_direction =
+      (edge_side: Direction.t, dir: option(Direction.t))
+      : option(Nib.Shape.t) =>
+    dir |> Option.map(Nib.Shape.relative(_, edge_side));
+
+  /* Tip at the left edge of the selection (for highlight rendering) */
+  let selection_left_shape = (z: t): option(Nib.Shape.t) =>
+    direction_between((
+      ListUtil.last_opt(fst(z.relatives.siblings)),
+      ListUtil.hd_opt(z.selection.content),
+    ))
+    |> tip_of_direction(Left);
+
+  /* Tip at the right edge of the selection (for highlight rendering) */
+  let selection_right_shape = (z: t): option(Nib.Shape.t) =>
+    direction_between((
+      ListUtil.last_opt(z.selection.content),
+      ListUtil.hd_opt(snd(z.relatives.siblings)),
+    ))
+    |> tip_of_direction(Right);
+
   /* Direction the caret is facing in */
   let direction = (z: t): option(Direction.t) =>
     switch (z.caret) {
     | Inner(_) => None
-    | Outer =>
-      switch (Siblings.neighbors(sibs_with_sel(z))) {
-      | (Some(l), Some(r))
-          when
-            Piece.is_secondary(l)
-            && Piece.is_secondary(r)
-            && Selection.is_empty(z.selection) =>
-        None
-      | _ => Siblings.direction_between(sibs_with_sel(z))
-      }
+    | Outer => direction_between(Siblings.neighbors(sibs_with_sel(z)))
     };
 
   /* Grid position of the caret */

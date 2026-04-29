@@ -4,7 +4,7 @@ open OptUtil.Syntax;
 let buffer_clear = (z: Zipper.t): Zipper.t =>
   switch (z.selection.mode) {
   | Buffer(Unparsed) => Zipper.clear_unparsed_buffer(z)
-  | Buffer(Parsed) => z |> Zipper.destroy_selection |> Zipper.regrout(Left)
+  | Buffer(Parsed) => z |> Zipper.destroy_selection
   | Normal => z
   };
 

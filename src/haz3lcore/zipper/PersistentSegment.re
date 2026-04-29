@@ -38,6 +38,7 @@ let restore = (persisted: t): Zipper.t =>
   persisted.segment
   |> Sexplib.Sexp.of_string
   |> Segment.t_of_sexp
+  |> Segment.strip_holes
   |> Zipper.unzip(~direction=Left)
   |> Zipper.update_refractors(_, restore_refractors(persisted.refractors));
 

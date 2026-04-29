@@ -414,6 +414,35 @@ svg.shard.selected.buffer-parsed > path {
   vector-effect: non-scaling-stroke;
 }
 
+/* VIRTUAL GROUT: zero-width hole marker, visible but not in flow */
+.virtual-grout {
+  display: inline-block;
+  width: 0;
+  overflow: visible;
+  position: relative;
+  vertical-align: top;
+}
+.virtual-grout > .empty-hole,
+.virtual-grout > .empty-hole-thin {
+  pointer-events: none;
+}
+/* Thin deco is full row-height; take it out of flow so it
+ * doesn't expand the line box of following lines. */
+.virtual-grout > .empty-hole-thin {
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+/* THIN X DECORATION: mirrored caret chevrons forming an X */
+.empty-hole-thin > path {
+  fill: var(--error-hole-fill);
+  stroke: var(--error-hole-stroke);
+  stroke-width: 0.75px;
+  stroke-dasharray: 1, 1;
+  stroke-linecap: butt;
+  vector-effect: non-scaling-stroke;
+}
+
 /* CARET DECO */
 
 #caret {

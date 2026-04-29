@@ -36,6 +36,42 @@ let shapes = (t: t) => {
 
 let to_piece = t => Tile(t);
 
+/* A hole tile is a synthetic tile produced by regrout to represent a
+ * shape-conflict boundary. It is never stored in the edit state.
+ * Convex hole = missing operand; Concave hole = missing operator. */
+let is_hole = (t: t): bool => t.label == [" "] && t.children == [];
+
+let mk_hole = (boundary_shape: Nib.Shape.t): t => {
+  /* If boundary is Convex (two operands touching), need Concave (operator) hole.
+   * If boundary is Concave (two operators touching), need Convex (operand) hole. */
+  let (l, r) =
+    switch (boundary_shape) {
+    | Convex => Nib.Shape.(Concave(Precedence.min), Concave(Precedence.min))
+    | Concave(_) => (Convex, Convex)
+    };
+  let sort = Sort.Any;
+  {
+    id: Id.mk(),
+    label: [" "],
+    mold: {
+      nibs: (
+        {
+          shape: l,
+          sort,
+        },
+        {
+          shape: r,
+          sort,
+        },
+      ),
+      out: sort,
+      in_: [],
+    },
+    shards: [0],
+    children: [],
+  };
+};
+
 let sorted_children = ({mold, shards, children, _}: t) =>
   Aba.mk(shards, children)
   |> Aba.aba_triples

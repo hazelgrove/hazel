@@ -129,11 +129,7 @@ let let_base_exp: form = {
     examples: [let_base_ex],
   };
 };
-let _pat =
-  Piece.Grout({
-    id: Id.mk(),
-    shape: Convex,
-  });
+let _pat = Piece.mk_hole(Nib.Shape.Concave(Precedence.min));
 let _exp_def = exp("e_def");
 let let_empty_hole_exp_coloring_ids =
   _pat_def_let_exp_coloring_ids(Piece.id(_pat), Piece.id(_exp_def));
@@ -150,12 +146,7 @@ let let_empty_hole_exp: form = {
     expandable_id:
       Some((
         Piece.id(_pat),
-        [
-          Grout({
-            id: Id.mk(),
-            shape: Convex,
-          }),
-        ],
+        [Piece.mk_hole(Nib.Shape.Concave(Precedence.min))],
       )),
     explanation,
     examples: [let_base_ex],

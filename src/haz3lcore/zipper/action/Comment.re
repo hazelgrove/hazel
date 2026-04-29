@@ -17,7 +17,6 @@ let classify = (seg: Segment.t): line_class => {
     | Piece.Secondary(s) when Secondary.is_comment(s) => has_comment := true
     | Piece.Secondary(s) when Secondary.is_linebreak(s) => ()
     | Piece.Secondary(_) => ()
-    | Piece.Grout(_) => () /* Grout is structural padding, not code */
     | _ => has_code := true,
     seg,
   );

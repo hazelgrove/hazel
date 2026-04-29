@@ -55,12 +55,12 @@ module Model = {
 
   let trailing_hole_ctx =
       (ed: t, info_map: Language.Statics.Map.t): option(Ctx.t) => {
-    let* grout =
+    let* hole =
       ed.state.zipper
       |> Zipper.unselect_and_zip
-      |> Segment.convex_grout
+      |> Segment.convex_holes
       |> Util.ListUtil.last_opt;
-    Language.Statics.Map.ctx_of(grout.id, info_map);
+    Language.Statics.Map.ctx_of(hole.id, info_map);
   };
 };
 

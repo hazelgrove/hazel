@@ -42,12 +42,13 @@ let expand_projector = (z: t): option(t) => {
      * [newest(parens), ^^refractor, ...rest] where rest is [third_newest, ..., oldest].
      * We want syntax in the newest position: [oldest, ..., third_newest, syntax...] */
     let kind = of_refractor_trigger(name);
-    Zipper.update_siblings(((_, r)) => (List.rev(rest) @ syntax, r), z)
-    |> Zipper.add_manual(
-         Segment.root_id(Segment.skel(syntax), syntax),
-         kind,
-       )
-    |> Option.some;
+    let z =
+      Zipper.update_siblings(((_, r)) => (List.rev(rest) @ syntax, r), z);
+    let skel = Segment.skel(syntax);
+    switch (Segment.root_id(skel, syntax)) {
+    | Some(root_id) => Zipper.add_manual(root_id, kind, z) |> Option.some
+    | None => Some(z)
+    };
 
   | [
       Tile({label: ["(", ")"], children: [syntax], _}),
@@ -63,7 +64,7 @@ let expand_projector = (z: t): option(t) => {
   /* Special case for reparsing of projectors placed on holes */
   | [Tile({label: ["()"], _}), Tile({label: [name], _}), ...rest]
       when Token.is_projector_invoke(name) =>
-    let+ piece = invoked_projector(name, [Piece.mk_grout(Convex)]);
+    let+ piece = invoked_projector(name, []);
     Zipper.update_siblings(
       ((_, r)) => ([piece, ...rest] |> List.rev, r),
       z,
@@ -163,48 +164,89 @@ let refractor_seg_to_seg_with =
    *   ([let_idx, eq_idx, in_idx], [pat_skel, def_skel])
    * The children between delimiters must be recursively processed. */
 
-  /* Process an Aba root, returning segment from first_a to last_a (inclusive).
-   * Recursively processes all child skeletons in the Aba. */
+  /* Helper: get first/last real piece index from a root's piece_refs */
+  let first_piece_idx = (root: Skel.root): option(int) =>
+    List.find_map(
+      fun
+      | Skel.Piece(idx) => Some(idx)
+      | Skel.Hole(_) => None,
+      Aba.get_as(root),
+    );
+  let last_piece_idx = (root: Skel.root): option(int) =>
+    List.find_map(
+      fun
+      | Skel.Piece(idx) => Some(idx)
+      | Skel.Hole(_) => None,
+      List.rev(Aba.get_as(root)),
+    );
+
+  /* Process an Aba root, returning the segment spanning its real pieces.
+   * Recursively processes all child skeletons in the Aba.
+   * Hole refs are skipped (they have no physical extent in the segment). */
   let rec go_aba =
           (map: Zipper.Refractor.RefractorList.t, root: Skel.root)
           : (Zipper.Refractor.RefractorList.t, Segment.t) => {
-    let indices = Aba.get_as(root);
+    let refs = Aba.get_as(root);
     let children = Aba.get_bs(root);
-    switch (indices, children) {
-    | ([single_idx], []) =>
-      /* Atomic operator: just slice around this single index */
-      (map, ListUtil.sublist((single_idx, single_idx + 1), seg))
-    | ([first_idx, ...rest_indices], children) =>
-      /* Compound operator: interleave index slices with processed children.
-       * For indices [i0, i1, i2] and children [c0, c1]:
-       *   slice(i0, c0_start) @ go(c0) @ slice(c0_end+1, i1) @
-       *   slice(i1, c1_start) @ go(c1) @ slice(c1_end+1, i2) @ slice(i2, i2+1) */
-      let rec go_interleave =
-              (
-                map: Zipper.Refractor.RefractorList.t,
-                prev_idx: int,
-                indices: list(int),
-                children: list(Skel.t),
+    /* Walk through refs and children linearly, tracking the last
+     * real piece index for slicing boundaries. Holes are skipped. */
+    let rec walk =
+            (
+              map: Zipper.Refractor.RefractorList.t,
+              last_idx: option(int),
+              refs: list(Skel.piece_ref),
+              children: list(Skel.t),
+            )
+            : (Zipper.Refractor.RefractorList.t, Segment.t) =>
+      switch (refs) {
+      | [] => (map, [])
+      | [ref] =>
+        /* Last ref in the Aba: include gap secondary between last
+         * tracked position and this piece */
+        switch (ref) {
+        | Skel.Piece(idx) =>
+          let gap =
+            switch (last_idx) {
+            | Some(prev) when prev + 1 < idx =>
+              ListUtil.sublist((prev + 1, idx), seg)
+            | _ => []
+            };
+          (map, gap @ ListUtil.sublist((idx, idx + 1), seg));
+        | Skel.Hole(_) => (map, [])
+        }
+      | [ref, ...rest_refs] =>
+        switch (children) {
+        | [] => failwith("Aba invariant: more refs than children + 1")
+        | [child, ...rest_children] =>
+          let (map, ref_seg, next_last_idx) =
+            switch (ref) {
+            | Skel.Piece(idx) => (
+                map,
+                ListUtil.sublist((idx, idx + 1), seg),
+                Some(idx),
               )
-              : (Zipper.Refractor.RefractorList.t, Segment.t) =>
-        switch (indices, children) {
-        | ([], []) =>
-          /* After last index: include slice for the final token */
-          (map, ListUtil.sublist((prev_idx, prev_idx + 1), seg))
-        | ([next_idx, ...rest_indices], [child, ...rest_children]) =>
-          /* Process: slice from prev token to child, then child, then continue */
-          let (child_start, child_end) = Skel.range(child);
-          let before_child = ListUtil.sublist((prev_idx, child_start), seg);
+            | Skel.Hole(_) => (map, [], last_idx)
+            };
+          /* Process the child skel between this ref and the next */
           let (map, child_result) = go(map, child);
-          let after_child = ListUtil.sublist((child_end + 1, next_idx), seg);
+          /* Slice the gap between this ref (or last real piece) and child,
+             and between child and next ref */
+          let child_range = Skel.range(child);
+          let before_child =
+            switch (next_last_idx, child_range) {
+            | (Some(prev), Some((cs, _))) =>
+              ListUtil.sublist((prev + 1, cs), seg)
+            | _ => []
+            };
           let (map, rest_result) =
-            go_interleave(map, next_idx, rest_indices, rest_children);
-          (map, before_child @ child_result @ after_child @ rest_result);
-        | _ => failwith("Aba invariant violated: indices/children mismatch")
-        };
-      go_interleave(map, first_idx, rest_indices, children);
-    | ([], _) => failwith("Aba invariant violated: empty indices")
-    };
+            switch (child_range) {
+            | Some((_, ce)) => walk(map, Some(ce), rest_refs, rest_children)
+            | None => walk(map, next_last_idx, rest_refs, rest_children)
+            };
+          (map, ref_seg @ before_child @ child_result @ rest_result);
+        }
+      };
+    walk(map, None, refs, children);
   }
   and go =
       (map: Zipper.Refractor.RefractorList.t, skel: Skel.t)
@@ -217,40 +259,64 @@ let refractor_seg_to_seg_with =
 
       | Pre(root, child) =>
         /* Prefix operator: root Aba comes before the trailing child */
-        let root_indices = Aba.get_as(root);
-        let root_end = ListUtil.last(root_indices);
-        let (child_start, _) = Skel.range(child);
+        let root_end = last_piece_idx(root);
+        let child_range = Skel.range(child);
 
         let (map, root_result) = go_aba(map, root);
-        let between = ListUtil.sublist((root_end + 1, child_start), seg);
+        let between =
+          switch (root_end, child_range) {
+          | (Some(re), Some((cs, _))) =>
+            ListUtil.sublist((re + 1, cs), seg)
+          | _ => []
+          };
         let (map, child_result) = go(map, child);
 
         (map, root_result @ between @ child_result);
 
       | Post(child, root) =>
         /* Postfix operator: child comes before root Aba */
-        let (_, child_end) = Skel.range(child);
-        let root_indices = Aba.get_as(root);
-        let root_start = List.hd(root_indices);
+        let child_range = Skel.range(child);
+        let root_start = first_piece_idx(root);
 
         let (map, child_result) = go(map, child);
-        let between = ListUtil.sublist((child_end + 1, root_start), seg);
+        let between =
+          switch (child_range, root_start) {
+          | (Some((_, ce)), Some(rs)) =>
+            ListUtil.sublist((ce + 1, rs), seg)
+          | _ => []
+          };
         let (map, root_result) = go_aba(map, root);
 
         (map, child_result @ between @ root_result);
 
       | Bin(left, root, right) =>
         /* Binary operator: left @ (root Aba) @ right */
-        let (_, left_end) = Skel.range(left);
-        let (right_start, _) = Skel.range(right);
-        let root_indices = Aba.get_as(root);
-        let root_start = List.hd(root_indices);
-        let root_end = ListUtil.last(root_indices);
+        let left_range = Skel.range(left);
+        let right_range = Skel.range(right);
+        let root_start = first_piece_idx(root);
+        let root_end = last_piece_idx(root);
 
         let (map, left_result) = go(map, left);
-        let before_root = ListUtil.sublist((left_end + 1, root_start), seg);
+        let before_root =
+          switch (left_range, root_start) {
+          | (Some((_, le)), Some(rs)) =>
+            ListUtil.sublist((le + 1, rs), seg)
+          | (Some((_, le)), None) =>
+            /* Root is all holes: include everything up to right */
+            switch (right_range) {
+            | Some((rs, _)) => ListUtil.sublist((le + 1, rs), seg)
+            | None => []
+            }
+          | _ => []
+          };
         let (map, root_result) = go_aba(map, root);
-        let after_root = ListUtil.sublist((root_end + 1, right_start), seg);
+        let after_root =
+          switch (root_end, right_range) {
+          | (Some(re), Some((rs, _))) =>
+            ListUtil.sublist((re + 1, rs), seg)
+          | (None, _) => [] /* Already handled in before_root */
+          | _ => []
+          };
         let (map, right_result) = go(map, right);
 
         (
@@ -260,12 +326,15 @@ let refractor_seg_to_seg_with =
       };
 
     /* Check if this term needs to be wrapped with a refractor invocation */
-    let root_id = Segment.root_id(skel, seg);
-    switch (List.assoc_opt(root_id, map)) {
-    | Some(entry) => (
-        ListUtil.remove_assoc(root_id, map),
-        wrapper(entry.kind, result),
-      )
+    switch (Segment.root_id(skel, seg)) {
+    | Some(root_id) =>
+      switch (List.assoc_opt(root_id, map)) {
+      | Some(entry) => (
+          ListUtil.remove_assoc(root_id, map),
+          wrapper(entry.kind, result),
+        )
+      | None => (map, result)
+      }
     | None => (map, result)
     };
   };
@@ -278,14 +347,17 @@ let refractor_seg_to_seg_with =
      * the segment unchanged. */
     try({
       let skel = Segment.skel(seg);
-      let (skel_start, skel_end) = Skel.range(skel);
-      let (map, new_seg) = go(refractors, skel);
-      /* Preserve any leading/trailing Secondary (whitespace/comments) that
-       * fall outside the skel range, since skel only tracks tile indices */
-      let leading = ListUtil.sublist((0, skel_start), seg);
-      let trailing =
-        ListUtil.sublist((skel_end + 1, List.length(seg)), seg);
-      (map, leading @ new_seg @ trailing);
+      switch (Skel.range(skel)) {
+      | None => (refractors, seg)
+      | Some((skel_start, skel_end)) =>
+        let (map, new_seg) = go(refractors, skel);
+        /* Preserve any leading/trailing Secondary (whitespace/comments) that
+         * fall outside the skel range, since skel only tracks tile indices */
+        let leading = ListUtil.sublist((0, skel_start), seg);
+        let trailing =
+          ListUtil.sublist((skel_end + 1, List.length(seg)), seg);
+        (map, leading @ new_seg @ trailing);
+      };
     }) {
     | Skel.Nonconvex_segment
     | Failure(_) => (refractors, seg)

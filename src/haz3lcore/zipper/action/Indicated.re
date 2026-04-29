@@ -1,5 +1,4 @@
 open Util;
-open OptUtil.Syntax;
 
 [@deriving show]
 type relation =
@@ -177,8 +176,9 @@ let indicated =
 };
 
 /* For visual decoration (caret side, arms, projector/refractor highlighting).
-   Ignores secondary. Used by CaretDec, Arms, CodeEditable, Backpack. */
-let for_decoration = indicated(~no_ws=true, ~ign=Piece.is_secondary);
+   Ignores secondary and hole tiles. Used by CaretDec, Arms, CodeEditable, Backpack. */
+let for_decoration =
+  indicated(~no_ws=true, ~ign=p => Piece.(is_secondary(p) || is_hole(p)));
 
 /* For identity/direction queries that always need an answer, even in
    whitespace. Ignores secondary but returns them as fallback. */
@@ -202,7 +202,6 @@ let shard_index = (z: ZipperBase.t): option(int) =>
     | Sibling =>
       switch (p) {
       | Secondary(_)
-      | Grout(_)
       | Projector(_) => Some(0)
       | Tile(t) =>
         switch (side) {
@@ -225,44 +224,207 @@ let index = (z: ZipperBase.t): option(Id.t) =>
   | Some({piece, _}) => Some(Piece.id(piece))
   };
 
-let ci_of =
-    (z: ZipperBase.t, info_map: Language.Statics.Map.t)
+let piece'' = indicated(~no_ws=true, ~ign=Piece.is_secondary);
+
+/* Search the info_map for an EmptyHole entry whose first ancestor
+   matches the given parent_id. Used at virtual hole positions where
+   the hole tile ID is transient and only exists in the info_map. */
+let find_virtual_hole_ci =
+    (parent_id: Id.t, info_map: Language.Statics.Map.t)
     : option(Language.Statics.Info.t) =>
-  /* First try the decoration indication function. If it succeeds,
-   * look up the piece's info. If not (e.g. only secondary neighbors),
-   * create a 'virtual' info map entry for the secondary notation,
-   * borrowing semantic context from a nearby 'proxy' term. */
-  switch (for_decoration(z)) {
-  | Some({piece, _}) => Id.Map.find_opt(Piece.id(piece), info_map)
-  | None =>
-    let sibs = ZipperBase.sibs_with_sel(z);
-    let* cls =
-      switch (Siblings.neighbors(sibs)) {
-      /* If on side of comment, say we're on comment */
-      | (Some(Secondary(sl)), Some(Secondary(_)))
-          when Secondary.is_comment(sl) =>
-        Some(Language.Secondary.cls_of(sl))
-      | (Some(Secondary(_)), Some(Secondary(sr)))
-          when Secondary.is_comment(sr) =>
-        Some(Language.Secondary.cls_of(sr))
-      | (_, Some(Secondary(s)))
-      | (Some(Secondary(s)), _) => Some(Language.Secondary.cls_of(s))
-      | _ => None
+  Id.Map.fold(
+    (_, ci, acc) =>
+      switch (acc) {
+      | Some(_) => acc
+      | None =>
+        switch (ci) {
+        | Language.Statics.Info.InfoExp({
+            cls: Exp(EmptyHole),
+            ancestors: [pid, ..._],
+            _,
+          })
+            when pid == parent_id =>
+          Some(ci)
+        | Language.Statics.Info.InfoPat({
+            cls: Pat(EmptyHole),
+            ancestors: [pid, ..._],
+            _,
+          })
+            when pid == parent_id =>
+          Some(ci)
+        | _ => None
+        }
+      },
+    info_map,
+    None,
+  );
+
+/* Check if the cursor is at a virtual hole by detecting a shape
+   conflict at the current position */
+let at_virtual_hole = (z: ZipperBase.t): bool => {
+  let (l, r) = Siblings.shapes(ZipperBase.sibs_with_sel(z));
+  !Nib.Shape.fits(l, r);
+};
+
+/* Try to find the virtual hole's EmptyHole entry by searching with
+   multiple candidate parent IDs. At a virtual hole, the EmptyHole in
+   the info_map has its first ancestor set to the containing tile's ID.
+   We try: same-tile neighbors, left neighbor, right neighbor, ancestor. */
+let try_find_virtual_hole_ci =
+    (z: ZipperBase.t, info_map: Language.Statics.Map.t)
+    : option(Language.Statics.Info.t) => {
+  let try_id = id => find_virtual_hole_ci(id, info_map);
+  let sibs = ZipperBase.sibs_with_sel(z);
+  let (l_opt, r_opt) = Siblings.neighbors(Siblings.trim_secondary(sibs));
+  /* First: check if neighbors are shards of the same tile */
+  switch (l_opt, r_opt) {
+  | (Some(Tile(tl)), Some(Tile(tr))) when tl.id == tr.id => try_id(tl.id)
+  | _ =>
+    /* Try left neighbor's ID (e.g., comma tile in `1, _`) */
+    let result =
+      switch (l_opt) {
+      | Some(p) => try_id(Piece.id(p))
+      | None => None
       };
-    let* proxy_id =
-      switch (Siblings.neighbors(Siblings.trim_secondary(sibs))) {
-      | (_, Some(p))
-      | (Some(p), _) => Some(Piece.id(p))
-      | _ => None
+    switch (result) {
+    | Some(_) => result
+    | None =>
+      /* Try right neighbor's ID */
+      let result =
+        switch (r_opt) {
+        | Some(p) => try_id(Piece.id(p))
+        | None => None
+        };
+      switch (result) {
+      | Some(_) => result
+      | None =>
+        /* Try ancestor */
+        switch (z.relatives.ancestors) {
+        | [(parent, _), ..._] => try_id(parent.id)
+        | [] => None
+        }
       };
-    let+ ci = Id.Map.find_opt(proxy_id, info_map);
-    Language.Statics.Info.Secondary({
-      id: proxy_id,
-      cls: Secondary(cls),
-      sort: Language.Statics.Info.sort_of(ci),
-      ctx: Language.Statics.Info.ctx_of(ci),
-    });
+    };
   };
+};
+
+let secondary_fallback =
+    (z: ZipperBase.t, info_map: Language.Statics.Map.t)
+    : option(Language.Statics.Info.t) => {
+  let sibs = ZipperBase.sibs_with_sel(z);
+  let cls =
+    switch (Siblings.neighbors(sibs)) {
+    /* If on side of comment, say we're on comment */
+    | (Some(Secondary(sl)), Some(Secondary(_)))
+        when Secondary.is_comment(sl) =>
+      Language.Secondary.cls_of(sl)
+    | (Some(Secondary(_)), Some(Secondary(sr)))
+        when Secondary.is_comment(sr) =>
+      Language.Secondary.cls_of(sr)
+    | (_, Some(Secondary(s)))
+    | (Some(Secondary(s)), _) => Language.Secondary.cls_of(s)
+    | _ => Language.Secondary.Whitespace
+    };
+  /* Derive sort by walking the ancestor stack (more accurate than
+     borrowing from a neighbor piece, whose sort reflects the proxy's
+     own position rather than the cursor's). Required for correct
+     module-hole sort detection (CI.ModuleHoleSort tests).
+
+     The ~root parameter is only consulted when the ancestor stack is
+     empty — i.e., cursor on whitespace at the very top level of a
+     non-Exp-rooted editor (Pat/Typ/Drv projectors). In that narrow
+     case Sort.Exp is reported instead of the editor's actual root,
+     affecting display only (cursor inspector, var-highlight tooltip,
+     explain-this routing). All standard expression editors are
+     unaffected. Threading ~root properly would require touching ~20
+     files (Move, ProbePerform, ContextMenu, VarHighlight,
+     HighLevelNodeMap and their callers) — deferred to a focused
+     refactor. */
+  let sort = Relatives.sort(~root=Sort.Exp, z.relatives);
+  /* Try to find a non-secondary proxy for context */
+  let ctx =
+    switch (Siblings.neighbors(Siblings.trim_secondary(sibs))) {
+    | (_, Some(p))
+    | (Some(p), _) =>
+      switch (Id.Map.find_opt(Piece.id(p), info_map)) {
+      | Some(ci) => Language.Statics.Info.ctx_of(ci)
+      | None => Language.Ctx.empty
+      }
+    | (None, None) =>
+      switch (z.relatives.ancestors) {
+      | [(a, _), ..._] =>
+        switch (Id.Map.find_opt(a.id, info_map)) {
+        | Some(ci) => Language.Statics.Info.ctx_of(ci)
+        | None => Language.Ctx.empty
+        }
+      | [] => Language.Ctx.empty
+      }
+    };
+  Some(
+    Language.Statics.Info.Secondary({
+      id: Id.mk(),
+      cls: Secondary(cls),
+      sort,
+      ctx,
+    }),
+  );
+};
+
+let ci_of =
+    (
+      ~ws_to_term: Id.Map.t(Id.t)=Id.Map.empty,
+      z: ZipperBase.t,
+      info_map: Language.Statics.Map.t,
+    )
+    : option(Language.Statics.Info.t) => {
+  /* Try to find term info via whitespace association. When the cursor
+   * is on whitespace, look up which term owns it via ws_to_term,
+   * then find that term's info in info_map. */
+  let ws_lookup = () => {
+    let sibs = ZipperBase.sibs_with_sel(z);
+    switch (Siblings.neighbors(sibs)) {
+    | (_, Some(Secondary(s))) =>
+      switch (Id.Map.find_opt(s.id, ws_to_term)) {
+      | Some(term_id) => Id.Map.find_opt(term_id, info_map)
+      | None => None
+      }
+    | (Some(Secondary(s)), _) =>
+      switch (Id.Map.find_opt(s.id, ws_to_term)) {
+      | Some(term_id) => Id.Map.find_opt(term_id, info_map)
+      | None => None
+      }
+    | _ => None
+    };
+  };
+
+  /* First check if we're at a virtual hole (shape conflict). If so,
+   * look up the EmptyHole entry in the info_map by parent tile ID. */
+  if (at_virtual_hole(z)) {
+    switch (try_find_virtual_hole_ci(z, info_map)) {
+    | Some(_) as result => result
+    | None =>
+      /* Try whitespace association before falling back */
+      switch (ws_lookup()) {
+      | Some(_) as result => result
+      | None =>
+        switch (piece''(z)) {
+        | Some({piece: p, _}) => Id.Map.find_opt(Piece.id(p), info_map)
+        | None => secondary_fallback(z, info_map)
+        }
+      }
+    };
+  } else {
+    switch (piece''(z)) {
+    | Some({piece: p, _}) => Id.Map.find_opt(Piece.id(p), info_map)
+    | None =>
+      /* Try whitespace association before secondary fallback */
+      switch (ws_lookup()) {
+      | Some(_) as result => result
+      | None => secondary_fallback(z, info_map)
+      }
+    };
+  };
+};
 
 /* For type-directed completion (TyDi): returns the ci of the
  * left neighbor tile, which is the token being completed.
@@ -271,7 +433,7 @@ let ci_for_completion =
     (z: ZipperBase.t, info_map: Language.Statics.Map.t)
     : option(Language.Statics.Info.t) =>
   switch (Siblings.neighbor(Left, z.relatives.siblings)) {
-  | Some(p) when !Piece.is_secondary(p) && !Piece.is_grout(p) =>
+  | Some(p) when !Piece.is_secondary(p) && !Piece.is_hole(p) =>
     Id.Map.find_opt(Piece.id(p), info_map)
   | _ => ci_of(z, info_map)
   };

@@ -9,12 +9,7 @@ let empty_hole_template = (_sort, str, id): form => {
     );
   {
     id,
-    syntactic_form: [
-      Grout({
-        id: Id.mk(),
-        shape: Convex,
-      }),
-    ],
+    syntactic_form: [Piece.mk_hole(Nib.Shape.Concave(Precedence.min))],
     expandable_id: None,
     explanation,
     examples: [],

@@ -85,7 +85,6 @@ let rec piece_width = (p: Piece.t): int =>
         t.children,
       );
     label_w + children_w;
-  | Grout(_) => 1
   | Secondary(s) => Secondary.length(s)
   | Projector(_) => 10
   }
@@ -368,7 +367,6 @@ let is_case_rule_tile = (p: Piece.t): bool =>
    a HardBreak before it so it lands on its own line. */
 let is_trailing_hole = (p: Piece.t): bool =>
   switch (p) {
-  | Grout({shape: Convex, _}) => true
   | Tile({label: ["?"], _}) => true
   | _ => false
   };
@@ -422,7 +420,6 @@ let is_right_convex = (p: Piece.t): bool =>
     | (_, Convex) => true
     | _ => false
     }
-  | Grout({shape: Convex, _}) => true
   | _ => false
   };
 

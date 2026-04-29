@@ -399,14 +399,6 @@ let exercise : Exercise.t =
                                    "3bb3dae4-1d7a-4887-9515-979176db2fb4");
                             content = Whitespace " ";
                           };
-                        Grout
-                          {
-                            id =
-                              Option.get
-                                (Haz3lcore.Id.of_string
-                                   "88ec4496-28eb-4494-9bb4-a98b0fd8f4f3");
-                            shape = Convex;
-                          };
                       ] ) );
                 ];
             };
@@ -1222,14 +1214,6 @@ let exercise : Exercise.t =
                                    "8da1116c-7c4a-4a3f-9119-b8ca4a08a1fe");
                             content = Whitespace " ";
                           };
-                        Grout
-                          {
-                            id =
-                              Option.get
-                                (Haz3lcore.Id.of_string
-                                   "4a17733f-afc1-453a-9341-b1698361062a");
-                            shape = Convex;
-                          };
                       ] ) );
                 ];
             };
@@ -1587,16 +1571,7 @@ let exercise : Exercise.t =
                             content = Whitespace "\n";
                           };
                       ],
-                      [
-                        Grout
-                          {
-                            id =
-                              Option.get
-                                (Haz3lcore.Id.of_string
-                                   "59acfba9-3226-4461-a482-2b2d9aadb700");
-                            shape = Convex;
-                          };
-                      ] );
+                      [] );
                   ancestors = [];
                 };
               caret = Outer;
@@ -1863,14 +1838,6 @@ let exercise : Exercise.t =
                                          "c7ae5e12-9aa7-411f-b098-f6c281ed54e5");
                                   content = Whitespace " ";
                                 };
-                              Grout
-                                {
-                                  id =
-                                    Option.get
-                                      (Haz3lcore.Id.of_string
-                                         "45681e47-a546-40d2-8f23-f00e3b242163");
-                                  shape = Convex;
-                                };
                               Secondary
                                 {
                                   id =
@@ -1899,16 +1866,7 @@ let exercise : Exercise.t =
                         content = Whitespace " ";
                       };
                   ],
-                  [
-                    Grout
-                      {
-                        id =
-                          Option.get
-                            (Haz3lcore.Id.of_string
-                               "c956a857-b3f2-47b9-8586-e36391ebaa2d");
-                        shape = Convex;
-                      };
-                  ] );
+                  [] );
               ancestors = [];
             };
           caret = Outer;
@@ -2237,16 +2195,7 @@ let exercise : Exercise.t =
                               content = Whitespace " ";
                             };
                         ],
-                        [
-                          Grout
-                            {
-                              id =
-                                Option.get
-                                  (Haz3lcore.Id.of_string
-                                     "8fa23aba-0296-4a8e-856a-b211d70fc134");
-                              shape = Convex;
-                            };
-                        ] );
+                        [] );
                     ancestors = [];
                   };
                 caret = Outer;
@@ -2575,16 +2524,7 @@ let exercise : Exercise.t =
                               content = Whitespace " ";
                             };
                         ],
-                        [
-                          Grout
-                            {
-                              id =
-                                Option.get
-                                  (Haz3lcore.Id.of_string
-                                     "a3b1da2a-eacb-47ce-b84b-09fd709c0074");
-                              shape = Convex;
-                            };
-                        ] );
+                        [] );
                     ancestors = [];
                   };
                 caret = Outer;
@@ -3660,16 +3600,7 @@ let exercise : Exercise.t =
                               content = Whitespace "\n";
                             };
                         ],
-                        [
-                          Grout
-                            {
-                              id =
-                                Option.get
-                                  (Haz3lcore.Id.of_string
-                                     "935d222c-d635-4d9a-94fb-8ca43e18fd8f");
-                              shape = Convex;
-                            };
-                        ] );
+                        [] );
                     ancestors = [];
                   };
                 caret = Outer;

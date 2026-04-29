@@ -22,8 +22,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
          7abeafe3-46ba-4af6-9cda-90211d8668da)(content(Whitespace\" \
          \")))))((Secondary((id \
          aa09a0b0-3d06-4b89-b02a-b57556e10a5b)(content(Whitespace\" \
-         \"))))(Grout((id 83883e24-3468-4968-8096-59538b36a540)(shape \
-         Convex)))(Secondary((id \
+         \"))))(Secondary((id \
          ccb73c72-e8f8-4123-b12e-648033604c5d)(content(Whitespace\" \
          \")))))))))(Secondary((id \
          9fce97ee-7ed8-4cca-93db-866f11c49568)(content(Whitespace\"\\n\"))))(Secondary((id \
@@ -169,8 +168,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
          e5d4ed81-6df4-44a2-8ac4-2843ac366c58)(content(Whitespace\" \
          \")))))))))(Secondary((id \
          45725f8c-ab56-4fba-969e-20761e1d388f)(content(Whitespace\" \
-         \"))))(Grout((id 70a809d0-8277-4f15-9a5c-412196730c53)(shape \
-         Convex))))))))(Secondary((id \
+         \")))))))))(Secondary((id \
          d783816c-c489-4c34-a66b-8aa38c6ff897)(content(Whitespace\"\\n\")))))))))(Secondary((id \
          657dc152-f285-4e49-8755-8ffb767b6cb4)(content(Whitespace\" \
          \")))))))))(Secondary((id \
@@ -2809,8 +2807,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
          \"))))(Secondary((id \
          4bf9d97c-8f26-4be0-8c6c-187a7b7a0458)(content(Whitespace\" \
          \"))))(Secondary((id \
-         c58fca1c-3d54-4542-9649-91b93756dd3b)(content(Whitespace\"\\n\"))))(Grout((id \
-         68a4a8af-7a92-49e4-bac0-29ef1d35a647)(shape Convex))))";
+         c58fca1c-3d54-4542-9649-91b93756dd3b)(content(Whitespace\"\\n\")))))";
       backup_text =
         "# Hazel Language Quick Reference #\n\n\
          # Empty holes stand for missing expressions, patterns, or types #\n\

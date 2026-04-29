@@ -13,22 +13,7 @@ let exercise : Exercise.t =
       prelude =
         {
           selection = { focus = Left; content = []; mode = Normal };
-          relatives =
-            {
-              siblings =
-                ( [
-                    Grout
-                      {
-                        id =
-                          Option.get
-                            (Haz3lcore.Id.of_string
-                               "0f530980-f1ee-408f-b1a6-aee0bdc0f760");
-                        shape = Convex;
-                      };
-                  ],
-                  [] );
-              ancestors = [];
-            };
+          relatives = { siblings = ([], []); ancestors = [] };
           caret = Outer;
           refractors =
             {
@@ -57,22 +42,7 @@ let exercise : Exercise.t =
       setup =
         {
           selection = { focus = Left; content = []; mode = Normal };
-          relatives =
-            {
-              siblings =
-                ( [],
-                  [
-                    Grout
-                      {
-                        id =
-                          Option.get
-                            (Haz3lcore.Id.of_string
-                               "9681034c-5307-42b8-9987-aa60c950a44d");
-                        shape = Convex;
-                      };
-                  ] );
-              ancestors = [];
-            };
+          relatives = { siblings = ([], []); ancestors = [] };
           caret = Outer;
           refractors =
             {

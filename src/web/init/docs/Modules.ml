@@ -2747,8 +2747,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
          \")))))))))(Secondary((id \
          2744c2ab-cab7-4697-acca-69ccc5fa09c6)(content(Whitespace\" \
          \"))))(Secondary((id \
-         a7b2c47c-9186-44b2-a6a3-0625212d82a8)(content(Whitespace\"\\n\"))))(Grout((id \
-         d42b06b9-9749-4820-86a1-ef6182a68bbe)(shape Convex))))";
+         a7b2c47c-9186-44b2-a6a3-0625212d82a8)(content(Whitespace\"\\n\")))))";
       backup_text =
         "# MODULES #\n\n\
          # Modules use curly-brace syntax with semicolon-separated items. #\n\

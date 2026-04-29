@@ -22,12 +22,7 @@ let typfun_var: form = {
     expandable_id:
       Some((
         Piece.id(_tp),
-        [
-          Grout({
-            id: Id.mk(),
-            shape: Convex,
-          }),
-        ],
+        [Piece.mk_hole(Nib.Shape.Concave(Precedence.min))],
       )),
     explanation,
     examples: [poly_id_ex],

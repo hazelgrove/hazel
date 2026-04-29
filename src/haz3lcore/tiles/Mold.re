@@ -143,30 +143,6 @@ let nib_shapes = (~index, mold: t): Nibs.shapes => {
   (nib_l.shape, nib_r.shape);
 };
 
-let of_grout: (Grout.t, Sort.t) => t =
-  (g, sort) => {
-    nibs:
-      // TODO(d): revisit this when reformulating molds
-      switch (g.shape) {
-      | Convex =>
-        let n =
-          Nib.{
-            shape: Convex,
-            sort,
-          };
-        (n, n);
-      | Concave =>
-        let n =
-          Nib.{
-            shape: Concave(Precedence.min),
-            sort,
-          };
-        (n, n);
-      },
-    out: sort,
-    in_: [],
-  };
-
 let of_secondary = (l: Nib.t) => {
   nibs: (Nib.flip(l), l),
   out: l.sort,

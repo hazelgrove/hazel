@@ -1,8 +1,11 @@
-/* Remove non-contentful items (whitespace and concave grout) */
+/* Remove non-contentful items (whitespace and concave hole tiles) */
 let trim_non_content: Segment.t => Segment.t =
   List.filter_map(
     fun
-    | Piece.Grout({shape: Concave, _}) => None
+    | Piece.Tile(t)
+        when
+          Tile.is_hole(t) && fst(Tile.shapes(t)) == Concave(Precedence.min) =>
+      None
     | Secondary(s) when Secondary.is_space(s) => None
     | p => Some(p),
   );
@@ -161,7 +164,6 @@ let rec go' = ((not_top, base: int, seg: Segment.t)) => {
             };
           (level, Id.Map.add(w.id, level, map));
         | Secondary(_)
-        | Grout(_)
         | Projector(_) => (level, map)
         | Tile(t) =>
           let map =

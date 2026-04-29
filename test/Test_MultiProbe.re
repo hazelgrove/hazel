@@ -100,8 +100,8 @@ let test_probe_placement = (~name: string, ~code: string): test_case(_) => {
 
       /* Get the term for statics computation */
       let root_segment = Zipper.unselect_and_zip(zipper);
-      let root_id =
-        Segment.root_id(Segment.skel(root_segment), root_segment);
+      let skel = Segment.skel(root_segment);
+      let root_id = Segment.root_id(skel, root_segment);
 
       /* Compute statics */
       let MakeTerm.{term, _} = MakeTerm.go(root_segment);
@@ -114,7 +114,11 @@ let test_probe_placement = (~name: string, ~code: string): test_case(_) => {
       /* Call MultiProbe to get probe term IDs using the sophisticated version.
          Use target_subterm_ids to narrow the anchor (e.g. Let/Module → def),
          matching the production pipeline in ProbePerform.add_multi. */
-      let target_ids = ProbePerform.target_subterm_ids(root_id, info_map);
+      let target_ids =
+        switch (root_id) {
+        | Some(id) => ProbePerform.target_subterm_ids(id, info_map)
+        | None => []
+        };
       let probe_ids =
         List.concat_map(
           target_id =>

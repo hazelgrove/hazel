@@ -1134,13 +1134,13 @@ let resolve_pending_probe_cursor =
 };
 
 /* After an edit, if the new-ID diff in add_ids_from_multi_term didn't set
- * pending_probe_cursor (e.g., because grout ID preservation kept the same ID
+ * pending_probe_cursor (e.g., because ID preservation kept the same ID
  * despite structural changes), align the sample focus to an ephemeral probe
  * at or near the caret. This handles cases like completing `then` where the
  * hole moves from top-level sibling to then-branch without changing ID.
  *
  * Note: Indicated.index returns a piece ID, but ephemerals are keyed by term
- * IDs from MultiProbe. These usually match for simple cases (grout holes) but
+ * IDs from MultiProbe. These usually match for simple cases (holes) but
  * may differ when the caret is on a delimiter or shard of a multi-piece term.
  * We try a direct match first, then fall back to spatial proximity. */
 let align_to_indicated_probe =

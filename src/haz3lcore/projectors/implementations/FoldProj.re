@@ -44,7 +44,8 @@ module M: Projector = {
 
   let hover_view = (view_seg: View.seg, m, info: info) => {
     let seg = Segment.unparenthesize(info.syntax);
-    let sort = Segment.sort_of(Segment.skel(seg), seg);
+    let skel = Segment.skel(seg);
+    let sort = Segment.sort_of(skel, seg);
     div(
       ~attrs=[
         Attr.classes(

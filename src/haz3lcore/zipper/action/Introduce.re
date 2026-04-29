@@ -42,8 +42,10 @@ module type Introducable = {
 
 module IntroducePat: Introducable with type t = Pat.t = {
   type t = Pat.t;
-  let parse = selection =>
-    MakeTerm.(pat(unsorted(Pat, Segment.skel(selection), selection)));
+  let parse = selection => {
+    let skel = Segment.skel(selection);
+    MakeTerm.(pat(unsorted(Pat, skel, selection)));
+  };
   let is_hole = (pat: Pat.t) => {
     switch (pat.term) {
     | EmptyHole => true
@@ -99,8 +101,10 @@ module IntroducePat: Introducable with type t = Pat.t = {
 
 module IntroduceExp: Introducable with type t = Exp.t = {
   type t = Exp.t;
-  let parse = selection =>
-    MakeTerm.(exp(unsorted(Exp, Segment.skel(selection), selection)));
+  let parse = selection => {
+    let skel = Segment.skel(selection);
+    MakeTerm.(exp(unsorted(Exp, skel, selection)));
+  };
   let is_hole = (exp: Exp.t) => {
     switch (exp.term) {
     | EmptyHole => true
@@ -212,10 +216,10 @@ module Make =
   let already_parenthesized = (z: Zipper.t) => {
     let sibs = Siblings.trim_secondary(ZipperBase.sibs_with_sel(z));
     let parent = Ancestors.parent(z.relatives.ancestors);
+    let count = sibs |> (((l, r)) => l @ r) |> List.length(_);
     Option.map((p: Ancestor.t) => p.label, parent) == Some(["(", ")"])
-    && sibs
-    |> (((l, r)) => l @ r)
-    |> List.length(_) == 1;
+    /* count == 0: virtual hole (no pieces between parens) */
+    && count <= 1;
   };
 
   let add_segment_to_zipper = (move_left, id, seg, z) => {

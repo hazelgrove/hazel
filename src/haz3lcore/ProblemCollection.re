@@ -27,8 +27,10 @@ type problem = {
 type problem_context = {
   info_map: Statics.Map.t,
   syntax_error_ids: list((Id.t, Info.t)),
-  hole_ids: list(Grout.t),
-  concave_holes: list(Grout.t),
+  /* virtual-grout: holes are structural (shape conflicts in Skel),
+     not Grout pieces, so we store their neighbor IDs instead */
+  hole_ids: list(Id.t),
+  concave_holes: list(Id.t),
   static_error_ids: list((Id.t, Info.t)),
   warning_ids: list((Id.t, Info.t)),
   segment: Segment.t,
@@ -101,10 +103,79 @@ let make_problem_context =
     } else {
       [];
     };
-  /* Collect holes once and partition into convex (empty holes) and concave (missing operators) */
-  let all_holes = Segment.holes(syntax.segment);
-  let (hole_ids, concave_holes) =
-    List.partition((g: Grout.t) => g.shape == Convex, all_holes);
+  /* virtual-grout: holes are structural (shape conflicts between adjacent
+     pieces), not Grout tiles. Walk segment detecting conflicts and record
+     the nearest tile ID for each hole. Convex holes = missing operand,
+     Concave holes = missing operator. */
+  let (hole_ids, concave_holes) = {
+    let boundary = Nib.Shape.concave();
+    let rec collect_seg = (seg: Segment.t) => {
+      let (convex_rev, concave_rev, prev_r, last_id) =
+        List.fold_left(
+          ((convex, concave, prev_r, last_id), p: Piece.t) =>
+            switch (p) {
+            | Secondary(_) => (convex, concave, prev_r, last_id)
+            | Tile(t) =>
+              let (l_shape, r_shape) = Tile.shapes(t);
+              let (convex, concave) =
+                if (Nib.Shape.fits(prev_r, l_shape)) {
+                  (convex, concave);
+                } else {
+                  switch (Nib.Shape.flip(prev_r)) {
+                  | Convex => ([t.id, ...convex], concave)
+                  | Concave(_) => (convex, [t.id, ...concave])
+                  };
+                };
+              /* Also collect from children */
+              let (child_convex, child_concave) =
+                List.fold_left(
+                  ((cv, cc), child) => {
+                    let (cv2, cc2) = collect_seg(child);
+                    (cv2 @ cv, cc2 @ cc);
+                  },
+                  ([], []),
+                  t.children,
+                );
+              (
+                child_convex @ convex,
+                child_concave @ concave,
+                r_shape,
+                Some(t.id),
+              );
+            | Projector(pr) =>
+              let (l_shape, r_shape) = ProjectorCore.shapes(pr);
+              let (convex, concave) =
+                if (Nib.Shape.fits(prev_r, l_shape)) {
+                  (convex, concave);
+                } else {
+                  switch (Nib.Shape.flip(prev_r)) {
+                  | Convex => ([pr.id, ...convex], concave)
+                  | Concave(_) => (convex, [pr.id, ...concave])
+                  };
+                };
+              (convex, concave, r_shape, Some(pr.id));
+            },
+          ([], [], boundary, None),
+          seg,
+        );
+      /* Check trailing boundary for conflict */
+      let (convex_rev, concave_rev) =
+        switch (last_id) {
+        | None => (convex_rev, concave_rev)
+        | Some(id) =>
+          if (Nib.Shape.fits(prev_r, boundary)) {
+            (convex_rev, concave_rev);
+          } else {
+            switch (Nib.Shape.flip(prev_r)) {
+            | Convex => ([id, ...convex_rev], concave_rev)
+            | Concave(_) => (convex_rev, [id, ...concave_rev])
+            };
+          }
+        };
+      (List.rev(convex_rev), List.rev(concave_rev));
+    };
+    collect_seg(syntax.segment);
+  };
   {
     info_map,
     syntax_error_ids,
@@ -134,9 +205,9 @@ let collect_category =
     let grout_seq =
       ctx.concave_holes
       |> List.to_seq
-      |> Seq.map((g: Grout.t) =>
+      |> Seq.map((id: Id.t) =>
            {
-             id: g.id,
+             id,
              category: Syntax,
              source: Structural("Missing operator"),
            }
@@ -171,9 +242,9 @@ let collect_category =
   | Hole =>
     ctx.hole_ids
     |> List.to_seq
-    |> Seq.map((g: Grout.t) =>
+    |> Seq.map((id: Id.t) =>
          {
-           id: g.id,
+           id,
            category: Hole,
            source: Structural("Empty hole"),
          }

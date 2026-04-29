@@ -67,6 +67,41 @@ let add_indents = (segment, measured, indent: string, rows: list(string)) =>
     List.mapi(add_indent(measured, indent), rows);
   };
 
+/* Adjust a column from clean-string space to holed-string space.
+ * Walk both rows byte-by-byte; matching bytes advance both positions,
+ * mismatches (injected hole chars) advance only the holed position.
+ * When the clean position reaches the target column, the holed
+ * position is the adjusted column. */
+let adjust_col = (clean_row: string, holed_row: string, col: int): int => {
+  let len_c = String.length(clean_row);
+  let len_h = String.length(holed_row);
+  let rec walk = (ci, hi) =>
+    if (ci >= col) {
+      hi;
+    } else if (ci >= len_c || hi >= len_h) {
+      hi + (col - ci);
+    } else if (clean_row.[ci] == holed_row.[hi]) {
+      walk(ci + 1, hi + 1);
+    } else {
+      walk(ci, hi + 1);
+    };
+  walk(0, 0);
+};
+
+let adjust_point =
+    (clean_rows: list(string), holed_rows: list(string), point: Point.t)
+    : Point.t =>
+  switch (
+    List.nth_opt(clean_rows, point.row),
+    List.nth_opt(holed_rows, point.row),
+  ) {
+  | (Some(cr), Some(hr)) when cr != hr => {
+      ...point,
+      col: adjust_col(cr, hr, point.col),
+    }
+  | _ => point
+  };
+
 /* Use this to pretty-print segments. Note that printing holes with
  * a space may result in extraneous whitespace, but printing without
  * a space may result in tokens getting glued together. You can't win */
@@ -84,19 +119,36 @@ let of_segment =
       ~is_single_line=false,
       segment: Segment.t,
     )
-    : string =>
-  segment
-  |> Segment.to_string(
-       ~holes,
-       ~concave_holes,
-       ~refractors,
-       ~refractor_seg_to_seg,
-       ~projector_to_segment,
-     )
-  |> String.split_on_char('\n')
-  |> (is_single_line ? Fun.id : add_indents(segment, measured, indent))
-  |> add_caret(~caret, ~selection_anchor)
-  |> String.concat("\n");
+    : string => {
+  let to_rows = (~h, ~ch) =>
+    segment
+    |> Segment.to_string(
+         ~holes=h,
+         ~concave_holes=ch,
+         ~refractors,
+         ~refractor_seg_to_seg,
+         ~projector_to_segment,
+       )
+    |> String.split_on_char('\n')
+    |> (is_single_line ? Fun.id : add_indents(segment, measured, indent));
+
+  let holed_rows = to_rows(~h=holes, ~ch=concave_holes);
+
+  /* When caret/selection_anchor are present, adjust their columns to
+   * account for hole strings injected by conflict detection. Measured
+   * positions are based on the segment without holes; the holed string
+   * may have extra characters at conflict boundaries. */
+  let (caret, selection_anchor) =
+    switch (caret, selection_anchor) {
+    | (None, None) => (None, None)
+    | _ =>
+      let clean_rows = to_rows(~h="", ~ch="");
+      let adj = ((s, pt)) => (s, adjust_point(clean_rows, holed_rows, pt));
+      (Option.map(adj, caret), Option.map(adj, selection_anchor));
+    };
+
+  holed_rows |> add_caret(~caret, ~selection_anchor) |> String.concat("\n");
+};
 
 /* Use this to pretty-print zippers. See above comments on holes */
 let of_zipper =

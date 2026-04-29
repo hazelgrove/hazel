@@ -25,7 +25,6 @@ let current_term_id = (z: t): option(Id.t) => {
   let* {piece: p, relation: rel, _} = Indicated.for_decoration(z);
   switch (p) {
   | Secondary(_) => None
-  | Grout(_)
   | Projector(_) => Some(Piece.id(p))
   | Tile(t) =>
     switch (t.label, Zipper.parent(z)) {
@@ -156,26 +155,35 @@ let current_term =
       ~defs_exclude_bodies: bool,
       ~case_rules: bool,
       z: t,
-    ) => {
-  let* {piece: p, _} = Indicated.for_decoration(z);
-  switch (p) {
-  | Tile({label: ["let" | "type" | "module", "=", "in"], _})
-      when defs_exclude_bodies =>
-    current_tile(z)
-  | Tile({label: ["|", "=>"], _}) when case_rules => containing_rule(z)
-  | _ =>
-    let* id = current_term_id(z);
-    switch (TermData.extreme_ids(id, term_data)) {
-    | Some((lid, rid)) when Id.equal(lid, rid) =>
-      /* Term bounded by a single tile (parens, brackets, etc.);
-       * shard_range can't handle same-tile extremes after reassembly */
-      tile(lid, z)
-    | _ =>
-      let* (l, r) = TermData.extremes_shards(id, term_data);
-      shard_range(l, r, z);
+    ) =>
+  /* At a virtual hole (shape conflict), return with empty selection.
+     The caller (e.g. Introduce) will parse the empty selection as
+     an EmptyHole, which is the correct behavior. */
+  if (Indicated.at_virtual_hole(z)) {
+    Some(z);
+  } else {
+    switch (Indicated.piece''(z)) {
+    | None => Some(z)
+    | Some({piece: p, _}) =>
+      switch (p) {
+      | Tile({label: ["let" | "type" | "module", "=", "in"], _})
+          when defs_exclude_bodies =>
+        current_tile(z)
+      | Tile({label: ["|", "=>"], _}) when case_rules => containing_rule(z)
+      | _ =>
+        let* id = current_term_id(z);
+        switch (TermData.extreme_ids(id, term_data)) {
+        | Some((lid, rid)) when Id.equal(lid, rid) =>
+          /* Term bounded by a single tile (parens, brackets, etc.);
+           * shard_range can't handle same-tile extremes after reassembly */
+          tile(lid, z)
+        | _ =>
+          let* (l, r) = TermData.extremes_shards(id, term_data);
+          shard_range(l, r, z);
+        };
+      }
     };
   };
-};
 
 /* Select a term by its id using term_data extremes, without
  * needing to navigate to the term first. Used as fallback for

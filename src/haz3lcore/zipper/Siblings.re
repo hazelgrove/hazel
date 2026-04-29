@@ -82,13 +82,6 @@ let rescan = ((pre, suf): t): t => {
   ListUtil.split_n(n, combined);
 };
 
-let regrout = ((pre, suf): t) => {
-  let s = Nib.Shape.concave();
-  let suf = Segment.regrout_affix(Right, suf, s);
-  let (trim_l, s_l, pre) = Segment.regrout_affix(Left, pre, s);
-  ((pre, s_l, trim_l), suf);
-};
-
 let neighbor = (d: Direction.t, (l, r): t): option(Piece.t) =>
   switch (d) {
   | Left => ListUtil.last_opt(l)

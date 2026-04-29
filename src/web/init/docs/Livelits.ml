@@ -146,8 +146,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children()))))))))))))))(model\"()\")))(Secondary((id \
          38361cff-c89f-4d36-a143-d4c9d88d4ae4)(content(Whitespace\" \
-         \")))))))))(Grout((id 6ffd5f7f-c1bc-4636-b92f-1527d7ff5e24)(shape \
-         Convex))))";
+         \"))))))))))";
       backup_text =
         "# LIVELITS #\n\
          # A livelit is a live GUI widget which can be inserted into \

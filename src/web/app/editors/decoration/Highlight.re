@@ -12,7 +12,6 @@ let shard_svg =
   measurement,
   switch (p) {
   | Tile(t) => t |> Tile.shapes |> ShardDec.tips_of_shapes
-  | Grout(g) => g |> Grout.shapes |> ShardDec.tips_of_shapes
   | Secondary(_) => (
       Option.map(
         (s: Nib.Shape.t) =>
@@ -68,7 +67,6 @@ let rows_of_segment =
       segment: Segment.t,
     )
     : list((Measured.measurement, (ShardDec.tip, ShardDec.tip))) => {
-  let find_g = Measured.find_g(~msg="Highlight.of_piece", _, measured);
   let find_w = Measured.find_w(~msg="Highlight.of_piece", _, measured);
   let rec of_piece =
           (start_shape: ShardDec.tip, p: Piece.t)
@@ -84,7 +82,6 @@ let rows_of_segment =
       switch (p) {
       | Tile(t) => of_tile(~start_shape, t)
       | Projector(p) => of_projector(~start_shape, p)
-      | Grout(g) => [Some(shard_svg(~start_shape, find_g(g), p))]
       | Secondary(w) when Secondary.is_linebreak(w) => [None]
       | Secondary(w) => [
           Some((
@@ -404,6 +401,8 @@ let of_segment =
       ~shape_map: ProjectorCore.Shape.Map.t,
       ~font_metrics: FontMetrics.t,
       ~shape_init: ShardDec.tip,
+      ~shape_left: option(ShardDec.tip)=None,
+      ~shape_right: option(ShardDec.tip)=None,
       ~clss: list(string),
       segment: Segment.t,
     )
@@ -411,6 +410,40 @@ let of_segment =
   let rows =
     rows_of_segment(~measured, ~shape_map, ~shape_init, segment)
     |> List.map(((m, tips)) => row_data_of(m, tips));
+  /* Override edge tips with externally-computed display shapes */
+  let rows =
+    switch (shape_left) {
+    | None => rows
+    | Some(tip) =>
+      let tip_dir = Option.map(Nib.Shape.direction_of(Left), tip);
+      switch (rows) {
+      | [] => rows
+      | [{left_tip: _, _} as first, ...rest] => [
+          {
+            ...first,
+            left_tip: tip_dir,
+          },
+          ...rest,
+        ]
+      };
+    };
+  let rows =
+    switch (shape_right) {
+    | None => rows
+    | Some(tip) =>
+      let tip_dir = Option.map(Nib.Shape.direction_of(Right), tip);
+      switch (ListUtil.split_last_opt(rows)) {
+      | None => rows
+      | Some((init, {right_tip: _, _} as last)) =>
+        init
+        @ [
+          {
+            ...last,
+            right_tip: tip_dir,
+          },
+        ]
+      };
+    };
   let groups = group_consecutive(rows);
   List.filter_map(svg_of_group(~font_metrics, ~clss), groups);
 };
@@ -421,7 +454,9 @@ let selection =
       ~shape_map: ProjectorCore.Shape.Map.t,
       ~font_metrics: FontMetrics.t,
       z: Zipper.t,
-    ) =>
+    ) => {
+  let shape_left = Zipper.Caret.selection_left_shape(z);
+  let shape_right = Zipper.Caret.selection_right_shape(z);
   div_c(
     "selects",
     of_segment(
@@ -429,10 +464,13 @@ let selection =
       ~shape_map,
       ~font_metrics,
       ~shape_init=Some(fst(Siblings.shapes(z.relatives.siblings))),
+      ~shape_left=Some(shape_left),
+      ~shape_right=Some(shape_right),
       ~clss=["selected", Selection.buffer_cls(z.selection)],
       z.selection.content,
     ),
   );
+};
 
 // Expands selection to make it a subtree of the exp
 let selection_expanded =
@@ -442,7 +480,9 @@ let selection_expanded =
       ~font_metrics: FontMetrics.t,
       ~term_data: TermData.t,
       z: Zipper.t,
-    ) =>
+    ) => {
+  let shape_left = Zipper.Caret.selection_left_shape(z);
+  let shape_right = Zipper.Caret.selection_right_shape(z);
   div_c(
     "selects",
     switch (
@@ -463,6 +503,8 @@ let selection_expanded =
           ~shape_map,
           ~font_metrics,
           ~shape_init=Some(fst(Siblings.shapes(z.relatives.siblings))),
+          ~shape_left=Some(shape_left),
+          ~shape_right=Some(shape_right),
           ~clss=["selected-expanded", Selection.buffer_cls(z.selection)],
           seg,
         )
@@ -471,12 +513,15 @@ let selection_expanded =
             ~shape_map,
             ~font_metrics,
             ~shape_init=Some(fst(Siblings.shapes(z.relatives.siblings))),
+            ~shape_left=Some(shape_left),
+            ~shape_right=Some(shape_right),
             ~clss=["selected", Selection.buffer_cls(z.selection)],
             z.selection.content,
           )
       };
     },
   );
+};
 
 let indicated_refractor =
     (

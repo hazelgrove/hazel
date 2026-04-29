@@ -391,32 +391,32 @@ let probe_hazel = (auto: bool, many: bool, path: string): unit => {
         /* Build syntax cache for MultiProbe */
         let syntax =
           Haz3lcore.CachedSyntax.mk(zipper, ~info_map, ~dyn_map=Id.Map.empty);
-        let root_id =
-          Haz3lcore.Segment.root_id(
-            Haz3lcore.Segment.skel(segment),
-            segment,
-          );
+        let skel = Haz3lcore.Segment.skel(segment);
 
-        switch (
-          Haz3lcore.MultiProbe.ids_to_multiprobe(
-            root_id,
-            syntax.term_data,
-            syntax.terms,
-            syntax.measured,
-            info_map,
-          )
-        ) {
-        | Some(ids) =>
-          List.fold_left(
-            (acc, id_opt) =>
-              switch (id_opt) {
-              | Some(id) => Id.Map.add(id, (), acc)
-              | None => acc
-              },
-            Id.Map.empty,
-            ids,
-          )
+        switch (Haz3lcore.Segment.root_id(skel, segment)) {
         | None => Id.Map.empty
+        | Some(root_id) =>
+          switch (
+            Haz3lcore.MultiProbe.ids_to_multiprobe(
+              root_id,
+              syntax.term_data,
+              syntax.terms,
+              syntax.measured,
+              info_map,
+            )
+          ) {
+          | Some(ids) =>
+            List.fold_left(
+              (acc, id_opt) =>
+                switch (id_opt) {
+                | Some(id) => Id.Map.add(id, (), acc)
+                | None => acc
+                },
+              Id.Map.empty,
+              ids,
+            )
+          | None => Id.Map.empty
+          }
         };
       } else {
         Id.Map.empty;

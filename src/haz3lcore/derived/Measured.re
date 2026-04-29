@@ -52,7 +52,6 @@ module Shards = {
 
 type t = {
   tiles: Id.Map.t(Shards.t),
-  grout: Id.Map.t(measurement),
   secondary: Id.Map.t(measurement),
   projectors: Id.Map.t(measurement),
   rows: Rows.t,
@@ -61,7 +60,6 @@ type t = {
 
 let empty = {
   tiles: Id.Map.empty,
-  grout: Id.Map.empty,
   secondary: Id.Map.empty,
   projectors: Id.Map.empty,
   rows: Rows.empty,
@@ -84,10 +82,6 @@ let add_s = (id: Id.t, i: int, m, map) => {
        ),
 };
 
-let add_g = (g: Grout.t, m, map) => {
-  ...map,
-  grout: map.grout |> Id.Map.add(g.id, m),
-};
 let add_w = (w: Secondary.t, m, map) => {
   ...map,
   secondary: map.secondary |> Id.Map.add(w.id, m),
@@ -138,10 +132,6 @@ let find_w = (~msg="", w: Secondary.t, map): measurement =>
   try(Id.Map.find(w.id, map.secondary)) {
   | _ => failwith("find_w: " ++ msg)
   };
-let find_g = (~msg="", g: Grout.t, map): measurement =>
-  try(Id.Map.find(g.id, map.grout)) {
-  | _ => failwith("find_g: " ++ msg)
-  };
 let find_pr = (~msg="", p: Base.projector, map): measurement =>
   try(Id.Map.find(p.id, map.projectors)) {
   | _ => failwith("find_g: " ++ msg)
@@ -169,7 +159,6 @@ let find_p = (~msg="", p: Piece.t, map): measurement =>
     p
     |> Piece.get(
          w => find_w(w, map),
-         g => find_g(g, map),
          t => find_t(t, map),
          p => find_pr(p, map),
        )
@@ -181,33 +170,26 @@ let find_by_id = (id: Id.t, map: t): option(measurement) => {
   switch (Id.Map.find_opt(id, map.secondary)) {
   | Some(m) => Some(m)
   | None =>
-    switch (Id.Map.find_opt(id, map.grout)) {
-    | Some(m) => Some(m)
+    switch (Id.Map.find_opt(id, map.tiles)) {
+    | Some(shards) =>
+      let first =
+        ListUtil.assoc_err(List.hd(shards) |> fst, shards, "find_by_id");
+      let last =
+        ListUtil.assoc_err(
+          ListUtil.last(shards) |> fst,
+          shards,
+          "find_by_id",
+        );
+      Some({
+        origin: first.origin,
+        last: last.last,
+      });
     | None =>
-      switch (Id.Map.find_opt(id, map.tiles)) {
-      | Some(shards) =>
-        let first =
-          ListUtil.assoc_err(List.hd(shards) |> fst, shards, "find_by_id");
-        let last =
-          ListUtil.assoc_err(
-            ListUtil.last(shards) |> fst,
-            shards,
-            "find_by_id",
-          );
-        Some({
-          origin: first.origin,
-          last: last.last,
-        });
+      switch (Id.Map.find_opt(id, map.projectors)) {
+      | Some(m) => Some(m)
       | None =>
-        switch (Id.Map.find_opt(id, map.projectors)) {
-        | Some(m) => Some(m)
-        | None =>
-          Printf.printf(
-            "Measured.WARNING: id %s not found",
-            Id.to_string(id),
-          );
-          None;
-        }
+        Printf.printf("Measured.WARNING: id %s not found", Id.to_string(id));
+        None;
       }
     }
   };
@@ -294,17 +276,6 @@ let of_segment_inner =
     );
   };
 
-  let add_grout = ((seg, indent, origin, map): acc, g: Grout.t) => {
-    let size = Point.mk(~row=0, ~col=1);
-    let (measure, map) = calc(indent, origin, map, size);
-    (
-      [Piece.Grout(g), ...seg],
-      indent,
-      measure.last,
-      add_g(g, measure, map),
-    );
-  };
-
   let add_projector = ((seg, indent, origin, map): acc, pr: Base.projector) => {
     let size = DeferredLinebreaks.of_projector(pr, shape_map);
     let shape = ProjectorCore.Shape.Map.lookup(pr.id, shape_map);
@@ -377,7 +348,6 @@ let of_segment_inner =
   and of_piece = (acc: acc, p: Piece.t): acc =>
     switch (p) {
     | Secondary(w) => add_secondary(acc, w)
-    | Grout(g) => add_grout(acc, g)
     | Projector(p) => add_projector(acc, p)
     | Tile(t) =>
       switch (Id.Map.find_opt(t.id, refractor_shape_map)) {

@@ -79,28 +79,12 @@ let is_split_point = (c: string, z: Zipper.t): bool =>
   && z.relatives.ancestors == []
   && Zipper.local_backpack(z) == [];
 
-/* Strip trailing convex grout from a segment. This grout is the
-   artifact of Zipper.init()'s initial placeholder that was never
-   consumed because we split before content filled it. */
-let strip_trailing_grout = (seg: Segment.t): Segment.t => {
-  let rec strip_right = (rev_seg: Segment.t): Segment.t =>
-    switch (rev_seg) {
-    | [Grout({shape: Convex, _}), ...rest] => rest
-    | [Secondary(_) as s, ...rest] =>
-      switch (strip_right(rest)) {
-      | stripped when stripped != rest => [s, ...stripped]
-      | _ => rev_seg
-      }
-    | _ => rev_seg
-    };
-  seg |> List.rev |> strip_right |> List.rev;
-};
-
 /* Segmented parser: splits into independent segments at top-level
    delimiter-complete boundaries to avoid O(n^2) scaling. Each segment
-   is parsed independently; trailing grout (from Zipper.init) is
-   stripped, segments are concatenated, and a final top-level regrout
-   ensures shape consistency across boundaries. */
+   is parsed independently; segments are concatenated, and a final
+   top-level remold ensures shape consistency across boundaries.
+   In the virtual-grout world, holes are structural (derived in
+   Skel) rather than physical pieces, so no regrout step is needed. */
 let to_segment = (str: string, ~root): option(Segment.t) => {
   let chars = str |> Token.to_list;
   let segments = ref([]);
@@ -127,7 +111,7 @@ let to_segment = (str: string, ~root): option(Segment.t) => {
         if (chars_since_split^ >= min_segment_size && is_split_point(c, z)) {
           let z = Zipper.remold_regrout(Left, z, ~root);
           let seg = Zipper.unselect_and_zip(~erase_buffer=true, z);
-          segments := [strip_trailing_grout(seg), ...segments^];
+          segments := [seg, ...segments^];
           current_z := Some(Zipper.init());
           chars_since_split := 0;
         }
@@ -140,8 +124,7 @@ let to_segment = (str: string, ~root): option(Segment.t) => {
   let z = Zipper.remold_regrout(Left, z, ~root);
   let final_seg = Zipper.unselect_and_zip(~erase_buffer=true, z);
   let all_segments = List.rev([final_seg, ...segments^]);
-  let combined = List.concat(all_segments);
-  Segment.regrout(Nib.Shape.(concave(), concave()), combined);
+  List.concat(all_segments);
 };
 
 /* Quick O(n) check that clipboard has balanced parens/brackets/braces.

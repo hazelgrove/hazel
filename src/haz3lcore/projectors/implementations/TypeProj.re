@@ -38,7 +38,7 @@ module M: Projector = {
     switch (any) {
     | Exp(_)
     | Pat(_) => Some(Expected)
-    | Any () => Some(Expected) /* Grout don't have sorts rn */
+    | Any () => Some(Expected) /* Holes don't have sorts */
     | _ => None
     };
   };

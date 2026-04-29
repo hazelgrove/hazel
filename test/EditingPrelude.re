@@ -15,7 +15,6 @@ and equal_piece = (a: piece, b: piece) => {
     && List.equal(equal_segment, t1.children, t2.children)
     && t1.mold == t2.mold
     && t1.shards == t2.shards
-  | (Grout(g1), Grout(g2)) => g1.shape == g2.shape
   | (Secondary(s1), Secondary(s2)) => s1.content == s2.content
   | (Projector(p1), Projector(p2)) =>
     p1.kind == p2.kind

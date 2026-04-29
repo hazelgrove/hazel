@@ -86,16 +86,6 @@ let view =
     ) => {
   module DeferredLinebreaks = Measured.MkDeferredLinebreaks();
 
-  let g_convex = EmptyHoleDec.view(font_metrics, Convex);
-  let g_concave = EmptyHoleDec.view(font_metrics, Concave);
-
-  let of_grout = (g: Grout.t): t => {
-    switch (g.shape) {
-    | Convex => g_convex
-    | Concave => g_concave
-    };
-  };
-
   let lb_icon = settings.secondary_icons ? "⏎" : "";
   let ws_icon = settings.secondary_icons ? "·" : " ";
 
@@ -168,26 +158,213 @@ let view =
     };
   };
 
-  let rec of_segment = (seg: Segment.t): list(Node.t) =>
-    List.concat_map(
-      fun
-      | Piece.Tile(t) => {
-          let _ =
-            switch (Id.Map.find_opt(t.id, refractor_shape_map)) {
-            | Some(_) =>
-              DeferredLinebreaks.update(2) |> ignore;
-              ();
-            | None => ()
-            };
-          Aba.mk(t.shards, t.children)
-          |> Aba.join(i => [of_delim(t, i)], of_segment)
-          |> List.concat;
-        }
-      | Grout(g) => [of_grout(g)]
-      | Secondary(s) => [of_secondary(s)]
-      | Projector(pr) => [of_projector(pr)],
-      seg,
-    );
+  /* Hole decoration helpers */
 
-  of_segment(segment);
+  let thick_hole_dec = (~half_offset=false, shape: Nib.Shape.t): Node.t => {
+    let dec = EmptyHoleDec.view(font_metrics, shape);
+    let style =
+      half_offset
+        ? Printf.sprintf("left: %fpx;", -. font_metrics.col_width /. 2.) : "";
+    Node.span(
+      ~attrs=[Attr.classes(["virtual-grout"]), Attr.create("style", style)],
+      [dec],
+    );
+  };
+
+  let thin_hole_dec = (shape: Nib.Shape.t): Node.t => {
+    let dec = EmptyHoleDec.view_thin(font_metrics, shape);
+    Node.span(~attrs=[Attr.classes(["virtual-grout"])], [dec]);
+  };
+
+  /* Classify secondaries for placement logic */
+  let is_linebreak = (s: Secondary.t) =>
+    switch (s.content) {
+    | Whitespace(str) when str == Token.linebreak => true
+    | _ => false
+    };
+
+  let is_space = (s: Secondary.t) =>
+    switch (s.content) {
+    | Whitespace(str) when str == Token.space => true
+    | _ => false
+    };
+
+  let is_comment = (s: Secondary.t) =>
+    switch (s.content) {
+    | Comment(_) => true
+    | _ => false
+    };
+
+  let is_buffer = (s: Secondary.t) => List.mem(s.id, buffer_ids);
+
+  /* Take the leading contiguous run of spaces from a secondary list */
+  let rec take_spaces =
+          (acc: list(Secondary.t), rest: list(Secondary.t))
+          : (list(Secondary.t), list(Secondary.t)) =>
+    switch (rest) {
+    | [s, ...rest'] when is_space(s) => take_spaces([s, ...acc], rest')
+    | _ => (List.rev(acc), rest)
+    };
+
+  /* Given a conflict and the boundary whitespace run, produce
+   * the interleaved secondary nodes + decoration node.
+   *
+   * ~at_boundary: true when this conflict is at the leading or
+   * trailing edge of the segment (start/end of program or child).
+   * Boundary conflicts have "free space" beyond the segment edge,
+   * so empty runs and lone linebreaks use thick deco instead of thin.
+   *
+   * See virtual-grout plan for placement policy. */
+  /* Split leading buffer secondaries from the rest */
+  let rec take_buffer =
+          (acc: list(Secondary.t), rest: list(Secondary.t))
+          : (list(Secondary.t), list(Secondary.t)) =>
+    switch (rest) {
+    | [s, ...rest'] when is_buffer(s) => take_buffer([s, ...acc], rest')
+    | _ => (List.rev(acc), rest)
+    };
+
+  let place_decoration =
+      (~at_boundary=false, hole_shape: Nib.Shape.t, secs: list(Secondary.t))
+      : list(Node.t) => {
+    /* Buffer secondaries (autocomplete suggestions) are visually part
+     * of the preceding token. Strip them and emit before the decoration. */
+    let (buffer_secs, secs) = take_buffer([], secs);
+    let buffer_nodes = List.map(of_secondary, buffer_secs);
+    let sec_nodes = () => List.map(of_secondary, secs);
+    buffer_nodes
+    @ (
+      switch (secs) {
+      /* Empty run or comment-first */
+      | []
+      | [{content: Comment(_), _}, ..._] =>
+        /* At boundary: free space available, use thick deco.
+         * Mid-segment: tiles directly adjacent, use thin deco. */
+        if (at_boundary) {
+          [thick_hole_dec(hole_shape), ...sec_nodes()];
+        } else {
+          [thin_hole_dec(hole_shape), ...sec_nodes()];
+        }
+      /* Linebreak-first cases */
+      | [first, ...rest] when is_linebreak(first) =>
+        switch (rest) {
+        | [] when at_boundary =>
+          /* Linebreak only at top-level trailing boundary: next line */
+          [of_secondary(first), thick_hole_dec(hole_shape)]
+        | [] =>
+          /* Linebreak only: thick deco at end of previous line */
+          [thick_hole_dec(hole_shape), of_secondary(first)]
+        | [next, ..._] when is_comment(next) =>
+          /* Linebreak + comment: thick deco at end of previous line */
+          [thick_hole_dec(hole_shape), ...sec_nodes()]
+        | [next, ..._] when is_space(next) || is_linebreak(next) =>
+          /* Linebreak + space/linebreak: thick deco on next line */
+          [of_secondary(first), thick_hole_dec(hole_shape)]
+          @ List.map(of_secondary, rest)
+        | _ =>
+          /* Fallback: thick deco at end of previous line */
+          [thick_hole_dec(hole_shape), ...sec_nodes()]
+        }
+      /* Space-first: center thick deco in contiguous space run */
+      | _ when is_space(List.hd(secs)) =>
+        let (spaces, non_spaces) = take_spaces([], secs);
+        let n = List.length(spaces);
+        let mid = n / 2;
+        let is_even = n mod 2 == 0;
+        let space_nodes = List.map(of_secondary, spaces);
+        let non_space_nodes = List.map(of_secondary, non_spaces);
+        let (before, _mid_node, after) =
+          ListUtil.split_nth(mid, space_nodes);
+        let deco = thick_hole_dec(~half_offset=is_even, hole_shape);
+        before @ [deco, _mid_node] @ after @ non_space_nodes;
+      /* Unknown: thick deco */
+      | _ => [thick_hole_dec(hole_shape), ...sec_nodes()]
+      }
+    );
+  };
+
+  /* Emit accumulated secondaries, with optional decoration interleaved */
+  let emit_pending =
+      (
+        ~at_boundary=false,
+        conflict: option(Nib.Shape.t),
+        pending_secs_rev: list(Secondary.t),
+      )
+      : list(Node.t) => {
+    let secs = List.rev(pending_secs_rev);
+    switch (conflict) {
+    | None => List.map(of_secondary, secs)
+    | Some(hole_shape) => place_decoration(~at_boundary, hole_shape, secs)
+    };
+  };
+
+  let rec of_segment = (~top_level=false, seg: Segment.t): list(Node.t) => {
+    /* Walk segment detecting shape conflicts at boundaries.
+     * Secondaries are deferred until we hit a tile/projector/end,
+     * so we can analyze the boundary whitespace run for placement.
+     * at_boundary is only true for the trailing edge (free space
+     * beyond segment end); leading conflicts always use thin/compact. */
+    let boundary = Nib.Shape.concave();
+    let (nodes_rev, prev_r, pending_secs_rev, _) =
+      List.fold_left(
+        ((nodes, prev_r, pending_secs_rev, _at_leading), p: Piece.t) =>
+          switch (p) {
+          | Secondary(s) => (nodes, prev_r, [s, ...pending_secs_rev], false)
+          | Tile(t) =>
+            let (l_shape, r_shape) = Tile.shapes(t);
+            let conflict: option(Nib.Shape.t) =
+              if (Nib.Shape.fits(prev_r, l_shape)) {
+                None;
+              } else {
+                Some(Nib.Shape.flip(prev_r));
+              };
+            let sec_nodes = emit_pending(conflict, pending_secs_rev);
+            let _ =
+              switch (Id.Map.find_opt(t.id, refractor_shape_map)) {
+              | Some(_) =>
+                DeferredLinebreaks.update(2) |> ignore;
+                ();
+              | None => ()
+              };
+            let tile_nodes =
+              Aba.mk(t.shards, t.children)
+              |> Aba.join(i => [of_delim(t, i)], of_segment)
+              |> List.concat;
+            ([tile_nodes, sec_nodes, ...nodes], r_shape, [], false);
+          | Projector(pr) =>
+            let (l_shape, r_shape) = ProjectorCore.shapes(pr);
+            let conflict: option(Nib.Shape.t) =
+              if (Nib.Shape.fits(prev_r, l_shape)) {
+                None;
+              } else {
+                Some(Nib.Shape.flip(prev_r));
+              };
+            let sec_nodes = emit_pending(conflict, pending_secs_rev);
+            (
+              [[of_projector(pr)], sec_nodes, ...nodes],
+              r_shape,
+              [],
+              false,
+            );
+          },
+        ([], boundary, [], false),
+        seg,
+      );
+    /* Check trailing boundary for conflict */
+    let trailing_conflict: option(Nib.Shape.t) =
+      if (Nib.Shape.fits(prev_r, boundary)) {
+        None;
+      } else {
+        Some(Nib.Shape.flip(prev_r));
+      };
+    let trailing_nodes =
+      emit_pending(
+        ~at_boundary=top_level,
+        trailing_conflict,
+        pending_secs_rev,
+      );
+    [trailing_nodes, ...nodes_rev] |> List.rev |> List.concat;
+  };
+
+  of_segment(~top_level=true, segment);
 };

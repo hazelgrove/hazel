@@ -39,11 +39,14 @@ let extremes_opt = (id: Id.t, data: t) =>
      could be failwiths instead of options */
   switch (Id.Map.find_opt(id, data)) {
   | Some({skel, base_seg, _}) =>
-    let (l, r) = Skel.range(skel);
-    switch (List.nth(base_seg, l), List.nth(base_seg, r)) {
-    | exception _ => None
-    | (l, r) => Some((l, r))
-    };
+    switch (Skel.range(skel)) {
+    | None => None
+    | Some((l, r)) =>
+      switch (List.nth(base_seg, l), List.nth(base_seg, r)) {
+      | exception _ => None
+      | (l, r) => Some((l, r))
+      }
+    }
   | None => None
   };
 
@@ -81,8 +84,8 @@ let extreme_measures = (id: Id.t, data: t, measured: Measured.t) =>
 
 /* The segment corresponding to the `id` term */
 let segment = (id: Id.t, data: t): option(Segment.t) => {
-  let+ {base_seg, skel, _} = Id.Map.find_opt(id, data);
-  let (l, r) = Skel.range(skel);
+  let* {base_seg, skel, _} = Id.Map.find_opt(id, data);
+  let+ (l, r) = Skel.range(skel);
   ListUtil.sublist((l, r + 1), base_seg);
 };
 

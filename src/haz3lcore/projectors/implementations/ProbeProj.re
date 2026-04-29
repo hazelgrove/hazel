@@ -1377,7 +1377,7 @@ module M: Projector = {
     switch (any) {
     | Exp(_)
     | Pat(_) => Some()
-    | Any(_) => Some() /* Grout don't have sorts */
+    | Any(_) => Some() /* Holes don't have sorts */
     | _ => None
     };
 

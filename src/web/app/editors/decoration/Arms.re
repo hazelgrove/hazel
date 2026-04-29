@@ -364,7 +364,6 @@ let term =
 let term_range = (~syntax: CachedSyntax.t, p: Piece.t) => {
   switch (p) {
   | Secondary(_) => None
-  | Grout(_)
   | Projector(_)
   | Tile(_) =>
     let id = Language.Any.rep_id(Id.Map.find(Piece.id(p), syntax.terms));
@@ -441,7 +440,6 @@ module Indicated = {
       )
       : list(Node.t) => {
     switch (p) {
-    | Grout(_)
     | Secondary(_) => []
     | Projector(p) =>
       switch (Measured.find_pr_opt(p, syntax.measured)) {
@@ -619,7 +617,7 @@ module Refractors = {
                    ~font_metrics,
                    ~kind=entry.kind,
                    TermData.segment(id, syntax.term_data)
-                   |> Option.value(~default=[Piece.mk_grout(Convex)]),
+                   |> Option.value(~default=[]),
                  ),
                ]
                : []

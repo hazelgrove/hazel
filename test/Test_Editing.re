@@ -346,23 +346,23 @@ let insertion_tests = [
   test(
     ~name="Split empty list",
     ~acts=mk({|[¦]|}) @ [Insert(" ")],
-    ~goal={|[?¦]|},
+    ~goal={|[ ¦?]|},
   ),
   test(
     ~name="Split case end",
     ~acts=mk({|case¦end|}) @ [Insert(" ")],
-    ~goal={|case?¦end|},
+    ~goal={|case ¦?end|},
   ),
   test(
     ~name="Split number literal",
     ~acts=mk({|1¦1|}) @ [Insert(" ")],
-    ~goal={|1~¦1|},
+    ~goal={|1 ¦~1|},
   ),
   /* Spliting tokens when the latter must drop from backpack */
   test(
     ~name="Split 1st and 2nd delims of 3-delim form with space",
     ~acts=mk({|if¦then|}) @ [Insert(" ")],
-    ~goal={|if?¦then?|},
+    ~goal={|if ¦?then?|},
   ),
   test(
     ~name="Split mono child and 2nd delim of 3-delim form",
@@ -372,7 +372,7 @@ let insertion_tests = [
   test(
     ~name="Split 1st and 2nd delims of 3-delim form with instant expander",
     ~acts=mk({|if¦then|}) @ [Insert("(")],
-    ~goal={|if(?¦then?|},
+    ~goal={|if(¦?then?|},
   ),
   /* Spliting tokens when both must expand */
   test(
@@ -390,7 +390,7 @@ let insertion_tests = [
     ~acts=
       mk({|¦if 1 then 2 else 3|})
       @ [Insert("i"), Insert("f"), Insert(" "), Put_down, Put_down],
-    ~goal={|if? then?else¦if 1 then 2 else 3|},
+    ~goal={|if ?then?else¦if 1 then 2 else 3|},
   ),
   test(
     ~name="Inserting let before existing let doesn't steal delimiters",
@@ -404,7 +404,7 @@ let insertion_tests = [
         Put_down,
         Put_down,
       ],
-    ~goal={|let? =?in¦let x = 2 in 3|},
+    ~goal={|let ?=?in¦let x = 2 in 3|},
   ),
   test(
     ~name="Inserting let before existing type doesn't steal delimiters",
@@ -418,7 +418,7 @@ let insertion_tests = [
         Put_down,
         Put_down,
       ],
-    ~goal={|let? =?in¦type x = 2 in 3|},
+    ~goal={|let ?=?in¦type x = 2 in 3|},
   ),
   /* Below test is slightly precious. Can't directly write
      `if then¦else` as then will instantly expand, so need
@@ -427,7 +427,7 @@ let insertion_tests = [
   test(
     ~name="Split 2nd delim of 3-delim form with space",
     ~acts=mk({|if the¦else|}) @ [Insert("n"), Insert(" ")],
-    ~goal={|if? then?¦else?|},
+    ~goal={|if ?then ¦?else?|},
   ),
   /* INSERTTION: AMPHIBIOUS PREFIX/INFIX OP */
   test(
@@ -473,12 +473,12 @@ let insertion_tests = [
   test(
     ~name="Amphibious Plus - Before - 3 (Prelude)",
     ~acts=mk({|type T = A ¦ B|}),
-    ~goal={|type T = A  ¦~B|},
+    ~goal={|type T = A ¦ ~B|},
   ),
   test(
     ~name="Amphibious Plus - Before - 3",
     ~acts=mk({|type T = A ¦ B|}) @ [Insert("+")],
-    ~goal={|type T = A  +¦B|},
+    ~goal={|type T = A +¦ B|},
   ),
   test(
     ~name="Amphibious Plus - Before - 4",
@@ -523,42 +523,42 @@ let insertion_tests = [
   test(
     ~name="Prepending to middle delimiter: if",
     ~acts=mk({|if 1 ¦then 2 else 3|}) @ [Insert("x")],
-    ~goal={|if 1 ~x¦then~ 2 else 3|},
+    ~goal={|if 1 ~x¦then ~2 else 3|},
   ),
   test(
     ~name="Prepending to trailing delimiter: if",
     ~acts=mk({|if 1 then 2 ¦else 3|}) @ [Insert("x")],
-    ~goal={|if 1 then 2 ~x¦else~ 3|},
+    ~goal={|if 1 then 2 ~x¦else ~3|},
   ),
   test(
     ~name="Within leading delimiter: if",
     ~acts=mk({|i¦f 1 then 2 else 3|}) @ [Insert("x")],
-    ~goal={|ix¦f~ 1 then 2 else 3|},
+    ~goal={|ix¦f ~1 then 2 else 3|},
   ),
   test(
     ~name="Within middle delimiter: if",
     ~acts=mk({|if 1 th¦en 2 else 3|}) @ [Insert("x")],
-    ~goal={|if 1~ thx¦en~ 2 else 3|},
+    ~goal={|if 1 ~thx¦en ~2 else 3|},
   ),
   test(
     ~name="Within trailing delimiter: if",
     ~acts=mk({|if 1 then 2 e¦lse 3|}) @ [Insert("x")],
-    ~goal={|if 1 then 2~ ex¦lse~ 3|},
+    ~goal={|if 1 then 2 ~ex¦lse ~3|},
   ),
   test(
     ~name="Postpending to leading delimiter: if",
     ~acts=mk({|if¦ 1 then 2 else 3|}) @ [Insert("x")],
-    ~goal={|ifx¦~ 1 then 2 else 3|},
+    ~goal={|ifx¦ ~1 then 2 else 3|},
   ),
   test(
     ~name="Postpending to middle delimiter: if",
     ~acts=mk({|if 1 then¦ 2 else 3|}) @ [Insert("x")],
-    ~goal={|if 1 ~thenx¦~ 2 else 3|},
+    ~goal={|if 1 ~thenx¦ ~2 else 3|},
   ),
   test(
     ~name="Postpending to trailing delimiter: if",
     ~acts=mk({|if 1 then 2 else¦ 3|}) @ [Insert("x")],
-    ~goal={|if 1 then 2 ~elsex¦~ 3|},
+    ~goal={|if 1 then 2 ~elsex¦ ~3|},
   ),
   test(
     ~name="Grout inserted on correct side of caret when adding if before",
@@ -569,13 +569,13 @@ let insertion_tests = [
   test(
     ~name="Split ap (Make sure outside gets remolded)",
     ~acts=mk({|ap(¦)|}) @ [Insert(" ")],
-    ~goal={|ap(?¦)|},
+    ~goal={|ap( ¦?)|},
   ),
   /* MERGING */
   test(
     ~name="Prelude for: Merge across concave grout on insert",
     ~acts=mk({|if 1 then 2 e¦lse 3|}) @ [Destruct(Left)],
-    ~goal={|if 1 then 2 ¦~lse~ 3|},
+    ~goal={|if 1 then 2 ¦~lse ~3|},
   ),
   test(
     ~name="Merge across concave grout on insert",
@@ -755,7 +755,7 @@ let destruct_tests = [
   test(
     ~name="Amphibious Plus Destruct 9",
     ~acts=mk({|type T = + A + B +¦ C|}) @ [Destruct(Left)],
-    ~goal={|type T = + A + B ¦~ C|},
+    ~goal={|type T = + A + B ¦ ~C|},
   ),
   test(
     ~name="Amphibious Plus Destruct 10",
@@ -767,12 +767,12 @@ let destruct_tests = [
   test(
     ~name="Regrouting edge case 1",
     ~acts=mk({|if 1then else¦|}) @ mv_l(9) @ [Insert(" ")],
-    ~goal={|if 1 ¦then? else?|},
+    ~goal={|if 1 ¦then ?else?|},
   ),
   test(
     ~name="Regrouting edge case 2",
     ~acts=mk({|if thena¦ else|}) @ [Destruct(Left)],
-    ~goal={|if? then¦? else?|},
+    ~goal={|if ?then¦ ?else?|},
   ),
   /* If the below fails, it's likely zipper.caret isn't being
    * properly updated during insert/delete actions */
@@ -788,22 +788,22 @@ let destruct_tests = [
   test(
     ~name="Within leading delimiter: if",
     ~acts=mk({|i¦f 1 then 2 else 3|}) @ [Destruct(Left)],
-    ~goal={|¦f~ 1 then 2 else 3|},
+    ~goal={|¦f ~1 then 2 else 3|},
   ),
   test(
     ~name="Within middle delimiter: if",
     ~acts=mk({|if 1 th¦en 2 else 3|}) @ [Destruct(Left)],
-    ~goal={|if 1 ~t¦en~ 2 else 3|},
+    ~goal={|if 1 ~t¦en ~2 else 3|},
   ),
   test(
     ~name="Within trailing delimiter: if",
     ~acts=mk({|if 1 then 2 e¦lse 3|}) @ [Destruct(Left)],
-    ~goal={|if 1 then 2 ¦~lse~ 3|},
+    ~goal={|if 1 then 2 ¦~lse ~3|},
   ),
   test(
     ~name="At end of leading delimiter: if",
     ~acts=mk({|if¦ 1 then 2 else 3|}) @ [Destruct(Left)],
-    ~goal={|i¦~ 1 then 2 else 3|},
+    ~goal={|i¦ ~1 then 2 else 3|},
   ),
   test(
     ~name="At end of middle delimiter: if",
@@ -2304,14 +2304,6 @@ let shard_theft_tests = [
           );
         | Secondary(s) =>
           Printf.sprintf("S(%s)", Secondary.get_string(s.content))
-        | Grout(g) =>
-          Printf.sprintf(
-            "G(%s)",
-            switch (g.shape) {
-            | Convex => "convex"
-            | Concave => "concave"
-            },
-          )
         | Projector(_) => "Proj"
         };
       let (l0, r0) = z0.relatives.siblings;
@@ -3008,7 +3000,6 @@ and tile_sorts_of_piece = (p: Piece.t): list((string, Sort.t)) =>
     let child_sorts = List.concat_map(tile_sorts_of_seg, t.children);
     label_sorts @ child_sorts;
   | Projector({syntax, _}) => tile_sorts_of_piece(syntax)
-  | Grout(_)
   | Secondary(_) => []
   };
 

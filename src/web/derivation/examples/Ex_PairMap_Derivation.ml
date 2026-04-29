@@ -26,14 +26,6 @@ let exercise : DerivationExercise.spec =
                              "8a783470-ca8e-447f-838b-779e6c0152df");
                       content = Whitespace " ";
                     };
-                  Grout
-                    {
-                      id =
-                        Option.get
-                          (Haz3lcore.Id.of_string
-                             "88a9e00d-8540-450b-bcf5-bed32e2f7b83");
-                      shape = Convex;
-                    };
                 ],
                 [] );
             ancestors = [];
@@ -1120,14 +1112,6 @@ let exercise : DerivationExercise.spec =
                         };
                     ],
                     [
-                      Grout
-                        {
-                          id =
-                            Option.get
-                              (Haz3lcore.Id.of_string
-                                 "ead22f7e-b98a-4956-bcd7-0df7505e9412");
-                          shape = Convex;
-                        };
                       Secondary
                         {
                           id =

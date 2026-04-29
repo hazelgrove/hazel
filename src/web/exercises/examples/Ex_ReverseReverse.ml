@@ -1544,16 +1544,7 @@ let exercise : Exercise.t =
                         content = Whitespace " ";
                       };
                   ],
-                  [
-                    Grout
-                      {
-                        id =
-                          Option.get
-                            (Haz3lcore.Id.of_string
-                               "7ba66ae0-5527-4b0d-8f28-2668e935f29a");
-                        shape = Convex;
-                      };
-                  ] );
+                  [] );
               ancestors = [];
             };
           caret = Outer;
@@ -1584,22 +1575,7 @@ let exercise : Exercise.t =
       lemmas =
         {
           selection = { focus = Left; content = []; mode = Normal };
-          relatives =
-            {
-              siblings =
-                ( [
-                    Grout
-                      {
-                        id =
-                          Option.get
-                            (Haz3lcore.Id.of_string
-                               "7cd1e7ce-f4c2-416a-af34-68c615a4ad17");
-                        shape = Convex;
-                      };
-                  ],
-                  [] );
-              ancestors = [];
-            };
+          relatives = { siblings = ([], []); ancestors = [] };
           caret = Outer;
           refractors =
             {
@@ -2031,16 +2007,7 @@ let exercise : Exercise.t =
                         content = Whitespace " ";
                       };
                   ],
-                  [
-                    Grout
-                      {
-                        id =
-                          Option.get
-                            (Haz3lcore.Id.of_string
-                               "a36ade66-0230-4994-96f9-9daad38fe66b");
-                        shape = Convex;
-                      };
-                  ] );
+                  [] );
               ancestors = [];
             };
           caret = Outer;

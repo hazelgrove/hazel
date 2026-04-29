@@ -72,16 +72,31 @@ let mk = (init: string): list(Action.t) => {
   string_to_ltr_actions(s) @ mv_l(List.length(after));
 };
 
-/* Convert a piece to a human-readable string */
+/* Convert a piece to a human-readable string.
+ * Uses tile_to_string directly to avoid boundary hole markers
+ * that segment_to_string would add around standalone pieces. */
 let piece_to_string = (p: Piece.t): string =>
-  Base.piece_to_string(
-    ~holes=convex_char,
-    ~concave_holes=concave_char,
-    ~refractors=[],
-    ~refractor_seg_to_seg=(r, s) => (r, s),
-    ~projector_to_segment=Triggers.projector_to_invoke,
-    p,
-  );
+  switch (p) {
+  | Tile(t) =>
+    Base.tile_to_string(
+      ~holes=convex_char,
+      ~concave_holes=concave_char,
+      ~refractors=[],
+      ~refractor_seg_to_seg=(r, s) => (r, s),
+      ~projector_to_segment=Triggers.projector_to_invoke,
+      t,
+    )
+  | Secondary(w) => Secondary.get_string(w.content)
+  | Projector(pr) =>
+    Base.segment_to_string(
+      ~holes=convex_char,
+      ~concave_holes=concave_char,
+      ~refractors=[],
+      ~refractor_seg_to_seg=(r, s) => (r, s),
+      ~projector_to_segment=Triggers.projector_to_invoke,
+      Triggers.projector_to_invoke(pr),
+    )
+  };
 
 /* Format the indication result as "piece_string [D,R]" */
 let indicated_str = (z: Zipper.t): string =>

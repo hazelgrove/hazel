@@ -33,7 +33,10 @@ let init = (kind: ProjectorCore.Kind.t, seg: Base.segment): option(syntax) =>
 
 /* Get the root term ID from a segment, if it's a well-formed term */
 let seg_root_id = (seg: Base.segment): option(Id.t) =>
-  try(Some(Segment.root_id(Segment.skel(seg), seg))) {
+  try({
+    let skel = Segment.skel(seg);
+    Segment.root_id(skel, seg);
+  }) {
   | _ => None
   };
 

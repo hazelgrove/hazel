@@ -106,7 +106,6 @@ module MapPiece = {
   and of_piece = (f: updater, piece: Piece.t): Piece.t => {
     switch (piece) {
     | Tile(t) => Tile(of_tile(f, t))
-    | Grout(_)
     | Projector(_)
     | Secondary(_) => piece
     };

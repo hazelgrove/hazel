@@ -80,7 +80,7 @@ let or_ = 33 |> right_associative;
 // ((A /\ B) \/ C) ==> D
 let impl = 34;
 // false || _____
-let concave_grout = 34;
+let concave_hole = 34;
 
 // ===== SEMICOLON (tightest structural form) =====
 // Sequences naturally extend into bodies of let/fun/if/case

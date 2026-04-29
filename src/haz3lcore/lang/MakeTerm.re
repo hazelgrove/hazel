@@ -17,7 +17,6 @@ open Language;
 let tokens =
   Piece.get(
     _ => [],
-    _ => [" "],
     (t: Tile.t) => t.shards |> List.map(List.nth(t.label)),
     _ =>
       /* Hack: These act as temporary wrappers for projectors,
@@ -36,7 +35,8 @@ type unsorted =
   | Op(tiles)
   | Pre(tiles, Any.t)
   | Post(Any.t, tiles)
-  | Bin(Any.t, tiles, Any.t);
+  | Bin(Any.t, tiles, Any.t)
+  | Hole(Id.t); /* Structural hole — produces EmptyHole directly */
 
 type t = {
   term: Exp.t,
@@ -44,6 +44,11 @@ type t = {
   term_data: TermData.t,
   projectors: Id.Map.t(Piece.projector),
   projector_list: list(Id.t),
+  /* Reverse map: secondary piece ID → owning term ID.
+   * Built by inverting secondary_map after all terms (including holes)
+   * have been processed. Enables cursor inspector to look up term info
+   * when the caret is on whitespace. */
+  ws_to_term: Id.Map.t(Id.t),
 };
 
 let is_nary =
@@ -107,9 +112,6 @@ let rec flatten_sig = (s: TermBase.Sig.t): list(TermBase.Sig.t) =>
   | Invalid(_) => [s]
   };
 
-let is_grout = tiles =>
-  Aba.get_as(tiles) |> List.map(snd) |> List.for_all((==)(([" "], [])));
-
 let is_rules = ((ts, kids): tiles): option(Aba.t(Pat.t, Exp.t)) => {
   open OptUtil.Syntax;
   let+ ps =
@@ -157,7 +159,8 @@ let ids =
   | Op(tiles)
   | Pre(tiles, _)
   | Post(_, tiles)
-  | Bin(_, tiles, _) => ids_of_tiles(tiles);
+  | Bin(_, tiles, _) => ids_of_tiles(tiles)
+  | Hole(id) => [id];
 
 let kids_of_tile = ((_id, (_tokens, kids)): tile) => kids;
 let kids_of_tiles = (tiles: tiles) =>
@@ -170,7 +173,8 @@ let kids_of_unsorted =
   | Op(tiles) => kids_of_tiles(tiles)
   | Pre(tiles, r) => kids_of_tiles(tiles) @ [r]
   | Post(l, tiles) => [l] @ kids_of_tiles(tiles)
-  | Bin(l, tiles, r) => [l] @ kids_of_tiles(tiles) @ [r];
+  | Bin(l, tiles, r) => [l] @ kids_of_tiles(tiles) @ [r]
+  | Hole(_) => [];
 
 // Need this map to collect all structural terms,
 // not just the ones recognized in Statics.
@@ -184,7 +188,12 @@ let return = (wrap, ids, tm) => {
 let term_data: ref(TermData.t) = ref(Id.Map.empty);
 let record_term_data = (sort: Sort.t, seg: Segment.t, skel: Skel.t): unit =>
   term_data :=
-    Aba.get_as(Aba.map_a(List.nth(seg), Skel.root(skel)))
+    Aba.get_as(Skel.root(skel))
+    |> List.filter_map(
+         fun
+         | Skel.Piece(idx) => Some(List.nth(seg, idx))
+         | Skel.Hole(_) => None,
+       )
     |> List.fold_left(
          (map, p) =>
            Id.Map.add(Piece.id(p), TermData.mk(p, sort, skel, seg), map),
@@ -196,8 +205,13 @@ let projectors: ref(Id.Map.t(Piece.projector)) = ref(Id.Map.empty);
 let projector_list: ref(list(Id.t)) = ref([]);
 
 /* Map from tile IDs to their outer secondary (before, after) */
-let secondary_map: ref(Segment.SecondaryCollection.secondary_map) =
-  ref(Id.Map.empty);
+type secondary_map = Id.Map.t(Language.IdTagged.IdTag.secondary_runs);
+let secondary_map: ref(secondary_map) = ref(Id.Map.empty);
+
+/* Conflict-boundary secondary keyed by the segment index of the right-adjacent
+ * piece (List.length(seg) for trailing edge, -1 for leading edge).
+ * Populated by assign_secondary, consumed by unsorted when processing Hole refs. */
+let hole_secondary: ref(list((int, list(Secondary.t)))) = ref([]);
 
 /* Look up outer secondary for a term by its representative ID */
 let get_secondary = (ids: list(Id.t)): IdTagged.IdTag.secondary_runs =>
@@ -209,6 +223,107 @@ let get_secondary = (ids: list(Id.t)): IdTagged.IdTag.secondary_runs =>
     }
   | [] => IdTagged.IdTag.empty_secondary
   };
+
+/* Assign secondary (whitespace/comments) to tiles based on adjacent nib shapes.
+ * This is a flat O(n) left-to-right scan. At each boundary between tiles,
+ * the nib shapes determine ownership — space goes to the convex side:
+ *   Convex-Concave  → LEFT tile (trailing/after)
+ *   Concave-Convex  → RIGHT tile (leading/before)
+ *   Convex-Convex   → LEFT tile (conflict: missing operator — both convex,
+ *                      pick left as trailing; hole is infix so can't own)
+ *   Concave-Concave → HOLE (conflict: missing operand — neither convex,
+ *                      stash for operand-position hole)
+ * Ccv-Ccv runs are stashed in hole_secondary keyed by the segment index of
+ * the right-adjacent piece. unsorted picks them up when processing Hole refs.
+ * Recurses into tile children and projector syntax. */
+let rec assign_secondary = (seg: Segment.t): unit => {
+  let boundary = Nib.Shape.concave();
+  let prev_right_shape = ref(boundary);
+  let pending_secondary: ref(list(Secondary.t)) = ref([]);
+  let prev_tile_id: ref(option(Id.t)) = ref(None);
+  let cur_idx = ref(0);
+
+  let add_after = (id: Id.t, after: list(Secondary.t)) => {
+    let before =
+      switch (Id.Map.find_opt(id, secondary_map^)) {
+      | Some((b, _)) => b
+      | None => []
+      };
+    secondary_map := Id.Map.add(id, (before, after), secondary_map^);
+  };
+
+  let process_tile =
+      (idx: int, id: Id.t, l_shape: Nib.Shape.t, r_shape: Nib.Shape.t) => {
+    let run = pending_secondary^;
+    pending_secondary := [];
+    switch (prev_right_shape^, l_shape) {
+    | (Convex, Concave(_)) =>
+      /* Run goes to previous tile (after) */
+      switch (prev_tile_id^) {
+      | Some(pid) => add_after(pid, run)
+      | None => ()
+      }
+    | (Concave(_), Convex) =>
+      /* Run goes to this tile (before) */
+      secondary_map := Id.Map.add(id, (run, []), secondary_map^)
+    | (Convex, Convex) =>
+      /* Missing operator (both sides convex). Assign to left tile
+       * (convex side), consistent with how real operators work:
+       * operands own adjacent spaces, operators have empty secondary. */
+      switch (prev_tile_id^) {
+      | Some(pid) => add_after(pid, run)
+      | None => () /* Can't happen: prev starts as Ccv */
+      }
+    | (Concave(_), Concave(_)) =>
+      /* Missing operand (neither side convex). Stash for hole —
+       * this hole is in operand position (Op), so wrap_with_secondary
+       * correctly wraps the hole term. */
+      hole_secondary := [(idx, run), ...hole_secondary^]
+    };
+    prev_right_shape := r_shape;
+    prev_tile_id := Some(id);
+  };
+
+  List.iter(
+    fun
+    | (Piece.Secondary(s): Piece.t) => {
+        pending_secondary := pending_secondary^ @ [s];
+        cur_idx := cur_idx^ + 1;
+      }
+    | Tile(t) => {
+        let idx = cur_idx^;
+        cur_idx := cur_idx^ + 1;
+        let (l_shape, r_shape) = Tile.shapes(t);
+        process_tile(idx, t.id, l_shape, r_shape);
+        List.iter(assign_secondary, t.children);
+      }
+    | Projector(p) => {
+        let idx = cur_idx^;
+        cur_idx := cur_idx^ + 1;
+        let (l_shape, r_shape) = ProjectorCore.shapes(p);
+        process_tile(idx, p.id, l_shape, r_shape);
+        assign_secondary(Piece.unparenthesize(p.syntax));
+      },
+    seg,
+  );
+
+  /* Handle trailing secondary */
+  let run = pending_secondary^;
+  if (run != []) {
+    switch (prev_right_shape^, boundary) {
+    | (Convex, Concave(_)) =>
+      /* Normal trailing: assign to last tile (after) */
+      switch (prev_tile_id^) {
+      | Some(pid) => add_after(pid, run)
+      | None => ()
+      }
+    | (Concave(_), Concave(_)) =>
+      /* Conflict: missing operand at end (e.g., "1+ "). Stash for hole. */
+      hole_secondary := [(List.length(seg), run), ...hole_secondary^]
+    | _ => ()
+    };
+  };
+};
 
 /* Track IDs that are "adopted" from inner terms into outer multi-tile forms.
  *
@@ -312,9 +427,19 @@ let mk_bad = (ctr, ids, value) => {
 };
 
 let is_hole_label = (t: string) =>
-  t == " " || Token.is_explicit_hole(t) || Token.is_llm_hole(t);
+  Token.is_explicit_hole(t) || Token.is_llm_hole(t);
 
-let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): Any.t =>
+let rec go_s =
+        (
+          ~left_bound=0,
+          ~right_bound=?,
+          s: Sort.t,
+          skel: Skel.t,
+          seg: Segment.t,
+        )
+        : Any.t => {
+  let right_bound = Option.value(right_bound, ~default=List.length(seg));
+  let u = sort => unsorted(~left_bound, ~right_bound, sort, skel, seg);
   switch (s) {
   | Drv(drv) =>
     Drv(
@@ -322,28 +447,25 @@ let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): Any.t =>
       | Jdmt
       | Ctx
       | Prop
-      | Exp => Exp(drv_exp(unsorted(Drv(Exp), skel, seg)))
-      | Pat => Pat(drv_pat(unsorted(Drv(Pat), skel, seg)))
-      | Typ => Typ(drv_typ(unsorted(Drv(Typ), skel, seg)))
-      | TPat => TPat(drv_tpat(unsorted(Drv(TPat), skel, seg)))
+      | Exp => Exp(drv_exp(u(Drv(Exp))))
+      | Pat => Pat(drv_pat(u(Drv(Pat))))
+      | Typ => Typ(drv_typ(u(Drv(Typ))))
+      | TPat => TPat(drv_tpat(u(Drv(TPat))))
       },
     )
-  | Pat => Pat(pat(unsorted(Pat, skel, seg)))
-  | TPat => TPat(tpat(unsorted(TPat, skel, seg)))
-  | Typ => Typ(typ(unsorted(Typ, skel, seg)))
-  | Exp => Exp(exp(unsorted(Exp, skel, seg)))
-  | Rul => Rul(rul(unsorted(Rul, skel, seg)))
-  | Mod => Mod(mod_(unsorted(Mod, skel, seg))) /* Phase 1.2: proper module parsing */
-  | Sig => Sig(sig_(unsorted(Sig, skel, seg)))
-  | MPat => MPat(mpat(unsorted(MPat, skel, seg)))
+  | Pat => Pat(pat(u(Pat)))
+  | TPat => TPat(tpat(u(TPat)))
+  | Typ => Typ(typ(u(Typ)))
+  | Exp => Exp(exp(u(Exp)))
+  | Rul => Rul(rul(u(Rul)))
+  | Mod => Mod(mod_(u(Mod)))
+  | Sig => Sig(sig_(u(Sig)))
+  | MPat => MPat(mpat(u(MPat)))
   | Any =>
     let sort = Segment.sort_of(skel, seg);
-    if (sort == Any) {
-      Exp(exp(unsorted(Exp, skel, seg)));
-    } else {
-      go_s(sort, skel, seg);
-    };
-  }
+    go_s(~left_bound, ~right_bound, sort == Any ? Exp : sort, skel, seg);
+  };
+}
 and drv_exp = unsorted => {
   let (term, inner_ids) = drv_exp_term(unsorted);
   let ids = ids(unsorted) @ inner_ids;
@@ -734,8 +856,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
       | (["of_alfa_tpat", "end"], [Drv(TPat(tp))]) =>
         ret(DrvQuote(TPat(tp), TPat))
       | ([t], []) when is_hole_label(t) => ret(hole(tm))
-      | ([t], []) when t != " " && !Token.is_explicit_hole(t) =>
-        ret(Invalid(t))
+      | ([t], []) when !is_hole_label(t) => ret(Invalid(t))
       | _ => ret(hole(tm))
       }
     | _ => ret(hole(tm))
@@ -1318,7 +1439,7 @@ and mod_term: unsorted => TermBase.Mod.term = {
   | Bin(Exp(_), _, Exp(_)) as tm => ret(ModExp(exp(tm)))
   | Pre(_, Exp(_)) as tm => ret(ModExp(exp(tm)))
   | Post(Exp(_), _) as tm => ret(ModExp(exp(tm)))
-  | (Pre(_) | Post(_) | Bin(_)) as tm => ret(hole(tm));
+  | (Pre(_) | Post(_) | Bin(_) | Hole(_)) as tm => ret(hole(tm));
 }
 and sig_ = unsorted => {
   let term = sig_term(unsorted);
@@ -1356,7 +1477,7 @@ and sig_term: unsorted => TermBase.Sig.term = {
   /* SigType: type t = T - the tpat is inside the tile, type is the body */
   | Pre(([(_id, (["type", "="], [TPat(tp)]))], []), Typ(ty)) =>
     ret(SigType(tp, ty))
-  | (Pre(_) | Post(_) | Bin(_)) as tm => ret(hole(tm));
+  | (Pre(_) | Post(_) | Bin(_) | Hole(_)) as tm => ret(hole(tm));
 }
 and mpat = unsorted => {
   let term = mpat_term(unsorted);
@@ -1380,7 +1501,7 @@ and mpat_term: unsorted => TermBase.MPat.term = {
     | ([(_id, ([":"], []))], []) => ret(Asc(mp, ty))
     | _ => ret(hole(tm))
     }
-  | (Pre(_) | Post(_) | Bin(_)) as tm => ret(hole(tm));
+  | (Pre(_) | Post(_) | Bin(_) | Hole(_)) as tm => ret(hole(tm));
 }
 
 and rul = (unsorted): Rul.t => {
@@ -1408,20 +1529,28 @@ and rul = (unsorted): Rul.t => {
   };
 }
 
-and unsorted = (sort: Sort.t, skel: Skel.t, seg: Segment.t): unsorted => {
+and unsorted =
+    (
+      ~left_bound=0,
+      ~right_bound=?,
+      sort: Sort.t,
+      skel: Skel.t,
+      seg: Segment.t,
+    )
+    : unsorted => {
+  let right_bound = Option.value(right_bound, ~default=List.length(seg));
+
   /* Remove projectors. We do this here as opposed to removing
    * them in an external call to save a whole-syntax pass. */
   let tile_kids = (p: Piece.t): list(Any.t) =>
     switch (p) {
-    | Secondary(_)
-    | Grout(_) => []
+    | Secondary(_) => []
     | Projector({id, kind, model, syntax} as pr) =>
       let _ = log_projector(pr);
       let sort = Piece.sort(syntax) |> fst;
       let seg = Piece.unparenthesize(syntax);
-      let inner = go_s(sort, Segment.skel(seg), seg);
-      /* Construct Projector term with proper annotation, preserving
-       * projector metadata (kind, model) in the term for round-tripping */
+      let skel = Segment.skel(seg);
+      let inner = go_s(sort, skel, seg);
       let projector_data: Grammar.projector_data = {
         kind,
         model,
@@ -1450,44 +1579,263 @@ and unsorted = (sort: Sort.t, skel: Skel.t, seg: Segment.t): unsorted => {
       Aba.aba_triples(Aba.mk(shards, children))
       |> List.map(((l, kid, r)) => {
            let s = l + 1 == r ? List.nth(mold.in_, l) : Sort.Any;
-           go_s(s, Segment.skel(~sort=s, kid), kid);
+           let skel = Segment.skel(~sort=s, kid);
+           go_s(s, skel, kid);
          })
     };
 
   /* Capture term ranges */
   record_term_data(sort, seg, skel);
 
-  let root: Aba.t(Piece.t, Skel.t) =
-    Skel.root(skel) |> Aba.map_a(List.nth(seg));
+  /* --- Hole secondary + ID assignment ---
+   * For each Hole ref in the root, compute its secondary by scanning
+   * the segment between its boundary tiles. Create a single ID used
+   * both for secondary_map storage and for the fake tile entry.
+   *
+   * Boundary computation for Hole ref at position i in root refs:
+   *   Left: i==0 → left_bound; else → right edge of Aba child[i-1]
+   *   Right: i==last → right_bound; else → left edge of Aba child[i] */
+  let root: Aba.t(Skel.piece_ref, Skel.t) = Skel.root(skel);
+  let root_refs = Aba.get_as(root);
+  let root_children = Aba.get_bs(root);
+  let num_refs = List.length(root_refs);
 
-  // maintaining this alternating ordered structure
-  // for handling incomplete forms later
-  let tiles =
-    root
-    |> Aba.map_abas(((p_l, kid, p_r)) => {
-         let (_, s_l) = Piece.nib_sorts(p_l);
-         let (s_r, _) = Piece.nib_sorts(p_r);
-         let s = s_l == s_r ? s_l : Sort.Any;
-         go_s(s, kid, seg);
-       })
-    |> Aba.map_a(p
-         // TODO throw proper exception
-         => (Piece.id(p), Aba.mk(tokens(p), tile_kids(p))));
+  let hole_left_boundary = (i: int): int =>
+    if (i == 0) {
+      left_bound;
+    } else {
+      let child = List.nth(root_children, i - 1);
+      switch (Skel.range(child)) {
+      | Some((_, right_edge)) => right_edge
+      | None =>
+        switch (List.nth(root_refs, i - 1)) {
+        | Skel.Piece(idx) => idx
+        | Skel.Hole(_) => left_bound
+        }
+      };
+    };
 
-  let (l_sort, r_sort) = {
-    let p_l = Aba.first_a(root);
-    let p_r = Aba.last_a(root);
-    // TODO throw proper exceptions
-    let (l, _) = Option.get(Piece.nibs(p_l));
-    let (_, r) = Option.get(Piece.nibs(p_r));
-    (l.sort, r.sort);
+  let hole_right_boundary = (i: int): int =>
+    if (i == num_refs - 1) {
+      right_bound;
+    } else {
+      let child = List.nth(root_children, i);
+      switch (Skel.range(child)) {
+      | Some((left_edge, _)) => left_edge
+      | None =>
+        switch (List.nth(root_refs, i + 1)) {
+        | Skel.Piece(idx) => idx
+        | Skel.Hole(_) => right_bound
+        }
+      };
+    };
+
+  /* For each Hole ref, find the segment index of the right-adjacent piece.
+   * This is the key used by assign_secondary to stash conflict-boundary
+   * secondary in hole_secondary. */
+  let right_adjacent_idx = (skel: Skel.t, i: int): int => {
+    /* Look rightward through root refs for the first Piece */
+    let rec scan_refs = (j: int): option(int) =>
+      if (j >= num_refs) {
+        None;
+      } else {
+        switch (List.nth(root_refs, j)) {
+        | Skel.Piece(idx) => Some(idx)
+        | Skel.Hole(_) =>
+          /* Check child skel between j-1 and j */
+          if (j > 0 && j - 1 < List.length(root_children)) {
+            switch (Skel.range(List.nth(root_children, j - 1))) {
+            | Some((left, _)) => Some(left)
+            | None => scan_refs(j + 1)
+            };
+          } else {
+            scan_refs(j + 1);
+          }
+        };
+      };
+    /* First try scanning within the root */
+    switch (scan_refs(i + 1)) {
+    | Some(idx) => idx
+    | None =>
+      /* Nothing in root; look at outer skel's right operand */
+      switch (skel) {
+      | Bin(_, _, r)
+      | Pre(_, r) =>
+        switch (Skel.range(r)) {
+        | Some((left, _)) => left
+        | None => right_bound
+        }
+      | Op(_)
+      | Post(_, _) => right_bound
+      }
+    };
   };
 
-  switch (skel) {
-  | Op(_) => Op(tiles)
-  | Pre(_, r) => Pre(tiles, go_s(r_sort, r, seg))
-  | Post(l, _) => Post(go_s(l_sort, l, seg), tiles)
-  | Bin(l, _, r) => Bin(go_s(l_sort, l, seg), tiles, go_s(r_sort, r, seg))
+  /* Create IDs for holes and look up their secondary from hole_secondary. */
+  let hole_id_for_ref: ref(list((int, Id.t))) = ref([]);
+  List.iteri(
+    (i, ref) =>
+      switch (ref) {
+      | Skel.Hole(_) =>
+        let id = Id.mk();
+        let key = right_adjacent_idx(skel, i);
+        let sec =
+          switch (List.assoc_opt(key, hole_secondary^)) {
+          | Some(run) => (run, [])
+          | None => ([], [])
+          };
+        secondary_map := Id.Map.add(id, sec, secondary_map^);
+        hole_id_for_ref := [(i, id), ...hole_id_for_ref^];
+      | Skel.Piece(_) => ()
+      },
+    root_refs,
+  );
+
+  /* Resolve refs to pieces or holes with pre-assigned IDs */
+  let resolved_refs =
+    List.mapi(
+      (i, ref) =>
+        switch (ref) {
+        | Skel.Piece(idx) => `Piece(List.nth(seg, idx))
+        | Skel.Hole(_) => `Hole(List.assoc(i, hole_id_for_ref^))
+        },
+      root_refs,
+    );
+
+  /* Process Aba children (sub-skeletons between chained root refs).
+   * Pass bounds so child skeletons know their extent in the segment. */
+  let kid_bound_from_ref = (ref_idx: int): int =>
+    switch (List.nth(root_refs, ref_idx)) {
+    | Skel.Piece(idx) => idx
+    | Skel.Hole(_) =>
+      /* For a Hole ref, use its boundary that faces the child */
+      if (ref_idx < List.length(root_children)) {
+        /* This ref is to the LEFT of child[ref_idx], so use right boundary */
+        hole_right_boundary(
+          ref_idx,
+        );
+      } else {
+        /* This ref is to the RIGHT of child[ref_idx-1], so use left boundary */
+        hole_left_boundary(
+          ref_idx,
+        );
+      }
+    };
+
+  let sorts_of_ref =
+    fun
+    | `Piece(p) =>
+      switch (Piece.nibs(p)) {
+      | Some((l, r)) => (l.sort, r.sort)
+      | None => (Sort.Any, Sort.Any)
+      }
+    | `Hole(_) => (Sort.Any, Sort.Any);
+
+  let processed_children =
+    List.mapi(
+      (child_idx, child_skel) => {
+        /* child_idx is between ref[child_idx] and ref[child_idx + 1] */
+        let lb = kid_bound_from_ref(child_idx);
+        let rb = kid_bound_from_ref(child_idx + 1);
+        let ref_l = List.nth(resolved_refs, child_idx);
+        let ref_r = List.nth(resolved_refs, child_idx + 1);
+        let (_, s_l) = sorts_of_ref(ref_l);
+        let (s_r, _) = sorts_of_ref(ref_r);
+        let s = s_l == s_r ? s_l : Sort.Any;
+        go_s(~left_bound=lb, ~right_bound=rb, s, child_skel, seg);
+      },
+      root_children,
+    );
+
+  /* Build tiles Aba with processed children */
+  let tiles =
+    Aba.mk(resolved_refs, processed_children)
+    |> Aba.map_a(
+         fun
+         | `Piece(p) => (Piece.id(p), Aba.mk(tokens(p), tile_kids(p)))
+         | `Hole(id) => (id, Aba.mk([" "], [])),
+       );
+
+  /* Compute sorts for recursive child processing */
+  let (l_sort, r_sort) = {
+    let first_ref = List.hd(resolved_refs);
+    let last_ref = ListUtil.last(resolved_refs);
+    let l_sort =
+      switch (first_ref) {
+      | `Piece(p) =>
+        let (l, _) = Option.get(Piece.nibs(p));
+        l.sort;
+      | `Hole(_) => Sort.Any
+      };
+    let r_sort =
+      switch (last_ref) {
+      | `Piece(p) =>
+        let (_, r) = Option.get(Piece.nibs(p));
+        r.sort;
+      | `Hole(_) => Sort.Any
+      };
+    (l_sort, r_sort);
+  };
+
+  /* Compute root range for child bounds */
+  let root_range = {
+    let piece_indices =
+      List.filter_map(
+        fun
+        | Skel.Piece(i) => Some(i)
+        | Skel.Hole(_) => None,
+        root_refs,
+      );
+    let child_ranges = List.filter_map(Skel.range, root_children);
+    let all = List.map(i => (i, i), piece_indices) @ child_ranges;
+    switch (all) {
+    | [] => None
+    | [(l, r), ...rest] =>
+      Some(
+        List.fold_left(
+          ((min_l, max_r), (l, r)) => (min(min_l, l), max(max_r, r)),
+          (l, r),
+          rest,
+        ),
+      )
+    };
+  };
+
+  /* Check for single-hole Op: return Hole directly instead of
+   * creating a fake tile entry with is_hole_label */
+  switch (skel, resolved_refs) {
+  | (Op(_), [`Hole(id)]) => Hole(id)
+  | (Op(_), _) => Op(tiles)
+  | (Pre(_, r), _) =>
+    let lb =
+      switch (root_range) {
+      | Some((_, rr)) => rr
+      | None => left_bound
+      };
+    Pre(tiles, go_s(~left_bound=lb, ~right_bound, r_sort, r, seg));
+  | (Post(l, _), _) =>
+    let rb =
+      switch (root_range) {
+      | Some((rl, _)) => rl
+      | None => right_bound
+      };
+    Post(go_s(~left_bound, ~right_bound=rb, l_sort, l, seg), tiles);
+  | (Bin(l, _, r), _) =>
+    let l_rb =
+      switch (root_range) {
+      | Some((rl, _)) => rl
+      | None => right_bound
+      };
+    let r_lb =
+      switch (root_range) {
+      | Some((_, rr)) => rr
+      | None => left_bound
+      };
+    Bin(
+      go_s(~left_bound, ~right_bound=l_rb, l_sort, l, seg),
+      tiles,
+      go_s(~left_bound=r_lb, ~right_bound, r_sort, r, seg),
+    );
   };
 };
 
@@ -1535,6 +1883,19 @@ let consolidate_adopted = (): unit => {
      });
 };
 
+/* Build reverse map from secondary_map: secondary piece ID → owning term ID */
+let build_ws_to_term = (sec_map: secondary_map): Id.Map.t(Id.t) =>
+  Id.Map.fold(
+    (term_id, (before, after), acc) =>
+      List.fold_left(
+        (acc, s: Secondary.t) => Id.Map.add(s.id, term_id, acc),
+        acc,
+        before @ after,
+      ),
+    sec_map,
+    Id.Map.empty,
+  );
+
 let go =
   Core.Memo.general(
     ~cache_size_bound=1000,
@@ -1544,8 +1905,12 @@ let go =
       projectors := Id.Map.empty;
       projector_list := [];
       adopted_ids := [];
-      secondary_map := Segment.SecondaryCollection.collect(seg);
-      let term = exp(unsorted(Exp, Segment.skel(seg), seg));
+      /* Assign secondary to tiles and stash conflict runs for holes */
+      secondary_map := Id.Map.empty;
+      hole_secondary := [];
+      assign_secondary(seg);
+      let skel = Segment.skel(seg);
+      let term = exp(unsorted(Exp, skel, seg));
       consolidate_adopted();
       {
         term,
@@ -1553,6 +1918,7 @@ let go =
         terms: map^,
         projectors: projectors^,
         projector_list: projector_list^,
+        ws_to_term: build_ws_to_term(secondary_map^),
       };
     },
   );
@@ -1573,6 +1939,9 @@ let for_projection =
       switch (Segment.skel(seg)) {
       | exception _ => None /* Returns None if any subsegment is non-convex */
       | skel =>
+        secondary_map := Id.Map.empty;
+        hole_secondary := [];
+        assign_secondary(seg);
         let sort = Segment.sort_of(skel, seg);
         let unsorted = unsorted(sort, skel, seg);
         switch (sort) {
@@ -1606,7 +1975,7 @@ let for_projection =
         | Mod => Some(Mod(mod_(unsorted)))
         | Sig => Some(Sig(sig_(unsorted)))
         | MPat => Some(MPat(mpat(unsorted)))
-        | Any => Some(Any()) /* grout */
+        | Any => Some(Any()) /* hole tiles */
         };
       };
     }

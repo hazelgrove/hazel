@@ -79,6 +79,12 @@ module Settings = {
   };
 };
 
+/* Empty segment for hole positions. The Printer detects shape conflicts
+   at boundaries and emits ~holes/~concave_holes strings as needed,
+   so no explicit marker tiles are required. */
+let convex_hole_content = (_: Settings.secondary_handling): Segment.t => [];
+let concave_hole_content = (_: Settings.secondary_handling): Segment.t => [];
+
 /* Wrap segment content with secondary from a term's annotation.
    With PreserveExact: always emit stored secondary (even if empty).
    With AutoFormat: return content unchanged (heuristic spacing applies elsewhere). */
@@ -1535,15 +1541,11 @@ and drv_type_hole_to_pretty =
   | Invalid(s) => text_to_pretty(id, Sort.Drv(Typ), "Error: " ++ s)
   | EmptyHole => text_to_pretty(id, Sort.Drv(Typ), Token.space)
   | MultiHole(tm) =>
+    /* virtual-grout: holes are structural; emit a whitespace
+     * separator instead of a synthetic Grout piece. */
     let+ tm =
       tm |> List.map(drv_to_pretty(~settings, ~sort=DrvSort.Exp)) |> all;
-    ListUtil.flat_intersperse(
-      Grout({
-        id,
-        shape: Concave,
-      }),
-      tm,
-    );
+    ListUtil.flat_intersperse(Piece.Secondary(mk_space(id)), tm);
   };
 }
 and drv_to_pretty = (~settings: Settings.t, drv: Drv.Any.t, ~sort): pretty => {
@@ -1717,17 +1719,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     wrap(exp, text_to_pretty(exp |> Exp.rep_id, Sort.Exp, "<closure>") @ e);
   // Other cases
   | Invalid(x) => wrap(exp, text_to_pretty(exp |> Exp.rep_id, Sort.Exp, x))
-  | EmptyHole =>
-    let id = exp |> Exp.rep_id;
-    wrap(
-      exp,
-      p_just([
-        Grout({
-          id,
-          shape: Convex,
-        }),
-      ]),
-    );
+  | EmptyHole => wrap(exp, p_just(convex_hole_content(settings.secondary)))
   | Undefined =>
     wrap(exp, text_to_pretty(exp |> Exp.rep_id, Sort.Exp, "undefined"))
   | Atom(c) =>
@@ -1831,29 +1823,12 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
   | MultiHole(es) =>
     // TODO: Add optional newlines
     let+ es = es |> List.map(any_to_pretty(~settings)) |> all;
-    /* Use IDs from the term for grout pieces, like Tuple uses for commas.
-       For N elements, we need N-1 grout pieces (one between each pair). */
-    let num_grouts = max(0, List.length(es) - 1);
-    let ids = IdTagged.ids(exp) |> pad_ids(num_grouts);
+    let sep = concave_hole_content(settings.secondary);
     let seg =
       switch (es) {
       | [] => []
       | [first, ...rest] =>
-        first
-        @ List.flatten(
-            List.map2(
-              (id, e) =>
-                [
-                  Grout({
-                    id,
-                    shape: Concave,
-                  }),
-                  ...e,
-                ],
-              ids,
-              rest,
-            ),
-          )
+        first @ List.flatten(List.map(e => sep @ e, rest))
       };
     wrap(exp, seg);
   | Parens({term: Fun(p, e, _, _), _} as inner_exp) =>
@@ -2274,18 +2249,9 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
              let+ e = go(e);
              wrap_item(item, e);
            | EmptyHole =>
-             let item_id = item |> Mod.rep_id;
              p_just(
-               wrap_item(
-                 item,
-                 [
-                   Grout({
-                     id: item_id,
-                     shape: Convex,
-                   }),
-                 ],
-               ),
-             );
+               wrap_item(item, convex_hole_content(settings.secondary)),
+             )
            | Invalid(s) =>
              p_just(
                wrap_item(
@@ -2302,7 +2268,14 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
              );
            | MultiHole(es) =>
              let+ es = es |> List.map(any_to_pretty(~settings)) |> all;
-             wrap_item(item, List.flatten(es));
+             let sep = concave_hole_content(settings.secondary);
+             let seg =
+               switch (es) {
+               | [] => []
+               | [first, ...rest] =>
+                 first @ List.flatten(List.map(e => sep @ e, rest))
+               };
+             wrap_item(item, seg);
            }
          )
       |> all;
@@ -2371,17 +2344,7 @@ and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
   let mk_form = mk_form(~secondary=settings.secondary);
   switch (pat |> Pat.term_of) {
   | Invalid(t) => wrap(pat, text_to_pretty(pat |> Pat.rep_id, Sort.Pat, t))
-  | EmptyHole =>
-    let id = pat |> Pat.rep_id;
-    wrap(
-      pat,
-      p_just([
-        Grout({
-          id,
-          shape: Convex,
-        }),
-      ]),
-    );
+  | EmptyHole => wrap(pat, p_just(convex_hole_content(settings.secondary)))
   | Wild => wrap(pat, text_to_pretty(pat |> Pat.rep_id, Sort.Pat, "_"))
   | ExplicitNonlabel =>
     wrap(pat, text_to_pretty(pat |> Pat.rep_id, Sort.Pat, "_"))
@@ -2503,28 +2466,12 @@ and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
     );
   | MultiHole(es) =>
     let+ es = es |> List.map(any_to_pretty(~settings: Settings.t)) |> all;
-    /* Use IDs from the term for grout pieces, like Tuple uses for commas. */
-    let num_grouts = max(0, List.length(es) - 1);
-    let ids = IdTagged.ids(pat) |> pad_ids(num_grouts);
+    let sep = concave_hole_content(settings.secondary);
     let seg =
       switch (es) {
       | [] => []
       | [first, ...rest] =>
-        first
-        @ List.flatten(
-            List.map2(
-              (id, e) =>
-                [
-                  Grout({
-                    id,
-                    shape: Concave,
-                  }),
-                  ...e,
-                ],
-              ids,
-              rest,
-            ),
-          )
+        first @ List.flatten(List.map(e => sep @ e, rest))
       };
     wrap(pat, seg);
   | Ap(p1, p2) =>
@@ -2594,41 +2541,19 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
     wrap(
       typ,
       if (settings.show_unknown_as_hole) {
-        let id = typ |> Typ.rep_id;
-        p_just([
-          Grout({
-            id,
-            shape: Convex,
-          }),
-        ]);
+        p_just(convex_hole_content(settings.secondary));
       } else {
         text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "?");
       },
     )
   | Unknown(Hole(MultiHole(es))) =>
     let+ es = es |> List.map(any_to_pretty(~settings: Settings.t)) |> all;
-    /* Use IDs from the term for grout pieces, like Tuple uses for commas. */
-    let num_grouts = max(0, List.length(es) - 1);
-    let ids = IdTagged.ids(typ) |> pad_ids(num_grouts);
+    let sep = concave_hole_content(settings.secondary);
     let seg =
       switch (es) {
       | [] => []
       | [first, ...rest] =>
-        first
-        @ List.flatten(
-            List.map2(
-              (id, e) =>
-                [
-                  Grout({
-                    id,
-                    shape: Concave,
-                  }),
-                  ...e,
-                ],
-              ids,
-              rest,
-            ),
-          )
+        first @ List.flatten(List.map(e => sep @ e, rest))
       };
     wrap(typ, seg);
   | Var(v) => wrap(typ, text_to_pretty(typ |> Typ.rep_id, Sort.Typ, v))
@@ -2813,18 +2738,9 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
                [mk_form(SigType, item |> Sig.rep_id, [tp])] @ t,
              );
            | EmptyHole =>
-             let item_id = item |> Sig.rep_id;
              p_just(
-               wrap_item(
-                 item,
-                 [
-                   Grout({
-                     id: item_id,
-                     shape: Convex,
-                   }),
-                 ],
-               ),
-             );
+               wrap_item(item, convex_hole_content(settings.secondary)),
+             )
            | Invalid(s) =>
              p_just(
                wrap_item(
@@ -2834,7 +2750,14 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
              )
            | MultiHole(es) =>
              let+ es = es |> List.map(any_to_pretty(~settings)) |> all;
-             wrap_item(item, List.flatten(es));
+             let sep = concave_hole_content(settings.secondary);
+             let seg =
+               switch (es) {
+               | [] => []
+               | [first, ...rest] =>
+                 first @ List.flatten(List.map(e => sep @ e, rest))
+               };
+             wrap_item(item, seg);
            }
          )
       |> all;
@@ -2863,42 +2786,15 @@ and tpat_to_pretty = (~settings: Settings.t, tpat: TPat.t): pretty => {
   switch (tpat |> IdTagged.term_of) {
   | Invalid(t) =>
     wrap(tpat, text_to_pretty(tpat |> TPat.rep_id, Sort.TPat, t))
-  | EmptyHole =>
-    let id = tpat |> TPat.rep_id;
-    wrap(
-      tpat,
-      p_just([
-        Grout({
-          id,
-          shape: Convex,
-        }),
-      ]),
-    );
+  | EmptyHole => wrap(tpat, p_just(convex_hole_content(settings.secondary)))
   | MultiHole(xs) =>
     let+ xs = xs |> List.map(any_to_pretty(~settings: Settings.t)) |> all;
-    /* Use IDs from the term for grout pieces, like Tuple uses for commas.
-       For N elements, we need N-1 grout pieces (one between each pair). */
-    let num_grouts = max(0, List.length(xs) - 1);
-    let ids = IdTagged.ids(tpat) |> pad_ids(num_grouts);
+    let sep = concave_hole_content(settings.secondary);
     let seg =
       switch (xs) {
       | [] => []
       | [first, ...rest] =>
-        first
-        @ List.flatten(
-            List.map2(
-              (id, x) =>
-                [
-                  Grout({
-                    id,
-                    shape: Concave,
-                  }),
-                  ...x,
-                ],
-              ids,
-              rest,
-            ),
-          )
+        first @ List.flatten(List.map(x => sep @ x, rest))
       };
     wrap(tpat, seg);
   | Var(v) => wrap(tpat, text_to_pretty(tpat |> TPat.rep_id, Sort.TPat, v))
@@ -2927,17 +2823,7 @@ and mod_to_pretty = (~settings: Settings.t, item: Mod.t): pretty => {
       [mk_form(ModuleMod, item |> Mod.rep_id, [mp_seg])] @ e,
     );
   | EmptyHole =>
-    p_just(
-      wrap_item(
-        item,
-        [
-          Grout({
-            id: item |> Mod.rep_id,
-            shape: Convex,
-          }),
-        ],
-      ),
-    )
+    p_just(wrap_item(item, convex_hole_content(settings.secondary)))
   | Invalid(s) =>
     p_just(wrap_item(item, text_to_pretty(item |> Mod.rep_id, Sort.Mod, s)))
   | MultiHole(_) =>
@@ -2958,17 +2844,7 @@ and sig_to_pretty = (~settings: Settings.t, item: Sig.t): pretty => {
     and+ t = typ_to_pretty(~settings, t);
     wrap_item(item, [mk_form(SigType, item |> Sig.rep_id, [tp])] @ t);
   | EmptyHole =>
-    p_just(
-      wrap_item(
-        item,
-        [
-          Grout({
-            id: item |> Sig.rep_id,
-            shape: Convex,
-          }),
-        ],
-      ),
-    )
+    p_just(wrap_item(item, convex_hole_content(settings.secondary)))
   | Invalid(s) =>
     p_just(wrap_item(item, text_to_pretty(item |> Sig.rep_id, Sort.Sig, s)))
   | MultiHole(_) =>
@@ -2991,14 +2867,7 @@ and any_to_pretty = (~settings: Settings.t, any: Any.t): pretty => {
   | Sig(s) => sig_to_pretty(~settings, s)
   | MPat(mp) => mpat_to_pretty(~settings, mp)
   | Any(_)
-  | Rul(_) =>
-    let id = any |> Any.rep_id;
-    p_just([
-      Grout({
-        id,
-        shape: Convex,
-      }),
-    ]);
+  | Rul(_) => p_just(convex_hole_content(settings.secondary))
   };
 }
 and label_to_pretty =

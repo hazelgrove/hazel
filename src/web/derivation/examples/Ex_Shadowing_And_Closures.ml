@@ -9,22 +9,7 @@ let exercise : DerivationExercise.spec =
     prelude =
       {
         selection = { focus = Left; content = []; mode = Normal };
-        relatives =
-          {
-            siblings =
-              ( [],
-                [
-                  Grout
-                    {
-                      id =
-                        Option.get
-                          (Haz3lcore.Id.of_string
-                             "7a205d3c-14f7-4b39-a13e-f0b4bba49577");
-                      shape = Convex;
-                    };
-                ] );
-            ancestors = [];
-          };
+        relatives = { siblings = ([], []); ancestors = [] };
         caret = Outer;
         refractors =
           {
@@ -1096,14 +1081,6 @@ let exercise : DerivationExercise.spec =
                                   };
                               ];
                             ];
-                        };
-                      Grout
-                        {
-                          id =
-                            Option.get
-                              (Haz3lcore.Id.of_string
-                                 "6547130f-5016-4109-ad3b-14f0deca4596");
-                          shape = Convex;
                         };
                     ] ) );
               ];

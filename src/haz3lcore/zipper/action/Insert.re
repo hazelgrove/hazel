@@ -162,39 +162,9 @@ let sibling_appendability = (char: string, z: t): appendability =>
   | _ => None
   };
 
-/* If the insertion will 'fill a hole', i.e. replace an
- * existing grout,we make a best-effort approach to transfer
- * the UUID. See also Destruct.capture */
-let preserve_grout_id = (char: string, z: t): (Id.t, t) =>
-  switch (Siblings.neighbors(z.relatives.siblings)) {
-  | _ when Token.is_comment_delim(char) || Token.is_secondary(char) => (
-      Id.mk(),
-      z,
-    )
-  | (Some(Grout(g)), _) => (
-      g.id,
-      update_siblings(((l, r)) => (l |> ListUtil.split_last |> fst, r), z),
-    )
-  | (_, Some(Grout(g))) => (
-      g.id,
-      update_siblings(((l, r)) => (l, List.tl(r)), z),
-    )
-  | _ => (Id.mk(), z)
-  };
-
-/* Check if regrout would insert a grout to our left.
- * Returns the grout so we can insert it ourselves and
- * track its ID for later space redemption. */
-let grout_for_suppressed_space = (z: t, ~root): option(Grout.t) =>
-  switch (
-    Siblings.neighbor(
-      Left,
-      remold_regrout(Right, z, ~root).relatives.siblings,
-    )
-  ) {
-  | Some(Grout(g)) => Some(g)
-  | _ => None
-  };
+/* virtual-grout: helpers preserve_grout_id and
+ * grout_for_suppressed_space are removed because edit-state
+ * segments contain no Grout pieces (holes are structural). */
 
 /* This is special-case logic for advancing the caret to between
  * the quotes in newly-created stringlits. This should be done
@@ -208,7 +178,7 @@ let move_into_string_or_comment = (char: string, z: t): t =>
     : z;
 
 /* Split creates three tokens; two from splitting the existing one,
- * and a new single-character token (or grout) in the middle. */
+ * and a new single-character token in the middle. */
 let split = (z: t, char: string, idx: int, t: Token.t, ~root): option(t) => {
   let insert_shard = insert_shard(~root);
   let (l, r) = Token.split_nth(t, idx);
@@ -227,32 +197,35 @@ let split = (z: t, char: string, idx: int, t: Token.t, ~root): option(t) => {
         |> insert_shard(~id, ~d=Left, l)
         |> insert_shard(~id=Id.mk(), ~d=Right, r);
   let z =
-    switch (Token.space == char ? grout_for_suppressed_space(z, ~root) : None) {
-    | Some(g) =>
-      Grout.mark_space_owed(g.id);
-      Zipper.put_down_seg(Left, [Grout(g)], z);
-    | None =>
-      z
-      |> insert_shard(~id=Id.mk(), ~d=Left, char)
-      |> move_into_string_or_comment(char)
-    };
+    z
+    |> insert_shard(~id=Id.mk(), ~d=Left, char)
+    |> move_into_string_or_comment(char);
   remold_regrout(Right, z, ~root);
 };
 
 /* If the caret is precisely between two tokens, which
  * can become a valid token if merged, merge those tokens.
  * Guarded against merging with a complete multi-shard right
- * sibling to prevent disassembly and shard theft. */
-let will_merge = (z: t): option((Token.t, Token.t)) =>
+ * sibling to prevent disassembly and shard theft.
+ * Also guarded against cross-boundary merges: neighbor_tokens
+ * uses generalized_neighbor which sees parent delimiters.
+ * Merging a sibling with a parent delimiter would steal the
+ * delimiter. But merging BOTH parent delimiters is fine
+ * (e.g. []+[]→[], ()+()→() when content is empty). */
+let will_merge = (z: t): option((Token.t, Token.t)) => {
+  let has_l = Option.is_some(Siblings.neighbor(Left, z.relatives.siblings));
+  let has_r = Option.is_some(Siblings.neighbor(Right, z.relatives.siblings));
   switch (Zipper.neighbor_tokens(z)) {
   | (Some(l), Some(r))
       when
         Token.is_potential_token(Token.append(l, r))
         && z.caret == Outer
-        && !has_complete_multishard_right_sibling(z) =>
+        && !has_complete_multishard_right_sibling(z)
+        && has_l == has_r =>
     Some((l, r))
   | _ => None
   };
+};
 
 /* If the caret is precisely between two tokens, which
  * can become a valid token if merged, merge those tokens */
@@ -268,43 +241,18 @@ let merge_or_noop = (z: t, ~root): t =>
   | None => z
   };
 
-/* If a grout is due to be inserted to the right of the caret,
- * when the caret position will end up inside a token, we want
- * to keep the caret inside the current token, not put it on the
- * new grout. I hope for a clearer way to handle this case but I
- * haven't found it; it may just be a necessary consequence of
- * the way inner caret index is decoupled from the zipper cursor. */
-let adjust_caret_pos = (~z_final: t, ~z_init: t): t => {
-  let init_nhbr = Siblings.neighbor(Right, z_init.relatives.siblings);
-  let final_nhbr = Siblings.neighbor(Right, z_final.relatives.siblings);
-  switch (final_nhbr, z_final.caret, Zipper.move(Right, z_final)) {
-  | (Some(p), Inner(_), Some(z_moved))
-      when Piece.is_grout(p) && final_nhbr != init_nhbr => z_moved
-  | _ => z_final
-  };
-};
-
 /* If char can be appended to either sibling token, do it,
  * otherwise insert a new `char` token */
 let insert_or_append = (char: string, z: t, ~root): option(t) => {
-  let+ z_init =
+  let+ z =
     switch (sibling_appendability(char, z)) {
-    | None =>
-      let (id, z) = preserve_grout_id(char, z);
-      let z =
-        switch (Grout.redeem_space(id)) {
-        | Some(w) => Zipper.put_down_seg(Left, [Secondary(w)], z)
-        | None => z
-        };
-      Some(insert_shard(~id, ~d=Left, char, z, ~root));
+    | None => Some(insert_shard(~id=Id.mk(), ~d=Left, char, z, ~root))
     | Some((d, t)) => replace_shard(d, t, z, ~root)
     };
-  let z_final =
-    z_init
-    |> move_into_string_or_comment(char)
-    |> remold_regrout(Left, ~root)
-    |> merge_or_noop(~root);
-  adjust_caret_pos(~z_final, ~z_init);
+  z
+  |> move_into_string_or_comment(char)
+  |> remold_regrout(Left, ~root)
+  |> merge_or_noop(~root);
 };
 
 /* === SELECTION WRAPPING ===
@@ -360,7 +308,7 @@ let wrap_balanced = (~deep_reassociate=false, char: string, z: t, ~root): t => {
       content,
     );
   /* Place content as right siblings inside the new ancestor,
-   * remold/regrout with empty selection, then re-select */
+   * remold with empty selection, then re-select */
   let z = {
     ...z,
     caret: Outer,

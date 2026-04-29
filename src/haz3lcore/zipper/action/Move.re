@@ -94,13 +94,32 @@ let jump_to_id_indicated = (z: t, id: Id.t): option(t) => {
   };
 };
 
-let to_next_grout: (Direction.t, t) => option(t) =
-  move_until_wrap(neighbors =>
-    switch (neighbors) {
-    | (Some(Grout(_)), _) => true
-    | _ => false
-    }
-  );
+/* Detect if the cursor is at a virtual hole: a position where the
+   nib shapes of the surrounding tiles conflict. Uses Siblings.shapes
+   which looks through secondary to find the facing tile nibs. */
+let at_hole = (z: t): bool => {
+  let (l, r) = Siblings.shapes(ZipperBase.sibs_with_sel(z));
+  !Nib.Shape.fits(l, r);
+};
+
+/* Navigate to the next hole (shape-conflicting boundary). Wraps
+   around if not found in the forward direction. */
+let to_next_grout = (d: Direction.t, z: t): option(t) => {
+  let move = local(ByToken, d);
+  let rec scan = (z: t): option(t) =>
+    switch (move(z)) {
+    | None => None
+    | Some(z) => at_hole(z) ? Some(z) : scan(z)
+    };
+  /* Try forward first */
+  switch (scan(z)) {
+  | Some(_) as result => result
+  | None =>
+    /* Wrap: go to extreme in opposite direction, then scan forward */
+    let z = do_to_extreme(local(ByToken, Direction.toggle(d)), z);
+    at_hole(z) ? Some(z) : scan(z);
+  };
+};
 
 let vertical =
     (~col_target: int, ~measured: Measured.t, d: Action.vertical, z: t)
