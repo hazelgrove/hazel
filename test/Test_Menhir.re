@@ -218,6 +218,26 @@ let tests =
       full_parser_test("Bool Literal", bool(true), "true"),
       full_parser_test("Empty Hole", empty_hole(), "?"),
       full_parser_test("Var", var("x"), "x"),
+      full_parser_test("Var with prime", var("x'"), "x'"),
+      full_parser_test("Var with double prime", var("x''"), "x''"),
+      full_parser_test(
+        "Constructor with prime",
+        constructor("Some'", None),
+        "Some'",
+      ),
+      full_parser_test(
+        "Type alias with prime",
+        ty_alias(
+          TPat.var("T'"),
+          Typ.int(),
+          let_(
+            Pat.asc(Pat.var("x"), Typ.var("T'")),
+            int(3),
+            var("x"),
+          ),
+        ),
+        "type T' = Int in let x : T' = 3 in x",
+      ),
       full_parser_test("Parens", parens(var("y")), "(y)"),
       full_parser_test(
         "bin_op",
