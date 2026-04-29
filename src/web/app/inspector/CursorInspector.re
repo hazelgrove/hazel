@@ -526,9 +526,8 @@ let typ_mark_err_view = (~globals, m: Mark.t) => {
       text("Cannot apply a type of kind "),
       code(TypKind.to_string(kind)),
     ]
-  | TypApplyArityMismatch({callee_kind, expected, actual}) => [
-      text("Type "),
-      code(TypKind.to_string(callee_kind)),
+  | TypApplyArityMismatch({callee, expected, actual, _}) => [
+      code(Typ.pretty_print(callee)),
       text(" expects "),
       code(string_of_int(expected)),
       text(" argument" ++ (expected == 1 ? "" : "s") ++ ", got "),

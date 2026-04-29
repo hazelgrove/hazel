@@ -3703,6 +3703,7 @@ and utyp_to_info_map =
         if (n_expected != n_actual) {
           err(
             Mark.TypApplyArityMismatch({
+              callee: fn,
               callee_kind: fn_kind,
               expected: n_expected,
               actual: n_actual,
