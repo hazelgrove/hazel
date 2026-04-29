@@ -14,7 +14,7 @@ let poly_id_ex = {
 let _tp = tpat("a");
 let _exp = exp("e");
 let typfun_var: form = {
-  let explanation = "When applied to a type that which is bound to the [*type variable*](%s), evaluates to the type function [*body*](%s).";
+  let explanation = "A value-level type abstraction. At a type application `@<X>` the [*type variable*](%s) is substituted by `X` in the [*body*](%s). Multi-binder forms `typfun a, b -> e` abstract over several type variables at once, consumed together by a single `@<X, Y>` type application.";
   let form = [mk_typfun([[space(), _tp, space()]]), space(), _exp];
   {
     id: TypFunctionExp,

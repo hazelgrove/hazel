@@ -234,6 +234,7 @@ type form_id =
   | BinOpExp(Language.Operators.op_bin)
   | CaseExp
   | TyAliasExp
+  | ParameterizedTyAliasExp
   | EmptyHolePat
   | MultiHolePat
   | WildPat
@@ -284,6 +285,11 @@ type form_id =
   | EmptyHoleTPat
   | MultiHoleTPat
   | VarTPat
+  | ParamTPat
+  | TupleTPat
+  | ParensTPat
+  | TypParamApTyp
+  | TypTupleTyp
   | PipelineExp
   | FilterPause
   | FilterEval
@@ -357,6 +363,7 @@ type group_id =
   | BinOpExp(Language.Operators.op_bin)
   | CaseExp
   | TyAliasExp
+  | ParameterizedTyAliasExp
   | PipelineExp
   | TupleExtensionExp
   | UseExp
@@ -410,6 +417,11 @@ type group_id =
   | EmptyHoleTPat
   | MultiHoleTPat
   | VarTPat
+  | ParamTPat
+  | TupleTPat
+  | ParensTPat
+  | TypParamApTyp
+  | TypTupleTyp
   | FilterPause
   | FilterEval
   | FilterDebug

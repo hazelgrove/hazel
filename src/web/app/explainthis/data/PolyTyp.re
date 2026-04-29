@@ -10,7 +10,7 @@ let poly_typ_coloring_ids =
   (Piece.id(_typ_arg), tbody_id),
 ];
 let poly_typ: form = {
-  let explanation = "This poly type classifies polymorphic values varying over [*type variable*](%s) with [*instantiated type*](%s).";
+  let explanation = "A universal type. Classifies polymorphic values quantified over the [*type variable*](%s) appearing in [*the body*](%s). Multi-binder forms `poly a, b -> t` introduce several type variables at once, consumed together by a single `@<X, Y>` type application.";
   {
     id: PolyTyp,
     syntactic_form: [mk_poly([[space(), _tpat, space()]]), _typ_arg],

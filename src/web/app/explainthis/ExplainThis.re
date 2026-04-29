@@ -792,22 +792,71 @@ let get_doc =
       | EmptyHole => get_message(HoleExp.empty_hole_exps)
       | MultiHole(_children) => get_message(HoleExp.multi_hole_exps)
       | TyAlias(ty_pat, ty_def, _body) =>
-        let tpat_id = List.nth(IdTagged.ids(ty_pat), 0);
         let def_id = List.nth(IdTagged.ids(ty_def), 0);
-        get_message(
-          ~colorings=
-            TyAliasExp.tyalias_base_exp_coloring_ids(~tpat_id, ~def_id),
-          ~format=
-            Some(
-              msg =>
-                Printf.sprintf(
-                  Scanf.format_from_string(msg, "%s%s"),
-                  Id.to_string(def_id),
-                  Id.to_string(tpat_id),
-                ),
-            ),
-          TyAliasExp.tyalias_exps,
-        );
+        /* Parameterized type aliases (`type T(a, b) = def in body`) get
+           their own form with per-param coloring; plain aliases fall
+           back to the base form. */
+        switch (ty_pat.term) {
+        | Param(head, params) =>
+          let head_id = List.nth(IdTagged.ids(head), 0);
+          let params_ids =
+            List.map(p => List.nth(IdTagged.ids(p), 0), params);
+          let head_str =
+            switch (Language.TPat.head_name_of(head)) {
+            | Some(name) => name
+            | None => "?"
+            };
+          let p_a =
+            switch (params_ids) {
+            | [p, ..._] => p
+            | [] => Id.mk()
+            };
+          let p_b =
+            switch (params_ids) {
+            | [_, p, ..._] => p
+            | _ => Id.mk()
+            };
+          get_message(
+            ~colorings=
+              TyAliasExp.param_tyalias_exp_coloring_ids(
+                ~head_id,
+                ~params_ids,
+                ~def_id,
+              ),
+            ~format=
+              Some(
+                msg =>
+                  Printf.sprintf(
+                    Scanf.format_from_string(msg, "%s%s%s%s%s%s%s%s"),
+                    head_str,
+                    Id.to_string(head_id),
+                    "a",
+                    Id.to_string(p_a),
+                    "b",
+                    Id.to_string(p_b),
+                    Id.to_string(def_id),
+                    head_str,
+                  ),
+              ),
+            TyAliasExp.param_tyalias_exps,
+          );
+        | _ =>
+          let tpat_id = List.nth(IdTagged.ids(ty_pat), 0);
+          get_message(
+            ~colorings=
+              TyAliasExp.tyalias_base_exp_coloring_ids(~tpat_id, ~def_id),
+            ~format=
+              Some(
+                msg =>
+                  Printf.sprintf(
+                    Scanf.format_from_string(msg, "%s%s"),
+                    Id.to_string(def_id),
+                    Id.to_string(tpat_id),
+                  ),
+              ),
+            TyAliasExp.tyalias_exps,
+          );
+        };
       | Undefined => get_message(UndefinedExp.undefined_exps)
       | Deferral(_) => get_message(TerminalExp.deferral_exps)
       | ExplicitNonlabel => simple("Explicitly unlabeled entry")
@@ -2750,14 +2799,32 @@ let get_doc =
       simple(
         "This is an internal type-level function introduced by a parameterized type declaration.",
       )
-    | TypParamAp(_, _) =>
-      simple(
-        "This applies a parameterized type constructor to a type argument.",
-      )
-    | TypTuple(_) =>
-      simple(
-        "This is the multi-argument bundle for a parameterized type application.",
-      )
+    | TypParamAp(callee, arg) =>
+      let callee_id = List.nth(IdTagged.ids(callee), 0);
+      let arg_id = List.nth(IdTagged.ids(arg), 0);
+      let callee_str =
+        switch (callee.term) {
+        | Var(name) => name
+        | _ => "?"
+        };
+      get_message(
+        ~colorings=
+          TypParamApTyp.typ_param_ap_coloring_ids(~callee_id, ~arg_id),
+        ~format=
+          Some(
+            msg =>
+              Printf.sprintf(
+                Scanf.format_from_string(msg, "%s%s%s%s%s"),
+                callee_str,
+                Id.to_string(callee_id),
+                "argument",
+                Id.to_string(arg_id),
+                callee_str,
+              ),
+          ),
+        TypParamApTyp.typ_param_aps,
+      );
+    | TypTuple(_) => get_message(TypTupleTyp.typ_tuples)
     | Rec(tpat, typ) =>
       let tpat_id = List.nth(IdTagged.ids(tpat), 0);
       let tbody_id = List.nth(IdTagged.ids(typ), 0);
@@ -2993,15 +3060,71 @@ let get_doc =
           ),
         VarTPat.var_typ_pats(v),
       )
-    | Param(head, _) =>
-      let name =
+    | Param(head, params) =>
+      let head_id = List.nth(IdTagged.ids(head), 0);
+      let params_ids =
+        List.map(p => List.nth(IdTagged.ids(p), 0), params);
+      let head_str =
         switch (TPat.head_name_of(head)) {
         | Some(name) => name
         | None => "?"
         };
-      simple("`" ++ name ++ "` is a parameterized type declaration.");
-    | Tuple(_) => simple("A list of type binders.")
-    | Parens(_) => simple("A parenthesized type pattern.")
+      let p_a =
+        switch (params_ids) {
+        | [p, ..._] => p
+        | [] => Id.mk()
+        };
+      let p_b =
+        switch (params_ids) {
+        | [_, p, ..._] => p
+        | _ => Id.mk()
+        };
+      get_message(
+        ~colorings=
+          ParamTPat.param_tpat_coloring_ids(~head_id, ~params_ids),
+        ~format=
+          Some(
+            msg =>
+              Printf.sprintf(
+                Scanf.format_from_string(msg, "%s%s%s%s%s"),
+                head_str,
+                "a",
+                Id.to_string(p_a),
+                "b",
+                Id.to_string(p_b),
+              ),
+          ),
+        ParamTPat.param_tpats,
+      );
+    | Tuple(tps) =>
+      let params_ids =
+        List.map(tp => List.nth(IdTagged.ids(tp), 0), tps);
+      let p_a =
+        switch (params_ids) {
+        | [p, ..._] => p
+        | [] => Id.mk()
+        };
+      let p_b =
+        switch (params_ids) {
+        | [_, p, ..._] => p
+        | _ => Id.mk()
+        };
+      get_message(
+        ~colorings=TupleTPat.tuple_tpat_coloring_ids(~params_ids),
+        ~format=
+          Some(
+            msg =>
+              Printf.sprintf(
+                Scanf.format_from_string(msg, "%s%s%s%s"),
+                "a",
+                Id.to_string(p_a),
+                "b",
+                Id.to_string(p_b),
+              ),
+          ),
+        TupleTPat.tuple_tpats,
+      );
+    | Parens(_) => get_message(ParensTPat.parens_tpats)
     }
   | Some(InfoDrv({term, _})) =>
     let (syntax, msg) =

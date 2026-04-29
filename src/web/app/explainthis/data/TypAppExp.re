@@ -18,7 +18,7 @@ let typfunapp_exp_coloring_ids =
   (Piece.id(_typ), typ_id),
 ];
 let typfunapp_exp: form = {
-  let explanation = "Applies the [*type function*](%s) to the [*type*](%s).";
+  let explanation = "Applies the [*type function*](%s) to the [*type*](%s). Multi-argument forms `e@<X, Y>` supply several types at once — paired against a multi-binder `typfun a, b -> e'` they substitute all binders in a single step.";
   {
     id: TypFunApExp,
     syntactic_form: [_exp_tfun, mk_ap_exp_typ([[_typ]])],
