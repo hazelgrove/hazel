@@ -99,27 +99,68 @@ site-normalized specialized type instead, which unfolds the alias to
 `Sum[A(Int->Int), B]` and lets dynamics reject equality comparisons on
 values that might hide functions.
 
-## Normalizing parameterized recursive aliases
+## Higher-kinded recursive types
 
 A parameterized recursive type like `type List(a) = + Nil + Cons(a,
-List(a))` is stored in the context as `Rec(List, TypLam(a, Sum[Nil,
-Cons(a, TypApp(Var("List"), a))]))`. Normalizing `TypApp(Var("List"),
-Int)` β-reduces the inner `TypLam` and produces `Rec(List, Sum[Nil,
-Cons(Int, TypApp(Var("List"), Int))])`. The nested `TypApp(Var("List"),
-Int)` is now structurally ill-formed: the rebound `Var("List")` no
-longer names a type-level function — its binder wraps a `Sum`, not a
-`TypLam` — so downstream `unroll` would leak bogus `TypApp(Rec(...),
-Int)` artifacts into results when re-statics runs without the original
-alias.
+List(a))` is the fixed point at kind `* → *` of the type-level function
+that takes `a` and produces the sum body — i.e.
 
-`Typ.normalize`'s `TypApp` case therefore post-processes the result of
-β-reduction: when the application reduced to a `Rec(tpat, body)` whose
-body is fully specialized (no top-level `TypLam`), redundant
-self-applications `TypApp(Var(tpat), arg)` whose `arg` matches the
-*outer* application argument collapse to the plain self-reference
-`Var(tpat)`. The result, `Rec(List, Sum[Nil, Cons(Int, Var("List"))])`,
-matches the standard μ-encoding `μX. Nil + Cons(Int, X)` and unrolls
-cleanly into `Sum[Nil, Cons(Int, Rec(...))]` in re-statics.
+\[
+  \mathit{List} \;=\; \mu X{:}* \to *.\; \lambda a.\; +\, \mathit{Nil}
+  \;+\; \mathit{Cons}(a, X(a))
+\]
+
+Hazel stores this as `Rec(List, TypLam(a, Sum[Nil, Cons(a,
+TypApp(Var("List"), a))]))`: the `Rec` binder names the higher-kinded
+fixed point and the inner `TypLam` exposes the type-level abstraction
+over `a`. Inside the body, `Var("List")` refers to the `Rec` binder and
+its kind is `* → *`, so `TypApp(Var("List"), arg)` is well-formed for
+any `arg`.
+
+The application `TypApp(Var("List"), Int)` is the canonical normal form
+for `List(Int)`. After alias resolution it becomes
+`TypApp(Rec(List, TypLam(a, …)), Int)`, and `weak_head_normalize`
+intentionally leaves it in that shape — *it is the WHNF*. Eagerly
+β-reducing through the `TypLam` would expose the body's self-references
+to a binder that no longer wraps a `TypLam`, leaving them ill-formed
+and producing `TypApp(Rec(_, Sum[…]), arg)` artifacts in downstream
+type comparisons.
+
+To peer inside a higher-kinded recursive type (for constructor
+matching, sum extraction, type meet across `Sum`/`Rec` shapes, etc.),
+use `Typ.unfold_one`. It performs one step of the standard
+μ-unrolling rule:
+
+\[
+  \mu X{:}\kappa.\; F \;\equiv\; F[\mu X / X]
+\]
+
+For `TypApp(Rec(name, TypLam(p, body)), arg)` it substitutes the whole
+`Rec(name, …)` for `Var(name)` in `body`, then β-reduces with `arg`.
+The resulting body has self-references of the shape
+`TypApp(Rec(name, TypLam(p, body)), <inner_arg>)` — each one is the
+recursive family applied at the relevant inner argument, exactly the
+canonical encoding for that specialization. For uniform recursion
+`<inner_arg> = arg`, so every self-reference is the same outer type;
+for non-uniform recursion `<inner_arg>` may be a transformation of
+`arg`, and the structural form distinguishes the inner specialization
+from the outer one.
+
+### Where this matters
+
+- `get_sum_constructors` calls `unfold_one` on `TypApp(Rec, _)` to
+  extract the constructor map for a parameterized recursive type.
+- `meet` compares two `TypApp(Rec, _)` structurally (same `Rec`, meet
+  arguments) and falls back to one-step unfolding when one side is a
+  `Sum`/`Rec` form that needs to be rolled into the other's shape.
+- `normalize` treats `TypApp(Rec(_, TypLam(_, _)), _)` as a normal
+  form, so recursive types do not infinitely expand.
+- Constructor elaboration carries the canonical
+  `TypApp(Rec(_, TypLam(_, _)), _)` form in
+  `Constructor(_, Some(Some(_)))` annotations, so re-statics on
+  evaluated results meets and unfolds them correctly even after the
+  original `type List(a) = …` alias has been stripped from the
+  elaboration.
 
 ### Non-uniform recursion
 
@@ -127,17 +168,16 @@ Non-uniform parameterized aliases like `type List(a) = + Nil + Cons(a,
 List((Int, a)))` use the recursive family at a *different* type than
 the outer parameter. Each `Cons`'s self-application has the form
 `TypApp(Var("List"), Prod(Int, a))` where the argument is a
-*transformation* of the parameter, not the parameter itself. The
-collapse heuristic above only fires when the inner argument matches
-the outer specialization, so non-uniform self-applications stay intact
-in the normalized form. Static type-checking and elaboration handle
-non-uniform recursion correctly (each nested constructor gets its own
-`TypAp(Cons, …)` wrapper specialized at its level), and evaluation
-runs to completion. Re-statics on the *evaluated* result, however,
-sees `TypApp(Rec(...), arg)` artifacts because non-uniform recursion
-genuinely cannot be expressed as a finite `Rec(...)` form once the
-original alias context has been stripped — the recursive structure has
-infinitely many distinct instantiations.
+*transformation* of the parameter, not the parameter itself. With the
+higher-kinded representation this is straightforward: after one
+unfolding the resulting body has `TypApp(Rec(List, TypLam(a, …)),
+Prod(Int, Int))` self-references at the same `Rec`, applied at the
+inner argument. Static type-checking elaborates each nested
+constructor with its own `TypAp(Cons, …)` wrapper at the right level,
+evaluation runs to completion, and re-statics on the evaluated result
+produces no marks — the result type is well-formed and the constructor
+annotations agree with the outer ascription via structural meet on
+`TypApp(Rec, …)`.
 
 Constructors whose schema is not actually polymorphic (e.g. a bare tag
 from `type x = + A`) are never wrapped: writing `A @<?>` keeps the

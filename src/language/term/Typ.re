@@ -564,6 +564,37 @@ let unroll = (ty: t): t =>
   | _ => ty
   };
 
+/* One-step unrolling of a recursive type, including higher-kinded ones.
+
+   - For `Rec(name, body)` (kind `*` — body has no top-level `TypLam`):
+     standard unfold `body[Rec/name]`, same as `unroll`.
+   - For `TypApp(Rec(name, TypLam(p, body)), arg)` (kind `*` —
+     instantiation of a higher-kinded recursive family): substitute the
+     whole `Rec` for `Var(name)` in the `TypLam` body, then β-reduce with
+     `arg`. The result has `TypApp(Rec(name, TypLam(...)), …)` self-
+     references at the same `Rec` (with possibly different arguments),
+     which is the canonical encoding of the recursive family's
+     specializations.
+
+   This stops at exactly one level of unrolling and is safe for non-
+   uniform recursion where the recursive type cannot be expressed as a
+   finite kind-`*` `Rec(...)`. */
+let unfold_one = (ty: t): t =>
+  switch (term_of(ty)) {
+  | Rec(tp, body) => subst(ty, tp, body)
+  | TypApp(fn, arg) =>
+    switch (term_of(fn)) {
+    | Rec(tp, body) =>
+      let unrolled = subst(fn, tp, body);
+      switch (term_of(unrolled)) {
+      | TypLam(p, inner) => subst(arg, p, inner)
+      | _ => TypApp(unrolled, arg) |> temp
+      };
+    | _ => ty
+    }
+  | _ => ty
+  };
+
 /* Type Equality: This coincides with alpha equivalence for normalized types.
    Other types may be equivalent but this will not detect so if they are not normalized. */
 let fast_equal = Equality.semantic.typ;
@@ -635,61 +666,6 @@ let remove_duplicate_labels =
   List.rev(rev_deduplicated);
 };
 
-/* Inside a `Rec(tpat, body)` whose body is fully specialized (no
-   `TypLam` at the head), replace redundant self-applications
-   `TypApp(Var(tpat_name), arg)` with the plain self-reference
-   `Var(tpat_name)` *only when `arg` matches the outer specialization
-   `outer_arg`*. This produces the canonical μ-encoding
-   `Rec(List, Sum[Nil, Cons(Int, Var("List"))])` for uniform recursion
-   while preserving non-uniform self-applications like
-   `TypApp(Var("List"), Prod(Int, Int))` (which genuinely re-specialize
-   the recursive family at a different argument).
-
-   Stops recursing at nested `Rec`/`Poly`/`TypLam` binders with the same
-   name to avoid shadowing. */
-let collapse_rec_self_refs =
-    (tpat: TPat.t, ~outer_arg: t, body: t): t => {
-  switch (TPat.tyvar_of_utpat(tpat)) {
-  | None => body
-  | Some(name) =>
-    let rec go = (ty: t): t => {
-      let (term, rewrap) = unwrap(ty);
-      switch (term) {
-      | TypApp({term: Var(n), _} as v, arg)
-          when n == name && Equality.syntactic.typ(arg, outer_arg) => v
-      | TypApp(t1, t2) => TypApp(go(t1), go(t2)) |> rewrap
-      | Arrow(t1, t2) => Arrow(go(t1), go(t2)) |> rewrap
-      | Prod(ts) => Prod(List.map(go, ts)) |> rewrap
-      | List(t) => List(go(t)) |> rewrap
-      | Sum(sm) =>
-        Sum(ConstructorMap.map(Option.map(go), sm)) |> rewrap
-      | TupLabel(label, t) => TupLabel(label, go(t)) |> rewrap
-      | Rec(tp, _) when TPat.tyvar_of_utpat(tp) == Some(name) => ty
-      | Rec(tp, t) => Rec(tp, go(t)) |> rewrap
-      | Poly(tp, _) when TPat.tyvar_of_utpat(tp) == Some(name) => ty
-      | Poly(tp, t) => Poly(tp, go(t)) |> rewrap
-      | TypLam(tp, _) when TPat.tyvar_of_utpat(tp) == Some(name) => ty
-      | TypLam(tp, t) => TypLam(tp, go(t)) |> rewrap
-      | Parens(t) => Parens(go(t)) |> rewrap
-      | Projector(data, t) => Projector(data, go(t)) |> rewrap
-      | ProdProjection(t1, t2) =>
-        ProdProjection(go(t1), go(t2)) |> rewrap
-      | ProdExtension(t1, t2) =>
-        ProdExtension(go(t1), go(t2)) |> rewrap
-      | Unknown(_)
-      | Atom(_)
-      | DrvQuoteTy(_)
-      | Var(_)
-      | Label(_)
-      | ExplicitNonlabel
-      | ProofOf(_)
-      | Sig(_) => ty
-      };
-    };
-    go(body);
-  };
-};
-
 let rec weak_head_normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
   if (rec_counter > 1000) {
     failwith("weak_head_normalize exceeded 1000 recursive calls");
@@ -713,7 +689,16 @@ let rec weak_head_normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
         ctx,
         subst(arg, param, body),
       )
-    | Rec(param, body) => Rec(param, TypApp(body, arg) |> rewrap) |> rewrap
+    | Rec(_) =>
+      /* `TypApp(Rec(name, body), arg)` is the canonical normal form for a
+         higher-kinded recursive family applied at `arg`
+         (i.e. `(μX:* → *. body)(arg)`). We do *not* push the application
+         inside the `Rec` and β-reduce — doing so would expose the body's
+         self-references `TypApp(Var(name), …)` to a binder that no longer
+         wraps a `TypLam`, leaving them structurally ill-formed (see
+         `Typ.unfold_one` for the one-step unrolling used by callers that
+         need to peer inside, like `get_sum_constructors`). */
+      TypApp(fn_whnf, arg) |> rewrap
     | fn' => TypApp(fn' |> temp, arg) |> rewrap
     };
   | TupLabel({term: ExplicitNonlabel, _}, ty) =>
@@ -779,30 +764,18 @@ let rec normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
   | TypApp(t1, t2) =>
     let arg_normalized = normalize(ctx, t2);
     switch (weak_head_normalize(ctx, ty).term) {
+    | TypApp({term: Rec(_), _} as fn_whnf, _) =>
+      /* `TypApp(Rec(name, TypLam(p, body)), arg)` is the canonical
+         normal form for a higher-kinded recursive family applied at
+         `arg`. Don't unfold it — that would expand infinitely for
+         non-uniform recursion (and produce ill-formed types if the
+         body's `TypLam` were β-reduced through the `Rec`). The Rec's
+         body is left in its original (typically `TypLam`-wrapped) form
+         so that `unfold_one` can correctly substitute the recursive
+         family for self-references when callers need to peer inside. */
+      TypApp(fn_whnf, arg_normalized) |> rewrap
     | TypApp(_, _) => TypApp(normalize(ctx, t1), arg_normalized) |> rewrap
-    | _ as whnf =>
-      let result = normalize(ctx, whnf |> temp);
-      /* When `TypApp(alias, arg)` reduced to a `Rec(tpat, body)` whose
-         body has been fully specialized (no top-level `TypLam`), the
-         resulting body has β-reduced self-references of the form
-         `TypApp(Var(tpat), <something>)`. For uniform recursion,
-         `<something>` matches `arg` and the application is a redundant
-         re-specialization of the same recursive family — collapse it
-         to `Var(tpat)` so `unroll` produces clean
-         `Sum[..., Cons((arg, Rec(...)))]` results. For non-uniform
-         recursion, `<something>` differs from `arg` (it's a
-         transformation of it), so the application is preserved. */
-      switch (term_of(result)) {
-      | Rec(tpat, body) =>
-        switch (term_of(body)) {
-        | TypLam(_) => result
-        | _ =>
-          let (_, rewrap_result) = unwrap(result);
-          Rec(tpat, collapse_rec_self_refs(tpat, ~outer_arg=arg_normalized, body))
-          |> rewrap_result;
-        }
-      | _ => result
-      };
+    | _ as whnf => normalize(ctx, whnf |> temp)
     };
   | Arrow(t1, t2) =>
     Arrow(normalize(ctx, t1), normalize(ctx, t2)) |> rewrap
@@ -961,6 +934,24 @@ let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
   | (_, ProdProjection(_)) => meet'(ty1, weak_head_normalize(ctx, ty2))
   | (ProdExtension(_), _) => meet'(weak_head_normalize(ctx, ty1), ty2)
   | (_, ProdExtension(_)) => meet'(ty1, weak_head_normalize(ctx, ty2))
+  | (
+      TypApp({term: Rec(_), _} as r1, a1),
+      TypApp({term: Rec(_), _} as r2, a2),
+    ) =>
+      /* Higher-kinded recursive families: meet structurally. The same
+         `Rec` applied at the same argument is the same type; otherwise
+         try unfolding both sides one step and re-meeting (this catches
+         e.g. `(μX. λa. F)(Int)` ≡ `F[μX/X, Int/a]`). */
+      switch (meet'(r1, r2), meet'(a1, a2)) {
+      | (Some(r), Some(a)) => Some(TypApp(r, a) |> temp)
+      | _ => meet'(unfold_one(ty1), unfold_one(ty2))
+      }
+  | (TypApp({term: Rec(_), _}, _), _) =>
+    let unfolded = unfold_one(ty1);
+    Equality.syntactic.typ(unfolded, ty1) ? None : meet'(unfolded, ty2);
+  | (_, TypApp({term: Rec(_), _}, _)) =>
+    let unfolded = unfold_one(ty2);
+    Equality.syntactic.typ(unfolded, ty2) ? None : meet'(ty1, unfolded);
   | (TypApp(_), _) =>
     let ty1_whnf = weak_head_normalize(ctx, ty1);
     Equality.syntactic.typ(ty1_whnf, ty1) ? None : meet'(ty1_whnf, ty2);
@@ -986,7 +977,15 @@ let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
       };
     let+ ty_body = meet(ctx, ty1', ty2);
     Rec(tp1, ty_body) |> temp;
-  | (Rec(_), _) => None
+  | (Rec(_), _) =>
+    /* A recursive type may meet a non-recursive form via one-step
+       unrolling — e.g. `Rec(L, Sum[…, X])` meets the unrolled
+       `Sum[…, Rec(L, Sum[…, X])]`. */
+    let unfolded = unfold_one(ty1);
+    Equality.syntactic.typ(unfolded, ty1) ? None : meet'(unfolded, ty2);
+  | (_, Rec(_)) =>
+    let unfolded = unfold_one(ty2);
+    Equality.syntactic.typ(unfolded, ty2) ? None : meet'(ty1, unfolded);
   | (Poly(x1, ty1), Poly(x2, ty2)) =>
     let ty1' =
       switch (TPat.tyvar_of_utpat(x2)) {
@@ -1155,16 +1154,27 @@ let rec get_sum_constructors =
     | Parens(ty) =>
       get_sum_constructors(~rec_counter=rec_counter + 1, ctx, ty)
     | Sum(sm) => Some(sm)
+    | TypApp({term: Rec(_), _}, _) =>
+      /* Higher-kinded recursive family applied at an argument; unfold one
+         step and recurse. The unfolded result has `TypApp(Rec, …)` self-
+         references at the (possibly different) recursive arguments,
+         which `get_sum_constructors` would handle as another `TypApp(Rec, _)`
+         if recursed into. */
+      get_sum_constructors(~rec_counter=rec_counter + 1, ctx, unfold_one(ty))
     | Rec({term: Var(x), _}, ty_body) =>
       Ctx.is_alias(ctx, x)
-        /* Type aliases use the alias name as the recursive parameter. Strip the
-           Rec wrapper here, but do not substitute the recursive type into
-           payloads: constructor argument types should mention the alias
-           application (e.g. List(Int)), not an eagerly expanded recursive body. */
+        /* Monomorphic recursive alias: the alias name shadows the rec
+           parameter, so peer inside without substituting the recursive
+           type into payloads — payloads should mention the alias by
+           name (e.g. `Var("Tree")`), not an eagerly expanded body. */
         ? get_sum_constructors(~rec_counter=rec_counter + 1, ctx, ty_body)
-        : get_sum_constructors(~rec_counter=rec_counter + 1, ctx, unroll(ty))
+        : get_sum_constructors(
+            ~rec_counter=rec_counter + 1,
+            ctx,
+            unfold_one(ty),
+          )
     | Rec(_) =>
-      get_sum_constructors(~rec_counter=rec_counter + 1, ctx, unroll(ty))
+      get_sum_constructors(~rec_counter=rec_counter + 1, ctx, unfold_one(ty))
     | _ => None
     };
   };

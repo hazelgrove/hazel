@@ -109,15 +109,18 @@ let xs : List(Int) = Cons(0, Cons(1, Cons(2, Nil))) in xs|},
       },
     ),
     test_case(
-      "Non-uniform recursive parameterized list evaluates to a value",
+      "Non-uniform recursive parameterized list evaluates and re-statics",
       `Quick,
       () => {
         /* `List(a) = + Nil + Cons(a, List((Int, a)))` is non-uniform:
            each recursive Cons sits at a different type instantiation
            (List(Int) → List((Int, Int)) → List((Int, (Int, Int))) → …).
            The evaluator must specialize each Cons's TypAp wrapper with
-           the right argument; here we just verify the program reaches
-           a final form (no stuck TypAps or runtime errors). */
+           the right argument, and re-statics on the result must not
+           produce any marks even though the original alias is gone:
+           constructor annotations carry the canonical higher-kinded
+           form `TypApp(Rec(List, TypLam(a, …)), arg)` so re-statics
+           can unfold one step on demand. */
         let src = {|type List(a) =
   + Nil
   + Cons(a, List((Int, a))) in
@@ -154,6 +157,28 @@ let x : List(Int) = Cons(3, Cons((4, 4), Cons((5, (6, 7)), Nil))) in x|};
           "no stuck TypAp(Constructor, _) in evaluated result",
           0,
           stuck_typ_aps^,
+        );
+        let (restatics_map, _) =
+          Statics.mk(
+            CoreSettings.on,
+            Language.Builtins.ctx_init(Some(Int)),
+            evaluated,
+          );
+        let all_marks =
+          Id.Map.fold(
+            (_, info, acc) =>
+              switch (info) {
+              | Info.InfoExp({marks, _}) => marks @ acc
+              | _ => acc
+              },
+            restatics_map,
+            [],
+          );
+        check(
+          int,
+          "no marks on non-uniform recursive list result",
+          0,
+          List.length(all_marks),
         );
       },
     ),
