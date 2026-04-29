@@ -635,22 +635,28 @@ let remove_duplicate_labels =
   List.rev(rev_deduplicated);
 };
 
-/* Inside a `Rec(tpat, body)` whose body is fully specialized (no `TypLam`
-   at the head), replace redundant self-applications
-   `TypApp(Var(tpat_name), _)` with the plain self-reference
-   `Var(tpat_name)`. This is the normal form for parameterized recursive
-   types after β-reduction: `Rec(List, Sum[Nil, Cons(Int, Var("List"))])`
-   rather than `Rec(List, Sum[Nil, Cons(Int, TypApp(Var("List"), Int))])`.
+/* Inside a `Rec(tpat, body)` whose body is fully specialized (no
+   `TypLam` at the head), replace redundant self-applications
+   `TypApp(Var(tpat_name), arg)` with the plain self-reference
+   `Var(tpat_name)` *only when `arg` matches the outer specialization
+   `outer_arg`*. This produces the canonical μ-encoding
+   `Rec(List, Sum[Nil, Cons(Int, Var("List"))])` for uniform recursion
+   while preserving non-uniform self-applications like
+   `TypApp(Var("List"), Prod(Int, Int))` (which genuinely re-specialize
+   the recursive family at a different argument).
+
    Stops recursing at nested `Rec`/`Poly`/`TypLam` binders with the same
    name to avoid shadowing. */
-let collapse_rec_self_refs = (tpat: TPat.t, body: t): t => {
+let collapse_rec_self_refs =
+    (tpat: TPat.t, ~outer_arg: t, body: t): t => {
   switch (TPat.tyvar_of_utpat(tpat)) {
   | None => body
   | Some(name) =>
     let rec go = (ty: t): t => {
       let (term, rewrap) = unwrap(ty);
       switch (term) {
-      | TypApp({term: Var(n), _} as v, _) when n == name => v
+      | TypApp({term: Var(n), _} as v, arg)
+          when n == name && Equality.syntactic.typ(arg, outer_arg) => v
       | TypApp(t1, t2) => TypApp(go(t1), go(t2)) |> rewrap
       | Arrow(t1, t2) => Arrow(go(t1), go(t2)) |> rewrap
       | Prod(ts) => Prod(List.map(go, ts)) |> rewrap
@@ -771,11 +777,33 @@ let rec normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
   | Projector(_, t) => normalize(ctx, t)
   | List(t) => List(normalize(ctx, t)) |> rewrap
   | TypApp(t1, t2) =>
+    let arg_normalized = normalize(ctx, t2);
     switch (weak_head_normalize(ctx, ty).term) {
-    | TypApp(_, _) =>
-      TypApp(normalize(ctx, t1), normalize(ctx, t2)) |> rewrap
-    | _ as whnf => normalize(ctx, whnf |> temp)
-    }
+    | TypApp(_, _) => TypApp(normalize(ctx, t1), arg_normalized) |> rewrap
+    | _ as whnf =>
+      let result = normalize(ctx, whnf |> temp);
+      /* When `TypApp(alias, arg)` reduced to a `Rec(tpat, body)` whose
+         body has been fully specialized (no top-level `TypLam`), the
+         resulting body has β-reduced self-references of the form
+         `TypApp(Var(tpat), <something>)`. For uniform recursion,
+         `<something>` matches `arg` and the application is a redundant
+         re-specialization of the same recursive family — collapse it
+         to `Var(tpat)` so `unroll` produces clean
+         `Sum[..., Cons((arg, Rec(...)))]` results. For non-uniform
+         recursion, `<something>` differs from `arg` (it's a
+         transformation of it), so the application is preserved. */
+      switch (term_of(result)) {
+      | Rec(tpat, body) =>
+        switch (term_of(body)) {
+        | TypLam(_) => result
+        | _ =>
+          let (_, rewrap_result) = unwrap(result);
+          Rec(tpat, collapse_rec_self_refs(tpat, ~outer_arg=arg_normalized, body))
+          |> rewrap_result;
+        }
+      | _ => result
+      };
+    };
   | Arrow(t1, t2) =>
     Arrow(normalize(ctx, t1), normalize(ctx, t2)) |> rewrap
   | Prod(ts) =>
@@ -797,29 +825,7 @@ let rec normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
     /* NOTE: Dummy tvar added has fake id but shouldn't matter
        as in current implementation Recs do not occur in the
        surface syntax, so we won't try to jump to them. */
-    let body = normalize(Ctx.extend_dummy_tvar(ctx, tpat), ty);
-    /* For parameterized recursive aliases like
-       `Rec(List, TypLam(a, Sum[..., Cons(a, TypApp(Var("List"), a))]))`,
-       β-reducing through the `TypLam` during normalization yields
-       `Rec(List, Sum[..., Cons(Int, TypApp(Var("List"), Int))])` — and
-       the inner `TypApp(Var("List"), Int)` is now ill-formed because
-       the rebound `Var("List")` no longer names a type-level function
-       (its binder wraps a `Sum`, not a `TypLam`). Downstream consumers
-       of this form (`get_sum_constructors` → `unroll`) leak the error
-       out as `TypApp(Rec(...), Int)` residues.
-
-       When the normalized body is *not* itself a `TypLam`, every
-       self-reference of the form `TypApp(Var(tpat), _)` is a redundant
-       re-application of the already-specialized recursive family, and
-       can be collapsed to just `Var(tpat)`. This mirrors the standard
-       encoding of parameterized recursive types as `λa. μX. ...X...`
-       (where `X` is a plain self-reference, not `X(a)`). */
-    let body =
-      switch (term_of(body)) {
-      | TypLam(_) => body
-      | _ => collapse_rec_self_refs(tpat, body)
-      };
-    Rec(tpat, body) |> rewrap;
+    Rec(tpat, normalize(Ctx.extend_dummy_tvar(ctx, tpat), ty)) |> rewrap
   | Poly(name, ty) =>
     Poly(name, normalize(Ctx.extend_dummy_tvar(ctx, name), ty)) |> rewrap
   | TypLam(name, ty) =>

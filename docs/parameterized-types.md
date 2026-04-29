@@ -112,13 +112,32 @@ longer names a type-level function — its binder wraps a `Sum`, not a
 Int)` artifacts into results when re-statics runs without the original
 alias.
 
-`Typ.normalize`'s `Rec` case therefore post-processes the normalized
-body: when the body is fully specialized (no top-level `TypLam`), every
-redundant self-application `TypApp(Var(tpat), _)` collapses to the plain
-self-reference `Var(tpat)`. The result,
-`Rec(List, Sum[Nil, Cons(Int, Var("List"))])`, matches the standard
-encoding `μX. Nil + Cons(Int, X)` and unrolls cleanly into the expected
-`Sum[Nil, Cons(Int, Rec(...))]` in re-statics.
+`Typ.normalize`'s `TypApp` case therefore post-processes the result of
+β-reduction: when the application reduced to a `Rec(tpat, body)` whose
+body is fully specialized (no top-level `TypLam`), redundant
+self-applications `TypApp(Var(tpat), arg)` whose `arg` matches the
+*outer* application argument collapse to the plain self-reference
+`Var(tpat)`. The result, `Rec(List, Sum[Nil, Cons(Int, Var("List"))])`,
+matches the standard μ-encoding `μX. Nil + Cons(Int, X)` and unrolls
+cleanly into `Sum[Nil, Cons(Int, Rec(...))]` in re-statics.
+
+### Non-uniform recursion
+
+Non-uniform parameterized aliases like `type List(a) = + Nil + Cons(a,
+List((Int, a)))` use the recursive family at a *different* type than
+the outer parameter. Each `Cons`'s self-application has the form
+`TypApp(Var("List"), Prod(Int, a))` where the argument is a
+*transformation* of the parameter, not the parameter itself. The
+collapse heuristic above only fires when the inner argument matches
+the outer specialization, so non-uniform self-applications stay intact
+in the normalized form. Static type-checking and elaboration handle
+non-uniform recursion correctly (each nested constructor gets its own
+`TypAp(Cons, …)` wrapper specialized at its level), and evaluation
+runs to completion. Re-statics on the *evaluated* result, however,
+sees `TypApp(Rec(...), arg)` artifacts because non-uniform recursion
+genuinely cannot be expressed as a finite `Rec(...)` form once the
+original alias context has been stripped — the recursive structure has
+infinitely many distinct instantiations.
 
 Constructors whose schema is not actually polymorphic (e.g. a bare tag
 from `type x = + A`) are never wrapped: writing `A @<?>` keeps the

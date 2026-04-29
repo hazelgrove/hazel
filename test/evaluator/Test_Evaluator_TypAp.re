@@ -109,6 +109,55 @@ let xs : List(Int) = Cons(0, Cons(1, Cons(2, Nil))) in xs|},
       },
     ),
     test_case(
+      "Non-uniform recursive parameterized list evaluates to a value",
+      `Quick,
+      () => {
+        /* `List(a) = + Nil + Cons(a, List((Int, a)))` is non-uniform:
+           each recursive Cons sits at a different type instantiation
+           (List(Int) → List((Int, Int)) → List((Int, (Int, Int))) → …).
+           The evaluator must specialize each Cons's TypAp wrapper with
+           the right argument; here we just verify the program reaches
+           a final form (no stuck TypAps or runtime errors). */
+        let src = {|type List(a) =
+  + Nil
+  + Cons(a, List((Int, a))) in
+let x : List(Int) = Cons(3, Cons((4, 4), Cons((5, (6, 7)), Nil))) in x|};
+        let exp = Haz3lcore.Parser.to_term(src, ~root=Exp) |> Option.get;
+        let (_info_map, elab) =
+          Statics.mk(
+            CoreSettings.on,
+            Language.Builtins.ctx_init(Some(Int)),
+            exp,
+          );
+        let evaluated =
+          Evaluator.evaluate(~env=Language.Builtins.env_init, elab) |> fst;
+        /* No stuck TypAps in the evaluated result: every TypAp wrapping
+           a Constructor should have been reduced. */
+        let stuck_typ_aps = ref(0);
+        let rec walk = (e: Exp.t): unit => {
+          switch (e.term) {
+          | TypAp({term: Constructor(_), _}, _) => incr(stuck_typ_aps)
+          | Ap(_, f, a) =>
+            walk(f);
+            walk(a);
+          | Tuple(xs) => List.iter(walk, xs)
+          | Parens(inner)
+          | Asc(inner, _)
+          | Closure(_, inner)
+          | Filter(_, inner) => walk(inner)
+          | _ => ()
+          };
+        };
+        walk(evaluated);
+        check(
+          int,
+          "no stuck TypAp(Constructor, _) in evaluated result",
+          0,
+          stuck_typ_aps^,
+        );
+      },
+    ),
+    test_case(
       "Result of nested parameterized ctors re-statics without error marks",
       `Quick,
       () => {

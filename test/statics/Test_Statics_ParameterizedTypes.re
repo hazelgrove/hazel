@@ -234,6 +234,105 @@ type List(a) = + Nil + Cons(Int, List) in ?
         check(int, "exactly one TypKindMismatch", 1, kind_mismatch_count);
       },
     ),
+    test_case(
+      "non-uniform recursive parameterized type checks",
+      `Quick,
+      () => {
+        /* `List(a) = + Nil + Cons(a, List((Int, a)))` is non-uniform:
+           the recursive occurrence of `List` is applied to a *different*
+           type (`(Int, a)`) than the outer parameter `a`. Each `Cons` in
+           the example below sits at a different type instantiation, so
+           every nested constructor needs its own `TypAp(Cons, …)` wrap
+           with the correct argument:
+             - outermost Cons :: `Int -> List((Int, Int)) -> List(Int)`
+             - middle Cons    :: `(Int, Int) -> List((Int, (Int, Int))) -> List((Int, Int))`
+             - inner Cons     :: `(Int, (Int, Int)) -> List((Int, (Int, (Int, Int)))) -> List((Int, (Int, Int)))`
+             - innermost Nil  :: at `List((Int, (Int, (Int, Int))))` */
+        let src = {|
+type List(a) =
+  + Nil
+  + Cons(a, List((Int, a))) in
+let x : List(Int) = Cons(3, Cons((4, 4), Cons((5, (6, 7)), Nil))) in x
+|};
+        Alcotest.check(
+          list(testable_issue),
+          "no static errors",
+          [],
+          List.map(ms => Marks([ms]), static_errors(src)),
+        );
+      },
+    ),
+    test_case(
+      "non-uniform recursive type wraps every constructor in TypAp",
+      `Quick,
+      () => {
+        let src = {|
+type List(a) =
+  + Nil
+  + Cons(a, List((Int, a))) in
+let x : List(Int) = Cons(3, Cons((4, 4), Cons((5, (6, 7)), Nil))) in x
+|};
+        check(
+          int,
+          "no Cons should fall back to the type-ascribed form",
+          0,
+          count_fallback_constructors(src, "Cons"),
+        );
+        check(
+          int,
+          "no Nil should fall back to the type-ascribed form",
+          0,
+          count_fallback_constructors(src, "Nil"),
+        );
+        let typ_ap_cons_count = ref(0);
+        let typ_ap_nil_count = ref(0);
+        walk_elaboration(src, e =>
+          switch (e.term) {
+          | TypAp({term: Constructor("Cons", _), _}, _) =>
+            incr(typ_ap_cons_count)
+          | TypAp({term: Constructor("Nil", _), _}, _) =>
+            incr(typ_ap_nil_count)
+          | _ => ()
+          }
+        );
+        check(
+          int,
+          "all three Cons constructors are wrapped in TypAp",
+          3,
+          typ_ap_cons_count^,
+        );
+        check(int, "Nil is wrapped in TypAp", 1, typ_ap_nil_count^);
+      },
+    ),
+    test_case(
+      "non-uniform List.Cons reports Type -> Type kind error when unapplied",
+      `Quick,
+      () => {
+        /* Sanity: the kind of `List` is `Type -> Type` even when the
+           payload nests it non-uniformly. */
+        let marks =
+          static_errors(
+            {|
+type List(a) =
+  + Nil
+  + Cons(a, List((Int, a))) in
+let x : List = ? in x
+|},
+          );
+        check(
+          bool,
+          "kind mismatch on unapplied List",
+          true,
+          has_mark(
+            Mark.TypKindMismatch({
+              expected: TypKind.Type,
+              actual: TypKind.Arrow(TypKind.Type, TypKind.Type),
+            }),
+            marks,
+          ),
+        );
+      },
+    ),
     test_case("elaboration wraps Some in TypAp for Option(Int)", `Quick, () => {
       check(
         bool,
