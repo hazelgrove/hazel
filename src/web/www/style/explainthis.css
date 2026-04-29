@@ -213,3 +213,11 @@
 .highlight-code-f {
   fill: var(--highlight-f);
 }
+
+.highlight-g {
+  background-color: var(--highlight-g);
+}
+
+.highlight-code-g {
+  fill: var(--highlight-g);
+}
