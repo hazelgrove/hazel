@@ -131,6 +131,15 @@ let keywords = [
   "then",
   "else",
   "hint",
+  /* Type-level binder keywords that can be followed by a
+     parenthesized binder list (`poly (a, b) -> …`, `typfun (a, b) ->
+     …`, etc.). Listing them here keeps `should_add_space` from
+     dropping the space between the keyword and the leading `(`. */
+  "poly",
+  "typfun",
+  "typlam",
+  "forall",
+  "rec",
 ];
 
 let is_keyword = match(regexp("^(" ++ concat("|", keywords) ++ ")$"));
