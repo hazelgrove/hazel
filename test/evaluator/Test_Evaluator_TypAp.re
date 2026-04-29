@@ -108,5 +108,51 @@ let xs : List(Int) = Cons(0, Cons(1, Cons(2, Nil))) in xs|},
         );
       },
     ),
+    test_case(
+      "Result of nested parameterized ctors re-statics without error marks",
+      `Quick,
+      () => {
+        /* The result view runs statics again on the evaluated expression,
+           using a fresh context without the original `type List(a)`
+           alias. Regressions here showed up in the UI as "inconsistent
+           with expected type" errors mentioning `(rec List -> …)(Int)` —
+           artifacts of eagerly β-reducing parameterized aliases through
+           a `Rec` binder. This test asserts the re-statics produces no
+           marks on the result expression. */
+        let src = {|type List(a) = + Nil + Cons(a, List(a)) in
+let x : List(Int) = Cons(0, Cons(10, Nil)) in x|};
+        let exp = Haz3lcore.Parser.to_term(src, ~root=Exp) |> Option.get;
+        let (_info_map, elab) =
+          Statics.mk(
+            CoreSettings.on,
+            Language.Builtins.ctx_init(Some(Int)),
+            exp,
+          );
+        let evaluated =
+          Evaluator.evaluate(~env=Language.Builtins.env_init, elab) |> fst;
+        let (restatics_map, _) =
+          Statics.mk(
+            CoreSettings.on,
+            Language.Builtins.ctx_init(Some(Int)),
+            evaluated,
+          );
+        let all_marks =
+          Id.Map.fold(
+            (_, info, acc) =>
+              switch (info) {
+              | Info.InfoExp({marks, _}) => marks @ acc
+              | _ => acc
+              },
+            restatics_map,
+            [],
+          );
+        check(
+          int,
+          "re-statics of the evaluated result produces no marks",
+          0,
+          List.length(all_marks),
+        );
+      },
+    ),
   ],
 );

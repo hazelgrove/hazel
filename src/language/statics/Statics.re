@@ -1414,23 +1414,24 @@ and uexp_to_info_map =
         let ctor_ty = fixed_typ(ctx, ana, syn_res);
         let ctor_ty_for_ann = Typ.normalize(ctx, ctor_ty);
         /* Compute the annotation the elaborated `Constructor` carries.
-           The annotation is always fully normalized: free alias names
-           like `Var("T2")` or `Var("List")` would otherwise leak into
-           results (dynamics can't look them up without a context), so
-           we unfold them eagerly. For polymorphic constructors we start
-           from the ctx schema so the annotation is a `Poly` — that's
-           what re-statics needs for `TypAp` to type-check and what the
-           TypAp reduction rule specializes at runtime. For monomorphic
-           constructors the ctx schema is just the alias name, so we use
-           the site-normalized `ctor_ty_for_ann`, which exposes the
-           underlying `Sum` (and any hidden arrows inside variants).
-           Prior explicit ascriptions on the constructor are preserved
-           as-is. */
-        let normalize = Typ.normalize(ctx);
+           Polymorphic constructors carry their ctx schema normalized —
+           i.e. a `Poly` whose body exposes the underlying `Rec`/`Sum`
+           for every parameterized alias reference. This matches the form
+           `Typ.normalize` produces for ascriptions (e.g. the `Rec(List,
+           Sum[…])` that `let x : List(Int) = …` elaborates to), so that
+           when re-statics on the result runs without the alias context,
+           constructor annotations and ascription types meet structurally
+           even after `get_sum_constructors`/`unroll` produces
+           `TypApp(Rec(…), Int)` residues from both sides.
+
+           Monomorphic constructors use the site-normalized
+           `ctor_ty_for_ann`, which exposes their underlying `Sum` (and
+           any hidden arrows inside variants) for `DHExp.ty_comparable`.
+           Prior explicit ascriptions are preserved as-is. */
         let poly_schema =
           switch (Ctx.lookup_ctr(ctx, ctr)) {
           | Some({typ: {term: Poly(_), _} as schema, _}) =>
-            Some(normalize(schema))
+            Some(Typ.normalize(ctx, schema))
           | _ => None
           };
         let type_args =

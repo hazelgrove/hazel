@@ -99,6 +99,27 @@ site-normalized specialized type instead, which unfolds the alias to
 `Sum[A(Int->Int), B]` and lets dynamics reject equality comparisons on
 values that might hide functions.
 
+## Normalizing parameterized recursive aliases
+
+A parameterized recursive type like `type List(a) = + Nil + Cons(a,
+List(a))` is stored in the context as `Rec(List, TypLam(a, Sum[Nil,
+Cons(a, TypApp(Var("List"), a))]))`. Normalizing `TypApp(Var("List"),
+Int)` β-reduces the inner `TypLam` and produces `Rec(List, Sum[Nil,
+Cons(Int, TypApp(Var("List"), Int))])`. The nested `TypApp(Var("List"),
+Int)` is now structurally ill-formed: the rebound `Var("List")` no
+longer names a type-level function — its binder wraps a `Sum`, not a
+`TypLam` — so downstream `unroll` would leak bogus `TypApp(Rec(...),
+Int)` artifacts into results when re-statics runs without the original
+alias.
+
+`Typ.normalize`'s `Rec` case therefore post-processes the normalized
+body: when the body is fully specialized (no top-level `TypLam`), every
+redundant self-application `TypApp(Var(tpat), _)` collapses to the plain
+self-reference `Var(tpat)`. The result,
+`Rec(List, Sum[Nil, Cons(Int, Var("List"))])`, matches the standard
+encoding `μX. Nil + Cons(Int, X)` and unrolls cleanly into the expected
+`Sum[Nil, Cons(Int, Rec(...))]` in re-statics.
+
 Constructors whose schema is not actually polymorphic (e.g. a bare tag
 from `type x = + A`) are never wrapped: writing `A @<?>` keeps the
 explicit `TypAp` Indet, matching the pre-existing behavior of type
