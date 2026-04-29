@@ -145,6 +145,12 @@ and tpat_term('a) =
      substitution / reduction zip the pair element-by-element. Tuple
      never appears as a stand-alone tpat outside a binder position. */
   | Tuple(list(tpat_t('a)))
+  /* Parens is a transparent wrapper for displaying the user's
+     parenthesization, e.g. `poly (a, b) -> …` parses as
+     `Poly(Parens(Tuple([a, b])), …)`. Semantic operations
+     (`tyvars_of`, `binders_of`, etc.) look through it; the
+     structured-editor pretty-printer renders it as `(…)`. */
+  | Parens(tpat_t('a))
 and tpat_t('a) = Annotated.t(tpat_term('a), 'a)
 and rul_term('a) =
   | Invalid(string)
@@ -442,6 +448,7 @@ and map_tpat_annotation: 'a 'b. ('a => 'b, tpat_t('a)) => tpat_t('b) =
             List.map(x => map_tpat_annotation(f, x), params),
           )
         | Tuple(l) => Tuple(List.map(x => map_tpat_annotation(f, x), l))
+        | Parens(tp) => Parens(map_tpat_annotation(f, tp))
         },
       annotation: new_annotation,
     };
@@ -1040,6 +1047,10 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
     };
     let tuple = (~ann=?, tps): tpat_t(DefaultAnnotation.t) => {
       term: Tuple(tps),
+      annotation: default_annotation(ann),
+    };
+    let parens = (~ann=?, tp): tpat_t(DefaultAnnotation.t) => {
+      term: Parens(tp),
       annotation: default_annotation(ann),
     };
   };

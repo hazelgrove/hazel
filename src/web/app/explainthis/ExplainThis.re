@@ -3001,6 +3001,7 @@ let get_doc =
         };
       simple("`" ++ name ++ "` is a parameterized type declaration.");
     | Tuple(_) => simple("A list of type binders.")
+    | Parens(_) => simple("A parenthesized type pattern.")
     }
   | Some(InfoDrv({term, _})) =>
     let (syntax, msg) =

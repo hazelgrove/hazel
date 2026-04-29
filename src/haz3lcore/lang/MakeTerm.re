@@ -332,32 +332,53 @@ let parse_sum_term: Typ.t => ConstructorMap.variant(Typ.t) =
     )
   | t => BadEntry(t);
 
-/* Expand a tpat that may have been parsed as a comma-separated list
-   into a non-empty list of individual binder tpats. Comma-separated
-   tpats currently land as a `MultiHole([Grammar.TPat(_), …])` from the
-   `Bin(TPat, ",", TPat)` rule; for `typfun`/`poly` binders we want to
-   treat the list as multiple binders to curry. Anything else returns
-   a singleton list. */
-let expand_tpat_binders = (tpat: TPat.t): list(TPat.t) =>
-  switch (IdTagged.term_of(tpat)) {
-  | MultiHole(els) =>
-    let extracted =
-      List.filter_map(
-        fun
-        | Grammar.TPat(tp) => Some(tp)
-        | _ => None,
-        els,
-      );
-    /* Only treat as a binder list if every element is a tpat — a
-       genuinely broken `MultiHole` containing other sorts stays a
-       singleton so existing error reporting kicks in. */
-    if (List.length(extracted) == List.length(els) && extracted != []) {
-      extracted;
-    } else {
-      [tpat];
+/* Normalize the tpat kid of a `poly` / `typfun` / `rec` / `typlam`
+   binder to the canonical binder shape used by the semantics.
+
+   - A single-binder tpat (`Var`, hole, parens-wrapping-any-of-these)
+     is kept as-is — the caller builds `Poly(tp, body)` directly.
+   - A comma-separated binder list `a, b, …` lands here as a
+     `MultiHole([TPat(a), TPat(b), …])` (from the `Bin(TPat, ",",
+     TPat)` rule in `tpat_term`). We lift that to a `Tuple([a, b,
+     …])`, and if the original came inside a `Parens` wrapper we
+     re-wrap the `Tuple` with the same `Parens` so the parens still
+     show in the structured-editor display.
+   - Anything else falls back to a singleton. */
+let binder_of_tpat = (tpat: TPat.t): TPat.t => {
+  let extract_multihole = (tp: TPat.t): option(list(TPat.t)) =>
+    switch (IdTagged.term_of(tp)) {
+    | MultiHole(els) =>
+      let extracted =
+        List.filter_map(
+          fun
+          | Grammar.TPat(tp) => Some(tp)
+          | _ => None,
+          els,
+        );
+      if (List.length(extracted) == List.length(els) && extracted != []) {
+        Some(extracted);
+      } else {
+        None;
+      };
+    | _ => None
     };
-  | _ => [tpat]
+  switch (IdTagged.term_of(tpat)) {
+  | MultiHole(_) =>
+    switch (extract_multihole(tpat)) {
+    | Some(tps) => {...tpat, term: Tuple(tps)}
+    | None => tpat
+    }
+  | Parens(inner) =>
+    switch (extract_multihole(inner)) {
+    | Some(tps) => {
+        ...tpat,
+        term: Parens({...inner, term: Tuple(tps)}),
+      }
+    | None => tpat
+    }
+  | _ => tpat
   };
+};
 
 let apply_typ_param_args = (fn: Typ.t, arg: Typ.t): Typ.term => {
   /* `T(a, b, …)` is a multi-argument type application: the comma-
@@ -829,21 +850,12 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
         | (["typfun", "->"], [TPat(tpat)]) =>
           /* `typfun a, b -> e` parses as a single `TypFun` whose binder
              is `TPat.Tuple([a, b, …])`. Single-binder `typfun a -> e`
-             keeps `tpat` as the bare `Var`/hole. The reduction rule for
-             `TypAp` zips a `TypTuple` argument against the tuple binder
-             element-wise, in one step. */
-          (
-            switch (expand_tpat_binders(tpat)) {
-            | [] => TypFun(tpat, r, None)
-            | [single] => TypFun(single, r, None)
-            | binders =>
-              let tuple_tpat: TPat.t = {
-                ...tpat,
-                term: Tuple(binders),
-              };
-              TypFun(tuple_tpat, r, None);
-            }
-          )
+             keeps `tpat` as the bare `Var`/hole. Parens wrapping the
+             binder list survive as `Parens(Tuple([a, b, …]))`. The
+             reduction rule for `TypAp` looks through `Parens` and zips
+             a `TypTuple` argument against the tuple binder
+             element-wise in one step. */
+          TypFun(binder_of_tpat(tpat), r, None)
         | (["let", "=", "in"], [Pat(pat), Exp(def)]) => Let(pat, def, r)
         | (["module", "=", "in"], [MPat(mp), Exp(def)]) =>
           ModuleExp(mp, def, r)
@@ -1272,21 +1284,11 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
   | Pre(([(_id, (["poly", "->"], [TPat(tpat)]))], []), Typ(t)) =>
     /* `poly a, b -> t` parses as a single `Poly` whose binder is
        `TPat.Tuple([a, b, …])`. Explicit nesting `poly a -> poly b ->
-       t` instead produces `Poly(a, Poly(b, t))` and is structurally
-       distinct. Single-binder `poly a -> t` keeps `tpat` as the bare
+       t` produces `Poly(a, Poly(b, t))` and is structurally distinct.
+       Parens wrapping the binder list survive as `Parens(Tuple([a,
+       b, …]))`. Single-binder `poly a -> t` keeps `tpat` as the bare
        `Var`/hole. */
-    ret(
-      switch (expand_tpat_binders(tpat)) {
-      | [] => Poly(tpat, t)
-      | [single] => Poly(single, t)
-      | binders =>
-        let tuple_tpat: TPat.t = {
-          ...tpat,
-          term: Tuple(binders),
-        };
-        Poly(tuple_tpat, t);
-      },
-    )
+    ret(Poly(binder_of_tpat(tpat), t))
   | Pre(([(_id, (["rec", "->"], [TPat(tpat)]))], []), Typ(t)) =>
     ret(Rec(tpat, t))
   | Pre(tiles, Typ({term: Sum(t0), annotation: {ids, _}})) as tm =>
@@ -1384,12 +1386,11 @@ and tpat_term: unsorted => TPat.term = {
         | ([t], []) when is_hole_label(t) => hole(tm)
         | ([t], []) => Invalid(t)
         | (["PROJ_WRAP", "PROJ_WRAP"], [TPat(body)]) => body.term
-        /* Strip a redundant pair of parens around a tpat, so
-           `poly (a, b) -> t` parses the same as `poly a, b -> t`.
-           TPats have no `Parens` AST variant; the inner tpat's term
-           (a `Var` or `MultiHole(…)` of comma-separated tpats) is
-           lifted directly. */
-        | (["(", ")"], [TPat(body)]) => body.term
+        /* Parens around a tpat get their own AST node so the parens'
+           tile ids land in the info map. `Parens` is semantically
+           transparent — `expand_tpat_binders`, `TPat.binders_of`,
+           `TPat.tyvars_of`, `Typ.subst`, etc. all look through it. */
+        | (["(", ")"], [TPat(body)]) => Parens(body)
         | _ => hole(tm)
         },
       )

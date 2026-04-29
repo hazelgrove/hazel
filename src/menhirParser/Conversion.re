@@ -594,6 +594,10 @@ and TPat: {
         };
       ParamTPat(name, List.map(of_core, params));
     | Tuple(tps) => TupleTPat(List.map(of_core, tps))
+    /* Parens are dropped on conversion to the Menhir AST (the
+       round-trip tests compare syntactic shape without surface
+       parens). */
+    | Parens(inner) => of_core(inner)
     | Invalid(i) => InvalidTPat(i)
     | MultiHole(_) => raise(Failure("MultiHole not supported"))
     };

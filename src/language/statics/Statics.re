@@ -2478,6 +2478,7 @@ and uexp_to_info_map =
       | Var(_)
       | Param(_)
       | Tuple(_)
+      | Parens(_)
       | Invalid(_)
       | EmptyHole
       | MultiHole(_) =>
@@ -4217,6 +4218,7 @@ and utpat_to_info_map =
       | None => ([TPatNotAVar(Other)], None)
       }
     | Tuple(_) => ([], Some(Message.Default))
+    | Parens(_) => ([], Some(Message.Default))
     | Invalid(_) => ([TPatNotAVar(NotCapitalized)], None)
     | MultiHole(_) => ([TPatNotAVar(Other)], None)
     };
@@ -4360,6 +4362,21 @@ and utpat_to_info_map =
         m,
         tps,
       );
+    add(m);
+  | Parens(inner) =>
+    /* `Parens` is transparent — propagate `at_alias_head` so e.g.
+       `type (T(a)) = …` would still recognize the inner `T(a)` as an
+       alias head. The Parens node itself records its own info entry
+       (status_for_node returns `Default`). */
+    let m =
+      utpat_to_info_map(
+        ~at_alias_head,
+        ~ctx,
+        ~ancestors=ancestors_inclusive,
+        inner,
+        m,
+      )
+      |> snd;
     add(m);
   };
 }

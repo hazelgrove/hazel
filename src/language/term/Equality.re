@@ -778,6 +778,13 @@ let equality =
   }
   and tpat = (tp1: TPat.t, tp2: TPat.t): option(Alphas.t) => {
     switch (tp1 |> Annotated.term_of, tp2 |> Annotated.term_of) {
+    /* Parens is transparent — a parenthesized tpat is equal to the
+       underlying tpat. Must run before the non-Parens catchall cases
+       below (e.g. `(Tuple(_), _) => None`) so a `Parens` on the other
+       side doesn't prematurely fall through to `None`. */
+    | (Parens(t1), _) => tpat(t1, tp2)
+    | (_, Parens(t2)) => tpat(tp1, t2)
+
     // Variables: special case depending on alpha equivalence.
     | (Var(x), Var(y)) when type_alpha => Some(Alphas.singleton(x, y))
     | (Var(x), Var(y)) when x == y => Some(Alphas.singleton(x, x))

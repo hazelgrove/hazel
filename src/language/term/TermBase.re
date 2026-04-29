@@ -529,14 +529,19 @@ and TPat: {
           let recurse =
             TPat.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
           Tuple(List.map(recurse, tps));
+        | Parens(tp) =>
+          let recurse =
+            TPat.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
+          Parens(recurse(tp));
         },
     };
     x |> f_tpat(rec_call);
   };
 
-  let tyvar_of_utpat = ({term, _}: t) =>
+  let rec tyvar_of_utpat = ({term, _}: t) =>
     switch (term) {
     | Var(x) => Some(x)
+    | Parens(inner) => tyvar_of_utpat(inner)
     | _ => None
     };
 }

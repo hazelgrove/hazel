@@ -427,9 +427,14 @@ x",
         )
       ),
       test_case("typfun with parenthesized multi-binder", `Quick, () =>
+        /* The parens around the binder list are preserved in the AST
+           as a `Parens` wrapper around the `Tuple`, so the
+           structured-editor display can round-trip them. Semantics
+           (`TPat.binders_of`, `Typ.subst`, reduction) look through
+           `Parens`. */
         exp_check(
           typ_fun(
-            TPat.tuple([TPat.var("a"), TPat.var("b")]),
+            TPat.parens(TPat.tuple([TPat.var("a"), TPat.var("b")])),
             empty_hole(),
             None,
           ),
@@ -438,7 +443,7 @@ x",
       ),
       test_case("typfun with parenthesized single-binder", `Quick, () =>
         exp_check(
-          typ_fun(TPat.var("a"), empty_hole(), None),
+          typ_fun(TPat.parens(TPat.var("a")), empty_hole(), None),
           {|typfun (a) -> ?|},
         )
       ),

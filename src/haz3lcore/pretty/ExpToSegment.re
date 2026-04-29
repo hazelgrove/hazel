@@ -855,6 +855,7 @@ and parenthesize_tpat =
   | Var(_)
   | Param(_)
   | Tuple(_)
+  | Parens(_)
   | Invalid(_)
   | EmptyHole => tpat
 
@@ -2991,6 +2992,11 @@ and tpat_to_pretty = (~settings: Settings.t, tpat: TPat.t): pretty => {
           )
       };
     wrap(tpat, seg);
+  | Parens(inner) =>
+    let id = tpat |> TPat.rep_id;
+    let mk_form = mk_form(~secondary=settings.secondary);
+    let+ inner = tpat_to_pretty(~settings: Settings.t, inner);
+    wrap(tpat, [mk_form(ParensTPat, id, [inner])]);
   };
 }
 and mod_to_pretty = (~settings: Settings.t, item: Mod.t): pretty => {
