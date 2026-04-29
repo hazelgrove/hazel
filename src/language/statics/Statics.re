@@ -3484,13 +3484,21 @@ and utyp_to_info_map =
   let rec kind_of_typ = (ctx: Ctx.t, ty: Typ.t): TypKind.t => {
     let type_ = TypKind.Type;
     switch (ty.term) {
-    | Unknown(_)
+    | Unknown(_) => TypKind.Unknown
     | Atom(_)
     | DrvQuoteTy(_)
     | Label(_)
     | ExplicitNonlabel => type_
     | Var(name) =>
-      Ctx.lookup_tvar_typ_kind(ctx, name) |> Option.value(~default=type_)
+      /* If the name isn't in ctx, we don't know its kind — return
+         `Unknown` rather than assuming `Type`, so the surrounding
+         application doesn't pile a "cannot apply" mark on top of the
+         "free variable" mark already reported at the var node. */
+      switch (Ctx.lookup_tvar_typ_kind(ctx, name)) {
+      | Some(kind) => kind
+      | None when Ctx.is_base_typ(name) => TypKind.Type
+      | None => TypKind.Unknown
+      }
     | Parens(t)
     | Projector(_, t) => kind_of_typ(ctx, t)
     | List(_)
@@ -3532,7 +3540,7 @@ and utyp_to_info_map =
   };
   let kind_marks_for_expected_type = (utyp: Typ.t): list(Mark.t) => {
     let actual = kind_of_typ(ctx, utyp);
-    TypKind.equal(actual, TypKind.Type)
+    TypKind.consistent(actual, TypKind.Type)
       ? []
       : [
         Mark.TypKindMismatch({
@@ -3705,6 +3713,11 @@ and utyp_to_info_map =
         | _ => [kind_of_typ(ctx, arg)]
         };
       switch (fn_kind) {
+      | TypKind.Unknown =>
+        /* Callee kind is unknown (e.g. unbound type variable). Don't
+           pile additional "cannot apply" / arity errors on top of the
+           free-variable error already reported at the callee node. */
+        ok(Message.Type(utyp))
       | TypKind.Arrow(expected, result) =>
         let n_expected = List.length(expected);
         let n_actual = List.length(arg_kinds);
@@ -3717,7 +3730,7 @@ and utyp_to_info_map =
               actual: n_actual,
             }),
           );
-        } else if (!List.for_all2(TypKind.equal, expected, arg_kinds)) {
+        } else if (!List.for_all2(TypKind.consistent, expected, arg_kinds)) {
           err(
             Mark.TypKindMismatch({
               expected:
@@ -3732,7 +3745,7 @@ and utyp_to_info_map =
                 },
             }),
           );
-        } else if (!TypKind.equal(result, TypKind.Type)) {
+        } else if (!TypKind.consistent(result, TypKind.Type)) {
           err(
             Mark.TypKindMismatch({
               expected: TypKind.Type,

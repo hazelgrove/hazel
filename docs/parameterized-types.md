@@ -97,15 +97,25 @@ sum-type position (so a constructor variant with a tuple payload remains a
 
 ```ocaml
 type TypKind.t =
+  | Unknown
   | Type
   | Arrow(list(t), t);
 ```
 
 `Arrow([k1, …, kN], r)` is rendered as `(k1, …, kN) -> r` (single-arg as
-`k -> r`). `TypKind.apply` only consumes a *single* argument against a
-single-argument arrow `Arrow([k], r)`. Multi-argument applications go through
+`k -> r`). `Unknown` renders as `?` and is the kind assigned to unbound type
+variables and unknown types — it propagates consistently like `Typ.Unknown`,
+so a free `L` in `Cons(a, L(a))` produces only one error (the free-variable
+mark on `L`) instead of also erroring on the surrounding application.
+
+`TypKind.apply` only consumes a *single* argument against a single-argument
+arrow `Arrow([k], r)`. Multi-argument applications go through
 `TypKind.apply_all`, which requires the entire argument list to match the
-arrow's slot list at once. There is no partial application.
+arrow's slot list at once. There is no partial application. Both helpers
+absorb `Unknown` callees: applying any args to `Unknown` yields `Unknown`.
+
+Kind comparison uses `TypKind.consistent` (similar to `Typ.is_consistent`):
+two kinds are consistent if `Unknown` could be refined to make them match.
 
 The `Mark.TypParamApplyArityMismatch` is emitted by `Statics.status_for_node`
 when the argument count differs from the kind's arity. Its message — which

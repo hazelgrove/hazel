@@ -568,7 +568,10 @@ let x : List((Int, Bool)) = Nil in x
            free type variable, not silently give it kind `Type`. The
            callee position of a type parameter application bypasses
            the ordinary `(TypeExpected, Var(_))` status check, so we
-           need to report unbound names there explicitly. */
+           need to report unbound names there explicitly. The callee's
+           kind is `Unknown` (not assumed `Type`), so the surrounding
+           `TypParamAp` doesn't pile a spurious "cannot apply" or
+           arity-mismatch mark on top of the free-variable error. */
         let marks =
           static_errors(
             {|
@@ -582,6 +585,18 @@ type List(a) = + Nil + Cons(a, L(a)) in ?
           List.exists(
             fun
             | Mark.TypFreeTypeVariable("L") => true
+            | _ => false,
+            marks,
+          ),
+        );
+        check(
+          bool,
+          "no spurious cannot-apply mark on the surrounding TypParamAp",
+          false,
+          List.exists(
+            fun
+            | Mark.TypParamApplyNonArrowKind(_)
+            | Mark.TypParamApplyArityMismatch(_) => true
             | _ => false,
             marks,
           ),
