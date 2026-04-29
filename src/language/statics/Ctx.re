@@ -80,19 +80,23 @@ let extend_alias =
   );
 
 let extend_dummy_tvar = (ctx: t, tvar: TPat.t) =>
-  switch (TPat.tyvar_of_utpat(tvar)) {
-  | Some(name) =>
-    extend_tvar(
-      ctx,
-      {
-        kind: Abstract,
-        typ_kind: TypKind.Type,
-        name,
-        id: Id.invalid,
-      },
-    )
-  | None => ctx
-  };
+  /* `tvar` may be a single binder or a `TPat.Tuple` representing a
+     comma-separated list of binders; flatten and extend ctx with each
+     name. Non-name binders (e.g. holes) are ignored. */
+  List.fold_left(
+    (ctx, name) =>
+      extend_tvar(
+        ctx,
+        {
+          kind: Abstract,
+          typ_kind: TypKind.Type,
+          name,
+          id: Id.invalid,
+        },
+      ),
+    ctx,
+    TPat.tyvars_of(tvar),
+  );
 
 let lookup_tvar = (ctx: t, name: string): option(kind) =>
   List.find_map(

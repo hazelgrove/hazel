@@ -827,21 +827,21 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
         | (["forall", "->"], [Pat(pat)]) => Forall(pat, r)
         | (["fix", "->"], [Pat(pat)]) => FixF(pat, r, None)
         | (["typfun", "->"], [TPat(tpat)]) =>
-          /* `typfun a, b -> e` curries internally to
-             `TypFun(a, TypFun(b, e, None), None)`. The dynamics
-             `TypAp` rule peels one binder per `TypTuple` element when
-             the user writes `f@<Int, Bool>`. */
+          /* `typfun a, b -> e` parses as a single `TypFun` whose binder
+             is `TPat.Tuple([a, b, …])`. Single-binder `typfun a -> e`
+             keeps `tpat` as the bare `Var`/hole. The reduction rule for
+             `TypAp` zips a `TypTuple` argument against the tuple binder
+             element-wise, in one step. */
           (
             switch (expand_tpat_binders(tpat)) {
             | [] => TypFun(tpat, r, None)
             | [single] => TypFun(single, r, None)
             | binders =>
-              List.fold_right(
-                (b, body) => TypFun(b, body, None) |> Exp.fresh,
-                binders,
-                r,
-              ).
-                term
+              let tuple_tpat: TPat.t = {
+                ...tpat,
+                term: Tuple(binders),
+              };
+              TypFun(tuple_tpat, r, None);
             }
           )
         | (["let", "=", "in"], [Pat(pat), Exp(def)]) => Let(pat, def, r)
@@ -1270,20 +1270,21 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
    * Thus `rec A -> Left(A) + Right(B)` get parsed as `rec A -> (Left(A) + Right(B))`
    * If this is below the case for sum, then it gets parsed as an invalid form. */
   | Pre(([(_id, (["poly", "->"], [TPat(tpat)]))], []), Typ(t)) =>
-    /* `poly a, b -> t` curries internally to
-       `Poly(a, Poly(b, t))` — the universal-type analogue of the
-       multi-binder `typfun`. */
+    /* `poly a, b -> t` parses as a single `Poly` whose binder is
+       `TPat.Tuple([a, b, …])`. Explicit nesting `poly a -> poly b ->
+       t` instead produces `Poly(a, Poly(b, t))` and is structurally
+       distinct. Single-binder `poly a -> t` keeps `tpat` as the bare
+       `Var`/hole. */
     ret(
       switch (expand_tpat_binders(tpat)) {
       | [] => Poly(tpat, t)
       | [single] => Poly(single, t)
       | binders =>
-        List.fold_right(
-          (b, body) => Poly(b, body) |> Typ.fresh,
-          binders,
-          t,
-        ).
-          term
+        let tuple_tpat: TPat.t = {
+          ...tpat,
+          term: Tuple(binders),
+        };
+        Poly(tuple_tpat, t);
       },
     )
   | Pre(([(_id, (["rec", "->"], [TPat(tpat)]))], []), Typ(t)) =>

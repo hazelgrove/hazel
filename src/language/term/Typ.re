@@ -331,7 +331,10 @@ let rec free_vars = (~bound=[], ty: t): list(Var.t) =>
   | Rec(x, ty)
   | Poly(x, ty)
   | TypLam(x, ty) =>
-    free_vars(~bound=(x |> TPat.tyvar_of_utpat |> Option.to_list) @ bound, ty)
+    /* `x` may be a single binder or a `TPat.Tuple` with multiple
+       binders; `tyvars_of` flattens both cases into the list of bound
+       names. */
+    free_vars(~bound=TPat.tyvars_of(x) @ bound, ty)
   | ProofOf(_) => []
   | Sig(_) => []
   };
@@ -354,19 +357,14 @@ let rec vars = (ty: t): list(Var.t) =>
       | Variant(_, _, Some(typ)) => vars(typ),
       sm,
     )
-  | Rec({term: Var(x), _}, ty) =>
-    /* Remove recursive type references */
-    vars(ty) |> List.filter((x': string) => x' != x)
-  | Rec(_, ty) => vars(ty)
+  | Rec(x, ty)
+  | Poly(x, ty)
+  | TypLam(x, ty) =>
+    let bound = TPat.tyvars_of(x);
+    vars(ty) |> List.filter((x': string) => !List.mem(x', bound));
   | List(ty) => vars(ty)
   | Parens(ty)
   | Projector(_, ty) => vars(ty)
-  | Poly({term: Var(x), _}, ty) =>
-    vars(ty) |> List.filter((x': string) => x' != x)
-  | Poly(_, ty) => vars(ty)
-  | TypLam({term: Var(x), _}, ty) =>
-    vars(ty) |> List.filter((x': string) => x' != x)
-  | TypLam(_, ty) => vars(ty)
   | ProofOf(_) => []
   | ExplicitNonlabel
   | Label(_) => []
@@ -515,7 +513,9 @@ let rec contains_sum_or_var = (ty: t): bool =>
    `fresh_var`) before recursing. The inner subst used for renaming is itself
    capture-avoiding, so repeated collisions are handled naturally. */
 let rec subst = (s: t, x: TPat.t, ty: t): t => {
-  let avoid_capture = (tp2: TPat.t, body: t): (TPat.t, t) =>
+  /* Rename a single binder to a fresh name in `body` if its name
+     would capture a free variable of `s`. */
+  let avoid_capture_one = (tp2: TPat.t, body: t): (TPat.t, t) =>
     switch (TPat.tyvar_of_utpat(tp2)) {
     | Some(name) when List.mem(name, free_vars(s)) =>
       let fresh = fresh_var(name);
@@ -523,6 +523,31 @@ let rec subst = (s: t, x: TPat.t, ty: t): t => {
       let body' = subst(Var(fresh) |> temp, tp2, body);
       (tp2', body');
     | _ => (tp2, body)
+    };
+  /* For a binder that may be a `TPat.Tuple([…])`, alpha-rename each
+     element binder in turn so none captures free variables of `s`. A
+     non-tuple binder is treated as a singleton list. */
+  let avoid_capture = (tp2: TPat.t, body: t): (TPat.t, t) =>
+    switch (tp2.term) {
+    | Tuple(tps) =>
+      let (tps', body') =
+        List.fold_left(
+          ((acc, b), tp) => {
+            let (tp', b') = avoid_capture_one(tp, b);
+            (acc @ [tp'], b');
+          },
+          ([], body),
+          tps,
+        );
+      ({...tp2, term: Tuple(tps')}, body');
+    | _ => avoid_capture_one(tp2, body)
+    };
+  /* `x` shadows the binder if it appears anywhere in the binder's
+     flattened tyvars list. */
+  let binder_shadows_x = (tp2: TPat.t): bool =>
+    switch (TPat.tyvar_of_utpat(x)) {
+    | Some(name) => List.mem(name, TPat.tyvars_of(tp2))
+    | None => false
     };
   switch (TPat.tyvar_of_utpat(x)) {
   | Some(str) =>
@@ -541,19 +566,15 @@ let rec subst = (s: t, x: TPat.t, ty: t): t => {
     | TupLabel(label, ty) => TupLabel(label, subst(s, x, ty)) |> rewrap
     | Sum(sm) =>
       Sum(ConstructorMap.map(Option.map(subst(s, x)), sm)) |> rewrap
-    | Poly(tp2, ty) when TPat.tyvar_of_utpat(x) == TPat.tyvar_of_utpat(tp2) =>
-      Poly(tp2, ty) |> rewrap
+    | Poly(tp2, ty) when binder_shadows_x(tp2) => Poly(tp2, ty) |> rewrap
     | Poly(tp2, ty) =>
       let (tp2', ty') = avoid_capture(tp2, ty);
       Poly(tp2', subst(s, x, ty')) |> rewrap;
-    | TypLam(tp2, ty)
-        when TPat.tyvar_of_utpat(x) == TPat.tyvar_of_utpat(tp2) =>
-      TypLam(tp2, ty) |> rewrap
+    | TypLam(tp2, ty) when binder_shadows_x(tp2) => TypLam(tp2, ty) |> rewrap
     | TypLam(tp2, ty) =>
       let (tp2', ty') = avoid_capture(tp2, ty);
       TypLam(tp2', subst(s, x, ty')) |> rewrap;
-    | Rec(tp2, ty) when TPat.tyvar_of_utpat(x) == TPat.tyvar_of_utpat(tp2) =>
-      Rec(tp2, ty) |> rewrap
+    | Rec(tp2, ty) when binder_shadows_x(tp2) => Rec(tp2, ty) |> rewrap
     | Rec(tp2, ty) =>
       let (tp2', ty') = avoid_capture(tp2, ty);
       Rec(tp2', subst(s, x, ty')) |> rewrap;
@@ -572,6 +593,20 @@ let rec subst = (s: t, x: TPat.t, ty: t): t => {
   | None => ty
   };
 };
+
+/* Substitute a list of types simultaneously for a list of binders.
+   Used when reducing `TypAp(TypFun(TPat.Tuple([a, b, …]), body, _),
+   TypTuple([t1, t2, …]))` and the analogous `Poly` specialization in
+   the statics: each `tk` is substituted for the corresponding binder
+   in `body` in one step. The lists must have equal length; the
+   caller is expected to enforce that. */
+let subst_many = (args: list(t), binders: list(TPat.t), body: t): t =>
+  List.fold_left2(
+    (body, arg, binder) => subst(arg, binder, body),
+    body,
+    args,
+    binders,
+  );
 
 let unroll = (ty: t): t =>
   switch (term_of(ty)) {
@@ -1051,14 +1086,28 @@ let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
     let unfolded = unfold_one(ty2);
     Equality.syntactic.typ(unfolded, ty2) ? None : meet'(ty1, unfolded);
   | (Poly(x1, ty1), Poly(x2, ty2)) =>
-    let ty1' =
-      switch (TPat.tyvar_of_utpat(x2)) {
-      | Some(x2) => subst(Var(x2) |> temp, x1, ty1)
-      | None => ty1
-      };
-    let ctx = Ctx.extend_dummy_tvar(ctx, x2);
-    let+ ty_body = meet(ctx, ty1', ty2);
-    Poly(x2, ty_body) |> temp;
+    let bs1 = TPat.binders_of(x1);
+    let bs2 = TPat.binders_of(x2);
+    if (List.length(bs1) != List.length(bs2)) {
+      None;
+    } else {
+      /* Element-wise alpha-rename ty1's binders to the corresponding
+         names from x2 so the two share a binder list. */
+      let ty1' =
+        List.fold_left2(
+          (body, b1, b2) =>
+            switch (TPat.tyvar_of_utpat(b2)) {
+            | Some(name) => subst(Var(name) |> temp, b1, body)
+            | None => body
+            },
+          ty1,
+          bs1,
+          bs2,
+        );
+      let ctx = Ctx.extend_dummy_tvar(ctx, x2);
+      let+ ty_body = meet(ctx, ty1', ty2);
+      Poly(x2, ty_body) |> temp;
+    };
   /* Note for above: `subst` is capture-avoiding (see its definition),
      so renaming `x1` to `x2` via substitution is safe. In rare cases
      where capture does trigger, `subst` generates fresh internal type

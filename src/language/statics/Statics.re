@@ -1599,18 +1599,29 @@ and uexp_to_info_map =
         utyp_to_info_map(~ctx, ~ancestors=ancestors_inclusive, utyp, m);
       let elab_term = TypAp(fn_elab, Typ.normalize(ctx, utyp)) |> rewrap;
       let (option_name, ty_body) = MatchedTyp.poly_pair_tolerant(ctx, fn.ty);
-      switch (option_name) {
-      | Some(name) =>
-        add(
-          ~elab_term,
-          ~elab_syn_ty=Typ.subst(utyp, name, ty_body),
-          ~marks=[],
-          ~co_ctx=fn.co_ctx,
-          m,
-        )
-      | None =>
-        add(~elab_term, ~elab_syn_ty=ty_body, ~marks=[], ~co_ctx=fn.co_ctx, m) /* invalid name matches with no free type variables. */
-      };
+      /* When the function's `Poly` binder is a `TPat.Tuple([a, …])`,
+         the corresponding type argument should be a `TypTuple([t1,
+         …])` of matching arity, with each `tk` substituted for the
+         corresponding binder element-wise. A single-binder `Poly`
+         expects a single (non-`TypTuple`) argument. */
+      let elab_syn_ty =
+        switch (option_name) {
+        | Some(name) =>
+          let binders = TPat.binders_of(name);
+          let args =
+            switch (Typ.term_of(utyp), binders) {
+            | (TypTuple(ts), [_, _, ..._]) => Some(ts)
+            | (_, [_]) => Some([utyp])
+            | _ => None
+            };
+          switch (args) {
+          | Some(ts) when List.length(ts) == List.length(binders) =>
+            Typ.subst_many(ts, binders, ty_body)
+          | _ => ty_body
+          };
+        | None => ty_body
+        };
+      add(~elab_term, ~elab_syn_ty, ~marks=[], ~co_ctx=fn.co_ctx, m);
     | DeferredAp(fn, args) =>
       /* If this is a builtin with custom statics */
       let custom_statics =
@@ -1747,32 +1758,62 @@ and uexp_to_info_map =
         m,
       );
     | TypFun(utpat, body, tfname) =>
+      /* `utpat` may be a single binder or a `TPat.Tuple([…])`
+         representing a multi-binder `typfun a, b -> e`. Extend the
+         context with each binder, and rename the expected Poly's
+         binder list element-wise so the body's expected type uses the
+         user-written names. */
       let (name_expected_opt, item) =
         MatchedTyp.poly_pair_tolerant(ctx, ana);
-      let (mode_body, ctx_body) =
-        switch (TPat.tyvar_of_utpat(utpat)) {
-        | Some(name) when !Ctx.is_base_typ(name) =>
-          let mode_body = {
-            switch (name_expected_opt) {
-            | Some(name_expected) =>
-              Typ.subst(Var(name) |> Typ.temp, name_expected, item)
-            | _ => item
-            };
-          };
-          let ctx_body =
-            Ctx.extend_tvar(
-              ctx,
-              {
-                name,
-                id: TPat.rep_id(utpat),
-                kind: Abstract,
-                typ_kind: TypKind.Type,
-              },
+      let user_binders = TPat.binders_of(utpat);
+      let user_names_safe =
+        user_binders
+        |> List.filter(b =>
+             switch (TPat.tyvar_of_utpat(b)) {
+             | Some(name) => !Ctx.is_base_typ(name)
+             | None => false
+             }
+           );
+      let mode_body =
+        switch (name_expected_opt) {
+        | Some(expected_tpat) =>
+          let expected_binders = TPat.binders_of(expected_tpat);
+          if (List.length(expected_binders) != List.length(user_binders)) {
+            item;
+          } else {
+            List.fold_left2(
+              (body, exp_b, user_b) =>
+                switch (TPat.tyvar_of_utpat(user_b)) {
+                | Some(name) when !Ctx.is_base_typ(name) =>
+                  Typ.subst(Var(name) |> Typ.temp, exp_b, body)
+                | _ => body
+                },
+              item,
+              expected_binders,
+              user_binders,
             );
-          (mode_body, ctx_body);
-        | Some(_)
-        | None => (item, ctx)
+          };
+        | None => item
         };
+      let ctx_body =
+        List.fold_left(
+          (ctx, b: TPat.t) =>
+            switch (TPat.tyvar_of_utpat(b)) {
+            | Some(name) =>
+              Ctx.extend_tvar(
+                ctx,
+                {
+                  name,
+                  id: TPat.rep_id(b),
+                  kind: Abstract,
+                  typ_kind: TypKind.Type,
+                },
+              )
+            | None => ctx
+            },
+          ctx,
+          user_names_safe,
+        );
       let m =
         utpat_to_info_map(~ctx, ~ancestors=ancestors_inclusive, utpat, m)
         |> snd;
@@ -3966,52 +4007,30 @@ and utyp_to_info_map =
         variants,
       );
     add(m);
-  | Poly({term: Var(name), _} as utpat, tbody) =>
-    let body_ctx =
-      Ctx.extend_tvar(
-        ctx,
-        {
-          name,
-          id: TPat.rep_id(utpat),
-          kind: Abstract,
-          typ_kind: TypKind.Type,
-        },
-      );
-    let m =
-      utyp_to_info_map(
-        tbody,
-        ~ctx=body_ctx,
-        ~ancestors=ancestors_inclusive,
-        ~expects=TypeExpected,
-        m,
-      )
-      |> snd;
-    let m =
-      utpat_to_info_map(~ctx, ~ancestors=ancestors_inclusive, utpat, m) |> snd;
-    add(m); // TODO: check with andrew
   | Poly(utpat, tbody) =>
-    let m =
-      utyp_to_info_map(
-        tbody,
-        ~ctx,
-        ~ancestors=ancestors_inclusive,
-        ~expects=TypeExpected,
-        m,
-      )
-      |> snd;
-    let m =
-      utpat_to_info_map(~ctx, ~ancestors=ancestors_inclusive, utpat, m) |> snd;
-    add(m); // TODO: check with andrew
-  | TypLam({term: Var(name), _} as utpat, tbody) =>
+    /* `utpat` may be a single binder (`Var`) or `TPat.Tuple([…])`
+       representing `poly a, b, … -> body`. Extend the body context
+       with each named binder. Non-name binders (holes / invalid) are
+       still recorded via `utpat_to_info_map` but do not contribute to
+       the body's type environment. */
     let body_ctx =
-      Ctx.extend_tvar(
+      List.fold_left(
+        (ctx, b: TPat.t) =>
+          switch (TPat.tyvar_of_utpat(b)) {
+          | Some(name) =>
+            Ctx.extend_tvar(
+              ctx,
+              {
+                name,
+                id: TPat.rep_id(b),
+                kind: Abstract,
+                typ_kind: TypKind.Type,
+              },
+            )
+          | None => ctx
+          },
         ctx,
-        {
-          name,
-          id: TPat.rep_id(utpat),
-          kind: Abstract,
-          typ_kind: TypKind.Type,
-        },
+        TPat.binders_of(utpat),
       );
     let m =
       utyp_to_info_map(
@@ -4026,10 +4045,29 @@ and utyp_to_info_map =
       utpat_to_info_map(~ctx, ~ancestors=ancestors_inclusive, utpat, m) |> snd;
     add(m);
   | TypLam(utpat, tbody) =>
+    let body_ctx =
+      List.fold_left(
+        (ctx, b: TPat.t) =>
+          switch (TPat.tyvar_of_utpat(b)) {
+          | Some(name) =>
+            Ctx.extend_tvar(
+              ctx,
+              {
+                name,
+                id: TPat.rep_id(b),
+                kind: Abstract,
+                typ_kind: TypKind.Type,
+              },
+            )
+          | None => ctx
+          },
+        ctx,
+        TPat.binders_of(utpat),
+      );
     let m =
       utyp_to_info_map(
         tbody,
-        ~ctx,
+        ~ctx=body_ctx,
         ~ancestors=ancestors_inclusive,
         ~expects=TypeExpected,
         m,

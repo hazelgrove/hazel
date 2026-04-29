@@ -610,30 +610,42 @@ module Transition = (EV: EV_MODE) => {
     | TypAp(d, tau) =>
       let. _ = otherwise(env, d => TypAp(d, tau) |> rewrap)
       and. d' = req_final(req(env), d => TypAp(d, tau) |> wrap_ctx, d);
+      /* Match a binder against a type argument and decide what the
+         single substitution step should do.
+
+         - Single binder against any `tau`: substitute `tau`.
+         - Tuple binder of arity n against `TypTuple([t1, …, tn])`:
+           substitute element-wise, all in one step.
+         - Other (arity mismatch, non-tuple arg against tuple binder,
+           tuple arg against single binder): fall back to the
+           single-step substitution; downstream marks have already
+           caught the arity error in statics. */
+      let zip_subst = (tpat: TPat.t, tau: Typ.t, body: DHExp.t): DHExp.t =>
+        switch (tpat.term, Typ.term_of(tau)) {
+        | (Tuple(bs), TypTuple(ts)) when List.length(bs) == List.length(ts) =>
+          DHExp.ty_subst_many(ts, bs, body)
+        | _ => DHExp.ty_subst(tau, tpat, body)
+        };
       switch (DHExp.term_of(d')) {
       | Constructor(name, Some(Some({term: Poly(_), _} as schema))) =>
-        /* Specialize a polymorphic constructor's schema with the applied
-           type argument(s). For multi-argument applications (a
-           `TypTuple` argument bundle) we peel one `Poly` per element,
-           one at a time, so the same code handles both single-arg
-           constructors (`Some(3)`) and multi-arg ones
-           (`A(3) : Either(Int, Bool)`). */
-        let args =
-          switch (Typ.term_of(tau)) {
-          | TypTuple(ts) => ts
-          | _ => [tau]
-          };
+        /* Specialize a polymorphic constructor's schema with the
+           applied type argument. The schema may be a single-binder
+           `Poly(a, body)` (arg = `tau`) or a multi-binder
+           `Poly(TPat.Tuple([a, b]), body)` (arg = `TypTuple([t1, t2])`
+           when the constructor was emitted by elaboration of a
+           multi-parameter type). */
         let specialized =
-          List.fold_left(
-            (acc: Typ.t, arg: Typ.t) =>
-              switch (Typ.term_of(acc)) {
-              | Poly(tpat, body) when TPat.tyvar_of_utpat(tpat) != None =>
-                Typ.subst(arg, tpat, body)
-              | _ => acc
-              },
-            schema,
-            args,
-          );
+          switch (Typ.term_of(schema)) {
+          | Poly(tpat, body) =>
+            switch (tpat.term, Typ.term_of(tau)) {
+            | (Tuple(bs), TypTuple(ts))
+                when List.length(bs) == List.length(ts) =>
+              Typ.subst_many(ts, bs, body)
+            | (Tuple(_), _) => schema
+            | _ => Typ.subst(tau, tpat, body)
+            }
+          | _ => schema
+          };
         if (Equality.syntactic.typ(specialized, schema)) {
           /* No Poly to specialize (e.g. monomorphic constructor with
              explicit TypAp); fall through to generic TypFun handling. */
@@ -643,7 +655,7 @@ module Transition = (EV: EV_MODE) => {
             Step({
               expr:
                 DHExp.assign_name_if_none(
-                  DHExp.ty_subst(tau, utpat, tfbody),
+                  zip_subst(utpat, tau, tfbody),
                   Option.map(
                     x => x ++ "@<" ++ Typ.pretty_print(tau) ++ ">",
                     name,
@@ -667,40 +679,20 @@ module Transition = (EV: EV_MODE) => {
         let-unbox typfun = (TypFun, d');
         switch (typfun) {
         | TypFun(utpat, tfbody, name) =>
-          /* Rule ITTLam. For multi-arg `f@<a, b>` the user's type
-             argument arrives as `TypTuple([a, b])`; peel one TypFun
-             binder by substituting the head element, and re-apply the
-             remaining tuple to the resulting body so subsequent
-             TypFun layers consume the rest. Single-arg calls
-             substitute normally. */
-          let (head_arg, residual): (Typ.t, option(Typ.t)) =
-            switch (Typ.term_of(tau)) {
-            | TypTuple([head, ...rest]) =>
-              let residual =
-                switch (rest) {
-                | [] => None
-                | [single] => Some(single)
-                | _ => Some(TypTuple(rest) |> Typ.fresh)
-                };
-              (head, residual);
-            | _ => (tau, None)
-            };
-          let body_after_head =
-            DHExp.assign_name_if_none(
-              DHExp.ty_subst(head_arg, utpat, tfbody),
-              Option.map(
-                x => x ++ "@<" ++ Typ.pretty_print(head_arg) ++ ">",
-                name,
-              ),
-            );
-          let expr =
-            switch (residual) {
-            | None => body_after_head
-            | Some(rest_tau) =>
-              TypAp(body_after_head, rest_tau) |> DHExp.fresh
-            };
+          /* Rule ITTLam, generalized to multi-binder TypFun: a user
+             expression `f@<t1, t2>` has `tau = TypTuple([t1, t2])`;
+             paired against `typfun a, b -> body` (utpat =
+             `TPat.Tuple([a, b])`) we substitute element-wise in a
+             single step. Single-binder TypFuns substitute normally. */
           Step({
-            expr,
+            expr:
+              DHExp.assign_name_if_none(
+                zip_subst(utpat, tau, tfbody),
+                Option.map(
+                  x => x ++ "@<" ++ Typ.pretty_print(tau) ++ ">",
+                  name,
+                ),
+              ),
             side_effects: [],
             kind: TypFunAp,
             is_value: false,
