@@ -185,6 +185,13 @@
   background-color: transparent !important;
   opacity: 1 !important;
   text-decoration: none !important;
+  /* proj-probe.css adds `border-bottom: 1px double var(--R1)` on
+     `.sample:hover .value` (with a flashing animation) to flag the
+     hovered sample. That selector matches every nested .value too,
+     so cells under the cursor's sample get an underline-like border.
+     Kill it for cells. */
+  border-bottom: 0 !important;
+  animation: none !important;
 }
 .live-offside .value.rich .value .token,
 .live-offside .value.rich .value .code-text .token {
