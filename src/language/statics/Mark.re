@@ -84,6 +84,11 @@ type t =
       actual: TypKind.t,
     })
   | TypApplyNonArrowKind(TypKind.t)
+  | TypApplyArityMismatch({
+      callee_kind: TypKind.t,
+      expected: int,
+      actual: int,
+    })
   | TypDuplicateConstructor(Constructor.t)
   | TypDuplicateLabels(list(LabeledTuple.label), Typ.t)
   | TypWantTypeFoundAp

@@ -2754,6 +2754,10 @@ let get_doc =
       simple(
         "This applies a parameterized type constructor to a type argument.",
       )
+    | TypTuple(_) =>
+      simple(
+        "This is the multi-argument bundle for a parameterized type application.",
+      )
     | Rec(tpat, typ) =>
       let tpat_id = List.nth(IdTagged.ids(tpat), 0);
       let tbody_id = List.nth(IdTagged.ids(typ), 0);

@@ -417,6 +417,7 @@ and Typ: {
         | List(t) => List(typ_map_term(t))
         | TypLam(tp, t) => TypLam(tpat_map_term(tp), typ_map_term(t))
         | TypApp(t1, t2) => TypApp(typ_map_term(t1), typ_map_term(t2))
+        | TypTuple(ts) => TypTuple(List.map(typ_map_term, ts))
         | Unknown(Hole(MultiHole(things))) =>
           Unknown(Hole(MultiHole(List.map(any_map_term, things))))
         | Prod(xs) => Prod(List.map(typ_map_term, xs))

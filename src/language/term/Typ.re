@@ -25,6 +25,7 @@ type cls =
   | Poly
   | TypLam
   | TypApp
+  | TypTuple
   | ProofOf
   | ProdProjection
   | ProdExtension
@@ -101,6 +102,7 @@ let cls_of_term: Grammar.typ_term('a) => cls =
   | Poly(_) => Poly
   | TypLam(_) => TypLam
   | TypApp(_) => TypApp
+  | TypTuple(_) => TypTuple
   | ProofOf(_) => ProofOf
   | ProdProjection(_) => ProdProjection
   | ProdExtension(_) => ProdExtension
@@ -130,6 +132,7 @@ let show_cls: cls => string =
   | Poly => "Type quantifier"
   | TypLam => "Type-level function"
   | TypApp => "Type-level application"
+  | TypTuple => "Type-application argument tuple"
   | ProofOf => "Proof type"
   | ProdProjection => "Tuple projection"
   | ProdExtension => "Tuple extension"
@@ -151,6 +154,7 @@ let rec is_arrow = (typ: t) => {
   | Var(_)
   | TypLam(_)
   | TypApp(_)
+  | TypTuple(_)
   | Sum(_)
   | Poly(_)
   | ProofOf(_)
@@ -180,6 +184,7 @@ let is_atom = (ty: t): bool =>
   | Poly(_)
   | TypLam(_)
   | TypApp(_)
+  | TypTuple(_)
   | Rec(_)
   | ProdProjection(_)
   | ProdExtension(_)
@@ -203,6 +208,7 @@ let rec has_fun = (typ: t) =>
   | ExplicitNonlabel
   | Var(_) => false
   | TypApp(t1, t2) => has_fun(t1) || has_fun(t2)
+  | TypTuple(ts) => List.exists(has_fun, ts)
   | List(t) => has_fun(t)
   | Rec(_, t) => has_fun(t)
   | Sum(sm) =>
@@ -236,6 +242,7 @@ let rec is_poly = (typ: t) => {
   | Sum(_)
   | TypLam(_)
   | TypApp(_)
+  | TypTuple(_)
   | Rec(_)
   | ProdProjection(_)
   | ProdExtension(_)
@@ -311,6 +318,7 @@ let rec free_vars = (~bound=[], ty: t): list(Var.t) =>
   | ExplicitNonlabel => []
   | Var(v) => List.mem(v, bound) ? [] : [v]
   | TypApp(t1, t2) => free_vars(~bound, t1) @ free_vars(~bound, t2)
+  | TypTuple(ts) => List.concat_map(free_vars(~bound), ts)
   | Parens(ty)
   | Projector(_, ty) => free_vars(~bound, ty)
   | List(ty) => free_vars(~bound, ty)
@@ -335,6 +343,7 @@ let rec vars = (ty: t): list(Var.t) =>
   | Unknown(_) => []
   | Var(x) => [x]
   | TypApp(ty1, ty2) => vars(ty1) @ vars(ty2)
+  | TypTuple(ts) => List.concat_map(vars, ts)
   | Arrow(ty1, ty2) => vars(ty1) @ vars(ty2)
   | Prod(tys) => List.concat_map(vars, tys)
   | Sum(sm) =>
@@ -398,6 +407,8 @@ let rec num_nodes = (ty: t): int => {
   | Unknown(_) => 1
   | Var(_) => 1
   | TypApp(t1, t2) => 1 + num_nodes(t1) + num_nodes(t2)
+  | TypTuple(ts) =>
+    1 + List.fold_left((acc, ty) => acc + num_nodes(ty), 0, ts)
   | Arrow(t1, t2) => 1 + num_nodes(t1) + num_nodes(t2)
   | Prod(tys) =>
     1 + List.fold_left((acc, ty) => acc + num_nodes(ty), 0, tys)
@@ -437,6 +448,8 @@ let rec count_unknowns = (ty: t): int =>
   | DrvQuoteTy(_)
   | Var(_) => 0
   | TypApp(t1, t2) => count_unknowns(t1) + count_unknowns(t2)
+  | TypTuple(ts) =>
+    List.fold_left((acc, ty) => acc + count_unknowns(ty), 0, ts)
   | Arrow(t1, t2) => count_unknowns(t1) + count_unknowns(t2)
   | Prod(tys) =>
     List.fold_left((acc, ty) => acc + count_unknowns(ty), 0, tys)
@@ -474,6 +487,7 @@ let rec contains_sum_or_var = (ty: t): bool =>
   | Var(_)
   | TypApp(_, _)
   | Sum(_) => true
+  | TypTuple(ts) => List.exists(contains_sum_or_var, ts)
   | Arrow(t1, t2) => contains_sum_or_var(t1) || contains_sum_or_var(t2)
   | Prod(tys) => List.exists(contains_sum_or_var, tys)
   | Rec(_, ty) => contains_sum_or_var(ty)
@@ -522,6 +536,7 @@ let rec subst = (s: t, x: TPat.t, ty: t): t => {
       Arrow(subst(s, x, ty1), subst(s, x, ty2)) |> rewrap
     | TypApp(ty1, ty2) =>
       TypApp(subst(s, x, ty1), subst(s, x, ty2)) |> rewrap
+    | TypTuple(ts) => TypTuple(List.map(subst(s, x), ts)) |> rewrap
     | Prod(tys) => Prod(List.map(subst(s, x), tys)) |> rewrap
     | TupLabel(label, ty) => TupLabel(label, subst(s, x, ty)) |> rewrap
     | Sum(sm) =>
@@ -779,6 +794,13 @@ let rec normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
     };
   | Arrow(t1, t2) =>
     Arrow(normalize(ctx, t1), normalize(ctx, t2)) |> rewrap
+  | TypTuple(ts) =>
+    /* `TypTuple` is the multi-argument bundle in a type-level
+       application; normalize each argument independently. It only
+       appears as the second arg of a `TypApp`; its shape is preserved
+       so kind checking can match it against the callee's tuple-arrow
+       arity. */
+    TypTuple(List.map(normalize(ctx), ts)) |> rewrap
   | Prod(ts) =>
     let ts = List.map(normalize(ctx), ts);
     let duplicate_labels =
@@ -1055,6 +1077,12 @@ let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
   | (ProofOf(e1), ProofOf(e2)) =>
     Equality.semantic.exp(e1, e2) ? Some(ty1) : None
   | (ProofOf(_), _) => None
+  | (TypTuple(ts1), TypTuple(ts2))
+      when List.length(ts1) == List.length(ts2) =>
+    let* tys = ListUtil.map2_opt(meet', ts1, ts2);
+    let+ tys = OptUtil.sequence(tys);
+    TypTuple(tys) |> temp;
+  | (TypTuple(_), _) => None
   // We would prefer for this to be a sort difference and never appear in a meet.
   // These get marked in statics but that does not remove them from the utyp's propagated on parents.
   | (ExplicitNonlabel, _) => None
@@ -1089,6 +1117,10 @@ let rec match_synswitch = (t1: t, t2: t) => {
   | (TypApp(t1a, t1b), TypApp(t2a, t2b)) =>
     TypApp(match_synswitch(t1a, t2a), match_synswitch(t1b, t2b)) |> rewrap1
   | (TypApp(_), _) => t1
+  | (TypTuple(ts1), TypTuple(ts2))
+      when List.length(ts1) == List.length(ts2) =>
+    TypTuple(List.map2(match_synswitch, ts1, ts2)) |> rewrap1
+  | (TypTuple(_), _) => t1
   | (Arrow(ty1, ty2), Arrow(ty1', ty2')) =>
     Arrow(match_synswitch(ty1, ty1'), match_synswitch(ty2, ty2')) |> rewrap1
   | (Arrow(_), _) => t1
@@ -1194,6 +1226,7 @@ let rec is_syn = (ty: t): bool =>
   | Poly(_)
   | TypLam(_)
   | TypApp(_)
+  | TypTuple(_)
   | ProofOf(_)
   | List(_)
   | Arrow(_)
@@ -1220,6 +1253,7 @@ let rec is_ana_atom = (ty: t) =>
   | Poly(_)
   | TypLam(_)
   | TypApp(_)
+  | TypTuple(_)
   | ProofOf(_)
   | List(_)
   | Arrow(_)
@@ -1248,6 +1282,7 @@ let rec is_syn_plus = (ty: t): bool =>
   | Var(_)
   | Rec(_)
   | TypApp(_)
+  | TypTuple(_)
   | List(_)
   | Prod(_)
   | Sum(_)
@@ -1286,6 +1321,9 @@ let rec needs_parens = (ty: t): bool =>
   | Poly(_, _)
   | TypLam(_, _)
   | TypApp(_, _)
+  | TypTuple(_) /* TypTuple is the bare argument bundle in `T(a, b)`; if
+                   it ever appears outside a TypApp position we wrap so
+                   downstream readers don't conflate it with a tuple. */
   | Arrow(_, _)
   | Prod(_)
   | Sum(_) => true /* disambiguate between (A + B) -> C and A + (B -> C) */
@@ -1322,6 +1360,7 @@ let rec pretty_print = (ty: t): string =>
   | TypLam(tv, t) =>
     "typfun " ++ pretty_print_tvar(tv) ++ " -> " ++ pretty_print(t)
   | TypApp(t1, t2) => pretty_print(t1) ++ "(" ++ pretty_print(t2) ++ ")"
+  | TypTuple(ts) => String.concat(", ", List.map(pretty_print, ts))
   | List(t) => "[" ++ pretty_print(t) ++ "]"
   | Arrow(t1, t2) => paren_pretty_print(t1) ++ " -> " ++ pretty_print(t2)
   | Sum(sm) =>

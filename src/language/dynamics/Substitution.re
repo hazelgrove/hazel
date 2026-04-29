@@ -213,6 +213,7 @@ and in_typ = (env: Environment.t(Exp.t), typ: Typ.t) =>
         | Arrow(_, _)
         | TypLam(_, _)
         | TypApp(_, _)
+        | TypTuple(_)
         | Sum(_)
         | Prod(_)
         | ExplicitNonlabel

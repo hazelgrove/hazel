@@ -138,6 +138,7 @@ module Ctr = {
     | Poly(_)
     | TypLam(_)
     | TypApp(_)
+    | TypTuple(_)
     | ProdProjection(_)
     | ProdExtension(_)
     | Var(_) => Infinite
@@ -423,6 +424,7 @@ module UnseenPatternList: UnseenPatternList = {
     | Poly(_)
     | TypLam(_)
     | TypApp(_)
+    | TypTuple(_)
     | ProofOf(_)
     | DrvQuoteTy(_)
     | Var(_) => unseen_pattern
@@ -564,6 +566,7 @@ module UnseenPatternList: UnseenPatternList = {
     | Poly(_)
     | TypLam(_)
     | TypApp(_)
+    | TypTuple(_)
     | ProofOf(_)
     | DrvQuoteTy(_)
     | Var(_) => cons_wild(unseen_pattern)
@@ -631,6 +634,7 @@ module UnseenPatternList: UnseenPatternList = {
     | Poly(_)
     | TypLam(_)
     | TypApp(_)
+    | TypTuple(_)
     | ProofOf(_)
     | DrvQuoteTy(_)
     | Var(_) => cons_wild(unseen_pattern)

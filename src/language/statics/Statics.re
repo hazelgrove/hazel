@@ -3503,14 +3503,39 @@ and utyp_to_info_map =
     | Poly(_)
     | ProofOf(_)
     | Sig(_) => type_
+    | TypTuple(_) =>
+      /* `TypTuple` is the multi-argument bundle in a type-level
+         application; it has no kind on its own. We return `Type` as a
+         neutral fallback so isolated `TypTuple` nodes don't poison the
+         rest of kind checking — `status_for_node` reports the error
+         at the TypTuple node itself when it appears outside a
+         `TypApp` argument position. */
+      type_
     | TypLam(param, body) =>
       let body_ctx = Ctx.extend_dummy_tvar(ctx, param);
-      TypKind.Arrow(type_, kind_of_typ(body_ctx, body));
-    | TypApp(fn, _) =>
-      switch (kind_of_typ(ctx, fn)) {
-      | TypKind.Arrow(_, result) => result
-      | _ => type_
-      }
+      TypKind.arrows([type_], kind_of_typ(body_ctx, body));
+    | TypApp(fn, arg) =>
+      let fn_kind = kind_of_typ(ctx, fn);
+      switch (arg.term) {
+      | TypTuple(ts) =>
+        /* Multi-argument application `T(a, b, …)` consumes the entire
+           tuple of args at once against `T`'s tuple-arrow kind. */
+        let arg_kinds = List.map(kind_of_typ(ctx), ts);
+        switch (fn_kind) {
+        | TypKind.Arrow(expected, result)
+            when
+              List.length(expected) == List.length(arg_kinds)
+              && List.for_all2(TypKind.equal, expected, arg_kinds) =>
+          result
+        | _ => type_
+        };
+      | _ =>
+        let arg_kind = kind_of_typ(ctx, arg);
+        switch (TypKind.apply(fn_kind, arg_kind)) {
+        | Some(result) => result
+        | None => type_
+        };
+      };
     | Rec(param, body) =>
       let body_ctx = Ctx.extend_dummy_tvar(ctx, param);
       kind_of_typ(body_ctx, body);
@@ -3669,24 +3694,75 @@ and utyp_to_info_map =
     | (_, Parens(t)) => status_for_node(~expects, t)
     | (TypeExpected, TypApp(fn, arg)) =>
       /* TypApp's own marks are application-level: the callee must have
-         Arrow kind, and the argument's kind must match the arrow's input.
-         Children's own kinds are reported on their own info entries. */
+         Arrow kind matching the argument arity, and each argument's kind
+         must match the corresponding parameter slot. Children's own
+         kinds are reported on their own info entries.
+
+         Multi-argument applications `T(a, b, …)` are encoded as
+         `TypApp(T, TypTuple([a, b, …]))`; the entire argument tuple is
+         consumed at once against `T`'s tuple-arrow kind. Single-arg
+         applications consume one slot from the head of the kind's arg
+         list and may leave a residual arrow (which then errors as a
+         partial application when used in `Type` position). */
       let fn_kind = kind_of_typ(ctx, fn);
-      let arg_kind = kind_of_typ(ctx, arg);
+      let arg_kinds =
+        switch (arg.term) {
+        | TypTuple(ts) => List.map(kind_of_typ(ctx), ts)
+        | _ => [kind_of_typ(ctx, arg)]
+        };
       switch (fn_kind) {
       | TypKind.Arrow(expected, result) =>
-        if (!TypKind.equal(expected, arg_kind)) {
-          err(Mark.TypKindMismatch({expected, actual: arg_kind}));
-        } else if (!TypKind.equal(result, TypKind.Type)) {
+        let n_expected = List.length(expected);
+        let n_actual = List.length(arg_kinds);
+        switch (arg.term) {
+        | TypTuple(_) when n_expected != n_actual =>
           err(
-            Mark.TypKindMismatch({
-              expected: TypKind.Type,
-              actual: result,
+            Mark.TypApplyArityMismatch({
+              callee_kind: fn_kind,
+              expected: n_expected,
+              actual: n_actual,
             }),
-          );
-        } else {
-          ok(Message.Type(utyp));
-        }
+          )
+        | _ =>
+          /* Compare the prefix of `expected` we're applying. For multi-arg
+             `n_actual = n_expected`. For single-arg this consumes one slot
+             from the head, possibly leaving a residual arrow. */
+          let n_to_take = min(n_actual, n_expected);
+          let to_compare =
+            ListUtil.sublist((0, n_to_take), expected);
+          let remaining =
+            ListUtil.sublist((n_to_take, n_expected), expected);
+          if (List.length(to_compare) != n_actual
+              || !List.for_all2(TypKind.equal, to_compare, arg_kinds)) {
+            err(
+              Mark.TypKindMismatch({
+                expected:
+                  switch (to_compare) {
+                  | [k] => k
+                  | _ => TypKind.Arrow(to_compare, TypKind.Type)
+                  },
+                actual:
+                  switch (arg_kinds) {
+                  | [k] => k
+                  | _ => TypKind.Arrow(arg_kinds, TypKind.Type)
+                  },
+              }),
+            );
+          } else {
+            /* Build the residual kind from the unconsumed slots. */
+            let residual = TypKind.arrows(remaining, result);
+            if (!TypKind.equal(residual, TypKind.Type)) {
+              err(
+                Mark.TypKindMismatch({
+                  expected: TypKind.Type,
+                  actual: residual,
+                }),
+              );
+            } else {
+              ok(Message.Type(utyp));
+            };
+          };
+        };
       | _ => err(Mark.TypApplyNonArrowKind(fn_kind))
       };
     | (TypeExpected, _) =>
@@ -3759,6 +3835,12 @@ and utyp_to_info_map =
     };
     let m = add_info(IdTagged.ids(t1), InfoTyp(fn_info), m);
     let m = go(t2, m) |> snd;
+    add(m);
+  | TypTuple(ts) =>
+    /* TypTuple is the multi-arg bundle in a TypApp. Recurse into each
+       element so they get their own kind info; the TypTuple node
+       itself is checked at its parent's site. */
+    let m = map_m(go, ts, m) |> snd;
     add(m);
   | Prod(ts) =>
     let duplicate_labels =

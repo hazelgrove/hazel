@@ -208,6 +208,7 @@ let external_precedence_typ = (tp: Typ.t) =>
   | ProdProjection(_) => Precedence.dot
   | ProdExtension(_) => Precedence.ap
   | TypApp(_) => Precedence.type_sum_ap
+  | TypTuple(_) => Precedence.comma
   // Same goes for forms which are already surrounded
   | Parens(_)
   | Projector(_)
@@ -805,6 +806,9 @@ and parenthesize_typ =
       parenthesize_typ(t1) |> paren_typ_assoc_at(Precedence.type_sum_ap),
       parenthesize_typ(t2) |> paren_typ_at(Precedence.min),
     )
+    |> rewrap
+  | TypTuple(ts) =>
+    TypTuple(List.map(t => parenthesize_typ(t) |> paren_typ_at(Precedence.comma), ts))
     |> rewrap
   | Sum(ts) =>
     Sum(
@@ -2797,6 +2801,24 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
     let+ t1 = go(t1)
     and+ t2 = go(t2);
     wrap(typ, t1 @ [mk_form(ApTyp, id, [t2])]);
+  | TypTuple(ts) =>
+    /* Render as a comma-separated list (no surrounding parens — the
+       enclosing TypApp's parens carry it). */
+    let id = typ |> Typ.rep_id;
+    let+ rendered =
+      List.fold_left(
+        (acc, t) => {
+          let+ acc = acc
+          and+ rt = go(t);
+          switch (acc) {
+          | [] => rt
+          | _ => acc @ text_to_pretty(id, Sort.Typ, ", ") @ rt
+          };
+        },
+        all([]),
+        ts,
+      );
+    wrap(typ, rendered);
   | Sum([]) => failwith("Empty Sums are not allowed")
   | Sum([t]) =>
     let id = typ |> Typ.rep_id;

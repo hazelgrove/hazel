@@ -682,6 +682,10 @@ let equality =
     | (TypApp(t11, t12), TypApp(t21, t22)) =>
       typ'(t11, t21) && typ'(t12, t22)
     | (TypApp(_, _), _) => false
+    | (TypTuple(ts1), TypTuple(ts2))
+        when List.length(ts1) == List.length(ts2) =>
+      List.equal(typ', ts1, ts2)
+    | (TypTuple(_), _) => false
     | (Prod(tys1), Prod(tys2)) when List.length(tys1) == List.length(tys2) =>
       List.equal(typ', tys1, tys2)
     | (Prod(_), _) => false

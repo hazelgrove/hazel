@@ -1678,6 +1678,14 @@ and abbreviate_typ = (typ: Typ.t): Typ.t => {
           available := available^ - 2;
           TypApp(abbreviate_typ(t1), abbreviate_typ(t2));
         }
+      | TypTuple(ts) =>
+        if (available^ <= List.length(ts) + 1) {
+          available := available^ - 1;
+          indet_term_typ;
+        } else {
+          available := available^ - List.length(ts);
+          TypTuple(List.map(abbreviate_typ, ts));
+        }
       | TupLabel(t1, t2) =>
         if (available^ < 3) {
           available := available^ - 1;

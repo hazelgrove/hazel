@@ -161,6 +161,11 @@ let sample_type = (cls_typ: Typ.cls): Grammar.UnitGrammar.typ => {
       | Arrow => arrow(unknown(Hole(EmptyHole)), unknown(Hole(EmptyHole)))
       | TypLam => typ_lam(TPat.var("x"), unknown(Hole(EmptyHole)))
       | TypApp => typ_app(var("F"), unknown(Hole(EmptyHole)))
+      | TypTuple =>
+        typ_tuple([
+          unknown(Hole(EmptyHole)),
+          unknown(Hole(EmptyHole)),
+        ])
       | Var => var("x")
       | Prod => prod([])
       | TupLabel =>

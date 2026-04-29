@@ -266,6 +266,7 @@ let core_mark_err_view =
     | TypFreeTypeVariable(_)
     | TypKindMismatch(_)
     | TypApplyNonArrowKind(_)
+    | TypApplyArityMismatch(_)
     | TypDuplicateConstructor(_)
     | TypDuplicateLabels(_, _)
     | TypWantTypeFoundAp
@@ -525,6 +526,14 @@ let typ_mark_err_view = (~globals, m: Mark.t) => {
       text("Cannot apply a type of kind "),
       code(TypKind.to_string(kind)),
     ]
+  | TypApplyArityMismatch({callee_kind, expected, actual}) => [
+      text("Type "),
+      code(TypKind.to_string(callee_kind)),
+      text(" expects "),
+      code(string_of_int(expected)),
+      text(" argument" ++ (expected == 1 ? "" : "s") ++ ", got "),
+      code(string_of_int(actual)),
+    ]
   | TypWantConstructorFoundAp
   | TypWantConstructorFoundType(_) => [text("Expected a constructor")]
   | TypWantTypeFoundAp => [text("Must be part of a sum type")]
@@ -749,6 +758,7 @@ let exp_mark_err_view =
   | TypFreeTypeVariable(_)
   | TypKindMismatch(_)
   | TypApplyNonArrowKind(_)
+  | TypApplyArityMismatch(_)
   | TypDuplicateConstructor(_)
   | TypDuplicateLabels(_, _)
   | TypWantTypeFoundAp

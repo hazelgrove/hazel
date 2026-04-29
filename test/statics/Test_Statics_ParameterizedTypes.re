@@ -201,7 +201,7 @@ let x : Option = ? in x
           has_mark(
             Mark.TypKindMismatch({
               expected: TypKind.Type,
-              actual: TypKind.Arrow(TypKind.Type, TypKind.Type),
+              actual: TypKind.Arrow([TypKind.Type], TypKind.Type),
             }),
             marks,
           ),
@@ -326,7 +326,7 @@ let x : List = ? in x
           has_mark(
             Mark.TypKindMismatch({
               expected: TypKind.Type,
-              actual: TypKind.Arrow(TypKind.Type, TypKind.Type),
+              actual: TypKind.Arrow([TypKind.Type], TypKind.Type),
             }),
             marks,
           ),
