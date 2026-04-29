@@ -1074,9 +1074,7 @@ let tpat_view =
         ])
       | TPatParamNotAtAliasHead(_) =>
         div_err([
-          text("The "),
-          code("T(a, b)"),
-          text(" form is only allowed as the head of a type alias"),
+          text("This form is only allowed as the head of a type alias"),
         ])
       | _ => div_err([text("Type pattern error")])
       }
