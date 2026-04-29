@@ -29,46 +29,88 @@ let tyalias_exps: group = {
   forms: [tyalias_exp],
 };
 
-/* A parameterized type alias `type T(a, b) = def in body` binds `T`
-   as a parameterized type constructor. The parameters `a`, `b`
-   appear in `def` as bound type variables; at use sites `T(X, Y)`
-   applies the constructor, substituting `X` for `a` and `Y` for `b`
-   in `def`. */
+/* A parameterized type alias `type T(a, …) = def in body` binds `T`
+   as a parameterized type constructor. Three forms by arity, with
+   the 2- and 3-parameter forms highlighting each parameter
+   individually and a general form covering arbitrary arity. */
 
-let _head_tpat = tpat("T");
-let _param_a = tpat("a");
-let _param_b = tpat("b");
+let _head_tpat_g = tpat("T");
+let _general_params = tpat("p_1, …, p_n");
+let _typ_def_g = typ("ty_def");
+
+let _head_tpat_p = tpat("T");
+let _pair_a = tpat("p_1");
+let _pair_b = tpat("p_2");
 let _typ_def_p = typ("ty_def");
 
-let param_tyalias_exp_coloring_ids =
+let _head_tpat_t = tpat("T");
+let _triple_a = tpat("p_1");
+let _triple_b = tpat("p_2");
+let _triple_c = tpat("p_3");
+let _typ_def_t = typ("ty_def");
+
+let param_tyalias_general_coloring_ids =
+    (~head_id: Id.t, ~params_list_id: Id.t, ~def_id: Id.t) => [
+  (Piece.id(_head_tpat_g), head_id),
+  (Piece.id(_general_params), params_list_id),
+  (Piece.id(_typ_def_g), def_id),
+];
+
+let param_tyalias_pair_coloring_ids =
+    (~head_id: Id.t, ~p1_id: Id.t, ~p2_id: Id.t, ~def_id: Id.t) => [
+  (Piece.id(_head_tpat_p), head_id),
+  (Piece.id(_pair_a), p1_id),
+  (Piece.id(_pair_b), p2_id),
+  (Piece.id(_typ_def_p), def_id),
+];
+
+let param_tyalias_triple_coloring_ids =
     (
       ~head_id: Id.t,
-      ~params_ids: list(Id.t),
+      ~p1_id: Id.t,
+      ~p2_id: Id.t,
+      ~p3_id: Id.t,
       ~def_id: Id.t,
-    ) => {
-  let exemplars = [_param_a, _param_b];
-  let head = (Piece.id(_head_tpat), head_id);
-  let params =
-    List.mapi(
-      (i, pid) =>
-        if (i < List.length(exemplars)) {
-          (Piece.id(List.nth(exemplars, i)), pid);
-        } else {
-          (pid, pid);
-        },
-      params_ids,
-    );
-  [head, (Piece.id(_typ_def_p), def_id), ...params];
-};
+    ) => [
+  (Piece.id(_head_tpat_t), head_id),
+  (Piece.id(_triple_a), p1_id),
+  (Piece.id(_triple_b), p2_id),
+  (Piece.id(_triple_c), p3_id),
+  (Piece.id(_typ_def_t), def_id),
+];
 
-let param_tyalias_exp: form = {
-  let explanation = "Binds [*%s*](%s) as a parameterized type constructor with parameters [*%s*](%s), [*%s*](%s), … Inside the [*definition*](%s) the parameters are abstract type variables; at use sites `%s(X, Y, …)` substitutes each argument for the corresponding parameter.";
+let param_tyalias_general_exp: form = {
+  let explanation = "Binds [*%s*](%s) as a parameterized type constructor. Its [*parameters*](%s) are abstract type variables inside the [*definition*](%s); at use sites `%s(X_1, …, X_n)` substitutes each argument for the corresponding parameter.";
   let form = [
     mk_tyalias([
       [
         space(),
-        _head_tpat,
-        mk_ap_tpat([[_param_a, comma_tpat(), space(), _param_b]]),
+        _head_tpat_g,
+        mk_ap_tpat([[_general_params]]),
+        space(),
+      ],
+      [space(), _typ_def_g, space()],
+    ]),
+    linebreak(),
+    exp("e_body"),
+  ];
+  {
+    id: ParameterizedTyAliasExp(General),
+    syntactic_form: form,
+    expandable_id: None,
+    explanation,
+    examples: [],
+  };
+};
+
+let param_tyalias_pair_exp: form = {
+  let explanation = "Binds [*%s*](%s) as a parameterized type constructor with two parameters [*%s*](%s) and [*%s*](%s). Inside the [*definition*](%s) the parameters are abstract type variables; at use sites `%s(X_1, X_2)` substitutes each argument for the corresponding parameter.";
+  let form = [
+    mk_tyalias([
+      [
+        space(),
+        _head_tpat_p,
+        mk_ap_tpat([[_pair_a, comma_tpat(), space(), _pair_b]]),
         space(),
       ],
       [space(), _typ_def_p, space()],
@@ -77,7 +119,7 @@ let param_tyalias_exp: form = {
     exp("e_body"),
   ];
   {
-    id: ParameterizedTyAliasExp,
+    id: ParameterizedTyAliasExp(Arity2),
     syntactic_form: form,
     expandable_id: None,
     explanation,
@@ -85,7 +127,51 @@ let param_tyalias_exp: form = {
   };
 };
 
-let param_tyalias_exps: group = {
-  id: ParameterizedTyAliasExp,
-  forms: [param_tyalias_exp],
+let param_tyalias_triple_exp: form = {
+  let explanation = "Binds [*%s*](%s) as a parameterized type constructor with three parameters [*%s*](%s), [*%s*](%s), and [*%s*](%s). Inside the [*definition*](%s) the parameters are abstract type variables; at use sites `%s(X_1, X_2, X_3)` substitutes each argument for the corresponding parameter.";
+  let form = [
+    mk_tyalias([
+      [
+        space(),
+        _head_tpat_t,
+        mk_ap_tpat([
+          [
+            _triple_a,
+            comma_tpat(),
+            space(),
+            _triple_b,
+            comma_tpat(),
+            space(),
+            _triple_c,
+          ],
+        ]),
+        space(),
+      ],
+      [space(), _typ_def_t, space()],
+    ]),
+    linebreak(),
+    exp("e_body"),
+  ];
+  {
+    id: ParameterizedTyAliasExp(Arity3),
+    syntactic_form: form,
+    expandable_id: None,
+    explanation,
+    examples: [],
+  };
+};
+
+let param_tyalias_exps_general: group = {
+  id: ParameterizedTyAliasExp(General),
+  forms: [param_tyalias_general_exp],
+};
+
+let param_tyalias_exps_arity2: group = {
+  id: ParameterizedTyAliasExp(Arity2),
+  forms: [param_tyalias_pair_exp, param_tyalias_general_exp],
+};
+
+let param_tyalias_exps_arity3: group = {
+  id: ParameterizedTyAliasExp(Arity3),
+  forms: [param_tyalias_triple_exp, param_tyalias_general_exp],
 };

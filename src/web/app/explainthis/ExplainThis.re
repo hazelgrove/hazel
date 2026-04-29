@@ -793,53 +793,122 @@ let get_doc =
       | MultiHole(_children) => get_message(HoleExp.multi_hole_exps)
       | TyAlias(ty_pat, ty_def, _body) =>
         let def_id = List.nth(IdTagged.ids(ty_def), 0);
-        /* Parameterized type aliases (`type T(a, b) = def in body`) get
-           their own form with per-param coloring; plain aliases fall
-           back to the base form. */
+        /* Parameterized type aliases (`type T(a, …) = def in body`)
+           dispatch to specificity-level forms by arity: 2 params ->
+           `param_tyalias_exps_arity2`, 3 params -> `…arity3`,
+           otherwise `…general` (which highlights the head and the
+           parameter list as a whole). Plain (non-parameterized)
+           aliases fall back to the base form. */
         switch (ty_pat.term) {
         | Param(head, params) =>
           let head_id = List.nth(IdTagged.ids(head), 0);
-          let params_ids =
-            List.map(p => List.nth(IdTagged.ids(p), 0), params);
           let head_str =
             switch (Language.TPat.head_name_of(head)) {
             | Some(name) => name
             | None => "?"
             };
-          let p_a =
-            switch (params_ids) {
-            | [p, ..._] => p
-            | [] => Id.mk()
-            };
-          let p_b =
-            switch (params_ids) {
-            | [_, p, ..._] => p
-            | _ => Id.mk()
-            };
-          get_message(
-            ~colorings=
-              TyAliasExp.param_tyalias_exp_coloring_ids(
-                ~head_id,
-                ~params_ids,
-                ~def_id,
-              ),
-            ~format=
-              Some(
-                msg =>
-                  Printf.sprintf(
-                    Scanf.format_from_string(msg, "%s%s%s%s%s%s%s%s"),
-                    head_str,
-                    Id.to_string(head_id),
-                    "a",
-                    Id.to_string(p_a),
-                    "b",
-                    Id.to_string(p_b),
-                    Id.to_string(def_id),
-                    head_str,
-                  ),
-              ),
-            TyAliasExp.param_tyalias_exps,
-          );
+          switch (params) {
+          | [p1, p2] =>
+            let p1_id = List.nth(IdTagged.ids(p1), 0);
+            let p2_id = List.nth(IdTagged.ids(p2), 0);
+            get_message(
+              ~colorings=
+                TyAliasExp.param_tyalias_pair_coloring_ids(
+                  ~head_id,
+                  ~p1_id,
+                  ~p2_id,
+                  ~def_id,
+                ),
+              ~format=
+                Some(
+                  msg =>
+                    Printf.sprintf(
+                      Scanf.format_from_string(
+                        msg,
+                        "%s%s%s%s%s%s%s%s",
+                      ),
+                      head_str,
+                      Id.to_string(head_id),
+                      "p_1",
+                      Id.to_string(p1_id),
+                      "p_2",
+                      Id.to_string(p2_id),
+                      Id.to_string(def_id),
+                      head_str,
+                    ),
+                ),
+              TyAliasExp.param_tyalias_exps_arity2,
+            );
+          | [p1, p2, p3] =>
+            let p1_id = List.nth(IdTagged.ids(p1), 0);
+            let p2_id = List.nth(IdTagged.ids(p2), 0);
+            let p3_id = List.nth(IdTagged.ids(p3), 0);
+            get_message(
+              ~colorings=
+                TyAliasExp.param_tyalias_triple_coloring_ids(
+                  ~head_id,
+                  ~p1_id,
+                  ~p2_id,
+                  ~p3_id,
+                  ~def_id,
+                ),
+              ~format=
+                Some(
+                  msg =>
+                    Printf.sprintf(
+                      Scanf.format_from_string(
+                        msg,
+                        "%s%s%s%s%s%s%s%s%s%s",
+                      ),
+                      head_str,
+                      Id.to_string(head_id),
+                      "p_1",
+                      Id.to_string(p1_id),
+                      "p_2",
+                      Id.to_string(p2_id),
+                      "p_3",
+                      Id.to_string(p3_id),
+                      Id.to_string(def_id),
+                      head_str,
+                    ),
+                ),
+              TyAliasExp.param_tyalias_exps_arity3,
+            );
+          | _ =>
+            /* Arbitrary arity: use the general form. The "params
+               list" id is sourced from the first param's surrounding
+               kid (its ids cover the comma tile); approximate by
+               using the first param's id if any, else a fresh id. */
+            let params_list_id =
+              switch (params) {
+              | [p, ..._] => List.nth(IdTagged.ids(p), 0)
+              | [] => Id.mk()
+              };
+            get_message(
+              ~colorings=
+                TyAliasExp.param_tyalias_general_coloring_ids(
+                  ~head_id,
+                  ~params_list_id,
+                  ~def_id,
+                ),
+              ~format=
+                Some(
+                  msg =>
+                    Printf.sprintf(
+                      Scanf.format_from_string(
+                        msg,
+                        "%s%s%s%s%s",
+                      ),
+                      head_str,
+                      Id.to_string(head_id),
+                      Id.to_string(params_list_id),
+                      Id.to_string(def_id),
+                      head_str,
+                    ),
+                ),
+              TyAliasExp.param_tyalias_exps_general,
+            );
+          };
         | _ =>
           let tpat_id = List.nth(IdTagged.ids(ty_pat), 0);
           get_message(
@@ -3062,68 +3131,155 @@ let get_doc =
       )
     | Param(head, params) =>
       let head_id = List.nth(IdTagged.ids(head), 0);
-      let params_ids =
-        List.map(p => List.nth(IdTagged.ids(p), 0), params);
       let head_str =
         switch (TPat.head_name_of(head)) {
         | Some(name) => name
         | None => "?"
         };
-      let p_a =
-        switch (params_ids) {
-        | [p, ..._] => p
-        | [] => Id.mk()
-        };
-      let p_b =
-        switch (params_ids) {
-        | [_, p, ..._] => p
-        | _ => Id.mk()
-        };
-      get_message(
-        ~colorings=
-          ParamTPat.param_tpat_coloring_ids(~head_id, ~params_ids),
-        ~format=
-          Some(
-            msg =>
-              Printf.sprintf(
-                Scanf.format_from_string(msg, "%s%s%s%s%s"),
-                head_str,
-                "a",
-                Id.to_string(p_a),
-                "b",
-                Id.to_string(p_b),
-              ),
-          ),
-        ParamTPat.param_tpats,
-      );
+      switch (params) {
+      | [p1, p2] =>
+        let p1_id = List.nth(IdTagged.ids(p1), 0);
+        let p2_id = List.nth(IdTagged.ids(p2), 0);
+        get_message(
+          ~colorings=
+            ParamTPat.param_tpat_pair_coloring_ids(
+              ~head_id,
+              ~p1_id,
+              ~p2_id,
+            ),
+          ~format=
+            Some(
+              msg =>
+                Printf.sprintf(
+                  Scanf.format_from_string(msg, "%s%s%s%s%s"),
+                  head_str,
+                  "p_1",
+                  Id.to_string(p1_id),
+                  "p_2",
+                  Id.to_string(p2_id),
+                ),
+            ),
+          ParamTPat.param_tpats_arity2,
+        );
+      | [p1, p2, p3] =>
+        let p1_id = List.nth(IdTagged.ids(p1), 0);
+        let p2_id = List.nth(IdTagged.ids(p2), 0);
+        let p3_id = List.nth(IdTagged.ids(p3), 0);
+        get_message(
+          ~colorings=
+            ParamTPat.param_tpat_triple_coloring_ids(
+              ~head_id,
+              ~p1_id,
+              ~p2_id,
+              ~p3_id,
+            ),
+          ~format=
+            Some(
+              msg =>
+                Printf.sprintf(
+                  Scanf.format_from_string(msg, "%s%s%s%s%s%s%s"),
+                  head_str,
+                  "p_1",
+                  Id.to_string(p1_id),
+                  "p_2",
+                  Id.to_string(p2_id),
+                  "p_3",
+                  Id.to_string(p3_id),
+                ),
+            ),
+          ParamTPat.param_tpats_arity3,
+        );
+      | _ =>
+        let params_list_id =
+          switch (params) {
+          | [p, ..._] => List.nth(IdTagged.ids(p), 0)
+          | [] => Id.mk()
+          };
+        get_message(
+          ~colorings=
+            ParamTPat.param_tpat_general_coloring_ids(
+              ~head_id,
+              ~params_list_id,
+            ),
+          ~format=
+            Some(
+              msg =>
+                Printf.sprintf(
+                  Scanf.format_from_string(msg, "%s%s"),
+                  head_str,
+                  Id.to_string(params_list_id),
+                ),
+            ),
+          ParamTPat.param_tpats_general,
+        );
+      };
     | Tuple(tps) =>
-      let params_ids =
-        List.map(tp => List.nth(IdTagged.ids(tp), 0), tps);
-      let p_a =
-        switch (params_ids) {
-        | [p, ..._] => p
-        | [] => Id.mk()
-        };
-      let p_b =
-        switch (params_ids) {
-        | [_, p, ..._] => p
-        | _ => Id.mk()
-        };
-      get_message(
-        ~colorings=TupleTPat.tuple_tpat_coloring_ids(~params_ids),
-        ~format=
-          Some(
-            msg =>
-              Printf.sprintf(
-                Scanf.format_from_string(msg, "%s%s%s%s"),
-                "a",
-                Id.to_string(p_a),
-                "b",
-                Id.to_string(p_b),
-              ),
-          ),
-        TupleTPat.tuple_tpats,
-      );
+      switch (tps) {
+      | [p1, p2] =>
+        let p1_id = List.nth(IdTagged.ids(p1), 0);
+        let p2_id = List.nth(IdTagged.ids(p2), 0);
+        get_message(
+          ~colorings=
+            TupleTPat.tuple_tpat_pair_coloring_ids(~p1_id, ~p2_id),
+          ~format=
+            Some(
+              msg =>
+                Printf.sprintf(
+                  Scanf.format_from_string(msg, "%s%s%s%s"),
+                  "p_1",
+                  Id.to_string(p1_id),
+                  "p_2",
+                  Id.to_string(p2_id),
+                ),
+            ),
+          TupleTPat.tuple_tpats_arity2,
+        );
+      | [p1, p2, p3] =>
+        let p1_id = List.nth(IdTagged.ids(p1), 0);
+        let p2_id = List.nth(IdTagged.ids(p2), 0);
+        let p3_id = List.nth(IdTagged.ids(p3), 0);
+        get_message(
+          ~colorings=
+            TupleTPat.tuple_tpat_triple_coloring_ids(
+              ~p1_id,
+              ~p2_id,
+              ~p3_id,
+            ),
+          ~format=
+            Some(
+              msg =>
+                Printf.sprintf(
+                  Scanf.format_from_string(msg, "%s%s%s%s%s%s"),
+                  "p_1",
+                  Id.to_string(p1_id),
+                  "p_2",
+                  Id.to_string(p2_id),
+                  "p_3",
+                  Id.to_string(p3_id),
+                ),
+            ),
+          TupleTPat.tuple_tpats_arity3,
+        );
+      | _ =>
+        let binders_list_id =
+          switch (tps) {
+          | [p, ..._] => List.nth(IdTagged.ids(p), 0)
+          | [] => Id.mk()
+          };
+        get_message(
+          ~colorings=
+            TupleTPat.tuple_tpat_general_coloring_ids(~binders_list_id),
+          ~format=
+            Some(
+              msg =>
+                Printf.sprintf(
+                  Scanf.format_from_string(msg, "%s"),
+                  Id.to_string(binders_list_id),
+                ),
+            ),
+          TupleTPat.tuple_tpats_general,
+        );
+      }
     | Parens(_) => get_message(ParensTPat.parens_tpats)
     }
   | Some(InfoDrv({term, _})) =>

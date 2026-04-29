@@ -189,6 +189,18 @@ type pat_sub_form_id =
   | ApFunc
   | ApCons;
 
+/* Specificity levels for forms that vary by arity, e.g. parameterized
+   type aliases `type T(a) = …`, `type T(a, b) = …`, … When the arity
+   is 2 or 3 a specific form is available with per-parameter color
+   highlighting; any other arity falls back to a single `General` form
+   that covers arbitrary-arity and still highlights the head and the
+   comma-separated parameter list as a whole. */
+[@deriving (show({with_path: false}), sexp, yojson)]
+type tpat_sub_form_id =
+  | General
+  | Arity2
+  | Arity3;
+
 [@deriving (show({with_path: false}), sexp, yojson)]
 type form_id =
   | Derivation
@@ -234,7 +246,7 @@ type form_id =
   | BinOpExp(Language.Operators.op_bin)
   | CaseExp
   | TyAliasExp
-  | ParameterizedTyAliasExp
+  | ParameterizedTyAliasExp(tpat_sub_form_id)
   | EmptyHolePat
   | MultiHolePat
   | WildPat
@@ -285,8 +297,8 @@ type form_id =
   | EmptyHoleTPat
   | MultiHoleTPat
   | VarTPat
-  | ParamTPat
-  | TupleTPat
+  | ParamTPat(tpat_sub_form_id)
+  | TupleTPat(tpat_sub_form_id)
   | ParensTPat
   | TypParamApTyp
   | TypTupleTyp
@@ -363,7 +375,7 @@ type group_id =
   | BinOpExp(Language.Operators.op_bin)
   | CaseExp
   | TyAliasExp
-  | ParameterizedTyAliasExp
+  | ParameterizedTyAliasExp(tpat_sub_form_id)
   | PipelineExp
   | TupleExtensionExp
   | UseExp
@@ -417,8 +429,8 @@ type group_id =
   | EmptyHoleTPat
   | MultiHoleTPat
   | VarTPat
-  | ParamTPat
-  | TupleTPat
+  | ParamTPat(tpat_sub_form_id)
+  | TupleTPat(tpat_sub_form_id)
   | ParensTPat
   | TypParamApTyp
   | TypTupleTyp
