@@ -372,16 +372,33 @@ let left_needs_space = (l: list(Piece.t)): bool =>
   };
 
 /* Is the left neighbor concave-facing? Walk nearest-first, skip
- * Secondary and Grout (regrout artifacts), check the right nib of
- * the first Tile. If nothing found, the paren boundary is concave.
- * When true, the scaffold needs a leading hole to avoid a
- * concave-concave shape conflict with its first comma. */
+ * Secondary and Concave grout. For Convex grout: skip if it's parser
+ * plumbing (a Concave-right tile follows it through whitespace); stop
+ * if it's a real placeholder (rest is empty/whitespace-only). Then
+ * check the right nib of the first Tile. If nothing found, the paren
+ * boundary is concave. When true, the scaffold needs a leading hole
+ * to avoid a concave-concave shape conflict with its first comma. */
 let left_is_concave = (scoped_l: list(Piece.t)): bool => {
+  let rec concave_right_through_ws = ps =>
+    switch (ps) {
+    | [] => false
+    | [Piece.Secondary(_), ...rest]
+    | [Piece.Grout({shape: Concave, _}), ...rest] =>
+      concave_right_through_ws(rest)
+    | [p, ..._] =>
+      switch (Piece.shapes(p)) {
+      | Some((_, Concave(_))) => true
+      | _ => false
+      }
+    };
   let rec check =
     fun
     | [] => true
     | [Piece.Secondary(_), ...rest]
     | [Piece.Grout({shape: Concave, _}), ...rest] => check(rest)
+    | [Piece.Grout({shape: Convex, _}), ...rest]
+        when concave_right_through_ws(rest) =>
+      check(rest)
     | [p, ..._] =>
       switch (Piece.shapes(p)) {
       | Some((_, Concave(_))) => true
