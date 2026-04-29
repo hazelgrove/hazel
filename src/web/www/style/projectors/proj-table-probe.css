@@ -73,9 +73,15 @@
   /* Trim the corner radius so the table corners align with the .value
      wrapper's rounded edge. */
   border-radius: 0.05em 0.05em 0.05em 0.2em;
-  overflow: hidden;
-  /* Keep the rich content visually attached to the sample as one unit. */
-  display: block;
+  /* Cards/hands in CardRenderer use absolute-positioned card-wrappers
+     within an explicit-width .hand container; if .value.rich clips with
+     overflow:hidden, the right edge of the rightmost card gets cut off.
+     Let the rich content render at its natural size; the placeholder is
+     responsible for reserving enough vertical space below. */
+  overflow: visible;
+  /* Inline-block so .value.rich sizes to its rich content rather than
+     stretching across the .sample's flex track and over-reserving width. */
+  display: inline-block;
 }
 
 .live-offside .value.rich > .rich-probe-table-inner {
