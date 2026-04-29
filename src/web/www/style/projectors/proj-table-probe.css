@@ -185,13 +185,17 @@
   background-color: transparent !important;
   opacity: 1 !important;
   text-decoration: none !important;
-  /* proj-probe.css adds `border-bottom: 1px double var(--R1)` on
-     `.sample:hover .value` (with a flashing animation) to flag the
-     hovered sample. That selector matches every nested .value too,
-     so cells under the cursor's sample get an underline-like border.
-     Kill it for cells. */
-  border-bottom: 0 !important;
+  /* proj-probe.css decorates the OUTER .value with a stack of
+     borders, box-shadows, and animations to encode sample state
+     (focus indication, depth above/below, hover flash, etc.). All
+     of those use descendant selectors and re-apply to every nested
+     .value inside the rich content, drawing pseudo-underlines and
+     glows on every cell. None of it is meaningful at the cell
+     level. */
+  border: 0 !important;
+  box-shadow: none !important;
   animation: none !important;
+  outline: 0 !important;
 }
 .live-offside .value.rich .value .token,
 .live-offside .value.rich .value .code-text .token {
