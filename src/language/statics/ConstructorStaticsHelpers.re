@@ -73,11 +73,15 @@ let rec result_of_arrow = (ty: Typ.t): Typ.t =>
   | _ => ty
   };
 
-/* Extract a left-to-right type-application spine from a type, e.g.
-   TypApp(TypApp(List, Int), Bool) -> [Int, Bool]. */
+/* Extract a left-to-right type-application spine from a type. Handles
+   both the new multi-arg form `TypApp(T, TypTuple([a, b]))` and the
+   curried-by-elaboration form `TypApp(TypApp(T, a), b)` (which can
+   still appear in some constructor schemas). For the new form the
+   spine is the TypTuple's contents in order. */
 let type_app_spine = (ty: Typ.t): list(Typ.t) => {
   let rec go = (ty: Typ.t, acc) =>
     switch (ty.term) {
+    | TypApp(fn, {term: TypTuple(args), _}) => go(fn, args @ acc)
     | TypApp(fn, arg) => go(fn, [arg, ...acc])
     | _ => acc
     };
@@ -95,11 +99,19 @@ let schema_arity = (ty: Typ.t): int => {
   go(ty, 0);
 };
 
-/* Build `TypAp(...TypAp(ctor, arg1), argN)` using fresh wrapping so the
-   elaborated form preserves the constructor's specialization after
-   re-parsing. */
+/* Build a `TypAp` around `ctor` that supplies `args` as a single
+   tuple-argument bundle. For 1 arg we produce `TypAp(ctor, arg)`; for
+   ≥2 args we wrap the args in a `TypTuple` so the elaboration mirrors
+   the source-level multi-argument application
+   `Cons(0, Nil) : List(Int)`  →  `TypAp(Cons, TypTuple([Int]))` (1 arg
+   case keeps a bare single arg for cleaner display) and
+   `A(3) : Either(Int, Bool)` →  `TypAp(A, TypTuple([Int, Bool]))`. */
 let wrap_type_apps = (ctor: Exp.t, args: list(Typ.t)): Exp.t =>
-  List.fold_left((acc, arg) => TypAp(acc, arg) |> Exp.fresh, ctor, args);
+  switch (args) {
+  | [] => ctor
+  | [arg] => TypAp(ctor, arg) |> Exp.fresh
+  | _ => TypAp(ctor, TypTuple(args) |> Typ.fresh) |> Exp.fresh
+  };
 
 /* Resolve surface wrappers and `Type`-kinded aliases without unrolling
    `Rec` or unfolding type-constructor aliases. Used by constructor

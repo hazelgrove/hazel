@@ -94,6 +94,7 @@ type typ =
   | ArrayType(typ)
   | ArrowType(typ, typ)
   | TypApp(typ, typ)
+  | TypTuple(list(typ))
   | TypVar(string)
   | InvalidTyp(string)
   | PolyType(tpat, typ)
@@ -1206,6 +1207,12 @@ and shrink_typ: QCheck.Shrink.t(typ) =
             let* shrunk2 = shrink_typ(t2);
             return(TypApp(t1, shrunk2));
           }
+        | TypTuple(l) =>
+          let* shrunk = Shrink.list(l, ~shrink=shrink_typ);
+          switch (shrunk) {
+          | [x] => Iter.return(x)
+          | _ => return(TypTuple(shrunk))
+          };
         | TypVar(x) => Shrink.string(x) >|= ((x: string) => TypVar(x))
         | PolyType(tpat, t) =>
           let* shrunk = shrink_typ(t);

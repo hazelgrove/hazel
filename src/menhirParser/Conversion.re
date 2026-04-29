@@ -470,6 +470,7 @@ and Typ: {
     | ArrayType(t) => list(of_menhir_ast(t))
     | ArrowType(t1, t2) => arrow(of_menhir_ast(t1), of_menhir_ast(t2))
     | TypApp(t1, t2) => typ_app(of_menhir_ast(t1), of_menhir_ast(t2))
+    | TypTuple(ts) => typ_tuple(List.map(of_menhir_ast, ts))
     | ProdProjection(t1, t2) =>
       prod_projection(of_menhir_ast(t1), of_menhir_ast(t2))
     | ProdExtension(t1, t2) =>
@@ -530,12 +531,10 @@ and Typ: {
     | TypLam(_, _) =>
       raise(Failure("TypLam not supported in Menhir syntax"))
     | TypApp(t1, t2) => TypApp(of_core(t1), of_core(t2))
-    /* `TypTuple` only appears as the second argument of a `TypApp` (a
-       multi-argument type application). Round-trip it through the Menhir
-       AST as a parenthesized tuple type so the surface syntax remains
-       valid; the structured editor & menhir parser produce TypTuple via
-       a different path. */
-    | TypTuple(ts) => TupleType(List.map(of_core, ts))
+    /* `TypTuple` is the multi-argument bundle in a type-level
+       application like `Either(a, b)`; round-trip it as the matching
+       Menhir AST node. */
+    | TypTuple(ts) => TypTuple(List.map(of_core, ts))
     | Unknown(p) => UnknownType(of_core_type_provenance(p))
     | Poly(tp, t) => PolyType(TPat.of_core(tp), of_core(t))
     | Rec(tp, t) => RecType(TPat.of_core(tp), of_core(t))

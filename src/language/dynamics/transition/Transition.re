@@ -611,26 +611,58 @@ module Transition = (EV: EV_MODE) => {
       let. _ = otherwise(env, d => TypAp(d, tau) |> rewrap)
       and. d' = req_final(req(env), d => TypAp(d, tau) |> wrap_ctx, d);
       switch (DHExp.term_of(d')) {
-      | Constructor(name, Some(Some({term: Poly(tpat, body), _})))
-          when TPat.tyvar_of_utpat(tpat) != None =>
+      | Constructor(name, Some(Some({term: Poly(_), _} as schema))) =>
         /* Specialize a polymorphic constructor's schema with the applied
-           type argument. This mirrors `TypFun`/`TypAp` reduction but
-           keeps the `Constructor` as a final value — just with a
-           monomorphic type ascription after instantiation.
-
-           Only fires when the constructor's schema is a `Poly` with a
-           bound type variable (i.e. the constructor is actually
-           polymorphic). Constructors with a non-Poly ascription, or a
-           Poly with `EmptyHole` binder, stay Indet so explicit TypAp on
-           a monomorphic constructor behaves like applying a non-TypFun. */
-        let specialized = Typ.subst(tau, tpat, body);
-        Step({
-          expr:
-            Constructor(name, Some(Some(specialized))) |> DHExp.fresh,
-          side_effects: [],
-          kind: TypFunAp,
-          is_value: true,
-        });
+           type argument(s). For multi-argument applications (a
+           `TypTuple` argument bundle) we peel one `Poly` per element,
+           one at a time, so the same code handles both single-arg
+           constructors (`Some(3)`) and multi-arg ones
+           (`A(3) : Either(Int, Bool)`). */
+        let args =
+          switch (Typ.term_of(tau)) {
+          | TypTuple(ts) => ts
+          | _ => [tau]
+          };
+        let specialized =
+          List.fold_left(
+            (acc: Typ.t, arg: Typ.t) =>
+              switch (Typ.term_of(acc)) {
+              | Poly(tpat, body) when TPat.tyvar_of_utpat(tpat) != None =>
+                Typ.subst(arg, tpat, body)
+              | _ => acc
+              },
+            schema,
+            args,
+          );
+        if (Equality.syntactic.typ(specialized, schema)) {
+          /* No Poly to specialize (e.g. monomorphic constructor with
+             explicit TypAp); fall through to generic TypFun handling. */
+          let-unbox typfun = (TypFun, d');
+          switch (typfun) {
+          | TypFun(utpat, tfbody, name) =>
+            Step({
+              expr:
+                DHExp.assign_name_if_none(
+                  DHExp.ty_subst(tau, utpat, tfbody),
+                  Option.map(
+                    x => x ++ "@<" ++ Typ.pretty_print(tau) ++ ">",
+                    name,
+                  ),
+                ),
+              side_effects: [],
+              kind: TypFunAp,
+              is_value: false,
+            })
+          };
+        } else {
+          Step({
+            expr:
+              Constructor(name, Some(Some(specialized))) |> DHExp.fresh,
+            side_effects: [],
+            kind: TypFunAp,
+            is_value: true,
+          });
+        };
       | _ =>
         let-unbox typfun = (TypFun, d');
         switch (typfun) {

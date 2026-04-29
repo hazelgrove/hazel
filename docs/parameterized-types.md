@@ -17,8 +17,17 @@ let x : Option(Int) = Some(3) in
 ```
 
 Each parameter has kind `Type`. A declaration with `n` parameters introduces a
-type constructor of kind `Type -> ... -> Type`, and applying that constructor to
-`n` type arguments produces an ordinary type.
+type constructor of *tuple-arrow* kind `(Type, ..., Type) -> Type`. Applying
+that constructor to `n` type arguments at once — `Either(Int, Bool)` — produces
+an ordinary type. Partial application (`Either(Int)`) is rejected as a kind
+error, and over-application (`List(Int, Bool)` for a single-parameter `List`)
+is rejected as an arity mismatch.
+
+The argument list inside `T(...)` is parsed as a *type-level argument tuple*
+(`TypTuple([…])`) rather than a regular product (`Prod([…])`). To pass a
+single tuple-typed argument the user must wrap it in extra parens:
+`List((Int, Bool))` is a list of pairs (a regular `Prod` argument), while
+`List(Int, Bool)` is the ill-arity application.
 
 Recursive aliases remain implicit, matching existing Hazel type aliases:
 

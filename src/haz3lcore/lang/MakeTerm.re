@@ -280,15 +280,27 @@ let parse_sum_term: Typ.t => ConstructorMap.variant(Typ.t) =
           u,
         ),
       annotation: {ids: ids_ap, secondary: (_, outer_after)},
-    } =>
-    Variant(
-      ctr,
-      {
-        ids: ids_ctr @ ids_ap,
-        secondary: (inner_before, outer_after),
-      },
-      Some(u),
-    )
+    } => {
+      /* `Cons(a, b)` in a sum-type position is a *constructor variant* with
+         a tuple payload, not a type-level multi-argument application. The
+         outer parser produces `TypApp(Cons, TypTuple([a, b]))` because the
+         comma-list looked like a multi-arg apply syntactically; here we
+         unwrap the TypTuple back to a `Prod` so the payload is a regular
+         tuple type. */
+      let payload: Typ.t =
+        switch (Typ.term_of(u)) {
+        | TypTuple(ts) => {term: Prod(ts), annotation: u.annotation}
+        | _ => u
+        };
+      Variant(
+        ctr,
+        {
+          ids: ids_ctr @ ids_ap,
+          secondary: (inner_before, outer_after),
+        },
+        Some(payload),
+      );
+    }
   /* Constructor applications in sum type definitions are implemented as having type sort;
      until they are reimplemented as their own sort, we must prevent these from being parsed
      into types, where they can go on to mess with statics. Thus we let them fall through to
@@ -321,7 +333,20 @@ let parse_sum_term: Typ.t => ConstructorMap.variant(Typ.t) =
   | t => BadEntry(t);
 
 let apply_type_args = (fn: Typ.t, arg: Typ.t): Typ.term => {
-  TypApp(fn, arg);
+  /* `T(a, b, …)` is a multi-argument type application: the comma-
+     separated list parses as a `Prod`, but the user means
+     `TypApp(T, TypTuple([a, b, …]))` (a single application against
+     `T`'s tuple-arrow kind), not `TypApp(T, Prod([a, b]))` (a
+     single-argument application whose argument happens to be a
+     tuple). The latter is reserved for `T((a, b))` (extra parens),
+     which produces `Parens(Prod([a, b]))` here. */
+  switch (Typ.term_of(arg)) {
+  | Prod(ts) =>
+    /* Reuse the original Prod's IDs/secondary on the new TypTuple node
+       so the structured editor's tile mappings stay aligned. */
+    TypApp(fn, {term: TypTuple(ts), annotation: arg.annotation})
+  | _ => TypApp(fn, arg)
+  };
 };
 
 let mk_bad = (ctr, ids, value) => {

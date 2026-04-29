@@ -594,6 +594,25 @@ let unroll = (ty: t): t =>
    This stops at exactly one level of unrolling and is safe for non-
    uniform recursion where the recursive type cannot be expressed as a
    finite kind-`*` `Rec(...)`. */
+/* Apply a list of arguments one at a time to a curried `TypLam` chain.
+   Used by `unfold_one` and TypApp reduction when the argument is a
+   `TypTuple` bundling multiple args for a single source-level
+   application like `Either(Int, Bool)`. */
+let rec apply_args = (fn: t, args: list(t)): t =>
+  switch (args) {
+  | [] => fn
+  | [arg, ...rest] =>
+    switch (term_of(fn)) {
+    | TypLam(p, body) => apply_args(subst(arg, p, body), rest)
+    | _ =>
+      /* Out of TypLams to peel; preserve the residual application. */
+      switch (rest) {
+      | [] => TypApp(fn, arg) |> temp
+      | _ => TypApp(fn, TypTuple([arg, ...rest]) |> temp) |> temp
+      }
+    }
+  };
+
 let unfold_one = (ty: t): t =>
   switch (term_of(ty)) {
   | Rec(tp, body) => subst(ty, tp, body)
@@ -601,9 +620,13 @@ let unfold_one = (ty: t): t =>
     switch (term_of(fn)) {
     | Rec(tp, body) =>
       let unrolled = subst(fn, tp, body);
-      switch (term_of(unrolled)) {
-      | TypLam(p, inner) => subst(arg, p, inner)
-      | _ => TypApp(unrolled, arg) |> temp
+      switch (term_of(arg)) {
+      | TypTuple(args) => apply_args(unrolled, args)
+      | _ =>
+        switch (term_of(unrolled)) {
+        | TypLam(p, inner) => subst(arg, p, inner)
+        | _ => TypApp(unrolled, arg) |> temp
+        }
       };
     | _ => ty
     }
@@ -697,14 +720,33 @@ let rec weak_head_normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
   | TypApp(fn, arg) =>
     let (_, rewrap) = unwrap(ty);
     let fn_whnf = weak_head_normalize(~rec_counter=rec_counter + 1, ctx, fn);
-    switch (fn_whnf.term) {
-    | TypLam(param, body) =>
+    switch (fn_whnf.term, term_of(arg)) {
+    | (TypLam(param, body), TypTuple([head, ...rest])) =>
+      /* Multi-argument application against a curried TypLam chain:
+         peel one TypLam at a time, consuming `head` first and re-wrapping
+         the remainder if any args remain. */
+      let body' = subst(head, param, body);
+      switch (rest) {
+      | [] => weak_head_normalize(~rec_counter=rec_counter + 1, ctx, body')
+      | _ =>
+        weak_head_normalize(
+          ~rec_counter=rec_counter + 1,
+          ctx,
+          TypApp(body', TypTuple(rest) |> temp) |> rewrap,
+        )
+      };
+    | (TypLam(param, body), TypTuple([])) =>
+      /* Empty tuple as argument shouldn't occur in practice; treat as
+         no-op application — return the body. */
+      weak_head_normalize(~rec_counter=rec_counter + 1, ctx, body) |> ignore;
+      TypLam(param, body) |> rewrap;
+    | (TypLam(param, body), _) =>
       weak_head_normalize(
         ~rec_counter=rec_counter + 1,
         ctx,
         subst(arg, param, body),
       )
-    | Rec(_) =>
+    | (Rec(_), _) =>
       /* `TypApp(Rec(name, body), arg)` is the canonical normal form for a
          higher-kinded recursive family applied at `arg`
          (i.e. `(μX:* → *. body)(arg)`). We do *not* push the application
@@ -714,7 +756,7 @@ let rec weak_head_normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
          `Typ.unfold_one` for the one-step unrolling used by callers that
          need to peer inside, like `get_sum_constructors`). */
       TypApp(fn_whnf, arg) |> rewrap
-    | fn' => TypApp(fn' |> temp, arg) |> rewrap
+    | (fn', _) => TypApp(fn' |> temp, arg) |> rewrap
     };
   | TupLabel({term: ExplicitNonlabel, _}, ty) =>
     weak_head_normalize(~rec_counter=rec_counter + 1, ctx, ty)

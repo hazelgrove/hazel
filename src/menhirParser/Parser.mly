@@ -254,7 +254,7 @@ typ:
     | OPEN_SQUARE_BRACKET; t = typ; CLOSE_SQUARE_BRACKET { ArrayType(t) }
     | t1 = typ; OPEN_PAREN; t2 = typ; CLOSE_PAREN { TypApp(t1, t2) }
     | t1 = typ; OPEN_PAREN; t2 = typ; COMMA; ts = separated_nonempty_list(COMMA, typ); CLOSE_PAREN {
-        List.fold_left (fun acc t -> TypApp(acc, t)) (TypApp(t1, t2)) ts
+        TypApp(t1, TypTuple(t2 :: ts))
       }
     | t1 = typ; DASH_ARROW; t2 = typ { ArrowType(t1, t2) }
     | s = sumTyp; { SumTyp(s) }

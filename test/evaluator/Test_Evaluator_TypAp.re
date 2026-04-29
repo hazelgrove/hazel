@@ -186,13 +186,6 @@ let x : List(Int) = Cons(3, Cons((4, 4), Cons((5, (6, 7)), Nil))) in x|};
       "Result of nested parameterized ctors re-statics without error marks",
       `Quick,
       () => {
-        /* The result view runs statics again on the evaluated expression,
-           using a fresh context without the original `type List(a)`
-           alias. Regressions here showed up in the UI as "inconsistent
-           with expected type" errors mentioning `(rec List -> …)(Int)` —
-           artifacts of eagerly β-reducing parameterized aliases through
-           a `Rec` binder. This test asserts the re-statics produces no
-           marks on the result expression. */
         let src = {|type List(a) = + Nil + Cons(a, List(a)) in
 let x : List(Int) = Cons(0, Cons(10, Nil)) in x|};
         let exp = Haz3lcore.Parser.to_term(src, ~root=Exp) |> Option.get;

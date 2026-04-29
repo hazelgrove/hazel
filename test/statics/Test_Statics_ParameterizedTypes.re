@@ -430,5 +430,130 @@ let x : IntOption = Some(3) in x
         );
       },
     ),
+    test_case(
+      "multi-parameter Either(Int, Bool) is well-kinded",
+      `Quick,
+      () => {
+        Alcotest.check(
+          list(testable_issue),
+          "no static errors",
+          [],
+          static_errors(
+            {|
+type Either(a, b) = + A(a) + B(b) in
+let x : Either(Int, Bool) = A(3) in x
+|},
+          )
+          |> List.map(ms => Marks([ms])),
+        );
+      },
+    ),
+    test_case(
+      "Either has tuple-arrow kind (Type, Type) -> Type",
+      `Quick,
+      () => {
+        /* Sanity: applying Either at one arg leaves a residual partial
+           kind, which is a kind error in `Type` position. */
+        let marks =
+          static_errors(
+            {|
+type Either(a, b) = + A(a) + B(b) in
+let x : Either(Int) = A(3) in x
+|},
+          );
+        let arity_or_kind_mark =
+          List.exists(
+            fun
+            | Mark.TypApplyArityMismatch(_)
+            | Mark.TypKindMismatch(_) => true
+            | _ => false,
+            marks,
+          );
+        check(
+          bool,
+          "partial application of Either is rejected",
+          true,
+          arity_or_kind_mark,
+        );
+      },
+    ),
+    test_case(
+      "List(Int, Bool) is rejected as wrong arity, not as a list of pairs",
+      `Quick,
+      () => {
+        let marks =
+          static_errors(
+            {|
+type List(a) = + Nil + Cons(a, List(a)) in
+let x : List(Int, Bool) = ? in x
+|},
+          );
+        let arity_marks =
+          List.filter(
+            fun
+            | Mark.TypApplyArityMismatch(_) => true
+            | _ => false,
+            marks,
+          );
+        check(
+          int,
+          "List(Int, Bool) reports an arity mismatch (List takes 1 arg)",
+          1,
+          List.length(arity_marks),
+        );
+      },
+    ),
+    test_case(
+      "List((Int, Bool)) — extra parens — is a list of pairs",
+      `Quick,
+      () => {
+        /* The user can disambiguate: `List((Int, Bool))` is a single-arg
+           type application whose argument is the `Prod[Int, Bool]`
+           tuple, i.e. a list of pairs. This should type-check cleanly. */
+        Alcotest.check(
+          list(testable_issue),
+          "no static errors",
+          [],
+          static_errors(
+            {|
+type List(a) = + Nil + Cons(a, List(a)) in
+let x : List((Int, Bool)) = Nil in x
+|},
+          )
+          |> List.map(ms => Marks([ms])),
+        );
+      },
+    ),
+    test_case(
+      "Multi-param Either evaluates to a self-typed constructor",
+      `Quick,
+      () => {
+        /* End-to-end: declare `Either(a, b)`, build a value at
+           `Either(Int, Bool)`, and check that the elaboration wraps the
+           constructor in a `TypAp` that consumes the entire argument
+           tuple at once via a `TypTuple` payload. */
+        let src = {|
+type Either(a, b) = + A(a) + B(b) in
+let x : Either(Int, Bool) = A(3) in x
+|};
+        let typ_ap_with_tuple = ref(0);
+        walk_elaboration(src, e =>
+          switch (e.term) {
+          | TypAp(
+              {term: Constructor("A", _), _},
+              {term: TypTuple(_), _},
+            ) =>
+            incr(typ_ap_with_tuple)
+          | _ => ()
+          }
+        );
+        check(
+          int,
+          "A is wrapped in TypAp(_, TypTuple([Int, Bool]))",
+          1,
+          typ_ap_with_tuple^,
+        );
+      },
+    ),
   ],
 );
