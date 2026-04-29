@@ -3800,15 +3800,30 @@ and utyp_to_info_map =
     add(m);
   | TypParamAp(t1, t2) =>
     /* The callee of a type parameter application is expected to have
-       arrow kind, so do not validate it as an ordinary Type on its
-       own. */
+       arrow kind, so we don't validate it as an ordinary Type on its
+       own. We still report free-variable errors when the callee is an
+       unbound `Var` — without this check, writing `L(a)` where `L` is
+       not in the context silently yields "kind Type" instead of
+       "L not found". */
     let fn_kind = kind_of_typ(ctx, t1);
+    let (marks, message): (list(Mark.t), option(Message.t)) =
+      switch (t1.term) {
+      | Var(name)
+          when
+            !Ctx.is_alias(ctx, name)
+            && !Ctx.is_abstract(ctx, name)
+            && !Ctx.is_base_typ(name) => (
+          [Mark.TypFreeTypeVariable(name)],
+          None,
+        )
+      | _ => ([], Some(Message.TypOk(Message.Kind(fn_kind))))
+      };
     let fn_info: Info.typ = {
       cls: Cls.Typ(Typ.cls_of_term(t1.term)),
       ctx,
       ancestors: ancestors_inclusive,
-      marks: [],
-      message: Some(Message.TypOk(Message.Kind(fn_kind))),
+      marks,
+      message,
       expects,
       warnings: [],
       user_term: t1,

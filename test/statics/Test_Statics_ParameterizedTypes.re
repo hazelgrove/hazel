@@ -561,6 +561,34 @@ let x : List((Int, Bool)) = Nil in x
       },
     ),
     test_case(
+      "Free variable in TypParamAp callee position is reported",
+      `Quick,
+      () => {
+        /* Writing `L(a)` where `L` is not bound should mark `L` as a
+           free type variable, not silently give it kind `Type`. The
+           callee position of a type parameter application bypasses
+           the ordinary `(TypeExpected, Var(_))` status check, so we
+           need to report unbound names there explicitly. */
+        let marks =
+          static_errors(
+            {|
+type List(a) = + Nil + Cons(a, L(a)) in ?
+|},
+          );
+        check(
+          bool,
+          "L is reported as a free type variable",
+          true,
+          List.exists(
+            fun
+            | Mark.TypFreeTypeVariable("L") => true
+            | _ => false,
+            marks,
+          ),
+        );
+      },
+    ),
+    test_case(
       "Multi-param Either evaluates to a self-typed constructor",
       `Quick,
       () => {
