@@ -739,6 +739,110 @@ let pair : poly a, b -> a -> b -> (a, b) =
       },
     ),
     test_case(
+      "T(a) form is rejected as a poly binder",
+      `Quick,
+      () => {
+        /* `poly A(a) -> ...` writes a `Param` tpat (`A(a)`) in a
+           binder position. Only type-alias *heads* (`type A(a) = ...`)
+           accept the parameter-list form; binders should reject it
+           with `TPatParamNotAtAliasHead`. */
+        let marks =
+          static_errors(
+            {|
+let f : poly A(a) -> Int = ? in f
+|},
+          );
+        check(
+          bool,
+          "poly A(a) -> reports TPatParamNotAtAliasHead on the binder",
+          true,
+          List.exists(
+            fun
+            | Mark.TPatParamNotAtAliasHead("A") => true
+            | _ => false,
+            marks,
+          ),
+        );
+      },
+    ),
+    test_case(
+      "T(a) form is rejected as a typfun binder",
+      `Quick,
+      () => {
+        let marks =
+          static_errors(
+            {|
+let f = typfun A(a) -> ? in f
+|},
+          );
+        check(
+          bool,
+          "typfun A(a) -> reports TPatParamNotAtAliasHead on the binder",
+          true,
+          List.exists(
+            fun
+            | Mark.TPatParamNotAtAliasHead("A") => true
+            | _ => false,
+            marks,
+          ),
+        );
+      },
+    ),
+    test_case(
+      "T(a) form is rejected nested inside a type-alias head",
+      `Quick,
+      () => {
+        /* The outermost tpat of a type alias may be `T(a, b)`, but
+           `T(B(a)) = …` nests another `Param` *inside* the head — the
+           inner `B(a)` is not at an alias head and should be flagged
+           as `TPatParamNotAtAliasHead`. The outer `T(_)` itself
+           remains valid. */
+        let marks =
+          static_errors(
+            {|
+type T(B(a)) = a in ?
+|},
+          );
+        check(
+          bool,
+          "inner B(a) reports TPatParamNotAtAliasHead",
+          true,
+          List.exists(
+            fun
+            | Mark.TPatParamNotAtAliasHead("B") => true
+            | _ => false,
+            marks,
+          ),
+        );
+      },
+    ),
+    test_case(
+      "Top-level type alias T(a, b) is still accepted",
+      `Quick,
+      () => {
+        /* Sanity check: a well-formed parameterized type alias
+           (`type T(a, b) = …`) has no `TPatParamNotAtAliasHead`
+           mark on its head. */
+        let marks =
+          static_errors(
+            {|
+type T(a, b) = (a, b) in ?
+|},
+          );
+        check(
+          bool,
+          "no TPatParamNotAtAliasHead on the alias head",
+          false,
+          List.exists(
+            fun
+            | Mark.TPatParamNotAtAliasHead(_) => true
+            | _ => false,
+            marks,
+          ),
+        );
+      },
+    ),
+    test_case(
       "Recursive map@<a, b> specializes both binders in one statics step",
       `Quick,
       () => {

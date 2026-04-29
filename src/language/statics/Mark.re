@@ -78,6 +78,13 @@ type t =
   | ExplicitNonlabel
   | TPatShadowsType(string, tpat_shadow_src)
   | TPatNotAVar(tpat_var_err)
+  /* The `T(a, b)` parameter-list form (a `TPat.Param`) is only valid
+     as the outermost tpat of a type alias declaration:
+     `type T(a, b) = ...`. It is rejected as a sub-tpat (e.g.
+     `type T(A(a)) = ...`) and as the binder of `poly`, `typfun`,
+     `typlam`, or `rec` (e.g. `poly A(a) -> ...`). The associated
+     string is the head name (or `"?"` if the head is a hole). */
+  | TPatParamNotAtAliasHead(string)
   | TypFreeTypeVariable(string)
   | TypKindMismatch({
       expected: TypKind.t,

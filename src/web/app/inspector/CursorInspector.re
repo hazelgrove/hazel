@@ -276,7 +276,8 @@ let core_mark_err_view =
     | TypWantConstructorFoundAp
     | TypParseFailure
     | TPatShadowsType(_)
-    | TPatNotAVar(_) => [text("Type error")]
+    | TPatNotAVar(_)
+    | TPatParamNotAtAliasHead(_) => [text("Type error")]
     }
   )
   @ (
@@ -768,7 +769,8 @@ let exp_mark_err_view =
   | TypWantConstructorFoundAp
   | TypParseFailure
   | TPatShadowsType(_)
-  | TPatNotAVar(_) =>
+  | TPatNotAVar(_)
+  | TPatParamNotAtAliasHead(_) =>
     div_err([text("(internal) typ/tpat mark on expression")])
   | Redundant
   | ExpectedConstructor =>
@@ -1069,6 +1071,12 @@ let tpat_view =
         div_err([
           text("Can't shadow existing type variable"),
           view_type(Var(name) |> Typ.fresh),
+        ])
+      | TPatParamNotAtAliasHead(_) =>
+        div_err([
+          text("The "),
+          code("T(a, b)"),
+          text(" form is only allowed as the head of a type alias"),
         ])
       | _ => div_err([text("Type pattern error")])
       }

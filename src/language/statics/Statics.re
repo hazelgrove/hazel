@@ -2287,7 +2287,13 @@ and uexp_to_info_map =
       add(~elab_term, ~elab_syn_ty, ~marks=marks_match', ~co_ctx, m);
     | TyAlias(typat, utyp, body) =>
       let m =
-        utpat_to_info_map(~ctx, ~ancestors=ancestors_inclusive, typat, m)
+        utpat_to_info_map(
+          ~at_alias_head=true,
+          ~ctx,
+          ~ancestors=ancestors_inclusive,
+          typat,
+          m,
+        )
         |> snd;
       /* Desugar Sig types so that type aliases like `type T = {let x : Int}`
          store Prod([TupLabel(...)]) rather than Sig([...]) in the context.
@@ -4142,7 +4148,14 @@ and utyp_to_info_map =
   };
 }
 and utpat_to_info_map =
-    (~ctx, ~ancestors, utpat: TPat.t, m: Map.t): (Info.tpat, Map.t) => {
+    (~at_alias_head=false, ~ctx, ~ancestors, utpat: TPat.t, m: Map.t)
+    : (Info.tpat, Map.t) => {
+  /* `at_alias_head` is `true` only for the outermost tpat of a
+     `type … = …` declaration. The `T(a, b)` parameter-list form
+     (`TPat.Param`) is allowed there, and rejected in every other tpat
+     position (sub-tpats of an alias head, binders of `poly`,
+     `typfun`, `typlam`, `rec`, elements of a `Tuple` binder list,
+     etc.). All recursive calls below pass `at_alias_head=false`. */
   let ids = IdTagged.ids(utpat);
   let term = IdTagged.term_of(utpat);
   let status_for_node =
@@ -4183,6 +4196,9 @@ and utpat_to_info_map =
           ),
         )
       }
+    | Param(head, _params) when !at_alias_head =>
+      let name = TPat.head_name_of(head) |> Option.value(~default="?");
+      ([Mark.TPatParamNotAtAliasHead(name)], None);
     | Param(head, params) =>
       switch (TPat.head_name_of(head)) {
       | Some(name) when Ctx.is_base_typ(name) => (
@@ -4228,44 +4244,52 @@ and utpat_to_info_map =
   | EmptyHole
   | Var(_) => add(m)
   | Param(head, params) =>
-    /* The head is a sibling AST node with its own tile id. Recurse so the
-       head gets its own info entry at its own id (not merged with the
-       Param node's annotation.ids), then override the head's info with
-       one whose kind reflects the constructor's arity. The base recursion
-       runs first so any inner marks (e.g. shadowing) are still recorded. */
+    /* The head is a sibling AST node with its own tile id. Recurse so
+       the head gets its own info entry at its own id (not merged with
+       the Param node's annotation.ids). When this `Param` is in valid
+       alias-head position, override the head's info with one whose
+       kind reflects the constructor's arity; otherwise let the head's
+       own recursion stand so its info reports the same error
+       (kind, free-variable, …) it would in any other tpat position.
+       Sub-tpats are always visited with `at_alias_head=false`. */
     let m =
       utpat_to_info_map(~ctx, ~ancestors=ancestors_inclusive, head, m) |> snd;
-    let head_kind = TypKind.of_param_count(List.length(params));
-    let head_message =
-      switch (TPat.head_name_of(head)) {
-      | Some(name) when Ctx.is_base_typ(name) => None
-      | Some(name) =>
-        Some(
-          Message.TPatOk(
-            Message.TypeAlias({
-              name,
-              kind: head_kind,
-            }),
-          ),
-        )
-      | None => None
+    let m =
+      if (at_alias_head) {
+        let head_kind = TypKind.of_param_count(List.length(params));
+        let head_message =
+          switch (TPat.head_name_of(head)) {
+          | Some(name) when Ctx.is_base_typ(name) => None
+          | Some(name) =>
+            Some(
+              Message.TPatOk(
+                Message.TypeAlias({
+                  name,
+                  kind: head_kind,
+                }),
+              ),
+            )
+          | None => None
+          };
+        let head_info: Info.tpat = {
+          cls: Cls.TPat(TPat.cls_of_term(head.term)),
+          ancestors: ancestors_inclusive,
+          marks:
+            switch (TPat.head_name_of(head)) {
+            | Some(name) when Ctx.is_base_typ(name) => [
+                TPatShadowsType(name, BaseTyp),
+              ]
+            | _ => []
+            },
+          message: head_message,
+          warnings: [],
+          ctx,
+          user_term: head,
+        };
+        add_info(IdTagged.ids(head), InfoTPat(head_info), m);
+      } else {
+        m;
       };
-    let head_info: Info.tpat = {
-      cls: Cls.TPat(TPat.cls_of_term(head.term)),
-      ancestors: ancestors_inclusive,
-      marks:
-        switch (TPat.head_name_of(head)) {
-        | Some(name) when Ctx.is_base_typ(name) => [
-            TPatShadowsType(name, BaseTyp),
-          ]
-        | _ => []
-        },
-      message: head_message,
-      warnings: [],
-      ctx,
-      user_term: head,
-    };
-    let m = add_info(IdTagged.ids(head), InfoTPat(head_info), m);
     let param_ctx =
       List.fold_left(
         (ctx, param) =>
