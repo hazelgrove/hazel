@@ -525,6 +525,10 @@ and TPat: {
           let recurse =
             TPat.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
           Param(recurse(head), List.map(recurse, params));
+        | Tuple(tps) =>
+          let recurse =
+            TPat.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
+          Tuple(List.map(recurse, tps));
         },
     };
     x |> f_tpat(rec_call);

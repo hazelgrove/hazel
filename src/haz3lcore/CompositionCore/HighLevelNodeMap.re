@@ -258,6 +258,8 @@ module Namer = {
     | Var(name)
     | Invalid(name) => name
     | Param(head, _) => mk_name_from_tpat(head)
+    | Tuple(tps) =>
+      "(" ++ String.concat(", ", List.map(mk_name_from_tpat, tps)) ++ ")"
     | EmptyHole => "{empty type pattern hole}"
     | MultiHole(_) => "{multi type pattern hole}"
     };

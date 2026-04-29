@@ -1859,6 +1859,13 @@ and abbreviate_tpat = (tpat: TPat.t): TPat.t =>
           available := available^ - 2;
           Param(abbreviate_tpat(head), List.map(abbreviate_tpat, params));
         }
+      | Tuple(tps) =>
+        if (available^ <= 2) {
+          indet_term_tpat;
+        } else {
+          available := available^ - 2;
+          Tuple(List.map(abbreviate_tpat, tps));
+        }
       | MultiHole(things) =>
         if (available^ <= 1) {
           indet_term_tpat;

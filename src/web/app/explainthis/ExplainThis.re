@@ -3000,6 +3000,7 @@ let get_doc =
         | None => "?"
         };
       simple("`" ++ name ++ "` is a parameterized type declaration.");
+    | Tuple(_) => simple("A list of type binders.")
     }
   | Some(InfoDrv({term, _})) =>
     let (syntax, msg) =

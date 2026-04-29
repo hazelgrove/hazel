@@ -4,7 +4,8 @@ type cls =
   | EmptyHole
   | MultiHole
   | Var
-  | Param;
+  | Param
+  | Tuple;
 
 include TermBase.TPat;
 
@@ -27,7 +28,8 @@ let cls_of_term: Grammar.tpat_term('a) => cls =
   | EmptyHole => EmptyHole
   | MultiHole(_) => MultiHole
   | Var(_) => Var
-  | Param(_) => Param;
+  | Param(_) => Param
+  | Tuple(_) => Tuple;
 
 let show_cls: cls => string =
   fun
@@ -35,7 +37,8 @@ let show_cls: cls => string =
   | MultiHole => "Broken type alias"
   | EmptyHole => "Type alias hole"
   | Var => "Type alias"
-  | Param => "Parameterized type alias";
+  | Param => "Parameterized type alias"
+  | Tuple => "Type binder list";
 
 let temp: term => t =
   term => {
@@ -60,3 +63,17 @@ let alias_head = (tpat: t): option((string, list(t))) =>
     }
   | _ => None
   };
+
+/* When the binder of a `Poly`/`TypFun`/`TypLam`/`Rec` is a `Tuple`, it
+   stands for a comma-separated list of single binders. `binders_of`
+   flattens that list into a list of single-binder tpats; non-tuple
+   binders return [tpat] as a singleton. The list flattens one level
+   only — there are no nested `Tuple`s in valid surface programs. */
+let binders_of = (tpat: t): list(t) =>
+  switch (tpat.term) {
+  | Tuple(tps) => tps
+  | _ => [tpat]
+  };
+
+let tyvars_of = (tpat: t): list(string) =>
+  binders_of(tpat) |> List.filter_map(tyvar_of_utpat);

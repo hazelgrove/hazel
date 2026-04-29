@@ -136,6 +136,15 @@ and tpat_term('a) =
   | MultiHole(list(any_t('a)))
   | Var(string)
   | Param(tpat_t('a), list(tpat_t('a)))
+  /* Tuple is a multi-binder type pattern, used as the binder of `Poly`,
+     `TypFun`, `TypLam`, and `Rec` when the user wrote a comma-separated
+     list of binders, e.g. `poly a, b -> t` parses as
+     `Poly(TPat.Tuple([a, b]), t)` and `typfun a, b -> e` parses as
+     `TypFun(TPat.Tuple([a, b]), e, _)`. The corresponding type-level
+     application supplies a `TypTuple` argument of matching arity, and
+     substitution / reduction zip the pair element-by-element. Tuple
+     never appears as a stand-alone tpat outside a binder position. */
+  | Tuple(list(tpat_t('a)))
 and tpat_t('a) = Annotated.t(tpat_term('a), 'a)
 and rul_term('a) =
   | Invalid(string)
@@ -432,6 +441,7 @@ and map_tpat_annotation: 'a 'b. ('a => 'b, tpat_t('a)) => tpat_t('b) =
             map_tpat_annotation(f, head),
             List.map(x => map_tpat_annotation(f, x), params),
           )
+        | Tuple(l) => Tuple(List.map(x => map_tpat_annotation(f, x), l))
         },
       annotation: new_annotation,
     };
@@ -1026,6 +1036,10 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
     };
     let param = (~ann=?, head, params): tpat_t(DefaultAnnotation.t) => {
       term: Param(head, params),
+      annotation: default_annotation(ann),
+    };
+    let tuple = (~ann=?, tps): tpat_t(DefaultAnnotation.t) => {
+      term: Tuple(tps),
       annotation: default_annotation(ann),
     };
   };

@@ -854,6 +854,7 @@ and parenthesize_tpat =
   // Indivisible forms dont' change
   | Var(_)
   | Param(_)
+  | Tuple(_)
   | Invalid(_)
   | EmptyHole => tpat
 
@@ -2970,6 +2971,26 @@ and tpat_to_pretty = (~settings: Settings.t, tpat: TPat.t): pretty => {
           )
       };
     wrap(tpat, head @ [mk_form(ApTPat, app_id, [params])]);
+  | Tuple(tps) =>
+    /* Render a multi-binder tpat as `a, b, c, …` using the existing
+       `,` infix CommaTPat tile between elements. */
+    let mk_form = mk_form(~secondary=settings.secondary);
+    let+ tps = tps |> List.map(tpat_to_pretty(~settings: Settings.t)) |> all;
+    let seg =
+      switch (tps) {
+      | [] => []
+      | [first, ...rest] =>
+        first
+        @ List.flatten(
+            List.map2(
+              (comma_id, tp) =>
+                [mk_form(CommaTPat, comma_id, [])] @ tp,
+              IdTagged.ids(tpat) |> pad_ids(List.length(rest)),
+              rest,
+            ),
+          )
+      };
+    wrap(tpat, seg);
   };
 }
 and mod_to_pretty = (~settings: Settings.t, item: Mod.t): pretty => {

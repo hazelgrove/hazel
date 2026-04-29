@@ -26,6 +26,7 @@ let rec bound_vars_of_tpat = (tpat: TPat.t): list(Var.t) =>
   | Var(name) => [name]
   | Param(head, params) =>
     bound_vars_of_tpat(head) @ List.concat_map(bound_vars_of_tpat, params)
+  | Tuple(tps) => List.concat_map(bound_vars_of_tpat, tps)
   | Invalid(_)
   | EmptyHole
   | MultiHole(_) => []

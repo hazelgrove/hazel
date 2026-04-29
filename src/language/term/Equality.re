@@ -796,6 +796,15 @@ let equality =
       }
     | (Param(_, _), _) => None
 
+    | (Tuple(ts1), Tuple(ts2)) when List.length(ts1) == List.length(ts2) =>
+      ListUtil.fold_left_opt(
+        (alphas, (t1, t2)) =>
+          tpat(t1, t2) |> Option.map(Alphas.combine(_, alphas)),
+        Alphas.empty,
+        List.combine(ts1, ts2),
+      )
+    | (Tuple(_), _) => None
+
     // Holes: equal if provenance is ignored
     | (
         EmptyHole | MultiHole(_) | Invalid(_),

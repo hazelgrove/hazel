@@ -78,7 +78,8 @@ type tpat =
   | InvalidTPat(string)
   | EmptyHoleTPat
   | VarTPat(string)
-  | ParamTPat(string, list(tpat));
+  | ParamTPat(string, list(tpat))
+  | TupleTPat(list(tpat));
 
 [@deriving (show({with_path: false}), sexp, eq)]
 type typ =

@@ -577,6 +577,7 @@ and TPat: {
     | VarTPat(s) => var(s)
     | ParamTPat(name, params) =>
       param(var(name), List.map(of_menhir_ast, params))
+    | TupleTPat(tps) => tuple(List.map(of_menhir_ast, tps))
     };
   };
 
@@ -592,6 +593,7 @@ and TPat: {
         | _ => "?"
         };
       ParamTPat(name, List.map(of_core, params));
+    | Tuple(tps) => TupleTPat(List.map(of_core, tps))
     | Invalid(i) => InvalidTPat(i)
     | MultiHole(_) => raise(Failure("MultiHole not supported"))
     };

@@ -1380,6 +1380,7 @@ let rec pretty_print_tvar = (tv: TPat.t): string =>
     ++ "("
     ++ String.concat(", ", List.map(pretty_print_tvar, params))
     ++ ")"
+  | Tuple(tps) => String.concat(", ", List.map(pretty_print_tvar, tps))
   | Invalid(_)
   | EmptyHole
   | MultiHole(_) => "?"

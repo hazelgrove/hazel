@@ -2430,6 +2430,7 @@ and uexp_to_info_map =
         );
       | Var(_)
       | Param(_)
+      | Tuple(_)
       | Invalid(_)
       | EmptyHole
       | MultiHole(_) =>
@@ -4161,6 +4162,7 @@ and utpat_to_info_map =
         )
       | None => ([TPatNotAVar(Other)], None)
       }
+    | Tuple(_) => ([], Some(Message.Empty))
     | Invalid(_) => ([TPatNotAVar(NotCapitalized)], None)
     | MultiHole(_) => ([TPatNotAVar(Other)], None)
     };
@@ -4257,6 +4259,44 @@ and utpat_to_info_map =
           |> snd,
         m,
         params,
+      );
+    add(m);
+  | Tuple(tps) =>
+    /* `Tuple` only appears as a binder for `Poly`/`TypFun`/`TypLam`/`Rec`.
+       Each element is a single binder; recurse with each one extending
+       the local tvar context so nested binders see their siblings as
+       abstract type parameters. */
+    let elt_ctx =
+      List.fold_left(
+        (ctx, tp) =>
+          switch (TPat.tyvar_of_utpat(tp)) {
+          | Some(name) =>
+            Ctx.extend_tvar(
+              ctx,
+              {
+                name,
+                id: TPat.rep_id(tp),
+                kind: Abstract,
+                typ_kind: TypKind.Type,
+              },
+            )
+          | None => ctx
+          },
+        ctx,
+        tps,
+      );
+    let m =
+      List.fold_left(
+        (m, tp) =>
+          utpat_to_info_map(
+            ~ctx=elt_ctx,
+            ~ancestors=ancestors_inclusive,
+            tp,
+            m,
+          )
+          |> snd,
+        m,
+        tps,
       );
     add(m);
   };
