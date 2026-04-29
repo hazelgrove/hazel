@@ -50,11 +50,46 @@ let _triple_c = tpat("p_3");
 let _typ_def_t = typ("ty_def");
 
 let param_tyalias_general_coloring_ids =
-    (~head_id: Id.t, ~params_list_id: Id.t, ~def_id: Id.t) => [
-  (Piece.id(_head_tpat_g), head_id),
-  (Piece.id(_general_params), params_list_id),
-  (Piece.id(_typ_def_g), def_id),
-];
+    (
+      ~head_id: Id.t,
+      ~params_list_id: Id.t,
+      ~extra_ids: list(Id.t),
+      ~def_id: Id.t,
+    ) =>
+  [
+    (Piece.id(_head_tpat_g), head_id),
+    (Piece.id(_general_params), params_list_id),
+    (Piece.id(_typ_def_g), def_id),
+  ]
+  @ List.map(pid => (Piece.id(_general_params), pid), extra_ids);
+
+let param_tyalias_general_explanation =
+    (
+      ~head_str: string,
+      ~head_id: Id.t,
+      ~params_ids: list(Id.t),
+      ~def_id: Id.t,
+    )
+    : string => {
+  let params_part =
+    params_ids
+    |> List.mapi((i, pid) =>
+         Printf.sprintf(
+           "[*p_%d*](%s)",
+           i + 1,
+           Id.to_string(pid),
+         )
+       )
+    |> String.concat(", ");
+  Printf.sprintf(
+    "Binds [*%s*](%s) as a parameterized type constructor with parameters %s. Inside the [*definition*](%s) the parameters are abstract type variables; at use sites `%s(X_1, …, X_n)` substitutes each argument for the corresponding parameter.",
+    head_str,
+    Id.to_string(head_id),
+    params_part,
+    Id.to_string(def_id),
+    head_str,
+  );
+};
 
 let param_tyalias_pair_coloring_ids =
     (~head_id: Id.t, ~p1_id: Id.t, ~p2_id: Id.t, ~def_id: Id.t) => [
@@ -79,16 +114,16 @@ let param_tyalias_triple_coloring_ids =
   (Piece.id(_typ_def_t), def_id),
 ];
 
+let _general_ap = mk_ap_tpat([[_general_params]]);
 let param_tyalias_general_exp: form = {
-  let explanation = "Binds [*%s*](%s) as a parameterized type constructor. Its [*parameters*](%s) are abstract type variables inside the [*definition*](%s); at use sites `%s(X_1, …, X_n)` substitutes each argument for the corresponding parameter.";
+  /* The explanation is supplied dynamically via `~explanation` at
+     dispatch time so every user parameter gets its own
+     `[*p_i*](id)` link and highlight. This placeholder is only
+     shown if the form is viewed in isolation. */
+  let explanation = "A parameterized type alias with arbitrarily many parameters.";
   let form = [
     mk_tyalias([
-      [
-        space(),
-        _head_tpat_g,
-        mk_ap_tpat([[_general_params]]),
-        space(),
-      ],
+      [space(), _head_tpat_g, _general_ap, space()],
       [space(), _typ_def_g, space()],
     ]),
     linebreak(),
@@ -97,22 +132,19 @@ let param_tyalias_general_exp: form = {
   {
     id: ParameterizedTyAliasExp(General),
     syntactic_form: form,
-    expandable_id: None,
+    expandable_id: Some((Piece.id(_general_ap), [_general_ap])),
     explanation,
     examples: [],
   };
 };
 
+let _pair_ap =
+  mk_ap_tpat([[_pair_a, comma_tpat(), space(), _pair_b]]);
 let param_tyalias_pair_exp: form = {
   let explanation = "Binds [*%s*](%s) as a parameterized type constructor with two parameters [*%s*](%s) and [*%s*](%s). Inside the [*definition*](%s) the parameters are abstract type variables; at use sites `%s(X_1, X_2)` substitutes each argument for the corresponding parameter.";
   let form = [
     mk_tyalias([
-      [
-        space(),
-        _head_tpat_p,
-        mk_ap_tpat([[_pair_a, comma_tpat(), space(), _pair_b]]),
-        space(),
-      ],
+      [space(), _head_tpat_p, _pair_ap, space()],
       [space(), _typ_def_p, space()],
     ]),
     linebreak(),
@@ -121,32 +153,29 @@ let param_tyalias_pair_exp: form = {
   {
     id: ParameterizedTyAliasExp(Arity2),
     syntactic_form: form,
-    expandable_id: None,
+    expandable_id: Some((Piece.id(_pair_ap), [_pair_ap])),
     explanation,
     examples: [],
   };
 };
 
+let _triple_ap =
+  mk_ap_tpat([
+    [
+      _triple_a,
+      comma_tpat(),
+      space(),
+      _triple_b,
+      comma_tpat(),
+      space(),
+      _triple_c,
+    ],
+  ]);
 let param_tyalias_triple_exp: form = {
   let explanation = "Binds [*%s*](%s) as a parameterized type constructor with three parameters [*%s*](%s), [*%s*](%s), and [*%s*](%s). Inside the [*definition*](%s) the parameters are abstract type variables; at use sites `%s(X_1, X_2, X_3)` substitutes each argument for the corresponding parameter.";
   let form = [
     mk_tyalias([
-      [
-        space(),
-        _head_tpat_t,
-        mk_ap_tpat([
-          [
-            _triple_a,
-            comma_tpat(),
-            space(),
-            _triple_b,
-            comma_tpat(),
-            space(),
-            _triple_c,
-          ],
-        ]),
-        space(),
-      ],
+      [space(), _head_tpat_t, _triple_ap, space()],
       [space(), _typ_def_t, space()],
     ]),
     linebreak(),
@@ -155,7 +184,7 @@ let param_tyalias_triple_exp: form = {
   {
     id: ParameterizedTyAliasExp(Arity3),
     syntactic_form: form,
-    expandable_id: None,
+    expandable_id: Some((Piece.id(_triple_ap), [_triple_ap])),
     explanation,
     examples: [],
   };

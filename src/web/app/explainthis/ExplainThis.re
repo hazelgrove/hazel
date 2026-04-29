@@ -875,36 +875,36 @@ let get_doc =
               TyAliasExp.param_tyalias_exps_arity3,
             );
           | _ =>
-            /* Arbitrary arity: use the general form. The "params
-               list" id is sourced from the first param's surrounding
-               kid (its ids cover the comma tile); approximate by
-               using the first param's id if any, else a fresh id. */
+            /* Arbitrary arity: use the general form with a
+               dynamically-built explanation that has one link per
+               parameter. Each user-side parameter gets its own
+               highlight color. */
+            let params_ids =
+              List.map(p => List.nth(IdTagged.ids(p), 0), params);
             let params_list_id =
-              switch (params) {
-              | [p, ..._] => List.nth(IdTagged.ids(p), 0)
+              switch (params_ids) {
+              | [p, ..._] => p
               | [] => Id.mk()
+              };
+            let extra_ids =
+              switch (params_ids) {
+              | [] => []
+              | [_, ...rest] => rest
               };
             get_message(
               ~colorings=
                 TyAliasExp.param_tyalias_general_coloring_ids(
                   ~head_id,
                   ~params_list_id,
+                  ~extra_ids,
                   ~def_id,
                 ),
-              ~format=
-                Some(
-                  msg =>
-                    Printf.sprintf(
-                      Scanf.format_from_string(
-                        msg,
-                        "%s%s%s%s%s",
-                      ),
-                      head_str,
-                      Id.to_string(head_id),
-                      Id.to_string(params_list_id),
-                      Id.to_string(def_id),
-                      head_str,
-                    ),
+              ~explanation=
+                TyAliasExp.param_tyalias_general_explanation(
+                  ~head_str,
+                  ~head_id,
+                  ~params_ids,
+                  ~def_id,
                 ),
               TyAliasExp.param_tyalias_exps_general,
             );
@@ -3190,26 +3190,27 @@ let get_doc =
           ParamTPat.param_tpats_arity3,
         );
       | _ =>
+        let params_ids =
+          List.map(p => List.nth(IdTagged.ids(p), 0), params);
         let params_list_id =
-          switch (params) {
-          | [p, ..._] => List.nth(IdTagged.ids(p), 0)
+          switch (params_ids) {
+          | [p, ..._] => p
           | [] => Id.mk()
+          };
+        let extra_ids =
+          switch (params_ids) {
+          | [] => []
+          | [_, ...rest] => rest
           };
         get_message(
           ~colorings=
             ParamTPat.param_tpat_general_coloring_ids(
               ~head_id,
               ~params_list_id,
+              ~extra_ids,
             ),
-          ~format=
-            Some(
-              msg =>
-                Printf.sprintf(
-                  Scanf.format_from_string(msg, "%s%s"),
-                  head_str,
-                  Id.to_string(params_list_id),
-                ),
-            ),
+          ~explanation=
+            ParamTPat.general_explanation(~head_str, ~params_ids),
           ParamTPat.param_tpats_general,
         );
       };
@@ -3261,22 +3262,26 @@ let get_doc =
           TupleTPat.tuple_tpats_arity3,
         );
       | _ =>
+        let binders_ids =
+          List.map(tp => List.nth(IdTagged.ids(tp), 0), tps);
         let binders_list_id =
-          switch (tps) {
-          | [p, ..._] => List.nth(IdTagged.ids(p), 0)
+          switch (binders_ids) {
+          | [p, ..._] => p
           | [] => Id.mk()
+          };
+        let extra_ids =
+          switch (binders_ids) {
+          | [] => []
+          | [_, ...rest] => rest
           };
         get_message(
           ~colorings=
-            TupleTPat.tuple_tpat_general_coloring_ids(~binders_list_id),
-          ~format=
-            Some(
-              msg =>
-                Printf.sprintf(
-                  Scanf.format_from_string(msg, "%s"),
-                  Id.to_string(binders_list_id),
-                ),
+            TupleTPat.tuple_tpat_general_coloring_ids(
+              ~binders_list_id,
+              ~extra_ids,
             ),
+          ~explanation=
+            TupleTPat.general_explanation(~binders_ids),
           TupleTPat.tuple_tpats_general,
         );
       }
