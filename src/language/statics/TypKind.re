@@ -15,17 +15,27 @@ let rec arity = (kind: t): int =>
   | Arrow(args, result) => List.length(args) + arity(result)
   };
 
-/* Apply a single argument to a kind. Curried application against a tuple
-   arrow consumes one argument from the head of the list:
-     `Arrow([k0, k1, ...], r) ⊳ k0  ↦  Arrow([k1, ...], r)`
-   When the argument list becomes empty the residual is just `r`. */
+/* Apply a kind to a *single* argument's kind. Tuple-arrow kinds are
+   atomic: a kind `Arrow([k1, k2], r)` requires *both* arguments at once
+   and cannot be partially applied to one of them. So this only
+   succeeds for single-argument arrows `Arrow([k], r)`. Multi-argument
+   applications go through `apply_all` instead. */
 let apply = (fn_kind: t, arg_kind: t): option(t) =>
   switch (fn_kind) {
-  | Arrow([expected, ...rest], result) when equal(expected, arg_kind) =>
-    switch (rest) {
-    | [] => Some(result)
-    | _ => Some(Arrow(rest, result))
-    }
+  | Arrow([expected], result) when equal(expected, arg_kind) => Some(result)
+  | _ => None
+  };
+
+/* Apply a kind to a tuple of argument kinds at once, consuming the
+   entire argument list of a tuple-arrow kind. Fails on arity mismatch
+   or kind mismatch. */
+let apply_all = (fn_kind: t, arg_kinds: list(t)): option(t) =>
+  switch (fn_kind) {
+  | Arrow(expected, result)
+      when
+        List.length(expected) == List.length(arg_kinds)
+        && List.for_all2(equal, expected, arg_kinds) =>
+    Some(result)
   | _ => None
   };
 

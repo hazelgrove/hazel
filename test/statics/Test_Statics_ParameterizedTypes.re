@@ -449,11 +449,9 @@ let x : Either(Int, Bool) = A(3) in x
       },
     ),
     test_case(
-      "Either has tuple-arrow kind (Type, Type) -> Type",
+      "Either(Int) reports arity mismatch (expected 2, got 1)",
       `Quick,
       () => {
-        /* Sanity: applying Either at one arg leaves a residual partial
-           kind, which is a kind error in `Type` position. */
         let marks =
           static_errors(
             {|
@@ -461,19 +459,57 @@ type Either(a, b) = + A(a) + B(b) in
 let x : Either(Int) = A(3) in x
 |},
           );
-        let arity_or_kind_mark =
+        check(
+          bool,
+          "Either applied to 1 argument is rejected with arity mismatch",
+          true,
           List.exists(
             fun
-            | Mark.TypApplyArityMismatch(_)
-            | Mark.TypKindMismatch(_) => true
+            | Mark.TypApplyArityMismatch({expected: 2, actual: 1, _}) => true
             | _ => false,
             marks,
+          ),
+        );
+      },
+    ),
+    test_case(
+      "Either((Int, Bool)) reports arity mismatch, not partial application",
+      `Quick,
+      () => {
+        /* The user's parens make `(Int, Bool)` a *single* tuple argument,
+           but Either expects two type arguments. The error should clearly
+           say "expected 2, got 1" — not the curried-application kind
+           mismatch "Expected Type, found Type -> Type". */
+        let marks =
+          static_errors(
+            {|
+type Either(a, b) = + A(a) + B(b) in
+let x : Either((Int, Bool)) = A(0) in x
+|},
           );
         check(
           bool,
-          "partial application of Either is rejected",
+          "single-tuple-arg application is an arity mismatch",
           true,
-          arity_or_kind_mark,
+          List.exists(
+            fun
+            | Mark.TypApplyArityMismatch({expected: 2, actual: 1, _}) => true
+            | _ => false,
+            marks,
+          ),
+        );
+        /* And specifically, no `TypKindMismatch` should be emitted on
+           this node — the arity error fully explains the problem. */
+        check(
+          bool,
+          "no spurious kind mismatch from currying",
+          false,
+          List.exists(
+            fun
+            | Mark.TypKindMismatch(_) => true
+            | _ => false,
+            marks,
+          ),
         );
       },
     ),

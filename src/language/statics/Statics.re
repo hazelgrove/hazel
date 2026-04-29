@@ -3516,25 +3516,14 @@ and utyp_to_info_map =
       TypKind.arrows([type_], kind_of_typ(body_ctx, body));
     | TypApp(fn, arg) =>
       let fn_kind = kind_of_typ(ctx, fn);
-      switch (arg.term) {
-      | TypTuple(ts) =>
-        /* Multi-argument application `T(a, b, …)` consumes the entire
-           tuple of args at once against `T`'s tuple-arrow kind. */
-        let arg_kinds = List.map(kind_of_typ(ctx), ts);
-        switch (fn_kind) {
-        | TypKind.Arrow(expected, result)
-            when
-              List.length(expected) == List.length(arg_kinds)
-              && List.for_all2(TypKind.equal, expected, arg_kinds) =>
-          result
-        | _ => type_
+      let arg_kinds =
+        switch (arg.term) {
+        | TypTuple(ts) => List.map(kind_of_typ(ctx), ts)
+        | _ => [kind_of_typ(ctx, arg)]
         };
-      | _ =>
-        let arg_kind = kind_of_typ(ctx, arg);
-        switch (TypKind.apply(fn_kind, arg_kind)) {
-        | Some(result) => result
-        | None => type_
-        };
+      switch (TypKind.apply_all(fn_kind, arg_kinds)) {
+      | Some(result) => result
+      | None => type_
       };
     | Rec(param, body) =>
       let body_ctx = Ctx.extend_dummy_tvar(ctx, param);
@@ -3693,17 +3682,14 @@ and utyp_to_info_map =
     | (VariantExpected(_), _) => err(TypWantConstructorFoundType(utyp))
     | (_, Parens(t)) => status_for_node(~expects, t)
     | (TypeExpected, TypApp(fn, arg)) =>
-      /* TypApp's own marks are application-level: the callee must have
-         Arrow kind matching the argument arity, and each argument's kind
-         must match the corresponding parameter slot. Children's own
-         kinds are reported on their own info entries.
-
-         Multi-argument applications `T(a, b, …)` are encoded as
-         `TypApp(T, TypTuple([a, b, …]))`; the entire argument tuple is
-         consumed at once against `T`'s tuple-arrow kind. Single-arg
-         applications consume one slot from the head of the kind's arg
-         list and may leave a residual arrow (which then errors as a
-         partial application when used in `Type` position). */
+      /* Tuple-arrow kinds are atomic: applying `T : (k1, …, kN) -> R`
+         requires exactly N arguments at once. Multi-argument
+         applications `T(a, b, …)` arrive as
+         `TypApp(T, TypTuple([a, b, …]))`; single-argument applications
+         like `T(a)` arrive as `TypApp(T, a)` and we treat them as a
+         length-1 argument list. There is no curried partial
+         application — `Either(Int)` (1 arg, kind expects 2) is an
+         arity error, not a residual `Type -> Type` kind. */
       let fn_kind = kind_of_typ(ctx, fn);
       let arg_kinds =
         switch (arg.term) {
@@ -3714,54 +3700,38 @@ and utyp_to_info_map =
       | TypKind.Arrow(expected, result) =>
         let n_expected = List.length(expected);
         let n_actual = List.length(arg_kinds);
-        switch (arg.term) {
-        | TypTuple(_) when n_expected != n_actual =>
+        if (n_expected != n_actual) {
           err(
             Mark.TypApplyArityMismatch({
               callee_kind: fn_kind,
               expected: n_expected,
               actual: n_actual,
             }),
-          )
-        | _ =>
-          /* Compare the prefix of `expected` we're applying. For multi-arg
-             `n_actual = n_expected`. For single-arg this consumes one slot
-             from the head, possibly leaving a residual arrow. */
-          let n_to_take = min(n_actual, n_expected);
-          let to_compare =
-            ListUtil.sublist((0, n_to_take), expected);
-          let remaining =
-            ListUtil.sublist((n_to_take, n_expected), expected);
-          if (List.length(to_compare) != n_actual
-              || !List.for_all2(TypKind.equal, to_compare, arg_kinds)) {
-            err(
-              Mark.TypKindMismatch({
-                expected:
-                  switch (to_compare) {
-                  | [k] => k
-                  | _ => TypKind.Arrow(to_compare, TypKind.Type)
-                  },
-                actual:
-                  switch (arg_kinds) {
-                  | [k] => k
-                  | _ => TypKind.Arrow(arg_kinds, TypKind.Type)
-                  },
-              }),
-            );
-          } else {
-            /* Build the residual kind from the unconsumed slots. */
-            let residual = TypKind.arrows(remaining, result);
-            if (!TypKind.equal(residual, TypKind.Type)) {
-              err(
-                Mark.TypKindMismatch({
-                  expected: TypKind.Type,
-                  actual: residual,
-                }),
-              );
-            } else {
-              ok(Message.Type(utyp));
-            };
-          };
+          );
+        } else if (!List.for_all2(TypKind.equal, expected, arg_kinds)) {
+          err(
+            Mark.TypKindMismatch({
+              expected:
+                switch (expected) {
+                | [k] => k
+                | _ => TypKind.Arrow(expected, TypKind.Type)
+                },
+              actual:
+                switch (arg_kinds) {
+                | [k] => k
+                | _ => TypKind.Arrow(arg_kinds, TypKind.Type)
+                },
+            }),
+          );
+        } else if (!TypKind.equal(result, TypKind.Type)) {
+          err(
+            Mark.TypKindMismatch({
+              expected: TypKind.Type,
+              actual: result,
+            }),
+          );
+        } else {
+          ok(Message.Type(utyp));
         };
       | _ => err(Mark.TypApplyNonArrowKind(fn_kind))
       };
