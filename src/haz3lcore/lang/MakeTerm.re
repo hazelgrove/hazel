@@ -332,6 +332,33 @@ let parse_sum_term: Typ.t => ConstructorMap.variant(Typ.t) =
     )
   | t => BadEntry(t);
 
+/* Expand a tpat that may have been parsed as a comma-separated list
+   into a non-empty list of individual binder tpats. Comma-separated
+   tpats currently land as a `MultiHole([Grammar.TPat(_), …])` from the
+   `Bin(TPat, ",", TPat)` rule; for `typfun`/`poly` binders we want to
+   treat the list as multiple binders to curry. Anything else returns
+   a singleton list. */
+let expand_tpat_binders = (tpat: TPat.t): list(TPat.t) =>
+  switch (IdTagged.term_of(tpat)) {
+  | MultiHole(els) =>
+    let extracted =
+      List.filter_map(
+        fun
+        | Grammar.TPat(tp) => Some(tp)
+        | _ => None,
+        els,
+      );
+    /* Only treat as a binder list if every element is a tpat — a
+       genuinely broken `MultiHole` containing other sorts stays a
+       singleton so existing error reporting kicks in. */
+    if (List.length(extracted) == List.length(els) && extracted != []) {
+      extracted;
+    } else {
+      [tpat];
+    };
+  | _ => [tpat]
+  };
+
 let apply_typ_param_args = (fn: Typ.t, arg: Typ.t): Typ.term => {
   /* `T(a, b, …)` is a multi-argument type application: the comma-
      separated list parses as a `Prod`, but the user means
@@ -799,7 +826,24 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
         | (["fun", "->"], [Pat(pat)]) => Fun(pat, r, None, None)
         | (["forall", "->"], [Pat(pat)]) => Forall(pat, r)
         | (["fix", "->"], [Pat(pat)]) => FixF(pat, r, None)
-        | (["typfun", "->"], [TPat(tpat)]) => TypFun(tpat, r, None)
+        | (["typfun", "->"], [TPat(tpat)]) =>
+          /* `typfun a, b -> e` curries internally to
+             `TypFun(a, TypFun(b, e, None), None)`. The dynamics
+             `TypAp` rule peels one binder per `TypTuple` element when
+             the user writes `f@<Int, Bool>`. */
+          (
+            switch (expand_tpat_binders(tpat)) {
+            | [] => TypFun(tpat, r, None)
+            | [single] => TypFun(single, r, None)
+            | binders =>
+              List.fold_right(
+                (b, body) => TypFun(b, body, None) |> Exp.fresh,
+                binders,
+                r,
+              ).
+                term
+            }
+          )
         | (["let", "=", "in"], [Pat(pat), Exp(def)]) => Let(pat, def, r)
         | (["module", "=", "in"], [MPat(mp), Exp(def)]) =>
           ModuleExp(mp, def, r)
@@ -892,7 +936,17 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
           )
         | _ => ret(Ap(Forward, l, arg))
         };
-      | (["@<", ">"], [Typ(ty)]) => ret(TypAp(l, ty))
+      | (["@<", ">"], [Typ(ty)]) =>
+        /* Multi-argument value-level type application `f@<a, b>` lifts
+           the comma-separated list into a `TypTuple` so dynamics can
+           consume both args at once when peeling a curried `TypFun`
+           chain. Single-arg / parenthesized-tuple cases keep the bare
+           argument shape. */
+        switch (Typ.term_of(ty)) {
+        | Prod(ts) =>
+          ret(TypAp(l, {term: TypTuple(ts), annotation: ty.annotation}))
+        | _ => ret(TypAp(l, ty))
+        }
       | _ => ret(hole(tm))
       }
     | _ => ret(hole(tm))
@@ -1216,7 +1270,22 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
    * Thus `rec A -> Left(A) + Right(B)` get parsed as `rec A -> (Left(A) + Right(B))`
    * If this is below the case for sum, then it gets parsed as an invalid form. */
   | Pre(([(_id, (["poly", "->"], [TPat(tpat)]))], []), Typ(t)) =>
-    ret(Poly(tpat, t))
+    /* `poly a, b -> t` curries internally to
+       `Poly(a, Poly(b, t))` — the universal-type analogue of the
+       multi-binder `typfun`. */
+    ret(
+      switch (expand_tpat_binders(tpat)) {
+      | [] => Poly(tpat, t)
+      | [single] => Poly(single, t)
+      | binders =>
+        List.fold_right(
+          (b, body) => Poly(b, body) |> Typ.fresh,
+          binders,
+          t,
+        ).
+          term
+      },
+    )
   | Pre(([(_id, (["rec", "->"], [TPat(tpat)]))], []), Typ(t)) =>
     ret(Rec(tpat, t))
   | Pre(tiles, Typ({term: Sum(t0), annotation: {ids, _}})) as tm =>

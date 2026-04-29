@@ -60,6 +60,20 @@ in bs in
 map@<T>@<Int>(fun e -> string_length(e), ["hello","bar"])|},
       )
     ),
+    test_case("Multi-binder typfun with multi-arg @<>", `Quick, () =>
+      /* `typfun a, b -> …` declares a single value-level type-
+         abstraction value with two binders (curried internally), and
+         `f@<Int, Bool>` applies both type arguments in one step via a
+         `TypTuple`. The example uses `pair = typfun a, b -> fun x, y
+         -> (x, y)` and then `pair@<Int, Bool>(3, true)` to build a
+         pair value. */
+      parse_and_evaluate_test(
+        "(3, true)",
+        {|let pair : poly a, b -> a -> b -> (a, b) =
+  typfun a, b -> fun x : a -> fun y : b -> (x, y) in
+pair@<Int, Bool>(3)(true)|},
+      )
+    ),
     test_case(
       "Parameterized Some(3) evaluates to self-typed constructor",
       `Quick,

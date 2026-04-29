@@ -667,21 +667,44 @@ module Transition = (EV: EV_MODE) => {
         let-unbox typfun = (TypFun, d');
         switch (typfun) {
         | TypFun(utpat, tfbody, name) =>
-          /* Rule ITTLam */
-          Step({
-            expr:
-              DHExp.assign_name_if_none(
-                /* Inherit name for user clarity */
-                DHExp.ty_subst(tau, utpat, tfbody),
-                Option.map(
-                  x => x ++ "@<" ++ Typ.pretty_print(tau) ++ ">",
-                  name,
-                ),
+          /* Rule ITTLam. For multi-arg `f@<a, b>` the user's type
+             argument arrives as `TypTuple([a, b])`; peel one TypFun
+             binder by substituting the head element, and re-apply the
+             remaining tuple to the resulting body so subsequent
+             TypFun layers consume the rest. Single-arg calls
+             substitute normally. */
+          let (head_arg, residual): (Typ.t, option(Typ.t)) =
+            switch (Typ.term_of(tau)) {
+            | TypTuple([head, ...rest]) =>
+              let residual =
+                switch (rest) {
+                | [] => None
+                | [single] => Some(single)
+                | _ => Some(TypTuple(rest) |> Typ.fresh)
+                };
+              (head, residual);
+            | _ => (tau, None)
+            };
+          let body_after_head =
+            DHExp.assign_name_if_none(
+              DHExp.ty_subst(head_arg, utpat, tfbody),
+              Option.map(
+                x => x ++ "@<" ++ Typ.pretty_print(head_arg) ++ ">",
+                name,
               ),
+            );
+          let expr =
+            switch (residual) {
+            | None => body_after_head
+            | Some(rest_tau) =>
+              TypAp(body_after_head, rest_tau) |> DHExp.fresh
+            };
+          Step({
+            expr,
             side_effects: [],
             kind: TypFunAp,
             is_value: false,
-          })
+          });
         };
       };
     | DeferredAp(d1, ds) =>

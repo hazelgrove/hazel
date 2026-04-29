@@ -56,9 +56,27 @@ The recursive form is fully supported, including non-uniform recursion such as
 `type List(a) = + Nil + Cons(a, List((Int, a)))` (see *Higher-kinded recursive
 types* below).
 
-No explicit surface syntax for type-level lambda, no higher-kinded type
-parameters, and no value-level multi-binder type abstractions are part of this
-implementation.
+No explicit surface syntax for type-level lambda and no higher-kinded type
+parameters are part of this implementation.
+
+### Multi-binder universals and type abstractions
+
+The `TypTuple` machinery extends naturally to value-level polymorphism. An
+n-ary universal type and its inhabiting type abstraction can be written with
+comma-separated binders:
+
+```hazel
+let pair : poly a, b -> a -> b -> (a, b) =
+  typfun a, b -> fun x : a -> fun y : b -> (x, y) in
+pair@<Int, Bool>(3)(true)
+```
+
+Internally, multi-binder `poly` and `typfun` are still curried (`Poly(a,
+Poly(b, …))` / `TypFun(a, TypFun(b, …))`), but the parser desugars the
+comma-list automatically. The application `pair@<Int, Bool>` parses as
+`TypAp(pair, TypTuple([Int, Bool]))`, and the dynamics' `TypFun`-step rule
+peels one binder per `TypTuple` element, re-applying any residual tuple to
+the resulting body.
 
 ## Naming
 
