@@ -561,6 +561,43 @@ let x : List((Int, Bool)) = Nil in x
       },
     ),
     test_case(
+      "Free variables nested inside a TypParamAp callee are all reported",
+      `Quick,
+      () => {
+        /* The callee position can hold a compound form like
+           `A(B)(a)` (parsed as `TypParamAp(TypParamAp(A, B), a)`). All
+           unbound names — A and B in this example — should be marked
+           as free type variables, and every nested node should have
+           its own info entry (so cursor lookups don't fall through to
+           "Whitespace or comment"). */
+        let marks =
+          static_errors(
+            {|
+type List(a) = + Nil + Cons(a, A(B)(a)) in ?
+|},
+          );
+        let unbound_names =
+          List.filter_map(
+            fun
+            | Mark.TypFreeTypeVariable(n) => Some(n)
+            | _ => None,
+            marks,
+          );
+        check(
+          bool,
+          "A is reported as free",
+          true,
+          List.mem("A", unbound_names),
+        );
+        check(
+          bool,
+          "B is reported as free",
+          true,
+          List.mem("B", unbound_names),
+        );
+      },
+    ),
+    test_case(
       "Free variable in TypParamAp callee position is reported",
       `Quick,
       () => {

@@ -3812,31 +3812,52 @@ and utyp_to_info_map =
     let m = go(t2, m) |> snd;
     add(m);
   | TypParamAp(t1, t2) =>
-    /* The callee of a type parameter application is expected to have
-       arrow kind, so we don't validate it as an ordinary Type on its
-       own. We still report free-variable errors when the callee is an
-       unbound `Var` — without this check, writing `L(a)` where `L` is
-       not in the context silently yields "kind Type" instead of
-       "L not found". */
+    /* The callee of a type parameter application is *not* in
+       `TypeExpected` position — its kind is constrained by the
+       enclosing `TypApp`, not required to be `Type`. But we still
+       want every node inside `t1` (including itself) to get an info
+       entry, so cursor lookups don't fall through to "Whitespace or
+       comment".
+
+       Strategy: recursively process `t1` with the ordinary `go` (which
+       populates info for every descendant), then *overwrite* `t1`'s
+       own info entry with a callee-context one that:
+         - keeps free-variable marks for unbound `Var`s,
+         - drops any `TypKindMismatch`/`TypParamApplyNonArrowKind` mark
+           that `go` would produce because `t1` has arrow kind in a
+           `TypeExpected` slot,
+         - replaces the "Type X is a type" message with a "has kind …"
+           summary which the inspector renders nicely. */
     let fn_kind = kind_of_typ(ctx, t1);
-    let (marks, message): (list(Mark.t), option(Message.t)) =
-      switch (t1.term) {
-      | Var(name)
-          when
-            !Ctx.is_alias(ctx, name)
-            && !Ctx.is_abstract(ctx, name)
-            && !Ctx.is_base_typ(name) => (
-          [Mark.TypFreeTypeVariable(name)],
-          None,
-        )
-      | _ => ([], Some(Message.TypOk(Message.Kind(fn_kind))))
+    let m = go(t1, m) |> snd;
+    /* Reuse `t1`'s descendants' info but replace the entry at the
+       callee node itself. */
+    let prior_marks =
+      switch (Map.lookup(Typ.rep_id(t1), m)) {
+      | Some(InfoTyp(info)) => info.marks
+      | _ => []
       };
+    /* Strip kind-mismatch/non-arrow marks the `TypeExpected` recursion
+       added at the callee node — those are not real errors here.
+       Free-variable marks and any other genuine errors stay. */
+    let kept_marks =
+      List.filter(
+        fun
+        | Mark.TypKindMismatch(_)
+        | Mark.TypParamApplyNonArrowKind(_)
+        | Mark.TypParamApplyArityMismatch(_) => false
+        | _ => true,
+        prior_marks,
+      );
+    let fn_message =
+      kept_marks == []
+        ? Some(Message.TypOk(Message.Kind(fn_kind))) : None;
     let fn_info: Info.typ = {
       cls: Cls.Typ(Typ.cls_of_term(t1.term)),
       ctx,
       ancestors: ancestors_inclusive,
-      marks,
-      message,
+      marks: kept_marks,
+      message: fn_message,
       expects,
       warnings: [],
       user_term: t1,
