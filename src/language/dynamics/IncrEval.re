@@ -92,7 +92,7 @@ let mark_reused = (id: Id.t, incr: t): t => {
  * end up in neither `reused` nor `recalculated` — leaving them un-tinted
  * even though they're effectively frozen.
  *
- * This is especially visible across module boundaries: `ExpandModule.expand`
+ * This is especially visible across module boundaries: `ModuleHelpers.lower`
  * desugars `{ let bb=12; let x=fib(bb); ... }` into a chain
  * `Let(bb,12, Let(x,..., Let(...,Tuple(...))))`. Surface-sibling ModLets
  * become elab-ancestors of one another, so reuse at the outermost wrapper

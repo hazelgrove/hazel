@@ -563,7 +563,7 @@ let test_pbt_regression_unit_pat_dup_label_dh_let = () => {
  * "frozen" decoration set.
  *
  * Background:
- *   `ExpandModule.expand` desugars `{ let bb = 12; let x = ... }` into
+ *   `ModuleHelpers.lower` desugars `{ let bb = 12; let x = ... }` into
  *   a chain `Let(bb, 12, Let(x, ..., Let(...,Tuple(...))))`. The chain
  *   inverts surface nesting: the surface-outer Module M becomes the
  *   elab-innermost Tuple, and surface-sibling ModLets become elab-
