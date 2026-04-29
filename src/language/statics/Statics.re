@@ -3681,6 +3681,14 @@ and utyp_to_info_map =
     | (ConstructorExpected(_), _)
     | (VariantExpected(_), _) => err(TypWantConstructorFoundType(utyp))
     | (_, Parens(t)) => status_for_node(~expects, t)
+    | (TypeExpected, TypTuple(_)) =>
+      /* `TypTuple` is the multi-argument bundle inside a `TypApp` and
+         is *not* a stand-alone type — its elements are checked at the
+         enclosing `TypApp` site. Emit the class-only message so the
+         inspector shows just the form name without "is a type"
+         (which would be misleading: comma-separated args aren't a
+         tuple type). */
+      ok(Message.Default)
     | (TypeExpected, TypApp(fn, arg)) =>
       /* Tuple-arrow kinds are atomic: applying `T : (k1, …, kN) -> R`
          requires exactly N arguments at once. Multi-argument

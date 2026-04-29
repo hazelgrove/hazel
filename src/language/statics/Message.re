@@ -54,6 +54,7 @@ type ok_typ =
   | Kind(TypKind.t)
   | Type(Typ.t)
   | EmptyLabel
+  | Default /* show just the class label, no extra message body */
   | TypeUnderdetermined(underdetermined_typ);
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]

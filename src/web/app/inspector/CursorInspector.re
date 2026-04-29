@@ -476,7 +476,8 @@ let underdetermined_typ_view =
 let typ_ok_view = (~globals, cls: Cls.t, ok: Message.ok_typ) => {
   let view_type = view_type(~globals);
   switch (ok) {
-  | EmptyLabel => []
+  | EmptyLabel
+  | Default => []
   | Type(_) when cls == Typ(EmptyHole) => [text("Fillable by any type")]
   | Type(ty) =>
     [view_type(ty)]
