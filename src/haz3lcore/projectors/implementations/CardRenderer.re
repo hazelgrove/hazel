@@ -36,13 +36,15 @@ let parse = (_sort: Sort.t, exp: Exp.t): option(value) =>
 
 let init = (_: value) => {mode: Show};
 
-/* Card art is 47px tall (--card-height in proj-cards.css); a code row is
-   roughly 17-18px. With inline rendering inside the .value wrapper the
-   card sits on the probe's line and overflows ~2 rows below — reserve
-   that space and no more. */
+/* Match CardProj.placeholder (Tab(1)) so a line that already hosts a
+   CardProj — which reserves 1 deferred linebreak for its own card art
+   — doesn't get extra rows tacked on by the probe's reservation. The
+   refractor and projector pipelines both feed DeferredLinebreaks.update,
+   which max-merges, so equal values mean the bigger of the two wins
+   without compounding. */
 let placeholder = (_: value, _: m): ProjectorCore.Shape.t =>
   ProjectorCore.Shape.{
-    vertical: Block(2),
+    vertical: Tab(1),
     horizontal: 0,
   };
 
