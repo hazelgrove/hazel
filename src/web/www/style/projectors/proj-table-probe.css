@@ -129,6 +129,15 @@
   z-index: auto;
 }
 
+/* .card .hand has `left: 3px` (relative positioning) to nudge the hand
+   inside CardProj's full-line box. Relative positioning doesn't grow
+   the .value.rich box, so the cards visually overflow the colored
+   sample background by those 3px. Drop the shift inline so the cards
+   stay flush with the .value.rich background. */
+.live-offside .value.rich .hand {
+  left: 0;
+}
+
 /* Add Column Header Button */
 .table th.add-column-header {
     cursor: pointer;
