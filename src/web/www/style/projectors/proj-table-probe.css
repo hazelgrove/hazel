@@ -61,81 +61,82 @@
     margin: 6px 0.5em;
 }
 
-/* Inline rich-probe rendering (table, card, etc.) lives inside the
-   .value div in place of the sample's value seg. The .value background
-   already encodes the dynamic-value coloring; we make the table header
-   inherit it so the user can tell at a glance that the table IS the
-   sample's value, just rendered structurally. */
+/* === Inline rich-probe rendering ===
+ *
+ * When a rich probe is active, ProbeProj.value_view replaces the
+ * sample's value seg with the rich renderer's output (a table, a card,
+ * future renderers, ...). We need to (a) show the user this is the
+ * sample's dynamic value, and (b) keep that styling out of each
+ * renderer's CSS so adding new rich probes is friction-free.
+ *
+ * Strategy: drop .value's full background-color override and frame the
+ * rich content with a thin RING in the sample's state color, sourced
+ * from the CSS variable `--bottom-border-clr` that proj-probe.css
+ * already maintains per sample-focus state on every .live-offside
+ * .sample. Each rich probe just renders its content into .value.rich;
+ * the ring appears automatically. No per-renderer cell-bg overrides,
+ * no padding tricks, no pseudo-elements. */
+
 .live-offside .value.rich {
-  /* Drop the seg-sized horizontal padding — the rich content fills its
-     reserved code-block area edge to edge. */
-  padding: 0;
-  /* Trim the corner radius so the table corners align with the .value
-     wrapper's rounded edge. */
-  border-radius: 0.05em 0.05em 0.05em 0.2em;
-  /* Cards/hands in CardRenderer use absolute-positioned card-wrappers
-     within an explicit-width .hand container; if .value.rich clips with
-     overflow:hidden, the right edge of the rightmost card gets cut off.
-     Let the rich content render at its natural size; the placeholder is
-     responsible for reserving enough vertical space below. */
-  overflow: visible;
-  /* Inline-block so .value.rich sizes to its rich content rather than
-     stretching across the .sample's flex track and over-reserving width. */
+  /* Drop the .value's full bg fill — we don't want it bleeding behind
+     a tall multi-row table or wide hand. The state coloring comes from
+     the ring below instead. */
+  background-color: transparent !important;
+  /* State-aware ring. --bottom-border-clr is set on .live-offside
+     .sample per state (focus/related/tangent/indet/...) and falls
+     back to `none` for the neutral case, which CSS treats as "no
+     color" — so an unfocused sample gets no visible ring. */
+  outline: 2px solid var(--bottom-border-clr, transparent);
+  outline-offset: 0;
+  border-radius: 4px;
+  /* Size to content; let cards/hands flow naturally without clipping. */
   display: inline-block;
+  overflow: visible;
 }
 
-.live-offside .value.rich > .rich-probe-table-inner {
-  position: relative;
-  overflow: auto;
-  box-sizing: border-box;
-  padding: 0;
-  border-radius: inherit;
-}
+/* --- Per-renderer mechanical fixes (NOT coloring) --- */
 
-.live-offside .value.rich > .rich-probe-table-inner > table.table {
-  width: 100%;
-  height: 100%;
-}
-
-/* Sticky header so the column labels stay visible when scrolling. */
-.live-offside .value.rich .table th {
-  position: sticky;
-  top: 0;
-  /* Pull the .value background through the header, so the header reads
-     as part of the dynamic-value wrapper. background-color stays as the
-     normal table header tone for legibility. */
-  padding-left: 15px;
-  padding-right: 15px;
-  z-index: calc(var(--projector-z) + 1);
-}
-
-.live-offside .value.rich .column-menu {
-  /* The column menu pops up below a header cell; default top: 100%
-     places it inside the scrollable .rich-probe-table-inner where
-     overflow:auto would clip it. Lift it above the wrapper. */
-  z-index: calc(var(--projector-z) + 5);
-}
-
-/* CardRenderer's wrapper carries the .projector class (via projector_attrs
-   so its modal/standalone uses share styling), but .projector defaults to
-   position: absolute. Inside a probe sample's .value.rich that yanks each
-   sample's card out of the .sample-group flex row, so multiple samples'
-   cards collapse to the same origin and overlap. Restore inline flow
-   when the projector is rendered as a probe's rich value. */
-.live-offside .value.rich > .projector.card,
+/* CardRenderer reuses CardProj's `.projector.card` wrapper for shared
+   styling. .projector defaults to position:absolute, which yanks each
+   sample's card out of the .sample-group flex row and stacks them at
+   the same origin. Restore inline flow inside .value.rich. */
 .live-offside .value.rich .projector.card {
   position: static;
   display: inline-block;
   z-index: auto;
 }
 
-/* .card .hand has `left: 3px` (relative positioning) to nudge the hand
-   inside CardProj's full-line box. Relative positioning doesn't grow
-   the .value.rich box, so the cards visually overflow the colored
-   sample background by those 3px. Drop the shift inline so the cards
-   stay flush with the .value.rich background. */
+/* `.card .hand` uses `left: 3px` to nudge the hand inside CardProj's
+   full projector box. That relative shift would push cards past the
+   ring; drop it inline. */
 .live-offside .value.rich .hand {
   left: 0;
+}
+
+/* TableRenderer's wrapper is sized in code blocks via inline style.
+   Make it scroll if data exceeds the reserved height. */
+.live-offside .value.rich > .rich-probe-table-inner {
+  overflow: auto;
+  border-radius: 2px;
+}
+.live-offside .value.rich > .rich-probe-table-inner > table.table {
+  width: 100%;
+  height: 100%;
+}
+
+/* Sticky header for in-table scroll. */
+.live-offside .value.rich .table th {
+  position: sticky;
+  top: 0;
+  padding-left: 15px;
+  padding-right: 15px;
+  z-index: calc(var(--projector-z) + 1);
+}
+
+/* Column dropdown sits inside the scrollable .rich-probe-table-inner;
+   raise its z so overflow:auto doesn't clip it. */
+.live-offside .value.rich .column-menu {
+  z-index: calc(var(--projector-z) + 5);
 }
 
 /* Add Column Header Button */
