@@ -208,6 +208,32 @@ let x : Option = ? in x
         );
       },
     ),
+    test_case(
+      "kind mismatch is reported only at the offending node",
+      `Quick,
+      () => {
+        /* `List` appears unapplied inside `Cons(Int, List)`. The
+           `Type -> Type` kind mismatch should mark only the `List`
+           reference; ancestor nodes (the surrounding `Sum`, `Prod`,
+           etc.) shouldn't accumulate the same mark. */
+        let marks =
+          static_errors(
+            {|
+type List(a) = + Nil + Cons(Int, List) in ?
+|},
+          );
+        let kind_mismatch_count =
+          List.length(
+            List.filter(
+              fun
+              | Mark.TypKindMismatch(_) => true
+              | _ => false,
+              marks,
+            ),
+          );
+        check(int, "exactly one TypKindMismatch", 1, kind_mismatch_count);
+      },
+    ),
     test_case("elaboration wraps Some in TypAp for Option(Int)", `Quick, () => {
       check(
         bool,
