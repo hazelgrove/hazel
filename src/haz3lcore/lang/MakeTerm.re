@@ -1384,6 +1384,12 @@ and tpat_term: unsorted => TPat.term = {
         | ([t], []) when is_hole_label(t) => hole(tm)
         | ([t], []) => Invalid(t)
         | (["PROJ_WRAP", "PROJ_WRAP"], [TPat(body)]) => body.term
+        /* Strip a redundant pair of parens around a tpat, so
+           `poly (a, b) -> t` parses the same as `poly a, b -> t`.
+           TPats have no `Parens` AST variant; the inner tpat's term
+           (a `Var` or `MultiHole(…)` of comma-separated tpats) is
+           lifted directly. */
+        | (["(", ")"], [TPat(body)]) => body.term
         | _ => hole(tm)
         },
       )

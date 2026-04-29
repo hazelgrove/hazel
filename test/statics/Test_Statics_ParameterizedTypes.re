@@ -817,6 +817,51 @@ type T(B(a)) = a in ?
       },
     ),
     test_case(
+      "Parenthesized binder list `poly (a, b) -> ...` is accepted",
+      `Quick,
+      () => {
+        /* Optional parens around the comma-separated binder list are
+           supported and parse to the same `Poly(TPat.Tuple([a, b]),
+           …)` shape as the bare comma form. */
+        Alcotest.check(
+          list(testable_issue),
+          "no static errors on poly (a, b) -> ...",
+          [],
+          static_errors(
+            {|
+let f : poly (a, b) -> a -> b -> Int = ? in f
+|},
+          )
+          |> List.map(ms => Marks([ms])),
+        );
+        Alcotest.check(
+          list(testable_issue),
+          "no static errors on typfun (a, b) -> ...",
+          [],
+          static_errors(
+            {|
+let g = typfun (a, b) -> ? in g
+|},
+          )
+          |> List.map(ms => Marks([ms])),
+        );
+        /* And the recursive map example with parenthesized binders
+           round-trips correctly through the dynamics too: a single-
+           binder parens form `(a)` collapses to a bare tpat. */
+        Alcotest.check(
+          list(testable_issue),
+          "no static errors on parenthesized single-binder",
+          [],
+          static_errors(
+            {|
+let h = typfun (a) -> ? in h
+|},
+          )
+          |> List.map(ms => Marks([ms])),
+        );
+      },
+    ),
+    test_case(
       "Top-level type alias T(a, b) is still accepted",
       `Quick,
       () => {

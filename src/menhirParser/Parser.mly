@@ -332,11 +332,13 @@ tpat:
     | v = CONSTRUCTOR_IDENT {VarTPat v}
 
 (* `poly a, b -> t` and `typfun a, b -> e` allow a comma-separated list of
-   binders directly. The list of one collapses to a single tpat; two or
-   more becomes a `TupleTPat`. *)
+   binders directly, with optional parens around the list (`poly (a, b) -> t`).
+   A single tpat collapses to a bare tpat; two or more become a `TupleTPat`. *)
 polyTpat:
     | t = tpat { t }
     | t = tpat; COMMA; ts = separated_nonempty_list(COMMA, tpat) { TupleTPat(t :: ts) }
+    | OPEN_PAREN; t = tpat; CLOSE_PAREN { t }
+    | OPEN_PAREN; t = tpat; COMMA; ts = separated_nonempty_list(COMMA, tpat); CLOSE_PAREN { TupleTPat(t :: ts) }
 
 unExp:
     | MINUS; e = exp {UnOp(Int(Minus), e)} %prec UMINUS

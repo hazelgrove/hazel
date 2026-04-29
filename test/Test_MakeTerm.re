@@ -412,5 +412,35 @@ x",
       test_case("Module with bare expression", `Quick, () =>
         exp_check(module_([Mod.mod_exp(int(42))]), {|{ 42 }|})
       ),
+      /* Multi-binder typfun: bare comma-separated and parenthesized
+         binder lists both parse to a single `TypFun(TPat.Tuple([…]),
+         …)`. A single parenthesized binder collapses to the bare
+         tpat. */
+      test_case("typfun with bare multi-binder", `Quick, () =>
+        exp_check(
+          typ_fun(
+            TPat.tuple([TPat.var("a"), TPat.var("b")]),
+            empty_hole(),
+            None,
+          ),
+          {|typfun a, b -> ?|},
+        )
+      ),
+      test_case("typfun with parenthesized multi-binder", `Quick, () =>
+        exp_check(
+          typ_fun(
+            TPat.tuple([TPat.var("a"), TPat.var("b")]),
+            empty_hole(),
+            None,
+          ),
+          {|typfun (a, b) -> ?|},
+        )
+      ),
+      test_case("typfun with parenthesized single-binder", `Quick, () =>
+        exp_check(
+          typ_fun(TPat.var("a"), empty_hole(), None),
+          {|typfun (a) -> ?|},
+        )
+      ),
     ],
   );
