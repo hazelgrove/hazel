@@ -4200,7 +4200,7 @@ and utpat_to_info_map =
         )
       | None => ([TPatNotAVar(Other)], None)
       }
-    | Tuple(_) => ([], Some(Message.Empty))
+    | Tuple(_) => ([], Some(Message.Default))
     | Invalid(_) => ([TPatNotAVar(NotCapitalized)], None)
     | MultiHole(_) => ([TPatNotAVar(Other)], None)
     };

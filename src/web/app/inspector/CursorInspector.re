@@ -1034,6 +1034,7 @@ let tpat_view =
     switch (message) {
     | Some(TPatOk(Message.Empty)) =>
       div_ok([text("Fillable with a new alias")])
+    | Some(TPatOk(Message.Default)) => div_ok([])
     | Some(TPatOk(TypeAlias({name, kind}))) =>
       div_ok([code(name), ...kind_view(kind)])
     | Some(TPatOk(TypeParameter({name, kind}))) =>

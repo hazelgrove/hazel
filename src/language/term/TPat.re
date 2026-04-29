@@ -38,7 +38,7 @@ let show_cls: cls => string =
   | EmptyHole => "Type alias hole"
   | Var => "Type alias"
   | Param => "Parameterized type alias"
-  | Tuple => "Type binder list";
+  | Tuple => "Type binder tuple";
 
 let temp: term => t =
   term => {

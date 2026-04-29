@@ -60,6 +60,7 @@ type ok_typ =
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type ok_tpat =
   | Empty
+  | Default /* show just the class label, no extra message body */
   | TypeAlias({
       name: string,
       kind: TypKind.t,
