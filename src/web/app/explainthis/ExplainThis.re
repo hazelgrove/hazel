@@ -809,6 +809,9 @@ let get_doc =
           TyAliasExp.tyalias_exps,
         );
       | Undefined => get_message(UndefinedExp.undefined_exps)
+      | FilterAction(act) => get_message(FilterExp.filter_action_exps(act))
+      | FilterSelector(sel) =>
+        get_message(FilterExp.filter_selector_exps(sel))
       | Deferral(_) => get_message(TerminalExp.deferral_exps)
       | ExplicitNonlabel => simple("Explicitly unlabeled entry")
       | Atom(Bool(b)) => get_message(TerminalExp.bool_exps(b))
@@ -2173,33 +2176,33 @@ let get_doc =
             ),
           SeqExp.seqs,
         );
-      | Filter(Filter({act: (Step, One), pat}), body) =>
-        message_single(
-          FilterExp.filter_pause(
-            ~p_id=Exp.rep_id(pat),
-            ~body_id=Exp.rep_id(body),
-          ),
-        )
-      | Filter(Filter({act: (Step, All), pat}), body) =>
-        message_single(
-          FilterExp.filter_debug(
-            ~p_id=Exp.rep_id(pat),
-            ~body_id=Exp.rep_id(body),
-          ),
-        )
-      | Filter(Filter({act: (Eval, All), pat}), body) =>
-        message_single(
-          FilterExp.filter_eval(
-            ~p_id=Exp.rep_id(pat),
-            ~body_id=Exp.rep_id(body),
-          ),
-        )
-      | Filter(Filter({act: (Eval, One), pat}), body) =>
-        message_single(
-          FilterExp.filter_hide(
-            ~p_id=Exp.rep_id(pat),
-            ~body_id=Exp.rep_id(body),
-          ),
+      | Filter(Filter({act: _, pat, ids: act_ids}), body)
+      | Filter(
+          Unresolved({
+            term:
+              Ap(Forward, {term: FilterAction(_), annotation: act_ids}, pat),
+            _,
+          }),
+          body,
+        ) =>
+        get_message(
+          ~colorings=
+            FilterExp.filter_exp_coloring_ids(
+              ~act_id=List.nth(act_ids.ids, 0),
+              ~pat_id=List.nth(IdTagged.ids(pat), 0),
+              ~body_id=List.nth(IdTagged.ids(body), 0),
+            ),
+          ~format=
+            Some(
+              msg =>
+                Printf.sprintf(
+                  Scanf.format_from_string(msg, "%s%s%s"),
+                  Id.to_string(List.nth(act_ids.ids, 0)),
+                  Id.to_string(List.nth(IdTagged.ids(pat), 0)),
+                  Id.to_string(List.nth(IdTagged.ids(body), 0)),
+                ),
+            ),
+          FilterExp.filter_exp,
         )
       | Filter(_) => simple("Internal expression")
       | Test(body) =>

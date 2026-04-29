@@ -7,6 +7,30 @@ type filter_action =
   | Hide
   | Eval;
 
+let string_of_filter_action = action => {
+  switch (action) {
+  | Pause => "stop"
+  | Debug => "step"
+  | Hide => "hide"
+  | Eval => "eval"
+  };
+};
+
+let filter_action_of_string = string => {
+  switch (string) {
+  | "stop" => Some(Pause)
+  | "step" => Some(Debug)
+  | "hide" => Some(Hide)
+  | "eval" => Some(Eval)
+  | _ => None
+  };
+};
+
+[@deriving (show({with_path: false}), sexp, qcheck, eq)]
+type filter_selector =
+  | Exp
+  | Val;
+
 [@deriving (show({with_path: false}), sexp, qcheck, eq)]
 type op_bin_float =
   | Plus
@@ -138,6 +162,8 @@ and deferral_pos =
 and exp =
   | Atom(Language.Atom.t)
   | Var(string)
+  | FilterAction(Language.FilterAction.t)
+  | FilterSelector(Language.FilterSelector.t)
   | Constructor(string, option(option(typ)))
   | ListExp(list(exp))
   | TupleExp(list(exp))
@@ -157,7 +183,7 @@ and exp =
   | FixF(pat, exp)
   | Asc(exp, typ)
   | EmptyHole
-  | Filter(filter_action, exp, exp)
+  | Filter(exp, exp)
   | BuiltinFun(string)
   | Undefined
   | Seq(exp, exp)
@@ -440,10 +466,9 @@ let rec gen_exp_sized = (~minimal_idents: bool, n: int): QCheck.Gen.t(exp) => {
             FixF(p, e);
           },
           {
-            let* fa = gen_filter_action;
             let* e1 = self((n - 1) / 2);
             let+ e2 = self((n - 1) / 2);
-            Filter(fa, e1, e2);
+            Filter(e1, e2);
           },
           {
             let* e1 = self((n - 1) / 2);
@@ -717,6 +742,8 @@ let rec shrink_exp: QCheck.Shrink.t(exp) =
             | _ => Iter.empty
             }
           )
+        | FilterAction(_) => Iter.empty
+        | FilterSelector(_) => Iter.empty
         | Var(x) =>
           return(TupleExp([]))
           <+> (shrink_non_empty_string(x) >|= ((x: string) => Var(x))) // TODO This isn't great for vars
@@ -942,17 +969,17 @@ let rec shrink_exp: QCheck.Shrink.t(exp) =
             let* shrunk = shrink_typ(t);
             return(Asc(e, shrunk));
           }
-        | Filter(fa, e1, e2) =>
+        | Filter(e1, e2) =>
           {
             of_list([e1, e2]);
           }
           <+> {
             let* shrunk = shrink_exp(e1);
-            return(Filter(fa, shrunk, e2));
+            return(Filter(shrunk, e2));
           }
           <+> {
             let* shrunk = shrink_exp(e2);
-            return(Filter(fa, e1, shrunk));
+            return(Filter(e1, shrunk));
           }
         | Seq(e1, e2) =>
           {

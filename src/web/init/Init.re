@@ -20,6 +20,7 @@ let documentation_slides: list((string, PersistentSegment.t)) =
     Polymorphism.out,
     Cards.out,
     Probes.out,
+    Filters.out,
     Livelits.out,
   ]
   @ B2t2.Slides.all_slides;

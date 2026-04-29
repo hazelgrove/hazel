@@ -76,8 +76,7 @@ let sample_expression = (cls_exp: Exp.cls): Grammar.UnitGrammar.exp => {
       | Seq => seq(empty_hole(), empty_hole())
       | Test => test(empty_hole())
       | HintedTest => hinted_test(empty_hole(), empty_hole())
-      | Filter =>
-        filter(StepperFilter.residue(0, (Step, One)), empty_hole())
+      | Filter => residue(~lvl=0, ~act=(Step, One), empty_hole())
       | Closure =>
         module M = {
           include VarBstMap.Ordered;

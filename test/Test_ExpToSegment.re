@@ -260,18 +260,12 @@ let tests = (
         let segment =
           exp_to_segment(
             IdTagged.FreshGrammar.Exp.(
-              filter(
-                Filter({
-                  pat: int(1),
-                  act: (Step, One),
-                }),
-                int(2),
-              )
+              filter(~pat=int(1), ~act=(Step, One), int(2))
             ),
           );
         let serialized = print_seg(segment);
 
-        check(string, "Pause", serialized, {|pause 1 in 2|});
+        check(string, "Pause", serialized, {|debug stop(1) in 2|});
       },
     ),
     test_case(
@@ -721,15 +715,19 @@ in f(42)|},
         };
       },
     ),
-    /* Filter expressions (hide/eval/pause/debug ... in) and unquote ($) */
-    roundtrip_test({|Filter: hide|}, {|hide 1 in 2|}),
-    roundtrip_test({|Filter: hide spaced|}, {|hide 1  in  2|}),
-    roundtrip_test({|Filter: eval|}, {|eval 1 in 2|}),
-    roundtrip_test({|Filter: eval spaced|}, {|eval 1  in  2|}),
-    roundtrip_test({|Filter: pause|}, {|pause 1 in 2|}),
-    roundtrip_test({|Filter: pause spaced|}, {|pause 1  in  2|}),
-    roundtrip_test({|Filter: debug|}, {|debug 1 in 2|}),
-    roundtrip_test({|Filter: debug spaced|}, {|debug 1  in  2|}),
+    /* Filter expressions: debug <action>(<pat>) in <body> */
+    roundtrip_test({|Filter: hide|}, {|debug hide(1) in 2|}),
+    roundtrip_test({|Filter: hide spaced|}, {|debug hide(1)  in  2|}),
+    roundtrip_test({|Filter: eval|}, {|debug eval(1) in 2|}),
+    roundtrip_test({|Filter: eval spaced|}, {|debug eval(1)  in  2|}),
+    roundtrip_test({|Filter: stop|}, {|debug stop(1) in 2|}),
+    roundtrip_test({|Filter: stop spaced|}, {|debug stop(1)  in  2|}),
+    roundtrip_test({|Filter: step|}, {|debug step(1) in 2|}),
+    roundtrip_test({|Filter: step spaced|}, {|debug step(1)  in  2|}),
+    /* Filter selector ($e, $v) within filter expressions */
+    roundtrip_test({|FilterSelector: $e in eval|}, {|debug eval($e) in x|}),
+    roundtrip_test({|FilterSelector: $v in hide|}, {|debug hide($v) in 2|}),
+    roundtrip_test({|FilterSelector: in step|}, {|debug step($v) in 2|}),
     roundtrip_test(
       {|QuotedLabel: label needing quotes (has dash)|},
       {|(`the-answer`=42)|},

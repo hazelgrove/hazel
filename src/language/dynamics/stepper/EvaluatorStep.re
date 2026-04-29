@@ -72,6 +72,9 @@ let rec matches =
       | Closure(env, ctx) =>
         let+ ctx = matches(env, flt, ctx, exp, act, idx);
         Closure(env, ctx) |> rewrap;
+      | Filter(Unresolved(exp), ctx) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        Filter(Unresolved(exp), ctx) |> rewrap;
       | Filter(Filter(flt'), ctx) =>
         let flt = flt |> FilterEnvironment.extends(flt');
         let+ ctx = matches(env, flt, ctx, exp, act, idx);
@@ -450,13 +453,10 @@ let refresh_step =
   let eos =
     decompose(exp, env)
     |> List.map(should_hide_eval_obj(~settings=settings.evaluation)); // NOTE: should_hide_eval_obj actually changes the eval obj to do filter bookkeeping!!!
-  let* desired_id =
-    ProofHacks.nth_exp(step.at_exp, step.exp_idx, exp)
-    |> Option.map(IdTagged.ids);
-  let* (h, x) =
-    List.find_opt(
-      ((_, step': step)) => IdTagged.ids(step'.d_loc) == desired_id,
-      eos,
-    );
-  Some((h, x));
+  let* found = ProofHacks.nth_exp(step.at_exp, step.exp_idx, exp);
+  let desired_id = IdTagged.ids(found);
+  List.find_opt(
+    ((_, step': step)) => IdTagged.ids(step'.d_loc) == desired_id,
+    eos,
+  );
 };

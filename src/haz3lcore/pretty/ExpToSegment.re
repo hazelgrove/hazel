@@ -123,7 +123,9 @@ let rec external_precedence = (exp: Exp.t): Precedence.t => {
   | Label(_)
   | Constructor(_)
   | LivelitName(_)
-  | TupLabel(_) => Precedence.max
+  | TupLabel(_)
+  | FilterAction(_)
+  | FilterSelector(_) => Precedence.max
 
   // Same goes for forms which are already surrounded
   | Parens(_)
@@ -343,6 +345,8 @@ let rec parenthesize =
   | Invalid(_)
   | Atom(_)
   | DrvQuote(_)
+  | FilterAction(_)
+  | FilterSelector(_)
   | EmptyHole
   | LivelitName(_)
   //| Constructor(_) // Not indivisible because of the type annotation!
@@ -356,11 +360,18 @@ let rec parenthesize =
   // Forms that currently need to stripped before outputting
   | Closure(_, x)
   | DynamicErrorHole(x, _) => parenthesize(x)
-  | Filter(Filter({pat, act}), x) =>
+  | Filter(Unresolved(exp), x) =>
+    Filter(
+      Unresolved(parenthesize(exp) |> paren_at(Precedence.min)),
+      parenthesize(x) |> paren_at(Precedence.let_),
+    )
+    |> rewrap
+  | Filter(Filter({pat, act, ids}), x) =>
     Filter(
       Filter({
         pat: parenthesize(pat),
         act,
+        ids,
       }),
       parenthesize(x),
     )
@@ -1705,22 +1716,30 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
   // Assume these have been removed by the parenthesizer
   | DynamicErrorHole(_)
   | Filter(Residue(_), _) => failwith("printing these not implemented yet")
-  | Filter(Filter({pat, act}), e) =>
-    let id = exp |> Exp.rep_id;
-    let* p = go(pat);
+  | Filter(Unresolved(filt_exp), e) =>
+    let id = filt_exp |> Exp.rep_id;
+    let* p = go(filt_exp);
     let+ e = go(e);
     wrap(
       exp,
       settings.show_filters
         ? {
-          let form =
-            switch (act) {
-            | (Step, One) => Form.FilterPause
-            | (Step, All) => Form.FilterDebug
-            | (Eval, One) => Form.FilterHide
-            | (Eval, All) => Form.FilterEval
-            };
-          [mk_form(form, id, [p])] @ e;
+          [mk_form(Form.Filter, id, [p])] @ e;
+        }
+        : e,
+    );
+  | Filter(Filter({pat, act, ids}), e) =>
+    let id = exp |> Exp.rep_id;
+    let filter =
+      Ap(Forward, {term: FilterAction(act), annotation: ids}, pat)
+      |> Exp.fresh;
+    let* p = go(filter);
+    let+ e = go(e);
+    wrap(
+      exp,
+      settings.show_filters
+        ? {
+          [mk_form(Form.Filter, id, [p])] @ e;
         }
         : e,
     );
@@ -1761,6 +1780,22 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
       | TPat => OfAlfaTPat
       };
     [mk_form(Drv(form), exp |> Exp.rep_id, [d])];
+  | FilterAction(act) =>
+    wrap(
+      exp,
+      text_to_pretty(
+        exp |> Exp.rep_id,
+        Sort.Exp,
+        FilterAction.string_of_t(act),
+      ),
+    )
+  | FilterSelector(sel) =>
+    let token =
+      switch (sel) {
+      | Exp => "$e"
+      | Val => "$v"
+      };
+    text_to_pretty(exp |> Exp.rep_id, Sort.Exp, token);
   // TODO: Make sure types are correct
   | Constructor(c, _t) =>
     // let id = Id.mk();

@@ -235,6 +235,8 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
         Invalid(_) | Undefined | EmptyHole | MultiHole(_) | DynamicErrorHole(_) |
         ExplicitNonlabel |
         Var(_) |
+        FilterAction(_) |
+        FilterSelector(_) |
         Let(_) |
         Theorem(_) |
         Forall(_) |

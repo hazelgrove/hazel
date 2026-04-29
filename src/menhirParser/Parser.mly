@@ -23,10 +23,7 @@ open AST
 %token TYP_AP_SYMBOL
 %token CONS
 %token TEST
-%token PAUSE
 %token DEBUG
-%token HIDE
-%token EVAL
 %token <string> IDENT
 %token <string> CONSTRUCTOR_IDENT
 %token <string> STRING
@@ -110,6 +107,9 @@ open AST
 
 %token SEMI_COLON
 
+(* filter selector *)
+%token FILTER_SELECTOR_EXP
+%token FILTER_SELECTOR_VAL
 
 
 (* Precedences *)
@@ -314,12 +314,6 @@ funExp:
 %inline ifExp:
     | IF; e1 = exp; THEN; e2 = exp; ELSE; e3 = exp { If (e1, e2, e3) } %prec IF_EXP
 
-filterAction:
-    | PAUSE { Pause }
-    | DEBUG { Debug }
-    | HIDE { Hide }
-    | EVAL { Eval }
-
 tpat:
     | TP_TPAT; s = STRING {InvalidTPat(s)}
     | p = PROJECTOR_INVOKE {InvalidTPat(p)}
@@ -369,7 +363,9 @@ exp:
     | FIX;  p = funPat; DASH_ARROW; e = exp { FixF(p, e) }
     | TYP_FUN; t = tpat; DASH_ARROW; e = exp {TypFun(t, e)}
     | QUESTION { EmptyHole }
-    | a = filterAction; cond = exp; IN; body = exp { Filter(a, cond, body)} %prec LET_EXP
+    | DEBUG; cond = exp; IN; body = exp { Filter(cond, body) } %prec LET_EXP
+    | FILTER_SELECTOR_EXP { FilterSelector(Exp) }
+    | FILTER_SELECTOR_VAL { FilterSelector(Val) }
     | TEST; e = exp; END { Test(e) }
     | e1 = exp; AT_SYMBOL; e2 = exp { ListConcat(e1, e2) }
     | e1 = exp; CONS; e2 = exp { Cons(e1, e2) }

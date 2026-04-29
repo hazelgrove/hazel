@@ -282,6 +282,46 @@ let tests = (
         );
       },
     ),
+    test_case(
+      "nth_exp can find residue filter target",
+      `Quick,
+      () => {
+        let target =
+          Exp.fresh(
+            Filter(
+              Residue(1, (FilterAction.Eval, FilterAction.All)),
+              Exp.fresh(Atom(Int(Bigint.of_int(18)))),
+            ),
+          );
+        let exp =
+          Exp.fresh(
+            Filter(
+              Filter({
+                act: (FilterAction.Eval, FilterAction.All),
+                pat: Exp.fresh(FilterSelector(FilterSelector.Exp)),
+                ids: IdTagged.IdTag.fresh(),
+              }),
+              target,
+            ),
+          );
+        check(
+          int,
+          "residue target index",
+          0,
+          ProofHacks.exp_idx(target, exp),
+        );
+        switch (ProofHacks.nth_exp(target, 0, exp)) {
+        | Some(found) =>
+          check(
+            bool,
+            "found residue target by id",
+            true,
+            Exp.rep_id(found) == Exp.rep_id(target),
+          )
+        | None => Alcotest.fail("expected nth_exp to find residue target")
+        };
+      },
+    ),
     // ============================================================
     // SingleStep tests
     // ============================================================

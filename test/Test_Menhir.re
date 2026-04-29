@@ -292,15 +292,60 @@ let tests =
         "test 3 == 3 end",
       ),
       full_parser_test(
-        "Filter",
-        filter(
-          Filter({
-            act: (Eval, All),
-            pat: int(3),
-          }),
+        "Filter (eval)",
+        filter_unresolved(
+          ap(Forward, filter_action((Eval, All)), int(3)),
           int(3),
         ),
-        "eval 3 in 3" // TODO Use other filter commands
+        "debug eval(3) in 3" // TODO Use other filter commands
+      ),
+      full_parser_test(
+        "Filter (hide)",
+        filter_unresolved(
+          ap(Forward, filter_action((Eval, One)), int(3)),
+          int(3),
+        ),
+        "debug hide(3) in 3" // TODO Use other filter commands
+      ),
+      full_parser_test(
+        "Filter (step)",
+        filter_unresolved(
+          ap(Forward, filter_action((Step, All)), int(3)),
+          int(3),
+        ),
+        "debug step(3) in 3" // TODO Use other filter commands
+      ),
+      full_parser_test(
+        "Filter (stop)",
+        filter_unresolved(
+          ap(Forward, filter_action((Step, One)), int(3)),
+          int(3),
+        ),
+        "debug stop(3) in 3" // TODO Use other filter commands
+      ),
+      full_parser_test(
+        "Filter selector exp in pattern",
+        filter_unresolved(
+          ap(Forward, filter_action((Eval, All)), filter_selector(Exp)),
+          bin_op(Int(Plus), int(1), int(2)),
+        ),
+        "debug eval($e) in 1 + 2",
+      ),
+      full_parser_test(
+        "Filter selector val pattern",
+        filter_unresolved(
+          ap(
+            Forward,
+            filter_action((Step, One)),
+            bin_op(Int(Plus), filter_selector(Val), filter_selector(Val)),
+          ),
+          bin_op(
+            Int(Plus),
+            bin_op(Int(Plus), int(1), int(2)),
+            bin_op(Int(Plus), int(3), int(4)),
+          ),
+        ),
+        "debug stop($v + $v) in (1 + 2) + (3 + 4)",
       ),
       full_parser_test(
         "List Concat",

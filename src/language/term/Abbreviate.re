@@ -563,6 +563,8 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
           Atom(String(str));
         };
       | DrvQuote(_, _) => Invalid("<drv term>")
+      | FilterAction(act) => FilterAction(act)
+      | FilterSelector(sel) => FilterSelector(sel)
       | Var(v) => Var(abbreviate_str(available^, v))
       | Label(v) =>
         switch (abbreviate_label(v)) {

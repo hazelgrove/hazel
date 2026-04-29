@@ -313,3 +313,12 @@ let mk_projector_invoke = (kind: ProjectorCore.Kind.t): string =>
 let probe_start = "⟦";
 let probe_end = "⟧";
 let probe_lbl = [probe_start, probe_end];
+
+/* Filter Selector */
+
+let filter_selector_prefix = "$";
+
+let is_filter_selector = (str: t): bool =>
+  starts_with(~prefix=filter_selector_prefix, str)
+  && length(str) > 1
+  && is_var(sub(str, 1, length(str) - 1));

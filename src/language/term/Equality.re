@@ -145,11 +145,11 @@ let equality =
       exp'(e1, e2)
 
     // Expression Wildcards:
-    | (Constructor("$v", _), _) when Option.is_some(use_expr_wildcards) =>
+    | (FilterSelector(Val), _) when Option.is_some(use_expr_wildcards) =>
       let check_value = Option.get(use_expr_wildcards);
       check_value(Option.value(env2, ~default=Environment.empty), e2);
     | (EmptyHole, _) when Option.is_some(use_expr_wildcards) => true
-    | (Constructor("$e", _), _) when Option.is_some(use_expr_wildcards) =>
+    | (FilterSelector(Exp), _) when Option.is_some(use_expr_wildcards) =>
       true
 
     /* These variable cases are quite complicated because they account for a lot of concerns.
@@ -432,6 +432,12 @@ let equality =
     | (ModuleExp(_, _, _), _) => false
     | (DrvQuote(d1, s1), DrvQuote(d2, s2)) => s1 == s2 && d1 == d2
     | (DrvQuote(_, _), _) => false
+    | (FilterAction(act1), FilterAction(act2)) =>
+      FilterAction.equal(act1, act2)
+    | (FilterAction(_), _) => false
+    | (FilterSelector(sel1), FilterSelector(sel2)) =>
+      FilterSelector.equal(sel1, sel2)
+    | (FilterSelector(_), _) => false
     };
   }
   /* Compare patterns with literal variable names (no alpha-renaming).
@@ -837,7 +843,9 @@ let equality =
       : bool => {
     let exp' = exp(alphas_exp, alphas_typ);
     switch (f1, f2) {
-    | (Filter({pat: pat1, act: act1}), Filter({pat: pat2, act: act2})) =>
+    | (Unresolved(e1), Unresolved(e2)) => exp'(e1, e2)
+    | (Unresolved(_), _) => false
+    | (Filter({pat: pat1, act: act1, _}), Filter({pat: pat2, act: act2, _})) =>
       exp'(pat1, pat2) && act1 == act2
     | (Filter(_), _) => false
     | (Residue(_), Residue(_)) => f1 == f2

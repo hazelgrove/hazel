@@ -117,7 +117,8 @@ type atomic_form =
   | Ctr
   | MPatName
   | Type
-  | InfixDelimiterPrefix;
+  | InfixDelimiterPrefix
+  | FilterSelector;
 
 /* C. Compound Forms:
    Order in this type determines relative remolding
@@ -328,6 +329,7 @@ type compound_form =
   | Divide
   | Equals
   | StringConcat
+  | StringEquals
   | Lt
   | Gt
   | NotEquals
@@ -397,10 +399,7 @@ type compound_form =
   | Rule
   | Pipeline
   // DOUBLE DELIMITERS
-  | FilterHide
-  | FilterEval
-  | FilterPause
-  | FilterDebug
+  | Filter
   | Use
   // Drv
   | Drv(drv_compound_form)
@@ -437,6 +436,7 @@ let get: compound_form => t =
   | Divide => mk_infix("/", Exp, P.mult)
   | Equals => mk_infix("==", Exp, P.eqs)
   | StringConcat => mk_infix("++", Exp, P.concat)
+  | StringEquals => mk_infix("$==", Exp, P.eqs)
   | Lt => mk_infix("<", Exp, P.eqs)
   | Gt => mk_infix(">", Exp, P.eqs)
   | NotEquals => mk_infix("!=", Exp, P.eqs)
@@ -505,10 +505,7 @@ let get: compound_form => t =
     mk(L, ["|", "=>"], Mold.mk_bin'(P.rule_sep, Rul, Exp, [Pat], Exp))
   | Pipeline => mk_infix("|>", Exp, P.eqs) // in OCaml, pipeline precedence is in same class as '=', '<', etc.
   // DOUBLE DELIMITERS
-  | FilterHide => mk_pre_c(L, ["hide", "in"], P.let_, Exp, [Exp])
-  | FilterEval => mk_pre_c(L, ["eval", "in"], P.let_, Exp, [Exp])
-  | FilterPause => mk_pre_c(L, ["pause", "in"], P.let_, Exp, [Exp])
-  | FilterDebug => mk_pre_c(L, ["debug", "in"], P.let_, Exp, [Exp])
+  | Filter => mk_pre_c(L, ["debug", "in"], P.let_, Exp, [Exp])
   | Use => mk_pre_c(L, ["use", "in"], P.let_, Exp, [Typ])
   // Drv
   | Drv(drv_compound_form) => drv_get(drv_compound_form)
@@ -603,6 +600,7 @@ let is_ambiguous_polymorph = List.mem(_, amiguous_polymorphs);
 let get_atomic_form: atomic_form => (Token.t => bool, list(Mold.t)) =
   fun
   | Var => (Token.is_var, [op(Exp), op(Pat)])
+  | FilterSelector => (Token.is_filter_selector, [op(Exp)])
   | InfixDelimiterPrefix => (
       is_infix_delimiter_op_prefix,
       [

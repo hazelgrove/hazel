@@ -215,6 +215,8 @@ module rec Exp: {
     | InvalidExp(s) => invalid(s)
     | Atom(c) => basic(c)
     | Var(x) => var(x)
+    | FilterAction(a) => filter_action(a)
+    | FilterSelector(a) => filter_selector(a)
     | Constructor(x, ty) =>
       constructor(x, Option.map(Option.map(Typ.of_menhir_ast), ty))
     | Deferral => deferral(InAp)
@@ -306,17 +308,28 @@ module rec Exp: {
     | Cons(e1, e2) => cons(of_menhir_ast(e1), of_menhir_ast(e2))
     | ListConcat(e1, e2) =>
       list_concat(of_menhir_ast(e1), of_menhir_ast(e2))
-    | Filter(a, cond, body) =>
+    | Filter(cond, body) =>
       let dcond = of_menhir_ast(cond);
       let dbody = of_menhir_ast(body);
-      let act = FilterAction.of_menhir_ast(a);
-      filter(
-        Filter({
-          pat: dcond,
-          act,
-        }),
-        dbody,
-      );
+      switch (dcond.term) {
+      | Ap(Forward, {term: Var(name), annotation}, pat) =>
+        switch (Language.FilterAction.t_of_string(name)) {
+        | Some(act) =>
+          filter_unresolved(
+            ap(
+              Forward,
+              {
+                term: FilterAction(act),
+                annotation,
+              },
+              pat,
+            ),
+            dbody,
+          )
+        | None => filter_unresolved(dcond, dbody)
+        }
+      | _ => filter_unresolved(dcond, dbody)
+      };
     | TypAp(e, ty) => typ_ap(of_menhir_ast(e), Typ.of_menhir_ast(ty))
     | UnOp(op, e) =>
       un_op(Operators.op_un_of_menhir_ast(op), of_menhir_ast(e))
@@ -348,6 +361,8 @@ module rec Exp: {
     switch (exp.term) {
     | Invalid(_) => InvalidExp("Invalid")
     | Atom(c) => Atom(c)
+    | FilterAction(a) => FilterAction(a)
+    | FilterSelector(a) => FilterSelector(a)
     | Var(x) => Var(x)
     | LivelitName(_) => InvalidExp("Not supported")
     | Deferral(InAp) => Deferral
@@ -382,8 +397,9 @@ module rec Exp: {
     | HintedTest(e, hint) => HintedTest(of_core(e), of_core(hint))
     | Cons(e1, e2) => Cons(of_core(e1), of_core(e2))
     | ListConcat(e1, e2) => ListConcat(of_core(e1), of_core(e2))
-    | Filter(Filter({pat, act}), body) =>
-      Filter(FilterAction.of_core(act), of_core(pat), of_core(body))
+    | Filter(Unresolved(e), body) => Filter(of_core(e), of_core(body))
+    | Filter(Filter(_), _)
+    | Filter(Residue(_), _) => raise(Failure("Residue not supported"))
     | TypAp(e, ty) => TypAp(of_core(e), Typ.of_core(ty))
     | UnOp(op, e) => UnOp(Operators.of_core_op_un(op), of_core(e))
     | DynamicErrorHole(e, s) =>
@@ -392,7 +408,6 @@ module rec Exp: {
         Sexplib.Sexp.to_string(Language.InvalidOperationError.sexp_of_t(s)),
       )
     | Deferral(_) => Deferral
-    | Filter(Residue(_), _) => raise(Failure("Residue not supported"))
     | MultiHole([Exp(e)]) => of_core(e) // unwrap single exp multi-holes. just used for label parse failure
     | MultiHole(_) => raise(Failure("MultiHole not supported"))
     | Closure(_) => raise(Failure("Closure not supported"))

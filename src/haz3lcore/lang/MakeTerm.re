@@ -658,6 +658,8 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
         ret(Atom(Float(float_of_string(t))))
       | ([t], []) when Token.is_livelit(t) =>
         ret(LivelitName(Token.parse_livelit(t)))
+      | (["$e"], []) => ret(FilterSelector(Exp))
+      | (["$v"], []) => ret(FilterSelector(Val))
       | ([t], []) when Token.is_var(t) => ret(Var(t))
       | ([t], []) when Token.is_ctr(t) => ret(Constructor(t, None))
       | (["{", "}"], [Mod(body)]) =>
@@ -760,38 +762,30 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
           ModuleExp(mp, def, r)
         | (["theorem", "=", "in"], [Pat(pat), Exp(thm)]) =>
           Theorem(pat, thm, r)
-        | (["hide", "in"], [Exp(filter)]) =>
-          Filter(
-            Filter({
-              act: (Eval, One),
-              pat: filter,
-            }),
-            r,
-          )
-        | (["eval", "in"], [Exp(filter)]) =>
-          Filter(
-            Filter({
-              act: (Eval, All),
-              pat: filter,
-            }),
-            r,
-          )
-        | (["pause", "in"], [Exp(filter)]) =>
-          Filter(
-            Filter({
-              act: (Step, One),
-              pat: filter,
-            }),
-            r,
-          )
         | (["debug", "in"], [Exp(filter)]) =>
-          Filter(
-            Filter({
-              act: (Step, All),
-              pat: filter,
-            }),
-            r,
-          )
+          switch (filter.term) {
+          | Ap(Forward, {term: Var(name), annotation}, pat) =>
+            switch (FilterAction.t_of_string(name)) {
+            | Some(act) =>
+              Filter(
+                Unresolved({
+                  ...filter,
+                  term:
+                    Ap(
+                      Forward,
+                      {
+                        term: FilterAction(act),
+                        annotation,
+                      },
+                      pat,
+                    ),
+                }),
+                r,
+              )
+            | None => Filter(Unresolved(filter), r)
+            }
+          | _ => Filter(Unresolved(filter), r)
+          }
         | (["use", "in"], [Typ(ty)]) => Use(ty, r)
         | (["type", "=", "in"], [TPat(tpat), Typ(def)]) =>
           TyAlias(tpat, def, r)

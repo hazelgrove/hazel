@@ -108,6 +108,8 @@ let ty_subst = (s: Typ.t, tpat: TPat.t, exp: t): t => {
           | LivelitName(_)
           | DynamicErrorHole(_)
           | Filter(_)
+          | FilterAction(_)
+          | FilterSelector(_)
           | If(_)
           | EmptyHole
           | Invalid(_)
@@ -166,7 +168,9 @@ let rec ty_comparable = (d1, d2) => {
   | (Fun(_), _)
   | (BuiltinFun(_), _)
   | (TypFun(_), _)
-  | (TupleExtension(_), _) => false
+  | (TupleExtension(_), _)
+  | (FilterAction(_), _)
+  | (FilterSelector(_), _) => false
   | (Parens(d1), _) => ty_comparable(d1, d2)
   | (_, Parens(d2)) => ty_comparable(d1, d2)
   | (Projector(_, d1), _) => ty_comparable(d1, d2)
@@ -271,7 +275,9 @@ let rec poly_equal = (d1, d2): option(bool) => {
   | (Fun(_), _)
   | (TypFun(_), _)
   | (Use(_), _)
-  | (BuiltinFun(_), _) => None
+  | (BuiltinFun(_), _)
+  | (FilterAction(_), _)
+  | (FilterSelector(_), _) => None
 
   // Wrapping forms: just look through them
   | (Parens(d1), _) => poly_equal(d1, d2)

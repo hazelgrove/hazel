@@ -814,6 +814,8 @@ module Transition = (EV: EV_MODE) => {
       let. _ = otherwise(env, d);
       Indet;
     | Atom(_)
+    | FilterAction(_)
+    | FilterSelector(_)
     | LivelitName(_)
     | Label(_)
     | ExplicitNonlabel
