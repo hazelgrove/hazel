@@ -156,6 +156,14 @@
   padding-left: 15px;
   padding-right: 15px;
   z-index: calc(var(--projector-z) + 1);
+  /* Don't wrap the column name and the menu button onto two lines.
+     If the column is too narrow, the cell auto-widens to fit them
+     inline; if the user resizes the table small enough that the
+     header would have wrapped, the table grows past the requested
+     width instead of stealing a vertical row. This is also why
+     `.rich-probe-table-inner` uses overflow-x:visible — the table
+     can outgrow its requested width without forcing a scrollbar. */
+  white-space: nowrap;
 }
 
 /* Column dropdown sits inside the scrollable .rich-probe-table-inner;
