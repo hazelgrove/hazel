@@ -61,7 +61,7 @@ parameters are part of this implementation.
 
 ### Multi-binder universals and type abstractions
 
-The `TypTuple` machinery extends naturally to value-level polymorphism. An
+The same compositional approach extends to value-level polymorphism. An
 n-ary universal type and its inhabiting type abstraction can be written with
 comma-separated binders:
 
@@ -71,12 +71,55 @@ let pair : poly a, b -> a -> b -> (a, b) =
 pair@<Int, Bool>(3)(true)
 ```
 
-Internally, multi-binder `poly` and `typfun` are still curried (`Poly(a,
-Poly(b, …))` / `TypFun(a, TypFun(b, …))`), but the parser desugars the
-comma-list automatically. The application `pair@<Int, Bool>` parses as
-`TypAp(pair, TypTuple([Int, Bool]))`, and the dynamics' `TypFun`-step rule
-peels one binder per `TypTuple` element, re-applying any residual tuple to
-the resulting body.
+Multi-binder `poly` and `typfun` are represented compositionally — *not*
+curried — by introducing a `Tuple` variant of `TPat`:
+
+```reasonml
+| Poly(TPat.t, Typ.t)        // single Poly binder (a tpat)
+| TypFun(TPat.t, Exp.t, …)   // single TypFun binder (a tpat)
+
+and tpat_term =
+  …
+  | Tuple(list(tpat_t))      // multi-binder: a, b, c, …
+```
+
+So `poly a, b -> t` parses as a single `Poly(TPat.Tuple([a, b]), t)` and
+`typfun a, b -> e` as `TypFun(TPat.Tuple([a, b]), e, _)`. Explicit
+nesting `poly a -> poly b -> t` produces a chain of single-binder `Poly`s
+and is structurally distinct from the multi-binder form. The application
+`pair@<Int, Bool>` parses as `TypAp(pair, TypTuple([Int, Bool]))`, and the
+reduction rule for `TypAp` zips a `TypTuple` argument against a
+`TPat.Tuple` binder element-wise in a single step.
+
+The relevant traversals all flatten the binder via the `TPat.binders_of`
+helper (which returns `[tpat]` for a single binder and the elements of a
+`Tuple`):
+
+- **Substitution.** `Typ.subst(s, x, ty)` recognizes a binder shadowing
+  `x` if any element of the binder list matches; capture-avoiding
+  alpha-renaming runs element-wise.
+- **Statics.** `Statics.TypAp` peels one `Poly` per element of a
+  `TypTuple` argument (substituting via `Typ.subst_many`); `Statics.Poly`
+  /`TypLam` extend the body context with each named binder.
+- **Dynamics.** `Transition.TypAp` zips a `TypTuple` argument against a
+  `TPat.Tuple` binder in one substitution step for both `TypFun` and the
+  polymorphic-constructor schema specialization. Single-binder forms
+  substitute as before.
+- **Constructor schemas.** `Ctx.quantify_params([a, b], ty)` produces a
+  single-`Poly` schema `Poly(Tuple([a, b]), ty)` rather than a curried
+  chain, so a constructor `A : poly a, b -> a -> Either(a, b)` for
+  `Either(a, b)` specializes both binders at once when the user writes
+  `A(3) : Either(Int, Bool)`.
+- **Equality / meet.** Two `Poly`s with `Tuple` binders meet
+  element-wise across the binder list. As a special case, a binder list
+  consisting only of holes is treated as a wildcard so that the
+  `Poly(EmptyHole, _)` placeholder used as `TypAp`'s callee analysis
+  target matches any `Poly` regardless of its binder shape.
+
+Display follows the same compositional structure: the structured-editor
+pretty-printer renders a `Tuple` tpat as `a, b, c, …` (using the existing
+`,` infix tile between elements), so `Poly(Tuple([a, b]), t)` prints as
+`poly a, b -> t` directly without any chain-collapsing hack.
 
 ## Naming
 
