@@ -298,13 +298,17 @@ let tests = (
         let cls_testable =
           testable(Fmt.using(TPat.show_cls, Fmt.string), TPat.equal_cls);
         List.iter(
-          cls =>
-            check(
-              cls_testable,
-              TPat.show_cls(cls) ++ " Equivalency",
-              cls,
-              TPat.cls_of_term(sample_tpat(cls).term),
-            ),
+          (cls: TPat.cls) =>
+            switch (cls) {
+            | Parens => () // Parens is transparent (returns inner cls)
+            | _ =>
+              check(
+                cls_testable,
+                TPat.show_cls(cls) ++ " Equivalency",
+                cls,
+                TPat.cls_of_term(sample_tpat(cls).term),
+              )
+            },
           tpat_classes,
         );
       },

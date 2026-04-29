@@ -23,7 +23,7 @@ let hole = (tms: list(TermBase.Any.t)): TermBase.TPat.term =>
   | [_, ..._] => MultiHole(tms)
   };
 
-let cls_of_term: Grammar.tpat_term('a) => cls =
+let rec cls_of_term: Grammar.tpat_term('a) => cls =
   fun
   | Invalid(_) => Invalid
   | EmptyHole => EmptyHole
@@ -31,7 +31,11 @@ let cls_of_term: Grammar.tpat_term('a) => cls =
   | Var(_) => Var
   | Param(_) => Param
   | Tuple(_) => Tuple
-  | Parens(_) => Parens;
+  /* Mirror the Exp/Pat/Typ convention: a parenthesized tpat reports
+     the inner node's cls so the cursor inspector shows the
+     underlying binder's info (e.g. "Type binder tuple" on the parens
+     around `(a, b)`) instead of a standalone "Parenthesized" label. */
+  | Parens(inner) => cls_of_term(inner.term);
 
 let show_cls: cls => string =
   fun

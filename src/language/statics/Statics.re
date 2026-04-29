@@ -4159,9 +4159,13 @@ and utpat_to_info_map =
      etc.). All recursive calls below pass `at_alias_head=false`. */
   let ids = IdTagged.ids(utpat);
   let term = IdTagged.term_of(utpat);
-  let status_for_node =
+  let rec status_for_node =
       (utpat: TPat.t): (list(Mark.t), option(Message.ok_tpat)) =>
     switch (utpat.term) {
+    /* `Parens` is transparent — the cursor inspector entry for a
+       parens tile shows the inner node's info (class and message),
+       matching the exp/pat/typ convention. */
+    | Parens(inner) => status_for_node(inner)
     | EmptyHole => ([], Some(Message.Empty))
     | Var(name) when Ctx.is_base_typ(name) => (
         [TPatShadowsType(name, BaseTyp)],
@@ -4218,7 +4222,6 @@ and utpat_to_info_map =
       | None => ([TPatNotAVar(Other)], None)
       }
     | Tuple(_) => ([], Some(Message.Default))
-    | Parens(_) => ([], Some(Message.Default))
     | Invalid(_) => ([TPatNotAVar(NotCapitalized)], None)
     | MultiHole(_) => ([TPatNotAVar(Other)], None)
     };
