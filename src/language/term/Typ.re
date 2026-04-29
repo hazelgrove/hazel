@@ -1434,17 +1434,8 @@ let rec pretty_print = (ty: t): string =>
   | TupLabel(label, t) => pretty_print(label) ++ "=" ++ pretty_print(t)
   | Rec(tv, t) =>
     "rec " ++ pretty_print_tvar(tv) ++ " -> " ++ pretty_print(t)
-  | Poly(_, _) =>
-    /* Collapse a chain of nested `Poly` binders into a single
-       comma-separated `poly a, b, … -> body` so the displayed type
-       matches the multi-binder syntax the user wrote. */
-    let rec collect = (acc: list(string), ty: t): (list(string), t) =>
-      switch (term_of(ty)) {
-      | Poly(tv, body) => collect([pretty_print_tvar(tv), ...acc], body)
-      | _ => (List.rev(acc), ty)
-      };
-    let (binders, body) = collect([], ty);
-    "poly " ++ String.concat(", ", binders) ++ " -> " ++ pretty_print(body);
+  | Poly(tv, t) =>
+    "poly " ++ pretty_print_tvar(tv) ++ " -> " ++ pretty_print(t)
   | ProofOf(_e) => "yes <e> indeed"
   | Sig(items) =>
     let sig_item_str = (item: Sig.t) =>

@@ -385,14 +385,8 @@ let rec parenthesize =
     )
     |> rewrap
   | TypFun(tp, e, n) =>
-    /* Skip the body parens when the body is itself a `TypFun`: the
-       printer collapses such chains into `typfun a, b, … -> body`. */
-    let body =
-      switch (Exp.term_of(e)) {
-      | TypFun(_, _, _) => parenthesize(e)
-      | _ => parenthesize(e) |> paren_assoc_at(Precedence.fun_)
-      };
-    TypFun(tp, body, n) |> rewrap;
+    TypFun(tp, parenthesize(e) |> paren_assoc_at(Precedence.fun_), n)
+    |> rewrap
   | Tuple([e])
       when
         switch (e.term) {
@@ -784,17 +778,11 @@ and parenthesize_typ =
     )
     |> rewrap
   | Poly(tp, t) =>
-    /* Skip the associativity-paren when the body is itself a `Poly`:
-       the printer collapses such chains into a single multi-binder
-       `poly a, b, … -> body` form, so injecting parens here would
-       break that and produce unwanted `poly a -> (poly b -> …)`. */
-    let body =
-      switch (Typ.term_of(t)) {
-      | Poly(_, _) => parenthesize_typ(t)
-      | _ =>
-        parenthesize_typ(t) |> paren_typ_assoc_at(Precedence.type_binder)
-      };
-    Poly(tp, body) |> rewrap;
+    Poly(
+      tp,
+      parenthesize_typ(t) |> paren_typ_assoc_at(Precedence.type_binder),
+    )
+    |> rewrap
   | ProofOf(e) =>
     ProofOf(
       parenthesize(~parenthesization, ~show_ascriptions, ~show_filters, e)
@@ -1944,40 +1932,18 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     let+ p = pat_to_pretty(~settings: Settings.t, p)
     and+ e = go(e);
     wrap(exp, [mk_form(Forall, id, [p])] @ e);
-  | TypFun(_, _, _) =>
-    /* Collapse a curried chain of `TypFun(a, TypFun(b, …))` into a
-       single multi-binder tile `typfun a, b, … -> body` to match the
-       multi-binder syntax the user wrote. */
+  | TypFun(tp, e, _) =>
+    // TODO: Add optional newlines
     let id = exp |> Exp.rep_id;
-    let rec collect =
-            (acc: list(TPat.t), e: Exp.t): (list(TPat.t), Exp.t) =>
-      switch (Exp.term_of(e)) {
-      | TypFun(tp, body, _) => collect([tp, ...acc], body)
-      | _ => (List.rev(acc), e)
-      };
-    let (binders, body) = collect([], exp);
-    let+ binder_segs =
-      binders |> List.map(tpat_to_pretty(~settings: Settings.t)) |> all
-    and+ e = go(body);
-    let kids: Segment.t =
-      switch (binder_segs) {
-      | [] => []
-      | [first, ...rest] =>
-        first
-        @ List.flatten(
-            List.map(
-              param => [mk_form(CommaTPat, Id.mk(), [])] @ param,
-              rest,
-            ),
-          )
-      };
+    let+ tp = tpat_to_pretty(~settings: Settings.t, tp)
+    and+ e = go(e);
     let name =
       "<"
       ++ (Exp.get_fn_name(exp) |> Option.value(~default="anon typfun"))
       ++ ">";
     wrap(
       exp,
-      [mk_form(TypFun, id, [kids])]
+      [mk_form(TypFun, id, [tp])]
       @ e
       |> fold_fun_if(settings.fold_fn_bodies, name, _, exp),
     );
@@ -2811,33 +2777,11 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
     let+ tp = tpat_to_pretty(~settings: Settings.t, tp)
     and+ t = go(t);
     wrap(typ, [mk_form(Rec, id, [tp])] @ t);
-  | Poly(_, _) =>
-    /* Collapse a curried chain of `Poly(a, Poly(b, …))` into a single
-       multi-binder tile `poly a, b, … -> body` so the displayed
-       universal type matches the multi-binder syntax the user wrote. */
+  | Poly(tp, t) =>
     let id = typ |> Typ.rep_id;
-    let rec collect = (acc: list(TPat.t), ty: Typ.t): (list(TPat.t), Typ.t) =>
-      switch (Typ.term_of(ty)) {
-      | Poly(tp, body) => collect([tp, ...acc], body)
-      | _ => (List.rev(acc), ty)
-      };
-    let (binders, body) = collect([], typ);
-    let+ binder_segs =
-      binders |> List.map(tpat_to_pretty(~settings: Settings.t)) |> all
-    and+ t = go(body);
-    let kids: Segment.t =
-      switch (binder_segs) {
-      | [] => []
-      | [first, ...rest] =>
-        first
-        @ List.flatten(
-            List.map(
-              param => [mk_form(CommaTPat, Id.mk(), [])] @ param,
-              rest,
-            ),
-          )
-      };
-    wrap(typ, [mk_form(Poly, id, [kids])] @ t);
+    let+ tp = tpat_to_pretty(~settings: Settings.t, tp)
+    and+ t = go(t);
+    wrap(typ, [mk_form(Poly, id, [tp])] @ t);
   | ProofOf(e) =>
     let id = typ |> Typ.rep_id;
     let+ e = exp_to_pretty(~settings, e);
