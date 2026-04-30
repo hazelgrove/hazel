@@ -54,7 +54,12 @@ type doc =
   | SoftBreak /* nothing if flat, newline if broken */
   | HardBreak /* always a newline */
   | Cat(doc, doc) /* concatenation */
+  | Nest(int, doc) /* increase indent by N for nested breaks */
   | Group(doc); /* try flat first; if doesn't fit, use breaks */
+
+/* Indent unit (chars per nest level). Matches canonical-completion's
+ * editor convention (Indentation.re uses +2 per level). */
+let indent_unit: int = 2;
 
 /* Right-associative concatenation of a doc list */
 let rec cats = (docs: list(doc)): doc =>
@@ -98,7 +103,8 @@ type mode =
   | Flat
   | Breaking;
 
-/* Check if the remaining doc fits on this line (first-line check only) */
+/* Check if the remaining doc fits on this line (first-line check only).
+ * Indent is irrelevant to first-line fitting, so cmds carry only (mode, doc). */
 let rec fits = (remaining: int, cmds: list((mode, doc))): bool =>
   if (remaining < 0) {
     false;
@@ -116,6 +122,7 @@ let rec fits = (remaining: int, cmds: list((mode, doc))): bool =>
     | [(Breaking, SoftBreak), ..._] => true
     | [(Flat, HardBreak), ..._] => false /* Group can't go flat with HardBreak */
     | [(Breaking, HardBreak), ..._] => true
+    | [(m, Nest(_, x)), ...rest] => fits(remaining, [(m, x), ...rest])
     | [(_, Group(x)), ...rest] => fits(remaining, [(Flat, x), ...rest])
     };
   };
@@ -126,33 +133,48 @@ type output =
   | OSpace
   | ONewline;
 
-/* Greedy layout: process doc, deciding group modes based on fit */
+/* Emit ONewline followed by N OSpaces of indent. */
+let break_with_indent = (indent: int, rest: list(output)): list(output) => {
+  let indents = List.init(indent, _ => OSpace);
+  [ONewline, ...indents] @ rest;
+};
+
+/* Greedy layout: process doc, deciding group modes based on fit.
+ * Cmds carry (indent, mode, doc); indent is the current nesting level
+ * in characters, used to indent newlines emitted inside Breaking groups. */
 let rec layout =
-        (width: int, col: int, cmds: list((mode, doc))): list(output) =>
+        (width: int, col: int, cmds: list((int, mode, doc))): list(output) =>
   switch (cmds) {
   | [] => []
-  | [(_, Empty), ...rest] => layout(width, col, rest)
-  | [(_, Piece(p, w)), ...rest] => [
+  | [(_, _, Empty), ...rest] => layout(width, col, rest)
+  | [(_, _, Piece(p, w)), ...rest] => [
       OPiece(p),
       ...layout(width, col + w, rest),
     ]
-  | [(_, Space), ...rest] => [OSpace, ...layout(width, col + 1, rest)]
-  | [(m, Cat(x, y)), ...rest] =>
-    layout(width, col, [(m, x), (m, y), ...rest])
-  | [(Flat, Break), ...rest] => [OSpace, ...layout(width, col + 1, rest)]
-  | [(Breaking, Break), ...rest] => [ONewline, ...layout(width, 0, rest)]
-  | [(Flat, SoftBreak), ...rest] => layout(width, col, rest) /* emit nothing */
-  | [(Breaking, SoftBreak), ...rest] => [
-      ONewline,
-      ...layout(width, 0, rest),
-    ]
-  | [(_, HardBreak), ...rest] => [ONewline, ...layout(width, 0, rest)]
-  | [(_, Group(x)), ...rest] =>
-    if (fits(width - col, [(Flat, x), ...rest])) {
-      layout(width, col, [(Flat, x), ...rest]);
+  | [(_, _, Space), ...rest] => [OSpace, ...layout(width, col + 1, rest)]
+  | [(i, m, Cat(x, y)), ...rest] =>
+    layout(width, col, [(i, m, x), (i, m, y), ...rest])
+  | [(_, Flat, Break), ...rest] => [OSpace, ...layout(width, col + 1, rest)]
+  | [(i, Breaking, Break), ...rest] =>
+    /* col reset to 0 (not i) so fit-checks downstream use the full width.
+     * Indent is rendered visually but doesn't reduce fit-check budget,
+     * matching the "trailing keyword may overhang" convention. */
+    break_with_indent(i, layout(width, 0, rest))
+  | [(_, Flat, SoftBreak), ...rest] => layout(width, col, rest) /* emit nothing */
+  | [(i, Breaking, SoftBreak), ...rest] =>
+    break_with_indent(i, layout(width, 0, rest))
+  | [(i, _, HardBreak), ...rest] =>
+    break_with_indent(i, layout(width, 0, rest))
+  | [(i, m, Nest(n, x)), ...rest] =>
+    layout(width, col, [(i + n, m, x), ...rest])
+  | [(i, _, Group(x)), ...rest] =>
+    let fit_cmds =
+      List.map(((_, m, d)) => (m, d), [(i, Flat, x), ...rest]);
+    if (fits(width - col, fit_cmds)) {
+      layout(width, col, [(i, Flat, x), ...rest]);
     } else {
-      layout(width, col, [(Breaking, x), ...rest]);
-    }
+      layout(width, col, [(i, Breaking, x), ...rest]);
+    };
   };
 
 /* Convert layout output to segment */
@@ -540,8 +562,7 @@ and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
         Some(
           cats([
             piece_doc(open_s),
-            SoftBreak,
-            inner,
+            Nest(indent_unit, cats([SoftBreak, inner])),
             SoftBreak,
             piece_doc(close_s),
             suffix,
@@ -590,7 +611,13 @@ and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
         switch (try_hanging_delim(binding_content, ~suffix=in_suffix, ())) {
         | Some(hanging) => cats([Space, hanging])
         | None =>
-          cats([Break, Group(child_doc(s, binding_child)), in_suffix])
+          cats([
+            Nest(
+              indent_unit,
+              cats([Break, Group(child_doc(s, binding_child))]),
+            ),
+            in_suffix,
+          ])
         };
       let let_in_doc = Group(cats([prefix, binding_doc]));
       Group(cats([let_in_doc, body_doc(true)]));
@@ -602,9 +629,27 @@ and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
     switch (triples) {
     | [(_, cond_child, _), (_, conseq_child, _)] =>
       /* If conseq is a block-like expression (let/case/fun/if/...), force
-         a HardBreak after `then` so the block lands on its own line. */
-      let then_sep =
-        segment_starts_with_block(conseq_child) ? HardBreak : Space;
+         a HardBreak after `then` so the block lands on its own line, and
+         indent the body. Otherwise keep `then <conseq>` on one line. */
+      let conseq_starts_block = segment_starts_with_block(conseq_child);
+      let then_sep = conseq_starts_block ? HardBreak : Space;
+      let conseq_inner =
+        cats([then_sep, Group(child_doc(s, conseq_child))]);
+      let conseq_doc =
+        conseq_starts_block ? Nest(indent_unit, conseq_inner) : conseq_inner;
+      /* Alt: indent if block form (else <block>). Included inside the
+         tile_doc Group so its HardBreak (when block) forces the whole
+         if/then/else to break, not just the alt. */
+      let alt_doc =
+        switch (rest) {
+        | [] => Empty
+        | _ =>
+          let alt_starts_block = segment_starts_with_block(rest);
+          let alt_sep = alt_starts_block ? HardBreak : Space;
+          let alt_inner =
+            cats([alt_sep, Group(segment_to_doc(s, rest))]);
+          alt_starts_block ? Nest(indent_unit, alt_inner) : alt_inner;
+        };
       let tile_doc =
         Group(
           cats([
@@ -613,13 +658,13 @@ and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
             Group(child_doc(s, cond_child)),
             Break,
             shard(1),
-            then_sep,
-            Group(child_doc(s, conseq_child)),
+            conseq_doc,
             Break,
             shard(last_shard_idx),
+            alt_doc,
           ]),
         );
-      cats([tile_doc, body_doc(false)]);
+      tile_doc;
     | _ => fallback()
     }
 
@@ -636,7 +681,10 @@ and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
         switch (rest) {
         | [] => Group(header)
         | [p] when is_trailing_hole(p) =>
-          cats([Group(header), HardBreak, piece_doc(p)])
+          cats([
+            Group(header),
+            Nest(indent_unit, cats([HardBreak, piece_doc(p)])),
+          ])
         | _ =>
           switch (split_at_comma(rest)) {
           | Some(_) => cats([Group(header), body_doc(false)])
@@ -647,8 +695,10 @@ and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
               Group(
                 cats([
                   Group(header),
-                  Break,
-                  Group(segment_to_doc(s, rest)),
+                  Nest(
+                    indent_unit,
+                    cats([Break, Group(segment_to_doc(s, rest))]),
+                  ),
                 ]),
               )
             }
@@ -672,8 +722,7 @@ and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
           Group(
             cats([
               shard(0),
-              SoftBreak,
-              inner,
+              Nest(indent_unit, cats([SoftBreak, inner])),
               SoftBreak,
               shard(last_shard_idx),
             ]),
@@ -720,8 +769,13 @@ and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
       let tile_doc =
         cats([
           shard(0),
-          HardBreak,
-          Group(cats([inner, Space, shard(last_shard_idx)])),
+          Nest(
+            indent_unit,
+            cats([
+              HardBreak,
+              Group(cats([inner, Space, shard(last_shard_idx)])),
+            ]),
+          ),
         ]);
       tile_with_rest(tile_doc);
     | _ => fallback()
@@ -740,8 +794,13 @@ and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
           msg,
           HardBreak,
           shard(1),
-          HardBreak,
-          Group(cats([inner, Space, shard(last_shard_idx)])),
+          Nest(
+            indent_unit,
+            cats([
+              HardBreak,
+              Group(cats([inner, Space, shard(last_shard_idx)])),
+            ]),
+          ),
         ]);
       tile_with_rest(tile_doc);
     | _ => fallback()
@@ -794,7 +853,8 @@ and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
     | _ => fallback()
     }
 
-  /* Generic multi-keyword tile: interleave shards and children with Break */
+  /* Generic multi-keyword tile: interleave shards and children with Break.
+     Children get Nest so multi-line children indent relative to keywords. */
   | _ =>
     let rec build_rest =
             (idx, triples: list((Tile.t, Segment.t, Tile.t))): doc =>
@@ -803,7 +863,7 @@ and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
       | [(_, child, _), ...rest_triples] =>
         cats([
           Space,
-          child_doc(s, child),
+          Nest(indent_unit, child_doc(s, child)),
           Break,
           shard(idx),
           build_rest(idx + 1, rest_triples),
@@ -878,7 +938,8 @@ and segment_to_doc = (s: settings, pieces: list(Piece.t)): doc =>
     let body_doc =
       switch (body) {
       | [] => Empty
-      | _ => cats([Break, Group(segment_to_doc(s, body))])
+      | _ =>
+        Nest(indent_unit, cats([Break, Group(segment_to_doc(s, body))]))
       };
     let rule_doc = Group(cats([piece_doc(p), body_doc]));
     switch (remaining) {
@@ -1054,8 +1115,8 @@ let format_segment = (~settings: settings, seg: Segment.t): Segment.t => {
   | [] => []
   | _ =>
     let doc = Group(segment_to_doc(settings, content));
-    /* Step 3: Layout */
-    let outputs = layout(settings.width, 0, [(Breaking, doc)]);
+    /* Step 3: Layout (start at indent 0, Breaking mode) */
+    let outputs = layout(settings.width, 0, [(0, Breaking, doc)]);
     /* Step 4: Post-process (tight application) */
     let outputs = tighten_applications(outputs);
     /* Step 5: Convert to segment */

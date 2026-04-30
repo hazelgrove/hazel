@@ -24,7 +24,8 @@ let format =
   | Some(exp) =>
     let segment = segmentize(exp);
     let pretty = PrettySegment.prettify(~width, ~settings, segment);
-    Printer.of_segment(~holes="?", ~indent="  ", pretty)
+    /* No ~indent: PrettySegment now emits real whitespace for indent. */
+    Printer.of_segment(~holes="?", pretty)
     |> Util.StringUtil.trim_trailing_whitespace;
   | None => failwith("Failed to parse: " ++ input)
   };
@@ -38,7 +39,8 @@ let format_seg =
   switch (Parser.to_segment(input, ~root=Exp)) {
   | Some(segment) =>
     let pretty = PrettySegment.prettify(~width, ~settings, segment);
-    Printer.of_segment(~holes="?", ~indent=" ", pretty)
+    /* No ~indent: PrettySegment now emits real whitespace for indent. */
+    Printer.of_segment(~holes="?", pretty)
     |> Util.StringUtil.trim_trailing_whitespace;
   | None => failwith("Failed to parse: " ++ input)
   };
@@ -141,7 +143,7 @@ else 2|},
     ~width=15,
     ~input="fun x -> fun y -> x + y",
     ~expected={|fun x ->
-    fun y -> x + y|},
+  fun y -> x + y|},
     (),
   ),
   test_format(
@@ -161,7 +163,7 @@ z * 2|},
     ~expected={|let x = 1 in
 let y = 2 in
 let z =
-    x + y in
+  x + y in
 z * 2|},
     (),
   ),
@@ -186,11 +188,11 @@ let delimiter_tests = [
     ~width=10,
     ~input="(1, 2, 3, 4, 5)",
     ~expected={|(
-    1,
-    2,
-    3,
-    4,
-    5
+  1,
+  2,
+  3,
+  4,
+  5
 )|},
     (),
   ),
@@ -199,11 +201,11 @@ let delimiter_tests = [
     ~width=10,
     ~input="[1, 2, 3, 4, 5]",
     ~expected={|[
-    1,
-    2,
-    3,
-    4,
-    5
+  1,
+  2,
+  3,
+  4,
+  5
 ]|},
     (),
   ),
@@ -249,7 +251,7 @@ let complex_tests = [
     ~width=25,
     ~input="let f : Int -> Int = fun x -> x + 1 in f(5)",
     ~expected={|let f : (Int -> Int) =
-    fun x -> x + 1 in
+  fun x -> x + 1 in
 f(5)|},
     (),
   ),
@@ -282,7 +284,7 @@ fun z -> x + y + z|},
     ~width=10,
     ~input="let x = f(5) in x",
     ~expected={|let x =
-    f(5) in
+  f(5) in
 x|},
     (),
   ),
@@ -308,8 +310,8 @@ let comma_compound_tests = [
     ~width=20,
     ~input="(fun x -> x + 1, fun y -> y + 2)",
     ~expected={|(
-    fun x -> x + 1,
-    fun y -> y + 2
+  fun x -> x + 1,
+  fun y -> y + 2
 )|},
     (),
   ),
@@ -319,9 +321,9 @@ let comma_compound_tests = [
     ~input="(fun x -> x + 1, fun y -> y + 2, fun z -> z + 3)",
     ~expected=
       {|(
-    fun x -> x + 1,
-    fun y -> y + 2,
-    fun z -> z + 3
+  fun x -> x + 1,
+  fun y -> y + 2,
+  fun z -> z + 3
 )|},
     (),
   ),
@@ -330,9 +332,9 @@ let comma_compound_tests = [
     ~width=15,
     ~input="let p = (1, 2, 3) in p",
     ~expected={|let p = (
-    1,
-    2,
-    3
+  1,
+  2,
+  3
 ) in
 p|},
     (),
@@ -342,8 +344,8 @@ p|},
     ~width=20,
     ~input="[fun x -> x, fun y -> y]",
     ~expected={|[
-    fun x -> x,
-    fun y -> y
+  fun x -> x,
+  fun y -> y
 ]|},
     (),
   ),
@@ -388,8 +390,8 @@ f(1, 2, 3)|},
     ~input="let f = fun a, b, c -> a + b + c + 1 + 2 + 3 in 1",
     ~expected=
       {|let f =
-    fun (a, b, c) ->
-        a + b + c + 1 + 2 + 3 in
+  fun (a, b, c) ->
+    a + b + c + 1 + 2 + 3 in
 1|},
     (),
   ),
@@ -401,11 +403,11 @@ f(1, 2, 3)|},
       "let f = fun (canvas, emoji) -> map(canvas, fun row -> map(row, fun x -> emoji)) in 1",
     ~expected=
       {|let f =
-    fun (canvas, emoji) ->
-        map(
-            canvas,
-            fun row -> map(row, fun x -> emoji)
-        ) in
+  fun (canvas, emoji) ->
+    map(
+      canvas,
+      fun row -> map(row, fun x -> emoji)
+    ) in
 1|},
     (),
   ),
@@ -426,11 +428,11 @@ f(5)|},
       {|let f = fun m, action -> case action | 0 => m + 1 | 1 => m - 1 end in 1|},
     ~expected=
       {|let f =
-    fun (m, action) ->
-        case action
-        | 0 => m + 1
-        | 1 => m - 1
-        end in
+  fun (m, action) ->
+    case action
+    | 0 => m + 1
+    | 1 => m - 1
+    end in
 1|},
     (),
   ),
@@ -458,9 +460,9 @@ let hanging_delimiter_tests = [
     ~width=15,
     ~input="let p = (1, 2, 3) in p",
     ~expected={|let p = (
-    1,
-    2,
-    3
+  1,
+  2,
+  3
 ) in
 p|},
     (),
@@ -470,9 +472,9 @@ p|},
     ~width=15,
     ~input="let p = [1, 2, 3] in p",
     ~expected={|let p = [
-    1,
-    2,
-    3
+  1,
+  2,
+  3
 ] in
 p|},
     (),
@@ -484,7 +486,7 @@ p|},
     ~width=15,
     ~input="let p = (1, 2, 3) in p",
     ~expected={|let p =
-    (1, 2, 3) in
+  (1, 2, 3) in
 p|},
     (),
   ),
@@ -494,7 +496,7 @@ p|},
     ~width=15,
     ~input="let p = [1, 2, 3] in p",
     ~expected={|let p =
-    [1, 2, 3] in
+  [1, 2, 3] in
 p|},
     (),
   ),
@@ -531,8 +533,8 @@ let break_fun_params_tests = [
     ~width=25,
     ~input="let f = fun a, b, c -> a + b + c + 1 + 2 in 1",
     ~expected={|let f =
-    fun (a, b, c) ->
-        a + b + c + 1 + 2 in
+  fun (a, b, c) ->
+    a + b + c + 1 + 2 in
 1|},
     (),
   ),
@@ -544,11 +546,11 @@ let break_fun_params_tests = [
     ~input="let f = fun a, b, c -> a + b + c + 1 + 2 in 1",
     ~expected=
       {|let f =
-    fun (
-        a,
-        b,
-        c
-    ) -> a + b + c + 1 + 2 in
+  fun (
+    a,
+    b,
+    c
+  ) -> a + b + c + 1 + 2 in
 1|},
     (),
   ),
@@ -902,8 +904,8 @@ let labeled_tuple_tests = [
     ~width=20,
     ~input="(firsts = [1, 2], seconds = [3, 4])",
     ~expected={|(
-    firsts = [1, 2],
-    seconds = [3, 4]
+  firsts = [1, 2],
+  seconds = [3, 4]
 )|},
     (),
   ),
