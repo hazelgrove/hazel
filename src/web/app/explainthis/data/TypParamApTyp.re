@@ -110,13 +110,19 @@ let triple_explanation =
     callee_str,
   );
 
+/* The dropdown option previews include the callee prefix `T` so the
+   user sees the full `T(…)` form when switching between arities,
+   rather than just the parenthesized argument list. Each preview
+   uses fresh pieces that mirror the main syntactic_form. */
+
 let _general_ap = mk_parens_typ([[_general_list]]);
 let typ_param_ap_general_form: form = {
   let explanation = "Applies a parameterized type to arbitrarily many type arguments at once.";
+  let preview = [typ("T"), mk_parens_typ([[typ("X_1, …, X_n")]])];
   {
     id: TypParamApTyp(General),
     syntactic_form: [_callee, _general_ap],
-    expandable_id: Some((Piece.id(_general_ap), [_general_ap])),
+    expandable_id: Some((Piece.id(_general_ap), preview)),
     explanation,
     examples: [],
   };
@@ -125,10 +131,11 @@ let typ_param_ap_general_form: form = {
 let _single_ap = mk_parens_typ([[_single_t]]);
 let typ_param_ap_single_form: form = {
   let explanation = "Applies a parameterized type to a single type argument.";
+  let preview = [typ("T"), mk_parens_typ([[typ("X")]])];
   {
     id: TypParamApTyp(Arity1),
     syntactic_form: [_callee, _single_ap],
-    expandable_id: Some((Piece.id(_single_ap), [_single_ap])),
+    expandable_id: Some((Piece.id(_single_ap), preview)),
     explanation,
     examples: [],
   };
@@ -138,10 +145,16 @@ let _pair_ap =
   mk_parens_typ([[_pair_t1, Example.comma_typ(), space(), _pair_t2]]);
 let typ_param_ap_pair_form: form = {
   let explanation = "Applies the parameterized type [*%s*](%s) to two type arguments [*%s*](%s) and [*%s*](%s). Both substitute for the corresponding parameters of `%s` in a single step.";
+  let preview = [
+    typ("T"),
+    mk_parens_typ([
+      [typ("X_1"), Example.comma_typ(), space(), typ("X_2")],
+    ]),
+  ];
   {
     id: TypParamApTyp(Arity2),
     syntactic_form: [_callee, _pair_ap],
-    expandable_id: Some((Piece.id(_pair_ap), [_pair_ap])),
+    expandable_id: Some((Piece.id(_pair_ap), preview)),
     explanation,
     examples: [],
   };
@@ -161,10 +174,24 @@ let _triple_ap =
   ]);
 let typ_param_ap_triple_form: form = {
   let explanation = "Applies the parameterized type [*%s*](%s) to three type arguments [*%s*](%s), [*%s*](%s), and [*%s*](%s). All three substitute for the corresponding parameters of `%s` in a single step.";
+  let preview = [
+    typ("T"),
+    mk_parens_typ([
+      [
+        typ("X_1"),
+        Example.comma_typ(),
+        space(),
+        typ("X_2"),
+        Example.comma_typ(),
+        space(),
+        typ("X_3"),
+      ],
+    ]),
+  ];
   {
     id: TypParamApTyp(Arity3),
     syntactic_form: [_callee, _triple_ap],
-    expandable_id: Some((Piece.id(_triple_ap), [_triple_ap])),
+    expandable_id: Some((Piece.id(_triple_ap), preview)),
     explanation,
     examples: [],
   };

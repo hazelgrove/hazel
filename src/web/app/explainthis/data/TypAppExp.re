@@ -94,13 +94,21 @@ let triple_explanation =
     Id.to_string(t3_id),
   );
 
+/* The dropdown option previews include the callee `e_tfun` so the
+   user sees the full `e_tfun@<…>` form when switching between
+   arities, rather than just the `@<…>` brackets. */
+
 let _general_ap = mk_ap_exp_typ([[_general_list]]);
 let typ_ap_general: form = {
   let explanation = "Applies a type function to a list of type arguments at once.";
+  let preview = [
+    exp("e_tfun"),
+    mk_ap_exp_typ([[typ("X_1, …, X_n")]]),
+  ];
   {
     id: TypFunApExp(General),
     syntactic_form: [_f, _general_ap],
-    expandable_id: Some((Piece.id(_general_ap), [_general_ap])),
+    expandable_id: Some((Piece.id(_general_ap), preview)),
     explanation,
     examples: [typfunapp_exp_ex],
   };
@@ -109,10 +117,11 @@ let typ_ap_general: form = {
 let _single_ap = mk_ap_exp_typ([[_single_t]]);
 let typ_ap_single: form = {
   let explanation = "Applies a type function to a single type argument.";
+  let preview = [exp("e_tfun"), mk_ap_exp_typ([[typ("X")]])];
   {
     id: TypFunApExp(Arity1),
     syntactic_form: [_f, _single_ap],
-    expandable_id: Some((Piece.id(_single_ap), [_single_ap])),
+    expandable_id: Some((Piece.id(_single_ap), preview)),
     explanation,
     examples: [typfunapp_exp_ex],
   };
@@ -122,10 +131,16 @@ let _pair_ap =
   mk_ap_exp_typ([[_pair_t1, Example.comma_typ(), space(), _pair_t2]]);
 let typ_ap_pair: form = {
   let explanation = "Applies the [*type function*](%s) to two type arguments [*%s*](%s) and [*%s*](%s). Paired against a matching multi-binder `typfun p_1, p_2 -> e'`, both binders are substituted in a single step.";
+  let preview = [
+    exp("e_tfun"),
+    mk_ap_exp_typ([
+      [typ("X_1"), Example.comma_typ(), space(), typ("X_2")],
+    ]),
+  ];
   {
     id: TypFunApExp(Arity2),
     syntactic_form: [_f, _pair_ap],
-    expandable_id: Some((Piece.id(_pair_ap), [_pair_ap])),
+    expandable_id: Some((Piece.id(_pair_ap), preview)),
     explanation,
     examples: [typfunapp_exp_ex],
   };
@@ -145,10 +160,24 @@ let _triple_ap =
   ]);
 let typ_ap_triple: form = {
   let explanation = "Applies the [*type function*](%s) to three type arguments [*%s*](%s), [*%s*](%s), and [*%s*](%s). Paired against a matching multi-binder `typfun p_1, p_2, p_3 -> e'`, all three binders are substituted in a single step.";
+  let preview = [
+    exp("e_tfun"),
+    mk_ap_exp_typ([
+      [
+        typ("X_1"),
+        Example.comma_typ(),
+        space(),
+        typ("X_2"),
+        Example.comma_typ(),
+        space(),
+        typ("X_3"),
+      ],
+    ]),
+  ];
   {
     id: TypFunApExp(Arity3),
     syntactic_form: [_f, _triple_ap],
-    expandable_id: Some((Piece.id(_triple_ap), [_triple_ap])),
+    expandable_id: Some((Piece.id(_triple_ap), preview)),
     explanation,
     examples: [typfunapp_exp_ex],
   };
