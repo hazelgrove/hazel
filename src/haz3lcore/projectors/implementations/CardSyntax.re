@@ -96,28 +96,41 @@ let any_to_state = (term: Any.t): option(state) =>
 
 open IdTagged.FreshGrammar;
 
+/* Double-wrap the tuple in Parens. ProjectorPerform.SetSyntax calls
+   Segment.unparenthesize on whatever segment we hand it, stripping a
+   single outer paren level before re-wrapping for the projector
+   delimiter. With only one Parens here that strip leaves a bare
+   `Hearts, Ace` inside the projector — a non-parenthesized top-level
+   tuple — which downstream `seg_to_term` (`MakeTerm.for_projection`)
+   rejects, crashing the card render the next time the projector
+   re-evaluates. The extra Parens absorbs the strip so the projector's
+   content stays `(Hearts, Ace)` and round-trips cleanly. */
 let card_to_exp = ((suit, rank): card): exp =>
   Exp.parens(
-    Exp.tuple([
-      Exp.constructor(Sexplib.Sexp.to_string(sexp_of_suit(suit)), None),
-      Exp.constructor(Sexplib.Sexp.to_string(sexp_of_rank(rank)), None),
-    ]),
+    Exp.parens(
+      Exp.tuple([
+        Exp.constructor(Sexplib.Sexp.to_string(sexp_of_suit(suit)), None),
+        Exp.constructor(Sexplib.Sexp.to_string(sexp_of_rank(rank)), None),
+      ]),
+    ),
   );
 
 let card_to_pat = ((suit, rank): card): pat =>
   Pat.parens(
-    Pat.tuple([
-      switch (suit) {
-      | UnknownS => Pat.wild()
-      | _ =>
-        Pat.constructor(Sexplib.Sexp.to_string(sexp_of_suit(suit)), None)
-      },
-      switch (rank) {
-      | UnknownR => Pat.wild()
-      | _ =>
-        Pat.constructor(Sexplib.Sexp.to_string(sexp_of_rank(rank)), None)
-      },
-    ]),
+    Pat.parens(
+      Pat.tuple([
+        switch (suit) {
+        | UnknownS => Pat.wild()
+        | _ =>
+          Pat.constructor(Sexplib.Sexp.to_string(sexp_of_suit(suit)), None)
+        },
+        switch (rank) {
+        | UnknownR => Pat.wild()
+        | _ =>
+          Pat.constructor(Sexplib.Sexp.to_string(sexp_of_rank(rank)), None)
+        },
+      ]),
+    ),
   );
 
 let collection_to_exp = (collection: collection): exp =>
