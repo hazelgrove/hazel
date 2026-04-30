@@ -72,6 +72,7 @@ let mk_use = mk_tile(Form.get(Use));
 let mk_tyalias = mk_tile(Form.get(TypeAlias));
 let mk_ap_tpat = mk_tile(Form.get(ApTPat));
 let mk_parens_tpat = mk_tile(Form.get(ParensTPat));
+let mk_ap_typ = mk_tile(Form.get(ApTyp));
 let comma_tpat = () => mk_monotile(Form.get(CommaTPat));
 let mk_if = mk_tile(Form.get(If));
 let mk_test = mk_tile(Form.get(Test));
