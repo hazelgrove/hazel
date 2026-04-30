@@ -189,10 +189,10 @@ let tests = (
           if_(
             constructor("B", Some(Some(Typ.bool()))),
             asc(bool(false), Typ.unknown(SynSwitch)),
-            asc(constructor("A", Some(None)), Typ.unknown(SynSwitch)),
+            asc(constructor("Qux", Some(None)), Typ.unknown(SynSwitch)),
           ),
           elaborate(
-            parse_exp("type y = + B(Float) in if B then false else A"),
+            parse_exp("type y = + B(Float) in if B then false else Qux"),
           ),
         );
         evaluation_test(
