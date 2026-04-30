@@ -194,6 +194,21 @@ let cls_of: t => Cls.t =
   | InfoMPat({cls, _})
   | Secondary({cls, _}) => cls;
 
+/* User-facing class name, context-aware where the static `Cls.show`
+   loses information. Currently specializes tpat `Var` based on the
+   statics' classification: a bound type variable with kind
+   `Abstract` is a parameter, anything else is an alias. Other sorts
+   fall back to the plain `Cls.show(cls_of(info))`. */
+let cls_text_of: t => string =
+  fun
+  | InfoTPat({cls: TPat(Var), message, _}) =>
+    switch (message) {
+    | Some(TPatOk(TypeParameter(_))) => "Type parameter"
+    | Some(TPatOk(TypeAlias(_))) => "Type alias"
+    | _ => Cls.show(TPat(Var))
+    }
+  | info => Cls.show(cls_of(info));
+
 let any_of: t => option(Any.t) =
   fun
   | InfoDrv({term, _}) => Some(Drv(term))
