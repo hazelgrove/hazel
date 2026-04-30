@@ -207,6 +207,17 @@ let rec collect_type_exports =
        ((ctx, acc), item: Mod.t) =>
          switch (item.term) {
          | ModType(tpat, typ) =>
+           /* For a plain alias the binding-site id is the alias's
+              own tile; for a parameterized alias `T(a, …)` we use the
+              head `T`'s id (not the whole `Param`'s rep_id, which
+              points at the postfix `(a)` tile) so jump-to-definition
+              and var-highlight land on the alias name itself. */
+           let head_id_of = (tpat: TPat.t): Id.t =>
+             switch (tpat.term) {
+             | Param(head, _) => TPat.rep_id(head)
+             | Parens(inner) => TPat.rep_id(inner)
+             | _ => TPat.rep_id(tpat)
+             };
            switch (TPat.alias_head(tpat)) {
            | Some((name, [])) =>
              /* Plain (non-parameterized) type alias: mirror TyAlias
@@ -219,7 +230,7 @@ let rec collect_type_exports =
                } else {
                  (Typ.normalize(ctx, typ), typ);
                };
-             let binding_id = TPat.rep_id(tpat);
+             let binding_id = head_id_of(tpat);
              let ctx = Ctx.extend_alias(ctx, name, binding_id, alias_ty);
              (ctx, [(name, resolved, binding_id), ...acc]);
            | Some((name, params)) =>
@@ -243,7 +254,7 @@ let rec collect_type_exports =
                } else {
                  ty_lam;
                };
-             let binding_id = TPat.rep_id(tpat);
+             let binding_id = head_id_of(tpat);
              let ctx =
                Ctx.extend_alias(
                  ctx,
@@ -254,7 +265,7 @@ let rec collect_type_exports =
                );
              (ctx, [(name, alias_ty, binding_id), ...acc]);
            | None => (ctx, acc)
-           }
+           };
          | ModuleMod(mp, def) =>
            /* Resolve RHS type exports: either a literal module body
               or a variable alias (module Geo = Geometry) */

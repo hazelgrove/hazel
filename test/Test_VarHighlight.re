@@ -578,6 +578,71 @@ let test_ctr_use_from_outside_module =
     },
   );
 
+/* For a parameterized alias `type PList(a) = …`, the binding-site
+   id must be the *head* tpat's id (the `PList` tile), not the
+   `Param` node's rep_id — that points at the postfix `(a)`
+   application tile. */
+let test_qualified_type_label_highlight_parameterized =
+  test_case(
+    "Type: qualified-access label for parameterized alias picks head",
+    `Quick,
+    () => {
+      let exp =
+        parse_exp(
+          "let m = { type PList(a) = +PNil + PCons(a) } in let x : m.PList(Int) = PNil in x",
+        );
+      let info_map = statics(exp);
+      let label_use =
+        Id.Map.fold(
+          (id, info: Info.t, acc) =>
+            switch (acc) {
+            | Some(_) => acc
+            | None =>
+              switch (info) {
+              | InfoTyp({
+                  user_term: {term: Label("PList"), _},
+                  expects: LabelProjectionExpected(_),
+                  _,
+                }) =>
+                Some((id, info))
+              | _ => None
+              }
+            },
+          info_map,
+          None,
+        );
+      check(bool, "found m.PList label use", true, label_use != None);
+      let (use_id, use_info) = Option.get(label_use);
+      let ids = highlight_ids(info_map, use_info);
+      let other_ids = List.filter(id => !Id.equal(id, use_id), ids);
+      /* The binding-site id must point at the `PList` head tpat (an
+         InfoTPat with term `Var("PList")`), not the parent `Param`'s
+         postfix tile. */
+      check(
+        bool,
+        "label use highlights at least one other id",
+        true,
+        List.length(other_ids) > 0,
+      );
+      let head_targets =
+        List.filter(
+          id =>
+            switch (Id.Map.find_opt(id, info_map)) {
+            | Some(InfoTPat({user_term: {term: Var("PList"), _}, _})) =>
+              true
+            | _ => false
+            },
+          other_ids,
+        );
+      check(
+        bool,
+        "highlight set contains PList head tpat",
+        true,
+        List.length(head_targets) > 0,
+      );
+    },
+  );
+
 /* Regression: hovering on the `T` part of a qualified type access
    `M.T` must highlight the corresponding `type T = …` declaration
    inside the module. The `T` is parsed as a `Label` term in
@@ -811,5 +876,6 @@ let tests = (
     test_ctr_type_directed_disambiguation,
     test_ctr_use_from_outside_module,
     test_qualified_type_label_highlight,
+    test_qualified_type_label_highlight_parameterized,
   ],
 );
