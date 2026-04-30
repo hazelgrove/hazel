@@ -948,29 +948,84 @@ let get_doc =
           ListExp.listlits,
         )
       | TypFun(tpat, body, _) =>
-        let basic = group_id => {
-          let tpat_id = List.nth(IdTagged.ids(tpat), 0);
-          let body_id = List.nth(IdTagged.ids(body), 0);
+        /* Dispatch by arity of the binder list so each binder is
+           individually color-highlighted at arity 2/3 and the general
+           form covers arbitrary arity. */
+        let body_id = List.nth(IdTagged.ids(body), 0);
+        let binders = TPat.binders_of(tpat);
+        let binders_ids =
+          List.map(b => List.nth(IdTagged.ids(b), 0), binders);
+        switch (binders_ids) {
+        | [p1_id, p2_id] =>
           get_message(
             ~colorings=
-              FunctionExp.function_exp_coloring_ids(
-                ~pat_id=tpat_id,
+              TypFunctionExp.typfun_pair_coloring_ids(
+                ~p1_id,
+                ~p2_id,
                 ~body_id,
               ),
             ~format=
               Some(
                 msg =>
                   Printf.sprintf(
-                    Scanf.format_from_string(msg, "%s%s"),
-                    Id.to_string(tpat_id),
+                    Scanf.format_from_string(msg, "%s%s%s%s%s"),
+                    "p_1",
+                    Id.to_string(p1_id),
+                    "p_2",
+                    Id.to_string(p2_id),
                     Id.to_string(body_id),
                   ),
               ),
-            group_id,
+            TypFunctionExp.type_functions_pair,
+          )
+        | [p1_id, p2_id, p3_id] =>
+          get_message(
+            ~colorings=
+              TypFunctionExp.typfun_triple_coloring_ids(
+                ~p1_id,
+                ~p2_id,
+                ~p3_id,
+                ~body_id,
+              ),
+            ~format=
+              Some(
+                msg =>
+                  Printf.sprintf(
+                    Scanf.format_from_string(msg, "%s%s%s%s%s%s%s"),
+                    "p_1",
+                    Id.to_string(p1_id),
+                    "p_2",
+                    Id.to_string(p2_id),
+                    "p_3",
+                    Id.to_string(p3_id),
+                    Id.to_string(body_id),
+                  ),
+              ),
+            TypFunctionExp.type_functions_triple,
+          )
+        | _ =>
+          let binders_list_id =
+            switch (binders_ids) {
+            | [p, ..._] => p
+            | [] => Id.mk()
+            };
+          let extra_ids =
+            switch (binders_ids) {
+            | [] => []
+            | [_, ...rest] => rest
+            };
+          get_message(
+            ~colorings=
+              TypFunctionExp.typfun_general_coloring_ids(
+                ~binders_list_id,
+                ~extra_ids,
+                ~body_id,
+              ),
+            ~explanation=
+              TypFunctionExp.general_explanation(~binders_ids, ~body_id),
+            TypFunctionExp.type_functions_general,
           );
         };
-        /* TODO: More could be done here probably for different patterns. */
-        basic(TypFunctionExp.type_functions_basic);
       | Fun(pat, body, _, _) =>
         let basic = group_id => {
           let pat_id = List.nth(IdTagged.ids(pat), 0);
@@ -2149,26 +2204,85 @@ let get_doc =
             ~fn_id=Exp.rep_id(fn),
           ),
         )
-      | TypAp(f, typ) =>
+      | TypAp(f, ty_arg) =>
+        /* The argument to `@<…>` is a single `Typ.t` which may be a
+           `TypTuple([t1, …, tn])` for multi-argument applications.
+           Dispatch on the unwrapped arg list's length. */
         let f_id = List.nth(IdTagged.ids(f), 0);
-        let typ_id = List.nth(IdTagged.ids(typ), 0);
-        let basic = (group, format, coloring_ids) => {
+        let args =
+          switch (ty_arg.term) {
+          | TypTuple(ts) => ts
+          | _ => [ty_arg]
+          };
+        let args_ids =
+          List.map(t => List.nth(IdTagged.ids(t), 0), args);
+        switch (args_ids) {
+        | [t1_id, t2_id] =>
           get_message(
-            ~colorings=coloring_ids(~f_id, ~typ_id),
-            ~format=Some(format),
-            group,
+            ~colorings=
+              TypAppExp.typ_ap_pair_coloring_ids(~f_id, ~t1_id, ~t2_id),
+            ~format=
+              Some(
+                msg =>
+                  Printf.sprintf(
+                    Scanf.format_from_string(msg, "%s%s%s%s%s"),
+                    Id.to_string(f_id),
+                    "X_1",
+                    Id.to_string(t1_id),
+                    "X_2",
+                    Id.to_string(t2_id),
+                  ),
+              ),
+            TypAppExp.typ_aps_pair,
+          )
+        | [t1_id, t2_id, t3_id] =>
+          get_message(
+            ~colorings=
+              TypAppExp.typ_ap_triple_coloring_ids(
+                ~f_id,
+                ~t1_id,
+                ~t2_id,
+                ~t3_id,
+              ),
+            ~format=
+              Some(
+                msg =>
+                  Printf.sprintf(
+                    Scanf.format_from_string(msg, "%s%s%s%s%s%s%s"),
+                    Id.to_string(f_id),
+                    "X_1",
+                    Id.to_string(t1_id),
+                    "X_2",
+                    Id.to_string(t2_id),
+                    "X_3",
+                    Id.to_string(t3_id),
+                  ),
+              ),
+            TypAppExp.typ_aps_triple,
+          )
+        | _ =>
+          let args_list_id =
+            switch (args_ids) {
+            | [t, ..._] => t
+            | [] => Id.mk()
+            };
+          let extra_ids =
+            switch (args_ids) {
+            | [] => []
+            | [_, ...rest] => rest
+            };
+          get_message(
+            ~colorings=
+              TypAppExp.typ_ap_general_coloring_ids(
+                ~f_id,
+                ~args_list_id,
+                ~extra_ids,
+              ),
+            ~explanation=
+              TypAppExp.general_explanation(~f_id, ~args_ids),
+            TypAppExp.typ_aps_general,
           );
         };
-        basic(
-          TypAppExp.typfunaps,
-          msg =>
-            Printf.sprintf(
-              Scanf.format_from_string(msg, "%s%s"),
-              Id.to_string(f_id),
-              Id.to_string(typ_id),
-            ),
-          TypAppExp.typfunapp_exp_coloring_ids,
-        );
 
       | Ap(Forward, x, arg) =>
         let x_id = List.nth(IdTagged.ids(x), 0);
@@ -2849,50 +2963,174 @@ let get_doc =
         ListTyp.list,
       );
     | Poly(tpat, typ) =>
-      let tpat_id = List.nth(IdTagged.ids(tpat), 0);
-      let tbody_id = List.nth(IdTagged.ids(typ), 0);
-      get_message(
-        ~colorings=PolyTyp.poly_typ_coloring_ids(~tpat_id, ~tbody_id),
-        ~format=
-          Some(
-            msg =>
-              Printf.sprintf(
-                Scanf.format_from_string(msg, "%s%s"),
-                Id.to_string(tpat_id),
-                Id.to_string(tbody_id),
-              ),
-          ),
-        PolyTyp.poly,
-      );
+      let body_id = List.nth(IdTagged.ids(typ), 0);
+      let binders = TPat.binders_of(tpat);
+      let binders_ids =
+        List.map(b => List.nth(IdTagged.ids(b), 0), binders);
+      switch (binders_ids) {
+      | [p1_id, p2_id] =>
+        get_message(
+          ~colorings=
+            PolyTyp.poly_typ_pair_coloring_ids(~p1_id, ~p2_id, ~body_id),
+          ~format=
+            Some(
+              msg =>
+                Printf.sprintf(
+                  Scanf.format_from_string(msg, "%s%s%s%s%s"),
+                  "p_1",
+                  Id.to_string(p1_id),
+                  "p_2",
+                  Id.to_string(p2_id),
+                  Id.to_string(body_id),
+                ),
+            ),
+          PolyTyp.poly_typ_pair_group,
+        )
+      | [p1_id, p2_id, p3_id] =>
+        get_message(
+          ~colorings=
+            PolyTyp.poly_typ_triple_coloring_ids(
+              ~p1_id,
+              ~p2_id,
+              ~p3_id,
+              ~body_id,
+            ),
+          ~format=
+            Some(
+              msg =>
+                Printf.sprintf(
+                  Scanf.format_from_string(msg, "%s%s%s%s%s%s%s"),
+                  "p_1",
+                  Id.to_string(p1_id),
+                  "p_2",
+                  Id.to_string(p2_id),
+                  "p_3",
+                  Id.to_string(p3_id),
+                  Id.to_string(body_id),
+                ),
+            ),
+          PolyTyp.poly_typ_triple_group,
+        )
+      | _ =>
+        let binders_list_id =
+          switch (binders_ids) {
+          | [p, ..._] => p
+          | [] => Id.mk()
+          };
+        let extra_ids =
+          switch (binders_ids) {
+          | [] => []
+          | [_, ...rest] => rest
+          };
+        get_message(
+          ~colorings=
+            PolyTyp.poly_typ_general_coloring_ids(
+              ~binders_list_id,
+              ~extra_ids,
+              ~body_id,
+            ),
+          ~explanation=
+            PolyTyp.general_explanation(~binders_ids, ~body_id),
+          PolyTyp.poly_typ_general_group,
+        );
+      };
     | TypLam(_, _) =>
       simple(
         "This is an internal type-level function introduced by a parameterized type declaration.",
       )
-    | TypParamAp(callee, arg) =>
+    | TypParamAp(callee, ty_arg) =>
       let callee_id = List.nth(IdTagged.ids(callee), 0);
-      let arg_id = List.nth(IdTagged.ids(arg), 0);
       let callee_str =
         switch (callee.term) {
         | Var(name) => name
         | _ => "?"
         };
-      get_message(
-        ~colorings=
-          TypParamApTyp.typ_param_ap_coloring_ids(~callee_id, ~arg_id),
-        ~format=
-          Some(
-            msg =>
-              Printf.sprintf(
-                Scanf.format_from_string(msg, "%s%s%s%s%s"),
-                callee_str,
-                Id.to_string(callee_id),
-                "argument",
-                Id.to_string(arg_id),
-                callee_str,
-              ),
-          ),
-        TypParamApTyp.typ_param_aps,
-      );
+      let args =
+        switch (ty_arg.term) {
+        | TypTuple(ts) => ts
+        | _ => [ty_arg]
+        };
+      let args_ids =
+        List.map(t => List.nth(IdTagged.ids(t), 0), args);
+      switch (args_ids) {
+      | [t1_id, t2_id] =>
+        get_message(
+          ~colorings=
+            TypParamApTyp.typ_param_ap_pair_coloring_ids(
+              ~callee_id,
+              ~t1_id,
+              ~t2_id,
+            ),
+          ~format=
+            Some(
+              msg =>
+                Printf.sprintf(
+                  Scanf.format_from_string(msg, "%s%s%s%s%s%s%s"),
+                  callee_str,
+                  Id.to_string(callee_id),
+                  "X_1",
+                  Id.to_string(t1_id),
+                  "X_2",
+                  Id.to_string(t2_id),
+                  callee_str,
+                ),
+            ),
+          TypParamApTyp.typ_param_aps_pair,
+        )
+      | [t1_id, t2_id, t3_id] =>
+        get_message(
+          ~colorings=
+            TypParamApTyp.typ_param_ap_triple_coloring_ids(
+              ~callee_id,
+              ~t1_id,
+              ~t2_id,
+              ~t3_id,
+            ),
+          ~format=
+            Some(
+              msg =>
+                Printf.sprintf(
+                  Scanf.format_from_string(msg, "%s%s%s%s%s%s%s%s%s"),
+                  callee_str,
+                  Id.to_string(callee_id),
+                  "X_1",
+                  Id.to_string(t1_id),
+                  "X_2",
+                  Id.to_string(t2_id),
+                  "X_3",
+                  Id.to_string(t3_id),
+                  callee_str,
+                ),
+            ),
+          TypParamApTyp.typ_param_aps_triple,
+        )
+      | _ =>
+        let args_list_id =
+          switch (args_ids) {
+          | [t, ..._] => t
+          | [] => Id.mk()
+          };
+        let extra_ids =
+          switch (args_ids) {
+          | [] => []
+          | [_, ...rest] => rest
+          };
+        get_message(
+          ~colorings=
+            TypParamApTyp.typ_param_ap_general_coloring_ids(
+              ~callee_id,
+              ~args_list_id,
+              ~extra_ids,
+            ),
+          ~explanation=
+            TypParamApTyp.general_explanation(
+              ~callee_str,
+              ~callee_id,
+              ~args_ids,
+            ),
+          TypParamApTyp.typ_param_aps_general,
+        );
+      };
     | TypTuple(_) => get_message(TypTupleTyp.typ_tuples)
     | Rec(tpat, typ) =>
       let tpat_id = List.nth(IdTagged.ids(tpat), 0);

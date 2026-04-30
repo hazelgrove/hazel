@@ -2,6 +2,9 @@ open Haz3lcore;
 open ExplainThisForm;
 open Example;
 
+/* A `typfun` value-level type abstraction. Three forms by arity of
+   the binder list, mirroring PolyTyp. */
+
 let poly_id_ex = {
   sub_id: TypFun(Basic),
   term:
@@ -11,30 +14,119 @@ let poly_id_ex = {
   message: "The polymorphic identity function. It may be instantiated at any type a, after which the function acts as type (a -> a).",
 };
 
-let _tp = tpat("a");
-let _exp = exp("e");
-let typfun_var: form = {
-  let explanation = "A value-level type abstraction. At a type application `@<X>` the [*type variable*](%s) is substituted by `X` in the [*body*](%s). Multi-binder forms `typfun a, b -> e` abstract over several type variables at once, consumed together by a single `@<X, Y>` type application.";
-  let form = [mk_typfun([[space(), _tp, space()]]), space(), _exp];
+let _body = exp("e");
+
+let _general_list = tpat("p_1, …, p_n");
+
+let _pair_p1 = tpat("p_1");
+let _pair_p2 = tpat("p_2");
+
+let _triple_p1 = tpat("p_1");
+let _triple_p2 = tpat("p_2");
+let _triple_p3 = tpat("p_3");
+
+let typfun_general_coloring_ids =
+    (~binders_list_id: Id.t, ~extra_ids: list(Id.t), ~body_id: Id.t)
+    : list((Id.t, Id.t)) =>
+  [
+    (Piece.id(_general_list), binders_list_id),
+    (Piece.id(_body), body_id),
+  ]
+  @ List.map(pid => (Piece.id(_general_list), pid), extra_ids);
+
+let typfun_pair_coloring_ids =
+    (~p1_id: Id.t, ~p2_id: Id.t, ~body_id: Id.t): list((Id.t, Id.t)) => [
+  (Piece.id(_pair_p1), p1_id),
+  (Piece.id(_pair_p2), p2_id),
+  (Piece.id(_body), body_id),
+];
+
+let typfun_triple_coloring_ids =
+    (~p1_id: Id.t, ~p2_id: Id.t, ~p3_id: Id.t, ~body_id: Id.t)
+    : list((Id.t, Id.t)) => [
+  (Piece.id(_triple_p1), p1_id),
+  (Piece.id(_triple_p2), p2_id),
+  (Piece.id(_triple_p3), p3_id),
+  (Piece.id(_body), body_id),
+];
+
+let general_explanation = (~binders_ids: list(Id.t), ~body_id: Id.t): string => {
+  let binders_part =
+    binders_ids
+    |> List.mapi((i, pid) =>
+         Printf.sprintf("[*p_%d*](%s)", i + 1, Id.to_string(pid))
+       )
+    |> String.concat(", ");
+  Printf.sprintf(
+    "A value-level type abstraction over type variables %s. A type application `@<X_1, …, X_n>` substitutes each argument for the corresponding variable in [*the body*](%s).",
+    binders_part,
+    Id.to_string(body_id),
+  );
+};
+
+let _general_head = mk_typfun([[space(), _general_list, space()]]);
+let typfun_general: form = {
+  let explanation = "A value-level type abstraction over arbitrarily many type variables.";
   {
-    id: TypFunctionExp,
-    syntactic_form: form,
-    expandable_id:
-      Some((
-        Piece.id(_tp),
-        [
-          Grout({
-            id: Id.mk(),
-            shape: Convex,
-          }),
-        ],
-      )),
+    id: TypFunctionExp(General),
+    syntactic_form: [_general_head, space(), _body],
+    expandable_id: Some((Piece.id(_general_head), [_general_head])),
     explanation,
     examples: [poly_id_ex],
   };
 };
 
-let type_functions_basic = {
-  id: TypFunctionExp,
-  forms: [typfun_var],
+let _pair_head =
+  mk_typfun([
+    [space(), _pair_p1, comma_tpat(), space(), _pair_p2, space()],
+  ]);
+let typfun_pair: form = {
+  let explanation = "A value-level type abstraction over two type variables [*%s*](%s) and [*%s*](%s). A type application `@<X_1, X_2>` substitutes both in [*the body*](%s) in a single step.";
+  {
+    id: TypFunctionExp(Arity2),
+    syntactic_form: [_pair_head, space(), _body],
+    expandable_id: Some((Piece.id(_pair_head), [_pair_head])),
+    explanation,
+    examples: [poly_id_ex],
+  };
+};
+
+let _triple_head =
+  mk_typfun([
+    [
+      space(),
+      _triple_p1,
+      comma_tpat(),
+      space(),
+      _triple_p2,
+      comma_tpat(),
+      space(),
+      _triple_p3,
+      space(),
+    ],
+  ]);
+let typfun_triple: form = {
+  let explanation = "A value-level type abstraction over three type variables [*%s*](%s), [*%s*](%s), and [*%s*](%s). A type application `@<X_1, X_2, X_3>` substitutes all three in [*the body*](%s) in a single step.";
+  {
+    id: TypFunctionExp(Arity3),
+    syntactic_form: [_triple_head, space(), _body],
+    expandable_id: Some((Piece.id(_triple_head), [_triple_head])),
+    explanation,
+    examples: [poly_id_ex],
+  };
+};
+
+let type_functions_general: group = {
+  id: TypFunctionExp(General),
+  forms: [typfun_general],
+};
+
+let type_functions_pair: group = {
+  id: TypFunctionExp(Arity2),
+  forms: [typfun_pair, typfun_general],
+};
+
+let type_functions_triple: group = {
+  id: TypFunctionExp(Arity3),
+  forms: [typfun_triple, typfun_general],
 };

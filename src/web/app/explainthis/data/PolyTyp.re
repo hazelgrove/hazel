@@ -2,25 +2,125 @@ open Haz3lcore;
 open Example;
 open ExplainThisForm;
 
-let _tpat = tpat("t_var");
-let _typ_arg = typ("ty_arg");
-let poly_typ_coloring_ids =
-    (~tpat_id: Id.t, ~tbody_id: Id.t): list((Id.t, Id.t)) => [
-  (Piece.id(_tpat), tpat_id),
-  (Piece.id(_typ_arg), tbody_id),
+/* A `poly` universal type. Three forms by arity of the binder list:
+   - General: `poly p_1, …, p_n -> body` covers arbitrary arity.
+   - Arity2: `poly p_1, p_2 -> body`.
+   - Arity3: `poly p_1, p_2, p_3 -> body`. */
+
+let _body = typ("ty_body");
+
+let _general_list = tpat("p_1, …, p_n");
+
+let _pair_p1 = tpat("p_1");
+let _pair_p2 = tpat("p_2");
+
+let _triple_p1 = tpat("p_1");
+let _triple_p2 = tpat("p_2");
+let _triple_p3 = tpat("p_3");
+
+let poly_typ_general_coloring_ids =
+    (~binders_list_id: Id.t, ~extra_ids: list(Id.t), ~body_id: Id.t)
+    : list((Id.t, Id.t)) =>
+  [
+    (Piece.id(_general_list), binders_list_id),
+    (Piece.id(_body), body_id),
+  ]
+  @ List.map(pid => (Piece.id(_general_list), pid), extra_ids);
+
+let poly_typ_pair_coloring_ids =
+    (~p1_id: Id.t, ~p2_id: Id.t, ~body_id: Id.t): list((Id.t, Id.t)) => [
+  (Piece.id(_pair_p1), p1_id),
+  (Piece.id(_pair_p2), p2_id),
+  (Piece.id(_body), body_id),
 ];
-let poly_typ: form = {
-  let explanation = "A universal type. Classifies polymorphic values quantified over the [*type variable*](%s) appearing in [*the body*](%s). Multi-binder forms `poly a, b -> t` introduce several type variables at once, consumed together by a single `@<X, Y>` type application.";
+
+let poly_typ_triple_coloring_ids =
+    (~p1_id: Id.t, ~p2_id: Id.t, ~p3_id: Id.t, ~body_id: Id.t)
+    : list((Id.t, Id.t)) => [
+  (Piece.id(_triple_p1), p1_id),
+  (Piece.id(_triple_p2), p2_id),
+  (Piece.id(_triple_p3), p3_id),
+  (Piece.id(_body), body_id),
+];
+
+let general_explanation = (~binders_ids: list(Id.t), ~body_id: Id.t): string => {
+  let binders_part =
+    binders_ids
+    |> List.mapi((i, pid) =>
+         Printf.sprintf("[*p_%d*](%s)", i + 1, Id.to_string(pid))
+       )
+    |> String.concat(", ");
+  Printf.sprintf(
+    "A universal type quantifying over type variables %s. Classifies polymorphic values; a type application `@<X_1, …, X_n>` substitutes each argument for the corresponding variable in [*the body*](%s).",
+    binders_part,
+    Id.to_string(body_id),
+  );
+};
+
+let _general_head = mk_poly([[space(), _general_list, space()]]);
+let poly_typ_general: form = {
+  /* The explanation is supplied dynamically via `~explanation` at
+     dispatch time so every user binder gets its own `[*p_i*](id)`
+     link and highlight. This placeholder only appears in isolation. */
+  let explanation = "A universal type quantifying over arbitrarily many type variables.";
   {
-    id: PolyTyp,
-    syntactic_form: [mk_poly([[space(), _tpat, space()]]), _typ_arg],
-    expandable_id: Some((Piece.id(_tpat), [_typ_arg])),
+    id: PolyTyp(General),
+    syntactic_form: [_general_head, _body],
+    expandable_id: Some((Piece.id(_general_head), [_general_head])),
     explanation,
     examples: [],
   };
 };
 
-let poly: group = {
-  id: PolyTyp,
-  forms: [poly_typ],
+let _pair_head =
+  mk_poly([[space(), _pair_p1, comma_tpat(), space(), _pair_p2, space()]]);
+let poly_typ_pair: form = {
+  let explanation = "A universal type quantifying over two type variables [*%s*](%s) and [*%s*](%s). A type application `@<X_1, X_2>` substitutes both in [*the body*](%s) in a single step.";
+  {
+    id: PolyTyp(Arity2),
+    syntactic_form: [_pair_head, _body],
+    expandable_id: Some((Piece.id(_pair_head), [_pair_head])),
+    explanation,
+    examples: [],
+  };
+};
+
+let _triple_head =
+  mk_poly([
+    [
+      space(),
+      _triple_p1,
+      comma_tpat(),
+      space(),
+      _triple_p2,
+      comma_tpat(),
+      space(),
+      _triple_p3,
+      space(),
+    ],
+  ]);
+let poly_typ_triple: form = {
+  let explanation = "A universal type quantifying over three type variables [*%s*](%s), [*%s*](%s), and [*%s*](%s). A type application `@<X_1, X_2, X_3>` substitutes all three in [*the body*](%s) in a single step.";
+  {
+    id: PolyTyp(Arity3),
+    syntactic_form: [_triple_head, _body],
+    expandable_id: Some((Piece.id(_triple_head), [_triple_head])),
+    explanation,
+    examples: [],
+  };
+};
+
+let poly_typ_general_group: group = {
+  id: PolyTyp(General),
+  forms: [poly_typ_general],
+};
+
+let poly_typ_pair_group: group = {
+  id: PolyTyp(Arity2),
+  forms: [poly_typ_pair, poly_typ_general],
+};
+
+let poly_typ_triple_group: group = {
+  id: PolyTyp(Arity3),
+  forms: [poly_typ_triple, poly_typ_general],
 };

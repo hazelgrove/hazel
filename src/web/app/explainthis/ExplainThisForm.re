@@ -220,7 +220,7 @@ type form_id =
   | ListExp
   | ConsExp
   | ListConcatExp
-  | TypFunctionExp
+  | TypFunctionExp(tpat_sub_form_id)
   | FunctionExp(pat_sub_form_id)
   | LabeledExp
   | DotExp
@@ -231,7 +231,7 @@ type form_id =
   | FixExp(pat_sub_form_id)
   | TheoremExp
   | ProofObjectExp
-  | TypFunApExp
+  | TypFunApExp(tpat_sub_form_id)
   | FunApExp
   | ConApExp
   | DeferredApExp
@@ -278,7 +278,7 @@ type form_id =
   | StrTyp
   | VarTyp
   | ListTyp
-  | PolyTyp
+  | PolyTyp(tpat_sub_form_id)
   | RecTyp
   | ArrowTyp
   | Arrow3Typ
@@ -300,7 +300,7 @@ type form_id =
   | ParamTPat(tpat_sub_form_id)
   | TupleTPat(tpat_sub_form_id)
   | ParensTPat
-  | TypParamApTyp
+  | TypParamApTyp(tpat_sub_form_id)
   | TypTupleTyp
   | PipelineExp
   | FilterPause
@@ -349,7 +349,7 @@ type group_id =
   | ListExp
   | ConsExp
   | ListConcatExp
-  | TypFunctionExp
+  | TypFunctionExp(tpat_sub_form_id)
   | AscExp
   | FunctionExp(pat_sub_form_id)
   | LabeledExp
@@ -360,7 +360,7 @@ type group_id =
   | LetExp(pat_sub_form_id)
   | TheoremExp
   | ProofObjectExp
-  | TypFunApExp
+  | TypFunApExp(tpat_sub_form_id)
   | FixExp(pat_sub_form_id)
   | FunApExp
   | ConApExp
@@ -410,7 +410,7 @@ type group_id =
   | StrTyp
   | VarTyp
   | ListTyp
-  | PolyTyp
+  | PolyTyp(tpat_sub_form_id)
   | RecTyp
   | ForallExp
   | ProofOfTyp
@@ -432,7 +432,7 @@ type group_id =
   | ParamTPat(tpat_sub_form_id)
   | TupleTPat(tpat_sub_form_id)
   | ParensTPat
-  | TypParamApTyp
+  | TypParamApTyp(tpat_sub_form_id)
   | TypTupleTyp
   | FilterPause
   | FilterEval
