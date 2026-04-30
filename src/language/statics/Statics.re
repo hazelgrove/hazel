@@ -382,7 +382,9 @@ and uexp_to_info_map =
       let typ_refs =
         ModuleHelpers.collect_module_refs_in_typ(ctx, Typ.rep_id(t2), t2);
       add(
-        ~elab_term=Asc(e_elab, Typ.normalize(ctx, t2)) |> rewrap,
+        ~elab_term=
+          Asc(e_elab, ConstructorStaticsHelpers.normalize_ctr_type(ctx, t2))
+          |> rewrap,
         ~elab_syn_ty=t_ty,
         ~marks=[],
         ~co_ctx=CoCtx.union([e.co_ctx, typ_refs]),
@@ -1406,7 +1408,9 @@ and uexp_to_info_map =
           );
         }
       | _ =>
-        let ctor_ty = fixed_typ(ctx, ana, syn_res) |> Typ.normalize(ctx);
+        let ctor_ty =
+          fixed_typ(ctx, ana, syn_res)
+          |> ConstructorStaticsHelpers.normalize_ctr_type(ctx);
         let elab_term = Constructor(ctr, Some(Some(ctor_ty))) |> rewrap;
         /* Manually emit ExpectationMismatch based on the clean syn_res
            (not ctor_ty), since ctor_ty has already been reconciled with ana
@@ -3235,9 +3239,10 @@ and upat_to_info_map =
           ConstructorStaticsHelpers.ctr_ana_typ(ctx, ana, ctr),
           Ctx.lookup_ctr(ctx, ctr),
         ) {
-        | (Some(ana_ty), _) => Some(Typ.normalize(ctx, ana_ty))
+        | (Some(ana_ty), _) =>
+          Some(ConstructorStaticsHelpers.normalize_ctr_type(ctx, ana_ty))
         | (_, Some({typ: elab_syn_ty, _})) =>
-          Some(Typ.normalize(ctx, elab_syn_ty))
+          Some(ConstructorStaticsHelpers.normalize_ctr_type(ctx, elab_syn_ty))
         | _ => None
         };
       add(
@@ -3283,7 +3288,12 @@ and upat_to_info_map =
       let (p, p_elab, m) =
         go(~ctx, ~under_ascription=true, ~ana=ann_ty, p, m);
       add(
-        ~elab_term=Asc(p_elab, Typ.normalize(ctx, ann.user_term)) |> rewrap,
+        ~elab_term=
+          Asc(
+            p_elab,
+            ConstructorStaticsHelpers.normalize_ctr_type(ctx, ann.user_term),
+          )
+          |> rewrap,
         ~elab_syn_ty=ann_ty,
         ~marks=[],
         ~ctx=p.ctx,
