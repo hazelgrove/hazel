@@ -551,6 +551,16 @@ let test_qualified_type_parameterized_recursive =
     Some(int()),
   );
 
+/* Module-internal recursive (non-parameterized) type used outside the
+   module — constructors declared inside the module must resolve
+   through the analysis target. */
+let test_qualified_recursive_type =
+  fully_consistent_typecheck(
+    "Qualified type access: recursive type with constructors used outside",
+    {|module M = { type List = + Nil + Cons(Int, List) } in let y : M.List = Cons(0, Nil) in 0|},
+    Some(int()),
+  );
+
 /* Type shadowing in module (last wins) — has ShadowsType diagnostic */
 let test_qualified_type_shadowing =
   fully_consistent_typecheck(
@@ -716,6 +726,7 @@ let tests = (
     /* Qualified type access aliasing tests (Phase 1b) */
     test_qualified_type_parameterized,
     test_qualified_type_parameterized_recursive,
+    test_qualified_recursive_type,
     test_qualified_type_var_alias,
     test_qualified_type_module_alias,
     test_qualified_type_chained_alias,
