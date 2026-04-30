@@ -728,27 +728,150 @@ let get_doc =
     get_message(~colorings, ~format=None, ~explanation, group);
   };
 
+  /* Shared dispatch for module / signature items. Each entry picks
+     the IDs of its highlighted sub-terms from the user's term and
+     formats the matching explanation. */
+  let mod_let_message = (pat: Pat.t, def: Exp.t) => {
+    let pat_id = List.nth(IdTagged.ids(pat), 0);
+    let def_id = List.nth(IdTagged.ids(def), 0);
+    get_message(
+      ~colorings=
+        ModLetDecl.mod_let_decl_coloring_ids(~pat_id, ~def_id),
+      ~format=
+        Some(
+          msg =>
+            Printf.sprintf(
+              Scanf.format_from_string(msg, "%s%s"),
+              Id.to_string(def_id),
+              Id.to_string(pat_id),
+            ),
+        ),
+      ModLetDecl.mod_let_decls,
+    );
+  };
+  let mod_type_message = (tpat: TPat.t, typ: Typ.t) => {
+    let tpat_id = List.nth(IdTagged.ids(tpat), 0);
+    let typ_id = List.nth(IdTagged.ids(typ), 0);
+    get_message(
+      ~colorings=
+        ModTypeDecl.mod_type_decl_coloring_ids(~tpat_id, ~typ_id),
+      ~format=
+        Some(
+          msg =>
+            Printf.sprintf(
+              Scanf.format_from_string(msg, "%s%s"),
+              Id.to_string(tpat_id),
+              Id.to_string(typ_id),
+            ),
+        ),
+      ModTypeDecl.mod_type_decls,
+    );
+  };
+  let module_keyword_decl_message = (mp: MPat.t, def: Exp.t) => {
+    let name_id = List.nth(IdTagged.ids(mp), 0);
+    let def_id = List.nth(IdTagged.ids(def), 0);
+    let name_str =
+      switch (mp.term) {
+      | Var(name) => name
+      | _ => "M"
+      };
+    get_message(
+      ~colorings=
+        ModuleKeywordDecl.module_keyword_decl_coloring_ids(
+          ~name_id,
+          ~def_id,
+        ),
+      ~format=
+        Some(
+          msg =>
+            Printf.sprintf(
+              Scanf.format_from_string(msg, "%s%s%s"),
+              Id.to_string(def_id),
+              name_str,
+              Id.to_string(name_id),
+            ),
+        ),
+      ModuleKeywordDecl.module_keyword_decls,
+    );
+  };
+  let sig_let_message = (pat: Pat.t) => {
+    let pat_id = List.nth(IdTagged.ids(pat), 0);
+    get_message(
+      ~colorings=SigLetDecl.sig_let_decl_coloring_ids(~pat_id),
+      ~format=
+        Some(
+          msg =>
+            Printf.sprintf(
+              Scanf.format_from_string(msg, "%s"),
+              Id.to_string(pat_id),
+            ),
+        ),
+      SigLetDecl.sig_let_decls,
+    );
+  };
+  let sig_type_message = (tpat: TPat.t, typ: Typ.t) => {
+    let tpat_id = List.nth(IdTagged.ids(tpat), 0);
+    let typ_id = List.nth(IdTagged.ids(typ), 0);
+    get_message(
+      ~colorings=
+        SigTypeDecl.sig_type_decl_coloring_ids(~tpat_id, ~typ_id),
+      ~format=
+        Some(
+          msg =>
+            Printf.sprintf(
+              Scanf.format_from_string(msg, "%s%s"),
+              Id.to_string(tpat_id),
+              Id.to_string(typ_id),
+            ),
+        ),
+      SigTypeDecl.sig_type_decls,
+    );
+  };
   switch (info) {
-  | Some(InfoMod({cls, _})) =>
-    switch (cls) {
-    | Mod(ModLet) => message_single(ModLetDecl.single)
-    | Mod(ModType) => message_single(ModTypeDecl.single)
-    | Mod(ModuleMod) => message_single(ModuleKeywordDecl.single)
-    | _ => simple("Module item")
-    }
-  | Some(InfoSig({cls, _})) =>
-    switch (cls) {
-    | Sig(SigLet) => message_single(SigLetDecl.single)
-    | Sig(SigType) => message_single(SigTypeDecl.single)
-    | _ => simple("Signature item")
-    }
+  | Some(InfoMod({user_term: {term: ModLet(p, e), _}, _})) =>
+    mod_let_message(p, e)
+  | Some(InfoMod({user_term: {term: ModType(tp, t), _}, _})) =>
+    mod_type_message(tp, t)
+  | Some(InfoMod({user_term: {term: ModuleMod(mp, e), _}, _})) =>
+    module_keyword_decl_message(mp, e)
+  | Some(InfoMod(_)) => simple("Module item")
+  | Some(InfoSig({user_term: {term: SigLet(p), _}, _})) =>
+    sig_let_message(p)
+  | Some(InfoSig({user_term: {term: SigType(tp, t), _}, _})) =>
+    sig_type_message(tp, t)
+  | Some(InfoSig(_)) => simple("Signature item")
   | Some(InfoMPat(_)) => simple("Module name")
-  | Some(InfoExp({cls: Mod(ModLet), _})) =>
-    message_single(ModLetDecl.single)
-  | Some(InfoExp({cls: Mod(ModType), _})) =>
-    message_single(ModTypeDecl.single)
-  | Some(InfoExp({cls: Mod(ModuleMod), _})) =>
-    message_single(ModuleKeywordDecl.single)
+  | Some(
+      InfoExp({user_term: {term: ModuleExp(mp, def, body), _}, _}),
+    ) =>
+    let name_id = List.nth(IdTagged.ids(mp), 0);
+    let def_id = List.nth(IdTagged.ids(def), 0);
+    let body_id = List.nth(IdTagged.ids(body), 0);
+    let name_str =
+      switch (mp.term) {
+      | Var(name) => name
+      | _ => "M"
+      };
+    get_message(
+      ~colorings=
+        ModuleKeywordExp.module_keyword_exp_coloring_ids(
+          ~name_id,
+          ~def_id,
+          ~body_id,
+        ),
+      ~format=
+        Some(
+          msg =>
+            Printf.sprintf(
+              Scanf.format_from_string(msg, "%s%s%s%s"),
+              Id.to_string(def_id),
+              name_str,
+              Id.to_string(name_id),
+              Id.to_string(body_id),
+            ),
+        ),
+      ModuleKeywordExp.module_keyword_exps,
+    );
   | Some(InfoExp({cls: Mod(_), _})) => simple("Module item")
   | Some(InfoExp({user_term: term, _})) =>
     let rec get_message_exp =
@@ -2670,8 +2793,36 @@ let get_doc =
             ),
           TerminalExp.ctr(v),
         )
-      | Module(_) => message_single(ModuleExp.single)
-      | ModuleExp(_) => message_single(ModuleKeywordExp.single)
+      | Module(_) => get_message(ModuleExp.module_exps)
+      | ModuleExp(mp, def, body) =>
+        let name_id = List.nth(IdTagged.ids(mp), 0);
+        let def_id = List.nth(IdTagged.ids(def), 0);
+        let body_id = List.nth(IdTagged.ids(body), 0);
+        let name_str =
+          switch (mp.term) {
+          | Var(name) => name
+          | _ => "M"
+          };
+        get_message(
+          ~colorings=
+            ModuleKeywordExp.module_keyword_exp_coloring_ids(
+              ~name_id,
+              ~def_id,
+              ~body_id,
+            ),
+          ~format=
+            Some(
+              msg =>
+                Printf.sprintf(
+                  Scanf.format_from_string(msg, "%s%s%s%s"),
+                  Id.to_string(def_id),
+                  name_str,
+                  Id.to_string(name_id),
+                  Id.to_string(body_id),
+                ),
+            ),
+          ModuleKeywordExp.module_keyword_exps,
+        );
       | Projector(_, e) => get_message_exp(e.term)
       };
     get_message_exp(term.term);
