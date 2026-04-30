@@ -916,6 +916,10 @@ let ex5 = list_of_mylist(x) in
         Fresh.Exp.(dot(var("m"), label("X"))),
         {|m.X|},
       ),
+      menhir_maketerm_equivalent_test(
+        "Module with bare empty hole and parameterized type aliases",
+        "{ ?; type c(e, k, s) = String; type r(q) = Float }",
+      ),
       QCheck_alcotest.to_alcotest(qcheck_menhir_maketerm_equivalent_test),
       QCheck_alcotest.to_alcotest(qcheck_menhir_serialized_equivalent_test),
     ],

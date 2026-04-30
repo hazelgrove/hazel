@@ -667,6 +667,17 @@ and ModItem: {
       mod_let(Pat.of_menhir_ast(p), Exp.of_menhir_ast(e))
     | ModItemType(tp, t) =>
       mod_type(TPat.of_menhir_ast(tp), Typ.of_menhir_ast(t))
+    | ModItemExp(EmptyHole) =>
+      /* A bare `?` at module-item position has a dedicated
+         `Mod.EmptyHole` term in the core grammar (used by MakeTerm).
+         The Menhir AST has no module-level empty-hole variant — it
+         sees the `?` as a plain expression and wraps it in
+         `ModItemExp` — so canonicalize on conversion to keep
+         round-tripping consistent. The `Mod.EmptyHole` core variant
+         is what `Statics`/`ExpandModule` expect for true bare-hole
+         items (vs the `let _ = ?` pattern that an `Exp.EmptyHole`
+         would receive via `wrap_item`'s `ModExp` branch). */
+      empty_hole()
     | ModItemExp(e) => mod_exp(Exp.of_menhir_ast(e))
     | ModItemModule(p, e) =>
       let mp = mpat_of_pat(Pat.of_menhir_ast(p));

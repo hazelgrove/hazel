@@ -558,33 +558,17 @@ let rec gen_exp_sized = (~minimal_idents: bool, n: int): QCheck.Gen.t(exp) => {
                  MakeTerm (which treats `;` as the item separator).
                  We don't try to generate parens around these in the
                  random gen, so we constrain to leaves and let the
-                 dedicated module unit tests cover the rich cases.
-               - To avoid shadowing edge cases (e.g.
-                 `let y = A; let y = y` reverse-binds the second `y`
-                 against the outer `y` and tickles let/fix conversion
-                 differences between the small- and big-step
-                 evaluators), each binding-introducing item uses a
-                 distinct, fresh-by-construction name. */
+                 dedicated module unit tests cover the rich cases. */
             let* sizes = gen_sized_array(n - 1);
-            let mk_unique_name = (~capitalized=false, prefix, idx) => {
-              /* Append a small index distinct from `gen_ident`'s
-                 single-character output, so module items never share
-                 a name. */
-              let suffix = "_m_" ++ string_of_int(idx);
-              capitalized ? "M_" ++ prefix ++ suffix : prefix ++ suffix;
-            };
             let+ items =
               flatten_a(
-                Array.mapi(
-                  (idx: int, _size: int) =>
+                Array.map(
+                  (_size: int) =>
                     oneof([
                       {
-                        let* prefix = gen_ident;
+                        let* name = gen_ident;
                         let+ e = leaf;
-                        ModItemLet(
-                          VarPat(mk_unique_name(prefix, idx)),
-                          e,
-                        );
+                        ModItemLet(VarPat(name), e);
                       },
                       {
                         let* tp = gen_tpat_alias;
@@ -596,14 +580,9 @@ let rec gen_exp_sized = (~minimal_idents: bool, n: int): QCheck.Gen.t(exp) => {
                         ModItemExp(e);
                       },
                       {
-                        let* prefix = gen_constructor_ident;
+                        let* mname = gen_constructor_ident;
                         let+ e = leaf;
-                        ModItemModule(
-                          VarPat(
-                            mk_unique_name(~capitalized=true, prefix, idx),
-                          ),
-                          e,
-                        );
+                        ModItemModule(VarPat(mname), e);
                       },
                     ]),
                   sizes,
