@@ -173,14 +173,33 @@ let lookup_ctrs = (ctx: t, name: string): list(var_entry) =>
 let rec result_head_name_of =
         (ty: TermBase.Typ.t): option(string) =>
   switch (ty.term) {
+  /* Look-through forms: walk towards the result-type's head. */
   | Poly(_, body) => result_head_name_of(body)
   | Arrow(_, out) => result_head_name_of(out)
   | TypParamAp(callee, _) => result_head_name_of(callee)
   | Parens(inner)
   | Projector(_, inner) => result_head_name_of(inner)
   | Rec(_, body) => result_head_name_of(body)
+  | TypLam(_, body) => result_head_name_of(body)
+  /* The leftmost type-alias name — what we want. */
   | Var(name) => Some(name)
-  | _ => None
+  /* Forms that have no head name. Listed explicitly (no `_` wildcard)
+     so adding a new `Typ.term` constructor in the future forces this
+     code to be revisited. */
+  | Atom(_)
+  | Unknown(_)
+  | DrvQuoteTy(_)
+  | List(_)
+  | Sum(_)
+  | Prod(_)
+  | TypTuple(_)
+  | Label(_)
+  | TupLabel(_, _)
+  | ExplicitNonlabel
+  | ProdProjection(_, _)
+  | ProdExtension(_, _)
+  | ProofOf(_)
+  | Sig(_) => None
   };
 
 /* Type-directed constructor lookup. When two sum types in scope both
