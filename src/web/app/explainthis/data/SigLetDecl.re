@@ -11,7 +11,7 @@ let sig_let_decl_form: form = {
   let explanation = "A signature let declaration specifies the expected type of a [*field*](%s) of a module matching this signature.";
   {
     id: SigLetDecl,
-    syntactic_form: [typ("let"), space(), _pat],
+    syntactic_form: [mk_sig_let([]), space(), _pat],
     expandable_id: None,
     explanation,
     examples: [

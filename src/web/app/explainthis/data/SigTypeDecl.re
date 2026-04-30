@@ -16,11 +16,7 @@ let sig_type_decl_form: form = {
   {
     id: SigTypeDecl,
     syntactic_form: [
-      typ("type"),
-      space(),
-      _tpat,
-      space(),
-      typ("="),
+      mk_sig_type([[space(), _tpat, space()]]),
       space(),
       _typ,
     ],

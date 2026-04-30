@@ -827,31 +827,26 @@ let get_doc =
       SigTypeDecl.sig_type_decls,
     );
   };
-  switch (info) {
-  | Some(InfoMod({user_term: {term: ModLet(p, e), _}, _})) =>
-    mod_let_message(p, e)
-  | Some(InfoMod({user_term: {term: ModType(tp, t), _}, _})) =>
-    mod_type_message(tp, t)
-  | Some(InfoMod({user_term: {term: ModuleMod(mp, e), _}, _})) =>
-    module_keyword_decl_message(mp, e)
-  | Some(InfoMod(_)) => simple("Module item")
-  | Some(InfoSig({user_term: {term: SigLet(p), _}, _})) =>
-    sig_let_message(p)
-  | Some(InfoSig({user_term: {term: SigType(tp, t), _}, _})) =>
-    sig_type_message(tp, t)
-  | Some(InfoSig(_)) => simple("Signature item")
-  | Some(InfoMPat(_)) => simple("Module name")
-  | Some(
-      InfoExp({user_term: {term: ModuleExp(mp, def, body), _}, _}),
-    ) =>
+  /* `mpat_name` reads a name string out of an MPat or a Pat that was
+     produced by `ExpandModule.mpat_to_pat`, used in the explanation
+     formatting for `module M = …` so we can show the actual `M` name
+     instead of a generic placeholder. */
+  let mpat_name = (mp: MPat.t): string =>
+    switch (mp.term) {
+    | Var(name) => name
+    | _ => "M"
+    };
+  let pat_name = (p: Pat.t): string =>
+    switch (p.term) {
+    | Var(name) => name
+    | _ => "M"
+    };
+  let module_keyword_exp_message =
+      (mp: MPat.t, def: Exp.t, body: Exp.t) => {
     let name_id = List.nth(IdTagged.ids(mp), 0);
     let def_id = List.nth(IdTagged.ids(def), 0);
     let body_id = List.nth(IdTagged.ids(body), 0);
-    let name_str =
-      switch (mp.term) {
-      | Var(name) => name
-      | _ => "M"
-      };
+    let name_str = mpat_name(mp);
     get_message(
       ~colorings=
         ModuleKeywordExp.module_keyword_exp_coloring_ids(
@@ -872,6 +867,76 @@ let get_doc =
         ),
       ModuleKeywordExp.module_keyword_exps,
     );
+  };
+  switch (info) {
+  /* Module items: when an item is an InfoMod (no expansion), use the
+     Mod term directly. When an item is an expanded InfoExp with cls
+     reclassified to Mod(_), unpack the expanded form (`Let` for
+     ModLet/ModuleMod, `TyAlias` for ModType) to recover the
+     pat/exp/tpat/typ ids the explanation refers to. */
+  | Some(InfoMod({user_term: {term: ModLet(p, e), _}, _})) =>
+    mod_let_message(p, e)
+  | Some(InfoMod({user_term: {term: ModType(tp, t), _}, _})) =>
+    mod_type_message(tp, t)
+  | Some(InfoMod({user_term: {term: ModuleMod(mp, e), _}, _})) =>
+    module_keyword_decl_message(mp, e)
+  | Some(InfoMod(_)) => simple("Module item")
+  | Some(InfoSig({user_term: {term: SigLet(p), _}, _})) =>
+    sig_let_message(p)
+  | Some(InfoSig({user_term: {term: SigType(tp, t), _}, _})) =>
+    sig_type_message(tp, t)
+  | Some(InfoSig(_)) => simple("Signature item")
+  | Some(InfoMPat(_)) => simple("Module name")
+  | Some(
+      InfoExp({
+        cls: Mod(ModLet),
+        user_term: {term: Let(p, e, _), _},
+        _,
+      }),
+    ) =>
+    mod_let_message(p, e)
+  | Some(
+      InfoExp({
+        cls: Mod(ModType),
+        user_term: {term: TyAlias(tp, t, _), _},
+        _,
+      }),
+    ) =>
+    mod_type_message(tp, t)
+  | Some(
+      InfoExp({
+        cls: Mod(ModuleMod),
+        user_term: {term: Let(p, e, _), _},
+        _,
+      }),
+    ) =>
+    /* `module M = e` expands to `let M = e in body`; recover the
+       name string from the converted pat. */
+    let name_id = List.nth(IdTagged.ids(p), 0);
+    let def_id = List.nth(IdTagged.ids(e), 0);
+    let name_str = pat_name(p);
+    get_message(
+      ~colorings=
+        ModuleKeywordDecl.module_keyword_decl_coloring_ids(
+          ~name_id,
+          ~def_id,
+        ),
+      ~format=
+        Some(
+          msg =>
+            Printf.sprintf(
+              Scanf.format_from_string(msg, "%s%s%s"),
+              Id.to_string(def_id),
+              name_str,
+              Id.to_string(name_id),
+            ),
+        ),
+      ModuleKeywordDecl.module_keyword_decls,
+    );
+  | Some(
+      InfoExp({user_term: {term: ModuleExp(mp, def, body), _}, _}),
+    ) =>
+    module_keyword_exp_message(mp, def, body)
   | Some(InfoExp({cls: Mod(_), _})) => simple("Module item")
   | Some(InfoExp({user_term: term, _})) =>
     let rec get_message_exp =
@@ -2795,34 +2860,7 @@ let get_doc =
         )
       | Module(_) => get_message(ModuleExp.module_exps)
       | ModuleExp(mp, def, body) =>
-        let name_id = List.nth(IdTagged.ids(mp), 0);
-        let def_id = List.nth(IdTagged.ids(def), 0);
-        let body_id = List.nth(IdTagged.ids(body), 0);
-        let name_str =
-          switch (mp.term) {
-          | Var(name) => name
-          | _ => "M"
-          };
-        get_message(
-          ~colorings=
-            ModuleKeywordExp.module_keyword_exp_coloring_ids(
-              ~name_id,
-              ~def_id,
-              ~body_id,
-            ),
-          ~format=
-            Some(
-              msg =>
-                Printf.sprintf(
-                  Scanf.format_from_string(msg, "%s%s%s%s"),
-                  Id.to_string(def_id),
-                  name_str,
-                  Id.to_string(name_id),
-                  Id.to_string(body_id),
-                ),
-            ),
-          ModuleKeywordExp.module_keyword_exps,
-        );
+        module_keyword_exp_message(mp, def, body)
       | Projector(_, e) => get_message_exp(e.term)
       };
     get_message_exp(term.term);

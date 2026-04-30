@@ -16,11 +16,7 @@ let mod_type_decl_form: form = {
   {
     id: ModTypeDecl,
     syntactic_form: [
-      exp("type"),
-      space(),
-      _tpat,
-      space(),
-      exp("="),
+      mk_mod_type([[space(), _tpat, space()]]),
       space(),
       _typ,
     ],

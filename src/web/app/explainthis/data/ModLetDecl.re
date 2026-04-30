@@ -16,11 +16,7 @@ let mod_let_decl_form: form = {
   {
     id: ModLetDecl,
     syntactic_form: [
-      exp("let"),
-      space(),
-      _pat,
-      space(),
-      exp("="),
+      mk_mod_let([[space(), _pat, space()]]),
       space(),
       _exp,
     ],

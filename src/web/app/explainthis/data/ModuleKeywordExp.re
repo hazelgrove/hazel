@@ -2,7 +2,7 @@ open Haz3lcore;
 open ExplainThisForm;
 open Example;
 
-let _name = exp("M");
+let _name = mpat("M");
 let _def = exp("e");
 let _body = exp("body");
 
@@ -18,16 +18,11 @@ let module_keyword_exp_form: form = {
   {
     id: ModuleKeywordExp,
     syntactic_form: [
-      exp("module"),
-      space(),
-      _name,
-      space(),
-      exp("="),
-      space(),
-      _def,
-      space(),
-      exp("in"),
-      space(),
+      mk_module_keyword_exp([
+        [space(), _name, space()],
+        [space(), _def, space()],
+      ]),
+      linebreak(),
       _body,
     ],
     expandable_id: None,

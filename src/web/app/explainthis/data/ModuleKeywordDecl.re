@@ -2,7 +2,7 @@ open Haz3lcore;
 open ExplainThisForm;
 open Example;
 
-let _name = exp("M");
+let _name = mpat("M");
 let _def = exp("e");
 
 let module_keyword_decl_coloring_ids =
@@ -16,11 +16,7 @@ let module_keyword_decl_form: form = {
   {
     id: ModuleKeywordDecl,
     syntactic_form: [
-      exp("module"),
-      space(),
-      _name,
-      space(),
-      exp("="),
+      mk_module_mod([[space(), _name, space()]]),
       space(),
       _def,
     ],
