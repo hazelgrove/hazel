@@ -3550,10 +3550,24 @@ and utyp_to_info_map =
       }
     | Parens(t)
     | Projector(_, t) => kind_of_typ(ctx, t)
+    /* Module-qualified type access: the projected field may be a
+       parameterized type (kind `(Type, …) -> Type`), not just a plain
+       `Type`. Follow the same path as `weak_head_normalize` —
+       resolve the carrier through the module's exports tuple — and
+       recurse on the projected field's actual representation. Falls
+       back to `Type` if we can't resolve it (e.g. unknown module). */
+    | ProdProjection(_) =>
+      let resolved = Typ.weak_head_normalize(ctx, ty);
+      switch (resolved.term) {
+      | ProdProjection(_) =>
+        /* Couldn't resolve any further; the surrounding label-checks
+           will still report the issue. Fall back to `Type`. */
+        type_
+      | _ => kind_of_typ(ctx, resolved)
+      };
     | List(_)
     | Arrow(_)
     | TupLabel(_)
-    | ProdProjection(_)
     | ProdExtension(_)
     | Prod(_)
     | Sum(_)

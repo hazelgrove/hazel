@@ -366,22 +366,76 @@ let projector_kind_of = (info: t): option(ProjectorKind.t) =>
      `var_highlight_ids` fallback uses the declaration's own id as
      the binding site. */
 let get_binding_site = (info: t): option(Id.t) => {
-  /* For a constructor reference, use type-directed disambiguation to
-     pick the right binding when multiple sum types in scope declare a
-     constructor of the same name. The cursor's expected type
-     (`ana`) selects which sum type's constructor we're referring to,
-     so the binding-site / highlight set follows the user's
-     intent rather than always going to the innermost shadowing
-     binding. */
+  /* For a constructor reference, recover the binding-site id in three
+     stages, in order of preference:
+
+     1. Type-directed `ConstructorEntry` lookup (`lookup_ctr_for_ana`).
+        Picks the right binding when multiple sum types in scope each
+        declare a constructor of the same name (`B(true) :
+        OneOfThree(_, _, _)` resolves to OneOfThree's `B`, not the
+        innermost shadowing `Either`'s `B`).
+
+     2. If no `ConstructorEntry` is in scope (e.g. constructor declared
+        inside a module — modules export only type aliases, not
+        constructors), look up the constructor directly in the
+        analysis target's sum_constructors via
+        `Typ.get_sum_constructors`. This walks `M.List` through
+        `weak_head_normalize` to its underlying `Sum`, finds the
+        named variant, and returns its `ann.ids[0]` — the original
+        declaration tile's id.
+
+     3. Last-resort `VarEntry` lookup (capitalized names like module
+        names parse as `Constructor` but bind as variables). */
+  /* For a constructor `C` used as a function (e.g. `C(arg)`), the
+     constructor's analysis target is `Arrow(_, result_type)`. Peel
+     the arrow's output to get the underlying sum-type. The arrow is
+     specific to constructor-as-function position (no-arg constructor
+     references like `Nil` are analyzed against the result type
+     directly). */
+  let rec result_of_ana = (ty: Typ.t): Typ.t =>
+    switch (ty.term) {
+    | Arrow(_, out) => result_of_ana(out)
+    | Parens(inner)
+    | Projector(_, inner) => result_of_ana(inner)
+    | _ => ty
+    };
+  let ctr_id_from_ana = (~ctx: Ctx.t, ~ana: Typ.t, name: string): option(Id.t) => {
+    let* sum = Typ.get_sum_constructors(ctx, result_of_ana(ana));
+    let* variant =
+      List.find_opt(
+        (v: ConstructorMap.variant(Typ.t)) =>
+          switch (v) {
+          | Variant(ctr, _, _) => ctr == name
+          | BadEntry(_) => false
+          },
+        sum,
+      );
+    switch (variant) {
+    | Variant(_, ann, _) =>
+      switch (ann.ids) {
+      | [id, ..._] when !Id.equal(id, Id.invalid) => Some(id)
+      | _ => None
+      }
+    | BadEntry(_) => None
+    };
+  };
   let ctr_binding_id =
       (~ctx: Ctx.t, ~ana: option(Typ.t), name: string): option(Id.t) =>
     switch (Ctx.lookup_ctr_for_ana(ctx, name, ana)) {
     | Some(entry) when entry.id != Id.invalid => Some(entry.id)
     | _ =>
-      /* Fallback: capitalized names (modules) parse as Constructor
-         but bind as VarEntry via the Constructor-to-Var fallback */
-      let* entry = Ctx.lookup_var(ctx, name);
-      entry.id == Id.invalid ? None : Some(entry.id);
+      switch (ana) {
+      | Some(ana) =>
+        switch (ctr_id_from_ana(~ctx, ~ana, name)) {
+        | Some(_) as id => id
+        | None =>
+          let* entry = Ctx.lookup_var(ctx, name);
+          entry.id == Id.invalid ? None : Some(entry.id);
+        }
+      | None =>
+        let* entry = Ctx.lookup_var(ctx, name);
+        entry.id == Id.invalid ? None : Some(entry.id);
+      }
     };
   switch (info) {
   | InfoExp({user_term: {term: Var(name), _}, ctx, _}) =>

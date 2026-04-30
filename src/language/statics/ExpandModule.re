@@ -197,10 +197,11 @@ let rec collect_type_exports =
        ((ctx, acc), item: Mod.t) =>
          switch (item.term) {
          | ModType(tpat, typ) =>
-           switch (tpat.term) {
-           | Var(name) =>
-             /* Mirror TyAlias statics: detect recursive types via free_vars,
-                wrap in Rec if self-referential, normalize otherwise */
+           switch (TPat.alias_head(tpat)) {
+           | Some((name, [])) =>
+             /* Plain (non-parameterized) type alias: mirror TyAlias
+                statics — detect recursive types via free_vars, wrap
+                in Rec if self-referential, normalize otherwise. */
              let (resolved, alias_ty) =
                if (List.mem(name, Typ.free_vars(typ))) {
                  let ty_rec = Rec(Var(name) |> TPat.fresh, typ) |> Typ.temp;
@@ -211,7 +212,37 @@ let rec collect_type_exports =
              let ctx =
                Ctx.extend_alias(ctx, name, TPat.rep_id(tpat), alias_ty);
              (ctx, [(name, resolved), ...acc]);
-           | _ => (ctx, acc)
+           | Some((name, params)) =>
+             /* Parameterized type alias `type T(a, …) = body` — mirror
+                the `TyAlias` statics' Param branch. The exported type
+                is a `TypLam`-chain (curried over the params), wrapped
+                in `Rec(name, …)` when self-referential. Field kind is
+                `(Type, …) -> Type` so `M.T(Int)` normalizes through
+                the existing higher-kinded reduction. */
+             let type_ctor_kind =
+               TypKind.of_param_count(List.length(params));
+             let ty_lam =
+               List.fold_right(
+                 (param, body) => TypLam(param, body) |> Typ.temp,
+                 params,
+                 typ,
+               );
+             let alias_ty =
+               if (List.mem(name, Typ.free_vars(typ))) {
+                 Rec(Var(name) |> TPat.fresh, ty_lam) |> Typ.temp;
+               } else {
+                 ty_lam;
+               };
+             let ctx =
+               Ctx.extend_alias(
+                 ctx,
+                 name,
+                 TPat.rep_id(tpat),
+                 ~typ_kind=type_ctor_kind,
+                 alias_ty,
+               );
+             (ctx, [(name, alias_ty), ...acc]);
+           | None => (ctx, acc)
            }
          | ModuleMod(mp, def) =>
            /* Resolve RHS type exports: either a literal module body

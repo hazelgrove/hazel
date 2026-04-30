@@ -346,7 +346,8 @@ let find_ctr_refs =
     [],
   );
 
-/* Find the InfoTyp entry for a constructor definition (Var with ConstructorExpected) */
+/* Find the InfoTyp entry for a constructor definition (Var with
+   ConstructorExpected or VariantExpected) */
 let find_ctr_def =
     (info_map: Statics.Map.t, name: string): option((Id.t, Info.t)) =>
   Id.Map.fold(
@@ -357,7 +358,8 @@ let find_ctr_def =
         switch (info) {
         | InfoTyp({
             user_term: {term: Var(n), _},
-            expects: ConstructorExpected(_, _),
+            expects:
+              ConstructorExpected(_, _) | VariantExpected(_),
             _,
           })
             when n == name =>
@@ -537,6 +539,41 @@ let test_ctr_pat_in_case =
             );
           },
         all_refs,
+      );
+    },
+  );
+
+/* Regression: a constructor declared inside a module is referenced
+   from outside the module via the analysis target's qualified type.
+   `lookup_ctr` returns nothing (modules don't export constructors as
+   `ConstructorEntry` in the outer ctx) so the binding-site logic
+   used to give up and produce no highlights. The fix walks the
+   analysis target's `get_sum_constructors` to locate the variant's
+   declaration id. */
+let test_ctr_use_from_outside_module =
+  test_case(
+    "Constructor: use outside module highlights ctr defined inside",
+    `Quick,
+    () => {
+      let exp =
+        parse_exp(
+          "let m = { type T = + Nil + Cons(Int) } in let x : m.T = Cons(0) in x",
+        );
+      let info_map = statics(exp);
+      let cons_uses = find_ctr_refs(info_map, "Cons");
+      check(bool, "found Cons use", true, List.length(cons_uses) >= 1);
+      /* From the outside use, the highlight set must be non-empty —
+         it should at least include the constructor's binding site
+         inside the module. */
+      let (use_id, use_info) = List.hd(cons_uses);
+      let ids = highlight_ids(info_map, use_info);
+      let other_ids =
+        List.filter(id => !Id.equal(id, use_id), ids);
+      check(
+        bool,
+        "outside use produces highlights",
+        true,
+        List.length(other_ids) > 0,
       );
     },
   );
@@ -723,5 +760,6 @@ let tests = (
     test_ctr_pat_in_case,
     test_tvar_does_not_conflate_with_ctr,
     test_ctr_type_directed_disambiguation,
+    test_ctr_use_from_outside_module,
   ],
 );
