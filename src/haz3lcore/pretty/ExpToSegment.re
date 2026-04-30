@@ -592,8 +592,26 @@ let rec parenthesize =
       ),
     )
     |> rewrap
-  | Module(_) => exp /* Phase 1.2: proper module parenthesization */
-  | ModuleExp(_) => exp
+  | Module(items) =>
+    /* Recurse into each module item so any internal expressions /
+       types get the same defensive parenthesization the surrounding
+       expression context would get. Without this, a `let` item
+       containing e.g. `! (TyAlias(_) in body)` would lose its
+       required parens around the let-form operand. */
+    let parenthesize_item = (item: Mod.t): Mod.t => {
+      let new_term: Mod.term =
+        switch (item.term) {
+        | ModLet(p, e) => ModLet(parenthesize_pat(p), parenthesize(e))
+        | ModType(tp, t) => ModType(tp, parenthesize_typ(t))
+        | ModExp(e) => ModExp(parenthesize(e))
+        | ModuleMod(mp, e) => ModuleMod(mp, parenthesize(e))
+        | (EmptyHole | Invalid(_) | MultiHole(_)) as t => t
+        };
+      {...item, term: new_term};
+    };
+    Module(List.map(parenthesize_item, items)) |> rewrap;
+  | ModuleExp(mp, def, body) =>
+    ModuleExp(mp, parenthesize(def), parenthesize(body)) |> rewrap
   };
 }
 and parenthesize_pat =
