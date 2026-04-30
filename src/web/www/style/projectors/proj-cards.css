@@ -5,24 +5,6 @@
   --card-height: 47px;
 }
 
-/* Modal context: the .projector base style is position:absolute, so the modal
-   doesn't size to the card. Pin it to relative so the modal sizes to content
-   and the close button at right:-18px sits cleanly outside the cards. */
-.modal-backdrop.live-offside .modal:has(> .projector.card) {
-  background-color: transparent;
-  border-radius: 0;
-  box-shadow: none;
-}
-.modal-backdrop.live-offside .modal > .projector.card {
-  position: relative;
-  padding: 0 24px 0 0;
-}
-.modal-backdrop.live-offside .modal > .projector.card .card-wrapper.show,
-.modal-backdrop.live-offside .modal > .projector.card .card-wrapper.flipped {
-  width: var(--card-width);
-  height: var(--card-height);
-}
-
 /* Turn off caret when a block projector is focused */
 .code-deco:has(~ .projectors .projector.card.indicated) #caret .caret-path {
   fill: #0000;

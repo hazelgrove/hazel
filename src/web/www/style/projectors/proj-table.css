@@ -80,8 +80,7 @@ table.table {
 /* Drag handle pinned to the bottom-right corner of the projector. The
    handle stays put when the table scrolls so it remains discoverable.
    metaKey-gated in the JS handler so a stray click doesn't start a drag. */
-.projector.table .table-resize-handle,
-.modal-backdrop .table-resize-handle {
+.projector.table .table-resize-handle {
     position: sticky;
     bottom: 0;
     left: 100%;

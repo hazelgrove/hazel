@@ -474,8 +474,8 @@ module ValueState = {
 };
 
 /* Build the rich-probe rendering for a sample, if active and parseable.
-   Replaces the inline value seg so the table appears in place of the
-   sample (saves the vertical space the modal-below-sample needed). */
+   Replaces the inline value seg so the rich content (table, card, ...)
+   appears in place of the sample's plain-value display. */
 let rich_value_content =
     (
       ~model: probe_model,
@@ -724,8 +724,9 @@ let step_into_action = (ctx: probe_ctx, sample: Sample.t, ap_id: Id.t) =>
     ],
   );
 
-/* Rich probe action: open a domain-specific visualization via ToggleModal.
-   One menu item per compatible renderer; r.badge supplies the icon. */
+/* Rich probe action: toggle a domain-specific visualization (table,
+   card, ...) for this sample's value. One menu item per compatible
+   renderer; r.badge supplies the icon. */
 let rich_probe_action =
     (ctx: probe_ctx, local, sample: Sample.t, r: packed_renderer): Node.t =>
   div(
@@ -1564,11 +1565,11 @@ module M: Projector = {
 
   /* For refractor probes, ProbeProj's placeholder is consumed by
      Measured via refractor_shape_map (see CachedSyntax.refractor_shape_map
-     and Measured.re refractor branch). When a rich-probe modal is open we
-     report the active renderer's desired Block(N) so the layout reserves
-     N rows below the probe and code below shifts down instead of being
-     overlapped by the modal. When no modal is open, default (Inline) keeps
-     the existing zero-reservation behavior. */
+     and Measured.re refractor branch). When a rich-probe view is active
+     we report the active renderer's desired Block(N) so the layout
+     reserves N rows below the probe and code below shifts down to make
+     room for the inline rich content. With no active renderer, default
+     (Inline) keeps the existing zero-reservation behavior. */
   let placeholder = (model: probe_model, info: info) => {
     let settings = Settings.s^;
     switch (model.active_renderer, get_current(~settings, info)) {

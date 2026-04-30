@@ -152,12 +152,9 @@
   font-family: var(--code-font);
   font-weight: 600;
 }
-.live-offside .value.rich > .rich-probe-table-inner > table.table {
-  height: 100%;
-}
 
 /* Make the resize handle in the rich-probe context — the existing
-   .projector.table / .modal-backdrop selectors don't reach into the
+   .projector.table selector in proj-table.css doesn't reach into the
    inline .value.rich, so the handle would have no dimensions. */
 .live-offside .value.rich .table-resize-handle {
   position: sticky;
@@ -184,18 +181,10 @@
   z-index: calc(var(--projector-z) + 1);
   /* Don't wrap the column name and the menu button onto two lines.
      If the column is too narrow, the cell auto-widens to fit them
-     inline; if the user resizes the table small enough that the
-     header would have wrapped, the table grows past the requested
-     width instead of stealing a vertical row. This is also why
-     `.rich-probe-table-inner` uses overflow-x:visible — the table
-     can outgrow its requested width without forcing a scrollbar. */
+     inline; combined with .rich-probe-table-inner being inline-block
+     + min-width:auto, the table grows past the requested width
+     instead of stealing a vertical row from a wrapped header. */
   white-space: nowrap;
-}
-
-/* Column dropdown sits inside the scrollable .rich-probe-table-inner;
-   raise its z so overflow:auto doesn't clip it. */
-.live-offside .value.rich .column-menu {
-  z-index: calc(var(--projector-z) + 5);
 }
 
 /* Each table cell wraps its value in a nested `.value` div, which
@@ -223,8 +212,7 @@
   animation: none !important;
   outline: 0 !important;
 }
-.live-offside .value.rich .value .token,
-.live-offside .value.rich .value .code-text .token {
+.live-offside .value.rich .value .token {
   opacity: 1 !important;
   text-decoration: none !important;
 }
