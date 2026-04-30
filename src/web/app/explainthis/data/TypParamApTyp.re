@@ -9,6 +9,8 @@ let _callee = typ("T");
 
 let _general_list = typ("X_1, …, X_n");
 
+let _single_t = typ("X");
+
 let _pair_t1 = typ("X_1");
 let _pair_t2 = typ("X_2");
 
@@ -21,6 +23,12 @@ let typ_param_ap_general_coloring_ids =
     : list((Id.t, Id.t)) =>
   [(Piece.id(_callee), callee_id), (Piece.id(_general_list), args_list_id)]
   @ List.map(tid => (Piece.id(_general_list), tid), extra_ids);
+
+let typ_param_ap_single_coloring_ids =
+    (~callee_id: Id.t, ~t_id: Id.t): list((Id.t, Id.t)) => [
+  (Piece.id(_callee), callee_id),
+  (Piece.id(_single_t), t_id),
+];
 
 let typ_param_ap_pair_coloring_ids =
     (~callee_id: Id.t, ~t1_id: Id.t, ~t2_id: Id.t): list((Id.t, Id.t)) => [
@@ -55,6 +63,16 @@ let general_explanation =
     callee_str,
   );
 };
+
+let single_explanation =
+    (~callee_str: string, ~callee_id: Id.t, ~t_id: Id.t): string =>
+  Printf.sprintf(
+    "Applies the parameterized type [*%s*](%s) to the type argument [*X*](%s). `X` substitutes for the single parameter of `%s`.",
+    callee_str,
+    Id.to_string(callee_id),
+    Id.to_string(t_id),
+    callee_str,
+  );
 
 let pair_explanation =
     (
@@ -104,6 +122,18 @@ let typ_param_ap_general_form: form = {
   };
 };
 
+let _single_ap = mk_parens_typ([[_single_t]]);
+let typ_param_ap_single_form: form = {
+  let explanation = "Applies a parameterized type to a single type argument.";
+  {
+    id: TypParamApTyp(Arity1),
+    syntactic_form: [_callee, _single_ap],
+    expandable_id: Some((Piece.id(_single_ap), [_single_ap])),
+    explanation,
+    examples: [],
+  };
+};
+
 let _pair_ap =
   mk_parens_typ([[_pair_t1, Example.comma_typ(), space(), _pair_t2]]);
 let typ_param_ap_pair_form: form = {
@@ -143,6 +173,11 @@ let typ_param_ap_triple_form: form = {
 let typ_param_aps_general: group = {
   id: TypParamApTyp(General),
   forms: [typ_param_ap_general_form],
+};
+
+let typ_param_aps_single: group = {
+  id: TypParamApTyp(Arity1),
+  forms: [typ_param_ap_single_form, typ_param_ap_general_form],
 };
 
 let typ_param_aps_pair: group = {

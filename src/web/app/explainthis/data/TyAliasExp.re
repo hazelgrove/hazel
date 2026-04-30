@@ -38,6 +38,10 @@ let _head_tpat_g = tpat("T");
 let _general_params = tpat("p_1, …, p_n");
 let _typ_def_g = typ("ty_def");
 
+let _head_tpat_s = tpat("T");
+let _single_p = tpat("p");
+let _typ_def_s = typ("ty_def");
+
 let _head_tpat_p = tpat("T");
 let _pair_a = tpat("p_1");
 let _pair_b = tpat("p_2");
@@ -91,6 +95,23 @@ let param_tyalias_general_explanation =
   );
 };
 
+let param_tyalias_single_explanation =
+    (
+      ~head_str: string,
+      ~head_id: Id.t,
+      ~p_id: Id.t,
+      ~def_id: Id.t,
+    )
+    : string =>
+  Printf.sprintf(
+    "Binds [*%s*](%s) as a parameterized type constructor with a single parameter [*p*](%s). Inside the [*definition*](%s) `p` is an abstract type variable; at use sites `%s(X)` substitutes `X` for `p`.",
+    head_str,
+    Id.to_string(head_id),
+    Id.to_string(p_id),
+    Id.to_string(def_id),
+    head_str,
+  );
+
 let param_tyalias_pair_explanation =
     (
       ~head_str: string,
@@ -130,6 +151,13 @@ let param_tyalias_triple_explanation =
     Id.to_string(def_id),
     head_str,
   );
+
+let param_tyalias_single_coloring_ids =
+    (~head_id: Id.t, ~p_id: Id.t, ~def_id: Id.t) => [
+  (Piece.id(_head_tpat_s), head_id),
+  (Piece.id(_single_p), p_id),
+  (Piece.id(_typ_def_s), def_id),
+];
 
 let param_tyalias_pair_coloring_ids =
     (~head_id: Id.t, ~p1_id: Id.t, ~p2_id: Id.t, ~def_id: Id.t) => [
@@ -173,6 +201,26 @@ let param_tyalias_general_exp: form = {
     id: ParameterizedTyAliasExp(General),
     syntactic_form: form,
     expandable_id: Some((Piece.id(_general_ap), [_general_ap])),
+    explanation,
+    examples: [],
+  };
+};
+
+let _single_ap = mk_ap_tpat([[_single_p]]);
+let param_tyalias_single_exp: form = {
+  let explanation = "Binds the head as a parameterized type constructor with a single parameter.";
+  let form = [
+    mk_tyalias([
+      [space(), _head_tpat_s, _single_ap, space()],
+      [space(), _typ_def_s, space()],
+    ]),
+    linebreak(),
+    exp("e_body"),
+  ];
+  {
+    id: ParameterizedTyAliasExp(Arity1),
+    syntactic_form: form,
+    expandable_id: Some((Piece.id(_single_ap), [_single_ap])),
     explanation,
     examples: [],
   };
@@ -233,6 +281,11 @@ let param_tyalias_triple_exp: form = {
 let param_tyalias_exps_general: group = {
   id: ParameterizedTyAliasExp(General),
   forms: [param_tyalias_general_exp],
+};
+
+let param_tyalias_exps_arity1: group = {
+  id: ParameterizedTyAliasExp(Arity1),
+  forms: [param_tyalias_single_exp, param_tyalias_general_exp],
 };
 
 let param_tyalias_exps_arity2: group = {

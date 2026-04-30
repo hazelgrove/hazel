@@ -18,6 +18,8 @@ let _body = exp("e");
 
 let _general_list = tpat("p_1, …, p_n");
 
+let _single_p = tpat("p");
+
 let _pair_p1 = tpat("p_1");
 let _pair_p2 = tpat("p_2");
 
@@ -33,6 +35,12 @@ let typfun_general_coloring_ids =
     (Piece.id(_body), body_id),
   ]
   @ List.map(pid => (Piece.id(_general_list), pid), extra_ids);
+
+let typfun_single_coloring_ids =
+    (~p_id: Id.t, ~body_id: Id.t): list((Id.t, Id.t)) => [
+  (Piece.id(_single_p), p_id),
+  (Piece.id(_body), body_id),
+];
 
 let typfun_pair_coloring_ids =
     (~p1_id: Id.t, ~p2_id: Id.t, ~body_id: Id.t): list((Id.t, Id.t)) => [
@@ -64,6 +72,13 @@ let general_explanation = (~binders_ids: list(Id.t), ~body_id: Id.t): string => 
   );
 };
 
+let single_explanation = (~p_id: Id.t, ~body_id: Id.t): string =>
+  Printf.sprintf(
+    "A value-level type abstraction over a type variable [*p*](%s). A type application `@<X>` substitutes `X` for `p` in [*the body*](%s).",
+    Id.to_string(p_id),
+    Id.to_string(body_id),
+  );
+
 let pair_explanation = (~p1_id: Id.t, ~p2_id: Id.t, ~body_id: Id.t): string =>
   Printf.sprintf(
     "A value-level type abstraction over two type variables [*p_1*](%s) and [*p_2*](%s). A type application `@<X_1, X_2>` substitutes both in [*the body*](%s) in a single step.",
@@ -89,6 +104,18 @@ let typfun_general: form = {
     id: TypFunctionExp(General),
     syntactic_form: [_general_head, space(), _body],
     expandable_id: Some((Piece.id(_general_head), [_general_head])),
+    explanation,
+    examples: [poly_id_ex],
+  };
+};
+
+let _single_head = mk_typfun([[space(), _single_p, space()]]);
+let typfun_single: form = {
+  let explanation = "A value-level type abstraction over a single type variable.";
+  {
+    id: TypFunctionExp(Arity1),
+    syntactic_form: [_single_head, space(), _body],
+    expandable_id: Some((Piece.id(_single_head), [_single_head])),
     explanation,
     examples: [poly_id_ex],
   };
@@ -137,6 +164,11 @@ let typfun_triple: form = {
 let type_functions_general: group = {
   id: TypFunctionExp(General),
   forms: [typfun_general],
+};
+
+let type_functions_single: group = {
+  id: TypFunctionExp(Arity1),
+  forms: [typfun_single, typfun_general],
 };
 
 let type_functions_pair: group = {

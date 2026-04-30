@@ -198,6 +198,7 @@ type pat_sub_form_id =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type tpat_sub_form_id =
   | General
+  | Arity1
   | Arity2
   | Arity3;
 

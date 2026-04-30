@@ -18,6 +18,8 @@ let _f = exp("e_tfun");
 
 let _general_list = typ("X_1, …, X_n");
 
+let _single_t = typ("X");
+
 let _pair_t1 = typ("X_1");
 let _pair_t2 = typ("X_2");
 
@@ -30,6 +32,12 @@ let typ_ap_general_coloring_ids =
     : list((Id.t, Id.t)) =>
   [(Piece.id(_f), f_id), (Piece.id(_general_list), args_list_id)]
   @ List.map(tid => (Piece.id(_general_list), tid), extra_ids);
+
+let typ_ap_single_coloring_ids =
+    (~f_id: Id.t, ~t_id: Id.t): list((Id.t, Id.t)) => [
+  (Piece.id(_f), f_id),
+  (Piece.id(_single_t), t_id),
+];
 
 let typ_ap_pair_coloring_ids =
     (~f_id: Id.t, ~t1_id: Id.t, ~t2_id: Id.t): list((Id.t, Id.t)) => [
@@ -61,6 +69,13 @@ let general_explanation = (~f_id: Id.t, ~args_ids: list(Id.t)): string => {
   );
 };
 
+let single_explanation = (~f_id: Id.t, ~t_id: Id.t): string =>
+  Printf.sprintf(
+    "Applies the [*type function*](%s) to the type argument [*X*](%s). Paired against `typfun p -> e'`, `X` is substituted for `p` in `e'`.",
+    Id.to_string(f_id),
+    Id.to_string(t_id),
+  );
+
 let pair_explanation = (~f_id: Id.t, ~t1_id: Id.t, ~t2_id: Id.t): string =>
   Printf.sprintf(
     "Applies the [*type function*](%s) to two type arguments [*X_1*](%s) and [*X_2*](%s). Paired against a matching multi-binder `typfun p_1, p_2 -> e'`, both binders are substituted in a single step.",
@@ -86,6 +101,18 @@ let typ_ap_general: form = {
     id: TypFunApExp(General),
     syntactic_form: [_f, _general_ap],
     expandable_id: Some((Piece.id(_general_ap), [_general_ap])),
+    explanation,
+    examples: [typfunapp_exp_ex],
+  };
+};
+
+let _single_ap = mk_ap_exp_typ([[_single_t]]);
+let typ_ap_single: form = {
+  let explanation = "Applies a type function to a single type argument.";
+  {
+    id: TypFunApExp(Arity1),
+    syntactic_form: [_f, _single_ap],
+    expandable_id: Some((Piece.id(_single_ap), [_single_ap])),
     explanation,
     examples: [typfunapp_exp_ex],
   };
@@ -130,6 +157,11 @@ let typ_ap_triple: form = {
 let typ_aps_general: group = {
   id: TypFunApExp(General),
   forms: [typ_ap_general],
+};
+
+let typ_aps_single: group = {
+  id: TypFunApExp(Arity1),
+  forms: [typ_ap_single, typ_ap_general],
 };
 
 let typ_aps_pair: group = {

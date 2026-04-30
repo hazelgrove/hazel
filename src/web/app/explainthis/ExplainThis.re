@@ -834,6 +834,28 @@ let get_doc =
             ),
           );
           switch (params_ids) {
+          | [p_id] =>
+            let group = TyAliasExp.param_tyalias_exps_arity1;
+            let (colorings, explanation) =
+              if (TyAliasExp.param_tyalias_single_exp.id
+                  == get_specificity_level(group)) {
+                (
+                  TyAliasExp.param_tyalias_single_coloring_ids(
+                    ~head_id,
+                    ~p_id,
+                    ~def_id,
+                  ),
+                  TyAliasExp.param_tyalias_single_explanation(
+                    ~head_str,
+                    ~head_id,
+                    ~p_id,
+                    ~def_id,
+                  ),
+                );
+              } else {
+                general_args();
+              };
+            get_message(~colorings, ~explanation, group);
           | [p1_id, p2_id] =>
             let group = TyAliasExp.param_tyalias_exps_arity2;
             let (colorings, explanation) =
@@ -957,6 +979,19 @@ let get_doc =
           TypFunctionExp.general_explanation(~binders_ids, ~body_id),
         );
         switch (binders_ids) {
+        | [p_id] =>
+          let group = TypFunctionExp.type_functions_single;
+          let (colorings, explanation) =
+            if (TypFunctionExp.typfun_single.id
+                == get_specificity_level(group)) {
+              (
+                TypFunctionExp.typfun_single_coloring_ids(~p_id, ~body_id),
+                TypFunctionExp.single_explanation(~p_id, ~body_id),
+              );
+            } else {
+              general_args();
+            };
+          get_message(~colorings, ~explanation, group);
         | [p1_id, p2_id] =>
           let group = TypFunctionExp.type_functions_pair;
           let (colorings, explanation) =
@@ -2214,6 +2249,19 @@ let get_doc =
           TypAppExp.general_explanation(~f_id, ~args_ids),
         );
         switch (args_ids) {
+        | [t_id] =>
+          let group = TypAppExp.typ_aps_single;
+          let (colorings, explanation) =
+            if (TypAppExp.typ_ap_single.id
+                == get_specificity_level(group)) {
+              (
+                TypAppExp.typ_ap_single_coloring_ids(~f_id, ~t_id),
+                TypAppExp.single_explanation(~f_id, ~t_id),
+              );
+            } else {
+              general_args();
+            };
+          get_message(~colorings, ~explanation, group);
         | [t1_id, t2_id] =>
           let group = TypAppExp.typ_aps_pair;
           let (colorings, explanation) =
@@ -2960,6 +3008,18 @@ let get_doc =
         PolyTyp.general_explanation(~binders_ids, ~body_id),
       );
       switch (binders_ids) {
+      | [p_id] =>
+        let group = PolyTyp.poly_typ_single_group;
+        let (colorings, explanation) =
+          if (PolyTyp.poly_typ_single.id == get_specificity_level(group)) {
+            (
+              PolyTyp.poly_typ_single_coloring_ids(~p_id, ~body_id),
+              PolyTyp.single_explanation(~p_id, ~body_id),
+            );
+          } else {
+            general_args();
+          };
+        get_message(~colorings, ~explanation, group);
       | [p1_id, p2_id] =>
         let group = PolyTyp.poly_typ_pair_group;
         let (colorings, explanation) =
@@ -3043,6 +3103,26 @@ let get_doc =
         ),
       );
       switch (args_ids) {
+      | [t_id] =>
+        let group = TypParamApTyp.typ_param_aps_single;
+        let (colorings, explanation) =
+          if (TypParamApTyp.typ_param_ap_single_form.id
+              == get_specificity_level(group)) {
+            (
+              TypParamApTyp.typ_param_ap_single_coloring_ids(
+                ~callee_id,
+                ~t_id,
+              ),
+              TypParamApTyp.single_explanation(
+                ~callee_str,
+                ~callee_id,
+                ~t_id,
+              ),
+            );
+          } else {
+            general_args();
+          };
+        get_message(~colorings, ~explanation, group);
       | [t1_id, t2_id] =>
         let group = TypParamApTyp.typ_param_aps_pair;
         let (colorings, explanation) =
@@ -3361,6 +3441,19 @@ let get_doc =
         ParamTPat.general_explanation(~head_str, ~params_ids),
       );
       switch (params_ids) {
+      | [p_id] =>
+        let group = ParamTPat.param_tpats_arity1;
+        let (colorings, explanation) =
+          if (ParamTPat.param_tpat_single_form.id
+              == get_specificity_level(group)) {
+            (
+              ParamTPat.param_tpat_single_coloring_ids(~head_id, ~p_id),
+              ParamTPat.single_explanation(~head_str, ~p_id),
+            );
+          } else {
+            general_args();
+          };
+        get_message(~colorings, ~explanation, group);
       | [p1_id, p2_id] =>
         let group = ParamTPat.param_tpats_arity2;
         let (colorings, explanation) =

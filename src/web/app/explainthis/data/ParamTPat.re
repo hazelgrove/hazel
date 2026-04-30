@@ -10,6 +10,8 @@ open ExplainThisForm;
 let _head = tpat("T");
 let _general_ps = tpat("p_1, …, p_n");
 
+let _single_p = tpat("p");
+
 let _pair_p1 = tpat("p_1");
 let _pair_p2 = tpat("p_2");
 
@@ -26,6 +28,12 @@ let param_tpat_general_coloring_ids =
     : list((Id.t, Id.t)) =>
   [(Piece.id(_head), head_id), (Piece.id(_general_ps), params_list_id)]
   @ List.map(pid => (Piece.id(_general_ps), pid), extra_ids);
+
+let param_tpat_single_coloring_ids =
+    (~head_id: Id.t, ~p_id: Id.t): list((Id.t, Id.t)) => [
+  (Piece.id(_head), head_id),
+  (Piece.id(_single_p), p_id),
+];
 
 let param_tpat_pair_coloring_ids =
     (~head_id: Id.t, ~p1_id: Id.t, ~p2_id: Id.t): list((Id.t, Id.t)) => [
@@ -69,6 +77,13 @@ let general_explanation = (~head_str: string, ~params_ids: list(Id.t)): string =
   );
 };
 
+let single_explanation = (~head_str: string, ~p_id: Id.t): string =>
+  Printf.sprintf(
+    "`%s` is a parameterized type constructor with a single parameter [*p*](%s). `p` is a type variable bound in the definition.",
+    head_str,
+    Id.to_string(p_id),
+  );
+
 let pair_explanation = (~head_str: string, ~p1_id: Id.t, ~p2_id: Id.t): string =>
   Printf.sprintf(
     "`%s` is a parameterized type constructor with two parameters [*p_1*](%s) and [*p_2*](%s). Both are type variables bound in the definition.",
@@ -97,6 +112,18 @@ let param_tpat_general_form: form = {
     id: ParamTPat(General),
     syntactic_form: [_head, _general_ap],
     expandable_id: Some((Piece.id(_general_ap), [_general_ap])),
+    explanation,
+    examples: [],
+  };
+};
+
+let _single_ap = mk_ap_tpat([[_single_p]]);
+let param_tpat_single_form: form = {
+  let explanation = "A parameterized type constructor with a single parameter.";
+  {
+    id: ParamTPat(Arity1),
+    syntactic_form: [_head, _single_ap],
+    expandable_id: Some((Piece.id(_single_ap), [_single_ap])),
     explanation,
     examples: [],
   };
@@ -141,6 +168,11 @@ let param_tpat_triple_form: form = {
 let param_tpats_general: group = {
   id: ParamTPat(General),
   forms: [param_tpat_general_form],
+};
+
+let param_tpats_arity1: group = {
+  id: ParamTPat(Arity1),
+  forms: [param_tpat_single_form, param_tpat_general_form],
 };
 
 let param_tpats_arity2: group = {
