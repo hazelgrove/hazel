@@ -578,6 +578,55 @@ let test_ctr_use_from_outside_module =
     },
   );
 
+/* Regression: hovering on the `T` part of a qualified type access
+   `M.T` must highlight the corresponding `type T = …` declaration
+   inside the module. The `T` is parsed as a `Label` term in
+   `LabelProjectionExpected` position (it isn't a tvar reference in
+   the outer ctx — the binding lives inside the module's exports).
+   The fix records the alias's tile id on the synthesized `Label` in
+   the module's exports tuple, and `var_highlight_ids` walks up to
+   the parent `ProdProjection` to recover it. */
+let test_qualified_type_label_highlight =
+  test_case(
+    "Type: qualified-access label highlights inside-module declaration",
+    `Quick,
+    () => {
+      let exp =
+        parse_exp("let m = { type T = Int } in let x : m.T = 5 in x");
+      let info_map = statics(exp);
+      /* Find the `T` of `m.T` — a Label in LabelProjectionExpected */
+      let label_use =
+        Id.Map.fold(
+          (id, info: Info.t, acc) =>
+            switch (acc) {
+            | Some(_) => acc
+            | None =>
+              switch (info) {
+              | InfoTyp({
+                  user_term: {term: Label("T"), _},
+                  expects: LabelProjectionExpected(_),
+                  _,
+                }) =>
+                Some((id, info))
+              | _ => None
+              }
+            },
+          info_map,
+          None,
+        );
+      check(bool, "found m.T label use", true, label_use != None);
+      let (use_id, use_info) = Option.get(label_use);
+      let ids = highlight_ids(info_map, use_info);
+      let other_ids = List.filter(id => !Id.equal(id, use_id), ids);
+      check(
+        bool,
+        "label use highlights the alias declaration",
+        true,
+        List.length(other_ids) > 0,
+      );
+    },
+  );
+
 /* Regression: when two sum types in scope declare a constructor of
    the same name, hovering on a use of that constructor must
    highlight the binding selected by *type-directed disambiguation*
@@ -761,5 +810,6 @@ let tests = (
     test_tvar_does_not_conflate_with_ctr,
     test_ctr_type_directed_disambiguation,
     test_ctr_use_from_outside_module,
+    test_qualified_type_label_highlight,
   ],
 );

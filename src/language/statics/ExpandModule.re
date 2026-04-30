@@ -160,15 +160,23 @@ let single_bound_var = (p: Pat.t): option(Var.t) =>
   };
 
 /* Build a labeled tuple type from type exports: [("T", Int)] => (T=Int)
-   Deduplicates by name, keeping the last definition (last-wins shadowing). */
-let build_type_exports_type = (exports: list((Var.t, Typ.t))): Typ.t => {
+   Deduplicates by name, keeping the last definition (last-wins shadowing).
+
+   The label tile in each `TupLabel` is annotated with the original
+   type alias declaration's tile id, so when the user clicks on
+   `M.T`'s `T` (a `Label` sitting in `LabelProjectionExpected`
+   position) the var-highlight logic can recover the binding-site id
+   by walking the carrier's exports tuple and reading the matching
+   `Label`'s annotation. */
+let build_type_exports_type =
+    (exports: list((Var.t, Typ.t, Id.t))): Typ.t => {
   let deduped =
     List.fold_right(
-      ((name, ty), (seen, acc)) =>
+      ((name, ty, id), (seen, acc)) =>
         if (List.mem(name, seen)) {
           (seen, acc);
         } else {
-          ([name, ...seen], [(name, ty), ...acc]);
+          ([name, ...seen], [(name, ty, id), ...acc]);
         },
       exports,
       ([], []),
@@ -176,9 +184,11 @@ let build_type_exports_type = (exports: list((Var.t, Typ.t))): Typ.t => {
     |> snd;
   let fields =
     deduped
-    |> List.map(((name, ty)) =>
-         TupLabel(Label(name) |> Typ.temp, ty) |> Typ.temp
-       );
+    |> List.map(((name, ty, id)) => {
+         let label_term =
+           IdTagged.mk_internal([id], Label(name): TermBase.Typ.term);
+         TupLabel(label_term, ty) |> Typ.temp;
+       });
   Prod(fields) |> Typ.temp;
 };
 
@@ -191,7 +201,7 @@ let build_type_exports_type = (exports: list((Var.t, Typ.t))): Typ.t => {
       NOT:      [("Helper", Int -> Bool), ("T", Helper)]  -- Helper out of scope outside
    */
 let rec collect_type_exports =
-        (ctx: Ctx.t, items: list(Mod.t)): list((Var.t, Typ.t)) =>
+        (ctx: Ctx.t, items: list(Mod.t)): list((Var.t, Typ.t, Id.t)) =>
   items
   |> List.fold_left(
        ((ctx, acc), item: Mod.t) =>
@@ -209,9 +219,9 @@ let rec collect_type_exports =
                } else {
                  (Typ.normalize(ctx, typ), typ);
                };
-             let ctx =
-               Ctx.extend_alias(ctx, name, TPat.rep_id(tpat), alias_ty);
-             (ctx, [(name, resolved), ...acc]);
+             let binding_id = TPat.rep_id(tpat);
+             let ctx = Ctx.extend_alias(ctx, name, binding_id, alias_ty);
+             (ctx, [(name, resolved, binding_id), ...acc]);
            | Some((name, params)) =>
              /* Parameterized type alias `type T(a, …) = body` — mirror
                 the `TyAlias` statics' Param branch. The exported type
@@ -233,15 +243,16 @@ let rec collect_type_exports =
                } else {
                  ty_lam;
                };
+             let binding_id = TPat.rep_id(tpat);
              let ctx =
                Ctx.extend_alias(
                  ctx,
                  name,
-                 TPat.rep_id(tpat),
+                 binding_id,
                  ~typ_kind=type_ctor_kind,
                  alias_ty,
                );
-             (ctx, [(name, alias_ty), ...acc]);
+             (ctx, [(name, alias_ty, binding_id), ...acc]);
            | None => (ctx, acc)
            }
          | ModuleMod(mp, def) =>
@@ -274,9 +285,10 @@ let rec collect_type_exports =
              };
            switch (mpat_names(mp), rhs_exports_ty) {
            | ([name], Some(exports_ty)) =>
+             let binding_id = MPat.rep_id(mp);
              let ctx =
-               Ctx.extend_alias(ctx, name, MPat.rep_id(mp), exports_ty);
-             (ctx, [(name, exports_ty), ...acc]);
+               Ctx.extend_alias(ctx, name, binding_id, exports_ty);
+             (ctx, [(name, exports_ty, binding_id), ...acc]);
            | _ => (ctx, acc)
            };
          | _ => (ctx, acc)
