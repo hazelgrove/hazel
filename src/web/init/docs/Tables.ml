@@ -712,7 +712,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
          44))(sort Pat))))))(shards(0))(children())))(Secondary((id \
          e40968b0-35ad-4169-bafa-7530c20b756b)(content(Whitespace\" \
          \"))))(Tile((id \
-         f625ff53-ebd3-4d45-a4ca-c66b83caa5cc)(label(score))(mold((out \
+         f625ff53-ebd3-4d45-a4ca-c66b83caa5cc)(label(_score))(mold((out \
          Pat)(in_())(nibs(((shape Convex)(sort Pat))((shape Convex)(sort \
          Pat))))))(shards(0))(children()))))))))(Tile((id \
          3ec2ba8c-9d00-471a-89c5-ab7e83f42672)(label(:))(mold((out \
@@ -2570,9 +2570,9 @@ let out : string * Haz3lcore.PersistentSegment.t =
          f1c416bb-29c4-4a6d-8d02-7fb79d103d13)(content(Whitespace\" \
          \")))))((Secondary((id \
          96816668-3fe8-4aad-bed4-c174a8b2e89d)(content(Whitespace\" \
-         \"))))(Projector((id 5117b326-5690-4faf-bca7-a3596e6e8380)(kind \
+         \"))))(Projector((id 7ebe4dcb-bf8f-4cfa-be08-9bc6c772dc5e)(kind \
          Fold)(syntax(Tile((id \
-         846974a2-fbd1-491e-be7c-1693db4f8d52)(label(\"(\"\")\"))(mold((out \
+         acfd171b-b339-40af-b69b-462226f3c72c)(label(\"(\"\")\"))(mold((out \
          Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0 1))(children(((Tile((id \
          92294fa1-6064-421e-a45a-39b91d595c5f)(label(fun ->))(mold((out \
@@ -2737,25 +2737,19 @@ let out : string * Haz3lcore.PersistentSegment.t =
          36))(sort Exp))))))(shards(0 1 2))(children(((Secondary((id \
          54c5b086-2afe-4303-af9b-607443eee5ad)(content(Whitespace\" \
          \"))))(Tile((id \
-         22ae4233-6ea3-42e8-9a01-df5edb19f36d)(label(string_eq))(mold((out \
-         Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
-         Exp))))))(shards(0))(children())))(Tile((id \
-         7a8f8197-c63c-4ef5-9b7d-0453eb237e1d)(label(\"(\"\")\"))(mold((out \
-         Exp)(in_(Exp))(nibs(((shape(Concave 23))(sort Exp))((shape \
-         Convex)(sort Exp))))))(shards(0 1))(children(((Secondary((id \
-         99055c76-e8af-4acb-843b-b7ca524271c8)(content(Whitespace\"\\n\"))))(Tile((id \
          fc49bffb-74eb-42c6-b130-942add894623)(label(prev))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
-         Exp))))))(shards(0))(children())))(Tile((id \
-         b4f9fe19-b7a6-4989-b004-8e7873cc0778)(label(,))(mold((out \
-         Exp)(in_())(nibs(((shape(Concave 44))(sort Exp))((shape(Concave \
-         44))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         9ddc2044-6d92-4fa2-b540-5ef266f9e900)(content(Whitespace\"\\n\"))))(Tile((id \
+         Exp))))))(shards(0))(children())))(Secondary((id \
+         33ab8c28-fd22-4efd-b90e-a8b8bdca8547)(content(Whitespace\" \
+         \"))))(Tile((id \
+         b4f9fe19-b7a6-4989-b004-8e7873cc0778)(label(==))(mold((out \
+         Exp)(in_())(nibs(((shape(Concave 31))(sort Exp))((shape(Concave \
+         31))(sort Exp))))))(shards(0))(children())))(Secondary((id \
+         f22f8d3f-f4d6-4597-9881-58c7dbc86159)(content(Whitespace\" \
+         \"))))(Tile((id \
          71a40f8f-745a-4187-a3d1-66ae02232fe6)(label(hd))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
-         Exp))))))(shards(0))(children()))))))))(Secondary((id \
-         10c22261-560f-4617-b671-f4566a2e0a56)(content(Whitespace\" \
-         \"))))(Secondary((id \
+         Exp))))))(shards(0))(children())))(Secondary((id \
          064a21dc-fe52-41d1-b924-3ed7d9db6f4b)(content(Whitespace\"\\n\")))))((Secondary((id \
          756310ef-f74f-4e7b-9a82-31817b15d3b7)(content(Whitespace\" \
          \"))))(Tile((id \
@@ -2788,7 +2782,8 @@ let out : string * Haz3lcore.PersistentSegment.t =
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
          67d1fd3b-3802-4926-8a76-7e3571c7ac40)(content(Whitespace\" \
-         \")))))))))(Secondary((id \
+         \"))))(Secondary((id \
+         a2e5dadc-95c9-4175-8c8b-3c10d90aaebb)(content(Whitespace\"\\n\")))))))))(Secondary((id \
          28b8fe46-0a12-46b8-bf22-5ad84acecbe1)(content(Whitespace\" \
          \"))))(Tile((id \
          430a36d8-43bb-4cd8-950c-9e7713ddb2b3)(label(\"(\"\")\"))(mold((out \
@@ -2909,7 +2904,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
          f69684fc-3f79-4bf2-9daa-556573365084)(label(=))(mold((out \
          Pat)(in_())(nibs(((shape(Concave 39))(sort Pat))((shape(Concave \
          39))(sort Pat))))))(shards(0))(children())))(Tile((id \
-         b3b0e43f-cc0f-4d6d-b13e-16bf9cfe68d9)(label(l))(mold((out \
+         b3b0e43f-cc0f-4d6d-b13e-16bf9cfe68d9)(label(_l))(mold((out \
          Pat)(in_())(nibs(((shape Convex)(sort Pat))((shape Convex)(sort \
          Pat))))))(shards(0))(children())))(Tile((id \
          b4a9bb22-433a-4f72-ac42-f5be264e5ebb)(label(,))(mold((out \
@@ -3045,7 +3040,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
          let ^^statics(with_average) = \n\
          e ... (quiz_average=\n\
          to_lvs(omit_labels(e, `name`))\n\
-         |> filter(_, fun (label, score):^^fold((label=String, value=Int)) -> \
+         |> filter(_, fun (label, _score):^^fold((label=String, value=Int)) -> \
          string_match(\"quiz.*\", label))\n\
          |> map(_, fun e -> e.value)\n\
          |> average)\n\
@@ -3104,15 +3099,14 @@ let out : string * Haz3lcore.PersistentSegment.t =
          case rest\n\
          | [] => [(hd, 1)]\n\
          | ((prev, count)::tl) => \n\
-         if string_eq(\n\
-         prev,\n\
-         hd) \n\
-         then (prev,count+1) :: tl else (hd, 1) :: rest \n\
+         if prev == hd\n\
+         then (prev,count+1) :: tl \n\
+         else (hd, 1) :: rest \n\
          end \n\
          end) in                  \n\
          # Show counts for each species#\n\
          let sighting_counts =   \n\
-         filter(lvs, fun (label=l, value=v) -> v).label\n\
+         filter(lvs, fun (label=_l, value=v) -> v).label\n\
          |> sort(fun (a,b) -> string_compare(a,b), _)\n\
          |> counts \n\
          in ^^probe(sighting_counts)";
