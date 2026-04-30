@@ -316,6 +316,33 @@ Constructors whose schema is not actually polymorphic (e.g. a bare tag from
 `TypAp` Indet, matching the pre-existing behavior of type application over
 non-`TypFun` values.
 
+## Modules
+
+Parameterized type aliases inside modules export their full
+representation through the module's labeled-tuple type. See
+`docs/modules.md` for the full mechanics; the parameterized-types
+specifics:
+
+- `ExpandModule.collect_type_exports` handles `Param(head, params)`
+  tpats by building a `TypLam`-chain over the params (wrapped in
+  `Rec` for self-referential definitions) and `Ctx.extend_alias`-ing
+  it with the matching `(Type, …) -> Type` kind.
+- `M.T(Int)` requires `dot` to bind tighter than the type-level
+  postfix `T(args)` (`type_sum_ap`). `Precedence.dot` is set to a
+  smaller (= tighter) value than `type_sum_ap` so qualified type
+  access binds first.
+- `Statics.kind_of_typ` for `ProdProjection(_)` resolves the
+  projection through `weak_head_normalize` and recurses on the
+  projected field's actual representation, so a parameterized export
+  reports its full `(Type, …) -> Type` kind.
+- Constructors declared inside a module are *not* added to the
+  outer ctx — only type aliases are exported. `ctr_ana_typ` already
+  routes constructor type-checking through the analysis target's
+  `get_sum_constructors`; `Info.get_binding_site` mirrors that path
+  for var-highlight, peeling `Arrow` layers (constructor-as-function
+  position) and reading the variant's `ann.ids[0]` for the
+  binding-site id.
+
 ## Tests
 
 Focused coverage lives in:
@@ -323,9 +350,14 @@ Focused coverage lives in:
 - `test/Test_Menhir.re` for `type Option(a)` and `Option(Int)` parsing.
 - `test/statics/Test_Statics_ParameterizedTypes.re` for kind errors,
   multi-arg applications, arity mismatches, and constructor elaboration.
+- `test/statics/Test_Statics_Modules.re` for parameterized type
+  aliases exported from a module, including recursive ones
+  (`module M = { type L(a) = +Nil + Cons(a, L(a)) }`).
 - `test/evaluator/Test_Evaluator_TypAp.re` for the runtime reduction of
   parameterized constructor applications, including non-uniform recursion.
 - `test/Test_Typ.re` for β-normalization and recursive family lookup.
+- `test/Test_VarHighlight.re` for var-highlighting of constructors
+  declared inside modules.
 
 Useful targeted commands while iterating:
 

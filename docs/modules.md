@@ -309,6 +309,12 @@ Resolution uses the existing `ProdProjection` normalization: `M.T` parses as `Pr
 
 **Module aliasing in `collect_type_exports`**: `ModuleMod(Geo, Geometry)` where the RHS is a variable reference (not a literal module body) resolves the RHS variable's TVarEntry to propagate its type exports into the parent module's exports.
 
+**Parameterized type aliases inside modules**: `module M = { type T(a) = +A(a) +B }` exports `T` with kind `(Type) -> Type`. `collect_type_exports` mirrors the parameterized-`TyAlias` statics: it builds a `TypLam`-chain over the params (wrapped in `Rec` if self-referential) and stores it in the exports tuple. `M.T(Int)` then normalizes through the existing `TypParamAp` higher-kinded reduction — `weak_head_normalize` resolves the projection to the `TypLam`/`Rec` form and β-reduces with the supplied argument.
+
+For this resolution to work, `dot` precedence (10) must be tighter than `type_sum_ap` (11), so `M.T(Int)` parses as `(M.T)(Int)` rather than `M.(T(Int))`. `Statics.kind_of_typ` for `ProdProjection(_)` resolves the projection through `weak_head_normalize` before reading the kind, so a parameterized export reports `(Type, …) -> Type` instead of an unconditional `Type`.
+
+**Constructors declared inside modules** are not added to the outer ctx as `ConstructorEntry` records — modules export only type aliases. So when `Cons(0) : M.List` is used outside the module, `Ctx.lookup_ctr` returns nothing. The type-checker handles this via `ctr_ana_typ` (which walks the analysis target's `get_sum_constructors`), and `Info.get_binding_site` mirrors the same path for var-highlight: peel `Arrow` layers from the constructor's analysis target (constructor-as-function position), call `Typ.get_sum_constructors`, find the variant by name, and use the variant's `ann.ids[0]` (the original declaration's tile id) as the binding-site id.
+
 **Known limitations** (require TypeMember enrichment — see `plans/module-future-work.md`):
 - Module-typed function parameters: `fun (m : { type T; let x : T }) -> m.T`
 - Function return values: `let m = some_fn() in m.T`
