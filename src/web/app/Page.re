@@ -962,19 +962,21 @@ module View = {
         ~cursor: Cursor.cursor(Editors.Update.t),
         model: Model.t,
       ) => {
-    /* TODO: stubbed — see merge brief.
-       HEAD (hazel-html) had a `target_is_input` skip that prevented page
-       keystrokes from triggering when the user was typing inside <input>,
-       <textarea>, or <select> elements rendered by HazelDOM apps. dev's
-       refactor moved keyboard handling to `Key.listener(~f=Key.t->Effect)`,
-       which doesn't carry the DOM target. The skip logic is dropped here.
-       The hazel-html App View inputs may need to call Stop_propagation
-       themselves, or `Key.t` must grow a `target_id` field. */
     let handle_key_event = (key: Key.t): Effect.t(unit) => {
       let meta_down = key.meta == Down;
       let meta_effects =
         model.globals.meta_down == meta_down
           ? [] : [inject(Globals(SetMetaDown(meta_down)))];
+      /* Skip page-level shortcuts when the user is typing in a form
+         element (e.g. an <input>/<textarea>/<select> rendered by a
+         HazelDOM sidebar app). The clipboard shim is a textarea but
+         needs page handling, so it carves out by id. */
+      let target_is_input =
+        switch (key.target_tag) {
+        | Some("INPUT" | "TEXTAREA" | "SELECT") =>
+          key.target_id != Some(JsUtil.clipboard_shim_id)
+        | _ => false
+        };
       /* Page-level keys only. Editor-specific keys are handled by
        * each editor's own Key.handler and won't bubble here
        * (they call Stop_propagation). */
@@ -1051,7 +1053,7 @@ module View = {
         | _ => None
         };
       Effect.(
-        switch (page_action) {
+        switch (target_is_input ? None : page_action) {
         | None => meta_effects == [] ? Ignore : Many(meta_effects)
         | Some(action) =>
           Many(
