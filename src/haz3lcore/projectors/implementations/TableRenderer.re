@@ -417,6 +417,10 @@ let render =
   let make_menu_button = i =>
     icon_button(~tooltip="Column options", "⋮", _ => local(ShowMenu(i)));
 
+  /* Headers: just label + menu button. The actual dropdown is rendered
+     outside the inner div (see `floating_menu` below) so that the menu
+     can extend below the table's reserved height without being clipped
+     by `.rich-probe-table-inner`'s overflow:auto. */
   let header_cells =
     List.mapi(
       (i, h) => {
@@ -430,35 +434,7 @@ let render =
           label_node,
           is_readonly || !has_name ? Node.none : menu_button,
         ];
-
-        let full_content =
-          switch (h, model.menu_state) {
-          | (Some(name), Some((j, menu_path))) when i == j =>
-            let dyn_type =
-              switch (get_type_from_info(info)) {
-              | Some(_) as ty => ty
-              | None => get_dynamic_type(exp)
-              };
-            let menu_data =
-              build_column_menu(
-                info,
-                name,
-                dyn_type,
-                local,
-                parent,
-                menu_path,
-              );
-            let menu_content = render_menu(menu_data);
-            content
-            @ [
-              Node.div(
-                ~attrs=[Attr.classes(["column-menu"])],
-                menu_content,
-              ),
-            ];
-          | _ => content
-          };
-        Node.th(full_content);
+        Node.th(content);
       },
       headers,
     );
@@ -517,19 +493,67 @@ let render =
       ~width_blocks=model.width_blocks,
       ~height_blocks=clamped_height,
     );
-  Node.div(
-    ~attrs=[
-      Attr.classes(["table-inner", "rich-probe-table-inner"]),
-      Attr.create(
-        "style",
-        Printf.sprintf(
-          "width: calc(var(--col-width-px) * %d); height: calc(var(--row-height-px) * %d);",
-          model.width_blocks,
-          clamped_height,
+
+  /* Floating column menu — rendered as a sibling of the scrollable
+     inner div so it can extend below the reserved height without
+     being clipped by overflow:auto. Positioned in CSS via the
+     --menu-col / --menu-cols variables to land roughly under the
+     correct column header. */
+  let total_cols = List.length(headers) + (is_readonly ? 0 : 1);
+  let floating_menu =
+    switch (model.menu_state) {
+    | Some((j, menu_path)) =>
+      switch (List.nth_opt(headers, j)) {
+      | Some(Some(name)) =>
+        let dyn_type =
+          switch (get_type_from_info(info)) {
+          | Some(_) as ty => ty
+          | None => get_dynamic_type(exp)
+          };
+        let menu_data =
+          build_column_menu(info, name, dyn_type, local, parent, menu_path);
+        Node.div(
+          ~attrs=[
+            Attr.classes(["column-menu", "column-menu-floating"]),
+            Attr.create(
+              "style",
+              Printf.sprintf(
+                "--menu-col: %d; --menu-cols: %d;",
+                j,
+                max(1, total_cols),
+              ),
+            ),
+          ],
+          render_menu(menu_data),
+        );
+      | _ => Node.none
+      }
+    | None => Node.none
+    };
+
+  let inner =
+    Node.div(
+      ~attrs=[
+        Attr.classes(["table-inner", "rich-probe-table-inner"]),
+        Attr.create(
+          "style",
+          /* min-width, not width: the inner is inline-block in CSS so
+             it shrinks to its table's natural width when that's
+             smaller, and grows to fit when columns naturally need
+             more (avoiding both X scrollbars and tables that visually
+             escape the .value.rich outline). */
+          Printf.sprintf(
+            "min-width: calc(var(--col-width-px) * %d); height: calc(var(--row-height-px) * %d);",
+            model.width_blocks,
+            clamped_height,
+          ),
         ),
-      ),
-    ],
-    [table_node, handle],
+      ],
+      [table_node, handle],
+    );
+  Node.div(
+    ~attrs=[Attr.classes(["rich-probe-wrapper"])],
+    [inner, floating_menu],
   );
 };
 

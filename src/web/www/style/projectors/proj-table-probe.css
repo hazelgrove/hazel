@@ -113,18 +113,44 @@
   left: 0;
 }
 
-/* TableRenderer's wrapper. The inline width/height in code blocks
-   is a *minimum* — let the table grow to its natural width so we
-   don't get a horizontal scrollbar from sub-pixel mismatches between
-   the requested block-grid size and the actual rendered cell widths.
+/* TableRenderer's wrapper. inline-block + width:auto means the inner
+   shrinks to its table's natural width — no X overflow and no table
+   visually escaping the .value.rich outline. Inline style sets
+   min-width (in code blocks) so user resizing controls the floor;
+   the inner grows past it when columns naturally need more space.
    Vertical content beyond the requested height does scroll, since
    that's the point of clamping height_blocks at the data rows. */
-.live-offside .value.rich > .rich-probe-table-inner {
-  overflow-x: visible;
+.live-offside .value.rich > .rich-probe-wrapper > .rich-probe-table-inner {
+  display: inline-block;
+  overflow-x: hidden;
   overflow-y: auto;
   border-radius: 2px;
-  width: auto !important;
-  min-width: 0;
+}
+
+/* The column dropdown lives as a sibling of .rich-probe-table-inner
+   (rendered by TableRenderer at the wrapper level) so it can extend
+   past the inner's reserved height without being clipped by
+   overflow:auto, while the table data inside still scrolls. The
+   wrapper sets the positioning context; --menu-col / --menu-cols are
+   set inline by TableRenderer to land the menu roughly under the
+   right column header. */
+.live-offside .value.rich > .rich-probe-wrapper {
+  position: relative;
+  display: inline-block;
+}
+
+.live-offside .value.rich .column-menu-floating {
+  position: absolute;
+  /* Just below the header row. .table th rows pick up this height
+     from --row-height-px set in Main.re. */
+  top: var(--row-height-px, 1.5em);
+  left: calc(100% / var(--menu-cols, 1) * var(--menu-col, 0));
+  /* Restore the typography the menu had when it lived inside .table
+     th — the table cell context provided code-font + weight 600 by
+     inheritance, but the menu now floats at the wrapper level and
+     would otherwise pick up the page's default font. */
+  font-family: var(--code-font);
+  font-weight: 600;
 }
 .live-offside .value.rich > .rich-probe-table-inner > table.table {
   height: 100%;
