@@ -351,7 +351,20 @@ let projector_kind_of = (info: t): option(ProjectorKind.t) =>
   };
 
 /* If the info represents some kind of name binding which
-   exists in the context, return the id where the binding occurs */
+   exists in the context, return the id where the binding occurs.
+
+   Notably:
+   - A `Var(name)` in `InfoTyp` is a *type-variable reference* only
+     when the typ is in `TypeExpected` position. In a constructor-
+     declaration position (`+ A(a)` / `+ B(b)` etc.) the `Var(name)`
+     is the constructor's name being introduced, NOT a tvar
+     reference. Conflating these would, e.g., make hovering on a
+     `type B = Int` alias light up every `B(b)` constructor
+     across all sum-type declarations because they happen to share
+     the lexical name `B`.
+   - For constructor declarations we return `None` so the
+     `var_highlight_ids` fallback uses the declaration's own id as
+     the binding site. */
 let get_binding_site = (info: t): option(Id.t) => {
   switch (info) {
   | InfoExp({user_term: {term: Var(name), _}, ctx, _}) =>
@@ -367,6 +380,14 @@ let get_binding_site = (info: t): option(Id.t) => {
       let* entry = Ctx.lookup_var(ctx, name);
       entry.id == Id.invalid ? None : Some(entry.id);
     }
+  | InfoTyp({
+      user_term: {term: Var(_), _},
+      expects:
+        TypExpectation.ConstructorExpected(_) |
+        TypExpectation.VariantExpected(_),
+      _,
+    }) =>
+    None
   | InfoTyp({user_term: {term: Var(name), _}, ctx, _}) =>
     let* id = Ctx.lookup_tvar_id(ctx, name);
     id == Id.invalid ? None : Some(id);

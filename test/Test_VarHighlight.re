@@ -541,6 +541,61 @@ let test_ctr_pat_in_case =
     },
   );
 
+/* Regression: a type alias and a constructor sharing the lexical
+   name `B` are *different* bindings. Hovering on the type alias
+   declaration must not light up constructor declarations or uses.
+   The bug was that `Info.get_binding_site` for an `InfoTyp(Var(_))`
+   in a constructor-declaration position (`+ B(b)`) was falling
+   through to `Ctx.lookup_tvar_id` and matching the unrelated type
+   alias `B = Int`, conflating their binding sites. */
+let test_tvar_does_not_conflate_with_ctr =
+  test_case(
+    "Type alias `B` doesn't share binding with constructor `B(b)`",
+    `Quick,
+    () => {
+      let exp =
+        parse_exp(
+          "type B = Int in type S = + A(B) + B(B) in let x : S = A(0) in x",
+        );
+      let info_map = statics(exp);
+      /* `B` type-alias binding (the `type B =` head). */
+      let alias_binding = find_tvar_binding(info_map, "B");
+      check(bool, "found B alias binding", true, alias_binding != None);
+      let (alias_binding_id, alias_info) = Option.get(alias_binding);
+      let alias_ids = highlight_ids(info_map, alias_info);
+      /* Find the constructor declaration `+ B(B)` in `S`. */
+      let b_ctr_def = find_ctr_def(info_map, "B");
+      check(bool, "found B constructor def", true, b_ctr_def != None);
+      let (b_ctr_def_id, _) = Option.get(b_ctr_def);
+      /* Sanity: the two binding ids are NOT the same id (the bug
+         would otherwise be impossible to observe). */
+      check(
+        bool,
+        "alias and ctr have distinct ids",
+        false,
+        Id.equal(alias_binding_id, b_ctr_def_id),
+      );
+      /* The alias's highlight set must not include the constructor
+         declaration. */
+      check(
+        bool,
+        "alias does not highlight ctr def",
+        false,
+        has_id(alias_ids, b_ctr_def_id),
+      );
+      /* Conversely, the constructor's highlight set must not
+         include the alias's binding. */
+      let (_, ctr_info) = Option.get(b_ctr_def);
+      let ctr_ids = highlight_ids(info_map, ctr_info);
+      check(
+        bool,
+        "ctr def does not highlight alias binding",
+        false,
+        has_id(ctr_ids, alias_binding_id),
+      );
+    },
+  );
+
 let tests = (
   "VarHighlight",
   [
@@ -559,5 +614,6 @@ let tests = (
     test_ctr_def_to_uses,
     test_ctr_ref_to_siblings,
     test_ctr_pat_in_case,
+    test_tvar_does_not_conflate_with_ctr,
   ],
 );
