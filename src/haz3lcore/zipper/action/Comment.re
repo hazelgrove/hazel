@@ -64,11 +64,14 @@ let insert_text = (z: t, text: string, ~root): t =>
   };
 
 /* Select the current line's content, excluding line breaks.
- * Unselects first, moves to line start, then selects to line end. */
+ * Unselects first, moves to line start, then selects to line end.
+ * Uses to_linebreak_raw to land at the literal line edge so the
+ * subsequent Select.to_linebreak (which doesn't skip whitespace)
+ * covers any leading indent. */
 let select_line = (z: t): t => {
   let z = Zipper.unselect(z);
   let z =
-    switch (Move.to_linebreak(Left, z)) {
+    switch (Move.to_linebreak_raw(Left, z)) {
     | Some(z) => z
     | None => z
     };
@@ -138,15 +141,17 @@ let reselect_lines = (z: t, num_newlines: int): t => {
     | Some(z) => z
     | None => z
     };
-  /* Move to start of current (last) line */
-  let z = or_stay(Move.to_linebreak(Left), z);
+  /* Move to start of current (last) line. Use raw variant so we land
+   * at the literal line edge (not past leading indent), keeping the
+   * subsequent Select.to_linebreak symmetric. */
+  let z = or_stay(Move.to_linebreak_raw(Left), z);
   /* Cross linebreaks going left to reach start of first line */
   let z =
     List.fold_left(
       (z, _) =>
         z
         |> or_stay(Move.by_char(Left))
-        |> or_stay(Move.to_linebreak(Left)),
+        |> or_stay(Move.to_linebreak_raw(Left)),
       z,
       List.init(num_newlines, Fun.id),
     );

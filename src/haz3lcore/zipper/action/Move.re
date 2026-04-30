@@ -142,11 +142,15 @@ let rec skip_spaces = (d: Direction.t, z: t): t =>
     z;
   };
 
+/* Move to the literal line boundary, without crossing it. */
+let to_linebreak_raw = (d: Direction.t, z: t): option(t) =>
+  do_until_linebreak(local(ByToken, d), d, z);
+
 /* Move to line boundary, then skip past leading/trailing whitespace.
  * Line(Left): move to linebreak, then skip right past spaces to first content
  * Line(Right): move to linebreak, then skip left past spaces to last content */
 let to_linebreak = (d: Direction.t, z: t): option(t) => {
-  let+ z = do_until_linebreak(local(ByToken, d), d, z);
+  let+ z = to_linebreak_raw(d, z);
   skip_spaces(Direction.toggle(d), z);
 };
 
