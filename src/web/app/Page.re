@@ -1053,13 +1053,13 @@ module View = {
         | _ => None
         };
       Effect.(
-        switch (target_is_input ? None : page_action) {
-        | None => meta_effects == [] ? Ignore : Many(meta_effects)
-        | Some(action) =>
+        switch (page_action) {
+        | Some(action) when !target_is_input =>
           Many(
             [Prevent_default, Stop_propagation, inject(action)]
             @ meta_effects,
           )
+        | _ => meta_effects == [] ? Ignore : Many(meta_effects)
         }
       );
     };

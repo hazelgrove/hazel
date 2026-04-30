@@ -58,13 +58,14 @@ let to_held: bool => held = b => b ? Down : Up;
 let get_code = evt =>
   Js.to_string(Js.Optdef.get(evt##.code, () => Js.string("")));
 
-let get_target_tag_and_id = evt: (option(string), option(string)) =>
+let get_target_tag_and_id = (evt): (option(string), option(string)) =>
   switch (Js.Opt.to_option(evt##.target)) {
   | None => (None, None)
   | Some(el) =>
     let el = Js.Unsafe.coerce(el);
     let tag = Js.to_string(el##.tagName);
-    let id = Js.Optdef.case(el##.id, () => None, s => Some(Js.to_string(s)));
+    let id =
+      Js.Optdef.case(el##.id, () => None, s => Some(Js.to_string(s)));
     (Some(tag), id);
   };
 

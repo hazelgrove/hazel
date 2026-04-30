@@ -3242,7 +3242,9 @@ and upat_to_info_map =
         | (Some(ana_ty), _) =>
           Some(ConstructorStaticsHelpers.normalize_ctr_type(ctx, ana_ty))
         | (_, Some({typ: elab_syn_ty, _})) =>
-          Some(ConstructorStaticsHelpers.normalize_ctr_type(ctx, elab_syn_ty))
+          Some(
+            ConstructorStaticsHelpers.normalize_ctr_type(ctx, elab_syn_ty),
+          )
         | _ => None
         };
       add(
