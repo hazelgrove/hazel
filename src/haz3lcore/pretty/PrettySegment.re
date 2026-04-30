@@ -154,7 +154,10 @@ let rec layout =
   | [(_, _, Space), ...rest] => [OSpace, ...layout(width, col + 1, rest)]
   | [(i, m, Cat(x, y)), ...rest] =>
     layout(width, col, [(i, m, x), (i, m, y), ...rest])
-  | [(_, Flat, Break), ...rest] => [OSpace, ...layout(width, col + 1, rest)]
+  | [(_, Flat, Break), ...rest] => [
+      OSpace,
+      ...layout(width, col + 1, rest),
+    ]
   | [(i, Breaking, Break), ...rest] =>
     /* col reset to 0 (not i) so fit-checks downstream use the full width.
      * Indent is rendered visually but doesn't reduce fit-check budget,
@@ -646,8 +649,7 @@ and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
         | _ =>
           let alt_starts_block = segment_starts_with_block(rest);
           let alt_sep = alt_starts_block ? HardBreak : Space;
-          let alt_inner =
-            cats([alt_sep, Group(segment_to_doc(s, rest))]);
+          let alt_inner = cats([alt_sep, Group(segment_to_doc(s, rest))]);
           alt_starts_block ? Nest(indent_unit, alt_inner) : alt_inner;
         };
       let tile_doc =

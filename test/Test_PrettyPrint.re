@@ -319,8 +319,7 @@ let comma_compound_tests = [
     ~name="Three functions in tuple",
     ~width=25,
     ~input="(fun x -> x + 1, fun y -> y + 2, fun z -> z + 3)",
-    ~expected=
-      {|(
+    ~expected={|(
   fun x -> x + 1,
   fun y -> y + 2,
   fun z -> z + 3
@@ -388,8 +387,7 @@ f(1, 2, 3)|},
     ~name="Fun header flat with long body",
     ~width=30,
     ~input="let f = fun a, b, c -> a + b + c + 1 + 2 + 3 in 1",
-    ~expected=
-      {|let f =
+    ~expected={|let f =
   fun (a, b, c) ->
     a + b + c + 1 + 2 + 3 in
 1|},
