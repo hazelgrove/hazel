@@ -115,6 +115,21 @@ module Ctr = {
       )
     | Rec({term: Var(w), _}, {term: Var(v), _}) when v == w => Unknown
     | Rec(_) => all_ctrs_of_typ(Typ.unroll(ty))
+    /* Higher-kinded recursion: a parameterized recursive type at the
+       use site has the canonical form `TypParamAp(Rec(name, TypLam(p,
+       body)), arg)` (e.g. normalize-d `PList(Int)`), with `Sum`
+       structure hidden one step of unfolding away. Unfold one level
+       and recurse so the constructor list is recovered. Same for
+       any `TypParamAp` whose callee is a `Rec` we can unfold —
+       `Typ.unfold_one` returns `ty` unchanged for non-recursive
+       callees so we fall through to the generic `Infinite` case. */
+    | TypParamAp({term: Rec(_), _}, _) =>
+      let unfolded = Typ.unfold_one(ty);
+      if (Equality.syntactic.typ(unfolded, ty)) {
+        Infinite;
+      } else {
+        all_ctrs_of_typ(unfolded);
+      };
     | Prod(elts) =>
       Finite(Map.singleton(tuple_ctr(List.length(elts)), elts))
     | ProofOf(_) => Infinite
@@ -300,7 +315,10 @@ module UnseenPatternList: UnseenPatternList = {
     | _ when Ctr.compare(ctr, Ctr.default_ctr) == 0 =>
       cons_pat_t(wild(), unseen_pattern)
     | Sum(_)
-    | Rec(_) =>
+    | Rec(_)
+    /* Parameterized recursive type — same shape as Rec/Sum after one
+       step of higher-kinded unfolding. */
+    | TypParamAp({term: Rec(_), _}, _) =>
       let pat_ctr = constructor(ctr.ctr, None);
       if (Ctr.num_args_of(ctr) == 0) {
         cons_pat_t(pat_ctr, unseen_pattern);
