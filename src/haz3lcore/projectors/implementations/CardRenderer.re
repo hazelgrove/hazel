@@ -1,19 +1,19 @@
+open Util;
 open Virtual_dom.Vdom;
 open ProjectorBase;
 open Language;
 open CardTypes;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
-type mode =
-  | Show
-  | Choose
-  | Flipped;
+/* CardRenderer is the rich-probe view for card-shaped sample values.
+   The separate CardProj.re owns the alt-l inline projector with its
+   own click-to-flip / shift-click-to-choose UX; this renderer is
+   purely structural — it shows the sample's value and nothing more,
+   so there's no model state and no actions. */
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type m = {mode};
+type m = unit;
 [@deriving (show({with_path: false}), sexp, yojson)]
-type a =
-  | SetMode(mode);
+type a = unit;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type model = m;
@@ -22,19 +22,15 @@ type action = a;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type value = collection;
 
-let model_of_sexp = (sexp: Sexplib.Sexp.t): model =>
-  switch (model_of_sexp(sexp)) {
-  | exception _ => {mode: Show}
-  | m => m
-  };
-
 let parse = (_sort: Sort.t, exp: Exp.t): option(value) =>
   switch (CardSyntax.any_to_state(Exp(exp))) {
   | Some((Exp, c)) => Some(c)
   | _ => None
   };
 
-let init = (_: value) => {mode: Show};
+let init = (_: value) => ();
+
+let update = ((), ()) => ();
 
 /* Match CardProj.placeholder (Tab(1)) so a line that already hosts a
    CardProj — which reserves 1 deferred linebreak for its own card art
@@ -48,93 +44,24 @@ let placeholder = (_: value, _: m): ProjectorCore.Shape.t =>
     horizontal: 0,
   };
 
-let update: (m, a) => m =
-  (_, action) =>
-    switch (action) {
-    | SetMode(new_mode) => {mode: new_mode}
-    };
-
-let put = (info: info, card: card): option(Base.segment) =>
-  info.utility.lift_syntax(
-    ~inline=true,
-    _: Any.t => Exp(CardSyntax.card_to_exp(card)),
-    info.syntax,
-  );
-
-let on_pick =
-    (info: info, parent: external_action => Ui_effect.t(unit), card: card)
-    : Ui_effect.t(unit) =>
-  switch (put(info, card)) {
-  | None => Effect.Ignore
-  | Some(seg) => parent(SetSyntax(seg))
-  };
-
-let mode_click = (mode, can_choose: bool, local, evt) =>
-  switch (Js_of_ocaml.Js.Unsafe.coerce(evt)##.detail == 2) {
-  | _ when Js_of_ocaml.Js.to_bool(evt##.shiftKey) && can_choose =>
-    switch (mode) {
-    | Choose
-    | Flipped => local(SetMode(Show))
-    | Show => local(SetMode(Choose))
-    }
-  | _ =>
-    switch (mode) {
-    | Choose
-    | Flipped => local(SetMode(Show))
-    | Show => local(SetMode(Flipped))
-    }
-  };
-
-let mode_class = (mode: mode) =>
-  switch (mode) {
-  | Show => "show"
-  | Flipped => "flipped"
-  | Choose => "choose"
-  };
-
-let projector_attrs = (mode: mode, sort: Sort.t) =>
-  Attr.classes(["projector", "card", Sort.show(sort), mode_class(mode)]);
+let projector_attrs = (sort: Sort.t) =>
+  Attr.classes(["projector", "card", Sort.show(sort)]);
 
 module Singleton = {
-  let view =
-      (
-        info: info,
-        mode: mode,
-        parent: external_action => Ui_effect.t(unit),
-        local: a => Ui_effect.t(unit),
-        sort: Sort.t,
-        card: card,
-      )
-      : Node.t =>
+  let view = (sort: Sort.t, card: card): Node.t =>
     Node.div(
-      ~attrs=[projector_attrs(mode, sort)],
+      ~attrs=[projector_attrs(sort)],
       [
         Node.div(
-          ~attrs=[
-            Attr.classes(["card-wrapper", mode_class(mode)]),
-            Attr.on_mousedown(mode_click(mode, true, local)),
-          ],
-          [
-            switch (mode) {
-            | Show
-            | Flipped => CardView.Card.view(sort, card)
-            | Choose =>
-              CardView.Chooser.view(
-                ~on_pick=on_pick(info, parent),
-                ~indicated=card,
-                sort,
-                sort_of(sort),
-              )
-            },
-          ],
+          ~attrs=[Attr.classes(["card-wrapper"])],
+          [CardView.Card.view(sort, card)],
         ),
       ],
     );
 };
 
 module Hand = {
-  let card_wrapper =
-      (mode: mode, sort: Sort.t, index: int, card: card): Node.t =>
+  let card_wrapper = (sort: Sort.t, index: int, card: card): Node.t =>
     Node.div(
       ~attrs=[
         Attr.class_("card-wrapper"),
@@ -142,7 +69,7 @@ module Hand = {
           "style",
           Printf.sprintf(
             "position: absolute; left: %fpx; z-index: %d;",
-            mode == Flipped ? 0. : float_of_int(index) *. 8.5,
+            float_of_int(index) *. 8.5,
             100 + index,
           ),
         ),
@@ -150,20 +77,13 @@ module Hand = {
       [CardView.Card.view(sort, card)],
     );
 
-  let view =
-      (mode: mode, local: a => Ui_effect.t(unit), sort: Sort.t, hand: hand)
-      : Node.t => {
+  let view = (sort: Sort.t, hand: hand): Node.t => {
     let n = List.length(hand);
     let width =
-      mode == Flipped
-        ? CardView.Card.width
-        : Float.to_int(Float.ceil(Float.of_int(n - 1) *. 8.5))
-          + CardView.Card.width;
+      Float.to_int(Float.ceil(Float.of_int(n - 1) *. 8.5))
+      + CardView.Card.width;
     Node.div(
-      ~attrs=[
-        projector_attrs(mode, sort),
-        Attr.on_mousedown(mode_click(mode, false, local)),
-      ],
+      ~attrs=[projector_attrs(sort)],
       [
         Node.div(
           ~attrs=[
@@ -177,7 +97,7 @@ module Hand = {
               ),
             ),
           ],
-          List.mapi(card_wrapper(mode, sort), hand),
+          List.mapi(card_wrapper(sort), hand),
         ),
       ],
     );
@@ -186,21 +106,20 @@ module Hand = {
 
 let render =
     (
-      ~info: info,
+      ~info as _: info,
       ~exp as _: Exp.t,
       ~value: value,
       ~view_seg as _: (Sort.t, Segment.t) => Node.t,
-      ~model: m,
-      ~local: a => Ui_effect.t(unit),
-      ~parent: external_action => Ui_effect.t(unit),
+      ~model as _: m,
+      ~local as _: a => Ui_effect.t(unit),
+      ~parent as _: external_action => Ui_effect.t(unit),
       ~sort as _: Sort.t,
       (),
     )
     : Node.t =>
   switch (value) {
-  | Card(card) =>
-    Singleton.view(info, model.mode, parent, local, Sort.Exp, card)
-  | Hand(hand) => Hand.view(model.mode, local, Sort.Exp, hand)
+  | Card(card) => Singleton.view(Sort.Exp, card)
+  | Hand(hand) => Hand.view(Sort.Exp, hand)
   };
 
 let badge =

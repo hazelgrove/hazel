@@ -1,14 +1,7 @@
 [@deriving (show({with_path: false}), sexp, yojson)]
-type mode =
-  | Show
-  | Choose
-  | Flipped;
-
+type m = unit;
 [@deriving (show({with_path: false}), sexp, yojson)]
-type m = {mode};
-[@deriving (show({with_path: false}), sexp, yojson)]
-type a =
-  | SetMode(mode);
+type a = unit;
 
 include
   RichProbe.RichProbe with
