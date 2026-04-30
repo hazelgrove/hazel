@@ -91,6 +91,46 @@ let param_tyalias_general_explanation =
   );
 };
 
+let param_tyalias_pair_explanation =
+    (
+      ~head_str: string,
+      ~head_id: Id.t,
+      ~p1_id: Id.t,
+      ~p2_id: Id.t,
+      ~def_id: Id.t,
+    )
+    : string =>
+  Printf.sprintf(
+    "Binds [*%s*](%s) as a parameterized type constructor with two parameters [*p_1*](%s) and [*p_2*](%s). Inside the [*definition*](%s) the parameters are abstract type variables; at use sites `%s(X_1, X_2)` substitutes each argument for the corresponding parameter.",
+    head_str,
+    Id.to_string(head_id),
+    Id.to_string(p1_id),
+    Id.to_string(p2_id),
+    Id.to_string(def_id),
+    head_str,
+  );
+
+let param_tyalias_triple_explanation =
+    (
+      ~head_str: string,
+      ~head_id: Id.t,
+      ~p1_id: Id.t,
+      ~p2_id: Id.t,
+      ~p3_id: Id.t,
+      ~def_id: Id.t,
+    )
+    : string =>
+  Printf.sprintf(
+    "Binds [*%s*](%s) as a parameterized type constructor with three parameters [*p_1*](%s), [*p_2*](%s), and [*p_3*](%s). Inside the [*definition*](%s) the parameters are abstract type variables; at use sites `%s(X_1, X_2, X_3)` substitutes each argument for the corresponding parameter.",
+    head_str,
+    Id.to_string(head_id),
+    Id.to_string(p1_id),
+    Id.to_string(p2_id),
+    Id.to_string(p3_id),
+    Id.to_string(def_id),
+    head_str,
+  );
+
 let param_tyalias_pair_coloring_ids =
     (~head_id: Id.t, ~p1_id: Id.t, ~p2_id: Id.t, ~def_id: Id.t) => [
   (Piece.id(_head_tpat_p), head_id),

@@ -50,6 +50,22 @@ let general_explanation = (~binders_ids: list(Id.t)): string => {
   );
 };
 
+let pair_explanation = (~p1_id: Id.t, ~p2_id: Id.t): string =>
+  Printf.sprintf(
+    "A comma-separated list of two type binders [*p_1*](%s), [*p_2*](%s). Both are fresh type variables in scope throughout the body.",
+    Id.to_string(p1_id),
+    Id.to_string(p2_id),
+  );
+
+let triple_explanation =
+    (~p1_id: Id.t, ~p2_id: Id.t, ~p3_id: Id.t): string =>
+  Printf.sprintf(
+    "A comma-separated list of three type binders [*p_1*](%s), [*p_2*](%s), [*p_3*](%s). All three are fresh type variables in scope throughout the body.",
+    Id.to_string(p1_id),
+    Id.to_string(p2_id),
+    Id.to_string(p3_id),
+  );
+
 let tuple_tpat_general_form: form = {
   let explanation = "A comma-separated list of type binders used as the binder of a multi-binder `poly` or `typfun`.";
   {

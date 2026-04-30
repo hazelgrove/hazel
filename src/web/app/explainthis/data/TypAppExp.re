@@ -61,6 +61,24 @@ let general_explanation = (~f_id: Id.t, ~args_ids: list(Id.t)): string => {
   );
 };
 
+let pair_explanation = (~f_id: Id.t, ~t1_id: Id.t, ~t2_id: Id.t): string =>
+  Printf.sprintf(
+    "Applies the [*type function*](%s) to two type arguments [*X_1*](%s) and [*X_2*](%s). Paired against a matching multi-binder `typfun p_1, p_2 -> e'`, both binders are substituted in a single step.",
+    Id.to_string(f_id),
+    Id.to_string(t1_id),
+    Id.to_string(t2_id),
+  );
+
+let triple_explanation =
+    (~f_id: Id.t, ~t1_id: Id.t, ~t2_id: Id.t, ~t3_id: Id.t): string =>
+  Printf.sprintf(
+    "Applies the [*type function*](%s) to three type arguments [*X_1*](%s), [*X_2*](%s), and [*X_3*](%s). Paired against a matching multi-binder `typfun p_1, p_2, p_3 -> e'`, all three binders are substituted in a single step.",
+    Id.to_string(f_id),
+    Id.to_string(t1_id),
+    Id.to_string(t2_id),
+    Id.to_string(t3_id),
+  );
+
 let _general_ap = mk_ap_exp_typ([[_general_list]]);
 let typ_ap_general: form = {
   let explanation = "Applies a type function to a list of type arguments at once.";

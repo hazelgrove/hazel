@@ -56,6 +56,42 @@ let general_explanation =
   );
 };
 
+let pair_explanation =
+    (
+      ~callee_str: string,
+      ~callee_id: Id.t,
+      ~t1_id: Id.t,
+      ~t2_id: Id.t,
+    )
+    : string =>
+  Printf.sprintf(
+    "Applies the parameterized type [*%s*](%s) to two type arguments [*X_1*](%s) and [*X_2*](%s). Both substitute for the corresponding parameters of `%s` in a single step.",
+    callee_str,
+    Id.to_string(callee_id),
+    Id.to_string(t1_id),
+    Id.to_string(t2_id),
+    callee_str,
+  );
+
+let triple_explanation =
+    (
+      ~callee_str: string,
+      ~callee_id: Id.t,
+      ~t1_id: Id.t,
+      ~t2_id: Id.t,
+      ~t3_id: Id.t,
+    )
+    : string =>
+  Printf.sprintf(
+    "Applies the parameterized type [*%s*](%s) to three type arguments [*X_1*](%s), [*X_2*](%s), and [*X_3*](%s). All three substitute for the corresponding parameters of `%s` in a single step.",
+    callee_str,
+    Id.to_string(callee_id),
+    Id.to_string(t1_id),
+    Id.to_string(t2_id),
+    Id.to_string(t3_id),
+    callee_str,
+  );
+
 let _general_ap = mk_parens_typ([[_general_list]]);
 let typ_param_ap_general_form: form = {
   let explanation = "Applies a parameterized type to arbitrarily many type arguments at once.";

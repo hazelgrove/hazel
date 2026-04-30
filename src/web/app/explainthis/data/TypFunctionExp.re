@@ -64,6 +64,24 @@ let general_explanation = (~binders_ids: list(Id.t), ~body_id: Id.t): string => 
   );
 };
 
+let pair_explanation = (~p1_id: Id.t, ~p2_id: Id.t, ~body_id: Id.t): string =>
+  Printf.sprintf(
+    "A value-level type abstraction over two type variables [*p_1*](%s) and [*p_2*](%s). A type application `@<X_1, X_2>` substitutes both in [*the body*](%s) in a single step.",
+    Id.to_string(p1_id),
+    Id.to_string(p2_id),
+    Id.to_string(body_id),
+  );
+
+let triple_explanation =
+    (~p1_id: Id.t, ~p2_id: Id.t, ~p3_id: Id.t, ~body_id: Id.t): string =>
+  Printf.sprintf(
+    "A value-level type abstraction over three type variables [*p_1*](%s), [*p_2*](%s), and [*p_3*](%s). A type application `@<X_1, X_2, X_3>` substitutes all three in [*the body*](%s) in a single step.",
+    Id.to_string(p1_id),
+    Id.to_string(p2_id),
+    Id.to_string(p3_id),
+    Id.to_string(body_id),
+  );
+
 let _general_head = mk_typfun([[space(), _general_list, space()]]);
 let typfun_general: form = {
   let explanation = "A value-level type abstraction over arbitrarily many type variables.";

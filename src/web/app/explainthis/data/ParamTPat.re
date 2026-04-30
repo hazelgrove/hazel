@@ -69,6 +69,24 @@ let general_explanation = (~head_str: string, ~params_ids: list(Id.t)): string =
   );
 };
 
+let pair_explanation = (~head_str: string, ~p1_id: Id.t, ~p2_id: Id.t): string =>
+  Printf.sprintf(
+    "`%s` is a parameterized type constructor with two parameters [*p_1*](%s) and [*p_2*](%s). Both are type variables bound in the definition.",
+    head_str,
+    Id.to_string(p1_id),
+    Id.to_string(p2_id),
+  );
+
+let triple_explanation =
+    (~head_str: string, ~p1_id: Id.t, ~p2_id: Id.t, ~p3_id: Id.t): string =>
+  Printf.sprintf(
+    "`%s` is a parameterized type constructor with three parameters [*p_1*](%s), [*p_2*](%s), and [*p_3*](%s). All three are type variables bound in the definition.",
+    head_str,
+    Id.to_string(p1_id),
+    Id.to_string(p2_id),
+    Id.to_string(p3_id),
+  );
+
 let _general_ap = mk_ap_tpat([[_general_ps]]);
 let param_tpat_general_form: form = {
   /* The explanation is supplied dynamically via `~explanation` at
