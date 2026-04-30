@@ -366,20 +366,31 @@ let projector_kind_of = (info: t): option(ProjectorKind.t) =>
      `var_highlight_ids` fallback uses the declaration's own id as
      the binding site. */
 let get_binding_site = (info: t): option(Id.t) => {
-  switch (info) {
-  | InfoExp({user_term: {term: Var(name), _}, ctx, _}) =>
-    let* entry = Ctx.lookup_var(ctx, name);
-    entry.id == Id.invalid ? None : Some(entry.id);
-  | InfoExp({user_term: {term: Constructor(name, _), _}, ctx, _})
-  | InfoPat({user_term: {term: Constructor(name, _), _}, ctx, _}) =>
-    switch (Ctx.lookup_ctr(ctx, name)) {
+  /* For a constructor reference, use type-directed disambiguation to
+     pick the right binding when multiple sum types in scope declare a
+     constructor of the same name. The cursor's expected type
+     (`ana`) selects which sum type's constructor we're referring to,
+     so the binding-site / highlight set follows the user's
+     intent rather than always going to the innermost shadowing
+     binding. */
+  let ctr_binding_id =
+      (~ctx: Ctx.t, ~ana: option(Typ.t), name: string): option(Id.t) =>
+    switch (Ctx.lookup_ctr_for_ana(ctx, name, ana)) {
     | Some(entry) when entry.id != Id.invalid => Some(entry.id)
     | _ =>
       /* Fallback: capitalized names (modules) parse as Constructor
          but bind as VarEntry via the Constructor-to-Var fallback */
       let* entry = Ctx.lookup_var(ctx, name);
       entry.id == Id.invalid ? None : Some(entry.id);
-    }
+    };
+  switch (info) {
+  | InfoExp({user_term: {term: Var(name), _}, ctx, _}) =>
+    let* entry = Ctx.lookup_var(ctx, name);
+    entry.id == Id.invalid ? None : Some(entry.id);
+  | InfoExp({user_term: {term: Constructor(name, _), _}, ctx, ana, _}) =>
+    ctr_binding_id(~ctx, ~ana=Some(ana), name)
+  | InfoPat({user_term: {term: Constructor(name, _), _}, ctx, ana, _}) =>
+    ctr_binding_id(~ctx, ~ana=Some(ana), name)
   | InfoTyp({
       user_term: {term: Var(_), _},
       expects:

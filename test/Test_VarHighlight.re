@@ -541,6 +541,113 @@ let test_ctr_pat_in_case =
     },
   );
 
+/* Regression: when two sum types in scope declare a constructor of
+   the same name, hovering on a use of that constructor must
+   highlight the binding selected by *type-directed disambiguation*
+   (i.e. matching the analysis target's type-alias head), not just
+   the innermost lexical match. */
+let test_ctr_type_directed_disambiguation =
+  test_case(
+    "Constructor: type-directed disambiguation picks the right def",
+    `Quick,
+    () => {
+      let exp =
+        parse_exp(
+          "type OneOfThree(a, b, c) = + A(a) + B(b) + C(c) in
+           type Either(a, b) = + A(a) + B(b) in
+           let x : OneOfThree(Int, Bool, String) = B(true) in x",
+        );
+      let info_map = statics(exp);
+      /* Locate the constructor declarations for `B` in OneOfThree
+         and in Either by scanning info entries whose ancestor chain
+         passes through a `TyAlias` whose head names that alias. We
+         go simpler: just collect every InfoTyp B-with-VariantExpected
+         and rely on definition order to map them to the user's
+         declarations. */
+      let b_defs =
+        Id.Map.fold(
+          (id, info: Info.t, acc) =>
+            switch (info) {
+            | InfoTyp({
+                user_term: {term: Var("B"), _},
+                expects:
+                  ConstructorExpected(_, _) | VariantExpected(_),
+                _,
+              }) => [
+                id,
+                ...acc,
+              ]
+            | _ => acc
+            },
+          info_map,
+          [],
+        );
+      check(
+        bool,
+        "found two B constructor definitions",
+        true,
+        List.length(b_defs) >= 2,
+      );
+      /* Find the use site `B(true)` — the InfoExp Constructor("B"). */
+      let b_uses = find_ctr_refs(info_map, "B");
+      check(bool, "found B use", true, List.length(b_uses) >= 1);
+      let (_, use_info) = List.hd(b_uses);
+      let use_ana =
+        switch (use_info) {
+        | InfoExp({ana, _}) => Some(ana)
+        | _ => None
+        };
+      check(bool, "B use has an ana", true, use_ana != None);
+      /* Pick the def whose ancestors lead to a `OneOfThree`-headed
+         alias. We approximate by checking the schema head of the
+         entry returned by Ctx.lookup_ctr_for_ana on the use's ana. */
+      let use_ctx =
+        switch (use_info) {
+        | InfoExp({ctx, _}) => ctx
+        | _ => Ctx.empty
+        };
+      let resolved =
+        Ctx.lookup_ctr_for_ana(use_ctx, "B", use_ana);
+      check(
+        bool,
+        "ctr_for_ana resolves to some entry",
+        true,
+        resolved != None,
+      );
+      let resolved_id =
+        switch (resolved) {
+        | Some({id, _}) => id
+        | None => Id.invalid
+        };
+      /* The expected behavior: highlighting the use highlights this
+         resolved entry (the OneOfThree.B), and does NOT highlight the
+         other B (Either.B). */
+      let ids = highlight_ids(info_map, use_info);
+      check(
+        bool,
+        "highlights resolved (OneOfThree) B def",
+        true,
+        has_id(ids, resolved_id),
+      );
+      /* Verify the OTHER B def is NOT in the highlight set. */
+      let other_def_id =
+        List.find_opt(
+          id => !Id.equal(id, resolved_id),
+          b_defs,
+        );
+      switch (other_def_id) {
+      | Some(other_id) =>
+        check(
+          bool,
+          "does not highlight unrelated B def",
+          false,
+          has_id(ids, other_id),
+        )
+      | None => ()
+      };
+    },
+  );
+
 /* Regression: a type alias and a constructor sharing the lexical
    name `B` are *different* bindings. Hovering on the type alias
    declaration must not light up constructor declarations or uses.
@@ -615,5 +722,6 @@ let tests = (
     test_ctr_ref_to_siblings,
     test_ctr_pat_in_case,
     test_tvar_does_not_conflate_with_ctr,
+    test_ctr_type_directed_disambiguation,
   ],
 );

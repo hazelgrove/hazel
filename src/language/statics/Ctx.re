@@ -153,6 +153,72 @@ let lookup_ctr = (ctx: t, name: string): option(var_entry) =>
     ctx.entries,
   );
 
+/* All constructor entries with a given name, innermost first.
+   Multiple sum types in scope can declare a constructor of the same
+   name — `lookup_ctr` returns just the innermost one (its OCaml-style
+   shadowing semantics), while this helper exposes every candidate so
+   higher-level code can disambiguate (typically by analysis type). */
+let lookup_ctrs = (ctx: t, name: string): list(var_entry) =>
+  List.filter_map(
+    fun
+    | ConstructorEntry(t) when t.name == name => Some(t)
+    | _ => None,
+    ctx.entries,
+  );
+
+/* Walk `ty` past `Poly`, `Arrow` outputs, `TypParamAp` callees, and
+   `Parens` to the leftmost type-alias name. Used to align a
+   constructor schema's result-type head with an analysis target's
+   head for type-directed disambiguation. */
+let rec result_head_name_of =
+        (ty: TermBase.Typ.t): option(string) =>
+  switch (ty.term) {
+  | Poly(_, body) => result_head_name_of(body)
+  | Arrow(_, out) => result_head_name_of(out)
+  | TypParamAp(callee, _) => result_head_name_of(callee)
+  | Parens(inner)
+  | Projector(_, inner) => result_head_name_of(inner)
+  | Rec(_, body) => result_head_name_of(body)
+  | Var(name) => Some(name)
+  | _ => None
+  };
+
+/* Type-directed constructor lookup. When two sum types in scope both
+   declare a constructor `B`, plain `lookup_ctr` returns the innermost,
+   but the user-visible meaning is determined by the analysis type
+   (`ana`): a `B(true) : OneOfThree(_, _, _)` should resolve to
+   `OneOfThree`'s `B` even if a more recent `Either`'s `B` is in
+   scope. We pick the entry whose schema result-type head matches
+   `ana`'s head; if no candidate matches we fall back to the
+   innermost. */
+let lookup_ctr_for_ana =
+    (ctx: t, name: string, ana: option(TermBase.Typ.t))
+    : option(var_entry) => {
+  let candidates = lookup_ctrs(ctx, name);
+  let target = Option.bind(ana, result_head_name_of);
+  switch (target) {
+  | None =>
+    switch (candidates) {
+    | [hd, ..._] => Some(hd)
+    | [] => None
+    }
+  | Some(target) =>
+    let matching =
+      List.find_opt(
+        (e: var_entry) => result_head_name_of(e.typ) == Some(target),
+        candidates,
+      );
+    switch (matching) {
+    | Some(_) => matching
+    | None =>
+      switch (candidates) {
+      | [hd, ..._] => Some(hd)
+      | [] => None
+      }
+    };
+  };
+};
+
 let is_alias = (ctx: t, name: string): bool =>
   switch (lookup_tvar(ctx, name)) {
   | Some(Singleton(_)) => true
