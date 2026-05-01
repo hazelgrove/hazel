@@ -6,15 +6,16 @@ let exercise : Tutorial.spec =
     version = 16;
     module_name = "Tu_StringMean";
     prompt =
-      "This task tests your understanding of the concepts from the tutorials. \n\
-       Your goal is to implement a function \n\
+      "This task tests your understanding of the concepts from the previous \
+       tutorials.\n\n\
+       Implement a function:\n\
        ```hazelnostatics\n\
        string_mean : [String] -> Float\n\
        ```\n\
-       that takes a list of strings (each representing an integer) and returns \
-       their mean as a float.\n\n\
-       There are some built-in functions and operators you may find useful in \
-       the task reference sidebar\n\n\
+       that takes a list of strings (each representing an integer) and \
+       returns their mean as a float.\n\n\
+       Some built-in functions and operators you may find useful are listed \
+       in the Task Reference sidebar.\n\n\
        **Steps:** Convert the strings to floats, sum them, and divide by the \
        length of the list.";
     display_hint =

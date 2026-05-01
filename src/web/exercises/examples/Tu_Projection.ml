@@ -2,7 +2,7 @@ let exercise : Tutorial.spec =
   {
     id =
       Option.get (Haz3lcore.Id.of_string "a89174ca-034d-43d7-b478-330388a2d712");
-    title = "Labeled tuple projection";
+    title = "Labeled Tuple Projection";
     version = 1;
     module_name = "Tu_Projection";
     prompt =
@@ -12,17 +12,16 @@ let exercise : Tutorial.spec =
        pet.name\n\
        ```\n\n\
        # Task\n\n\
-       Implement the function \n\
+       Implement a function:\n\
        ```hazelnostatics\n\
        greeting : Person -> String\n\
        ```\n\n\
-       The greeting should be of the format: `Hello #{first_name} \
-       #{last_name}!`\n\n\
+       The greeting should be of the form `Hello {first_name} {last_name}!`. \
        Use `++` to concatenate strings.\n\n\
-       Example call:\n\
+       **Example:**\n\
        ```hazelnostatics\n\
-       greeting((first_name=\"Jane\", last_name=\"Smith\", age=20)) == \"Hello \
-       Jane Smith!\"\n\
+       greeting((first_name=\"Jane\", last_name=\"Smith\", age=20))\n\
+       == \"Hello Jane Smith!\"\n\
        ```";
     display_hint =
       "Define a function and use projection with string concatenation to build \

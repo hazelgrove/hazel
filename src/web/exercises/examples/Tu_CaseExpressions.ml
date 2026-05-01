@@ -6,7 +6,7 @@ let exercise : Tutorial.spec =
     version = 12;
     module_name = "Tu_CaseExpressions";
     prompt =
-      "Case expressions let you pattern match on a value. \n\
+      "Case expressions let you pattern match on a value.\n\n\
        The syntax is:\n\
        ```hazelnostatics\n\
        case expr\n\
@@ -32,23 +32,22 @@ let exercise : Tutorial.spec =
        of the first matching branch. You can use `_` as a wildcard pattern \
        that matches anything.\n\n\
        # Task\n\n\
-       Complete the function `process_string_pair` below.\n\n\
-       - The function takes a pair of strings `(a, b)` as input:\n\
-       - `a` represents a directive.\n\
-       - `b` represents the target string to be processed.\n\n\
-       The function should behave as follows:\n\n\
+       Complete the function `process_string_pair` below. It takes a pair of \
+       strings `(a, b)` where `a` is a directive and `b` is the target \
+       string to process.\n\n\
+       The function should behave as follows:\n\
        - If `a` is `\"pre\"`, return the first 3 characters of `b`.\n\
        - If `a` is `\"post\"`, return `b` without its first 3 characters.\n\
        - Otherwise, return `b` unchanged.\n\n\
        Assume `b` is always at least 3 characters long.\n\n\
-       **Example**:\n\
+       **Example:**\n\
        ```hazelnostatics\n\
        process_string_pair((\"pre\", \"hazel\")) == \"haz\";\n\
        process_string_pair((\"post\", \"hazel\")) == \"el\";\n\
        process_string_pair((\"other\", \"hazel\")) == \"hazel\"\n\
        ```";
     display_hint =
-      "Use the string_sub(str, start, len) function to get a substring.";
+      "Use the string_sub(str, start, len) function to get a substring";
     task_reference =
       (let string_operations =
          "### Useful functions\n\

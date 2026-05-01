@@ -14,10 +14,10 @@ let exercise : Tutorial.spec =
        placed after the `=`. Notice that the `in` delimiter is in the backpack \
        — it still needs to be *dropped* into the program.\n\n\
        Complete the expression step by step:\n\
-       1. Type `1` to fill in the value for `x`\n\
-       2. Add a space, then press `Tab` or type `in` to drop the `in` \
-       delimiter from the backpack, then add a space\n\
-       3. Type `x + 1` as the body of the let expression\n\n\
+       1. Type `1` to fill in the value for `x`.\n\
+       2. Add a space, then press `Tab` (or type `in`) to drop the `in` \
+       delimiter from the backpack, followed by another space.\n\
+       3. Type `x + 1` as the body of the `let` expression.\n\n\
        The result should evaluate to **2**.";
     display_hint = "Type a let expression and use Tab to complete obligations";
     task_reference =

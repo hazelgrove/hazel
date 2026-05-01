@@ -6,22 +6,20 @@ let exercise : Tutorial.spec =
     version = 1;
     module_name = "Tu_LabeledTuples";
     prompt =
-      "Hazel supports labeled tuples which allow for users to associate labels \
-       with tuple elements giving an ordered version of records.\n\n\
-       These labeled tuples also support projection by label.\n\n\
+      "Hazel supports labeled tuples, which let you associate labels with \
+       tuple elements — giving an ordered version of records. They also \
+       support projection by label:\n\n\
        ```hazel\n\
        let pet = (name=\"Fido\", age=4, species=\"dog\") in\n\
        pet.name\n\
-       ```\n\n\n\
-       ### Task\n\
-       Please complete the labeled tuple below such that the x-coordinate is \
-       equal to the y-coordinate.";
-    display_hint = "Pick any x and y as long as they're the same.";
+       ```\n\n\
+       # Task\n\n\
+       Complete the labeled tuple below so that the x-coordinate equals the \
+       y-coordinate.";
+    display_hint = "Pick any x and y as long as they're the same";
     task_reference =
-      "# Floating Point\n\
-       Floating point literals require a decimal point and must start with at \
-       least 1 digit before the point.\n\n\
-       Negative floating point literals are not allowed.\n\n";
+      TaskRefDocs.compose
+        [TaskRefDocs.tuple_projection];
     your_impl =
       {
         selection = { focus = Left; content = []; mode = Normal };

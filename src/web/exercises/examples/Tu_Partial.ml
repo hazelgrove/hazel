@@ -6,26 +6,26 @@ let exercise : Tutorial.spec =
     version = 9;
     module_name = "Tu_Partial";
     prompt =
-      "Hazel does NOT support currying, but does support partial application \
-       via explicit deferred function arguments using `_`\n\n\
-       So writing:\n\
+      "Hazel does NOT support currying, but it does support partial \
+       application via explicit deferred function arguments using `_`. So \
+       writing:\n\
        ```hazelnostatics\n\
        f(1, _, 2, _)\n\
        ```\n\
-       is the equivalent of\n\
+       is equivalent to:\n\
        ```hazelnostatics\n\
        fun (x, y) -> f(1, x, 2, y)\n\
        ```\n\n\
-       This allows you to create new functions from existing ones:\n\
+       This lets you create new functions from existing ones:\n\
        ```hazel\n\
        let keep_small = filter(_, fun x -> x < 4) in\n\
        keep_small([1, 2, 3, 4, 5])\n\
        ```\n\n\
        # Task\n\n\
-       Using the provided `max` function and partial application implement a \
-       function `non_negative` that takes a number `n` and:\n\
-       - if n is negative returns 0\n\
-       - Otherwise return n";
+       Using the provided `max` function and partial application, implement \
+       a function `non_negative` that takes a number `n` and:\n\
+       - returns `0` if `n` is negative.\n\
+       - returns `n` otherwise.";
     display_hint = "The function should be the max of 0 and its other input";
     task_reference =
       TaskRefDocs.compose

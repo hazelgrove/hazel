@@ -6,19 +6,19 @@ let exercise : Tutorial.spec =
     version = 1;
     module_name = "Tu_LabelOmission";
     prompt =
-      "Entries can be dropped from a labeled tuple with `omit_labels`\n\n\n\
+      "Entries can be dropped from a labeled tuple with `omit_labels`.\n\n\
        ```hazel\n\
        let coordinate = (x=1, y=2, z=3) in\n\
        omit_labels(coordinate, `x`)\n\
-       ```\n\n\n\
-       The labels are not strings and therefore delimited by backticks rather \
-       than double quotes to provide stronger typing.\n\n\
-       Multiple labels can be provided as extra arguments\n\n\n\
+       ```\n\n\
+       Labels are not strings, so they are delimited by backticks rather \
+       than double quotes to give them stronger typing.\n\n\
+       Multiple labels can be provided as extra arguments:\n\n\
        ```hazel\n\
        omit_labels((a=1, b=2, c=3, d=4), `a`, `c`)\n\
        ```\n\n\
-       # Task\n\
-       Drop the `secret` field from the tuple\n\n\
+       # Task\n\n\
+       Drop the `secret` field from the tuple:\n\n\
        ```hazelnostatics\n\
        drop_secrets((not_secret=\"public information\", secret=\"to redact\"))\n\
        ==\n\

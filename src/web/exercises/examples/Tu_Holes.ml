@@ -9,16 +9,17 @@ let exercise : Tutorial.spec =
       "# Welcome to Hazel!\n\n\
        Hazel is a live functional programming environment where every edit \
        state is a valid program.\n\n\
-       Hazel achieves this using `holes`. When part of a program is missing or \
-       contains a parse error, Hazel inserts a hole as a placeholder. Holes \
-       are displayed as hexagon in the editor and can be evaluated around.\n\n\
-       Your goal is to fill the empty hole in the following program to \
-       complete the arithmetic expression so that the result is **42**.";
+       Hazel achieves this using *holes*. When part of a program is missing \
+       or contains a parse error, Hazel inserts a hole as a placeholder. \
+       Holes are displayed as hexagons in the editor, and Hazel can evaluate \
+       around them.\n\n\
+       Your goal is to fill the empty hole in the program below so that the \
+       arithmetic expression evaluates to **42**.";
     display_hint = "The answer is 42 - 20";
     task_reference =
-      "This is the task reference bar where you can find reference materials \
-       as you go through the tasks. This will include operations we think may \
-       be helpful.\n\n\
+      "This is the Task Reference sidebar, where you can find reference \
+       material as you work through the tasks. It includes operations we \
+       think may be helpful.\n\n\
        ### Useful arithmetic\n\
        ```hazel\n\
        42 - 20\n\

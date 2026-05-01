@@ -51,7 +51,7 @@ clamp(50) == 50;
 clamp(150) == 100
 ```|md};
     display_hint =
-      "Use `if x < 0 then 0 else ...` with a nested if for the upper bound.";
+      "Use `if x < 0 then 0 else ...` with a nested if for the upper bound";
     task_reference =
       TaskRefDocs.compose
         [ TaskRefDocs.if_expression; TaskRefDocs.comparison_operators ];

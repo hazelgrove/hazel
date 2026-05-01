@@ -2,16 +2,15 @@ let exercise : Tutorial.spec =
   {
     id =
       Option.get (Haz3lcore.Id.of_string "fd42ef8a-11ce-4e7b-9993-e50f2bb096e7");
-    title = "Labeled tuple extension";
+    title = "Labeled Tuple Extension";
     version = 1;
     module_name = "Tu_TupleExtension";
     prompt =
-      "# Hazel Tuple Extension\n\n\
-       To easily update and extend labeled tuples, Hazel provides an extension \
-       operator (`...`). \n\n\
+      "To easily update and extend labeled tuples, Hazel provides an \
+       extension operator (`...`).\n\n\
        This binary operator takes two labeled tuples and merges them: it \
-       updates the left-hand tuple using the fields from the right-hand tuple. \
-       Any existing fields are overwritten with the new values, and any \
+       updates the left-hand tuple using the fields from the right-hand \
+       tuple. Existing fields are overwritten with the new values, and \
        entirely new fields are appended to the end of the tuple.\n\n\
        **Example:**\n\n\
        ```hazel\n\
@@ -19,15 +18,15 @@ let exercise : Tutorial.spec =
        pet ... (age=8, breed=\"Pug\")\n\
        ```\n\n\
        # Task\n\n\
-       Implement a function that takes a person tuple and does the following:\n\n\
-       - Increases the age field by 1.\n\
-       - Adds a new name field that combines the first and last names (e.g., \
-       #{first} #{last}).\n\n\
+       Implement a function `update_person` that takes a person tuple and:\n\n\
+       - increases the `age` field by 1.\n\
+       - adds a new `name` field that combines the first and last names \
+       (e.g. `\"Thor Odinson\"`).\n\n\
        ```hazelnostatics\n\
-       update_person((first=\"Thor\", age=30, last=\"Odinson\")) \n\
-       == \n\
+       update_person((first=\"Thor\", age=30, last=\"Odinson\"))\n\
+       ==\n\
        (first=\"Thor\", age=31, last=\"Odinson\", name=\"Thor Odinson\")\n\
-       ```\n";
+       ```";
     display_hint =
       "Use tuple extension `(...)` to update the `age` field and the `name` \
        field";

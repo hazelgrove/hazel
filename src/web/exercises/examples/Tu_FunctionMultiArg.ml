@@ -2,7 +2,7 @@ let exercise : Tutorial.spec =
   {
     id =
       Option.get (Haz3lcore.Id.of_string "a0000007-0007-0007-0007-000000000007");
-    title = "Multi-argument functions";
+    title = "Multi-Argument Functions";
     version = 8;
     module_name = "Tu_FunctionMultiArg";
     prompt =
@@ -17,10 +17,10 @@ let exercise : Tutorial.spec =
        (fun (x, y) -> x + y)(1, 2)\n\
        ```\n\n\n\
        # Task\n\n\
-       Please define a perimeter function below that takes 2 arguments `width` \
-       and `height` and returns the perimeter of a rectangle `2 x \
-       (width+height)`.\n";
-    display_hint = "Insert a function with params (width, height) ";
+       Define a `perimeter` function below that takes two arguments — `width` \
+       and `height` — and returns the perimeter of a rectangle: `2 * (width \
+       + height)`.";
+    display_hint = "Insert a function with params (width, height)";
     task_reference =
       "### Multi-Argument Function\n\
        ```hazel\n\

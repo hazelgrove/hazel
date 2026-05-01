@@ -6,9 +6,9 @@ let exercise : Tutorial.spec =
     version = 6;
     module_name = "Tu_LetBindings";
     prompt =
-      "A `let` expression binds a variable to a value within a body expression.\n\
-      \      \n\
-       The syntax is\n\
+      "A `let` expression binds a variable to a value within a body \
+       expression.\n\n\
+       The syntax is:\n\
        ```hazelnostatics\n\
        let x = expr in\n\
        body\n\
@@ -20,14 +20,13 @@ let exercise : Tutorial.spec =
        let w = \"World\" in\n\
        let space = \" \" in\n\
        h ++ space ++ w\n\
-       ```\n\n\n\
+       ```\n\n\
        # Task\n\n\
-       In the editor below we're calculating the total cost of a meal. The \
-       `tip` should be 20% of the meal.\n\
-       Currently the `tip` variable is undefined, your job is to define the \
-       tip variable to 20% of the price.";
+       The editor below calculates the total cost of a meal, where the tip \
+       should be 20% of the price. The `tip` variable is currently undefined \
+       — define it as 20% of `price`.";
     display_hint =
-      "Use floating point multiplication and a let binding to add the tip.";
+      "Use floating point multiplication and a let binding to add the tip";
     task_reference =
       TaskRefDocs.compose
         [ TaskRefDocs.let_expression; TaskRefDocs.float_arithmetic ];

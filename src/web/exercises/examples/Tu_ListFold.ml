@@ -14,13 +14,13 @@ let exercise : Tutorial.spec =
        element and returns a new accumulator.\n\n\
        For example:\n\
        ```hazel\n\
-       fold_left([1, 2, 3], fun acc, x -> acc + x, 0)\n\
+       fold_left([1, 2, 3], fun (acc, x) -> acc + x, 0)\n\
        ```\n\n\
        Hazel also has a `++` operator for concatenating strings. For example, \
        `\"hello\" ++ \" world\"` evaluates to `\"hello world\"`.\n\n\
        Implement a function `join` of type `[String] -> String` that \
        concatenates all strings in a list using `fold_left` and `++`.";
-    display_hint = "Use fold_left with ++ to concatenate strings.";
+    display_hint = "Use fold_left with ++ to concatenate strings";
     task_reference =
       TaskRefDocs.compose
         [

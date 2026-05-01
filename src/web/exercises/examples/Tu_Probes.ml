@@ -36,7 +36,7 @@ The probe sample will show `...` because there are multiple values. **Double-cli
 Try **Shift+click and drag** on the probe sample to resize it and see the full value.|md};
     display_hint =
       "Right-click an expression and select \"Add probe\",\n\
-       or place your cursor on it and press Cmd+E / Ctrl+E.";
+       or place your cursor on it and press Cmd+E / Ctrl+E";
     task_reference =
       {md|### Adding a Probe
 Right-click an expression and choose **"Add probe"**, or press **Cmd+E** / **Ctrl+E**. The values that appear to the right are called **probe samples**.

@@ -37,14 +37,14 @@ let exercise : Tutorial.spec =
        fun n -> n * 2),\n\
        fun n -> n < 10)\n\
        ```\n\n\
-       # Task\n\
-       Using reverse function application apply the following transformations \
-       to `ns` in the function `positive_floats`\n\
-       1. Filter out negative numbers using `filter`\n\
-       2. Convert the integer number to floats using `float_of_int`\n\n\
+       # Task\n\n\
+       Using reverse function application, apply the following \
+       transformations to `ns` in the function `positive_floats`:\n\
+       1. Filter out negative numbers using `filter`.\n\
+       2. Convert each integer to a float using `float_of_int`.\n\n\
        **Example**:\n\
        ```hazelnostatics\n\
-       positive_floats([-1, 0, 0.5, 1]) == [0.0, 0.5, 1.0]\n\
+       positive_floats([-1, 0, 1, 2]) == [0.0, 1.0, 2.0]\n\
        ```";
     display_hint =
       "The body of the function should be of the form\n\n\
