@@ -209,8 +209,7 @@ let mk_translation =
             | _ => Node.h6(inline_nodes)
             };
           (List.append(msg, [heading_node]), mapping);
-        | Omd.Thematic_break(_) =>
-          (List.append(msg, [Node.hr()]), mapping)
+        | Omd.Thematic_break(_) => (List.append(msg, [Node.hr()]), mapping)
         | Omd.Code_block(_, lang, code) =>
           let trimmed_lang = String.trim(lang);
           let settings_override =

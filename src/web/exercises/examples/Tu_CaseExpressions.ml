@@ -33,8 +33,8 @@ let exercise : Tutorial.spec =
        that matches anything.\n\n\
        # Task\n\n\
        Complete the function `process_string_pair` below. It takes a pair of \
-       strings `(a, b)` where `a` is a directive and `b` is the target \
-       string to process.\n\n\
+       strings `(a, b)` where `a` is a directive and `b` is the target string \
+       to process.\n\n\
        The function should behave as follows:\n\
        - If `a` is `\"pre\"`, return the first 3 characters of `b`.\n\
        - If `a` is `\"post\"`, return `b` without its first 3 characters.\n\
@@ -52,11 +52,15 @@ let exercise : Tutorial.spec =
       (let string_operations =
          "### Useful functions\n\
           ```hazelnostatics\n\
-          string_sub(str, start, length)\n\
+          string_sub : (String, Int, Int) -> String\n\
+          ```\n\
+          ```hazelnostatics\n\
+          string_length : String -> Int\n\
           ```\n\n\
+          ---\n\n\
           ```hazel\n\
           string_sub(\"012345\", 2, 3)\n\
-          ```\n\n\
+          ```\n\
           ```hazel\n\
           string_length(\"012345\")\n\
           ```"

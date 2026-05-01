@@ -17,9 +17,7 @@ let exercise : Tutorial.spec =
        Complete the labeled tuple below so that the x-coordinate equals the \
        y-coordinate.";
     display_hint = "Pick any x and y as long as they're the same";
-    task_reference =
-      TaskRefDocs.compose
-        [TaskRefDocs.tuple_projection];
+    task_reference = TaskRefDocs.compose [ TaskRefDocs.tuple_projection ];
     your_impl =
       {
         selection = { focus = Left; content = []; mode = Normal };

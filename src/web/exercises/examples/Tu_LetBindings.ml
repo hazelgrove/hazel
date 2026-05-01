@@ -23,8 +23,8 @@ let exercise : Tutorial.spec =
        ```\n\n\
        # Task\n\n\
        The editor below calculates the total cost of a meal, where the tip \
-       should be 20% of the price. The `tip` variable is currently undefined \
-       — define it as 20% of `price`.";
+       should be 20% of the price. The `tip` variable is currently undefined — \
+       define it as 20% of `price`.";
     display_hint =
       "Use floating point multiplication and a let binding to add the tip";
     task_reference =

@@ -22,8 +22,8 @@ let exercise : Tutorial.spec =
        keep_small([1, 2, 3, 4, 5])\n\
        ```\n\n\
        # Task\n\n\
-       Using the provided `max` function and partial application, implement \
-       a function `non_negative` that takes a number `n` and:\n\
+       Using the provided `max` function and partial application, implement a \
+       function `non_negative` that takes a number `n` and:\n\
        - returns `0` if `n` is negative.\n\
        - returns `n` otherwise.";
     display_hint = "The function should be the max of 0 and its other input";

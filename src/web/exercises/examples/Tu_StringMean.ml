@@ -12,10 +12,10 @@ let exercise : Tutorial.spec =
        ```hazelnostatics\n\
        string_mean : [String] -> Float\n\
        ```\n\
-       that takes a list of strings (each representing an integer) and \
-       returns their mean as a float.\n\n\
-       Some built-in functions and operators you may find useful are listed \
-       in the Task Reference sidebar.\n\n\
+       that takes a list of strings (each representing an integer) and returns \
+       their mean as a float.\n\n\
+       Some built-in functions and operators you may find useful are listed in \
+       the Task Reference sidebar.\n\n\
        **Steps:** Convert the strings to floats, sum them, and divide by the \
        length of the list.";
     display_hint =

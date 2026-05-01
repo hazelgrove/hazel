@@ -6,12 +6,12 @@ let exercise : Tutorial.spec =
     version = 1;
     module_name = "Tu_TupleExtension";
     prompt =
-      "To easily update and extend labeled tuples, Hazel provides an \
-       extension operator (`...`).\n\n\
+      "To easily update and extend labeled tuples, Hazel provides an extension \
+       operator (`...`).\n\n\
        This binary operator takes two labeled tuples and merges them: it \
-       updates the left-hand tuple using the fields from the right-hand \
-       tuple. Existing fields are overwritten with the new values, and \
-       entirely new fields are appended to the end of the tuple.\n\n\
+       updates the left-hand tuple using the fields from the right-hand tuple. \
+       Existing fields are overwritten with the new values, and entirely new \
+       fields are appended to the end of the tuple.\n\n\
        **Example:**\n\n\
        ```hazel\n\
        let pet = (name=\"Spot\", age=7, species=\"Dog\") in\n\
@@ -20,8 +20,8 @@ let exercise : Tutorial.spec =
        # Task\n\n\
        Implement a function `update_person` that takes a person tuple and:\n\n\
        - increases the `age` field by 1.\n\
-       - adds a new `name` field that combines the first and last names \
-       (e.g. `\"Thor Odinson\"`).\n\n\
+       - adds a new `name` field that combines the first and last names (e.g. \
+       `\"Thor Odinson\"`).\n\n\
        ```hazelnostatics\n\
        update_person((first=\"Thor\", age=30, last=\"Odinson\"))\n\
        ==\n\

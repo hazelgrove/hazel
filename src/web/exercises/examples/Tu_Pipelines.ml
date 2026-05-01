@@ -38,8 +38,8 @@ let exercise : Tutorial.spec =
        fun n -> n < 10)\n\
        ```\n\n\
        # Task\n\n\
-       Using reverse function application, apply the following \
-       transformations to `ns` in the function `positive_floats`:\n\
+       Using reverse function application, apply the following transformations \
+       to `ns` in the function `positive_floats`:\n\
        1. Filter out negative numbers using `filter`.\n\
        2. Convert each integer to a float using `float_of_int`.\n\n\
        **Example**:\n\

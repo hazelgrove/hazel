@@ -7,8 +7,8 @@ let exercise : Tutorial.spec =
     module_name = "Tu_TupleList";
     prompt =
       "To aid in the dynamic processing and generation of labeled tuples, \
-       Hazel provides two operations for converting between labeled tuples \
-       and lists.\n\n\
+       Hazel provides two operations for converting between labeled tuples and \
+       lists.\n\n\
        ### to_lvs : ? -> [(label=String, value=?)]\n\
        Turns a labeled tuple into a list of label/value pairs.\n\n\
        ```hazel\n\
@@ -40,11 +40,10 @@ let exercise : Tutorial.spec =
        from_lvs(attributes)\n\n\
        ```\n\n\n\
        ### Unknown type for arbitrary tuples\n\n\
-       Hazel does not provide a way to give an arbitrary tuple a concrete \
-       type annotation, so the `t` parameter uses the unknown type `?` — \
-       similar to `any` in TypeScript or `Any` in Python. The update \
-       function `fn` similarly takes `?` and returns `?` for the same \
-       reason.\n\n\
+       Hazel does not provide a way to give an arbitrary tuple a concrete type \
+       annotation, so the `t` parameter uses the unknown type `?` — similar to \
+       `any` in TypeScript or `Any` in Python. The update function `fn` \
+       similarly takes `?` and returns `?` for the same reason.\n\n\
        # Task\n\n\
        Implement the function:\n\n\
        ```hazelnostatics\n\
@@ -52,8 +51,8 @@ let exercise : Tutorial.spec =
        ```\n\n\
        `update_entry(tuple, label_predicate, update_fn)`:\n\
        - `tuple` — a labeled tuple (typed as `?`).\n\
-       - `label_predicate` — a function `String -> Bool` that determines \
-       which labels should be updated.\n\
+       - `label_predicate` — a function `String -> Bool` that determines which \
+       labels should be updated.\n\
        - `update_fn` — a function `? -> ?` applied to the values of all \
        matching entries.\n\n\
        Apply `update_fn` to every value whose label satisfies \
@@ -65,11 +64,11 @@ let exercise : Tutorial.spec =
       \             fun i -> i + 1)\n\
        == (apple=2, pear=2, avocado=4)\n\
        ```\n\
-       where `string_match(\"^a\", _)` is a predicate that matches any \
-       string starting with `a`.";
+       where `string_match(\"^a\", _)` is a predicate that matches any string \
+       starting with `a`.";
     display_hint =
-      "Convert the tuple to a list, map over the list to update the \
-       relevant entries, then turn it back into a tuple";
+      "Convert the tuple to a list, map over the list to update the relevant \
+       entries, then turn it back into a tuple";
     task_reference =
       TaskRefDocs.compose
         [

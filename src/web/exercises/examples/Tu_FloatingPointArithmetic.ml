@@ -13,14 +13,13 @@ let exercise : Tutorial.spec =
        - `*.` multiplication\n\
        - `/.` division\n\n\
        Float literals must include a decimal point, e.g. `3.14`, `1.0`, or \
-       `1.`. This distinction ensures type safety — you can't accidentally \
-       mix integer and float operations.\n\n\
+       `1.`. This distinction ensures type safety — you can't accidentally mix \
+       integer and float operations.\n\n\
        **Note:** a digit must appear before the decimal point (`0.5`, not \
        `.5`).\n\n\
        The editor below contains `3.0 * 2.0`, which uses the *integer* \
-       multiplication operator `*` on float values — causing a type error. \
-       Fix it by replacing `*` with the floating-point multiplication \
-       operator.";
+       multiplication operator `*` on float values — causing a type error. Fix \
+       it by replacing `*` with the floating-point multiplication operator.";
     display_hint = "Remember: float operators end with `.`";
     task_reference =
       TaskRefDocs.compose

@@ -166,10 +166,7 @@ let split_task_reference_sections =
   let close_section = (cur_head, cur_body, acc) =>
     switch (cur_head, cur_body) {
     | (Option.None, []) => acc
-    | _ => [
-        (cur_head, String.concat("\n", List.rev(cur_body))),
-        ...acc,
-      ]
+    | _ => [(cur_head, String.concat("\n", List.rev(cur_body))), ...acc]
     };
   let rec go = (acc, cur_head, cur_body, lines) =>
     switch (lines) {
