@@ -136,11 +136,76 @@ select {
 .task-reference-panel {
   display: flex;
   flex: 1;
-  padding: 1em;
   flex-direction: column;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.task-reference-header {
+  padding: 0.85em 1em 0.6em 1em;
+  border-bottom: 0.6px solid var(--BR2);
+  background-color: var(--T2);
+  flex: 0 0 auto;
+}
+
+.task-reference-title {
+  font-family: var(--ui-font);
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--BR4);
+  letter-spacing: 0.02em;
+}
+
+.task-reference-body {
+  flex: 1 1 auto;
   overflow-y: auto;
-  gap: 0.5em;
   overflow-x: hidden;
+  padding: 1em;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75em;
+}
+
+/* First heading shouldn't have an extra top margin pushing it away
+   from the panel header. */
+.task-reference-body > :first-child,
+.task-reference-body h1:first-child,
+.task-reference-body h2:first-child,
+.task-reference-body h3:first-child,
+.task-reference-body h4:first-child {
+  margin-top: 0;
+}
+
+/* Tighten spacing inside the task-reference markdown. */
+.task-reference-body h3,
+.task-reference-body h4 {
+  margin-bottom: 0.25em;
+  border-bottom: 0.6px solid var(--BR1);
+  padding-bottom: 0.15em;
+}
+
+.task-reference-body p {
+  margin: 0.25em 0;
+  line-height: 1.45;
+}
+
+.task-reference-body ul,
+.task-reference-body ol {
+  margin: 0.25em 0;
+  padding-left: 1.4em;
+}
+
+.task-reference-body li {
+  margin: 0.15em 0;
+}
+
+/* Inline `code` */
+.task-reference-body code {
+  background-color: var(--T3);
+  padding: 0.05em 0.3em;
+  border-radius: 0.25em;
+  font-family: var(--code-font);
+  font-size: 0.95em;
 }
 
 #top-bar {

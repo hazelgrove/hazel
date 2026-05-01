@@ -126,9 +126,7 @@ The editor below contains `2 +` with a hole after the `+`. Complete the expressi
       };
     display_hint = "Complete `2 + ⬣` by typing `2`";
     task_reference =
-      {md|## Task Reference
-
-### Integer Operators
+      {md|### Integer Operators
 - `2 + 3` — addition
 - `5 - 1` — subtraction
 - `4 * 3` — multiplication

@@ -299,17 +299,9 @@ let adding_a_probe =
   {md|### Adding a Probe
 Right-click an expression and choose **"Add probe"**, or press **Cmd+E** / **Ctrl+E**.|md}
 
-let compose sections = "## Task Reference\n\n" ^ String.concat "\n\n" sections
+(* The "Task Reference" header is rendered by the sidebar itself, so the
+   composed body is just the sections joined together. *)
+let compose sections = String.concat "\n\n" sections
 
 let prepend sections composed =
-  let header = "## Task Reference\n\n" in
-  let body =
-    if
-      String.length composed > String.length header
-      && String.sub composed 0 (String.length header) = header
-    then
-      String.sub composed (String.length header)
-        (String.length composed - String.length header)
-    else composed
-  in
-  header ^ String.concat "\n\n" sections ^ "\n\n" ^ body
+  String.concat "\n\n" sections ^ "\n\n" ^ composed

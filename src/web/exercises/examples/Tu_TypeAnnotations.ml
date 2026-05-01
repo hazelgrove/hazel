@@ -19,8 +19,7 @@ let exercise : Tutorial.spec =
        `1`. The result should evaluate to `1`.";
     display_hint = "Fix the type error by using an integer instead of a string";
     task_reference =
-      "## Task Reference\n\n\
-       ### Type Annotation\n\
+      "### Type Annotation\n\
        ```hazel\n\
        (42 : Int)\n\
        ```\n\

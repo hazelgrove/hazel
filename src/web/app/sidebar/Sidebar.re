@@ -153,10 +153,24 @@ let task_reference_tab = (~globals: Globals.t): Node.t =>
     ~globals,
   );
 
-let task_reference_view = (~globals: Globals.t, text: string) => {
+let task_reference_view = (~globals: Globals.t, body: string) => {
   let (nodes, _) =
-    ExplainThis.mk_translation(~globals, ~inject=_ => (), text);
-  div(~attrs=[clss(["task-reference-panel"])], nodes);
+    ExplainThis.mk_translation(~globals, ~inject=_ => (), body);
+  div(
+    ~attrs=[clss(["task-reference-panel"])],
+    [
+      div(
+        ~attrs=[clss(["task-reference-header"])],
+        [
+          div(
+            ~attrs=[clss(["task-reference-title"])],
+            [text("Task Reference")],
+          ),
+        ],
+      ),
+      div(~attrs=[clss(["task-reference-body"])], nodes),
+    ],
+  );
 };
 
 let collapse_tab = (~globals: Globals.t): Node.t => {
