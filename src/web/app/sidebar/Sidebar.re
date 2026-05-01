@@ -306,13 +306,21 @@ let view =
      doesn't show up as "in a derivation" via the stale model.pos. */
   let derivation_info =
     Editors.Selection.get_derivation_info(~selection, editors);
+  /* If the user left tutorial mode while the TaskReference panel was
+     active, fall back to LanguageDocumentation so they don't stare at
+     an empty panel for a tab that no longer exists. */
+  let active_panel: SidebarModel.Settings.panel =
+    switch (globals.settings.sidebar.panel, task_reference) {
+    | (TaskReference, None) => LanguageDocumentation
+    | (p, _) => p
+    };
   let sub =
     globals.settings.sidebar.show
       ? div(
           ~attrs=[Attr.id("side-bar"), Attr.tabindex(1)],
           [
             resize_handle(),
-            switch (globals.settings.sidebar.panel) {
+            switch (active_panel) {
             | LanguageDocumentation =>
               ExplainThis.view(
                 ~globals,
