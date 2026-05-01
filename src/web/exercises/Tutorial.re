@@ -477,21 +477,6 @@ let blank_spec = (~title) => {
   };
 };
 
-let with_title = (title: string, spec: spec): spec => {
-  ...spec,
-  title,
-};
-
-let with_prompt = (prompt: string, spec: spec): spec => {
-  ...spec,
-  prompt,
-};
-
-let with_task_reference = (task_reference: string, spec: spec): spec => {
-  ...spec,
-  task_reference,
-};
-
 [@deriving (show({with_path: false}), sexp, yojson)]
 type persistent_tutorial_mode = list((pos, PersistentZipper.t));
 
