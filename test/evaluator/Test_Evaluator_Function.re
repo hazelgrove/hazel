@@ -102,7 +102,7 @@ let tests = (
           ap(
             Forward,
             typ_ap(
-              typ_fun(
+              typ_abs(
                 TPat.(var("T")),
                 fn(
                   Pat.(asc(var("x"), Typ.var("T"))),

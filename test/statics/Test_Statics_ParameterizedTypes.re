@@ -31,7 +31,7 @@ let walk_elaboration = (src, visit) => {
     | Use(_, body) => walk(body)
     | Tuple(xs) => List.iter(walk, xs)
     | Fun(_, b, _, _)
-    | TypFun(_, b, _) => walk(b)
+    | TypAbs(_, b, _) => walk(b)
     | Asc(inner, _)
     | Parens(inner) => walk(inner)
     | Match(scrut, rules) =>
@@ -82,7 +82,7 @@ let count_fallback_constructors = (src, name): int => {
     | Use(_, body) => walk(body)
     | Tuple(xs) => List.iter(walk, xs)
     | Fun(_, b, _, _)
-    | TypFun(_, b, _) => walk(b)
+    | TypAbs(_, b, _) => walk(b)
     | Asc(inner, _)
     | Parens(inner) => walk(inner)
     | Match(scrut, rules) =>
@@ -686,8 +686,8 @@ let pair : poly a, b -> a -> b -> (a, b) =
         let exp = Haz3lcore.Parser.to_term(src, ~root=Exp) |> Option.get;
         /* Walk the AST looking for the user's `poly a, b -> …` annotation
            and the `abs a, b -> …` value. Both should have a single
-           `Poly`/`TypFun` node whose binder is a `TPat.Tuple([_, _])`,
-           not a chain of two `Poly`/`TypFun`s. */
+           `Poly`/`TypAbs` node whose binder is a `TPat.Tuple([_, _])`,
+           not a chain of two `Poly`/`TypAbs`s. */
         let poly_tuple_binders = ref(0);
         let abs_tuple_binders = ref(0);
         let nested_poly = ref(0);
@@ -713,12 +713,12 @@ let pair : poly a, b -> a -> b -> (a, b) =
           };
         let rec walk_exp = (e: Exp.t): unit => {
           switch (e.term) {
-          | TypFun({term: Tuple([_, _]), _}, body, _) =>
+          | TypAbs({term: Tuple([_, _]), _}, body, _) =>
             incr(abs_tuple_binders);
             walk_exp(body);
-          | TypFun(_, {term: TypFun(_), _}, _) =>
+          | TypAbs(_, {term: TypAbs(_), _}, _) =>
             incr(nested_abs);
-          | TypFun(_, body, _) => walk_exp(body)
+          | TypAbs(_, body, _) => walk_exp(body)
           | Let(p, def, body) =>
             walk_pat(p);
             walk_exp(def);
@@ -734,8 +734,8 @@ let pair : poly a, b -> a -> b -> (a, b) =
         walk_exp(exp);
         check(int, "exactly one Poly with a TPat.Tuple binder", 1, poly_tuple_binders^);
         check(int, "no curried Poly chains for the multi-binder form", 0, nested_poly^);
-        check(int, "exactly one TypFun with a TPat.Tuple binder", 1, abs_tuple_binders^);
-        check(int, "no curried TypFun chains for the multi-binder form", 0, nested_abs^);
+        check(int, "exactly one TypAbs with a TPat.Tuple binder", 1, abs_tuple_binders^);
+        check(int, "no curried TypAbs chains for the multi-binder form", 0, nested_abs^);
       },
     ),
     test_case(

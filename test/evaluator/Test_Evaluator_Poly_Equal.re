@@ -65,7 +65,7 @@ let tests = (
           elaborate(parse_exp("(a= false, b= 1) == (a= false, b= 2)")),
         );
         evaluation_test(
-          "TypFun Equality 1",
+          "TypAbs Equality 1",
           bool(true),
           elaborate(
             parse_exp(

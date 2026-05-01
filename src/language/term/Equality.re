@@ -279,13 +279,13 @@ let equality =
     | (Theorem(_, _, _), _) => false
 
     // Forms with type binders
-    | (TypFun(tp1, e1, _), TypFun(tp2, e2, _)) =>
+    | (TypAbs(tp1, e1, _), TypAbs(tp2, e2, _)) =>
       switch (tpat(tp1, tp2)) {
       | Some(alphas_typ') =>
         exp(alphas_exp, Alphas.combine(alphas_typ', alphas_typ), e1, e2)
       | None => false
       }
-    | (TypFun(_, _, _), _) => false
+    | (TypAbs(_, _, _), _) => false
     | (TyAlias(tp1, t1, e1), TyAlias(tp2, t2, e2)) =>
       switch (tpat(tp1, tp2)) {
       | Some(alphas_typ') =>
@@ -640,13 +640,13 @@ let equality =
       | None => false
       }
     | (Poly(_, _), _) => false
-    | (TypLam(tp1, t1), TypLam(tp2, t2)) =>
+    | (TypFun(tp1, t1), TypFun(tp2, t2)) =>
       switch (tpat'(tp1, tp2)) {
       | Some(alphas_typ') =>
         typ(alphas_exp, Alphas.combine(alphas_typ', alphas_typ), t1, t2)
       | None => false
       }
-    | (TypLam(_, _), _) => false
+    | (TypFun(_, _), _) => false
 
     // Type variables: special case depending on alpha equivalence.
     | (Var(x), Var(y)) =>

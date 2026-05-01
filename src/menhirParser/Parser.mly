@@ -15,8 +15,8 @@ open AST
 %token UNDEF
 %token <string> PROJECTOR_INVOKE
 %token TYP
+%token TYP_ABS
 %token TYP_FUN
-%token TYP_LAM
 %token FIX
 %token WILD
 %token QUESTION
@@ -251,7 +251,7 @@ typ:
     | QUESTION { UnknownType(EmptyHole) }
     | UNIT { TupleType([]) }
     | POLY; a = polyTpat; DASH_ARROW; t = typ { PolyType(a, t) }
-    | TYP_LAM; a = polyTpat; DASH_ARROW; t = typ { TypLamType(a, t) }
+    | TYP_FUN; a = polyTpat; DASH_ARROW; t = typ { TypFunType(a, t) }
     | t = tupleType { t }
     | OPEN_SQUARE_BRACKET; t = typ; CLOSE_SQUARE_BRACKET { ArrayType(t) }
     | t1 = typ; OPEN_PAREN; t2 = typ; CLOSE_PAREN { TypParamAp(t1, t2) }
@@ -382,7 +382,7 @@ exp:
     | f = funExp {f}
     | FALSE { Atom (Bool false) }
     | FIX;  p = funPat; DASH_ARROW; e = exp { FixF(p, e) }
-    | TYP_FUN; t = polyTpat; DASH_ARROW; e = exp {TypFun(t, e)}
+    | TYP_ABS; t = polyTpat; DASH_ARROW; e = exp {TypAbs(t, e)}
     | QUESTION { EmptyHole }
     | a = filterAction; cond = exp; IN; body = exp { Filter(a, cond, body)} %prec LET_EXP
     | TEST; e = exp; END { Test(e) }

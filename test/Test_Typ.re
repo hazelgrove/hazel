@@ -205,7 +205,7 @@ let normalize_tests = (
       () => {
         let ctx = Builtins.ctx_init(None);
         let ty =
-          typ_param_ap(typ_lam(Var("a") |> TPat.temp, list(var("a"))), int());
+          typ_param_ap(typ_fun(Var("a") |> TPat.temp, list(var("a"))), int());
         check(
           typ,
           "beta-normalized type application",
@@ -219,7 +219,7 @@ let normalize_tests = (
       `Quick,
       () => {
         let option_ty =
-          typ_lam(
+          typ_fun(
             Var("a") |> TPat.temp,
             sum([
               ConstructorMap.Variant(
@@ -266,7 +266,7 @@ let normalize_tests = (
         let param = Var("a") |> TPat.temp;
         let recursive_list_a = typ_param_ap(var(list_name), var("a"));
         let list_body =
-          typ_lam(
+          typ_fun(
             param,
             sum([
               ConstructorMap.Variant(

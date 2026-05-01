@@ -47,7 +47,7 @@ let sample_expression = (cls_exp: Exp.cls): Grammar.UnitGrammar.exp => {
       | ListLit => list_lit([])
       | Constructor => constructor("A", None)
       | Fun => fn(Pat.var("x"), var("x"), None, None)
-      | TypFun => typ_fun(TPat.var("x"), empty_hole(), None)
+      | TypAbs => typ_abs(TPat.var("x"), empty_hole(), None)
       | Label => label("label")
       | ExplicitNonlabel => explicit_non_label()
       | TupLabel => tup_label(label("label"), empty_hole())
@@ -159,7 +159,7 @@ let sample_type = (cls_typ: Typ.cls): Grammar.UnitGrammar.typ => {
       | DrvQuoteTy => drv_typ(DrvSort.Jdmt)
       | List => list(unknown(Hole(EmptyHole)))
       | Arrow => arrow(unknown(Hole(EmptyHole)), unknown(Hole(EmptyHole)))
-      | TypLam => typ_lam(TPat.var("x"), unknown(Hole(EmptyHole)))
+      | TypFun => typ_fun(TPat.var("x"), unknown(Hole(EmptyHole)))
       | TypParamAp => typ_param_ap(var("F"), unknown(Hole(EmptyHole)))
       | TypTuple =>
         typ_tuple([

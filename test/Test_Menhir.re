@@ -242,17 +242,17 @@ let tests =
       /* Value-level type abstraction: `abs` (formerly `typfun`). */
       full_parser_test(
         "abs (value-level type abstraction)",
-        typ_fun(TPat.var("a"), var("x"), None),
+        typ_abs(TPat.var("a"), var("x"), None),
         "abs a -> x",
       ),
       /* Type-level type function: `typfun a -> body` builds a
-         `TypLam(a, body)` and is the prefix-binder spelling of
+         `TypFun(a, body)` and is the prefix-binder spelling of
          `type T(a) = body`. */
       full_parser_test(
         "typfun (type-level) used as alias body",
         ty_alias(
           TPat.var("T"),
-          Typ.typ_lam(TPat.var("a"), Typ.var("a")),
+          Typ.typ_fun(TPat.var("a"), Typ.var("a")),
           var("x"),
         ),
         "type T = typfun a -> a in x",

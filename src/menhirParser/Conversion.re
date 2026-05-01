@@ -242,8 +242,8 @@ module rec Exp: {
     | ProofObject(t) => proof_object(Exp.of_menhir_ast(t))
     | ForallExp(p, e) => forall(Pat.of_menhir_ast(p), of_menhir_ast(e))
     | FixF(p, e) => fix_f(Pat.of_menhir_ast(p), of_menhir_ast(e), None)
-    | TypFun(t, e) =>
-      typ_fun(TPat.of_menhir_ast(t), of_menhir_ast(e), None)
+    | TypAbs(t, e) =>
+      typ_abs(TPat.of_menhir_ast(t), of_menhir_ast(e), None)
     | Undefined => undefined()
     | TyAlias(tp, ty, e) =>
       let ty = Typ.of_menhir_ast(ty);
@@ -360,7 +360,7 @@ module rec Exp: {
     | ProofObject(t) => ProofObject(Exp.of_core(t))
     | Forall(p, e) => ForallExp(Pat.of_core(p), Exp.of_core(e))
     | FixF(p, e, _) => FixF(Pat.of_core(p), of_core(e))
-    | TypFun(tp, e, _) => TypFun(TPat.of_core(tp), of_core(e))
+    | TypAbs(tp, e, _) => TypAbs(TPat.of_core(tp), of_core(e))
     | Undefined => Undefined
     | TyAlias(tp, ty, e) =>
       TyAlias(TPat.of_core(tp), Typ.of_core(ty), of_core(e))
@@ -494,8 +494,8 @@ and Typ: {
       parens(sum(converted_terms));
     | PolyType(tp, t) =>
       parens(poly(TPat.of_menhir_ast(tp), of_menhir_ast(t)))
-    | TypLamType(tp, t) =>
-      parens(typ_lam(TPat.of_menhir_ast(tp), of_menhir_ast(t)))
+    | TypFunType(tp, t) =>
+      parens(typ_fun(TPat.of_menhir_ast(tp), of_menhir_ast(t)))
     | RecType(tp, t) =>
       parens(rec_(TPat.of_menhir_ast(tp), of_menhir_ast(t)))
     | ProofOfType(e) => proof_of(Exp.of_menhir_ast(e))
@@ -537,7 +537,7 @@ and Typ: {
     | TypTuple(ts) => TypTuple(List.map(of_core, ts))
     | Unknown(p) => UnknownType(of_core_type_provenance(p))
     | Poly(tp, t) => PolyType(TPat.of_core(tp), of_core(t))
-    | TypLam(tp, t) => TypLamType(TPat.of_core(tp), of_core(t))
+    | TypFun(tp, t) => TypFunType(TPat.of_core(tp), of_core(t))
     | Rec(tp, t) => RecType(TPat.of_core(tp), of_core(t))
     | ProofOf(e) => ProofOfType(Exp.of_core(e))
     | Parens(t) => of_core(t)

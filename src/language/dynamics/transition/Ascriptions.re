@@ -109,8 +109,8 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
           |> DHExp.fresh,
         ),
       )
-    | (TypFun(tp, body, name), Poly(tp', t')) =>
-      /* Push the ascription inwards: the body of the `TypFun` should
+    | (TypAbs(tp, body, name), Poly(tp', t')) =>
+      /* Push the ascription inwards: the body of the `TypAbs` should
          be ascribed against the body of the matching `Poly` with the
          outer binders substituted. Both `tp` and `tp'` may be
          multi-binder (`TPat.Tuple([…])`). When their arities match,
@@ -141,7 +141,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
       Some(
         IdTagged.fast_copy(
           DHExp.rep_id(e),
-          TypFun(tp, recur(Asc(body, body_ty) |> DHExp.fresh), name)
+          TypAbs(tp, recur(Asc(body, body_ty) |> DHExp.fresh), name)
           |> DHExp.fresh,
         ),
       );
@@ -305,7 +305,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
     | (TupLabel(_), _)
     | (Tuple(_), _)
     | (Fun(_), _)
-    | (TypFun(_), _)
+    | (TypAbs(_), _)
     | (Test(_), _)
     | (HintedTest(_), _)
     | (Cons(_), _)

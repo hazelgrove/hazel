@@ -128,8 +128,8 @@ rule token =
     | "?" {QUESTION}
     | "_" {WILD}
     | "fix" {FIX}
-    | "abs" {TYP_FUN}        (* value-level type abstraction *)
-    | "typfun" {TYP_LAM}     (* type-level type function (TypLam) *)
+    | "abs" {TYP_ABS}        (* value-level type abstraction *)
+    | "typfun" {TYP_FUN}     (* type-level type function (TypFun) *)
     | "type" {TYP}
     | "~" {TILDE}
     | "/~" {SLASH_TILDE}

@@ -67,7 +67,7 @@ type Either = typfun a, b -> + Left(a) + Right(b) in
 type List = typfun a -> + Nil + Cons(a, List(a)) in
 ```
 
-`typfun a -> body` introduces a `TypLam(a, body)` in the type
+`typfun a -> body` introduces a `TypFun(a, body)` in the type
 language. As an alias body, `type T = typfun a -> body` is desugared
 to the prefix-binder form by `Statics.TyAlias` (see *peel_typlams*),
 so both spellings produce the same elaboration shape: an alias `T`
@@ -75,7 +75,7 @@ with kind `(Type) -> Type`, polymorphic constructor schemas
 introduced over the binders, and `T(Int)` normalizing through the
 existing higher-kinded reduction.
 
-The `TypLam` form is not yet useful elsewhere in the surface
+The `TypFun` form is not yet useful elsewhere in the surface
 language — it is currently meaningful only as the immediate body of
 a `type` declaration. Higher-kinded type parameters (e.g.
 `type Functor(f : Type -> Type) = …`) are not part of this
@@ -100,7 +100,7 @@ curried — by introducing a `Tuple` variant of `TPat`:
 
 ```reasonml
 | Poly(TPat.t, Typ.t)        // single Poly binder (a tpat)
-| TypFun(TPat.t, Exp.t, …)   // single TypFun binder (a tpat)
+| TypAbs(TPat.t, Exp.t, …)   // single TypAbs binder (a tpat)
 
 and tpat_term =
   …
@@ -108,7 +108,7 @@ and tpat_term =
 ```
 
 So `poly a, b -> t` parses as a single `Poly(TPat.Tuple([a, b]), t)` and
-`abs a, b -> e` as `TypFun(TPat.Tuple([a, b]), e, _)`. Explicit
+`abs a, b -> e` as `TypAbs(TPat.Tuple([a, b]), e, _)`. Explicit
 nesting `poly a -> poly b -> t` produces a chain of single-binder `Poly`s
 and is structurally distinct from the multi-binder form. The application
 `pair@<Int, Bool>` parses as `TypAp(pair, TypTuple([Int, Bool]))`, and the
@@ -124,9 +124,9 @@ helper (which returns `[tpat]` for a single binder and the elements of a
   alpha-renaming runs element-wise.
 - **Statics.** `Statics.TypAp` peels one `Poly` per element of a
   `TypTuple` argument (substituting via `Typ.subst_many`); `Statics.Poly`
-  /`TypLam` extend the body context with each named binder.
+  /`TypFun` extend the body context with each named binder.
 - **Dynamics.** `Transition.TypAp` zips a `TypTuple` argument against a
-  `TPat.Tuple` binder in one substitution step for both `TypFun` and the
+  `TPat.Tuple` binder in one substitution step for both `TypAbs` and the
   polymorphic-constructor schema specialization. Single-binder forms
   substitute as before.
 - **Constructor schemas.** `Ctx.quantify_params([a, b], ty)` produces a
@@ -271,18 +271,18 @@ and produces the sum body — i.e.
   \;+\; \mathit{Cons}(a, X(a))
 \]
 
-Hazel stores this as `Rec(List, TypLam(a, Sum[Nil, Cons(a,
+Hazel stores this as `Rec(List, TypFun(a, Sum[Nil, Cons(a,
 TypParamAp(Var("List"), a))]))`: the `Rec` binder names the higher-kinded
-fixed point and the inner `TypLam` exposes the type-level abstraction over
+fixed point and the inner `TypFun` exposes the type-level abstraction over
 `a`. Inside the body, `Var("List")` refers to the `Rec` binder and has kind
 `* → *`, so `TypParamAp(Var("List"), arg)` is well-formed for any `arg`.
 
 The application `TypParamAp(Var("List"), Int)` is the canonical normal form
 for `List(Int)`. After alias resolution it becomes `TypParamAp(Rec(List,
-TypLam(a, …)), Int)`, and `weak_head_normalize` intentionally leaves it in
-that shape — *it is the WHNF*. Eagerly β-reducing through the `TypLam` would
+TypFun(a, …)), Int)`, and `weak_head_normalize` intentionally leaves it in
+that shape — *it is the WHNF*. Eagerly β-reducing through the `TypFun` would
 expose the body's self-references to a binder that no longer wraps a
-`TypLam`, leaving them ill-formed and producing
+`TypFun`, leaving them ill-formed and producing
 `TypParamAp(Rec(_, Sum[…]), arg)` artifacts in downstream type comparisons.
 
 To peer inside a higher-kinded recursive type (for constructor matching, sum
@@ -293,11 +293,11 @@ It performs one step of the standard μ-unrolling rule:
   \mu X{:}\kappa.\; F \;\equiv\; F[\mu X / X]
 \]
 
-For `TypParamAp(Rec(name, TypLam(p, body)), arg)` it substitutes the whole
+For `TypParamAp(Rec(name, TypFun(p, body)), arg)` it substitutes the whole
 `Rec(name, …)` for `Var(name)` in `body`, then β-reduces with `arg`. (For
-multi-arg applications the helper `Typ.apply_args` peels one `TypLam` per
+multi-arg applications the helper `Typ.apply_args` peels one `TypFun` per
 `TypTuple` element.) The resulting body has self-references of the shape
-`TypParamAp(Rec(name, TypLam(p, body)), <inner_arg>)` — each one is the
+`TypParamAp(Rec(name, TypFun(p, body)), <inner_arg>)` — each one is the
 recursive family applied at the relevant inner argument, exactly the
 canonical encoding for that specialization. For uniform recursion
 `<inner_arg> = arg`, so every self-reference is the same outer type; for
@@ -311,10 +311,10 @@ structural form distinguishes the inner specialization from the outer one.
 - `meet` compares two `TypParamAp(Rec, _)` structurally (same `Rec`, meet
   arguments) and falls back to one-step unfolding when one side is a
   `Sum`/`Rec` form that needs to be rolled into the other's shape.
-- `normalize` treats `TypParamAp(Rec(_, TypLam(_, _)), _)` as a normal form,
+- `normalize` treats `TypParamAp(Rec(_, TypFun(_, _)), _)` as a normal form,
   so recursive types do not infinitely expand.
 - Constructor elaboration carries the canonical
-  `TypParamAp(Rec(_, TypLam(_, _)), _)` form in
+  `TypParamAp(Rec(_, TypFun(_, _)), _)` form in
   `Constructor(_, Some(Some(_)))` annotations, so re-statics on evaluated
   results meets and unfolds them correctly even after the original
   `type List(a) = …` alias has been stripped from the elaboration.
@@ -327,7 +327,7 @@ a *different* type than the outer parameter. Each `Cons`'s self-application
 has the form `TypParamAp(Var("List"), Prod(Int, a))` where the argument is a
 *transformation* of the parameter, not the parameter itself. With the
 higher-kinded representation this is straightforward: after one unfolding the
-resulting body has `TypParamAp(Rec(List, TypLam(a, …)), Prod(Int, Int))`
+resulting body has `TypParamAp(Rec(List, TypFun(a, …)), Prod(Int, Int))`
 self-references at the same `Rec`, applied at the inner argument. Static
 type-checking elaborates each nested constructor with its own
 `TypAp(Cons, …)` wrapper at the right level, evaluation runs to completion,
@@ -338,7 +338,7 @@ ascription via structural meet on `TypParamAp(Rec, …)`.
 Constructors whose schema is not actually polymorphic (e.g. a bare tag from
 `type x = + A`) are never wrapped: writing `A @<?>` keeps the explicit
 `TypAp` Indet, matching the pre-existing behavior of type application over
-non-`TypFun` values.
+non-`TypAbs` values.
 
 ## Modules
 
@@ -348,7 +348,7 @@ representation through the module's labeled-tuple type. See
 specifics:
 
 - `ExpandModule.collect_type_exports` handles `Param(head, params)`
-  tpats by building a `TypLam`-chain over the params (wrapped in
+  tpats by building a `TypFun`-chain over the params (wrapped in
   `Rec` for self-referential definitions) and `Ctx.extend_alias`-ing
   it with the matching `(Type, …) -> Type` kind.
 - `M.T(Int)` requires `dot` to bind tighter than the type-level

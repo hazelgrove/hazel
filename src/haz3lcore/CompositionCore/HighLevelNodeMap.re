@@ -83,7 +83,7 @@ module Utils = {
     | FixF(_, e, _)
     | Use(_, e)
     | TypAp(e, _)
-    | TypFun(_, e, _)
+    | TypAbs(_, e, _)
     | DeferredAp(e, _)
     | HintedTest(e, _) => [e]
     | Let(_, e1, e2)

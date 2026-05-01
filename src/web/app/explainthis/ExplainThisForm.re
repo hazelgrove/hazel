@@ -13,7 +13,7 @@ type list_examples =
   | Cons2;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type typfun_examples =
+type typabs_examples =
   | Basic
   | EmptyHole
   | MultiHole /* TODO: Maybe no good examples with Multihole? */
@@ -84,7 +84,7 @@ type example_id =
   | RecTyp
   | Deferral
   | List(list_examples)
-  | TypFun(typfun_examples)
+  | TypAbs(typabs_examples)
   | Fun(fun_examples)
   | Label1
   | Label2
@@ -108,7 +108,7 @@ type example_id =
   | Forall
   | Yes
   | UseExp1
-  | TypFunAp
+  | TypAbsAp
   | FunAp
   | ConAp
   | LivelitAp
@@ -221,7 +221,7 @@ type form_id =
   | ListExp
   | ConsExp
   | ListConcatExp
-  | TypFunctionExp(tpat_sub_form_id)
+  | TypAbsExp(tpat_sub_form_id)
   | FunctionExp(pat_sub_form_id)
   | LabeledExp
   | DotExp
@@ -232,7 +232,7 @@ type form_id =
   | FixExp(pat_sub_form_id)
   | TheoremExp
   | ProofObjectExp
-  | TypFunApExp(tpat_sub_form_id)
+  | TypAbsApExp(tpat_sub_form_id)
   | FunApExp
   | ConApExp
   | DeferredApExp
@@ -350,7 +350,7 @@ type group_id =
   | ListExp
   | ConsExp
   | ListConcatExp
-  | TypFunctionExp(tpat_sub_form_id)
+  | TypAbsExp(tpat_sub_form_id)
   | AscExp
   | FunctionExp(pat_sub_form_id)
   | LabeledExp
@@ -361,7 +361,7 @@ type group_id =
   | LetExp(pat_sub_form_id)
   | TheoremExp
   | ProofObjectExp
-  | TypFunApExp(tpat_sub_form_id)
+  | TypAbsApExp(tpat_sub_form_id)
   | FixExp(pat_sub_form_id)
   | FunApExp
   | ConApExp

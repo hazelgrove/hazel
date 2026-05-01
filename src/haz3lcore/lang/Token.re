@@ -137,7 +137,7 @@ let keywords = [
      dropping the space between the keyword and the leading `(`.
      `abs` is the value-level type abstraction (formerly `typfun`);
      `typfun` is now the type-level type function (formerly nameless
-     surface syntax for `TypLam`). */
+     surface syntax for `TypFun`). */
   "abs",
   "poly",
   "typfun",

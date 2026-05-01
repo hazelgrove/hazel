@@ -180,7 +180,7 @@ let rec result_head_name_of =
   | Parens(inner)
   | Projector(_, inner) => result_head_name_of(inner)
   | Rec(_, body) => result_head_name_of(body)
-  | TypLam(_, body) => result_head_name_of(body)
+  | TypFun(_, body) => result_head_name_of(body)
   /* The leftmost type-alias name — what we want. */
   | Var(name) => Some(name)
   /* Forms that have no head name. Listed explicitly (no `_` wildcard)

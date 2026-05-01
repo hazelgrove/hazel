@@ -1128,7 +1128,7 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
           };
         }
 
-      | TypFun(tpat, e, name) =>
+      | TypAbs(tpat, e, name) =>
         if (available^ < 3) {
           available := available^ - ellipsis_cost;
           Invalid(flat_ellipses);
@@ -1147,9 +1147,9 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
             // " -> "
             available := available^ - 4;
             let e' = abbreviate_exp(e);
-            TypFun(tp', e', name);
+            TypAbs(tp', e', name);
           } else {
-            TypFun(
+            TypAbs(
               tp',
               {
                 ...e,
@@ -1660,7 +1660,7 @@ and abbreviate_typ = (typ: Typ.t): Typ.t => {
             );
           };
         }
-      | TypLam(tp, t) =>
+      | TypFun(tp, t) =>
         if (available^ <= 6) {
           available := available^ - 1;
           indet_term_typ;
@@ -1668,7 +1668,7 @@ and abbreviate_typ = (typ: Typ.t): Typ.t => {
           available := available^ - 3;
           let tp' = abbreviate_tpat(tp);
           let t' = abbreviate_typ(t);
-          TypLam(tp', t');
+          TypFun(tp', t');
         }
       | TypParamAp(t1, t2) =>
         if (available^ <= 2) {

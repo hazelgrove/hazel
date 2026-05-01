@@ -73,7 +73,7 @@ let rec alias_head = (tpat: t): option((string, list(t))) =>
   | _ => None
   };
 
-/* When the binder of a `Poly`/`TypFun`/`TypLam`/`Rec` is a `Tuple`, it
+/* When the binder of a `Poly`/`TypAbs`/`TypFun`/`Rec` is a `Tuple`, it
    stands for a comma-separated list of single binders. `binders_of`
    flattens that list into a list of single-binder tpats; non-tuple
    binders return [tpat] as a singleton. `Parens` is transparent.

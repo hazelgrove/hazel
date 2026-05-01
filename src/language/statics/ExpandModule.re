@@ -236,7 +236,7 @@ let rec collect_type_exports =
            | Some((name, params)) =>
              /* Parameterized type alias `type T(a, …) = body` — mirror
                 the `TyAlias` statics' Param branch. The exported type
-                is a `TypLam`-chain (curried over the params), wrapped
+                is a `TypFun`-chain (curried over the params), wrapped
                 in `Rec(name, …)` when self-referential. Field kind is
                 `(Type, …) -> Type` so `M.T(Int)` normalizes through
                 the existing higher-kinded reduction. */
@@ -244,7 +244,7 @@ let rec collect_type_exports =
                TypKind.of_param_count(List.length(params));
              let ty_lam =
                List.fold_right(
-                 (param, body) => TypLam(param, body) |> Typ.temp,
+                 (param, body) => TypFun(param, body) |> Typ.temp,
                  params,
                  typ,
                );

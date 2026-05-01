@@ -61,7 +61,7 @@ let ascription_exp = () => mk_monotile(Form.get(TypeAsc));
 let nil = () => exp("[]");
 let deferral = () => exp("_");
 let typeann = () => mk_monotile(Form.get(Typeann));
-let mk_typfun = mk_tile(Form.get(TypFun));
+let mk_typabs = mk_tile(Form.get(TypAbs));
 let mk_fun = mk_tile(Form.get(Fun));
 let mk_ap_exp_typ = mk_tile(Form.get(ApExpTyp));
 let mk_fix = mk_tile(Form.get(Fix));

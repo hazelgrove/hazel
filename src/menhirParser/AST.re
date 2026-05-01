@@ -99,7 +99,7 @@ type typ =
   | TypVar(string)
   | InvalidTyp(string)
   | PolyType(tpat, typ)
-  | TypLamType(tpat, typ)
+  | TypFunType(tpat, typ)
   | RecType(tpat, typ)
   | ProofOfType(exp)
   | LabelType(string)
@@ -168,7 +168,7 @@ and exp =
   | Test(exp)
   | HintedTest(exp, exp)
   | Deferral
-  | TypFun(tpat, exp)
+  | TypAbs(tpat, exp)
   | Cons(exp, exp)
   | ListConcat(exp, exp)
   | If(exp, exp, exp)
@@ -310,7 +310,7 @@ let gen_tpat: (~minimal_idents: bool) => QCheck.Gen.t(tpat) =
     );
 
 /**
- * `tpat` for a `Poly`/`TypFun` binder. May be a single `Var`/hole or a
+ * `tpat` for a `Poly`/`TypAbs` binder. May be a single `Var`/hole or a
  * comma-separated `TupleTPat([...])` for n-ary type abstractions
  * (`poly a, b, c -> …`). `ParamTPat(_, _)` is rejected in binder
  * position so we don't generate it here.
@@ -519,7 +519,7 @@ let rec gen_exp_sized = (~minimal_idents: bool, n: int): QCheck.Gen.t(exp) => {
           {
             let* tp = gen_tpat_binder;
             let+ e = self(n - 1);
-            TypFun(tp, e);
+            TypAbs(tp, e);
           },
           {
             let* t = gen_typ_sized((n - 1) / 2);
@@ -1103,11 +1103,11 @@ let rec shrink_exp: QCheck.Shrink.t(exp) =
             return(HintedTest(e1, shrunk));
           }
         | Deferral => Iter.empty
-        | TypFun(tpat, e) =>
+        | TypAbs(tpat, e) =>
           return(e)
           <+> {
             let* shrunk = shrink_exp(e);
-            return(TypFun(tpat, shrunk));
+            return(TypAbs(tpat, shrunk));
           } // Not worth shrinking tpat
         | Cons(e1, e2) =>
           {
@@ -1377,9 +1377,9 @@ and shrink_typ: QCheck.Shrink.t(typ) =
         | PolyType(tpat, t) =>
           let* shrunk = shrink_typ(t);
           return(PolyType(tpat, shrunk));
-        | TypLamType(tpat, t) =>
+        | TypFunType(tpat, t) =>
           let* shrunk = shrink_typ(t);
-          return(TypLamType(tpat, shrunk));
+          return(TypFunType(tpat, shrunk));
         | RecType(tpat, t) =>
           let* shrunk = shrink_typ(t);
           return(RecType(tpat, shrunk));

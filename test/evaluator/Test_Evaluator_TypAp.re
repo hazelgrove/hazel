@@ -180,7 +180,7 @@ let xs : List(Int) = Cons(0, Cons(1, Cons(2, Nil))) in xs|},
            the right argument, and re-statics on the result must not
            produce any marks even though the original alias is gone:
            constructor annotations carry the canonical higher-kinded
-           form `TypParamAp(Rec(List, TypLam(a, …)), arg)` so re-statics
+           form `TypParamAp(Rec(List, TypFun(a, …)), arg)` so re-statics
            can unfold one step on demand. */
         let src = {|type List(a) =
   + Nil

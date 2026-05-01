@@ -135,7 +135,7 @@ in ?|},
 
 /* The user-reported bug: a parameterized *recursive* sum type. After
    normalization the scrutinee type is `TypParamAp(Rec(PList,
-   TypLam(a, Sum[…])), Int)`, which the pre-fix coverage checker
+   TypFun(a, Sum[…])), Int)`, which the pre-fix coverage checker
    treated as `Infinite` (no known constructors), so any case
    expression with all constructors covered would still be marked
    inexhaustive. The fix in `all_ctrs_of_typ` unfolds one step of

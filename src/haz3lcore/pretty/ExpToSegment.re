@@ -141,7 +141,7 @@ let rec external_precedence = (exp: Exp.t): Precedence.t => {
   | Ap(Reverse, _, _) => Precedence.eqs
   | ListConcat(_) => Precedence.concat
   | If(_) => Precedence.if_
-  | TypFun(_)
+  | TypAbs(_)
   | Fun(_)
   | FixF(_)
   | Forall(_) => Precedence.fun_
@@ -221,7 +221,7 @@ let external_precedence_typ = (tp: Typ.t) =>
   | Sum(_) => Precedence.type_plus
   | Rec(_, _) => Precedence.let_
   | Poly(_, _) => Precedence.let_
-  | TypLam(_, _) => Precedence.let_
+  | TypFun(_, _) => Precedence.let_
 
   // Matt: I think multiholes are min because we don't know the precedence of the `⟩?⟨`s
   | Unknown(Hole(MultiHole(_))) => Precedence.min
@@ -384,8 +384,8 @@ let rec parenthesize =
       parenthesize(e) |> paren_assoc_at(Precedence.fun_),
     )
     |> rewrap
-  | TypFun(tp, e, n) =>
-    TypFun(tp, parenthesize(e) |> paren_assoc_at(Precedence.fun_), n)
+  | TypAbs(tp, e, n) =>
+    TypAbs(tp, parenthesize(e) |> paren_assoc_at(Precedence.fun_), n)
     |> rewrap
   | Tuple([e])
       when
@@ -813,8 +813,8 @@ and parenthesize_typ =
       parenthesize_typ(t2) |> paren_typ_assoc_at(Precedence.type_arrow),
     )
     |> rewrap
-  | TypLam(tp, t) =>
-    TypLam(
+  | TypFun(tp, t) =>
+    TypFun(
       tp,
       parenthesize_typ(t) |> paren_typ_assoc_at(Precedence.type_binder),
     )
@@ -1952,7 +1952,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     let+ p = pat_to_pretty(~settings: Settings.t, p)
     and+ e = go(e);
     wrap(exp, [mk_form(Forall, id, [p])] @ e);
-  | TypFun(tp, e, _) =>
+  | TypAbs(tp, e, _) =>
     // TODO: Add optional newlines
     let id = exp |> Exp.rep_id;
     let+ tp = tpat_to_pretty(~settings: Settings.t, tp)
@@ -1963,7 +1963,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
       ++ ">";
     wrap(
       exp,
-      [mk_form(TypFun, id, [tp])]
+      [mk_form(TypAbs, id, [tp])]
       @ e
       |> fold_fun_if(settings.fold_fn_bodies, name, _, exp),
     );
@@ -2811,11 +2811,11 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
     let+ t1 = go(t1)
     and+ t2 = go(t2);
     wrap(typ, t1 @ [mk_form(TypeArrow, id, [])] @ t2);
-  | TypLam(tp, t) =>
+  | TypFun(tp, t) =>
     let id = typ |> Typ.rep_id;
     let+ tp = tpat_to_pretty(~settings: Settings.t, tp)
     and+ t = go(t);
-    wrap(typ, [mk_form(TypLam, id, [tp])] @ t);
+    wrap(typ, [mk_form(TypFun, id, [tp])] @ t);
   | TypParamAp(t1, t2) =>
     let id = typ |> Typ.rep_id;
     let+ t1 = go(t1)

@@ -226,7 +226,7 @@ and Exp: {
             Option.map(typ_map_term, t),
             f,
           )
-        | TypFun(tp, e, f) => TypFun(tpat_map_term(tp), exp_map_term(e), f)
+        | TypAbs(tp, e, f) => TypAbs(tpat_map_term(tp), exp_map_term(e), f)
         | TupLabel(label, e) =>
           TupLabel(exp_map_term(label), exp_map_term(e))
         | Tuple(xs) => Tuple(List.map(exp_map_term, xs))
@@ -415,7 +415,7 @@ and Typ: {
         | ExplicitNonlabel
         | Var(_) => term
         | List(t) => List(typ_map_term(t))
-        | TypLam(tp, t) => TypLam(tpat_map_term(tp), typ_map_term(t))
+        | TypFun(tp, t) => TypFun(tpat_map_term(tp), typ_map_term(t))
         | TypParamAp(t1, t2) => TypParamAp(typ_map_term(t1), typ_map_term(t2))
         | TypTuple(ts) => TypTuple(List.map(typ_map_term, ts))
         | Unknown(Hole(MultiHole(things))) =>

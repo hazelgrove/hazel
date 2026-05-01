@@ -1757,7 +1757,7 @@ and uexp_to_info_map =
         ~co_ctx=CoCtx.mk(ctx, p.ctx, e.co_ctx),
         m,
       );
-    | TypFun(utpat, body, tfname) =>
+    | TypAbs(utpat, body, tfname) =>
       /* `utpat` may be a single binder or a `TPat.Tuple([…])`
          representing a multi-binder `typfun a, b -> e`. Extend the
          context with each binder, and rename the expected Poly's
@@ -1819,7 +1819,7 @@ and uexp_to_info_map =
         |> snd;
       let (body, body_elab, m) = go(~ctx=ctx_body, ~ana=mode_body, body, m);
       add(
-        ~elab_term=TypFun(utpat, body_elab, tfname) |> rewrap,
+        ~elab_term=TypAbs(utpat, body_elab, tfname) |> rewrap,
         ~elab_syn_ty=Poly(utpat, body.elab_syn_ty) |> Typ.temp,
         ~marks=[],
         ~co_ctx=body.co_ctx,
@@ -2300,21 +2300,21 @@ and uexp_to_info_map =
          This ensures meet/join can unify them with module expression types. */
       let utyp_desugared = Typ.desugar_sig(ctx, utyp);
       /* `type T = typfun a, b -> body` is the prefix-binder spelling
-         of `type T(a, b) = body`. Peel `TypLam`s off the head of the
+         of `type T(a, b) = body`. Peel `TypFun`s off the head of the
          alias body to recover the parameter binders, so a `Var`
-         tpat plus a `TypLam`-chain body takes the same Param-branch
+         tpat plus a `TypFun`-chain body takes the same Param-branch
          path (params extension, polymorphic constructor schemas,
          `(Type, …) -> Type` kind). The original `utyp` is also
          rewritten to the peeled body, so `utyp_to_info_map` checks
          the inner Sum/etc. against `TypeExpected` (the enclosing
-         `TypLam`'s `Arrow` kind would otherwise look like a
+         `TypFun`'s `Arrow` kind would otherwise look like a
          mismatch). */
       let rec peel_typlams =
               (typ: Typ.t): (list(TPat.t), Typ.t) =>
         switch (typ.term) {
-        | TypLam(p, inner) =>
+        | TypFun(p, inner) =>
           let (rest, body) = peel_typlams(inner);
-          /* `TypLam`'s binder may be `TPat.Tuple([…])` (from a
+          /* `TypFun`'s binder may be `TPat.Tuple([…])` (from a
              multi-binder `typfun a, b -> …`); flatten through
              `binders_of` so the param branch sees the individual
              names. */
@@ -2346,7 +2346,7 @@ and uexp_to_info_map =
           };
           /* Re-peel against the *original* `utyp` so the inner-body
              info map reflects the surface ids, not the desugared-
-             but-still-TypLam-wrapped term. */
+             but-still-TypFun-wrapped term. */
           let (_, inner_orig) = peel_typlams(utyp);
           (new_typat, inner_orig, inner_body);
         | _ => (typat, utyp, utyp_desugared)
@@ -2387,7 +2387,7 @@ and uexp_to_info_map =
           );
         let ty_lam =
           List.fold_right(
-            (param, body) => TypLam(param, body) |> Typ.temp,
+            (param, body) => TypFun(param, body) |> Typ.temp,
             params,
             utyp_desugared,
           );
@@ -3634,7 +3634,7 @@ and utyp_to_info_map =
          at the TypTuple node itself when it appears outside a
          `TypParamAp` argument position. */
       type_
-    | TypLam(param, body) =>
+    | TypFun(param, body) =>
       let body_ctx = Ctx.extend_dummy_tvar(ctx, param);
       TypKind.arrows([type_], kind_of_typ(body_ctx, body));
     | TypParamAp(fn, arg) =>
@@ -4117,7 +4117,7 @@ and utyp_to_info_map =
     let m =
       utpat_to_info_map(~ctx, ~ancestors=ancestors_inclusive, utpat, m) |> snd;
     add(m);
-  | TypLam(utpat, tbody) =>
+  | TypFun(utpat, tbody) =>
     let body_ctx =
       List.fold_left(
         (ctx, b: TPat.t) =>
@@ -4395,7 +4395,7 @@ and utpat_to_info_map =
       );
     add(m);
   | Tuple(tps) =>
-    /* `Tuple` only appears as a binder for `Poly`/`TypFun`/`TypLam`/`Rec`.
+    /* `Tuple` only appears as a binder for `Poly`/`TypAbs`/`TypFun`/`Rec`.
        Each element is a single binder; recurse with each one extending
        the local tvar context so nested binders see their siblings as
        abstract type parameters. */

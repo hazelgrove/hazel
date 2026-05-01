@@ -116,7 +116,7 @@ module Ctr = {
     | Rec({term: Var(w), _}, {term: Var(v), _}) when v == w => Unknown
     | Rec(_) => all_ctrs_of_typ(Typ.unroll(ty))
     /* Higher-kinded recursion: a parameterized recursive type at the
-       use site has the canonical form `TypParamAp(Rec(name, TypLam(p,
+       use site has the canonical form `TypParamAp(Rec(name, TypFun(p,
        body)), arg)` (e.g. normalize-d `PList(Int)`), with `Sum`
        structure hidden one step of unfolding away. Unfold one level
        and recurse so the constructor list is recovered. Same for
@@ -151,7 +151,7 @@ module Ctr = {
     | DrvQuoteTy(_)
     | Arrow(_)
     | Poly(_)
-    | TypLam(_)
+    | TypFun(_)
     | TypParamAp(_)
     | TypTuple(_)
     | ProdProjection(_)
@@ -440,7 +440,7 @@ module UnseenPatternList: UnseenPatternList = {
       )
     | Arrow(_)
     | Poly(_)
-    | TypLam(_)
+    | TypFun(_)
     | TypParamAp(_)
     | TypTuple(_)
     | ProofOf(_)
@@ -582,7 +582,7 @@ module UnseenPatternList: UnseenPatternList = {
       cons_ctr(first_unused_str(""), col_type, unseen_pattern);
     | Arrow(_)
     | Poly(_)
-    | TypLam(_)
+    | TypFun(_)
     | TypParamAp(_)
     | TypTuple(_)
     | ProofOf(_)
@@ -650,7 +650,7 @@ module UnseenPatternList: UnseenPatternList = {
     | Atom(String) => cons_wild(unseen_pattern)
     | Arrow(_)
     | Poly(_)
-    | TypLam(_)
+    | TypFun(_)
     | TypParamAp(_)
     | TypTuple(_)
     | ProofOf(_)

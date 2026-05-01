@@ -92,7 +92,7 @@ let adt_node_ids = exp => {
     | Deferral(_) => ()
     | Fun(_, body, _, _)
     | Forall(_, body)
-    | TypFun(_, body, _)
+    | TypAbs(_, body, _)
     | TyAlias(_, _, body)
     | Match(body, _)
     | Filter(_, body)
@@ -992,7 +992,7 @@ module MenhirElaborationTests = {
 
   let typ_ap_str = "(abs x -> 4)@<Int>";
   let typ_ap_uexp: Exp.t =
-    Exp.(typ_ap(typ_fun(TPat.var("x"), int(4), None), Typ.int()));
+    Exp.(typ_ap(typ_abs(TPat.var("x"), int(4), None), Typ.int()));
 
   let typ_ap_menhir = () =>
     alco_check_menhir("Type ap test (menhir)", typ_ap_str, typ_ap_uexp);

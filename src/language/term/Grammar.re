@@ -40,7 +40,7 @@ and exp_term('a) =
      this field is None.*/
   | Constructor(string, option(option(typ_t('a))))
   | Fun(pat_t('a), exp_t('a), option(typ_t('a)), option(Var.t)) // typ_t field is only used to display types in results
-  | TypFun(tpat_t('a), exp_t('a), option(Var.t))
+  | TypAbs(tpat_t('a), exp_t('a), option(Var.t))
   | Tuple(list(exp_t('a)))
   | Label(string)
   | ExplicitNonlabel
@@ -103,7 +103,7 @@ and typ_term('a) =
   | Var(string)
   | List(typ_t('a))
   | Arrow(typ_t('a), typ_t('a))
-  | TypLam(tpat_t('a), typ_t('a))
+  | TypFun(tpat_t('a), typ_t('a))
   | TypParamAp(typ_t('a), typ_t('a))
   /* TypTuple is the multi-argument bundle for type parameter
      applications like `Either(a, b)`. It only appears as the second
@@ -137,10 +137,10 @@ and tpat_term('a) =
   | Var(string)
   | Param(tpat_t('a), list(tpat_t('a)))
   /* Tuple is a multi-binder type pattern, used as the binder of `Poly`,
-     `TypFun`, `TypLam`, and `Rec` when the user wrote a comma-separated
+     `TypAbs`, `TypFun`, and `Rec` when the user wrote a comma-separated
      list of binders, e.g. `poly a, b -> t` parses as
      `Poly(TPat.Tuple([a, b]), t)` and `typfun a, b -> e` parses as
-     `TypFun(TPat.Tuple([a, b]), e, _)`. The corresponding type-level
+     `TypAbs(TPat.Tuple([a, b]), e, _)`. The corresponding type-level
      application supplies a `TypTuple` argument of matching arity, and
      substitution / reduction zip the pair element-by-element. Tuple
      never appears as a stand-alone tpat outside a binder position. */
@@ -225,8 +225,8 @@ let rec map_exp_annotation: type a b. (a => b, exp_t(a)) => exp_t(b) =
             Option.map(x => map_typ_annotation(f, x), t),
             Option.map(x => x, v),
           )
-        | TypFun(p, e, v) =>
-          TypFun(map_tpat_annotation(f, p), map_exp_annotation(f, e), v)
+        | TypAbs(p, e, v) =>
+          TypAbs(map_tpat_annotation(f, p), map_exp_annotation(f, e), v)
         | Tuple(l) => Tuple(List.map(x => map_exp_annotation(f, x), l))
         | Label(l) => Label(l)
         | ExplicitNonlabel => ExplicitNonlabel
@@ -395,8 +395,8 @@ and map_typ_annotation: 'a 'b. ('a => 'b, typ_t('a)) => typ_t('b) =
         | List(t) => List(map_typ_annotation(f, t))
         | Arrow(t1, t2) =>
           Arrow(map_typ_annotation(f, t1), map_typ_annotation(f, t2))
-        | TypLam(tp, t) =>
-          TypLam(map_tpat_annotation(f, tp), map_typ_annotation(f, t))
+        | TypFun(tp, t) =>
+          TypFun(map_tpat_annotation(f, tp), map_typ_annotation(f, t))
         | TypParamAp(t1, t2) =>
           TypParamAp(map_typ_annotation(f, t1), map_typ_annotation(f, t2))
         | TypTuple(ts) =>
@@ -666,8 +666,8 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       term: Fun(p, e, t, v),
       annotation: default_annotation(ann),
     };
-    let typ_fun = (~ann=?, p, e, v): exp_t(DefaultAnnotation.t) => {
-      term: TypFun(p, e, v),
+    let typ_abs = (~ann=?, p, e, v): exp_t(DefaultAnnotation.t) => {
+      term: TypAbs(p, e, v),
       annotation: default_annotation(ann),
     };
     let tuple = (~ann=?, l): exp_t(DefaultAnnotation.t) => {
@@ -958,8 +958,8 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       term: Arrow(t1, t2),
       annotation: default_annotation(ann),
     };
-    let typ_lam = (~ann=?, tp, t): typ_t(DefaultAnnotation.t) => {
-      term: TypLam(tp, t),
+    let typ_fun = (~ann=?, tp, t): typ_t(DefaultAnnotation.t) => {
+      term: TypFun(tp, t),
       annotation: default_annotation(ann),
     };
     let typ_param_ap = (~ann=?, t1, t2): typ_t(DefaultAnnotation.t) => {

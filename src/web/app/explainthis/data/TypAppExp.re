@@ -6,7 +6,7 @@ open Example;
    application. Three forms by arity of the argument list. */
 
 let typfunapp_exp_ex = {
-  sub_id: TypFunAp,
+  sub_id: TypAbsAp,
   term:
     mk_example(
       "let id : \n poly a -> (a -> a) = \n typfun a -> \n fun x : a -> x \n in id@<Int>",
@@ -106,7 +106,7 @@ let typ_ap_general: form = {
     mk_ap_exp_typ([[typ("X_1, …, X_n")]]),
   ];
   {
-    id: TypFunApExp(General),
+    id: TypAbsApExp(General),
     syntactic_form: [_f, _general_ap],
     expandable_id: Some((Piece.id(_general_ap), preview)),
     explanation,
@@ -119,7 +119,7 @@ let typ_ap_single: form = {
   let explanation = "Applies a type function to a single type argument.";
   let preview = [exp("e_tfun"), mk_ap_exp_typ([[typ("X")]])];
   {
-    id: TypFunApExp(Arity1),
+    id: TypAbsApExp(Arity1),
     syntactic_form: [_f, _single_ap],
     expandable_id: Some((Piece.id(_single_ap), preview)),
     explanation,
@@ -138,7 +138,7 @@ let typ_ap_pair: form = {
     ]),
   ];
   {
-    id: TypFunApExp(Arity2),
+    id: TypAbsApExp(Arity2),
     syntactic_form: [_f, _pair_ap],
     expandable_id: Some((Piece.id(_pair_ap), preview)),
     explanation,
@@ -175,7 +175,7 @@ let typ_ap_triple: form = {
     ]),
   ];
   {
-    id: TypFunApExp(Arity3),
+    id: TypAbsApExp(Arity3),
     syntactic_form: [_f, _triple_ap],
     expandable_id: Some((Piece.id(_triple_ap), preview)),
     explanation,
@@ -184,21 +184,21 @@ let typ_ap_triple: form = {
 };
 
 let typ_aps_general: group = {
-  id: TypFunApExp(General),
+  id: TypAbsApExp(General),
   forms: [typ_ap_general],
 };
 
 let typ_aps_single: group = {
-  id: TypFunApExp(Arity1),
+  id: TypAbsApExp(Arity1),
   forms: [typ_ap_single, typ_ap_general],
 };
 
 let typ_aps_pair: group = {
-  id: TypFunApExp(Arity2),
+  id: TypAbsApExp(Arity2),
   forms: [typ_ap_pair, typ_ap_general],
 };
 
 let typ_aps_triple: group = {
-  id: TypFunApExp(Arity3),
+  id: TypAbsApExp(Arity3),
   forms: [typ_ap_triple, typ_ap_general],
 };

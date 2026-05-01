@@ -1140,7 +1140,7 @@ let get_doc =
             ),
           ListExp.listlits,
         )
-      | TypFun(tpat, body, _) =>
+      | TypAbs(tpat, body, _) =>
         /* Dispatch by arity of the binder list so each binder is
            individually color-highlighted at arity 2/3 and the general
            form covers arbitrary arity. */
@@ -1159,57 +1159,57 @@ let get_doc =
           | [_, ...rest] => rest
           };
         let general_args = () => (
-          TypFunctionExp.typfun_general_coloring_ids(
+          TypAbsExp.typabs_general_coloring_ids(
             ~binders_list_id,
             ~extra_ids,
             ~body_id,
           ),
-          TypFunctionExp.general_explanation(~binders_ids, ~body_id),
+          TypAbsExp.general_explanation(~binders_ids, ~body_id),
         );
         switch (binders_ids) {
         | [p_id] =>
-          let group = TypFunctionExp.type_functions_single;
+          let group = TypAbsExp.type_abstractions_single;
           let (colorings, explanation) =
-            if (TypFunctionExp.typfun_single.id
+            if (TypAbsExp.typabs_single.id
                 == get_specificity_level(group)) {
               (
-                TypFunctionExp.typfun_single_coloring_ids(~p_id, ~body_id),
-                TypFunctionExp.single_explanation(~p_id, ~body_id),
+                TypAbsExp.typabs_single_coloring_ids(~p_id, ~body_id),
+                TypAbsExp.single_explanation(~p_id, ~body_id),
               );
             } else {
               general_args();
             };
           get_message(~colorings, ~explanation, group);
         | [p1_id, p2_id] =>
-          let group = TypFunctionExp.type_functions_pair;
+          let group = TypAbsExp.type_abstractions_pair;
           let (colorings, explanation) =
-            if (TypFunctionExp.typfun_pair.id
+            if (TypAbsExp.typabs_pair.id
                 == get_specificity_level(group)) {
               (
-                TypFunctionExp.typfun_pair_coloring_ids(
+                TypAbsExp.typabs_pair_coloring_ids(
                   ~p1_id,
                   ~p2_id,
                   ~body_id,
                 ),
-                TypFunctionExp.pair_explanation(~p1_id, ~p2_id, ~body_id),
+                TypAbsExp.pair_explanation(~p1_id, ~p2_id, ~body_id),
               );
             } else {
               general_args();
             };
           get_message(~colorings, ~explanation, group);
         | [p1_id, p2_id, p3_id] =>
-          let group = TypFunctionExp.type_functions_triple;
+          let group = TypAbsExp.type_abstractions_triple;
           let (colorings, explanation) =
-            if (TypFunctionExp.typfun_triple.id
+            if (TypAbsExp.typabs_triple.id
                 == get_specificity_level(group)) {
               (
-                TypFunctionExp.typfun_triple_coloring_ids(
+                TypAbsExp.typabs_triple_coloring_ids(
                   ~p1_id,
                   ~p2_id,
                   ~p3_id,
                   ~body_id,
                 ),
-                TypFunctionExp.triple_explanation(
+                TypAbsExp.triple_explanation(
                   ~p1_id,
                   ~p2_id,
                   ~p3_id,
@@ -1225,7 +1225,7 @@ let get_doc =
           get_message(
             ~colorings,
             ~explanation,
-            TypFunctionExp.type_functions_general,
+            TypAbsExp.type_abstractions_general,
           );
         };
       | Fun(pat, body, _, _) =>
@@ -3251,7 +3251,7 @@ let get_doc =
           PolyTyp.poly_typ_general_group,
         );
       };
-    | TypLam(_, _) =>
+    | TypFun(_, _) =>
       simple(
         "This is an internal type-level function introduced by a parameterized type declaration.",
       )
