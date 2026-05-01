@@ -958,6 +958,82 @@ let x : Either(Int, Bool) = Right(true) in x
         );
       },
     ),
+    /* Regression: the result type stored on a parameterized
+       constructor's polymorphic schema is the alias name applied to
+       its parameters in *one* `TypParamAp(name, TypTuple([a, b]))`
+       step — not a curried chain `TypParamAp(TypParamAp(name, a),
+       b)`. The context inspector renders the curried shape as
+       `Either(a)(b)` and the uncurried shape as `Either(a, b)`. */
+    test_case(
+      "parameterized constructor result type is uncurried",
+      `Quick,
+      () => {
+        let src = {|
+type MyEither(a, b) = + A(a) + B(b) in
+A
+|};
+        let exp = parse_menhir_exp(src);
+        let (info_map, _elab) =
+          Statics.mk(
+            CoreSettings.on,
+            Language.Builtins.ctx_init(Some(Int)),
+            exp,
+          );
+        let ctr_schema = ref(None);
+        Id.Map.iter(
+          (_, info) =>
+            if (ctr_schema^ == None) {
+              switch (info) {
+              | Info.InfoExp({ctx, _}) =>
+                switch (Ctx.lookup_ctr(ctx, "A")) {
+                | Some({typ, _}) => ctr_schema := Some(typ)
+                | None => ()
+                }
+              | _ => ()
+              };
+            },
+          info_map,
+        );
+        switch (ctr_schema^) {
+        | None => Alcotest.fail("constructor A not found in ctx")
+        | Some(t) =>
+          /* Schema shape: `Poly(Tuple([a, b]), Arrow(a, result_type))`.
+             Result type = the rightmost component of the arrow. */
+          let result =
+            switch (t.term) {
+            | Poly(_, body) =>
+              switch (body.term) {
+              | Arrow(_, out) => out
+              | _ => body
+              }
+            | _ => t
+            };
+          switch (result.term) {
+          | TypParamAp(callee, arg) =>
+            switch (callee.term, arg.term) {
+            | (Var(_), TypTuple(args)) =>
+              Alcotest.check(
+                int,
+                "result type's TypTuple holds both args",
+                2,
+                List.length(args),
+              )
+            | (TypParamAp(_, _), _) =>
+              Alcotest.fail(
+                "result type is curried (TypParamAp(TypParamAp(_, _), _)) "
+                ++ "instead of uncurried (TypParamAp(_, TypTuple([_, _])))",
+              )
+            | _ =>
+              Alcotest.fail(
+                "result type's TypParamAp arg is not a TypTuple",
+              )
+            }
+          | _ =>
+            Alcotest.fail("result type is not a TypParamAp")
+          };
+        };
+      },
+    ),
     /* Regression: a multi-parameter type alias is stored as a single
        `TypFun(TPat.Tuple([a, b, …]), body)` — *not* a curried
        `TypFun(a, TypFun(b, body))` chain. The context inspector

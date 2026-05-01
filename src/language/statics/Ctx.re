@@ -263,20 +263,43 @@ let lookup_alias = (ctx: t, name: string): option(TermBase.Typ.t) =>
   | None => None
   };
 
-let result_type_for_params = (name: string, params: list(TermBase.TPat.t)) =>
-  List.fold_left(
-    (acc, param) =>
-      switch (TermBase.TPat.tyvar_of_utpat(param)) {
-      | Some(param_name) =>
-        (
-          TypParamAp(acc, (Var(param_name): TermBase.Typ.term) |> IdTagged.fresh): TermBase.Typ.term
-        )
-        |> IdTagged.fresh
-      | None => acc
-      },
-    (Var(name): TermBase.Typ.term) |> IdTagged.fresh,
-    params,
-  );
+/* Build the result type that a constructor of a parameterized
+   alias produces. For `type Either(a, b) = + A(a) + B(b)`, the
+   `A` constructor's result type is `Either(a, b)` — i.e. the
+   alias name applied to its parameters in *one* step, not a
+   curried `Either(a)(b)`.
+
+   Surface application of multiple type-args parses as a single
+   `TypParamAp(callee, TypTuple([…]))` (multi-arg) or
+   `TypParamAp(callee, arg)` (single-arg). Both reduction sites
+   (`Typ.weak_head_normalize`, `Typ.apply_args`) are now uncurried-
+   aware via `TPat.binders_of`, so this function also produces the
+   uncurried shape. */
+let result_type_for_params = (name: string, params: list(TermBase.TPat.t)) => {
+  let head: TermBase.Typ.t =
+    (Var(name): TermBase.Typ.term) |> IdTagged.fresh;
+  let arg_vars =
+    List.filter_map(
+      (param: TermBase.TPat.t) =>
+        switch (TermBase.TPat.tyvar_of_utpat(param)) {
+        | Some(param_name) =>
+          Some(
+            (Var(param_name): TermBase.Typ.term) |> IdTagged.fresh,
+          )
+        | None => None
+        },
+      params,
+    );
+  switch (arg_vars) {
+  | [] => head
+  | [arg] =>
+    (TypParamAp(head, arg): TermBase.Typ.term) |> IdTagged.fresh
+  | _ =>
+    let tuple: TermBase.Typ.t =
+      (TypTuple(arg_vars): TermBase.Typ.term) |> IdTagged.fresh;
+    (TypParamAp(head, tuple): TermBase.Typ.term) |> IdTagged.fresh;
+  };
+};
 
 let quantify_params = (params: list(TermBase.TPat.t), ty: TermBase.Typ.t) =>
   /* A parameterized type's constructor schema gets a single `Poly`
