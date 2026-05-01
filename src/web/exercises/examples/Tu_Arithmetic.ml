@@ -1,32 +1,23 @@
 open Haz3lcore
 
-let exercise : Tutorial.spec =
+let int_exercise : Tutorial.spec =
   {
-    id = Option.get (Id.of_string "d0e1f2a3-4567-8901-2abc-def345678901");
-    title = "Expressive Programming";
-    module_name = "Tu_ExpressiveProgramming";
+    id = Option.get (Id.of_string "a0000003-0003-0003-0003-000000000003");
+    title = "Integer Arithmetic";
+    module_name = "Tu_IntegerArithmetic";
     prompt =
-      "You might not have realized it, but you wrote your first computer \
-       programs in grade school in the form of arithmetic expressions! \n\n\
-       For example, enter the program `2 + 2` in the expression editor below. \
-       Hazel operates like a calculator, computing the value of your \
-       expression by equationally simplifying it (i.e. evaluating it), here to \
-       the integer value `4`. The symbol `≡` is pronounced \"is equivalent \
-       to\".";
+      {md|Hazel supports arithmetic on integers using the operators:
+- `+` addition
+- `-` subtraction
+- `*` multiplication
+- `/` integer division
+
+The editor below contains `2 +` with a hole after the `+`. Complete the expression by typing `2` to make `2 + 2`. It should evaluate to `4`.|md};
     wrapper = true;
     show_report = false;
-    version = 1;
-    your_impl =
-      {
-        selection = { focus = Left; content = []; mode = Normal };
-        relatives =
-          {
-            siblings = ([ Grout { id = Id.mk (); shape = Convex } ], []);
-            ancestors = [];
-          };
-        caret = Outer;
-        refractors = Haz3lcore.ZipperBase.Refractor.init;
-      };
+    setting_overrides = Tutorial.default_setting_overrides;
+    version = 3;
+    your_impl = Option.get (Haz3lcore.Parser.to_zipper ~root:Exp "2 + ");
     hidden_tests =
       {
         tests =
@@ -131,7 +122,15 @@ let exercise : Tutorial.spec =
             caret = Outer;
             refractors = Haz3lcore.ZipperBase.Refractor.init;
           };
-        hints = [ "Reread the question!" ];
+        hints = [ "Type `2` after the `+` to complete the expression." ];
       };
-    display_hint = "Type 2 + 2 in the cell below 👇";
+    display_hint = "Complete `2 + ⬣` by typing `2`";
+    task_reference =
+      {md|## Quick Reference
+
+### Integer Operators
+- `2 + 3` — addition
+- `5 - 1` — subtraction
+- `4 * 3` — multiplication
+- `10 / 3` — integer division|md};
   }

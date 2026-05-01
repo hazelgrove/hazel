@@ -45,6 +45,24 @@ let validate_point_distribution =
     ? () : failwith("Invalid point distribution in exercise.");
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type setting_overrides = {
+  rich_probes: option(bool),
+  display_tables: option(bool),
+  read_only: option(bool),
+};
+
+let no_setting_overrides = {
+  rich_probes: None,
+  display_tables: None,
+  read_only: None,
+};
+let default_setting_overrides = {
+  rich_probes: Some(false),
+  display_tables: Some(true),
+  read_only: None,
+};
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type p('code) = {
   id: Id.t,
   title: string,
@@ -52,10 +70,12 @@ type p('code) = {
   module_name: string,
   prompt: string,
   display_hint: string,
+  task_reference: string,
   your_impl: 'code,
   hidden_tests: hidden_tests('code),
   wrapper: bool,
   show_report: bool,
+  setting_overrides,
 };
 
 let id_of = p => {
@@ -85,6 +105,7 @@ let map = (p: p('a), f: 'a => 'b, f_hidden: 'a => 'b): p('b) => {
     module_name: p.module_name,
     prompt: p.prompt,
     display_hint: p.display_hint,
+    task_reference: p.task_reference,
     your_impl: f(p.your_impl),
     hidden_tests: {
       tests: f_hidden(p.hidden_tests.tests),
@@ -92,6 +113,7 @@ let map = (p: p('a), f: 'a => 'b, f_hidden: 'a => 'b): p('b) => {
     },
     wrapper: p.wrapper,
     show_report: p.show_report,
+    setting_overrides: p.setting_overrides,
   };
 };
 
@@ -169,9 +191,11 @@ let eds_of_spec =
         prompt,
         your_impl,
         display_hint,
+        task_reference,
         hidden_tests,
         wrapper,
         show_report,
+        setting_overrides,
       },
       ~settings as _: Language.CoreSettings.t,
     ) => {
@@ -192,10 +216,12 @@ let eds_of_spec =
     module_name,
     prompt,
     display_hint,
+    task_reference,
     your_impl,
     hidden_tests,
     wrapper,
     show_report,
+    setting_overrides,
   };
 };
 
@@ -459,6 +485,7 @@ let blank_spec = (~title) => {
     id: Id.mk(),
     title,
     display_hint: "",
+    task_reference: "",
     version: 1,
     module_name: "Blank",
     prompt: "",
@@ -469,7 +496,31 @@ let blank_spec = (~title) => {
     },
     wrapper,
     show_report,
+    setting_overrides: no_setting_overrides,
   };
+};
+
+let with_title = (title: string, spec: spec): spec => {
+  ...spec,
+  title,
+};
+
+let with_prompt = (prompt: string, spec: spec): spec => {
+  ...spec,
+  prompt,
+};
+
+let with_task_reference = (task_reference: string, spec: spec): spec => {
+  ...spec,
+  task_reference,
+};
+
+let with_rich_probes = (v: option(bool), spec: spec): spec => {
+  ...spec,
+  setting_overrides: {
+    ...spec.setting_overrides,
+    rich_probes: v,
+  },
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -494,8 +545,10 @@ let unpersist = (~instructor_mode, positioned_zippers, spec: spec): spec => {
     module_name: spec.module_name,
     prompt: spec.prompt,
     display_hint: spec.display_hint,
+    task_reference: spec.task_reference,
     wrapper: spec.wrapper,
     show_report: spec.show_report,
+    setting_overrides: spec.setting_overrides,
     your_impl,
     hidden_tests: {
       tests: hidden_tests_tests,
