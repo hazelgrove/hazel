@@ -22,7 +22,7 @@ let exercise : Tutorial.spec =
        (width+height)`.\n";
     display_hint = "Insert a function with params (width, height) ";
     task_reference =
-      "## Quick Reference\n\n\
+      "## Task Reference\n\n\
        ### Multi-Argument Function\n\
        ```hazel\n\
        fun (x, y) -> x + y\n\

@@ -21,7 +21,7 @@ let exercise : Tutorial.spec =
        The result should evaluate to **2**.";
     display_hint = "Type a let expression and use Tab to complete obligations";
     task_reference =
-      "## Quick Reference\n\n\
+      "## Task Reference\n\n\
        ### Let Expression\n\
        ```hazel\n\
        let a = 1 in\n\

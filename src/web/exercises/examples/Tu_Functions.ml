@@ -19,7 +19,7 @@ let exercise : Tutorial.spec =
        Complete the function so that the result evaluates to 30.";
     display_hint = "Complete the function body and apply it";
     task_reference =
-      "## Quick Reference\n\n\
+      "## Task Reference\n\n\
        ### Function Definition\n\
        ```hazel\n\
        fun n -> n + 1 # Increments n by 1 #\n\

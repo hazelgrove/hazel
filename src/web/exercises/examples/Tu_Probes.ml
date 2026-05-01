@@ -38,7 +38,7 @@ Try **Shift+click and drag** on the probe sample to resize it and see the full v
       "Right-click an expression and select \"Add probe\",\n\
        or place your cursor on it and press Cmd+E / Ctrl+E.";
     task_reference =
-      {md|## Quick Reference
+      {md|## Task Reference
 
 ### Adding a Probe
 Right-click an expression and choose **"Add probe"**, or press **Cmd+E** / **Ctrl+E**. The values that appear to the right are called **probe samples**.

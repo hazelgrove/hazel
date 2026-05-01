@@ -299,10 +299,10 @@ let adding_a_probe =
   {md|### Adding a Probe
 Right-click an expression and choose **"Add probe"**, or press **Cmd+E** / **Ctrl+E**.|md}
 
-let compose sections = "## Quick Reference\n\n" ^ String.concat "\n\n" sections
+let compose sections = "## Task Reference\n\n" ^ String.concat "\n\n" sections
 
 let prepend sections composed =
-  let header = "## Quick Reference\n\n" in
+  let header = "## Task Reference\n\n" in
   let body =
     if
       String.length composed > String.length header
