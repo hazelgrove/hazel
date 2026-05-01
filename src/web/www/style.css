@@ -213,6 +213,16 @@ select {
   transform: rotate(90deg);
 }
 
+/* When expanded, mirror the Probearium panel title styling: lighter
+   --BR2, normal weight, smaller, mixed case. */
+.task-reference-section[open] > .task-reference-section-title {
+  color: var(--BR2);
+  font-weight: 400;
+  font-size: 0.85em;
+  text-transform: none;
+  letter-spacing: normal;
+}
+
 .task-reference-section-title:hover {
   color: var(--BR4);
 }
