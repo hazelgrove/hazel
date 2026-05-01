@@ -37,6 +37,9 @@ let rec any_to_info_map =
   | Typ(ty) =>
     let m = utyp_to_info_map(~ctx, ~ancestors, ty, m) |> snd;
     (CoCtx.empty, Typ(ty), m);
+  | Drv(drv) =>
+    let m = drv_to_info_map(drv, m, ~ctx, ~ancestors, ~sort=Jdmt);
+    (CoCtx.empty, Drv(drv), m);
   | Rul(r) => rul_to_info_map(~ctx, ~ancestors, r, m)
   | Mod(m_term) => mod_to_info_map(~ctx, ~ancestors, m_term, m)
   | Sig(s_term) => sig_to_info_map(~ctx, ~ancestors, s_term, m)
@@ -52,6 +55,128 @@ and multi = (~ctx, ~ancestors, m, tms): (list(CoCtx.t), list(Any.t), Map.t) =>
     ([], [], m),
     tms,
   )
+and drv_to_info_map =
+    (drv: Drv.Any.t, m: Map.t, ~ctx, ~ancestors, ~sort: DrvSort.t): Map.t => {
+  let rec go = (drv: Drv.Any.t, m, ~sort: DrvSort.t) => {
+    let add = info => add_info(Drv.Any.ids(drv), InfoDrv(info));
+    let info = DrvInfo.derived(drv, ~ancestors, ~sort);
+    let add_quote = (x, m) =>
+      switch (Ctx.lookup_var(ctx, x)) {
+      | Some({typ: {term: DrvQuoteTy(s), _}, _}) when sort == s =>
+        m |> add(info)
+      | Some({typ: {term: Unknown(_), _}, _}) => m |> add(info)
+      | Some({typ, _}) =>
+        m
+        |> add({
+             ...info,
+             status: InHole(VarNoJoin(sort, typ)),
+           })
+      | None =>
+        m
+        |> add({
+             ...info,
+             status: InHole(FreeVar),
+           })
+      };
+    let add = add(info);
+    switch (drv) {
+    | Exp(exp) =>
+      switch (exp.term) {
+      | Hole(_) => m |> add
+      | Var(_) => m |> add
+      | Quote(x) => m |> add_quote(x)
+      | Parens(e) => m |> go(Exp(e), ~sort) |> add
+      | Val(e) => m |> go_exp(e) |> add
+      | Eval(e1, e2) => m |> go_exp(e1) |> go_exp(e2) |> add
+      | Entail(ctx, p) => m |> go_ctx(ctx) |> go_prop(p) |> add
+      | Consistent(t1, t2) => m |> go_typ(t1) |> go_typ(t2) |> add
+      | MatchedArrow(t1, t2)
+      | MatchedProd(t1, t2)
+      | MatchedSum(t1, t2) => m |> go_typ(t1) |> go_typ(t2) |> add
+      | Ctx(es) => List.fold_left((m, e) => m |> go_prop(e), m, es) |> add
+      | Cons(e1, e2) => m |> go_prop(e1) |> go_ctx(e2) |> add
+      | Concat(e1, e2) => m |> go_ctx(e1) |> go_ctx(e2) |> add
+      | And(p1, p2)
+      | Or(p1, p2)
+      | Impl(p1, p2) => m |> go_prop(p1) |> go_prop(p2) |> add
+      | Truth
+      | Falsity => m |> add
+      | Type(t) => m |> go_typ(t) |> add
+      | HasType(e, t)
+      | Syn(e, t)
+      | Ana(e, t) => m |> go_exp(e) |> go_typ(t) |> add
+      | NumLit(_) => m |> add
+      | Neg(e) => m |> go_exp(e) |> add
+      | BinOp(_, e1, e2) => m |> go_exp(e1) |> go_exp(e2) |> add
+      | True
+      | False => m |> add
+      | If(e1, e2, e3) =>
+        m |> go_exp(e1) |> go_exp(e2) |> go_exp(e3) |> add
+      | Let(p, e1, e2) => m |> go_pat(p) |> go_exp(e1) |> go_exp(e2) |> add
+      | Fix(p, e)
+      | Fun(p, e) => m |> go_pat(p) |> go_exp(e) |> add
+      | Ap(e1, e2) => m |> go_exp(e1) |> go_exp(e2) |> add
+      | Tuple(es) => List.fold_left((m, e) => m |> go_exp(e), m, es) |> add
+      | Pair(e1, e2) => m |> go_exp(e1) |> go_exp(e2) |> add
+      | Triv => m |> add
+      | PrjL(e)
+      | PrjR(e) => m |> go_exp(e) |> add
+      | InjL(e)
+      | InjR(e) => m |> go_exp(e) |> add
+      | Roll(e) => m |> go_exp(e) |> add
+      | Unroll(e) => m |> go_exp(e) |> add
+      | ExpHole => m |> add
+      | Case(e, x, e1, y, e2) =>
+        m
+        |> go_exp(e)
+        |> go_pat(x)
+        |> go_exp(e1)
+        |> go_pat(y)
+        |> go_exp(e2)
+        |> add
+      }
+    | Pat(pat) =>
+      switch (pat.term) {
+      | Hole(_) => m |> add
+      | Quote(x) => m |> add_quote(x)
+      | Var(_) => m |> add
+      | Parens(p) => m |> go_pat(p) |> add
+      | Cast(p, t) => m |> go_pat(p) |> go_typ(t) |> add
+      | Pair(p1, p2) => m |> go_pat(p1) |> go_pat(p2) |> add
+      | InjL(p)
+      | InjR(p) => m |> go_pat(p) |> add
+      }
+    | Typ(ty) =>
+      switch (ty.term) {
+      | Hole(_) => m |> add
+      | Quote(x) => m |> add_quote(x)
+      | Var(_) => m |> add
+      | Parens(t) => m |> go_typ(t) |> add
+      | Num => m |> add
+      | Bool => m |> add
+      | Arrow(t1, t2) => m |> go_typ(t1) |> go_typ(t2) |> add
+      | Prod(t1, t2) => m |> go_typ(t1) |> go_typ(t2) |> add
+      | Unit => m |> add
+      | Sum(t1, t2) => m |> go_typ(t1) |> go_typ(t2) |> add
+      | Rec(p, t) => m |> go_tpat(p) |> go_typ(t) |> add
+      | TypHole => m |> add
+      }
+    | TPat(tp) =>
+      switch (tp.term) {
+      | Hole(_) => m |> add
+      | Quote(x) => m |> add_quote(x)
+      | Var(_) => m |> add
+      }
+    };
+  }
+  and go_ctx = ctx => go(Exp(ctx), ~sort=Ctx)
+  and go_prop = prop => go(Exp(prop), ~sort=Prop)
+  and go_exp = exp => go(Exp(exp), ~sort=Exp)
+  and go_pat = pat => go(Pat(pat), ~sort=Pat)
+  and go_typ = typ => go(Typ(typ), ~sort=Typ)
+  and go_tpat = tpat => go(TPat(tpat), ~sort=TPat);
+  go(drv, m, ~sort);
+}
 and uexp_to_info_map =
     (
       ~ctx: Ctx.t,
@@ -301,6 +426,16 @@ and uexp_to_info_map =
         ~co_ctx=CoCtx.empty,
         m,
       )
+    | DrvQuote(term, sort) =>
+      let m =
+        drv_to_info_map(term, m, ~ctx, ~ancestors=ancestors_inclusive, ~sort);
+      add(
+        ~elab_term=DrvQuote(term, sort) |> rewrap,
+        ~elab_syn_ty=DrvQuoteTy(sort) |> Typ.temp,
+        ~marks=[],
+        ~co_ctx=CoCtx.empty,
+        m,
+      );
     | Atom(c) =>
       // Replace literal if necessary due to `use` or ana
       let c =
@@ -458,6 +593,16 @@ and uexp_to_info_map =
           m,
         )
       };
+    | Var(("$e" | "$v") as name) when is_in_filter =>
+      /* Inside a filter, the meta-variables `$e` and `$v` stand for any
+         expression/value, so we synthesize to `?` without consulting the ctx. */
+      add(
+        ~elab_term=Var(name) |> rewrap,
+        ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
+        ~marks=[],
+        ~co_ctx=CoCtx.empty,
+        m,
+      )
     | Var(name) =>
       let co_ctx = CoCtx.singleton(name, Exp.rep_id(uexp), ana);
 
@@ -499,71 +644,6 @@ and uexp_to_info_map =
         ~marks=e.marks,
         ~co_ctx=e.co_ctx,
         m,
-      );
-    | UnOp(Meta(Unquote), e) =>
-      // TODO: Propagate Meta(Unquote) instead of doing this elaboration.
-      let unquote_elab =
-        switch (e.term) {
-        | Var("e") =>
-          Constructor("$e", Some(Some(Unknown(Internal) |> Typ.fresh)))
-          |> rewrap
-        | Var("v") =>
-          Constructor("$v", Some(Some(Unknown(Internal) |> Typ.fresh)))
-          |> rewrap
-        | _ => EmptyHole |> rewrap
-        };
-      let (e, _, m) =
-        if (is_in_filter) {
-          let e: Exp.t = {
-            annotation: IdTagged.IdTag.mk_internal(IdTagged.ids(e)),
-            term:
-              switch (e.term) {
-              | Var("e") =>
-                Constructor(
-                  "$e",
-                  Some(Some(Unknown(Internal) |> Typ.fresh)),
-                )
-              | Var("v") =>
-                Constructor(
-                  "$v",
-                  Some(Some(Unknown(Internal) |> Typ.fresh)),
-                )
-              | _ => e.term
-              },
-          };
-          go(~ana=Var("$Meta") |> Typ.temp, e, m);
-        } else {
-          go(~ana=syn, e, m);
-        };
-      let (info, elab, m) =
-        if (is_in_filter) {
-          add(
-            ~elab_term=unquote_elab,
-            ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
-            ~marks=[],
-            ~co_ctx=e.co_ctx,
-            m,
-          );
-        } else {
-          add(
-            ~elab_term=unquote_elab,
-            ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
-            ~marks=[BadOperator("Unquote not in filter")],
-            ~co_ctx=e.co_ctx,
-            m,
-          );
-        };
-      let m =
-        switch (unquote_elab.term) {
-        | Constructor(_, Some(Some(typ))) =>
-          go_typ(typ, ~expects=TypExpectation.TypeExpected, m) |> snd
-        | _ => m
-        };
-      (
-        info,
-        elab,
-        IdTagged.ids(unquote_elab)
-        |> add_missing_info(_, Info.InfoExp(info), m),
       );
     | UnOp(op, e) =>
       let op = Operators.replace_un_op(op, ctx.use_mode); // Replace op if necessary due to `use`
@@ -1724,6 +1804,32 @@ and uexp_to_info_map =
         ~elab_syn_ty=Poly(utpat, body.elab_syn_ty) |> Typ.temp,
         ~marks=[],
         ~co_ctx=body.co_ctx,
+        m,
+      );
+    | Let(p, def, body) when Option.is_some(FunctionSugar.detect(p)) =>
+      /* Syntactic sugar: `let f(x: Int, y): Ret = def` desugars to
+         `let f = fun (x: Int, y) -> (def : Ret)`. Build the rewrite and
+         delegate to the regular Let machinery by recursing; patch up
+         the info map for pattern ids that vanish in the rewrite
+         (the Ap wrapper and optional outer Asc). Same structural
+         pattern as `ModuleExp` expansion above and `Typ.desugar_sig`. */
+      let (f_name, args, ret_ty) = Option.get(FunctionSugar.detect(p));
+      let rewritten =
+        FunctionSugar.rewrite(
+          ~orig_let=uexp,
+          ~f_name,
+          ~args,
+          ~ret_ty,
+          ~def,
+          ~body,
+        );
+      let (rewritten_info, rewritten_elab, m) = go(~ana, rewritten, m);
+      let m = FunctionSugar.add_binder_infos(m, ~user_pat=p, ~f_name);
+      add(
+        ~elab_term=rewritten_elab,
+        ~elab_syn_ty=rewritten_info.elab_syn_ty,
+        ~marks=rewritten_info.marks,
+        ~co_ctx=rewritten_info.co_ctx,
         m,
       );
     | Let(p, def, body) =>
@@ -3457,6 +3563,7 @@ and utyp_to_info_map =
     let (_, _, m) = multi(~ctx, ~ancestors=ancestors_inclusive, m, tms);
     add(m);
   | Unknown(_)
+  | DrvQuoteTy(_) => add(m)
   | Atom(_) => add(m)
   | Var(_) =>
     /* Names are resolved in this function's status rules */

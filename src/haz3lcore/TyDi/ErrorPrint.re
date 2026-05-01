@@ -88,6 +88,24 @@ let core_mark_string = (ctx: Ctx.t, ana: Typ.t, m: Mark.t): string => {
   };
 };
 
+let drv_error: DrvInfo.error => string =
+  fun
+  | DrvInfo.BadToken(token) => prn("\"%s\" isn't a valid token", token)
+  | DrvInfo.MultiHole => "Multiple holes in term"
+  | DrvInfo.FreeVar => "Free variable"
+  | DrvInfo.VarNoJoin(expect, actual) =>
+    prn(
+      "Expecting variable to have a derivation sort %s but got %s",
+      DrvSort.to_string(expect),
+      Print.typ(actual),
+    )
+  | DrvInfo.NoJoin(expect, actuals) =>
+    prn(
+      "Expecting terms to have a derivation sort of %s but got potential derivation sorts: %s",
+      DrvSort.to_string(expect),
+      List.map(DrvSort.to_string, actuals) |> String.concat(", "),
+    );
+
 let exp_mark_to_string = (ctx: Ctx.t, ana: Typ.t, m: Mark.t): string => {
   let common_from_core = () => core_mark_string(ctx, ana, m);
   switch (m) {
@@ -252,6 +270,11 @@ let tpat_mark_string: Mark.t => string =
 
 let string_of_marks = (info: Info.t, marks: list(Mark.t)): string =>
   switch (info) {
+  | InfoDrv(drv) =>
+    switch (DrvInfo.error_of(drv)) {
+    | Some(err) => drv_error(err)
+    | None => "(static error)"
+    }
   | InfoExp({ctx, ana, _}) =>
     switch (Mark.highest(marks)) {
     | Some(m) => exp_mark_to_string(ctx, ana, m)
@@ -284,6 +307,7 @@ let format_error = (term, error) =>
 
 let term_string_of: Info.t => string =
   fun
+  | InfoDrv({term, _}) => Print.term(Drv(term))
   | InfoExp({user_term, _}) => Print.term(Exp(user_term))
   | InfoPat({user_term, _}) => Print.term(Pat(user_term))
   | InfoTyp({user_term, _}) => Print.term(Typ(user_term))
@@ -296,10 +320,7 @@ let term_string_of: Info.t => string =
 let all = (info_map: Statics.Map.t): list(string) => {
   Id.Map.fold(
     (_id: Id.t, info: Info.t, acc) =>
-      switch (Info.marks_of(info)) {
-      | [] => acc
-      | _ => [info, ...acc]
-      },
+      Info.is_error(info) ? [info, ...acc] : acc,
     info_map,
     [],
   )

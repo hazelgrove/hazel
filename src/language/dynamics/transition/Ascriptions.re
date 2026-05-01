@@ -278,10 +278,11 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
     | (Deferral(_), _)
     | (LivelitName(_), _)
     | (TupleExtension(_, _), _)
+    | (ListConcat(_), _) => None
     // These are handled above and must have the wrong type
     | (Atom(_), _)
+    | (DrvQuote(_), _)
     | (ListLit(_), _)
-    | (ListConcat(_), _)
     | (TupLabel(_), _)
     | (Tuple(_), _)
     | (Fun(_), _)
