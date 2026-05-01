@@ -682,6 +682,26 @@ module View = {
             _,
           } =>
           Some(Update.Globals(Undo))
+        /* Cmd+P (Mac) / Ctrl+P (PC) toggles auto-probe mode */
+        | {
+            key: D("P" | "p"),
+            sys: Mac,
+            shift: Up,
+            meta: Down,
+            ctrl: Up,
+            alt: Up,
+            _,
+          }
+        | {
+            key: D("P" | "p"),
+            sys: PC,
+            shift: Up,
+            meta: Up,
+            ctrl: Down,
+            alt: Up,
+            _,
+          } =>
+          Some(Update.Globals(Set(AutoprobeMode)))
         | _ => None
         };
       Effect.(
