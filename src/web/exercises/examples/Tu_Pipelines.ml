@@ -58,7 +58,7 @@ let exercise : Tutorial.spec =
           TaskRefDocs.partial_application;
           TaskRefDocs.pipelining;
           TaskRefDocs.filter;
-          TaskRefDocs.type_conversions_float_of_int;
+          TaskRefDocs.type_conversions;
         ];
     your_impl =
       {

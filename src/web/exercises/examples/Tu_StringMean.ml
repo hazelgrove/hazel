@@ -38,7 +38,7 @@ let exercise : Tutorial.spec =
        TaskRefDocs.compose
          [
            syntax_recap;
-           TaskRefDocs.type_conversions_string_float;
+           TaskRefDocs.type_conversions;
            TaskRefDocs.map;
            TaskRefDocs.fold_left;
            TaskRefDocs.length;

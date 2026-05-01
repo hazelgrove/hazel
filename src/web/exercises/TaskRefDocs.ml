@@ -70,28 +70,36 @@ let float_arithmetic =
 
 Float literals need a decimal point: `0.`, `1.0`, `3.14`|md}
 
-let type_conversions_float_of_int =
+let type_conversions =
   {md|### Type Conversions
-- `float_of_int : Int -> Float` converts an integer to a float
+```hazelnostatics
+int_of_string : String -> Int
+```
+```hazelnostatics
+float_of_string : String -> Float
+```
+```hazelnostatics
+float_of_int : Int -> Float
+```
+```hazelnostatics
+int_of_float : Float -> Int
+```
+
+---
+
+Convert between primitive types using these built-ins:
 ```hazel
-float_of_int(1)
+int_of_string("42")
+```
+```hazel
+float_of_string("3.14")
+```
+```hazel
+float_of_int(7)
+```
+```hazel
+int_of_float(3.99)
 ```|md}
-
-let type_conversions_full =
-  {md|### Type Conversions
-- `int_of_string : String -> Int`
-- `float_of_string : String -> Float`
-- `float_of_int : Int -> Float`|md}
-
-let type_conversions_string_float =
-  {md|### Type Conversions
-- `float_of_string : String -> Float` — converts a string to a float
-- `float_of_int : Int -> Float` — converts an integer to a float|md}
-
-let type_conversions_float_int =
-  {md|### Type Conversions
-- `float_of_int(n)` — convert an `Int` to a `Float`
-- `int_of_float(x)` — convert a `Float` to an `Int`|md}
 
 let tuple_projection =
   {md|### Labeled Tuple Projection
