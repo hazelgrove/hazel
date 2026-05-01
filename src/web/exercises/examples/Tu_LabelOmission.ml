@@ -26,11 +26,14 @@ let exercise : Tutorial.spec =
        ```";
     display_hint = "Remove the `secret` field";
     task_reference =
-      "# Label Omission\n\n\
+      "### Label Omission\n\
+       Drop a single field by label:\n\
        ```hazel\n\
        let coordinate = (x=1, y=2, z=3) in\n\
        omit_labels(coordinate, `x`)\n\
-       ```\n\n\n\
+       ```\n\n\
+       ---\n\n\
+       Drop multiple fields by passing extra label arguments:\n\
        ```hazel\n\
        omit_labels(\n\
        (a=1, b=2, c=3, d=4),\n\
