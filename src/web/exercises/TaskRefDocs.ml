@@ -1,3 +1,7 @@
+(* Each snippet below must start with a `### Title` heading: the sidebar
+   splits the composed body at H3 boundaries to render one collapsible
+   <details> per section (see Sidebar.split_task_reference_sections). *)
+
 let partial_application =
   {md|### Partial Application
 Use `_` to defer arguments:

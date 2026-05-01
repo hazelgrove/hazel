@@ -248,7 +248,10 @@ let persistent_view =
     [
       div(
         ~attrs=[clss(["tabs"])],
-        (task_reference != None ? [task_reference_tab(~globals)] : [])
+        (
+          Option.is_some(task_reference)
+            ? [task_reference_tab(~globals)] : []
+        )
         @ [
           explain_this_tab(~globals),
           assistant_tab(~globals),
