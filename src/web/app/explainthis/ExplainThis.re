@@ -211,38 +211,40 @@ let mk_translation =
           (List.append(msg, [heading_node]), mapping);
         | Omd.Thematic_break(_) => (List.append(msg, [Node.hr()]), mapping)
         | Omd.Code_block(_, lang, code) =>
-          let trimmed_lang = String.trim(lang);
-          let settings_override =
-            if (trimmed_lang == "hazel") {
-              Some(globals.settings.core);
-            } else if (trimmed_lang == "hazelnoeval") {
+          let core = globals.settings.core;
+          let plain = () => Node.pre([Node.code([Node.text(code)])]);
+          let hazel_settings =
+            switch (String.trim(lang)) {
+            | "hazel" => Some(core)
+            | "hazelnoeval" =>
               Some({
-                ...globals.settings.core,
+                ...core,
                 dynamics: false,
-              });
-            } else if (trimmed_lang == "hazelnostatics") {
+              })
+            | "hazelnostatics" =>
               Some({
-                ...globals.settings.core,
+                ...core,
                 statics: false,
                 dynamics: false,
-              });
-            } else {
-              None;
+              })
+            | _ => None
             };
           let code_node =
-            switch (settings_override) {
+            switch (hazel_settings) {
+            | None => plain()
             | Some(settings) =>
-              let globals' = {
-                ...globals,
-                settings: {
-                  ...globals.settings,
-                  core: settings,
-                },
-              };
               switch (memo_parse(code)) {
+              | None => plain()
               | Some(zipper) =>
+                let globals = {
+                  ...globals,
+                  settings: {
+                    ...globals.settings,
+                    core: settings,
+                  },
+                };
                 CellEditor.View.view(
-                  ~globals=globals',
+                  ~globals,
                   ~signal=_ => Ui_effect.Ignore,
                   ~inject=_ => Ui_effect.Ignore,
                   ~selected=None,
@@ -257,10 +259,8 @@ let mk_translation =
                        ~stitch=x => x,
                        ~queue_worker=None,
                      ),
-                )
-              | None => Node.pre([Node.code([Node.text(code)])])
-              };
-            | None => Node.pre([Node.code([Node.text(code)])])
+                );
+              }
             };
           (List.append(msg, [code_node]), mapping);
         | Omd.List(_, list_type, list_spacing, items) =>
