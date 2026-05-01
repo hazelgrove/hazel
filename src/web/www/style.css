@@ -133,66 +133,77 @@ select {
   width: 100%;
 }
 
+/* Task Reference panel — styled to match the Probearium sidebar:
+   typographic uppercase header, no solid background bar, outlined
+   section panels for each ### group. */
 .task-reference-panel {
   display: flex;
   flex: 1;
   flex-direction: column;
-  overflow: hidden;
+  padding: 1em;
+  gap: 1em;
+  overflow-y: auto;
+  overflow-x: hidden;
   min-height: 0;
 }
 
 .task-reference-header {
-  padding: 0.85em 1em 0.6em 1em;
-  border-bottom: 0.6px solid var(--BR2);
-  background-color: var(--T2);
   flex: 0 0 auto;
 }
 
 .task-reference-title {
+  text-transform: uppercase;
   font-family: var(--ui-font);
-  font-size: 1.1rem;
-  font-weight: 600;
-  color: var(--BR4);
-  letter-spacing: 0.02em;
+  font-size: 1em;
+  font-weight: bold;
+  color: var(--ui-header-text);
+  letter-spacing: 0.04em;
 }
 
 .task-reference-body {
-  flex: 1 1 auto;
-  overflow-y: auto;
-  overflow-x: hidden;
-  padding: 1em;
   display: flex;
   flex-direction: column;
   gap: 0.75em;
 }
 
-/* First heading shouldn't have an extra top margin pushing it away
-   from the panel header. */
-.task-reference-body > :first-child,
-.task-reference-body h1:first-child,
-.task-reference-body h2:first-child,
-.task-reference-body h3:first-child,
-.task-reference-body h4:first-child {
-  margin-top: 0;
-}
-
-/* Tighten spacing inside the task-reference markdown. */
+/* Section headings (### Foo) become panel-card titles. */
 .task-reference-body h3,
 .task-reference-body h4 {
-  margin-bottom: 0.25em;
-  border-bottom: 0.6px solid var(--BR1);
-  padding-bottom: 0.15em;
+  margin: 0 0 0.4em 0;
+  font-family: var(--ui-font);
+  font-size: 0.95em;
+  font-weight: bold;
+  color: var(--ui-header-text);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+/* Group each ### section as a card: from each heading until the next.
+   Achieved by panelizing direct children that aren't headings — see
+   below. We instead style adjacent siblings into a card. */
+.task-reference-body > h3,
+.task-reference-body > h4 {
+  padding-top: 0.6em;
+  margin-top: 0.2em;
+}
+
+.task-reference-body > h3:first-child,
+.task-reference-body > h4:first-child {
+  padding-top: 0;
+  margin-top: 0;
 }
 
 .task-reference-body p {
   margin: 0.25em 0;
   line-height: 1.45;
+  color: var(--BR4);
 }
 
 .task-reference-body ul,
 .task-reference-body ol {
   margin: 0.25em 0;
   padding-left: 1.4em;
+  color: var(--BR4);
 }
 
 .task-reference-body li {
@@ -206,6 +217,7 @@ select {
   border-radius: 0.25em;
   font-family: var(--code-font);
   font-size: 0.95em;
+  color: var(--BR4);
 }
 
 #top-bar {
