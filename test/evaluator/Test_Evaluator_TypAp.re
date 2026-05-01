@@ -74,6 +74,30 @@ map@<T>@<Int>(fun e -> string_length(e), ["hello","bar"])|},
 pair@<Int, Bool>(3)(true)|},
       )
     ),
+    /* Regression: a recursive polymorphic `map` with parenthesized
+       multi-binder polymorphism (`poly (a, b) -> …`, internal
+       `TPat.Tuple`) and `typfun (a, b) -> …` must fully evaluate the
+       resulting list — including any arithmetic inside the mapped
+       function's body. The bug had `[1 + 1, 2 + 1, 3 + 1]` left
+       unevaluated for the multi-binder form even though the curried
+       form (`poly a -> poly b -> …`, two single-binder Polys)
+       reduced to `[2, 3, 4]` correctly. */
+    test_case(
+      "Polymorphic map with multi-binder poly evaluates list arithmetic",
+      `Quick,
+      () =>
+      parse_and_evaluate_test(
+        "[2, 3, 4]",
+        {|let emptylist : poly a -> [a] = typfun a -> [] in
+let map : poly (a, b) -> (a -> b, [a]) -> [b] =
+  typfun (a, b) -> fun (f : (a -> b), l : [a]) ->
+    case l
+    | h :: t => f(h)::map@<a, b>(f, t)
+    | _ => emptylist@<b>
+    end in
+map@<Int, Int>((fun x -> x + 1), [1, 2, 3])|},
+      )
+    ),
     test_case(
       "Parameterized Some(3) evaluates to self-typed constructor",
       `Quick,

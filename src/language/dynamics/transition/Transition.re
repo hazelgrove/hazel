@@ -619,13 +619,23 @@ module Transition = (EV: EV_MODE) => {
          - Other (arity mismatch, non-tuple arg against tuple binder,
            tuple arg against single binder): fall back to the
            single-step substitution; downstream marks have already
-           caught the arity error in statics. */
-      let zip_subst = (tpat: TPat.t, tau: Typ.t, body: DHExp.t): DHExp.t =>
-        switch (tpat.term, Typ.term_of(tau)) {
-        | (Tuple(bs), TypTuple(ts)) when List.length(bs) == List.length(ts) =>
-          DHExp.ty_subst_many(ts, bs, body)
+           caught the arity error in statics.
+
+         `TPat.binders_of` looks through `Parens` transparently — so
+         `typfun (a, b) -> …` (binder = `Parens(Tuple([a, b]))`)
+         takes the multi-substitution path, same as the unparen-
+         thesized `typfun a, b -> …` (binder = `Tuple([a, b])`). */
+      let zip_subst = (tpat: TPat.t, tau: Typ.t, body: DHExp.t): DHExp.t => {
+        let binders = TPat.binders_of(tpat);
+        switch (binders, Typ.term_of(tau)) {
+        | (_, TypTuple(ts))
+            when
+              List.length(binders) > 1
+              && List.length(binders) == List.length(ts) =>
+          DHExp.ty_subst_many(ts, binders, body)
         | _ => DHExp.ty_subst(tau, tpat, body)
         };
+      };
       switch (DHExp.term_of(d')) {
       | Constructor(name, Some(Some({term: Poly(_), _} as schema))) =>
         /* Specialize a polymorphic constructor's schema with the
@@ -637,13 +647,19 @@ module Transition = (EV: EV_MODE) => {
         let specialized =
           switch (Typ.term_of(schema)) {
           | Poly(tpat, body) =>
-            switch (tpat.term, Typ.term_of(tau)) {
-            | (Tuple(bs), TypTuple(ts))
-                when List.length(bs) == List.length(ts) =>
-              Typ.subst_many(ts, bs, body)
-            | (Tuple(_), _) => schema
+            /* Same `Parens(Tuple([…]))`-vs-`Tuple([…])` consideration
+               as `zip_subst` above — flatten through `binders_of` so
+               parenthesized multi-binders specialize correctly. */
+            let binders = TPat.binders_of(tpat);
+            switch (binders, Typ.term_of(tau)) {
+            | (_, TypTuple(ts))
+                when
+                  List.length(binders) > 1
+                  && List.length(binders) == List.length(ts) =>
+              Typ.subst_many(ts, binders, body)
+            | _ when List.length(binders) > 1 => schema
             | _ => Typ.subst(tau, tpat, body)
-            }
+            };
           | _ => schema
           };
         if (Equality.syntactic.typ(specialized, schema)) {
