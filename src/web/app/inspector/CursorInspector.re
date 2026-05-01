@@ -268,6 +268,7 @@ let core_mark_err_view =
     | TypKindMismatch(_)
     | TypParamApplyNonArrowKind(_)
     | TypParamApplyArityMismatch(_)
+    | TypAbsApplyArityMismatch(_)
     | TypDuplicateConstructor(_)
     | TypDuplicateLabels(_, _)
     | TypWantTypeFoundAp
@@ -536,6 +537,12 @@ let typ_mark_err_view = (~globals, m: Mark.t) => {
       text(" argument" ++ (expected == 1 ? "" : "s") ++ ", got "),
       code(string_of_int(actual)),
     ]
+  | TypAbsApplyArityMismatch({expected, actual}) => [
+      text("Type abstraction expects "),
+      code(string_of_int(expected)),
+      text(" type argument" ++ (expected == 1 ? "" : "s") ++ ", got "),
+      code(string_of_int(actual)),
+    ]
   | TypWantConstructorFoundAp
   | TypWantConstructorFoundType(_) => [text("Expected a constructor")]
   | TypWantTypeFoundAp => [text("Must be part of a sum type")]
@@ -773,6 +780,13 @@ let exp_mark_err_view =
   | TPatNotAVar(_)
   | TPatParamNotAtAliasHead(_) =>
     div_err([text("(internal) typ/tpat mark on expression")])
+  | TypAbsApplyArityMismatch({expected, actual}) =>
+    div_err([
+      text("Type abstraction expects "),
+      code(string_of_int(expected)),
+      text(" type argument" ++ (expected == 1 ? "" : "s") ++ ", got "),
+      code(string_of_int(actual)),
+    ])
   | Redundant
   | ExpectedConstructor =>
     div_err([text("(internal) pattern-only mark on expression")])

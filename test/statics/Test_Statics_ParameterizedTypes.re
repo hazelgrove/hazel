@@ -958,6 +958,56 @@ let x : Either(Int, Bool) = Right(true) in x
         );
       },
     ),
+    /* Regression: applying a multi-binder type abstraction
+       `e@<Int>` (one arg) when its `Poly` expects two reports a
+       focused error on the *type application* with result type
+       `Unknown(Internal)`, not a leaked free-variable type body.
+
+       Before the fix, `Statics.TypAp` silently returned the body
+       unchanged (with the binders' names still free), so e.g.
+       `B@<Int>` for `B : poly a, b -> b -> Either(a, b)` had
+       result type `b -> Either(a, b)` with `b` free, and the
+       surrounding `(0)` reported a meaningless `Int inconsistent
+       with expected type b`. */
+    test_case(
+      "TypAp arity mismatch marks the @<...> and gives Unknown result",
+      `Quick,
+      () => {
+        let marks =
+          static_errors(
+            {|
+type MyEither(a, b) = + A(a) + B(b) in
+B@<Int>(0)
+|},
+          );
+        Alcotest.check(
+          bool,
+          "exactly one TypAbsApplyArityMismatch on the program",
+          true,
+          List.exists(
+            (m: Mark.t) =>
+              switch (m) {
+              | TypAbsApplyArityMismatch({expected: 2, actual: 1}) => true
+              | _ => false
+              },
+            marks,
+          ),
+        );
+        Alcotest.check(
+          bool,
+          "no ExpectationMismatch on the value argument",
+          false,
+          List.exists(
+            (m: Mark.t) =>
+              switch (m) {
+              | ExpectationMismatch(_) => true
+              | _ => false
+              },
+            marks,
+          ),
+        );
+      },
+    ),
     /* Regression: the result type stored on a parameterized
        constructor's polymorphic schema is the alias name applied to
        its parameters in *one* `TypParamAp(name, TypTuple([a, b]))`

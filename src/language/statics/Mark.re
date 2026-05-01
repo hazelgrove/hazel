@@ -97,6 +97,20 @@ type t =
       expected: int,
       actual: int,
     })
+  /* Value-level type abstraction (`abs`) applied with the wrong
+     number of type arguments at `e@<T>`. `expected` is the number
+     of binders on the function's `Poly` type (with multi-binder
+     `Poly(TPat.Tuple([…]), …)` flattened via `TPat.binders_of`);
+     `actual` is the number of types provided in the application's
+     `TypTuple` (or 1 for a single-arg `e@<T>`). The mark sits on
+     the `TypAp` node and the result type is `Unknown` (so the
+     surrounding application doesn't surface a downstream
+     mismatch on `e`'s arguments using free type variables that
+     leaked from a partially-substituted body). */
+  | TypAbsApplyArityMismatch({
+      expected: int,
+      actual: int,
+    })
   | TypDuplicateConstructor(Constructor.t)
   | TypDuplicateLabels(list(LabeledTuple.label), Typ.t)
   | TypWantTypeFoundAp

@@ -1599,29 +1599,48 @@ and uexp_to_info_map =
         utyp_to_info_map(~ctx, ~ancestors=ancestors_inclusive, utyp, m);
       let elab_term = TypAp(fn_elab, Typ.normalize(ctx, utyp)) |> rewrap;
       let (option_name, ty_body) = MatchedTyp.poly_pair_tolerant(ctx, fn.ty);
-      /* When the function's `Poly` binder is a `TPat.Tuple([a, …])`,
-         the corresponding type argument should be a `TypTuple([t1,
-         …])` of matching arity, with each `tk` substituted for the
-         corresponding binder element-wise. A single-binder `Poly`
-         expects a single (non-`TypTuple`) argument. */
-      let elab_syn_ty =
+      /* Bidirectionally check the type-arg arity against the
+         function's `Poly` binders.
+
+         A multi-binder `Poly(TPat.Tuple([a, b, …]), body)` requires
+         a single source-level application that supplies *all* the
+         arguments at once: surface `e@<T1, T2>` parses as
+         `TypAp(e, TypTuple([T1, T2]))`. A single-binder `Poly(a,
+         body)` requires a single non-tuple argument.
+
+         The arity mismatch case (e.g. `e@<Int>` on a 2-binder
+         `Poly`) emits `TypAbsApplyArityMismatch` on this node and
+         the result type is `Unknown(Internal)` so the surrounding
+         expression doesn't try to type-check `e`'s value arg
+         against a body with free type variables that leaked from a
+         partial substitution. */
+      let (elab_syn_ty, marks) =
         switch (option_name) {
+        | None => (ty_body, [])
         | Some(name) =>
           let binders = TPat.binders_of(name);
-          let args =
-            switch (Typ.term_of(utyp), binders) {
-            | (TypTuple(ts), [_, _, ..._]) => Some(ts)
-            | (_, [_]) => Some([utyp])
-            | _ => None
+          let n_expected = List.length(binders);
+          let arg_list =
+            switch (Typ.term_of(utyp), n_expected) {
+            | (TypTuple(ts), n) when n > 1 => ts
+            | _ => [utyp]
             };
-          switch (args) {
-          | Some(ts) when List.length(ts) == List.length(binders) =>
-            Typ.subst_many(ts, binders, ty_body)
-          | _ => ty_body
+          let n_actual = List.length(arg_list);
+          if (n_expected == n_actual) {
+            (Typ.subst_many(arg_list, binders, ty_body), []);
+          } else {
+            (
+              Unknown(Internal) |> Typ.temp,
+              [
+                Mark.TypAbsApplyArityMismatch({
+                  expected: n_expected,
+                  actual: n_actual,
+                }),
+              ],
+            );
           };
-        | None => ty_body
         };
-      add(~elab_term, ~elab_syn_ty, ~marks=[], ~co_ctx=fn.co_ctx, m);
+      add(~elab_term, ~elab_syn_ty, ~marks, ~co_ctx=fn.co_ctx, m);
     | DeferredAp(fn, args) =>
       /* If this is a builtin with custom statics */
       let custom_statics =
