@@ -110,6 +110,11 @@ let highlight =
   (Node.span(~attrs, msg), mapping);
 };
 
+let memo_parse =
+  Core.Memo.general(~cache_size_bound=1000, code =>
+    Parser.to_zipper(~root=Exp, String.trim(code))
+  );
+
 /*
  Markdown like thing:
  highlighty thing : [thing to highlight](id)
@@ -117,6 +122,7 @@ let highlight =
                 - list item
  code: `code`
  italics: *word*
+ fenced code: ```hazel ... ``` (also hazelnoeval, hazelnostatics)
  */
 let mk_translation =
     (~globals, ~inject, text: string): (list(Node.t), ColorSteps.t) => {
@@ -169,6 +175,9 @@ let mk_translation =
         ),
         mapping,
       );
+    | Omd.Strong(_, d) =>
+      let (d, mapping) = translate_inline(d, [], mapping, ~inject);
+      (List.append(msg, [Node.strong(d)]), mapping);
     | Omd.Soft_break(_) => (List.append(msg, [Node.br()]), mapping)
     | _ => (msg, mapping)
     };
@@ -187,17 +196,94 @@ let mk_translation =
              [translate_inline] as <br>.) */
           let (p_nodes, mapping) = translate_inline(d, [], mapping, ~inject);
           (List.append(msg, [Node.p(p_nodes)]), mapping);
-        | Omd.List(_, _, _, items) =>
+        | Omd.Heading(_, level, d) =>
+          let (inline_nodes, mapping) =
+            translate_inline(d, [], mapping, ~inject);
+          let heading_node =
+            switch (level) {
+            | 1 => Node.h1(inline_nodes)
+            | 2 => Node.h2(inline_nodes)
+            | 3 => Node.h3(inline_nodes)
+            | 4 => Node.h4(inline_nodes)
+            | 5 => Node.h5(inline_nodes)
+            | _ => Node.h6(inline_nodes)
+            };
+          (List.append(msg, [heading_node]), mapping);
+        | Omd.Code_block(_, lang, code) =>
+          let trimmed_lang = String.trim(lang);
+          let settings_override =
+            if (trimmed_lang == "hazel") {
+              Some(globals.settings.core);
+            } else if (trimmed_lang == "hazelnoeval") {
+              Some({
+                ...globals.settings.core,
+                dynamics: false,
+              });
+            } else if (trimmed_lang == "hazelnostatics") {
+              Some({
+                ...globals.settings.core,
+                statics: false,
+                dynamics: false,
+              });
+            } else {
+              None;
+            };
+          let code_node =
+            switch (settings_override) {
+            | Some(settings) =>
+              let globals' = {
+                ...globals,
+                settings: {
+                  ...globals.settings,
+                  core: settings,
+                },
+              };
+              switch (memo_parse(code)) {
+              | Some(zipper) =>
+                CellEditor.View.view(
+                  ~globals=globals',
+                  ~signal=_ => Ui_effect.Ignore,
+                  ~inject=_ => Ui_effect.Ignore,
+                  ~selected=None,
+                  ~caption=None,
+                  ~locked=true,
+                  zipper
+                  |> Editor.Model.mk(~root=Exp)
+                  |> CellEditor.Model.mk
+                  |> CellEditor.Update.calculate(
+                       ~settings,
+                       ~is_edited=true,
+                       ~stitch=x => x,
+                       ~queue_worker=None,
+                     ),
+                )
+              | None => Node.pre([Node.code([Node.text(code)])])
+              };
+            | None => Node.pre([Node.code([Node.text(code)])])
+            };
+          (List.append(msg, [code_node]), mapping);
+        | Omd.List(_, list_type, list_spacing, items) =>
+          let translate_item = (d, mapping) =>
+            switch (list_spacing, d) {
+            | (Omd.Tight, [Omd.Paragraph(_, inline)]) =>
+              translate_inline(inline, [], mapping, ~inject)
+            | _ => translate_block(d, mapping)
+            };
           let (bullets, mapping) =
             List.fold_left(
               ((nodes, mapping), d) => {
-                let (n, mapping) = translate_block(d, mapping);
+                let (n, mapping) = translate_item(d, mapping);
                 (List.append(nodes, [Node.li(n)]), mapping);
               },
               ([], mapping),
               items,
             );
-          (List.append(msg, [Node.ul(bullets)]), mapping); /* TODO Hannah - Should this be an ordered list instead of an unordered list? */
+          let list_node =
+            switch (list_type) {
+            | Omd.Ordered(_, _) => Node.ol(bullets)
+            | Omd.Bullet(_) => Node.ul(bullets)
+            };
+          (List.append(msg, [list_node]), mapping);
         | _ => (msg, mapping)
         }
       },
