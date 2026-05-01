@@ -990,7 +990,7 @@ module MenhirElaborationTests = {
       let_exp_uexp,
     );
 
-  let typ_ap_str = "(typfun x -> 4)@<Int>";
+  let typ_ap_str = "(abs x -> 4)@<Int>";
   let typ_ap_uexp: Exp.t =
     Exp.(typ_ap(typ_fun(TPat.var("x"), int(4), None), Typ.int()));
 

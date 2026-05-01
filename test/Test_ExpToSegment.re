@@ -735,11 +735,11 @@ end|}),
     roundtrip_test({|Fix: with body|}, {|fix f -> f(1)|}),
     roundtrip_test({|Fix: spaced|}, {|fix f  ->  f|}),
     roundtrip_test({|Fix: compact|}, {|fix f->f|}),
-    /* TypFun expressions (typfun ... ->) */
-    roundtrip_test({|TypFun: simple|}, {|typfun a -> 1|}),
+    /* TypFun expressions (abs ... ->) */
+    roundtrip_test({|TypFun: simple|}, {|abs a -> 1|}),
     /* TypFun with typed body has defensive parens issue (type after :) - same as rec/poly */
-    roundtrip_test({|TypFun: spaced|}, {|typfun a  ->  1|}),
-    roundtrip_test({|TypFun: compact|}, {|typfun a->1|}),
+    roundtrip_test({|TypFun: spaced|}, {|abs a  ->  1|}),
+    roundtrip_test({|TypFun: compact|}, {|abs a->1|}),
     /* TypAp expressions (f @<Int>) */
     roundtrip_test({|TypAp: simple|}, {|f@<Int>|}),
     roundtrip_test({|TypAp: with spaces|}, {|f  @<  Int  >|}),
@@ -1043,7 +1043,7 @@ add5and10(15)|},
     /* Type annotations with formatting */
     roundtrip_test(
       {|Typed: multiline function|},
-      {|let id : poly a -> a -> a = typfun a ->
+      {|let id : poly a -> a -> a = abs a ->
   fun x -> x
 in id @<Int>(42)|},
     ),

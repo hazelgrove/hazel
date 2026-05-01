@@ -392,6 +392,7 @@ type compound_form =
   | Fun
   | Fix
   | TypFun
+  | TypLam
   | Poly
   | Forall
   | Rec
@@ -499,7 +500,15 @@ let get: compound_form => t =
   | Test => mk_op_c(L, ["test", "end"], Exp, [Exp])
   | Fun => mk_pre_c(L, ["fun", "->"], P.fun_, Exp, [Pat])
   | Fix => mk_pre_c(L, ["fix", "->"], P.fun_, Exp, [Pat])
-  | TypFun => mk_pre_c(L, ["typfun", "->"], P.fun_, Exp, [TPat])
+  /* `abs a -> e` is the value-level type abstraction (System F's
+     big-Lambda). `abs (a, b) -> e` introduces multiple type
+     parameters in one binder via a `TPat.Tuple`. Renamed from
+     `typfun` to free that keyword for the *type-level* type
+     function `typfun a -> ty` (which builds a `TypLam` in the type
+     language and is used in alias bodies like
+     `type Option = typfun a -> + None + Some(a)`). */
+  | TypFun => mk_pre_c(L, ["abs", "->"], P.fun_, Exp, [TPat])
+  | TypLam => mk_pre_c(L, ["typfun", "->"], P.fun_, Typ, [TPat])
   | Poly => mk_pre_c(L, ["poly", "->"], P.fun_, Typ, [TPat])
   | Forall => mk_pre_c(L, ["forall", "->"], P.fun_, Exp, [Pat])
   | ProofObject => mk_op_c(L, ["proof_object", "end"], Exp, [Exp])

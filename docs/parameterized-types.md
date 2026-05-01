@@ -56,22 +56,46 @@ The recursive form is fully supported, including non-uniform recursion such as
 `type List(a) = + Nil + Cons(a, List((Int, a)))` (see *Higher-kinded recursive
 types* below).
 
-No explicit surface syntax for type-level lambda and no higher-kinded type
-parameters are part of this implementation.
+### Type-level type functions (`typfun`) as alias bodies
+
+The prefix-binder form `type T(a, b, …) = body` has an equivalent
+spelling using a type-level `typfun`:
+
+```hazel
+type Option = typfun a -> + None + Some(a) in
+type Either = typfun a, b -> + Left(a) + Right(b) in
+type List = typfun a -> + Nil + Cons(a, List(a)) in
+```
+
+`typfun a -> body` introduces a `TypLam(a, body)` in the type
+language. As an alias body, `type T = typfun a -> body` is desugared
+to the prefix-binder form by `Statics.TyAlias` (see *peel_typlams*),
+so both spellings produce the same elaboration shape: an alias `T`
+with kind `(Type) -> Type`, polymorphic constructor schemas
+introduced over the binders, and `T(Int)` normalizing through the
+existing higher-kinded reduction.
+
+The `TypLam` form is not yet useful elsewhere in the surface
+language — it is currently meaningful only as the immediate body of
+a `type` declaration. Higher-kinded type parameters (e.g.
+`type Functor(f : Type -> Type) = …`) are not part of this
+implementation.
 
 ### Multi-binder universals and type abstractions
 
 The same compositional approach extends to value-level polymorphism. An
 n-ary universal type and its inhabiting type abstraction can be written with
-comma-separated binders:
+comma-separated binders. The keyword for the value-level type abstraction is
+`abs` (formerly `typfun`, renamed so the `typfun` keyword can introduce the
+type-level type function above):
 
 ```hazel
 let pair : poly a, b -> a -> b -> (a, b) =
-  typfun a, b -> fun x : a -> fun y : b -> (x, y) in
+  abs a, b -> fun x : a -> fun y : b -> (x, y) in
 pair@<Int, Bool>(3)(true)
 ```
 
-Multi-binder `poly` and `typfun` are represented compositionally — *not*
+Multi-binder `poly` and `abs` are represented compositionally — *not*
 curried — by introducing a `Tuple` variant of `TPat`:
 
 ```reasonml
@@ -84,7 +108,7 @@ and tpat_term =
 ```
 
 So `poly a, b -> t` parses as a single `Poly(TPat.Tuple([a, b]), t)` and
-`typfun a, b -> e` as `TypFun(TPat.Tuple([a, b]), e, _)`. Explicit
+`abs a, b -> e` as `TypFun(TPat.Tuple([a, b]), e, _)`. Explicit
 nesting `poly a -> poly b -> t` produces a chain of single-binder `Poly`s
 and is structurally distinct from the multi-binder form. The application
 `pair@<Int, Bool>` parses as `TypAp(pair, TypTuple([Int, Bool]))`, and the

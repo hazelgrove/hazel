@@ -582,7 +582,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
          b33f43f7-7416-4379-a11a-26da786b149c)(content(Whitespace\" \
          \")))))((Secondary((id \
          2d25211b-860a-4d01-9836-16b3dc9af3e6)(content(Whitespace\" \
-         \"))))(Tile((id ef7b95f1-9203-4f9f-9e61-312eaa972549)(label(typfun \
+         \"))))(Tile((id ef7b95f1-9203-4f9f-9e61-312eaa972549)(label(abs \
          ->))(mold((out Exp)(in_(TPat))(nibs(((shape Convex)(sort \
          Exp))((shape(Concave 37))(sort Exp))))))(shards(0 \
          1))(children(((Secondary((id \
@@ -1649,7 +1649,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
          schema(t1)[c]\"),\n\
          (enforced=^^check(false), \"nrows(t2) == nrows(t1)\")\n\
          ] in\n\
-         let update = typfun row -> fun (t1:[row], f:(row -> ?)) ->\n\
+         let update = abs row -> fun (t1:[row], f:(row -> ?)) ->\n\
          map(t1, fun (r : row) -> (r : ?) ... f(r)) : [?] in\n\n\
          test\n\
         \ update@<GradebookEntry>(gradebook, fun r -> (midterm=85<=r.midterm, \

@@ -412,21 +412,21 @@ x",
       test_case("Module with bare expression", `Quick, () =>
         exp_check(module_([Mod.mod_exp(int(42))]), {|{ 42 }|})
       ),
-      /* Multi-binder typfun: bare comma-separated and parenthesized
+      /* Multi-binder abs: bare comma-separated and parenthesized
          binder lists both parse to a single `TypFun(TPat.Tuple([…]),
          …)`. A single parenthesized binder collapses to the bare
          tpat. */
-      test_case("typfun with bare multi-binder", `Quick, () =>
+      test_case("abs with bare multi-binder", `Quick, () =>
         exp_check(
           typ_fun(
             TPat.tuple([TPat.var("a"), TPat.var("b")]),
             empty_hole(),
             None,
           ),
-          {|typfun a, b -> ?|},
+          {|abs a, b -> ?|},
         )
       ),
-      test_case("typfun with parenthesized multi-binder", `Quick, () =>
+      test_case("abs with parenthesized multi-binder", `Quick, () =>
         /* The parens around the binder list are preserved in the AST
            as a `Parens` wrapper around the `Tuple`, so the
            structured-editor display can round-trip them. Semantics
@@ -438,13 +438,38 @@ x",
             empty_hole(),
             None,
           ),
-          {|typfun (a, b) -> ?|},
+          {|abs (a, b) -> ?|},
         )
       ),
-      test_case("typfun with parenthesized single-binder", `Quick, () =>
+      test_case("abs with parenthesized single-binder", `Quick, () =>
         exp_check(
           typ_fun(TPat.parens(TPat.var("a")), empty_hole(), None),
-          {|typfun (a) -> ?|},
+          {|abs (a) -> ?|},
+        )
+      ),
+      /* Type-level type function `typfun a -> body` (TypLam), the
+         prefix-binder spelling of `type T(a) = body`. */
+      test_case("typfun (type-level) single-binder", `Quick, () =>
+        exp_check(
+          ty_alias(
+            TPat.var("Id"),
+            Typ.typ_lam(TPat.var("a"), Typ.var("a")),
+            empty_hole(),
+          ),
+          {|type Id = typfun a -> a in ?|},
+        )
+      ),
+      test_case("typfun (type-level) with multi-binder", `Quick, () =>
+        exp_check(
+          ty_alias(
+            TPat.var("Pair"),
+            Typ.typ_lam(
+              TPat.tuple([TPat.var("a"), TPat.var("b")]),
+              Typ.prod([Typ.var("a"), Typ.var("b")]),
+            ),
+            empty_hole(),
+          ),
+          {|type Pair = typfun a, b -> (a, b) in ?|},
         )
       ),
     ],

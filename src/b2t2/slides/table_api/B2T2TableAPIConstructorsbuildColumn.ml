@@ -475,7 +475,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
          344a61e8-65f3-4be5-842f-5e54e764351e)(content(Whitespace\" \
          \")))))((Secondary((id \
          b15da1be-43f9-42d6-88e5-ea0a79ca54ca)(content(Whitespace\" \
-         \"))))(Tile((id 20320799-38a6-4489-8e31-2a3d56fe8c90)(label(typfun \
+         \"))))(Tile((id 20320799-38a6-4489-8e31-2a3d56fe8c90)(label(abs \
          ->))(mold((out Exp)(in_(TPat))(nibs(((shape Convex)(sort \
          Exp))((shape(Concave 37))(sort Exp))))))(shards(0 \
          1))(children(((Secondary((id \
@@ -487,7 +487,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
          79393653-cea6-44b8-9139-82ea0fe54b81)(content(Whitespace\" \
          \")))))))))(Secondary((id \
          de2ac542-2148-4c2a-86c0-72d63314afd9)(content(Whitespace\" \
-         \"))))(Tile((id 333e79d4-0d83-4437-8a13-8be03826b022)(label(typfun \
+         \"))))(Tile((id 333e79d4-0d83-4437-8a13-8be03826b022)(label(abs \
          ->))(mold((out Exp)(in_(TPat))(nibs(((shape Convex)(sort \
          Exp))((shape(Concave 37))(sort Exp))))))(shards(0 \
          1))(children(((Secondary((id \
@@ -499,7 +499,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
          d6eb7d68-db35-4016-ae26-36bf298fb0d4)(content(Whitespace\" \
          \")))))))))(Secondary((id \
          d9cd33a4-45eb-4193-a396-dad9e5ef9493)(content(Whitespace\" \
-         \"))))(Tile((id 734ee947-96ef-4561-b4f6-79993bac8277)(label(typfun \
+         \"))))(Tile((id 734ee947-96ef-4561-b4f6-79993bac8277)(label(abs \
          ->))(mold((out Exp)(in_(TPat))(nibs(((shape Convex)(sort \
          Exp))((shape(Concave 37))(sort Exp))))))(shards(0 \
          1))(children(((Secondary((id \
@@ -1936,7 +1936,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
         \    (enforced=^^check(false), \"nrows(t2) is equal to nrows(t1)\")\n\
         \  ] in\n\
         \  \n\
-        \  let build_column = typfun r -> typfun v -> typfun r' -> fun (t : \
+        \  let build_column = abs r -> abs v -> abs r' -> fun (t : \
          [r], c : ((r, v) -> r'), f: (r -> v)) ->\n\
         \    map(t, fun r -> c(r, f(r))) : [r']\n\
         \  in\n\

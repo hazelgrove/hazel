@@ -131,7 +131,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
          cdf90c13-f845-4461-9ca2-e200f44b0d42)(content(Whitespace\" \
          \")))))((Secondary((id \
          9d9da642-d447-491f-b026-005ade419f45)(content(Whitespace\" \
-         \"))))(Tile((id b00f4852-801d-426d-9965-602eb358bdd1)(label(typfun \
+         \"))))(Tile((id b00f4852-801d-426d-9965-602eb358bdd1)(label(abs \
          ->))(mold((out Exp)(in_(TPat))(nibs(((shape Convex)(sort \
          Exp))((shape(Concave 37))(sort Exp))))))(shards(0 \
          1))(children(((Secondary((id \
@@ -628,7 +628,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
          length(rs)\")\n\
          ] in\n\
          #Hazel tables are lists; so add_rows is just list concatenation#\n\
-         let add_rows = typfun row -> fun (rs : [row], rs' : [row]) -> rs @ \
+         let add_rows = abs row -> fun (rs : [row], rs' : [row]) -> rs @ \
          rs'  in\n\n\
          # Examples #\n\
          type GradebookEntry= (name=String, age=Int, quiz1=Int, quiz2=Int, \

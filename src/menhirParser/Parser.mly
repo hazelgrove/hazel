@@ -16,6 +16,7 @@ open AST
 %token <string> PROJECTOR_INVOKE
 %token TYP
 %token TYP_FUN
+%token TYP_LAM
 %token FIX
 %token WILD
 %token QUESTION
@@ -250,6 +251,7 @@ typ:
     | QUESTION { UnknownType(EmptyHole) }
     | UNIT { TupleType([]) }
     | POLY; a = polyTpat; DASH_ARROW; t = typ { PolyType(a, t) }
+    | TYP_LAM; a = polyTpat; DASH_ARROW; t = typ { TypLamType(a, t) }
     | t = tupleType { t }
     | OPEN_SQUARE_BRACKET; t = typ; CLOSE_SQUARE_BRACKET { ArrayType(t) }
     | t1 = typ; OPEN_PAREN; t2 = typ; CLOSE_PAREN { TypParamAp(t1, t2) }

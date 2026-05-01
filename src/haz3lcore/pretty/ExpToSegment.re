@@ -2815,7 +2815,7 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
     let id = typ |> Typ.rep_id;
     let+ tp = tpat_to_pretty(~settings: Settings.t, tp)
     and+ t = go(t);
-    wrap(typ, text_to_pretty(id, Sort.Typ, "typfun") @ tp @ t);
+    wrap(typ, [mk_form(TypLam, id, [tp])] @ t);
   | TypParamAp(t1, t2) =>
     let id = typ |> Typ.rep_id;
     let+ t1 = go(t1)

@@ -239,6 +239,24 @@ let tests =
         "type T' = Int in let x : T' = 3 in x",
       ),
       full_parser_test("Parens", parens(var("y")), "(y)"),
+      /* Value-level type abstraction: `abs` (formerly `typfun`). */
+      full_parser_test(
+        "abs (value-level type abstraction)",
+        typ_fun(TPat.var("a"), var("x"), None),
+        "abs a -> x",
+      ),
+      /* Type-level type function: `typfun a -> body` builds a
+         `TypLam(a, body)` and is the prefix-binder spelling of
+         `type T(a) = body`. */
+      full_parser_test(
+        "typfun (type-level) used as alias body",
+        ty_alias(
+          TPat.var("T"),
+          Typ.typ_lam(TPat.var("a"), Typ.var("a")),
+          var("x"),
+        ),
+        "type T = typfun a -> a in x",
+      ),
       full_parser_test(
         "bin_op",
         bin_op(Int(Plus), int(4), int(5)),
@@ -601,16 +619,16 @@ let exp_equal: (Exp, Exp) -> Bool =
 in
 
 let poly_id: (poly a -> (a -> a)) =
-  (typfun a -> (fun (x : a) -> x))
+  (abs a -> (fun (x : a) -> x))
 in
 let apply_both:
 poly a -> poly b -> (poly c -> c -> c) -> ((a, b) -> (a, b)) =
-  typfun a -> typfun b ->
+  abs a -> abs b ->
     fun (f : poly c -> (c -> c)) ->
       fun ((x, y) : (a, b)) -> (f@<a>(x), f@<b>(y))
 in
 let list_length: poly a -> ([a] -> Int) =
-  typfun a -> fun (l : [a]) ->
+  abs a -> fun (l : [a]) ->
     case l
       | [] => 0
       | hd::tl => 1 + list_length@<a>(tl)
@@ -766,17 +784,17 @@ Ok(Lam("bro", Var("bro")))) end
         // Variable names are renamed due to lexing overtaking e, t, p, and tp
         ~speed_level=`Slow,
         "Altered Documentation Buffer: Polymorphism",
-        {|let id = typfun A -> (fun (x : A) -> x) in
+        {|let id = abs A -> (fun (x : A) -> x) in
 let ex1 = id@<Int>(1) in
 let const : poly A -> (poly B -> (A -> B -> A)) =
-typfun A -> (typfun B -> (fun x -> fun y -> x)) in
+abs A -> (abs B -> (fun x -> fun y -> x)) in
 let ex2 = const@<Int>@<String>(2)("Hello World") in
 let apply_both : poly A -> poly B -> (poly D -> D -> D) -> (A , B) -> (A , B) =
-typfun A -> typfun B -> fun f -> fun (x, y) -> (f@<A>(x), f@<B>(y)) in
+abs A -> abs B -> fun f -> fun (x, y) -> (f@<A>(x), f@<B>(y)) in
 let ex3 = apply_both@<Int>@<String>(id)(3, "Hello World") in
-let emptylist : poly A -> [A] = typfun A -> [] in
+let emptylist : poly A -> [A] = abs A -> [] in
 let map : poly A -> poly B -> (A -> B) -> ([A] -> [B]) =
-  typfun A -> typfun B -> fun (f : (A -> B)) -> fun (l : [A]) ->
+  abs A -> abs B -> fun (f : (A -> B)) -> fun (l : [A]) ->
     case l
       | (h :: a) => f(h) :: map@<A>@<B>(f)(a)
       | _ => emptylist@<B>

@@ -2299,6 +2299,58 @@ and uexp_to_info_map =
          store Prod([TupLabel(...)]) rather than Sig([...]) in the context.
          This ensures meet/join can unify them with module expression types. */
       let utyp_desugared = Typ.desugar_sig(ctx, utyp);
+      /* `type T = typfun a, b -> body` is the prefix-binder spelling
+         of `type T(a, b) = body`. Peel `TypLam`s off the head of the
+         alias body to recover the parameter binders, so a `Var`
+         tpat plus a `TypLam`-chain body takes the same Param-branch
+         path (params extension, polymorphic constructor schemas,
+         `(Type, …) -> Type` kind). The original `utyp` is also
+         rewritten to the peeled body, so `utyp_to_info_map` checks
+         the inner Sum/etc. against `TypeExpected` (the enclosing
+         `TypLam`'s `Arrow` kind would otherwise look like a
+         mismatch). */
+      let rec peel_typlams =
+              (typ: Typ.t): (list(TPat.t), Typ.t) =>
+        switch (typ.term) {
+        | TypLam(p, inner) =>
+          let (rest, body) = peel_typlams(inner);
+          /* `TypLam`'s binder may be `TPat.Tuple([…])` (from a
+             multi-binder `typfun a, b -> …`); flatten through
+             `binders_of` so the param branch sees the individual
+             names. */
+          (TPat.binders_of(p) @ rest, body);
+        /* MakeTerm wraps a sum-typed body in `Parens` when it sits
+           at the right of `typfun ->` (the sum's `+` precedence
+           sits looser than the binder), so the unwrapped body
+           reaches us inside a `Parens`. Peel it transparently so
+           the resulting alias body is `Sum[...]` rather than
+           `Parens(Sum[...])` — `all_ctrs_of_typ` and the
+           `get_sum_constructors` cache rely on the underlying
+           Sum being the alias body's normal form. */
+        | Parens(inner) => peel_typlams(inner)
+        | _ => ([], typ)
+        };
+      let (typat, utyp, utyp_desugared) =
+        switch (typat.term, peel_typlams(utyp_desugared)) {
+        | (Var(name), ([_, ..._] as params, inner_body)) =>
+          /* Re-bundle as `type Name(params) = inner_body`. The new
+             `Param` tpat reuses the surface `Var` tile for its head
+             so `TPat.rep_id(head)` lands on the alias name. */
+          let head: TPat.t = {
+            term: Var(name),
+            annotation: typat.annotation,
+          };
+          let new_typat: TPat.t = {
+            term: Param(head, params),
+            annotation: typat.annotation,
+          };
+          /* Re-peel against the *original* `utyp` so the inner-body
+             info map reflects the surface ids, not the desugared-
+             but-still-TypLam-wrapped term. */
+          let (_, inner_orig) = peel_typlams(utyp);
+          (new_typat, inner_orig, inner_body);
+        | _ => (typat, utyp, utyp_desugared)
+        };
       switch (typat.term) {
       | Param(head, params)
           when

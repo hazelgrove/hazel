@@ -720,7 +720,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
          d8690c29-d620-4ad9-86e5-1ca8d55377af)(content(Whitespace\" \
          \")))))((Secondary((id \
          0b60da8c-5e9b-4a2d-a674-e6e2df2062f7)(content(Whitespace\" \
-         \"))))(Tile((id 69d3b885-c45e-4bc5-b7e1-82e49377ab7e)(label(typfun \
+         \"))))(Tile((id 69d3b885-c45e-4bc5-b7e1-82e49377ab7e)(label(abs \
          ->))(mold((out Exp)(in_(TPat))(nibs(((shape Convex)(sort \
          Exp))((shape(Concave 37))(sort Exp))))))(shards(0 \
          1))(children(((Secondary((id \
@@ -1201,7 +1201,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
          ade0b9ad-d825-4867-a272-121d80779b37)(content(Whitespace\" \
          \")))))((Secondary((id \
          396ed6b3-7a7f-4854-992e-e488cf1ea635)(content(Whitespace\" \
-         \"))))(Tile((id c68e4170-e1da-439f-bce5-1c59bddc33ab)(label(typfun \
+         \"))))(Tile((id c68e4170-e1da-439f-bce5-1c59bddc33ab)(label(abs \
          ->))(mold((out Exp)(in_(TPat))(nibs(((shape Convex)(sort \
          Exp))((shape(Concave 37))(sort Exp))))))(shards(0 \
          1))(children(((Secondary((id \
@@ -3668,7 +3668,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
          5ca4215d-7b2e-4b29-a231-112963d05d11)(content(Whitespace\" \
          \")))))((Secondary((id \
          1b70c941-7942-4d9b-8c1e-8dbc96405e67)(content(Whitespace\" \
-         \"))))(Tile((id 8445e422-bb8a-4bc3-a2c2-fd9d70699645)(label(typfun \
+         \"))))(Tile((id 8445e422-bb8a-4bc3-a2c2-fd9d70699645)(label(abs \
          ->))(mold((out Exp)(in_(TPat))(nibs(((shape Convex)(sort \
          Exp))((shape(Concave 37))(sort Exp))))))(shards(0 \
          1))(children(((Secondary((id \
@@ -3973,7 +3973,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
          690e721b-fd05-4636-ab2f-158957eda516)(content(Whitespace\" \
          \")))))((Secondary((id \
          b5edfafb-1338-401e-83d5-82464975ba5d)(content(Whitespace\" \
-         \"))))(Tile((id 3740ee0b-3815-432e-94a3-74e60382a5f6)(label(typfun \
+         \"))))(Tile((id 3740ee0b-3815-432e-94a3-74e60382a5f6)(label(abs \
          ->))(mold((out Exp)(in_(TPat))(nibs(((shape Convex)(sort \
          Exp))((shape(Concave 37))(sort Exp))))))(shards(0 \
          1))(children(((Secondary((id \
@@ -6561,7 +6561,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
          7c6df400-e6c6-4821-9e84-3ab9b702a42c)(content(Whitespace\" \
          \")))))((Secondary((id \
          de1c88ce-5bb5-4472-bad6-8a603bb01f53)(content(Whitespace\" \
-         \"))))(Tile((id a47ed006-c28e-4f56-9bee-7b9557355541)(label(typfun \
+         \"))))(Tile((id a47ed006-c28e-4f56-9bee-7b9557355541)(label(abs \
          ->))(mold((out Exp)(in_(TPat))(nibs(((shape Convex)(sort \
          Exp))((shape(Concave 37))(sort Exp))))))(shards(0 \
          1))(children(((Secondary((id \
@@ -6834,7 +6834,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
         \    (enforced=^^check(false), \"nrows(t2) is equal to length(ns)\")\n\
         \  ] in\n\
         \  # We drop rows that are out of bounds #\n\
-        \  let select_rows1 = typfun r -> fun (t1:[r], ns:[Int]) -> map(ns, \
+        \  let select_rows1 = abs r -> fun (t1:[r], ns:[Int]) -> map(ns, \
          nth_opt(t1, _)) |> filter_map(_, fun x ->x) in\n\
         \  \n\
         \  test select_rows1@<Student>(students, [2, 0, 2, 1]) == [(\"Eve\", \
@@ -6848,7 +6848,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
         \    (enforced=^^check(true), \"schema(t2) is equal to schema(t1)\"),\n\
         \    (enforced=^^check(false), \"nrows(t2) is equal to length(ns)\")\n\
         \  ] in\n\
-        \  let select_rows2 = typfun r -> fun (t1:[r],bs:[Bool]) -> zip(bs, \
+        \  let select_rows2 = abs r -> fun (t1:[r],bs:[Bool]) -> zip(bs, \
          t1) |> filter_map(_, fun (b,r) -> if b then Some(r) else None) in\n\
         \  \n\
         \  test select_rows2@<Student>(students, [true, false, true]) == \
@@ -6939,7 +6939,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
          equal to nrows(t1) + n\")\n\
         \  ] in\n\
         \  \n\
-        \  let head = typfun r -> fun (t1:[r], n:Int) ->\n\
+        \  let head = abs r -> fun (t1:[r], n:Int) ->\n\
         \    take(t1, if n >=0 then n else length(t1) + n):[r] in\n\
         \  \n\
         \  test head@<Student>(students, -2) == [(\"Bob\", 12, \"blue\")] : \
@@ -6949,7 +6949,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
         \  let requires=[] in\n\
         \  let ensures=[(enforced=^^check(true), \"schema(t2) is equal to \
          schema(t1)\")] in\n\
-        \  let distinct = typfun row ->fun (t:[row]) ->\n\
+        \  let distinct = abs row ->fun (t:[row]) ->\n\
         \    fold_left(t, fun (acc,elem) -> if mem(acc,elem) then acc else acc \
          @ [elem], []):[row] in\n\
         \  \n\
@@ -7028,7 +7028,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
          schema(t1)\")] in\n\
         \  let ensures=[(enforced=^^check(true), \"schema(t2) is equal to \
          schema(t1)\")] in\n\
-        \  let tfilter = typfun r ->fun (t:[r], f: r -> Bool) -> filter(t, \
+        \  let tfilter = abs r ->fun (t:[r], f: r -> Bool) -> filter(t, \
          f):[r] in\n\
         \  \n\
         \  test tfilter@<GradebookEntry>(gradebook, fun s -> \

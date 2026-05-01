@@ -134,7 +134,11 @@ let keywords = [
   /* Type-level binder keywords that can be followed by a
      parenthesized binder list (`poly (a, b) -> …`, `typfun (a, b) ->
      …`, etc.). Listing them here keeps `should_add_space` from
-     dropping the space between the keyword and the leading `(`. */
+     dropping the space between the keyword and the leading `(`.
+     `abs` is the value-level type abstraction (formerly `typfun`);
+     `typfun` is now the type-level type function (formerly nameless
+     surface syntax for `TypLam`). */
+  "abs",
   "poly",
   "typfun",
   "typlam",

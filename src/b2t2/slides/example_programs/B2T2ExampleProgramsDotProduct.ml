@@ -739,7 +739,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
          407394fe-a213-433c-9899-e1b7a3373cba)(content(Whitespace\" \
          \")))))((Secondary((id \
          a7a4f20b-9468-4245-92ce-1116613e337c)(content(Whitespace\"\\n\"))))(Tile((id \
-         76ae1ffd-da3d-41d6-b9bd-6e0a8ce50a7b)(label(typfun ->))(mold((out \
+         76ae1ffd-da3d-41d6-b9bd-6e0a8ce50a7b)(label(abs ->))(mold((out \
          Exp)(in_(TPat))(nibs(((shape Convex)(sort Exp))((shape(Concave \
          37))(sort Exp))))))(shards(0 1))(children(((Secondary((id \
          c9f447eb-2427-4150-8cc2-5e5187f65b28)(content(Whitespace\" \
@@ -1136,7 +1136,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
          ^^probe(dot_product(gradebook, \"quiz1\", \"quiz2\"));\n\n\
          # Version using function for column access #\n\
          let dot_product =\n\
-         typfun R ->    \n\
+         abs R ->    \n\
          fun (t1:[R], c1 : R -> Int, c2 : R -> Int) ->  \n\
          fold_left(map(t1, fun r -> (c1(r) * c2(r))), int_plus, 0) : Int\n\
          in\n\

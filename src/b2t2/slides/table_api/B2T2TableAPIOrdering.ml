@@ -743,7 +743,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
          2db6b35a-4173-482d-afa4-292a45be18dd)(content(Whitespace\" \
          \")))))((Secondary((id \
          53be20d1-a88d-415f-a0c7-3ab7cc0d563b)(content(Whitespace\" \
-         \"))))(Tile((id a1530df3-9a6c-438d-8d52-ecc6b0c38c5b)(label(typfun \
+         \"))))(Tile((id a1530df3-9a6c-438d-8d52-ecc6b0c38c5b)(label(abs \
          ->))(mold((out Exp)(in_(TPat))(nibs(((shape Convex)(sort \
          Exp))((shape(Concave 37))(sort Exp))))))(shards(0 \
          1))(children(((Secondary((id \
@@ -1555,7 +1555,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
          Pat)(in_())(nibs(((shape Convex)(sort Pat))((shape Convex)(sort \
          Pat))))))(shards(0))(children())))(Secondary((id \
          7cf52ea1-156b-49d0-a96a-67bff3a9ec5b)(content(Whitespace\" \
-         \")))))((Tile((id 51cff06b-9640-43c6-bbda-a31906eb8d41)(label(typfun \
+         \")))))((Tile((id 51cff06b-9640-43c6-bbda-a31906eb8d41)(label(abs \
          ->))(mold((out Exp)(in_(TPat))(nibs(((shape Convex)(sort \
          Exp))((shape(Concave 37))(sort Exp))))))(shards(0 \
          1))(children(((Secondary((id \
@@ -2092,7 +2092,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
          ef4a822f-e61f-498d-ab84-c6ba681cee29)(content(Whitespace\" \
          \")))))((Secondary((id \
          10a05d99-879c-4bfd-ad14-1889eb695bbf)(content(Whitespace\" \
-         \"))))(Tile((id a651d70b-2dd7-4842-80e8-2b277e7b0118)(label(typfun \
+         \"))))(Tile((id a651d70b-2dd7-4842-80e8-2b277e7b0118)(label(abs \
          ->))(mold((out Exp)(in_(TPat))(nibs(((shape Convex)(sort \
          Exp))((shape(Concave 37))(sort Exp))))))(shards(0 \
          1))(children(((Secondary((id \
@@ -2958,7 +2958,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
          5c022455-c5d8-4685-a0c5-325bf949325a)(content(Whitespace\" \
          \")))))((Secondary((id \
          bcd58fdb-8be6-4311-a1f8-c840bead0e66)(content(Whitespace\" \
-         \"))))(Tile((id 34525054-8539-47c9-83be-95855944b38d)(label(typfun \
+         \"))))(Tile((id 34525054-8539-47c9-83be-95855944b38d)(label(abs \
          ->))(mold((out Exp)(in_(TPat))(nibs(((shape Convex)(sort \
          Exp))((shape(Concave 37))(sort Exp))))))(shards(0 \
          1))(children(((Secondary((id \
@@ -4320,7 +4320,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
          do the projection #\n\
         \  let get_value = fun (r, c : String) -> (to_lvs(r) |> find(_, fun \
          (label=l, value=v) -> l == c)).value in\n\
-        \  let tsort = typfun r -> fun (t: [?], c: String, b: Bool) -> \n\
+        \  let tsort = abs r -> fun (t: [?], c: String, b: Bool) -> \n\
         \    let sorted = sort(fun (first, second) ->\n\
         \      if get_value(first,c) < get_value(second,c) then Lt else Gt,\n\
         \      t) in \n\
@@ -4343,7 +4343,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
         \    (enforced=(true), \"schema(t2) is equal to schema(t1)\")\n\
         \  ] in\n\
         \  \n\
-        \  let lexicographical =typfun t -> fun (comparator : (t,t) -> Ord, ts \
+        \  let lexicographical =abs t -> fun (comparator : (t,t) -> Ord, ts \
          :[t], ts' :[t]) ->\n\
         \    case (ts,ts')\n\
         \    | ([], []) =>Eq\n\
@@ -4361,7 +4361,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
         \  \n\
         \  # Idiomatically I think we would do this with a implicit comparator \
          on tuples and then project them #\n\
-        \  let sort_by_columns = typfun r ->\n\
+        \  let sort_by_columns = abs r ->\n\
         \    let get_values = fun (r,c :[String]) ->(let entries = to_lvs(r) \
          in filter_map(c,fun c -> find_opt(entries,fun (label=l, value=v) \
          ->string_eq(c,l)))).value in\n\
@@ -4389,7 +4389,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
         \  # We don't currently have a way to encode a existential type for \
          the key so we're currently using the unknown type. #\n\
         \  # Idiomatically you'd just compose these at the callsite #\n\
-        \  let order_by = typfun row-> fun (t1 :[row], comparators : \
+        \  let order_by = abs row-> fun (t1 :[row], comparators : \
          [(get_key=row -> ?, comparator= ? -> Ord)])  ->\n\
         \    let compare = fun (a, b, comparators) -> \n\
         \      case comparators\n\

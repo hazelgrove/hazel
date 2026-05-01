@@ -2218,7 +2218,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
          452b7cff-5710-4b14-96ec-65aa651596c7)(content(Whitespace\" \
          \"))))(Secondary((id \
          9914f719-18e3-45e2-ad95-41541aa6ee0e)(content(Whitespace\" \
-         \"))))(Tile((id 97a79642-272a-489b-9190-5782c8a64f29)(label(typfun \
+         \"))))(Tile((id 97a79642-272a-489b-9190-5782c8a64f29)(label(abs \
          ->))(mold((out Exp)(in_(TPat))(nibs(((shape Convex)(sort \
          Exp))((shape(Concave 37))(sort Exp))))))(shards(0 \
          1))(children(((Secondary((id \
@@ -2232,7 +2232,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
          10fbc889-03c6-4a19-b67d-e0ede8826a8f)(content(Whitespace\" \
          \"))))(Secondary((id \
          e0a45818-9ff6-49bd-8e10-c5cb70d1567d)(content(Whitespace\" \
-         \"))))(Tile((id bd81076c-d9be-4db4-b1d1-76c4909695cf)(label(typfun \
+         \"))))(Tile((id bd81076c-d9be-4db4-b1d1-76c4909695cf)(label(abs \
          ->))(mold((out Exp)(in_(TPat))(nibs(((shape Convex)(sort \
          Exp))((shape(Concave 37))(sort Exp))))))(shards(0 \
          1))(children(((Secondary((id \
@@ -2927,7 +2927,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
         \  \n\
         \  let group_by_retentive : poly row -> poly key -> ([row], (row -> \
          key)) -> [(key=key, groups=[row])] =\n\
-        \    typfun row ->  typfun key -> fun (t1, c) ->\n\
+        \    abs row ->  abs key -> fun (t1, c) ->\n\
         \      case t1\n\
         \      | [] => []\n\
         \      | x::xs => \n\

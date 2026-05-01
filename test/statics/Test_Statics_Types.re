@@ -459,8 +459,8 @@ let tests = (
   "Statics.Types",
   [
     fully_consistent_typecheck(
-      "Type alias works for typfun variable",
-      {|typfun a -> fun y ->
+      "Type alias works for abs variable",
+      {|abs a -> fun y ->
   let x :a =  ? in
   type F = a in
   x : F|},

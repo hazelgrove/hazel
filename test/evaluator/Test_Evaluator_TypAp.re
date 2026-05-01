@@ -50,7 +50,7 @@ let tests = (
       parse_and_evaluate_test(
         "[5, 3]",
         {|type T=String in
-let map = typfun a ->typfun b -> fun f :(a ->b), as : [a] -> let bs : [b] =
+let map = abs a ->abs b -> fun f :(a ->b), as : [a] -> let bs : [b] =
   case as
     | [] => []
     | (a :: as) => f(a) :: map@<a>@<b>(f, as)
@@ -60,23 +60,23 @@ in bs in
 map@<T>@<Int>(fun e -> string_length(e), ["hello","bar"])|},
       )
     ),
-    test_case("Multi-binder typfun with multi-arg @<>", `Quick, () =>
-      /* `typfun a, b -> …` declares a single value-level type-
+    test_case("Multi-binder abs with multi-arg @<>", `Quick, () =>
+      /* `abs a, b -> …` declares a single value-level type-
          abstraction value with two binders (curried internally), and
          `f@<Int, Bool>` applies both type arguments in one step via a
-         `TypTuple`. The example uses `pair = typfun a, b -> fun x, y
+         `TypTuple`. The example uses `pair = abs a, b -> fun x, y
          -> (x, y)` and then `pair@<Int, Bool>(3, true)` to build a
          pair value. */
       parse_and_evaluate_test(
         "(3, true)",
         {|let pair : poly a, b -> a -> b -> (a, b) =
-  typfun a, b -> fun x : a -> fun y : b -> (x, y) in
+  abs a, b -> fun x : a -> fun y : b -> (x, y) in
 pair@<Int, Bool>(3)(true)|},
       )
     ),
     /* Regression: a recursive polymorphic `map` with parenthesized
        multi-binder polymorphism (`poly (a, b) -> …`, internal
-       `TPat.Tuple`) and `typfun (a, b) -> …` must fully evaluate the
+       `TPat.Tuple`) and `abs (a, b) -> …` must fully evaluate the
        resulting list — including any arithmetic inside the mapped
        function's body. The bug had `[1 + 1, 2 + 1, 3 + 1]` left
        unevaluated for the multi-binder form even though the curried
@@ -88,15 +88,38 @@ pair@<Int, Bool>(3)(true)|},
       () =>
       parse_and_evaluate_test(
         "[2, 3, 4]",
-        {|let emptylist : poly a -> [a] = typfun a -> [] in
+        {|let emptylist : poly a -> [a] = abs a -> [] in
 let map : poly (a, b) -> (a -> b, [a]) -> [b] =
-  typfun (a, b) -> fun (f : (a -> b), l : [a]) ->
+  abs (a, b) -> fun (f : (a -> b), l : [a]) ->
     case l
     | h :: t => f(h)::map@<a, b>(f, t)
     | _ => emptylist@<b>
     end in
 map@<Int, Int>((fun x -> x + 1), [1, 2, 3])|},
       )
+    ),
+    /* Type-level `typfun a -> body` is the prefix-binder spelling
+       of `type T(a) = body`. End-to-end check: declare the alias
+       with the new syntax and use it through a polymorphic
+       constructor — `Some(3)` should evaluate to a fully-
+       specialized constructor (not stuck on a `TypAp` wrapper). */
+    test_case(
+      "type-level typfun: type Option = typfun a -> + None + Some(a)",
+      `Quick,
+      () => {
+        let (ok, _) =
+          evaluated_is_self_typed_ctr(
+            {|type Option = typfun a -> + None + Some(a) in
+let x : Option(Int) = Some(3) in x|},
+            "Some",
+          );
+        check(
+          bool,
+          "Some specialized after evaluation under typfun-body alias",
+          true,
+          ok,
+        );
+      },
     ),
     test_case(
       "Parameterized Some(3) evaluates to self-typed constructor",

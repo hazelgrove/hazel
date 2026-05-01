@@ -2,14 +2,16 @@ open Haz3lcore;
 open ExplainThisForm;
 open Example;
 
-/* A `typfun` value-level type abstraction. Three forms by arity of
-   the binder list, mirroring PolyTyp. */
+/* An `abs` value-level type abstraction (System F's big-Lambda).
+   Three forms by arity of the binder list, mirroring PolyTyp.
+   Renamed from the surface keyword `typfun` so `typfun` is now the
+   *type-level* type function (`type T = typfun a -> body`). */
 
 let poly_id_ex = {
   sub_id: TypFun(Basic),
   term:
     mk_example(
-      "let id : \n poly a -> (a -> a) = \n typfun a -> \n fun x : a -> x \n in id",
+      "let id : \n poly a -> (a -> a) = \n abs a -> \n fun x : a -> x \n in id",
     ),
   message: "The polymorphic identity function. It may be instantiated at any type a, after which the function acts as type (a -> a).",
 };

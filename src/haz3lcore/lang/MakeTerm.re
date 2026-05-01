@@ -847,9 +847,9 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
         | (["fun", "->"], [Pat(pat)]) => Fun(pat, r, None, None)
         | (["forall", "->"], [Pat(pat)]) => Forall(pat, r)
         | (["fix", "->"], [Pat(pat)]) => FixF(pat, r, None)
-        | (["typfun", "->"], [TPat(tpat)]) =>
-          /* `typfun a, b -> e` parses as a single `TypFun` whose binder
-             is `TPat.Tuple([a, b, …])`. Single-binder `typfun a -> e`
+        | (["abs", "->"], [TPat(tpat)]) =>
+          /* `abs a, b -> e` parses as a single `TypFun` whose binder
+             is `TPat.Tuple([a, b, …])`. Single-binder `abs a -> e`
              keeps `tpat` as the bare `Var`/hole. Parens wrapping the
              binder list survive as `Parens(Tuple([a, b, …]))`. The
              reduction rule for `TypAp` looks through `Parens` and zips
@@ -1281,6 +1281,15 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
   /* poly and rec have to be before sum so that they bind tighter.
    * Thus `rec A -> Left(A) + Right(B)` get parsed as `rec A -> (Left(A) + Right(B))`
    * If this is below the case for sum, then it gets parsed as an invalid form. */
+  | Pre(([(_id, (["typfun", "->"], [TPat(tpat)]))], []), Typ(t)) =>
+    /* `typfun a -> t` at the type level introduces a `TypLam` — a
+       type-level type function. Used in alias bodies like
+       `type Option = typfun a -> + None + Some(a)` (equivalent to
+       the head-parameter form `type Option(a) = + None + Some(a)`).
+       Multi-binder `typfun a, b -> t` produces a single `TypLam`
+       whose binder is `TPat.Tuple([a, b, …])`, paralleling `Poly`
+       and the value-level `abs`. */
+    ret(TypLam(binder_of_tpat(tpat), t))
   | Pre(([(_id, (["poly", "->"], [TPat(tpat)]))], []), Typ(t)) =>
     /* `poly a, b -> t` parses as a single `Poly` whose binder is
        `TPat.Tuple([a, b, …])`. Explicit nesting `poly a -> poly b ->

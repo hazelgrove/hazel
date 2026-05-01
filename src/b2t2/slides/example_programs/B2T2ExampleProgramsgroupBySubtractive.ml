@@ -117,7 +117,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
          29d658e6-141d-4dd2-95b2-33e3d9f2fe41)(content(Whitespace\" \
          \")))))((Secondary((id \
          f78dbb0b-7bca-4c53-bebc-c3c6408a655e)(content(Whitespace\" \
-         \"))))(Tile((id 31685e53-8bab-4439-b619-8d39ac769465)(label(typfun \
+         \"))))(Tile((id 31685e53-8bab-4439-b619-8d39ac769465)(label(abs \
          ->))(mold((out Exp)(in_(TPat))(nibs(((shape Convex)(sort \
          Exp))((shape(Concave 37))(sort Exp))))))(shards(0 \
          1))(children(((Secondary((id \
@@ -1789,7 +1789,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
          fun (r:?, label:String) ->\n\
          find(to_lvs(r), fun e ->e.label == label).value\n\
          in\n\
-         let add_rows = typfun row ->  fun (r : row, rs : [row]) -> rs @ [r]  in\n\
+         let add_rows = abs row ->  fun (r : row, rs : [row]) -> rs @ [r]  in\n\
          let add_col = fun (t : [?], c : String, vs: [?]) ->\n\
          zip(t, vs)\n\
          |> map(_, fun (r, v) -> from_lvs(to_lvs(r) @ [(c, v)])) in\n\

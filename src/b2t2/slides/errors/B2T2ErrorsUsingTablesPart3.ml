@@ -2309,7 +2309,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
          594d027c-25d1-4b23-91f3-644935155410)(content(Whitespace\" \
          \")))))((Secondary((id \
          880dcb93-a57a-4c37-8906-b652561c03f1)(content(Whitespace\" \
-         \"))))(Tile((id 23a9a944-3dd0-422a-88ca-01d52c1cf867)(label(typfun \
+         \"))))(Tile((id 23a9a944-3dd0-422a-88ca-01d52c1cf867)(label(abs \
          ->))(mold((out Exp)(in_(TPat))(nibs(((shape Convex)(sort \
          Exp))((shape(Concave 37))(sort Exp))))))(shards(0 \
          1))(children(((Secondary((id \
@@ -2522,7 +2522,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
          81693893-3387-40ea-b809-dcbd39e44354)(content(Whitespace\" \
          \")))))((Secondary((id \
          1c2fe9f6-f9f4-40e5-a03f-b1febe83abbe)(content(Whitespace\" \
-         \"))))(Tile((id 1a90aefc-3809-4722-a115-5673fde8cb91)(label(typfun \
+         \"))))(Tile((id 1a90aefc-3809-4722-a115-5673fde8cb91)(label(abs \
          ->))(mold((out Exp)(in_(TPat))(nibs(((shape Convex)(sort \
          Exp))((shape(Concave 37))(sort Exp))))))(shards(0 \
          1))(children(((Secondary((id \
@@ -3314,7 +3314,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
          14d924fb-fa88-44c5-a5c6-2dde6bcadcba)(content(Whitespace\" \
          \")))))((Secondary((id \
          8c9d2ec4-3d91-4cda-987e-e2afcda0d323)(content(Whitespace\" \
-         \"))))(Tile((id b2efc51b-cca9-46d1-b70b-597adddffcf2)(label(typfun \
+         \"))))(Tile((id b2efc51b-cca9-46d1-b70b-597adddffcf2)(label(abs \
          ->))(mold((out Exp)(in_(TPat))(nibs(((shape Convex)(sort \
          Exp))((shape(Concave 37))(sort Exp))))))(shards(0 \
          1))(children(((Secondary((id \
@@ -3425,7 +3425,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
          f9a68446-f44c-4351-bded-e743f6126c05)(content(Whitespace\" \
          \")))))((Secondary((id \
          40ea3f3d-9082-4295-bb6a-d9959e804127)(content(Whitespace\" \
-         \"))))(Tile((id 2d68f96b-76d6-401e-92ac-d87e68d65414)(label(typfun \
+         \"))))(Tile((id 2d68f96b-76d6-401e-92ac-d87e68d65414)(label(abs \
          ->))(mold((out Exp)(in_(TPat))(nibs(((shape Convex)(sort \
          Exp))((shape(Concave 37))(sort Exp))))))(shards(0 \
          1))(children(((Secondary((id \
@@ -3521,7 +3521,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
          Pat)(in_())(nibs(((shape Convex)(sort Pat))((shape Convex)(sort \
          Pat))))))(shards(0))(children())))(Secondary((id \
          6bfb3082-18e3-4056-aeca-bf465fac1eba)(content(Whitespace\" \
-         \")))))((Tile((id 35e3f162-868c-42c0-9122-538711e23df4)(label(typfun \
+         \")))))((Tile((id 35e3f162-868c-42c0-9122-538711e23df4)(label(abs \
          ->))(mold((out Exp)(in_(TPat))(nibs(((shape Convex)(sort \
          Exp))((shape(Concave 37))(sort Exp))))))(shards(0 \
          1))(children(((Secondary((id \
@@ -3533,7 +3533,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
          bdf628da-56ca-4a71-8587-d7231ce71f02)(content(Whitespace\" \
          \")))))))))(Secondary((id \
          641c706e-3b12-4769-aa00-edb4ca77ea4f)(content(Whitespace\" \
-         \"))))(Tile((id 0e29bdab-3f0b-4bc6-aacf-cb9ba4a98c05)(label(typfun \
+         \"))))(Tile((id 0e29bdab-3f0b-4bc6-aacf-cb9ba4a98c05)(label(abs \
          ->))(mold((out Exp)(in_(TPat))(nibs(((shape Convex)(sort \
          Exp))((shape(Concave 37))(sort Exp))))))(shards(0 \
          1))(children(((Secondary((id \
@@ -5077,13 +5077,13 @@ let out : string * Haz3lcore.PersistentSegment.t =
         \    \n\
         \    let incorrect =\n\
         \      let keep = fun (r : JellyAnon) -> r.color in \n\
-        \      let count_participants = typfun row -> fun (t:[row], color: row \
+        \      let count_participants = abs row -> fun (t:[row], color: row \
          -> Bool) -> \n\
         \        length(filter(t, keep))\n\
         \      in count_participants@<JellyAnon>(jellyAnon, fun r -> r.brown)\n\
         \    in\n\
         \    let correct = \n\
-        \      let count_participants = typfun row -> fun (t:[row], color: row \
+        \      let count_participants = abs row -> fun (t:[row], color: row \
          -> Bool) -> \n\
         \        let keep = fun (r : row) -> color(r) in \n\
         \        length(filter(t, keep))\n\
@@ -5111,11 +5111,11 @@ let out : string * Haz3lcore.PersistentSegment.t =
         \    (35, \"Marketing\")\n\
         \  ]) in\n\
         \  \n\
-        \  let tfilter = typfun row -> fun (t: [row], pred: (row -> Bool)) -> \
+        \  let tfilter = abs row -> fun (t: [row], pred: (row -> Bool)) -> \
          filter(t,pred) :[row] in\n\
-        \  let get_row = typfun row -> fun (t:[row], n : Int) -> nth(t,n) : \
+        \  let get_row = abs row -> fun (t:[row], n : Int) -> nth(t,n) : \
          row in\n\
-        \  let build_column =typfun row -> typfun row' -> fun (t:[row], fn: \
+        \  let build_column =abs row -> abs row' -> fun (t:[row], fn: \
          (row -> row')) -> map(t, fn) : [row']in\n\
         \  let incorrect =\n\
         \    let last_name_to_dept_id = fun (dept_tab : [Department], name: \

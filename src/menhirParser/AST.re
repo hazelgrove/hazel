@@ -99,6 +99,7 @@ type typ =
   | TypVar(string)
   | InvalidTyp(string)
   | PolyType(tpat, typ)
+  | TypLamType(tpat, typ)
   | RecType(tpat, typ)
   | ProofOfType(exp)
   | LabelType(string)
@@ -1376,6 +1377,9 @@ and shrink_typ: QCheck.Shrink.t(typ) =
         | PolyType(tpat, t) =>
           let* shrunk = shrink_typ(t);
           return(PolyType(tpat, shrunk));
+        | TypLamType(tpat, t) =>
+          let* shrunk = shrink_typ(t);
+          return(TypLamType(tpat, shrunk));
         | RecType(tpat, t) =>
           let* shrunk = shrink_typ(t);
           return(RecType(tpat, shrunk));

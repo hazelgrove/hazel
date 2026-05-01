@@ -1129,19 +1129,19 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
         }
 
       | TypFun(tpat, e, name) =>
-        if (available^ < 6) {
+        if (available^ < 3) {
           available := available^ - ellipsis_cost;
           Invalid(flat_ellipses);
+        } else if (available^ <= 3) {
+          Invalid("abs");
+        } else if (available^ <= 4) {
+          Invalid("abs…");
+        } else if (available^ <= 5) {
+          Invalid("abs…→");
         } else if (available^ <= 6) {
-          Invalid("typfun");
-        } else if (available^ <= 7) {
-          Invalid("typfun…");
-        } else if (available^ <= 8) {
-          Invalid("typfun…→");
-        } else if (available^ <= 9) {
-          Invalid("typfun…→…");
+          Invalid("abs…→…");
         } else {
-          available := available^ - 7;
+          available := available^ - 4;
           let tp' = abbreviate_tpat(tpat);
           if (available^ > 4) {
             // " -> "

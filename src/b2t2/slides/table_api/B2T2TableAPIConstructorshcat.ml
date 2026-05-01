@@ -778,7 +778,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
          7ea8dece-a5a9-4f1e-a248-085155b5c6e5)(content(Whitespace\" \
          \")))))((Secondary((id \
          e9445838-97c5-4f18-9ecf-f65f40bbfb34)(content(Whitespace\" \
-         \"))))(Tile((id fd8e23dc-1ed5-42c1-b06c-4ee5332cbc15)(label(typfun \
+         \"))))(Tile((id fd8e23dc-1ed5-42c1-b06c-4ee5332cbc15)(label(abs \
          ->))(mold((out Exp)(in_(TPat))(nibs(((shape Convex)(sort \
          Exp))((shape(Concave 37))(sort Exp))))))(shards(0 \
          1))(children(((Secondary((id \
@@ -790,7 +790,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
          ec24f9a2-01a1-4dd2-926e-61133b3c9ad8)(content(Whitespace\" \
          \")))))))))(Secondary((id \
          939be504-9a61-405f-bd16-1afd37a5cfd2)(content(Whitespace\" \
-         \"))))(Tile((id 659b9259-257b-4179-b885-2fd091bf31bd)(label(typfun \
+         \"))))(Tile((id 659b9259-257b-4179-b885-2fd091bf31bd)(label(abs \
          ->))(mold((out Exp)(in_(TPat))(nibs(((shape Convex)(sort \
          Exp))((shape(Concave 37))(sort Exp))))))(shards(0 \
          1))(children(((Secondary((id \
@@ -802,7 +802,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
          3325798b-65d1-423c-b1d3-31802bd5b1cd)(content(Whitespace\" \
          \")))))))))(Secondary((id \
          f103a1b2-9dcf-48d0-8125-354d59f8b43f)(content(Whitespace\" \
-         \"))))(Tile((id d8188750-0ffa-4105-86e7-51506adc14ff)(label(typfun \
+         \"))))(Tile((id d8188750-0ffa-4105-86e7-51506adc14ff)(label(abs \
          ->))(mold((out Exp)(in_(TPat))(nibs(((shape Convex)(sort \
          Exp))((shape(Concave 37))(sort Exp))))))(shards(0 \
          1))(children(((Secondary((id \
@@ -2476,7 +2476,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
         \    (enforced=^^check(false), \"nrows(t3) is equal to nrows(t1)\")\n\
         \  ] in\n\
         \  # V1 is the more idiomatic version #\n\
-        \  let hcat = typfun r1 -> typfun r2 -> typfun r3 -> fun (t1:[r1], \
+        \  let hcat = abs r1 -> abs r2 -> abs r3 -> fun (t1:[r1], \
          t2:[r2], combine: (r1, r2) -> r3) ->\n\
         \    (zip(t1, t2)\n\
         \    |> map(_, combine)) : [r3] in\n\

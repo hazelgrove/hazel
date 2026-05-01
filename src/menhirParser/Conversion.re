@@ -494,6 +494,8 @@ and Typ: {
       parens(sum(converted_terms));
     | PolyType(tp, t) =>
       parens(poly(TPat.of_menhir_ast(tp), of_menhir_ast(t)))
+    | TypLamType(tp, t) =>
+      parens(typ_lam(TPat.of_menhir_ast(tp), of_menhir_ast(t)))
     | RecType(tp, t) =>
       parens(rec_(TPat.of_menhir_ast(tp), of_menhir_ast(t)))
     | ProofOfType(e) => proof_of(Exp.of_menhir_ast(e))
@@ -528,8 +530,6 @@ and Typ: {
     | Prod(ts) => TupleType(List.map(of_core, ts))
     | List(t) => ArrayType(of_core(t))
     | Arrow(t1, t2) => ArrowType(of_core(t1), of_core(t2))
-    | TypLam(_, _) =>
-      raise(Failure("TypLam not supported in Menhir syntax"))
     | TypParamAp(t1, t2) => TypParamAp(of_core(t1), of_core(t2))
     /* `TypTuple` is the multi-argument bundle in a type-level
        application like `Either(a, b)`; round-trip it as the matching
@@ -537,6 +537,7 @@ and Typ: {
     | TypTuple(ts) => TypTuple(List.map(of_core, ts))
     | Unknown(p) => UnknownType(of_core_type_provenance(p))
     | Poly(tp, t) => PolyType(TPat.of_core(tp), of_core(t))
+    | TypLam(tp, t) => TypLamType(TPat.of_core(tp), of_core(t))
     | Rec(tp, t) => RecType(TPat.of_core(tp), of_core(t))
     | ProofOf(e) => ProofOfType(Exp.of_core(e))
     | Parens(t) => of_core(t)

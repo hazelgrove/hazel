@@ -681,17 +681,17 @@ let x : Either(Int, Bool) = A(3) in x
            structurally distinct as a chain. */
         let src = {|
 let pair : poly a, b -> a -> b -> (a, b) =
-  typfun a, b -> fun x : a -> fun y : b -> (x, y) in pair
+  abs a, b -> fun x : a -> fun y : b -> (x, y) in pair
 |};
         let exp = Haz3lcore.Parser.to_term(src, ~root=Exp) |> Option.get;
         /* Walk the AST looking for the user's `poly a, b -> …` annotation
-           and the `typfun a, b -> …` value. Both should have a single
+           and the `abs a, b -> …` value. Both should have a single
            `Poly`/`TypFun` node whose binder is a `TPat.Tuple([_, _])`,
            not a chain of two `Poly`/`TypFun`s. */
         let poly_tuple_binders = ref(0);
-        let typfun_tuple_binders = ref(0);
+        let abs_tuple_binders = ref(0);
         let nested_poly = ref(0);
-        let nested_typfun = ref(0);
+        let nested_abs = ref(0);
         let rec walk_typ = (t: Typ.t): unit => {
           switch (t.term) {
           | Poly({term: Tuple([_, _]), _}, body) =>
@@ -714,10 +714,10 @@ let pair : poly a, b -> a -> b -> (a, b) =
         let rec walk_exp = (e: Exp.t): unit => {
           switch (e.term) {
           | TypFun({term: Tuple([_, _]), _}, body, _) =>
-            incr(typfun_tuple_binders);
+            incr(abs_tuple_binders);
             walk_exp(body);
           | TypFun(_, {term: TypFun(_), _}, _) =>
-            incr(nested_typfun);
+            incr(nested_abs);
           | TypFun(_, body, _) => walk_exp(body)
           | Let(p, def, body) =>
             walk_pat(p);
@@ -734,8 +734,8 @@ let pair : poly a, b -> a -> b -> (a, b) =
         walk_exp(exp);
         check(int, "exactly one Poly with a TPat.Tuple binder", 1, poly_tuple_binders^);
         check(int, "no curried Poly chains for the multi-binder form", 0, nested_poly^);
-        check(int, "exactly one TypFun with a TPat.Tuple binder", 1, typfun_tuple_binders^);
-        check(int, "no curried TypFun chains for the multi-binder form", 0, nested_typfun^);
+        check(int, "exactly one TypFun with a TPat.Tuple binder", 1, abs_tuple_binders^);
+        check(int, "no curried TypFun chains for the multi-binder form", 0, nested_abs^);
       },
     ),
     test_case(
@@ -766,18 +766,18 @@ let f : poly A(a) -> Int = ? in f
       },
     ),
     test_case(
-      "T(a) form is rejected as a typfun binder",
+      "T(a) form is rejected as a abs binder",
       `Quick,
       () => {
         let marks =
           static_errors(
             {|
-let f = typfun A(a) -> ? in f
+let f = abs A(a) -> ? in f
 |},
           );
         check(
           bool,
-          "typfun A(a) -> reports TPatParamNotAtAliasHead on the binder",
+          "abs A(a) -> reports TPatParamNotAtAliasHead on the binder",
           true,
           List.exists(
             fun
@@ -836,11 +836,11 @@ let f : poly (a, b) -> a -> b -> Int = ? in f
         );
         Alcotest.check(
           list(testable_issue),
-          "no static errors on typfun (a, b) -> ...",
+          "no static errors on abs (a, b) -> ...",
           [],
           static_errors(
             {|
-let g = typfun (a, b) -> ? in g
+let g = abs (a, b) -> ? in g
 |},
           )
           |> List.map(ms => Marks([ms])),
@@ -854,7 +854,7 @@ let g = typfun (a, b) -> ? in g
           [],
           static_errors(
             {|
-let h = typfun (a) -> ? in h
+let h = abs (a) -> ? in h
 |},
           )
           |> List.map(ms => Marks([ms])),
@@ -904,12 +904,82 @@ type T(a, b) = (a, b) in ?
           static_errors(
             {|
 let map : poly a, b -> ([a], a -> b) -> [b] =
-  typfun a, b -> fun (xs, f) ->
+  abs a, b -> fun (xs, f) ->
     case xs
     | [] => []
     | hd::tl => f(hd)::map@<a, b>(tl, f)
     end in
 map@<Int, Int>([1, 2, 3], fun x -> x * 2)
+|},
+          )
+          |> List.map(ms => Marks([ms])),
+        );
+      },
+    ),
+    /* Type-level type function as the body of a type alias.
+       `type T = typfun a -> body` is the prefix-binder form of
+       `type T(a) = body` and should produce the same kind /
+       elaboration shape: `T` has kind `Type -> Type` and
+       `T(Int)` normalizes through the existing higher-kinded
+       reduction. */
+    test_case(
+      "type T = typfun a -> body parses + checks like type T(a) = body",
+      `Quick,
+      () => {
+        Alcotest.check(
+          list(testable_issue),
+          "no static errors on type-level typfun alias body",
+          [],
+          static_errors(
+            {|
+type Option = typfun a -> + None + Some(a) in
+let x : Option(Int) = Some(3) in x
+|},
+          )
+          |> List.map(ms => Marks([ms])),
+        );
+      },
+    ),
+    test_case(
+      "type-level multi-binder typfun: type Either = typfun a, b -> ...",
+      `Quick,
+      () => {
+        Alcotest.check(
+          list(testable_issue),
+          "no static errors on type-level multi-binder typfun",
+          [],
+          static_errors(
+            {|
+type Either = typfun a, b -> + Left(a) + Right(b) in
+let x : Either(Int, Bool) = Right(true) in x
+|},
+          )
+          |> List.map(ms => Marks([ms])),
+        );
+      },
+    ),
+    test_case(
+      "type-level recursive typfun: type List = typfun a -> + Nil + Cons(a, List(a))",
+      `Quick,
+      () => {
+        /* Self-reference inside a type-level typfun body: the alias
+           name `List` is captured as a recursive reference (the
+           `Var` branch of TyAlias detects it via `free_vars` and
+           wraps in `Rec`), and `List(Int)` normalizes via the
+           higher-kinded reduction.
+
+           `+ Cons(a, List(a))` declares Cons with a single tuple
+           payload `(a, List(a))`, so applications are
+           `Cons((1, Nil))`. Same shape as the prefix-binder form
+           `type List(a) = …` test elsewhere in this file. */
+        Alcotest.check(
+          list(testable_issue),
+          "no static errors on recursive type-level typfun",
+          [],
+          static_errors(
+            {|
+type List = typfun a -> + Nil + Cons(a, List(a)) in
+let xs : List(Int) = Cons((1, Nil)) in xs
 |},
           )
           |> List.map(ms => Marks([ms])),

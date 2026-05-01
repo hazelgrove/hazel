@@ -24,7 +24,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
          050f370e-7bb5-4e58-a85a-b7bda93a4eeb)(content(Whitespace\" \
          \")))))((Secondary((id \
          cb5be678-d91d-4c1e-ba7d-01ae62b78299)(content(Whitespace\" \
-         \"))))(Tile((id 0d11d68a-796e-4804-8d8c-7477a7c33b1c)(label(typfun \
+         \"))))(Tile((id 0d11d68a-796e-4804-8d8c-7477a7c33b1c)(label(abs \
          ->))(mold((out Exp)(in_(TPat))(nibs(((shape Convex)(sort \
          Exp))((shape(Concave 37))(sort Exp))))))(shards(0 \
          1))(children(((Secondary((id \
@@ -175,7 +175,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
          a2801da3-00ef-4a70-92b3-b027d76097e2)(content(Whitespace\" \
          \"))))(Secondary((id \
          b6646236-88d9-453b-8cbb-0ac50c4ae48d)(content(Whitespace\"\\n\"))))(Tile((id \
-         dffdbbc3-f654-4241-8dd8-35a54daef4d3)(label(typfun ->))(mold((out \
+         dffdbbc3-f654-4241-8dd8-35a54daef4d3)(label(abs ->))(mold((out \
          Exp)(in_(TPat))(nibs(((shape Convex)(sort Exp))((shape(Concave \
          37))(sort Exp))))))(shards(0 1))(children(((Secondary((id \
          cfddb44a-3fd2-4613-a271-d606854944be)(content(Whitespace\" \
@@ -186,7 +186,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
          b80b7d7c-161d-456e-9a81-022b6cc2d525)(content(Whitespace\" \
          \")))))))))(Secondary((id \
          c9f07f1b-fc40-414f-aaf4-50a6c5a51053)(content(Whitespace\" \
-         \"))))(Tile((id 1d1bc579-ffa6-4529-9558-a025ca384bc3)(label(typfun \
+         \"))))(Tile((id 1d1bc579-ffa6-4529-9558-a025ca384bc3)(label(abs \
          ->))(mold((out Exp)(in_(TPat))(nibs(((shape Convex)(sort \
          Exp))((shape(Concave 37))(sort Exp))))))(shards(0 \
          1))(children(((Secondary((id \
@@ -396,7 +396,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
          f0424308-d7cb-4393-98d1-6d49857dc177)(content(Whitespace\" \
          \")))))((Secondary((id \
          0342c8f4-012b-4c5b-96bf-32c167ccba9c)(content(Whitespace\"\\n\"))))(Tile((id \
-         a1c3e482-afa4-40dc-a47c-2c17ebf587c0)(label(typfun ->))(mold((out \
+         a1c3e482-afa4-40dc-a47c-2c17ebf587c0)(label(abs ->))(mold((out \
          Exp)(in_(TPat))(nibs(((shape Convex)(sort Exp))((shape(Concave \
          37))(sort Exp))))))(shards(0 1))(children(((Secondary((id \
          2223c296-c3dd-402a-9e4c-67c9dfd84fb9)(content(Whitespace\" \
@@ -407,7 +407,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
          872717d4-3fb9-4590-b9db-7955c65c57fb)(content(Whitespace\" \
          \")))))))))(Secondary((id \
          e04d3cf5-7641-425f-b5d8-955639dbeac6)(content(Whitespace\" \
-         \"))))(Tile((id c74b9508-d213-40da-b18f-1d743851ac37)(label(typfun \
+         \"))))(Tile((id c74b9508-d213-40da-b18f-1d743851ac37)(label(abs \
          ->))(mold((out Exp)(in_(TPat))(nibs(((shape Convex)(sort \
          Exp))((shape(Concave 37))(sort Exp))))))(shards(0 \
          1))(children(((Secondary((id \
@@ -597,7 +597,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
          a48ffd15-f049-4c4e-a9bb-904320006875)(content(Whitespace\" \
          \")))))((Secondary((id \
          049604dc-fcef-43f7-9916-e01cf0cb570a)(content(Whitespace\" \
-         \"))))(Tile((id ebf21663-5404-49a7-9a2d-8697d10a25bd)(label(typfun \
+         \"))))(Tile((id ebf21663-5404-49a7-9a2d-8697d10a25bd)(label(abs \
          ->))(mold((out Exp)(in_(TPat))(nibs(((shape Convex)(sort \
          Exp))((shape(Concave 37))(sort Exp))))))(shards(0 \
          1))(children(((Secondary((id \
@@ -708,7 +708,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
          9e923e5e-a1dc-417e-9bde-fe5d5df6ea6c)(content(Whitespace\" \
          \"))))(Secondary((id \
          f3262ef5-3c82-4b71-b3c1-cb43f566575d)(content(Whitespace\"\\n\"))))(Tile((id \
-         a4d7c578-e0ee-4ae3-82c3-94f10598f7f9)(label(typfun ->))(mold((out \
+         a4d7c578-e0ee-4ae3-82c3-94f10598f7f9)(label(abs ->))(mold((out \
          Exp)(in_(TPat))(nibs(((shape Convex)(sort Exp))((shape(Concave \
          37))(sort Exp))))))(shards(0 1))(children(((Secondary((id \
          c70479a6-123c-4ffa-8d78-6ea92578a181)(content(Whitespace\" \
@@ -719,7 +719,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
          d12629ae-3f2f-4984-9af0-5866a3f027b7)(content(Whitespace\" \
          \")))))))))(Secondary((id \
          1e35cc81-5ef5-49c5-8170-1df16f543ff8)(content(Whitespace\" \
-         \"))))(Tile((id 6d98fb7d-9096-419e-9535-9b42390199e1)(label(typfun \
+         \"))))(Tile((id 6d98fb7d-9096-419e-9535-9b42390199e1)(label(abs \
          ->))(mold((out Exp)(in_(TPat))(nibs(((shape Convex)(sort \
          Exp))((shape(Concave 37))(sort Exp))))))(shards(0 \
          1))(children(((Secondary((id \
@@ -1427,26 +1427,26 @@ let out : string * Haz3lcore.PersistentSegment.t =
         "# Polymorphism #\n\n\
          # We can take types as parameters to type functions, #\n\
          # and use them in annoatations in the body: #\n\
-         let id = typfun A -> fun x : A -> x in\n\n\
+         let id = abs A -> fun x : A -> x in\n\n\
          # Such functions are applied like so: #\n\
          let ex1 = id@<Int>(1) in # 1 #\n\n\
          # We can annotate the type of a type function with a poly. #\n\
          let const : poly A -> poly B -> A -> B -> A = \n\
-         typfun A -> typfun B -> fun x -> fun y -> x in\n\
+         abs A -> abs B -> fun x -> fun y -> x in\n\
          let ex2 = const@<Int>@<String>(2)(\"Hello World\") in # 2 #\n\n\
          # We can go beyond rank 1 polymorphism: #\n\
          let apply_both : poly A -> poly B -> (poly D -> D -> D) -> (A , B) -> \
          (A , B) =\n\
-         typfun A -> typfun B -> fun f -> fun (x, y) -> (f@<A>(x), f@<B>(y)) \
+         abs A -> abs B -> fun f -> fun (x, y) -> (f@<A>(x), f@<B>(y)) \
          in  \n\
          let ex3 = apply_both@<Int>@<String>(id)(3, \"Hello World\") in # (3, \
          \"Hello World\") # \n\n\
          # Finally, here is a more in-depth, yet applicable example: \
          polymorphic map #\n\
-         let emptylist : poly A -> [A] = typfun A -> [] in # polymorphic \
+         let emptylist : poly A -> [A] = abs A -> [] in # polymorphic \
          constant #\n\
          let map : poly A -> poly B -> (A -> B) -> ([A] -> [B]) = \n\
-         typfun A -> typfun B -> fun f : (A -> B) -> fun l : [A] -> \n\
+         abs A -> abs B -> fun f : (A -> B) -> fun l : [A] -> \n\
          case l\n\
          | h :: t => f(h) :: map@<A>@<B>(f)(t)\n\
          | _ => emptylist@<B>   \n\

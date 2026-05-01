@@ -372,7 +372,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
          c820623f-50dc-4242-9132-9ab82a2ad79d)(content(Whitespace\" \
          \")))))((Secondary((id \
          f8808dd3-222b-4909-89bc-20ab045ae742)(content(Whitespace\" \
-         \"))))(Tile((id d80bc893-418e-4151-87f6-8039ef94e25d)(label(typfun \
+         \"))))(Tile((id d80bc893-418e-4151-87f6-8039ef94e25d)(label(abs \
          ->))(mold((out Exp)(in_(TPat))(nibs(((shape Convex)(sort \
          Exp))((shape(Concave 37))(sort Exp))))))(shards(0 \
          1))(children(((Secondary((id \
@@ -384,7 +384,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
          b14598ce-7b2d-4f90-a259-f61fbfd4926e)(content(Whitespace\" \
          \")))))))))(Secondary((id \
          11c7efc1-0f4e-490e-907d-0c02084abb4c)(content(Whitespace\" \
-         \"))))(Tile((id 27951534-74ae-4ea5-93b1-6afce85cfdf9)(label(typfun \
+         \"))))(Tile((id 27951534-74ae-4ea5-93b1-6afce85cfdf9)(label(abs \
          ->))(mold((out Exp)(in_(TPat))(nibs(((shape Convex)(sort \
          Exp))((shape(Concave 37))(sort Exp))))))(shards(0 \
          1))(children(((Secondary((id \
@@ -743,7 +743,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
          a2808eb8-d671-45d0-8c10-4aa059af2dcc)(content(Whitespace\" \
          \")))))((Secondary((id \
          82145a25-0847-47ff-ac94-ece608af82b0)(content(Whitespace\" \
-         \"))))(Tile((id 3415a817-d614-4807-bcd3-f1f90c7fb2ac)(label(typfun \
+         \"))))(Tile((id 3415a817-d614-4807-bcd3-f1f90c7fb2ac)(label(abs \
          ->))(mold((out Exp)(in_(TPat))(nibs(((shape Convex)(sort \
          Exp))((shape(Concave 37))(sort Exp))))))(shards(0 \
          1))(children(((Secondary((id \
@@ -2274,7 +2274,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
          let requires=[(enforced=^^check(true), \"c is in header(t)\")] in\n\
          let ensures=[(enforced=^^check(false), \"length(bs) is equal to \
          nrows(t)\")] in\n\
-         let complete_cases = typfun R -> typfun C -> fun (t:[R], project:(R \
+         let complete_cases = abs R -> abs C -> fun (t:[R], project:(R \
          -> +None +Some(C))) ->\n\
          map(t, fun (r : R) -> case project(r)\n\
          | Some(_) => true\n\
@@ -2289,7 +2289,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
          let requires=[] in\n\
          let ensures=[(enforced=^^check(true), \"schema(t2) is equal to \
          schema(t1)\")] in\n\
-         let dropna = typfun R -> fun (t1 : [R]) -> filter(t1, fun row -> \
+         let dropna = abs R -> fun (t1 : [R]) -> filter(t1, fun row -> \
          !any(to_lvs(row), fun e -> e.value == (None : Option))) : [R] in\n\
          type StudentFullyOptional = (name=OptString, age=OptInt, \
          favorite_color=OptString) in\n\
