@@ -52,7 +52,10 @@ let suggest = (ci: Info.t, z: Zipper.t): list(t) => {
         },
       dot_labels,
     )
-  | InfoTyp({expects: LabelProjectionExpected(Some(labels)), _})
+  | InfoTyp({
+      expects: TypExpectation.LabelProjectionExpected(Some(labels)),
+      _,
+    })
       when labels != [] =>
     List.map(
       label =>

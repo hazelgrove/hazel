@@ -423,12 +423,13 @@ end
             )
           );
 
-        let error = Statics.Map.errors(statics(exp)) |> List.assoc(id2);
+        let error =
+          errors(statics(exp)) |> List.assoc(id2) |> (ms => Marks(ms));
         Alcotest.(
           check(
-            testable_error,
+            testable_issue,
             "duplicate constructor present",
-            Typ(DuplicateConstructor("A")),
+            Marks([Mark.TypDuplicateConstructor("A")]),
             error,
           )
         );
