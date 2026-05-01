@@ -25,14 +25,58 @@ let context_entry_view = (~globals, entry: Language.Ctx.entry): Node.t => {
       },
     );
   let div_name = div(~attrs=[clss(["name"])]);
+  /* Render a type alias entry as a declaration:
+     `type Name(a, b) = body` for parameterized aliases (the
+     stored type is `[Rec(_,] TypFun(binder, body) [)]`),
+     `type Name = body` for non-parameterized,
+     `Name :: Type` for abstract type variables. We strip the
+     outer `Rec(_, _)` (for self-referential aliases) because the
+     declaration's name binds the recursive reference implicitly,
+     so the displayed body's `Var(name)` resolves visually to the
+     alias being defined. */
+  let view_tvar_entry =
+      (name: string, kind: Language.Ctx.kind): list(Node.t) =>
+    switch (kind) {
+    | Abstract => [
+        div_name([alias_view(name)]),
+        div(~attrs=[clss(["seperator"])], [text("::")]),
+        Kind.view(~globals, kind),
+      ]
+    | Singleton(ty) =>
+      let unwrapped =
+        switch (Language.Typ.term_of(ty)) {
+        | Rec(_, body) => body
+        | _ => ty
+        };
+      switch (Language.Typ.term_of(unwrapped)) {
+      | TypFun(binder, body) => [
+          div_name([
+            alias_view(
+              name
+              ++ "("
+              ++ Language.Typ.pretty_print_tvar(binder)
+              ++ ")",
+            ),
+          ]),
+          div(~attrs=[clss(["seperator"])], [text("=")]),
+          view_type(body),
+        ]
+      | _ => [
+          div_name([alias_view(name)]),
+          div(~attrs=[clss(["seperator"])], [text("=")]),
+          view_type(unwrapped),
+        ]
+      };
+    };
+  let attrs = [
+    Attr.on_click(_ => globals.inject_global(jump_to(entry))),
+    clss(["context-entry", "code"]),
+  ];
   switch (entry) {
   | VarEntry({name, typ, _})
   | ConstructorEntry({name, typ, _}) =>
     div(
-      ~attrs=[
-        Attr.on_click(_ => globals.inject_global(jump_to(entry))),
-        clss(["context-entry", "code"]),
-      ],
+      ~attrs,
       [
         div_name([text(name)]),
         div(~attrs=[clss(["seperator"])], [text(":")]),
@@ -40,17 +84,20 @@ let context_entry_view = (~globals, entry: Language.Ctx.entry): Node.t => {
       ],
     )
   | TVarEntry({name, kind, _}) =>
-    div(
-      ~attrs=[
-        Attr.on_click(_ => globals.inject_global(jump_to(entry))),
-        clss(["context-entry", "code"]),
-      ],
-      [
-        div_name([alias_view(name)]),
-        div(~attrs=[clss(["seperator"])], [text("::")]),
-        Kind.view(~globals, kind),
-      ],
-    )
+    /* `type` keyword prefix when the alias has a concrete RHS;
+       Abstract type variables stay as `name :: Type` (they're
+       binders, not declarations). */
+    let prefix =
+      switch (kind) {
+      | Abstract => []
+      | Singleton(_) => [
+          div(
+            ~attrs=[clss(["typ-keyword"])],
+            [text("type ")],
+          ),
+        ]
+      };
+    div(~attrs, prefix @ view_tvar_entry(name, kind));
   | LivelitEntry({name, expansion_t, _}) =>
     div(
       ~attrs=[
