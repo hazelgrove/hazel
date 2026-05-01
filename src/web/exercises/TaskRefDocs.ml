@@ -22,6 +22,9 @@ let map =
 ```hazelnostatics
 map : ([T], T -> U) -> [U]
 ```
+
+---
+
 Apply a function to each element:
 ```hazel
 map([1, 2, 3], fun x -> x + 1)
@@ -30,15 +33,18 @@ map([1, 2, 3], fun x -> x + 1)
 
 let fold_left =
   {md|### fold_left
+```hazelnostatics
+fold_left : ([T], (U, T) -> U, U) -> U
+```
+
+---
+
 ```hazel
 fold_left(
   [1, 2, 3],
   fun (acc, x) -> acc + x,
   0
 )
-```
-```hazelnostatics
-fold_left : ([T], (U, T) -> U, U) -> U
 ```|md}
 
 let length =
@@ -153,6 +159,9 @@ let filter =
 ```hazelnostatics
 filter : ([T], T -> Bool) -> [T]
 ```
+
+---
+
 Keep only elements that satisfy a predicate:
 ```hazel
 filter(
@@ -174,6 +183,9 @@ let zip =
 ```hazelnostatics
 zip : ([T], [U]) -> [(T, U)]
 ```
+
+---
+
 Combine two lists element-wise into a list of pairs:
 ```hazel
 zip([1, 2, 3], ["a", "b", "c"])
@@ -185,6 +197,9 @@ let find =
 ```hazelnostatics
 find : ([T], T -> Bool) -> T
 ```
+
+---
+
 Return the first element satisfying a predicate:
 ```hazel
 find(
@@ -203,6 +218,9 @@ to_lvs : ? -> [
 (label=String, value=?)
 ]
 ```
+
+---
+
 Convert a record to a list of label-value pairs:
 ```hazel
 to_lvs(
@@ -217,6 +235,9 @@ from_lvs : [
 (label=String, value=?)
 ] -> ?
 ```
+
+---
+
 Convert a list of label-value pairs back into a record:
 ```hazel
 from_lvs([
@@ -230,6 +251,9 @@ let filteri =
 ```hazelnostatics
 filteri : ([T], (Int, T) -> Bool) -> [T]
 ```
+
+---
+
 Keep elements where the predicate on `(index, element)` is true:
 ```hazel
 filteri(
@@ -273,6 +297,8 @@ let case_expression =
    end
    ```
    `_` is a wildcard that matches anything.
+
+   ---
 
    Pattern matching can also destructure values:
    ```hazel

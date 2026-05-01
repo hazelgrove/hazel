@@ -273,6 +273,14 @@ select {
   color: var(--BR4);
 }
 
+/* Subsection divider — markdown `---` becomes <hr> styled like the
+   Probearium .qr-divider / .legend-divider rules. */
+.task-reference-body hr {
+  border: none;
+  border-top: 0.6px solid var(--BR1);
+  margin: 0.5em 0;
+}
+
 #top-bar {
   grid-row: 1 / span 1;
   grid-column: 1 / span 2;
