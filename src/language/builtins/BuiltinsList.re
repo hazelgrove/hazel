@@ -1790,7 +1790,7 @@ let builtins =
            end|},
       name: "nth_opt",
       arg: Prod([list(unknown(Internal)), int()]),
-      ret: Unknown(Internal),
+      ret: Option.applied.term,
       imp: {
         Fresh.(
           Exp.(
@@ -1836,7 +1836,7 @@ let builtins =
       name: "find_opt",
       arg:
         Prod([list(unknown(Internal)), arrow(unknown(Internal), bool())]),
-      ret: Unknown(Internal),
+      ret: Option.applied.term,
       imp: {
         Fresh.(
           Exp.(
@@ -1880,7 +1880,7 @@ let builtins =
       name: "find_index",
       arg:
         Prod([list(unknown(Internal)), arrow(unknown(Internal), bool())]),
-      ret: Unknown(Internal),
+      ret: Option.applied.term,
       imp: {
         Fresh.(
           Exp.(
@@ -1948,9 +1948,9 @@ let builtins =
       arg:
         Prod([
           list(unknown(Internal)),
-          arrow(unknown(Internal), unknown(Internal)),
+          arrow(unknown(Internal), Option.applied),
         ]),
-      ret: Unknown(Internal),
+      ret: Option.applied.term,
       imp: {
         Fresh.(
           Exp.(
@@ -2006,9 +2006,9 @@ let builtins =
       arg:
         Prod([
           list(unknown(Internal)),
-          arrow(prod([int(), unknown(Internal)]), unknown(Internal)),
+          arrow(prod([int(), unknown(Internal)]), Option.applied),
         ]),
-      ret: Unknown(Internal),
+      ret: Option.applied.term,
       imp: {
         Fresh.(
           Exp.(
@@ -2196,7 +2196,7 @@ let builtins =
           list(prod([unknown(Internal), unknown(Internal)])),
           unknown(Internal),
         ]),
-      ret: Unknown(Internal),
+      ret: Option.applied.term,
       imp: {
         Fresh.(
           Exp.(
@@ -2344,15 +2344,15 @@ let builtins =
              | [] => ([], [])
              | x :: xs => let (lefts, rights) = partition_map(xs, f) in
                case f(x)
-               | Left(y) => (y :: lefts, rights)
-               | Right(y) => (lefts, y :: rights)
+               | L(y) => (y :: lefts, rights)
+               | R(y) => (lefts, y :: rights)
              end
            end|},
       name: "partition_map",
       arg:
         Prod([
           list(unknown(Internal)),
-          arrow(unknown(Internal), unknown(Internal)),
+          arrow(unknown(Internal), Either.applied),
         ]),
       ret: Prod([list(unknown(Internal)), list(unknown(Internal))]),
       imp: {
@@ -2447,7 +2447,7 @@ let go: ([?], [?], [?]) -> [?] =
       name: "sort",
       arg:
         Prod([
-          arrow(prod([unknown(Internal), unknown(Internal)]), Ord.t),
+          arrow(prod([unknown(Internal), unknown(Internal)]), Ord.named),
           list(unknown(Internal)),
         ]),
       ret: List(unknown(Internal)),
@@ -2712,7 +2712,7 @@ let go: ([?], [?], [?]) -> [?] =
            end|},
       name: "hd_opt",
       arg: List(unknown(Internal)),
-      ret: Unknown(Internal),
+      ret: Option.applied.term,
       imp: {
         Fresh.(
           Exp.(
@@ -2746,7 +2746,7 @@ let go: ([?], [?], [?]) -> [?] =
            end|},
       name: "tl_opt",
       arg: List(unknown(Internal)),
-      ret: Unknown(Internal),
+      ret: Option.applied.term,
       imp: {
         Fresh.(
           Exp.(

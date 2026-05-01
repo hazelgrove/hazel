@@ -17,6 +17,11 @@ let meta_type: Typ.t = sum_type([("$e", None), ("$v", None)]);
 
 module Ord = {
   let t: Typ.t = sum_type([("Lt", None), ("Eq", None), ("Gt", None)]);
+  /* `Ord` (the surface name). Used in builtin function signatures
+     so the cursor inspector displays `(?, ?) -> Ord` rather than
+     `(?, ?) -> + Lt + Eq + Gt`. Not parameterized, so the named
+     form is just `Var("Ord")`. */
+  let named: Typ.t = (Var("Ord"): Typ.term) |> Typ.fresh;
 
   open IdTagged.FreshGrammar;
   let lt = Exp.constructor("Lt", Some(Some(t)));
@@ -31,7 +36,7 @@ module Ord = {
 
      Option : (Type) -> Type   ≡   typfun a -> + None + Some(a)
      Either : (Type, Type) -> Type
-                                 ≡   typfun a, b -> + Left(a) + Right(b)
+                                 ≡   typfun a, b -> + L(a) + R(b)
 
    The user's ctx holds them as `TypFun`-bodied alias entries with
    `(Type, …) -> Type` kind, and the constructors get polymorphic
@@ -58,18 +63,21 @@ module Option = {
      `TypFun(a, body)` (kind `(Type) -> Type`). */
   let t: Typ.t = TypFun(List.hd(params), body) |> Typ.fresh;
   /* `Option(?)` — gradually-typed instance. Used in builtin
-     signatures and as the constructor annotation slot.
-
-     Stored in *normalized* form (`Sum[None, Some(?)]`) rather than
-     the surface `TypParamAp(Var("Option"), Unknown)` so the
-     evaluator's `DHExp.ty_comparable` and constructor-match
-     traversals don't need to resolve `Var("Option")` against a
-     ctx they don't carry at runtime. The parameterized alias
-     itself (`t` above) is what's registered in the user's typing
-     ctx; the runtime annotations on the BUILTIN constructors are
-     monomorphic-with-`?` because the BUILTIN functions are
-     gradually typed. */
+     function signatures (so the cursor inspector displays
+     `(Option(?), ? -> ?) -> Option(?)` rather than the noisy
+     `(+ None + Some(?), ? -> ?) -> + None + Some(?)`). The
+     parameterized alias itself (`t` above) is what's registered in
+     the user's typing ctx; the runtime annotations on the BUILTIN
+     constructors are monomorphic-with-`?` because the BUILTIN
+     functions are gradually typed. */
   let applied: Typ.t =
+    TypParamAp(var_typ("Option"), unknown_internal) |> Typ.fresh;
+  /* Normalized form `Sum[None, Some(?)]` used as constructor
+     annotations baked into BUILTIN `imp` Exps. The runtime
+     constructor-match and `DHExp.ty_comparable` traversals don't
+     carry a ctx, so they can't resolve `Var("Option")` —
+     pre-normalize here. */
+  let applied_normalized: Typ.t =
     sum_type([
       ("None", None),
       ("Some", Some(unknown_internal)),
@@ -77,15 +85,21 @@ module Option = {
 
   open IdTagged.FreshGrammar;
 
-  let none = Exp.constructor("None", Some(Some(applied)));
+  let none = Exp.constructor("None", Some(Some(applied_normalized)));
 
   let some =
-    Exp.constructor("Some", Some(Some(arrow(unknown_internal, applied))));
+    Exp.constructor(
+      "Some",
+      Some(Some(arrow(unknown_internal, applied_normalized))),
+    );
 
-  let pat_none = Pat.constructor("None", Some(Some(applied)));
+  let pat_none = Pat.constructor("None", Some(Some(applied_normalized)));
 
   let pat_some =
-    Pat.constructor("Some", Some(Some(arrow(unknown_internal, applied))));
+    Pat.constructor(
+      "Some",
+      Some(Some(arrow(unknown_internal, applied_normalized))),
+    );
 
   let builtins: list(hazel_fn) = [
     {
@@ -197,8 +211,8 @@ module Either = {
   let params: list(TPat.t) = [var_tpat("a"), var_tpat("b")];
   let body: Typ.t =
     sum_type([
-      ("Left", Some(var_typ("a"))),
-      ("Right", Some(var_typ("b"))),
+      ("L", Some(var_typ("a"))),
+      ("R", Some(var_typ("b"))),
     ]);
   /* `TypFun(Tuple([a, b]), body)` — the parameterized alias stored
      in the ctx with kind `(Type, Type) -> Type`. */
@@ -206,26 +220,42 @@ module Either = {
     let tuple_binder: TPat.t = Tuple(params) |> TPat.fresh;
     TypFun(tuple_binder, body) |> Typ.fresh;
   };
-  /* `Either(?, ?)` — gradually-typed instance for constructor
-     annotations. Stored in normalized `Sum[Left(?), Right(?)]` form
-     for the same reason as `Option.applied` above (no runtime
-     ctx-resolution needed). */
-  let applied: Typ.t =
+  /* `Either(?, ?)` — gradually-typed instance used in builtin
+     function signatures. Surface form for nice display. */
+  let applied: Typ.t = {
+    let args: Typ.t =
+      TypTuple([unknown_internal, unknown_internal]) |> Typ.fresh;
+    TypParamAp(var_typ("Either"), args) |> Typ.fresh;
+  };
+  /* Normalized form for runtime constructor annotations. */
+  let applied_normalized: Typ.t =
     sum_type([
-      ("Left", Some(unknown_internal)),
-      ("Right", Some(unknown_internal)),
+      ("L", Some(unknown_internal)),
+      ("R", Some(unknown_internal)),
     ]);
 
   open IdTagged.FreshGrammar;
   let left =
-    Exp.constructor("Left", Some(Some(arrow(unknown_internal, applied))));
+    Exp.constructor(
+      "L",
+      Some(Some(arrow(unknown_internal, applied_normalized))),
+    );
   let right =
-    Exp.constructor("Right", Some(Some(arrow(unknown_internal, applied))));
+    Exp.constructor(
+      "R",
+      Some(Some(arrow(unknown_internal, applied_normalized))),
+    );
 
   let pat_left =
-    Pat.constructor("Left", Some(Some(arrow(unknown_internal, applied))));
+    Pat.constructor(
+      "L",
+      Some(Some(arrow(unknown_internal, applied_normalized))),
+    );
   let pat_right =
-    Pat.constructor("Right", Some(Some(arrow(unknown_internal, applied))));
+    Pat.constructor(
+      "R",
+      Some(Some(arrow(unknown_internal, applied_normalized))),
+    );
 };
 
 /* Type aliases registered in the prelude ctx. Each entry carries

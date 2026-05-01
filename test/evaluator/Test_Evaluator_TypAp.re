@@ -116,14 +116,14 @@ map@<Int, Int>((fun x -> x + 1), [1, 2, 3])|},
       },
     ),
     test_case(
-      "Prelude Either: Right(true) evaluates without explicit type-arg",
+      "Prelude Either: R(true) evaluates without explicit type-arg",
       `Quick,
       () => {
         let (ok, _) =
-          evaluated_is_self_typed_ctr({|Right(true)|}, "Right");
+          evaluated_is_self_typed_ctr({|R(true)|}, "R");
         check(
           bool,
-          "Right specialized via auto-instantiation under ana=?",
+          "R specialized via auto-instantiation under ana=?",
           true,
           ok,
         );
