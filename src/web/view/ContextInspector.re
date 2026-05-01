@@ -2,8 +2,13 @@ open Virtual_dom.Vdom;
 open Node;
 open Util.WebUtil;
 
+/* Inline `span` (not a `div`) so an alias name placed alongside
+   another inline node — e.g. the `type` keyword — sits on the same
+   line. The parent `.context-entry` is `display: flex` so it
+   shrinks to its single-line content; only the wrapper line as a
+   whole is wrapped/expanded on hover. */
 let alias_view = (s: string): Node.t =>
-  div(~attrs=[clss(["typ-alias-view"])], [text(s)]);
+  span(~attrs=[clss(["typ-alias-view"])], [text(s)]);
 
 let jump_to = entry => Globals.Update.JumpToTile(Language.Ctx.get_id(entry));
 
