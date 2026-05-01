@@ -98,6 +98,54 @@ let map : poly (a, b) -> (a -> b, [a]) -> [b] =
 map@<Int, Int>((fun x -> x + 1), [1, 2, 3])|},
       )
     ),
+    /* Prelude `Option(a)` and `Either(a, b)` are now parameterized;
+       constructor uses without explicit `@<>` rely on auto-instantiation
+       with `?` for the missing type args (gradually-typed). */
+    test_case(
+      "Prelude Option: Some(3) evaluates without explicit type-arg",
+      `Quick,
+      () => {
+        let (ok, _) =
+          evaluated_is_self_typed_ctr({|Some(3)|}, "Some");
+        check(
+          bool,
+          "Some specialized via auto-instantiation under ana=?",
+          true,
+          ok,
+        );
+      },
+    ),
+    test_case(
+      "Prelude Either: Right(true) evaluates without explicit type-arg",
+      `Quick,
+      () => {
+        let (ok, _) =
+          evaluated_is_self_typed_ctr({|Right(true)|}, "Right");
+        check(
+          bool,
+          "Right specialized via auto-instantiation under ana=?",
+          true,
+          ok,
+        );
+      },
+    ),
+    test_case(
+      "Prelude option_map evaluates and returns a Some constructor",
+      `Quick,
+      () => {
+        let (ok, _) =
+          evaluated_is_self_typed_ctr(
+            {|option_map((Some(1), fun x -> x + 1))|},
+            "Some",
+          );
+        check(
+          bool,
+          "option_map of Some(1) returns a Some constructor value",
+          true,
+          ok,
+        );
+      },
+    ),
     /* Type-level `typfun a -> body` is the prefix-binder spelling
        of `type T(a) = body`. End-to-end check: declare the alias
        with the new syntax and use it through a polymorphic

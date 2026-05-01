@@ -152,17 +152,38 @@ let rec result_of_arrow_surface = (ctx: Ctx.t, ty: Typ.t): Typ.t => {
 
 /* Given a constructor name with expected type `ana`, determine the type
    arguments to specialize its schema. Returns [] when the constructor is
-   not polymorphic or we can't determine the args. Kind-Type aliases are
-   resolved so an alias for `List(Int)` still exposes the `[Int]` spine. */
+   not polymorphic. Kind-Type aliases are resolved so an alias for
+   `List(Int)` still exposes the `[Int]` spine.
+
+   When the analysis target doesn't carry a usable `TypParamAp` spine
+   (typically because `ana` is `Unknown(_)` from a gradually-typed
+   surrounding context, e.g. `fun x -> Some(x)`), fall back to
+   inserting `Unknown(Internal)` for each missing type argument so
+   the polymorphic schema still gets specialized — the resulting
+   `Some@<?>` reduces to a monomorphic `Some : ? -> Option(?)` and
+   the runtime can match the constructor as usual.
+
+   Exception: when `ana` is `Poly(_, _)` we are being analyzed
+   *as the operand of a `TypAp`* (the surrounding `Statics.TypAp`
+   sets `typfn_ana = Poly(EmptyHole, syn)`). The user's explicit
+   `e@<T>` will perform the instantiation, so we leave the
+   constructor's polymorphic schema in place and don't insert our
+   own auto-instantiation. */
 let instantiation_args_for =
     (ctx: Ctx.t, name: Constructor.t, ana: Typ.t): list(Typ.t) =>
   switch (Ctx.lookup_ctr(ctx, name)) {
   | Some({typ, _}) when schema_arity(typ) > 0 =>
-    let arity = schema_arity(typ);
-    let target = result_of_arrow_surface(ctx, ana);
-    let args = typ_param_ap_spine(target);
-    /* Only wrap when the spine length matches the schema arity so we don't
-       emit partial specializations that would fail re-statics. */
-    List.length(args) == arity ? args : [];
+    switch (Typ.term_of(ana)) {
+    | Poly(_, _) => []
+    | _ =>
+      let arity = schema_arity(typ);
+      let target = result_of_arrow_surface(ctx, ana);
+      let args = typ_param_ap_spine(target);
+      if (List.length(args) == arity) {
+        args;
+      } else {
+        List.init(arity, _ => Unknown(Internal) |> Typ.fresh);
+      };
+    }
   | _ => []
   };

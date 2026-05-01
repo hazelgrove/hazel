@@ -1459,6 +1459,26 @@ and uexp_to_info_map =
               type_args,
             );
           };
+        /* When we wrap the constructor in `TypAp(_, type_args)` to
+           specialize a polymorphic schema, the resulting expression's
+           syn type is the schema's body with the args substituted —
+           NOT the schema itself. Returning the bare `Poly` here
+           would force the surrounding `Ap` to see the schema as the
+           function's type, ascribe its result against it, and leave
+           a stuck `Asc(Ap(Some, _), Poly(…))` after evaluation
+           because no Ascriptions rule pushes a `Poly` ascription
+           through an applied constructor. */
+        let elab_syn_ty =
+          switch (type_args, poly_schema) {
+          | ([_, ..._], Some({term: Poly(binder, body), _})) =>
+            let binders = TPat.binders_of(binder);
+            if (List.length(binders) == List.length(type_args)) {
+              Typ.subst_many(type_args, binders, body);
+            } else {
+              ctor_ty;
+            };
+          | _ => ctor_ty
+          };
         /* Manually emit ExpectationMismatch based on the clean syn_res
            (not ctor_ty), since ctor_ty has already been reconciled with ana
            and would otherwise silently meet. */
@@ -1470,7 +1490,7 @@ and uexp_to_info_map =
           };
         add(
           ~elab_term,
-          ~elab_syn_ty=ctor_ty,
+          ~elab_syn_ty,
           ~marks=marks_res,
           ~co_ctx=CoCtx.empty,
           m,
