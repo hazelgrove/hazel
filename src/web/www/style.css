@@ -166,31 +166,67 @@ select {
   gap: 0.75em;
 }
 
-/* Section headings (### Foo) become panel-card titles. */
-.task-reference-body h3,
-.task-reference-body h4 {
-  margin: 0 0 0.4em 0;
+/* Each ### section renders as a collapsible <details> card, styled
+   after the Probearium .panel: thin BR1 outline + rounded corners. */
+.task-reference-section {
+  border: 0.6px solid var(--BR1);
+  border-radius: 0.4em;
+  padding: 0.5em 0.75em;
+  background-color: var(--T1);
+}
+
+.task-reference-section[open] {
+  padding-bottom: 0.7em;
+}
+
+.task-reference-section-title {
+  cursor: pointer;
   font-family: var(--ui-font);
   font-size: 0.95em;
   font-weight: bold;
   color: var(--ui-header-text);
   text-transform: uppercase;
   letter-spacing: 0.03em;
+  list-style: none;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  user-select: none;
+  outline: none;
 }
 
-/* Group each ### section as a card: from each heading until the next.
-   Achieved by panelizing direct children that aren't headings — see
-   below. We instead style adjacent siblings into a card. */
-.task-reference-body > h3,
-.task-reference-body > h4 {
-  padding-top: 0.6em;
-  margin-top: 0.2em;
+/* Hide the default disclosure triangle and draw our own. */
+.task-reference-section-title::-webkit-details-marker {
+  display: none;
+}
+.task-reference-section-title::after {
+  content: "▶";
+  color: var(--BR2);
+  font-size: 0.7em;
+  transition: transform 0.15s ease-in-out;
+}
+.task-reference-section[open] > .task-reference-section-title::after {
+  transform: rotate(90deg);
 }
 
-.task-reference-body > h3:first-child,
-.task-reference-body > h4:first-child {
-  padding-top: 0;
-  margin-top: 0;
+.task-reference-section-title:hover {
+  color: var(--BR4);
+}
+
+.task-reference-section-body {
+  padding-top: 0.4em;
+}
+
+/* Inner h4 inside an open section keeps the heading style from
+   .prompt-content rules; we only override h3 above (none expected). */
+.task-reference-body h4 {
+  margin: 0 0 0.3em 0;
+  font-family: var(--ui-font);
+  font-size: 0.9em;
+  font-weight: bold;
+  color: var(--ui-header-text);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
 }
 
 .task-reference-body p {

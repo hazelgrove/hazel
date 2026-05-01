@@ -153,9 +153,71 @@ let task_reference_tab = (~globals: Globals.t): Node.t =>
     ~globals,
   );
 
+/* Split a markdown body on `### `-prefixed lines into a leading
+   preamble (heading=None) and a list of (heading, body) sections.
+   Used to render each section as a collapsible <details>. */
+let split_task_reference_sections =
+    (text: string): list((option(string), string)) => {
+  let lines = String.split_on_char('\n', text);
+  let is_h3 = line =>
+    String.length(line) >= 4 && String.sub(line, 0, 4) == "### ";
+  let extract_h3 = line =>
+    String.sub(line, 4, String.length(line) - 4) |> String.trim;
+  let close_section = (cur_head, cur_body, acc) =>
+    switch (cur_head, cur_body) {
+    | (Option.None, []) => acc
+    | _ => [
+        (cur_head, String.concat("\n", List.rev(cur_body))),
+        ...acc,
+      ]
+    };
+  let rec go = (acc, cur_head, cur_body, lines) =>
+    switch (lines) {
+    | [] => List.rev(close_section(cur_head, cur_body, acc))
+    | [l, ...rest] when is_h3(l) =>
+      let acc' = close_section(cur_head, cur_body, acc);
+      go(acc', Option.Some(extract_h3(l)), [], rest);
+    | [l, ...rest] => go(acc, cur_head, [l, ...cur_body], rest)
+    };
+  go([], Option.None, [], lines);
+};
+
 let task_reference_view = (~globals: Globals.t, body: string) => {
-  let (nodes, _) =
-    ExplainThis.mk_translation(~globals, ~inject=_ => (), body);
+  let render_md = text => {
+    let (nodes, _) =
+      ExplainThis.mk_translation(~globals, ~inject=_ => (), text);
+    nodes;
+  };
+  let sections = split_task_reference_sections(body);
+  let section_nodes =
+    List.map(
+      ((heading, content)) =>
+        switch (heading) {
+        | Option.None =>
+          div(
+            ~attrs=[clss(["task-reference-preamble"])],
+            render_md(content),
+          )
+        | Option.Some(h) =>
+          Node.details(
+            ~attrs=[
+              clss(["task-reference-section"]),
+              Attr.create("open", ""),
+            ],
+            [
+              Node.summary(
+                ~attrs=[clss(["task-reference-section-title"])],
+                [text(h)],
+              ),
+              div(
+                ~attrs=[clss(["task-reference-section-body"])],
+                render_md(content),
+              ),
+            ],
+          )
+        },
+      sections,
+    );
   div(
     ~attrs=[clss(["task-reference-panel"])],
     [
@@ -168,7 +230,7 @@ let task_reference_view = (~globals: Globals.t, body: string) => {
           ),
         ],
       ),
-      div(~attrs=[clss(["task-reference-body"])], nodes),
+      div(~attrs=[clss(["task-reference-body"])], section_nodes),
     ],
   );
 };
