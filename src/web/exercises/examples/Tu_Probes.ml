@@ -53,7 +53,6 @@ map([10, 20], f)
 Probing `x + 1` shows probe samples: `11`, `21`|md};
     wrapper = false;
     show_report = false;
-    setting_overrides = Tutorial.default_setting_overrides;
     your_impl =
       Option.get
         (Haz3lcore.Parser.to_zipper ~root:Exp

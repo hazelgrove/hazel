@@ -273,5 +273,4 @@ let exercise : Tutorial.spec =
       };
     wrapper = true;
     show_report = false;
-    setting_overrides = Tutorial.default_setting_overrides;
   }

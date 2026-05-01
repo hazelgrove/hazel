@@ -344,7 +344,6 @@ module Update = {
         },
         wrapper: model.editors.wrapper,
         show_report: model.editors.show_report,
-        setting_overrides: model.editors.setting_overrides,
         // syntax_tests: model.editors.syntax_tests,
       };
     };

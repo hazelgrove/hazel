@@ -336,6 +336,3 @@ Right-click an expression and choose **"Add probe"**, or press **Cmd+E** / **Ctr
 (* The "Task Reference" header is rendered by the sidebar itself, so the
    composed body is just the sections joined together. *)
 let compose sections = String.concat "\n\n" sections
-
-let prepend sections composed =
-  String.concat "\n\n" sections ^ "\n\n" ^ composed

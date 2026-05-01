@@ -3209,5 +3209,4 @@ let exercise : Tutorial.spec =
       };
     wrapper = false;
     show_report = true;
-    setting_overrides = Tutorial.no_setting_overrides;
   }

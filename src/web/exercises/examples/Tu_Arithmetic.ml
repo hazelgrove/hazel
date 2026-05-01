@@ -15,7 +15,6 @@ let int_exercise : Tutorial.spec =
 The editor below contains `2 +` with a hole after the `+`. Complete the expression by typing `2` to make `2 + 2`. It should evaluate to `4`.|md};
     wrapper = true;
     show_report = false;
-    setting_overrides = Tutorial.default_setting_overrides;
     version = 3;
     your_impl = Option.get (Haz3lcore.Parser.to_zipper ~root:Exp "2 + ");
     hidden_tests =

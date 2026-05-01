@@ -57,7 +57,6 @@ clamp(150) == 100
         [ TaskRefDocs.if_expression; TaskRefDocs.comparison_operators ];
     wrapper = false;
     show_report = true;
-    setting_overrides = Tutorial.default_setting_overrides;
     your_impl =
       Option.get
         (Haz3lcore.Parser.to_zipper ~root:Exp
