@@ -33,7 +33,16 @@ let context_entry_view = (~globals, entry: Language.Ctx.entry): Node.t => {
      outer `Rec(_, _)` (for self-referential aliases) because the
      declaration's name binds the recursive reference implicitly,
      so the displayed body's `Var(name)` resolves visually to the
-     alias being defined. */
+     alias being defined.
+
+     The `type` keyword and the alias name are emitted as a
+     single flex child (one `div_name` containing both spans) so
+     the parent `.context-entry`'s `gap: 0.5em` doesn't insert
+     visible whitespace between them — we want a plain
+     single-character space, not the half-em separator that
+     divides `:` from the type. */
+  let typ_keyword =
+    span(~attrs=[clss(["typ-keyword"])], [text("type ")]);
   let view_tvar_entry =
       (name: string, kind: Language.Ctx.kind): list(Node.t) =>
     switch (kind) {
@@ -51,6 +60,7 @@ let context_entry_view = (~globals, entry: Language.Ctx.entry): Node.t => {
       switch (Language.Typ.term_of(unwrapped)) {
       | TypFun(binder, body) => [
           div_name([
+            typ_keyword,
             alias_view(
               name
               ++ "("
@@ -62,7 +72,7 @@ let context_entry_view = (~globals, entry: Language.Ctx.entry): Node.t => {
           view_type(body),
         ]
       | _ => [
-          div_name([alias_view(name)]),
+          div_name([typ_keyword, alias_view(name)]),
           div(~attrs=[clss(["seperator"])], [text("=")]),
           view_type(unwrapped),
         ]
@@ -83,21 +93,7 @@ let context_entry_view = (~globals, entry: Language.Ctx.entry): Node.t => {
         view_type(typ),
       ],
     )
-  | TVarEntry({name, kind, _}) =>
-    /* `type` keyword prefix when the alias has a concrete RHS;
-       Abstract type variables stay as `name :: Type` (they're
-       binders, not declarations). */
-    let prefix =
-      switch (kind) {
-      | Abstract => []
-      | Singleton(_) => [
-          div(
-            ~attrs=[clss(["typ-keyword"])],
-            [text("type ")],
-          ),
-        ]
-      };
-    div(~attrs, prefix @ view_tvar_entry(name, kind));
+  | TVarEntry({name, kind, _}) => div(~attrs, view_tvar_entry(name, kind))
   | LivelitEntry({name, expansion_t, _}) =>
     div(
       ~attrs=[
