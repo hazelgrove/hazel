@@ -173,6 +173,10 @@ select {
   border-radius: 0.4em;
   padding: 0.5em 0.75em;
   background-color: var(--T1);
+  /* Clip any embedded code editors that lay out wider than the panel
+     instead of bleeding into the surrounding sidebar. */
+  overflow: hidden;
+  min-width: 0;
 }
 
 .task-reference-section[open] {
@@ -215,7 +219,10 @@ select {
 
 .task-reference-section-body {
   padding-top: 0.4em;
+  overflow: hidden;
+  min-width: 0;
 }
+
 
 /* Inner h4 inside an open section keeps the heading style from
    .prompt-content rules; we only override h3 above (none expected). */
