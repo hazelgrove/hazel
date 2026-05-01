@@ -236,18 +236,24 @@ let rec collect_type_exports =
            | Some((name, params)) =>
              /* Parameterized type alias `type T(a, …) = body` — mirror
                 the `TyAlias` statics' Param branch. The exported type
-                is a `TypFun`-chain (curried over the params), wrapped
-                in `Rec(name, …)` when self-referential. Field kind is
-                `(Type, …) -> Type` so `M.T(Int)` normalizes through
-                the existing higher-kinded reduction. */
+                is a single uncurried `TypFun(TPat.Tuple([a, b, …]), body)`
+                for multi-binder aliases, wrapped in `Rec(name, …)`
+                when self-referential. Field kind is `(Type, …) -> Type`
+                so `M.T(Int)` normalizes through the existing higher-
+                kinded reduction (`Typ.weak_head_normalize`'s tuple-
+                binder branch in the `TypParamAp(TypFun, TypTuple)`
+                case). */
              let type_ctor_kind =
                TypKind.of_param_count(List.length(params));
-             let ty_lam =
-               List.fold_right(
-                 (param, body) => TypFun(param, body) |> Typ.temp,
-                 params,
-                 typ,
-               );
+             let ty_lam: Typ.t =
+               switch (params) {
+               | [] => typ
+               | [single] => TypFun(single, typ) |> Typ.temp
+               | _ =>
+                 let tuple_binder: TPat.t =
+                   (Tuple(params): TPat.term) |> IdTagged.fresh;
+                 TypFun(tuple_binder, typ) |> Typ.temp;
+               };
              let alias_ty =
                if (List.mem(name, Typ.free_vars(typ))) {
                  Rec(Var(name) |> TPat.fresh, ty_lam) |> Typ.temp;

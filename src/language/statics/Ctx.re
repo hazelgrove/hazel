@@ -252,14 +252,15 @@ let is_abstract = (ctx: t, name: string): bool =>
   | None => false
   };
 
+/* `None` for both "no such tvar" and "tvar is abstract (no aliased
+   definition)". Callers should use the `None` case to mean "this
+   name has no concrete RHS to substitute" — typically by leaving the
+   `Var` alone. */
 let lookup_alias = (ctx: t, name: string): option(TermBase.Typ.t) =>
   switch (lookup_tvar(ctx, name)) {
   | Some(Singleton(ty)) => Some(ty)
-  | Some(Abstract) => None
-  | None =>
-    Some(
-      (Unknown(Hole(Invalid(name))): TermBase.Typ.term) |> IdTagged.fresh,
-    )
+  | Some(Abstract)
+  | None => None
   };
 
 let result_type_for_params = (name: string, params: list(TermBase.TPat.t)) =>

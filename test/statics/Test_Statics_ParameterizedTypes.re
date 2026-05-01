@@ -958,6 +958,84 @@ let x : Either(Int, Bool) = Right(true) in x
         );
       },
     ),
+    /* Regression: a multi-parameter type alias is stored as a single
+       `TypFun(TPat.Tuple([a, b, …]), body)` — *not* a curried
+       `TypFun(a, TypFun(b, body))` chain. The context inspector
+       displays the stored alias type, so a curried form would render
+       as `typfun a -> (typfun b -> body)` instead of the expected
+       `typfun a, b -> body`.
+
+       Walks the entire elaboration looking for the `Either` alias
+       in any captured ctx and asserts the stored type's outermost
+       `TypFun` carries both binders directly. */
+    test_case(
+      "multi-binder type alias is stored uncurried (single Tuple binder)",
+      `Quick,
+      () => {
+        /* Use `MyEither` (not `Either`) — the latter is a builtin ADT
+           shadowing the user's alias, so `lookup_alias` would find
+           the builtin's type instead of ours. */
+        let src = {|
+type MyEither(a, b) = + A(a) + B(b) in
+A
+|};
+        let exp = parse_menhir_exp(src);
+        let (info_map, _elab) =
+          Statics.mk(
+            CoreSettings.on,
+            Language.Builtins.ctx_init(Some(Int)),
+            exp,
+          );
+        let alias_ty = ref(None);
+        Id.Map.iter(
+          (_, info) =>
+            if (alias_ty^ == None) {
+              switch (info) {
+              | Info.InfoExp({ctx, _}) =>
+                switch (Ctx.lookup_alias(ctx, "MyEither")) {
+                | Some(t) => alias_ty := Some(t)
+                | None => ()
+                }
+              | _ => ()
+              };
+            },
+          info_map,
+        );
+        switch (alias_ty^) {
+        | None => Alcotest.fail("MyEither alias not found in ctx")
+        | Some(t) =>
+          /* The stored alias type may be wrapped in `Rec` (when the
+             alias body references the alias name). For `Either`
+             there's no self-reference, so we expect a bare
+             `TypFun(Tuple([a, b]), body)`. */
+          let inner =
+            switch (t.term) {
+            | Rec(_, body) => body
+            | _ => t
+            };
+          let n_top_binders =
+            switch (inner.term) {
+            | TypFun(p, body) =>
+              switch (body.term) {
+              | TypFun(_, _) =>
+                Alcotest.fail(
+                  "alias body is curried `TypFun(a, TypFun(b, _))` "
+                  ++ "instead of uncurried `TypFun(Tuple([a, b]), _)`",
+                )
+              | _ => List.length(TPat.binders_of(p))
+              }
+            | _ =>
+              Alcotest.fail("alias body is not a TypFun: " ++ Typ.show(t))
+            };
+          Alcotest.check(
+            int,
+            "TypFun's binder lists both `a` and `b`",
+            2,
+            n_top_binders,
+          );
+        };
+      },
+    ),
     test_case(
       "type-level recursive typfun: type List = typfun a -> + Nil + Cons(a, List(a))",
       `Quick,

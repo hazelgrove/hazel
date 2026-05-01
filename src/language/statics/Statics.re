@@ -2385,12 +2385,23 @@ and uexp_to_info_map =
             ctx,
             params,
           );
-        let ty_lam =
-          List.fold_right(
-            (param, body) => TypFun(param, body) |> Typ.temp,
-            params,
-            utyp_desugared,
-          );
+        /* Build a *single* `TypFun` binder over the params, mirroring
+           the same compositional choice we made for `Ctx.quantify_params`
+           and the value-level `Poly` schemas: a single binder is the bare
+           tpat, a multi-binder is `TypFun(TPat.Tuple([a, b, …]), body)`
+           — never a curried `TypFun(a, TypFun(b, body))` chain. The
+           `TypParamAp` reduction zips a `TypTuple` argument against the
+           tuple binder element-wise in one substitution step
+           (`Typ.weak_head_normalize`'s `TypFun` branch). */
+        let ty_lam: Typ.t =
+          switch (params) {
+          | [] => utyp_desugared
+          | [single] => TypFun(single, utyp_desugared) |> Typ.temp
+          | _ =>
+            let tuple_binder: TPat.t =
+              (Tuple(params): TPat.term) |> IdTagged.fresh;
+            TypFun(tuple_binder, utyp_desugared) |> Typ.temp;
+          };
         let (ty_def, ctx_def, ctx_body) =
           if (List.mem(name, Typ.free_vars(utyp_desugared))) {
             let ty_rec = Rec(Var(name) |> TPat.fresh, ty_lam) |> Typ.temp;
@@ -3635,8 +3646,17 @@ and utyp_to_info_map =
          `TypParamAp` argument position. */
       type_
     | TypFun(param, body) =>
+      /* `TypFun(TPat.Tuple([a, b, …]), body)` is the uncurried
+         multi-binder form (e.g. for `type Either(a, b) = …`). Its
+         kind is the n-ary tuple-arrow `(Type, …, Type) -> kind(body)`
+         where the input arity is the number of binders. A single-
+         binder TypFun yields the unary `(Type) -> kind(body)`. */
+      let n = List.length(TPat.binders_of(param));
       let body_ctx = Ctx.extend_dummy_tvar(ctx, param);
-      TypKind.arrows([type_], kind_of_typ(body_ctx, body));
+      TypKind.arrows(
+        List.init(n, _ => type_),
+        kind_of_typ(body_ctx, body),
+      );
     | TypParamAp(fn, arg) =>
       let fn_kind = kind_of_typ(ctx, fn);
       let arg_kinds =

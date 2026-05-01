@@ -629,21 +629,37 @@ let unroll = (ty: t): t =>
    This stops at exactly one level of unrolling and is safe for non-
    uniform recursion where the recursive type cannot be expressed as a
    finite kind-`*` `Rec(...)`. */
-/* Apply a list of arguments one at a time to a curried `TypFun` chain.
-   Used by `unfold_one` and TypParamAp reduction when the argument is a
-   `TypTuple` bundling multiple args for a single source-level
-   application like `Either(Int, Bool)`. */
+/* Apply a list of arguments to a `TypFun`. Used by `unfold_one` and
+   `TypParamAp` reduction when the argument is a `TypTuple` bundling
+   multiple args for a single source-level application like
+   `Either(Int, Bool)`.
+
+   Two shapes the `TypFun` callee can take:
+   - Uncurried `TypFun(TPat.Tuple([a, b, …]), body)` (the modern form
+     produced by `Statics.TyAlias` for multi-parameter aliases): zip
+     all args against the tuple's binders in one substitution step.
+   - Single-binder `TypFun(p, body)`: peel one argument at a time. */
 let rec apply_args = (fn: t, args: list(t)): t =>
   switch (args) {
   | [] => fn
-  | [arg, ...rest] =>
+  | _ =>
     switch (term_of(fn)) {
-    | TypFun(p, body) => apply_args(subst(arg, p, body), rest)
+    | TypFun(p, body) =>
+      let binders = TPat.binders_of(p);
+      if (List.length(binders) > 1
+          && List.length(binders) == List.length(args)) {
+        subst_many(args, binders, body);
+      } else {
+        switch (args) {
+        | [arg, ...rest] => apply_args(subst(arg, p, body), rest)
+        | [] => fn /* unreachable; outer match already handled */
+        };
+      };
     | _ =>
       /* Out of `TypFun`s to peel; preserve the residual application. */
-      switch (rest) {
-      | [] => TypParamAp(fn, arg) |> temp
-      | _ => TypParamAp(fn, TypTuple([arg, ...rest]) |> temp) |> temp
+      switch (args) {
+      | [arg] => TypParamAp(fn, arg) |> temp
+      | _ => TypParamAp(fn, TypTuple(args) |> temp) |> temp
       }
     }
   };
@@ -756,10 +772,25 @@ let rec weak_head_normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
     let (_, rewrap) = unwrap(ty);
     let fn_whnf = weak_head_normalize(~rec_counter=rec_counter + 1, ctx, fn);
     switch (fn_whnf.term, term_of(arg)) {
+    | (TypFun(param, body), TypTuple(args))
+        when
+          List.length(TPat.binders_of(param)) > 1
+          && List.length(TPat.binders_of(param)) == List.length(args) =>
+      /* Multi-binder type function applied to a tuple of types of
+         matching arity: substitute element-wise in one step. This
+         is the canonical reduction for the *uncurried*
+         `TypFun(Tuple([a, b, …]), body)` form built by
+         `Statics.TyAlias` (and stored on aliases like
+         `type Either(a, b) = …`). Mirrors the value-level
+         `Transition.TypAp` zip_subst path. */
+      weak_head_normalize(
+        ~rec_counter=rec_counter + 1,
+        ctx,
+        subst_many(args, TPat.binders_of(param), body),
+      )
     | (TypFun(param, body), TypTuple([head, ...rest])) =>
-      /* Multi-argument application against a curried TypFun chain:
-         peel one TypFun at a time, consuming `head` first and re-wrapping
-         the remainder if any args remain. */
+      /* Multi-argument application against a *single-binder* TypFun:
+         consume one element at a time, re-wrapping the remainder. */
       let body' = subst(head, param, body);
       switch (rest) {
       | [] => weak_head_normalize(~rec_counter=rec_counter + 1, ctx, body')
