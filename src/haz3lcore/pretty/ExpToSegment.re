@@ -822,7 +822,10 @@ and parenthesize_typ =
   | TypParamAp(t1, t2) =>
     TypParamAp(
       parenthesize_typ(t1) |> paren_typ_assoc_at(Precedence.type_sum_ap),
-      parenthesize_typ(t2) |> paren_typ_at(Precedence.min),
+      /* The TypParamAp form (`T(_)`) provides outer parens, so a
+         `Prod` argument shouldn't auto-wrap (would give
+         `T((a, b))` rather than `T(a, b)`). */
+      parenthesize_typ(~already_paren=true, t2) |> paren_typ_at(Precedence.min),
     )
     |> rewrap
   | TypTuple(ts) =>
@@ -833,8 +836,13 @@ and parenthesize_typ =
       ConstructorMap.map(
         ts =>
           ts
-          |> Option.map(parenthesize_typ)
-          |> Option.map(paren_typ_at(Precedence.type_plus)),
+          /* The constructor application form (`Ctor(_)`) already
+             provides outer parens, so the argument doesn't need
+             further wrapping for any precedence and a `Prod`
+             argument shouldn't auto-wrap (would yield
+             `Cons((a, b))` instead of `Cons(a, b)`). */
+          |> Option.map(parenthesize_typ(~already_paren=true))
+          |> Option.map(paren_typ_at(Precedence.min)),
         ts,
       ),
     )
@@ -2850,14 +2858,46 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
     let ids = List.tl(ids);
     let+ t = go_constructor(t)
     and+ ts = ts |> List.map(go_constructor) |> all;
-    wrap(
-      typ,
-      [mk_form(TypSumSingle, id, [])]
-      @ t
-      @ List.flatten(
-          List.map2((id, t) => [mk_form(TypPlus, id, [])] @ t, ids, ts),
-        ),
-    );
+    switch (settings.secondary) {
+    | AutoFormat =>
+      /* Leading `+ t1` (the `@` spacer inserts the space after
+         the prefix `+`), then each subsequent variant rendered
+         as ` + tN` with explicit spaces around the infix `+`.
+         Without these explicit spaces, `List.flatten` raw-
+         appends the per-variant segments, bypassing the
+         space-injecting `@`, which produced output like
+         `+ Lt + Eq+ Gt`. */
+      let space = () => Base.Secondary(mk_space(Id.mk()));
+      let rest =
+        List.flatten(
+          List.map2(
+            (id, t) =>
+              list_append(
+                [space(), mk_form(TypPlus, id, []), space()],
+                t,
+              ),
+            ids,
+            ts,
+          ),
+        );
+      wrap(typ, [mk_form(TypSumSingle, id, [])] @ t @ rest);
+    | PreserveExact =>
+      /* PreserveExact: don't inject spaces; stored secondary on
+         the user's tokens already carries their original
+         whitespace. */
+      wrap(
+        typ,
+        [mk_form(TypSumSingle, id, [])]
+        @ t
+        @ List.flatten(
+            List.map2(
+              (id, t) => [mk_form(TypPlus, id, [])] @ t,
+              ids,
+              ts,
+            ),
+          ),
+      )
+    };
   | Sig([]) =>
     /* Empty sig: {} */
     wrap(typ, text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "{}"))

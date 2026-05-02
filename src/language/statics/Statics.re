@@ -11,6 +11,99 @@ include StaticsBase;
 let add_info = Map.add_info;
 let add_missing_info = Map.add_missing_info;
 
+/* Compute a type's kind, *without* descending to gather descendant kind
+   errors. Each node's own `status_for_node` checks its own expected-vs-
+   actual kind, so propagating descendant marks up the tree would
+   duplicate the same mark on every enclosing node (sum +'s, prod commas,
+   etc.). Descendants get their own marks via the recursive
+   `utyp_to_info_map` traversal.
+
+   Defined at top level so both `utyp_to_info_map` (for type-position
+   kind checks) and `uexp_to_info_map`'s `TyAlias` branch (for the
+   alias name's kind in context and in its cursor-inspector entry)
+   share one implementation. */
+let rec kind_of_typ = (ctx: Ctx.t, ty: Typ.t): TypKind.t => {
+  let type_ = TypKind.Type;
+  switch (ty.term) {
+  | Unknown(_) => TypKind.Unknown
+  | Atom(_)
+  | DrvQuoteTy(_)
+  | Label(_)
+  | ExplicitNonlabel => type_
+  | Var(name) =>
+    /* If the name isn't in ctx, we don't know its kind — return
+       `Unknown` rather than assuming `Type`, so the surrounding
+       application doesn't pile a "cannot apply" mark on top of the
+       "free variable" mark already reported at the var node. */
+    switch (Ctx.lookup_tvar_typ_kind(ctx, name)) {
+    | Some(kind) => kind
+    | None when Ctx.is_base_typ(name) => TypKind.Type
+    | None => TypKind.Unknown
+    }
+  | Parens(t)
+  | Projector(_, t) => kind_of_typ(ctx, t)
+  /* Module-qualified type access: the projected field may be a
+     parameterized type (kind `(Type, …) -> Type`), not just a plain
+     `Type`. Follow the same path as `weak_head_normalize` —
+     resolve the carrier through the module's exports tuple — and
+     recurse on the projected field's actual representation. Falls
+     back to `Type` if we can't resolve it (e.g. unknown module). */
+  | ProdProjection(_) =>
+    let resolved = Typ.weak_head_normalize(ctx, ty);
+    switch (resolved.term) {
+    | ProdProjection(_) =>
+      /* Couldn't resolve any further; the surrounding label-checks
+         will still report the issue. Fall back to `Type`. */
+      type_
+    | _ => kind_of_typ(ctx, resolved)
+    };
+  | List(_)
+  | Arrow(_)
+  | TupLabel(_)
+  | ProdExtension(_)
+  | Prod(_)
+  | Sum(_)
+  | Poly(_)
+  | ProofOf(_)
+  | Sig(_) => type_
+  | TypTuple(_) =>
+    /* `TypTuple` is the multi-argument bundle in a type-level
+       application; it has no kind on its own. We return `Type` as a
+       neutral fallback so isolated `TypTuple` nodes don't poison the
+       rest of kind checking — `status_for_node` reports the error
+       at the TypTuple node itself when it appears outside a
+       `TypParamAp` argument position. */
+    type_
+  | TypFun(param, body) =>
+    /* `TypFun(TPat.Tuple([a, b, …]), body)` is the uncurried
+       multi-binder form (e.g. for `type Either(a, b) = …`). Its
+       kind is the n-ary tuple-arrow `(Type, …, Type) -> kind(body)`
+       where the input arity is the number of binders. A *curried*
+       chain `TypFun(a, TypFun(b, body))` is two unary `TypFun`s
+       and yields the curried `Type -> Type -> kind(body)`. */
+    let n = List.length(TPat.binders_of(param));
+    let body_ctx = Ctx.extend_dummy_tvar(ctx, param);
+    TypKind.arrows(
+      List.init(n, _ => type_),
+      kind_of_typ(body_ctx, body),
+    );
+  | TypParamAp(fn, arg) =>
+    let fn_kind = kind_of_typ(ctx, fn);
+    let arg_kinds =
+      switch (arg.term) {
+      | TypTuple(ts) => List.map(kind_of_typ(ctx), ts)
+      | _ => [kind_of_typ(ctx, arg)]
+      };
+    switch (TypKind.apply_all(fn_kind, arg_kinds)) {
+    | Some(result) => result
+    | None => type_
+    };
+  | Rec(param, body) =>
+    let body_ctx = Ctx.extend_dummy_tvar(ctx, param);
+    kind_of_typ(body_ctx, body);
+  };
+};
+
 let rec any_to_info_map =
         (~ctx: Ctx.t, ~ancestors, any: Any.t, m: Map.t)
         : (CoCtx.t, Any.t, Map.t) =>
@@ -2325,48 +2418,40 @@ and uexp_to_info_map =
         );
       add(~elab_term, ~elab_syn_ty, ~marks=marks_match', ~co_ctx, m);
     | TyAlias(typat, utyp, body) =>
-      let m =
-        utpat_to_info_map(
-          ~at_alias_head=true,
-          ~ctx,
-          ~ancestors=ancestors_inclusive,
-          typat,
-          m,
-        )
-        |> snd;
       /* Desugar Sig types so that type aliases like `type T = {let x : Int}`
          store Prod([TupLabel(...)]) rather than Sig([...]) in the context.
          This ensures meet/join can unify them with module expression types. */
       let utyp_desugared = Typ.desugar_sig(ctx, utyp);
       /* `type T = typfun a, b -> body` is the prefix-binder spelling
-         of `type T(a, b) = body`. Peel `TypFun`s off the head of the
-         alias body to recover the parameter binders, so a `Var`
-         tpat plus a `TypFun`-chain body takes the same Param-branch
+         of `type T(a, b) = body` — a single multi-binder TypFun. We
+         peel that *one* TypFun so the alias takes the Param-branch
          path (params extension, polymorphic constructor schemas,
-         `(Type, …) -> Type` kind). The original `utyp` is also
-         rewritten to the peeled body, so `utyp_to_info_map` checks
-         the inner Sum/etc. against `TypeExpected` (the enclosing
-         `TypFun`'s `Arrow` kind would otherwise look like a
-         mismatch). */
-      let rec peel_typlams =
-              (typ: Typ.t): (list(TPat.t), Typ.t) =>
-        switch (typ.term) {
+         tuple-arrow kind `(Type, …) -> Type`).
+
+         Curried forms like `type T = typfun a -> typfun b -> body`
+         are *not* collapsed: each unary `TypFun` stays as its own
+         binder so the alias has the curried kind
+         `Type -> Type -> kind(body)` and accepts curried
+         applications `T(a)(b)`. `peel_typlams` therefore refuses to
+         peel a TypFun whose body (after stripping `Parens`) is
+         itself a TypFun — that single-binder TypFun would otherwise
+         look identical to `Param(head, [a])` plus a curried tail
+         and we'd lose the residual `TypFun`'s arity. */
+      let rec strip_parens = (t: Typ.t): Typ.t =>
+        switch (t.term) {
+        | Parens(inner) => strip_parens(inner)
+        | _ => t
+        };
+      let peel_typlams = (typ: Typ.t): (list(TPat.t), Typ.t) =>
+        switch (Typ.term_of(strip_parens(typ))) {
         | TypFun(p, inner) =>
-          let (rest, body) = peel_typlams(inner);
-          /* `TypFun`'s binder may be `TPat.Tuple([…])` (from a
-             multi-binder `typfun a, b -> …`); flatten through
-             `binders_of` so the param branch sees the individual
-             names. */
-          (TPat.binders_of(p) @ rest, body);
-        /* MakeTerm wraps a sum-typed body in `Parens` when it sits
-           at the right of `typfun ->` (the sum's `+` precedence
-           sits looser than the binder), so the unwrapped body
-           reaches us inside a `Parens`. Peel it transparently so
-           the resulting alias body is `Sum[...]` rather than
-           `Parens(Sum[...])` — `all_ctrs_of_typ` and the
-           `get_sum_constructors` cache rely on the underlying
-           Sum being the alias body's normal form. */
-        | Parens(inner) => peel_typlams(inner)
+          let stripped_inner = strip_parens(inner);
+          switch (stripped_inner.term) {
+          /* Curried tail — leave `typ` whole so the alias keeps its
+             nested TypFun structure (and curried kind). */
+          | TypFun(_) => ([], typ)
+          | _ => (TPat.binders_of(p), stripped_inner)
+          };
         | _ => ([], typ)
         };
       let (typat, utyp, utyp_desugared) =
@@ -2390,6 +2475,70 @@ and uexp_to_info_map =
           (new_typat, inner_orig, inner_body);
         | _ => (typat, utyp, utyp_desugared)
         };
+      /* Compute the alias's kind directly from the (possibly
+         curried) body type. This is the single source of truth for
+         the alias's kind: it's stored in the `TVarEntry`'s
+         `typ_kind`, surfaced in the cursor inspector through
+         `utpat_to_info_map`'s `~alias_kind`, and used by
+         `kind_of_typ` whenever a downstream `Var(name)` reference
+         shows up in another type expression. Mirrors the kind
+         `kind_of_typ` would compute for the alias body, so a
+         curried `typfun a -> typfun b -> Sum(...)` body gets
+         `Type -> Type -> Type` and a multi-binder
+         `typfun a, b -> Sum(...)` body (after rebundling) gets
+         `(Type, Type) -> Type`. */
+      let alias_body_kind =
+        switch (typat.term) {
+        | Param(_, params) =>
+          /* Rebundled multi-binder (or explicit `T(a, b) = …`):
+             body sees the params bound abstractly. */
+          let n = List.length(params);
+          TypKind.arrows(
+            List.init(n, _ => TypKind.Type),
+            kind_of_typ(
+              List.fold_left(
+                (ctx, p) =>
+                  switch (TPat.tyvar_of_utpat(p)) {
+                  | Some(pname) =>
+                    Ctx.extend_tvar(
+                      ctx,
+                      {
+                        name: pname,
+                        id: TPat.rep_id(p),
+                        kind: Abstract,
+                        typ_kind: TypKind.Type,
+                      },
+                    )
+                  | None => ctx
+                  },
+                ctx,
+                params,
+              ),
+              utyp_desugared,
+            ),
+          );
+        | _ => kind_of_typ(ctx, utyp_desugared)
+        };
+      /* Visit the (possibly rebundled) typat *after* peeling so the
+         alias-head info entry sees the `Param(head, params)` form
+         (or the original `Var(name)` for curried aliases) and the
+         computed `alias_body_kind`. Visiting the original
+         `Var`-shaped typat without the kind would record
+         `kind: Type` (the unbound-var fallback in
+         `status_for_node`) before the kind is recovered, so the
+         cursor inspector on `PResult'` would report `has kind Type`
+         for `type PResult' = typfun err, ok -> …` instead of
+         `has kind (Type, Type) -> Type`. */
+      let m =
+        utpat_to_info_map(
+          ~at_alias_head=true,
+          ~alias_kind=alias_body_kind,
+          ~ctx,
+          ~ancestors=ancestors_inclusive,
+          typat,
+          m,
+        )
+        |> snd;
       switch (typat.term) {
       | Param(head, params)
           when
@@ -2402,9 +2551,15 @@ and uexp_to_info_map =
            at the postfix application tile) as the binding site so
            jump-to-definition lands on the alias name itself. */
         let binding_id = TPat.rep_id(head);
-        let param_names = List.filter_map(TPat.tyvar_of_utpat, params);
-        let type_ctor_kind =
-          TypKind.of_param_count(List.length(param_names));
+        let _param_names = List.filter_map(TPat.tyvar_of_utpat, params);
+        /* `alias_body_kind` is computed above and matches what
+           `kind_of_typ` would derive from the rebundled
+           `TypFun(...)` form — i.e. the tuple-arrow
+           `(Type, …) -> kind(body)` for the rebundled multi-binder
+           case. We thread the same kind through `extend_alias` and
+           `utpat_to_info_map` so all consumers see one consistent
+           value. */
+        let type_ctor_kind = alias_body_kind;
         let extend_param_ctx = ctx =>
           List.fold_left(
             (ctx, param) =>
@@ -2477,6 +2632,10 @@ and uexp_to_info_map =
           utyp_to_info_map(
             ~ctx=ctx_for_def,
             ~ancestors=ancestors_inclusive,
+            /* Alias body: any kind is fine; the alias's stored
+               kind is `kind_of_typ(body)` (passed into
+               `utpat_to_info_map` as `~alias_kind`). */
+            ~expects=AnyKindExpected,
             utyp,
             m,
           )
@@ -2500,7 +2659,15 @@ and uexp_to_info_map =
            in the definition would be obliterated. But we need to check for free
            variables to decide whether to make a recursive type or not. So we
            tentatively add an abtract type to the ctx, representing the
-           speculative rec parameter. */
+           speculative rec parameter.
+
+           Pass `~typ_kind=alias_body_kind` so the alias's kind in
+           context matches what the cursor inspector showed at the
+           tpat node. For a curried `type T = typfun a -> typfun b
+           -> body`, `alias_body_kind` is `Type -> Type ->
+           kind(body)`; without this the alias would default to
+           `Type` and downstream `T(arg)(arg)` applications would
+           hit a "cannot apply non-arrow kind" mark. */
         let (ty_def, ctx_def, ctx_body) = {
           switch (utyp_desugared.term) {
           | _ when List.mem(name, Typ.free_vars(utyp_desugared)) =>
@@ -2510,7 +2677,13 @@ and uexp_to_info_map =
             let ty_rec =
               Rec(Var(name) |> TPat.fresh, utyp_desugared) |> Typ.temp;
             let ctx_def =
-              Ctx.extend_alias(ctx, name, TPat.rep_id(typat), ty_rec);
+              Ctx.extend_alias(
+                ctx,
+                name,
+                TPat.rep_id(typat),
+                ~typ_kind=alias_body_kind,
+                ty_rec,
+              );
             (ty_rec, ctx_def, ctx_def);
           | _ => (
               utyp_desugared,
@@ -2519,6 +2692,7 @@ and uexp_to_info_map =
                 ctx,
                 name,
                 TPat.rep_id(typat),
+                ~typ_kind=alias_body_kind,
                 utyp_desugared,
               ),
             )
@@ -2560,6 +2734,9 @@ and uexp_to_info_map =
           utyp_to_info_map(
             ~ctx=ctx_def,
             ~ancestors=ancestors_inclusive,
+            /* Alias body: see comment on the Param-branch
+               counterpart above. */
+            ~expects=AnyKindExpected,
             utyp,
             m,
           )
@@ -2587,7 +2764,13 @@ and uexp_to_info_map =
         let ({co_ctx, elab_syn_ty: ty_body, _}: Info.exp, body_elab, m) =
           go(~ctx, ~ana, body, m);
         let m =
-          utyp_to_info_map(~ctx, ~ancestors=ancestors_inclusive, utyp, m)
+          utyp_to_info_map(
+            ~ctx,
+            ~ancestors=ancestors_inclusive,
+            ~expects=AnyKindExpected,
+            utyp,
+            m,
+          )
           |> snd;
         let typ_refs =
           ModuleHelpers.collect_module_refs_in_typ(
@@ -3626,102 +3809,23 @@ and utyp_to_info_map =
     )
     : (Info.typ, Map.t) => {
   open TypExpectation;
-  /* Compute a type's kind, *without* descending to gather descendant kind
-     errors. Each node's own `status_for_node` checks its own expected-vs-
-     actual kind, so propagating descendant marks up the tree would
-     duplicate the same mark on every enclosing node (sum +'s, prod commas,
-     etc.). Descendants get their own marks via the recursive
-     `utyp_to_info_map` traversal. */
-  let rec kind_of_typ = (ctx: Ctx.t, ty: Typ.t): TypKind.t => {
-    let type_ = TypKind.Type;
-    switch (ty.term) {
-    | Unknown(_) => TypKind.Unknown
-    | Atom(_)
-    | DrvQuoteTy(_)
-    | Label(_)
-    | ExplicitNonlabel => type_
-    | Var(name) =>
-      /* If the name isn't in ctx, we don't know its kind — return
-         `Unknown` rather than assuming `Type`, so the surrounding
-         application doesn't pile a "cannot apply" mark on top of the
-         "free variable" mark already reported at the var node. */
-      switch (Ctx.lookup_tvar_typ_kind(ctx, name)) {
-      | Some(kind) => kind
-      | None when Ctx.is_base_typ(name) => TypKind.Type
-      | None => TypKind.Unknown
-      }
-    | Parens(t)
-    | Projector(_, t) => kind_of_typ(ctx, t)
-    /* Module-qualified type access: the projected field may be a
-       parameterized type (kind `(Type, …) -> Type`), not just a plain
-       `Type`. Follow the same path as `weak_head_normalize` —
-       resolve the carrier through the module's exports tuple — and
-       recurse on the projected field's actual representation. Falls
-       back to `Type` if we can't resolve it (e.g. unknown module). */
-    | ProdProjection(_) =>
-      let resolved = Typ.weak_head_normalize(ctx, ty);
-      switch (resolved.term) {
-      | ProdProjection(_) =>
-        /* Couldn't resolve any further; the surrounding label-checks
-           will still report the issue. Fall back to `Type`. */
-        type_
-      | _ => kind_of_typ(ctx, resolved)
-      };
-    | List(_)
-    | Arrow(_)
-    | TupLabel(_)
-    | ProdExtension(_)
-    | Prod(_)
-    | Sum(_)
-    | Poly(_)
-    | ProofOf(_)
-    | Sig(_) => type_
-    | TypTuple(_) =>
-      /* `TypTuple` is the multi-argument bundle in a type-level
-         application; it has no kind on its own. We return `Type` as a
-         neutral fallback so isolated `TypTuple` nodes don't poison the
-         rest of kind checking — `status_for_node` reports the error
-         at the TypTuple node itself when it appears outside a
-         `TypParamAp` argument position. */
-      type_
-    | TypFun(param, body) =>
-      /* `TypFun(TPat.Tuple([a, b, …]), body)` is the uncurried
-         multi-binder form (e.g. for `type Either(a, b) = …`). Its
-         kind is the n-ary tuple-arrow `(Type, …, Type) -> kind(body)`
-         where the input arity is the number of binders. A single-
-         binder TypFun yields the unary `(Type) -> kind(body)`. */
-      let n = List.length(TPat.binders_of(param));
-      let body_ctx = Ctx.extend_dummy_tvar(ctx, param);
-      TypKind.arrows(
-        List.init(n, _ => type_),
-        kind_of_typ(body_ctx, body),
-      );
-    | TypParamAp(fn, arg) =>
-      let fn_kind = kind_of_typ(ctx, fn);
-      let arg_kinds =
-        switch (arg.term) {
-        | TypTuple(ts) => List.map(kind_of_typ(ctx), ts)
-        | _ => [kind_of_typ(ctx, arg)]
-        };
-      switch (TypKind.apply_all(fn_kind, arg_kinds)) {
-      | Some(result) => result
-      | None => type_
-      };
-    | Rec(param, body) =>
-      let body_ctx = Ctx.extend_dummy_tvar(ctx, param);
-      kind_of_typ(body_ctx, body);
+  /* When called with `AnyKindExpected`, skip the strict-Type check —
+     the surrounding context (an alias body) is happy with any kind. */
+  let kind_marks_for_expected_type =
+      (~expects: TypExpectation.t, utyp: Typ.t): list(Mark.t) => {
+    switch (expects) {
+    | AnyKindExpected => []
+    | _ =>
+      let actual = kind_of_typ(ctx, utyp);
+      TypKind.consistent(actual, TypKind.Type)
+        ? []
+        : [
+          Mark.TypKindMismatch({
+            expected: TypKind.Type,
+            actual,
+          }),
+        ];
     };
-  };
-  let kind_marks_for_expected_type = (utyp: Typ.t): list(Mark.t) => {
-    let actual = kind_of_typ(ctx, utyp);
-    TypKind.consistent(actual, TypKind.Type)
-      ? []
-      : [
-        Mark.TypKindMismatch({
-          expected: TypKind.Type,
-          actual,
-        }),
-      ];
   };
   let ids = IdTagged.ids(utyp);
   let term = IdTagged.term_of(utyp);
@@ -3740,7 +3844,10 @@ and utyp_to_info_map =
       ok(Message.EmptyLabel)
     | (LabelProjectionExpected(_), Unknown(Hole(EmptyHole))) =>
       ok(Message.EmptyLabel)
-    | (TypeExpected | ProductExpected, ProdProjection(pty, l)) =>
+    | (
+        TypeExpected | AnyKindExpected | ProductExpected,
+        ProdProjection(pty, l),
+      ) =>
       switch (Typ.weak_head_normalize(ctx, pty), l.term) {
       | ({term: Prod(tys), _}, Label(l)) =>
         switch (Typ.project_type(tys, l)) {
@@ -3782,7 +3889,10 @@ and utyp_to_info_map =
           ),
         )
       }
-    | (TypeExpected | ProductExpected, ProdExtension(t1, t2)) =>
+    | (
+        TypeExpected | AnyKindExpected | ProductExpected,
+        ProdExtension(t1, t2),
+      ) =>
       switch (
         Typ.weak_head_normalize(ctx, t1).term,
         Typ.weak_head_normalize(ctx, t2).term,
@@ -3826,8 +3936,8 @@ and utyp_to_info_map =
     | (VariantExpected(Duplicate, _), Var(name))
     | (ConstructorExpected(Duplicate, _), Var(name)) =>
       err(TypDuplicateConstructor(name))
-    | (TypeExpected, Var(name)) =>
-      let kind_marks = kind_marks_for_expected_type(utyp);
+    | (TypeExpected | AnyKindExpected, Var(name)) =>
+      let kind_marks = kind_marks_for_expected_type(~expects, utyp);
       switch (Ctx.is_alias(ctx, name)) {
       | false =>
         switch (Ctx.is_abstract(ctx, name)) {
@@ -3845,7 +3955,7 @@ and utyp_to_info_map =
         | [mark, ..._] => err(mark)
         }
       };
-    | (TypeExpected, Label(_))
+    | (TypeExpected | AnyKindExpected, Label(_))
     | (LabelExpected(Unique, _), Label(_)) => ok(Message.Type(utyp))
     | (LabelExpected(Duplicate, dupes), Label(name)) =>
       List.exists(l => name == l, dupes)
@@ -3863,7 +3973,7 @@ and utyp_to_info_map =
     | (ConstructorExpected(_), _)
     | (VariantExpected(_), _) => err(TypWantConstructorFoundType(utyp))
     | (_, Parens(t)) => status_for_node(~expects, t)
-    | (TypeExpected, TypTuple(_)) =>
+    | (TypeExpected | AnyKindExpected, TypTuple(_)) =>
       /* `TypTuple` is the multi-argument bundle inside a `TypParamAp` and
          is *not* a stand-alone type — its elements are checked at the
          enclosing `TypParamAp` site. Emit the class-only message so the
@@ -3871,15 +3981,26 @@ and utyp_to_info_map =
          (which would be misleading: comma-separated args aren't a
          tuple type). */
       ok(Message.Default)
-    | (TypeExpected, TypParamAp(fn, arg)) =>
-      /* Tuple-arrow kinds are atomic: applying `T : (k1, …, kN) -> R`
-         requires exactly N arguments at once. Multi-argument
-         applications `T(a, b, …)` arrive as
-         `TypParamAp(T, TypTuple([a, b, …]))`; single-argument applications
-         like `T(a)` arrive as `TypParamAp(T, a)` and we treat them as a
-         length-1 argument list. There is no curried partial
-         application — `Either(Int)` (1 arg, kind expects 2) is an
-         arity error, not a residual `Type -> Type` kind. */
+    | (TypeExpected | AnyKindExpected, TypParamAp(fn, arg)) =>
+      /* Applying `T : (k1, …, kN) -> R` consumes exactly N
+         arguments at once: multi-argument applications `T(a, b, …)`
+         arrive as `TypParamAp(T, TypTuple([a, b, …]))`; single-
+         argument applications like `T(a)` arrive as `TypParamAp(T,
+         a)` and we treat them as a length-1 argument list.
+
+         A *curried* parameterized type (e.g. `type T = typfun a ->
+         typfun b -> body`, kind `Type -> Type -> Type`) accepts
+         exactly one argument per `TypParamAp` node and the next
+         `TypParamAp` consumes the next; the outer site sees the
+         partial application's residual kind via `kind_of_typ`.
+
+         The "result has kind `Type`" check below is gated on the
+         expectation: in `AnyKindExpected` (alias-body) position,
+         the application may legitimately produce a higher kind
+         (e.g. partial application `T(String) :: Type -> Type`),
+         and the alias just inherits that kind. In `TypeExpected`
+         position, the result kind must be `Type` (it's being used
+         as a value type). */
       let fn_kind = kind_of_typ(ctx, fn);
       let arg_kinds =
         switch (arg.term) {
@@ -3919,7 +4040,8 @@ and utyp_to_info_map =
                 },
             }),
           );
-        } else if (!TypKind.consistent(result, TypKind.Type)) {
+        } else if (expects == TypeExpected
+                   && !TypKind.consistent(result, TypKind.Type)) {
           err(
             Mark.TypKindMismatch({
               expected: TypKind.Type,
@@ -3931,8 +4053,24 @@ and utyp_to_info_map =
         };
       | _ => err(Mark.TypParamApplyNonArrowKind(fn_kind))
       };
-    | (TypeExpected, _) =>
-      switch (kind_marks_for_expected_type(utyp)) {
+    | (TypeExpected | AnyKindExpected, TypFun(_, _)) =>
+      /* `TypFun` has an `Arrow` kind, but it's the canonical
+         higher-kinded type form (the body of a parameterized type
+         alias). We accept it here without a kind mismatch — the
+         alias's stored kind reflects the full TypFun-chain shape
+         already, and the chain's inner TypFun nodes would
+         otherwise each emit a `Type vs Arrow(...)` kind mismatch
+         for a curried alias body like
+         `typfun a -> typfun b -> body`. The recursive
+         `utyp_to_info_map` traversal still descends into the
+         binders/body via the dedicated `TypFun` arm of the outer
+         `switch`, so binder names get info entries and the inner
+         body is checked against `AnyKindExpected` so a curried
+         tail's `TypFun` doesn't trigger this same check
+         spuriously. */
+      ok(Message.Type(utyp))
+    | (TypeExpected | AnyKindExpected, _) =>
+      switch (kind_marks_for_expected_type(~expects, utyp)) {
       | [] => ok(Message.Type(utyp))
       | [mark, ..._] => err(mark)
       }
@@ -4201,7 +4339,14 @@ and utyp_to_info_map =
         tbody,
         ~ctx=body_ctx,
         ~ancestors=ancestors_inclusive,
-        ~expects=TypeExpected,
+        /* `AnyKindExpected`: the body of a `TypFun` may itself be
+           a `TypFun` (curried `typfun a -> typfun b -> body`) or a
+           partial `TypParamAp` whose result has an arrow kind.
+           Passing `TypeExpected` here would emit a spurious
+           `Type vs Arrow(...)` mark on every node of such a chain
+           — the surrounding `TypFun` already accounts for the
+           extra arrow in its own kind. */
+        ~expects=AnyKindExpected,
         m,
       )
       |> snd;
@@ -4274,14 +4419,28 @@ and utyp_to_info_map =
   };
 }
 and utpat_to_info_map =
-    (~at_alias_head=false, ~ctx, ~ancestors, utpat: TPat.t, m: Map.t)
+    (
+      ~at_alias_head=false,
+      ~alias_kind: option(TypKind.t)=?,
+      ~ctx,
+      ~ancestors,
+      utpat: TPat.t,
+      m: Map.t,
+    )
     : (Info.tpat, Map.t) => {
   /* `at_alias_head` is `true` only for the outermost tpat of a
      `type … = …` declaration. The `T(a, b)` parameter-list form
      (`TPat.Param`) is allowed there, and rejected in every other tpat
      position (sub-tpats of an alias head, binders of `poly`,
      `typfun`, `typlam`, `rec`, elements of a `Tuple` binder list,
-     etc.). All recursive calls below pass `at_alias_head=false`. */
+     etc.). All recursive calls below pass `at_alias_head=false`.
+
+     `~alias_kind`, when provided, is the kind the surrounding
+     `TyAlias` computed for the alias's body (via `kind_of_typ`). It
+     is the *single source of truth* for the alias's kind: passed
+     through here so the cursor-inspector message at the alias's
+     name shows the same kind that's stored on the `TVarEntry` and
+     used by `kind_of_typ` for downstream references. */
   let ids = IdTagged.ids(utpat);
   let term = IdTagged.term_of(utpat);
   let rec status_for_node =
@@ -4297,33 +4456,28 @@ and utpat_to_info_map =
         None,
       )
     | Var(name) =>
-      switch (Ctx.lookup_tvar_typ_kind(ctx, name)) {
-      | Some(kind) when Ctx.is_abstract(ctx, name) => (
+      switch (alias_kind, Ctx.lookup_tvar_typ_kind(ctx, name)) {
+      /* At the alias's head, prefer the kind computed by the
+         surrounding `TyAlias` over a context lookup — this is the
+         only point where a `Var(name)` typat refers to the alias
+         being defined (so the lookup falls back to the `None` arm
+         and reports `Type`, even for curried aliases of kind
+         `Type -> Type -> Type`). */
+      | (Some(kind), _) when at_alias_head => (
           [],
-          Some(
-            Message.TypeParameter({
-              name,
-              kind,
-            }),
-          ),
+          Some(Message.TypeAlias({name, kind})),
         )
-      | Some(kind) => (
+      | (_, Some(kind)) when Ctx.is_abstract(ctx, name) => (
           [],
-          Some(
-            Message.TypeAlias({
-              name,
-              kind,
-            }),
-          ),
+          Some(Message.TypeParameter({name, kind})),
         )
-      | None => (
+      | (_, Some(kind)) => (
           [],
-          Some(
-            Message.TypeAlias({
-              name,
-              kind: TypKind.Type,
-            }),
-          ),
+          Some(Message.TypeAlias({name, kind})),
+        )
+      | (_, None) => (
+          [],
+          Some(Message.TypeAlias({name, kind: TypKind.Type})),
         )
       }
     | Param(head, _params) when !at_alias_head =>
@@ -4335,15 +4489,18 @@ and utpat_to_info_map =
           [TPatShadowsType(name, BaseTyp)],
           None,
         )
-      | Some(name) => (
-          [],
-          Some(
-            Message.TypeAlias({
-              name,
-              kind: TypKind.of_param_count(List.length(params)),
-            }),
-          ),
-        )
+      | Some(name) =>
+        /* Same single-source-of-truth principle as the `Var` arm:
+           prefer the caller-supplied kind over `of_param_count`,
+           which only counts surface params and ignores any TypFun
+           tail in the body. Falls back to `of_param_count` if
+           somehow no kind was passed. */
+        let kind =
+          switch (alias_kind) {
+          | Some(k) => k
+          | None => TypKind.of_param_count(List.length(params))
+          };
+        ([], Some(Message.TypeAlias({name, kind})));
       | None => ([TPatNotAVar(Other)], None)
       }
     | Tuple(_) => ([], Some(Message.Default))

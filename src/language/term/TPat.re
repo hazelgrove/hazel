@@ -39,9 +39,9 @@ let rec cls_of_term: Grammar.tpat_term('a) => cls =
 
 let show_cls: cls => string =
   fun
-  | Invalid => "Invalid type alias"
-  | MultiHole => "Broken type alias"
-  | EmptyHole => "Type alias hole"
+  | Invalid => "Invalid type pattern"
+  | MultiHole => "Broken type pattern"
+  | EmptyHole => "Type pattern hole"
   | Var => "Type alias"
   | Param => "Parameterized type alias"
   | Tuple => "Type binder tuple"
