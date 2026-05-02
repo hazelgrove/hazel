@@ -216,7 +216,11 @@ let rec collect_type_exports =
              switch (tpat.term) {
              | Param(head, _) => TPat.rep_id(head)
              | Parens(inner) => TPat.rep_id(inner)
-             | _ => TPat.rep_id(tpat)
+             | Var(_)
+             | Invalid(_)
+             | EmptyHole
+             | MultiHole(_)
+             | Tuple(_) => TPat.rep_id(tpat)
              };
            switch (TPat.alias_head(tpat)) {
            | Some((name, [])) =>
@@ -308,7 +312,11 @@ let rec collect_type_exports =
              (ctx, [(name, exports_ty, binding_id), ...acc]);
            | _ => (ctx, acc)
            };
-         | _ => (ctx, acc)
+         | ModLet(_)
+         | ModExp(_)
+         | Invalid(_)
+         | EmptyHole
+         | MultiHole(_) => (ctx, acc)
          },
        (ctx, []),
      )

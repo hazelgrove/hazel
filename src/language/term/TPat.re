@@ -58,7 +58,10 @@ let rec head_name_of = (tpat: t): option(string) =>
   | Var(name) => Some(name)
   | Param(head, _) => head_name_of(head)
   | Parens(inner) => head_name_of(inner)
-  | _ => None
+  | Invalid(_)
+  | EmptyHole
+  | MultiHole(_)
+  | Tuple(_) => None
   };
 
 let rec alias_head = (tpat: t): option((string, list(t))) =>
@@ -70,20 +73,25 @@ let rec alias_head = (tpat: t): option((string, list(t))) =>
     | None => None
     }
   | Parens(inner) => alias_head(inner)
-  | _ => None
+  | Invalid(_)
+  | EmptyHole
+  | MultiHole(_)
+  | Tuple(_) => None
   };
 
 /* When the binder of a `Poly`/`TypAbs`/`TypFun`/`Rec` is a `Tuple`, it
    stands for a comma-separated list of single binders. `binders_of`
    flattens that list into a list of single-binder tpats; non-tuple
-   binders return [tpat] as a singleton. `Parens` is transparent.
-   The list flattens one level only — there are no nested `Tuple`s in
-   valid surface programs. */
+   binders return [tpat] as a singleton. `Parens` is transparent. */
 let rec binders_of = (tpat: t): list(t) =>
   switch (tpat.term) {
   | Tuple(tps) => tps
   | Parens(inner) => binders_of(inner)
-  | _ => [tpat]
+  | Var(_)
+  | Invalid(_)
+  | EmptyHole
+  | MultiHole(_)
+  | Param(_, _) => [tpat]
   };
 
 let tyvars_of = (tpat: t): list(string) =>

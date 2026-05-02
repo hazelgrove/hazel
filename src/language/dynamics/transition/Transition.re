@@ -610,21 +610,11 @@ module Transition = (EV: EV_MODE) => {
     | TypAp(d, tau) =>
       let. _ = otherwise(env, d => TypAp(d, tau) |> rewrap)
       and. d' = req_final(req(env), d => TypAp(d, tau) |> wrap_ctx, d);
-      /* Match a binder against a type argument and decide what the
-         single substitution step should do.
-
-         - Single binder against any `tau`: substitute `tau`.
-         - Tuple binder of arity n against `TypTuple([t1, …, tn])`:
-           substitute element-wise, all in one step.
-         - Other (arity mismatch, non-tuple arg against tuple binder,
-           tuple arg against single binder): fall back to the
-           single-step substitution; downstream marks have already
-           caught the arity error in statics.
-
-         `TPat.binders_of` looks through `Parens` transparently — so
-         `typfun (a, b) -> …` (binder = `Parens(Tuple([a, b]))`)
-         takes the multi-substitution path, same as the unparen-
-         thesized `typfun a, b -> …` (binder = `Tuple([a, b])`). */
+      /* Substitute a type argument into a body against a (possibly
+         multi-binder) `TPat`. Multi-binder against a `TypTuple` of
+         matching arity substitutes element-wise in one step;
+         everything else falls back to a single substitution and
+         lets statics surface any arity mismatch. */
       let zip_subst = (tpat: TPat.t, tau: Typ.t, body: DHExp.t): DHExp.t => {
         let binders = TPat.binders_of(tpat);
         switch (binders, Typ.term_of(tau)) {
@@ -639,17 +629,10 @@ module Transition = (EV: EV_MODE) => {
       switch (DHExp.term_of(d')) {
       | Constructor(name, Some(Some({term: Poly(_), _} as schema))) =>
         /* Specialize a polymorphic constructor's schema with the
-           applied type argument. The schema may be a single-binder
-           `Poly(a, body)` (arg = `tau`) or a multi-binder
-           `Poly(TPat.Tuple([a, b]), body)` (arg = `TypTuple([t1, t2])`
-           when the constructor was emitted by elaboration of a
-           multi-parameter type). */
+           applied type argument(s). */
         let specialized =
           switch (Typ.term_of(schema)) {
           | Poly(tpat, body) =>
-            /* Same `Parens(Tuple([…]))`-vs-`Tuple([…])` consideration
-               as `zip_subst` above — flatten through `binders_of` so
-               parenthesized multi-binders specialize correctly. */
             let binders = TPat.binders_of(tpat);
             switch (binders, Typ.term_of(tau)) {
             | (_, TypTuple(ts))
@@ -663,8 +646,8 @@ module Transition = (EV: EV_MODE) => {
           | _ => schema
           };
         if (Equality.syntactic.typ(specialized, schema)) {
-          /* No Poly to specialize (e.g. monomorphic constructor with
-             explicit TypAp); fall through to generic TypAbs handling. */
+          /* Schema didn't reduce (e.g. monomorphic constructor with
+             explicit TypAp). Fall through to generic TypAbs handling. */
           let-unbox typfun = (TypAbs, d');
           switch (typfun) {
           | TypAbs(utpat, tfbody, name) =>
@@ -695,11 +678,7 @@ module Transition = (EV: EV_MODE) => {
         let-unbox typfun = (TypAbs, d');
         switch (typfun) {
         | TypAbs(utpat, tfbody, name) =>
-          /* Rule ITTLam, generalized to multi-binder TypAbs: a user
-             expression `f@<t1, t2>` has `tau = TypTuple([t1, t2])`;
-             paired against `typfun a, b -> body` (utpat =
-             `TPat.Tuple([a, b])`) we substitute element-wise in a
-             single step. Single-binder TypFuns substitute normally. */
+          /* Rule ITTLam. */
           Step({
             expr:
               DHExp.assign_name_if_none(

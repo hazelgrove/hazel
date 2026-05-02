@@ -31,21 +31,14 @@ let context_entry_view = (~globals, entry: Language.Ctx.entry): Node.t => {
     );
   let div_name = div(~attrs=[clss(["name"])]);
   /* Render a type alias entry as a declaration:
-     `type Name(a, b) = body` for parameterized aliases (the
-     stored type is `[Rec(_,] TypFun(binder, body) [)]`),
-     `type Name = body` for non-parameterized,
-     `Name :: Type` for abstract type variables. We strip the
-     outer `Rec(_, _)` (for self-referential aliases) because the
-     declaration's name binds the recursive reference implicitly,
-     so the displayed body's `Var(name)` resolves visually to the
-     alias being defined.
-
-     The `type` keyword and the alias name are emitted as a
-     single flex child (one `div_name` containing both spans) so
-     the parent `.context-entry`'s `gap: 0.5em` doesn't insert
-     visible whitespace between them — we want a plain
-     single-character space, not the half-em separator that
-     divides `:` from the type. */
+       `type Name(a, b) = body` for parameterized aliases,
+       `type Name = body` for non-parameterized,
+       `Name :: Type` for abstract type variables.
+     Strip the outer `Rec(_, _)` (for self-referential aliases) —
+     the displayed name binds the recursive reference implicitly.
+     Emit the `type` keyword and the alias name in a single
+     `div_name` flex child so the parent's `gap: 0.5em` doesn't
+     widen the gap between them. */
   let typ_keyword =
     span(~attrs=[clss(["typ-keyword"])], [text("type ")]);
   let view_tvar_entry =

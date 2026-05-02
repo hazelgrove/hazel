@@ -614,31 +614,13 @@ let unroll = (ty: t): t =>
   | _ => ty
   };
 
-/* One-step unrolling of a recursive type, including higher-kinded ones.
+/* Apply a list of types to a `TypFun` callee.
 
-   - For `Rec(name, body)` (kind `*` — body has no top-level `TypFun`):
-     standard unfold `body[Rec/name]`, same as `unroll`.
-   - For `TypParamAp(Rec(name, TypFun(p, body)), arg)` (kind `*` —
-     instantiation of a higher-kinded recursive family): substitute the
-     whole `Rec` for `Var(name)` in the `TypFun` body, then β-reduce with
-     `arg`. The result has `TypParamAp(Rec(name, TypFun(...)), …)` self-
-     references at the same `Rec` (with possibly different arguments),
-     which is the canonical encoding of the recursive family's
-     specializations.
-
-   This stops at exactly one level of unrolling and is safe for non-
-   uniform recursion where the recursive type cannot be expressed as a
-   finite kind-`*` `Rec(...)`. */
-/* Apply a list of arguments to a `TypFun`. Used by `unfold_one` and
-   `TypParamAp` reduction when the argument is a `TypTuple` bundling
-   multiple args for a single source-level application like
-   `Either(Int, Bool)`.
-
-   Two shapes the `TypFun` callee can take:
-   - Uncurried `TypFun(TPat.Tuple([a, b, …]), body)` (the modern form
-     produced by `Statics.TyAlias` for multi-parameter aliases): zip
-     all args against the tuple's binders in one substitution step.
-   - Single-binder `TypFun(p, body)`: peel one argument at a time. */
+   - Uncurried `TypFun(TPat.Tuple([a, b, …]), body)`: substitute the
+     args element-wise in one step against the tuple's binders.
+   - Single-binder `TypFun(p, body)`: peel one argument at a time.
+   - Out of `TypFun`s to peel: preserve the residual application
+     (`TypParamAp(fn, arg)` or `TypParamAp(fn, TypTuple(args))`). */
 let rec apply_args = (fn: t, args: list(t)): t =>
   switch (args) {
   | [] => fn
@@ -652,11 +634,10 @@ let rec apply_args = (fn: t, args: list(t)): t =>
       } else {
         switch (args) {
         | [arg, ...rest] => apply_args(subst(arg, p, body), rest)
-        | [] => fn /* unreachable; outer match already handled */
+        | [] => fn
         };
       };
     | _ =>
-      /* Out of `TypFun`s to peel; preserve the residual application. */
       switch (args) {
       | [arg] => TypParamAp(fn, arg) |> temp
       | _ => TypParamAp(fn, TypTuple(args) |> temp) |> temp
@@ -664,6 +645,16 @@ let rec apply_args = (fn: t, args: list(t)): t =>
     }
   };
 
+/* One-step unrolling of a (possibly higher-kinded) recursive type:
+
+   - `Rec(name, body)` ⇒ `body[Rec/name]` (same as `unroll`).
+   - `TypParamAp(Rec(name, TypFun(p, body)), arg)` ⇒ substitute the
+     whole `Rec` for `Var(name)` in the `TypFun` body, then
+     β-reduce with `arg`. The result has
+     `TypParamAp(Rec(name, TypFun(...)), …)` self-references — the
+     canonical encoding of the recursive family's specializations.
+
+   Stops at exactly one unrolling, so non-uniform recursion is safe. */
 let unfold_one = (ty: t): t =>
   switch (term_of(ty)) {
   | Rec(tp, body) => subst(ty, tp, body)
@@ -776,21 +767,16 @@ let rec weak_head_normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
         when
           List.length(TPat.binders_of(param)) > 1
           && List.length(TPat.binders_of(param)) == List.length(args) =>
-      /* Multi-binder type function applied to a tuple of types of
-         matching arity: substitute element-wise in one step. This
-         is the canonical reduction for the *uncurried*
-         `TypFun(Tuple([a, b, …]), body)` form built by
-         `Statics.TyAlias` (and stored on aliases like
-         `type Either(a, b) = …`). Mirrors the value-level
-         `Transition.TypAp` zip_subst path. */
+      /* Multi-binder `TypFun` applied to a tuple of args of
+         matching arity — substitute element-wise in one step. */
       weak_head_normalize(
         ~rec_counter=rec_counter + 1,
         ctx,
         subst_many(args, TPat.binders_of(param), body),
       )
     | (TypFun(param, body), TypTuple([head, ...rest])) =>
-      /* Multi-argument application against a *single-binder* TypFun:
-         consume one element at a time, re-wrapping the remainder. */
+      /* Multi-argument application against a single-binder
+         `TypFun`: consume one element at a time. */
       let body' = subst(head, param, body);
       switch (rest) {
       | [] => weak_head_normalize(~rec_counter=rec_counter + 1, ctx, body')
@@ -802,10 +788,8 @@ let rec weak_head_normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
         )
       };
     | (TypFun(param, body), TypTuple([])) =>
-      /* Empty tuple as argument shouldn't occur in practice; treat as
-         no-op application — return the body. */
-      weak_head_normalize(~rec_counter=rec_counter + 1, ctx, body) |> ignore;
-      TypFun(param, body) |> rewrap;
+      /* Shouldn't occur in well-formed input; preserve as a no-op. */
+      TypFun(param, body) |> rewrap
     | (TypFun(param, body), _) =>
       weak_head_normalize(
         ~rec_counter=rec_counter + 1,
@@ -813,14 +797,12 @@ let rec weak_head_normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
         subst(arg, param, body),
       )
     | (Rec(_), _) =>
-      /* `TypParamAp(Rec(name, body), arg)` is the canonical normal form for a
-         higher-kinded recursive family applied at `arg`
-         (i.e. `(μX:* → *. body)(arg)`). We do *not* push the application
-         inside the `Rec` and β-reduce — doing so would expose the body's
-         self-references `TypParamAp(Var(name), …)` to a binder that no longer
-         wraps a `TypFun`, leaving them structurally ill-formed (see
-         `Typ.unfold_one` for the one-step unrolling used by callers that
-         need to peer inside, like `get_sum_constructors`). */
+      /* `TypParamAp(Rec(name, TypFun(p, body)), arg)` is the
+         canonical WHNF for a higher-kinded recursive family applied
+         at `arg`. Unfolding one step lives in `unfold_one`; pushing
+         the application into the `Rec` here would expose the body's
+         self-references to a binder that no longer wraps a
+         `TypFun`. */
       TypParamAp(fn_whnf, arg) |> rewrap
     | (fn', _) => TypParamAp(fn' |> temp, arg) |> rewrap
     };
@@ -888,14 +870,10 @@ let rec normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
     let arg_normalized = normalize(ctx, t2);
     switch (weak_head_normalize(ctx, ty).term) {
     | TypParamAp({term: Rec(_), _} as fn_whnf, _) =>
-      /* `TypParamAp(Rec(name, TypFun(p, body)), arg)` is the canonical
-         normal form for a higher-kinded recursive family applied at
-         `arg`. Don't unfold it — that would expand infinitely for
-         non-uniform recursion (and produce ill-formed types if the
-         body's `TypFun` were β-reduced through the `Rec`). The Rec's
-         body is left in its original (typically `TypFun`-wrapped) form
-         so that `unfold_one` can correctly substitute the recursive
-         family for self-references when callers need to peer inside. */
+      /* `TypParamAp(Rec, _)` is the WHNF for a higher-kinded
+         recursive family applied at an argument; preserve it so we
+         don't expand infinitely for non-uniform recursion.
+         Callers needing to peer inside use `unfold_one`. */
       TypParamAp(fn_whnf, arg_normalized) |> rewrap
     | TypParamAp(_, _) => TypParamAp(normalize(ctx, t1), arg_normalized) |> rewrap
     | _ as whnf => normalize(ctx, whnf |> temp)
@@ -903,11 +881,9 @@ let rec normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
   | Arrow(t1, t2) =>
     Arrow(normalize(ctx, t1), normalize(ctx, t2)) |> rewrap
   | TypTuple(ts) =>
-    /* `TypTuple` is the multi-argument bundle in a type-level
-       application; normalize each argument independently. It only
-       appears as the second arg of a `TypParamAp`; its shape is preserved
-       so kind checking can match it against the callee's tuple-arrow
-       arity. */
+    /* `TypTuple` only appears as the second arg of a `TypParamAp`;
+       preserve its shape so kind checking can match it against the
+       callee's tuple-arrow arity. */
     TypTuple(List.map(normalize(ctx), ts)) |> rewrap
   | Prod(ts) =>
     let ts = List.map(normalize(ctx), ts);

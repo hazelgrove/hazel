@@ -66,18 +66,11 @@ let syn_marks_ctr =
     }
   };
 
-/* Extract the result (non-Arrow) type of a schema after peeling arrows. */
-let rec result_of_arrow = (ty: Typ.t): Typ.t =>
-  switch (ty.term) {
-  | Arrow(_, out) => result_of_arrow(out)
-  | _ => ty
-  };
-
-/* Extract a left-to-right type-application spine from a type. Handles
-   both the new multi-arg form `TypParamAp(T, TypTuple([a, b]))` and the
-   curried-by-elaboration form `TypParamAp(TypParamAp(T, a), b)` (which can
-   still appear in some constructor schemas). For the new form the
-   spine is the TypTuple's contents in order. */
+/* Left-to-right type-application spine of a `TypParamAp` chain. The
+   multi-arg form `TypParamAp(T, TypTuple([a, b]))` flattens to
+   `[a, b]`; a curried chain `TypParamAp(TypParamAp(T, a), b)` (no
+   longer produced by elaboration but accepted defensively) flattens
+   to the same. */
 let typ_param_ap_spine = (ty: Typ.t): list(Typ.t) => {
   let rec go = (ty: Typ.t, acc) =>
     switch (ty.term) {
@@ -88,13 +81,9 @@ let typ_param_ap_spine = (ty: Typ.t): list(Typ.t) => {
   go(ty, []);
 };
 
-/* Count the type-parameter arity of a constructor's schema. With the
-   multi-binder representation, a multi-parameter type's schema is a
-   single `Poly` whose binder is a `TPat.Tuple([…])`, so the arity is
-   the length of that tuple. Single-parameter schemas are
-   `Poly(<var>, …)` with arity 1, and the legacy curried form
-   `Poly(_, Poly(_, …))` (used by explicit nesting) flattens via the
-   recursive count. */
+/* Type-parameter arity of a constructor's schema. A multi-parameter
+   alias has a single `Poly(TPat.Tuple([…]), …)` binder; arity is the
+   length of that tuple. */
 let schema_arity = (ty: Typ.t): int => {
   let rec go = (ty: Typ.t, n) =>
     switch (ty.term) {
@@ -107,12 +96,8 @@ let schema_arity = (ty: Typ.t): int => {
 };
 
 /* Build a `TypAp` around `ctor` that supplies `args` as a single
-   tuple-argument bundle. For 1 arg we produce `TypAp(ctor, arg)`; for
-   ≥2 args we wrap the args in a `TypTuple` so the elaboration mirrors
-   the source-level multi-argument application
-   `Cons(0, Nil) : List(Int)`  →  `TypAp(Cons, TypTuple([Int]))` (1 arg
-   case keeps a bare single arg for cleaner display) and
-   `A(3) : Either(Int, Bool)` →  `TypAp(A, TypTuple([Int, Bool]))`. */
+   tuple-argument bundle (`TypAp(ctor, arg)` for one arg, else
+   `TypAp(ctor, TypTuple(args))`). */
 let wrap_typ_param_aps = (ctor: Exp.t, args: list(Typ.t)): Exp.t =>
   switch (args) {
   | [] => ctor
@@ -120,12 +105,12 @@ let wrap_typ_param_aps = (ctor: Exp.t, args: list(Typ.t)): Exp.t =>
   | _ => TypAp(ctor, TypTuple(args) |> Typ.fresh) |> Exp.fresh
   };
 
-/* Resolve surface wrappers and `Type`-kinded aliases without unrolling
+/* Resolve surface wrappers and kind-`Type` aliases without unrolling
    `Rec` or unfolding type-constructor aliases. Used by constructor
-   instantiation to read the user-visible type-application spine. Unlike
-   `Typ.normalize`, this preserves `TypParamAp(Var("List"), Int)` so we can
-   pick out `[Int]` as the argument, while still letting aliases such as
-   `type IntList = List(Int)` reduce to the same spine. */
+   instantiation to read the user-visible type-application spine while
+   preserving `TypParamAp(Var("List"), Int)` so we can pick `[Int]`
+   off as an argument; an alias like `type IntList = List(Int)` still
+   reduces to the same spine. */
 let rec surface_resolve = (ctx: Ctx.t, ty: Typ.t): Typ.t =>
   switch (ty.term) {
   | Parens(inner)
@@ -137,7 +122,8 @@ let rec surface_resolve = (ctx: Ctx.t, ty: Typ.t): Typ.t =>
       | Some(aliased) => surface_resolve(ctx, aliased)
       | None => ty
       }
-    | _ => ty
+    | Some(TypKind.Unknown | TypKind.Arrow(_, _))
+    | None => ty
     }
   | _ => ty
   };
@@ -150,25 +136,15 @@ let rec result_of_arrow_surface = (ctx: Ctx.t, ty: Typ.t): Typ.t => {
   };
 };
 
-/* Given a constructor name with expected type `ana`, determine the type
-   arguments to specialize its schema. Returns [] when the constructor is
-   not polymorphic. Kind-Type aliases are resolved so an alias for
-   `List(Int)` still exposes the `[Int]` spine.
-
-   When the analysis target doesn't carry a usable `TypParamAp` spine
-   (typically because `ana` is `Unknown(_)` from a gradually-typed
-   surrounding context, e.g. `fun x -> Some(x)`), fall back to
-   inserting `Unknown(Internal)` for each missing type argument so
-   the polymorphic schema still gets specialized — the resulting
-   `Some@<?>` reduces to a monomorphic `Some : ? -> Option(?)` and
-   the runtime can match the constructor as usual.
-
-   Exception: when `ana` is `Poly(_, _)` we are being analyzed
-   *as the operand of a `TypAp`* (the surrounding `Statics.TypAp`
-   sets `typfn_ana = Poly(EmptyHole, syn)`). The user's explicit
-   `e@<T>` will perform the instantiation, so we leave the
-   constructor's polymorphic schema in place and don't insert our
-   own auto-instantiation. */
+/* Instantiation args for a polymorphic constructor whose schema arity
+   is `n` and whose result-type's surface form mentions an analysis
+   target. Returns `[]` for monomorphic constructors and for the
+   `Poly(_, _)` analysis case (the surrounding `Statics.TypAp` will
+   instantiate explicitly). When the analysis target doesn't expose
+   a usable `TypParamAp` spine (e.g. `fun x -> Some(x)` where `ana`
+   is `Unknown`), falls back to `Unknown(Internal)` for each missing
+   argument so the schema still specializes to a monomorphic shape
+   the runtime can handle. */
 let instantiation_args_for =
     (ctx: Ctx.t, name: Constructor.t, ana: Typ.t): list(Typ.t) =>
   switch (Ctx.lookup_ctr(ctx, name)) {

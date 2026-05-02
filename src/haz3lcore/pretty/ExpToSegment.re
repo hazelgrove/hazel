@@ -594,10 +594,8 @@ let rec parenthesize =
     |> rewrap
   | Module(items) =>
     /* Recurse into each module item so any internal expressions /
-       types get the same defensive parenthesization the surrounding
-       expression context would get. Without this, a `let` item
-       containing e.g. `! (TyAlias(_) in body)` would lose its
-       required parens around the let-form operand. */
+       types get the same defensive parenthesization a top-level
+       expression context would get. */
     let parenthesize_item = (item: Mod.t): Mod.t => {
       let new_term: Mod.term =
         switch (item.term) {
@@ -820,11 +818,12 @@ and parenthesize_typ =
     )
     |> rewrap
   | TypParamAp(t1, t2) =>
+    /* `T(_)` provides outer parens, so the argument doesn't need
+       further wrapping; `~already_paren=true` keeps a `Prod`
+       argument from auto-wrapping (else `T((a, b))` instead of
+       `T(a, b)`). */
     TypParamAp(
       parenthesize_typ(t1) |> paren_typ_assoc_at(Precedence.type_sum_ap),
-      /* The TypParamAp form (`T(_)`) provides outer parens, so a
-         `Prod` argument shouldn't auto-wrap (would give
-         `T((a, b))` rather than `T(a, b)`). */
       parenthesize_typ(~already_paren=true, t2) |> paren_typ_at(Precedence.min),
     )
     |> rewrap
@@ -832,15 +831,14 @@ and parenthesize_typ =
     TypTuple(List.map(t => parenthesize_typ(t) |> paren_typ_at(Precedence.comma), ts))
     |> rewrap
   | Sum(ts) =>
+    /* `Ctor(_)` already provides outer parens, so the argument
+       doesn't need further wrapping; `~already_paren=true` keeps a
+       `Prod` argument from auto-wrapping (else `Cons((a, b))`
+       instead of `Cons(a, b)`). */
     Sum(
       ConstructorMap.map(
         ts =>
           ts
-          /* The constructor application form (`Ctor(_)`) already
-             provides outer parens, so the argument doesn't need
-             further wrapping for any precedence and a `Prod`
-             argument shouldn't auto-wrap (would yield
-             `Cons((a, b))` instead of `Cons(a, b)`). */
           |> Option.map(parenthesize_typ(~already_paren=true))
           |> Option.map(paren_typ_at(Precedence.min)),
         ts,
@@ -2860,13 +2858,11 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
     and+ ts = ts |> List.map(go_constructor) |> all;
     switch (settings.secondary) {
     | AutoFormat =>
-      /* Leading `+ t1` (the `@` spacer inserts the space after
-         the prefix `+`), then each subsequent variant rendered
-         as ` + tN` with explicit spaces around the infix `+`.
-         Without these explicit spaces, `List.flatten` raw-
-         appends the per-variant segments, bypassing the
-         space-injecting `@`, which produced output like
-         `+ Lt + Eq+ Gt`. */
+      /* `+ t1` then ` + tN` for each subsequent variant, with
+         explicit spaces around each interior `+`. Necessary
+         because the per-variant segments are concatenated via
+         `List.flatten` (raw append), bypassing the space-injecting
+         `@`. */
       let space = () => Base.Secondary(mk_space(Id.mk()));
       let rest =
         List.flatten(
@@ -2882,9 +2878,8 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
         );
       wrap(typ, [mk_form(TypSumSingle, id, [])] @ t @ rest);
     | PreserveExact =>
-      /* PreserveExact: don't inject spaces; stored secondary on
-         the user's tokens already carries their original
-         whitespace. */
+      /* Stored secondary on the user's tokens already carries
+         their original whitespace; don't inject any. */
       wrap(
         typ,
         [mk_form(TypSumSingle, id, [])]

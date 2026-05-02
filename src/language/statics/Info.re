@@ -353,45 +353,25 @@ let projector_kind_of = (info: t): option(ProjectorKind.t) =>
 /* If the info represents some kind of name binding which
    exists in the context, return the id where the binding occurs.
 
-   Notably:
-   - A `Var(name)` in `InfoTyp` is a *type-variable reference* only
-     when the typ is in `TypeExpected` position. In a constructor-
-     declaration position (`+ A(a)` / `+ B(b)` etc.) the `Var(name)`
-     is the constructor's name being introduced, NOT a tvar
-     reference. Conflating these would, e.g., make hovering on a
-     `type B = Int` alias light up every `B(b)` constructor
-     across all sum-type declarations because they happen to share
-     the lexical name `B`.
-   - For constructor declarations we return `None` so the
-     `var_highlight_ids` fallback uses the declaration's own id as
-     the binding site. */
+   `Var(name)` in `InfoTyp` is a type-variable reference only when the
+   typ is in `TypeExpected` position. In a constructor-declaration
+   position (`+ A(a)` / `+ B(b)` etc.) the `Var(name)` is the
+   constructor's name being introduced, not a tvar reference; we
+   return `None` there so the `var_highlight_ids` fallback uses the
+   declaration's own id as the binding site. */
 let get_binding_site = (info: t): option(Id.t) => {
-  /* For a constructor reference, recover the binding-site id in three
-     stages, in order of preference:
-
-     1. Type-directed `ConstructorEntry` lookup (`lookup_ctr_for_ana`).
-        Picks the right binding when multiple sum types in scope each
-        declare a constructor of the same name (`B(true) :
-        OneOfThree(_, _, _)` resolves to OneOfThree's `B`, not the
-        innermost shadowing `Either`'s `B`).
-
-     2. If no `ConstructorEntry` is in scope (e.g. constructor declared
-        inside a module — modules export only type aliases, not
-        constructors), look up the constructor directly in the
-        analysis target's sum_constructors via
-        `Typ.get_sum_constructors`. This walks `M.List` through
-        `weak_head_normalize` to its underlying `Sum`, finds the
-        named variant, and returns its `ann.ids[0]` — the original
-        declaration tile's id.
-
-     3. Last-resort `VarEntry` lookup (capitalized names like module
-        names parse as `Constructor` but bind as variables). */
-  /* For a constructor `C` used as a function (e.g. `C(arg)`), the
-     constructor's analysis target is `Arrow(_, result_type)`. Peel
-     the arrow's output to get the underlying sum-type. The arrow is
-     specific to constructor-as-function position (no-arg constructor
-     references like `Nil` are analyzed against the result type
-     directly). */
+  /* Recover a constructor reference's binding-site id in order of
+     preference:
+       1. Type-directed `lookup_ctr_for_ana` — picks the right binding
+          when multiple sum types in scope share a constructor name.
+       2. If no `ConstructorEntry` is in scope (e.g. constructor
+          declared inside a module), find it on the analysis target's
+          sum constructors via `Typ.get_sum_constructors`.
+       3. Last-resort `VarEntry` lookup (capitalized module names
+          parse as `Constructor` but bind as variables). */
+  /* For a constructor used as a function (`C(arg)`) the analysis
+     target is `Arrow(_, result)`; peel arrows to get the underlying
+     sum type. */
   let rec result_of_ana = (ty: Typ.t): Typ.t =>
     switch (ty.term) {
     | Arrow(_, out) => result_of_ana(out)

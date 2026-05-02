@@ -14,54 +14,29 @@ type t =
    into `Arrow`'s slots). */
 let rec consistent = (k1: t, k2: t): bool =>
   switch (k1, k2) {
-  | (Unknown, _)
-  | (_, Unknown) => true
+  | (Unknown, Unknown | Type | Arrow(_, _))
+  | (Type | Arrow(_, _), Unknown) => true
   | (Type, Type) => true
-  | (Type, _)
-  | (_, Type) => false
+  | (Type, Arrow(_, _))
+  | (Arrow(_, _), Type) => false
   | (Arrow(args1, r1), Arrow(args2, r2)) =>
     List.length(args1) == List.length(args2)
     && List.for_all2(consistent, args1, args2)
     && consistent(r1, r2)
   };
 
-/* Total number of arguments accepted across the (possibly tuple-typed)
-   argument list and any residual arrow in the result. For
-   `Arrow([Type, Type], Type)` this is 2; for `Arrow([Type], Arrow([Type], Type))`
-   it is also 2 (currying is allowed at the kind level). */
-let rec arity = (kind: t): int =>
-  switch (kind) {
-  | Unknown
-  | Type => 0
-  | Arrow(args, result) => List.length(args) + arity(result)
-  };
-
-/* Apply a kind to a *single* argument's kind. Tuple-arrow kinds are
-   atomic: a kind `Arrow([k1, k2], r)` requires *both* arguments at once
-   and cannot be partially applied to one of them. So this only
-   succeeds for single-argument arrows `Arrow([k], r)`. Multi-argument
-   applications go through `apply_all` instead. Applying through an
-   `Unknown` callee yields `Unknown` (no constraint). */
-let apply = (fn_kind: t, arg_kind: t): option(t) =>
-  switch (fn_kind) {
-  | Unknown => Some(Unknown)
-  | Arrow([expected], result) when consistent(expected, arg_kind) =>
-    Some(result)
-  | _ => None
-  };
-
-/* Apply a kind to a tuple of argument kinds at once, consuming the
-   entire argument list of a tuple-arrow kind. Fails on arity mismatch
-   or kind mismatch. `Unknown` callee absorbs any number of arguments. */
+/* Apply a kind to a tuple of argument kinds, consuming the entire
+   argument list of a tuple-arrow kind in one step. Fails on arity
+   mismatch or kind mismatch. `Unknown` callee absorbs any number of
+   arguments. `Type` is not callable. */
 let apply_all = (fn_kind: t, arg_kinds: list(t)): option(t) =>
   switch (fn_kind) {
   | Unknown => Some(Unknown)
-  | Arrow(expected, result)
-      when
-        List.length(expected) == List.length(arg_kinds)
-        && List.for_all2(consistent, expected, arg_kinds) =>
-    Some(result)
-  | _ => None
+  | Type => None
+  | Arrow(expected, result) =>
+    List.length(expected) == List.length(arg_kinds)
+    && List.for_all2(consistent, expected, arg_kinds)
+      ? Some(result) : None
   };
 
 let arrows = (args: list(t), result: t): t =>
