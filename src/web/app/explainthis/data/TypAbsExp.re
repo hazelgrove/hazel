@@ -32,10 +32,7 @@ let _triple_p3 = tpat("p_3");
 let typabs_general_coloring_ids =
     (~binders_list_id: Id.t, ~extra_ids: list(Id.t), ~body_id: Id.t)
     : list((Id.t, Id.t)) =>
-  [
-    (Piece.id(_general_list), binders_list_id),
-    (Piece.id(_body), body_id),
-  ]
+  [(Piece.id(_general_list), binders_list_id), (Piece.id(_body), body_id)]
   @ List.map(pid => (Piece.id(_general_list), pid), extra_ids);
 
 let typabs_single_coloring_ids =
@@ -124,9 +121,7 @@ let typabs_single: form = {
 };
 
 let _pair_head =
-  mk_typabs([
-    [space(), _pair_p1, comma_tpat(), space(), _pair_p2, space()],
-  ]);
+  mk_typabs([[space(), _pair_p1, comma_tpat(), space(), _pair_p2, space()]]);
 let typabs_pair: form = {
   let explanation = "A value-level type abstraction over two type variables [*%s*](%s) and [*%s*](%s). A type application `@<X_1, X_2>` substitutes both in [*the body*](%s) in a single step.";
   {

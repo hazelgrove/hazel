@@ -6848,8 +6848,8 @@ let out : string * Haz3lcore.PersistentSegment.t =
         \    (enforced=^^check(true), \"schema(t2) is equal to schema(t1)\"),\n\
         \    (enforced=^^check(false), \"nrows(t2) is equal to length(ns)\")\n\
         \  ] in\n\
-        \  let select_rows2 = abs r -> fun (t1:[r],bs:[Bool]) -> zip(bs, \
-         t1) |> filter_map(_, fun (b,r) -> if b then Some(r) else None) in\n\
+        \  let select_rows2 = abs r -> fun (t1:[r],bs:[Bool]) -> zip(bs, t1) \
+         |> filter_map(_, fun (b,r) -> if b then Some(r) else None) in\n\
         \  \n\
         \  test select_rows2@<Student>(students, [true, false, true]) == \
          [(\"Bob\", 12, \"blue\"), (\"Eve\", 13, \"red\")] : [Student] end\n\
@@ -7028,8 +7028,8 @@ let out : string * Haz3lcore.PersistentSegment.t =
          schema(t1)\")] in\n\
         \  let ensures=[(enforced=^^check(true), \"schema(t2) is equal to \
          schema(t1)\")] in\n\
-        \  let tfilter = abs r ->fun (t:[r], f: r -> Bool) -> filter(t, \
-         f):[r] in\n\
+        \  let tfilter = abs r ->fun (t:[r], f: r -> Bool) -> filter(t, f):[r] \
+         in\n\
         \  \n\
         \  test tfilter@<GradebookEntry>(gradebook, fun s -> \
          string_length(s.name) > 3) == [(\"Alice\", 17, 6, 8, 88, 8, 7, 85)] : \

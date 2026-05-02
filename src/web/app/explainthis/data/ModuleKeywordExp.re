@@ -30,8 +30,7 @@ let module_keyword_exp_form: form = {
     examples: [
       {
         sub_id: ModuleKeyword1,
-        term:
-          mk_example("module M = {\nlet x = 1;\nlet y = true\n} in M.x"),
+        term: mk_example("module M = {\nlet x = 1;\nlet y = true\n} in M.x"),
         message: "A module definition. The module M is defined and its field x is accessed in the body.",
       },
     ],

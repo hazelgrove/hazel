@@ -87,10 +87,7 @@ let rec kind_of_typ = (ctx: Ctx.t, ty: Typ.t): TypKind.t => {
   | TypFun(param, body) =>
     let n = List.length(TPat.binders_of(param));
     let body_ctx = Ctx.extend_dummy_tvar(ctx, param);
-    TypKind.arrows(
-      List.init(n, _ => type_),
-      kind_of_typ(body_ctx, body),
-    );
+    TypKind.arrows(List.init(n, _ => type_), kind_of_typ(body_ctx, body));
   | TypParamAp(fn, arg) =>
     let fn_kind = kind_of_typ(ctx, fn);
     let arg_kinds =
@@ -2547,9 +2544,11 @@ and uexp_to_info_map =
            `Param`/`Tuple`/etc.), or `peel_typlams` returned no
            binders (body isn't a peelable `TypFun`). */
         | (Var(_), ([], _))
-        | (Param(_, _) | Tuple(_) | Parens(_) | Invalid(_) | EmptyHole |
-           MultiHole(_),
-           _) => (
+        | (
+            Param(_, _) | Tuple(_) | Parens(_) | Invalid(_) | EmptyHole |
+            MultiHole(_),
+            _,
+          ) => (
             typat,
             utyp,
             utyp_desugared,
@@ -4180,8 +4179,7 @@ and utyp_to_info_map =
         prior_marks,
       );
     let fn_message =
-      kept_marks == []
-        ? Some(Message.TypOk(Message.Kind(fn_kind))) : None;
+      kept_marks == [] ? Some(Message.TypOk(Message.Kind(fn_kind))) : None;
     let fn_info: Info.typ = {
       cls: Cls.Typ(Typ.cls_of_term(t1.term)),
       ctx,
@@ -4453,7 +4451,7 @@ and utpat_to_info_map =
   let ids = IdTagged.ids(utpat);
   let term = IdTagged.term_of(utpat);
   let rec status_for_node =
-      (utpat: TPat.t): (list(Mark.t), option(Message.ok_tpat)) =>
+          (utpat: TPat.t): (list(Mark.t), option(Message.ok_tpat)) =>
     switch (utpat.term) {
     /* `Parens` is transparent — the cursor inspector entry for a
        parens tile shows the inner node's info (class and message),
@@ -4471,19 +4469,39 @@ and utpat_to_info_map =
       switch (alias_kind, Ctx.lookup_tvar_typ_kind(ctx, name)) {
       | (Some(kind), _) when at_alias_head => (
           [],
-          Some(Message.TypeAlias({name, kind})),
+          Some(
+            Message.TypeAlias({
+              name,
+              kind,
+            }),
+          ),
         )
       | (_, Some(kind)) when Ctx.is_abstract(ctx, name) => (
           [],
-          Some(Message.TypeParameter({name, kind})),
+          Some(
+            Message.TypeParameter({
+              name,
+              kind,
+            }),
+          ),
         )
       | (_, Some(kind)) => (
           [],
-          Some(Message.TypeAlias({name, kind})),
+          Some(
+            Message.TypeAlias({
+              name,
+              kind,
+            }),
+          ),
         )
       | (_, None) => (
           [],
-          Some(Message.TypeAlias({name, kind: TypKind.Type})),
+          Some(
+            Message.TypeAlias({
+              name,
+              kind: TypKind.Type,
+            }),
+          ),
         )
       }
     | Param(head, _params) when !at_alias_head =>
@@ -4504,7 +4522,15 @@ and utpat_to_info_map =
           | Some(k) => k
           | None => TypKind.of_param_count(List.length(params))
           };
-        ([], Some(Message.TypeAlias({name, kind})));
+        (
+          [],
+          Some(
+            Message.TypeAlias({
+              name,
+              kind,
+            }),
+          ),
+        );
       | None => ([TPatNotAVar(Other)], None)
       }
     | Tuple(_) => ([], Some(Message.Default))

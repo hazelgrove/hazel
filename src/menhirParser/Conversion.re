@@ -469,7 +469,8 @@ and Typ: {
       tup_label(of_menhir_ast(t1), of_menhir_ast(t2))
     | ArrayType(t) => list(of_menhir_ast(t))
     | ArrowType(t1, t2) => arrow(of_menhir_ast(t1), of_menhir_ast(t2))
-    | TypParamAp(t1, t2) => typ_param_ap(of_menhir_ast(t1), of_menhir_ast(t2))
+    | TypParamAp(t1, t2) =>
+      typ_param_ap(of_menhir_ast(t1), of_menhir_ast(t2))
     | TypTuple(ts) => typ_tuple(List.map(of_menhir_ast, ts))
     | ProdProjection(t1, t2) =>
       prod_projection(of_menhir_ast(t1), of_menhir_ast(t2))

@@ -217,11 +217,9 @@ let x : Option = ? in x
            reference; ancestor nodes (the surrounding `Sum`, `Prod`,
            etc.) shouldn't accumulate the same mark. */
         let marks =
-          static_errors(
-            {|
+          static_errors({|
 type List(a) = + Nil + Cons(Int, List) in ?
-|},
-          );
+|});
         let kind_mismatch_count =
           List.length(
             List.filter(
@@ -430,24 +428,20 @@ let x : IntOption = Some(3) in x
         );
       },
     ),
-    test_case(
-      "multi-parameter Either(Int, Bool) is well-kinded",
-      `Quick,
-      () => {
-        Alcotest.check(
-          list(testable_issue),
-          "no static errors",
-          [],
-          static_errors(
-            {|
+    test_case("multi-parameter Either(Int, Bool) is well-kinded", `Quick, () => {
+      Alcotest.check(
+        list(testable_issue),
+        "no static errors",
+        [],
+        static_errors(
+          {|
 type Either(a, b) = + A(a) + B(b) in
 let x : Either(Int, Bool) = A(3) in x
 |},
-          )
-          |> List.map(ms => Marks([ms])),
-        );
-      },
-    ),
+        )
+        |> List.map(ms => Marks([ms])),
+      )
+    }),
     test_case(
       "Either(Int) reports arity mismatch (expected 2, got 1)",
       `Quick,
@@ -465,7 +459,8 @@ let x : Either(Int) = A(3) in x
           true,
           List.exists(
             fun
-            | Mark.TypParamApplyArityMismatch({expected: 2, actual: 1, _}) => true
+            | Mark.TypParamApplyArityMismatch({expected: 2, actual: 1, _}) =>
+              true
             | _ => false,
             marks,
           ),
@@ -493,7 +488,8 @@ let x : Either((Int, Bool)) = A(0) in x
           true,
           List.exists(
             fun
-            | Mark.TypParamApplyArityMismatch({expected: 2, actual: 1, _}) => true
+            | Mark.TypParamApplyArityMismatch({expected: 2, actual: 1, _}) =>
+              true
             | _ => false,
             marks,
           ),
@@ -540,26 +536,23 @@ let x : List(Int, Bool) = ? in x
       },
     ),
     test_case(
-      "List((Int, Bool)) — extra parens — is a list of pairs",
-      `Quick,
-      () => {
-        /* The user can disambiguate: `List((Int, Bool))` is a single-arg
-           type application whose argument is the `Prod[Int, Bool]`
-           tuple, i.e. a list of pairs. This should type-check cleanly. */
-        Alcotest.check(
-          list(testable_issue),
-          "no static errors",
-          [],
-          static_errors(
-            {|
+      "List((Int, Bool)) — extra parens — is a list of pairs", `Quick, () => {
+      /* The user can disambiguate: `List((Int, Bool))` is a single-arg
+         type application whose argument is the `Prod[Int, Bool]`
+         tuple, i.e. a list of pairs. This should type-check cleanly. */
+      Alcotest.check(
+        list(testable_issue),
+        "no static errors",
+        [],
+        static_errors(
+          {|
 type List(a) = + Nil + Cons(a, List(a)) in
 let x : List((Int, Bool)) = Nil in x
 |},
-          )
-          |> List.map(ms => Marks([ms])),
-        );
-      },
-    ),
+        )
+        |> List.map(ms => Marks([ms])),
+      )
+    }),
     test_case(
       "Free variables nested inside a TypParamAp callee are all reported",
       `Quick,
@@ -571,11 +564,9 @@ let x : List((Int, Bool)) = Nil in x
            its own info entry (so cursor lookups don't fall through to
            "Whitespace or comment"). */
         let marks =
-          static_errors(
-            {|
+          static_errors({|
 type List(a) = + Nil + Cons(a, A(B)(a)) in ?
-|},
-          );
+|});
         let unbound_names =
           List.filter_map(
             fun
@@ -610,11 +601,9 @@ type List(a) = + Nil + Cons(a, A(B)(a)) in ?
            `TypParamAp` doesn't pile a spurious "cannot apply" or
            arity-mismatch mark on top of the free-variable error. */
         let marks =
-          static_errors(
-            {|
+          static_errors({|
 type List(a) = + Nil + Cons(a, L(a)) in ?
-|},
-          );
+|});
         check(
           bool,
           "L is reported as a free type variable",
@@ -655,10 +644,7 @@ let x : Either(Int, Bool) = A(3) in x
         let typ_ap_with_tuple = ref(0);
         walk_elaboration(src, e =>
           switch (e.term) {
-          | TypAp(
-              {term: Constructor("A", _), _},
-              {term: TypTuple(_), _},
-            ) =>
+          | TypAp({term: Constructor("A", _), _}, {term: TypTuple(_), _}) =>
             incr(typ_ap_with_tuple)
           | _ => ()
           }
@@ -697,8 +683,7 @@ let pair : poly a, b -> a -> b -> (a, b) =
           | Poly({term: Tuple([_, _]), _}, body) =>
             incr(poly_tuple_binders);
             walk_typ(body);
-          | Poly(_, {term: Poly(_), _}) =>
-            incr(nested_poly);
+          | Poly(_, {term: Poly(_), _}) => incr(nested_poly)
           | Poly(_, body) => walk_typ(body)
           | _ => ()
           };
@@ -716,8 +701,7 @@ let pair : poly a, b -> a -> b -> (a, b) =
           | TypAbs({term: Tuple([_, _]), _}, body, _) =>
             incr(abs_tuple_binders);
             walk_exp(body);
-          | TypAbs(_, {term: TypAbs(_), _}, _) =>
-            incr(nested_abs);
+          | TypAbs(_, {term: TypAbs(_), _}, _) => incr(nested_abs)
           | TypAbs(_, body, _) => walk_exp(body)
           | Let(p, def, body) =>
             walk_pat(p);
@@ -732,10 +716,30 @@ let pair : poly a, b -> a -> b -> (a, b) =
           };
         };
         walk_exp(exp);
-        check(int, "exactly one Poly with a TPat.Tuple binder", 1, poly_tuple_binders^);
-        check(int, "no curried Poly chains for the multi-binder form", 0, nested_poly^);
-        check(int, "exactly one TypAbs with a TPat.Tuple binder", 1, abs_tuple_binders^);
-        check(int, "no curried TypAbs chains for the multi-binder form", 0, nested_abs^);
+        check(
+          int,
+          "exactly one Poly with a TPat.Tuple binder",
+          1,
+          poly_tuple_binders^,
+        );
+        check(
+          int,
+          "no curried Poly chains for the multi-binder form",
+          0,
+          nested_poly^,
+        );
+        check(
+          int,
+          "exactly one TypAbs with a TPat.Tuple binder",
+          1,
+          abs_tuple_binders^,
+        );
+        check(
+          int,
+          "no curried TypAbs chains for the multi-binder form",
+          0,
+          nested_abs^,
+        );
       },
     ),
     test_case(
@@ -746,12 +750,9 @@ let pair : poly a, b -> a -> b -> (a, b) =
            binder position. Only type-alias *heads* (`type A(a) = ...`)
            accept the parameter-list form; binders should reject it
            with `TPatParamNotAtAliasHead`. */
-        let marks =
-          static_errors(
-            {|
+        let marks = static_errors({|
 let f : poly A(a) -> Int = ? in f
-|},
-          );
+|});
         check(
           bool,
           "poly A(a) -> reports TPatParamNotAtAliasHead on the binder",
@@ -769,12 +770,9 @@ let f : poly A(a) -> Int = ? in f
       "T(a) form is rejected as a abs binder",
       `Quick,
       () => {
-        let marks =
-          static_errors(
-            {|
+        let marks = static_errors({|
 let f = abs A(a) -> ? in f
-|},
-          );
+|});
         check(
           bool,
           "abs A(a) -> reports TPatParamNotAtAliasHead on the binder",
@@ -797,12 +795,9 @@ let f = abs A(a) -> ? in f
            inner `B(a)` is not at an alias head and should be flagged
            as `TPatParamNotAtAliasHead`. The outer `T(_)` itself
            remains valid. */
-        let marks =
-          static_errors(
-            {|
+        let marks = static_errors({|
 type T(B(a)) = a in ?
-|},
-          );
+|});
         check(
           bool,
           "inner B(a) reports TPatParamNotAtAliasHead",
@@ -827,22 +822,18 @@ type T(B(a)) = a in ?
           list(testable_issue),
           "no static errors on poly (a, b) -> ...",
           [],
-          static_errors(
-            {|
+          static_errors({|
 let f : poly (a, b) -> a -> b -> Int = ? in f
-|},
-          )
+|})
           |> List.map(ms => Marks([ms])),
         );
         Alcotest.check(
           list(testable_issue),
           "no static errors on abs (a, b) -> ...",
           [],
-          static_errors(
-            {|
+          static_errors({|
 let g = abs (a, b) -> ? in g
-|},
-          )
+|})
           |> List.map(ms => Marks([ms])),
         );
         /* And the recursive map example with parenthesized binders
@@ -852,11 +843,9 @@ let g = abs (a, b) -> ? in g
           list(testable_issue),
           "no static errors on parenthesized single-binder",
           [],
-          static_errors(
-            {|
+          static_errors({|
 let h = abs (a) -> ? in h
-|},
-          )
+|})
           |> List.map(ms => Marks([ms])),
         );
       },
@@ -868,12 +857,9 @@ let h = abs (a) -> ? in h
         /* Sanity check: a well-formed parameterized type alias
            (`type T(a, b) = …`) has no `TPatParamNotAtAliasHead`
            mark on its head. */
-        let marks =
-          static_errors(
-            {|
+        let marks = static_errors({|
 type T(a, b) = (a, b) in ?
-|},
-          );
+|});
         check(
           bool,
           "no TPatParamNotAtAliasHead on the alias head",
@@ -891,18 +877,18 @@ type T(a, b) = (a, b) in ?
       "Recursive map@<a, b> specializes both binders in one statics step",
       `Quick,
       () => {
-        /* The user's example: a recursive `map` declared with the
-           multi-binder `poly a, b -> ...` annotation. The recursive
-           call `map@<a, b>(tl, f)` must specialize BOTH binders in a
-           single `TypAp` step; otherwise a residual `poly b -> …`
-           leaks out and the subsequent ordinary application
-           `(tl, f)` would fail with an arrow-vs-poly mismatch. */
-        Alcotest.check(
-          list(testable_issue),
-          "no static errors on the recursive multi-binder map",
-          [],
-          static_errors(
-            {|
+      /* The user's example: a recursive `map` declared with the
+         multi-binder `poly a, b -> ...` annotation. The recursive
+         call `map@<a, b>(tl, f)` must specialize BOTH binders in a
+         single `TypAp` step; otherwise a residual `poly b -> …`
+         leaks out and the subsequent ordinary application
+         `(tl, f)` would fail with an arrow-vs-poly mismatch. */
+      Alcotest.check(
+        list(testable_issue),
+        "no static errors on the recursive multi-binder map",
+        [],
+        static_errors(
+          {|
 let map : poly a, b -> ([a], a -> b) -> [b] =
   abs a, b -> fun (xs, f) ->
     case xs
@@ -911,11 +897,10 @@ let map : poly a, b -> ([a], a -> b) -> [b] =
     end in
 map@<Int, Int>([1, 2, 3], fun x -> x * 2)
 |},
-          )
-          |> List.map(ms => Marks([ms])),
-        );
-      },
-    ),
+        )
+        |> List.map(ms => Marks([ms])),
+      )
+    }),
     /* Type-level type function as the body of a type alias.
        `type T = typfun a -> body` is the prefix-binder form of
        `type T(a) = body` and should produce the same kind /
@@ -926,38 +911,36 @@ map@<Int, Int>([1, 2, 3], fun x -> x * 2)
       "type T = typfun a -> body parses + checks like type T(a) = body",
       `Quick,
       () => {
-        Alcotest.check(
-          list(testable_issue),
-          "no static errors on type-level typfun alias body",
-          [],
-          static_errors(
-            {|
+      Alcotest.check(
+        list(testable_issue),
+        "no static errors on type-level typfun alias body",
+        [],
+        static_errors(
+          {|
 type Option = typfun a -> + None + Some(a) in
 let x : Option(Int) = Some(3) in x
 |},
-          )
-          |> List.map(ms => Marks([ms])),
-        );
-      },
-    ),
+        )
+        |> List.map(ms => Marks([ms])),
+      )
+    }),
     test_case(
       "type-level multi-binder typfun: type Either = typfun a, b -> ...",
       `Quick,
       () => {
-        Alcotest.check(
-          list(testable_issue),
-          "no static errors on type-level multi-binder typfun",
-          [],
-          static_errors(
-            {|
+      Alcotest.check(
+        list(testable_issue),
+        "no static errors on type-level multi-binder typfun",
+        [],
+        static_errors(
+          {|
 type Either = typfun a, b -> + Left(a) + Right(b) in
 let x : Either(Int, Bool) = Right(true) in x
 |},
-          )
-          |> List.map(ms => Marks([ms])),
-        );
-      },
-    ),
+        )
+        |> List.map(ms => Marks([ms])),
+      )
+    }),
     /* Curried `typfun a -> typfun b -> body` keeps each unary
        `TypFun` distinct: the alias has the *curried* kind
        `Type -> Type -> kind(body)` (rather than the tuple-arrow
@@ -974,44 +957,40 @@ let x : Either(Int, Bool) = Right(true) in x
       "type-level curried typfun: type T = typfun a -> typfun b -> ...",
       `Quick,
       () => {
-        Alcotest.check(
-          list(testable_issue),
-          "no static errors on curried typfun and curried application",
-          [],
-          static_errors(
-            {|
+      Alcotest.check(
+        list(testable_issue),
+        "no static errors on curried typfun and curried application",
+        [],
+        static_errors(
+          {|
 type PResult = typfun err -> typfun ok -> + Error(err) + Ok(ok) in
 type R = PResult(String)(Bool) in
 let x : R = Ok(true) in x
 |},
-          )
-          |> List.map(ms => Marks([ms])),
-        );
-      },
-    ),
+        )
+        |> List.map(ms => Marks([ms])),
+      )
+    }),
     /* Companion to the curried-typfun test: the *partial*
        application `PResult(String)` (without the second arg) must
        have kind `Type -> Type`. Used as a type alias body, it
        defines a new unary type constructor. */
     test_case(
-      "curried typfun supports partial type-level application",
-      `Quick,
-      () => {
-        Alcotest.check(
-          list(testable_issue),
-          "no static errors using a curried typfun's partial application",
-          [],
-          static_errors(
-            {|
+      "curried typfun supports partial type-level application", `Quick, () => {
+      Alcotest.check(
+        list(testable_issue),
+        "no static errors using a curried typfun's partial application",
+        [],
+        static_errors(
+          {|
 type PResult = typfun err -> typfun ok -> + Error(err) + Ok(ok) in
 type StringResult = PResult(String) in
 let x : StringResult(Int) = Ok(7) in x
 |},
-          )
-          |> List.map(ms => Marks([ms])),
-        );
-      },
-    ),
+        )
+        |> List.map(ms => Marks([ms])),
+      )
+    }),
     /* Regression: applying a multi-binder type abstraction
        `e@<Int>` (one arg) when its `Poly` expects two reports a
        focused error on the *type application* with result type
@@ -1128,12 +1107,9 @@ A
                 ++ "instead of uncurried (TypParamAp(_, TypTuple([_, _])))",
               )
             | _ =>
-              Alcotest.fail(
-                "result type's TypParamAp arg is not a TypTuple",
-              )
+              Alcotest.fail("result type's TypParamAp arg is not a TypTuple")
             }
-          | _ =>
-            Alcotest.fail("result type is not a TypParamAp")
+          | _ => Alcotest.fail("result type is not a TypParamAp")
           };
         };
       },
@@ -1220,29 +1196,28 @@ A
       "type-level recursive typfun: type List = typfun a -> + Nil + Cons(a, List(a))",
       `Quick,
       () => {
-        /* Self-reference inside a type-level typfun body: the alias
-           name `List` is captured as a recursive reference (the
-           `Var` branch of TyAlias detects it via `free_vars` and
-           wraps in `Rec`), and `List(Int)` normalizes via the
-           higher-kinded reduction.
+      /* Self-reference inside a type-level typfun body: the alias
+         name `List` is captured as a recursive reference (the
+         `Var` branch of TyAlias detects it via `free_vars` and
+         wraps in `Rec`), and `List(Int)` normalizes via the
+         higher-kinded reduction.
 
-           `+ Cons(a, List(a))` declares Cons with a single tuple
-           payload `(a, List(a))`, so applications are
-           `Cons((1, Nil))`. Same shape as the prefix-binder form
-           `type List(a) = …` test elsewhere in this file. */
-        Alcotest.check(
-          list(testable_issue),
-          "no static errors on recursive type-level typfun",
-          [],
-          static_errors(
-            {|
+         `+ Cons(a, List(a))` declares Cons with a single tuple
+         payload `(a, List(a))`, so applications are
+         `Cons((1, Nil))`. Same shape as the prefix-binder form
+         `type List(a) = …` test elsewhere in this file. */
+      Alcotest.check(
+        list(testable_issue),
+        "no static errors on recursive type-level typfun",
+        [],
+        static_errors(
+          {|
 type List = typfun a -> + Nil + Cons(a, List(a)) in
 let xs : List(Int) = Cons((1, Nil)) in xs
 |},
-          )
-          |> List.map(ms => Marks([ms])),
-        );
-      },
-    ),
+        )
+        |> List.map(ms => Marks([ms])),
+      )
+    }),
   ],
 );

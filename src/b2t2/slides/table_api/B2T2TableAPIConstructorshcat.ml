@@ -2476,8 +2476,8 @@ let out : string * Haz3lcore.PersistentSegment.t =
         \    (enforced=^^check(false), \"nrows(t3) is equal to nrows(t1)\")\n\
         \  ] in\n\
         \  # V1 is the more idiomatic version #\n\
-        \  let hcat = abs r1 -> abs r2 -> abs r3 -> fun (t1:[r1], \
-         t2:[r2], combine: (r1, r2) -> r3) ->\n\
+        \  let hcat = abs r1 -> abs r2 -> abs r3 -> fun (t1:[r1], t2:[r2], \
+         combine: (r1, r2) -> r3) ->\n\
         \    (zip(t1, t2)\n\
         \    |> map(_, combine)) : [r3] in\n\
         \  \n\

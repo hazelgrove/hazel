@@ -101,10 +101,7 @@ let triple_explanation =
 let _general_ap = mk_ap_exp_typ([[_general_list]]);
 let typ_ap_general: form = {
   let explanation = "Applies a type function to a list of type arguments at once.";
-  let preview = [
-    exp("e_tfun"),
-    mk_ap_exp_typ([[typ("X_1, …, X_n")]]),
-  ];
+  let preview = [exp("e_tfun"), mk_ap_exp_typ([[typ("X_1, …, X_n")]])];
   {
     id: TypAbsApExp(General),
     syntactic_form: [_f, _general_ap],

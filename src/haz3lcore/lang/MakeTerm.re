@@ -289,7 +289,10 @@ let parse_sum_term: Typ.t => ConstructorMap.variant(Typ.t) =
          tuple type. */
       let payload: Typ.t =
         switch (Typ.term_of(u)) {
-        | TypTuple(ts) => {term: Prod(ts), annotation: u.annotation}
+        | TypTuple(ts) => {
+            term: Prod(ts),
+            annotation: u.annotation,
+          }
         | _ => u
         };
       Variant(
@@ -365,14 +368,21 @@ let binder_of_tpat = (tpat: TPat.t): TPat.t => {
   switch (IdTagged.term_of(tpat)) {
   | MultiHole(_) =>
     switch (extract_multihole(tpat)) {
-    | Some(tps) => {...tpat, term: Tuple(tps)}
+    | Some(tps) => {
+        ...tpat,
+        term: Tuple(tps),
+      }
     | None => tpat
     }
   | Parens(inner) =>
     switch (extract_multihole(inner)) {
     | Some(tps) => {
         ...tpat,
-        term: Parens({...inner, term: Tuple(tps)}),
+        term:
+          Parens({
+            ...inner,
+            term: Tuple(tps),
+          }),
       }
     | None => tpat
     }
@@ -392,7 +402,13 @@ let apply_typ_param_args = (fn: Typ.t, arg: Typ.t): Typ.term => {
   | Prod(ts) =>
     /* Reuse the original Prod's IDs/secondary on the new TypTuple node
        so the structured editor's tile mappings stay aligned. */
-    TypParamAp(fn, {term: TypTuple(ts), annotation: arg.annotation})
+    TypParamAp(
+      fn,
+      {
+        term: TypTuple(ts),
+        annotation: arg.annotation,
+      },
+    )
   | _ => TypParamAp(fn, arg)
   };
 };
@@ -956,7 +972,15 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
            argument shape. */
         switch (Typ.term_of(ty)) {
         | Prod(ts) =>
-          ret(TypAp(l, {term: TypTuple(ts), annotation: ty.annotation}))
+          ret(
+            TypAp(
+              l,
+              {
+                term: TypTuple(ts),
+                annotation: ty.annotation,
+              },
+            ),
+          )
         | _ => ret(TypAp(l, ty))
         }
       | _ => ret(hole(tm))

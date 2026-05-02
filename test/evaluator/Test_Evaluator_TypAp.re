@@ -8,12 +8,12 @@ open Test_Evaluator_Prelude;
    reduced by the evaluator and the result carries a monomorphic type
    ascription (no stuck `TypAp` wrapping, no free-constructor errors
    when the result is re-analyzed). */
-let evaluated_is_self_typed_ctr =
-    (src: string, name: string): (bool, Exp.t) => {
+let evaluated_is_self_typed_ctr = (src: string, name: string): (bool, Exp.t) => {
   let exp = Haz3lcore.Parser.to_term(src, ~root=Exp) |> Option.get;
   let (_info_map, elab) =
     Statics.mk(CoreSettings.on, Language.Builtins.ctx_init(Some(Int)), exp);
-  let evaluated = Evaluator.evaluate(~env=Language.Builtins.env_init, elab) |> fst;
+  let evaluated =
+    Evaluator.evaluate(~env=Language.Builtins.env_init, elab) |> fst;
   /* Walk the evaluated result looking for a fully-specialized ctr of the
      expected name. */
   let found = ref(false);
@@ -60,20 +60,21 @@ in bs in
 map@<T>@<Int>(fun e -> string_length(e), ["hello","bar"])|},
       )
     ),
-    test_case("Multi-binder abs with multi-arg @<>", `Quick, () =>
+    test_case("Multi-binder abs with multi-arg @<>", `Quick, ()
       /* `abs a, b -> …` declares a single value-level type-
          abstraction value with two binders (curried internally), and
          `f@<Int, Bool>` applies both type arguments in one step via a
          `TypTuple`. The example uses `pair = abs a, b -> fun x, y
          -> (x, y)` and then `pair@<Int, Bool>(3, true)` to build a
          pair value. */
-      parse_and_evaluate_test(
-        "(3, true)",
-        {|let pair : poly a, b -> a -> b -> (a, b) =
+      =>
+        parse_and_evaluate_test(
+          "(3, true)",
+          {|let pair : poly a, b -> a -> b -> (a, b) =
   abs a, b -> fun x : a -> fun y : b -> (x, y) in
 pair@<Int, Bool>(3)(true)|},
-      )
-    ),
+        )
+      ),
     /* Regression: a recursive polymorphic `map` with parenthesized
        multi-binder polymorphism (`poly (a, b) -> …`, internal
        `TPat.Tuple`) and `abs (a, b) -> …` must fully evaluate the
@@ -105,8 +106,7 @@ map@<Int, Int>((fun x -> x + 1), [1, 2, 3])|},
       "Prelude Option: Some(3) evaluates without explicit type-arg",
       `Quick,
       () => {
-        let (ok, _) =
-          evaluated_is_self_typed_ctr({|Some(3)|}, "Some");
+        let (ok, _) = evaluated_is_self_typed_ctr({|Some(3)|}, "Some");
         check(
           bool,
           "Some specialized via auto-instantiation under ana=?",
@@ -119,8 +119,7 @@ map@<Int, Int>((fun x -> x + 1), [1, 2, 3])|},
       "Prelude Either: R(true) evaluates without explicit type-arg",
       `Quick,
       () => {
-        let (ok, _) =
-          evaluated_is_self_typed_ctr({|R(true)|}, "R");
+        let (ok, _) = evaluated_is_self_typed_ctr({|R(true)|}, "R");
         check(
           bool,
           "R specialized via auto-instantiation under ana=?",
@@ -179,12 +178,7 @@ let x : Option(Int) = Some(3) in x|},
 let x : Option(Int) = Some(3) in x|},
             "Some",
           );
-        check(
-          bool,
-          "Some is specialized after TypAp reduction",
-          true,
-          ok,
-        );
+        check(bool, "Some is specialized after TypAp reduction", true, ok);
       },
     ),
     test_case(
@@ -209,12 +203,7 @@ let xs : List(Int) = Cons(0, Cons(1, Cons(2, Nil))) in xs|},
 let xs : List(Int) = Cons(0, Cons(1, Cons(2, Nil))) in xs|},
             "Nil",
           );
-        check(
-          bool,
-          "Nil becomes self-typed after evaluation",
-          true,
-          nil_ok,
-        );
+        check(bool, "Nil becomes self-typed after evaluation", true, nil_ok);
       },
     ),
     test_case(

@@ -5006,8 +5006,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
         \  ]) in\n\
         \  let brown_and_get_acne = fun r : JellyNamed -> r.brown && \
          r.get_acne in\n\
-        \  let count = (abs row  -> abs v-> fun (t1: [row], proj : row \
-         -> v) ->\n\
+        \  let count = (abs row  -> abs v-> fun (t1: [row], proj : row -> v) ->\n\
         \    let go = fun (groups: [(value=v, count=Int)], row:row) ->\n\
         \      case find_opt(groups, fun g -> g.value == proj(row))\n\
         \      | None => (value=proj(row), count=1) :: groups\n\

@@ -426,21 +426,22 @@ x",
           {|abs a, b -> ?|},
         )
       ),
-      test_case("abs with parenthesized multi-binder", `Quick, () =>
+      test_case("abs with parenthesized multi-binder", `Quick, ()
         /* The parens around the binder list are preserved in the AST
            as a `Parens` wrapper around the `Tuple`, so the
            structured-editor display can round-trip them. Semantics
            (`TPat.binders_of`, `Typ.subst`, reduction) look through
            `Parens`. */
-        exp_check(
-          typ_abs(
-            TPat.parens(TPat.tuple([TPat.var("a"), TPat.var("b")])),
-            empty_hole(),
-            None,
-          ),
-          {|abs (a, b) -> ?|},
-        )
-      ),
+        =>
+          exp_check(
+            typ_abs(
+              TPat.parens(TPat.tuple([TPat.var("a"), TPat.var("b")])),
+              empty_hole(),
+              None,
+            ),
+            {|abs (a, b) -> ?|},
+          )
+        ),
       test_case("abs with parenthesized single-binder", `Quick, () =>
         exp_check(
           typ_abs(TPat.parens(TPat.var("a")), empty_hole(), None),

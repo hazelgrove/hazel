@@ -343,7 +343,8 @@ let gen_tpat_alias: (~minimal_idents: bool) => QCheck.Gen.t(tpat) =
     let gen_param = {
       let* head = gen_ident;
       let* len = int_range(1, 3);
-      let+ params = list_size(return(len), map(x => VarTPat(x), gen_ident));
+      let+ params =
+        list_size(return(len), map(x => VarTPat(x), gen_ident));
       ParamTPat(head, params);
     };
     oneof([gen_var, gen_param]);

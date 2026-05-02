@@ -2077,8 +2077,8 @@ let out : string * Haz3lcore.PersistentSegment.t =
          with the new column #\n\
         \    (enforced=^^check(false), \"nrows(t2) is equal to nrows(t1)\")\n\
         \  ] in\n\
-        \  let add_column = abs r -> abs v -> abs r' -> fun (t : [r], \
-         c : ((r, v) -> r'), vs: [v]) ->\n\
+        \  let add_column = abs r -> abs v -> abs r' -> fun (t : [r], c : ((r, \
+         v) -> r'), vs: [v]) ->\n\
         \    (zip(t, vs)\n\
         \    |> map(_, c)) : [r']  in\n\
         \  \n\

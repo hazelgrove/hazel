@@ -87,56 +87,66 @@ let tests = (
        `let y = 1 in let y = y in y`) suggests something specific
        to how the module expansion's outer `Let` interacts with
        the stepper's substitution. */
-    test_case("Stepper: module item rebinds same name", `Quick, () => {
-      let prog = {|{ let y = 1; let y = y }|};
-      let elaborated = elaborate(parse_exp(prog));
-      let bigstep =
-        Evaluator.evaluate_and_limit(
-          ~env=Builtins.env_init,
-          ~step_limit=100,
-          elaborated,
-        );
-      let smallstep = full_small_step_reduction(~step_limit=100, elaborated);
-      switch (bigstep, smallstep) {
-      | (Completed((bigstep_exp, _)), Completed(smallstep_exp)) =>
-        check(
-          dhexp_typ,
-          "small-step result matches big-step result",
-          bigstep_exp,
-          smallstep_exp,
-        )
-      | (StepLimitExceeded, _)
-      | (_, StepLimitExceeded) =>
-        Alcotest.fail("evaluation hit step limit")
-      };
-    }),
+    test_case(
+      "Stepper: module item rebinds same name",
+      `Quick,
+      () => {
+        let prog = {|{ let y = 1; let y = y }|};
+        let elaborated = elaborate(parse_exp(prog));
+        let bigstep =
+          Evaluator.evaluate_and_limit(
+            ~env=Builtins.env_init,
+            ~step_limit=100,
+            elaborated,
+          );
+        let smallstep =
+          full_small_step_reduction(~step_limit=100, elaborated);
+        switch (bigstep, smallstep) {
+        | (Completed((bigstep_exp, _)), Completed(smallstep_exp)) =>
+          check(
+            dhexp_typ,
+            "small-step result matches big-step result",
+            bigstep_exp,
+            smallstep_exp,
+          )
+        | (StepLimitExceeded, _)
+        | (_, StepLimitExceeded) =>
+          Alcotest.fail("evaluation hit step limit")
+        };
+      },
+    ),
     /* Sanity check: the same-shape program *without* the module
        wrapper. If this passes while the wrapped version fails, the
        bug is specific to how the stepper handles
        `ExpandModule.expand`'s nested-let output. If both fail, the
        stepper has a more general shadowing-substitution issue. */
-    test_case("Stepper: nested let rebinds same name (no module)", `Quick, () => {
-      let prog = {|let y = 1 in let y = y in y|};
-      let elaborated = elaborate(parse_exp(prog));
-      let bigstep =
-        Evaluator.evaluate_and_limit(
-          ~env=Builtins.env_init,
-          ~step_limit=100,
-          elaborated,
-        );
-      let smallstep = full_small_step_reduction(~step_limit=100, elaborated);
-      switch (bigstep, smallstep) {
-      | (Completed((bigstep_exp, _)), Completed(smallstep_exp)) =>
-        check(
-          dhexp_typ,
-          "small-step result matches big-step result",
-          bigstep_exp,
-          smallstep_exp,
-        )
-      | (StepLimitExceeded, _)
-      | (_, StepLimitExceeded) =>
-        Alcotest.fail("evaluation hit step limit")
-      };
-    }),
+    test_case(
+      "Stepper: nested let rebinds same name (no module)",
+      `Quick,
+      () => {
+        let prog = {|let y = 1 in let y = y in y|};
+        let elaborated = elaborate(parse_exp(prog));
+        let bigstep =
+          Evaluator.evaluate_and_limit(
+            ~env=Builtins.env_init,
+            ~step_limit=100,
+            elaborated,
+          );
+        let smallstep =
+          full_small_step_reduction(~step_limit=100, elaborated);
+        switch (bigstep, smallstep) {
+        | (Completed((bigstep_exp, _)), Completed(smallstep_exp)) =>
+          check(
+            dhexp_typ,
+            "small-step result matches big-step result",
+            bigstep_exp,
+            smallstep_exp,
+          )
+        | (StepLimitExceeded, _)
+        | (_, StepLimitExceeded) =>
+          Alcotest.fail("evaluation hit step limit")
+        };
+      },
+    ),
   ],
 );

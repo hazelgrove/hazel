@@ -39,10 +39,8 @@ let context_entry_view = (~globals, entry: Language.Ctx.entry): Node.t => {
      Emit the `type` keyword and the alias name in a single
      `div_name` flex child so the parent's `gap: 0.5em` doesn't
      widen the gap between them. */
-  let typ_keyword =
-    span(~attrs=[clss(["typ-keyword"])], [text("type ")]);
-  let view_tvar_entry =
-      (name: string, kind: Language.Ctx.kind): list(Node.t) =>
+  let typ_keyword = span(~attrs=[clss(["typ-keyword"])], [text("type ")]);
+  let view_tvar_entry = (name: string, kind: Language.Ctx.kind): list(Node.t) =>
     switch (kind) {
     | Abstract => [
         div_name([alias_view(name)]),
@@ -60,10 +58,7 @@ let context_entry_view = (~globals, entry: Language.Ctx.entry): Node.t => {
           div_name([
             typ_keyword,
             alias_view(
-              name
-              ++ "("
-              ++ Language.Typ.pretty_print_tvar(binder)
-              ++ ")",
+              name ++ "(" ++ Language.Typ.pretty_print_tvar(binder) ++ ")",
             ),
           ]),
           div(~attrs=[clss(["seperator"])], [text("=")]),

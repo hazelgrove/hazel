@@ -539,7 +539,13 @@ let rec subst = (s: t, x: TPat.t, ty: t): t => {
           ([], body),
           tps,
         );
-      ({...tp2, term: Tuple(tps')}, body');
+      (
+        {
+          ...tp2,
+          term: Tuple(tps'),
+        },
+        body',
+      );
     | _ => avoid_capture_one(tp2, body)
     };
   /* `x` shadows the binder if it appears anywhere in the binder's
@@ -570,7 +576,8 @@ let rec subst = (s: t, x: TPat.t, ty: t): t => {
     | Poly(tp2, ty) =>
       let (tp2', ty') = avoid_capture(tp2, ty);
       Poly(tp2', subst(s, x, ty')) |> rewrap;
-    | TypFun(tp2, ty) when binder_shadows_x(tp2) => TypFun(tp2, ty) |> rewrap
+    | TypFun(tp2, ty) when binder_shadows_x(tp2) =>
+      TypFun(tp2, ty) |> rewrap
     | TypFun(tp2, ty) =>
       let (tp2', ty') = avoid_capture(tp2, ty);
       TypFun(tp2', subst(s, x, ty')) |> rewrap;
@@ -875,7 +882,8 @@ let rec normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
          don't expand infinitely for non-uniform recursion.
          Callers needing to peer inside use `unfold_one`. */
       TypParamAp(fn_whnf, arg_normalized) |> rewrap
-    | TypParamAp(_, _) => TypParamAp(normalize(ctx, t1), arg_normalized) |> rewrap
+    | TypParamAp(_, _) =>
+      TypParamAp(normalize(ctx, t1), arg_normalized) |> rewrap
     | _ as whnf => normalize(ctx, whnf |> temp)
     };
   | Arrow(t1, t2) =>
@@ -1044,14 +1052,14 @@ let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
       TypParamAp({term: Rec(_), _} as r1, a1),
       TypParamAp({term: Rec(_), _} as r2, a2),
     ) =>
-      /* Higher-kinded recursive families: meet structurally. The same
-         `Rec` applied at the same argument is the same type; otherwise
-         try unfolding both sides one step and re-meeting (this catches
-         e.g. `(μX. λa. F)(Int)` ≡ `F[μX/X, Int/a]`). */
-      switch (meet'(r1, r2), meet'(a1, a2)) {
-      | (Some(r), Some(a)) => Some(TypParamAp(r, a) |> temp)
-      | _ => meet'(unfold_one(ty1), unfold_one(ty2))
-      }
+    /* Higher-kinded recursive families: meet structurally. The same
+       `Rec` applied at the same argument is the same type; otherwise
+       try unfolding both sides one step and re-meeting (this catches
+       e.g. `(μX. λa. F)(Int)` ≡ `F[μX/X, Int/a]`). */
+    switch (meet'(r1, r2), meet'(a1, a2)) {
+    | (Some(r), Some(a)) => Some(TypParamAp(r, a) |> temp)
+    | _ => meet'(unfold_one(ty1), unfold_one(ty2))
+    }
   | (TypParamAp({term: Rec(_), _}, _), _) =>
     let unfolded = unfold_one(ty1);
     Equality.syntactic.typ(unfolded, ty1) ? None : meet'(unfolded, ty2);
@@ -1201,8 +1209,7 @@ let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
   | (ProofOf(e1), ProofOf(e2)) =>
     Equality.semantic.exp(e1, e2) ? Some(ty1) : None
   | (ProofOf(_), _) => None
-  | (TypTuple(ts1), TypTuple(ts2))
-      when List.length(ts1) == List.length(ts2) =>
+  | (TypTuple(ts1), TypTuple(ts2)) when List.length(ts1) == List.length(ts2) =>
     let* tys = ListUtil.map2_opt(meet', ts1, ts2);
     let+ tys = OptUtil.sequence(tys);
     TypTuple(tys) |> temp;
@@ -1239,10 +1246,10 @@ let rec match_synswitch = (t1: t, t2: t) => {
   | (List(ty1), List(ty2)) => List(match_synswitch(ty1, ty2)) |> rewrap1
   | (List(_), _) => t1
   | (TypParamAp(t1a, t1b), TypParamAp(t2a, t2b)) =>
-    TypParamAp(match_synswitch(t1a, t2a), match_synswitch(t1b, t2b)) |> rewrap1
+    TypParamAp(match_synswitch(t1a, t2a), match_synswitch(t1b, t2b))
+    |> rewrap1
   | (TypParamAp(_), _) => t1
-  | (TypTuple(ts1), TypTuple(ts2))
-      when List.length(ts1) == List.length(ts2) =>
+  | (TypTuple(ts1), TypTuple(ts2)) when List.length(ts1) == List.length(ts2) =>
     TypTuple(List.map2(match_synswitch, ts1, ts2)) |> rewrap1
   | (TypTuple(_), _) => t1
   | (Arrow(ty1, ty2), Arrow(ty1', ty2')) =>

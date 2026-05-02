@@ -23,10 +23,7 @@ let _triple_p3 = tpat("p_3");
 let poly_typ_general_coloring_ids =
     (~binders_list_id: Id.t, ~extra_ids: list(Id.t), ~body_id: Id.t)
     : list((Id.t, Id.t)) =>
-  [
-    (Piece.id(_general_list), binders_list_id),
-    (Piece.id(_body), body_id),
-  ]
+  [(Piece.id(_general_list), binders_list_id), (Piece.id(_body), body_id)]
   @ List.map(pid => (Piece.id(_general_list), pid), extra_ids);
 
 let poly_typ_single_coloring_ids =

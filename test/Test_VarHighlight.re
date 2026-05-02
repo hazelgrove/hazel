@@ -358,8 +358,7 @@ let find_ctr_def =
         switch (info) {
         | InfoTyp({
             user_term: {term: Var(n), _},
-            expects:
-              ConstructorExpected(_, _) | VariantExpected(_),
+            expects: ConstructorExpected(_, _) | VariantExpected(_),
             _,
           })
             when n == name =>
@@ -567,8 +566,7 @@ let test_ctr_use_from_outside_module =
          inside the module. */
       let (use_id, use_info) = List.hd(cons_uses);
       let ids = highlight_ids(info_map, use_info);
-      let other_ids =
-        List.filter(id => !Id.equal(id, use_id), ids);
+      let other_ids = List.filter(id => !Id.equal(id, use_id), ids);
       check(
         bool,
         "outside use produces highlights",
@@ -656,8 +654,7 @@ let test_qualified_type_label_highlight =
     "Type: qualified-access label highlights inside-module declaration",
     `Quick,
     () => {
-      let exp =
-        parse_exp("let m = { type T = Int } in let x : m.T = 5 in x");
+      let exp = parse_exp("let m = { type T = Int } in let x : m.T = 5 in x");
       let info_map = statics(exp);
       /* Find the `T` of `m.T` — a Label in LabelProjectionExpected */
       let label_use =
@@ -721,8 +718,7 @@ let test_ctr_type_directed_disambiguation =
             switch (info) {
             | InfoTyp({
                 user_term: {term: Var("B"), _},
-                expects:
-                  ConstructorExpected(_, _) | VariantExpected(_),
+                expects: ConstructorExpected(_, _) | VariantExpected(_),
                 _,
               }) => [
                 id,
@@ -757,8 +753,7 @@ let test_ctr_type_directed_disambiguation =
         | InfoExp({ctx, _}) => ctx
         | _ => Ctx.empty
         };
-      let resolved =
-        Ctx.lookup_ctr_for_ana(use_ctx, "B", use_ana);
+      let resolved = Ctx.lookup_ctr_for_ana(use_ctx, "B", use_ana);
       check(
         bool,
         "ctr_for_ana resolves to some entry",
@@ -782,10 +777,7 @@ let test_ctr_type_directed_disambiguation =
       );
       /* Verify the OTHER B def is NOT in the highlight set. */
       let other_def_id =
-        List.find_opt(
-          id => !Id.equal(id, resolved_id),
-          b_defs,
-        );
+        List.find_opt(id => !Id.equal(id, resolved_id), b_defs);
       switch (other_def_id) {
       | Some(other_id) =>
         check(

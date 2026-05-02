@@ -170,8 +170,7 @@ let lookup_ctrs = (ctx: t, name: string): list(var_entry) =>
    `Parens` to the leftmost type-alias name. Used to align a
    constructor schema's result-type head with an analysis target's
    head for type-directed disambiguation. */
-let rec result_head_name_of =
-        (ty: TermBase.Typ.t): option(string) =>
+let rec result_head_name_of = (ty: TermBase.Typ.t): option(string) =>
   switch (ty.term) {
   /* Look-through forms: walk towards the result-type's head. */
   | Poly(_, body) => result_head_name_of(body)
@@ -211,8 +210,7 @@ let rec result_head_name_of =
    `ana`'s head; if no candidate matches we fall back to the
    innermost. */
 let lookup_ctr_for_ana =
-    (ctx: t, name: string, ana: option(TermBase.Typ.t))
-    : option(var_entry) => {
+    (ctx: t, name: string, ana: option(TermBase.Typ.t)): option(var_entry) => {
   let candidates = lookup_ctrs(ctx, name);
   let target = Option.bind(ana, result_head_name_of);
   switch (target) {
@@ -276,24 +274,20 @@ let lookup_alias = (ctx: t, name: string): option(TermBase.Typ.t) =>
    aware via `TPat.binders_of`, so this function also produces the
    uncurried shape. */
 let result_type_for_params = (name: string, params: list(TermBase.TPat.t)) => {
-  let head: TermBase.Typ.t =
-    (Var(name): TermBase.Typ.term) |> IdTagged.fresh;
+  let head: TermBase.Typ.t = (Var(name): TermBase.Typ.term) |> IdTagged.fresh;
   let arg_vars =
     List.filter_map(
       (param: TermBase.TPat.t) =>
         switch (TermBase.TPat.tyvar_of_utpat(param)) {
         | Some(param_name) =>
-          Some(
-            (Var(param_name): TermBase.Typ.term) |> IdTagged.fresh,
-          )
+          Some((Var(param_name): TermBase.Typ.term) |> IdTagged.fresh)
         | None => None
         },
       params,
     );
   switch (arg_vars) {
   | [] => head
-  | [arg] =>
-    (TypParamAp(head, arg): TermBase.Typ.term) |> IdTagged.fresh
+  | [arg] => (TypParamAp(head, arg): TermBase.Typ.term) |> IdTagged.fresh
   | _ =>
     let tuple: TermBase.Typ.t =
       (TypTuple(arg_vars): TermBase.Typ.term) |> IdTagged.fresh;

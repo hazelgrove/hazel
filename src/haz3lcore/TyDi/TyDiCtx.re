@@ -61,9 +61,7 @@ let peel_poly_for_consistency = (ty: Typ.t): Typ.t =>
   | Poly(binder, body) =>
     let binders = TPat.binders_of(binder);
     let args =
-      List.init(List.length(binders), _ =>
-        Unknown(Internal) |> Typ.fresh
-      );
+      List.init(List.length(binders), _ => Unknown(Internal) |> Typ.fresh);
     Typ.subst_many(args, binders, body);
   | _ => ty
   };
@@ -110,11 +108,7 @@ let bound_constructor_aps =
       | Arrow(_, ty_out) as arrow_term
           when
             Typ.is_consistent(ctx, ty, ty_out)
-            && !Typ.is_consistent(
-                 ctx,
-                 ty,
-                 arrow_term |> Typ.fresh,
-               ) =>
+            && !Typ.is_consistent(ctx, ty, arrow_term |> Typ.fresh) =>
         Some({
           content: name ++ "(",
           strategy: wrap(FromCtxAp(ty_out)),

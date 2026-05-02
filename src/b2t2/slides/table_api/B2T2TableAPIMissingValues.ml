@@ -2274,8 +2274,8 @@ let out : string * Haz3lcore.PersistentSegment.t =
          let requires=[(enforced=^^check(true), \"c is in header(t)\")] in\n\
          let ensures=[(enforced=^^check(false), \"length(bs) is equal to \
          nrows(t)\")] in\n\
-         let complete_cases = abs R -> abs C -> fun (t:[R], project:(R \
-         -> +None +Some(C))) ->\n\
+         let complete_cases = abs R -> abs C -> fun (t:[R], project:(R -> \
+         +None +Some(C))) ->\n\
          map(t, fun (r : R) -> case project(r)\n\
          | Some(_) => true\n\
          | None => false\n\

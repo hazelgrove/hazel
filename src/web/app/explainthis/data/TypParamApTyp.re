@@ -21,7 +21,10 @@ let _triple_t3 = typ("X_3");
 let typ_param_ap_general_coloring_ids =
     (~callee_id: Id.t, ~args_list_id: Id.t, ~extra_ids: list(Id.t))
     : list((Id.t, Id.t)) =>
-  [(Piece.id(_callee), callee_id), (Piece.id(_general_list), args_list_id)]
+  [
+    (Piece.id(_callee), callee_id),
+    (Piece.id(_general_list), args_list_id),
+  ]
   @ List.map(tid => (Piece.id(_general_list), tid), extra_ids);
 
 let typ_param_ap_single_coloring_ids =
@@ -47,8 +50,7 @@ let typ_param_ap_triple_coloring_ids =
 ];
 
 let general_explanation =
-    (~callee_str: string, ~callee_id: Id.t, ~args_ids: list(Id.t))
-    : string => {
+    (~callee_str: string, ~callee_id: Id.t, ~args_ids: list(Id.t)): string => {
   let args_part =
     args_ids
     |> List.mapi((i, tid) =>
@@ -75,12 +77,7 @@ let single_explanation =
   );
 
 let pair_explanation =
-    (
-      ~callee_str: string,
-      ~callee_id: Id.t,
-      ~t1_id: Id.t,
-      ~t2_id: Id.t,
-    )
+    (~callee_str: string, ~callee_id: Id.t, ~t1_id: Id.t, ~t2_id: Id.t)
     : string =>
   Printf.sprintf(
     "Applies the parameterized type [*%s*](%s) to two type arguments [*X_1*](%s) and [*X_2*](%s). Both substitute for the corresponding parameters of `%s` in a single step.",
@@ -153,9 +150,7 @@ let typ_param_ap_pair_form: form = {
   let explanation = "Applies the parameterized type [*%s*](%s) to two type arguments [*%s*](%s) and [*%s*](%s). Both substitute for the corresponding parameters of `%s` in a single step.";
   let preview = [
     typ("T"),
-    mk_ap_typ([
-      [typ("X_1"), Example.comma_typ(), space(), typ("X_2")],
-    ]),
+    mk_ap_typ([[typ("X_1"), Example.comma_typ(), space(), typ("X_2")]]),
   ];
   {
     id: TypParamApTyp(Arity2),

@@ -15,8 +15,7 @@ let _triple_p2 = tpat("p_2");
 let _triple_p3 = tpat("p_3");
 
 let tuple_tpat_general_coloring_ids =
-    (~binders_list_id: Id.t, ~extra_ids: list(Id.t))
-    : list((Id.t, Id.t)) =>
+    (~binders_list_id: Id.t, ~extra_ids: list(Id.t)): list((Id.t, Id.t)) =>
   [(Piece.id(_general_list), binders_list_id)]
   @ List.map(pid => (Piece.id(_general_list), pid), extra_ids);
 
@@ -37,11 +36,7 @@ let general_explanation = (~binders_ids: list(Id.t)): string => {
   let binders_part =
     binders_ids
     |> List.mapi((i, pid) =>
-         Printf.sprintf(
-           "[*p_%d*](%s)",
-           i + 1,
-           Id.to_string(pid),
-         )
+         Printf.sprintf("[*p_%d*](%s)", i + 1, Id.to_string(pid))
        )
     |> String.concat(", ");
   Printf.sprintf(
@@ -57,8 +52,7 @@ let pair_explanation = (~p1_id: Id.t, ~p2_id: Id.t): string =>
     Id.to_string(p2_id),
   );
 
-let triple_explanation =
-    (~p1_id: Id.t, ~p2_id: Id.t, ~p3_id: Id.t): string =>
+let triple_explanation = (~p1_id: Id.t, ~p2_id: Id.t, ~p3_id: Id.t): string =>
   Printf.sprintf(
     "A comma-separated list of three type binders [*p_1*](%s), [*p_2*](%s), [*p_3*](%s). All three are fresh type variables in scope throughout the body.",
     Id.to_string(p1_id),
@@ -83,7 +77,8 @@ let tuple_tpat_pair_form: form = {
   {
     id: TupleTPat(Arity2),
     syntactic_form: [_pair_p1, comma1, space(), _pair_p2],
-    expandable_id: Some((Piece.id(comma1), [_pair_p1, comma_tpat(), space(), _pair_p2])),
+    expandable_id:
+      Some((Piece.id(comma1), [_pair_p1, comma_tpat(), space(), _pair_p2])),
     explanation,
     examples: [],
   };

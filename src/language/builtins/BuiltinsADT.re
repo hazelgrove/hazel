@@ -78,10 +78,7 @@ module Option = {
      carry a ctx, so they can't resolve `Var("Option")` —
      pre-normalize here. */
   let applied_normalized: Typ.t =
-    sum_type([
-      ("None", None),
-      ("Some", Some(unknown_internal)),
-    ]);
+    sum_type([("None", None), ("Some", Some(unknown_internal))]);
 
   open IdTagged.FreshGrammar;
 
@@ -210,10 +207,7 @@ module Option = {
 module Either = {
   let params: list(TPat.t) = [var_tpat("a"), var_tpat("b")];
   let body: Typ.t =
-    sum_type([
-      ("L", Some(var_typ("a"))),
-      ("R", Some(var_typ("b"))),
-    ]);
+    sum_type([("L", Some(var_typ("a"))), ("R", Some(var_typ("b")))]);
   /* `TypFun(Tuple([a, b]), body)` — the parameterized alias stored
      in the ctx with kind `(Type, Type) -> Type`. */
   let t: Typ.t = {
@@ -262,8 +256,7 @@ module Either = {
    the params list (empty for `Ord` and `$Meta`, [a] for `Option`,
    [a, b] for `Either`) so we can register constructors with
    matching polymorphic schemas via `add_ctrs_with_params`. */
-let parameterized_aliases:
-  list((string, list(TPat.t), Typ.t, Typ.t)) = [
+let parameterized_aliases: list((string, list(TPat.t), Typ.t, Typ.t)) = [
   /* (name, params, alias_stored_type, alias_body_for_ctrs) */
   ("Ord", [], Ord.t, Ord.t),
   ("Option", Option.params, Option.t, Option.body),

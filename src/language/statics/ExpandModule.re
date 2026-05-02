@@ -168,8 +168,7 @@ let single_bound_var = (p: Pat.t): option(Var.t) =>
    position) the var-highlight logic can recover the binding-site id
    by walking the carrier's exports tuple and reading the matching
    `Label`'s annotation. */
-let build_type_exports_type =
-    (exports: list((Var.t, Typ.t, Id.t))): Typ.t => {
+let build_type_exports_type = (exports: list((Var.t, Typ.t, Id.t))): Typ.t => {
   let deduped =
     List.fold_right(
       ((name, ty, id), (seen, acc)) =>
@@ -307,8 +306,7 @@ let rec collect_type_exports =
            switch (mpat_names(mp), rhs_exports_ty) {
            | ([name], Some(exports_ty)) =>
              let binding_id = MPat.rep_id(mp);
-             let ctx =
-               Ctx.extend_alias(ctx, name, binding_id, exports_ty);
+             let ctx = Ctx.extend_alias(ctx, name, binding_id, exports_ty);
              (ctx, [(name, exports_ty, binding_id), ...acc]);
            | _ => (ctx, acc)
            };

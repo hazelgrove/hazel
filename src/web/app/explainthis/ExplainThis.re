@@ -735,8 +735,7 @@ let get_doc =
     let pat_id = List.nth(IdTagged.ids(pat), 0);
     let def_id = List.nth(IdTagged.ids(def), 0);
     get_message(
-      ~colorings=
-        ModLetDecl.mod_let_decl_coloring_ids(~pat_id, ~def_id),
+      ~colorings=ModLetDecl.mod_let_decl_coloring_ids(~pat_id, ~def_id),
       ~format=
         Some(
           msg =>
@@ -753,8 +752,7 @@ let get_doc =
     let tpat_id = List.nth(IdTagged.ids(tpat), 0);
     let typ_id = List.nth(IdTagged.ids(typ), 0);
     get_message(
-      ~colorings=
-        ModTypeDecl.mod_type_decl_coloring_ids(~tpat_id, ~typ_id),
+      ~colorings=ModTypeDecl.mod_type_decl_coloring_ids(~tpat_id, ~typ_id),
       ~format=
         Some(
           msg =>
@@ -777,10 +775,7 @@ let get_doc =
       };
     get_message(
       ~colorings=
-        ModuleKeywordDecl.module_keyword_decl_coloring_ids(
-          ~name_id,
-          ~def_id,
-        ),
+        ModuleKeywordDecl.module_keyword_decl_coloring_ids(~name_id, ~def_id),
       ~format=
         Some(
           msg =>
@@ -813,8 +808,7 @@ let get_doc =
     let tpat_id = List.nth(IdTagged.ids(tpat), 0);
     let typ_id = List.nth(IdTagged.ids(typ), 0);
     get_message(
-      ~colorings=
-        SigTypeDecl.sig_type_decl_coloring_ids(~tpat_id, ~typ_id),
+      ~colorings=SigTypeDecl.sig_type_decl_coloring_ids(~tpat_id, ~typ_id),
       ~format=
         Some(
           msg =>
@@ -841,8 +835,7 @@ let get_doc =
     | Var(name) => name
     | _ => "M"
     };
-  let module_keyword_exp_message =
-      (mp: MPat.t, def: Exp.t, body: Exp.t) => {
+  let module_keyword_exp_message = (mp: MPat.t, def: Exp.t, body: Exp.t) => {
     let name_id = List.nth(IdTagged.ids(mp), 0);
     let def_id = List.nth(IdTagged.ids(def), 0);
     let body_id = List.nth(IdTagged.ids(body), 0);
@@ -888,11 +881,7 @@ let get_doc =
   | Some(InfoSig(_)) => simple("Signature item")
   | Some(InfoMPat(_)) => simple("Module name")
   | Some(
-      InfoExp({
-        cls: Mod(ModLet),
-        user_term: {term: Let(p, e, _), _},
-        _,
-      }),
+      InfoExp({cls: Mod(ModLet), user_term: {term: Let(p, e, _), _}, _}),
     ) =>
     mod_let_message(p, e)
   | Some(
@@ -917,10 +906,7 @@ let get_doc =
     let name_str = pat_name(p);
     get_message(
       ~colorings=
-        ModuleKeywordDecl.module_keyword_decl_coloring_ids(
-          ~name_id,
-          ~def_id,
-        ),
+        ModuleKeywordDecl.module_keyword_decl_coloring_ids(~name_id, ~def_id),
       ~format=
         Some(
           msg =>
@@ -933,9 +919,7 @@ let get_doc =
         ),
       ModuleKeywordDecl.module_keyword_decls,
     );
-  | Some(
-      InfoExp({user_term: {term: ModuleExp(mp, def, body), _}, _}),
-    ) =>
+  | Some(InfoExp({user_term: {term: ModuleExp(mp, def, body), _}, _})) =>
     module_keyword_exp_message(mp, def, body)
   | Some(InfoExp({cls: Mod(_), _})) => simple("Module item")
   | Some(InfoExp({user_term: term, _})) =>
@@ -1170,8 +1154,7 @@ let get_doc =
         | [p_id] =>
           let group = TypAbsExp.type_abstractions_single;
           let (colorings, explanation) =
-            if (TypAbsExp.typabs_single.id
-                == get_specificity_level(group)) {
+            if (TypAbsExp.typabs_single.id == get_specificity_level(group)) {
               (
                 TypAbsExp.typabs_single_coloring_ids(~p_id, ~body_id),
                 TypAbsExp.single_explanation(~p_id, ~body_id),
@@ -1183,14 +1166,9 @@ let get_doc =
         | [p1_id, p2_id] =>
           let group = TypAbsExp.type_abstractions_pair;
           let (colorings, explanation) =
-            if (TypAbsExp.typabs_pair.id
-                == get_specificity_level(group)) {
+            if (TypAbsExp.typabs_pair.id == get_specificity_level(group)) {
               (
-                TypAbsExp.typabs_pair_coloring_ids(
-                  ~p1_id,
-                  ~p2_id,
-                  ~body_id,
-                ),
+                TypAbsExp.typabs_pair_coloring_ids(~p1_id, ~p2_id, ~body_id),
                 TypAbsExp.pair_explanation(~p1_id, ~p2_id, ~body_id),
               );
             } else {
@@ -1200,8 +1178,7 @@ let get_doc =
         | [p1_id, p2_id, p3_id] =>
           let group = TypAbsExp.type_abstractions_triple;
           let (colorings, explanation) =
-            if (TypAbsExp.typabs_triple.id
-                == get_specificity_level(group)) {
+            if (TypAbsExp.typabs_triple.id == get_specificity_level(group)) {
               (
                 TypAbsExp.typabs_triple_coloring_ids(
                   ~p1_id,
@@ -2416,8 +2393,7 @@ let get_doc =
           | TypTuple(ts) => ts
           | _ => [ty_arg]
           };
-        let args_ids =
-          List.map(t => List.nth(IdTagged.ids(t), 0), args);
+        let args_ids = List.map(t => List.nth(IdTagged.ids(t), 0), args);
         let args_list_id =
           switch (args_ids) {
           | [t, ..._] => t
@@ -2440,8 +2416,7 @@ let get_doc =
         | [t_id] =>
           let group = TypAppExp.typ_aps_single;
           let (colorings, explanation) =
-            if (TypAppExp.typ_ap_single.id
-                == get_specificity_level(group)) {
+            if (TypAppExp.typ_ap_single.id == get_specificity_level(group)) {
               (
                 TypAppExp.typ_ap_single_coloring_ids(~f_id, ~t_id),
                 TypAppExp.single_explanation(~f_id, ~t_id),
@@ -2465,8 +2440,7 @@ let get_doc =
         | [t1_id, t2_id, t3_id] =>
           let group = TypAppExp.typ_aps_triple;
           let (colorings, explanation) =
-            if (TypAppExp.typ_ap_triple.id
-                == get_specificity_level(group)) {
+            if (TypAppExp.typ_ap_triple.id == get_specificity_level(group)) {
               (
                 TypAppExp.typ_ap_triple_coloring_ids(
                   ~f_id,
@@ -2474,12 +2448,7 @@ let get_doc =
                   ~t2_id,
                   ~t3_id,
                 ),
-                TypAppExp.triple_explanation(
-                  ~f_id,
-                  ~t1_id,
-                  ~t2_id,
-                  ~t3_id,
-                ),
+                TypAppExp.triple_explanation(~f_id, ~t1_id, ~t2_id, ~t3_id),
               );
             } else {
               general_args();
@@ -2487,11 +2456,7 @@ let get_doc =
           get_message(~colorings, ~explanation, group);
         | _ =>
           let (colorings, explanation) = general_args();
-          get_message(
-            ~colorings,
-            ~explanation,
-            TypAppExp.typ_aps_general,
-          );
+          get_message(~colorings, ~explanation, TypAppExp.typ_aps_general);
         };
 
       | Ap(Forward, x, arg) =>
@@ -2859,8 +2824,7 @@ let get_doc =
           TerminalExp.ctr(v),
         )
       | Module(_) => get_message(ModuleExp.module_exps)
-      | ModuleExp(mp, def, body) =>
-        module_keyword_exp_message(mp, def, body)
+      | ModuleExp(mp, def, body) => module_keyword_exp_message(mp, def, body)
       | Projector(_, e) => get_message_exp(e.term)
       };
     get_message_exp(term.term);
@@ -3232,12 +3196,7 @@ let get_doc =
                 ~p3_id,
                 ~body_id,
               ),
-              PolyTyp.triple_explanation(
-                ~p1_id,
-                ~p2_id,
-                ~p3_id,
-                ~body_id,
-              ),
+              PolyTyp.triple_explanation(~p1_id, ~p2_id, ~p3_id, ~body_id),
             );
           } else {
             general_args();
@@ -3245,11 +3204,7 @@ let get_doc =
         get_message(~colorings, ~explanation, group);
       | _ =>
         let (colorings, explanation) = general_args();
-        get_message(
-          ~colorings,
-          ~explanation,
-          PolyTyp.poly_typ_general_group,
-        );
+        get_message(~colorings, ~explanation, PolyTyp.poly_typ_general_group);
       };
     | TypFun(_, _) =>
       simple(
@@ -3267,8 +3222,7 @@ let get_doc =
         | TypTuple(ts) => ts
         | _ => [ty_arg]
         };
-      let args_ids =
-        List.map(t => List.nth(IdTagged.ids(t), 0), args);
+      let args_ids = List.map(t => List.nth(IdTagged.ids(t), 0), args);
       let args_list_id =
         switch (args_ids) {
         | [t, ..._] => t
@@ -3285,11 +3239,7 @@ let get_doc =
           ~args_list_id,
           ~extra_ids,
         ),
-        TypParamApTyp.general_explanation(
-          ~callee_str,
-          ~callee_id,
-          ~args_ids,
-        ),
+        TypParamApTyp.general_explanation(~callee_str, ~callee_id, ~args_ids),
       );
       switch (args_ids) {
       | [t_id] =>
@@ -3609,8 +3559,7 @@ let get_doc =
         | Some(name) => name
         | None => "?"
         };
-      let params_ids =
-        List.map(p => List.nth(IdTagged.ids(p), 0), params);
+      let params_ids = List.map(p => List.nth(IdTagged.ids(p), 0), params);
       let params_list_id =
         switch (params_ids) {
         | [p, ..._] => p
@@ -3649,11 +3598,7 @@ let get_doc =
           if (ParamTPat.param_tpat_pair_form.id
               == get_specificity_level(group)) {
             (
-              ParamTPat.param_tpat_pair_coloring_ids(
-                ~head_id,
-                ~p1_id,
-                ~p2_id,
-              ),
+              ParamTPat.param_tpat_pair_coloring_ids(~head_id, ~p1_id, ~p2_id),
               ParamTPat.pair_explanation(~head_str, ~p1_id, ~p2_id),
             );
           } else {
@@ -3672,12 +3617,7 @@ let get_doc =
                 ~p2_id,
                 ~p3_id,
               ),
-              ParamTPat.triple_explanation(
-                ~head_str,
-                ~p1_id,
-                ~p2_id,
-                ~p3_id,
-              ),
+              ParamTPat.triple_explanation(~head_str, ~p1_id, ~p2_id, ~p3_id),
             );
           } else {
             general_args();
@@ -3685,15 +3625,10 @@ let get_doc =
         get_message(~colorings, ~explanation, group);
       | _ =>
         let (colorings, explanation) = general_args();
-        get_message(
-          ~colorings,
-          ~explanation,
-          ParamTPat.param_tpats_general,
-        );
+        get_message(~colorings, ~explanation, ParamTPat.param_tpats_general);
       };
     | Tuple(tps) =>
-      let binders_ids =
-        List.map(tp => List.nth(IdTagged.ids(tp), 0), tps);
+      let binders_ids = List.map(tp => List.nth(IdTagged.ids(tp), 0), tps);
       let binders_list_id =
         switch (binders_ids) {
         | [p, ..._] => p
@@ -3731,11 +3666,7 @@ let get_doc =
           if (TupleTPat.tuple_tpat_triple_form.id
               == get_specificity_level(group)) {
             (
-              TupleTPat.tuple_tpat_triple_coloring_ids(
-                ~p1_id,
-                ~p2_id,
-                ~p3_id,
-              ),
+              TupleTPat.tuple_tpat_triple_coloring_ids(~p1_id, ~p2_id, ~p3_id),
               TupleTPat.triple_explanation(~p1_id, ~p2_id, ~p3_id),
             );
           } else {
@@ -3744,12 +3675,8 @@ let get_doc =
         get_message(~colorings, ~explanation, group);
       | _ =>
         let (colorings, explanation) = general_args();
-        get_message(
-          ~colorings,
-          ~explanation,
-          TupleTPat.tuple_tpats_general,
-        );
-      }
+        get_message(~colorings, ~explanation, TupleTPat.tuple_tpats_general);
+      };
     | Parens(_) => get_message(ParensTPat.parens_tpats)
     }
   | Some(InfoDrv({term, _})) =>

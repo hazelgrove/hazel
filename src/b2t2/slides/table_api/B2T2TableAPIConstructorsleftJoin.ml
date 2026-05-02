@@ -4445,9 +4445,9 @@ let out : string * Haz3lcore.PersistentSegment.t =
         \  # The caller could also decide to flatten the option type into \
          individual optional columns #\n\
         \  let left_join =\n\
-        \    abs r1 -> abs r2 -> abs r3 -> abs k -> fun (t1 : \
-         [r1], t2: [r2], proj1 : r1 -> k, proj2 : r2 -> k, combine: (r1, \
-         (+None +Some(r2))) -> r3) ->\n\
+        \    abs r1 -> abs r2 -> abs r3 -> abs k -> fun (t1 : [r1], t2: [r2], \
+         proj1 : r1 -> k, proj2 : r2 -> k, combine: (r1, (+None +Some(r2))) -> \
+         r3) ->\n\
         \      flat_map(t1, fun (r1 : r1) ->\n\
         \        let t2' = filter(t2, fun (r2 : r2) -> \n\
         \          proj1(r1) == proj2(r2)) in\n\

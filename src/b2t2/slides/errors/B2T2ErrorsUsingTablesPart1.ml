@@ -5484,8 +5484,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
          ^^check(false), ^^check(true), ^^check(true), ^^check(false), \
          ^^check(true), ^^check(false))\n\
          ]) in\n\
-         let count = abs row  -> abs v-> fun (t1: [row], proj : row -> \
-         v) ->\n\
+         let count = abs row  -> abs v-> fun (t1: [row], proj : row -> v) ->\n\
          let go = fun (groups: [(value=v, count=Int)], row:row) ->\n\
          case find_opt(groups, fun g -> g.value == proj(row))\n\
          | None => (value=proj(row), count=1) :: groups\n\

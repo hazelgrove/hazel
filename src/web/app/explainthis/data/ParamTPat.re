@@ -20,11 +20,7 @@ let _triple_p2 = tpat("p_2");
 let _triple_p3 = tpat("p_3");
 
 let param_tpat_general_coloring_ids =
-    (
-      ~head_id: Id.t,
-      ~params_list_id: Id.t,
-      ~extra_ids: list(Id.t),
-    )
+    (~head_id: Id.t, ~params_list_id: Id.t, ~extra_ids: list(Id.t))
     : list((Id.t, Id.t)) =>
   [(Piece.id(_head), head_id), (Piece.id(_general_ps), params_list_id)]
   @ List.map(pid => (Piece.id(_general_ps), pid), extra_ids);
@@ -43,12 +39,7 @@ let param_tpat_pair_coloring_ids =
 ];
 
 let param_tpat_triple_coloring_ids =
-    (
-      ~head_id: Id.t,
-      ~p1_id: Id.t,
-      ~p2_id: Id.t,
-      ~p3_id: Id.t,
-    )
+    (~head_id: Id.t, ~p1_id: Id.t, ~p2_id: Id.t, ~p3_id: Id.t)
     : list((Id.t, Id.t)) => [
   (Piece.id(_head), head_id),
   (Piece.id(_triple_p1), p1_id),
@@ -59,15 +50,12 @@ let param_tpat_triple_coloring_ids =
 /* Build the explanation string for the general-arity case.
    Produces one `[*p_i*](id)` link per parameter, so each user-side
    parameter token gets its own highlight color even at arity 4+. */
-let general_explanation = (~head_str: string, ~params_ids: list(Id.t)): string => {
+let general_explanation =
+    (~head_str: string, ~params_ids: list(Id.t)): string => {
   let params_part =
     params_ids
     |> List.mapi((i, pid) =>
-         Printf.sprintf(
-           "[*p_%d*](%s)",
-           i + 1,
-           Id.to_string(pid),
-         )
+         Printf.sprintf("[*p_%d*](%s)", i + 1, Id.to_string(pid))
        )
     |> String.concat(", ");
   Printf.sprintf(
@@ -129,8 +117,7 @@ let param_tpat_single_form: form = {
   };
 };
 
-let _pair_ap =
-  mk_ap_tpat([[_pair_p1, comma_tpat(), space(), _pair_p2]]);
+let _pair_ap = mk_ap_tpat([[_pair_p1, comma_tpat(), space(), _pair_p2]]);
 let param_tpat_pair_form: form = {
   let explanation = "`%s` is a parameterized type constructor with two parameters [*%s*](%s) and [*%s*](%s). Both are type variables bound in the definition.";
   {

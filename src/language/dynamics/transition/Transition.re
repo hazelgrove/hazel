@@ -667,8 +667,7 @@ module Transition = (EV: EV_MODE) => {
           };
         } else {
           Step({
-            expr:
-              Constructor(name, Some(Some(specialized))) |> DHExp.fresh,
+            expr: Constructor(name, Some(Some(specialized))) |> DHExp.fresh,
             side_effects: [],
             kind: TypAbsAp,
             is_value: true,
@@ -691,7 +690,7 @@ module Transition = (EV: EV_MODE) => {
             side_effects: [],
             kind: TypAbsAp,
             is_value: false,
-          });
+          })
         };
       };
     | DeferredAp(d1, ds) =>

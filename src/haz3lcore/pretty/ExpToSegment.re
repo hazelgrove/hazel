@@ -605,7 +605,10 @@ let rec parenthesize =
         | ModuleMod(mp, e) => ModuleMod(mp, parenthesize(e))
         | (EmptyHole | Invalid(_) | MultiHole(_)) as t => t
         };
-      {...item, term: new_term};
+      {
+        ...item,
+        term: new_term,
+      };
     };
     Module(List.map(parenthesize_item, items)) |> rewrap;
   | ModuleExp(mp, def, body) =>
@@ -824,11 +827,17 @@ and parenthesize_typ =
        `T(a, b)`). */
     TypParamAp(
       parenthesize_typ(t1) |> paren_typ_assoc_at(Precedence.type_sum_ap),
-      parenthesize_typ(~already_paren=true, t2) |> paren_typ_at(Precedence.min),
+      parenthesize_typ(~already_paren=true, t2)
+      |> paren_typ_at(Precedence.min),
     )
     |> rewrap
   | TypTuple(ts) =>
-    TypTuple(List.map(t => parenthesize_typ(t) |> paren_typ_at(Precedence.comma), ts))
+    TypTuple(
+      List.map(
+        t => parenthesize_typ(t) |> paren_typ_at(Precedence.comma),
+        ts,
+      ),
+    )
     |> rewrap
   | Sum(ts) =>
     /* `Ctor(_)` already provides outer parens, so the argument
@@ -2868,10 +2877,7 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
         List.flatten(
           List.map2(
             (id, t) =>
-              list_append(
-                [space(), mk_form(TypPlus, id, []), space()],
-                t,
-              ),
+              list_append([space(), mk_form(TypPlus, id, []), space()], t),
             ids,
             ts,
           ),
@@ -2885,11 +2891,7 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
         [mk_form(TypSumSingle, id, [])]
         @ t
         @ List.flatten(
-            List.map2(
-              (id, t) => [mk_form(TypPlus, id, [])] @ t,
-              ids,
-              ts,
-            ),
+            List.map2((id, t) => [mk_form(TypPlus, id, [])] @ t, ids, ts),
           ),
       )
     };
@@ -3037,8 +3039,7 @@ and tpat_to_pretty = (~settings: Settings.t, tpat: TPat.t): pretty => {
         first
         @ List.flatten(
             List.map2(
-              (comma_id, tp) =>
-                [mk_form(CommaTPat, comma_id, [])] @ tp,
+              (comma_id, tp) => [mk_form(CommaTPat, comma_id, [])] @ tp,
               IdTagged.ids(tpat) |> pad_ids(List.length(rest)),
               rest,
             ),

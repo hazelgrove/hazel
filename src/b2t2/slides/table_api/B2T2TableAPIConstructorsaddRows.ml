@@ -628,8 +628,8 @@ let out : string * Haz3lcore.PersistentSegment.t =
          length(rs)\")\n\
          ] in\n\
          #Hazel tables are lists; so add_rows is just list concatenation#\n\
-         let add_rows = abs row -> fun (rs : [row], rs' : [row]) -> rs @ \
-         rs'  in\n\n\
+         let add_rows = abs row -> fun (rs : [row], rs' : [row]) -> rs @ rs'  \
+         in\n\n\
          # Examples #\n\
          type GradebookEntry= (name=String, age=Int, quiz1=Int, quiz2=Int, \
          midterm=Int, quiz3=Int, quiz4=Int, final=Int) in\n\

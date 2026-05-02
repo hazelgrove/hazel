@@ -1936,8 +1936,8 @@ let out : string * Haz3lcore.PersistentSegment.t =
         \    (enforced=^^check(false), \"nrows(t2) is equal to nrows(t1)\")\n\
         \  ] in\n\
         \  \n\
-        \  let build_column = abs r -> abs v -> abs r' -> fun (t : \
-         [r], c : ((r, v) -> r'), f: (r -> v)) ->\n\
+        \  let build_column = abs r -> abs v -> abs r' -> fun (t : [r], c : \
+         ((r, v) -> r'), f: (r -> v)) ->\n\
         \    map(t, fun r -> c(r, f(r))) : [r']\n\
         \  in\n\
         \  \n\

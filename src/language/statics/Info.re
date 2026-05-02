@@ -379,7 +379,8 @@ let get_binding_site = (info: t): option(Id.t) => {
     | Projector(_, inner) => result_of_ana(inner)
     | _ => ty
     };
-  let ctr_id_from_ana = (~ctx: Ctx.t, ~ana: Typ.t, name: string): option(Id.t) => {
+  let ctr_id_from_ana =
+      (~ctx: Ctx.t, ~ana: Typ.t, name: string): option(Id.t) => {
     let* sum = Typ.get_sum_constructors(ctx, result_of_ana(ana));
     let* variant =
       List.find_opt(

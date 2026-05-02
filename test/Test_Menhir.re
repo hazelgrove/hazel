@@ -230,11 +230,7 @@ let tests =
         ty_alias(
           TPat.var("T'"),
           Typ.int(),
-          let_(
-            Pat.asc(Pat.var("x"), Typ.var("T'")),
-            int(3),
-            var("x"),
-          ),
+          let_(Pat.asc(Pat.var("x"), Typ.var("T'")), int(3), var("x")),
         ),
         "type T' = Int in let x : T' = 3 in x",
       ),

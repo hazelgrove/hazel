@@ -15,11 +15,7 @@ let mod_let_decl_form: form = {
   let explanation = "A let declaration binds a [*value*](%s) to a [*pattern*](%s), exposing it as a field of the enclosing module.";
   {
     id: ModLetDecl,
-    syntactic_form: [
-      mk_mod_let([[space(), _pat, space()]]),
-      space(),
-      _exp,
-    ],
+    syntactic_form: [mk_mod_let([[space(), _pat, space()]]), space(), _exp],
     expandable_id: None,
     explanation,
     examples: [

@@ -78,11 +78,7 @@ let param_tyalias_general_explanation =
   let params_part =
     params_ids
     |> List.mapi((i, pid) =>
-         Printf.sprintf(
-           "[*p_%d*](%s)",
-           i + 1,
-           Id.to_string(pid),
-         )
+         Printf.sprintf("[*p_%d*](%s)", i + 1, Id.to_string(pid))
        )
     |> String.concat(", ");
   Printf.sprintf(
@@ -96,13 +92,7 @@ let param_tyalias_general_explanation =
 };
 
 let param_tyalias_single_explanation =
-    (
-      ~head_str: string,
-      ~head_id: Id.t,
-      ~p_id: Id.t,
-      ~def_id: Id.t,
-    )
-    : string =>
+    (~head_str: string, ~head_id: Id.t, ~p_id: Id.t, ~def_id: Id.t): string =>
   Printf.sprintf(
     "Binds [*%s*](%s) as a parameterized type constructor with a single parameter [*p*](%s). Inside the [*definition*](%s) `p` is an abstract type variable; at use sites `%s(X)` substitutes `X` for `p`.",
     head_str,
@@ -168,13 +158,7 @@ let param_tyalias_pair_coloring_ids =
 ];
 
 let param_tyalias_triple_coloring_ids =
-    (
-      ~head_id: Id.t,
-      ~p1_id: Id.t,
-      ~p2_id: Id.t,
-      ~p3_id: Id.t,
-      ~def_id: Id.t,
-    ) => [
+    (~head_id: Id.t, ~p1_id: Id.t, ~p2_id: Id.t, ~p3_id: Id.t, ~def_id: Id.t) => [
   (Piece.id(_head_tpat_t), head_id),
   (Piece.id(_triple_a), p1_id),
   (Piece.id(_triple_b), p2_id),
@@ -226,8 +210,7 @@ let param_tyalias_single_exp: form = {
   };
 };
 
-let _pair_ap =
-  mk_ap_tpat([[_pair_a, comma_tpat(), space(), _pair_b]]);
+let _pair_ap = mk_ap_tpat([[_pair_a, comma_tpat(), space(), _pair_b]]);
 let param_tyalias_pair_exp: form = {
   let explanation = "Binds [*%s*](%s) as a parameterized type constructor with two parameters [*%s*](%s) and [*%s*](%s). Inside the [*definition*](%s) the parameters are abstract type variables; at use sites `%s(X_1, X_2)` substitutes each argument for the corresponding parameter.";
   let form = [

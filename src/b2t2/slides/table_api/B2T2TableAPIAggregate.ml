@@ -8670,8 +8670,8 @@ let out : string * Haz3lcore.PersistentSegment.t =
         \    # This utilizes the primitive_pivot operation to group the \
          categorical variables. To work on numbers another method would need \
          to be used. #\n\
-        \    let count = abs row -> abs key -> fun (t1:[row], c: (row -> \
-         key)) -> \n\
+        \    let count = abs row -> abs key -> fun (t1:[row], c: (row -> key)) \
+         -> \n\
         \      case t1\n\
         \      | [] => []\n\
         \      | (r :: tl) =>\n\

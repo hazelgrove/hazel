@@ -5077,14 +5077,14 @@ let out : string * Haz3lcore.PersistentSegment.t =
         \    \n\
         \    let incorrect =\n\
         \      let keep = fun (r : JellyAnon) -> r.color in \n\
-        \      let count_participants = abs row -> fun (t:[row], color: row \
-         -> Bool) -> \n\
+        \      let count_participants = abs row -> fun (t:[row], color: row -> \
+         Bool) -> \n\
         \        length(filter(t, keep))\n\
         \      in count_participants@<JellyAnon>(jellyAnon, fun r -> r.brown)\n\
         \    in\n\
         \    let correct = \n\
-        \      let count_participants = abs row -> fun (t:[row], color: row \
-         -> Bool) -> \n\
+        \      let count_participants = abs row -> fun (t:[row], color: row -> \
+         Bool) -> \n\
         \        let keep = fun (r : row) -> color(r) in \n\
         \        length(filter(t, keep))\n\
         \      in count_participants@<JellyAnon>(jellyAnon, fun r -> r.brown)\n\
@@ -5113,10 +5113,9 @@ let out : string * Haz3lcore.PersistentSegment.t =
         \  \n\
         \  let tfilter = abs row -> fun (t: [row], pred: (row -> Bool)) -> \
          filter(t,pred) :[row] in\n\
-        \  let get_row = abs row -> fun (t:[row], n : Int) -> nth(t,n) : \
-         row in\n\
-        \  let build_column =abs row -> abs row' -> fun (t:[row], fn: \
-         (row -> row')) -> map(t, fn) : [row']in\n\
+        \  let get_row = abs row -> fun (t:[row], n : Int) -> nth(t,n) : row in\n\
+        \  let build_column =abs row -> abs row' -> fun (t:[row], fn: (row -> \
+         row')) -> map(t, fn) : [row']in\n\
         \  let incorrect =\n\
         \    let last_name_to_dept_id = fun (dept_tab : [Department], name: \
          String) ->\n\
