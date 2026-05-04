@@ -539,6 +539,44 @@ in
       },
     ),
     test_case(
+      "typfun with matching type instantiation: no error",
+      `Quick,
+      () => {
+        open FError;
+        open Exp;
+        /* Same shape as the previous test, but instantiated to <String>
+           with a String argument: a := String, x := "", so the inner
+           Asc body has type String which matches `a`. Live-typing must
+           consult the type-instantiation map to resolve `a` to `String`;
+           if it leaves `a` Abstract, meet(Var("a"), String) fails and a
+           spurious DynamicError is reported. */
+        let exp: FError.exp =
+          ap(
+            Forward,
+            typ_ap(
+              typ_fun(
+                TPat.var("a"),
+                fn(
+                  Pat.var("x"),
+                  asc(
+                    asc(var("x"), Typ.unknown(Hole(EmptyHole))),
+                    Typ.var("a"),
+                  ),
+                ),
+                None,
+              ),
+              Typ.string(),
+            ),
+            string(""),
+          );
+        test_live_typing(
+          ~test_name=
+            {|(typfun a -> fun x -> (x : ? : a))@<String>("")|},
+          exp,
+        );
+      },
+    ),
+    test_case(
       "Polymorphism with dynamic type environment in unevaluated code",
       `Quick,
       () => {

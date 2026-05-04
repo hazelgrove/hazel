@@ -1757,15 +1757,26 @@ and uexp_to_info_map =
             | _ => item
             };
           };
+          let tpat_id = TPat.rep_id(utpat);
           let ctx_body =
-            Ctx.extend_tvar(
-              ctx,
-              {
+            switch (LiveTyping.Map.lookup_type_inst(tpat_id, dynamics)) {
+            | Some([_, ..._] as insts) =>
+              LiveTyping.extend_ctx_with_instantiations(
+                ctx,
                 name,
-                id: TPat.rep_id(utpat),
-                kind: Abstract,
-              },
-            );
+                tpat_id,
+                insts,
+              )
+            | _ =>
+              Ctx.extend_tvar(
+                ctx,
+                {
+                  name,
+                  id: tpat_id,
+                  kind: Abstract,
+                },
+              )
+            };
           (mode_body, ctx_body);
         | Some(_)
         | None => (item, ctx)
