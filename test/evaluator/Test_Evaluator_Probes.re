@@ -859,6 +859,42 @@ in f(0)|},
 in f([1, 2])|},
     [(0, ["[1, 2, 0]"])],
   ),
+  /* Nested ascription probe survival.
+     `"" : String : String` parses as `Asc(Asc("", String), String)`.
+     Probing the outer Asc should always work (sanity). Probing the inner
+     Asc is the case under suspicion: if elaboration collapses or rebuilds
+     the inner Asc with a fresh id, its probe target is lost and we see
+     zero samples. */
+  probe_line_test(
+    "Probe on outer of nested same-type ascription",
+    {|^^probe("" : String : String)|},
+    [(0, ["\"\""])],
+  ),
+  probe_line_test(
+    "Probe on inner of nested same-type ascription",
+    {|^^probe("" : String) : String|},
+    [(0, ["\"\""])],
+  ),
+  /* Mirrors the shape of Test_Evaluator_LiveTyping case 002
+     (`(int(1) : ?) : String`) and case 007's inner Asc
+     (`(x : ?) : a`). If the inner probe survives here but live-typing
+     case 007 still sees no refinement, the issue is in sample
+     resolution, not in elaboration eating the inner Asc. */
+  probe_line_test(
+    "Probe on inner of nested unknown-then-known ascription",
+    {|^^probe("" : ?) : String|},
+    [(0, ["\"\""])],
+  ),
+  /* The exact inner shape of LiveTyping case 007: a Var (not a literal)
+     inside the inner Asc. If this test passes (1 sample of `""`) the
+     probe is reaching the inner Asc and recording the runtime value of
+     x; if it fails or yields the symbol `x`, it confirms a variable-
+     specific issue at the inner-Asc probe site. */
+  probe_line_test(
+    "Probe on inner of nested ascription whose body is a Var",
+    {|let x = "" in ^^probe(x : ?) : String|},
+    [(0, ["\"\""])],
+  ),
 ];
 
 /* Tests that probe samples are not duplicated when values flow through
