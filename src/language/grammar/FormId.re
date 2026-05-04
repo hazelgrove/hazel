@@ -59,7 +59,6 @@ type family =
   | Divide
   | Equals
   | StringConcat
-  | StringEquals
   | Lt
   | Gt
   | NotEquals
@@ -174,7 +173,6 @@ let label_of_family: family => Label.t =
   | Divide => ["/"]
   | Equals => ["=="]
   | StringConcat => ["++"]
-  | StringEquals => ["$=="]
   | Lt => ["<"]
   | Gt => [">"]
   | NotEquals => ["!="]
