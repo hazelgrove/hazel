@@ -2,7 +2,7 @@ open Alcotest;
 
 let split = (body: string): list((option(string), int)) =>
   Omd.of_string(body)
-  |> Web.Sidebar.split_task_reference_sections
+  |> Web.TaskReferenceSplit.split
   |> List.map(((h, blocks)) => (h, List.length(blocks)));
 
 let section = pair(option(string), int);

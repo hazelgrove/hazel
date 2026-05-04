@@ -153,26 +153,7 @@ let task_reference_tab = (~globals: Globals.t): Node.t =>
     ~globals,
   );
 
-/* Walk a parsed markdown doc and group its blocks into a leading
-   preamble (heading=None) followed by sections introduced by an H3
-   heading. Used to render each section as a collapsible <details>. */
-let split_task_reference_sections =
-    (doc: Omd.doc): list((option(string), Omd.doc)) => {
-  let close_section = (cur_head, cur_body, acc) =>
-    switch (cur_head, cur_body) {
-    | (Option.None, []) => acc
-    | _ => [(cur_head, List.rev(cur_body)), ...acc]
-    };
-  let rec go = (acc, cur_head, cur_body, blocks) =>
-    switch (blocks) {
-    | [] => List.rev(close_section(cur_head, cur_body, acc))
-    | [Omd.Heading(_, 3, inline), ...rest] =>
-      let acc' = close_section(cur_head, cur_body, acc);
-      go(acc', Option.Some(ExplainThis.inline_to_string(inline)), [], rest);
-    | [b, ...rest] => go(acc, cur_head, [b, ...cur_body], rest)
-    };
-  go([], Option.None, [], doc);
-};
+let split_task_reference_sections = TaskReferenceSplit.split;
 
 let task_reference_view = (~globals: Globals.t, body: string) => {
   let render_md = blocks => {
