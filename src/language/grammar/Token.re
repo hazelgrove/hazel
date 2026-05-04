@@ -451,12 +451,3 @@ let mk_projector_invoke = (kind: ProjectorKind.t): string =>
 /* Unicode probe brackets for CLI text output */
 let probe_start = "⟦";
 let probe_end = "⟧";
-
-/* Filter Selector */
-
-let filter_selector_prefix = "$";
-
-let is_filter_selector = (str: t): bool =>
-  starts_with(~prefix=filter_selector_prefix, str)
-  && String.length(str) > 1
-  && is_var(String.sub(str, 1, String.length(str) - 1));

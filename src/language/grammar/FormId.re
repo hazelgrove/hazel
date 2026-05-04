@@ -37,8 +37,7 @@ type atomic_form =
   | Ctr
   | MPatName
   | Type
-  | InfixDelimiterPrefix
-  | FilterSelector;
+  | InfixDelimiterPrefix;
 
 /* Compound forms, up to sort. A family is an equivalence class of
  * form definitions sharing the same label AND the same outer-nib

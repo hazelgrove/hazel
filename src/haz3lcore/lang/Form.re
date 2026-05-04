@@ -477,7 +477,6 @@ let is_ambiguous_polymorph: Token.t => bool = {
 let get_atomic_form: atomic_form => (Token.t => bool, list(Mold.t)) =
   fun
   | Var => (Token.is_var, [op(Exp), op(Pat)])
-  | FilterSelector => (Token.is_filter_selector, [op(Exp)])
   | InfixDelimiterPrefix => (
       is_infix_delimiter_op_prefix,
       infix_delimiter_prefix_molds,
