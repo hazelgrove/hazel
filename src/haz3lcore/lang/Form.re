@@ -328,7 +328,6 @@ type compound_form =
   | Divide
   | Equals
   | StringConcat
-  | StringEquals
   | Lt
   | Gt
   | NotEquals
@@ -435,7 +434,6 @@ let get: compound_form => t =
   | Divide => mk_infix("/", Exp, P.mult)
   | Equals => mk_infix("==", Exp, P.eqs)
   | StringConcat => mk_infix("++", Exp, P.concat)
-  | StringEquals => mk_infix("$==", Exp, P.eqs)
   | Lt => mk_infix("<", Exp, P.eqs)
   | Gt => mk_infix(">", Exp, P.eqs)
   | NotEquals => mk_infix("!=", Exp, P.eqs)

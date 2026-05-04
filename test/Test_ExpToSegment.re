@@ -509,6 +509,78 @@ let exp_to_segment_roundtrip_settings: ExpToSegment.Settings.t = {
 let exp_to_segment_roundtrip =
   ExpToSegment.exp_to_segment(~settings=exp_to_segment_roundtrip_settings);
 
+let rec tile_ids = (seg: Segment.t): list(Id.t) =>
+  seg
+  |> List.concat_map(
+       fun
+       | Tile(t) => [t.id, ...List.concat_map(tile_ids, t.children)]
+       | _ => [],
+     );
+
+let rec find_tile_id = (~label: Label.t, seg: Segment.t): option(Id.t) => {
+  let rec find_in_children = (children: list(Segment.t)): option(Id.t) =>
+    switch (children) {
+    | [] => None
+    | [child, ...rest] =>
+      switch (find_tile_id(~label, child)) {
+      | Some(_) as found => found
+      | None => find_in_children(rest)
+      }
+    };
+
+  switch (seg) {
+  | [] => None
+  | [Tile({id, label: tile_label, children, _}), ...rest] =>
+    if (tile_label == label) {
+      Some(id);
+    } else {
+      switch (find_in_children(children)) {
+      | Some(_) as found => found
+      | None => find_tile_id(~label, rest)
+      };
+    }
+  | [_, ...rest] => find_tile_id(~label, rest)
+  };
+};
+
+let unresolved_filter_ids_test =
+  test_case({|Filter: unresolved uses outer id|}, `Quick, () => {
+    switch (Parser.to_term({|debug unknown($e) in x|}, ~root=Exp)) {
+    | Some(term) =>
+      switch (Exp.term_of(term)) {
+      | Filter(Unresolved(filt_exp), _) =>
+        let seg = exp_to_segment_roundtrip(term);
+        switch (find_tile_id(~label=["debug", "in"], seg)) {
+        | Some(debug_id) =>
+          check(
+            bool,
+            "debug tile uses the outer filter id",
+            true,
+            Id.equal(debug_id, Exp.rep_id(term)),
+          );
+          check(
+            bool,
+            "debug tile does not reuse the child filter id",
+            false,
+            Id.equal(debug_id, Exp.rep_id(filt_exp)),
+          );
+        | None => Alcotest.fail("Missing debug/in tile")
+        };
+
+        let ids = tile_ids(seg);
+        let unique_ids = List.sort_uniq(Id.compare, ids);
+        check(
+          int,
+          "pretty-printed filter tile ids are unique",
+          List.length(ids),
+          List.length(unique_ids),
+        );
+      | _ => Alcotest.fail("Expected unresolved filter term")
+      }
+    | None => Alcotest.fail("Failed to parse unresolved filter")
+    }
+  });
+
 /* Test that a string round-trips through segment → term → segment */
 let roundtrip_test = (name: string, input: string) =>
   test_case(name, `Quick, () => {
@@ -726,8 +798,13 @@ in f(42)|},
     roundtrip_test({|Filter: step spaced|}, {|debug step(1)  in  2|}),
     /* Filter selector ($e, $v) within filter expressions */
     roundtrip_test({|FilterSelector: $e in eval|}, {|debug eval($e) in x|}),
+    roundtrip_test(
+      {|FilterSelector: $e preserves spacing|},
+      {|debug eval( $e ) in x|},
+    ),
     roundtrip_test({|FilterSelector: $v in hide|}, {|debug hide($v) in 2|}),
     roundtrip_test({|FilterSelector: in step|}, {|debug step($v) in 2|}),
+    unresolved_filter_ids_test,
     roundtrip_test(
       {|QuotedLabel: label needing quotes (has dash)|},
       {|(`the-answer`=42)|},

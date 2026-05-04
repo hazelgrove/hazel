@@ -1717,7 +1717,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
   | DynamicErrorHole(_)
   | Filter(Residue(_), _) => failwith("printing these not implemented yet")
   | Filter(Unresolved(filt_exp), e) =>
-    let id = filt_exp |> Exp.rep_id;
+    let id = exp |> Exp.rep_id;
     let* p = go(filt_exp);
     let+ e = go(e);
     wrap(
@@ -1731,7 +1731,14 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
   | Filter(Filter({pat, act, ids}), e) =>
     let id = exp |> Exp.rep_id;
     let filter =
-      Ap(Forward, {term: FilterAction(act), annotation: ids}, pat)
+      Ap(
+        Forward,
+        {
+          term: FilterAction(act),
+          annotation: ids,
+        },
+        pat,
+      )
       |> Exp.fresh;
     let* p = go(filter);
     let+ e = go(e);
@@ -1795,7 +1802,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
       | Exp => "$e"
       | Val => "$v"
       };
-    text_to_pretty(exp |> Exp.rep_id, Sort.Exp, token);
+    wrap(exp, text_to_pretty(exp |> Exp.rep_id, Sort.Exp, token));
   // TODO: Make sure types are correct
   | Constructor(c, _t) =>
     // let id = Id.mk();
