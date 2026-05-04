@@ -407,6 +407,36 @@ let rec num_nodes = (ty: t): int => {
   };
 };
 
+let rec contains_unknown = (ty: t): bool =>
+  switch (ty.term) {
+  | Unknown(_) => true
+  | Atom(_)
+  | DrvQuoteTy(_)
+  | Var(_)
+  | ExplicitNonlabel
+  | Label(_)
+  | ProofOf(_)
+  | Sig(_) => false
+  | Arrow(t1, t2)
+  | ProdProjection(t1, t2)
+  | ProdExtension(t1, t2) => contains_unknown(t1) || contains_unknown(t2)
+  | Prod(tys) => List.exists(contains_unknown, tys)
+  | Sum(sm) =>
+    List.exists(
+      fun
+      | ConstructorMap.BadEntry(_) => false
+      | Variant(_, _, None) => false
+      | Variant(_, _, Some(t)) => contains_unknown(t),
+      sm,
+    )
+  | Rec(_, ty)
+  | List(ty)
+  | Parens(ty)
+  | Projector(_, ty)
+  | Poly(_, ty)
+  | TupLabel(_, ty) => contains_unknown(ty)
+  };
+
 /* Number of Unknown constructors in type AST */
 let rec count_unknowns = (ty: t): int =>
   switch (ty.term) {

@@ -58,8 +58,8 @@ let problem_status_view = (~globals, ci: Language.Info.t): Node.t =>
       message,
       ip,
     )
-  | InfoTyp({cls, marks, message, _}) =>
-    CursorInspector.typ_view(~globals, cls, ~marks, ~message)
+  | InfoTyp({cls, marks, message, warnings, _}) =>
+    CursorInspector.typ_view(~globals, cls, ~marks, ~message, ~warnings)
   | InfoTPat({cls, marks, message, _}) =>
     CursorInspector.tpat_view(~globals, cls, ~marks, ~message)
   | Secondary(_)

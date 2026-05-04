@@ -51,6 +51,7 @@ let (suite, _) =
     @ Test_PrettyPrint.tests
     @ Test_TyDi.tests
     @ [Test_UnusedWarnings.tests]
+    @ [Test_UnknownTypeWarnings.tests]
     @ Test_Indication.tests
     @ [Test_VarHighlight.tests]
     @ [Test_GradingReport.tests]

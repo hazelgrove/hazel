@@ -1,23 +1,38 @@
 open Util;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type warning_exp =
+  | ContainsUnknown(Typ.t);
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type warning_pat =
-  | UnusedVar(string);
+  | UnusedVar(string)
+  | ContainsUnknown(Typ.t);
 //  | ShadowedVar(string, string)
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type warning_typ =
+  | ContainsUnknown(Typ.t);
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type t =
+  | WarningExp(warning_exp)
   | WarningPat(warning_pat)
+  | WarningTyp(warning_typ)
   | None;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type list_item =
-  | Pat(warning_pat);
+  | Exp(warning_exp)
+  | Pat(warning_pat)
+  | Typ(warning_typ);
 
 let to_list: t => list(list_item) =
   fun
   | None => []
-  | WarningPat(p) => [Pat(p)];
+  | WarningExp(e) => [Exp(e)]
+  | WarningPat(p) => [Pat(p)]
+  | WarningTyp(t) => [Typ(t)];
 
 let empty: t = None;
 

@@ -284,16 +284,30 @@ let core_mark_err_view =
   );
 };
 
-let common_warn_view = (warning: Warning.t) => {
+let common_warn_view = (~globals, warning: Warning.t) => {
   switch (warning) {
   | WarningPat(UnusedVar(name)) => [
       text("Warning: Variable"),
       code(name),
       text("is unused."),
     ]
+  | WarningPat(ContainsUnknown(ty))
+  | WarningExp(ContainsUnknown(ty))
+  | WarningTyp(ContainsUnknown(ty)) => [
+      text("Warning: type"),
+      view_type(~globals, ty),
+      text("is partially unknown."),
+    ]
   | None => []
   };
 };
+
+let warn_view_of_item = (~globals, item: Warning.list_item) =>
+  switch (item) {
+  | Exp(w) => common_warn_view(~globals, WarningExp(w))
+  | Pat(w) => common_warn_view(~globals, WarningPat(w))
+  | Typ(w) => common_warn_view(~globals, WarningTyp(w))
+  };
 let common_ok_view =
     (
       ~globals,
@@ -766,7 +780,7 @@ let exp_mark_err_view =
 
 let exp_view =
     (
-      ~globals,
+      ~globals: Globals.t,
       ~show_type_colon=true,
       cls: Cls.t,
       message: Message.t,
@@ -793,41 +807,46 @@ let exp_view =
   let marks = info.marks;
   switch (marks != []) {
   | false =>
-    switch (message) {
-    | Exp(Default) =>
-      div_ok(
-        common_ok_view(
-          ~globals,
-          ~show_type_colon,
-          ~lifted_ty,
-          ~reordered,
-          ~introduced_labels,
-          ~inferred_label,
-          ~label_sort=info.label_sort,
-          cls,
-          Message.Syn(info.elab_syn_ty),
-        ),
-      )
-    | Exp(AnaDeferralConsistent(ana)) =>
-      div_ok([text("Expecting type"), view_type(~globals, ana)])
-    | Exp(Common(ok)) =>
-      div_ok(
-        common_ok_view(
-          ~globals,
-          ~show_type_colon,
-          ~lifted_ty,
-          ~reordered,
-          ~introduced_labels,
-          ~inferred_label,
-          ~label_sort=info.label_sort,
-          cls,
-          ok,
-        ),
-      )
-    | Pat(_)
-    | TypOk(_)
-    | TPatOk(_) =>
-      failwith("CursorInspector.exp_view: expected Message.Exp(...)")
+    switch (info.warnings) {
+    | [w, ..._] when globals.settings.core.display_warnings =>
+      div_warn(warn_view_of_item(~globals, w))
+    | _ =>
+      switch (message) {
+      | Exp(Default) =>
+        div_ok(
+          common_ok_view(
+            ~globals,
+            ~show_type_colon,
+            ~lifted_ty,
+            ~reordered,
+            ~introduced_labels,
+            ~inferred_label,
+            ~label_sort=info.label_sort,
+            cls,
+            Message.Syn(info.elab_syn_ty),
+          ),
+        )
+      | Exp(AnaDeferralConsistent(ana)) =>
+        div_ok([text("Expecting type"), view_type(~globals, ana)])
+      | Exp(Common(ok)) =>
+        div_ok(
+          common_ok_view(
+            ~globals,
+            ~show_type_colon,
+            ~lifted_ty,
+            ~reordered,
+            ~introduced_labels,
+            ~inferred_label,
+            ~label_sort=info.label_sort,
+            cls,
+            ok,
+          ),
+        )
+      | Pat(_)
+      | TypOk(_)
+      | TPatOk(_) =>
+        failwith("CursorInspector.exp_view: expected Message.Exp(...)")
+      }
     }
   | true =>
     switch (Mark.highest(marks)) {
@@ -962,12 +981,8 @@ let pat_view =
           ok,
         );
       switch (info.warnings) {
-      | [Pat(UnusedVar(name))] =>
-        if (globals.settings.core.display_warnings) {
-          div_warn(common_warn_view(WarningPat(UnusedVar(name))));
-        } else {
-          div_ok(ok_view);
-        }
+      | [w, ..._] when globals.settings.core.display_warnings =>
+        div_warn(warn_view_of_item(~globals, w))
       | _ => div_ok(ok_view)
       };
     };
@@ -975,19 +990,25 @@ let pat_view =
 
 let typ_view =
     (
-      ~globals,
+      ~globals: Globals.t,
       cls: Cls.t,
       ~marks: list(Mark.t),
       ~message: option(Message.t),
+      ~warnings: list(Warning.list_item),
     )
     : Node.t =>
   switch (marks) {
   | [] =>
-    switch (message) {
-    | Some(TypOk(o)) => div_ok(typ_ok_view(~globals, cls, o))
-    | Some(Pat(_) | Exp(_) | TPatOk(_)) =>
-      div_err([text("(internal) expected TypOk")])
-    | None => div_err([text("(internal) missing type ok payload")])
+    switch (warnings) {
+    | [w, ..._] when globals.settings.core.display_warnings =>
+      div_warn(warn_view_of_item(~globals, w))
+    | _ =>
+      switch (message) {
+      | Some(TypOk(o)) => div_ok(typ_ok_view(~globals, cls, o))
+      | Some(Pat(_) | Exp(_) | TPatOk(_)) =>
+        div_err([text("(internal) expected TypOk")])
+      | None => div_err([text("(internal) missing type ok payload")])
+      }
     }
   | ms =>
     switch (Mark.highest(ms)) {
@@ -1053,8 +1074,8 @@ let view_of_info = (~globals, ci): list(Node.t) => {
     wrapper(exp_view(~globals, cls, message, ie))
   | InfoPat({cls, message, _} as ip) =>
     wrapper(pat_view(~globals, cls, message, ip))
-  | InfoTyp({cls, marks, message, _}) =>
-    wrapper(typ_view(~globals, cls, ~marks, ~message))
+  | InfoTyp({cls, marks, message, warnings, _}) =>
+    wrapper(typ_view(~globals, cls, ~marks, ~message, ~warnings))
   | InfoTPat({cls, marks, message, _}) =>
     wrapper(tpat_view(~globals, cls, ~marks, ~message))
   | InfoDrv(ci) => wrapper(DrvCursorInspector.drv_view(~globals, ci))

@@ -3942,7 +3942,8 @@ let mk =
           },
           e,
         );
-      (m_ref^, elab);
+      let m = UnknownTypeWarnings.annotate(m_ref^, e);
+      (m, elab);
     },
   );
 
