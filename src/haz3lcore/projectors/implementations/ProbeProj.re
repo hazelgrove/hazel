@@ -142,7 +142,7 @@ module WindowState = {
     | None => 0
     };
 
-  let set_offset = (k: Id.t, v: int) => Hashtbl.add(offset, k, v);
+  let set_offset = (k: Id.t, v: int) => Hashtbl.replace(offset, k, v);
 
   /* Update offset and return (new_offset, max_samples) */
   let reform =
@@ -180,7 +180,8 @@ module SampleLength = {
     Hashtbl.find_opt(lengths, sample.id)
     |> Option.value(~default=window == Single ? 150 : 12);
 
-  let set = (id: int, length: int): unit => Hashtbl.add(lengths, id, length);
+  let set = (id: int, length: int): unit =>
+    Hashtbl.replace(lengths, id, length);
 };
 
 /* Select samples to display, using stateful window offset.
