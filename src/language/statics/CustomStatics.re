@@ -10,8 +10,19 @@ type tuple_type = list(tuple_entry);
 // Constants and helper functions
 let unknown = Unknown(Internal) |> Typ.temp;
 let syn = Unknown(SynSwitch) |> Typ.temp;
-let mk_builtin_ap_elab = (fn_info: Info.exp, arg_elab: Exp.t): Exp.t =>
-  Ap(Forward, fn_info.elab_term, arg_elab) |> Exp.fresh;
+/* Build the elab `Ap` for a builtin call, preserving the source `Ap`'s ids.
+   The probe pipeline keys targets by the user_term ids stored in info_map,
+   while the evaluator looks up those targets by the elab term's id; if the
+   elab `Ap` had a fresh id (as it would from `Exp.fresh`), the lookup would
+   miss and probes on builtin calls would never fire. */
+let mk_builtin_ap_elab =
+    (~ids: list(Id.t), fn_info: Info.exp, arg_elab: Exp.t): Exp.t => {
+  let ap = Ap(Forward, fn_info.elab_term, arg_elab) |> Exp.fresh;
+  {
+    ...ap,
+    annotation: IdTagged.IdTag.mk_internal(ids),
+  };
+};
 
 let append_marks_for_term = append_mark_exp;
 
@@ -192,11 +203,19 @@ let labels_to_info_map =
 
 // Common fallback for invalid arguments
 let invalid_args_fallback =
-    (module S: ExpressionStatics, ~ctx, ~fn_info: Info.exp, ~error, m, arg) => {
+    (
+      module S: ExpressionStatics,
+      ~ids: list(Id.t),
+      ~ctx,
+      ~fn_info: Info.exp,
+      ~error,
+      m,
+      arg,
+    ) => {
   S.(
     let (arg_info, arg_elab, m) = uexp_to_info_map(~ctx, ~ana=syn, arg, m);
     add(
-      ~elab_term=mk_builtin_ap_elab(fn_info, arg_elab),
+      ~elab_term=mk_builtin_ap_elab(~ids, fn_info, arg_elab),
       ~elab_syn_ty=unknown,
       ~marks=[error],
       ~co_ctx=CoCtx.union([fn_info.co_ctx, arg_info.co_ctx]),
@@ -209,6 +228,7 @@ let invalid_args_fallback =
 let handle_tuple_operation =
     (
       module S: ExpressionStatics,
+      ~ids: list(Id.t),
       ~fn_info: Info.exp,
       ~ancestors: list(Id.t),
       ~ctx: Ctx.t,
@@ -258,7 +278,7 @@ let handle_tuple_operation =
 
       let result_type = compute_result_type(labeled_tup_info, labels);
       add(
-        ~elab_term=mk_builtin_ap_elab(fn_info, arg_elab),
+        ~elab_term=mk_builtin_ap_elab(~ids, fn_info, arg_elab),
         ~elab_syn_ty=result_type,
         ~marks=[],
         ~co_ctx=CoCtx.union([fn_info.co_ctx, tup_info.co_ctx]),
@@ -267,6 +287,7 @@ let handle_tuple_operation =
     | _ =>
       invalid_args_fallback(
         (module S),
+        ~ids,
         ~ctx,
         ~fn_info,
         ~error=BuiltinError(AtLeast2Arguments),
@@ -280,6 +301,7 @@ let handle_tuple_operation =
 let project_labels_statics =
     (
       module S: ExpressionStatics,
+      ~ids: list(Id.t),
       ~fn_info: Info.exp,
       ~ancestors: list(Id.t),
       ~ctx: Ctx.t,
@@ -288,6 +310,7 @@ let project_labels_statics =
     ) => {
   handle_tuple_operation(
     (module S),
+    ~ids,
     ~fn_info,
     ~ancestors,
     ~ctx,
@@ -315,6 +338,7 @@ let project_labels_statics =
 let select_labels_statics =
     (
       module S: ExpressionStatics,
+      ~ids: list(Id.t),
       ~fn_info: Info.exp,
       ~ancestors: list(Id.t),
       ~ctx: Ctx.t,
@@ -323,6 +347,7 @@ let select_labels_statics =
     ) => {
   handle_tuple_operation(
     (module S),
+    ~ids,
     ~fn_info,
     ~ancestors,
     ~ctx,
@@ -352,6 +377,7 @@ let select_labels_statics =
 let omit_labels_statics =
     (
       module S: ExpressionStatics,
+      ~ids: list(Id.t),
       ~fn_info: Info.exp,
       ~ancestors: list(Id.t),
       ~ctx: Ctx.t,
@@ -360,6 +386,7 @@ let omit_labels_statics =
     ) => {
   handle_tuple_operation(
     (module S),
+    ~ids,
     ~fn_info,
     ~ancestors,
     ~ctx,
@@ -397,6 +424,7 @@ let omit_labels_statics =
 let group_by_label_statics =
     (
       module S: ExpressionStatics,
+      ~ids: list(Id.t),
       ~fn_info: Info.exp,
       ~ancestors: list(Id.t),
       ~ctx: Ctx.t,
@@ -476,7 +504,7 @@ let group_by_label_statics =
         };
 
       add(
-        ~elab_term=mk_builtin_ap_elab(fn_info, arg_elab),
+        ~elab_term=mk_builtin_ap_elab(~ids, fn_info, arg_elab),
         ~elab_syn_ty=unknown,
         ~marks=[],
         ~co_ctx=CoCtx.union([fn_info.co_ctx, table_info.co_ctx]),
@@ -485,6 +513,7 @@ let group_by_label_statics =
     | _ =>
       invalid_args_fallback(
         (module S),
+        ~ids,
         ~ctx,
         ~fn_info,
         ~error=BuiltinError(Exactly2Arguments),
@@ -498,6 +527,7 @@ let group_by_label_statics =
 let to_lvs_statics =
     (
       module S: ExpressionStatics,
+      ~ids: list(Id.t),
       ~fn_info: Info.exp,
       ~ancestors as _: list(Id.t),
       ~ctx: Ctx.t,
@@ -524,7 +554,7 @@ let to_lvs_statics =
         |> Option.value(~default=unknown);
 
       add(
-        ~elab_term=mk_builtin_ap_elab(fn_info, arg.elab_term),
+        ~elab_term=mk_builtin_ap_elab(~ids, fn_info, arg.elab_term),
         ~elab_syn_ty=
           IdTagged.FreshGrammar.Typ.(
             list(
@@ -540,7 +570,7 @@ let to_lvs_statics =
       );
     | _ =>
       add(
-        ~elab_term=mk_builtin_ap_elab(fn_info, arg.elab_term),
+        ~elab_term=mk_builtin_ap_elab(~ids, fn_info, arg.elab_term),
         ~elab_syn_ty=ty_out,
         ~marks=[BuiltinError(ToLvsMissingLabelsOnTuple(ty_out))],
         ~co_ctx=CoCtx.union([fn_info.co_ctx, arg.co_ctx]),
@@ -549,7 +579,7 @@ let to_lvs_statics =
     };
   | Unknown(_) =>
     add(
-      ~elab_term=mk_builtin_ap_elab(fn_info, arg.elab_term),
+      ~elab_term=mk_builtin_ap_elab(~ids, fn_info, arg.elab_term),
       ~elab_syn_ty=ty_out,
       ~marks=[],
       ~co_ctx=CoCtx.union([fn_info.co_ctx, arg.co_ctx]),
@@ -557,7 +587,7 @@ let to_lvs_statics =
     )
   | _ =>
     add(
-      ~elab_term=mk_builtin_ap_elab(fn_info, arg.elab_term),
+      ~elab_term=mk_builtin_ap_elab(~ids, fn_info, arg.elab_term),
       ~elab_syn_ty=ty_out,
       ~marks=[BuiltinError(ToLvsMissingLabelsOnTuple(ty_out))],
       ~co_ctx=CoCtx.union([fn_info.co_ctx, arg.co_ctx]),
@@ -569,6 +599,7 @@ let to_lvs_statics =
 let omit_all_labels_statics =
     (
       module S: ExpressionStatics,
+      ~ids: list(Id.t),
       ~fn_info: Info.exp,
       ~ancestors as _: list(Id.t),
       ~ctx: Ctx.t,
@@ -592,7 +623,7 @@ let omit_all_labels_statics =
         );
 
       add(
-        ~elab_term=mk_builtin_ap_elab(fn_info, arg.elab_term),
+        ~elab_term=mk_builtin_ap_elab(~ids, fn_info, arg.elab_term),
         ~elab_syn_ty=Typ.to_product(entries),
         ~marks=[],
         ~co_ctx=CoCtx.union([fn_info.co_ctx, arg.co_ctx]),
@@ -600,7 +631,7 @@ let omit_all_labels_statics =
       );
     | Unknown(_) =>
       add(
-        ~elab_term=mk_builtin_ap_elab(fn_info, arg.elab_term),
+        ~elab_term=mk_builtin_ap_elab(~ids, fn_info, arg.elab_term),
         ~elab_syn_ty=ty_out,
         ~marks=[],
         ~co_ctx=CoCtx.union([fn_info.co_ctx, arg.co_ctx]),
@@ -608,7 +639,7 @@ let omit_all_labels_statics =
       )
     | _ =>
       add(
-        ~elab_term=mk_builtin_ap_elab(fn_info, arg.elab_term),
+        ~elab_term=mk_builtin_ap_elab(~ids, fn_info, arg.elab_term),
         ~elab_syn_ty=unknown,
         ~marks=[BuiltinError(ArgumentMustBeTuple)],
         ~co_ctx=CoCtx.union([fn_info.co_ctx, arg.co_ctx]),
