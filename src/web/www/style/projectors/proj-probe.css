@@ -390,13 +390,8 @@
   cursor: col-resize;
 } */
 
-/* TOKEN BKG. The .sample element is the positioning container for the
- * context-menu dropdown and hosts the CSS variables / layout transforms
- * (top/translate/scale/height) that move the sample as a whole. All
- * visual fills (background, outline, border-radius, box-shadow) live on
- * the .value element instead, so they don't extend to cover the
- * sample-context-menu when it flows in-line (e.g. when the rich-probe
- * modal is open). */
+/* TOKEN BKG. Layout lives on .sample; visual fills live on .value (so
+ * they don't bleed into the context-menu when it flows in-line). */
 .live-offside .sample {
   position: relative;
   --bottom-border-clr: none;

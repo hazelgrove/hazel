@@ -513,11 +513,6 @@ let split_views =
       projector_data,
       projector_list,
     );
-  /* status comes from statics (sort/error/warning/indication); view_error
-   * is a projector's per-render decision (e.g. TableProj can't render the
-   * current elaborated shape). Keep them separate: status is what the
-   * ViewCache keys on once the Probes III cache lands upstream, so we
-   * don't want to mutate it here. */
   let wrapper =
     view_wrapper(
       ~inject,
