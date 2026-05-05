@@ -1497,15 +1497,15 @@ module M: Projector = {
       | Some(_) => {active_renderer: None}
       }
     | RendererAction(pa) =>
-      /* Route action to active renderer; ignore if id mismatches. */
-      switch (model.active_renderer) {
-      | Some(pm)
-          when
-            RichProbe.renderer_id_of_model(pm)
-            == RichProbe.renderer_id_of_action(pa) =>
-        switch (find(RichProbe.renderer_id_of_action(pa))) {
-        | Some(r) => {active_renderer: Some(r.update_model(pm, pa))}
-        | None => model
+      /* Dispatch through the action's renderer. update_model's internal
+       * Type.Id casts no-op on a model/action mismatch, so an explicit
+       * id check here is redundant. */
+      switch (
+        model.active_renderer,
+        find(RichProbe.renderer_id_of_action(pa)),
+      ) {
+      | (Some(pm), Some(r)) => {
+          active_renderer: Some(r.update_model(pm, pa)),
         }
       | _ => model
       }
