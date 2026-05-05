@@ -445,6 +445,232 @@ let qcheck_subexp_synthesis_agrees_stats = () => {
   );
 };
 
+/* Invariant: for InfoExp entries whose user_term is an Ap or DeferredAp,
+   the elab_term's rep_id must be one of the user_term's ids. The probe
+   pipeline keys targets by user_term ids; the evaluator looks them up by
+   elab term id; if they drift, probes silently break — that's #2264.
+
+   Why scope to Ap/DeferredAp: other classes (notably Tuple Item / TupLabel)
+   are intentionally rebuilt with fresh ids during label inference, so a
+   blanket invariant would flag pre-existing, unrelated drift. The Ap
+   class is the one that matters for #2264 and is the one a generalized
+   invariant could later be expanded to once label-inference is taught to
+   preserve source ids. We also skip entries where `key_id != Info.id_of`
+   to avoid reporting multi-tile duplicates. */
+type id_alignment_violation = {
+  kind: string,
+  user_cls: string,
+  elab_cls: string,
+  key_id: Id.t,
+  user_rep_id: Id.t,
+  user_ids: list(Id.t),
+  elab_rep_id: Id.t,
+};
+
+let is_ap_like = (e: Exp.t): bool =>
+  switch (e.term) {
+  | Ap(_, _, _)
+  | DeferredAp(_, _) => true
+  | _ => false
+  };
+
+let id_alignment_violations =
+    (info_map: Statics.Map.t): list(id_alignment_violation) =>
+  Id.Map.fold(
+    (key_id, info, acc) =>
+      if (key_id != Info.id_of(info)) {
+        acc;
+      } else {
+        switch (info) {
+        | Info.InfoExp({user_term, elab_term, _}) when is_ap_like(user_term) =>
+          let user_ids = IdTagged.ids(user_term);
+          let user_rep_id = IdTagged.rep_id(user_term);
+          let elab_rep_id = IdTagged.rep_id(elab_term);
+          List.mem(elab_rep_id, user_ids)
+            ? acc
+            : [
+              {
+                kind: "InfoExp",
+                user_cls: Exp.cls_of_term(user_term.term) |> Exp.show_cls,
+                elab_cls: Exp.cls_of_term(elab_term.term) |> Exp.show_cls,
+                key_id,
+                user_rep_id,
+                user_ids,
+                elab_rep_id,
+              },
+              ...acc,
+            ];
+        | _ => acc
+        };
+      },
+    info_map,
+    [],
+  );
+
+let short_id = (id: Id.t): string => {
+  let s = Id.show(id);
+  /* Pull just the hex chunk before the first '-' from the formatted string. */
+  switch (String.index_opt(s, '"')) {
+  | Some(i) =>
+    let after = String.sub(s, i + 1, String.length(s) - i - 1);
+    switch (String.index_opt(after, '-')) {
+    | Some(j) => String.sub(after, 0, j)
+    | None => after
+    };
+  | None => s
+  };
+};
+
+let show_violation = (v: id_alignment_violation): string =>
+  Printf.sprintf(
+    "%s user_cls=%s elab_cls=%s key=%s user_rep=%s user_ids=[%s] elab_rep=%s",
+    v.kind,
+    v.user_cls,
+    v.elab_cls,
+    short_id(v.key_id),
+    short_id(v.user_rep_id),
+    String.concat(",", List.map(short_id, v.user_ids)),
+    short_id(v.elab_rep_id),
+  );
+
+let id_alignment_test = (name: string, source: string) =>
+  Alcotest.test_case(
+    name,
+    `Quick,
+    () => {
+      let exp = Test_Statics_Prelude.parse_exp(source);
+      let info_map = Test_Statics_Prelude.statics(exp);
+      let violations = id_alignment_violations(info_map);
+      Alcotest.check(
+        Alcotest.list(Alcotest.string),
+        "no user_term/elab_term id drift",
+        [],
+        List.map(show_violation, violations),
+      );
+    },
+  );
+
+/* Corpus exercising every custom_statics tuple op, both as full Ap and
+   (where applicable) partially applied. Without the #2264 fix, the
+   InfoExp for the call would have an elab_term carrying a fresh id that
+   doesn't appear in user_term.ids — flagged by id_alignment_violations. */
+let id_alignment_corpus = [
+  id_alignment_test("to_lvs full ap", {|let t = (a=1, b=2) in to_lvs(t)|}),
+  id_alignment_test(
+    "omit_all_labels full ap",
+    {|let t = (a=1, b=2) in omit_all_labels(t)|},
+  ),
+  id_alignment_test(
+    "project_labels full ap",
+    {|let t = (a=1, b=2) in project_labels(t, a)|},
+  ),
+  id_alignment_test(
+    "select_labels full ap",
+    {|let t = (a=1, b=2) in select_labels(t, a)|},
+  ),
+  id_alignment_test(
+    "omit_labels full ap",
+    {|let t = (a=1, b=2) in omit_labels(t, a)|},
+  ),
+  id_alignment_test(
+    "group_by_label full ap",
+    {|let rows = [(k="x", v=1)] in group_by_label(rows, k)|},
+  ),
+  /* Generic shapes — ensure non-builtin paths haven't drifted. */
+  id_alignment_test("plain ap", {|let f = fun x -> x in f(1)|}),
+  id_alignment_test("labeled tuple", {|let t = (a=1, b=2) in t.a|}),
+  id_alignment_test(
+    "cons / list concat",
+    {|let xs = 1 :: [2, 3] in xs @ [4]|},
+  ),
+  id_alignment_test(
+    "ascription on let body",
+    {|let f: Int -> Int = fun x -> x + 1 in f(5)|},
+  ),
+];
+
+/* PBT version of the id-alignment invariant.
+
+   We can't cheaply add custom-statics builtin names to the *shared*
+   menhirParser generator, because its shrinker can isolate `Var("to_lvs")`
+   and similar bare names, exposing an unrelated free-var-id divergence in
+   the evaluator/stepper consistency PBT. Instead, we wrap a fresh body
+   expression in a Var(builtin)-headed Ap *here at the test boundary* —
+   the inner generated body cannot itself contain those names, so no
+   shrunk subterm becomes a bare builtin Var. This gives us PBT coverage
+   of the custom-statics elaboration paths without disturbing other
+   property tests. */
+let custom_statics_builtins = [
+  "to_lvs",
+  "from_lvs",
+  "project_labels",
+  "select_labels",
+  "omit_labels",
+  "omit_all_labels",
+  "group_by_label",
+];
+
+let arb_builtin_ap_exp = (~size: int) => {
+  open QCheck;
+  let inner = QCheck_Util.arb_exp(~minimal_idents=true, size);
+  let inner_gen = inner.gen;
+  let gen =
+    Gen.(
+      let* fn_name = oneofl(custom_statics_builtins);
+      let* arg_core = inner_gen;
+      /* Wrap: Ap(Var(fn_name), arg). Construct directly as an
+         Exp.t with fresh ids — no menhir AST round-trip needed. */
+      let fn_var = Exp.fresh(Var(fn_name));
+      pure(Exp.fresh(Ap(Forward, fn_var, arg_core)))
+    );
+  /* No shrinker: shrinking would peel off the Ap and expose the bare
+     builtin Var to other downstream tests sharing this arb (none today,
+     but defensive). */
+  make(~print=show_exp, gen);
+};
+
+let qcheck_id_alignment_holds_for_ap =
+  QCheck.Test.make(
+    ~name="Ap/DeferredAp user_term and elab_term ids align",
+    ~count=2000,
+    QCheck_Util.arb_exp(~minimal_idents=true, 30),
+    exp =>
+    switch (safe_statics(exp)) {
+    | `Skip => true
+    | `Ok(info_map, _) =>
+      switch (id_alignment_violations(info_map)) {
+      | [] => true
+      | violations =>
+        QCheck.Test.fail_reportf(
+          "Ap/DeferredAp id drift on:\n  %s\nviolations:\n  %s",
+          show_exp(exp),
+          String.concat("\n  ", List.map(show_violation, violations)),
+        )
+      }
+    }
+  );
+
+let qcheck_id_alignment_holds_for_custom_statics_ap =
+  QCheck.Test.make(
+    ~name="custom-statics Ap user_term and elab_term ids align",
+    ~count=500,
+    arb_builtin_ap_exp(~size=20),
+    exp =>
+    switch (safe_statics(exp)) {
+    | `Skip => true
+    | `Ok(info_map, _) =>
+      switch (id_alignment_violations(info_map)) {
+      | [] => true
+      | violations =>
+        QCheck.Test.fail_reportf(
+          "custom-statics Ap id drift on:\n  %s\nviolations:\n  %s",
+          show_exp(exp),
+          String.concat("\n  ", List.map(show_violation, violations)),
+        )
+      }
+    }
+  );
+
 let tests = (
   "Statics.Properties",
   [
@@ -458,6 +684,13 @@ let tests = (
       "Sub-expression synthesis agrees (stats only)",
       `Slow,
       qcheck_subexp_synthesis_agrees_stats,
+    ),
+    ...id_alignment_corpus,
+  ]
+  @ [
+    QCheck_alcotest.to_alcotest(qcheck_id_alignment_holds_for_ap),
+    QCheck_alcotest.to_alcotest(
+      qcheck_id_alignment_holds_for_custom_statics_ap,
     ),
   ],
 );
