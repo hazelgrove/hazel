@@ -680,8 +680,10 @@ let rich_probe_action =
 let rich_probe_items =
     (ctx: probe_ctx, local, sample: Sample.t): list(Node.t) =>
   renderers
-  |> List.filter(r => r.can_handle(ctx.sort, sample.value))
-  |> List.map(rich_probe_action(ctx, local, sample));
+  |> List.filter_map(r =>
+       r.can_handle(ctx.sort, sample.value)
+         ? Some(rich_probe_action(ctx, local, sample, r)) : None
+     );
 
 /* Context actions for a sample (Pin/Unpin, Step Into, rich-probe views, etc.) */
 let sample_context_actions =
@@ -1559,7 +1561,7 @@ module M: Projector = {
                         Attr.title("Close"),
                         Attr.on_click(_ => local(ToggleModal(None))),
                       ],
-                      [text({js|×|js})],
+                      [text("×")],
                     ),
                     content,
                   ],
