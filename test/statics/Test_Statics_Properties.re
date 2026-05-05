@@ -445,34 +445,63 @@ let qcheck_subexp_synthesis_agrees_stats = () => {
   );
 };
 
-/* Invariant: for InfoExp entries whose user_term is an Ap or DeferredAp,
-   the elab_term's rep_id must be one of the user_term's ids. The probe
-   pipeline keys targets by user_term ids; the evaluator looks them up by
-   elab term id; if they drift, probes silently break — that's #2264.
+/* Invariant: for every InfoExp keyed by id `k` (where `k` is the rep_id
+   of the user_term), `k` must appear somewhere — at any depth — in the
+   elab_term's id set. The probe pipeline keys targets by user_term ids;
+   the evaluator binds `expr_id` to whatever node it's currently
+   evaluating; for a probe to fire, the user-source id must reach the
+   runtime on *some* elab subterm. If it appears nowhere in the elab
+   subtree, statics has dropped it.
 
-   Why scope to Ap/DeferredAp: other classes (notably Tuple Item / TupLabel)
-   are intentionally rebuilt with fresh ids during label inference, so a
-   blanket invariant would flag pre-existing, unrelated drift. The Ap
-   class is the one that matters for #2264 and is the one a generalized
-   invariant could later be expanded to once label-inference is taught to
-   preserve source ids. We also skip entries where `key_id != Info.id_of`
-   to avoid reporting multi-tile duplicates. */
+   Exception: TupLabel user_terms are skipped. The Tuple processing path
+   builds the TupLabel's elab via `... |> rewrap` where the in-scope
+   `rewrap` is the parent Tuple's, so the source TupLabel's id is stamped
+   over (Statics.re:925–941). This is the same shape of bug as #2264
+   but for labeled tuple items rather than custom-statics Aps, and is
+   out of scope for this PR. Once Statics.re uses the source TupLabel's
+   own ids when building its elab, this skip can be removed.
+
+   We skip entries where `key_id != Info.id_of(info)` to avoid reporting
+   multi-tile duplicates of the same logical InfoExp. */
 type id_alignment_violation = {
-  kind: string,
   user_cls: string,
   elab_cls: string,
   key_id: Id.t,
   user_rep_id: Id.t,
   user_ids: list(Id.t),
-  elab_rep_id: Id.t,
+  elab_id_count: int,
 };
 
-let is_ap_like = (e: Exp.t): bool =>
+/* Classes whose elab term *intentionally* doesn't carry the user_term's id:
+   - TupLabel: source TupLabel inside a Tuple is rebuilt with the parent
+     Tuple's `rewrap`, so the source TupLabel id is overwritten
+     (Statics.re:925–941).
+   - TyAlias: type aliases have no runtime; elab is just the body
+     (Statics.re:2271). Source TyAlias node id is dropped.
+   Both are real id-drift in elaboration but distinct from #2264;
+   tracking them separately. Extend this list as the PBT surfaces
+   more drift sites. */
+let is_skipped_class = (e: Exp.t): bool =>
   switch (e.term) {
-  | Ap(_, _, _)
-  | DeferredAp(_, _) => true
+  | TupLabel(_, _)
+  | TyAlias(_, _, _) => true
   | _ => false
   };
+
+/* Collect every id appearing on any node of an Exp tree, via map_term. */
+let all_ids_of_exp = (e: Exp.t): Id.Set.t => {
+  let acc = ref(Id.Set.empty);
+  let _ =
+    Exp.map_term(
+      ~f_exp=
+        (cont, sub) => {
+          List.iter(id => acc := Id.Set.add(id, acc^), IdTagged.ids(sub));
+          cont(sub);
+        },
+      e,
+    );
+  acc^;
+};
 
 let id_alignment_violations =
     (info_map: Statics.Map.t): list(id_alignment_violation) =>
@@ -482,21 +511,21 @@ let id_alignment_violations =
         acc;
       } else {
         switch (info) {
-        | Info.InfoExp({user_term, elab_term, _}) when is_ap_like(user_term) =>
+        | Info.InfoExp({user_term, elab_term, _})
+            when !is_skipped_class(user_term) =>
           let user_ids = IdTagged.ids(user_term);
           let user_rep_id = IdTagged.rep_id(user_term);
-          let elab_rep_id = IdTagged.rep_id(elab_term);
-          List.mem(elab_rep_id, user_ids)
+          let elab_ids = all_ids_of_exp(elab_term);
+          Id.Set.mem(user_rep_id, elab_ids)
             ? acc
             : [
               {
-                kind: "InfoExp",
                 user_cls: Exp.cls_of_term(user_term.term) |> Exp.show_cls,
                 elab_cls: Exp.cls_of_term(elab_term.term) |> Exp.show_cls,
                 key_id,
                 user_rep_id,
                 user_ids,
-                elab_rep_id,
+                elab_id_count: Id.Set.cardinal(elab_ids),
               },
               ...acc,
             ];
@@ -523,14 +552,13 @@ let short_id = (id: Id.t): string => {
 
 let show_violation = (v: id_alignment_violation): string =>
   Printf.sprintf(
-    "%s user_cls=%s elab_cls=%s key=%s user_rep=%s user_ids=[%s] elab_rep=%s",
-    v.kind,
+    "user_cls=%s elab_cls=%s key=%s user_rep=%s user_ids=[%s] not in elab (elab has %d distinct ids)",
     v.user_cls,
     v.elab_cls,
     short_id(v.key_id),
     short_id(v.user_rep_id),
     String.concat(",", List.map(short_id, v.user_ids)),
-    short_id(v.elab_rep_id),
+    v.elab_id_count,
   );
 
 /* PBT version of the id-alignment invariant.
@@ -573,9 +601,9 @@ let arb_builtin_ap_exp = (~size: int) => {
   make(~print=show_exp, gen);
 };
 
-let qcheck_id_alignment_holds_for_ap =
+let qcheck_user_id_preserved_in_elab =
   QCheck.Test.make(
-    ~name="Ap/DeferredAp user_term and elab_term ids align",
+    ~name="every InfoExp's user_term rep_id appears in its elab_term",
     ~count=2000,
     QCheck_Util.arb_exp(~minimal_idents=true, 30),
     exp =>
@@ -586,7 +614,7 @@ let qcheck_id_alignment_holds_for_ap =
       | [] => true
       | violations =>
         QCheck.Test.fail_reportf(
-          "Ap/DeferredAp id drift on:\n  %s\nviolations:\n  %s",
+          "user_term id dropped from elab on:\n  %s\nviolations:\n  %s",
           show_exp(exp),
           String.concat("\n  ", List.map(show_violation, violations)),
         )
@@ -594,9 +622,10 @@ let qcheck_id_alignment_holds_for_ap =
     }
   );
 
-let qcheck_id_alignment_holds_for_custom_statics_ap =
+let qcheck_user_id_preserved_in_elab_custom_statics =
   QCheck.Test.make(
-    ~name="custom-statics Ap user_term and elab_term ids align",
+    ~name=
+      "every InfoExp's user_term rep_id appears in its elab_term (custom-statics Ap)",
     ~count=500,
     arb_builtin_ap_exp(~size=20),
     exp =>
@@ -607,7 +636,7 @@ let qcheck_id_alignment_holds_for_custom_statics_ap =
       | [] => true
       | violations =>
         QCheck.Test.fail_reportf(
-          "custom-statics Ap id drift on:\n  %s\nviolations:\n  %s",
+          "user_term id dropped from elab on:\n  %s\nviolations:\n  %s",
           show_exp(exp),
           String.concat("\n  ", List.map(show_violation, violations)),
         )
@@ -629,9 +658,9 @@ let tests = (
       `Slow,
       qcheck_subexp_synthesis_agrees_stats,
     ),
-    QCheck_alcotest.to_alcotest(qcheck_id_alignment_holds_for_ap),
+    QCheck_alcotest.to_alcotest(qcheck_user_id_preserved_in_elab),
     QCheck_alcotest.to_alcotest(
-      qcheck_id_alignment_holds_for_custom_statics_ap,
+      qcheck_user_id_preserved_in_elab_custom_statics,
     ),
   ],
 );
