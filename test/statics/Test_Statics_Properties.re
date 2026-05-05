@@ -533,62 +533,6 @@ let show_violation = (v: id_alignment_violation): string =>
     short_id(v.elab_rep_id),
   );
 
-let id_alignment_test = (name: string, source: string) =>
-  Alcotest.test_case(
-    name,
-    `Quick,
-    () => {
-      let exp = Test_Statics_Prelude.parse_exp(source);
-      let info_map = Test_Statics_Prelude.statics(exp);
-      let violations = id_alignment_violations(info_map);
-      Alcotest.check(
-        Alcotest.list(Alcotest.string),
-        "no user_term/elab_term id drift",
-        [],
-        List.map(show_violation, violations),
-      );
-    },
-  );
-
-/* Corpus exercising every custom_statics tuple op, both as full Ap and
-   (where applicable) partially applied. Without the #2264 fix, the
-   InfoExp for the call would have an elab_term carrying a fresh id that
-   doesn't appear in user_term.ids — flagged by id_alignment_violations. */
-let id_alignment_corpus = [
-  id_alignment_test("to_lvs full ap", {|let t = (a=1, b=2) in to_lvs(t)|}),
-  id_alignment_test(
-    "omit_all_labels full ap",
-    {|let t = (a=1, b=2) in omit_all_labels(t)|},
-  ),
-  id_alignment_test(
-    "project_labels full ap",
-    {|let t = (a=1, b=2) in project_labels(t, a)|},
-  ),
-  id_alignment_test(
-    "select_labels full ap",
-    {|let t = (a=1, b=2) in select_labels(t, a)|},
-  ),
-  id_alignment_test(
-    "omit_labels full ap",
-    {|let t = (a=1, b=2) in omit_labels(t, a)|},
-  ),
-  id_alignment_test(
-    "group_by_label full ap",
-    {|let rows = [(k="x", v=1)] in group_by_label(rows, k)|},
-  ),
-  /* Generic shapes — ensure non-builtin paths haven't drifted. */
-  id_alignment_test("plain ap", {|let f = fun x -> x in f(1)|}),
-  id_alignment_test("labeled tuple", {|let t = (a=1, b=2) in t.a|}),
-  id_alignment_test(
-    "cons / list concat",
-    {|let xs = 1 :: [2, 3] in xs @ [4]|},
-  ),
-  id_alignment_test(
-    "ascription on let body",
-    {|let f: Int -> Int = fun x -> x + 1 in f(5)|},
-  ),
-];
-
 /* PBT version of the id-alignment invariant.
 
    We can't cheaply add custom-statics builtin names to the *shared*
@@ -685,9 +629,6 @@ let tests = (
       `Slow,
       qcheck_subexp_synthesis_agrees_stats,
     ),
-    ...id_alignment_corpus,
-  ]
-  @ [
     QCheck_alcotest.to_alcotest(qcheck_id_alignment_holds_for_ap),
     QCheck_alcotest.to_alcotest(
       qcheck_id_alignment_holds_for_custom_statics_ap,
