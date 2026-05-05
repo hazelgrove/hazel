@@ -48,7 +48,7 @@ let (suite, _) =
     @ Test_ReparseDocSlides.tests
     @ Test_MatchExp.tests
     @ Test_RefractorSerialization.tests
-    @ [Test_TableTransforms.tests]
+    @ [Test_TableTransforms.tests, Test_RichProbeRegistry.tests]
     @ Test_PrettyPrint.tests
     @ Test_TyDi.tests
     @ [Test_UnusedWarnings.tests]
