@@ -42,38 +42,18 @@ let init =
     : option(syntax) => {
   let (module P) = ProjectorInit.to_module(kind);
   let orig_piece = Segment.parenthesize(seg);
+  let any = MakeTerm.for_projection(seg);
 
-  /* Try raw syntax first */
-  let raw_result =
-    switch (MakeTerm.for_projection(seg)) {
-    | None => None
-    | Some(any) => ProjectorInit.init(kind, orig_piece, any)
-    };
-
-  switch (raw_result) {
-  | Some(_) => raw_result
-  | None =>
-    /* For elaborate_syntax projectors, validate against elaborated form */
-    if (P.elaborate_syntax) {
-      switch (MakeTerm.for_projection(seg)) {
-      | Some(Exp(exp)) =>
-        let term_id = Language.Exp.rep_id(exp);
-        switch (Language.Exp.find_by_id(term_id, elaborated)) {
-        | Some(elab_exp) =>
-          switch (P.init(Exp(elab_exp))) {
-          | Some(model_str) =>
-            Some(
-              Base.Projector(ProjectorCore.mk(kind, orig_piece, model_str)),
-            )
-          | None => None
-          }
-        | None => None
-        };
-      | _ => None
-      };
-    } else {
-      None;
-    }
+  /* Try raw syntax first; for elaborate_syntax projectors, fall back to the
+     elaborated form keyed by the term's id. */
+  switch (Option.bind(any, ProjectorInit.init(kind, orig_piece, _)), any) {
+  | (Some(_) as result, _) => result
+  | (None, Some(Exp(exp))) when P.elaborate_syntax =>
+    let* elab_exp =
+      Language.Exp.find_by_id(Language.Exp.rep_id(exp), elaborated);
+    let+ model_str = P.init(Exp(elab_exp));
+    Base.Projector(ProjectorCore.mk(kind, orig_piece, model_str));
+  | (None, _) => None
   };
 };
 
