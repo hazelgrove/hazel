@@ -5,6 +5,7 @@ open Virtual_dom.Vdom;
 open Js_of_ocaml;
 open Language;
 open RichProbe;
+open RichProbeRegistry;
 
 /* Global probe display state. See ZipperBase.re for full probe state documentation.
  * - Settings.s: Global display settings (window mode, cutoffs)
@@ -13,13 +14,7 @@ open RichProbe;
  * These use mutable refs for simplicity since they're UI-only state. */
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type active_renderer = {
-  renderer_id: string,
-  model_state: string,
-};
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type probe_model = {active_renderer: option(active_renderer)};
+type probe_model = {active_renderer: option(packed_model)};
 
 let probe_model_of_sexp = sexp =>
   switch (probe_model_of_sexp(sexp)) {
@@ -30,8 +25,8 @@ let probe_model_of_sexp = sexp =>
 [@deriving (show({with_path: false}), sexp, yojson)]
 type action =
   | ChangeLength(int, int)
-  | ToggleModal(option(active_renderer))
-  | RendererAction(string)
+  | ToggleModal(option(packed_model))
+  | RendererAction(packed_action)
   | ToggleWindowMode
   | ToggleShowEnv
   | ResetSettings;
@@ -416,8 +411,6 @@ module Debug = {
     ++ Printf.sprintf("%.0f", sample.time);
 };
 
-let renderers = RichProbeRegistry.renderers;
-
 /* Find first compatible renderer for an expression */
 let find_compatible_renderer =
     (sort: Sort.t, exp: Exp.t): option(RichProbe.packed_renderer) =>
@@ -676,18 +669,9 @@ let rich_probe_action =
   div(
     ~attrs=[
       Attr.classes(["action-item", "rich-probe-action"]),
-      Attr.on_pointerdown(_ => {
-        let oactive =
-          switch (r.parse_packed(ctx.sort, sample.value)) {
-          | Some(value_state) =>
-            Some({
-              renderer_id: r.id,
-              model_state: r.init_packed(value_state),
-            })
-          | None => None
-          };
-        local(ToggleModal(oactive));
-      }),
+      Attr.on_pointerdown(_ =>
+        local(ToggleModal(r.init_model(ctx.sort, sample.value)))
+      ),
     ],
     [r.badge, text("View as " ++ r.id)],
   );
@@ -1506,27 +1490,23 @@ module M: Projector = {
       Settings.reset_mode();
       SampleLength.reset();
       model;
-    | ToggleModal(renderer) =>
+    | ToggleModal(pm) =>
       switch (model.active_renderer) {
-      | None => {active_renderer: renderer}
+      | None => {active_renderer: pm}
       | Some(_) => {active_renderer: None}
       }
-    | RendererAction(serialized_action) =>
-      /* Route action to active renderer */
+    | RendererAction(pa) =>
+      /* Route action to active renderer; ignore if id mismatches. */
       switch (model.active_renderer) {
-      | Some({renderer_id, model_state}) =>
-        switch (List.find_opt(r => r.id == renderer_id, renderers)) {
-        | Some(renderer) => {
-            active_renderer:
-              Some({
-                renderer_id,
-                model_state:
-                  renderer.update_packed(model_state, serialized_action),
-              }),
-          }
+      | Some(pm)
+          when
+            RichProbe.renderer_id_of_model(pm)
+            == RichProbe.renderer_id_of_action(pa) =>
+        switch (find(RichProbe.renderer_id_of_action(pa))) {
+        | Some(r) => {active_renderer: Some(r.update_model(pm, pa))}
         | None => model
         }
-      | None => model
+      | _ => model
       }
     };
   };
@@ -1544,17 +1524,18 @@ module M: Projector = {
       )
       : list(Node.t) => {
     switch (model.active_renderer, get_current(~settings, info)) {
-    | (Some({renderer_id, model_state, _}), Some(exp)) =>
+    | (Some(pm), Some(exp)) =>
+      let rid = RichProbe.renderer_id_of_model(pm);
       /* Find the renderer and check if it can still handle the expression */
-      switch (List.find_opt(r => r.id == renderer_id, renderers)) {
+      switch (find(rid)) {
       | Some(renderer) when renderer.can_handle(sort, exp) =>
         let rendered =
-          renderer.render_packed(
-            model_state,
+          renderer.render_model(
+            pm,
             ~info,
             ~exp,
             ~view_seg,
-            ~local=action => local(RendererAction(action)),
+            ~local=pa => local(RendererAction(pa)),
             ~parent,
             ~sort,
             (),
@@ -1587,7 +1568,7 @@ module M: Projector = {
           ]
         };
       | _ => []
-      }
+      };
     | _ => []
     };
   };

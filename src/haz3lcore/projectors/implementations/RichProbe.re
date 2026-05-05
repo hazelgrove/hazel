@@ -2,6 +2,8 @@ open Virtual_dom.Vdom;
 open ProjectorBase;
 open Language;
 
+module Sexp = Sexplib.Sexp;
+
 /* Signature for domain-specific representations with clear parsing and rendering phases.
       Each RichProbe module handles a specific visualization of syntax elements.
 
@@ -46,84 +48,158 @@ module type RichProbe = {
     Node.t;
 };
 
-/* Packed renderer: heterogeneous container for any RichProbe.
- * Model/action/value are serialized to strings so ProbeProj can
- * store a mixed list without knowing the concrete types. */
+/* Existential packs for renderer state.
+ *
+ * Each pack carries:
+ *   - a string id, stable across persistence, used to dispatch through the registry
+ *   - a Type.Id.t witness, fresh per pack_renderer call, used at runtime to
+ *     recover the concrete type without Obj.magic
+ *   - the value itself
+ *
+ * The Type.Id.t cannot be serialized (it's only meaningful within one process),
+ * so on deserialization the renderer's currently-registered Type.Id is substituted
+ * via the registry. */
+type packed_model =
+  | PModel(string, Type.Id.t('m), 'm): packed_model;
+
+type packed_action =
+  | PAction(string, Type.Id.t('a), 'a): packed_action;
+
 type packed_renderer = {
   id: string,
   can_handle: (Sort.t, Exp.t) => bool,
-  parse_packed: (Sort.t, Exp.t) => option(string),
-  init_packed: string => string,
-  render_packed:
+  init_model: (Sort.t, Exp.t) => option(packed_model),
+  update_model: (packed_model, packed_action) => packed_model,
+  render_model:
     (
-      string,
+      packed_model,
       ~info: info,
       ~exp: Exp.t,
       ~view_seg: (Sort.t, Segment.t) => Node.t,
-      ~local: string => Ui_effect.t(unit),
+      ~local: packed_action => Ui_effect.t(unit),
       ~parent: external_action => Ui_effect.t(unit),
       ~sort: Sort.t,
       unit
     ) =>
-    option(Virtual_dom.Vdom.Node.t),
-  update_packed: (string, string) => string,
-  badge: Virtual_dom.Vdom.Node.t,
+    option(Node.t),
+  /* Payload (de)serializers — used by RichProbeRegistry's top-level
+   * packed_*_of_sexp/yojson dispatchers to encode/decode the body for
+   * *this* renderer. They expect the packed value to belong to this
+   * renderer; mismatches yield empty/null bodies (encode). */
+  sexp_of_model_payload: packed_model => Sexp.t,
+  model_payload_of_sexp: Sexp.t => packed_model,
+  yojson_of_model_payload: packed_model => Yojson.Safe.t,
+  model_payload_of_yojson: Yojson.Safe.t => packed_model,
+  sexp_of_action_payload: packed_action => Sexp.t,
+  action_payload_of_sexp: Sexp.t => packed_action,
+  yojson_of_action_payload: packed_action => Yojson.Safe.t,
+  action_payload_of_yojson: Yojson.Safe.t => packed_action,
+  badge: Node.t,
 };
 
-/* Pack a RichProbe module into a packed_renderer by serializing its
- * model/action/value through sexp. */
+let renderer_id_of_model = (PModel(rid, _, _): packed_model): string => rid;
+let renderer_id_of_action = (PAction(rid, _, _): packed_action): string => rid;
+
+/* Pack a RichProbe module into a packed_renderer. Allocates fresh Type.Id
+ * witnesses for the model and action types and binds them in the closures
+ * below; cast functions use Type.Id.provably_equal to recover the concrete
+ * types safely (no Obj.magic). */
 let pack_renderer =
     (
       type m,
       type a,
-      module_impl: (module RichProbe with type model = m and type action = a),
+      type v,
+      module_impl: (module RichProbe with
+                      type model = m and type action = a and type value = v),
       id: string,
     )
     : packed_renderer => {
   module R = (val module_impl);
-
-  let serialize_model = m => m |> R.sexp_of_model |> Sexplib.Sexp.to_string;
-  let deserialize_model = s => s |> Sexplib.Sexp.of_string |> R.model_of_sexp;
-  let serialize_action = a => a |> R.sexp_of_action |> Sexplib.Sexp.to_string;
-  let deserialize_action = s =>
-    s |> Sexplib.Sexp.of_string |> R.action_of_sexp;
-  let serialize_value = v => v |> R.sexp_of_value |> Sexplib.Sexp.to_string;
-
+  let model_id: Type.Id.t(m) = Type.Id.make();
+  let action_id: Type.Id.t(a) = Type.Id.make();
+  let cast_model = (pm: packed_model): option(m) =>
+    switch (pm) {
+    | PModel(_, other, m) =>
+      switch (Type.Id.provably_equal(other, model_id)) {
+      | Some(Type.Equal) => Some(m)
+      | None => None
+      }
+    };
+  let cast_action = (pa: packed_action): option(a) =>
+    switch (pa) {
+    | PAction(_, other, a) =>
+      switch (Type.Id.provably_equal(other, action_id)) {
+      | Some(Type.Equal) => Some(a)
+      | None => None
+      }
+    };
   {
     id,
     can_handle: (sort, exp) => Option.is_some(R.parse(sort, exp)),
-    parse_packed: (sort, exp) =>
-      R.parse(sort, exp) |> Option.map(serialize_value),
-    init_packed: value_str => {
-      let v = value_str |> Sexplib.Sexp.of_string |> R.value_of_sexp;
-      let m = R.init(v);
-      serialize_model(m);
-    },
-    render_packed:
-      (model_str, ~info, ~exp, ~view_seg, ~local, ~parent, ~sort, ()) => {
-      let v = R.parse(sort, exp);
-      let model = model_str |> Sexplib.Sexp.of_string |> R.model_of_sexp;
-      switch (v) {
-      | Some(value) =>
+    init_model: (sort, exp) =>
+      R.parse(sort, exp) |> Option.map(v => PModel(id, model_id, R.init(v))),
+    update_model: (pm, pa) =>
+      switch (cast_model(pm), cast_action(pa)) {
+      | (Some(m), Some(a)) => PModel(id, model_id, R.update(m, a))
+      | _ => pm
+      },
+    render_model: (pm, ~info, ~exp, ~view_seg, ~local, ~parent, ~sort, ()) =>
+      switch (cast_model(pm), R.parse(sort, exp)) {
+      | (Some(m), Some(value)) =>
         Some(
           R.render(
             ~info,
             ~exp,
             ~value,
             ~view_seg,
-            ~model,
-            ~local=action => local(serialize_action(action)),
+            ~model=m,
+            ~local=a => local(PAction(id, action_id, a)),
             ~parent,
             ~sort,
             (),
           ),
         )
-      | None => None
-      };
-    },
-    update_packed: (model_str, action_str) =>
-      R.update(deserialize_model(model_str), deserialize_action(action_str))
-      |> serialize_model,
+      | _ => None
+      },
+    sexp_of_model_payload: pm =>
+      switch (cast_model(pm)) {
+      | Some(m) => R.sexp_of_model(m)
+      | None => Sexp.List([])
+      },
+    model_payload_of_sexp: sexp =>
+      PModel(id, model_id, R.model_of_sexp(sexp)),
+    yojson_of_model_payload: pm =>
+      switch (cast_model(pm)) {
+      | Some(m) => R.yojson_of_model(m)
+      | None => `Null
+      },
+    model_payload_of_yojson: j => PModel(id, model_id, R.model_of_yojson(j)),
+    sexp_of_action_payload: pa =>
+      switch (cast_action(pa)) {
+      | Some(a) => R.sexp_of_action(a)
+      | None => Sexp.List([])
+      },
+    action_payload_of_sexp: sexp =>
+      PAction(id, action_id, R.action_of_sexp(sexp)),
+    yojson_of_action_payload: pa =>
+      switch (cast_action(pa)) {
+      | Some(a) => R.yojson_of_action(a)
+      | None => `Null
+      },
+    action_payload_of_yojson: j =>
+      PAction(id, action_id, R.action_of_yojson(j)),
     badge: R.badge,
   };
 };
+
+/* show derivers for ppx_deriving.show compat. The payload itself isn't
+ * inspected — only the renderer id is printed. */
+let pp_packed_model = (fmt, PModel(rid, _, _): packed_model) =>
+  Format.fprintf(fmt, "<packed_model:%s>", rid);
+let show_packed_model = (pm: packed_model): string =>
+  Format.asprintf("%a", pp_packed_model, pm);
+
+let pp_packed_action = (fmt, PAction(rid, _, _): packed_action) =>
+  Format.fprintf(fmt, "<packed_action:%s>", rid);
+let show_packed_action = (pa: packed_action): string =>
+  Format.asprintf("%a", pp_packed_action, pa);
