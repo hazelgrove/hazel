@@ -3,8 +3,14 @@
 name: Build and Deploy Hazel
 on: [push]
 concurrency:
-  group: deploy-to-build-repo
-  cancel-in-progress: false
+  # Per-branch group so cross-branch deploys don't evict each other from
+  # the queue (a global group has queue depth 1, so a third concurrent
+  # run cancels whichever was queued). The push-retry loop in the deploy
+  # step handles the cross-branch race on hazelgrove/build's main ref.
+  # cancel-in-progress: true so a newer commit on the same branch
+  # supersedes an older in-flight build rather than deploying stale output.
+  group: deploy-to-build-repo-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   Deploy:
     runs-on: ubuntu-latest
