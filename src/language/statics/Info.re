@@ -335,36 +335,6 @@ let projector_kind_of = (info: t): option(ProjectorKind.t) =>
   | _ => None
   };
 
-/* Live-typing helpers: refine a synthesized/elaborated type using runtime
-   samples gathered through the LiveTyping.Map. Used by Statics to refine
-   types of expressions/patterns whose elaborated synthesis still contains
-   unknowns. */
-let refine_typ_with_dynamics =
-    (
-      ~dynamics: LiveTyping.Map.t,
-      ~calculate_dynamic_type: Exp.t => option(Typ.t),
-      ~ctx,
-      ~term_id: Id.t,
-      ty: Typ.t,
-    )
-    : Typ.t =>
-  if (Typ.count_unknowns(ty) > 0) {
-    switch (LiveTyping.Map.lookup(term_id, dynamics)) {
-    | None
-    | Some([]) => ty
-    | Some(entry) =>
-      let exps = List.map((s: LiveTyping.sample) => s.exp, entry);
-      let dyn_typs = OptUtil.traverse(calculate_dynamic_type, exps);
-      let dyn_typ = Option.bind(dyn_typs, Typ.meet_all(~empty=ty, ctx));
-      switch (dyn_typ) {
-      | None => ty
-      | Some(t) => t
-      };
-    };
-  } else {
-    ty;
-  };
-
 /* If the info represents some kind of name binding which
    exists in the context, return the id where the binding occurs */
 let get_binding_site = (info: t): option(Id.t) => {

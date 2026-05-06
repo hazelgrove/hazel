@@ -54,16 +54,6 @@ module Map = {
       [],
     );
 
-  let collect_errors = (map: t): Id.Map.t(list(Mark.t)) =>
-    Id.Map.filter_map(
-      (_: Uuidm.t, info: Info.t) =>
-        switch (Info.marks_of(info)) {
-        | [] => None
-        | ms => Some(ms)
-        },
-      map,
-    );
-
   let has_errors = (map: t): bool =>
     Id.Map.exists((_: Uuidm.t, info: Info.t) => Info.is_error(info), map);
 

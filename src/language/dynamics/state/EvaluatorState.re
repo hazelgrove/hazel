@@ -289,11 +289,7 @@ let update =
         (call_stack, state);
       | RecordAscriptionProbe((id, capture_spec, ascribed_exp)) =>
         let step = state.step_count;
-        /* Resolve free variables in the ascribed expression via the live
-           env. The ascription transition records `ascribed_exp` as the
-           inner body of a collapsed nested Asc *before* that body has
-           been reduced; if the body is a Var, the recorded sample would
-           otherwise be the symbol rather than the runtime value. */
+        /* Substitute env so a Var body resolves to its runtime value. */
         let ascribed_exp = Substitution.in_exp(env, ascribed_exp);
         let sample =
           Sample.mk(
@@ -305,10 +301,7 @@ let update =
             call_stack,
             capture_spec,
           );
-        print_endline("Adding sample");
         let state = add_sample(state, sample);
-        /* Advance step count past ascription evaluation */
-        // TODO Check with disconcision
         let state = {
           ...state,
           step_count: state.step_count + 1,

@@ -169,15 +169,6 @@ module SampleLength = {
   let set = (id: int, length: int): unit => Hashtbl.add(lengths, id, length);
 };
 
-/* Remove opaque values like function literals */
-let rm_opaques: list(Sample.Env.entry) => list(Sample.Env.entry) =
-  List.filter_map((en: Sample.Env.entry) =>
-    switch (en.value) {
-    | Opaque => None
-    | Val(_) => Some(en)
-    }
-  );
-
 let cur_ap = (info: info) =>
   switch (info.statics) {
   | Some(InfoExp({user_term: {term: Ap(_), _} as ap, _}))

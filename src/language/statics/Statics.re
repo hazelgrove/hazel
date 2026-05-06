@@ -222,7 +222,7 @@ and uexp_to_info_map =
       )
       : (Info.exp, Exp.t, Map.t) => {
     let elab_syn_ty =
-      Info.refine_typ_with_dynamics(
+      LiveTyping.refine_typ_with_dynamics(
         ~dynamics,
         ~calculate_dynamic_type,
         ~ctx,

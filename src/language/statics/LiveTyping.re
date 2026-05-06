@@ -45,6 +45,35 @@ module Map = {
     Id.Map.find_opt(id, map.type_inst_probes);
 };
 
+/* Refine a synthesized/elaborated type using runtime samples gathered
+   through the LiveTyping.Map. Used by Statics to refine types of
+   expressions/patterns whose elaborated synthesis still contains unknowns. */
+let refine_typ_with_dynamics =
+    (
+      ~dynamics: Map.t,
+      ~calculate_dynamic_type: Exp.t => option(Typ.t),
+      ~ctx,
+      ~term_id: Id.t,
+      ty: Typ.t,
+    )
+    : Typ.t =>
+  if (Typ.count_unknowns(ty) > 0) {
+    switch (Map.lookup(term_id, dynamics)) {
+    | None
+    | Some([]) => ty
+    | Some(entry) =>
+      let exps = List.map((s: sample) => s.exp, entry);
+      let dyn_typs = OptUtil.traverse(calculate_dynamic_type, exps);
+      let dyn_typ = Option.bind(dyn_typs, Typ.meet_all(~empty=ty, ctx));
+      switch (dyn_typ) {
+      | None => ty
+      | Some(t) => t
+      };
+    };
+  } else {
+    ty;
+  };
+
 /* Helper to extend Ctx with type instantiations from probes */
 let extend_ctx_with_instantiations =
     (ctx: Ctx.t, name, tpat_id: Id.t, insts: list(type_instantiation)): Ctx.t => {

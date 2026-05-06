@@ -17,7 +17,6 @@
  either by returning `Some(e)` directly, or by using `IdTagged.fast_copy(DHExp.rep_id(e), ...)`
  when constructing a new expression structure.
  */
-// TODO Rename to samples
 [@deriving show]
 type ascription_samples = list((Id.t, Sample.capture_spec, Exp.t));
 module SampleWriter =
