@@ -1,0 +1,56 @@
+name: Setup Hazel Toolchain
+description: >
+  Installs Node, OCaml 5.2.0, and Hazel's opam dependencies. Restores the
+  _opam switch from cache when hazel.opam.locked is unchanged, and runs
+  setup-zarith so the native BigInt runtime is in place.
+
+runs:
+  using: composite
+  steps:
+    - name: Install node/npm
+      uses: actions/setup-node@v4
+      with:
+        node-version: latest
+
+    - name: Install NPM dependencies
+      shell: bash
+      run: npm install
+
+    - name: Set up OCaml
+      uses: ocaml/setup-ocaml@v3
+      with:
+        ocaml-compiler: 5.2.0
+        dune-cache: true
+
+    - name: Restore opam switch from cache
+      id: opam-cache-switch
+      uses: actions/cache@v4
+      with:
+        path: _opam
+        key: ${{ runner.os }}-modules-${{ hashFiles('hazel.opam.locked') }}
+
+    - name: Add opam repository archive
+      shell: bash
+      run: |
+        eval $(opam env)
+        export OPAMYES=1
+        opam repo add archive git+https://github.com/ocaml/opam-repository-archive
+
+    - name: Install opam dependencies
+      shell: bash
+      run: |
+        eval $(opam env)
+        export OPAMYES=1
+        export DUNE_CACHE=enabled
+        opam install . --deps-only --with-test --locked
+
+    - name: Clean opam switch
+      shell: bash
+      run: |
+        eval $(opam env)
+        export OPAMYES=1
+        opam clean --all-switches --download-cache --logs --repo-cache --unused-repositories
+
+    - name: Setup zarith native BigInt runtime
+      shell: bash
+      run: opam exec -- make setup-zarith

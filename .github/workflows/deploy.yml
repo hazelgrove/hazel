@@ -1,0 +1,68 @@
+name: Deploy
+
+on:
+  push:
+    branches-ignore:
+      - 'gh-readonly-queue/**'
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: Build and deploy branch preview
+    if: ${{ !startsWith(github.ref, 'refs/heads/gh-readonly-queue/') }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout hazel
+        uses: actions/checkout@v4
+
+      - name: Resolve branch name
+        uses: nelonoel/branch-name@v1.0.1
+
+      - uses: ./.github/actions/setup-hazel-toolchain
+
+      - name: Build release
+        run: |
+          export DUNE_CACHE=enabled
+          opam exec -- dune build src --profile release
+
+      - name: Checkout build repo
+        uses: actions/checkout@v4
+        with:
+          repository: hazelgrove/build
+          token: ${{ secrets.ACCESS_TOKEN }}
+          path: build-target
+          sparse-checkout: |
+            ${{ env.BRANCH_NAME }}
+
+      - name: Clear old build of this branch
+        run: if [ -d "${BRANCH_NAME}" ]; then rm -rf "${BRANCH_NAME}"; fi
+        working-directory: ./build-target
+
+      - name: Copy in new build
+        run: |
+          mkdir -p "./build-target/${BRANCH_NAME}"
+          cp -r _build/default/src/web/www/* "./build-target/${BRANCH_NAME}"
+
+      - name: Commit and push to build repo
+        working-directory: ./build-target
+        run: |
+          git config user.name github-deploy-action
+          git config user.email hazel-deploy@hazel.org
+          git add -A
+          git pull --no-edit
+          if git diff-index --quiet HEAD; then
+            echo "No changes to deploy"
+            exit 0
+          fi
+          git commit -m "github-deploy-action-${BRANCH_NAME}"
+          for i in $(seq 1 10); do
+            git push && exit 0
+            echo "Push failed (attempt $i), pulling and retrying..."
+            sleep $((RANDOM % 3 + 1))
+            git pull --rebase --no-edit
+          done
+          echo "Push failed after 10 attempts"
+          exit 1
