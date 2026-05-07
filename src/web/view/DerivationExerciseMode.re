@@ -158,34 +158,52 @@ module Model = {
     get_derivation_info_at(model.pos, model);
 
   /* Editors whose problems should appear in the Problems sidebar, each
-     paired with a display label. Tree judgement nodes are labeled with
-     their 1-based path through the derivation (e.g. "Derivation 1.2.1"
-     for the second premise of the first premise of the first tree). */
+     paired with a display label. Trees are named after their abbreviation
+     index ("d0", "d1", ...), matching the in-editor abbreviation labels.
+     Premises within a tree are walked in postorder so the sidebar order
+     matches the visual top-to-bottom layout (premises appear above the
+     conclusion). When a node has a rule attached, its name is appended. */
   let get_problem_editors = (model: t): list((string, CodeEditable.Model.t)) => {
-    let tree_label = (i: int, pos: Tree.pos): string => {
-      let rec path = (pos: Tree.pos) =>
-        switch (pos) {
-        | Value => ""
-        | Children(j, Value) => "." ++ string_of_int(j + 1)
-        | Children(j, p) => "." ++ string_of_int(j + 1) ++ path(p)
-        };
-      "Derivation " ++ string_of_int(i + 1) ++ path(pos);
+    let rec path = (pos: Tree.pos) =>
+      switch (pos) {
+      | Value => ""
+      | Children(j, Value) => "." ++ string_of_int(j + 1)
+      | Children(j, p) => "." ++ string_of_int(j + 1) ++ path(p)
+      };
+    let rule_suffix =
+      fun
+      | Some(rule) => " (" ++ RuleImage.repr(rule) ++ ")"
+      | None => "";
+    let label = (i: int, pos: Tree.pos, rule_opt) =>
+      "d" ++ string_of_int(i) ++ path(pos) ++ rule_suffix(rule_opt);
+    let rec postorder = (acc_pos, Tree.Node(v, c)) => {
+      let children =
+        c
+        |> List.mapi((j, child) =>
+             postorder(p => acc_pos(Tree.Children(j, p)), child)
+           )
+        |> List.concat;
+      children @ [(acc_pos(Tree.Value), v)];
     };
     let tree_entries =
-      model.cells.trees
-      |> List.mapi((i, tree) =>
-           tree
-           |> Tree.mapi((pos, cell_opt) => (i, pos, cell_opt))
-           |> Tree.flatten
+      List.combine(model.editors.trees, model.cells.trees)
+      |> List.mapi((i, (eds_tree, cell_tree)) =>
+           Tree.combine(eds_tree, cell_tree)
+           |> postorder(Fun.id)
+           |> List.filter_map(((pos, (abbr, cell_opt))) =>
+                switch (abbr, cell_opt) {
+                | (
+                    DerivationExercise.Abbr.Just(
+                      d: DerivationExercise.deduction(_),
+                    ),
+                    Some(cell: CellEditor.Model.t),
+                  ) =>
+                  Some((label(i, pos, d.rule), cell.editor))
+                | _ => None
+                }
+              )
          )
-      |> List.concat
-      |> List.filter_map(((i, pos, cell_opt)) =>
-           Option.map(
-             (cell: CellEditor.Model.t) =>
-               (tree_label(i, pos), cell.editor),
-             cell_opt,
-           )
-         );
+      |> List.concat;
     [
       ("Prelude", model.cells.prelude.editor),
       ("Setup", model.cells.setup.editor),
