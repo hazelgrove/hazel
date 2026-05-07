@@ -86,6 +86,61 @@ module Model = {
       editing_flags: editing_flags_false,
     };
   };
+
+  /* Editors whose problems should appear in the Problems sidebar, each
+     paired with a display label shown as a section header when multiple
+     groups are present. Filtered by the same predicate
+     `Selection.jump_to_tile` uses, so the sidebar only lists problems the
+     user can actually click into.
+
+     Ordering matters: `ProblemCollection.make` de-duplicates by
+     `(id, category)` with first-wins. `test_validation` and `user_tests`
+     share the same underlying zipper (`your_tests.tests`), so we list
+     `test_validation` first. This makes shared hole/syntax ids land in
+     the "Test Validation" group, matching where jump-to-tile routes
+     (CodeExercise.editor_positions lists YourTestsValidation before
+     YourTestsTesting for the same reason). `user_tests`'s unique static
+     errors (when the tests are evaluated against the student's
+     implementation) still surface in the "Implementation Validation"
+     group. */
+  let get_problem_editors =
+      (~instructor_mode: bool, model: t)
+      : list((string, CodeEditable.Model.t)) => {
+    let c = model.cells;
+    let hidden_bug_labels =
+      List.mapi(
+        (i, b) =>
+          (
+            CodeExercise.HiddenBugs(i),
+            "Mutant " ++ string_of_int(i + 1),
+            b,
+          ),
+        c.hidden_bugs,
+      );
+    let pairs = [
+      (CodeExercise.Prelude, "Prelude", c.prelude),
+      (
+        CodeExercise.YourTestsValidation,
+        "Test Validation",
+        c.test_validation,
+      ),
+      (
+        CodeExercise.YourTestsTesting,
+        "Implementation Validation",
+        c.user_tests,
+      ),
+      (CodeExercise.YourImpl, "Your Implementation", c.user_impl),
+      (CodeExercise.CorrectImpl, "Correct Implementation", c.instructor),
+      (CodeExercise.HiddenTests, "Hidden Tests", c.hidden_tests),
+      ...hidden_bug_labels,
+    ];
+    List.filter_map(
+      ((pos, label, cell: CellEditor.Model.t)) =>
+        CodeExercise.visible_in(pos, ~instructor_mode)
+          ? Some((label, cell.editor)) : None,
+      pairs,
+    );
+  };
 };
 
 module Update = {
