@@ -327,11 +327,14 @@ let view =
         ),
       ],
     );
-  /* Renders one editor group's body — either position-sorted across all
-     categories (flat) or per-category subsections (grouped). */
-  let render_group_body =
-      (~show_line_numbers: bool, g: problem_group): list(Node.t) => {
-    let render = problem =>
+  /* Renders the body for a run of one or more problem_groups (clustered
+     by label). In flat mode: per-group, pos-sorted, concatenated in run
+     order. In grouped mode: one per-category subsection per run, with
+     problems aggregated across all groups. Each row's measured / pos /
+     nearest_measured_id come from its source group. */
+  let render_run =
+      (~show_line_numbers: bool, run: list(problem_group)): list(Node.t) => {
+    let render = ((problem, g: problem_group)) =>
       problem_row(
         ~globals,
         ~cursor_id,
@@ -343,37 +346,56 @@ let view =
         problem,
       );
     if (problems_settings.flat) {
-      let all_problems =
-        g.problems_by_category
-        |> List.concat_map(snd)
-        |> List.sort((a: problem, b) => compare(g.pos(a.id), g.pos(b.id)));
-      List.map(render, all_problems);
-    } else {
-      List.filter_map(
-        ((cat, problems)) =>
-          !List.is_empty(problems)
-            ? Some(
-                section_view(
-                  ~title=SidebarModel.Settings.category_label(cat),
-                  ~cls=SidebarModel.Settings.category_section_cls(cat),
-                  ~collapsed=
-                    SidebarModel.Settings.is_collapsed(
-                      g.label,
-                      cat,
-                      problems_settings,
-                    ),
-                  ~on_toggle=
-                    _ =>
-                      globals.inject_global(
-                        Set(
-                          Sidebar(Problems(ToggleCollapsed(g.label, cat))),
-                        ),
-                      ),
-                  List.map(render, problems),
-                ),
+      run
+      |> List.concat_map((g: problem_group) =>
+           g.problems_by_category
+           |> List.concat_map(snd)
+           |> List.sort((a: problem, b) =>
+                compare(g.pos(a.id), g.pos(b.id))
               )
-            : None,
-        g.problems_by_category,
+           |> List.map(p => (p, g))
+         )
+      |> List.map(render);
+    } else {
+      let label = (List.hd(run): problem_group).label;
+      let categories =
+        (List.hd(run): problem_group).problems_by_category |> List.map(fst);
+      List.filter_map(
+        cat => {
+          let pairs =
+            run
+            |> List.concat_map((g: problem_group) =>
+                 (
+                   try(List.assoc(cat, g.problems_by_category)) {
+                   | Not_found => []
+                   }
+                 )
+                 |> List.map(p => (p, g))
+               );
+          if (pairs == []) {
+            None;
+          } else {
+            Some(
+              section_view(
+                ~title=SidebarModel.Settings.category_label(cat),
+                ~cls=SidebarModel.Settings.category_section_cls(cat),
+                ~collapsed=
+                  SidebarModel.Settings.is_collapsed(
+                    label,
+                    cat,
+                    problems_settings,
+                  ),
+                ~on_toggle=
+                  _ =>
+                    globals.inject_global(
+                      Set(Sidebar(Problems(ToggleCollapsed(label, cat)))),
+                    ),
+                List.map(render, pairs),
+              ),
+            );
+          };
+        },
+        categories,
       );
     };
   };
@@ -401,7 +423,7 @@ let view =
     | [] => []
     | [g] =>
       /* Single editor: no header, just render its body directly. */
-      render_group_body(~show_line_numbers=true, g)
+      render_run(~show_line_numbers=true, [g])
     | gs =>
       /* Multiple editors: each cluster is a collapsible labelled section
          with a count. Clusters with multiple constituents (same label
@@ -444,14 +466,7 @@ let view =
                  ],
                ),
              ]
-             @ (
-               collapsed
-                 ? []
-                 : List.concat_map(
-                     render_group_body(~show_line_numbers),
-                     run,
-                   )
-             ),
+             @ (collapsed ? [] : render_run(~show_line_numbers, run)),
            );
          })
     };
