@@ -239,9 +239,9 @@ module Model = {
      implementation) still surface in the "Implementation Validation"
      group.
 
-     For Derivation we surface Prelude and Setup; for Theorem we surface
-     Prelude, Lemmas, and Theorem. Derivation tree judgement editors are
-     not included (their type does not match CodeEditable.Model.t). */
+     For Derivation we surface Prelude, Setup, and every reachable tree
+     judgement node (each labeled "Derivation N.path"). For Theorem we
+     surface Prelude, Lemmas, and Theorem. */
   let get_problem_editors =
       (~instructor_mode: bool, model: t)
       : list((string, CodeEditable.Model.t)) => {
@@ -282,10 +282,7 @@ module Model = {
             ? Some((label, cell.editor)) : None,
         pairs,
       );
-    | Derivation(e) => [
-        ("Prelude", e.cells.prelude.editor),
-        ("Setup", e.cells.setup.editor),
-      ]
+    | Derivation(e) => DerivationExerciseMode.Model.get_problem_editors(e)
     | Theorem(e) => [
         ("Prelude", e.cells.prelude.editor),
         ("Lemmas", e.cells.lemmas.editor),

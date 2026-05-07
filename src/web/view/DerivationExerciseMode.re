@@ -156,6 +156,42 @@ module Model = {
      the `_at` version so Prelude/Setup focus isn't misread as a tree cell. */
   let get_derivation_info = (model: t) =>
     get_derivation_info_at(model.pos, model);
+
+  /* Editors whose problems should appear in the Problems sidebar, each
+     paired with a display label. Tree judgement nodes are labeled with
+     their 1-based path through the derivation (e.g. "Derivation 1.2.1"
+     for the second premise of the first premise of the first tree). */
+  let get_problem_editors = (model: t): list((string, CodeEditable.Model.t)) => {
+    let tree_label = (i: int, pos: Tree.pos): string => {
+      let rec path = (pos: Tree.pos) =>
+        switch (pos) {
+        | Value => ""
+        | Children(j, Value) => "." ++ string_of_int(j + 1)
+        | Children(j, p) => "." ++ string_of_int(j + 1) ++ path(p)
+        };
+      "Derivation " ++ string_of_int(i + 1) ++ path(pos);
+    };
+    let tree_entries =
+      model.cells.trees
+      |> List.mapi((i, tree) =>
+           tree
+           |> Tree.mapi((pos, cell_opt) => (i, pos, cell_opt))
+           |> Tree.flatten
+         )
+      |> List.concat
+      |> List.filter_map(((i, pos, cell_opt)) =>
+           Option.map(
+             (cell: CellEditor.Model.t) =>
+               (tree_label(i, pos), cell.editor),
+             cell_opt,
+           )
+         );
+    [
+      ("Prelude", model.cells.prelude.editor),
+      ("Setup", model.cells.setup.editor),
+    ]
+    @ tree_entries;
+  };
 };
 
 module Update = {

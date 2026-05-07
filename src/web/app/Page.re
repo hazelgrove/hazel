@@ -86,20 +86,22 @@ module Update = {
   };
 
   /* Editors feeding the Problems sidebar, paired with display labels.
-     Labels are only shown when there are multiple groups (Exercise mode),
-     so single-editor modes pass an empty label. */
+     Labels are only shown when there are multiple groups, so single-editor
+     modes pass an empty label. Drv scratchpads / documentation slides
+     reuse DerivationExerciseMode.Model.get_problem_editors so Prelude /
+     Setup / each tree judgement node all contribute their problems. */
   let get_problem_editors =
       (model: Model.t): list((string, CodeEditable.Model.t)) => {
-    let scratchpad_editor = (m: ScratchMode.Model.t) => {
+    let scratchpad_editors = (m: ScratchMode.Model.t) => {
       let sp = List.nth(m.scratchpads, m.current);
       switch (sp.kind) {
-      | Code({editor, _}) => editor.editor
-      | Drv(dm) => dm.cells.setup.editor
+      | Code({editor, _}) => [("", editor.editor)]
+      | Drv(dm) => DerivationExerciseMode.Model.get_problem_editors(dm)
       };
     };
     switch (model.editors) {
-    | Scratch(m) => [("", scratchpad_editor(m))]
-    | Documentation(m) => [("", scratchpad_editor(m))]
+    | Scratch(m) => scratchpad_editors(m)
+    | Documentation(m) => scratchpad_editors(m)
     | Tutorial(m) => [
         ("", List.nth(m.exercises, m.current).cells.user_impl.editor),
       ]
