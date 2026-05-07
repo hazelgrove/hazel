@@ -466,7 +466,7 @@ module Selection = {
 
     let.or () = {
       let* _ =
-        TermData.root_tile(
+        TermData.root_piece(
           tile,
           model.cells.prelude.editor.editor.syntax.term_data,
         );
@@ -477,7 +477,7 @@ module Selection = {
     };
     let.or () = {
       let* _ =
-        TermData.root_tile(
+        TermData.root_piece(
           tile,
           model.cells.lemmas.editor.editor.syntax.term_data,
         );
@@ -488,7 +488,7 @@ module Selection = {
     };
 
     let* _ =
-      TermData.root_tile(
+      TermData.root_piece(
         tile,
         model.cells.theorem.editor.editor.syntax.term_data,
       );

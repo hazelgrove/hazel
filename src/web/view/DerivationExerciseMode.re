@@ -560,7 +560,7 @@ module Selection = {
       : option((Update.t, t)) => {
     DerivationExercise.positioned_editors(model.editors)
     |> List.find_opt(((_, e: Editor.t)) =>
-         TermData.root_tile(id, e.syntax.term_data) != None
+         TermData.root_piece(id, e.syntax.term_data) != None
        )
     |> Option.map(((pos, _)) =>
          (

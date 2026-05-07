@@ -62,11 +62,15 @@ let problem_status_view = (~globals, ci: Language.Info.t): Node.t =>
     CursorInspector.typ_view(~globals, cls, ~marks, ~message)
   | InfoTPat({cls, marks, message, _}) =>
     CursorInspector.tpat_view(~globals, cls, ~marks, ~message)
-  | Secondary(_)
-  | InfoMod(_)
-  | InfoSig(_)
-  | InfoMPat(_)
-  | InfoDrv(_) => div([])
+  | InfoDrv(ci) => DrvCursorInspector.drv_view(~globals, ci)
+  | InfoMod({cls, _})
+  | InfoSig({cls, _})
+  | InfoMPat({cls, _}) =>
+    span(
+      ~attrs=[clss(["problem-description"])],
+      [text(Language.Cls.show(cls))],
+    )
+  | Secondary(_) => div([])
   };
 
 let line_num_view =

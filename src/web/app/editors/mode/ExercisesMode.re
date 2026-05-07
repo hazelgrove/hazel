@@ -239,8 +239,9 @@ module Model = {
      implementation) still surface in the "Implementation Validation"
      group.
 
-     For Derivation and Theorem the existing single-editor behavior is
-     preserved (matching get_editor) with an empty label. */
+     For Derivation we surface Prelude and Setup; for Theorem we surface
+     Prelude, Lemmas, and Theorem. Derivation tree judgement editors are
+     not included (their type does not match CodeEditable.Model.t). */
   let get_problem_editors =
       (~instructor_mode: bool, model: t)
       : list((string, CodeEditable.Model.t)) => {
@@ -281,8 +282,15 @@ module Model = {
             ? Some((label, cell.editor)) : None,
         pairs,
       );
-    | Derivation(e) => [("", e.cells.setup.editor)]
-    | Theorem(e) => [("", e.cells.theorem.editor)]
+    | Derivation(e) => [
+        ("Prelude", e.cells.prelude.editor),
+        ("Setup", e.cells.setup.editor),
+      ]
+    | Theorem(e) => [
+        ("Prelude", e.cells.prelude.editor),
+        ("Lemmas", e.cells.lemmas.editor),
+        ("Theorem", e.cells.theorem.editor),
+      ]
     };
   };
 };
