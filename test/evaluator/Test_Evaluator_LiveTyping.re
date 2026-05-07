@@ -204,7 +204,8 @@ let test_live_typing = (~test_name=?, expected_exp: FError.exp) => {
       Grammar.equal_exp_t((a: error, b: error) =>
         switch (a, b) {
         | (NoError, NoError) => true
-        | (StaticError(e1), StaticError(e2)) => List.equal(mark_equal, e1, e2)
+        | (StaticError(e1), StaticError(e2)) =>
+          List.equal(mark_equal, e1, e2)
         | (DynamicError(e1), DynamicError(e2)) =>
           List.equal(mark_equal, e1, e2)
         | _ => false
@@ -383,55 +384,55 @@ in
       },
     ),
     /* DISABLED: live-typing duplicates the inner branch's ExpectationMismatch
-       onto the surrounding `If` expression. Tracked in
-       https://github.com/hazelgrove/hazel/issues/2265. Re-enable once the
-       extra mark on the If is removed.
-    test_case(
-      "Conditional uses runtime type information",
-      `Quick,
-      () => {
-        open FError;
-        open Exp;
+          onto the surrounding `If` expression. Tracked in
+          https://github.com/hazelgrove/hazel/issues/2265. Re-enable once the
+          extra mark on the If is removed.
+       test_case(
+         "Conditional uses runtime type information",
+         `Quick,
+         () => {
+           open FError;
+           open Exp;
 
-        test_live_typing(
-          bin_op(
-            String(Concat),
-            if_(
-              bool(true),
-              asc(
-                ~ann=
-                  DynamicError(
-                    inconsistent_exp(
-                      Test_Statics_Prelude.FTemp.Typ.(
-                        Expectation({
-                          ana: string(),
-                          syn: int(),
-                        })
-                      ),
-                    ),
-                  ),
-                int(1),
-                Typ.unknown(Internal),
-              ),
-              asc(string("World"), Typ.unknown(Internal)),
-            ),
-            string("World"),
-          ),
-        );
-        test_live_typing(
-          bin_op(
-            String(Concat),
-            if_(
-              bool(false),
-              asc(int(1), Typ.unknown(Internal)),
-              asc(string("Hello"), Typ.unknown(Internal)),
-            ),
-            string("World"),
-          ),
-        );
-      },
-    ),
-    */
+           test_live_typing(
+             bin_op(
+               String(Concat),
+               if_(
+                 bool(true),
+                 asc(
+                   ~ann=
+                     DynamicError(
+                       inconsistent_exp(
+                         Test_Statics_Prelude.FTemp.Typ.(
+                           Expectation({
+                             ana: string(),
+                             syn: int(),
+                           })
+                         ),
+                       ),
+                     ),
+                   int(1),
+                   Typ.unknown(Internal),
+                 ),
+                 asc(string("World"), Typ.unknown(Internal)),
+               ),
+               string("World"),
+             ),
+           );
+           test_live_typing(
+             bin_op(
+               String(Concat),
+               if_(
+                 bool(false),
+                 asc(int(1), Typ.unknown(Internal)),
+                 asc(string("Hello"), Typ.unknown(Internal)),
+               ),
+               string("World"),
+             ),
+           );
+         },
+       ),
+       */
     test_case(
       "Unannotated lambda applied to string causes dynamic error",
       `Quick,
@@ -570,8 +571,7 @@ in
             string(""),
           );
         test_live_typing(
-          ~test_name=
-            {|(typfun a -> fun x -> (x : ? : a))@<String>("")|},
+          ~test_name={|(typfun a -> fun x -> (x : ? : a))@<String>("")|},
           exp,
         );
       },
