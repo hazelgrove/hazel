@@ -207,6 +207,13 @@ let rec put_nth = (n: int, x: 'x, xs: list('x)): list('x) =>
     [hd, ...tl];
   };
 
+let rec map_nth = (n: int, f: 'a => 'a, xs: list('a)): list('a) =>
+  switch (n, xs) {
+  | (_, []) => failwith("out of bounds")
+  | (0, [hd, ...tl]) => [f(hd), ...tl]
+  | (_, [hd, ...tl]) => [hd, ...map_nth(n - 1, f, tl)]
+  };
+
 let split_last_opt = (xs: list('x)): option((list('x), 'x)) => {
   let rec go = (acc, xs) =>
     switch (xs) {
@@ -484,6 +491,20 @@ let rec is_length = (n: int, xs: list('a)): bool =>
   | _ when n <= 0 => false
   | [] => false
   | [_, ...xs] => is_length(n - 1, xs)
+  };
+
+let rec insert = (x, xs, i) =>
+  switch (xs, i) {
+  | (_, 0) => [x, ...xs]
+  | ([hd, ...tl], _) => [hd, ...insert(x, tl, i - 1)]
+  | ([], _) => failwith("ListUtil.insert")
+  };
+
+let rec remove = (xs, i) =>
+  switch (xs, i) {
+  | ([_, ...tl], 0) => tl
+  | ([hd, ...tl], _) => [hd, ...remove(tl, i - 1)]
+  | ([], _) => failwith("ListUtil.remove")
   };
 
 let rec remove_nth = (n: int, xs: list('a)): option(list('a)) =>

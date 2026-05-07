@@ -134,8 +134,6 @@ type example_id =
   | AndTrue
   | OrFalse
   | OrTrue
-  | StringEqualFalse
-  | StringEqualTrue
   | CaseWildSimple
   | CaseWildTuple
   | CaseInt
@@ -188,10 +186,12 @@ type pat_sub_form_id =
   | Tuple2
   | Tuple3
   | Ctr
-  | Ap;
+  | ApFunc
+  | ApCons;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type form_id =
+  | Derivation
   | EmptyHoleExp
   | MultiHoleExp
   | TrivExp
@@ -252,7 +252,8 @@ type form_id =
   | TuplePat
   | Tuple2Pat
   | Tuple3Pat
-  | ApPat
+  | ApFuncPat
+  | ApConsPat
   | TypAnnPat
   | EmptyHoleTyp
   | MultiHoleTyp
@@ -313,6 +314,7 @@ type form = {
 // MAYBE don't even need an id at all for the group - just use the most specific (1st) form id in forms
 [@deriving (show({with_path: false}), sexp, yojson)]
 type group_id =
+  | Derivation
   | EmptyHoleExp
   | MultiHoleExp
   | TrivExp
@@ -377,7 +379,8 @@ type group_id =
   | TuplePat
   | Tuple2Pat
   | Tuple3Pat
-  | ApPat
+  | ApFuncPat
+  | ApConsPat
   | TypAnnPat
   | EmptyHoleTyp
   | MultiHoleTyp

@@ -4,7 +4,8 @@ open Util;
 let is_digit = s => StringUtil.(match(regexp("^[0-9]$"), s));
 let is_f_key = s => StringUtil.(match(regexp("^F[0-9][0-9]*$"), s));
 
-let meta = (sys: Key.sys): string => {
+let meta = (): string => {
+  let sys = Util.Os.is_mac^ ? Util.Key.Mac : PC;
   switch (sys) {
   | Mac => "cmd"
   | PC => "ctrl"
@@ -82,6 +83,7 @@ let handle_key_event = (k: Key.t): option(Action.t) => {
     }
   | {key: D(key), sys: Mac, shift: Up, meta: Down, ctrl: Up, alt: Up, _} =>
     switch (key) {
+    | "s" => now(PrettyPrint)
     | "d" => now(Select(Term(Current)))
     | "a" => now(Select(All))
     | "e" => now(Probe(ToggleManual))
@@ -95,6 +97,7 @@ let handle_key_event = (k: Key.t): option(Action.t) => {
 
   | {key: D(key), sys: PC, shift: Up, meta: Up, ctrl: Down, alt: Up, _} =>
     switch (key) {
+    | "s" => now(PrettyPrint)
     | "d" => now(Select(Term(Current)))
     | "a" => now(Select(All))
     | "e" => now(Probe(ToggleManual))
