@@ -423,57 +423,8 @@ let selection =
       ~statics: CachedStatics.t,
       z: Zipper.t,
     ) => {
-  let find_assoc_for_id = (id: Id.t): list(Id.t) => {
-    /* For a BinOp with operator `op`, returns [left_operand, op, right_operand]
-       where the operands are "snapped" one level inward along same-op chains.
-       For any other expression, returns [id] unchanged.
-
-       Example: `1 + 2 + 3` is `(1 + 2) + 3` internally. When the outer `+`
-       tile is selected, this returns [id_2, id_+_outer, id_3] so the highlight
-       snaps to cover `2 + 3` rather than the raw operator tile alone. */
-    let statics_opt = Language.Statics.Map.lookup(id, statics.info_map);
-    switch (statics_opt) {
-    | Some(InfoExp(exp)) =>
-      switch (exp.term.term) {
-      | BinOp(op, left, right) =>
-        let left_id = left |> Language.Exp.rep_id;
-        let right_id = right |> Language.Exp.rep_id;
-        let left_assoc =
-          switch (Language.Statics.Map.lookup(left_id, statics.info_map)) {
-          | Some(InfoExp(left_contents)) =>
-            switch (left_contents.term.term) {
-            | BinOp(left_op, _, left_right) when left_op == op =>
-              left_right |> Language.Exp.rep_id
-            | _ => left_id
-            }
-          | _ => left_id
-          };
-        let left_left_id =
-          switch (Language.Statics.Map.lookup(left_assoc, statics.info_map)) {
-          | Some(InfoExp(left_contents)) =>
-            switch (left_contents.term.term) {
-            | BinOp(_, left_left, _) => left_left |> Language.Exp.rep_id
-            | _ => left_assoc
-            }
-          | _ => left_assoc
-          };
-        let right_assoc =
-          switch (Language.Statics.Map.lookup(right_id, statics.info_map)) {
-          | Some(InfoExp(right_contents)) =>
-            switch (right_contents.term.term) {
-            | BinOp(_, _, right_right) => right_right |> Language.Exp.rep_id
-            | _ => right_id
-            }
-          | _ => right_id
-          };
-        /* Include `id` itself so the operator tile is not dropped from the
-           highlight (multi-shard tiles like `let = in` also rely on this). */
-        [left_left_id, id, right_assoc];
-      | _ => [id]
-      }
-    | _ => [id]
-    };
-  };
+  let find_assoc_for_id = (id: Id.t): list(Id.t) =>
+    Language.AssocSelection.find_assoc_for_id(id, statics.info_map);
 
   let associative_segment = (z: Zipper.t): Segment.t => {
     let tile_ids =
