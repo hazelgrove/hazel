@@ -107,6 +107,12 @@ module Model = {
     let spec = spec_of_t(model);
     prefix ++ TheoremExercise.show_spec(spec) ++ "\n";
   };
+
+  let get_problem_editors = (model: t): list((string, CodeEditable.Model.t)) => [
+    ("Prelude", model.cells.prelude.editor),
+    ("Lemmas", model.cells.lemmas.editor),
+    ("Theorem", model.cells.theorem.editor),
+  ];
 };
 
 module Update = {

@@ -50,7 +50,7 @@ module Model = {
     | Theorem(e: TheoremExerciseMode.Model.t) => e.id
     };
 
-  let get_spec_id = (spec: exercise_spec): Haz3lcore.Id.t =>
+  let id_of_spec = (spec: exercise_spec): Haz3lcore.Id.t =>
     switch (spec) {
     | Code(s) => s.id
     | Derivation(s) => s.id
@@ -113,8 +113,7 @@ module Model = {
       );
     let current =
       ListUtil.findi_opt(
-        (spec: exercise_spec) =>
-          get_spec_id(spec) == persistent.cur_exercise,
+        (spec: exercise_spec) => id_of_spec(spec) == persistent.cur_exercise,
         ExerciseSettings.exercises,
       )
       |> Option.map(fst)
@@ -135,13 +134,6 @@ module Model = {
         DerivationExerciseMode.Model.of_spec(~settings, ~instructor_mode, s),
       )
     | Theorem(s) => Theorem(TheoremExerciseMode.Model.of_spec(s))
-    };
-
-  let id_of_spec = (spec: exercise_spec): Haz3lcore.Id.t =>
-    switch (spec) {
-    | Code(s) => s.id
-    | Derivation(s) => s.id
-    | Theorem(s) => s.id
     };
 
   let get_current = (m: t) => List.nth(m.exercises, m.current);
@@ -283,11 +275,7 @@ module Model = {
         pairs,
       );
     | Derivation(e) => DerivationExerciseMode.Model.get_problem_editors(e)
-    | Theorem(e) => [
-        ("Prelude", e.cells.prelude.editor),
-        ("Lemmas", e.cells.lemmas.editor),
-        ("Theorem", e.cells.theorem.editor),
-      ]
+    | Theorem(e) => TheoremExerciseMode.Model.get_problem_editors(e)
     };
   };
 };
