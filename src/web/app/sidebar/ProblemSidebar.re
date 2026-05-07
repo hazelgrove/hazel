@@ -110,6 +110,7 @@ let row_view =
       ~measured: Haz3lcore.Measured.t,
       ~row_to_line: int => option(int),
       ~nearest_measured_id: Id.t => option(Id.t),
+      ~show_line_numbers: bool,
       ~cls: string,
       id: Id.t,
       content: Node.t,
@@ -138,17 +139,16 @@ let row_view =
     );
   let scroll_attr = is_active ? scroll_active_into_view : Attr.empty;
   let jump_id = Option.value(nearest_measured_id(id), ~default=id);
+  let line_num =
+    show_line_numbers
+      ? [line_num_view(id, measured, row_to_line, nearest_measured_id)] : [];
   div(
     ~attrs=[
       clss(classes),
       Attr.on_pointerdown(jump_to(~globals, jump_id)),
       scroll_attr,
     ],
-    [
-      chevron,
-      line_num_view(id, measured, row_to_line, nearest_measured_id),
-      content,
-    ],
+    [chevron] @ line_num @ [content],
   );
 };
 
@@ -207,6 +207,7 @@ let problem_row =
       ~measured: Haz3lcore.Measured.t,
       ~row_to_line: int => option(int),
       ~nearest_measured_id: Id.t => option(Id.t),
+      ~show_line_numbers: bool,
       problem: problem,
     )
     : Node.t => {
@@ -224,6 +225,7 @@ let problem_row =
     ~measured,
     ~row_to_line,
     ~nearest_measured_id,
+    ~show_line_numbers,
     ~cls,
     problem.id,
     content,
@@ -327,7 +329,8 @@ let view =
     );
   /* Renders one editor group's body — either position-sorted across all
      categories (flat) or per-category subsections (grouped). */
-  let render_group_body = (g: problem_group): list(Node.t) => {
+  let render_group_body =
+      (~show_line_numbers: bool, g: problem_group): list(Node.t) => {
     let render = problem =>
       problem_row(
         ~globals,
@@ -336,6 +339,7 @@ let view =
         ~measured=g.measured,
         ~row_to_line=g.row_to_line,
         ~nearest_measured_id=g.nearest_measured_id,
+        ~show_line_numbers,
         problem,
       );
     if (problems_settings.flat) {
@@ -374,48 +378,82 @@ let view =
     };
   };
   let non_empty_groups = List.filter(group_has_problems, collection.groups);
+  /* Cluster consecutive groups with the same label into one section. The
+     Derivation flow uses this to flatten every tree judgement editor into
+     a single "Derivation" section without per-row line numbers. */
+  let cluster_by_label =
+      (gs: list(problem_group)): list(list(problem_group)) =>
+    List.fold_left(
+      (acc, g: problem_group) =>
+        switch (acc) {
+        | [[g0, ..._] as run, ...rest] when g0.label == g.label => [
+            run @ [g],
+            ...rest,
+          ]
+        | _ => [[g], ...acc]
+        },
+      [],
+      gs,
+    )
+    |> List.rev;
   let group_sections =
     switch (non_empty_groups) {
     | [] => []
     | [g] =>
       /* Single editor: no header, just render its body directly. */
-      render_group_body(g)
+      render_group_body(~show_line_numbers=true, g)
     | gs =>
-      /* Multiple editors: each is a collapsible labelled section with a
-         count. Collapse state is keyed by the group label. */
-      List.map(
-        (g: problem_group) => {
-          let total = List.fold_left((n, (_, c)) => n + c, 0, g.counts);
-          let collapsed =
-            SidebarModel.Settings.is_editor_collapsed(
-              g.label,
-              problems_settings,
-            );
-          div(
-            ~attrs=[clss(["problem-editor-group"])],
-            [
-              div(
-                ~attrs=[
-                  clss(["problem-editor-header"]),
-                  Attr.on_click(_ =>
-                    globals.inject_global(
-                      Set(
-                        Sidebar(Problems(ToggleEditorCollapsed(g.label))),
-                      ),
-                    )
-                  ),
-                ],
-                [
-                  text(collapsed ? "▸ " : "▾ "),
-                  text(g.label ++ " (" ++ string_of_int(total) ++ ")"),
-                ],
-              ),
-            ]
-            @ (collapsed ? [] : render_group_body(g)),
-          );
-        },
-        gs,
-      )
+      /* Multiple editors: each cluster is a collapsible labelled section
+         with a count. Clusters with multiple constituents (same label
+         repeated) suppress per-row line numbers since L# would otherwise
+         refer to a different editor. */
+      cluster_by_label(gs)
+      |> List.map(run => {
+           let label = (List.hd(run): problem_group).label;
+           let total =
+             List.fold_left(
+               (n, g: problem_group) =>
+                 n + List.fold_left((m, (_, c)) => m + c, 0, g.counts),
+               0,
+               run,
+             );
+           let merged = List.length(run) > 1;
+           let show_line_numbers = !merged;
+           let collapsed =
+             SidebarModel.Settings.is_editor_collapsed(
+               label,
+               problems_settings,
+             );
+           div(
+             ~attrs=[clss(["problem-editor-group"])],
+             [
+               div(
+                 ~attrs=[
+                   clss(["problem-editor-header"]),
+                   Attr.on_click(_ =>
+                     globals.inject_global(
+                       Set(
+                         Sidebar(Problems(ToggleEditorCollapsed(label))),
+                       ),
+                     )
+                   ),
+                 ],
+                 [
+                   text(collapsed ? "▸ " : "▾ "),
+                   text(label ++ " (" ++ string_of_int(total) ++ ")"),
+                 ],
+               ),
+             ]
+             @ (
+               collapsed
+                 ? []
+                 : List.concat_map(
+                     render_group_body(~show_line_numbers),
+                     run,
+                   )
+             ),
+           );
+         })
     };
   div(
     ~attrs=[clss(["problems-panel"])],
