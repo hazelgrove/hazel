@@ -94,6 +94,21 @@ module Ctr = {
       }
     };
 
+  /* Strip Recs whose binder isn't free in the body — they're equivalent
+     to the body. Without this, `Typ.unroll` cycles on types like
+     `rec x -> (rec ? -> x)`. See hazelgrove/hazel#2235, #1624. */
+  let rec strip_vacuous_rec = (ty: Typ.t): Typ.t =>
+    switch (ty.term) {
+    | Rec(tp, body) =>
+      let vacuous =
+        switch (TPat.tyvar_of_utpat(tp)) {
+        | None => true
+        | Some(name) => !List.mem(name, Typ.free_vars(body))
+        };
+      vacuous ? strip_vacuous_rec(body) : ty;
+    | _ => ty
+    };
+
   let rec all_ctrs_of_typ = (~rec_count=0, ty: Typ.t): all_ctrs => {
     if (rec_count > 1000) {
       failwith("Recursion limit exceeded in all_ctrs_of_typ");
@@ -113,8 +128,15 @@ module Ctr = {
            )
         |> Map.of_list,
       )
-    | Rec({term: Var(w), _}, {term: Var(v), _}) when v == w => Unknown
-    | Rec(_) => all_ctrs_of_typ(Typ.unroll(ty))
+    | Rec(tp, body) =>
+      let body = strip_vacuous_rec(body);
+      switch (TPat.tyvar_of_utpat(tp), body.term) {
+      | (Some(w), Var(v)) when v == w => Unknown
+      | (None, _) => all_ctrs_of_typ(body)
+      | (Some(name), _) when !List.mem(name, Typ.free_vars(body)) =>
+        all_ctrs_of_typ(body)
+      | _ => all_ctrs_of_typ(Typ.unroll(ty))
+      };
     | Prod(elts) =>
       Finite(Map.singleton(tuple_ctr(List.length(elts)), elts))
     | ProofOf(_) => Infinite

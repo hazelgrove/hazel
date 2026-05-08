@@ -473,9 +473,13 @@ let tests = (
       "Typ.weak_head_normalize infinite recursion", // https://github.com/hazelgrove/hazel/issues/1621
       "type y = y in type ? = y in ?",
     ),
-    skip_known_bug(
-      "Coverage.all_ctrs_of_typ infinite recursion", // https://github.com/hazelgrove/hazel/issues/1624
+    statics_does_not_crash(
+      "Coverage.all_ctrs_of_typ no infinite recursion on nested non-productive Rec", // https://github.com/hazelgrove/hazel/issues/1624
       "fun ((()): ((rec x -> (rec y -> x)))) -> []",
+    ),
+    statics_does_not_crash(
+      "Coverage.all_ctrs_of_typ no infinite recursion on Rec with hole binder", // https://github.com/hazelgrove/hazel/issues/2235
+      "fun ((()):((rec x -> (rec ? -> x)))) -> 132032.832758",
     ),
     skip_known_bug(
       "all_ctrs_of_type called with a non-normalized type", // https://github.com/hazelgrove/hazel/issues/1626
