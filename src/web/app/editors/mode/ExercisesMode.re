@@ -219,7 +219,7 @@ module Model = {
      groups are present. */
   let get_problem_editors =
       (~instructor_mode: bool, model: t)
-      : list((option(string), CodeEditable.Model.t)) => {
+      : list((option(string), list(CodeEditable.Model.t))) => {
     let current = List.nth(model.exercises, model.current);
     switch (current) {
     | Code(e) =>

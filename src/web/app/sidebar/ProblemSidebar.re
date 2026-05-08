@@ -207,16 +207,13 @@ let problem_row =
       ~globals: Globals.t,
       ~cursor_id: option(Id.t),
       ~expanded: list(Id.t),
-      ~measured: Haz3lcore.Measured.t,
-      ~row_to_line: int => option(int),
-      ~nearest_measured_id: Id.t => option(Id.t),
       ~show_line_numbers: bool,
-      problem: problem,
+      lp: located_problem,
     )
     : Node.t => {
-  let cls = SidebarModel.Settings.category_row_cls(problem.category);
+  let cls = SidebarModel.Settings.category_row_cls(lp.problem.category);
   let content =
-    switch (problem.source) {
+    switch (lp.problem.source) {
     | Structural(desc) =>
       span(~attrs=[clss(["problem-description"])], [text(desc)])
     | FromInfo(ci) => problem_status_view(~globals, ci)
@@ -225,12 +222,12 @@ let problem_row =
     ~globals,
     ~cursor_id,
     ~expanded,
-    ~measured,
-    ~row_to_line,
-    ~nearest_measured_id,
+    ~measured=lp.measured,
+    ~row_to_line=lp.row_to_line,
+    ~nearest_measured_id=lp.nearest_measured_id,
     ~show_line_numbers,
     ~cls,
-    problem.id,
+    lp.problem.id,
     content,
   );
 };
@@ -330,53 +327,31 @@ let view =
         ),
       ],
     );
-  /* Renders the body for a run of one or more problem_groups (clustered
-     by label). In flat mode: per-group, pos-sorted, concatenated in run
-     order. In grouped mode: one per-category subsection per run, with
-     problems aggregated across all groups. Each row's measured / pos /
-     nearest_measured_id come from its source group. */
-  let render_run =
-      (~show_line_numbers: bool, run: list(problem_group)): list(Node.t) => {
-    let render = ((problem, g: problem_group)) =>
+  /* Renders the body of one problem_group. In flat mode: all categories
+     concatenated and re-sorted by position. In grouped mode: one
+     collapsible per-category subsection. L# labels are shown only when
+     the group came from a single source editor — otherwise "L1" would
+     mean different things across the constituent editors. */
+  let render_group = (g: problem_group): list(Node.t) => {
+    let show_line_numbers = g.single_source;
+    let render = lp =>
       problem_row(
         ~globals,
         ~cursor_id,
         ~expanded=problems_settings.expanded,
-        ~measured=g.measured,
-        ~row_to_line=g.row_to_line,
-        ~nearest_measured_id=g.nearest_measured_id,
         ~show_line_numbers,
-        problem,
+        lp,
       );
     if (problems_settings.flat) {
-      run
-      |> List.concat_map((g: problem_group) =>
-           g.problems_by_category
-           |> List.concat_map(snd)
-           |> List.sort((a: problem, b) =>
-                compare(g.pos(a.id), g.pos(b.id))
-              )
-           |> List.map(p => (p, g))
-         )
+      g.problems_by_category
+      |> List.concat_map(snd)
+      |> List.sort((a: located_problem, b) => compare(a.pos, b.pos))
       |> List.map(render);
     } else {
-      let label =
-        Option.value((List.hd(run): problem_group).label, ~default="");
-      let categories =
-        (List.hd(run): problem_group).problems_by_category |> List.map(fst);
+      let label = Option.value(g.label, ~default="");
       List.filter_map(
-        cat => {
-          let pairs =
-            run
-            |> List.concat_map((g: problem_group) =>
-                 (
-                   try(List.assoc(cat, g.problems_by_category)) {
-                   | Not_found => []
-                   }
-                 )
-                 |> List.map(p => (p, g))
-               );
-          if (pairs == []) {
+        ((cat, lps)) =>
+          if (lps == []) {
             None;
           } else {
             Some(
@@ -394,86 +369,56 @@ let view =
                     globals.inject_global(
                       Set(Sidebar(Problems(ToggleCollapsed(label, cat)))),
                     ),
-                List.map(render, pairs),
+                List.map(render, lps),
               ),
             );
-          };
-        },
-        categories,
+          },
+        g.problems_by_category,
       );
     };
   };
   let non_empty_groups = List.filter(group_has_problems, collection.groups);
-  /* Cluster consecutive groups with the same label into one section. The
-     Derivation flow uses this to flatten every tree judgement editor into
-     a single "Derivation" section without per-row line numbers. */
-  let cluster_by_label =
-      (gs: list(problem_group)): list(list(problem_group)) =>
-    List.fold_left(
-      (acc, g: problem_group) =>
-        switch (acc) {
-        | [[g0, ..._] as run, ...rest] when g0.label == g.label => [
-            run @ [g],
-            ...rest,
-          ]
-        | _ => [[g], ...acc]
-        },
-      [],
-      gs,
-    )
-    |> List.rev;
   let group_sections =
     switch (non_empty_groups) {
     | [] => []
     | [g] =>
-      /* Single editor: no header, just render its body directly. */
-      render_run(~show_line_numbers=true, [g])
+      /* Single group: no header, just render its body directly. */
+      render_group(g)
     | gs =>
-      /* Multiple editors: each cluster is a collapsible labelled section
-         with a count. Clusters with multiple constituents (same label
-         repeated) suppress per-row line numbers since L# would otherwise
-         refer to a different editor. */
-      cluster_by_label(gs)
-      |> List.map(run => {
-           let label =
-             Option.value((List.hd(run): problem_group).label, ~default="");
-           let total =
-             List.fold_left(
-               (n, g: problem_group) =>
-                 n + List.fold_left((m, (_, c)) => m + c, 0, g.counts),
-               0,
-               run,
-             );
-           let merged = List.length(run) > 1;
-           let show_line_numbers = !merged;
-           let collapsed =
-             SidebarModel.Settings.is_editor_collapsed(
-               label,
-               problems_settings,
-             );
-           div(
-             ~attrs=[clss(["problem-editor-group"])],
-             [
-               div(
-                 ~attrs=[
-                   clss(["problem-editor-header"]),
-                   Attr.on_click(_ =>
-                     globals.inject_global(
-                       Set(
-                         Sidebar(Problems(ToggleEditorCollapsed(label))),
-                       ),
-                     )
-                   ),
-                 ],
-                 [
-                   text(collapsed ? "▸ " : "▾ "),
-                   text(label ++ " (" ++ string_of_int(total) ++ ")"),
-                 ],
-               ),
-             ]
-             @ (collapsed ? [] : render_run(~show_line_numbers, run)),
-           );
-         })
+      /* Multiple groups: each is a collapsible labelled section with a
+         count. */
+      List.map(
+        (g: problem_group) => {
+          let label = Option.value(g.label, ~default="");
+          let total = List.fold_left((n, (_, c)) => n + c, 0, g.counts);
+          let collapsed =
+            SidebarModel.Settings.is_editor_collapsed(
+              label,
+              problems_settings,
+            );
+          div(
+            ~attrs=[clss(["problem-editor-group"])],
+            [
+              div(
+                ~attrs=[
+                  clss(["problem-editor-header"]),
+                  Attr.on_click(_ =>
+                    globals.inject_global(
+                      Set(Sidebar(Problems(ToggleEditorCollapsed(label)))),
+                    )
+                  ),
+                ],
+                [
+                  text(collapsed ? "▸ " : "▾ "),
+                  text(label ++ " (" ++ string_of_int(total) ++ ")"),
+                ],
+              ),
+            ]
+            @ (collapsed ? [] : render_group(g)),
+          );
+        },
+        gs,
+      )
     };
   div(
     ~attrs=[clss(["problems-panel"])],

@@ -109,10 +109,10 @@ module Model = {
   };
 
   let get_problem_editors =
-      (model: t): list((option(string), CodeEditable.Model.t)) => [
-    (Some("Prelude"), model.cells.prelude.editor),
-    (Some("Lemmas"), model.cells.lemmas.editor),
-    (Some("Theorem"), model.cells.theorem.editor),
+      (model: t): list((option(string), list(CodeEditable.Model.t))) => [
+    (Some("Prelude"), [model.cells.prelude.editor]),
+    (Some("Lemmas"), [model.cells.lemmas.editor]),
+    (Some("Theorem"), [model.cells.theorem.editor]),
   ];
 };
 

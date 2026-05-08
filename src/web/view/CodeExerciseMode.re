@@ -105,7 +105,7 @@ module Model = {
      group. */
   let get_problem_editors =
       (~instructor_mode: bool, model: t)
-      : list((option(string), CodeEditable.Model.t)) => {
+      : list((option(string), list(CodeEditable.Model.t))) => {
     let c = model.cells;
     let hidden_bug_labels =
       List.mapi(
@@ -137,7 +137,7 @@ module Model = {
     List.filter_map(
       ((pos, label, cell: CellEditor.Model.t)) =>
         CodeExercise.visible_in(pos, ~instructor_mode)
-          ? Some((Some(label), cell.editor)) : None,
+          ? Some((Some(label), [cell.editor])) : None,
       pairs,
     );
   };

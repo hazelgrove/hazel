@@ -239,26 +239,44 @@ let collect_all_problems = (ctx: problem_context): list(problem) => {
 
 /* ---------- Grouped multi-editor collection ---------- */
 
-/* Input for one editor contributing problems to the sidebar. `label` is
-   the display name shown as a section header when the collection has more
-   than one group; `None` for single-editor modes that don't need a label. */
-type editor_input = {
-  label: option(string),
+/* One editor contributing problems to a sidebar group. */
+type editor_source = {
   statics: CachedStatics.t,
   syntax: CachedSyntax.t,
 };
 
-/* Problems attributed to one editor, pre-sorted per category by position.
-   `measured` / `row_to_line` are carried so the view can render L# labels
-   and resolve caret positions using the originating editor's geometry. */
-type problem_group = {
+/* Input for one section of the Problems sidebar. `label` is the display
+   name shown as a section header when there is more than one group;
+   `None` for single-editor modes that don't need a label. `sources` is a
+   non-empty list of editors that all contribute to this section. When
+   multiple sources are provided (e.g. every Derivation tree judgement
+   editor under a single "Derivation" label), L# labels are suppressed
+   since "L1" would mean different things in each source. */
+type editor_group_input = {
   label: option(string),
+  sources: list(editor_source),
+};
+
+/* A problem paired with the geometry of the source editor it came from,
+   so the view can resolve fold-projector ancestors and render L# labels
+   without needing to know which editor in a group the problem originated
+   in. */
+type located_problem = {
+  problem,
   measured: Measured.t,
   row_to_line: int => option(int),
   /* See `problem_context.nearest_measured_id`. */
   nearest_measured_id: Id.t => option(Id.t),
-  pos: Id.t => Point.t,
-  problems_by_category: list((problem_category, list(problem))),
+  pos: Point.t,
+};
+
+/* Problems for one sidebar section. `single_source` is true iff the group
+   came from exactly one editor, and drives whether the view shows L#
+   labels. */
+type problem_group = {
+  label: option(string),
+  single_source: bool,
+  problems_by_category: list((problem_category, list(located_problem))),
   counts: list((problem_category, int)),
 };
 
@@ -269,43 +287,78 @@ type problem_collection = {
   counts: list((problem_category, int)),
 };
 
-/* Collect problems across several editors into a single coherent payload.
-   De-duplicates by `(id, category)` in caller-provided order — the first
-   editor to claim a given (id, category) keeps it. This handles editors
+/* Collect problems across several sidebar groups into a single coherent
+   payload. De-duplicates by `(id, category)` in caller-provided order
+   (groups in order, sources within each group in order) — the first
+   source to claim a given (id, category) keeps it. This handles editors
    that share an underlying zipper (e.g. exercise `user_tests` and
-   `test_validation` share `your_tests.tests`, so hole/syntax ids coincide):
-   shared structural problems land in exactly one group while any
-   context-specific static error still surfaces in the group where it
+   `test_validation` share `your_tests.tests`, so hole/syntax ids
+   coincide): shared structural problems land in exactly one group while
+   any context-specific static error still surfaces in the group where it
    actually occurs. */
 let make =
-    (~display_warnings: bool, editors: list(editor_input))
+    (~display_warnings: bool, inputs: list(editor_group_input))
     : problem_collection => {
   let seen: Hashtbl.t((Id.t, problem_category), unit) = Hashtbl.create(64);
+  let collect_source = (source: editor_source) => {
+    let ctx =
+      make_problem_context(
+        ~display_warnings,
+        ~statics=source.statics,
+        ~syntax=source.syntax,
+      );
+    let problems_by_category =
+      List.map(
+        cat => {
+          let deduped =
+            collect_category(ctx, cat)
+            |> List.of_seq
+            |> List.filter((p: problem) => {
+                 let key = (p.id, cat);
+                 if (Hashtbl.mem(seen, key)) {
+                   false;
+                 } else {
+                   Hashtbl.add(seen, key, ());
+                   true;
+                 };
+               });
+          let located =
+            sort_by_pos(ctx, deduped)
+            |> List.map(p =>
+                 {
+                   problem: p,
+                   measured: ctx.measured,
+                   row_to_line: ctx.row_to_line,
+                   nearest_measured_id: ctx.nearest_measured_id,
+                   pos: ctx.pos(p.id),
+                 }
+               );
+          (cat, located);
+        },
+        [Syntax, Hole, Static, Warning],
+      );
+    problems_by_category;
+  };
   let groups =
     List.map(
-      (input: editor_input) => {
-        let ctx =
-          make_problem_context(
-            ~display_warnings,
-            ~statics=input.statics,
-            ~syntax=input.syntax,
-          );
+      (input: editor_group_input) => {
+        let per_source = List.map(collect_source, input.sources);
+        /* For each category, concat the sources' problems in order.
+           Within each source, problems are already pos-sorted; across
+           sources we keep input order so "Tree 1" appears before "Tree 2"
+           in a merged Derivation section. */
         let problems_by_category =
           List.map(
             cat => {
-              let deduped =
-                collect_category(ctx, cat)
-                |> List.of_seq
-                |> List.filter((p: problem) => {
-                     let key = (p.id, cat);
-                     if (Hashtbl.mem(seen, key)) {
-                       false;
-                     } else {
-                       Hashtbl.add(seen, key, ());
-                       true;
-                     };
-                   });
-              (cat, sort_by_pos(ctx, deduped));
+              let lists =
+                List.map(
+                  pbc =>
+                    try(List.assoc(cat, pbc)) {
+                    | Not_found => []
+                    },
+                  per_source,
+                );
+              (cat, List.concat(lists));
             },
             [Syntax, Hole, Static, Warning],
           );
@@ -316,15 +369,12 @@ let make =
           );
         {
           label: input.label,
-          measured: ctx.measured,
-          row_to_line: ctx.row_to_line,
-          nearest_measured_id: ctx.nearest_measured_id,
-          pos: ctx.pos,
+          single_source: List.length(input.sources) <= 1,
           problems_by_category,
           counts,
         };
       },
-      editors,
+      inputs,
     );
   let counts =
     [Syntax, Hole, Static, Warning]

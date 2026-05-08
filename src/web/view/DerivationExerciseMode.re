@@ -165,28 +165,26 @@ module Model = {
      layout (premises above the conclusion); trees themselves are in
      display order. */
   let get_problem_editors =
-      (model: t): list((option(string), CodeEditable.Model.t)) => {
+      (model: t): list((option(string), list(CodeEditable.Model.t))) => {
     let rec postorder = (Tree.Node(v, c)) =>
       (c |> List.map(postorder) |> List.concat) @ [v];
-    let tree_entries =
+    let tree_editors =
       model.cells.trees
-      |> List.map(tree =>
+      |> List.concat_map(tree =>
            tree
            |> postorder
            |> List.filter_map(cell_opt =>
                 Option.map(
-                  (cell: CellEditor.Model.t) =>
-                    (Some("Derivation"), cell.editor),
+                  (cell: CellEditor.Model.t) => cell.editor,
                   cell_opt,
                 )
               )
-         )
-      |> List.concat;
+         );
     [
-      (Some("Prelude"), model.cells.prelude.editor),
-      (Some("Setup"), model.cells.setup.editor),
-    ]
-    @ tree_entries;
+      (Some("Prelude"), [model.cells.prelude.editor]),
+      (Some("Setup"), [model.cells.setup.editor]),
+      (Some("Derivation"), tree_editors),
+    ];
   };
 };
 

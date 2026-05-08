@@ -275,18 +275,26 @@ let view =
       ~editors: Editors.Model.t,
       ~selection: Editors.Selection.t,
       ~editor: CodeWithStatics.Model.t,
-      ~problem_editors: list((option(string), CodeWithStatics.Model.t)),
+      ~problem_editors:
+         list((option(string), list(CodeWithStatics.Model.t))),
       ~signal,
     ) => {
   let problem_collection =
     Haz3lcore.ProblemCollection.make(
       ~display_warnings=globals.settings.core.display_warnings,
       List.map(
-        ((label, e: CodeWithStatics.Model.t)) =>
+        ((label, editors: list(CodeWithStatics.Model.t))) =>
           Haz3lcore.ProblemCollection.{
             label,
-            statics: e.statics,
-            syntax: e.editor.syntax,
+            sources:
+              List.map(
+                (e: CodeWithStatics.Model.t) =>
+                  Haz3lcore.ProblemCollection.{
+                    statics: e.statics,
+                    syntax: e.editor.syntax,
+                  },
+                editors,
+              ),
           },
         problem_editors,
       ),

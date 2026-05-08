@@ -91,13 +91,13 @@ module Update = {
      DerivationExerciseMode.Model.get_problem_editors so Prelude / Setup /
      each tree judgement node all contribute their problems. */
   let get_problem_editors =
-      (model: Model.t): list((option(string), CodeEditable.Model.t)) => {
+      (model: Model.t): list((option(string), list(CodeEditable.Model.t))) => {
     let scratchpad_editors =
         (m: ScratchMode.Model.t)
-        : list((option(string), CodeEditable.Model.t)) => {
+        : list((option(string), list(CodeEditable.Model.t))) => {
       let sp = List.nth(m.scratchpads, m.current);
       switch (sp.kind) {
-      | Code({editor, _}) => [(None, editor.editor)]
+      | Code({editor, _}) => [(None, [editor.editor])]
       | Drv(dm) => DerivationExerciseMode.Model.get_problem_editors(dm)
       };
     };
@@ -105,7 +105,7 @@ module Update = {
     | Scratch(m) => scratchpad_editors(m)
     | Documentation(m) => scratchpad_editors(m)
     | Tutorial(m) => [
-        (None, List.nth(m.exercises, m.current).cells.user_impl.editor),
+        (None, [List.nth(m.exercises, m.current).cells.user_impl.editor]),
       ]
     | Exercises(m) =>
       ExercisesMode.Model.get_problem_editors(
