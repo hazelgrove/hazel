@@ -337,17 +337,17 @@ let make =
            order across sources. */
         let problems_by_category =
           List.map(
-            cat => {
-              let lists =
-                List.map(
+            cat =>
+              (
+                cat,
+                List.concat_map(
                   pbc =>
                     try(List.assoc(cat, pbc)) {
                     | Not_found => []
                     },
                   per_source,
-                );
-              (cat, List.concat(lists));
-            },
+                ),
+              ),
             [Syntax, Hole, Static, Warning],
           );
         let counts =
@@ -357,7 +357,12 @@ let make =
           );
         {
           label: input.label,
-          single_source: List.length(input.sources) <= 1,
+          single_source:
+            switch (input.sources) {
+            | []
+            | [_] => true
+            | _ => false
+            },
           problems_by_category,
           counts,
         };
