@@ -89,14 +89,8 @@ let make_problem_context =
         col: max_int,
       }
     };
-  /* An editor's statics may be computed over a stitched term that spans
-     multiple editors (e.g. Exercise mode's `user_tests` statics covers
-     `user_impl_term ⊕ your_tests.tests`). Filter error/warning ids to
-     those whose piece actually lives in *this* editor's segment; otherwise
-     a type error in `your_impl` would leak into the "Your Tests" group.
-     Using TermData (not Measured) so ids hidden under a projector — which
-     are absent from `measured` but still part of the term — are correctly
-     recognized as belonging to this editor. */
+  /* Statics may span multiple editors; restrict ids to this editor's
+     own term so problems don't leak across groups. */
   let id_in_this_editor = id =>
     TermData.root_piece(id, syntax.term_data) != None;
   /* Partition error_ids into syntax and static in a single pass */
@@ -245,13 +239,8 @@ type editor_source = {
   syntax: CachedSyntax.t,
 };
 
-/* Input for one section of the Problems sidebar. `label` is the display
-   name shown as a section header when there is more than one group;
-   `None` for single-editor modes that don't need a label. `sources` is a
-   non-empty list of editors that all contribute to this section. When
-   multiple sources are provided (e.g. every Derivation tree judgement
-   editor under a single "Derivation" label), L# labels are suppressed
-   since "L1" would mean different things in each source. */
+/* Input for one section of the Problems sidebar. Multiple sources merge
+   into one section; L# labels are suppressed when there's more than one. */
 type editor_group_input = {
   label: option(string),
   sources: list(editor_source),
@@ -312,8 +301,7 @@ let make =
         cat => {
           let deduped =
             collect_category(ctx, cat)
-            |> List.of_seq
-            |> List.filter((p: problem) => {
+            |> Seq.filter((p: problem) => {
                  let key = (p.id, cat);
                  if (Hashtbl.mem(seen, key)) {
                    false;
@@ -321,9 +309,10 @@ let make =
                    Hashtbl.add(seen, key, ());
                    true;
                  };
-               });
+               })
+            |> List.of_seq;
           let located =
-            sort_by_pos(ctx, deduped)
+            deduped
             |> List.map(p =>
                  {
                    problem: p,
@@ -332,7 +321,8 @@ let make =
                    nearest_measured_id: ctx.nearest_measured_id,
                    pos: ctx.pos(p.id),
                  }
-               );
+               )
+            |> List.sort((a, b) => compare(a.pos, b.pos));
           (cat, located);
         },
         [Syntax, Hole, Static, Warning],
@@ -343,10 +333,8 @@ let make =
     List.map(
       (input: editor_group_input) => {
         let per_source = List.map(collect_source, input.sources);
-        /* For each category, concat the sources' problems in order.
-           Within each source, problems are already pos-sorted; across
-           sources we keep input order so "Tree 1" appears before "Tree 2"
-           in a merged Derivation section. */
+        /* Concat per-source problems per category, preserving input
+           order across sources. */
         let problems_by_category =
           List.map(
             cat => {

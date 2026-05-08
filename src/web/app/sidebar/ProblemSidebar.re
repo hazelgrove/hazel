@@ -390,7 +390,8 @@ let view =
       List.map(
         (g: problem_group) => {
           let label = Option.value(g.label, ~default="");
-          let total = List.fold_left((n, (_, c)) => n + c, 0, g.counts);
+          let total =
+            g.counts |> List.to_seq |> Seq.map(snd) |> Seq.fold_left((+), 0);
           let collapsed =
             SidebarModel.Settings.is_editor_collapsed(
               label,

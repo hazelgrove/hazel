@@ -86,10 +86,7 @@ module Update = {
   };
 
   /* Editors feeding the Problems sidebar, paired with display labels.
-     `None` for single-editor modes that don't need a section header. Drv
-     scratchpads / documentation slides reuse
-     DerivationExerciseMode.Model.get_problem_editors so Prelude / Setup /
-     each tree judgement node all contribute their problems. */
+     `None` labels indicate no section header. */
   let get_problem_editors =
       (model: Model.t): list((option(string), list(CodeEditable.Model.t))) => {
     let scratchpad_editors =

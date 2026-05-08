@@ -167,7 +167,7 @@ module Model = {
   let get_problem_editors =
       (model: t): list((option(string), list(CodeEditable.Model.t))) => {
     let rec postorder = (Tree.Node(v, c)) =>
-      (c |> List.map(postorder) |> List.concat) @ [v];
+      List.concat_map(postorder, c) @ [v];
     let tree_editors =
       model.cells.trees
       |> List.concat_map(tree =>

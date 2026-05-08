@@ -87,22 +87,10 @@ module Model = {
     };
   };
 
-  /* Editors whose problems should appear in the Problems sidebar, each
-     paired with a display label shown as a section header when multiple
-     groups are present. Filtered by the same predicate
-     `Selection.jump_to_tile` uses, so the sidebar only lists problems the
-     user can actually click into.
-
-     Ordering matters: `ProblemCollection.make` de-duplicates by
-     `(id, category)` with first-wins. `test_validation` and `user_tests`
-     share the same underlying zipper (`your_tests.tests`), so we list
-     `test_validation` first. This makes shared hole/syntax ids land in
-     the "Test Validation" group, matching where jump-to-tile routes
-     (CodeExercise.editor_positions lists YourTestsValidation before
-     YourTestsTesting for the same reason). `user_tests`'s unique static
-     errors (when the tests are evaluated against the student's
-     implementation) still surface in the "Implementation Validation"
-     group. */
+  /* Editors whose problems appear in the Problems sidebar.
+     `test_validation` precedes `user_tests` so first-wins dedup in
+     `ProblemCollection.make` puts shared ids in "Test Validation",
+     matching jump-to-tile routing. */
   let get_problem_editors =
       (~instructor_mode: bool, model: t)
       : list((option(string), list(CodeEditable.Model.t))) => {
