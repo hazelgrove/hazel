@@ -108,10 +108,11 @@ module Model = {
     prefix ++ TheoremExercise.show_spec(spec) ++ "\n";
   };
 
-  let get_problem_editors = (model: t): list((string, CodeEditable.Model.t)) => [
-    ("Prelude", model.cells.prelude.editor),
-    ("Lemmas", model.cells.lemmas.editor),
-    ("Theorem", model.cells.theorem.editor),
+  let get_problem_editors =
+      (model: t): list((option(string), CodeEditable.Model.t)) => [
+    (Some("Prelude"), model.cells.prelude.editor),
+    (Some("Lemmas"), model.cells.lemmas.editor),
+    (Some("Theorem"), model.cells.theorem.editor),
   ];
 };
 

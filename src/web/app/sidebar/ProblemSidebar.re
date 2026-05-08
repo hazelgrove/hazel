@@ -62,6 +62,9 @@ let problem_status_view = (~globals, ci: Language.Info.t): Node.t =>
     CursorInspector.typ_view(~globals, cls, ~marks, ~message)
   | InfoTPat({cls, marks, message, _}) =>
     CursorInspector.tpat_view(~globals, cls, ~marks, ~message)
+  /* InfoDrv has no marks and routes errors through its own renderer, so
+     defer entirely to the cursor inspector's drv_view rather than building
+     a generic problem-row from cls/marks/message like the cases above. */
   | InfoDrv(ci) => DrvCursorInspector.drv_view(~globals, ci)
   | InfoMod({cls, _})
   | InfoSig({cls, _})
@@ -357,7 +360,8 @@ let view =
          )
       |> List.map(render);
     } else {
-      let label = (List.hd(run): problem_group).label;
+      let label =
+        Option.value((List.hd(run): problem_group).label, ~default="");
       let categories =
         (List.hd(run): problem_group).problems_by_category |> List.map(fst);
       List.filter_map(
@@ -431,7 +435,8 @@ let view =
          refer to a different editor. */
       cluster_by_label(gs)
       |> List.map(run => {
-           let label = (List.hd(run): problem_group).label;
+           let label =
+             Option.value((List.hd(run): problem_group).label, ~default="");
            let total =
              List.fold_left(
                (n, g: problem_group) =>

@@ -275,7 +275,7 @@ let view =
       ~editors: Editors.Model.t,
       ~selection: Editors.Selection.t,
       ~editor: CodeWithStatics.Model.t,
-      ~problem_editors: list((string, CodeWithStatics.Model.t)),
+      ~problem_editors: list((option(string), CodeWithStatics.Model.t)),
       ~signal,
     ) => {
   let problem_collection =

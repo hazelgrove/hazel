@@ -86,16 +86,18 @@ module Update = {
   };
 
   /* Editors feeding the Problems sidebar, paired with display labels.
-     Labels are only shown when there are multiple groups, so single-editor
-     modes pass an empty label. Drv scratchpads / documentation slides
-     reuse DerivationExerciseMode.Model.get_problem_editors so Prelude /
-     Setup / each tree judgement node all contribute their problems. */
+     `None` for single-editor modes that don't need a section header. Drv
+     scratchpads / documentation slides reuse
+     DerivationExerciseMode.Model.get_problem_editors so Prelude / Setup /
+     each tree judgement node all contribute their problems. */
   let get_problem_editors =
-      (model: Model.t): list((string, CodeEditable.Model.t)) => {
-    let scratchpad_editors = (m: ScratchMode.Model.t) => {
+      (model: Model.t): list((option(string), CodeEditable.Model.t)) => {
+    let scratchpad_editors =
+        (m: ScratchMode.Model.t)
+        : list((option(string), CodeEditable.Model.t)) => {
       let sp = List.nth(m.scratchpads, m.current);
       switch (sp.kind) {
-      | Code({editor, _}) => [("", editor.editor)]
+      | Code({editor, _}) => [(None, editor.editor)]
       | Drv(dm) => DerivationExerciseMode.Model.get_problem_editors(dm)
       };
     };
@@ -103,7 +105,7 @@ module Update = {
     | Scratch(m) => scratchpad_editors(m)
     | Documentation(m) => scratchpad_editors(m)
     | Tutorial(m) => [
-        ("", List.nth(m.exercises, m.current).cells.user_impl.editor),
+        (None, List.nth(m.exercises, m.current).cells.user_impl.editor),
       ]
     | Exercises(m) =>
       ExercisesMode.Model.get_problem_editors(

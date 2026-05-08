@@ -216,14 +216,10 @@ module Model = {
 
   /* Editors whose problems should appear in the Problems sidebar, each
      paired with a display label shown as a section header when multiple
-     groups are present. For Code we surface the visible-in-mode cells
-     (Prelude, Test Validation, etc.). For Derivation we surface Prelude,
-     Setup, and every reachable tree judgement node (each labeled
-     "Derivation N.path"). For Theorem we surface Prelude, Lemmas, and
-     Theorem. */
+     groups are present. */
   let get_problem_editors =
       (~instructor_mode: bool, model: t)
-      : list((string, CodeEditable.Model.t)) => {
+      : list((option(string), CodeEditable.Model.t)) => {
     let current = List.nth(model.exercises, model.current);
     switch (current) {
     | Code(e) =>

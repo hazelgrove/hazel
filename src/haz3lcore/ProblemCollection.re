@@ -241,9 +241,9 @@ let collect_all_problems = (ctx: problem_context): list(problem) => {
 
 /* Input for one editor contributing problems to the sidebar. `label` is
    the display name shown as a section header when the collection has more
-   than one group. */
+   than one group; `None` for single-editor modes that don't need a label. */
 type editor_input = {
-  label: string,
+  label: option(string),
   statics: CachedStatics.t,
   syntax: CachedSyntax.t,
 };
@@ -252,7 +252,7 @@ type editor_input = {
    `measured` / `row_to_line` are carried so the view can render L# labels
    and resolve caret positions using the originating editor's geometry. */
 type problem_group = {
-  label: string,
+  label: option(string),
   measured: Measured.t,
   row_to_line: int => option(int),
   /* See `problem_context.nearest_measured_id`. */
