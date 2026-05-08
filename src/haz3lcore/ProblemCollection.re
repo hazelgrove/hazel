@@ -374,17 +374,14 @@ let make =
     |> List.map(cat =>
          (
            cat,
-           List.fold_left(
-             (n, g: problem_group) =>
-               n
-               + (
-                 try(List.assoc(cat, g.counts)) {
-                 | Not_found => 0
-                 }
-               ),
-             0,
-             groups,
-           ),
+           groups
+           |> List.to_seq
+           |> Seq.map((g: problem_group) =>
+                try(List.assoc(cat, g.counts)) {
+                | Not_found => 0
+                }
+              )
+           |> Seq.fold_left((+), 0),
          )
        );
   {
