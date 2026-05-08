@@ -20,7 +20,7 @@ open Language;
  * - Parens inside probe: ^^probe((expr)) loses the ID due to parens stripping
  *   during elaboration. Parens *outside* probe are fine.
  *
- * - TypFun: Hits `[failure] patterns should be handled separately in substitution`
+ * - TypAbs: Hits `[failure] patterns should be handled separately in substitution`
  *   - a polymorphism evaluation bug, not a probe issue.
  *
  * - Fun with ascription: Function values get Fold projectors automatically

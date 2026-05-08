@@ -56,7 +56,7 @@ let assign_name_if_none = (t, name) => {
   let (term, rewrap) = unwrap(t);
   switch (term) {
   | Fun(arg, body, typ, None) => Fun(arg, body, typ, name) |> rewrap
-  | TypFun(utpat, body, None) => TypFun(utpat, body, name) |> rewrap
+  | TypAbs(utpat, body, None) => TypAbs(utpat, body, name) |> rewrap
   | _ => t
   };
 };
@@ -70,15 +70,18 @@ let ty_subst = (s: Typ.t, tpat: TPat.t, exp: t): t => {
       ~f_exp=
         (continue, exp) =>
           switch (term_of(exp)) {
-          | TypFun(utpat, _, _) =>
-            switch (TPat.tyvar_of_utpat(utpat)) {
-            | Some(x') when x == x' => exp
-            | Some(_)
-            | None => continue(exp)
-            /* Capture avoidance inside embedded types is handled by
-               `Typ.subst`, which alpha-renames clashing binders. The
-               `TypFun` binder here is on the expression side, not the
-               type side, so it cannot capture free type variables in `s`. */
+          | TypAbs(utpat, _, _) =>
+            /* `utpat` may itself be a `TPat.Tuple([…])` for multi-binder
+               typfuns. The binder shadows `x` if any of its element names
+               equals `x`. Capture avoidance inside embedded types is
+               handled by `Typ.subst`, which alpha-renames clashing
+               binders. The `TypAbs` binder here is on the expression
+               side, not the type side, so it cannot capture free type
+               variables in `s`. */
+            if (List.mem(x, TPat.tyvars_of(utpat))) {
+              exp;
+            } else {
+              continue(exp);
             }
           | Asc(_)
           | FixF(_)
@@ -132,6 +135,19 @@ let ty_subst = (s: Typ.t, tpat: TPat.t, exp: t): t => {
   };
 };
 
+/* Substitute a list of types for a corresponding list of binders all
+   at once. Used for reducing `TypAp(TypAbs(TPat.Tuple([a, b, …]),
+   body, _), TypTuple([t1, t2, …]))` and the analogous `Poly` schema
+   specialization in a single step. The lists must have the same
+   length; the caller is expected to enforce that. */
+let ty_subst_many = (args: list(Typ.t), binders: list(TPat.t), exp: t): t =>
+  List.fold_left2(
+    (exp, arg, binder) => ty_subst(arg, binder, exp),
+    exp,
+    args,
+    binders,
+  );
+
 let rec ty_comparable = (d1, d2) => {
   switch (term_of(d1), term_of(d2)) {
   | (Invalid(_), _)
@@ -165,7 +181,7 @@ let rec ty_comparable = (d1, d2) => {
   | (LivelitName(_), _)
   | (Fun(_), _)
   | (BuiltinFun(_), _)
-  | (TypFun(_), _)
+  | (TypAbs(_), _)
   | (TupleExtension(_), _) => false
   | (Parens(d1), _) => ty_comparable(d1, d2)
   | (_, Parens(d2)) => ty_comparable(d1, d2)
@@ -269,7 +285,7 @@ let rec poly_equal = (d1, d2): option(bool) => {
   | (Dot(_), _)
   | (LivelitName(_), _)
   | (Fun(_), _)
-  | (TypFun(_), _)
+  | (TypAbs(_), _)
   | (Use(_), _)
   | (BuiltinFun(_), _) => None
 

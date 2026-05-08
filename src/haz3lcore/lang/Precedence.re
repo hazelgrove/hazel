@@ -24,6 +24,11 @@ let right_associative = (level: t) => {
 
 let max: t = 0;
 
+// `M.T` qualified access (and expression-level `m.x` field access)
+// must bind tighter than the type-level postfix application `T(Int)`,
+// so `M.T(Int)` parses as `(M.T)(Int)` rather than `M.(T(Int))`.
+let dot = 10 |> left_associative;
+
 // ========== TYPES ==========
 let type_sum_ap = 11;
 // _____ (Int)
@@ -41,8 +46,8 @@ let type_binder = 15;
 // ======== PATTERNS =========
 // ======= EXPRESSIONS =======
 
-// $_____
-let dot = 22 |> left_associative;
+// $_____ (dot is now defined above the TYPES section so it can bind
+// tighter than the type-level postfix `T(Int)`).
 let ap = 23;
 // _____(x)
 // 5 : _____

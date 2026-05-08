@@ -3,7 +3,9 @@
 # Extra arguments are forwarded to the test runner.
 #
 # When IDB_STUB and TEST_JS env vars are set (by dune), uses those paths.
-# Otherwise resolves paths from _build/default/test/.
+# Otherwise resolves paths from _build/default/test/. Dune's `test/dune`
+# uses `(copy_files idb_stub.js)` so the stub is always mirrored to the
+# build directory alongside the compiled JS.
 #
 # Node.js flags:
 #  --stack-size=8192: increase stack to 8MB for deeply recursive tests

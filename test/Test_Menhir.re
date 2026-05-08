@@ -218,7 +218,41 @@ let tests =
       full_parser_test("Bool Literal", bool(true), "true"),
       full_parser_test("Empty Hole", empty_hole(), "?"),
       full_parser_test("Var", var("x"), "x"),
+      full_parser_test("Var with prime", var("x'"), "x'"),
+      full_parser_test("Var with double prime", var("x''"), "x''"),
+      full_parser_test(
+        "Constructor with prime",
+        constructor("Some'", None),
+        "Some'",
+      ),
+      full_parser_test(
+        "Type alias with prime",
+        ty_alias(
+          TPat.var("T'"),
+          Typ.int(),
+          let_(Pat.asc(Pat.var("x"), Typ.var("T'")), int(3), var("x")),
+        ),
+        "type T' = Int in let x : T' = 3 in x",
+      ),
       full_parser_test("Parens", parens(var("y")), "(y)"),
+      /* Value-level type abstraction: `abs` (formerly `typfun`). */
+      full_parser_test(
+        "abs (value-level type abstraction)",
+        typ_abs(TPat.var("a"), var("x"), None),
+        "abs a -> x",
+      ),
+      /* Type-level type function: `typfun a -> body` builds a
+         `TypFun(a, body)` and is the prefix-binder spelling of
+         `type T(a) = body`. */
+      full_parser_test(
+        "typfun (type-level) used as alias body",
+        ty_alias(
+          TPat.var("T"),
+          Typ.typ_fun(TPat.var("a"), Typ.var("a")),
+          var("x"),
+        ),
+        "type T = typfun a -> a in x",
+      ),
       full_parser_test(
         "bin_op",
         bin_op(Int(Plus), int(4), int(5)),
@@ -284,6 +318,29 @@ let tests =
         "Type Alias",
         ty_alias(TPat.var("x"), Typ.int(), int(1)),
         "type x = Int in 1",
+      ),
+      full_parser_test(
+        "Parameterized type alias",
+        ty_alias(
+          TPat.param(TPat.var("Option"), [TPat.var("a")]),
+          Typ.sum([
+            Variant("None", ConstructorMap.empty_variant_ann, None),
+            Variant(
+              "Some",
+              ConstructorMap.empty_variant_ann,
+              Some(Typ.var("a")),
+            ),
+          ]),
+          let_(
+            Pat.asc(
+              Pat.var("x"),
+              Typ.typ_param_ap(Typ.var("Option"), Typ.int()),
+            ),
+            ap(Forward, constructor("Some", None), int(3)),
+            var("x"),
+          ),
+        ),
+        "type Option(a) = + None + Some(a) in let x : Option(Int) = Some(3) in x",
       ),
       full_parser_test(
         "Test",
@@ -558,16 +615,16 @@ let exp_equal: (Exp, Exp) -> Bool =
 in
 
 let poly_id: (poly a -> (a -> a)) =
-  (typfun a -> (fun (x : a) -> x))
+  (abs a -> (fun (x : a) -> x))
 in
 let apply_both:
 poly a -> poly b -> (poly c -> c -> c) -> ((a, b) -> (a, b)) =
-  typfun a -> typfun b ->
+  abs a -> abs b ->
     fun (f : poly c -> (c -> c)) ->
       fun ((x, y) : (a, b)) -> (f@<a>(x), f@<b>(y))
 in
 let list_length: poly a -> ([a] -> Int) =
-  typfun a -> fun (l : [a]) ->
+  abs a -> fun (l : [a]) ->
     case l
       | [] => 0
       | hd::tl => 1 + list_length@<a>(tl)
@@ -723,17 +780,17 @@ Ok(Lam("bro", Var("bro")))) end
         // Variable names are renamed due to lexing overtaking e, t, p, and tp
         ~speed_level=`Slow,
         "Altered Documentation Buffer: Polymorphism",
-        {|let id = typfun A -> (fun (x : A) -> x) in
+        {|let id = abs A -> (fun (x : A) -> x) in
 let ex1 = id@<Int>(1) in
 let const : poly A -> (poly B -> (A -> B -> A)) =
-typfun A -> (typfun B -> (fun x -> fun y -> x)) in
+abs A -> (abs B -> (fun x -> fun y -> x)) in
 let ex2 = const@<Int>@<String>(2)("Hello World") in
 let apply_both : poly A -> poly B -> (poly D -> D -> D) -> (A , B) -> (A , B) =
-typfun A -> typfun B -> fun f -> fun (x, y) -> (f@<A>(x), f@<B>(y)) in
+abs A -> abs B -> fun f -> fun (x, y) -> (f@<A>(x), f@<B>(y)) in
 let ex3 = apply_both@<Int>@<String>(id)(3, "Hello World") in
-let emptylist : poly A -> [A] = typfun A -> [] in
+let emptylist : poly A -> [A] = abs A -> [] in
 let map : poly A -> poly B -> (A -> B) -> ([A] -> [B]) =
-  typfun A -> typfun B -> fun (f : (A -> B)) -> fun (l : [A]) ->
+  abs A -> abs B -> fun (f : (A -> B)) -> fun (l : [A]) ->
     case l
       | (h :: a) => f(h) :: map@<A>@<B>(f)(a)
       | _ => emptylist@<B>
@@ -872,6 +929,10 @@ let ex5 = list_of_mylist(x) in
         "Capitalized name in dot RHS",
         Fresh.Exp.(dot(var("m"), label("X"))),
         {|m.X|},
+      ),
+      menhir_maketerm_equivalent_test(
+        "Module with bare empty hole and parameterized type aliases",
+        "{ ?; type c(e, k, s) = String; type r(q) = Float }",
       ),
       QCheck_alcotest.to_alcotest(qcheck_menhir_maketerm_equivalent_test),
       QCheck_alcotest.to_alcotest(qcheck_menhir_serialized_equivalent_test),

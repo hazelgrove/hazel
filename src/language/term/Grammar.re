@@ -40,7 +40,7 @@ and exp_term('a) =
      this field is None.*/
   | Constructor(string, option(option(typ_t('a))))
   | Fun(pat_t('a), exp_t('a), option(typ_t('a)), option(Var.t)) // typ_t field is only used to display types in results
-  | TypFun(tpat_t('a), exp_t('a), option(Var.t))
+  | TypAbs(tpat_t('a), exp_t('a), option(Var.t))
   | Tuple(list(exp_t('a)))
   | Label(string)
   | ExplicitNonlabel
@@ -103,6 +103,19 @@ and typ_term('a) =
   | Var(string)
   | List(typ_t('a))
   | Arrow(typ_t('a), typ_t('a))
+  | TypFun(tpat_t('a), typ_t('a))
+  | TypParamAp(typ_t('a), typ_t('a))
+  /* TypTuple is the multi-argument bundle for type parameter
+     applications like `Either(a, b)`. It only appears as the second
+     argument of `TypParamAp` and never as a stand-alone type — it has
+     no kind by
+     itself; its arguments must match the tuple-arrow kind of the
+     callee. Single-argument applications and applications whose
+     argument is itself a parenthesized tuple use plain `TypParamAp(T, t)`
+     without `TypTuple` (so `Either((Int, Bool))` is a partial
+     application of `Either` to a `Prod`, distinct from `Either(Int,
+     Bool)` which becomes `TypParamAp(Either, TypTuple([Int, Bool]))`). */
+  | TypTuple(list(typ_t('a)))
   | Sum(ConstructorMap.t(typ_t('a)))
   | Prod(list(typ_t('a)))
   | ExplicitNonlabel
@@ -122,6 +135,22 @@ and tpat_term('a) =
   | EmptyHole
   | MultiHole(list(any_t('a)))
   | Var(string)
+  | Param(tpat_t('a), list(tpat_t('a)))
+  /* Tuple is a multi-binder type pattern, used as the binder of `Poly`,
+     `TypAbs`, `TypFun`, and `Rec` when the user wrote a comma-separated
+     list of binders, e.g. `poly a, b -> t` parses as
+     `Poly(TPat.Tuple([a, b]), t)` and `typfun a, b -> e` parses as
+     `TypAbs(TPat.Tuple([a, b]), e, _)`. The corresponding type-level
+     application supplies a `TypTuple` argument of matching arity, and
+     substitution / reduction zip the pair element-by-element. Tuple
+     never appears as a stand-alone tpat outside a binder position. */
+  | Tuple(list(tpat_t('a)))
+  /* Parens is a transparent wrapper for displaying the user's
+     parenthesization, e.g. `poly (a, b) -> …` parses as
+     `Poly(Parens(Tuple([a, b])), …)`. Semantic operations
+     (`tyvars_of`, `binders_of`, etc.) look through it; the
+     structured-editor pretty-printer renders it as `(…)`. */
+  | Parens(tpat_t('a))
 and tpat_t('a) = Annotated.t(tpat_term('a), 'a)
 and rul_term('a) =
   | Invalid(string)
@@ -196,8 +225,8 @@ let rec map_exp_annotation: type a b. (a => b, exp_t(a)) => exp_t(b) =
             Option.map(x => map_typ_annotation(f, x), t),
             Option.map(x => x, v),
           )
-        | TypFun(p, e, v) =>
-          TypFun(map_tpat_annotation(f, p), map_exp_annotation(f, e), v)
+        | TypAbs(p, e, v) =>
+          TypAbs(map_tpat_annotation(f, p), map_exp_annotation(f, e), v)
         | Tuple(l) => Tuple(List.map(x => map_exp_annotation(f, x), l))
         | Label(l) => Label(l)
         | ExplicitNonlabel => ExplicitNonlabel
@@ -366,6 +395,12 @@ and map_typ_annotation: 'a 'b. ('a => 'b, typ_t('a)) => typ_t('b) =
         | List(t) => List(map_typ_annotation(f, t))
         | Arrow(t1, t2) =>
           Arrow(map_typ_annotation(f, t1), map_typ_annotation(f, t2))
+        | TypFun(tp, t) =>
+          TypFun(map_tpat_annotation(f, tp), map_typ_annotation(f, t))
+        | TypParamAp(t1, t2) =>
+          TypParamAp(map_typ_annotation(f, t1), map_typ_annotation(f, t2))
+        | TypTuple(ts) =>
+          TypTuple(List.map(x => map_typ_annotation(f, x), ts))
         | Parens(t) => Parens(map_typ_annotation(f, t))
         | Projector(data, t) => Projector(data, map_typ_annotation(f, t))
         | Rec(tp, t) =>
@@ -407,6 +442,13 @@ and map_tpat_annotation: 'a 'b. ('a => 'b, tpat_t('a)) => tpat_t('b) =
         | MultiHole(l) =>
           MultiHole(List.map(x => map_any_annotation(f, x), l))
         | Var(s) => Var(s)
+        | Param(head, params) =>
+          Param(
+            map_tpat_annotation(f, head),
+            List.map(x => map_tpat_annotation(f, x), params),
+          )
+        | Tuple(l) => Tuple(List.map(x => map_tpat_annotation(f, x), l))
+        | Parens(tp) => Parens(map_tpat_annotation(f, tp))
         },
       annotation: new_annotation,
     };
@@ -624,8 +666,8 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       term: Fun(p, e, t, v),
       annotation: default_annotation(ann),
     };
-    let typ_fun = (~ann=?, p, e, v): exp_t(DefaultAnnotation.t) => {
-      term: TypFun(p, e, v),
+    let typ_abs = (~ann=?, p, e, v): exp_t(DefaultAnnotation.t) => {
+      term: TypAbs(p, e, v),
       annotation: default_annotation(ann),
     };
     let tuple = (~ann=?, l): exp_t(DefaultAnnotation.t) => {
@@ -916,6 +958,18 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       term: Arrow(t1, t2),
       annotation: default_annotation(ann),
     };
+    let typ_fun = (~ann=?, tp, t): typ_t(DefaultAnnotation.t) => {
+      term: TypFun(tp, t),
+      annotation: default_annotation(ann),
+    };
+    let typ_param_ap = (~ann=?, t1, t2): typ_t(DefaultAnnotation.t) => {
+      term: TypParamAp(t1, t2),
+      annotation: default_annotation(ann),
+    };
+    let typ_tuple = (~ann=?, ts): typ_t(DefaultAnnotation.t) => {
+      term: TypTuple(ts),
+      annotation: default_annotation(ann),
+    };
     let sum = (~ann=?, m): typ_t(DefaultAnnotation.t) => {
       term: Sum(m),
       annotation: default_annotation(ann),
@@ -985,6 +1039,18 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
     };
     let var = (~ann=?, s): tpat_t(DefaultAnnotation.t) => {
       term: Var(s),
+      annotation: default_annotation(ann),
+    };
+    let param = (~ann=?, head, params): tpat_t(DefaultAnnotation.t) => {
+      term: Param(head, params),
+      annotation: default_annotation(ann),
+    };
+    let tuple = (~ann=?, tps): tpat_t(DefaultAnnotation.t) => {
+      term: Tuple(tps),
+      annotation: default_annotation(ann),
+    };
+    let parens = (~ann=?, tp): tpat_t(DefaultAnnotation.t) => {
+      term: Parens(tp),
       annotation: default_annotation(ann),
     };
   };

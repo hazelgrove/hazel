@@ -141,7 +141,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
          a245465f-8800-4738-9f2f-0580b1acd043)(content(Whitespace\" \
          \")))))((Secondary((id \
          dcbc3ab2-40f0-4a2e-8315-4e8076ba0dd5)(content(Whitespace\" \
-         \"))))(Tile((id eb870342-0a4e-4eaf-bbc6-e58876301f2d)(label(typfun \
+         \"))))(Tile((id eb870342-0a4e-4eaf-bbc6-e58876301f2d)(label(abs \
          ->))(mold((out Exp)(in_(TPat))(nibs(((shape Convex)(sort \
          Exp))((shape(Concave 37))(sort Exp))))))(shards(0 \
          1))(children(((Secondary((id \
@@ -236,7 +236,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
          0bfcfcfc-77ef-4bc4-b3fc-b82ae23aaa0e)(content(Whitespace\" \
          \")))))((Secondary((id \
          849bc324-7b81-4435-b037-fe0a6828b5f4)(content(Whitespace\" \
-         \"))))(Tile((id f520d04d-3bfd-4a3c-8261-832e2e781274)(label(typfun \
+         \"))))(Tile((id f520d04d-3bfd-4a3c-8261-832e2e781274)(label(abs \
          ->))(mold((out Exp)(in_(TPat))(nibs(((shape Convex)(sort \
          Exp))((shape(Concave 37))(sort Exp))))))(shards(0 \
          1))(children(((Secondary((id \
@@ -672,8 +672,8 @@ let out : string * Haz3lcore.PersistentSegment.t =
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
          2bc84e8f-ba23-45c3-9dd2-89036d489462)(label(.))(mold((out \
-         Exp)(in_())(nibs(((shape(Concave 22))(sort Exp))((shape(Concave \
-         22))(sort Exp))))))(shards(0))(children())))(Tile((id \
+         Exp)(in_())(nibs(((shape(Concave 10))(sort Exp))((shape(Concave \
+         10))(sort Exp))))))(shards(0))(children())))(Tile((id \
          44fbb4e4-454f-4947-b3c8-64faa6c142f1)(label(age))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
@@ -935,9 +935,9 @@ let out : string * Haz3lcore.PersistentSegment.t =
          ] in\n\
          #Hazel tables are lists; so vcat is just list concatenation. This is \
          also the same as add_rows#\n\
-         let vcat = typfun r -> fun (t1:[r], t2:[r]) -> t1 @ t2 in\n\n\n\
+         let vcat = abs r -> fun (t1:[r], t2:[r]) -> t1 @ t2 in\n\n\n\
          test \n\
-        \  let update  = typfun row -> fun (t1:[row], f:(row -> ?)) ->       \
+        \  let update  = abs row -> fun (t1:[row], f:(row -> ?)) ->       \
          map(t1, fun (r : row) -> (r : ?) ... f(r)) : [?] in\n\
         \  type Student = (name=String, age=Int, favorite_color=String) in\n\
         \  let students : [Student] = [\n\

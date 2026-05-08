@@ -582,7 +582,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
          b33f43f7-7416-4379-a11a-26da786b149c)(content(Whitespace\" \
          \")))))((Secondary((id \
          2d25211b-860a-4d01-9836-16b3dc9af3e6)(content(Whitespace\" \
-         \"))))(Tile((id ef7b95f1-9203-4f9f-9e61-312eaa972549)(label(typfun \
+         \"))))(Tile((id ef7b95f1-9203-4f9f-9e61-312eaa972549)(label(abs \
          ->))(mold((out Exp)(in_(TPat))(nibs(((shape Convex)(sort \
          Exp))((shape(Concave 37))(sort Exp))))))(shards(0 \
          1))(children(((Secondary((id \
@@ -789,8 +789,8 @@ let out : string * Haz3lcore.PersistentSegment.t =
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
          9871d087-ce94-4336-98d1-a56f547f98ff)(label(.))(mold((out \
-         Exp)(in_())(nibs(((shape(Concave 22))(sort Exp))((shape(Concave \
-         22))(sort Exp))))))(shards(0))(children())))(Tile((id \
+         Exp)(in_())(nibs(((shape(Concave 10))(sort Exp))((shape(Concave \
+         10))(sort Exp))))))(shards(0))(children())))(Tile((id \
          93fd505b-3724-48db-8281-f9dc3ba41e7a)(label(midterm))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
@@ -815,8 +815,8 @@ let out : string * Haz3lcore.PersistentSegment.t =
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
          caa0490f-10e4-40a2-a1d8-7e45658afb60)(label(.))(mold((out \
-         Exp)(in_())(nibs(((shape(Concave 22))(sort Exp))((shape(Concave \
-         22))(sort Exp))))))(shards(0))(children())))(Tile((id \
+         Exp)(in_())(nibs(((shape(Concave 10))(sort Exp))((shape(Concave \
+         10))(sort Exp))))))(shards(0))(children())))(Tile((id \
          9f379a5a-5142-421d-bbab-c2cc886e492f)(label(final))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))))))))))))(Secondary((id \
@@ -1249,8 +1249,8 @@ let out : string * Haz3lcore.PersistentSegment.t =
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
          f0771ea6-5dce-4d60-9708-feb0a3fe41f0)(label(.))(mold((out \
-         Exp)(in_())(nibs(((shape(Concave 22))(sort Exp))((shape(Concave \
-         22))(sort Exp))))))(shards(0))(children())))(Tile((id \
+         Exp)(in_())(nibs(((shape(Concave 10))(sort Exp))((shape(Concave \
+         10))(sort Exp))))))(shards(0))(children())))(Tile((id \
          1b10fbd0-2193-4d30-b47f-9a73b2fc442a)(label(midterm))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
@@ -1275,8 +1275,8 @@ let out : string * Haz3lcore.PersistentSegment.t =
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
          e5607936-4565-4339-8b31-3957015e1306)(label(.))(mold((out \
-         Exp)(in_())(nibs(((shape(Concave 22))(sort Exp))((shape(Concave \
-         22))(sort Exp))))))(shards(0))(children())))(Tile((id \
+         Exp)(in_())(nibs(((shape(Concave 10))(sort Exp))((shape(Concave \
+         10))(sort Exp))))))(shards(0))(children())))(Tile((id \
          f0a5314f-af87-4d89-80ad-8889789d0ce5)(label(final))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))))))))))))(Secondary((id \
@@ -1649,7 +1649,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
          schema(t1)[c]\"),\n\
          (enforced=^^check(false), \"nrows(t2) == nrows(t1)\")\n\
          ] in\n\
-         let update = typfun row -> fun (t1:[row], f:(row -> ?)) ->\n\
+         let update = abs row -> fun (t1:[row], f:(row -> ?)) ->\n\
          map(t1, fun (r : row) -> (r : ?) ... f(r)) : [?] in\n\n\
          test\n\
         \ update@<GradebookEntry>(gradebook, fun r -> (midterm=85<=r.midterm, \

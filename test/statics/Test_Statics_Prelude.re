@@ -107,6 +107,13 @@ let rec equal_mark: (Mark.t, Mark.t) => bool =
     | (Redundant, Redundant) => true
     | (ExpectedConstructor, ExpectedConstructor) => true
     | (TypFreeTypeVariable(a), TypFreeTypeVariable(b)) => a == b
+    | (
+        TypKindMismatch({expected: e1, actual: a1}),
+        TypKindMismatch({expected: e2, actual: a2}),
+      ) =>
+      TypKind.equal(e1, e2) && TypKind.equal(a1, a2)
+    | (TypParamApplyNonArrowKind(a), TypParamApplyNonArrowKind(b)) =>
+      TypKind.equal(a, b)
     | (TypDuplicateConstructor(c1), TypDuplicateConstructor(c2)) =>
       Constructor.equal(c1, c2)
     | (TypDuplicateLabels(ls1, t1), TypDuplicateLabels(ls2, t2)) =>
@@ -121,6 +128,7 @@ let rec equal_mark: (Mark.t, Mark.t) => bool =
     | (TPatShadowsType(s1, src1), TPatShadowsType(s2, src2)) =>
       s1 == s2 && src1 == src2
     | (TPatNotAVar(e1), TPatNotAVar(e2)) => e1 == e2
+    | (TPatParamNotAtAliasHead(s1), TPatParamNotAtAliasHead(s2)) => s1 == s2
     | _ => false
     };
 

@@ -194,6 +194,21 @@ let cls_of: t => Cls.t =
   | InfoMPat({cls, _})
   | Secondary({cls, _}) => cls;
 
+/* User-facing class name, context-aware where the static `Cls.show`
+   loses information. Currently specializes tpat `Var` based on the
+   statics' classification: a bound type variable with kind
+   `Abstract` is a parameter, anything else is an alias. Other sorts
+   fall back to the plain `Cls.show(cls_of(info))`. */
+let cls_text_of: t => string =
+  fun
+  | InfoTPat({cls: TPat(Var), message, _}) =>
+    switch (message) {
+    | Some(TPatOk(TypeParameter(_))) => "Type parameter"
+    | Some(TPatOk(TypeAlias(_))) => "Type alias"
+    | _ => Cls.show(TPat(Var))
+    }
+  | info => Cls.show(cls_of(info));
+
 let any_of: t => option(Any.t) =
   fun
   | InfoDrv({term, _}) => Some(Drv(term))
@@ -336,22 +351,89 @@ let projector_kind_of = (info: t): option(ProjectorKind.t) =>
   };
 
 /* If the info represents some kind of name binding which
-   exists in the context, return the id where the binding occurs */
+   exists in the context, return the id where the binding occurs.
+
+   `Var(name)` in `InfoTyp` is a type-variable reference only when the
+   typ is in `TypeExpected` position. In a constructor-declaration
+   position (`+ A(a)` / `+ B(b)` etc.) the `Var(name)` is the
+   constructor's name being introduced, not a tvar reference; we
+   return `None` there so the `var_highlight_ids` fallback uses the
+   declaration's own id as the binding site. */
 let get_binding_site = (info: t): option(Id.t) => {
+  /* Recover a constructor reference's binding-site id in order of
+     preference:
+       1. Type-directed `lookup_ctr_for_ana` — picks the right binding
+          when multiple sum types in scope share a constructor name.
+       2. If no `ConstructorEntry` is in scope (e.g. constructor
+          declared inside a module), find it on the analysis target's
+          sum constructors via `Typ.get_sum_constructors`.
+       3. Last-resort `VarEntry` lookup (capitalized module names
+          parse as `Constructor` but bind as variables). */
+  /* For a constructor used as a function (`C(arg)`) the analysis
+     target is `Arrow(_, result)`; peel arrows to get the underlying
+     sum type. */
+  let rec result_of_ana = (ty: Typ.t): Typ.t =>
+    switch (ty.term) {
+    | Arrow(_, out) => result_of_ana(out)
+    | Parens(inner)
+    | Projector(_, inner) => result_of_ana(inner)
+    | _ => ty
+    };
+  let ctr_id_from_ana =
+      (~ctx: Ctx.t, ~ana: Typ.t, name: string): option(Id.t) => {
+    let* sum = Typ.get_sum_constructors(ctx, result_of_ana(ana));
+    let* variant =
+      List.find_opt(
+        (v: ConstructorMap.variant(Typ.t)) =>
+          switch (v) {
+          | Variant(ctr, _, _) => ctr == name
+          | BadEntry(_) => false
+          },
+        sum,
+      );
+    switch (variant) {
+    | Variant(_, ann, _) =>
+      switch (ann.ids) {
+      | [id, ..._] when !Id.equal(id, Id.invalid) => Some(id)
+      | _ => None
+      }
+    | BadEntry(_) => None
+    };
+  };
+  let ctr_binding_id =
+      (~ctx: Ctx.t, ~ana: option(Typ.t), name: string): option(Id.t) =>
+    switch (Ctx.lookup_ctr_for_ana(ctx, name, ana)) {
+    | Some(entry) when entry.id != Id.invalid => Some(entry.id)
+    | _ =>
+      switch (ana) {
+      | Some(ana) =>
+        switch (ctr_id_from_ana(~ctx, ~ana, name)) {
+        | Some(_) as id => id
+        | None =>
+          let* entry = Ctx.lookup_var(ctx, name);
+          entry.id == Id.invalid ? None : Some(entry.id);
+        }
+      | None =>
+        let* entry = Ctx.lookup_var(ctx, name);
+        entry.id == Id.invalid ? None : Some(entry.id);
+      }
+    };
   switch (info) {
   | InfoExp({user_term: {term: Var(name), _}, ctx, _}) =>
     let* entry = Ctx.lookup_var(ctx, name);
     entry.id == Id.invalid ? None : Some(entry.id);
-  | InfoExp({user_term: {term: Constructor(name, _), _}, ctx, _})
-  | InfoPat({user_term: {term: Constructor(name, _), _}, ctx, _}) =>
-    switch (Ctx.lookup_ctr(ctx, name)) {
-    | Some(entry) when entry.id != Id.invalid => Some(entry.id)
-    | _ =>
-      /* Fallback: capitalized names (modules) parse as Constructor
-         but bind as VarEntry via the Constructor-to-Var fallback */
-      let* entry = Ctx.lookup_var(ctx, name);
-      entry.id == Id.invalid ? None : Some(entry.id);
-    }
+  | InfoExp({user_term: {term: Constructor(name, _), _}, ctx, ana, _}) =>
+    ctr_binding_id(~ctx, ~ana=Some(ana), name)
+  | InfoPat({user_term: {term: Constructor(name, _), _}, ctx, ana, _}) =>
+    ctr_binding_id(~ctx, ~ana=Some(ana), name)
+  | InfoTyp({
+      user_term: {term: Var(_), _},
+      expects:
+        TypExpectation.ConstructorExpected(_) |
+        TypExpectation.VariantExpected(_),
+      _,
+    }) =>
+    None
   | InfoTyp({user_term: {term: Var(name), _}, ctx, _}) =>
     let* id = Ctx.lookup_tvar_id(ctx, name);
     id == Id.invalid ? None : Some(id);

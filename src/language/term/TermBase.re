@@ -226,7 +226,7 @@ and Exp: {
             Option.map(typ_map_term, t),
             f,
           )
-        | TypFun(tp, e, f) => TypFun(tpat_map_term(tp), exp_map_term(e), f)
+        | TypAbs(tp, e, f) => TypAbs(tpat_map_term(tp), exp_map_term(e), f)
         | TupLabel(label, e) =>
           TupLabel(exp_map_term(label), exp_map_term(e))
         | Tuple(xs) => Tuple(List.map(exp_map_term, xs))
@@ -415,6 +415,10 @@ and Typ: {
         | ExplicitNonlabel
         | Var(_) => term
         | List(t) => List(typ_map_term(t))
+        | TypFun(tp, t) => TypFun(tpat_map_term(tp), typ_map_term(t))
+        | TypParamAp(t1, t2) =>
+          TypParamAp(typ_map_term(t1), typ_map_term(t2))
+        | TypTuple(ts) => TypTuple(List.map(typ_map_term, ts))
         | Unknown(Hole(MultiHole(things))) =>
           Unknown(Hole(MultiHole(List.map(any_map_term, things))))
         | Prod(xs) => Prod(List.map(typ_map_term, xs))
@@ -518,14 +522,27 @@ and TPat: {
         | Invalid(_)
         | Var(_) => term
         | MultiHole(things) => MultiHole(List.map(any_map_term, things))
+        | Param(head, params) =>
+          let recurse =
+            TPat.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
+          Param(recurse(head), List.map(recurse, params));
+        | Tuple(tps) =>
+          let recurse =
+            TPat.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
+          Tuple(List.map(recurse, tps));
+        | Parens(tp) =>
+          let recurse =
+            TPat.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
+          Parens(recurse(tp));
         },
     };
     x |> f_tpat(rec_call);
   };
 
-  let tyvar_of_utpat = ({term, _}: t) =>
+  let rec tyvar_of_utpat = ({term, _}: t) =>
     switch (term) {
     | Var(x) => Some(x)
+    | Parens(inner) => tyvar_of_utpat(inner)
     | _ => None
     };
 }

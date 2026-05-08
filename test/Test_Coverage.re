@@ -99,6 +99,75 @@ let has_errors =
 
 let no_errors = (name: string, exp: string) => has_errors(name, exp, []);
 
+let parameterized_sum_exhaustive =
+  no_errors(
+    "Exhaustive case on a parameterized sum type",
+    {|
+type PEither(a) = +A + B(a) in
+let f = fun (xs : PEither(Int)) ->
+  case xs
+    | A => 0
+    | B(x) => x
+  end
+in ?|},
+  );
+
+let parameterized_sum_inexhaustive =
+  has_errors(
+    "Inexhaustive case on a parameterized sum type",
+    {|
+type PEither(a) = +A + B(a) in
+let f = fun (xs : PEither(Int)) ->
+  {{{case xs
+    | B(x) => x
+  end}}}
+in ?|},
+    [
+      Marks([
+        InexhaustiveMatch(
+          FTemp.Typ.unknown(Internal),
+          [],
+          Grammar.Pat(IdTagged.FreshGrammar.Pat.(constructor("A", None))),
+        ),
+      ]),
+    ],
+  );
+
+/* The user-reported bug: a parameterized *recursive* sum type. After
+   normalization the scrutinee type is `TypParamAp(Rec(PList,
+   TypFun(a, Sum[…])), Int)`, which the pre-fix coverage checker
+   treated as `Infinite` (no known constructors), so any case
+   expression with all constructors covered would still be marked
+   inexhaustive. The fix in `all_ctrs_of_typ` unfolds one step of
+   higher-kinded recursion. */
+let parameterized_recursive_list_exhaustive =
+  no_errors(
+    "Exhaustive case on a parameterized recursive list",
+    {|
+type PList(a) = +Nil + Cons(a) in
+let f = fun (xs : PList(Int)) ->
+  case xs
+    | Nil => 0
+    | Cons(x) => x
+  end
+in ?|},
+  );
+
+/* The exact shape from the user-reported screenshot: a self-referential
+   parameterized sum type. */
+let parameterized_recursive_self_ref_exhaustive =
+  no_errors(
+    "Exhaustive case on a parameterized self-referential sum type",
+    {|
+type PEither(a) = +Leaf + Branch(PEither(a)) in
+let f = fun (xs : PEither(Int)) ->
+  case xs
+    | Leaf => 0
+    | Branch(x) => 1
+  end
+in ?|},
+  );
+
 let bare_let =
   no_errors("Bare let has no error on pattern", "let x = 1 in x");
 
@@ -1220,7 +1289,7 @@ end|},
 let type_function_scrutinee =
   has_errors(
     "Function Scrutinee",
-    {|let f: poly a -> a -> a = typfun a -> fun x -> x in
+    {|let f: poly a -> a -> a = abs a -> fun x -> x in
 case f
 | g => g
 | {{{h}}} => h
@@ -1343,5 +1412,9 @@ let tests = (
     exhaustive_ints_with_wilds,
     exhaustive_strings_with_wilds,
     exhaustive_bools_with_wilds,
+    parameterized_sum_exhaustive,
+    parameterized_sum_inexhaustive,
+    parameterized_recursive_list_exhaustive,
+    parameterized_recursive_self_ref_exhaustive,
   ],
 );

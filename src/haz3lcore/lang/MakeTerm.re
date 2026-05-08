@@ -58,6 +58,7 @@ let is_nary =
 let is_tuple_exp = is_nary(Any.is_exp, ",");
 let is_tuple_pat = is_nary(Any.is_pat, ",");
 let is_tuple_typ = is_nary(Any.is_typ, ",");
+let is_tuple_tpat = is_nary(Any.is_tpat, ",");
 let is_tuple_drv_exp = is_nary(Any.is_drv_exp, ",");
 let is_typ_bsum = is_nary(Any.is_typ, "+");
 let is_mod_seq = is_nary(Any.is_mod, ";");
@@ -269,6 +270,40 @@ let parse_sum_term: Typ.t => ConstructorMap.variant(Typ.t) =
       },
       None,
     )
+  | {
+      term:
+        TypParamAp(
+          {
+            term: Var(ctr),
+            annotation: {ids: ids_ctr, secondary: (inner_before, _)},
+          },
+          u,
+        ),
+      annotation: {ids: ids_ap, secondary: (_, outer_after)},
+    } => {
+      /* `Cons(a, b)` in a sum-type position is a *constructor variant* with
+         a tuple payload, not a type-level multi-argument application. The
+         outer parser produces `TypParamAp(Cons, TypTuple([a, b]))` because the
+         comma-list looked like a multi-arg apply syntactically; here we
+         unwrap the TypTuple back to a `Prod` so the payload is a regular
+         tuple type. */
+      let payload: Typ.t =
+        switch (Typ.term_of(u)) {
+        | TypTuple(ts) => {
+            term: Prod(ts),
+            annotation: u.annotation,
+          }
+        | _ => u
+        };
+      Variant(
+        ctr,
+        {
+          ids: ids_ctr @ ids_ap,
+          secondary: (inner_before, outer_after),
+        },
+        Some(payload),
+      );
+    }
   /* Constructor applications in sum type definitions are implemented as having type sort;
      until they are reimplemented as their own sort, we must prevent these from being parsed
      into types, where they can go on to mess with statics. Thus we let them fall through to
@@ -299,6 +334,84 @@ let parse_sum_term: Typ.t => ConstructorMap.variant(Typ.t) =
       Some(u),
     )
   | t => BadEntry(t);
+
+/* Normalize the tpat kid of a `poly` / `typfun` / `rec` / `typlam`
+   binder to the canonical binder shape used by the semantics.
+
+   - A single-binder tpat (`Var`, hole, parens-wrapping-any-of-these)
+     is kept as-is — the caller builds `Poly(tp, body)` directly.
+   - A comma-separated binder list `a, b, …` lands here as a
+     `MultiHole([TPat(a), TPat(b), …])` (from the `Bin(TPat, ",",
+     TPat)` rule in `tpat_term`). We lift that to a `Tuple([a, b,
+     …])`, and if the original came inside a `Parens` wrapper we
+     re-wrap the `Tuple` with the same `Parens` so the parens still
+     show in the structured-editor display.
+   - Anything else falls back to a singleton. */
+let binder_of_tpat = (tpat: TPat.t): TPat.t => {
+  let extract_multihole = (tp: TPat.t): option(list(TPat.t)) =>
+    switch (IdTagged.term_of(tp)) {
+    | MultiHole(els) =>
+      let extracted =
+        List.filter_map(
+          fun
+          | Grammar.TPat(tp) => Some(tp)
+          | _ => None,
+          els,
+        );
+      if (List.length(extracted) == List.length(els) && extracted != []) {
+        Some(extracted);
+      } else {
+        None;
+      };
+    | _ => None
+    };
+  switch (IdTagged.term_of(tpat)) {
+  | MultiHole(_) =>
+    switch (extract_multihole(tpat)) {
+    | Some(tps) => {
+        ...tpat,
+        term: Tuple(tps),
+      }
+    | None => tpat
+    }
+  | Parens(inner) =>
+    switch (extract_multihole(inner)) {
+    | Some(tps) => {
+        ...tpat,
+        term:
+          Parens({
+            ...inner,
+            term: Tuple(tps),
+          }),
+      }
+    | None => tpat
+    }
+  | _ => tpat
+  };
+};
+
+let apply_typ_param_args = (fn: Typ.t, arg: Typ.t): Typ.term => {
+  /* `T(a, b, …)` is a multi-argument type application: the comma-
+     separated list parses as a `Prod`, but the user means
+     `TypParamAp(T, TypTuple([a, b, …]))` (a single application against
+     `T`'s tuple-arrow kind), not `TypParamAp(T, Prod([a, b]))` (a
+     single-argument application whose argument happens to be a
+     tuple). The latter is reserved for `T((a, b))` (extra parens),
+     which produces `Parens(Prod([a, b]))` here. */
+  switch (Typ.term_of(arg)) {
+  | Prod(ts) =>
+    /* Reuse the original Prod's IDs/secondary on the new TypTuple node
+       so the structured editor's tile mappings stay aligned. */
+    TypParamAp(
+      fn,
+      {
+        term: TypTuple(ts),
+        annotation: arg.annotation,
+      },
+    )
+  | _ => TypParamAp(fn, arg)
+  };
+};
 
 let mk_bad = (ctr, ids, value) => {
   let t: Typ.t = {
@@ -750,7 +863,15 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
         | (["fun", "->"], [Pat(pat)]) => Fun(pat, r, None, None)
         | (["forall", "->"], [Pat(pat)]) => Forall(pat, r)
         | (["fix", "->"], [Pat(pat)]) => FixF(pat, r, None)
-        | (["typfun", "->"], [TPat(tpat)]) => TypFun(tpat, r, None)
+        | (["abs", "->"], [TPat(tpat)]) =>
+          /* `abs a, b -> e` parses as a single `TypAbs` whose binder
+             is `TPat.Tuple([a, b, …])`. Single-binder `abs a -> e`
+             keeps `tpat` as the bare `Var`/hole. Parens wrapping the
+             binder list survive as `Parens(Tuple([a, b, …]))`. The
+             reduction rule for `TypAp` looks through `Parens` and zips
+             a `TypTuple` argument against the tuple binder
+             element-wise in one step. */
+          TypAbs(binder_of_tpat(tpat), r, None)
         | (["let", "=", "in"], [Pat(pat), Exp(def)]) => Let(pat, def, r)
         | (["module", "=", "in"], [MPat(mp), Exp(def)]) =>
           ModuleExp(mp, def, r)
@@ -843,7 +964,25 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
           )
         | _ => ret(Ap(Forward, l, arg))
         };
-      | (["@<", ">"], [Typ(ty)]) => ret(TypAp(l, ty))
+      | (["@<", ">"], [Typ(ty)]) =>
+        /* Multi-argument value-level type application `f@<a, b>` lifts
+           the comma-separated list into a `TypTuple` so dynamics can
+           consume both args at once when peeling a curried `TypAbs`
+           chain. Single-arg / parenthesized-tuple cases keep the bare
+           argument shape. */
+        switch (Typ.term_of(ty)) {
+        | Prod(ts) =>
+          ret(
+            TypAp(
+              l,
+              {
+                term: TypTuple(ts),
+                annotation: ty.annotation,
+              },
+            ),
+          )
+        | _ => ret(TypAp(l, ty))
+        }
       | _ => ret(hole(tm))
       }
     | _ => ret(hole(tm))
@@ -1157,16 +1296,32 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
       )
     | _ => ret(hole(tm))
     }
-  | Post(Typ(_t), tiles) as tm =>
+  | Post(Typ(t), tiles) as tm =>
     switch (tiles) {
-    /* Type aps which would otherwise be parsed here are recognized in sum type parsing above */
+    | ([(_id, (["(", ")"], [Typ(arg)]))], []) =>
+      ret(apply_typ_param_args(t, arg))
     | _ => ret(hole(tm))
     }
   /* poly and rec have to be before sum so that they bind tighter.
    * Thus `rec A -> Left(A) + Right(B)` get parsed as `rec A -> (Left(A) + Right(B))`
    * If this is below the case for sum, then it gets parsed as an invalid form. */
+  | Pre(([(_id, (["typfun", "->"], [TPat(tpat)]))], []), Typ(t)) =>
+    /* `typfun a -> t` at the type level introduces a `TypFun` — a
+       type-level type function. Used in alias bodies like
+       `type Option = typfun a -> + None + Some(a)` (equivalent to
+       the head-parameter form `type Option(a) = + None + Some(a)`).
+       Multi-binder `typfun a, b -> t` produces a single `TypFun`
+       whose binder is `TPat.Tuple([a, b, …])`, paralleling `Poly`
+       and the value-level `abs`. */
+    ret(TypFun(binder_of_tpat(tpat), t))
   | Pre(([(_id, (["poly", "->"], [TPat(tpat)]))], []), Typ(t)) =>
-    ret(Poly(tpat, t))
+    /* `poly a, b -> t` parses as a single `Poly` whose binder is
+       `TPat.Tuple([a, b, …])`. Explicit nesting `poly a -> poly b ->
+       t` produces `Poly(a, Poly(b, t))` and is structurally distinct.
+       Parens wrapping the binder list survive as `Parens(Tuple([a,
+       b, …]))`. Single-binder `poly a -> t` keeps `tpat` as the bare
+       `Var`/hole. */
+    ret(Poly(binder_of_tpat(tpat), t))
   | Pre(([(_id, (["rec", "->"], [TPat(tpat)]))], []), Typ(t)) =>
     ret(Rec(tpat, t))
   | Pre(tiles, Typ({term: Sum(t0), annotation: {ids, _}})) as tm =>
@@ -1242,12 +1397,38 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
 }
 and tpat = unsorted => {
   let term = tpat_term(unsorted);
-  let ids = ids(unsorted);
+  /* For the Param form `T(a, b, …)` the separator commas between
+     params live in the `params` kid (a `Bin`-built `MultiHole`) and
+     get dropped when `tpat_term` extracts the bare list of tpats.
+     Thread those ids back onto the outer Param's annotation so the
+     comma tiles still land in the info map (so e.g. putting the
+     cursor on the `,` in `type Either(a, b) = …` shows the alias
+     head's info, not "Whitespace or comment"). */
+  let extra_ids =
+    switch (unsorted) {
+    | Post(TPat(_), tiles) =>
+      switch (tiles) {
+      | ([(_, (["(", ")"], [TPat(params)]))], []) =>
+        switch (params.term) {
+        | MultiHole(_) => IdTagged.ids(params)
+        | _ => []
+        }
+      | _ => []
+      }
+    | _ => []
+    };
+  let ids = ids(unsorted) @ extra_ids;
   return(ty => TPat(ty), ids, IdTagged.mk(ids, get_secondary(ids), term));
 }
 and tpat_term: unsorted => TPat.term = {
   let ret = (term: TPat.term) => term;
   let hole = unsorted => TPat.hole(kids_of_unsorted(unsorted));
+  let params_of_tpat = (tp: TPat.t): option(list(TPat.t)) =>
+    switch (tp.term) {
+    | MultiHole(things) =>
+      things |> List.map(Any.is_tpat) |> OptUtil.sequence
+    | _ => Some([tp])
+    };
   fun
   | Op(tiles) as tm =>
     switch (tiles) {
@@ -1258,12 +1439,38 @@ and tpat_term: unsorted => TPat.term = {
         | ([t], []) when is_hole_label(t) => hole(tm)
         | ([t], []) => Invalid(t)
         | (["PROJ_WRAP", "PROJ_WRAP"], [TPat(body)]) => body.term
+        /* Parens around a tpat get their own AST node so the parens'
+           tile ids land in the info map. `Parens` is semantically
+           transparent — `expand_tpat_binders`, `TPat.binders_of`,
+           `TPat.tyvars_of`, `Typ.subst`, etc. all look through it. */
+        | (["(", ")"], [TPat(body)]) => Parens(body)
         | _ => hole(tm)
         },
       )
     | _ => ret(hole(tm))
     }
-  | (Pre(_) | Post(_)) as tm => ret(hole(tm))
+  | Post(TPat(head), tiles) as tm =>
+    switch (tiles) {
+    | ([(_id, (["(", ")"], [TPat(params)]))], []) =>
+      switch (params_of_tpat(params)) {
+      | Some(params) => ret(Param(head, params))
+      | None => ret(hole(tm))
+      }
+    | _ => ret(hole(tm))
+    }
+  | Bin(TPat(t1), tiles, TPat(t2)) as tm =>
+    switch (is_tuple_tpat(tiles)) {
+    | Some(between_kids) =>
+      ret(
+        MultiHole(
+          [Grammar.TPat(t1)]
+          @ List.map((tpat: TPat.t) => Grammar.TPat(tpat), between_kids)
+          @ [Grammar.TPat(t2)],
+        ),
+      )
+    | None => ret(hole(tm))
+    }
+  | Pre(_) as tm => ret(hole(tm))
   | tm => ret(hole(tm));
 }
 /* Phase 1.2: Module parsing - placeholder implementation */

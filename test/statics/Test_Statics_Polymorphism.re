@@ -86,7 +86,7 @@ let tests = (
     ),
     inconsistent_typecheck(
       "Polymorphic Equality type contains arrow 6",
-      {| let a = typfun A -> fun x : A -> x in a == a |} |> parse_exp,
+      {| let a = abs A -> fun x : A -> x in a == a |} |> parse_exp,
     ),
     inconsistent_typecheck(
       "Polymorphic Equality type contains arrow 7",

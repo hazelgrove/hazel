@@ -34,8 +34,9 @@ let cls_view = (ci: Info.t): Node.t => {
       switch (cls) {
       | Typ(EmptyHole)
       | Exp(EmptyHole)
-      | Pat(EmptyHole) => Info.is_label(ci) ? "Label Hole" : Cls.show(cls)
-      | cls => cls |> Cls.show
+      | Pat(EmptyHole) =>
+        Info.is_label(ci) ? "Label Hole" : Info.cls_text_of(ci)
+      | _ => Info.cls_text_of(ci)
       }
     };
 
@@ -264,6 +265,10 @@ let core_mark_err_view =
     | Redundant
     | ExpectedConstructor
     | TypFreeTypeVariable(_)
+    | TypKindMismatch(_)
+    | TypParamApplyNonArrowKind(_)
+    | TypParamApplyArityMismatch(_)
+    | TypAbsApplyArityMismatch(_)
     | TypDuplicateConstructor(_)
     | TypDuplicateLabels(_, _)
     | TypWantTypeFoundAp
@@ -273,7 +278,8 @@ let core_mark_err_view =
     | TypWantConstructorFoundAp
     | TypParseFailure
     | TPatShadowsType(_)
-    | TPatNotAVar(_) => [text("Type error")]
+    | TPatNotAVar(_)
+    | TPatParamNotAtAliasHead(_) => [text("Type error")]
     }
   )
   @ (
@@ -473,7 +479,8 @@ let underdetermined_typ_view =
 let typ_ok_view = (~globals, cls: Cls.t, ok: Message.ok_typ) => {
   let view_type = view_type(~globals);
   switch (ok) {
-  | EmptyLabel => []
+  | EmptyLabel
+  | Default => []
   | Type(_) when cls == Typ(EmptyHole) => [text("Fillable by any type")]
   | Type(ty) =>
     [view_type(ty)]
@@ -494,6 +501,7 @@ let typ_ok_view = (~globals, cls: Cls.t, ok: Message.ok_typ) => {
       text("is equal to"),
       view_type(whnormalized),
     ]
+  | Kind(kind) => [text("has kind "), code(TypKind.to_string(kind))]
   | Variant(name, sum_ty) => [
       view_type(Var(name) |> Typ.fresh),
       text("is a sum type constuctor of type"),
@@ -512,6 +520,29 @@ let typ_mark_err_view = (~globals, m: Mark.t) => {
       text("not found"),
     ]
   | BadToken(token) => [code(token), text("not a type or type operator")]
+  | TypKindMismatch({expected, actual}) => [
+      text("Expected kind "),
+      code(TypKind.to_string(expected)),
+      text(", found "),
+      code(TypKind.to_string(actual)),
+    ]
+  | TypParamApplyNonArrowKind(kind) => [
+      text("Cannot apply a type of kind "),
+      code(TypKind.to_string(kind)),
+    ]
+  | TypParamApplyArityMismatch({callee, expected, actual, _}) => [
+      code(Typ.pretty_print(callee)),
+      text(" expects "),
+      code(string_of_int(expected)),
+      text(" argument" ++ (expected == 1 ? "" : "s") ++ ", got "),
+      code(string_of_int(actual)),
+    ]
+  | TypAbsApplyArityMismatch({expected, actual}) => [
+      text("Type abstraction expects "),
+      code(string_of_int(expected)),
+      text(" type argument" ++ (expected == 1 ? "" : "s") ++ ", got "),
+      code(string_of_int(actual)),
+    ]
   | TypWantConstructorFoundAp
   | TypWantConstructorFoundType(_) => [text("Expected a constructor")]
   | TypWantTypeFoundAp => [text("Must be part of a sum type")]
@@ -734,6 +765,9 @@ let exp_mark_err_view =
       view_type(typ),
     ])
   | TypFreeTypeVariable(_)
+  | TypKindMismatch(_)
+  | TypParamApplyNonArrowKind(_)
+  | TypParamApplyArityMismatch(_)
   | TypDuplicateConstructor(_)
   | TypDuplicateLabels(_, _)
   | TypWantTypeFoundAp
@@ -743,8 +777,16 @@ let exp_mark_err_view =
   | TypWantConstructorFoundAp
   | TypParseFailure
   | TPatShadowsType(_)
-  | TPatNotAVar(_) =>
+  | TPatNotAVar(_)
+  | TPatParamNotAtAliasHead(_) =>
     div_err([text("(internal) typ/tpat mark on expression")])
+  | TypAbsApplyArityMismatch({expected, actual}) =>
+    div_err([
+      text("Type abstraction expects "),
+      code(string_of_int(expected)),
+      text(" type argument" ++ (expected == 1 ? "" : "s") ++ ", got "),
+      code(string_of_int(actual)),
+    ])
   | Redundant
   | ExpectedConstructor =>
     div_err([text("(internal) pattern-only mark on expression")])
@@ -1000,13 +1042,24 @@ let tpat_view =
     (~globals, _: Cls.t, ~marks: list(Mark.t), ~message: option(Message.t))
     : Node.t => {
   let view_type = view_type(~globals);
+  let kind_view = kind => [
+    text("has kind "),
+    code(TypKind.to_string(kind)),
+  ];
   switch (marks) {
   | [] =>
     switch (message) {
     | Some(TPatOk(Message.Empty)) =>
       div_ok([text("Fillable with a new alias")])
-    | Some(TPatOk(Var(name))) =>
-      div_ok([ContextInspector.alias_view(name)])
+    | Some(TPatOk(Message.Default)) => div_ok([])
+    | Some(TPatOk(TypeAlias({name, kind}))) =>
+      div_ok([code(name), ...kind_view(kind)])
+    | Some(TPatOk(TypeParameter({name, kind}))) =>
+      div_ok([
+        code(name),
+        text("is a type parameter and "),
+        ...kind_view(kind),
+      ])
     | Some(Pat(_) | Exp(_) | TypOk(_)) =>
       div_err([text("(internal) expected TPatOk")])
     | None => div_err([text("(internal) missing tpat ok payload")])
@@ -1033,6 +1086,10 @@ let tpat_view =
         div_err([
           text("Can't shadow existing type variable"),
           view_type(Var(name) |> Typ.fresh),
+        ])
+      | TPatParamNotAtAliasHead(_) =>
+        div_err([
+          text("This form is only allowed as the head of a type alias"),
         ])
       | _ => div_err([text("Type pattern error")])
       }

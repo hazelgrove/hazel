@@ -11,7 +11,7 @@ type cls =
   | ListLit
   | Constructor
   | Fun
-  | TypFun
+  | TypAbs
   | ExplicitNonlabel
   | Label
   | TupLabel
@@ -91,7 +91,7 @@ let rec cls_of_term: type a. Grammar.exp_term(a) => cls =
   | ListLit(_) => ListLit
   | Constructor(_) => Constructor
   | Fun(_) => Fun
-  | TypFun(_) => TypFun
+  | TypAbs(_) => TypAbs
   | Tuple(_) => Tuple
   | TupleExtension(_) => TupleExtension
   | Label(_) => Label
@@ -152,7 +152,7 @@ let show_cls: cls => string =
   | ListLit => "List literal"
   | Constructor => "Constructor"
   | Fun => "Function literal"
-  | TypFun => "Type Function Literal"
+  | TypAbs => "Type Function Literal"
   | Tuple => "Tuple literal"
   | Label => "Label"
   | ExplicitNonlabel => "Explicitly unlabeled entry"
@@ -216,7 +216,7 @@ let rec is_fun = (e: t) => {
   | Parens(e)
   | Projector(_, e) => is_fun(e)
   | Asc(e, _) => is_fun(e)
-  | TypFun(_)
+  | TypAbs(_)
   | Fun(_)
   | BuiltinFun(_) => true
   | TupLabel(_, e) => is_fun(e)
@@ -316,7 +316,7 @@ let rec is_tuple_of_functions = (e: t) =>
     | ListLit(_)
     | TupleExtension(_)
     | Fun(_)
-    | TypFun(_)
+    | TypAbs(_)
     | Closure(_)
     | BuiltinFun(_)
     | Var(_)
@@ -386,7 +386,7 @@ let rec get_num_of_functions = (e: t) =>
     | ListLit(_)
     | TupleExtension(_)
     | Fun(_)
-    | TypFun(_)
+    | TypAbs(_)
     | Var(_)
     | Let(_)
     | Theorem(_)
@@ -449,7 +449,7 @@ let rec get_fn_name = (e: t) => {
   | Fun(_, _, _, n) => n
   | FixF(_, e, _) => get_fn_name(e)
   | Parens(e) => get_fn_name(e)
-  | TypFun(_, _, n) => n
+  | TypAbs(_, _, n) => n
   | _ => None
   };
 };
@@ -460,7 +460,7 @@ let rec get_fn_name = (e: t) => {
 let rec get_fn_def_id = (e: t) =>
   switch (e.term) {
   | Fun(_)
-  | TypFun(_) => Some(rep_id(e))
+  | TypAbs(_) => Some(rep_id(e))
   | FixF(_, e, _)
   | Parens(e) => get_fn_def_id(e)
   | _ => None
@@ -468,12 +468,12 @@ let rec get_fn_def_id = (e: t) =>
 
 let to_tuple = (es: list(t)): t => TempGrammar.Exp.(tuple(es));
 
-/* Inject a function name into a Fun or TypFun expression. */
+/* Inject a function name into a Fun or TypAbs expression. */
 let add_name = (name: option(string), exp: t): t => {
   let (term, rewrap) = unwrap(exp);
   switch (term) {
   | Fun(p, e, t, _) => Fun(p, e, t, name) |> rewrap
-  | TypFun(tpat, e, _) => TypFun(tpat, e, name) |> rewrap
+  | TypAbs(tpat, e, _) => TypAbs(tpat, e, name) |> rewrap
   | _ => exp
   };
 };

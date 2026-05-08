@@ -50,13 +50,19 @@
   --MPAT: var(--PAT); /* Module pattern sort oklch(60% 0.2 60)  */
   --LABEL: oklch(60% 0.2 180);
 
-  /* AURA - docs highlighting */
+  /* AURA - docs highlighting. 7 distinct hues for ExplainThis param
+     coloring. The TPAT sort is around hue 225° so we avoid the
+     blue wedge (hues 200°–250°) in the palette: `b` is shifted to
+     purple (280°) instead of the original pure blue (240°). `g`
+     is new to support 7-parameter forms without falling off the end
+     of the palette. */
   --highlight-a: oklch(0.95 0.07 360);
-  --highlight-b: oklch(from var(--highlight-a) l c calc(h - 2 * 60));
+  --highlight-b: oklch(from var(--highlight-a) l c calc(h - 80));
   --highlight-c: oklch(from var(--highlight-a) l c calc(h - 4 * 60));
   --highlight-d: oklch(from var(--highlight-a) l c calc(h - 1 * 60));
   --highlight-e: oklch(from var(--highlight-a) l c calc(h - 3 * 60));
   --highlight-f: oklch(from var(--highlight-a) l c calc(h - 5 * 60));
+  --highlight-g: oklch(from var(--highlight-a) l c calc(h - 30));
 
 
   /* MOSS - affirmations */

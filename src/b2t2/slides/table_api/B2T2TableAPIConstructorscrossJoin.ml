@@ -505,7 +505,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
          52d6acea-b5bc-413d-ad54-f97f1a811d86)(content(Whitespace\" \
          \")))))((Secondary((id \
          0a7fb326-66df-4d94-971e-d22e082e1be4)(content(Whitespace\" \
-         \"))))(Tile((id aaeb29f8-4b19-48c4-ba06-ca6f4b92d1fe)(label(typfun \
+         \"))))(Tile((id aaeb29f8-4b19-48c4-ba06-ca6f4b92d1fe)(label(abs \
          ->))(mold((out Exp)(in_(TPat))(nibs(((shape Convex)(sort \
          Exp))((shape(Concave 37))(sort Exp))))))(shards(0 \
          1))(children(((Secondary((id \
@@ -517,7 +517,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
          aacb2e09-9b7e-4b31-8dd3-0f212dfaa4f4)(content(Whitespace\" \
          \")))))))))(Secondary((id \
          20346f39-08ef-41e7-a25f-89ccf992ac10)(content(Whitespace\" \
-         \"))))(Tile((id 2ae89242-86c1-4919-864a-187eea46fd5e)(label(typfun \
+         \"))))(Tile((id 2ae89242-86c1-4919-864a-187eea46fd5e)(label(abs \
          ->))(mold((out Exp)(in_(TPat))(nibs(((shape Convex)(sort \
          Exp))((shape(Concave 37))(sort Exp))))))(shards(0 \
          1))(children(((Secondary((id \
@@ -529,7 +529,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
          11adad81-bfe0-4f45-9f9d-eb58ca388a0c)(content(Whitespace\" \
          \")))))))))(Secondary((id \
          ddc437f6-73e3-4903-87c8-c1bb50bb8dc3)(content(Whitespace\" \
-         \"))))(Tile((id 16413ee4-7a5e-4003-bf9a-93e2653c0cb8)(label(typfun \
+         \"))))(Tile((id 16413ee4-7a5e-4003-bf9a-93e2653c0cb8)(label(abs \
          ->))(mold((out Exp)(in_(TPat))(nibs(((shape Convex)(sort \
          Exp))((shape(Concave 37))(sort Exp))))))(shards(0 \
          1))(children(((Secondary((id \
@@ -2363,7 +2363,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
         \    (enforced=^^check(false), \"nrows(t3) is equal to nrows(t1) * \
          nrows(t2)\")\n\
         \  ] in\n\
-        \  let cross_join = typfun r1 -> typfun r2 -> typfun r3 -> \n\
+        \  let cross_join = abs r1 -> abs r2 -> abs r3 -> \n\
         \    fun (t1 : [r1], t2 : [r2], combine: ((r1,r2) -> r3)) ->\n\
         \      flat_map(t1, fun r1 -> map(t2, fun r2 -> combine(r1, r2))) : \
          [r3] in \n\

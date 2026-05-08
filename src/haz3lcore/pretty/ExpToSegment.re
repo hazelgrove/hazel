@@ -141,7 +141,7 @@ let rec external_precedence = (exp: Exp.t): Precedence.t => {
   | Ap(Reverse, _, _) => Precedence.eqs
   | ListConcat(_) => Precedence.concat
   | If(_) => Precedence.if_
-  | TypFun(_)
+  | TypAbs(_)
   | Fun(_)
   | FixF(_)
   | Forall(_) => Precedence.fun_
@@ -207,6 +207,8 @@ let external_precedence_typ = (tp: Typ.t) =>
   | TupLabel(_) => Precedence.max
   | ProdProjection(_) => Precedence.dot
   | ProdExtension(_) => Precedence.ap
+  | TypParamAp(_) => Precedence.type_sum_ap
+  | TypTuple(_) => Precedence.comma
   // Same goes for forms which are already surrounded
   | Parens(_)
   | Projector(_)
@@ -219,6 +221,7 @@ let external_precedence_typ = (tp: Typ.t) =>
   | Sum(_) => Precedence.type_plus
   | Rec(_, _) => Precedence.let_
   | Poly(_, _) => Precedence.let_
+  | TypFun(_, _) => Precedence.let_
 
   // Matt: I think multiholes are min because we don't know the precedence of the `⟩?⟨`s
   | Unknown(Hole(MultiHole(_))) => Precedence.min
@@ -381,8 +384,8 @@ let rec parenthesize =
       parenthesize(e) |> paren_assoc_at(Precedence.fun_),
     )
     |> rewrap
-  | TypFun(tp, e, n) =>
-    TypFun(tp, parenthesize(e) |> paren_assoc_at(Precedence.fun_), n)
+  | TypAbs(tp, e, n) =>
+    TypAbs(tp, parenthesize(e) |> paren_assoc_at(Precedence.fun_), n)
     |> rewrap
   | Tuple([e])
       when
@@ -589,8 +592,27 @@ let rec parenthesize =
       ),
     )
     |> rewrap
-  | Module(_) => exp /* Phase 1.2: proper module parenthesization */
-  | ModuleExp(_) => exp
+  | Module(items) =>
+    /* Recurse into each module item so any internal expressions /
+       types get the same defensive parenthesization a top-level
+       expression context would get. */
+    let parenthesize_item = (item: Mod.t): Mod.t => {
+      let new_term: Mod.term =
+        switch (item.term) {
+        | ModLet(p, e) => ModLet(parenthesize_pat(p), parenthesize(e))
+        | ModType(tp, t) => ModType(tp, parenthesize_typ(t))
+        | ModExp(e) => ModExp(parenthesize(e))
+        | ModuleMod(mp, e) => ModuleMod(mp, parenthesize(e))
+        | (EmptyHole | Invalid(_) | MultiHole(_)) as t => t
+        };
+      {
+        ...item,
+        term: new_term,
+      };
+    };
+    Module(List.map(parenthesize_item, items)) |> rewrap;
+  | ModuleExp(mp, def, body) =>
+    ModuleExp(mp, parenthesize(def), parenthesize(body)) |> rewrap
   };
 }
 and parenthesize_pat =
@@ -792,13 +814,42 @@ and parenthesize_typ =
       parenthesize_typ(t2) |> paren_typ_assoc_at(Precedence.type_arrow),
     )
     |> rewrap
+  | TypFun(tp, t) =>
+    TypFun(
+      tp,
+      parenthesize_typ(t) |> paren_typ_assoc_at(Precedence.type_binder),
+    )
+    |> rewrap
+  | TypParamAp(t1, t2) =>
+    /* `T(_)` provides outer parens, so the argument doesn't need
+       further wrapping; `~already_paren=true` keeps a `Prod`
+       argument from auto-wrapping (else `T((a, b))` instead of
+       `T(a, b)`). */
+    TypParamAp(
+      parenthesize_typ(t1) |> paren_typ_assoc_at(Precedence.type_sum_ap),
+      parenthesize_typ(~already_paren=true, t2)
+      |> paren_typ_at(Precedence.min),
+    )
+    |> rewrap
+  | TypTuple(ts) =>
+    TypTuple(
+      List.map(
+        t => parenthesize_typ(t) |> paren_typ_at(Precedence.comma),
+        ts,
+      ),
+    )
+    |> rewrap
   | Sum(ts) =>
+    /* `Ctor(_)` already provides outer parens, so the argument
+       doesn't need further wrapping; `~already_paren=true` keeps a
+       `Prod` argument from auto-wrapping (else `Cons((a, b))`
+       instead of `Cons(a, b)`). */
     Sum(
       ConstructorMap.map(
         ts =>
           ts
-          |> Option.map(parenthesize_typ)
-          |> Option.map(paren_typ_at(Precedence.type_plus)),
+          |> Option.map(parenthesize_typ(~already_paren=true))
+          |> Option.map(paren_typ_at(Precedence.min)),
         ts,
       ),
     )
@@ -835,6 +886,9 @@ and parenthesize_tpat =
   switch (term) {
   // Indivisible forms dont' change
   | Var(_)
+  | Param(_)
+  | Tuple(_)
+  | Parens(_)
   | Invalid(_)
   | EmptyHole => tpat
 
@@ -1913,7 +1967,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     let+ p = pat_to_pretty(~settings: Settings.t, p)
     and+ e = go(e);
     wrap(exp, [mk_form(Forall, id, [p])] @ e);
-  | TypFun(tp, e, _) =>
+  | TypAbs(tp, e, _) =>
     // TODO: Add optional newlines
     let id = exp |> Exp.rep_id;
     let+ tp = tpat_to_pretty(~settings: Settings.t, tp)
@@ -1924,7 +1978,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
       ++ ">";
     wrap(
       exp,
-      [mk_form(TypFun, id, [tp])]
+      [mk_form(TypAbs, id, [tp])]
       @ e
       |> fold_fun_if(settings.fold_fn_bodies, name, _, exp),
     );
@@ -2772,6 +2826,34 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
     let+ t1 = go(t1)
     and+ t2 = go(t2);
     wrap(typ, t1 @ [mk_form(TypeArrow, id, [])] @ t2);
+  | TypFun(tp, t) =>
+    let id = typ |> Typ.rep_id;
+    let+ tp = tpat_to_pretty(~settings: Settings.t, tp)
+    and+ t = go(t);
+    wrap(typ, [mk_form(TypFun, id, [tp])] @ t);
+  | TypParamAp(t1, t2) =>
+    let id = typ |> Typ.rep_id;
+    let+ t1 = go(t1)
+    and+ t2 = go(t2);
+    wrap(typ, t1 @ [mk_form(ApTyp, id, [t2])]);
+  | TypTuple(ts) =>
+    /* Render as a comma-separated list (no surrounding parens — the
+       enclosing TypParamAp's parens carry it). */
+    let id = typ |> Typ.rep_id;
+    let+ rendered =
+      List.fold_left(
+        (acc, t) => {
+          let+ acc = acc
+          and+ rt = go(t);
+          switch (acc) {
+          | [] => rt
+          | _ => acc @ text_to_pretty(id, Sort.Typ, ", ") @ rt
+          };
+        },
+        all([]),
+        ts,
+      );
+    wrap(typ, rendered);
   | Sum([]) => failwith("Empty Sums are not allowed")
   | Sum([t]) =>
     let id = typ |> Typ.rep_id;
@@ -2783,14 +2865,36 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
     let ids = List.tl(ids);
     let+ t = go_constructor(t)
     and+ ts = ts |> List.map(go_constructor) |> all;
-    wrap(
-      typ,
-      [mk_form(TypSumSingle, id, [])]
-      @ t
-      @ List.flatten(
-          List.map2((id, t) => [mk_form(TypPlus, id, [])] @ t, ids, ts),
-        ),
-    );
+    switch (settings.secondary) {
+    | AutoFormat =>
+      /* `+ t1` then ` + tN` for each subsequent variant, with
+         explicit spaces around each interior `+`. Necessary
+         because the per-variant segments are concatenated via
+         `List.flatten` (raw append), bypassing the space-injecting
+         `@`. */
+      let space = () => Base.Secondary(mk_space(Id.mk()));
+      let rest =
+        List.flatten(
+          List.map2(
+            (id, t) =>
+              list_append([space(), mk_form(TypPlus, id, []), space()], t),
+            ids,
+            ts,
+          ),
+        );
+      wrap(typ, [mk_form(TypSumSingle, id, [])] @ t @ rest);
+    | PreserveExact =>
+      /* Stored secondary on the user's tokens already carries
+         their original whitespace; don't inject any. */
+      wrap(
+        typ,
+        [mk_form(TypSumSingle, id, [])]
+        @ t
+        @ List.flatten(
+            List.map2((id, t) => [mk_form(TypPlus, id, [])] @ t, ids, ts),
+          ),
+      )
+    };
   | Sig([]) =>
     /* Empty sig: {} */
     wrap(typ, text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "{}"))
@@ -2902,6 +3006,51 @@ and tpat_to_pretty = (~settings: Settings.t, tpat: TPat.t): pretty => {
       };
     wrap(tpat, seg);
   | Var(v) => wrap(tpat, text_to_pretty(tpat |> TPat.rep_id, Sort.TPat, v))
+  | Param(head, params) =>
+    let app_id = tpat |> TPat.rep_id;
+    let mk_form = mk_form(~secondary=settings.secondary);
+    let+ head = tpat_to_pretty(~settings: Settings.t, head)
+    and+ params =
+      params |> List.map(tpat_to_pretty(~settings: Settings.t)) |> all;
+    let params =
+      switch (params) {
+      | [] => []
+      | [first, ...rest] =>
+        first
+        @ List.flatten(
+            List.map2(
+              (comma_id, param) =>
+                [mk_form(CommaTPat, comma_id, [])] @ param,
+              IdTagged.ids(tpat) |> pad_ids(List.length(rest)),
+              rest,
+            ),
+          )
+      };
+    wrap(tpat, head @ [mk_form(ApTPat, app_id, [params])]);
+  | Tuple(tps) =>
+    /* Render a multi-binder tpat as `a, b, c, …` using the existing
+       `,` infix CommaTPat tile between elements. */
+    let mk_form = mk_form(~secondary=settings.secondary);
+    let+ tps = tps |> List.map(tpat_to_pretty(~settings: Settings.t)) |> all;
+    let seg =
+      switch (tps) {
+      | [] => []
+      | [first, ...rest] =>
+        first
+        @ List.flatten(
+            List.map2(
+              (comma_id, tp) => [mk_form(CommaTPat, comma_id, [])] @ tp,
+              IdTagged.ids(tpat) |> pad_ids(List.length(rest)),
+              rest,
+            ),
+          )
+      };
+    wrap(tpat, seg);
+  | Parens(inner) =>
+    let id = tpat |> TPat.rep_id;
+    let mk_form = mk_form(~secondary=settings.secondary);
+    let+ inner = tpat_to_pretty(~settings: Settings.t, inner);
+    wrap(tpat, [mk_form(ParensTPat, id, [inner])]);
   };
 }
 and mod_to_pretty = (~settings: Settings.t, item: Mod.t): pretty => {

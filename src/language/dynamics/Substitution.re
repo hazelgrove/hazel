@@ -47,8 +47,17 @@ let rec in_exp = (env: Environment.t(Exp.t), exp: Exp.t) =>
 
         // Cases with binders: remove binder from env
         | Let(p, e1, e2) =>
+          /* `let p = e1 in e2` is non-recursive: `p` is bound only in
+             `e2`. Substitution into `e1` must use the *outer* `env`,
+             not the renamed `env'` produced by `in_pat`. The
+             previous code shared `env'` between `e1` and `e2`, which
+             would alpha-rename free occurrences of `p`'s name in
+             `e1` (because `in_pat` adds a `name → renamed_name`
+             mapping to avoid capture in the body), turning
+             `[y ↦ 1] (let y = y in y)` into the unbound `let y' =
+             y' in y'` instead of `let y = 1 in y`. */
           let (env', p') = in_pat(env, env, p);
-          Let(p', in_exp(env', e1), in_exp(env', e2)) |> rewrap;
+          Let(p', in_exp(env, e1), in_exp(env', e2)) |> rewrap;
         | Match(e, cases) =>
           Match(
             in_exp(env, e),
@@ -63,8 +72,12 @@ let rec in_exp = (env: Environment.t(Exp.t), exp: Exp.t) =>
           let (env', p') = in_pat(env, env, p);
           FixF(p', in_exp(env', e), None) |> rewrap;
         | Theorem(p, e1, e2) =>
+          /* `theorem p = e1 in e2` mirrors the non-recursive `Let`:
+             the transition substitutes the outer `env` into `e1`
+             before binding `p` to the proven object in `env'` for
+             `e2`. Same fix as `Let`. */
           let (env', p') = in_pat(env, env, p);
-          Theorem(p', in_exp(env', e1), in_exp(env', e2)) |> rewrap;
+          Theorem(p', in_exp(env, e1), in_exp(env', e2)) |> rewrap;
         | Forall(pat, e) =>
           let (env', pat') = in_pat(env, env, pat);
           Forall(pat', in_exp(env', e)) |> rewrap;
@@ -79,7 +92,7 @@ let rec in_exp = (env: Environment.t(Exp.t), exp: Exp.t) =>
         | DrvQuote(_)
         | ListLit(_)
         | Constructor(_)
-        | TypFun(_)
+        | TypAbs(_)
         | Tuple(_)
         | TupLabel(_)
         | TupleExtension(_)
@@ -211,6 +224,9 @@ and in_typ = (env: Environment.t(Exp.t), typ: Typ.t) =>
         | Var(_)
         | List(_)
         | Arrow(_, _)
+        | TypFun(_, _)
+        | TypParamAp(_, _)
+        | TypTuple(_)
         | Sum(_)
         | Prod(_)
         | ExplicitNonlabel

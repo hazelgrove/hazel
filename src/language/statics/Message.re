@@ -51,14 +51,24 @@ type ok_typ =
       unnormalized: Typ.t,
       whnormalized: Typ.t,
     })
+  | Kind(TypKind.t)
   | Type(Typ.t)
   | EmptyLabel
+  | Default /* show just the class label, no extra message body */
   | TypeUnderdetermined(underdetermined_typ);
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type ok_tpat =
   | Empty
-  | Var(string);
+  | Default /* show just the class label, no extra message body */
+  | TypeAlias({
+      name: string,
+      kind: TypKind.t,
+    })
+  | TypeParameter({
+      name: string,
+      kind: TypKind.t,
+    });
 
 /* Single inspector payload for all sorts (non-error branch); errors use marks. */
 [@deriving (show({with_path: false}), sexp, yojson, eq)]

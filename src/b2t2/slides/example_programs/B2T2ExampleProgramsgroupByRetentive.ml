@@ -79,8 +79,8 @@ let out : string * Haz3lcore.PersistentSegment.t =
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
          a257fb42-20b8-4339-b21f-98d0ee3a1674)(label(.))(mold((out \
-         Exp)(in_())(nibs(((shape(Concave 22))(sort Exp))((shape(Concave \
-         22))(sort Exp))))))(shards(0))(children())))(Tile((id \
+         Exp)(in_())(nibs(((shape(Concave 10))(sort Exp))((shape(Concave \
+         10))(sort Exp))))))(shards(0))(children())))(Tile((id \
          1a6ada59-0a8c-4bbe-aa86-aecb2c206774)(label(label))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
@@ -93,8 +93,8 @@ let out : string * Haz3lcore.PersistentSegment.t =
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children()))))))))(Tile((id \
          4b17ff1e-c8f1-4565-87a0-c65dae18cf46)(label(.))(mold((out \
-         Exp)(in_())(nibs(((shape(Concave 22))(sort Exp))((shape(Concave \
-         22))(sort Exp))))))(shards(0))(children())))(Tile((id \
+         Exp)(in_())(nibs(((shape(Concave 10))(sort Exp))((shape(Concave \
+         10))(sort Exp))))))(shards(0))(children())))(Tile((id \
          20f217ee-7fde-4a5f-978e-a6dd165f9add)(label(value))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
@@ -111,7 +111,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
          2cba6407-c94a-4eb9-b283-2bfe930db3e9)(content(Whitespace\" \
          \")))))((Secondary((id \
          ba0c52a8-95d6-4ce2-98a0-27379bc3bc0c)(content(Whitespace\" \
-         \"))))(Tile((id faaae568-0668-455c-a2cc-545d8d740e65)(label(typfun \
+         \"))))(Tile((id faaae568-0668-455c-a2cc-545d8d740e65)(label(abs \
          ->))(mold((out Exp)(in_(TPat))(nibs(((shape Convex)(sort \
          Exp))((shape(Concave 37))(sort Exp))))))(shards(0 \
          1))(children(((Secondary((id \
@@ -932,8 +932,8 @@ let out : string * Haz3lcore.PersistentSegment.t =
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children()))))))))))))))))))(Tile((id \
          c4c81471-b433-4cc4-a9b0-e1cbd7836011)(label(.))(mold((out \
-         Exp)(in_())(nibs(((shape(Concave 22))(sort Exp))((shape(Concave \
-         22))(sort Exp))))))(shards(0))(children())))(Tile((id \
+         Exp)(in_())(nibs(((shape(Concave 10))(sort Exp))((shape(Concave \
+         10))(sort Exp))))))(shards(0))(children())))(Tile((id \
          efbbf5f7-8fd3-4004-ba92-9620138d1982)(label(value))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
@@ -1071,8 +1071,8 @@ let out : string * Haz3lcore.PersistentSegment.t =
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
          dc69789c-5589-4cfe-bc30-7285920243e8)(label(.))(mold((out \
-         Exp)(in_())(nibs(((shape(Concave 22))(sort Exp))((shape(Concave \
-         22))(sort Exp))))))(shards(0))(children())))(Tile((id \
+         Exp)(in_())(nibs(((shape(Concave 10))(sort Exp))((shape(Concave \
+         10))(sort Exp))))))(shards(0))(children())))(Tile((id \
          83cac39d-2ab1-4333-922a-fad6b4848974)(label(key))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
@@ -1550,7 +1550,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
          fun (r:?,label:String) ->\n\
          find(to_lvs(r),fun e ->e.label ==label).value\n\
          in\n\
-         let add_rows = typfun row ->  fun (r :row, rs : [row]) -> rs @ [r]  in\n\
+         let add_rows = abs row ->  fun (r :row, rs : [row]) -> rs @ [r]  in\n\
          let add_col = fun (t : [?], c : String, vs: [?]) ->\n\
          zip(t, vs)\n\
          |> map(_, fun (r, v) -> from_lvs(to_lvs(r) @ [(c, v)])) in\n\

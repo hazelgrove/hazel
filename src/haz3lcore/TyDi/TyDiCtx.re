@@ -51,6 +51,21 @@ let bound_livelits = (ty_expect: Typ.t, ctx: Ctx.t): list(TyDiSuggestion.t) =>
     ctx.entries,
   );
 
+/* Peel a constructor schema's outer `Poly` (substituting `?` for the
+   binders) so a polymorphic constructor like `None : poly a ->
+   Option(a)` is checked against the user's expected type by its
+   gradually-typed instantiation `Option(?)` rather than the bare
+   `Poly` (which is never structurally consistent with a `Sum`). */
+let peel_poly_for_consistency = (ty: Typ.t): Typ.t =>
+  switch (Typ.term_of(ty)) {
+  | Poly(binder, body) =>
+    let binders = TPat.binders_of(binder);
+    let args =
+      List.init(List.length(binders), _ => Unknown(Internal) |> Typ.fresh);
+    Typ.subst_many(args, binders, body);
+  | _ => ty
+  };
+
 let bound_constructors =
     (wrap: strategy_common => strategy, ty: Typ.t, ctx: Ctx.t)
     : list(TyDiSuggestion.t) =>
@@ -58,7 +73,7 @@ let bound_constructors =
   List.filter_map(
     fun
     | Ctx.ConstructorEntry({typ, name, _})
-        when Typ.is_consistent(ctx, ty, typ) =>
+        when Typ.is_consistent(ctx, ty, peel_poly_for_consistency(typ)) =>
       Some({
         content: name,
         strategy: wrap(FromCtx(typ)),
@@ -88,18 +103,18 @@ let bound_constructor_aps =
     (wrap, ty: Typ.t, ctx: Ctx.t): list(TyDiSuggestion.t) =>
   List.filter_map(
     fun
-    | Ctx.ConstructorEntry({
-        typ: {term: Arrow(_, ty_out), _} as ty_arr,
-        name,
-        _,
-      })
-        when
-          Typ.is_consistent(ctx, ty, ty_out)
-          && !Typ.is_consistent(ctx, ty, ty_arr) =>
-      Some({
-        content: name ++ "(",
-        strategy: wrap(FromCtxAp(ty_out)),
-      })
+    | Ctx.ConstructorEntry({typ, name, _}) =>
+      switch (Typ.term_of(peel_poly_for_consistency(typ))) {
+      | Arrow(_, ty_out) as arrow_term
+          when
+            Typ.is_consistent(ctx, ty, ty_out)
+            && !Typ.is_consistent(ctx, ty, arrow_term |> Typ.fresh) =>
+        Some({
+          content: name ++ "(",
+          strategy: wrap(FromCtxAp(ty_out)),
+        })
+      | _ => None
+      }
     | _ => None,
     ctx.entries,
   );

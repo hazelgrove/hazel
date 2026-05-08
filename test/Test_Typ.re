@@ -196,4 +196,119 @@ let fast_equal_tests = (
   ],
 );
 
-let tests = [meet_tests, fast_equal_tests];
+let normalize_tests = (
+  "Typ.normalize",
+  IdTagged.FreshGrammar.Typ.[
+    test_case(
+      "Type-level beta reduction",
+      `Quick,
+      () => {
+        let ctx = Builtins.ctx_init(None);
+        let ty =
+          typ_param_ap(
+            typ_fun(Var("a") |> TPat.temp, list(var("a"))),
+            int(),
+          );
+        check(
+          typ,
+          "beta-normalized type application",
+          list(int()),
+          Typ.normalize(ctx, ty),
+        );
+      },
+    ),
+    test_case(
+      "Parameterized alias application normalizes",
+      `Quick,
+      () => {
+        let option_ty =
+          typ_fun(
+            Var("a") |> TPat.temp,
+            sum([
+              ConstructorMap.Variant(
+                "None",
+                ConstructorMap.empty_variant_ann,
+                None,
+              ),
+              Variant(
+                "Some",
+                ConstructorMap.empty_variant_ann,
+                Some(var("a")),
+              ),
+            ]),
+          );
+        let ctx =
+          Ctx.extend_alias(
+            Builtins.ctx_init(None),
+            "Option",
+            Id.invalid,
+            ~typ_kind=TypKind.of_param_count(1),
+            option_ty,
+          );
+        let normalized =
+          Typ.normalize(ctx, typ_param_ap(var("Option"), int()));
+        check(
+          typ,
+          "instantiated option",
+          sum([
+            ConstructorMap.Variant(
+              "None",
+              ConstructorMap.empty_variant_ann,
+              None,
+            ),
+            Variant("Some", ConstructorMap.empty_variant_ann, Some(int())),
+          ]),
+          normalized,
+        );
+      },
+    ),
+    test_case(
+      "Recursive parameterized alias exposes sum constructors",
+      `Quick,
+      () => {
+        let list_name = "List";
+        let param = Var("a") |> TPat.temp;
+        let recursive_list_a = typ_param_ap(var(list_name), var("a"));
+        let list_body =
+          typ_fun(
+            param,
+            sum([
+              ConstructorMap.Variant(
+                "Nil",
+                ConstructorMap.empty_variant_ann,
+                None,
+              ),
+              Variant(
+                "Cons",
+                ConstructorMap.empty_variant_ann,
+                Some(prod([var("a"), recursive_list_a])),
+              ),
+            ]),
+          );
+        let list_ty =
+          Rec(Var(list_name) |> TPat.temp, list_body) |> Typ.temp;
+        let ctx =
+          Ctx.extend_alias(
+            Builtins.ctx_init(None),
+            list_name,
+            Id.invalid,
+            ~typ_kind=TypKind.of_param_count(1),
+            list_ty,
+          );
+        let constructors =
+          Typ.get_sum_constructors(
+            ctx,
+            typ_param_ap(var(list_name), int()),
+          );
+        check(
+          Alcotest.bool,
+          "recursive list constructors found",
+          true,
+          Option.is_some(constructors),
+        );
+      },
+    ),
+  ],
+);
+
+let tests = [meet_tests, fast_equal_tests, normalize_tests];

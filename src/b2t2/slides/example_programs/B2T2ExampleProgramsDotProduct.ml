@@ -512,8 +512,8 @@ let out : string * Haz3lcore.PersistentSegment.t =
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
          4635b5da-e7a3-4472-8bd7-3cbc6f8792be)(label(.))(mold((out \
-         Exp)(in_())(nibs(((shape(Concave 22))(sort Exp))((shape(Concave \
-         22))(sort Exp))))))(shards(0))(children())))(Tile((id \
+         Exp)(in_())(nibs(((shape(Concave 10))(sort Exp))((shape(Concave \
+         10))(sort Exp))))))(shards(0))(children())))(Tile((id \
          a999445d-6765-45ee-b527-4b5298d1b686)(label(label))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
@@ -528,8 +528,8 @@ let out : string * Haz3lcore.PersistentSegment.t =
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children()))))))))(Tile((id \
          b6a20362-8cf6-4b19-a6ad-8c030cb57d29)(label(.))(mold((out \
-         Exp)(in_())(nibs(((shape(Concave 22))(sort Exp))((shape(Concave \
-         22))(sort Exp))))))(shards(0))(children())))(Tile((id \
+         Exp)(in_())(nibs(((shape(Concave 10))(sort Exp))((shape(Concave \
+         10))(sort Exp))))))(shards(0))(children())))(Tile((id \
          e534fc31-1da4-4db6-8ee6-3459dad6547c)(label(value))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
@@ -739,7 +739,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
          407394fe-a213-433c-9899-e1b7a3373cba)(content(Whitespace\" \
          \")))))((Secondary((id \
          a7a4f20b-9468-4245-92ce-1116613e337c)(content(Whitespace\"\\n\"))))(Tile((id \
-         76ae1ffd-da3d-41d6-b9bd-6e0a8ce50a7b)(label(typfun ->))(mold((out \
+         76ae1ffd-da3d-41d6-b9bd-6e0a8ce50a7b)(label(abs ->))(mold((out \
          Exp)(in_(TPat))(nibs(((shape Convex)(sort Exp))((shape(Concave \
          37))(sort Exp))))))(shards(0 1))(children(((Secondary((id \
          c9f447eb-2427-4150-8cc2-5e5187f65b28)(content(Whitespace\" \
@@ -1083,8 +1083,8 @@ let out : string * Haz3lcore.PersistentSegment.t =
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
          bdfd98e3-e933-42e9-afeb-f3a2c4215379)(label(.))(mold((out \
-         Exp)(in_())(nibs(((shape(Concave 22))(sort Exp))((shape(Concave \
-         22))(sort Exp))))))(shards(0))(children())))(Tile((id \
+         Exp)(in_())(nibs(((shape(Concave 10))(sort Exp))((shape(Concave \
+         10))(sort Exp))))))(shards(0))(children())))(Tile((id \
          783d9d11-c2dc-4760-b975-cd7082b9946c)(label(quiz1))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
@@ -1106,8 +1106,8 @@ let out : string * Haz3lcore.PersistentSegment.t =
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
          21198cf4-0fd2-494c-b8b6-b4ef530ac1f4)(label(.))(mold((out \
-         Exp)(in_())(nibs(((shape(Concave 22))(sort Exp))((shape(Concave \
-         22))(sort Exp))))))(shards(0))(children())))(Tile((id \
+         Exp)(in_())(nibs(((shape(Concave 10))(sort Exp))((shape(Concave \
+         10))(sort Exp))))))(shards(0))(children())))(Tile((id \
          b3c56299-f18f-478c-884e-896cd746ab1a)(label(quiz2))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children()))))))))(Secondary((id \
@@ -1136,7 +1136,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
          ^^probe(dot_product(gradebook, \"quiz1\", \"quiz2\"));\n\n\
          # Version using function for column access #\n\
          let dot_product =\n\
-         typfun R ->    \n\
+         abs R ->    \n\
          fun (t1:[R], c1 : R -> Int, c2 : R -> Int) ->  \n\
          fold_left(map(t1, fun r -> (c1(r) * c2(r))), int_plus, 0) : Int\n\
          in\n\

@@ -31,8 +31,8 @@ let newline = '\r' | '\n' | "\r\n"
 
 let whitespace = [' ' '\t']+
 
-let identifier = ['a'-'z' '_'] ['a'-'z' 'A'-'Z' '0'-'9' '_']*
-let constructor_ident = ['A'-'Z'] ['a'-'z' 'A'-'Z' '0'-'9' '_']*
+let identifier = ['a'-'z' '_'] ['a'-'z' 'A'-'Z' '0'-'9' '_' '\'']*
+let constructor_ident = ['A'-'Z'] ['a'-'z' 'A'-'Z' '0'-'9' '_' '\'']*
 let sexp_string = '`' [^'`']* '`'
 let ints = ['0'-'9']+
 let projector_invoke = "^^" ['a'-'z' 'A'-'Z' '0'-'9' '_']+
@@ -128,7 +128,8 @@ rule token =
     | "?" {QUESTION}
     | "_" {WILD}
     | "fix" {FIX}
-    | "typfun" {TYP_FUN}
+    | "abs" {TYP_ABS}        (* value-level type abstraction *)
+    | "typfun" {TYP_FUN}     (* type-level type function (TypFun) *)
     | "type" {TYP}
     | "~" {TILDE}
     | "/~" {SLASH_TILDE}

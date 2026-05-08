@@ -450,7 +450,7 @@ let rec replace_exp =
         | DrvQuote(_, _)
         | ListLit(_)
         | Constructor(_)
-        | TypFun(_)
+        | TypAbs(_)
         | Tuple(_)
         | TupleExtension(_)
         | Label(_)

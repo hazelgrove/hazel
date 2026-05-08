@@ -728,27 +728,199 @@ let get_doc =
     get_message(~colorings, ~format=None, ~explanation, group);
   };
 
+  /* Shared dispatch for module / signature items. Each entry picks
+     the IDs of its highlighted sub-terms from the user's term and
+     formats the matching explanation. */
+  let mod_let_message = (pat: Pat.t, def: Exp.t) => {
+    let pat_id = List.nth(IdTagged.ids(pat), 0);
+    let def_id = List.nth(IdTagged.ids(def), 0);
+    get_message(
+      ~colorings=ModLetDecl.mod_let_decl_coloring_ids(~pat_id, ~def_id),
+      ~format=
+        Some(
+          msg =>
+            Printf.sprintf(
+              Scanf.format_from_string(msg, "%s%s"),
+              Id.to_string(def_id),
+              Id.to_string(pat_id),
+            ),
+        ),
+      ModLetDecl.mod_let_decls,
+    );
+  };
+  let mod_type_message = (tpat: TPat.t, typ: Typ.t) => {
+    let tpat_id = List.nth(IdTagged.ids(tpat), 0);
+    let typ_id = List.nth(IdTagged.ids(typ), 0);
+    get_message(
+      ~colorings=ModTypeDecl.mod_type_decl_coloring_ids(~tpat_id, ~typ_id),
+      ~format=
+        Some(
+          msg =>
+            Printf.sprintf(
+              Scanf.format_from_string(msg, "%s%s"),
+              Id.to_string(tpat_id),
+              Id.to_string(typ_id),
+            ),
+        ),
+      ModTypeDecl.mod_type_decls,
+    );
+  };
+  let module_keyword_decl_message = (mp: MPat.t, def: Exp.t) => {
+    let name_id = List.nth(IdTagged.ids(mp), 0);
+    let def_id = List.nth(IdTagged.ids(def), 0);
+    let name_str =
+      switch (mp.term) {
+      | Var(name) => name
+      | _ => "M"
+      };
+    get_message(
+      ~colorings=
+        ModuleKeywordDecl.module_keyword_decl_coloring_ids(~name_id, ~def_id),
+      ~format=
+        Some(
+          msg =>
+            Printf.sprintf(
+              Scanf.format_from_string(msg, "%s%s%s"),
+              Id.to_string(def_id),
+              name_str,
+              Id.to_string(name_id),
+            ),
+        ),
+      ModuleKeywordDecl.module_keyword_decls,
+    );
+  };
+  let sig_let_message = (pat: Pat.t) => {
+    let pat_id = List.nth(IdTagged.ids(pat), 0);
+    get_message(
+      ~colorings=SigLetDecl.sig_let_decl_coloring_ids(~pat_id),
+      ~format=
+        Some(
+          msg =>
+            Printf.sprintf(
+              Scanf.format_from_string(msg, "%s"),
+              Id.to_string(pat_id),
+            ),
+        ),
+      SigLetDecl.sig_let_decls,
+    );
+  };
+  let sig_type_message = (tpat: TPat.t, typ: Typ.t) => {
+    let tpat_id = List.nth(IdTagged.ids(tpat), 0);
+    let typ_id = List.nth(IdTagged.ids(typ), 0);
+    get_message(
+      ~colorings=SigTypeDecl.sig_type_decl_coloring_ids(~tpat_id, ~typ_id),
+      ~format=
+        Some(
+          msg =>
+            Printf.sprintf(
+              Scanf.format_from_string(msg, "%s%s"),
+              Id.to_string(tpat_id),
+              Id.to_string(typ_id),
+            ),
+        ),
+      SigTypeDecl.sig_type_decls,
+    );
+  };
+  /* `mpat_name` reads a name string out of an MPat or a Pat that was
+     produced by `ExpandModule.mpat_to_pat`, used in the explanation
+     formatting for `module M = …` so we can show the actual `M` name
+     instead of a generic placeholder. */
+  let mpat_name = (mp: MPat.t): string =>
+    switch (mp.term) {
+    | Var(name) => name
+    | _ => "M"
+    };
+  let pat_name = (p: Pat.t): string =>
+    switch (p.term) {
+    | Var(name) => name
+    | _ => "M"
+    };
+  let module_keyword_exp_message = (mp: MPat.t, def: Exp.t, body: Exp.t) => {
+    let name_id = List.nth(IdTagged.ids(mp), 0);
+    let def_id = List.nth(IdTagged.ids(def), 0);
+    let body_id = List.nth(IdTagged.ids(body), 0);
+    let name_str = mpat_name(mp);
+    get_message(
+      ~colorings=
+        ModuleKeywordExp.module_keyword_exp_coloring_ids(
+          ~name_id,
+          ~def_id,
+          ~body_id,
+        ),
+      ~format=
+        Some(
+          msg =>
+            Printf.sprintf(
+              Scanf.format_from_string(msg, "%s%s%s%s"),
+              Id.to_string(def_id),
+              name_str,
+              Id.to_string(name_id),
+              Id.to_string(body_id),
+            ),
+        ),
+      ModuleKeywordExp.module_keyword_exps,
+    );
+  };
   switch (info) {
-  | Some(InfoMod({cls, _})) =>
-    switch (cls) {
-    | Mod(ModLet) => message_single(ModLetDecl.single)
-    | Mod(ModType) => message_single(ModTypeDecl.single)
-    | Mod(ModuleMod) => message_single(ModuleKeywordDecl.single)
-    | _ => simple("Module item")
-    }
-  | Some(InfoSig({cls, _})) =>
-    switch (cls) {
-    | Sig(SigLet) => message_single(SigLetDecl.single)
-    | Sig(SigType) => message_single(SigTypeDecl.single)
-    | _ => simple("Signature item")
-    }
+  /* Module items: when an item is an InfoMod (no expansion), use the
+     Mod term directly. When an item is an expanded InfoExp with cls
+     reclassified to Mod(_), unpack the expanded form (`Let` for
+     ModLet/ModuleMod, `TyAlias` for ModType) to recover the
+     pat/exp/tpat/typ ids the explanation refers to. */
+  | Some(InfoMod({user_term: {term: ModLet(p, e), _}, _})) =>
+    mod_let_message(p, e)
+  | Some(InfoMod({user_term: {term: ModType(tp, t), _}, _})) =>
+    mod_type_message(tp, t)
+  | Some(InfoMod({user_term: {term: ModuleMod(mp, e), _}, _})) =>
+    module_keyword_decl_message(mp, e)
+  | Some(InfoMod(_)) => simple("Module item")
+  | Some(InfoSig({user_term: {term: SigLet(p), _}, _})) =>
+    sig_let_message(p)
+  | Some(InfoSig({user_term: {term: SigType(tp, t), _}, _})) =>
+    sig_type_message(tp, t)
+  | Some(InfoSig(_)) => simple("Signature item")
   | Some(InfoMPat(_)) => simple("Module name")
-  | Some(InfoExp({cls: Mod(ModLet), _})) =>
-    message_single(ModLetDecl.single)
-  | Some(InfoExp({cls: Mod(ModType), _})) =>
-    message_single(ModTypeDecl.single)
-  | Some(InfoExp({cls: Mod(ModuleMod), _})) =>
-    message_single(ModuleKeywordDecl.single)
+  | Some(
+      InfoExp({cls: Mod(ModLet), user_term: {term: Let(p, e, _), _}, _}),
+    ) =>
+    mod_let_message(p, e)
+  | Some(
+      InfoExp({
+        cls: Mod(ModType),
+        user_term: {term: TyAlias(tp, t, _), _},
+        _,
+      }),
+    ) =>
+    mod_type_message(tp, t)
+  | Some(
+      InfoExp({
+        cls: Mod(ModuleMod),
+        user_term: {term: Let(p, e, _), _},
+        _,
+      }),
+    ) =>
+    /* `module M = e` expands to `let M = e in body`; recover the
+       name string from the converted pat. */
+    let name_id = List.nth(IdTagged.ids(p), 0);
+    let def_id = List.nth(IdTagged.ids(e), 0);
+    let name_str = pat_name(p);
+    get_message(
+      ~colorings=
+        ModuleKeywordDecl.module_keyword_decl_coloring_ids(~name_id, ~def_id),
+      ~format=
+        Some(
+          msg =>
+            Printf.sprintf(
+              Scanf.format_from_string(msg, "%s%s%s"),
+              Id.to_string(def_id),
+              name_str,
+              Id.to_string(name_id),
+            ),
+        ),
+      ModuleKeywordDecl.module_keyword_decls,
+    );
+  | Some(InfoExp({user_term: {term: ModuleExp(mp, def, body), _}, _})) =>
+    module_keyword_exp_message(mp, def, body)
   | Some(InfoExp({cls: Mod(_), _})) => simple("Module item")
   | Some(InfoExp({user_term: term, _})) =>
     let rec get_message_exp =
@@ -792,22 +964,145 @@ let get_doc =
       | EmptyHole => get_message(HoleExp.empty_hole_exps)
       | MultiHole(_children) => get_message(HoleExp.multi_hole_exps)
       | TyAlias(ty_pat, ty_def, _body) =>
-        let tpat_id = List.nth(IdTagged.ids(ty_pat), 0);
         let def_id = List.nth(IdTagged.ids(ty_def), 0);
-        get_message(
-          ~colorings=
-            TyAliasExp.tyalias_base_exp_coloring_ids(~tpat_id, ~def_id),
-          ~format=
-            Some(
-              msg =>
-                Printf.sprintf(
-                  Scanf.format_from_string(msg, "%s%s"),
-                  Id.to_string(def_id),
-                  Id.to_string(tpat_id),
-                ),
+        /* Parameterized type aliases (`type T(a, …) = def in body`)
+           dispatch to specificity-level forms by arity: 2 params ->
+           `param_tyalias_exps_arity2`, 3 params -> `…arity3`,
+           otherwise `…general` (which highlights the head and the
+           parameter list as a whole). Plain (non-parameterized)
+           aliases fall back to the base form. */
+        switch (ty_pat.term) {
+        | Param(head, params) =>
+          let head_id = List.nth(IdTagged.ids(head), 0);
+          let head_str =
+            switch (Language.TPat.head_name_of(head)) {
+            | Some(name) => name
+            | None => "?"
+            };
+          let params_ids =
+            List.map(p => List.nth(IdTagged.ids(p), 0), params);
+          let params_list_id =
+            switch (params_ids) {
+            | [p, ..._] => p
+            | [] => Id.mk()
+            };
+          let extra_ids =
+            switch (params_ids) {
+            | [] => []
+            | [_, ...rest] => rest
+            };
+          let general_args = () => (
+            TyAliasExp.param_tyalias_general_coloring_ids(
+              ~head_id,
+              ~params_list_id,
+              ~extra_ids,
+              ~def_id,
             ),
-          TyAliasExp.tyalias_exps,
-        );
+            TyAliasExp.param_tyalias_general_explanation(
+              ~head_str,
+              ~head_id,
+              ~params_ids,
+              ~def_id,
+            ),
+          );
+          switch (params_ids) {
+          | [p_id] =>
+            let group = TyAliasExp.param_tyalias_exps_arity1;
+            let (colorings, explanation) =
+              if (TyAliasExp.param_tyalias_single_exp.id
+                  == get_specificity_level(group)) {
+                (
+                  TyAliasExp.param_tyalias_single_coloring_ids(
+                    ~head_id,
+                    ~p_id,
+                    ~def_id,
+                  ),
+                  TyAliasExp.param_tyalias_single_explanation(
+                    ~head_str,
+                    ~head_id,
+                    ~p_id,
+                    ~def_id,
+                  ),
+                );
+              } else {
+                general_args();
+              };
+            get_message(~colorings, ~explanation, group);
+          | [p1_id, p2_id] =>
+            let group = TyAliasExp.param_tyalias_exps_arity2;
+            let (colorings, explanation) =
+              if (TyAliasExp.param_tyalias_pair_exp.id
+                  == get_specificity_level(group)) {
+                (
+                  TyAliasExp.param_tyalias_pair_coloring_ids(
+                    ~head_id,
+                    ~p1_id,
+                    ~p2_id,
+                    ~def_id,
+                  ),
+                  TyAliasExp.param_tyalias_pair_explanation(
+                    ~head_str,
+                    ~head_id,
+                    ~p1_id,
+                    ~p2_id,
+                    ~def_id,
+                  ),
+                );
+              } else {
+                general_args();
+              };
+            get_message(~colorings, ~explanation, group);
+          | [p1_id, p2_id, p3_id] =>
+            let group = TyAliasExp.param_tyalias_exps_arity3;
+            let (colorings, explanation) =
+              if (TyAliasExp.param_tyalias_triple_exp.id
+                  == get_specificity_level(group)) {
+                (
+                  TyAliasExp.param_tyalias_triple_coloring_ids(
+                    ~head_id,
+                    ~p1_id,
+                    ~p2_id,
+                    ~p3_id,
+                    ~def_id,
+                  ),
+                  TyAliasExp.param_tyalias_triple_explanation(
+                    ~head_str,
+                    ~head_id,
+                    ~p1_id,
+                    ~p2_id,
+                    ~p3_id,
+                    ~def_id,
+                  ),
+                );
+              } else {
+                general_args();
+              };
+            get_message(~colorings, ~explanation, group);
+          | _ =>
+            let (colorings, explanation) = general_args();
+            get_message(
+              ~colorings,
+              ~explanation,
+              TyAliasExp.param_tyalias_exps_general,
+            );
+          };
+        | _ =>
+          let tpat_id = List.nth(IdTagged.ids(ty_pat), 0);
+          get_message(
+            ~colorings=
+              TyAliasExp.tyalias_base_exp_coloring_ids(~tpat_id, ~def_id),
+            ~format=
+              Some(
+                msg =>
+                  Printf.sprintf(
+                    Scanf.format_from_string(msg, "%s%s"),
+                    Id.to_string(def_id),
+                    Id.to_string(tpat_id),
+                  ),
+              ),
+            TyAliasExp.tyalias_exps,
+          );
+        };
       | Undefined => get_message(UndefinedExp.undefined_exps)
       | Deferral(_) => get_message(TerminalExp.deferral_exps)
       | ExplicitNonlabel => simple("Explicitly unlabeled entry")
@@ -829,30 +1124,87 @@ let get_doc =
             ),
           ListExp.listlits,
         )
-      | TypFun(tpat, body, _) =>
-        let basic = group_id => {
-          let tpat_id = List.nth(IdTagged.ids(tpat), 0);
-          let body_id = List.nth(IdTagged.ids(body), 0);
+      | TypAbs(tpat, body, _) =>
+        /* Dispatch by arity of the binder list so each binder is
+           individually color-highlighted at arity 2/3 and the general
+           form covers arbitrary arity. */
+        let body_id = List.nth(IdTagged.ids(body), 0);
+        let binders = TPat.binders_of(tpat);
+        let binders_ids =
+          List.map(b => List.nth(IdTagged.ids(b), 0), binders);
+        let binders_list_id =
+          switch (binders_ids) {
+          | [p, ..._] => p
+          | [] => Id.mk()
+          };
+        let extra_ids =
+          switch (binders_ids) {
+          | [] => []
+          | [_, ...rest] => rest
+          };
+        let general_args = () => (
+          TypAbsExp.typabs_general_coloring_ids(
+            ~binders_list_id,
+            ~extra_ids,
+            ~body_id,
+          ),
+          TypAbsExp.general_explanation(~binders_ids, ~body_id),
+        );
+        switch (binders_ids) {
+        | [p_id] =>
+          let group = TypAbsExp.type_abstractions_single;
+          let (colorings, explanation) =
+            if (TypAbsExp.typabs_single.id == get_specificity_level(group)) {
+              (
+                TypAbsExp.typabs_single_coloring_ids(~p_id, ~body_id),
+                TypAbsExp.single_explanation(~p_id, ~body_id),
+              );
+            } else {
+              general_args();
+            };
+          get_message(~colorings, ~explanation, group);
+        | [p1_id, p2_id] =>
+          let group = TypAbsExp.type_abstractions_pair;
+          let (colorings, explanation) =
+            if (TypAbsExp.typabs_pair.id == get_specificity_level(group)) {
+              (
+                TypAbsExp.typabs_pair_coloring_ids(~p1_id, ~p2_id, ~body_id),
+                TypAbsExp.pair_explanation(~p1_id, ~p2_id, ~body_id),
+              );
+            } else {
+              general_args();
+            };
+          get_message(~colorings, ~explanation, group);
+        | [p1_id, p2_id, p3_id] =>
+          let group = TypAbsExp.type_abstractions_triple;
+          let (colorings, explanation) =
+            if (TypAbsExp.typabs_triple.id == get_specificity_level(group)) {
+              (
+                TypAbsExp.typabs_triple_coloring_ids(
+                  ~p1_id,
+                  ~p2_id,
+                  ~p3_id,
+                  ~body_id,
+                ),
+                TypAbsExp.triple_explanation(
+                  ~p1_id,
+                  ~p2_id,
+                  ~p3_id,
+                  ~body_id,
+                ),
+              );
+            } else {
+              general_args();
+            };
+          get_message(~colorings, ~explanation, group);
+        | _ =>
+          let (colorings, explanation) = general_args();
           get_message(
-            ~colorings=
-              FunctionExp.function_exp_coloring_ids(
-                ~pat_id=tpat_id,
-                ~body_id,
-              ),
-            ~format=
-              Some(
-                msg =>
-                  Printf.sprintf(
-                    Scanf.format_from_string(msg, "%s%s"),
-                    Id.to_string(tpat_id),
-                    Id.to_string(body_id),
-                  ),
-              ),
-            group_id,
+            ~colorings,
+            ~explanation,
+            TypAbsExp.type_abstractions_general,
           );
         };
-        /* TODO: More could be done here probably for different patterns. */
-        basic(TypFunctionExp.type_functions_basic);
       | Fun(pat, body, _, _) =>
         let basic = group_id => {
           let pat_id = List.nth(IdTagged.ids(pat), 0);
@@ -2031,26 +2383,81 @@ let get_doc =
             ~fn_id=Exp.rep_id(fn),
           ),
         )
-      | TypAp(f, typ) =>
+      | TypAp(f, ty_arg) =>
+        /* The argument to `@<…>` is a single `Typ.t` which may be a
+           `TypTuple([t1, …, tn])` for multi-argument applications.
+           Dispatch on the unwrapped arg list's length. */
         let f_id = List.nth(IdTagged.ids(f), 0);
-        let typ_id = List.nth(IdTagged.ids(typ), 0);
-        let basic = (group, format, coloring_ids) => {
-          get_message(
-            ~colorings=coloring_ids(~f_id, ~typ_id),
-            ~format=Some(format),
-            group,
-          );
-        };
-        basic(
-          TypAppExp.typfunaps,
-          msg =>
-            Printf.sprintf(
-              Scanf.format_from_string(msg, "%s%s"),
-              Id.to_string(f_id),
-              Id.to_string(typ_id),
-            ),
-          TypAppExp.typfunapp_exp_coloring_ids,
+        let args =
+          switch (ty_arg.term) {
+          | TypTuple(ts) => ts
+          | _ => [ty_arg]
+          };
+        let args_ids = List.map(t => List.nth(IdTagged.ids(t), 0), args);
+        let args_list_id =
+          switch (args_ids) {
+          | [t, ..._] => t
+          | [] => Id.mk()
+          };
+        let extra_ids =
+          switch (args_ids) {
+          | [] => []
+          | [_, ...rest] => rest
+          };
+        let general_args = () => (
+          TypAppExp.typ_ap_general_coloring_ids(
+            ~f_id,
+            ~args_list_id,
+            ~extra_ids,
+          ),
+          TypAppExp.general_explanation(~f_id, ~args_ids),
         );
+        switch (args_ids) {
+        | [t_id] =>
+          let group = TypAppExp.typ_aps_single;
+          let (colorings, explanation) =
+            if (TypAppExp.typ_ap_single.id == get_specificity_level(group)) {
+              (
+                TypAppExp.typ_ap_single_coloring_ids(~f_id, ~t_id),
+                TypAppExp.single_explanation(~f_id, ~t_id),
+              );
+            } else {
+              general_args();
+            };
+          get_message(~colorings, ~explanation, group);
+        | [t1_id, t2_id] =>
+          let group = TypAppExp.typ_aps_pair;
+          let (colorings, explanation) =
+            if (TypAppExp.typ_ap_pair.id == get_specificity_level(group)) {
+              (
+                TypAppExp.typ_ap_pair_coloring_ids(~f_id, ~t1_id, ~t2_id),
+                TypAppExp.pair_explanation(~f_id, ~t1_id, ~t2_id),
+              );
+            } else {
+              general_args();
+            };
+          get_message(~colorings, ~explanation, group);
+        | [t1_id, t2_id, t3_id] =>
+          let group = TypAppExp.typ_aps_triple;
+          let (colorings, explanation) =
+            if (TypAppExp.typ_ap_triple.id == get_specificity_level(group)) {
+              (
+                TypAppExp.typ_ap_triple_coloring_ids(
+                  ~f_id,
+                  ~t1_id,
+                  ~t2_id,
+                  ~t3_id,
+                ),
+                TypAppExp.triple_explanation(~f_id, ~t1_id, ~t2_id, ~t3_id),
+              );
+            } else {
+              general_args();
+            };
+          get_message(~colorings, ~explanation, group);
+        | _ =>
+          let (colorings, explanation) = general_args();
+          get_message(~colorings, ~explanation, TypAppExp.typ_aps_general);
+        };
 
       | Ap(Forward, x, arg) =>
         let x_id = List.nth(IdTagged.ids(x), 0);
@@ -2416,8 +2823,8 @@ let get_doc =
             ),
           TerminalExp.ctr(v),
         )
-      | Module(_) => message_single(ModuleExp.single)
-      | ModuleExp(_) => message_single(ModuleKeywordExp.single)
+      | Module(_) => get_message(ModuleExp.module_exps)
+      | ModuleExp(mp, def, body) => module_keyword_exp_message(mp, def, body)
       | Projector(_, e) => get_message_exp(e.term)
       };
     get_message_exp(term.term);
@@ -2731,21 +3138,185 @@ let get_doc =
         ListTyp.list,
       );
     | Poly(tpat, typ) =>
-      let tpat_id = List.nth(IdTagged.ids(tpat), 0);
-      let tbody_id = List.nth(IdTagged.ids(typ), 0);
-      get_message(
-        ~colorings=PolyTyp.poly_typ_coloring_ids(~tpat_id, ~tbody_id),
-        ~format=
-          Some(
-            msg =>
-              Printf.sprintf(
-                Scanf.format_from_string(msg, "%s%s"),
-                Id.to_string(tpat_id),
-                Id.to_string(tbody_id),
-              ),
-          ),
-        PolyTyp.poly,
+      let body_id = List.nth(IdTagged.ids(typ), 0);
+      let binders = TPat.binders_of(tpat);
+      let binders_ids =
+        List.map(b => List.nth(IdTagged.ids(b), 0), binders);
+      let binders_list_id =
+        switch (binders_ids) {
+        | [p, ..._] => p
+        | [] => Id.mk()
+        };
+      let extra_ids =
+        switch (binders_ids) {
+        | [] => []
+        | [_, ...rest] => rest
+        };
+      let general_args = () => (
+        PolyTyp.poly_typ_general_coloring_ids(
+          ~binders_list_id,
+          ~extra_ids,
+          ~body_id,
+        ),
+        PolyTyp.general_explanation(~binders_ids, ~body_id),
       );
+      switch (binders_ids) {
+      | [p_id] =>
+        let group = PolyTyp.poly_typ_single_group;
+        let (colorings, explanation) =
+          if (PolyTyp.poly_typ_single.id == get_specificity_level(group)) {
+            (
+              PolyTyp.poly_typ_single_coloring_ids(~p_id, ~body_id),
+              PolyTyp.single_explanation(~p_id, ~body_id),
+            );
+          } else {
+            general_args();
+          };
+        get_message(~colorings, ~explanation, group);
+      | [p1_id, p2_id] =>
+        let group = PolyTyp.poly_typ_pair_group;
+        let (colorings, explanation) =
+          if (PolyTyp.poly_typ_pair.id == get_specificity_level(group)) {
+            (
+              PolyTyp.poly_typ_pair_coloring_ids(~p1_id, ~p2_id, ~body_id),
+              PolyTyp.pair_explanation(~p1_id, ~p2_id, ~body_id),
+            );
+          } else {
+            general_args();
+          };
+        get_message(~colorings, ~explanation, group);
+      | [p1_id, p2_id, p3_id] =>
+        let group = PolyTyp.poly_typ_triple_group;
+        let (colorings, explanation) =
+          if (PolyTyp.poly_typ_triple.id == get_specificity_level(group)) {
+            (
+              PolyTyp.poly_typ_triple_coloring_ids(
+                ~p1_id,
+                ~p2_id,
+                ~p3_id,
+                ~body_id,
+              ),
+              PolyTyp.triple_explanation(~p1_id, ~p2_id, ~p3_id, ~body_id),
+            );
+          } else {
+            general_args();
+          };
+        get_message(~colorings, ~explanation, group);
+      | _ =>
+        let (colorings, explanation) = general_args();
+        get_message(~colorings, ~explanation, PolyTyp.poly_typ_general_group);
+      };
+    | TypFun(_, _) =>
+      simple(
+        "This is an internal type-level function introduced by a parameterized type declaration.",
+      )
+    | TypParamAp(callee, ty_arg) =>
+      let callee_id = List.nth(IdTagged.ids(callee), 0);
+      let callee_str =
+        switch (callee.term) {
+        | Var(name) => name
+        | _ => "?"
+        };
+      let args =
+        switch (ty_arg.term) {
+        | TypTuple(ts) => ts
+        | _ => [ty_arg]
+        };
+      let args_ids = List.map(t => List.nth(IdTagged.ids(t), 0), args);
+      let args_list_id =
+        switch (args_ids) {
+        | [t, ..._] => t
+        | [] => Id.mk()
+        };
+      let extra_ids =
+        switch (args_ids) {
+        | [] => []
+        | [_, ...rest] => rest
+        };
+      let general_args = () => (
+        TypParamApTyp.typ_param_ap_general_coloring_ids(
+          ~callee_id,
+          ~args_list_id,
+          ~extra_ids,
+        ),
+        TypParamApTyp.general_explanation(~callee_str, ~callee_id, ~args_ids),
+      );
+      switch (args_ids) {
+      | [t_id] =>
+        let group = TypParamApTyp.typ_param_aps_single;
+        let (colorings, explanation) =
+          if (TypParamApTyp.typ_param_ap_single_form.id
+              == get_specificity_level(group)) {
+            (
+              TypParamApTyp.typ_param_ap_single_coloring_ids(
+                ~callee_id,
+                ~t_id,
+              ),
+              TypParamApTyp.single_explanation(
+                ~callee_str,
+                ~callee_id,
+                ~t_id,
+              ),
+            );
+          } else {
+            general_args();
+          };
+        get_message(~colorings, ~explanation, group);
+      | [t1_id, t2_id] =>
+        let group = TypParamApTyp.typ_param_aps_pair;
+        let (colorings, explanation) =
+          if (TypParamApTyp.typ_param_ap_pair_form.id
+              == get_specificity_level(group)) {
+            (
+              TypParamApTyp.typ_param_ap_pair_coloring_ids(
+                ~callee_id,
+                ~t1_id,
+                ~t2_id,
+              ),
+              TypParamApTyp.pair_explanation(
+                ~callee_str,
+                ~callee_id,
+                ~t1_id,
+                ~t2_id,
+              ),
+            );
+          } else {
+            general_args();
+          };
+        get_message(~colorings, ~explanation, group);
+      | [t1_id, t2_id, t3_id] =>
+        let group = TypParamApTyp.typ_param_aps_triple;
+        let (colorings, explanation) =
+          if (TypParamApTyp.typ_param_ap_triple_form.id
+              == get_specificity_level(group)) {
+            (
+              TypParamApTyp.typ_param_ap_triple_coloring_ids(
+                ~callee_id,
+                ~t1_id,
+                ~t2_id,
+                ~t3_id,
+              ),
+              TypParamApTyp.triple_explanation(
+                ~callee_str,
+                ~callee_id,
+                ~t1_id,
+                ~t2_id,
+                ~t3_id,
+              ),
+            );
+          } else {
+            general_args();
+          };
+        get_message(~colorings, ~explanation, group);
+      | _ =>
+        let (colorings, explanation) = general_args();
+        get_message(
+          ~colorings,
+          ~explanation,
+          TypParamApTyp.typ_param_aps_general,
+        );
+      };
+    | TypTuple(_) => get_message(TypTupleTyp.typ_tuples)
     | Rec(tpat, typ) =>
       let tpat_id = List.nth(IdTagged.ids(tpat), 0);
       let tbody_id = List.nth(IdTagged.ids(typ), 0);
@@ -2981,6 +3552,132 @@ let get_doc =
           ),
         VarTPat.var_typ_pats(v),
       )
+    | Param(head, params) =>
+      let head_id = List.nth(IdTagged.ids(head), 0);
+      let head_str =
+        switch (TPat.head_name_of(head)) {
+        | Some(name) => name
+        | None => "?"
+        };
+      let params_ids = List.map(p => List.nth(IdTagged.ids(p), 0), params);
+      let params_list_id =
+        switch (params_ids) {
+        | [p, ..._] => p
+        | [] => Id.mk()
+        };
+      let extra_ids =
+        switch (params_ids) {
+        | [] => []
+        | [_, ...rest] => rest
+        };
+      let general_args = () => (
+        ParamTPat.param_tpat_general_coloring_ids(
+          ~head_id,
+          ~params_list_id,
+          ~extra_ids,
+        ),
+        ParamTPat.general_explanation(~head_str, ~params_ids),
+      );
+      switch (params_ids) {
+      | [p_id] =>
+        let group = ParamTPat.param_tpats_arity1;
+        let (colorings, explanation) =
+          if (ParamTPat.param_tpat_single_form.id
+              == get_specificity_level(group)) {
+            (
+              ParamTPat.param_tpat_single_coloring_ids(~head_id, ~p_id),
+              ParamTPat.single_explanation(~head_str, ~p_id),
+            );
+          } else {
+            general_args();
+          };
+        get_message(~colorings, ~explanation, group);
+      | [p1_id, p2_id] =>
+        let group = ParamTPat.param_tpats_arity2;
+        let (colorings, explanation) =
+          if (ParamTPat.param_tpat_pair_form.id
+              == get_specificity_level(group)) {
+            (
+              ParamTPat.param_tpat_pair_coloring_ids(~head_id, ~p1_id, ~p2_id),
+              ParamTPat.pair_explanation(~head_str, ~p1_id, ~p2_id),
+            );
+          } else {
+            general_args();
+          };
+        get_message(~colorings, ~explanation, group);
+      | [p1_id, p2_id, p3_id] =>
+        let group = ParamTPat.param_tpats_arity3;
+        let (colorings, explanation) =
+          if (ParamTPat.param_tpat_triple_form.id
+              == get_specificity_level(group)) {
+            (
+              ParamTPat.param_tpat_triple_coloring_ids(
+                ~head_id,
+                ~p1_id,
+                ~p2_id,
+                ~p3_id,
+              ),
+              ParamTPat.triple_explanation(~head_str, ~p1_id, ~p2_id, ~p3_id),
+            );
+          } else {
+            general_args();
+          };
+        get_message(~colorings, ~explanation, group);
+      | _ =>
+        let (colorings, explanation) = general_args();
+        get_message(~colorings, ~explanation, ParamTPat.param_tpats_general);
+      };
+    | Tuple(tps) =>
+      let binders_ids = List.map(tp => List.nth(IdTagged.ids(tp), 0), tps);
+      let binders_list_id =
+        switch (binders_ids) {
+        | [p, ..._] => p
+        | [] => Id.mk()
+        };
+      let extra_ids =
+        switch (binders_ids) {
+        | [] => []
+        | [_, ...rest] => rest
+        };
+      let general_args = () => (
+        TupleTPat.tuple_tpat_general_coloring_ids(
+          ~binders_list_id,
+          ~extra_ids,
+        ),
+        TupleTPat.general_explanation(~binders_ids),
+      );
+      switch (binders_ids) {
+      | [p1_id, p2_id] =>
+        let group = TupleTPat.tuple_tpats_arity2;
+        let (colorings, explanation) =
+          if (TupleTPat.tuple_tpat_pair_form.id
+              == get_specificity_level(group)) {
+            (
+              TupleTPat.tuple_tpat_pair_coloring_ids(~p1_id, ~p2_id),
+              TupleTPat.pair_explanation(~p1_id, ~p2_id),
+            );
+          } else {
+            general_args();
+          };
+        get_message(~colorings, ~explanation, group);
+      | [p1_id, p2_id, p3_id] =>
+        let group = TupleTPat.tuple_tpats_arity3;
+        let (colorings, explanation) =
+          if (TupleTPat.tuple_tpat_triple_form.id
+              == get_specificity_level(group)) {
+            (
+              TupleTPat.tuple_tpat_triple_coloring_ids(~p1_id, ~p2_id, ~p3_id),
+              TupleTPat.triple_explanation(~p1_id, ~p2_id, ~p3_id),
+            );
+          } else {
+            general_args();
+          };
+        get_message(~colorings, ~explanation, group);
+      | _ =>
+        let (colorings, explanation) = general_args();
+        get_message(~colorings, ~explanation, TupleTPat.tuple_tpats_general);
+      };
+    | Parens(_) => get_message(ParensTPat.parens_tpats)
     }
   | Some(InfoDrv({term, _})) =>
     let (syntax, msg) =
@@ -3101,7 +3798,7 @@ let view =
         ~title=
           switch (info_cursor) {
           | None => "Whitespace or Comment"
-          | Some(info) => Info.cls_of(info) |> Cls.show
+          | Some(info) => Info.cls_text_of(info)
           },
         syn_form @ explanation,
       ),

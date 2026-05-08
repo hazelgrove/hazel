@@ -131,6 +131,19 @@ let keywords = [
   "then",
   "else",
   "hint",
+  /* Type-level binder keywords that can be followed by a
+     parenthesized binder list (`poly (a, b) -> …`, `typfun (a, b) ->
+     …`, etc.). Listing them here keeps `should_add_space` from
+     dropping the space between the keyword and the leading `(`.
+     `abs` is the value-level type abstraction (formerly `typfun`);
+     `typfun` is now the type-level type function (formerly nameless
+     surface syntax for `TypFun`). */
+  "abs",
+  "poly",
+  "typfun",
+  "typlam",
+  "forall",
+  "rec",
 ];
 
 let is_keyword = match(regexp("^(" ++ concat("|", keywords) ++ ")$"));
@@ -209,7 +222,7 @@ let is_var = str =>
   && !is_wild(str)
   && match(var_regexp, str);
 
-let capitalized_name_regexp = regexp("^[A-Z][A-Za-z0-9_]*$");
+let capitalized_name_regexp = regexp("^[A-Z][A-Za-z0-9_']*$");
 let is_ctr = match(capitalized_name_regexp);
 
 let quote_label_when_necessary = (l: string): string =>

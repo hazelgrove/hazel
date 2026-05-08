@@ -65,3 +65,101 @@ let syn_marks_ctr =
       }
     }
   };
+
+/* Left-to-right type-application spine of a `TypParamAp` chain. The
+   multi-arg form `TypParamAp(T, TypTuple([a, b]))` flattens to
+   `[a, b]`; a curried chain `TypParamAp(TypParamAp(T, a), b)` (no
+   longer produced by elaboration but accepted defensively) flattens
+   to the same. */
+let typ_param_ap_spine = (ty: Typ.t): list(Typ.t) => {
+  let rec go = (ty: Typ.t, acc) =>
+    switch (ty.term) {
+    | TypParamAp(fn, {term: TypTuple(args), _}) => go(fn, args @ acc)
+    | TypParamAp(fn, arg) => go(fn, [arg, ...acc])
+    | _ => acc
+    };
+  go(ty, []);
+};
+
+/* Type-parameter arity of a constructor's schema. A multi-parameter
+   alias has a single `Poly(TPat.Tuple([…]), …)` binder; arity is the
+   length of that tuple. */
+let schema_arity = (ty: Typ.t): int => {
+  let rec go = (ty: Typ.t, n) =>
+    switch (ty.term) {
+    | Poly(b, body) =>
+      let arity = List.length(TPat.binders_of(b));
+      go(body, n + arity);
+    | _ => n
+    };
+  go(ty, 0);
+};
+
+/* Build a `TypAp` around `ctor` that supplies `args` as a single
+   tuple-argument bundle (`TypAp(ctor, arg)` for one arg, else
+   `TypAp(ctor, TypTuple(args))`). */
+let wrap_typ_param_aps = (ctor: Exp.t, args: list(Typ.t)): Exp.t =>
+  switch (args) {
+  | [] => ctor
+  | [arg] => TypAp(ctor, arg) |> Exp.fresh
+  | _ => TypAp(ctor, TypTuple(args) |> Typ.fresh) |> Exp.fresh
+  };
+
+/* Resolve surface wrappers and kind-`Type` aliases without unrolling
+   `Rec` or unfolding type-constructor aliases. Used by constructor
+   instantiation to read the user-visible type-application spine while
+   preserving `TypParamAp(Var("List"), Int)` so we can pick `[Int]`
+   off as an argument; an alias like `type IntList = List(Int)` still
+   reduces to the same spine. */
+let rec surface_resolve = (ctx: Ctx.t, ty: Typ.t): Typ.t =>
+  switch (ty.term) {
+  | Parens(inner)
+  | Projector(_, inner) => surface_resolve(ctx, inner)
+  | Var(name) =>
+    switch (Ctx.lookup_tvar_typ_kind(ctx, name)) {
+    | Some(TypKind.Type) =>
+      switch (Ctx.lookup_alias(ctx, name)) {
+      | Some(aliased) => surface_resolve(ctx, aliased)
+      | None => ty
+      }
+    | Some(TypKind.Unknown | TypKind.Arrow(_, _))
+    | None => ty
+    }
+  | _ => ty
+  };
+
+let rec result_of_arrow_surface = (ctx: Ctx.t, ty: Typ.t): Typ.t => {
+  let ty = surface_resolve(ctx, ty);
+  switch (ty.term) {
+  | Arrow(_, out) => result_of_arrow_surface(ctx, out)
+  | _ => ty
+  };
+};
+
+/* Instantiation args for a polymorphic constructor whose schema arity
+   is `n` and whose result-type's surface form mentions an analysis
+   target. Returns `[]` for monomorphic constructors and for the
+   `Poly(_, _)` analysis case (the surrounding `Statics.TypAp` will
+   instantiate explicitly). When the analysis target doesn't expose
+   a usable `TypParamAp` spine (e.g. `fun x -> Some(x)` where `ana`
+   is `Unknown`), falls back to `Unknown(Internal)` for each missing
+   argument so the schema still specializes to a monomorphic shape
+   the runtime can handle. */
+let instantiation_args_for =
+    (ctx: Ctx.t, name: Constructor.t, ana: Typ.t): list(Typ.t) =>
+  switch (Ctx.lookup_ctr(ctx, name)) {
+  | Some({typ, _}) when schema_arity(typ) > 0 =>
+    switch (Typ.term_of(ana)) {
+    | Poly(_, _) => []
+    | _ =>
+      let arity = schema_arity(typ);
+      let target = result_of_arrow_surface(ctx, ana);
+      let args = typ_param_ap_spine(target);
+      if (List.length(args) == arity) {
+        args;
+      } else {
+        List.init(arity, _ => Unknown(Internal) |> Typ.fresh);
+      };
+    }
+  | _ => []
+  };

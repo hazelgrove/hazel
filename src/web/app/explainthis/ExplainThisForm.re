@@ -13,7 +13,7 @@ type list_examples =
   | Cons2;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type typfun_examples =
+type typabs_examples =
   | Basic
   | EmptyHole
   | MultiHole /* TODO: Maybe no good examples with Multihole? */
@@ -84,7 +84,7 @@ type example_id =
   | RecTyp
   | Deferral
   | List(list_examples)
-  | TypFun(typfun_examples)
+  | TypAbs(typabs_examples)
   | Fun(fun_examples)
   | Label1
   | Label2
@@ -108,7 +108,7 @@ type example_id =
   | Forall
   | Yes
   | UseExp1
-  | TypFunAp
+  | TypAbsAp
   | FunAp
   | ConAp
   | LivelitAp
@@ -189,6 +189,19 @@ type pat_sub_form_id =
   | ApFunc
   | ApCons;
 
+/* Specificity levels for forms that vary by arity, e.g. parameterized
+   type aliases `type T(a) = …`, `type T(a, b) = …`, … When the arity
+   is 2 or 3 a specific form is available with per-parameter color
+   highlighting; any other arity falls back to a single `General` form
+   that covers arbitrary-arity and still highlights the head and the
+   comma-separated parameter list as a whole. */
+[@deriving (show({with_path: false}), sexp, yojson)]
+type tpat_sub_form_id =
+  | General
+  | Arity1
+  | Arity2
+  | Arity3;
+
 [@deriving (show({with_path: false}), sexp, yojson)]
 type form_id =
   | Derivation
@@ -208,7 +221,7 @@ type form_id =
   | ListExp
   | ConsExp
   | ListConcatExp
-  | TypFunctionExp
+  | TypAbsExp(tpat_sub_form_id)
   | FunctionExp(pat_sub_form_id)
   | LabeledExp
   | DotExp
@@ -219,7 +232,7 @@ type form_id =
   | FixExp(pat_sub_form_id)
   | TheoremExp
   | ProofObjectExp
-  | TypFunApExp
+  | TypAbsApExp(tpat_sub_form_id)
   | FunApExp
   | ConApExp
   | DeferredApExp
@@ -234,6 +247,7 @@ type form_id =
   | BinOpExp(Language.Operators.op_bin)
   | CaseExp
   | TyAliasExp
+  | ParameterizedTyAliasExp(tpat_sub_form_id)
   | EmptyHolePat
   | MultiHolePat
   | WildPat
@@ -265,7 +279,7 @@ type form_id =
   | StrTyp
   | VarTyp
   | ListTyp
-  | PolyTyp
+  | PolyTyp(tpat_sub_form_id)
   | RecTyp
   | ArrowTyp
   | Arrow3Typ
@@ -284,6 +298,11 @@ type form_id =
   | EmptyHoleTPat
   | MultiHoleTPat
   | VarTPat
+  | ParamTPat(tpat_sub_form_id)
+  | TupleTPat(tpat_sub_form_id)
+  | ParensTPat
+  | TypParamApTyp(tpat_sub_form_id)
+  | TypTupleTyp
   | PipelineExp
   | FilterPause
   | FilterEval
@@ -331,7 +350,7 @@ type group_id =
   | ListExp
   | ConsExp
   | ListConcatExp
-  | TypFunctionExp
+  | TypAbsExp(tpat_sub_form_id)
   | AscExp
   | FunctionExp(pat_sub_form_id)
   | LabeledExp
@@ -342,7 +361,7 @@ type group_id =
   | LetExp(pat_sub_form_id)
   | TheoremExp
   | ProofObjectExp
-  | TypFunApExp
+  | TypAbsApExp(tpat_sub_form_id)
   | FixExp(pat_sub_form_id)
   | FunApExp
   | ConApExp
@@ -357,6 +376,7 @@ type group_id =
   | BinOpExp(Language.Operators.op_bin)
   | CaseExp
   | TyAliasExp
+  | ParameterizedTyAliasExp(tpat_sub_form_id)
   | PipelineExp
   | TupleExtensionExp
   | UseExp
@@ -391,7 +411,7 @@ type group_id =
   | StrTyp
   | VarTyp
   | ListTyp
-  | PolyTyp
+  | PolyTyp(tpat_sub_form_id)
   | RecTyp
   | ForallExp
   | ProofOfTyp
@@ -410,6 +430,11 @@ type group_id =
   | EmptyHoleTPat
   | MultiHoleTPat
   | VarTPat
+  | ParamTPat(tpat_sub_form_id)
+  | TupleTPat(tpat_sub_form_id)
+  | ParensTPat
+  | TypParamApTyp(tpat_sub_form_id)
+  | TypTupleTyp
   | FilterPause
   | FilterEval
   | FilterDebug

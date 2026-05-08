@@ -71,8 +71,11 @@ let variable_tests = (
       ~expect=None,
     ),
     tydi_test(
+      /* `ab` is no longer a free identifier prefix — `abs` is the
+         value-level type-abstraction keyword. Use `xy`/`xyc` to avoid
+         the keyword-completion suggestion ("xys "). */
       ~name="Multiple candidates: picks first alphabetically",
-      ~code="let abc = 1 in let abd = 2 in ab¦",
+      ~code="let xyc = 1 in let xyd = 2 in xy¦",
       ~expect=Some("c"),
     ),
     /* When the top alphabetical match is exact, no suffix is returned,

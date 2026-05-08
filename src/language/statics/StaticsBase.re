@@ -59,12 +59,87 @@ module Map = {
     | _ => []
     };
 
+  let parent_ci_of = (map: t, id: Id.t): option(Info.t) => {
+    let* ci = lookup(id, map);
+    let* parent_id = Info.parent_id_of(ci);
+    lookup(parent_id, map);
+  };
+
+  let parent_term_of = (map: t, id: Id.t): option(Any.t) => {
+    let* ci = parent_ci_of(map, id);
+    Info.any_of(ci);
+  };
+
+  /* Resolve the binding-site id for a `Label` in
+     `LabelProjectionExpected` position (e.g. `T` in `M.T`). The
+     parent term is a `ProdProjection(carrier, label)`. We normalize
+     the carrier through the cursor's ctx to recover the labeled-tuple
+     exports type, find the matching field, and read its
+     `Label`'s id — which `ExpandModule.collect_type_exports`
+     populates with the original type-alias declaration's tile id. */
+  let label_binding_site = (m: t, info: Info.t): option(Id.t) => {
+    let* (label_name, ctx) =
+      switch (info) {
+      | InfoTyp({
+          user_term: {term: Label(name), _},
+          expects: LabelProjectionExpected(_),
+          ctx,
+          _,
+        }) =>
+        Some((name, ctx))
+      | _ => None
+      };
+    let* parent_ci = parent_ci_of(m, Info.id_of(info));
+    let* carrier =
+      switch (parent_ci) {
+      | InfoTyp({user_term: {term: ProdProjection(carrier, _), _}, _}) =>
+        Some(carrier)
+      | _ => None
+      };
+    let normalized = Typ.weak_head_normalize(ctx, carrier);
+    let* fields =
+      switch (normalized.term) {
+      | Prod(ts) => Some(ts)
+      | _ => None
+      };
+    let* (_, label_term) =
+      List.find_map(
+        (field: Typ.t) =>
+          switch (Typ.match_tup_label(field)) {
+          | Some((name, _) as match_) when name == label_name =>
+            /* Recover the actual `Label` term so we can read its id;
+               `match_tup_label` discards the label term. */
+            switch (field.term) {
+            | TupLabel(label_term, _) => Some((match_, label_term))
+            | _ => None
+            }
+          | _ => None
+          },
+        fields,
+      );
+    switch (label_term.annotation.ids) {
+    | [id, ..._] when !Id.equal(id, Id.invalid) => Some(id)
+    | _ => None
+    };
+  };
+
+  /* Map-aware binding-site lookup. For `Label`s in projection
+     position the binding lives outside the term itself — in the
+     enclosing `ProdProjection`'s carrier — so we need the map to
+     walk to it. Other forms route through the pure
+     `Info.get_binding_site`. */
+  let binding_site_of = (m: t, info: Info.t): option(Id.t) =>
+    switch (Info.get_binding_site(info)) {
+    | Some(_) as b => b
+    | None => label_binding_site(m, info)
+    };
+
   /* Collect all infos whose binding site is `binding_id`, plus `binding_id`
      itself. Deduplication is handled by accumulating into an `Id.Set`. */
   let ids_referencing_binding = (m: t, binding_id: Id.t): Id.Set.t =>
     Id.Map.fold(
       (id, info, acc) =>
-        switch (Info.get_binding_site(info)) {
+        switch (binding_site_of(m, info)) {
         | Some(id') when Id.equal(id', binding_id) => Id.Set.add(id, acc)
         | _ => acc
         },
@@ -76,7 +151,7 @@ module Map = {
    * all infos that resolve to the same binding site id, plus the binding id. */
   let var_highlight_ids = (m: t, ci: Info.t): list(Id.t) => {
     let binding_id =
-      switch (Info.get_binding_site(ci)) {
+      switch (binding_site_of(m, ci)) {
       | Some(_) as b => b
       | None =>
         switch (ci) {
@@ -98,17 +173,6 @@ module Map = {
     | Some(binding_id) =>
       Id.Set.elements(ids_referencing_binding(m, binding_id))
     };
-  };
-
-  let parent_ci_of = (map: t, id: Id.t): option(Info.t) => {
-    let* ci = lookup(id, map);
-    let* parent_id = Info.parent_id_of(ci);
-    lookup(parent_id, map);
-  };
-
-  let parent_term_of = (map: t, id: Id.t): option(Any.t) => {
-    let* ci = parent_ci_of(map, id);
-    Info.any_of(ci);
   };
 
   /* Starting from a binding site id (possibly inside a deep pattern),

@@ -346,7 +346,8 @@ let find_ctr_refs =
     [],
   );
 
-/* Find the InfoTyp entry for a constructor definition (Var with ConstructorExpected) */
+/* Find the InfoTyp entry for a constructor definition (Var with
+   ConstructorExpected or VariantExpected) */
 let find_ctr_def =
     (info_map: Statics.Map.t, name: string): option((Id.t, Info.t)) =>
   Id.Map.fold(
@@ -357,7 +358,7 @@ let find_ctr_def =
         switch (info) {
         | InfoTyp({
             user_term: {term: Var(n), _},
-            expects: ConstructorExpected(_, _),
+            expects: ConstructorExpected(_, _) | VariantExpected(_),
             _,
           })
             when n == name =>
@@ -541,6 +542,310 @@ let test_ctr_pat_in_case =
     },
   );
 
+/* Regression: a constructor declared inside a module is referenced
+   from outside the module via the analysis target's qualified type.
+   `lookup_ctr` returns nothing (modules don't export constructors as
+   `ConstructorEntry` in the outer ctx) so the binding-site logic
+   used to give up and produce no highlights. The fix walks the
+   analysis target's `get_sum_constructors` to locate the variant's
+   declaration id. */
+let test_ctr_use_from_outside_module =
+  test_case(
+    "Constructor: use outside module highlights ctr defined inside",
+    `Quick,
+    () => {
+      let exp =
+        parse_exp(
+          "let m = { type T = + Nil + Cons(Int) } in let x : m.T = Cons(0) in x",
+        );
+      let info_map = statics(exp);
+      let cons_uses = find_ctr_refs(info_map, "Cons");
+      check(bool, "found Cons use", true, List.length(cons_uses) >= 1);
+      /* From the outside use, the highlight set must be non-empty —
+         it should at least include the constructor's binding site
+         inside the module. */
+      let (use_id, use_info) = List.hd(cons_uses);
+      let ids = highlight_ids(info_map, use_info);
+      let other_ids = List.filter(id => !Id.equal(id, use_id), ids);
+      check(
+        bool,
+        "outside use produces highlights",
+        true,
+        List.length(other_ids) > 0,
+      );
+    },
+  );
+
+/* For a parameterized alias `type PList(a) = …`, the binding-site
+   id must be the *head* tpat's id (the `PList` tile), not the
+   `Param` node's rep_id — that points at the postfix `(a)`
+   application tile. */
+let test_qualified_type_label_highlight_parameterized =
+  test_case(
+    "Type: qualified-access label for parameterized alias picks head",
+    `Quick,
+    () => {
+      let exp =
+        parse_exp(
+          "let m = { type PList(a) = +PNil + PCons(a) } in let x : m.PList(Int) = PNil in x",
+        );
+      let info_map = statics(exp);
+      let label_use =
+        Id.Map.fold(
+          (id, info: Info.t, acc) =>
+            switch (acc) {
+            | Some(_) => acc
+            | None =>
+              switch (info) {
+              | InfoTyp({
+                  user_term: {term: Label("PList"), _},
+                  expects: LabelProjectionExpected(_),
+                  _,
+                }) =>
+                Some((id, info))
+              | _ => None
+              }
+            },
+          info_map,
+          None,
+        );
+      check(bool, "found m.PList label use", true, label_use != None);
+      let (use_id, use_info) = Option.get(label_use);
+      let ids = highlight_ids(info_map, use_info);
+      let other_ids = List.filter(id => !Id.equal(id, use_id), ids);
+      /* The binding-site id must point at the `PList` head tpat (an
+         InfoTPat with term `Var("PList")`), not the parent `Param`'s
+         postfix tile. */
+      check(
+        bool,
+        "label use highlights at least one other id",
+        true,
+        List.length(other_ids) > 0,
+      );
+      let head_targets =
+        List.filter(
+          id =>
+            switch (Id.Map.find_opt(id, info_map)) {
+            | Some(InfoTPat({user_term: {term: Var("PList"), _}, _})) =>
+              true
+            | _ => false
+            },
+          other_ids,
+        );
+      check(
+        bool,
+        "highlight set contains PList head tpat",
+        true,
+        List.length(head_targets) > 0,
+      );
+    },
+  );
+
+/* Regression: hovering on the `T` part of a qualified type access
+   `M.T` must highlight the corresponding `type T = …` declaration
+   inside the module. The `T` is parsed as a `Label` term in
+   `LabelProjectionExpected` position (it isn't a tvar reference in
+   the outer ctx — the binding lives inside the module's exports).
+   The fix records the alias's tile id on the synthesized `Label` in
+   the module's exports tuple, and `var_highlight_ids` walks up to
+   the parent `ProdProjection` to recover it. */
+let test_qualified_type_label_highlight =
+  test_case(
+    "Type: qualified-access label highlights inside-module declaration",
+    `Quick,
+    () => {
+      let exp = parse_exp("let m = { type T = Int } in let x : m.T = 5 in x");
+      let info_map = statics(exp);
+      /* Find the `T` of `m.T` — a Label in LabelProjectionExpected */
+      let label_use =
+        Id.Map.fold(
+          (id, info: Info.t, acc) =>
+            switch (acc) {
+            | Some(_) => acc
+            | None =>
+              switch (info) {
+              | InfoTyp({
+                  user_term: {term: Label("T"), _},
+                  expects: LabelProjectionExpected(_),
+                  _,
+                }) =>
+                Some((id, info))
+              | _ => None
+              }
+            },
+          info_map,
+          None,
+        );
+      check(bool, "found m.T label use", true, label_use != None);
+      let (use_id, use_info) = Option.get(label_use);
+      let ids = highlight_ids(info_map, use_info);
+      let other_ids = List.filter(id => !Id.equal(id, use_id), ids);
+      check(
+        bool,
+        "label use highlights the alias declaration",
+        true,
+        List.length(other_ids) > 0,
+      );
+    },
+  );
+
+/* Regression: when two sum types in scope declare a constructor of
+   the same name, hovering on a use of that constructor must
+   highlight the binding selected by *type-directed disambiguation*
+   (i.e. matching the analysis target's type-alias head), not just
+   the innermost lexical match. */
+let test_ctr_type_directed_disambiguation =
+  test_case(
+    "Constructor: type-directed disambiguation picks the right def",
+    `Quick,
+    () => {
+      let exp =
+        parse_exp(
+          "type OneOfThree(a, b, c) = + A(a) + B(b) + C(c) in
+           type Either(a, b) = + A(a) + B(b) in
+           let x : OneOfThree(Int, Bool, String) = B(true) in x",
+        );
+      let info_map = statics(exp);
+      /* Locate the constructor declarations for `B` in OneOfThree
+         and in Either by scanning info entries whose ancestor chain
+         passes through a `TyAlias` whose head names that alias. We
+         go simpler: just collect every InfoTyp B-with-VariantExpected
+         and rely on definition order to map them to the user's
+         declarations. */
+      let b_defs =
+        Id.Map.fold(
+          (id, info: Info.t, acc) =>
+            switch (info) {
+            | InfoTyp({
+                user_term: {term: Var("B"), _},
+                expects: ConstructorExpected(_, _) | VariantExpected(_),
+                _,
+              }) => [
+                id,
+                ...acc,
+              ]
+            | _ => acc
+            },
+          info_map,
+          [],
+        );
+      check(
+        bool,
+        "found two B constructor definitions",
+        true,
+        List.length(b_defs) >= 2,
+      );
+      /* Find the use site `B(true)` — the InfoExp Constructor("B"). */
+      let b_uses = find_ctr_refs(info_map, "B");
+      check(bool, "found B use", true, List.length(b_uses) >= 1);
+      let (_, use_info) = List.hd(b_uses);
+      let use_ana =
+        switch (use_info) {
+        | InfoExp({ana, _}) => Some(ana)
+        | _ => None
+        };
+      check(bool, "B use has an ana", true, use_ana != None);
+      /* Pick the def whose ancestors lead to a `OneOfThree`-headed
+         alias. We approximate by checking the schema head of the
+         entry returned by Ctx.lookup_ctr_for_ana on the use's ana. */
+      let use_ctx =
+        switch (use_info) {
+        | InfoExp({ctx, _}) => ctx
+        | _ => Ctx.empty
+        };
+      let resolved = Ctx.lookup_ctr_for_ana(use_ctx, "B", use_ana);
+      check(
+        bool,
+        "ctr_for_ana resolves to some entry",
+        true,
+        resolved != None,
+      );
+      let resolved_id =
+        switch (resolved) {
+        | Some({id, _}) => id
+        | None => Id.invalid
+        };
+      /* The expected behavior: highlighting the use highlights this
+         resolved entry (the OneOfThree.B), and does NOT highlight the
+         other B (Either.B). */
+      let ids = highlight_ids(info_map, use_info);
+      check(
+        bool,
+        "highlights resolved (OneOfThree) B def",
+        true,
+        has_id(ids, resolved_id),
+      );
+      /* Verify the OTHER B def is NOT in the highlight set. */
+      let other_def_id =
+        List.find_opt(id => !Id.equal(id, resolved_id), b_defs);
+      switch (other_def_id) {
+      | Some(other_id) =>
+        check(
+          bool,
+          "does not highlight unrelated B def",
+          false,
+          has_id(ids, other_id),
+        )
+      | None => ()
+      };
+    },
+  );
+
+/* Regression: a type alias and a constructor sharing the lexical
+   name `B` are *different* bindings. Hovering on the type alias
+   declaration must not light up constructor declarations or uses.
+   The bug was that `Info.get_binding_site` for an `InfoTyp(Var(_))`
+   in a constructor-declaration position (`+ B(b)`) was falling
+   through to `Ctx.lookup_tvar_id` and matching the unrelated type
+   alias `B = Int`, conflating their binding sites. */
+let test_tvar_does_not_conflate_with_ctr =
+  test_case(
+    "Type alias `B` doesn't share binding with constructor `B(b)`",
+    `Quick,
+    () => {
+      let exp =
+        parse_exp(
+          "type B = Int in type S = + A(B) + B(B) in let x : S = A(0) in x",
+        );
+      let info_map = statics(exp);
+      /* `B` type-alias binding (the `type B =` head). */
+      let alias_binding = find_tvar_binding(info_map, "B");
+      check(bool, "found B alias binding", true, alias_binding != None);
+      let (alias_binding_id, alias_info) = Option.get(alias_binding);
+      let alias_ids = highlight_ids(info_map, alias_info);
+      /* Find the constructor declaration `+ B(B)` in `S`. */
+      let b_ctr_def = find_ctr_def(info_map, "B");
+      check(bool, "found B constructor def", true, b_ctr_def != None);
+      let (b_ctr_def_id, _) = Option.get(b_ctr_def);
+      /* Sanity: the two binding ids are NOT the same id (the bug
+         would otherwise be impossible to observe). */
+      check(
+        bool,
+        "alias and ctr have distinct ids",
+        false,
+        Id.equal(alias_binding_id, b_ctr_def_id),
+      );
+      /* The alias's highlight set must not include the constructor
+         declaration. */
+      check(
+        bool,
+        "alias does not highlight ctr def",
+        false,
+        has_id(alias_ids, b_ctr_def_id),
+      );
+      /* Conversely, the constructor's highlight set must not
+         include the alias's binding. */
+      let (_, ctr_info) = Option.get(b_ctr_def);
+      let ctr_ids = highlight_ids(info_map, ctr_info);
+      check(
+        bool,
+        "ctr def does not highlight alias binding",
+        false,
+        has_id(ctr_ids, alias_binding_id),
+      );
+    },
+  );
+
 let tests = (
   "VarHighlight",
   [
@@ -559,5 +864,10 @@ let tests = (
     test_ctr_def_to_uses,
     test_ctr_ref_to_siblings,
     test_ctr_pat_in_case,
+    test_tvar_does_not_conflate_with_ctr,
+    test_ctr_type_directed_disambiguation,
+    test_ctr_use_from_outside_module,
+    test_qualified_type_label_highlight,
+    test_qualified_type_label_highlight_parameterized,
   ],
 );

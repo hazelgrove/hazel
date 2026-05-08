@@ -635,12 +635,12 @@ x|},
 /* === Form handling: arrow forms, test/end, hint/test/end === */
 
 let form_tests = [
-  /* typfun/-> keeps header on one line (previously fell through to generic) */
+  /* abs/-> keeps header on one line (previously fell through to generic) */
   test_format_seg(
     ~name="Typfun arrow stays on one line",
     ~width=20,
-    ~input="typfun a -> fun x -> x + 1",
-    ~expected={|typfun a ->
+    ~input="abs a -> fun x -> x + 1",
+    ~expected={|abs a ->
   fun x -> x + 1|},
     (),
   ),
@@ -648,9 +648,9 @@ let form_tests = [
   test_format_seg(
     ~name="Poly arrow in type annotation",
     ~width=30,
-    ~input="let f : poly a -> a -> a = typfun a -> fun x : a -> x in 1",
+    ~input="let f : poly a -> a -> a = abs a -> fun x : a -> x in 1",
     ~expected={|let f : poly a -> a -> a =
-  typfun a -> fun x : a -> x in
+  abs a -> fun x : a -> x in
 1|},
     (),
   ),
@@ -666,14 +666,14 @@ test
 5|},
     (),
   ),
-  /* Nested typfun waterfall (matches basic.hz polymorphic section) */
+  /* Nested abs waterfall (matches basic.hz polymorphic section) */
   test_format_seg(
-    ~name="Nested typfun waterfall",
+    ~name="Nested abs waterfall",
     ~width=30,
-    ~input="let f = typfun a -> typfun b -> fun x -> x in 1",
+    ~input="let f = abs a -> abs b -> fun x -> x in 1",
     ~expected={|let f =
-  typfun a ->
-    typfun b -> fun x -> x in
+  abs a ->
+    abs b -> fun x -> x in
 1|},
     (),
   ),
@@ -682,13 +682,13 @@ test
     ~name="Poly arrow breaks in type annotation",
     ~width=30,
     ~input=
-      "let f : poly a -> poly b -> (a, b) -> (a, b) = typfun a -> typfun b -> fun x -> x in f",
+      "let f : poly a -> poly b -> (a, b) -> (a, b) = abs a -> abs b -> fun x -> x in f",
     ~expected=
       {|let f
 : poly a ->
   poly b -> (a, b) -> (a, b) =
-  typfun a ->
-    typfun b -> fun x -> x in
+  abs a ->
+    abs b -> fun x -> x in
 f|},
     (),
   ),
@@ -763,8 +763,8 @@ x|},
      Body still breaks onto its own line after the trailing `in`. */
   test_format_seg(
     ~name="Type application tight",
-    ~input="let f = typfun a -> fun x : a -> x in f @< Int >(5)",
-    ~expected={|let f = typfun a -> fun x : a -> x in
+    ~input="let f = abs a -> fun x : a -> x in f @< Int >(5)",
+    ~expected={|let f = abs a -> fun x : a -> x in
 f@<Int>(5)|},
     (),
   ),
@@ -773,9 +773,9 @@ f@<Int>(5)|},
     ~name="Type application breaking",
     ~width=40,
     ~input=
-      "let f = typfun a -> fun x : a -> x in f @< Int >(5) + f @< String >(\"hello\")",
+      "let f = abs a -> fun x : a -> x in f @< Int >(5) + f @< String >(\"hello\")",
     ~expected=
-      {|let f = typfun a -> fun x : a -> x in
+      {|let f = abs a -> fun x : a -> x in
 f@<Int>(5) + f@<String>("hello")|},
     (),
   ),
@@ -995,8 +995,8 @@ let x = 2 in
      (body is indented under the arrow) */
   test_format_seg(
     ~name="Typfun explicit trailing hole",
-    ~input="typfun a -> ?",
-    ~expected={|typfun a ->
+    ~input="abs a -> ?",
+    ~expected={|abs a ->
   ?|},
     (),
   ),

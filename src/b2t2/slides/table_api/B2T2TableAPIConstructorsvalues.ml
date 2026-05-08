@@ -164,7 +164,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
          3ddafc62-5820-49e3-b5d7-263bd20fbb5d)(content(Whitespace\" \
          \")))))((Secondary((id \
          790106ab-7021-49fa-aa1a-72270ff4868d)(content(Whitespace\" \
-         \"))))(Tile((id 872ce046-5307-4981-b186-b26f57bdbe14)(label(typfun \
+         \"))))(Tile((id 872ce046-5307-4981-b186-b26f57bdbe14)(label(abs \
          ->))(mold((out Exp)(in_(TPat))(nibs(((shape Convex)(sort \
          Exp))((shape(Concave 37))(sort Exp))))))(shards(0 \
          1))(children(((Secondary((id \
@@ -281,7 +281,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
          (enforced=^^check(false), \"nrows(t) is equal to length(rs)\")\n\
          ] in\n\
          # Hazel's tables are lists so this is just the identity function #\n\
-         let values = typfun row -> fun (rs: [row]) -> rs in\n\n\
+         let values = abs row -> fun (rs: [row]) -> rs in\n\n\
          # Examples #\n\
          test values@<(name=String)>([(\"Alexander\")]) == \
          [(name=\"Alexander\")] end";

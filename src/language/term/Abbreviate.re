@@ -1128,28 +1128,28 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
           };
         }
 
-      | TypFun(tpat, e, name) =>
-        if (available^ < 6) {
+      | TypAbs(tpat, e, name) =>
+        if (available^ < 3) {
           available := available^ - ellipsis_cost;
           Invalid(flat_ellipses);
+        } else if (available^ <= 3) {
+          Invalid("abs");
+        } else if (available^ <= 4) {
+          Invalid("abs…");
+        } else if (available^ <= 5) {
+          Invalid("abs…→");
         } else if (available^ <= 6) {
-          Invalid("typfun");
-        } else if (available^ <= 7) {
-          Invalid("typfun…");
-        } else if (available^ <= 8) {
-          Invalid("typfun…→");
-        } else if (available^ <= 9) {
-          Invalid("typfun…→…");
+          Invalid("abs…→…");
         } else {
-          available := available^ - 7;
+          available := available^ - 4;
           let tp' = abbreviate_tpat(tpat);
           if (available^ > 4) {
             // " -> "
             available := available^ - 4;
             let e' = abbreviate_exp(e);
-            TypFun(tp', e', name);
+            TypAbs(tp', e', name);
           } else {
-            TypFun(
+            TypAbs(
               tp',
               {
                 ...e,
@@ -1660,6 +1660,32 @@ and abbreviate_typ = (typ: Typ.t): Typ.t => {
             );
           };
         }
+      | TypFun(tp, t) =>
+        if (available^ <= 6) {
+          available := available^ - 1;
+          indet_term_typ;
+        } else {
+          available := available^ - 3;
+          let tp' = abbreviate_tpat(tp);
+          let t' = abbreviate_typ(t);
+          TypFun(tp', t');
+        }
+      | TypParamAp(t1, t2) =>
+        if (available^ <= 2) {
+          available := available^ - 1;
+          indet_term_typ;
+        } else {
+          available := available^ - 2;
+          TypParamAp(abbreviate_typ(t1), abbreviate_typ(t2));
+        }
+      | TypTuple(ts) =>
+        if (available^ <= List.length(ts) + 1) {
+          available := available^ - 1;
+          indet_term_typ;
+        } else {
+          available := available^ - List.length(ts);
+          TypTuple(List.map(abbreviate_typ, ts));
+        }
       | TupLabel(t1, t2) =>
         if (available^ < 3) {
           available := available^ - 1;
@@ -1826,6 +1852,27 @@ and abbreviate_tpat = (tpat: TPat.t): TPat.t =>
             : abbreviate_str(available^, str);
         Invalid(abbreviated);
       | Var(v) => Var(abbreviate_str(available^, v))
+      | Param(head, params) =>
+        if (available^ <= 2) {
+          indet_term_tpat;
+        } else {
+          available := available^ - 2;
+          Param(abbreviate_tpat(head), List.map(abbreviate_tpat, params));
+        }
+      | Tuple(tps) =>
+        if (available^ <= 2) {
+          indet_term_tpat;
+        } else {
+          available := available^ - 2;
+          Tuple(List.map(abbreviate_tpat, tps));
+        }
+      | Parens(tp) =>
+        if (available^ <= 2) {
+          indet_term_tpat;
+        } else {
+          available := available^ - 2;
+          Parens(abbreviate_tpat(tp));
+        }
       | MultiHole(things) =>
         if (available^ <= 1) {
           indet_term_tpat;

@@ -47,7 +47,7 @@ let sample_expression = (cls_exp: Exp.cls): Grammar.UnitGrammar.exp => {
       | ListLit => list_lit([])
       | Constructor => constructor("A", None)
       | Fun => fn(Pat.var("x"), var("x"), None, None)
-      | TypFun => typ_fun(TPat.var("x"), empty_hole(), None)
+      | TypAbs => typ_abs(TPat.var("x"), empty_hole(), None)
       | Label => label("label")
       | ExplicitNonlabel => explicit_non_label()
       | TupLabel => tup_label(label("label"), empty_hole())
@@ -159,6 +159,10 @@ let sample_type = (cls_typ: Typ.cls): Grammar.UnitGrammar.typ => {
       | DrvQuoteTy => drv_typ(DrvSort.Jdmt)
       | List => list(unknown(Hole(EmptyHole)))
       | Arrow => arrow(unknown(Hole(EmptyHole)), unknown(Hole(EmptyHole)))
+      | TypFun => typ_fun(TPat.var("x"), unknown(Hole(EmptyHole)))
+      | TypParamAp => typ_param_ap(var("F"), unknown(Hole(EmptyHole)))
+      | TypTuple =>
+        typ_tuple([unknown(Hole(EmptyHole)), unknown(Hole(EmptyHole))])
       | Var => var("x")
       | Prod => prod([])
       | TupLabel =>
@@ -203,6 +207,9 @@ let sample_tpat = (cls_tpat: TPat.cls): Grammar.UnitGrammar.tpat => {
       | Invalid => invalid("invalid")
       | EmptyHole => empty_hole()
       | Var => var("x")
+      | Param => param(var("F"), [var("x")])
+      | Tuple => tuple([var("a"), var("b")])
+      | Parens => parens(var("a"))
       | MultiHole => multi_hole([TPat(empty_hole()), TPat(empty_hole())])
       }
     )
@@ -288,13 +295,17 @@ let tests = (
         let cls_testable =
           testable(Fmt.using(TPat.show_cls, Fmt.string), TPat.equal_cls);
         List.iter(
-          cls =>
-            check(
-              cls_testable,
-              TPat.show_cls(cls) ++ " Equivalency",
-              cls,
-              TPat.cls_of_term(sample_tpat(cls).term),
-            ),
+          (cls: TPat.cls) =>
+            switch (cls) {
+            | Parens => () // Parens is transparent (returns inner cls)
+            | _ =>
+              check(
+                cls_testable,
+                TPat.show_cls(cls) ++ " Equivalency",
+                cls,
+                TPat.cls_of_term(sample_tpat(cls).term),
+              )
+            },
           tpat_classes,
         );
       },

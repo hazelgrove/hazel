@@ -494,7 +494,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
          36b2243e-f9b2-4d5b-8a03-9e43aad96a11)(content(Whitespace\" \
          \")))))((Secondary((id \
          ce050441-343d-4349-9b68-828984e3024e)(content(Whitespace\" \
-         \"))))(Tile((id 6804a282-0d78-4366-970a-80fa2208599e)(label(typfun \
+         \"))))(Tile((id 6804a282-0d78-4366-970a-80fa2208599e)(label(abs \
          ->))(mold((out Exp)(in_(TPat))(nibs(((shape Convex)(sort \
          Exp))((shape(Concave 37))(sort Exp))))))(shards(0 \
          1))(children(((Secondary((id \
@@ -506,7 +506,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
          b30d0e11-d385-4ab6-985f-c4ad05bcbd9d)(content(Whitespace\" \
          \")))))))))(Secondary((id \
          13d04c92-4e28-41f3-99a7-9d3816685fe0)(content(Whitespace\" \
-         \"))))(Tile((id 536f02cb-5a9c-4e6a-8405-396b44534c7d)(label(typfun \
+         \"))))(Tile((id 536f02cb-5a9c-4e6a-8405-396b44534c7d)(label(abs \
          ->))(mold((out Exp)(in_(TPat))(nibs(((shape Convex)(sort \
          Exp))((shape(Concave 37))(sort Exp))))))(shards(0 \
          1))(children(((Secondary((id \
@@ -518,7 +518,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
          8122196f-527a-48c8-abd4-82d5ba36282d)(content(Whitespace\" \
          \")))))))))(Secondary((id \
          165583d4-f910-47f5-9b19-b68ffd058258)(content(Whitespace\" \
-         \"))))(Tile((id 7cd2940a-e3ff-4dbd-94cf-e9007c47e13a)(label(typfun \
+         \"))))(Tile((id 7cd2940a-e3ff-4dbd-94cf-e9007c47e13a)(label(abs \
          ->))(mold((out Exp)(in_(TPat))(nibs(((shape Convex)(sort \
          Exp))((shape(Concave 37))(sort Exp))))))(shards(0 \
          1))(children(((Secondary((id \
@@ -2077,8 +2077,8 @@ let out : string * Haz3lcore.PersistentSegment.t =
          with the new column #\n\
         \    (enforced=^^check(false), \"nrows(t2) is equal to nrows(t1)\")\n\
         \  ] in\n\
-        \  let add_column = typfun r -> typfun v -> typfun r' -> fun (t : [r], \
-         c : ((r, v) -> r'), vs: [v]) ->\n\
+        \  let add_column = abs r -> abs v -> abs r' -> fun (t : [r], c : ((r, \
+         v) -> r'), vs: [v]) ->\n\
         \    (zip(t, vs)\n\
         \    |> map(_, c)) : [r']  in\n\
         \  \n\

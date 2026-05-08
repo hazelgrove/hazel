@@ -22,7 +22,7 @@ open Util;
     */
 
 type unboxed_tfun =
-  | TypFun(TPat.t, Exp.t, option(string));
+  | TypAbs(TPat.t, Exp.t, option(string));
 
 [@deriving show({with_path: false})]
 type unboxed_fun =
@@ -42,7 +42,7 @@ type unbox_request('a) =
   | Cons: unbox_request((DHExp.t, DHExp.t))
   | SumNoArg(string): unbox_request(unit)
   | SumWithArg(string): unbox_request(DHExp.t)
-  | TypFun: unbox_request(unboxed_tfun)
+  | TypAbs: unbox_request(unboxed_tfun)
   | Fun: unbox_request(unboxed_fun)
   | TupleElementPivot(LabeledTuple.label)
     : unbox_request((LabeledTuple.label, list(DHExp.t)))
@@ -188,11 +188,11 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
     | (Fun, BuiltinFun(name)) => Matches(BuiltinFun(name))
     | (Fun, DeferredAp(d1, ds)) => Matches(DeferredAp(d1, ds))
 
-    /* TypFun-like things can look like the following when values */
-    | (TypFun, Closure(env', {term: TypFun(utpat, tfbody, name), _})) =>
-      Matches(TypFun(utpat, Closure(env', tfbody) |> Exp.fresh, name))
-    | (TypFun, TypFun(utpat, tfbody, name)) =>
-      Matches(TypFun(utpat, tfbody, name))
+    /* TypAbs-like things can look like the following when values */
+    | (TypAbs, Closure(env', {term: TypAbs(utpat, tfbody, name), _})) =>
+      Matches(TypAbs(utpat, Closure(env', tfbody) |> Exp.fresh, name))
+    | (TypAbs, TypAbs(utpat, tfbody, name)) =>
+      Matches(TypAbs(utpat, tfbody, name))
     /* Forms that are the wrong type of value - these cases indicate an error */
     | (
         _,
@@ -204,7 +204,7 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
         TupLabel(_) |
         Tuple(_) |
         Asc(_) |
-        TypFun(_, _, _) |
+        TypAbs(_, _, _) |
         Ap(_, {term: Constructor(_), _}, _),
       ) =>
       switch (request) {
@@ -226,7 +226,7 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
       | LabeledTupleEntries
       | SumWithArg(_)
       | Fun
-      | TypFun => IndetMatch
+      | TypAbs => IndetMatch
       }
 
     /* Forms that are not yet or will never be a value */

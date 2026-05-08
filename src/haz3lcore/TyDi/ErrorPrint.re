@@ -156,6 +156,10 @@ let exp_mark_to_string = (ctx: Ctx.t, ana: Typ.t, m: Mark.t): string => {
     | Some(_) => "(internal)"
     }
   | TypFreeTypeVariable(_)
+  | TypKindMismatch(_)
+  | TypParamApplyNonArrowKind(_)
+  | TypParamApplyArityMismatch(_)
+  | TypAbsApplyArityMismatch(_)
   | TypDuplicateConstructor(_)
   | TypDuplicateLabels(_, _)
   | TypWantTypeFoundAp
@@ -165,7 +169,8 @@ let exp_mark_to_string = (ctx: Ctx.t, ana: Typ.t, m: Mark.t): string => {
   | TypWantConstructorFoundAp
   | TypParseFailure
   | TPatShadowsType(_)
-  | TPatNotAVar(_) => "(internal)"
+  | TPatNotAVar(_)
+  | TPatParamNotAtAliasHead(_) => "(internal)"
   | Redundant
   | ExpectedConstructor => "(internal)"
   | FreeConstructor(_)

@@ -130,11 +130,11 @@ let rec match_exp =
     let* alphas' = match_pat(p1, p2);
     match_exp(alphas' @ alphas, ctx, e1, e2);
   | (Forall(_, _), _) => None
-  | (TypFun(tp1, e1, _), TypFun(tp2, e2, _)) =>
+  | (TypAbs(tp1, e1, _), TypAbs(tp2, e2, _)) =>
     // TODO: type alpha equivalence
     let* () = match_tpat(tp1, tp2);
     match_exp(alphas, ctx, e1, e2);
-  | (TypFun(_, _, _), _) => None
+  | (TypAbs(_, _, _), _) => None
   | (Tuple(xs), Tuple(ys)) when List.length(xs) == List.length(ys) =>
     ListUtil.fold_left_opt(
       (ctx, (x, y)) => match_exp(alphas, ctx, x, y),

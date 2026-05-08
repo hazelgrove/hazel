@@ -2,8 +2,13 @@ open Virtual_dom.Vdom;
 open Node;
 open Util.WebUtil;
 
+/* Inline `span` (not a `div`) so an alias name placed alongside
+   another inline node — e.g. the `type` keyword — sits on the same
+   line. The parent `.context-entry` is `display: flex` so it
+   shrinks to its single-line content; only the wrapper line as a
+   whole is wrapped/expanded on hover. */
 let alias_view = (s: string): Node.t =>
-  div(~attrs=[clss(["typ-alias-view"])], [text(s)]);
+  span(~attrs=[clss(["typ-alias-view"])], [text(s)]);
 
 let jump_to = entry => Globals.Update.JumpToTile(Language.Ctx.get_id(entry));
 
@@ -25,32 +30,63 @@ let context_entry_view = (~globals, entry: Language.Ctx.entry): Node.t => {
       },
     );
   let div_name = div(~attrs=[clss(["name"])]);
+  /* Render a type alias entry as a declaration:
+       `type Name(a, b) = body` for parameterized aliases,
+       `type Name = body` for non-parameterized,
+       `Name :: Type` for abstract type variables.
+     Strip the outer `Rec(_, _)` (for self-referential aliases) —
+     the displayed name binds the recursive reference implicitly.
+     Emit the `type` keyword and the alias name in a single
+     `div_name` flex child so the parent's `gap: 0.5em` doesn't
+     widen the gap between them. */
+  let typ_keyword = span(~attrs=[clss(["typ-keyword"])], [text("type ")]);
+  let view_tvar_entry = (name: string, kind: Language.Ctx.kind): list(Node.t) =>
+    switch (kind) {
+    | Abstract => [
+        div_name([alias_view(name)]),
+        div(~attrs=[clss(["seperator"])], [text("::")]),
+        Kind.view(~globals, kind),
+      ]
+    | Singleton(ty) =>
+      let unwrapped =
+        switch (Language.Typ.term_of(ty)) {
+        | Rec(_, body) => body
+        | _ => ty
+        };
+      switch (Language.Typ.term_of(unwrapped)) {
+      | TypFun(binder, body) => [
+          div_name([
+            typ_keyword,
+            alias_view(
+              name ++ "(" ++ Language.Typ.pretty_print_tvar(binder) ++ ")",
+            ),
+          ]),
+          div(~attrs=[clss(["seperator"])], [text("=")]),
+          view_type(body),
+        ]
+      | _ => [
+          div_name([typ_keyword, alias_view(name)]),
+          div(~attrs=[clss(["seperator"])], [text("=")]),
+          view_type(unwrapped),
+        ]
+      };
+    };
+  let attrs = [
+    Attr.on_click(_ => globals.inject_global(jump_to(entry))),
+    clss(["context-entry", "code"]),
+  ];
   switch (entry) {
   | VarEntry({name, typ, _})
   | ConstructorEntry({name, typ, _}) =>
     div(
-      ~attrs=[
-        Attr.on_click(_ => globals.inject_global(jump_to(entry))),
-        clss(["context-entry", "code"]),
-      ],
+      ~attrs,
       [
         div_name([text(name)]),
         div(~attrs=[clss(["seperator"])], [text(":")]),
         view_type(typ),
       ],
     )
-  | TVarEntry({name, kind, _}) =>
-    div(
-      ~attrs=[
-        Attr.on_click(_ => globals.inject_global(jump_to(entry))),
-        clss(["context-entry", "code"]),
-      ],
-      [
-        div_name([alias_view(name)]),
-        div(~attrs=[clss(["seperator"])], [text("::")]),
-        Kind.view(~globals, kind),
-      ],
-    )
+  | TVarEntry({name, kind, _}) => div(~attrs, view_tvar_entry(name, kind))
   | LivelitEntry({name, expansion_t, _}) =>
     div(
       ~attrs=[

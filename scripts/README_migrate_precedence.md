@@ -1,8 +1,17 @@
-# Precedence Migration Script
+# Precedence Migration Scripts
 
-## Why This Exists
+## Why These Exist
 
-Hazel serializes syntax trees into `.ml` files (in `src/web/init/docs/` and `src/b2t2/slides/`). These serialized representations include numeric precedence values baked into nib shapes like `(Concave N)`.
+Hazel serializes syntax trees into `.ml` files (in `src/web/init/docs/` and `src/b2t2/slides/`). These serialized representations include numeric precedence values baked into nib shapes like `(Concave N)`. When `Precedence.re` reorganizes a value, every saved slide using a tile at that precedence has stale metadata and must be migrated.
+
+There are currently two migration scripts in this directory:
+
+- `migrate_precedence.sh` — the original `comma`/`let`/`rule_sep`/etc. shuffle described below.
+- `migrate_dot_precedence.sh` — a follow-on `dot 22 → 10` migration after `Precedence.dot` was moved tighter than the type-level postfix `T(Int)` (so `M.T(Int)` parses as `(M.T)(Int)` instead of `M.(T(Int))`). Single-valued, so no two-phase cycle handling needed.
+
+Both scripts skip files that are already migrated (no source values present).
+
+## Original Migration: comma/let/rule_sep/case_/semi/prod
 
 This branch reorganizes precedence values with the following semantic changes:
 
@@ -91,6 +100,20 @@ min = 48             (unchanged)
 # Migrate all slide files
 find src/web/init/docs src/b2t2/slides -name "*.ml" -exec ./scripts/migrate_precedence.sh {} \;
 ```
+
+## Dot Migration
+
+`migrate_dot_precedence.sh` is a separate single-value migration: `(Concave 22) → (Concave 10)`. Same usage shape:
+
+```bash
+./scripts/migrate_dot_precedence.sh --dry-run path/to/file.ml
+./scripts/migrate_dot_precedence.sh path/to/file.ml
+find src/web/init/docs src/b2t2/slides -name "*.ml" -exec ./scripts/migrate_dot_precedence.sh {} \;
+```
+
+### Why `dot` was moved
+
+The type-level postfix `T(Int)` (`Precedence.type_sum_ap = 11`) was tighter than the dot (`22`), so a qualified type access `M.T(Int)` parsed as `M.(T(Int))` rather than `(M.T)(Int)` — `T` was treated as a free type variable and `M.something_unknown` produced `TypWantLabel`. Moving `dot` to `10` (tighter than every type-level operator) fixes the parse. Expression-level `m.f(x)` was already `(m.f)(x)` since `dot < ap = 23`; tightening dot further preserves that.
 
 The script will:
 - Skip files already migrated (no old dev values found)
