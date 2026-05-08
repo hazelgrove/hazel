@@ -158,12 +158,12 @@ module Model = {
     get_derivation_info_at(model.pos, model);
 
   /* Editors whose problems should appear in the Problems sidebar, each
-     paired with a display label. Every tree judgement editor shares the
-     label "Derivation"; the sidebar merges runs of same-label groups
-     into one section without per-row line numbers. Trees are walked in
-     postorder so within-tree order matches the visual top-to-bottom
-     layout (premises above the conclusion); trees themselves are in
-     display order. */
+     paired with a display label. All tree judgement editors are bundled
+     into a single "Derivation" group (multi-source, so per-row line
+     numbers are suppressed since L# would refer to different editors'
+     geometries). Trees are walked in postorder so within-tree order
+     matches the visual top-to-bottom layout (premises above the
+     conclusion); trees themselves are in display order. */
   let get_problem_editors =
       (model: t): list((option(string), list(CodeEditable.Model.t))) => {
     let rec postorder = (Tree.Node(v, c)) =>

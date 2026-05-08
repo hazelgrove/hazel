@@ -239,8 +239,9 @@ type editor_source = {
   syntax: CachedSyntax.t,
 };
 
-/* Input for one section of the Problems sidebar. Multiple sources merge
-   into one section; L# labels are suppressed when there's more than one. */
+/* Input for one section of the Problems sidebar. A group with multiple
+   sources renders as one section; L# labels are suppressed in that case
+   because they would refer to different editors' geometries. */
 type editor_group_input = {
   label: option(string),
   sources: list(editor_source),
@@ -341,10 +342,7 @@ let make =
               (
                 cat,
                 List.concat_map(
-                  pbc =>
-                    try(List.assoc(cat, pbc)) {
-                    | Not_found => []
-                    },
+                  pbc => Option.value(List.assoc_opt(cat, pbc), ~default=[]),
                   per_source,
                 ),
               ),
@@ -377,9 +375,7 @@ let make =
            groups
            |> List.to_seq
            |> Seq.map((g: problem_group) =>
-                try(List.assoc(cat, g.counts)) {
-                | Not_found => 0
-                }
+                Option.value(List.assoc_opt(cat, g.counts), ~default=0)
               )
            |> Seq.fold_left((+), 0),
          )

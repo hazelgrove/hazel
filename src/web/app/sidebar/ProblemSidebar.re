@@ -84,10 +84,15 @@ let line_num_view =
       nearest_measured_id: Id.t => option(Id.t),
     )
     : Node.t => {
+  /* Common case: id is in measured directly; only walk ancestors on miss
+     (e.g. ids inside a fold projector). */
   let resolved =
-    switch (nearest_measured_id(id)) {
-    | Some(anc) => Haz3lcore.Measured.find_by_id(anc, measured)
-    | None => None
+    switch (Haz3lcore.Measured.find_by_id(id, measured)) {
+    | Some(_) as m => m
+    | None =>
+      Option.bind(nearest_measured_id(id), anc =>
+        Haz3lcore.Measured.find_by_id(anc, measured)
+      )
     };
   switch (resolved) {
   | Some({origin, _}) =>
