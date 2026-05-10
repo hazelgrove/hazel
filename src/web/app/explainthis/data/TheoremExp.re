@@ -2,12 +2,12 @@ open Haz3lcore;
 open Example;
 open ExplainThisForm;
 
-let _pat = pat("p");
+let p = pat("p");
 let exp_thm = exp("h");
 let exp_body = exp("e");
 let test_exp_coloring_ids =
     (~body_id: Id.t, ~pat_id: Id.t, ~thm_id: Id.t): list((Id.t, Id.t)) => [
-  (Piece.id(_pat), pat_id),
+  (Piece.id(p), pat_id),
   (Piece.id(exp_thm), thm_id),
   (Piece.id(exp_body), body_id),
 ];
@@ -16,7 +16,7 @@ let theorem_exp: form = {
   {
     id: TheoremExp,
     syntactic_form: [
-      mk_theorem([[space(), _pat, space()], [space(), exp_thm, space()]]),
+      mk_theorem([[space(), p, space()], [space(), exp_thm, space()]]),
       linebreak(),
       exp_body,
     ],

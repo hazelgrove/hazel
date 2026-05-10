@@ -211,27 +211,27 @@ let unop_exp_coloring_ids =
     (sf_exp_id: Id.t, ~exp_id: Id.t): list((Id.t, Id.t)) => [
   (sf_exp_id, exp_id),
 ];
-let _exp = exp("e");
+let e = exp("e");
 let bool_unary_not_exp_coloring_ids = (~exp_id: Id.t): list((Id.t, Id.t)) =>
-  unop_exp_coloring_ids(Piece.id(_exp), ~exp_id);
+  unop_exp_coloring_ids(Piece.id(e), ~exp_id);
 let bool_unary_not_exp: form = {
   let explanation = "Performs boolean negation of the [*operand*](%s).";
   {
     id: UnOpExp(Bool(Not)),
-    syntactic_form: [unary_not(), _exp],
+    syntactic_form: [unary_not(), e],
     expandable_id: None,
     explanation,
     examples: [],
   };
 };
-let _exp = exp("e");
+let e = exp("e");
 let int_unary_minus_exp_coloring_ids = (~exp_id: Id.t): list((Id.t, Id.t)) =>
-  unop_exp_coloring_ids(Piece.id(_exp), ~exp_id);
+  unop_exp_coloring_ids(Piece.id(e), ~exp_id);
 let int_unary_minus_exp: form = {
   let explanation = "Performs integer negation of the [*operand*](%s).";
   {
     id: UnOpExp(Int(Minus)),
-    syntactic_form: [unary_minus(), _exp],
+    syntactic_form: [unary_minus(), e],
     expandable_id: None,
     explanation,
     examples: [int_unary_minus_ex],

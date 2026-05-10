@@ -1,18 +1,18 @@
 open Haz3lcore;
 open Example;
 open ExplainThisForm;
-let _pat = pat("p");
+let p = pat("p");
 let typ = typ("ty");
 let typann_pat_coloring_ids =
     (~pat_id: Id.t, ~typ_id: Id.t): list((Id.t, Id.t)) => [
-  (Piece.id(_pat), pat_id),
+  (Piece.id(p), pat_id),
   (Piece.id(typ), typ_id),
 ];
 let typann_pat: form = {
   let explanation = "Only expressions that match the [type annotated pattern](%s) and have the [indicated type](%s) match this type annotation pattern.";
   {
     id: TypAnnPat,
-    syntactic_form: [_pat, space(), typeann(), space(), typ],
+    syntactic_form: [p, space(), typeann(), space(), typ],
     expandable_id: None,
     explanation,
     examples: [],

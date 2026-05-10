@@ -12,10 +12,10 @@ let poly_id_ex = {
 };
 
 let tp = tpat("a");
-let _exp = exp("e");
+let e = exp("e");
 let typfun_var: form = {
   let explanation = "When applied to a type that which is bound to the [*type variable*](%s), evaluates to the type function [*body*](%s).";
-  let form = [mk_typfun([[space(), tp, space()]]), space(), _exp];
+  let form = [mk_typfun([[space(), tp, space()]]), space(), e];
   {
     id: TypFunctionExp,
     syntactic_form: form,

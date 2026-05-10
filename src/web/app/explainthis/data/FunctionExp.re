@@ -103,39 +103,39 @@ let pat_body_function_exp_coloring_ids =
     : list((Id.t, Id.t)) => {
   [(sf_pat_id, pat_id), (sf_body_id, body_id)];
 };
-let _pat = pat("p");
-let _exp = exp("e");
+let p = pat("p");
+let e = exp("e");
 let function_exp_coloring_ids =
-  pat_body_function_exp_coloring_ids(Piece.id(_pat), Piece.id(_exp));
+  pat_body_function_exp_coloring_ids(Piece.id(p), Piece.id(e));
 let function_exp: form = {
   let explanation = "When applied to an argument that matches the [*argument pattern*](%s), evaluates to the function [*body*](%s).";
-  let form = [mk_fun([[space(), _pat, space()]]), space(), _exp];
+  let form = [mk_fun([[space(), p, space()]]), space(), e];
   {
     id: FunctionExp(Base),
     syntactic_form: form,
-    expandable_id: Some((Piece.id(_pat), [pat("p")])),
+    expandable_id: Some((Piece.id(p), [pat("p")])),
     explanation,
     examples: [basic_fun_ex] // TODO What other examples should be here
   };
 };
 
-let _pat =
+let p =
   Piece.Grout({
     id: Id.mk(),
     shape: Convex,
   });
-let _exp = exp("e");
+let e = exp("e");
 let function_empty_hole_exp_coloring_ids =
-  pat_body_function_exp_coloring_ids(Piece.id(_pat), Piece.id(_exp));
+  pat_body_function_exp_coloring_ids(Piece.id(p), Piece.id(e));
 let function_empty_hole_exp: form = {
   let explanation = "When applied to an argument that matches the [*argument pattern*](%s), evaluates to the function [*body*](%s), after the [empty hole pattern](%s) is filled.";
-  let form = [mk_fun([[space(), _pat, space()]]), space(), _exp];
+  let form = [mk_fun([[space(), p, space()]]), space(), e];
   {
     id: FunctionExp(EmptyHole),
     syntactic_form: form,
     expandable_id:
       Some((
-        Piece.id(_pat),
+        Piece.id(p),
         [
           Grout({
             id: Id.mk(),
@@ -147,158 +147,158 @@ let function_empty_hole_exp: form = {
     examples: [basic_fun_ex],
   };
 };
-let _pat = pat("INVALID");
-let _exp = exp("e");
+let p = pat("INVALID");
+let e = exp("e");
 let function_multi_hole_exp_coloring_ids =
-  pat_body_function_exp_coloring_ids(Piece.id(_pat), Piece.id(_exp));
+  pat_body_function_exp_coloring_ids(Piece.id(p), Piece.id(e));
 let function_multi_hole_exp: form = {
   let explanation = "When applied to an argument that matches the [*argument pattern*](%s), evaluates to the function [*body*](%s), after the [invalid argument pattern](%s) is corrected.";
-  let form = [mk_fun([[space(), _pat, space()]]), space(), _exp];
+  let form = [mk_fun([[space(), p, space()]]), space(), e];
   {
     id: FunctionExp(MultiHole),
     syntactic_form: form,
-    expandable_id: Some((Piece.id(_pat), [pat("INVALID")])),
+    expandable_id: Some((Piece.id(p), [pat("INVALID")])),
     explanation,
     examples: [basic_fun_ex],
   };
 };
-let _exp = exp("e");
+let e = exp("e");
 let function_wild_exp_coloring_ids = (~body_id: Id.t): list((Id.t, Id.t)) => {
-  [(Piece.id(_exp), body_id)];
+  [(Piece.id(e), body_id)];
 };
 let function_wild_exp: form = {
   let explanation = "When applied to an argument that is ignored, evaluates to the function [*body*](%s).";
-  let _pat = pat("_");
-  let form = [mk_fun([[space(), _pat, space()]]), space(), _exp];
+  let p = pat("_");
+  let form = [mk_fun([[space(), p, space()]]), space(), e];
   {
     id: FunctionExp(Wild),
     syntactic_form: form,
-    expandable_id: Some((Piece.id(_pat), [pat("_")])),
+    expandable_id: Some((Piece.id(p), [pat("_")])),
     explanation,
     examples: [wild_fun_ex],
   };
 };
-let _pat = pat("IntLit");
-let _exp = exp("e");
+let p = pat("IntLit");
+let e = exp("e");
 let function_intlit_exp_coloring_ids =
-  pat_body_function_exp_coloring_ids(Piece.id(_pat), Piece.id(_exp));
+  pat_body_function_exp_coloring_ids(Piece.id(p), Piece.id(e));
 let function_intlit_exp: form = {
   let explanation = "The only value that matches the [*argument pattern*](%s) is `%s`. When applied to an argument which matches the [*argument pattern*](%s), evaluates to the function [*body*](%s).";
-  let form = [mk_fun([[space(), _pat, space()]]), space(), _exp];
+  let form = [mk_fun([[space(), p, space()]]), space(), e];
   {
     id: FunctionExp(Int),
     syntactic_form: form,
-    expandable_id: Some((Piece.id(_pat), [pat("IntLit")])),
+    expandable_id: Some((Piece.id(p), [pat("IntLit")])),
     explanation,
     examples: [intlit_fun_ex],
   };
 };
-let _pat = pat("SIntLit");
-let _exp = exp("e");
+let p = pat("SIntLit");
+let e = exp("e");
 let function_sintlit_exp_coloring_ids =
-  pat_body_function_exp_coloring_ids(Piece.id(_pat), Piece.id(_exp));
+  pat_body_function_exp_coloring_ids(Piece.id(p), Piece.id(e));
 let function_sintlit_exp: form = {
   let explanation = "The only value that matches the [*argument pattern*](%s) is `%s`. When applied to an argument which matches the [*argument pattern*](%s), evaluates to the function [*body*](%s).";
-  let form = [mk_fun([[space(), _pat, space()]]), space(), _exp];
+  let form = [mk_fun([[space(), p, space()]]), space(), e];
   {
     id: FunctionExp(SInt),
     syntactic_form: form,
-    expandable_id: Some((Piece.id(_pat), [pat("SIntLit")])),
+    expandable_id: Some((Piece.id(p), [pat("SIntLit")])),
     explanation,
     examples: [sintlit_fun_ex],
   };
 };
-let _pat = pat("FloatLit");
-let _exp = exp("e");
+let p = pat("FloatLit");
+let e = exp("e");
 let function_floatlit_exp_coloring_ids =
-  pat_body_function_exp_coloring_ids(Piece.id(_pat), Piece.id(_exp));
+  pat_body_function_exp_coloring_ids(Piece.id(p), Piece.id(e));
 let function_floatlit_exp: form = {
   let explanation = "The only value that matches the [*argument pattern*](%s) is `%f`. When applied to an argument which matches the [*argument pattern*](%s), evaluates to the function [*body*](%s).";
   // TODO print out the float literal nicer
-  let form = [mk_fun([[space(), _pat, space()]]), space(), _exp];
+  let form = [mk_fun([[space(), p, space()]]), space(), e];
   {
     id: FunctionExp(Float),
     syntactic_form: form,
-    expandable_id: Some((Piece.id(_pat), [pat("FloatLit")])),
+    expandable_id: Some((Piece.id(p), [pat("FloatLit")])),
     explanation,
     examples: [floatlit_fun_ex],
   };
 };
-let _pat = pat("BoolLit");
-let _exp = exp("e");
+let p = pat("BoolLit");
+let e = exp("e");
 let function_boollit_exp_coloring_ids =
-  pat_body_function_exp_coloring_ids(Piece.id(_pat), Piece.id(_exp));
+  pat_body_function_exp_coloring_ids(Piece.id(p), Piece.id(e));
 let function_boollit_exp: form = {
   let explanation = "The only value that matches the [*argument pattern*](%s) is `%b`. When applied to an argument which matches the [*argument pattern*](%s), evaluates to the function [*body*](%s).";
-  let form = [mk_fun([[space(), _pat, space()]]), space(), _exp];
+  let form = [mk_fun([[space(), p, space()]]), space(), e];
   {
     id: FunctionExp(Bool),
     syntactic_form: form,
-    expandable_id: Some((Piece.id(_pat), [pat("BoolLit")])),
+    expandable_id: Some((Piece.id(p), [pat("BoolLit")])),
     explanation,
     examples: [boollit_fun_ex],
   };
 };
 
-let _pat = pat("StringLit");
-let _exp = exp("e");
+let p = pat("StringLit");
+let e = exp("e");
 let function_strlit_exp_coloring_ids =
-  pat_body_function_exp_coloring_ids(Piece.id(_pat), Piece.id(_exp));
+  pat_body_function_exp_coloring_ids(Piece.id(p), Piece.id(e));
 let function_strlit_exp: form = {
   let explanation = "The only value that matches the [*argument pattern*](%s) is `%s`. When applied to an argument which matches the [*argument pattern*](%s), evaluates to the function [*body*](%s).";
 
-  let form = [mk_fun([[space(), _pat, space()]]), space(), _exp];
+  let form = [mk_fun([[space(), p, space()]]), space(), e];
   {
     id: FunctionExp(String),
     syntactic_form: form,
-    expandable_id: Some((Piece.id(_pat), [pat("StringLit")])),
+    expandable_id: Some((Piece.id(p), [pat("StringLit")])),
     explanation,
     examples: [strlit_fun_ex],
   };
 };
-let _pat = pat("()");
-let _exp = exp("e");
+let p = pat("()");
+let e = exp("e");
 let function_triv_exp_coloring_ids =
-  pat_body_function_exp_coloring_ids(Piece.id(_pat), Piece.id(_exp));
+  pat_body_function_exp_coloring_ids(Piece.id(p), Piece.id(e));
 let function_triv_exp: form = {
   let explanation = "The only value that matches the [*argument pattern*](%s) is the trivial value `()`. When applied to an argument which matches the [*argument pattern*](%s), evaluates to the function [*body*](%s). This if functionally equivalent to a zero argument function.";
-  let form = [mk_fun([[space(), _pat, space()]]), space(), _exp];
+  let form = [mk_fun([[space(), p, space()]]), space(), e];
   {
     id: FunctionExp(Triv),
     syntactic_form: form,
-    expandable_id: Some((Piece.id(_pat), [pat("()")])),
+    expandable_id: Some((Piece.id(p), [pat("()")])),
     explanation,
     examples: [triv_fun_ex],
   };
 };
-let _pat = pat("[]");
-let _exp = exp("e");
+let p = pat("[]");
+let e = exp("e");
 let function_listnil_exp_coloring_ids =
-  pat_body_function_exp_coloring_ids(Piece.id(_pat), Piece.id(_exp));
+  pat_body_function_exp_coloring_ids(Piece.id(p), Piece.id(e));
 let function_listnil_exp: form = {
   let explanation = "The only value that matches the [*argument pattern*](%s) is the empty list `[]`. When applied to an argument which matches the [*argument pattern*](%s), evaluates to the function [*body*](%s).";
-  let form = [mk_fun([[space(), _pat, space()]]), space(), _exp];
+  let form = [mk_fun([[space(), p, space()]]), space(), e];
   {
     id: FunctionExp(ListNil),
     syntactic_form: form,
-    expandable_id: Some((Piece.id(_pat), [pat("[]")])),
+    expandable_id: Some((Piece.id(p), [pat("[]")])),
     explanation,
     examples: [listnil_fun_ex],
   };
 };
-let _pat = mk_list_pat([[pat("p1"), comma_pat(), space(), pat("...")]]);
-let _exp = exp("e");
+let p = mk_list_pat([[pat("p1"), comma_pat(), space(), pat("...")]]);
+let e = exp("e");
 let function_listlit_exp_coloring_ids =
-  pat_body_function_exp_coloring_ids(Piece.id(_pat), Piece.id(_exp));
+  pat_body_function_exp_coloring_ids(Piece.id(p), Piece.id(e));
 let function_listlit_exp: form = {
   let explanation = "The only values that match the [*argument pattern*](%s) are lists with %s-elements, each matching the corresponding element pattern. When applied to an argument which matches the [*argument pattern*](%s), evaluates to the function [*body*](%s).";
-  let form = [mk_fun([[space(), _pat, space()]]), space(), _exp];
+  let form = [mk_fun([[space(), p, space()]]), space(), e];
   {
     id: FunctionExp(ListLit),
     syntactic_form: form,
     expandable_id:
       Some((
-        Piece.id(_pat),
+        Piece.id(p),
         [mk_list_pat([[pat("p1"), comma_pat(), pat("...")]])],
       )),
     explanation,
@@ -307,13 +307,13 @@ let function_listlit_exp: form = {
 };
 let pat_hd = pat("p_hd");
 let pat_tl = pat("p_tl");
-let _exp = exp("e");
+let e = exp("e");
 let function_cons_exp_coloring_ids =
     (~hd_id: Id.t, ~tl_id: Id.t, ~body_id: Id.t): list((Id.t, Id.t)) => {
   [
     (Piece.id(pat_hd), hd_id),
     (Piece.id(pat_tl), tl_id),
-    (Piece.id(_exp), body_id),
+    (Piece.id(e), body_id),
   ];
 };
 let function_cons_exp: form = {
@@ -322,7 +322,7 @@ let function_cons_exp: form = {
   let form = [
     mk_fun([[space(), pat_hd, cons, pat_tl, space()]]),
     space(),
-    _exp,
+    e,
   ];
   {
     id: FunctionExp(ListCons),
@@ -333,17 +333,17 @@ let function_cons_exp: form = {
     examples: [cons_hd_fun_ex, cons_snd_fun_ex],
   };
 };
-let _pat = pat("x");
-let _exp = exp("e");
+let p = pat("x");
+let e = exp("e");
 let function_var_exp_coloring_ids =
-  pat_body_function_exp_coloring_ids(Piece.id(_pat), Piece.id(_exp));
+  pat_body_function_exp_coloring_ids(Piece.id(p), Piece.id(e));
 let function_var_exp: form = {
   let explanation = "When applied to an argument which is bound to the [*variable*](%s) `%s`, evaluates to the function [*body*](%s).";
-  let form = [mk_fun([[space(), _pat, space()]]), space(), _exp];
+  let form = [mk_fun([[space(), p, space()]]), space(), e];
   {
     id: FunctionExp(Var),
     syntactic_form: form,
-    expandable_id: Some((Piece.id(_pat), [pat("x")])),
+    expandable_id: Some((Piece.id(p), [pat("x")])),
     explanation,
     examples: [basic_fun_ex, var_incr_fun_ex, var_and_fun_ex],
   };
@@ -379,15 +379,15 @@ let function_labeled_exp: form = {
   };
 };
 let comma = comma_pat();
-let _exp = exp("e");
+let e = exp("e");
 let function_tuple_exp_coloring_ids =
-  pat_body_function_exp_coloring_ids(Piece.id(comma), Piece.id(_exp));
+  pat_body_function_exp_coloring_ids(Piece.id(comma), Piece.id(e));
 let function_tuple_exp: form = {
   let explanation = "The only values that match the [*argument pattern*](%s) are %s-tuples where each element matches the corresponding argument element pattern. When applied to an argument which matches the [*argument pattern*](%s), evaluates to the function [*body*](%s).";
   let form = [
     mk_fun([[space(), pat("p1"), comma, space(), pat("..."), space()]]),
     space(),
-    _exp,
+    e,
   ];
   {
     id: FunctionExp(Tuple),
@@ -400,13 +400,13 @@ let function_tuple_exp: form = {
 };
 let pat1 = pat("p1");
 let pat2 = pat("p2");
-let _exp = exp("e");
+let e = exp("e");
 let function_tuple2_exp_coloring_ids =
     (~pat1_id: Id.t, ~pat2_id: Id.t, ~body_id: Id.t): list((Id.t, Id.t)) => {
   [
     (Piece.id(pat1), pat1_id),
     (Piece.id(pat2), pat2_id),
-    (Piece.id(_exp), body_id),
+    (Piece.id(e), body_id),
   ];
 };
 let function_tuple2_exp: form = {
@@ -415,7 +415,7 @@ let function_tuple2_exp: form = {
   let form = [
     mk_fun([[space(), pat1, comma, space(), pat2, space()]]),
     space(),
-    _exp,
+    e,
   ];
   {
     id: FunctionExp(Tuple2),
@@ -429,7 +429,7 @@ let function_tuple2_exp: form = {
 let pat1 = pat("p1");
 let pat2 = pat("p2");
 let pat3 = pat("p3");
-let _exp = exp("e");
+let e = exp("e");
 let function_tuple3_exp_coloring_ids =
     (~pat1_id: Id.t, ~pat2_id: Id.t, ~pat3_id: Id.t, ~body_id: Id.t)
     : list((Id.t, Id.t)) => {
@@ -437,7 +437,7 @@ let function_tuple3_exp_coloring_ids =
     (Piece.id(pat1), pat1_id),
     (Piece.id(pat2), pat2_id),
     (Piece.id(pat3), pat3_id),
-    (Piece.id(_exp), body_id),
+    (Piece.id(e), body_id),
   ];
 };
 let function_tuple3_exp: form = {
@@ -458,7 +458,7 @@ let function_tuple3_exp: form = {
       ],
     ]),
     space(),
-    _exp,
+    e,
   ];
   {
     id: FunctionExp(Tuple3),
@@ -472,36 +472,36 @@ let function_tuple3_exp: form = {
     examples: [tuple3_fun_ex],
   };
 };
-let _pat = pat("C");
-let _exp = exp("e");
+let p = pat("C");
+let e = exp("e");
 let function_ctr_exp_coloring_ids =
-  pat_body_function_exp_coloring_ids(Piece.id(_pat), Piece.id(_exp));
+  pat_body_function_exp_coloring_ids(Piece.id(p), Piece.id(e));
 let function_ctr_exp: form = {
   let explanation = "The only value that matches the [*argument pattern*](%s) is the *`%s` constructor*. When applied to an argument which matches the [*argument pattern*](%s), evaluates to the function [*body*](%s).";
-  let form = [mk_fun([[space(), _pat, space()]]), space(), _exp];
+  let form = [mk_fun([[space(), p, space()]]), space(), e];
   {
     id: FunctionExp(Ctr),
     syntactic_form: form,
-    expandable_id: Some((Piece.id(_pat), [pat("C")])),
+    expandable_id: Some((Piece.id(p), [pat("C")])),
     explanation,
     examples: [ctr_fun_ex],
   };
 };
 let pat_con = pat("p_con");
 let pat_arg = pat("p_arg");
-let _exp = exp("e");
+let e = exp("e");
 let function_ap_exp_coloring_ids =
     (~con_id: Id.t, ~arg_id: Id.t, ~body_id: Id.t): list((Id.t, Id.t)) => {
   [
     (Piece.id(pat_con), con_id),
     (Piece.id(pat_arg), arg_id),
-    (Piece.id(_exp), body_id),
+    (Piece.id(e), body_id),
   ];
 };
 let function_ap_exp: form = {
   let explanation = "The only values that match the *argument pattern* are the [*constructor*](%s) where the *constructor argument* matches the [*constructor argument pattern*](%s). When applied to an argument which matches the *argument pattern*, evaluates to the function [*body*](%s).";
   let ap = mk_ap_pat([[pat_arg]]);
-  let form = [mk_fun([[space(), pat_con, ap, space()]]), space(), _exp];
+  let form = [mk_fun([[space(), pat_con, ap, space()]]), space(), e];
   {
     id: FunctionExp(ApFunc),
     syntactic_form: form,
