@@ -2,7 +2,7 @@ open Haz3lcore;
 open Example;
 open ExplainThisForm;
 
-let _exp = exp("exp");
+let _exp = exp("_exp");
 let proof_of_typ_coloring_ids = (~body_id: Id.t): list((Id.t, Id.t)) => [
   (Piece.id(_exp), body_id),
 ];
