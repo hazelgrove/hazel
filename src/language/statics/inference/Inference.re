@@ -74,6 +74,11 @@ let rec solution_typ_replace_tpat =
       solution_typ_replace_tpat(prov, t2, sol_tpat),
     )
     |> rewrap_typ
+  | DrvQuoteTy(_) as st => st |> rewrap_typ
+  | Projector(data, t) =>
+    Projector(data, solution_typ_replace_tpat(prov, t, sol_tpat))
+    |> rewrap_typ
+  | Sig(_) as st => st |> rewrap_typ
   };
 };
 
@@ -124,6 +129,10 @@ let rec solution_typ_replace_typ =
       solution_typ_replace_typ(prov, t2, sol_typ),
     )
     |> rewrap_typ
+  | DrvQuoteTy(_) as st => st |> rewrap_typ
+  | Projector(data, t) =>
+    Projector(data, solution_typ_replace_typ(prov, t, sol_typ)) |> rewrap_typ
+  | Sig(_) as st => st |> rewrap_typ
   };
 };
 

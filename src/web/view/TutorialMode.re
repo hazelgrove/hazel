@@ -17,7 +17,12 @@ module Model = {
     cells: Tutorial.stitched(CellEditor.Model.t),
   };
   let of_spec = (~settings as _, ~instructor_mode as _: bool, spec) => {
-    let editors = Tutorial.map(spec, Editor.Model.mk, Editor.Model.mk);
+    let editors =
+      Tutorial.map(
+        spec,
+        Editor.Model.mk(~root=Exp),
+        Editor.Model.mk(~root=Exp),
+      );
     let term_item_to_cell = (item: Tutorial.TermItem.t): CellEditor.Model.t => {
       CellEditor.Model.mk(item.editor);
     };
@@ -89,11 +94,13 @@ module Update = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     | Editor(Tutorial.pos, CellEditor.Update.t)
+    | RefreshStatics
     | ResetEditor(Tutorial.pos)
     | ResetTutorial
     | MoveToNextExercise
     | MoveToPrevExercise
     | Change_report_view;
+
   let update =
       (~settings: Settings.t, ~schedule_action as _, action, model: Model.t)
       : Updated.t(Model.t) => {
@@ -122,21 +129,17 @@ module Update = {
       // Redirect to editors
       let editor =
         Tutorial.main_editor_of_state(~selection=pos, model.editors);
-      let (statics, dynamics) =
+      let cell =
         switch (Tutorial.get_stitched(pos, model.cells)) {
-        | cell_editor => (
-            cell_editor.editor.statics,
-            cell_editor.editor.dynamics,
-          )
-        | exception (Failure(_)) => (
-            CachedStatics.empty,
-            Language.Dynamics.Map.empty,
-          )
+        | cell_editor => cell_editor
+        | exception (Failure(_)) => CellEditor.Model.mk(editor)
         };
-      let* new_editor =
+      let* new_code_editor =
         // Hack[Matt]: put Editor.t into a CodeEditor.t to use its update function
-        editor
-        |> CodeEditable.Model.mk(~statics, ~dynamics)
+        {
+          ...cell.editor,
+          editor,
+        }
         |> CodeEditable.Update.update(~settings, action);
       {
         ...model,
@@ -144,7 +147,16 @@ module Update = {
           Tutorial.put_main_editor(
             ~selection=pos,
             model.editors,
-            new_editor.editor,
+            new_code_editor.editor,
+          ),
+        cells:
+          Tutorial.put_stitched(
+            pos,
+            model.cells,
+            {
+              ...cell,
+              editor: new_code_editor,
+            },
           ),
       };
     | Editor(pos, MainEditor(action)) =>
@@ -183,10 +195,13 @@ module Update = {
         ...model,
         cells: Tutorial.put_stitched(pos, model.cells, new_cell),
       };
-    | Editor(_, ResultAction(_)) => Updated.return_quiet(model) // TODO: I think this case should never happen
+    | Editor(_, ResultAction(_)) => Updated.raise_invalid_action(model) // TODO: I think this case should never happen
+    | RefreshStatics =>
+      CodeWithStatics.StaticsDebounce.force_on_next := true;
+      model |> Updated.return_quiet(~recalculate=true);
     | ResetEditor(pos) =>
       let spec = Tutorial.main_editor_of_state(~selection=pos, model.spec);
-      let new_editor = Editor.Model.mk(spec);
+      let new_editor = Editor.Model.mk(spec, ~root=Exp);
       {
         ...model,
         editors:
@@ -195,7 +210,11 @@ module Update = {
       |> Updated.return;
     | ResetTutorial =>
       let new_editors =
-        Tutorial.map(model.spec, Editor.Model.mk, Editor.Model.mk);
+        Tutorial.map(
+          model.spec,
+          Editor.Model.mk(~root=Exp),
+          Editor.Model.mk(~root=Exp),
+        );
       {
         ...model,
         editors: new_editors,
@@ -215,6 +234,7 @@ module Update = {
   let can_undo = (action: t) => {
     switch (action) {
     | Editor(_, action) => CellEditor.Update.can_undo(action)
+    | RefreshStatics => false
     | ResetEditor(_) => true
     | ResetTutorial => true
     | MoveToNextExercise
@@ -225,11 +245,16 @@ module Update = {
 
   let calculate =
       (~settings, ~is_edited, ~schedule_action, model: Model.t): Model.t => {
+    let statics_mode =
+      CodeWithStatics.StaticsDebounce.consume(~is_edited, ~schedule_refresh=() =>
+        schedule_action(RefreshStatics)
+      );
+
     let stitched_elabs = Tutorial.stitch_term(model.editors);
     let worker_request = ref([]);
-    let queue_worker = (pos, expr) => {
+    let queue_worker = (pos, req_value: WorkerServer.Request.value) => {
       worker_request :=
-        worker_request^ @ [(pos |> Tutorial.key_for_statics, expr)];
+        worker_request^ @ [(pos |> Tutorial.key_for_statics, req_value)];
     };
     let cells =
       Tutorial.map2_stitched(
@@ -239,12 +264,14 @@ module Update = {
               editor,
               statics: cell.editor.statics,
               dynamics: EvalResult.Model.dynamics(cell.result),
+              context_menu: cell.editor.context_menu,
             },
             result: cell.result,
           }
           |> CellEditor.Update.calculate(
                ~settings,
                ~is_edited,
+               ~statics_mode,
                ~queue_worker=Some(queue_worker(pos)),
                ~stitch=_ =>
                term
@@ -290,7 +317,8 @@ module Update = {
        one of the editors is shown in two cells, so we arbitrarily choose which
        statics to take */
     let editors: Tutorial.p('a) = {
-      let calculate = Editor.Update.calculate(~settings, ~is_edited);
+      let calculate =
+        Editor.Update.calculate(~settings, ~autoprobe_mode=false, ~is_edited);
       {
         id: model.editors.id,
         title: model.editors.title,
@@ -332,13 +360,19 @@ module Selection = {
   type t =
     | Cell(Tutorial.pos, CellEditor.Selection.t)
     | TextBox;
-  let get_cursor_info = (~selection, model: Model.t): cursor(Update.t) => {
+  let get_cursor_info =
+      (~inject: Update.t => Ui_effect.t(unit), ~selection, model: Model.t)
+      : cursor(Update.t) => {
     switch (selection) {
     | Cell(pos, s) =>
       switch (Tutorial.get_stitched(pos, model.cells)) {
       | cell_editor =>
         let+ a =
-          CellEditor.Selection.get_cursor_info(~selection=s, cell_editor);
+          CellEditor.Selection.get_cursor_info(
+            ~inject=a => inject(Editor(pos, a)),
+            ~selection=s,
+            cell_editor,
+          );
         Update.Editor(pos, a);
       | exception (Failure(_)) => empty
       }
@@ -346,23 +380,6 @@ module Selection = {
     };
   };
 
-  let handle_key_event =
-      (~selection: t, ~event, model: Model.t): option(Update.t) => {
-    switch (selection) {
-    | Cell(pos, s) =>
-      switch (Tutorial.get_stitched(pos, model.cells)) {
-      | cell_editor =>
-        CellEditor.Selection.handle_key_event(
-          ~selection=s,
-          ~event,
-          cell_editor,
-        )
-        |> Option.map(a => Update.Editor(pos, a))
-      | exception (Failure(_)) => None
-      }
-    | TextBox => None
-    };
-  };
   let jump_to_tile =
       (~settings: Settings.t, tile, model: Model.t): option((Update.t, t)) => {
     Tutorial.positioned_editors(model.editors)
@@ -447,6 +464,7 @@ module View = {
         ~inject=a => inject(Editor(this_pos, a)),
         ~result_kind,
         ~caption=CellCommon.caption(caption, ~rest=?subcaption),
+        ~lines=true,
         cell,
       );
     };

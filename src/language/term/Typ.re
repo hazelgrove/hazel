@@ -5,6 +5,7 @@ open OptUtil.Syntax;
 type cls =
   | Unknown(Prov.cls)
   | Atom(Atom.cls)
+  | DrvQuoteTy
   | Arrow
   | Prod
   | TupLabel
@@ -15,11 +16,13 @@ type cls =
   | Var
   | Constructor // Constructor does not exist on Typ.term it's being used here as a hack for the cursors inspector
   | Parens
+  | Projector
   | Rec
   | Poly
   | ProofOf
   | ProdProjection
-  | ProdExtension;
+  | ProdExtension
+  | Sig;
 
 include TermBase.Typ;
 
@@ -41,9 +44,7 @@ let all_ids_temp = {
     (continue, exp) =>
       {
         term: exp.term,
-        annotation: {
-          ids: [Id.invalid],
-        },
+        annotation: IdTagged.IdTag.temp(),
       }
       |> continue;
   map_term(~f_exp=f, ~f_pat=f, ~f_typ=f, ~f_tpat=f, ~f_rul=f);
@@ -72,6 +73,7 @@ let cls_of_term: Grammar.typ_term('a) => cls =
   fun
   | Unknown({term: p, _}) => Unknown(Prov.cls_of_term(p))
   | Atom(c) => Atom(c)
+  | DrvQuoteTy(_) => DrvQuoteTy
   | List(_) => List
   | Arrow(_) => Arrow
   | Var(_) => Var
@@ -80,17 +82,20 @@ let cls_of_term: Grammar.typ_term('a) => cls =
   | Label(_) => Label
   | ExplicitNonlabel => ExplicitNonlabel
   | Parens(_) => Parens
+  | Projector(_) => Projector
   | Sum(_) => Sum
   | Rec(_) => Rec
   | Poly(_) => Poly
   | ProofOf(_) => ProofOf
   | ProdProjection(_) => ProdProjection
-  | ProdExtension(_) => ProdExtension;
+  | ProdExtension(_) => ProdExtension
+  | Sig(_) => Sig;
 
 let show_cls: cls => string =
   fun
   | Unknown(p) => Prov.show_cls(p)
   | Atom(_) => "Base type"
+  | DrvQuoteTy => "Derivation-Mode Quotation Type"
   | Var => "Type variable"
   | Constructor => "Sum constructor"
   | List => "List type"
@@ -101,19 +106,23 @@ let show_cls: cls => string =
   | ExplicitNonlabel => "Explicitly unlabeled tuple item type"
   | Sum => "Sum type"
   | Parens => "Parenthesized type"
+  | Projector => "Projector type"
   | Rec => "Recursive type"
   | Poly => "Type quantifier"
   | ProofOf => "Proof type"
   | ProdProjection => "Tuple projection"
-  | ProdExtension => "Tuple extension";
+  | ProdExtension => "Tuple extension"
+  | Sig => "Signature type";
 
 let rec is_arrow = (typ: t) => {
   switch (typ.term) {
   | Parens(typ)
+  | Projector(_, typ)
   | TupLabel(_, typ) => is_arrow(typ)
   | Arrow(_) => true
   | Unknown(_)
   | Atom(_)
+  | DrvQuoteTy(_)
   | List(_)
   | Label(_)
   | ExplicitNonlabel
@@ -124,15 +133,18 @@ let rec is_arrow = (typ: t) => {
   | ProofOf(_)
   | Rec(_)
   | ProdProjection(_)
-  | ProdExtension(_) => false
+  | ProdExtension(_)
+  | Sig(_) => false
   };
 };
 
 let is_atom = (ty: t): bool =>
   switch (ty.term) {
   | Atom(_) => true
+  | DrvQuoteTy(_)
   | ProofOf(_)
   | Parens(_)
+  | Projector(_)
   | TupLabel(_)
   | Arrow(_)
   | Unknown(_)
@@ -145,12 +157,14 @@ let is_atom = (ty: t): bool =>
   | Poly(_)
   | Rec(_)
   | ProdProjection(_)
-  | ProdExtension(_) => false
+  | ProdExtension(_)
+  | Sig(_) => false
   };
 
 let rec has_fun = (typ: t) =>
   switch (typ.term) {
   | Parens(typ)
+  | Projector(_, typ)
   | TupLabel(_, typ)
   | ProdProjection(typ, _) => has_fun(typ)
   | Arrow(_)
@@ -158,6 +172,7 @@ let rec has_fun = (typ: t) =>
   | ProofOf(_) => true
   | Unknown(_)
   | Atom(_)
+  | DrvQuoteTy(_)
   | Label(_)
   | ExplicitNonlabel
   | Var(_) => false
@@ -172,16 +187,19 @@ let rec has_fun = (typ: t) =>
     )
   | Prod(tys) => List.exists(has_fun, tys)
   | ProdExtension(t1, t2) => has_fun(t1) || has_fun(t2)
+  | Sig(_) => false
   };
 
 let rec is_poly = (typ: t) => {
   switch (typ.term) {
   | Parens(typ)
+  | Projector(_, typ)
   | TupLabel(_, typ) => is_poly(typ)
   | Poly(_) => true
   | ProofOf(_)
   | Unknown(_)
   | Atom(_)
+  | DrvQuoteTy(_)
   | Arrow(_)
   | List(_)
   | Label(_)
@@ -191,7 +209,8 @@ let rec is_poly = (typ: t) => {
   | Sum(_)
   | Rec(_)
   | ProdProjection(_)
-  | ProdExtension(_) => false
+  | ProdExtension(_)
+  | Sig(_) => false
   };
 };
 
@@ -209,6 +228,14 @@ type source = {
   id: Id.t,
   ty: t,
 };
+
+let add_source =
+  List.map2((id, ty) =>
+    {
+      id,
+      ty,
+    }
+  );
 
 /* Strip location information from a list of sources */
 let of_source = List.map((source: source) => source.ty);
@@ -253,10 +280,12 @@ let rec free_vars = (~bound=[], ty: t): list(Var.t) =>
   switch (term_of(ty)) {
   | Unknown(_)
   | Atom(_)
+  | DrvQuoteTy(_)
   | Label(_)
   | ExplicitNonlabel => []
   | Var(v) => List.mem(v, bound) ? [] : [v]
-  | Parens(ty) => free_vars(~bound, ty)
+  | Parens(ty)
+  | Projector(_, ty) => free_vars(~bound, ty)
   | List(ty) => free_vars(~bound, ty)
   | ProdExtension(t1, t2)
   | Arrow(t1, t2) => free_vars(~bound, t1) @ free_vars(~bound, t2)
@@ -268,11 +297,13 @@ let rec free_vars = (~bound=[], ty: t): list(Var.t) =>
   | Poly(x, ty) =>
     free_vars(~bound=(x |> TPat.tyvar_of_utpat |> Option.to_list) @ bound, ty)
   | ProofOf(_) => []
+  | Sig(_) => []
   };
 
 let rec vars = (ty: t): list(Var.t) =>
   switch (ty.term) {
   | Atom(_)
+  | DrvQuoteTy(_) => []
   | Unknown(_) => []
   | Var(x) => [x]
   | Arrow(ty1, ty2) => vars(ty1) @ vars(ty2)
@@ -290,7 +321,8 @@ let rec vars = (ty: t): list(Var.t) =>
     vars(ty) |> List.filter((x': string) => x' != x)
   | Rec(_, ty) => vars(ty)
   | List(ty) => vars(ty)
-  | Parens(ty) => vars(ty)
+  | Parens(ty)
+  | Projector(_, ty) => vars(ty)
   | Poly({term: Var(x), _}, ty) =>
     vars(ty) |> List.filter((x': string) => x' != x)
   | Poly(_, ty) => vars(ty)
@@ -300,6 +332,7 @@ let rec vars = (ty: t): list(Var.t) =>
   | TupLabel(_, ty)
   | ProdProjection(ty, _) => vars(ty)
   | ProdExtension(ty1, ty2) => vars(ty1) @ vars(ty2)
+  | Sig(_) => []
   };
 let rec aliases_deep = (ctx: Ctx.t, ty: t): list((string, t)) => {
   let defs =
@@ -336,6 +369,7 @@ let fresh_var = (var_name: string) => {
 let rec num_nodes = (ty: t): int => {
   switch (ty.term) {
   | Atom(_)
+  | DrvQuoteTy(_)
   | Unknown(_) => 1
   | Var(_) => 1
   | Arrow(t1, t2) => 1 + num_nodes(t1) + num_nodes(t2)
@@ -355,7 +389,8 @@ let rec num_nodes = (ty: t): int => {
       )
   | Rec(_, ty) => 1 + num_nodes(ty)
   | List(ty) => 1 + num_nodes(ty)
-  | Parens(ty) => 1 + num_nodes(ty)
+  | Parens(ty)
+  | Projector(_, ty) => 1 + num_nodes(ty)
   | Poly(_, ty) => 1 + num_nodes(ty)
   | ExplicitNonlabel
   | Label(_) => 1
@@ -363,6 +398,7 @@ let rec num_nodes = (ty: t): int => {
   | ProofOf(_) => 10 // TODO[Matt]: this is a hack to make sure that Yes types are not counted as small
   | ProdProjection(ty1, ty2) => 1 + num_nodes(ty1) + num_nodes(ty2)
   | ProdExtension(ty1, ty2) => 1 + num_nodes(ty1) + num_nodes(ty2)
+  | Sig(_) => 1
   };
 };
 
@@ -371,6 +407,7 @@ let rec count_unknowns = (ty: t): int =>
   switch (ty.term) {
   | Unknown(_) => 1
   | Atom(_)
+  | DrvQuoteTy(_)
   | Var(_) => 0
   | Arrow(t1, t2) => count_unknowns(t1) + count_unknowns(t2)
   | Prod(tys) =>
@@ -388,7 +425,8 @@ let rec count_unknowns = (ty: t): int =>
     )
   | Rec(_, ty) => count_unknowns(ty)
   | List(ty) => count_unknowns(ty)
-  | Parens(ty) => count_unknowns(ty)
+  | Parens(ty)
+  | Projector(_, ty) => count_unknowns(ty)
   | Poly(_, ty) => count_unknowns(ty)
   | ProofOf(_) => 0
   | ExplicitNonlabel
@@ -396,11 +434,13 @@ let rec count_unknowns = (ty: t): int =>
   | TupLabel(_, ty) => count_unknowns(ty)
   | ProdProjection(ty1, _) => count_unknowns(ty1)
   | ProdExtension(ty1, ty2) => count_unknowns(ty1) + count_unknowns(ty2)
+  | Sig(_) => 0
   };
 
 let rec contains_sum_or_var = (ty: t): bool =>
   switch (ty.term) {
   | Atom(_)
+  | DrvQuoteTy(_)
   | Unknown(_) => false
   | Var(_)
   | Sum(_) => true
@@ -408,7 +448,8 @@ let rec contains_sum_or_var = (ty: t): bool =>
   | Prod(tys) => List.exists(contains_sum_or_var, tys)
   | Rec(_, ty) => contains_sum_or_var(ty)
   | List(ty) => contains_sum_or_var(ty)
-  | Parens(ty) => contains_sum_or_var(ty)
+  | Parens(ty)
+  | Projector(_, ty) => contains_sum_or_var(ty)
   | Poly(_, ty) => contains_sum_or_var(ty)
   | ProofOf(_) => false
   | ProdProjection(ty1, _) => contains_sum_or_var(ty1)
@@ -417,12 +458,30 @@ let rec contains_sum_or_var = (ty: t): bool =>
   | ExplicitNonlabel
   | Label(_) => false
   | TupLabel(_, ty) => contains_sum_or_var(ty)
+  | Sig(_) => false
   };
 
+/* Capture-avoiding substitution of `s` for `x` in `ty`.
+
+   When recursing under a type binder `Poly(tp2, body)` or `Rec(tp2, body)`
+   whose name occurs free in `s`, naive substitution would let occurrences of
+   that name introduced by substituting `s` be captured by the binder. To
+   avoid this, we alpha-rename the clashing binder to a fresh name (via
+   `fresh_var`) before recursing. The inner subst used for renaming is itself
+   capture-avoiding, so repeated collisions are handled naturally. */
 let rec subst = (s: t, x: TPat.t, ty: t): t => {
+  let avoid_capture = (tp2: TPat.t, body: t): (TPat.t, t) =>
+    switch (TPat.tyvar_of_utpat(tp2)) {
+    | Some(name) when List.mem(name, free_vars(s)) =>
+      let fresh = fresh_var(name);
+      let tp2': TPat.t = Var(fresh) |> TPat.fresh;
+      let body' = subst(Var(fresh) |> temp, tp2, body);
+      (tp2', body');
+    | _ => (tp2, body)
+    };
   switch (TPat.tyvar_of_utpat(x)) {
   | Some(str) =>
-    let (term, rewrap) = Grammar.Annotated.unwrap(ty);
+    let (term, rewrap) = Annotated.unwrap(ty);
     switch (term) {
     | Atom(_) => ty
     | Label(name) => Grammar.Label(name) |> rewrap
@@ -436,18 +495,25 @@ let rec subst = (s: t, x: TPat.t, ty: t): t => {
       Sum(ConstructorMap.map(Option.map(subst(s, x)), sm)) |> rewrap
     | Poly(tp2, ty) when TPat.tyvar_of_utpat(x) == TPat.tyvar_of_utpat(tp2) =>
       Poly(tp2, ty) |> rewrap
-    | Poly(tp2, ty) => Poly(tp2, subst(s, x, ty)) |> rewrap
+    | Poly(tp2, ty) =>
+      let (tp2', ty') = avoid_capture(tp2, ty);
+      Poly(tp2', subst(s, x, ty')) |> rewrap;
     | Rec(tp2, ty) when TPat.tyvar_of_utpat(x) == TPat.tyvar_of_utpat(tp2) =>
       Rec(tp2, ty) |> rewrap
-    | Rec(tp2, ty) => Rec(tp2, subst(s, x, ty)) |> rewrap
+    | Rec(tp2, ty) =>
+      let (tp2', ty') = avoid_capture(tp2, ty);
+      Rec(tp2', subst(s, x, ty')) |> rewrap;
     | List(ty) => List(subst(s, x, ty)) |> rewrap
     | Var(y) => str == y ? s : Var(y) |> rewrap
     | Parens(ty) => Parens(subst(s, x, ty)) |> rewrap
+    | Projector(data, ty) => Projector(data, subst(s, x, ty)) |> rewrap
     | ProdProjection(t1, t2) =>
       ProdProjection(subst(s, x, t1), subst(s, x, t2)) |> rewrap
     | ProdExtension(t1, t2) =>
       ProdExtension(subst(s, x, t1), subst(s, x, t2)) |> rewrap
     | ProofOf(e) => ProofOf(e) |> rewrap
+    | Sig(_) => ty
+    | DrvQuoteTy(_) => ty
     };
   | None => ty
   };
@@ -539,7 +605,9 @@ let rec weak_head_normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
     failwith("weak_head_normalize exceeded 1000 recursive calls");
   };
   switch (term_of(ty)) {
-  | Parens(t) => weak_head_normalize(~rec_counter=rec_counter + 1, ctx, t)
+  | Parens(t)
+  | Projector(_, t) =>
+    weak_head_normalize(~rec_counter=rec_counter + 1, ctx, t)
   | Var(x) =>
     switch (Ctx.lookup_alias(ctx, x)) {
     | Some(ty) => weak_head_normalize(~rec_counter=rec_counter + 1, ctx, ty)
@@ -599,13 +667,22 @@ let rec normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
     }
   | Unknown(_)
   | Atom(_)
+  | DrvQuoteTy(_)
   | ExplicitNonlabel
   | Label(_) => ty
-  | Parens(t) => normalize(ctx, t)
+  | Parens(t)
+  | Projector(_, t) => normalize(ctx, t)
   | List(t) => List(normalize(ctx, t)) |> rewrap
   | Arrow(t1, t2) =>
     Arrow(normalize(ctx, t1), normalize(ctx, t2)) |> rewrap
-  | Prod(ts) => Prod(List.map(normalize(ctx), ts)) |> rewrap
+  | Prod(ts) =>
+    let ts = List.map(normalize(ctx), ts);
+    let duplicate_labels =
+      LabeledTuple.get_duplicate_labels(match_tup_label, ts);
+    let ts =
+      List.is_empty(duplicate_labels)
+        ? ts : remove_duplicate_labels(~duplicate_labels, ts);
+    Prod(ts) |> rewrap;
   | ProdProjection(_) => weak_head_normalize(ctx, ty) |> normalize(ctx)
   | ProdExtension(_) => weak_head_normalize(ctx, ty) |> normalize(ctx)
   | TupLabel({term: ExplicitNonlabel, _}, ty) => normalize(ctx, ty) // Drop ExplicitNonlabel in normalization
@@ -621,6 +698,93 @@ let rec normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
   | Poly(name, ty) =>
     Poly(name, normalize(Ctx.extend_dummy_tvar(ctx, name), ty)) |> rewrap
   | ProofOf(_) => ty // Todo: should we normalize this?
+  | Sig(items) =>
+    /* Desugar signature to labeled tuple type:
+       { let x : Int; let y : Bool } => (x=Int, y=Bool)
+       Type aliases (SigType) don't contribute to the exported type. */
+    let fields =
+      items
+      |> List.filter_map((item: Sig.t) =>
+           switch (item.term) {
+           | SigLet(pat) =>
+             /* Extract name and type from pattern.
+                let x : T => name="x", typ=T
+                let x     => name="x", typ=Unknown */
+             switch (pat.term) {
+             | Asc({term: Var(name), _}, typ) =>
+               Some(
+                 TupLabel(Label(name) |> temp, normalize(ctx, typ)) |> temp,
+               )
+             | Var(name) =>
+               Some(
+                 TupLabel(
+                   Label(name) |> temp,
+                   Unknown(Internal |> Prov.fresh) |> temp,
+                 )
+                 |> temp,
+               )
+             | _ => None
+             }
+           | SigType(_, _)
+           | Invalid(_)
+           | EmptyHole
+           | MultiHole(_) => None
+           }
+         );
+    switch (fields) {
+    | [] => Prod([]) |> rewrap
+    | _ => normalize(ctx, Prod(fields) |> rewrap)
+    };
+  };
+};
+
+/* Targeted Sig desugaring: Only converts Sig nodes to Prod (labeled tuples),
+   preserving Parens and everything else. Use this instead of normalize when
+   you need to desugar Sig types without stripping Parens wrappers. */
+let rec desugar_sig = (ctx: Ctx.t, ty: t): t => {
+  let (term, rewrap) = unwrap(ty);
+  switch (term) {
+  | Sig(items) =>
+    let fields =
+      items
+      |> List.filter_map((item: Sig.t) =>
+           switch (item.term) {
+           | SigLet(pat) =>
+             switch (pat.term) {
+             | Asc({term: Var(name), _}, typ) =>
+               Some(
+                 TupLabel(Label(name) |> temp, desugar_sig(ctx, typ))
+                 |> temp,
+               )
+             | Var(name) =>
+               Some(
+                 TupLabel(
+                   Label(name) |> temp,
+                   Unknown(Internal |> Prov.fresh) |> temp,
+                 )
+                 |> temp,
+               )
+             | _ => None
+             }
+           | SigType(_, _)
+           | Invalid(_)
+           | EmptyHole
+           | MultiHole(_) => None
+           }
+         );
+    switch (fields) {
+    | [] => Prod([]) |> rewrap
+    | _ => Prod(fields) |> rewrap
+    };
+  | Parens(t) => Parens(desugar_sig(ctx, t)) |> rewrap
+  | Projector(_, t) => desugar_sig(ctx, t)
+  | Arrow(t1, t2) =>
+    Arrow(desugar_sig(ctx, t1), desugar_sig(ctx, t2)) |> rewrap
+  | Prod(ts) => Prod(List.map(desugar_sig(ctx), ts)) |> rewrap
+  | List(t) => List(desugar_sig(ctx, t)) |> rewrap
+  | TupLabel(label, ty) =>
+    TupLabel(desugar_sig(ctx, label), desugar_sig(ctx, ty)) |> rewrap
+  | _ => ty
   };
 };
 
@@ -632,8 +796,10 @@ let rec meet =
         : option((t, list(equivalence))) => {
   let meet' = meet(ctx);
   switch (term_of(ty1), term_of(ty2)) {
-  | (_, Parens(ty2)) => meet'(ty1, ty2)
-  | (Parens(ty1), _) => meet'(ty1, ty2)
+  | (_, Parens(ty2))
+  | (_, Projector(_, ty2)) => meet'(ty1, ty2)
+  | (Parens(ty1), _)
+  | (Projector(_, ty1), _) => meet'(ty1, ty2)
   | (TupLabel({term: ExplicitNonlabel, _}, ty1'), _) => meet'(ty1', ty2)
   | (_, TupLabel({term: ExplicitNonlabel, _}, ty2')) => meet'(ty1, ty2')
   | (Unknown(p1), Unknown(p2)) =>
@@ -686,15 +852,17 @@ let rec meet =
     let ctx = Ctx.extend_dummy_tvar(ctx, x2);
     let+ (ty_body, meet_cons) = meet(~resolve, ctx, ty1', ty2);
     (Poly(x2, ty_body) |> temp, meet_cons);
-  /* Note for above: there is no danger of free variable capture as
-     subst itself performs capture avoiding substitution. However this
-     may generate internal type variable names that in corner cases can
-     be exposed to the user. We preserve the variable name of the
-     second type to preserve synthesized type variable names, which
-     come from user annotations. */
+  /* Note for above: `subst` is capture-avoiding (see its definition),
+     so renaming `x1` to `x2` via substitution is safe. In rare cases
+     where capture does trigger, `subst` generates fresh internal type
+     variable names via `fresh_var` that may be exposed to the user. We
+     preserve the variable name of the second type to preserve
+     synthesized type variable names, which come from user annotations. */
   | (Poly(_), _) => None
   | (Atom(c1), Atom(c2)) when c1 == c2 => Some((ty1, []))
   | (Atom(_), _) => None
+  | (DrvQuoteTy(d1), DrvQuoteTy(d2)) when d1 == d2 => Some((ty1, []))
+  | (DrvQuoteTy(_), _) => None
   | (Label(_), Label("")) => Some((ty1, []))
   | (Label(""), Label(_)) => Some((ty2, []))
   | (Label(name1), Label(name2))
@@ -752,6 +920,7 @@ let rec meet =
   // We would prefer for this to be a sort difference and never appear in a meet.
   // These get marked in statics but that does not remove them from the utyp's propagated on parents.
   | (ExplicitNonlabel, _) => None
+  | (Sig(_), _) => None
   };
 };
 
@@ -761,10 +930,13 @@ let rec match_synswitch = (t1: t, t2: t) => {
   let (term1, rewrap1) = unwrap(t1);
   switch (term1, term_of(t2)) {
   | (Parens(t1), _) => Parens(match_synswitch(t1, t2)) |> rewrap1
+  | (Projector(data, t1), _) =>
+    Projector(data, match_synswitch(t1, t2)) |> rewrap1
   | (Unknown({term: SynSwitch, _}), _) => t2
   // These cases can't have a synswitch inside
   | (Unknown(_), _)
   | (Atom(_), _)
+  | (DrvQuoteTy(_), _)
   | (Label(_), _)
   | (ExplicitNonlabel, _)
   | (Var(_), _)
@@ -794,6 +966,7 @@ let rec match_synswitch = (t1: t, t2: t) => {
   // HACK[Matt]: The only possible poly is `Poly Syn -> Syn`
   | (Poly(_), Poly(_)) => t2
   | (Poly(_), _) => t1
+  | (Sig(_), _) => t1
   };
 };
 
@@ -1110,9 +1283,11 @@ let rec get_sum_constructors = (ctx: Ctx.t, ty: t): option(sum_map) => {
 let rec is_syn = (ty: t): bool =>
   switch (ty |> term_of) {
   | TupLabel(_, x)
-  | Parens(x) => is_syn(x)
+  | Parens(x)
+  | Projector(_, x) => is_syn(x)
   | Unknown(p) => is_prov_syn(p |> Prov.term_of)
   | Atom(_)
+  | DrvQuoteTy(_)
   | Label(_)
   | Var(_)
   | Rec(_)
@@ -1124,7 +1299,8 @@ let rec is_syn = (ty: t): bool =>
   | Sum(_) => false
   | ProdProjection(_)
   | ProdExtension(_)
-  | ExplicitNonlabel => false
+  | ExplicitNonlabel
+  | Sig(_) => false
   }
 and is_prov_syn = (prov: Prov.term): bool => {
   switch (prov) {
@@ -1147,8 +1323,10 @@ and is_prov_syn = (prov: Prov.term): bool => {
 let rec is_ana_atom = (ty: t) =>
   switch (ty |> term_of) {
   | TupLabel(_, x)
-  | Parens(x) => is_ana_atom(x)
+  | Parens(x)
+  | Projector(_, x) => is_ana_atom(x)
   | Atom(a) => Some(a)
+  | DrvQuoteTy(_)
   | Unknown(_)
   | ExplicitNonlabel
   | Label(_)
@@ -1161,18 +1339,21 @@ let rec is_ana_atom = (ty: t) =>
   | Prod(_)
   | ProdProjection(_)
   | ProdExtension(_)
-  | Sum(_) => None
+  | Sum(_)
+  | Sig(_) => None
   };
 
 let rec is_syn_plus = (ty: t): bool =>
   switch (ty |> term_of) {
   | TupLabel(_, x)
-  | Parens(x) => is_syn_plus(x)
+  | Parens(x)
+  | Projector(_, x) => is_syn_plus(x)
   | Unknown(p) => is_prov_syn(p |> Prov.term_of)
   | Arrow(t1, t2) => is_syn(t1) && is_syn_plus(t2)
   | Poly(_, t) => is_syn(t)
   | ProofOf(_)
   | Atom(_)
+  | DrvQuoteTy(_)
   | ExplicitNonlabel
   | Label(_)
   | Var(_)
@@ -1181,17 +1362,30 @@ let rec is_syn_plus = (ty: t): bool =>
   | Prod(_)
   | Sum(_)
   | ProdProjection(_)
-  | ProdExtension(_) => false
+  | ProdExtension(_)
+  | Sig(_) => false
+  };
+
+let rec is_arrow_like = (ty: t): bool =>
+  switch (term_of(ty)) {
+  | Unknown(_) => true
+  | Arrow(_, _) => true
+  | Poly(_, t) => is_arrow_like(t)
+  | Parens(t)
+  | Projector(_, t) => is_arrow_like(t)
+  | _ => false
   };
 
 /* Does the type require parentheses when on the left of an arrow for printing? */
 let rec needs_parens = (ty: t): bool =>
   switch (term_of(ty)) {
-  | Parens(ty) => needs_parens(ty)
+  | Parens(ty)
+  | Projector(_, ty) => needs_parens(ty)
   | Unknown(_)
   | Atom(_)
   | ExplicitNonlabel
   | Label(_)
+  | DrvQuoteTy(_)
   | List(_) /* is already wrapped in [] */
   | ProofOf(_)
   | Var(_) => false
@@ -1203,6 +1397,7 @@ let rec needs_parens = (ty: t): bool =>
   | Arrow(_, _)
   | Prod(_)
   | Sum(_) => true /* disambiguate between (A + B) -> C and A + (B -> C) */
+  | Sig(_) => false /* already wrapped in {} */
   };
 
 let pretty_print_tvar = (tv: TPat.t): string =>
@@ -1214,12 +1409,14 @@ let pretty_print_tvar = (tv: TPat.t): string =>
 /* Essentially recreates web/view/Type.re's view_ty but with string output */
 let rec pretty_print = (ty: t): string =>
   switch (term_of(ty)) {
-  | Parens(ty) => pretty_print(ty)
+  | Parens(ty)
+  | Projector(_, ty) => pretty_print(ty)
   | Unknown(_) => "?"
   | Atom(Int) => "Int"
   | Atom(Float) => "Float"
   | Atom(Bool) => "Bool"
   | Atom(String) => "String"
+  | DrvQuoteTy(d) => DrvSort.to_string(d)
   | Atom(Nat) => "Nat"
   | Atom(SInt) => "SInt"
   | Var(tvar) => tvar
@@ -1257,6 +1454,33 @@ let rec pretty_print = (ty: t): string =>
   | Poly(tv, t) =>
     "poly " ++ pretty_print_tvar(tv) ++ " -> " ++ pretty_print(t)
   | ProofOf(_e) => "yes <e> indeed"
+  | Sig(items) =>
+    let sig_item_str = (item: Sig.t) =>
+      switch (item.term) {
+      | SigLet(p) =>
+        "let "
+        ++ (
+          switch (IdTagged.term_of(p)) {
+          | Var(x) => x
+          | Asc(p', t) =>
+            (
+              switch (IdTagged.term_of(p')) {
+              | Var(x) => x
+              | _ => "?"
+              }
+            )
+            ++ " : "
+            ++ pretty_print(t)
+          | _ => "?"
+          }
+        )
+      | SigType(tp, t) =>
+        "type " ++ pretty_print_tvar(tp) ++ " = " ++ pretty_print(t)
+      | EmptyHole => "?"
+      | Invalid(s) => s
+      | MultiHole(_) => "?"
+      };
+    "{ " ++ String.concat("; ", List.map(sig_item_str, items)) ++ " }";
   }
 and ctr_pretty_print =
   fun

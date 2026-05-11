@@ -98,7 +98,10 @@ let rec unfold_constramnot = (equiv: Typ.equivalence): list(t) => {
   | (ProdExtension(_), _)
   | (ProdProjection(_), _)
   | (ExplicitNonlabel, _)
-  | (ProofOf(_), _) => []
+  | (ProofOf(_), _)
+  | (DrvQuoteTy(_), _)
+  | (Projector(_), _)
+  | (Sig(_), _) => []
   };
 }
 and unfold_constramnot_product = (args1, args2): list(t) =>

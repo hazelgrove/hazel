@@ -1,14 +1,16 @@
 open Util;
 
 /* This file handles the pagenation of Exercise Mode, and switching between
-   exercises. ExerciseMode.re handles the actual exercise. */
+   exercises. CodeExerciseMode.re / DerivationExerciseMode.re /
+   TheoremExerciseMode.re handle the actual per-kind exercise logic. */
 
 /* This file follows conventions in [docs/ui-architecture.md] */
 
 module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type exercise =
-    | Implementation(ExerciseMode.Model.t)
+    | Code(CodeExerciseMode.Model.t)
+    | Derivation(DerivationExerciseMode.Model.t)
     | Theorem(TheoremExerciseMode.Model.t);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -18,11 +20,12 @@ module Model = {
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type exercise_spec = Exercise.exercise_spec;
+  type exercise_spec = Exercise.t;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type persistent_exercise =
-    | PImplementation(ExerciseMode.Model.persistent)
+    | PCode(CodeExerciseMode.Model.persistent)
+    | PDerivation(DerivationExerciseMode.Model.persistent)
     | PTheorem(TheoremExerciseMode.Model.persistent);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -34,20 +37,23 @@ module Model = {
   let persist_exercise =
       (~instructor_mode, exercise: exercise): persistent_exercise =>
     switch (exercise) {
-    | Implementation(e) =>
-      PImplementation(ExerciseMode.Model.persist(~instructor_mode, e))
+    | Code(e) => PCode(CodeExerciseMode.Model.persist(~instructor_mode, e))
+    | Derivation(e) =>
+      PDerivation(DerivationExerciseMode.Model.persist(~instructor_mode, e))
     | Theorem(e) => PTheorem(TheoremExerciseMode.Model.persist(e))
     };
 
   let get_exercise_id = (exercise: exercise): Haz3lcore.Id.t =>
     switch (exercise) {
-    | Implementation(e: ExerciseMode.Model.t) => e.editors.id
+    | Code(e: CodeExerciseMode.Model.t) => e.editors.id
+    | Derivation(e: DerivationExerciseMode.Model.t) => e.editors.id
     | Theorem(e: TheoremExerciseMode.Model.t) => e.id
     };
 
   let get_spec_id = (spec: exercise_spec): Haz3lcore.Id.t =>
     switch (spec) {
-    | Implementation(s) => s.id
+    | Code(s) => s.id
+    | Derivation(s) => s.id
     | Theorem(s) => s.id
     };
 
@@ -76,11 +82,22 @@ module Model = {
       )
       : exercise =>
     switch (spec, persistent) {
-    | (Implementation(s), PImplementation(p)) =>
-      Implementation(ExerciseMode.Model.unpersist(~instructor_mode, s, p))
-    | (Implementation(s), _) =>
-      Implementation(
-        ExerciseMode.Model.of_spec(~settings, ~instructor_mode, s),
+    | (Code(s), PCode(p)) =>
+      Code(CodeExerciseMode.Model.unpersist(~instructor_mode, s, p))
+    | (Code(s), _) =>
+      Code(CodeExerciseMode.Model.of_spec(~settings, ~instructor_mode, s))
+    | (Derivation(s), PDerivation(p)) =>
+      Derivation(
+        DerivationExerciseMode.Model.unpersist(
+          ~settings,
+          ~instructor_mode,
+          p,
+          s,
+        ),
+      )
+    | (Derivation(s), _) =>
+      Derivation(
+        DerivationExerciseMode.Model.of_spec(~settings, ~instructor_mode, s),
       )
     | (Theorem(s), PTheorem(p)) =>
       Theorem(TheoremExerciseMode.Model.unpersist(~settings, s, p))
@@ -111,16 +128,19 @@ module Model = {
   let exercise_of_spec =
       (~settings, ~instructor_mode, spec: exercise_spec): exercise =>
     switch (spec) {
-    | Implementation(s) =>
-      Implementation(
-        ExerciseMode.Model.of_spec(~settings, ~instructor_mode, s),
+    | Code(s) =>
+      Code(CodeExerciseMode.Model.of_spec(~settings, ~instructor_mode, s))
+    | Derivation(s) =>
+      Derivation(
+        DerivationExerciseMode.Model.of_spec(~settings, ~instructor_mode, s),
       )
     | Theorem(s) => Theorem(TheoremExerciseMode.Model.of_spec(s))
     };
 
   let id_of_spec = (spec: exercise_spec): Haz3lcore.Id.t =>
     switch (spec) {
-    | Implementation(s) => s.id
+    | Code(s) => s.id
+    | Derivation(s) => s.id
     | Theorem(s) => s.id
     };
 
@@ -128,21 +148,35 @@ module Model = {
 
   let get_exercise_name = (e: exercise): string =>
     switch (e) {
-    | Implementation(e) => e.editors.title
+    | Code(e) => e.editors.title
+    | Derivation(e) => e.spec.title
     | Theorem(e) => e.title
+    };
+
+  let get_exercise_module_name = (e: exercise): string =>
+    switch (e) {
+    | Code(e) => e.editors.module_name
+    | Derivation(e) => e.editors.module_name
+    | Theorem(e) => e.module_name
     };
 
   let export_exercise_module = (e: exercise): string =>
     switch (e) {
-    | Implementation(e) => Exercise.export_module({eds: e.editors})
+    | Code(e) => CodeExercise.export_module({eds: e.editors})
+    | Derivation(e) => DerivationExercise.export_module({eds: e.editors})
     | Theorem(t) => TheoremExerciseMode.Model.export_module(t)
     };
 
   let export_transitionary_module = (e: exercise): string =>
     switch (e) {
-    | Implementation(e) =>
-      Exercise.export_transitionary_module(
+    | Code(e) =>
+      CodeExercise.export_transitionary_module(
         e.editors.module_name,
+        {eds: e.editors},
+      )
+    | Derivation(e) =>
+      DerivationExercise.export_transitionary_module(
+        e.spec.module_name,
         {eds: e.editors},
       )
     | Theorem(_) => "(* Theorem exercises do not have an exportable transitionary module *)\n"
@@ -150,8 +184,16 @@ module Model = {
 
   let export_grading_module = (e: exercise): string =>
     switch (e) {
-    | Implementation(e) =>
-      Exercise.export_grading_module(e.editors.module_name, {eds: e.editors})
+    | Code(e) =>
+      CodeExercise.export_grading_module(
+        e.editors.module_name,
+        {eds: e.editors},
+      )
+    | Derivation(e) =>
+      DerivationExercise.export_grading_module(
+        e.spec.module_name,
+        {eds: e.editors},
+      )
     | Theorem(_) => "(* Theorem exercises do not have an exportable grading module *)\n"
     };
 
@@ -159,8 +201,24 @@ module Model = {
   let get_editor = (model: t): CodeEditable.Model.t => {
     let current = List.nth(model.exercises, model.current);
     switch (current) {
-    | Implementation(e) => e.cells.user_impl.editor
+    | Code(e) => e.cells.user_impl.editor
+    /* Setup cell's statics are computed from the stitched `prelude + setup`
+       term, so using it here surfaces problems from both editors in the
+       problems sidebar (matching how `user_impl` covers prelude + your_impl
+       for code exercises). Line numbers for prelude ids will show as "L?"
+       since this cell's measured only covers setup content. */
+    | Derivation(e) => e.cells.setup.editor
     | Theorem(e) => e.cells.theorem.editor
+    };
+  };
+
+  /* Only used within ExercisesMode.re; exposed via the Model module signature
+     for the derivation-specific UI bindings below. */
+  let get_derivation_info = (eds: t) => {
+    let model = get_current(eds);
+    switch (model) {
+    | Derivation(e) => DerivationExerciseMode.Model.get_derivation_info(e)
+    | _ => None
     };
   };
 };
@@ -278,6 +336,17 @@ module Store = {
       exercise_export.exercise_data,
     );
   };
+
+  let reset = (~settings, ~instructor_mode) => {
+    let _ = StoreExerciseKey.reset();
+    List.iter(
+      spec => {
+        let _ = init_exercise(~settings, spec, ~instructor_mode);
+        ();
+      },
+      ExerciseSettings.exercises,
+    );
+  };
 };
 
 module Update = {
@@ -286,29 +355,31 @@ module Update = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     | SwitchExercise(int)
-    | Exercise(ExerciseMode.Update.t)
+    | Exercise(CodeExerciseMode.Update.t)
+    | Derivation(DerivationExerciseMode.Update.t)
     | TheoremExercise(TheoremExerciseMode.Update.t)
     | ExportModule
     | ExportSubmission
-    | ExportTransitionary
-    | ExportGrading;
+    | ExportTransitionary;
 
   let can_undo = (action: t) => {
     switch (action) {
     | SwitchExercise(_) => false
-    | Exercise(action) => ExerciseMode.Update.can_undo(action)
+    | Exercise(action) => CodeExerciseMode.Update.can_undo(action)
+    | Derivation(action) => DerivationExerciseMode.Update.can_undo(action)
     | TheoremExercise(action) => TheoremExerciseMode.Update.can_undo(action)
     | ExportModule => false
     | ExportSubmission => false
     | ExportTransitionary => false
-    | ExportGrading => false
     };
   };
   let export_exercise_module = (exercises: Model.t): unit => {
     let exercise = Model.get_current(exercises);
     let module_name =
-      StringUtil.isEmptyOrWhitespace(exercise |> Model.get_exercise_name)
-        ? "Unnamed Exercise Module" : exercise |> Model.get_exercise_name;
+      StringUtil.isEmptyOrWhitespace(
+        exercise |> Model.get_exercise_module_name,
+      )
+        ? "UnnamedExerciseModule" : exercise |> Model.get_exercise_module_name;
     let filename = module_name ++ ".ml";
     let content_type = "text/plain";
     let contents = Model.export_exercise_module(exercise);
@@ -328,28 +399,24 @@ module Update = {
 
   let export_transitionary = (exercises: Model.t) => {
     let exercise = Model.get_current(exercises);
+    let module_name =
+      StringUtil.isEmptyOrWhitespace(
+        exercise |> Model.get_exercise_module_name,
+      )
+        ? "UnnamedExerciseModule" : exercise |> Model.get_exercise_module_name;
     // .ml files because show uses OCaml syntax (dune handles seamlessly)
-    let filename = (exercise |> Model.get_exercise_name) ++ ".ml";
+    let filename = module_name ++ ".ml";
     let content_type = "text/plain";
     let contents = Model.export_transitionary_module(exercise);
-    JsUtil.download_string_file(~filename, ~content_type, ~contents);
-  };
-
-  let export_instructor_grading_report = (exercises: Model.t) => {
-    let exercise = Model.get_current(exercises);
-    // .ml files because show uses OCaml syntax (dune handles seamlessly)
-    let filename = (exercise |> Model.get_exercise_name) ++ "_grading.ml";
-    let content_type = "text/plain";
-    let contents = Model.export_grading_module(exercise);
     JsUtil.download_string_file(~filename, ~content_type, ~contents);
   };
 
   let update =
       (~globals: Globals.t, ~schedule_action, action: t, model: Model.t) => {
     switch (Model.get_current(model), action) {
-    | (Implementation(ex), Exercise(action)) =>
+    | (Code(ex), Exercise(action)) =>
       let* new_current =
-        ExerciseMode.Update.update(
+        CodeExerciseMode.Update.update(
           ~settings=globals.settings,
           ~schedule_action,
           action,
@@ -358,14 +425,14 @@ module Update = {
       let new_exercises =
         ListUtil.put_nth(
           model.current,
-          Model.Implementation(new_current),
+          Model.Code(new_current),
           model.exercises,
         );
       Model.{
         current: model.current,
         exercises: new_exercises,
       };
-    | (_, Exercise(_)) => model |> return_quiet
+    | (_, Exercise(_)) => model |> raise_invalid_action
     | (Theorem(ex), TheoremExercise(action)) =>
       let* new_current =
         TheoremExerciseMode.Update.update(
@@ -383,7 +450,26 @@ module Update = {
         current: model.current,
         exercises: new_exercises,
       };
-    | (_, TheoremExercise(_)) => model |> return_quiet
+    | (_, TheoremExercise(_)) => model |> raise_invalid_action
+    | (Derivation(ex), Derivation(action)) =>
+      let* new_current =
+        DerivationExerciseMode.Update.update(
+          ~settings=globals.settings,
+          ~schedule_action,
+          action,
+          ex,
+        );
+      let new_exercises =
+        ListUtil.put_nth(
+          model.current,
+          Model.Derivation(new_current),
+          model.exercises,
+        );
+      Model.{
+        current: model.current,
+        exercises: new_exercises,
+      };
+    | (_, Derivation(_)) => model |> raise_invalid_action
     | (_, SwitchExercise(n)) =>
       Model.{
         current: n,
@@ -402,10 +488,6 @@ module Update = {
       Store.save(~instructor_mode=globals.settings.instructor_mode, model);
       export_transitionary(model);
       model |> return_quiet;
-    | (_, ExportGrading) =>
-      Store.save(~instructor_mode=globals.settings.instructor_mode, model);
-      export_instructor_grading_report(model);
-      model |> return_quiet;
     };
   };
 
@@ -414,12 +496,21 @@ module Update = {
     let current_exercise = Model.get_current(model);
     let current_exercise =
       switch (current_exercise) {
-      | Implementation(ex) =>
-        Model.Implementation(
-          ExerciseMode.Update.calculate(
+      | Code(ex) =>
+        Model.Code(
+          CodeExerciseMode.Update.calculate(
             ~settings,
             ~is_edited,
             ~schedule_action=a => schedule_action(Exercise(a)),
+            ex,
+          ),
+        )
+      | Derivation(ex) =>
+        Model.Derivation(
+          DerivationExerciseMode.Update.calculate(
+            ~settings,
+            ~is_edited,
+            ~schedule_action=a => schedule_action(Derivation(a)),
             ex,
           ),
         )
@@ -446,50 +537,101 @@ module Selection = {
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
-    | Implementation(ExerciseMode.Selection.t)
+    | Code(CodeExerciseMode.Selection.t)
+    | Derivation(DerivationExerciseMode.Selection.t)
     | TheoremExercise(TheoremExerciseMode.Selection.t);
 
-  let get_cursor_info = (~selection, model: Model.t): cursor(Update.t) => {
+  let get_cursor_info =
+      (~inject: Update.t => Ui_effect.t(unit), ~selection, model: Model.t)
+      : cursor(Update.t) => {
     let current = List.nth(model.exercises, model.current);
-    switch (current, selection) {
-    | (Implementation(e), Implementation(selection)) =>
-      let+ ci = ExerciseMode.Selection.get_cursor_info(~selection, e);
-      Update.Exercise(ci);
-    | (Implementation(_), _) => Cursor.empty
-    | (Theorem(e), TheoremExercise(selection)) =>
-      let+ ci = TheoremExerciseMode.Selection.get_cursor_info(~selection, e);
-      Update.TheoremExercise(ci);
-    | (Theorem(_), _) => Cursor.empty
-    };
-  };
-
-  let handle_key_event =
-      (~selection: t, ~event, model: Model.t): option(Update.t) => {
-    let current = List.nth(model.exercises, model.current);
-    switch (current, selection) {
-    | (Implementation(e), Implementation(selection)) =>
-      ExerciseMode.Selection.handle_key_event(~selection, ~event, e)
-      |> Option.map(a => Update.Exercise(a))
-    | (Implementation(_), _) => None
-    | (Theorem(e), TheoremExercise(selection)) =>
-      TheoremExerciseMode.Selection.handle_key_event(~selection, ~event, e)
-      |> Option.map(a => Update.TheoremExercise(a))
-    | (Theorem(_), _) => None
-    };
+    let cursor =
+      switch (current, selection) {
+      | (Code(e), Code(selection)) =>
+        let+ ci =
+          CodeExerciseMode.Selection.get_cursor_info(
+            ~inject=a => inject(Exercise(a)),
+            ~selection,
+            e,
+          );
+        Update.Exercise(ci);
+      | (Code(_), _) => Cursor.empty
+      | (Derivation(e), Derivation(selection)) =>
+        let+ ci =
+          DerivationExerciseMode.Selection.get_cursor_info(
+            ~inject=a => inject(Derivation(a)),
+            ~selection,
+            e,
+          );
+        Update.Derivation(ci);
+      | (Derivation(_), _) => Cursor.empty
+      | (Theorem(e), TheoremExercise(selection)) =>
+        let+ ci =
+          TheoremExerciseMode.Selection.get_cursor_info(
+            ~inject=a => inject(TheoremExercise(a)),
+            ~selection,
+            e,
+          );
+        Update.TheoremExercise(ci);
+      | (Theorem(_), _) => Cursor.empty
+      };
+    cursor
+    |> Cursor.with_actions(
+         [
+           ContextualAction.mk(
+             ~mdIcon="download",
+             ~section="Export",
+             ~action=inject(ExportSubmission),
+             "Export Submission",
+           ),
+         ]
+         @ (
+           if (ExerciseSettings.show_instructor) {
+             [
+               ContextualAction.mk(
+                 ~mdIcon="download",
+                 ~section="Export",
+                 ~action=inject(ExportModule),
+                 "Export Exercise Module",
+               ),
+               ContextualAction.mk(
+                 ~mdIcon="download",
+                 ~section="Export",
+                 ~action=inject(ExportTransitionary),
+                 "Export Transitionary Exercise Module",
+               ),
+             ];
+           } else {
+             [];
+           }
+         ),
+       );
   };
 
   let jump_to_tile =
       (~settings, tile, model: Model.t): option((Update.t, t)) => {
     let current = List.nth(model.exercises, model.current);
     switch (current) {
-    | Implementation(e) =>
-      ExerciseMode.Selection.jump_to_tile(~settings, tile, e)
-      |> Option.map(((x, y)) => (Update.Exercise(x), Implementation(y)))
+    | Code(e) =>
+      CodeExerciseMode.Selection.jump_to_tile(~settings, tile, e)
+      |> Option.map(((x, y)) => (Update.Exercise(x), Code(y)))
+    | Derivation(e) =>
+      DerivationExerciseMode.Selection.jump_to_tile(~settings, tile, e)
+      |> Option.map(((x, y)) => (Update.Derivation(x), Derivation(y)))
     | Theorem(e) =>
       TheoremExerciseMode.Selection.jump_to_tile(tile, e)
       |> Option.map(((x, y)) =>
            (Update.TheoremExercise(x), TheoremExercise(y))
          )
+    };
+  };
+
+  let get_derivation_info = (~selection: t, model: Model.t) => {
+    let current = List.nth(model.exercises, model.current);
+    switch (selection, current) {
+    | (Derivation(sel), Derivation(e)) =>
+      DerivationExerciseMode.Selection.get_derivation_info(~selection=sel, e)
+    | _ => None
     };
   };
 };
@@ -509,17 +651,32 @@ module View = {
       ) => {
     let current = List.nth(model.exercises, model.current);
     switch (current) {
-    | Implementation(current) =>
-      ExerciseMode.View.view(
+    | Code(current) =>
+      CodeExerciseMode.View.view(
         ~globals,
         ~signal=
           fun
-          | MakeActive(s) => take_focus(Implementation(s)),
+          | MakeActive(s) => take_focus(Code(s)),
         ~inject=a => inject(Update.Exercise(a)),
         ~inject_explainthis,
         ~selection=
           switch (selection) {
-          | Some(Implementation(s)) => Some(s)
+          | Some(Code(s)) => Some(s)
+          | _ => None
+          },
+        current,
+      )
+    | Derivation(current) =>
+      DerivationExerciseMode.View.view(
+        ~globals,
+        ~signal=
+          fun
+          | MakeActive(s) => take_focus(Derivation(s)),
+        ~inject=a => inject(Update.Derivation(a)),
+        ~inject_explainthis,
+        ~selection=
+          switch (selection) {
+          | Some(Derivation(s)) => Some(s)
           | _ => None
           },
         current,
@@ -529,6 +686,7 @@ module View = {
         ~globals,
         ~take_focus=s => take_focus(TheoremExercise(s)),
         ~inject=a => inject(Update.TheoremExercise(a)),
+        ~inject_explainthis,
         ~selection=
           switch (selection) {
           | Some(TheoremExercise(s)) => Some(s)
@@ -571,13 +729,6 @@ module View = {
         ~tooltip="Export Transitionary Exercise Module",
       );
 
-    let instructor_grading_export =
-      Widgets.button_named(
-        Icons.export,
-        _ => {inject(ExportGrading)},
-        ~tooltip="Export Grading Exercise Module",
-      );
-
     let export_submission =
       Widgets.button_named(
         Icons.star,
@@ -597,6 +748,18 @@ module View = {
         },
         ~tooltip="Import Submission",
       );
+    let import_logs =
+      Widgets.file_select_button_named(
+        "import-logs",
+        Icons.import,
+        file => {
+          switch (file) {
+          | None => Virtual_dom.Vdom.Effect.Ignore
+          | Some(file) => globals.inject_global(Log(InitImport(file)))
+          }
+        },
+        ~tooltip="Import Logs",
+      );
 
     let reset_hazel =
       button_named(
@@ -607,7 +770,7 @@ module View = {
               "Are you SURE you want to reset Hazel to its initial state? You will lose any existing code that you have written, and course staff have no way to restore it!",
             );
           if (confirmed) {
-            JsUtil.clear_localstore();
+            HazelDB.clear_all();
             Dom_html.window##.location##reload;
           };
           Virtual_dom.Vdom.Effect.Ignore;
@@ -626,7 +789,7 @@ module View = {
       NutMenu.item_group(
         ~inject,
         "File",
-        [export_submission, import_submission],
+        [export_submission, import_submission, import_logs],
       );
 
     let reset_group_exercises = () =>
@@ -640,11 +803,7 @@ module View = {
       NutMenu.item_group(
         ~inject,
         "Developer Export",
-        [
-          instructor_export,
-          instructor_transitionary_export,
-          instructor_grading_export,
-        ],
+        [instructor_export, instructor_transitionary_export],
       );
 
     if (globals.settings.instructor_mode) {
@@ -699,5 +858,6 @@ module View = {
             model.current,
             List.length(model.exercises),
           ),
+        (),
       );
 };

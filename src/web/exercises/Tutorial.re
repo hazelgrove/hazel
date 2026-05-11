@@ -153,7 +153,7 @@ let pos_of_idx = (idx: int) =>
   };
 
 let zipper_of_code = code => {
-  switch (Parser.to_zipper(code)) {
+  switch (Parser.to_zipper(code, ~root=Exp)) {
   | None => failwith("Transition failed.")
   | Some(zipper) => zipper
   };
@@ -270,16 +270,12 @@ let wrap_filter =
                 ),
               ),
             ),
-          annotation: {
-            ids: [Id.mk()],
-          },
+          annotation: Language.IdTagged.IdTag.fresh(),
         },
       }),
       term,
     ),
-  annotation: {
-    ids: [Id.mk()],
-  },
+  annotation: Language.IdTagged.IdTag.fresh(),
 };
 
 let wrap = (term, editor: Editor.t): TermItem.t => {
@@ -288,7 +284,7 @@ let wrap = (term, editor: Editor.t): TermItem.t => {
 };
 
 let term_of = (editor: Editor.t): Language.Exp.t =>
-  MakeTerm.from_zip_for_sem(editor.state.zipper).term;
+  MakeTerm.from_zip_for_sem(editor.state.zipper, ~root=editor.root).term;
 
 let rec append_exp = (e1: Language.Exp.t, e2: Language.Exp.t): Language.Exp.t => {
   switch (e1.term) {
@@ -299,6 +295,7 @@ let rec append_exp = (e1: Language.Exp.t, e2: Language.Exp.t): Language.Exp.t =>
   | Undefined
   | Deferral(_)
   | Atom(_)
+  | DrvQuote(_)
   | ListLit(_)
   | Constructor(_)
   | Closure(_)
@@ -319,69 +316,63 @@ let rec append_exp = (e1: Language.Exp.t, e2: Language.Exp.t): Language.Exp.t =>
   | Test(_)
   | HintedTest(_)
   | Parens(_)
-  | Probe(_)
+  | Projector(_)
   | Cons(_)
   | ListConcat(_)
   | LivelitName(_)
   | UnOp(_)
   | BinOp(_)
   | BuiltinFun(_)
+  | Module(_)
+  | ModuleExp(_)
   | Asc(_)
   | ProofObject(_)
   | Forall(_)
   | Match(_) => {
       term: Seq(e1, e2),
-      annotation: {
-        ids: [Id.mk()],
-      },
+      annotation: Language.IdTagged.IdTag.fresh(),
     }
   | Seq(e11, e12) =>
     let e12' = append_exp(e12, e2);
     {
       term: Seq(e11, e12'),
-      annotation: {
-        ids: Language.IdTagged.ids(e1),
-      },
+      annotation:
+        Language.IdTagged.IdTag.mk_internal(Language.IdTagged.ids(e1)),
     };
   | Filter(kind, ebody) =>
     let ebody' = append_exp(ebody, e2);
     {
       term: Filter(kind, ebody'),
-      annotation: {
-        ids: Language.IdTagged.ids(e1),
-      },
+      annotation:
+        Language.IdTagged.IdTag.mk_internal(Language.IdTagged.ids(e1)),
     };
   | Let(p, edef, ebody) =>
     let ebody' = append_exp(ebody, e2);
     {
       term: Let(p, edef, ebody'),
-      annotation: {
-        ids: Language.IdTagged.ids(e1),
-      },
+      annotation:
+        Language.IdTagged.IdTag.mk_internal(Language.IdTagged.ids(e1)),
     };
   | Theorem(p, edef, ebody) =>
     let ebody' = append_exp(ebody, e2);
     {
       term: Theorem(p, edef, ebody'),
-      annotation: {
-        ids: Language.IdTagged.ids(e1),
-      },
+      annotation:
+        Language.IdTagged.IdTag.mk_internal(Language.IdTagged.ids(e1)),
     };
   | TyAlias(tp, tdef, ebody) =>
     let ebody' = append_exp(ebody, e2);
     {
       term: TyAlias(tp, tdef, ebody'),
-      annotation: {
-        ids: Language.IdTagged.ids(e1),
-      },
+      annotation:
+        Language.IdTagged.IdTag.mk_internal(Language.IdTagged.ids(e1)),
     };
   | Use(t, ebody) =>
     let ebody' = append_exp(ebody, e2);
     {
       term: Use(t, ebody'),
-      annotation: {
-        ids: Language.IdTagged.ids(e1),
-      },
+      annotation:
+        Language.IdTagged.IdTag.mk_internal(Language.IdTagged.ids(e1)),
     };
   };
 };
@@ -414,7 +405,6 @@ let stitch_term = (eds: p('a)): stitched(TermItem.t) => {
     hidden_tests: wrap(hidden_tests_term, eds.hidden_tests.tests),
   };
 };
-let stitch_term = Core.Memo.general(stitch_term);
 
 let prelude_key = "prelude";
 let test_validation_key = "test_validation";
@@ -445,12 +435,8 @@ let editor_pp = (fmt, editor: Editor.t) => {
   Format.pp_print_string(fmt, serialization);
 };
 
-let export_module = (module_name, {eds, _}: state) => {
-  let prefix =
-    "let prompt = "
-    ++ module_name
-    ++ "_prompt.prompt\n"
-    ++ "let exercise: Exercise.spec = ";
+let export_module = (_module_name, {eds, _}: state) => {
+  let prefix = "let exercise: Tutorial.spec = ";
   let record = show_p(editor_pp, eds);
   let data = prefix ++ record ++ "\n";
   data;
@@ -462,22 +448,10 @@ let transitionary_editor_pp = (fmt, editor: Editor.t) => {
   Format.pp_print_string(fmt, "\"" ++ String.escaped(code) ++ "\"");
 };
 
-let export_transitionary_module = (module_name, {eds, _}: state) => {
-  let prefix =
-    "let prompt = "
-    ++ module_name
-    ++ "_prompt.prompt\n"
-    ++ "let exercise: Exercise.spec = Exercise.transition(";
+let export_transitionary_module = (_module_name, {eds, _}: state) => {
+  let prefix = "let exercise: Tutorial.spec = Tutorial.transition(";
   let record = show_p(transitionary_editor_pp, eds);
   let data = prefix ++ record ++ ")\n";
-  data;
-};
-
-let export_grading_module = (module_name, {eds, _}: state) => {
-  let header = output_header_grading(module_name);
-  let prefix = "let exercise: Exercise.spec = ";
-  let record = show_p(editor_pp, eds);
-  let data = header ++ prefix ++ record ++ "\n";
   data;
 };
 
@@ -511,7 +485,7 @@ let unpersist = (~instructor_mode, positioned_zippers, spec: spec): spec => {
     if (visible_in(pos, ~instructor_mode)) {
       positioned_zippers
       |> List.assoc_opt(pos)
-      |> Option.map(PersistentZipper.unpersist)
+      |> Option.map(PersistentZipper.unpersist(~root=Exp))
       |> Option.value(~default);
     } else {
       default;

@@ -8,19 +8,20 @@
 (library
  (name workerServer)
  (modules WorkerServer)
+ (wrapped false)
  (instrumentation
   (backend bisect_ppx))
  (libraries language)
  (js_of_ocaml)
  (preprocess
-  (pps ppx_yojson_conv ppx_sexp_conv ppx_deriving.show)))
+  (pps js_of_ocaml-ppx ppx_yojson_conv ppx_sexp_conv ppx_deriving.show)))
 
 (library
  (name web)
  (instrumentation
   (backend bisect_ppx))
  (modules
-  (:standard \ Main Gradescope)
+  (:standard \ Main)
   \
   Worker
   WorkerServer)
@@ -46,6 +47,7 @@
    ppx_sexp_conv
    ppx_deriving.show
    ppx_yojson_conv
+   ppx_enumerate
    bonsai.ppx_bonsai)))
 
 (executable

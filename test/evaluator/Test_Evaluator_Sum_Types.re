@@ -3,7 +3,6 @@ open Language;
 open Test_Evaluator_Prelude;
 open IdTagged.FreshGrammar;
 open Exp;
-open TypeProvenance;
 
 let tests = (
   "Evaluator.SumTypes",
@@ -17,9 +16,9 @@ let tests = (
             Some(
               Typ.(
                 sum([
-                  Variant("A", [], None),
-                  Variant("B", [], None),
-                  Variant("C", [], None),
+                  Variant("A", ConstructorMap.empty_variant_ann, None),
+                  Variant("B", ConstructorMap.empty_variant_ann, None),
+                  Variant("C", ConstructorMap.empty_variant_ann, None),
                 ])
               ),
             ),
@@ -29,20 +28,47 @@ let tests = (
       )
     }),
     test_case(
-      "Constructors can pass through consistent ascriptions", `Quick, () => {
-      evaluation_test(
-        {|A : (+A +B) : (+A + ?)|},
-        constructor(
-          "A",
-          Some(
+      "Constructors can pass through consistent ascriptions",
+      `Quick,
+      () => {
+        evaluation_test(
+          {|A : (+A +B) : (+A + ?)|},
+          constructor(
+            "A",
             Some(
-              Typ.(sum([Variant("A", [], None), Variant("B", [], None)])),
+              Some(
+                Typ.(
+                  sum([
+                    Variant("A", ConstructorMap.empty_variant_ann, None),
+                    Variant("B", ConstructorMap.empty_variant_ann, None),
+                  ])
+                ),
+              ),
             ),
           ),
-        ),
-        elaborate(parse_exp({|A : (+A +B) : (+A + ?)|})),
-      )
-    }),
+          elaborate(parse_exp({|A : (+A +B) : (+A + ?)|})),
+        );
+        evaluation_test(
+          "Ascriptions don't do unnecessary unrolling",
+          asc(
+            empty_hole(),
+            Typ.rec_(
+              TPat.var("X"),
+              Typ.sum([
+                Variant(
+                  "A",
+                  ConstructorMap.empty_variant_ann,
+                  Some(Typ.var("X")),
+                ),
+              ]),
+            ),
+          ),
+          elaborate(
+            parse_exp("(if true then ? else ?) : (rec X -> + A(X))"),
+          ),
+        );
+      },
+    ),
     test_case(
       "Constructors don't pass through inconsistent ascriptions", `Quick, () => {
       evaluation_test(
@@ -52,11 +78,21 @@ let tests = (
             "A",
             Some(
               Some(
-                Typ.(sum([Variant("A", [], None), Variant("B", [], None)])),
+                Typ.(
+                  sum([
+                    Variant("A", ConstructorMap.empty_variant_ann, None),
+                    Variant("B", ConstructorMap.empty_variant_ann, None),
+                  ])
+                ),
               ),
             ),
           ),
-          Typ.(sum([Variant("A", [], None), Variant("C", [], None)])),
+          Typ.(
+            sum([
+              Variant("A", ConstructorMap.empty_variant_ann, None),
+              Variant("C", ConstructorMap.empty_variant_ann, None),
+            ])
+          ),
         ),
         elaborate(parse_exp({|A : (+A +B) : (+A +C)|})),
       )
@@ -71,8 +107,8 @@ let tests = (
               Some(
                 Some(
                   Typ.sum([
-                    Variant("T", [], None),
-                    BadEntry(Typ.unknown(internal())),
+                    Variant("T", ConstructorMap.empty_variant_ann, None),
+                    BadEntry(Typ.unknown(Internal |> Prov.fresh)),
                   ]),
                 ),
               ),
@@ -101,12 +137,12 @@ let tests = (
                     Some(
                       Typ.(
                         arrow(
-                          unknown(hole(EmptyHole)),
+                          empty_hole(),
                           sum([
                             Variant(
                               "B",
-                              [],
-                              Some(unknown(hole(EmptyHole))),
+                              ConstructorMap.empty_variant_ann,
+                              Some(empty_hole()),
                             ),
                           ]),
                         )
@@ -115,7 +151,13 @@ let tests = (
                   ),
                 ),
                 Typ.(
-                  sum([Variant("B", [], Some(unknown(hole(EmptyHole))))])
+                  sum([
+                    Variant(
+                      "B",
+                      ConstructorMap.empty_variant_ann,
+                      Some(empty_hole()),
+                    ),
+                  ])
                 ),
               )
             ),
@@ -130,7 +172,7 @@ let tests = (
             Pat.list_lit([]),
             constructor(
               "On",
-              Some(Some(Typ.(list(unknown(syn_switch()))))),
+              Some(Some(Typ.(list(unknown(SynSwitch |> Prov.fresh))))),
             ), // This type on the constructor can't be right
             empty_hole(),
           ),
@@ -142,7 +184,7 @@ let tests = (
             Pat.(cons(wild(), list_lit([]))),
             constructor(
               "B",
-              Some(Some(Typ.(list(unknown(syn_switch()))))),
+              Some(Some(Typ.(list(unknown(SynSwitch |> Prov.fresh))))),
             ), // This type on the constructor can't be right
             empty_hole(),
           ),
@@ -152,8 +194,11 @@ let tests = (
           "Indet when unboxing constructor as bool",
           if_(
             constructor("B", Some(Some(Typ.bool()))),
-            bool(false),
-            constructor("A", Some(None)),
+            asc(bool(false), Typ.unknown(SynSwitch |> Prov.fresh)),
+            asc(
+              constructor("A", Some(None)),
+              Typ.unknown(SynSwitch |> Prov.fresh),
+            ),
           ),
           elaborate(
             parse_exp("type y = + B(Float) in if B then false else A"),
@@ -169,15 +214,20 @@ let tests = (
           elaborate(parse_exp("let () = type x = + A in A in ?")),
         );
         evaluation_test(
+          ~ignore_constructor_types=true,
           "Indet when unboxing constructor as typfun",
           typ_ap(
             constructor(
               "B",
               Some(
-                Some(Typ.(poly(TPat.empty_hole(), unknown(syn_switch())))),
+                Some(
+                  Typ.(
+                    poly(TPat.empty_hole(), unknown(SynSwitch |> Prov.fresh))
+                  ),
+                ),
               ),
             ),
-            Typ.unknown(hole(EmptyHole)),
+            Typ.empty_hole(),
           ),
           elaborate(
             parse_exp("type y = + B in case true | a => B end @<?>"),
@@ -194,7 +244,13 @@ let tests = (
                     Typ.(
                       arrow(
                         float(),
-                        sum([Variant("A", [], Some(float()))]),
+                        sum([
+                          Variant(
+                            "A",
+                            ConstructorMap.empty_variant_ann,
+                            Some(float()),
+                          ),
+                        ]),
                       )
                     ),
                   ),

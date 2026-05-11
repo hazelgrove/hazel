@@ -31,7 +31,5 @@ let show_cls: cls => string =
 let temp: term => t =
   term => {
     term,
-    annotation: {
-      ids: [Id.invalid],
-    },
+    annotation: IdTagged.IdTag.temp(),
   };

@@ -142,14 +142,17 @@ module Ctr = {
     | Atom(Float)
     | Atom(Nat)
     | Atom(String)
+    | DrvQuoteTy(_)
     | Arrow(_)
     | Poly(_)
     | ProdProjection(_)
     | ProdExtension(_)
     | Var(_) => Infinite
     | Parens(_)
+    | Projector(_)
     | ExplicitNonlabel
-    | Label(_) =>
+    | Label(_)
+    | Sig(_) =>
       failwith(
         "all_ctrs_of_type called with a non-normalized type: " ++ Typ.show(ty),
       )
@@ -426,12 +429,15 @@ module UnseenPatternList: UnseenPatternList = {
     | Arrow(_)
     | Poly(_)
     | ProofOf(_)
+    | DrvQuoteTy(_)
     | Var(_) => unseen_pattern
     | Parens(_)
+    | Projector(_)
     | ProdProjection(_)
     | ProdExtension(_)
     | ExplicitNonlabel
-    | Label(_) =>
+    | Label(_)
+    | Sig(_) =>
       failwith(
         "prepend_ctr called with a non-normalized type: "
         ++ Typ.show(col_type),
@@ -563,12 +569,15 @@ module UnseenPatternList: UnseenPatternList = {
     | Arrow(_)
     | Poly(_)
     | ProofOf(_)
+    | DrvQuoteTy(_)
     | Var(_) => cons_wild(unseen_pattern)
     | Parens(_)
+    | Projector(_)
     | ProdProjection(_)
     | ProdExtension(_)
     | ExplicitNonlabel
-    | Label(_) =>
+    | Label(_)
+    | Sig(_) =>
       failwith(
         "cons_from_type called with a non-normalized type: "
         ++ Typ.show(col_type),
@@ -625,12 +634,15 @@ module UnseenPatternList: UnseenPatternList = {
     | Arrow(_)
     | Poly(_)
     | ProofOf(_)
+    | DrvQuoteTy(_)
     | Var(_) => cons_wild(unseen_pattern)
     | Parens(_)
+    | Projector(_)
     | ProdProjection(_)
     | ProdExtension(_)
     | ExplicitNonlabel
-    | Label(_) =>
+    | Label(_)
+    | Sig(_) =>
       failwith(
         "prepend_from_type called with a non-normalized type: "
         ++ Typ.show(col_type),

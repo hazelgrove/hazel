@@ -84,13 +84,12 @@ module Focus = {
 
   open Cursor;
 
-  let get_cursor_info = (~focus: t, model: Model.t): cursor(Update.t) => {
-    let+ ci = StepperBase.Stepper.get_cursor_info(~focus, model.root);
+  let get_cursor_info =
+      (~inject, ~focus: t, model: Model.t): cursor(Update.t) => {
+    let+ ci =
+      StepperBase.Stepper.get_cursor_info(~inject, ~focus, model.root);
     ci;
   };
-
-  let handle_key_event = (~focus: t, ~event, model: Model.t) =>
-    StepperBase.Stepper.handle_key_event(~focus, ~event, model.root);
 };
 
 module View = {

@@ -9,7 +9,12 @@
 @import "style/type-display.css";
 @import "style/explainthis.css";
 @import "style/assistant.css";
+@import "style/agent/agent-main-menu.css";
+@import "style/agent/agent-chat.css";
+@import "style/agent/agent-chat-messages.css";
+@import "style/probesystem.css";
 @import "style/sidebar.css";
+@import "style/project.css";
 @import "style/exercise-mode.css";
 @import "style/tutorial-mode.css";
 @import "style/test-panel.css";
@@ -18,11 +23,19 @@
 @import "style/stepper.css";
 @import "style/toggle.css";
 @import "style/theorems.css";
+@import "style/hsod.css";
 
 /* BASE ELEMENTS */
 
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
 svg {
   overflow: visible;
+  box-sizing: content-box;
 }
 
 body {
@@ -76,7 +89,8 @@ select {
   height: 100vh;
   width: 100vw;
   display: grid;
-  grid-template: 2em minmax(0, 1fr) 2em / 1fr fit-content(18em);
+  /* Row 1: top-bar, Row 2: focus-bar, Row 3: main, Row 4: bottom-bar */
+  grid-template: 2em auto minmax(0, 1fr) 2em / 1fr fit-content(18em);
   background-color: var(--light-page-color);
   color: var(--STONE);
   user-select: none;
@@ -88,15 +102,16 @@ select {
 }
 
 #main {
-  grid-row: 1 / span 2;
+  /* Backpack uses position:fixed + FloatingElement to escape overflow clipping */
+  grid-row: 3 / span 1;
   grid-column: 1 / span 1;
   overflow: auto;
   padding: 0;
-  padding-top: 2em;
   background-color: var(--main-bkg);
   display: flex;
   flex-direction: column;
 }
+
 
 #side-bar {
   display: flex;
@@ -111,6 +126,8 @@ select {
 }
 
 #sidebars {
+  grid-row: 2 / span 2;
+  grid-column: 2 / span 1;
   display: flex;
   justify-content: space-between;
   width: 100%;
@@ -123,16 +140,215 @@ select {
   display: flex;
   align-items: center;
   background-color: var(--ui-bkg);
-  outline: 0.6px solid var(--BR2);
+  border-bottom: 0.6px solid var(--BR2);
 }
 
 #top-bar:hover {
   z-index: var(--top-bar-hover-z);
 }
 
+/* Sample Focus Bar - own grid row, animates height */
+#sample-focus-bar {
+  grid-row: 2 / span 1;
+  grid-column: 1 / span 1;
+  z-index: calc(var(--top-bar-z) - 1);
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  background-color: var(--ui-bkg);
+  border-bottom: 0.6px solid var(--BR2);
+  padding: 0 0.75em 0 0.3em;
+  font-family: var(--code-font);
+  height: 2.2em;
+  overflow: hidden;
+  transition: height 125ms ease-out;
+}
+
+#sample-focus-bar .title {
+  font-size: 0.85em;
+  font-family: var(--ui-font);
+  color: rgb(255, 255, 255);
+  background-color: var(--G0);
+  border-radius: 0.3em 1.5em 1.3em 1.3em;
+  padding: 4px 8px;
+  white-space: nowrap;
+}
+
+#sample-focus-bar:empty,
+#sample-focus-bar.hidden {
+  height: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  border-bottom: none;
+  pointer-events: none;
+}
+
+#sample-focus-bar:focus {
+  outline: none;
+}
+
+#sample-focus-bar .breadcrumbs {
+  display: flex;
+  align-items: center;
+  gap: 0.25em;
+  overflow: hidden;
+  min-width: 0;
+}
+
+#sample-focus-bar .breadcrumb-entry {
+  cursor: pointer;
+  padding: 0 0.4em;
+  border-radius: 1em;
+  color: var(--BR3);
+  transition: background-color 0.1s;
+  position: relative;
+}
+
+#sample-focus-bar .breadcrumb-entry:hover {
+  background-color: white;
+}
+
+#sample-focus-bar .breadcrumb-entry.focused {
+  color: var(--G0);
+  background-color: var(--G5);
+  font-weight: 500;
+  text-decoration: underline;
+}
+
+#sample-focus-bar .breadcrumb-entry.indicated {
+  outline: 1.5px solid var(--R1);
+  border-radius: 3px;
+}
+
+#sample-focus-bar .breadcrumb-entry.focused.indicated {
+  text-decoration: none;
+}
+
+#sample-focus-bar .breadcrumb-entry.ghost {
+  opacity: 0.7;
+}
+
+/* Color coding for call stack position - uses same colors as sample display */
+#sample-focus-bar .breadcrumb-entry.above {
+  color: var(--sample-above-text);
+}
+#sample-focus-bar .breadcrumb-entry.below {
+  color: var(--sample-below-text);
+}
+/* #sample-focus-bar .breadcrumb-separator.above {
+  color: var(--sample-above-text);
+}
+#sample-focus-bar .breadcrumb-separator.below {
+  color: var(--sample-below-text);
+} */
+
+#sample-focus-bar .breadcrumb-separator {
+  color: var(--BR2);
+  font-size: 0.8em;
+  cursor: default;
+  padding: 0.1em 0;
+  border-radius: 1em;
+  transition: background-color 0.1s;
+  /* Fixed width so double chevron doesn't cause layout shift */
+  display: inline-block;
+  width: 1.2em;
+  text-align: center;
+}
+
+#sample-focus-bar .breadcrumb-separator.ghost {
+  color: var(--BR1);
+}
+
+#sample-focus-bar .more-indicator {
+  color: var(--BR2);
+  margin-left: 0.25em;
+  opacity: 0.5;
+}
+
+#sample-focus-bar .stack-icon {
+  color: var(--BR4);
+  margin-right: 0.5em;
+  font-size: 0.9em;
+}
+
+#sample-focus-bar .breadcrumb-entry.unknown {
+  color: var(--BR1);
+}
+
+#sample-focus-bar .breadcrumb-entry.unknown.focused {
+  color: var(--G0);
+  background-color: var(--G5);
+}
+
+/* Pin icon - same style as sample pin but positioned for breadcrumb */
+#sample-focus-bar .pin-icon {
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  border-radius: 1em;
+  background: url(../img/noun-pinned-1560993.svg) var(--R1);
+  background-size: 70%;
+  background-position: center;
+  background-repeat: no-repeat;
+  /* filter: invert(1); */
+  cursor: pointer;
+  margin-right: 0.2em;
+  vertical-align: middle;
+  position: absolute;
+  top: -0.1em;
+  right: -0.75em;
+  scale: 0.75;
+}
+
+#sample-focus-bar .pin-icon:hover {
+  filter: brightness(1.2);
+}
+
+#sample-focus-bar .breadcrumb-body {
+  cursor: pointer;
+  padding: 0 0.4em;
+  border-radius: 1em;
+  color: var(--BR3);
+  transition: background-color 0.1s;
+}
+
+#sample-focus-bar .breadcrumb-body.ghost {
+  color: var(--BR1);
+}
+
+#sample-focus-bar .breadcrumb-body:hover {
+  background-color: white;
+  color: var(--BR3);
+}
+
+#sample-focus-bar .breadcrumb-ellipsis {
+  color: var(--BR2);
+  font-size: 0.85em;
+  cursor: default;
+  padding: 0 0.2em;
+}
+
+#sample-focus-bar .clear-all {
+  margin-left: auto;
+  flex-shrink: 0;
+  color: var(--BR4);
+  font-family: var(--ui-font);
+  font-size: 0.75em;
+  padding: 0.15em 0.5em;
+  border: 0.75px solid var(--BR3);
+  border-radius: 3px;
+  cursor: pointer;
+  background-color: transparent;
+  transition: background-color 0.1s;
+}
+
+#sample-focus-bar .clear-all:hover {
+  background-color: var(--Y1);
+}
+
 #bottom-bar {
   z-index: var(--bottom-bar-z);
-  grid-row: 3 / span 1;
+  grid-row: 4 / span 1;
   grid-column: 1 / span 2;
   display: flex;
   align-items: center;

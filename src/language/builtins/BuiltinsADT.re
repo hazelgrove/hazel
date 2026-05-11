@@ -5,7 +5,11 @@ open Fresh.Typ;
 let sum_type = (variants: list((string, option(Typ.t)))): Typ.t =>
   variants
   |> List.map(((name, typ_opt)) =>
-       ConstructorMap.Variant(name, [Id.mk()], typ_opt)
+       ConstructorMap.Variant(
+         name,
+         ConstructorMap.mk_variant_ann(~ids=[Id.mk()], ()),
+         typ_opt,
+       )
      )
   |> sum;
 
@@ -228,7 +232,7 @@ let constructors: Ctx.t = {
         | Sum(cons_map) => cons_map
         | _ => failwith("Type alias must be a sum type")
         };
-      Ctx.add_ctrs(ctx, name, Id.invalid, cons_map);
+      Ctx.add_ctrs(ctx, name, cons_map);
     },
     Ctx.empty,
     type_aliases,

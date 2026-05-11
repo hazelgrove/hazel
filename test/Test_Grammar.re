@@ -43,6 +43,7 @@ let sample_expression = (cls_exp: Exp.cls): Grammar.UnitGrammar.exp => {
       | Atom(Float) => float(2.)
       | Atom(String) => string("hello")
       | Atom(Nat) => nat(Bigint.one)
+      | DrvQuote => drv_exp(DrvGrammar.placeholder(), DrvSort.Jdmt)
       | ListLit => list_lit([])
       | Constructor => constructor("A", None)
       | Fun => fn(Pat.var("x"), var("x"), None, None)
@@ -61,17 +62,10 @@ let sample_expression = (cls_exp: Exp.cls): Grammar.UnitGrammar.exp => {
       | ProofObject => proof_object(Exp.empty_hole())
       | Forall => forall(Pat.empty_hole(), empty_hole())
       | FixF => fix_f(Pat.empty_hole(), empty_hole(), None)
-      | TyAlias =>
-        ty_alias(
-          TPat.empty_hole(),
-          Typ.unknown(TypeProvenance.hole(EmptyHole)),
-          empty_hole(),
-        )
-      | Use =>
-        use(Typ.unknown(TypeProvenance.hole(EmptyHole)), empty_hole())
+      | TyAlias => ty_alias(TPat.empty_hole(), Typ.empty_hole(), empty_hole())
+      | Use => use(Typ.empty_hole(), empty_hole())
       | Ap => ap(Forward, empty_hole(), empty_hole())
-      | TypAp =>
-        typ_ap(empty_hole(), Typ.unknown(TypeProvenance.hole(EmptyHole)))
+      | TypAp => typ_ap(empty_hole(), Typ.empty_hole())
       | DeferredAp => deferred_ap(empty_hole(), [empty_hole()])
       | If => if_(empty_hole(), empty_hole(), empty_hole())
       | Seq => seq(empty_hole(), empty_hole())
@@ -85,7 +79,6 @@ let sample_expression = (cls_exp: Exp.cls): Grammar.UnitGrammar.exp => {
         };
         closure(Environment.empty, empty_hole());
       | Parens => parens(empty_hole())
-      | Probe => probe(empty_hole(), Probe.empty)
       | Cons => cons(empty_hole(), empty_hole())
       | UnOp(op) => un_op(op, empty_hole())
       | BinOp(op) => bin_op(op, empty_hole(), empty_hole())
@@ -93,6 +86,16 @@ let sample_expression = (cls_exp: Exp.cls): Grammar.UnitGrammar.exp => {
       | Match => match(empty_hole(), [])
       | Asc => asc(empty_hole(), Typ.string())
       | ListConcat => list_concat(empty_hole(), empty_hole())
+      | Projector =>
+        projector(
+          {
+            kind: Fold,
+            model: "",
+          },
+          empty_hole(),
+        )
+      | Module => module_([Mod.empty_hole()])
+      | ModuleExp => module_exp(MPat.var("M"), empty_hole(), empty_hole())
       }
     )
   );
@@ -119,81 +122,87 @@ let sample_pattern = (cls_pat: Pat.cls): Grammar.UnitGrammar.pat => {
       | Label => label("label")
       | TupLabel => tup_label(label("label"), empty_hole())
       | Parens => parens(empty_hole())
-      | Probe => probe(empty_hole(), Probe.empty)
-      | Ap => ap(empty_hole(), empty_hole())
+      | ApCons => ap(constructor("A", None), empty_hole())
+      | ApFunc => ap(empty_hole(), empty_hole())
       | Asc => asc(empty_hole(), Typ.string())
       | Wild => wild()
       | ExplicitNonlabel => explicit_non_label()
+      | Projector =>
+        projector(
+          {
+            kind: Fold,
+            model: "",
+          },
+          empty_hole(),
+        )
       }
-    )
-  );
-};
-
-let sample_prov = (cls_prov: Prov.cls): Grammar.UnitGrammar.typ_prov => {
-  Grammar.UnitGrammar.(
-    TypeProvenance.(
-      Typ.(
-        switch (cls_prov) {
-        | Invalid => hole(Invalid("invalid"))
-        | EmptyHole => hole(EmptyHole)
-        | CycleHole => hole(CycleHole)
-        | SynSwitch => syn_switch()
-        | Internal => internal()
-        | LArrow => larrow(Hole(EmptyHole))
-        | RArrow => rarrow(Hole(EmptyHole))
-        | NProduct => nproduct(0, Hole(EmptyHole))
-        | MList => mlist(Hole(EmptyHole))
-        | RForall => rforall(Hole(EmptyHole))
-        | TupLabelProv => tup_label_label(Hole(EmptyHole))
-        | TupLabelArg => tup_label_arg(Hole(EmptyHole))
-        | Meet => meet(hole(EmptyHole), hole(EmptyHole))
-        | TypeSubstitution => type_substitution(unknown(hole(EmptyHole)))
-        | MultiHole => hole(MultiHole([]))
-        }
-      )
     )
   );
 };
 
 let sample_type = (cls_typ: Typ.cls): Grammar.UnitGrammar.typ => {
   Grammar.UnitGrammar.(
-    TypeProvenance.(
-      Typ.(
-        switch (cls_typ) {
-        | Unknown(p) => unknown(sample_prov(p))
-        | Atom(Bool) => bool()
-        | Atom(Int) => int()
-        | Atom(SInt) => sint()
-        | Atom(Float) => float()
-        | Atom(String) => string()
-        | Atom(Nat) => nat()
-        | List => list(unknown(hole(EmptyHole)))
-        | Arrow =>
-          arrow(unknown(hole(EmptyHole)), unknown(hole(EmptyHole)))
-        | Var => var("x")
-        | Prod => prod([])
-        | TupLabel =>
-          tup_label(unknown(hole(EmptyHole)), unknown(hole(EmptyHole)))
-        | Parens => parens(unknown(hole(EmptyHole)))
-        | Rec => rec_(TPat.var("x"), unknown(hole(EmptyHole)))
-        | Poly => poly(TPat.var("x"), unknown(hole(EmptyHole)))
-        | Label => label("label")
-        | ExplicitNonlabel => explicit_non_label()
-        | ProofOf => proof_of(Exp.var("x"))
-        | Sum => sum([])
-        | ProdProjection =>
-          prod_projection(
-            unknown(hole(EmptyHole)),
-            unknown(hole(EmptyHole)),
-          )
-        | ProdExtension =>
-          prod_extension(
-            unknown(hole(EmptyHole)),
-            unknown(hole(EmptyHole)),
-          )
-        | Constructor => assert(false) // Excluded because there is no Typ constructor
-        }
-      )
+    Typ.(
+      switch (cls_typ) {
+      | Unknown(Invalid) =>
+        unknown(TypeProvenance.hole(TypeHole.invalid("invalid")))
+      | Unknown(EmptyHole) => empty_hole()
+      | Unknown(CycleHole) =>
+        unknown(TypeProvenance.hole(TypeHole.cycle_hole()))
+      | Unknown(MultiHole) =>
+        unknown(TypeProvenance.hole(TypeHole.multi_hole([])))
+      | Unknown(SynSwitch) => unknown(TypeProvenance.syn_switch())
+      | Unknown(Internal) => unknown(TypeProvenance.internal())
+      | Unknown(LArrow) => unknown(TypeProvenance.larrow(SynSwitch))
+      | Unknown(RArrow) => unknown(TypeProvenance.rarrow(SynSwitch))
+      | Unknown(NProduct) => unknown(TypeProvenance.nproduct(0, SynSwitch))
+      | Unknown(MList) => unknown(TypeProvenance.mlist(SynSwitch))
+      | Unknown(RForall) => unknown(TypeProvenance.rforall(SynSwitch))
+      | Unknown(TupLabelProv) =>
+        unknown(TypeProvenance.tup_label_label(SynSwitch))
+      | Unknown(TupLabelArg) =>
+        unknown(TypeProvenance.tup_label_arg(SynSwitch))
+      | Unknown(Meet) =>
+        unknown(
+          TypeProvenance.meet(
+            TypeProvenance.syn_switch(),
+            TypeProvenance.syn_switch(),
+          ),
+        )
+      | Unknown(TypeSubstitution) =>
+        unknown(TypeProvenance.type_substitution(empty_hole()))
+      | Atom(Bool) => bool()
+      | Atom(Int) => int()
+      | Atom(SInt) => sint()
+      | Atom(Float) => float()
+      | Atom(String) => string()
+      | Atom(Nat) => nat()
+      | DrvQuoteTy => drv_typ(DrvSort.Jdmt)
+      | List => list(empty_hole())
+      | Arrow => arrow(empty_hole(), empty_hole())
+      | Var => var("x")
+      | Prod => prod([])
+      | TupLabel => tup_label(empty_hole(), empty_hole())
+      | Parens => parens(empty_hole())
+      | Rec => rec_(TPat.var("x"), empty_hole())
+      | Poly => poly(TPat.var("x"), empty_hole())
+      | ProofOf => proof_of(Exp.var("x"))
+      | Label => label("label")
+      | ExplicitNonlabel => explicit_non_label()
+      | Sum => sum([])
+      | ProdProjection => prod_projection(empty_hole(), empty_hole())
+      | ProdExtension => prod_extension(empty_hole(), empty_hole())
+      | Constructor => assert(false) // Excluded because there is no Typ constructor
+      | Projector =>
+        projector(
+          {
+            kind: Fold,
+            model: "",
+          },
+          empty_hole(),
+        )
+      | Sig => assert(false) /* Excluded: Sig is surface syntax only */
+      }
     )
   );
 };
@@ -201,16 +210,40 @@ let sample_type = (cls_typ: Typ.cls): Grammar.UnitGrammar.typ => {
 let sample_tpat = (cls_tpat: TPat.cls): Grammar.UnitGrammar.tpat => {
   Grammar.UnitGrammar.(
     TPat.(
-      TypeProvenance.(
-        switch (cls_tpat) {
-        | Unknown(MultiHole) =>
-          unknown(
-            hole(MultiHole([TPat(empty_hole()), TPat(empty_hole())])),
-          )
-        | Unknown(p) => unknown(sample_prov(p))
-        | Var => var("x")
-        }
-      )
+      switch (cls_tpat) {
+      | Unknown(Invalid) =>
+        unknown(TypeProvenance.hole(TypeHole.invalid("invalid")))
+      | Unknown(EmptyHole) => empty_hole()
+      | Unknown(CycleHole) =>
+        unknown(TypeProvenance.hole(TypeHole.cycle_hole()))
+      | Unknown(MultiHole) =>
+        unknown(
+          TypeProvenance.hole(
+            TypeHole.multi_hole([TPat(empty_hole()), TPat(empty_hole())]),
+          ),
+        )
+      | Unknown(SynSwitch) => unknown(TypeProvenance.syn_switch())
+      | Unknown(Internal) => unknown(TypeProvenance.internal())
+      | Unknown(LArrow) => unknown(TypeProvenance.larrow(SynSwitch))
+      | Unknown(RArrow) => unknown(TypeProvenance.rarrow(SynSwitch))
+      | Unknown(NProduct) => unknown(TypeProvenance.nproduct(0, SynSwitch))
+      | Unknown(MList) => unknown(TypeProvenance.mlist(SynSwitch))
+      | Unknown(RForall) => unknown(TypeProvenance.rforall(SynSwitch))
+      | Unknown(TupLabelProv) =>
+        unknown(TypeProvenance.tup_label_label(SynSwitch))
+      | Unknown(TupLabelArg) =>
+        unknown(TypeProvenance.tup_label_arg(SynSwitch))
+      | Unknown(Meet) =>
+        unknown(
+          TypeProvenance.meet(
+            TypeProvenance.syn_switch(),
+            TypeProvenance.syn_switch(),
+          ),
+        )
+      | Unknown(TypeSubstitution) =>
+        unknown(TypeProvenance.type_substitution(Typ.empty_hole()))
+      | Var => var("x")
+      }
     )
   );
 };
@@ -226,13 +259,18 @@ let tests = (
         let cls_testable =
           testable(Fmt.using(Exp.show_cls, Fmt.string), Exp.equal_cls);
         List.iter(
-          cls =>
-            check(
-              cls_testable,
-              Exp.show_cls(cls) ++ " Equivalency",
-              cls,
-              Exp.cls_of_term(sample_expression(cls).term),
-            ),
+          (cls: Exp.cls) =>
+            switch (cls) {
+            | Projector // Excluding projectors from cls
+            | Parens => () // Parens and projectors are transparent (return inner cls)
+            | _ =>
+              check(
+                cls_testable,
+                Exp.show_cls(cls) ++ " Equivalency",
+                cls,
+                Exp.cls_of_term(sample_expression(cls).term),
+              )
+            },
           exp_classes,
         );
       },
@@ -266,7 +304,8 @@ let tests = (
         List.iter(
           (cls: Typ.cls) => {
             switch (cls) {
-            | Constructor => ()
+            | Constructor
+            | Sig => ()
             | _ =>
               check(
                 cls_testable,

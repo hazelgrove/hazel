@@ -25,6 +25,7 @@ let exercise : Tutorial.spec =
             ancestors = [];
           };
         caret = Outer;
+        refractors = Haz3lcore.ZipperBase.Refractor.init;
       };
     hidden_tests =
       {
@@ -128,6 +129,7 @@ let exercise : Tutorial.spec =
                 ancestors = [];
               };
             caret = Outer;
+            refractors = Haz3lcore.ZipperBase.Refractor.init;
           };
         hints = [ "Reread the question!" ];
       };

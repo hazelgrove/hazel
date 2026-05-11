@@ -18,7 +18,7 @@ let set_llm_buffer = (z: Zipper.t, response: string): Zipper.t =>
   switch (
     {
       //TODO: Check for incomplete syntax, report errors
-      let+ res = Parser.to_zipper(response);
+      let+ res = Parser.to_zipper(response, ~root=Exp);
       Zipper.zip(res);
     }
   ) {
@@ -33,22 +33,28 @@ let buffer_accept = (z: Zipper.t): option(Zipper.t) =>
   | Buffer(Unparsed) =>
     switch (TyDi.get_unparsed_buffer(z)) {
     | None => None
-    | Some(completion)
-        when Token.match(Token.regexp(".*\\)::$"), completion) =>
-      /* Slightly hacky. There's currently only one genre of completion
-       * that creates more than one hole on intial expansion: when on eg
-       * 1 :: a|, we suggest "abs( )::" via lookahead. In such a case we
-       * want the caret to end up to the left of the first hole, whereas
-       * pasting would leave it to the left of the second. Thus we move
-       * left to the previous hole. */
-      let z = {
-        open OptUtil.Syntax;
-        let* z = Parser.to_zipper(~zipper_init=z, completion);
+    | Some(completion) =>
+      /* Drop the unparsed buffer before handing the completion to
+       * Parser.to_zipper. Parser.to_zipper threads characters through
+       * Insert.go, which treats a non-empty selection as something
+       * to wrap when the first char is an opening delimiter. Leaving
+       * the buffer in the selection would cause e.g. a `(` completion
+       * to wrap the comment-formatted buffer content instead of
+       * replacing it. */
+      let z = Zipper.clear_unparsed_buffer(z);
+      if (Token.match(Token.regexp(".*\\)::$"), completion)) {
+        /* Slightly hacky. There's currently only one genre of completion
+         * that creates more than one hole on initial expansion: when on eg
+         * 1 :: a|, we suggest "abs( )::" via lookahead. In such a case we
+         * want the caret to end up to the left of the first hole, whereas
+         * pasting would leave it to the left of the second. Thus we move
+         * left to the previous hole. */
+        let* z = Parser.to_zipper(~root=Exp, ~zipper_init=z, completion);
         let* z = Move.to_next_grout(Left, z);
         Move.local(ByToken, Left, z);
+      } else {
+        Parser.to_zipper(~root=Exp, ~zipper_init=z, completion);
       };
-      z;
-    | Some(completion) => Parser.to_zipper(~zipper_init=z, completion)
     }
   };
 

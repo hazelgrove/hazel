@@ -1,0 +1,315 @@
+/* Project mode layout */
+
+/* Project mode layout */
+
+#project-mode {
+  display: flex;
+  flex-direction: row;
+  height: 100%;
+}
+
+#project-mode-sidebar {
+  width: 260px;
+  min-width: 220px;
+  max-width: 320px;
+  border-right: 0.6px solid var(--BR2);
+  background-color: var(--ui-bkg);
+  overflow-y: auto;
+}
+
+#project-mode-main {
+  flex: 1;
+  overflow: auto;
+  background-color: var(--main-bkg);
+}
+
+/* Cell editor styling in project mode - match ScratchMode appearance */
+#project-mode-main .cell {
+  flex-grow: 1;
+  background-color: var(--cell-active);
+}
+
+/* File system sidebar */
+
+#project-sidebar {
+  padding: 8px 0;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--menu-item-text);
+}
+
+.project-fs-container {
+  display: flex;
+  flex-direction: column;
+}
+
+.project-fs-item {
+  display: flex;
+  align-items: center;
+  padding: 2px 10px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.project-fs-item:hover {
+  background-color: var(--menu-item-hover-bkg);
+}
+
+.project-fs-item-current {
+  background-color: var(--shard-selected);
+}
+
+.project-fs-folder {
+  font-weight: normal;
+  display: flex;
+  align-items: center;
+}
+
+.project-fs-root-folder {
+  font-weight: bold;
+  color: var(--editor-mode-text);
+}
+
+.project-fs-disclosure {
+  width: 12px;
+  margin-right: 6px;
+  text-align: center;
+  color: var(--BR3);
+}
+
+.project-fs-name {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.project-fs-row {
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.project-fs-actions {
+  position: relative;
+  display: flex;
+  align-items: center;
+  margin-left: auto; /* push actions to the right edge */
+}
+
+.project-fs-actions-icon .icon {
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  transition: background-color 0.1s ease-in-out, transform 0.1s ease-in-out;
+  cursor: pointer;
+}
+
+.project-fs-actions-icon .icon svg {
+  fill: var(--menu-icon);
+}
+
+.project-fs-actions-icon .icon:hover {
+  background-color: var(--menu-bkg);
+  transform: scale(1.15);
+}
+
+.project-fs-actions-menu {
+  display: none;
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 2px;
+  padding: 2px 4px;
+  background-color: var(--menu-bkg);
+  outline: 0.6px solid var(--menu-outline);
+  box-shadow: 0px 10px 20px var(--menu-shadow);
+  border-radius: 0 0 0.5em 0;
+  flex-direction: row;
+  gap: 2px;
+  z-index: var(--top-bar-z);
+}
+
+.project-fs-actions:hover .project-fs-actions-menu {
+  display: flex;
+}
+
+.project-fs-actions-menu .icon {
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.project-fs-actions-menu .icon svg {
+  fill: var(--menu-icon);
+  transition: transform 0.15s ease-in-out, filter 0.15s ease-in-out;
+}
+
+.project-fs-actions-menu .icon:hover svg {
+  transform: scale(1.2);
+  filter: brightness(1.15);
+}
+
+/* Project tabs in top bar */
+
+#project-tabs-container {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 0;
+}
+
+.project-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4.5px 12px;
+  border-radius: 0.1em 0.4em 0 0;
+  background-color: var(--T3);
+  color: var(--menu-item-text);
+  cursor: pointer;
+  user-select: none;
+  transition: background-color 0.15s ease-in-out, color 0.15s ease-in-out,
+  padding 0.15s ease-in,
+    transform 0.1s ease-in-out;
+  position: relative;
+  border-bottom: 2px solid transparent;
+}
+
+.project-tab:hover {
+  background-color: var(--cell-active);
+  padding: 5.5px 12px;
+  transform: translateY(-1px);
+}
+
+.project-tab-current {
+  color: var(--BR4);
+  border-bottom-color: var(--Y3);
+  border-bottom-width: 3px;
+  font-weight: 500;
+}
+
+.project-tab-name {
+  white-space: nowrap;
+  font-size: 0.9em;
+}
+
+.project-tab-actions {
+  position: relative;
+  display: flex;
+  align-items: center;
+  opacity: 0;
+  transition: opacity 0.15s ease-in-out;
+}
+
+.project-tab:hover .project-tab-actions {
+  opacity: 1;
+}
+
+.project-tab-actions-icon .icon {
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  transition: background-color 0.1s ease-in-out, transform 0.1s ease-in-out;
+  cursor: pointer;
+}
+
+.project-tab-actions-icon .icon svg {
+  fill: var(--menu-icon);
+  width: 14px;
+  height: 14px;
+}
+
+.project-tab-actions-icon .icon:hover {
+  background-color: var(--menu-bkg);
+  transform: scale(1.1);
+}
+
+.project-tab-actions-menu {
+  display: none;
+  position: absolute;
+  top: 100%;
+  right: 0;
+  padding: 2px 6px;
+  background-color: var(--menu-bkg);
+  outline: 0.6px solid var(--menu-outline);
+  box-shadow: 0px 10px 20px var(--menu-shadow);
+  border-radius: 0.4em;
+  flex-direction: row;
+  gap: 4px;
+  z-index: var(--top-bar-z);
+}
+
+.project-tab-actions:hover .project-tab-actions-menu {
+  display: flex;
+}
+
+.project-tab-actions-menu .icon {
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border-radius: 0.3em;
+  transition: background-color 0.1s ease-in-out;
+}
+
+.project-tab-actions-menu .icon:hover {
+  background-color: var(--menu-item-hover-bkg);
+}
+
+.project-tab-actions-menu .icon svg {
+  fill: var(--menu-icon);
+  width: 16px;
+  height: 16px;
+  transition: transform 0.15s ease-in-out, filter 0.15s ease-in-out;
+}
+
+.project-tab-actions-menu .icon:hover svg {
+  transform: scale(1.15);
+  filter: brightness(1.2);
+}
+
+.project-tab-add {
+  display: flex;
+  align-items: center;
+  padding: 6px 8px;
+  margin-left: 4px;
+  border-radius: 0.4em;
+  transition: background-color 0.15s ease-in-out, transform 0.1s ease-in-out;
+  cursor: pointer;
+}
+
+.project-tab-add:hover {
+  transform: translateY(-1px);
+}
+
+.project-tab-add .icon {
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  transition: background-color 0.1s ease-in-out, transform 0.1s ease-in-out;
+}
+
+.project-tab-add .icon svg {
+  fill: var(--menu-icon);
+  width: 16px;
+  height: 16px;
+}
+
+.project-tab-add:hover .icon {
+  transform: scale(1.15);
+}
