@@ -10,7 +10,13 @@ let collect_module_refs_in_typ = (ctx: Ctx.t, id: Id.t, typ: Typ.t): CoCtx.t => 
   |> List.filter_map(name =>
        switch (Ctx.lookup_var(ctx, name)) {
        | Some(_) =>
-         Some(CoCtx.singleton(name, id, Unknown(Internal |> Prov.fresh) |> Typ.temp))
+         Some(
+           CoCtx.singleton(
+             name,
+             id,
+             Unknown(Internal |> Prov.fresh) |> Typ.temp,
+           ),
+         )
        | None => None
        }
      )

@@ -51,7 +51,10 @@ module ToLvsOperation = {
                         list(
                           prod([
                             tup_label(label("label"), string()),
-                            tup_label(label("value"), unknown(Internal |> Prov.fresh)),
+                            tup_label(
+                              label("value"),
+                              unknown(Internal |> Prov.fresh),
+                            ),
                           ]),
                         )
                       ),
@@ -86,7 +89,10 @@ module ToLvsOperation = {
                         list(
                           prod([
                             tup_label(label("label"), string()),
-                            tup_label(label("value"), unknown(Internal |> Prov.fresh)),
+                            tup_label(
+                              label("value"),
+                              unknown(Internal |> Prov.fresh),
+                            ),
                           ]),
                         )
                       ),
@@ -246,7 +252,10 @@ module ProjectLabels = {
     test_case("project_labels with a single tuple and no labels", `Quick, () =>
       annotated_tree_test(
         {|project_labels(1, 2, 3)|},
-        prod([unknown(Internal |> Prov.fresh), unknown(Internal |> Prov.fresh)]),
+        prod([
+          unknown(Internal |> Prov.fresh),
+          unknown(Internal |> Prov.fresh),
+        ]),
         FIError.Exp.(
           ap(
             Forward,
@@ -357,7 +366,10 @@ module ProjectLabels = {
     test_case("project_labels with deferral as first arg", `Quick, () => {
       annotated_tree_test(
         {|project_labels(_, `a`, `b`)|},
-        arrow(unknown(Internal |> Prov.fresh), unknown(Internal |> Prov.fresh)),
+        arrow(
+          unknown(Internal |> Prov.fresh),
+          unknown(Internal |> Prov.fresh),
+        ),
         FIError.Exp.(
           deferred_ap(
             var("project_labels"),
@@ -543,7 +555,10 @@ module SelectLabels = {
     test_case("select_labels with a single tuple and no labels", `Quick, () =>
       annotated_tree_test(
         {|select_labels(1, 2, 3)|},
-        prod([unknown(Internal |> Prov.fresh), unknown(Internal |> Prov.fresh)]),
+        prod([
+          unknown(Internal |> Prov.fresh),
+          unknown(Internal |> Prov.fresh),
+        ]),
         FIError.Exp.(
           ap(
             Forward,
@@ -628,7 +643,10 @@ module SelectLabels = {
     test_case("select_labels with deferral as first arg", `Quick, () => {
       annotated_tree_test(
         {|select_labels(_, `a`, `b`)|},
-        arrow(unknown(Internal |> Prov.fresh), unknown(Internal |> Prov.fresh)),
+        arrow(
+          unknown(Internal |> Prov.fresh),
+          unknown(Internal |> Prov.fresh),
+        ),
         FIError.Exp.(
           deferred_ap(
             var("select_labels"),
@@ -896,7 +914,14 @@ module GroupByLabel = {
                         BadLabel(
                           Exp(
                             FTemp.(
-                              Exp.(asc(label("a"), Typ.unknown(FTemp.TypeProvenance.internal())))
+                              Exp.(
+                                asc(
+                                  label("a"),
+                                  Typ.unknown(
+                                    FTemp.TypeProvenance.internal(),
+                                  ),
+                                )
+                              )
                             ),
                           ),
                         ),
@@ -1146,7 +1171,10 @@ module OmitLabels = {
     test_case("omit_labels with deferral as first arg", `Quick, () => {
       annotated_tree_test(
         {|omit_labels(_, `a`, `b`)|},
-        arrow(unknown(Internal |> Prov.fresh), unknown(Internal |> Prov.fresh)),
+        arrow(
+          unknown(Internal |> Prov.fresh),
+          unknown(Internal |> Prov.fresh),
+        ),
         FIError.Exp.(
           deferred_ap(
             var("omit_labels"),

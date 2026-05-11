@@ -714,18 +714,16 @@ and parenthesize_typ =
   | Var(_)
   | Unknown({
       term:
-        Hole(EmptyHole | CycleHole | Invalid(_))
-        | SynSwitch
-        | Internal
-        | LArrow(_)
-        | RArrow(_)
-        | NProduct(_)
-        | MList(_)
-        | RForall(_)
-        | TupLabel(_)
-        | TupLabelArg(_)
-        | Meet(_)
-        | TypeSubstitution(_),
+        Hole(EmptyHole | CycleHole | Invalid(_)) | SynSwitch | Internal |
+        LArrow(_) |
+        RArrow(_) |
+        NProduct(_) |
+        MList(_) |
+        RForall(_) |
+        TupLabel(_) |
+        TupLabelArg(_) |
+        Meet(_) |
+        TypeSubstitution(_),
       _,
     })
   | Atom(_)
@@ -842,7 +840,7 @@ and parenthesize_typ =
       )
       |> rewrap_prov,
     )
-    |> rewrap
+    |> rewrap;
   | Sig(_) => term |> rewrap
   };
 }

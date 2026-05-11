@@ -170,7 +170,10 @@ let tests = (
           "Indet when unboxing constructor as list",
           let_(
             Pat.list_lit([]),
-            constructor("On", Some(Some(Typ.(list(unknown(SynSwitch |> Prov.fresh)))))), // This type on the constructor can't be right
+            constructor(
+              "On",
+              Some(Some(Typ.(list(unknown(SynSwitch |> Prov.fresh))))),
+            ), // This type on the constructor can't be right
             empty_hole(),
           ),
           elaborate(parse_exp("type g = + On in let [] = On in")),
@@ -179,7 +182,10 @@ let tests = (
           "Indet when unboxing constructor as cons",
           let_(
             Pat.(cons(wild(), list_lit([]))),
-            constructor("B", Some(Some(Typ.(list(unknown(SynSwitch |> Prov.fresh)))))), // This type on the constructor can't be right
+            constructor(
+              "B",
+              Some(Some(Typ.(list(unknown(SynSwitch |> Prov.fresh))))),
+            ), // This type on the constructor can't be right
             empty_hole(),
           ),
           elaborate(parse_exp("let (_:: []) = type y = + B in B in ?")),
@@ -189,7 +195,10 @@ let tests = (
           if_(
             constructor("B", Some(Some(Typ.bool()))),
             asc(bool(false), Typ.unknown(SynSwitch |> Prov.fresh)),
-            asc(constructor("A", Some(None)), Typ.unknown(SynSwitch |> Prov.fresh)),
+            asc(
+              constructor("A", Some(None)),
+              Typ.unknown(SynSwitch |> Prov.fresh),
+            ),
           ),
           elaborate(
             parse_exp("type y = + B(Float) in if B then false else A"),
@@ -211,7 +220,11 @@ let tests = (
             constructor(
               "B",
               Some(
-                Some(Typ.(poly(TPat.empty_hole(), unknown(SynSwitch |> Prov.fresh)))),
+                Some(
+                  Typ.(
+                    poly(TPat.empty_hole(), unknown(SynSwitch |> Prov.fresh))
+                  ),
+                ),
               ),
             ),
             Typ.empty_hole(),

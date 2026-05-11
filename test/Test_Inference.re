@@ -32,66 +32,89 @@ let run_inference = (src: string): Inference.TypSolutionMap.t => {
 let tests = (
   "Inference",
   [
-    test_case("inference produces non-empty map for hole over int", `Quick, () => {
-      /* `(? : ? -> ?)(1)` — applying an unknown function to an Int. The
-         constraint between the function's arrow type and the call site
-         should give the function input parameter an Int solution. */
-      let inference = run_inference({|(? : ? -> ?)(1)|});
-      let card = Inference.TypSolutionMap.cardinal(inference);
-      check(
-        bool,
-        "inference map should have at least one solution",
-        true,
-        card > 0,
-      );
-    }),
-    test_case("if-branch constraint links branch hole types", `Quick, () => {
-      /* The two arms `1` and `?` should be linked by the branch constraint
-         emitted in the If case. Inference should produce at least one
-         solution that mentions Int (since one arm syns to Int). */
-      let inference = run_inference({|if true then 1 else ?|});
-      let card = Inference.TypSolutionMap.cardinal(inference);
-      check(
-        bool,
-        "if-branch constraint produces solutions",
-        true,
-        card > 0,
-      );
-    }),
-    test_case("list-literal branch constraint links element holes", `Quick, () => {
-      /* All list elements share a type; mixing a literal `1` with `?`
-         should yield an Int refinement on the hole via constrain_branches. */
-      let inference = run_inference({|[1, ?, ?]|});
-      let card = Inference.TypSolutionMap.cardinal(inference);
-      check(
-        bool,
-        "list-branch constraint produces solutions",
-        true,
-        card > 0,
-      );
-    }),
-    test_case("labeled-tuple-element label_cons refines hole", `Quick, () => {
-      /* `((a=1, b=?) : (a=Int, b=?))` — the TupLabel decompose constraint
-         relates the labeled element's ana to the surrounding tuple's prov. */
-      let inference =
-        run_inference({|((a=1, b=?) : (a=Int, b=?))|});
-      let card = Inference.TypSolutionMap.cardinal(inference);
-      check(
-        bool,
-        "labeled-tuple constraint produces solutions",
-        true,
-        card > 0,
-      );
-    }),
-    test_case("inference handles a fully-typed program", `Quick, () => {
-      /* `1 + 2` has no unknowns and no inference work to do; the map can
-         legitimately be empty but shouldn't crash. */
-      let _inference = run_inference({|1 + 2|});
-      check(bool, "didn't crash", true, true);
-    }),
-    test_case("inference handles let with annotation", `Quick, () => {
-      let _inference = run_inference({|let x : Int = 1 in x + 2|});
-      check(bool, "didn't crash", true, true);
-    }),
+    test_case(
+      "inference produces non-empty map for hole over int",
+      `Quick,
+      () => {
+        /* `(? : ? -> ?)(1)` — applying an unknown function to an Int. The
+           constraint between the function's arrow type and the call site
+           should give the function input parameter an Int solution. */
+        let inference = run_inference({|(? : ? -> ?)(1)|});
+        let card = Inference.TypSolutionMap.cardinal(inference);
+        check(
+          bool,
+          "inference map should have at least one solution",
+          true,
+          card > 0,
+        );
+      },
+    ),
+    test_case(
+      "if-branch constraint links branch hole types",
+      `Quick,
+      () => {
+        /* The two arms `1` and `?` should be linked by the branch constraint
+           emitted in the If case. Inference should produce at least one
+           solution that mentions Int (since one arm syns to Int). */
+        let inference = run_inference({|if true then 1 else ?|});
+        let card = Inference.TypSolutionMap.cardinal(inference);
+        check(
+          bool,
+          "if-branch constraint produces solutions",
+          true,
+          card > 0,
+        );
+      },
+    ),
+    test_case(
+      "list-literal branch constraint links element holes",
+      `Quick,
+      () => {
+        /* All list elements share a type; mixing a literal `1` with `?`
+           should yield an Int refinement on the hole via constrain_branches. */
+        let inference = run_inference({|[1, ?, ?]|});
+        let card = Inference.TypSolutionMap.cardinal(inference);
+        check(
+          bool,
+          "list-branch constraint produces solutions",
+          true,
+          card > 0,
+        );
+      },
+    ),
+    test_case(
+      "labeled-tuple-element label_cons refines hole",
+      `Quick,
+      () => {
+        /* `((a=1, b=?) : (a=Int, b=?))` — the TupLabel decompose constraint
+           relates the labeled element's ana to the surrounding tuple's prov. */
+        let inference = run_inference({|((a=1, b=?) : (a=Int, b=?))|});
+        let card = Inference.TypSolutionMap.cardinal(inference);
+        check(
+          bool,
+          "labeled-tuple constraint produces solutions",
+          true,
+          card > 0,
+        );
+      },
+    ),
+    test_case(
+      "inference handles a fully-typed program",
+      `Quick,
+      () => {
+        /* `1 + 2` has no unknowns and no inference work to do; the map can
+           legitimately be empty but shouldn't crash. */
+        let _inference = run_inference({|1 + 2|});
+        check(bool, "didn't crash", true, true);
+      },
+    ),
+    test_case(
+      "inference handles let with annotation",
+      `Quick,
+      () => {
+        let _inference = run_inference({|let x : Int = 1 in x + 2|});
+        check(bool, "didn't crash", true, true);
+      },
+    ),
   ],
 );

@@ -18,8 +18,7 @@ let constrain_branches = (branch_tys: list(Typ.t)): list(Typ.equivalence) => {
   let rec go = (rest, acc) =>
     switch (rest) {
     | [] => acc
-    | [hd, ...tl] =>
-      go(tl, acc @ List.map(ty => Typ.Con(hd, ty), tl))
+    | [hd, ...tl] => go(tl, acc @ List.map(ty => Typ.Con(hd, ty), tl))
     };
   go(branch_tys, []);
 };
@@ -589,7 +588,8 @@ and uexp_to_info_map =
         m,
       );
     | ListConcat(e1, e2) =>
-      let (list_ana_inner, list_cons_ana) = MatchedTyp.list_tolerant(ctx, ana);
+      let (list_ana_inner, list_cons_ana) =
+        MatchedTyp.list_tolerant(ctx, ana);
       let inner_ana_ty = List(list_ana_inner) |> Typ.temp;
       let ids = List.map(Exp.rep_id, [e1, e2]);
       let (e1, e1_elab, m) = go(~ana=inner_ana_ty, e1, m);
@@ -598,8 +598,10 @@ and uexp_to_info_map =
          `list_tolerant` returns `?` when the arg's syn isn't a list, which
          is the correct behaviour for e.g. `A @ A` (where each `A` syns to
          a non-list constructor type but the result should still be `[?]`). */
-      let (elem_ty1, list_cons1) = MatchedTyp.list_tolerant(ctx, e1.elab_syn_ty);
-      let (elem_ty2, list_cons2) = MatchedTyp.list_tolerant(ctx, e2.elab_syn_ty);
+      let (elem_ty1, list_cons1) =
+        MatchedTyp.list_tolerant(ctx, e1.elab_syn_ty);
+      let (elem_ty2, list_cons2) =
+        MatchedTyp.list_tolerant(ctx, e2.elab_syn_ty);
       let concat_cons = list_cons_ana @ list_cons1 @ list_cons2;
       switch (
         Typ.meet_all(
@@ -609,7 +611,8 @@ and uexp_to_info_map =
         )
       ) {
       | None =>
-        let syn_no_meet = SynTy.meet_of(List, Unknown(Internal |> Prov.fresh) |> Typ.temp);
+        let syn_no_meet =
+          SynTy.meet_of(List, Unknown(Internal |> Prov.fresh) |> Typ.temp);
         add(
           ~elab_term=ListConcat(e1_elab, e2_elab) |> rewrap,
           ~elab_syn_ty=syn_no_meet,
@@ -732,14 +735,23 @@ and uexp_to_info_map =
         let ((es, es_elabs), m) =
           map_m_go(
             m,
-            [Unknown(Internal |> Prov.fresh) |> Typ.temp, Unknown(Internal |> Prov.fresh) |> Typ.temp],
+            [
+              Unknown(Internal |> Prov.fresh) |> Typ.temp,
+              Unknown(Internal |> Prov.fresh) |> Typ.temp,
+            ],
             [e1, e2],
           );
         let tys = List.map(Info.exp_ty, es);
         let elab_poly =
           BinOp(op, List.nth(es_elabs, 0), List.nth(es_elabs, 1)) |> rewrap;
         let co_poly = CoCtx.union(List.map(Info.exp_co_ctx, es));
-        switch (Typ.meet_all(~empty=Unknown(Internal |> Prov.fresh) |> Typ.temp, ctx, tys)) {
+        switch (
+          Typ.meet_all(
+            ~empty=Unknown(Internal |> Prov.fresh) |> Typ.temp,
+            ctx,
+            tys,
+          )
+        ) {
         | None =>
           add(
             ~elab_term=elab_poly,
@@ -936,7 +948,8 @@ and uexp_to_info_map =
                       ~elab_term=label,
                       ~ctx,
                       ~ana=labmode,
-                      ~elab_syn_ty=Unknown(SynSwitch |> Prov.fresh) |> Typ.temp,
+                      ~elab_syn_ty=
+                        Unknown(SynSwitch |> Prov.fresh) |> Typ.temp,
                       ~marks=[],
                       ~co_ctx=CoCtx.empty,
                       ~label_inference=None,
@@ -1081,7 +1094,7 @@ and uexp_to_info_map =
       );
     | TupLabel(label, e) =>
       let (labmode, val_mode, label_cons) =
-                LabeledTupleStaticsHelpers.decompose_label_mode(ctx, ana);
+        LabeledTupleStaticsHelpers.decompose_label_mode(ctx, ana);
       let (e, elab_child, m) = go(~ana=val_mode, e, m);
       let (lab_name, m) =
         switch (label.term) {
@@ -1346,7 +1359,8 @@ and uexp_to_info_map =
       | List({term: Unknown(_), _}) =>
         add(
           ~elab_term=dot_elab,
-          ~elab_syn_ty=List(Unknown(Internal |> Prov.fresh) |> Typ.temp) |> Typ.temp,
+          ~elab_syn_ty=
+            List(Unknown(Internal |> Prov.fresh) |> Typ.temp) |> Typ.temp,
           ~marks=[],
           ~dot_labels=available_labels,
           ~co_ctx=dot_co_ctx,
@@ -1694,7 +1708,9 @@ and uexp_to_info_map =
           );
         | R(expected) =>
           let ty_ins =
-            List.init(num_args, _ => Unknown(Internal |> Prov.fresh) |> Typ.temp);
+            List.init(num_args, _ =>
+              Unknown(Internal |> Prov.fresh) |> Typ.temp
+            );
           let ((args, args_elabs), m) = map_m_go(m, ty_ins, args);
           let arg_co_ctx = CoCtx.union(List.map(Info.exp_co_ctx, args));
           add(
@@ -2405,7 +2421,11 @@ and uexp_to_info_map =
           m,
         )
       | None
-          when Typ.fast_equal(Unknown(Internal |> Prov.fresh) |> Typ.temp, typ.user_term) =>
+          when
+            Typ.fast_equal(
+              Unknown(Internal |> Prov.fresh) |> Typ.temp,
+              typ.user_term,
+            ) =>
         add(
           ~elab_term=body_elab,
           ~elab_syn_ty=body.elab_syn_ty,
@@ -2821,7 +2841,8 @@ and upat_to_info_map =
       let branch_cons = constrain_branches(syn_tys);
       switch (Typ.meet_all(~empty=unknown, ctx, syn_tys)) {
       | None =>
-        let syn_no_meet = SynTy.meet_of(List, Unknown(Internal |> Prov.fresh) |> Typ.temp);
+        let syn_no_meet =
+          SynTy.meet_of(List, Unknown(Internal |> Prov.fresh) |> Typ.temp);
         add(
           ~elab_term=ListLit(ps_elabs) |> rewrap,
           ~elab_syn_ty=syn_no_meet,
@@ -2882,7 +2903,8 @@ and upat_to_info_map =
       /* NOTE: The self type assigned to pattern variables (Unknown)
          may be SynSwitch, but SynSwitch is never added to the context;
          Unknown(Internal |> Prov.fresh) is used in this case */
-      let ctx_typ = fixed_typ(ctx, ana, Unknown(Internal |> Prov.fresh) |> Typ.temp);
+      let ctx_typ =
+        fixed_typ(ctx, ana, Unknown(Internal |> Prov.fresh) |> Typ.temp);
       let entry =
         Ctx.VarEntry({
           name,
@@ -2940,7 +2962,7 @@ and upat_to_info_map =
       )
     | TupLabel(label, p) =>
       let (labmode, val_mode, label_cons) =
-                LabeledTupleStaticsHelpers.decompose_label_mode(ctx, ana);
+        LabeledTupleStaticsHelpers.decompose_label_mode(ctx, ana);
       let (p, _, m) = go(~ctx, ~ana=val_mode, ~duplicate_bindings, p, m);
       let (lab_name, m) =
         switch (label.term) {
@@ -3142,7 +3164,8 @@ and upat_to_info_map =
                       ~co_ctx,
                       ~ana=labmode,
                       ~ancestors=ancestors_inclusive,
-                      ~elab_syn_ty=Unknown(SynSwitch |> Prov.fresh) |> Typ.temp,
+                      ~elab_syn_ty=
+                        Unknown(SynSwitch |> Prov.fresh) |> Typ.temp,
                       ~marks=[],
                       ~constraint_=Coverage.Constraint.Truth,
                       ~label_inference=None,
@@ -3346,7 +3369,8 @@ and upat_to_info_map =
           add_info(IdTagged.ids(fn), InfoPat(info), m);
         };
       };
-      let (ty_in, ty_out, _arrow_cons) = MatchedTyp.arrow_tolerant(ctx, fn'.elab_syn_ty);
+      let (ty_in, ty_out, _arrow_cons) =
+        MatchedTyp.arrow_tolerant(ctx, fn'.elab_syn_ty);
       let (arg, arg_elab, m) = go(~ctx, ~ana=ty_in, arg, m);
       let constraint_ =
         switch (ctr) {
@@ -3431,7 +3455,8 @@ and utyp_to_info_map =
       ([m], None);
     };
     switch (expects, utyp.term) {
-    | (_, Unknown({term: Hole(Invalid(token)), _})) => err(BadToken(token))
+    | (_, Unknown({term: Hole(Invalid(token)), _})) =>
+      err(BadToken(token))
     | (LabelExpected(_), Unknown({term: Hole(EmptyHole), _})) =>
       ok(Message.EmptyLabel)
     | (LabelProjectionExpected(_), Unknown({term: Hole(EmptyHole), _})) =>
@@ -3515,7 +3540,8 @@ and utyp_to_info_map =
       | ty_n => err(TypWantProduct(ty_n))
       }
     | (_, Unknown({term: Hole(EmptyHole), _})) => ok(Message.Type(utyp))
-    | (_, Unknown({term: Hole(MultiHole(_tms)), _})) => err(TypParseFailure)
+    | (_, Unknown({term: Hole(MultiHole(_tms)), _})) =>
+      err(TypParseFailure)
     | (VariantExpected(Unique, sum_ty), Var(name))
     | (ConstructorExpected(Unique, sum_ty), Var(name)) =>
       ok(Message.Variant(name, sum_ty))
@@ -3813,7 +3839,10 @@ and utpat_to_info_map =
         [TPatNotAVar(NotCapitalized)],
         None,
       )
-    | Unknown({term: Hole(MultiHole(_)), _}) => ([TPatNotAVar(Other)], None)
+    | Unknown({term: Hole(MultiHole(_)), _}) => (
+        [TPatNotAVar(Other)],
+        None,
+      )
     | Unknown(_) => ([], None)
     };
   let add = m => {
@@ -4033,8 +4062,7 @@ and mpat_to_info_map =
    every Statics handler. Visited ids are deduplicated so equivalent-id
    shards (which all point to the same Info) don't emit the same constraint
    set multiple times. */
-let collect_all_constraints =
-    (info_map: Map.t): list(Typ.equivalence) => {
+let collect_all_constraints = (info_map: Map.t): list(Typ.equivalence) => {
   let seen = ref(Id.Map.empty);
   Id.Map.fold(
     (_id, info: Info.t, acc) =>

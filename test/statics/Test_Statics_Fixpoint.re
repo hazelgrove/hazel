@@ -18,7 +18,10 @@ let tests = (
                     Marks([
                       ExpectationMismatch({
                         ana: FTemp.Typ.prod([]),
-                        syn: FTemp.Typ.list(FTemp.Typ.unknown(Internal |> Prov.fresh)),
+                        syn:
+                          FTemp.Typ.list(
+                            FTemp.Typ.unknown(Internal |> Prov.fresh),
+                          ),
                       }),
                     ]),
                   ),

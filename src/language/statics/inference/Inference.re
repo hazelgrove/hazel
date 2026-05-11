@@ -131,8 +131,7 @@ let rec solution_typ_replace_typ =
     |> rewrap_typ
   | DrvQuoteTy(_) as st => st |> rewrap_typ
   | Projector(data, t) =>
-    Projector(data, solution_typ_replace_typ(prov, t, sol_typ))
-    |> rewrap_typ
+    Projector(data, solution_typ_replace_typ(prov, t, sol_typ)) |> rewrap_typ
   | Sig(_) as st => st |> rewrap_typ
   };
 };

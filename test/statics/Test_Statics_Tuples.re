@@ -547,7 +547,12 @@ let tests = (
                 invalid_labels: [],
                 typ:
                   FTemp.Typ.(
-                    prod([tup_label(label("a"), unknown(Internal |> Prov.fresh))])
+                    prod([
+                      tup_label(
+                        label("a"),
+                        unknown(Internal |> Prov.fresh),
+                      ),
+                    ])
                   ),
               }),
             ]),
@@ -634,7 +639,12 @@ let tests = (
                         invalid_labels: [],
                         typ:
                           Typ.(
-                            prod([tup_label(unknown(Internal |> Prov.fresh), string())])
+                            prod([
+                              tup_label(
+                                unknown(Internal |> Prov.fresh),
+                                string(),
+                              ),
+                            ])
                           ),
                       }),
                     ])
@@ -653,7 +663,12 @@ let tests = (
                           invalid_labels: [],
                           typ:
                             Typ.(
-                              prod([tup_label(unknown(Internal |> Prov.fresh), string())])
+                              prod([
+                                tup_label(
+                                  unknown(Internal |> Prov.fresh),
+                                  string(),
+                                ),
+                              ])
                             ),
                         }),
                       ])
@@ -672,7 +687,12 @@ let tests = (
                               duplicate_labels: [],
                               invalid_labels: [],
                               typ:
-                                Typ.(tup_label(unknown(Internal |> Prov.fresh), string())),
+                                Typ.(
+                                  tup_label(
+                                    unknown(Internal |> Prov.fresh),
+                                    string(),
+                                  )
+                                ),
                             }),
                           ])
                         ),
@@ -730,7 +750,10 @@ let tests = (
                         typ:
                           Typ.(
                             prod([
-                              tup_label(unknown(Internal |> Prov.fresh), string()),
+                              tup_label(
+                                unknown(Internal |> Prov.fresh),
+                                string(),
+                              ),
                               tup_label(label("a"), int()),
                             ])
                           ),
@@ -752,7 +775,10 @@ let tests = (
                           typ:
                             Typ.(
                               prod([
-                                tup_label(unknown(Internal |> Prov.fresh), string()),
+                                tup_label(
+                                  unknown(Internal |> Prov.fresh),
+                                  string(),
+                                ),
                                 tup_label(label("a"), int()),
                               ])
                             ),
@@ -773,7 +799,12 @@ let tests = (
                               duplicate_labels: [],
                               invalid_labels: [],
                               typ:
-                                Typ.(tup_label(unknown(Internal |> Prov.fresh), string())),
+                                Typ.(
+                                  tup_label(
+                                    unknown(Internal |> Prov.fresh),
+                                    string(),
+                                  )
+                                ),
                             }),
                           ])
                         ),
@@ -989,7 +1020,10 @@ let tests = (
           );
         annotated_tree_test(
           {|((a=1,a=2), 3)|},
-          prod([prod([tup_label(label("a"), unknown(Internal |> Prov.fresh))]), int()]),
+          prod([
+            prod([tup_label(label("a"), unknown(Internal |> Prov.fresh))]),
+            int(),
+          ]),
           FIError.(
             Exp.(
               tuple([
@@ -1004,7 +1038,10 @@ let tests = (
                             invalid_labels: [],
                             typ:
                               prod([
-                                tup_label(label("a"), unknown(Internal |> Prov.fresh)),
+                                tup_label(
+                                  label("a"),
+                                  unknown(Internal |> Prov.fresh),
+                                ),
                               ]),
                           }),
                         ])
@@ -1043,7 +1080,12 @@ let tests = (
                 invalid_labels: [],
                 typ:
                   FTemp.Typ.(
-                    prod([tup_label(label("a"), unknown(Internal |> Prov.fresh))])
+                    prod([
+                      tup_label(
+                        label("a"),
+                        unknown(Internal |> Prov.fresh),
+                      ),
+                    ])
                   ),
               }),
             ]),
@@ -1055,7 +1097,10 @@ let tests = (
                 malformed_labels: [],
                 duplicate_labels: ["a"],
                 invalid_labels: [],
-                typ: FTemp.Typ.(tup_label(label("a"), unknown(Internal |> Prov.fresh))),
+                typ:
+                  FTemp.Typ.(
+                    tup_label(label("a"), unknown(Internal |> Prov.fresh))
+                  ),
               }),
             ]),
           );
@@ -1063,7 +1108,10 @@ let tests = (
           Some(Marks([DuplicateLabel("a", FTemp.Typ.label("a"))]));
         annotated_tree_test(
           {|fun (a=a, a=b) -> 1|},
-          arrow(prod([tup_label(label("a"), unknown(Internal |> Prov.fresh))]), int()),
+          arrow(
+            prod([tup_label(label("a"), unknown(Internal |> Prov.fresh))]),
+            int(),
+          ),
           FIError.(
             Exp.(
               fn(

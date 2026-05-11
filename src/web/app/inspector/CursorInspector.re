@@ -237,7 +237,8 @@ let core_mark_err_view =
            ),
       ]
     | NoMeet(wrap, _) =>
-      let syn: Typ.t = SynTy.meet_of(wrap, Unknown(Internal |> Prov.fresh) |> Typ.temp);
+      let syn: Typ.t =
+        SynTy.meet_of(wrap, Unknown(Internal |> Prov.fresh) |> Typ.temp);
       switch (Typ.meet(ctx, ana, syn)) {
       | Some(_) => [text("Type error")]
       | None =>

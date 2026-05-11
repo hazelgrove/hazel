@@ -1097,7 +1097,6 @@ let matched_poly = (ctx, ty) => {
   };
 };
 
-
 let rec get_labels = (ctx, ty): list(option(string)) => {
   let ty = weak_head_normalize(ctx, ty);
   switch (term_of(ty)) {

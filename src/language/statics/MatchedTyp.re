@@ -146,8 +146,7 @@ let rec args = (ctx, ty, arity): Either.t('a, int) => {
 
 let label = (ctx, ty): option((Typ.t, Typ.t, list(Typ.equivalence))) =>
   switch (term_of(weak_head_normalize(ctx, ty))) {
-  | TupLabel({term: Label(ml), _}, ty) =>
-    Some((Label(ml) |> temp, ty, []))
+  | TupLabel({term: Label(ml), _}, ty) => Some((Label(ml) |> temp, ty, []))
   | Unknown({term: SynSwitch, _}) =>
     /* Typ.matched_label handles SynSwitch internally and emits a TupLabel
        constraint refining the prov. */

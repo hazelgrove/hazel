@@ -584,7 +584,7 @@ let omit_all_labels_statics =
     ) => {
   S.(
     let (ty_in, ty_out, arrow_cons) =
-    MatchedTyp.arrow_tolerant(ctx, fn_info.ty);
+      MatchedTyp.arrow_tolerant(ctx, fn_info.ty);
     let (arg, _, m) = uexp_to_info_map(~ctx, ~ana=ty_in, arg, m);
 
     switch (Typ.normalize(ctx, arg.ty).term) {

@@ -62,12 +62,7 @@ let sample_expression = (cls_exp: Exp.cls): Grammar.UnitGrammar.exp => {
       | ProofObject => proof_object(Exp.empty_hole())
       | Forall => forall(Pat.empty_hole(), empty_hole())
       | FixF => fix_f(Pat.empty_hole(), empty_hole(), None)
-      | TyAlias =>
-        ty_alias(
-          TPat.empty_hole(),
-          Typ.empty_hole(),
-          empty_hole(),
-        )
+      | TyAlias => ty_alias(TPat.empty_hole(), Typ.empty_hole(), empty_hole())
       | Use => use(Typ.empty_hole(), empty_hole())
       | Ap => ap(Forward, empty_hole(), empty_hole())
       | TypAp => typ_ap(empty_hole(), Typ.empty_hole())

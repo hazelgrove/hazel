@@ -5,8 +5,7 @@ module Map = StaticsBase.Map;
 module Info = StaticsBase.Info;
 
 let decompose_label_mode =
-    (ctx: Ctx.t, ana: Typ.t)
-    : (Typ.t, Typ.t, list(Typ.equivalence)) =>
+    (ctx: Ctx.t, ana: Typ.t): (Typ.t, Typ.t, list(Typ.equivalence)) =>
   switch (MatchedTyp.label(ctx, ana)) {
   | Some((labmode, val_mode, cons)) => (labmode, val_mode, cons)
   | _ => (
@@ -84,17 +83,21 @@ let tup_label_self_type =
             : [];
     (labeled_syn, marks);
   | None when label_is_empty_hole => (
-      TupLabel(Unknown(SynSwitch |> Prov.fresh) |> Typ.temp, value_ty) |> Typ.temp,
+      TupLabel(Unknown(SynSwitch |> Prov.fresh) |> Typ.temp, value_ty)
+      |> Typ.temp,
       [],
     )
   | None => (
-      TupLabel(Unknown(Internal |> Prov.fresh) |> Typ.temp, value_ty) |> Typ.temp,
+      TupLabel(Unknown(Internal |> Prov.fresh) |> Typ.temp, value_ty)
+      |> Typ.temp,
       [
         Mark.TupleLabelError({
           malformed_labels: [malformed_source],
           duplicate_labels: [],
           invalid_labels: [],
-          typ: TupLabel(Unknown(Internal |> Prov.fresh) |> Typ.temp, value_ty) |> Typ.temp,
+          typ:
+            TupLabel(Unknown(Internal |> Prov.fresh) |> Typ.temp, value_ty)
+            |> Typ.temp,
         }),
       ],
     )
@@ -115,17 +118,21 @@ let standalone_tup_label_self_type =
       [],
     )
   | None when label_is_empty_hole => (
-      TupLabel(Unknown(SynSwitch |> Prov.fresh) |> Typ.temp, value_ty) |> Typ.temp,
+      TupLabel(Unknown(SynSwitch |> Prov.fresh) |> Typ.temp, value_ty)
+      |> Typ.temp,
       [],
     )
   | None => (
-      TupLabel(Unknown(Internal |> Prov.fresh) |> Typ.temp, value_ty) |> Typ.temp,
+      TupLabel(Unknown(Internal |> Prov.fresh) |> Typ.temp, value_ty)
+      |> Typ.temp,
       [
         Mark.TupleLabelError({
           malformed_labels: [malformed_source],
           duplicate_labels: [],
           invalid_labels: [],
-          typ: TupLabel(Unknown(Internal |> Prov.fresh) |> Typ.temp, value_ty) |> Typ.temp,
+          typ:
+            TupLabel(Unknown(Internal |> Prov.fresh) |> Typ.temp, value_ty)
+            |> Typ.temp,
         }),
       ],
     )

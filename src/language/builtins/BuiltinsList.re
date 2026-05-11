@@ -3138,8 +3138,14 @@ let go: ([?], [?], [?]) -> [?] =
         Prod([
           list(unknown(Internal |> Prov.fresh)),
           arrow(unknown(Internal |> Prov.fresh), string()),
-          arrow(unknown(Internal |> Prov.fresh), unknown(Internal |> Prov.fresh)),
-          arrow(list(unknown(Internal |> Prov.fresh)), unknown(Internal |> Prov.fresh)),
+          arrow(
+            unknown(Internal |> Prov.fresh),
+            unknown(Internal |> Prov.fresh),
+          ),
+          arrow(
+            list(unknown(Internal |> Prov.fresh)),
+            unknown(Internal |> Prov.fresh),
+          ),
         ]),
       ret: List(unknown(Internal |> Prov.fresh)),
       imp: {
@@ -3263,9 +3269,18 @@ let go: ([?], [?], [?]) -> [?] =
       arg:
         Prod([
           list(unknown(Internal |> Prov.fresh)),
-          arrow(unknown(Internal |> Prov.fresh), unknown(Internal |> Prov.fresh)),
+          arrow(
+            unknown(Internal |> Prov.fresh),
+            unknown(Internal |> Prov.fresh),
+          ),
         ]),
-      ret: List(prod([unknown(Internal |> Prov.fresh), list(unknown(Internal |> Prov.fresh))])),
+      ret:
+        List(
+          prod([
+            unknown(Internal |> Prov.fresh),
+            list(unknown(Internal |> Prov.fresh)),
+          ]),
+        ),
       imp: {
         Fresh.(
           Exp.(
