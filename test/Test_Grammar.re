@@ -154,7 +154,7 @@ let sample_type = (cls_typ: Typ.cls): Grammar.UnitGrammar.typ => {
         unknown(TypeProvenance.hole(TypeHole.invalid("invalid")))
       | Unknown(EmptyHole) => empty_hole()
       | Unknown(CycleHole) =>
-        unknown(TypeProvenance.hole(TypeHole.empty_hole()))
+        unknown(TypeProvenance.hole(TypeHole.cycle_hole()))
       | Unknown(MultiHole) =>
         unknown(TypeProvenance.hole(TypeHole.multi_hole([])))
       | Unknown(SynSwitch) => unknown(TypeProvenance.syn_switch())
@@ -221,14 +221,33 @@ let sample_tpat = (cls_tpat: TPat.cls): Grammar.UnitGrammar.tpat => {
         unknown(TypeProvenance.hole(TypeHole.invalid("invalid")))
       | Unknown(EmptyHole) => empty_hole()
       | Unknown(CycleHole) =>
-        unknown(TypeProvenance.hole(TypeHole.empty_hole()))
+        unknown(TypeProvenance.hole(TypeHole.cycle_hole()))
       | Unknown(MultiHole) =>
         unknown(
           TypeProvenance.hole(
             TypeHole.multi_hole([TPat(empty_hole()), TPat(empty_hole())]),
           ),
         )
-      | Unknown(_) => empty_hole()
+      | Unknown(SynSwitch) => unknown(TypeProvenance.syn_switch())
+      | Unknown(Internal) => unknown(TypeProvenance.internal())
+      | Unknown(LArrow) => unknown(TypeProvenance.larrow(SynSwitch))
+      | Unknown(RArrow) => unknown(TypeProvenance.rarrow(SynSwitch))
+      | Unknown(NProduct) => unknown(TypeProvenance.nproduct(0, SynSwitch))
+      | Unknown(MList) => unknown(TypeProvenance.mlist(SynSwitch))
+      | Unknown(RForall) => unknown(TypeProvenance.rforall(SynSwitch))
+      | Unknown(TupLabelProv) =>
+        unknown(TypeProvenance.tup_label_label(SynSwitch))
+      | Unknown(TupLabelArg) =>
+        unknown(TypeProvenance.tup_label_arg(SynSwitch))
+      | Unknown(Meet) =>
+        unknown(
+          TypeProvenance.meet(
+            TypeProvenance.syn_switch(),
+            TypeProvenance.syn_switch(),
+          ),
+        )
+      | Unknown(TypeSubstitution) =>
+        unknown(TypeProvenance.type_substitution(Typ.empty_hole()))
       | Var => var("x")
       }
     )

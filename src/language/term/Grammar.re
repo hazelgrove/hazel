@@ -1138,6 +1138,9 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
     let empty_hole = (): type_hole(DefaultAnnotation.t) => {
       EmptyHole;
     };
+    let cycle_hole = (): type_hole(DefaultAnnotation.t) => {
+      CycleHole;
+    };
     let multi_hole = (l): type_hole(DefaultAnnotation.t) => {
       MultiHole(l);
     };
