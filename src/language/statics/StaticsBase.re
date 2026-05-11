@@ -472,6 +472,7 @@ module type ExpressionStatics = {
       ~ana: Typ.t=?,
       ~ancestors: Info.ancestors=?,
       ~co_ctx: CoCtx.t,
+      ~constraints: list(Typ.equivalence)=?,
       ~message: Message.t=?,
       ~label_inference: option(Info.label_inference(Info.exp))=?, // TODO[Matt]: combine with message
       ~inferred_label: option(string)=?,

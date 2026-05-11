@@ -94,10 +94,8 @@ let init_from_term =
       ~default=Builtins.ctx_init(is_dynamic_term ? None : Some(Int)),
       ctx,
     );
-  let (info_map, elaborated) = Statics.mk(~ana?, settings, ctx_init, term);
-  /* TODO(elastatics-merge): inference_map needs to be threaded out of the new
-     combined Statics.mk; until then we hand out an empty map so callers compile. */
-  let inference_map = Inference.TypSolutionMap.empty;
+  let (info_map, elaborated, inference_map) =
+    Statics.mk_with_inference(~ana?, settings, ctx_init, term);
   let error_ids = Statics.Map.error_ids(info_map);
   let warning_ids = Statics.Map.warning_ids(info_map);
   let elaborated =

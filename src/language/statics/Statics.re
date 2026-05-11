@@ -200,6 +200,7 @@ and uexp_to_info_map =
         ~ana=ana,
         ~ancestors=ancestors,
         ~co_ctx: CoCtx.t,
+        ~constraints: list(Typ.equivalence)=[],
         ~message: option(Message.t)=?,
         ~label_inference: option(Info.label_inference(Info.exp))=None, // TODO[Matt]: combine with message
         ~inferred_label: option(string)=None,
@@ -208,6 +209,9 @@ and uexp_to_info_map =
         m: Map.t,
       )
       : (Info.exp, Exp.t, Map.t) => {
+    /* Compute meet once: drives marks, message, ty, and contributes structural
+       unification constraints to the inference pipeline. */
+    let meet_result = Typ.meet(ctx, ana, elab_syn_ty);
     let marks =
       switch (expectation_mismatch_mark(ctx, ana, elab_syn_ty)) {
       | None => marks
@@ -226,6 +230,16 @@ and uexp_to_info_map =
       );
     let cls = Cls.Exp(Exp.cls_of_term(uexp.term));
     let ty = fixed_typ(ctx, ana, elab_syn_ty);
+    /* Subsumption constraint: when this term's synthesized type is consistent
+       with the expected type, record their equivalence so inference can
+       propagate refinements between ana and syn provenances.
+       Plus the structural constraints emitted by the meet operation itself. */
+    let subsumption_cons =
+      switch (meet_result) {
+      | Some((_, cons)) => [Typ.Con(ana, elab_syn_ty), ...cons]
+      | None => []
+      };
+    let constraints = constraints @ subsumption_cons;
     let info: Info.exp = {
       cls,
       elab_syn_ty,
@@ -236,6 +250,7 @@ and uexp_to_info_map =
       warnings,
       ctx,
       co_ctx,
+      constraints,
       ancestors,
       user_term,
       elab_term,
@@ -2471,6 +2486,7 @@ and upat_to_info_map =
         ~elab_syn_ty: Typ.t,
         ~marks: list(Mark.t)=[],
         ~warnings: list(Warning.list_item)=[],
+        ~constraints: list(Typ.equivalence)=[],
         ~constraint_: Coverage.Constraint.t,
         ~label_inference: option(Info.label_inference(Info.pat))=None,
         ~inferred_label: option(LabeledTuple.label)=None,
@@ -2478,6 +2494,7 @@ and upat_to_info_map =
         m: Id.Map.t(Info.t),
       )
       : (Info.pat, Pat.t, Map.t) => {
+    let meet_result = Typ.meet(ctx, ana, elab_syn_ty);
     let marks =
       if (marks != []) {
         marks;
@@ -2512,6 +2529,12 @@ and upat_to_info_map =
       | (_, true) => Hole(Some(constraint_))
       | (_, false) => constraint_
       };
+    let subsumption_cons =
+      switch (meet_result) {
+      | Some((_, cons)) => [Typ.Con(ana, elab_syn_ty), ...cons]
+      | None => []
+      };
+    let constraints = constraints @ subsumption_cons;
     let info: Info.pat = {
       cls,
       elab_syn_ty,
@@ -2522,6 +2545,7 @@ and upat_to_info_map =
       warnings: warning_acc,
       ctx,
       co_ctx,
+      constraints,
       ancestors,
       user_term,
       elab_term,
@@ -3937,11 +3961,48 @@ and mpat_to_info_map =
   };
 };
 
-let mk =
+/* Aggregate unification constraints from every Info entry into a single list.
+   Each Info.exp/Info.pat carries the constraints emitted by `add` for that
+   node (subsumption Con(ana, syn) plus the structural constraints returned
+   by Typ.meet on ana vs elab_syn_ty). Pulling them all gives the inference
+   pipeline the full constraint set without threading lists by hand through
+   every Statics handler. Visited ids are deduplicated so equivalent-id
+   shards (which all point to the same Info) don't emit the same constraint
+   set multiple times. */
+let collect_all_constraints =
+    (info_map: Map.t): list(Typ.equivalence) => {
+  let seen = ref(Id.Map.empty);
+  Id.Map.fold(
+    (_id, info: Info.t, acc) =>
+      switch (info) {
+      | InfoExp(e) =>
+        let key = Exp.rep_id(e.user_term);
+        if (Id.Map.mem(key, seen^)) {
+          acc;
+        } else {
+          seen := Id.Map.add(key, (), seen^);
+          e.constraints @ acc;
+        };
+      | InfoPat(p) =>
+        let key = Pat.rep_id(p.user_term);
+        if (Id.Map.mem(key, seen^)) {
+          acc;
+        } else {
+          seen := Id.Map.add(key, (), seen^);
+          p.constraints @ acc;
+        };
+      | _ => acc
+      },
+    info_map,
+    [],
+  );
+};
+
+let mk_with_inference =
   Core.Memo.general(
     ~cache_size_bound=1000,
     (ana, ctx, e) => {
-      let (_, elab, m) =
+      let (_root_info, elab, m) =
         uexp_to_info_map(~ana, ~ctx, ~ancestors=[], e, Id.Map.empty);
       /* Some syntax nodes carry multiple equivalent ids (e.g. shard ids).
          Ensure they all resolve to the same info entry for cursor features. */
@@ -3959,9 +4020,36 @@ let mk =
           },
           e,
         );
-      (m_ref^, elab);
+      let info_map = m_ref^;
+      /* Solve the unification constraints accumulated by statics into a map
+         from provenance strings to refined type solutions. */
+      let all_constraints = collect_all_constraints(info_map);
+      let inference_map = Inference.go(all_constraints, info_map);
+      (info_map, elab, inference_map);
     },
   );
 
-let mk = (~ana=Typ.temp(Unknown(SynSwitch |> Prov.fresh)), core: CoreSettings.t, ctx, exp) =>
-  core.statics ? mk(ana, ctx, exp) : (Id.Map.empty, Exp.fresh(Tuple([])));
+let mk_with_inference =
+    (
+      ~ana=Typ.temp(Unknown(SynSwitch |> Prov.fresh)),
+      core: CoreSettings.t,
+      ctx,
+      exp,
+    ) =>
+  core.statics
+    ? mk_with_inference(ana, ctx, exp)
+    : (Id.Map.empty, Exp.fresh(Tuple([])), Inference.TypSolutionMap.empty);
+
+/* Two-tuple variant for legacy callers that don't need the inference map.
+   Use mk_with_inference when threading inference results (e.g. CachedStatics). */
+let mk =
+    (
+      ~ana=Typ.temp(Unknown(SynSwitch |> Prov.fresh)),
+      core: CoreSettings.t,
+      ctx,
+      exp,
+    ) => {
+  let (info_map, elab, _inference_map) =
+    mk_with_inference(~ana, core, ctx, exp);
+  (info_map, elab);
+};

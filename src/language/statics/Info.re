@@ -45,6 +45,9 @@ type exp = {
   message: Message.t, /* DERIVED: non-error inspector payload (Exp only) */
   warnings: list(Warning.list_item),
   ty: Typ.t, /* DERIVED: Type after nonempty hole fixing */
+  /* Unification constraints accumulated from this term and its sub-terms.
+     Used by the type-hole inference pipeline to refine Unknown provenances. */
+  constraints: list(Typ.equivalence),
   label_inference: option(label_inference(exp)), /* Label inference information for the tuple */
   inferred_label: option(LabeledTuple.label), /* Inferred label for an expression within the tuple */
   label_sort: bool, /* When in the position of a label */
@@ -65,6 +68,8 @@ type pat = {
   message: Message.t, /* DERIVED: non-error inspector payload (Pat only) */
   warnings: list(Warning.list_item),
   ty: Typ.t,
+  /* Same role as Info.exp.constraints — unification constraints from pat. */
+  constraints: list(Typ.equivalence),
   constraint_: Coverage.Constraint.t,
   label_inference: option(label_inference(pat)),
   inferred_label: option(LabeledTuple.label),
