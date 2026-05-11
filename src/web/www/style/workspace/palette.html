@@ -1,0 +1,427 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Hazel — Workspace Palette</title>
+  <link rel="stylesheet" href="../fonts.css">
+  <link rel="stylesheet" href="../variables.css">
+  <link rel="stylesheet" href="../animations.css">
+  <link rel="stylesheet" href="../code/code.css">
+  <link rel="stylesheet" href="workspace.css">
+  <link rel="stylesheet" href="../menu/menu.css">
+  <style>
+    /* Page-only layout. Everything visual should come from workspace.css. */
+    html, body { margin: 0; padding: 0; min-height: 100%; }
+    .palette { max-width: 960px; margin: 0 auto; padding: 2em 2.5em 6em; }
+    .palette section { margin-bottom: 2em; }
+    .palette .stage {
+      min-height: 8em;
+      background: var(--T3);
+      border-radius: var(--radius-sm);
+      padding: var(--space-md);
+      position: relative;
+      overflow: hidden;
+    }
+  </style>
+</head>
+<body class="workspace-surface inline">
+<div class="palette">
+
+  <h1 class="heading h1">Workspace Palette</h1>
+  <p>Static reference. CSS in <code class="code-inline">workspace.css</code> / <code class="code-inline">code.css</code> developed against this page. See <a href="../../../../docs/style/surfaces.md">surfaces</a>, <a href="../../../../docs/style/elements.md">elements</a>.</p>
+
+  <!-- ============ SURFACES ============ -->
+  <section id="surfaces">
+    <h2 class="heading h1">Surfaces</h2>
+
+    <p>Every container in the UI uses one of two surfaces. The <em>code</em> surface is for the syntax-coloured monospace editor and its evaluator output. The <em>workspace</em> surface is the general-purpose UI interior — sidebars, exercise bodies, menus, dialogs, tooltips — and is what this whole page is rendered on.</p>
+
+    <div class="heading h2">Code surface</div>
+    <div class="code-surface">
+      <span class="token kw">let</span> <span class="token id">x</span> = <span class="token num">1</span> <span class="token kw">in</span> <span class="token id">x</span> + <span class="token num">2</span>
+    </div>
+
+    <hr class="divider">
+
+    <div class="heading h2">Workspace surface with composed flow</div>
+
+    <div class="heading h1">Soil composition</div>
+    <p>Soils are typically classified into three textural categories based on the proportions of <span class="code-inline">sand</span>, <span class="code-inline">silt</span>, and <span class="code-inline">clay</span> particles. Sandy soils drain quickly but hold few nutrients. Loamy soils strike a balance — retaining moisture while staying workable. Clay soils hold water and nutrients but compact under pressure.</p>
+    <p>The pH of a soil also matters: most garden plants prefer slightly acidic to neutral conditions, between 6.0 and 7.0. <a href="#">More on soil chemistry</a>.</p>
+
+    <div class="heading h3">Properties</div>
+    <div class="list-row">
+      <div class="leading">⬢</div>
+      <div class="label">Sandy soils drain quickly but hold few nutrients</div>
+      <div class="trailing"><span class="badge count">↑</span></div>
+    </div>
+    <div class="list-row">
+      <div class="leading">⬢</div>
+      <div class="label">Loamy soils retain moisture while remaining workable</div>
+      <div class="trailing"><span class="badge status ok">✓</span></div>
+    </div>
+    <div class="list-row">
+      <div class="leading">⬢</div>
+      <div class="label">Clay soils may waterlog if overwatered</div>
+      <div class="trailing"><span class="badge status warning">!</span></div>
+    </div>
+  </section>
+
+  <!-- ============ PRIMITIVES ============ -->
+  <section id="primitives">
+    <h2 class="heading h1">Content primitives</h2>
+
+    <div class="heading h2">Button</div>
+    <p>Default, active, and disabled states. Ports <code class="code-inline">.cell-result .icon</code> — wobble and scale on hover.</p>
+    <div class="row">
+      <div class="button"><span>⚙</span></div>
+      <div class="button active"><span>⚙</span></div>
+      <div class="button disabled"><span>⚙</span></div>
+      <div class="button"><span>↗</span></div>
+      <div class="button"><span>📂</span></div>
+    </div>
+
+    <hr class="divider">
+
+    <div class="heading h2">Subtle button</div>
+    <p>Ports <code class="code-inline">.stepper .subtle-button</code> — opacity 0 until the parent is hovered. Used in derivation contexts where action buttons should fade in only when relevant.</p>
+    <div class="row" style="padding: var(--space-sm); background: var(--SAND); border-radius: var(--radius-sm);">
+      <span>Hover anywhere on this row to reveal the subtle button →</span>
+      <div class="button subtle"><span>⚙</span></div>
+      <div class="button subtle"><span>✕</span></div>
+    </div>
+
+    <hr class="divider">
+
+    <div class="heading h2">Toggle</div>
+    <p>Binary on/off switch. Faithful port of <code class="code-inline">toggle.css</code>, including the inset shadow on the track.</p>
+    <div class="row">
+      <div class="toggle"><div class="knob"></div></div>
+      <div class="toggle active"><div class="knob"></div></div>
+    </div>
+
+    <hr class="divider">
+
+    <div class="heading h2">TextInput</div>
+    <p>Ports the agent chat input: 8px radius, hairline border, SAND fill, BR3 outline on focus.</p>
+    <div class="row">
+      <input class="text-input" placeholder="Single line">
+      <textarea class="text-input" placeholder="Multiline" rows="2"></textarea>
+    </div>
+
+    <hr class="divider">
+
+    <div class="heading h2">Select</div>
+    <p>Ports the top mode selector — transparent by default, with a pill-shaped fill on hover.</p>
+    <div class="row">
+      <select class="select">
+        <option>Tutorial</option>
+        <option>Scratch</option>
+        <option>Exercise</option>
+      </select>
+    </div>
+
+    <hr class="divider">
+
+    <div class="heading h2">Heading</div>
+    <p>Three levels, with body text between them so vertical rhythm is visible. h1 ports the exercise title; h2 ports the all-caps cell caption; h3 ports the subtle probarium subsection label.</p>
+
+    <div class="heading h1">Soils of the temperate zone</div>
+    <p>Soils form through the slow weathering of bedrock and the accumulation of organic matter from decomposing plants and animals. Climate, topography, and time together determine which soil profile develops at a given site.</p>
+    <div class="heading h2">Horizons</div>
+    <p>A mature soil is layered into horizons. The O horizon at the surface holds fresh organic litter; below it, the A horizon mixes humus with mineral grains. Deeper still, the B horizon accumulates clays and iron oxides leached down from above.</p>
+    <div class="heading h3">The C horizon</div>
+    <p>The C horizon sits at the base of the profile, just above unweathered bedrock. It consists largely of partially weathered parent material that has not yet been pulled into the active rooting zone.</p>
+
+    <hr class="divider">
+
+    <div class="heading h2">CodeInline</div>
+    <p>Used for embedded identifiers and short type expressions inside prose. The expression <span class="code-inline">x + 1</span> has type <span class="code-inline">Int</span>.</p>
+
+    <hr class="divider">
+
+    <div class="heading h2">Badge</div>
+    <p>Status (error / warning / ok), count, and keyboard variants.</p>
+    <div class="row">
+      <span class="badge status error">!</span>
+      <span class="badge status warning">!</span>
+      <span class="badge status ok">✓</span>
+      <span class="badge count">3</span>
+      <span class="badge kbd">⌘ K</span>
+    </div>
+
+    <hr class="divider">
+
+    <div class="heading h2">ProgressBar</div>
+    <p>Two flavours. Continuous: ports the agent token-context-meter — a <code class="code-inline">.track</code> with a <code class="code-inline">.fill</code> whose width is the progress.</p>
+    <div class="progress-bar" style="max-width: 12em;">
+      <div class="label">Context · 42% used</div>
+      <div class="track"><div class="fill" style="width: 42%;"></div></div>
+    </div>
+
+    <p style="margin-top: 1em;">Segmented (<code class="code-inline">.segmented</code>): ports the test-panel <code class="code-inline">.test-bar</code> — clickable status-coded segments (pass / fail / indet).</p>
+    <div class="progress-bar segmented" style="max-width: 16em;">
+      <div class="label">Tests · 4 / 6 passing</div>
+      <div class="track">
+        <div class="segment pass" title="Test 1: Pass"></div>
+        <div class="segment pass" title="Test 2: Pass"></div>
+        <div class="segment fail" title="Test 3: Fail"></div>
+        <div class="segment pass" title="Test 4: Pass"></div>
+        <div class="segment indet" title="Test 5: Indeterminate"></div>
+        <div class="segment pass" title="Test 6: Pass"></div>
+      </div>
+    </div>
+
+    <hr class="divider">
+
+    <div class="heading h2">Divider</div>
+    <p>Above the line.</p>
+    <hr class="divider">
+    <p>Below the line.</p>
+
+    <hr class="divider">
+
+    <div class="heading h2">ListRow</div>
+    <p>Slots: leading / label / trailing. State variants: <code class="code-inline">active</code>, <code class="code-inline">expanded</code>. Corresponds to <code class="code-inline">.problem-row</code> (sidebar) and <code class="code-inline">.history-chat-item</code> (agent).</p>
+    <div class="list-row">
+      <div class="leading"><span>📄</span></div>
+      <div class="label">A list row with leading icon and trailing badge</div>
+      <div class="trailing"><span class="badge count">2</span></div>
+    </div>
+    <div class="list-row active">
+      <div class="leading"><span>📄</span></div>
+      <div class="label">An active list row</div>
+    </div>
+    <div class="list-row expanded">
+      <div class="leading"><span>▾</span></div>
+      <div class="label">An expanded list row</div>
+    </div>
+    <div class="list-row">
+      <div class="label">A bare list row (no leading, no trailing)</div>
+    </div>
+
+    <p style="margin-top: 1em;">Status variants — port <code class="code-inline">.problem-row.{,syntax,hole,warning}</code> from the problems panel. Each adds a left-accent border + tinted bg; <code class="code-inline">.active</code> intensifies both.</p>
+    <div class="list-row error">
+      <div class="label">An error row (default red — <code class="code-inline">.error</code>)</div>
+    </div>
+    <div class="list-row error active">
+      <div class="label">An active error row</div>
+    </div>
+    <div class="list-row syntax">
+      <div class="label">A syntax row (<code class="code-inline">.syntax</code>)</div>
+    </div>
+    <div class="list-row warning">
+      <div class="label">A warning row (<code class="code-inline">.warning</code>)</div>
+    </div>
+    <div class="list-row hole">
+      <div class="label">A hole row (<code class="code-inline">.hole</code>)</div>
+    </div>
+  </section>
+
+  <!-- ============ LAYOUT CONTAINERS ============ -->
+  <section id="containers">
+    <h2 class="heading h1">Layout containers</h2>
+
+    <div class="heading h2">Tabs (vertical)</div>
+    <p>Ports <code class="code-inline">#persistent .tab</code>. Container is fit-content; right-border indicates the active tab.</p>
+    <div class="tabs">
+      <div class="button active"><span>📄</span></div>
+      <div class="button"><span>⚙</span></div>
+      <div class="button"><span>?</span></div>
+    </div>
+
+    <hr class="divider">
+
+    <div class="heading h2">Tabs (horizontal)</div>
+    <p>Ports the probarium sample-color-scheme <code class="code-inline">.segmented-control</code>: bordered strip, equal-width segments, Y1 fill when active.</p>
+    <div class="tabs horizontal">
+      <div class="button active">Calls</div>
+      <div class="button">Hybrid</div>
+      <div class="button">Steps</div>
+    </div>
+
+    <hr class="divider">
+
+    <div class="heading h2">Tabs (title)</div>
+    <p>Ports the probarium <code class="code-inline">.main-title .mode-label</code> pattern: bold uppercase mode-labels used as a switchable panel title, with a <code class="code-inline">/</code> separator. Shown inside an inline workspace, which is its real context.</p>
+    <div class="workspace-surface inline">
+      <div class="tabs title">
+        <div class="button active">Probarium</div>
+        <div class="button">Printarium</div>
+      </div>
+      <p>Panel contents go here. The title-tabs sit at the top and let the reader switch between modes for this panel.</p>
+    </div>
+
+  </section>
+
+  <!-- ============ PLACEMENTS ============ -->
+  <section id="placements">
+    <h2 class="heading h1">Placements</h2>
+
+    <div class="heading h2">workspace × inline</div>
+    <p>A workspace nested inside another workspace gets the probarium outline-rect treatment.</p>
+    <div class="workspace-surface inline">
+      <p>This is an inline workspace nested inside the page-level workspace. The outline + radius is supplied automatically by the descendant-selector rule, so authors don't have to add it themselves.</p>
+      <p>Inline placement at the very top of the tree (the body, for instance) stays chromeless because nothing is its workspace-surface ancestor.</p>
+    </div>
+
+    <hr class="divider">
+
+    <div class="heading h2">workspace × raised</div>
+    <p>Same chrome as inline, plus a shadow. Used for menus and popovers.</p>
+    <div class="stage">
+      <div class="workspace-surface raised" style="display: inline-block;">
+        <p style="margin: 0;">A raised workspace surface.</p>
+      </div>
+    </div>
+
+    <hr class="divider">
+
+    <div class="heading h2">Settings dialog</div>
+    <p>Composed of <code class="code-inline">raised</code> + <code class="code-inline">.modal-backdrop</code> + centred positioning. Not its own placement.</p>
+    <div class="stage">
+      <div class="modal-backdrop"></div>
+      <div class="workspace-surface raised" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); min-width: 16em;">
+        <div class="heading h2">Confirm</div>
+        <p>A modal interrupts the flow.</p>
+        <div class="row">
+          <div class="button"><span>✓</span></div>
+          <div class="button"><span>✕</span></div>
+        </div>
+      </div>
+    </div>
+
+    <hr class="divider">
+
+    <div class="heading h2">workspace × tooltip</div>
+    <p>Tight padding, small text scale, anchored — for hover info on icons and widgets.</p>
+    <div class="workspace-surface tooltip">Small info on hover</div>
+
+    <hr class="divider">
+
+    <div class="heading h2">code × inset</div>
+    <p>A workspace containing an inset code surface — the recessed border indicates the editor.</p>
+    <div class="code-surface inset">
+      <span class="token kw">fun</span> <span class="token id">f</span>(<span class="token id">x</span>) -&gt; <span class="token id">x</span> + <span class="token num">1</span>
+    </div>
+  </section>
+
+  <!-- ============ MENU SURFACE ============ -->
+  <section id="menu">
+    <h2 class="heading h1">Menu surface</h2>
+
+    <p>The menu surface is separate from the workspace surface. It has its own background (yellow-tinted), typography, and item-row patterns. Always raised with a shadow + outline; placement is implicit (anchored to a trigger).</p>
+
+    <div class="heading h2">Menu item</div>
+    <p>A single clickable row inside a menu. Slots: leading icon, label, optional trailing keyboard shortcut.</p>
+    <div class="menu-surface" style="max-width: 16em;">
+      <div class="menu-item">
+        <span>⚙</span>
+        <div class="label">Settings</div>
+        <div class="shortcut">⌘ ,</div>
+      </div>
+      <div class="menu-item selected">
+        <span>📂</span>
+        <div class="label">Open file</div>
+        <div class="shortcut">⌘ O</div>
+      </div>
+      <div class="menu-item">
+        <span>💾</span>
+        <div class="label">Save</div>
+        <div class="shortcut">⌘ S</div>
+      </div>
+    </div>
+
+    <hr class="divider">
+
+    <div class="heading h2">Menu groups</div>
+    <p>A menu can be split into named groups; adjacent groups get a hairline divider automatically.</p>
+    <div class="menu-surface" style="max-width: 18em;">
+      <div class="menu-group">
+        <div class="name">File</div>
+        <div class="contents">
+          <div class="menu-item"><span>📄</span><div class="label">New</div><div class="shortcut">⌘ N</div></div>
+          <div class="menu-item"><span>📂</span><div class="label">Open</div><div class="shortcut">⌘ O</div></div>
+          <div class="menu-item"><span>💾</span><div class="label">Save</div><div class="shortcut">⌘ S</div></div>
+        </div>
+      </div>
+      <div class="menu-group">
+        <div class="name">Edit</div>
+        <div class="contents">
+          <div class="menu-item"><span>↶</span><div class="label">Undo</div><div class="shortcut">⌘ Z</div></div>
+          <div class="menu-item"><span>↷</span><div class="label">Redo</div><div class="shortcut">⇧ ⌘ Z</div></div>
+        </div>
+      </div>
+    </div>
+
+    <hr class="divider">
+
+    <div class="heading h2">Anchored to a corner</div>
+    <p>When the menu is attached to a trigger, the corner closest to the trigger is sharpened and only the opposite corner is rounded. <code class="code-inline">.tl / .tr / .bl / .br</code> select the anchor. Without one of these, the menu is floating and all four corners are rounded (as in the examples above).</p>
+    <div class="row" style="align-items: flex-start; gap: 2em;">
+      <div>
+        <div class="heading h3"><code class="code-inline">.tl</code></div>
+        <div class="menu-surface tl" style="min-width: 8em;">
+          <div class="menu-item"><div class="label">Item</div></div>
+          <div class="menu-item"><div class="label">Item</div></div>
+        </div>
+      </div>
+      <div>
+        <div class="heading h3"><code class="code-inline">.tr</code></div>
+        <div class="menu-surface tr" style="min-width: 8em;">
+          <div class="menu-item"><div class="label">Item</div></div>
+          <div class="menu-item"><div class="label">Item</div></div>
+        </div>
+      </div>
+      <div>
+        <div class="heading h3"><code class="code-inline">.bl</code></div>
+        <div class="menu-surface bl" style="min-width: 8em;">
+          <div class="menu-item"><div class="label">Item</div></div>
+          <div class="menu-item"><div class="label">Item</div></div>
+        </div>
+      </div>
+      <div>
+        <div class="heading h3"><code class="code-inline">.br</code></div>
+        <div class="menu-surface br" style="min-width: 8em;">
+          <div class="menu-item"><div class="label">Item</div></div>
+          <div class="menu-item"><div class="label">Item</div></div>
+        </div>
+      </div>
+    </div>
+
+    <hr class="divider">
+
+    <div class="heading h2">Scrolling menu</div>
+    <p>The menu surface has a default <code class="code-inline">max-height: 70vh</code>; taller contents scroll inside the menu (here forced smaller with an inline override).</p>
+    <div class="menu-surface" style="max-width: 16em; max-height: 10em;">
+      <div class="menu-item"><span>📄</span><div class="label">Open recent 1</div></div>
+      <div class="menu-item"><span>📄</span><div class="label">Open recent 2</div></div>
+      <div class="menu-item"><span>📄</span><div class="label">Open recent 3</div></div>
+      <div class="menu-item"><span>📄</span><div class="label">Open recent 4</div></div>
+      <div class="menu-item"><span>📄</span><div class="label">Open recent 5</div></div>
+      <div class="menu-item"><span>📄</span><div class="label">Open recent 6</div></div>
+      <div class="menu-item"><span>📄</span><div class="label">Open recent 7</div></div>
+      <div class="menu-item"><span>📄</span><div class="label">Open recent 8</div></div>
+      <div class="menu-item"><span>📄</span><div class="label">Open recent 9</div></div>
+      <div class="menu-item"><span>📄</span><div class="label">Open recent 10</div></div>
+      <div class="menu-item"><span>📄</span><div class="label">Open recent 11</div></div>
+      <div class="menu-item"><span>📄</span><div class="label">Open recent 12</div></div>
+    </div>
+  </section>
+
+</div>
+<script>
+  // Make demo controls interactive so users can see hover/active animations.
+  // Not part of the design system — palette-only.
+  document.querySelectorAll('.toggle').forEach(t => {
+    t.addEventListener('click', () => t.classList.toggle('active'));
+  });
+  document.querySelectorAll('.menu-item').forEach(item => {
+    item.addEventListener('click', () => {
+      item.parentElement.querySelectorAll('.menu-item.selected').forEach(s => s.classList.remove('selected'));
+      item.classList.add('selected');
+    });
+  });
+</script>
+</body>
+</html>
