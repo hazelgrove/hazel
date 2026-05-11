@@ -184,7 +184,13 @@ module Transition = (EV: EV_MODE) => {
   open IdTagged.FreshGrammar.Exp;
 
   /* Helper function to wrap a closure around an expression. Required for functions, but also for
-     things like if-then-else expressions where the scrutinee is indet, and for hole closures */
+     things like if-then-else expressions where the scrutinee is indet, and for hole closures.
+
+     is_value: true because the Closure-wrapped expression is already fully evaluated
+     (all requirements were resolved by req_final). Re-evaluating it would redundantly
+     traverse sub-expressions, which (a) is wasteful and (b) causes spurious probe samples
+     when indeterminate return values from recursive calls are re-traversed at wrong call
+     stack depths. See Test_Evaluator_Probes "Recursive indet" tests. */
   let wrap_closure_when_done = (~in_closure, expr, env, r: rule) =>
     switch (in_closure, r) {
     | (_, Step(_)) => r
@@ -193,12 +199,195 @@ module Transition = (EV: EV_MODE) => {
         expr: closure(env, expr),
         side_effects: [],
         kind: WrapClosure,
-        is_value: false,
+        is_value: true,
       })
     | (Some(f), Constructor | Indet | Value) =>
       f();
       r;
     };
+
+  /* Extract function name from a function expression (including closures).
+     Used to record the name in the call stack for better debugging. */
+  let get_fn_name_from_expr = (d: DHExp.t): option(string) =>
+    switch (d.term) {
+    | Closure(_, e) => Exp.get_fn_name(e)
+    | Fun(_, _, _, name) => name
+    | TypFun(_, _, name) => name
+    | BuiltinFun(name) => Some(name)
+    | _ => None
+    };
+
+  /* Extract the definition-site ID from a function expression (including closures).
+     Used to enable jump-to-definition from the closure cursor bar even when the
+     app_id comes from built-in internal code (not in user's info_map). */
+  let get_fn_def_id_from_expr = (d: DHExp.t): option(Id.t) =>
+    switch (d.term) {
+    | Closure(_, e) => Exp.get_fn_def_id(e)
+    | Fun(_)
+    | TypFun(_) => Some(DHExp.rep_id(d))
+    | BuiltinFun(_) => None
+    | _ => None
+    };
+
+  /* Transition for derivation terms is much narrower than for Hazel
+     expressions: it is limited to (1) resolving variable references and
+     (2) context [cons]/[concat] operations. Everything else is left as-is. */
+
+  let drv_transition = (env, d: t): t => {
+    let rec go_exp = exp => {
+      let (term, rewrap) = Drv.Exp.unwrap(exp);
+      let term: Drv.Exp.term =
+        switch (term) {
+        | Hole(s) => Hole(s)
+        | Var(x) => Var(x)
+        | Quote(x) =>
+          switch (Environment.lookup(env, x)) {
+          | Some(d) =>
+            switch (DHExp.term_of(d)) {
+            | DrvQuote(Exp({term, _}), _) => term
+            | _ => Hole(AbbrNotDrvTerm)
+            }
+          | None => Hole(AbbrNotFound)
+          }
+        | Parens(e) => Drv.Exp.term_of(go_exp(e))
+        | Val(e) => Val(go_exp(e))
+        | Eval(e1, e2) => Eval(go_exp(e1), go_exp(e2))
+        | Entail(ctx, p) => Entail(go_exp(ctx), go_exp(p))
+        | Consistent(t1, t2) => Consistent(go_typ(t1), go_typ(t2))
+        | MatchedArrow(t1, t2) => MatchedArrow(go_typ(t1), go_typ(t2))
+        | MatchedProd(t1, t2) => MatchedProd(go_typ(t1), go_typ(t2))
+        | MatchedSum(t1, t2) => MatchedSum(go_typ(t1), go_typ(t2))
+        | Ctx(es) => Ctx(List.map(go_exp, es))
+        | Cons(p, ctx) =>
+          switch (Drv.Exp.term_of(go_exp(ctx))) {
+          | Ctx(es) => Ctx(Drv.Exp.cons_ctx(es, go_exp(p)))
+          | _ => Cons(p, ctx)
+          }
+        | Concat(e1, e2) =>
+          switch (
+            Drv.Exp.term_of(go_exp(e1)),
+            Drv.Exp.term_of(go_exp(e2)),
+          ) {
+          | (Ctx(es1), Ctx(es2)) =>
+            Ctx(List.fold_left(Drv.Exp.cons_ctx, es2, es1))
+          | _ => Concat(go_exp(e1), go_exp(e2))
+          }
+        | Type(t) => Type(go_typ(t))
+        | HasType(e, t) => HasType(go_exp(e), go_typ(t))
+        | Syn(e, t) => Syn(go_exp(e), go_typ(t))
+        | Ana(e, t) => Ana(go_exp(e), go_typ(t))
+        | And(p1, p2) => And(go_exp(p1), go_exp(p2))
+        | Or(p1, p2) => Or(go_exp(p1), go_exp(p2))
+        | Impl(p1, p2) => Impl(go_exp(p1), go_exp(p2))
+        | Truth => Truth
+        | Falsity => Falsity
+        | NumLit(n) => NumLit(n)
+        | Neg(e) => Neg(go_exp(e))
+        | BinOp(op, e1, e2) => BinOp(op, go_exp(e1), go_exp(e2))
+        | True => True
+        | False => False
+        | If(e1, e2, e3) => If(go_exp(e1), go_exp(e2), go_exp(e3))
+        | Let(x, e1, e2) => Let(go_pat(x), go_exp(e1), go_exp(e2))
+        | Fix(x, e) => Fix(go_pat(x), go_exp(e))
+        | Fun(x, e) => Fun(go_pat(x), go_exp(e))
+        | Ap(e1, e2) => Ap(go_exp(e1), go_exp(e2))
+        | Tuple(es) => Tuple(List.map(go_exp, es))
+        | Pair(e1, e2) => Pair(go_exp(e1), go_exp(e2))
+        | Triv => Triv
+        | PrjL(e) => PrjL(go_exp(e))
+        | PrjR(e) => PrjR(go_exp(e))
+        | InjL(e) => InjL(go_exp(e))
+        | InjR(e) => InjR(go_exp(e))
+        | Case(e, x, e1, y, e2) =>
+          Case(go_exp(e), go_pat(x), go_exp(e1), go_pat(y), go_exp(e2))
+        | Roll(e) => Roll(go_exp(e))
+        | Unroll(e) => Unroll(go_exp(e))
+        | ExpHole => ExpHole
+        };
+      term |> rewrap;
+    }
+    and go_typ = typ => {
+      let (term, rewrap) = Drv.Typ.unwrap(typ);
+      let term: Drv.Typ.term =
+        switch (term) {
+        | Hole(s) => Hole(s)
+        | Quote(x) =>
+          switch (Environment.lookup(env, x)) {
+          | Some(d) =>
+            switch (DHExp.term_of(d)) {
+            | DrvQuote(Typ({term, _}), _) => term
+            | _ => Hole(AbbrNotDrvTerm)
+            }
+          | None => Hole(AbbrNotFound)
+          }
+        | Num => Num
+        | Bool => Bool
+        | Arrow(t1, t2) => Arrow(go_typ(t1), go_typ(t2))
+        | Prod(t1, t2) => Prod(go_typ(t1), go_typ(t2))
+        | Unit => Unit
+        | Sum(t1, t2) => Sum(go_typ(t1), go_typ(t2))
+        | Var(x) => Var(x)
+        | Rec(x, t) => Rec(x, go_typ(t))
+        | Parens(t) => Drv.Typ.term_of(go_typ(t))
+        | TypHole => TypHole
+        };
+      term |> rewrap;
+    }
+    and go_pat = pat => {
+      let (term, rewrap) = Drv.Pat.unwrap(pat);
+      let term: Drv.Pat.term =
+        switch (term) {
+        | Hole(s) => Hole(s)
+        | Quote(x) =>
+          switch (Environment.lookup(env, x)) {
+          | Some(d) =>
+            switch (DHExp.term_of(d)) {
+            | DrvQuote(Pat({term, _}), _) => term
+            | _ => Hole(AbbrNotDrvTerm)
+            }
+          | None => Hole(AbbrNotFound)
+          }
+        | Var(x) => Var(x)
+        | Cast(p, t) => Cast(go_pat(p), go_typ(t))
+        | InjL(p) => InjL(go_pat(p))
+        | InjR(p) => InjR(go_pat(p))
+        | Pair(p1, p2) => Pair(go_pat(p1), go_pat(p2))
+        | Parens(p) => Drv.Pat.term_of(go_pat(p))
+        };
+      term |> rewrap;
+    }
+    and go_tpat = tpat => {
+      let (term, rewrap) = Drv.TPat.unwrap(tpat);
+      let term: Drv.TPat.term =
+        switch (term) {
+        | Hole(s) => Hole(s)
+        | Quote(x) =>
+          switch (Environment.lookup(env, x)) {
+          | Some(d) =>
+            switch (DHExp.term_of(d)) {
+            | DrvQuote(TPat({term, _}), _) => term
+            | _ => Hole(AbbrNotDrvTerm)
+            }
+          | None => Hole(AbbrNotFound)
+          }
+        | Var(x) => Var(x)
+        };
+      term |> rewrap;
+    };
+    let (term, rewrap) = IdTagged.unwrap(d);
+    let term: term =
+      switch (term) {
+      | DrvQuote(drv, s) =>
+        switch (drv) {
+        | Exp(e) => DrvQuote(Exp(go_exp(e)), s)
+        | Typ(t) => DrvQuote(Typ(go_typ(t)), s)
+        | Pat(p) => DrvQuote(Pat(go_pat(p)), s)
+        | TPat(t) => DrvQuote(TPat(go_tpat(t)), s)
+        }
+      | _ => term
+      };
+    term |> rewrap;
+  };
 
   /* Note[Matt]: For IDs, I'm currently using a fresh id
      if anything about the current node changes, if only its
@@ -212,6 +401,7 @@ module Transition = (EV: EV_MODE) => {
            | `Substitution
            | `Environment
          ],
+        ~targets: Sample.targets=Sample.no_targets,
         ~in_closure=?,
         env: Environment.t(Exp.t), // Environment is empty in substitution mode
         d,
@@ -280,7 +470,7 @@ module Transition = (EV: EV_MODE) => {
       and. d1' =
         req_final(req(env), d1 => Let1(dp, d1, d2) |> wrap_ctx, d1);
       let.wrap_closure _ = (env, Let(dp, d1', d2) |> rewrap);
-      let {matches, closures} = matches(dp, d1');
+      let {matches, samples} = matches(targets, dp, d1');
       let matches_str = {
         switch (matches) {
         | IndetMatch
@@ -297,7 +487,7 @@ module Transition = (EV: EV_MODE) => {
         let env' = Environment.add_bindings(env, env');
         Step({
           expr: subst_env(env', d2),
-          side_effects: [RecordPatProbes(closures)],
+          side_effects: [RecordPatProbes(samples)],
           kind: LetBind(matches_str),
           is_value: false,
         });
@@ -466,11 +656,14 @@ module Transition = (EV: EV_MODE) => {
           is_value: false,
         })
       | _ =>
+        /* Extract function name and def ID before unboxing (unboxing discards them) */
+        let fn_name = get_fn_name_from_expr(d1');
+        let fn_def_id = get_fn_def_id_from_expr(d1');
         let-unbox unboxed_fun = (Fun, d1');
         switch (unboxed_fun) {
         | Constructor(_) => Constructor
         | FunEnv(dp, d3, replacement_env) =>
-          let matches = matches(dp, d2');
+          let matches = matches(targets, dp, d2');
           switch (matches.matches) {
           | IndetMatch
           | DoesNotMatch => Indet
@@ -479,15 +672,15 @@ module Transition = (EV: EV_MODE) => {
             Step({
               expr: subst_env(env'', d3),
               side_effects: [
-                RecordPatProbes(matches.closures),
-                RecordStackFrame,
+                RecordStackFrame(fn_name, Some(d2'), fn_def_id),
+                RecordPatProbes(matches.samples),
               ],
               kind: FunAp,
               is_value: false,
             });
           };
         | FunNoEnv(dp, d3) when mode == `Substitution =>
-          let matches = matches(dp, d2');
+          let matches = matches(targets, dp, d2');
           switch (matches.matches) {
           | IndetMatch
           | DoesNotMatch => Indet
@@ -499,8 +692,8 @@ module Transition = (EV: EV_MODE) => {
                   d3,
                 ),
               side_effects: [
-                RecordPatProbes(matches.closures),
-                RecordStackFrame,
+                RecordStackFrame(fn_name, Some(d2'), fn_def_id),
+                RecordPatProbes(matches.samples),
               ],
               kind: FunAp,
               is_value: false,
@@ -508,26 +701,41 @@ module Transition = (EV: EV_MODE) => {
           };
         | FunNoEnv(_) => Indet
         | BuiltinFun(ident) =>
-          let builtin =
-            VarMap.lookup(Builtins.forms_init, ident)
-            |> OptUtil.get(() => {
-                 /* This exception should never be raised because there is
-                    no way for the user to create a BuiltinFun. They are all
-                    inserted into the context before evaluation. */
-                 raise(
-                   EvaluatorError.Exception(InvalidBuiltin(ident)),
-                 )
-               });
-          switch (builtin(d2')) {
-          | Some(expr) =>
+          if (ident == "print") {
+            /* Println for probes study */
             Step({
-              expr,
-              side_effects: [],
+              expr: tuple([]),
+              side_effects: [
+                RecordStackFrame(Some(ident), Some(d2'), None),
+                RecordPrint(d2'),
+              ],
               kind: BuiltinAp(ident),
-              is_value: false,
-            })
-          | None => Indet
-          };
+              is_value: true,
+            });
+          } else {
+            let builtin =
+              VarMap.lookup(Builtins.forms_init, ident)
+              |> OptUtil.get(() => {
+                   /* This exception should never be raised because there is
+                      no way for the user to create a BuiltinFun. They are all
+                      inserted into the context before evaluation. */
+                   raise(
+                     EvaluatorError.Exception(InvalidBuiltin(ident)),
+                   )
+                 });
+            switch (builtin(d2')) {
+            | Some(expr) =>
+              Step({
+                expr,
+                side_effects: [
+                  RecordStackFrame(Some(ident), Some(d2'), None),
+                ],
+                kind: BuiltinAp(ident),
+                is_value: false,
+              })
+            | None => Indet
+            };
+          }
         | DeferredAp(d3, d4s) =>
           let n_args =
             List.length(
@@ -584,6 +792,19 @@ module Transition = (EV: EV_MODE) => {
     | BuiltinFun(_) =>
       let. _ = otherwise(env, d);
       Constructor;
+    | DrvQuote(_) =>
+      let. _ = otherwise(env, d);
+      let d' = drv_transition(env, d);
+      if (DHExp.fast_equal(d, d')) {
+        Constructor;
+      } else {
+        Step({
+          expr: d',
+          side_effects: [],
+          kind: CompleteClosure,
+          is_value: true,
+        });
+      };
     | If(c, d1, d2) =>
       let. _ = otherwise(env, c => If(c, d1, d2) |> rewrap)
       and. c' = req_final(req(env), c => If1(c, d1, d2) |> wrap_ctx, c);
@@ -598,9 +819,6 @@ module Transition = (EV: EV_MODE) => {
         kind: Conditional(b),
         is_value: false,
       });
-    | UnOp(Meta(Unquote), _) =>
-      let. _ = otherwise(env, d);
-      Indet;
     | UnOp(op, d1) =>
       let. _ = otherwise(env, d1 => UnOp(op, d1) |> rewrap)
       and. d1' = req_final(req(env), d1 => UnOp(op, d1) |> wrap_ctx, d1);
@@ -733,7 +951,11 @@ module Transition = (EV: EV_MODE) => {
                 expr: exp,
                 side_effects: [],
                 kind: Dot,
-                is_value: false,
+                /* d1 is req_final so all tuple elements are already values.
+                   Must be true to avoid re-entering evaluate on the projected
+                   value, which would trigger duplicate probe samples when the
+                   value carries a probe target ID. */
+                is_value: true,
               })
             | _ => Indet
             };
@@ -746,7 +968,7 @@ module Transition = (EV: EV_MODE) => {
                   expr: d,
                   side_effects: [],
                   kind: Dot,
-                  is_value: false,
+                  is_value: true,
                 })
               : Indet
           | ListLit(ds) =>
@@ -849,19 +1071,19 @@ module Transition = (EV: EV_MODE) => {
         fun
         | [] => None
         | [(dp, d2), ...rules] => {
-            let matches = matches(dp, d1);
+            let matches = matches(targets, dp, d1);
             switch (matches.matches) {
-            | Matches(env') => Some((env', d2, matches.closures))
+            | Matches(env') => Some((env', d2, matches.samples))
             | DoesNotMatch => next_rule(rules)
             | IndetMatch => None
             };
           }
       );
       switch (next_rule(rules)) {
-      | Some((env', d2, closures)) =>
+      | Some((env', d2, samples)) =>
         Step({
           expr: subst_env(Environment.add_bindings(env, env'), d2),
-          side_effects: [RecordPatProbes(closures)],
+          side_effects: [RecordPatProbes(samples)],
           kind: CaseApply,
           is_value: false,
         })
@@ -921,12 +1143,19 @@ module Transition = (EV: EV_MODE) => {
         let. _ = otherwise(env, d => Asc(d, t) |> rewrap)
         and. d' = req_final(req(env), d => Asc(d, t) |> wrap_ctx, d');
         switch (Ascriptions.transition(Asc(d', t) |> rewrap)) {
-        | Some(d) =>
+        | Some(_) =>
+          /* Use transition_multiple to fully resolve all Asc layers in one
+           * step, and is_value: true to prevent re-evaluation. This is critical
+           * because d' was already fully evaluated by req_final above — probes
+           * inside d' have already fired. Without this, the distributed Asc
+           * wrappers would cause sub-expressions to be re-evaluated, hitting
+           * probe targets a second time with a different (shorter) call_stack,
+           * producing duplicate samples that bypass dedup. */
           Step({
-            expr: d,
+            expr: Ascriptions.transition_multiple(Asc(d', t) |> rewrap),
             side_effects: [],
             kind: Ascription,
-            is_value: false,
+            is_value: true,
           })
         | None => Constructor
         };
@@ -934,21 +1163,19 @@ module Transition = (EV: EV_MODE) => {
     | Undefined =>
       let. _ = otherwise(env, d);
       Indet;
-    | Probe(d'', pr) =>
-      /* When evaluated, a probe adds a dynamics info entry
-       * reflecting the evaluation of the contained expression */
-      let. _ = otherwise(env, d => Probe(d, pr) |> rewrap)
-      and. d' = req_final(req(env), d => Probe(d, pr) |> wrap_ctx, d'');
+    | Parens(d') =>
+      let. _ = otherwise(env, d);
       Step({
         expr: d',
-        side_effects: [RecordExpProbe(pr)],
+        side_effects: [],
         kind: RemoveParens,
         is_value: false,
       });
-    | Parens(d) =>
+    /* TODO: May want a distinct RemoveProjector step kind later for stepper clarity */
+    | Projector(_, d') =>
       let. _ = otherwise(env, d);
       Step({
-        expr: d,
+        expr: d',
         side_effects: [],
         kind: RemoveParens,
         is_value: false,
@@ -978,6 +1205,14 @@ module Transition = (EV: EV_MODE) => {
         kind: CompleteFilter,
         is_value: true,
       });
+    // Modules should be expanded before reaching dynamics (Phase 1.3)
+    | Module(_) =>
+      let. _ = otherwise(env, d);
+      Indet;
+    // ModuleExp should be expanded to Let before reaching dynamics
+    | ModuleExp(_) =>
+      let. _ = otherwise(env, d);
+      Indet;
     };
   };
 };
@@ -997,8 +1232,8 @@ let should_hide_step_kind = (~settings: CoreSettings.Evaluation.t) =>
   | UnOp(_)
   | ListCons
   | ListConcat
-  | TupleExtension
-  | CaseApply
+  | TupleExtension => false
+  | CaseApply => !settings.show_case_steps
   | Projection // TODO(Matt): We don't want to show projection to the user
   | Conditional(_)
   | RemoveTypeAlias
@@ -1044,7 +1279,6 @@ let stepper_justification: step_kind => string =
   | BinOp(
       Float(LessThan | LessThanOrEqual | GreaterThan | GreaterThanOrEqual),
     ) => "comparison"
-  | BinOp(String(Equals))
   | BinOp(Float(Equals | NotEquals))
   | BinOp(Poly(Equals | NotEquals)) => "check equality"
   | BinOp(String(Concat)) => "string manipulation"
@@ -1069,5 +1303,4 @@ let stepper_justification: step_kind => string =
   | RemoveParens => "remove parentheses"
   | Dot => "Labeled tuple access"
   | TupleExtension => "Tuple extension"
-  | MarkIncomparable => "mark equality as incomparable"
-  | UnOp(Meta(Unquote)) => failwith("INVALID STEP");
+  | MarkIncomparable => "mark equality as incomparable";

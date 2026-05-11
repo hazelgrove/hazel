@@ -5,9 +5,35 @@ let mk_space = Secondary.mk_space;
 let mk_newline = Secondary.mk_newline;
 open Language;
 
+/* Convert a list of Secondary.t to a Segment.t */
+let secondary_to_segment = (secondaries: list(Secondary.t)): Segment.t =>
+  List.map(s => Piece.Secondary(s), secondaries);
+
 module Settings = {
+  /* How to handle secondary (whitespace/comments) in output */
+  type secondary_handling =
+    | PreserveExact /* Use exactly what's stored in term annotations (for round-tripping) */
+    | AutoFormat; /* Generate heuristically (original behavior) */
+
+  /* How to handle parenthesization during output.
+     See plans/secondary-in-terms-v2.md for detailed analysis. */
+  type parenthesization =
+    | Defensive /* Add parens based on precedence to ensure correct re-parsing (original behavior) */
+    | Structural; /* Only emit parens that exist in term structure (for round-tripping) */
+
+  /* How to format labels (backtick quoting).
+     Note: Neither option gives perfect round-tripping because the original
+     quoting information is lost during parsing. Labels like `a` (quoted but
+     unnecessary) become just "a" in the term, so we can't know to re-quote them. */
+  type label_format =
+    | QuoteWhenNecessary /* Only add backticks for non-identifiers (original behavior) */
+    | AlwaysQuote; /* Always add backticks to labels */
+
   type t = {
-    inline: bool,
+    secondary: secondary_handling,
+    parenthesization,
+    label_format,
+    inline: bool, /* Only applies when secondary = AutoFormat */
     fold_case_clauses: bool,
     fold_fn_bodies: [
       | `Fold
@@ -16,11 +42,16 @@ module Settings = {
     ],
     hide_fixpoints: bool,
     show_filters: bool,
+    show_ascriptions: bool,
     show_unknown_as_hole: bool,
   };
 
   let of_core = (~inline, ~fold_fn_bodies=?, settings: CoreSettings.t) => {
+    secondary: AutoFormat,
+    parenthesization: Defensive,
+    label_format: QuoteWhenNecessary,
     inline,
+    show_ascriptions: settings.evaluation.show_ascriptions,
     fold_case_clauses: !settings.evaluation.show_case_clauses,
     fold_fn_bodies:
       fold_fn_bodies
@@ -34,15 +65,37 @@ module Settings = {
 
   let editable = (~inline) => {
     {
+      secondary: AutoFormat,
+      parenthesization: Defensive,
+      label_format: QuoteWhenNecessary,
       inline,
       fold_case_clauses: false,
       fold_fn_bodies: `NoFold,
+      show_ascriptions: true,
       hide_fixpoints: false,
       show_filters: true,
       show_unknown_as_hole: true,
     };
   };
 };
+
+/* Wrap segment content with secondary from a term's annotation.
+   With PreserveExact: always emit stored secondary (even if empty).
+   With AutoFormat: return content unchanged (heuristic spacing applies elsewhere). */
+let wrap_with_secondary =
+    (
+      ~secondary: Settings.secondary_handling,
+      term: IdTagged.t('a),
+      content: Segment.t,
+    )
+    : Segment.t =>
+  switch (secondary) {
+  | PreserveExact =>
+    let (before, after) = term.annotation.secondary;
+    /* Always emit stored secondary, even if empty ([] @ content @ [] = content) */
+    secondary_to_segment(before) @ content @ secondary_to_segment(after);
+  | AutoFormat => content
+  };
 
 // Use Precedence.re to work out where your construct goes here.
 let rec external_precedence = (exp: Exp.t): Precedence.t => {
@@ -58,6 +111,7 @@ let rec external_precedence = (exp: Exp.t): Precedence.t => {
   | Var(_)
   | Invalid(_)
   | Atom(Bool(_) | Int(_) | SInt(_) | Float(_) | String(_) | Nat(_))
+  | DrvQuote(_)
   | EmptyHole
   | Deferral(_)
   | ExplicitNonlabel
@@ -70,15 +124,12 @@ let rec external_precedence = (exp: Exp.t): Precedence.t => {
 
   // Same goes for forms which are already surrounded
   | Parens(_)
-  | Probe(_)
+  | Projector(_)
   | ListLit(_)
   | Test(_)
   | HintedTest(_)
   | ProofObject(_)
   | Match(_) => Precedence.max
-
-  // Other forms
-  | UnOp(Meta(Unquote), _) => Precedence.unquote
 
   | Asc(_) => Precedence.asc
   | Ap(Forward, _, _)
@@ -94,7 +145,7 @@ let rec external_precedence = (exp: Exp.t): Precedence.t => {
   | Fun(_)
   | FixF(_)
   | Forall(_) => Precedence.fun_
-  | Tuple(_) => Precedence.prod
+  | Tuple(_) => Precedence.comma
   | Seq(_) => Precedence.semi
   | TupleExtension(_, _) => Precedence.plus
   | Dot(_) => Precedence.dot
@@ -108,6 +159,8 @@ let rec external_precedence = (exp: Exp.t): Precedence.t => {
 
   // Matt: I think multiholes are min because we don't know the precedence of the `⟩?⟨`s
   | MultiHole(_) => Precedence.min
+  | Module(_) => Precedence.min
+  | ModuleExp(_) => Precedence.let_
   };
 };
 
@@ -127,13 +180,13 @@ let external_precedence_pat = (dp: Pat.t) =>
   // Same goes for forms which are already surrounded
   | ListLit(_)
   | Parens(_)
-  | Probe(_) => Precedence.max
+  | Projector(_) => Precedence.max
 
   // Other forms
   | Cons(_) => Precedence.cons
   | Ap(_) => Precedence.ap
   | Asc(_) => Precedence.asc
-  | Tuple(_) => Precedence.prod
+  | Tuple(_) => Precedence.comma
 
   // Matt: I think multiholes are min because we don't know the precedence of the `⟩?⟨`s
   | MultiHole(_) => Precedence.min
@@ -158,6 +211,7 @@ let external_precedence_typ = (tp: Typ.t) =>
   | Unknown({term: TypeSubstitution(_), _})
   | Var(_)
   | Atom(_)
+  | DrvQuoteTy(_)
   | Label(_)
   | ExplicitNonlabel
   | TupLabel(_) => Precedence.max
@@ -165,6 +219,7 @@ let external_precedence_typ = (tp: Typ.t) =>
   | ProdExtension(_) => Precedence.ap
   // Same goes for forms which are already surrounded
   | Parens(_)
+  | Projector(_)
   | ProofOf(_)
   | List(_) => Precedence.max
 
@@ -177,45 +232,124 @@ let external_precedence_typ = (tp: Typ.t) =>
 
   // Matt: I think multiholes are min because we don't know the precedence of the `⟩?⟨`s
   | Unknown({term: Hole(MultiHole(_)), _}) => Precedence.min
+  | Sig(_) => Precedence.min
   };
 
-let paren_at = (internal_precedence: Precedence.t, exp: Exp.t): Exp.t =>
-  external_precedence(exp) >= internal_precedence
-    ? Exp.fresh(Parens(exp)) : exp;
+/* Conditional parenthesization helpers.
+   With Defensive: add parens based on precedence comparison (original behavior).
+   With Structural: never add parens here; only explicit Parens nodes in the term are emitted. */
+let paren_at =
+    (
+      ~parenthesization: Settings.parenthesization,
+      internal_precedence: Precedence.t,
+      exp: Exp.t,
+    )
+    : Exp.t =>
+  switch (parenthesization) {
+  | Structural => exp
+  | Defensive =>
+    external_precedence(exp) >= internal_precedence
+      ? Exp.fresh(Parens(exp)) : exp
+  };
 
-let paren_assoc_at = (internal_precedence: Precedence.t, exp: Exp.t): Exp.t =>
-  external_precedence(exp) > internal_precedence
-    ? Exp.fresh(Parens(exp)) : exp;
+let paren_assoc_at =
+    (
+      ~parenthesization: Settings.parenthesization,
+      internal_precedence: Precedence.t,
+      exp: Exp.t,
+    )
+    : Exp.t =>
+  switch (parenthesization) {
+  | Structural => exp
+  | Defensive =>
+    external_precedence(exp) > internal_precedence
+      ? Exp.fresh(Parens(exp)) : exp
+  };
 
-let paren_pat_at = (internal_precedence: Precedence.t, pat: Pat.t): Pat.t =>
-  external_precedence_pat(pat) >= internal_precedence
-    ? Pat.fresh(Parens(pat)) : pat;
+let paren_pat_at =
+    (
+      ~parenthesization: Settings.parenthesization,
+      internal_precedence: Precedence.t,
+      pat: Pat.t,
+    )
+    : Pat.t =>
+  switch (parenthesization) {
+  | Structural => pat
+  | Defensive =>
+    external_precedence_pat(pat) >= internal_precedence
+      ? Pat.fresh(Parens(pat)) : pat
+  };
 
 let paren_pat_assoc_at =
-    (internal_precedence: Precedence.t, pat: Pat.t): Pat.t =>
-  external_precedence_pat(pat) > internal_precedence
-    ? Pat.fresh(Parens(pat)) : pat;
+    (
+      ~parenthesization: Settings.parenthesization,
+      internal_precedence: Precedence.t,
+      pat: Pat.t,
+    )
+    : Pat.t =>
+  switch (parenthesization) {
+  | Structural => pat
+  | Defensive =>
+    external_precedence_pat(pat) > internal_precedence
+      ? Pat.fresh(Parens(pat)) : pat
+  };
 
-let paren_typ_at = (internal_precedence: Precedence.t, typ: Typ.t): Typ.t =>
-  external_precedence_typ(typ) >= internal_precedence
-    ? Typ.fresh(Parens(typ)) : typ;
+let paren_typ_at =
+    (
+      ~parenthesization: Settings.parenthesization,
+      internal_precedence: Precedence.t,
+      typ: Typ.t,
+    )
+    : Typ.t =>
+  switch (parenthesization) {
+  | Structural => typ
+  | Defensive =>
+    external_precedence_typ(typ) >= internal_precedence
+      ? Typ.fresh(Parens(typ)) : typ
+  };
 
 let paren_typ_assoc_at =
-    (internal_precedence: Precedence.t, typ: Typ.t): Typ.t =>
-  external_precedence_typ(typ) > internal_precedence
-    ? Typ.fresh(Parens(typ)) : typ;
+    (
+      ~parenthesization: Settings.parenthesization,
+      internal_precedence: Precedence.t,
+      typ: Typ.t,
+    )
+    : Typ.t =>
+  switch (parenthesization) {
+  | Structural => typ
+  | Defensive =>
+    external_precedence_typ(typ) > internal_precedence
+      ? Typ.fresh(Parens(typ)) : typ
+  };
 
 let rec parenthesize =
-        (~show_filters: bool, ~already_paren=false, exp: Exp.t): Exp.t => {
-  let parenthesize = parenthesize(~show_filters);
-  let parenthesize_pat = parenthesize_pat(~show_filters);
-  let parenthesize_typ = parenthesize_typ(~show_filters);
+        (
+          ~parenthesization: Settings.parenthesization,
+          ~show_filters: bool,
+          ~show_ascriptions: bool,
+          ~already_paren=false,
+          exp: Exp.t,
+        )
+        : Exp.t => {
+  let parenthesize =
+    parenthesize(~parenthesization, ~show_filters, ~show_ascriptions);
+  let parenthesize_pat =
+    parenthesize_pat(~parenthesization, ~show_filters, ~show_ascriptions);
+  let parenthesize_typ =
+    parenthesize_typ(~parenthesization, ~show_filters, ~show_ascriptions);
+  let paren_at = paren_at(~parenthesization);
+  let paren_assoc_at = paren_assoc_at(~parenthesization);
+  let paren_pat_at = paren_pat_at(~parenthesization);
+  let paren_typ_at = paren_typ_at(~parenthesization);
+  /* For tuples: with Structural, don't auto-wrap in parens */
+  let should_auto_wrap_tuple = parenthesization == Defensive;
   let (term, rewrap) = Exp.unwrap(exp);
   switch (term) {
   // Indivisible forms dont' change
   | Var(_)
   | Invalid(_)
   | Atom(_)
+  | DrvQuote(_)
   | EmptyHole
   | LivelitName(_)
   //| Constructor(_) // Not indivisible because of the type annotation!
@@ -270,11 +404,11 @@ let rec parenthesize =
     let inner =
       TupLabel(
         ExplicitNonlabel |> Exp.temp,
-        parenthesize(e) |> paren_at(Precedence.prod),
+        parenthesize(e) |> paren_at(Precedence.comma),
       )
       |> rewrap;
 
-    if (already_paren) {
+    if (already_paren || !should_auto_wrap_tuple) {
       inner;
     } else {
       Parens(inner) |> Exp.fresh;
@@ -282,17 +416,17 @@ let rec parenthesize =
   | Tuple(es) =>
     let inner =
       Tuple(
-        es |> List.map(parenthesize) |> List.map(paren_at(Precedence.prod)),
+        es |> List.map(parenthesize) |> List.map(paren_at(Precedence.comma)),
       )
       |> rewrap;
 
-    if (already_paren) {
+    if (already_paren || !should_auto_wrap_tuple) {
       inner;
     } else {
       Parens(inner) |> Exp.fresh;
     };
   | TupLabel(l, e) =>
-    TupLabel(l, parenthesize(e) |> paren_at(Precedence.min)) |> rewrap
+    TupLabel(l, parenthesize(e) |> paren_at(Precedence.comma)) |> rewrap
   | Dot(e, l) =>
     Dot(
       parenthesize(e) |> paren_at(Precedence.dot),
@@ -307,7 +441,7 @@ let rec parenthesize =
     |> rewrap
   | ListLit(es) =>
     ListLit(
-      es |> List.map(parenthesize) |> List.map(paren_at(Precedence.prod)),
+      es |> List.map(parenthesize) |> List.map(paren_at(Precedence.comma)),
     )
     |> rewrap
   | Let(p, e1, e2) =>
@@ -356,8 +490,8 @@ let rec parenthesize =
   | Ap(Reverse, e1, e2) =>
     Ap(
       Reverse,
-      parenthesize(e1) |> paren_assoc_at(Precedence.eqs),
-      parenthesize(e2) |> paren_at(Precedence.eqs),
+      parenthesize(e1) |> paren_at(Precedence.eqs),
+      parenthesize(e2) |> paren_assoc_at(Precedence.eqs),
     )
     |> rewrap
   | TypAp(e, tp) =>
@@ -369,7 +503,7 @@ let rec parenthesize =
   | DeferredAp(e, es) =>
     DeferredAp(
       parenthesize(e) |> paren_assoc_at(Precedence.ap),
-      es |> List.map(parenthesize) |> List.map(paren_at(Precedence.prod)),
+      es |> List.map(parenthesize) |> List.map(paren_at(Precedence.comma)),
     )
     |> rewrap
   | If(e1, e2, e3) =>
@@ -385,24 +519,21 @@ let rec parenthesize =
       parenthesize(e2) |> paren_assoc_at(Precedence.semi),
     )
     |> rewrap
-  | Asc(e, t) =>
+  | Asc(e, t) when show_ascriptions =>
     Asc(
       parenthesize(e) |> paren_assoc_at(Precedence.asc),
       parenthesize_typ(t) |> paren_typ_at(Precedence.asc),
     )
     |> rewrap
+  | Asc(e, _) => parenthesize(e) // skip ascription if not showing
   | Test(e) => Test(parenthesize(e) |> paren_at(Precedence.min)) |> rewrap
   | HintedTest(e, hint) =>
     HintedTest(parenthesize(e) |> paren_at(Precedence.min), hint) |> rewrap
   | Parens(e) =>
     Parens(parenthesize(~already_paren=true, e) |> paren_at(Precedence.min))
     |> rewrap
-  | Probe(e, pr) =>
-    Probe(
-      parenthesize(~already_paren=true, e) |> paren_at(Precedence.min),
-      pr,
-    )
-    |> rewrap
+  | Projector(data, e) =>
+    Projector(data, parenthesize(e) |> paren_at(Precedence.min)) |> rewrap
   | Cons(e1, e2) =>
     Cons(
       parenthesize(e1) |> paren_at(Precedence.cons),
@@ -415,12 +546,19 @@ let rec parenthesize =
       parenthesize(e2) |> paren_assoc_at(Precedence.concat),
     )
     |> rewrap
-  | UnOp(Meta(Unquote), e) =>
-    UnOp(Meta(Unquote), parenthesize(e) |> paren_at(Precedence.unquote))
-    |> rewrap
   | UnOp(Bool(Not), e) =>
     UnOp(Bool(Not), parenthesize(e) |> paren_at(Precedence.not_)) |> rewrap
-  | UnOp((Int(Minus) | Nat(Minus) | Float(Minus) | SInt(Minus)) as op, e) =>
+  | UnOp(Float(Minus), e) =>
+    /* Rewrite float negation as 0.0 -. e so that the segment round-trips
+       correctly through MakeTerm (which parses unary - as Int(Minus)) */
+    let zero = Exp.fresh(Atom(Float(0.0)));
+    BinOp(
+      Float(Minus),
+      parenthesize(zero) |> paren_assoc_at(Precedence.plus),
+      parenthesize(e) |> paren_at(Precedence.plus),
+    )
+    |> rewrap;
+  | UnOp((Int(Minus) | Nat(Minus) | SInt(Minus)) as op, e) =>
     UnOp(op, parenthesize(e) |> paren_at(Precedence.neg)) |> rewrap
   | BinOp(op, e1, e2) =>
     (
@@ -454,13 +592,34 @@ let rec parenthesize =
     )
     |> rewrap
   | MultiHole(xs) =>
-    MultiHole(List.map(parenthesize_any(~show_filters), xs)) |> rewrap
+    MultiHole(
+      List.map(
+        parenthesize_any(~parenthesization, ~show_ascriptions, ~show_filters),
+        xs,
+      ),
+    )
+    |> rewrap
+  | Module(_) => exp /* Phase 1.2: proper module parenthesization */
+  | ModuleExp(_) => exp
   };
 }
 and parenthesize_pat =
-    (~show_filters: bool, ~already_paren=false, pat: Pat.t): Pat.t => {
-  let parenthesize_pat = parenthesize_pat(~show_filters);
-  let parenthesize_typ = parenthesize_typ(~show_filters);
+    (
+      ~parenthesization: Settings.parenthesization,
+      ~show_filters: bool,
+      ~show_ascriptions: bool,
+      ~already_paren=false,
+      pat: Pat.t,
+    )
+    : Pat.t => {
+  let parenthesize_pat =
+    parenthesize_pat(~parenthesization, ~show_filters, ~show_ascriptions);
+  let parenthesize_typ =
+    parenthesize_typ(~parenthesization, ~show_filters, ~show_ascriptions);
+  let paren_pat_at = paren_pat_at(~parenthesization);
+  let paren_pat_assoc_at = paren_pat_assoc_at(~parenthesization);
+  let paren_typ_at = paren_typ_at(~parenthesization);
+  let should_auto_wrap_tuple = parenthesization == Defensive;
   let (term, rewrap) = Pat.unwrap(pat);
   switch (term) {
   // Indivisible forms dont' change
@@ -480,12 +639,8 @@ and parenthesize_pat =
       |> paren_pat_at(Precedence.min),
     )
     |> rewrap
-  | Probe(p, pr) =>
-    Probe(
-      parenthesize_pat(~already_paren=true, p)
-      |> paren_pat_at(Precedence.min),
-      pr,
-    )
+  | Projector(data, p) =>
+    Projector(data, parenthesize_pat(p) |> paren_pat_at(Precedence.min))
     |> rewrap
   | Cons(p1, p2) =>
     Cons(
@@ -498,19 +653,20 @@ and parenthesize_pat =
       Tuple(
         ps
         |> List.map(parenthesize_pat)
-        |> List.map(paren_pat_at(Precedence.prod)),
+        |> List.map(paren_pat_at(Precedence.comma)),
       )
       |> rewrap;
-    already_paren ? inner : Parens(inner) |> Pat.fresh;
+    already_paren || !should_auto_wrap_tuple
+      ? inner : Parens(inner) |> Pat.fresh;
   | Label(_) => pat
   | TupLabel(l, p) =>
-    TupLabel(l, parenthesize_pat(p) |> paren_pat_at(Precedence.min))
+    TupLabel(l, parenthesize_pat(p) |> paren_pat_at(Precedence.comma))
     |> rewrap
   | ListLit(ps) =>
     ListLit(
       ps
       |> List.map(parenthesize_pat)
-      |> List.map(paren_pat_at(Precedence.prod)),
+      |> List.map(paren_pat_at(Precedence.comma)),
     )
     |> rewrap
   | Ap(p1, p2) =>
@@ -520,38 +676,45 @@ and parenthesize_pat =
     )
     |> rewrap
   | MultiHole(xs) =>
-    MultiHole(List.map(parenthesize_any(~show_filters), xs)) |> rewrap
-  | Asc(p, t) =>
+    MultiHole(
+      List.map(
+        parenthesize_any(~parenthesization, ~show_ascriptions, ~show_filters),
+        xs,
+      ),
+    )
+    |> rewrap
+  | Asc(p, t) when show_ascriptions =>
     Asc(
       parenthesize_pat(p) |> paren_pat_assoc_at(Precedence.asc),
       parenthesize_typ(t) |> paren_typ_at(Precedence.max) // Hack[Matt]: always add parens to get the arrows right
     )
     |> rewrap
+  | Asc(p, _) => parenthesize_pat(p) // skip ascription if not showing
   };
 }
 
 and parenthesize_typ =
-    (~show_filters: bool, ~already_paren=false, typ: Typ.t): Typ.t => {
-  let parenthesize_typ = parenthesize_typ(~show_filters);
+    (
+      ~parenthesization: Settings.parenthesization,
+      ~show_filters: bool,
+      ~show_ascriptions: bool,
+      ~already_paren=false,
+      typ: Typ.t,
+    )
+    : Typ.t => {
+  let parenthesize_typ =
+    parenthesize_typ(~parenthesization, ~show_filters, ~show_ascriptions);
+  let paren_typ_at = paren_typ_at(~parenthesization);
+  let paren_typ_assoc_at = paren_typ_assoc_at(~parenthesization);
+  let paren_at = paren_at(~parenthesization);
+  let should_auto_wrap_tuple = parenthesization == Defensive;
   let (term, rewrap) = Typ.unwrap(typ);
   switch (term) {
   // Indivisible forms dont' change
   | Var(_)
-  | Unknown({term: Hole(Invalid(_)), _})
-  | Unknown({term: Internal, _})
-  | Unknown({term: SynSwitch, _})
-  | Unknown({term: Hole(EmptyHole), _})
-  | Unknown({term: Hole(CycleHole), _})
-  | Unknown({term: LArrow(_), _})
-  | Unknown({term: RArrow(_), _})
-  | Unknown({term: NProduct(_), _})
-  | Unknown({term: MList(_), _})
-  | Unknown({term: RForall(_), _})
-  | Unknown({term: TupLabel(_), _})
-  | Unknown({term: TupLabelArg(_), _})
-  | Unknown({term: Meet(_), _})
-  | Unknown({term: TypeSubstitution(_), _})
-  | Atom(_) => typ
+  | Unknown(_)
+  | Atom(_)
+  | DrvQuoteTy(_) => typ
 
   // Other forms
   | Parens(t) =>
@@ -559,6 +722,9 @@ and parenthesize_typ =
       parenthesize_typ(~already_paren=true, t)
       |> paren_typ_at(Precedence.min),
     )
+    |> rewrap
+  | Projector(data, t) =>
+    Projector(data, parenthesize_typ(t) |> paren_typ_at(Precedence.min))
     |> rewrap
   | List(t) =>
     List(parenthesize_typ(t) |> paren_typ_at(Precedence.min)) |> rewrap
@@ -573,11 +739,11 @@ and parenthesize_typ =
     let inner =
       TupLabel(
         ExplicitNonlabel |> Typ.temp,
-        parenthesize_typ(t) |> paren_typ_at(Precedence.prod),
+        parenthesize_typ(t) |> paren_typ_at(Precedence.comma),
       )
       |> rewrap;
 
-    if (already_paren) {
+    if (already_paren || !should_auto_wrap_tuple) {
       inner;
     } else {
       Parens(inner) |> Typ.fresh;
@@ -590,11 +756,12 @@ and parenthesize_typ =
         |> List.map(paren_typ_at(Precedence.comma)),
       )
       |> rewrap;
-    already_paren ? inner : Parens(inner) |> Typ.fresh;
+    already_paren || !should_auto_wrap_tuple
+      ? inner : Parens(inner) |> Typ.fresh;
   | ExplicitNonlabel => typ
   | Label(_) => typ
   | TupLabel(l, t) =>
-    TupLabel(l, parenthesize_typ(t) |> paren_typ_at(Precedence.min))
+    TupLabel(l, parenthesize_typ(t) |> paren_typ_at(Precedence.type_prod))
     |> rewrap
   | ProdProjection(t1, t2) =>
     ProdProjection(
@@ -621,7 +788,10 @@ and parenthesize_typ =
     )
     |> rewrap
   | ProofOf(e) =>
-    ProofOf(parenthesize(~show_filters, e) |> paren_at(Precedence.min))
+    ProofOf(
+      parenthesize(~parenthesization, ~show_ascriptions, ~show_filters, e)
+      |> paren_at(Precedence.min),
+    )
     |> rewrap
   | Arrow(t1, t2) =>
     Arrow(
@@ -640,16 +810,36 @@ and parenthesize_typ =
       ),
     )
     |> rewrap
-  | Unknown({term: Hole(MultiHole(xs)), _}) =>
+  | Unknown({term: Hole(MultiHole(xs)), _} as prov) =>
+    let (_, rewrap_prov: Prov.term => Prov.t) = IdTagged.unwrap(prov);
     Unknown(
-      Hole(MultiHole(List.map(parenthesize_any(~show_filters), xs)))
-      |> Prov.fresh,
+      Hole(
+        MultiHole(
+          List.map(
+            parenthesize_any(
+              ~parenthesization,
+              ~show_ascriptions,
+              ~show_filters,
+            ),
+            xs,
+          ),
+        ),
+      )
+      |> rewrap_prov,
     )
     |> rewrap
+  | Sig(_) => term |> rewrap
   };
 }
 
-and parenthesize_tpat = (~show_filters: bool, tpat: TPat.t): TPat.t => {
+and parenthesize_tpat =
+    (
+      ~parenthesization: Settings.parenthesization,
+      ~show_filters: bool,
+      ~show_ascriptions: bool,
+      tpat: TPat.t,
+    )
+    : TPat.t => {
   let (term, rewrap: TPat.term => TPat.t) = IdTagged.unwrap(tpat);
   switch (term) {
   // Indivisible forms dont' change
@@ -678,16 +868,33 @@ and parenthesize_tpat = (~show_filters: bool, tpat: TPat.t): TPat.t => {
     // other forms
     | Hole(MultiHole(xs)) =>
       Unknown(
-        Hole(MultiHole(List.map(parenthesize_any(~show_filters), xs)))
+        Hole(
+          MultiHole(
+            List.map(
+              parenthesize_any(
+                ~parenthesization,
+                ~show_ascriptions,
+                ~show_filters,
+              ),
+              xs,
+            ),
+          ),
+        )
         |> rewrap_prov,
       )
       |> rewrap
     };
-  // Other forms
   };
 }
 
-and parenthesize_rul = (~show_filters: bool, rul: Rul.t): Rul.t => {
+and parenthesize_rul =
+    (
+      ~parenthesization: Settings.parenthesization,
+      ~show_ascriptions: bool,
+      ~show_filters: bool,
+      rul: Rul.t,
+    )
+    : Rul.t => {
   let (term, rewrap: Rul.term => Rul.t) = IdTagged.unwrap(rul);
   switch (term) {
   // Indivisible forms dont' change
@@ -696,30 +903,103 @@ and parenthesize_rul = (~show_filters: bool, rul: Rul.t): Rul.t => {
   // Other forms
   | Rules(e, ps) =>
     Rules(
-      parenthesize(~show_filters, e),
+      parenthesize(~parenthesization, ~show_ascriptions, ~show_filters, e),
       List.map(
         ((p, e)) =>
           (
-            parenthesize_pat(~show_filters, p),
-            parenthesize(~show_filters, e),
+            parenthesize_pat(
+              ~parenthesization,
+              ~show_ascriptions,
+              ~show_filters,
+              p,
+            ),
+            parenthesize(
+              ~parenthesization,
+              ~show_ascriptions,
+              ~show_filters,
+              e,
+            ),
           ),
         ps,
       ),
     )
     |> rewrap
   | MultiHole(xs) =>
-    MultiHole(List.map(parenthesize_any(~show_filters), xs)) |> rewrap
+    MultiHole(
+      List.map(
+        parenthesize_any(~parenthesization, ~show_ascriptions, ~show_filters),
+        xs,
+      ),
+    )
+    |> rewrap
   };
 }
 
 and parenthesize_any =
-    (~already_paren=false, ~show_filters: bool, any: Any.t): Any.t =>
+    (
+      ~parenthesization: Settings.parenthesization,
+      ~already_paren=false,
+      ~show_filters: bool,
+      ~show_ascriptions: bool,
+      any: Any.t,
+    )
+    : Any.t =>
   switch (any) {
-  | Exp(e) => Exp(parenthesize(~already_paren, ~show_filters, e))
-  | Pat(p) => Pat(parenthesize_pat(~already_paren, ~show_filters, p))
-  | Typ(t) => Typ(parenthesize_typ(~already_paren, ~show_filters, t))
-  | TPat(tp) => TPat(parenthesize_tpat(~show_filters, tp))
-  | Rul(r) => Rul(parenthesize_rul(~show_filters, r))
+  | Exp(e) =>
+    Exp(
+      parenthesize(
+        ~parenthesization,
+        ~already_paren,
+        ~show_ascriptions,
+        ~show_filters,
+        e,
+      ),
+    )
+  | Pat(p) =>
+    Pat(
+      parenthesize_pat(
+        ~parenthesization,
+        ~already_paren,
+        ~show_ascriptions,
+        ~show_filters,
+        p,
+      ),
+    )
+  | Typ(t) =>
+    Typ(
+      parenthesize_typ(
+        ~parenthesization,
+        ~already_paren,
+        ~show_ascriptions,
+        ~show_filters,
+        t,
+      ),
+    )
+  | TPat(tp) =>
+    TPat(
+      parenthesize_tpat(
+        ~parenthesization,
+        ~show_ascriptions,
+        ~show_filters,
+        tp,
+      ),
+    )
+  | Rul(r) =>
+    Rul(
+      parenthesize_rul(
+        ~parenthesization,
+        ~show_ascriptions,
+        ~show_filters,
+        r,
+      ),
+    )
+  /* Parenthesization for Drv, Mod, Sig, MPat, and Any is not yet defined.
+     Pretty-printing produces the term as-is; this is sound (never adds
+     invalid parens) but may omit disambiguating parens in nested contexts. */
+  | Drv(_) => any
+  | Mod(_) => any
+  | Sig(_) => any
+  | MPat(_) => any
   | Any(_) => any
   };
 
@@ -732,6 +1012,7 @@ let should_add_space = (s1, s2) =>
   | _ when String.starts_with(s2, ~prefix=",") => false
   | _ when String.starts_with(s2, ~prefix=";") => false
   | _ when String.starts_with(s2, ~prefix=":") => false
+  | _ when String.ends_with(s1, ~suffix="::") => true
   | _ when String.ends_with(s1, ~suffix=":") =>
     String.starts_with(s2, ~prefix="$")
     || String.starts_with(s2, ~prefix="!")
@@ -758,7 +1039,12 @@ let should_add_space = (s1, s2) =>
   | _ when String.ends_with(s1, ~suffix="…") =>
     /* Hack case for probe projector abbreviations */
     false
-  | _ when s1 == "." && (Token.is_quoted_label(s2) || Token.is_var(s2)) =>
+  | _
+      when
+        s1 == "."
+        && (
+          Token.is_quoted_label(s2) || Token.is_var(s2) || Token.is_ctr(s2)
+        ) =>
     false
   | _
       when
@@ -766,6 +1052,7 @@ let should_add_space = (s1, s2) =>
         && (
           Token.is_quoted_label(s1)
           || Token.is_var(s1)
+          || Token.is_ctr(s1)
           || String.ends_with(s1, ~suffix=")")
         ) =>
     false
@@ -784,21 +1071,37 @@ let text_to_pretty = (id, sort, str): pretty => {
   ]);
 };
 
-let mk_form = (form_name: Form.compound_form, id, children): Piece.t => {
+/* Settings-aware form builder.
+   PreserveExact: no heuristic spacing (children already have stored secondary)
+   AutoFormat: add spaces based on heuristics */
+let mk_form =
+    (
+      ~secondary: Settings.secondary_handling,
+      form_name: Form.compound_form,
+      id,
+      children,
+    )
+    : Piece.t => {
   let form: Form.t = Form.get(form_name);
   assert(List.length(children) == List.length(form.mold.in_));
-  // Add whitespaces
+  // Add whitespaces only in AutoFormat mode
   let children =
-    Aba.map_abas(
-      ((l, child, r)) => {
-        let lspace = should_add_space(l, child |> Segment.first_string);
-        let rspace = should_add_space(child |> Segment.last_string, r);
-        (lspace ? [Secondary(mk_space(Id.mk()))] : [])
-        @ (rspace ? child @ [Secondary(mk_space(Id.mk()))] : child);
-      },
-      Aba.mk(form.label, children),
-    )
-    |> Aba.get_bs;
+    switch (secondary) {
+    | PreserveExact =>
+      /* In PreserveExact mode, children already have stored secondary wrapped */
+      children
+    | AutoFormat =>
+      Aba.map_abas(
+        ((l, child, r)) => {
+          let lspace = should_add_space(l, child |> Segment.first_string);
+          let rspace = should_add_space(child |> Segment.last_string, r);
+          (lspace ? [Secondary(mk_space(Id.mk()))] : [])
+          @ (rspace ? child @ [Secondary(mk_space(Id.mk()))] : child);
+        },
+        Aba.mk(form.label, children),
+      )
+      |> Aba.get_bs
+    };
   Tile({
     id,
     label: form.label,
@@ -809,34 +1112,83 @@ let mk_form = (form_name: Form.compound_form, id, children): Piece.t => {
 };
 
 /* HACK[Matt]: Sometimes terms that should have multiple ids won't because
-   evaluation only ever gives them one */
-let pad_ids = (n: int, ids: list(Id.t)): list(Id.t) => {
-  let len = List.length(ids);
-  if (len < n) {
-    ids @ List.init(n - len, _ => Id.mk());
-  } else {
-    ListUtil.split_n(n, ids) |> fst;
-  };
+   evaluation only ever gives them one.
+
+   Some upstream producers (e.g., evaluator collapse, certain absorption
+   paths) can emit ids lists with duplicates — e.g., [case_id, case_id, ...]
+   for a Match where the adoption machinery did not preserve distinct rule
+   ids. If we pass duplicates through unchanged, the pretty-printer will
+   emit multiple Tile pieces sharing the same id (e.g., the case `[case;end]`
+   form and all `[|;=>]` rules all tagged with case_id), and
+   Segment.reassemble will group them into a single Aba match and fail
+   with an out-of-order combined_shards assertion.
+
+   To prevent that, pad_ids now also ensures the returned list has:
+   1. no duplicates within itself;
+   2. no id equal to any id in [~forbidden]. */
+let pad_ids =
+    (~forbidden: list(Id.t)=[], n: int, ids: list(Id.t)): list(Id.t) => {
+  let forbidden_set = ref(Id.Set.of_list(forbidden));
+  let replace = id =>
+    if (Id.Set.mem(id, forbidden_set^)) {
+      let fresh = Id.mk();
+      forbidden_set := Id.Set.add(fresh, forbidden_set^);
+      fresh;
+    } else {
+      forbidden_set := Id.Set.add(id, forbidden_set^);
+      id;
+    };
+  let truncated =
+    if (List.length(ids) < n) {
+      ids @ List.init(n - List.length(ids), _ => Id.mk());
+    } else {
+      ListUtil.split_n(n, ids) |> fst;
+    };
+  List.map(replace, truncated);
 };
 
-let (@) = (seg1: Segment.t, seg2: Segment.t): Segment.t =>
-  switch (seg1, seg2) {
-  | ([], _) => seg2
-  | (_, []) => seg1
-  | _ =>
-    if (should_add_space(
-          Segment.last_string(seg1),
-          Segment.first_string(seg2),
-        )) {
-      seg1 @ [Secondary(mk_space(Id.mk()))] @ seg2;
-    } else {
-      seg1 @ seg2;
+/* Save standard list concatenation before we shadow @ */
+let list_append = (@);
+
+/* Settings-aware segment concatenation.
+   PreserveExact: no heuristic spacing (rely on stored secondary)
+   AutoFormat: add spaces based on heuristics */
+let concat_segment =
+    (
+      ~secondary: Settings.secondary_handling,
+      seg1: Segment.t,
+      seg2: Segment.t,
+    )
+    : Segment.t =>
+  switch (secondary) {
+  | PreserveExact => list_append(seg1, seg2)
+  | AutoFormat =>
+    switch (seg1, seg2) {
+    | ([], _) => seg2
+    | (_, []) => seg1
+    | _ =>
+      if (should_add_space(
+            Segment.last_string(seg1),
+            Segment.first_string(seg2),
+          )) {
+        list_append(
+          seg1,
+          list_append([Secondary(mk_space(Id.mk()))], seg2),
+        );
+      } else {
+        list_append(seg1, seg2);
+      }
     }
   };
 
+/* Default @ uses AutoFormat for backward compatibility */
+let (@) = (seg1: Segment.t, seg2: Segment.t): Segment.t =>
+  concat_segment(~secondary=AutoFormat, seg1, seg2);
+
 let fold_if = (condition, pieces) =>
   if (condition) {
-    let syntax = mk_form(ParensExp, Id.mk(), [pieces]);
+    let syntax =
+      mk_form(~secondary=AutoFormat, ParensExp, Id.mk(), [pieces]);
     switch (MakeTerm.for_projection([syntax])) {
     | None => failwith("ExpToSegment.fold_if")
     | Some(any) => [ProjectorInit.init_or_noop(Fold, syntax, any)]
@@ -848,7 +1200,8 @@ let fold_if = (condition, pieces) =>
 let fold_fun_if = (condition, f_name: string, pieces, exp) =>
   switch (condition) {
   | `Fold =>
-    let syntax = mk_form(ParensExp, Id.mk(), [pieces]);
+    let syntax =
+      mk_form(~secondary=AutoFormat, ParensExp, Id.mk(), [pieces]);
     let str =
       FoldProj.sexp_of_t({
         text: f_name,
@@ -875,6 +1228,488 @@ let fold_fun_if = (condition, f_name: string, pieces, exp) =>
   | `NoFold => pieces
   };
 
+let rec drv_exp_to_pretty =
+        (~settings: Settings.t, syntax: Drv.Exp.t, ~sort: DrvSort.t): pretty => {
+  let mk_form = mk_form(~secondary=settings.secondary);
+  let go = (~inline=settings.inline, ~sort) =>
+    drv_exp_to_pretty(
+      ~settings={
+        ...settings,
+        inline,
+      },
+      ~sort,
+    );
+  let try_newline = () =>
+    settings.inline ? [] : [Secondary(mk_newline(Id.mk()))];
+  let id = syntax |> Drv.Exp.rep_id;
+  switch (syntax |> Drv.Exp.term_of) {
+  | Hole(h) => drv_type_hole_to_pretty(~settings, h)
+  | Quote(e) => text_to_pretty(id, Sort.Drv(sort), "$" ++ e)
+  | Parens(e) =>
+    let+ e = go(e, ~sort);
+    [mk_form(Drv(ParenExp), id, [e])];
+  /* [Tuple] is an intermediate form produced during parsing; it should be
+     collapsed into a parenthesised [Pair] before reaching the pretty printer,
+     so hitting it here indicates a bug somewhere upstream. */
+  | Tuple(_) => text_to_pretty(id, Sort.Drv(sort), "[Tuple]")
+  | Cons(e1, e2) =>
+    let+ e1 = go(e1, ~sort=Prop)
+    and+ e2 = go(e2, ~sort=Ctx);
+    e1 @ [mk_form(Drv(Cons), id, [])] @ e2;
+  | Concat(e1, e2) =>
+    let+ e1 = go(e1, ~sort=Ctx)
+    and+ e2 = go(e2, ~sort=Ctx);
+    e1 @ [mk_form(Drv(Concat), id, [])] @ e2;
+  | And(l, r) =>
+    let+ l = go(l, ~sort=Prop)
+    and+ r = go(r, ~sort=Prop);
+    l @ [mk_form(Drv(And), id, [])] @ r;
+  | Or(l, r) =>
+    let+ l = go(l, ~sort=Prop)
+    and+ r = go(r, ~sort=Prop);
+    l @ [mk_form(Drv(Or), id, [])] @ r;
+  | Impl(l, {term: Falsity, _}) =>
+    let+ l = go(l, ~sort=Prop);
+    [mk_form(Drv(Not), id, [])] @ l;
+  | Impl(l, r) =>
+    let+ l = go(l, ~sort=Prop)
+    and+ r = go(r, ~sort=Prop);
+    l @ [mk_form(Drv(Impl), id, [])] @ r;
+  | Truth => text_to_pretty(id, Sort.Drv(Prop), "Truth")
+  | Falsity => text_to_pretty(id, Sort.Drv(Prop), "Falsity")
+  | Ctx([]) => text_to_pretty(id, Sort.Drv(Ctx), "[]")
+  | Ctx([x, ...xs]) =>
+    let* x = go(x, ~sort=Prop)
+    and* xs = xs |> List.map(go(~sort=Prop)) |> all;
+    let ids = syntax |> IdTagged.ids |> List.tl |> pad_ids(List.length(xs));
+    let map2_safe = (f, l1, l2) =>
+      List.length(l1) == List.length(l2)
+        ? List.map2(f, l1, l2) : raise(Invalid_argument("map2_safe"));
+    [
+      mk_form(
+        Drv(List),
+        id,
+        [
+          x
+          @ List.flatten(
+              map2_safe(
+                (id, x) => [mk_form(Drv(CommaExp), id, [])] @ x,
+                ids,
+                xs,
+              ),
+            ),
+        ],
+      ),
+    ];
+  | Val(v) =>
+    let+ v = go(v, ~sort=Exp);
+    [mk_form(Drv(Val), id, [v])];
+  | Eval(l, r) =>
+    let+ l = go(l, ~sort=Exp)
+    and+ r = go(r, ~sort=Exp);
+    l @ [mk_form(Drv(Eval), id, [])] @ r;
+  | Entail({term: Ctx([]), _}, r) =>
+    let+ r = go(r, ~sort=Prop);
+    [mk_form(Drv(UnaryEntail), id, [])] @ r;
+  | Entail(l, r) =>
+    let+ l = go(l, ~sort=Ctx)
+    and+ r = go(r, ~sort=Prop);
+    l @ [mk_form(Drv(Entail), id, [])] @ r;
+  | Consistent(l, r) =>
+    let+ l = drv_typ_to_pretty(~settings, l)
+    and+ r = drv_typ_to_pretty(~settings, r);
+    [mk_form(Drv(Consistent), id, [l])] @ r;
+  | MatchedArrow(l, r) =>
+    let+ l = drv_typ_to_pretty(~settings, l)
+    and+ r = drv_typ_to_pretty(~settings, r);
+    [mk_form(Drv(MatchedArrow), id, [l])] @ r;
+  | MatchedProd(l, r) =>
+    let+ l = drv_typ_to_pretty(~settings, l)
+    and+ r = drv_typ_to_pretty(~settings, r);
+    [mk_form(Drv(MatchedProd), id, [l])] @ r;
+  | MatchedSum(l, r) =>
+    let+ l = drv_typ_to_pretty(~settings, l)
+    and+ r = drv_typ_to_pretty(~settings, r);
+    [mk_form(Drv(MatchedSum), id, [l])] @ r;
+  | Type(t) =>
+    let+ t = drv_typ_to_pretty(~settings, t);
+    [mk_form(Drv(Valid), id, [t])];
+  | HasType(e, t) =>
+    let+ e = go(e, ~sort=Exp)
+    and+ t = drv_typ_to_pretty(~settings, t);
+    e @ [mk_form(Drv(HasType), id, [])] @ t;
+  | Syn(e, t) =>
+    let+ e = go(e, ~sort=Exp)
+    and+ t = drv_typ_to_pretty(~settings, t);
+    e @ [mk_form(Drv(Syn), id, [])] @ t;
+  | Ana(e, t) =>
+    let+ e = go(e, ~sort=Exp)
+    and+ t = drv_typ_to_pretty(~settings, t);
+    e @ [mk_form(Drv(Ana), id, [])] @ t;
+  | Var(x) => text_to_pretty(id, Sort.Drv(sort), x)
+  | NumLit(n) => text_to_pretty(id, Sort.Drv(Exp), Int.to_string(n))
+  | Neg(e) =>
+    let+ e = go(e, ~sort=Exp);
+    [mk_form(Drv(Neg), id, [])] @ e;
+  | BinOp(op, l, r) =>
+    let+ l = go(l, ~sort=Exp)
+    and+ r = go(r, ~sort=Exp);
+    let cls: Form.drv_compound_form =
+      switch (op) {
+      | Plus => Plus
+      | Minus => Minus
+      | Times => Times
+      | Eq => Eq
+      | Gt => Gt
+      | Lt => Lt
+      };
+    l @ [mk_form(Drv(cls), id, [])] @ r;
+  | True => text_to_pretty(id, Sort.Drv(Exp), "True")
+  | False => text_to_pretty(id, Sort.Drv(Exp), "False")
+  | If(c, t, f) =>
+    let+ c = go(c, ~sort=Exp)
+    and+ t = go(t, ~sort=Exp)
+    and+ f = go(f, ~sort=Exp);
+    [mk_form(Drv(If), id, [c, t])] @ f;
+  | Let(p, e1, e2) =>
+    let+ p = drv_pat_to_pretty(~settings, p)
+    and+ e1 = go(e1, ~sort=Exp)
+    and+ e2 = go(e2, ~sort=Exp);
+    [mk_form(Drv(Let), id, [p, e1])] @ e2;
+  | Fix(p, e) =>
+    let+ p = drv_pat_to_pretty(~settings, p)
+    and+ e = go(e, ~sort=Exp);
+    [mk_form(Drv(Fix), id, [p])] @ e;
+  | Fun(p, e) =>
+    let+ p = drv_pat_to_pretty(~settings, p)
+    and+ e = go(e, ~sort=Exp);
+    [mk_form(Drv(Fun), id, [p])] @ e;
+  | Ap(l, r) =>
+    let+ l = go(l, ~sort=Exp)
+    and+ r = go(r, ~sort=Exp);
+    l @ [mk_form(Drv(ApExp), id, [r])];
+  | Pair(l, r) =>
+    let+ l = go(l, ~sort=Exp)
+    and+ r = go(r, ~sort=Exp);
+    [
+      mk_form(
+        Drv(ParenExp),
+        id,
+        [l @ [mk_form(Drv(CommaExp), id, [])] @ r],
+      ),
+    ];
+  | Triv => text_to_pretty(id, Sort.Drv(Exp), "()")
+  | PrjL(e) =>
+    let+ e = go(e, ~sort=Exp);
+    e
+    @ [mk_form(Drv(Dot), Id.invalid, [])]
+    @ text_to_pretty(id, Sort.Drv(Exp), "fst");
+  | PrjR(e) =>
+    let+ e = go(e, ~sort=Exp);
+    e
+    @ [mk_form(Drv(Dot), Id.invalid, [])]
+    @ text_to_pretty(id, Sort.Drv(Exp), "snd");
+  | InjL(e) =>
+    let+ e = go(e, ~sort=Exp);
+    text_to_pretty(Id.invalid, Sort.Drv(Exp), "L")
+    @ [mk_form(Drv(ApExp), id, [e])];
+  | InjR(e) =>
+    let+ e = go(e, ~sort=Exp);
+    text_to_pretty(Id.invalid, Sort.Drv(Exp), "R")
+    @ [mk_form(Drv(ApExp), id, [e])];
+  | Case(e, x, e1, y, e2) =>
+    /* ID order: [case_end_id] @ rule_ids (outer first, then adopted).
+       IMPORTANT: Each Rule tile must have its OWN distinct id, not the
+       same as the outer Case, otherwise Segment.reassemble will group
+       all shards with the same id into one Aba match, producing
+       out-of-order combined_shards and an assertion failure. */
+    let+ e = go(e, ~sort=Exp)
+    and+ x = drv_pat_to_pretty(~settings, x)
+    and+ e1 = go(e1, ~sort=Exp)
+    and+ y = drv_pat_to_pretty(~settings, y)
+    and+ e2 = go(e2, ~sort=Exp);
+    let all_ids = IdTagged.ids(syntax);
+    let rule_ids =
+      pad_ids(
+        ~forbidden=[id],
+        2,
+        switch (all_ids) {
+        | [_, ...rest] => rest
+        | [] => []
+        },
+      );
+    let (rule1_id, rule2_id) =
+      switch (rule_ids) {
+      | [a, b, ..._] => (a, b)
+      | [a] => (a, Id.mk())
+      | [] => (Id.mk(), Id.mk())
+      };
+    [
+      mk_form(
+        Drv(Case),
+        id,
+        [
+          e
+          @ try_newline()
+          @ [mk_form(Drv(Rule), rule1_id, [x])]
+          @ e1
+          @ try_newline()
+          @ [mk_form(Drv(Rule), rule2_id, [y])]
+          @ e2
+          @ try_newline(),
+        ],
+      ),
+    ];
+  | Roll(e) =>
+    let+ e = go(e, ~sort=Exp);
+    text_to_pretty(Id.invalid, Sort.Drv(Exp), "roll")
+    @ [mk_form(Drv(ApExp), id, [e])];
+  | Unroll(e) =>
+    let+ e = go(e, ~sort=Exp);
+    text_to_pretty(Id.invalid, Sort.Drv(Exp), "unroll")
+    @ [mk_form(Drv(ApExp), id, [e])];
+  | ExpHole => text_to_pretty(id, Sort.Drv(Exp), Token.wild)
+  };
+}
+and drv_pat_to_pretty = (~settings: Settings.t, syntax: Drv.Pat.t): pretty => {
+  let mk_form = mk_form(~secondary=settings.secondary);
+  let go = (~inline=settings.inline) =>
+    drv_pat_to_pretty(
+      ~settings={
+        ...settings,
+        inline,
+      },
+    );
+  let id = syntax |> Drv.Pat.rep_id;
+  switch (syntax |> Drv.Pat.term_of) {
+  | Hole(h) => drv_type_hole_to_pretty(~settings, h)
+  | Quote(e) => text_to_pretty(id, Sort.Drv(Pat), e)
+  | Parens(e) =>
+    let+ e = go(e);
+    [mk_form(Drv(ParenPat), id, [e])];
+  | Var(s) => text_to_pretty(id, Sort.Drv(Pat), s)
+  | Cast(e, t) =>
+    let+ e = go(e)
+    and+ t = drv_typ_to_pretty(~settings, t);
+    e @ [mk_form(Drv(Cast), id, [])] @ t;
+  | Pair(l, r) =>
+    let+ l = go(l)
+    and+ r = go(r);
+    [
+      mk_form(
+        Drv(ParenPat),
+        id,
+        [l @ [mk_form(Drv(CommaPat), id, [])] @ r],
+      ),
+    ];
+  | InjL(p) =>
+    let+ p = go(p);
+    text_to_pretty(id, Sort.Drv(Pat), "L")
+    @ [mk_form(Drv(ApPat), id, [p])];
+  | InjR(p) =>
+    let+ p = go(p);
+    text_to_pretty(id, Sort.Drv(Pat), "R")
+    @ [mk_form(Drv(ApPat), id, [p])];
+  };
+}
+and drv_typ_to_pretty = (~settings: Settings.t, syntax: Drv.Typ.t): pretty => {
+  let mk_form = mk_form(~secondary=settings.secondary);
+  let go = (~inline=settings.inline) =>
+    drv_typ_to_pretty(
+      ~settings={
+        ...settings,
+        inline,
+      },
+    );
+  let id = syntax |> Drv.Typ.rep_id;
+  switch (syntax |> Drv.Typ.term_of) {
+  | Hole(h) => drv_type_hole_to_pretty(~settings, h)
+  | Quote(e) => text_to_pretty(id, Sort.Drv(Exp), e)
+  | Parens(e) =>
+    let+ e = go(e);
+    [mk_form(Drv(ParenTyp), id, [e])];
+  | Num => text_to_pretty(id, Sort.Drv(Typ), "Num")
+  | Bool => text_to_pretty(id, Sort.Drv(Typ), "Bool")
+  | Arrow(l, r) =>
+    let+ l = go(l)
+    and+ r = go(r);
+    l @ [mk_form(Drv(Arrow), id, [])] @ r;
+  | Prod(l, r) =>
+    let+ l = go(l)
+    and+ r = go(r);
+    l @ [mk_form(Drv(Prod), id, [])] @ r;
+  | Unit => text_to_pretty(id, Sort.Drv(Typ), "Unit")
+  | Sum(l, r) =>
+    let+ l = go(l)
+    and+ r = go(r);
+    l @ [mk_form(Drv(Sum), id, [])] @ r;
+  | Var(s) => text_to_pretty(id, Sort.Drv(Typ), s)
+  | Rec(l, r) =>
+    let+ l = drv_tpat_to_pretty(~settings, l)
+    and+ r = go(r);
+    [mk_form(Drv(Rec), id, [l])] @ r;
+  | TypHole => text_to_pretty(id, Sort.Drv(Typ), Token.explicit_hole)
+  };
+}
+and drv_tpat_to_pretty = (~settings: Settings.t, syntax: Drv.TPat.t): pretty => {
+  let id = syntax |> Drv.TPat.rep_id;
+  switch (syntax |> Drv.TPat.term_of) {
+  | Hole(h) => drv_type_hole_to_pretty(~settings, h)
+  | Quote(e) => text_to_pretty(id, Sort.Drv(Exp), e)
+  | Var(s) => text_to_pretty(id, Sort.Drv(TPat), s)
+  };
+}
+and drv_type_hole_to_pretty =
+    (~settings: Settings.t, syntax: DrvTermBase.type_hole): pretty => {
+  let id = Id.invalid;
+  switch (syntax) {
+  | AbbrNotVar =>
+    text_to_pretty(id, Sort.Drv(Typ), "Error: Abbreviation not a variable")
+  | AbbrNotFound =>
+    text_to_pretty(id, Sort.Drv(Typ), "Error: Abbreviation not found")
+  | AbbrNotDrvTerm =>
+    text_to_pretty(id, Sort.Drv(Typ), "Error: Abbreviation not a drv term")
+  | Invalid(s) => text_to_pretty(id, Sort.Drv(Typ), "Error: " ++ s)
+  | EmptyHole => text_to_pretty(id, Sort.Drv(Typ), Token.space)
+  | MultiHole(tm) =>
+    let+ tm =
+      tm |> List.map(drv_to_pretty(~settings, ~sort=DrvSort.Exp)) |> all;
+    ListUtil.flat_intersperse(
+      Grout({
+        id,
+        shape: Concave,
+      }),
+      tm,
+    );
+  };
+}
+and drv_to_pretty = (~settings: Settings.t, drv: Drv.Any.t, ~sort): pretty => {
+  let res =
+    switch (drv) {
+    | Exp(e) => drv_exp_to_pretty(~settings, e, ~sort)
+    | Pat(p) => drv_pat_to_pretty(~settings, p)
+    | Typ(t) => drv_typ_to_pretty(~settings, t)
+    | TPat(tp) => drv_tpat_to_pretty(~settings, tp)
+    };
+  res;
+};
+
+let rec drv_formula_to_pretty: type a. (RuleFormula.t(a), DrvSort.t) => pretty =
+  (formula, sort) => {
+    let mk_form = mk_form(~secondary=Settings.AutoFormat);
+    let go = drv_formula_to_pretty;
+    let id = List.hd(formula.annotation.ids);
+    let mk_jdmt_binop = (op, l, r, sort_l, sort_r) => {
+      let+ l = go(l, sort_l)
+      and+ r = go(r, sort_r);
+      l
+      @ [
+        Tile({
+          id,
+          label: [op],
+          mold: {
+            out: Drv(Jdmt),
+            in_: [],
+            nibs: (
+              Nib.{
+                shape: Concave(Precedence.min),
+                sort: Drv(sort_l),
+              },
+              Nib.{
+                shape: Concave(Precedence.min),
+                sort: Drv(sort_r),
+              },
+            ),
+          },
+          shards: [0],
+          children: [],
+        }),
+      ]
+      @ r;
+    };
+    switch (formula.term) {
+    | LookUpExp(x)
+    | LookUpPat(x)
+    | LookUpTyp(x)
+    | LookUpTPat(x) => text_to_pretty(id, Sort.Drv(sort), x)
+    | UnboxCtx(e) => go(e, sort)
+    | UnboxNumLit(e) => go(e, sort)
+    | UnboxExpVar(e) => go(e, sort)
+    | UnboxPatVar(p) => go(p, sort)
+    | UnboxTypVar(t) => go(t, sort)
+    | UnboxTPatVar(tp) => go(tp, sort)
+    | ExpVar(x) => go(x, Exp)
+    | HasType(e, t) =>
+      let+ e = go(e, Exp)
+      and+ t = go(t, Typ);
+      [
+        mk_form(
+          Drv(ParenProp),
+          id,
+          [e @ [mk_form(Drv(HasType), id, [])] @ t],
+        ),
+      ];
+    | Type(t) =>
+      let+ t = go(t, Typ);
+      [mk_form(Drv(Valid), id, [t])];
+    | Fix(p, e) =>
+      let+ p = go(p, Pat)
+      and+ e = go(e, Exp);
+      [mk_form(Drv(Fix), id, [p])] @ e;
+    | Subst(e, x, e') =>
+      let+ e = go(e, Exp)
+      and+ x = go(x, Pat)
+      and+ e' = go(e', Exp);
+      [mk_form(Drv(Subst), id, [e, x])] @ e';
+    | Ctx(ctx) => go(ctx, Ctx)
+    | Cons(e, ctx) =>
+      let+ e = go(e, Prop)
+      and+ ctx = go(ctx, Ctx);
+      e @ [mk_form(Drv(Cons), id, [])] @ ctx;
+    | Neg(n) =>
+      let+ n = go(n, Exp);
+      [mk_form(Drv(Neg), id, [])] @ n;
+    | Plus(l, r) =>
+      let+ l = go(l, Exp)
+      and+ r = go(r, Exp);
+      l @ [mk_form(Drv(Plus), id, [])] @ r;
+    | Minus(l, r) =>
+      let+ l = go(l, Exp)
+      and+ r = go(r, Exp);
+      l @ [mk_form(Drv(Minus), id, [])] @ r;
+    | Times(l, r) =>
+      let+ l = go(l, Exp)
+      and+ r = go(r, Exp);
+      l @ [mk_form(Drv(Times), id, [])] @ r;
+    | TypVar(x) => go(x, Typ)
+    | Rec(tp, t) =>
+      let+ tp = go(tp, TPat)
+      and+ t = go(t, Typ);
+      [mk_form(Drv(Rec), id, [tp])] @ t;
+    | Glb(l, r) =>
+      let+ l = go(l, Typ)
+      and+ r = go(r, Typ);
+      [mk_form(Drv(Glb), id, [l, r])];
+    | SubstTy(t, x, t') =>
+      let+ t = go(t, Typ)
+      and+ x = go(x, TPat)
+      and+ t' = go(t', Typ);
+      [mk_form(Drv(SubstTy), id, [t, x])] @ t';
+    | Ignore(_) => []
+    | Gt(l, r) => mk_jdmt_binop(">", l, r, Exp, Exp)
+    | Lt(l, r) => mk_jdmt_binop("<", l, r, Exp, Exp)
+    | Eq(l, r) => mk_jdmt_binop("=", l, r, Exp, Exp)
+    | NotGt(l, r) => mk_jdmt_binop("≯", l, r, Exp, Exp)
+    | NotLt(l, r) => mk_jdmt_binop("≮", l, r, Exp, Exp)
+    | NotEq(l, r) => mk_jdmt_binop("≠", l, r, Exp, Exp)
+    | Mem(p, ctx) => mk_jdmt_binop("∈", p, ctx, Prop, Ctx)
+    | Subset(l, r) => mk_jdmt_binop("⊆", l, r, Ctx, Ctx)
+    | EqExp(l, r) => mk_jdmt_binop("=", l, r, Exp, Exp)
+    | EqCtx(l, r) => mk_jdmt_binop("=", l, r, Ctx, Ctx)
+    | EqTyp(l, r) => mk_jdmt_binop("=", l, r, Typ, Typ)
+    };
+  };
+
 /* We assume that parentheses have already been added as necessary, and
       that the expression has no Closures or DynamicErrorHoles
    */
@@ -886,6 +1721,10 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
         inline,
       },
     );
+  let wrap = wrap_with_secondary(~secondary=settings.secondary);
+  /* Use settings-aware concatenation and form building */
+  let (@) = concat_segment(~secondary=settings.secondary);
+  let mk_form = mk_form(~secondary=settings.secondary);
   switch (exp |> Exp.term_of) {
   // Assume these have been removed by the parenthesizer
   | DynamicErrorHole(_)
@@ -894,48 +1733,76 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     let id = exp |> Exp.rep_id;
     let* p = go(pat);
     let+ e = go(e);
-    settings.show_filters
-      ? {
-        let form =
-          switch (act) {
-          | (Step, One) => Form.FilterPause
-          | (Step, All) => Form.FilterDebug
-          | (Eval, One) => Form.FilterHide
-          | (Eval, All) => Form.FilterEval
-          };
-        [mk_form(form, id, [p])] @ e;
-      }
-      : e;
+    wrap(
+      exp,
+      settings.show_filters
+        ? {
+          let form =
+            switch (act) {
+            | (Step, One) => Form.FilterPause
+            | (Step, All) => Form.FilterDebug
+            | (Eval, One) => Form.FilterHide
+            | (Eval, All) => Form.FilterEval
+            };
+          [mk_form(form, id, [p])] @ e;
+        }
+        : e,
+    );
   // Forms which should be removed by substitute_closures
   | Closure(_, e) =>
     let+ e = go(e);
-    text_to_pretty(exp |> Exp.rep_id, Sort.Exp, "<closure>") @ e;
+    wrap(exp, text_to_pretty(exp |> Exp.rep_id, Sort.Exp, "<closure>") @ e);
   // Other cases
-  | Invalid(x) => text_to_pretty(exp |> Exp.rep_id, Sort.Exp, x)
+  | Invalid(x) => wrap(exp, text_to_pretty(exp |> Exp.rep_id, Sort.Exp, x))
   | EmptyHole =>
     let id = exp |> Exp.rep_id;
-    p_just([
-      Grout({
-        id,
-        shape: Convex,
-      }),
-    ]);
-  | Undefined => text_to_pretty(exp |> Exp.rep_id, Sort.Exp, "undefined")
+    wrap(
+      exp,
+      p_just([
+        Grout({
+          id,
+          shape: Convex,
+        }),
+      ]),
+    );
+  | Undefined =>
+    wrap(exp, text_to_pretty(exp |> Exp.rep_id, Sort.Exp, "undefined"))
   | Atom(c) =>
-    text_to_pretty(exp |> Exp.rep_id, Sort.Exp, Atom.to_literal(c))
+    wrap(
+      exp,
+      text_to_pretty(exp |> Exp.rep_id, Sort.Exp, Atom.to_literal(c)),
+    )
+  | DrvQuote(d, sort) =>
+    let+ d = drv_to_pretty(~settings, d, ~sort);
+    let form: Form.drv_compound_form =
+      switch (sort) {
+      | Jdmt => OfJdmt
+      | Ctx => OfCtx
+      | Prop => OfProp
+      | Exp => OfAlfaExp
+      | Pat => OfAlfaPat
+      | Typ => OfAlfaTyp
+      | TPat => OfAlfaTPat
+      };
+    [mk_form(Drv(form), exp |> Exp.rep_id, [d])];
   // TODO: Make sure types are correct
   | Constructor(c, _t) =>
     // let id = Id.mk();
     let+ e = text_to_pretty(exp |> Exp.rep_id, Sort.Exp, c);
     // and+ t = typ_to_pretty(~settings: Settings.t, t);
-    e;
+    wrap(exp, e);
   // @ [mk_form("typeasc", id, [])]
   // @ (t |> fold_if(settings.fold_cast_types));
-  | ListLit([]) => text_to_pretty(exp |> Exp.rep_id, Sort.Exp, "[]")
-  | Deferral(_) => text_to_pretty(exp |> Exp.rep_id, Sort.Exp, "_")
-  | ExplicitNonlabel => text_to_pretty(exp |> Exp.rep_id, Sort.Exp, "_")
+  | ListLit([]) =>
+    wrap(exp, text_to_pretty(exp |> Exp.rep_id, Sort.Exp, "[]"))
+  | Deferral(_) =>
+    wrap(exp, text_to_pretty(exp |> Exp.rep_id, Sort.Exp, "_"))
+  | ExplicitNonlabel =>
+    wrap(exp, text_to_pretty(exp |> Exp.rep_id, Sort.Exp, "_"))
   | ListLit([x, ...xs]) =>
-    // TODO: Add optional newlines
+    /* ID order: [bracket_id] @ comma_ids (outer first, then adopted).
+       IMPORTANT: Must align with MakeTerm.exp_term ListLit case,
+       which produces IDs in this order during absorption. */
     let* x = go(x)
     and* xs = xs |> List.map(go) |> all;
     let (id, ids) = (
@@ -957,53 +1824,76 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
             ),
         ],
       );
-    p_just([form(x, xs)]);
-  | Var(v) => text_to_pretty(exp |> Exp.rep_id, Sort.Exp, v)
+    wrap(exp, p_just([form(x, xs)]));
+  // TODO: Add optional newlines
+  | Var(v) => wrap(exp, text_to_pretty(exp |> Exp.rep_id, Sort.Exp, v))
   | BinOp(op, l, r) =>
     // TODO: Add optional newlines
     let id = exp |> Exp.rep_id;
     let+ l = go(l)
     and+ r = go(r);
-    l
-    @ [
-      Tile({
-        id,
-        label: [Operators.bin_op_to_string(op)],
-        mold: Mold.mk_bin(Precedence.of_bin_op(op), Sort.Exp, []),
-        shards: [0],
-        children: [],
-      }),
-    ]
-    @ r;
+    wrap(
+      exp,
+      l
+      @ [
+        Tile({
+          id,
+          label: [Operators.bin_op_to_string(op)],
+          mold: Mold.mk_bin(Precedence.of_bin_op(op), Sort.Exp, []),
+          shards: [0],
+          children: [],
+        }),
+      ]
+      @ r,
+    );
   | TupleExtension(l, r) =>
     // TODO: Add optional newlines
     let id = exp |> Exp.rep_id;
     let+ l = go(l)
     and+ r = go(r);
-    l
-    @ [
-      Tile({
-        id,
-        label: ["..."],
-        mold: Mold.mk_bin(Precedence.dot, Sort.Exp, []),
-        shards: [0],
-        children: [],
-      }),
-    ]
-    @ r;
+    wrap(
+      exp,
+      l
+      @ [
+        Tile({
+          id,
+          label: ["..."],
+          mold: Mold.mk_bin(Precedence.plus, Sort.Exp, []),
+          shards: [0],
+          children: [],
+        }),
+      ]
+      @ r,
+    );
   | MultiHole(es) =>
     // TODO: Add optional newlines
-    let id = exp |> Exp.rep_id;
     let+ es = es |> List.map(any_to_pretty(~settings)) |> all;
-    ListUtil.flat_intersperse(
-      Grout({
-        id,
-        shape: Concave,
-      }),
-      es,
-    );
-  | Parens({term: Fun(p, e, _, _), _} as inner_exp)
-  | Probe({term: Fun(p, e, _, _), _} as inner_exp, _) =>
+    /* Use IDs from the term for grout pieces, like Tuple uses for commas.
+       For N elements, we need N-1 grout pieces (one between each pair). */
+    let num_grouts = max(0, List.length(es) - 1);
+    let ids = IdTagged.ids(exp) |> pad_ids(num_grouts);
+    let seg =
+      switch (es) {
+      | [] => []
+      | [first, ...rest] =>
+        first
+        @ List.flatten(
+            List.map2(
+              (id, e) =>
+                [
+                  Grout({
+                    id,
+                    shape: Concave,
+                  }),
+                  ...e,
+                ],
+              ids,
+              rest,
+            ),
+          )
+      };
+    wrap(exp, seg);
+  | Parens({term: Fun(p, e, _, _), _} as inner_exp) =>
     // TODO: Add optional newlines
     let id = inner_exp |> Exp.rep_id;
     let+ p = pat_to_pretty(~settings: Settings.t, p)
@@ -1017,9 +1907,13 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
       };
     let name = "<" ++ name ++ ">";
     let fun_form = [mk_form(Fun, id, [p])] @ e;
-    [mk_form(ParensExp, exp |> Exp.rep_id, [fun_form])]
-    |> fold_fun_if(settings.fold_fn_bodies, name, _, inner_exp);
-  | LivelitName(s) => text_to_pretty(exp |> Exp.rep_id, Sort.Exp, "^" ++ s)
+    wrap(
+      exp,
+      [mk_form(ParensExp, exp |> Exp.rep_id, [fun_form])]
+      |> fold_fun_if(settings.fold_fn_bodies, name, _, inner_exp),
+    );
+  | LivelitName(s) =>
+    wrap(exp, text_to_pretty(exp |> Exp.rep_id, Sort.Exp, "^" ++ s))
   | Fun(p, e, t, _) =>
     // TODO: Add optional newlines
     let id = exp |> Exp.rep_id;
@@ -1029,7 +1923,11 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
       | Some(t) =>
         let t = t |> Exp.replace_all_ids_typ;
         Pat.fresh(Asc(p, t))
-        |> parenthesize_pat(~show_filters=settings.show_filters);
+        |> parenthesize_pat(
+             ~parenthesization=settings.parenthesization,
+             ~show_ascriptions=settings.show_ascriptions,
+             ~show_filters=settings.show_filters,
+           );
       };
     let+ p = pat_to_pretty(~settings: Settings.t, p)
     and+ e = go(e);
@@ -1041,14 +1939,17 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
         name;
       };
     let name = "<" ++ name ++ ">";
-    [mk_form(Fun, id, [p])]
-    @ e
-    |> fold_fun_if(settings.fold_fn_bodies, name, _, exp);
+    wrap(
+      exp,
+      [mk_form(Fun, id, [p])]
+      @ e
+      |> fold_fun_if(settings.fold_fn_bodies, name, _, exp),
+    );
   | Forall(p, e) =>
     let id = exp |> Exp.rep_id;
     let+ p = pat_to_pretty(~settings: Settings.t, p)
     and+ e = go(e);
-    [mk_form(Forall, id, [p])] @ e;
+    wrap(exp, [mk_form(Forall, id, [p])] @ e);
   | TypFun(tp, e, _) =>
     // TODO: Add optional newlines
     let id = exp |> Exp.rep_id;
@@ -1058,72 +1959,99 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
       "<"
       ++ (Exp.get_fn_name(exp) |> Option.value(~default="anon typfun"))
       ++ ">";
-    [mk_form(TypFun, id, [tp])]
-    @ e
-    |> fold_fun_if(settings.fold_fn_bodies, name, _, exp);
-  | Tuple([]) => text_to_pretty(exp |> Exp.rep_id, Sort.Exp, "()")
+    wrap(
+      exp,
+      [mk_form(TypFun, id, [tp])]
+      @ e
+      |> fold_fun_if(settings.fold_fn_bodies, name, _, exp),
+    );
+  | Tuple([]) => wrap(exp, text_to_pretty(exp |> Exp.rep_id, Sort.Exp, "()"))
   | Tuple([{term: TupLabel(_), _} as le]) => go(le)
   | Tuple([x, ...xs]) =>
     // TODO: Add optional newlines
     let+ x = go(x)
     and+ xs = xs |> List.map(go) |> all;
     let ids = IdTagged.ids(exp) |> pad_ids(List.length(xs));
-    x
-    @ List.flatten(
-        List.map2((id, x) => [mk_form(CommaExp, id, [])] @ x, ids, xs),
-      );
+    wrap(
+      exp,
+      x
+      @ List.flatten(
+          List.map2((id, x) => [mk_form(CommaExp, id, [])] @ x, ids, xs),
+        ),
+    );
   | Label(l) =>
-    label_to_pretty(
-      ~label_only_position=false,
-      Sort.Exp,
-      Token.label_quote(l),
-      exp |> Exp.rep_id,
+    wrap(
+      exp,
+      label_to_pretty(
+        ~label_format=settings.label_format,
+        ~label_only_position=false,
+        Sort.Exp,
+        Token.label_quote(l),
+        exp |> Exp.rep_id,
+      ),
     )
   | TupLabel(l, e) =>
     let* l =
       switch (l.term) {
       | Label(l') =>
-        label_to_pretty(
-          ~label_only_position=true,
-          Sort.Exp,
-          l',
-          l |> Exp.rep_id,
+        wrap(
+          l,
+          label_to_pretty(
+            ~label_format=settings.label_format,
+            ~label_only_position=true,
+            Sort.Exp,
+            l',
+            l |> Exp.rep_id,
+          ),
         )
       | _ => go(l)
       }
     and* e = go(e);
 
-    List.flatten([
-      l,
-      [
-        Tile({
-          id: exp |> Exp.rep_id,
-          label: ["="],
-          mold: Mold.mk_bin(Precedence.lab, Sort.Exp, []),
-          shards: [0],
-          children: [],
-        }),
-      ],
-      if (Token.begins_with_potential_operator(Segment.first_string(e))) {
-        [Secondary(mk_space(Id.mk()))] @ e;
-      } else {
-        e;
-      },
-    ]);
+    wrap(
+      exp,
+      List.flatten([
+        l,
+        [
+          Tile({
+            id: exp |> Exp.rep_id,
+            label: ["="],
+            mold: Mold.mk_bin(Precedence.lab, Sort.Exp, []),
+            shards: [0],
+            children: [],
+          }),
+        ],
+        switch (settings.secondary) {
+        | AutoFormat =>
+          let first = Segment.first_string(e);
+          if (Token.begins_with_potential_operator(first)
+              && !String.starts_with(first, ~prefix="…")) {
+            [Secondary(mk_space(Id.mk())), ...e];
+          } else {
+            e;
+          };
+        | PreserveExact => e
+        },
+      ]),
+    );
   | Dot(e, l) =>
     let* e = go(e)
     and* l =
       switch (l.term) {
       | Label(l') =>
-        label_to_pretty(
-          ~label_only_position=true,
-          Sort.Exp,
-          l',
-          l |> Exp.rep_id,
+        wrap(
+          l,
+          label_to_pretty(
+            ~label_format=settings.label_format,
+            ~label_only_position=true,
+            Sort.Exp,
+            l',
+            l |> Exp.rep_id,
+          ),
         )
       | _ => go(l)
       };
-    e @ [mk_form(DotExp, exp |> Exp.rep_id, [])] @ l;
+    wrap(exp, e @ [mk_form(DotExp, exp |> Exp.rep_id, [])] @ l);
   | Let(p, e1, e2) =>
     // TODO: Add optional newlines
     let id = exp |> Exp.rep_id;
@@ -1133,18 +2061,19 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     and+ e1 = go(e1)
     and+ e2 = go(e2);
     let e2 = settings.inline ? e2 : [Secondary(mk_newline(Id.mk()))] @ e2;
-    [mk_form(Let, id, [p, e1])] @ e2;
+    wrap(exp, [mk_form(Let, id, [p, e1])] @ e2);
   | Theorem(p, thm, e) =>
     // TODO: Add optional newlines
     let id = exp |> Exp.rep_id;
     let+ p = pat_to_pretty(~settings: Settings.t, p)
     and+ thm = go(thm)
     and+ e = go(e);
-    [mk_form(Theorem, id, [p, thm])] @ e;
+    let e = settings.inline ? e : [Secondary(mk_newline(Id.mk()))] @ e;
+    wrap(exp, [mk_form(Theorem, id, [p, thm])] @ e);
   | ProofObject(t) =>
     let id = exp |> Exp.rep_id;
     let+ t = exp_to_pretty(~settings: Settings.t, t);
-    [mk_form(ProofObject, id, [t])];
+    wrap(exp, [mk_form(ProofObject, id, [t])]);
   | FixF(p, e, _) =>
     // TODO: Add optional newlines
     let id = exp |> Exp.rep_id;
@@ -1152,9 +2081,12 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     and+ e = go(e);
     let name =
       "<" ++ (Exp.get_fn_name(exp) |> Option.value(~default="fun")) ++ ">";
-    [mk_form(Fix, id, [p])]
-    @ e
-    |> fold_fun_if(settings.fold_fn_bodies, name, _, exp);
+    wrap(
+      exp,
+      [mk_form(Fix, id, [p])]
+      @ e
+      |> fold_fun_if(settings.fold_fn_bodies, name, _, exp),
+    );
   | TyAlias(tp, t, e) =>
     // TODO: Add optional newlines
     let id = exp |> Exp.rep_id;
@@ -1162,40 +2094,43 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     and+ t = typ_to_pretty(~settings: Settings.t, t)
     and+ e = go(e);
     let e = settings.inline ? e : [Secondary(mk_newline(Id.mk()))] @ e;
-    [mk_form(TypeAlias, id, [tp, t])] @ e;
+    wrap(exp, [mk_form(TypeAlias, id, [tp, t])] @ e);
   | Use(t, e) =>
     let id = exp |> Exp.rep_id;
     let+ t = typ_to_pretty(~settings: Settings.t, t)
     and+ e = go(e);
     let e = settings.inline ? e : [Secondary(mk_newline(Id.mk()))] @ e;
-    [mk_form(Use, id, [t])] @ e;
+    wrap(exp, [mk_form(Use, id, [t])] @ e);
   | Ap(Forward, e1, e2) =>
     let id = exp |> Exp.rep_id;
     let+ e1 = go(e1)
     and+ e2 = go(e2);
-    e1 @ [mk_form(ApExp, id, [e2])];
+    wrap(exp, e1 @ [mk_form(ApExp, id, [e2])]);
   | Ap(Reverse, e1, e2) =>
     // TODO: Add optional newlines
     let id = exp |> Exp.rep_id;
     let+ e1 = go(e1)
     and+ e2 = go(e2);
-    e2
-    @ [
-      Tile({
-        id,
-        label: ["|>"],
-        mold: Mold.mk_bin(Precedence.eqs, Sort.Exp, []),
-        shards: [0],
-        children: [],
-      }),
-    ]
-    @ e1;
+    wrap(
+      exp,
+      e2
+      @ [
+        Tile({
+          id,
+          label: ["|>"],
+          mold: Mold.mk_bin(Precedence.eqs, Sort.Exp, []),
+          shards: [0],
+          children: [],
+        }),
+      ]
+      @ e1,
+    );
   | TypAp(e, t) =>
     // TODO: Add optional newlines
     let id = exp |> Exp.rep_id;
     let+ e = go(e)
     and+ tp = typ_to_pretty(~settings: Settings.t, t);
-    e @ [mk_form(ApExpTyp, id, [tp])];
+    wrap(exp, e @ [mk_form(ApExpTyp, id, [tp])]);
   | DeferredAp(e, es) =>
     // TODO: Add optional newlines
     let+ e = go(e)
@@ -1204,23 +2139,26 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
       IdTagged.ids(exp) |> List.hd,
       IdTagged.ids(exp) |> List.tl |> pad_ids(List.length(es)),
     );
-    e
-    @ [
-      mk_form(
-        ApExp,
-        id,
-        [
-          (es |> List.hd)
-          @ List.flatten(
-              List.map2(
-                (id, e) => [mk_form(CommaExp, id, [])] @ e,
-                ids |> List.tl,
-                es |> List.tl,
+    wrap(
+      exp,
+      e
+      @ [
+        mk_form(
+          ApExp,
+          id,
+          [
+            (es |> List.hd)
+            @ List.flatten(
+                List.map2(
+                  (id, e) => [mk_form(CommaExp, id, [])] @ e,
+                  ids |> List.tl,
+                  es |> List.tl,
+                ),
               ),
-            ),
-        ],
-      ),
-    ];
+          ],
+        ),
+      ],
+    );
   | If(e1, e2, e3) =>
     let id = exp |> Exp.rep_id;
     let+ e1 = go(e1)
@@ -1233,66 +2171,76 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
           @ e2
           @ [Secondary(mk_newline(Id.mk()))];
     let e3 = settings.inline ? e3 : [Secondary(mk_newline(Id.mk()))] @ e3;
-    [mk_form(If, id, [e1, e2])] @ e3;
+    wrap(exp, [mk_form(If, id, [e1, e2])] @ e3);
   | Seq(e1, e2) =>
     // TODO: Make newline optional
     let id = exp |> Exp.rep_id;
     let+ e1 = go(e1)
     and+ e2 = go(e2);
     let e2 = settings.inline ? e2 : [Secondary(mk_newline(Id.mk()))] @ e2;
-    e1 @ [mk_form(CellJoin, id, [])] @ e2;
+    wrap(exp, e1 @ [mk_form(CellJoin, id, [])] @ e2);
   | Test(e) =>
     let id = exp |> Exp.rep_id;
     let+ e = go(e);
-    [mk_form(Test, id, [e])];
+    wrap(exp, [mk_form(Test, id, [e])]);
   | HintedTest(e, hint) =>
     let id = exp |> Exp.rep_id;
     let* hint = go(hint)
     and* e = go(e);
-    [mk_form(HintedTest, id, [hint, e])];
+    wrap(exp, [mk_form(HintedTest, id, [hint, e])]);
   | Parens(e) =>
     // TODO: Add optional newlines
     let id = exp |> Exp.rep_id;
     let+ e = go(e);
-    [mk_form(ParensExp, id, [e])];
-  | Probe(e, _) =>
-    /* Not sure about this case*/
-    go(e)
+    wrap(exp, [mk_form(ParensExp, id, [e])]);
+  | Projector({kind, model}, e) =>
+    let id = exp |> Exp.rep_id;
+    let+ inner_seg = go(e);
+    let syntax = Segment.parenthesize(inner_seg);
+    wrap(
+      exp,
+      [Piece.Projector(ProjectorCore.mk(~id, kind, syntax, model))],
+    );
   | Cons(e1, e2) =>
     // TODO: Add optional newlines
     let id = exp |> Exp.rep_id;
     let+ e1 = go(e1)
     and+ e2 = go(e2);
-    e1 @ [mk_form(ConsExp, id, [])] @ e2;
+    wrap(exp, e1 @ [mk_form(ConsExp, id, [])] @ e2);
   | ListConcat(e1, e2) =>
     // TODO: Add optional newlines
     let id = exp |> Exp.rep_id;
     let+ e1 = go(e1)
     and+ e2 = go(e2);
-    e1 @ [mk_form(ListConcat, id, [])] @ e2;
-  | UnOp(Meta(Unquote), e) =>
-    let id = exp |> Exp.rep_id;
-    let+ e = go(e);
-    [mk_form(Unquote, id, [])] @ e;
+    wrap(exp, e1 @ [mk_form(ListConcat, id, [])] @ e2);
   | UnOp(Bool(Not), e) =>
     let id = exp |> Exp.rep_id;
     let+ e = go(e);
-    [mk_form(Not, id, [])] @ e;
-  | UnOp(Int(Minus) | Nat(Minus) | Float(Minus) | SInt(Minus), e) =>
+    wrap(exp, [mk_form(Not, id, [])] @ e);
+  | UnOp(Int(Minus) | Nat(Minus) | SInt(Minus), e) =>
     let id = exp |> Exp.rep_id;
     let+ e = go(e);
-    [mk_form(UnaryMinus, id, [])] @ e;
+    wrap(exp, [mk_form(UnaryMinus, id, [])] @ e);
+  | UnOp(Float(Minus), _) =>
+    failwith(
+      "ExpToSegment: UnOp(Float(Minus)) should have been rewritten by parenthesize",
+    )
   /* TODO: this isn't actually correct because we could the builtin
      could have been overriden in this scope; worth fixing when we fix
      closures. */
-  | BuiltinFun(f) => text_to_pretty(exp |> Exp.rep_id, Sort.Exp, f)
+  | BuiltinFun(f) =>
+    wrap(exp, text_to_pretty(exp |> Exp.rep_id, Sort.Exp, f))
   | Asc(e, t) =>
     let id = exp |> Exp.rep_id;
     let+ e = go(e)
     and+ t = typ_to_pretty(~settings: Settings.t, t);
-    e @ [mk_form(TypeAsc, id, [])] @ t;
+    wrap(exp, e @ [mk_form(TypeAsc, id, [])] @ t);
   | Match(e, rs) =>
-    // TODO: Add newlines
+    /* ID order: [case_end_id] @ rule_ids (outer first, then adopted).
+       IMPORTANT: Must align with MakeTerm.exp_term Match case,
+       which produces IDs in this order during absorption. The
+       rule IDs must be distinct from each other AND from the case
+       ID — see pad_ids for the deduplication behavior. */
     let+ e = go(e)
     and+ rs: list((Segment.t, Segment.t)) = {
       rs
@@ -1302,181 +2250,381 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
       |> List.map(((x, y)) => (x, y))
       |> all;
     };
+    let all_exp_ids = IdTagged.ids(exp);
+    let case_id = all_exp_ids |> List.hd;
     let (id, ids) = (
-      IdTagged.ids(exp) |> List.hd,
-      IdTagged.ids(exp) |> List.tl |> pad_ids(List.length(rs)),
+      case_id,
+      all_exp_ids
+      |> List.tl
+      |> pad_ids(~forbidden=[case_id], List.length(rs)),
     );
-    [
-      mk_form(
-        Case,
-        id,
-        [
-          e
-          @ (
-            List.map2(
-              (id, (p, e)) =>
-                (settings.inline ? [] : [Secondary(mk_newline(Id.mk()))])
-                @ [mk_form(Rule, id, [p])]
-                @ (e |> fold_if(settings.fold_case_clauses)),
-              ids,
-              rs,
+    wrap(
+      exp,
+      [
+        mk_form(
+          Case,
+          id,
+          [
+            e
+            @ (
+              List.map2(
+                (id, (p, e)) =>
+                  (settings.inline ? [] : [Secondary(mk_newline(Id.mk()))])
+                  @ [mk_form(Rule, id, [p])]
+                  @ (e |> fold_if(settings.fold_case_clauses)),
+                ids,
+                rs,
+              )
+              |> List.flatten
             )
-            |> List.flatten
+            @ (settings.inline ? [] : [Secondary(mk_newline(Id.mk()))]),
+          ],
+        ),
+      ],
+    );
+  | Module([]) =>
+    /* Empty module: {} - output as atomic token like empty tuple () */
+    wrap(exp, text_to_pretty(exp |> Exp.rep_id, Sort.Exp, "{}"))
+  | Module(items) =>
+    /* Non-empty module: { item1; item2; ... } */
+    let id = exp |> Exp.rep_id;
+    let wrap_item = wrap_with_secondary(~secondary=settings.secondary);
+    let+ items_pretty =
+      items
+      |> List.map((item: Mod.t) =>
+           switch (item.term) {
+           | ModLet(p, e) =>
+             let+ p = pat_to_pretty(~settings, p)
+             and+ e = go(e);
+             wrap_item(
+               item,
+               [mk_form(ModLet, item |> Mod.rep_id, [p])] @ e,
+             );
+           | ModType(tp, t) =>
+             let+ tp = tpat_to_pretty(~settings, tp)
+             and+ t = typ_to_pretty(~settings, t);
+             wrap_item(
+               item,
+               [mk_form(ModType, item |> Mod.rep_id, [tp])] @ t,
+             );
+           | ModExp(e) =>
+             let+ e = go(e);
+             wrap_item(item, e);
+           | EmptyHole =>
+             let item_id = item |> Mod.rep_id;
+             p_just(
+               wrap_item(
+                 item,
+                 [
+                   Grout({
+                     id: item_id,
+                     shape: Convex,
+                   }),
+                 ],
+               ),
+             );
+           | Invalid(s) =>
+             p_just(
+               wrap_item(
+                 item,
+                 text_to_pretty(item |> Mod.rep_id, Sort.Mod, s),
+               ),
+             )
+           | ModuleMod(mp, e) =>
+             let mp_seg = mpat_to_seg(~settings, mp);
+             let+ e = go(e);
+             wrap_item(
+               item,
+               [mk_form(ModuleMod, item |> Mod.rep_id, [mp_seg])] @ e,
+             );
+           | MultiHole(es) =>
+             let+ es = es |> List.map(any_to_pretty(~settings)) |> all;
+             wrap_item(item, List.flatten(es));
+           }
+         )
+      |> all;
+    /* Join items with semicolons and wrap in braces */
+    let ids =
+      IdTagged.ids(exp) |> List.tl |> pad_ids(List.length(items) - 1);
+    let body =
+      switch (items_pretty) {
+      | [] => []
+      | [first, ...rest] =>
+        first
+        @ List.flatten(
+            List.map2(
+              (semi_id, item) => [mk_form(ModSeq, semi_id, [])] @ item,
+              ids,
+              rest,
+            ),
           )
-          @ (settings.inline ? [] : [Secondary(mk_newline(Id.mk()))]),
-        ],
-      ),
-    ];
+      };
+    wrap(exp, [mk_form(ModBody, id, [body])]);
+  | ModuleExp(mp, def, body) =>
+    let id = exp |> Exp.rep_id;
+    let mp_seg = mpat_to_seg(~settings, mp);
+    let+ def = go(def)
+    and+ body = go(body);
+    let body =
+      settings.inline ? body : [Secondary(mk_newline(Id.mk()))] @ body;
+    wrap(exp, [mk_form(ModuleExp, id, [mp_seg, def])] @ body);
   };
+}
+and mpat_to_seg = (~settings: Settings.t, mp: MPat.t): Segment.t => {
+  let wrap = wrap_with_secondary(~secondary=settings.secondary);
+  let content =
+    switch (mp.term) {
+    | Var(name) => text_to_pretty(mp |> MPat.rep_id, Sort.MPat, name)
+    | Asc(inner, typ) =>
+      let inner_seg = mpat_to_seg(~settings, inner);
+      let typ_seg = typ_to_pretty(~settings, typ);
+      inner_seg
+      @ [
+        Tile({
+          id: Id.mk(),
+          label: [":"],
+          mold:
+            Mold.mk_bin(
+              ~l=Sort.MPat,
+              ~r=Sort.Typ,
+              Precedence.asc,
+              Sort.MPat,
+              [],
+            ),
+          shards: [0],
+          children: [],
+        }),
+      ]
+      @ typ_seg;
+    | _ => text_to_pretty(mp |> MPat.rep_id, Sort.MPat, "?")
+    };
+  wrap(mp, content);
 }
 and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
   let go = pat_to_pretty(~settings: Settings.t);
+  let wrap = wrap_with_secondary(~secondary=settings.secondary);
+  /* Use settings-aware concatenation and form building */
+  let (@) = concat_segment(~secondary=settings.secondary);
+  let mk_form = mk_form(~secondary=settings.secondary);
   switch (pat |> Pat.term_of) {
-  | Invalid(t) => text_to_pretty(pat |> Pat.rep_id, Sort.Pat, t)
+  | Invalid(t) => wrap(pat, text_to_pretty(pat |> Pat.rep_id, Sort.Pat, t))
   | EmptyHole =>
     let id = pat |> Pat.rep_id;
-    p_just([
-      Grout({
-        id,
-        shape: Convex,
-      }),
-    ]);
-  | Wild => text_to_pretty(pat |> Pat.rep_id, Sort.Pat, "_")
-  | ExplicitNonlabel => text_to_pretty(pat |> Pat.rep_id, Sort.Pat, "_")
-  | Var(v) => text_to_pretty(pat |> Pat.rep_id, Sort.Pat, v)
+    wrap(
+      pat,
+      p_just([
+        Grout({
+          id,
+          shape: Convex,
+        }),
+      ]),
+    );
+  | Wild => wrap(pat, text_to_pretty(pat |> Pat.rep_id, Sort.Pat, "_"))
+  | ExplicitNonlabel =>
+    wrap(pat, text_to_pretty(pat |> Pat.rep_id, Sort.Pat, "_"))
+  | Var(v) => wrap(pat, text_to_pretty(pat |> Pat.rep_id, Sort.Pat, v))
   | Atom(c) =>
-    text_to_pretty(pat |> Pat.rep_id, Sort.Pat, Atom.to_literal(c))
-  | Constructor(c, _) => text_to_pretty(pat |> Pat.rep_id, Sort.Pat, c)
-  | ListLit([]) => text_to_pretty(pat |> Pat.rep_id, Sort.Pat, "[]")
+    wrap(
+      pat,
+      text_to_pretty(pat |> Pat.rep_id, Sort.Pat, Atom.to_literal(c)),
+    )
+  | Constructor(c, _) =>
+    wrap(pat, text_to_pretty(pat |> Pat.rep_id, Sort.Pat, c))
+  | ListLit([]) =>
+    wrap(pat, text_to_pretty(pat |> Pat.rep_id, Sort.Pat, "[]"))
   | ListLit([x, ...xs]) =>
+    /* ID order: [bracket_id] @ comma_ids (outer first, then adopted).
+       IMPORTANT: Must align with MakeTerm.pat_term ListLit case,
+       which produces IDs in this order during absorption. */
     let* x = go(x)
     and* xs = xs |> List.map(go) |> all;
     let (id, ids) = (
       IdTagged.ids(pat) |> List.hd,
       IdTagged.ids(pat) |> List.tl |> pad_ids(List.length(xs)),
     );
-    p_just([
-      mk_form(
-        ListLitPat,
-        id,
-        [
-          x
-          @ List.flatten(
-              List.map2(
-                (id, x) => [mk_form(CommaPat, id, [])] @ x,
-                ids,
-                xs,
+    wrap(
+      pat,
+      p_just([
+        mk_form(
+          ListLitPat,
+          id,
+          [
+            x
+            @ List.flatten(
+                List.map2(
+                  (id, x) => [mk_form(CommaPat, id, [])] @ x,
+                  ids,
+                  xs,
+                ),
               ),
-            ),
-        ],
-      ),
-    ]);
+          ],
+        ),
+      ]),
+    );
   | Cons(p1, p2) =>
     let id = pat |> Pat.rep_id;
     let+ p1 = go(p1)
     and+ p2 = go(p2);
-    p1 @ [mk_form(ConsPat, id, [])] @ p2;
-  | Tuple([]) => text_to_pretty(pat |> Pat.rep_id, Sort.Pat, "()")
+    wrap(pat, p1 @ [mk_form(ConsPat, id, [])] @ p2);
+  | Tuple([]) => wrap(pat, text_to_pretty(pat |> Pat.rep_id, Sort.Pat, "()"))
   | Tuple([x, ...xs]) =>
     let+ x = go(x)
     and+ xs = xs |> List.map(go) |> all;
     let ids = IdTagged.ids(pat) |> pad_ids(List.length(xs));
-    x
-    @ List.flatten(
-        List.map2((id, x) => [mk_form(CommaPat, id, [])] @ x, ids, xs),
-      );
+    wrap(
+      pat,
+      x
+      @ List.flatten(
+          List.map2((id, x) => [mk_form(CommaPat, id, [])] @ x, ids, xs),
+        ),
+    );
   | TupLabel(l, p) =>
     let* l =
       switch (l.term) {
       | Label(l') =>
-        label_to_pretty(
-          ~label_only_position=true,
-          Sort.Pat,
-          l',
-          l |> Pat.rep_id,
+        wrap(
+          l,
+          label_to_pretty(
+            ~label_format=settings.label_format,
+            ~label_only_position=true,
+            Sort.Pat,
+            l',
+            l |> Pat.rep_id,
+          ),
         )
       | _ => go(l)
       }
     and* p = go(p);
-    List.flatten([
-      l,
-      [
-        Tile({
-          id: pat |> Pat.rep_id,
-          label: ["="],
-          mold: Mold.mk_bin(Precedence.lab, Sort.Pat, []),
-          shards: [0],
-          children: [],
-        }),
-      ],
-      if (Token.begins_with_potential_operator(Segment.first_string(p))) {
-        [Secondary(mk_space(Id.mk()))] @ p;
-      } else {
-        p;
-      },
-    ]);
+    wrap(
+      pat,
+      List.flatten([
+        l,
+        [
+          Tile({
+            id: pat |> Pat.rep_id,
+            label: ["="],
+            mold: Mold.mk_bin(Precedence.lab, Sort.Pat, []),
+            shards: [0],
+            children: [],
+          }),
+        ],
+        switch (settings.secondary) {
+        | AutoFormat =>
+          let first = Segment.first_string(p);
+          if (Token.begins_with_potential_operator(first)
+              && !String.starts_with(first, ~prefix="…")) {
+            [Secondary(mk_space(Id.mk())), ...p];
+          } else {
+            p;
+          };
+        | PreserveExact => p
+        },
+      ]),
+    );
   | Label(l) =>
-    text_to_pretty(pat |> Pat.rep_id, Sort.Pat, Token.label_quote(l))
+    wrap(
+      pat,
+      text_to_pretty(pat |> Pat.rep_id, Sort.Pat, Token.label_quote(l)),
+    )
   | Parens(p) =>
     let id = pat |> Pat.rep_id;
     let+ p = go(p);
-    [mk_form(ParensPat, id, [p])];
-  | Probe(p, _) =>
-    /* Not sure about this case*/
-    go(p)
-  | MultiHole(es) =>
+    wrap(pat, [mk_form(ParensPat, id, [p])]);
+  | Projector({kind, model}, p) =>
     let id = pat |> Pat.rep_id;
-    let+ es = es |> List.map(any_to_pretty(~settings: Settings.t)) |> all;
-    ListUtil.flat_intersperse(
-      Grout({
-        id,
-        shape: Concave,
-      }),
-      es,
+    let+ inner_seg = go(p);
+    let syntax = Segment.parenthesize(inner_seg);
+    wrap(
+      pat,
+      [Piece.Projector(ProjectorCore.mk(~id, kind, syntax, model))],
     );
+  | MultiHole(es) =>
+    let+ es = es |> List.map(any_to_pretty(~settings: Settings.t)) |> all;
+    /* Use IDs from the term for grout pieces, like Tuple uses for commas. */
+    let num_grouts = max(0, List.length(es) - 1);
+    let ids = IdTagged.ids(pat) |> pad_ids(num_grouts);
+    let seg =
+      switch (es) {
+      | [] => []
+      | [first, ...rest] =>
+        first
+        @ List.flatten(
+            List.map2(
+              (id, e) =>
+                [
+                  Grout({
+                    id,
+                    shape: Concave,
+                  }),
+                  ...e,
+                ],
+              ids,
+              rest,
+            ),
+          )
+      };
+    wrap(pat, seg);
   | Ap(p1, p2) =>
     let id = pat |> Pat.rep_id;
     let+ p1 = go(p1)
     and+ p2 = go(p2);
-    p1 @ [mk_form(ApPat, id, [p2])];
+    wrap(pat, p1 @ [mk_form(ApPat, id, [p2])]);
   | Asc(p, t) =>
     let id = pat |> Pat.rep_id;
     let+ p = go(p)
     and+ t = typ_to_pretty(~settings: Settings.t, t);
-    p @ [mk_form(Typeann, id, [])] @ t;
+    wrap(pat, p @ [mk_form(Typeann, id, [])] @ t);
   };
 }
 and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
   let go = typ_to_pretty(~settings: Settings.t);
+  let wrap = wrap_with_secondary(~secondary=settings.secondary);
+  /* Use settings-aware concatenation and form building */
+  let (@) = concat_segment(~secondary=settings.secondary);
+  let mk_form = mk_form(~secondary=settings.secondary);
+  /* Wrap a segment with secondary from a variant annotation */
+  let wrap_variant_secondary =
+      (ann: ConstructorMap.variant_ann, seg: Segment.t): Segment.t =>
+    switch (settings.secondary) {
+    | PreserveExact =>
+      let (before, after) = ann.secondary;
+      secondary_to_segment(before) @ seg @ secondary_to_segment(after);
+    | AutoFormat => seg
+    };
   let go_constructor: ConstructorMap.variant(Typ.t) => pretty =
     fun
-    | Variant(c, ids, None) => {
-        text_to_pretty(
-          Option.value(~default=Id.invalid, ListUtil.hd_opt(ids)),
-          Sort.Typ,
-          c,
-        );
-      }
-    | Variant(c, ids, Some(x)) => {
-        let+ constructor =
+    | Variant(c, ann, None) => {
+        let+ seg =
           text_to_pretty(
-            Option.value(~default=Id.invalid, List.nth_opt(ids, 1)),
+            OptUtil.get(() => Id.mk(), ListUtil.hd_opt(ann.ids)),
             Sort.Typ,
             c,
           );
-        constructor
-        @ [
-          mk_form(
-            ApTyp,
-            Option.value(~default=Id.invalid, ListUtil.hd_opt(ids)),
-            [go(x)],
-          ),
-        ];
+        wrap_variant_secondary(ann, seg);
+      }
+    | Variant(c, ann, Some(x)) => {
+        let+ constructor =
+          text_to_pretty(
+            OptUtil.get(() => Id.mk(), List.nth_opt(ann.ids, 1)),
+            Sort.Typ,
+            c,
+          );
+        wrap_variant_secondary(
+          ann,
+          constructor
+          @ [
+            mk_form(
+              ApTyp,
+              OptUtil.get(() => Id.mk(), ListUtil.hd_opt(ann.ids)),
+              [go(x)],
+            ),
+          ],
+        );
       }
     | BadEntry(x) => go(x);
   switch (typ |> Typ.term_of) {
   | Unknown({term: Hole(Invalid(s)), _}) =>
-    text_to_pretty(typ |> Typ.rep_id, Sort.Typ, s)
+    wrap(typ, text_to_pretty(typ |> Typ.rep_id, Sort.Typ, s))
   | Unknown({term: Internal, _})
   | Unknown({term: SynSwitch, _})
   | Unknown({term: LArrow(_), _})
@@ -1488,150 +2636,282 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
   | Unknown({term: TupLabelArg(_), _})
   | Unknown({term: Meet(_), _})
   | Unknown({term: TypeSubstitution(_), _})
-  | Unknown({term: Hole(EmptyHole), _}) // TOOD: (THI) need special cycle hole graphic
+  | Unknown({term: Hole(EmptyHole), _}) // TODO: (THI) need special cycle hole graphic
   | Unknown({term: Hole(CycleHole), _}) =>
-    if (settings.show_unknown_as_hole) {
-      let id = typ |> Typ.rep_id;
-      p_just([
-        Grout({
-          id,
-          shape: Convex,
-        }),
-      ]);
-    } else {
-      text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "?");
-    }
+    wrap(
+      typ,
+      if (settings.show_unknown_as_hole) {
+        let id = typ |> Typ.rep_id;
+        p_just([
+          Grout({
+            id,
+            shape: Convex,
+          }),
+        ]);
+      } else {
+        text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "?");
+      },
+    )
   | Unknown({term: Hole(MultiHole(es)), _}) =>
-    let id = typ |> Typ.rep_id;
     let+ es = es |> List.map(any_to_pretty(~settings: Settings.t)) |> all;
-    ListUtil.flat_intersperse(
-      Grout({
-        id,
-        shape: Concave,
-      }),
-      es,
-    );
-  | Var(v) => text_to_pretty(typ |> Typ.rep_id, Sort.Typ, v)
-  | Atom(Int) => text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "Int")
-  | Atom(SInt) => text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "SInt")
-  | Atom(Float) => text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "Float")
-  | Atom(Bool) => text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "Bool")
-  | Atom(String) => text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "String")
-  | Atom(Nat) => text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "Nat")
+    /* Use IDs from the term for grout pieces, like Tuple uses for commas. */
+    let num_grouts = max(0, List.length(es) - 1);
+    let ids = IdTagged.ids(typ) |> pad_ids(num_grouts);
+    let seg =
+      switch (es) {
+      | [] => []
+      | [first, ...rest] =>
+        first
+        @ List.flatten(
+            List.map2(
+              (id, e) =>
+                [
+                  Grout({
+                    id,
+                    shape: Concave,
+                  }),
+                  ...e,
+                ],
+              ids,
+              rest,
+            ),
+          )
+      };
+    wrap(typ, seg);
+  | Var(v) => wrap(typ, text_to_pretty(typ |> Typ.rep_id, Sort.Typ, v))
+  | Atom(Int) =>
+    wrap(typ, text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "Int"))
+  | Atom(SInt) =>
+    wrap(typ, text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "SInt"))
+  | Atom(Float) =>
+    wrap(typ, text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "Float"))
+  | Atom(Bool) =>
+    wrap(typ, text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "Bool"))
+  | Atom(String) =>
+    wrap(typ, text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "String"))
+  | DrvQuoteTy(d) =>
+    wrap(
+      typ,
+      text_to_pretty(typ |> Typ.rep_id, Sort.Typ, DrvSort.to_string(d)),
+    )
+  | Atom(Nat) =>
+    wrap(typ, text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "Nat"))
   | List(t) =>
     let id = typ |> Typ.rep_id;
     let+ t = go(t);
-    [mk_form(ListTyp, id, [t])];
-  | Prod([]) => text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "()")
+    wrap(typ, [mk_form(ListTyp, id, [t])]);
+  | Prod([]) => wrap(typ, text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "()"))
   | Prod([t, ...ts]) =>
     let+ t = go(t)
     and+ ts = ts |> List.map(go) |> all;
-    t
-    @ List.flatten(
-        List.map2(
-          (id, t) => [mk_form(CommaTyp, id, [])] @ t,
-          IdTagged.ids(typ) |> pad_ids(ts |> List.length),
-          ts,
+    wrap(
+      typ,
+      t
+      @ List.flatten(
+          List.map2(
+            (id, t) => [mk_form(CommaTyp, id, [])] @ t,
+            IdTagged.ids(typ) |> pad_ids(ts |> List.length),
+            ts,
+          ),
         ),
-      );
-  | ExplicitNonlabel => text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "_")
+    );
+  | ExplicitNonlabel =>
+    wrap(typ, text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "_"))
   | Label(l) =>
-    text_to_pretty(typ |> Typ.rep_id, Sort.Typ, Token.label_quote(l))
+    wrap(
+      typ,
+      text_to_pretty(typ |> Typ.rep_id, Sort.Typ, Token.label_quote(l)),
+    )
   | TupLabel(l, t) =>
     let+ l =
       switch (l.term) {
       | Label(l') =>
-        label_to_pretty(
-          ~label_only_position=true,
-          Sort.Typ,
-          l',
-          l |> Typ.rep_id,
+        wrap(
+          l,
+          label_to_pretty(
+            ~label_format=settings.label_format,
+            ~label_only_position=true,
+            Sort.Typ,
+            l',
+            l |> Typ.rep_id,
+          ),
         )
       | _ => go(l)
       }
     and+ t = go(t);
 
-    List.flatten([
-      l,
-      [
-        Tile({
-          id: typ |> Typ.rep_id,
-          label: ["="],
-          mold: Mold.mk_bin(Precedence.lab, Sort.Typ, []),
-          shards: [0],
-          children: [],
-        }),
-      ],
-      if (Token.begins_with_potential_operator(Segment.first_string(t))) {
-        [Secondary(mk_space(Id.mk()))] @ t;
-      } else {
-        t;
-      },
-    ]);
+    wrap(
+      typ,
+      List.flatten([
+        l,
+        [
+          Tile({
+            id: typ |> Typ.rep_id,
+            label: ["="],
+            mold: Mold.mk_bin(Precedence.lab, Sort.Typ, []),
+            shards: [0],
+            children: [],
+          }),
+        ],
+        switch (settings.secondary) {
+        | AutoFormat =>
+          let first = Segment.first_string(t);
+          if (Token.begins_with_potential_operator(first)
+              && !String.starts_with(first, ~prefix="…")) {
+            [Secondary(mk_space(Id.mk())), ...t];
+          } else {
+            t;
+          };
+        | PreserveExact => t
+        },
+      ]),
+    );
   | ProdProjection(t1, t2) =>
     let* t1 = go(t1)
     and* t2 =
       switch (t2.term) {
       | Label(l') =>
-        label_to_pretty(
-          ~label_only_position=true,
-          Sort.Typ,
-          l',
-          t2 |> Typ.rep_id,
+        wrap(
+          t2,
+          label_to_pretty(
+            ~label_format=settings.label_format,
+            ~label_only_position=true,
+            Sort.Typ,
+            l',
+            t2 |> Typ.rep_id,
+          ),
         )
       | _ => go(t2)
       };
-    t1 @ [mk_form(ProdProjection, typ |> Typ.rep_id, [])] @ t2;
+    wrap(typ, t1 @ [mk_form(ProdProjection, typ |> Typ.rep_id, [])] @ t2);
   | ProdExtension(t1, t2) =>
     let+ t1 = go(t1)
     and+ t2 = go(t2);
-    t1 @ [mk_form(ProdExtension, typ |> Typ.rep_id, [])] @ t2;
+    wrap(typ, t1 @ [mk_form(ProdExtension, typ |> Typ.rep_id, [])] @ t2);
   | Parens(t) =>
     let id = typ |> Typ.rep_id;
     let+ t = go(t);
-    [mk_form(ParensTyp, id, [t])];
+    wrap(typ, [mk_form(ParensTyp, id, [t])]);
+  | Projector({kind, model}, t) =>
+    let id = typ |> Typ.rep_id;
+    let+ inner_seg = go(t);
+    let syntax = Segment.parenthesize(inner_seg);
+    wrap(
+      typ,
+      [Piece.Projector(ProjectorCore.mk(~id, kind, syntax, model))],
+    );
   | Rec(tp, t) =>
     let id = typ |> Typ.rep_id;
     let+ tp = tpat_to_pretty(~settings: Settings.t, tp)
     and+ t = go(t);
-    [mk_form(Rec, id, [tp])] @ t;
+    wrap(typ, [mk_form(Rec, id, [tp])] @ t);
   | Poly(tp, t) =>
     let id = typ |> Typ.rep_id;
     let+ tp = tpat_to_pretty(~settings: Settings.t, tp)
     and+ t = go(t);
-    [mk_form(Poly, id, [tp])] @ t;
+    wrap(typ, [mk_form(Poly, id, [tp])] @ t);
   | ProofOf(e) =>
     let id = typ |> Typ.rep_id;
     let+ e = exp_to_pretty(~settings, e);
-    [mk_form(ProofOf, id, [e])];
+    wrap(typ, [mk_form(ProofOf, id, [e])]);
   | Arrow(t1, t2) =>
     let id = typ |> Typ.rep_id;
     let+ t1 = go(t1)
     and+ t2 = go(t2);
-    t1 @ [mk_form(TypeArrow, id, [])] @ t2;
+    wrap(typ, t1 @ [mk_form(TypeArrow, id, [])] @ t2);
   | Sum([]) => failwith("Empty Sums are not allowed")
   | Sum([t]) =>
     let id = typ |> Typ.rep_id;
     let+ t = go_constructor(t);
-    [mk_form(TypSumSingle, id, [])] @ t;
+    wrap(typ, [mk_form(TypSumSingle, id, [])] @ t);
   | Sum([t, ...ts]) =>
     let ids = IdTagged.ids(typ) |> pad_ids(List.length(ts) + 1);
     let id = List.hd(ids);
     let ids = List.tl(ids);
     let+ t = go_constructor(t)
     and+ ts = ts |> List.map(go_constructor) |> all;
-    [mk_form(TypSumSingle, id, [])]
-    @ t
-    @ List.flatten(
-        List.map2((id, t) => [mk_form(TypPlus, id, [])] @ t, ids, ts),
-      );
+    wrap(
+      typ,
+      [mk_form(TypSumSingle, id, [])]
+      @ t
+      @ List.flatten(
+          List.map2((id, t) => [mk_form(TypPlus, id, [])] @ t, ids, ts),
+        ),
+    );
+  | Sig([]) =>
+    /* Empty sig: {} */
+    wrap(typ, text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "{}"))
+  | Sig(items) =>
+    /* Non-empty sig: { let x : Int; type T = Bool; ... } */
+    let id = typ |> Typ.rep_id;
+    let wrap_item = wrap_with_secondary(~secondary=settings.secondary);
+    let+ items_pretty =
+      items
+      |> List.map((item: Sig.t) =>
+           switch (item.term) {
+           | SigLet(p) =>
+             let+ p = pat_to_pretty(~settings, p);
+             wrap_item(item, [mk_form(SigLet, item |> Sig.rep_id, [])] @ p);
+           | SigType(tp, t) =>
+             let+ tp = tpat_to_pretty(~settings, tp)
+             and+ t = go(t);
+             wrap_item(
+               item,
+               [mk_form(SigType, item |> Sig.rep_id, [tp])] @ t,
+             );
+           | EmptyHole =>
+             let item_id = item |> Sig.rep_id;
+             p_just(
+               wrap_item(
+                 item,
+                 [
+                   Grout({
+                     id: item_id,
+                     shape: Convex,
+                   }),
+                 ],
+               ),
+             );
+           | Invalid(s) =>
+             p_just(
+               wrap_item(
+                 item,
+                 text_to_pretty(item |> Sig.rep_id, Sort.Sig, s),
+               ),
+             )
+           | MultiHole(es) =>
+             let+ es = es |> List.map(any_to_pretty(~settings)) |> all;
+             wrap_item(item, List.flatten(es));
+           }
+         )
+      |> all;
+    /* Join items with semicolons and wrap in braces */
+    let ids =
+      IdTagged.ids(typ) |> List.tl |> pad_ids(List.length(items) - 1);
+    let body =
+      switch (items_pretty) {
+      | [] => []
+      | [first, ...rest] =>
+        first
+        @ List.flatten(
+            List.map2(
+              (semi_id, item) => [mk_form(SigSeq, semi_id, [])] @ item,
+              ids,
+              rest,
+            ),
+          )
+      };
+    wrap(typ, [mk_form(SigBody, id, [body])]);
   };
 }
 and tpat_to_pretty = (~settings: Settings.t, tpat: TPat.t): pretty => {
+  let wrap = wrap_with_secondary(~secondary=settings.secondary);
+  /* Use settings-aware concatenation and form building */
   switch (tpat |> IdTagged.term_of) {
   | Unknown(prov) =>
     switch (prov.term) {
-    | Hole(Invalid(t)) => text_to_pretty(tpat |> TPat.rep_id, Sort.TPat, t)
+    | Hole(Invalid(t)) =>
+      wrap(tpat, text_to_pretty(tpat |> TPat.rep_id, Sort.TPat, t))
     | RArrow(_)
     | LArrow(_)
     | NProduct(_)
@@ -1646,25 +2926,119 @@ and tpat_to_pretty = (~settings: Settings.t, tpat: TPat.t): pretty => {
     | Hole(CycleHole)
     | Hole(EmptyHole) =>
       let id = tpat |> TPat.rep_id;
-      p_just([
-        Grout({
-          id,
-          shape: Convex,
-        }),
-      ]);
-    | Hole(MultiHole(xs)) =>
-      let id = tpat |> TPat.rep_id;
-      let+ xs = xs |> List.map(any_to_pretty(~settings: Settings.t)) |> all;
-      ListUtil.flat_intersperse(
-        Grout({
-          id,
-          shape: Concave,
-        }),
-        xs,
+      wrap(
+        tpat,
+        p_just([
+          Grout({
+            id,
+            shape: Convex,
+          }),
+        ]),
       );
+    | Hole(MultiHole(xs)) =>
+      let+ xs = xs |> List.map(any_to_pretty(~settings: Settings.t)) |> all;
+      let num_grouts = max(0, List.length(xs) - 1);
+      let ids = IdTagged.ids(tpat) |> pad_ids(num_grouts);
+      let seg =
+        switch (xs) {
+        | [] => []
+        | [first, ...rest] =>
+          first
+          @ List.flatten(
+              List.map2(
+                (id, x) =>
+                  [
+                    Grout({
+                      id,
+                      shape: Concave,
+                    }),
+                    ...x,
+                  ],
+                ids,
+                rest,
+              ),
+            )
+        };
+      wrap(tpat, seg);
     }
-  | Var(v) => text_to_pretty(tpat |> TPat.rep_id, Sort.TPat, v)
+  | Var(v) => wrap(tpat, text_to_pretty(tpat |> TPat.rep_id, Sort.TPat, v))
   };
+}
+and mod_to_pretty = (~settings: Settings.t, item: Mod.t): pretty => {
+  let wrap_item = wrap_with_secondary(~secondary=settings.secondary);
+  let mk_form = mk_form(~secondary=settings.secondary);
+  switch (item.term) {
+  | ModLet(p, e) =>
+    let+ p = pat_to_pretty(~settings, p)
+    and+ e = exp_to_pretty(~settings, e);
+    wrap_item(item, [mk_form(ModLet, item |> Mod.rep_id, [p])] @ e);
+  | ModType(tp, t) =>
+    let+ tp = tpat_to_pretty(~settings, tp)
+    and+ t = typ_to_pretty(~settings, t);
+    wrap_item(item, [mk_form(ModType, item |> Mod.rep_id, [tp])] @ t);
+  | ModExp(e) =>
+    let+ e = exp_to_pretty(~settings, e);
+    wrap_item(item, e);
+  | ModuleMod(mp, e) =>
+    let mp_seg = mpat_to_seg(~settings, mp);
+    let+ e = exp_to_pretty(~settings, e);
+    wrap_item(
+      item,
+      [mk_form(ModuleMod, item |> Mod.rep_id, [mp_seg])] @ e,
+    );
+  | EmptyHole =>
+    p_just(
+      wrap_item(
+        item,
+        [
+          Grout({
+            id: item |> Mod.rep_id,
+            shape: Convex,
+          }),
+        ],
+      ),
+    )
+  | Invalid(s) =>
+    p_just(wrap_item(item, text_to_pretty(item |> Mod.rep_id, Sort.Mod, s)))
+  | MultiHole(_) =>
+    p_just(
+      wrap_item(item, text_to_pretty(item |> Mod.rep_id, Sort.Mod, "?")),
+    )
+  };
+}
+and sig_to_pretty = (~settings: Settings.t, item: Sig.t): pretty => {
+  let wrap_item = wrap_with_secondary(~secondary=settings.secondary);
+  let mk_form = mk_form(~secondary=settings.secondary);
+  switch (item.term) {
+  | SigLet(p) =>
+    let+ p = pat_to_pretty(~settings, p);
+    wrap_item(item, [mk_form(SigLet, item |> Sig.rep_id, [])] @ p);
+  | SigType(tp, t) =>
+    let+ tp = tpat_to_pretty(~settings, tp)
+    and+ t = typ_to_pretty(~settings, t);
+    wrap_item(item, [mk_form(SigType, item |> Sig.rep_id, [tp])] @ t);
+  | EmptyHole =>
+    p_just(
+      wrap_item(
+        item,
+        [
+          Grout({
+            id: item |> Sig.rep_id,
+            shape: Convex,
+          }),
+        ],
+      ),
+    )
+  | Invalid(s) =>
+    p_just(wrap_item(item, text_to_pretty(item |> Sig.rep_id, Sort.Sig, s)))
+  | MultiHole(_) =>
+    p_just(
+      wrap_item(item, text_to_pretty(item |> Sig.rep_id, Sort.Sig, "?")),
+    )
+  };
+}
+and mpat_to_pretty = (~settings: Settings.t, mp: MPat.t): pretty => {
+  p_just(mpat_to_seg(~settings, mp));
 }
 and any_to_pretty = (~settings: Settings.t, any: Any.t): pretty => {
   switch (any) {
@@ -1672,9 +3046,12 @@ and any_to_pretty = (~settings: Settings.t, any: Any.t): pretty => {
   | Pat(p) => pat_to_pretty(~settings: Settings.t, p)
   | Typ(t) => typ_to_pretty(~settings: Settings.t, t)
   | TPat(tp) => tpat_to_pretty(~settings: Settings.t, tp)
+  | Drv(d) => drv_to_pretty(~settings: Settings.t, d, ~sort=Jdmt)
+  | Mod(m) => mod_to_pretty(~settings, m)
+  | Sig(s) => sig_to_pretty(~settings, s)
+  | MPat(mp) => mpat_to_pretty(~settings, mp)
   | Any(_)
   | Rul(_) =>
-    //TODO: print out invalid rules properly
     let id = any |> Any.rep_id;
     p_just([
       Grout({
@@ -1685,12 +3062,22 @@ and any_to_pretty = (~settings: Settings.t, any: Any.t): pretty => {
   };
 }
 and label_to_pretty =
-    (~label_only_position, sort: Sort.t, label: string, id: Uuidm.t): pretty => {
+    (
+      ~label_format: Settings.label_format,
+      ~label_only_position,
+      sort: Sort.t,
+      label: string,
+      id: Uuidm.t,
+    )
+    : pretty => {
   text_to_pretty(
     id,
     sort,
     if (label_only_position) {
-      Token.quote_label_when_necessary(label);
+      switch (label_format) {
+      | QuoteWhenNecessary => Token.quote_label_when_necessary(label)
+      | AlwaysQuote => Token.label_quote(label)
+      };
     } else {
       label;
     },
@@ -1700,14 +3087,29 @@ and label_to_pretty =
 let exp_to_segment =
     (~already_paren=false, ~settings: Settings.t, exp: Exp.t): Segment.t => {
   let exp =
-    exp |> parenthesize(~already_paren, ~show_filters=settings.show_filters);
+    exp
+    |> parenthesize(
+         ~parenthesization=settings.parenthesization,
+         ~already_paren,
+         ~show_filters=settings.show_filters,
+         ~show_ascriptions=settings.show_ascriptions,
+       );
   let p = exp_to_pretty(~settings, exp);
   p |> PrettySegment.select;
 };
 
-let typ_to_segment = (~settings, typ: Typ.t): Segment.t => {
-  let typ = parenthesize_typ(typ);
-  let p = typ_to_pretty(~settings, typ(~show_filters=settings.show_filters));
+let typ_to_segment = (~settings: Settings.t, typ: Typ.t): Segment.t => {
+  /* Desugar Sig types to labeled tuples so they display as (x=Int, y=Bool)
+     instead of {sig}. Uses empty ctx since we're just displaying. */
+  let typ = Typ.desugar_sig(Ctx.empty, typ);
+  let typ =
+    typ
+    |> parenthesize_typ(
+         ~parenthesization=settings.parenthesization,
+         ~show_filters=settings.show_filters,
+         ~show_ascriptions=settings.show_ascriptions,
+       );
+  let p = typ_to_pretty(~settings, typ);
   p |> PrettySegment.select;
 };
 
@@ -1715,7 +3117,12 @@ let any_to_segment =
     (~already_paren=false, ~settings: Settings.t, any: Any.t): Segment.t => {
   let any =
     any
-    |> parenthesize_any(~already_paren, ~show_filters=settings.show_filters);
+    |> parenthesize_any(
+         ~parenthesization=settings.parenthesization,
+         ~already_paren,
+         ~show_filters=settings.show_filters,
+         ~show_ascriptions=settings.show_ascriptions,
+       );
   let p = any_to_pretty(~settings, any);
   p |> PrettySegment.select;
 };

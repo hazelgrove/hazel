@@ -161,6 +161,17 @@ module Store = {
       exercise_export.exercise_data,
     );
   };
+
+  let reset = (~settings, ~instructor_mode) => {
+    let _ = StoreTutorialKey.reset();
+    List.iter(
+      spec => {
+        let _ = init_exercise(~settings, spec, ~instructor_mode);
+        ();
+      },
+      TutorialSettings.lessons,
+    );
+  };
 };
 module Update = {
   open Updated;
@@ -170,8 +181,7 @@ module Update = {
     | Tutorial(TutorialMode.Update.t)
     | ExportModule
     | ExportSubmission
-    | ExportTransitionary
-    | ExportGrading;
+    | ExportTransitionary;
 
   let can_undo = (action: t) => {
     switch (action) {
@@ -180,7 +190,6 @@ module Update = {
     | ExportModule => false
     | ExportSubmission => false
     | ExportTransitionary => false
-    | ExportGrading => false
     };
   };
 
@@ -214,16 +223,6 @@ module Update = {
         module_name,
         {eds: exercise.editors},
       );
-    JsUtil.download_string_file(~filename, ~content_type, ~contents);
-  };
-  let export_instructor_grading_report = (exercises: Model.t) => {
-    let exercise = Model.get_current(exercises);
-    // .ml files because show uses OCaml syntax (dune handles seamlessly)
-    let module_name = exercise.editors.module_name;
-    let filename = exercise.editors.module_name ++ "_grading.ml";
-    let content_type = "text/plain";
-    let contents =
-      Tutorial.export_grading_module(module_name, {eds: exercise.editors});
     JsUtil.download_string_file(~filename, ~content_type, ~contents);
   };
 
@@ -280,10 +279,6 @@ module Update = {
       Store.save(~instructor_mode=globals.settings.instructor_mode, model);
       export_transitionary(model);
       model |> return_quiet;
-    | ExportGrading =>
-      Store.save(~instructor_mode=globals.settings.instructor_mode, model);
-      export_instructor_grading_report(model);
-      model |> return_quiet;
     };
   };
   let calculate =
@@ -305,21 +300,17 @@ module Selection = {
   open Cursor;
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = TutorialMode.Selection.t;
-  let get_cursor_info = (~selection, model: Model.t): cursor(Update.t) => {
+  let get_cursor_info =
+      (~inject: Update.t => Ui_effect.t(unit), ~selection, model: Model.t)
+      : cursor(Update.t) => {
     let+ ci =
       TutorialMode.Selection.get_cursor_info(
+        ~inject=a => inject(Tutorial(a)),
         ~selection,
         List.nth(model.exercises, model.current),
       );
     Update.Tutorial(ci);
   };
-  let handle_key_event = (~selection, ~event, model: Model.t) =>
-    TutorialMode.Selection.handle_key_event(
-      ~selection,
-      ~event,
-      List.nth(model.exercises, model.current),
-    )
-    |> Option.map(a => Update.Tutorial(a));
   let jump_to_tile =
       (~settings, tile, model: Model.t): option((Update.t, t)) =>
     TutorialMode.Selection.jump_to_tile(
@@ -371,12 +362,6 @@ module View = {
         _ => {inject(ExportTransitionary)},
         ~tooltip="Export Transitionary Exercise Module",
       );
-    let instructor_grading_export =
-      Widgets.button_named(
-        Icons.export,
-        _ => {inject(ExportGrading)},
-        ~tooltip="Export Grading Exercise Module",
-      );
     let export_submission =
       Widgets.button_named(
         Icons.star,
@@ -404,7 +389,7 @@ module View = {
               "Are you SURE you want to reset Hazel to its initial state? You will lose any existing code that you have written, and course staff have no way to restore it!",
             );
           if (confirmed) {
-            JsUtil.clear_localstore();
+            HazelDB.clear_all();
             Dom_html.window##.location##reload;
           };
           Virtual_dom.Vdom.Effect.Ignore;
@@ -433,11 +418,7 @@ module View = {
       NutMenu.item_group(
         ~inject,
         "Developer Export",
-        [
-          instructor_export,
-          instructor_transitionary_export,
-          instructor_grading_export,
-        ],
+        [instructor_export, instructor_transitionary_export],
       );
     if (globals.settings.instructor_mode) {
       [
@@ -497,6 +478,7 @@ module View = {
             model.current,
             titles,
           ),
+        (),
       );
     // };
   };

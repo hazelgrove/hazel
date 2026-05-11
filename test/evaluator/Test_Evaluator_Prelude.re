@@ -47,17 +47,72 @@ let evaluate_probes = unevaluated =>
   |> EvaluatorState.get_probes;
 
 let parse_exp = (s: string) => {
-  switch (Haz3lcore.Parser.to_term(s)) {
+  switch (Haz3lcore.Parser.to_term(s, ~root=Exp)) {
   | Some(e) => e
   | None => Alcotest.fail("Failed to parse expression: " ++ s)
   };
 };
-let elaborate = u =>
-  Elaborator.elaborate(
-    Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), u) |> fst,
-    u,
-  )
-  |> fst;
+
+/* Parse code with probes (^^probe syntax), elaborate it, and build targets */
+let parse_with_probes =
+    (s: string): (Exp.t, Exp.t, Statics.Map.t, Sample.targets) => {
+  switch (Haz3lcore.Parser.to_zipper(~root=Exp, s)) {
+  | None => Alcotest.fail("Failed to parse expression: " ++ s)
+  | Some(z) =>
+    let make_term_result = Haz3lcore.MakeTerm.from_zip_for_sem(z, ~root=Exp);
+    let term = make_term_result.term;
+    /* Extract probe IDs directly from zipper's refractors.
+     * Map values to unit since we only need the IDs as keys. */
+    let probe_ids =
+      Id.Map.union(
+        (_, _, _) => Some(),
+        Id.Map.map(_ => (), Id.Map.of_list(z.refractors.manuals)),
+        Id.Map.map(_ => (), z.refractors.multis.ephemerals),
+      );
+
+    /* Build statics map for refs lookup and evaluation */
+    let (info_map, elaborated) =
+      Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
+
+    /* Build targets from probe_ids, computing refs for each */
+    let targets: Sample.targets =
+      Id.Map.fold(
+        (id, (), acc) => {
+          let refs =
+            switch (Statics.Map.lookup_exp(id, info_map)) {
+            | Some(_) => Statics.Map.refs_in(info_map, id)
+            | None =>
+              switch (Statics.Map.lookup_pat(id, info_map)) {
+              | Some(_) => Statics.Map.bound_in(info_map, id)
+              | None => []
+              }
+            };
+          let spec: Sample.capture_spec = {refs: refs};
+          Id.Map.add(id, spec, acc);
+        },
+        probe_ids,
+        Id.Map.empty,
+      );
+
+    (term, elaborated, info_map, targets);
+  };
+};
+
+let elaborate = u => {
+  let (_, elab) =
+    Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), u);
+  elab;
+};
+
+let elaborated_type = (info_map: Statics.Map.t, exp: Exp.t): Typ.t =>
+  switch (Statics.Map.lookup_exp(Exp.rep_id(exp), info_map)) {
+  | Some({ana, ty, ctx, _}) =>
+    Typ.match_synswitch(ana, ty) |> Typ.normalize(ctx) |> Typ.all_ids_temp
+  | None =>
+    Alcotest.fail(
+      "Preservation check failed: No type information found for expression",
+    )
+  };
 
 (exp, probes) => (
   {
@@ -123,9 +178,9 @@ let full_small_step_reduction =
 };
 
 let full_preservation_test = (uexp: TermBase.exp_t): unit => {
-  let (statics, _) =
+  let (statics, elaborated) =
     Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), uexp);
-  let (elaborated, ty) = Elaborator.elaborate(statics, uexp);
+  let ty = elaborated_type(statics, uexp);
 
   let evaluated =
     Evaluator.evaluate(~env=Builtins.env_init, elaborated) |> fst;
@@ -134,10 +189,10 @@ let full_preservation_test = (uexp: TermBase.exp_t): unit => {
 
   let new_ty =
     switch (
-      Statics.Map.lookup(evaluated.annotation.ids |> List.hd, new_statics)
+      Statics.Map.ty_of(evaluated.annotation.ids |> List.hd, new_statics)
     ) {
-    | Some(InfoExp({ty, _})) => ty
-    | _ =>
+    | Some(ty) => ty
+    | None =>
       Alcotest.fail(
         "Preservation check failed: No type information found for evaluated expression",
       )

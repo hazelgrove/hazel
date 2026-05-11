@@ -24,8 +24,20 @@ type all_public = {
 let mk_all = (~core_settings, ~instructor_mode, ~log) => {
   let settings = Settings.Store.export();
   let explainThisModel = ExplainThisModel.Store.export();
-  let scratch = ScratchMode.Store.export();
-  let documentation = ScratchMode.StoreDocumentation.export();
+  let (scratch_current, scratch_slides) = Init.startup.scratch;
+  let scratch =
+    ScratchMode.Persist.export_all(
+      "scratch",
+      ~default_names=List.map(fst, scratch_slides),
+      ~default_current=scratch_current,
+    );
+  let (doc_current, doc_slides) = Init.startup.documentation;
+  let documentation =
+    ScratchMode.Persist.export_all(
+      "doc",
+      ~default_names=List.map(fst, doc_slides),
+      ~default_current=doc_current,
+    );
   let tutorial =
     TutorialsMode.Store.export(~settings=core_settings, ~instructor_mode);
   let exercise =
@@ -65,7 +77,10 @@ let import_all =
   let settings = Settings.Store.load();
   ExplainThisModel.Store.import(all.explainThisModel);
   let instructor_mode = settings.instructor_mode;
-  ScratchMode.Store.import(all.scratch);
+  ScratchMode.Persist.import_all("scratch", all.scratch);
+  if (all.documentation != "") {
+    ScratchMode.Persist.import_all("doc", all.documentation);
+  };
   ExercisesMode.Store.import(
     ~settings,
     all.exercise,
@@ -79,4 +94,22 @@ let import_all =
     ~instructor_mode,
   );
   import_log(all.log);
+};
+
+let import_just_log = (data: string) => {
+  let all =
+    try(data |> Yojson.Safe.from_string |> all_of_yojson) {
+    | _ =>
+      let all_public = data |> Yojson.Safe.from_string |> all_public_of_yojson;
+      {
+        settings: all_public.settings,
+        scratch: all_public.scratch,
+        documentation: "",
+        exercise: all_public.exercise,
+        tutorial: all_public.tutorial,
+        log: all_public.log,
+        explainThisModel: "",
+      };
+    };
+  all.log;
 };

@@ -1,7 +1,6 @@
 open Test_Statics_Prelude;
 open FTemp;
 open Typ;
-open TypeProvenance;
 open Util;
 
 let testable_id =
@@ -25,28 +24,28 @@ end
       {|
     type ? = ? in ?
     |},
-      Some(unknown(internal())),
+      Some(unknown(Internal)),
     ),
     fully_consistent_typecheck(
       "single null sum type",
       {|
     type SingleNull = +One in ?
     |},
-      Some(unknown(internal())),
+      Some(unknown(Internal)),
     ),
     fully_consistent_typecheck(
       "single sum type",
       {|
     type Single = +F(Int) in ?
     |},
-      Some(unknown(internal())),
+      Some(unknown(Internal)),
     ),
     fully_consistent_typecheck(
       "partial sum type",
       {|
     type Partial = Ok(?) + ? in ?
     |},
-      Some(unknown(internal())),
+      Some(unknown(Internal)),
     ),
     fully_consistent_typecheck(
       "double alias",
@@ -54,7 +53,7 @@ end
     type GoodSum = A + B + C(Int) in
     type DoubleAlias = GoodSum in ?
     |},
-      Some(unknown(internal())),
+      Some(unknown(Internal)),
     ),
     fully_consistent_typecheck(
       "vertical leading",
@@ -66,7 +65,7 @@ end
       + C(Bool->Bool)
     in ?
     |},
-      Some(unknown(internal())),
+      Some(unknown(Internal)),
     ),
     inconsistent_typecheck(
       "tuple as type name",
@@ -149,7 +148,7 @@ end
     type CompoundAlias = (Int, Anonymous + Sum) in
     let _: CompoundAlias = (1, Sum) in ?
     |},
-      Some(unknown(internal())),
+      Some(unknown(Internal)),
     ),
     inconsistent_typecheck(
       "unbound type var in function",
@@ -166,7 +165,7 @@ end
     type Yorp = Int -> (Inside + Ouside) in
     let _: Yorp = fun _ -> Inside in ?
     |},
-      Some(unknown(internal())),
+      Some(unknown(Internal)),
     ),
     inconsistent_typecheck(
       "unbound type var in sum",
@@ -183,7 +182,7 @@ end
     type Gargs = [BigGuy + Small] in
     let _: Gargs = [BigGuy] in ?
     |},
-      Some(unknown(internal())),
+      Some(unknown(Internal)),
     ),
     fully_consistent_typecheck(
       "analytic sum types in sum with cons",
@@ -191,7 +190,7 @@ end
     type Gargs = [BigGuy + Small] in
     let _: Gargs = BigGuy :: [BigGuy] in ?
     |},
-      Some(unknown(internal())),
+      Some(unknown(Internal)),
     ),
     inconsistent_typecheck(
       "unbound type var in sum with cons",
@@ -207,7 +206,7 @@ end
     type Tork2 = +Blob in
     let x:Tork1 = Blob in ?
     |},
-      Some(unknown(internal())),
+      Some(unknown(Internal)),
     ),
     fully_consistent_typecheck(
       "exp tests: happy",
@@ -221,7 +220,7 @@ end
     let _ : (Yo + Dawg, Int) = (Dawg,5) in
     let _ : DoubleAlias = C(4) in ?
     |},
-      Some(unknown(internal())),
+      Some(unknown(Internal)),
     ),
     inconsistent_typecheck(
       "inconsistent type with arrow",
@@ -267,7 +266,7 @@ end
     case Yo(1):(+Yo(Int)) | Yo(1) => ? | _ => ? end;
     case Yo :(+Yo) | Yo : +Yo => ? end;
     |},
-      Some(unknown(internal())),
+      Some(unknown(Internal)),
     ),
     inconsistent_typecheck(
       "pattern constructor tests: errors",
@@ -335,6 +334,64 @@ end
     let _ : +Yo = Yo("lol") in ?
     |} |> parse_exp,
     ),
+    inconsistent_typecheck(
+      "duplicate variables in patterns",
+      // #err: type incons#
+      {|
+    case (1,2,3) | (x, y, x) => 0 end
+    |} |> parse_exp,
+    ),
+    inconsistent_typecheck(
+      "duplicate variables in patterns with nested tuples",
+      // #err: type incons#
+      {|
+    case (1,(2,3),4) | (x, (x,y), z) => 0 end
+    |} |> parse_exp,
+    ),
+    inconsistent_typecheck(
+      "duplicate variables in patterns with labels",
+      // #err: type incons#
+      {|
+    case (1,(2,3),4) | (x=1, (x,y), z) => 0 end
+    |} |> parse_exp,
+    ),
+    inconsistent_typecheck(
+      "duplicate variables in patterns with let expressions",
+      // #err: type incons#
+      {|
+    let (x,x) = 1,2 in ?
+    |} |> parse_exp,
+    ),
+    inconsistent_typecheck(
+      "duplicate variables in patterns in functions",
+      // #err: type incons#
+      {|
+    fun x,x -> = 1 in ?
+    |} |> parse_exp,
+    ),
+    inconsistent_typecheck(
+      "duplicate variables in patterns in labeled tuples",
+      // #err: type incons#
+      {|
+    let (x=a, x=(b, c)) = ? in
+    |} |> parse_exp,
+    ),
+    inconsistent_typecheck(
+      "duplicate variables in patterns in labeled tuples #2",
+      // #err: type incons#
+      {|
+    let (x, x=(x, y)) = ? in
+    |} |> parse_exp,
+    ),
+    fully_consistent_typecheck(
+      "duplicate variable tests: happy",
+      {|
+      let (x=(x, y)) = ? in
+      let (x, x=?) = ? in
+      let (x, x=(z, y=(x=a))) = ? in
+    |},
+      Some(unknown(Internal)),
+    ),
     Alcotest.test_case(
       "Sum type duplicate constructor",
       `Quick,
@@ -349,8 +406,16 @@ end
                 TPat.var("A2"),
                 Typ.(
                   sum([
-                    Variant("A", [id1], None),
-                    Variant("A", [id2], None),
+                    Variant(
+                      "A",
+                      ConstructorMap.mk_variant_ann(~ids=[id1], ()),
+                      None,
+                    ),
+                    Variant(
+                      "A",
+                      ConstructorMap.mk_variant_ann(~ids=[id2], ()),
+                      None,
+                    ),
                   ])
                 ),
                 Exp.empty_hole(),
@@ -359,12 +424,12 @@ end
           );
 
         let error =
-          Statics.Map.errors(statics(exp) |> fst) |> List.assoc(id2);
+          errors(statics(exp)) |> List.assoc(id2) |> (ms => Marks(ms));
         Alcotest.(
           check(
-            testable_error,
+            testable_issue,
             "duplicate constructor present",
-            Typ(DuplicateConstructor("A")),
+            Marks([Mark.TypDuplicateConstructor("A")]),
             error,
           )
         );

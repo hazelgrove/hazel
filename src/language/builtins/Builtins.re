@@ -4,7 +4,8 @@ open BuiltinsUtil;
    Update src/menhirParser/Lexer.mll when any new builtin is added */
 
 let builtins =
-  List.map(fn_builtin, BuiltinsBase.string_fns)
+  List.map(fn_builtin, BuiltinsBase.misc_fns)
+  @ List.map(fn_builtin, BuiltinsBase.string_fns)
   @ List.map(fn_builtin, BuiltinsBase.pair_fns)
   @ List.map(of_atom_builtin, Atom.converter_builtins)
   @ List.map(of_atom_builtin, Operators.builtins)

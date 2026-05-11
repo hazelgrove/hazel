@@ -6,6 +6,13 @@ open Util.WebUtil;
 
 /* Helpers for rendering code text with holes and syntax highlighting */
 
+let is_ref = (token: string, sort: Sort.t) =>
+  sort != Pat
+  && sort != TPat
+  && !Token.is_keyword(token)
+  && !Token.is_base_typ(token)
+  && Token.is_typ_var(token);
+
 let of_delim' =
   Core.Memo.general(
     ~cache_size_bound=10000,
@@ -17,6 +24,7 @@ let of_delim' =
       is_in_buffer: bool,
       is_complete: bool,
       is_infix_var: bool,
+      font_metrics: FontMetrics.t,
     ): t => {
       let base_cls =
         switch (token) {
@@ -26,13 +34,26 @@ let of_delim' =
         | _ when Token.is_explicit_hole(token) => "explicit-hole"
         | _ when Token.is_string(token) => "string-lit"
         | _ when is_infix_var => "Any" /* Budget error deco */
-        | _ => Sort.to_string(sort)
+        | _ => Sort.class_of(sort)
         };
       let plurality = plurality == 1 ? "mono" : "poly";
       let in_buffer = is_in_buffer ? ["in-parsed-buffer"] : [];
+      let var_class = is_ref(token, sort) ? ["ref"] : [];
+      let keyword_class = Token.is_keyword(token) ? ["keyword"] : [];
       span(
-        ~attrs=[Attr.classes(["token", base_cls, plurality] @ in_buffer)],
-        [Node.text(token)],
+        ~attrs=[
+          Attr.classes(
+            ["token", base_cls, plurality]
+            @ in_buffer
+            @ var_class
+            @ keyword_class,
+          ),
+        ],
+        /* Currently only supporting emojis in strings; this is a
+           conservative choice to guard against perf regressions;
+           it can likely be relaxed. See also Token.bounding_box */
+        base_cls == "string-lit"
+          ? GraphemeView.render(~font_metrics, token) : [text(token)],
       );
     },
   );
@@ -52,8 +73,14 @@ let view =
       ~measured: Measured.t,
       ~settings: Settings.Model.t,
       ~shape_map: ProjectorCore.Shape.Map.t,
+      ~refractor_shape_map: Id.Map.t(_),
       ~font_metrics: FontMetrics.t,
       ~term_data: TermData.t,
+      /* `refine_sort` lets the caller refine a tile's syntactic mold-out sort
+         using information unavailable at this purely syntactic layer (e.g.
+         statics refining `Drv(Exp)` to `Drv(Jdmt)`/`Drv(Ctx)`/`Drv(Prop)`).
+         The default leaves the mold sort unchanged. */
+      ~refine_sort: (Id.t, Sort.t) => Sort.t=(_, sort) => sort,
       ~buffer_ids: list(Id.t),
       segment: Segment.t,
     ) => {
@@ -72,30 +99,41 @@ let view =
   let lb_icon = settings.secondary_icons ? "⏎" : "";
   let ws_icon = settings.secondary_icons ? "·" : " ";
 
-  let is_consistent = (t: Tile.t) =>
+  let sort = (t: Tile.t): Sort.t => refine_sort(t.id, t.mold.out);
+
+  let is_consistent = (sort: Sort.t, t: Tile.t) =>
     switch (Id.Map.find_opt(t.id, term_data)) {
     | None => true
     | Some(data) =>
-      switch (t.mold.out, data.sort) {
+      switch (sort, data.sort) {
       | (Any, _)
       | (_, Any) => true
       | (Rul, Exp) => true
       | (Exp, Rul) => true
-      | _ => t.mold.out == data.sort
+      /* All Drv(_) sub-sorts (Jdmt/Ctx/Prop/Exp) are treated as mutually
+         consistent for highlighting purposes. term_data carries the sort
+         the parser assigned (always the collapsed Drv(Exp) for these), so
+         strict sort equality with the statics-refined sort would spuriously
+         flag judgments/contexts/propositions as inconsistent. */
+      | (Drv(_), _) => true
+      | _ => sort == data.sort
       }
     };
 
-  let of_delim = (t: Piece.tile, i: int): t =>
+  let of_delim = (t: Piece.tile, i: int): t => {
+    let sort = sort(t);
     of_delim'(
       List.nth(t.label, i),
       List.length(t.label),
-      t.mold.out,
-      is_consistent(t),
+      sort,
+      is_consistent(sort, t),
       List.mem(t.id, buffer_ids),
       Tile.is_complete(t),
       Mold.is_infix_op(t.mold)
       && Form.is_infix_delimiter_op_prefix(List.nth(t.label, i)),
+      font_metrics,
     );
+  };
 
   let measure_of = p => Measured.find_p(~msg="Text", p, measured);
 
@@ -113,19 +151,38 @@ let view =
     };
 
   let of_projector = (pr: Base.projector) => {
-    let indent = measure_of(Projector(pr)).last.col;
-    let size = DeferredLinebreaks.of_projector(pr, shape_map);
-    let token = whitespace_token(size.row, size.row == 0 ? size.col : indent);
-    Node.text(token);
+    /* Read-only viewers (e.g. agent context) pass an empty shape map; folds
+       would render as invisible whitespace. Show the standard fold glyph. */
+    switch (pr.kind) {
+    | ProjectorCore.Kind.Fold when Id.Map.is_empty(shape_map) =>
+      span(
+        ~attrs=[Attr.classes(["token", "fold-projector", "mono"])],
+        [text({|⋱|})],
+      )
+    | _ =>
+      let indent = measure_of(Projector(pr)).last.col;
+      let size = DeferredLinebreaks.of_projector(pr, shape_map);
+      let token =
+        whitespace_token(size.row, size.row == 0 ? size.col : indent);
+      Node.text(token);
+    };
   };
 
   let rec of_segment = (seg: Segment.t): list(Node.t) =>
     List.concat_map(
       fun
-      | Piece.Tile(t) =>
-        Aba.mk(t.shards, t.children)
-        |> Aba.join(i => [of_delim(t, i)], of_segment)
-        |> List.concat
+      | Piece.Tile(t) => {
+          let _ =
+            switch (Id.Map.find_opt(t.id, refractor_shape_map)) {
+            | Some(_) =>
+              DeferredLinebreaks.update(2) |> ignore;
+              ();
+            | None => ()
+            };
+          Aba.mk(t.shards, t.children)
+          |> Aba.join(i => [of_delim(t, i)], of_segment)
+          |> List.concat;
+        }
       | Grout(g) => [of_grout(g)]
       | Secondary(s) => [of_secondary(s)]
       | Projector(pr) => [of_projector(pr)],

@@ -1,272 +1,49 @@
-open Util;
-open Haz3lcore;
+/* The common interface for an exercise, across all kinds.
 
-let output_header_grading = _module_name =>
-  "module Exercise = GradePrelude.Exercise\n" ++ "let prompt = ()\n";
+   Code-exercise-specific logic (points, hidden tests, stitching, etc.) lives
+   in [CodeExercise.re]. Derivation- and Theorem-specific logic lives in
+   [DerivationExercise.re] and [TheoremExercise.re] respectively. This module
+   is just the thin dispatcher that unifies them. */
 
+/* Sum type over all exercise kinds. An exercise file should produce a value
+   of this type, tagged with the appropriate constructor, so
+   [[ExerciseSettings_base.re]] can simply list them without additional
+   wrapping. */
 [@deriving (show({with_path: false}), sexp, yojson)]
-type wrong_impl('code) = {
-  impl: 'code,
-  hint: string,
-};
+type t =
+  | Code(CodeExercise.spec)
+  | Derivation(DerivationExercise.spec)
+  | Theorem(TheoremExercise.spec);
 
-[@deriving (show({with_path: false}), sexp, yojson)]
-type hidden_tests('code) = {
-  tests: 'code,
-  hints: list(string),
-};
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type hint = string;
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type syntax_test = (hint, SyntaxTest.predicate);
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type syntax_tests = list(syntax_test);
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type your_tests('code) = {
-  tests: 'code,
-  required: int,
-  provided: int,
-};
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type point_distribution = {
-  test_validation: int,
-  mutation_testing: int,
-  impl_grading: int,
-};
-
-let validate_point_distribution =
-    ({test_validation, mutation_testing, impl_grading}: point_distribution) =>
-  test_validation + mutation_testing + impl_grading == 100
-    ? () : failwith("Invalid point distribution in exercise.");
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type p('code) = {
-  id: Id.t,
-  title: string,
-  module_name: string,
-  prompt: string,
-  point_distribution,
-  prelude: 'code,
-  correct_impl: 'code,
-  your_tests: your_tests('code),
-  your_impl: 'code,
-  hidden_bugs: list(wrong_impl('code)),
-  hidden_tests: hidden_tests('code),
-  syntax_tests,
-};
-
-type record = p(Zipper.t);
-
-let id_of = p => {
-  p.id;
-};
-
-let find_id_opt = (id, specs: list(p('code))) => {
-  specs |> Util.ListUtil.findi_opt(spec => id_of(spec) == id);
-};
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type pos =
-  | Prelude
-  | CorrectImpl
-  | YourTestsValidation
-  | YourTestsTesting
-  | YourImpl
-  | HiddenBugs(int)
-  | HiddenTests;
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type spec = p(Zipper.t);
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type exercise_spec =
-  | Implementation(spec)
-  | Theorem(TheoremExerciseSpec.t);
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type transitionary_spec = p(string);
-
-let map = (p: p('a), f: 'a => 'b, f_hidden: 'a => 'b): p('b) => {
-  {
-    id: p.id,
-    title: p.title,
-    module_name: p.module_name,
-    prompt: p.prompt,
-    point_distribution: p.point_distribution,
-    prelude: f_hidden(p.prelude),
-    correct_impl: f_hidden(p.correct_impl),
-    your_tests: {
-      tests: f(p.your_tests.tests),
-      required: p.your_tests.required,
-      provided: p.your_tests.provided,
-    },
-    your_impl: f(p.your_impl),
-    hidden_bugs:
-      p.hidden_bugs
-      |> List.map(wrong_impl => {
-           {
-             impl: f_hidden(wrong_impl.impl),
-             hint: wrong_impl.hint,
-           }
-         }),
-    hidden_tests: {
-      tests: f_hidden(p.hidden_tests.tests),
-      hints: p.hidden_tests.hints,
-    },
-    syntax_tests: p.syntax_tests,
-  };
-};
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type eds = p(Editor.t);
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type state = {eds};
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type persistent_state = {
-  editors: list((pos, PersistentZipper.t)),
-  title: string,
-  hidden_bugs: list(wrong_impl(PersistentZipper.t)),
-  prompt: string,
-  point_distribution,
-  required: int,
-  module_name: string,
-  syntax_tests: list(syntax_test),
-  hidden_test_hints: list(string),
-  // NOTE: Add new fields to record here as new instructor editable features are
-  //       implemented (eg. prelude: PersistentZipper.t when adding the feature
-  //       to edit the prelude). After adding these field(s), we will need to
-  //       go into persistent_state_of_state and unpersist_state to implement
-  //       how these fields are saved and loaded to and from local memory
-  //       respectively.
-  // NOTE: It may be helpful to look at changes made in the mutant-add-delete and title-editor
-  //       branches in the Hazel repository to see and understand where changes
-  //       were made. It is likely that new implementations of editble features
-  //       will follow a similar route.
-};
-
-let clamp_idx = (eds: p('a), idx: int) => {
-  let length = List.length(eds.hidden_bugs);
-  let idx = idx > length - 1 ? idx - 1 : idx;
-  idx >= 0 ? Some(idx) : None;
-};
-
-let main_editor_of_state = (~selection: pos, eds) =>
-  switch (selection) {
-  | Prelude => eds.prelude
-  | CorrectImpl => eds.correct_impl
-  | YourTestsValidation => eds.your_tests.tests
-  | YourTestsTesting => eds.your_tests.tests
-  | YourImpl => eds.your_impl
-  | HiddenBugs(i) =>
-    switch (clamp_idx(eds, i)) {
-    | Some(idx) => List.nth(eds.hidden_bugs, idx).impl
-    | None => eds.your_impl
-    }
-  | HiddenTests => eds.hidden_tests.tests
+let id_of = (e: t): Haz3lcore.Id.t =>
+  switch (e) {
+  | Code(s) => s.id
+  | Derivation(s) => s.id
+  | Theorem(s) => s.id
   };
 
-let put_main_editor = (~selection: pos, eds: p('a), editor: 'a): p('a) =>
-  switch (selection) {
-  | Prelude => {
-      ...eds,
-      prelude: editor,
-    }
-  | CorrectImpl => {
-      ...eds,
-      correct_impl: editor,
-    }
-  | YourTestsValidation
-  | YourTestsTesting => {
-      ...eds,
-      your_tests: {
-        ...eds.your_tests,
-        tests: editor,
-      },
-    }
-  | YourImpl => {
-      ...eds,
-      your_impl: editor,
-    }
-  | HiddenBugs(n) => {
-      ...eds,
-      hidden_bugs:
-        Util.ListUtil.put_nth(
-          n,
-          {
-            ...List.nth(eds.hidden_bugs, n),
-            impl: editor,
-          },
-          eds.hidden_bugs,
-        ),
-    }
-  | HiddenTests => {
-      ...eds,
-      hidden_tests: {
-        ...eds.hidden_tests,
-        tests: editor,
-      },
-    }
+let title_of = (e: t): string =>
+  switch (e) {
+  | Code(s) => s.title
+  | Derivation(s) => s.title
+  | Theorem(s) => s.title
   };
 
-let editors = eds =>
-  [
-    eds.prelude,
-    eds.correct_impl,
-    eds.your_tests.tests,
-    eds.your_tests.tests,
-    eds.your_impl,
-  ]
-  @ List.map(wrong_impl => wrong_impl.impl, eds.hidden_bugs)
-  @ [eds.hidden_tests.tests];
-
-let editor_positions = (eds: p('a)) =>
-  [Prelude, CorrectImpl, YourTestsTesting, YourTestsValidation, YourImpl]
-  @ List.mapi((i, _) => HiddenBugs(i), eds.hidden_bugs)
-  @ [HiddenTests];
-
-let positioned_editors = state =>
-  List.combine(editor_positions(state), editors(state));
-
-let idx_of_pos = (pos, p: p('code)) =>
-  switch (pos) {
-  | Prelude => 0
-  | CorrectImpl => 1
-  | YourTestsTesting => 2
-  | YourTestsValidation => 3
-  | YourImpl => 4
-  | HiddenBugs(i) =>
-    if (i < List.length(p.hidden_bugs)) {
-      5 + i;
-    } else {
-      failwith("invalid hidden bug index");
-    }
-  | HiddenTests => 5 + List.length(p.hidden_bugs)
+let module_name_of = (e: t): string =>
+  switch (e) {
+  | Code(s) => s.module_name
+  | Derivation(s) => s.module_name
+  | Theorem(s) => s.module_name
   };
 
-let pos_of_idx = (p: p('code), idx: int) =>
-  switch (idx) {
-  | 0 => Prelude
-  | 1 => CorrectImpl
-  | 2 => YourTestsTesting
-  | 3 => YourTestsValidation
-  | 4 => YourImpl
-  | _ =>
-    if (idx < 0) {
-      failwith("negative idx");
-    } else if (idx < 5 + List.length(p.hidden_bugs)) {
-      HiddenBugs(idx - 5);
-    } else if (idx == 5 + List.length(p.hidden_bugs)) {
-      HiddenTests;
-    } else {
-      failwith("element idx");
-    }
+let max_points_of = (e: t): int =>
+  switch (e) {
+  | Code(s) =>
+    let {test_validation, mutation_testing, impl_grading}: CodeExercise.point_distribution =
+      s.point_distribution;
+    test_validation + mutation_testing + impl_grading;
+  | Derivation(s) => s.max_points
+  | Theorem(s) => s.max_points
   };
 
 let zipper_of_code = code => {

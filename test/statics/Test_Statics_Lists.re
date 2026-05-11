@@ -14,7 +14,7 @@ let tests = (
         FIError.Exp.(
           let a =
             constructor(
-              ~ann=Some(Exp(Common(NoType(FreeConstructor("A"))))),
+              ~ann=Some(Marks([FreeConstructor("A")])),
               "A",
               None,
             );
@@ -27,7 +27,7 @@ let tests = (
         "a @ a",
         list(unknown(internal())),
         FIError.Exp.(
-          let a = var(~ann=Some(Exp(FreeVariable("a"))), "a");
+          let a = var(~ann=Some(Marks([Free("a")])), "a");
           list_concat(a, a)
         ),
       )

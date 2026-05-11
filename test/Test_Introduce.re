@@ -32,8 +32,9 @@ let introduction_test = (before: string, expected: string) => {
 
   let serialized = {
     open Haz3lcore;
-    let* zip = Parser.to_zipper(before);
-    let MakeTerm.{term: exp, term_data, _} = MakeTerm.from_zip_for_sem(zip);
+    let* zip = Parser.to_zipper(before, ~root=Exp);
+    let MakeTerm.{term: exp, term_data, _} =
+      MakeTerm.from_zip_for_sem(zip, ~root=Exp);
     let* hole_id = find_hole_id(exp);
     let* zip = Move.jump_to_side_of_id(Left, zip, hole_id);
     let* zip = Move.local(ByToken, Right, zip); // To get on the hole itself
@@ -175,7 +176,11 @@ let tests =
             option(exp),
             "Function",
             Some(Exp.(constructor("A", None))),
-            introduce_expression(Typ.(sum([Variant("A", [], None)]))),
+            introduce_expression(
+              Typ.(
+                sum([Variant("A", ConstructorMap.empty_variant_ann, None)])
+              ),
+            ),
           )
         }),
         test_case("Type fun", `Quick, () => {

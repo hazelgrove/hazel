@@ -160,22 +160,19 @@ module F =
     );
   };
 
-  let get_cursor_info = (~focus: focus, model: model) =>
+  let get_cursor_info = (~inject, ~focus: focus, model: model) =>
     Cursor.(
       switch (focus) {
       | InnerExp(a) =>
-        let+ ci = Stepper.get_cursor_info(~focus=a, model.inner_stepper);
+        let+ ci =
+          Stepper.get_cursor_info(
+            ~inject=a => inject(InnerExp(a): action),
+            ~focus=a,
+            model.inner_stepper,
+          );
         (InnerExp(ci): action);
       }
     );
-
-  let handle_key_event =
-      (~focus: focus, ~event: Key.t, model: model): option(action) =>
-    switch (focus) {
-    | InnerExp(a) =>
-      Stepper.handle_key_event(~focus=a, ~event, model.inner_stepper)
-      |> Option.map((x): action => InnerExp(x))
-    };
 
   let view_justification =
       (

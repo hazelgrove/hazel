@@ -36,6 +36,24 @@ let mk_pre = (p, out, in_) => {
     nibs: (l, r),
   };
 };
+// Prefix form where the body (right nib) has a different sort than out
+let mk_pre' = (p, out, in_, sort_r) => {
+  let l =
+    Nib.{
+      shape: Convex,
+      sort: out,
+    };
+  let r =
+    Nib.{
+      shape: Concave(p),
+      sort: sort_r,
+    };
+  {
+    out,
+    in_,
+    nibs: (l, r),
+  };
+};
 let mk_post = (p, out, in_) => {
   let l =
     Nib.{
@@ -91,19 +109,31 @@ let mk_bin' = (p, out, sort_l, in_, sort_r) => {
 let nibs = (~index, mold: t): Nibs.t => {
   let (l, r) = mold.nibs;
   let in_ = mold.in_;
+  /* Inner-shard nibs pull their sort from mold.in_. If remolding has
+     assigned a tile a mold whose arity doesn't match its shards (seen in
+     practice for some in-progress derivation tiles, e.g. `(` `,` `)`
+     before the segment is fully reassembled), `List.nth` would throw.
+     We fall back to `Any` so the tile still renders while upstream
+     remolding stabilizes. */
   let l =
     index == 0
       ? l
       : Nib.{
           shape: Shape.concave(),
-          sort: List.nth(in_, index - 1),
+          sort:
+            try(List.nth(in_, index - 1)) {
+            | Failure(_) => Sort.Any
+            },
         };
   let r =
     index == List.length(in_)
       ? r
       : Nib.{
           shape: Shape.concave(),
-          sort: List.nth(in_, index),
+          sort:
+            try(List.nth(in_, index)) {
+            | Failure(_) => Sort.Any
+            },
         };
   (l, r);
 };

@@ -18,9 +18,13 @@ type syntax = Base.piece;
 
 /* Global actions available to handlers in all projectors */
 type external_action =
+  | SampleFocus(Action.sample_focus)
+  | Probe(Action.probe) /* Probe actions like StepInto */
   | Remove /* Remove projector entirely */
   | Escape(Util.Direction.t) /* Pass focus to parent editor */
-  | SetSyntax(Base.segment); /* Set underlying syntax */
+  | EscapeToLineEnd(ProjectorCore.Kind.t) /* Pass focus to parent editor, move to end of line */
+  | SetSyntax(Base.segment) /* Set underlying syntax */
+  | FocusById(Util.Id.t); /* Focus a projector by its term id */
 
 /* Syntax utility functions/values for projector use,
  * provided here to resolve cyclic dependency issues */
@@ -117,11 +121,20 @@ module View = {
     sort: Sort.t, /* What sort does the parent editor attribute to the projector? */
     indication: option(Direction.t), /* Is the parent editor caret adjacent? */
     selected: bool, /* Is the projector contained within a selection? */
-    error: bool /* Is there an error mark on the projector? */
+    error: bool, /* Is there an error mark on the projector? */
+    warning: bool /* Is there a warning mark on the projector? */
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type seg = (~background: bool=?, Sort.t, list(syntax)) => Node.t;
+  type seg =
+    (
+      ~single_line: bool=?,
+      ~background: bool=?,
+      ~text_only: bool=?,
+      Sort.t,
+      list(syntax)
+    ) =>
+    Node.t;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type args('model, 'action) = {

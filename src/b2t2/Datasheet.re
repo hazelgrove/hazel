@@ -4,7 +4,7 @@ let content = [%blob "Datasheet.md"];
 
 let content: string = content |> Util.StringUtil.escape_linebreaks;
 let string_exp = IdTagged.FreshGrammar.Exp.string(content);
-let segment =
+let z =
   ProjectorInit.init(
     TextArea,
     Segment.parenthesize(
@@ -15,5 +15,7 @@ let segment =
     ),
     Exp(string_exp),
   )
-  |> Option.get;
-let slide = ("B2T2 / Datasheet", PersistentSegment.persist([segment]));
+  |> Option.get
+  |> (p => [p])
+  |> Zipper.unzip;
+let slide = ("B2T2 / Datasheet", PersistentSegment.persist(z));

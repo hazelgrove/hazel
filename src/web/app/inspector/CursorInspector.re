@@ -5,11 +5,16 @@ open Util;
 open Language;
 
 let errc = "error";
+let warnc = "warning";
 let okc = "ok";
 let div_err = div(~attrs=[clss(["status", errc])]);
 let div_ok = div(~attrs=[clss(["status", okc])]);
+let div_warn = div(~attrs=[clss(["status", warnc])]);
 let code_box_container = x =>
   div(~attrs=[clss(["code-box-container"])], [x]);
+/* When true, prefixes type displays with ":" (e.g. ": Int").
+   Appropriate in the cursor inspector but not in the error sidebar. */
+let colon_prefix = show_type_colon => show_type_colon ? [text(":")] : [];
 
 let code = (code: string): Node.t =>
   div(~attrs=[clss(["code"])], [text(code)]);
@@ -22,20 +27,19 @@ let label_view = (label: string): Node.t =>
 
 let cls_view = (ci: Info.t): Node.t => {
   let cls = ci |> Info.cls_of;
+  let cls_text =
+    switch (Info.projector_kind_of(ci)) {
+    | Some(kind) => "Projector (" ++ ProjectorKind.show(kind) ++ ")"
+    | None =>
+      switch (cls) {
+      | Typ(Unknown(EmptyHole))
+      | Exp(EmptyHole)
+      | Pat(EmptyHole) => Info.is_label(ci) ? "Label Hole" : Cls.show(cls)
+      | cls => cls |> Cls.show
+      }
+    };
 
-  div(
-    ~attrs=[clss(["syntax-class"])],
-    [
-      text(
-        switch (cls) {
-        | Typ(Unknown(EmptyHole))
-        | Exp(EmptyHole)
-        | Pat(EmptyHole) => Info.is_label(ci) ? "Label Hole" : Cls.show(cls)
-        | cls => cls |> Cls.show
-        },
-      ),
-    ],
-  );
+  div(~attrs=[clss(["syntax-class"])], [text(cls_text)]);
 };
 
 let ctx_toggle = (~globals: Globals.t): Node.t =>
@@ -51,15 +55,35 @@ let ctx_toggle = (~globals: Globals.t): Node.t =>
   );
 
 let term_view = (~globals: Globals.t, ci) => {
-  let sort = Info.is_label(ci) ? "Label" : ci |> Info.sort_of |> Sort.show;
-
+  /* Drv(_) sorts have verbose type-level names like "DrvJdmt"/"DrvProp"
+     via Sort.to_string (needed for pretty-printing `DrvQuoteTy`). For the
+     inspector header we prefer the terse form ("Jdmt", "Prop", ...),
+     keeping the ALFA prefix for object-language sorts. */
+  let sort_text =
+    Info.is_label(ci)
+      ? "Label"
+      : (
+        switch (Info.sort_of(ci)) {
+        | Drv(s) => DrvSort.to_string_short(s)
+        | s => Sort.to_string(s)
+        }
+      );
+  let sort_class = Info.is_label(ci) ? "Label" : ci |> Info.class_of;
   div(
     ~attrs=[
-      clss(["ci-header", sort] @ (Info.is_error(ci) ? [errc] : [okc])),
+      clss(
+        ["ci-header", sort_class]
+        @ (
+          Info.is_error(ci)
+            ? [errc]
+            : Info.is_warning(ci) && globals.settings.core.display_warnings
+                ? [warnc] : [okc]
+        ),
+      ),
     ],
     [
       ctx_toggle(~globals),
-      div(~attrs=[clss(["term-tag"])], [text(sort)]),
+      div(~attrs=[clss(["term-tag"])], [text(sort_text)]),
       div(~attrs=[clss(["divider"])], [text("/")]),
       cls_view(ci),
     ],
@@ -73,14 +97,17 @@ let elements_noun: Cls.t => string =
   | Pat(ListLit) => "Elements"
   | Exp(ListConcat)
   | Exp(BinOp(Poly(_))) => "Operands"
-  | cls =>
-    failwith("elements_noun: " ++ Cls.show(cls) ++ " cls has no elements");
+  | _ => "Sub-expressions";
 
 let code_view_settings: Haz3lcore.ExpToSegment.Settings.t = {
+  secondary: AutoFormat,
+  parenthesization: Defensive,
+  label_format: QuoteWhenNecessary,
   inline: true,
   fold_case_clauses: false,
   fold_fn_bodies: `NoFold,
   hide_fixpoints: false,
+  show_ascriptions: true,
   show_filters: false,
   show_unknown_as_hole: true,
 };
@@ -95,31 +122,63 @@ let view_type = (~globals, typ: Typ.t) =>
   |> CodeViewable.view_typ(~globals, ~settings=code_view_settings)
   |> code_box_container;
 
-let common_err_view =
+let core_mark_err_view =
     (
       ~globals,
+      ~show_type_colon=true,
       ~introduced_labels: list(LabeledTuple.label),
       ~lifted_ty: option(Typ.t),
       ~inferred_label: option(LabeledTuple.label),
+      ~ctx: Ctx.t,
+      ~ana: Typ.t,
       cls: Cls.t,
-      err: Info.error_common,
+      m: Mark.t,
     ) => {
   let view_type = view_type(~globals);
   let view_any = view_any(~globals);
+  let ana = Statics.ana_skip_explicit_nonlabel(ana);
+  let expectation_view = (~ana: Typ.t, ~syn: Typ.t) =>
+    switch (syn.term, ana.term) {
+    | (Label(syn_l), Label(an_label)) => [
+        code(syn_l),
+        text("but expected label"),
+        code(an_label),
+      ]
+    | _ =>
+      colon_prefix(show_type_colon)
+      @ [
+        view_type(syn) |> code_box_container,
+        text("inconsistent with expected type"),
+        view_type(ana) |> code_box_container,
+      ]
+      @ (
+        switch (lifted_ty) {
+        | None => []
+        | Some(lifted) => [text(" lifted to"), view_type(lifted)]
+        }
+      )
+      @ (
+        switch (introduced_labels) {
+        | [] => []
+        | [a] => [text("after automatically added label "), code(a)]
+        | _ => [
+            text("after automatically added labels "),
+            ...ListUtil.join(text(","), List.map(code, introduced_labels)),
+          ]
+        }
+      )
+    };
   (
-    switch (err) {
-    | NoType(BadToken(token)) =>
+    switch (m) {
+    | BadToken(token) =>
       switch (Haz3lcore.Token.bad_token_cls(token)) {
       | BadInt => [text("Integer is too large or too small")]
       | Other => [text(Printf.sprintf("\"%s\" isn't a valid token", token))]
       }
-    | NoType(BadLabel(label)) => [
-        text("Malformed Label: "),
-        view_any(label),
-      ]
-    | NoType(FreeConstructor(name)) => [code(name), text("not found")]
+    | BadLabel(label) => [text("Malformed Label: "), view_any(label)]
+    | FreeConstructor(name) => [code(name), text("not found")]
 
-    | NoType(InvalidLabel(name, expected_labels)) =>
+    | InvalidLabel(name, expected_labels) =>
       switch (expected_labels) {
       | [] => [
           text("Invalid label: "),
@@ -133,11 +192,12 @@ let common_err_view =
           ...List.map(code, expected_labels),
         ]
       }
-    | NoType(UnexpectedLabelSort(name)) => [
+    | UnexpectedLabelSort(name) => [
         text("Label "),
         label_view(name),
         text(" is here, but another sort is expected."),
       ]
+    | IsMulti => [text("Broken expression")]
 
     | TupleLabelError({malformed_labels, duplicate_labels, invalid_labels, _}) =>
       (
@@ -161,52 +221,59 @@ let common_err_view =
           ? []
           : [text("Invalid labels: "), ...List.map(code, invalid_labels)]
       )
+    | DuplicateVar(name, _) => [text("Duplicate Variable:"), code(name)]
     | DuplicateLabel(name, _) => [
         text("Duplicate Label:"),
         label_view(name),
       ]
-    | Inconsistent(CompareFun(ty)) => [
-        text("values cannot be compared:"),
-        view_type(ty),
-      ]
-    | Inconsistent(Expectation({ana, syn})) =>
-      switch (syn.term, ana.term) {
-      | (Label(syn_l), Label(an_label)) => [
-          code(syn_l),
-          text("but expected label"),
-          code(an_label),
-        ]
-      | _ =>
-        [
-          text(":"),
-          view_type(syn) |> code_box_container,
-          text("inconsistent with expected type"),
-          view_type(ana) |> code_box_container,
-        ]
-        @ (
-          switch (lifted_ty) {
-          | None => []
-          | Some(lifted) => [text(" lifted to"), view_type(lifted)]
-          }
-        )
-        @ (
-          switch (introduced_labels) {
-          | [] => []
-          | [a] => [text("after automatically added label "), code(a)]
-          | _ => [
-              text("after automatically added labels "),
-              ...ListUtil.join(
-                   text(","),
-                   List.map(code, introduced_labels),
-                 ),
-            ]
-          }
-        )
-      }
-    | Inconsistent(Internal(tys)) => [
+    | CompareFun(ty) => [text("values cannot be compared:"), view_type(ty)]
+    | ExpectationMismatch({ana, syn}) => expectation_view(~ana, ~syn)
+    | NoMeet(PolyEq, tys)
+    | NoMeet(_, tys) when ana.term == Unknown(SynSwitch) => [
         text(elements_noun(cls) ++ " have inconsistent types:"),
-        ...ListUtil.join(text(","), List.map(view_type, tys)),
+        ...ListUtil.join(
+             text(","),
+             List.map(view_type, Typ.of_source(tys)),
+           ),
       ]
+    | NoMeet(wrap, _) =>
+      let syn: Typ.t = SynTy.meet_of(wrap, Unknown(Internal) |> Typ.temp);
+      switch (Typ.meet(ctx, ana, syn)) {
+      | Some(_) => [text("Type error")]
+      | None =>
+        switch (ana.term, syn.term) {
+        | (Label(_), _) => [text("Malformed Label: "), view_any(Typ(syn))]
+        | _ => expectation_view(~ana, ~syn)
+        }
+      };
+    | ExplicitNonlabel => [text("Type error")]
+    | Free(_)
+    | InexhaustiveMatch(_)
+    | IsDeferral(_)
+    | IsBadPartialAp(_)
+    | BuiltinError(_)
+    | InvalidUseMode(_)
+    | IsLivelitName(_)
+    | BadTrivAp(_)
+    | DotOperatorRequiresTuple
+    | TupleExtensionRequiresTuples
+    | LabelNotFound(_)
+    | BadOperator(_)
+    | BadLivelitModel(_)
+    | BadTheorem(_)
+    | Redundant
+    | ExpectedConstructor
+    | TypFreeTypeVariable(_)
+    | TypDuplicateConstructor(_)
+    | TypDuplicateLabels(_, _)
+    | TypWantTypeFoundAp
+    | TypWantLabel
+    | TypWantProduct(_)
+    | TypWantConstructorFoundType(_)
+    | TypWantConstructorFoundAp
+    | TypParseFailure
+    | TPatShadowsType(_)
+    | TPatNotAVar(_) => [text("Type error")]
     }
   )
   @ (
@@ -217,16 +284,27 @@ let common_err_view =
   );
 };
 
+let common_warn_view = (warning: Warning.t) => {
+  switch (warning) {
+  | WarningPat(UnusedVar(name)) => [
+      text("Warning: Variable"),
+      code(name),
+      text("is unused."),
+    ]
+  | None => []
+  };
+};
 let common_ok_view =
     (
       ~globals,
+      ~show_type_colon=true,
       ~reordered: bool,
       ~introduced_labels: list(LabeledTuple.label),
       ~lifted_ty: option(Typ.t),
       ~inferred_label: option(LabeledTuple.label),
       ~label_sort: bool,
       cls: Cls.t,
-      ok: Info.ok_common,
+      ok: Message.ok_common,
     ) => {
   let view_type = view_type(~globals);
   (
@@ -255,18 +333,20 @@ let common_ok_view =
     | (_, Syn(syn)) =>
       switch (syn.term) {
       | Label(l) => [label_view(l)]
-      | _ => [text(":"), view_type(syn)]
+      | _ => colon_prefix(show_type_colon) @ [view_type(syn)]
       }
-    | (Pat(Var) | Pat(Wild), Ana(Consistent({ana, _}))) => [
-        text(":"),
-        view_type(ana),
-      ]
+    | (Pat(Var) | Pat(Wild) | Pat(ApFunc), Ana(Consistent({ana, _}))) =>
+      /* Pat(ApFunc) is only produced by the `let f(args) = ...` function
+         sugar (see FunctionSugar.re), where it denotes the function binder
+         as a whole. Render it the same way as a plain variable binder. */
+      colon_prefix(show_type_colon) @ [view_type(ana)]
     | (_, Ana(Consistent({ana, syn, _})))
         when Equality.semantic.typ(ana, syn) =>
       switch (syn.term) {
       | Label(l) => [label_view(l), text(" is a valid label")]
       | _ =>
-        [text(":"), view_type(syn)]
+        colon_prefix(show_type_colon)
+        @ [view_type(syn)]
         @ [text("equals expected type")]
         @ (
           switch (lifted_ty) {
@@ -298,11 +378,9 @@ let common_ok_view =
       (
         switch (syn.term) {
         | Label(l) => [code(l), text(" is a valid label")]
-        | _ => [
-            text(":"),
-            view_type(syn),
-            text("consistent with expected type"),
-          ]
+        | _ =>
+          colon_prefix(show_type_colon)
+          @ [view_type(syn), text("consistent with expected type")]
         }
       )
       @ [view_type(ana)]
@@ -348,7 +426,7 @@ let common_ok_view =
 };
 
 let underdetermined_typ_view =
-    (~globals, underdetermined: Info.underdetermined_typ) => {
+    (~globals, underdetermined: Message.underdetermined_typ) => {
   let view_type = view_type(~globals);
   switch (underdetermined) {
   | ProdExtensionUnderdetermined(tys) => [
@@ -392,7 +470,7 @@ let underdetermined_typ_view =
   };
 };
 
-let typ_ok_view = (~globals, cls: Cls.t, ok: Info.ok_typ) => {
+let typ_ok_view = (~globals, cls: Cls.t, ok: Message.ok_typ) => {
   let view_type = view_type(~globals);
   switch (ok) {
   | EmptyLabel => []
@@ -428,46 +506,50 @@ let typ_ok_view = (~globals, cls: Cls.t, ok: Info.ok_typ) => {
   };
 };
 
-let typ_err_view = (~globals, ok: Info.error_typ) => {
+let typ_mark_err_view = (~globals, m: Mark.t) => {
   let view_type = view_type(~globals);
-  switch (ok) {
-  | FreeTypeVariable(name) => [
+  switch (m) {
+  | TypFreeTypeVariable(name) => [
       view_type(Var(name) |> Typ.fresh),
       text("not found"),
     ]
   | BadToken(token) => [code(token), text("not a type or type operator")]
-  | WantConstructorFoundAp
-  | WantConstructorFoundType(_) => [text("Expected a constructor")]
-  | WantTypeFoundAp => [text("Must be part of a sum type")]
-  | WantLabel => [text("Expect a valid label")]
+  | TypWantConstructorFoundAp
+  | TypWantConstructorFoundType(_) => [text("Expected a constructor")]
+  | TypWantTypeFoundAp => [text("Must be part of a sum type")]
+  | TypWantLabel => [text("Expect a valid label")]
   | InvalidLabel(name, expected_labels) =>
     switch (expected_labels) {
     | [] => [
-        text("Invalid label: "),
+        text("Member "),
         label_view(name),
-        text(". No labels were expected."),
+        text(" not found — no members available"),
       ]
     | _ => [
-        text("Invalid label: "),
+        text("Member "),
         label_view(name),
-        text(" is not part of the expected labels: "),
-        ...List.map(code, expected_labels),
+        text(" not found. Available: "),
+        text(String.concat(", ", expected_labels)),
       ]
     }
-  | DuplicateLabels(labels, _) => [
+  | TypDuplicateLabels(labels, _) => [
       text("Duplicate labels within tuple: "),
       ...List.map(label_view, labels),
     ]
-  | Duplicate(name, _) => [text("Duplicate Label: "), label_view(name)]
-  | DuplicateConstructor(name) => [
+  | DuplicateLabel(name, _) => [
+      text("Duplicate Label: "),
+      label_view(name),
+    ]
+  | TypDuplicateConstructor(name) => [
       view_type(Var(name) |> Typ.fresh),
       text("already used in this sum"),
     ]
-  | ParseFailure => [text("Parse failure")]
-  | WantProduct(ty) => [
+  | TypParseFailure => [text("Parse failure")]
+  | TypWantProduct(ty) => [
       text("Expected a tuple type, found type"),
       view_type(ty),
     ]
+  | _ => [text("Type error")]
   };
 };
 
@@ -489,19 +571,14 @@ let rec automatic_inserted_labels_pat =
   | _ => []
   };
 
-let rec exp_view =
-        (~globals, cls: Cls.t, status: Info.status_exp, info: Info.exp) => {
+let exp_mark_err_view =
+    (~globals, ~show_type_colon=true, cls: Cls.t, m: Mark.t, info: Info.exp) => {
   let introduced_labels =
     switch (info.label_inference) {
     | Some(MultiLabelInference({introduced_labels, _})) => introduced_labels
     | Some(SingletonLabelInference({label, pre_labeled_info})) =>
       [label] @ automatic_inserted_labels_exp(Some(pre_labeled_info))
     | _ => []
-    };
-  let reordered =
-    switch (info.label_inference) {
-    | Some(MultiLabelInference({reordered, _})) => reordered
-    | _ => false
     };
   let lifted_ty =
     switch (info.label_inference) {
@@ -511,11 +588,37 @@ let rec exp_view =
   let inferred_label = info.inferred_label;
   let view_type = view_type(~globals);
   let view_any = view_any(~globals);
-  switch (status) {
-  | InHole(FreeVariable(name)) => div_err([code(name), text("not found")])
-  | InHole(InexhaustiveMatch(additional_err, example)) =>
+  let ctx = info.ctx;
+  let ana = info.ana;
+  let common_from_core = () =>
+    div_err(
+      core_mark_err_view(
+        ~globals,
+        ~show_type_colon,
+        ~introduced_labels,
+        ~lifted_ty,
+        ~inferred_label,
+        ~ctx,
+        ~ana,
+        cls,
+        m,
+      ),
+    );
+  switch (m) {
+  | Free(name) => div_err([code(name), text("not found")])
+  | InexhaustiveMatch(_, inner_marks, example) =>
     let cls_str = Cls.show(cls);
-    switch (additional_err) {
+    let additional =
+      switch (
+        Mark.highest(inner_marks),
+        Statics.ana_skip_explicit_nonlabel(ana).term,
+      ) {
+      | (Some(NoMeet(PolyEq, tys)), _) => Some(Typ.of_source(tys))
+      | (Some(NoMeet(_, tys)), Unknown(SynSwitch)) =>
+        Some(Typ.of_source(tys))
+      | _ => None
+      };
+    switch (additional) {
     | None =>
       div_err([
         text(
@@ -523,10 +626,13 @@ let rec exp_view =
         ),
         view_any(example),
       ])
-    | Some(err) =>
+    | Some(tys) =>
       let cls_str = String.uncapitalize_ascii(cls_str);
       div_err([
-        exp_view(~globals, cls, InHole(Common(err)), info)
+        div_err([
+          text(elements_noun(cls) ++ " have inconsistent types:"),
+          ...ListUtil.join(text(","), List.map(view_type, tys)),
+        ])
         |> code_box_container,
         text(
           "; "
@@ -536,11 +642,15 @@ let rec exp_view =
         view_any(example),
       ]);
     };
-  | InHole(UnusedDeferral) =>
+  | IsDeferral(InAp) =>
+    div_err([
+      text("(internal) deferral in application is not an error mark"),
+    ])
+  | IsDeferral(_) =>
     div_err([text("Deferral must appear as a function argument")])
-  | InHole(BadPartialAp(NoDeferredArgs)) =>
+  | IsBadPartialAp(NoDeferredArgs) =>
     div_err([text("Expected at least one non-deferred argument")])
-  | InHole(BadPartialAp(ArityMismatch({expected, actual}))) =>
+  | IsBadPartialAp(ArityMismatch({expected, actual})) =>
     div_err([
       text(
         "Arity mismatch: expected "
@@ -552,7 +662,7 @@ let rec exp_view =
         ++ " arguments",
       ),
     ])
-  | InHole(BuiltinError(e)) =>
+  | BuiltinError(e) =>
     switch (e) {
     | MissingLabels(labels) =>
       div_err([
@@ -583,76 +693,165 @@ let rec exp_view =
         view_type(ty),
       ])
     }
-  | InHole(InvalidUseMode({bad_typ, _})) =>
+  | InvalidUseMode({bad_typ, _}) =>
     div_err([
       text("Cannot use type "),
       view_type(bad_typ) |> code_box_container,
       text(" for number operators and literals."),
     ])
-  | InHole(BadTrivAp(ty)) =>
+  | BadTrivAp(ty) =>
     div_err([
       text("Function argument type"),
       view_type(ty),
       text("inconsistent with"),
       view_type(Prod([]) |> Typ.fresh),
     ])
-  | InHole(TupleExtensionRequiresTuples) =>
+  | TupleExtensionRequiresTuples =>
     div_err([text("Tuple extension requires tuple")])
-  | InHole(DotOperatorRequiresTuple) =>
+  | DotOperatorRequiresTuple =>
     div_err([text("Requires tuple for first argument")])
-  | InHole(Common(error)) =>
-    div_err(
-      common_err_view(
-        ~globals,
-        ~introduced_labels,
-        ~lifted_ty,
-        ~inferred_label,
-        cls,
-        error,
-      ),
-    )
-  | InHole(UnboundLivelit(name)) =>
-    div_err([
-      text("Livelit with name"),
-      code(name),
-      text("not found, and also, it's a livelit"),
-    ])
-  | InHole(BadOperator(msg)) =>
-    div_err([text("Invalid operator: "), text(msg)])
-  | InHole(LabelNotFound(name, labels)) =>
+  | IsLivelitName({name, _}) =>
+    switch (Ctx.lookup_livelit(ctx, name)) {
+    | None =>
+      div_err([
+        text("Livelit with name"),
+        code(name),
+        text("not found, and also, it's a livelit"),
+      ])
+    | Some(_) =>
+      div_err([text("(internal) livelit should not surface as error")])
+    }
+  | BadOperator(msg) => div_err([text("Invalid operator: "), text(msg)])
+  | LabelNotFound(name, labels) =>
     div_err([
       text("Label "),
       label_view(name),
       text(" not found in tuple's labels: "),
       ...List.map(label_view, labels),
     ])
-  | InHole(BadLivelitModel(_)) =>
-    div_err([text("Bad internal livelit model")])
-  | InHole(BadTheorem(typ)) =>
+  | BadLivelitModel(_) => div_err([text("Bad internal livelit model")])
+  | BadTheorem(typ) =>
     div_err([
       text("Theorem pattern is not of the form p : t, got "),
       view_type(typ),
     ])
-  | NotInHole(AnaDeferralConsistent(ana)) =>
-    div_ok([text("Expecting type"), view_type(ana)])
-  | NotInHole(Common(ok)) =>
-    div_ok(
-      common_ok_view(
-        ~globals,
-        ~lifted_ty,
-        ~reordered,
-        ~introduced_labels,
-        ~inferred_label,
-        ~label_sort=info.label_sort,
-        cls,
-        ok,
-      ),
-    )
+  | TypFreeTypeVariable(_)
+  | TypDuplicateConstructor(_)
+  | TypDuplicateLabels(_, _)
+  | TypWantTypeFoundAp
+  | TypWantLabel
+  | TypWantProduct(_)
+  | TypWantConstructorFoundType(_)
+  | TypWantConstructorFoundAp
+  | TypParseFailure
+  | TPatShadowsType(_)
+  | TPatNotAVar(_) =>
+    div_err([text("(internal) typ/tpat mark on expression")])
+  | Redundant
+  | ExpectedConstructor =>
+    div_err([text("(internal) pattern-only mark on expression")])
+  | FreeConstructor(_)
+  | BadToken(_)
+  | BadLabel(_)
+  | ExplicitNonlabel
+  | UnexpectedLabelSort(_)
+  | InvalidLabel(_, _)
+  | TupleLabelError(_)
+  | IsMulti
+  | DuplicateLabel(_, _)
+  | DuplicateVar(_, _)
+  | ExpectationMismatch(_)
+  | NoMeet(_)
+  | CompareFun(_) => common_from_core()
   };
 };
 
-let rec pat_view =
-        (~globals, cls: Cls.t, status: Info.status_pat, info: Info.pat) => {
+let exp_view =
+    (
+      ~globals,
+      ~show_type_colon=true,
+      cls: Cls.t,
+      message: Message.t,
+      info: Info.exp,
+    ) => {
+  let introduced_labels =
+    switch (info.label_inference) {
+    | Some(MultiLabelInference({introduced_labels, _})) => introduced_labels
+    | Some(SingletonLabelInference({label, pre_labeled_info})) =>
+      [label] @ automatic_inserted_labels_exp(Some(pre_labeled_info))
+    | _ => []
+    };
+  let reordered =
+    switch (info.label_inference) {
+    | Some(MultiLabelInference({reordered, _})) => reordered
+    | _ => false
+    };
+  let lifted_ty =
+    switch (info.label_inference) {
+    | Some(SingletonLabelInference(_)) => Some(info.ty)
+    | _ => None
+    };
+  let inferred_label = info.inferred_label;
+  let marks = info.marks;
+  switch (marks != []) {
+  | false =>
+    switch (message) {
+    | Exp(Default) =>
+      div_ok(
+        common_ok_view(
+          ~globals,
+          ~show_type_colon,
+          ~lifted_ty,
+          ~reordered,
+          ~introduced_labels,
+          ~inferred_label,
+          ~label_sort=info.label_sort,
+          cls,
+          Message.Syn(info.elab_syn_ty),
+        ),
+      )
+    | Exp(AnaDeferralConsistent(ana)) =>
+      div_ok([text("Expecting type"), view_type(~globals, ana)])
+    | Exp(Common(ok)) =>
+      div_ok(
+        common_ok_view(
+          ~globals,
+          ~show_type_colon,
+          ~lifted_ty,
+          ~reordered,
+          ~introduced_labels,
+          ~inferred_label,
+          ~label_sort=info.label_sort,
+          cls,
+          ok,
+        ),
+      )
+    | Pat(_)
+    | TypOk(_)
+    | TPatOk(_) =>
+      failwith("CursorInspector.exp_view: expected Message.Exp(...)")
+    }
+  | true =>
+    switch (Mark.highest(marks)) {
+    | Some(m) => exp_mark_err_view(~globals, ~show_type_colon, cls, m, info)
+    | None =>
+      div_err([
+        text("(internal) expression marks indicate error but no syn mark"),
+      ])
+    }
+  };
+};
+
+let pat_marks_err_view =
+    (
+      ~globals,
+      ~show_type_colon=true,
+      cls: Cls.t,
+      marks: list(Mark.t),
+      info: Info.pat,
+    ) => {
+  let ctx = info.ctx;
+  let ana = info.ana;
   let lifted_ty =
     switch (info.label_inference) {
     | Some(SingletonLabelInference(_)) => Some(info.ty)
@@ -667,77 +866,179 @@ let rec pat_view =
     | _ => []
     };
 
-  switch (status) {
-  | InHole(ExpectedConstructor) => div_err([text("Expected a constructor")])
-  | InHole(Redundant(additional_err)) =>
-    switch (additional_err) {
+  switch (marks) {
+  | [Redundant, ...tl] =>
+    let additional = Mark.highest(tl);
+    switch (additional) {
     | None => div_err([text("Pattern is redundant")])
-    | Some(err) =>
+    | Some(m) =>
       div_err([
-        pat_view(~globals, cls, InHole(err), info) |> code_box_container,
+        div_err(
+          core_mark_err_view(
+            ~globals,
+            ~show_type_colon,
+            ~inferred_label,
+            ~introduced_labels,
+            ~lifted_ty,
+            ~ctx,
+            ~ana,
+            cls,
+            m,
+          ),
+        )
+        |> code_box_container,
         text("; pattern is redundant"),
       ])
+    };
+  | [ExpectedConstructor, ..._] => div_err([text("Expected a constructor")])
+  | _ =>
+    switch (Mark.highest(marks)) {
+    | None => div_err([text("(internal) pattern error but no pat syn mark")])
+    | Some(m) =>
+      div_err(
+        core_mark_err_view(
+          ~globals,
+          ~show_type_colon,
+          ~inferred_label,
+          ~introduced_labels,
+          ~lifted_ty,
+          ~ctx,
+          ~ana,
+          cls,
+          m,
+        ),
+      )
     }
-  | InHole(Common(error)) =>
-    div_err(
-      common_err_view(
-        ~globals,
-        ~inferred_label,
-        ~introduced_labels,
-        ~lifted_ty,
-        cls,
-        error,
-      ),
-    )
-  | NotInHole(ok) =>
-    div_ok(
-      common_ok_view(
-        ~globals,
-        ~lifted_ty,
-        ~reordered=
-          switch (info.label_inference) {
-          | Some(MultiLabelInference({reordered, _})) => reordered
-          | _ => false
-          },
-        ~introduced_labels,
-        ~inferred_label,
-        ~label_sort=info.label_sort,
-        cls,
-        ok,
-      ),
-    )
   };
 };
 
-let typ_view = (~globals, cls: Cls.t, status: Info.status_typ) =>
-  switch (status) {
-  | NotInHole(ok) => div_ok(typ_ok_view(~globals, cls, ok))
-  | InHole(err) => div_err(typ_err_view(~globals, err))
+let pat_view =
+    (
+      ~globals,
+      ~show_type_colon=true,
+      cls: Cls.t,
+      message: Message.t,
+      info: Info.pat,
+    ) => {
+  let lifted_ty =
+    switch (info.label_inference) {
+    | Some(SingletonLabelInference(_)) => Some(info.ty)
+    | _ => None
+    };
+  let inferred_label = info.inferred_label;
+  let introduced_labels =
+    switch (info.label_inference) {
+    | Some(MultiLabelInference({introduced_labels, _})) => introduced_labels
+    | Some(SingletonLabelInference({label, pre_labeled_info})) =>
+      [label] @ automatic_inserted_labels_pat(Some(pre_labeled_info))
+    | _ => []
+    };
+
+  let marks = info.marks;
+  marks != []
+    ? pat_marks_err_view(~globals, ~show_type_colon, cls, marks, info)
+    : {
+      let ok =
+        switch (message) {
+        | Pat(Default) => Message.Syn(info.elab_syn_ty)
+        | Pat(Common(ok)) => ok
+        | Exp(_)
+        | TypOk(_)
+        | TPatOk(_) =>
+          failwith("CursorInspector.pat_view: expected Message.Pat(...)")
+        };
+      let ok_view =
+        common_ok_view(
+          ~globals,
+          ~show_type_colon,
+          ~lifted_ty,
+          ~reordered=
+            switch (info.label_inference) {
+            | Some(MultiLabelInference({reordered, _})) => reordered
+            | _ => false
+            },
+          ~introduced_labels,
+          ~inferred_label,
+          ~label_sort=info.label_sort,
+          cls,
+          ok,
+        );
+      switch (info.warnings) {
+      | [Pat(UnusedVar(name))] =>
+        if (globals.settings.core.display_warnings) {
+          div_warn(common_warn_view(WarningPat(UnusedVar(name))));
+        } else {
+          div_ok(ok_view);
+        }
+      | _ => div_ok(ok_view)
+      };
+    };
+};
+
+let typ_view =
+    (
+      ~globals,
+      cls: Cls.t,
+      ~marks: list(Mark.t),
+      ~message: option(Message.t),
+    )
+    : Node.t =>
+  switch (marks) {
+  | [] =>
+    switch (message) {
+    | Some(TypOk(o)) => div_ok(typ_ok_view(~globals, cls, o))
+    | Some(Pat(_) | Exp(_) | TPatOk(_)) =>
+      div_err([text("(internal) expected TypOk")])
+    | None => div_err([text("(internal) missing type ok payload")])
+    }
+  | ms =>
+    switch (Mark.highest(ms)) {
+    | Some(m) => div_err(typ_mark_err_view(~globals, m))
+    | None => div_err([text("(internal) missing type mark")])
+    }
   };
 
-let tpat_view = (~globals, _: Cls.t, status: Info.status_tpat) => {
+let tpat_view =
+    (~globals, _: Cls.t, ~marks: list(Mark.t), ~message: option(Message.t))
+    : Node.t => {
   let view_type = view_type(~globals);
-  switch (status) {
-  | NotInHole(Empty) => div_ok([text("Fillable with a new alias")])
-  | NotInHole(Var(name)) => div_ok([ContextInspector.alias_view(name)])
-  | InHole(NotAVar(NotCapitalized)) =>
-    div_err([text("Must begin with a capital letter")])
-  | InHole(NotAVar(_)) => div_err([text("Expected an alias")])
-  | InHole(ShadowsType(name, BaseTyp)) =>
-    div_err([
-      text("Can't shadow base type"),
-      view_type(Var(name) |> Typ.fresh),
-    ])
-  | InHole(ShadowsType(name, TyAlias)) =>
-    div_err([
-      text("Can't shadow existing alias"),
-      view_type(Var(name) |> Typ.fresh),
-    ])
-  | InHole(ShadowsType(name, TyVar)) =>
-    div_err([
-      text("Can't shadow existing type variable"),
-      view_type(Var(name) |> Typ.fresh),
-    ])
+  switch (marks) {
+  | [] =>
+    switch (message) {
+    | Some(TPatOk(Message.Empty)) =>
+      div_ok([text("Fillable with a new alias")])
+    | Some(TPatOk(Var(name))) =>
+      div_ok([ContextInspector.alias_view(name)])
+    | Some(Pat(_) | Exp(_) | TypOk(_)) =>
+      div_err([text("(internal) expected TPatOk")])
+    | None => div_err([text("(internal) missing tpat ok payload")])
+    }
+  | ms =>
+    switch (Mark.highest(ms)) {
+    | None => div_err([text("(internal) missing type pattern mark")])
+    | Some(m) =>
+      switch (m) {
+      | TPatNotAVar(NotCapitalized) =>
+        div_err([text("Must begin with a capital letter")])
+      | TPatNotAVar(Other) => div_err([text("Expected an alias")])
+      | TPatShadowsType(name, BaseTyp) =>
+        div_err([
+          text("Can't shadow base type"),
+          view_type(Var(name) |> Typ.fresh),
+        ])
+      | TPatShadowsType(name, TyAlias) =>
+        div_err([
+          text("Can't shadow existing alias"),
+          view_type(Var(name) |> Typ.fresh),
+        ])
+      | TPatShadowsType(name, TyVar) =>
+        div_err([
+          text("Can't shadow existing type variable"),
+          view_type(Var(name) |> Typ.fresh),
+        ])
+      | _ => div_err([text("Type pattern error")])
+      }
+    }
   };
 };
 
@@ -747,30 +1048,36 @@ let view_of_info = (~globals, ci): list(Node.t) => {
   let wrapper = status_view => [term_view(~globals, ci), status_view];
   switch (ci) {
   | Secondary(_) => wrapper(div([]))
-  | InfoExp({cls, status, _} as ie) =>
-    wrapper(exp_view(~globals, cls, status, ie))
-  | InfoPat({cls, status, _} as ip) =>
-    wrapper(pat_view(~globals, cls, status, ip))
-  | InfoTyp({cls, status, _}) => wrapper(typ_view(~globals, cls, status))
-  | InfoTPat({cls, status, _}) => wrapper(tpat_view(~globals, cls, status))
+  | InfoMod({cls, _}) => wrapper(div_ok([text(cls |> Cls.show)]))
+  | InfoSig({cls, _}) => wrapper(div_ok([text(cls |> Cls.show)]))
+  | InfoMPat({cls, _}) => wrapper(div_ok([text(cls |> Cls.show)]))
+  | InfoExp({cls, message, _} as ie) =>
+    wrapper(exp_view(~globals, cls, message, ie))
+  | InfoPat({cls, message, _} as ip) =>
+    wrapper(pat_view(~globals, cls, message, ip))
+  | InfoTyp({cls, marks, message, _}) =>
+    wrapper(typ_view(~globals, cls, ~marks, ~message))
+  | InfoTPat({cls, marks, message, _}) =>
+    wrapper(tpat_view(~globals, cls, ~marks, ~message))
+  | InfoDrv(ci) => wrapper(DrvCursorInspector.drv_view(~globals, ci))
   };
 };
 
-let inspector_view = (~globals, ci): Node.t =>
+let inspector_view = (~globals: Globals.t, ci): Node.t =>
   div(
     ~attrs=[
       Attr.id("cursor-inspector"),
-      clss([Info.is_error(ci) ? errc : okc]),
+      clss([
+        Info.is_error(ci)
+          ? errc
+          : Info.is_warning(ci) && globals.settings.core.display_warnings
+              ? warnc : okc,
+      ]),
     ],
     view_of_info(~globals, ci),
   );
 
-let view =
-    (
-      ~globals: Globals.t,
-      ~inject: Editors.Update.t => 'a,
-      cursor: Cursor.cursor(Editors.Update.t),
-    ) => {
+let view = (~globals: Globals.t, cursor: Cursor.cursor(Editors.Update.t)) => {
   let bar_view = div(~attrs=[Attr.id("bottom-bar")]);
   let err_view = err =>
     bar_view([
@@ -782,17 +1089,6 @@ let view =
   switch (cursor.info) {
   | _ when !globals.settings.core.statics => div_empty
   | None => err_view("Whitespace or Comment")
-  | Some(ci) =>
-    bar_view([
-      inspector_view(~globals, ci),
-      ProjectorPanel.view(
-        ~inject=
-          a =>
-            cursor.editor_action(Project(a))
-            |> Option.map(inject)
-            |> Option.value(~default=Ui_effect.Ignore),
-        cursor,
-      ),
-    ])
+  | Some(ci) => bar_view([inspector_view(~globals, ci)])
   };
 };
