@@ -507,7 +507,8 @@ let to_lvs_statics =
       arg: Exp.t,
     ) => {
   open S;
-  let (ty_in, ty_out) = MatchedTyp.arrow_tolerant(ctx, fn_info.ty);
+  let (ty_in, ty_out, arrow_cons) =
+    MatchedTyp.arrow_tolerant(ctx, fn_info.ty);
   let (arg, _, m) = uexp_to_info_map(~ctx, ~ana=ty_in, arg, m);
 
   switch (Typ.normalize(ctx, arg.ty).term) {
@@ -538,6 +539,7 @@ let to_lvs_statics =
           ),
         ~marks=[],
         ~co_ctx=CoCtx.union([fn_info.co_ctx, arg.co_ctx]),
+        ~constraints=arrow_cons,
         m,
       );
     | _ =>
@@ -546,6 +548,7 @@ let to_lvs_statics =
         ~elab_syn_ty=ty_out,
         ~marks=[BuiltinError(ToLvsMissingLabelsOnTuple(ty_out))],
         ~co_ctx=CoCtx.union([fn_info.co_ctx, arg.co_ctx]),
+        ~constraints=arrow_cons,
         m,
       )
     };
@@ -555,6 +558,7 @@ let to_lvs_statics =
       ~elab_syn_ty=ty_out,
       ~marks=[],
       ~co_ctx=CoCtx.union([fn_info.co_ctx, arg.co_ctx]),
+      ~constraints=arrow_cons,
       m,
     )
   | _ =>
@@ -563,6 +567,7 @@ let to_lvs_statics =
       ~elab_syn_ty=ty_out,
       ~marks=[BuiltinError(ToLvsMissingLabelsOnTuple(ty_out))],
       ~co_ctx=CoCtx.union([fn_info.co_ctx, arg.co_ctx]),
+      ~constraints=arrow_cons,
       m,
     )
   };
@@ -578,7 +583,8 @@ let omit_all_labels_statics =
       arg: Exp.t,
     ) => {
   S.(
-    let (ty_in, ty_out) = MatchedTyp.arrow_tolerant(ctx, fn_info.ty);
+    let (ty_in, ty_out, arrow_cons) =
+    MatchedTyp.arrow_tolerant(ctx, fn_info.ty);
     let (arg, _, m) = uexp_to_info_map(~ctx, ~ana=ty_in, arg, m);
 
     switch (Typ.normalize(ctx, arg.ty).term) {
@@ -598,6 +604,7 @@ let omit_all_labels_statics =
         ~elab_syn_ty=Typ.to_product(entries),
         ~marks=[],
         ~co_ctx=CoCtx.union([fn_info.co_ctx, arg.co_ctx]),
+        ~constraints=arrow_cons,
         m,
       );
     | Unknown(_) =>
@@ -606,6 +613,7 @@ let omit_all_labels_statics =
         ~elab_syn_ty=ty_out,
         ~marks=[],
         ~co_ctx=CoCtx.union([fn_info.co_ctx, arg.co_ctx]),
+        ~constraints=arrow_cons,
         m,
       )
     | _ =>
@@ -614,6 +622,7 @@ let omit_all_labels_statics =
         ~elab_syn_ty=unknown,
         ~marks=[BuiltinError(ArgumentMustBeTuple)],
         ~co_ctx=CoCtx.union([fn_info.co_ctx, arg.co_ctx]),
+        ~constraints=arrow_cons,
         m,
       )
     };

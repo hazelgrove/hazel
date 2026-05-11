@@ -4,10 +4,16 @@
 module Map = StaticsBase.Map;
 module Info = StaticsBase.Info;
 
-let decompose_label_mode = (ctx: Ctx.t, ana: Typ.t): (Typ.t, Typ.t) =>
+let decompose_label_mode =
+    (ctx: Ctx.t, ana: Typ.t)
+    : (Typ.t, Typ.t, list(Typ.equivalence)) =>
   switch (MatchedTyp.label(ctx, ana)) {
-  | Some((labmode, val_mode)) => (labmode, val_mode)
-  | _ => (Unknown(SynSwitch |> Prov.fresh) |> Typ.temp, Unknown(Internal |> Prov.fresh) |> Typ.temp)
+  | Some((labmode, val_mode, cons)) => (labmode, val_mode, cons)
+  | _ => (
+      Unknown(SynSwitch |> Prov.fresh) |> Typ.temp,
+      Unknown(Internal |> Prov.fresh) |> Typ.temp,
+      [],
+    )
   };
 
 type label_child_result = {

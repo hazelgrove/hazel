@@ -45,6 +45,31 @@ let tests = (
         card > 0,
       );
     }),
+    test_case("if-branch constraint links branch hole types", `Quick, () => {
+      /* The two arms `1` and `?` should be linked by the branch constraint
+         emitted in the If case. Inference should produce at least one
+         solution that mentions Int (since one arm syns to Int). */
+      let inference = run_inference({|if true then 1 else ?|});
+      let card = Inference.TypSolutionMap.cardinal(inference);
+      check(
+        bool,
+        "if-branch constraint produces solutions",
+        true,
+        card > 0,
+      );
+    }),
+    test_case("list-literal branch constraint links element holes", `Quick, () => {
+      /* All list elements share a type; mixing a literal `1` with `?`
+         should yield an Int refinement on the hole via constrain_branches. */
+      let inference = run_inference({|[1, ?, ?]|});
+      let card = Inference.TypSolutionMap.cardinal(inference);
+      check(
+        bool,
+        "list-branch constraint produces solutions",
+        true,
+        card > 0,
+      );
+    }),
     test_case("inference handles a fully-typed program", `Quick, () => {
       /* `1 + 2` has no unknowns and no inference work to do; the map can
          legitimately be empty but shouldn't crash. */
