@@ -155,6 +155,7 @@ module Model = {
         ~statics: Language.Statics.Map.t,
         ~dynamics: Language.Dynamics.Map.t,
         ~sample_focus: Language.Sample.Focus.t,
+        ~pending_set: Id.Set.t,
         ~editor_active: bool,
       ) => {
     let {projectors, measured, term_data, selection_ids, _}: CachedSyntax.t = syntax;
@@ -163,7 +164,13 @@ module Model = {
         let* p = Id.Map.find_opt(id, projectors);
         let+ measurement = Measured.find_pr_opt(p, measured);
         let info =
-          ProjectorInfo.mk_info(p, ~sample_focus, ~statics, ~dynamics);
+          ProjectorInfo.mk_info(
+            ~pending_set,
+            ~sample_focus,
+            ~statics,
+            ~dynamics,
+            p,
+          );
         {
           p,
           info,

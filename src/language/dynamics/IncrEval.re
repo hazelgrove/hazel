@@ -224,3 +224,168 @@ let reuse_check =
       None;
     };
   };
+
+/* Merge two incremental caches; entries from `newer` take precedence on
+ * collision. Used by the worker scheduler when a partial run is interrupted:
+ * the partial run's `state.incr_eval` (newer) is unioned with the editor-
+ * supplied `prev` (older) so the restart can reuse both.
+ *
+ * `recalculated`/`reused` are display-only and reset on merge — they
+ * describe the upcoming run, not the merged cache. */
+let merge = (~newer: t, ~older: t): t => {
+  entries:
+    Id.Map.union(
+      (_id, _older, newer) => Some(newer),
+      older.entries,
+      newer.entries,
+    ),
+  recalculated: [],
+  reused: [],
+};
+
+/* Build a map id → immediate Exp wrapper for fast id-keyed lookup. */
+let id_map_of_elab = (e: Exp.t): Id.Map.t(Exp.t) => {
+  let m = ref(Id.Map.empty);
+  let f_exp = (continue, e: Exp.t) => {
+    m := Id.Map.add(Exp.rep_id(e), e, m^);
+    continue(e);
+  };
+  let _ = TermBase.Exp.map_term(~f_exp, e);
+  m^;
+};
+
+/* Compute `changed_ids` for the editor diff: ids in `curr` whose
+ * payload differs from `prev` (or are absent in `prev`). The
+ * comparison is `Exp.fast_equal`, which is structurally recursive — so
+ * if a leaf changed, every ancestor on its path also reports as
+ * changed. That overcounting is exactly what the editor needs to drive
+ * the "still calculating" overlay (the conservative side), and it's
+ * a cheap hint for the worker; correctness on the worker side still
+ * comes from `reuse_check` against the new elaboration. */
+let changed_ids = (~prev: Exp.t, curr: Exp.t): list(Id.t) => {
+  let prev_map = id_map_of_elab(prev);
+  let acc = ref([]);
+  let f_exp = (continue, e: Exp.t) => {
+    let id = Exp.rep_id(e);
+    switch (Id.Map.find_opt(id, prev_map)) {
+    | None => acc := [id, ...acc^]
+    | Some(prev_e) when !Exp.fast_equal(prev_e, e) =>
+      acc := [id, ...acc^]
+    | _ => ()
+    };
+    continue(e);
+  };
+  let _ = TermBase.Exp.map_term(~f_exp, curr);
+  acc^;
+};
+
+/* Conservatively drop entries that the new elaboration would
+ * invalidate. Used by the worker scheduler when restarting an
+ * interrupted job with a fresh request: we filter the partial cache
+ * (entries the in-progress run had already finished) so that anything
+ * the new elab will not be able to reuse is removed before merging
+ * into the new request's `prev`. The evaluator's `reuse_check` does
+ * the precise per-id decision at run time; this just trims the
+ * obviously-stale entries up front so they don't waste memory. */
+let filter_safe =
+    (
+      ~prev: t,
+      ~changed_ids: list(Id.t),
+      ~new_info_slice: InfoSlice.t,
+      ~new_targets: Sample.targets,
+      _new_elab: Exp.t,
+    )
+    : t => {
+  let changed_set = List.fold_left((s, id) => Id.Set.add(id, s), Id.Set.empty, changed_ids);
+  let kept =
+    Id.Map.filter(
+      (id, _entry) =>
+        if (Id.Set.mem(id, changed_set)) {
+          false;
+        } else {
+          /* Use the same reuse_check the evaluator will apply, with the
+           * conservative dirty_names=[] root assumption. If reuse_check
+           * succeeds, the entry survives; if it fails, drop it. */
+          switch (
+            reuse_check(
+              ~prev,
+              ~dirty_names=[],
+              ~info_slice=new_info_slice,
+              ~current_targets=new_targets,
+              ~id,
+              ~curr_elab=
+                switch (InfoSlice.find_opt(id, new_info_slice)) {
+                | Some({elab_term, _}) => elab_term
+                | None =>
+                  /* Without the info_slice entry we can't get the new
+                   * curr_elab; fall back to comparing the cached prev_elab
+                   * against itself, which makes elab_same trivially true
+                   * but still respects co_ctx_clean / targets_stable. */
+                  _entry.prev_elab
+                },
+            )
+          ) {
+          | Some(_) => true
+          | None => false
+          };
+        },
+      prev.entries,
+    );
+  {
+    entries: kept,
+    recalculated: [],
+    reused: [],
+  };
+};
+
+/* Ids the upcoming evaluation will visit fresh (not short-circuited by
+ * `reuse_check`). Drives the editor's "still calculating" decoration:
+ * probes/Aps whose id is in this set show a re-evaluation indicator
+ * until `Done` arrives.
+ *
+ * Walks the new elaboration top-down; at each id, asks `reuse_check`
+ * (with `dirty_names=[]`, the conservative root assumption) whether the
+ * subtree will be reused. If yes, stops descending — that whole subtree
+ * is "frozen" and not pending. If no, marks the id as pending and
+ * continues into children. The result is the inverse of `frozen_ids` for
+ * the upcoming run, computed before the evaluator runs.
+ *
+ * `changed_ids` is a fast path: any id in this set is unconditionally
+ * pending regardless of what `reuse_check` would say. */
+let pending_ids =
+    (
+      ~prev as _: t,
+      ~changed_ids as _: Id.Set.t,
+      ~new_info_slice as _: InfoSlice.t,
+      ~new_targets as _: Sample.targets,
+      new_elab: Exp.t,
+    )
+    : Id.Set.t => {
+  /* The "ideal" pending_set is every id the worker will visit fresh on
+   * its next run (i.e., the complement of `frozen_ids`). Computing
+   * that exactly requires replicating the evaluator's `dirty_names`
+   * propagation: a pattern-binding's RHS that changed dirties names
+   * downstream, and a probe referencing those names must invalidate
+   * even though its own elab term is byte-identical. A
+   * `reuse_check(dirty_names=[])` walk doesn't see this, so probes
+   * that the evaluator *will* re-visit get classified as "reusable"
+   * and the user sees no re-evaluation pulse on them.
+   *
+   * V1 takes the conservative shortcut: while a request is in flight,
+   * mark *every* id in the new elaboration as pending. The caller
+   * only invokes this in the `ResultPending` branch, so emptiness is
+   * guaranteed once `Done` arrives. This trades precision for
+   * visibility — every probe pulses while the worker runs, which is
+   * the behavior users actually want for in-flight feedback. A future
+   * revision can either replicate the dirty-names propagation here or
+   * have the worker emit `Progress(completed_ids)` at each yield (per
+   * the plan's deferred option) so the editor shrinks the set
+   * incrementally. */
+  let acc = ref(Id.Set.empty);
+  let f_exp = (continue, e: Exp.t) => {
+    acc := Id.Set.add(Exp.rep_id(e), acc^);
+    continue(e);
+  };
+  let _ = TermBase.Exp.map_term(~f_exp, new_elab);
+  acc^;
+};

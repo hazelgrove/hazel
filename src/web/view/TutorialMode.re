@@ -181,7 +181,7 @@ module Update = {
           || action
           |> (
             fun
-            | ResultAction(UpdateResult(_)) => true
+            | ResultAction(UpdateResult(_) | UpdateProgress(_)) => true
             | _ => false
           ) =>
       let cell = Tutorial.get_stitched(pos, model.cells);
@@ -272,36 +272,39 @@ module Update = {
       );
     WorkerClient.request(
       worker_request^,
-      ~handler=
-        List.iter(((pos, result)) => {
-          let pos' = Tutorial.pos_of_key(pos);
-          let result': Language.ProgramResult.t(Language.ProgramResult.inner) =
-            switch (result) {
-            | Ok((r, s)) =>
-              ResultOk({
-                result: r,
-                state: s,
-              })
-            | Error(e) => ResultFail(e)
-            };
-          schedule_action(
-            Editor(pos', ResultAction(UpdateResult(result'))),
-          );
-        }),
-      ~timeout=_ => {
-        let _ =
-          Tutorial.map_stitched(
-            (pos, _) =>
+      ~handler=(resp: WorkerServer.Response.t) =>
+        switch (resp) {
+        | Progress({partials, _}) =>
+          List.iter(
+            ((pos, state)) => {
+              let pos' = Tutorial.pos_of_key(pos);
               schedule_action(
-                Editor(
-                  pos,
-                  ResultAction(UpdateResult(ResultFail(Timeout))),
-                ),
-              ),
-            model.cells,
-          );
-        ();
-      },
+                Editor(pos', ResultAction(UpdateProgress(state))),
+              );
+            },
+            partials,
+          )
+        | Done({results, _}) =>
+          List.iter(
+            ((pos, result)) => {
+              let pos' = Tutorial.pos_of_key(pos);
+              let result':
+                Language.ProgramResult.t(Language.ProgramResult.inner) =
+                switch (result) {
+                | Ok((r, s)) =>
+                  ResultOk({
+                    result: r,
+                    state: s,
+                  })
+                | Error(e) => ResultFail(e)
+                };
+              schedule_action(
+                Editor(pos', ResultAction(UpdateResult(result'))),
+              );
+            },
+            results,
+          )
+        },
     );
     /* The following section pulls statics back from cells into the editors
        There are many ad-hoc things about this code, including the fact that

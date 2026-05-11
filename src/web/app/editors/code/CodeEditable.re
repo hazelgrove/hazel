@@ -521,6 +521,7 @@ module View = {
         ~lines: bool=false,
         ~dynamics: Language.Dynamics.Map.t,
         ~incr_eval: Language.IncrEval.t=Language.IncrEval.empty,
+        ~pending_set: Id.Set.t=Id.Set.empty,
         ~expand_selection=?,
         model: Model.t,
       ) => {
@@ -627,6 +628,7 @@ module View = {
           ~statics=model.statics.info_map,
           ~dynamics,
           ~sample_focus=zipper.refractors.sample_focus,
+          ~pending_set,
           ~editor_active=selected,
         ),
         model.editor.syntax.projector_list,
@@ -839,6 +841,8 @@ module View = {
       ],
       display_line_numbers
         ? LineNumbers.View.view(
+            ~pending_set,
+            ~elab=Some(model.statics.elaborated),
             model,
             globals.settings.relative_line_numbers,
             selected,

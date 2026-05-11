@@ -290,45 +290,59 @@ module Update = {
 
     WorkerClient.request(
       worker_request^,
-      ~handler=
-        List.iter(((pos, result)) => {
-          let result': Language.ProgramResult.t(Language.ProgramResult.inner) =
-            switch (result) {
-            | Ok((r, s)) =>
-              ResultOk({
-                result: r,
-                state: s,
-              })
-            | Error(e) => ResultFail(e)
-            };
-          switch (pos) {
-          | "lemmas" =>
-            schedule_action(Prelude(ResultAction(UpdateResult(result'))));
-            schedule_action(Lemmas(ResultAction(UpdateResult(result'))));
-          | "theorem" =>
-            schedule_action(Theorem(ResultAction(UpdateResult(result'))))
-          | _ => ()
-          };
-        }),
-      ~timeout=_ => {
-      List.iter(
-        fun
-        | "lemmas" => {
-            schedule_action(
-              Prelude(ResultAction(UpdateResult(ResultFail(Timeout)))),
-            );
-            schedule_action(
-              Lemmas(ResultAction(UpdateResult(ResultFail(Timeout)))),
-            );
-          }
-        | "theorem" =>
-          schedule_action(
-            Theorem(ResultAction(UpdateResult(ResultFail(Timeout)))),
+      ~handler=(resp: WorkerServer.Response.t) =>
+        switch (resp) {
+        | Progress({partials, _}) =>
+          List.iter(
+            ((pos, state)) =>
+              switch (pos) {
+              | "lemmas" =>
+                schedule_action(
+                  Prelude(ResultAction(UpdateProgress(state))),
+                );
+                schedule_action(
+                  Lemmas(ResultAction(UpdateProgress(state))),
+                );
+              | "theorem" =>
+                schedule_action(
+                  Theorem(ResultAction(UpdateProgress(state))),
+                )
+              | _ => ()
+              },
+            partials,
           )
-        | _ => (),
-        List.map(((pos, _)) => pos, worker_request^),
-      )
-    });
+        | Done({results, _}) =>
+          List.iter(
+            ((pos, result)) => {
+              let result':
+                Language.ProgramResult.t(Language.ProgramResult.inner) =
+                switch (result) {
+                | Ok((r, s)) =>
+                  ResultOk({
+                    result: r,
+                    state: s,
+                  })
+                | Error(e) => ResultFail(e)
+                };
+              switch (pos) {
+              | "lemmas" =>
+                schedule_action(
+                  Prelude(ResultAction(UpdateResult(result'))),
+                );
+                schedule_action(
+                  Lemmas(ResultAction(UpdateResult(result'))),
+                );
+              | "theorem" =>
+                schedule_action(
+                  Theorem(ResultAction(UpdateResult(result'))),
+                )
+              | _ => ()
+              };
+            },
+            results,
+          )
+        },
+    );
 
     {
       ...model,

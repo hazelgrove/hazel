@@ -7,58 +7,247 @@ type step_constrained('a) =
 
 // This module defines the stack machine for the evaluator.
 module Trampoline = {
+  /* Trampoline terms.
+   *
+   *   Bind(t, f)              — run t, pass result to f
+   *   Next(thunk)             — defer thunk to next runner step
+   *   Done(x)                 — resolve to x
+   *   WithBudget(b, fb, t)    — run t under a budget of `b` trampoline
+   *                             steps; if the runner exceeds the budget
+   *                             before t resolves, the body is aborted
+   *                             and `fb` is propagated up as t's result.
+   *                             Fires only inside the dynamic extent of
+   *                             this constructor, so concurrently-active
+   *                             nested budgets each fire independently.
+   */
   type t('a) =
     | Bind(t('b), 'b => t('a)): t('a)
     | Next(unit => t('a)): t('a)
-    | Done('a): t('a);
+    | Done('a): t('a)
+    | WithBudget(int, 'a, t('a)): t('a);
 
+  /* Callstack frames during run.
+   *
+   *   Finished                  — top-level; consumes the final value
+   *   Continue(f, k)            — inner Bind continuation
+   *   Marker(deadline, fb, k)   — guards a WithBudget body. `deadline`
+   *                               is an absolute step_counter value;
+   *                               if step_counter exceeds it before the
+   *                               body produces Done, the runner aborts
+   *                               by replacing the body's result with
+   *                               `fb` (same type as the body's value).
+   *                               On clean completion, the marker is a
+   *                               no-op pass-through to k. */
   type callstack('a, 'b) =
     | Finished: callstack('a, 'a)
-    | Continue('a => t('b), callstack('b, 'c)): callstack('a, 'c);
-  let rec run:
+    | Continue('a => t('b), callstack('b, 'c)): callstack('a, 'c)
+    | Marker(int, 'a, callstack('a, 'b)): callstack('a, 'b);
+
+  /* Walk a callstack to find the smallest active marker deadline.
+   * Used to maintain a single-int "next deadline" the runner can check
+   * once per step instead of re-walking the stack. */
+  let rec callstack_min_deadline: type a b. callstack(a, b) => int =
+    cs =>
+      switch (cs) {
+      | Finished => max_int
+      | Continue(_, k) => callstack_min_deadline(k)
+      | Marker(d, _, k) => min(d, callstack_min_deadline(k))
+      };
+
+  /* Result of "abort to the topmost-exceeded marker": the new term to
+   * resume with (Done(fallback)) and the marker's parent callstack. The
+   * existential 'a is the body type at that marker's level — it must
+   * still match the parent's input type, which the GADT enforces. */
+  type abort_result('b) =
+    | Aborted(t('a), callstack('a, 'b)): abort_result('b);
+
+  /* Walk the callstack top-to-bottom; abort to the first marker whose
+   * deadline has been exceeded. (Innermost-exceeded; if multiple have
+   * fired, the inner one fires first locally, and the next step
+   * re-evaluates the outer.) */
+  let rec find_exceeded_marker:
+    type a b. (int, callstack(a, b)) => option(abort_result(b)) =
+    (now, cs) =>
+      switch (cs) {
+      | Finished => None
+      | Continue(_, parent) => find_exceeded_marker(now, parent)
+      | Marker(d, fb, parent) when d < now =>
+        Some(Aborted(Done(fb), parent))
+      | Marker(_, _, parent) => find_exceeded_marker(now, parent)
+      };
+
+  /* A paused trampoline computation: the current term plus the callstack
+   * needed to resume it. The inner type variable is existential — the
+   * runner's chunk loop (run_chunk) hides it behind chunk_result. */
+  type suspended('a) =
+    | Susp(t('b), callstack('b, 'a), int /* min_deadline */): suspended('a);
+
+  /* Result of running a bounded chunk of work. `Suspended` carries the
+   * frozen continuation; resume by passing it back to run_chunk_resume.
+   * `StepLimitExceeded` is the same global cap as before; `Completed`
+   * is the final result. */
+  type chunk_result('a) =
+    | Completed('a)
+    | Suspended(suspended('a))
+    | StepLimitExceeded;
+
+  /* Step the trampoline at most `step_budget` times before yielding.
+   * This is the resumable core; see `run` below for the non-resumable
+   * convenience wrapper.
+   *
+   * `min_deadline` is the smallest active marker deadline; threaded
+   * through to keep the per-step abort check O(1) (just an int compare)
+   * in the no-markers / not-yet-exceeded case. It's recomputed on
+   * Marker push/pop and on abort. */
+  let rec run_chunk:
     type a b.
-      (~step_limit: int=?, ~step_counter: int=?, t(b), callstack(b, a)) =>
-      step_constrained(a) =
+      (
+        ~step_limit: int=?,
+        ~step_budget: int,
+        ~step_counter: int=?,
+        ~min_deadline: int=?,
+        t(b),
+        callstack(b, a)
+      ) =>
+      chunk_result(a) =
     (
       ~step_limit: option(int)=?,
+      ~step_budget,
       ~step_counter=0,
+      ~min_deadline=max_int,
       t: t(b),
       callstack: callstack(b, a),
-    ) => {
-      switch (step_limit) {
-      | Some(x) when x <= step_counter => StepLimitExceeded
-      | _ =>
-        switch (t) {
-        | Bind(t, f) =>
-          run(
-            ~step_limit?,
-            ~step_counter=step_counter + 1,
-            t,
-            Continue(f, callstack),
-          )
-        | Next(f) =>
-          run(~step_limit?, ~step_counter=step_counter + 1, f(), callstack)
-        | Done(x) =>
-          switch (callstack) {
-          | Finished => Completed(x)
-          | Continue(f, callstack) =>
-            run(
-              ~step_limit?,
-              ~step_counter=step_counter + 1,
-              f(x),
-              callstack,
-            )
+    ) =>
+      if (step_counter >= step_budget) {
+        Suspended(Susp(t, callstack, min_deadline));
+      } else {
+        switch (step_limit) {
+        | Some(x) when x <= step_counter => StepLimitExceeded
+        | _ =>
+          /* Per-marker abort: cheap int compare in the common case;
+           * we only walk the stack when something is provably overdue. */
+          if (step_counter > min_deadline) {
+            switch (find_exceeded_marker(step_counter, callstack)) {
+            | Some(Aborted(t', cs')) =>
+              run_chunk(
+                ~step_limit?,
+                ~step_budget,
+                ~step_counter=step_counter + 1,
+                ~min_deadline=callstack_min_deadline(cs'),
+                t',
+                cs',
+              )
+            | None =>
+              /* Should be unreachable: min_deadline tracks the smallest
+               * live marker, so step_counter > min_deadline implies one
+               * exists. Defensively, treat as no-op. */
+              run_chunk(
+                ~step_limit?,
+                ~step_budget,
+                ~step_counter=step_counter + 1,
+                ~min_deadline=max_int,
+                t,
+                callstack,
+              )
+            };
+          } else {
+            switch (t) {
+            | Bind(t, f) =>
+              run_chunk(
+                ~step_limit?,
+                ~step_budget,
+                ~step_counter=step_counter + 1,
+                ~min_deadline,
+                t,
+                Continue(f, callstack),
+              )
+            | Next(f) =>
+              run_chunk(
+                ~step_limit?,
+                ~step_budget,
+                ~step_counter=step_counter + 1,
+                ~min_deadline,
+                f(),
+                callstack,
+              )
+            | WithBudget(budget, fallback, body) =>
+              let deadline = step_counter + budget;
+              run_chunk(
+                ~step_limit?,
+                ~step_budget,
+                ~step_counter=step_counter + 1,
+                ~min_deadline=
+                  if (deadline < min_deadline) {
+                    deadline;
+                  } else {
+                    min_deadline;
+                  },
+                body,
+                Marker(deadline, fallback, callstack),
+              );
+            | Done(x) =>
+              switch (callstack) {
+              | Finished => Completed(x)
+              | Continue(f, callstack) =>
+                run_chunk(
+                  ~step_limit?,
+                  ~step_budget,
+                  ~step_counter=step_counter + 1,
+                  ~min_deadline,
+                  f(x),
+                  callstack,
+                )
+              | Marker(_, _, k) =>
+                /* Body completed cleanly; pop the marker, recompute
+                 * min_deadline (since one live marker just disappeared). */
+                run_chunk(
+                  ~step_limit?,
+                  ~step_budget,
+                  ~step_counter=step_counter + 1,
+                  ~min_deadline=callstack_min_deadline(k),
+                  Done(x),
+                  k,
+                )
+              }
+            };
           }
-        }
+        };
       };
-    };
 
-  let run = (~step_limit: option(int)=?, t) =>
-    run(~step_limit?, t, Finished);
+  /* Resume a previously-suspended computation for another budgeted chunk. */
+  let resume_chunk =
+      (~step_limit: option(int)=?, ~step_budget: int, Susp(t, cs, min_deadline))
+      : chunk_result(_) =>
+    run_chunk(~step_limit?, ~step_budget, ~min_deadline, t, cs);
+
+  /* Top-level callstack value. `Finished` is a GADT constructor; binding
+   * it as a value lets it cross the interface boundary. */
+  let finished: type a. callstack(a, a) = Finished;
+
+  /* Synchronous run-to-completion: drive `run_chunk` in big chunks and
+   * collapse `Suspended` back into more chunks. Preserves the original
+   * `run` API for callers that don't need cooperative scheduling
+   * (CLI, main-thread eval, tests). */
+  let run = (~step_limit: option(int)=?, t) => {
+    let rec drive: chunk_result('a) => step_constrained('a) =
+      fun
+      | Completed(x) => Completed(x)
+      | StepLimitExceeded => StepLimitExceeded
+      | Suspended(s) =>
+        drive(resume_chunk(~step_limit?, ~step_budget=max_int / 2, s));
+    drive(run_chunk(~step_limit?, ~step_budget=max_int / 2, t, Finished));
+  };
 
   let return = x => Done(x);
 
   let bind = (t, f) => Bind(t, f);
+
+  /* Run `body` under an absolute budget of `budget` trampoline steps;
+   * on overrun, the body's value is replaced with `fallback`. Side
+   * effects performed before the abort are NOT unwound — the runner
+   * just stops driving the body. */
+  let with_budget = (~budget, ~fallback, body) =>
+    WithBudget(budget, fallback, body);
 
   module Syntax = {
     let (let.trampoline) = (x, f) => bind(x, f);
@@ -123,6 +312,55 @@ module EvaluatorEVMode: {
 };
 
 module Eval = Transition(EvaluatorEVMode);
+
+/* Per-id timeout combinator. Wraps a body trampoline so that, if the
+ * runner spends more than `budget` trampoline steps inside the body,
+ * the body is aborted mid-flight and the result is replaced with
+ * `Invalid("Timeout")` at id `id`. Side effects performed before the
+ * abort persist (we don't unwind state mutations); only the body's
+ * value is replaced.
+ *
+ * Implementation: emits a `Trampoline.WithBudget` term, which the
+ * runner interprets by pushing a `Marker` frame. On every step the
+ * runner compares `step_counter` against the smallest active marker
+ * deadline; on overrun it walks back to the marker and resumes with
+ * `Done(fallback)` as the body's value, dropping any work above.
+ *
+ * The cache-write at the bottom of `evaluate` independently checks for
+ * `Invalid("Timeout")` and skips `add_incr_entry`, so a timed-out id
+ * gets a fresh attempt on the next run. */
+let with_id_budget =
+    (
+      ~id: Id.t,
+      ~budget: int,
+      ~state as _: EvaluatorEVMode.state,
+      body: EvaluatorEVMode.result,
+    )
+    : EvaluatorEVMode.result => {
+  let timeout_term: TermBase.Exp.term = Invalid("Timeout");
+  let timeout_value = DHExp.mk([id], timeout_term);
+  let fallback = (EvaluatorEVMode.Final, [], timeout_value);
+  Trampoline.with_budget(~budget, ~fallback, body);
+};
+
+/* Default per-id budget. Set high enough that nothing in the standard
+ * test suite hits it, but low enough that a runaway recursion on a
+ * single subterm trips the per-id timeout instead of the cell-level
+ * step_limit. The cell-level cap (see `WorkerServer.Sched.cell_step_limit`)
+ * is the safety net for genuinely-infinite computations.
+ *
+ * Tests dial this lower via `with_id_budget` directly to exercise the
+ * timeout path without standing up a worker. */
+let default_per_id_budget = 50_000_000;
+
+/* True if the (already-evaluated) result of an id should NOT be cached.
+ * Currently: skip caching `Invalid("Timeout")` so the next run gets a
+ * fresh chance at a real result. */
+let should_skip_cache_for = (final: DHExp.t): bool =>
+  switch (DHExp.term_of(final)) {
+  | Invalid("Timeout") => true
+  | _ => false
+  };
 
 let rec evaluate =
         (
@@ -326,29 +564,74 @@ let rec evaluate =
       };
     };
 
+    /* Per-id timeout: wrap the recursive body so an over-budget id
+     * returns Invalid("Timeout"). See `with_id_budget` above. */
+    let budgeted_core = () =>
+      with_id_budget(
+        ~id=expr_id,
+        ~budget=default_per_id_budget,
+        ~state,
+        eval_core(),
+      );
+
     switch (elab_snapshot) {
-    | None => eval_core()
+    | None => budgeted_core()
     | Some(prev_elab) =>
       /* Capture the slice once the whole subtree's evaluation resolves. */
       Trampoline.Bind(
-        eval_core(),
-        ((status, effects, final)) => {
-          let slice =
-            EvaluatorState.capture_slice(~before=state_before, ~after=state^);
-          let entry: IncrEval.entry = {
-            prev_elab,
-            value: final,
-            slice,
-            targets_snapshot: state^.targets,
-          };
-          state := EvaluatorState.add_incr_entry(state^, expr_id, entry);
-          state := EvaluatorState.mark_incr_recalculated(state^, expr_id);
-          Trampoline.return((status, effects, final));
-        },
+        budgeted_core(),
+        ((status, effects, final)) =>
+          if (should_skip_cache_for(final)) {
+            /* Don't cache a timed-out id; the next run gets to retry. */
+            Trampoline.return((status, effects, final));
+          } else {
+            let slice =
+              EvaluatorState.capture_slice(
+                ~before=state_before,
+                ~after=state^,
+              );
+            let entry: IncrEval.entry = {
+              prev_elab,
+              value: final,
+              slice,
+              targets_snapshot: state^.targets,
+            };
+            state := EvaluatorState.add_incr_entry(state^, expr_id, entry);
+            state :=
+              EvaluatorState.mark_incr_recalculated(state^, expr_id);
+            Trampoline.return((status, effects, final));
+          },
       )
     };
   };
 };
+
+/* Public, scheduler-facing trampoline shape. The result is the raw DHExp
+ * value the recursive evaluator returns; callers run substitution / replace
+ * via `finalize_value` once they're ready. The state ref is exposed so
+ * the worker scheduler can snapshot `state^.incr_eval` between chunks
+ * (e.g. for partial-cache merging on restart). */
+let evaluate_trampoline =
+    (
+      ~targets: Sample.targets=Sample.no_targets,
+      ~prev: IncrEval.t=IncrEval.empty,
+      ~info_slice: IncrEval.InfoSlice.t=IncrEval.InfoSlice.empty,
+      ~env,
+      d: DHExp.t,
+    )
+    : (ref(EvaluatorState.t), Trampoline.t(DHExp.t)) => {
+  let state = ref(EvaluatorState.mk(~targets));
+  let inner = evaluate(~prev, ~info_slice, ~call_stack=[], state, env, d);
+  let mapped =
+    Trampoline.Bind(inner, ((_, _, v)) => Trampoline.return(v));
+  (state, mapped);
+};
+
+/* Apply substitution + replace_all_ids to land a DHExp value in
+ * Exp.t form for downstream consumers. Counterpart to
+ * `evaluate_trampoline`. */
+let finalize_value = (~env, dh: DHExp.t): Exp.t =>
+  dh |> Substitution.in_exp(env) |> Exp.replace_all_ids;
 
 let evaluate_and_limit =
     (

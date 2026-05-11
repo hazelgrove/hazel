@@ -90,6 +90,12 @@ type info = {
    * disabled by the user; this case (None) must be
    * handled by projector authors */
   dynamics: option(Language.Dynamics.Info.t),
+  /* True iff this projector's id is in the editor-side `pending_set` —
+   * the upcoming evaluation will visit this id fresh (not short-
+   * circuited by `IncrEval.reuse_check`). Drives the "re-evaluating"
+   * pulse on probe samples; previously-completed sample data stays
+   * visible so the user can keep reading while the worker runs. */
+  reevaluating: bool,
   /* Syntax utility functions/values for projector use,
    * provided here to resolve cyclic dependency issues */
   utility,

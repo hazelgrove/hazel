@@ -1215,23 +1215,42 @@ let key_handler = (ctx: probe_ctx, ~id: Id.t, local, evt) => {
   };
 };
 
-let empty_view = (~id: Id.t, ~settings: settings) =>
+let empty_view = (~id: Id.t, ~settings: settings, ~reevaluating: bool=false, ()) =>
   Node.div(
     ~attrs=[
       Attr.id(Id.cls(id)),
       Attr.create("data-cursor-aligned", "false"),
-      Attr.classes([
-        "live-offside",
-        settings.window |> Sample.Window.show_mode,
-      ]),
+      Attr.classes(
+        [
+          "live-offside",
+          settings.window |> Sample.Window.show_mode,
+        ]
+        @ (reevaluating ? ["live-offside--reevaluating"] : []),
+      ),
     ],
-    [
+    (
+      reevaluating
+        ? [
+          Node.div(
+            ~attrs=[
+              Attr.classes(["live-offside--reevaluating-pulse"]),
+              Attr.title("Re-evaluating…"),
+            ],
+            [],
+          ),
+        ]
+        : []
+    )
+    @ [
       div(
         ~attrs=[
           Attr.classes(["empty-status", "no-samples"]),
-          Attr.title("This expression was never evaluated"),
+          Attr.title(
+            reevaluating
+              ? "Re-evaluating…" : "This expression was never evaluated",
+          ),
         ],
-        [text("∅")],
+        [text(reevaluating ? "…" : "∅")],
       ),
     ],
   );
@@ -1290,6 +1309,22 @@ let offside_view =
         ~is_evaluating,
         (),
       );
+    /* When the editor's pending_set says this probe's id will be visited
+     * fresh by the next run, render a "re-evaluating" pulse alongside
+     * the previous samples. Keeping the samples visible lets the user
+     * keep reading while the worker finishes. */
+    let reevaluating_indicator =
+      info.reevaluating
+        ? [
+          Node.div(
+            ~attrs=[
+              Attr.classes(["live-offside--reevaluating-pulse"]),
+              Attr.title("Re-evaluating…"),
+            ],
+            [],
+          ),
+        ]
+        : [];
     Node.div(
       ~attrs=[
         Attr.id(Id.cls(id)),
@@ -1300,54 +1335,62 @@ let offside_view =
         ),
         Attr.tabindex(0),
         Attr.on_keydown(key_handler(ctx, ~id, local)),
-        Attr.classes([
-          "live-offside",
-          settings.window |> Sample.Window.show_mode,
-        ]),
+        Attr.classes(
+          [
+            "live-offside",
+            settings.window |> Sample.Window.show_mode,
+          ]
+          @ (info.reevaluating ? ["live-offside--reevaluating"] : []),
+        ),
       ],
-      switch (empty_status) {
-      | Some(status) => [empty_status_view(ctx, ~status, local)]
-      | None =>
-        /* Overflow indicator: shown when samples ARE displayed but more exist */
-        let overflow_view =
-          num_shown > 0 && num_shown < num_total
-            ? [nav_bar_view(ctx, ~num_total), ellipsis_view(local)] : [];
-        let view_seg_line = (~text_only, segment) =>
-          view_seg(
-            ~single_line=true,
-            ~background=false,
-            ~text_only,
-            Sort.Exp,
-            segment,
-          );
-        let indicated_sample_id =
-          indicated_sample(ctx) |> Option.map((s: Sample.t) => s.id);
-        let sample_view =
-          sample_view(
-            ctx,
-            ~indicated_sample_id,
-            ~num_total,
-            view_seg_line,
-            local,
-          );
-        let group_views =
-          List.map(
-            samples =>
-              Node.div(
-                ~attrs=[Attr.classes(["sample-group"])],
-                List.map(sample_view, samples),
-              ),
-            groups,
-          );
-        (
-          group_views == []
-            ? []
-            : [div(~attrs=[Attr.classes(["sample-groups"])], group_views)]
-        )
-        @ overflow_view;
-      },
+      reevaluating_indicator
+      @ (
+        switch (empty_status) {
+        | Some(status) => [empty_status_view(ctx, ~status, local)]
+        | None =>
+          /* Overflow indicator: shown when samples ARE displayed but more exist */
+          let overflow_view =
+            num_shown > 0 && num_shown < num_total
+              ? [nav_bar_view(ctx, ~num_total), ellipsis_view(local)] : [];
+          let view_seg_line = (~text_only, segment) =>
+            view_seg(
+              ~single_line=true,
+              ~background=false,
+              ~text_only,
+              Sort.Exp,
+              segment,
+            );
+          let indicated_sample_id =
+            indicated_sample(ctx) |> Option.map((s: Sample.t) => s.id);
+          let sample_view =
+            sample_view(
+              ctx,
+              ~indicated_sample_id,
+              ~num_total,
+              view_seg_line,
+              local,
+            );
+          let group_views =
+            List.map(
+              samples =>
+                Node.div(
+                  ~attrs=[Attr.classes(["sample-group"])],
+                  List.map(sample_view, samples),
+                ),
+              groups,
+            );
+          (
+            group_views == []
+              ? []
+              : [
+                div(~attrs=[Attr.classes(["sample-groups"])], group_views),
+              ]
+          )
+          @ overflow_view;
+        }
+      ),
     );
-  | _ => empty_view(~id=info.id, ~settings)
+  | _ => empty_view(~id=info.id, ~settings, ~reevaluating=info.reevaluating, ())
   };
 
 let overlay_view = (info: info): Node.t =>

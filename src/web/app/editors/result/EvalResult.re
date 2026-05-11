@@ -26,6 +26,13 @@ module Model = {
      * the "reused" tint doesn't disappear while the worker is mid-flight;
      * refreshed each time a completed run arrives. */
     incr_eval: Calc.saved(IncrEval.t),
+    /* Ids the editor knows the upcoming run will visit fresh — i.e.
+     * everything that won't be short-circuited by `IncrEval.reuse_check`.
+     * Drives the "still calculating" overlays (probe pulse, line-number
+     * spinner). Computed locally each `calculate`; replaced wholesale by
+     * `Id.Set.empty` when a fresh `incr_eval` arrives, since by then
+     * every id is either cached or freshly recalculated. */
+    pending_set: Id.Set.t,
     display,
     theorems: Theorems.Model.t,
   };
@@ -43,6 +50,7 @@ module Model = {
     result: Calc.NewValue(ProgramResult.ResultPending),
     dynamics: Calc.Pending,
     incr_eval: Calc.Pending,
+    pending_set: Id.Set.empty,
     display: Evaluation(Calc.Pending),
     theorems: Theorems.Model.init,
   };
@@ -66,6 +74,7 @@ module Model = {
         result: Calc.NewValue(ProgramResult.ResultPending),
         dynamics: Calc.Pending,
         incr_eval: Calc.Pending,
+        pending_set: Id.Set.empty,
         display: Stepper(StepperView.Model.unpersist(stepper)),
         theorems,
       }
@@ -99,6 +108,11 @@ module Model = {
   let incr_eval = (model: t): IncrEval.t =>
     model.incr_eval |> Calc.get_saved(IncrEval.empty);
 
+  /* Ids the editor expects to be visited freshly by the upcoming run.
+   * Drives in-flight UI feedback (probe pulse, line-number spinner).
+   * Empty whenever the worker isn't mid-flight. */
+  let pending_set = (model: t): Id.Set.t => model.pending_set;
+
   let get_elaboration = (model: t): option(Exp.t) =>
     model.elab |> Calc.get_saved_opt;
 };
@@ -112,6 +126,12 @@ module Update = {
     | StepperAction(StepperView.Update.t)
     | EvalEditorAction(CodeSelectable.Update.t)
     | UpdateResult(ProgramResult.t(ProgramResult.inner))
+    /* Mid-flight snapshot from the worker. The cell's evaluation isn't
+     * finished yet — `result` stays `ResultPending` — but the partial
+     * `EvaluatorState.t` carries the probes/tests/incr_eval as captured
+     * at the worker's most recent yield, so the UI can populate probe
+     * samples (and shrink `pending_set`) without waiting for Done. */
+    | UpdateProgress(Language.EvaluatorState.t)
     | TheoremsAction(Theorems.Update.t);
 
   let can_undo = (action: t) => {
@@ -120,6 +140,7 @@ module Update = {
     | StepperAction(action) => StepperView.Update.can_undo(action)
     | EvalEditorAction(action) => CodeSelectable.Update.can_undo(action)
     | UpdateResult(_) => false
+    | UpdateProgress(_) => false
     | TheoremsAction(action) => Theorems.Update.can_undo(action)
     };
   };
@@ -169,6 +190,38 @@ module Update = {
         result: Calc.NewValue(result),
       }
       |> Updated.return_quiet
+    | (UpdateProgress(state), _) =>
+      /* Mount partial dynamics + cache so probes show captured samples
+       * mid-flight; shrink pending_set to ids the worker hasn't yet
+       * touched (the complement of the partial cache's entry keys).
+       * `result` stays Pending — Done is the only thing that flips it
+       * to ResultOk. We also DON'T touch `elab` / `cached_settings` /
+       * `cached_targets`: they describe what was sent to the worker
+       * and must not drift forward without a successful Done. */
+      let partial_dynamics =
+        Some(
+          Dynamics.{
+            probe_map: state |> EvaluatorState.get_probes,
+            test_results:
+              state |> EvaluatorState.get_tests |> TestResults.mk_results,
+            theorems: state |> EvaluatorState.get_theorems,
+          },
+        );
+      let completed_ids =
+        Id.Map.fold(
+          (id, _entry, acc) => Id.Set.add(id, acc),
+          state.incr_eval.entries,
+          Id.Set.empty,
+        );
+      let pending_set =
+        Id.Set.diff(model.pending_set, completed_ids);
+      {
+        ...model,
+        dynamics: Calc.Calculated(partial_dynamics),
+        incr_eval: Calc.Calculated(state.incr_eval),
+        pending_set,
+      }
+      |> Updated.return_quiet;
     };
 
   let calculate =
@@ -184,10 +237,16 @@ module Update = {
           result,
           dynamics,
           incr_eval,
+          pending_set: prev_pending_set,
           display,
           theorems,
         }: Model.t,
       ) => {
+    /* Snapshot the previous saved elaboration before it gets shadowed
+     * by Calc.set below, so we can diff prev vs. new for the
+     * editor-side `changed_ids` hint. */
+    let prev_elab_for_diff = elab |> Calc.get_saved_opt;
+
     // Check whether settings / elab / targets have changed
     let settings =
       cached_settings
@@ -208,6 +267,16 @@ module Update = {
      * needs. The raw info_map can't cross postMessage because LivelitCtx
      * entries contain OCaml closures. */
     let info_slice = IncrEval.InfoSlice.of_info_map(statics.info_map);
+    /* Diff the previous and new elaborations to produce the
+     * `changed_ids` hint that ships with the request. The list drives
+     * editor-side "still calculating" overlays and is used as a fast
+     * invalidation hint by the worker; correctness still comes from
+     * `IncrEval.reuse_check` against the full new elaboration. */
+    let changed_ids =
+      switch (prev_elab_for_diff) {
+      | None => [] /* First evaluation: nothing cached, nothing to invalidate */
+      | Some(prev) => IncrEval.changed_ids(~prev, statics.elaborated)
+      };
     let result =
       result
       |> {
@@ -225,6 +294,7 @@ module Update = {
             targets,
             info_slice,
             prev: prev_incr,
+            changed_ids,
           });
           ProgramResult.ResultPending;
         // Using the main thread:
@@ -235,6 +305,7 @@ module Update = {
               targets,
               info_slice,
               prev: prev_incr,
+              changed_ids,
             })
           ) {
           | Ok((exp, state)) =>
@@ -281,6 +352,48 @@ module Update = {
           incr_eval |> Calc.get_saved(IncrEval.empty)
         | ProgramResult.ResultFail(_) => IncrEval.empty
         | ProgramResult.ResultOk({state, _}) => state.incr_eval
+        };
+      };
+
+    /* Compute `pending_set` for in-flight feedback (probe pulse + line
+     * spinner). The set has three lifecycle phases:
+     *
+     *   1. Fresh request just queued (`result` is NewValue(Pending)):
+     *      re-initialize to every id in the new elab. The editor
+     *      can't predict precisely which ids the worker will visit
+     *      fresh without replicating the evaluator's `dirty_names`
+     *      propagation, so we mark all of them and let the worker's
+     *      Progress messages shrink the set as ids complete.
+     *
+     *   2. Worker still in flight (`result` is OldValue(Pending)):
+     *      keep `prev_pending_set` unchanged. The Progress action
+     *      shrinks it directly via Update, and `calculate` must not
+     *      stomp those shrinks here.
+     *
+     *   3. Done or dynamics-off: empty. */
+    let dyn_on = Calc.get_value(settings).dynamics;
+    let pending_set =
+      if (!dyn_on) {
+        Id.Set.empty;
+      } else {
+        switch (result) {
+        | NewValue(ProgramResult.ResultOk(_) | ProgramResult.ResultFail(_))
+        | OldValue(ProgramResult.ResultOk(_) | ProgramResult.ResultFail(_)) =>
+          Id.Set.empty
+        | NewValue(ProgramResult.ResultPending) =>
+          IncrEval.pending_ids(
+            ~prev=prev_incr,
+            ~changed_ids=
+              List.fold_left(
+                (s, id) => Id.Set.add(id, s),
+                Id.Set.empty,
+                changed_ids,
+              ),
+            ~new_info_slice=info_slice,
+            ~new_targets=Calc.get_value(targets),
+            statics.elaborated,
+          )
+        | OldValue(ProgramResult.ResultPending) => prev_pending_set
         };
       };
 
@@ -358,6 +471,7 @@ module Update = {
         result: result |> Calc.make_old,
         dynamics: dynamics |> Calc.save,
         incr_eval: incr_eval |> Calc.save,
+        pending_set,
         display,
         theorems,
       }: Model.t

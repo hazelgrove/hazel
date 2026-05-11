@@ -8,9 +8,62 @@ open WebUtil;
  */
 module Model = CodeWithStatics.Model;
 
+/* Walk the elaboration once and collect rows that contain at least one
+ * `Ap` term whose id is in `pending_set`. We index by row so the gutter
+ * can render one spinner per affected line, even if the line has many
+ * dirty `Ap`s.
+ *
+ * Function applications are the main slow site in user programs, so
+ * surfacing them as the granularity of the in-flight indicator is far
+ * less noisy than per-id spinners on every dirty subterm. */
+let dirty_ap_rows =
+    (
+      ~pending_set: Id.Set.t,
+      ~measured: Measured.t,
+      elab: option(Language.Exp.t),
+    )
+    : list(int) =>
+  switch (elab) {
+  | _ when Id.Set.is_empty(pending_set) => []
+  | None => []
+  | Some(e) =>
+    let dirty_ids = ref([]);
+    let f_exp = (continue, e: Language.Exp.t) => {
+      let id = Language.Exp.rep_id(e);
+      switch (Language.Exp.term_of(e)) {
+      | Ap(_, _, _) when Id.Set.mem(id, pending_set) =>
+        dirty_ids := [id, ...dirty_ids^]
+      | _ => ()
+      };
+      continue(e);
+    };
+    let _ = Language.TermBase.Exp.map_term(~f_exp, e);
+    let rows = ref([]);
+    List.iter(
+      id =>
+        switch (Id.Map.find_opt(id, measured.tiles)) {
+        | Some([(_, {origin: {row, _}, _}), ..._]) =>
+          if (!List.mem(row, rows^)) {
+            rows := [row, ...rows^];
+          }
+        | _ => ()
+        },
+      dirty_ids^,
+    );
+    rows^;
+  };
+
 module View = {
-  let view = (model: Model.t, show_relative_numbers: bool, selected: bool) => {
+  let view =
+      (
+        ~pending_set: Id.Set.t=Id.Set.empty,
+        ~elab: option(Language.Exp.t)=None,
+        model: Model.t,
+        show_relative_numbers: bool,
+        selected: bool,
+      ) => {
     let {editor: {syntax: {measured, _}, state: {zipper, _}, _}, _}: Model.t = model;
+    let dirty_rows = dirty_ap_rows(~pending_set, ~measured, elab);
     let num_rows = List.length(measured.piece_rows);
     let empty_row = row => {
       let result = List.nth_opt(List.rev(measured.piece_rows), row);
@@ -82,26 +135,54 @@ module View = {
         };
     };
     let index_to_span = (i): Node.t => {
+      let dirty = List.mem(i, dirty_rows);
       Node.span(
         ~attrs=
-          i == row && selected ? [Attr.classes(["line-numbers-bold"])] : [],
+          (
+            i == row && selected ? [Attr.classes(["line-numbers-bold"])] : []
+          )
+          @ (dirty ? [Attr.classes(["line-numbers-dirty-ap"])] : []),
         [Text(index_to_text(i))],
       );
     };
+    /* Spinner overlay: one element per dirty row. Positioned via a CSS
+     * grid pinned to the gutter so we can place each spinner over the
+     * correct row independent of the line-number text flow. */
+    let dirty_spinners =
+      List.map(
+        (r: int): Node.t =>
+          Node.div(
+            ~attrs=[
+              Attr.classes(["line-numbers-spinner"]),
+              Attr.create(
+                "style",
+                Printf.sprintf("top: %.2fch", float_of_int(r) *. 1.0 *. 1.0)
+                ++ "em;",
+              ),
+              Attr.title("Re-evaluating function call(s) on this line"),
+            ],
+            [],
+          ),
+        dirty_rows,
+      );
     [
       Node.div(
         ~attrs=[
-          Attr.classes([
-            "code",
-            "line-numbers",
-            selected ? "line-numbers-selected" : "",
-          ]),
+          Attr.classes(
+            [
+              "code",
+              "line-numbers",
+              selected ? "line-numbers-selected" : "",
+            ]
+            @ (dirty_rows == [] ? [] : ["line-numbers-has-dirty"]),
+          ),
         ],
         [
           Node.span(
             ~attrs=[Attr.classes(["code-text", "line-numbers-text"])],
             List.init(num_rows, (i): Node.t => {index_to_span(i)}),
           ),
+          ...dirty_spinners,
         ],
       ),
     ];

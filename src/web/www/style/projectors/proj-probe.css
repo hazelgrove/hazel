@@ -327,6 +327,35 @@
   display: none;
 }
 
+/* Re-evaluation indicator: shown while a request is in flight and this
+ * probe's id is in the editor-side pending_set. We keep prior samples
+ * visible (greyed slightly) so the user can still read them, and pulse
+ * a small dot at the offside to signal "fresh sample coming". */
+.projector.probe .live-offside--reevaluating {
+  opacity: 0.7;
+}
+
+.live-offside--reevaluating-pulse {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--exp-base, #888);
+  align-self: center;
+  flex-shrink: 0;
+  animation: live-offside-reevaluating-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes live-offside-reevaluating-pulse {
+  0%, 100% {
+    opacity: 0.25;
+    transform: scale(0.8);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.1);
+  }
+}
+
 .live-offside .nav-bar {
   display: flex;
   flex-direction: row;

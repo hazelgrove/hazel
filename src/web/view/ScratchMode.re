@@ -746,13 +746,22 @@ module Update = {
     | _ =>
       WorkerClient.request(
         worker_request^,
-        ~handler=
-          r => {
+        ~handler=(resp: WorkerServer.Response.t) => {
+          switch (resp) {
+          | Progress({partials, _}) =>
+            switch (partials |> List.find_opt(((_, _)) => true)) {
+            | Some((_key, state)) =>
+              schedule_action(
+                CellAction(ResultAction(UpdateProgress(state))),
+              )
+            | None => ()
+            }
+          | Done({results, _}) =>
             schedule_action(
               CellAction(
                 ResultAction(
                   UpdateResult(
-                    switch (r |> List.hd |> snd) {
+                    switch (results |> List.hd |> snd) {
                     | Ok((r, s)) =>
                       Language.ProgramResult.ResultOk({
                         result: r,
@@ -764,12 +773,8 @@ module Update = {
                 ),
               ),
             )
-          },
-        ~timeout=
-          _ =>
-            schedule_action(
-              CellAction(ResultAction(UpdateResult(ResultFail(Timeout)))),
-            ),
+          }
+        },
       )
     };
     let new_sp =

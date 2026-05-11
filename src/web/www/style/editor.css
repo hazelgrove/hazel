@@ -68,6 +68,38 @@
   color: var(--BR2);
 }
 
+/* Re-evaluation indicator for lines containing dirty function applications.
+ * Computed from `pending_set ∩ Ap-ids` in LineNumbers.dirty_ap_rows. The
+ * spinner sits in the gutter at row offset; the line number itself gets
+ * a subtle highlight so the eye finds it. Cleared when `Done` arrives. */
+.code .code-text.line-numbers-text .line-numbers-dirty-ap {
+  color: var(--exp-base, currentColor);
+  text-shadow: 0 0 4px currentColor;
+}
+
+.line-numbers .line-numbers-spinner {
+  position: absolute;
+  left: 0;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--exp-base, #888);
+  margin-top: 0.45em;
+  pointer-events: none;
+  animation: line-numbers-spinner-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes line-numbers-spinner-pulse {
+  0%, 100% {
+    opacity: 0.25;
+    transform: scale(0.7);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.1);
+  }
+}
+
 /* This is a hack to compensating for default linebreak handling
 * preventing a trailing linebreak in code editors from leaving a
 * trailing blank line, as per https://stackoverflow.com/questions/43492826/.

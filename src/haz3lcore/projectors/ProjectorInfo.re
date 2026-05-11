@@ -33,10 +33,11 @@ let utility: ProjectorBase.utility = {
 
 let mk_info =
     (
-      p: Piece.projector,
+      ~pending_set: Id.Set.t=Id.Set.empty,
       ~sample_focus: Sample.Focus.t,
       ~statics: Statics.Map.t,
       ~dynamics: Dynamics.Map.t,
+      p: Piece.projector,
     )
     : ProjectorBase.info => {
   id: p.id,
@@ -51,6 +52,7 @@ let mk_info =
       })
     | None => None
     },
+  reevaluating: Id.Set.mem(p.id, pending_set),
   utility,
 };
 
@@ -64,7 +66,7 @@ module ShapeMapSemantics = {
       )
       : ProjectorCore.Shape.t => {
     let (module P) = ProjectorInit.to_module(p.kind);
-    P.placeholder(p.model, mk_info(p, ~sample_focus, ~statics, ~dynamics));
+    P.placeholder(p.model, mk_info(~sample_focus, ~statics, ~dynamics, p));
   };
 
   let mk =

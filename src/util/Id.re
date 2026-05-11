@@ -88,7 +88,64 @@ let cls = (id: t) => "id" ++ str8(id);
 [@deriving (sexp, yojson)]
 type binding('v) = (t, 'v);
 
-module Set = Set.Make(Uuidm);
+module Set = {
+  include Set.Make(Uuidm);
+
+  let sexp_of_t = (set: t): Sexplib.Sexp.t =>
+    set
+    |> elements
+    |> Sexplib.Std.sexp_of_list(t' => Sexplib.Sexp.Atom(Uuidm.to_string(t')));
+
+  let t_of_sexp = (sexp: Sexplib.Sexp.t): t =>
+    sexp
+    |> Sexplib.Std.list_of_sexp(
+         fun
+         | Sexplib.Sexp.Atom(s) =>
+           Uuidm.of_string(s)
+           |> OptUtil.get(_ => failwith("Id.Set.t_of_sexp: not valid UUID"))
+         | _ => failwith("Id.Set.t_of_sexp: expected atom"),
+       )
+    |> List.to_seq
+    |> of_seq;
+
+  let yojson_of_t = (set: t): Yojson.Safe.t =>
+    `List(
+      set |> elements |> List.map(t' => `String(Uuidm.to_string(t'))),
+    );
+
+  let t_of_yojson = (json: Yojson.Safe.t): t =>
+    switch (json) {
+    | `List(items) =>
+      List.map(
+        fun
+        | `String(s) =>
+          Uuidm.of_string(s)
+          |> OptUtil.get(_ =>
+               failwith("Id.Set.t_of_yojson: not valid UUID")
+             )
+        | _ => failwith("Id.Set.t_of_yojson: expected string"),
+        items,
+      )
+      |> List.to_seq
+      |> of_seq
+    | _ => failwith("Id.Set.t_of_yojson: expected list")
+    };
+
+  /* Outputs valid OCaml code only for empty sets; matches Id.Map's
+   * convention. Non-empty serialization through `show` is intentionally
+   * unsupported (callers use sexp/yojson for round-tripping). */
+  let pp = (fmt: Format.formatter, set: t): unit =>
+    if (is_empty(set)) {
+      Format.fprintf(fmt, "Haz3lcore.Id.Set.empty");
+    } else {
+      failwith(
+        "Id.Set.pp: non-empty set serialization not implemented; "
+        ++ "use sexp/yojson for round-tripping.",
+      );
+    };
+
+  let show = (set: t): string => Format.asprintf("%a", pp, set);
+};
 
 module Map = {
   include Map.Make(Uuidm);

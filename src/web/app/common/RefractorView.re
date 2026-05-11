@@ -44,7 +44,8 @@ let mk_data =
       /* Construct full Base.projector on demand for rendering */
       let p = Refractors.to_projector(id, entry);
       let+ measurement = measurement_of_term(id, term_data, measured);
-      let info = ProjectorInfo.mk_info(p, ~sample_focus, ~statics, ~dynamics);
+      let info =
+        ProjectorInfo.mk_info(~sample_focus, ~statics, ~dynamics, p);
       ProjectorView.Model.{
         p,
         info,

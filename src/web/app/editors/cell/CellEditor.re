@@ -281,6 +281,7 @@ module View = {
           ~lines,
           ~dynamics=EvalResult.Model.dynamics(model.result),
           ~incr_eval=EvalResult.Model.incr_eval(model.result),
+          ~pending_set=EvalResult.Model.pending_set(model.result),
           model.editor,
         ),
       ]
