@@ -586,9 +586,18 @@ let pin_view = (ctx: probe_ctx, sample: Sample.t) =>
     [];
   };
 
-/* Generate unique dropdown ID for a sample */
-let dropdown_id = (sample_id: int): string =>
-  "sample-dropdown-" ++ string_of_int(sample_id);
+/* Generate a DOM id that's unique per sample-instance. sample.id is
+ * Hashtbl.hash((stack, syntax_id)) and is intentionally coarse — recursive
+ * invocations frequently collide on it. Combining with step_start/step_end
+ * disambiguates. If Sample.id is ever made truly unique, simplify this back
+ * to just sample.id. See issue #2288. */
+let dropdown_id = (sample: Sample.t): string =>
+  Printf.sprintf(
+    "sample-dropdown-%d-%d-%d",
+    sample.id,
+    sample.step_start,
+    sample.step_end,
+  );
 
 /* Step into handler for sample context menu */
 let step_into_sample =
@@ -678,12 +687,16 @@ let rich_probe_action =
   );
 
 let rich_probe_items =
-    (ctx: probe_ctx, local, sample: Sample.t): list(Node.t) =>
-  renderers
-  |> List.filter_map(r =>
-       r.can_handle(ctx.sort, sample.value)
-         ? Some(rich_probe_action(ctx, local, sample, r)) : None
-     );
+    (ctx: probe_ctx, local, _sample: Sample.t): list(Node.t) =>
+  switch (Dynamics.Info.most_aligned_sample(ctx.ap_id, ctx.dynamics)) {
+  | None => []
+  | Some(indicated) =>
+    renderers
+    |> List.filter_map(r =>
+         r.can_handle(ctx.sort, indicated.value)
+           ? Some(rich_probe_action(ctx, local, indicated, r)) : None
+       )
+  };
 
 /* Context actions for a sample (Pin/Unpin, Step Into, rich-probe views, etc.) */
 let sample_context_actions =
@@ -921,7 +934,7 @@ let sample_context_menu =
           @ (show_env ? ["dropdown-active"] : []),
         ),
       ]
-      @ SafeTriangle.CSSDropdown.menu_attrs(dropdown_id(sample.id)),
+      @ SafeTriangle.CSSDropdown.menu_attrs(dropdown_id(sample)),
     sample_context_actions(
       ctx,
       local,
@@ -952,7 +965,11 @@ let sample_view =
     ) => {
   let hide_env = hide_env(ctx.statics);
   let has_rich =
-    List.exists(r => r.can_handle(ctx.sort, sample.value), renderers);
+    switch (Dynamics.Info.most_aligned_sample(ctx.ap_id, ctx.dynamics)) {
+    | Some(indicated) =>
+      List.exists(r => r.can_handle(ctx.sort, indicated.value), renderers)
+    | None => false
+    };
   let has_dropdown =
     !(hide_env && ctx.ap_id == None) || sample.call_stack != [] || has_rich;
   let show_env = Settings.show_env^ && indicated_sample_id == Some(sample.id);
@@ -961,8 +978,7 @@ let sample_view =
       [Attr.classes(["sample"])]
       @ (
         has_dropdown
-          ? SafeTriangle.CSSDropdown.trigger_attrs(dropdown_id(sample.id))
-          : []
+          ? SafeTriangle.CSSDropdown.trigger_attrs(dropdown_id(sample)) : []
       ),
     [value_view(ctx, ~num_total, view_seg, local, sample)]
     @ pin_view(ctx, sample)
