@@ -712,7 +712,22 @@ and parenthesize_typ =
   switch (term) {
   // Indivisible forms dont' change
   | Var(_)
-  | Unknown(_)
+  | Unknown({
+      term:
+        Hole(EmptyHole | CycleHole | Invalid(_))
+        | SynSwitch
+        | Internal
+        | LArrow(_)
+        | RArrow(_)
+        | NProduct(_)
+        | MList(_)
+        | RForall(_)
+        | TupLabel(_)
+        | TupLabelArg(_)
+        | Meet(_)
+        | TypeSubstitution(_),
+      _,
+    })
   | Atom(_)
   | DrvQuoteTy(_) => typ
 

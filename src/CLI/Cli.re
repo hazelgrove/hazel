@@ -390,7 +390,12 @@ let probe_hazel = (auto: bool, many: bool, path: string): unit => {
       if (auto) {
         /* Build syntax cache for MultiProbe */
         let syntax =
-          Haz3lcore.CachedSyntax.mk(zipper, ~info_map, ~dyn_map=Id.Map.empty);
+          Haz3lcore.CachedSyntax.mk(
+            zipper,
+            ~info_map,
+            ~inference_map=Language.Inference.TypSolutionMap.empty,
+            ~dyn_map=Id.Map.empty,
+          );
         let root_id =
           Haz3lcore.Segment.root_id(
             Haz3lcore.Segment.skel(segment),

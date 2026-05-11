@@ -61,7 +61,7 @@ let derive_typ_tests = [
         DeriveTypStatus.derive(
           Builtins.ctx_init(Some(Int)),
           TypeExpected,
-          Unknown(Hole(Invalid("x"))) |> Typ.temp,
+          Unknown(Hole(Invalid("x")) |> Prov.fresh) |> Typ.temp,
         );
 
       check(
@@ -78,7 +78,7 @@ let derive_typ_tests = [
     `Quick,
     () => {
       let ctx = Builtins.ctx_init(Some(Int));
-      let ty = Unknown(Hole(EmptyHole)) |> Typ.temp;
+      let ty = Unknown(Hole(EmptyHole) |> Prov.fresh) |> Typ.temp;
       let status =
         DeriveTypStatus.derive(ctx, LabelExpected(Unique, []), ty);
       check(
@@ -94,7 +94,7 @@ let derive_typ_tests = [
     `Quick,
     () => {
       let ctx = Builtins.ctx_init(Some(Int));
-      let ty = Unknown(Hole(EmptyHole)) |> Typ.temp;
+      let ty = Unknown(Hole(EmptyHole) |> Prov.fresh) |> Typ.temp;
       let status = DeriveTypStatus.derive(ctx, TypeExpected, ty);
       check(
         typ_status_testable,
@@ -110,7 +110,7 @@ let derive_typ_tests = [
     `Quick,
     () => {
       let ctx = Builtins.ctx_init(Some(Int));
-      let ty = Unknown(Hole(MultiHole([]))) |> Typ.temp;
+      let ty = Unknown(Hole(MultiHole([])) |> Prov.fresh) |> Typ.temp;
       let status = DeriveTypStatus.derive(ctx, TypeExpected, ty);
       check(
         typ_status_testable,
@@ -492,7 +492,7 @@ let tests = (
       () => {
         // This was https://github.com/hazelgrove/hazel/issues/1459 which used to crash statics
         let exp = parse_exp("type x = Int(Float) in let y : x =  1");
-        let (s, _) = statics(exp);
+        let s = statics(exp);
 
         let errors = errors(s) |> List.map(((_, ms)) => Marks(ms));
 

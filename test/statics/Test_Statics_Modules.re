@@ -398,7 +398,7 @@ let test_limitation_label_mismatch_hole =
   fully_consistent_typecheck(
     "Limitation: label mismatch with hole type has no error",
     {|let m : { let x : ? } = { let y = 1 } in m|},
-    Some(prod([tup_label(label("x"), unknown(Hole(EmptyHole)))])),
+    Some(prod([tup_label(label("x"), empty_hole())])),
   );
 
 /* ===== MODULE KEYWORD TESTS ===== */

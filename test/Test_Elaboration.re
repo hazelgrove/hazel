@@ -173,7 +173,7 @@ module PlainTests = {
       fn(
         Pat.var("x"),
         bin_op(Int(Plus), int(4), int(5)),
-        Some(Typ.unknown(Hole(EmptyHole))),
+        Some(Typ.empty_hole()),
         None,
       )
     );
@@ -200,8 +200,8 @@ module PlainTests = {
       match(
         bin_op(Poly(Equals), int(4), int(3)),
         [
-          (Pat.bool(true), asc(int(24), Typ.unknown(SynSwitch))),
-          (Pat.bool(false), asc(bool(false), Typ.unknown(SynSwitch))),
+          (Pat.bool(true), asc(int(24), Typ.unknown(SynSwitch |> Prov.fresh))),
+          (Pat.bool(false), asc(bool(false), Typ.unknown(SynSwitch |> Prov.fresh))),
         ],
       )
     );
@@ -707,7 +707,7 @@ module PlainTests = {
               Pat.(tuple([tup_label(label("a"), var("x"))])),
               var("x"),
               Some(
-                Typ.(prod([tup_label(label("a"), unknown(Internal))])),
+                Typ.(prod([tup_label(label("a"), unknown(Internal |> Prov.fresh))])),
               ),
               None,
             ),

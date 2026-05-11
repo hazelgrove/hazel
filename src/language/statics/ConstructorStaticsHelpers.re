@@ -18,7 +18,7 @@ let syn_marks_match =
       SynTy.meet_of(Id, SynTy.unknown_internal()),
       [Mark.NoMeet(Id, Typ.add_source(ids, tys))],
     )
-  | Some(ty) => (ty, [])
+  | Some((ty, _)) => (ty, [])
   };
 
 let ctr_ana_typ =

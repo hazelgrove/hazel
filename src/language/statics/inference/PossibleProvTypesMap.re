@@ -31,6 +31,9 @@ module TypInfo: TermInfo with type t := Typ.t = {
     | ExplicitNonlabel => []
     | ProdProjection(ty1, ty2)
     | ProdExtension(ty1, ty2) => provs_in_term(ty1) @ provs_in_term(ty2)
+    | DrvQuoteTy(_) => []
+    | Projector(_, t) => provs_in_term(t)
+    | Sig(_) => []
     };
   };
 };
@@ -38,7 +41,7 @@ module TypInfo: TermInfo with type t := Typ.t = {
 module TPatInfo: TermInfo with type t := TPat.t = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = TPat.t;
-  let rec provs_in_term = (include_prov: Prov.t => bool, tpat: t) => {
+  let provs_in_term = (include_prov: Prov.t => bool, tpat: t) => {
     switch (tpat |> IdTagged.term_of) {
     | Unknown(p) when Prov.is_identified(p) && include_prov(p) => [p]
     | Unknown(_) => []

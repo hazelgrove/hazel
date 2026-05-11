@@ -9,7 +9,7 @@ type tuple_type = list(tuple_entry);
 
 // Constants and helper functions
 let unknown = Unknown(Internal |> Prov.fresh) |> Typ.temp;
-let syn = Unknown(SynSwitch) |> Typ.temp;
+let syn = Unknown(SynSwitch |> Prov.fresh) |> Typ.temp;
 let mk_builtin_ap_elab = (fn_info: Info.exp, arg_elab: Exp.t): Exp.t =>
   Ap(Forward, fn_info.elab_term, arg_elab) |> Exp.fresh;
 
@@ -517,7 +517,7 @@ let to_lvs_statics =
       let val_typs = List.map(snd, entries);
       let joined_typ =
         Util.OptUtil.fold_left_opt(
-          (acc, t) => Typ.meet(ctx, acc, t),
+          (acc, t) => Typ.meet(ctx, acc, t) |> Option.map(fst),
           val_typs,
           unknown,
         )

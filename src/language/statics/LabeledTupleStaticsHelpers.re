@@ -7,7 +7,7 @@ module Info = StaticsBase.Info;
 let decompose_label_mode = (ctx: Ctx.t, ana: Typ.t): (Typ.t, Typ.t) =>
   switch (MatchedTyp.label(ctx, ana)) {
   | Some((labmode, val_mode)) => (labmode, val_mode)
-  | _ => (Unknown(SynSwitch) |> Typ.temp, Unknown(Internal |> Prov.fresh) |> Typ.temp)
+  | _ => (Unknown(SynSwitch |> Prov.fresh) |> Typ.temp, Unknown(Internal |> Prov.fresh) |> Typ.temp)
   };
 
 type label_child_result = {
@@ -78,7 +78,7 @@ let tup_label_self_type =
             : [];
     (labeled_syn, marks);
   | None when label_is_empty_hole => (
-      TupLabel(Unknown(SynSwitch) |> Typ.temp, value_ty) |> Typ.temp,
+      TupLabel(Unknown(SynSwitch |> Prov.fresh) |> Typ.temp, value_ty) |> Typ.temp,
       [],
     )
   | None => (
@@ -109,7 +109,7 @@ let standalone_tup_label_self_type =
       [],
     )
   | None when label_is_empty_hole => (
-      TupLabel(Unknown(SynSwitch) |> Typ.temp, value_ty) |> Typ.temp,
+      TupLabel(Unknown(SynSwitch |> Prov.fresh) |> Typ.temp, value_ty) |> Typ.temp,
       [],
     )
   | None => (

@@ -109,7 +109,13 @@ let test_probe_placement = (~name: string, ~code: string): test_case(_) => {
         Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
 
       /* Build the syntax cache with statics */
-      let syntax = CachedSyntax.mk(zipper, ~info_map, ~dyn_map=Id.Map.empty);
+      let syntax =
+        CachedSyntax.mk(
+          zipper,
+          ~info_map,
+          ~inference_map=Language.Inference.TypSolutionMap.empty,
+          ~dyn_map=Id.Map.empty,
+        );
 
       /* Call MultiProbe to get probe term IDs using the sophisticated version.
          Use target_subterm_ids to narrow the anchor (e.g. Let/Module → def),

@@ -168,7 +168,7 @@ in ?|},
     [
       Marks([
         InexhaustiveMatch(
-          FTemp.Typ.unknown(Internal),
+          FTemp.Typ.unknown(Internal |> Prov.fresh),
           [],
           Grammar.Pat(
             IdTagged.FreshGrammar.Pat.(
@@ -208,7 +208,7 @@ let odd_length : [Int] -> Bool =
     [
       Marks([
         InexhaustiveMatch(
-          FTemp.Typ.unknown(Internal),
+          FTemp.Typ.unknown(Internal |> Prov.fresh),
           [],
           Grammar.Pat(
             IdTagged.FreshGrammar.Pat.(cons(wild(), list_lit([]))),
@@ -287,7 +287,7 @@ let list_inexhaustive_nil =
     [
       Marks([
         InexhaustiveMatch(
-          FTemp.Typ.unknown(Internal),
+          FTemp.Typ.unknown(Internal |> Prov.fresh),
           [],
           Grammar.Pat(IdTagged.FreshGrammar.Pat.(list_lit([]))),
         ),
@@ -308,7 +308,7 @@ let list_inexhaustive_cons =
     [
       Marks([
         InexhaustiveMatch(
-          FTemp.Typ.unknown(Internal),
+          FTemp.Typ.unknown(Internal |> Prov.fresh),
           [],
           Grammar.Pat(
             IdTagged.FreshGrammar.Pat.(cons(wild(), cons(wild(), wild()))),
@@ -333,7 +333,7 @@ let list_inexhaustive_cons_long =
     [
       Marks([
         InexhaustiveMatch(
-          FTemp.Typ.unknown(Internal),
+          FTemp.Typ.unknown(Internal |> Prov.fresh),
           [],
           Grammar.Pat(
             IdTagged.FreshGrammar.Pat.(
@@ -363,7 +363,7 @@ let list_inexhaustive_tuple_with_elt =
     [
       Marks([
         InexhaustiveMatch(
-          FTemp.Typ.unknown(Internal),
+          FTemp.Typ.unknown(Internal |> Prov.fresh),
           [],
           Grammar.Pat(
             IdTagged.FreshGrammar.Pat.(
@@ -388,7 +388,7 @@ let list_inexhaustive_triple =
     [
       Marks([
         InexhaustiveMatch(
-          FTemp.Typ.unknown(Internal),
+          FTemp.Typ.unknown(Internal |> Prov.fresh),
           [],
           Grammar.Pat(
             IdTagged.FreshGrammar.Pat.(
@@ -413,7 +413,7 @@ let list_inexhaustive_triple_elt_first =
     [
       Marks([
         InexhaustiveMatch(
-          FTemp.Typ.unknown(Internal),
+          FTemp.Typ.unknown(Internal |> Prov.fresh),
           [],
           Grammar.Pat(
             IdTagged.FreshGrammar.Pat.(
@@ -438,7 +438,7 @@ let list_inexhaustive_middle_quad =
     [
       Marks([
         InexhaustiveMatch(
-          FTemp.Typ.unknown(Internal),
+          FTemp.Typ.unknown(Internal |> Prov.fresh),
           [],
           Grammar.Pat(
             IdTagged.FreshGrammar.Pat.(
@@ -479,7 +479,7 @@ end}}}|},
     [
       Marks([
         InexhaustiveMatch(
-          FTemp.Typ.unknown(Internal),
+          FTemp.Typ.unknown(Internal |> Prov.fresh),
           [],
           Grammar.Pat(
             IdTagged.FreshGrammar.Pat.(big_int(Bigint.of_int(0))),
@@ -501,7 +501,7 @@ end}}}|},
     [
       Marks([
         InexhaustiveMatch(
-          FTemp.Typ.unknown(Internal),
+          FTemp.Typ.unknown(Internal |> Prov.fresh),
           [],
           Grammar.Pat(
             IdTagged.FreshGrammar.Pat.(
@@ -551,7 +551,7 @@ end}}}|},
     [
       Marks([
         InexhaustiveMatch(
-          FTemp.Typ.unknown(Internal),
+          FTemp.Typ.unknown(Internal |> Prov.fresh),
           [],
           Grammar.Pat(IdTagged.FreshGrammar.Pat.(float(0.0))),
         ),
@@ -571,7 +571,7 @@ end}}}|},
     [
       Marks([
         InexhaustiveMatch(
-          FTemp.Typ.unknown(Internal),
+          FTemp.Typ.unknown(Internal |> Prov.fresh),
           [],
           Grammar.Pat(
             IdTagged.FreshGrammar.Pat.(tuple([float(1.0), wild()])),
@@ -619,7 +619,7 @@ end}}}|},
     [
       Marks([
         InexhaustiveMatch(
-          FTemp.Typ.unknown(Internal),
+          FTemp.Typ.unknown(Internal |> Prov.fresh),
           [],
           Grammar.Pat(IdTagged.FreshGrammar.Pat.(string("*"))),
         ),
@@ -639,7 +639,7 @@ end}}}|},
     [
       Marks([
         InexhaustiveMatch(
-          FTemp.Typ.unknown(Internal),
+          FTemp.Typ.unknown(Internal |> Prov.fresh),
           [],
           Grammar.Pat(IdTagged.FreshGrammar.Pat.(string(""))),
         ),
@@ -660,7 +660,7 @@ end}}}|},
     [
       Marks([
         InexhaustiveMatch(
-          FTemp.Typ.unknown(Internal),
+          FTemp.Typ.unknown(Internal |> Prov.fresh),
           [],
           Grammar.Pat(
             IdTagged.FreshGrammar.Pat.(tuple([string("*"), wild()])),
@@ -711,14 +711,14 @@ end}}} in ?
     [
       Marks([
         InexhaustiveMatch(
-          FTemp.Typ.unknown(Internal),
+          FTemp.Typ.unknown(Internal |> Prov.fresh),
           [],
           Grammar.Pat(IdTagged.FreshGrammar.Pat.(bool(true))),
         ),
       ]),
       Marks([
         InexhaustiveMatch(
-          FTemp.Typ.unknown(Internal),
+          FTemp.Typ.unknown(Internal |> Prov.fresh),
           [],
           Grammar.Pat(IdTagged.FreshGrammar.Pat.(bool(false))),
         ),
@@ -821,7 +821,7 @@ end}}} in ?
     [
       Marks([
         InexhaustiveMatch(
-          FTemp.Typ.unknown(Internal),
+          FTemp.Typ.unknown(Internal |> Prov.fresh),
           [],
           Grammar.Pat(
             IdTagged.FreshGrammar.Pat.(
@@ -848,7 +848,7 @@ let x : Rank = ? in
     [
       Marks([
         InexhaustiveMatch(
-          FTemp.Typ.unknown(Internal),
+          FTemp.Typ.unknown(Internal |> Prov.fresh),
           [],
           Grammar.Pat(IdTagged.FreshGrammar.Pat.(constructor("Jack", None))),
         ),
@@ -871,7 +871,7 @@ let f = {{{fun Ace -> ?}}} in
     [
       Marks([
         InexhaustiveMatch(
-          FTemp.Typ.unknown(Internal),
+          FTemp.Typ.unknown(Internal |> Prov.fresh),
           [],
           Grammar.Pat(IdTagged.FreshGrammar.Pat.(constructor("Jack", None))),
         ),
@@ -897,7 +897,7 @@ in ?|},
     [
       Marks([
         InexhaustiveMatch(
-          FTemp.Typ.unknown(Internal),
+          FTemp.Typ.unknown(Internal |> Prov.fresh),
           [],
           Grammar.Pat(
             IdTagged.FreshGrammar.Pat.(
@@ -997,7 +997,7 @@ in ?|},
     [
       Marks([
         InexhaustiveMatch(
-          FTemp.Typ.unknown(Internal),
+          FTemp.Typ.unknown(Internal |> Prov.fresh),
           [],
           Grammar.Pat(
             IdTagged.FreshGrammar.Pat.(
@@ -1024,7 +1024,7 @@ in ?|},
     [
       Marks([
         InexhaustiveMatch(
-          FTemp.Typ.unknown(Internal),
+          FTemp.Typ.unknown(Internal |> Prov.fresh),
           [],
           Grammar.Pat(
             IdTagged.FreshGrammar.Pat.(
@@ -1077,7 +1077,7 @@ in ?|},
     [
       Marks([
         InexhaustiveMatch(
-          FTemp.Typ.unknown(Internal),
+          FTemp.Typ.unknown(Internal |> Prov.fresh),
           [],
           Grammar.Pat(
             IdTagged.FreshGrammar.Pat.(
@@ -1112,7 +1112,7 @@ in ?|},
     [
       Marks([
         InexhaustiveMatch(
-          FTemp.Typ.unknown(Internal),
+          FTemp.Typ.unknown(Internal |> Prov.fresh),
           [],
           Grammar.Pat(
             IdTagged.FreshGrammar.Pat.(
@@ -1158,11 +1158,11 @@ let labeled_tuple_additional_error = {
                               typ:
                                 FTemp.Typ.prod([
                                   FTemp.Typ.list(
-                                    FTemp.Typ.unknown(Internal),
+                                    FTemp.Typ.unknown(Internal |> Prov.fresh),
                                   ),
                                   FTemp.Typ.tup_label(
                                     FTemp.Typ.label("a"),
-                                    FTemp.Typ.unknown(Internal),
+                                    FTemp.Typ.unknown(Internal |> Prov.fresh),
                                   ),
                                 ]),
                             }),
@@ -1181,7 +1181,7 @@ let labeled_tuple_additional_error = {
                                   typ:
                                     FTemp.Typ.tup_label(
                                       FTemp.Typ.label("a"),
-                                      FTemp.Typ.unknown(Internal),
+                                      FTemp.Typ.unknown(Internal |> Prov.fresh),
                                     ),
                                 }),
                               ]),

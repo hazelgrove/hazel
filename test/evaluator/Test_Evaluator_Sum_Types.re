@@ -108,7 +108,7 @@ let tests = (
                 Some(
                   Typ.sum([
                     Variant("T", ConstructorMap.empty_variant_ann, None),
-                    BadEntry(Typ.unknown(Internal)),
+                    BadEntry(Typ.unknown(Internal |> Prov.fresh)),
                   ]),
                 ),
               ),
@@ -137,12 +137,12 @@ let tests = (
                     Some(
                       Typ.(
                         arrow(
-                          unknown(Hole(EmptyHole)),
+                          empty_hole(),
                           sum([
                             Variant(
                               "B",
                               ConstructorMap.empty_variant_ann,
-                              Some(unknown(Hole(EmptyHole))),
+                              Some(empty_hole()),
                             ),
                           ]),
                         )
@@ -155,7 +155,7 @@ let tests = (
                     Variant(
                       "B",
                       ConstructorMap.empty_variant_ann,
-                      Some(unknown(Hole(EmptyHole))),
+                      Some(empty_hole()),
                     ),
                   ])
                 ),
@@ -170,7 +170,7 @@ let tests = (
           "Indet when unboxing constructor as list",
           let_(
             Pat.list_lit([]),
-            constructor("On", Some(Some(Typ.(list(unknown(SynSwitch)))))), // This type on the constructor can't be right
+            constructor("On", Some(Some(Typ.(list(unknown(SynSwitch |> Prov.fresh)))))), // This type on the constructor can't be right
             empty_hole(),
           ),
           elaborate(parse_exp("type g = + On in let [] = On in")),
@@ -179,7 +179,7 @@ let tests = (
           "Indet when unboxing constructor as cons",
           let_(
             Pat.(cons(wild(), list_lit([]))),
-            constructor("B", Some(Some(Typ.(list(unknown(SynSwitch)))))), // This type on the constructor can't be right
+            constructor("B", Some(Some(Typ.(list(unknown(SynSwitch |> Prov.fresh)))))), // This type on the constructor can't be right
             empty_hole(),
           ),
           elaborate(parse_exp("let (_:: []) = type y = + B in B in ?")),
@@ -188,8 +188,8 @@ let tests = (
           "Indet when unboxing constructor as bool",
           if_(
             constructor("B", Some(Some(Typ.bool()))),
-            asc(bool(false), Typ.unknown(SynSwitch)),
-            asc(constructor("A", Some(None)), Typ.unknown(SynSwitch)),
+            asc(bool(false), Typ.unknown(SynSwitch |> Prov.fresh)),
+            asc(constructor("A", Some(None)), Typ.unknown(SynSwitch |> Prov.fresh)),
           ),
           elaborate(
             parse_exp("type y = + B(Float) in if B then false else A"),
@@ -211,10 +211,10 @@ let tests = (
             constructor(
               "B",
               Some(
-                Some(Typ.(poly(TPat.empty_hole(), unknown(SynSwitch)))),
+                Some(Typ.(poly(TPat.empty_hole(), unknown(SynSwitch |> Prov.fresh)))),
               ),
             ),
-            Typ.unknown(Hole(EmptyHole)),
+            Typ.empty_hole(),
           ),
           elaborate(
             parse_exp("type y = + B in case true | a => B end @<?>"),

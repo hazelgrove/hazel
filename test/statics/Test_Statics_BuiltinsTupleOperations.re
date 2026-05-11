@@ -1,3 +1,4 @@
+open Language;
 open Test_Statics_Prelude;
 open Alcotest;
 open FTemp;
@@ -25,7 +26,7 @@ module ToLvsOperation = {
         list(
           prod([
             tup_label(label("label"), string()),
-            tup_label(label("value"), unknown(Internal)),
+            tup_label(label("value"), unknown(Internal |> Prov.fresh)),
           ]),
         ),
       ),
@@ -36,7 +37,7 @@ module ToLvsOperation = {
         list(
           prod([
             tup_label(label("label"), string()),
-            tup_label(label("value"), unknown(Internal)),
+            tup_label(label("value"), unknown(Internal |> Prov.fresh)),
           ]),
         ),
         FIError.Exp.(
@@ -50,7 +51,7 @@ module ToLvsOperation = {
                         list(
                           prod([
                             tup_label(label("label"), string()),
-                            tup_label(label("value"), unknown(Internal)),
+                            tup_label(label("value"), unknown(Internal |> Prov.fresh)),
                           ]),
                         )
                       ),
@@ -71,7 +72,7 @@ module ToLvsOperation = {
         list(
           prod([
             tup_label(label("label"), string()),
-            tup_label(label("value"), unknown(Internal)),
+            tup_label(label("value"), unknown(Internal |> Prov.fresh)),
           ]),
         ),
         FIError.Exp.(
@@ -85,7 +86,7 @@ module ToLvsOperation = {
                         list(
                           prod([
                             tup_label(label("label"), string()),
-                            tup_label(label("value"), unknown(Internal)),
+                            tup_label(label("value"), unknown(Internal |> Prov.fresh)),
                           ]),
                         )
                       ),
@@ -107,7 +108,7 @@ module ToLvsOperation = {
         list(
           prod([
             tup_label(label("label"), string()),
-            tup_label(label("value"), unknown(Internal)),
+            tup_label(label("value"), unknown(Internal |> Prov.fresh)),
           ]),
         ),
         FIError.Exp.(ap(Forward, var("to_lvs"), empty_hole())),
@@ -189,7 +190,7 @@ module ProjectLabels = {
     test_case("project_labels with non-label", `Quick, () =>
       annotated_tree_test(
         {|project_labels((a=1, b=true, c=3), `a`, 3, `c`)|},
-        prod([int(), unknown(Internal), int()]),
+        prod([int(), unknown(Internal |> Prov.fresh), int()]),
         FIError.Exp.(
           ap(
             Forward,
@@ -211,12 +212,12 @@ module ProjectLabels = {
     fully_consistent_typecheck(
       "project_labels with holes for labels",
       {|project_labels((a=1, b="", c=true), `a`, ?, `c`)|},
-      Some(prod([int(), unknown(Internal), bool()])),
+      Some(prod([int(), unknown(Internal |> Prov.fresh), bool()])),
     ),
     test_case("project_labels with label not in tuple", `Quick, () =>
       annotated_tree_test(
         {|project_labels((a=1, b=true, c=3), `d`)|},
-        prod([unknown(Internal)]),
+        prod([unknown(Internal |> Prov.fresh)]),
         FIError.Exp.(
           ap(
             Forward,
@@ -245,7 +246,7 @@ module ProjectLabels = {
     test_case("project_labels with a single tuple and no labels", `Quick, () =>
       annotated_tree_test(
         {|project_labels(1, 2, 3)|},
-        prod([unknown(Internal), unknown(Internal)]),
+        prod([unknown(Internal |> Prov.fresh), unknown(Internal |> Prov.fresh)]),
         FIError.Exp.(
           ap(
             Forward,
@@ -266,7 +267,7 @@ module ProjectLabels = {
       "project_labels with a single tuple in parens and no labels", `Quick, () =>
       annotated_tree_test(
         {|project_labels((1, 2, 3))|},
-        unknown(Internal),
+        unknown(Internal |> Prov.fresh),
         FIError.Exp.(
           ap(
             ~ann=Some(Marks([BuiltinError(AtLeast2Arguments)])),
@@ -280,7 +281,7 @@ module ProjectLabels = {
     test_case("project_labels called with single arg", `Quick, () =>
       annotated_tree_test(
         {|project_labels(1)|},
-        unknown(Internal),
+        unknown(Internal |> Prov.fresh),
         FIError.Exp.(
           ap(
             ~ann=Some(Marks([BuiltinError(AtLeast2Arguments)])),
@@ -294,7 +295,7 @@ module ProjectLabels = {
     test_case("project_labels with no args", `Quick, () =>
       annotated_tree_test(
         {|project_labels()|},
-        unknown(Internal),
+        unknown(Internal |> Prov.fresh),
         FIError.Exp.(
           ap(
             ~ann=Some(Marks([BuiltinError(AtLeast2Arguments)])), // Has to be on the ap to show up
@@ -308,7 +309,7 @@ module ProjectLabels = {
     test_case("project_labels with first arg unknown type", `Quick, () =>
       annotated_tree_test(
         {|project_labels(?, `a`)|},
-        prod([unknown(Internal)]),
+        prod([unknown(Internal |> Prov.fresh)]),
         FIError.Exp.(
           ap(
             Forward,
@@ -342,7 +343,7 @@ module ProjectLabels = {
     test_case("project labels with a single labeled entry", `Quick, () => {
       annotated_tree_test(
         {|project_labels(b=3)|},
-        unknown(Internal),
+        unknown(Internal |> Prov.fresh),
         FIError.Exp.(
           ap(
             ~ann=Some(Marks([BuiltinError(AtLeast2Arguments)])),
@@ -356,7 +357,7 @@ module ProjectLabels = {
     test_case("project_labels with deferral as first arg", `Quick, () => {
       annotated_tree_test(
         {|project_labels(_, `a`, `b`)|},
-        arrow(unknown(Internal), unknown(Internal)),
+        arrow(unknown(Internal |> Prov.fresh), unknown(Internal |> Prov.fresh)),
         FIError.Exp.(
           deferred_ap(
             var("project_labels"),
@@ -368,7 +369,7 @@ module ProjectLabels = {
     test_case("project_labels with deferral in subsequent args", `Quick, () => {
       annotated_tree_test(
         {|project_labels((a=1, b=true, c=3), `a`, _, `c`)|},
-        prod([int(), unknown(Internal), int()]),
+        prod([int(), unknown(Internal |> Prov.fresh), int()]),
         FIError.Exp.(
           ap(
             Forward,
@@ -393,7 +394,7 @@ module ProjectLabels = {
     test_case("project_labels with single deferral - arity error", `Quick, () => {
       annotated_tree_test(
         {|project_labels(_)|},
-        unknown(Internal),
+        unknown(Internal |> Prov.fresh),
         FIError.Exp.(
           deferred_ap(
             ~ann=Some(Marks([BuiltinError(AtLeast2Arguments)])),
@@ -463,7 +464,7 @@ module SelectLabels = {
         {|select_labels((a=1, b=true, c=3), `a`, 3, `c`)|},
         prod([
           tup_label(label("a"), int()),
-          unknown(Internal),
+          unknown(Internal |> Prov.fresh),
           tup_label(label("c"), int()),
         ]),
         FIError.Exp.(
@@ -489,7 +490,7 @@ module SelectLabels = {
         {|select_labels((a=1, b="", c=true), `a`, ?, `c`)|},
         prod([
           tup_label(label("a"), int()),
-          unknown(Internal),
+          unknown(Internal |> Prov.fresh),
           tup_label(label("c"), bool()),
         ]),
         FIError.Exp.(
@@ -513,7 +514,7 @@ module SelectLabels = {
     test_case("select_labels with label not in tuple", `Quick, () =>
       annotated_tree_test(
         {|select_labels((a=1, b=true, c=3), `d`)|},
-        prod([unknown(Internal)]),
+        prod([unknown(Internal |> Prov.fresh)]),
         FIError.Exp.(
           ap(
             Forward,
@@ -542,7 +543,7 @@ module SelectLabels = {
     test_case("select_labels with a single tuple and no labels", `Quick, () =>
       annotated_tree_test(
         {|select_labels(1, 2, 3)|},
-        prod([unknown(Internal), unknown(Internal)]),
+        prod([unknown(Internal |> Prov.fresh), unknown(Internal |> Prov.fresh)]),
         FIError.Exp.(
           ap(
             Forward,
@@ -562,7 +563,7 @@ module SelectLabels = {
     test_case("select_labels called with single arg", `Quick, () =>
       annotated_tree_test(
         {|select_labels(1)|},
-        unknown(Internal),
+        unknown(Internal |> Prov.fresh),
         FIError.Exp.(
           ap(
             ~ann=Some(Marks([BuiltinError(AtLeast2Arguments)])),
@@ -576,7 +577,7 @@ module SelectLabels = {
     test_case("select_labels with no args", `Quick, () =>
       annotated_tree_test(
         {|select_labels()|},
-        unknown(Internal),
+        unknown(Internal |> Prov.fresh),
         FIError.Exp.(
           ap(
             ~ann=Some(Marks([BuiltinError(AtLeast2Arguments)])),
@@ -590,7 +591,7 @@ module SelectLabels = {
     test_case("select_labels with first arg unknown type", `Quick, () =>
       annotated_tree_test(
         {|select_labels(?, `a`)|},
-        prod([unknown(Internal)]),
+        prod([unknown(Internal |> Prov.fresh)]),
         FIError.Exp.(
           ap(
             Forward,
@@ -627,7 +628,7 @@ module SelectLabels = {
     test_case("select_labels with deferral as first arg", `Quick, () => {
       annotated_tree_test(
         {|select_labels(_, `a`, `b`)|},
-        arrow(unknown(Internal), unknown(Internal)),
+        arrow(unknown(Internal |> Prov.fresh), unknown(Internal |> Prov.fresh)),
         FIError.Exp.(
           deferred_ap(
             var("select_labels"),
@@ -641,7 +642,7 @@ module SelectLabels = {
         {|select_labels((a=1, b=true, c=3), `a`, _, `c`)|},
         prod([
           tup_label(label("a"), int()),
-          unknown(Internal),
+          unknown(Internal |> Prov.fresh),
           tup_label(label("c"), int()),
         ]),
         FIError.Exp.(
@@ -668,7 +669,7 @@ module SelectLabels = {
     test_case("select_labels with single deferral - arity error", `Quick, () => {
       annotated_tree_test(
         {|select_labels(_)|},
-        unknown(Internal),
+        unknown(Internal |> Prov.fresh),
         FIError.Exp.(
           deferred_ap(
             ~ann=Some(Marks([BuiltinError(AtLeast2Arguments)])),
@@ -686,17 +687,17 @@ module GroupByLabel = {
     fully_consistent_typecheck(
       "group_by_label with single tuple",
       {|group_by_label([(a="hello", b=3, c=4)], `a`)|},
-      Some(unknown(Internal)),
+      Some(unknown(Internal |> Prov.fresh)),
     ),
     fully_consistent_typecheck(
       "group_by_label with multiple tuples",
       {|group_by_label([(a="hello", b=3, c=4), (a="World", b=2, c=2)], `a`)|},
-      Some(unknown(Internal)),
+      Some(unknown(Internal |> Prov.fresh)),
     ),
     test_case("group_by_label with missing label", `Quick, () =>
       annotated_tree_test(
         {|group_by_label([(a="hello", b=3)], `c`)|},
-        unknown(Internal),
+        unknown(Internal |> Prov.fresh),
         FIError.Exp.(
           ap(
             Forward,
@@ -720,7 +721,7 @@ module GroupByLabel = {
     test_case("group_by_label with non-string pivot field", `Quick, () =>
       annotated_tree_test(
         {|group_by_label([(a=1, b=3)], `a`)|},
-        unknown(Internal),
+        unknown(Internal |> Prov.fresh),
         FIError.Exp.(
           ap(
             Forward,
@@ -747,7 +748,7 @@ module GroupByLabel = {
     test_case("group_by_label with non-label second argument", `Quick, () =>
       annotated_tree_test(
         {|group_by_label([(a="hello", b=3)], 5)|},
-        unknown(Internal),
+        unknown(Internal |> Prov.fresh),
         FIError.Exp.(
           ap(
             Forward,
@@ -768,7 +769,7 @@ module GroupByLabel = {
     test_case("group_by_label with non-list first argument", `Quick, () =>
       annotated_tree_test(
         {|group_by_label(5, `a`)|},
-        unknown(Internal),
+        unknown(Internal |> Prov.fresh),
         FIError.Exp.(
           ap(
             Forward,
@@ -788,7 +789,7 @@ module GroupByLabel = {
     test_case("group_by_label with extra arguments", `Quick, () =>
       annotated_tree_test(
         {|group_by_label([(a="hello", b=3)], `a`, `b`)|},
-        unknown(Internal),
+        unknown(Internal |> Prov.fresh),
         FIError.Exp.(
           ap(
             ~ann=Some(Marks([BuiltinError(Exactly2Arguments)])),
@@ -811,7 +812,7 @@ module GroupByLabel = {
     test_case("group_by_label with hole in tuple label position", `Quick, () =>
       annotated_tree_test(
         {|group_by_label([(a="hello", ?=3, c=4)], `a`)|},
-        unknown(Internal),
+        unknown(Internal |> Prov.fresh),
         FIError.Exp.(
           ap(
             Forward,
@@ -833,7 +834,7 @@ module GroupByLabel = {
     test_case("primitive pivot with unknown type in first arg", `Quick, () =>
       annotated_tree_test(
         {|group_by_label(?, `a`)|},
-        unknown(Internal),
+        unknown(Internal |> Prov.fresh),
         FIError.Exp.(
           ap(
             Forward,
@@ -846,7 +847,7 @@ module GroupByLabel = {
     test_case("primitive pivot with unknown type inside list", `Quick, () =>
       annotated_tree_test(
         {|group_by_label([(a="hello", b=3):?], `b`)|},
-        unknown(Internal),
+        unknown(Internal |> Prov.fresh),
         FIError.(
           Exp.(
             ap(
@@ -859,7 +860,7 @@ module GroupByLabel = {
                       tup_label(label("a"), string("hello")),
                       tup_label(label("b"), int(3)),
                     ]),
-                    Typ.unknown(Internal),
+                    Typ.unknown(FIError.TypeProvenance.internal()),
                   ),
                 ]),
                 label("b"),
@@ -875,7 +876,7 @@ module GroupByLabel = {
       () =>
       annotated_tree_test(
         {|group_by_label([(a="hello", b=3)], `a` : ?)|},
-        unknown(Internal),
+        unknown(Internal |> Prov.fresh),
         FIError.(
           Exp.(
             ap(
@@ -895,14 +896,14 @@ module GroupByLabel = {
                         BadLabel(
                           Exp(
                             FTemp.(
-                              Exp.(asc(label("a"), Typ.unknown(Internal)))
+                              Exp.(asc(label("a"), Typ.unknown(FTemp.TypeProvenance.internal())))
                             ),
                           ),
                         ),
                       ]),
                     ),
                   label(~ann=Some(Marks([UnexpectedLabelSort("a")])), "a"),
-                  Typ.unknown(Internal),
+                  Typ.unknown(FIError.TypeProvenance.internal()),
                 ),
               ]),
             )
@@ -913,7 +914,7 @@ module GroupByLabel = {
     test_case("group_by_label with single deferral - arity error", `Quick, () => {
       annotated_tree_test(
         {|group_by_label(_)|},
-        unknown(Internal),
+        unknown(Internal |> Prov.fresh),
         FIError.Exp.(
           deferred_ap(
             ~ann=Some(Marks([BuiltinError(Exactly2Arguments)])),
@@ -926,7 +927,7 @@ module GroupByLabel = {
     test_case("group_by_label with three deferrals - arity error", `Quick, () => {
       annotated_tree_test(
         {|group_by_label(_, _, _)|},
-        unknown(Internal),
+        unknown(Internal |> Prov.fresh),
         FIError.Exp.(
           deferred_ap(
             ~ann=Some(Marks([BuiltinError(Exactly2Arguments)])),
@@ -1063,7 +1064,7 @@ module OmitLabels = {
     test_case("omit_labels with a single tuple and no labels", `Quick, () =>
       annotated_tree_test(
         {|omit_labels((1, 2, 3))|},
-        unknown(Internal),
+        unknown(Internal |> Prov.fresh),
         FIError.Exp.(
           ap(
             Forward,
@@ -1083,7 +1084,7 @@ module OmitLabels = {
     test_case("omit_labels called with single arg", `Quick, () =>
       annotated_tree_test(
         {|omit_labels(1)|},
-        unknown(Internal),
+        unknown(Internal |> Prov.fresh),
         FIError.Exp.(
           ap(
             ~ann=Some(Marks([BuiltinError(AtLeast2Arguments)])),
@@ -1097,7 +1098,7 @@ module OmitLabels = {
     test_case("omit_labels with no args", `Quick, () =>
       annotated_tree_test(
         {|omit_labels()|},
-        unknown(Internal),
+        unknown(Internal |> Prov.fresh),
         FIError.Exp.(
           ap(
             ~ann=Some(Marks([BuiltinError(AtLeast2Arguments)])),
@@ -1111,7 +1112,7 @@ module OmitLabels = {
     test_case("omit_labels with first arg unknown type", `Quick, () =>
       annotated_tree_test(
         {|omit_labels(?, `a`)|},
-        unknown(Internal),
+        unknown(Internal |> Prov.fresh),
         FIError.Exp.(
           ap(
             Forward,
@@ -1145,7 +1146,7 @@ module OmitLabels = {
     test_case("omit_labels with deferral as first arg", `Quick, () => {
       annotated_tree_test(
         {|omit_labels(_, `a`, `b`)|},
-        arrow(unknown(Internal), unknown(Internal)),
+        arrow(unknown(Internal |> Prov.fresh), unknown(Internal |> Prov.fresh)),
         FIError.Exp.(
           deferred_ap(
             var("omit_labels"),
@@ -1182,7 +1183,7 @@ module OmitLabels = {
     test_case("omit_labels with single deferral - arity error", `Quick, () => {
       annotated_tree_test(
         {|omit_labels(_)|},
-        unknown(Internal),
+        unknown(Internal |> Prov.fresh),
         FIError.Exp.(
           deferred_ap(
             ~ann=Some(Marks([BuiltinError(AtLeast2Arguments)])),
@@ -1195,7 +1196,7 @@ module OmitLabels = {
     test_case("omit_labels with no args - arity error", `Quick, () => {
       annotated_tree_test(
         {|omit_labels()|},
-        unknown(Internal),
+        unknown(Internal |> Prov.fresh),
         FIError.Exp.(
           ap(
             ~ann=Some(Marks([BuiltinError(AtLeast2Arguments)])),
@@ -1241,7 +1242,7 @@ module OmitAllLabels = {
     test_case("Omit all labels applied to non-tuple", `Quick, () =>
       annotated_tree_test(
         "omit_all_labels(1)",
-        unknown(Internal),
+        unknown(Internal |> Prov.fresh),
         FIError.Exp.(
           ap(
             ~ann=Some(Marks([BuiltinError(ArgumentMustBeTuple)])),
@@ -1258,7 +1259,7 @@ module OmitAllLabels = {
       () =>
       annotated_tree_test(
         "omit_all_labels(?)",
-        unknown(Internal),
+        unknown(Internal |> Prov.fresh),
         FIError.Exp.(ap(Forward, var("omit_all_labels"), empty_hole())),
       )
     ),
@@ -1288,12 +1289,12 @@ module FromLvs = {
     fully_consistent_typecheck(
       "From labeled values with list of tuples",
       {|from_lvs([(label="col", value=3)])|},
-      Some(unknown(Internal)),
+      Some(unknown(Internal |> Prov.fresh)),
     ),
     fully_consistent_typecheck(
       "From labeled values with list of tuples and multiple entries",
       {|from_lvs([(label="col1", value=3), (label="col2", value=true)])|},
-      Some(unknown(Internal)),
+      Some(unknown(Internal |> Prov.fresh)),
     ),
   ];
 };

@@ -255,10 +255,11 @@ module Namer = {
 
   let mk_name_from_tpat = (tpat: TermBase.tpat_t) => {
     switch (tpat.term) {
-    | Var(name)
-    | Invalid(name) => name
-    | EmptyHole => "{empty type pattern hole}"
-    | MultiHole(_) => "{multi type pattern hole}"
+    | Var(name) => name
+    | Unknown({term: Hole(Invalid(name)), _}) => name
+    | Unknown({term: Hole(EmptyHole | CycleHole), _}) => "{empty type pattern hole}"
+    | Unknown({term: Hole(MultiHole(_)), _}) => "{multi type pattern hole}"
+    | Unknown(_) => "{type pattern hole}"
     };
   };
 

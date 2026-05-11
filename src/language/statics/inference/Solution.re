@@ -11,7 +11,7 @@ module type SolutionBase = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term;
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = Grammar.Annotated.t(term, IdTagged.IdTag.t);
+  type t = Annotated.t(term, IdTagged.IdTag.t);
 
   let term_of: t => term;
   let temp: term => t;
@@ -49,7 +49,7 @@ module TPatSolution: {
     | Var(string)
     | Multi(list(t))
   [@deriving (show({with_path: false}), sexp, yojson)]
-  and t = Grammar.Annotated.t(term, IdTagged.IdTag.t);
+  and t = Annotated.t(term, IdTagged.IdTag.t);
   include
     SolutionBase with module SolType = TPat with type term := term with
       type t := t;
@@ -60,7 +60,7 @@ module TPatSolution: {
     | Unknown(Prov.t)
     | Var(string)
     | Multi(list(t))
-  and t = Grammar.Annotated.t(term, IdTagged.IdTag.t);
+  and t = Annotated.t(term, IdTagged.IdTag.t);
 
   let term_of = IdTagged.term_of;
   let temp = IdTagged.temp;
@@ -177,7 +177,7 @@ module TypSolution: {
     | ProdExtension(t, t)
     | Multi(list(t))
   [@deriving (show({with_path: false}), sexp, yojson)]
-  and t = Grammar.Annotated.t(term, IdTagged.IdTag.t);
+  and t = Annotated.t(term, IdTagged.IdTag.t);
   include
     SolutionBase with module SolType = Typ with type term := term with
       type t := t;
@@ -213,7 +213,7 @@ module TypSolution: {
     | ProdProjection(t, t)
     | ProdExtension(t, t)
     | Multi(list(t))
-  and t = Grammar.Annotated.t(term, IdTagged.IdTag.t);
+  and t = Annotated.t(term, IdTagged.IdTag.t);
 
   module Set = PossibleSolutionSet.Make(Typ);
 
@@ -318,6 +318,10 @@ module TypSolution: {
       ProdProjection(of_sol_term(t1), of_sol_term(t2)) |> rewrap
     | ProdExtension(t1, t2) =>
       ProdExtension(of_sol_term(t1), of_sol_term(t2)) |> rewrap
+    /* These dev-side sorts don't participate in inference; treat as opaque. */
+    | DrvQuoteTy(_)
+    | Projector(_)
+    | Sig(_) => Unknown(Hole(EmptyHole) |> Prov.anonymous) |> rewrap
     };
   };
 

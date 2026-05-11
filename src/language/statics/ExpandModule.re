@@ -24,9 +24,7 @@ let bound_vars_of_pat = (pat: Pat.t): list(Var.t) => Pat.bound_vars(pat);
 let bound_vars_of_tpat = (tpat: TPat.t): list(Var.t) =>
   switch (tpat.term) {
   | Var(name) => [name]
-  | Invalid(_)
-  | EmptyHole
-  | MultiHole(_) => []
+  | Unknown(_) => []
   };
 
 /* Convert an MPat to a Pat, preserving the MPat's ID.

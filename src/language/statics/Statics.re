@@ -218,7 +218,7 @@ and uexp_to_info_map =
       OptUtil.get(
         () =>
           switch (ana) {
-          | {term: Unknown(SynSwitch), _} => Message.Exp(Default)
+          | {term: Unknown({term: SynSwitch, _}), _} => Message.Exp(Default)
           | _ =>
             Message.Exp(Common(syn_ana_ok_common(ctx, ana, elab_syn_ty)))
           },
@@ -421,7 +421,7 @@ and uexp_to_info_map =
     | Undefined =>
       add(
         ~elab_term=Undefined |> rewrap,
-        ~elab_syn_ty=Unknown(Hole(EmptyHole)) |> Typ.temp,
+        ~elab_syn_ty=Unknown(Hole(EmptyHole) |> Prov.fresh) |> Typ.temp,
         ~marks=[],
         ~co_ctx=CoCtx.empty,
         m,
@@ -484,16 +484,22 @@ and uexp_to_info_map =
          wrappings on elements that already syn to the meet type. */
       let syn_tys = List.map((e: Info.exp) => e.elab_syn_ty, es);
       let meet_ty =
-        Typ.meet_all(~empty=Unknown(Internal |> Prov.fresh) |> Typ.temp, ctx, syn_tys);
+        Typ.meet_all(
+          ~empty=Unknown(Internal |> Prov.fresh) |> Typ.temp,
+          ctx,
+          syn_tys,
+        );
+      let meet_ty_only = meet_ty |> Option.map(fst);
       let ds =
         List.map2(
-          (d, t) => fresh_ascription(ctx, d, t, meet_ty),
+          (d, t) => fresh_ascription(ctx, d, t, meet_ty_only),
           es_elabs,
           syn_tys,
         );
       switch (meet_ty) {
       | None =>
-        let syn_no_meet = SynTy.meet_of(List, Unknown(Internal |> Prov.fresh) |> Typ.temp);
+        let syn_no_meet =
+          SynTy.meet_of(List, Unknown(Internal |> Prov.fresh) |> Typ.temp);
         add(
           ~elab_term=ListLit(ds) |> rewrap,
           ~elab_syn_ty=syn_no_meet,
@@ -503,7 +509,7 @@ and uexp_to_info_map =
           ~co_ctx=CoCtx.union(List.map(Info.exp_co_ctx, es)),
           m,
         );
-      | Some(ty) =>
+      | Some((ty, _)) =>
         add(
           ~elab_term=ListLit(ds) |> rewrap,
           ~elab_syn_ty=List(ty) |> Typ.temp,
@@ -584,7 +590,7 @@ and uexp_to_info_map =
           ~co_ctx=CoCtx.union([e1.co_ctx, e2.co_ctx]),
           m,
         );
-      | Some(elem_ty) =>
+      | Some((elem_ty, _)) =>
         add(
           ~elab_term=ListConcat(e1_elab, e2_elab) |> rewrap,
           ~elab_syn_ty=List(elem_ty) |> Typ.temp,
@@ -705,7 +711,7 @@ and uexp_to_info_map =
             ~co_ctx=co_poly,
             m,
           )
-        | Some(ty) when Typ.normalize(ctx, ty) |> Typ.has_fun =>
+        | Some((ty, _)) when Typ.normalize(ctx, ty) |> Typ.has_fun =>
           add(
             ~elab_term=elab_poly,
             ~elab_syn_ty=Atom(Bool) |> Typ.fresh,
@@ -788,7 +794,8 @@ and uexp_to_info_map =
       | _ =>
         add(
           ~elab_term,
-          ~elab_syn_ty=IdTagged.FreshGrammar.Typ.unknown(Internal),
+          ~elab_syn_ty=
+            IdTagged.FreshGrammar.Typ.unknown(Internal |> Prov.fresh),
           ~marks=[],
           ~co_ctx,
           m,
@@ -892,7 +899,7 @@ and uexp_to_info_map =
                       ~elab_term=label,
                       ~ctx,
                       ~ana=labmode,
-                      ~elab_syn_ty=Unknown(SynSwitch) |> Typ.temp,
+                      ~elab_syn_ty=Unknown(SynSwitch |> Prov.fresh) |> Typ.temp,
                       ~marks=[],
                       ~co_ctx=CoCtx.empty,
                       ~label_inference=None,
@@ -1066,7 +1073,7 @@ and uexp_to_info_map =
               ~ancestors=ancestors_inclusive,
               ~ctx,
               ~ana=labmode,
-              ~elab_syn_ty=Unknown(SynSwitch) |> Typ.temp,
+              ~elab_syn_ty=Unknown(SynSwitch |> Prov.fresh) |> Typ.temp,
               ~marks=[],
               ~co_ctx=CoCtx.empty,
               ~label_inference=None,
@@ -1542,7 +1549,9 @@ and uexp_to_info_map =
         };
       }
     | TypAp(fn, utyp) =>
-      let typfn_ana = Poly(EmptyHole |> TPat.fresh, syn) |> Typ.temp;
+      let typfn_ana =
+        Poly(Unknown(Hole(EmptyHole) |> Prov.fresh) |> TPat.fresh, syn)
+        |> Typ.temp;
       let (fn, fn_elab, m) = go(~ana=typfn_ana, fn, m);
       let (_, m) =
         utyp_to_info_map(~ctx, ~ancestors=ancestors_inclusive, utyp, m);
@@ -1803,7 +1812,7 @@ and uexp_to_info_map =
       let (def_rec_probe, _, _) = go(~ctx=p_syn.ctx, ~ana=p_syn.ty, def, m);
       let rec_check_ty =
         switch (Typ.term_of(Typ.normalize(ctx, p_syn.ty))) {
-        | Unknown(SynSwitch) => def_rec_probe.ty
+        | Unknown({term: SynSwitch, _}) => def_rec_probe.ty
         | _ => p_syn.ty
         };
       let is_rec = is_recursive(ctx, p, def, rec_check_ty);
@@ -1835,9 +1844,12 @@ and uexp_to_info_map =
           let def_ctx = p_ana'.ctx;
           let (def_base2, _, _) = go(~ctx=def_ctx, ~ana=p_syn.ty, def, m);
           let ana_ty_fn = ((ty_fn1, ty_fn2), ty_p) => {
-            Typ.term_of(ty_p) == Unknown(SynSwitch)
-            && !Typ.equal(ty_fn1, ty_fn2)
-              ? ty_fn1 : ty_p;
+            let is_syn_switch =
+              switch (Typ.term_of(ty_p)) {
+              | Unknown({term: SynSwitch, _}) => true
+              | _ => false
+              };
+            is_syn_switch && !Typ.equal(ty_fn1, ty_fn2) ? ty_fn1 : ty_p;
           };
           let ana =
             switch (
@@ -2041,7 +2053,7 @@ and uexp_to_info_map =
       let branch_fresh_syn = (branch_info: Info.exp) => {
         let wrapped =
           switch (result_ty.term) {
-          | Unknown(Internal |> Prov.fresh) => false
+          | Unknown({term: Internal, _}) => false
           | _ =>
             !
               Typ.fast_equal(
@@ -2175,7 +2187,7 @@ and uexp_to_info_map =
       let branch_fresh_syn = (e: Info.exp) => {
         let wrapped =
           switch (result_ty.term) {
-          | Unknown(Internal |> Prov.fresh) => false
+          | Unknown({term: Internal, _}) => false
           | _ =>
             !
               Typ.fast_equal(
@@ -2275,9 +2287,7 @@ and uexp_to_info_map =
           m,
         );
       | Var(_)
-      | Invalid(_)
-      | EmptyHole
-      | MultiHole(_) =>
+      | Unknown(_) =>
         let ({co_ctx, elab_syn_ty: ty_body, _}: Info.exp, body_elab, m) =
           go(~ctx, ~ana, body, m);
         let m =
@@ -2482,7 +2492,7 @@ and upat_to_info_map =
         ? Message.Pat(Message.Default)
         : Message.Pat(
             switch (ana) {
-            | {term: Unknown(SynSwitch), _} => Message.Default
+            | {term: Unknown({term: SynSwitch, _}), _} => Message.Default
             | _ => Message.Common(syn_ana_ok_common(ctx, ana, elab_syn_ty))
             },
           );
@@ -2547,7 +2557,8 @@ and upat_to_info_map =
       m: Map.t,
     );
   };
-  let unknown = Unknown(is_synswitch ? SynSwitch : Internal) |> Typ.temp;
+  let unknown =
+    Unknown((is_synswitch ? SynSwitch : Internal) |> Prov.fresh) |> Typ.temp;
 
   let elaborate_singleton_tuple = (upat: Pat.t, inner_ty, l, m) =>
     LabeledTupleHelpers.autolabel_singleton_pat(
@@ -2711,7 +2722,7 @@ and upat_to_info_map =
          after the def's type is known. */
       let refined_mode =
         switch (Typ.meet_all(~empty=unknown, ctx, tys_first)) {
-        | Some(ty) => ty
+        | Some((ty, _)) => ty
         | None => mode
         };
       let refined_modes = List.init(List.length(ps), _ => refined_mode);
@@ -2739,7 +2750,7 @@ and upat_to_info_map =
           ~constraint_=list_constraint(cons),
           m,
         );
-      | Some(ty) =>
+      | Some((ty, _)) =>
         add(
           ~elab_term=ListLit(ps_elabs) |> rewrap,
           ~elab_syn_ty=List(ty) |> Typ.temp,
@@ -2756,7 +2767,7 @@ and upat_to_info_map =
       let (hd_first, _, _) = go(~ctx, ~ana=inner_ty, hd, m);
       let refined_inner =
         switch (Typ.meet(ctx, inner_ty, hd_first.ty)) {
-        | Some(ty) => ty
+        | Some((ty, _)) => ty
         | None => inner_ty
         };
       /* Second pass: re-analyze with the refined element type so that
@@ -2876,7 +2887,7 @@ and upat_to_info_map =
               ~co_ctx,
               ~ana=labmode,
               ~ancestors=ancestors_inclusive,
-              ~elab_syn_ty=Unknown(SynSwitch) |> Typ.temp,
+              ~elab_syn_ty=Unknown(SynSwitch |> Prov.fresh) |> Typ.temp,
               ~marks=[],
               ~constraint_=Coverage.Constraint.Truth,
               ~label_inference=None,
@@ -3045,7 +3056,7 @@ and upat_to_info_map =
                       ~co_ctx,
                       ~ana=labmode,
                       ~ancestors=ancestors_inclusive,
-                      ~elab_syn_ty=Unknown(SynSwitch) |> Typ.temp,
+                      ~elab_syn_ty=Unknown(SynSwitch |> Prov.fresh) |> Typ.temp,
                       ~marks=[],
                       ~constraint_=Coverage.Constraint.Truth,
                       ~label_inference=None,
@@ -3332,10 +3343,10 @@ and utyp_to_info_map =
       ([m], None);
     };
     switch (expects, utyp.term) {
-    | (_, Unknown(Hole(Invalid(token)))) => err(BadToken(token))
-    | (LabelExpected(_), Unknown(Hole(EmptyHole))) =>
+    | (_, Unknown({term: Hole(Invalid(token)), _})) => err(BadToken(token))
+    | (LabelExpected(_), Unknown({term: Hole(EmptyHole), _})) =>
       ok(Message.EmptyLabel)
-    | (LabelProjectionExpected(_), Unknown(Hole(EmptyHole))) =>
+    | (LabelProjectionExpected(_), Unknown({term: Hole(EmptyHole), _})) =>
       ok(Message.EmptyLabel)
     | (TypeExpected | ProductExpected, ProdProjection(pty, l)) =>
       switch (Typ.weak_head_normalize(ctx, pty), l.term) {
@@ -3415,8 +3426,8 @@ and utyp_to_info_map =
       | {term: Prod(_), _} as ty_prod => ok(Message.Type(ty_prod))
       | ty_n => err(TypWantProduct(ty_n))
       }
-    | (_, Unknown(Hole(EmptyHole))) => ok(Message.Type(utyp))
-    | (_, Unknown(Hole(MultiHole(_tms)))) => err(TypParseFailure)
+    | (_, Unknown({term: Hole(EmptyHole), _})) => ok(Message.Type(utyp))
+    | (_, Unknown({term: Hole(MultiHole(_tms)), _})) => err(TypParseFailure)
     | (VariantExpected(Unique, sum_ty), Var(name))
     | (ConstructorExpected(Unique, sum_ty), Var(name)) =>
       ok(Message.Variant(name, sum_ty))
@@ -3485,7 +3496,7 @@ and utyp_to_info_map =
       (~ctx=ctx, ~expects=TypExpectation.TypeExpected, t: Typ.t, m: Map.t) =>
     utyp_to_info_map(~ctx, ~ancestors=ancestors_inclusive, ~expects, t, m);
   switch (term) {
-  | Unknown(Hole(MultiHole(tms))) =>
+  | Unknown({term: Hole(MultiHole(tms)), _}) =>
     let (_, _, m) = multi(~ctx, ~ancestors=ancestors_inclusive, m, tms);
     add(m);
   | Unknown(_)
@@ -3701,14 +3712,21 @@ and utpat_to_info_map =
   let status_for_node =
       (utpat: TPat.t): (list(Mark.t), option(Message.ok_tpat)) =>
     switch (utpat.term) {
-    | EmptyHole => ([], Some(Message.Empty))
+    | Unknown({term: Hole(EmptyHole) | Hole(CycleHole), _}) => (
+        [],
+        Some(Message.Empty),
+      )
     | Var(name) when Ctx.is_base_typ(name) => (
         [TPatShadowsType(name, BaseTyp)],
         None,
       )
     | Var(name) => ([], Some(Message.Var(name)))
-    | Invalid(_) => ([TPatNotAVar(NotCapitalized)], None)
-    | MultiHole(_) => ([TPatNotAVar(Other)], None)
+    | Unknown({term: Hole(Invalid(_)), _}) => (
+        [TPatNotAVar(NotCapitalized)],
+        None,
+      )
+    | Unknown({term: Hole(MultiHole(_)), _}) => ([TPatNotAVar(Other)], None)
+    | Unknown(_) => ([], None)
     };
   let add = m => {
     let st = status_for_node(utpat);
@@ -3727,11 +3745,10 @@ and utpat_to_info_map =
   let ancestors = (); // Deliberately shadowed so there's no risk of using it by mistake
   let _ = ancestors;
   switch (term) {
-  | MultiHole(tms) =>
+  | Unknown({term: Hole(MultiHole(tms)), _}) =>
     let (_, _, m) = multi(~ctx, ~ancestors=ancestors_inclusive, m, tms);
     add(m);
-  | Invalid(_)
-  | EmptyHole
+  | Unknown(_)
   | Var(_) => add(m)
   };
 }
@@ -3946,5 +3963,5 @@ let mk =
     },
   );
 
-let mk = (~ana=Typ.temp(Unknown(SynSwitch)), core: CoreSettings.t, ctx, exp) =>
+let mk = (~ana=Typ.temp(Unknown(SynSwitch |> Prov.fresh)), core: CoreSettings.t, ctx, exp) =>
   core.statics ? mk(ana, ctx, exp) : (Id.Map.empty, Exp.fresh(Tuple([])));
