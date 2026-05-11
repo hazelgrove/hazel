@@ -70,6 +70,19 @@ let tests = (
         card > 0,
       );
     }),
+    test_case("labeled-tuple-element label_cons refines hole", `Quick, () => {
+      /* `((a=1, b=?) : (a=Int, b=?))` — the TupLabel decompose constraint
+         relates the labeled element's ana to the surrounding tuple's prov. */
+      let inference =
+        run_inference({|((a=1, b=?) : (a=Int, b=?))|});
+      let card = Inference.TypSolutionMap.cardinal(inference);
+      check(
+        bool,
+        "labeled-tuple constraint produces solutions",
+        true,
+        card > 0,
+      );
+    }),
     test_case("inference handles a fully-typed program", `Quick, () => {
       /* `1 + 2` has no unknowns and no inference work to do; the map can
          legitimately be empty but shouldn't crash. */

@@ -898,7 +898,7 @@ and uexp_to_info_map =
                 );
               (es @ [e_info], es_elab @ [elab], m);
             | TupLabel(label, value) =>
-              let (labmode, val_mode, _label_cons) =
+              let (labmode, val_mode, label_cons) =
                 LabeledTupleStaticsHelpers.decompose_label_mode(ctx, ana);
               let (value_info, value_elab, m) = go(~ana=val_mode, value, m);
               let (lab_name, label_invalid, m) =
@@ -976,6 +976,7 @@ and uexp_to_info_map =
                   ~elab_syn_ty=syn_tl,
                   ~marks=cms_tl,
                   ~co_ctx=value_info.co_ctx,
+                  ~constraints=label_cons,
                   ~label_inference=None,
                   ~inferred_label,
                   ~dot_labels=[],
@@ -1079,7 +1080,7 @@ and uexp_to_info_map =
         m,
       );
     | TupLabel(label, e) =>
-      let (labmode, val_mode, _label_cons) =
+      let (labmode, val_mode, label_cons) =
                 LabeledTupleStaticsHelpers.decompose_label_mode(ctx, ana);
       let (e, elab_child, m) = go(~ana=val_mode, e, m);
       let (lab_name, m) =
@@ -1143,6 +1144,7 @@ and uexp_to_info_map =
         ~elab_syn_ty=syn_tl,
         ~marks=cms_tl,
         ~co_ctx=e.co_ctx,
+        ~constraints=label_cons,
         m,
       );
     | ExplicitNonlabel =>
@@ -2937,7 +2939,7 @@ and upat_to_info_map =
         m,
       )
     | TupLabel(label, p) =>
-      let (labmode, val_mode, _label_cons) =
+      let (labmode, val_mode, label_cons) =
                 LabeledTupleStaticsHelpers.decompose_label_mode(ctx, ana);
       let (p, _, m) = go(~ctx, ~ana=val_mode, ~duplicate_bindings, p, m);
       let (lab_name, m) =
@@ -3012,6 +3014,7 @@ and upat_to_info_map =
         ~elab_syn_ty=syn_tl,
         ~marks=cms_tl,
         ~ctx=p.ctx,
+        ~constraints=label_cons,
         ~constraint_=Coverage.Constraint.Tuple([p.constraint_]),
         m,
       );
@@ -3092,7 +3095,7 @@ and upat_to_info_map =
                 elabs @ [elab],
               );
             | TupLabel(label, value) =>
-              let (labmode, val_mode, _label_cons) =
+              let (labmode, val_mode, label_cons) =
                 LabeledTupleStaticsHelpers.decompose_label_mode(ctx, ana);
               let (value_info, value_elab, m) =
                 go(
@@ -3201,6 +3204,7 @@ and upat_to_info_map =
                   ~ancestors=ancestors_inclusive,
                   ~elab_syn_ty=syn_tl,
                   ~marks=cms_tl,
+                  ~constraints=label_cons,
                   ~constraint_,
                   ~label_inference=None,
                   ~inferred_label,

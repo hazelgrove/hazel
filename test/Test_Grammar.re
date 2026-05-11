@@ -146,7 +146,6 @@ let sample_pattern = (cls_pat: Pat.cls): Grammar.UnitGrammar.pat => {
 };
 
 let sample_type = (cls_typ: Typ.cls): Grammar.UnitGrammar.typ => {
-  let empty_hole = () => Grammar.UnitGrammar.Typ.empty_hole();
   Grammar.UnitGrammar.(
     Typ.(
       switch (cls_typ) {
