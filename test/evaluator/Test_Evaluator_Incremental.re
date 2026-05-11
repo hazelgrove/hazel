@@ -531,9 +531,308 @@ let test_probe_replay_on_reuse = () => {
   );
 };
 
+/* Regression for a counterexample shrunk out of
+ * `qcheck_incremental_matches_fresh_after_edit`:
+ *
+ *   exp     = let (()) = (a=B, a=false) in 0
+ *   edit    = 0 -> 1
+ *   claim   = eval(edited, prev=empty) == eval(edited, prev=eval(exp).cache)
+ *
+ * The PBT reported the two sides disagreeing semantically. Both sides see
+ * the same elaboration (we're only mutating the body literal in-place), so
+ * any divergence implicates cache reuse, not semantics. The pattern is
+ * intentionally weird (a 1-tuple of unit on the LHS, a 2-tuple with
+ * duplicate label `a` on the RHS) to exercise whatever indet/error path
+ * the generator stumbled onto. */
+let test_pbt_regression_unit_pat_dup_label_dh_let = () => {
+  let src = "let (()) = (a=B, a=false) in 0";
+  let exp1 = parse_exp(src);
+  let exp2 = replace_int_lit(~from=0, ~to_=1, exp1);
+  check(
+    bool,
+    "replace_int_lit actually changed the expression",
+    true,
+    !Exp.fast_equal(exp1, exp2),
+  );
+  let (r_fresh, _, _) = eval_incr(exp2);
+  let (_, _, incr_prev) = eval_incr(exp1);
+  let (r_incr, _, _) = eval_incr(~prev=incr_prev, exp2);
+  check(
+    dhexp_typ,
+    "Incremental eval of edited matches fresh eval of edited",
+    r_fresh,
+    r_incr,
+  );
+};
+
+/* Cross-module incremental reuse / UI tinting: when we edit a literal
+ * inside module `a`, the unrelated module `c` should be visibly frozen
+ * — every surface tile inside `c` should appear in the editor's
+ * "frozen" decoration set.
+ *
+ * Background:
+ *   `ModuleHelpers.lower` desugars `{ let bb = 12; let x = ... }` into
+ *   a chain `Let(bb, 12, Let(x, ..., Let(...,Tuple(...))))`. The chain
+ *   inverts surface nesting: the surface-outer Module M becomes the
+ *   elab-innermost Tuple, and surface-sibling ModLets become elab-
+ *   ancestors of one another.
+ *
+ *   When the evaluator hits the OUTERMOST elab Let on run 2 and finds
+ *   its cached entry, it short-circuits via `Evaluator.re:158-164` and
+ *   marks only that one id as reused (`IncrEval.mark_reused`). The
+ *   surface-sibling inner ModLets `let x = fib(b)`, `let y = fib(b)`,
+ *   `let z = x + y` are never visited and so end up in NEITHER
+ *   `incr.reused` NOR `incr.recalculated` — leaving them un-tinted in
+ *   the editor even though they're effectively frozen.
+ *
+ *   The fix is to derive a "frozen set" from `incr.reused` by walking
+ *   each reused id's `prev_elab` and unioning all rep_ids encountered.
+ *   That set is what the UI should paint as frozen. This test pins down
+ *   the desired contents of that set. */
+let test_module_c_inner_ids_in_frozen_set_after_edit_in_module_a = () => {
+  let src = {|let fib = fun n ->
+  if n < 2 then 1 else fib(n - 1) + fib(n - 2) in
+let a = {
+  let aa = 13;
+  let xy = fib(aa);
+  let yy = fib(aa);
+  let zy = xy + yy
+} in
+let c = {
+  let bb = 12;
+  let x = fib(bb);
+  let y = fib(bb);
+  let z = x + y
+} in (a, c)|};
+  let exp1 = parse_exp(src);
+  let exp2 = replace_int_lit(~from=13, ~to_=14, exp1);
+  check(
+    bool,
+    "replace_int_lit actually changed the expression",
+    true,
+    !Exp.fast_equal(exp1, exp2),
+  );
+  /* Locate module c's RHS — the third top-level `let` (after fib, a). */
+  let rec find_c_rhs = (depth, e: Exp.t): option(Exp.t) =>
+    switch (e.term) {
+    | Let(_, rhs, _) when depth == 2 => Some(rhs)
+    | Let(_, _, body) => find_c_rhs(depth + 1, body)
+    | _ => None
+    };
+  let c_rhs =
+    switch (find_c_rhs(0, exp1)) {
+    | Some(rhs) => rhs
+    | None => failwith("could not locate module c's RHS module-block")
+    };
+  /* Pull out the surface ids of the inner ModLet items: `let x = fib(b)`,
+   * `let y = fib(b)`, `let z = x + y`. We assert these all end up in the
+   * frozen set after the edit. (The first item `let bb = 12` becomes the
+   * elab-outermost wrapper that DOES get reused directly, so it's not the
+   * interesting case here.) */
+  let c_inner_modlet_ids: list(Id.t) =
+    switch (c_rhs.term) {
+    | Module(items) =>
+      switch (items) {
+      | [_first, ...rest] =>
+        List.filter_map(
+          (item: Mod.t) =>
+            switch (item.term) {
+            | ModLet(_, _) => Some(Mod.rep_id(item))
+            | _ => None
+            },
+          rest,
+        )
+      | [] => []
+      }
+    | _ => failwith("c_rhs is not a Module")
+    };
+  check(
+    int,
+    "expected 3 inner ModLet items in module c (let x, let y, let z)",
+    3,
+    List.length(c_inner_modlet_ids),
+  );
+  let (_, _, incr1) = eval_incr(exp1);
+  let (_, _, incr2) = eval_incr(~prev=incr1, exp2);
+  /* The "frozen set" is what the UI should paint as frozen. Currently
+   * `incr.reused` only contains ids that the evaluator actually visited
+   * and short-circuited. The intended fix expands that to the elab-
+   * descendant closure: for every reused id, walk its cached prev_elab
+   * (in `incr.entries`) and union all rep_ids. */
+  let frozen = IncrEval.frozen_ids(incr2);
+  let missing = List.filter(id => !List.mem(id, frozen), c_inner_modlet_ids);
+  check(
+    int,
+    "all inner ModLet ids of module c land in the frozen set",
+    0,
+    List.length(missing),
+  );
+};
+
+/* Statics-level invariant: distinct TupLabel siblings of an elaborated
+ * Tuple must have distinct rep_ids. The IncrEval cache is keyed by
+ * rep_id; if two siblings collide on the same id, the cache silently
+ * "last-write-wins" and one sibling's value gets returned for the
+ * other's lookup whenever reuse fires below the parent.
+ *
+ * Regression for an earlier bug in Statics.uexp_to_info_map's Tuple arm:
+ * the elaborated TupLabel was wrapped using the *outer Tuple's* rewrap
+ * (the top-level shadow), so every elaborated TupLabel in a tuple
+ * inherited the Tuple's id. This test pins that down by checking the
+ * elaboration directly, independent of the evaluator. */
+let test_tuple_elab_gives_distinct_tuplabel_ids = () => {
+  let exp = parse_exp("let (()) = (a=B, a=false) in 0");
+  let (_, elab) = statics_and_elab(exp);
+  let rhs_tuple_elts =
+    switch (elab.term) {
+    | Let(_, rhs, _) =>
+      switch (rhs.term) {
+      | Tuple(elts) => elts
+      | _ => []
+      }
+    | _ => []
+    };
+  let ids = List.map(Exp.rep_id, rhs_tuple_elts);
+  check(
+    int,
+    "RHS tuple has 2 elements after elaboration",
+    2,
+    List.length(rhs_tuple_elts),
+  );
+  switch (ids) {
+  | [id0, id1] =>
+    check(
+      bool,
+      "TupLabel siblings have distinct rep_ids (no cache-key collision)",
+      true,
+      !Id.equal(id0, id1),
+    )
+  | _ => check(bool, "expected exactly 2 ids", true, false)
+  };
+};
+
+/* Diagnostic: nested-module rhs change should mark the binder dirty.
+ * Source: `let a = { let a = 5 } in let b = a in (b, 1)`.
+ * Edit 5 -> 6. After re-eval, the result tuple's first component must
+ * carry a=6, not the stale a=5 cached for `b`. If `a` is not marked
+ * dirty for the body, `let b = a` reuses its stale value. */
+let test_diag_nested_module_rhs_edit_marks_binder_dirty = () => {
+  let src = {|let a = { let a = 5 } in let b = a in (b, 1)|};
+  let exp1 = parse_exp(src);
+  let exp2 = replace_int_lit(~from=5, ~to_=6, exp1);
+  let (r1, _, incr1) = eval_incr(exp1);
+  print_endline("=== run 2 begins ===");
+  let (r2, _, incr2) = eval_incr(~prev=incr1, exp2);
+  print_endline("=== run 2 ends ===");
+  print_endline("r1 = " ++ Exp.show(r1));
+  print_endline("r2 = " ++ Exp.show(r2));
+  check(
+    bool,
+    "r1 != r2 (edit propagated to result)",
+    true,
+    !Exp.fast_equal(r1, r2),
+  );
+  check(bool, "incr2 reused something", true, incr2.reused != []);
+};
+
+/* Repro: `let x = ({}, 0) in (x, 3)`. Edit `3` → `4`. The let-x rhs
+ * `({}, 0)` is unchanged across runs, so the surface ids of:
+ *   - `{}` (empty Module exp)
+ *   - `0` (Atom)
+ *   - the outer Tuple `({}, 0)` (the rhs)
+ * should all land in `frozen_ids(incr2)`. Bug we're pinning: only `0`
+ * tinted; `{}` and the Tuple didn't, because `SubexpProbeTargets`
+ * pulled in synthetic ids from `ModuleHelpers.lower` and the resulting
+ * MerkleSet construction shape diverged across runs. */
+let test_diag_module_in_unchanged_rhs_tuple_lands_in_frozen = () => {
+  let src = {|let x = ({}, 0) in (x, 3)|};
+  let exp1 = parse_exp(src);
+  let exp2 = replace_int_lit(~from=3, ~to_=4, exp1);
+  check(
+    bool,
+    "replace_int_lit actually changed the expression",
+    true,
+    !Exp.fast_equal(exp1, exp2),
+  );
+  let rec find_let_x_rhs = (e: Exp.t): option(Exp.t) =>
+    switch (e.term) {
+    | Let(_, rhs, _) => Some(rhs)
+    | Parens(inner) => find_let_x_rhs(inner)
+    | _ => None
+    };
+  let rec unwrap_parens = (e: Exp.t): Exp.t =>
+    switch (e.term) {
+    | Parens(inner) => unwrap_parens(inner)
+    | _ => e
+    };
+  let rhs =
+    switch (find_let_x_rhs(exp1)) {
+    | Some(rhs) => rhs
+    | None => failwith("could not locate let x rhs")
+    };
+  let rhs_inner = unwrap_parens(rhs);
+  let (tuple_id, module_id, zero_id) =
+    switch (rhs_inner.term) {
+    | Tuple([fst, snd]) =>
+      let module_id =
+        switch (unwrap_parens(fst).term) {
+        | Module(_) => Exp.rep_id(unwrap_parens(fst))
+        | _ => failwith("first slot is not a Module")
+        };
+      let zero_id =
+        switch (unwrap_parens(snd).term) {
+        | Atom(Int(_)) => Exp.rep_id(unwrap_parens(snd))
+        | _ => failwith("second slot is not an Atom")
+        };
+      (Exp.rep_id(rhs_inner), module_id, zero_id);
+    | _ => failwith("rhs inner is not a 2-tuple")
+    };
+  let (_, _, incr1) = eval_incr(exp1);
+  let (_, _, incr2) = eval_incr(~prev=incr1, exp2);
+  let frozen = IncrEval.frozen_ids(incr2);
+  check(bool, "Atom 0 is in frozen set", true, List.mem(zero_id, frozen));
+  check(
+    bool,
+    "Module {} is in frozen set",
+    true,
+    List.mem(module_id, frozen),
+  );
+  check(
+    bool,
+    "Tuple ({}, 0) is in frozen set",
+    true,
+    List.mem(tuple_id, frozen),
+  );
+};
+
 let tests = (
   "Evaluator.Incremental",
   [
+    test_case(
+      "DIAG module in unchanged rhs tuple lands in frozen",
+      `Quick,
+      test_diag_module_in_unchanged_rhs_tuple_lands_in_frozen,
+    ),
+    test_case(
+      "DIAG nested-module rhs edit marks binder dirty",
+      `Quick,
+      test_diag_nested_module_rhs_edit_marks_binder_dirty,
+    ),
+    test_case(
+      "PBT regression: let (()) = (a=B, a=false) in 0, edit 0 -> 1",
+      `Quick,
+      test_pbt_regression_unit_pat_dup_label_dh_let,
+    ),
+    test_case(
+      "Tuple elab gives distinct rep_ids to TupLabel siblings",
+      `Quick,
+      test_tuple_elab_gives_distinct_tuplabel_ids,
+    ),
+    test_case(
+      "Module c inner ids land in frozen set after edit in module a",
+      `Quick,
+      test_module_c_inner_ids_in_frozen_set_after_edit_in_module_a,
+    ),
     test_case(
       "Populates entries on fresh run",
       `Quick,

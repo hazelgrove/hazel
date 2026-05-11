@@ -267,8 +267,7 @@ let collect_int_lits = (exp: Exp.t): list((Id.t, Bigint.t)) => {
 
 /* Replace the Atom(Int _) payload at the given id with `to_`, preserving
  * the id on the edited node (and on every other node). */
-let replace_int_lit_by_id =
-    (~target: Id.t, ~to_: Bigint.t, exp: Exp.t): Exp.t => {
+let replace_int_lit_by_id = (~target: Id.t, ~to_: Bigint.t, exp: Exp.t): Exp.t => {
   let f_exp = (continue, e: Exp.t): Exp.t =>
     if (Id.equal(Exp.rep_id(e), target)) {
       switch (e.term) {
@@ -310,9 +309,7 @@ let qcheck_incremental_matches_fresh_after_edit =
       /* Only swallow known-benign static/dynamic failures so real
        * incremental-eval disagreements surface as clean PBT failures. */
       let try_eval = (~prev=?, info_map, elab) =>
-        try(
-          Some(eval_limited(~prev?, ~info_map, ~step_limit=10000, elab))
-        ) {
+        try(Some(eval_limited(~prev?, ~info_map, ~step_limit=10000, elab))) {
         | Failure(msg)
             when
               List.exists(
