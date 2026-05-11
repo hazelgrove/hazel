@@ -717,7 +717,10 @@ let rec normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
                )
              | Var(name) =>
                Some(
-                 TupLabel(Label(name) |> temp, Unknown(Internal) |> temp)
+                 TupLabel(
+                   Label(name) |> temp,
+                   Unknown(Internal |> Prov.fresh) |> temp,
+                 )
                  |> temp,
                )
              | _ => None
@@ -755,7 +758,10 @@ let rec desugar_sig = (ctx: Ctx.t, ty: t): t => {
                )
              | Var(name) =>
                Some(
-                 TupLabel(Label(name) |> temp, Unknown(Internal) |> temp)
+                 TupLabel(
+                   Label(name) |> temp,
+                   Unknown(Internal |> Prov.fresh) |> temp,
+                 )
                  |> temp,
                )
              | _ => None

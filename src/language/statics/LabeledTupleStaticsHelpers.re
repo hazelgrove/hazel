@@ -7,7 +7,7 @@ module Info = StaticsBase.Info;
 let decompose_label_mode = (ctx: Ctx.t, ana: Typ.t): (Typ.t, Typ.t) =>
   switch (MatchedTyp.label(ctx, ana)) {
   | Some((labmode, val_mode)) => (labmode, val_mode)
-  | _ => (Unknown(SynSwitch) |> Typ.temp, Unknown(Internal) |> Typ.temp)
+  | _ => (Unknown(SynSwitch) |> Typ.temp, Unknown(Internal |> Prov.fresh) |> Typ.temp)
   };
 
 type label_child_result = {
@@ -82,13 +82,13 @@ let tup_label_self_type =
       [],
     )
   | None => (
-      TupLabel(Unknown(Internal) |> Typ.temp, value_ty) |> Typ.temp,
+      TupLabel(Unknown(Internal |> Prov.fresh) |> Typ.temp, value_ty) |> Typ.temp,
       [
         Mark.TupleLabelError({
           malformed_labels: [malformed_source],
           duplicate_labels: [],
           invalid_labels: [],
-          typ: TupLabel(Unknown(Internal) |> Typ.temp, value_ty) |> Typ.temp,
+          typ: TupLabel(Unknown(Internal |> Prov.fresh) |> Typ.temp, value_ty) |> Typ.temp,
         }),
       ],
     )
@@ -113,13 +113,13 @@ let standalone_tup_label_self_type =
       [],
     )
   | None => (
-      TupLabel(Unknown(Internal) |> Typ.temp, value_ty) |> Typ.temp,
+      TupLabel(Unknown(Internal |> Prov.fresh) |> Typ.temp, value_ty) |> Typ.temp,
       [
         Mark.TupleLabelError({
           malformed_labels: [malformed_source],
           duplicate_labels: [],
           invalid_labels: [],
-          typ: TupLabel(Unknown(Internal) |> Typ.temp, value_ty) |> Typ.temp,
+          typ: TupLabel(Unknown(Internal |> Prov.fresh) |> Typ.temp, value_ty) |> Typ.temp,
         }),
       ],
     )

@@ -466,7 +466,8 @@ let equality =
       : bool => {
     let exp' = exp(alphas_exp, alphas_typ);
     let typ' = typ(alphas_exp, alphas_typ);
-    let tpat' = (tp1, tp2) => Option.is_some(tpat(tp1, tp2));
+    let tpat' = (tp1, tp2) =>
+      Option.is_some(tpat(alphas_exp, alphas_typ, tp1, tp2));
     let any' = any(alphas_exp, alphas_typ);
     let mpat' = (mp1, mp2) =>
       Option.is_some(mpat(alphas_exp, alphas_typ, mp1, mp2));
@@ -702,7 +703,8 @@ let equality =
       )
       : bool => {
     let typ' = typ(alphas_exp, alphas_typ);
-    let tpat' = (tp1, tp2) => Option.is_some(tpat(tp1, tp2));
+    let tpat' = (tp1, tp2) =>
+      Option.is_some(tpat(alphas_exp, alphas_typ, tp1, tp2));
     let any' = any(alphas_exp, alphas_typ);
     switch (s1 |> Annotated.term_of, s2 |> Annotated.term_of) {
     | (EmptyHole, EmptyHole) => true

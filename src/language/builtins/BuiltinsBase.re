@@ -50,7 +50,7 @@ let misc_fns: list(BuiltinsUtil.fn) = [
     /* Println for probes study */
 
     name: "print",
-    arg: Unknown(Internal),
+    arg: Unknown(Internal |> Prov.fresh),
     ret: Prod([]),
     imp: _ => Some(Fresh.Exp.tuple([])),
     custom_statics: None,

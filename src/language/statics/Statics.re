@@ -338,7 +338,7 @@ and uexp_to_info_map =
     CoCtx.singleton(
       "$hole",
       Exp.rep_id(uexp),
-      Unknown(Internal) |> Typ.temp,
+      Unknown(Internal |> Prov.fresh) |> Typ.temp,
     );
 
   // This is the case where we aren't a singleton labeled tuple
@@ -359,7 +359,7 @@ and uexp_to_info_map =
       let (e2, e2_elab, m) = go(~ana=syn, e2, m);
       add(
         ~elab_term=Seq(e1_elab, e2_elab) |> rewrap,
-        ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
+        ~elab_syn_ty=Unknown(Internal |> Prov.fresh) |> Typ.temp,
         ~marks=[IsMulti],
         ~co_ctx=CoCtx.union([e1.co_ctx, e2.co_ctx]),
         m,
@@ -369,7 +369,7 @@ and uexp_to_info_map =
         multi(~ctx, ~ancestors=ancestors_inclusive, m, tms);
       add(
         ~elab_term=MultiHole(tms_elab) |> rewrap,
-        ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
+        ~elab_syn_ty=Unknown(Internal |> Prov.fresh) |> Typ.temp,
         ~marks=[IsMulti],
         ~co_ctx=CoCtx.union(co_ctxs),
         m,
@@ -391,7 +391,7 @@ and uexp_to_info_map =
     | Invalid(token) =>
       add(
         ~elab_term=Invalid(token) |> rewrap,
-        ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
+        ~elab_syn_ty=Unknown(Internal |> Prov.fresh) |> Typ.temp,
         ~marks=[BadToken(token)],
         ~co_ctx=hole_co_ctx,
         m,
@@ -399,7 +399,7 @@ and uexp_to_info_map =
     | EmptyHole =>
       add(
         ~elab_term=EmptyHole |> rewrap,
-        ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
+        ~elab_syn_ty=Unknown(Internal |> Prov.fresh) |> Typ.temp,
         ~marks=[],
         ~co_ctx=hole_co_ctx,
         m,
@@ -412,7 +412,7 @@ and uexp_to_info_map =
         };
       add(
         ~elab_term=Deferral(position) |> rewrap,
-        ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
+        ~elab_syn_ty=Unknown(Internal |> Prov.fresh) |> Typ.temp,
         ~marks,
         ~message?,
         ~co_ctx=CoCtx.empty,
@@ -453,7 +453,7 @@ and uexp_to_info_map =
       | R(BadInt(str)) =>
         add(
           ~elab_term=Invalid(str) |> rewrap,
-          ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
+          ~elab_syn_ty=Unknown(Internal |> Prov.fresh) |> Typ.temp,
           ~marks=[BadToken(str)],
           ~co_ctx=CoCtx.empty,
           m,
@@ -484,7 +484,7 @@ and uexp_to_info_map =
          wrappings on elements that already syn to the meet type. */
       let syn_tys = List.map((e: Info.exp) => e.elab_syn_ty, es);
       let meet_ty =
-        Typ.meet_all(~empty=Unknown(Internal) |> Typ.temp, ctx, syn_tys);
+        Typ.meet_all(~empty=Unknown(Internal |> Prov.fresh) |> Typ.temp, ctx, syn_tys);
       let ds =
         List.map2(
           (d, t) => fresh_ascription(ctx, d, t, meet_ty),
@@ -493,7 +493,7 @@ and uexp_to_info_map =
         );
       switch (meet_ty) {
       | None =>
-        let syn_no_meet = SynTy.meet_of(List, Unknown(Internal) |> Typ.temp);
+        let syn_no_meet = SynTy.meet_of(List, Unknown(Internal |> Prov.fresh) |> Typ.temp);
         add(
           ~elab_term=ListLit(ds) |> rewrap,
           ~elab_syn_ty=syn_no_meet,
@@ -562,13 +562,13 @@ and uexp_to_info_map =
       let elem_ty2 = MatchedTyp.list_tolerant(ctx, e2.elab_syn_ty);
       switch (
         Typ.meet_all(
-          ~empty=Unknown(Internal) |> Typ.temp,
+          ~empty=Unknown(Internal |> Prov.fresh) |> Typ.temp,
           ctx,
           [elem_ty1, elem_ty2],
         )
       ) {
       | None =>
-        let syn_no_meet = SynTy.meet_of(List, Unknown(Internal) |> Typ.temp);
+        let syn_no_meet = SynTy.meet_of(List, Unknown(Internal |> Prov.fresh) |> Typ.temp);
         add(
           ~elab_term=ListConcat(e1_elab, e2_elab) |> rewrap,
           ~elab_syn_ty=syn_no_meet,
@@ -598,7 +598,7 @@ and uexp_to_info_map =
          expression/value, so we synthesize to `?` without consulting the ctx. */
       add(
         ~elab_term=Var(name) |> rewrap,
-        ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
+        ~elab_syn_ty=Unknown(Internal |> Prov.fresh) |> Typ.temp,
         ~marks=[],
         ~co_ctx=CoCtx.empty,
         m,
@@ -653,7 +653,7 @@ and uexp_to_info_map =
         let (e, e_elab, m) = go(~ana=syn, e, m);
         add(
           ~elab_term=UnOp(op, e_elab) |> rewrap,
-          ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
+          ~elab_syn_ty=Unknown(Internal |> Prov.fresh) |> Typ.temp,
           ~marks=[BadOperator(msg)],
           ~co_ctx=e.co_ctx,
           m,
@@ -679,7 +679,7 @@ and uexp_to_info_map =
         let (e2, e2_elab, m) = go(~ana=syn, e2, m);
         add(
           ~elab_term=BinOp(op, e1_elab, e2_elab) |> rewrap,
-          ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
+          ~elab_syn_ty=Unknown(Internal |> Prov.fresh) |> Typ.temp,
           ~marks=[BadOperator(msg)],
           ~co_ctx=CoCtx.union([e1.co_ctx, e2.co_ctx]),
           m,
@@ -689,14 +689,14 @@ and uexp_to_info_map =
         let ((es, es_elabs), m) =
           map_m_go(
             m,
-            [Unknown(Internal) |> Typ.temp, Unknown(Internal) |> Typ.temp],
+            [Unknown(Internal |> Prov.fresh) |> Typ.temp, Unknown(Internal |> Prov.fresh) |> Typ.temp],
             [e1, e2],
           );
         let tys = List.map(Info.exp_ty, es);
         let elab_poly =
           BinOp(op, List.nth(es_elabs, 0), List.nth(es_elabs, 1)) |> rewrap;
         let co_poly = CoCtx.union(List.map(Info.exp_co_ctx, es));
-        switch (Typ.meet_all(~empty=Unknown(Internal) |> Typ.temp, ctx, tys)) {
+        switch (Typ.meet_all(~empty=Unknown(Internal |> Prov.fresh) |> Typ.temp, ctx, tys)) {
         | None =>
           add(
             ~elab_term=elab_poly,
@@ -1103,7 +1103,7 @@ and uexp_to_info_map =
     | ExplicitNonlabel =>
       add(
         ~elab_term=ExplicitNonlabel |> rewrap,
-        ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
+        ~elab_syn_ty=Unknown(Internal |> Prov.fresh) |> Typ.temp,
         ~marks=[ExplicitNonlabel],
         ~co_ctx=CoCtx.empty,
         m,
@@ -1111,7 +1111,7 @@ and uexp_to_info_map =
     | Label(name) =>
       add(
         ~elab_term=Label(name) |> rewrap,
-        ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
+        ~elab_syn_ty=Unknown(Internal |> Prov.fresh) |> Typ.temp,
         ~marks=[UnexpectedLabelSort(name)],
         ~co_ctx=CoCtx.empty,
         m,
@@ -1184,12 +1184,12 @@ and uexp_to_info_map =
       let (ty, m) = {
         switch (info_e1.ty.term, info_e2.ty.term) {
         | (Unknown(_), Label(name)) =>
-          // This is so that the statics will result in Unknown(Internal)
+          // This is so that the statics will result in Unknown(Internal |> Prov.fresh)
           let ty =
             Prod([
               TupLabel(
                 Label(name) |> Typ.temp,
-                Unknown(Internal) |> Typ.temp,
+                Unknown(Internal |> Prov.fresh) |> Typ.temp,
               )
               |> Typ.temp,
             ])
@@ -1222,7 +1222,7 @@ and uexp_to_info_map =
           | None =>
             add(
               ~elab_term=dot_elab,
-              ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
+              ~elab_syn_ty=Unknown(Internal |> Prov.fresh) |> Typ.temp,
               ~marks=[LabelNotFound(name, labels)],
               ~dot_labels=available_labels,
               ~co_ctx=dot_co_ctx,
@@ -1232,7 +1232,7 @@ and uexp_to_info_map =
         | EmptyHole =>
           add(
             ~elab_term=dot_elab,
-            ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
+            ~elab_syn_ty=Unknown(Internal |> Prov.fresh) |> Typ.temp,
             ~marks=[],
             ~dot_labels=available_labels,
             ~co_ctx=dot_co_ctx,
@@ -1241,7 +1241,7 @@ and uexp_to_info_map =
         | _ =>
           add(
             ~elab_term=dot_elab,
-            ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
+            ~elab_syn_ty=Unknown(Internal |> Prov.fresh) |> Typ.temp,
             ~marks=[BadLabel(Exp(e2))],
             ~dot_labels=available_labels,
             ~co_ctx=dot_co_ctx,
@@ -1270,7 +1270,7 @@ and uexp_to_info_map =
           | None =>
             add(
               ~elab_term=dot_elab,
-              ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
+              ~elab_syn_ty=Unknown(Internal |> Prov.fresh) |> Typ.temp,
               ~marks=[LabelNotFound(name, labels)],
               ~dot_labels=available_labels,
               ~co_ctx=dot_co_ctx,
@@ -1280,7 +1280,7 @@ and uexp_to_info_map =
         | EmptyHole =>
           add(
             ~elab_term=dot_elab,
-            ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
+            ~elab_syn_ty=Unknown(Internal |> Prov.fresh) |> Typ.temp,
             ~marks=[],
             ~dot_labels=available_labels,
             ~co_ctx=dot_co_ctx,
@@ -1289,7 +1289,7 @@ and uexp_to_info_map =
         | _ =>
           add(
             ~elab_term=dot_elab,
-            ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
+            ~elab_syn_ty=Unknown(Internal |> Prov.fresh) |> Typ.temp,
             ~marks=[BadLabel(Exp(e2))],
             ~dot_labels=available_labels,
             ~co_ctx=dot_co_ctx,
@@ -1299,7 +1299,7 @@ and uexp_to_info_map =
       | List({term: Unknown(_), _}) =>
         add(
           ~elab_term=dot_elab,
-          ~elab_syn_ty=List(Unknown(Internal) |> Typ.temp) |> Typ.temp,
+          ~elab_syn_ty=List(Unknown(Internal |> Prov.fresh) |> Typ.temp) |> Typ.temp,
           ~marks=[],
           ~dot_labels=available_labels,
           ~co_ctx=dot_co_ctx,
@@ -1308,7 +1308,7 @@ and uexp_to_info_map =
       | _ =>
         add(
           ~elab_term=dot_elab,
-          ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
+          ~elab_syn_ty=Unknown(Internal |> Prov.fresh) |> Typ.temp,
           ~marks=[DotOperatorRequiresTuple],
           ~dot_labels=available_labels,
           ~co_ctx=dot_co_ctx,
@@ -1464,12 +1464,12 @@ and uexp_to_info_map =
 
         | None =>
           let (fn, fn_elab, m) =
-            go(~ana=Unknown(Internal) |> Typ.temp, fn, m);
+            go(~ana=Unknown(Internal |> Prov.fresh) |> Typ.temp, fn, m);
           let (arg, arg_elab, m) =
-            go(~ana=Unknown(Internal) |> Typ.temp, arg, m);
+            go(~ana=Unknown(Internal |> Prov.fresh) |> Typ.temp, arg, m);
           add(
             ~elab_term=Ap(dir, fn_elab, arg_elab) |> rewrap,
-            ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
+            ~elab_syn_ty=Unknown(Internal |> Prov.fresh) |> Typ.temp,
             ~marks=[],
             ~co_ctx=CoCtx.union([fn.co_ctx, arg.co_ctx]),
             m,
@@ -1631,12 +1631,12 @@ and uexp_to_info_map =
           );
         | R(expected) =>
           let ty_ins =
-            List.init(num_args, _ => Unknown(Internal) |> Typ.temp);
+            List.init(num_args, _ => Unknown(Internal |> Prov.fresh) |> Typ.temp);
           let ((args, args_elabs), m) = map_m_go(m, ty_ins, args);
           let arg_co_ctx = CoCtx.union(List.map(Info.exp_co_ctx, args));
           add(
             ~elab_term=DeferredAp(fn_elab, args_elabs) |> rewrap,
-            ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
+            ~elab_syn_ty=Unknown(Internal |> Prov.fresh) |> Typ.temp,
             ~marks=[
               IsBadPartialAp(
                 ArityMismatch({
@@ -2041,7 +2041,7 @@ and uexp_to_info_map =
       let branch_fresh_syn = (branch_info: Info.exp) => {
         let wrapped =
           switch (result_ty.term) {
-          | Unknown(Internal) => false
+          | Unknown(Internal |> Prov.fresh) => false
           | _ =>
             !
               Typ.fast_equal(
@@ -2175,7 +2175,7 @@ and uexp_to_info_map =
       let branch_fresh_syn = (e: Info.exp) => {
         let wrapped =
           switch (result_ty.term) {
-          | Unknown(Internal) => false
+          | Unknown(Internal |> Prov.fresh) => false
           | _ =>
             !
               Typ.fast_equal(
@@ -2324,7 +2324,7 @@ and uexp_to_info_map =
           m,
         )
       | None
-          when Typ.fast_equal(Unknown(Internal) |> Typ.temp, typ.user_term) =>
+          when Typ.fast_equal(Unknown(Internal |> Prov.fresh) |> Typ.temp, typ.user_term) =>
         add(
           ~elab_term=body_elab,
           ~elab_syn_ty=body.elab_syn_ty,
@@ -2441,7 +2441,7 @@ and upat_to_info_map =
       ~co_ctx,
       ~ancestors: Info.ancestors,
       ~duplicate_bindings: list(string)=[],
-      ~ana: Typ.t=Unknown(Internal) |> Typ.temp,
+      ~ana: Typ.t=Unknown(Internal |> Prov.fresh) |> Typ.temp,
       ~under_ascription: bool=false,
       upat: Pat.t,
       m: Map.t,
@@ -2588,7 +2588,7 @@ and upat_to_info_map =
     | MultiHole(tms) =>
       let (_, _, m) = multi(~ctx, ~ancestors=ancestors_inclusive, m, tms);
       add(
-        ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
+        ~elab_syn_ty=Unknown(Internal |> Prov.fresh) |> Typ.temp,
         ~marks=[IsMulti],
         ~ctx,
         ~constraint_=Coverage.Constraint.Hole(None),
@@ -2672,7 +2672,7 @@ and upat_to_info_map =
       | R(BadInt(str)) =>
         add(
           ~elab_term=Invalid(str) |> rewrap,
-          ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
+          ~elab_syn_ty=Unknown(Internal |> Prov.fresh) |> Typ.temp,
           ~marks=[BadToken(str)],
           ~ctx,
           ~constraint_=Coverage.Constraint.Hole(None),
@@ -2728,7 +2728,7 @@ and upat_to_info_map =
       let syn_tys = List.map((info: Info.pat) => info.elab_syn_ty, infos);
       switch (Typ.meet_all(~empty=unknown, ctx, syn_tys)) {
       | None =>
-        let syn_no_meet = SynTy.meet_of(List, Unknown(Internal) |> Typ.temp);
+        let syn_no_meet = SynTy.meet_of(List, Unknown(Internal |> Prov.fresh) |> Typ.temp);
         add(
           ~elab_term=ListLit(ps_elabs) |> rewrap,
           ~elab_syn_ty=syn_no_meet,
@@ -2785,8 +2785,8 @@ and upat_to_info_map =
     | Var(name) =>
       /* NOTE: The self type assigned to pattern variables (Unknown)
          may be SynSwitch, but SynSwitch is never added to the context;
-         Unknown(Internal) is used in this case */
-      let ctx_typ = fixed_typ(ctx, ana, Unknown(Internal) |> Typ.temp);
+         Unknown(Internal |> Prov.fresh) is used in this case */
+      let ctx_typ = fixed_typ(ctx, ana, Unknown(Internal |> Prov.fresh) |> Typ.temp);
       let entry =
         Ctx.VarEntry({
           name,
@@ -2836,7 +2836,7 @@ and upat_to_info_map =
       (p, p_elab, add_info(ids, InfoPat(p), m));
     | ExplicitNonlabel =>
       add(
-        ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
+        ~elab_syn_ty=Unknown(Internal |> Prov.fresh) |> Typ.temp,
         ~marks=[ExplicitNonlabel],
         ~ctx,
         ~constraint_=Coverage.Constraint.Truth,
@@ -3442,7 +3442,7 @@ and utyp_to_info_map =
       List.mem(name, labels)
         ? ok(Message.Type(utyp)) : err(InvalidLabel(name, labels))
     | (LabelProjectionExpected(None), Label(_)) =>
-      ok(Message.Type(Unknown(Internal) |> Typ.temp))
+      ok(Message.Type(Unknown(Internal |> Prov.fresh) |> Typ.temp))
     | (ConstructorExpected(_), Label(_))
     | (VariantExpected(_), Label(_)) =>
       err(TypWantConstructorFoundType(utyp))
@@ -3871,7 +3871,7 @@ and sig_to_info_map =
       CoCtx.singleton(
         "$hole",
         IdTagged.rep_id(s_term),
-        Unknown(Internal) |> Typ.temp,
+        Unknown(Internal |> Prov.fresh) |> Typ.temp,
       );
     let (_, _, m) =
       upat_to_info_map(

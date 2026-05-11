@@ -405,7 +405,7 @@ let prepend_pat_mark =
 let fresh_ascription = (ctx: Ctx.t, d: Exp.t, t: Typ.t, t': option(Typ.t)) => {
   IdTagged.FreshGrammar.Exp.(
     switch (t') {
-    | Some({term: Unknown(Internal), _}) => d
+    | Some({term: Unknown(Internal |> Prov.fresh), _}) => d
     | Some(ty)
         when !Typ.fast_equal(Typ.normalize(ctx, ty), Typ.normalize(ctx, t)) =>
       asc(d, ty)

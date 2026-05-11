@@ -74,7 +74,7 @@ let core_mark_string = (ctx: Ctx.t, ana: Typ.t, m: Mark.t): string => {
       List.map(Print.typ, Typ.of_source(tys)) |> String.concat(", "),
     )
   | NoMeet(wrap, _tys) =>
-    let syn: Typ.t = SynTy.meet_of(wrap, Unknown(Internal) |> Typ.temp);
+    let syn: Typ.t = SynTy.meet_of(wrap, Unknown(Internal |> Prov.fresh) |> Typ.temp);
     switch (Typ.meet(ctx, ana, syn)) {
     | Some(_) => "(static error)"
     | None =>
