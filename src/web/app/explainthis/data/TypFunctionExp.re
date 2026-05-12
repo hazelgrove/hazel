@@ -11,17 +11,17 @@ let poly_id_ex = {
   message: "The polymorphic identity function. It may be instantiated at any type a, after which the function acts as type (a -> a).",
 };
 
-let _tp = tpat("a");
-let _exp = exp("e");
+let tp = tpat("a");
+let e = exp("e");
 let typfun_var: form = {
   let explanation = "When applied to a type that which is bound to the [*type variable*](%s), evaluates to the type function [*body*](%s).";
-  let form = [mk_typfun([[space(), _tp, space()]]), space(), _exp];
+  let form = [mk_typfun([[space(), tp, space()]]), space(), e];
   {
     id: TypFunctionExp,
     syntactic_form: form,
     expandable_id:
       Some((
-        Piece.id(_tp),
+        Piece.id(tp),
         [
           Grout({
             id: Id.mk(),
