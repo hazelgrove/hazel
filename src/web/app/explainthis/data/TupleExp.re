@@ -46,33 +46,33 @@ let tuple_exp: form = {
     ],
   };
 };
-let _exp1 = exp("e1");
-let _exp2 = exp("e2");
+let exp1 = exp("e1");
+let exp2 = exp("e2");
 let tuple_exp_size2_coloring_ids =
     (~exp1_id: Id.t, ~exp2_id: Id.t): list((Id.t, Id.t)) => {
-  [(Piece.id(_exp1), exp1_id), (Piece.id(_exp2), exp2_id)];
+  [(Piece.id(exp1), exp1_id), (Piece.id(exp2), exp2_id)];
 };
 let tuple_exp_size2: form = {
   let explanation = "The 2-tuple has a [first](%s) and [second](%s) element.";
   let comma = comma_exp();
   {
     id: Tuple2Exp,
-    syntactic_form: [_exp1, comma, space(), _exp2],
+    syntactic_form: [exp1, comma, space(), exp2],
     expandable_id:
       Some((Piece.id(comma), [exp("e1"), comma_exp(), exp("e2")])),
     explanation,
     examples: [tuple_example_1, tuple_example_labeled_2],
   };
 };
-let _exp1 = exp("e1");
-let _exp2 = exp("e2");
-let _exp3 = exp("e3");
+let exp1 = exp("e1");
+let exp2 = exp("e2");
+let exp3 = exp("e3");
 let tuple_exp_size3_coloring_ids =
     (~exp1_id: Id.t, ~exp2_id: Id.t, ~exp3_id: Id.t): list((Id.t, Id.t)) => {
   [
-    (Piece.id(_exp1), exp1_id),
-    (Piece.id(_exp2), exp2_id),
-    (Piece.id(_exp3), exp3_id),
+    (Piece.id(exp1), exp1_id),
+    (Piece.id(exp2), exp2_id),
+    (Piece.id(exp3), exp3_id),
   ];
 };
 let tuple_exp_size3: form = {
@@ -80,15 +80,7 @@ let tuple_exp_size3: form = {
   let comma = comma_exp();
   {
     id: Tuple3Exp,
-    syntactic_form: [
-      _exp1,
-      comma_exp(),
-      space(),
-      _exp2,
-      comma,
-      space(),
-      _exp3,
-    ],
+    syntactic_form: [exp1, comma_exp(), space(), exp2, comma, space(), exp3],
     expandable_id:
       Some((
         Piece.id(comma),
@@ -99,18 +91,18 @@ let tuple_exp_size3: form = {
   };
 };
 
-let _exp_x = exp("x");
-let _exp_y = exp("y");
+let exp_x = exp("x");
+let exp_y = exp("y");
 let tuple_extension_exp_coloring_ids =
     (~x_id: Id.t, ~y_id: Id.t): list((Id.t, Id.t)) => [
-  (Piece.id(_exp_x), x_id),
-  (Piece.id(_exp_y), y_id),
+  (Piece.id(exp_x), x_id),
+  (Piece.id(exp_y), y_id),
 ];
 let tuple_extension_exp: form = {
   let explanation = "Creates a tuple by combining the [*first operand*](%s) and the [*second operand*](%s), updating elements with the same labels.";
   {
     id: TupleExtensionExp,
-    syntactic_form: [_exp_x, space(), tuple_extension_exp(), space(), _exp_y],
+    syntactic_form: [exp_x, space(), tuple_extension_exp(), space(), exp_y],
     expandable_id: None,
     explanation,
     examples: [

@@ -385,6 +385,7 @@ type group_id =
   | EmptyHoleTyp
   | MultiHoleTyp
   | IntTyp
+  | SIntTyp
   | NatTyp
   | FloatTyp
   | BoolTyp

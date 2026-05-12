@@ -25,38 +25,38 @@ let listnil_pat: form = {
   };
 };
 
-let _pat_hd = pat("p_hd");
-let _pat_tl = pat("p_tl");
+let pat_hd = pat("p_hd");
+let pat_tl = pat("p_tl");
 let cons_base_pat_coloring_ids =
     (~hd_id: Id.t, ~tl_id: Id.t): list((Id.t, Id.t)) => [
-  (Piece.id(_pat_hd), hd_id),
-  (Piece.id(_pat_tl), tl_id),
+  (Piece.id(pat_hd), hd_id),
+  (Piece.id(pat_tl), tl_id),
 ];
 let cons_base_pat: form = {
   let explanation = "Only expressions that are non-empty lists with *head element* matching the [*head element pattern*](%s) and *tail* list matching the [*tail pattern*](%s) match this non-empty list pattern.";
   {
     id: ConsPat,
-    syntactic_form: [_pat_hd, cons_pat(), _pat_tl],
-    expandable_id: Some((Piece.id(_pat_tl), [pat("p_tl")])),
+    syntactic_form: [pat_hd, cons_pat(), pat_tl],
+    expandable_id: Some((Piece.id(pat_tl), [pat("p_tl")])),
     explanation,
     examples: [],
   };
 };
-let _pat_fst = pat("p_fst");
-let _pat_snd = pat("p_snd");
-let _pat_tl = pat("p_tl");
+let pat_fst = pat("p_fst");
+let pat_snd = pat("p_snd");
+let pat_tl = pat("p_tl");
 let cons2_pat_coloring_ids =
     (~fst_id: Id.t, ~snd_id: Id.t, ~tl_id: Id.t): list((Id.t, Id.t)) => [
-  (Piece.id(_pat_fst), fst_id),
-  (Piece.id(_pat_snd), snd_id),
-  (Piece.id(_pat_tl), tl_id),
+  (Piece.id(pat_fst), fst_id),
+  (Piece.id(pat_snd), snd_id),
+  (Piece.id(pat_tl), tl_id),
 ];
 let cons2_pat: form = {
   let explanation = "Only expressions that are non-empty lists with *first element* matching the [*first element pattern*](%s), *second element* matching the [*second element pattern*](%s), and *tail* list matching the [*tail pattern*](%s) match this non-empty list pattern.";
   let c = cons_pat();
   {
     id: Cons2Pat,
-    syntactic_form: [_pat_fst, cons_pat(), _pat_snd, c, _pat_tl],
+    syntactic_form: [pat_fst, cons_pat(), pat_snd, c, pat_tl],
     expandable_id:
       Some((Piece.id(c), [pat("p_snd"), cons_pat(), pat("p_tl")])),
     explanation,
