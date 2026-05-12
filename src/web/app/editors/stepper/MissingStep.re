@@ -365,6 +365,16 @@ module Update = {
         AxiomsOpen(
           AxiomsBox.Update.calculate(~info_map, ~ctx, ~selected_exp, m),
         )
+      | NoneOpen
+          when
+            !settings.evaluation.enable_proof
+            && settings.evaluation.write_out_steps =>
+        Model.WrittenStepOpen({
+          editor:
+            CodeEditable.Model.mk(Editor.Model.mk(~root=Exp, Zipper.init())),
+          cached_exp: Calc.Pending,
+          cached_result: Calc.Pending,
+        })
       | NoneOpen => NoneOpen
       };
     let cached_env =
@@ -868,7 +878,11 @@ module View = {
                   Virtual_dom.Vdom.Effect.Stop_propagation
                 ),
               ],
-              [buttons]
+              (
+                !globals.settings.core.evaluation.enable_proof
+                && globals.settings.core.evaluation.write_out_steps
+                  ? [] : [buttons]
+              )
               @ {
                 switch (model.open_box) {
                 | NoneOpen => []
