@@ -1196,11 +1196,17 @@ and shrink_typ: QCheck.Shrink.t(typ) =
           }
         | TypVar(x) => Shrink.string(x) >|= ((x: string) => TypVar(x))
         | PolyType(tpat, t) =>
-          let* shrunk = shrink_typ(t);
-          return(PolyType(tpat, shrunk));
+          return(t)
+          <+> {
+            let* shrunk = shrink_typ(t);
+            return(PolyType(tpat, shrunk));
+          }
         | RecType(tpat, t) =>
-          let* shrunk = shrink_typ(t);
-          return(RecType(tpat, shrunk));
+          return(t)
+          <+> {
+            let* shrunk = shrink_typ(t);
+            return(RecType(tpat, shrunk));
+          }
         | ExplicitNonlabel => return(ExplicitNonlabel: typ)
         | ProofOfType(e) =>
           let* shrunk = shrink_exp(e);
@@ -1237,13 +1243,13 @@ and shrink_typ: QCheck.Shrink.t(typ) =
             let* shrunk2 = shrink_typ(t2);
             return(ProdExtension(t1, shrunk2));
           }
-        | IndicationTyp(_)
         | IntType
         | SIntType
         | StringType
         | FloatType
         | BoolType
-        | NatType
+        | NatType => return(TupleType([]))
+        | IndicationTyp(_)
         | UnknownType(_)
         | InvalidTyp(_)
         | Sig(_) => Iter.empty
