@@ -680,6 +680,12 @@ and gen_pat_sized: (~minimal_idents: bool, int) => QCheck.Gen.t(pat) =
 let shrink_non_empty_string: QCheck.Shrink.t(string) =
   x => QCheck.Shrink.(filter(x => String.length(x) != 0, string, x));
 
+let pat_typ_opt = (p: pat): option(typ) =>
+  switch (p) {
+  | AscPat(_, t) => Some(t)
+  | _ => None
+  };
+
 let rec shrink_exp: QCheck.Shrink.t(exp) =
   QCheck.(
     (exp: exp) =>
@@ -752,6 +758,12 @@ let rec shrink_exp: QCheck.Shrink.t(exp) =
           }
         | Let(p, e1, e2) =>
           of_list([e1, e2])
+          <+> (
+            switch (pat_typ_opt(p)) {
+            | Some(t) => of_list([Asc(e1, t), Asc(e2, t)])
+            | None => Iter.empty
+            }
+          )
           <+> {
             let* shrunk = shrink_exp(e1);
             return(Let(p, shrunk, e2));
@@ -766,6 +778,12 @@ let rec shrink_exp: QCheck.Shrink.t(exp) =
           }
         | Theorem(p, e1, e2) =>
           of_list([e1, e2])
+          <+> (
+            switch (pat_typ_opt(p)) {
+            | Some(t) => of_list([Asc(e1, t), Asc(e2, t)])
+            | None => Iter.empty
+            }
+          )
           <+> {
             let* shrunk = shrink_exp(e1);
             return(Theorem(p, shrunk, e2));
@@ -783,6 +801,12 @@ let rec shrink_exp: QCheck.Shrink.t(exp) =
           return(ProofObject(shrunk));
         | ForallExp(pat, e) =>
           return(e)
+          <+> (
+            switch (pat_typ_opt(pat)) {
+            | Some(t) => return(Asc(e, t))
+            | None => Iter.empty
+            }
+          )
           <+> {
             let* shrunk = shrink_exp(e);
             return(ForallExp(pat, shrunk));
@@ -793,6 +817,12 @@ let rec shrink_exp: QCheck.Shrink.t(exp) =
           }
         | Fun(p, e, name) =>
           return(e)
+          <+> (
+            switch (pat_typ_opt(p)) {
+            | Some(t) => return(Asc(e, t))
+            | None => Iter.empty
+            }
+          )
           <+> {
             let* shrunk = shrink_exp(e);
             return(Fun(p, shrunk, name): exp);
@@ -886,6 +916,12 @@ let rec shrink_exp: QCheck.Shrink.t(exp) =
           }
         | FixF(p, e) =>
           return(e)
+          <+> (
+            switch (pat_typ_opt(p)) {
+            | Some(t) => return(Asc(e, t))
+            | None => Iter.empty
+            }
+          )
           <+> {
             let* shrunk = shrink_exp(e);
             return(FixF(p, shrunk));
