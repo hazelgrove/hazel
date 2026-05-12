@@ -31,7 +31,7 @@ let view =
       ),
       setting(
         "π",
-        "proof steps (experimental)",
+        "proof steps",
         settings.enable_proof,
         Evaluation(EnableProof),
       ),

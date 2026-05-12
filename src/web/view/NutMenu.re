@@ -149,10 +149,10 @@ let stepper_group = (~globals: Globals.t) => {
         tooltip: Some("Show case expression steps in the stepper"),
       },
       {
-        name: "Proof Steps (experimental)",
+        name: "Proof Steps",
         active: s.enable_proof,
         setting: Evaluation(EnableProof),
-        tooltip: Some("Enable proof-based stepping mode (experimental)"),
+        tooltip: Some("Enable proof-based stepping mode"),
       },
       {
         name: "Write out steps",
