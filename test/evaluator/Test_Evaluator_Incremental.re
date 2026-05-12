@@ -47,7 +47,7 @@ let eval_incr =
     : (Exp.t, EvaluatorState.t, IncrEval.t) => {
   let (info_map, elab) = statics_and_elab(exp);
   let info_map =
-    IncrEval.EvalInfoMap.of_info_map(
+    EvalInfoMap.of_info_map(
       ~probe_all=CoreSettings.on.probe_all,
       info_map,
     );
@@ -502,7 +502,7 @@ let test_probe_replay_on_reuse = () => {
   let exp = parse_exp(src);
   let (info_map, elab) = statics_and_elab(exp);
   let info_map =
-    IncrEval.EvalInfoMap.of_info_map(
+    EvalInfoMap.of_info_map(
       ~probe_all=CoreSettings.on.probe_all,
       info_map,
     );

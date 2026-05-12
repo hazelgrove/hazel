@@ -22,7 +22,7 @@ let evaluate_incremental =
     (~prev: IncrEval.t=IncrEval.empty, exp: Exp.t): (Exp.t, IncrEval.t) => {
   let (info_map, elab) = statics_and_elab(exp);
   let info_map =
-    IncrEval.EvalInfoMap.of_info_map(
+    EvalInfoMap.of_info_map(
       ~probe_all=CoreSettings.on.probe_all,
       info_map,
     );

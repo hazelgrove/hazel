@@ -9,7 +9,7 @@ let evaluate:
   (
     ~targets: Sample.targets=?,
     ~prev: IncrEval.t=?,
-    ~info_map: IncrEval.EvalInfoMap.t=?,
+    ~info_map: EvalInfoMap.t=?,
     ~env: Environment.t(Exp.t),
     Exp.t
   ) =>
@@ -20,7 +20,7 @@ let evaluate_and_limit:
     ~step_limit: int=?,
     ~targets: Sample.targets=?,
     ~prev: IncrEval.t=?,
-    ~info_map: IncrEval.EvalInfoMap.t=?,
+    ~info_map: EvalInfoMap.t=?,
     ~env: Environment.t(Exp.t),
     Exp.t
   ) =>

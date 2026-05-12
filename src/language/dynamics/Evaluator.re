@@ -129,7 +129,7 @@ let rec evaluate =
         (
           ~dirty_names: list(Var.t)=[],
           ~prev: IncrEval.t=IncrEval.empty,
-          ~info_map: IncrEval.EvalInfoMap.t,
+          ~info_map: EvalInfoMap.t,
           ~in_closure=?,
           ~call_stack: Sample.call_stack,
           state: EvaluatorEVMode.state,
@@ -313,7 +313,7 @@ let rec evaluate =
       if (call_stack != []) {
         None;
       } else {
-        IncrEval.EvalInfoMap.find_opt(expr_id, info_map);
+        EvalInfoMap.find_opt(expr_id, info_map);
       };
     switch (info_snapshot) {
     | None => eval_core()
@@ -339,7 +339,7 @@ let evaluate_and_limit =
       ~step_limit: option(int)=?,
       ~targets: Sample.targets=Sample.no_targets,
       ~prev: IncrEval.t=IncrEval.empty,
-      ~info_map: IncrEval.EvalInfoMap.t=IncrEval.EvalInfoMap.empty,
+      ~info_map: EvalInfoMap.t=EvalInfoMap.empty,
       ~env,
       d: DHExp.t,
     )
@@ -358,7 +358,7 @@ let evaluate =
     (
       ~targets: Sample.targets=Sample.no_targets,
       ~prev: IncrEval.t=IncrEval.empty,
-      ~info_map: IncrEval.EvalInfoMap.t=IncrEval.EvalInfoMap.empty,
+      ~info_map: EvalInfoMap.t=EvalInfoMap.empty,
       ~env,
       d: DHExp.t,
     )
