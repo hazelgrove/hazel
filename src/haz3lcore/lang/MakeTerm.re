@@ -1135,6 +1135,7 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
         | (["Float"], []) => Atom(Float)
         | (["String"], []) => Atom(String)
         | (["Nat"], []) => Atom(Nat)
+        | (["Void"], []) => Sum([])
         | (["DrvJdmt"], []) => DrvQuoteTy(Jdmt)
         | (["DrvCtx"], []) => DrvQuoteTy(Ctx)
         | (["DrvProp"], []) => DrvQuoteTy(Prop)

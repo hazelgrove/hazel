@@ -2772,7 +2772,7 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
     let+ t1 = go(t1)
     and+ t2 = go(t2);
     wrap(typ, t1 @ [mk_form(TypeArrow, id, [])] @ t2);
-  | Sum([]) => failwith("Empty Sums are not allowed")
+  | Sum([]) => wrap(typ, text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "Void"))
   | Sum([t]) =>
     let id = typ |> Typ.rep_id;
     let+ t = go_constructor(t);
