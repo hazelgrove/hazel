@@ -1071,7 +1071,9 @@ and Stepper: {
             ~overlays=
               switch (model.step_kind) {
               | MissingStep(m)
-                  when globals.settings.core.evaluation.enable_proof =>
+                  when
+                    globals.settings.core.evaluation.enable_proof
+                    || globals.settings.core.evaluation.write_out_steps =>
                 MissingStep.View.view_overlay(
                   ~globals,
                   ~info_map=
