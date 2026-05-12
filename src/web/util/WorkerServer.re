@@ -14,7 +14,7 @@ module Request = {
      * LivelitCtx entries that embed OCaml closures, which the structured-
      * clone algorithm postMessage uses rejects. Pass the empty slice to
      * opt out of incremental reuse. */
-    eval_info_map: Language.IncrEval.EvalInfoMap.t,
+    eval_info_map: Language.EvalInfoMap.t,
     /* Previous run's incremental map; pass IncrEval.empty on first run. */
     prev: Language.IncrEval.t,
   };

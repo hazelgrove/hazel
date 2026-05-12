@@ -201,7 +201,7 @@ module Update = {
      * needs. The raw info_map can't cross postMessage because LivelitCtx
      * entries contain OCaml closures. */
     let eval_info_map =
-      IncrEval.EvalInfoMap.of_info_map(
+      EvalInfoMap.of_info_map(
         ~probe_all=Calc.get_value(settings).probe_all,
         statics.info_map,
       );
