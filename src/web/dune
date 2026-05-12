@@ -5,6 +5,15 @@
  (deps
   (source_tree www)))
 
+(rule
+ (targets BuildInfo.ml)
+ (deps (universe))
+ (action
+  (with-stdout-to
+   %{targets}
+   (bash
+    "SHA_FULL=$(git rev-parse HEAD 2>/dev/null || echo unknown); SHA_SHORT=$(git rev-parse --short HEAD 2>/dev/null || echo unknown); BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo unknown); if [ -n \"$(git status --porcelain 2>/dev/null)\" ]; then DIRTY=true; else DIRTY=false; fi; echo \"let commit_sha = \\\"$SHA_FULL\\\"\"; echo \"let commit_short = \\\"$SHA_SHORT\\\"\"; echo \"let branch = \\\"$BRANCH\\\"\"; echo \"let dirty = $DIRTY\""))))
+
 (library
  (name workerServer)
  (modules WorkerServer)

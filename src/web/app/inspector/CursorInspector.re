@@ -1075,18 +1075,45 @@ let inspector_view = (~globals: Globals.t, ci): Node.t =>
     view_of_info(~globals, ci),
   );
 
+let build_info_view = () => {
+  let label =
+    BuildInfo.branch
+    ++ "@"
+    ++ BuildInfo.commit_short
+    ++ (BuildInfo.dirty ? "-dirty" : "");
+  let inner = text(label);
+  let body =
+    BuildInfo.dirty
+      ? span(~attrs=[clss(["build-info-dirty"])], [inner])
+      : a(
+          ~attrs=[
+            Attr.create(
+              "href",
+              "https://github.com/hazelgrove/hazel/commit/"
+              ++ BuildInfo.commit_sha,
+            ),
+            Attr.create("target", "_blank"),
+            Attr.create("rel", "noopener noreferrer"),
+          ],
+          [inner],
+        );
+  div(~attrs=[Attr.id("build-info"), clss(["build-info"])], [body]);
+};
+
 let view = (~globals: Globals.t, cursor: Cursor.cursor(Editors.Update.t)) => {
-  let bar_view = div(~attrs=[Attr.id("bottom-bar")]);
-  let err_view = err =>
-    bar_view([
+  let bar_view = children => div(~attrs=[Attr.id("bottom-bar")], children);
+  let left =
+    switch (cursor.info) {
+    | _ when !globals.settings.core.statics => div_empty
+    | None =>
       div(
         ~attrs=[Attr.id("cursor-inspector"), clss(["no-info"])],
-        [div(~attrs=[clss(["icon"])], [Icons.magnify]), text(err)],
-      ),
-    ]);
-  switch (cursor.info) {
-  | _ when !globals.settings.core.statics => div_empty
-  | None => err_view("Whitespace or Comment")
-  | Some(ci) => bar_view([inspector_view(~globals, ci)])
-  };
+        [
+          div(~attrs=[clss(["icon"])], [Icons.magnify]),
+          text("Whitespace or Comment"),
+        ],
+      )
+    | Some(ci) => inspector_view(~globals, ci)
+    };
+  bar_view([left, build_info_view()]);
 };
