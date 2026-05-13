@@ -40,15 +40,16 @@ module Model = {
       (
         ~settings: Language.CoreSettings.t,
         ~inline=false,
+        ~root: Sort.t,
         term: Language.Exp.t,
       ) => {
-    ExpToSegment.exp_to_segment(
-      term,
-      ~settings=ExpToSegment.Settings.of_core(~inline, settings),
-    )
-    |> Zipper.unzip
-    |> Editor.Model.mk
-    |> mk;
+    let seg =
+      ExpToSegment.exp_to_segment(
+        term,
+        ~settings=ExpToSegment.Settings.of_core(~inline, settings),
+      );
+    let seg = inline ? seg : PrettySegment.prettify(seg);
+    seg |> Zipper.unzip |> Editor.Model.mk(~root) |> mk;
   };
 
   let get_statics = (model: t) => model.statics;
@@ -76,16 +77,15 @@ module Model = {
     undo_action: None,
     redo_action: None,
     error_ids: model.statics.error_ids,
+    contextual_actions: [],
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type persistent = PersistentZipper.t;
-  let persist = (model: t) =>
-    model.editor.state.zipper |> PersistentZipper.persist;
-  let to_string = (model: t) =>
-    model.editor.state.zipper |> PersistentZipper.to_string;
-  let unpersist = p =>
-    p |> PersistentZipper.unpersist |> Editor.Model.mk |> mk;
+  type persistent = Editor.Model.persistent;
+  let persist = (model: t) => model.editor |> Editor.Model.persist;
+  let to_string = (model: t) => model.editor |> Editor.Model.to_string;
+  let unpersist = p => p |> Editor.Model.unpersist |> mk;
+  let sort = (model: t): Sort.t => model.editor.root;
 };
 
 type statics_mode =
@@ -145,7 +145,7 @@ module Update = {
         ~dynamics: Language.Dynamics.Map.t,
         ~is_dynamic_term,
         ~ana=?,
-        {editor, statics, context_menu, dynamics: _, _}: Model.t,
+        {editor, statics, context_menu, _}: Model.t,
       )
       : Model.t => {
     /* Capture ephemerals before editor calculation to detect auto probe changes */
@@ -161,17 +161,20 @@ module Update = {
         editor,
       );
 
-    /* In autoprobe_mode, probes can change without an edit (cursor movement).
-     * When ephemerals change, we must recalculate statics to update targets
-     * so the evaluator collects samples for the new probes. */
+    /* Ephemerals can change without an explicit edit in several cases:
+     * (1) cursor movement in autoprobe mode (cursor crosses into a new
+     *     top-level definition), and
+     * (2) on reload, when add_ids_from_multi_term rebuilds ephemerals
+     *     from persisted multis.ids once the info_map becomes available.
+     * In both cases we must recalculate statics so probe targets match
+     * the new ephemerals and the evaluator collects samples for them. */
     let probes_changed =
-      autoprobe_mode
-      && !
-           Id.Map.equal(
-             Refractors.equal_entry,
-             old_ephemerals,
-             editor.state.zipper.refractors.multis.ephemerals,
-           );
+      !
+        Id.Map.equal(
+          Refractors.equal_entry,
+          old_ephemerals,
+          editor.state.zipper.refractors.multis.ephemerals,
+        );
 
     let statics =
       statics_mode == StaticsForce
@@ -183,6 +186,7 @@ module Update = {
             ~ctx?,
             ~ana?,
             ~is_dynamic_term,
+            ~root=editor.root,
             editor.state.zipper,
           )
         : statics;
@@ -209,18 +213,23 @@ module View = {
         },
       _,
     }: Model.t = model;
+    let info_map = model.statics.info_map;
+    let refine_sort = (id, mold_out) =>
+      Language.Info.refine_sort_from_mold(~info_map, ~id, mold_out);
     let code_text_view =
       CodeViewable.view(
         ~globals,
         ~measured,
         ~term_data,
         ~buffer_ids=Selection.is_buffer(z.selection) ? selection_ids : [],
-        ~segment,
         ~shape_map,
-        ~refractor_shape_map=Id.Map.empty //Id.Map.map(_ => 2, z.refractors.map),
+        ~refractor_shape_map=Id.Map.empty, //Id.Map.map(_ => 2, z.refractors.map),
+        ~refine_sort,
+        segment,
       );
     let error_decos =
       Arms.Errors.of_ids(
+        ~refine_sort,
         ~font_metrics=globals.font_metrics,
         ~syntax=model.editor.syntax,
         model.statics.error_ids,
@@ -229,6 +238,7 @@ module View = {
       globals.settings.core.display_warnings ? model.statics.warning_ids : [];
     let warning_decos =
       Arms.Errors.of_ids(
+        ~refine_sort,
         ~is_warning=true,
         ~font_metrics=globals.font_metrics,
         ~syntax=model.editor.syntax,

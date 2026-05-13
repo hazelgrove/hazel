@@ -48,11 +48,11 @@ let rec target_subterm_ids = (id: Id.t, info_map: Statics.Map.t) =>
   switch (Statics.Map.lookup(id, info_map)) {
   /* If we're trying to probe a function literal,
      put probes on parameters and body instead */
-  | Some(InfoExp({term: {term: Fun(pat, body, _, _), _}, _})) => [
+  | Some(InfoExp({user_term: {term: Fun(pat, body, _, _), _}, _})) => [
       IdTagged.rep_id(body),
       IdTagged.rep_id(pat),
     ]
-  | Some(InfoExp({term: {term: Let(_pat, def, _), _} as let_term, _})) =>
+  | Some(InfoExp({user_term: {term: Let(_pat, def, _), _} as let_term, _})) =>
     /* If trying to probe a let, probe the definition instead.
        Exception: if the let is the body of a test, probe the let itself
        (so we see the test result, not just the definition value).
@@ -67,12 +67,12 @@ let rec target_subterm_ids = (id: Id.t, info_map: Statics.Map.t) =>
     is_test_body
       ? [IdTagged.rep_id(let_term)]
       : target_subterm_ids(IdTagged.rep_id(def), info_map);
-  | Some(InfoExp({term: {term: ModuleExp(_, def, _), _}, _})) =>
+  | Some(InfoExp({user_term: {term: ModuleExp(_, def, _), _}, _})) =>
     /* If trying to probe a module expression, probe the definition.
        Recurse so fun literals get drilled into. */
     target_subterm_ids(IdTagged.rep_id(def), info_map)
 
-  | Some(InfoExp({term: {term: Var(_), _} as v, _})) =>
+  | Some(InfoExp({user_term: {term: Var(_), _} as v, _})) =>
     /* If we're trying to probe variable in function position for an
        application, probe the whole application instead */
     switch (Statics.Map.parent_term_of(info_map, IdTagged.rep_id(v))) {
@@ -92,7 +92,7 @@ let rec target_subterm_ids = (id: Id.t, info_map: Statics.Map.t) =>
       }
     | _ => [id]
     }
-  | Some(InfoExp({term: {term: DeferredAp(_), _} as v, _})) =>
+  | Some(InfoExp({user_term: {term: DeferredAp(_), _} as v, _})) =>
     /* If we're trying to probe a partially applied function in function
        position of an application, in particular but not limited to a reverse
        application chain, probe the whole application instead */
@@ -107,8 +107,8 @@ let rec target_subterm_ids = (id: Id.t, info_map: Statics.Map.t) =>
   /* Default: use rep_id for expressions and patterns to handle multi-tile forms
      (tuples, list literals, case expressions) where non-representative tile IDs
      would otherwise cause probe_map/evaluator ID mismatch */
-  | Some(InfoExp({term, _})) => [IdTagged.rep_id(term)]
-  | Some(InfoPat({term, _})) => [Pat.rep_id(term)]
+  | Some(InfoExp({user_term, _})) => [IdTagged.rep_id(user_term)]
+  | Some(InfoPat({user_term, _})) => [Pat.rep_id(user_term)]
   | _ => [id]
   };
 
@@ -217,6 +217,45 @@ let set_pending_probe = (ids: list(Id.t), z: Zipper.t): Zipper.t => {
     }
   );
 };
+
+/* ─────────────────────────────────────────────────────────────────────
+ * Dynamic focus: auto vs manual mode
+ *
+ * The "dynamic focus" is the selected sample whose call stack determines
+ * which samples light up across all probes. It changes via two kinds
+ * of paths:
+ *
+ *   USER-DRIVEN (always honored):
+ *     - click a sample                (ProbeProj)
+ *     - toggle pin                    (ProbeProj)
+ *     - step into                     (ProbeProj)
+ *     - breadcrumb bar (← →, click)   (SampleFocusBar)
+ *     - reset                         (SampleFocusBar)
+ *
+ *   AUTOMATIC (only honored in auto mode — gated on `auto_focus`):
+ *     - capture on new ephemeral probe    (add_ids_from_multi_term)
+ *     - spatial alignment after edit      (align_to_indicated_probe)
+ *     - stale-cursor fallback             (resolve_pending_probe_cursor;
+ *         after an edit invalidates the focus's call_stack frame IDs,
+ *         try to find a replacement sample at the "most aligned" position.
+ *         Internal recovery mechanism, invisible to the user when working.)
+ *
+ * Pinning a sample switches the focus into MANUAL mode: the user has
+ * said "I care about this execution context, don't move me." In manual
+ * mode, automatic realignment is suppressed; the focus only changes in
+ * response to explicit user actions.
+ *
+ * Note on auto-probe cursor following: when `update_autoprobe` moves
+ * auto-probe targets to track the cursor across top-level definitions,
+ * its set_pending_cursor flag is also gated on auto_focus. So pinning a
+ * sample in `f` and navigating to `g` will NOT jump focus to g's newly
+ * added probes — consistent with the "stay here" semantics of manual mode.
+ *
+ * If you add a new path that can change the dynamic focus automatically,
+ * gate it on `auto_focus(z)` and add it to the list above.
+ * ───────────────────────────────────────────────────────────────────── */
+let auto_focus = (z: Zipper.t): bool =>
+  z.refractors.sample_focus.pinned_stack == None;
 
 /* Check if id has either manual or ephemeral probe on it */
 let has_probe = (id: Id.t, z: Zipper.t): bool =>
@@ -482,10 +521,12 @@ let add_ids_from_multi_term =
     );
   let z = Zipper.update_ephemerals(_ => new_ephemeral_map, z);
   /* If there are genuinely new ephemeral IDs, set pending_probe_cursor
-     so the sample focus aligns when evaluation results arrive. */
+     so the sample focus aligns when evaluation results arrive.
+     Gated on auto_focus: in manual focus mode, don't auto-capture. */
   let new_ids = List.filter(id => !Id.Map.mem(id, old_ephemerals), ids);
   switch (new_ids) {
   | [] => z
+  | _ when !auto_focus(z) => z
   | _ =>
     let sorted = sort_ids_lexically(~syntax, new_ids);
     set_pending_probe(sorted, z);
@@ -564,8 +605,9 @@ let toggle_multi =
    expansion, while specific expressions are better served by manual probes. */
 let is_definition_form = (id: Id.t, info_map: Statics.Map.t): bool =>
   switch (Statics.Map.lookup(id, info_map)) {
-  | Some(InfoExp({term: {term: Let(_, _, _), _}, _})) => true
-  | Some(InfoExp({term: {term: Test(_) | HintedTest(_, _), _}, _})) => true
+  | Some(InfoExp({user_term: {term: Let(_, _, _), _}, _})) => true
+  | Some(InfoExp({user_term: {term: Test(_) | HintedTest(_, _), _}, _})) =>
+    true
   | _ => false
   };
 
@@ -607,7 +649,7 @@ let is_jump_target = (info_map: Statics.Map.t, z: Zipper.t): option(Id.t) => {
   let* ci =
     switch (ci) {
     | InfoExp({
-        term: {term: Ap(_, {term: Var(_), _} as fun_expr, _), _},
+        user_term: {term: Ap(_, {term: Var(_), _} as fun_expr, _), _},
         _,
       }) =>
       Statics.Map.lookup(IdTagged.rep_id(fun_expr), info_map)
@@ -692,7 +734,7 @@ let step_into_call_stack =
   let* binding_id =
     switch (ci_ap) {
     | InfoExp({
-        term: {term: Ap(_, {term: Var(_), _} as fun_expr, _), _},
+        user_term: {term: Ap(_, {term: Var(_), _} as fun_expr, _), _},
         _,
       }) =>
       let* ci_var = Statics.Map.lookup(IdTagged.rep_id(fun_expr), info_map);
@@ -743,7 +785,7 @@ let step_into_call_stack =
    * target_subterm_ids transforms Fun to [inner_body, pattern]. */
   let (jump_target, _sample_probe_id) =
     switch (ci_body) {
-    | InfoExp({term: {term: Fun(pat, inner_body, _, _), _}, _}) =>
+    | InfoExp({user_term: {term: Fun(pat, inner_body, _, _), _}, _}) =>
       let pat_id = IdTagged.rep_id(pat);
       let inner_body_id = IdTagged.rep_id(inner_body);
       (pat_id, inner_body_id);
@@ -978,12 +1020,6 @@ let caret_nearest_ephemeral =
   };
 };
 
-/* When the sample focus has a pinned call stack, suppress autonomous
- * realignment so the pin holds. Used by both align_to_indicated_probe
- * and the stale-cursor fallback in resolve_pending_probe_cursor. */
-let has_pin = (z: Zipper.t): bool =>
-  z.refractors.sample_focus.pinned_stack != None;
-
 /* Ensure the sample focus is aligned with current dynamics.
  *
  * Handles two cases uniformly:
@@ -1014,7 +1050,7 @@ let resolve_pending_probe_cursor =
     switch (z.refractors.pending_probe_cursor) {
     | Some(ids) => (Some(ids), true)
     | None =>
-      if (cursor_is_aligned(~dynamics, z) || has_pin(z)) {
+      if (cursor_is_aligned(~dynamics, z) || !auto_focus(z)) {
         (None, false);
       } else {
         /* Cursor is stale — treat all probes as candidates */
@@ -1109,7 +1145,9 @@ let resolve_pending_probe_cursor =
  * We try a direct match first, then fall back to spatial proximity. */
 let align_to_indicated_probe =
     (~is_edited: bool, ~syntax: CachedSyntax.t, z: Zipper.t): Zipper.t =>
-  if (!is_edited || z.refractors.pending_probe_cursor != None || has_pin(z)) {
+  if (!is_edited
+      || z.refractors.pending_probe_cursor != None
+      || !auto_focus(z)) {
     z;
   } else {
     /* Strategy 1: Direct match — indicated piece is an ephemeral probe */
@@ -1215,14 +1253,14 @@ let toplevel_def_body_id = (~statics: Statics.Map.t, ~id: Id.t): option(Id.t) =>
         switch (Statics.Map.lookup(anc_id, statics)) {
         | Some(
             InfoExp({
-              term: {term: Test(body) | HintedTest(body, _), _},
+              user_term: {term: Test(body) | HintedTest(body, _), _},
               _,
             }),
           ) =>
           /* Test: return its body */
           Some(IdTagged.rep_id(body))
 
-        | Some(InfoExp({term: {term: Let(_, def, body), _}, _})) =>
+        | Some(InfoExp({user_term: {term: Let(_, def, body), _}, _})) =>
           let body_id = IdTagged.rep_id(body);
           if (Id.equal(child_id, body_id)) {
             /* Child is body → cursor is in body → skip, continue inward */
@@ -1246,7 +1284,9 @@ let toplevel_def_body_id = (~statics: Statics.Map.t, ~id: Id.t): option(Id.t) =>
   };
 
   switch (Statics.Map.lookup(id, statics)) {
-  | Some(InfoExp({term: {term: Test(body) | HintedTest(body, _), _}, _})) =>
+  | Some(
+      InfoExp({user_term: {term: Test(body) | HintedTest(body, _), _}, _}),
+    ) =>
     /* Starting point IS a test → return its body */
     Some(IdTagged.rep_id(body))
 
@@ -1258,7 +1298,7 @@ let toplevel_def_body_id = (~statics: Statics.Map.t, ~id: Id.t): option(Id.t) =>
       /* No outer let found where we're in def.
          Check if starting_id itself is a top-level let → return its def */
       switch (info) {
-      | InfoExp({term: {term: Let(_, def, _), _}, _}) =>
+      | InfoExp({user_term: {term: Let(_, def, _), _}, _}) =>
         Some(IdTagged.rep_id(def))
       | _ => None
       }
@@ -1344,14 +1384,16 @@ let update_autoprobe =
 
     /* Add new multi probe if inside a definition.
        Use ~drill=false to stay on top-level def, not drill into nested lets.
-       Use autoprobe_updates_cursor to control whether cursor follows. */
+       Use autoprobe_updates_cursor to control whether cursor follows.
+       Gated on auto_focus: in manual focus mode, don't jump focus when
+       the cursor crosses into a new top-level definition. */
     let z =
       switch (current_def) {
       | Some(new_id) =>
         add_multi(
           new_id,
           ~drill=false,
-          ~set_pending_cursor=autoprobe_updates_cursor,
+          ~set_pending_cursor=autoprobe_updates_cursor && auto_focus(z),
           ~syntax,
           ~info_map,
           z,

@@ -14,22 +14,33 @@ let view =
   switch (agent_globals.active_screen) {
   | AgentGlobals.Model.MainMenu => AgentMainMenuView.view(~globals, ~signal)
   | AgentGlobals.Model.AgentChatInterface =>
+    let placeholder =
+      div(
+        ~attrs=[clss(["chat-interface-placeholder"])],
+        [text("Agent is available in Scratch and Documentation modes.")],
+      );
     switch (editors) {
     | Scratch(m)
     | Documentation(m) =>
       let scratchpad = List.nth(m.scratchpads, m.current);
-      let agent_model = scratchpad.agent;
-      let agent_inject = (action: Agent.Agent.Update.Action.t) =>
-        editors_inject(
-          Editors.Update.Scratch(ScratchMode.Update.AgentAction(action)),
+      switch (scratchpad.kind) {
+      | ScratchMode.Scratchpad.Code({editor, agent}) =>
+        let agent_inject = (action: Agent.Agent.Update.Action.t) =>
+          editors_inject(
+            Editors.Update.Scratch(ScratchMode.Update.AgentAction(action)),
+          );
+        ChatView.view(
+          ~globals,
+          ~agent_model=agent,
+          ~agent_inject,
+          ~signal,
+          ~code_with_statics=editor.editor,
+          ~eval_result=editor.result,
         );
-      ChatView.view(~globals, ~agent_model, ~agent_inject, ~signal);
+      | ScratchMode.Scratchpad.Drv(_) => placeholder
+      };
     | Tutorial(_)
-    | Exercises(_) =>
-      div(
-        ~attrs=[clss(["chat-interface-placeholder"])],
-        [text("Agent is available in Scratch and Documentation modes.")],
-      )
-    }
+    | Exercises(_) => placeholder
+    };
   };
 };

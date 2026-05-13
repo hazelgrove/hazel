@@ -1,6 +1,6 @@
 open Util;
 
-let capped_undo_stack_size = 100;
+let capped_undo_stack_size = 250;
 
 module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -142,16 +142,6 @@ module Update = {
     undo_stack: model.undo_stack,
     redo_stack: model.redo_stack,
   };
-};
-
-module Selection = {
-  type t = Page.selection;
-
-  let handle_key_event = (model: Model.t) =>
-    Page.Selection.handle_key_event(model.current);
-
-  let get_cursor_info = (model: Model.t) =>
-    Page.Selection.get_cursor_info(model.current);
 };
 
 module View = {

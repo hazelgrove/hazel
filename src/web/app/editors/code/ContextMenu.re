@@ -302,7 +302,7 @@ let introduce_data = (ci: option(Language.Info.t)): list(menu_item_data) =>
   | Some(
       Language.Info.InfoExp({
         cls: Exp(EmptyHole),
-        status: NotInHole(Common(Ana(Consistent({ana, _})))),
+        message: Language.Message.Exp(Common(Ana(Consistent({ana, _})))),
         ctx,
         _,
       }),
@@ -320,7 +320,7 @@ let introduce_data = (ci: option(Language.Info.t)): list(menu_item_data) =>
   | Some(
       Language.Info.InfoPat({
         cls: Pat(EmptyHole),
-        status: NotInHole(Ana(Consistent({ana, _}))),
+        message: Language.Message.Pat(Common(Ana(Consistent({ana, _})))),
         ctx,
         _,
       }),
@@ -391,12 +391,20 @@ module Projectors = {
     };
   };
 
-  /* Get keyboard shortcut for a projector kind */
-  let shortcut_of = (kind: ProjectorCore.Kind.t): string =>
+  /* Keyboard shortcut for a projector kind in the menu.
+   * Alt+L (ChooseLivelit) only picks the first applicable livelit, so only
+   * that first one should display the shortcut — the rest get None. */
+  let shortcut_of =
+      (
+        ~chosen_livelit: option(ProjectorCore.Kind.t),
+        kind: ProjectorCore.Kind.t,
+      )
+      : option(string) =>
     switch (kind) {
-    | Fold => Shortcuts.fold()
-    | Statics => Shortcuts.type_annotation()
-    | _ => Shortcuts.livelit()
+    | Fold => Some(Shortcuts.fold())
+    | Statics => Some(Shortcuts.type_annotation())
+    | _ when chosen_livelit == Some(kind) => Some(Shortcuts.livelit())
+    | _ => None
     };
 
   /* Get display name for a projector kind */
@@ -418,13 +426,13 @@ module Projectors = {
   let applicable_kinds =
       (z: Zipper.t, info_map: Language.Statics.Map.t)
       : list(ProjectorCore.Kind.t) => {
-    let fold_applicable = is_applicable(z, info_map, Fold);
+    let fold_applicable = is_applicable(z, info_map, Fold) |> Option.to_list;
     let livelit_applicable =
-      List.find_map(
+      List.filter_map(
         is_applicable(z, info_map),
         ProjectorCore.Kind.livelit_projectors,
       );
-    List.filter_map(Fun.id, [fold_applicable, livelit_applicable]);
+    ListUtil.dedup(fold_applicable @ livelit_applicable);
   };
 
   /* Data-returning version for keyboard navigation */
@@ -432,10 +440,17 @@ module Projectors = {
       (z: Zipper.t, info_map: Language.Statics.Map.t): list(menu_item_data) => {
     let current_kind = indicated_kind(z);
     let applicable = applicable_kinds(z, info_map);
+    /* The kind that Alt+L (ChooseLivelit) would pick: first applicable kind
+     * that's in livelit_projectors. Only that one shows the Alt+L shortcut. */
+    let chosen_livelit =
+      List.find_opt(
+        kind => List.mem(kind, ProjectorCore.Kind.livelit_projectors),
+        applicable,
+      );
 
     let make_item_data = (kind: ProjectorCore.Kind.t): menu_item_data => {
       let name = display_name(kind);
-      let shortcut = shortcut_of(kind);
+      let shortcut = shortcut_of(~chosen_livelit, kind);
       let prefix =
         switch (current_kind) {
         | Some(k) when k == kind => "Remove"
@@ -444,7 +459,7 @@ module Projectors = {
         };
       {
         name: prefix ++ " " ++ name,
-        shortcut: Some(shortcut),
+        shortcut,
         action: Project(SetIndicated(Specific(kind))),
       };
     };

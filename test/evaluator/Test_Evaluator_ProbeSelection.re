@@ -19,8 +19,7 @@ open Test_Evaluator_Prelude;
 
 /* Get probes map (keyed by probe id) from evaluated code */
 let get_probes_map = (code: string): Id.Map.t(list(Sample.t)) => {
-  let (term, info_map, targets) = parse_with_probes(code);
-  let elaborated = elaborate_with_info(info_map, term);
+  let (_term, elaborated, _info_map, targets) = parse_with_probes(code);
   let (_, state) =
     Evaluator.evaluate(~targets, ~env=Builtins.env_init, elaborated);
   EvaluatorState.get_probes(state);
@@ -696,7 +695,7 @@ let cur_var_ap_tests = [
     () => {
       let code = {|let f : (Int -> Int) = fun x -> x + 1
 in ^^probe(f(2))|};
-      let (_term, info_map, targets) = parse_with_probes(code);
+      let (_term, _elaborated, info_map, targets) = parse_with_probes(code);
       /* There should be exactly one probe */
       let probe_ids = Id.Map.bindings(targets) |> List.map(fst);
       check(int, "should have 1 probe", 1, List.length(probe_ids));
@@ -720,7 +719,7 @@ in ^^probe(f(2))|};
     () => {
       let code = {|let f : (Int -> Int) = fun x -> ^^probe(x) + 1
 in f(2)|};
-      let (_term, info_map, targets) = parse_with_probes(code);
+      let (_term, _elaborated, info_map, targets) = parse_with_probes(code);
       let probe_ids = Id.Map.bindings(targets) |> List.map(fst);
       check(int, "should have 1 probe", 1, List.length(probe_ids));
       let probe_id = List.hd(probe_ids);
@@ -746,12 +745,12 @@ in f(2)|};
        * matches the call stack frame ID in the inner probe's samples. */
       let code = {|let f : (Int -> Int) = fun x -> ^^probe(x)
 in ^^probe(f(42))|};
-      let (term, info_map, targets) = parse_with_probes(code);
+      let (term, _elaborated, info_map, targets) = parse_with_probes(code);
       /* Get probe IDs */
       let probe_ids = Id.Map.bindings(targets) |> List.map(fst);
       check(int, "should have 2 probes", 2, List.length(probe_ids));
       /* Evaluate to get samples */
-      let elaborated = elaborate_with_info(info_map, term);
+      let elaborated = elaborate(term);
       let (_, state) =
         Evaluator.evaluate(~targets, ~env=Builtins.env_init, elaborated);
       let probes_map = EvaluatorState.get_probes(state);

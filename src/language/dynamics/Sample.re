@@ -435,7 +435,7 @@ module Focus = {
      applications and applications with non-variable functions (e.g. lambdas). */
   let cur_var_ap = (info: Info.t): option(Id.t) =>
     switch (info) {
-    | InfoExp({term: {term: Ap(_, {term: Var(_), _}, _), _} as ap, _}) =>
+    | InfoExp({user_term: {term: Ap(_, {term: Var(_), _}, _), _} as ap, _}) =>
       Some(Exp.rep_id(ap))
     | _ => None
     };
@@ -944,6 +944,9 @@ module CallTree = {
     && equal_stack_frame(List.nth(sightline_rev, depth), entry.frame);
   };
 };
+
+/* Backward-compatible alias used by older callsites. */
+module Cursor = Focus;
 
 /* Lightweight capture data for passing through actions.
    In a submodule to avoid type inference issues with Sample.t

@@ -23,7 +23,7 @@ let get_fn_info =
     (~info_map: Statics.Map.t, app_id: Id.t)
     : (option(string), option(Id.t)) =>
   switch (Statics.Map.lookup(app_id, info_map)) {
-  | Some(InfoExp({term: {term: Ap(_, fn_exp, _), _}, _})) =>
+  | Some(InfoExp({user_term: {term: Ap(_, fn_exp, _), _}, _})) =>
     let fn_id = Exp.rep_id(fn_exp);
     switch (fn_exp.term) {
     | Var(name) =>
@@ -191,7 +191,7 @@ let get_param_target =
     | None => None
     | Some(fn_id) =>
       switch (Statics.Map.lookup(fn_id, info_map)) {
-      | Some(InfoExp({term: {term: Fun(pat, _, _, _), _}, _})) =>
+      | Some(InfoExp({user_term: {term: Fun(pat, _, _, _), _}, _})) =>
         Some(Pat.rep_id(pat))
       | _ => None
       }

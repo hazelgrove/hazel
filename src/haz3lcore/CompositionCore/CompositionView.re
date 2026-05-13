@@ -22,7 +22,7 @@ module Local = {
   module Utils = {
     let get_individual_ids_of_let = (term: Info.t): (Id.t, Id.t, Id.t) => {
       switch (term) {
-      | InfoExp({term, _}) =>
+      | InfoExp({user_term: term, _}) =>
         switch (Exp.term_of(term)) {
         | Let(pat, def, body) => (
             Pat.rep_id(pat),
@@ -252,24 +252,13 @@ module Local = {
         z,
       );
 
-    let print =
-        (
-          ~probe_map: Language.Sample.Map.t=Language.Sample.Map.empty,
-          editor: Editor.t,
-          agent_context: AgentContext.Model.t,
-        )
-        : string => {
+    /* Zipper after applying the same collapse rules as [print] (before stringification). */
+    let zipper_for_agent_context =
+        (editor: Editor.t, agent_context: AgentContext.Model.t): Zipper.t => {
       let z = editor.state.zipper;
       let info_map = CompositionGo.Public.mk_statics(z);
-      let node_map = HighLevelNodeMap.build(z, info_map);
-      switch (node_map) {
-      | None =>
-        let has_probes = !List.is_empty(z.refractors.manuals);
-        if (has_probes) {
-          ProbeText.of_zipper(~projector_to_segment, ~probe_map, z);
-        } else {
-          print_zipper(z);
-        };
+      switch (HighLevelNodeMap.build(z, info_map)) {
+      | None => z
       | Some(node_map) =>
         let all_top_level_ids = Id.Map.bindings(node_map) |> List.map(fst);
         let expanded_ids =
@@ -280,15 +269,30 @@ module Local = {
         let ids_to_collapse =
           all_top_level_ids
           |> List.filter((id: Id.t) => !List.mem(id, expanded_ids));
-        let z' =
-          ViewUtils.collapse_definitions(~z, ~ids=ids_to_collapse, ~info_map);
-        let has_probes = !List.is_empty(z'.refractors.manuals);
-        if (has_probes) {
-          ProbeText.of_zipper(~projector_to_segment, ~probe_map, z');
-        } else {
-          print_zipper(z');
-        };
+        ViewUtils.collapse_definitions(~z, ~ids=ids_to_collapse, ~info_map);
       };
+    };
+
+    let print =
+        (
+          ~probe_map: Language.Sample.Map.t=Language.Sample.Map.empty,
+          editor: Editor.t,
+          agent_context: AgentContext.Model.t,
+        )
+        : string => {
+      let z' = zipper_for_agent_context(editor, agent_context);
+      let has_probes = !List.is_empty(z'.refractors.manuals);
+      if (has_probes) {
+        ProbeText.of_zipper(~projector_to_segment, ~probe_map, z');
+      } else {
+        print_zipper(z');
+      };
+    };
+
+    let segment_for_agent_context =
+        (editor: Editor.t, agent_context: AgentContext.Model.t): Segment.t => {
+      let z' = zipper_for_agent_context(editor, agent_context);
+      Select.all(z').selection.content;
     };
   };
 };
@@ -297,4 +301,5 @@ module Public = {
   let print_segment = Local.Printer.print_segment;
   let print = Local.Printer.print;
   let print_zipper = Local.Printer.print_zipper;
+  let segment_for_agent_context = Local.Printer.segment_for_agent_context;
 };

@@ -14,7 +14,6 @@ open AST
 %token REC
 %token UNDEF
 %token <string> PROJECTOR_INVOKE
-%token DOLLAR_SIGN
 %token TYP
 %token TYP_FUN
 %token FIX
@@ -61,7 +60,6 @@ open AST
 
 (* String ops *)
 %token STRING_CONCAT
-%token STRING_EQUAL
 
 (* Int ops *)
 %token PLUS
@@ -135,7 +133,7 @@ open AST
 %right L_AND
 
 
-%left GREATER_THAN LESS_THAN DOUBLE_EQUAL NOT_EQUAL LESS_THAN_EQUAL GREATER_THAN_EQUAL NOT_EQUAL_FLOAT LESS_THAN_FLOAT LESS_THAN_EQUAL_FLOAT GREATER_THAN_FLOAT GREATER_THAN_EQUAL_FLOAT DOUBLE_EQUAL_FLOAT STRING_EQUAL
+%left GREATER_THAN LESS_THAN DOUBLE_EQUAL NOT_EQUAL LESS_THAN_EQUAL GREATER_THAN_EQUAL NOT_EQUAL_FLOAT LESS_THAN_FLOAT LESS_THAN_EQUAL_FLOAT GREATER_THAN_FLOAT GREATER_THAN_EQUAL_FLOAT DOUBLE_EQUAL_FLOAT
 %right STRING_CONCAT AT_SYMBOL
 %right  CONS
 
@@ -152,8 +150,6 @@ open AST
 
 %left OPEN_PAREN CLOSE_PAREN
 %left DOT
-
-%left DOLLAR_SIGN
 
 %left TILDE
 %token SLASH_TILDE
@@ -206,7 +202,6 @@ program:
 
 %inline stringOp:
     | STRING_CONCAT { StringOp(Concat) }
-    | STRING_EQUAL { StringOp(Equals) }
 
 %inline binOp:
     | p = polyOp { p }
@@ -331,7 +326,6 @@ tpat:
     | v = CONSTRUCTOR_IDENT {VarTPat v}
 
 unExp:
-    | DOLLAR_SIGN; e = exp {UnOp(Meta(Unquote), e)}
     | MINUS; e = exp {UnOp(Int(Minus), e)} %prec UMINUS
     | L_NOT; e = exp {UnOp(Bool(Not), e)}
 

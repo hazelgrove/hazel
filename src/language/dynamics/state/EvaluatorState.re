@@ -147,27 +147,24 @@ let add_test = (state: t, instance_report: TestMap.instance_report) => {
 };
 let add_sample = (state: t, sample: Sample.t) => {
   /* Deduplicate: skip recording if an existing sample for this
-   * syntax_id makes the new one redundant. Two rules:
+   * syntax_id makes the new one redundant.
    *
-   * 1. Ascription dominance: a non-empty call_stack sample is
-   *    dominated by an existing empty call_stack sample. This
-   *    prevents duplicates from Asc distribution through typed
-   *    functions, where inner values get re-evaluated at deeper
-   *    call stacks.
+   * Ascription dominance: a non-empty call_stack sample is
+   * dominated by an existing empty call_stack sample. This
+   * prevents duplicates from Asc distribution through typed
+   * functions, where inner values get re-evaluated at deeper
+   * call stacks.
    *
-   * 2. Same-context duplicate: a sample with the same call_stack
-   *    as an existing sample is redundant. This prevents duplicates
-   *    from wrap_closure_when_done, where expressions that are
-   *    immediately "done" (values, indeterminate, constructors) get
-   *    wrapped in a Closure and re-evaluated with the same target ID. */
+   * Note: previously had a same-context (equal call_stack) dedup rule
+   * to handle wrap_closure_when_done re-evaluation duplicates. That rule
+   * was removed because the root cause was fixed: wrap_closure_when_done
+   * now uses is_value=true, so the Closure-wrapped expression is returned
+   * as Final immediately without triggering re-evaluation. */
   let dominated =
     switch (Id.Map.find_opt(sample.syntax_id, state.probes)) {
     | Some(existing) =>
       List.exists(
-        (s: Sample.t) =>
-          Sample.equal_call_stack(s.call_stack, sample.call_stack)
-          || sample.call_stack != []
-          && s.call_stack == [],
+        (s: Sample.t) => sample.call_stack != [] && s.call_stack == [],
         existing,
       )
     | None => false
