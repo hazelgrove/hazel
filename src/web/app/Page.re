@@ -1030,7 +1030,10 @@ module View = {
             _,
           } =>
           Some(Update.Globals(Undo))
-        /* Toggle auto-probe mode: Cmd+P (Mac) or Ctrl+P (PC) */
+        /* Cmd+P (Mac) / Ctrl+P (PC) toggles auto-probe mode.
+           Lost in the keyboard-handling refactor; re-added at the page
+           level since the toggle dispatches Globals(Set(AutoprobeMode)),
+           matching the deferral comment in ProbeProj.re. */
         | {
             key: D("P" | "p"),
             sys: Mac,
