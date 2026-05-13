@@ -63,7 +63,7 @@ let misc_fns: list(BuiltinsUtil.fn) = [
  * into BuiltinsUtil.fn. */
 let mk_compare = (Atom.Cmp(kind, cmp): Atom.compare_entry): BuiltinsUtil.fn => {
   let cls = Atom.cls_of_kind(kind);
-  let ty = Atom(cls) |> LangTyp.fresh;
+  let ty = LangTyp.fresh_atom(cls);
   BuiltinsUtil.{
     name: Atom.compare_builtin(cls) |> Option.get,
     arg: Prod([ty, ty]),
