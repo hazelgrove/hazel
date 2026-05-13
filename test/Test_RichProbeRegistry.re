@@ -94,10 +94,10 @@ let registry_tests = [
         |> RichProbeRegistry.sexp_of_packed_model
         |> RichProbeRegistry.packed_model_of_sexp;
       switch (menu_state_after(pm2, show_menu_action)) {
-      | Some((2, [])) => ()
+      | Some((2, [], 0)) => ()
       | _ =>
         fail(
-          "expected Some((2, [])) after applying ShowMenu(2) to sexp-decoded model",
+          "expected Some((2, [], 0)) after applying ShowMenu(2) to sexp-decoded model",
         )
       };
     },
@@ -126,10 +126,10 @@ let registry_tests = [
         |> RichProbeRegistry.yojson_of_packed_model
         |> RichProbeRegistry.packed_model_of_yojson;
       switch (menu_state_after(pm2, show_menu_action)) {
-      | Some((2, [])) => ()
+      | Some((2, [], 0)) => ()
       | _ =>
         fail(
-          "expected Some((2, [])) after applying ShowMenu(2) to yojson-decoded model",
+          "expected Some((2, [], 0)) after applying ShowMenu(2) to yojson-decoded model",
         )
       };
     },
@@ -158,8 +158,9 @@ let registry_tests = [
         |> RichProbeRegistry.sexp_of_packed_action
         |> RichProbeRegistry.packed_action_of_sexp;
       switch (menu_state_after(initial_pm, pa2)) {
-      | Some((2, [])) => ()
-      | _ => fail("expected Some((2, [])) after applying sexp-decoded action")
+      | Some((2, [], 0)) => ()
+      | _ =>
+        fail("expected Some((2, [], 0)) after applying sexp-decoded action")
       };
     },
   ),

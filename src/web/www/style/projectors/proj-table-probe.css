@@ -42,6 +42,26 @@
     box-shadow: 0 2px 8px rgba(0,0,0,0.1);
     z-index: calc(var(--projector-z) + 2);
     min-width: 120px;
+    /* The div is focusable (tabindex=0) so keys reach on_keydown; suppress
+     * the default browser focus ring since the menu already reads visually
+     * as the active element. */
+    outline: none;
+}
+
+.column-menu .menu-item.selected {
+    background-color: var(--df-hover-bg);
+}
+
+/* Fullscreen click-catcher: sits below the column-menu but above
+ * everything else, so a click anywhere outside the menu fires CloseMenu. */
+.column-menu-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: calc(var(--projector-z) + 1);
+    background: transparent;
 }
 
 .menu-item {

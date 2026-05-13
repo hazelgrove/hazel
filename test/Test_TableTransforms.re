@@ -622,8 +622,9 @@ let packed_renderer_tests = {
         );
         let m1 = renderer.update_model(m0, pack_action(ShowMenu(1)));
         switch (extract_model(m1).menu_state) {
-        | Some((1, [])) => ()
-        | _ => fail("Expected menu_state = Some((1, [])) after ShowMenu(1)")
+        | Some((1, [], 0)) => ()
+        | _ =>
+          fail("Expected menu_state = Some((1, [], 0)) after ShowMenu(1)")
         };
         let m2 = renderer.update_model(m1, pack_action(CloseMenu));
         check(

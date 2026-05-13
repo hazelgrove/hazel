@@ -10,15 +10,18 @@ open TableTransforms;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type v = (list(option(string)), list(list(Exp.t))); /* (headers, rows) */
 
+/* (column index, submenu path, selected action-item index) */
 [@deriving (show({with_path: false}), sexp, yojson)]
-type menu_state = option((int, list(string)));
+type menu_state = option((int, list(string), int));
 [@deriving (show({with_path: false}), sexp, yojson)]
 type m = {menu_state};
 [@deriving (show({with_path: false}), sexp, yojson)]
 type a =
   | CloseMenu
   | ShowMenu(int)
-  | ShowSubmenu(list(string));
+  | ShowSubmenu(list(string))
+  | MenuUp
+  | MenuDown;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type model = m;
@@ -60,12 +63,20 @@ let parse = (_sort: Sort.t, exp: Exp.t) => parse_table(exp);
 /* Initialize table model from parsed value */
 let init = (_: v) => {menu_state: None};
 
-/* Menu system */
-let menu_item = (~tooltip="", text, action) =>
+/* Menu system. Uses on_pointerdown rather than on_click so the menu activates
+ * before any focus shift the click might cause, and stops propagation so the
+ * click-outside backdrop doesn't fire from inner clicks. */
+let menu_item = (~tooltip="", ~selected=false, text, action) =>
   Node.div(
     ~attrs=[
-      Attr.classes(["menu-item"]),
-      Attr.on_click(action),
+      Attr.classes(["menu-item"] @ (selected ? ["selected"] : [])),
+      Attr.on_pointerdown(evt =>
+        Effect.Many([
+          Effect.Stop_propagation,
+          Effect.Prevent_default,
+          action(evt),
+        ])
+      ),
       Attr.title(tooltip),
     ],
     [Node.text(text)],
@@ -381,16 +392,35 @@ let build_column_menu =
   };
 };
 
-let render_menu = menu_data => {
+/* Action items in display order, used both to render the menu and to
+ * look up the action to run on Enter at a given selected index. */
+let action_items =
+    (menu_data: menu_data)
+    : list((string, string, unit => Ui_effect.t(unit))) =>
+  List.filter_map(
+    fun
+    | Action({text, tooltip, action}) => Some((text, tooltip, action))
+    | Separator => None,
+    menu_data,
+  );
+
+let render_menu = (~selected_idx: int, menu_data: menu_data) => {
+  let actions = action_items(menu_data);
+  /* selected_idx counts only Action items; render walks the original list
+   * so separators stay in place. */
+  let action_idx = ref(0);
   List.map(
     item =>
       switch (item) {
       | Action({text, tooltip, action}) =>
-        menu_item(~tooltip, text, _ => action())
+        let me = action_idx^;
+        action_idx := me + 1;
+        menu_item(~tooltip, ~selected=me == selected_idx, text, _ => action());
       | Separator => menu_divider
       },
     menu_data,
-  );
+  )
+  |> (rendered => (rendered, actions));
 };
 
 /* Main table rendering function */
@@ -409,8 +439,31 @@ let render =
     : Node.t => {
   let is_readonly = sort != Sort.Exp;
   let (headers, rows) = value;
+  /* After dispatching ShowMenu, focus the column-menu element so keys
+   * (Escape/Up/Down/Enter) reach its on_keydown handler without an extra
+   * click. Defers to the next tick so the menu div is in the DOM. */
+  let focus_menu_effect = (i: int) =>
+    Ui_effect.of_sync_fun(
+      () => {
+        let elem_id = "column-menu-" ++ string_of_int(i);
+        let _ =
+          Js_of_ocaml.Dom_html.window##setTimeout(
+            Js_of_ocaml.Js.wrap_callback(() =>
+              switch (Js_of_ocaml.Dom_html.getElementById_opt(elem_id)) {
+              | Some(elem) => elem##focus
+              | None => ()
+              }
+            ),
+            0.0,
+          );
+        ();
+      },
+      (),
+    );
   let make_menu_button = i =>
-    icon_button(~tooltip="Column options", "⋮", _ => local(ShowMenu(i)));
+    icon_button(~tooltip="Column options", "⋮", _ =>
+      Effect.Many([local(ShowMenu(i)), focus_menu_effect(i)])
+    );
 
   let header_cells =
     List.mapi(
@@ -428,7 +481,7 @@ let render =
 
         let full_content =
           switch (h, model.menu_state) {
-          | (Some(name), Some((j, menu_path))) when i == j =>
+          | (Some(name), Some((j, menu_path, sel_idx))) when i == j =>
             let dyn_type =
               switch (get_type_from_info(info)) {
               | Some(_) as ty => ty
@@ -443,11 +496,61 @@ let render =
                 parent,
                 menu_path,
               );
-            let menu_content = render_menu(menu_data);
+            let actions = action_items(menu_data);
+            let num_actions = List.length(actions);
+            /* MenuDown isn't clamped in update (it doesn't know num_actions);
+             * clamp here so the highlight stays on the last item. */
+            let clamped =
+              num_actions == 0 ? 0 : min(max(0, sel_idx), num_actions - 1);
+            let (menu_content, _) =
+              render_menu(~selected_idx=clamped, menu_data);
+            let activate = () =>
+              switch (List.nth_opt(actions, clamped)) {
+              | Some((_, _, run)) => run()
+              | None => local(CloseMenu)
+              };
+            let key_handler =
+                (evt: Js_of_ocaml.Js.t(Js_of_ocaml.Dom_html.keyboardEvent)) => {
+              let key =
+                evt##.key
+                |> Js_of_ocaml.Js.Optdef.to_option
+                |> Option.map(Js_of_ocaml.Js.to_string);
+              switch (key) {
+              | Some("Escape") =>
+                Effect.Many([Effect.Stop_propagation, local(CloseMenu)])
+              | Some("ArrowDown") when num_actions > 0 =>
+                Effect.Many([
+                  Effect.Stop_propagation,
+                  Effect.Prevent_default,
+                  local(MenuDown),
+                ])
+              | Some("ArrowUp") when num_actions > 0 =>
+                Effect.Many([
+                  Effect.Stop_propagation,
+                  Effect.Prevent_default,
+                  local(MenuUp),
+                ])
+              | Some("Enter") when num_actions > 0 =>
+                Effect.Many([
+                  Effect.Stop_propagation,
+                  Effect.Prevent_default,
+                  activate(),
+                ])
+              | _ => Effect.Ignore
+              };
+            };
             content
             @ [
               Node.div(
-                ~attrs=[Attr.classes(["column-menu"])],
+                ~attrs=[
+                  Attr.id("column-menu-" ++ string_of_int(i)),
+                  Attr.classes(["column-menu"]),
+                  Attr.tabindex(0),
+                  /* Keep clicks inside the menu from reaching the
+                   * close-on-outside-click backdrop. */
+                  Attr.on_click(_ => Effect.Stop_propagation),
+                  Attr.on_keydown(key_handler),
+                ],
                 menu_content,
               ),
             ];
@@ -480,30 +583,66 @@ let render =
       header_cells;
     };
 
-  table_view(
-    ~header_cells,
-    ~rows=
-      List.map(
-        row => {
-          let cells = row_cells(info.utility, view_seg, row);
-          is_readonly ? cells : cells @ [Node.td([])];
-        },
-        rows,
+  let table =
+    table_view(
+      ~header_cells,
+      ~rows=
+        List.map(
+          row => {
+            let cells = row_cells(info.utility, view_seg, row);
+            is_readonly ? cells : cells @ [Node.td([])];
+          },
+          rows,
+        ),
+    );
+  /* When a column menu is open, render a fullscreen backdrop that catches
+   * clicks outside the menu and closes it. The backdrop sits at z-index
+   * (projector-z + 1); the column-menu uses (projector-z + 2) so its own
+   * clicks still hit it first. */
+  switch (model.menu_state) {
+  | None => table
+  | Some(_) =>
+    Node.div([
+      Node.div(
+        ~attrs=[
+          Attr.classes(["column-menu-backdrop"]),
+          Attr.on_click(_ => local(CloseMenu)),
+        ],
+        [],
       ),
-  );
+      table,
+    ])
+  };
 };
+
+let menu_col = (st: menu_state): option(int) =>
+  Option.map(((c, _, _)) => c, st);
 
 let update: (model, action) => model =
   (model, action) => {
     switch (action) {
     | CloseMenu => {menu_state: None}
-    | ShowMenu(i) when Some(i) == Option.map(fst, model.menu_state) => {
+    | ShowMenu(i) when Some(i) == menu_col(model.menu_state) => {
         menu_state: None,
       }
-    | ShowMenu(i) => {menu_state: Some((i, []))}
+    | ShowMenu(i) => {menu_state: Some((i, [], 0))}
     | ShowSubmenu(path) =>
       switch (model.menu_state) {
-      | Some((col, _)) => {menu_state: Some((col, path))}
+      | Some((col, _, _)) => {menu_state: Some((col, path, 0))}
+      | None => model
+      }
+    | MenuUp =>
+      switch (model.menu_state) {
+      | Some((col, path, idx)) => {
+          menu_state: Some((col, path, max(0, idx - 1))),
+        }
+      | None => model
+      }
+    | MenuDown =>
+      switch (model.menu_state) {
+      /* Render clamps idx to (num_actions - 1); allow unbounded increment
+       * here since we don't know action count outside the view. */
+      | Some((col, path, idx)) => {menu_state: Some((col, path, idx + 1))}
       | None => model
       }
     };
