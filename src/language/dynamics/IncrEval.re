@@ -89,36 +89,20 @@ let frozen_ids = (incr: t): list(Id.t) => {
 
 /* Names that a Let/FixF binder's rhs has dirtied on the current run: if the
  * rhs produced a value different from its cached one, the pattern's bound
- * vars become dirty inside the body.
- *
- * We compare values at ALL descendant ids of `rhs`, not just rhs's outer id:
- * the elaborator's tuple-alignment pass (LabeledTupleHelpers.align_exp) mints
- * fresh outer ids for re-assembled tuples, so those never land in info_slice
- * or the cache. Stable child ids (e.g. Atom leaves) still carry the signal. */
+ * vars become dirty inside the body. */
 let newly_dirty_vars =
     (~prev: t, ~curr: t, pat: Pat.t, rhs: DHExp.t): list(Var.t) => {
-  let id_value_changed = (id: Id.t): bool =>
+  let id = DHExp.rep_id(rhs);
+  let changed =
     switch (
       Id.Map.find_opt(id, prev.entries),
       Id.Map.find_opt(id, curr.entries),
     ) {
     | (Some(p), Some(n)) => !Exp.fast_equal(p.value, n.value)
-    /* Cached in prev but not in curr: structural change; treat as dirty.
-     * (In practice this case is unreachable when curr's entries are
-     * seeded from prev's at run start — see EvaluatorState.mk.) */
     | (Some(_), None) => true
     | (None, _) => false
     };
-  let rhs_ids = {
-    let ids = ref([]);
-    let f_exp = (continue, e: Exp.t) => {
-      ids := [DHExp.rep_id(e), ...ids^];
-      continue(e);
-    };
-    let _ = TermBase.Exp.map_term(~f_exp, rhs);
-    ids^;
-  };
-  List.exists(id_value_changed, rhs_ids) ? Pat.bound_vars(pat) : [];
+  changed ? Pat.bound_vars(pat) : [];
 };
 
 let reuse_check =
@@ -143,8 +127,7 @@ let reuse_check =
    * resolve to the same binder id. Catches shadowing-resolution changes
    * that elab_same misses (since the subtree's elab is just `Var(x)`
    * regardless of which enclosing Let `x` binds to). */
-  let* () =
-    OptUtil.some_if(Binding.equal_s(entry.prev_refs, info.refs), ());
+  let* () = OptUtil.some_if(Binding.equal_s(entry.prev_refs, info.refs), ());
 
   let co_ctx = info.co_ctx;
   let* () =
