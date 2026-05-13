@@ -293,21 +293,6 @@ let numeric_fns: list(BuiltinsUtil.fn) = [
       }),
     custom_statics: None,
   },
-  {
-    /* Flip Lt ↔ Gt, leave Eq alone. Lets a descending sort reuse an
-     * ascending comparator without a second pass to reverse the list. */
-    name: "invert_ord",
-    arg: BuiltinsADT.Ord.t.term,
-    ret: BuiltinsADT.Ord.t.term,
-    imp: d =>
-      switch (DHExp.term_of(d)) {
-      | Constructor("Lt", _) => Some(BuiltinsADT.Ord.gt)
-      | Constructor("Gt", _) => Some(BuiltinsADT.Ord.lt)
-      | Constructor("Eq", _) => Some(BuiltinsADT.Ord.eq)
-      | _ => None
-      },
-    custom_statics: None,
-  },
 ];
 
 let string_fns: list(BuiltinsUtil.fn) = [

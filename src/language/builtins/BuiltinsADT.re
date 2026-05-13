@@ -235,3 +235,23 @@ let of_atom_compare =
     custom_statics: None,
   };
 };
+
+/* Flip Lt ↔ Gt, leave Eq alone. Lets a descending sort reuse an ascending
+ * comparator without a second pass to reverse the list. */
+let invert_ord: BuiltinsUtil.fn =
+  BuiltinsUtil.{
+    name: "invert_ord",
+    arg: Ord.t.term,
+    ret: Ord.t.term,
+    imp: d =>
+      switch (DHExp.term_of(d)) {
+      | Constructor("Lt", _) => Some(Ord.gt)
+      | Constructor("Gt", _) => Some(Ord.lt)
+      | Constructor("Eq", _) => Some(Ord.eq)
+      | _ => None
+      },
+    custom_statics: None,
+  };
+
+let ord_builtins: list(BuiltinsUtil.fn) =
+  [invert_ord] @ List.map(of_atom_compare, Atom.compare_builtins);

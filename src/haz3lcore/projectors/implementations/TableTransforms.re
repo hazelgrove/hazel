@@ -471,7 +471,7 @@ let sort_column =
     let body =
       descending
         ? IdTagged.FreshGrammar.Exp.(
-            ap(Forward, var("invert_ord"), cmp_call)
+            ap(Forward, var(BuiltinsADT.invert_ord.name), cmp_call)
           )
         : cmp_call;
     let sort_transform =

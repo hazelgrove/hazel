@@ -223,40 +223,32 @@ type builtin =
     )
     : builtin;
 
-/* Builtin comparator name for a class, if one exists. Bool has no
- * builtin compare; see compare_builtins below for the implementations. */
-let compare_builtin = (cls: cls): option(string) =>
-  switch (cls) {
-  | Int => Some("int_compare")
-  | SInt => Some("sint_compare")
-  | Nat => Some("nat_compare")
-  | Float => Some("float_compare")
-  | String => Some("string_compare")
-  | Bool => None
-  };
-
 /* Comparator data per class: kind (carries type info) plus the underlying
  * OCaml compare function. BuiltinsADT.of_atom_compare consumes this to
- * derive the Ord builtin. Bool is excluded because it has no compare_builtin. */
+ * derive the Ord builtin. Bool has no builtin compare. */
 type compare_entry =
   | Cmp(kind('a), ('a, 'a) => int): compare_entry;
 
-let compare_builtins: list((string, compare_entry)) = {
-  let entries = [
-    Cmp(Int, Bigint.compare),
-    Cmp(SInt, Int.compare),
-    Cmp(Nat, Bigint.compare),
-    Cmp(Float, Float.compare),
-    Cmp(String, String.compare),
-  ];
-  List.map(
-    (Cmp(kind, _) as entry) => {
-      let name = compare_builtin(cls_of_kind(kind)) |> Option.get;
-      (name, entry);
-    },
-    entries,
-  );
-};
+/* Single source of truth for compare builtins. Exhaustive on cls so adding
+ * a new class forces a decision here (compile error). */
+let compare_of_cls: cls => option(compare_entry) =
+  fun
+  | Int => Some(Cmp(Int, Bigint.compare))
+  | SInt => Some(Cmp(SInt, Int.compare))
+  | Nat => Some(Cmp(Nat, Bigint.compare))
+  | Float => Some(Cmp(Float, Float.compare))
+  | String => Some(Cmp(String, String.compare))
+  | Bool => None;
+
+let compare_builtin = (cls: cls): option(string) =>
+  compare_of_cls(cls) |> Option.map(_ => cls_string_lower(cls) ++ "_compare");
+
+let compare_builtins: list((string, compare_entry)) =
+  all_of_cls
+  |> List.filter_map(cls =>
+       compare_of_cls(cls)
+       |> Option.map(entry => (cls_string_lower(cls) ++ "_compare", entry))
+     );
 
 let conversions_from = (from_: cls): list((string, cls)) =>
   all_of_cls
