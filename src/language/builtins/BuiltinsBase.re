@@ -2,6 +2,7 @@ open Util;
 open OptUtil.Syntax;
 open BuiltinsUtil;
 module Fresh = IdTagged.FreshGrammar;
+module LangTyp = Typ;
 
 open Fresh.Typ;
 open Fresh;
@@ -62,15 +63,7 @@ let misc_fns: list(BuiltinsUtil.fn) = [
  * into BuiltinsUtil.fn. */
 let mk_compare = (Atom.Cmp(kind, cmp): Atom.compare_entry): BuiltinsUtil.fn => {
   let cls = Atom.cls_of_kind(kind);
-  let ty =
-    switch (cls) {
-    | Atom.Int => int()
-    | SInt => sint()
-    | Nat => nat()
-    | Float => float()
-    | Bool => bool()
-    | String => string()
-    };
+  let ty = Atom(cls) |> LangTyp.fresh;
   BuiltinsUtil.{
     name: Atom.compare_builtin(cls) |> Option.get,
     arg: Prod([ty, ty]),
