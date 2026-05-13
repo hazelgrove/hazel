@@ -12,12 +12,12 @@ let hinted_test_false_ex = {
   term: mk_example("hint \"Always false\"\n test 3 < 1 end"),
   message: "This is reported as a failing test because the body of the test is 3 < 1 which evaluates to false.",
 };
-let _exp_body = exp("e");
-let _hint = exp("h");
+let exp_body = exp("e");
+let hint = exp("h");
 let hinted_test_exp_coloring_ids =
     (~body_id: Id.t, ~hint_id: Id.t): list((Id.t, Id.t)) => [
-  (Piece.id(_exp_body), body_id),
-  (Piece.id(_hint), hint_id),
+  (Piece.id(exp_body), body_id),
+  (Piece.id(hint), hint_id),
 ];
 let hinted_test_exp: form = {
   let explanation = "The [*hint*](%s) is displayed in the \"Implementation Grading\" section. If the [*body*](%s) of the test evalutes to `true`, the test passes. Otherwise, the test fails.";
@@ -25,8 +25,8 @@ let hinted_test_exp: form = {
     id: HintedTestExp,
     syntactic_form: [
       mk_hinted_test([
-        [space(), _hint, space()],
-        [space(), _exp_body, space()],
+        [space(), hint, space()],
+        [space(), exp_body, space()],
       ]),
     ],
     expandable_id: None,
