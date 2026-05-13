@@ -82,19 +82,25 @@ let rec extract_entry = (e: Exp.t): option((option(string), Exp.t)) =>
   | _ => None
   };
 
+/* Peel Parens and push outer Asc wrappers into the tuple so labeled
+ * entries surface in their normal shape. Revisit if elaboration changes
+ * how it adds ascriptions to list rows. */
+let rec normalize_row = (e: Exp.t): Exp.t =>
+  switch (e.term) {
+  | Parens(inner) => normalize_row(inner)
+  | Asc(_, _) =>
+    let stepped = Ascriptions.transition_multiple(e);
+    stepped === e ? e : normalize_row(stepped);
+  | _ => e
+  };
+
 let parse_table = (exp: Exp.t): option(table_data) =>
   switch (exp.term) {
   | ListLit(es) =>
     let data =
       List.map(
         (e: Exp.t) =>
-          switch (e.term) {
-          | Parens(inner) =>
-            switch (inner.term) {
-            | Tuple(ds) =>
-              OptUtil.traverse(extract_entry, ds) |> Option.map(List.split)
-            | _ => None
-            }
+          switch (normalize_row(e).term) {
           | Tuple(ds) =>
             OptUtil.traverse(extract_entry, ds) |> Option.map(List.split)
           | _ => None
