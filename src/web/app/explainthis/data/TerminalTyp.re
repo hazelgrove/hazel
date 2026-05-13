@@ -5,7 +5,7 @@ let int_typ: form = {
   let explanation = "The `Int` type classifies (unbounded) integer values.";
   {
     id: IntTyp,
-    syntactic_form: [typ("SInt")],
+    syntactic_form: [typ("Int")],
     expandable_id: None,
     explanation,
     examples: [],
@@ -83,8 +83,8 @@ let int: group = {
   forms: [int_typ],
 };
 let sint: group = {
-  id: IntTyp,
-  forms: [int_typ],
+  id: SIntTyp,
+  forms: [sint_typ],
 };
 let nat: group = {
   id: NatTyp,
