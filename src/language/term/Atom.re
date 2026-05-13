@@ -224,7 +224,7 @@ type builtin =
     : builtin;
 
 /* Builtin comparator name for a class, if one exists. Bool has no
- * builtin compare; see BuiltinsBase.re for the implementations. */
+ * builtin compare; see compare_builtins below for the implementations. */
 let compare_builtin = (cls: cls): option(string) =>
   switch (cls) {
   | Int => Some("int_compare")
@@ -234,6 +234,20 @@ let compare_builtin = (cls: cls): option(string) =>
   | String => Some("string_compare")
   | Bool => None
   };
+
+/* Comparator data per class: kind (carries type info) plus the underlying
+ * OCaml compare function. BuiltinsBase consumes this to derive the Ord
+ * builtin records. Bool is excluded because it has no compare_builtin. */
+type compare_entry =
+  | Cmp(kind('a), ('a, 'a) => int): compare_entry;
+
+let compare_builtins: list(compare_entry) = [
+  Cmp(Int, Bigint.compare),
+  Cmp(SInt, Int.compare),
+  Cmp(Nat, Bigint.compare),
+  Cmp(Float, Float.compare),
+  Cmp(String, String.compare),
+];
 
 let conversions_from = (from_: cls): list((string, cls)) =>
   all_of_cls
