@@ -226,21 +226,33 @@ let rec evaluate =
       state := new_state;
 
       /* Binder body dirty set: any RecordPatMatch side-effects produced by
-       * this transition describe a `pat <- rhs` binding. If the rhs produced
-       * a value different from prev, the pattern's bound names become dirty
-       * for the body only (siblings/outer scopes never see this extension).
+       * this transition describe a `pat <- rhs` binding. The body sees:
+       *   - any inherited `dirty_names` MINUS names this binder shadows
+       *     (its pat's bound vars), because the body's references to those
+       *     names now resolve to this binding, not the outer one — so an
+       *     outer dirty `x` is irrelevant inside `let x = ... in body`;
+       *   - PLUS any names this binder itself dirtied (rhs value changed).
        * Reading from side-effects (rather than switching on init.term) means
        * any future pat-binding construct that calls `matches` and emits
        * RecordPatMatch participates automatically. */
-      let body_dirty_names =
+      let shadowed_names =
+        List.concat_map(
+          fun
+          | EvaluatorState.RecordPatMatch({pat, _}) => Pat.bound_vars(pat)
+          | _ => [],
+          effects,
+        );
+      let newly_dirty =
         List.concat_map(
           fun
           | EvaluatorState.RecordPatMatch({pat, rhs, _}) =>
             IncrEval.newly_dirty_vars(~prev, ~curr=state^.incr_eval, pat, rhs)
           | _ => [],
           effects,
-        )
-        @ dirty_names;
+        );
+      let body_dirty_names =
+        newly_dirty
+        @ List.filter(n => !List.mem(n, shadowed_names), dirty_names);
 
       switch (is_finished) {
       | Final => Trampoline.return((EvaluatorEVMode.Final, [], next))
