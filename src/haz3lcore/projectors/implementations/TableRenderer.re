@@ -443,15 +443,15 @@ let render =
    * (Escape/Up/Down/Enter) reach its on_keydown handler without an extra
    * click. Defers to the next tick so the menu div is in the DOM. */
   let focus_menu_effect = (i: int) =>
-    Ui_effect.of_sync_fun(
+    Effect.of_sync_fun(
       () => {
         let elem_id = "column-menu-" ++ string_of_int(i);
         let _ =
           Js_of_ocaml.Dom_html.window##setTimeout(
             Js_of_ocaml.Js.wrap_callback(() =>
               switch (Js_of_ocaml.Dom_html.getElementById_opt(elem_id)) {
-              | Some(elem) => elem##focus
               | None => ()
+              | Some(elem) => elem##focus
               }
             ),
             0.0,
