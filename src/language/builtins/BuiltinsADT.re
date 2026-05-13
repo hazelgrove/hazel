@@ -209,3 +209,29 @@ let constructors: Ctx.t = {
 
 let builtins = Option.builtins;
 let constructor_entries = constructors.entries @ types;
+
+/* Build an Ord-returning compare builtin from an Atom.compare_entry, the
+ * same way of_atom_builtin handles atom-to-atom conversions. */
+let of_atom_compare =
+    ((name, Atom.Cmp(kind, cmp)): (string, Atom.compare_entry))
+    : BuiltinsUtil.fn => {
+  let ty = Typ.fresh_atom(Atom.cls_of_kind(kind));
+  BuiltinsUtil.{
+    name,
+    arg: Prod([ty, ty]),
+    ret: Ord.t.term,
+    imp:
+      binary((d1, d2) => {
+        let-unbox n1 = (Atom(kind), d1);
+        let-unbox n2 = (Atom(kind), d2);
+        Some(
+          switch (cmp(n1, n2)) {
+          | 0 => Ord.eq
+          | n when n < 0 => Ord.lt
+          | _ => Ord.gt
+          },
+        );
+      }),
+    custom_statics: None,
+  };
+};

@@ -2,7 +2,6 @@ open Util;
 open OptUtil.Syntax;
 open BuiltinsUtil;
 module Fresh = IdTagged.FreshGrammar;
-module LangTyp = Typ;
 
 open Fresh.Typ;
 open Fresh;
@@ -58,289 +57,258 @@ let misc_fns: list(BuiltinsUtil.fn) = [
   },
 ];
 
-/* Build an (t, t) -> Ord comparison builtin from an Atom.compare_entry.
- * Atom.re owns the per-class data (name, kind, cmp); this just wires it
- * into BuiltinsUtil.fn. */
-let mk_compare = (Atom.Cmp(kind, cmp): Atom.compare_entry): BuiltinsUtil.fn => {
-  let cls = Atom.cls_of_kind(kind);
-  let ty = LangTyp.fresh_atom(cls);
-  BuiltinsUtil.{
-    name: Atom.compare_builtin(cls) |> Option.get,
-    arg: Prod([ty, ty]),
-    ret: BuiltinsADT.Ord.t.term,
+let numeric_fns: list(BuiltinsUtil.fn) = [
+  {
+    name: "is_finite",
+    arg: Atom(Float),
+    ret: Atom(Bool),
+    imp: d => {
+      let-unbox f = (Atom(Float), d);
+      Some(Exp.bool(Float.is_finite(f)));
+    },
+    custom_statics: None,
+  },
+  {
+    name: "is_infinite",
+    arg: Atom(Float),
+    ret: Atom(Bool),
+    imp: d => {
+      let-unbox f = (Atom(Float), d);
+      Some(Exp.bool(Float.is_infinite(f)));
+    },
+    custom_statics: None,
+  },
+  {
+    name: "is_nan",
+    arg: Atom(Float),
+    ret: Atom(Bool),
+    imp: d => {
+      let-unbox f = (Atom(Float), d);
+      Some(Exp.bool(Float.is_nan(f)));
+    },
+    custom_statics: None,
+  },
+  {
+    name: "abs",
+    arg: Atom(Int),
+    ret: Atom(Int),
+    imp: d => {
+      let-unbox n = (Atom(Int), d);
+      Some(Exp.big_int(Bigint.abs(n)));
+    },
+    custom_statics: None,
+  },
+  {
+    name: "abs_float",
+    arg: Atom(Float),
+    ret: Atom(Float),
+    imp: float_op(abs_float),
+    custom_statics: None,
+  },
+  {
+    name: "ceil",
+    arg: Atom(Float),
+    ret: Atom(Float),
+    imp: float_op(ceil),
+    custom_statics: None,
+  },
+  {
+    name: "floor",
+    arg: Atom(Float),
+    ret: Atom(Float),
+    imp: float_op(floor),
+    custom_statics: None,
+  },
+  {
+    name: "exp",
+    arg: Atom(Float),
+    ret: Atom(Float),
+    imp: float_op(exp),
+    custom_statics: None,
+  },
+  {
+    name: "log",
+    arg: Atom(Float),
+    ret: Atom(Float),
+    imp: float_op(log),
+    custom_statics: None,
+  },
+  {
+    name: "log10",
+    arg: Atom(Float),
+    ret: Atom(Float),
+    imp: float_op(log10),
+    custom_statics: None,
+  },
+  {
+    name: "sqrt",
+    arg: Atom(Float),
+    ret: Atom(Float),
+    imp: float_op(sqrt),
+    custom_statics: None,
+  },
+  {
+    name: "sin",
+    arg: Atom(Float),
+    ret: Atom(Float),
+    imp: float_op(sin),
+    custom_statics: None,
+  },
+  {
+    name: "cos",
+    arg: Atom(Float),
+    ret: Atom(Float),
+    imp: float_op(cos),
+    custom_statics: None,
+  },
+  {
+    name: "tan",
+    arg: Atom(Float),
+    ret: Atom(Float),
+    imp: float_op(tan),
+    custom_statics: None,
+  },
+  {
+    name: "asin",
+    arg: Atom(Float),
+    ret: Atom(Float),
+    imp: float_op(asin),
+    custom_statics: None,
+  },
+  {
+    name: "acos",
+    arg: Atom(Float),
+    ret: Atom(Float),
+    imp: float_op(acos),
+    custom_statics: None,
+  },
+  {
+    name: "atan",
+    arg: Atom(Float),
+    ret: Atom(Float),
+    imp: float_op(atan),
+    custom_statics: None,
+  },
+  {
+    name: "monus",
+    arg: Prod([nat(), nat()]),
+    ret: Atom(Nat),
     imp:
       binary((d1, d2) => {
-        let-unbox n1 = (Atom(kind), d1);
-        let-unbox n2 = (Atom(kind), d2);
-        Some(
-          switch (cmp(n1, n2)) {
-          | 0 => BuiltinsADT.Ord.eq
-          | n when n < 0 => BuiltinsADT.Ord.lt
-          | _ => BuiltinsADT.Ord.gt
-          },
-        );
+        let-unbox m = (Atom(Nat), d1);
+        let-unbox n = (Atom(Nat), d2);
+        if (Bigint.(<=)(m, n)) {
+          Some(Exp.nat(Bigint.zero));
+        } else {
+          Some(Exp.nat(Bigint.(m - n)));
+        };
       }),
     custom_statics: None,
-  };
-};
-
-let compare_builtins: list(BuiltinsUtil.fn) =
-  List.map(mk_compare, Atom.compare_builtins);
-
-let numeric_fns: list(BuiltinsUtil.fn) =
-  [
-    {
-      name: "is_finite",
-      arg: Atom(Float),
-      ret: Atom(Bool),
-      imp: d => {
-        let-unbox f = (Atom(Float), d);
-        Some(Exp.bool(Float.is_finite(f)));
+  },
+  {
+    name: "int_mod",
+    arg: Prod([int(), int()]),
+    ret: Atom(Int),
+    imp:
+      binary((d1, d2) => {
+        open Exp;
+        let-unbox m = (Atom(Int), d1);
+        let-unbox n = (Atom(Int), d2);
+        if (n == Bigint.zero) {
+          Some(
+            dynamic_error_hole(
+              ap(Forward, builtin_fun("mod"), d1),
+              DivideByZero,
+            ),
+          );
+        } else {
+          Some(big_int(Bigint.(%)(m, n)));
+        };
+      }),
+    custom_statics: None,
+  },
+  {
+    name: "sint_mod",
+    arg: Prod([sint(), sint()]),
+    ret: Atom(SInt),
+    imp:
+      binary((d1, d2) => {
+        open Exp;
+        let-unbox m = (Atom(SInt), d1);
+        let-unbox n = (Atom(SInt), d2);
+        if (n == 0) {
+          Some(
+            dynamic_error_hole(
+              ap(Forward, builtin_fun("mod"), d1),
+              DivideByZero,
+            ),
+          );
+        } else {
+          Some(sint(m mod n));
+        };
+      }),
+    custom_statics: None,
+  },
+  {
+    name: "nat_mod",
+    arg: Prod([nat(), nat()]),
+    ret: Atom(Nat),
+    imp:
+      binary((d1, d2) => {
+        open Exp;
+        let-unbox m = (Atom(Nat), d1);
+        let-unbox n = (Atom(Nat), d2);
+        if (n == Bigint.zero) {
+          Some(
+            dynamic_error_hole(
+              ap(Forward, builtin_fun("mod"), d1),
+              DivideByZero,
+            ),
+          );
+        } else {
+          Some(nat(Bigint.(%)(m, n)));
+        };
+      }),
+    custom_statics: None,
+  },
+  {
+    name: "float_mod",
+    arg: Prod([float(), float()]),
+    ret: Atom(Float),
+    imp:
+      binary((d1, d2) => {
+        open Exp;
+        let-unbox m = (Atom(Float), d1);
+        let-unbox n = (Atom(Float), d2);
+        if (n == 0.0) {
+          Some(
+            dynamic_error_hole(
+              ap(Forward, builtin_fun("mod"), d1),
+              DivideByZero,
+            ),
+          );
+        } else {
+          Some(float((Float.modf(m /. n) |> fst) *. n));
+        };
+      }),
+    custom_statics: None,
+  },
+  {
+    /* Flip Lt ↔ Gt, leave Eq alone. Lets a descending sort reuse an
+     * ascending comparator without a second pass to reverse the list. */
+    name: "invert_ord",
+    arg: BuiltinsADT.Ord.t.term,
+    ret: BuiltinsADT.Ord.t.term,
+    imp: d =>
+      switch (DHExp.term_of(d)) {
+      | Constructor("Lt", _) => Some(BuiltinsADT.Ord.gt)
+      | Constructor("Gt", _) => Some(BuiltinsADT.Ord.lt)
+      | Constructor("Eq", _) => Some(BuiltinsADT.Ord.eq)
+      | _ => None
       },
-      custom_statics: None,
-    },
-    {
-      name: "is_infinite",
-      arg: Atom(Float),
-      ret: Atom(Bool),
-      imp: d => {
-        let-unbox f = (Atom(Float), d);
-        Some(Exp.bool(Float.is_infinite(f)));
-      },
-      custom_statics: None,
-    },
-    {
-      name: "is_nan",
-      arg: Atom(Float),
-      ret: Atom(Bool),
-      imp: d => {
-        let-unbox f = (Atom(Float), d);
-        Some(Exp.bool(Float.is_nan(f)));
-      },
-      custom_statics: None,
-    },
-    {
-      name: "abs",
-      arg: Atom(Int),
-      ret: Atom(Int),
-      imp: d => {
-        let-unbox n = (Atom(Int), d);
-        Some(Exp.big_int(Bigint.abs(n)));
-      },
-      custom_statics: None,
-    },
-    {
-      name: "abs_float",
-      arg: Atom(Float),
-      ret: Atom(Float),
-      imp: float_op(abs_float),
-      custom_statics: None,
-    },
-    {
-      name: "ceil",
-      arg: Atom(Float),
-      ret: Atom(Float),
-      imp: float_op(ceil),
-      custom_statics: None,
-    },
-    {
-      name: "floor",
-      arg: Atom(Float),
-      ret: Atom(Float),
-      imp: float_op(floor),
-      custom_statics: None,
-    },
-    {
-      name: "exp",
-      arg: Atom(Float),
-      ret: Atom(Float),
-      imp: float_op(exp),
-      custom_statics: None,
-    },
-    {
-      name: "log",
-      arg: Atom(Float),
-      ret: Atom(Float),
-      imp: float_op(log),
-      custom_statics: None,
-    },
-    {
-      name: "log10",
-      arg: Atom(Float),
-      ret: Atom(Float),
-      imp: float_op(log10),
-      custom_statics: None,
-    },
-    {
-      name: "sqrt",
-      arg: Atom(Float),
-      ret: Atom(Float),
-      imp: float_op(sqrt),
-      custom_statics: None,
-    },
-    {
-      name: "sin",
-      arg: Atom(Float),
-      ret: Atom(Float),
-      imp: float_op(sin),
-      custom_statics: None,
-    },
-    {
-      name: "cos",
-      arg: Atom(Float),
-      ret: Atom(Float),
-      imp: float_op(cos),
-      custom_statics: None,
-    },
-    {
-      name: "tan",
-      arg: Atom(Float),
-      ret: Atom(Float),
-      imp: float_op(tan),
-      custom_statics: None,
-    },
-    {
-      name: "asin",
-      arg: Atom(Float),
-      ret: Atom(Float),
-      imp: float_op(asin),
-      custom_statics: None,
-    },
-    {
-      name: "acos",
-      arg: Atom(Float),
-      ret: Atom(Float),
-      imp: float_op(acos),
-      custom_statics: None,
-    },
-    {
-      name: "atan",
-      arg: Atom(Float),
-      ret: Atom(Float),
-      imp: float_op(atan),
-      custom_statics: None,
-    },
-    {
-      name: "monus",
-      arg: Prod([nat(), nat()]),
-      ret: Atom(Nat),
-      imp:
-        binary((d1, d2) => {
-          let-unbox m = (Atom(Nat), d1);
-          let-unbox n = (Atom(Nat), d2);
-          if (Bigint.(<=)(m, n)) {
-            Some(Exp.nat(Bigint.zero));
-          } else {
-            Some(Exp.nat(Bigint.(m - n)));
-          };
-        }),
-      custom_statics: None,
-    },
-    {
-      name: "int_mod",
-      arg: Prod([int(), int()]),
-      ret: Atom(Int),
-      imp:
-        binary((d1, d2) => {
-          open Exp;
-          let-unbox m = (Atom(Int), d1);
-          let-unbox n = (Atom(Int), d2);
-          if (n == Bigint.zero) {
-            Some(
-              dynamic_error_hole(
-                ap(Forward, builtin_fun("mod"), d1),
-                DivideByZero,
-              ),
-            );
-          } else {
-            Some(big_int(Bigint.(%)(m, n)));
-          };
-        }),
-      custom_statics: None,
-    },
-    {
-      name: "sint_mod",
-      arg: Prod([sint(), sint()]),
-      ret: Atom(SInt),
-      imp:
-        binary((d1, d2) => {
-          open Exp;
-          let-unbox m = (Atom(SInt), d1);
-          let-unbox n = (Atom(SInt), d2);
-          if (n == 0) {
-            Some(
-              dynamic_error_hole(
-                ap(Forward, builtin_fun("mod"), d1),
-                DivideByZero,
-              ),
-            );
-          } else {
-            Some(sint(m mod n));
-          };
-        }),
-      custom_statics: None,
-    },
-    {
-      name: "nat_mod",
-      arg: Prod([nat(), nat()]),
-      ret: Atom(Nat),
-      imp:
-        binary((d1, d2) => {
-          open Exp;
-          let-unbox m = (Atom(Nat), d1);
-          let-unbox n = (Atom(Nat), d2);
-          if (n == Bigint.zero) {
-            Some(
-              dynamic_error_hole(
-                ap(Forward, builtin_fun("mod"), d1),
-                DivideByZero,
-              ),
-            );
-          } else {
-            Some(nat(Bigint.(%)(m, n)));
-          };
-        }),
-      custom_statics: None,
-    },
-    {
-      name: "float_mod",
-      arg: Prod([float(), float()]),
-      ret: Atom(Float),
-      imp:
-        binary((d1, d2) => {
-          open Exp;
-          let-unbox m = (Atom(Float), d1);
-          let-unbox n = (Atom(Float), d2);
-          if (n == 0.0) {
-            Some(
-              dynamic_error_hole(
-                ap(Forward, builtin_fun("mod"), d1),
-                DivideByZero,
-              ),
-            );
-          } else {
-            Some(float((Float.modf(m /. n) |> fst) *. n));
-          };
-        }),
-      custom_statics: None,
-    },
-    {
-      /* Flip Lt ↔ Gt, leave Eq alone. Lets a descending sort reuse an
-       * ascending comparator without a second pass to reverse the list. */
-      name: "invert_ord",
-      arg: BuiltinsADT.Ord.t.term,
-      ret: BuiltinsADT.Ord.t.term,
-      imp: d =>
-        switch (DHExp.term_of(d)) {
-        | Constructor("Lt", _) => Some(BuiltinsADT.Ord.gt)
-        | Constructor("Gt", _) => Some(BuiltinsADT.Ord.lt)
-        | Constructor("Eq", _) => Some(BuiltinsADT.Ord.eq)
-        | _ => None
-        },
-      custom_statics: None,
-    },
-  ]
-  @ compare_builtins;
+    custom_statics: None,
+  },
+];
 
 let string_fns: list(BuiltinsUtil.fn) = [
   {

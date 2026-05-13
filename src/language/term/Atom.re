@@ -236,18 +236,27 @@ let compare_builtin = (cls: cls): option(string) =>
   };
 
 /* Comparator data per class: kind (carries type info) plus the underlying
- * OCaml compare function. BuiltinsBase consumes this to derive the Ord
- * builtin records. Bool is excluded because it has no compare_builtin. */
+ * OCaml compare function. BuiltinsADT.of_atom_compare consumes this to
+ * derive the Ord builtin. Bool is excluded because it has no compare_builtin. */
 type compare_entry =
   | Cmp(kind('a), ('a, 'a) => int): compare_entry;
 
-let compare_builtins: list(compare_entry) = [
-  Cmp(Int, Bigint.compare),
-  Cmp(SInt, Int.compare),
-  Cmp(Nat, Bigint.compare),
-  Cmp(Float, Float.compare),
-  Cmp(String, String.compare),
-];
+let compare_builtins: list((string, compare_entry)) = {
+  let entries = [
+    Cmp(Int, Bigint.compare),
+    Cmp(SInt, Int.compare),
+    Cmp(Nat, Bigint.compare),
+    Cmp(Float, Float.compare),
+    Cmp(String, String.compare),
+  ];
+  List.map(
+    (Cmp(kind, _) as entry) => {
+      let name = compare_builtin(cls_of_kind(kind)) |> Option.get;
+      (name, entry);
+    },
+    entries,
+  );
+};
 
 let conversions_from = (from_: cls): list((string, cls)) =>
   all_of_cls
