@@ -32,7 +32,7 @@ module Evaluation = {
     show_settings: false,
     show_hidden_steps: false,
     enable_proof: false,
-    project_tables: false,
+    project_tables: true,
   };
 };
 
