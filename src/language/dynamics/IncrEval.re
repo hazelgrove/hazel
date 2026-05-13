@@ -103,7 +103,9 @@ let newly_dirty_vars =
       Id.Map.find_opt(id, curr.entries),
     ) {
     | (Some(p), Some(n)) => !Exp.fast_equal(p.value, n.value)
-    /* Cached in prev but not in curr: structural change; treat as dirty. */
+    /* Cached in prev but not in curr: structural change; treat as dirty.
+     * (In practice this case is unreachable when curr's entries are
+     * seeded from prev's at run start — see EvaluatorState.mk.) */
     | (Some(_), None) => true
     | (None, _) => false
     };
