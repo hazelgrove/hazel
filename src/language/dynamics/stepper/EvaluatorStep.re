@@ -216,29 +216,20 @@ let rec matches =
 };
 
 let should_hide_eval_obj =
-    (~settings, x: EvalObj.t): (FilterAction.action, EvalObj.t) =>
-  if (should_hide_step_kind(~settings, x.knd)) {
-    (Eval, x);
-  } else {
-    let (act, _, ctx) =
-      matches(Environment.empty, [], x.ctx, x.d_loc, (Step, One), 0);
-    switch (act) {
-    | (Eval, _) => (
-        Eval,
-        {
-          ...x,
-          ctx,
-        },
-      )
-    | (Step, _) => (
-        Step,
-        {
-          ...x,
-          ctx,
-        },
-      )
-    };
+    (~settings, x: EvalObj.t): (FilterAction.action, EvalObj.t) => {
+  let (act, idx, ctx) =
+    matches(Environment.empty, [], x.ctx, x.d_loc, (Step, One), 0);
+  let x = {
+    ...x,
+    ctx,
   };
+  switch (act) {
+  | (Eval, _) => (Eval, x)
+  | (Step, _) when idx > 0 => (Step, x)
+  | (Step, _) when should_hide_step_kind(~settings, x.knd) => (Eval, x)
+  | (Step, _) => (Step, x)
+  };
+};
 
 module Decompose = {
   module Result = {
