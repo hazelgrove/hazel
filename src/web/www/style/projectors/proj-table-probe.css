@@ -52,16 +52,13 @@
     background-color: var(--df-hover-bg);
 }
 
-/* Fullscreen click-catcher: sits below the column-menu but above
- * everything else, so a click anywhere outside the menu fires CloseMenu. */
-.column-menu-backdrop {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    z-index: calc(var(--projector-z) + 1);
-    background: transparent;
+/* Indicate which column the open menu belongs to. */
+.modal .table th.menu-open {
+    background-color: var(--df-hover-bg);
+}
+
+.modal .table th.menu-open .closure-nav-button {
+    background-color: var(--df-hover-bg);
 }
 
 .menu-item {

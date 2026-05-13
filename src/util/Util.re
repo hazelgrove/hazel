@@ -20,6 +20,7 @@ module TupleUtil = TupleUtil;
 module WebUtil = WebUtil;
 module JsUtil = JsUtil;
 module ContextMenuListener = ContextMenuListener;
+module ColumnMenuListener = ColumnMenuListener;
 module Key = Key;
 module Os = Os;
 module Point = Point;
