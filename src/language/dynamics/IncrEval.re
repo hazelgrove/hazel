@@ -8,6 +8,14 @@ open Util;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type entry = {
   prev_elab: Exp.t,
+  /* Snapshot of which binder each free-var name in this cached subtree's
+   * `co_ctx` resolved to when the entry was written (i.e. `refs_in` of the
+   * cached id). Compared against the current run's `refs` in `reuse_check`
+   * to catch shadowing-resolution changes: when an enclosing Let is added
+   * or removed around an otherwise-unchanged subtree, the subtree's id and
+   * elab stay the same but the names in its co_ctx now resolve to a
+   * different binder id, invalidating the cached value. */
+  prev_refs: Binding.s,
   /* Snapshot of the cached subtree's probe-targets witness. Compared
    * structurally against the current witness in `reuse_check` to detect
    * any add/remove of a probe target inside this subtree.
@@ -128,6 +136,13 @@ let reuse_check =
 
   let elab_same = Exp.fast_equal(entry.prev_elab, info.elab_term);
   let* () = OptUtil.some_if(elab_same, ());
+
+  /* Resolution check: every free var in the cached subtree must still
+   * resolve to the same binder id. Catches shadowing-resolution changes
+   * that elab_same misses (since the subtree's elab is just `Var(x)`
+   * regardless of which enclosing Let `x` binds to). */
+  let* () =
+    OptUtil.some_if(Binding.equal_s(entry.prev_refs, info.refs), ());
 
   let co_ctx = info.co_ctx;
   let* () =
