@@ -153,6 +153,25 @@ let rec evaluate =
   | Some(entry) =>
     state := EvaluatorState.replay_slice(entry.state, state^);
     state := EvaluatorState.add_incr_entry(state^, expr_id, entry);
+    /* Copy cache entries for every sub-id of the reused subtree from prev
+     * into curr. Without this, descendants of a reused ancestor are absent
+     * from the outgoing incr_eval (because the reuse short-circuits before
+     * we descend), and a later run that can't reuse the ancestor will
+     * cache-miss at the descendants — even though their values are still
+     * valid. Walks entry.prev_elab (which is the cached subtree's elab)
+     * and brings forward each sub-id's prev entry, if any. */
+    let f_exp = (continue, e: Exp.t): Exp.t => {
+      let sub_id = Exp.rep_id(e);
+      if (!Id.equal(sub_id, expr_id)) {
+        switch (Id.Map.find_opt(sub_id, prev.entries)) {
+        | Some(sub_entry) =>
+          state := EvaluatorState.add_incr_entry(state^, sub_id, sub_entry)
+        | None => ()
+        };
+      };
+      continue(e);
+    };
+    let _ = TermBase.Exp.map_term(~f_exp, entry.prev_elab);
     state := EvaluatorState.mark_incr_reused(state^, expr_id);
     Trampoline.return((EvaluatorEVMode.Final, [], entry.value));
   | None =>
