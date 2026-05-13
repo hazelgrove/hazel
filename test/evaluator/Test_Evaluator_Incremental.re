@@ -75,6 +75,56 @@ let replace_int_lit = (~from: int, ~to_: int, exp: Exp.t): Exp.t => {
   TermBase.Exp.map_term(~f_exp, exp);
 };
 
+/* Simulates a structural edit that removes a let-wrapper while preserving
+ * the ids of the body. Walks `exp` and replaces every
+ *   Let(_, def, body)   where def is the int literal `rhs_val`
+ * with `body` itself. The body's IdTagged annotation is untouched, so its
+ * subtree retains the same ids it had inside the original Let.
+ *
+ * Pairs with replace_int_lit to give us TWO kinds of id-preserving edits:
+ * - leaf edit (replace_int_lit): a single token mutates in place
+ * - structural edit (strip_let_with_int_rhs): a wrapper is added/removed
+ *   around an unchanged body
+ *
+ * The "added" direction is just: parse the WITH-wrapper version, derive the
+ * WITHOUT-wrapper version by stripping, then run prev=without, curr=with. */
+let strip_let_with_int_rhs = (~rhs_val: int, exp: Exp.t): Exp.t => {
+  let rec go = (e: Exp.t): Exp.t => {
+    let f_exp = (continue, e: Exp.t): Exp.t =>
+      switch (e.term) {
+      | Let(_, def, body)
+          when
+            (
+              switch (def.term) {
+              | Atom(Int(n)) =>
+                Bigint.to_string(n) == string_of_int(rhs_val)
+              | _ => false
+              }
+            ) =>
+        go(body)
+      | _ => continue(e)
+      };
+    TermBase.Exp.map_term(~f_exp, e);
+  };
+  go(exp);
+};
+
+/* Walk an Exp.t and collect ids of every Ap(_, _, _) node. Used by the
+ * sibling-module test to assert that a specific function-application
+ * subexpression's cache entry survives an edit to an unrelated binding. */
+let collect_ap_ids = (exp: Exp.t): list(Id.t) => {
+  let ids = ref([]);
+  let f_exp = (continue, e: Exp.t): Exp.t => {
+    switch (e.term) {
+    | Ap(_, _, _) => ids := [Exp.rep_id(e), ...ids^]
+    | _ => ()
+    };
+    continue(e);
+  };
+  let _ = TermBase.Exp.map_term(~f_exp, exp);
+  ids^;
+};
+
 /* A non-empty incremental map after a run of a non-trivial program. */
 let test_populates_entries = () => {
   let src = "let x = 1 + 2 in let y = x + 10 in y";
@@ -805,6 +855,255 @@ let test_diag_module_in_unchanged_rhs_tuple_lands_in_frozen = () => {
   );
 };
 
+/* =========================================================================
+ * Shadowing correctness bugs in dirty_names propagation.
+ *
+ * The dirty_names mechanism in Evaluator.re tracks variable NAMES, not
+ * binder identities. That means three failure modes are possible — these
+ * tests pin all three down as currently-failing.
+ *
+ * Setup notes:
+ * - We parse the WITH-inner-let version once, then derive the WITHOUT
+ *   version via strip_let_with_int_rhs. The body's ids are identical
+ *   between the two variants, so the inner body's cache entry from one
+ *   run is keyed by an id that's still present in the other run — exactly
+ *   the situation that triggers the bug.
+ * - Each test also asserts incr2.reused != [] so we can't silently degrade
+ *   into a from-scratch eval and accidentally produce the right answer. */
+
+/* (1) Deleting an inner Let that was shadowing an outer same-named binding.
+ *
+ * Run 1 (exp_with):    let x = 10 in let x = 1 in x + x   -> 2
+ * Run 2 (exp_without): let x = 10 in x + x                -> 20
+ *
+ * The body `x + x` retains the same id across the two variants. On run 2:
+ * - The inner Let is gone, so its id never appears as an ancestor effect,
+ *   and dirty_names is never extended with `x` from "x's rhs changed".
+ * - The outer Let's rhs is `10` in both runs — no change, no dirty either.
+ * - The body's cached entry has elab `x + x` (unchanged), co_ctx [x],
+ *   dirty_names []. Reuse fires, returns cached value 2.
+ *
+ * Correct answer is 20 (outer x = 10 is now visible to the body). */
+let test_delete_inner_let_uncovers_outer_binding = () => {
+  let src = "let x = 10 in let x = 1 in x + x";
+  let exp_with = parse_exp(src);
+  let exp_without = strip_let_with_int_rhs(~rhs_val=1, exp_with);
+  check(
+    bool,
+    "strip_let_with_int_rhs actually changed the expression",
+    true,
+    !Exp.fast_equal(exp_with, exp_without),
+  );
+  let (r1, _, incr1) = eval_incr(exp_with);
+  let (r2, _, incr2) = eval_incr(~prev=incr1, exp_without);
+  check(dhexp_typ, "Run 1: inner x=1 wins, x+x = 2", parse_exp("2"), r1);
+  check(
+    dhexp_typ,
+    "Run 2 after deleting inner Let: outer x=10 wins, x+x = 20",
+    parse_exp("20"),
+    r2,
+  );
+  check(
+    bool,
+    "Second run reuses at least some entries (not a from-scratch eval)",
+    true,
+    incr2.reused != [],
+  );
+};
+
+/* (2) Adding an inner Let that newly shadows an outer same-named binding.
+ *
+ * Run 1 (exp_without): let x = 10 in x + x                -> 20
+ * Run 2 (exp_with):    let x = 10 in let x = 1 in x + x   -> 2
+ *
+ * On run 2: a new Let wraps the body. The new Let's id wasn't in prev, so
+ * `id_value_changed` returns false for its rhs id (the (None, _) case in
+ * newly_dirty_vars). No dirty propagation marks `x`. The inner body `x + x`
+ * has the same id and elab as in run 1, co_ctx [x], dirty_names []. Reuse
+ * fires, returns cached value 20.
+ *
+ * Correct answer is 2 (the new inner x=1 shadows outer x=10). */
+let test_add_inner_let_shadows_outer_binding = () => {
+  let src = "let x = 10 in let x = 1 in x + x";
+  let exp_with = parse_exp(src);
+  let exp_without = strip_let_with_int_rhs(~rhs_val=1, exp_with);
+  let (r1, _, incr1) = eval_incr(exp_without);
+  let (r2, _, incr2) = eval_incr(~prev=incr1, exp_with);
+  check(dhexp_typ, "Run 1: only outer x=10, x+x = 20", parse_exp("20"), r1);
+  check(
+    dhexp_typ,
+    "Run 2 after adding inner Let: inner x=1 shadows, x+x = 2",
+    parse_exp("2"),
+    r2,
+  );
+  check(
+    bool,
+    "Second run reuses at least some entries (not a from-scratch eval)",
+    true,
+    incr2.reused != [],
+  );
+};
+
+/* (3) Spurious recalculation of a recursive function's call after an edit
+ * to an unrelated wildcard binding — but ONLY when the function body is
+ * parenthesized.
+ *
+ * Minimal repro (user-reported, modules are irrelevant — the trigger is the
+ * Parens wrapper around the Fun body of a recursive let-binding):
+ *
+ *   let f = (fun (n:Int) ->
+ *     if n < 2 then 1 else f(n - 1)) in
+ *   let _ = 55 in
+ *   f(8)
+ *
+ * Edit: 55 -> 77.
+ *
+ * `f(8)` doesn't reference the `_` binding at all — its co_ctx is [f], and
+ * f's rhs hasn't changed, so the reuse_check at f(8)'s id should fire and
+ * return the cached value. The Ap id is stable across runs and its elab is
+ * unchanged.
+ *
+ * User-reported observation: with `fun n -> ...` (no parens) reuse fires;
+ * with `(fun (n:Int) -> ...)` it doesn't. The Parens / type-annotation
+ * presumably changes how the rhs elaborates (FixF wrapping, Parens around
+ * the Fun, etc.), making `newly_dirty_vars` see a different value at f's
+ * rhs id and falsely flag `f` dirty — which invalidates f(8). */
+let test_paren_recursive_fun_app_reuses_after_unrelated_edit = () => {
+  let src = {|let f = (fun (n:Int) ->
+  if n < 2 then 1 else f(n - 1)) in
+let _ = 55 in
+f(8)|};
+  let exp1 = parse_exp(src);
+  let exp2 = replace_int_lit(~from=55, ~to_=77, exp1);
+  check(
+    bool,
+    "replace_int_lit actually changed the expression",
+    true,
+    !Exp.fast_equal(exp1, exp2),
+  );
+  /* The `f(8)` Ap is the top-level call; its argument is Atom(Int(8)).
+   * The recursive call inside f's body is `f(n - 1)`, which has a BinOp
+   * argument, not an Atom — so filtering on Atom(Int(8)) uniquely picks
+   * the top-level Ap. */
+  let f8_id = {
+    let found = ref(None);
+    let f_exp = (continue, e: Exp.t): Exp.t => {
+      switch (e.term) {
+      | Ap(_, _, arg) =>
+        switch (arg.term) {
+        | Atom(Int(n)) when Bigint.to_string(n) == "8" =>
+          found := Some(Exp.rep_id(e))
+        | _ => ()
+        }
+      | _ => ()
+      };
+      continue(e);
+    };
+    let _ = TermBase.Exp.map_term(~f_exp, exp1);
+    switch (found^) {
+    | Some(id) => id
+    | None => failwith("could not locate `f(8)` Ap node")
+    };
+  };
+  let (r1, _, incr1) = eval_incr(exp1);
+  let (r2, _, incr2) = eval_incr(~prev=incr1, exp2);
+  check(dhexp_typ, "Run 1: f(8) = 1", parse_exp("1"), r1);
+  check(dhexp_typ, "Run 2: f(8) = 1 (unchanged)", parse_exp("1"), r2);
+  check(
+    bool,
+    "Run 2 reuses something (sanity, not a from-scratch run)",
+    true,
+    incr2.reused != [],
+  );
+  /* The actual bug we're pinning: `f(8)` should be reused — it doesn't
+   * reference the `_ = 55` binding and `f`'s rhs is unchanged. With the
+   * Parens around the Fun body, currently it lands in recalculated. */
+  check(
+    bool,
+    "f(8) is reused on run 2 (it doesn't depend on the edited _-binding)",
+    true,
+    List.mem(f8_id, incr2.reused),
+  );
+};
+
+/* (4) Three-run reuse: a leftmost BinOp that was reused on run 2 is not
+ * reused on run 3, even though its subtree hasn't moved.
+ *
+ *   Run 1: 1 + 2 + 3 + 4   -> 10
+ *   Run 2: 1 + 2 + 3 + 5   -> 11  (edit 4 -> 5)
+ *   Run 3: 1 + 2 + 4 + 5   -> 12  (edit 3 -> 4)
+ *
+ * Left-associative parse: `((1 + 2) + 3) + 4`. The `1 + 2` BinOp has a
+ * stable id and unchanged elab across all three runs. On run 2 the `1 + 2`
+ * subtree should be reused from run 1, and indeed it is. On run 3 the same
+ * subtree should be reused from run 2's cache — but it isn't.
+ *
+ * Suspected cause: when an id is reused on run 2, the cache entry is
+ * re-added to state via `add_incr_entry` (Evaluator.re:155) — but its
+ * state slice / probe-targets witness may not survive across to run 3's
+ * `prev`, breaking elab_same / probe_targets equality on run 3. */
+let test_three_run_leftmost_binop_reuses_on_run3 = () => {
+  let src = "1 + 2 + 3 + 4";
+  let exp1 = parse_exp(src);
+  let exp2 = replace_int_lit(~from=4, ~to_=5, exp1);
+  let exp3 = replace_int_lit(~from=3, ~to_=4, exp2);
+  /* Locate the `1 + 2` BinOp id — uniquely identified by both operands
+   * being Atom(Int) literals 1 and 2. */
+  let plus_1_2_id = {
+    let found = ref(None);
+    let f_exp = (continue, e: Exp.t): Exp.t => {
+      switch (e.term) {
+      | BinOp(_, lhs, rhs) =>
+        switch (lhs.term, rhs.term) {
+        | (Atom(Int(a)), Atom(Int(b)))
+            when
+              Bigint.to_string(a) == "1" && Bigint.to_string(b) == "2" =>
+          found := Some(Exp.rep_id(e))
+        | _ => ()
+        }
+      | _ => ()
+      };
+      continue(e);
+    };
+    let _ = TermBase.Exp.map_term(~f_exp, exp1);
+    switch (found^) {
+    | Some(id) => id
+    | None => failwith("could not locate `1 + 2` BinOp")
+    };
+  };
+  let (r1, _, incr1) = eval_incr(exp1);
+  let (r2, _, incr2) = eval_incr(~prev=incr1, exp2);
+  let (r3, _, incr3) = eval_incr(~prev=incr2, exp3);
+  check(dhexp_typ, "Run 1: 1+2+3+4 = 10", parse_exp("10"), r1);
+  check(dhexp_typ, "Run 2: 1+2+3+5 = 11", parse_exp("11"), r2);
+  check(dhexp_typ, "Run 3: 1+2+4+5 = 12", parse_exp("12"), r3);
+  /* Sanity: on run 2, `(1+2)+3` is unchanged from run 1, so it should be
+   * reused — short-circuiting the descent. That means `1+2` itself is
+   * NOT directly visited on run 2 (its parent's reuse subsumed it), but
+   * its prev_elab is covered by `frozen_ids`. */
+  check(
+    bool,
+    "Run 2: `1 + 2` is in frozen_ids (subsumed by a reused ancestor)",
+    true,
+    List.mem(plus_1_2_id, IncrEval.frozen_ids(incr2)),
+  );
+  /* The actual bug: on run 3, `(1+2)+3` becomes `(1+2)+4` so its parent
+   * (and the parent's parent) must be recalculated. The evaluator descends
+   * past them into `1 + 2`, whose subtree hasn't changed at all — so this
+   * id should land in incr3.reused.
+   *
+   * Currently fails because run 2's reuse at the `(1+2)+3` level drops
+   * `1+2`'s cache entry from the outgoing incr.entries map (only the
+   * reused id itself is re-added via add_incr_entry at Evaluator.re:155).
+   * Run 3 then sees no entry for `1+2`'s id and recalculates from scratch. */
+  check(
+    bool,
+    "Run 3: `1 + 2` is reused (its subtree is unchanged since run 1)",
+    true,
+    List.mem(plus_1_2_id, incr3.reused),
+  );
+};
+
 let tests = (
   "Evaluator.Incremental",
   [
@@ -922,6 +1221,26 @@ let tests = (
       "Replays probe slice on reuse (step_count advances)",
       `Quick,
       test_probe_replay_on_reuse,
+    ),
+    test_case(
+      "SHADOWING: deleting inner Let uncovers outer binding (wrong cache hit)",
+      `Quick,
+      test_delete_inner_let_uncovers_outer_binding,
+    ),
+    test_case(
+      "SHADOWING: adding inner Let newly shadows outer binding (wrong cache hit)",
+      `Quick,
+      test_add_inner_let_shadows_outer_binding,
+    ),
+    test_case(
+      "SHADOWING: parenthesized recursive Fun — f(8) reuses after unrelated _=55 edit",
+      `Quick,
+      test_paren_recursive_fun_app_reuses_after_unrelated_edit,
+    ),
+    test_case(
+      "THREE-RUN: leftmost `1+2` reuses on run 3 (1+2+3+4 -> 1+2+3+5 -> 1+2+4+5)",
+      `Quick,
+      test_three_run_leftmost_binop_reuses_on_run3,
     ),
   ],
 );
