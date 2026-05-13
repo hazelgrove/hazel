@@ -58,13 +58,13 @@ let eval_incr =
  * edited leaf itself — only the payload integer changes, the id stays).
  * This simulates a single-token text edit as the Zipper would produce it,
  * which is the only way to exercise true incremental reuse in tests. */
-let replace_int_lit = (~from: int, ~to_: int, exp: Exp.t): Exp.t => {
+let replace_int_lit = (~from: int, ~to_: int, ~to_id=?, exp: Exp.t): Exp.t => {
   let f_exp = (continue, e: Exp.t): Exp.t =>
     switch (e.term) {
     | Atom(Int(n)) when Bigint.to_string(n) == string_of_int(from) =>
       let new_term: Exp.term = Atom(Int(Bigint.of_int(to_)));
       {
-        ...e,
+        annotation: Option.value(~default=e.annotation, to_id),
         term: new_term,
       };
     | _ => continue(e)
@@ -1154,6 +1154,99 @@ let test_outer_edit_does_not_dirty_inner_shadowed_use = () => {
   );
 };
 
+/* (6) Edit that turns a let's rhs into a hole-containing BinOp should
+ * invalidate the let's body.
+ *
+ *   Run 1: let x = 4 in x + 1          -> 5
+ *   Run 2: let x = 4 + ? in x + 1      -> body is indet (x is a hole)
+ *
+ * On run 2 the body `x + 1` shouldn't reuse the cached value 5 — x's
+ * binding is now indeterminate. Concretely the body `x + 1` id should not
+ * be in incr2.reused, and the final result should differ from run 1's. */
+let test_let_rhs_becomes_hole_invalidates_body = () => {
+  let src = "let x = 4 + ? in x + 1";
+  let exp_with_hole = parse_exp(src);
+  /* Derive the without-hole version by finding the BinOp(Plus, 4, ?) and
+   * replacing it with just its left operand (4). Preserves all surrounding
+   * ids including the body `x + 1`. */
+  let strip_plus_hole = (exp: Exp.t): Exp.t => {
+    let f_exp = (continue, e: Exp.t): Exp.t =>
+      switch (e.term) {
+      | BinOp(_, lhs, rhs) =>
+        switch (rhs.term) {
+        | EmptyHole => lhs
+        | _ => continue(e)
+        }
+      | _ => continue(e)
+      };
+    TermBase.Exp.map_term(~f_exp, exp);
+  };
+  let exp_without_hole = strip_plus_hole(exp_with_hole);
+  check(
+    bool,
+    "strip_plus_hole actually changed the expression",
+    true,
+    !Exp.fast_equal(exp_with_hole, exp_without_hole),
+  );
+  /* Locate the body `x + 1` BinOp id — its lhs is Var("x") and rhs is
+   * Atom(Int(1)). */
+  let body_id = {
+    let found = ref(None);
+    let f_exp = (continue, e: Exp.t): Exp.t => {
+      switch (e.term) {
+      | BinOp(_, lhs, rhs) =>
+        switch (lhs.term, rhs.term) {
+        | (Var("x"), Atom(Int(n))) when Bigint.to_string(n) == "1" =>
+          found := Some(Exp.rep_id(e))
+        | _ => ()
+        }
+      | _ => ()
+      };
+      continue(e);
+    };
+    let _ = TermBase.Exp.map_term(~f_exp, exp_with_hole);
+    switch (found^) {
+    | Some(id) => id
+    | None => failwith("could not locate body `x + 1` BinOp node")
+    };
+  };
+  let (r1, _, incr1) = eval_incr(exp_without_hole);
+  let (r2, _, incr2) = eval_incr(~prev=incr1, exp_with_hole);
+  print_endline("DIAG r1 = " ++ Exp.show(r1));
+  print_endline("DIAG r2 = " ++ Exp.show(r2));
+  check(dhexp_typ, "Run 1: x = 4, x + 1 = 5", parse_exp("5"), r1);
+  check(
+    bool,
+    "Run 2 result differs from Run 1 (x is now a hole, body shouldn't be 5)",
+    true,
+    !Exp.fast_equal(r1, r2),
+  );
+  check(
+    bool,
+    "Body `x + 1` is NOT reused on run 2 (its binding became indet)",
+    false,
+    List.mem(body_id, incr2.reused),
+  );
+};
+
+let test_swap_counterexample = () => {
+  let src = "let x = 1 in let x = 2 in x" |> parse_exp;
+  let id1 = IdTagged.IdTag.fresh();
+  let id2 = IdTagged.IdTag.fresh();
+  let exp1 = 
+  src
+  |> replace_int_lit(~from=1, ~to_=4, ~to_id=id1)
+  |> replace_int_lit(~from=2, ~to_=5, ~to_id=id2);
+  let exp2 =
+  src
+  |> replace_int_lit(~from=1, ~to_=5, ~to_id=id2)
+  |> replace_int_lit(~from=2, ~to_=4, ~to_id=id1);
+  let (_, _, incr1) = eval_incr(exp1);
+  let (r2, _, _) = eval_incr(~prev=incr1, exp2);
+  // check value is correct after swap
+  check(dhexp_typ, "Run 1: inner x=2 wins, x = 2", parse_exp("4"), r2);
+}
+
 let tests = (
   "Evaluator.Incremental",
   [
@@ -1297,5 +1390,15 @@ let tests = (
       `Quick,
       test_outer_edit_does_not_dirty_inner_shadowed_use,
     ),
+    test_case(
+      "HOLE: let rhs becoming `4 + ?` invalidates body `x + 1`",
+      `Quick,
+      test_let_rhs_becomes_hole_invalidates_body,
+    ),
+    test_case(
+      "SWAP: swapping shadowed variables keeping their id",
+      `Quick,
+      test_swap_counterexample,
+    )
   ],
 );
