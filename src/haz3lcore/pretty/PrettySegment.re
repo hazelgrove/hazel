@@ -420,6 +420,7 @@ let is_right_convex = (p: Piece.t): bool =>
     | (_, Convex) => true
     | _ => false
     }
+  | Projector(_) => true
   | _ => false
   };
 
