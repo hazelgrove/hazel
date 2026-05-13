@@ -234,7 +234,9 @@ let rename_column = (old_name: string, new_name: string): transform => {
   );
 };
 
-let add_column = (new_column: string): transform => {
+/* Insert a new column with both label and value as empty holes. The user
+ * fills in the label and value directly in the editor. */
+let add_column = (): transform =>
   IdTagged.FreshGrammar.(
     Rowwise(
       Exp.(
@@ -242,7 +244,7 @@ let add_column = (new_column: string): transform => {
           Pat.var("r"),
           tuple_extension(
             var("r"),
-            tuple([tup_label(label(new_column), empty_hole())]),
+            tuple([tup_label(empty_hole(), empty_hole())]),
           ),
           None,
           None,
@@ -250,7 +252,6 @@ let add_column = (new_column: string): transform => {
       ),
     )
   );
-};
 
 let clear_column = (column: string): transform => {
   IdTagged.FreshGrammar.(

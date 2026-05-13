@@ -465,17 +465,12 @@ let render =
         Node.th(
           ~attrs=[
             Attr.classes(["add-column-header"]),
-            Attr.on_click(_ => {
-              let new_column_name = JsUtil.prompt("New column name:", "");
-              switch (new_column_name) {
+            Attr.on_click(_ =>
+              switch (to_segment(info, [add_column()])) {
+              | Some(seg) => parent(SetSyntax(seg))
               | None => Effect.Ignore
-              | Some(new_name) =>
-                switch (to_segment(info, [add_column(new_name)])) {
-                | Some(seg) => parent(SetSyntax(seg))
-                | None => Effect.Ignore
-                }
-              };
-            }),
+              }
+            ),
             Attr.create("title", "Add column"),
           ],
           [Node.text("+")],

@@ -152,8 +152,8 @@ let transform_tests = [
   ),
   test_case("add_column", `Quick, () =>
     assert_transforms(
-      [TableTransforms.add_column("new_col")],
-      {|table |> map(_, fun r -> r ... (new_col=?))|},
+      [TableTransforms.add_column()],
+      {|table |> map(_, fun r -> r ... (?=?))|},
     )
   ),
   test_case("convert_column", `Quick, () =>
