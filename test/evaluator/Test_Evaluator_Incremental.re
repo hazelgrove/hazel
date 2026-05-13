@@ -47,10 +47,7 @@ let eval_incr =
     : (Exp.t, EvaluatorState.t, IncrEval.t) => {
   let (info_map, elab) = statics_and_elab(exp);
   let info_map =
-    EvalInfoMap.of_info_map(
-      ~probe_all=CoreSettings.on.probe_all,
-      info_map,
-    );
+    EvalInfoMap.of_info_map(~probe_all=CoreSettings.on.probe_all, info_map);
   let (result, state) =
     Evaluator.evaluate(~prev, ~info_map, ~env=Builtins.env_init, elab);
   (result, state, state.incr_eval);
@@ -94,13 +91,10 @@ let strip_let_with_int_rhs = (~rhs_val: int, exp: Exp.t): Exp.t => {
       switch (e.term) {
       | Let(_, def, body)
           when
-            (
-              switch (def.term) {
-              | Atom(Int(n)) =>
-                Bigint.to_string(n) == string_of_int(rhs_val)
-              | _ => false
-              }
-            ) =>
+            switch (def.term) {
+            | Atom(Int(n)) => Bigint.to_string(n) == string_of_int(rhs_val)
+            | _ => false
+            } =>
         go(body)
       | _ => continue(e)
       };
@@ -552,10 +546,7 @@ let test_probe_replay_on_reuse = () => {
   let exp = parse_exp(src);
   let (info_map, elab) = statics_and_elab(exp);
   let info_map =
-    EvalInfoMap.of_info_map(
-      ~probe_all=CoreSettings.on.probe_all,
-      info_map,
-    );
+    EvalInfoMap.of_info_map(~probe_all=CoreSettings.on.probe_all, info_map);
   /* First run: no probes targeted. */
   let (_, state1) =
     Evaluator.evaluate(
@@ -1056,8 +1047,7 @@ let test_three_run_leftmost_binop_reuses_on_run3 = () => {
       | BinOp(_, lhs, rhs) =>
         switch (lhs.term, rhs.term) {
         | (Atom(Int(a)), Atom(Int(b)))
-            when
-              Bigint.to_string(a) == "1" && Bigint.to_string(b) == "2" =>
+            when Bigint.to_string(a) == "1" && Bigint.to_string(b) == "2" =>
           found := Some(Exp.rep_id(e))
         | _ => ()
         }

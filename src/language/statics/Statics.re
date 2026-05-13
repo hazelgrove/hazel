@@ -2108,8 +2108,7 @@ and uexp_to_info_map =
            * before the FixF unwrap, so no fresh substitution ids are
            * introduced into the cached closure value. */
           let fun_id = Exp.rep_id(def_elab);
-          let def_elab =
-            IdTagged.fresh_deterministic(fun_id, def_elab.term);
+          let def_elab = IdTagged.fresh_deterministic(fun_id, def_elab.term);
           let fixf =
             IdTagged.mk_internal(
               [fun_id],
