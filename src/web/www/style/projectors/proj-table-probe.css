@@ -177,12 +177,13 @@
 .table th.add-column-header {
     cursor: pointer;
     padding: 2px 8px;
-    color: var(--BR2);
-    opacity: 0.5;
+    color: var(--BR3);
     font-size: 1rem;
     user-select: none;
+    transition: background-color 0.15s ease, color 0.15s ease;
 }
 
 .table th.add-column-header:hover {
-    opacity: 1;
+    color: var(--BR4);
+    background-color: var(--df-hover-bg);
 }
