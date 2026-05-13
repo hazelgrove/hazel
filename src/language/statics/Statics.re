@@ -2100,9 +2100,22 @@ and uexp_to_info_map =
           let def_elab =
             LabeledTupleHelpers.align_exp_if_needed(ctx, p_syn.ty, def_elab)
             |> Exp.add_name(Option.map(s => s ++ "+", Pat.get_var(p)));
+          /* Give the fixpoint the function's surface id (which IS in
+           * info_map, so it gets a cache entry), and give the inner Fun a
+           * derived id (which isn't in info_map, but that's fine — the
+           * FixF's cache entry subsumes it). This makes the function->closure
+           * evaluation itself a reusable computation: on a second run with
+           * an unrelated edit, reuse_check at the FixF id short-circuits
+           * before the FixF unwrap, so no fresh substitution ids are
+           * introduced into the cached closure value. */
+          let fun_id = Exp.rep_id(def_elab);
+          let def_elab =
+            IdTagged.fresh_deterministic(fun_id, def_elab.term);
           let fixf =
-            (FixF(p_elab, def_elab, None): Exp.term)
-            |> IdTagged.fresh_deterministic(Exp.rep_id(uexp));
+            IdTagged.mk_internal(
+              [fun_id],
+              FixF(p_elab, def_elab, None): Exp.term,
+            );
           Let(p_elab, fixf, body_elab) |> rewrap;
         };
       add(
