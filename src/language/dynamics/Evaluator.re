@@ -317,12 +317,18 @@ let rec evaluate =
       };
     switch (info_snapshot) {
     | None => eval_core()
-    | Some({elab_term: prev_elab, probe_targets: prev_probe_targets, _}) =>
+    | Some({
+        elab_term: prev_elab,
+        refs: prev_refs,
+        probe_targets: prev_probe_targets,
+        _,
+      }) =>
       let.trampoline (status, effects, final) = eval_core();
       let state_slice =
         EvaluatorState.capture_slice(~before=state_before, ~after=state^);
       let entry: IncrEval.entry = {
         prev_elab,
+        prev_refs,
         prev_probe_targets,
         value: final,
         state: state_slice,
