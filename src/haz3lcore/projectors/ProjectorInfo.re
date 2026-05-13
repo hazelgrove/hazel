@@ -13,6 +13,11 @@ let utility: ProjectorBase.utility = {
         ...ExpToSegment.Settings.of_core(~inline, CoreSettings.off),
         show_unknown_as_hole: false,
         fold_fn_bodies: `NoFold,
+        /* Disable auto-table projection inside projector-rendered segments:
+         * probe sample values render via Code.view with an empty shape_map,
+         * so a Table projector piece would surface as invisible whitespace
+         * (collapsing the sample's value to nothing). */
+        project_tables: false,
       },
       any,
     );

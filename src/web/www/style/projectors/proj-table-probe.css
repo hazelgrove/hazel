@@ -124,6 +124,10 @@
     position: relative;
     padding-left: 15px;
     padding-right: 15px;
+    /* Keep header label and the inline-block column-options button on the
+     * same line even when the modal-backdrop (position: absolute, inside a
+     * flex .sample-group) shrinks under an empty/indet sample value. */
+    white-space: nowrap;
 }
 
 .modal .table {
