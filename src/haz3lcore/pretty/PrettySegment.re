@@ -423,6 +423,7 @@ let is_right_convex = (p: Piece.t): bool =>
     | _ => false
     }
   | Grout({shape: Convex, _}) => true
+  | Projector(_) => true
   | _ => false
   };
 
