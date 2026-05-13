@@ -21,46 +21,46 @@ let deferred_funapp_exp_ex = {
     ),
   message: "The plus function is partially applied. The argument y is bound to 1 in the function body. The deferred argument x is not applied until in the full function application, incr(5), where it's bound to 5. The partial application evaluates to a new function, (fun x -> x + 1).",
 };
-let _exp_fun = exp("e_fun");
-let _exp_arg = exp("e_arg");
+let exp_fun = exp("e_fun");
+let exp_arg = exp("e_arg");
 let funapp_exp_coloring_ids =
     (~x_id: Id.t, ~arg_id: Id.t): list((Id.t, Id.t)) => [
-  (Piece.id(_exp_fun), x_id),
-  (Piece.id(_exp_arg), arg_id),
+  (Piece.id(exp_fun), x_id),
+  (Piece.id(exp_arg), arg_id),
 ];
 let funapp_exp: form = {
   let explanation = "Applies the [*function*](%s) to the [*argument*](%s).";
   {
     id: FunApExp,
-    syntactic_form: [_exp_fun, mk_ap_exp([[_exp_arg]])],
+    syntactic_form: [exp_fun, mk_ap_exp([[exp_arg]])],
     expandable_id: None,
     explanation,
     examples: [funapp_exp_ex],
   };
 };
-let _exp_con = exp("e_con");
-let _exp_arg = exp("e_arg");
+let exp_con = exp("e_con");
+let exp_arg = exp("e_arg");
 let conapp_exp_coloring_ids =
     (~x_id: Id.t, ~arg_id: Id.t): list((Id.t, Id.t)) => [
-  (Piece.id(_exp_con), x_id),
-  (Piece.id(_exp_arg), arg_id),
+  (Piece.id(exp_con), x_id),
+  (Piece.id(exp_arg), arg_id),
 ];
 let conapp_exp: form = {
   let explanation = "Applies the [*`%s` constructor*](%s) to the [*argument*](%s).";
   {
     id: ConApExp,
-    syntactic_form: [_exp_con, mk_ap_exp([[_exp_arg]])],
+    syntactic_form: [exp_con, mk_ap_exp([[exp_arg]])],
     expandable_id: None,
     explanation,
     examples: [conapp_exp_ex],
   };
 };
-let _exp_fun = exp("e_fun");
-let _exp_deferral = deferral();
+let exp_fun = exp("e_fun");
+let exp_deferral = deferral();
 let deferred_funapp_exp_coloring_ids =
     (~x_id: Id.t, ~deferred_id: Id.t): list((Id.t, Id.t)) => [
-  (Piece.id(_exp_fun), x_id),
-  (Piece.id(_exp_deferral), deferred_id),
+  (Piece.id(exp_fun), x_id),
+  (Piece.id(exp_deferral), deferred_id),
 ];
 let deferred_funapp_exp: form = {
   let explanation = "Applies the [*function*](%s) to the [*supplied arguments*](%s). The [*deferred arguments*](%s) can be applied in future applications.";
@@ -68,13 +68,13 @@ let deferred_funapp_exp: form = {
   {
     id: DeferredApExp,
     syntactic_form: [
-      _exp_fun,
+      exp_fun,
       mk_ap_exp([
         [
           exp("..."),
           comma,
           space(),
-          _exp_deferral,
+          exp_deferral,
           comma,
           space(),
           exp("..."),
@@ -108,19 +108,19 @@ let livelitapp_exp_ex = {
   message: "The slider livelit is expanded to its value, which is 50 in this case. The livelit presents a GUI widget that allows setting the value.",
 };
 
-let _exp_livelit = exp("^livelit_name");
-let _exp_arg = exp("model");
+let exp_livelit = exp("^livelit_name");
+let exp_arg = exp("model");
 let livelitapp_exp_coloring_ids =
     (~x_id: Id.t, ~arg_id: Id.t): list((Id.t, Id.t)) => [
-  (Piece.id(_exp_livelit), x_id),
-  (Piece.id(_exp_arg), arg_id),
+  (Piece.id(exp_livelit), x_id),
+  (Piece.id(exp_arg), arg_id),
 ];
 
 let livelitapp_exp: form = {
   let explanation = "Expands the [*livelit*](%s) to some value based on its [*model*](%s). When projected, creates a GUI widget.";
   {
     id: LivelitApExp,
-    syntactic_form: [_exp_livelit, mk_ap_exp([[_exp_arg]])],
+    syntactic_form: [exp_livelit, mk_ap_exp([[exp_arg]])],
     expandable_id: None,
     explanation,
     examples: [livelitapp_exp_ex],

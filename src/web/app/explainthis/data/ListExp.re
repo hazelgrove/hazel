@@ -35,35 +35,35 @@ let cons2_ex = {
   term: mk_example("true::false::[]"),
   message: "A list with two elements, true and false.",
 };
-let _exp_hd = exp("e_hd");
-let _exp_tl = exp("e_tl");
+let exp_hd = exp("e_hd");
+let exp_tl = exp("e_tl");
 let cons_exp_coloring_ids = (~hd_id: Id.t, ~tl_id: Id.t): list((Id.t, Id.t)) => [
-  (Piece.id(_exp_hd), hd_id),
-  (Piece.id(_exp_tl), tl_id),
+  (Piece.id(exp_hd), hd_id),
+  (Piece.id(exp_tl), tl_id),
 ];
 let cons_exp: form = {
   let explanation = "Creates a list with [*head element*](%s) and [*tail element*](%s).";
   {
     id: ConsExp,
-    syntactic_form: [_exp_hd, cons_exp(), _exp_tl],
+    syntactic_form: [exp_hd, cons_exp(), exp_tl],
     expandable_id: None,
     explanation,
     examples: [cons1_ex, cons2_ex],
   };
 };
 
-let _exp_xs = exp("xs");
-let _exp_ys = exp("ys");
+let exp_xs = exp("xs");
+let exp_ys = exp("ys");
 let concat_exp_coloring_ids =
     (~xs_id: Id.t, ~ys_id: Id.t): list((Id.t, Id.t)) => [
-  (Piece.id(_exp_xs), xs_id),
-  (Piece.id(_exp_ys), ys_id),
+  (Piece.id(exp_xs), xs_id),
+  (Piece.id(exp_ys), ys_id),
 ];
 let list_concat_exp: form = {
   let explanation = "Creates a list by combining the [*first operand*](%s) and the [*second operand*](%s).";
   {
     id: ListConcatExp,
-    syntactic_form: [_exp_xs, space(), list_concat_exp(), space(), _exp_ys],
+    syntactic_form: [exp_xs, space(), list_concat_exp(), space(), exp_ys],
     expandable_id: None,
     explanation,
     examples: [],
