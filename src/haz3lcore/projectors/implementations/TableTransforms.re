@@ -95,11 +95,6 @@ let atom_cls_of_typ = (ty: Typ.t): option(Atom.cls) =>
   | _ => None
   };
 
-/* All conversion options from a source class, one entry per other class. */
-let conversion_functions = (cls: Atom.cls): list((string, string)) =>
-  Atom.conversions_from(cls)
-  |> List.map(((name, to_)) => (Atom.show_cls(to_), name));
-
 /* Builtin comparator for a class, if one exists. Used by sort_column. */
 let compare_builtin_of_cls = (cls: Atom.cls): option(string) =>
   switch (cls) {

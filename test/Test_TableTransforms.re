@@ -464,32 +464,42 @@ let type_utility_tests = {
   ];
 };
 
-/* --- conversion_functions tests --- */
+/* --- Atom.conversions_from tests --- */
 
 let conversion_tests = [
   test_case(
-    "conversion_functions: Int has one entry per other class",
+    "Atom.conversions_from: Int has one entry per other class",
     `Quick,
     () => {
-      let fns = TableTransforms.conversion_functions(Atom.Int);
-      /* All Atom.cls members except Int itself */
+      let fns = Atom.conversions_from(Atom.Int);
       check(int, "5 conversions", 5, List.length(fns));
       let names = List.map(fst, fns);
       List.iter(
         expected =>
           check(bool, "has " ++ expected, true, List.mem(expected, names)),
-        ["SInt", "Nat", "Float", "Bool", "String"],
+        [
+          "sint_of_int",
+          "nat_of_int",
+          "float_of_int",
+          "bool_of_int",
+          "string_of_int",
+        ],
       );
     },
   ),
   test_case(
-    "conversion_functions: Nat has conversions to all other classes",
+    "Atom.conversions_from: Nat has conversions to all other classes",
     `Quick,
     () => {
-      let fns = TableTransforms.conversion_functions(Atom.Nat);
+      let fns = Atom.conversions_from(Atom.Nat);
       check(int, "5 conversions", 5, List.length(fns));
       let names = List.map(fst, fns);
-      check(bool, "no self-conversion", false, List.mem("Nat", names));
+      check(
+        bool,
+        "no self-conversion",
+        false,
+        List.mem("nat_of_nat", names),
+      );
     },
   ),
   test_case(

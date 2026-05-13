@@ -194,14 +194,15 @@ let build_column_menu =
     let conversion_items =
       switch (Option.bind(column_type, atom_cls_of_typ)) {
       | Some(cls) =>
-        conversion_functions(cls)
-        |> List.map(((display, func)) =>
+        Atom.conversions_from(cls)
+        |> List.map(((func, to_)) => {
+             let display = Atom.show_cls(to_);
              Action({
                text: display,
                tooltip: "Convert column values to " ++ display,
                action: () => apply([convert_column(h, func)]),
-             })
-           )
+             });
+           })
       | None => []
       };
 
