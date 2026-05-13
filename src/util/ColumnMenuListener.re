@@ -117,6 +117,49 @@ let setup = (): unit =>
     ();
   };
 
+/* Schedule scrolling the selected menu item into view after the next
+ * render tick. Handles two cases: (a) the menu was opened near the
+ * bottom and overflows the viewport, (b) arrow-key navigation moves the
+ * selection to an item that's off-screen. Falls back to scrolling the
+ * menu container if no item is selected. */
+let scroll_selected_into_view = () => {
+  let _ =
+    Dom_html.window##setTimeout(
+      Js.wrap_callback(() => {
+        let selector = ".column-menu .menu-item.selected";
+        let target =
+          switch (
+            Js.Opt.to_option(
+              Dom_html.document##querySelector(Js.string(selector)),
+            )
+          ) {
+          | Some(_) as found => found
+          | None =>
+            Js.Opt.to_option(
+              Dom_html.document##querySelector(Js.string(".column-menu")),
+            )
+          };
+        switch (target) {
+        | None => ()
+        | Some(elem) =>
+          let opts =
+            Js.Unsafe.obj([|
+              ("block", Js.Unsafe.inject(Js.string("nearest"))),
+            |]);
+          let _ =
+            Js.Unsafe.meth_call(
+              elem,
+              "scrollIntoView",
+              [|Js.Unsafe.inject(opts)|],
+            );
+          ();
+        };
+      }),
+      0.0,
+    );
+  ();
+};
+
 /* Called on every render. Activates/deactivates the listener and refreshes
  * the captured effect/key handler closures. */
 let sync =
@@ -132,13 +175,16 @@ let sync =
     on_key := Some(handle_key);
     is_active := true;
     opened_at := Js.Unsafe.global##.performance##now();
+    scroll_selected_into_view();
   } else if (!menu_open && is_active^) {
     close_effect := None;
     on_key := None;
     is_active := false;
   } else if (menu_open) {
-    /* Still open — refresh closures in case inject changed. */
+    /* Still open — refresh closures in case inject changed, and keep
+     * the selected item visible as the user navigates with arrow keys. */
     close_effect := Some(on_close);
     on_key := Some(handle_key);
+    scroll_selected_into_view();
   };
 };
