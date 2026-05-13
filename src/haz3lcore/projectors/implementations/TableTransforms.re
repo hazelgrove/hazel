@@ -89,29 +89,48 @@ let can_move_column =
   | None => false
   };
 
-let conversion_functions = (cls: Atom.cls) =>
+/* Extract the underlying Atom.cls from a Typ.t, if any. */
+let atom_cls_of_typ = (ty: Typ.t): option(Atom.cls) =>
+  switch (Typ.cls_of_term(ty.term)) {
+  | Typ.Atom(cls) => Some(cls)
+  | _ => None
+  };
+
+/* Builtin function name for a cls1 → cls2 conversion. Mirrors the naming
+ * scheme used by Atom.converter_builtins ("<target>_of_<source>"). */
+let conversion_builtin = (~from_: Atom.cls, ~to_: Atom.cls): string =>
+  Atom.cls_string_lower(to_) ++ "_of_" ++ Atom.cls_string_lower(from_);
+
+/* All conversion options from a source class, one entry per other class. */
+let conversion_functions = (cls: Atom.cls): list((string, string)) =>
+  Atom.all_of_cls
+  |> List.filter(target => target != cls)
+  |> List.map(target =>
+       (Atom.show_cls(target), conversion_builtin(~from_=cls, ~to_=target))
+     );
+
+/* Builtin comparator for a class, if one exists. Used by sort_column. */
+let compare_builtin_of_cls = (cls: Atom.cls): option(string) =>
   switch (cls) {
-  | Atom.String => [
-      ("Int", "int_of_string"),
-      ("Float", "float_of_string"),
-      ("Bool", "bool_of_string"),
-    ]
-  | Atom.Int => [
-      ("String", "string_of_int"),
-      ("Float", "float_of_int"),
-      ("Bool", "bool_of_int"),
-    ]
-  | Atom.Float => [
-      ("String", "string_of_float"),
-      ("Int", "int_of_float"),
-      ("Bool", "bool_of_float"),
-    ]
-  | Atom.Bool => [
-      ("String", "string_of_bool"),
-      ("Int", "int_of_bool"),
-      ("Float", "float_of_bool"),
-    ]
-  | _ => []
+  | Int => Some("int_compare")
+  | SInt => Some("sint_compare")
+  | Nat => Some("nat_compare")
+  | Float => Some("float_compare")
+  | String => Some("string_compare")
+  | Bool => None
+  };
+
+/* Construct a binary numeric operator at a given class, for filter
+ * predicates like "row.col > ?". Returns None for non-numeric classes. */
+let numeric_bin_op =
+    (cls: Atom.cls, op: Operators.op_bin_num): option(Operators.op_bin) =>
+  switch (cls) {
+  | Int => Some(Int(op))
+  | SInt => Some(SInt(op))
+  | Nat => Some(Nat(op))
+  | Float => Some(Float(Operators.op_bin_float_of_num(op)))
+  | Bool
+  | String => None
   };
 
 /* Apply a list of transforms to a base expression, producing the
@@ -313,6 +332,46 @@ let filter_by_column = (op, column: string): transform => {
   );
 };
 
+/* Filter with an open-ended predicate body. The whole predicate body is an
+ * empty hole, so the user writes anything that returns Bool. */
+let custom_filter = (): transform =>
+  IdTagged.FreshGrammar.(
+    Listwise(
+      Exp.(
+        deferred_ap(
+          var("filter"),
+          [deferral(InAp), fn(Pat.var("row"), empty_hole(), None, None)],
+        )
+      ),
+    )
+  );
+
+/* String-specific filter: keeps rows whose column matches a regex pattern.
+ * The pattern is an empty hole; the user fills it in. */
+let string_match_filter = (column: string): transform =>
+  IdTagged.FreshGrammar.(
+    Listwise(
+      Exp.(
+        deferred_ap(
+          var("filter"),
+          [
+            deferral(InAp),
+            fn(
+              Pat.var("row"),
+              ap(
+                Forward,
+                var("string_match"),
+                tuple([empty_hole(), dot(var("row"), label(column))]),
+              ),
+              None,
+              None,
+            ),
+          ],
+        )
+      ),
+    )
+  );
+
 let drop_nones_column = (column: string): transform => {
   IdTagged.FreshGrammar.(
     Listwise(
@@ -426,16 +485,9 @@ let sort_column =
     (column_type: option(Typ.t), header: string, descending: bool)
     : option(list(transform)) => {
   let compare_fn =
-    switch (column_type) {
-    | Some(ty) =>
-      switch (Typ.cls_of_term(ty.term)) {
-      | Typ.Atom(Atom.Int) => Some("int_compare")
-      | Typ.Atom(Atom.Float) => Some("float_compare")
-      | Typ.Atom(Atom.String) => Some("string_compare")
-      | _ => None
-      }
-    | None => None
-    };
+    Option.bind(column_type, atom_cls_of_typ)
+    |> Option.map(compare_builtin_of_cls)
+    |> Option.join;
   switch (compare_fn) {
   | Some(compare_fn_name) =>
     let cmp_call =

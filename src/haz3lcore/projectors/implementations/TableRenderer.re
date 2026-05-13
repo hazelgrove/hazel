@@ -96,6 +96,76 @@ let build_column_menu =
   // If we're in a submenu, show that submenu
   switch (menu_path) {
   | ["Filter"] =>
+    /* Comparators offered for numeric columns. Each lifts to the cls-correct
+     * BinOp via TableTransforms.numeric_bin_op. */
+    let numeric_comparators: list((string, string, Operators.op_bin_num)) = [
+      (
+        "Greater than",
+        "Keep rows where this column is greater than a value",
+        GreaterThan,
+      ),
+      (
+        "Greater than or equal",
+        "Keep rows where this column is at least a value",
+        GreaterThanOrEqual,
+      ),
+      (
+        "Less than",
+        "Keep rows where this column is less than a value",
+        LessThan,
+      ),
+      (
+        "Less than or equal",
+        "Keep rows where this column is at most a value",
+        LessThanOrEqual,
+      ),
+    ];
+    let column_cls = Option.bind(column_type, atom_cls_of_typ);
+    let numeric_items =
+      switch (column_cls) {
+      | None => []
+      | Some(cls) =>
+        numeric_comparators
+        |> List.filter_map(((text, tooltip, op_num)) =>
+             numeric_bin_op(cls, op_num)
+             |> Option.map(op =>
+                  Action({
+                    text,
+                    tooltip,
+                    action: () => apply([filter_by_column(op, h)]),
+                  })
+                )
+           )
+      };
+    let poly_items = [
+      Action({
+        text: "Equals",
+        tooltip: "Keep rows where this column equals a value",
+        action: () => apply([filter_by_column(Poly(Equals), h)]),
+      }),
+      Action({
+        text: "Not equal",
+        tooltip: "Keep rows where this column doesn't equal a value",
+        action: () => apply([filter_by_column(Poly(NotEquals), h)]),
+      }),
+    ];
+    let string_items =
+      switch (column_cls) {
+      | Some(String) => [
+          Action({
+            text: "Matches regex",
+            tooltip: "Keep rows where this column matches a regex pattern",
+            action: () => apply([string_match_filter(h)]),
+          }),
+        ]
+      | _ => []
+      };
+    let custom_item =
+      Action({
+        text: "Custom…",
+        tooltip: "Write your own predicate over the row",
+        action: () => apply([custom_filter()]),
+      });
     [
       Action({
         text: "← Back",
@@ -103,69 +173,23 @@ let build_column_menu =
         action: () => local(ShowSubmenu([])),
       }),
     ]
-    @ {
-      let gt_op: option(Operators.op_bin) =
-        switch (Option.map(Typ.term_of, column_type)) {
-        | Some(Atom(Int)) => Some(Int(GreaterThan))
-        | Some(Atom(Float)) => Some(Float(GreaterThan))
-        | _ => None
-        };
-      let lt_op: option(Operators.op_bin) =
-        switch (Option.map(Typ.term_of, column_type)) {
-        | Some(Atom(Int)) => Some(Int(LessThan))
-        | Some(Atom(Float)) => Some(Float(LessThan))
-        | _ => None
-        };
-      (
-        switch (gt_op) {
-        | Some(op) => [
-            Action({
-              text: "Greater than",
-              tooltip: "Keep rows where this column is greater than a value",
-              action: () => apply([filter_by_column(op, h)]),
-            }),
-          ]
-        | None => []
-        }
-      )
-      @ (
-        switch (lt_op) {
-        | Some(op) => [
-            Action({
-              text: "Less than",
-              tooltip: "Keep rows where this column is less than a value",
-              action: () => apply([filter_by_column(op, h)]),
-            }),
-          ]
-        | None => []
-        }
-      )
-      @ [
-        Action({
-          text: "Equals",
-          tooltip: "Keep rows where this column equals a value",
-          action: () => apply([filter_by_column(Poly(Equals), h)]),
-        }),
-      ];
-    }
+    @ numeric_items
+    @ poly_items
+    @ string_items
+    @ [custom_item];
   | ["Transform"] =>
     // Merged Transform submenu: conversion options + Clear + Identity
     let conversion_items =
-      switch (column_type) {
-      | Some(ty) =>
-        switch (Typ.cls_of_term(ty.term)) {
-        | Typ.Atom(atom) =>
-          List.map(
-            ((display, func)) =>
-              Action({
-                text: display,
-                tooltip: "Convert column values to " ++ display,
-                action: () => apply([convert_column(h, func)]),
-              }),
-            conversion_functions(atom),
-          )
-        | _ => []
-        }
+      switch (Option.bind(column_type, atom_cls_of_typ)) {
+      | Some(cls) =>
+        conversion_functions(cls)
+        |> List.map(((display, func)) =>
+             Action({
+               text: display,
+               tooltip: "Convert column values to " ++ display,
+               action: () => apply([convert_column(h, func)]),
+             })
+           )
       | None => []
       };
 
@@ -292,19 +316,18 @@ let build_column_menu =
       | None => []
       };
 
+    /* Show the Filter entry whenever something useful is offered inside —
+     * any atom column can use Equals/Not equal/Custom, numeric columns get
+     * comparators, strings get regex matching. */
     let filter_submenu =
-      switch (column_type) {
-      | Some(ty) =>
-        switch (Typ.cls_of_term(ty.term)) {
-        | Typ.Atom(Atom.Int | Atom.Float) => [
-            Action({
-              text: "Filter →",
-              tooltip: "Keep rows matching a condition on this column",
-              action: () => local(ShowSubmenu(["Filter"])),
-            }),
-          ]
-        | _ => []
-        }
+      switch (Option.bind(column_type, atom_cls_of_typ)) {
+      | Some(_) => [
+          Action({
+            text: "Filter →",
+            tooltip: "Keep rows matching a condition on this column",
+            action: () => local(ShowSubmenu(["Filter"])),
+          }),
+        ]
       | None => []
       };
 

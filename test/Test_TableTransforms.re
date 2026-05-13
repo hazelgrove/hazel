@@ -186,6 +186,18 @@ let transform_tests = [
       {|table |> filter(_, fun row -> row.score == ?)|},
     )
   ),
+  test_case("custom_filter (open predicate)", `Quick, () =>
+    assert_transforms(
+      [TableTransforms.custom_filter()],
+      {|table |> filter(_, fun row -> ?)|},
+    )
+  ),
+  test_case("string_match_filter", `Quick, () =>
+    assert_transforms(
+      [TableTransforms.string_match_filter("name")],
+      {|table |> filter(_, fun row -> string_match(?, row.name))|},
+    )
+  ),
   test_case("drop_nones_column", `Quick, () =>
     assert_transforms(
       [TableTransforms.drop_nones_column("optional_col")],
@@ -456,22 +468,46 @@ let type_utility_tests = {
 
 let conversion_tests = [
   test_case(
-    "conversion_functions: Int has 3 conversions",
+    "conversion_functions: Int has one entry per other class",
     `Quick,
     () => {
       let fns = TableTransforms.conversion_functions(Atom.Int);
-      check(int, "3 conversions", 3, List.length(fns));
-      let names = List.map(((display, _)) => display, fns);
-      check(bool, "has String", true, List.mem("String", names));
-      check(bool, "has Float", true, List.mem("Float", names));
+      /* All Atom.cls members except Int itself */
+      check(int, "5 conversions", 5, List.length(fns));
+      let names = List.map(fst, fns);
+      List.iter(
+        expected =>
+          check(bool, "has " ++ expected, true, List.mem(expected, names)),
+        ["SInt", "Nat", "Float", "Bool", "String"],
+      );
     },
   ),
   test_case(
-    "conversion_functions: unknown type returns empty",
+    "conversion_functions: Nat has conversions to all other classes",
     `Quick,
     () => {
       let fns = TableTransforms.conversion_functions(Atom.Nat);
-      check(int, "no conversions", 0, List.length(fns));
+      check(int, "5 conversions", 5, List.length(fns));
+      let names = List.map(fst, fns);
+      check(bool, "no self-conversion", false, List.mem("Nat", names));
+    },
+  ),
+  test_case(
+    "conversion_builtin: uses <target>_of_<source> scheme",
+    `Quick,
+    () => {
+      check(
+        string,
+        "int->sint",
+        "sint_of_int",
+        TableTransforms.conversion_builtin(~from_=Atom.Int, ~to_=Atom.SInt),
+      );
+      check(
+        string,
+        "nat->string",
+        "string_of_nat",
+        TableTransforms.conversion_builtin(~from_=Atom.Nat, ~to_=Atom.String),
+      );
     },
   ),
 ];
