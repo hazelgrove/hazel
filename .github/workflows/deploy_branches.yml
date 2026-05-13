@@ -3,8 +3,14 @@
 name: Build and Deploy Hazel
 on: [push]
 concurrency:
-  group: deploy-to-build-repo
-  cancel-in-progress: false
+  # Per-branch group so cross-branch deploys don't evict each other from
+  # the queue (a global group has queue depth 1, so a third concurrent
+  # run cancels whichever was queued). The push-retry loop in the deploy
+  # step handles the cross-branch race on hazelgrove/build's main ref.
+  # cancel-in-progress: true so a newer commit on the same branch
+  # supersedes an older in-flight build rather than deploying stale output.
+  group: deploy-to-build-repo-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   Deploy:
     runs-on: ubuntu-latest
@@ -103,12 +109,13 @@ jobs:
             exit 0
           fi
           git commit -m "github-deploy-action-${BRANCH_NAME}"
-          for i in 1 2 3; do
+          for i in $(seq 1 10); do
             git push && exit 0
             echo "Push failed (attempt $i), pulling and retrying..."
+            sleep $((RANDOM % 3 + 1))
             git pull --rebase --no-edit
           done
-          echo "Push failed after 3 attempts"
+          echo "Push failed after 10 attempts"
           exit 1
         working-directory: ./server
       - name: Run Tests
