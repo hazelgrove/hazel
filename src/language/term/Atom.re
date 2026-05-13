@@ -223,6 +223,18 @@ type builtin =
     )
     : builtin;
 
+/* Builtin comparator name for a class, if one exists. Bool has no
+ * builtin compare; see BuiltinsBase.re for the implementations. */
+let compare_builtin = (cls: cls): option(string) =>
+  switch (cls) {
+  | Int => Some("int_compare")
+  | SInt => Some("sint_compare")
+  | Nat => Some("nat_compare")
+  | Float => Some("float_compare")
+  | String => Some("string_compare")
+  | Bool => None
+  };
+
 let conversions_from = (from_: cls): list((string, cls)) =>
   all_of_cls
   |> List.filter_map(to_ =>

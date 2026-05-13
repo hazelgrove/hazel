@@ -95,30 +95,6 @@ let atom_cls_of_typ = (ty: Typ.t): option(Atom.cls) =>
   | _ => None
   };
 
-/* Builtin comparator for a class, if one exists. Used by sort_column. */
-let compare_builtin_of_cls = (cls: Atom.cls): option(string) =>
-  switch (cls) {
-  | Int => Some("int_compare")
-  | SInt => Some("sint_compare")
-  | Nat => Some("nat_compare")
-  | Float => Some("float_compare")
-  | String => Some("string_compare")
-  | Bool => None
-  };
-
-/* Construct a binary numeric operator at a given class, for filter
- * predicates like "row.col > ?". Returns None for non-numeric classes. */
-let numeric_bin_op =
-    (cls: Atom.cls, op: Operators.op_bin_num): option(Operators.op_bin) =>
-  switch (cls) {
-  | Int => Some(Int(op))
-  | SInt => Some(SInt(op))
-  | Nat => Some(Nat(op))
-  | Float => Some(Float(Operators.op_bin_float_of_num(op)))
-  | Bool
-  | String => None
-  };
-
 /* Apply a list of transforms to a base expression, producing the
  * piped result: base |> transform1 |> transform2 |> ... */
 let apply_transforms = (base: Exp.t, transforms: list(transform)): Exp.t => {
@@ -473,7 +449,7 @@ let sort_column =
     : option(list(transform)) => {
   let compare_fn =
     Option.bind(column_type, atom_cls_of_typ)
-    |> Option.map(compare_builtin_of_cls)
+    |> Option.map(Atom.compare_builtin)
     |> Option.join;
   switch (compare_fn) {
   | Some(compare_fn_name) =>

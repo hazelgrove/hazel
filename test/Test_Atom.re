@@ -40,6 +40,45 @@ let tests = (
       },
     ),
     test_case(
+      "compare_builtin: numeric and string classes have builtin compares",
+      `Quick,
+      () => {
+        check(
+          option(string),
+          "Int",
+          Some("int_compare"),
+          Atom.compare_builtin(Atom.Int),
+        );
+        check(
+          option(string),
+          "SInt",
+          Some("sint_compare"),
+          Atom.compare_builtin(Atom.SInt),
+        );
+        check(
+          option(string),
+          "Nat",
+          Some("nat_compare"),
+          Atom.compare_builtin(Atom.Nat),
+        );
+        check(
+          option(string),
+          "Float",
+          Some("float_compare"),
+          Atom.compare_builtin(Atom.Float),
+        );
+        check(
+          option(string),
+          "String",
+          Some("string_compare"),
+          Atom.compare_builtin(Atom.String),
+        );
+      },
+    ),
+    test_case("compare_builtin: Bool has no builtin compare", `Quick, () =>
+      check(option(string), "Bool", None, Atom.compare_builtin(Atom.Bool))
+    ),
+    test_case(
       "conversions_from: uses <target>_of_<source> scheme",
       `Quick,
       () => {

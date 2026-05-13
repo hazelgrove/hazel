@@ -139,7 +139,7 @@ let build_column_menu =
       | Some(cls) =>
         numeric_comparators
         |> List.filter_map(((text, tooltip, op_num)) =>
-             numeric_bin_op(cls, op_num)
+             Operators.numeric_bin_op(cls, op_num)
              |> Option.map(op =>
                   Action({
                     text,

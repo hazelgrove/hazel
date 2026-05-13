@@ -57,18 +57,20 @@ let misc_fns: list(BuiltinsUtil.fn) = [
   },
 ];
 
-/* Builder for (t, t) -> Ord comparison builtins. */
+/* Builder for (t, t) -> Ord comparison builtins. The name is sourced from
+ * Atom.compare_builtin so the cls -> name mapping has a single source of
+ * truth in Atom.re. */
 let mk_compare =
     (
       type a,
-      name: string,
+      cls: Atom.cls,
       ty,
       tag: Unboxing.unbox_request(a),
       cmp: (a, a) => int,
     )
     : BuiltinsUtil.fn =>
   BuiltinsUtil.{
-    name,
+    name: Atom.compare_builtin(cls) |> Option.get,
     arg: Prod([ty(), ty()]),
     ret: BuiltinsADT.Ord.t.term,
     imp:
@@ -322,10 +324,11 @@ let numeric_fns: list(BuiltinsUtil.fn) = [
       }),
     custom_statics: None,
   },
-  mk_compare("int_compare", int, Atom(Int), Bigint.compare),
-  mk_compare("float_compare", float, Atom(Float), Float.compare),
-  mk_compare("sint_compare", sint, Atom(SInt), Int.compare),
-  mk_compare("nat_compare", nat, Atom(Nat), Bigint.compare),
+  mk_compare(Atom.Int, int, Atom(Int), Bigint.compare),
+  mk_compare(Atom.Float, float, Atom(Float), Float.compare),
+  mk_compare(Atom.SInt, sint, Atom(SInt), Int.compare),
+  mk_compare(Atom.Nat, nat, Atom(Nat), Bigint.compare),
+  mk_compare(Atom.String, string, Atom(String), String.compare),
   {
     /* Flip Lt ↔ Gt, leave Eq alone. Lets a descending sort reuse an
      * ascending comparator without a second pass to reverse the list. */
@@ -352,22 +355,6 @@ let string_fns: list(BuiltinsUtil.fn) = [
       let-unbox s = (Atom(String), d);
       Some(Exp.int(String.length(s)));
     },
-    custom_statics: None,
-  },
-  BuiltinsADT.{
-    name: "string_compare",
-    arg: Prod([string(), string()]),
-    ret: Ord.t.term,
-    imp:
-      binary((d1, d2) => {
-        let-unbox s1 = (Atom(String), d1);
-        let-unbox s2 = (Atom(String), d2);
-        switch (String.compare(s1, s2)) {
-        | 0 => Some(Ord.eq)
-        | n when n < 0 => Some(Ord.lt)
-        | _ => Some(Ord.gt)
-        };
-      }),
     custom_statics: None,
   },
   {
