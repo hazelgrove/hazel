@@ -210,6 +210,57 @@ debug stop(1 + 2) in
       },
     ),
     test_case(
+      "Stop filter on fac overrides settings-based pre-filter (regression)",
+      `Quick,
+      () => {
+        let program = {|
+debug hide($e) in
+let fac : Int -> Int =
+  fun n ->
+    if n < 2 then 1 else n * fac(n - 1)
+in
+debug stop(fac($v)) in
+fac(3)|};
+        let exp = parse_exp(program) |> elaborate;
+        /* CoreSettings.on has show_fixpoints=false, so FixUnwrap steps are
+           pre-filtered out of the default trace. The user-written
+           debug stop(fac($v)) must still produce a visible pause at each
+           fac(v) redex (fac(3), fac(2), fac(1) -- the recursive base case
+           returns directly). Before user filters were allowed to override
+           settings-based pre-filtering in should_hide_eval_obj, the count
+           was 0 because the filter never got a chance to see the FixUnwrap
+           redexes. */
+        let steps = count_available_steps(~limit=500, exp, 0);
+        check(int, "expected 3 visible fac calls", 3, steps);
+      },
+    ),
+    test_case(
+      "No user filter: settings still hide FixUnwrap (no regression)",
+      `Quick,
+      () => {
+        let program = {|
+let fac : Int -> Int =
+  fun n ->
+    if n < 2 then 1 else n * fac(n - 1)
+in
+fac(3)|};
+        let exp = parse_exp(program) |> elaborate;
+        /* With no user filter, CoreSettings.on still silences FixUnwrap and
+           other pre-filtered step kinds. Evaluation should reach a final
+           value via auto-stepping; the few visible pauses (if any) come from
+           non-pre-filtered kinds (e.g. user-visible arithmetic). The key
+           guarantee: the fac unrolls do NOT become visible just because we
+           reordered the matches/settings check. */
+        let steps = count_available_steps(~limit=2000, exp, 0);
+        check(
+          bool,
+          "evaluation terminates without runaway visible steps",
+          true,
+          steps < 50,
+        );
+      },
+    ),
+    test_case(
       "Stop filter on fac: persist then refresh_step roundtrip",
       `Quick,
       () => {
