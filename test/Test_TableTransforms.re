@@ -493,20 +493,32 @@ let conversion_tests = [
     },
   ),
   test_case(
-    "conversion_builtin: uses <target>_of_<source> scheme",
+    "Atom.conversions_from: uses <target>_of_<source> scheme",
     `Quick,
     () => {
+      let int_conversions = Atom.conversions_from(Atom.Int);
       check(
         string,
         "int->sint",
         "sint_of_int",
-        TableTransforms.conversion_builtin(~from_=Atom.Int, ~to_=Atom.SInt),
+        fst(
+          List.find(
+            ((_, to_: Atom.cls)) => to_ == Atom.SInt,
+            int_conversions,
+          ),
+        ),
       );
+      let nat_conversions = Atom.conversions_from(Atom.Nat);
       check(
         string,
         "nat->string",
         "string_of_nat",
-        TableTransforms.conversion_builtin(~from_=Atom.Nat, ~to_=Atom.String),
+        fst(
+          List.find(
+            ((_, to_: Atom.cls)) => to_ == Atom.String,
+            nat_conversions,
+          ),
+        ),
       );
     },
   ),

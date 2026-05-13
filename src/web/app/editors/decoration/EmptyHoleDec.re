@@ -2,9 +2,6 @@ open Util;
 open Virtual_dom.Vdom;
 open Haz3lcore;
 
-/* Path geometry lives in Util.WebUtil.EmptyHole so non-decoration callers
- * (e.g. TableRenderer table headers) can render the same hexagon. */
-
 let path_of_mold = (shape: Grout.shape): list(SvgUtil.Path.cmd) =>
   switch (shape) {
   | Convex => WebUtil.EmptyHole.path_convex

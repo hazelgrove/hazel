@@ -110,8 +110,6 @@ let build_column_menu =
   // If we're in a submenu, show that submenu
   switch (menu_path) {
   | ["Filter"] =>
-    /* Comparators offered for numeric columns. Each lifts to the cls-correct
-     * BinOp via TableTransforms.numeric_bin_op. */
     let numeric_comparators: list((string, string, Operators.op_bin_num)) = [
       (
         "Greater than",
@@ -330,9 +328,6 @@ let build_column_menu =
       | None => []
       };
 
-    /* Show the Filter entry whenever something useful is offered inside —
-     * any atom column can use Equals/Not equal/Custom, numeric columns get
-     * comparators, strings get regex matching. */
     let filter_submenu =
       switch (Option.bind(column_type, atom_cls_of_typ)) {
       | Some(_) => [
@@ -416,25 +411,26 @@ let render_menu =
   let actions = action_items(menu_data);
   /* selected_idx counts only Action items; render walks the original list
    * so separators stay in place. */
-  let action_idx = ref(0);
-  List.map(
-    item =>
-      switch (item) {
-      | Action({text, tooltip, action}) =>
-        let me = action_idx^;
-        action_idx := me + 1;
-        menu_item(
-          ~tooltip,
-          ~selected=me == selected_idx,
-          ~on_hover=_ => on_hover_action(me),
-          text,
-          _ => action(),
-        );
-      | Separator => menu_divider
-      },
-    menu_data,
-  )
-  |> (rendered => (rendered, actions));
+  let (_, rendered) =
+    List.fold_left_map(
+      (action_idx, item) =>
+        switch (item) {
+        | Action({text, tooltip, action}) => (
+            action_idx + 1,
+            menu_item(
+              ~tooltip,
+              ~selected=action_idx == selected_idx,
+              ~on_hover=_ => on_hover_action(action_idx),
+              text,
+              _ => action(),
+            ),
+          )
+        | Separator => (action_idx, menu_divider)
+        },
+      0,
+      menu_data,
+    );
+  (rendered, actions);
 };
 
 /* Main table rendering function */

@@ -89,25 +89,16 @@ let can_move_column =
   | None => false
   };
 
-/* Extract the underlying Atom.cls from a Typ.t, if any. */
 let atom_cls_of_typ = (ty: Typ.t): option(Atom.cls) =>
   switch (Typ.cls_of_term(ty.term)) {
   | Typ.Atom(cls) => Some(cls)
   | _ => None
   };
 
-/* Builtin function name for a cls1 → cls2 conversion. Mirrors the naming
- * scheme used by Atom.converter_builtins ("<target>_of_<source>"). */
-let conversion_builtin = (~from_: Atom.cls, ~to_: Atom.cls): string =>
-  Atom.cls_string_lower(to_) ++ "_of_" ++ Atom.cls_string_lower(from_);
-
 /* All conversion options from a source class, one entry per other class. */
 let conversion_functions = (cls: Atom.cls): list((string, string)) =>
-  Atom.all_of_cls
-  |> List.filter(target => target != cls)
-  |> List.map(target =>
-       (Atom.show_cls(target), conversion_builtin(~from_=cls, ~to_=target))
-     );
+  Atom.conversions_from(cls)
+  |> List.map(((name, to_)) => (Atom.show_cls(to_), name));
 
 /* Builtin comparator for a class, if one exists. Used by sort_column. */
 let compare_builtin_of_cls = (cls: Atom.cls): option(string) =>
