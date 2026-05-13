@@ -147,6 +147,81 @@ module TextArea = {
   };
 };
 
+/* Shared empty-hole geometry. The convex path is built from the same tip
+ * primitives as EmptyHoleDec so the table-header version and the in-code
+ * decoration version stay byte-identical. */
+module EmptyHole = {
+  let s_y = 0.28;
+  let s_x = s_y *. 1.5;
+  let tip_width = 0.32; /* matches ShardDec.tip_width */
+
+  open SvgUtil.Path;
+
+  let tr_bl_north = [
+    H_({dx: 0.}),
+    L_({
+      dx: -. tip_width,
+      dy: 0.5,
+    }),
+  ];
+  let tl_br_north = [
+    H_({dx: 0.}),
+    L_({
+      dx: tip_width,
+      dy: 0.5,
+    }),
+  ];
+  let tr_bl_south = [
+    L_({
+      dx: -. tip_width,
+      dy: 0.5,
+    }),
+    H_({dx: 0.}),
+  ];
+  let tl_br_south = [
+    L_({
+      dx: tip_width,
+      dy: 0.5,
+    }),
+    H_({dx: 0.}),
+  ];
+
+  let bl_tr_north = SvgUtil.Path.reverse(tr_bl_north);
+  let bl_tr_south = SvgUtil.Path.reverse(tr_bl_south);
+  let br_tl_north = SvgUtil.Path.reverse(tl_br_north);
+  let br_tl_south = SvgUtil.Path.reverse(tl_br_south);
+
+  let left_tip_path_convex = br_tl_south @ bl_tr_north;
+  let right_tip_path_convex = tl_br_north @ tr_bl_south;
+
+  let left_tip_path_concave =
+    [H_({dx: Float.neg(tip_width)}), ...bl_tr_south]
+    @ br_tl_north
+    @ [H_({dx: tip_width})];
+  let right_tip_path_concave =
+    [H_({dx: tip_width}), ...tr_bl_north]
+    @ tl_br_south
+    @ [H_({dx: Float.neg(tip_width)})];
+
+  let path = (tip_l, tip_r): list(SvgUtil.Path.cmd) =>
+    List.concat([
+      [
+        M({
+          x: 0.5,
+          y: 0.5 -. s_y /. 2.,
+        }),
+        H_({dx: s_x /. 2.}),
+      ],
+      SvgUtil.Path.scale_x(s_x, SvgUtil.Path.scale_y(s_y, tip_l)),
+      [H_({dx: -. s_x})],
+      SvgUtil.Path.scale_x(s_x, SvgUtil.Path.scale_y(s_y, tip_r)),
+      [Z],
+    ]);
+
+  let path_convex = path(right_tip_path_convex, left_tip_path_convex);
+  let path_concave = path(right_tip_path_concave, left_tip_path_concave);
+};
+
 let empty_hole_svg = (~attrs=[], ()) =>
   Node.create_svg(
     "svg",
@@ -157,18 +232,7 @@ let empty_hole_svg = (~attrs=[], ()) =>
         Attr.create("preserveAspectRatio", "none"),
       ]
       @ attrs,
-    [
-      Node.create_svg(
-        "path",
-        ~attrs=[
-          Attr.create(
-            "d",
-            "M 0.5 0.36 h 0.21 l 0.1344 0.14 l -0.1344 0.14 h -0.42 l -0.1344 -0.14 l 0.1344 -0.14 Z",
-          ),
-        ],
-        [],
-      ),
-    ],
+    [SvgUtil.Path.view(~attrs=[], EmptyHole.path_convex)],
   );
 
 let span_text = (text: string) => span(~attrs=[], [Node.text(text)]);
