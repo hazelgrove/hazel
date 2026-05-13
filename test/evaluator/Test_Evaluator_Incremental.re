@@ -1094,6 +1094,66 @@ let test_three_run_leftmost_binop_reuses_on_run3 = () => {
   );
 };
 
+/* (5) Outer-binding edit shouldn't dirty inner-shadowed use sites.
+ *
+ *   let x = 5 in
+ *   let x = 4 in
+ *   x
+ *
+ * The body `x` resolves to the inner `let x = 4`, not the outer `let x = 5`.
+ * Editing 5 -> 6 changes the outer binding's rhs value but doesn't affect
+ * the inner binding or the body, so the body's `x` (a Var node) should be
+ * reused on run 2.
+ *
+ * Currently fails because `dirty_names` is a flat list of variable NAMES,
+ * not (name, binder_id) pairs. The outer let dirties the name `x`, and
+ * reuse_check at the body's `x` reference checks `co_ctx` name membership
+ * against `dirty_names` without consulting which binder the use resolves
+ * to. So the inner `x` use is wrongly invalidated even though it doesn't
+ * depend on the edited outer binding. */
+let test_outer_edit_does_not_dirty_inner_shadowed_use = () => {
+  let src = "let x = 5 in let x = 4 in x";
+  let exp1 = parse_exp(src);
+  let exp2 = replace_int_lit(~from=5, ~to_=6, exp1);
+  /* Locate the body `x` Var node — uniquely identifiable as the only
+   * Exp.Var("x") in the source (the let pats are Pats, not Exps). */
+  let body_x_id = {
+    let found = ref(None);
+    let f_exp = (continue, e: Exp.t): Exp.t => {
+      switch (e.term) {
+      | Var("x") => found := Some(Exp.rep_id(e))
+      | _ => ()
+      };
+      continue(e);
+    };
+    let _ = TermBase.Exp.map_term(~f_exp, exp1);
+    switch (found^) {
+    | Some(id) => id
+    | None => failwith("could not locate body `x` Var node")
+    };
+  };
+  let (r1, _, incr1) = eval_incr(exp1);
+  let (r2, _, incr2) = eval_incr(~prev=incr1, exp2);
+  check(dhexp_typ, "Run 1: inner x=4 wins, x = 4", parse_exp("4"), r1);
+  check(
+    dhexp_typ,
+    "Run 2 after outer x=5->6: still 4 (inner shadows outer)",
+    parse_exp("4"),
+    r2,
+  );
+  /* The body `x` is not recalculated. It's either directly in `reused`
+   * or subsumed by an ancestor's reuse (in which case it appears in the
+   * frozen-ids set derived from `reused`). Without binder-id-aware dirty
+   * propagation, this id ends up in `recalculated` because the outer
+   * let's name-based dirty `x` falsely invalidates the inner `x` use. */
+  check(
+    bool,
+    "Body `x` is NOT recalculated on run 2 (resolves to inner let, not edited outer)",
+    false,
+    List.mem(body_x_id, incr2.recalculated),
+  );
+};
+
 let tests = (
   "Evaluator.Incremental",
   [
@@ -1231,6 +1291,11 @@ let tests = (
       "THREE-RUN: leftmost `1+2` reuses on run 3 (1+2+3+4 -> 1+2+3+5 -> 1+2+4+5)",
       `Quick,
       test_three_run_leftmost_binop_reuses_on_run3,
+    ),
+    test_case(
+      "SHADOWING: outer edit doesn't dirty inner-shadowed use (let x=5 in let x=4 in x)",
+      `Quick,
+      test_outer_edit_does_not_dirty_inner_shadowed_use,
     ),
   ],
 );
