@@ -528,7 +528,10 @@ module Selection = {
       | Some(pinned_stack) =>
         /* Extract just the Id.t from head of pinned_stack for comparison */
         let pinned_head_id =
-          Option.map((f: stack_frame) => f.id, ListUtil.hd_opt(pinned_stack));
+          Option.map(
+            (f: stack_frame) => f.id,
+            ListUtil.hd_opt(pinned_stack),
+          );
         /* Compare by ID only - pinned_stack may have None for function names
          * but actual samples have real names from evaluation */
         let pinned_ids = ids_of_stack(pinned_stack);
@@ -717,16 +720,16 @@ module Selection = {
               let sample_len = List.length(sample_rev);
               if (sample_len > view_index) {
                 /* Check prefix match */
-                let sample_prefix =
-                  ListUtil.slice(0, view_index, sample_rev);
+                let sample_prefix = ListUtil.slice(0, view_index, sample_rev);
                 let sample_prefix_ids = ids_of_stack(sample_prefix);
                 if (sample_prefix_ids == prefix_ids) {
                   let frame_at_depth = List.nth(sample_rev, view_index);
                   /* Deduplicate by ID */
-                  if (!List.exists(
-                        f => equal_stack_frame(f, frame_at_depth),
-                        all_frames^,
-                      )) {
+                  if (!
+                        List.exists(
+                          f => equal_stack_frame(f, frame_at_depth),
+                          all_frames^,
+                        )) {
                     all_frames := [frame_at_depth, ...all_frames^];
                   };
                 };
@@ -801,7 +804,10 @@ module CallTree = {
           (node: node) =>
             if (equal_stack_frame(node.frame, frame)) {
               found := true;
-              {...node, children: insert_path(rest, node.children)};
+              {
+                ...node,
+                children: insert_path(rest, node.children),
+              };
             } else {
               node;
             },
@@ -810,7 +816,13 @@ module CallTree = {
       if (found^) {
         forest';
       } else {
-        forest @ [{frame, children: insert_path(rest, [])}];
+        forest
+        @ [
+          {
+            frame,
+            children: insert_path(rest, []),
+          },
+        ];
       };
     };
 
@@ -937,8 +949,7 @@ module CallTree = {
 
   /* Check if a path through the tree matches the sightline up to a given depth.
    * Used to highlight the current sightline in the tree view. */
-  let is_on_sightline =
-      (~sightline_rev: call_stack, entry: line_entry): bool => {
+  let is_on_sightline = (~sightline_rev: call_stack, entry: line_entry): bool => {
     let depth = entry.depth;
     depth < List.length(sightline_rev)
     && equal_stack_frame(List.nth(sightline_rev, depth), entry.frame);

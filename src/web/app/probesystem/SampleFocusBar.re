@@ -337,14 +337,10 @@ let switch_sibling =
   } else {
     /* Build new outermost-first stack with the frame at view_index replaced */
     let new_stack_rev =
-      List.mapi(
-        (i, f) => i == view_index ? new_frame : f,
-        call_stack_rev,
-      );
+      List.mapi((i, f) => i == view_index ? new_frame : f, call_stack_rev);
     /* Truncate the stack at the switch point: keep prefix + new frame,
      * drop everything deeper since the subtree may differ */
-    let truncated_rev =
-      Util.ListUtil.slice(0, view_index + 1, new_stack_rev);
+    let truncated_rev = Util.ListUtil.slice(0, view_index + 1, new_stack_rev);
     /* Convert back to innermost-first for the Capture data */
     let new_stack = List.rev(truncated_rev);
     let capture_data: Sample.Capture.t = {
@@ -356,9 +352,7 @@ let switch_sibling =
     };
     Effect.Many([
       globals.inject_global(
-        ActiveEditor(
-          Project(SampleFocus(Capture(capture_data, None))),
-        ),
+        ActiveEditor(Project(SampleFocus(Capture(capture_data, None)))),
       ),
       Effect.Stop_propagation,
     ]);
@@ -411,7 +405,8 @@ let key_handler =
       jump_to_index(new_index),
       Stop_propagation,
     ]);
-  | D("ArrowUp") | D("ArrowDown") =>
+  | D("ArrowUp")
+  | D("ArrowDown") =>
     /* Navigate between sibling branches at the focused depth. */
     let n = List.length(call_stack_rev);
     let view_index = index;
@@ -434,8 +429,7 @@ let key_handler =
       switch (current_pos) {
       | Some(pos) =>
         let next_pos =
-          (pos + direction + List.length(siblings))
-          mod List.length(siblings);
+          (pos + direction + List.length(siblings)) mod List.length(siblings);
         let next_frame = List.nth(siblings, next_pos);
         if (Sample.equal_stack_frame(next_frame, current_frame)) {
           Stop_propagation;
@@ -507,8 +501,7 @@ let tree_entry =
     : Node.t => {
   let frame = entry.frame;
   let display_text = resolve_display_name(~info_map, frame);
-  let on_sightline =
-    Sample.CallTree.is_on_sightline(~sightline_rev, entry);
+  let on_sightline = Sample.CallTree.is_on_sightline(~sightline_rev, entry);
   let is_focused = on_sightline && entry.depth == index;
   let classes =
     ["tree-entry"]
@@ -528,13 +521,10 @@ let tree_entry =
     };
     let capture_effect =
       globals.inject_global(
-        ActiveEditor(
-          Project(SampleFocus(Capture(capture_data, None))),
-        ),
+        ActiveEditor(Project(SampleFocus(Capture(capture_data, None)))),
       );
     let call_site_target =
-      is_in_user_code(~info_map, frame.id)
-        ? Some(frame.id) : None;
+      is_in_user_code(~info_map, frame.id) ? Some(frame.id) : None;
     switch (call_site_target) {
     | Some(target_id) =>
       Effect.Many([capture_effect, jump_to(~globals, target_id, evt)])
@@ -583,11 +573,7 @@ let tree_view =
   let n_cols = max_depth(lines) + 1;
   /* Each depth gets 2 grid columns: one for branch char, one for name.
    * Total grid columns = n_cols * 2. */
-  let grid_template =
-    String.concat(
-      " ",
-      List.init(n_cols, _ => "auto auto"),
-    );
+  let grid_template = String.concat(" ", List.init(n_cols, _ => "auto auto"));
   /* Emit all cells for all lines into a single flat list.
    * Each cell is placed by grid-row and grid-column. */
   let all_cells =
@@ -656,10 +642,7 @@ let tree_view =
     ~attrs=[
       Attr.classes(["tree-view"]),
       Attr.style(
-        Css_gen.create(
-          ~field="grid-template-columns",
-          ~value=grid_template,
-        ),
+        Css_gen.create(~field="grid-template-columns", ~value=grid_template),
       ),
     ],
     all_cells,
@@ -719,8 +702,7 @@ let view =
      * to reversed (outermost-first) view index */
     let anti_pin = sample_focus.anti_pin;
     let n = List.length(call_stack);
-    let anti_pin_view_index =
-      Option.map(depth => n - 1 - depth, anti_pin);
+    let anti_pin_view_index = Option.map(depth => n - 1 - depth, anti_pin);
     let has_pin = pinned_stack != None;
 
     /* Build a single breadcrumb entry (separator + entry node) for stack index i */
@@ -958,13 +940,10 @@ let view =
     let tree_toggle =
       span(
         ~attrs=[
-          Attr.classes(
-            ["tree-toggle"] @ (is_tree_mode ? ["active"] : []),
-          ),
+          Attr.classes(["tree-toggle"] @ (is_tree_mode ? ["active"] : [])),
           Attr.title(toggle_tooltip),
           Attr.on_pointerdown(_ => {
-            view_mode_ref :=
-              (is_tree_mode ? SinglePath : TreeView);
+            view_mode_ref := is_tree_mode ? SinglePath : TreeView;
             /* Force re-render by dispatching a no-op focus set */
             globals.inject_global(
               ActiveEditor(Project(SampleFocus(SetIndex(index)))),
@@ -991,9 +970,7 @@ let view =
     div(
       ~attrs=[
         Attr.id("sample-focus-bar"),
-        Attr.classes(
-          [] @ (is_tree_mode ? ["tree-mode"] : []),
-        ),
+        Attr.classes([] @ (is_tree_mode ? ["tree-mode"] : [])),
         Attr.tabindex(0),
         Attr.on_keydown(
           key_handler(

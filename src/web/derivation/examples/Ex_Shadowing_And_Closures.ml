@@ -45,6 +45,7 @@ let exercise : DerivationExercise.spec =
                 seq = 0;
                 step_range = None;
                 pending_focus = None;
+                anti_pin = None;
               };
             autoprobe_target = None;
             pending_probe_cursor = None;
@@ -1128,6 +1129,7 @@ let exercise : DerivationExercise.spec =
                 seq = 0;
                 step_range = None;
                 pending_focus = None;
+                anti_pin = None;
               };
             autoprobe_target = None;
             pending_probe_cursor = None;
@@ -1241,6 +1243,7 @@ let exercise : DerivationExercise.spec =
                             seq = 0;
                             step_range = None;
                             pending_focus = None;
+                            anti_pin = None;
                           };
                         autoprobe_target = None;
                         pending_probe_cursor = None;
@@ -1346,6 +1349,7 @@ let exercise : DerivationExercise.spec =
                                   seq = 0;
                                   step_range = None;
                                   pending_focus = None;
+                                  anti_pin = None;
                                 };
                               autoprobe_target = None;
                               pending_probe_cursor = None;
@@ -1460,6 +1464,7 @@ let exercise : DerivationExercise.spec =
                             seq = 0;
                             step_range = None;
                             pending_focus = None;
+                            anti_pin = None;
                           };
                         autoprobe_target = None;
                         pending_probe_cursor = None;
@@ -1571,6 +1576,7 @@ let exercise : DerivationExercise.spec =
                                   seq = 0;
                                   step_range = None;
                                   pending_focus = None;
+                                  anti_pin = None;
                                 };
                               autoprobe_target = None;
                               pending_probe_cursor = None;
@@ -1934,6 +1940,7 @@ let exercise : DerivationExercise.spec =
                             seq = 0;
                             step_range = None;
                             pending_focus = None;
+                            anti_pin = None;
                           };
                         autoprobe_target = None;
                         pending_probe_cursor = None;
@@ -2179,6 +2186,7 @@ let exercise : DerivationExercise.spec =
                                   seq = 0;
                                   step_range = None;
                                   pending_focus = None;
+                                  anti_pin = None;
                                 };
                               autoprobe_target = None;
                               pending_probe_cursor = None;
@@ -2688,6 +2696,7 @@ let exercise : DerivationExercise.spec =
                             seq = 0;
                             step_range = None;
                             pending_focus = None;
+                            anti_pin = None;
                           };
                         autoprobe_target = None;
                         pending_probe_cursor = None;
@@ -2883,6 +2892,7 @@ let exercise : DerivationExercise.spec =
                                   seq = 0;
                                   step_range = None;
                                   pending_focus = None;
+                                  anti_pin = None;
                                 };
                               autoprobe_target = None;
                               pending_probe_cursor = None;
@@ -3015,6 +3025,7 @@ let exercise : DerivationExercise.spec =
                                         seq = 0;
                                         step_range = None;
                                         pending_focus = None;
+                                        anti_pin = None;
                                       };
                                     autoprobe_target = None;
                                     pending_probe_cursor = None;
@@ -3143,6 +3154,7 @@ let exercise : DerivationExercise.spec =
                                               seq = 0;
                                               step_range = None;
                                               pending_focus = None;
+                                              anti_pin = None;
                                             };
                                           autoprobe_target = None;
                                           pending_probe_cursor = None;
@@ -3493,6 +3505,7 @@ let exercise : DerivationExercise.spec =
                                   seq = 0;
                                   step_range = None;
                                   pending_focus = None;
+                                  anti_pin = None;
                                 };
                               autoprobe_target = None;
                               pending_probe_cursor = None;
@@ -3690,6 +3703,7 @@ let exercise : DerivationExercise.spec =
                                         seq = 0;
                                         step_range = None;
                                         pending_focus = None;
+                                        anti_pin = None;
                                       };
                                     autoprobe_target = None;
                                     pending_probe_cursor = None;
@@ -4277,6 +4291,7 @@ let exercise : DerivationExercise.spec =
                             seq = 0;
                             step_range = None;
                             pending_focus = None;
+                            anti_pin = None;
                           };
                         autoprobe_target = None;
                         pending_probe_cursor = None;
@@ -4390,6 +4405,7 @@ let exercise : DerivationExercise.spec =
                             seq = 0;
                             step_range = None;
                             pending_focus = None;
+                            anti_pin = None;
                           };
                         autoprobe_target = None;
                         pending_probe_cursor = None;

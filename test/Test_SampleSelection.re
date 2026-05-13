@@ -1594,7 +1594,12 @@ let anti_pin_tests = [
           ~anti_pin=Some(1),
           [s_top, s_depth1, s_depth2, s_depth3],
         );
-      check(int, "should keep top + depth1 + depth2", 3, List.length(filtered));
+      check(
+        int,
+        "should keep top + depth1 + depth2",
+        3,
+        List.length(filtered),
+      );
     },
   ),
   test_case(
@@ -1642,7 +1647,12 @@ let anti_pin_tests = [
           ~cursor,
           [s_depth1, s_depth2],
         );
-      check(int, "should show only depth-1 sample", 1, List.length(selected));
+      check(
+        int,
+        "should show only depth-1 sample",
+        1,
+        List.length(selected),
+      );
     },
   ),
 ];
@@ -1669,7 +1679,11 @@ let sibling_tests = [
         );
       let call_stack_rev = [named_frame(id_a, "f")];
       let siblings =
-        Sample.Selection.find_siblings(~call_stack_rev, ~view_index=0, probe_map);
+        Sample.Selection.find_siblings(
+          ~call_stack_rev,
+          ~view_index=0,
+          probe_map,
+        );
       check(int, "should find 3 siblings", 3, List.length(siblings));
     },
   ),
@@ -1694,8 +1708,17 @@ let sibling_tests = [
       /* outermost-first: [f, g], view_index=1 (looking at g/h position) */
       let call_stack_rev = [f, g];
       let siblings =
-        Sample.Selection.find_siblings(~call_stack_rev, ~view_index=1, probe_map);
-      check(int, "should find 2 siblings (g and h)", 2, List.length(siblings));
+        Sample.Selection.find_siblings(
+          ~call_stack_rev,
+          ~view_index=1,
+          probe_map,
+        );
+      check(
+        int,
+        "should find 2 siblings (g and h)",
+        2,
+        List.length(siblings),
+      );
     },
   ),
   test_case(
@@ -1709,8 +1732,17 @@ let sibling_tests = [
         );
       let call_stack_rev = [named_frame(id_a, "f")];
       let siblings =
-        Sample.Selection.find_siblings(~call_stack_rev, ~view_index=0, probe_map);
-      check(int, "should find 1 sibling (self only)", 1, List.length(siblings));
+        Sample.Selection.find_siblings(
+          ~call_stack_rev,
+          ~view_index=0,
+          probe_map,
+        );
+      check(
+        int,
+        "should find 1 sibling (self only)",
+        1,
+        List.length(siblings),
+      );
     },
   ),
   test_case(
@@ -1727,14 +1759,23 @@ let sibling_tests = [
           Id.invalid,
           [
             mk_sample([g1, f]), /* f->g1 */
-            mk_sample([g2, h]), /* h->g2 */
+            mk_sample([g2, h]) /* h->g2 */
           ],
         );
       let call_stack_rev = [f, g1];
       let siblings =
-        Sample.Selection.find_siblings(~call_stack_rev, ~view_index=1, probe_map);
+        Sample.Selection.find_siblings(
+          ~call_stack_rev,
+          ~view_index=1,
+          probe_map,
+        );
       /* Only g1 matches prefix [f]; g2 has prefix [h] */
-      check(int, "should find 1 sibling (prefix mismatch filters g2)", 1, List.length(siblings));
+      check(
+        int,
+        "should find 1 sibling (prefix mismatch filters g2)",
+        1,
+        List.length(siblings),
+      );
     },
   ),
   test_case(
@@ -1745,7 +1786,11 @@ let sibling_tests = [
         Id.Map.singleton(Id.invalid, [mk_sample([frame(id_a)])]);
       let call_stack_rev = [frame(id_a)];
       let siblings =
-        Sample.Selection.find_siblings(~call_stack_rev, ~view_index=(-1), probe_map);
+        Sample.Selection.find_siblings(
+          ~call_stack_rev,
+          ~view_index=-1,
+          probe_map,
+        );
       check(int, "should find 0 at invalid index", 0, List.length(siblings));
     },
   ),
@@ -1834,7 +1879,12 @@ let call_tree_tests = [
         );
       let tree = Sample.CallTree.of_probe_map(probe_map);
       let lines = Sample.CallTree.flatten(tree);
-      check(int, "two lines (first child inline, second on new line)", 2, List.length(lines));
+      check(
+        int,
+        "two lines (first child inline, second on new line)",
+        2,
+        List.length(lines),
+      );
       /* Line 1 should have A and B */
       let line1 = List.nth(lines, 0);
       check(int, "line 1: 2 entries (A, B)", 2, List.length(line1));
