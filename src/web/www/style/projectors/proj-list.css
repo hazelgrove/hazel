@@ -1,0 +1,81 @@
+/* ListRenderer styles */
+
+.list-renderer {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 180px;
+  padding: 4px;
+}
+
+.list-renderer .list-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 4px 4px 4px;
+  border-bottom: 1px solid var(--BR2, #ccc);
+}
+
+.list-renderer .list-count {
+  font-size: 11px;
+  color: var(--BR3, #777);
+  font-style: italic;
+}
+
+.list-renderer .list-toolbar {
+  display: flex;
+  gap: 4px;
+}
+
+.list-renderer .list-action {
+  background: transparent;
+  border: 1px solid var(--BR2, #ccc);
+  border-radius: 3px;
+  padding: 2px 8px;
+  cursor: pointer;
+  font-size: 11px;
+}
+
+.list-renderer .list-action:hover {
+  background: var(--BR1, #eee);
+}
+
+.list-renderer .list-items {
+  display: flex;
+  flex-direction: column;
+}
+
+.list-renderer .list-item {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 3px 6px;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.list-renderer .list-item:hover {
+  background: var(--BR1, #eee);
+}
+
+.list-renderer .list-item.selected {
+  background: var(--A1, #ffe);
+  outline: 1px solid var(--A3, #cc0);
+}
+
+.list-renderer .list-index {
+  font-size: 10px;
+  color: var(--BR3, #888);
+  min-width: 1.5em;
+  text-align: right;
+  user-select: none;
+}
+
+.list-renderer .list-value {
+  flex: 1;
+}
+
+.list-badge {
+  display: inline-flex;
+  align-items: center;
+}

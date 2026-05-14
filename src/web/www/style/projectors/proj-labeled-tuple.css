@@ -1,0 +1,72 @@
+/* LabeledTupleRenderer styles */
+
+.labeled-tuple-renderer {
+  display: grid;
+  grid-template-columns: max-content 1fr auto;
+  min-width: 220px;
+  padding: 4px;
+}
+
+/* Rows use subgrid so their three cells share the parent's column tracks
+ * — labels then align across rows regardless of text length. Keeping the
+ * row as its own box (rather than display:contents) preserves
+ * position:relative so the per-row menu anchors correctly. */
+.labeled-tuple-renderer .labeled-tuple-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: subgrid;
+  grid-column: 1 / -1;
+  align-items: baseline;
+  column-gap: 12px;
+  padding: 4px 6px;
+  border-bottom: 1px solid var(--BR1, #eee);
+}
+
+.labeled-tuple-renderer .labeled-tuple-row:last-child {
+  border-bottom: none;
+}
+
+.labeled-tuple-renderer .labeled-tuple-row.menu-open {
+  background: var(--BR1, #f4f4f4);
+}
+
+.labeled-tuple-renderer .labeled-tuple-label {
+  font-weight: 600;
+  font-size: 12px;
+  color: var(--BR3, #555);
+  font-family: var(--font-mono, monospace);
+}
+
+.labeled-tuple-renderer .labeled-tuple-label.unlabeled {
+  font-weight: 400;
+  font-style: italic;
+  opacity: 0.55;
+}
+
+.labeled-tuple-renderer .labeled-tuple-value {
+  font-family: var(--font-mono, monospace);
+}
+
+.labeled-tuple-renderer .closure-nav-button {
+  cursor: pointer;
+  padding: 0 4px;
+  font-size: 14px;
+  color: var(--BR3, #888);
+  user-select: none;
+}
+
+.labeled-tuple-renderer .closure-nav-button:hover {
+  color: var(--BR4, #222);
+}
+
+.labeled-tuple-renderer .labeled-tuple-menu {
+  position: absolute;
+  right: 0;
+  top: 100%;
+  z-index: 10;
+}
+
+.labeled-tuple-badge {
+  display: inline-flex;
+  align-items: center;
+}
