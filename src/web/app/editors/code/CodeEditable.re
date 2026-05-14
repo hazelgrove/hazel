@@ -548,8 +548,9 @@ module View = {
       };
     /* Sync document-level click listener for closing context menu */
     ContextMenuListener.sync(
-      selected && Model.context_menu_is_open(model),
-      inject(ContextMenu(ContextMenu.Model.Close)),
+      ~menu_open=selected && Model.context_menu_is_open(model),
+      ~on_close=inject(ContextMenu(ContextMenu.Model.Close)),
+      (),
     );
     let edit_decos =
       selected

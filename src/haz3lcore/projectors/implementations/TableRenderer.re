@@ -585,6 +585,7 @@ let render =
     ~menu_open=model.menu_state != None,
     ~on_close=local(CloseMenu),
     ~handle_key,
+    (),
   );
   table_view(
     ~header_cells,
