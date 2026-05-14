@@ -63,6 +63,84 @@ let field_any = (~globals, ~raw, label: string, any: Any.t): Node.t =>
 
 let id_str = (id: Id.t): string => Id.to_string(id);
 
+let typ_node = (~globals, typ: Typ.t): Node.t =>
+  CodeViewable.view_typ(~globals, ~settings=code_settings, typ);
+
+let ctx_row = (label: Node.t, body: option(Node.t)): Node.t =>
+  div(
+    ~attrs=[clss(["debug-ctx-row"])],
+    [div(~attrs=[clss(["debug-ctx-name"])], [label])]
+    @ (
+      switch (body) {
+      | None => []
+      | Some(b) => [div(~attrs=[clss(["debug-ctx-body"])], [b])]
+      }
+    ),
+  );
+
+let ctx_entry_node = (~globals, entry: Ctx.entry): Node.t =>
+  switch (entry) {
+  | VarEntry({name, typ, _}) =>
+    ctx_row(text(name ++ " :"), Some(typ_node(~globals, typ)))
+  | ConstructorEntry({name, typ, _}) =>
+    ctx_row(text("ctor " ++ name ++ " :"), Some(typ_node(~globals, typ)))
+  | TVarEntry({name, kind: Singleton(ty), _}) =>
+    ctx_row(text("type " ++ name ++ " ="), Some(typ_node(~globals, ty)))
+  | TVarEntry({name, kind: Abstract, _}) =>
+    ctx_row(text("type " ++ name), None)
+  | LivelitEntry(_) => ctx_row(text("livelit"), None)
+  };
+
+let ctx_view_rendered = (~globals, ctx: Ctx.t): Node.t =>
+  switch (ctx.entries) {
+  | [] => div(~attrs=[clss(["debug-ctx-empty"])], [text("(empty)")])
+  | entries =>
+    div(
+      ~attrs=[clss(["debug-ctx"])],
+      List.map(ctx_entry_node(~globals), entries),
+    )
+  };
+
+let co_ctx_entry_node =
+    (~globals, name: Var.t, entries: list(CoCtx.entry)): Node.t => {
+  let uses =
+    List.map(
+      (e: CoCtx.entry) =>
+        div(
+          ~attrs=[clss(["debug-coctx-use"])],
+          [text(": "), typ_node(~globals, e.expected_ty)],
+        ),
+      entries,
+    );
+  div(
+    ~attrs=[clss(["debug-coctx-var"])],
+    [div(~attrs=[clss(["debug-ctx-name"])], [text(name)])] @ uses,
+  );
+};
+
+let co_ctx_view_rendered = (~globals, co_ctx: CoCtx.t): Node.t =>
+  switch (co_ctx) {
+  | [] => div(~attrs=[clss(["debug-ctx-empty"])], [text("(empty)")])
+  | _ =>
+    div(
+      ~attrs=[clss(["debug-coctx"])],
+      List.map(
+        ((name, entries)) => co_ctx_entry_node(~globals, name, entries),
+        co_ctx,
+      ),
+    )
+  };
+
+let field_ctx = (~globals, ~raw, label: string, ctx: Ctx.t): Node.t =>
+  raw
+    ? field_str(label, Ctx.show(ctx))
+    : field_node(label, ctx_view_rendered(~globals, ctx));
+
+let field_co_ctx = (~globals, ~raw, label: string, co_ctx: CoCtx.t): Node.t =>
+  raw
+    ? field_str(label, CoCtx.show(co_ctx))
+    : field_node(label, co_ctx_view_rendered(~globals, co_ctx));
+
 let ancestors_str = (ancestors: Info.ancestors): string =>
   switch (ancestors) {
   | [] => "[]"
@@ -110,7 +188,8 @@ let exp_view = (~globals, ~raw, info: Info.exp): list(Node.t) => [
   field_typ(~globals, ~raw, "ty (post-fix)", info.ty),
   field_str("marks", marks_str(info.marks)),
   field_str("warnings", warnings_str(info.warnings)),
-  field_str("co_ctx", CoCtx.show(info.co_ctx)),
+  field_ctx(~globals, ~raw, "ctx", info.ctx),
+  field_co_ctx(~globals, ~raw, "co_ctx", info.co_ctx),
   field_str("label_inference", label_inference_str(info.label_inference)),
   field_str(
     "inferred_label",
@@ -135,7 +214,8 @@ let pat_view = (~globals, ~raw, info: Info.pat): list(Node.t) => [
   field_typ(~globals, ~raw, "ty (post-fix)", info.ty),
   field_str("marks", marks_str(info.marks)),
   field_str("warnings", warnings_str(info.warnings)),
-  field_str("co_ctx", CoCtx.show(info.co_ctx)),
+  field_ctx(~globals, ~raw, "ctx", info.ctx),
+  field_co_ctx(~globals, ~raw, "co_ctx", info.co_ctx),
   field_str("constraint_", Coverage.Constraint.show(info.constraint_)),
   field_str("label_inference", label_inference_str(info.label_inference)),
   field_str(
@@ -154,6 +234,7 @@ let typ_view = (~globals, ~raw, info: Info.typ): list(Node.t) => [
   field_str("expects", TypExpectation.show(info.expects)),
   field_str("marks", marks_str(info.marks)),
   field_str("warnings", warnings_str(info.warnings)),
+  field_ctx(~globals, ~raw, "ctx", info.ctx),
 ];
 
 let tpat_view = (~globals, ~raw, info: Info.tpat): list(Node.t) => [
@@ -164,6 +245,7 @@ let tpat_view = (~globals, ~raw, info: Info.tpat): list(Node.t) => [
   field_any(~globals, ~raw, "user_term", TPat(info.user_term)),
   field_str("marks", marks_str(info.marks)),
   field_str("warnings", warnings_str(info.warnings)),
+  field_ctx(~globals, ~raw, "ctx", info.ctx),
 ];
 
 let secondary_view = (s: Info.secondary): list(Node.t) => [
@@ -173,28 +255,31 @@ let secondary_view = (s: Info.secondary): list(Node.t) => [
   field_str("sort", Sort.show(s.sort)),
 ];
 
-let mod_view = (m: Info.mod_): list(Node.t) => [
+let mod_view = (~globals, ~raw, m: Info.mod_): list(Node.t) => [
   section_title("InfoMod"),
   field_str("id", id_str(m.id)),
   field_str("cls", Cls.show(m.cls)),
   field_str("sort", Sort.show(m.sort)),
   field_str("ancestors", ancestors_str(m.ancestors)),
+  field_ctx(~globals, ~raw, "ctx", m.ctx),
 ];
 
-let sig_view = (s: Info.sig_): list(Node.t) => [
+let sig_view = (~globals, ~raw, s: Info.sig_): list(Node.t) => [
   section_title("InfoSig"),
   field_str("id", id_str(s.id)),
   field_str("cls", Cls.show(s.cls)),
   field_str("sort", Sort.show(s.sort)),
   field_str("ancestors", ancestors_str(s.ancestors)),
+  field_ctx(~globals, ~raw, "ctx", s.ctx),
 ];
 
-let mpat_view = (m: Info.mpat): list(Node.t) => [
+let mpat_view = (~globals, ~raw, m: Info.mpat): list(Node.t) => [
   section_title("InfoMPat"),
   field_str("id", id_str(m.id)),
   field_str("cls", Cls.show(m.cls)),
   field_str("sort", Sort.show(m.sort)),
   field_str("ancestors", ancestors_str(m.ancestors)),
+  field_ctx(~globals, ~raw, "ctx", m.ctx),
 ];
 
 let drv_view = (_: DrvInfo.t): list(Node.t) => [
@@ -208,9 +293,9 @@ let info_view = (~globals, ~raw, ci: Info.t): list(Node.t) =>
   | InfoPat(i) => pat_view(~globals, ~raw, i)
   | InfoTyp(i) => typ_view(~globals, ~raw, i)
   | InfoTPat(i) => tpat_view(~globals, ~raw, i)
-  | InfoMod(m) => mod_view(m)
-  | InfoSig(s) => sig_view(s)
-  | InfoMPat(m) => mpat_view(m)
+  | InfoMod(m) => mod_view(~globals, ~raw, m)
+  | InfoSig(s) => sig_view(~globals, ~raw, s)
+  | InfoMPat(m) => mpat_view(~globals, ~raw, m)
   | Secondary(s) => secondary_view(s)
   | InfoDrv(d) => drv_view(d)
   };
