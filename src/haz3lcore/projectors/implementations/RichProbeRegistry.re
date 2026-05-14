@@ -15,6 +15,7 @@ let renderers: list(packed_renderer) = [
   pack_renderer((module CardRenderer), "card"),
   pack_renderer((module ListRenderer), "list"),
   pack_renderer((module LabeledTupleRenderer), "labeled_tuple"),
+  pack_renderer((module MarkdownRenderer), "markdown"),
 ];
 
 let find = (id: string): option(packed_renderer) =>

@@ -1,0 +1,131 @@
+/* MarkdownRenderer styles */
+
+.md-renderer {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 280px;
+  max-width: 600px;
+  padding: 4px;
+}
+
+.md-renderer .md-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0 4px 4px 4px;
+  border-bottom: 1px solid var(--BR2, #ccc);
+}
+
+.md-renderer .md-toggle {
+  background: transparent;
+  border: 1px solid var(--BR2, #ccc);
+  border-radius: 3px;
+  padding: 2px 8px;
+  cursor: pointer;
+  font-size: 11px;
+}
+
+.md-renderer .md-toggle:hover {
+  background: var(--BR1, #eee);
+}
+
+.md-renderer .md-rendered {
+  padding: 4px 6px;
+  line-height: 1.4;
+  font-family: var(--font-sans, system-ui, sans-serif);
+}
+
+.md-renderer .md-rendered h1,
+.md-renderer .md-rendered h2,
+.md-renderer .md-rendered h3,
+.md-renderer .md-rendered h4,
+.md-renderer .md-rendered h5,
+.md-renderer .md-rendered h6 {
+  margin: 0.6em 0 0.3em 0;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.md-renderer .md-rendered h1 { font-size: 1.4em; }
+.md-renderer .md-rendered h2 { font-size: 1.25em; }
+.md-renderer .md-rendered h3 { font-size: 1.1em; }
+.md-renderer .md-rendered h4,
+.md-renderer .md-rendered h5,
+.md-renderer .md-rendered h6 { font-size: 1em; }
+
+.md-renderer .md-rendered p {
+  margin: 0.4em 0;
+}
+
+.md-renderer .md-rendered ul,
+.md-renderer .md-rendered ol {
+  margin: 0.4em 0;
+  padding-left: 1.4em;
+}
+
+.md-renderer .md-rendered li {
+  margin: 0.15em 0;
+}
+
+.md-renderer .md-rendered blockquote {
+  margin: 0.4em 0;
+  padding: 0.2em 0.8em;
+  border-left: 3px solid var(--BR2, #ccc);
+  color: var(--BR3, #555);
+  font-style: italic;
+}
+
+.md-renderer .md-rendered hr {
+  border: none;
+  border-top: 1px solid var(--BR2, #ccc);
+  margin: 0.6em 0;
+}
+
+.md-renderer .md-rendered a {
+  color: var(--A4, #0366d6);
+  text-decoration: underline;
+}
+
+.md-renderer .md-rendered img {
+  max-width: 100%;
+  height: auto;
+}
+
+.md-renderer .md-code {
+  font-family: var(--font-mono, monospace);
+  background: var(--BR1, #f4f4f4);
+  border-radius: 3px;
+  padding: 1px 4px;
+  font-size: 0.9em;
+}
+
+.md-renderer .md-rendered pre {
+  background: var(--BR1, #f4f4f4);
+  border-radius: 4px;
+  padding: 6px 8px;
+  overflow-x: auto;
+  margin: 0.4em 0;
+}
+
+.md-renderer .md-code-block {
+  font-family: var(--font-mono, monospace);
+  font-size: 0.9em;
+  background: transparent;
+  padding: 0;
+}
+
+.md-renderer .md-raw {
+  font-family: var(--font-mono, monospace);
+  font-size: 12px;
+  margin: 0;
+  padding: 6px 8px;
+  background: var(--BR1, #f4f4f4);
+  border-radius: 3px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.markdown-badge {
+  display: inline-flex;
+  align-items: center;
+}
