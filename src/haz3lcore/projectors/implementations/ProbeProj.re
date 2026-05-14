@@ -16,9 +16,18 @@ open RichProbeRegistry;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type probe_model = {active_renderer: option(packed_model)};
 
+/* Any deserialization failure resets to closed-modal — the record is
+ * pure transient UI state. Known failure modes are logged for
+ * debuggability; unknown ones still degrade gracefully. */
 let probe_model_of_sexp = sexp =>
   switch (probe_model_of_sexp(sexp)) {
   | model => model
+  | exception (RichProbeRegistry.Unknown_renderer(rid)) =>
+    print_endline("probe_model_of_sexp: unknown renderer " ++ rid);
+    {active_renderer: None};
+  | exception (Failure(msg)) =>
+    print_endline("probe_model_of_sexp: malformed payload: " ++ msg);
+    {active_renderer: None};
   | exception _ => {active_renderer: None}
   };
 
