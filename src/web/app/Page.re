@@ -731,20 +731,18 @@ module View = {
         Effect.Ignore;
       }),
       Attr.on_copy(evt => {
+        /* Only hijack copy when the target lives inside a code editor —
+           editor-level Cmd+C now handles its own clipboard write, but the
+           native event still bubbles in cases where focus is on #page or
+           the editor's tabindex div without our key handler having run.
+           For sidebar / system-message / agent-message / inputs, fall
+           through to the browser's default DOM-selection copy. */
         let target = Js.Opt.to_option(evt##.target);
         switch (target) {
         | Some(el) =>
-          let elId = Js.Opt.to_option(Js.Unsafe.coerce(el)##.id);
-          if (is_input_field(elId)) {
-            ();
-          } else {
-            let el = Js.Unsafe.coerce(el);
-            if (JsUtil.has_ancestor_class(el, "system-message")
-                || JsUtil.has_ancestor_class(el, "agent-message")) {
-              ();
-            } else {
-              copy(cursor);
-            };
+          let el = Js.Unsafe.coerce(el);
+          if (JsUtil.has_ancestor_class(el, "code-editor")) {
+            copy(cursor);
           };
         | None => ()
         };
