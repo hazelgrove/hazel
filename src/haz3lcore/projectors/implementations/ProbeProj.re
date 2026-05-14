@@ -141,6 +141,9 @@ type probe_ctx = {
   utility: ProjectorBase.utility,
   parent: external_action => Ui_effect.t(unit),
   sort: Sort.t,
+  /* Id of the currently-open rich-probe renderer, if any. Drives the
+   * "View as <id>" / "Hide <id>" toggle label in the sample menu. */
+  active_renderer_id: option(string),
 };
 
 /* Stateful window offset management (GUI-specific) */
@@ -670,9 +673,13 @@ let step_into_action = (ctx: probe_ctx, sample: Sample.t, ap_id: Id.t) =>
   );
 
 /* Rich probe action: open a domain-specific visualization via ToggleModal.
-   One menu item per compatible renderer; r.badge supplies the icon. */
+   One menu item per compatible renderer; r.badge supplies the icon.
+   Label flips to "Hide <id>" when this renderer's modal is already open,
+   since dispatching ToggleModal again closes it. */
 let rich_probe_action =
-    (ctx: probe_ctx, local, sample: Sample.t, r: packed_renderer): Node.t =>
+    (ctx: probe_ctx, local, sample: Sample.t, r: packed_renderer): Node.t => {
+  let is_active = ctx.active_renderer_id == Some(r.id);
+  let label = (is_active ? "Hide " : "View as ") ++ r.id;
   div(
     ~attrs=[
       Attr.classes(["action-item", "rich-probe-action"]),
@@ -680,8 +687,9 @@ let rich_probe_action =
         local(ToggleModal(r.init_model(ctx.sort, sample.value)))
       ),
     ],
-    [r.badge, text("View as " ++ r.id)],
+    [r.badge, text(label)],
   );
+};
 
 let rich_probe_items =
     (ctx: probe_ctx, local, _sample: Sample.t): list(Node.t) =>
@@ -1307,12 +1315,15 @@ let offside_view =
       parent,
       ~settings: settings,
       ~sort: Sort.t,
+      ~model: probe_model,
       view_seg: View.seg,
     ) =>
   switch (info.dynamics, info.statics) {
   | (Some(dynamics), Some(statics)) =>
     let id = info.id;
     let ap_id = Sample.Focus.cur_var_ap(statics);
+    let active_renderer_id =
+      Option.map(RichProbe.renderer_id_of_model, model.active_renderer);
     let ctx = {
       ap_id,
       statics,
@@ -1321,6 +1332,7 @@ let offside_view =
       utility: info.utility,
       parent,
       sort,
+      active_renderer_id,
     };
     /* Filter samples once and reuse for both num_total and selection */
     let filtered_samples =
@@ -1602,7 +1614,17 @@ module M: Projector = {
       offside:
         Some(
           div(
-            [offside_view(info, local, parent, ~settings, ~sort, view_seg)]
+            [
+              offside_view(
+                info,
+                local,
+                parent,
+                ~settings,
+                ~sort,
+                ~model,
+                view_seg,
+              ),
+            ]
             @ modal_overlay(
                 ~settings,
                 model,
