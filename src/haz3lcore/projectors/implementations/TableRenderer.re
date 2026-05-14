@@ -20,8 +20,6 @@ type a =
   | CloseMenu
   | ShowMenu(int)
   | ShowSubmenu(list(string))
-  | MenuUp
-  | MenuDown
   | MenuSelect(int);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -486,8 +484,7 @@ let render =
               );
             let actions = action_items(menu_data);
             let num_actions = List.length(actions);
-            /* MenuDown isn't clamped in update (it doesn't know num_actions);
-             * clamp here so the highlight stays on the last item. */
+            /* Clamp idx against stale persisted or shrunk action lists. */
             let clamped =
               num_actions == 0 ? 0 : min(max(0, sel_idx), num_actions - 1);
             let (menu_content, _) =
@@ -547,32 +544,41 @@ let render =
    * a global listener (rather than tabindex+on_keydown on the menu div)
    * because the editor's #page on_focus reclaims focus to the clipboard
    * shim, which would otherwise eat the menu's key events. */
+  /* Build the current menu's action list for the open column. Used by
+   * ArrowUp/Down (to wrap idx) and Enter (to run the selected action). */
+  let actions_at =
+      ((j, menu_path, _))
+      : list((string, string, unit => Ui_effect.t(unit))) =>
+    switch (List.nth_opt(headers, j) |> Option.value(~default=None)) {
+    | None => []
+    | Some(name) =>
+      let dyn_type =
+        switch (get_type_from_info(info)) {
+        | Some(_) as ty => ty
+        | None => get_dynamic_type(exp)
+        };
+      build_column_menu(info, name, dyn_type, local, parent, menu_path)
+      |> action_items;
+    };
   let handle_key = (key: string): option(Ui_effect.t(unit)) =>
     switch (key, model.menu_state) {
     | (_, None) => None
     | ("Escape", _) => Some(local(CloseMenu))
-    | ("ArrowUp", _) => Some(local(MenuUp))
-    | ("ArrowDown", _) => Some(local(MenuDown))
-    | ("Enter", Some((j, menu_path, sel_idx))) =>
-      switch (List.nth_opt(headers, j) |> Option.value(~default=None)) {
+    | ("ArrowUp", Some((_, _, idx) as st)) =>
+      let n = List.length(actions_at(st));
+      n == 0 ? None : Some(local(MenuSelect((idx - 1 + n) mod n)));
+    | ("ArrowDown", Some((_, _, idx) as st)) =>
+      let n = List.length(actions_at(st));
+      n == 0 ? None : Some(local(MenuSelect((idx + 1) mod n)));
+    | ("Enter", Some((_, _, sel_idx) as st)) =>
+      let actions = actions_at(st);
+      let num_actions = List.length(actions);
+      let clamped =
+        num_actions == 0 ? 0 : min(max(0, sel_idx), num_actions - 1);
+      switch (List.nth_opt(actions, clamped)) {
+      | Some((_, _, run)) => Some(run())
       | None => Some(local(CloseMenu))
-      | Some(name) =>
-        let dyn_type =
-          switch (get_type_from_info(info)) {
-          | Some(_) as ty => ty
-          | None => get_dynamic_type(exp)
-          };
-        let menu_data =
-          build_column_menu(info, name, dyn_type, local, parent, menu_path);
-        let actions = action_items(menu_data);
-        let num_actions = List.length(actions);
-        let clamped =
-          num_actions == 0 ? 0 : min(max(0, sel_idx), num_actions - 1);
-        switch (List.nth_opt(actions, clamped)) {
-        | Some((_, _, run)) => Some(run())
-        | None => Some(local(CloseMenu))
-        };
-      }
+      };
     | _ => None
     };
   ColumnMenuListener.sync(
@@ -607,20 +613,6 @@ let update: (model, action) => model =
     | ShowSubmenu(path) =>
       switch (model.menu_state) {
       | Some((col, _, _)) => {menu_state: Some((col, path, 0))}
-      | None => model
-      }
-    | MenuUp =>
-      switch (model.menu_state) {
-      | Some((col, path, idx)) => {
-          menu_state: Some((col, path, max(0, idx - 1))),
-        }
-      | None => model
-      }
-    | MenuDown =>
-      switch (model.menu_state) {
-      /* Render clamps idx to (num_actions - 1); allow unbounded increment
-       * here since we don't know action count outside the view. */
-      | Some((col, path, idx)) => {menu_state: Some((col, path, idx + 1))}
       | None => model
       }
     | MenuSelect(idx) =>

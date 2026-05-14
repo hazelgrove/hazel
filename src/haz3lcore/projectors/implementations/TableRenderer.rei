@@ -8,8 +8,6 @@ type a =
   | CloseMenu
   | ShowMenu(int)
   | ShowSubmenu(list(string))
-  | MenuUp
-  | MenuDown
   | MenuSelect(int);
 type v = (list(option(string)), list(list(Language.Exp.t))); /* (headers, rows) */
 
