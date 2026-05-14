@@ -419,3 +419,122 @@
   color: var(--BR3);
   padding: 1em;
 }
+
+/* ===== Debug Info Panel ===== */
+
+#debug-sidebar {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  font-family: var(--ui-font);
+  font-size: 11pt;
+  background-color: var(--ui-bkg);
+}
+
+#debug-sidebar .panel-title-bar {
+  flex: 0 0 auto;
+  padding: 0.5em 0.8em;
+  border-bottom: 1px solid var(--BR2);
+  font-weight: 600;
+  color: var(--BR4);
+  background-color: var(--T2);
+}
+
+#debug-sidebar .panel-body {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 0.5em 0.8em 2em;
+  scrollbar-color: var(--main-scroll-thumb) var(--NONE);
+}
+
+#debug-sidebar .debug-toggle-bar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6em;
+  padding: 0.35em 0.8em;
+  border-bottom: 1px solid var(--BR2);
+  background-color: color-mix(in srgb, var(--T1) 70%, transparent);
+}
+
+#debug-sidebar .debug-toggle-label {
+  font-size: 9.5pt;
+  color: var(--STONE);
+  font-style: italic;
+}
+
+#debug-sidebar .debug-toggle-button {
+  padding: 0.2em 0.6em;
+  font-size: 9.5pt;
+  font-weight: 600;
+  color: var(--BR4);
+  background-color: var(--SAND);
+  border: 1px solid var(--BR2);
+  border-radius: 3px;
+  cursor: pointer;
+  user-select: none;
+}
+
+#debug-sidebar .debug-toggle-button:hover {
+  background-color: var(--T2);
+  border-color: var(--BR3);
+}
+
+#debug-sidebar .debug-field-value:not(.raw) {
+  /* Rendered code views bring their own typography; keep the wrapper plain. */
+  padding: 0.15em 0.25em;
+  background-color: var(--SAND);
+  border: 1px solid var(--BR1);
+  border-radius: 2px;
+  overflow-x: auto;
+}
+
+#debug-sidebar .debug-section-title {
+  margin: 0.8em 0 0.4em;
+  padding-bottom: 0.2em;
+  font-weight: 600;
+  font-size: 11pt;
+  color: var(--BR4);
+  border-bottom: 1px solid var(--BR2);
+  letter-spacing: 0.02em;
+}
+
+#debug-sidebar .debug-section-title:first-child {
+  margin-top: 0;
+}
+
+#debug-sidebar .debug-field {
+  margin: 0.35em 0;
+  padding: 0.25em 0.4em;
+  border-left: 2px solid var(--BR2);
+  background-color: color-mix(in srgb, var(--T1) 60%, transparent);
+  border-radius: 2px;
+}
+
+#debug-sidebar .debug-field-label {
+  font-family: var(--ui-font);
+  font-size: 9.5pt;
+  font-weight: 600;
+  color: var(--STONE);
+  letter-spacing: 0.02em;
+  margin-bottom: 0.15em;
+}
+
+#debug-sidebar .debug-field-value {
+  margin: 0;
+  padding: 0.25em 0.35em;
+  font-family: var(--code-font);
+  font-size: 9pt;
+  line-height: 1.35;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--STONE);
+  background-color: var(--SAND);
+  border: 1px solid var(--BR1);
+  border-radius: 2px;
+  max-height: 14em;
+  overflow: auto;
+}
