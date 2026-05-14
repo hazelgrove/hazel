@@ -7,7 +7,8 @@ module Settings = {
     | HelpfulAssistant
     | Probes
     | LogControl
-    | Problems;
+    | Problems
+    | DebugInfo;
 
   [@deriving (show({with_path: false}), sexp, yojson, enumerate)]
   type problem_category =
@@ -121,11 +122,13 @@ module Settings = {
     show: bool,
     panel,
     problems: problems_settings,
+    debug_show_raw: bool,
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type action =
     | ToggleShow
     | SwitchPanel(panel)
-    | Problems(problems_action);
+    | Problems(problems_action)
+    | ToggleDebugRaw;
 };
