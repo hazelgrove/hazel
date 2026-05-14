@@ -9,50 +9,11 @@ open Language;
 
 let max_column_length = 12;
 
-let len_seg = (utility: utility, seg: Segment.t): int =>
-  seg |> utility.seg_to_string |> String.length;
-
-let seg_of_exp = (utility: utility, exp: Exp.t): (Segment.t, int) => {
-  let seg = utility.term_to_seg(~inline=true, Exp(exp));
-  (seg, len_seg(utility, seg));
-};
-
-let abbreviated_seg_of =
-    (utility: utility, available: int, exp: Exp.t): (Segment.t, int) => {
-  let (abbr_exp, _length) =
-    exp
-    |> DHExp.strip_ascriptions
-    |> Exp.strip_projectors
-    |> Abbreviate.abbreviate_exp(~available);
-  seg_of_exp(utility, abbr_exp);
-};
-
-let length_cls = (length: int): string =>
-  if (length > 10) {
-    "extra";
-  } else if (length > 9) {
-    "s6";
-  } else if (length > 8) {
-    "s5";
-  } else if (length > 7) {
-    "s4";
-  } else if (length > 6) {
-    "s3";
-  } else if (length > 5) {
-    "s2";
-  } else if (length > 4) {
-    "s1";
-  } else {
-    "s0";
-  };
-
 let value_view = (utility: utility, view_seg, exp) => {
-  let (seg, length) = abbreviated_seg_of(utility, max_column_length, exp);
+  let (seg, _length) =
+    ProbeUtil.abbreviated_seg_of(utility, max_column_length, exp);
 
-  Node.div(
-    ~attrs=[Attr.classes(["value", length_cls(length)])],
-    [view_seg(Sort.Exp, seg)],
-  );
+  Node.div(~attrs=[Attr.classes(["value"])], [view_seg(Sort.Exp, seg)]);
 };
 
 /* --- Table Assembly --- */

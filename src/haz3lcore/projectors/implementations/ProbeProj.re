@@ -228,20 +228,8 @@ let select_samples =
   };
 };
 
-let len_seg = (utility: utility, seg: Segment.t): int =>
-  seg |> utility.seg_to_string |> Unicode.Width.columns_of_string;
-
-let seg_of_exp = (utility: utility, exp: Exp.t): (Segment.t, int) => {
-  let seg = utility.term_to_seg(~inline=true, Exp(exp));
-  (seg, len_seg(utility, seg));
-};
-
-let abbreviated_seg_of =
-    (utility: utility, available: int, exp: Exp.t): (Segment.t, int) => {
-  let (abbr_exp, _length) =
-    exp |> DHExp.strip_ascriptions |> Abbreviate.abbreviate_exp(~available);
-  seg_of_exp(utility, abbr_exp);
-};
+let seg_of_exp = ProbeUtil.seg_of_exp;
+let abbreviated_seg_of = ProbeUtil.abbreviated_seg_of;
 
 let pos_rel_to_target = (e: Js.t(Dom_html.mouseEvent)): Point.t => {
   open Float;
