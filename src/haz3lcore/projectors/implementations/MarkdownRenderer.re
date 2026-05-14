@@ -117,12 +117,232 @@ let rec render_block = (block: Omd.block(_)): list(Node.t) =>
   | _ => []
   };
 
-let render_markdown = (s: string): list(Node.t) => {
-  let doc =
-    try(Omd.of_string(s)) {
-    | _ => []
+/* Hazel stores string literals with escape sequences intact (e.g. `\n` is
+ * two characters in the runtime value, not a newline). Decode the common
+ * ones so multi-line markdown actually renders as multiple lines. */
+let decode_escapes = (s: string): string => {
+  /* Stash escaped backslashes first so subsequent passes don't see `\\n`
+   * and decode it as a real newline. */
+  let placeholder = "\000BS\000";
+  let replace = (pat, repl, str) =>
+    Js_of_ocaml.Regexp.global_replace(
+      Js_of_ocaml.Regexp.regexp(pat),
+      str,
+      repl,
+    );
+  s
+  |> replace("\\\\\\\\", placeholder)
+  |> replace("\\\\n", "\n")
+  |> replace("\\\\t", "\t")
+  |> replace("\\\\r", "\r")
+  |> replace("\\\\\"", "\"")
+  |> replace(placeholder, "\\");
+};
+
+/* --- GFM tables (omd doesn't support these natively) ---
+ *
+ * Detect runs of lines that form a pipe table:
+ *   | h1 | h2 |
+ *   | -- | :- |
+ *   | a  | b  |
+ * Render them directly to Vdom; everything else goes through omd. */
+
+type alignment =
+  | AlignNone
+  | AlignLeft
+  | AlignRight
+  | AlignCenter;
+
+let split_pipe_row = (line: string): list(string) => {
+  let trimmed = String.trim(line);
+  let body =
+    if (String.length(trimmed) >= 1 && trimmed.[0] == '|') {
+      String.sub(trimmed, 1, String.length(trimmed) - 1);
+    } else {
+      trimmed;
     };
-  List.concat_map(render_block, doc);
+  let body =
+    if (String.length(body) >= 1 && body.[String.length(body) - 1] == '|') {
+      String.sub(body, 0, String.length(body) - 1);
+    } else {
+      body;
+    };
+  String.split_on_char('|', body) |> List.map(String.trim);
+};
+
+let is_separator_cell = (s: string): option(alignment) => {
+  let n = String.length(s);
+  if (n == 0) {
+    None;
+  } else {
+    let left = s.[0] == ':';
+    let right = s.[n - 1] == ':';
+    let inner_start = left ? 1 : 0;
+    let inner_end = right ? n - 1 : n;
+    let dashes = ref(0);
+    let ok = ref(true);
+    for (i in inner_start to inner_end - 1) {
+      if (s.[i] == '-') {
+        incr(dashes);
+      } else {
+        ok := false;
+      };
+    };
+    if (ok^ && dashes^ >= 1) {
+      Some(
+        switch (left, right) {
+        | (true, true) => AlignCenter
+        | (true, false) => AlignLeft
+        | (false, true) => AlignRight
+        | (false, false) => AlignNone
+        },
+      );
+    } else {
+      None;
+    };
+  };
+};
+
+let parse_separator = (line: string): option(list(alignment)) => {
+  let cells = split_pipe_row(line);
+  if (List.length(cells) == 0) {
+    None;
+  } else {
+    let aligns = List.map(is_separator_cell, cells);
+    if (List.for_all(Option.is_some, aligns)) {
+      Some(List.map(Option.get, aligns));
+    } else {
+      None;
+    };
+  };
+};
+
+let looks_like_table_line = (line: string): bool => {
+  let t = String.trim(line);
+  String.length(t) > 0 && String.contains(t, '|');
+};
+
+let align_attr = (a: alignment): list(Attr.t) =>
+  switch (a) {
+  | AlignNone => []
+  | AlignLeft => [Attr.style(Css_gen.text_align(`Left))]
+  | AlignRight => [Attr.style(Css_gen.text_align(`Right))]
+  | AlignCenter => [Attr.style(Css_gen.text_align(`Center))]
+  };
+
+let render_cell_inline = (s: string): list(Node.t) =>
+  /* Render the cell text through omd as inline markdown by wrapping it in
+   * a paragraph and pulling its inlines out. Falls back to plain text. */
+  switch (Omd.of_string(s)) {
+  | [Omd.Paragraph(_, inlines)] => render_inline(inlines)
+  | _ => [Node.text(s)]
+  };
+
+let render_table =
+    (
+      aligns: list(alignment),
+      header: list(string),
+      rows: list(list(string)),
+    )
+    : Node.t => {
+  let zip_with_aligns = cells => {
+    let rec aux = (cs, als) =>
+      switch (cs, als) {
+      | ([], _) => []
+      | ([c, ...crest], [a, ...arest]) => [(c, a), ...aux(crest, arest)]
+      | ([c, ...crest], []) => [(c, AlignNone), ...aux(crest, [])]
+      };
+    aux(cells, aligns);
+  };
+  let header_cells =
+    List.map(
+      ((c, a)) => Node.th(~attrs=align_attr(a), render_cell_inline(c)),
+      zip_with_aligns(header),
+    );
+  let body_rows =
+    List.map(
+      row =>
+        Node.tr(
+          List.map(
+            ((c, a)) =>
+              Node.td(~attrs=align_attr(a), render_cell_inline(c)),
+            zip_with_aligns(row),
+          ),
+        ),
+      rows,
+    );
+  Node.table(
+    ~attrs=[Attr.classes(["md-table"])],
+    [Node.thead([Node.tr(header_cells)]), Node.tbody(body_rows)],
+  );
+};
+
+/* Walk lines, splitting into table blocks and other-text blocks.
+ * Tables: [header line; separator line; zero or more row lines]. */
+let extract_tables =
+    (s: string)
+    : list(
+        [
+          | `Md(string)
+          | `Table(Node.t)
+        ],
+      ) => {
+  let lines = String.split_on_char('\n', s);
+  let arr = Array.of_list(lines);
+  let n = Array.length(arr);
+  let out = ref([]);
+  let buf = Stdlib.Buffer.create(64);
+  let flush_buf = () =>
+    if (Stdlib.Buffer.length(buf) > 0) {
+      out := [`Md(Stdlib.Buffer.contents(buf)), ...out^];
+      Stdlib.Buffer.clear(buf);
+    };
+  let i = ref(0);
+  while (i^ < n) {
+    let header = arr[i^];
+    let has_sep =
+      i^
+      + 1 < n
+      && looks_like_table_line(header)
+      && Option.is_some(parse_separator(arr[i^ + 1]));
+    if (has_sep) {
+      let aligns = Option.get(parse_separator(arr[i^ + 1]));
+      let header_cells = split_pipe_row(header);
+      let row_start = i^ + 2;
+      let j = ref(row_start);
+      while (j^ < n && looks_like_table_line(arr[j^])) {
+        incr(j);
+      };
+      let rows =
+        Array.sub(arr, row_start, j^ - row_start)
+        |> Array.to_list
+        |> List.map(split_pipe_row);
+      flush_buf();
+      out := [`Table(render_table(aligns, header_cells, rows)), ...out^];
+      i := j^;
+    } else {
+      Stdlib.Buffer.add_string(buf, arr[i^]);
+      Stdlib.Buffer.add_char(buf, '\n');
+      incr(i);
+    };
+  };
+  flush_buf();
+  List.rev(out^);
+};
+
+let render_markdown = (s: string): list(Node.t) => {
+  let decoded = decode_escapes(s);
+  let chunks = extract_tables(decoded);
+  List.concat_map(
+    fun
+    | `Md(text) =>
+      switch (Omd.of_string(text)) {
+      | doc => List.concat_map(render_block, doc)
+      | exception _ => [Node.text(text)]
+      }
+    | `Table(node) => [node],
+    chunks,
+  );
 };
 
 /* --- View --- */
@@ -151,7 +371,10 @@ let render =
     );
   let body =
     if (model.raw) {
-      Node.pre(~attrs=[Attr.classes(["md-raw"])], [Node.text(value)]);
+      Node.pre(
+        ~attrs=[Attr.classes(["md-raw"])],
+        [Node.text(decode_escapes(value))],
+      );
     } else {
       Node.div(
         ~attrs=[Attr.classes(["md-rendered"])],

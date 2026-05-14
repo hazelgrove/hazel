@@ -91,6 +91,26 @@
   height: auto;
 }
 
+.md-renderer .md-table {
+  border-collapse: collapse;
+  margin: 0.4em 0;
+}
+
+.md-renderer .md-table th,
+.md-renderer .md-table td {
+  border: 1px solid var(--BR2, #ccc);
+  padding: 4px 8px;
+}
+
+.md-renderer .md-table th {
+  background: var(--BR1, #f4f4f4);
+  font-weight: 600;
+}
+
+.md-renderer .md-table tbody tr:nth-child(even) td {
+  background: var(--BR1, #fafafa);
+}
+
 .md-renderer .md-code {
   font-family: var(--font-mono, monospace);
   background: var(--BR1, #f4f4f4);
