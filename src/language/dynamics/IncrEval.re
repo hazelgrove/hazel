@@ -6,16 +6,32 @@ open Util;
  * body are never cached (so calling a function twice re-runs the body). */
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type projection =
+  | TupleIndex(int, int)
+  | ListIndex(int, int)
+  | ConsHead
+  | ConsTail
+  | ConstructorArg(string)
+  | TupleLabel(option(string))
+  | Ascribed;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type provenance = {
+  source: Id.t,
+  path: list(projection),
+};
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type reuse_map = VarMap.t_(provenance);
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type entry = {
   prev_elab: Exp.t,
-  /* Snapshot of which binder each free-var name in this cached subtree's
-   * `co_ctx` resolved to when the entry was written (i.e. `refs_in` of the
-   * cached id). Compared against the current run's `refs` in `reuse_check`
-   * to catch shadowing-resolution changes: when an enclosing Let is added
-   * or removed around an otherwise-unchanged subtree, the subtree's id and
-   * elab stay the same but the names in its co_ctx now resolve to a
-   * different binder id, invalidating the cached value. */
-  prev_refs: Binding.s,
+  /* Provenance for every free variable used by this cached subtree: the
+   * expression id that supplied the variable's value, plus a projection path
+   * through pattern matches. Reuse is sound only when the current run obtained
+   * those variables from the same previous-cache entries. */
+  prev_reuse_map: reuse_map,
   /* Snapshot of the cached subtree's probe-targets witness. Compared
    * structurally against the current witness in `reuse_check` to detect
    * any add/remove of a probe target inside this subtree.
@@ -87,29 +103,123 @@ let frozen_ids = (incr: t): list(Id.t) => {
   acc^;
 };
 
-/* Names that a Let/FixF binder's rhs has dirtied on the current run: if the
- * rhs produced a value different from its cached one, the pattern's bound
- * vars become dirty inside the body. */
-let newly_dirty_vars =
-    (~prev: t, ~curr: t, pat: Pat.t, rhs: DHExp.t): list(Var.t) => {
-  let id = DHExp.rep_id(rhs);
-  let changed =
-    switch (
-      Id.Map.find_opt(id, prev.entries),
-      Id.Map.find_opt(id, curr.entries),
-    ) {
-    | (Some(p), Some(n)) => !Exp.fast_equal(p.value, n.value)
-    | (Some(_), None) => true
-    | (None, _) => false
-    };
-  changed ? Pat.bound_vars(pat) : [];
+let empty_reuse_map: reuse_map = VarMap.empty;
+
+let equal_provenance = (a: provenance, b: provenance): bool =>
+  Id.equal(a.source, b.source) && a.path == b.path;
+
+let equal_reuse_map = (a: reuse_map, b: reuse_map): bool =>
+  List.length(a) == List.length(b)
+  && List.for_all(
+       ((name, prov)) =>
+         switch (VarMap.lookup(b, name)) {
+         | Some(prov') => equal_provenance(prov, prov')
+         | None => false
+         },
+       a,
+     );
+
+let restrict_to_co_ctx = (reuse_map: reuse_map, co_ctx: CoCtx.t): reuse_map =>
+  List.fold_right(
+    ((name, _), projected) =>
+      switch (VarMap.lookup(reuse_map, name)) {
+      | Some(prov) => [(name, prov), ...projected]
+      | None => projected
+      },
+    VarMap.to_list(co_ctx),
+    [],
+  );
+
+let reuse_map_for_co_ctx =
+    (reuse_map: reuse_map, co_ctx: CoCtx.t): option(reuse_map) =>
+  List.fold_right(
+    ((name, _), acc) =>
+      switch (acc) {
+      | None => None
+      | Some(projected) =>
+        switch (VarMap.lookup(reuse_map, name)) {
+        | Some(prov) => Some([(name, prov), ...projected])
+        | None => None
+        }
+      },
+    VarMap.to_list(co_ctx),
+    Some([]),
+  );
+
+let remove_pat_bindings = (pat: Pat.t, reuse_map: reuse_map): reuse_map => {
+  let bound = Pat.bound_vars(pat);
+  List.filter(((name, _)) => !List.mem(name, bound), reuse_map);
 };
+
+let pat_label = (pat: Pat.t): option(string) =>
+  switch (pat.term) {
+  | Label(name) => Some(name)
+  | _ => None
+  };
+
+let pat_provenance = (~source_id: Id.t, pat: Pat.t): reuse_map => {
+  let rec go = (path: list(projection), pat: Pat.t): reuse_map =>
+    switch (pat.term) {
+    | EmptyHole
+    | MultiHole(_)
+    | Wild
+    | Invalid(_)
+    | Atom(_)
+    | Label(_)
+    | ExplicitNonlabel
+    | Constructor(_) => []
+    | Var(name) => [
+        (
+          name,
+          {
+            source: source_id,
+            path: List.rev(path),
+          },
+        ),
+      ]
+    | Parens(p)
+    | Projector(_, p) => go(path, p)
+    | Asc(p, _) => go([Ascribed, ...path], p)
+    | TupLabel(label, p) => go([TupleLabel(pat_label(label)), ...path], p)
+    | Ap(ctr, p) =>
+      switch (Pat.ctr_name(ctr)) {
+      | Some(name) => go([ConstructorArg(name), ...path], p)
+      | None => go(path, p)
+      }
+    | Tuple(ps) =>
+      let arity = List.length(ps);
+      ps
+      |> List.mapi((i, p) => go([TupleIndex(arity, i), ...path], p))
+      |> List.flatten;
+    | ListLit(ps) =>
+      let arity = List.length(ps);
+      ps
+      |> List.mapi((i, p) => go([ListIndex(arity, i), ...path], p))
+      |> List.flatten;
+    | Cons(hd, tl) =>
+      go([ConsHead, ...path], hd) @ go([ConsTail, ...path], tl)
+    };
+  go([], pat);
+};
+
+let with_pat_provenance =
+    (~source_id: Id.t, pat: Pat.t, reuse_map: reuse_map): reuse_map =>
+  pat_provenance(~source_id, pat) @ remove_pat_bindings(pat, reuse_map);
+
+let was_reused = (id: Id.t, incr: t): bool => List.mem(id, incr.reused);
+
+let update_maps_after_binding =
+    (~rhs_reused: bool, ~source_id: Id.t, pat: Pat.t, ~reuse_map: reuse_map)
+    : reuse_map =>
+  rhs_reused
+    ? with_pat_provenance(~source_id, pat, reuse_map)
+    : remove_pat_bindings(pat, reuse_map);
 
 let reuse_check =
     (
       ~call_stack: Sample.call_stack,
       ~prev: t,
-      ~dirty_names: list(Var.t),
+      ~reuse_map: reuse_map,
       ~info_map: EvalInfoMap.t,
       ~id: Id.t,
     )
@@ -123,16 +233,10 @@ let reuse_check =
   let elab_same = Exp.fast_equal(entry.prev_elab, info.elab_term);
   let* () = OptUtil.some_if(elab_same, ());
 
-  /* Resolution check: every free var in the cached subtree must still
-   * resolve to the same binder id. Catches shadowing-resolution changes
-   * that elab_same misses (since the subtree's elab is just `Var(x)`
-   * regardless of which enclosing Let `x` binds to). */
-  let* () = OptUtil.some_if(Binding.equal_s(entry.prev_refs, info.refs), ());
-
-  let co_ctx = info.co_ctx;
+  let* current_reuse_map = reuse_map_for_co_ctx(reuse_map, info.co_ctx);
   let* () =
     OptUtil.some_if(
-      !List.exists(((name, _)) => List.mem(name, dirty_names), co_ctx),
+      equal_reuse_map(entry.prev_reuse_map, current_reuse_map),
       (),
     );
 

@@ -127,7 +127,7 @@ module Eval = Transition(EvaluatorEVMode);
 
 let rec evaluate =
         (
-          ~dirty_names: list(Var.t)=[],
+          ~reuse_map: IncrEval.reuse_map=IncrEval.empty_reuse_map,
           ~prev: IncrEval.t=IncrEval.empty,
           ~info_map: EvalInfoMap.t,
           ~in_closure=?,
@@ -145,7 +145,7 @@ let rec evaluate =
     IncrEval.reuse_check(
       ~call_stack,
       ~prev,
-      ~dirty_names,
+      ~reuse_map,
       ~info_map,
       ~id=expr_id,
     )
@@ -187,7 +187,7 @@ let rec evaluate =
         Eval.transition(
           (~in_closure=?, env, init) =>
             evaluate(
-              ~dirty_names,
+              ~reuse_map,
               ~prev,
               ~info_map,
               ~in_closure?,
@@ -225,34 +225,27 @@ let rec evaluate =
         EvaluatorState.update(state^, call_stack, env, init, next, effects);
       state := new_state;
 
-      /* Binder body dirty set: any RecordPatMatch side-effects produced by
-       * this transition describe a `pat <- rhs` binding. The body sees:
-       *   - any inherited `dirty_names` MINUS names this binder shadows
-       *     (its pat's bound vars), because the body's references to those
-       *     names now resolve to this binding, not the outer one — so an
-       *     outer dirty `x` is irrelevant inside `let x = ... in body`;
-       *   - PLUS any names this binder itself dirtied (rhs value changed).
-       * Reading from side-effects (rather than switching on init.term) means
-       * any future pat-binding construct that calls `matches` and emits
-       * RecordPatMatch participates automatically. */
-      let shadowed_names =
-        List.concat_map(
-          fun
-          | EvaluatorState.RecordPatMatch({pat, _}) => Pat.bound_vars(pat)
-          | _ => [],
+      /* Binder body provenance map: RecordPatMatch describes `pat <- rhs`.
+       * We add pattern provenance only when the rhs value came from the
+       * previous cache. Otherwise the binding shadows any outer provenance
+       * for those names and dependents must be recalculated. */
+      let body_reuse_map =
+        List.fold_left(
+          (reuse_map, effect) =>
+            switch (effect) {
+            | EvaluatorState.RecordPatMatch({pat, rhs, _}) =>
+              let source_id = DHExp.rep_id(rhs);
+              IncrEval.update_maps_after_binding(
+                ~rhs_reused=IncrEval.was_reused(source_id, state^.incr_eval),
+                ~source_id,
+                pat,
+                ~reuse_map,
+              );
+            | _ => reuse_map
+            },
+          reuse_map,
           effects,
         );
-      let newly_dirty =
-        List.concat_map(
-          fun
-          | EvaluatorState.RecordPatMatch({pat, rhs, _}) =>
-            IncrEval.newly_dirty_vars(~prev, ~curr=state^.incr_eval, pat, rhs)
-          | _ => [],
-          effects,
-        );
-      let body_dirty_names =
-        newly_dirty
-        @ List.filter(n => !List.mem(n, shadowed_names), dirty_names);
 
       switch (is_finished) {
       | Final => Trampoline.return((EvaluatorEVMode.Final, [], next))
@@ -289,7 +282,7 @@ let rec evaluate =
             Trampoline.Next(
               () =>
                 evaluate(
-                  ~dirty_names=body_dirty_names,
+                  ~reuse_map=body_reuse_map,
                   ~prev,
                   ~info_map,
                   ~call_stack,
@@ -326,7 +319,7 @@ let rec evaluate =
           Trampoline.Next(
             () =>
               evaluate(
-                ~dirty_names=body_dirty_names,
+                ~reuse_map=body_reuse_map,
                 ~prev,
                 ~info_map,
                 ~call_stack,
@@ -350,7 +343,7 @@ let rec evaluate =
     | None => eval_core()
     | Some({
         elab_term: prev_elab,
-        refs: prev_refs,
+        co_ctx,
         probe_targets: prev_probe_targets,
         _,
       }) =>
@@ -359,7 +352,7 @@ let rec evaluate =
         EvaluatorState.capture_slice(~before=state_before, ~after=state^);
       let entry: IncrEval.entry = {
         prev_elab,
-        prev_refs,
+        prev_reuse_map: IncrEval.restrict_to_co_ctx(reuse_map, co_ctx),
         prev_probe_targets,
         value: final,
         state: state_slice,

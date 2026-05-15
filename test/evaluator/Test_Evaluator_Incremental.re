@@ -1233,19 +1233,49 @@ let test_swap_counterexample = () => {
   let src = "let x = 1 in let x = 2 in x" |> parse_exp;
   let id1 = IdTagged.IdTag.fresh();
   let id2 = IdTagged.IdTag.fresh();
-  let exp1 = 
-  src
-  |> replace_int_lit(~from=1, ~to_=4, ~to_id=id1)
-  |> replace_int_lit(~from=2, ~to_=5, ~to_id=id2);
+  let exp1 =
+    src
+    |> replace_int_lit(~from=1, ~to_=4, ~to_id=id1)
+    |> replace_int_lit(~from=2, ~to_=5, ~to_id=id2);
   let exp2 =
-  src
-  |> replace_int_lit(~from=1, ~to_=5, ~to_id=id2)
-  |> replace_int_lit(~from=2, ~to_=4, ~to_id=id1);
+    src
+    |> replace_int_lit(~from=1, ~to_=5, ~to_id=id2)
+    |> replace_int_lit(~from=2, ~to_=4, ~to_id=id1);
   let (_, _, incr1) = eval_incr(exp1);
   let (r2, _, _) = eval_incr(~prev=incr1, exp2);
   // check value is correct after swap
   check(dhexp_typ, "Run 1: inner x=2 wins, x = 2", parse_exp("4"), r2);
-}
+};
+
+let test_reuse_provenance_distinguishes_pattern_shapes = () => {
+  let source_id = Id.mk();
+  let x = () => Pat.fresh(Var("x"));
+  let provenance = pat => IncrEval.pat_provenance(~source_id, pat);
+  let direct = provenance(x());
+  let tuple = provenance(Pat.fresh(Tuple([x()])));
+  let list = provenance(Pat.fresh(ListLit([x()])));
+  let cons = provenance(Pat.fresh(Cons(x(), Pat.fresh(Wild))));
+  let some =
+    provenance(Pat.fresh(Ap(Pat.fresh(Constructor("Some", None)), x())));
+  check(
+    bool,
+    "Constructor payload provenance differs from direct binding",
+    false,
+    IncrEval.equal_reuse_map(some, direct),
+  );
+  check(
+    bool,
+    "Tuple element provenance differs from list element provenance",
+    false,
+    IncrEval.equal_reuse_map(tuple, list),
+  );
+  check(
+    bool,
+    "Tuple element provenance differs from cons-head provenance",
+    false,
+    IncrEval.equal_reuse_map(tuple, cons),
+  );
+};
 
 let tests = (
   "Evaluator.Incremental",
@@ -1399,6 +1429,11 @@ let tests = (
       "SWAP: swapping shadowed variables keeping their id",
       `Quick,
       test_swap_counterexample,
-    )
+    ),
+    test_case(
+      "Reuse provenance distinguishes pattern projection shapes",
+      `Quick,
+      test_reuse_provenance_distinguishes_pattern_shapes,
+    ),
   ],
 );
