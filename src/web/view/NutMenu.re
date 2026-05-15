@@ -205,6 +205,12 @@ let dev_group = (~globals: Globals.t) => {
         setting: ShowRowLines,
         tooltip: Some("Show horizontal lines between each row of code"),
       },
+      {
+        name: "Debug Sidebar",
+        active: globals.settings.show_debug_panel,
+        setting: ShowDebugPanel,
+        tooltip: Some("Show the debug info sidebar panel"),
+      },
     ]
     @ (
       ExerciseSettings.show_instructor

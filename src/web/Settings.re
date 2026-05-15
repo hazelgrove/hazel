@@ -11,6 +11,7 @@ module Model = {
     instructor_mode: bool,
     benchmark: bool,
     show_log_panel: bool,
+    show_debug_panel: bool,
     explainThis: ExplainThisModel.Settings.t,
     sidebar: SidebarModel.Settings.t,
     /* Auto probe: automatically place a multi probe on the body of
@@ -56,6 +57,7 @@ module Model = {
     instructor_mode: false,
     benchmark: false,
     show_log_panel: false,
+    show_debug_panel: false,
     explainThis: {
       show: true,
       show_feedback: false,
@@ -69,6 +71,7 @@ module Model = {
         flat: false,
         expanded: [],
       },
+      debug_show_raw: false,
     },
     autoprobe_mode: false,
     agent_globals: AgentGlobals.init(),
@@ -146,6 +149,7 @@ module Update = {
     | ContextInspector
     | InstructorMode
     | ShowLogPanel
+    | ShowDebugPanel
     | Evaluation(evaluation)
     | Sidebar(SidebarModel.Settings.action)
     | ExplainThis(ExplainThisModel.Settings.action)
@@ -349,6 +353,13 @@ module Update = {
               ),
           },
         }
+      | Sidebar(ToggleDebugRaw) => {
+          ...settings,
+          sidebar: {
+            ...settings.sidebar,
+            debug_show_raw: !settings.sidebar.debug_show_raw,
+          },
+        }
       | ExplainThis(ToggleShowFeedback) => {
           ...settings,
           explainThis: {
@@ -378,6 +389,10 @@ module Update = {
           ...settings,
           show_log_panel:
             !settings.show_log_panel && ExerciseSettings.show_instructor,
+        }
+      | ShowDebugPanel => {
+          ...settings,
+          show_debug_panel: !settings.show_debug_panel,
         }
       | Benchmark => {
           ...settings,

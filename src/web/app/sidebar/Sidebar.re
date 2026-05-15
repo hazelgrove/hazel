@@ -82,6 +82,15 @@ let log_control_tab = (~globals: Globals.t): Node.t =>
     ~globals,
   );
 
+let debug_info_tab = (~globals: Globals.t): Node.t =>
+  tab_of(
+    ~panel=DebugInfo,
+    ~cls=["debug-info-button"],
+    ~icon=Icons.info,
+    ~tooltip="Switch to Debug Info Panel",
+    ~globals,
+  );
+
 let problems_tab_icon =
     (counts: list((SidebarModel.Settings.problem_category, int))): Node.t => {
   open SidebarModel.Settings;
@@ -172,6 +181,9 @@ let persistent_view =
         ]
         @ (
           globals.settings.show_log_panel ? [log_control_tab(~globals)] : []
+        )
+        @ (
+          globals.settings.show_debug_panel ? [debug_info_tab(~globals)] : []
         ),
       ),
     ],
@@ -321,6 +333,7 @@ let view =
                 ~log_entries_count=log_count,
               )
             | Problems => ProblemSidebar.view(~globals, ~cursor, ~ctx)
+            | DebugInfo => DebugSidebar.view(~globals, ~cursor)
             },
           ],
         )
