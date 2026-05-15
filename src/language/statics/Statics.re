@@ -1277,8 +1277,26 @@ and uexp_to_info_map =
           );
         };
 
+      let rec is_var_rooted_dot = (e: Exp.t): bool =>
+        switch (e.term) {
+        | Var(_)
+        | Constructor(_) => true
+        | Parens(e)
+        | Projector(_, e)
+        | Asc(e, _) => is_var_rooted_dot(e)
+        | Dot(e, {term: Label(_), _}) => is_var_rooted_dot(e)
+        | _ => false
+        };
       let dot_elab = Dot(e1_elab, elab_e2) |> rewrap;
-      let dot_co_ctx = CoCtx.union([info_e1.co_ctx, info_e2.co_ctx]);
+      let dot_co_ctx =
+        switch (e2.term) {
+        | Label(name) when is_var_rooted_dot(e1) =>
+          CoCtx.union([
+            CoCtx.project_all(name, info_e1.co_ctx),
+            info_e2.co_ctx,
+          ])
+        | _ => CoCtx.union([info_e1.co_ctx, info_e2.co_ctx])
+        };
       let dot_probe_targets =
         SubexpProbeTargets.union_all([
           info_e1.probe_targets,

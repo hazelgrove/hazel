@@ -28,9 +28,20 @@ open Util;
    */
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type path = list(LabeledTuple.label);
+
+let here: path = [];
+
+let equal_path = (a: path, b: path): bool => a == b;
+
+let project = (label: LabeledTuple.label, path: path): path =>
+  path @ [label];
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type entry = {
   id: Id.t,
   expected_ty: Typ.t,
+  path,
 };
 
 /* Each co-context entry is a list of the uses of a variable
@@ -79,10 +90,49 @@ let singleton = (name, id, expected_ty): t => [
       {
         id,
         expected_ty,
+        path: here,
       },
     ],
   ),
 ];
+
+let singleton_at = (~path: path, name, id, expected_ty): t => [
+  (
+    name,
+    [
+      {
+        id,
+        expected_ty,
+        path,
+      },
+    ],
+  ),
+];
+
+let project_entries =
+    (label: LabeledTuple.label, entries: list(entry)): list(entry) =>
+  List.map(
+    entry =>
+      {
+        ...entry,
+        path: project(label, entry.path),
+      },
+    entries,
+  );
+
+let project_all = (label: LabeledTuple.label, co_ctx: t): t =>
+  List.map(
+    ((name, entries)) => (name, project_entries(label, entries)),
+    co_ctx,
+  );
+
+let path_of_entries = (entries: list(entry)): path =>
+  switch (entries) {
+  | [] => here
+  | [first, ...rest] =>
+    List.for_all(entry => equal_path(entry.path, first.path), rest)
+      ? first.path : here
+  };
 
 let meet: (Ctx.t, list(entry)) => Typ.t =
   (ctx, entries) => {
@@ -111,6 +161,7 @@ let of_bindings = (bindings: Binding.s): t =>
           {
             id: b.id,
             expected_ty: Typ.fresh(Unknown(Internal)),
+            path: here,
           },
         ],
       ),

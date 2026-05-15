@@ -235,12 +235,14 @@ let rec evaluate =
             switch (effect) {
             | EvaluatorState.RecordPatMatch({pat, rhs, _}) =>
               let source_id = DHExp.rep_id(rhs);
+              let source_flag =
+                IncrEval.flag_of_exp(~incr=state^.incr_eval, rhs);
               IncrEval.update_maps_after_binding(
-                ~rhs_reused=IncrEval.was_reused(source_id, state^.incr_eval),
                 ~source_id,
+                ~source_flag,
                 pat,
                 ~reuse_map,
-              )
+              );
             | _ => reuse_map
             },
           reuse_map,
@@ -352,7 +354,9 @@ let rec evaluate =
         EvaluatorState.capture_slice(~before=state_before, ~after=state^);
       let entry: IncrEval.entry = {
         prev_elab,
-        prev_reuse_map: IncrEval.restrict_to_co_ctx(reuse_map, co_ctx),
+        prev_reuse_map:
+          IncrEval.restrict_to_co_ctx(reuse_map, co_ctx)
+          |> IncrEval.clean_reuse_map,
         prev_probe_targets,
         value: final,
         state: state_slice,

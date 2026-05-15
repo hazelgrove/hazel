@@ -1233,14 +1233,14 @@ let test_swap_counterexample = () => {
   let src = "let x = 1 in let x = 2 in x" |> parse_exp;
   let id1 = IdTagged.IdTag.fresh();
   let id2 = IdTagged.IdTag.fresh();
-  let exp1 = 
-  src
-  |> replace_int_lit(~from=1, ~to_=4, ~to_id=id1)
-  |> replace_int_lit(~from=2, ~to_=5, ~to_id=id2);
+  let exp1 =
+    src
+    |> replace_int_lit(~from=1, ~to_=4, ~to_id=id1)
+    |> replace_int_lit(~from=2, ~to_=5, ~to_id=id2);
   let exp2 =
-  src
-  |> replace_int_lit(~from=1, ~to_=5, ~to_id=id2)
-  |> replace_int_lit(~from=2, ~to_=4, ~to_id=id1);
+    src
+    |> replace_int_lit(~from=1, ~to_=5, ~to_id=id2)
+    |> replace_int_lit(~from=2, ~to_=4, ~to_id=id1);
   let (_, _, incr1) = eval_incr(exp1);
   let (r2, _, _) = eval_incr(~prev=incr1, exp2);
   // check value is correct after swap
@@ -1274,6 +1274,74 @@ let test_reuse_provenance_distinguishes_pattern_shapes = () => {
     "Tuple element provenance differs from cons-head provenance",
     false,
     IncrEval.equal_reuse_map(tuple, cons),
+  );
+};
+
+let top_level_let_body_id = (exp: Exp.t): Id.t =>
+  switch (exp.term) {
+  | Let(_, _, body) => Exp.rep_id(body)
+  | _ => failwith("expected top-level let")
+  };
+
+let test_labeled_tuple_projection_reuses_when_other_field_changes = () => {
+  let exp1 = parse_exp("let z = (a=1, b=2) in z.a + 10");
+  let exp2 = replace_int_lit(~from=2, ~to_=3, exp1);
+  let body_id = top_level_let_body_id(exp1);
+  let (r1, _, incr1) = eval_incr(exp1);
+  let (r2, _, incr2) = eval_incr(~prev=incr1, exp2);
+  check(dhexp_typ, "Run 1: z.a + 10 = 11", parse_exp("11"), r1);
+  check(
+    dhexp_typ,
+    "Run 2: editing z.b keeps z.a + 10 = 11",
+    parse_exp("11"),
+    r2,
+  );
+  check(
+    bool,
+    "Body depending only on z.a is reused after z.b changes",
+    true,
+    List.mem(body_id, incr2.reused),
+  );
+};
+
+let test_labeled_tuple_whole_var_does_not_reuse_when_field_changes = () => {
+  let exp1 = parse_exp("let z = (a=1, b=2) in z");
+  let exp2 = replace_int_lit(~from=2, ~to_=3, exp1);
+  let body_id = top_level_let_body_id(exp1);
+  let (r1, _, incr1) = eval_incr(exp1);
+  let (r2, _, incr2) = eval_incr(~prev=incr1, exp2);
+  check(
+    bool,
+    "Run 2 result changes when the whole tuple variable is returned",
+    true,
+    !Exp.fast_equal(r1, r2),
+  );
+  check(
+    bool,
+    "Whole-variable use of z is not reused when z is only partially clean",
+    false,
+    List.mem(body_id, incr2.reused),
+  );
+};
+
+let test_module_projection_reuses_when_other_field_changes = () => {
+  let exp1 = parse_exp("let m = { let a = 1; let b = 2 } in m.a + 10");
+  let exp2 = replace_int_lit(~from=2, ~to_=3, exp1);
+  let body_id = top_level_let_body_id(exp1);
+  let (r1, _, incr1) = eval_incr(exp1);
+  let (r2, _, incr2) = eval_incr(~prev=incr1, exp2);
+  check(dhexp_typ, "Run 1: m.a + 10 = 11", parse_exp("11"), r1);
+  check(
+    dhexp_typ,
+    "Run 2: editing m.b keeps m.a + 10 = 11",
+    parse_exp("11"),
+    r2,
+  );
+  check(
+    bool,
+    "Body depending only on m.a is reused after m.b changes",
+    true,
+    List.mem(body_id, incr2.reused),
   );
 };
 
@@ -1434,6 +1502,21 @@ let tests = (
       "Reuse provenance distinguishes pattern projection shapes",
       `Quick,
       test_reuse_provenance_distinguishes_pattern_shapes,
+    ),
+    test_case(
+      "Projection reuse: labeled tuple field access survives sibling edit",
+      `Quick,
+      test_labeled_tuple_projection_reuses_when_other_field_changes,
+    ),
+    test_case(
+      "Projection reuse: whole tuple variable invalidates on sibling edit",
+      `Quick,
+      test_labeled_tuple_whole_var_does_not_reuse_when_field_changes,
+    ),
+    test_case(
+      "Projection reuse: module field access survives sibling edit",
+      `Quick,
+      test_module_projection_reuses_when_other_field_changes,
     ),
   ],
 );

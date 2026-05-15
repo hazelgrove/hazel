@@ -24,7 +24,7 @@ let of_info_map = (~probe_all: bool, info_map: StaticsBase.Map.t): t =>
           elab_term,
           co_ctx,
           probe_targets: probe_all ? None : Some(probe_targets),
-        });
+        })
       | _ => None
       },
     info_map,

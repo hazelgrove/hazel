@@ -16,9 +16,21 @@ type projection =
   | Ascribed;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type clean_flag =
+  | FlagClean
+  | FlagDirty
+  | FlagTuple(list(clean_flag))
+  | FlagList(list(clean_flag))
+  | FlagCons(clean_flag, clean_flag)
+  | FlagConstructor(string, clean_flag)
+  | FlagTupleLabel(option(string), clean_flag)
+  | FlagAscribed(clean_flag);
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type provenance = {
   source: Id.t,
   path: list(projection),
+  flag: clean_flag,
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -106,7 +118,7 @@ let frozen_ids = (incr: t): list(Id.t) => {
 let empty_reuse_map: reuse_map = VarMap.empty;
 
 let equal_provenance = (a: provenance, b: provenance): bool =>
-  Id.equal(a.source, b.source) && a.path == b.path;
+  Id.equal(a.source, b.source) && a.path == b.path && a.flag == b.flag;
 
 let equal_reuse_map = (a: reuse_map, b: reuse_map): bool =>
   List.length(a) == List.length(b)
@@ -119,11 +131,126 @@ let equal_reuse_map = (a: reuse_map, b: reuse_map): bool =>
        a,
      );
 
+let remove_pat_bindings = (pat: Pat.t, reuse_map: reuse_map): reuse_map => {
+  let bound = Pat.bound_vars(pat);
+  List.filter(((name, _)) => !List.mem(name, bound), reuse_map);
+};
+
+let nth_opt = (xs: list('a), index: int): option('a) =>
+  index < 0 || index >= List.length(xs) ? None : Some(List.nth(xs, index));
+
+let normalize_tuple_flag = (flags: list(clean_flag)): clean_flag =>
+  flags == [] || List.for_all(flag => flag == FlagClean, flags)
+    ? FlagClean
+    : List.for_all(flag => flag == FlagDirty, flags)
+        ? FlagDirty : FlagTuple(flags);
+
+let normalize_list_flag = (flags: list(clean_flag)): clean_flag =>
+  flags == [] || List.for_all(flag => flag == FlagClean, flags)
+    ? FlagClean
+    : List.for_all(flag => flag == FlagDirty, flags)
+        ? FlagDirty : FlagList(flags);
+
+let normalize_cons_flag = (hd: clean_flag, tl: clean_flag): clean_flag =>
+  hd == FlagClean && tl == FlagClean
+    ? FlagClean
+    : hd == FlagDirty && tl == FlagDirty ? FlagDirty : FlagCons(hd, tl);
+
+let normalize_constructor_flag = (name: string, flag: clean_flag): clean_flag =>
+  switch (flag) {
+  | FlagClean => FlagClean
+  | FlagDirty => FlagDirty
+  | _ => FlagConstructor(name, flag)
+  };
+
+let rec project_label_flag = (name: string, flag: clean_flag): clean_flag =>
+  switch (flag) {
+  | FlagClean => FlagClean
+  | FlagDirty => FlagDirty
+  | FlagAscribed(flag) => project_label_flag(name, flag)
+  | FlagTupleLabel(Some(label), flag) when label == name => flag
+  | FlagTupleLabel(_, _) => FlagDirty
+  | FlagTuple(fields) =>
+    let matches =
+      List.filter_map(
+        fun
+        | FlagTupleLabel(Some(label), flag) when label == name => Some(flag)
+        | _ => None,
+        fields,
+      );
+    switch (matches) {
+    | [flag] => flag
+    | _ => FlagDirty
+    };
+  | FlagList(fields) =>
+    fields |> List.map(project_label_flag(name)) |> normalize_list_flag
+  | FlagCons(hd, tl) =>
+    normalize_cons_flag(
+      project_label_flag(name, hd),
+      project_label_flag(name, tl),
+    )
+  | FlagConstructor(_, _) => FlagDirty
+  };
+
+let rec project_flag = (projection: projection, flag: clean_flag): clean_flag =>
+  switch (flag, projection) {
+  | (FlagClean, _) => FlagClean
+  | (FlagDirty, _) => FlagDirty
+  | (FlagAscribed(flag), _) => project_flag(projection, flag)
+  | (_, Ascribed) => FlagAscribed(flag)
+  | (FlagTuple(fields), TupleIndex(arity, index))
+      when List.length(fields) == arity =>
+    nth_opt(fields, index) |> Option.value(~default=FlagDirty)
+  | (FlagList(fields), ListIndex(arity, index))
+      when List.length(fields) == arity =>
+    nth_opt(fields, index) |> Option.value(~default=FlagDirty)
+  | (FlagCons(hd, _), ConsHead) => hd
+  | (FlagCons(_, tl), ConsTail) => tl
+  | (FlagConstructor(name, flag), ConstructorArg(expected))
+      when name == expected => flag
+  | (_, TupleLabel(Some(name))) => project_label_flag(name, flag)
+  | (FlagTupleLabel(_, flag), TupleLabel(None)) => flag
+  | _ => FlagDirty
+  };
+
+let project_provenance =
+    (projection: projection, provenance: provenance): provenance => {
+  ...provenance,
+  path: provenance.path @ [projection],
+  flag: project_flag(projection, provenance.flag),
+};
+
+let project_label_provenance =
+    (label: string, provenance: provenance): provenance =>
+  project_provenance(TupleLabel(Some(label)), provenance);
+
+let project_coctx_path =
+    (path: CoCtx.path, provenance: provenance): provenance =>
+  List.fold_left(
+    (prov, label) => project_label_provenance(label, prov),
+    provenance,
+    path,
+  );
+
+let clean_provenance = (provenance: provenance): provenance => {
+  ...provenance,
+  flag: FlagClean,
+};
+
+let clean_reuse_map = (reuse_map: reuse_map): reuse_map =>
+  List.map(
+    ((name, provenance)) => (name, clean_provenance(provenance)),
+    reuse_map,
+  );
+
 let restrict_to_co_ctx = (reuse_map: reuse_map, co_ctx: CoCtx.t): reuse_map =>
   List.fold_right(
-    ((name, _), projected) =>
+    ((name, entries), projected) =>
       switch (VarMap.lookup(reuse_map, name)) {
-      | Some(prov) => [(name, prov), ...projected]
+      | Some(prov) => [
+          (name, project_coctx_path(CoCtx.path_of_entries(entries), prov)),
+          ...projected,
+        ]
       | None => projected
       },
     VarMap.to_list(co_ctx),
@@ -133,12 +260,19 @@ let restrict_to_co_ctx = (reuse_map: reuse_map, co_ctx: CoCtx.t): reuse_map =>
 let reuse_map_for_co_ctx =
     (reuse_map: reuse_map, co_ctx: CoCtx.t): option(reuse_map) =>
   List.fold_right(
-    ((name, _), acc) =>
+    ((name, entries), acc) =>
       switch (acc) {
       | None => None
       | Some(projected) =>
         switch (VarMap.lookup(reuse_map, name)) {
-        | Some(prov) => Some([(name, prov), ...projected])
+        | Some(prov) =>
+          Some([
+            (
+              name,
+              project_coctx_path(CoCtx.path_of_entries(entries), prov),
+            ),
+            ...projected,
+          ])
         | None => None
         }
       },
@@ -146,18 +280,29 @@ let reuse_map_for_co_ctx =
     Some([]),
   );
 
-let remove_pat_bindings = (pat: Pat.t, reuse_map: reuse_map): reuse_map => {
-  let bound = Pat.bound_vars(pat);
-  List.filter(((name, _)) => !List.mem(name, bound), reuse_map);
-};
-
 let pat_label = (pat: Pat.t): option(string) =>
   switch (pat.term) {
   | Label(name) => Some(name)
   | _ => None
   };
 
-let pat_provenance = (~source_id: Id.t, pat: Pat.t): reuse_map => {
+let exp_label = (exp: Exp.t): option(string) =>
+  switch (exp.term) {
+  | Label(name) => Some(name)
+  | _ => None
+  };
+
+let apply_path_to_flag =
+    (path: list(projection), flag: clean_flag): clean_flag =>
+  List.fold_left(
+    (flag, projection) => project_flag(projection, flag),
+    flag,
+    path,
+  );
+
+let pat_provenance =
+    (~source_id: Id.t, ~source_flag: clean_flag=FlagClean, pat: Pat.t)
+    : reuse_map => {
   let rec go = (path: list(projection), pat: Pat.t): reuse_map =>
     switch (pat.term) {
     | EmptyHole
@@ -168,7 +313,18 @@ let pat_provenance = (~source_id: Id.t, pat: Pat.t): reuse_map => {
     | Label(_)
     | ExplicitNonlabel
     | Constructor(_) => []
-    | Var(name) => [(name, {source: source_id, path: List.rev(path)})]
+    | Var(name) =>
+      let path = List.rev(path);
+      [
+        (
+          name,
+          {
+            source: source_id,
+            path,
+            flag: apply_path_to_flag(path, source_flag),
+          },
+        ),
+      ];
     | Parens(p)
     | Projector(_, p) => go(path, p)
     | Asc(p, _) => go([Ascribed, ...path], p)
@@ -195,22 +351,71 @@ let pat_provenance = (~source_id: Id.t, pat: Pat.t): reuse_map => {
 };
 
 let with_pat_provenance =
-    (~source_id: Id.t, pat: Pat.t, reuse_map: reuse_map): reuse_map =>
-  pat_provenance(~source_id, pat) @ remove_pat_bindings(pat, reuse_map);
+    (
+      ~source_id: Id.t,
+      ~source_flag: clean_flag,
+      pat: Pat.t,
+      reuse_map: reuse_map,
+    )
+    : reuse_map =>
+  pat_provenance(~source_id, ~source_flag, pat)
+  @ remove_pat_bindings(pat, reuse_map);
 
 let was_reused = (id: Id.t, incr: t): bool => List.mem(id, incr.reused);
 
+type flag_env = VarMap.t_(clean_flag);
+
+let remove_flag_bindings = (names: list(Var.t), env: flag_env): flag_env =>
+  List.filter(((name, _)) => !List.mem(name, names), env);
+
+let pat_flags = (~source_flag: clean_flag, pat: Pat.t): flag_env =>
+  pat_provenance(~source_id=Id.invalid, ~source_flag, pat)
+  |> List.map(((name, provenance)) => (name, provenance.flag));
+
+let extend_flag_env =
+    (pat: Pat.t, ~source_flag: clean_flag, env: flag_env): flag_env =>
+  pat_flags(~source_flag, pat)
+  @ remove_flag_bindings(Pat.bound_vars(pat), env);
+
+let flag_of_exp = (~incr: t, exp: Exp.t): clean_flag => {
+  let rec go = (env: flag_env, exp: Exp.t): clean_flag =>
+    if (was_reused(Exp.rep_id(exp), incr)) {
+      FlagClean;
+    } else {
+      switch (exp.term) {
+      | Var(name) =>
+        VarMap.lookup(env, name) |> Option.value(~default=FlagDirty)
+      | Parens(exp)
+      | Projector(_, exp)
+      | Asc(exp, _) => go(env, exp)
+      | Tuple(exps) => exps |> List.map(go(env)) |> normalize_tuple_flag
+      | ListLit(exps) => exps |> List.map(go(env)) |> normalize_list_flag
+      | Cons(hd, tl) => normalize_cons_flag(go(env, hd), go(env, tl))
+      | TupLabel(label, exp) =>
+        FlagTupleLabel(exp_label(label), go(env, exp))
+      | Ap(_, {term: Constructor(name, _), _}, arg) =>
+        normalize_constructor_flag(name, go(env, arg))
+      | Dot(exp, {term: Label(name), _}) =>
+        project_label_flag(name, go(env, exp))
+      | Let(pat, rhs, body) =>
+        let rhs_flag = go(env, rhs);
+        let env = extend_flag_env(pat, ~source_flag=rhs_flag, env);
+        go(env, body);
+      | _ => FlagDirty
+      };
+    };
+  go(VarMap.empty, exp);
+};
+
 let update_maps_after_binding =
     (
-      ~rhs_reused: bool,
       ~source_id: Id.t,
+      ~source_flag: clean_flag,
       pat: Pat.t,
       ~reuse_map: reuse_map,
     )
     : reuse_map =>
-  rhs_reused
-    ? with_pat_provenance(~source_id, pat, reuse_map)
-    : remove_pat_bindings(pat, reuse_map);
+  with_pat_provenance(~source_id, ~source_flag, pat, reuse_map);
 
 let reuse_check =
     (
