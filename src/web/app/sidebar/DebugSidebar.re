@@ -21,6 +21,7 @@ let code_settings: Haz3lcore.ExpToSegment.Settings.t = {
   show_ascriptions: true,
   show_filters: false,
   show_unknown_as_hole: true,
+  project_tables: false,
 };
 
 let section_title = (title: string): Node.t =>
@@ -183,6 +184,10 @@ let exp_view = (~globals, ~raw, info: Info.exp): list(Node.t) => [
   field_any(~globals, ~raw, "user_term", Exp(info.user_term)),
   field_any(~globals, ~raw, "elab_term", Exp(info.elab_term)),
   field_typ(~globals, ~raw, "ana", info.ana),
+  field_str(
+    "ana_dependent",
+    string_of_bool(Statics.is_ana_dependent(info)),
+  ),
   field_typ(~globals, ~raw, "elab_syn_ty", info.elab_syn_ty),
   field_typ(~globals, ~raw, "ty (post-fix)", info.ty),
   field_str("marks", marks_str(info.marks)),
@@ -209,6 +214,10 @@ let pat_view = (~globals, ~raw, info: Info.pat): list(Node.t) => [
   field_any(~globals, ~raw, "user_term", Pat(info.user_term)),
   field_any(~globals, ~raw, "elab_term", Pat(info.elab_term)),
   field_typ(~globals, ~raw, "ana", info.ana),
+  field_str(
+    "ana_dependent",
+    string_of_bool(Statics.is_ana_dependent_pat(info)),
+  ),
   field_typ(~globals, ~raw, "elab_syn_ty", info.elab_syn_ty),
   field_typ(~globals, ~raw, "ty (post-fix)", info.ty),
   field_str("marks", marks_str(info.marks)),

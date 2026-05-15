@@ -3948,3 +3948,71 @@ let mk =
 
 let mk = (~ana=Typ.temp(Unknown(SynSwitch)), core: CoreSettings.t, ctx, exp) =>
   core.statics ? mk(ana, ctx, exp) : (Id.Map.empty, Exp.fresh(Tuple([])));
+
+/* Erase Asc wrappers in an elaborated expression. Used by is_ana_dependent
+ * to quotient out fresh_ascription differences, which are invisible to the
+ * dynamic semantics. */
+let strip_ascs: Exp.t => Exp.t =
+  Exp.map_term(
+    ~f_exp=
+      (continue, exp) =>
+        switch (Exp.term_of(exp)) {
+        | Asc(e, _) => continue(e)
+        | _ => continue(exp)
+        },
+    _,
+  );
+
+/* Whether the elaborated form of `info`'s term depends on its analyzed type.
+ * True iff elab(e, info.ana) differs from elab(e, ?) modulo Asc nodes.
+ * Captures e.g. tuple auto-labeling so consumers (rich-probe transforms,
+ * let-extraction refactors) know when moving `e` out of its analyzed
+ * position would change dynamic semantics. */
+let is_ana_dependent = (info: Info.exp): bool =>
+  switch (info.ana.term) {
+  | Unknown(SynSwitch) => false
+  | _ =>
+    let (_, syn_elab, _) =
+      uexp_to_info_map(
+        ~ctx=info.ctx,
+        ~ana=syn,
+        ~ancestors=info.ancestors,
+        info.user_term,
+        Id.Map.empty,
+      );
+    !Exp.fast_equal(strip_ascs(info.elab_term), strip_ascs(syn_elab));
+  };
+
+/* Pattern analogue of strip_ascs. */
+let strip_ascs_pat: Pat.t => Pat.t =
+  Pat.map_term(
+    ~f_pat=
+      (continue, pat) =>
+        switch (Pat.term_of(pat)) {
+        | Asc(p, _) => continue(p)
+        | _ => continue(pat)
+        },
+    _,
+  );
+
+/* Pattern analogue of is_ana_dependent. */
+let is_ana_dependent_pat = (info: Info.pat): bool =>
+  switch (info.ana.term) {
+  | Unknown(SynSwitch) => false
+  | _ =>
+    let (_, syn_elab, _) =
+      upat_to_info_map(
+        ~is_synswitch=true,
+        ~co_ctx=CoCtx.empty,
+        ~ctx=info.ctx,
+        ~ana=syn,
+        ~ancestors=info.ancestors,
+        info.user_term,
+        Id.Map.empty,
+      );
+    !
+      Pat.fast_equal(
+        strip_ascs_pat(info.elab_term),
+        strip_ascs_pat(syn_elab),
+      );
+  };

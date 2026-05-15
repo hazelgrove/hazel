@@ -14,6 +14,10 @@ let utility: ProjectorBase.utility = {
         show_unknown_as_hole: false,
         fold_fn_bodies: `NoFold,
         project_tables: false,
+        /* Preserve Asc wrappers across the term→segment roundtrip — some
+         * projector rewrites (rich-probe transforms) introduce ascriptions
+         * to pin a type context that auto-labeling depends on. */
+        show_ascriptions: true,
       },
       any,
     );

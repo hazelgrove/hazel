@@ -117,14 +117,40 @@ let apply_transforms = (base: Exp.t, transforms: list(transform)): Exp.t => {
 /* Single conversion point: transform list → Base.segment.
  * Returns None if the syntax isn't an expression or if lifting fails —
  * callers should treat that as "do nothing" rather than crashing. */
+/* If the probed expression's elaboration depends on its analyzed type
+ * (e.g. tuple auto-labeling), wrap the base in an ascription so the
+ * surrounding transform pipe doesn't strip the type context. Otherwise
+ * elab(case ...) under `?` would lose the labels that `parse_table` reads. */
+let ana_dependent_ascription_ty = (info: info): option(Typ.t) =>
+  switch (info.statics) {
+  | Some(InfoExp(exp_info)) when Statics.is_ana_dependent(exp_info) =>
+    Some(exp_info.ana)
+  | _ => None
+  };
+
+/* Re-id a Typ.t so its annotations don't collide with ids already present
+ * in the segment we're splicing it into. Reusing elaborated/normalized
+ * types directly causes decoration shard lookups to find duplicates. */
+let refresh_typ_ids = (ty: Typ.t): Typ.t =>
+  Grammar.map_typ_annotation(_ => IdTagged.IdTag.fresh(), ty);
+
 let to_segment =
     (info: info, transforms: list(transform)): option(Base.segment) => {
   let ok = ref(true);
+  let asc_ty = ana_dependent_ascription_ty(info);
   let lifted =
     info.utility.lift_syntax(
       ~inline=false,
       fun
-      | Exp(exp) => Exp(apply_transforms(exp, transforms))
+      | Exp(exp) => {
+          let base =
+            switch (asc_ty) {
+            | Some(ty) =>
+              IdTagged.FreshGrammar.Exp.asc(exp, refresh_typ_ids(ty))
+            | None => exp
+            };
+          Exp(apply_transforms(base, transforms));
+        }
       | other => {
           ok := false;
           other;
