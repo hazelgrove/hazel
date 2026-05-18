@@ -19,6 +19,8 @@ type step_kind_model =
   | ReparenthesizeStep({
       original_exp: Exp.t,
       reparenthesized_exp: Exp.t,
+      selected_id: option(Id.t),
+      evaluate_after_parenthesize: bool,
       next_exp: Calc.saved(Exp.t),
     })
 
@@ -75,7 +77,7 @@ and step_action =
   | NextStep(step_action)
   | RemoveStep
   | StepForward(int)
-  | StepForwardOnSelection(list(Id.t))
+  | StepForwardOnSelection(list(Id.t), bool)
   | AddInduction(option(Exp.t))
   | AddForall
   | AddAxiomStep(string, int, Exp.t, Direction.t, string)
@@ -149,6 +151,8 @@ module rec StepKind: {
       ReparenthesizeStep({
         original_exp,
         reparenthesized_exp,
+        selected_id: None,
+        evaluate_after_parenthesize: false,
         next_exp: Calc.Pending,
       })
     };
@@ -346,19 +350,63 @@ module rec StepKind: {
           m,
         );
       (AlgebriteStep(m): model, h, e, v);
-    | ReparenthesizeStep({original_exp, reparenthesized_exp, _}) =>
+    | ReparenthesizeStep({
+        original_exp,
+        reparenthesized_exp,
+        selected_id,
+        evaluate_after_parenthesize,
+        _,
+      }) =>
       let current_exp = exp |> Calc.get_value;
       if (!DHExp.fast_equal(current_exp, original_exp)) {
         None; /* upstream changed; fall back to MissingStep */
       } else {
+        let next_exp =
+          if (evaluate_after_parenthesize) {
+            let steps =
+              switch (
+                EvaluatorStep.get_status(
+                  ~settings=Calc.get_value(settings),
+                  reparenthesized_exp,
+                  Calc.get_value(ctx) |> SemanticCtx.get_env,
+                )
+              ) {
+              | AutoStep(step) => [step]
+              | AvailableSteps(steps) => steps
+              };
+            let matching_step =
+              switch (selected_id) {
+              | None => None
+              | Some(selected_id) =>
+                steps
+                |> List.find_opt(step =>
+                     switch (
+                       EvaluatorStep.get_step_id_in(step, reparenthesized_exp)
+                     ) {
+                     | Some(id) => id == selected_id
+                     | None => EvaluatorStep.get_step_id(step) == selected_id
+                     }
+                   )
+              };
+            switch (matching_step) {
+            | Some(step) =>
+              EvaluatorStep.take_step(step)
+              |> Option.value(~default=reparenthesized_exp)
+            | None => reparenthesized_exp
+            };
+          } else {
+            reparenthesized_exp;
+          };
         Some((
           ReparenthesizeStep({
             original_exp,
             reparenthesized_exp,
-            next_exp: Calc.Calculated(reparenthesized_exp),
+            selected_id,
+            evaluate_after_parenthesize,
+            next_exp: Calc.Calculated(next_exp),
           }): model,
           Calc.set(false, hidden),
-          Some(Calc.NewValue(reparenthesized_exp)),
+          Some(Calc.NewValue(next_exp)),
           Calc.OldValue(None),
         ));
       };
@@ -710,7 +758,11 @@ and Stepper: {
         | None => model |> raise_invalid_action
         };
       | (StepForward(_), _, _) => model |> raise_invalid_action
-      | (StepForwardOnSelection(selected_ids), MissingStep(_), _) =>
+      | (
+          StepForwardOnSelection(selected_ids, evaluate_after_parenthesize),
+          MissingStep(_),
+          _,
+        ) =>
         let exp =
           model.expr |> Calc.get_saved_exc(~print="StepForwardOnSelection");
         let visible_exp =
@@ -721,22 +773,26 @@ and Stepper: {
             term;
         let result =
           Reparenthesize.reparenthesize_selection(~selected_ids, visible_exp)
-          |> Option.map(((new_exp, _)) =>
+          |> Option.map((result: Reparenthesize.result) => {
+               let new_exp = result.exp;
+               let selected_id = result.selected_id;
                {
                  ...model,
                  step_kind:
                    ReparenthesizeStep({
                      original_exp: exp,
                      reparenthesized_exp: new_exp,
+                     selected_id: Some(selected_id),
+                     evaluate_after_parenthesize,
                      next_exp: Calc.Pending,
                    }),
-               }
-             );
+               };
+             });
         switch (result) {
         | Some(m) => m |> return
         | None => model |> raise_invalid_action
         };
-      | (StepForwardOnSelection(_), _, _) => model |> raise_invalid_action
+      | (StepForwardOnSelection(_, _), _, _) => model |> raise_invalid_action
       | (AddInduction(exp), MissingStep(_), _) =>
         {
           ...model,
@@ -800,7 +856,7 @@ and Stepper: {
     | NextStep(next) => can_undo(next)
     | RemoveStep => true
     | StepForward(_) => true
-    | StepForwardOnSelection(_) => true
+    | StepForwardOnSelection(_, _) => true
     | AddInduction(_) => true
     | AddForall => true
     | AddAxiomStep(_) => true
@@ -1092,7 +1148,13 @@ and Stepper: {
                     | AddAlgebriteStep(idx, e1, e2) =>
                       inject(AddAlgebriteStep(idx, e1, e2))
                     | TakeStep(i) => inject(StepForward(i))
-                    | StepHere(ids) => inject(StepForwardOnSelection(ids))
+                    | StepHere(ids, evaluate_after_parenthesize) =>
+                      inject(
+                        StepForwardOnSelection(
+                          ids,
+                          evaluate_after_parenthesize,
+                        ),
+                      )
                     | Refl(i) => {
                         let refl_exps =
                           switch (model.step_kind) {

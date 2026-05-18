@@ -373,7 +373,7 @@ module View = {
     | MakeActive(Selection.t)
     | TakeStep(int)
     | Refl(int)
-    | StepHere(list(Language.Id.t));
+    | StepHere(list(Language.Id.t), bool);
 
   let get_segment_bounds = (~measured: Measured.t, segment: Segment.t) => {
     let* first_piece = ListUtil.hd_opt(segment);
@@ -518,6 +518,22 @@ module View = {
             ),
           selected_tile_ids,
         );
+      let reparenthesize_result =
+        if (show_step_here) {
+          Language.Reparenthesize.reparenthesize_selection(
+            ~selected_ids=step_here_ids,
+            editor.statics.term,
+          );
+        } else {
+          None;
+        };
+      let step_here_button =
+        switch (reparenthesize_result) {
+        | Some({selected_is_single_binop: true, _}) =>
+          Some(("Step here", true))
+        | Some(_) => Some(("Parenthesize", false))
+        | None => None
+        };
 
       // I want to make a bunch of buttons here:
       // Evaluate [TODO], Rewrite, Axioms, Cases,
@@ -525,12 +541,15 @@ module View = {
         Node.div(
           ~attrs=[Attr.classes(["proof-selection-buttons"])],
           (
-            switch (show_step_here) {
-            | false => []
-            | true => [
+            switch (step_here_button) {
+            | None => []
+            | Some((label, evaluate_after_parenthesize)) => [
                 proof_button(
-                  ~callback=signal(StepHere(step_here_ids)),
-                  "Step here",
+                  ~callback=
+                    signal(
+                      StepHere(step_here_ids, evaluate_after_parenthesize),
+                    ),
+                  label,
                 ),
               ]
             }

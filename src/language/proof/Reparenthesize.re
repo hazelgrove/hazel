@@ -1,6 +1,19 @@
 open Util;
 open OptUtil.Syntax;
 
+type result = {
+  exp: Exp.t,
+  selected_id: Id.t,
+  selected_is_single_binop: bool,
+};
+
+let rec binop_count = (exp: Exp.t): int =>
+  switch (exp.term) {
+  | BinOp(_, l, r) => 1 + binop_count(l) + binop_count(r)
+  | Parens(e) => binop_count(e)
+  | _ => 0
+  };
+
 /* Restructure exp so the visual selection at selected_id becomes a proper
       sub-term.
 
@@ -13,8 +26,7 @@ open OptUtil.Syntax;
         where new_inner_id = rep_id of the fresh BinOp(+, 2, 3)
    */
 let reparenthesize =
-    (~selected_id: Id.t, ~left_left_id: Id.t, exp: Exp.t)
-    : option((Exp.t, Id.t)) => {
+    (~selected_id: Id.t, ~left_left_id: Id.t, exp: Exp.t): option(result) => {
   let* outer = ProofHacks.find_exp_id(selected_id, exp);
   switch (outer.term) {
   | BinOp(op, inner_exp, c) =>
@@ -23,7 +35,11 @@ let reparenthesize =
       let new_inner = Exp.fresh(BinOp(op, b, c));
       let new_outer = Exp.fresh(BinOp(op, a, new_inner));
       let new_exp = ProofHacks.replace_exp_id(selected_id, exp, new_outer);
-      Some((new_exp, Exp.rep_id(new_inner)));
+      Some({
+        exp: new_exp,
+        selected_id: Exp.rep_id(new_inner),
+        selected_is_single_binop: binop_count(new_inner) == 1,
+      });
     | _ => None
     }
   | _ => None
@@ -66,7 +82,7 @@ let selected_bounds = (selected_ids: list(Id.t), operands: list(Exp.t)) => {
 };
 
 let replace_selected_chain =
-    (selected_ids: list(Id.t), exp: Exp.t): option((Exp.t, Id.t)) => {
+    (selected_ids: list(Id.t), exp: Exp.t): option(result) => {
   switch (exp.term) {
   | BinOp(op, _, _) =>
     let operands = split_chain(op, exp);
@@ -80,7 +96,11 @@ let replace_selected_chain =
       let parens = Exp.fresh(Parens(selected_chain));
       let rebuilt_operands = before @ [parens] @ after;
       let* rebuilt = combine_chain(op, rebuilt_operands);
-      Some((rebuilt, Exp.rep_id(parens)));
+      Some({
+        exp: rebuilt,
+        selected_id: Exp.rep_id(selected_chain),
+        selected_is_single_binop: binop_count(selected_chain) == 1,
+      });
     | _ => None
     };
   | _ => None
@@ -88,25 +108,35 @@ let replace_selected_chain =
 };
 
 let rec reparenthesize_selection =
-        (~selected_ids: list(Id.t), exp: Exp.t): option((Exp.t, Id.t)) => {
+        (~selected_ids: list(Id.t), exp: Exp.t): option(result) => {
   switch (replace_selected_chain(selected_ids, exp)) {
   | Some(_) as result => result
   | None =>
     switch (exp.term) {
     | BinOp(op, l, r) =>
       switch (reparenthesize_selection(~selected_ids, l)) {
-      | Some((l', selected_id)) =>
-        Some((Exp.fresh(BinOp(op, l', r)), selected_id))
+      | Some({exp: l', _} as result) =>
+        Some({
+          ...result,
+          exp: Exp.fresh(BinOp(op, l', r)),
+        })
       | None =>
         switch (reparenthesize_selection(~selected_ids, r)) {
-        | Some((r', selected_id)) =>
-          Some((Exp.fresh(BinOp(op, l, r')), selected_id))
+        | Some({exp: r', _} as result) =>
+          Some({
+            ...result,
+            exp: Exp.fresh(BinOp(op, l, r')),
+          })
         | None => None
         }
       }
     | Parens(e) =>
-      let* (e', selected_id) = reparenthesize_selection(~selected_ids, e);
-      Some((Exp.fresh(Parens(e')), selected_id));
+      let* {exp: e', _} as result =
+        reparenthesize_selection(~selected_ids, e);
+      Some({
+        ...result,
+        exp: Exp.fresh(Parens(e')),
+      });
     | _ => None
     }
   };
