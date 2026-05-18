@@ -10,6 +10,7 @@ module Model = {
     env: Calc.saved(Environment.t(Exp.t)),
     sem_ctx: Calc.saved(SemanticCtx.t),
     goal_exp: Calc.saved(Exp.t),
+    proof: Calc.saved(option(Proof.t)),
     stepper_view: StepperView.Model.t,
     /* Mark derived from the big-step ProofMap for the proof term directly
      * inside this theorem: Some(true) = proven, Some(false) = disproven
@@ -18,15 +19,13 @@ module Model = {
     proof_mark: Calc.saved(option(bool)),
   };
 
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type persistent_theorem = {stepper_view: StepperView.Model.persistent};
-
   let theorem_init = name => {
     name,
     ctx: Calc.Pending,
     env: Calc.Pending,
     sem_ctx: Calc.Pending,
     goal_exp: Calc.Pending,
+    proof: Calc.Pending,
     stepper_view: StepperView.Model.init,
     proof_mark: Calc.Pending,
   };
@@ -35,41 +34,13 @@ module Model = {
   type t = {
     thm_map: Id.Map.t(theorem),
     thms: Calc.saved(list(Id.t)),
+    proof_map: Calc.saved(ProofMap.t),
   };
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type persistent = {thm_map: Id.Map.t(persistent_theorem)};
 
   let init = {
     thm_map: Id.Map.empty,
     thms: Calc.Pending,
-  };
-
-  let persist = (model: t): persistent => {
-    thm_map:
-      Id.Map.map(
-        (thm: theorem) =>
-          {stepper_view: StepperView.Model.persist(thm.stepper_view)},
-        model.thm_map,
-      ),
-  };
-
-  let unpersist = (p: persistent): t => {
-    thm_map:
-      Id.Map.map(
-        (p_thm: persistent_theorem): theorem =>
-          {
-            name: "?",
-            ctx: Calc.Pending,
-            env: Calc.Pending,
-            sem_ctx: Calc.Pending,
-            goal_exp: Calc.Pending,
-            stepper_view: StepperView.Model.unpersist(p_thm.stepper_view),
-            proof_mark: Calc.Pending,
-          },
-        p.thm_map,
-      ),
-    thms: Calc.Pending,
+    proof_map: Calc.Pending,
   };
 
   let get_score = (model: t): option((float, float)) => {
@@ -156,7 +127,7 @@ module Update = {
         ~settings: Calc.t(CoreSettings.t),
         ~statics: Calc.t(Haz3lcore.CachedStatics.t),
         ~dynamics: Calc.t(option(Dynamics.t)),
-        {thm_map, thms}: Model.t,
+        {thm_map, thms, proof_map: prev_proof_map}: Model.t,
       ) => {
     let settings' = {
       ...Calc.get_value(settings),
@@ -192,14 +163,19 @@ module Update = {
       }
       |> Calc.old_if_same'(thms);
 
-    let proof_map =
-      dynamics
-      |> Calc.get_value
-      |> (
-        fun
+    /* Lift the big-step ProofMap into a Calc-tracked value so changes to
+     * the underlying dynamics propagate exactly once into each theorem's
+     * stepper. Shared across all theorems in this cell. */
+    let proof_map_calc =
+      prev_proof_map
+      |> {
+        let.calc dynamics = dynamics;
+        switch (dynamics) {
         | None => ProofMap.empty
-        | Some(x) => x.proof_map
-      );
+        | Some(d: Dynamics.t) => d.proof_map
+        };
+      };
+    let proof_map = proof_map_calc |> Calc.get_value;
     let info_map = (statics |> Calc.get_value).info_map;
     // Calculate visible steppers
     let thm_map =
@@ -228,6 +204,7 @@ module Update = {
                    env,
                    sem_ctx,
                    goal_exp,
+                   proof,
                    stepper_view,
                    proof_mark,
                  } =
@@ -264,11 +241,43 @@ module Update = {
                      SemanticCtx.of_ctx_and_env(ctx, env);
                    };
 
+                 /* Lift the proof sub-term out of the Theorem syntax node.
+                  * Calc.set keeps OldValue when the term is unchanged so
+                  * the stepper only rebuilds when the proof actually
+                  * changes. Shared with proof_mark's lookup below. */
+                 let proof_lookup =
+                   switch (Statics.Map.lookup_exp(id, info_map)) {
+                   | Some({user_term, _}) =>
+                     switch (user_term |> Exp.term_of) {
+                     | Theorem(_, _, proof, _) => Some(proof)
+                     | _ => None
+                     }
+                   | None => None
+                   };
+                 let proof =
+                   Calc.set(
+                     ~eq=
+                       (a, b) =>
+                         switch (a, b) {
+                         | (Some(a), Some(b)) => Proof.fast_equal(a, b)
+                         | (None, None) => true
+                         | _ => false
+                         },
+                     proof_lookup,
+                     proof,
+                   );
+
                  let stepper_view =
                    StepperView.Update.calculate(
                      ~settings,
                      ~ctx=sem_ctx,
                      ~ana=Calc.OldValue(Typ.fresh(Atom(Bool))),
+                     ~proof,
+                     ~proof_map=proof_map_calc,
+                     /* Whole-theorem statics, so the induction stepper's
+                      * exhaustiveness label can read the static error on the
+                      * scrutinee (kept in sync with the editor). */
+                     ~proof_info_map=Calc.OldValue(info_map),
                      goal_exp,
                      stepper_view,
                    );
@@ -277,13 +286,8 @@ module Update = {
                   * theorem by consulting the big-step ProofMap. */
                  let proof_mark = {
                    let mark =
-                     switch (Statics.Map.lookup_exp(id, info_map)) {
-                     | Some({user_term, _}) =>
-                       switch (user_term |> Exp.term_of) {
-                       | Theorem(_, _, proof, _) =>
-                         ProofMap.status_of_proof(proof_map, proof)
-                       | _ => None
-                       }
+                     switch (proof_lookup) {
+                     | Some(p) => ProofMap.status_of_proof(proof_map, p)
                      | None => None
                      };
                    Calc.set(mark, proof_mark);
@@ -295,6 +299,7 @@ module Update = {
                    env: env |> Calc.save,
                    sem_ctx: sem_ctx |> Calc.save,
                    goal_exp: goal_exp |> Calc.save,
+                   proof: proof |> Calc.save,
                    stepper_view,
                    proof_mark: proof_mark |> Calc.save,
                  });
@@ -307,6 +312,7 @@ module Update = {
     Model.{
       thm_map,
       thms: thms |> Calc.save,
+      proof_map: proof_map_calc |> Calc.save,
     };
   };
 };
@@ -346,6 +352,17 @@ module View = {
         ~take_focus: Focus.t => Ui_effect.t(unit),
         ~inject: Update.t => Ui_effect.t(unit),
         ~selected: option(Focus.t),
+        /* Side-channel: when a proof-step view publishes a syntactic
+         * edit, this callback routes the patch up to the host that owns
+         * the main editor (typically CellEditor, which translates it
+         * into an `PatchMainEditor` action). Defaults to no-op for
+         * standalone use; only the cell-level caller wires a real
+         * receiver. */
+        ~edit_syntax: Haz3lcore.EditorTransform.patch => Ui_effect.t(unit)=_ =>
+                                                                    Ui_effect.Ignore,
+        /* Main-editor capability handle for sub-editor step views (see
+         * SubEditor.re). Forwarded to StepperView. */
+        ~main_editor: option(CodeEditable.Channel.t)=None,
         model: Model.t,
       ) => {
     let globals = {
@@ -410,6 +427,8 @@ module View = {
                 | _ => None
                 },
               ~is_toplevel=false,
+              ~edit_syntax,
+              ~main_editor,
               stepper_view,
             );
           div_c("theorem", [header, ...stepper]);

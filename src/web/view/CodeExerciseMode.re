@@ -390,7 +390,7 @@ module Update = {
         };
       | None => Updated.return_quiet(model)
       }
-    | Editor(pos, ResultAction(_) as action)
+    | Editor(pos, (ResultAction(_) | PatchMainEditor(_)) as action)
         when
           CodeExercise.is_editable(pos, ~instructor_mode)
           || action
@@ -405,7 +405,8 @@ module Update = {
         ...model,
         cells: CodeExercise.put_stitched(pos, model.cells, new_cell),
       };
-    | Editor(_, ResultAction(_)) => Updated.raise_invalid_action(model) // TODO: I think this case should never happen
+    | Editor(_, ResultAction(_) | PatchMainEditor(_)) =>
+      Updated.raise_invalid_action(model) // TODO: I think this case should never happen
     | RefreshStatics =>
       CodeWithStatics.StaticsDebounce.force_on_next := true;
       model |> Updated.return_quiet(~recalculate=true);

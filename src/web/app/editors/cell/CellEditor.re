@@ -22,19 +22,15 @@ module Model = {
     result: EvalResult.Model.init,
   };
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type persistent = {
-    editor: CodeEditable.Model.persistent,
-    result: EvalResult.Model.persistent,
-  };
+  type persistent = {editor: CodeEditable.Model.persistent};
 
   let persist = (model: t): persistent => {
     editor: model.editor |> CodeEditable.Model.persist,
-    result: model.result |> EvalResult.Model.persist,
   };
 
-  let unpersist = (~settings as _=?, {editor, result}: persistent): t => {
+  let unpersist = (~settings as _=?, {editor}: persistent): t => {
     editor: CodeEditable.Model.unpersist(editor),
-    result: EvalResult.Model.unpersist(result),
+    result: EvalResult.Model.init,
   };
 
   let to_string = (model: t) => model.editor |> CodeEditable.Model.to_string;
@@ -50,12 +46,21 @@ module Update = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     | MainEditor(CodeEditable.Update.t)
-    | ResultAction(EvalResult.Update.t);
+    | ResultAction(EvalResult.Update.t)
+    /* Apply a syntactic rewrite to the main editor's zipper. Emitted by
+     * proof-stepper views (via the `~edit_syntax` callback plumbed
+     * through EvalResult / Theorems / StepperView) when a step UI
+     * commits a structural change to the underlying `Theorem` / `Proof.t`
+     * tree. The patch is consumed via `EditorTransform.apply_patch`,
+     * which re-segments the rewritten expression and threads it back
+     * through `CaretPreserving.transform` so the user's caret survives. */
+    | PatchMainEditor(EditorTransform.patch);
 
   let can_undo = (action: t) => {
     switch (action) {
     | MainEditor(action) => CodeEditable.Update.can_undo(action)
     | ResultAction(action) => EvalResult.Update.can_undo(action)
+    | PatchMainEditor(_) => true
     };
   };
 
@@ -94,6 +99,25 @@ module Update = {
           result: updated.model,
         },
       };
+    | PatchMainEditor(patch) =>
+      CodeWithStatics.StaticsDebounce.force_on_next := true; // Avoid debounce because these are triggered by clicks.
+      let new_zipper =
+        try(
+          EditorTransform.apply_patch(model.editor.editor.state.zipper, patch)
+        ) {
+        | exn =>
+          print_endline("PATCHDEBUG: " ++ Printexc.to_string(exn));
+          raise(exn);
+        };
+      let new_inner_editor = Editor.Model.mk(~root=Exp, new_zipper);
+      {
+        ...model,
+        editor: {
+          ...model.editor,
+          editor: new_inner_editor,
+        },
+      }
+      |> Updated.return;
     };
   };
 
@@ -257,6 +281,18 @@ module View = {
         },
         ~result_kind?,
         ~locked,
+        ~edit_syntax=patch => inject(PatchMainEditor(patch)),
+        /* Sub-editor capability: proof-stepper views render slices of
+         * this cell's main editor (scrutinees, case patterns) as live
+         * splices, and route their edits back through MainEditor —
+         * the same model + inject the top editor view uses below. */
+        ~main_editor=
+          Some(
+            CodeEditable.Channel.{
+              model: model.editor,
+              inject: action => inject(MainEditor(action)),
+            },
+          ),
         model.result,
       );
     div(

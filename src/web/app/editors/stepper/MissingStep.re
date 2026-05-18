@@ -45,13 +45,6 @@ module Model = {
     |> Calc.saved_to_option
     |> Option.join
     |> OptUtil.get(() => EmptyHole |> Exp.fresh);
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type persistent = unit;
-
-  let persist = (_: t): persistent => ();
-
-  let unpersist = (_: persistent): t => init;
 };
 
 module Update = {

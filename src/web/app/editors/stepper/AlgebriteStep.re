@@ -16,13 +16,6 @@ type model'('stepper) = {
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type persistent'('stepper) = {
-  at_idx: int,
-  at_exp: Exp.t,
-  with_exp: Exp.t,
-};
-
-[@deriving (show({with_path: false}), sexp, yojson)]
 type action'('step) =
   |;
 
@@ -41,35 +34,15 @@ module F =
          : (
            STEP with
              type model = model'(Stepper.model) and
-             type persistent = persistent'(Stepper.persistent) and
              type action = action'(Stepper.action) and
              type focus = focus'(Stepper.focus)
        ) => {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type model = model'(Stepper.model);
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type persistent = persistent'(Stepper.persistent);
-  [@deriving (show({with_path: false}), sexp, yojson)]
   type action = action'(Stepper.action);
   [@deriving (show({with_path: false}), sexp, yojson)]
   type focus = focus'(Stepper.focus);
-
-  let persist = (model: model): persistent => {
-    {
-      at_idx: model.at_idx,
-      at_exp: model.at_exp,
-      with_exp: model.with_exp,
-    };
-  };
-
-  let unpersist = (p: persistent): model => {
-    {
-      at_idx: p.at_idx,
-      at_exp: p.at_exp,
-      with_exp: p.with_exp,
-      next_exp: Calc.Pending,
-    };
-  };
 
   let update = (~settings as _: Settings.t, action: action, _model: model) =>
     switch (action) {
@@ -86,10 +59,27 @@ module F =
         ~ctx as _: Calc.t(SemanticCtx.t),
         ~editor as _: Calc.t(CodeSelectable.Model.t),
         ~info_map as _,
+        ~proof_info_map as _,
         ~ana as _,
+        ~proof: Calc.t(option(Proof.t)),
+        ~proof_map as _: Calc.t(ProofMap.t),
         model: model,
       ) => {
     let {at_idx, at_exp, with_exp, next_exp} = model;
+    /* Mirror AxiomStep / EvalStep: when an `AlgebriteStep` proof node
+     * is in scope, override the model fields from the syntax so the
+     * placeholder inserted by `adapt_step_kind` immediately reflects
+     * the freshly-patched proof. */
+    let (at_idx, at_exp, with_exp) =
+      switch (Calc.get_value(proof)) {
+      | Some({
+          term: AlgebriteStep({at_idx: ai, at_exp: ae, with_exp: we}),
+          _,
+        }) =>
+        let idx = ProofCheck.exp_to_int(ai) |> Option.value(~default=at_idx);
+        (idx, ae, we);
+      | _ => (at_idx, at_exp, with_exp)
+      };
     let+ next_exp =
       next_exp
       |> Calc.map_saved(Option.some)
@@ -125,6 +115,9 @@ module F =
         ~hide_stepper as _: Ui_effect.t(unit),
         ~undo as _: option(Ui_effect.t(unit)),
         ~is_toplevel as _: bool,
+        ~proof as _: option(Proof.t),
+        ~edit_syntax as
+          _: Haz3lcore.EditorTransform.patch => Ui_effect.t(unit),
         _m: model,
       ) =>
     WebUtil.Node.text("algebra");
@@ -138,6 +131,10 @@ module F =
         ~hide_stepper as _: Ui_effect.t(unit),
         ~undo as _: option(Ui_effect.t(unit)),
         ~is_toplevel as _: bool,
+        ~proof as _: option(Proof.t),
+        ~edit_syntax as
+          _: Haz3lcore.EditorTransform.patch => Ui_effect.t(unit),
+        ~main_editor as _: option(CodeEditable.Channel.t),
         _model: model,
       ) =>
     [];

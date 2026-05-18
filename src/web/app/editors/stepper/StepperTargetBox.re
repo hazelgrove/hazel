@@ -10,6 +10,12 @@ module F = (Stepper: StepInterface.STEPPER) => {
         ~hide_stepper,
         ~focus,
         ~is_toplevel,
+        /* Syntax-edit channel for the nested stepper: without it, step
+         * creation inside a proof scope emits its ProofPatch into the
+         * default no-op sink and silently does nothing. */
+        ~edit_syntax: Haz3lcore.EditorTransform.patch => Ui_effect.t(unit)=_ =>
+                                                                    Ui_effect.Ignore,
+        ~main_editor: option(CodeEditable.Channel.t)=None,
         stepper: Stepper.model,
         target: Language.Exp.t,
         reached: Language.Exp.t,
@@ -23,6 +29,8 @@ module F = (Stepper: StepInterface.STEPPER) => {
         ~hide_stepper,
         ~focus,
         ~is_toplevel,
+        ~edit_syntax,
+        ~main_editor,
         stepper,
       );
     let step_placeholder = () =>
