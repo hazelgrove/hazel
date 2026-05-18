@@ -4207,7 +4207,160 @@ ys|},
   ),
 ];
 
+/* Drag-back-to-anchor: confirms that `Select.to_point` collapses a
+ * one-char selection to zero-width when the goal column equals the
+ * anchor column. The bug is in the mousemove handler (which
+ * suppresses Resize events at the down-loc column), not in the
+ * selection engine — these tests should pass on this branch, showing
+ * the engine already handles goal==anchor correctly. */
+let drag_to_zero_width_tests = [
+  test(
+    ~name="drag right then back to anchor collapses to zero-width",
+    ~acts=
+      mk({|hel¦lo|})
+      @ [
+        Action.Select(
+          Resize(
+            Point({
+              row: 0,
+              col: 4,
+            }),
+          ),
+        ),
+      ]
+      @ [
+        Action.Select(
+          Resize(
+            Point({
+              row: 0,
+              col: 3,
+            }),
+          ),
+        ),
+      ],
+    ~goal="hel¦lo",
+  ),
+  test(
+    ~name="drag left then back to anchor collapses to zero-width",
+    ~acts=
+      mk({|hel¦lo|})
+      @ [
+        Action.Select(
+          Resize(
+            Point({
+              row: 0,
+              col: 2,
+            }),
+          ),
+        ),
+      ]
+      @ [
+        Action.Select(
+          Resize(
+            Point({
+              row: 0,
+              col: 3,
+            }),
+          ),
+        ),
+      ],
+    ~goal="hel¦lo",
+  ),
+  test_with_settings(
+    ~settings={
+      ...default_settings,
+      selection_chunkiness: true,
+    },
+    ~name="drag right then back to anchor (ByChar) collapses to zero-width",
+    ~acts=
+      mk({|hel¦lo|})
+      @ [
+        Action.Select(
+          Resize(
+            Point({
+              row: 0,
+              col: 4,
+            }),
+          ),
+        ),
+      ]
+      @ [
+        Action.Select(
+          Resize(
+            Point({
+              row: 0,
+              col: 3,
+            }),
+          ),
+        ),
+      ],
+    ~goal="hel¦lo",
+  ),
+  test_with_settings(
+    ~settings={
+      ...default_settings,
+      selection_chunkiness: true,
+    },
+    ~name="drag left then back to anchor (ByChar) collapses to zero-width",
+    ~acts=
+      mk({|hel¦lo|})
+      @ [
+        Action.Select(
+          Resize(
+            Point({
+              row: 0,
+              col: 2,
+            }),
+          ),
+        ),
+      ]
+      @ [
+        Action.Select(
+          Resize(
+            Point({
+              row: 0,
+              col: 3,
+            }),
+          ),
+        ),
+      ],
+    ~goal="hel¦lo",
+  ),
+  /* Cross the anchor: drag right by one, then past the anchor to the
+   * left by one. Engine should swing through zero-width and end up
+   * with a one-char selection on the left, focus Left. Anchor stays
+   * at the original click column (col 3, between the two l's). */
+  test(
+    ~name=
+      "drag right then past anchor to the left ends at length-1 focus-left",
+    ~acts=
+      mk({|hel¦lo|})
+      @ [
+        Action.Select(
+          Resize(
+            Point({
+              row: 0,
+              col: 4,
+            }),
+          ),
+        ),
+      ]
+      @ [
+        Action.Select(
+          Resize(
+            Point({
+              row: 0,
+              col: 2,
+            }),
+          ),
+        ),
+      ],
+    ~goal="he¦l§lo",
+  ),
+];
+
 let tests = [
+  ("Editing.DragToZeroWidth", drag_to_zero_width_tests),
   ("Editing.MoveAfterCharSelect", move_after_char_select_tests),
   ("Editing.SmartSelection", smart_selection_tests),
   ("Editing.Basic", basic_tests),

@@ -107,6 +107,12 @@ module MkState = () => {
     mutable button,
     mutable count: int,
     mutable loc: Point.t,
+    /* Set on the first mousemove since pointerdown that lands at a
+     * grid position other than `loc`. Lets drag handlers distinguish
+     * "drag returning to the click point" (legitimate target) from
+     * "noise mousemove at the click point before any motion" (which
+     * would otherwise trigger an unwanted Resize and scroll). */
+    mutable has_left_down_loc: bool,
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -116,6 +122,7 @@ module MkState = () => {
     button: Up,
     count: 0,
     loc: Point.zero,
+    has_left_down_loc: false,
   };
 
   let delay_ms = 310.0;
@@ -132,6 +139,16 @@ module MkState = () => {
 
   let get_down_loc = (): Point.t => state.loc;
 
+  let has_left_down_loc = (): bool => state.has_left_down_loc;
+
+  /* Call from mousemove. Sets `has_left_down_loc` once the cursor
+   * has been observed at a position other than the down-loc since
+   * the most recent pointerdown. */
+  let note_move = (loc: Point.t): unit =>
+    if (!state.has_left_down_loc && loc != state.loc) {
+      state.has_left_down_loc = true;
+    };
+
   let is_init = (): bool =>
     state.button == Up && state.count == 0 && state.loc == Point.zero;
 
@@ -139,6 +156,7 @@ module MkState = () => {
     state.button = Up;
     state.count = 0;
     state.loc = Point.zero;
+    state.has_left_down_loc = false;
   };
 
   let count_reset_timer = (old_count): unit =>
@@ -154,6 +172,7 @@ module MkState = () => {
     };
     state.button = Down;
     state.loc = loc;
+    state.has_left_down_loc = false;
   };
 
   let pointerup = (loc: Point.t): unit => {

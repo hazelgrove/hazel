@@ -721,12 +721,24 @@ module View = {
         Effect.Ignore;
       } else {
         let current_loc = loc(pointer);
+        if (left_button_held && MouseState.is_button_down()) {
+          MouseState.note_move(current_loc);
+        };
+        /* Suppress Resize while the cursor has never left the
+         * pointerdown column (avoids spurious post-click scroll).
+         * Once the cursor has departed, even mousemoves that return
+         * to the down-loc dispatch Resize — this is required so the
+         * selection can pass through zero-width when dragging back
+         * across the anchor. */
+        let at_down_loc_without_motion =
+          !MouseState.has_left_down_loc()
+          && Point.equals(current_loc, MouseState.get_down_loc());
         switch (pointer) {
         | {button: Left, _}
             when
               left_button_held
               && MouseState.is_button_down()
-              && !Point.equals(current_loc, MouseState.get_down_loc()) =>
+              && !at_down_loc_without_motion =>
           let container = container_target(pointer.current_target);
           let pixel_loc = pointer.loc;
           EdgeScroll.update(
