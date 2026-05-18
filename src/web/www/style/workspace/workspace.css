@@ -105,6 +105,23 @@
   margin-top: 0;
 }
 
+/* Subtitle — small subdued inline label, typically used as a
+   non-uppercase aside next to a heading (e.g. "(Read-Only)", "#1").
+   Matches the heading's bottom margin (none) when used inside a row. */
+.subtitle {
+  font-size: var(--text-sm);
+  color: var(--BR4);
+  font-weight: normal;
+  opacity: 0.7;
+}
+
+/* When heading or subtitle is laid out inside a row, drop their
+   vertical margins so the row's baseline alignment works. */
+.row > .heading,
+.row > .subtitle {
+  margin: 0;
+}
+
 /* ============================================================
    Button — visible icon button. Ports the `.cell-result .icon`
    pattern (stepper top "remove step" button, settings-modal,

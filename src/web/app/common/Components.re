@@ -20,7 +20,14 @@ open Util.WebUtil;
 let surface =
     (
       ~attrs=[],
-      ~placement: option([ | `Inline | `Raised | `Tooltip])=?,
+      ~placement:
+         option(
+           [
+             | `Inline
+             | `Raised
+             | `Tooltip
+           ],
+         )=?,
       children,
     ) => {
   let placement_cls =
@@ -40,7 +47,16 @@ let surface =
    Heading
    ============================================================ */
 
-let heading = (~level: [ | `H1 | `H2 | `H3]=`H2, ~attrs=[], children) => {
+let heading =
+    (
+      ~level: [
+         | `H1
+         | `H2
+         | `H3
+       ]=`H2,
+      ~attrs=[],
+      children,
+    ) => {
   let level_cls =
     switch (level) {
     | `H1 => "h1"
@@ -53,6 +69,11 @@ let heading = (~level: [ | `H1 | `H2 | `H3]=`H2, ~attrs=[], children) => {
 let h1 = (~attrs=[], children) => heading(~level=`H1, ~attrs, children);
 let h2 = (~attrs=[], children) => heading(~level=`H2, ~attrs, children);
 let h3 = (~attrs=[], children) => heading(~level=`H3, ~attrs, children);
+
+/* Subtitle — small subdued inline label, typically used next to a
+   heading inside a Row (e.g. "(Read-Only)" alongside "PRELUDE"). */
+let subtitle = (~attrs=[], children) =>
+  span(~attrs=[clss(["subtitle"])] @ attrs, children);
 
 /* ============================================================
    Button — visible icon button. Pass `~subtle=true` for the deriver
@@ -74,14 +95,10 @@ let button =
     @ (active ? ["active"] : [])
     @ (disabled ? ["disabled"] : [])
     @ (subtle ? ["subtle"] : []);
+  let handler = disabled ? (_ => Effect.Many([])) : action;
   div(
     ~attrs=
-      [
-        clss(cls),
-        Attr.title(tooltip),
-        Attr.on_mousedown(_ => unless(disabled, action)),
-      ]
-      @ attrs,
+      [clss(cls), Attr.title(tooltip), Attr.on_mousedown(handler)] @ attrs,
     children,
   );
 };
@@ -150,7 +167,8 @@ let select_ =
       on_change: string => Ui_effect.t(unit),
     ) =>
   select(
-    ~attrs=[clss(["select"]), Attr.on_change((_, s) => on_change(s))] @ attrs,
+    ~attrs=
+      [clss(["select"]), Attr.on_change((_, s) => on_change(s))] @ attrs,
     List.map(
       ((v, label)) =>
         option(
@@ -176,7 +194,13 @@ let code_inline = (~attrs=[], children) =>
 
 let badge =
     (
-      ~tone: [ | `Error | `Warning | `Ok | `Count | `Kbd]=`Count,
+      ~tone: [
+         | `Error
+         | `Warning
+         | `Ok
+         | `Count
+         | `Kbd
+       ]=`Count,
       ~attrs=[],
       children,
     ) => {
@@ -205,7 +229,11 @@ let divider = (~vertical=false, ~attrs=[], ()) =>
    status-coded clickable cells.
    ============================================================ */
 
-type progress_segment = [ | `Pass | `Fail | `Indet];
+type progress_segment = [
+  | `Pass
+  | `Fail
+  | `Indet
+];
 
 type progress_kind =
   | Fill(float) /* 0.0–1.0 */
@@ -260,7 +288,12 @@ let progress_bar = (~label="", ~attrs=[], kind: progress_kind) => {
    variants.
    ============================================================ */
 
-type list_row_status = [ | `Error | `Syntax | `Warning | `Hole];
+type list_row_status = [
+  | `Error
+  | `Syntax
+  | `Warning
+  | `Hole
+];
 
 let list_row =
     (
@@ -315,7 +348,11 @@ let row = (~attrs=[], children) =>
 
 let tabs =
     (
-      ~direction: [ | `Vertical | `Horizontal | `Title]=`Vertical,
+      ~direction: [
+         | `Vertical
+         | `Horizontal
+         | `Title
+       ]=`Vertical,
       ~attrs=[],
       children,
     ) => {

@@ -1144,28 +1144,25 @@ module View = {
       );
 
     let derivations_view =
-      div(
-        ~attrs=[Attr.classes(["cell", "unlocked"])],
-        [
-          CellCommon.caption("Derivation"),
-          div(
-            ~attrs=[Attr.classes(["cell-item", "derivation-panel"])],
-            (info_tree |> List.mapi(derivation_view))
-            @ (
-              if (globals.settings.instructor_mode) {
-                [
-                  div(
-                    ~attrs=[Attr.class_("cell-derivation")],
-                    [add_abbr_btn_view(~index=List.length(eds.trees))],
-                  ),
-                ];
-              } else {
-                [];
-              }
-            ),
+      CellCommon.unlocked_cell_view([
+        CellCommon.caption("Derivation"),
+        div(
+          ~attrs=[Attr.classes(["cell-item", "derivation-panel"])],
+          (info_tree |> List.mapi(derivation_view))
+          @ (
+            if (globals.settings.instructor_mode) {
+              [
+                div(
+                  ~attrs=[Attr.class_("cell-derivation")],
+                  [add_abbr_btn_view(~index=List.length(eds.trees))],
+                ),
+              ];
+            } else {
+              [];
+            }
           ),
-        ],
-      );
+        ),
+      ]);
 
     let editing_flags = model.editing_flags;
     let on_focus_textbox = _ => signal(MakeActive(TextBox));
@@ -1202,50 +1199,37 @@ module View = {
         ~update_prompt=p => inject(Instructor(UpdatePrompt(p))),
       );
 
-    let option_view = (name, n) =>
-      option(
-        ~attrs=n == name ? [Attr.create("selected", "selected")] : [],
-        [text(n)],
-      );
-
     let rule_set_view = {
       let can_edit = globals.settings.instructor_mode || scratch_mode;
+      let selected_name = RuleImage.show_rule_set(eds.rule_set);
       let control =
         if (can_edit) {
-          select(
+          Components.select_(
             ~attrs=[
               Attr.class_("rule-set-select"),
               Attr.title("Toggle Rule Set"),
-              Attr.on_change((_, name) => {
-                let rule_set = RuleImage.rule_set_of_string(name);
-                inject(
-                  MapEditor(
-                    m =>
-                      {
-                        ...m,
-                        rule_set,
-                      },
-                  ),
-                );
-              }),
             ],
-            List.map(
-              option_view(RuleImage.show_rule_set(eds.rule_set)),
-              RuleImage.all_of_rule_set |> List.map(RuleImage.show_rule_set),
-            ),
+            ~selected=selected_name,
+            ~options=
+              RuleImage.all_of_rule_set
+              |> List.map(s => {
+                   let n = RuleImage.show_rule_set(s);
+                   (n, n);
+                 }),
+            name => {
+              let rule_set = RuleImage.rule_set_of_string(name);
+              inject(MapEditor(m => {...m, rule_set}));
+            },
           );
         } else {
-          text(RuleImage.show_rule_set(eds.rule_set));
+          text(selected_name);
         };
-      /* Use .unlocked so the cell picks up the same left-border accent as
-         the Setup/Derivation cells above/below it. */
-      div(
-        ~attrs=[Attr.classes(["cell", "unlocked"])],
-        [
-          CellCommon.caption("Rule Set"),
-          CellCommon.simple_cell_item([control]),
-        ],
-      );
+      /* Use unlocked_cell_view so the cell picks up the same left-border
+         accent as the Setup/Derivation cells above/below it. */
+      CellCommon.unlocked_cell_view([
+        CellCommon.caption("Rule Set"),
+        CellCommon.simple_cell_item([control]),
+      ]);
     };
 
     let prelude_view =

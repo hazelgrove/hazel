@@ -19,7 +19,15 @@ open Util.WebUtil;
 let surface =
     (
       ~attrs=[],
-      ~anchor: option([ | `TL | `TR | `BL | `BR])=?,
+      ~anchor:
+         option(
+           [
+             | `TL
+             | `TR
+             | `BL
+             | `BR
+           ],
+         )=?,
       children,
     ) => {
   let anchor_cls =
