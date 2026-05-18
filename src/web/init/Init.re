@@ -6,7 +6,6 @@ let empty_cell_editor_persistent = (~root): CellEditor.Model.persistent => {
     Zipper.init()
     |> PersistentZipper.persist
     |> Editor.Model.mk_persistent(~root),
-  result: EvalResult.Model.init |> EvalResult.Model.persist,
 };
 
 let documentation_slides: list((string, PersistentSegment.t)) =
@@ -40,7 +39,6 @@ let startup: PersistentData.t = {
                content
                |> PersistentSegment.unpersist(~root=Exp)
                |> Editor.Model.mk_persistent(~root=Exp),
-             result: EvalResult.Model.init |> EvalResult.Model.persist,
            }: CellEditor.Model.persistent,
          )
        ),

@@ -106,6 +106,13 @@
   opacity: 1;
 }
 
+/* Inline chips get their spacing from the wrapper's own padding; the
+ * main-editor gutter (`#main .code-editor { padding-left: 1em }`,
+ * reserved for when line numbers are off) doesn't apply here. */
+#main .inline-editor-wrapper .code-editor {
+  padding-left: 0;
+}
+
 .inline-editor-wrapper {
   background-color: var(--light-page-color);
   padding: 0.2em 0.5em 0.2em 0.5em;
@@ -124,6 +131,18 @@
 
 .missing-step-overlay-align {
   position: absolute;
+}
+
+/* A stepper hosting an open proof-action menu must paint above the
+ * sibling rows that follow it (each .cell-result isolates its stacking
+ * context, so the menu's own z-index can't escape the stepper on its
+ * own — inside an induction case the trailing '…' / target rows would
+ * cover the buttons and swallow their clicks). :has() matches
+ * descendants, so with nested steppers every ancestor stepper is
+ * raised above its own siblings and the menu escapes all the way up. */
+.stepper.cell-result:has(.proof-context-box) {
+  position: relative;
+  z-index: var(--context-inspector-z);
 }
 
 .proof-context-box {

@@ -17,9 +17,6 @@ type model'('stepper) = {
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type persistent'('stepper) = EvaluatorStep.persistent;
-
-[@deriving (show({with_path: false}), sexp, yojson)]
 type action'('step) =
   |;
 
@@ -38,30 +35,15 @@ module F =
          : (
            STEP with
              type model = model'(Stepper.model) and
-             type persistent = persistent'(Stepper.persistent) and
              type action = action'(Stepper.action) and
              type focus = focus'(Stepper.focus)
        ) => {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type model = model'(Stepper.model);
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type persistent = persistent'(Stepper.persistent);
-  [@deriving (show({with_path: false}), sexp, yojson)]
   type action = action'(Stepper.action);
   [@deriving (show({with_path: false}), sexp, yojson)]
   type focus = focus'(Stepper.focus);
-
-  let persist = (model: model) => {
-    model.persistent_evalobj;
-  };
-
-  let unpersist = (p: persistent) => {
-    {
-      persistent_evalobj: p,
-      evalobj: Calc.Pending,
-      next_exp: Calc.Pending,
-    };
-  };
 
   let update = (~settings as _: Settings.t, action: action, _model: model) =>
     switch (action) {
@@ -78,7 +60,10 @@ module F =
         ~ctx: Calc.t(SemanticCtx.t),
         ~editor as _: Calc.t(CodeSelectable.Model.t),
         ~info_map as _,
+        ~proof_info_map as _,
         ~ana as _,
+        ~proof as _: Calc.t(option(Proof.t)),
+        ~proof_map as _: Calc.t(ProofMap.t),
         model: model,
       ) => {
     let {persistent_evalobj, evalobj, next_exp} = model;
@@ -144,6 +129,9 @@ module F =
         ~hide_stepper as _: Ui_effect.t(unit),
         ~undo as _: option(Ui_effect.t(unit)),
         ~is_toplevel as _: bool,
+        ~proof as _: option(Proof.t),
+        ~edit_syntax as
+          _: Haz3lcore.EditorTransform.patch => Ui_effect.t(unit),
         m: model,
       ) =>
     WebUtil.Node.text(
@@ -162,6 +150,10 @@ module F =
         ~hide_stepper as _: Ui_effect.t(unit),
         ~undo as _: option(Ui_effect.t(unit)),
         ~is_toplevel as _: bool,
+        ~proof as _: option(Proof.t),
+        ~edit_syntax as
+          _: Haz3lcore.EditorTransform.patch => Ui_effect.t(unit),
+        ~main_editor as _: option(CodeEditable.Channel.t),
         _model: model,
       ) =>
     [];

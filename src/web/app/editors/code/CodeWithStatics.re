@@ -106,11 +106,22 @@ module StaticsDebounce = {
   let force_on_next: ref(bool) = ref(false);
 
   /* Call from calculate to get the statics_mode for this cycle.
-     schedule_refresh should dispatch the mode's RefreshStatics action. */
+     schedule_refresh should dispatch the mode's RefreshStatics action.
+     `force_on_next` takes precedence over `is_edited` so callers
+     (e.g. `CellEditor`'s `PatchMainEditor`) can bypass the
+     typing-debounce when they need statics — and therefore the
+     derived proof tree, info_map, etc. — to refresh immediately. */
   let consume = (~is_edited, ~schedule_refresh: unit => unit): statics_mode => {
     let force_now = force_on_next^;
     force_on_next := false;
-    if (is_edited && debounce_ms > 0.0) {
+    if (force_now) {
+      switch (timer_id^) {
+      | Some(id) => Js_of_ocaml.Dom_html.window##clearTimeout(id)
+      | None => ()
+      };
+      timer_id := None;
+      StaticsForce;
+    } else if (is_edited && debounce_ms > 0.0) {
       switch (timer_id^) {
       | Some(id) => Js_of_ocaml.Dom_html.window##clearTimeout(id)
       | None => ()
@@ -126,8 +137,6 @@ module StaticsDebounce = {
           ),
         );
       StaticsDefer;
-    } else if (force_now) {
-      StaticsForce;
     } else {
       StaticsNormal;
     };

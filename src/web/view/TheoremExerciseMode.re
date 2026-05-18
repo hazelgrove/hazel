@@ -38,14 +38,10 @@ module Model = {
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type persistent = {
-    lemmas: CellEditor.Model.persistent,
-    theorem: EvalResult.Model.persistent,
-  };
+  type persistent = {lemmas: CellEditor.Model.persistent};
 
   let persist = (model: t): persistent => {
     lemmas: model.cells.lemmas |> CellEditor.Model.persist,
-    theorem: model.cells.theorem.result |> EvalResult.Model.persist,
   };
 
   let unpersist =
@@ -60,12 +56,8 @@ module Model = {
         prelude:
           CellEditor.Model.mk(Editor.Model.mk(spec.prelude, ~root=Exp)),
         lemmas: persistent.lemmas |> CellEditor.Model.unpersist(~settings),
-        theorem: {
-          editor:
-            CellEditor.Model.mk(Editor.Model.mk(spec.theorem, ~root=Exp)).
-              editor,
-          result: persistent.theorem |> EvalResult.Model.unpersist,
-        },
+        theorem:
+          CellEditor.Model.mk(Editor.Model.mk(spec.theorem, ~root=Exp)),
       },
       editing_flags: editing_flags_false,
     };
@@ -264,6 +256,20 @@ module Update = {
         CellEditor.Update.update(
           ~settings,
           ResultAction(action),
+          model.cells.theorem,
+        );
+      {
+        ...model,
+        cells: {
+          ...model.cells,
+          theorem: new_cell,
+        },
+      };
+    | Theorem(PatchMainEditor(patch)) =>
+      let* new_cell =
+        CellEditor.Update.update(
+          ~settings,
+          PatchMainEditor(patch),
           model.cells.theorem,
         );
       {

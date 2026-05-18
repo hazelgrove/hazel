@@ -422,6 +422,12 @@ let get_step_id = (step: step): Id.t => step.d_loc |> DHExp.rep_id;
 
 let get_step_kind = (step: step): step_kind => step.knd;
 
+let get_at_exp = (step: step): Exp.t => step.d_loc;
+let get_exp_idx = (step: step): int => {
+  let full_exp = EvalCtx.compose(step.ctx, step.d_loc);
+  ProofHacks.exp_idx(step.d_loc, full_exp);
+};
+
 let take_step = (step: EvalObj.t) => {
   let+ next_expr = take_step(step.env, step.d_loc);
   let next_expr = {

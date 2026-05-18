@@ -376,6 +376,13 @@ module Update = {
         ...model,
         cells: DerivationExercise.put_stitched(pos, model.cells, new_cell),
       };
+    | Editor(pos, PatchMainEditor(_) as action) =>
+      let cell = DerivationExercise.get_stitched(pos, model.cells);
+      let* new_cell = CellEditor.Update.update(~settings, action, cell);
+      {
+        ...model,
+        cells: DerivationExercise.put_stitched(pos, model.cells, new_cell),
+      };
     | Editor(_, ResultAction(_)) => Updated.return_quiet(model)
     | MapEditor(f) =>
       let editors = model.editors |> f;

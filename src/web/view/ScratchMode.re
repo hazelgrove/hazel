@@ -577,7 +577,6 @@ let integrate_share =
         root: Exp,
         zipper: shared,
       },
-      result: EvalResult.Model.init |> EvalResult.Model.persist,
     };
     let new_sp =
       Scratchpad.mk_code(

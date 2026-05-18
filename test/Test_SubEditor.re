@@ -347,7 +347,12 @@ let test_confine_rejects_edge_delete = () => {
     bool,
     "Destruct(Left) at left edge rejected",
     true,
-    SubEditor.confine_pre(~target, ~action=Destruct(Left), ed) == None,
+    SubEditor.confine_pre(
+      ~target,
+      ~action=Destruct(Local(Left, ByChar)),
+      ed,
+    )
+    == None,
   );
   let (ed_r, case_id_r) = case_editor("case x¦ | A => 1 end");
   let target_r = scrut_target(case_id_r);
@@ -355,7 +360,11 @@ let test_confine_rejects_edge_delete = () => {
     bool,
     "Destruct(Right) at right edge rejected",
     true,
-    SubEditor.confine_pre(~target=target_r, ~action=Destruct(Right), ed_r)
+    SubEditor.confine_pre(
+      ~target=target_r,
+      ~action=Destruct(Local(Right, ByChar)),
+      ed_r,
+    )
     == None,
   );
 };

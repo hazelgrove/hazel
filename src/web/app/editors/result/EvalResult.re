@@ -33,12 +33,6 @@ module Model = {
     theorems: Theorems.Model.t,
   };
 
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type persistent = {
-    stepper: option(StepperView.Model.persistent),
-    theorems: Theorems.Model.persistent,
-  };
-
   let init = {
     cached_settings: Calc.Pending,
     elab: Calc.Pending,
@@ -52,39 +46,6 @@ module Model = {
     pending_eval_ids: [],
     display: Evaluation(Calc.Pending),
     theorems: Theorems.Model.init,
-  };
-
-  let persist = (model: t): persistent => {
-    stepper:
-      switch (model.display) {
-      | Stepper(stepper) => Some(StepperView.Model.persist(stepper))
-      | _ => None
-      },
-    theorems: Theorems.Model.persist(model.theorems),
-  };
-
-  let unpersist = (p: persistent): t => {
-    let theorems = Theorems.Model.unpersist(p.theorems);
-    switch (p.stepper) {
-    | Some(stepper) => {
-        cached_settings: Calc.Pending,
-        elab: Calc.Pending,
-        cached_targets: Calc.Pending,
-        result: Calc.NewValue(ProgramResult.awaiting_worker_ack),
-        dynamics: Calc.Pending,
-        incr_eval: Calc.Pending,
-        predicted_reuse: IncrEval.empty,
-        streaming_outbox: Calc.Pending,
-        streaming_state: Calc.Pending,
-        pending_eval_ids: [],
-        display: Stepper(StepperView.Model.unpersist(stepper)),
-        theorems,
-      }
-    | None => {
-        ...init,
-        theorems,
-      }
-    };
   };
 
   let probe_results = (model: t): option(Sample.Map.t) =>
@@ -745,6 +706,9 @@ module View = {
            | `Custom(Node.t)
          ]=`EvalResults,
         ~locked: bool,
+        ~edit_syntax: Haz3lcore.EditorTransform.patch => Ui_effect.t(unit)=_ =>
+                                                                    Ui_effect.Ignore,
+        ~main_editor: option(CodeEditable.Channel.t)=None,
         model: Model.t,
       ) =>
     switch (result_kind) {
@@ -778,6 +742,8 @@ module View = {
                 | Some(Theorems(f)) => Some(f)
                 | _ => None
                 },
+              ~edit_syntax,
+              ~main_editor,
               model.theorems,
             );
       let theorems =
