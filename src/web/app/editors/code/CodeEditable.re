@@ -666,10 +666,15 @@ module View = {
     let move_or_select = (mouse: Pointer.Event.t, pointer_id: int) =>
       switch (mouse) {
       | {button: Left, shift: Down, _} =>
+        /* Shift+click extends (or starts) a selection and arms a
+         * drag-resize. Registered without click-counting so a
+         * following plain click starts a fresh streak. */
+        MouseState.pointerdown_no_count(loc(mouse));
+        PointerCapture.set(mouse.current_target, pointer_id);
         Effect.Many([
           signal(MakeActive),
           inject(Perform(Select(Resize(Point(loc(mouse)))))),
-        ])
+        ]);
       | {button: Left, sys: PC, ctrl: Down, _}
       | {button: Left, sys: Mac, meta: Down, _} =>
         Effect.Many([

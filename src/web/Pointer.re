@@ -113,6 +113,10 @@ module MkState = () => {
      * "noise mousemove at the click point before any motion" (which
      * would otherwise trigger an unwanted Resize and scroll). */
     mutable has_left_down_loc: bool,
+    /* When true, the current down/up gesture does not advance the
+     * multi-click counter (used by Shift+click, which extends a
+     * selection rather than cycling click depth). */
+    mutable skip_count: bool,
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -123,6 +127,7 @@ module MkState = () => {
     count: 0,
     loc: Point.zero,
     has_left_down_loc: false,
+    skip_count: false,
   };
 
   let delay_ms = 310.0;
@@ -157,6 +162,7 @@ module MkState = () => {
     state.count = 0;
     state.loc = Point.zero;
     state.has_left_down_loc = false;
+    state.skip_count = false;
   };
 
   let count_reset_timer = (old_count): unit =>
@@ -173,10 +179,26 @@ module MkState = () => {
     state.button = Down;
     state.loc = loc;
     state.has_left_down_loc = false;
+    state.skip_count = false;
+  };
+
+  /* Register a button-down for a gesture that should be drag-eligible
+   * but not participate in the multi-click counter. Resets the
+   * counter so a following plain click starts a fresh streak, and
+   * marks the gesture so pointerup won't increment. */
+  let pointerdown_no_count = (loc: Point.t): unit => {
+    state.button = Down;
+    state.loc = loc;
+    state.count = 0;
+    state.has_left_down_loc = false;
+    state.skip_count = true;
   };
 
   let pointerup = (loc: Point.t): unit => {
-    if (loc != state.loc) {
+    if (state.skip_count) {
+      ();
+        /* Gesture opted out of click-counting; leave count alone. */
+    } else if (loc != state.loc) {
       state.count = 0;
     } else if (!is_init()) {
       count_reset_timer(state.count);
@@ -184,5 +206,6 @@ module MkState = () => {
     };
     state.button = Up;
     state.loc = loc;
+    state.skip_count = false;
   };
 };
