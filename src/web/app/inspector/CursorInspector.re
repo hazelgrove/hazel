@@ -1083,7 +1083,7 @@ let build_info_view = () => {
     ++ (BuildInfo.dirty ? "-dirty" : "");
   let inner = text(label);
   let body =
-    BuildInfo.dirty
+    BuildInfo.dirty || BuildInfo.ahead
       ? span(~attrs=[clss(["build-info-dirty"])], [inner])
       : a(
           ~attrs=[
