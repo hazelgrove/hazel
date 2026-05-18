@@ -4357,6 +4357,129 @@ let drag_to_zero_width_tests = [
       ],
     ~goal="he¦l§lo",
   ),
+  /* Edge-case anchor at Inner(0) (right at the LEFT edge of a token):
+   * drag left selects the first char, then dragging back to the right
+   * past the anchor should select the next char with focus Right.
+   * Prior bug: shrink_by_char collapsed in TWO local steps at token
+   * edges — first to a trim-zero-width state with the token still in
+   * selection, then to a truly-empty state. Fixed in shrink_by_char's
+   * Outer branch by detecting when entering the edge would collide
+   * with anchor_caret and unselecting directly. */
+  test_with_settings(
+    ~settings={
+      ...default_settings,
+      selection_chunkiness: true,
+    },
+    ~name=
+      "Inner(0) anchor: drag left then past anchor to right ends at length-1 focus-right",
+    ~acts=
+      mk({|p¦artition|})
+      @ [
+        Action.Select(
+          Resize(
+            Point({
+              row: 0,
+              col: 0,
+            }),
+          ),
+        ),
+      ]
+      @ [
+        Action.Select(
+          Resize(
+            Point({
+              row: 0,
+              col: 2,
+            }),
+          ),
+        ),
+      ],
+    ~goal="p§a¦rtition",
+  ),
+  /* Edge-case anchor at Inner(max_idx) (right at the RIGHT edge of a
+   * token): drag right selects the last char, then dragging back to
+   * the left past the anchor should select the previous char with
+   * focus Left. */
+  test_with_settings(
+    ~settings={
+      ...default_settings,
+      selection_chunkiness: true,
+    },
+    ~name=
+      "Inner(max) anchor: drag right then past anchor to left ends at length-1 focus-left",
+    ~acts=
+      mk({|partitio¦n|})
+      @ [
+        Action.Select(
+          Resize(
+            Point({
+              row: 0,
+              col: 9,
+            }),
+          ),
+        ),
+      ]
+      @ [
+        Action.Select(
+          Resize(
+            Point({
+              row: 0,
+              col: 7,
+            }),
+          ),
+        ),
+      ],
+    ~goal="partiti¦o§n",
+  ),
+  /* Keyboard Shift+Arrow at a token edge anchor: same underlying
+   * dual-step collapse exposed one step at a time. From caret
+   * Inner(0) of partition, Shift+Left selects "p"; Shift+Right
+   * should collapse to zero-width; Shift+Right again should grow
+   * one char right with focus Right.
+   *
+   * Prior bug: collapse took two Shift+Rights (one to trim-zero-
+   * width with selection still containing the token, one to fully
+   * unselect), so a total of THREE Shift+Rights were needed. */
+  test(
+    ~name=
+      "Inner(0): Shift+L then 2x Shift+R (BySmart) ends at length-1 focus-right",
+    ~acts=
+      mk({|p¦artition|})
+      @ [Action.Select(Resize(Local(Left, BySmart)))]
+      @ [Action.Select(Resize(Local(Right, BySmart)))]
+      @ [Action.Select(Resize(Local(Right, BySmart)))],
+    ~goal="p§a¦rtition",
+  ),
+  test(
+    ~name=
+      "Inner(0): Shift+L then 2x Shift+R (ByChar) ends at length-1 focus-right",
+    ~acts=
+      mk({|p¦artition|})
+      @ [Action.Select(Resize(Local(Left, ByChar)))]
+      @ [Action.Select(Resize(Local(Right, ByChar)))]
+      @ [Action.Select(Resize(Local(Right, ByChar)))],
+    ~goal="p§a¦rtition",
+  ),
+  test(
+    ~name=
+      "Inner(max): Shift+R then 2x Shift+L (BySmart) ends at length-1 focus-left",
+    ~acts=
+      mk({|partitio¦n|})
+      @ [Action.Select(Resize(Local(Right, BySmart)))]
+      @ [Action.Select(Resize(Local(Left, BySmart)))]
+      @ [Action.Select(Resize(Local(Left, BySmart)))],
+    ~goal="partiti¦o§n",
+  ),
+  test(
+    ~name=
+      "Inner(max): Shift+R then 2x Shift+L (ByChar) ends at length-1 focus-left",
+    ~acts=
+      mk({|partitio¦n|})
+      @ [Action.Select(Resize(Local(Right, ByChar)))]
+      @ [Action.Select(Resize(Local(Left, ByChar)))]
+      @ [Action.Select(Resize(Local(Left, ByChar)))],
+    ~goal="partiti¦o§n",
+  ),
 ];
 
 let tests = [

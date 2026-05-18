@@ -303,8 +303,25 @@ and shrink_by_char = (d: Direction.t, z: Zipper.t): option(Zipper.t) => {
         /* Single-char / non-token piece: shrink by whole piece */
         Zipper.shrink_selection(z)
       | Some(max_idx) =>
-        /* Multi-char token: enter it from the focus side */
-        Some(enter_token_edge(d, max_idx, z))
+        /* Multi-char token: entering from the focus side would set
+         * caret to Inner(0) (d=Right) or Inner(max_idx) (d=Left).
+         * If that index equals anchor_caret's Inner index, the
+         * selection is already trim-zero-width at this edge — skip
+         * the intermediate state and unselect directly so collapse
+         * is a single local step (and the caret column changes,
+         * which keeps do_towards_point's no-progress guard honest). */
+        let entry_idx = d == Right ? 0 : max_idx;
+        let crossover_at_edge =
+          switch (z.selection.anchor_caret) {
+          | CaretBase.Inner(an) => an == entry_idx
+          | CaretBase.Outer => false
+          };
+        if (crossover_at_edge) {
+          let z = Zipper.directional_unselect(Left, z);
+          Some(Zipper.Caret.set(Inner(entry_idx), z));
+        } else {
+          Some(enter_token_edge(d, max_idx, z));
+        };
       }
     }
   };
