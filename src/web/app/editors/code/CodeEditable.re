@@ -480,6 +480,23 @@ module View = {
 
   module MouseState = Pointer.MkState();
 
+  /* Toggle an `is-resizing` class on the editor's code-container
+   * for the duration of a drag gesture. Used by CSS to suppress
+   * caret-tracking decorations (e.g. variable highlights) while the
+   * selection is being actively manipulated — including the
+   * zero-width frame when a drag crosses back through the anchor. */
+  module DragClass = {
+    let name = Js.string("is-resizing");
+    let add = (target: Js.opt(Js.t(Dom_html.element))): unit =>
+      try(container_target(target)##.classList##add(name)) {
+      | _ => ()
+      };
+    let remove = (target: Js.opt(Js.t(Dom_html.element))): unit =>
+      try(container_target(target)##.classList##remove(name)) {
+      | _ => ()
+      };
+  };
+
   let deco =
       (
         ~expand_selection=false,
@@ -671,6 +688,7 @@ module View = {
          * following plain click starts a fresh streak. */
         MouseState.pointerdown_no_count(loc(mouse));
         PointerCapture.set(mouse.current_target, pointer_id);
+        DragClass.add(mouse.current_target);
         Effect.Many([
           signal(MakeActive),
           inject(Perform(Select(Resize(Point(loc(mouse)))))),
@@ -691,6 +709,7 @@ module View = {
         ])
       | {button: Left, _} =>
         MouseState.pointerdown(loc(mouse));
+        DragClass.add(mouse.current_target);
         let click_count = MouseState.count();
         /* Check how many clicks have happened recently
          * and cycle between options on-click */
@@ -712,6 +731,7 @@ module View = {
     let toggle_button = (e: Pointer.Event.t, pointer_id: int) => {
       MouseState.pointerup(loc(e));
       PointerCapture.release(e.current_target, pointer_id);
+      DragClass.remove(e.current_target);
       EdgeScroll.stop();
       Effect.Ignore;
     };
@@ -722,6 +742,7 @@ module View = {
         /* Recover from stuck state: buttons bitmask says left is up
          * but MouseState thinks it's down (missed pointerup) */
         MouseState.reset();
+        DragClass.remove(pointer.current_target);
         EdgeScroll.stop();
         Effect.Ignore;
       } else {
