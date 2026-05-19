@@ -159,6 +159,7 @@ let rec external_precedence = (exp: Exp.t): Precedence.t => {
   | Use(_)
   | Let(_)
   | Theorem(_) => Precedence.let_
+  | Explore(_) => Precedence.let_
 
   // Matt: I think multiholes are min because we don't know the precedence of the `⟩?⟨`s
   | MultiHole(_) => Precedence.min
@@ -451,6 +452,8 @@ let rec parenthesize =
       parenthesize(e) |> paren_assoc_at(Precedence.let_),
     )
     |> rewrap
+  | Explore(explore) =>
+    Explore(parenthesize(explore) |> paren_at(Precedence.min)) |> rewrap
   | ProofObject(t) =>
     ProofObject(parenthesize(t) |> paren_at(Precedence.min)) |> rewrap
   | FixF(p, e, c) =>
@@ -2061,6 +2064,10 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     and+ e = go(e);
     let e = settings.inline ? e : [Secondary(mk_newline(Id.mk()))] @ e;
     wrap(exp, [mk_form(Theorem, id, [p, thm])] @ e);
+  | Explore(explore) =>
+    let id = exp |> Exp.rep_id;
+    let+ explore = go(explore);
+    wrap(exp, [mk_form(Explore, id, [explore])]);
   | ProofObject(t) =>
     let id = exp |> Exp.rep_id;
     let+ t = exp_to_pretty(~settings: Settings.t, t);

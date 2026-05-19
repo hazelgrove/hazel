@@ -51,6 +51,7 @@ rule token =
     | "false" { FALSE }
     | "module" { MODULE }
     | "let" { LET }
+    | "explore" { EXPLORE }
     | "in" { IN }
     | "end" { END }
     | "fun" { FUN }

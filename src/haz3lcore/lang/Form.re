@@ -407,6 +407,7 @@ type compound_form =
   // TRIPLE DELIMITERS
   | Let
   | Theorem
+  | Explore
   | TypeAlias
   | If
   // MODULE FORMS
@@ -514,6 +515,7 @@ let get: compound_form => t =
   | Drv(drv_compound_form) => drv_get(drv_compound_form)
   // Theorem Capture
   | Theorem => mk_pre_c(L, ["theorem", "=", "in"], P.let_, Exp, [Pat, Exp])
+  | Explore => mk_op_c(L, ["explore", "in"], Exp, [Exp])
   | ProofOf => mk_op_c(L, ["proof_of", "end"], Typ, [Exp])
   // TRIPLE DELIMITERS
   | Let => mk_pre_c(L, ["let", "=", "in"], P.let_, Exp, [Pat, Exp])

@@ -380,6 +380,7 @@ module Update = {
         test_results:
           state |> EvaluatorState.get_tests |> TestResults.mk_results,
         theorems: state |> EvaluatorState.get_theorems,
+        explores: state |> EvaluatorState.get_explores,
       };
     let dynamics =
       dynamics
@@ -480,10 +481,17 @@ module Update = {
       };
 
     let theorems =
-      Calc.get_value(settings).dynamics
-        ? theorems
+      if (Calc.get_value(settings).dynamics) {
+        switch (Calc.get_value(result)) {
+        | ProgramResult.ResultOk(_) =>
+          theorems
           |> Theorems.Update.calculate(~settings, ~statics, ~dynamics)
-        : theorems;
+        | ProgramResult.ResultPending
+        | ProgramResult.ResultFail(_) => Theorems.Model.init
+        };
+      } else {
+        theorems;
+      };
 
     (
       {

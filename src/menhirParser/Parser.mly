@@ -36,6 +36,7 @@ open AST
 %token <int> INT
 %token <float> FLOAT
 %token LET
+%token EXPLORE
 %token MODULE
 %token FUN
 %token CASE
@@ -358,6 +359,7 @@ exp:
     | f = exp; OPEN_PAREN; a = exp; CLOSE_PAREN { ApExp(f, a) }
     | f = exp; OPEN_PAREN; a = exp; COMMA; tl = separated_nonempty_list(COMMA, exp); CLOSE_PAREN { ApExp(f, TupleExp(a :: tl)) }
     | LET; i = pat; SINGLE_EQUAL; e1 = exp; IN; e2 = exp { Let (i, e1, e2) } %prec LET_EXP
+    | EXPLORE; e = exp; IN { Explore(e) }
     | MODULE; i = IDENT; SINGLE_EQUAL; e1 = exp; IN; e2 = exp { ModuleExp(VarPat(i), e1, e2) } %prec LET_EXP
     | MODULE; c = CONSTRUCTOR_IDENT; SINGLE_EQUAL; e1 = exp; IN; e2 = exp { ModuleExp(VarPat(c), e1, e2) } %prec LET_EXP
     | MODULE; i = IDENT; COLON; t = typ; SINGLE_EQUAL; e1 = exp; IN; e2 = exp { ModuleExp(AscPat(VarPat(i), t), e1, e2) } %prec LET_EXP
@@ -404,4 +406,3 @@ modItem:
 sigItem:
     | LET; p = pat { SigItemLet(p) }
     | TYP; tp = tpat; SINGLE_EQUAL; ty = typ { SigItemType(tp, ty) }
-

@@ -22,6 +22,7 @@ open Util;
 type t = {
   initial_step_count: int,
   theorems: list((Id.t, string, Environment.t(Exp.t), Exp.t)),
+  explores: list((Id.t, Environment.t(Exp.t), Exp.t)),
   tests: TestMap.t,
   probes: Sample.Map.t,
   step_count: int,
@@ -43,6 +44,7 @@ type effect =
       samples: PatternMatch.sample_closures,
     })
   | RecordTheorem(Id.t, string, Environment.t(Exp.t), Exp.t)
+  | RecordExplore(Id.t, Environment.t(Exp.t), Exp.t)
   | RecordPrint(DHExp.t); /* Println for probes study */
 
 let empty: t = {
@@ -52,6 +54,7 @@ let empty: t = {
   step_count: 0,
   theorems: [],
   incr_eval: IncrEval.empty,
+  explores: [],
 };
 
 let empty_at = (step_count: int): t => {
@@ -121,6 +124,8 @@ let get_probes = ({probes, _}) => probes;
 
 let get_theorems = ({theorems, _}) => theorems;
 
+let get_explores = ({explores, _}) => explores;
+
 let get_incr_eval = ({incr_eval, _}: t) => incr_eval;
 
 let add_incr_entry = (state: t, id: Id.t, entry: IncrEval.entry(t)): t => {
@@ -159,6 +164,13 @@ let add_sample = (state: t, sample: Sample.t) => {
       ...state,
       probes: Sample.Map.extend(sample.syntax_id, sample, state.probes),
     };
+  };
+};
+
+let add_explore = ({explores, _} as es, id, env, exp) => {
+  {
+    ...es,
+    explores: explores |> List.append([(id, env, exp)]),
   };
 };
 
@@ -270,6 +282,10 @@ let update =
       | RecordTheorem(id, name, env, goal) => (
           call_stack,
           add_theorem(state, id, name, env, goal),
+        )
+      | RecordExplore(id, env, exp) => (
+          call_stack,
+          add_explore(state, id, env, exp),
         )
       },
     (call_stack, state),

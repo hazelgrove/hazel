@@ -1987,6 +1987,7 @@ let get_doc =
             ),
           TheoremExp.tests,
         );
+      | Explore(_) => default
       | ProofObject(exp) =>
         let typ_id = List.nth(IdTagged.ids(exp), 0);
         get_message(

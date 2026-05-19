@@ -239,6 +239,7 @@ module rec Exp: {
       let_(Pat.of_menhir_ast(p), of_menhir_ast(e1), of_menhir_ast(e2))
     | Theorem(p, e1, e2) =>
       theorem(Pat.of_menhir_ast(p), of_menhir_ast(e1), of_menhir_ast(e2))
+    | Explore(e) => explore(of_menhir_ast(e))
     | ProofObject(t) => proof_object(Exp.of_menhir_ast(t))
     | ForallExp(p, e) => forall(Pat.of_menhir_ast(p), of_menhir_ast(e))
     | FixF(p, e) => fix_f(Pat.of_menhir_ast(p), of_menhir_ast(e), None)
@@ -357,6 +358,7 @@ module rec Exp: {
     | Let(p, e1, e2) => Let(Pat.of_core(p), of_core(e1), of_core(e2))
     | Theorem(p, e1, e2) =>
       Theorem(Pat.of_core(p), of_core(e1), of_core(e2))
+    | Explore(e) => Explore(of_core(e))
     | ProofObject(t) => ProofObject(Exp.of_core(t))
     | Forall(p, e) => ForallExp(Pat.of_core(p), Exp.of_core(e))
     | FixF(p, e, _) => FixF(Pat.of_core(p), of_core(e))

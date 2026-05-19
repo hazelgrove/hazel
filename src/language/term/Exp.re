@@ -21,6 +21,7 @@ type cls =
   | Var
   | Let
   | Theorem
+  | Explore
   | ProofObject
   | Forall
   | FixF
@@ -112,6 +113,7 @@ let rec cls_of_term: type a. Grammar.exp_term(a) => cls =
   | Var(_) => Var
   | Let(_) => Let
   | Theorem(_) => Theorem
+  | Explore(_) => Explore
   | ProofObject(_) => ProofObject
   | Forall(_) => Forall
   | FixF(_) => FixF
@@ -173,6 +175,7 @@ let show_cls: cls => string =
   | Var => "Variable reference"
   | Let => "Let expression"
   | Theorem => "Theorem expression"
+  | Explore => "Explore expression"
   | ProofObject => "Proof placeholder"
   | Forall => "Forall expression"
   | FixF => "Fixpoint operator"
@@ -263,6 +266,7 @@ let rec is_fun = (e: t) => {
   | Var(_)
   | Let(_)
   | Theorem(_)
+  | Explore(_)
   | ProofObject(_)
   | Forall(_)
   | FixF(_)
@@ -333,6 +337,7 @@ let rec is_tuple_of_functions = (e: t) =>
     | Var(_)
     | Let(_)
     | Theorem(_)
+    | Explore(_)
     | ProofObject(_)
     | Forall(_)
     | FixF(_)
@@ -401,6 +406,7 @@ let rec get_num_of_functions = (e: t) =>
     | Var(_)
     | Let(_)
     | Theorem(_)
+    | Explore(_)
     | ProofObject(_)
     | Forall(_)
     | Filter(_)

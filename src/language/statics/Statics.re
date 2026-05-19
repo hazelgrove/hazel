@@ -2214,6 +2214,15 @@ and uexp_to_info_map =
           SubexpProbeTargets.union_all([p.probe_targets, e2.probe_targets]),
         m,
       );
+    | Explore(e) =>
+      let (e, e_elab, m) = go(~ctx, ~ana, e, m);
+      add(
+        ~elab_term=Explore(e_elab) |> rewrap,
+        ~elab_syn_ty=e.elab_syn_ty,
+        ~marks=[],
+        ~co_ctx=e.co_ctx,
+        m,
+      );
     | ProofObject(e) =>
       let (_, e_elab, m) = go(~ctx, ~ana=Atom(Bool) |> Typ.temp, e, m);
       add(
