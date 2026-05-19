@@ -35,17 +35,6 @@ type value = v;
 /* Column menu items use the shared `Util.Menu` framework. */
 type menu_data = list(Menu.item(unit => Ui_effect.t(unit)));
 
-/* Reusable UI components */
-let icon_button = (~tooltip="", icon_text, action) =>
-  Node.div(
-    ~attrs=[
-      Attr.classes(["icon", "closure-nav-button"]),
-      Attr.on_click(action),
-      Attr.title(tooltip),
-    ],
-    [Node.text(icon_text)],
-  );
-
 /* Parse an expression into table structure */
 let parse = (_sort: Sort.t, exp: Exp.t) => parse_table(exp);
 
@@ -359,8 +348,17 @@ let render =
     : Node.t => {
   let is_readonly = sort != Sort.Exp;
   let (headers, rows) = value;
+  let menu_button_id = i => "column-menu-button-" ++ string_of_int(i);
   let make_menu_button = i =>
-    icon_button(~tooltip="Column options", "⋮", _ => local(ShowMenu(i)));
+    Node.div(
+      ~attrs=[
+        Attr.id(menu_button_id(i)),
+        Attr.classes(["icon", "closure-nav-button"]),
+        Attr.on_click(_ => local(ShowMenu(i))),
+        Attr.title("Column options"),
+      ],
+      [Node.text("⋮")],
+    );
 
   let header_cells =
     List.mapi(
@@ -399,6 +397,19 @@ let render =
                 ~selected_idx=clamped,
                 menu_data,
               );
+            let dir =
+              Menu.direction_from_id(
+                ~menu_height=200.0,
+                ~menu_width=180.0,
+                menu_button_id(i),
+              );
+            let dir_class =
+              switch (dir) {
+              | {vertical: `Down, horizontal: `Right} => "cm-down-right"
+              | {vertical: `Down, horizontal: `Left} => "cm-down-left"
+              | {vertical: `Up, horizontal: `Right} => "cm-up-right"
+              | {vertical: `Up, horizontal: `Left} => "cm-up-left"
+              };
             content
             @ [
               Node.div(
@@ -407,8 +418,8 @@ let render =
                   Attr.classes([
                     "context-menu",
                     "nut-menu",
-                    "open-down-right",
                     "column-menu",
+                    dir_class,
                   ]),
                 ],
                 [

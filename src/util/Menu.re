@@ -1,5 +1,6 @@
 open Sexplib.Std;
 open Ppx_yojson_conv_lib.Yojson_conv;
+open Js_of_ocaml;
 open Virtual_dom.Vdom;
 open WebUtil;
 
@@ -336,6 +337,104 @@ let handle_key =
       | None => MenuUpdate(Close)
       };
     | _ => Unhandled
+    }
+  };
+
+/* ============================================================
+ * Viewport-aware open direction
+ * ============================================================
+ *
+ * Shared by menus that need to flip when they'd otherwise overflow the
+ * #main viewport. Editor (caret-anchored) and column (header-anchored)
+ * menus pick their own anchor point but route through the same logic. */
+
+type vertical_dir = [
+  | `Up
+  | `Down
+];
+type horizontal_dir = [
+  | `Left
+  | `Right
+];
+type open_direction = {
+  vertical: vertical_dir,
+  horizontal: horizontal_dir,
+};
+
+type available_space = {
+  above: float,
+  below: float,
+  left: float,
+  right: float,
+};
+
+let main_viewport_rect = () =>
+  switch (JsUtil.get_elem_by_id_opt("main")) {
+  | Some(main) => main##getBoundingClientRect
+  | None =>
+    Js.Unsafe.obj([|
+      ("top", Js.Unsafe.inject(0.0)),
+      ("bottom", Js.Unsafe.inject(Js.Unsafe.global##.innerHeight)),
+      ("left", Js.Unsafe.inject(0.0)),
+      ("right", Js.Unsafe.inject(Js.Unsafe.global##.innerWidth)),
+    |])
+  };
+
+/* Available space from a (viewport-coordinate) anchor point. `anchor_top`
+ * is the top edge where a downward-opening menu would start; `anchor_bot`
+ * is the bottom edge where an upward-opening menu would start. They can
+ * differ (caret height) or be equal (element top edge). */
+let space_from =
+    (
+      ~anchor_top: float,
+      ~anchor_bot: float,
+      ~anchor_left: float,
+      ~anchor_right: float,
+    )
+    : available_space => {
+  let main = main_viewport_rect();
+  {
+    above: anchor_top -. main##.top,
+    below: main##.bottom -. anchor_bot,
+    left: anchor_right -. main##.left,
+    right: main##.right -. anchor_left,
+  };
+};
+
+/* Pick a direction given the menu's footprint estimate. */
+let direction_of =
+    (~menu_height: float, ~menu_width: float, space: available_space)
+    : open_direction => {
+  vertical: space.below >= menu_height ? `Down : `Up,
+  horizontal: space.right >= menu_width ? `Right : `Left,
+};
+
+/* Direction from an HTML element's bounding rect — opens downward from
+ * the element's bottom, upward from its top. Used by element-anchored
+ * menus like the table column menu. */
+let direction_from_elem =
+    (~menu_height: float, ~menu_width: float, elem: Js.t(Dom_html.element))
+    : open_direction => {
+  let rect = elem##getBoundingClientRect;
+  let space =
+    space_from(
+      ~anchor_top=rect##.top,
+      ~anchor_bot=rect##.bottom,
+      ~anchor_left=rect##.left,
+      ~anchor_right=rect##.right,
+    );
+  direction_of(~menu_height, ~menu_width, space);
+};
+
+/* Direction from an element looked up by id, falling back to down-right
+ * if the element isn't in the DOM yet. */
+let direction_from_id =
+    (~menu_height: float, ~menu_width: float, id: string): open_direction =>
+  switch (JsUtil.get_elem_by_id_opt(id)) {
+  | Some(elem) => direction_from_elem(~menu_height, ~menu_width, elem)
+  | None => {
+      vertical: `Down,
+      horizontal: `Right,
     }
   };
 
