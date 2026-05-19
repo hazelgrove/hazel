@@ -4115,19 +4115,25 @@ world|})
       @ [
         Action.Select(
           Resize(
-            Point({
-              row: 0,
-              col: 3,
-            }),
+            Point(
+              {
+                row: 0,
+                col: 3,
+              },
+              None,
+            ),
           ),
         ),
       ]
       @ [
         Action.Move(
-          Point({
-            row: 1,
-            col: 0,
-          }),
+          Point(
+            {
+              row: 1,
+              col: 0,
+            },
+            None,
+          ),
         ),
       ],
   ),
@@ -4138,19 +4144,25 @@ world|})
       @ [
         Action.Select(
           Resize(
-            Point({
-              row: 0,
-              col: 3,
-            }),
+            Point(
+              {
+                row: 0,
+                col: 3,
+              },
+              None,
+            ),
           ),
         ),
       ]
       @ [
         Action.Move(
-          Point({
-            row: 0,
-            col: 11,
-          }),
+          Point(
+            {
+              row: 0,
+              col: 11,
+            },
+            None,
+          ),
         ),
       ],
   ),
@@ -4161,19 +4173,25 @@ world|})
       @ [
         Action.Select(
           Resize(
-            Point({
-              row: 0,
-              col: 3,
-            }),
+            Point(
+              {
+                row: 0,
+                col: 3,
+              },
+              None,
+            ),
           ),
         ),
       ]
       @ [
         Action.Move(
-          Point({
-            row: 0,
-            col: 12,
-          }),
+          Point(
+            {
+              row: 0,
+              col: 12,
+            },
+            None,
+          ),
         ),
       ],
   ),
@@ -4189,19 +4207,25 @@ ys|},
       @ [
         Action.Select(
           Resize(
-            Point({
-              row: 0,
-              col: 5,
-            }),
+            Point(
+              {
+                row: 0,
+                col: 5,
+              },
+              None,
+            ),
           ),
         ),
       ]
       @ [
         Action.Move(
-          Point({
-            row: 3,
-            col: 2,
-          }),
+          Point(
+            {
+              row: 3,
+              col: 2,
+            },
+            None,
+          ),
         ),
       ],
   ),
@@ -4221,20 +4245,26 @@ let drag_to_zero_width_tests = [
       @ [
         Action.Select(
           Resize(
-            Point({
-              row: 0,
-              col: 4,
-            }),
+            Point(
+              {
+                row: 0,
+                col: 4,
+              },
+              None,
+            ),
           ),
         ),
       ]
       @ [
         Action.Select(
           Resize(
-            Point({
-              row: 0,
-              col: 3,
-            }),
+            Point(
+              {
+                row: 0,
+                col: 3,
+              },
+              None,
+            ),
           ),
         ),
       ],
@@ -4247,20 +4277,26 @@ let drag_to_zero_width_tests = [
       @ [
         Action.Select(
           Resize(
-            Point({
-              row: 0,
-              col: 2,
-            }),
+            Point(
+              {
+                row: 0,
+                col: 2,
+              },
+              None,
+            ),
           ),
         ),
       ]
       @ [
         Action.Select(
           Resize(
-            Point({
-              row: 0,
-              col: 3,
-            }),
+            Point(
+              {
+                row: 0,
+                col: 3,
+              },
+              None,
+            ),
           ),
         ),
       ],
@@ -4277,20 +4313,26 @@ let drag_to_zero_width_tests = [
       @ [
         Action.Select(
           Resize(
-            Point({
-              row: 0,
-              col: 4,
-            }),
+            Point(
+              {
+                row: 0,
+                col: 4,
+              },
+              None,
+            ),
           ),
         ),
       ]
       @ [
         Action.Select(
           Resize(
-            Point({
-              row: 0,
-              col: 3,
-            }),
+            Point(
+              {
+                row: 0,
+                col: 3,
+              },
+              None,
+            ),
           ),
         ),
       ],
@@ -4307,20 +4349,26 @@ let drag_to_zero_width_tests = [
       @ [
         Action.Select(
           Resize(
-            Point({
-              row: 0,
-              col: 2,
-            }),
+            Point(
+              {
+                row: 0,
+                col: 2,
+              },
+              None,
+            ),
           ),
         ),
       ]
       @ [
         Action.Select(
           Resize(
-            Point({
-              row: 0,
-              col: 3,
-            }),
+            Point(
+              {
+                row: 0,
+                col: 3,
+              },
+              None,
+            ),
           ),
         ),
       ],
@@ -4338,20 +4386,26 @@ let drag_to_zero_width_tests = [
       @ [
         Action.Select(
           Resize(
-            Point({
-              row: 0,
-              col: 4,
-            }),
+            Point(
+              {
+                row: 0,
+                col: 4,
+              },
+              None,
+            ),
           ),
         ),
       ]
       @ [
         Action.Select(
           Resize(
-            Point({
-              row: 0,
-              col: 2,
-            }),
+            Point(
+              {
+                row: 0,
+                col: 2,
+              },
+              None,
+            ),
           ),
         ),
       ],
@@ -4377,20 +4431,26 @@ let drag_to_zero_width_tests = [
       @ [
         Action.Select(
           Resize(
-            Point({
-              row: 0,
-              col: 0,
-            }),
+            Point(
+              {
+                row: 0,
+                col: 0,
+              },
+              None,
+            ),
           ),
         ),
       ]
       @ [
         Action.Select(
           Resize(
-            Point({
-              row: 0,
-              col: 2,
-            }),
+            Point(
+              {
+                row: 0,
+                col: 2,
+              },
+              None,
+            ),
           ),
         ),
       ],
@@ -4412,20 +4472,26 @@ let drag_to_zero_width_tests = [
       @ [
         Action.Select(
           Resize(
-            Point({
-              row: 0,
-              col: 9,
-            }),
+            Point(
+              {
+                row: 0,
+                col: 9,
+              },
+              None,
+            ),
           ),
         ),
       ]
       @ [
         Action.Select(
           Resize(
-            Point({
-              row: 0,
-              col: 7,
-            }),
+            Point(
+              {
+                row: 0,
+                col: 7,
+              },
+              None,
+            ),
           ),
         ),
       ],
@@ -4479,6 +4545,51 @@ let drag_to_zero_width_tests = [
       @ [Action.Select(Resize(Local(Left, ByChar)))]
       @ [Action.Select(Resize(Local(Left, ByChar)))],
     ~goal="partiti¦o§n",
+  ),
+  /* Per-action chunkiness override on Resize(Point) — used by
+   * mouse drag when a modifier (Alt on Mac, Ctrl on PC) is held to
+   * select the opposite of the settings default. */
+  test(
+    ~name="Resize(Point) Some(ByChar) overrides default smart chunkiness",
+    ~acts=
+      mk({|let he¦llo = 1 in hello|})
+      @ [
+        Action.Select(
+          Resize(
+            Point(
+              {
+                row: 0,
+                col: 10,
+              },
+              Some(ByChar),
+            ),
+          ),
+        ),
+      ],
+    ~goal="let he§llo ¦= 1 in hello",
+  ),
+  test_with_settings(
+    ~settings={
+      ...default_settings,
+      selection_chunkiness: true,
+    },
+    ~name="Resize(Point) Some(BySmart) overrides default char chunkiness",
+    ~acts=
+      mk({|let he¦llo = 1 in hello|})
+      @ [
+        Action.Select(
+          Resize(
+            Point(
+              {
+                row: 0,
+                col: 10,
+              },
+              Some(BySmart),
+            ),
+          ),
+        ),
+      ],
+    ~goal="let §hello ¦= 1 in hello",
   ),
 ];
 

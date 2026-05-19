@@ -28,7 +28,12 @@ type move =
   | Line(Direction.t)
   | Local(Direction.t, chunkiness)
   | Vertical(vertical, chunkiness)
-  | Point(Point.t)
+  /* Point-based move/select. The optional chunkiness overrides the
+   * selection_chunkiness setting for Select(Resize(Point(...))) drag;
+   * `None` falls back to the settings-driven default. Ignored for
+   * Move(Point(...)), which always lands the caret at the closest
+   * grid position. */
+  | Point(Point.t, option(chunkiness))
   | Goal(goal);
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]

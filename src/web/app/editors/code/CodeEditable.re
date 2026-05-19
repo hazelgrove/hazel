@@ -680,6 +680,21 @@ module View = {
         e.loc,
       );
 
+    /* Pointer modifier → optional chunkiness override for
+     * Select(Resize(Point(...))). Mirrors the keyboard mapping:
+     * Alt on Mac / Ctrl on PC swaps to the non-default chunkiness
+     * (BySmart ↔ ByChar). None means "use the settings default". */
+    let drag_chunkiness_override =
+        (pointer: Pointer.Event.t): option(Action.chunkiness) => {
+      let modifier_held =
+        switch (pointer.sys) {
+        | Mac => pointer.alt == Down
+        | PC => pointer.ctrl == Down
+        };
+      modifier_held
+        ? Some(Keyboard.modifier_chunk(globals.settings.core)) : None;
+    };
+
     let move_or_select = (mouse: Pointer.Event.t, pointer_id: int) =>
       switch (mouse) {
       | {button: Left, shift: Down, _} =>
@@ -691,20 +706,26 @@ module View = {
         DragClass.add(mouse.current_target);
         Effect.Many([
           signal(MakeActive),
-          inject(Perform(Select(Resize(Point(loc(mouse)))))),
+          inject(
+            Perform(
+              Select(
+                Resize(Point(loc(mouse), drag_chunkiness_override(mouse))),
+              ),
+            ),
+          ),
         ]);
       | {button: Left, sys: PC, ctrl: Down, _}
       | {button: Left, sys: Mac, meta: Down, _} =>
         Effect.Many([
           signal(MakeActive),
-          inject(Perform(Move(Point(loc(mouse))))),
+          inject(Perform(Move(Point(loc(mouse), None)))),
           inject(Perform(Move(Goal(BindingSiteOfIndicatedVar)))),
         ])
       | {button: Right, ctrl, _} when ctrl != Down =>
         Effect.Many([
           //Effect.Stop_propagation,
           Effect.Prevent_default,
-          inject(Perform(Move(Point(loc(mouse))))),
+          inject(Perform(Move(Point(loc(mouse), None)))),
           inject(ContextMenu(ContextMenu.Model.Toggle)),
         ])
       | {button: Left, _} =>
@@ -719,7 +740,7 @@ module View = {
           PointerCapture.set(mouse.current_target, pointer_id);
           Effect.Many([
             signal(MakeActive),
-            inject(Perform(Move(Point(loc(mouse))))),
+            inject(Perform(Move(Point(loc(mouse), None)))),
           ]);
         | 2 => inject(Perform(Select(Smart(2))))
         | 3 => inject(Perform(Select(Smart(3))))
@@ -767,6 +788,9 @@ module View = {
               && !at_down_loc_without_motion =>
           let container = container_target(pointer.current_target);
           let pixel_loc = pointer.loc;
+          /* Snapshot at mousemove time so edge-scroll fires with the
+           * same chunkiness mode the user had selected. */
+          let chunk_override = drag_chunkiness_override(pointer);
           EdgeScroll.update(
             ~client_y=float_of_int(pointer.loc.row),
             ~on_scroll=() => {
@@ -777,11 +801,15 @@ module View = {
                   pixel_loc,
                 );
               Bonsai.Effect.Expert.handle(
-                inject(Perform(Select(Resize(Point(goal))))),
+                inject(
+                  Perform(Select(Resize(Point(goal, chunk_override)))),
+                ),
               );
             },
           );
-          inject(Perform(Select(Resize(Point(current_loc)))));
+          inject(
+            Perform(Select(Resize(Point(current_loc, chunk_override)))),
+          );
         | _ => Effect.Ignore
         };
       };

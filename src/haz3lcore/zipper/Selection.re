@@ -18,6 +18,7 @@ type t = {
   focus: Direction.t,
   content: Segment.t,
   mode,
+  /* The position offset of the anchor caret during range selections */
   anchor_caret,
   /* Smart-rounded selection: when true, the anchor is rendered at the
    * outer boundary of the anchor-side piece even if anchor_caret is

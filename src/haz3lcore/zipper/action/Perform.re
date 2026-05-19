@@ -135,11 +135,17 @@ let go =
   | Select(Resize(End)) => Ok(Select.to_end(z))
   | Select(Resize(Line(d))) =>
     Select.to_linebreak(d, z) |> return(Cant_select)
-  | Select(Resize(Point(goal))) =>
-    /* Mouse drag obeys the selection_chunkiness setting: when off (default),
-     * drag is smart; when on, drag is pure char. */
+  | Select(Resize(Point(goal, override))) =>
+    /* Mouse drag obeys the selection_chunkiness setting by default
+     * (off → smart, on → char). The drag handler may pass an
+     * explicit `Some(chunkiness)` to override — e.g. Alt+Shift+drag
+     * on Mac (Ctrl+Shift+drag on PC) selects the opposite chunkiness,
+     * mirroring the keyboard modifier mapping. */
     let chunkiness: Action.chunkiness =
-      settings.selection_chunkiness ? ByChar : BySmart;
+      switch (override) {
+      | Some(c) => c
+      | None => settings.selection_chunkiness ? ByChar : BySmart
+      };
     Select.to_point(~chunkiness, ~measured=syntax.measured, ~goal, z)
     |> return(Cant_select);
   | Select(Resize(Goal(_))) => failwith("Select not implemented for goals")
