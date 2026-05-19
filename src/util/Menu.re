@@ -313,21 +313,50 @@ type key_result('a) =
   | RunAction('a)
   | Unhandled;
 
+/* First `Back` to_path in the visible items, used as the destination for
+ * ArrowLeft when no item is explicitly selected. Falls back to [] (top
+ * level) so ArrowLeft always escapes a non-root path. */
+let back_target = (items: list(item('a))): list(string) =>
+  switch (
+    List.find_opt(
+      fun
+      | Back(_) => true
+      | _ => false,
+      items,
+    )
+  ) {
+  | Some(Back({to_path})) => to_path
+  | _ => []
+  };
+
 /* Translate a Key.key into either a menu-state update or an action to
  * run. Caller wires this into a key dispatcher (e.g. MenuListener's
- * `handle_key`) and maps `RunAction` / `MenuUpdate` to its own dispatch. */
+ * `handle_key`) and maps `RunAction` / `MenuUpdate` to its own dispatch.
+ *
+ * ArrowRight enters a submenu when the selected row is one; ArrowLeft
+ * pops back to the parent path when nested. Both let the user navigate
+ * the menu hierarchy without mousing or hitting Enter. */
 let handle_key =
     (~items: list(item('a)), key: Key.key, model: t): key_result('a) =>
   switch (model) {
   | None => Unhandled
-  | Some({selected_idx, _}) =>
+  | Some({selected_idx, path}) =>
+    let idx = clamp_against(items, selected_idx);
+    let selected_item = nth_selectable(items, idx);
     switch (key) {
     | Key.D("Escape") => MenuUpdate(Close)
     | Key.D("ArrowUp") => MenuUpdate(Up)
     | Key.D("ArrowDown") => MenuUpdate(Down)
+    | Key.D("ArrowRight") =>
+      switch (selected_item) {
+      | Some(Submenu({target_path, _})) =>
+        MenuUpdate(EnterSubmenu(target_path))
+      | _ => Unhandled
+      }
+    | Key.D("ArrowLeft") =>
+      path == [] ? Unhandled : MenuUpdate(BackSubmenu(back_target(items)))
     | Key.D("Enter") =>
-      let idx = clamp_against(items, selected_idx);
-      switch (nth_selectable(items, idx)) {
+      switch (selected_item) {
       | Some(Action({enabled: true, action, _})) => RunAction(action)
       | Some(Submenu({target_path, _})) =>
         MenuUpdate(EnterSubmenu(target_path))
@@ -335,9 +364,9 @@ let handle_key =
       | Some(Action({enabled: false, _}))
       | Some(Divider)
       | None => MenuUpdate(Close)
-      };
+      }
     | _ => Unhandled
-    }
+    };
   };
 
 /* ============================================================
