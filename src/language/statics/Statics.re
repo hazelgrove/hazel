@@ -2090,12 +2090,12 @@ and uexp_to_info_map =
              ]),
              Pat.bound_vars(p),
            );
-      let elab_term =
+      let (elab_term, m) =
         if (!requires_fixf) {
           let def_elab =
             LabeledTupleHelpers.align_exp_if_needed(ctx, p_syn.ty, def_elab)
             |> Exp.add_name(Pat.get_var(p));
-          Let(p_elab, def_elab, body_elab) |> rewrap;
+          (Let(p_elab, def_elab, body_elab) |> rewrap, m);
         } else {
           let def_elab =
             LabeledTupleHelpers.align_exp_if_needed(ctx, p_syn.ty, def_elab)
@@ -2115,7 +2115,29 @@ and uexp_to_info_map =
               [fun_id],
               FixF(p_elab, def_elab, None): Exp.term,
             );
-          Let(p_elab, fixf, body_elab) |> rewrap;
+          /* The InfoExp at fun_id was written when `go` traversed the
+           * surface Fun above; its co_ctx contains the Fun's free vars,
+           * which for a recursive binding includes the recursive name (e.g.
+           * `fib` in `let fib = fun n -> ... fib ...`). The elab now places
+           * a FixF at this id, and FixF binds the let pattern. So the
+           * effective co_ctx at fun_id is the Fun's co_ctx with pat-bound
+           * vars removed; otherwise reuse_check at fun_id permanently fails
+           * because the recursive name has no provenance in any reuse_map,
+           * and every transitive cache hit downstream dies with it. */
+          let m =
+            switch (Id.Map.find_opt(fun_id, m)) {
+            | Some(Info.InfoExp(info)) =>
+              add_info(
+                [fun_id],
+                Info.InfoExp({
+                  ...info,
+                  co_ctx: CoCtx.mk(ctx, p_ana.ctx, info.co_ctx),
+                }),
+                m,
+              )
+            | _ => m
+            };
+          (Let(p_elab, fixf, body_elab) |> rewrap, m);
         };
       add(
         ~elab_term,

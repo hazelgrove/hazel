@@ -352,7 +352,10 @@ let rec evaluate =
         EvaluatorState.capture_slice(~before=state_before, ~after=state^);
       let entry: IncrEval.entry = {
         prev_elab,
-        prev_reuse_map: IncrEval.restrict_to_co_ctx(reuse_map, co_ctx),
+        prev_reuse_map:
+          IncrEval.make_clean(
+            IncrEval.restrict_to_co_ctx(reuse_map, co_ctx),
+          ),
         prev_probe_targets,
         value: final,
         state: state_slice,

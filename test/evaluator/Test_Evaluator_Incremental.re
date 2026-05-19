@@ -1250,7 +1250,8 @@ let test_swap_counterexample = () => {
 let test_reuse_provenance_distinguishes_pattern_shapes = () => {
   let source_id = Id.mk();
   let x = () => Pat.fresh(Var("x"));
-  let provenance = pat => IncrEval.pat_provenance(~source_id, pat);
+  let provenance = pat =>
+    IncrEval.pat_provenance(~source_id, ~flag=IncrEval.Clean, pat);
   let direct = provenance(x());
   let tuple = provenance(Pat.fresh(Tuple([x()])));
   let list = provenance(Pat.fresh(ListLit([x()])));

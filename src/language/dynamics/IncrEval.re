@@ -16,9 +16,15 @@ type projection =
   | Ascribed;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type flag =
+  | Clean
+  | Dirty;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type provenance = {
   source: Id.t,
   path: list(projection),
+  flag,
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -27,19 +33,7 @@ type reuse_map = VarMap.t_(provenance);
 [@deriving (show({with_path: false}), sexp, yojson)]
 type entry = {
   prev_elab: Exp.t,
-  /* Provenance for every free variable used by this cached subtree: the
-   * expression id that supplied the variable's value, plus a projection path
-   * through pattern matches. Reuse is sound only when the current run obtained
-   * those variables from the same previous-cache entries. */
   prev_reuse_map: reuse_map,
-  /* Snapshot of the cached subtree's probe-targets witness. Compared
-   * structurally against the current witness in `reuse_check` to detect
-   * any add/remove of a probe target inside this subtree.
-   *
-   * None when the run was made with `probe_all` on: every InfoExp is then
-   * a probe, so any change to the probe set coincides with a change to
-   * the elaboration tree — `Exp.fast_equal(prev_elab, info.elab_term)`
-   * already catches it, and a separate witness would be redundant. */
   prev_probe_targets: option(SubexpProbeTargets.t),
   value: DHExp.t,
   state: StateSlice.t,
@@ -106,7 +100,20 @@ let frozen_ids = (incr: t): list(Id.t) => {
 let empty_reuse_map: reuse_map = VarMap.empty;
 
 let equal_provenance = (a: provenance, b: provenance): bool =>
-  Id.equal(a.source, b.source) && a.path == b.path;
+  Id.equal(a.source, b.source) && a.path == b.path && a.flag == b.flag;
+
+let make_clean = (reuse_map: reuse_map): reuse_map =>
+  List.map(
+    ((name, prov: provenance)) =>
+      (
+        name,
+        {
+          ...prov,
+          flag: Clean,
+        },
+      ),
+    reuse_map,
+  );
 
 let equal_reuse_map = (a: reuse_map, b: reuse_map): bool =>
   List.length(a) == List.length(b)
@@ -157,7 +164,7 @@ let pat_label = (pat: Pat.t): option(string) =>
   | _ => None
   };
 
-let pat_provenance = (~source_id: Id.t, pat: Pat.t): reuse_map => {
+let pat_provenance = (~source_id: Id.t, ~flag: flag, pat: Pat.t): reuse_map => {
   let rec go = (path: list(projection), pat: Pat.t): reuse_map =>
     switch (pat.term) {
     | EmptyHole
@@ -174,6 +181,7 @@ let pat_provenance = (~source_id: Id.t, pat: Pat.t): reuse_map => {
           {
             source: source_id,
             path: List.rev(path),
+            flag,
           },
         ),
       ]
@@ -203,17 +211,19 @@ let pat_provenance = (~source_id: Id.t, pat: Pat.t): reuse_map => {
 };
 
 let with_pat_provenance =
-    (~source_id: Id.t, pat: Pat.t, reuse_map: reuse_map): reuse_map =>
-  pat_provenance(~source_id, pat) @ remove_pat_bindings(pat, reuse_map);
+    (~source_id: Id.t, ~flag: flag, pat: Pat.t, reuse_map: reuse_map)
+    : reuse_map =>
+  pat_provenance(~source_id, ~flag, pat)
+  @ remove_pat_bindings(pat, reuse_map);
 
 let was_reused = (id: Id.t, incr: t): bool => List.mem(id, incr.reused);
 
 let update_maps_after_binding =
     (~rhs_reused: bool, ~source_id: Id.t, pat: Pat.t, ~reuse_map: reuse_map)
-    : reuse_map =>
-  rhs_reused
-    ? with_pat_provenance(~source_id, pat, reuse_map)
-    : remove_pat_bindings(pat, reuse_map);
+    : reuse_map => {
+  let flag = rhs_reused ? Clean : Dirty;
+  with_pat_provenance(~source_id, ~flag, pat, reuse_map);
+};
 
 let reuse_check =
     (
