@@ -1504,6 +1504,7 @@ and uexp_to_info_map =
         switch (custom_statics) {
         | Some(kind) =>
           CustomStatics.custom_statics_ap(
+            ~annotation=uexp.annotation,
             ~ctx,
             ~ancestors=ancestors_inclusive,
             ~fn_info=fn,
