@@ -84,6 +84,38 @@ let mv_r_token = (n: int): list(Action.t) =>
 let mv_l_char = (n: int): list(Action.t) =>
   List.init(n, _ => Action.Move(Local(Left, ByChar)));
 
+/* Compact constructors for Point-based actions. Tests routinely
+ * span 10+ lines on the nested `Action.Select(Resize(Point({row,
+ * col}, chunk)))` shape; these helpers compress that to a single
+ * call. `chunk=None` defers to the settings-driven default at
+ * action execution time (the typical case for tests that don't
+ * exercise modifier overrides). */
+let resize_point =
+    (~row: int=0, ~col: int, ~chunk: option(Action.chunkiness)=None, ())
+    : Action.t =>
+  Action.Select(
+    Resize(
+      Point(
+        {
+          row,
+          col,
+        },
+        chunk,
+      ),
+    ),
+  );
+
+let move_point = (~row: int=0, ~col: int, ()): Action.t =>
+  Action.Move(
+    Point(
+      {
+        row,
+        col,
+      },
+      None,
+    ),
+  );
+
 let mk = (init: string): list(Action.t) => {
   /* Builds actions from a string with ¦ for caret position.
    * Does not support § — use mk_zipper for selections. */
@@ -4112,88 +4144,22 @@ let move_after_char_select_tests = [
     ~acts=
       mk({|¦hello
 world|})
-      @ [
-        Action.Select(
-          Resize(
-            Point(
-              {
-                row: 0,
-                col: 3,
-              },
-              None,
-            ),
-          ),
-        ),
-      ]
-      @ [
-        Action.Move(
-          Point(
-            {
-              row: 1,
-              col: 0,
-            },
-            None,
-          ),
-        ),
-      ],
+      @ [resize_point(~row=0, ~col=3, ())]
+      @ [move_point(~row=1, ~col=0, ())],
   ),
   test_terminates(
     ~name="Move.Point after char-level Select: same row far col",
     ~acts=
       mk({|¦hello world|})
-      @ [
-        Action.Select(
-          Resize(
-            Point(
-              {
-                row: 0,
-                col: 3,
-              },
-              None,
-            ),
-          ),
-        ),
-      ]
-      @ [
-        Action.Move(
-          Point(
-            {
-              row: 0,
-              col: 11,
-            },
-            None,
-          ),
-        ),
-      ],
+      @ [resize_point(~row=0, ~col=3, ())]
+      @ [move_point(~row=0, ~col=11, ())],
   ),
   test_terminates(
     ~name="Move.Point after char-level Select ending in paren",
     ~acts=
       mk({|¦hello (1 + 2)|})
-      @ [
-        Action.Select(
-          Resize(
-            Point(
-              {
-                row: 0,
-                col: 3,
-              },
-              None,
-            ),
-          ),
-        ),
-      ]
-      @ [
-        Action.Move(
-          Point(
-            {
-              row: 0,
-              col: 12,
-            },
-            None,
-          ),
-        ),
-      ],
+      @ [resize_point(~row=0, ~col=3, ())]
+      @ [move_point(~row=0, ~col=12, ())],
   ),
   test_terminates(
     ~name="Move.Point down several rows after char-level Select (user repro)",
@@ -4204,30 +4170,8 @@ let f = fun x -> x + 1 in
 let ys = [f(x) for x in xs] in
 ys|},
       )
-      @ [
-        Action.Select(
-          Resize(
-            Point(
-              {
-                row: 0,
-                col: 5,
-              },
-              None,
-            ),
-          ),
-        ),
-      ]
-      @ [
-        Action.Move(
-          Point(
-            {
-              row: 3,
-              col: 2,
-            },
-            None,
-          ),
-        ),
-      ],
+      @ [resize_point(~row=0, ~col=5, ())]
+      @ [move_point(~row=3, ~col=2, ())],
   ),
 ];
 
@@ -4242,64 +4186,16 @@ let drag_to_zero_width_tests = [
     ~name="drag right then back to anchor collapses to zero-width",
     ~acts=
       mk({|hel¦lo|})
-      @ [
-        Action.Select(
-          Resize(
-            Point(
-              {
-                row: 0,
-                col: 4,
-              },
-              None,
-            ),
-          ),
-        ),
-      ]
-      @ [
-        Action.Select(
-          Resize(
-            Point(
-              {
-                row: 0,
-                col: 3,
-              },
-              None,
-            ),
-          ),
-        ),
-      ],
+      @ [resize_point(~row=0, ~col=4, ())]
+      @ [resize_point(~row=0, ~col=3, ())],
     ~goal="hel¦lo",
   ),
   test(
     ~name="drag left then back to anchor collapses to zero-width",
     ~acts=
       mk({|hel¦lo|})
-      @ [
-        Action.Select(
-          Resize(
-            Point(
-              {
-                row: 0,
-                col: 2,
-              },
-              None,
-            ),
-          ),
-        ),
-      ]
-      @ [
-        Action.Select(
-          Resize(
-            Point(
-              {
-                row: 0,
-                col: 3,
-              },
-              None,
-            ),
-          ),
-        ),
-      ],
+      @ [resize_point(~row=0, ~col=2, ())]
+      @ [resize_point(~row=0, ~col=3, ())],
     ~goal="hel¦lo",
   ),
   test_with_settings(
@@ -4310,32 +4206,8 @@ let drag_to_zero_width_tests = [
     ~name="drag right then back to anchor (ByChar) collapses to zero-width",
     ~acts=
       mk({|hel¦lo|})
-      @ [
-        Action.Select(
-          Resize(
-            Point(
-              {
-                row: 0,
-                col: 4,
-              },
-              None,
-            ),
-          ),
-        ),
-      ]
-      @ [
-        Action.Select(
-          Resize(
-            Point(
-              {
-                row: 0,
-                col: 3,
-              },
-              None,
-            ),
-          ),
-        ),
-      ],
+      @ [resize_point(~row=0, ~col=4, ())]
+      @ [resize_point(~row=0, ~col=3, ())],
     ~goal="hel¦lo",
   ),
   test_with_settings(
@@ -4346,32 +4218,8 @@ let drag_to_zero_width_tests = [
     ~name="drag left then back to anchor (ByChar) collapses to zero-width",
     ~acts=
       mk({|hel¦lo|})
-      @ [
-        Action.Select(
-          Resize(
-            Point(
-              {
-                row: 0,
-                col: 2,
-              },
-              None,
-            ),
-          ),
-        ),
-      ]
-      @ [
-        Action.Select(
-          Resize(
-            Point(
-              {
-                row: 0,
-                col: 3,
-              },
-              None,
-            ),
-          ),
-        ),
-      ],
+      @ [resize_point(~row=0, ~col=2, ())]
+      @ [resize_point(~row=0, ~col=3, ())],
     ~goal="hel¦lo",
   ),
   /* Cross the anchor: drag right by one, then past the anchor to the
@@ -4383,32 +4231,8 @@ let drag_to_zero_width_tests = [
       "drag right then past anchor to the left ends at length-1 focus-left",
     ~acts=
       mk({|hel¦lo|})
-      @ [
-        Action.Select(
-          Resize(
-            Point(
-              {
-                row: 0,
-                col: 4,
-              },
-              None,
-            ),
-          ),
-        ),
-      ]
-      @ [
-        Action.Select(
-          Resize(
-            Point(
-              {
-                row: 0,
-                col: 2,
-              },
-              None,
-            ),
-          ),
-        ),
-      ],
+      @ [resize_point(~row=0, ~col=4, ())]
+      @ [resize_point(~row=0, ~col=2, ())],
     ~goal="he¦l§lo",
   ),
   /* Edge-case anchor at Inner(0) (right at the LEFT edge of a token):
@@ -4428,32 +4252,8 @@ let drag_to_zero_width_tests = [
       "Inner(0) anchor: drag left then past anchor to right ends at length-1 focus-right",
     ~acts=
       mk({|p¦artition|})
-      @ [
-        Action.Select(
-          Resize(
-            Point(
-              {
-                row: 0,
-                col: 0,
-              },
-              None,
-            ),
-          ),
-        ),
-      ]
-      @ [
-        Action.Select(
-          Resize(
-            Point(
-              {
-                row: 0,
-                col: 2,
-              },
-              None,
-            ),
-          ),
-        ),
-      ],
+      @ [resize_point(~row=0, ~col=0, ())]
+      @ [resize_point(~row=0, ~col=2, ())],
     ~goal="p§a¦rtition",
   ),
   /* Edge-case anchor at Inner(max_idx) (right at the RIGHT edge of a
@@ -4469,32 +4269,8 @@ let drag_to_zero_width_tests = [
       "Inner(max) anchor: drag right then past anchor to left ends at length-1 focus-left",
     ~acts=
       mk({|partitio¦n|})
-      @ [
-        Action.Select(
-          Resize(
-            Point(
-              {
-                row: 0,
-                col: 9,
-              },
-              None,
-            ),
-          ),
-        ),
-      ]
-      @ [
-        Action.Select(
-          Resize(
-            Point(
-              {
-                row: 0,
-                col: 7,
-              },
-              None,
-            ),
-          ),
-        ),
-      ],
+      @ [resize_point(~row=0, ~col=9, ())]
+      @ [resize_point(~row=0, ~col=7, ())],
     ~goal="partiti¦o§n",
   ),
   /* Keyboard Shift+Arrow at a token edge anchor: same underlying
@@ -4553,19 +4329,7 @@ let drag_to_zero_width_tests = [
     ~name="Resize(Point) Some(ByChar) overrides default smart chunkiness",
     ~acts=
       mk({|let he¦llo = 1 in hello|})
-      @ [
-        Action.Select(
-          Resize(
-            Point(
-              {
-                row: 0,
-                col: 10,
-              },
-              Some(ByChar),
-            ),
-          ),
-        ),
-      ],
+      @ [resize_point(~row=0, ~col=10, ~chunk=Some(ByChar), ())],
     ~goal="let he§llo ¦= 1 in hello",
   ),
   test_with_settings(
@@ -4576,19 +4340,7 @@ let drag_to_zero_width_tests = [
     ~name="Resize(Point) Some(BySmart) overrides default char chunkiness",
     ~acts=
       mk({|let he¦llo = 1 in hello|})
-      @ [
-        Action.Select(
-          Resize(
-            Point(
-              {
-                row: 0,
-                col: 10,
-              },
-              Some(BySmart),
-            ),
-          ),
-        ),
-      ],
+      @ [resize_point(~row=0, ~col=10, ~chunk=Some(BySmart), ())],
     ~goal="let §hello ¦= 1 in hello",
   ),
   /* Focus-side normalization on chunkiness switch.
@@ -4611,45 +4363,9 @@ let drag_to_zero_width_tests = [
       "Focus normalize: BySmart -> ByChar -> BySmart drag lands at whole-piece boundary",
     ~acts=
       mk({|¦let aardvark = apple in aardvark|})
-      @ [
-        Action.Select(
-          Resize(
-            Point(
-              {
-                row: 0,
-                col: 14,
-              },
-              Some(BySmart),
-            ),
-          ),
-        ),
-      ]
-      @ [
-        Action.Select(
-          Resize(
-            Point(
-              {
-                row: 0,
-                col: 16,
-              },
-              Some(ByChar),
-            ),
-          ),
-        ),
-      ]
-      @ [
-        Action.Select(
-          Resize(
-            Point(
-              {
-                row: 0,
-                col: 22,
-              },
-              Some(BySmart),
-            ),
-          ),
-        ),
-      ],
+      @ [resize_point(~row=0, ~col=14, ~chunk=Some(BySmart), ())]
+      @ [resize_point(~row=0, ~col=16, ~chunk=Some(ByChar), ())]
+      @ [resize_point(~row=0, ~col=22, ~chunk=Some(BySmart), ())],
     ~goal="§let aardvark = apple in¦ aardvark",
   ),
 ];

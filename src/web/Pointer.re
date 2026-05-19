@@ -157,12 +157,19 @@ module MkState = () => {
   let is_init = (): bool =>
     state.button == Up && state.count == 0 && state.loc == Point.zero;
 
+  /* Clear the per-gesture transient flags. Called from anywhere
+   * that starts or ends a gesture, so adding a new gesture-local
+   * field only requires extending this one helper. */
+  let reset_gesture_locals = (): unit => {
+    state.has_left_down_loc = false;
+    state.skip_count = false;
+  };
+
   let reset = (): unit => {
     state.button = Up;
     state.count = 0;
     state.loc = Point.zero;
-    state.has_left_down_loc = false;
-    state.skip_count = false;
+    reset_gesture_locals();
   };
 
   let count_reset_timer = (old_count): unit =>
@@ -178,8 +185,7 @@ module MkState = () => {
     };
     state.button = Down;
     state.loc = loc;
-    state.has_left_down_loc = false;
-    state.skip_count = false;
+    reset_gesture_locals();
   };
 
   /* Register a button-down for a gesture that should be drag-eligible
@@ -190,7 +196,7 @@ module MkState = () => {
     state.button = Down;
     state.loc = loc;
     state.count = 0;
-    state.has_left_down_loc = false;
+    reset_gesture_locals();
     state.skip_count = true;
   };
 
@@ -206,6 +212,6 @@ module MkState = () => {
     };
     state.button = Up;
     state.loc = loc;
-    state.skip_count = false;
+    reset_gesture_locals();
   };
 };
