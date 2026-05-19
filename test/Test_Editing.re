@@ -4591,6 +4591,67 @@ let drag_to_zero_width_tests = [
       ],
     ~goal="let §hello ¦= 1 in hello",
   ),
+  /* Focus-side normalization on chunkiness switch.
+   *
+   * Setup: caret at start of `let aardvark = apple in aardvark`.
+   * Step 1 (BySmart): drag to col 14 — selection grows by whole
+   * pieces, ending with caret=Outer at the boundary after `=`.
+   * Step 2 (ByChar): drag to col 16 (just past the space, into
+   * `apple`) — caret advances to Inner(0) of `apple`. Selection
+   * now ends mid-token.
+   * Step 3 (BySmart): drag further right to col 22 (mid `in`).
+   * Without the fix, the stale Inner(0) gets re-interpreted
+   * against later focus pieces on each multi-piece smart step,
+   * landing the caret at Inner(0) of `in` (between `i` and `n`).
+   * With the fix, local_smart rounds the caret to Outer at entry,
+   * and subsequent smart steps grow by whole pieces — the selection
+   * extends through `in` to its right edge. */
+  test(
+    ~name=
+      "Focus normalize: BySmart -> ByChar -> BySmart drag lands at whole-piece boundary",
+    ~acts=
+      mk({|¦let aardvark = apple in aardvark|})
+      @ [
+        Action.Select(
+          Resize(
+            Point(
+              {
+                row: 0,
+                col: 14,
+              },
+              Some(BySmart),
+            ),
+          ),
+        ),
+      ]
+      @ [
+        Action.Select(
+          Resize(
+            Point(
+              {
+                row: 0,
+                col: 16,
+              },
+              Some(ByChar),
+            ),
+          ),
+        ),
+      ]
+      @ [
+        Action.Select(
+          Resize(
+            Point(
+              {
+                row: 0,
+                col: 22,
+              },
+              Some(BySmart),
+            ),
+          ),
+        ),
+      ],
+    ~goal="§let aardvark = apple in¦ aardvark",
+  ),
 ];
 
 let tests = [

@@ -357,6 +357,19 @@ and shrink_by_char = (d: Direction.t, z: Zipper.t): option(Zipper.t) => {
  *   becomes single-piece as a result, clear smart_rounded so the
  *   original anchor re-displays. */
 let local_smart = (d: Direction.t, z: Zipper.t): option(Zipper.t) => {
+  /* If we arrived here with an Inner caret in multi-piece state
+   * (reachable from a ByChar phase before a chunkiness switch),
+   * round the focus to the Outer edge before dispatching. Smart
+   * mode operates with caret=Outer in multi-piece state; otherwise
+   * the stale Inner(n) gets re-interpreted against later focus
+   * pieces and produces caret jumps several chars into them. The
+   * partial-token offset is intentionally discarded — re-engaging
+   * the modifier resumes ByChar from this Outer position. */
+  let z =
+    switch (z.selection.content, z.caret) {
+    | ([_, _, ..._], Inner(_)) => Zipper.Caret.set(Outer, z)
+    | _ => z
+    };
   let is_growing = Selection.is_empty(z.selection) || d == z.selection.focus;
   switch (z.selection.content, z.caret, is_growing) {
   | ([], _, _)
