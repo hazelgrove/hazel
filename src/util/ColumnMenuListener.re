@@ -7,7 +7,7 @@
  * otherwise eat the menu's key events. */
 
 include MenuListener.Make({
-  let menu_class = "column-menu";
+  let menu_class = "context-menu";
   let supports_keys = true;
   let scroll_into_view = true;
 });

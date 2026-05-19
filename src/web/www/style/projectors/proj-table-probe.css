@@ -31,25 +31,12 @@
     transform: scale(0.95);
 }
 
-/* Column Menu */
-.column-menu {
-    position: absolute;
+/* Column Menu — adopts .context-menu styling from editor.css. The
+ * column-menu class only contributes anchoring inside the <th> cell. */
+.table th .context-menu.column-menu {
     top: 100%;
     left: 0;
-    background-color: var(--df-bg);
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
     z-index: calc(var(--projector-z) + 2);
-    min-width: 120px;
-    /* The div is focusable (tabindex=0) so keys reach on_keydown; suppress
-     * the default browser focus ring since the menu already reads visually
-     * as the active element. */
-    outline: none;
-}
-
-.column-menu .menu-item.selected {
-    background-color: var(--df-hover-bg);
 }
 
 /* Indicate which column the open menu belongs to. */
@@ -59,23 +46,6 @@
 
 .modal .table th.menu-open .closure-nav-button {
     background-color: var(--df-hover-bg);
-}
-
-.menu-item {
-    padding: 8px 12px;
-    cursor: pointer;
-    font-size: 0.875rem;
-    color: var(--BR2);
-}
-
-.menu-item:hover {
-    background-color: var(--df-hover-bg);
-}
-
-.column-menu .menu-divider {
-    height: 0.6px;
-    background: var(--menu-divider, #ddd);
-    margin: 6px 0.5em;
 }
 
 /* Modal backdrop for rich probe table */

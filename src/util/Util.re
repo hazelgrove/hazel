@@ -19,6 +19,7 @@ module TimeUtil = TimeUtil;
 module TupleUtil = TupleUtil;
 module WebUtil = WebUtil;
 module JsUtil = JsUtil;
+module Menu = Menu;
 module MenuListener = MenuListener;
 module ContextMenuListener = ContextMenuListener;
 module ColumnMenuListener = ColumnMenuListener;
