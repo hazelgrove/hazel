@@ -523,11 +523,11 @@ module Transition = (EV: EV_MODE) => {
     | Theorem(_) =>
       let. _ = otherwise(env, d);
       Indet;
-    | Explore(explore) =>
+    | Explore(explore, body) =>
       let. _ = otherwise(env, d);
       let explore' = Substitution.in_exp(env, explore);
       Step({
-        expr: explore',
+        expr: subst_env(env, body),
         side_effects: [RecordExplore(DHExp.rep_id(d), env, explore')],
         kind: RecordExplore,
         is_value: false,

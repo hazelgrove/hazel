@@ -53,7 +53,6 @@ let rec append_exp = (e1: Language.Exp.t, e2: Language.Exp.t): Language.Exp.t =>
   | BinOp(_)
   | BuiltinFun(_)
   | Asc(_)
-  | Explore(_)
   | ProofObject(_)
   | Module(_)
   | ModuleExp(_)
@@ -70,6 +69,9 @@ let rec append_exp = (e1: Language.Exp.t, e2: Language.Exp.t): Language.Exp.t =>
   | Theorem(p, thm, ebody) =>
     let ebody' = append_exp(ebody, e2);
     mk(Theorem(p, thm, ebody'), e1);
+  | Explore(explore, ebody) =>
+    let ebody' = append_exp(ebody, e2);
+    mk(Explore(explore, ebody'), e1);
   | TyAlias(tp, tdef, ebody) =>
     let ebody' = append_exp(ebody, e2);
     mk(TyAlias(tp, tdef, ebody'), e1);

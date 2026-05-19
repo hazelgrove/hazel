@@ -59,7 +59,7 @@ let sample_expression = (cls_exp: Exp.cls): Grammar.UnitGrammar.exp => {
       | Var => var("x")
       | Let => let_(Pat.empty_hole(), empty_hole(), empty_hole())
       | Theorem => theorem(Pat.empty_hole(), empty_hole(), empty_hole())
-      | Explore => explore(empty_hole())
+      | Explore => explore(empty_hole(), empty_hole())
       | ProofObject => proof_object(Exp.empty_hole())
       | Forall => forall(Pat.empty_hole(), empty_hole())
       | FixF => fix_f(Pat.empty_hole(), empty_hole(), None)

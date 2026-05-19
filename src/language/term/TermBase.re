@@ -237,7 +237,7 @@ and Exp: {
           Let(pat_map_term(p), exp_map_term(e1), exp_map_term(e2))
         | Theorem(p, e1, e2) =>
           Theorem(pat_map_term(p), exp_map_term(e1), exp_map_term(e2))
-        | Explore(e) => Explore(exp_map_term(e))
+        | Explore(e1, e2) => Explore(exp_map_term(e1), exp_map_term(e2))
         | ProofObject(t) => ProofObject(exp_map_term(t))
         | Forall(p, e) => Forall(pat_map_term(p), exp_map_term(e))
         | FixF(p, e, env) => FixF(pat_map_term(p), exp_map_term(e), env)
