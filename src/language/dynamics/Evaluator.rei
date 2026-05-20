@@ -6,13 +6,21 @@ type step_constrained('a) =
   | Completed('a);
 
 let evaluate:
-  (~targets: Sample.targets=?, ~env: Environment.t(Exp.t), Exp.t) =>
+  (
+    ~targets: Sample.targets=?,
+    ~prev: IncrEval.t=?,
+    ~info_map: EvalInfoMap.t=?,
+    ~env: Environment.t(Exp.t),
+    Exp.t
+  ) =>
   (Exp.t, EvaluatorState.t);
 
 let evaluate_and_limit:
   (
     ~step_limit: int=?,
     ~targets: Sample.targets=?,
+    ~prev: IncrEval.t=?,
+    ~info_map: EvalInfoMap.t=?,
     ~env: Environment.t(Exp.t),
     Exp.t
   ) =>
