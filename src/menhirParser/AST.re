@@ -680,33 +680,45 @@ and gen_pat_sized: (~minimal_idents: bool, int) => QCheck.Gen.t(pat) =
 let shrink_non_empty_string: QCheck.Shrink.t(string) =
   x => QCheck.Shrink.(filter(x => String.length(x) != 0, string, x));
 
+let pat_typ_opt = (p: pat): option(typ) =>
+  switch (p) {
+  | AscPat(_, t) => Some(t)
+  | _ => None
+  };
+
 let rec shrink_exp: QCheck.Shrink.t(exp) =
   QCheck.(
     (exp: exp) =>
       Iter.(
         switch (exp) {
         | Atom(a) =>
-          switch (a) {
-          | Int(i) =>
-            switch (Bigint.to_int(i)) {
-            | Some(i) =>
-              Shrink.int(i) >|= ((i: int) => Atom(Int(Bigint.of_int(i))))
-            | None => Iter.empty
+          return(TupleExp([]))
+          <+> (
+            switch (a) {
+            | Int(i) =>
+              switch (Bigint.to_int(i)) {
+              | Some(i) =>
+                Shrink.int(i)
+                >|= ((i: int) => Atom(Int(Bigint.of_int(i))))
+              | None => Iter.empty
+              }
+            | String(s) =>
+              Shrink.string(s) >|= ((s: string) => Atom(String(s)))
+            | Bool(b) => Shrink.bool(b) >|= ((b: bool) => Atom(Bool(b)))
+            | Nat(n) =>
+              if (Bigint.(<)(n, Bigint.of_int(2))) {
+                Iter.empty;
+              } else {
+                return(Atom(Nat(Bigint.(/)(n, Bigint.of_int(2)))));
+              }
+            | SInt(i) => Shrink.int(i) >|= ((i: int) => Atom(SInt(i)))
+            | _ => Iter.empty
             }
-          | String(s) =>
-            Shrink.string(s) >|= ((s: string) => Atom(String(s)))
-          | Bool(b) => Shrink.bool(b) >|= ((b: bool) => Atom(Bool(b)))
-          | Nat(n) =>
-            if (Bigint.(<)(n, Bigint.of_int(2))) {
-              Iter.empty;
-            } else {
-              return(Atom(Nat(Bigint.(/)(n, Bigint.of_int(2)))));
-            }
-          | SInt(i) => Shrink.int(i) >|= ((i: int) => Atom(SInt(i)))
-          | _ => Iter.empty
-          }
-        | Var(x) => shrink_non_empty_string(x) >|= ((x: string) => Var(x)) // TODO This isn't great for vars
-        | Constructor(_, _) => Iter.empty // TODO Constructors. Shrinking needs to preserve constructor ident format
+          )
+        | Var(x) =>
+          return(TupleExp([]))
+          <+> (shrink_non_empty_string(x) >|= ((x: string) => Var(x))) // TODO This isn't great for vars
+        | Constructor(_, _) => return(TupleExp([])) // Constructor ident format is preserved; only allow collapse to unit
         | ListExp(l) =>
           let* shrunk = Shrink.list(l, ~shrink=shrink_exp);
           switch (shrunk) {
@@ -746,6 +758,12 @@ let rec shrink_exp: QCheck.Shrink.t(exp) =
           }
         | Let(p, e1, e2) =>
           of_list([e1, e2])
+          <+> (
+            switch (pat_typ_opt(p)) {
+            | Some(t) => of_list([Asc(e1, t), Asc(e2, t)])
+            | None => Iter.empty
+            }
+          )
           <+> {
             let* shrunk = shrink_exp(e1);
             return(Let(p, shrunk, e2));
@@ -759,7 +777,13 @@ let rec shrink_exp: QCheck.Shrink.t(exp) =
             return(Let(shrunk, e1, e2));
           }
         | Theorem(p, e1, e2) =>
-          return(e1)
+          of_list([e1, e2])
+          <+> (
+            switch (pat_typ_opt(p)) {
+            | Some(t) => of_list([Asc(e1, t), Asc(e2, t)])
+            | None => Iter.empty
+            }
+          )
           <+> {
             let* shrunk = shrink_exp(e1);
             return(Theorem(p, shrunk, e2));
@@ -776,7 +800,14 @@ let rec shrink_exp: QCheck.Shrink.t(exp) =
           let* shrunk = shrink_exp(t);
           return(ProofObject(shrunk));
         | ForallExp(pat, e) =>
-          {
+          return(e)
+          <+> (
+            switch (pat_typ_opt(pat)) {
+            | Some(t) => return(Asc(e, t))
+            | None => Iter.empty
+            }
+          )
+          <+> {
             let* shrunk = shrink_exp(e);
             return(ForallExp(pat, shrunk));
           }
@@ -786,6 +817,12 @@ let rec shrink_exp: QCheck.Shrink.t(exp) =
           }
         | Fun(p, e, name) =>
           return(e)
+          <+> (
+            switch (pat_typ_opt(p)) {
+            | Some(t) => return(Asc(e, t))
+            | None => Iter.empty
+            }
+          )
           <+> {
             let* shrunk = shrink_exp(e);
             return(Fun(p, shrunk, name): exp);
@@ -879,6 +916,12 @@ let rec shrink_exp: QCheck.Shrink.t(exp) =
           }
         | FixF(p, e) =>
           return(e)
+          <+> (
+            switch (pat_typ_opt(p)) {
+            | Some(t) => return(Asc(e, t))
+            | None => Iter.empty
+            }
+          )
           <+> {
             let* shrunk = shrink_exp(e);
             return(FixF(p, shrunk));
@@ -1053,29 +1096,33 @@ and shrink_pat: QCheck.Shrink.t(pat) =
       Iter.(
         switch (pat) {
         | AtomPat(a) =>
-          switch (a) {
-          | Int(i) =>
-            switch (Bigint.to_int(i)) {
-            | Some(i) =>
-              Shrink.int(i)
-              >|= ((i: int) => AtomPat(Int(Bigint.of_int(i))))
-            | None => Iter.empty
+          return(WildPat)
+          <+> (
+            switch (a) {
+            | Int(i) =>
+              switch (Bigint.to_int(i)) {
+              | Some(i) =>
+                Shrink.int(i)
+                >|= ((i: int) => AtomPat(Int(Bigint.of_int(i))))
+              | None => Iter.empty
+              }
+            | String(s) =>
+              Shrink.string(s) >|= ((s: string) => AtomPat(String(s)))
+            | Bool(b) => Shrink.bool(b) >|= ((b: bool) => AtomPat(Bool(b)))
+            | Nat(n) =>
+              if (Bigint.(<)(n, Bigint.of_int(2))) {
+                Iter.empty;
+              } else {
+                return(AtomPat(Nat(Bigint.(/)(n, Bigint.of_int(2)))));
+              }
+            | SInt(i) => Shrink.int(i) >|= ((i: int) => AtomPat(SInt(i)))
+            | _ => Iter.empty
             }
-          | String(s) =>
-            Shrink.string(s) >|= ((s: string) => AtomPat(String(s)))
-          | Bool(b) => Shrink.bool(b) >|= ((b: bool) => AtomPat(Bool(b)))
-          | Nat(n) =>
-            if (Bigint.(<)(n, Bigint.of_int(2))) {
-              Iter.empty;
-            } else {
-              return(AtomPat(Nat(Bigint.(/)(n, Bigint.of_int(2)))));
-            }
-          | SInt(i) => Shrink.int(i) >|= ((i: int) => AtomPat(SInt(i)))
-          | _ => Iter.empty
-          }
+          )
         | VarPat(x) =>
-          shrink_non_empty_string(x) >|= ((x: string) => VarPat(x))
-        | ConstructorPat(_) => Iter.empty // Needs to preserve constructor ident
+          return(WildPat)
+          <+> (shrink_non_empty_string(x) >|= ((x: string) => VarPat(x)))
+        | ConstructorPat(_) => return(WildPat) // Constructor ident format is preserved; only allow collapse to wild
         | ListPat(l) =>
           let* shrunk = Shrink.list(l, ~shrink=shrink_pat);
           switch (shrunk) {
@@ -1153,6 +1200,14 @@ and shrink_typ: QCheck.Shrink.t(typ) =
       Iter.(
         switch (typ) {
         | SumTyp(l) =>
+          let payloads =
+            List.filter_map(
+              fun
+              | Variant(_, Some(t)) => Some(t)
+              | BadEntry(t) => Some(t)
+              | Variant(_, None) => None,
+              l,
+            );
           let shrink_sumterm: QCheck.Shrink.t(sumterm) =
             QCheck.(
               (
@@ -1167,10 +1222,13 @@ and shrink_typ: QCheck.Shrink.t(typ) =
                   )
               )
             );
-          let* shrunk = Shrink.list(l, ~shrink=shrink_sumterm);
-          switch (shrunk) {
-          | [] => Iter.empty
-          | _ => return(SumTyp(shrunk))
+          of_list(payloads)
+          <+> {
+            let* shrunk = Shrink.list(l, ~shrink=shrink_sumterm);
+            switch (shrunk) {
+            | [] => Iter.empty
+            | _ => return(SumTyp(shrunk))
+            };
           };
         | TupleType(l) =>
           let* shrunk = Shrink.list(l, ~shrink=shrink_typ);
@@ -1196,11 +1254,17 @@ and shrink_typ: QCheck.Shrink.t(typ) =
           }
         | TypVar(x) => Shrink.string(x) >|= ((x: string) => TypVar(x))
         | PolyType(tpat, t) =>
-          let* shrunk = shrink_typ(t);
-          return(PolyType(tpat, shrunk));
+          return(t)
+          <+> {
+            let* shrunk = shrink_typ(t);
+            return(PolyType(tpat, shrunk));
+          }
         | RecType(tpat, t) =>
-          let* shrunk = shrink_typ(t);
-          return(RecType(tpat, shrunk));
+          return(t)
+          <+> {
+            let* shrunk = shrink_typ(t);
+            return(RecType(tpat, shrunk));
+          }
         | ExplicitNonlabel => return(ExplicitNonlabel: typ)
         | ProofOfType(e) =>
           let* shrunk = shrink_exp(e);
@@ -1237,13 +1301,13 @@ and shrink_typ: QCheck.Shrink.t(typ) =
             let* shrunk2 = shrink_typ(t2);
             return(ProdExtension(t1, shrunk2));
           }
-        | IndicationTyp(_)
         | IntType
         | SIntType
         | StringType
         | FloatType
         | BoolType
-        | NatType
+        | NatType => return(TupleType([]))
+        | IndicationTyp(_)
         | UnknownType(_)
         | InvalidTyp(_)
         | Sig(_) => Iter.empty
