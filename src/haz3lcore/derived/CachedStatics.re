@@ -100,7 +100,6 @@ let init_from_term =
     Statics.mk(~ana?, ~probe_ids, settings, ctx_init, term);
   TimeUtil.log_time("  Statics.mk", statics_start);
 
-
   let error_ids = Statics.Map.error_ids(info_map);
   let warning_ids = Statics.Map.warning_ids(info_map);
 
