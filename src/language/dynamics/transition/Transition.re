@@ -576,19 +576,32 @@ module Transition = (EV: EV_MODE) => {
         let env' = Environment.add_bindings(env, env');
         Step({
           expr: subst_env(env', d2),
-          side_effects: [RecordPatProbes(samples)],
+          side_effects: [
+            RecordPatMatch({
+              pat: dp,
+              rhs: d1,
+              samples,
+            }),
+          ],
           kind: LetBind(matches_str),
           is_value: false,
         });
       };
 
-    | Theorem({term: Var(n), _}, e, d1) =>
+    | Theorem({term: Var(n), _} as dp, e, d1) =>
       let. _ = otherwise(env, d);
       let e' = Substitution.in_exp(env, e);
       let env' = Environment.extend(env, (n, ProofObject(e') |> Exp.fresh));
       Step({
         expr: subst_env(env', d1),
-        side_effects: [RecordTheorem(DHExp.rep_id(d), n, env, e')],
+        side_effects: [
+          RecordTheorem(DHExp.rep_id(d), n, env, e'),
+          RecordPatMatch({
+            pat: dp,
+            rhs: e,
+            samples: [],
+          }),
+        ],
         kind: TheoremBind,
         is_value: false,
       });
@@ -645,7 +658,13 @@ module Transition = (EV: EV_MODE) => {
       let env'' = Environment.add_bindings(env, env');
       Step({
         expr: subst_env(env'', d1),
-        side_effects: [],
+        side_effects: [
+          RecordPatMatch({
+            pat: dp,
+            rhs: d1,
+            samples: [],
+          }),
+        ],
         kind: FixUnwrap,
         is_value: false,
       });
@@ -777,7 +796,13 @@ module Transition = (EV: EV_MODE) => {
               expr: subst_env(env'', d3),
               side_effects: [
                 RecordStackFrame(fn_name, Some(d2'), fn_def_id),
-                RecordPatProbes(matches.samples),
+                /* Use pre-req_final `d2` so dirty propagation walks the
+                 * source tree's stable ids (cache entries live at those). */
+                RecordPatMatch({
+                  pat: dp,
+                  rhs: d2,
+                  samples: matches.samples,
+                }),
               ],
               kind: FunAp,
               is_value: false,
@@ -812,7 +837,11 @@ module Transition = (EV: EV_MODE) => {
                 ),
               side_effects: [
                 RecordStackFrame(fn_name, Some(d2'), fn_def_id),
-                RecordPatProbes(matches.samples),
+                RecordPatMatch({
+                  pat: dp,
+                  rhs: d2,
+                  samples: matches.samples,
+                }),
               ],
               kind: FunAp,
               is_value: false,
@@ -1226,30 +1255,39 @@ module Transition = (EV: EV_MODE) => {
       Constructor;
     | Match(d1, rules) =>
       let. _ = otherwise(env, d1 => Match(d1, rules) |> rewrap)
-      and. d1 =
+      and. d1' =
         req_final(req(env), d1 => MatchScrut(d1, rules) |> wrap_ctx, d1);
       let rec next_rule = (
         fun
         | [] => None
         | [(dp, d2), ...rules] => {
-            let matches = matches(targets, dp, d1);
+            let matches = matches(targets, dp, d1');
             switch (matches.matches) {
-            | Matches(env') => Some((env', d2, matches.samples))
+            | Matches(env') => Some((dp, env', d2, matches.samples))
             | DoesNotMatch => next_rule(rules)
             | IndetMatch => None
             };
           }
       );
       switch (next_rule(rules)) {
-      | Some((env', d2, samples)) =>
+      | Some((dp, env', d2, samples)) =>
         Step({
           expr: subst_env(Environment.add_bindings(env, env'), d2),
-          side_effects: [RecordPatProbes(samples)],
+          /* Use the pre-req_final scrutinee `d1` (not `d1'`) so dirty
+           * propagation walks its stable source ids, which carry cache
+           * entries. */
+          side_effects: [
+            RecordPatMatch({
+              pat: dp,
+              rhs: d1,
+              samples,
+            }),
+          ],
           kind: CaseApply,
           is_value: false,
         })
       | None =>
-        let.wrap_closure _ = (env, Match(d1, rules) |> rewrap);
+        let.wrap_closure _ = (env, Match(d1', rules) |> rewrap);
         Indet;
       };
     | Closure(env', d) =>
