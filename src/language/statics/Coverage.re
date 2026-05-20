@@ -332,9 +332,9 @@ module UnseenPatternList: UnseenPatternList = {
       let (first_n, tl) = partition_first_n(num_elts, pat_list, []);
 
       cons_pat_t(tuple(List.rev(first_n)), {pat: tl});
-    | TupLabel(body, _) =>
+    | TupLabel(label_pos, _) =>
       // associate the tuple's labels to element in the unseen list
-      switch (IdTagged.term_of(body)) {
+      switch (IdTagged.term_of(label_pos)) {
       | Label(pat_label) =>
         switch (pat_list) {
         | [] =>
@@ -342,7 +342,8 @@ module UnseenPatternList: UnseenPatternList = {
         | [hd, ...tl] =>
           cons_pat_t(tup_label(label(pat_label), hd), {pat: tl})
         }
-      | _ => failwith("TupLabel without a label in unseen pattern list")
+      // No label (e.g. label_pos is EmptyHole) — skip this column.
+      | _ => unseen_pattern
       }
     | List(_) =>
       switch (ctr.ctr) {
