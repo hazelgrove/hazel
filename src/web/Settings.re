@@ -22,6 +22,7 @@ module Model = {
     relative_line_numbers: bool,
     cap_undo_stack: bool,
     show_row_lines: bool,
+    show_incremental_deco: bool,
   };
 
   let init = {
@@ -78,6 +79,7 @@ module Model = {
     relative_line_numbers: false,
     cap_undo_stack: false,
     show_row_lines: false,
+    show_incremental_deco: false,
   };
 
   let fix_instructor_mode = settings =>
@@ -157,7 +159,8 @@ module Update = {
     | ToggleLineNumbers
     | ToggleRelativeLineNumbers
     | CapUndoStack
-    | ShowRowLines;
+    | ShowRowLines
+    | ShowIncrementalDeco;
 
   let can_undo = (action: t) => {
     switch (action) {
@@ -420,6 +423,10 @@ module Update = {
       | ShowRowLines => {
           ...settings,
           show_row_lines: !settings.show_row_lines,
+        }
+      | ShowIncrementalDeco => {
+          ...settings,
+          show_incremental_deco: !settings.show_incremental_deco,
         }
       }
     )
