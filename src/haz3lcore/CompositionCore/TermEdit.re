@@ -798,6 +798,22 @@ let replace_list_elements =
     term,
   );
 
+let exp_contains_id = (root: Exp.t, target_id: Id.t): bool => {
+  let found = ref(false);
+  let _ =
+    Exp.map_term(
+      ~f_exp=
+        (continue, e) => {
+          if (Id.equal(Exp.rep_id(e), target_id)) {
+            found := true;
+          };
+          continue(e);
+        },
+      root,
+    );
+  found^;
+};
+
 /* Find the ListLit containing an element with the given ID.
    Returns (list_id, elements, element_index). */
 let find_list_containing_element =
@@ -812,7 +828,9 @@ let find_list_containing_element =
           | ListLit(elements) =>
             switch (
               ListUtil.findi_opt(
-                el => Id.equal(Exp.rep_id(el), target_element_id),
+                el =>
+                  Id.equal(Exp.rep_id(el), target_element_id)
+                  || exp_contains_id(el, target_element_id),
                 elements,
               )
             ) {
@@ -921,7 +939,9 @@ let find_tuple_containing_element =
           | Tuple(elements) =>
             switch (
               ListUtil.findi_opt(
-                el => Id.equal(Exp.rep_id(el), target_element_id),
+                el =>
+                  Id.equal(Exp.rep_id(el), target_element_id)
+                  || exp_contains_id(el, target_element_id),
                 elements,
               )
             ) {
@@ -999,6 +1019,164 @@ let is_sequence_element = (z: Zipper.t, target_id: Id.t): bool =>
   is_case_arm(z, target_id)
   || is_list_element(z, target_id)
   || is_tuple_element(z, target_id);
+
+/* --- Insert dispatch (shared by path-based and selector-based insert) --- */
+
+/* Find the Let/TyAlias/ModuleExp node for a binding anchor.
+   Accepts the binding node itself or any sub-id (pattern, definition, etc.). */
+let find_let_binding_id = (z: Zipper.t, exp_id: Id.t): option(Id.t) => {
+  let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
+  let result = ref(None);
+  let _ =
+    Exp.map_term(
+      ~f_exp=
+        (continue, e) => {
+          if (Id.equal(Exp.rep_id(e), exp_id)) {
+            switch (Exp.term_of(e)) {
+            | Let(_)
+            | TyAlias(_)
+            | ModuleExp(_) => result := Some(Exp.rep_id(e))
+            | _ => ()
+            };
+          };
+          switch (Exp.term_of(e)) {
+          | Let(pat, def, _) =>
+            if (Id.equal(Pat.rep_id(pat), exp_id)
+                || Id.equal(Exp.rep_id(def), exp_id)) {
+              result := Some(Exp.rep_id(e));
+            }
+          | TyAlias(tpat, tdef, _) =>
+            if (Id.equal(TPat.rep_id(tpat), exp_id)
+                || Id.equal(Typ.rep_id(tdef), exp_id)) {
+              result := Some(Exp.rep_id(e));
+            }
+          | ModuleExp(mpat, def, _) =>
+            if (Id.equal(IdTagged.rep_id(mpat), exp_id)
+                || Id.equal(Exp.rep_id(def), exp_id)) {
+              result := Some(Exp.rep_id(e));
+            }
+          | _ => ()
+          };
+          continue(e);
+        },
+      term,
+    );
+  result^;
+};
+
+/* Whether target is a direct child of a semicolon sequence (test line, etc.). */
+let find_seq_containing_child =
+    (target_id: Id.t, term: Exp.t): option((Id.t, Direction.t)) => {
+  let found = ref(None);
+  let _ =
+    Exp.map_term(
+      ~f_exp=
+        (continue, e) => {
+          switch (Exp.term_of(e)) {
+          | Seq(e1, e2) =>
+            if (Id.equal(Exp.rep_id(e1), target_id)) {
+              found := Some((Exp.rep_id(e), Direction.Left));
+            } else if (Id.equal(Exp.rep_id(e2), target_id)) {
+              found := Some((Exp.rep_id(e), Direction.Right));
+            };
+            continue(e);
+          | _ => continue(e)
+          }
+        },
+      term,
+    );
+  found^;
+};
+
+/* If target is inside a semicolon-separated line, return that line's root id. */
+let normalize_seq_line_anchor = (target_id: Id.t, term: Exp.t): option(Id.t) => {
+  switch (find_seq_containing_child(target_id, term)) {
+  | Some(_) => Some(target_id)
+  | None =>
+    let line_id = ref(None);
+    let _ =
+      Exp.map_term(
+        ~f_exp=
+          (continue, e) => {
+            switch (Exp.term_of(e)) {
+            | Seq(e1, e2) =>
+              if (Id.equal(Exp.rep_id(e1), target_id)
+                  || exp_contains_id(e1, target_id)) {
+                line_id := Some(Exp.rep_id(e1));
+              } else if (Id.equal(Exp.rep_id(e2), target_id)
+                         || exp_contains_id(e2, target_id)) {
+                line_id := Some(Exp.rep_id(e2));
+              };
+              continue(e);
+            | _ => continue(e)
+            }
+          },
+        term,
+      );
+    line_id^;
+  };
+};
+
+/* Insert before/after a direct child of a semicolon-separated sequence. */
+let seq_insert_sibling =
+    (z: Zipper.t, target_id: Id.t, code: string, d: Direction.t)
+    : option(Zipper.t) => {
+  let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
+  let target_id =
+    switch (normalize_seq_line_anchor(target_id, term)) {
+    | Some(id) => id
+    | None => target_id
+    };
+  switch (find_seq_containing_child(target_id, term)) {
+  | None => None
+  | Some((seq_id, side)) =>
+    switch (parse_exp(code)) {
+    | None => None
+    | Some(new_line) =>
+      let new_line =
+        ensure_leading_secondary(~default=mk_newline(), new_line);
+      let new_term =
+        replace_exp_by_id(
+          seq_id,
+          parent => {
+            switch (Exp.term_of(parent), side, d) {
+            | (Seq(e1, e2), Left, Left) => {
+                ...parent,
+                term:
+                  Seq(
+                    new_line,
+                    Exp.fresh(Seq(ensure_leading_secondary(e1), e2)),
+                  ),
+              }
+            | (Seq(e1, e2), Left, Right) => {
+                ...parent,
+                term:
+                  Seq(
+                    e1,
+                    Exp.fresh(Seq(new_line, ensure_leading_secondary(e2))),
+                  ),
+              }
+            | (Seq(e1, e2), Right, Left) => {
+                ...parent,
+                term:
+                  Seq(
+                    e1,
+                    Exp.fresh(Seq(new_line, ensure_leading_secondary(e2))),
+                  ),
+              }
+            | (Seq(e1, e2), Right, Right) => {
+                ...parent,
+                term: Seq(e1, Exp.fresh(Seq(e2, new_line))),
+              }
+            | _ => parent
+            }
+          },
+          term,
+        );
+      Some(term_to_zipper(new_term));
+    }
+  };
+};
 
 /* --- Update operations on let-chain bindings --- */
 
@@ -1431,5 +1609,63 @@ let insert_binding =
     | _ => None /* Couldn't parse as a binding */
     }
   | None => None
+  };
+};
+
+/* Label for insert failure messages (matches the dispatch branch attempted). */
+let insert_kind_label = (z: Zipper.t, target_id: Id.t): string =>
+  if (is_case_arm(z, target_id)) {
+    "case arm";
+  } else if (is_list_element(z, target_id)) {
+    "list element";
+  } else if (is_tuple_element(z, target_id)) {
+    "tuple element";
+  } else if (is_module_item(z, target_id)
+             || find_module_item_id(z, target_id) != None) {
+    "module item";
+  } else if (find_let_binding_id(z, target_id) != None) {
+    "binding";
+  } else {
+    switch (
+      normalize_seq_line_anchor(
+        target_id,
+        MakeTerm.from_zip_for_sem(z, ~root=Exp).term,
+      )
+    ) {
+    | Some(_) => "sequence line"
+    | None => "binding"
+    };
+  };
+
+/* Unified insert: case/list/tuple/module/binding/seq, with binding fallback. */
+let try_insert_at =
+    (z: Zipper.t, target_id: Id.t, code: string, d: Direction.t)
+    : option((Zipper.t, string)) => {
+  let finish = (label, result) =>
+    switch (result) {
+    | Some(new_z) => Some((new_z, label))
+    | None => None
+    };
+  if (is_case_arm(z, target_id)) {
+    finish("case arm", case_insert_arm(z, target_id, code, d));
+  } else if (is_list_element(z, target_id)) {
+    finish("list element", list_insert_element(z, target_id, code, d));
+  } else if (is_tuple_element(z, target_id)) {
+    finish("tuple element", tuple_insert_element(z, target_id, code, d));
+  } else {
+    switch (find_module_item_id(z, target_id)) {
+    | Some(item_id) =>
+      finish("module item", module_insert(z, item_id, code, d))
+    | None =>
+      switch (find_let_binding_id(z, target_id)) {
+      | Some(let_id) =>
+        finish("binding", insert_binding(z, let_id, code, d))
+      | None =>
+        switch (seq_insert_sibling(z, target_id, code, d)) {
+        | Some(new_z) => Some((new_z, "sequence line"))
+        | None => finish("binding", insert_binding(z, target_id, code, d))
+        }
+      }
+    };
   };
 };

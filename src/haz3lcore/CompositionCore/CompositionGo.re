@@ -627,145 +627,16 @@ module Local = {
           ),
         )
       };
-    | Insert(Before, path, code) =>
-      let target_id = path_to_id(initial_node_map, path);
-      let (term_edit_result, kind) =
-        if (TermEdit.is_case_arm(initial_z, target_id)) {
-          (
-            TermEdit.case_insert_arm(
-              initial_z,
-              target_id,
-              code,
-              Direction.Left,
-            ),
-            "case arm",
-          );
-        } else if (TermEdit.is_list_element(initial_z, target_id)) {
-          (
-            TermEdit.list_insert_element(
-              initial_z,
-              target_id,
-              code,
-              Direction.Left,
-            ),
-            "list element",
-          );
-        } else if (TermEdit.is_tuple_element(initial_z, target_id)) {
-          (
-            TermEdit.tuple_insert_element(
-              initial_z,
-              target_id,
-              code,
-              Direction.Left,
-            ),
-            "tuple element",
-          );
-        } else if (TermEdit.is_module_item(initial_z, target_id)) {
-          (
-            TermEdit.module_insert(initial_z, target_id, code, Direction.Left),
-            "module item",
-          );
-        } else {
-          (
-            TermEdit.insert_binding(
-              initial_z,
-              target_id,
-              code,
-              Direction.Left,
-            ),
-            "binding",
-          );
-        };
-      switch (term_edit_result) {
-      | Some(new_z) =>
-        switch (PerformUtils.parse_error_check(new_z)) {
-        | Some(parse_err) =>
-          Error(Action.Failure.Composition_action_failure(parse_err))
-        | None =>
-          let new_info_map = mk_statics(new_z);
-          let old_errors = ErrorPrint.all(initial_info_map);
-          let new_errors = ErrorPrint.all(new_info_map);
-          let warning =
-            if (List.length(new_errors) > List.length(old_errors)) {
-              Some(
-                "Warning: this edit introduced new static error(s): "
-                ++ String.concat(", ", new_errors)
-                ++ ". Use get_statics to investigate.",
-              );
-            } else {
-              None;
-            };
-          Ok((new_z, warning));
-        }
-      | None =>
-        Error(
-          Action.Failure.Composition_action_failure(
-            "Failed to insert "
-            ++ kind
-            ++ " before \""
-            ++ path
-            ++ "\": could not parse \""
-            ++ code
-            ++ "\" as valid code.",
-          ),
-        )
-      };
+    | Insert(Before, path, code)
     | Insert(After, path, code) =>
       let target_id = path_to_id(initial_node_map, path);
-      let (term_edit_result, kind) =
-        if (TermEdit.is_case_arm(initial_z, target_id)) {
-          (
-            TermEdit.case_insert_arm(
-              initial_z,
-              target_id,
-              code,
-              Direction.Right,
-            ),
-            "case arm",
-          );
-        } else if (TermEdit.is_list_element(initial_z, target_id)) {
-          (
-            TermEdit.list_insert_element(
-              initial_z,
-              target_id,
-              code,
-              Direction.Right,
-            ),
-            "list element",
-          );
-        } else if (TermEdit.is_tuple_element(initial_z, target_id)) {
-          (
-            TermEdit.tuple_insert_element(
-              initial_z,
-              target_id,
-              code,
-              Direction.Right,
-            ),
-            "tuple element",
-          );
-        } else if (TermEdit.is_module_item(initial_z, target_id)) {
-          (
-            TermEdit.module_insert(
-              initial_z,
-              target_id,
-              code,
-              Direction.Right,
-            ),
-            "module item",
-          );
-        } else {
-          (
-            TermEdit.insert_binding(
-              initial_z,
-              target_id,
-              code,
-              Direction.Right,
-            ),
-            "binding",
-          );
+      let dir =
+        switch (e) {
+        | Insert(Before, _, _) => Direction.Left
+        | _ => Direction.Right
         };
-      switch (term_edit_result) {
-      | Some(new_z) =>
+      switch (TermEdit.try_insert_at(initial_z, target_id, code, dir)) {
+      | Some((new_z, _kind)) =>
         switch (PerformUtils.parse_error_check(new_z)) {
         | Some(parse_err) =>
           Error(Action.Failure.Composition_action_failure(parse_err))
@@ -786,17 +657,25 @@ module Local = {
           Ok((new_z, warning));
         }
       | None =>
+        let kind = TermEdit.insert_kind_label(initial_z, target_id);
+        let where =
+          switch (e) {
+          | Insert(Before, _, _) => "before"
+          | _ => "after"
+          };
         Error(
           Action.Failure.Composition_action_failure(
             "Failed to insert "
             ++ kind
-            ++ " after \""
+            ++ " "
+            ++ where
+            ++ " \""
             ++ path
             ++ "\": could not parse \""
             ++ code
             ++ "\" as valid code.",
           ),
-        )
+        );
       };
     | Delete(BindingClause, path) =>
       let target_id = path_to_id(initial_node_map, path);
@@ -954,45 +833,15 @@ module Local = {
       switch (Selector.query_unique(selector, term)) {
       | Error(msg) => Error(Action.Failure.Composition_action_failure(msg))
       | Ok({focused_id, _}) =>
-        let (term_edit_result, kind) =
-          if (TermEdit.is_case_arm(initial_z, focused_id)) {
-            (
-              TermEdit.case_insert_arm(initial_z, focused_id, code, dir),
-              "case arm",
-            );
-          } else if (TermEdit.is_list_element(initial_z, focused_id)) {
-            (
-              TermEdit.list_insert_element(initial_z, focused_id, code, dir),
-              "list element",
-            );
-          } else if (TermEdit.is_tuple_element(initial_z, focused_id)) {
-            (
-              TermEdit.tuple_insert_element(initial_z, focused_id, code, dir),
-              "tuple element",
-            );
-          } else {
-            /* Check if focused_id is inside a module item (directly or
-               as a sub-expression like the definition). If so, use
-               module_insert with the item's ID. */
-            switch (TermEdit.find_module_item_id(initial_z, focused_id)) {
-            | Some(item_id) => (
-                TermEdit.module_insert(initial_z, item_id, code, dir),
-                "module item",
-              )
-            | None => (
-                TermEdit.insert_binding(initial_z, focused_id, code, dir),
-                "binding",
-              )
-            };
-          };
-        switch (term_edit_result) {
-        | Some(new_z) =>
+        switch (TermEdit.try_insert_at(initial_z, focused_id, code, dir)) {
+        | Some((new_z, _kind)) =>
           switch (PerformUtils.parse_error_check(new_z)) {
           | Some(parse_err) =>
             Error(Action.Failure.Composition_action_failure(parse_err))
           | None => Ok((new_z, None))
           }
         | None =>
+          let kind = TermEdit.insert_kind_label(initial_z, focused_id);
           Error(
             Action.Failure.Composition_action_failure(
               "Failed to insert "
@@ -1003,8 +852,8 @@ module Local = {
               ++ code
               ++ "\" as valid code.",
             ),
-          )
-        };
+          );
+        }
       };
     };
   };

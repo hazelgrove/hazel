@@ -5282,6 +5282,140 @@ let selector_edit_tests = (
   ],
 );
 
+/* === Robust selector insert (definition anchors, seq lines, collections) === */
+
+let selector_insert_robust_tests = (
+  "AgentTools.SelectorInsertRobust",
+  [
+    edit_test(
+      "SelectorInsertAfter: let via definition anchor",
+      "let x = 1 in x + 1",
+      SelectorInsertAfter("x = %", "let y = 2"),
+      "let x = 1 in let y = 2 in x + 1",
+    ),
+    edit_test(
+      "SelectorInsertBefore: let via definition anchor",
+      "let a = 1 in a",
+      SelectorInsertBefore("a = %", "let b = 0"),
+      "let b = 0 in let a = 1 in a",
+    ),
+    test_case(
+      "SelectorInsertAfter: case arm after | B =>",
+      `Quick,
+      () => {
+        let case_code = "let f = fun x -> case x | A => 1 | B => 2 end in f";
+        let result =
+          apply_and_render(
+            case_code,
+            SelectorInsertAfter("\\... | B => %", "| C => 3"),
+          );
+        check(bool, "has C", true, string_contains("C", result));
+        check(bool, "has 3", true, string_contains("3", result));
+      },
+    ),
+    test_case(
+      "SelectorInsertBefore: case arm before | B =>",
+      `Quick,
+      () => {
+        let case_code = "let f = fun x -> case x | A => 1 | B => 2 end in f";
+        let result =
+          apply_and_render(
+            case_code,
+            SelectorInsertBefore("\\... | B => %", "| Z => 0"),
+          );
+        check(bool, "has Z", true, string_contains("Z", result));
+      },
+    ),
+    test_case(
+      "SelectorInsertAfter: test line with focus inside body",
+      `Quick,
+      () => {
+        let code = "let x = 1 in test x == 1 end; x";
+        let result =
+          apply_and_render(
+            code,
+            SelectorInsertAfter("\\... test %", "test x > 0 end"),
+          );
+        check(bool, "has new test", true, string_contains("x > 0", result));
+        check(
+          bool,
+          "keeps old test",
+          true,
+          string_contains("x == 1", result),
+        );
+      },
+    ),
+    test_case(
+      "SelectorInsertBefore: test line with focus inside body",
+      `Quick,
+      () => {
+        let code = "let x = 1 in test x == 1 end; x";
+        let result =
+          apply_and_render(
+            code,
+            SelectorInsertBefore("\\... test %", "test x < 0 end"),
+          );
+        check(bool, "has new test", true, string_contains("x < 0", result));
+      },
+    ),
+    test_case(
+      "SelectorInsertAfter: list element via inner focus",
+      `Quick,
+      () => {
+        let result =
+          apply_and_render(
+            "let xs = [1, 2, 3] in xs",
+            SelectorInsertAfter("xs/ [ _ %", "4"),
+          );
+        check(bool, "has 4", true, string_contains("4", result));
+        check(bool, "still has 2", true, string_contains("2", result));
+      },
+    ),
+    test_case(
+      "SelectorInsertBefore: tuple element via inner focus",
+      `Quick,
+      () => {
+        let result =
+          apply_and_render(
+            "let p = (1, 2, 3) in p",
+            SelectorInsertBefore("p/ ( _ _ %", "0"),
+          );
+        check(bool, "has leading 0", true, string_contains("0", result));
+        check(bool, "still has 3", true, string_contains("3", result));
+      },
+    ),
+    test_case(
+      "SelectorInsertAfter: type alias binding anchor",
+      `Quick,
+      () => {
+        let result =
+          apply_and_render(
+            "type T = Int in 0",
+            SelectorInsertAfter("% type T", "let x = 1"),
+          );
+        check(bool, "has let x", true, string_contains("let x", result));
+        check(bool, "keeps type T", true, string_contains("type T", result));
+      },
+    ),
+    test_case(
+      "SelectorInsertAfter: populates module incrementally",
+      `Quick,
+      () => {
+        let code = "module M = { let x = 1 } in M.x";
+        let r1 =
+          apply_and_render(
+            code,
+            SelectorInsertAfter("M/x = %", "let y = 2"),
+          );
+        let r2 =
+          apply_and_render(r1, SelectorInsertAfter("M/y = %", "let z = 3"));
+        check(bool, "has y", true, string_contains("y", r2));
+        check(bool, "has z", true, string_contains("z", r2));
+      },
+    ),
+  ],
+);
+
 /* === Whitespace / Line Break Preservation Tests === */
 
 let whitespace_tests = (
@@ -7569,6 +7703,7 @@ let tests = [
   canonical_tests,
   canonical_read_tests,
   selector_edit_tests,
+  selector_insert_robust_tests,
   gap_tests,
   whitespace_tests,
   completeness_tests,
