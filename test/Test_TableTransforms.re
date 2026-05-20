@@ -152,8 +152,8 @@ let transform_tests = [
   ),
   test_case("add_column", `Quick, () =>
     assert_transforms(
-      [TableTransforms.add_column("new_col")],
-      {|table |> map(_, fun r -> r ... (new_col=?))|},
+      [TableTransforms.add_column()],
+      {|table |> map(_, fun r -> r ... (?=?))|},
     )
   ),
   test_case("convert_column", `Quick, () =>
@@ -184,6 +184,18 @@ let transform_tests = [
     assert_transforms(
       [TableTransforms.filter_by_column(Poly(Equals), "score")],
       {|table |> filter(_, fun row -> row.score == ?)|},
+    )
+  ),
+  test_case("custom_filter (open predicate)", `Quick, () =>
+    assert_transforms(
+      [TableTransforms.custom_filter()],
+      {|table |> filter(_, fun row -> ?)|},
+    )
+  ),
+  test_case("string_match_filter", `Quick, () =>
+    assert_transforms(
+      [TableTransforms.string_match_filter("name")],
+      {|table |> filter(_, fun row -> string_match(?, row.name))|},
     )
   ),
   test_case("drop_nones_column", `Quick, () =>
@@ -452,30 +464,6 @@ let type_utility_tests = {
   ];
 };
 
-/* --- conversion_functions tests --- */
-
-let conversion_tests = [
-  test_case(
-    "conversion_functions: Int has 3 conversions",
-    `Quick,
-    () => {
-      let fns = TableTransforms.conversion_functions(Atom.Int);
-      check(int, "3 conversions", 3, List.length(fns));
-      let names = List.map(((display, _)) => display, fns);
-      check(bool, "has String", true, List.mem("String", names));
-      check(bool, "has Float", true, List.mem("Float", names));
-    },
-  ),
-  test_case(
-    "conversion_functions: unknown type returns empty",
-    `Quick,
-    () => {
-      let fns = TableTransforms.conversion_functions(Atom.Nat);
-      check(int, "no conversions", 0, List.length(fns));
-    },
-  ),
-];
-
 /* --- TableProj.error tests --- */
 
 let mk_info = (elaborated: option(Exp.t)): ProjectorBase.info => {
@@ -546,10 +534,13 @@ let packed_renderer_tests = {
   module G = IdTagged.FreshGrammar.Exp;
   let renderer = RichProbe.pack_renderer((module TableRenderer), "table");
   let good_table = mk_table([[("x", G.int(1))]]);
-  let decode_model = (s: string): TableRenderer.model =>
-    s |> Sexplib.Sexp.of_string |> TableRenderer.model_of_sexp;
-  let encode_action = (a: TableRenderer.action): string =>
-    a |> TableRenderer.sexp_of_action |> Sexplib.Sexp.to_string;
+  /* Round-trip a packed_model body through the renderer's sexp serializer
+     to get back a typed TableRenderer.model. */
+  let extract_model = (pm: RichProbe.packed_model): TableRenderer.model =>
+    pm |> renderer.sexp_of_model_payload |> TableRenderer.model_of_sexp;
+  /* Build a packed_action targeting this renderer from a typed action. */
+  let pack_action = (a: TableRenderer.action): RichProbe.packed_action =>
+    a |> TableRenderer.sexp_of_action |> renderer.action_payload_of_sexp;
   [
     test_case("packed_renderer: id is preserved", `Quick, () =>
       check(string, "id", "table", renderer.id)
@@ -570,29 +561,31 @@ let packed_renderer_tests = {
       "packed_renderer: ShowMenu then CloseMenu round-trip",
       `Quick,
       () => {
-        let value_state =
-          switch (renderer.parse_packed(Sort.Exp, good_table)) {
-          | Some(s) => s
-          | None => fail("parse_packed should succeed on a valid table")
+        let m0 =
+          switch (renderer.init_model(Sort.Exp, good_table)) {
+          | Some(pm) => pm
+          | None => fail("init_model should succeed on a valid table")
           };
-        let m0 = renderer.init_packed(value_state);
         check(
           bool,
           "initial menu_state is None",
           true,
-          decode_model(m0).menu_state == None,
+          extract_model(m0).menu_state == None,
         );
-        let m1 = renderer.update_packed(m0, encode_action(ShowMenu(1)));
-        switch (decode_model(m1).menu_state) {
-        | Some((1, [])) => ()
-        | _ => fail("Expected menu_state = Some((1, [])) after ShowMenu(1)")
+        let m1 = renderer.update_model(m0, pack_action(ShowMenu(1)));
+        switch (extract_model(m1).menu_state) {
+        | Some((1, Some({selected_idx: 0, path: []}))) => ()
+        | _ =>
+          fail(
+            "Expected menu_state = Some((1, Menu.opened)) after ShowMenu(1)",
+          )
         };
-        let m2 = renderer.update_packed(m1, encode_action(CloseMenu));
+        let m2 = renderer.update_model(m1, pack_action(CloseMenu));
         check(
           bool,
           "menu_state is None after CloseMenu",
           true,
-          decode_model(m2).menu_state == None,
+          extract_model(m2).menu_state == None,
         );
       },
     ),
@@ -605,7 +598,6 @@ let tests = (
   @ transform_tests
   @ sort_tests
   @ type_utility_tests
-  @ conversion_tests
   @ table_proj_error_tests
   @ packed_renderer_tests,
 );

@@ -78,6 +78,17 @@ let rep_id: t => Id.t = IdTagged.rep_id;
 let term_of: t => term = IdTagged.term_of;
 let unwrap: t => (term, term => t) = IdTagged.unwrap;
 
+let strip_projectors =
+  map_term(
+    ~f_exp=
+      (continue, exp) =>
+        switch (term_of(exp)) {
+        | Projector(_, e) => continue(e)
+        | _ => continue(exp)
+        },
+    _,
+  );
+
 let rec cls_of_term: type a. Grammar.exp_term(a) => cls =
   fun
   | Invalid(_) => Invalid

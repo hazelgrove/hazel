@@ -35,6 +35,7 @@ let unwrap: t => (term, term => t) = IdTagged.unwrap;
 let rep_id: t => Id.t = IdTagged.rep_id;
 
 let fresh: term => t = IdTagged.fresh;
+let fresh_atom: Atom.cls => t = cls => fresh(Atom(cls));
 /* fresh assigns a random id, whereas temp assigns Id.invalid, which
    is a lot faster, and since we so often make types and throw them away
    shortly after, it makes sense to use it. */

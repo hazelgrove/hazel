@@ -57,35 +57,6 @@ let misc_fns: list(BuiltinsUtil.fn) = [
   },
 ];
 
-/* Builder for (t, t) -> Ord comparison builtins. */
-let mk_compare =
-    (
-      type a,
-      name: string,
-      ty,
-      tag: Unboxing.unbox_request(a),
-      cmp: (a, a) => int,
-    )
-    : BuiltinsUtil.fn =>
-  BuiltinsUtil.{
-    name,
-    arg: Prod([ty(), ty()]),
-    ret: BuiltinsADT.Ord.t.term,
-    imp:
-      binary((d1, d2) => {
-        let-unbox n1 = (tag, d1);
-        let-unbox n2 = (tag, d2);
-        Some(
-          switch (cmp(n1, n2)) {
-          | 0 => BuiltinsADT.Ord.eq
-          | n when n < 0 => BuiltinsADT.Ord.lt
-          | _ => BuiltinsADT.Ord.gt
-          },
-        );
-      }),
-    custom_statics: None,
-  };
-
 let numeric_fns: list(BuiltinsUtil.fn) = [
   {
     name: "is_finite",
@@ -322,25 +293,6 @@ let numeric_fns: list(BuiltinsUtil.fn) = [
       }),
     custom_statics: None,
   },
-  mk_compare("int_compare", int, Atom(Int), Bigint.compare),
-  mk_compare("float_compare", float, Atom(Float), Float.compare),
-  mk_compare("sint_compare", sint, Atom(SInt), Int.compare),
-  mk_compare("nat_compare", nat, Atom(Nat), Bigint.compare),
-  {
-    /* Flip Lt ↔ Gt, leave Eq alone. Lets a descending sort reuse an
-     * ascending comparator without a second pass to reverse the list. */
-    name: "invert_ord",
-    arg: BuiltinsADT.Ord.t.term,
-    ret: BuiltinsADT.Ord.t.term,
-    imp: d =>
-      switch (DHExp.term_of(d)) {
-      | Constructor("Lt", _) => Some(BuiltinsADT.Ord.gt)
-      | Constructor("Gt", _) => Some(BuiltinsADT.Ord.lt)
-      | Constructor("Eq", _) => Some(BuiltinsADT.Ord.eq)
-      | _ => None
-      },
-    custom_statics: None,
-  },
 ];
 
 let string_fns: list(BuiltinsUtil.fn) = [
@@ -352,22 +304,6 @@ let string_fns: list(BuiltinsUtil.fn) = [
       let-unbox s = (Atom(String), d);
       Some(Exp.int(String.length(s)));
     },
-    custom_statics: None,
-  },
-  BuiltinsADT.{
-    name: "string_compare",
-    arg: Prod([string(), string()]),
-    ret: Ord.t.term,
-    imp:
-      binary((d1, d2) => {
-        let-unbox s1 = (Atom(String), d1);
-        let-unbox s2 = (Atom(String), d2);
-        switch (String.compare(s1, s2)) {
-        | 0 => Some(Ord.eq)
-        | n when n < 0 => Some(Ord.lt)
-        | _ => Some(Ord.gt)
-        };
-      }),
     custom_statics: None,
   },
   {

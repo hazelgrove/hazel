@@ -19,7 +19,10 @@ module TimeUtil = TimeUtil;
 module TupleUtil = TupleUtil;
 module WebUtil = WebUtil;
 module JsUtil = JsUtil;
+module Menu = Menu;
+module MenuListener = MenuListener;
 module ContextMenuListener = ContextMenuListener;
+module ColumnMenuListener = ColumnMenuListener;
 module Key = Key;
 module Os = Os;
 module Point = Point;
@@ -35,6 +38,7 @@ module API = API;
 module OpenRouter = OpenRouter;
 module SafeTriangle = SafeTriangle;
 module FloatingElement = FloatingElement;
+module SvgUtil = SvgUtil;
 
 // Used by [@deriving sexp, yojson)]
 include Sexplib.Std;

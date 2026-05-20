@@ -11,47 +11,11 @@ open Js_of_ocaml;
 
 let max_column_length = 12;
 
-let len_seg = (utility: utility, seg: Segment.t): int =>
-  seg |> utility.seg_to_string |> String.length;
-
-let seg_of_exp = (utility: utility, exp: Exp.t): (Segment.t, int) => {
-  let seg = utility.term_to_seg(~inline=true, Exp(exp));
-  (seg, len_seg(utility, seg));
-};
-
-let abbreviated_seg_of =
-    (utility: utility, available: int, exp: Exp.t): (Segment.t, int) => {
-  let (abbr_exp, _length) =
-    exp |> DHExp.strip_ascriptions |> Abbreviate.abbreviate_exp(~available);
-  seg_of_exp(utility, abbr_exp);
-};
-
-let length_cls = (length: int): string =>
-  if (length > 10) {
-    "extra";
-  } else if (length > 9) {
-    "s6";
-  } else if (length > 8) {
-    "s5";
-  } else if (length > 7) {
-    "s4";
-  } else if (length > 6) {
-    "s3";
-  } else if (length > 5) {
-    "s2";
-  } else if (length > 4) {
-    "s1";
-  } else {
-    "s0";
-  };
-
 let value_view = (utility: utility, view_seg, exp) => {
-  let (seg, length) = abbreviated_seg_of(utility, max_column_length, exp);
+  let (seg, _length) =
+    ProbeUtil.abbreviated_seg_of(utility, max_column_length, exp);
 
-  Node.div(
-    ~attrs=[Attr.classes(["value", length_cls(length)])],
-    [view_seg(Sort.Exp, seg)],
-  );
+  Node.div(~attrs=[Attr.classes(["value"])], [view_seg(Sort.Exp, seg)]);
 };
 
 /* --- Table Assembly --- */
@@ -79,6 +43,18 @@ let rec extract_entry = (e: Exp.t): option((option(string), Exp.t)) =>
   | TupLabel({term: Label(l), _}, v) => Some((Some(l), v))
   | TupLabel({term: EmptyHole, _}, v) => Some((None, v))
   | _ => None
+  };
+
+/* Peel Parens and push outer Asc wrappers into the tuple so labeled
+ * entries surface in their normal shape. Revisit if elaboration changes
+ * how it adds ascriptions to list rows. */
+let rec normalize_row = (e: Exp.t): Exp.t =>
+  switch (e.term) {
+  | Parens(inner) => normalize_row(inner)
+  | Asc(_, _) =>
+    let stepped = Ascriptions.transition_multiple(e);
+    stepped === e ? e : normalize_row(stepped);
+  | _ => e
   };
 
 /* --- Resize Machinery (shared between TableProj and TableRenderer) --- */
@@ -281,13 +257,7 @@ let parse_table = (exp: Exp.t): option(table_data) =>
     let data =
       List.map(
         (e: Exp.t) =>
-          switch (e.term) {
-          | Parens(inner) =>
-            switch (inner.term) {
-            | Tuple(ds) =>
-              OptUtil.traverse(extract_entry, ds) |> Option.map(List.split)
-            | _ => None
-            }
+          switch (normalize_row(e).term) {
           | Tuple(ds) =>
             OptUtil.traverse(extract_entry, ds) |> Option.map(List.split)
           | _ => None

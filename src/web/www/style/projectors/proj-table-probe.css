@@ -13,7 +13,7 @@
     padding: 2px 6px;
     margin: 0 4px;
     border-radius: 3px;
-    background-color: var(--df-header-bg);
+    background-color: var(--table-header-bg);
     color: var(--BR2);
     font-size: 14px;
     transition: all 0.2s ease;
@@ -31,34 +31,49 @@
     transform: scale(0.95);
 }
 
-/* Column Menu */
-.column-menu {
-    position: absolute;
-    top: 100%;
-    left: 0;
-    background-color: var(--df-bg);
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+/* Column Menu — adopts .context-menu styling from editor.css but anchors
+ * inside the <th> cell. The editor menu's .open-* classes carry transforms
+ * keyed to a caret point, so we don't reuse them here; .cm-* classes flip
+ * the menu against the cell edges instead. */
+.table th .context-menu.column-menu {
     z-index: calc(var(--projector-z) + 2);
-    min-width: 120px;
+    /* Defeat the editor menu's directional transforms / radius if any
+     * leaked through; .cm-* rules below set the actual anchoring. */
+    transform: none;
+    animation: column-menu-open 0.12s ease-out;
+}
+.column-menu.cm-down-right {
+    top: 100%; left: 0; right: auto; bottom: auto;
+    transform-origin: top left;
+    border-radius: 0 0.5em 0.5em 0.5em;
+}
+.column-menu.cm-down-left {
+    top: 100%; right: 0; left: auto; bottom: auto;
+    transform-origin: top right;
+    border-radius: 0.5em 0 0.5em 0.5em;
+}
+.column-menu.cm-up-right {
+    bottom: 100%; left: 0; right: auto; top: auto;
+    transform-origin: bottom left;
+    border-radius: 0.5em 0.5em 0.5em 0;
+}
+.column-menu.cm-up-left {
+    bottom: 100%; right: 0; left: auto; top: auto;
+    transform-origin: bottom right;
+    border-radius: 0.5em 0.5em 0 0.5em;
+}
+@keyframes column-menu-open {
+    from { opacity: 0; transform: scale(0.95); }
+    to   { opacity: 1; transform: scale(1); }
 }
 
-.menu-item {
-    padding: 8px 12px;
-    cursor: pointer;
-    font-size: 0.875rem;
-    color: var(--BR2);
-}
-
-.menu-item:hover {
+/* Indicate which column the open menu belongs to. */
+.modal .table th.menu-open {
     background-color: var(--df-hover-bg);
 }
 
-.column-menu .menu-divider {
-    height: 0.6px;
-    background: var(--menu-divider, #ddd);
-    margin: 6px 0.5em;
+.modal .table th.menu-open .closure-nav-button {
+    background-color: var(--df-hover-bg);
 }
 
 /* === Inline rich-probe rendering ===
@@ -221,12 +236,14 @@
 .table th.add-column-header {
     cursor: pointer;
     padding: 2px 8px;
-    color: var(--BR2);
-    opacity: 0.5;
+    color: var(--BR3);
     font-size: 1rem;
     user-select: none;
+    transition: background-color 0.15s ease, color 0.15s ease;
 }
 
 .table th.add-column-header:hover {
     opacity: 1;
+    color: var(--BR4);
+    background-color: var(--df-hover-bg);
 }

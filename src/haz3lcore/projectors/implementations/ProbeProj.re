@@ -5,6 +5,7 @@ open Virtual_dom.Vdom;
 open Js_of_ocaml;
 open Language;
 open RichProbe;
+open RichProbeRegistry;
 
 /* Global probe display state. See ZipperBase.re for full probe state documentation.
  * - Settings.s: Global display settings (window mode, cutoffs)
@@ -13,25 +14,28 @@ open RichProbe;
  * These use mutable refs for simplicity since they're UI-only state. */
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type active_renderer = {
-  renderer_id: string,
-  model_state: string,
-};
+type probe_model = {active_renderer: option(packed_model)};
 
-[@deriving (show({with_path: false}), sexp, yojson)]
-type probe_model = {active_renderer: option(active_renderer)};
-
+/* Any deserialization failure resets to closed-modal — the record is
+ * pure transient UI state. Known failure modes are logged for
+ * debuggability; unknown ones still degrade gracefully. */
 let probe_model_of_sexp = sexp =>
   switch (probe_model_of_sexp(sexp)) {
   | model => model
+  | exception (RichProbeRegistry.Unknown_renderer(rid)) =>
+    print_endline("probe_model_of_sexp: unknown renderer " ++ rid);
+    {active_renderer: None};
+  | exception (Failure(msg)) =>
+    print_endline("probe_model_of_sexp: malformed payload: " ++ msg);
+    {active_renderer: None};
   | exception _ => {active_renderer: None}
   };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type action =
   | ChangeLength(int, int)
-  | ToggleModal(option(active_renderer))
-  | RendererAction(string)
+  | ToggleModal(option(packed_model))
+  | RendererAction(packed_action)
   | ToggleWindowMode
   | ToggleShowEnv
   | ResetSettings;
@@ -137,6 +141,9 @@ type probe_ctx = {
   utility: ProjectorBase.utility,
   parent: external_action => Ui_effect.t(unit),
   sort: Sort.t,
+  /* Id of the currently-open rich-probe renderer, if any. Drives the
+   * "View as <id>" / "Hide <id>" toggle label in the sample menu. */
+  active_renderer_id: option(string),
 };
 
 /* Stateful window offset management (GUI-specific) */
@@ -147,7 +154,7 @@ module WindowState = {
     | None => 0
     };
 
-  let set_offset = (k: Id.t, v: int) => Hashtbl.add(offset, k, v);
+  let set_offset = (k: Id.t, v: int) => Hashtbl.replace(offset, k, v);
 
   /* Update offset and return (new_offset, max_samples) */
   let reform =
@@ -185,7 +192,8 @@ module SampleLength = {
     Hashtbl.find_opt(lengths, sample.id)
     |> Option.value(~default=window == Single ? 150 : 12);
 
-  let set = (id: int, length: int): unit => Hashtbl.add(lengths, id, length);
+  let set = (id: int, length: int): unit =>
+    Hashtbl.replace(lengths, id, length);
 };
 
 /* Select samples to display, using stateful window offset.
@@ -232,20 +240,8 @@ let select_samples =
   };
 };
 
-let len_seg = (utility: utility, seg: Segment.t): int =>
-  seg |> utility.seg_to_string |> Unicode.Width.columns_of_string;
-
-let seg_of_exp = (utility: utility, exp: Exp.t): (Segment.t, int) => {
-  let seg = utility.term_to_seg(~inline=true, Exp(exp));
-  (seg, len_seg(utility, seg));
-};
-
-let abbreviated_seg_of =
-    (utility: utility, available: int, exp: Exp.t): (Segment.t, int) => {
-  let (abbr_exp, _length) =
-    exp |> DHExp.strip_ascriptions |> Abbreviate.abbreviate_exp(~available);
-  seg_of_exp(utility, abbr_exp);
-};
+let seg_of_exp = ProbeUtil.seg_of_exp;
+let abbreviated_seg_of = ProbeUtil.abbreviated_seg_of;
 
 let pos_rel_to_target = (e: Js.t(Dom_html.mouseEvent)): Point.t => {
   open Float;
@@ -416,8 +412,6 @@ module Debug = {
     ++ Printf.sprintf("%.0f", sample.time);
 };
 
-let renderers = RichProbeRegistry.renderers;
-
 /* Find first compatible renderer for an expression */
 let find_compatible_renderer =
     (sort: Sort.t, exp: Exp.t): option(RichProbe.packed_renderer) =>
@@ -487,11 +481,12 @@ let rich_value_content =
     )
     : option(Node.t) =>
   switch (model.active_renderer) {
-  | Some({renderer_id, model_state}) =>
-    switch (List.find_opt(r => r.id == renderer_id, renderers)) {
+  | Some(pm) =>
+    let rid = RichProbe.renderer_id_of_model(pm);
+    switch (find(rid)) {
     | Some(renderer) when renderer.can_handle(ctx.sort, sample.value) =>
-      renderer.render_packed(
-        model_state,
+      renderer.render_model(
+        pm,
         ~info,
         ~exp=sample.value,
         ~view_seg=rich_view_seg,
@@ -501,7 +496,7 @@ let rich_value_content =
         (),
       )
     | _ => None
-    }
+    };
   | None => None
   };
 
@@ -647,9 +642,18 @@ let pin_view = (ctx: probe_ctx, sample: Sample.t) =>
     [];
   };
 
-/* Generate unique dropdown ID for a sample */
-let dropdown_id = (sample_id: int): string =>
-  "sample-dropdown-" ++ string_of_int(sample_id);
+/* Generate a DOM id that's unique per sample-instance. sample.id is
+ * Hashtbl.hash((stack, syntax_id)) and is intentionally coarse — recursive
+ * invocations frequently collide on it. Combining with step_start/step_end
+ * disambiguates. If Sample.id is ever made truly unique, simplify this back
+ * to just sample.id. See issue #2288. */
+let dropdown_id = (sample: Sample.t): string =>
+  Printf.sprintf(
+    "sample-dropdown-%d-%d-%d",
+    sample.id,
+    sample.step_start,
+    sample.step_end,
+  );
 
 /* Step into handler for sample context menu */
 let step_into_sample =
@@ -726,33 +730,34 @@ let step_into_action = (ctx: probe_ctx, sample: Sample.t, ap_id: Id.t) =>
 
 /* Rich probe action: toggle a domain-specific visualization (table,
    card, ...) for this sample's value. One menu item per compatible
-   renderer; r.badge supplies the icon. */
+   renderer; r.badge supplies the icon. Label flips to "Hide <id>" when
+   the renderer is already active for this sample. */
 let rich_probe_action =
-    (ctx: probe_ctx, local, sample: Sample.t, r: packed_renderer): Node.t =>
+    (ctx: probe_ctx, local, sample: Sample.t, r: packed_renderer): Node.t => {
+  let is_active = ctx.active_renderer_id == Some(r.id);
+  let label = (is_active ? "Hide " : "View as ") ++ r.id;
   div(
     ~attrs=[
       Attr.classes(["action-item", "rich-probe-action"]),
-      Attr.on_pointerdown(_ => {
-        let oactive =
-          switch (r.parse_packed(ctx.sort, sample.value)) {
-          | Some(value_state) =>
-            Some({
-              renderer_id: r.id,
-              model_state: r.init_packed(value_state),
-            })
-          | None => None
-          };
-        local(ToggleModal(oactive));
-      }),
+      Attr.on_pointerdown(_ =>
+        local(ToggleModal(r.init_model(ctx.sort, sample.value)))
+      ),
     ],
-    [r.badge, text("View as " ++ r.id)],
+    [r.badge, text(label)],
   );
+};
 
 let rich_probe_items =
-    (ctx: probe_ctx, local, sample: Sample.t): list(Node.t) =>
-  renderers
-  |> List.filter(r => r.can_handle(ctx.sort, sample.value))
-  |> List.map(rich_probe_action(ctx, local, sample));
+    (ctx: probe_ctx, local, _sample: Sample.t): list(Node.t) =>
+  switch (Dynamics.Info.most_aligned_sample(ctx.ap_id, ctx.dynamics)) {
+  | None => []
+  | Some(indicated) =>
+    renderers
+    |> List.filter_map(r =>
+         r.can_handle(ctx.sort, indicated.value)
+           ? Some(rich_probe_action(ctx, local, indicated, r)) : None
+       )
+  };
 
 /* Context actions for a sample (Pin/Unpin, Step Into, rich-probe views, etc.) */
 let sample_context_actions =
@@ -990,7 +995,7 @@ let sample_context_menu =
           @ (show_env ? ["dropdown-active"] : []),
         ),
       ]
-      @ SafeTriangle.CSSDropdown.menu_attrs(dropdown_id(sample.id)),
+      @ SafeTriangle.CSSDropdown.menu_attrs(dropdown_id(sample)),
     sample_context_actions(
       ctx,
       local,
@@ -1024,7 +1029,11 @@ let sample_view =
     ) => {
   let hide_env = hide_env(ctx.statics);
   let has_rich =
-    List.exists(r => r.can_handle(ctx.sort, sample.value), renderers);
+    switch (Dynamics.Info.most_aligned_sample(ctx.ap_id, ctx.dynamics)) {
+    | Some(indicated) =>
+      List.exists(r => r.can_handle(ctx.sort, indicated.value), renderers)
+    | None => false
+    };
   let has_dropdown =
     !(hide_env && ctx.ap_id == None) || sample.call_stack != [] || has_rich;
   let show_env = Settings.show_env^ && indicated_sample_id == Some(sample.id);
@@ -1033,8 +1042,7 @@ let sample_view =
       [Attr.classes(["sample"])]
       @ (
         has_dropdown
-          ? SafeTriangle.CSSDropdown.trigger_attrs(dropdown_id(sample.id))
-          : []
+          ? SafeTriangle.CSSDropdown.trigger_attrs(dropdown_id(sample)) : []
       ),
     [
       value_view(
@@ -1384,6 +1392,8 @@ let offside_view =
   | (Some(dynamics), Some(statics)) =>
     let id = info.id;
     let ap_id = Sample.Focus.cur_var_ap(statics);
+    let active_renderer_id =
+      Option.map(RichProbe.renderer_id_of_model, model.active_renderer);
     let ctx = {
       ap_id,
       statics,
@@ -1392,6 +1402,7 @@ let offside_view =
       utility: info.utility,
       parent,
       sort,
+      active_renderer_id,
     };
     /* Filter samples once and reuse for both num_total and selection */
     let filtered_samples =
@@ -1573,16 +1584,16 @@ module M: Projector = {
   let placeholder = (model: probe_model, info: info) => {
     let settings = Settings.s^;
     switch (model.active_renderer, get_current(~settings, info)) {
-    | (Some({renderer_id, model_state}), Some(exp)) =>
-      switch (List.find_opt(r => r.id == renderer_id, renderers)) {
+    | (Some(pm), Some(exp)) =>
+      let rid = RichProbe.renderer_id_of_model(pm);
+      switch (find(rid)) {
       | Some(renderer) =>
-        switch (renderer.parse_packed(Sort.Exp, exp)) {
-        | Some(value_str) =>
-          renderer.placeholder_packed(model_state, value_str)
+        switch (renderer.placeholder_packed(pm, Sort.Exp, exp)) {
+        | Some(shape) => shape
         | None => ProjectorCore.Shape.default
         }
       | None => ProjectorCore.Shape.default
-      }
+      };
     | _ => ProjectorCore.Shape.default
     };
   };
@@ -1604,27 +1615,23 @@ module M: Projector = {
       Settings.reset_mode();
       SampleLength.reset();
       model;
-    | ToggleModal(renderer) =>
+    | ToggleModal(pm) =>
       switch (model.active_renderer) {
-      | None => {active_renderer: renderer}
+      | None => {active_renderer: pm}
       | Some(_) => {active_renderer: None}
       }
-    | RendererAction(serialized_action) =>
-      /* Route action to active renderer */
-      switch (model.active_renderer) {
-      | Some({renderer_id, model_state}) =>
-        switch (List.find_opt(r => r.id == renderer_id, renderers)) {
-        | Some(renderer) => {
-            active_renderer:
-              Some({
-                renderer_id,
-                model_state:
-                  renderer.update_packed(model_state, serialized_action),
-              }),
-          }
-        | None => model
+    | RendererAction(pa) =>
+      /* Dispatch through the action's renderer. update_model's internal
+       * Type.Id casts no-op on a model/action mismatch, so an explicit
+       * id check here is redundant. */
+      switch (
+        model.active_renderer,
+        find(RichProbe.renderer_id_of_action(pa)),
+      ) {
+      | (Some(pm), Some(r)) => {
+          active_renderer: Some(r.update_model(pm, pa)),
         }
-      | None => model
+      | _ => model
       }
     };
   };

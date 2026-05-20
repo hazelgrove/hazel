@@ -89,29 +89,10 @@ let can_move_column =
   | None => false
   };
 
-let conversion_functions = (cls: Atom.cls) =>
-  switch (cls) {
-  | Atom.String => [
-      ("Int", "int_of_string"),
-      ("Float", "float_of_string"),
-      ("Bool", "bool_of_string"),
-    ]
-  | Atom.Int => [
-      ("String", "string_of_int"),
-      ("Float", "float_of_int"),
-      ("Bool", "bool_of_int"),
-    ]
-  | Atom.Float => [
-      ("String", "string_of_float"),
-      ("Int", "int_of_float"),
-      ("Bool", "bool_of_float"),
-    ]
-  | Atom.Bool => [
-      ("String", "string_of_bool"),
-      ("Int", "int_of_bool"),
-      ("Float", "float_of_bool"),
-    ]
-  | _ => []
+let atom_cls_of_typ = (ty: Typ.t): option(Atom.cls) =>
+  switch (Typ.cls_of_term(ty.term)) {
+  | Typ.Atom(cls) => Some(cls)
+  | _ => None
   };
 
 /* Apply a list of transforms to a base expression, producing the
@@ -215,7 +196,9 @@ let rename_column = (old_name: string, new_name: string): transform => {
   );
 };
 
-let add_column = (new_column: string): transform => {
+/* Insert a new column with both label and value as empty holes. The user
+ * fills in the label and value directly in the editor. */
+let add_column = (): transform =>
   IdTagged.FreshGrammar.(
     Rowwise(
       Exp.(
@@ -223,7 +206,7 @@ let add_column = (new_column: string): transform => {
           Pat.var("r"),
           tuple_extension(
             var("r"),
-            tuple([tup_label(label(new_column), empty_hole())]),
+            tuple([tup_label(empty_hole(), empty_hole())]),
           ),
           None,
           None,
@@ -231,7 +214,6 @@ let add_column = (new_column: string): transform => {
       ),
     )
   );
-};
 
 let clear_column = (column: string): transform => {
   IdTagged.FreshGrammar.(
@@ -312,6 +294,46 @@ let filter_by_column = (op, column: string): transform => {
     )
   );
 };
+
+/* Filter with an open-ended predicate body. The whole predicate body is an
+ * empty hole, so the user writes anything that returns Bool. */
+let custom_filter = (): transform =>
+  IdTagged.FreshGrammar.(
+    Listwise(
+      Exp.(
+        deferred_ap(
+          var("filter"),
+          [deferral(InAp), fn(Pat.var("row"), empty_hole(), None, None)],
+        )
+      ),
+    )
+  );
+
+/* String-specific filter: keeps rows whose column matches a regex pattern.
+ * The pattern is an empty hole; the user fills it in. */
+let string_match_filter = (column: string): transform =>
+  IdTagged.FreshGrammar.(
+    Listwise(
+      Exp.(
+        deferred_ap(
+          var("filter"),
+          [
+            deferral(InAp),
+            fn(
+              Pat.var("row"),
+              ap(
+                Forward,
+                var("string_match"),
+                tuple([empty_hole(), dot(var("row"), label(column))]),
+              ),
+              None,
+              None,
+            ),
+          ],
+        )
+      ),
+    )
+  );
 
 let drop_nones_column = (column: string): transform => {
   IdTagged.FreshGrammar.(
@@ -426,16 +448,9 @@ let sort_column =
     (column_type: option(Typ.t), header: string, descending: bool)
     : option(list(transform)) => {
   let compare_fn =
-    switch (column_type) {
-    | Some(ty) =>
-      switch (Typ.cls_of_term(ty.term)) {
-      | Typ.Atom(Atom.Int) => Some("int_compare")
-      | Typ.Atom(Atom.Float) => Some("float_compare")
-      | Typ.Atom(Atom.String) => Some("string_compare")
-      | _ => None
-      }
-    | None => None
-    };
+    Option.bind(column_type, atom_cls_of_typ)
+    |> Option.map(Atom.compare_builtin)
+    |> Option.join;
   switch (compare_fn) {
   | Some(compare_fn_name) =>
     let cmp_call =
@@ -456,7 +471,7 @@ let sort_column =
     let body =
       descending
         ? IdTagged.FreshGrammar.Exp.(
-            ap(Forward, var("invert_ord"), cmp_call)
+            ap(Forward, var(BuiltinsADT.invert_ord.name), cmp_call)
           )
         : cmp_call;
     let sort_transform =
