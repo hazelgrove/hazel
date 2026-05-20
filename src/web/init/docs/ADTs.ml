@@ -720,7 +720,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
          45))(sort Exp))))))(shards(0 1 2))(children(((Secondary((id \
          54e4c70a-cfe2-45d1-8424-857bcfa34d74)(content(Whitespace\" \
          \"))))(Tile((id \
-         3c4d6a4a-549f-44a1-8176-c86a257e11bc)(label(_absurd))(mold((out \
+         3c4d6a4a-549f-44a1-8176-c86a257e11bc)(label(absurd))(mold((out \
          Pat)(in_())(nibs(((shape Convex)(sort Pat))((shape Convex)(sort \
          Pat))))))(shards(0))(children())))(Tile((id \
          d08db6e9-e6df-4b6e-a85b-8abe69809698)(label(:))(mold((out \
@@ -792,7 +792,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
          45))(sort Exp))))))(shards(0 1 2))(children(((Secondary((id \
          3c621334-8497-4fb7-93b1-64cb990cc3eb)(content(Whitespace\" \
          \"))))(Tile((id \
-         73c70482-be2b-474d-9b7f-6f248bbfc931)(label(_diverge))(mold((out \
+         73c70482-be2b-474d-9b7f-6f248bbfc931)(label(diverge))(mold((out \
          Pat)(in_())(nibs(((shape Convex)(sort Pat))((shape Convex)(sort \
          Pat))))))(shards(0))(children())))(Tile((id \
          08f0b112-d2ad-41f2-b226-d3ad6c2fc599)(label(:))(mold((out \
@@ -840,7 +840,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
          \")))))))))(Secondary((id \
          dc8bf780-6bc7-4aff-9c3c-2b0256a95c4c)(content(Whitespace\" \
          \"))))(Tile((id \
-         3591e8de-b5b8-44f3-be67-af396e338867)(label(_diverge))(mold((out \
+         3591e8de-b5b8-44f3-be67-af396e338867)(label(diverge))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
          bace61ca-b061-41b2-9857-014224928a58)(label(\"()\"))(mold((out \
@@ -1921,10 +1921,13 @@ let out : string * Haz3lcore.PersistentSegment.t =
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children()))))))))))))))))))(Secondary((id \
          ca07d7b6-d459-4c2a-9ad1-9657758966a1)(content(Whitespace\" \
-         \")))))))))(Secondary((id \
-         8317915c-0d61-4c6b-9714-ba5e610d724c)(content(Whitespace\"\\n\"))))(Secondary((id \
-         922d293f-a999-4a38-a251-918ca85d22e6)(content(Whitespace\"\\n\"))))(Secondary((id \
-         5465a011-a709-4051-8b5f-75f690f5d4bc)(content(Whitespace\"\\n\")))))";
+         \")))))))))(Tile((id \
+         3b65fec4-73d7-43bd-96e2-ad1731fbb95f)(label(\";\"))(mold((out \
+         Exp)(in_())(nibs(((shape(Concave 35))(sort Exp))((shape(Concave \
+         35))(sort Exp))))))(shards(0))(children())))(Secondary((id \
+         0782a1ba-34de-4d8d-8487-05fe4799d0f5)(content(Whitespace\"\\n\"))))(Secondary((id \
+         8317915c-0d61-4c6b-9714-ba5e610d724c)(content(Whitespace\"\\n\"))))(Grout((id \
+         6f19cecb-240a-49e3-8649-8d513c8bc538)(shape Convex))))";
       backup_text =
         "# Lambda Calculus via evaluation by substitution #\n\n\
          # An Expression is a variable, function, or application #\n\
@@ -1950,13 +1953,13 @@ let out : string * Haz3lcore.PersistentSegment.t =
          # A sum type with no constructors is the built-in Void type. #\n\
          # Since Void has no inhabitants, an eliminator on a Void value can #\n\
          # return any type -- here, any Result -- without ever producing one. #\n\
-         let _absurd: Void -> Result =\n\
+         let absurd: Void -> Result =\n\
         \      fun v -> case v end\n\
          in\n\n\
          # Since Void has no inhabitants, any complete expression of type Void #\n\
          # must fail to terminate -- there is no Void value to produce. #\n\
-         let _diverge: () -> Void =\n\
-        \      fun () -> _diverge()\n\
+         let diverge: () -> Void =\n\
+        \      fun () -> diverge()\n\
          in\n\n\
          # Evaluation by substitution #\n\
          let go: Exp -> Result =\n\
@@ -1982,6 +1985,6 @@ let out : string * Haz3lcore.PersistentSegment.t =
         \      == Ok(Lam(\"yo\", Var(\"yo\"))) end;\n\n\
          test\n\
         \      go(Ap(Lam(\"yo\", Var(\"yo\")), Lam(\"bro\", Var(\"bro\"))))\n\
-        \      == Ok(Lam(\"bro\", Var(\"bro\"))) end\n\n\n";
+        \      == Ok(Lam(\"bro\", Var(\"bro\"))) end;\n\n";
       refractors = "()";
     } )
