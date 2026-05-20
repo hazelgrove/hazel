@@ -37,7 +37,15 @@ let rec align_exp = (ctx: Ctx.t, expected_ty: Typ.t, exp: Exp.t): Exp.t =>
       let arranged =
         List.length(tys) == List.length(arranged)
           ? List.map2(align_entry, tys, arranged) : arranged;
-      Tuple(arranged) |> Exp.fresh;
+      {
+        /* Preserve the input Tuple's id on the rearranged outer. This puts
+         * the rearranged result under a user-source id that's in info_map,
+         * so the incremental evaluator can cache it and `newly_dirty_vars`
+         * can detect value changes by comparing at this id directly (without
+         * having to walk every descendant). */
+        ...exp,
+        term: Tuple(arranged),
+      };
     | _ =>
       switch (tys) {
       | [ty] =>
