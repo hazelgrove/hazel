@@ -22,71 +22,10 @@ module Model = Menu;
 let menu_height_estimate = 200.0; /* px */
 let menu_width_estimate = 180.0; /* px - based on min-width: 160px + padding */
 
-/* Opening direction types */
-type vertical_dir = [
-  | `Up
-  | `Down
-];
-type horizontal_dir = [
-  | `Left
-  | `Right
-];
-type open_direction = {
-  vertical: vertical_dir,
-  horizontal: horizontal_dir,
-};
-
-/* Available space in each direction from a point */
-type available_space = {
-  above: float,
-  below: float,
-  left: float,
-  right: float,
-};
-
-/* Get available space from a caret point relative to the #main viewport */
-let get_available_space =
-    (
-      point: Point.t,
-      font_metrics: FontMetrics.t,
-      code_container: Js.t(Dom_html.element),
-    )
-    : available_space => {
-  let main_rect =
-    switch (JsUtil.get_elem_by_id_opt("main")) {
-    | Some(main) => main##getBoundingClientRect
-    | None =>
-      Js.Unsafe.obj([|
-        ("top", Js.Unsafe.inject(0.0)),
-        ("bottom", Js.Unsafe.inject(Js.Unsafe.global##.innerHeight)),
-        ("left", Js.Unsafe.inject(0.0)),
-        ("right", Js.Unsafe.inject(Js.Unsafe.global##.innerWidth)),
-      |])
-    };
-
-  let container_rect = code_container##getBoundingClientRect;
-
-  let caret_left =
-    container_rect##.left +. Float.of_int(point.col) *. font_metrics.col_width;
-  let caret_top =
-    container_rect##.top
-    +. Float.of_int(point.row + 1)
-    *. font_metrics.row_height;
-
-  {
-    above: caret_top -. main_rect##.top,
-    below: main_rect##.bottom -. caret_top,
-    left: caret_left -. main_rect##.left,
-    right: main_rect##.right -. caret_left,
-  };
-};
-
-let determine_direction = (space: available_space): open_direction => {
-  vertical: space.below >= menu_height_estimate ? `Down : `Up,
-  horizontal: space.right >= menu_width_estimate ? `Right : `Left,
-};
-
-let direction_class = (dir: open_direction): string =>
+/* CSS class for the editor menu's open direction. The column menu has its
+ * own `cm-*` class scheme keyed to th-anchored transforms, so this mapping
+ * stays local to the editor menu. */
+let direction_class = (dir: Menu.open_direction): string =>
   switch (dir) {
   | {vertical: `Down, horizontal: `Right} => "open-down-right"
   | {vertical: `Down, horizontal: `Left} => "open-down-left"
@@ -103,7 +42,11 @@ let caret_bottom_offset = (font_metrics: FontMetrics.t): float => {
 };
 
 let pos_style =
-    (point: Point.t, font_metrics: FontMetrics.t, direction: open_direction)
+    (
+      point: Point.t,
+      font_metrics: FontMetrics.t,
+      direction: Menu.open_direction,
+    )
     : string => {
   let left = Float.of_int(point.col) *. font_metrics.col_width;
   let caret_top = Float.of_int(point.row) *. font_metrics.row_height;
@@ -514,21 +457,38 @@ module WithContext = {
  * View
  * ============================================================ */
 
+/* Pick a direction by treating the caret as a zero-size anchor at
+ * (caret_left, caret_bottom) in viewport coordinates, then routing
+ * through the shared `Menu.{space_from, direction_of}` helpers. */
 let get_direction =
-    (point: Point.t, font_metrics: FontMetrics.t): open_direction => {
+    (point: Point.t, font_metrics: FontMetrics.t): Menu.open_direction => {
   let container_opt =
     try(Some(JsUtil.get_elem_by_selector(".code-container"))) {
     | _ => None
     };
-
   switch (container_opt) {
-  | Some(container) =>
-    let space = get_available_space(point, font_metrics, container);
-    determine_direction(space);
   | None => {
       vertical: `Down,
       horizontal: `Right,
     }
+  | Some(container) =>
+    let rect = container##getBoundingClientRect;
+    let caret_left =
+      rect##.left +. Float.of_int(point.col) *. font_metrics.col_width;
+    let caret_top =
+      rect##.top +. Float.of_int(point.row + 1) *. font_metrics.row_height;
+    let space =
+      Menu.space_from(
+        ~anchor_top=caret_top,
+        ~anchor_bot=caret_top,
+        ~anchor_left=caret_left,
+        ~anchor_right=caret_left,
+      );
+    Menu.direction_of(
+      ~menu_height=menu_height_estimate,
+      ~menu_width=menu_width_estimate,
+      space,
+    );
   };
 };
 
