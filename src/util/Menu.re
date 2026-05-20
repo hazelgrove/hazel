@@ -423,12 +423,17 @@ let handle_key =
   | None => Unhandled
   | Some({selected_idx, path}) =>
     let vs = visible_items(~items, model);
+    let n = count_selectable_visible(vs);
+    /* Use the clamped index for both selection lookup AND the next
+     * step, so a stale unclamped stored value can't stall ArrowUp/Down. */
     let idx = clamp_visible(vs, selected_idx);
     let selected_item = nth_selectable_visible(vs, idx);
     switch (key) {
     | Key.D("Escape") => MenuUpdate(Close)
-    | Key.D("ArrowUp") => MenuUpdate(Up)
-    | Key.D("ArrowDown") => MenuUpdate(Down)
+    | Key.D("ArrowUp") =>
+      n == 0 ? Unhandled : MenuUpdate(SetSelected(max(0, idx - 1)))
+    | Key.D("ArrowDown") =>
+      n == 0 ? Unhandled : MenuUpdate(SetSelected(min(n - 1, idx + 1)))
     | Key.D("ArrowRight") =>
       switch (selected_item) {
       | Some(VSubmenu({submenu_name, _})) =>
