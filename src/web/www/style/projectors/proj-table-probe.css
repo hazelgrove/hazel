@@ -92,7 +92,13 @@
  * the ring appears automatically. No per-renderer cell-bg overrides,
  * no padding tricks, no pseudo-elements. */
 
-.live-offside .value.rich {
+/* Selector is intentionally longer than `.live-offside .value.rich` to
+   out-specific proj-probe.css's
+   `.live-offside .sample:has(.value.indet.focus) .value` rule, which
+   would otherwise fill the rich container with --T2 (the same color as
+   zebra rows) and kill all in-table contrast. */
+.live-offside .sample:has(.value.rich) .value.rich,
+.live-offside .sample:has(.value.indet.focus) .value.rich {
   /* Drop the .value's full bg fill — we don't want it bleeding behind
      a tall multi-row table or wide hand. The state coloring comes from
      the ring below instead. */
