@@ -205,6 +205,12 @@ let dev_group = (~globals: Globals.t) => {
         setting: ShowRowLines,
         tooltip: Some("Show horizontal lines between each row of code"),
       },
+      {
+        name: "Incremental Reuse",
+        active: globals.settings.show_incremental_deco,
+        setting: ShowIncrementalDeco,
+        tooltip: Some("Show incremental evaluator cache hits"),
+      },
     ]
     @ (
       ExerciseSettings.show_instructor

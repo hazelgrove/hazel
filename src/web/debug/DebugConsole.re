@@ -18,11 +18,9 @@ let print =
   | "F4" => map |> Language.Statics.Map.show |> print
   | "F5" when settings.core.dynamics =>
     let env_init = Language.Builtins.env_init;
-    statics.elaborated
-    |> Language.Evaluator.evaluate(~env=env_init)
-    |> fst
-    |> Language.DHExp.show
-    |> print;
+    let (result, _) =
+      Language.Evaluator.evaluate(~env=env_init, statics.elaborated);
+    result |> Language.DHExp.show |> print;
   | "F5" => print("Dynamics disabled, cannot show evaluation.")
   | "F6" =>
     let index = Indicated.index(zipper);
@@ -77,11 +75,9 @@ let print =
       };
 
     let env_init = Language.Builtins.env_init;
-    let res =
-      statics.elaborated
-      |> Language.Evaluator.evaluate(~env=env_init)
-      |> snd
-      |> print_summary;
+    let (_, state) =
+      Language.Evaluator.evaluate(~env=env_init, statics.elaborated);
+    let res = print_summary(state);
     switch (res) {
     | Some(summary) => print(summary)
     | None => print("No print outputs")
@@ -90,7 +86,7 @@ let print =
     /* Print program with probes in text-only format */
     let env_init = Language.Builtins.env_init;
     let (_, state) =
-      statics.elaborated |> Language.Evaluator.evaluate(~env=env_init);
+      Language.Evaluator.evaluate(~env=env_init, statics.elaborated);
     let probe_map = state.probes;
     let text =
       ProbeText.of_zipper(
