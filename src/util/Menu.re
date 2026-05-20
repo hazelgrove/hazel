@@ -12,10 +12,16 @@ open WebUtil;
  * decoration (shortcut chip or → submenu indicator), arrow-key
  * navigation, Enter to activate, Escape to close.
  *
- * Submenu navigation is path-driven: items of kind `Submenu({target_path})`
- * push a path onto the model; a `Back({to_path})` row pops back to a
- * shallower path. Callers compute the visible items from the current path
- * — the framework just tracks the path and the selected index. */
+ * Items are a tree: a `Submenu` carries its `children` inline. The Menu
+ * owns the current path (submenu breadcrumb) and selected index. The
+ * caller never destructures the state — they just store one `Menu.t`,
+ * forward `Menu.action` updates through `Menu.update`, and pass the root
+ * item tree to `Menu.render` / `Menu.handle_key`. A `← Back` row is
+ * auto-prepended when the menu is in a non-root path. */
+
+/* ============================================================
+ * State
+ * ============================================================ */
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type state = {
@@ -23,8 +29,7 @@ type state = {
   path: list(string),
 };
 
-/* Menu state: None = closed; Some({selected_idx, path}) = open at `path`
- * with row `selected_idx` highlighted. */
+/* None = closed; Some({selected_idx, path}) = open. */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = option(state);
 
@@ -35,10 +40,16 @@ type action =
   | Close
   | Up
   | Down
-  | EnterSubmenu(list(string))
-  | BackSubmenu(list(string))
+  | EnterSubmenu(string) /* push child label onto path */
+  | BackSubmenu /* pop one level */
   | SetSelected(int);
 
+let closed: t = None;
+let opened: t =
+  Some({
+    selected_idx: 0,
+    path: [],
+  });
 let is_open = (m: t): bool => m != None;
 let path = (m: t): list(string) =>
   switch (m) {
@@ -51,21 +62,182 @@ let selected = (m: t): int =>
   | Some({selected_idx, _}) => selected_idx
   };
 
-let init = (path: list(string)): state => {
-  selected_idx: 0,
-  path,
+let parent_of_path = (path: list(string)): list(string) =>
+  switch (List.rev(path)) {
+  | []
+  | [_] => []
+  | [_, ...rest] => List.rev(rest)
+  };
+
+/* ============================================================
+ * Items
+ * ============================================================
+ *
+ * `'a` is the action payload of leaf rows; the caller decides how to
+ * dispatch it. A `Back` row is never user-constructed — Menu synthesises
+ * it when rendering a non-root path. */
+type item('a) =
+  | Action({
+      label: string,
+      decoration: option(string),
+      tooltip: option(string),
+      on_hover: bool,
+      enabled: bool,
+      action: 'a,
+    })
+  | Submenu({
+      label: string,
+      tooltip: option(string),
+      children: list(item('a)),
+    })
+  | Divider;
+
+let action_item =
+    (~decoration=?, ~tooltip=?, ~on_hover=false, ~enabled=true, label, action) =>
+  Action({
+    label,
+    decoration,
+    tooltip,
+    on_hover,
+    enabled,
+    action,
+  });
+
+let submenu_item = (~tooltip=?, label, children) =>
+  Submenu({
+    label,
+    tooltip,
+    children,
+  });
+
+let divider = Divider;
+
+/* Walk the path through the item tree, returning the items visible at
+ * that path. If the path doesn't resolve (stale label, etc.), falls back
+ * to the root list. */
+let rec items_at =
+        (path: list(string), items: list(item('a))): list(item('a)) =>
+  switch (path) {
+  | [] => items
+  | [name, ...rest] =>
+    let child =
+      List.find_opt(
+        fun
+        | Submenu({label, _}) => label == name
+        | _ => false,
+        items,
+      );
+    switch (child) {
+    | Some(Submenu({children, _})) => items_at(rest, children)
+    | _ => items
+    };
+  };
+
+/* Selectable = Action(enabled) or Submenu. Dividers don't take an index;
+ * an auto-synthesised Back row is selectable separately (handled by
+ * `selectable_items_with_back`). */
+let is_selectable = (item: item('a)): bool =>
+  switch (item) {
+  | Action({enabled, _}) => enabled
+  | Submenu(_) => true
+  | Divider => false
+  };
+
+/* Visible item shape used internally for rendering + indexing: includes
+ * a `Back` marker when path != []. Not exposed publicly so callers can't
+ * confuse themselves about who owns Back. */
+type visible_item('a) =
+  | VBack
+  | VAction({
+      label: string,
+      decoration: option(string),
+      tooltip: option(string),
+      on_hover: bool,
+      enabled: bool,
+      action: 'a,
+    })
+  | VSubmenu({
+      label: string,
+      tooltip: option(string),
+      submenu_name: string,
+    })
+  | VDivider;
+
+let to_visible = (it: item('a)): visible_item('a) =>
+  switch (it) {
+  | Action({label, decoration, tooltip, on_hover, enabled, action}) =>
+    VAction({
+      label,
+      decoration,
+      tooltip,
+      on_hover,
+      enabled,
+      action,
+    })
+  | Submenu({label, tooltip, _}) =>
+    VSubmenu({
+      label,
+      tooltip,
+      submenu_name: label,
+    })
+  | Divider => VDivider
+  };
+
+/* The list of rows to render at the current path, with Back synthesised
+ * when nested. */
+let visible_items =
+    (~items: list(item('a)), model: t): list(visible_item('a)) => {
+  let p = path(model);
+  let here = items_at(p, items) |> List.map(to_visible);
+  p == [] ? here : [VBack, ...here];
 };
 
-/* Pure state update. Selection clamping against the actual item count is
- * the caller's responsibility — `clamp_against` below is the helper. */
-let update = (action: action, model: t): t =>
+let is_visible_selectable = (v: visible_item('a)): bool =>
+  switch (v) {
+  | VBack => true
+  | VAction({enabled, _}) => enabled
+  | VSubmenu(_) => true
+  | VDivider => false
+  };
+
+let count_selectable_visible = (vs: list(visible_item('a))): int =>
+  List.fold_left((n, v) => is_visible_selectable(v) ? n + 1 : n, 0, vs);
+
+let nth_selectable_visible =
+    (vs: list(visible_item('a)), idx: int): option(visible_item('a)) => {
+  let rec go = (vs, i) =>
+    switch (vs) {
+    | [] => None
+    | [v, ...rest] when is_visible_selectable(v) =>
+      i == 0 ? Some(v) : go(rest, i - 1)
+    | [_, ...rest] => go(rest, i)
+    };
+  go(vs, idx);
+};
+
+let clamp_visible = (vs: list(visible_item('a)), idx: int): int => {
+  let n = count_selectable_visible(vs);
+  n == 0 ? 0 : max(0, min(idx, n - 1));
+};
+
+/* ============================================================
+ * State updates
+ * ============================================================
+ *
+ * `update` is pure — it doesn't clamp `selected_idx` against the visible
+ * item count, because the items aren't always available at update time
+ * (e.g. when called from a projector reducer that doesn't see the menu's
+ * context). Render and keyboard handling clamp at use time, so callers
+ * never need to. */
+let update = (action: action, model: t): t => {
+  let cur_path = path(model);
   switch (action) {
   | Toggle =>
     switch (model) {
-    | None => Some(init([]))
+    | None => opened
     | Some(_) => None
     }
-  | Open => Some(init([]))
+  | Open => opened
   | Close => None
   | Up =>
     switch (model) {
@@ -85,8 +257,16 @@ let update = (action: action, model: t): t =>
         path,
       })
     }
-  | EnterSubmenu(path) => Some(init(path))
-  | BackSubmenu(path) => Some(init(path))
+  | EnterSubmenu(label) =>
+    Some({
+      selected_idx: 0,
+      path: cur_path @ [label],
+    })
+  | BackSubmenu =>
+    Some({
+      selected_idx: 0,
+      path: parent_of_path(cur_path),
+    })
   | SetSelected(i) =>
     switch (model) {
     | None => None
@@ -97,79 +277,6 @@ let update = (action: action, model: t): t =>
       })
     }
   };
-
-/* Item types. `'a` is the action carried by selectable rows; the caller
- * decides how to dispatch it (e.g. an editor `Action.t`, or a thunk
- * `unit => Effect.t(unit)`). */
-type item('a) =
-  | Action({
-      label: string,
-      /* Right-aligned decoration text (keyboard shortcut, etc.) */
-      decoration: option(string),
-      /* Tooltip rendered as Attr.title */
-      tooltip: option(string),
-      /* If true, mouse hover updates the selected index */
-      on_hover: bool,
-      /* If false, the row is shown dimmed and pointerdown is ignored */
-      enabled: bool,
-      action: 'a,
-    })
-  | Submenu({
-      label: string,
-      tooltip: option(string),
-      target_path: list(string),
-    })
-  | Back({to_path: list(string)})
-  | Divider;
-
-let action_item =
-    (~decoration=?, ~tooltip=?, ~on_hover=false, ~enabled=true, label, action) =>
-  Action({
-    label,
-    decoration,
-    tooltip,
-    on_hover,
-    enabled,
-    action,
-  });
-
-let submenu_item = (~tooltip=?, label, target_path) =>
-  Submenu({
-    label,
-    tooltip,
-    target_path,
-  });
-
-let back_item = (~to_path=[], ()) => Back({to_path: to_path});
-
-let divider = Divider;
-
-let is_selectable = (item: item('a)): bool =>
-  switch (item) {
-  | Action({enabled, _}) => enabled
-  | Submenu(_)
-  | Back(_) => true
-  | Divider => false
-  };
-
-let count_selectable = (items: list(item('a))): int =>
-  List.fold_left((n, it) => is_selectable(it) ? n + 1 : n, 0, items);
-
-let clamp_against = (items: list(item('a)), idx: int): int => {
-  let n = count_selectable(items);
-  n == 0 ? 0 : max(0, min(idx, n - 1));
-};
-
-/* Find the selectable item at the given (0-indexed) selectable position. */
-let nth_selectable = (items: list(item('a)), idx: int): option(item('a)) => {
-  let rec go = (items, i) =>
-    switch (items) {
-    | [] => None
-    | [it, ...rest] when is_selectable(it) =>
-      i == 0 ? Some(it) : go(rest, i - 1)
-    | [_, ...rest] => go(rest, i)
-    };
-  go(items, idx);
 };
 
 /* ============================================================
@@ -181,12 +288,8 @@ let shortcut_view = (text_: string) =>
 
 let divider_view = () => Node.div(~attrs=[clss(["menu-divider"])], []);
 
-/* Wrap a click/pointerdown handler so the document-level click-outside
- * listener doesn't fire, and so the surrounding editor doesn't steal
- * the click. `on_fire` is invoked at event-firing time — callers must
- * not evaluate the dispatched effect eagerly (e.g. by composing with
- * `inject_action(action)` outside this closure), otherwise side effects
- * like prompts will run at render time. */
+/* `on_fire` is invoked at event-firing time, never at render time —
+ * critical for callers whose actions carry side-effecting thunks. */
 let pointerdown_attr = (on_fire: unit => Ui_effect.t(unit)) =>
   Attr.on_pointerdown(_ =>
     Effect.Many([Effect.Stop_propagation, Effect.Prevent_default, on_fire()])
@@ -197,8 +300,6 @@ let item_classes = (~item_class: string, ~is_selected: bool, ~enabled: bool) =>
   @ (is_selected ? ["selected"] : [])
   @ (enabled ? [] : ["disabled"]);
 
-/* Render a row that looks like an action item (also used for submenu /
- * back rows so they style identically). */
 let row_view =
     (
       ~item_class: string,
@@ -240,23 +341,39 @@ let row_view =
   );
 };
 
-/* Render the menu's items into a list of Vdom nodes. Indices used for
- * selection skip dividers so `selected_idx` indexes selectable rows only. */
+/* Render rows visible at the model's path. The caller passes the entire
+ * item tree; Menu walks the path, synthesises Back when nested, and
+ * indexes selected_idx across only the selectable rows. */
 let render =
     (
       ~inject_action: 'a => Ui_effect.t(unit),
       ~inject_menu: action => Ui_effect.t(unit),
       ~item_class: string,
-      ~selected_idx: int,
-      items: list(item('a)),
+      ~items: list(item('a)),
+      model: t,
     )
     : list(Node.t) => {
+  let vs = visible_items(~items, model);
+  let selected_idx = clamp_visible(vs, selected(model));
   let (_, rendered) =
     List.fold_left_map(
-      (sel_idx, it) =>
-        switch (it) {
-        | Divider => (sel_idx, divider_view())
-        | Action({label, decoration, tooltip, on_hover, enabled, action}) => (
+      (sel_idx, v) =>
+        switch (v) {
+        | VDivider => (sel_idx, divider_view())
+        | VBack => (
+            sel_idx + 1,
+            row_view(
+              ~item_class,
+              ~is_selected=sel_idx == selected_idx,
+              ~enabled=true,
+              ~tooltip=None,
+              ~decoration=None,
+              ~on_pointerdown=() => inject_menu(BackSubmenu),
+              ~on_hover=Some(inject_menu(SetSelected(sel_idx))),
+              "← Back",
+            ),
+          )
+        | VAction({label, decoration, tooltip, on_hover, enabled, action}) => (
             sel_idx + 1,
             row_view(
               ~item_class,
@@ -271,7 +388,7 @@ let render =
               label,
             ),
           )
-        | Submenu({label, tooltip, target_path}) => (
+        | VSubmenu({label, tooltip, submenu_name}) => (
             sel_idx + 1,
             row_view(
               ~item_class,
@@ -279,27 +396,14 @@ let render =
               ~enabled=true,
               ~tooltip,
               ~decoration=Some("→"),
-              ~on_pointerdown=() => inject_menu(EnterSubmenu(target_path)),
+              ~on_pointerdown=() => inject_menu(EnterSubmenu(submenu_name)),
               ~on_hover=Some(inject_menu(SetSelected(sel_idx))),
               label,
             ),
           )
-        | Back({to_path}) => (
-            sel_idx + 1,
-            row_view(
-              ~item_class,
-              ~is_selected=sel_idx == selected_idx,
-              ~enabled=true,
-              ~tooltip=None,
-              ~decoration=None,
-              ~on_pointerdown=() => inject_menu(BackSubmenu(to_path)),
-              ~on_hover=Some(inject_menu(SetSelected(sel_idx))),
-              "← Back",
-            ),
-          )
         },
       0,
-      items,
+      vs,
     );
   rendered;
 };
@@ -313,69 +417,59 @@ type key_result('a) =
   | RunAction('a)
   | Unhandled;
 
-/* First `Back` to_path in the visible items, used as the destination for
- * ArrowLeft when no item is explicitly selected. Falls back to [] (top
- * level) so ArrowLeft always escapes a non-root path. */
-let back_target = (items: list(item('a))): list(string) =>
-  switch (
-    List.find_opt(
-      fun
-      | Back(_) => true
-      | _ => false,
-      items,
-    )
-  ) {
-  | Some(Back({to_path})) => to_path
-  | _ => []
-  };
-
-/* Translate a Key.key into either a menu-state update or an action to
- * run. Caller wires this into a key dispatcher (e.g. MenuListener's
- * `handle_key`) and maps `RunAction` / `MenuUpdate` to its own dispatch.
- *
- * ArrowRight enters a submenu when the selected row is one; ArrowLeft
- * pops back to the parent path when nested. Both let the user navigate
- * the menu hierarchy without mousing or hitting Enter. */
 let handle_key =
     (~items: list(item('a)), key: Key.key, model: t): key_result('a) =>
   switch (model) {
   | None => Unhandled
   | Some({selected_idx, path}) =>
-    let idx = clamp_against(items, selected_idx);
-    let selected_item = nth_selectable(items, idx);
+    let vs = visible_items(~items, model);
+    let idx = clamp_visible(vs, selected_idx);
+    let selected_item = nth_selectable_visible(vs, idx);
     switch (key) {
     | Key.D("Escape") => MenuUpdate(Close)
     | Key.D("ArrowUp") => MenuUpdate(Up)
     | Key.D("ArrowDown") => MenuUpdate(Down)
     | Key.D("ArrowRight") =>
       switch (selected_item) {
-      | Some(Submenu({target_path, _})) =>
-        MenuUpdate(EnterSubmenu(target_path))
+      | Some(VSubmenu({submenu_name, _})) =>
+        MenuUpdate(EnterSubmenu(submenu_name))
       | _ => Unhandled
       }
-    | Key.D("ArrowLeft") =>
-      path == [] ? Unhandled : MenuUpdate(BackSubmenu(back_target(items)))
+    | Key.D("ArrowLeft") => path == [] ? Unhandled : MenuUpdate(BackSubmenu)
     | Key.D("Enter") =>
       switch (selected_item) {
-      | Some(Action({enabled: true, action, _})) => RunAction(action)
-      | Some(Submenu({target_path, _})) =>
-        MenuUpdate(EnterSubmenu(target_path))
-      | Some(Back({to_path})) => MenuUpdate(BackSubmenu(to_path))
-      | Some(Action({enabled: false, _}))
-      | Some(Divider)
+      | Some(VAction({enabled: true, action, _})) => RunAction(action)
+      | Some(VSubmenu({submenu_name, _})) =>
+        MenuUpdate(EnterSubmenu(submenu_name))
+      | Some(VBack) => MenuUpdate(BackSubmenu)
+      | Some(VAction({enabled: false, _}))
+      | Some(VDivider)
       | None => MenuUpdate(Close)
       }
     | _ => Unhandled
     };
   };
 
+/* Adapter for MenuListener.sync(~handle_key). Returns Some(effect) for
+ * handled keys, None to let other listeners see them. */
+let key_dispatcher =
+    (
+      ~items: list(item('a)),
+      ~dispatch_menu: action => Ui_effect.t(unit),
+      ~dispatch_action: 'a => Ui_effect.t(unit),
+      model: t,
+      key_str: string,
+    )
+    : option(Ui_effect.t(unit)) =>
+  switch (handle_key(~items, Key.D(key_str), model)) {
+  | MenuUpdate(action) => Some(dispatch_menu(action))
+  | RunAction(a) => Some(dispatch_action(a))
+  | Unhandled => None
+  };
+
 /* ============================================================
  * Viewport-aware open direction
- * ============================================================
- *
- * Shared by menus that need to flip when they'd otherwise overflow the
- * #main viewport. Editor (caret-anchored) and column (header-anchored)
- * menus pick their own anchor point but route through the same logic. */
+ * ============================================================ */
 
 type vertical_dir = [
   | `Up
@@ -409,10 +503,6 @@ let main_viewport_rect = () =>
     |])
   };
 
-/* Available space from a (viewport-coordinate) anchor point. `anchor_top`
- * is the top edge where a downward-opening menu would start; `anchor_bot`
- * is the bottom edge where an upward-opening menu would start. They can
- * differ (caret height) or be equal (element top edge). */
 let space_from =
     (
       ~anchor_top: float,
@@ -430,7 +520,6 @@ let space_from =
   };
 };
 
-/* Pick a direction given the menu's footprint estimate. */
 let direction_of =
     (~menu_height: float, ~menu_width: float, space: available_space)
     : open_direction => {
@@ -438,9 +527,6 @@ let direction_of =
   horizontal: space.right >= menu_width ? `Right : `Left,
 };
 
-/* Direction from an HTML element's bounding rect — opens downward from
- * the element's bottom, upward from its top. Used by element-anchored
- * menus like the table column menu. */
 let direction_from_elem =
     (~menu_height: float, ~menu_width: float, elem: Js.t(Dom_html.element))
     : open_direction => {
@@ -455,8 +541,6 @@ let direction_from_elem =
   direction_of(~menu_height, ~menu_width, space);
 };
 
-/* Direction from an element looked up by id, falling back to down-right
- * if the element isn't in the DOM yet. */
 let direction_from_id =
     (~menu_height: float, ~menu_width: float, id: string): open_direction =>
   switch (JsUtil.get_elem_by_id_opt(id)) {
@@ -465,28 +549,4 @@ let direction_from_id =
       vertical: `Down,
       horizontal: `Right,
     }
-  };
-
-/* Adapt `handle_key` for MenuListener.sync's `handle_key` callback, which
- * speaks raw key strings and returns `option(Effect.t(unit))`. Caller
- * supplies how to dispatch a `MenuUpdate` and how to dispatch a
- * `RunAction`. */
-let key_dispatcher =
-    (
-      ~items_at: list(string) => list(item('a)),
-      ~dispatch_menu: action => Ui_effect.t(unit),
-      ~dispatch_action: 'a => Ui_effect.t(unit),
-      model: t,
-      key_str: string,
-    )
-    : option(Ui_effect.t(unit)) =>
-  switch (model) {
-  | None => None
-  | Some({path, _}) =>
-    let items = items_at(path);
-    switch (handle_key(~items, Key.D(key_str), model)) {
-    | MenuUpdate(action) => Some(dispatch_menu(action))
-    | RunAction(a) => Some(dispatch_action(a))
-    | Unhandled => None
-    };
   };

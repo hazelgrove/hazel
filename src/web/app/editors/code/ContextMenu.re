@@ -473,28 +473,18 @@ let get_all_items =
  * ============================================================ */
 
 module WithContext = {
-  /* Clamp Menu.update's result against the current item count so the
-   * selected index stays in range as the menu's contents change. */
+  /* Menu.update is pure; render/keyboard clamp internally. The context
+   * params remain in the signature to avoid churning call sites. */
   let update =
       (
-        ~info_map: Language.Statics.Map.t,
-        ~elaborated: Language.Exp.t,
-        ~zipper: Zipper.t,
+        ~info_map as _: Language.Statics.Map.t,
+        ~elaborated as _: Language.Exp.t,
+        ~zipper as _: Zipper.t,
         action: Menu.action,
         state: Menu.t,
       )
-      : Menu.t => {
-    let new_state = Menu.update(action, state);
-    switch (new_state) {
-    | Some({selected_idx, path}) =>
-      let items = get_all_items(~info_map, ~elaborated, zipper);
-      Some({
-        selected_idx: Menu.clamp_against(items, selected_idx),
-        path,
-      });
-    | None => None
-    };
-  };
+      : Menu.t =>
+    Menu.update(action, state);
 
   /* Adapter for ContextMenuListener.sync(~handle_key). Returns
    * `Some(effect)` for handled keys, `None` to let the editor see them. */
@@ -508,14 +498,16 @@ module WithContext = {
         state: Menu.t,
         key_str: string,
       )
-      : option(Ui_effect.t(unit)) =>
+      : option(Ui_effect.t(unit)) => {
+    let items = get_all_items(~info_map, ~elaborated, zipper);
     Menu.key_dispatcher(
-      ~items_at=_path => get_all_items(~info_map, ~elaborated, zipper),
+      ~items,
       ~dispatch_menu,
       ~dispatch_action,
       state,
       key_str,
     );
+  };
 };
 
 /* ============================================================
@@ -561,14 +553,13 @@ let view =
     : Node.t => {
   let caret_point = Zipper.Caret.point(syntax.measured, z);
   let items = get_all_items(~info_map, ~elaborated, z);
-  let selected_idx = Menu.clamp_against(items, Menu.selected(model));
   let menu_items =
     Menu.render(
       ~inject_action=inject,
       ~inject_menu,
       ~item_class="named-menu-item",
-      ~selected_idx,
-      items,
+      ~items,
+      model,
     );
 
   if (menu_items == []) {

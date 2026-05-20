@@ -1,14 +1,13 @@
 /* TableRenderer - A reusable module for rendering interactive tables with column operations */
 [@deriving (show({with_path: false}), sexp, yojson)]
-type menu_state = option((int, list(string), int));
+type menu_state = option((int, Util.Menu.t));
 [@deriving (show({with_path: false}), sexp, yojson)]
 type m = {menu_state};
 [@deriving (show({with_path: false}), sexp, yojson)]
 type a =
   | CloseMenu
   | ShowMenu(int)
-  | ShowSubmenu(list(string))
-  | MenuSelect(int);
+  | MenuAction(Util.Menu.action);
 type v = (list(option(string)), list(list(Language.Exp.t))); /* (headers, rows) */
 
 include

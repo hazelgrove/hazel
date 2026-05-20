@@ -10,17 +10,17 @@ open TableTransforms;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type v = (list(option(string)), list(list(Exp.t))); /* (headers, rows) */
 
-/* (column index, submenu path, selected action-item index) */
+/* Open column menu: column index + Menu state (path + selected_idx).
+ * The Menu module owns the inner state — projector code never reads it. */
 [@deriving (show({with_path: false}), sexp, yojson)]
-type menu_state = option((int, list(string), int));
+type menu_state = option((int, Menu.t));
 [@deriving (show({with_path: false}), sexp, yojson)]
 type m = {menu_state};
 [@deriving (show({with_path: false}), sexp, yojson)]
 type a =
   | CloseMenu
   | ShowMenu(int)
-  | ShowSubmenu(list(string))
-  | MenuSelect(int);
+  | MenuAction(Menu.action);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type model = m;
@@ -46,9 +46,11 @@ let init = (_: v) => {menu_state: None};
 let leaf = (~tooltip, label, action) =>
   Menu.action_item(~tooltip, ~on_hover=true, label, action);
 
-let submenu_row = (~tooltip, label, target_path) =>
-  Menu.submenu_item(~tooltip, label, target_path);
+let submenu = (~tooltip, label, children) =>
+  Menu.submenu_item(~tooltip, label, children);
 
+/* Build the column menu as a single tree. Submenus carry their children
+ * inline; `Util.Menu` walks the path and synthesises the Back row. */
 let build_column_menu =
     (
       info: info,
@@ -56,8 +58,8 @@ let build_column_menu =
       dyn_type: option(Typ.t),
       local: action => Ui_effect.t(unit),
       parent: external_action => Ui_effect.t(unit),
-      menu_path: list(string),
-    ) => {
+    )
+    : menu_data => {
   let column_type =
     dyn_type |> Option.bind(_, ty => get_column_type_from_ty(ty, h));
   let columns_opt = dyn_type |> Option.bind(_, get_columns);
@@ -69,9 +71,9 @@ let build_column_menu =
     | None => local(CloseMenu)
     };
 
-  // If we're in a submenu, show that submenu
-  switch (menu_path) {
-  | ["Filter"] =>
+  let column_cls = Option.bind(column_type, atom_cls_of_typ);
+
+  let filter_children = {
     let numeric_comparators: list((string, string, Operators.op_bin_num)) = [
       (
         "Greater than",
@@ -94,7 +96,6 @@ let build_column_menu =
         LessThanOrEqual,
       ),
     ];
-    let column_cls = Option.bind(column_type, atom_cls_of_typ);
     let numeric_items =
       switch (column_cls) {
       | None => []
@@ -136,15 +137,12 @@ let build_column_menu =
       leaf(~tooltip="Write your own predicate over the row", "Custom…", () =>
         apply([custom_filter()])
       );
-    [Menu.back_item()]
-    @ numeric_items
-    @ poly_items
-    @ string_items
-    @ [custom_item];
-  | ["Transform"] =>
-    // Merged Transform submenu: conversion options + Clear + Identity
+    numeric_items @ poly_items @ string_items @ [custom_item];
+  };
+
+  let transform_children = {
     let conversion_items =
-      switch (Option.bind(column_type, atom_cls_of_typ)) {
+      switch (column_cls) {
       | Some(cls) =>
         Atom.conversions_from(cls)
         |> List.map(((func, to_)) => {
@@ -155,9 +153,7 @@ let build_column_menu =
            })
       | None => []
       };
-
-    [Menu.back_item()]
-    @ conversion_items
+    conversion_items
     @ (List.length(conversion_items) > 0 ? [Menu.divider] : [])
     @ [
       leaf(~tooltip="Replace all values with holes", "Clear", () =>
@@ -171,24 +167,25 @@ let build_column_menu =
         apply([noop_column(h)])
       ),
     ];
-  | ["Sort"] => [
-      Menu.back_item(),
-      leaf(~tooltip="Sort from lowest to highest", "Ascending", () =>
-        switch (sort_column(column_type, h, false)) {
-        | Some(ts) => apply(ts)
-        | None => local(CloseMenu)
-        }
-      ),
-      leaf(~tooltip="Sort from highest to lowest", "Descending", () =>
-        switch (sort_column(column_type, h, true)) {
-        | Some(ts) => apply(ts)
-        | None => local(CloseMenu)
-        }
-      ),
-    ]
-  | ["Move"] =>
-    [Menu.back_item()]
-    @ (
+  };
+
+  let sort_children = [
+    leaf(~tooltip="Sort from lowest to highest", "Ascending", () =>
+      switch (sort_column(column_type, h, false)) {
+      | Some(ts) => apply(ts)
+      | None => local(CloseMenu)
+      }
+    ),
+    leaf(~tooltip="Sort from highest to lowest", "Descending", () =>
+      switch (sort_column(column_type, h, true)) {
+      | Some(ts) => apply(ts)
+      | None => local(CloseMenu)
+      }
+    ),
+  ];
+
+  let move_children =
+    (
       can_move_left
         ? [
           leaf(
@@ -217,100 +214,94 @@ let build_column_menu =
           ),
         ]
         : []
-    )
-  | [] =>
-    /* Group 1: Structural, frequently used actions */
-    let structural_items = [
-      leaf(~tooltip="Remove this column from every row", "Drop Column", () =>
-        apply([drop_column(h)])
-      ),
-      leaf(~tooltip="Change this column's label", "Rename", () => {
-        let new_column_name = JsUtil.prompt("New column name:", h);
-        switch (new_column_name) {
-        | None => local(CloseMenu)
-        | Some(new_name) => apply([rename_column(h, new_name)])
-        };
-      }),
-      leaf(~tooltip="Group rows by the values in this column", "Group By", () =>
-        apply([group_by_column(h)])
-      ),
-    ];
+    );
 
-    /* Group 2: Data operation submenus */
-    let sort_submenu =
-      switch (sort_column(column_type, h, false)) {
-      | Some(_) => [
-          submenu_row(~tooltip="Sort rows by this column", "Sort", ["Sort"]),
-        ]
-      | None => []
+  /* Root: structural actions, then submenus, then option-type actions. */
+  let structural_items = [
+    leaf(~tooltip="Remove this column from every row", "Drop Column", () =>
+      apply([drop_column(h)])
+    ),
+    leaf(~tooltip="Change this column's label", "Rename", () => {
+      let new_column_name = JsUtil.prompt("New column name:", h);
+      switch (new_column_name) {
+      | None => local(CloseMenu)
+      | Some(new_name) => apply([rename_column(h, new_name)])
       };
+    }),
+    leaf(~tooltip="Group rows by the values in this column", "Group By", () =>
+      apply([group_by_column(h)])
+    ),
+  ];
 
-    let filter_submenu =
-      switch (Option.bind(column_type, atom_cls_of_typ)) {
-      | Some(_) => [
-          submenu_row(
-            ~tooltip="Keep rows matching a condition on this column",
-            "Filter",
-            ["Filter"],
-          ),
-        ]
-      | None => []
-      };
+  let sort_submenu =
+    switch (sort_column(column_type, h, false)) {
+    | Some(_) => [
+        submenu(~tooltip="Sort rows by this column", "Sort", sort_children),
+      ]
+    | None => []
+    };
 
-    let transform_submenu = [
-      submenu_row(
-        ~tooltip="Modify the values in this column",
-        "Transform",
-        ["Transform"],
-      ),
-    ];
+  let filter_submenu =
+    switch (column_cls) {
+    | Some(_) => [
+        submenu(
+          ~tooltip="Keep rows matching a condition on this column",
+          "Filter",
+          filter_children,
+        ),
+      ]
+    | None => []
+    };
 
-    let move_submenu =
-      can_move_left || can_move_right
+  let transform_submenu = [
+    submenu(
+      ~tooltip="Modify the values in this column",
+      "Transform",
+      transform_children,
+    ),
+  ];
+
+  let move_submenu =
+    can_move_left || can_move_right
+      ? [
+        submenu(
+          ~tooltip="Reorder this column's position",
+          "Move",
+          move_children,
+        ),
+      ]
+      : [];
+
+  let data_items =
+    sort_submenu @ filter_submenu @ transform_submenu @ move_submenu;
+
+  let option_items =
+    switch (column_type) {
+    | Some(ty) =>
+      is_option_type(ty)
         ? [
-          submenu_row(
-            ~tooltip="Reorder this column's position",
-            "Move",
-            ["Move"],
+          leaf(
+            ~tooltip="Remove rows where this column is None", "Drop Nones", () =>
+            apply([drop_nones_column(h)])
+          ),
+          leaf(
+            ~tooltip="Replace None values with a default you specify",
+            "Provide Default",
+            () =>
+            apply([provide_default_column(h)])
           ),
         ]
-        : [];
+        : []
+    | None => []
+    };
 
-    let data_items =
-      sort_submenu @ filter_submenu @ transform_submenu @ move_submenu;
-
-    /* Group 3: Option-type actions */
-    let option_items =
-      switch (column_type) {
-      | Some(ty) =>
-        is_option_type(ty)
-          ? [
-            leaf(
-              ~tooltip="Remove rows where this column is None",
-              "Drop Nones",
-              () =>
-              apply([drop_nones_column(h)])
-            ),
-            leaf(
-              ~tooltip="Replace None values with a default you specify",
-              "Provide Default",
-              () =>
-              apply([provide_default_column(h)])
-            ),
-          ]
-          : []
-      | None => []
-      };
-
-    structural_items
-    @ (List.length(data_items) > 0 ? [Menu.divider] @ data_items : [])
-    @ (List.length(option_items) > 0 ? [Menu.divider] @ option_items : []);
-  | _ => []
-  };
+  structural_items
+  @ (List.length(data_items) > 0 ? [Menu.divider] @ data_items : [])
+  @ (List.length(option_items) > 0 ? [Menu.divider] @ option_items : []);
 };
 
-/* Lookup the menu data for the currently-open column at the given path. */
-let menu_at =
+/* Build the column menu tree for a specific column. */
+let items_for_column =
     (
       info: info,
       exp: Exp.t,
@@ -318,7 +309,6 @@ let menu_at =
       local: action => Ui_effect.t(unit),
       parent: external_action => Ui_effect.t(unit),
       col: int,
-      path: list(string),
     )
     : menu_data =>
   switch (List.nth_opt(headers, col) |> Option.value(~default=None)) {
@@ -329,7 +319,7 @@ let menu_at =
       | Some(_) as ty => ty
       | None => get_dynamic_type(exp)
       };
-    build_column_menu(info, name, dyn_type, local, parent, path);
+    build_column_menu(info, name, dyn_type, local, parent);
   };
 
 /* Main table rendering function */
@@ -376,26 +366,16 @@ let render =
 
         let full_content =
           switch (h, model.menu_state) {
-          | (Some(_), Some((j, menu_path, sel_idx))) when i == j =>
-            let menu_data =
-              menu_at(info, exp, headers, local, parent, j, menu_path);
-            let clamped = Menu.clamp_against(menu_data, sel_idx);
+          | (Some(_), Some((j, menu_t))) when i == j =>
+            let items =
+              items_for_column(info, exp, headers, local, parent, j);
             let menu_nodes =
               Menu.render(
                 ~inject_action=thunk => thunk(),
-                ~inject_menu=
-                  fun
-                  | Close => local(CloseMenu)
-                  | EnterSubmenu(p)
-                  | BackSubmenu(p) => local(ShowSubmenu(p))
-                  | SetSelected(idx) => local(MenuSelect(idx))
-                  | Toggle
-                  | Open
-                  | Up
-                  | Down => Effect.Ignore,
+                ~inject_menu=a => local(MenuAction(a)),
                 ~item_class="named-menu-item",
-                ~selected_idx=clamped,
-                menu_data,
+                ~items,
+                menu_t,
               );
             let dir =
               Menu.direction_from_id(
@@ -434,7 +414,7 @@ let render =
           };
         let is_menu_open =
           switch (model.menu_state) {
-          | Some((j, _, _)) => i == j
+          | Some((j, _)) => i == j
           | None => false
           };
         Node.th(
@@ -467,38 +447,19 @@ let render =
       header_cells;
     };
 
-  /* Sync the document-level click-outside + keyboard listeners. We use a
-   * global listener (rather than tabindex+on_keydown on the menu div)
-   * because the editor's #page on_focus reclaims focus to the clipboard
-   * shim, which would otherwise eat the menu's key events.
-   *
-   * ArrowUp/Down wrap modulo the selectable count — the shared Menu model
-   * clamps instead of wrapping, so we intercept Up/Down here. */
+  /* Sync the document-level click-outside + keyboard listeners. */
   let handle_key = (key: string): option(Ui_effect.t(unit)) =>
     switch (model.menu_state) {
     | None => None
-    | Some((col, path, sel_idx)) =>
-      let items = menu_at(info, exp, headers, local, parent, col, path);
-      let menu_t: Menu.t =
-        Some({
-          selected_idx: sel_idx,
-          path,
-        });
-      switch (Menu.handle_key(~items, Key.D(key), menu_t)) {
-      | RunAction(thunk) => Some(thunk())
-      | MenuUpdate(Close) => Some(local(CloseMenu))
-      | MenuUpdate(Up) =>
-        let n = Menu.count_selectable(items);
-        n == 0 ? None : Some(local(MenuSelect((sel_idx - 1 + n) mod n)));
-      | MenuUpdate(Down) =>
-        let n = Menu.count_selectable(items);
-        n == 0 ? None : Some(local(MenuSelect((sel_idx + 1) mod n)));
-      | MenuUpdate(EnterSubmenu(p))
-      | MenuUpdate(BackSubmenu(p)) => Some(local(ShowSubmenu(p)))
-      | MenuUpdate(SetSelected(i)) => Some(local(MenuSelect(i)))
-      | MenuUpdate(Toggle | Open)
-      | Unhandled => None
-      };
+    | Some((col, menu_t)) =>
+      let items = items_for_column(info, exp, headers, local, parent, col);
+      Menu.key_dispatcher(
+        ~items,
+        ~dispatch_menu=a => local(MenuAction(a)),
+        ~dispatch_action=thunk => thunk(),
+        menu_t,
+        key,
+      );
     };
   ColumnMenuListener.sync(
     ~menu_open=model.menu_state != None,
@@ -520,7 +481,7 @@ let render =
 };
 
 let menu_col = (st: menu_state): option(int) =>
-  Option.map(((c, _, _)) => c, st);
+  Option.map(((c, _)) => c, st);
 
 let update: (model, action) => model =
   (model, action) => {
@@ -529,15 +490,15 @@ let update: (model, action) => model =
     | ShowMenu(i) when Some(i) == menu_col(model.menu_state) => {
         menu_state: None,
       }
-    | ShowMenu(i) => {menu_state: Some((i, [], 0))}
-    | ShowSubmenu(path) =>
+    | ShowMenu(i) => {menu_state: Some((i, Menu.opened))}
+    | MenuAction(a) =>
       switch (model.menu_state) {
-      | Some((col, _, _)) => {menu_state: Some((col, path, 0))}
-      | None => model
-      }
-    | MenuSelect(idx) =>
-      switch (model.menu_state) {
-      | Some((col, path, _)) => {menu_state: Some((col, path, idx))}
+      | Some((col, menu_t)) =>
+        let new_menu = Menu.update(a, menu_t);
+        switch (new_menu) {
+        | None => {menu_state: None}
+        | Some(_) => {menu_state: Some((col, new_menu))}
+        };
       | None => model
       }
     };
