@@ -355,7 +355,13 @@ let render =
       (i, h) => {
         let (label_node, has_name) =
           switch (h) {
-          | Some(name) => (Node.text(name), true)
+          | Some(name) => (
+              Node.span(
+                ~attrs=[Attr.classes(["column-label"])],
+                [Node.text(name)],
+              ),
+              true,
+            )
           | None => (WebUtil.empty_hole_svg(), false)
           };
         let menu_button = make_menu_button(i);

@@ -21,6 +21,14 @@ table.table {
     opacity: 1;
     height: calc(var(--line-height) * 1em);
     background-color: var(--table-header-bg);
+    /* Reset the browser's UA default (th { font-weight: bold }) so
+     * descendants like the column menu don't inherit it. */
+    font-weight: normal;
+}
+
+/* Typography lives on the label wrapper so it doesn't inherit into
+ * nested children (e.g. the column menu sitting inside the <th>). */
+.table th .column-label {
     font-weight: 600;
     color: var(--BR4);
     font-family: var(--code-font);
