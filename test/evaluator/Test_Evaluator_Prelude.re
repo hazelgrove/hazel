@@ -21,8 +21,10 @@ let testable_exp =
     ).
       exp,
   );
-let evaluate = unevaluated =>
-  unevaluated |> Evaluator.evaluate(~env=Builtins.env_init) |> fst;
+let evaluate = unevaluated => {
+  let (result, _) = Evaluator.evaluate(~env=Builtins.env_init, unevaluated);
+  result;
+};
 let dhexp_typ = testable_exp();
 
 let evaluation_test =
@@ -40,11 +42,10 @@ let evaluation_test =
     evaluate(unevaluated),
   );
 
-let evaluate_probes = unevaluated =>
-  unevaluated
-  |> Evaluator.evaluate(~env=Builtins.env_init)
-  |> snd
-  |> EvaluatorState.get_probes;
+let evaluate_probes = unevaluated => {
+  let (_, state) = Evaluator.evaluate(~env=Builtins.env_init, unevaluated);
+  state |> EvaluatorState.get_probes;
+};
 
 let parse_exp = (s: string) => {
   switch (Haz3lcore.Parser.to_term(s, ~root=Exp)) {
@@ -182,8 +183,8 @@ let full_preservation_test = (uexp: TermBase.exp_t): unit => {
     Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), uexp);
   let ty = elaborated_type(statics, uexp);
 
-  let evaluated =
-    Evaluator.evaluate(~env=Builtins.env_init, elaborated) |> fst;
+  let (evaluated, _) =
+    Evaluator.evaluate(~env=Builtins.env_init, elaborated);
   let (new_statics, _) =
     Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), evaluated);
 

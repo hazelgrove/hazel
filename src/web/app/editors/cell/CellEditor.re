@@ -279,6 +279,7 @@ module View = {
           ~overlays=overlays(model.editor.editor),
           ~lines,
           ~dynamics=EvalResult.Model.dynamics(model.result),
+          ~incr_eval=EvalResult.Model.incr_eval(model.result),
           model.editor,
         ),
       ]
