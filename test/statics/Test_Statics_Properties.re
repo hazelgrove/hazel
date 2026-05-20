@@ -445,6 +445,124 @@ let qcheck_subexp_synthesis_agrees_stats = () => {
   );
 };
 
+/* Property (weak form): for every InfoExp entry in the info_map, the stored
+ * elab_term's outer rep_id must be the id of *some* subexpression of the
+ * input user term. (The strict form — elab_id == key — is too strong: e.g.
+ * TyAlias is stripped during elaboration so its elab_term is just the body,
+ * which has the body's id rather than the TyAlias's. That's fine as long
+ * as the body's id IS a user-source id.)
+ *
+ * What this catches: elaboration steps that mint an id that doesn't
+ * correspond to any user source position. Those ids are absent from
+ * info_map, so the evaluator cannot create a cache entry at them and the
+ * subtree silently becomes un-incrementalizable — the same shape of bug
+ * as the FixF-with-fresh_deterministic issue we just fixed.
+ *
+ * The set of "user subexpression ids" is collected by walking the user
+ * term (the input to Statics.mk) via TermBase.Exp.map_term. */
+type elab_id_outcome =
+  | IdInUserTerm
+  | IdNotInUserTerm(Id.t, Id.t) /* (key_in_map, elab_term_rep_id) */
+  | SkipStatics;
+
+let collect_user_term_ids = (exp: Language.Exp.t): Id.Set.t => {
+  let acc = ref(Id.Set.empty);
+  let f_exp = (continue, e: Language.Exp.t): Language.Exp.t => {
+    acc := Id.Set.add(Exp.rep_id(e), acc^);
+    continue(e);
+  };
+  let _ = TermBase.Exp.map_term(~f_exp, exp);
+  acc^;
+};
+
+let check_elab_term_id_in_user_term = (exp: Language.Exp.t): elab_id_outcome =>
+  switch (safe_statics(exp)) {
+  | `Skip => SkipStatics
+  | `Ok(info_map, _elab) =>
+    let user_ids = collect_user_term_ids(exp);
+    let mismatch =
+      Id.Map.fold(
+        (id, info, acc) =>
+          switch (acc, info) {
+          | (Some(_), _) => acc
+          | (None, Info.InfoExp({elab_term, _})) =>
+            let elab_id = Exp.rep_id(elab_term);
+            Id.Set.mem(elab_id, user_ids) ? None : Some((id, elab_id));
+          | (None, _) => None
+          },
+        info_map,
+        None,
+      );
+    switch (mismatch) {
+    | None => IdInUserTerm
+    | Some((k, e)) => IdNotInUserTerm(k, e)
+    };
+  };
+
+let qcheck_elab_term_id_in_user_term_stats = () => {
+  let rand = Random.State.make([|0xC0DE, 0xFEED|]);
+  let arb = QCheck_Util.arb_exp(~minimal_idents=true, 40);
+  let gen = arb.QCheck.gen;
+  let shrink =
+    switch (arb.QCheck.shrink) {
+    | Some(s) => s
+    | None => ((_, _) => ())
+    };
+  let total = ref(0);
+  let holds = ref(0);
+  let mismatches = ref(0);
+  let skipped = ref(0);
+  let sample_limit = 5;
+  let sample_mismatches = ref([]);
+  let is_mismatch = exp =>
+    switch (check_elab_term_id_in_user_term(exp)) {
+    | IdNotInUserTerm(_, _) => true
+    | _ => false
+    };
+  for (_ in 1 to 100000) {
+    incr(total);
+    let exp = QCheck.Gen.generate1(~rand, gen);
+    switch (check_elab_term_id_in_user_term(exp)) {
+    | IdInUserTerm => incr(holds)
+    | IdNotInUserTerm(_, _) =>
+      incr(mismatches);
+      if (List.length(sample_mismatches^) < sample_limit) {
+        let shrunk = shrink_failing_pred(is_mismatch, shrink, exp);
+        switch (check_elab_term_id_in_user_term(shrunk)) {
+        | IdNotInUserTerm(k, e) =>
+          sample_mismatches := [(shrunk, k, e), ...sample_mismatches^]
+        | _ => ()
+        };
+      };
+    | SkipStatics => incr(skipped)
+    };
+  };
+  let pct = n => 100. *. float_of_int(n) /. float_of_int(total^);
+  Printf.printf(
+    "\n[elab_term id is in user-term subexpressions] out of %d cases:\n"
+    ^^ "  holds:           %4d (%.1f%%)\n"
+    ^^ "  mismatches:      %4d (%.1f%%)\n"
+    ^^ "  skipped:         %4d (%.1f%%)\n",
+    total^,
+    holds^,
+    pct(holds^),
+    mismatches^,
+    pct(mismatches^),
+    skipped^,
+    pct(skipped^),
+  );
+  List.iter(
+    ((exp, k, e)) =>
+      Printf.printf(
+        "  sample mismatch:\n    exp:           %s\n    info_map key:  %s\n    elab_rep_id:   %s\n",
+        show_exp(exp),
+        Id.to_string(k),
+        Id.to_string(e),
+      ),
+    List.rev(sample_mismatches^),
+  );
+};
+
 let tests = (
   "Statics.Properties",
   [
@@ -458,6 +576,11 @@ let tests = (
       "Sub-expression synthesis agrees (stats only)",
       `Slow,
       qcheck_subexp_synthesis_agrees_stats,
+    ),
+    Alcotest.test_case(
+      "elab_term id is in user-term subexpressions (stats only)",
+      `Slow,
+      qcheck_elab_term_id_in_user_term_stats,
     ),
   ],
 );
