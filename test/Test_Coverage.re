@@ -1279,6 +1279,18 @@ let exhaustive_bools_with_wilds =
     |},
   );
 
+// Regression for #2074.
+let regression_2074_tuplabel_emptyhole_label =
+  test_case(
+    "TupLabel with EmptyHole label in let-binding doesn't crash", `Quick, () =>
+    switch (Haz3lcore.Parser.to_term("let (?=?) = 1 in 1", ~root=Exp)) {
+    | None => Alcotest.fail("parse failed")
+    | Some(term) =>
+      let _ = statics(term);
+      ();
+    }
+  );
+
 let tests = (
   "Pattern Coverage Checker",
   [
@@ -1345,5 +1357,6 @@ let tests = (
     exhaustive_ints_with_wilds,
     exhaustive_strings_with_wilds,
     exhaustive_bools_with_wilds,
+    regression_2074_tuplabel_emptyhole_label,
   ],
 );

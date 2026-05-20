@@ -263,7 +263,7 @@ Expansion happens in two places:
 1. **Statics** (`Statics.re`): On-demand expansion for type checking
 2. **Elaborator** (`Elaborator.re`): Permanent expansion for evaluation
 
-The expanded form uses nested `let`/`type` bindings with a final labeled tuple containing non-shadowed bindings. The expansion is implemented in `ExpandModule.re`.
+The expanded form uses nested `let`/`type` bindings with a final labeled tuple containing non-shadowed bindings. The statics lowering is implemented in `ModuleHelpers.re`.
 
 ### Type-Directed Expansion
 
@@ -276,7 +276,7 @@ let m : { let x : Int } = { let x = true }
   -- Error appears on `true` (type mismatch: Bool vs Int)
 ```
 
-Without this, type errors would appear on the synthetic tuple node which has no surface representation, making them invisible to the user. The `extract_ana_labels` function in `ExpandModule.re` handles stripping Parens and extracting the label-to-type mapping.
+Without this, type errors would appear on the synthetic tuple node which has no surface representation, making them invisible to the user. The `extract_ana_labels` function in `ModuleHelpers.re` handles stripping Parens and extracting the label-to-type mapping.
 
 ### Sig Desugaring
 
@@ -297,11 +297,11 @@ Module expansion carefully preserves tile IDs for cursor inspector integration:
 - **ModExp (bare expression)** → Fresh IDs (synthetic wrapper, no surface counterpart)
 - **Synthetic tuple** → Fresh IDs (no surface counterpart)
 
-This ensures clicking on any part of a module shows correct type information in the cursor inspector. The Elaborator keeps inline expansion (rather than calling `ExpandModule.expand` and then `elaborate`) to avoid ID lookup issues — it constructs wrapper expressions directly with preserved IDs.
+This ensures clicking on any part of a module shows correct type information in the cursor inspector. The Elaborator keeps inline expansion (rather than calling `ModuleHelpers.lower` and then `elaborate`) to avoid ID lookup issues — it constructs wrapper expressions directly with preserved IDs.
 
 ### Qualified Type Access (M.T)
 
-Type aliases inside modules are exposed via **TVarEntry injection**. When statics processes `let M = Module(items)`, `ExpandModule.collect_type_exports(ctx, items)` walks the items collecting type aliases resolved against a running context (handling internal references and recursive types). The result is injected as a `TVarEntry(Singleton(exports_ty))` into the body's context.
+Type aliases inside modules are exposed via **TVarEntry injection**. When statics processes `let M = Module(items)`, `ModuleHelpers.collect_type_exports(ctx, items)` walks the items collecting type aliases resolved against a running context (handling internal references and recursive types). The result is injected as a `TVarEntry(Singleton(exports_ty))` into the body's context.
 
 Resolution uses the existing `ProdProjection` normalization: `M.T` parses as `ProdProjection(Var("M"), Label("T"))`, and `weak_head_normalize` resolves `Var("M")` through `lookup_alias` → gets the exports Prod → `project_type` extracts the labeled field. Nested modules (`M.P.S`) work via chained ProdProjection.
 
@@ -382,7 +382,7 @@ In `Arms.re`, module/sig semicolons render as lone shard hexagons (no arms to ot
 | `src/haz3lcore/tiles/Skel.re`           | ModSeq/SigSeq semicolons chainable, sort-specific grout precedence |
 | `src/haz3lcore/zipper/action/Insert.re` | `effective_sort` with Mod→Exp / Sig→Typ fallback                   |
 | `src/haz3lcore/lang/MakeTerm.re`        | Module/Sig parsing with flattening                                 |
-| `src/language/statics/ExpandModule.re`  | Module expansion to nested let/type + labeled tuple                |
+| `src/language/statics/ModuleHelpers.re` | Module lowering to nested let/type + labeled tuple                 |
 | `src/language/statics/Statics.re`       | Module type checking, `desugar_sig` in Asc, Mod/Sig item info      |
 | `src/language/statics/Elaborator.re`    | Module elaboration for dynamics                                    |
 | `src/language/statics/Info.re`          | `sort_of` returns Mod for InfoExp with Mod cls                     |
