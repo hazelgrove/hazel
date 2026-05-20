@@ -2,24 +2,6 @@ open Util;
 open Language;
 open Js_of_ocaml;
 
-let name_other = (): (Exp.t => string) => {
-  let names: ref(list((Exp.t, string))) = ref([]);
-  (exp: Exp.t) => (
-    {
-      switch (ListUtil.assoc_opt_by(Equality.semantic.exp, exp, names^)) {
-      | Some(name) => name
-      | None =>
-        let new_name =
-          "unknown_" ++ string_of_int(Hashtbl.hash(exp) mod 100000);
-        names := [(exp, new_name)] @ names^;
-        new_name;
-      };
-    }: string
-    // If we don't know how to print the expression, we can use a hash to create a unique string
-    // Modulo keeps it short
-  );
-};
-
 let rec take_auto_steps = (~settings, ~env, exp: Exp.t): Exp.t => {
   switch (EvaluatorStep.get_status(~settings, exp, env)) {
   | EvaluatorStep.AutoStep(step) =>
@@ -31,35 +13,124 @@ let rec take_auto_steps = (~settings, ~env, exp: Exp.t): Exp.t => {
   };
 };
 
-let rec print_exp_for_algebrite = (~name_other, exp: Exp.t): string =>
+type normal_form =
+  | Evaluated(Exp.t)
+  | Algebraic(string);
+
+type checker = {
+  justification: string,
+  normalize:
+    (~settings: CoreSettings.t, ~env: Environment.t(Exp.t), Exp.t) =>
+    option(normal_form),
+  equivalent: (normal_form, normal_form) => bool,
+};
+
+let algebrite_bin_op = (op: Operators.op_bin): option(string) =>
+  switch (op) {
+  | Int(Plus)
+  | Nat(Plus)
+  | SInt(Plus)
+  | Float(Plus) => Some("+")
+  | Int(Minus)
+  | Nat(Minus)
+  | SInt(Minus)
+  | Float(Minus) => Some("-")
+  | Int(Times)
+  | Nat(Times)
+  | SInt(Times)
+  | Float(Times) => Some("*")
+  | Int(Power)
+  | Nat(Power)
+  | SInt(Power)
+  | Float(Power) => Some("^")
+  | Int(Divide)
+  | Nat(Divide)
+  | SInt(Divide)
+  | Float(Divide) => Some("/")
+  | Int(LessThan | LessThanOrEqual | GreaterThan | GreaterThanOrEqual)
+  | Nat(LessThan | LessThanOrEqual | GreaterThan | GreaterThanOrEqual)
+  | SInt(LessThan | LessThanOrEqual | GreaterThan | GreaterThanOrEqual)
+  | Float(
+      LessThan | LessThanOrEqual | GreaterThan | GreaterThanOrEqual | Equals |
+      NotEquals,
+    )
+  | Bool(_)
+  | String(_)
+  | Poly(_) => None
+  };
+
+let rec print_exp_for_algebrite = (exp: Exp.t): option(string) =>
   switch (exp.term) {
-  | Atom(Int(value)) => Bigint.to_string(value)
-  | Atom(Nat(value)) => Bigint.to_string(value)
-  | Atom(Float(value)) => string_of_float(value)
-  | Atom(Bool(value)) => string_of_bool(value)
-  // We have to manually map ** (power) to ^ in Algebrite.
-  | BinOp(Int(Power), exp_left, exp_right) =>
-    "("
-    ++ print_exp_for_algebrite(~name_other, exp_left)
-    ++ " ^ "
-    ++ print_exp_for_algebrite(~name_other, exp_right)
-    ++ ")"
-  // The other operators should work fine as-is.
+  | Atom(Int(value))
+  | Atom(Nat(value)) => Some(Bigint.to_string(value))
+  | Atom(SInt(value)) => Some(string_of_int(value))
+  | Atom(Float(value)) => Some(string_of_float(value))
+  | Var(value) => Some(value)
   | BinOp(op, exp_left, exp_right) =>
-    "("
-    ++ print_exp_for_algebrite(~name_other, exp_left)
-    ++ " "
-    ++ Operators.bin_op_to_string(op)
-    ++ " "
-    ++ print_exp_for_algebrite(~name_other, exp_right)
-    ++ ")"
-  | UnOp(Int(Minus), exp) =>
-    "(" ++ "-" ++ print_exp_for_algebrite(~name_other, exp) ++ ")"
-  | Parens(exp) => "(" ++ print_exp_for_algebrite(~name_other, exp) ++ ")"
-  | Var(value) => value
+    switch (
+      algebrite_bin_op(op),
+      print_exp_for_algebrite(exp_left),
+      print_exp_for_algebrite(exp_right),
+    ) {
+    | (Some(op), Some(left), Some(right)) =>
+      Some("(" ++ left ++ " " ++ op ++ " " ++ right ++ ")")
+    | _ => None
+    }
+  | UnOp(Int(Minus) | Nat(Minus) | SInt(Minus) | Float(Minus), exp) =>
+    switch (print_exp_for_algebrite(exp)) {
+    | Some(exp) => Some("(-" ++ exp ++ ")")
+    | None => None
+    }
+  | Parens(exp) =>
+    switch (print_exp_for_algebrite(exp)) {
+    | Some(exp) => Some("(" ++ exp ++ ")")
+    | None => None
+    }
   // TODO: think harder about weird corner cases where we'd want to ensure the types in Cast are valid
-  | Asc(exp, _) => print_exp_for_algebrite(~name_other, exp)
-  | _ => name_other(exp)
+  | Asc(exp, _) => print_exp_for_algebrite(exp)
+  | Atom(Bool(_) | String(_))
+  | UnOp(Bool(_), _)
+  | Tuple(_)
+  | TupleExtension(_)
+  | ListLit(_)
+  | ListConcat(_)
+  | Cons(_)
+  | TupLabel(_)
+  | Dot(_)
+  | Fun(_)
+  | FixF(_)
+  | Closure(_)
+  | Ap(_)
+  | TypFun(_)
+  | TypAp(_)
+  | Let(_)
+  | Seq(_)
+  | If(_)
+  | Match(_)
+  | Filter(_)
+  | Test(_)
+  | HintedTest(_)
+  | Theorem(_)
+  | ProofObject(_)
+  | Forall(_)
+  | DynamicErrorHole(_)
+  | EmptyHole
+  | MultiHole(_)
+  | Invalid(_)
+  | Deferral(_)
+  | Undefined
+  | LivelitName(_)
+  | Module(_)
+  | ModuleExp(_)
+  | TyAlias(_)
+  | Use(_)
+  | Projector(_)
+  | DeferredAp(_)
+  | BuiltinFun(_)
+  | Constructor(_)
+  | Label(_)
+  | ExplicitNonlabel
+  | DrvQuote(_) => None
   };
 
 let checkEquality = (expr1, expr2): bool => {
@@ -72,71 +143,82 @@ let checkEquality = (expr1, expr2): bool => {
   };
 };
 
+let normalize_arithmetic = (~settings, ~env, exp: Exp.t): option(normal_form) => {
+  exp
+  |> DHExp.strip_ascriptions
+  |> take_auto_steps(~settings, ~env)
+  |> print_exp_for_algebrite
+  |> Option.map(s => Algebraic(s));
+};
+
+let normalize_by_evaluation =
+    (~settings as _: CoreSettings.t, ~env, exp: Exp.t): option(normal_form) => {
+  switch (Evaluator.evaluate_and_limit(~env, ~step_limit=1000, exp)) {
+  | Completed((value, _)) =>
+    Some(Evaluated(value |> DHExp.strip_ascriptions))
+  | StepLimitExceeded => None
+  | exception _ => None
+  };
+};
+
+let arithmetic_checker = {
+  justification: "arithmetic",
+  normalize: normalize_arithmetic,
+  equivalent: (left, right) =>
+    switch (left, right) {
+    | (Algebraic(left), Algebraic(right)) => checkEquality(left, right)
+    | _ => false
+    },
+};
+
+let evaluation_checker = {
+  justification: "same evaluated result",
+  normalize: normalize_by_evaluation,
+  equivalent: (left, right) =>
+    switch (left, right) {
+    | (Evaluated(left), Evaluated(right)) =>
+      Equality.equality(
+        Equality.{
+          ...Equality.semantic_settings,
+          env1: Some(Environment.empty),
+          env2: Some(Environment.empty),
+          ignore_ascriptions: true,
+        },
+      ).
+        exp(
+        left,
+        right,
+      )
+    | _ => false
+    },
+};
+
+let check_with = (~settings, ~env, from_: Exp.t, to_: Exp.t, checker) => {
+  switch (
+    checker.normalize(~settings, ~env, from_),
+    checker.normalize(~settings, ~env, to_),
+  ) {
+  | (Some(from_normal), Some(to_normal))
+      when checker.equivalent(from_normal, to_normal) =>
+    Some(checker.justification)
+  | _ => None
+  };
+};
+
+let written_step_checkers = [arithmetic_checker, evaluation_checker];
+
 // underscores indicate unused arguments
 let check_rewrite = (~settings, ~env, from_: Exp.t, to_: Exp.t): bool => {
-  // TODO maybe type-check a bit here so that we don't have to handle
-  // differing types on the Algebrite side
-  // Or maybe the stepper itself will guarantee _from and _to always have the same type
-  // perhaps some Cast
-
-  // TODO return Some(bool) instead of bool in case we encounter a case we can't handle?
-  let name_other = name_other();
-  let from_ = DHExp.strip_ascriptions(from_);
-  let to_ = DHExp.strip_ascriptions(to_);
-  let to_ = take_auto_steps(~settings, ~env, to_);
-  let left_str = print_exp_for_algebrite(~name_other, from_);
-  let right_str = print_exp_for_algebrite(~name_other, to_);
-  print_endline("Checking rewrite:");
-  print_endline("From: " ++ left_str);
-  print_endline("To:   " ++ right_str);
-  print_endline("e1: " ++ Exp.show(from_));
-  print_endline("e2: " ++ Exp.show(to_));
-  if (left_str == "Unknown" || right_str == "Unknown") {
-    false;
-  } else {
-    checkEquality(left_str, right_str);
+  switch (check_with(~settings, ~env, from_, to_, arithmetic_checker)) {
+  | Some(_) => true
+  | None => false
   };
 };
 
 let check_written_step =
     (~settings, ~env, from_: Exp.t, to_: Exp.t): option(string) => {
-  let take_and_justify = (es: EvaluatorStep.step): option((string, Exp.t)) => {
-    switch (EvaluatorStep.take_step(es)) {
-    | Some(next_exp) =>
-      let kind = EvaluatorStep.get_step_kind(es);
-      let justification = Transition.stepper_justification(kind);
-      let final_exp = take_auto_steps(~settings, ~env, next_exp);
-      Some((justification, final_exp));
-    | None => None
-    };
-  };
-  // checking using evaluation steps
-  let rec get_next_exps = (exp: Exp.t): list((string, Exp.t)) => {
-    switch (EvaluatorStep.get_status(~settings, exp, env)) {
-    | EvaluatorStep.AutoStep(step) =>
-      switch (EvaluatorStep.take_step(step)) {
-      | Some(next_exp) => get_next_exps(next_exp)
-      | None => []
-      }
-    | AvailableSteps(steps) => List.filter_map(take_and_justify, steps)
-    };
-  };
-  let next_exps = get_next_exps(from_);
-  List.find_opt(
-    ((_, e)) =>
-      Equality.equality(
-        Equality.{
-          ...Equality.semantic_settings,
-          env1: Some(env),
-          env2: Some(env),
-          ignore_ascriptions: true,
-        },
-      ).
-        exp(
-        e,
-        to_,
-      ),
-    next_exps,
-  )
-  |> Option.map(fst);
+  written_step_checkers
+  |> List.find_map(checker =>
+       check_with(~settings, ~env, from_, to_, checker)
+     );
 };
