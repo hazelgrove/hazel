@@ -540,6 +540,12 @@ svg:has(.child-line) {
   outline: 0.6px solid var(--menu-outline);
   box-shadow: 0px 10px 20px var(--menu-shadow);
   padding: 0.2em;
+  /* Explicit typography so menus look identical regardless of the
+   * containing element (e.g. <th> in the column menu defaults to bold). */
+  font-family: var(--code-font);
+  font-weight: normal;
+  font-size: var(--base-font-size);
+  line-height: var(--line-height);
 }
 
 /* Border radius, transforms, and animations based on opening direction */
