@@ -545,6 +545,7 @@ module View = {
         ~overlays: list(Node.t)=[],
         ~lines: bool=false,
         ~dynamics: Language.Dynamics.Map.t,
+        ~incr_eval: Language.IncrEval.t=Language.IncrEval.empty,
         ~expand_selection=?,
         model: Model.t,
       ) => {
@@ -656,8 +657,30 @@ module View = {
         model.editor.syntax.projector_list,
       );
     ProjectorView.ViewCache.log_frame();
+    /* Tint the background behind ids reused from the last run (cache hits)
+     * with an icy wash, so the user can see what the incremental evaluator
+     * is skipping. Gated behind a nut-menu setting because it's distracting
+     * during normal editing. */
+    let incr_eval_overlay =
+      if (globals.settings.show_incremental_deco) {
+        [
+          Node.div(
+            ~attrs=[Attr.classes(["code-deco", "incremental-deco"])],
+            [
+              Highlight.incr_eval(
+                ~font_metrics=globals.font_metrics,
+                ~syntax=model.editor.syntax,
+                incr_eval,
+              ),
+            ],
+          ),
+        ];
+      } else {
+        [];
+      };
     let overlays =
-      [Node.div(~attrs=[Attr.classes(["code-deco"])], edit_decos)]
+      incr_eval_overlay
+      @ [Node.div(~attrs=[Attr.classes(["code-deco"])], edit_decos)]
       @ [Node.div(~attrs=[Attr.classes(["overlays"])], overlays)]
       @ projectors
       @ refractors_model;

@@ -92,7 +92,8 @@ let init_from_term =
       ~default=Builtins.ctx_init(is_dynamic_term ? None : Some(Int)),
       ctx,
     );
-  let (info_map, elaborated) = Statics.mk(~ana?, settings, ctx_init, term);
+  let (info_map, elaborated) =
+    Statics.mk(~ana?, ~probe_ids, settings, ctx_init, term);
   let error_ids = Statics.Map.error_ids(info_map);
   let warning_ids = Statics.Map.warning_ids(info_map);
   let elaborated =
