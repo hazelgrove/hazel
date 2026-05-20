@@ -1,6 +1,4 @@
-open Js_of_ocaml;
 open Haz3lcore;
-open Virtual_dom.Vdom;
 open Util;
 open Util.OptUtil.Syntax;
 open WebUtil;
@@ -492,13 +490,6 @@ let get_direction =
   };
 };
 
-let menu_wrapper = menu_items =>
-  NutMenu.submenu(
-    ~tooltip="",
-    ~icon=div([]),
-    [div_c("group", [div_c("contents", menu_items)])],
-  );
-
 let view =
     (
       ~inject: Action.t => Ui_effect.t(unit),
@@ -534,7 +525,7 @@ let view =
         Attr.classes(["context-menu", "nut-menu", dir_class]),
         Attr.create("style", style),
       ],
-      [menu_wrapper(menu_items)],
+      [div_c("group", [div_c("contents", menu_items)])],
     );
   };
 };
