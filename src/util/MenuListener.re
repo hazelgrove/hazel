@@ -120,12 +120,18 @@ module Make = (C: Config) => {
           let target =
             Js.Opt.to_option(evt##.target)
             |> Option.map(t => Js.Unsafe.coerce(t));
-          let in_menu =
+          /* Clicks inside the menu, or on an element explicitly tagged
+           * as a menu trigger (the ⋮ button), are handled by the menu
+           * itself — skip the close-on-outside path so the trigger can
+           * implement open/close as a toggle. */
+          let owned_by_menu =
             switch (target) {
-            | Some(elem) => has_ancestor_with_class(elem, C.menu_class)
+            | Some(elem) =>
+              has_ancestor_with_class(elem, C.menu_class)
+              || has_ancestor_with_class(elem, "menu-trigger")
             | None => false
             };
-          if (!in_menu) {
+          if (!owned_by_menu) {
             execute_close();
           };
         });

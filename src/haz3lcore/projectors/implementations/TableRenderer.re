@@ -371,7 +371,10 @@ let render =
     Node.div(
       ~attrs=[
         Attr.id(menu_button_id(i)),
-        Attr.classes(["icon", "closure-nav-button"]),
+        /* `menu-trigger` exempts the button from MenuListener's
+         * click-outside detection so opening + closing both flow
+         * through ShowMenu, letting it toggle the same column. */
+        Attr.classes(["icon", "closure-nav-button", "menu-trigger"]),
         Attr.on_click(_ => local(ShowMenu(i))),
         Attr.title("Column options"),
       ],

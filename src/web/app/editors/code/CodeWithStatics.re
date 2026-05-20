@@ -1,4 +1,3 @@
-open Util;
 open Util.WebUtil;
 open Haz3lcore;
 
