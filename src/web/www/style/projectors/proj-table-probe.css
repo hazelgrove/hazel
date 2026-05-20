@@ -217,7 +217,8 @@
    meaning — cells aren't samples — and just add visual noise. Reset
    them; keep the syntax token colors, which still tell the user
    "this is a string vs a number" at a glance. */
-.live-offside .value.rich .value {
+.live-offside .sample:has(.value.rich) .value.rich .value,
+.live-offside .sample:has(.value.indet.focus) .value.rich .value {
   background-color: transparent !important;
   opacity: 1 !important;
   text-decoration: none !important;
