@@ -694,6 +694,12 @@ let insertion_tests = [
     ~acts=mk({|string_capitalize¦1)|}) @ [Insert("(")],
     ~goal={|string_capitalize(¦1)|},
   ),
+  /* Regression for #2074. */
+  test(
+    ~name="Tuple label keyword-expanding to `let` doesn't crash",
+    ~acts=string_to_ltr_actions("(le=)") @ mv_l(3) @ [Insert("t")],
+    ~goal={|(let¦?=?)|},
+  ),
 ];
 
 let destruct_tests = [
