@@ -365,6 +365,14 @@
   align-items: center;
 }
 
+/* When any sample in a group has a rich-probe view active, the samples
+ * can be very different heights (a 5-row table vs a 10-row table). Top-
+ * align so the tops of each rendering line up; centering would offset
+ * shorter samples and visually decouple their identities from headers. */
+.live-offside .sample-group:has(.value.rich) {
+  align-items: flex-start;
+}
+
 .live-offside .sample-group:not(:last-child)::after {
   content: "•";
   font-size: 0.4em;

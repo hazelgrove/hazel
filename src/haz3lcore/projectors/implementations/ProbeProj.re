@@ -1581,18 +1581,50 @@ module M: Projector = {
      reserves N rows below the probe and code below shifts down to make
      room for the inline rich content. With no active renderer, default
      (Inline) keeps the existing zero-reservation behavior. */
+  /* Combine two shapes by taking the larger footprint. Block dominates
+     Tab dominates Inline; ties pick the larger int. */
+  let max_shape =
+      (a: ProjectorCore.Shape.t, b: ProjectorCore.Shape.t)
+      : ProjectorCore.Shape.t => {
+    let vertical: ProjectorCore.Shape.vertical =
+      switch (a.vertical, b.vertical) {
+      | (Block(x), Block(y)) => Block(max(x, y))
+      | (Block(x), _)
+      | (_, Block(x)) => Block(x)
+      | (Tab(x), Tab(y)) => Tab(max(x, y))
+      | (Tab(x), _)
+      | (_, Tab(x)) => Tab(x)
+      | (Inline, Inline) => Inline
+      };
+    {
+      horizontal: max(a.horizontal, b.horizontal),
+      vertical,
+    };
+  };
+
+  /* When a renderer is active we report the LARGEST placeholder among
+     all displayed samples — otherwise tall tables in non-focused
+     samples get clipped because the layout reserved space for the
+     focused sample's smaller table. */
   let placeholder = (model: probe_model, info: info) => {
     let settings = Settings.s^;
-    switch (model.active_renderer, get_current(~settings, info)) {
-    | (Some(pm), Some(exp)) =>
+    switch (model.active_renderer, info.dynamics, info.statics) {
+    | (Some(pm), Some(di), Some(statics)) =>
       let rid = RichProbe.renderer_id_of_model(pm);
       switch (find(rid)) {
-      | Some(renderer) =>
-        switch (renderer.placeholder_packed(pm, Sort.Exp, exp)) {
-        | Some(shape) => shape
-        | None => ProjectorCore.Shape.default
-        }
       | None => ProjectorCore.Shape.default
+      | Some(renderer) =>
+        let ap_id = Sample.Focus.cur_var_ap(statics);
+        let samples = select_samples(~settings, ~id=info.id, ~ap_id, di);
+        let shapes =
+          samples
+          |> List.filter_map((s: Sample.t) =>
+               renderer.placeholder_packed(pm, Sort.Exp, s.value)
+             );
+        switch (shapes) {
+        | [] => ProjectorCore.Shape.default
+        | [first, ...rest] => List.fold_left(max_shape, first, rest)
+        };
       };
     | _ => ProjectorCore.Shape.default
     };
