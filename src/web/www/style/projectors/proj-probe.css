@@ -677,14 +677,14 @@
   padding: 0.2em 0.5em;
 }
 
-/* Vertical action layout when there's no env/args to show */
+/* In .no-env mode (no env/args section), the action row is the only
+ * content of the panel. Keep it horizontal so the dock toggle stays
+ * on the same line as the primary action; give the pills a touch
+ * more padding for visual balance. */
 .no-env .context-actions {
-  flex-direction: column;
-  gap: 0.1em;
   padding: 0.3em 0.4em;
 }
 .no-env .action-item {
-  justify-content: space-between;
   padding: 0.15em 0.4em;
 }
 
@@ -741,6 +741,18 @@
   background-repeat: no-repeat;
   scale: 0.75;
 }
+
+/* Dock toggle (rightmost icon in the context-actions row). Swaps the
+ * sample drawer between hover dropdown and sidebar; the bar-arrow glyph
+ * points toward the destination. */
+.action-item.dock-toggle {
+  margin-left: auto;
+  padding: 0 0.35em;
+  font-size: 0.85em;
+  line-height: 1;
+  color: var(--BR3);
+}
+
 
 /* --- Inner: call display section --- */
 

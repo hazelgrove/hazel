@@ -997,6 +997,11 @@ module View = {
         ~inject: Update.t => Ui_effect.t(unit),
         model: Model.t,
       ) => {
+    /* Bind the dock-toggle callback used by the in-projector dropdown
+     * (where global Settings updates aren't reachable via the projector
+     * framework's action API). */
+    Haz3lcore.ProbeProj.Settings.on_drawer_toggle :=
+      (() => inject(Globals(Set(SampleDrawerInSidebar))));
     let cursor =
       Selection.get_cursor_info(~inject, ~selection=model.selection, model);
     NinjaKeys.initialize(cursor.contextual_actions);

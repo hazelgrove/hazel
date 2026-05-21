@@ -407,7 +407,7 @@ module Update = {
         }
       | SampleDrawerInSidebar =>
         let new_val = !settings.sample_drawer_in_sidebar;
-        Haz3lcore.ProbeProj.Settings.drawer_in_sidebar := new_val;
+        Haz3lcore.ProbeProj.Settings.set_drawer_in_sidebar(new_val);
         {
           ...settings,
           sample_drawer_in_sidebar: new_val,

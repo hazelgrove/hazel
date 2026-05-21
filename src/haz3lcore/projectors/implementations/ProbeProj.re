@@ -99,6 +99,24 @@ module Settings = {
    * projector view can read it without threading through the framework. */
   let drawer_in_sidebar = ref(false);
 
+  /* Callback invoked when the dock-toggle UI affordance is clicked.
+   * Set by Page.view on each render so it captures the current `inject`.
+   * Lives here because the projector view (where the dropdown is
+   * rendered) can only dispatch external_actions, not global Settings
+   * updates. */
+  let on_drawer_toggle: ref(unit => Virtual_dom.Vdom.Effect.t(unit)) =
+    ref(_ => Virtual_dom.Vdom.Effect.Ignore);
+
+  /* Write `drawer_in_sidebar` AND bump version so the projector view
+   * cache (keyed on Settings.version) invalidates and the dropdown is
+   * removed from the DOM on the next render. Without the version bump
+   * the cached view (with the dropdown still mounted) keeps showing
+   * until some other state change invalidates the cache. */
+  let set_drawer_in_sidebar = (b: bool) => {
+    drawer_in_sidebar := b;
+    version := version^ + 1;
+  };
+
   let reset_mode = () => {
     Hashtbl.clear(offset);
     s := init;
@@ -650,25 +668,49 @@ let step_into_action = (ctx: probe_ctx, sample: Sample.t, ap_id: Id.t) =>
     ],
   );
 
-/* Context actions for a sample (Pin/Unpin, Step Into, etc.) */
+/* Dock toggle: swaps the sample drawer between hover dropdown
+ * (in the editor offside view) and the probe sidebar. The bar-arrow
+ * glyph points toward the destination: → bar (sidebar) when currently
+ * a hover dropdown; bar ← when currently docked in the sidebar. */
+let dock_toggle = (): Node.t => {
+  let docked = Settings.drawer_in_sidebar^;
+  let icon = docked ? {js|⇤|js} : {js|⇥|js};
+  let tooltip =
+    docked
+      ? "Undock sample drawer (Cmd+;)"
+      : "Dock sample drawer in sidebar (Cmd+;)";
+  div(
+    ~attrs=[
+      Attr.classes(["action-item", "dock-toggle"]),
+      Attr.title(tooltip),
+      Attr.on_pointerdown(_ =>
+        Effect.Many([Effect.Stop_propagation, Settings.on_drawer_toggle^()])
+      ),
+    ],
+    [text(icon)],
+  );
+};
+
+/* Context actions for a sample (Pin/Unpin, Step Into, etc.). The
+ * dock toggle is always appended at the row's far right, so the user
+ * can switch between hover/sidebar views from either context. */
 let sample_context_actions =
-    (ctx: probe_ctx, ~can_step_into: bool, sample: Sample.t): list(Node.t) =>
-  switch (ctx.ap_id) {
-  | Some(ap_id) => [
-      div(
-        ~attrs=[Attr.classes(["context-actions"])],
-        [pin_action(ctx, sample)]
-        @ (can_step_into ? [step_into_action(ctx, sample, ap_id)] : []),
-      ),
-    ]
-  | None when sample.call_stack != [] => [
-      div(
-        ~attrs=[Attr.classes(["context-actions"])],
-        [focus_action(ctx, sample)],
-      ),
-    ]
-  | None => []
-  };
+    (ctx: probe_ctx, ~can_step_into: bool, sample: Sample.t): list(Node.t) => {
+  let primary =
+    switch (ctx.ap_id) {
+    | Some(ap_id) =>
+      [pin_action(ctx, sample)]
+      @ (can_step_into ? [step_into_action(ctx, sample, ap_id)] : [])
+    | None when sample.call_stack != [] => [focus_action(ctx, sample)]
+    | None => []
+    };
+  [
+    div(
+      ~attrs=[Attr.classes(["context-actions"])],
+      primary @ [dock_toggle()],
+    ),
+  ];
+};
 
 /* Get function name from statics info if this is an Ap expression */
 let get_fn_name_from_statics =
