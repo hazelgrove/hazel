@@ -925,18 +925,16 @@ let sample_context_drawer =
   if (!has_dropdown && !has_env && !has_call) {
     None;
   } else {
-    /* Both classes: `sample-context-menu` reuses the inner styling
-     * (actions/call/env). Dropdown chrome rules are scoped under
-     * `.live-offside` and `.dropdown-active`, neither matches the
-     * sidebar-mounted drawer. */
-    Some(
-      div(
-        ~attrs=[
-          Attr.classes(["sample-context-menu", "sample-context-drawer"]),
-        ],
-        nodes,
-      ),
-    );
+    /* Inner content rules (.context-actions, .live-env, .call-display, ...)
+     * are unscoped in proj-probe.css, so the drawer styles itself via
+     * those inner classes. Sidebar-specific tweaks live under
+     * `#probe-sidebar .sample-context-drawer` in probesystem.css.
+     * `.no-env` toggles the vertical action layout when there's
+     * nothing else to show. */
+    let classes =
+      ["sample-context-drawer"]
+      @ (has_env || has_call ? [] : ["no-env"]);
+    Some(div(~attrs=[Attr.classes(classes)], nodes));
   };
 };
 

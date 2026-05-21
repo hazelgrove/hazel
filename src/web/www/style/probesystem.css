@@ -797,21 +797,25 @@ body:not(:has(.live-offside:focus))
   font-family: monospace;
 }
 
-/* Sidebar drawer that mirrors the per-sample hover dropdown */
+/* Sample-context drawer — same inner content as the hover dropdown
+ * (styled by proj-probe.css), but mounted in the sidebar.
+ *
+ * Sidebar-specific overrides go below: those tweak how the shared inner
+ * content looks in this context without touching the dropdown's styling. */
+
 #probe-sidebar .sample-drawer-slot {
   padding: 0;
 }
 
-/* Drawer reuses .sample-context-menu inner styling. Override the
- * dropdown's absolute-positioning chrome (which only applies inside
- * .live-offside) by forcing the drawer into normal flow. */
 #probe-sidebar .sample-context-drawer {
-  position: static;
-  display: block;
-  left: auto;
   background-color: var(--BR1);
   border-radius: 0.3em;
-  border-bottom: none;
-  width: 100%;
   box-sizing: border-box;
+}
+
+/* In the sidebar, env/call sections blend with the panel background
+ * instead of using the dropdown's contrasting --live-env-bkg. */
+#probe-sidebar .sample-context-drawer .live-env,
+#probe-sidebar .sample-context-drawer .call-display {
+  background-color: transparent;
 }

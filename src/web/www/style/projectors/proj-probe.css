@@ -656,44 +656,42 @@
   color: white;
 } */
 
-/* SAMPLE CONTEXT MENU (dropdown) */
+/* SAMPLE CONTEXT — inner content shared by hover dropdown and sidebar drawer.
+ *
+ * Inner classes (.context-actions, .action-item, .call-display, .live-env,
+ * .live-env-entry, .environment-section) are styled directly without a
+ * parent scope so they look the same in both contexts. Outer chrome
+ * (positioning, visibility) is split into:
+ *   - dropdown chrome: .live-offside .sample-context-menu
+ *   - drawer chrome:   #probe-sidebar .sample-context-drawer (in probesystem.css)
+ *
+ * Per-context overrides go on the outer-class selector
+ * (e.g. `.sample-context-drawer .live-env { ... }`). */
 
-.live-offside .sample-context-menu {
-  border-radius: 0 0.2em 0.2em 0.2em;
-  background-color: var(--BR1);
-  display: none;
-  position: absolute;
-  /* translate: 0 1px; */
-  left: 3px;
-  /* scale: 0.75; */
-  transform-origin: top left;
-  border-bottom: 1px solid var(--BR2);
-}
+/* --- Inner: context actions section --- */
 
-/* Context actions section */
-.sample-context-menu .context-actions {
+.context-actions {
   display: flex;
   flex-direction: row;
   gap: 0.6em;
   padding: 0.2em 0.5em;
 }
 
-/* Vertical layout when no environment */
-.sample-context-menu.no-env .context-actions {
+/* Vertical action layout when there's no env/args to show */
+.no-env .context-actions {
   flex-direction: column;
   gap: 0.1em;
   padding: 0.3em 0.4em;
 }
-.sample-context-menu.no-env .action-item {
+.no-env .action-item {
   justify-content: space-between;
   padding: 0.15em 0.4em;
 }
 
-.sample-context-menu .action-item {
+.action-item {
   cursor: pointer;
   display: flex;
   align-items: center;
-  /* outline: 0.6px solid var(--BR4); */
   border-radius: 1em;
   width: fit-content;
   padding: 0 0.3em;
@@ -702,11 +700,11 @@
   white-space: nowrap;
 }
 
-.sample-context-menu .action-item:hover {
+.action-item:hover {
   background-color: var(--T3);
 }
 
-.sample-context-menu .action-item .shortcut {
+.action-item .shortcut {
   margin-left: 0.3em;
   padding: 0 0.3em;
   font-size: 0.8em;
@@ -715,11 +713,12 @@
   border-radius: 0.2em;
 }
 
-.sample-context-menu .action-item.pinned .pin-icon {
+.action-item.pinned .pin-icon,
+.action-item:hover .pin-icon {
   background-color: var(--R1);
 }
 
-.sample-context-menu .action-item .pin-icon {
+.action-item .pin-icon {
   height: 1.3em;
   width: 1.3em;
   border-radius: 1em;
@@ -730,7 +729,7 @@
   scale: 0.75;
 }
 
-.sample-context-menu .action-item .step-into-icon {
+.action-item .step-into-icon {
   height: 1.3em;
   width: 1.3em;
   border-radius: 1em;
@@ -742,21 +741,9 @@
   scale: 0.75;
 }
 
-.sample-context-menu .action-item:hover .pin-icon {
-  background-color: var(--R1);
-}
+/* --- Inner: call display section --- */
 
-:is(.live-offside, .sample-context-drawer) .live-env {
-  padding: 0.2em 0.55em;
-  background-color: var(--live-env-bkg);
-}
-
-.sample-context-menu .context-actions + .environment-section .live-env {
-  border-top: 0.6px solid var(--BR3);
-}
-
-/* Call display section showing function call with argument values */
-.sample-context-menu .call-display {
+.call-display {
   display: flex;
   flex-direction: row;
   align-items: baseline;
@@ -768,35 +755,64 @@
   white-space: nowrap;
 }
 
-.sample-context-menu .context-actions + .call-display {
-  border-top: 0.6px solid var(--BR3);
-}
-
-.sample-context-menu .call-display + .environment-section .live-env {
-  border-top: 0.6px solid var(--BR3);
-}
-
-.sample-context-menu .call-display .paren {
+.call-display .paren {
   font-weight: bold;
 }
 
 /* Multiline call display for tuple arguments */
-.sample-context-menu .call-display.multiline {
+.call-display.multiline {
   flex-direction: column;
   align-items: flex-start;
 }
 
-.sample-context-menu .call-display .call-header {
+.call-display .call-header {
   display: flex;
   flex-direction: row;
   align-items: baseline;
 }
 
-.sample-context-menu .call-display .call-arg-row {
+.call-display .call-arg-row {
   display: flex;
   flex-direction: row;
   align-items: baseline;
   padding-left: 1em;
+}
+
+/* --- Inner: environment section --- */
+
+.live-env {
+  padding: 0.2em 0.55em;
+  background-color: var(--live-env-bkg);
+}
+
+.live-env .live-env-entry {
+  display: flex;
+  flex-direction: row;
+  white-space: pre;
+  align-items: baseline;
+  color: var(--GB0);
+  font-family: var(--code-font);
+  font-size: var(--base-font-size);
+}
+
+/* --- Inner: dividers between sections (structural, not chrome-specific) --- */
+
+.context-actions + .call-display,
+.context-actions + .environment-section .live-env,
+.call-display + .environment-section .live-env {
+  border-top: 0.6px solid var(--BR3);
+}
+
+/* --- Dropdown chrome: hover-triggered, absolute-positioned, hidden by default --- */
+
+.live-offside .sample-context-menu {
+  border-radius: 0 0.2em 0.2em 0.2em;
+  background-color: var(--BR1);
+  display: none;
+  position: absolute;
+  left: 3px;
+  transform-origin: top left;
+  border-bottom: 1px solid var(--BR2);
 }
 
 /* Show sample context menu only via JS-managed dropdown-active class
@@ -811,16 +827,6 @@
   .sample:has(.value.focus)
   .sample-context-menu.dropdown-active:empty {
   display: none;
-}
-
-:is(.live-offside, .sample-context-drawer) .live-env .live-env-entry {
-  display: flex;
-  flex-direction: row;
-  white-space: pre;
-  align-items: baseline;
-  color: var(--GB0);
-  font-family: var(--code-font);
-  font-size: var(--base-font-size);
 }
 
 .projector.probe .nav-arrow {
