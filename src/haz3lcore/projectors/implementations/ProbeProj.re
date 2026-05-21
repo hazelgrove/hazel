@@ -932,8 +932,7 @@ let sample_context_drawer =
      * `.no-env` toggles the vertical action layout when there's
      * nothing else to show. */
     let classes =
-      ["sample-context-drawer"]
-      @ (has_env || has_call ? [] : ["no-env"]);
+      ["sample-context-drawer"] @ (has_env || has_call ? [] : ["no-env"]);
     Some(div(~attrs=[Attr.classes(classes)], nodes));
   };
 };

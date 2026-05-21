@@ -690,6 +690,7 @@
 
 .action-item {
   cursor: pointer;
+  user-select: none !important;
   display: flex;
   align-items: center;
   border-radius: 1em;
