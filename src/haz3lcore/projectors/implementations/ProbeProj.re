@@ -15,7 +15,6 @@ open Language;
 type action =
   | ChangeLength(int, int)
   | ToggleWindowMode
-  | ToggleShowEnv
   | ResetSettings;
 
 module Settings = {
@@ -89,39 +88,55 @@ module Settings = {
   let s = ref(init);
   let version = ref(0);
 
-  /* When true, the context menu dropdown is shown for the indicated sample
-   * without hovering. Toggled by '/' key. Persists across probe navigation. */
-  let show_env = ref(false);
+  /* Where the sample context drawer (actions/args/env) is shown.
+   * Three mutually exclusive states:
+   *   HoverOnly:     dropdown appears on hover, hides off-hover (default).
+   *   StickyInPlace: dropdown is pinned open for the indicated sample
+   *                  without hover. Transient (resets on app reload).
+   *                  Toggled by '/' key.
+   *   DockedSidebar: content rendered in the probe sidebar drawer
+   *                  instead of as a per-sample dropdown. Persistent
+   *                  (mirror of web/Settings.sample_drawer_in_sidebar).
+   *                  Toggled by Cmd/Ctrl+; or the dock-arrow icon.
+   * The '/' key can also exit DockedSidebar into StickyInPlace (the
+   * asymmetric "undock to in-place" behavior); the icon is the only
+   * thing that enters DockedSidebar. See ProjectorView.ViewCache —
+   * mutations must go through set_display_mode so version bumps and
+   * the projector view cache invalidates. */
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type display_mode =
+    | HoverOnly
+    | StickyInPlace
+    | DockedSidebar;
 
-  /* When true, the sample context drawer renders in the probe sidebar
-   * instead of as a per-sample hover dropdown. Mirror of the persistent
-   * web/Settings.sample_drawer_in_sidebar field, kept here so the
-   * projector view can read it without threading through the framework. */
-  let drawer_in_sidebar = ref(false);
+  let display_mode = ref(HoverOnly);
 
-  /* Callback invoked when the dock-toggle UI affordance is clicked.
-   * Set by Page.view on each render so it captures the current `inject`.
-   * Lives here because the projector view (where the dropdown is
-   * rendered) can only dispatch external_actions, not global Settings
-   * updates. */
+  /* Callbacks invoked by UI affordances inside the projector view
+   * (which can only dispatch external_actions through the framework
+   * API, not global Settings updates). Both are set by Page.view on
+   * each render so they capture the current `inject`. */
   let on_drawer_toggle: ref(unit => Virtual_dom.Vdom.Effect.t(unit)) =
     ref(_ => Virtual_dom.Vdom.Effect.Ignore);
+  let on_sticky_toggle: ref(unit => Virtual_dom.Vdom.Effect.t(unit)) =
+    ref(_ => Virtual_dom.Vdom.Effect.Ignore);
 
-  /* Write `drawer_in_sidebar` AND bump version so the projector view
-   * cache (keyed on Settings.version) invalidates and the dropdown is
-   * removed from the DOM on the next render. Without the version bump
-   * the cached view (with the dropdown still mounted) keeps showing
-   * until some other state change invalidates the cache. */
-  let set_drawer_in_sidebar = (b: bool) => {
-    drawer_in_sidebar := b;
+  /* Write `display_mode` AND bump version so the projector view cache
+   * (keyed on Settings.version) invalidates on the next render. */
+  let set_display_mode = (m: display_mode) => {
+    display_mode := m;
     version := version^ + 1;
   };
 
   let reset_mode = () => {
     Hashtbl.clear(offset);
     s := init;
+    /* Only clear the transient StickyInPlace bit; preserve the user's
+     * persisted DockedSidebar preference (matches the old reset behavior
+     * which only cleared show_env). */
+    if (display_mode^ == StickyInPlace) {
+      display_mode := HoverOnly;
+    };
     version := version^ + 1;
-    show_env := false;
   };
 
   let go = (a: set_action): unit => {
@@ -673,7 +688,7 @@ let step_into_action = (ctx: probe_ctx, sample: Sample.t, ap_id: Id.t) =>
  * glyph points toward the destination: → bar (sidebar) when currently
  * a hover dropdown; bar ← when currently docked in the sidebar. */
 let dock_toggle = (): Node.t => {
-  let docked = Settings.drawer_in_sidebar^;
+  let docked = Settings.display_mode^ == Settings.DockedSidebar;
   let icon = docked ? {js|⇤|js} : {js|⇥|js};
   let tooltip =
     docked
@@ -991,10 +1006,15 @@ let sample_view =
   let hide_env = hide_env(ctx.statics);
   let has_dropdown =
     !(hide_env && ctx.ap_id == None) || sample.call_stack != [];
-  /* In sidebar-drawer mode the per-sample hover dropdown is hidden;
-   * the same content is rendered by the probe sidebar instead. */
-  let render_dropdown = has_dropdown && ! Settings.drawer_in_sidebar^;
-  let show_env = Settings.show_env^ && indicated_sample_id == Some(sample.id);
+  /* In DockedSidebar the per-sample hover dropdown is hidden; the same
+   * content is rendered by the probe sidebar instead. */
+  let render_dropdown =
+    has_dropdown && Settings.display_mode^ != Settings.DockedSidebar;
+  /* StickyInPlace pins the dropdown open for the indicated sample
+   * (the in-place equivalent of DockedSidebar). */
+  let show_env =
+    Settings.display_mode^ == Settings.StickyInPlace
+    && indicated_sample_id == Some(sample.id);
   div(
     ~attrs=
       [Attr.classes(["sample"])]
@@ -1290,7 +1310,11 @@ let key_handler = (ctx: probe_ctx, ~id: Id.t, local, evt) => {
     | _ => Many([Stop_propagation, Prevent_default])
     }
   | D(";") when key.meta == Down || key.ctrl == Down => Ignore /* Defer to page-level handler: toggle sidebar drawer mode */
-  | D("/") => Many([local(ToggleShowEnv), Stop_propagation, Prevent_default])
+  | D("/") =>
+    /* Sticky-in-place toggle. Handler in web/Settings owns the
+     * transition logic (including the asymmetric DockedSidebar →
+     * StickyInPlace move which also clears the persisted dock). */
+    Many([Settings.on_sticky_toggle^(), Stop_propagation, Prevent_default])
   | D("c" | "C") when Key.meta_held(evt) || Key.ctrl_held(evt) =>
     switch (indicated_sample(ctx)) {
     | Some(sample) =>
@@ -1488,9 +1512,6 @@ module M: Projector = {
       SampleLength.set(id, len);
       Settings.version := Settings.version^ + 1;
     | ToggleWindowMode => Settings.go(ToggleWindow)
-    | ToggleShowEnv =>
-      Settings.show_env := ! Settings.show_env^;
-      Settings.version := Settings.version^ + 1;
     | ResetSettings =>
       Settings.reset_mode();
       SampleLength.reset();

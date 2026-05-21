@@ -157,6 +157,7 @@ module Update = {
     | FlipAnimations
     | AutoprobeMode
     | SampleDrawerInSidebar
+    | SampleStickyInPlace
     | ToggleLineNumbers
     | ToggleRelativeLineNumbers
     | CapUndoStack
@@ -406,12 +407,39 @@ module Update = {
           autoprobe_mode: !settings.autoprobe_mode,
         }
       | SampleDrawerInSidebar =>
-        let new_val = !settings.sample_drawer_in_sidebar;
-        Haz3lcore.ProbeProj.Settings.set_drawer_in_sidebar(new_val);
-        {
-          ...settings,
-          sample_drawer_in_sidebar: new_val,
-        };
+        /* Pure dock toggle. Lands in either DockedSidebar or HoverOnly;
+         * any prior StickyInPlace is cleared by the new display_mode
+         * value. Persists. */
+        Haz3lcore.ProbeProj.Settings.(
+          {
+            let new_docked = !settings.sample_drawer_in_sidebar;
+            set_display_mode(new_docked ? DockedSidebar : HoverOnly);
+            {
+              ...settings,
+              sample_drawer_in_sidebar: new_docked,
+            };
+          }
+        )
+      | SampleStickyInPlace =>
+        /* '/' key. Asymmetric — can leave DockedSidebar but never
+         * enters it. From DockedSidebar this also clears the persisted
+         * dock so the user is no longer docked on reload. */
+        Haz3lcore.ProbeProj.Settings.(
+          switch (display_mode^) {
+          | DockedSidebar =>
+            set_display_mode(StickyInPlace);
+            {
+              ...settings,
+              sample_drawer_in_sidebar: false,
+            };
+          | StickyInPlace =>
+            set_display_mode(HoverOnly);
+            settings;
+          | HoverOnly =>
+            set_display_mode(StickyInPlace);
+            settings;
+          }
+        )
       | ToggleLineNumbers => {
           ...settings,
           line_numbers: !settings.line_numbers,
