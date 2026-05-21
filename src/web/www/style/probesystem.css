@@ -97,14 +97,15 @@
 }
 
 #probe-sidebar .sketch .sketch-toggle-image {
-  width: 160px;
-  height: 160px;
+  width: 200px;
+  height: 200px;
   transition: all 0.2s ease-in-out;
-  background-image: url("../img/probe-lenses.webp");
+  background-image: url(/img/probe-lenses.webp);
   background-size: contain;
   background-repeat: no-repeat;
   background-position: center;
   display: inline-block;
+  filter: contrast(0.7) brightness(1.2);
 }
 
 #probe-sidebar .sketch[open] .sketch-toggle-image {
