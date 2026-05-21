@@ -36,6 +36,14 @@ type t = {
    * side disagrees with the other, decorations drift out of sync with
    * caret/text positions. */
   refractor_shape_map: Id.Map.t(int),
+  /* References to the refractor stores this cache was built from.
+   * Compared by physical equality in `calculate` to detect refractor
+   * model mutations (e.g. probe drawer-mode toggle). The Zipper is
+   * functional, so any SetModel touching a refractor produces a fresh
+   * map reference; if these match the new zipper's, the shape map is
+   * still valid and we skip the rebuild. */
+  cached_manuals: Refractors.RefractorList.t,
+  cached_ephemerals: Refractors.Map.t,
   cached_backpack: list(Tile.t),
 };
 
@@ -104,6 +112,8 @@ let mk = (~info_map, ~dyn_map, z): t => {
     projector_list,
     shape_map: projector_shapes,
     refractor_shape_map,
+    cached_manuals: z.refractors.manuals,
+    cached_ephemerals: z.refractors.multis.ephemerals,
     cached_backpack: Segment.global_missing_shards(segment),
   };
 };
@@ -117,10 +127,20 @@ let mark_old: t => t =
     old: true,
   };
 
-let calculate = (z: Zipper.t, info_map, dyn_map, old: t) =>
-  old.old
-    ? mk(z, ~info_map, ~dyn_map)
-    : {
+let calculate = (z: Zipper.t, info_map, dyn_map, old: t) => {
+  /* Detect refractor model mutations (e.g. probe drawer-mode toggle)
+   * cheaply by reference-comparing the maps we built from previously.
+   * If either reference differs, the shape map may have changed and we
+   * rebuild. Caret moves leave these references intact. */
+  let refractor_inputs_changed =
+    z.refractors.manuals !== old.cached_manuals
+    || z.refractors.multis.ephemerals !== old.cached_ephemerals;
+  if (old.old || refractor_inputs_changed) {
+    mk(z, ~info_map, ~dyn_map);
+  } else {
+    {
       ...old,
       selection_ids: Selection.selection_ids(z.selection),
     };
+  };
+};

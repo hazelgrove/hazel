@@ -200,23 +200,31 @@ let go =
     let id = idx_to_id(kind, idx);
     Ok(
       if (ProjectorCore.Kind.is_refractor(kind)) {
-        Zipper.update_manuals(
-          map =>
-            ListUtil.assoc_update(
-              id,
-              fun
-              | Some(entry: Refractors.entry) =>
-                Some(
-                  Refractors.{
-                    kind: entry.kind,
-                    model: new_model,
-                  },
-                )
-              | None => None,
-              map,
-            ),
-          z,
-        );
+        /* The refractor may live in either `manuals` (user-placed) or
+         * `multis.ephemerals` (auto-rebuilt from `multis.ids`). Both
+         * stores keep the same `Refractors.entry` shape, so we try
+         * each location; whichever holds the id receives the update.
+         * If we wrote only to manuals (the previous behaviour), models
+         * on ephemeral refractors would be silently dropped. */
+        let with_model_set = (entry: Refractors.entry) => {
+          ...entry,
+          model: new_model,
+        };
+        z
+        |> Zipper.update_manuals(
+             ListUtil.assoc_update(
+               id,
+               fun
+               | Some(entry) => Some(with_model_set(entry))
+               | None => None,
+             ),
+           )
+        |> Zipper.update_ephemerals(map =>
+             switch (Id.Map.find_opt(id, map)) {
+             | Some(entry) => Id.Map.add(id, with_model_set(entry), map)
+             | None => map
+             }
+           );
       } else {
         update(
           pr =>

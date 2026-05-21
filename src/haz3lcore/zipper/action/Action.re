@@ -192,13 +192,16 @@ let is_edit: t => bool =
   | Unselect(_) => false
   | Project(p) =>
     switch (p) {
-    /* SetModel must mark the syntax cache old so the placeholder is
-     * re-queried — projectors whose model affects shape (e.g. ProbeProj
-     * drawer_mode → Tab(n)) need the layout to follow the new model. */
-    | SetModel(_)
     | SetSyntax(_)
     | SetIndicated(_)
     | RemoveIndicated => true
+    | SetModel(_)
+    /* SetModel is not classified as an edit at the action layer.
+     * CachedSyntax detects shape-affecting projector/refractor model
+     * changes via reference equality of the maps it depends on
+     * (see CachedSyntax.calculate). This keeps the edit pipeline —
+     * including the statics recompute — out of every slider drag
+     * and similar continuous projector actions. */
     | Focus(_)
     | SampleFocus(_)
     | Escape(_)
