@@ -791,6 +791,72 @@ let quick_ref_view =
   );
 };
 
+/* Sidebar drawer: when sample_drawer_in_sidebar is on, render the same
+ * actions/args/env content that would otherwise appear as a per-sample
+ * hover dropdown. Returns [] when nothing is indicated or the indicated
+ * tile has no probe / no aligned sample. */
+let sample_drawer_view =
+    (~globals: Globals.t, ~editor: CodeEditable.Model.t): list(Node.t) => {
+  let z = editor.editor.state.zipper;
+  open Util.OptUtil.Syntax;
+  let result = {
+    let* indicated_id = Indicated.index(z);
+    let* statics = Statics.Map.lookup(indicated_id, editor.statics.info_map);
+    let* samples = Dynamics.Map.lookup(indicated_id, editor.dynamics);
+    let sample_focus = z.refractors.sample_focus;
+    let dynamics: Dynamics.Info.t = {
+      samples,
+      sample_focus,
+    };
+    let ap_id = Sample.Focus.cur_var_ap(statics);
+    let* sample = Dynamics.Info.most_aligned_sample(ap_id, dynamics);
+    let parent = (action: ProjectorBase.external_action) =>
+      switch (action) {
+      | SampleFocus(sf) =>
+        globals.inject_global(ActiveEditor(Project(SampleFocus(sf))))
+      | Probe(p) => globals.inject_global(ActiveEditor(Probe(p)))
+      | Remove
+      | Escape(_)
+      | EscapeToLineEnd(_)
+      | SetSyntax(_)
+      | FocusById(_) => Ui_effect.Ignore
+      };
+    let ctx: ProbeProj.probe_ctx = {
+      ap_id,
+      statics,
+      settings: ProbeProj.Settings.s^,
+      dynamics,
+      utility: ProjectorInfo.utility,
+      parent,
+    };
+    let view_seg =
+        (~single_line=?, ~background=?, ~text_only=?, sort, segment) =>
+      ProjectorView.flex_code(
+        ~font_metrics=globals.font_metrics,
+        ~single_line?,
+        ~background?,
+        ~text_only?,
+        sort,
+        segment,
+      );
+    let view_seg_line = (~text_only, segment) =>
+      view_seg(
+        ~single_line=true,
+        ~background=false,
+        ~text_only,
+        Sort.Exp,
+        segment,
+      );
+    ProbeProj.sample_context_drawer(ctx, view_seg_line, sample);
+  };
+  switch (result) {
+  | Some(node) => [
+      div(~attrs=[clss(["sample-drawer-slot", "panel"])], [node]),
+    ]
+  | None => []
+  };
+};
+
 let probearium =
     (~globals: Globals.t, ~explain_this_inject, ~editor: CodeEditable.Model.t) => {
   let z = editor.editor.state.zipper;
@@ -816,8 +882,12 @@ let probearium =
       }
     | None => false
     };
-  [
-    div(~attrs=[clss(["header"])], [mode_title(~explain_this_inject)]),
+  let drawer_slot =
+    globals.settings.sample_drawer_in_sidebar
+      ? sample_drawer_view(~globals, ~editor) : [];
+  [div(~attrs=[clss(["header"])], [mode_title(~explain_this_inject)])]
+  @ drawer_slot
+  @ [
     toggle_controls_view(~globals, ~explain_this_inject),
     quick_ref_view(
       ~indicated_can_probe,

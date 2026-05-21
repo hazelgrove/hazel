@@ -705,6 +705,12 @@ module View = {
             _,
           } =>
           Some(Update.Globals(Set(AutoprobeMode)))
+        /* Cmd+; (Mac) / Ctrl+; (PC) toggles whether the sample context
+           drawer (actions/args/env) renders in the probe sidebar instead
+           of as a per-sample hover dropdown. */
+        | {key: D(";"), sys: Mac, shift: Up, meta: Down, ctrl: Up, alt: Up, _}
+        | {key: D(";"), sys: PC, shift: Up, meta: Up, ctrl: Down, alt: Up, _} =>
+          Some(Update.Globals(Set(SampleDrawerInSidebar)))
         | _ => None
         };
       Effect.(

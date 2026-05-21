@@ -130,6 +130,8 @@ module Model = {
 
   let load = () => {
     let settings = Settings.Store.load();
+    Haz3lcore.ProbeProj.Settings.drawer_in_sidebar :=
+      settings.sample_drawer_in_sidebar;
     init(~settings, ());
   };
 

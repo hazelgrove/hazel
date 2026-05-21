@@ -16,6 +16,9 @@ module Model = {
     /* Auto probe: automatically place a multi probe on the body of
        whichever top-level definition the cursor is currently inside */
     autoprobe_mode: bool,
+    /* When true, the sample context drawer (actions/args/env) is shown
+       in the probe sidebar instead of as a hover dropdown on samples. */
+    sample_drawer_in_sidebar: bool,
     agent_globals: AgentGlobals.Model.t,
     line_numbers: bool,
     relative_line_numbers: bool,
@@ -71,6 +74,7 @@ module Model = {
       },
     },
     autoprobe_mode: false,
+    sample_drawer_in_sidebar: false,
     agent_globals: AgentGlobals.init(),
     line_numbers: false,
     relative_line_numbers: false,
@@ -152,6 +156,7 @@ module Update = {
     | DisplayWarnings
     | FlipAnimations
     | AutoprobeMode
+    | SampleDrawerInSidebar
     | ToggleLineNumbers
     | ToggleRelativeLineNumbers
     | CapUndoStack
@@ -400,6 +405,13 @@ module Update = {
           ...settings,
           autoprobe_mode: !settings.autoprobe_mode,
         }
+      | SampleDrawerInSidebar =>
+        let new_val = !settings.sample_drawer_in_sidebar;
+        Haz3lcore.ProbeProj.Settings.drawer_in_sidebar := new_val;
+        {
+          ...settings,
+          sample_drawer_in_sidebar: new_val,
+        };
       | ToggleLineNumbers => {
           ...settings,
           line_numbers: !settings.line_numbers,

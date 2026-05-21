@@ -93,6 +93,12 @@ module Settings = {
    * without hovering. Toggled by '/' key. Persists across probe navigation. */
   let show_env = ref(false);
 
+  /* When true, the sample context drawer renders in the probe sidebar
+   * instead of as a per-sample hover dropdown. Mirror of the persistent
+   * web/Settings.sample_drawer_in_sidebar field, kept here so the
+   * projector view can read it without threading through the framework. */
+  let drawer_in_sidebar = ref(false);
+
   let reset_mode = () => {
     Hashtbl.clear(offset);
     s := init;
@@ -856,14 +862,41 @@ let sample_environment =
     ];
 };
 
-/* Sample context menu (dropdown) combining actions and environment */
-let sample_context_menu =
-    (~show_env, ctx: probe_ctx, view_seg, sample: Sample.t): Node.t => {
+/* Don't redundantly show an env for variable references, patterns */
+let hide_env = (statics: Language.Statics.Info.t): bool =>
+  switch (statics) {
+  | InfoExp({user_term: {term: Var(_), _}, _}) => true
+  | InfoPat(_) => true
+  | _ => false
+  };
+
+/* Inner sections of the sample context drawer: actions, call display, env.
+ * Used by both the hover dropdown (sample_context_menu) and the sidebar
+ * drawer (sample_context_drawer). Also returns has_env/has_call flags so
+ * the dropdown can adjust its chrome. */
+let sample_context_sections =
+    (ctx: probe_ctx, view_seg, sample: Sample.t): (bool, bool, list(Node.t)) => {
   /* Get variable names shown in call display to filter from environment */
   let filter_vars = List.filter_map(Fun.id, get_arg_var_info(ctx.statics));
   let env_elems = filtered_env_entries(~filter_vars, sample);
   let has_env = env_elems != [];
   let has_call = Option.is_some(sample.args);
+  let nodes =
+    sample_context_actions(
+      ctx,
+      ~can_step_into=can_step_into(ctx.statics),
+      sample,
+    )
+    @ sample_call_display(ctx, view_seg, sample)
+    @ sample_environment(ctx, ~filter_vars, view_seg, sample);
+  (has_env, has_call, nodes);
+};
+
+/* Sample context menu (dropdown) combining actions and environment */
+let sample_context_menu =
+    (~show_env, ctx: probe_ctx, view_seg, sample: Sample.t): Node.t => {
+  let (has_env, has_call, nodes) =
+    sample_context_sections(ctx, view_seg, sample);
   div(
     ~attrs=
       [
@@ -874,23 +907,38 @@ let sample_context_menu =
         ),
       ]
       @ SafeTriangle.CSSDropdown.menu_attrs(dropdown_id(sample.id)),
-    sample_context_actions(
-      ctx,
-      ~can_step_into=can_step_into(ctx.statics),
-      sample,
-    )
-    @ sample_call_display(ctx, view_seg, sample)
-    @ sample_environment(ctx, ~filter_vars, view_seg, sample),
+    nodes,
   );
 };
 
-/* Don't redundantly show an env for variable references, patterns */
-let hide_env = (statics: Language.Statics.Info.t): bool =>
-  switch (statics) {
-  | InfoExp({user_term: {term: Var(_), _}, _}) => true
-  | InfoPat(_) => true
-  | _ => false
+/* Sidebar drawer rendering: same content as the dropdown, without
+ * SafeTriangle hover chrome. Returns None when there's nothing to show. */
+let sample_context_drawer =
+    (ctx: probe_ctx, view_seg, sample: Sample.t): option(Node.t) => {
+  let (has_env, has_call, nodes) =
+    sample_context_sections(ctx, view_seg, sample);
+  /* Mirror sample_view's has_dropdown gate: a non-Ap term that's a Var or
+   * Pat with no enclosing call has nothing useful to show. */
+  let hide_env = hide_env(ctx.statics);
+  let has_dropdown =
+    !(hide_env && ctx.ap_id == None) || sample.call_stack != [];
+  if (!has_dropdown && !has_env && !has_call) {
+    None;
+  } else {
+    /* Both classes: `sample-context-menu` reuses the inner styling
+     * (actions/call/env). Dropdown chrome rules are scoped under
+     * `.live-offside` and `.dropdown-active`, neither matches the
+     * sidebar-mounted drawer. */
+    Some(
+      div(
+        ~attrs=[
+          Attr.classes(["sample-context-menu", "sample-context-drawer"]),
+        ],
+        nodes,
+      ),
+    );
   };
+};
 
 let sample_view =
     (
@@ -904,19 +952,22 @@ let sample_view =
   let hide_env = hide_env(ctx.statics);
   let has_dropdown =
     !(hide_env && ctx.ap_id == None) || sample.call_stack != [];
+  /* In sidebar-drawer mode the per-sample hover dropdown is hidden;
+   * the same content is rendered by the probe sidebar instead. */
+  let render_dropdown = has_dropdown && ! Settings.drawer_in_sidebar^;
   let show_env = Settings.show_env^ && indicated_sample_id == Some(sample.id);
   div(
     ~attrs=
       [Attr.classes(["sample"])]
       @ (
-        has_dropdown
+        render_dropdown
           ? SafeTriangle.CSSDropdown.trigger_attrs(dropdown_id(sample.id))
           : []
       ),
     [value_view(ctx, ~num_total, view_seg, local, sample)]
     @ pin_view(ctx, sample)
     @ (
-      has_dropdown
+      render_dropdown
         ? [sample_context_menu(~show_env, ctx, view_seg, sample)] : []
     ),
   );
@@ -1199,6 +1250,7 @@ let key_handler = (ctx: probe_ctx, ~id: Id.t, local, evt) => {
       ])
     | _ => Many([Stop_propagation, Prevent_default])
     }
+  | D(";") when key.meta == Down || key.ctrl == Down => Ignore /* Defer to page-level handler: toggle sidebar drawer mode */
   | D("/") => Many([local(ToggleShowEnv), Stop_propagation, Prevent_default])
   | D("c" | "C") when Key.meta_held(evt) || Key.ctrl_held(evt) =>
     switch (indicated_sample(ctx)) {

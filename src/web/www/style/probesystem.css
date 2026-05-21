@@ -796,3 +796,22 @@ body:not(:has(.live-offside:focus))
   color: var(--text-primary);
   font-family: monospace;
 }
+
+/* Sidebar drawer that mirrors the per-sample hover dropdown */
+#probe-sidebar .sample-drawer-slot {
+  padding: 0;
+}
+
+/* Drawer reuses .sample-context-menu inner styling. Override the
+ * dropdown's absolute-positioning chrome (which only applies inside
+ * .live-offside) by forcing the drawer into normal flow. */
+#probe-sidebar .sample-context-drawer {
+  position: static;
+  display: block;
+  left: auto;
+  background-color: var(--BR1);
+  border-radius: 0.3em;
+  border-bottom: none;
+  width: 100%;
+  box-sizing: border-box;
+}

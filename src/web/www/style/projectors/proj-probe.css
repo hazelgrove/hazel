@@ -746,7 +746,7 @@
   background-color: var(--R1);
 }
 
-.live-offside .live-env {
+:is(.live-offside, .sample-context-drawer) .live-env {
   padding: 0.2em 0.55em;
   background-color: var(--live-env-bkg);
 }
@@ -813,7 +813,7 @@
   display: none;
 }
 
-.live-offside .live-env .live-env-entry {
+:is(.live-offside, .sample-context-drawer) .live-env .live-env-entry {
   display: flex;
   flex-direction: row;
   white-space: pre;
