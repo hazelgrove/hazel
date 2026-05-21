@@ -513,9 +513,18 @@ let add_ids_from_multi_term =
       ids,
     );
   let old_ephemerals = z.refractors.multis.ephemerals;
+  /* Preserve existing ephemeral entries (and their persisted models)
+   * for ids that survive across rebuilds. A fresh `mk_entry(Probe)`
+   * was previously used for every id, which silently wiped per-probe
+   * model state on every edit — e.g. `drawer_mode=true` set via the
+   * drawer-mode toggle would revert to the default within one cycle. */
   let new_ephemeral_map =
     List.fold_left(
-      (map, id) => Id.Map.add(id, Refractors.mk_entry(Probe), map),
+      (map, id) =>
+        switch (Id.Map.find_opt(id, old_ephemerals)) {
+        | Some(existing) => Id.Map.add(id, existing, map)
+        | None => Id.Map.add(id, Refractors.mk_entry(Probe), map)
+        },
       Id.Map.empty,
       ids,
     );

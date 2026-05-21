@@ -192,7 +192,10 @@ let is_edit: t => bool =
   | Unselect(_) => false
   | Project(p) =>
     switch (p) {
-    | SetModel(_) => false
+    /* SetModel must mark the syntax cache old so the placeholder is
+     * re-queried — projectors whose model affects shape (e.g. ProbeProj
+     * drawer_mode → Tab(n)) need the layout to follow the new model. */
+    | SetModel(_)
     | SetSyntax(_)
     | SetIndicated(_)
     | RemoveIndicated => true

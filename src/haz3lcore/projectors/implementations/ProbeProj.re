@@ -15,6 +15,7 @@ open Language;
 type action =
   | ChangeLength(int, int)
   | ToggleWindowMode
+  | ToggleDrawerMode
   | ResetSettings;
 
 module Settings = {
@@ -157,6 +158,7 @@ type probe_ctx = {
   dynamics: Dynamics.Info.t,
   utility: ProjectorBase.utility,
   parent: external_action => Ui_effect.t(unit),
+  local: action => Ui_effect.t(unit),
 };
 
 /* Stateful window offset management (GUI-specific) */
@@ -265,6 +267,70 @@ let abbreviated_seg_of =
   let (abbr_exp, _length) =
     exp |> DHExp.strip_ascriptions |> Abbreviate.abbreviate_exp(~available);
   seg_of_exp(utility, abbr_exp);
+};
+
+/* Pretty-print a value to a multi-line segment at the given width.
+ * Skips Abbreviate since drawer mode is the use case where samples
+ * are allowed to span as many lines as they need. */
+let pretty_seg_of_value =
+    (utility: utility, ~width: int, exp: Exp.t): Segment.t => {
+  let seg = utility.term_to_seg(Exp(exp |> DHExp.strip_ascriptions));
+  PrettySegment.prettify(~width, seg);
+};
+
+/* Per-probe cache of last non-empty drawer height. When samples are
+ * empty (e.g. mid-edit) we reuse the most recent known height so the
+ * drawer doesn't collapse to 1 row and snap back. */
+module DrawerHeight = {
+  /* Pretty-print width target (chars) for drawer samples. Hardcoded
+   * for MVP; later thread the real editor pane width. */
+  let pp_width = 80;
+
+  let last: Hashtbl.t(Id.t, int) = Hashtbl.create(100);
+
+  /* Count newline Secondary pieces inline (inside this file `open Language`
+   * shadows haz3lcore's Secondary module, so we match the Whitespace content
+   * directly instead of calling Secondary.is_linebreak). */
+  let row_count = (seg: Segment.t): int =>
+    1
+    + List.fold_left(
+        (acc, p: Piece.t) =>
+          switch (p) {
+          | Secondary({content: Whitespace(s), _}) when s == Token.linebreak =>
+            acc + 1
+          | _ => acc
+          },
+        0,
+        seg,
+      );
+
+  let sample_rows = (utility: utility, sample: Sample.t): int =>
+    row_count(pretty_seg_of_value(utility, ~width=pp_width, sample.value));
+
+  let compute_opt = (info: info): option(int) =>
+    switch (info.dynamics, info.statics) {
+    | (Some(dynamics), Some(statics)) =>
+      let ap_id = Sample.Focus.cur_var_ap(statics);
+      let samples =
+        select_samples(~settings=Settings.s^, ~id=info.id, ~ap_id, dynamics);
+      switch (samples) {
+      | [] => None
+      | _ =>
+        let heights = List.map(sample_rows(info.utility), samples);
+        Some(List.fold_left(max, 1, heights));
+      };
+    | _ => None
+    };
+
+  let compute = (info: info): int => {
+    let id = info.id;
+    switch (compute_opt(info)) {
+    | Some(n) =>
+      Hashtbl.replace(last, id, n);
+      n;
+    | None => Hashtbl.find_opt(last, id) |> Option.value(~default=1)
+    };
+  };
 };
 
 let pos_rel_to_target = (e: Js.t(Dom_html.mouseEvent)): Point.t => {
@@ -637,7 +703,7 @@ let pin_action = (ctx: probe_ctx, sample: Sample.t) => {
       Attr.on_pointerdown(_ => pin_call(ctx)),
     ],
     [
-      div(~attrs=[Attr.classes(["pin-icon"])], []),
+      // div(~attrs=[Attr.classes(["pin-icon"])], []),
       text(is_pinned ? "Unpin this call" : "Pin this call"),
       span(~attrs=[Attr.classes(["shortcut"])], [text("P")]),
     ],
@@ -654,7 +720,7 @@ let focus_action = (ctx: probe_ctx, sample: Sample.t) => {
       Attr.on_pointerdown(_ => focus_call(ctx)),
     ],
     [
-      div(~attrs=[Attr.classes(["pin-icon"])], []),
+      // div(~attrs=[Attr.classes(["pin-icon"])], []),
       text(is_focused ? "Unpin enclosing call" : "Pin enclosing call"),
       span(~attrs=[Attr.classes(["shortcut"])], [text("P")]),
     ],
@@ -677,7 +743,7 @@ let step_into_action = (ctx: probe_ctx, sample: Sample.t, ap_id: Id.t) =>
         ),
     ],
     [
-      div(~attrs=[Attr.classes(["step-into-icon"])], []),
+      // div(~attrs=[Attr.classes(["step-into-icon"])], []),
       text("Step into"),
       span(~attrs=[Attr.classes(["shortcut"])], [text("Enter")]),
     ],
@@ -706,6 +772,21 @@ let dock_toggle = (): Node.t => {
   );
 };
 
+/* Drawer-mode toggle: flips this probe between inline-offside display
+ * and below-line full-width pretty-printed drawer. Per-probe state
+ * (ProbeProj.M.model.drawer_mode), so dispatched via local. */
+let drawer_mode_toggle = (ctx: probe_ctx): Node.t =>
+  div(
+    ~attrs=[
+      Attr.classes(["action-item", "drawer-mode-toggle"]),
+      Attr.title({js|Toggle drawer below (\)|js}),
+      Attr.on_pointerdown(_ =>
+        Effect.Many([Effect.Stop_propagation, ctx.local(ToggleDrawerMode)])
+      ),
+    ],
+    [text({js|⌄|js})],
+  );
+
 /* Context actions for a sample (Pin/Unpin, Step Into, etc.). The
  * dock toggle is always appended at the row's far right, so the user
  * can switch between hover/sidebar views from either context. */
@@ -722,7 +803,7 @@ let sample_context_actions =
   [
     div(
       ~attrs=[Attr.classes(["context-actions"])],
-      primary @ [dock_toggle()],
+      primary @ [drawer_mode_toggle(ctx), dock_toggle()],
     ),
   ];
 };
@@ -1315,6 +1396,10 @@ let key_handler = (ctx: probe_ctx, ~id: Id.t, local, evt) => {
      * transition logic (including the asymmetric DockedSidebar →
      * StickyInPlace move which also clears the persisted dock). */
     Many([Settings.on_sticky_toggle^(), Stop_propagation, Prevent_default])
+  | D("\\") =>
+    /* Per-probe drawer-mode toggle: pretty-printed multi-line samples
+     * displayed below the line, full editor-pane width. */
+    Many([local(ToggleDrawerMode), Stop_propagation, Prevent_default])
   | D("c" | "C") when Key.meta_held(evt) || Key.ctrl_held(evt) =>
     switch (indicated_sample(ctx)) {
     | Some(sample) =>
@@ -1364,6 +1449,7 @@ let offside_view =
       dynamics,
       utility: info.utility,
       parent,
+      local,
     };
     /* Filter samples once and reuse for both num_total and selection */
     let filtered_samples =
@@ -1465,6 +1551,55 @@ let offside_view =
   | _ => empty_view(~id=info.id, ~settings)
   };
 
+/* Drawer view: renders selected sample values pretty-printed at the
+ * drawer width into the projector's `below` slot. The framework's
+ * Tab(n) placeholder reserves the rows; this fills them. */
+let drawer_view =
+    (info: info, view_seg: View.seg, local, ~settings: settings): Node.t =>
+  switch (info.dynamics, info.statics) {
+  | (Some(dynamics), Some(statics)) =>
+    let id = info.id;
+    let ap_id = Sample.Focus.cur_var_ap(statics);
+    let samples = select_samples(~settings, ~id, ~ap_id, dynamics);
+    let sample_node = (sample: Sample.t) => {
+      let seg =
+        pretty_seg_of_value(
+          info.utility,
+          ~width=DrawerHeight.pp_width,
+          sample.value,
+        );
+      Node.div(
+        ~attrs=[Attr.classes(["drawer-sample"])],
+        [view_seg(~single_line=false, ~text_only=false, Sort.Exp, seg)],
+      );
+    };
+    let close_btn =
+      div(
+        ~attrs=[
+          Attr.classes(["drawer-close"]),
+          Attr.title({js|Close drawer (\)|js}),
+          Attr.on_pointerdown(_ =>
+            Effect.Many([Effect.Stop_propagation, local(ToggleDrawerMode)])
+          ),
+        ],
+        [text({js|⌃|js})],
+      );
+    Node.div(
+      ~attrs=[
+        /* The same `Id.cls(id)` element that `focusable.pointer` looks
+         * up — without this, clicking on the drawer triggers a
+         * JsUtil.get_elem_by_id assertion failure because the offside
+         * element (which normally carries this id) isn't rendered. */
+        Attr.id(Id.cls(id)),
+        Attr.tabindex(0),
+        Attr.classes(["probe-drawer"]),
+        Attr.create("data-probe-id", Id.to_string(id)),
+      ],
+      [close_btn, ...List.map(sample_node, samples)],
+    );
+  | _ => Node.div([])
+  };
+
 let overlay_view = (info: info): Node.t =>
   switch (info.dynamics, info.statics) {
   | (Some(dynamics), Some(statics)) =>
@@ -1483,16 +1618,22 @@ type a = action;
 
 module M: Projector = {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type model = unit;
-  let model_of_sexp = _ => ();
+  type model = {drawer_mode: bool};
+  let init_model: model = {drawer_mode: false};
+  /* Tolerate old serialized models (originally `unit`) by falling back
+   * to the default whenever sexp parsing doesn't match the new shape. */
+  let model_of_sexp = sexp =>
+    try(model_of_sexp(sexp)) {
+    | _ => init_model
+    };
   [@deriving (show({with_path: false}), sexp, yojson)]
   type action = a;
 
   let init = (any: Any.t) =>
     switch (any) {
     | Exp(_)
-    | Pat(_) => Some()
-    | Any(_) => Some() /* Grout don't have sorts */
+    | Pat(_) => Some(init_model)
+    | Any(_) => Some(init_model) /* Grout don't have sorts */
     | _ => None
     };
 
@@ -1504,26 +1645,48 @@ module M: Projector = {
       keyboard: None,
     };
 
-  let placeholder = (_, _) => ProjectorCore.Shape.default;
+  let placeholder = (model: model, info) =>
+    if (model.drawer_mode) {
+      ProjectorCore.Shape.{
+        horizontal: 0,
+        vertical: Tab(DrawerHeight.compute(info)),
+      };
+    } else {
+      ProjectorCore.Shape.default;
+    };
 
-  let update = (_, _, a: action) => {
+  let update = (model: model, _, a: action) => {
     switch (a) {
     | ChangeLength(id, len) =>
       SampleLength.set(id, len);
       Settings.version := Settings.version^ + 1;
-    | ToggleWindowMode => Settings.go(ToggleWindow)
+      model;
+    | ToggleWindowMode =>
+      Settings.go(ToggleWindow);
+      model;
+    | ToggleDrawerMode =>
+      Settings.version := Settings.version^ + 1;
+      {drawer_mode: !model.drawer_mode};
     | ResetSettings =>
       Settings.reset_mode();
       SampleLength.reset();
+      model;
     };
   };
 
-  let view = ({info, local, parent, view_seg, _}: View.args(model, action)) => {
+  let view =
+      ({model, info, local, parent, view_seg, _}: View.args(model, action)) => {
     let settings = Settings.s^;
     View.{
       inline: Node.div([]),
       overlay: Some(overlay_view(info)),
-      offside: Some(offside_view(~settings, info, local, parent, view_seg)),
+      offside:
+        model.drawer_mode
+          ? None
+          : Some(offside_view(~settings, info, local, parent, view_seg)),
+      below:
+        model.drawer_mode
+          ? Some(drawer_view(info, view_seg, local, ~settings)) : None,
     };
   };
 };

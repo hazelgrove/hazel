@@ -753,6 +753,66 @@
   color: var(--BR3);
 }
 
+/* Drawer-mode toggle: flips this probe between inline-offside and a
+ * pretty-printed multi-line drawer below the line. Lives next to the
+ * dock toggle in each sample's context-actions row. */
+.action-item.drawer-mode-toggle {
+  margin-left: auto;
+  padding: 0 0.35em;
+  font-size: 1em;
+  line-height: 1;
+  color: var(--BR3);
+}
+/* When both are present, the drawer-mode toggle takes the auto-left
+ * margin and the dock toggle sits next to it. */
+.action-item.drawer-mode-toggle + .action-item.dock-toggle {
+  margin-left: 0;
+}
+
+/* === Below-line drawer === */
+
+/* Framework wrapper for projector `below` views: positioned on the row
+ * after the projector's row, at the editor pane's left edge. Width and
+ * appearance handled by .probe-drawer below. */
+.below-wrapper {
+  pointer-events: auto;
+}
+
+/* Drawer background/border match .live-offside .sample so the visual
+ * vocabulary is shared with the inline display. We'll diverge later if
+ * the drawer needs its own affordances, but starting with the same green
+ * keeps "what is a sample" recognizable across modes. */
+.probe-drawer {
+  display: block;
+  /* Hardcoded width target matches ProbeProj.DrawerHeight.pp_width.
+   * Will become dynamic once the real editor pane width is threaded. */
+  width: 80ch;
+  padding: 0 0.1em;
+  background-color: var(--exp-base);
+  border-radius: 0.05em 0.05em 0.05em 0.2em;
+  font-family: var(--code-font);
+  font-size: var(--base-font-size);
+  position: relative;
+}
+
+.probe-drawer .drawer-sample {
+  white-space: pre;
+}
+
+.probe-drawer .drawer-close {
+  position: absolute;
+  top: 0.05em;
+  right: 0.35em;
+  font-size: 0.85em;
+  color: var(--BR3);
+  cursor: pointer;
+  user-select: none;
+}
+
+.probe-drawer .drawer-close:hover {
+  color: var(--T1);
+}
+
 
 /* --- Inner: call display section --- */
 

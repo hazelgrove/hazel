@@ -28,6 +28,14 @@ type t = {
    * underlying editor. In principle calculating this can involve
    * both static and dynamic information, so we cache this for perf */
   shape_map: ProjectorCore.Shape.Map.t,
+  /* Per-refractor extra-row reservations. Refractors overlay the
+   * underlying syntax rather than replacing it, so only the vertical
+   * count is meaningful here. Built in mk by running each refractor's
+   * placeholder and reducing the resulting Shape.vertical to an int.
+   * Both Measured.of_segment and Code.view consume this; if either
+   * side disagrees with the other, decorations drift out of sync with
+   * caret/text positions. */
+  refractor_shape_map: Id.Map.t(int),
   cached_backpack: list(Tile.t),
 };
 
@@ -48,7 +56,41 @@ let mk = (~info_map, ~dyn_map, z): t => {
       info_map,
       dyn_map,
     );
-  let refractor_shape_map = Id.Map.empty; // z.refractors.map |> Id.Map.map(_p => 2);
+  /* Build refractor shape map by running each refractor's placeholder
+   * and extracting the deferred-linebreak count. Refractors overlay
+   * existing syntax, so only the vertical row count is meaningful;
+   * the int stored is "extra rows to reserve after the refractor's
+   * underlying tile". Probe drawer-mode is the current consumer. */
+  let refractor_shape_map: Id.Map.t(int) = {
+    let entries =
+      Id.Map.union(
+        (_, _, b) => Some(b),
+        z.refractors.manuals |> Id.Map.of_list,
+        z.refractors.multis.ephemerals,
+      );
+    Id.Map.mapi(
+      (id, entry: Refractors.entry) => {
+        let p = Refractors.to_projector(id, entry);
+        let info =
+          ProjectorInfo.mk_info(
+            p,
+            ~sample_focus=z.refractors.sample_focus,
+            ~statics=info_map,
+            ~dynamics=dyn_map,
+          );
+        let (module P) = ProjectorInit.to_module(entry.kind);
+        let shape = P.placeholder(entry.model, info);
+        switch (shape.vertical) {
+        | Inline
+        | Block(0)
+        | Tab(0) => 0
+        | Tab(n)
+        | Block(n) => n
+        };
+      },
+      entries,
+    );
+  };
   let measured =
     Measured.of_segment(segment, projector_shapes, refractor_shape_map);
   {
@@ -61,6 +103,7 @@ let mk = (~info_map, ~dyn_map, z): t => {
     projectors,
     projector_list,
     shape_map: projector_shapes,
+    refractor_shape_map,
     cached_backpack: Segment.global_missing_shards(segment),
   };
 };

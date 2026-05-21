@@ -381,8 +381,12 @@ let of_segment_inner =
     | Projector(p) => add_projector(acc, p)
     | Tile(t) =>
       switch (Id.Map.find_opt(t.id, refractor_shape_map)) {
-      | Some(_) =>
-        DeferredLinebreaks.update(2) |> ignore;
+      | Some(n) =>
+        /* Refractor row reservation. Used to be hardcoded at 2; now
+         * carries the per-refractor row count from CachedSyntax.mk so
+         * probe drawer-mode can reserve as many rows as its tallest
+         * pretty-printed sample. */
+        DeferredLinebreaks.update(n) |> ignore;
         ();
       | None => ()
       };

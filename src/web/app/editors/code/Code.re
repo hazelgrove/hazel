@@ -174,8 +174,12 @@ let view =
       | Piece.Tile(t) => {
           let _ =
             switch (Id.Map.find_opt(t.id, refractor_shape_map)) {
-            | Some(_) =>
-              DeferredLinebreaks.update(2) |> ignore;
+            | Some(n) =>
+              /* Must mirror Measured.of_piece's refractor branch — both
+               * sides ingest the same refractor_shape_map and reserve
+               * the same n rows. If they disagree, decorations drift
+               * out of sync with the caret/text layout. */
+              DeferredLinebreaks.update(n) |> ignore;
               ();
             | None => ()
             };

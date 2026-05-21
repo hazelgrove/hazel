@@ -828,6 +828,10 @@ let sample_drawer_view =
       dynamics,
       utility: ProjectorInfo.utility,
       parent,
+      /* The sidebar doesn't render via a per-projector pipeline, so it
+       * has no local-action dispatcher; drawer-mode toggle isn't meaningful
+       * from here. Safe no-op until we route per-probe actions. */
+      local: _ => Ui_effect.Ignore,
     };
     let view_seg =
         (~single_line=?, ~background=?, ~text_only=?, sort, segment) =>
