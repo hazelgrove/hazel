@@ -528,7 +528,6 @@ let render =
           Attr.id("column-menu-" ++ string_of_int(j)),
           Attr.classes([
             "context-menu",
-            "nut-menu",
             "column-menu",
             "column-menu-floating",
             dir_class,

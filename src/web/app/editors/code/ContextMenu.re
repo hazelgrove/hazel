@@ -522,7 +522,7 @@ let view =
 
     div(
       ~attrs=[
-        Attr.classes(["context-menu", "nut-menu", dir_class]),
+        Attr.classes(["context-menu", dir_class]),
         Attr.create("style", style),
       ],
       [div_c("group", [div_c("contents", menu_items)])],

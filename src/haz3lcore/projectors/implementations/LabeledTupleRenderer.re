@@ -229,7 +229,6 @@ let field_row =
           ~attrs=[
             Attr.classes([
               "context-menu",
-              "nut-menu",
               "column-menu",
               "labeled-tuple-menu",
             ]),

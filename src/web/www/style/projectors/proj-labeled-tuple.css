@@ -61,11 +61,12 @@
   color: var(--BR4, #222);
 }
 
+/* Anchor the field menu to the bottom-right of its row (just under the
+ * ⋮ trigger). Position only — z-index comes from .context-menu. */
 .labeled-tuple-renderer .labeled-tuple-menu {
   position: absolute;
   right: 0;
   top: 100%;
-  z-index: 10;
 }
 
 .labeled-tuple-badge {
