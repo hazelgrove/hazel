@@ -172,20 +172,27 @@ let view =
     List.concat_map(
       fun
       | Piece.Tile(t) => {
+          /* Mirrors Measured.of_piece's refractor branch: walk the
+           * tile's shards and children first, THEN update the deferred
+           * linebreak counter. If we updated before the walk, any
+           * linebreak inside the tile (e.g. inserted between `(` and
+           * `)` of a function-application probed in drawer mode) would
+           * wrongly consume the deferred rows. The drawer is positioned
+           * at the refractor's rightmost point; the Tab(n) rows should
+           * land at the linebreak AFTER the last shard, not before any
+           * internal linebreak. */
+          let nodes =
+            Aba.mk(t.shards, t.children)
+            |> Aba.join(i => [of_delim(t, i)], of_segment)
+            |> List.concat;
           let _ =
             switch (Id.Map.find_opt(t.id, refractor_shape_map)) {
             | Some(n) =>
-              /* Must mirror Measured.of_piece's refractor branch — both
-               * sides ingest the same refractor_shape_map and reserve
-               * the same n rows. If they disagree, decorations drift
-               * out of sync with the caret/text layout. */
               DeferredLinebreaks.update(n) |> ignore;
               ();
             | None => ()
             };
-          Aba.mk(t.shards, t.children)
-          |> Aba.join(i => [of_delim(t, i)], of_segment)
-          |> List.concat;
+          nodes;
         }
       | Grout(g) => [of_grout(g)]
       | Secondary(s) => [of_secondary(s)]
