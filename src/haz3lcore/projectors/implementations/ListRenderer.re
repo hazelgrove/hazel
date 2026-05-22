@@ -31,6 +31,13 @@ let parse = (_sort: Sort.t, exp: Exp.t): option(value) =>
 
 let init = (_: value): model => {selected: None};
 
+/* One row for the header, one per list item. */
+let placeholder = (value: value, _: m): ProjectorCore.Shape.t =>
+  ProjectorCore.Shape.{
+    vertical: Block(1 + List.length(value)),
+    horizontal: 0,
+  };
+
 let update = (_model: model, action: action): model =>
   switch (action) {
   | Select(s) => {selected: s}

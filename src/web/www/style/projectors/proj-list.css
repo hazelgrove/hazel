@@ -6,6 +6,8 @@
   gap: 6px;
   min-width: 180px;
   padding: 4px;
+  background-color: var(--df-bg);
+  border-radius: 2px;
 }
 
 .list-renderer .list-header {

@@ -30,6 +30,16 @@ let parse = (_sort: Sort.t, exp: Exp.t): option(value) =>
 
 let init = (_: value): model => {raw: false};
 
+/* Rough proxy: one row per source line. Close enough for raw-mode and
+   typical prose; tables / lists may expand past this and scroll. */
+let placeholder = (value: value, _: model): ProjectorCore.Shape.t => {
+  let lines = String.fold_left((n, c) => c == '\n' ? n + 1 : n, 1, value);
+  ProjectorCore.Shape.{
+    vertical: Block(lines),
+    horizontal: 0,
+  };
+};
+
 let update = (_model: model, action: action): model =>
   switch (action) {
   | ToggleRaw => {raw: !_model.raw}

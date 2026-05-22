@@ -134,6 +134,18 @@
   left: 0;
 }
 
+/* The .value.rich wrapper is transparent (state coloring comes from
+   the outline ring), so renderers that don't bring their own opaque
+   surface — currently ListRenderer, LabeledTupleRenderer, and
+   MarkdownRenderer — would let the cell/page bleed through behind
+   their content. Give them the same df-bg as the table. */
+.live-offside .value.rich > .list-renderer,
+.live-offside .value.rich > .labeled-tuple-renderer,
+.live-offside .value.rich > .markdown-renderer {
+  background-color: var(--df-bg);
+  border-radius: 2px;
+}
+
 /* TableRenderer's wrapper. inline-block + width:auto means the inner
    shrinks to its table's natural width — no X overflow and no table
    visually escaping the .value.rich outline. Inline style sets

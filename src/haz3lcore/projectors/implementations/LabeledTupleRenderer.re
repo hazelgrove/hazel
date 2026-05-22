@@ -10,14 +10,14 @@ open Language;
 type v = list((option(string), Exp.t));
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type menu_state = option((string, int));
+type menu_state = option((string, Menu.t));
 [@deriving (show({with_path: false}), sexp, yojson)]
 type m = {menu_state};
 [@deriving (show({with_path: false}), sexp, yojson)]
 type a =
   | CloseMenu
   | ShowMenu(string)
-  | MenuSelect(int);
+  | MenuAction(Menu.action);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type model = m;
@@ -65,16 +65,30 @@ let parse = (_sort: Sort.t, exp: Exp.t): option(value) => {
 
 let init = (_: value): model => {menu_state: None};
 
+/* One row per labeled-tuple field. */
+let placeholder = (value: value, _: model): ProjectorCore.Shape.t =>
+  ProjectorCore.Shape.{
+    vertical: Block(List.length(value)),
+    horizontal: 0,
+  };
+
+let menu_field = (st: menu_state): option(string) => Option.map(fst, st);
+
 let update = (model: model, action: action): model =>
   switch (action) {
   | CloseMenu => {menu_state: None}
-  | ShowMenu(field) when Option.map(fst, model.menu_state) == Some(field) => {
+  | ShowMenu(field) when menu_field(model.menu_state) == Some(field) => {
       menu_state: None,
     }
-  | ShowMenu(field) => {menu_state: Some((field, 0))}
-  | MenuSelect(idx) =>
+  | ShowMenu(field) => {menu_state: Some((field, Menu.opened))}
+  | MenuAction(a) =>
     switch (model.menu_state) {
-    | Some((f, _)) => {menu_state: Some((f, idx))}
+    | Some((f, menu_t)) =>
+      let new_menu = Menu.update(a, menu_t);
+      switch (new_menu) {
+      | None => {menu_state: None}
+      | Some(_) => {menu_state: Some((f, new_menu))}
+      };
     | None => model
     }
   };
@@ -131,11 +145,7 @@ let rename_field =
 
 /* --- Menu --- */
 
-type menu_action = {
-  text: string,
-  tooltip: string,
-  run: unit => Ui_effect.t(unit),
-};
+type menu_data = list(Menu.item(unit => Ui_effect.t(unit)));
 
 let menu_for_field =
     (
@@ -144,84 +154,31 @@ let menu_for_field =
       local: action => Ui_effect.t(unit),
       parent: external_action => Ui_effect.t(unit),
     )
-    : list(menu_action) => {
+    : menu_data => {
   let apply = (seg_opt: option(Base.segment)): Ui_effect.t(unit) =>
     switch (seg_opt) {
     | Some(seg) => Effect.Many([local(CloseMenu), parent(SetSyntax(seg))])
     | None => local(CloseMenu)
     };
+  let leaf = (~tooltip, label, action) =>
+    Menu.action_item(~tooltip, ~on_hover=true, label, action);
   [
-    {
-      text: "Extract",
-      tooltip: "Replace this tuple with just this field's value",
-      run: () => apply(extract_field(info, field)),
-    },
-    {
-      text: "Drop",
-      tooltip: "Remove this field from the tuple",
-      run: () => apply(drop_field(info, field)),
-    },
-    {
-      text: "Rename…",
-      tooltip: "Change this field's label",
-      run: () =>
-        switch (JsUtil.prompt("New field name:", field)) {
-        | None => local(CloseMenu)
-        | Some(new_name) when new_name == field => local(CloseMenu)
-        | Some(new_name) => apply(rename_field(info, field, new_name))
-        },
-    },
+    leaf(
+      ~tooltip="Replace this tuple with just this field's value", "Extract", () =>
+      apply(extract_field(info, field))
+    ),
+    leaf(~tooltip="Remove this field from the tuple", "Drop", () =>
+      apply(drop_field(info, field))
+    ),
+    leaf(~tooltip="Change this field's label", "Rename…", () =>
+      switch (JsUtil.prompt("New field name:", field)) {
+      | None => local(CloseMenu)
+      | Some(new_name) when new_name == field => local(CloseMenu)
+      | Some(new_name) => apply(rename_field(info, field, new_name))
+      }
+    ),
   ];
 };
-
-let menu_item =
-    (
-      ~selected: bool,
-      ~tooltip: string,
-      ~on_hover: int => Ui_effect.t(unit),
-      ~idx: int,
-      text: string,
-      action: unit => Ui_effect.t(unit),
-    )
-    : Node.t =>
-  Node.div(
-    ~attrs=[
-      Attr.classes(["menu-item"] @ (selected ? ["selected"] : [])),
-      Attr.on_pointerdown(_ =>
-        Effect.Many([
-          Effect.Stop_propagation,
-          Effect.Prevent_default,
-          action(),
-        ])
-      ),
-      Attr.on_mouseenter(_ => on_hover(idx)),
-      Attr.title(tooltip),
-    ],
-    [Node.text(text)],
-  );
-
-let render_menu =
-    (
-      ~selected_idx: int,
-      ~on_hover: int => Ui_effect.t(unit),
-      items: list(menu_action),
-    )
-    : Node.t =>
-  Node.div(
-    ~attrs=[Attr.classes(["column-menu", "labeled-tuple-menu"])],
-    List.mapi(
-      (idx, {text, tooltip, run}) =>
-        menu_item(
-          ~selected=idx == selected_idx,
-          ~tooltip,
-          ~on_hover,
-          ~idx,
-          text,
-          run,
-        ),
-      items,
-    ),
-  );
 
 /* --- View --- */
 
@@ -256,25 +213,33 @@ let field_row =
     | _ => false
     };
   let menu_node =
-    if (menu_open && !is_readonly) {
-      let field = Option.get(label_opt);
+    switch (label_opt, menu_state) {
+    | (Some(field), Some((f, menu_t))) when f == field && !is_readonly =>
       let items = menu_for_field(info, field, local, parent);
-      let sel_idx =
-        switch (menu_state) {
-        | Some((_, idx)) =>
-          let n = List.length(items);
-          n == 0 ? 0 : min(max(0, idx), n - 1);
-        | None => 0
-        };
+      let menu_nodes =
+        Menu.render(
+          ~inject_action=thunk => thunk(),
+          ~inject_menu=a => local(MenuAction(a)),
+          ~item_class="named-menu-item",
+          ~items,
+          menu_t,
+        );
       [
-        render_menu(
-          ~selected_idx=sel_idx,
-          ~on_hover=idx => local(MenuSelect(idx)),
-          items,
+        Node.div(
+          ~attrs=[
+            Attr.classes([
+              "context-menu",
+              "nut-menu",
+              "column-menu",
+              "labeled-tuple-menu",
+            ]),
+          ],
+          [
+            WebUtil.div_c("group", [WebUtil.div_c("contents", menu_nodes)]),
+          ],
         ),
       ];
-    } else {
-      [];
+    | _ => []
     };
   let menu_button =
     switch (label_opt) {
@@ -350,26 +315,17 @@ let render =
   /* Keyboard / click-outside listener (reuses the table column-menu
    * machinery via the shared "column-menu" CSS class). */
   let handle_key = (key: string): option(Ui_effect.t(unit)) =>
-    switch (key, model.menu_state) {
-    | (_, None) => None
-    | ("Escape", _) => Some(local(CloseMenu))
-    | ("ArrowUp", Some((f, idx))) =>
+    switch (model.menu_state) {
+    | None => None
+    | Some((f, menu_t)) =>
       let items = menu_for_field(info, f, local, parent);
-      let n = List.length(items);
-      n == 0 ? None : Some(local(MenuSelect((idx - 1 + n) mod n)));
-    | ("ArrowDown", Some((f, idx))) =>
-      let items = menu_for_field(info, f, local, parent);
-      let n = List.length(items);
-      n == 0 ? None : Some(local(MenuSelect((idx + 1) mod n)));
-    | ("Enter", Some((f, idx))) =>
-      let items = menu_for_field(info, f, local, parent);
-      let n = List.length(items);
-      let clamped = n == 0 ? 0 : min(max(0, idx), n - 1);
-      switch (List.nth_opt(items, clamped)) {
-      | Some({run, _}) => Some(run())
-      | None => Some(local(CloseMenu))
-      };
-    | _ => None
+      Menu.key_dispatcher(
+        ~items,
+        ~dispatch_menu=a => local(MenuAction(a)),
+        ~dispatch_action=thunk => thunk(),
+        menu_t,
+        key,
+      );
     };
   ColumnMenuListener.sync(
     ~menu_open=model.menu_state != None,

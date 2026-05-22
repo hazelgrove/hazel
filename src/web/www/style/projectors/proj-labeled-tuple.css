@@ -4,22 +4,24 @@
   display: grid;
   grid-template-columns: max-content 1fr auto;
   min-width: 220px;
-  padding: 4px;
+  background-color: var(--df-bg);
+  border-radius: 2px;
 }
 
-/* Rows use subgrid so their three cells share the parent's column tracks
- * — labels then align across rows regardless of text length. Keeping the
- * row as its own box (rather than display:contents) preserves
- * position:relative so the per-row menu anchors correctly. */
+/* Each row is sized to exactly one editor row so the renderer's total
+ * height matches the placeholder's Block(N) reservation. --row-height-px
+ * is set in Main.re from the editor's measured line height. */
 .labeled-tuple-renderer .labeled-tuple-row {
   position: relative;
   display: grid;
   grid-template-columns: subgrid;
   grid-column: 1 / -1;
-  align-items: baseline;
+  align-items: center;
   column-gap: 12px;
-  padding: 4px 6px;
+  height: var(--row-height-px, 1.5em);
+  padding: 0 6px;
   border-bottom: 1px solid var(--BR1, #eee);
+  box-sizing: border-box;
 }
 
 .labeled-tuple-renderer .labeled-tuple-row:last-child {

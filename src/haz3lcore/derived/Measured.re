@@ -240,7 +240,11 @@ module MkDeferredLinebreaks = () => {
       | Tab(num_lb) =>
         update(num_lb);
         0;
-      | Block(num_lb) => max(num_lb, consume())
+      /* Block(N) means N total rows for the projector, including its
+         own line. The line's trailing secondary newline always adds 1
+         row, so the projector itself contributes N-1 extra rows below
+         its line. */
+      | Block(num_lb) => max(num_lb - 1, consume())
       };
     {
       col: shape.horizontal,
