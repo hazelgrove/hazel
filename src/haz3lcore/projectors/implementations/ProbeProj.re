@@ -1117,12 +1117,18 @@ let sample_view =
     has_dropdown && Settings.display_mode^ != Settings.DockedSidebar;
   /* StickyInPlace pins the dropdown open for the indicated sample
    * (the in-place equivalent of DockedSidebar). */
+  let is_indicated = indicated_sample_id == Some(sample.id);
   let show_env =
-    Settings.display_mode^ == Settings.StickyInPlace
-    && indicated_sample_id == Some(sample.id);
+    Settings.display_mode^ == Settings.StickyInPlace && is_indicated;
+  /* The `indicated-sample` class marks this probe's most-aligned sample.
+   * Combined with `.projector.probe.indicated` (set on the unique probe
+   * adjacent to the caret), this gives a single DOM anchor element used
+   * by `SampleAnchor` to compensate scroll on Left/Right SetIndex. */
+  let sample_classes =
+    ["sample"] @ (is_indicated ? ["indicated-sample"] : []);
   div(
     ~attrs=
-      [Attr.classes(["sample"])]
+      [Attr.classes(sample_classes)]
       @ (
         render_dropdown
           ? SafeTriangle.CSSDropdown.trigger_attrs(dropdown_id(sample.id))
@@ -1369,10 +1375,14 @@ let key_handler = (ctx: probe_ctx, ~id: Id.t, local, evt) => {
       };
     Many([effect, Stop_propagation, Prevent_default]);
   | D("ArrowRight") =>
+    /* Stash indicated sample's screen-y BEFORE dispatch so
+     * Main.after_display can compensate any reflow above it. */
+    SampleAnchor.capture();
     // Prevent_default below stops aggressive horizontal scroll
-    Many([move_cursor(ctx, -1), Stop_propagation, Prevent_default])
+    Many([move_cursor(ctx, -1), Stop_propagation, Prevent_default]);
   | D("ArrowLeft") =>
-    Many([move_cursor(ctx, 1), Stop_propagation, Prevent_default])
+    SampleAnchor.capture();
+    Many([move_cursor(ctx, 1), Stop_propagation, Prevent_default]);
   | D("ArrowDown") when key.meta == Down || key.ctrl == Down =>
     /* Enter drawer mode for this probe. Idempotent if already in
      * drawer mode. Paired with Cmd/Ctrl+ArrowUp below to exit. */

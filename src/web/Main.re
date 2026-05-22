@@ -221,6 +221,10 @@ let start = default_model => {
           let (_, row_height) = JsUtil.font_metrics_from_specimen();
           JsUtil.scroll_main_by_y(float_of_int(shift) *. row_height);
         };
+        /* Sample-focus anchor compensation: if Left/Right in the sample
+         * focus bar captured the indicated sample's screen-y before
+         * dispatch, restore it now so the user's eye stays on it. */
+        SampleAnchor.consume();
         model.model.current.current.globals.settings.core.statics
           ? Animation.go() : ();
       },
