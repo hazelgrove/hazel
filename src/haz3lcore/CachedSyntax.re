@@ -57,11 +57,17 @@ let t_of_yojson = _ => failwith("Editor.Meta.t_of_yojson");
  * The int is consumed by Measured.re's refractor branch as deferred
  * (Tab-style) linebreaks, so code below the probe shifts down to fit
  * the modal. */
+/* For refractors, the projected expression's source line stays in the
+ * editor — the refractor renders adjacent to it (in the live-offside
+ * panel). The returned int is consumed as deferred linebreaks that the
+ * line's trailing newline absorbs, so it expresses *extra* rows below
+ * the source line. Block(n) means "n total rows for the projector"
+ * (including the line it sits on), so a refractor needs n-1 extras. */
 let line_count_of_shape = (shape: ProjectorCore.Shape.t): int =>
   switch (shape.vertical) {
   | Inline => 0
   | Tab(n) => n
-  | Block(n) => n
+  | Block(n) => max(0, n - 1)
   };
 
 let refractor_lines =
