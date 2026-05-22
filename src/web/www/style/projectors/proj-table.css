@@ -13,17 +13,25 @@ table.table {
     table-layout: auto;
     text-align: center;
     background-color: var(--df-bg);
-    height: 98%;
+    /* No height set: let cells (sized to --row-height-px) drive table
+     * height so rows align with the editor's ruled lines exactly. */
 }
 
 .table th {
     z-index: calc(var(--projector-z) + 1);
     opacity: 1;
-    height: calc(var(--line-height) * 1em);
+    /* Match the editor's measured row height so table rows align with
+     * the code grid ruled lines, and `--row-height-px * N` reservations
+     * in TableProj/TableRenderer fit their content exactly. */
+    height: var(--row-height-px, calc(var(--line-height) * 1em));
     background-color: var(--table-header-bg);
     /* Reset the browser's UA default (th { font-weight: bold }) so
      * descendants like the column menu don't inherit it. */
     font-weight: normal;
+}
+
+.table td {
+    height: var(--row-height-px, calc(var(--line-height) * 1em));
 }
 
 /* Typography lives on the label wrapper so it doesn't inherit into
