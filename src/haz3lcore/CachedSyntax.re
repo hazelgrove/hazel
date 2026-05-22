@@ -132,36 +132,6 @@ let mark_old: t => t =
     old: true,
   };
 
-/* Row delta to scroll `#main` by to keep the caret stable across a
- * refractor_shape_map rebuild. Sums the change in row count for each
- * refractor whose underlying tile sits strictly above the caret in
- * the new layout — those are the ones whose growth/shrinkage pushed
- * the caret vertically. Refractors at or below the caret don't affect
- * caret Y. Uses new_.measured throughout (the new zipper's caret
- * pieces are guaranteed to be present there; old.measured can lag on
- * edits). O(refractors). */
-let caret_row_shift = (~old: t, ~new_: t, z: Zipper.t): int => {
-  let caret_row = Zipper.Caret.point(new_.measured, z).row;
-  let above_caret = (id: Id.t): bool =>
-    switch (Measured.find_by_id(id, new_.measured)) {
-    | Some(m) => m.origin.row < caret_row
-    | None => false
-    };
-  Id.Map.fold(
-    (id, new_n, acc) =>
-      if (above_caret(id)) {
-        let old_n =
-          Id.Map.find_opt(id, old.refractor_shape_map)
-          |> Option.value(~default=0);
-        acc + (new_n - old_n);
-      } else {
-        acc;
-      },
-    new_.refractor_shape_map,
-    0,
-  );
-};
-
 let calculate = (z: Zipper.t, info_map, dyn_map, old: t) => {
   /* Detect refractor model mutations (e.g. probe drawer-mode toggle)
    * cheaply by reference-comparing the maps we built from previously.
@@ -175,12 +145,7 @@ let calculate = (z: Zipper.t, info_map, dyn_map, old: t) => {
    * dyn_map can change `Tab(n)` values even with z untouched. */
   let dynamics_changed = dyn_map !== old.cached_dyn_map;
   if (old.old || refractor_inputs_changed || dynamics_changed) {
-    let new_ = mk(z, ~info_map, ~dyn_map);
-    let shift = caret_row_shift(~old, ~new_, z);
-    if (shift != 0) {
-      ScrollCompensation.add(shift);
-    };
-    new_;
+    mk(z, ~info_map, ~dyn_map);
   } else {
     {
       ...old,

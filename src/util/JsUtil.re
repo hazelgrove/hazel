@@ -283,18 +283,6 @@ let delay = (delay: float, callback: unit => unit) => {
   ();
 };
 
-/* Scroll `#main` vertically by `dy` pixels (no-op if no #main). Used
- * by the caret-shift compensation in `Main.after_display` to restore
- * the caret's screen position after a refractor drawer height change. */
-let scroll_main_by_y = (dy: float): unit =>
-  Js.Opt.iter(
-    Dom_html.document##getElementById(Js.string("main")),
-    main => {
-      let st: int = Js.Unsafe.get(main, "scrollTop");
-      Js.Unsafe.set(main, "scrollTop", st + int_of_float(dy));
-    },
-  );
-
 /* Measure the horizontal extent of #main's content (including
  * absolutely-positioned descendants like probe overlays / drawers
  * that would otherwise not contribute to any ancestor's intrinsic

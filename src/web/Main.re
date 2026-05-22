@@ -210,21 +210,25 @@ let start = default_model => {
          * background to match. CSS-only intrinsic sizing can't see
          * absolute descendants, so we measure here. */
         JsUtil.update_main_scroll_width();
-        /* Caret-shift compensation: when a refractor drawer above the
-         * caret grew or shrank during this render, `CachedSyntax.calculate`
-         * stashed the row delta in `ScrollCompensation`. Scroll `#main`
-         * by `rows * row_height` to keep the caret at its previous screen
-         * Y. Fires only on the specific renders where the shape map
-         * actually changed for an above-caret refractor. */
-        let shift = Haz3lcore.ScrollCompensation.consume();
-        if (shift != 0) {
-          let (_, row_height) = JsUtil.font_metrics_from_specimen();
-          JsUtil.scroll_main_by_y(float_of_int(shift) *. row_height);
-        };
+        /* Reactive caret-anchor: keep the caret's screen-y stable when
+         * the cached layout was rebuilt this frame (edit / refractor /
+         * dynamics arrival) and the caret's logical position didn't
+         * change. Gating on `measured` reference identity suppresses
+         * spurious compensation on idle / arrow-key / animation frames
+         * where layout didn't actually rebuild.
+         * Runs before SampleAnchor.consume so it sees its own delta
+         * cleanly; `refresh` below resets the baseline after Sample-
+         * Anchor scrolls so we don't try to undo it next frame. */
+        let editor =
+          Page.Update.get_editor(model.model.current.current).editor;
+        let zipper = editor.state.zipper;
+        let measured = editor.syntax.measured;
+        CaretAnchor.update(~measured, zipper);
         /* Sample-focus anchor compensation: if Left/Right in the sample
          * focus bar captured the indicated sample's screen-y before
          * dispatch, restore it now so the user's eye stays on it. */
         SampleAnchor.consume();
+        CaretAnchor.refresh(~measured, zipper);
         model.model.current.current.globals.settings.core.statics
           ? Animation.go() : ();
       },
