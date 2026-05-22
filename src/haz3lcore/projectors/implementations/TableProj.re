@@ -34,11 +34,25 @@ let table =
       ~parent as _: external_action => Ui_effect.t(unit),
       (headers, rows): (list(LabeledTuple.label), list(list(Exp.t))),
       ~view_seg: (Sort.t, Segment.t) => Node.t,
-    ) =>
+    ) => {
+  /* Wrap header text in .column-label so it picks up the same
+   * typography as the rich-probe TableRenderer headers. */
+  let header_cells =
+    List.map(
+      h =>
+        Node.th([
+          Node.span(
+            ~attrs=[Attr.classes(["column-label"])],
+            [Node.text(h)],
+          ),
+        ]),
+      headers,
+    );
   table_view(
-    ~header_cells=List.map(h => Node.th([Node.text(h)]), headers),
+    ~header_cells,
     ~rows=List.map(row_cells(info.utility, view_seg), rows),
   );
+};
 
 module M: Projector = {
   [@deriving (show({with_path: false}), sexp, yojson)]
