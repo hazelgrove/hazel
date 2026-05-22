@@ -178,12 +178,6 @@
      from --row-height-px set in Main.re. */
   top: var(--row-height-px, 1.5em);
   left: calc(100% / var(--menu-cols, 1) * var(--menu-col, 0));
-  /* Restore the typography the menu had when it lived inside .table
-     th — the table cell context provided code-font + weight 600 by
-     inheritance, but the menu now floats at the wrapper level and
-     would otherwise pick up the page's default font. */
-  font-family: var(--code-font);
-  font-weight: 600;
 }
 
 /* Make the resize handle in the rich-probe context — the existing
