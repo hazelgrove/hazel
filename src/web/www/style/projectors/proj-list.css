@@ -12,6 +12,7 @@
  * total height = N rows * --row-height-px and the rows line up with
  * the editor's ruled background lines. */
 .list-renderer .list-header {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -29,21 +30,10 @@
 
 .list-renderer .list-toolbar {
   display: flex;
+  align-items: center;
   gap: 4px;
 }
 
-.list-renderer .list-action {
-  background: transparent;
-  border: 1px solid var(--BR2, #ccc);
-  border-radius: 3px;
-  padding: 2px 8px;
-  cursor: pointer;
-  font-size: 11px;
-}
-
-.list-renderer .list-action:hover {
-  background: var(--BR1, #eee);
-}
 
 .list-renderer .list-items {
   display: flex;
