@@ -299,12 +299,15 @@ let pretty_seg_of_value =
   PrettySegment.prettify(~width, seg);
 };
 
-/* Per-probe cache of last non-empty drawer height. When samples are
- * empty (e.g. mid-edit) we reuse the most recent known height so the
- * drawer doesn't collapse to 1 row and snap back. */
+/* Rows reserved for a probe's drawer-mode Tab(n) placeholder.
+ * Pretty-prints each visible sample at the drawer's wrap width,
+ * counts rows via Measured, returns the max. With no samples
+ * available (no focus-aligned samples, no samples yet) falls back
+ * to 1 row — just enough for the empty-status icon. Refractor
+ * drawer height transitions are smoothed out by the caret-shift
+ * compensation in `CachedSyntax.calculate` rather than a cache
+ * here. */
 module DrawerHeight = {
-  let last: Hashtbl.t(Id.t, int) = Hashtbl.create(100);
-
   /* Row count via Measured. PrettySegment.format_segment ends with
    * Segment.reassemble, which folds the formatter's flat output back
    * into nested tile structure, so naively scanning top-level pieces
@@ -318,7 +321,7 @@ module DrawerHeight = {
   let sample_rows = (utility: utility, ~width: int, sample: Sample.t): int =>
     row_count(pretty_seg_of_value(utility, ~width, sample.value));
 
-  let compute_opt = (info: info): option(int) =>
+  let compute = (info: info): int =>
     switch (info.dynamics, info.statics) {
     | (Some(dynamics), Some(statics)) =>
       let settings = Settings.s^;
@@ -326,23 +329,13 @@ module DrawerHeight = {
       let ap_id = Sample.Focus.cur_var_ap(statics);
       let samples = select_samples(~settings, ~id=info.id, ~ap_id, dynamics);
       switch (samples) {
-      | [] => None
+      | [] => 1
       | _ =>
         let heights = List.map(sample_rows(info.utility, ~width), samples);
-        Some(List.fold_left(max, 1, heights));
+        List.fold_left(max, 1, heights);
       };
-    | _ => None
+    | _ => 1
     };
-
-  let compute = (info: info): int => {
-    let id = info.id;
-    switch (compute_opt(info)) {
-    | Some(n) =>
-      Hashtbl.replace(last, id, n);
-      n;
-    | None => Hashtbl.find_opt(last, id) |> Option.value(~default=1)
-    };
-  };
 };
 
 let pos_rel_to_target = (e: Js.t(Dom_html.mouseEvent)): Point.t => {
