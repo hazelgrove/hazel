@@ -109,12 +109,13 @@ module M: Projector = {
   let update = (_model, info, action) =>
     switch (action) {
     | ResizeTo(w, h) =>
-      /* Don't grow taller than the data; the table scrolls internally past
-         a soft cap regardless. */
+      /* Cap height at header + data rows so the user can resize all the
+         way to fitting the whole table (header included) without a
+         scrollbar. */
       let max_h =
         switch (get(info)) {
         | None => h
-        | Some((_, rows)) => List.length(rows)
+        | Some((_, rows)) => 1 + List.length(rows)
         };
       {
         width_blocks: clamp_width_blocks(w),

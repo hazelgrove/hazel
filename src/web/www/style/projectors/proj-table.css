@@ -17,6 +17,23 @@ table.table {
      * height so rows align with the editor's ruled lines exactly. */
 }
 
+/* Sticky-bottom edge inside each scroll container. As a real
+ * pseudo-element it paints on top of scrolling content (zebra rows
+ * won't cover it), and `position: sticky; bottom: 0` keeps it pinned
+ * to the bottom edge regardless of scroll. The 2px height is offset
+ * with a negative margin so it doesn't push content. */
+.projector.table > .table-inner::after,
+.rich-probe-table-inner::after {
+    content: "";
+    display: block;
+    position: sticky;
+    bottom: 0;
+    height: 2px;
+    background-color: var(--df-zebra-bg);
+    margin-top: -2px;
+    z-index: calc(var(--projector-z) + 1);
+}
+
 .table th {
     z-index: calc(var(--projector-z) + 1);
     opacity: 1;
