@@ -103,16 +103,33 @@
      a tall multi-row table or wide hand. The state coloring comes from
      the ring below instead. */
   background-color: transparent !important;
-  /* State-aware ring. --bottom-border-clr is set on .live-offside
-     .sample per state (focus/related/tangent/indet/...) and falls
-     back to `none` for the neutral case, which CSS treats as "no
-     color" — so an unfocused sample gets no visible ring. */
-  outline: 2px solid var(--bottom-border-clr, transparent);
-  outline-offset: 0;
   border-radius: 4px;
-  /* Size to content; let cards/hands flow naturally without clipping. */
+  /* Size to content; let cards/hands flow naturally without clipping.
+     `position: relative` anchors the ring pseudo-element below. */
   display: inline-block;
   overflow: visible;
+  position: relative;
+}
+
+/* State-aware ring drawn as an overlay pseudo-element so it paints on
+   top of the table (an inset box-shadow gets hidden by the table's
+   opaque background) AND stays inside the .value.rich box (an
+   `outline` at offset 0 would extend 2px past the table on every
+   side, breaking placeholder alignment). --bottom-border-clr is set
+   on .live-offside .sample per state and falls back to `none` for the
+   neutral case — CSS treats `none` as "no color" so an unfocused
+   sample gets no visible ring. */
+.live-offside .sample:has(.value.rich) .value.rich::after,
+.live-offside .sample:has(.value.indet.focus) .value.rich::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border: 2px solid var(--bottom-border-clr, transparent);
+  border-radius: 4px;
+  pointer-events: none;
+  /* Above the sticky-header's z-index (`calc(--projector-z + 1)`) so
+     the top of the ring paints over the header instead of behind it. */
+  z-index: calc(var(--projector-z) + 3);
 }
 
 /* --- Per-renderer mechanical fixes (NOT coloring) --- */
@@ -155,6 +172,11 @@
    that's the point of clamping height_blocks at the data rows. */
 .live-offside .value.rich > .rich-probe-wrapper > .rich-probe-table-inner {
   display: inline-block;
+  /* Baseline-aligned inline-blocks reserve a few px below for the
+     font's descender, making the wrapper taller than the table and
+     shifting .value.rich's inset ring down. Align to top to drop
+     that phantom space. */
+  vertical-align: top;
   overflow-x: hidden;
   overflow-y: auto;
   border-radius: 2px;
