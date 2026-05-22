@@ -41,6 +41,7 @@ type exp = {
   elab_syn_ty: Typ.t, /* Synthesized type of the elaborated expression */
   marks: list(Mark.t), /* Error marks from statics */
   co_ctx: CoCtx.t, /* Locally free variables */
+  probe_targets: SubexpProbeTargets.t, /* Equality witness for incremental eval cache invalidation */
   cls: Cls.t, /* DERIVED: Syntax class (i.e. form name) */
   message: Message.t, /* DERIVED: non-error inspector payload (Exp only) */
   warnings: list(Warning.list_item),
@@ -58,6 +59,7 @@ type pat = {
   ancestors,
   ctx: Ctx.t,
   co_ctx: CoCtx.t,
+  probe_targets: SubexpProbeTargets.t, /* Equality witness for incremental eval cache invalidation */
   ana: Typ.t,
   elab_syn_ty: Typ.t,
   marks: list(Mark.t),
@@ -302,6 +304,10 @@ let is_typable_term: option(t) => bool =
   | None => false;
 
 let exp_co_ctx: exp => CoCtx.t = ({co_ctx, _}) => co_ctx;
+let exp_probe_targets: exp => SubexpProbeTargets.t =
+  ({probe_targets, _}) => probe_targets;
+let pat_probe_targets: pat => SubexpProbeTargets.t =
+  ({probe_targets, _}) => probe_targets;
 let exp_ty: exp => Typ.t = ({ty, _}) => ty;
 let pat_ctx: pat => Ctx.t = ({ctx, _}) => ctx;
 let pat_ty: pat => Typ.t = ({ty, _}) => ty;
