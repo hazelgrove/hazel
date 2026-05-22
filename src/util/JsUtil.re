@@ -283,6 +283,28 @@ let delay = (delay: float, callback: unit => unit) => {
   ();
 };
 
+/* Measure the horizontal extent of #main's content (including
+ * absolutely-positioned descendants like probe overlays / drawers
+ * that would otherwise not contribute to any ancestor's intrinsic
+ * width) and publish it as a CSS variable. The cell's width rule
+ * reads `--main-scroll-width` to stretch the cell background across
+ * everything the page has been pushed to. Two passes: reset the
+ * variable first so the cell's own previously-set width doesn't
+ * inflate the measurement, force a layout, then read scrollWidth. */
+let update_main_scroll_width = () =>
+  Js.Opt.iter(
+    Dom_html.document##getElementById(Js.string("main")),
+    main => {
+      set_css_custom_property("--main-scroll-width", "max-content");
+      let _: int = Js.Unsafe.get(main, "offsetWidth");
+      let sw: int = Js.Unsafe.get(main, "scrollWidth");
+      set_css_custom_property(
+        "--main-scroll-width",
+        string_of_int(sw) ++ "px",
+      );
+    },
+  );
+
 /* Scroll compensation for sample focus bar:
  * When the bar's height changes (appearing/disappearing), adjust #main's
  * scrollTop so visible code doesn't shift. Only compensates when scrolled

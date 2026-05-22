@@ -778,15 +778,83 @@
  * anymore. The samples themselves render with their usual .sample
  * chrome on top.
  *
- * Width is a fixed 100ch for now — wide enough to read as a stripe at
- * typical pane sizes. A later refinement is to drive the width from a
- * CSS variable set to the actual editor pane width. */
+ * The stripe tracks `--main-scroll-width`, the same variable that
+ * sizes the cell background (published by JS in after_display). With
+ * `margin-left: -1em` to extend past the `.code-editor` padding-left,
+ * `padding-left: 1em` to keep inner content at code col 0, and
+ * `padding-right: 1em`, the stripe's outer edges land flush against
+ * the cell's outer edges. `width: max-content` lets the stripe still
+ * grow further right when sample cells are wider; that growth will
+ * feed back into `--main-scroll-width` on the next render so the
+ * cell catches up. */
 .below-wrapper {
   pointer-events: auto;
-  width: 100ch;
   background-color: var(--T2);
+  /* `box-sizing: border-box` is global (style.css), so `min-width`
+   * here is the *outer* (border-box) width — padding is already
+   * included. No subtraction for padding, unlike a content-box
+   * world. The stripe's outer right then lands at exactly the
+   * cell's outer right. */
+  min-width: var(--main-scroll-width, 100ch);
+  width: max-content;
+  margin-left: -1em;
+  padding-left: 1em;
+  padding-right: 1em;
+  border: 1px solid oklch(0.87 0.04 89.74);
+  border-width: 1px 0 0px 0;
 }
 
+/* With line numbers on, `.code-editor` has `padding-left: 0`, so the
+ * stripe shouldn't extend leftward past col 0 of code. */
+.has-line-numbers .below-wrapper {
+  margin-left: 0;
+  padding-left: 0;
+}
+
+/* Drawer-mode overrides for the shared .live-offside layout.
+ *
+ * The default inline-offside layout (above) baseline- and center-aligns
+ * cells so a row of single-line samples sits nicely on one row of
+ * code. In drawer mode the cells can be many rows tall, so we
+ * top-align everything: every sample's first row lines up with the
+ * first reserved row beneath the probe's line, instead of cells
+ * being baseline/center-aligned against each other.
+ *
+ * Gaps are bumped to ~2x the inline values so tall cells have a
+ * little more breathing room. Per-sample padding stays at the inline
+ * value. */
+.below-wrapper .live-offside,
+.below-wrapper .live-offside .sample-group {
+  align-items: flex-start;
+}
+
+.below-wrapper .live-offside {
+  gap: 12px;
+}
+
+.below-wrapper .live-offside .sample-groups {
+  gap: 10px;
+}
+
+.below-wrapper .live-offside .sample-group {
+  gap: 4px;
+}
+
+/* The depth-stacking effect on off-context samples in Many mode (the
+ * stacked-card visual for .depth-above / .depth-below) sets a
+ * one-row hardcoded height on .sample. That's correct for inline
+ * cells (always one row) but clamps multi-row drawer cells to one
+ * row's worth of background, so values overflow visually without
+ * their colored backing and the .below-wrapper stripe collapses to
+ * one row of height. Release the height and the vertical translate
+ * inside drawer mode; the box-shadow depth effect on the cell's edge
+ * still renders. */
+.below-wrapper .live-offside.Many .sample:has(.value.depth-above),
+.below-wrapper .live-offside.Many .sample:has(.value.depth-below) {
+  height: auto;
+  top: auto;
+  translate: none;
+}
 
 /* --- Inner: call display section --- */
 

@@ -205,6 +205,11 @@ let start = default_model => {
         JsUtil.setup_focus_bar_scroll_compensation();
         /* Update floating elements (backpack) to viewport coordinates */
         FloatingElement.update_all();
+        /* Publish #main's effective scroll width (including absolutely-
+         * positioned probe overlays / drawers) so .cell can stretch its
+         * background to match. CSS-only intrinsic sizing can't see
+         * absolute descendants, so we measure here. */
+        JsUtil.update_main_scroll_width();
         model.model.current.current.globals.settings.core.statics
           ? Animation.go() : ();
       },
