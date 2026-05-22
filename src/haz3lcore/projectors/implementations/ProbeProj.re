@@ -16,7 +16,18 @@ type action =
   | ChangeLength(int, int)
   | ToggleWindowMode
   | ToggleDrawerMode
+  | SetDrawerMode(bool)
   | ResetSettings;
+
+/* How a sample's value should be rendered inside the offside view.
+ * Inline is the existing single-line, Abbreviate-budgeted display
+ * (one row in the editor, horizontal budget set by SampleLength).
+ * Block(width) is the multi-line drawer display, pretty-printed to
+ * wrap at `width` characters. Threaded through offside_view →
+ * sample_view → value_view so the same render pipeline handles both. */
+type sample_display =
+  | Inline
+  | Block(int);
 
 module Settings = {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -24,6 +35,12 @@ module Settings = {
     | Calls
     | Hybrid
     | StepRange;
+
+  /* Per-drawer display configuration. Currently only the line-wrap
+   * target width; will grow over time (height cap, indent-respect,
+   * etc.) so we keep it as a nested record from the start. */
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type drawer_settings = {width: int};
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type settings = {
@@ -33,6 +50,7 @@ module Settings = {
     after_cutoff: option(int),
     caller_cutoff: option(int),
     callee_cutoff: option(int),
+    drawer: drawer_settings,
   };
 
   type set_action =
@@ -43,6 +61,8 @@ module Settings = {
     | ToggleCallerCutoff
     | ToggleCalleeCutoff;
 
+  let init_drawer: drawer_settings = {width: 80};
+
   let init: settings = {
     window: Single,
     sample_base: Hybrid,
@@ -50,6 +70,7 @@ module Settings = {
     after_cutoff: None,
     caller_cutoff: None,
     callee_cutoff: None,
+    drawer: init_drawer,
   };
 
   /* When true, ArrowUp/Down skip probes that have no samples
@@ -282,41 +303,32 @@ let pretty_seg_of_value =
  * empty (e.g. mid-edit) we reuse the most recent known height so the
  * drawer doesn't collapse to 1 row and snap back. */
 module DrawerHeight = {
-  /* Pretty-print width target (chars) for drawer samples. Hardcoded
-   * for MVP; later thread the real editor pane width. */
-  let pp_width = 80;
-
   let last: Hashtbl.t(Id.t, int) = Hashtbl.create(100);
 
-  /* Count newline Secondary pieces inline (inside this file `open Language`
-   * shadows haz3lcore's Secondary module, so we match the Whitespace content
-   * directly instead of calling Secondary.is_linebreak). */
+  /* Row count via Measured. PrettySegment.format_segment ends with
+   * Segment.reassemble, which folds the formatter's flat output back
+   * into nested tile structure, so naively scanning top-level pieces
+   * for Secondary linebreaks undercounts. Measured.of_segment runs the
+   * canonical layout walk (handling indentation, deferred linebreaks,
+   * etc.) and `total_rows` reads off its row tally directly. */
   let row_count = (seg: Segment.t): int =>
-    1
-    + List.fold_left(
-        (acc, p: Piece.t) =>
-          switch (p) {
-          | Secondary({content: Whitespace(s), _}) when s == Token.linebreak =>
-            acc + 1
-          | _ => acc
-          },
-        0,
-        seg,
-      );
+    Measured.of_segment(seg, ProjectorCore.Shape.Map.empty, Id.Map.empty)
+    |> Measured.total_rows;
 
-  let sample_rows = (utility: utility, sample: Sample.t): int =>
-    row_count(pretty_seg_of_value(utility, ~width=pp_width, sample.value));
+  let sample_rows = (utility: utility, ~width: int, sample: Sample.t): int =>
+    row_count(pretty_seg_of_value(utility, ~width, sample.value));
 
   let compute_opt = (info: info): option(int) =>
     switch (info.dynamics, info.statics) {
     | (Some(dynamics), Some(statics)) =>
+      let settings = Settings.s^;
+      let width = settings.drawer.width;
       let ap_id = Sample.Focus.cur_var_ap(statics);
-      let samples =
-        select_samples(~settings=Settings.s^, ~id=info.id, ~ap_id, dynamics);
+      let samples = select_samples(~settings, ~id=info.id, ~ap_id, dynamics);
       switch (samples) {
       | [] => None
       | _ =>
-        let heights = List.map(sample_rows(info.utility), samples);
+        let heights = List.map(sample_rows(info.utility, ~width), samples);
         Some(List.fold_left(max, 1, heights));
       };
     | _ => None
@@ -553,7 +565,14 @@ module ValueState = {
 };
 
 let value_view =
-    (ctx: probe_ctx, ~num_total, view_seg, local, sample: Sample.t) => {
+    (
+      ~display: sample_display,
+      ctx: probe_ctx,
+      ~num_total,
+      view_seg,
+      local,
+      sample: Sample.t,
+    ) => {
   let {settings, ap_id, utility, _} = ctx;
   let val_pointerdown = (e: Js.t(Dom_html.pointerEvent)) => {
     if (Js.to_bool(e##.shiftKey)) {
@@ -590,19 +609,30 @@ let value_view =
     };
   };
 
-  let length =
-    if (!SampleLength.is_explicit(sample) && num_total == 1) {
-      150;
-    } else {
-      SampleLength.get(settings.window, sample);
+  /* Two render strategies: inline = single-line, Abbreviate-budgeted;
+   * Block = multi-line, pretty-printed at the given wrap width. The
+   * shift+drag mousemove handler above still calls ChangeLength in both
+   * modes, but it only affects Inline rendering. Re-purposing it for
+   * a 2D drawer-resize is Stage-3 work. */
+  let (seg, length_class) =
+    switch (display) {
+    | Inline =>
+      let length =
+        if (!SampleLength.is_explicit(sample) && num_total == 1) {
+          150;
+        } else {
+          SampleLength.get(settings.window, sample);
+        };
+      let (seg, length) = abbreviated_seg_of(utility, length, sample.value);
+      (seg, [length_cls(length)]);
+    | Block(w) => (pretty_seg_of_value(utility, ~width=w, sample.value), [])
     };
-  let (seg, length) = abbreviated_seg_of(utility, length, sample.value);
 
   div(
     ~attrs=[
       // Attr.title(Debug.str(~ap_id, sample)),
       Attr.classes(
-        ["value", length_cls(length)]
+        ["value", ...length_class]
         @ cursor_clss(
             ~settings=ctx.settings,
             ~ap_id=ctx.ap_id,
@@ -1077,6 +1107,7 @@ let sample_context_drawer =
 
 let sample_view =
     (
+      ~display: sample_display,
       ctx: probe_ctx,
       ~indicated_sample_id,
       ~num_total,
@@ -1104,7 +1135,7 @@ let sample_view =
           ? SafeTriangle.CSSDropdown.trigger_attrs(dropdown_id(sample.id))
           : []
       ),
-    [value_view(ctx, ~num_total, view_seg, local, sample)]
+    [value_view(~display, ctx, ~num_total, view_seg, local, sample)]
     @ pin_view(ctx, sample)
     @ (
       render_dropdown
@@ -1349,6 +1380,13 @@ let key_handler = (ctx: probe_ctx, ~id: Id.t, local, evt) => {
     Many([move_cursor(ctx, -1), Stop_propagation, Prevent_default])
   | D("ArrowLeft") =>
     Many([move_cursor(ctx, 1), Stop_propagation, Prevent_default])
+  | D("ArrowDown") when key.meta == Down || key.ctrl == Down =>
+    /* Enter drawer mode for this probe. Idempotent if already in
+     * drawer mode. Paired with Cmd/Ctrl+ArrowUp below to exit. */
+    Many([local(SetDrawerMode(true)), Stop_propagation, Prevent_default])
+  | D("ArrowUp") when key.meta == Down || key.ctrl == Down =>
+    /* Exit drawer mode. Idempotent if not in drawer mode. */
+    Many([local(SetDrawerMode(false)), Stop_propagation, Prevent_default])
   | D("ArrowDown") =>
     let skip = Settings.skip_unaligned_nav;
     let effect =
@@ -1437,7 +1475,14 @@ let empty_view = (~id: Id.t, ~settings: settings) =>
   );
 
 let offside_view =
-    (info: info, local, parent, ~settings: settings, view_seg: View.seg) =>
+    (
+      ~display: sample_display,
+      info: info,
+      local,
+      parent,
+      ~settings: settings,
+      view_seg: View.seg,
+    ) =>
   switch (info.dynamics, info.statics) {
   | (Some(dynamics), Some(statics)) =>
     let id = info.id;
@@ -1513,9 +1558,16 @@ let offside_view =
         let overflow_view =
           num_shown > 0 && num_shown < num_total
             ? [nav_bar_view(ctx, ~num_total), ellipsis_view(local)] : [];
+        /* Block-display segments carry real linebreaks, so the layout
+         * hint `single_line` must follow the display mode. */
+        let single_line =
+          switch (display) {
+          | Inline => true
+          | Block(_) => false
+          };
         let view_seg_line = (~text_only, segment) =>
           view_seg(
-            ~single_line=true,
+            ~single_line,
             ~background=false,
             ~text_only,
             Sort.Exp,
@@ -1525,6 +1577,7 @@ let offside_view =
           indicated_sample(ctx) |> Option.map((s: Sample.t) => s.id);
         let sample_view =
           sample_view(
+            ~display,
             ctx,
             ~indicated_sample_id,
             ~num_total,
@@ -1549,55 +1602,6 @@ let offside_view =
       },
     );
   | _ => empty_view(~id=info.id, ~settings)
-  };
-
-/* Drawer view: renders selected sample values pretty-printed at the
- * drawer width into the projector's `below` slot. The framework's
- * Tab(n) placeholder reserves the rows; this fills them. */
-let drawer_view =
-    (info: info, view_seg: View.seg, local, ~settings: settings): Node.t =>
-  switch (info.dynamics, info.statics) {
-  | (Some(dynamics), Some(statics)) =>
-    let id = info.id;
-    let ap_id = Sample.Focus.cur_var_ap(statics);
-    let samples = select_samples(~settings, ~id, ~ap_id, dynamics);
-    let sample_node = (sample: Sample.t) => {
-      let seg =
-        pretty_seg_of_value(
-          info.utility,
-          ~width=DrawerHeight.pp_width,
-          sample.value,
-        );
-      Node.div(
-        ~attrs=[Attr.classes(["drawer-sample"])],
-        [view_seg(~single_line=false, ~text_only=false, Sort.Exp, seg)],
-      );
-    };
-    let close_btn =
-      div(
-        ~attrs=[
-          Attr.classes(["drawer-close"]),
-          Attr.title({js|Close drawer (\)|js}),
-          Attr.on_pointerdown(_ =>
-            Effect.Many([Effect.Stop_propagation, local(ToggleDrawerMode)])
-          ),
-        ],
-        [text({js|⌃|js})],
-      );
-    Node.div(
-      ~attrs=[
-        /* The same `Id.cls(id)` element that `focusable.pointer` looks
-         * up — without this, clicking on the drawer triggers a
-         * JsUtil.get_elem_by_id assertion failure because the offside
-         * element (which normally carries this id) isn't rendered. */
-        Attr.id(Id.cls(id)),
-        Attr.tabindex(0),
-        Attr.classes(["probe-drawer"]),
-        Attr.create("data-probe-id", Id.to_string(id)),
-      ],
-      [close_btn, ...List.map(sample_node, samples)],
-    );
-  | _ => Node.div([])
   };
 
 let overlay_view = (info: info): Node.t =>
@@ -1667,6 +1671,9 @@ module M: Projector = {
     | ToggleDrawerMode =>
       Settings.version := Settings.version^ + 1;
       {drawer_mode: !model.drawer_mode};
+    | SetDrawerMode(b) =>
+      Settings.version := Settings.version^ + 1;
+      {drawer_mode: b};
     | ResetSettings =>
       Settings.reset_mode();
       SampleLength.reset();
@@ -1677,16 +1684,19 @@ module M: Projector = {
   let view =
       ({model, info, local, parent, view_seg, _}: View.args(model, action)) => {
     let settings = Settings.s^;
+    /* Same render path for both modes; only the slot and per-sample
+     * display strategy differ. Inline: original offside, single-line
+     * abbreviated samples. Block: same offside content mounted below
+     * the line, each sample pretty-printed at settings.drawer.width. */
+    let mk_offside = (~display) =>
+      offside_view(~display, info, local, parent, ~settings, view_seg);
     View.{
       inline: Node.div([]),
       overlay: Some(overlay_view(info)),
-      offside:
-        model.drawer_mode
-          ? None
-          : Some(offside_view(~settings, info, local, parent, view_seg)),
+      offside: model.drawer_mode ? None : Some(mk_offside(~display=Inline)),
       below:
         model.drawer_mode
-          ? Some(drawer_view(info, view_seg, local, ~settings)) : None,
+          ? Some(mk_offside(~display=Block(settings.drawer.width))) : None,
     };
   };
 };

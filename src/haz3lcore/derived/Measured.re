@@ -130,6 +130,11 @@ let add_empty_piece_rows = map => {
 let rec add_n_empty_piece_rows = (n: int, map) =>
   n <= 0 ? map : add_n_empty_piece_rows(n - 1, add_empty_piece_rows(map));
 
+/* Total rendered row count for a measured segment.
+ * `piece_rows` accumulates one sublist per visual row during of_segment;
+ * its length is the row count. */
+let total_rows = (map: t): int => List.length(map.piece_rows);
+
 let find_shards = (~msg="", t: Tile.t, map) =>
   try(Id.Map.find(t.id, map.tiles)) {
   | _ => failwith("find_shards: " ++ msg)

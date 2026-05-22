@@ -771,46 +771,20 @@
 
 /* === Below-line drawer === */
 
-/* Framework wrapper for projector `below` views: positioned on the row
- * after the projector's row, at the editor pane's left edge. Width and
- * appearance handled by .probe-drawer below. */
+/* Framework wrapper for projector `below` views. Drawer-mode probes
+ * mount the regular .live-offside content here, so this wrapper acts
+ * as the "value zone" stripe behind the samples: a subtly darker band
+ * across the editor pane indicating you're not in normal code-text
+ * anymore. The samples themselves render with their usual .sample
+ * chrome on top.
+ *
+ * Width is a fixed 100ch for now — wide enough to read as a stripe at
+ * typical pane sizes. A later refinement is to drive the width from a
+ * CSS variable set to the actual editor pane width. */
 .below-wrapper {
   pointer-events: auto;
-}
-
-/* Drawer background/border match .live-offside .sample so the visual
- * vocabulary is shared with the inline display. We'll diverge later if
- * the drawer needs its own affordances, but starting with the same green
- * keeps "what is a sample" recognizable across modes. */
-.probe-drawer {
-  display: block;
-  /* Hardcoded width target matches ProbeProj.DrawerHeight.pp_width.
-   * Will become dynamic once the real editor pane width is threaded. */
-  width: 80ch;
-  padding: 0 0.1em;
-  background-color: var(--exp-base);
-  border-radius: 0.05em 0.05em 0.05em 0.2em;
-  font-family: var(--code-font);
-  font-size: var(--base-font-size);
-  position: relative;
-}
-
-.probe-drawer .drawer-sample {
-  white-space: pre;
-}
-
-.probe-drawer .drawer-close {
-  position: absolute;
-  top: 0.05em;
-  right: 0.35em;
-  font-size: 0.85em;
-  color: var(--BR3);
-  cursor: pointer;
-  user-select: none;
-}
-
-.probe-drawer .drawer-close:hover {
-  color: var(--T1);
+  width: 100ch;
+  background-color: var(--T2);
 }
 
 
