@@ -263,6 +263,9 @@ let tok = (n: int): OpenRouter.Reply.Model.usage =>
     prompt_tokens: n,
     completion_tokens: 0,
     total_tokens: n,
+    cache_read_input_tokens: None,
+    cache_creation_input_tokens: None,
+    model_id: None,
   };
 
 let chat_context_meter_tests = [

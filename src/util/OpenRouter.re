@@ -10,6 +10,12 @@ module Reply = {
       prompt_tokens: int,
       completion_tokens: int,
       total_tokens: int,
+      [@yojson.default None] [@sexp.default None]
+      cache_read_input_tokens: option(int),
+      [@yojson.default None] [@sexp.default None]
+      cache_creation_input_tokens: option(int),
+      [@yojson.default None] [@sexp.default None]
+      model_id: option(string),
     };
 
     [@deriving (show({with_path: false}), sexp, yojson)]
@@ -70,8 +76,27 @@ module Message = {
         ),
       ]);
 
-    let json_of_message = (message: Model.t): Json.t =>
+    let json_of_message =
+        (~cache_breakpoint: bool=false, message: Model.t): Json.t =>
       switch (message.role) {
+      | System
+      | Developer when cache_breakpoint =>
+        `Assoc([
+          ("role", `String(string_of_role(message.role))),
+          (
+            "content",
+            `List([
+              `Assoc([
+                ("type", `String("text")),
+                ("text", `String(message.content)),
+                (
+                  "cache_control",
+                  `Assoc([("type", `String("ephemeral"))]),
+                ),
+              ]),
+            ]),
+          ),
+        ])
       | Tool(tool_call) =>
         `Assoc([
           ("role", `String(string_of_role(message.role))),
@@ -183,17 +208,50 @@ module Payload = {
       | Exclude(exclude) => `Assoc([("exclude", `Bool(exclude))])
       };
 
+    /* Cache-control markers are only honored by Anthropic models on
+       OpenRouter; non-Anthropic providers either ignore them or 400 on
+       the multipart shape. Gate strictly on the model id prefix. */
+    let supports_cache_control = (model_id: string): bool => {
+      let prefix = "anthropic/";
+      let len = String.length(prefix);
+      String.length(model_id) >= len
+      && String.sub(model_id, 0, len) == prefix;
+    };
+
     let json_of_payload = (~payload: Model.t): Json.t => {
+      let cache_enabled = supports_cache_control(payload.model_id);
+      /* Mark only the last System|Developer message as a cache breakpoint.
+         In Hazel this is the context-snapshot system message appended right
+         before each user turn — the natural stable prefix. */
+      let last_sys_idx = {
+        let idx = ref(-1);
+        List.iteri(
+          (i, m: Message.Model.t) =>
+            switch (m.role) {
+            | System
+            | Developer => idx := i
+            | _ => ()
+            },
+          payload.messages,
+        );
+        idx^;
+      };
+      let messages_json =
+        List.mapi(
+          (i, m: Message.Model.t) =>
+            Message.Utils.json_of_message(
+              ~cache_breakpoint=cache_enabled && i == last_sys_idx,
+              m,
+            ),
+          payload.messages,
+        );
       let base_fields = [
         ("model", `String(payload.model_id)),
         ("temperature", `Float(payload.temperature)),
         ("top_p", `Float(payload.top_p)),
         ("tools", `List(payload.tools)),
         ("stream", `Bool(payload.stream)),
-        (
-          "messages",
-          `List(List.map(Message.Utils.json_of_message, payload.messages)),
-        ),
+        ("messages", `List(messages_json)),
       ];
       let fields =
         switch (payload.reasoning) {
@@ -254,11 +312,26 @@ module Utils = {
     let* completion_tokens =
       API.Json.Parsers.int_field(choices, "completion_tokens");
     let+ total_tokens = API.Json.Parsers.int_field(choices, "total_tokens");
+    let cache_read_input_tokens =
+      switch (API.Json.Parsers.int_field(choices, "cache_read_input_tokens")) {
+      | Some(_) as v => v
+      | None =>
+        switch (Json.dot("prompt_tokens_details", choices)) {
+        | Some(details) =>
+          API.Json.Parsers.int_field(details, "cached_tokens")
+        | None => None
+        }
+      };
+    let cache_creation_input_tokens =
+      API.Json.Parsers.int_field(choices, "cache_creation_input_tokens");
     (
       {
         prompt_tokens,
         completion_tokens,
         total_tokens,
+        cache_read_input_tokens,
+        cache_creation_input_tokens,
+        model_id: None,
       }: Reply.Model.usage
     );
   };

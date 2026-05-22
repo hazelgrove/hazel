@@ -428,6 +428,47 @@ let view =
     };
   };
 
+  /* Cache indicator: lit when the most recent assistant turn reported
+     cache_read_input_tokens > 0 AND the recorded model_id matches the
+     currently-active LLM. Anthropic prompt caches are per-model, so a
+     model switch (or expiry) correctly drops the indicator. */
+  let cache_indicator_label: option(Node.t) = {
+    let active_id =
+      AgentGlobals.get_active_llm_id(globals.settings.agent_globals);
+    let last_usage =
+      List.fold_left(
+        (acc, m: Message.Model.t) =>
+          switch (m.role) {
+          | Agent(Some(u)) => Some(u)
+          | _ => acc
+          },
+        None,
+        Chat.Utils.get(current_chat),
+      );
+    let (lit, tooltip) =
+      switch (last_usage, active_id) {
+      | (
+          Some(
+            {cache_read_input_tokens: Some(n), model_id: Some(mid), _}: OpenRouter.Reply.Model.usage,
+          ),
+          Some(aid),
+        )
+          when n > 0 && mid == aid => (
+          true,
+          Printf.sprintf(
+            "Prompt cache hit on last turn (%d cached tokens). Cache is per-model; switching models invalidates it.",
+            n,
+          ),
+        )
+      | _ => (
+          false,
+          "No prompt cache hit on the last turn. Cache is per-model (Anthropic only) and expires after ~5 min idle.",
+        )
+      };
+    let classes = ["cache-indicator-dot"] @ (lit ? ["lit"] : []);
+    Some(div(~attrs=[clss(classes), Attr.title(tooltip)], []));
+  };
+
   // Reasoning effort dropup (only for models that support reasoning).
   // Rendered as an absolute-positioned overlay inside the chat input container,
   // anchored to its bottom-left corner.
@@ -656,7 +697,10 @@ let view =
             ),
             div(
               ~attrs=[clss(["chat-input-top-bar-right"])],
-              List.filter_map(x => x, [model_name_label]),
+              List.filter_map(
+                x => x,
+                [cache_indicator_label, model_name_label],
+              ),
             ),
           ],
         );

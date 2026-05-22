@@ -1142,6 +1142,122 @@ let view =
           single
         | _ => div(~attrs=[clss(["agent-tool-call-batch"])], nodes)
         };
+      let humanize_tokens = (n: int): string =>
+        if (n >= 1000) {
+          Printf.sprintf("%.1fk", float_of_int(n) /. 1000.0);
+        } else {
+          string_of_int(n);
+        };
+      let render_token_chip =
+          (
+            ~msg_id: Id.t,
+            ~usage: OpenRouter.Reply.Model.usage,
+            ~prev_usage: option(OpenRouter.Reply.Model.usage),
+          )
+          : Node.t => {
+        let cache_read =
+          Option.value(~default=0, usage.cache_read_input_tokens);
+        let cache_creation =
+          Option.value(~default=0, usage.cache_creation_input_tokens);
+        let new_this_turn =
+          switch (prev_usage) {
+          | Some(p) when p.model_id == usage.model_id =>
+            max(
+              0,
+              usage.prompt_tokens - p.prompt_tokens - p.completion_tokens,
+            )
+          | _ => usage.prompt_tokens
+          };
+        let preexisting = max(0, usage.prompt_tokens - new_this_turn);
+        let chip_dom_id = "agent-token-chip-" ++ Id.to_string(msg_id);
+        let toggle = _ => {
+          Js.Opt.iter(
+            Dom_html.document##getElementById(Js.string(chip_dom_id)),
+            el => {
+              let cl = el##.classList;
+              let cls_str = Js.string("agent-token-chip-expanded");
+              if (Js.to_bool(cl##contains(cls_str))) {
+                cl##remove(cls_str);
+              } else {
+                cl##add(cls_str);
+              };
+            },
+          );
+          Effect.Stop_propagation;
+        };
+        let summary_parts = {
+          let base = [
+            humanize_tokens(usage.prompt_tokens) ++ " in",
+            humanize_tokens(usage.completion_tokens) ++ " out",
+          ];
+          if (cache_read > 0) {
+            base @ ["cached: " ++ humanize_tokens(cache_read)];
+          } else {
+            base;
+          };
+        };
+        let row = (label, value) =>
+          div(
+            ~attrs=[clss(["agent-token-chip-row"])],
+            [
+              span(
+                ~attrs=[clss(["agent-token-chip-label"])],
+                [text(label)],
+              ),
+              span(
+                ~attrs=[clss(["agent-token-chip-value"])],
+                [text(value)],
+              ),
+            ],
+          );
+        let raw_json =
+          try(
+            OpenRouter.Reply.Model.yojson_of_usage(usage)
+            |> Yojson.Safe.pretty_to_string
+          ) {
+          | _ => ""
+          };
+        div(
+          ~attrs=[
+            Attr.id(chip_dom_id),
+            clss(["agent-token-chip"]),
+            Attr.on_click(toggle),
+            Attr.title("Click for detailed token breakdown"),
+          ],
+          [
+            div(
+              ~attrs=[clss(["agent-token-chip-summary"])],
+              [text(String.concat(" \xc2\xb7 ", summary_parts))],
+            ),
+            div(
+              ~attrs=[clss(["agent-token-chip-body"])],
+              [
+                row(
+                  "Total payload tokens",
+                  humanize_tokens(usage.prompt_tokens),
+                ),
+                row("New tokens this turn", humanize_tokens(new_this_turn)),
+                row(
+                  "Preexisting (prior context)",
+                  humanize_tokens(preexisting),
+                ),
+                row("Cache read", humanize_tokens(cache_read)),
+                row("Cache creation", humanize_tokens(cache_creation)),
+                row(
+                  "Output tokens",
+                  humanize_tokens(usage.completion_tokens),
+                ),
+                Node.pre(
+                  ~attrs=[clss(["agent-token-chip-raw"])],
+                  [text(raw_json)],
+                ),
+              ],
+            ),
+          ],
+        );
+      };
+      let prev_agent_usage_ref =
+        ref(None: option(OpenRouter.Reply.Model.usage));
       let (linear_display_rev, pending_batch) =
         List.fold_left(
           ((acc, batch), msg: Message.Model.t) => {
@@ -1155,8 +1271,21 @@ let view =
                 acc,
                 [render_tool_node(msg, tool_result), ...batch],
               )
-            | Agent(_) =>
+            | Agent(usage_opt) =>
               let acc = flush(acc, batch);
+              let metadata_node: option(Node.t) =
+                switch (usage_opt) {
+                | Some(usage) =>
+                  Some(
+                    render_token_chip(
+                      ~msg_id=msg.id,
+                      ~usage,
+                      ~prev_usage=prev_agent_usage_ref^,
+                    ),
+                  )
+                | None => None
+                };
+              prev_agent_usage_ref := usage_opt;
               let show_thinking = globals.settings.agent_globals.show_thinking;
               let format_thinking_duration = (ms: int): string => {
                 let secs = max(0, ms / 1000);
@@ -1210,7 +1339,10 @@ let view =
                   None;
                 };
               let nodes =
-                List.filter_map(x => x, [reasoning_node, content_node]);
+                List.filter_map(
+                  x => x,
+                  [reasoning_node, content_node, metadata_node],
+                );
               switch (nodes) {
               | [] => (acc, [])
               | xs => (List.rev_append(xs, acc), [])

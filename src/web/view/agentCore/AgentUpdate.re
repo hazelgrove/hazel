@@ -652,9 +652,25 @@ let send_llm_request =
     let elapsed_ms = int_of_float(JsUtil.timestamp() -. send_started_at);
     switch (OpenRouter.Utils.StreamAccumulator.finalize(acc)) {
     | OpenRouter.Model.Reply(reply) =>
+      /* Stamp the requested model id onto usage so the per-message
+         metadata UI and the footer cache indicator can tell which
+         model produced this reply (Anthropic caches don't carry
+         across models). */
+      let reply = {
+        ...reply,
+        usage:
+          Option.map(
+            (u: OpenRouter.Reply.Model.usage) =>
+              {
+                ...u,
+                model_id: Some(payload.model_id),
+              },
+            reply.usage,
+          ),
+      };
       schedule_action(
         Action.HandleLLMResponse(reply, chat_id, main_flight_seq, elapsed_ms),
-      )
+      );
     | OpenRouter.Model.Error({message, code}) =>
       if (is_retryable_api_error(code) && retry_attempt < max_api_retries) {
         schedule_action(Action.RetryApiError(chat_id, retry_attempt));

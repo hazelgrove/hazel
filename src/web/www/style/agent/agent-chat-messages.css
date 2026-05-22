@@ -3001,3 +3001,94 @@
   padding: 0 0.1em;
 }
 
+/* Per-assistant-turn token metadata chip. Sibling of .agent-message
+   so it doesn't inherit prose typography. */
+.agent-token-chip {
+  margin: 0.35em 0 0.6em;
+  padding: 3px 8px;
+  font-family: var(--code-font);
+  font-size: 10.5px;
+  line-height: 1.35;
+  color: var(--STONE);
+  opacity: 0.55;
+  border: 0.6px solid var(--BR2);
+  border-radius: 4px;
+  background: var(--SAND);
+  user-select: none;
+  cursor: pointer;
+  transition: opacity 0.15s ease, background 0.15s ease;
+  align-self: flex-start;
+  max-width: 100%;
+}
+
+.agent-token-chip:hover {
+  opacity: 0.9;
+  background: var(--T3);
+}
+
+.agent-token-chip-summary {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.agent-token-chip-body {
+  display: none;
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 0.6px dashed var(--BR2);
+}
+
+.agent-token-chip.agent-token-chip-expanded .agent-token-chip-body {
+  display: block;
+}
+
+.agent-token-chip-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 1em;
+  padding: 1px 0;
+}
+
+.agent-token-chip-label {
+  opacity: 0.85;
+}
+
+.agent-token-chip-value {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.agent-token-chip-raw {
+  margin: 6px 0 0;
+  padding: 6px 8px;
+  font-size: 9.5px;
+  line-height: 1.35;
+  white-space: pre;
+  overflow-x: auto;
+  background: var(--T4);
+  border-radius: 3px;
+  color: var(--STONE);
+  opacity: 0.85;
+}
+
+/* Cache-status indicator dot next to the model picker.
+   Unlit: faint outline. Lit: solid moss-green (G0). */
+.cache-indicator-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  margin: 0 6px 0 4px;
+  background: transparent;
+  border: 1px solid var(--BR2);
+  cursor: help;
+  flex-shrink: 0;
+  transition: background 0.15s ease, box-shadow 0.15s ease;
+}
+
+.cache-indicator-dot.lit {
+  background: var(--G0);
+  border-color: var(--G0);
+  box-shadow: 0 0 4px var(--G0);
+}
+
