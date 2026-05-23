@@ -22,12 +22,12 @@ type action =
 /* How a sample's value should be rendered inside the offside view.
  * Inline is the existing single-line, Abbreviate-budgeted display
  * (one row in the editor, horizontal budget set by SampleLength).
- * Block(width) is the multi-line drawer display, pretty-printed to
- * wrap at `width` characters. Threaded through offside_view →
- * sample_view → value_view so the same render pipeline handles both. */
+ * Block is the multi-line drawer display, pretty-printed to wrap at
+ * a per-sample width pulled from SampleLength in `value_view`, with
+ * `settings.drawer.width` as the default when none is set. */
 type sample_display =
   | Inline
-  | Block(int);
+  | Block;
 
 module Settings = {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -325,13 +325,27 @@ module DrawerHeight = {
     switch (info.dynamics, info.statics) {
     | (Some(dynamics), Some(statics)) =>
       let settings = Settings.s^;
-      let width = settings.drawer.width;
       let ap_id = Sample.Focus.cur_var_ap(statics);
       let samples = select_samples(~settings, ~id=info.id, ~ap_id, dynamics);
       switch (samples) {
       | [] => 1
       | _ =>
-        let heights = List.map(sample_rows(info.utility, ~width), samples);
+        /* Per-sample width: matches value_view's Block branch so the
+         * reserved row count (Tab(n)) aligns with the rendered drawer
+         * heights. Falls back to settings.drawer.width if no explicit
+         * width set. */
+        let heights =
+          List.map(
+            (sample: Sample.t) =>
+              sample_rows(
+                info.utility,
+                ~width=
+                  Hashtbl.find_opt(SampleLength.lengths, sample.id)
+                  |> Option.value(~default=settings.drawer.width),
+                sample,
+              ),
+            samples,
+          );
         List.fold_left(max, 1, heights);
       };
     | _ => 1
@@ -594,19 +608,24 @@ let value_view =
     | Some(_) when Js.to_bool(e##.shiftKey) =>
       let goal = pos_rel_to_target(e);
       let target_width = max(1, goal.col);
-      let width_at = (b: int): int =>
-        abbreviated_seg_of(utility, b, sample.value) |> snd;
-      let budget = find_best_budget(width_at, target_width);
+      /* Inline: rendered width isn't a linear function of budget
+       * (Abbreviate makes discrete decisions), so bisect for the budget
+       * whose output fits target_width. Block: pretty-print wrap width
+       * IS target_width directly. Both update SampleLength.lengths via
+       * ChangeLength; value_view's Block branch reads the same map. */
+      let budget =
+        switch (display) {
+        | Inline =>
+          let width_at = (b: int): int =>
+            abbreviated_seg_of(utility, b, sample.value) |> snd;
+          find_best_budget(width_at, target_width);
+        | Block => target_width
+        };
       local(ChangeLength(sample.id, budget));
     | _ => Effect.Ignore
     };
   };
 
-  /* Two render strategies: inline = single-line, Abbreviate-budgeted;
-   * Block = multi-line, pretty-printed at the given wrap width. The
-   * shift+drag mousemove handler above still calls ChangeLength in both
-   * modes, but it only affects Inline rendering. Re-purposing it for
-   * a 2D drawer-resize is Stage-3 work. */
   let (seg, length_class) =
     switch (display) {
     | Inline =>
@@ -618,7 +637,11 @@ let value_view =
         };
       let (seg, length) = abbreviated_seg_of(utility, length, sample.value);
       (seg, [length_cls(length)]);
-    | Block(w) => (pretty_seg_of_value(utility, ~width=w, sample.value), [])
+    | Block =>
+      let width =
+        Hashtbl.find_opt(SampleLength.lengths, sample.id)
+        |> Option.value(~default=settings.drawer.width);
+      (pretty_seg_of_value(utility, ~width, sample.value), []);
     };
 
   div(
@@ -1566,7 +1589,7 @@ let offside_view =
         let single_line =
           switch (display) {
           | Inline => true
-          | Block(_) => false
+          | Block => false
           };
         let view_seg_line = (~text_only, segment) =>
           view_seg(
@@ -1690,16 +1713,15 @@ module M: Projector = {
     /* Same render path for both modes; only the slot and per-sample
      * display strategy differ. Inline: original offside, single-line
      * abbreviated samples. Block: same offside content mounted below
-     * the line, each sample pretty-printed at settings.drawer.width. */
+     * the line, each sample pretty-printed at its SampleLength entry
+     * (or `settings.drawer.width` if none has been set). */
     let mk_offside = (~display) =>
       offside_view(~display, info, local, parent, ~settings, view_seg);
     View.{
       inline: Node.div([]),
       overlay: Some(overlay_view(info)),
       offside: model.drawer_mode ? None : Some(mk_offside(~display=Inline)),
-      below:
-        model.drawer_mode
-          ? Some(mk_offside(~display=Block(settings.drawer.width))) : None,
+      below: model.drawer_mode ? Some(mk_offside(~display=Block)) : None,
     };
   };
 };
