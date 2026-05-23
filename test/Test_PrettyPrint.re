@@ -913,6 +913,47 @@ let labeled_tuple_tests = [
     ~expected="(a = 1)",
     (),
   ),
+  /* Regression: when the first element of a tuple is itself a parens-
+   * wrapped tuple of labels, both elements should get the is_label_eq
+   * spacing consistently. Previously the comma case treated the first
+   * piece as opaque (piece_doc) so it bypassed build_infix_chain_doc
+   * and its TupLabel `=`s came out unspaced, while the second element
+   * (recursively processed) got spaces. */
+  test_format(
+    ~name="Tuple of labeled tuples: symmetric spacing around =",
+    ~input="((x=1, y=2), (a=3, b=4))",
+    ~expected="((x = 1, y = 2), (a = 3, b = 4))",
+    (),
+  ),
+];
+
+/* Regression: parens-wrapped elements should decompose for layout, not
+ * be emitted as opaque pieces. Previously, the first element of a
+ * comma-separated segment was wrapped via `piece_doc` (opaque), so a
+ * complex parens-wrapped element couldn't sub-break even when its
+ * width exceeded the layout target. The asymmetric symptom: the first
+ * element rendered on one (possibly overflowing) line while the second
+ * element broke internally. */
+let nested_paren_break_tests = [
+  test_format(
+    ~name="Nested parens-wrapped tuples break symmetrically",
+    ~width=10,
+    ~input="((100, 200, 300), (400, 500, 600))",
+    ~expected=
+      {|(
+    (
+        100,
+        200,
+        300
+    ),
+    (
+        400,
+        500,
+        600
+    )
+)|},
+    (),
+  ),
 ];
 
 /* === Trailing `in` body ===
@@ -1197,4 +1238,5 @@ let tests = [
   ("PrettyPrint.Forms", form_tests),
   ("PrettyPrint.Composition", composition_tests),
   ("PrettyPrint.LabeledTuple", labeled_tuple_tests),
+  ("PrettyPrint.NestedParenBreak", nested_paren_break_tests),
 ];
