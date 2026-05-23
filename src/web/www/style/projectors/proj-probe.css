@@ -327,14 +327,58 @@
   display: none;
 }
 
+/* Row-level controls (drawer toggle + overflow arrows). Absolute-
+ * positioned in the gutter to the left of .live-offside so samples
+ * always start at the live-offside left edge (column 0) — other UI
+ * (highlights, decorations) depends on this contract. Code-↔-offside
+ * spacing is controlled by `ProjectorView.offside_offset` (a hard-
+ * coded char-column count), not CSS margin.
+ *
+ * Inline mode: single row, drawer-toggle followed by the arrows-pair.
+ * Drawer mode (.below-wrapper override below): column with toggle on
+ * top and the arrows-pair below it. */
 .live-offside .nav-bar {
   display: flex;
   flex-direction: row;
   align-items: center;
   gap: 2px;
   position: absolute;
-  left: -1.75em;
+  left: -2.3em;
   top: 0.35em;
+}
+
+/* Sub-row holding the two overflow arrows. Kept as its own flex
+ * container so the pair always renders side-by-side, even when the
+ * outer nav-bar is column-laid-out in drawer mode. */
+.live-offside .nav-bar .nav-arrows {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 2px;
+}
+
+/* Drawer-mode toggle: reuses the same arrow SVG as nav-arrows so the
+ * three icons share a visual language. Rotated -90° (counter-clockwise
+ * from the default left-pointing arrow) so it points DOWN in inline
+ * mode, indicating "open drawer below". Drawer mode rotates +90° (see
+ * .below-wrapper override) to point UP, indicating "collapse upward".
+ * `translate: 0 2px` nudges the inline toggle down so it visually
+ * baselines with the nav-arrows; reset to 0 in drawer mode (where the
+ * toggle sits on its own row above the arrows-pair). */
+.live-offside .nav-bar .drawer-mode-toggle {
+  cursor: pointer;
+  user-select: none;
+  width: 10px;
+  height: 13px;
+  background: url(../../img/noun-arrow-3130579.svg);
+  background-size: cover;
+  filter: invert(1) brightness(0.7) sepia(1) hue-rotate(61deg) saturate(0.6);
+  transform: rotate(-90deg);
+  translate: 0 2px;
+}
+
+.live-offside .nav-bar .drawer-mode-toggle:hover {
+  filter: invert(1) brightness(0.4) sepia(1) hue-rotate(310deg) saturate(10);
 }
 
 .live-offside .ellipsis {
@@ -753,21 +797,10 @@
   color: var(--BR3);
 }
 
-/* Drawer-mode toggle: flips this probe between inline-offside and a
- * pretty-printed multi-line drawer below the line. Lives next to the
- * dock toggle in each sample's context-actions row. */
-.action-item.drawer-mode-toggle {
-  margin-left: auto;
-  padding: 0 0.35em;
-  font-size: 1em;
-  line-height: 1;
-  color: var(--BR3);
-}
-/* When both are present, the drawer-mode toggle takes the auto-left
- * margin and the dock toggle sits next to it. */
-.action-item.drawer-mode-toggle + .action-item.dock-toggle {
-  margin-left: 0;
-}
+/* Drawer-mode toggle: row-level affordance that flips this probe
+ * between inline-offside and a pretty-printed multi-line drawer below
+ * the line. Lives in the nav-bar gutter alongside the overflow arrows
+ * (see `.live-offside .nav-bar .drawer-mode-toggle` below). */
 
 /* === Below-line drawer === */
 
@@ -838,6 +871,27 @@
 
 .below-wrapper .live-offside .sample-group {
   gap: 4px;
+}
+
+/* Drawer mode: vertical nav-bar — drawer-toggle on top, arrows-pair
+ * (still side-by-side, inside .nav-arrows) on a second row below.
+ * Absolute-positioned so it doesn't push samples right (matches the
+ * pre-drawer-toggle behavior where the nav-bar sat in the wrapper's
+ * left padding area). Toggle rotates the other way (up) to indicate
+ * collapse-upward. */
+.below-wrapper .live-offside .nav-bar {
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  scale: 0.85;
+  position: absolute;
+  left: -0.2em;
+  top: 0em;
+}
+
+.below-wrapper .live-offside .drawer-mode-toggle {
+  transform: rotate(90deg);
+  translate: 0 0;
 }
 
 /* The depth-stacking effect on off-context samples in Many mode (the
@@ -965,7 +1019,8 @@
   filter: invert(1) brightness(0.7) sepia(1) hue-rotate(141deg) saturate(0.6);
 } */
 
-.projector.probe:not(.indicated) .nav-arrow {
+.projector.probe:not(.indicated) .nav-arrow,
+.projector.probe:not(.indicated) .nav-bar .drawer-mode-toggle {
   pointer-events: none;
   opacity: 0% !important;
 }

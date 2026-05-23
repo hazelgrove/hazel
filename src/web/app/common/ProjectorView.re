@@ -9,7 +9,7 @@ open Util.WebUtil;
 /* Re-export visible_rows type from Globals for convenience */
 type visible_rows = Globals.VisibleRows.t;
 
-let offside_offset = 4; /* Num characters offset to the right of the end of the line */
+let offside_offset = 5; /* Num characters offset to the right of the end of the line */
 
 /* Cache projector view results to avoid expensive P.view() calls
  * when statics/dynamics haven't changed (e.g. during debounced typing).

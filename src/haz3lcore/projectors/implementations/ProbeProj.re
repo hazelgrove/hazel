@@ -820,17 +820,18 @@ let dock_toggle = (): Node.t => {
 
 /* Drawer-mode toggle: flips this probe between inline-offside display
  * and below-line full-width pretty-printed drawer. Per-probe state
- * (ProbeProj.M.model.drawer_mode), so dispatched via local. */
+ * (ProbeProj.M.model.drawer_mode), so dispatched via local. Rendered
+ * in the nav-bar gutter (row-level), not in per-sample context-actions. */
 let drawer_mode_toggle = (ctx: probe_ctx): Node.t =>
   div(
     ~attrs=[
-      Attr.classes(["action-item", "drawer-mode-toggle"]),
+      Attr.classes(["drawer-mode-toggle"]),
       Attr.title({js|Toggle drawer below (\)|js}),
       Attr.on_pointerdown(_ =>
         Effect.Many([Effect.Stop_propagation, ctx.local(ToggleDrawerMode)])
       ),
     ],
-    [text({js|⌄|js})],
+    [],
   );
 
 /* Context actions for a sample (Pin/Unpin, Step Into, etc.). The
@@ -849,7 +850,7 @@ let sample_context_actions =
   [
     div(
       ~attrs=[Attr.classes(["context-actions"])],
-      primary @ [drawer_mode_toggle(ctx), dock_toggle()],
+      primary @ [dock_toggle()],
     ),
   ];
 };
@@ -1271,7 +1272,13 @@ let move_cursor = (ctx: probe_ctx, offset: int) => {
   };
 };
 
-let nav_bar_view = (ctx: probe_ctx, ~num_total) => {
+/* Row-level gutter for a probe sample row: drawer-mode toggle followed
+ * by overflow nav arrows. The drawer toggle is always present so it's
+ * reachable on any indicated probe; the arrow pair only renders when
+ * there's overflow. Arrows are wrapped in a sub-div so drawer-mode can
+ * stack [toggle / arrow-arrow] in a column while inline mode keeps a
+ * single row [toggle arrow arrow]. */
+let nav_bar_view = (ctx: probe_ctx, ~num_total, ~show_arrows: bool) => {
   let nav_arrow = (cond: bool, offset: int): Node.t =>
     Node.div(
       ~attrs=[
@@ -1282,9 +1289,18 @@ let nav_bar_view = (ctx: probe_ctx, ~num_total) => {
     );
   let show_left = num_total < Sample.Window.max_samples(ctx.settings.window);
   let show_right = num_total < Sample.Window.max_samples(ctx.settings.window);
+  let arrows_view =
+    show_arrows
+      ? [
+        Node.div(
+          ~attrs=[Attr.classes(["nav-arrows"])],
+          [nav_arrow(show_left, 1), nav_arrow(show_right, -1)],
+        ),
+      ]
+      : [];
   div(
     ~attrs=[Attr.classes(["nav-bar"])],
-    [nav_arrow(show_left, 1), nav_arrow(show_right, -1)],
+    [drawer_mode_toggle(ctx)] @ arrows_view,
   );
 };
 
@@ -1580,10 +1596,13 @@ let offside_view =
       switch (empty_status) {
       | Some(status) => [empty_status_view(ctx, ~status, local)]
       | None =>
-        /* Overflow indicator: shown when samples ARE displayed but more exist */
-        let overflow_view =
-          num_shown > 0 && num_shown < num_total
-            ? [nav_bar_view(ctx, ~num_total), ellipsis_view(local)] : [];
+        /* Row-level gutter (nav arrows + drawer toggle): always rendered
+         * so the drawer toggle is reachable; arrows show only on overflow.
+         * Ellipsis sits after samples and is overflow-only. */
+        let has_overflow = num_shown > 0 && num_shown < num_total;
+        let nav_bar =
+          nav_bar_view(ctx, ~num_total, ~show_arrows=has_overflow);
+        let overflow_indicator = has_overflow ? [ellipsis_view(local)] : [];
         /* Block-display segments carry real linebreaks, so the layout
          * hint `single_line` must follow the display mode. */
         let single_line =
@@ -1619,12 +1638,13 @@ let offside_view =
               ),
             groups,
           );
-        (
+        [nav_bar]
+        @ (
           group_views == []
             ? []
             : [div(~attrs=[Attr.classes(["sample-groups"])], group_views)]
         )
-        @ overflow_view;
+        @ overflow_indicator;
       },
     );
   | _ => empty_view(~id=info.id, ~settings)
