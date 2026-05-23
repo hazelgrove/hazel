@@ -129,6 +129,20 @@ let legend_item = (~tooltip: string, sample_view: Node.t) =>
 let kbd = (shortcut: string) =>
   span(~attrs=[clss(["kbd-badge"])], [text(shortcut)]);
 
+/* Inline arrow glyph for use inside `qr_how` text, sharing the
+ * probe nav-bar's arrow SVG (recolored to currentColor via a CSS
+ * mask). Direction picks one of the four rotation variants. */
+let arrow_icon = (direction: [ | `Left | `Right | `Up | `Down]) => {
+  let dir_cls =
+    switch (direction) {
+    | `Left => "left"
+    | `Right => "right"
+    | `Up => "up"
+    | `Down => "down"
+    };
+  span(~attrs=[clss(["arrow-icon", dir_cls])], []);
+};
+
 /* A joined pill: pointer icon (outline) + kbd badge (filled).
  * Reads as "click, then press key". */
 let _click_kbd = (shortcut: string) =>
@@ -654,7 +668,7 @@ let quick_ref_row =
       ~click_shortcut2=?,
       ~badge_cls=?,
       action: string,
-      how: string,
+      how: list(Node.t),
     ) => {
   let wrap_cls = (nodes: list(Node.t)) =>
     switch (badge_cls) {
@@ -680,7 +694,7 @@ let quick_ref_row =
     Node.td(~attrs=[clss(["qr-action"])], [text(action)]),
     Node.td(
       ~attrs=[clss(["qr-how"])],
-      [span(~attrs=[clss(["qr-how-text"])], [text(how)])] @ badge_nodes,
+      [span(~attrs=[clss(["qr-how-text"])], how)] @ badge_nodes,
     ),
   ]);
 };
@@ -719,25 +733,25 @@ let quick_ref_view =
             ~shortcut=meta ++ "E",
             ~badge_cls="qr-cmd-e",
             "Add/remove probe",
-            "Right-click term",
+            [text("Right-click term")],
           ),
           quick_ref_row(
             ~click_shortcut="/",
             ~badge_cls="qr-when-focused",
             "See env/args",
-            "Hover over sample",
+            [text("Hover over sample")],
           ),
           quick_ref_row(
             ~click_shortcut="P",
             ~badge_cls="qr-when-focused",
             "Pin call",
-            {js|Click sample › Pin|js},
+            [text({js|Click sample › Pin|js})],
           ),
           quick_ref_row(
             ~click_shortcut={js|↩|js},
             ~badge_cls="qr-when-focused",
             "Step into call",
-            {js|Click sample › Step|js},
+            [text({js|Click sample › Step|js})],
           ),
           /* Group 2: Navigation */
           quick_ref_divider,
@@ -746,36 +760,43 @@ let quick_ref_view =
             ~click_shortcut2={js|→|js},
             ~badge_cls="qr-when-focused",
             "Navigate samples",
-            {js|Click ◀▶ sample|js},
+            [text("Click "), arrow_icon(`Left), arrow_icon(`Right)],
           ),
           quick_ref_row(
             ~click_shortcut={js|↑|js},
             ~click_shortcut2={js|↓|js},
             ~badge_cls="qr-when-focused",
             "Navigate probes",
-            "Click sample",
+            [text("Click sample")],
           ),
           quick_ref_row(
             ~click_shortcut={js|⇧←|js},
             ~click_shortcut2={js|⇧→|js},
             ~badge_cls="qr-when-focused",
             "Resize sample",
-            "Drag sample",
+            [text("Drag sample")],
           ),
           /* Group 3: Focus */
           quick_ref_divider,
           quick_ref_row(
+            ~click_shortcut=meta ++ {js|↓|js},
+            ~click_shortcut2=meta ++ {js|↑|js},
+            ~badge_cls="qr-when-focused",
+            "Expand probe",
+            [text("Click "), arrow_icon(`Down)],
+          ),
+          quick_ref_row(
             ~shortcut=meta ++ {js|↩|js},
             ~badge_cls="qr-focus-probe",
             "Focus probe",
-            "Click sample",
+            [text("Click sample")],
           ),
           quick_ref_row(
             ~click_shortcut=meta ++ {js|↩|js},
             ~click_shortcut2="Esc",
             ~badge_cls="qr-when-focused",
             "Focus editor",
-            "Click editor",
+            [text("Click editor")],
           ),
         ],
       ),

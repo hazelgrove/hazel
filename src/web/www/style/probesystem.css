@@ -176,6 +176,31 @@
   flex: 1;
 }
 
+/* Inline arrow icons used in the .qr-how text (e.g. "Click [↓]"). Same
+ * SVG as the probe nav-bar arrows, recolored via `mask` + currentColor
+ * so they inherit the surrounding text color. Sized in em so they
+ * scale with the quick-ref's font-size and don't push line-height. */
+#probe-sidebar .quick-ref .arrow-icon {
+  display: inline-block;
+  width: 0.7em;
+  height: 0.9em;
+  vertical-align: -0.15em;
+  background-color: currentColor;
+  -webkit-mask: url(/img/noun-arrow-3130579.svg) no-repeat center / contain;
+  mask: url(/img/noun-arrow-3130579.svg) no-repeat center / contain;
+}
+
+/* Default arrow points LEFT; rotate for the other three directions. */
+#probe-sidebar .quick-ref .arrow-icon.down {
+  transform: rotate(-90deg);
+}
+#probe-sidebar .quick-ref .arrow-icon.up {
+  transform: rotate(90deg);
+}
+#probe-sidebar .quick-ref .arrow-icon.right {
+  transform: rotate(180deg);
+}
+
 #probe-sidebar .quick-ref .qr-divider {
   padding: 0.3em 0;
   border-bottom: 1px solid var(--BR1);
