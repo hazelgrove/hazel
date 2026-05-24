@@ -327,58 +327,63 @@
   display: none;
 }
 
-/* Row-level controls (drawer toggle + overflow arrows). Absolute-
- * positioned in the gutter to the left of .live-offside so samples
- * always start at the live-offside left edge (column 0) — other UI
- * (highlights, decorations) depends on this contract. Code-↔-offside
- * spacing is controlled by `ProjectorView.offside_offset` (a hard-
- * coded char-column count), not CSS margin.
+/* Row-level controls: one SVG containing three independent-clickable
+ * regions (left arrow / right arrow / down-chevron drawer-toggle).
+ * Absolute-positioned in the gutter to the left of .live-offside so
+ * samples always start at the live-offside left edge (column 0) —
+ * other UI (highlights, decorations) depends on that contract. Code-
+ * ↔-offside spacing is controlled by `ProjectorView.offside_offset`,
+ * not CSS margin.
  *
- * Inline mode: single row, drawer-toggle followed by the arrows-pair.
- * Drawer mode (.below-wrapper override below): column with toggle on
- * top and the arrows-pair below it. */
+ * Sized at line-height + ~30% so the control is comparable to a
+ * one-line sample's vertical extent. Vertical centering: extra
+ * height (height − 1em line-height) is split between top and bottom.
+ *
+ * The control looks identical in inline and drawer modes — no flip,
+ * no per-mode variation. The chevron always points down. */
 .live-offside .nav-bar {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 2px;
   position: absolute;
-  left: -2.3em;
-  top: 0.35em;
+  left: -1.85em;
+  top: -0.22em;
+  width: 1.7em;
+  height: 1.9em;
+  pointer-events: none;
+  overflow: visible;
 }
 
-/* Sub-row holding the two overflow arrows. Kept as its own flex
- * container so the pair always renders side-by-side, even when the
- * outer nav-bar is column-laid-out in drawer mode. */
-.live-offside .nav-bar .nav-arrows {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 2px;
+/* Visual polygons inherit fill from the parent group; hit rects are
+ * transparent but capture pointer events over their bounding box so
+ * the regions stay easy to click. */
+.live-offside .nav-bar .visual {
+  fill: var(--exp-base);
+  pointer-events: none;
 }
 
-/* Drawer-mode toggle: reuses the same arrow SVG as nav-arrows so the
- * three icons share a visual language. Rotated -90° (counter-clockwise
- * from the default left-pointing arrow) so it points DOWN in inline
- * mode, indicating "open drawer below". Drawer mode rotates +90° (see
- * .below-wrapper override) to point UP, indicating "collapse upward".
- * `translate: 0 2px` nudges the inline toggle down so it visually
- * baselines with the nav-arrows; reset to 0 in drawer mode (where the
- * toggle sits on its own row above the arrows-pair). */
-.live-offside .nav-bar .drawer-mode-toggle {
+.live-offside .nav-bar .hit {
+  fill: transparent;
+  pointer-events: all;
   cursor: pointer;
-  user-select: none;
-  width: 10px;
-  height: 13px;
-  background: url(../../img/noun-arrow-3130579.svg);
-  background-size: cover;
-  filter: invert(1) brightness(0.7) sepia(1) hue-rotate(61deg) saturate(0.6);
-  transform: rotate(-90deg);
-  translate: 0 2px;
 }
 
-.live-offside .nav-bar .drawer-mode-toggle:hover {
-  filter: invert(1) brightness(0.4) sepia(1) hue-rotate(310deg) saturate(10);
+/* Per-region hover: the three named groups turn red when their hit
+ * rect is hovered. Target classes (not `g:hover`) so future <g>
+ * wrappers around the groups don't accidentally turn the whole
+ * control red. */
+.live-offside .nav-bar .nav-left:hover .visual,
+.live-offside .nav-bar .nav-right:hover .visual,
+.live-offside .nav-bar .drawer-mode-toggle:hover .visual {
+  fill: var(--R1);
+}
+
+/* Disabled arrow: dim and ignore clicks. */
+.live-offside .nav-bar .nav-left.disabled .visual,
+.live-offside .nav-bar .nav-right.disabled .visual {
+  opacity: 0.15;
+}
+.live-offside .nav-bar .nav-left.disabled .hit,
+.live-offside .nav-bar .nav-right.disabled .hit {
+  pointer-events: none;
+  cursor: default;
 }
 
 .live-offside .ellipsis {
@@ -876,14 +881,9 @@
 /* In drawer mode the nav-bar lives in the INLINE (offside) slot — NOT
  * in the drawer below — so the controls stay at end-of-line and don't
  * visually jump when toggling modes. The drawer slot has samples only.
- *
- * `.drawer-mode` is set on the inline nav-bar wrapper (.live-offside
- * .nav-only .drawer-mode) and on the below slot's .live-offside. Only
- * the wrapper renders a .drawer-mode-toggle in drawer mode, so the
- * rotation rule below targets that. */
-.live-offside.drawer-mode .drawer-mode-toggle {
-  transform: rotate(90deg);
-}
+ * The chevron's up-arrow orientation is achieved by an SVG-internal
+ * scale(1,-1) transform on a wrapping <g> (see nav_bar_view), not by
+ * CSS — so no override is needed here. */
 
 /* The depth-stacking effect on off-context samples in Many mode (the
  * stacked-card visual for .depth-above / .depth-below) sets a
@@ -989,39 +989,11 @@
   display: none;
 }
 
-.projector.probe .nav-arrow {
-  width: 10px;
-  height: 13px;
-  color: var(--exp-indicated);
-  background: url(../../img/noun-arrow-3130579.svg);
-  background-size: cover;
-  color: var(--NONE);
-}
-.projector.probe .nav-arrow:not(.disabled) {
-  cursor: pointer;
-}
-.projector.probe .nav-arrow:last-child {
-  transform: rotate(180deg);
-}
-.projector.probe .nav-arrow {
-  filter: invert(1) brightness(0.7) sepia(1) hue-rotate(61deg) saturate(0.6);
-}
-/* .projector.probe.Pat .nav-arrow {
-  filter: invert(1) brightness(0.7) sepia(1) hue-rotate(141deg) saturate(0.6);
-} */
-
-.projector.probe:not(.indicated) .nav-arrow,
-.projector.probe:not(.indicated) .nav-bar .drawer-mode-toggle {
+/* Nav-bar (the consolidated SVG control) is only visible when the
+ * probe is indicated — matches the previous nav-arrow precedent. */
+.projector.probe:not(.indicated) .nav-bar {
   pointer-events: none;
   opacity: 0% !important;
-}
-
-.projector.probe .nav-arrow.disabled {
-  opacity: 15%;
-}
-
-.projector.probe .nav-arrow:not(.disabled):hover {
-  filter: invert(1) brightness(0.4) sepia(1) hue-rotate(310deg) saturate(10);
 }
 
 /* Indicator explaining why no samples are shown */

@@ -820,19 +820,9 @@ let dock_toggle = (): Node.t => {
 
 /* Drawer-mode toggle: flips this probe between inline-offside display
  * and below-line full-width pretty-printed drawer. Per-probe state
- * (ProbeProj.M.model.drawer_mode), so dispatched via local. Rendered
- * in the nav-bar gutter (row-level), not in per-sample context-actions. */
-let drawer_mode_toggle = (ctx: probe_ctx): Node.t =>
-  div(
-    ~attrs=[
-      Attr.classes(["drawer-mode-toggle"]),
-      Attr.title({js|Toggle drawer below (\)|js}),
-      Attr.on_pointerdown(_ =>
-        Effect.Many([Effect.Stop_propagation, ctx.local(ToggleDrawerMode)])
-      ),
-    ],
-    [],
-  );
+ * (ProbeProj.M.model.drawer_mode), so dispatched via local. Now drawn
+ * as the chevron portion of the consolidated SVG nav-bar (see
+ * `nav_bar_view`), not a standalone div. */
 
 /* Context actions for a sample (Pin/Unpin, Step Into, etc.). The
  * dock toggle is always appended at the row's far right, so the user
@@ -1272,35 +1262,102 @@ let move_cursor = (ctx: probe_ctx, offset: int) => {
   };
 };
 
-/* Row-level gutter for a probe sample row: drawer-mode toggle followed
- * by overflow nav arrows. The drawer toggle is always present so it's
- * reachable on any indicated probe; the arrow pair only renders when
- * there's overflow. Arrows are wrapped in a sub-div so drawer-mode can
- * stack [toggle / arrow-arrow] in a column while inline mode keeps a
- * single row [toggle arrow arrow]. */
+/* Row-level controls for a probe sample row, drawn as a single SVG
+ * containing three independently-clickable regions:
+ *   - left arrow (previous sample)   — left half of rotated square
+ *   - right arrow (next sample)      — right half of rotated square
+ *   - drawer-mode toggle             — chevron below the arrows
+ * Each region is a <g> with a visual <polygon> plus an invisible
+ * <rect> hit-target; CSS `:hover` on the group flips the polygon
+ * fill to red. The chevron's hit-rect is drawn LAST so it's on top
+ * in z-order, meaning the diamond's bottom corners (which fall inside
+ * the chevron's hit area) dispatch to the toggle rather than to an
+ * arrow.
+ *
+ * Geometry (in viewBox units, free parameters s/√2 = 7 and gap g = 2):
+ *   Diamond center at (0, -2), chevron outer at (0, +2). Whole shape
+ *   is centered at (0, 0) so CSS `scaleY(-1)` flips it in drawer mode
+ *   around the actual bounding-box center.
+ *
+ * Arrows only render when show_arrows is true (overflow exists). The
+ * drawer toggle always renders so it's reachable on any indicated
+ * probe. */
 let nav_bar_view = (ctx: probe_ctx, ~num_total, ~show_arrows: bool) => {
-  let nav_arrow = (cond: bool, offset: int): Node.t =>
-    Node.div(
+  let disable_left =
+    num_total < Sample.Window.max_samples(ctx.settings.window);
+  let disable_right =
+    num_total < Sample.Window.max_samples(ctx.settings.window);
+  let svg_attr = (k, v) => Attr.create(k, v);
+  let polygon = points =>
+    Node.create_svg(
+      "polygon",
+      ~attrs=[Attr.classes(["visual"]), svg_attr("points", points)],
+      [],
+    );
+  let hit_rect = (~x, ~y, ~w, ~h) =>
+    Node.create_svg(
+      "rect",
       ~attrs=[
-        Attr.classes(["nav-arrow"] @ (cond ? ["disabled"] : [])),
-        Attr.on_click(_ => move_cursor(ctx, offset)),
+        Attr.classes(["hit"]),
+        svg_attr("x", x),
+        svg_attr("y", y),
+        svg_attr("width", w),
+        svg_attr("height", h),
       ],
       [],
     );
-  let show_left = num_total < Sample.Window.max_samples(ctx.settings.window);
-  let show_right = num_total < Sample.Window.max_samples(ctx.settings.window);
-  let arrows_view =
+  let arrow_group = (~side, ~disabled: bool, ~offset: int, ~hit_x: string) =>
+    Node.create_svg(
+      "g",
+      ~attrs=[
+        Attr.classes(["nav-" ++ side] @ (disabled ? ["disabled"] : [])),
+        Attr.on_click(_ => move_cursor(ctx, offset)),
+      ],
+      [
+        polygon(
+          side == "left" ? "-7,-2 -1,-8 -1,4" : "1,-8 7,-2 1,4",
+        ),
+        hit_rect(~x=hit_x, ~y="-10", ~w="9", ~h="11"),
+      ],
+    );
+  let toggle_group =
+    Node.create_svg(
+      "g",
+      ~attrs=[
+        Attr.classes(["drawer-mode-toggle"]),
+        Attr.on_pointerdown(_ =>
+          Effect.Many([Effect.Stop_propagation, ctx.local(ToggleDrawerMode)])
+        ),
+      ],
+      [
+        polygon("-6,1 -7,2 0,9 7,2 6,1 0,7"),
+        hit_rect(~x="-9", ~y="1", ~w="18", ~h="9"),
+      ],
+    );
+  let arrow_groups =
     show_arrows
       ? [
-        Node.div(
-          ~attrs=[Attr.classes(["nav-arrows"])],
-          [nav_arrow(show_left, 1), nav_arrow(show_right, -1)],
+        arrow_group(
+          ~side="left",
+          ~disabled=disable_left,
+          ~offset=1,
+          ~hit_x="-9",
+        ),
+        arrow_group(
+          ~side="right",
+          ~disabled=disable_right,
+          ~offset=-1,
+          ~hit_x="0",
         ),
       ]
       : [];
-  div(
-    ~attrs=[Attr.classes(["nav-bar"])],
-    [drawer_mode_toggle(ctx)] @ arrows_view,
+  Node.create_svg(
+    "svg",
+    ~attrs=[
+      Attr.classes(["nav-bar"]),
+      svg_attr("viewBox", "-9 -10 18 20"),
+    ],
+    arrow_groups @ [toggle_group],
   );
 };
 
