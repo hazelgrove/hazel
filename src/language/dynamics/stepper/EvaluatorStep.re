@@ -225,6 +225,8 @@ let should_hide_eval_obj =
   };
   switch (act) {
   | (Eval, _) => (Eval, x)
+  // Skip over Ascription
+  | (Step, _) when step_kind_is_unrenderable(~settings, x.knd) => (Eval, x)
   | (Step, _) when idx > 0 => (Step, x)
   | (Step, _) when should_hide_step_kind(~settings, x.knd) => (Eval, x)
   | (Step, _) => (Step, x)
