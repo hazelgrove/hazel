@@ -261,6 +261,40 @@ fac(3)|};
       },
     ),
     test_case(
+      "step filter does NOT surface unrenderable Asc steps (regression)",
+      `Quick,
+      () => {
+        /* When `step($v + $v)` matches an arithmetic expression that's
+           wrapped in ascriptions, the Asc transitions inside should not
+           surface as visible (clickable) steps under default settings
+           (show_ascriptions=false). Otherwise the stepper UI shows zero
+           green boxes for them — they have no surface piece to draw on.
+           The user's `step` filter should still pause at the arithmetic
+           itself, but auto-take the surrounding Asc transitions. */
+        let program = {|
+debug step($v + $v) in
+let f : Int -> Int = fun x -> x + x in
+f(3)|};
+        let exp = parse_exp(program) |> elaborate;
+        let steps = steps_until_available(~limit=200, exp);
+        let kinds =
+          List.map(
+            s =>
+              Transition.stepper_justification(
+                EvaluatorStep.get_step_kind(s),
+              ),
+            steps,
+          );
+        let has_asc = List.exists(k => k == "ascription transition", kinds);
+        check(
+          bool,
+          "no unrenderable Asc step should be exposed as AvailableStep",
+          false,
+          has_asc,
+        );
+      },
+    ),
+    test_case(
       "Stop filter on fac: persist then refresh_step roundtrip",
       `Quick,
       () => {
