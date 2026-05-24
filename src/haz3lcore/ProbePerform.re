@@ -2,47 +2,12 @@ open Util;
 open OptUtil.Syntax;
 open Language;
 
-module FocusEffect = {
-  /* Scheduled focus for probe or editor elements after step-into.
-   * This ref is set when step-into resolves and cleared when focus is executed.
-   * We use a ref (not model state) because DOM focus must happen AFTER render,
-   * and we can't dispatch actions from after_display without causing loops. */
-  type target =
-    | Editor
-    | Probe(Id.t);
-
-  let scheduled: ref(option(target)) = ref(None);
-
-  /* Schedule DOM focus on a probe element (called from resolve_pending_focus) */
-  let schedule = (probe_id: Id.t): unit => {
-    scheduled := Some(Probe(probe_id));
-  };
-
-  /* Schedule DOM focus on the main editor (called from step_into_sample) */
-  let schedule_editor = (): unit => {
-    scheduled := Some(Editor);
-  };
-
-  /* Execute any scheduled focus (called from Main.re after_display).
-   * Returns whether focus was executed. */
-  let execute = (): bool =>
-    switch (scheduled^) {
-    | Some(Editor) =>
-      scheduled := None;
-      JsUtil.focus_clipboard_shim();
-      true;
-    | Some(Probe(probe_id)) =>
-      scheduled := None;
-      let elem_id = Id.cls(probe_id);
-      switch (JsUtil.get_elem_by_id_opt(elem_id)) {
-      | Some(elem) =>
-        elem##focus;
-        true;
-      | None => false
-      };
-    | None => false
-    };
-};
+/* FocusEffect lives in its own module (haz3lcore/projectors/
+ * FocusEffect.re) so ProbeProj can schedule focus restorations
+ * without creating a dep cycle through the projector machinery.
+ * Re-exported here for callers that already use ProbePerform.
+ * FocusEffect.* (Main.re's after_display hook, etc.). */
+module FocusEffect = FocusEffect;
 
 let rec target_subterm_ids = (id: Id.t, info_map: Statics.Map.t) =>
   switch (Statics.Map.lookup(id, info_map)) {

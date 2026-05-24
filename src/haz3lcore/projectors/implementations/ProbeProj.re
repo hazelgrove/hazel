@@ -1833,7 +1833,7 @@ module M: Projector = {
       ProjectorCore.Shape.default;
     };
 
-  let update = (model: model, _, a: action) => {
+  let update = (model: model, info: info, a: action) => {
     switch (a) {
     | ChangeLength(id, len) =>
       SampleLength.set(id, len);
@@ -1844,9 +1844,17 @@ module M: Projector = {
       model;
     | ToggleDrawerMode =>
       Settings.version := Settings.version^ + 1;
+      /* Toggling drawer mode moves the focusable .live-offside DOM node
+       * between the offside slot (inline mode) and the below slot
+       * (drawer mode). Browsers drop focus on the unmounted element, so
+       * schedule a focus restoration via the after_display hook — the
+       * new .live-offside is in the DOM by then and `elem.focus()`
+       * sticks. Keeps the probe keyboard-active across toggles. */
+      FocusEffect.schedule(info.id);
       {drawer_mode: !model.drawer_mode};
     | SetDrawerMode(b) =>
       Settings.version := Settings.version^ + 1;
+      FocusEffect.schedule(info.id);
       {drawer_mode: b};
     | ResetSettings =>
       Settings.reset_mode();
