@@ -1472,12 +1472,8 @@ and uexp_to_info_map =
          it into Filter(Filter({...})). Anything else stays Unresolved
          (typed as syn for display) and we still descend into body. */
       switch (fexp.term) {
-      | Ap(
-          Forward,
-          {term: FilterAction(act), annotation: act_ann} as act_exp,
-          pat,
-        ) =>
-        let (_act_info, _, m) = go(~ana=syn, act_exp, m, ~is_in_filter=true);
+      | Ap(Forward, {term: FilterAction(act), annotation: act_ann}, pat) =>
+        let (_, _, m) = go(~ana=syn, fexp, m, ~is_in_filter=true);
         let (cond, cond_elab, m) = go(~ana=syn, pat, m, ~is_in_filter=true);
         let (body, body_elab, m) = go(~ana, body, m);
         add(

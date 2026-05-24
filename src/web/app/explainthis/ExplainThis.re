@@ -2066,6 +2066,8 @@ let get_doc =
           );
         };
         switch (x.term) {
+        | FilterAction(act) =>
+          get_message(FilterExp.filter_action_exps(act))
         | Constructor(v, _) =>
           basic(
             AppExp.conaps,
