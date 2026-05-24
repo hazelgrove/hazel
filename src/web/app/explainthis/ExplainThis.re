@@ -1260,6 +1260,7 @@ let decide =
         let arg_id = IdTagged.rep_id(arg);
         let basic = group => get_message(group);
         switch (x.term) {
+        | FilterAction(act) => get_message(FilterExp.filter_action_exps(act))
         | Constructor(v, _) => basic(AppExp.conaps(~name=v, ~x_id, ~arg_id))
         | LivelitName(_) => basic(AppExp.livelitaps(~x_id, ~arg_id))
         | _ => basic(AppExp.funaps(~x_id, ~arg_id))
