@@ -873,25 +873,16 @@
   gap: 4px;
 }
 
-/* Drawer mode: vertical nav-bar — drawer-toggle on top, arrows-pair
- * (still side-by-side, inside .nav-arrows) on a second row below.
- * Absolute-positioned so it doesn't push samples right (matches the
- * pre-drawer-toggle behavior where the nav-bar sat in the wrapper's
- * left padding area). Toggle rotates the other way (up) to indicate
- * collapse-upward. */
-.below-wrapper .live-offside .nav-bar {
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  scale: 0.85;
-  position: absolute;
-  left: -0.2em;
-  top: 0em;
-}
-
-.below-wrapper .live-offside .drawer-mode-toggle {
+/* In drawer mode the nav-bar lives in the INLINE (offside) slot — NOT
+ * in the drawer below — so the controls stay at end-of-line and don't
+ * visually jump when toggling modes. The drawer slot has samples only.
+ *
+ * `.drawer-mode` is set on the inline nav-bar wrapper (.live-offside
+ * .nav-only .drawer-mode) and on the below slot's .live-offside. Only
+ * the wrapper renders a .drawer-mode-toggle in drawer mode, so the
+ * rotation rule below targets that. */
+.live-offside.drawer-mode .drawer-mode-toggle {
   transform: rotate(90deg);
-  translate: 0 0;
 }
 
 /* The depth-stacking effect on off-context samples in Many mode (the

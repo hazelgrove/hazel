@@ -1516,15 +1516,22 @@ let empty_view = (~id: Id.t, ~settings: settings) =>
     ],
   );
 
-let offside_view =
-    (
-      ~display: sample_display,
-      info: info,
-      local,
-      parent,
-      ~settings: settings,
-      view_seg: View.seg,
-    ) =>
+/* Pre-computed data shared by every offside-view renderer (full
+ * live-offside, nav-only wrapper, drawer below). Built once per
+ * render so we don't redo selection/filter work for both slots. */
+type offside_data = {
+  ctx: probe_ctx,
+  id: Id.t,
+  num_total: int,
+  num_shown: int,
+  groups: list(list(Sample.t)),
+  is_cursor_aligned: bool,
+  empty_status: option(Sample.Selection.empty_status),
+};
+
+let prepare_offside =
+    (info: info, local, parent, ~settings: settings)
+    : option(offside_data) =>
   switch (info.dynamics, info.statics) {
   | (Some(dynamics), Some(statics)) =>
     let id = info.id;
@@ -1538,7 +1545,6 @@ let offside_view =
       parent,
       local,
     };
-    /* Filter samples once and reuse for both num_total and selection */
     let filtered_samples =
       Sample.Selection.filter_by_pin(
         ~ap_id,
@@ -1562,15 +1568,11 @@ let offside_view =
         dynamics,
       );
     let (num_shown, groups) = Sample.Selection.collate(samples);
-
-    /* Check if this probe is the target of a pending step-into focus */
     let is_evaluating =
       switch (dynamics.sample_focus.pending_focus) {
       | Some({probe_id, _}) => probe_id == id
       | None => false
       };
-
-    /* Determine what to show when no samples are displayed */
     let empty_status =
       Sample.Selection.get_empty_status(
         ~num_total,
@@ -1578,77 +1580,128 @@ let offside_view =
         ~is_evaluating,
         (),
       );
-    Node.div(
-      ~attrs=[
-        Attr.id(Id.cls(id)),
-        Attr.create("data-probe-id", Id.to_string(id)),
-        Attr.create(
-          "data-cursor-aligned",
-          is_cursor_aligned ? "true" : "false",
-        ),
-        Attr.tabindex(0),
-        Attr.on_keydown(key_handler(ctx, ~id, local)),
-        Attr.classes([
-          "live-offside",
-          settings.window |> Sample.Window.show_mode,
-        ]),
-      ],
-      switch (empty_status) {
-      | Some(status) => [empty_status_view(ctx, ~status, local)]
-      | None =>
-        /* Row-level gutter (nav arrows + drawer toggle): always rendered
-         * so the drawer toggle is reachable; arrows show only on overflow.
-         * Ellipsis sits after samples and is overflow-only. */
-        let has_overflow = num_shown > 0 && num_shown < num_total;
-        let nav_bar =
-          nav_bar_view(ctx, ~num_total, ~show_arrows=has_overflow);
-        let overflow_indicator = has_overflow ? [ellipsis_view(local)] : [];
-        /* Block-display segments carry real linebreaks, so the layout
-         * hint `single_line` must follow the display mode. */
-        let single_line =
-          switch (display) {
-          | Inline => true
-          | Block => false
-          };
-        let view_seg_line = (~text_only, segment) =>
-          view_seg(
-            ~single_line,
-            ~background=false,
-            ~text_only,
-            Sort.Exp,
-            segment,
-          );
-        let indicated_sample_id =
-          indicated_sample(ctx) |> Option.map((s: Sample.t) => s.id);
-        let sample_view =
-          sample_view(
-            ~display,
-            ctx,
-            ~indicated_sample_id,
-            ~num_total,
-            view_seg_line,
-            local,
-          );
-        let group_views =
-          List.map(
-            samples =>
-              Node.div(
-                ~attrs=[Attr.classes(["sample-group"])],
-                List.map(sample_view, samples),
-              ),
-            groups,
-          );
-        [nav_bar]
-        @ (
-          group_views == []
-            ? []
-            : [div(~attrs=[Attr.classes(["sample-groups"])], group_views)]
-        )
-        @ overflow_indicator;
-      },
-    );
-  | _ => empty_view(~id=info.id, ~settings)
+    Some({
+      ctx,
+      id,
+      num_total,
+      num_shown,
+      groups,
+      is_cursor_aligned,
+      empty_status,
+    });
+  | _ => None
   };
+
+/* Minimal wrapper used in the inline (offside) slot when drawer mode
+ * is active: just the nav-bar, sitting where it would in inline mode,
+ * so the controls don't visually jump when toggling drawer-mode.
+ *
+ * NO id / focus / key-handlers — the focusable .live-offside lives in
+ * the `below` slot with the samples (see `live_offside_view`).
+ * `.drawer-mode` class drives the up-arrow rotation on the toggle. */
+let nav_bar_wrapper_view = (data: offside_data, ~settings: settings): Node.t => {
+  let has_overflow = data.num_shown > 0 && data.num_shown < data.num_total;
+  Node.div(
+    ~attrs=[
+      Attr.classes([
+        "live-offside",
+        "nav-only",
+        "drawer-mode",
+        settings.window |> Sample.Window.show_mode,
+      ]),
+    ],
+    [
+      nav_bar_view(
+        data.ctx,
+        ~num_total=data.num_total,
+        ~show_arrows=has_overflow,
+      ),
+    ],
+  );
+};
+
+/* Focusable .live-offside with the canonical id, key-handlers, and
+ * cursor-alignment data attribute. Optionally includes the nav-bar
+ * inline (true in inline mode; false in drawer mode, where the nav-
+ * bar lives in the offside slot's `nav_bar_wrapper_view` instead). */
+let live_offside_view =
+    (
+      ~display: sample_display,
+      ~include_nav_bar: bool,
+      ~drawer_mode_active: bool,
+      data: offside_data,
+      local,
+      view_seg: View.seg,
+      ~settings: settings,
+    )
+    : Node.t => {
+  let {ctx, id, num_total, num_shown, groups, is_cursor_aligned, empty_status} = data;
+  let base_classes = [
+    "live-offside",
+    settings.window |> Sample.Window.show_mode,
+  ];
+  Node.div(
+    ~attrs=[
+      Attr.id(Id.cls(id)),
+      Attr.create("data-probe-id", Id.to_string(id)),
+      Attr.create("data-cursor-aligned", is_cursor_aligned ? "true" : "false"),
+      Attr.tabindex(0),
+      Attr.on_keydown(key_handler(ctx, ~id, local)),
+      Attr.classes(
+        base_classes @ (drawer_mode_active ? ["drawer-mode"] : []),
+      ),
+    ],
+    switch (empty_status) {
+    | Some(status) => [empty_status_view(ctx, ~status, local)]
+    | None =>
+      /* Block-display segments carry real linebreaks, so the layout
+       * hint `single_line` must follow the display mode. */
+      let single_line =
+        switch (display) {
+        | Inline => true
+        | Block => false
+        };
+      let view_seg_line = (~text_only, segment) =>
+        view_seg(
+          ~single_line,
+          ~background=false,
+          ~text_only,
+          Sort.Exp,
+          segment,
+        );
+      let indicated_sample_id =
+        indicated_sample(ctx) |> Option.map((s: Sample.t) => s.id);
+      let sample_view =
+        sample_view(
+          ~display,
+          ctx,
+          ~indicated_sample_id,
+          ~num_total,
+          view_seg_line,
+          local,
+        );
+      let group_views =
+        List.map(
+          samples =>
+            Node.div(
+              ~attrs=[Attr.classes(["sample-group"])],
+              List.map(sample_view, samples),
+            ),
+          groups,
+        );
+      let samples_part =
+        group_views == []
+          ? []
+          : [div(~attrs=[Attr.classes(["sample-groups"])], group_views)];
+      let has_overflow = num_shown > 0 && num_shown < num_total;
+      let nav_bar_part =
+        include_nav_bar
+          ? [nav_bar_view(ctx, ~num_total, ~show_arrows=has_overflow)] : [];
+      let overflow_indicator = has_overflow ? [ellipsis_view(local)] : [];
+      nav_bar_part @ samples_part @ overflow_indicator;
+    },
+  );
+};
 
 let overlay_view = (info: info): Node.t =>
   switch (info.dynamics, info.statics) {
@@ -1730,18 +1783,56 @@ module M: Projector = {
   let view =
       ({model, info, local, parent, view_seg, _}: View.args(model, action)) => {
     let settings = Settings.s^;
-    /* Same render path for both modes; only the slot and per-sample
-     * display strategy differ. Inline: original offside, single-line
-     * abbreviated samples. Block: same offside content mounted below
-     * the line, each sample pretty-printed at its SampleLength entry
-     * (or `settings.drawer.width` if none has been set). */
-    let mk_offside = (~display) =>
-      offside_view(~display, info, local, parent, ~settings, view_seg);
+    /* Two compositional pieces (nav-bar component + samples-bearing
+     * .live-offside) get routed to the projector's slots differently
+     * per mode:
+     *   Inline mode  — offside = .live-offside w/ nav-bar + samples
+     *                  below   = none
+     *   Drawer mode  — offside = nav-bar wrapper (controls stay put at
+     *                            end-of-line, no samples)
+     *                  below   = .live-offside w/ samples only
+     * The focusable .live-offside (id, key-handlers, tabindex) always
+     * goes wherever the samples live, so probe-navigation/cursor logic
+     * stays attached to the same DOM element regardless of mode. */
+    let data_opt = prepare_offside(info, local, parent, ~settings);
+    let drawer = model.drawer_mode;
     View.{
       inline: Node.div([]),
       overlay: Some(overlay_view(info)),
-      offside: model.drawer_mode ? None : Some(mk_offside(~display=Inline)),
-      below: model.drawer_mode ? Some(mk_offside(~display=Block)) : None,
+      offside:
+        switch (data_opt, drawer) {
+        | (None, _) => Some(empty_view(~id=info.id, ~settings))
+        | (Some(data), false) =>
+          Some(
+            live_offside_view(
+              ~display=Inline,
+              ~include_nav_bar=true,
+              ~drawer_mode_active=false,
+              data,
+              local,
+              view_seg,
+              ~settings,
+            ),
+          )
+        | (Some(data), true) =>
+          Some(nav_bar_wrapper_view(data, ~settings))
+        },
+      below:
+        switch (data_opt, drawer) {
+        | (Some(data), true) =>
+          Some(
+            live_offside_view(
+              ~display=Block,
+              ~include_nav_bar=false,
+              ~drawer_mode_active=true,
+              data,
+              local,
+              view_seg,
+              ~settings,
+            ),
+          )
+        | _ => None
+        },
     };
   };
 };
