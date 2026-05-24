@@ -308,6 +308,12 @@ let pretty_seg_of_value =
  * compensation in `CachedSyntax.calculate` rather than a cache
  * here. */
 module DrawerHeight = {
+  /* Max rows the drawer can reserve via Tab(n); content taller than
+   * this scrolls inside `.below-wrapper` (see overflow-y: auto in
+   * proj-probe.css). Prevents a single deeply-nested sample from
+   * pushing code arbitrarily far down. */
+  let max_rows = 15;
+
   /* Row count via Measured. PrettySegment.format_segment ends with
    * Segment.reassemble, which folds the formatter's flat output back
    * into nested tile structure, so naively scanning top-level pieces
@@ -346,7 +352,7 @@ module DrawerHeight = {
               ),
             samples,
           );
-        List.fold_left(max, 1, heights);
+        min(max_rows, List.fold_left(max, 1, heights));
       };
     | _ => 1
     };
@@ -1306,6 +1312,11 @@ let nav_bar_view = (ctx: probe_ctx, ~num_total, ~show_arrows: bool) => {
       ],
       [],
     );
+  let title = (label: string) =>
+    Node.create_svg("title", [Node.text(label)]);
+  /* Mac shows the Cmd glyph as `⌘X`; PC/Linux shows `Ctrl+X`. Matches
+   * the convention used in ProbeSidebar's quick reference. */
+  let meta = Util.Os.is_mac^ ? {js|⌘|js} : "Ctrl+";
   let arrow_group = (~side, ~disabled: bool, ~offset: int, ~hit_x: string) =>
     Node.create_svg(
       "g",
@@ -1314,6 +1325,7 @@ let nav_bar_view = (ctx: probe_ctx, ~num_total, ~show_arrows: bool) => {
         Attr.on_click(_ => move_cursor(ctx, offset)),
       ],
       [
+        title(side == "left" ? "Previous sample (←)" : "Next sample (→)"),
         polygon(
           side == "left" ? "-7,-2 -1,-8 -1,4" : "1,-8 7,-2 1,4",
         ),
@@ -1330,6 +1342,7 @@ let nav_bar_view = (ctx: probe_ctx, ~num_total, ~show_arrows: bool) => {
         ),
       ],
       [
+        title("Toggle drawer (" ++ meta ++ {js|↓|js} ++ " / " ++ meta ++ {js|↑|js} ++ ")"),
         polygon("-6,1 -7,2 0,9 7,2 6,1 0,7"),
         hit_rect(~x="-9", ~y="1", ~w="18", ~h="9"),
       ],
@@ -1424,7 +1437,8 @@ let round_down = (ctx: probe_ctx, sample: Sample.t): int => {
 let indicated_sample = (ctx: probe_ctx): option(Sample.t) =>
   Dynamics.Info.most_aligned_sample(ctx.ap_id, ctx.dynamics);
 
-let key_handler = (ctx: probe_ctx, ~id: Id.t, local, evt) => {
+let key_handler =
+    (ctx: probe_ctx, ~id: Id.t, ~drawer_mode_active: bool, local, evt) => {
   let {ap_id, parent, _} = ctx;
   open Effect;
   let key = Key.mk(KeyDown, evt);
@@ -1433,6 +1447,10 @@ let key_handler = (ctx: probe_ctx, ~id: Id.t, local, evt) => {
   | D("Escape") when key.shift == Down =>
     JsUtil.get_elem_by_id(Id.cls(id))##blur;
     Many([local(ResetSettings), parent(SampleFocus(Reset))]);
+  | D("Escape") when drawer_mode_active =>
+    /* Two-stage Esc: first Esc collapses the drawer (stays focused),
+     * second Esc blurs (handled by the rule below). */
+    Many([local(SetDrawerMode(false)), Stop_propagation, Prevent_default])
   | D("Escape") =>
     JsUtil.get_elem_by_id(Id.cls(id))##blur;
     Many([Stop_propagation, Prevent_default]);
@@ -1703,7 +1721,7 @@ let live_offside_view =
       Attr.create("data-probe-id", Id.to_string(id)),
       Attr.create("data-cursor-aligned", is_cursor_aligned ? "true" : "false"),
       Attr.tabindex(0),
-      Attr.on_keydown(key_handler(ctx, ~id, local)),
+      Attr.on_keydown(key_handler(ctx, ~id, ~drawer_mode_active, local)),
       Attr.classes(
         base_classes @ (drawer_mode_active ? ["drawer-mode"] : []),
       ),

@@ -365,6 +365,14 @@
   cursor: pointer;
 }
 
+/* Drawer-mode-active indicator: the chevron darkens to --exp-indicated
+ * (the G0 variant of --exp-base) so users have a visual cue that the
+ * drawer is currently open, without moving/rotating the click target.
+ * Declared BEFORE the hover rule so hover wins on specificity tie. */
+.live-offside.drawer-mode .nav-bar .drawer-mode-toggle .visual {
+  fill: var(--exp-indicated);
+}
+
 /* Per-region hover: the three named groups turn red when their hit
  * rect is hovered. Target classes (not `g:hover`) so future <g>
  * wrappers around the groups don't accidentally turn the whole
@@ -609,6 +617,18 @@
   outline: 1.5px solid var(--G0);
 }
 
+/* In drawer mode, render the sample-focus outline inset (entirely
+ * inside the sample's bounding box) instead of the default outside
+ * placement. Prevents the wrapper's vertical `overflow: hidden`
+ * (which caps the drawer at 15 lines) from clipping the top/bottom
+ * stroke when the focused sample sits at the scroll-viewport edge.
+ * `outline-offset: -1.5px` matches the 1.5px outline-width, so the
+ * outline's outer edge is flush with the border edge — equivalent
+ * placement to outside-default, just flipped to the inside. */
+.below-wrapper .live-offside .sample:has(.value.focus) {
+  outline-offset: -1.5px;
+}
+
 .live-offside .sample:hover {
   z-index: var(--projector-indicated-z);
   /* position: relative; */
@@ -840,6 +860,13 @@
   padding-right: 1em;
   border: 1px solid oklch(0.87 0.04 89.74);
   border-width: 1px 0 0px 0;
+  /* Cap at 15 lines (matches DrawerHeight.max_rows). Taller samples
+   * scroll vertically inside the wrapper rather than pushing code
+   * arbitrarily far down. `width: max-content` above means there's no
+   * horizontal overflow inside the wrapper, so we can use the simpler
+   * `overflow: hidden auto` without spawning a horizontal scrollbar. */
+  max-height: calc(15 * var(--line-height) * 1em);
+  overflow: hidden auto;
 }
 
 /* With line numbers on, `.code-editor` has `padding-left: 0`, so the
