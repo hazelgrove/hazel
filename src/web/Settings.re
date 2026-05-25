@@ -8,6 +8,7 @@ module Model = {
     core: Language.CoreSettings.t,
     async_evaluation: bool,
     context_inspector: bool,
+    build_info_expanded: bool,
     instructor_mode: bool,
     benchmark: bool,
     show_log_panel: bool,
@@ -53,6 +54,7 @@ module Model = {
     },
     async_evaluation: false,
     context_inspector: false,
+    build_info_expanded: BuildInfo.branch == "dev" ? false : true,
     instructor_mode: false,
     benchmark: false,
     show_log_panel: false,
@@ -144,6 +146,7 @@ module Update = {
     | Elaborate
     | Benchmark
     | ContextInspector
+    | BuildInfoExpanded
     | InstructorMode
     | ShowLogPanel
     | Evaluation(evaluation)
@@ -391,6 +394,10 @@ module Update = {
       | ContextInspector => {
           ...settings,
           context_inspector: !settings.context_inspector,
+        }
+      | BuildInfoExpanded => {
+          ...settings,
+          build_info_expanded: !settings.build_info_expanded,
         }
       | InstructorMode => {
           ...settings, //TODO[Matt]: Make sure instructor mode actually makes prelude read-only

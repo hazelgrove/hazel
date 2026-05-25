@@ -1075,29 +1075,59 @@ let inspector_view = (~globals: Globals.t, ci): Node.t =>
     view_of_info(~globals, ci),
   );
 
-let build_info_view = () => {
-  let label =
-    BuildInfo.branch
-    ++ "@"
-    ++ BuildInfo.commit_short
-    ++ (BuildInfo.dirty ? "-dirty" : "");
-  let inner = text(label);
-  let body =
+let build_info_view = (~globals: Globals.t) => {
+  let link_attrs = href => [
+    Attr.create("href", href),
+    Attr.create("target", "_blank"),
+    Attr.create("rel", "noopener noreferrer"),
+  ];
+  let dirty_suffix = BuildInfo.dirty ? "-dirty" : "";
+  let branch_link =
+    a(
+      ~attrs=
+        link_attrs(
+          "https://github.com/hazelgrove/hazel/tree/" ++ BuildInfo.branch,
+        ),
+      [text(BuildInfo.branch)],
+    );
+  let commit_part =
     BuildInfo.dirty || BuildInfo.ahead
-      ? span(~attrs=[clss(["build-info-dirty"])], [inner])
+      ? span(
+          ~attrs=[],
+          [text("@" ++ BuildInfo.commit_short ++ dirty_suffix)],
+        )
       : a(
-          ~attrs=[
-            Attr.create(
-              "href",
+          ~attrs=
+            link_attrs(
               "https://github.com/hazelgrove/hazel/commit/"
               ++ BuildInfo.commit_sha,
             ),
-            Attr.create("target", "_blank"),
-            Attr.create("rel", "noopener noreferrer"),
-          ],
-          [inner],
+          [text("@" ++ BuildInfo.commit_short)],
         );
-  div(~attrs=[Attr.id("build-info"), clss(["build-info"])], [body]);
+  let body =
+    span(
+      ~attrs=BuildInfo.dirty ? [clss(["build-info-dirty"])] : [],
+      [branch_link, commit_part],
+    );
+  div(
+    ~attrs=[
+      Attr.id("build-info"),
+      clss(
+        ["build-info"]
+        @ (globals.settings.build_info_expanded ? ["visible"] : []),
+      ),
+    ],
+    [
+      div(
+        ~attrs=[
+          Attr.on_click(_ => globals.inject_global(Set(BuildInfoExpanded))),
+          clss(["git"]),
+        ],
+        [Icons.git],
+      ),
+      div(~attrs=[clss(["build-info-panel"])], [body]),
+    ],
+  );
 };
 
 let view = (~globals: Globals.t, cursor: Cursor.cursor(Editors.Update.t)) => {
@@ -1115,5 +1145,5 @@ let view = (~globals: Globals.t, cursor: Cursor.cursor(Editors.Update.t)) => {
       )
     | Some(ci) => inspector_view(~globals, ci)
     };
-  bar_view([left, build_info_view()]);
+  bar_view([left, build_info_view(~globals)]);
 };
