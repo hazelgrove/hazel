@@ -1091,19 +1091,22 @@ let build_info_view = (~globals: Globals.t) => {
       [text(BuildInfo.branch)],
     );
   let commit_part =
-    BuildInfo.dirty || BuildInfo.ahead
-      ? span(
-          ~attrs=[],
-          [text("@" ++ BuildInfo.commit_short ++ dirty_suffix)],
-        )
-      : a(
-          ~attrs=
-            link_attrs(
-              "https://github.com/hazelgrove/hazel/commit/"
-              ++ BuildInfo.commit_sha,
-            ),
-          [text("@" ++ BuildInfo.commit_short)],
-        );
+    span(
+      ~attrs=[],
+      BuildInfo.dirty || BuildInfo.ahead
+        ? [text("@" ++ BuildInfo.commit_short ++ dirty_suffix)]
+        : [
+          text("@"),
+          a(
+            ~attrs=
+              link_attrs(
+                "https://github.com/hazelgrove/hazel/commit/"
+                ++ BuildInfo.commit_sha,
+              ),
+            [text(BuildInfo.commit_short)],
+          ),
+        ],
+    );
   let body =
     span(
       ~attrs=BuildInfo.dirty ? [clss(["build-info-dirty"])] : [],
