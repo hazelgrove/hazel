@@ -1,6 +1,5 @@
 open Util;
 open Language;
-open Js_of_ocaml;
 
 let rec take_auto_steps = (~settings, ~env, exp: Exp.t): Exp.t => {
   switch (EvaluatorStep.get_status(~settings, exp, env)) {
@@ -13,9 +12,14 @@ let rec take_auto_steps = (~settings, ~env, exp: Exp.t): Exp.t => {
   };
 };
 
+type affine = {
+  constant: Bigint.t,
+  terms: list((string, Bigint.t)),
+};
+
 type normal_form =
   | Evaluated(Exp.t)
-  | Algebraic(string);
+  | Affine(affine);
 
 type checker = {
   justification: string,
@@ -25,71 +29,129 @@ type checker = {
   equivalent: (normal_form, normal_form) => bool,
 };
 
-let algebrite_bin_op = (op: Operators.op_bin): option(string) =>
-  switch (op) {
-  | Int(Plus)
-  | Nat(Plus)
-  | SInt(Plus)
-  | Float(Plus) => Some("+")
-  | Int(Minus)
-  | Nat(Minus)
-  | SInt(Minus)
-  | Float(Minus) => Some("-")
-  | Int(Times)
-  | Nat(Times)
-  | SInt(Times)
-  | Float(Times) => Some("*")
-  | Int(Power)
-  | Nat(Power)
-  | SInt(Power)
-  | Float(Power) => Some("^")
-  | Int(Divide)
-  | Nat(Divide)
-  | SInt(Divide)
-  | Float(Divide) => Some("/")
-  | Int(LessThan | LessThanOrEqual | GreaterThan | GreaterThanOrEqual)
-  | Nat(LessThan | LessThanOrEqual | GreaterThan | GreaterThanOrEqual)
-  | SInt(LessThan | LessThanOrEqual | GreaterThan | GreaterThanOrEqual)
-  | Float(
-      LessThan | LessThanOrEqual | GreaterThan | GreaterThanOrEqual | Equals |
-      NotEquals,
-    )
-  | Bool(_)
-  | String(_)
-  | Poly(_) => None
+let is_zero = Bigint.equal(Bigint.zero);
+
+let rec add_term = (name, coeff, terms) =>
+  if (is_zero(coeff)) {
+    terms;
+  } else {
+    switch (terms) {
+    | [] => [(name, coeff)]
+    | [(name', coeff'), ...rest] when name == name' =>
+      let coeff'' = Bigint.(+)(coeff, coeff');
+      is_zero(coeff'') ? rest : [(name, coeff''), ...rest];
+    | [term, ...rest] => [term, ...add_term(name, coeff, rest)]
+    };
   };
 
-let rec print_exp_for_algebrite = (exp: Exp.t): option(string) =>
+let canonicalize = (a: affine): affine => {
+  let terms =
+    a.terms
+    |> List.fold_left(
+         (terms, (name, coeff)) => add_term(name, coeff, terms),
+         [],
+       )
+    |> List.sort(((name1, _), (name2, _)) => String.compare(name1, name2));
+  {
+    constant: a.constant,
+    terms,
+  };
+};
+
+let affine_const = constant => {
+  constant,
+  terms: [],
+};
+
+let affine_var = name => {
+  constant: Bigint.zero,
+  terms: [(name, Bigint.one)],
+};
+
+let affine_add = (a, b) =>
+  canonicalize({
+    constant: Bigint.(+)(a.constant, b.constant),
+    terms: a.terms @ b.terms,
+  });
+
+let affine_negate = a =>
+  canonicalize({
+    constant: Bigint.neg(a.constant),
+    terms:
+      a.terms |> List.map(((name, coeff)) => (name, Bigint.neg(coeff))),
+  });
+
+let affine_sub = (a, b) => affine_add(a, affine_negate(b));
+
+let affine_scale = (coeff, a) =>
+  canonicalize({
+    constant: Bigint.( * )(coeff, a.constant),
+    terms:
+      a.terms
+      |> List.map(((name, term_coeff)) =>
+           (name, Bigint.( * )(coeff, term_coeff))
+         ),
+  });
+
+let affine_constant = (a: affine): option(Bigint.t) =>
+  switch (a.terms) {
+  | [] => Some(a.constant)
+  | [_]
+  | [_, ..._] => None
+  };
+
+let rec affine_of_exp = (exp: Exp.t): option(affine) =>
   switch (exp.term) {
   | Atom(Int(value))
-  | Atom(Nat(value)) => Some(Bigint.to_string(value))
-  | Atom(SInt(value)) => Some(string_of_int(value))
-  | Atom(Float(value)) => Some(string_of_float(value))
-  | Var(value) => Some(value)
-  | BinOp(op, exp_left, exp_right) =>
-    switch (
-      algebrite_bin_op(op),
-      print_exp_for_algebrite(exp_left),
-      print_exp_for_algebrite(exp_right),
-    ) {
-    | (Some(op), Some(left), Some(right)) =>
-      Some("(" ++ left ++ " " ++ op ++ " " ++ right ++ ")")
+  | Atom(Nat(value)) => Some(affine_const(value))
+  | Atom(SInt(value)) => Some(affine_const(Bigint.of_int(value)))
+  | Var(name) => Some(affine_var(name))
+  | Parens(exp)
+  | Asc(exp, _) => affine_of_exp(exp)
+  | UnOp(Int(Minus) | SInt(Minus), exp) =>
+    affine_of_exp(exp) |> Option.map(affine_negate)
+  | BinOp(Int(Plus) | Nat(Plus) | SInt(Plus), left, right) =>
+    switch (affine_of_exp(left), affine_of_exp(right)) {
+    | (Some(left), Some(right)) => Some(affine_add(left, right))
     | _ => None
     }
-  | UnOp(Int(Minus) | Nat(Minus) | SInt(Minus) | Float(Minus), exp) =>
-    switch (print_exp_for_algebrite(exp)) {
-    | Some(exp) => Some("(-" ++ exp ++ ")")
-    | None => None
+  | BinOp(Int(Minus) | SInt(Minus), left, right) =>
+    switch (affine_of_exp(left), affine_of_exp(right)) {
+    | (Some(left), Some(right)) => Some(affine_sub(left, right))
+    | _ => None
     }
-  | Parens(exp) =>
-    switch (print_exp_for_algebrite(exp)) {
-    | Some(exp) => Some("(" ++ exp ++ ")")
-    | None => None
+  | BinOp(Int(Times) | Nat(Times) | SInt(Times), left, right) =>
+    switch (affine_of_exp(left), affine_of_exp(right)) {
+    | (Some(left), Some(right)) =>
+      switch (affine_constant(left), affine_constant(right)) {
+      | (Some(coeff), _) => Some(affine_scale(coeff, right))
+      | (_, Some(coeff)) => Some(affine_scale(coeff, left))
+      | (None, None) => None
+      }
+    | _ => None
     }
-  // TODO: think harder about weird corner cases where we'd want to ensure the types in Cast are valid
-  | Asc(exp, _) => print_exp_for_algebrite(exp)
-  | Atom(Bool(_) | String(_))
-  | UnOp(Bool(_), _)
+  | Atom(Float(_) | Bool(_) | String(_))
+  | UnOp(Nat(Minus) | Float(Minus) | Bool(_), _)
+  | BinOp(
+      Int(
+        Power | Divide | LessThan | LessThanOrEqual | GreaterThan |
+        GreaterThanOrEqual,
+      ) |
+      Nat(
+        Minus | Power | Divide | LessThan | LessThanOrEqual | GreaterThan |
+        GreaterThanOrEqual,
+      ) |
+      SInt(
+        Power | Divide | LessThan | LessThanOrEqual | GreaterThan |
+        GreaterThanOrEqual,
+      ) |
+      Float(_) |
+      Bool(_) |
+      String(_) |
+      Poly(_),
+      _,
+      _,
+    )
   | Tuple(_)
   | TupleExtension(_)
   | ListLit(_)
@@ -133,22 +195,12 @@ let rec print_exp_for_algebrite = (exp: Exp.t): option(string) =>
   | DrvQuote(_) => None
   };
 
-let checkEquality = (expr1, expr2): bool => {
-  let algebrite = Js.Unsafe.global##.Algebrite;
-  let diffExpr = Printf.sprintf("simplify((%s)-(%s))", expr1, expr2);
-  let algebrite_result = algebrite##run(Js.string(diffExpr));
-  switch (Js.to_string(algebrite_result)) {
-  | "0" => true
-  | _ => false
-  };
-};
-
-let normalize_arithmetic = (~settings, ~env, exp: Exp.t): option(normal_form) => {
+let normalize_affine = (~settings, ~env, exp: Exp.t): option(normal_form) => {
   exp
   |> DHExp.strip_ascriptions
   |> take_auto_steps(~settings, ~env)
-  |> print_exp_for_algebrite
-  |> Option.map(s => Algebraic(s));
+  |> affine_of_exp
+  |> Option.map(a => Affine(canonicalize(a)));
 };
 
 let normalize_by_evaluation =
@@ -161,12 +213,12 @@ let normalize_by_evaluation =
   };
 };
 
-let arithmetic_checker = {
+let affine_checker = {
   justification: "arithmetic",
-  normalize: normalize_arithmetic,
+  normalize: normalize_affine,
   equivalent: (left, right) =>
     switch (left, right) {
-    | (Algebraic(left), Algebraic(right)) => checkEquality(left, right)
+    | (Affine(left), Affine(right)) => left == right
     | _ => false
     },
 };
@@ -205,11 +257,11 @@ let check_with = (~settings, ~env, from_: Exp.t, to_: Exp.t, checker) => {
   };
 };
 
-let written_step_checkers = [arithmetic_checker, evaluation_checker];
+let written_step_checkers = [affine_checker, evaluation_checker];
 
 // underscores indicate unused arguments
 let check_rewrite = (~settings, ~env, from_: Exp.t, to_: Exp.t): bool => {
-  switch (check_with(~settings, ~env, from_, to_, arithmetic_checker)) {
+  switch (check_with(~settings, ~env, from_, to_, affine_checker)) {
   | Some(_) => true
   | None => false
   };

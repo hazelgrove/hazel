@@ -26,6 +26,7 @@ let (suite, _) =
       Test_PatternMatch.tests,
       Test_Equality.tests,
       Test_Substitution.tests,
+      Test_RewriteChecker.tests,
     ]
     @ Test_AgentTools.tests
     @ [Test_AgentUX.tests]
