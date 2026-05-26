@@ -455,6 +455,7 @@ and Typ: {
     | BoolType => bool()
     | StringType => string()
     | NatType => nat()
+    | VoidType => parens(sum([]))
     | UnknownType(p) =>
       switch (p) {
       | Internal => unknown(Internal)
@@ -536,6 +537,7 @@ and Typ: {
     | TupLabel(t1, t2) => TupLabelType(of_core(t1), of_core(t2))
     | ProdProjection(t1, t2) => ProdProjection(of_core(t1), of_core(t2))
     | ProdExtension(t1, t2) => ProdExtension(of_core(t1), of_core(t2))
+    | Sum([]) => VoidType
     | Sum(constructors) =>
       let sumterms =
         List.map(
