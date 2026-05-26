@@ -40,8 +40,7 @@ type op_bin_int =
 
 [@deriving (show({with_path: false}), sexp, qcheck, eq)]
 type op_bin_string =
-  | Concat
-  | Equals;
+  | Concat;
 
 [@deriving (show({with_path: false}), sexp, qcheck, eq)]
 type op_bin_poly =
@@ -57,10 +56,6 @@ type bin_op =
   | PolyOp(op_bin_poly);
 
 [@deriving (show({with_path: false}), sexp, qcheck, eq)]
-type op_un_meta =
-  | Unquote;
-
-[@deriving (show({with_path: false}), sexp, qcheck, eq)]
 type op_un_int =
   | Minus;
 
@@ -70,7 +65,6 @@ type op_un_bool =
 
 [@deriving (show({with_path: false}), sexp, qcheck, eq)]
 type op_un =
-  | Meta(op_un_meta)
   | Int(op_un_int)
   | Bool(op_un_bool);
 
@@ -109,6 +103,7 @@ type typ =
   | IndicationTyp(typ)
   | ProdProjection(typ, typ)
   | ProdExtension(typ, typ)
+  | Sig(list(sig_item))
 and sumterm =
   | Variant(string, option(typ))
   | BadEntry(typ)
@@ -178,7 +173,19 @@ and exp =
   | TyAlias(tpat, typ, exp)
   | Use(typ, exp)
   | IndicationExp(exp)
-  | TupleExtension(exp, exp);
+  | TupleExtension(exp, exp)
+  | Module(list(mod_item))
+  | ModuleExp(pat, exp, exp)
+
+and mod_item =
+  | ModItemLet(pat, exp)
+  | ModItemType(tpat, typ)
+  | ModItemExp(exp)
+  | ModItemModule(pat, exp)
+
+and sig_item =
+  | SigItemLet(pat)
+  | SigItemType(tpat, typ);
 
 /**
  * Generates a random CONSTRUCTOR_IDENT string. Used for CONSTRUCTOR_IDENT in the lexer.
@@ -713,7 +720,11 @@ let rec shrink_exp: QCheck.Shrink.t(exp) =
             let* shrunk = Shrink.list(l, ~shrink=shrink_exp);
             switch (shrunk) {
             | [] => Iter.return(TupleExp([]))
-            | [x] => Iter.return(x)
+            | [x] =>
+              switch (x) {
+              | TupLabel(_, _) => Iter.return(TupleExp(shrunk))
+              | _ => Iter.return(x)
+              }
             | _ => return(TupleExp(shrunk))
             };
           }
@@ -1013,11 +1024,26 @@ let rec shrink_exp: QCheck.Shrink.t(exp) =
             let* shrunk = shrink_exp(e3);
             return(If(e1, e2, shrunk));
           }
+        | ModuleExp(p, e1, e2) =>
+          of_list([e1, e2])
+          <+> {
+            let* shrunk = shrink_exp(e1);
+            return(ModuleExp(p, shrunk, e2));
+          }
+          <+> {
+            let* shrunk = shrink_exp(e2);
+            return(ModuleExp(p, e1, shrunk));
+          }
+          <+> {
+            let* shrunk = shrink_pat(p);
+            return(ModuleExp(shrunk, e1, e2));
+          }
         | IndicationExp(_)
         | EmptyHole
         | BuiltinFun(_)
         | Undefined
-        | InvalidExp(_) => Iter.empty
+        | InvalidExp(_)
+        | Module(_) => Iter.empty
         }
       )
   )
@@ -1219,7 +1245,8 @@ and shrink_typ: QCheck.Shrink.t(typ) =
         | BoolType
         | NatType
         | UnknownType(_)
-        | InvalidTyp(_) => Iter.empty
+        | InvalidTyp(_)
+        | Sig(_) => Iter.empty
         }
       )
   );

@@ -4,6 +4,16 @@
   position: relative;
 }
 
+.code-container.show-row-lines {
+  background: repeating-linear-gradient(
+    to bottom,
+    transparent 0,
+    transparent calc(var(--row-height-px) - 1px),
+    rgba(255, 0, 0, 0.2) calc(var(--row-height-px) - 1px),
+    rgba(255, 0, 0, 0.2) var(--row-height-px)
+  );
+}
+
 /* Use this style for all text that should
  * be formatted like code, even if it's not
  * going to be inside an editor. For example,
@@ -20,6 +30,41 @@
   position: relative;
   z-index: var(--code-text-z);
   white-space: pre;
+}
+
+.line-numbers {
+  background-color: var(--ui-bkg);
+  left: 0;
+  position: sticky;
+  display: flex;
+  padding: 0 1em 0 0.2em;
+  margin: -2px -0.6em -2px 1.5em;
+  min-width: 31px; /*The width of three digits*/
+  text-align: right;
+  justify-content: flex-end;
+  z-index: var(--line-number-z);
+  border-top: 2px solid var(--ui-bkg);
+  border-bottom: 2px solid var(--ui-bkg);
+}
+
+/* The default background color for Documentation and Scratch, when not selected, is still cell-active, not --ui-bkg */
+:is(#main.Documentation, #main.Scratch):not(.Derivations) .line-numbers {
+  background-color: var(--cell-active);
+  border-color: var(--cell-active);
+}
+
+.line-numbers.line-numbers-selected {
+  background-color: var(--cell-active);
+  border-color: var(--cell-active);
+}
+
+.code .code-text.line-numbers-text :not(.line-numbers-bold) {
+  color: var(--BR1);
+}
+
+.code .code-text.line-numbers-text .line-numbers-bold {
+  font-weight: bolder;
+  color: var(--BR2);
 }
 
 /* This is a hack to compensating for default linebreak handling
@@ -46,14 +91,27 @@
 .code .token.Typ {
   color: var(--token-typ);
 }
+.code .token.Drv {
+  color: var(--token-drv);
+}
 .code .token.Rul {
   color: var(--token-rul);
 }
 .code .token.TPat {
   color: var(--token-tpat);
 }
+.code .token.Mod {
+  color: var(--token-mod);
+}
+.code .token.Sig {
+  color: var(--token-sig);
+}
+.code .token.MPat {
+  color: var(--token-mpat);
+}
 
-.code .token.poly {
+.code .token.poly,
+.code .token.keyword {
   font-weight: bold;
 }
 
@@ -95,6 +153,27 @@
 .code .token.llm-waiting {
   animation: rainbow 4s linear infinite;
   font-weight: bold;
+}
+
+/* For emoji rendering in code */
+.code .grapheme-cell {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  vertical-align: baseline;
+  white-space: pre;
+}
+
+.code-container.meta-down .token.ref {
+  cursor: pointer;
+}
+
+.code-container.meta-down .token.ref:hover {
+  text-decoration: underline;
+  text-decoration-style: solid;
+  text-underline-offset: 0.08em;
+  filter: brightness(1.5);
 }
 
 @keyframes rainbow {
@@ -147,6 +226,9 @@ svg.shard.indicated.Pat {
 svg.shard.indicated.Typ {
   filter: drop-shadow(var(--off-x) var(--off-y) var(--blur) var(--token-typ));
 }
+svg.shard.indicated.Drv {
+  filter: drop-shadow(var(--off-x) var(--off-y) var(--blur) var(--token-drv));
+}
 svg.shard.indicated.Rul {
   filter: drop-shadow(
     var(--off-x) var(--off-y) var(--blur) var(--shard-lines-rul)
@@ -154,6 +236,15 @@ svg.shard.indicated.Rul {
 }
 svg.shard.indicated.TPat {
   filter: drop-shadow(var(--off-x) var(--off-y) var(--blur) var(--token-tpat));
+}
+svg.shard.indicated.Mod {
+  filter: drop-shadow(var(--off-x) var(--off-y) var(--blur) var(--token-mod));
+}
+svg.shard.indicated.Sig {
+  filter: drop-shadow(var(--off-x) var(--off-y) var(--blur) var(--token-sig));
+}
+svg.shard.indicated.MPat {
+  filter: drop-shadow(var(--off-x) var(--off-y) var(--blur) var(--token-mpat));
 }
 
 svg.shard.indicated.Any > path {
@@ -168,11 +259,23 @@ svg.shard.indicated.Pat > path {
 svg.shard.indicated.Typ > path {
   fill: var(--shard-typ);
 }
+svg.shard.indicated.Drv > path {
+  fill: var(--shard-drv);
+}
 svg.shard.indicated.Rul > path {
   fill: var(--shard-rul);
 }
 svg.shard.indicated.TPat > path {
   fill: var(--shard-tpat);
+}
+svg.shard.indicated.Mod > path {
+  fill: var(--shard-mod);
+}
+svg.shard.indicated.Sig > path {
+  fill: var(--shard-sig);
+}
+svg.shard.indicated.MPat > path {
+  fill: var(--shard-mpat);
 }
 
 svg.shard.indicated.caret.Exp > path {
@@ -187,6 +290,15 @@ svg.shard.indicated.caret.Typ > path {
 .svg.shard.indicated.caret.TPat > path {
   fill: var(--shard-caret-tpat);
 }
+svg.shard.indicated.caret.Mod > path {
+  fill: var(--shard-caret-mod);
+}
+svg.shard.indicated.caret.Sig > path {
+  fill: var(--shard-caret-sig);
+}
+svg.shard.indicated.caret.MPat > path {
+  fill: var(--shard-caret-mpat);
+}
 
 svg.shard.selected {
   z-index: var(--select-z);
@@ -195,13 +307,32 @@ svg.shard.selected {
 svg.shard.indicated {
   z-index: var(--tile-z);
 }
+svg.shard.error {
+  z-index: var(--err-hole-z);
+}
+
+.warnings svg.shard.error {
+  z-index: var(--warn-hole-z);
+}
+
 svg.shard.selected > path {
   fill: var(--shard-selected);
   stroke-width: 0.5px;
   stroke: var(--shard-selected);
 }
 
-.errors .errors-piece svg.shard {
+svg.shard.selected-expanded {
+  z-index: var(--select-z);
+  filter: drop-shadow(2px 2px 2px var(--shadow-selected));
+}
+svg.shard.selected-expanded > path {
+  fill: var(--shard-selected-expanded);
+  stroke-width: 0.5px;
+  stroke: var(--shard-selected-expanded);
+}
+
+.errors .errors-piece svg.shard,
+.warnings .warnings-piece svg.shard {
   z-index: var(--err-hole-z);
   filter: none;
 }
@@ -214,6 +345,17 @@ svg.shard.selected > path {
 }
 .errors .errors-piece svg.shard > path {
   fill: var(--error-hole-fill);
+}
+
+.warnings .warnings-piece svg.shard > path,
+.warnings .warnings-piece svg .child-line {
+  stroke: var(--warning-hole-stroke);
+  stroke-width: 0.75px;
+  stroke-dasharray: 1, 1;
+  stroke-linecap: butt;
+}
+.warnings .warnings-piece svg.shard > path {
+  fill: var(--warning-hole-fill);
 }
 
 /* Code completion decoration */
@@ -235,6 +377,34 @@ svg.shard.selected.buffer-parsed > path {
   stroke: var(--T1);
 }
 
+/* VAR HIGHLIGHT DECO */
+
+.var-highlights {
+  pointer-events: none;
+}
+
+.var-highlight {
+  border-bottom: 2.3px dotted;
+  box-sizing: border-box;
+}
+
+.var-highlight.Exp {
+  border-bottom-color: var(--token-exp);
+  background-color: color-mix(in srgb, var(--token-exp) 10%, transparent);
+}
+.var-highlight.Pat {
+  border-bottom-color: var(--token-pat);
+  background-color: color-mix(in srgb, var(--token-pat) 10%, transparent);
+}
+.var-highlight.Typ {
+  border-bottom-color: var(--token-typ);
+  background-color: color-mix(in srgb, var(--token-typ) 10%, transparent);
+}
+.var-highlight.TPat {
+  border-bottom-color: var(--token-tpat);
+  background-color: color-mix(in srgb, var(--token-tpat) 10%, transparent);
+}
+
 /* EMPTY HOLE DECO */
 
 .empty-hole > path {
@@ -249,6 +419,11 @@ svg.shard.selected.buffer-parsed > path {
 #caret {
   z-index: var(--caret-z);
   pointer-events: none;
+  visibility: hidden;
+}
+
+.code-editor:focus > * > * > #caret {
+  visibility: visible;
 }
 
 #caret.blink {
@@ -290,11 +465,23 @@ svg:has(.child-line) {
 .child-line.Typ {
   stroke: var(--token-typ);
 }
+.child-line.Drv {
+  stroke: var(--token-drv);
+}
 .child-line.Rul {
   stroke: var(--shard-lines-rul);
 }
 .child-line.TPat {
   stroke: var(--token-tpat);
+}
+.child-line.Mod {
+  stroke: var(--token-mod);
+}
+.child-line.Sig {
+  stroke: var(--token-sig);
+}
+.child-line.MPat {
+  stroke: var(--token-mpat);
 }
 
 /* BACKPACK DECO */
@@ -333,4 +520,129 @@ svg:has(.child-line) {
 
 .restructuring-genie {
   z-index: var(--backpack-z);
+}
+
+/* Invisible backdrop to capture clicks outside context menu */
+.context-menu-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: calc(var(--context-menu-z) - 1);
+}
+
+.context-menu {
+  position: absolute;
+  min-width: 160px;
+  z-index: var(--context-menu-z);
+  flex-direction: column;
+  justify-content: center;
+  background-color: var(--menu-bkg);
+  border-radius: 0 0.5em 0.5em 0.5em;
+  outline: 0.6px solid var(--menu-outline);
+  box-shadow: 0px 10px 20px var(--menu-shadow);
+  padding: 0.2em;
+}
+
+/* Border radius, transforms, and animations based on opening direction */
+.context-menu.open-down-right {
+  border-radius: 0 0.5em 0.5em 0.5em; /* top-left sharp */
+  transform-origin: top left;
+  animation: context-menu-open-down-right 0.12s ease-out;
+}
+.context-menu.open-down-left {
+  border-radius: 0.5em 0 0.5em 0.5em; /* top-right sharp */
+  transform: translateX(-100%);
+  transform-origin: top right;
+  animation: context-menu-open-down-left 0.12s ease-out;
+}
+.context-menu.open-up-right {
+  border-radius: 0.5em 0.5em 0.5em 0; /* bottom-left sharp */
+  transform: translateY(-100%);
+  transform-origin: bottom left;
+  animation: context-menu-open-up-right 0.12s ease-out;
+}
+.context-menu.open-up-left {
+  border-radius: 0.5em 0.5em 0 0.5em; /* bottom-right sharp */
+  transform: translate(-100%, -100%);
+  transform-origin: bottom right;
+  animation: context-menu-open-up-left 0.12s ease-out;
+}
+
+/* Open animations for each direction - scale from origin while maintaining translate */
+@keyframes context-menu-open-down-right {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+@keyframes context-menu-open-down-left {
+  from {
+    opacity: 0;
+    transform: translateX(-100%) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-100%) scale(1);
+  }
+}
+@keyframes context-menu-open-up-right {
+  from {
+    opacity: 0;
+    transform: translateY(-100%) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(-100%) scale(1);
+  }
+}
+@keyframes context-menu-open-up-left {
+  from {
+    opacity: 0;
+    transform: translate(-100%, -100%) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-100%, -100%) scale(1);
+  }
+}
+
+.context-menu .group .contents {
+  display: flex;
+  flex-direction: column;
+}
+.context-menu .named-menu-item {
+  display: flex;
+  align-items: center;
+  color: var(--menu-item-text);
+  cursor: pointer;
+  gap: 0.5em;
+}
+.context-menu .group .contents .named-menu-item {
+  padding: 0.05em 0.5em 0.05em 0.7em;
+}
+.context-menu .group .contents .named-menu-item:hover,
+.context-menu .group .contents .named-menu-item.selected {
+  background-color: var(--SAND);
+  border-radius: 0.2em;
+}
+/* When hovering any item, suppress keyboard-selected highlight */
+.context-menu .group .contents:hover .named-menu-item.selected:not(:hover) {
+  background-color: transparent;
+}
+.context-menu .named-menu-item .menu-shortcut {
+  margin-left: auto;
+  padding-left: 1em;
+  font-size: 0.85em;
+  opacity: 0.6;
+}
+.context-menu .named-menu-item .menu-colon {
+  opacity: 0.6;
+}
+.context-menu .menu-divider {
+  height: 0.6px;
+  background: var(--menu-outline);
+  margin: 6px 0.5em;
 }

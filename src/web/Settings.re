@@ -10,9 +10,17 @@ module Model = {
     context_inspector: bool,
     instructor_mode: bool,
     benchmark: bool,
+    show_log_panel: bool,
     explainThis: ExplainThisModel.Settings.t,
-    assistant: AssistantSettings.t,
     sidebar: SidebarModel.Settings.t,
+    /* Auto probe: automatically place a multi probe on the body of
+       whichever top-level definition the cursor is currently inside */
+    autoprobe_mode: bool,
+    agent_globals: AgentGlobals.Model.t,
+    line_numbers: bool,
+    relative_line_numbers: bool,
+    cap_undo_stack: bool,
+    show_row_lines: bool,
   };
 
   let init = {
@@ -23,12 +31,17 @@ module Model = {
       elaborate: false,
       assist: true,
       dynamics: true,
+      probe_all: false,
+      deep_reassociate: true,
       flip_animations: true,
+      display_warnings: true,
       evaluation: {
         show_case_clauses: true,
         show_fn_bodies: false,
         show_fixpoints: false,
         show_ascription_steps: false,
+        show_ascriptions: false,
+        show_case_steps: false,
         show_lookup_steps: false,
         show_stepper_filters: false,
         stepper_history: false,
@@ -41,21 +54,27 @@ module Model = {
     context_inspector: false,
     instructor_mode: false,
     benchmark: false,
+    show_log_panel: false,
     explainThis: {
       show: true,
       show_feedback: false,
       highlight: NoHighlight,
     },
-    assistant: {
-      mode: CodeSuggestion,
-      ongoing_chat: false,
-      show_history: false,
-      show_api_key: false,
-    },
     sidebar: {
       panel: LanguageDocumentation,
       show: true,
+      problems: {
+        collapsed: [],
+        flat: false,
+        expanded: [],
+      },
     },
+    autoprobe_mode: false,
+    agent_globals: AgentGlobals.init(),
+    line_numbers: false,
+    relative_line_numbers: false,
+    cap_undo_stack: false,
+    show_row_lines: false,
   };
 
   let fix_instructor_mode = settings =>
@@ -71,7 +90,18 @@ module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type persistent = t;
 
-  let persist = x => x;
+  /* Clear expanded problem IDs before persisting — tile IDs are ephemeral
+     and go stale across sessions. */
+  let persist = settings => {
+    ...settings,
+    sidebar: {
+      ...settings.sidebar,
+      problems: {
+        ...settings.sidebar.problems,
+        expanded: [],
+      },
+    },
+  };
   let unpersist = fix_instructor_mode;
 };
 
@@ -92,6 +122,8 @@ module Update = {
     | ShowCaseClauses
     | ShowFnBodies
     | ShowAscriptionSteps
+    | ShowAscriptions
+    | ShowCaseSteps
     | ShowFixpoints
     | ShowLookups
     | ShowFilters
@@ -104,16 +136,24 @@ module Update = {
     | SecondaryIcons
     | Statics
     | Dynamics
+    | ProbeAll
+    | DeepReassociate
     | Assist
     | Elaborate
     | Benchmark
     | ContextInspector
     | InstructorMode
+    | ShowLogPanel
     | Evaluation(evaluation)
     | Sidebar(SidebarModel.Settings.action)
     | ExplainThis(ExplainThisModel.Settings.action)
-    | Assistant(AssistantSettings.action)
-    | FlipAnimations;
+    | DisplayWarnings
+    | FlipAnimations
+    | AutoprobeMode
+    | ToggleLineNumbers
+    | ToggleRelativeLineNumbers
+    | CapUndoStack
+    | ShowRowLines;
 
   let can_undo = (action: t) => {
     switch (action) {
@@ -150,6 +190,23 @@ module Update = {
             dynamics: !settings.core.dynamics,
           },
         }
+      | ProbeAll => {
+          ...settings,
+          core: {
+            ...settings.core,
+            /* Turning on probe_all requires dynamics to be on */
+            dynamics: !settings.core.probe_all || settings.core.dynamics,
+            statics: !settings.core.probe_all || settings.core.statics,
+            probe_all: !settings.core.probe_all,
+          },
+        }
+      | DeepReassociate => {
+          ...settings,
+          core: {
+            ...settings.core,
+            deep_reassociate: !settings.core.deep_reassociate,
+          },
+        }
       | Assist => {
           ...settings,
           core: {
@@ -163,6 +220,13 @@ module Update = {
           core: {
             ...settings.core,
             flip_animations: !settings.core.flip_animations,
+          },
+        }
+      | DisplayWarnings => {
+          ...settings,
+          core: {
+            ...settings.core,
+            display_warnings: !settings.core.display_warnings,
           },
         }
       | Evaluation(u) =>
@@ -192,6 +256,14 @@ module Update = {
           | ShowAscriptionSteps => {
               ...evaluation,
               show_ascription_steps: !evaluation.show_ascription_steps,
+            }
+          | ShowAscriptions => {
+              ...evaluation,
+              show_ascriptions: !evaluation.show_ascriptions,
+            }
+          | ShowCaseSteps => {
+              ...evaluation,
+              show_case_steps: !evaluation.show_case_steps,
             }
           | ShowFixpoints => {
               ...evaluation,
@@ -231,11 +303,44 @@ module Update = {
       | Sidebar(SwitchPanel(windowToSwitchTo)) => {
           ...settings,
           sidebar: {
+            ...settings.sidebar,
             show:
               !settings.sidebar.show
                 ? true
                 : settings.sidebar.panel == windowToSwitchTo ? false : true,
             panel: windowToSwitchTo,
+          },
+        }
+      | Sidebar(Problems(ToggleCollapsed(cat))) => {
+          ...settings,
+          sidebar: {
+            ...settings.sidebar,
+            problems:
+              SidebarModel.Settings.toggle_collapsed(
+                cat,
+                settings.sidebar.problems,
+              ),
+          },
+        }
+      | Sidebar(Problems(ToggleFlat)) => {
+          ...settings,
+          sidebar: {
+            ...settings.sidebar,
+            problems: {
+              ...settings.sidebar.problems,
+              flat: !settings.sidebar.problems.flat,
+            },
+          },
+        }
+      | Sidebar(Problems(ToggleExpanded(id))) => {
+          ...settings,
+          sidebar: {
+            ...settings.sidebar,
+            problems:
+              SidebarModel.Settings.toggle_expanded(
+                id,
+                settings.sidebar.problems,
+              ),
           },
         }
       | ExplainThis(ToggleShowFeedback) => {
@@ -263,36 +368,10 @@ module Update = {
           ...settings,
           explainThis,
         };
-      | Assistant(u) =>
-        switch (u) {
-        | UpdateChatStatus => {
-            ...settings,
-            assistant: {
-              ...settings.assistant,
-              ongoing_chat: !settings.assistant.ongoing_chat,
-            },
-          }
-        | SwitchMode(mode) => {
-            ...settings,
-            assistant: {
-              ...settings.assistant,
-              mode,
-            },
-          }
-        | ToggleHistory => {
-            ...settings,
-            assistant: {
-              ...settings.assistant,
-              show_history: !settings.assistant.show_history,
-            },
-          }
-        | ToggleAPIKeyVisibility => {
-            ...settings,
-            assistant: {
-              ...settings.assistant,
-              show_api_key: !settings.assistant.show_api_key,
-            },
-          }
+      | ShowLogPanel => {
+          ...settings,
+          show_log_panel:
+            !settings.show_log_panel && ExerciseSettings.show_instructor,
         }
       | Benchmark => {
           ...settings,
@@ -313,6 +392,26 @@ module Update = {
       | InstructorMode => {
           ...settings, //TODO[Matt]: Make sure instructor mode actually makes prelude read-only
           instructor_mode: !settings.instructor_mode,
+        }
+      | AutoprobeMode => {
+          ...settings,
+          autoprobe_mode: !settings.autoprobe_mode,
+        }
+      | ToggleLineNumbers => {
+          ...settings,
+          line_numbers: !settings.line_numbers,
+        }
+      | ToggleRelativeLineNumbers => {
+          ...settings,
+          relative_line_numbers: !settings.relative_line_numbers,
+        }
+      | CapUndoStack => {
+          ...settings,
+          cap_undo_stack: !settings.cap_undo_stack,
+        }
+      | ShowRowLines => {
+          ...settings,
+          show_row_lines: !settings.show_row_lines,
         }
       }
     )

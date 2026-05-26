@@ -76,6 +76,7 @@ let rec in_exp = (env: Environment.t(Exp.t), exp: Exp.t) =>
         | DynamicErrorHole(_)
         | Deferral(_)
         | Atom(_)
+        | DrvQuote(_)
         | ListLit(_)
         | Constructor(_)
         | TypFun(_)
@@ -96,7 +97,7 @@ let rec in_exp = (env: Environment.t(Exp.t), exp: Exp.t) =>
         | HintedTest(_)
         | Filter(_)
         | Parens(_)
-        | Probe(_)
+        | Projector(_)
         | Cons(_)
         | ListConcat(_)
         | UnOp(_)
@@ -105,7 +106,9 @@ let rec in_exp = (env: Environment.t(Exp.t), exp: Exp.t) =>
         | Asc(_)
         | LivelitName(_)
         | ProofObject(_)
-        | Undefined => cont(e)
+        | Undefined
+        | Module(_)
+        | ModuleExp(_) => cont(e)
         };
       },
     exp,
@@ -148,9 +151,9 @@ and in_pat =
   | Parens(p1) =>
     let (env', p1') = in_pat(env_outer, env_acc, p1);
     (env', Parens(p1') |> Pat.fresh);
-  | Probe(p1, probe) =>
+  | Projector(data, p1) =>
     let (env', p1') = in_pat(env_outer, env_acc, p1);
-    (env', Probe(p1', probe) |> Pat.fresh);
+    (env', Projector(data, p1') |> Pat.fresh);
   | Tuple(l) =>
     let (env', l') =
       List.fold_left(
@@ -214,11 +217,14 @@ and in_typ = (env: Environment.t(Exp.t), typ: Typ.t) =>
         | Label(_)
         | TupLabel(_, _)
         | Parens(_)
+        | Projector(_)
         | Rec(_, _)
         | Poly(_, _)
         | ProdProjection(_, _)
         | ProdExtension(_, _)
-        | ProofOf(_) => cont(t)
+        | ProofOf(_)
+        | Sig(_)
+        | DrvQuoteTy(_) => cont(t)
         };
       },
     typ,

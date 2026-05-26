@@ -84,7 +84,9 @@ let tests = (
       "Intermediate cast doesn't break evaluation",
       `Quick,
       () => {
-        let program = {|let (var=a, val=b) = (var="get_acne", val=true) : ? in b|};
+        /* Tuple labels [r] and [l] are used here (rather than [var]/[val])
+           because [val] is a reserved keyword introduced by derivation mode. */
+        let program = {|let (r=a, l=b) = (r="get_acne", l=true) : ? in b|};
 
         check(
           dhexp_typ,
@@ -245,5 +247,6 @@ filter@<(label=String, value=Bool)>(fun a,b ->b, lvs).label|};
         );
       },
     ),
+    /* Module dot projection tests are in Test_Evaluator_Modules */
   ],
 );

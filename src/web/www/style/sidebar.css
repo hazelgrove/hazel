@@ -2,11 +2,41 @@
   text-transform: none;
 }
 
+/* Make all text in the sidebar selectable */
+#side-bar {
+  user-select: text;
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
+}
+
+#side-bar * {
+  user-select: text;
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
+}
+
+/* But allow buttons and interactive elements to remain non-selectable for better UX */
+#side-bar button,
+#side-bar .chat-action-button,
+#side-bar .branch-nav-button,
+#side-bar .history-menu-item,
+#side-bar .chat-view-button,
+#side-bar .chat-view-header-button,
+#side-bar .chat-view-header-icon-button,
+#side-bar input,
+#side-bar textarea,
+#side-bar .resize-handle {
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+}
+
 /* Persistent Sidebar */
 
 #persistent {
-  grid-row: 2 / span 1;
-  grid-column: 2 / span 1;
   border-left: 0.6px solid var(--BR2);
   overflow-y: auto;
   overflow-x: hidden;
@@ -55,6 +85,59 @@
   background-color: var(--T2);
 }
 
+/* Status indicator inside sidebar tab */
+.tab-status-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  cursor: default;
+  user-select: none;
+}
+
+.tab-status-indicator span {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  font-weight: 600;
+  color: white;
+  transition: background-color 0.2s ease;
+}
+
+.tab-status-indicator.no-errors span {
+  background-color: oklch(70% 0.15 150);
+  font-size: 12px;
+}
+
+.tab-status-indicator.has-errors span {
+  background-color: oklch(40% 0.3 30);
+}
+
+.tab-status-indicator.has-warnings span {
+  background-color: oklch(75% 0.15 85);
+  font-size: 12px;
+}
+
+.tab-status-indicator.has-holes span {
+  background-color: var(--hole-stroke);
+  font-size: 12px;
+}
+
+.tab-status-indicator.digits-1 span {
+  font-size: 11px;
+}
+
+.tab-status-indicator.digits-2 span {
+  font-size: 9px;
+}
+
+.tab-status-indicator.digits-3 span {
+  font-size: 7px;
+}
+
 .resize-handle {
   position: absolute;
   left: 0;
@@ -64,4 +147,271 @@
   cursor: col-resize;
   background-color: transparent;
   transition: background-color 0.2s ease;
+  z-index: 1000; /* Ensure resize handle is above other content */
+  pointer-events: auto;
+}
+
+/* Problems Panel */
+
+.problems-panel {
+  display: flex;
+  flex-direction: column;
+  padding: 0.5em;
+  overflow-y: auto;
+  color: var(--BR3);
+}
+
+.problem-section-header {
+  font-weight: bold;
+  cursor: pointer;
+  padding: 0.5em;
+  user-select: none;
+}
+
+.problem-row-chevron {
+  flex-shrink: 0;
+  cursor: pointer;
+  font-size: 0.7em;
+  opacity: 0.3;
+  user-select: none;
+}
+
+.problem-row-chevron:hover {
+  opacity: 0.6;
+}
+
+.problem-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5em;
+  padding: 0.5em;
+  padding-left: 0.75em;
+  margin-bottom: 3px;
+  border-bottom: 1px solid var(--BR2);
+  border-left: 3px solid color-mix(in srgb, var(--R1) 40%, transparent);
+  background-color: color-mix(in srgb, var(--R0) 50%, transparent);
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+  color: var(--STONE);
+}
+
+.problem-row > .status,
+.problem-row > .problem-description {
+  display: inline;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  min-width: 0;
+  flex: 1;
+}
+
+.problem-row > .status *,
+.problem-row > .problem-description * {
+  display: inline;
+}
+
+.problem-row > .status .code-box-container,
+.problem-row > .status .code {
+  margin-inline: 0.3em;
+}
+
+.problem-row.expanded > .status,
+.problem-row.expanded > .problem-description {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: unset;
+}
+
+.problem-row.expanded > .status *,
+.problem-row.expanded > .problem-description * {
+  display: revert;
+}
+
+.problem-line-num {
+  font-family: var(--mono-font);
+  font-size: 0.85em;
+  color: var(--TXT2);
+  min-width: 2.5em;
+  flex-shrink: 0;
+}
+
+.problem-line-num.no-line {
+  opacity: 0.35;
+}
+
+.problem-row:hover {
+  background-color: var(--R0);
+  filter: brightness(0.95);
+}
+
+.problem-row.active {
+  border-left: 5px solid var(--R2);
+  background-color: var(--ci-status-error-bkg);
+  box-shadow: inset 0 0 0 1px var(--R1);
+  font-weight: 600;
+}
+
+.problem-row.syntax {
+  border-left: 3px solid color-mix(in srgb, var(--Y1) 60%, transparent);
+  background-color: color-mix(in srgb, var(--Y0) 50%, transparent);
+}
+
+.problem-row.syntax:hover {
+  background-color: var(--Y0);
+}
+
+.problem-row.syntax.active {
+  border-left: 5px solid var(--Y2);
+  background-color: color-mix(in srgb, var(--Y0) 80%, transparent);
+  box-shadow: inset 0 0 0 1px var(--Y1);
+}
+
+.problem-row.hole {
+  border-left: 3px solid color-mix(in srgb, var(--hole-stroke) 60%, transparent);
+  background-color: color-mix(in srgb, var(--hole-fill) 50%, transparent);
+}
+
+.problem-row.hole:hover {
+  background-color: var(--hole-fill);
+}
+
+.problem-row.hole.active {
+  border-left: 5px solid var(--hole-active);
+  background-color: color-mix(in srgb, var(--hole-fill) 80%, transparent);
+  box-shadow: inset 0 0 0 1px var(--hole-stroke);
+}
+
+.problem-row.warning {
+  border-left: 3px solid
+    color-mix(in srgb, var(--warning-hole-stroke) 60%, transparent);
+  background-color: color-mix(
+    in srgb,
+    var(--warning-hole-fill) 50%,
+    transparent
+  );
+}
+
+.problem-row.warning:hover {
+  background-color: var(--warning-hole-fill);
+}
+
+.problem-row.warning.active {
+  border-left: 5px solid var(--warning-hole-stroke);
+  background-color: color-mix(
+    in srgb,
+    var(--warning-hole-fill) 80%,
+    transparent
+  );
+  box-shadow: inset 0 0 0 1px var(--warning-hole-stroke);
+}
+
+.problem-description {
+  font-size: 0.9em;
+}
+
+.problem-legend {
+  display: flex;
+  gap: 0.75em;
+  padding: 0.5em;
+  border-bottom: 1px solid var(--BR1);
+  font-size: 0.8em;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3em;
+}
+
+.legend-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+}
+
+.legend-swatch.syntax {
+  background-color: var(--Y1);
+}
+
+.legend-swatch.hole {
+  background-color: var(--hole-stroke);
+}
+
+.legend-swatch.static {
+  background-color: var(--R1);
+}
+
+.legend-swatch.warning {
+  background-color: var(--warning-hole-stroke);
+}
+
+.problem-nav-buttons {
+  display: flex;
+  gap: 2px;
+  margin-left: auto;
+}
+
+.problem-nav-btn {
+  cursor: pointer;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 3px;
+  font-size: 12px;
+  user-select: none;
+  color: var(--BR2);
+  border: 1px solid var(--BR2);
+}
+
+.problem-nav-btn:hover {
+  background: color-mix(in oklch, var(--main-text-color) 12%, transparent);
+  color: var(--main-text-color);
+}
+
+.problem-view-toggle {
+  display: flex;
+  gap: 0;
+  padding: 0.5em;
+  border-bottom: 1px solid var(--BR1);
+}
+
+.toggle-option {
+  padding: 0.2em 0.6em;
+  font-size: 0.85em;
+  cursor: pointer;
+  border: 1px solid var(--BR1);
+  user-select: none;
+  color: var(--BR2);
+  min-width: 5.5em;
+  display: flex;
+  justify-content: center;
+}
+
+.toggle-option:first-of-type {
+  border-radius: 3px 0 0 3px;
+}
+
+.toggle-option:last-of-type {
+  border-radius: 0 3px 3px 0;
+}
+
+.toggle-option + .toggle-option {
+  border-left: none;
+}
+
+.toggle-option.active {
+  background-color: var(--Y1);
+  color: var(--BR4);
+}
+.toggle-option:not(.active):hover {
+  background-color: var(--Y0);
+}
+
+.no-problems-message {
+  text-align: center;
+  color: var(--BR3);
+  padding: 1em;
 }

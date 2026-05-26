@@ -134,8 +134,6 @@ type example_id =
   | AndTrue
   | OrFalse
   | OrTrue
-  | StringEqualFalse
-  | StringEqualTrue
   | CaseWildSimple
   | CaseWildTuple
   | CaseInt
@@ -150,7 +148,15 @@ type example_id =
   | Undefined2
   | Asc1
   | Asc2
-  | Asc3;
+  | Asc3
+  | Module1
+  | ModLet1
+  | ModType1
+  | Sig1
+  | SigLet1
+  | SigType1
+  | ModuleKeyword1
+  | ModuleKeywordDecl1;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type example = {
@@ -180,10 +186,12 @@ type pat_sub_form_id =
   | Tuple2
   | Tuple3
   | Ctr
-  | Ap;
+  | ApFunc
+  | ApCons;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type form_id =
+  | Derivation
   | EmptyHoleExp
   | MultiHoleExp
   | TrivExp
@@ -244,7 +252,8 @@ type form_id =
   | TuplePat
   | Tuple2Pat
   | Tuple3Pat
-  | ApPat
+  | ApFuncPat
+  | ApConsPat
   | TypAnnPat
   | EmptyHoleTyp
   | MultiHoleTyp
@@ -282,7 +291,15 @@ type form_id =
   | FilterHide
   | FilterSelector
   | AscExp
-  | TupleExtensionExp;
+  | TupleExtensionExp
+  | ModuleExp
+  | ModLetDecl
+  | ModTypeDecl
+  | SigTyp
+  | SigLetDecl
+  | SigTypeDecl
+  | ModuleKeywordExp
+  | ModuleKeywordDecl;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type form = {
@@ -297,6 +314,7 @@ type form = {
 // MAYBE don't even need an id at all for the group - just use the most specific (1st) form id in forms
 [@deriving (show({with_path: false}), sexp, yojson)]
 type group_id =
+  | Derivation
   | EmptyHoleExp
   | MultiHoleExp
   | TrivExp
@@ -361,7 +379,8 @@ type group_id =
   | TuplePat
   | Tuple2Pat
   | Tuple3Pat
-  | ApPat
+  | ApFuncPat
+  | ApConsPat
   | TypAnnPat
   | EmptyHoleTyp
   | MultiHoleTyp
@@ -395,7 +414,15 @@ type group_id =
   | FilterEval
   | FilterDebug
   | FilterHide
-  | FilterSelector;
+  | FilterSelector
+  | ModuleExp
+  | ModLetDecl
+  | ModTypeDecl
+  | SigTyp
+  | SigLetDecl
+  | SigTypeDecl
+  | ModuleKeywordExp
+  | ModuleKeywordDecl;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type group = {

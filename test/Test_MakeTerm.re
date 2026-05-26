@@ -11,7 +11,7 @@ let exp_typ =
   );
 
 let parse_exp = (s: string) => {
-  switch (Haz3lcore.Parser.to_term(s)) {
+  switch (Haz3lcore.Parser.to_term(s, ~root=Exp)) {
   | Some(e) => e
   | None => Alcotest.fail("Failed to parse expression: " ++ s)
   };
@@ -82,8 +82,22 @@ let tests =
               TPat.var("A2"),
               Typ.(
                 sum([
-                  Variant("A", [Util.Id.mk()], None),
-                  Variant("A", [Util.Id.mk()], None),
+                  Variant(
+                    "A",
+                    Language.ConstructorMap.mk_variant_ann(
+                      ~ids=[Util.Id.mk()],
+                      (),
+                    ),
+                    None,
+                  ),
+                  Variant(
+                    "A",
+                    Language.ConstructorMap.mk_variant_ann(
+                      ~ids=[Util.Id.mk()],
+                      (),
+                    ),
+                    None,
+                  ),
                 ])
               ),
               empty_hole(),
@@ -305,6 +319,77 @@ let tests =
           ),
           {|let (_=x) = (_=1) in x|},
         )
+      ),
+      /* Module parsing tests */
+      test_case("Empty module", `Quick, () =>
+        exp_check(module_([]), {|{}|})
+      ),
+      test_case("Module with single let binding", `Quick, () =>
+        exp_check(
+          module_([Mod.mod_let(Pat.var("x"), int(1))]),
+          {|{ let x = 1 }|},
+        )
+      ),
+      test_case("Module with multiple bindings", `Quick, () =>
+        exp_check(
+          module_([
+            Mod.mod_let(Pat.var("x"), int(1)),
+            Mod.mod_let(Pat.var("y"), int(2)),
+          ]),
+          {|{ let x = 1; let y = 2 }|},
+        )
+      ),
+      test_case("Module with type alias", `Quick, () =>
+        exp_check(
+          module_([
+            Mod.mod_type(TPat.var("T"), Typ.int()),
+            Mod.mod_let(Pat.var("x"), int(1)),
+          ]),
+          {|{ type T = Int; let x = 1 }|},
+        )
+      ),
+      test_case("Module dot access", `Quick, () =>
+        exp_check(
+          dot(module_([Mod.mod_let(Pat.var("x"), int(1))]), label("x")),
+          {|{ let x = 1 }.x|},
+        )
+      ),
+      test_case("Nested module", `Quick, () =>
+        exp_check(
+          module_([
+            Mod.mod_let(
+              Pat.var("m"),
+              module_([Mod.mod_let(Pat.var("y"), int(1))]),
+            ),
+          ]),
+          {|{ let m = { let y = 1 } }|},
+        )
+      ),
+      /* Note: M.x parses as Dot(Constructor("M"), Label("x")) because
+         MakeTerm produces Constructor for capitalized names in expression
+         position. The capitalized-to-Var fallback happens during statics. */
+      test_case("Module keyword", `Quick, () =>
+        exp_check(
+          module_exp(
+            MPat.var("M"),
+            module_([Mod.mod_let(Pat.var("x"), int(1))]),
+            dot(constructor("M", None), label("x")),
+          ),
+          {|module M = { let x = 1 } in M.x|},
+        )
+      ),
+      test_case("Module keyword lowercase", `Quick, () =>
+        exp_check(
+          module_exp(
+            MPat.var("m"),
+            module_([Mod.mod_let(Pat.var("x"), int(1))]),
+            dot(var("m"), label("x")),
+          ),
+          {|module m = { let x = 1 } in m.x|},
+        )
+      ),
+      test_case("Module with bare expression", `Quick, () =>
+        exp_check(module_([Mod.mod_exp(int(42))]), {|{ 42 }|})
       ),
     ],
   );

@@ -5,30 +5,13 @@ This directory contains the test suite for the Hazel project.
 ## Overview
 
 - **Test Framework:** [Alcotest](https://github.com/mirage/alcotest)
-- **Execution:** Tests are run via the `run_tests` script or `make` commands.
+- **Execution:** Tests are run via `make` commands or the `run_tests` script.
 
 ## How to Run Tests
 
-### 1. Using the run_tests Script
+### 1. Using Make
 
 - **Run all tests (including slow and property-based):**
-    ```sh
-    ./run_tests
-    ```
-
-- **Filter tests by group or number:**
-    - Run all tests in the "Statics" group with quick output (excluding slow/property-based):
-        ```sh
-        ./run_tests test 'Statics.*' -q
-        ```
-    - Run only test 19 from the "Evaluator" group:
-        ```sh
-        ./run_tests test 'Evaluator' 19
-        ```
-
-### 2. Using Make
-
-- **Run all tests:**
     ```sh
     make test
     ```
@@ -38,11 +21,34 @@ This directory contains the test suite for the Hazel project.
     make test-quick
     ```
 
-## Additional Information
+### 2. Using the run_tests Script
 
-- `./run_tests` is a shell script that first builds the tests using `dune` (the OCaml build system), then runs them using `node`.
-- You can pass CLI arguments to `./run_tests` to filter and control test execution.
+The `run_tests` script builds with dune and then invokes the test runner,
+forwarding any CLI arguments. Use this when you need to filter tests by
+group or number:
+
+- **Run all tests:**
+    ```sh
+    ./run_tests
+    ```
+
+- **Run all tests in the "Statics" group with quick output:**
+    ```sh
+    ./run_tests test 'Statics.*' -q
+    ```
+
+- **Run only test 19 from the "Evaluator" group:**
+    ```sh
+    ./run_tests test 'Evaluator' 19
+    ```
+
 - For more CLI options, refer to the [Alcotest documentation](https://github.com/mirage/alcotest).
+
+## Architecture
+
+- **`test/dune`** defines the test executable and two dune aliases (`@runtest` for all tests, `@test-quick` for quick tests). The `Makefile` targets invoke these aliases.
+- **`test/run_node.sh`** is a shared wrapper that runs the compiled JS with the correct Node.js flags (`--stack-size=8192` for deeply recursive tests, `--require idb_stub.js` for IndexedDB globals). Both dune rules and `run_tests` use this script so the flags are defined in one place.
+- **`run_tests`** builds with dune, then calls `run_node.sh` directly, which allows it to forward arbitrary CLI arguments to the test runner.
 
 ## Test File Structure
 

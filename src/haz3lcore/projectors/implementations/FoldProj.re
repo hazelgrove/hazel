@@ -89,7 +89,7 @@ module M: Projector = {
       } else {
         div(
           ~attrs=[
-            Attr.on_pointerdown(_ =>
+            Attr.on_double_click(_ =>
               status.indication != None ? local(Toggle) : Ui_effect.Ignore
             ),
           ],

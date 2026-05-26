@@ -11,7 +11,7 @@ let utility: ProjectorBase.utility = {
   let term_to_seg =
     ExpToSegment.any_to_segment(
       ~settings={
-        ...ExpToSegment.Settings.of_core(~inline=false, CoreSettings.off),
+        ...ExpToSegment.Settings.of_core(~inline=true, CoreSettings.off),
         show_unknown_as_hole: false,
       },
     );
@@ -21,7 +21,9 @@ let utility: ProjectorBase.utility = {
     | None => None
     | Some(s) => Some(s |> fn |> term_to_seg)
     };
-  let seg_to_string = Printer.of_segment(~holes="?");
+  /* NOTE: Setting indent to anything other than "" has serious
+   * perf implications when there are lots of probes on the screen */
+  let seg_to_string = Printer.of_segment(~holes="?", ~indent="");
   {
     term_to_seg,
     seg_to_term,
@@ -33,27 +35,27 @@ let utility: ProjectorBase.utility = {
 let mk_info =
     (
       p: Piece.projector,
+      ~sample_focus: Sample.Focus.t,
       ~statics: Statics.Map.t,
       ~inference: Inference.SolutionMap.t,
       ~dynamics: Dynamics.Map.t,
     )
     : ProjectorBase.info => {
-  let statics = Statics.Map.lookup(p.id, statics);
+  let statics_info = Statics.Map.lookup(p.id, statics);
   let inference_solution =
-    switch (statics) {
+    switch (statics_info) {
     | Some(InfoTyp(info)) =>
-      switch (info.term) {
-      | {term: Unknown(p), _} =>
-        Inference.SolutionMap.lookup_prov(p, inference)
+      switch (info.user_term) {
+      | {term: Unknown(prov), _} =>
+        Inference.SolutionMap.lookup_prov(prov, inference)
       | _ => None
       }
     | _ => None
     };
-
   {
     id: p.id,
     syntax: Piece.unparenthesize(p.syntax),
-    statics,
+    statics: statics_info,
     inference:
       OptUtil.and_then(
         s =>
@@ -72,14 +74,22 @@ let mk_info =
           },
         inference_solution,
       ),
-    dynamics: Dynamics.Map.lookup(p.id, dynamics),
+    dynamics:
+      switch (Dynamics.Map.lookup(p.id, dynamics)) {
+      | Some(samples) =>
+        Some({
+          samples,
+          sample_focus,
+        })
+      | None => None
+      },
     utility,
   };
-};
 
 module ShapeMapSemantics = {
   let from_semantics =
       (
+        sample_focus: Language.Sample.Focus.t,
         statics: Statics.Map.t,
         inference: Inference.SolutionMap.t,
         dynamics: Dynamics.Map.t,
@@ -87,16 +97,23 @@ module ShapeMapSemantics = {
       )
       : ProjectorCore.Shape.t => {
     let (module P) = ProjectorInit.to_module(p.kind);
-    P.placeholder(p.model, mk_info(p, ~statics, ~inference, ~dynamics));
+    P.placeholder(
+      p.model,
+      mk_info(p, ~sample_focus, ~statics, ~inference, ~dynamics),
+    );
   };
 
   let mk =
       (
         proj_map: Id.Map.t(Base.projector),
+        refractors: ZipperBase.Refractor.t,
         statics: Statics.Map.t,
         inference: Inference.SolutionMap.t,
         dynamics: Dynamics.Map.t,
       )
       : Id.Map.t(ProjectorCore.Shape.t) =>
-    Id.Map.map(from_semantics(statics, inference, dynamics), proj_map);
+    Id.Map.map(
+      from_semantics(refractors.sample_focus, statics, inference, dynamics),
+      proj_map,
+    );
 };

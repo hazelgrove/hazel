@@ -22,6 +22,21 @@ and tile = {
 }
 and projector = ProjectorCore.t(piece);
 
+let rec map_piece = (~f_piece, x: piece) => {
+  let rec_call = (piece: piece) => {
+    switch (piece) {
+    | Tile(t) =>
+      Tile({
+        ...t,
+        children: t.children |> List.map(List.map(map_piece(~f_piece))),
+      })
+    | Grout(_)
+    | Secondary(_)
+    | Projector(_) => piece
+    };
+  };
+  x |> f_piece(rec_call);
+};
 /* If the piece is parentheses, return the child. Otherwise,
  * return a singleton segment consisting of the piece */
 let unparenthesize = (piece: piece): segment =>
@@ -36,19 +51,49 @@ let unparenthesize = (piece: piece): segment =>
   };
 
 let rec segment_to_string =
-        (~holes=" ", ~concave_holes=" ", ~projector_to_segment, seg: segment)
-        : string =>
+        (
+          ~holes=" ",
+          ~concave_holes=" ",
+          ~refractors: list((Id.t, _))=[],
+          ~refractor_seg_to_seg:
+             (list((Id.t, _)), segment) => (list((Id.t, _)), segment),
+          ~projector_to_segment,
+          seg: segment,
+        )
+        : string => {
+  let (refractors, seg) = refractor_seg_to_seg(refractors, seg);
   seg
   |> List.map(
-       piece_to_string(~holes, ~concave_holes, ~projector_to_segment),
+       piece_to_string(
+         ~holes,
+         ~concave_holes,
+         ~refractors,
+         ~refractor_seg_to_seg,
+         ~projector_to_segment,
+       ),
      )
-  |> String.concat("")
+  |> String.concat("");
+}
 and piece_to_string =
-    (~holes: string, ~concave_holes: string, ~projector_to_segment, p: piece)
+    (
+      ~holes: string,
+      ~concave_holes: string,
+      ~refractors: list((Id.t, _)),
+      ~refractor_seg_to_seg,
+      ~projector_to_segment,
+      p: piece,
+    )
     : string =>
   switch (p) {
   | Tile(t) =>
-    tile_to_string(~holes, ~concave_holes, ~projector_to_segment, t)
+    tile_to_string(
+      ~holes,
+      ~concave_holes,
+      ~refractors,
+      ~refractor_seg_to_seg,
+      ~projector_to_segment,
+      t,
+    )
   | Grout({shape: Concave, _}) => concave_holes
   | Grout({shape: Convex, _}) => holes
   | Secondary(w) => Secondary.get_string(w.content)
@@ -56,16 +101,31 @@ and piece_to_string =
     segment_to_string(
       ~holes,
       ~concave_holes,
+      ~refractors,
+      ~refractor_seg_to_seg,
       ~projector_to_segment,
       projector_to_segment(p),
     )
   }
 and tile_to_string =
-    (~holes: string, ~concave_holes: string, ~projector_to_segment, t: tile)
+    (
+      ~holes: string,
+      ~concave_holes: string,
+      ~refractors: list((Id.t, _)),
+      ~refractor_seg_to_seg,
+      ~projector_to_segment,
+      t: tile,
+    )
     : string =>
   Aba.mk(t.shards, t.children)
   |> Aba.join(
        List.nth(t.label),
-       segment_to_string(~holes, ~concave_holes, ~projector_to_segment),
+       segment_to_string(
+         ~holes,
+         ~concave_holes,
+         ~refractors,
+         ~refractor_seg_to_seg,
+         ~projector_to_segment,
+       ),
      )
   |> String.concat("");

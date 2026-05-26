@@ -1,0 +1,168 @@
+name: Performance Benchmarks
+
+on:
+  issue_comment:
+    types: [created]
+
+jobs:
+  benchmark:
+    # Only run on PR comments containing /perf
+    if: >
+      github.event.issue.pull_request &&
+      contains(github.event.comment.body, '/perf')
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+      contents: read
+
+    steps:
+      - name: Post in-progress comment
+        id: status_comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const { data: comment } = await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: `## Performance Benchmarks\n\n:hourglass_flowing_sand: Running... [View workflow](${runUrl})`
+            });
+            core.setOutput('comment_id', comment.id);
+
+      - name: Get PR details
+        id: pr
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number
+            });
+            core.setOutput('head_ref', pr.data.head.ref);
+            core.setOutput('head_sha', pr.data.head.sha);
+            core.setOutput('base_ref', pr.data.base.ref);
+            core.setOutput('base_sha', pr.data.base.sha);
+
+      # --- Checkout both branches (head first for cache key) ---
+      - name: Checkout PR branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.pr.outputs.head_sha }}
+          path: head
+
+      - name: Checkout base branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.pr.outputs.base_sha }}
+          path: base
+
+      # --- Toolchain setup ---
+      - name: Install node/npm
+        uses: actions/setup-node@v4
+        with:
+          node-version: "latest"
+
+      - name: Set-up OCaml
+        uses: ocaml/setup-ocaml@v3
+        with:
+          ocaml-compiler: 5.2.0
+          dune-cache: true
+
+      # Cache the opam switch keyed on head's lockfile for exact hit on re-runs.
+      # Restore-keys provide warm starts:
+      #   1. Base lockfile match — reuses cache from any PR that didn't change deps
+      #      (or a previous PR whose head had the same lockfile as this base).
+      #   2. Any previous opam cache — last resort fallback when base deps changed.
+      # opam install runs for each branch regardless and is a no-op when deps
+      # are already satisfied, so partial cache hits just reduce install time.
+      #
+      # Scenarios:
+      #   Same PR re-run / new PR with same deps  → exact hit, no install
+      #   New PR that adds a dep                   → warm start from base cache
+      #   Base branch updated deps                 → warm start from any old cache
+      #   First run ever                           → cold install
+      - name: Cache opam switch
+        uses: actions/cache@v4
+        with:
+          path: _opam
+          key: ${{ runner.os }}-opam-${{ hashFiles('./head/hazel.opam.locked') }}
+          restore-keys: |
+            ${{ runner.os }}-opam-${{ hashFiles('./base/hazel.opam.locked') }}
+            ${{ runner.os }}-opam-
+
+      - name: Add opam repository archive
+        run: |
+          eval $(opam env)
+          export OPAMYES=1
+          opam repo add archive git+https://github.com/ocaml/opam-repository-archive
+
+      # --- Benchmark the base branch ---
+      # Use head's benchmark harness for base if base doesn't have one.
+      # This lets us get base numbers even before bench/ is merged.
+      # If head's benchmarks reference APIs that don't exist on base,
+      # the build fails gracefully (continue-on-error) and results show as "new".
+      - name: Copy benchmark harness to base (if missing)
+        run: |
+          if [ ! -d base/bench ]; then
+            cp -r head/bench base/bench
+          fi
+
+      - name: Setup zarith (base)
+        run: opam exec -- make setup-zarith
+        working-directory: ./base
+        continue-on-error: true
+
+      - name: Build and run benchmarks (base)
+        run: |
+          npm install
+          bash bench/build-and-run.sh > ../base_results.json
+        working-directory: ./base
+        continue-on-error: true
+
+      # --- Benchmark the PR branch ---
+      - name: Setup zarith (head)
+        run: opam exec -- make setup-zarith
+        working-directory: ./head
+
+      - name: Build and run benchmarks (head)
+        run: |
+          npm install
+          bash bench/build-and-run.sh > ../head_results.json
+        working-directory: ./head
+
+      # --- Compare and post results ---
+      - name: Compare results and post comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const { execSync } = require('child_process');
+
+            const baseSha = '${{ steps.pr.outputs.base_sha }}'.slice(0, 7);
+            const headSha = '${{ steps.pr.outputs.head_sha }}'.slice(0, 7);
+            const baseRef = '${{ steps.pr.outputs.base_ref }}';
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+
+            let body = `## Performance Benchmark Results\n\n`;
+            body += `**Base:** \`${baseRef}\` @ [\`${baseSha}\`](../commit/${baseSha})\n`;
+            body += `**PR:** [\`${headSha}\`](../commit/${headSha})\n\n`;
+
+            try {
+              const table = execSync(
+                'node head/bench/compare.js base_results.json head_results.json --markdown',
+                { encoding: 'utf8' }
+              );
+              body += table;
+            } catch (e) {
+              body += `:x: Comparison failed. Check the [workflow log](${runUrl}).\n\n`;
+              body += `\`\`\`\n${e.stderr || e.message}\n\`\`\``;
+            }
+
+            await github.rest.issues.updateComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: ${{ steps.status_comment.outputs.comment_id }},
+              body: body
+            });
