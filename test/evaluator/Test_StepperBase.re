@@ -74,6 +74,7 @@ let mk_test_step =
   hidden: Calc.Pending,
   proof_validity: Calc.Pending,
   editor_info_map: Calc.Pending,
+  export_warning: None,
 };
 
 // Helper constructors for InductionCase

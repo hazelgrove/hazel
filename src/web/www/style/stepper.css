@@ -36,6 +36,19 @@
   gap: 0.5em;
 }
 
+.stepper-export-controls {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.5em;
+  padding: 0.5em 0.5em 0.5em 1.2em;
+  border-top: 1px dotted var(--cell-result-border);
+}
+
+.stepper-export-warning {
+  color: var(--warning-hole-stroke);
+}
+
 .induction-scrut {
   display: flex;
   flex-direction: row;

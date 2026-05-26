@@ -28,6 +28,7 @@ and step_model = {
   hidden: Calc.saved(bool),
   proof_validity: Calc.saved(option(bool)),
   editor_info_map: Calc.saved(Statics.Map.t),
+  export_warning: option(string),
 };
 
 let init_step = {
@@ -38,6 +39,7 @@ let init_step = {
   hidden: Calc.Pending,
   proof_validity: Calc.Pending,
   editor_info_map: Calc.Pending,
+  export_warning: None,
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -598,6 +600,7 @@ and Stepper: {
     hidden: Calc.Pending,
     proof_validity: Calc.Pending,
     editor_info_map: Calc.Pending,
+    export_warning: None,
   };
 
   let rec persist = (model: model): persistent => {
@@ -616,6 +619,7 @@ and Stepper: {
       hidden: Calc.Pending,
       proof_validity: Calc.Pending,
       editor_info_map: Calc.Pending,
+      export_warning: None,
     };
   };
 
@@ -679,19 +683,20 @@ and Stepper: {
     };
   };
 
-  let export_coq = (first_step: step_model) => {
-    let rec all_steps_of_step = (step: step_model) =>
-      switch (step.next_step) {
-      | None => []
-      | Some(next_step) =>
-        switch (Calc.get_saved_exc(step.expr) |> Exp.term_of) {
-        | Fun(_, _, _, _) => all_steps_of_step(next_step)
-        | _ => [step, ...all_steps_of_step(next_step)]
-        }
-      };
-    let steps = all_steps_of_step(first_step);
+  let rec coq_export_steps = (step: step_model) =>
+    switch (step.next_step) {
+    | None => []
+    | Some(next_step) =>
+      switch (Calc.get_saved_exc(step.expr) |> Exp.term_of) {
+      | Fun(_, _, _, _) => coq_export_steps(next_step)
+      | _ => [step, ...coq_export_steps(next_step)]
+      }
+    };
+
+  let export_coq = (first_step: step_model): option(string) => {
+    let steps = coq_export_steps(first_step);
     if (List.length(steps) == 0) {
-      "Not exporting proof with no steps";
+      None;
     } else {
       let first_exp = Calc.get_saved_exc(List.nth(steps, 0).expr);
       let unique_vars = CoqExport.unique_vars_in_ast(first_exp);
@@ -719,15 +724,17 @@ and Stepper: {
       | Some(next) =>
         let final_expr =
           CoqExport.string_of_d(next.expr |> Calc.get_saved_exc);
-        Printf.sprintf(
-          "From Stdlib Require Import ZArith.\nOpen Scope Z_scope.\n%s\nTheorem equiv_exp:%s%s=%s.\nProof.\nintros.\n%s\nreflexivity. Qed.",
-          String.concat("\n", lemmas),
-          forall_str,
-          final_expr,
-          first_expr,
-          String.concat("\n", invocations),
+        Some(
+          Printf.sprintf(
+            "From Stdlib Require Import ZArith.\nOpen Scope Z_scope.\n%s\nTheorem equiv_exp:%s%s=%s.\nProof.\nintros.\n%s\nreflexivity. Qed.",
+            String.concat("\n", lemmas),
+            forall_str,
+            final_expr,
+            first_expr,
+            String.concat("\n", invocations),
+          ),
         );
-      | None => ""
+      | None => None
       };
     };
   };
@@ -738,13 +745,26 @@ and Stepper: {
     Updated.(
       switch (action, model.step_kind, model.next_step) {
       | (CoqExport, _, _) =>
-        let coq_data = export_coq(model);
-        JsUtil.download_string_file(
-          ~filename="stepper_coq_export.v",
-          ~content_type="text/plain",
-          ~contents=coq_data,
-        );
-        model |> return_quiet;
+        switch (export_coq(model)) {
+        | Some(coq_data) =>
+          JsUtil.download_string_file(
+            ~filename="stepper_coq_export.v",
+            ~content_type="text/plain",
+            ~contents=coq_data,
+          );
+          {
+            ...model,
+            export_warning: None,
+          }
+          |> return_quiet;
+        | None =>
+          {
+            ...model,
+            export_warning:
+              Some("Cannot export Coq proof: this proof has no steps."),
+          }
+          |> return_quiet
+        }
       | (EditorAction(ea), _, _) =>
         switch (model.editor) {
         | Calc.Pending => model |> raise_invalid_action
@@ -879,6 +899,7 @@ and Stepper: {
               hidden,
               proof_validity,
               editor_info_map: info_map,
+              export_warning,
             }: step_model,
           )
           : (step_model, Calc.t(Exp.t), Calc.t(option(bool))) => {
@@ -966,6 +987,7 @@ and Stepper: {
         hidden: hidden |> Calc.save,
         proof_validity: proof_validity |> Calc.save,
         editor_info_map: info_map |> Calc.save,
+        export_warning,
       },
       last_expr,
       proof_validity,
@@ -1177,16 +1199,6 @@ and Stepper: {
             ~undo,
             model.step_kind,
           );
-        let export_control =
-          is_toplevel && is_last_step
-            ? [
-              Widgets.button(
-                Icons.export,
-                _ => inject(CoqExport),
-                ~tooltip="Export steps as Coq proof",
-              ),
-            ]
-            : [];
         let step_content =
           StepKind.view_content(
             ~globals,
@@ -1214,8 +1226,7 @@ and Stepper: {
                   div_c("equiv", [Node.text("≡")]),
                   div_c("step-output", [editor]),
                   justification,
-                ]
-                @ export_control,
+                ],
               ),
             ]
             @ step_content,
@@ -1258,6 +1269,29 @@ and Stepper: {
         ~is_toplevel: bool,
         root_step,
       ) => {
+    let export_controls = [
+      WebUtil.div_c(
+        "stepper-export-controls",
+        [
+          Widgets.button(
+            Icons.export,
+            _ => inject(CoqExport),
+            ~tooltip="Export steps as Coq proof",
+          ),
+        ]
+        @ (
+          switch (root_step.export_warning) {
+          | Some(message) => [
+              WebUtil.div_c(
+                "stepper-export-warning",
+                [WebUtil.Node.text(message)],
+              ),
+            ]
+          | None => []
+          }
+        ),
+      ),
+    ];
     WebUtil.[
       Node.div(
         ~attrs=[Attr.classes(["stepper", "cell-result"])],
@@ -1270,7 +1304,8 @@ and Stepper: {
           ~is_toplevel,
           ~undo=None,
           root_step,
-        ),
+        )
+        @ export_controls,
       ),
     ];
   };
