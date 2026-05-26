@@ -1,11 +1,9 @@
 // Slide.re: address documentation slides by name and serialize back to .ml.
 //
-// All documentation slides are already linked into the binary via
-// `Web.Init.documentation_slides : list((string, PersistentSegment.t))`. The
-// CLI looks them up by name rather than re-parsing the source .ml files.
-// Encoding round-trips through PersistentSegment.persist + a hand-rolled
-// emitter for the `let out : ... PersistentSegment.t = (...)` module form
-// the slide source files use.
+// Round-trip logic (text rendering, parsing back, implicit-hole stripping)
+// lives in `Haz3lcore.TextRoundtrip`. This module is the thin CLI-facing
+// shim that resolves slides by name and emits the `let out : ... PersistentSegment.t`
+// module form the slide source files use.
 
 open Haz3lcore;
 
@@ -32,19 +30,9 @@ let find = (name: string): option(slide) =>
        }
      );
 
-// Render the slide's program as plaintext, emitting `^^probe(...)` /
-// `^^statics(...)` trigger syntax for manual refractors so the text is a
-// faithful, reparseable representation of the slide.
-let slide_to_text = (slide: slide): string => {
-  let z = PersistentSegment.restore(slide.persisted);
-  let segment = Zipper.unselect_and_zip(~erase_buffer=true, z);
-  Printer.of_segment(
-    ~holes="?",
-    ~indent=" ",
-    ~refractors=z.refractors.manuals,
-    segment,
-  );
-};
+let slide_to_text =
+    (~implicit_hole=TextRoundtrip.default_implicit_hole, slide: slide): string =>
+  TextRoundtrip.to_text(~implicit_hole, slide.persisted);
 
 let escape_for_ocaml = (s: string): string => {
   let buf = Buffer.create(String.length(s) + 16);
@@ -74,14 +62,17 @@ let render_slide_file = (slide: slide): string => {
   );
 };
 
-// Build a slide from plaintext. Refractors carried in the text via
-// `^^probe(...)` / `^^statics(...)` trigger syntax are reconstructed by the
-// parser's Triggers module on insertion and end up on the resulting zipper.
-let text_to_slide = (~title: string, text: string): slide =>
-  switch (Parser.to_zipper(~root=Exp, text)) {
+let text_to_slide =
+    (
+      ~implicit_hole=TextRoundtrip.default_implicit_hole,
+      ~title: string,
+      text: string,
+    )
+    : slide =>
+  switch (TextRoundtrip.persist_from_text(~implicit_hole, ~root=Exp, text)) {
   | None => failwith("slide: failed to parse program text")
-  | Some(z) => {
+  | Some(persisted) => {
       title,
-      persisted: PersistentSegment.persist(z),
+      persisted,
     }
   };

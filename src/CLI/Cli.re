@@ -29,12 +29,13 @@ let strip_leading_whitespace = (s: string): string => {
   String.concat("\n", stripped);
 };
 
-let format_hazel = (width, path) => {
+let format_hazel = (implicit_hole: string, width, path) => {
   let program = read_input(path) |> strip_leading_whitespace;
   /* Parse to a zipper (not just a segment) so we recover manual refractors
      produced by `^^probe(...)` / `^^statics(...)` triggers in the input.
      The refractors are then passed to Printer.of_segment so they round-trip
-     back to their trigger syntax. */
+     back to their trigger syntax. Both convex and concave Grout are rendered
+     with `implicit_hole` so the marker survives a decode|format|encode pipe. */
   switch (Haz3lcore.Parser.to_zipper(~root=Exp, program)) {
   | None => failwith("Failed to parse: " ++ path)
   | Some(zipper) =>
@@ -43,7 +44,8 @@ let format_hazel = (width, path) => {
     let pretty_seg = Haz3lcore.PrettySegment.prettify(~width, segment);
     let output =
       Haz3lcore.Printer.of_segment(
-        ~holes="?",
+        ~holes=implicit_hole,
+        ~concave_holes=implicit_hole,
         ~indent=" ",
         ~refractors=zipper.refractors.manuals,
         pretty_seg,
@@ -554,6 +556,19 @@ let run_cmd = {
   Cmd.v(info, Term.(const(run_hazel) $ input_arg));
 };
 
+let implicit_hole_arg = {
+  let doc =
+    "Character used to render implicit holes (Grout) in output. "
+    ++ "Default is `¿` (U+00BF), a single non-identifier, non-operator "
+    ++ "token that round-trips through `format` and is recognised by "
+    ++ "`slide-encode` so Grout positions are recovered on re-parse.";
+  Arg.(
+    value
+    & opt(string, Haz3lcore.TextRoundtrip.default_implicit_hole)
+    & info(["implicit-hole"], ~docv="CHAR", ~doc)
+  );
+};
+
 let format_cmd = {
   let doc = {|
     Pretty-prints Hazel code, inserting line breaks to fit within a target
@@ -565,7 +580,10 @@ let format_cmd = {
     Arg.(value & opt(int, 60) & info(["w", "width"], ~doc));
   };
   let info = Cmd.info("format", ~doc);
-  Cmd.v(info, Term.(const(format_hazel) $ width_arg $ input_arg));
+  Cmd.v(
+    info,
+    Term.(const(format_hazel) $ implicit_hole_arg $ width_arg $ input_arg),
+  );
 };
 
 let analyze_cmd = {
@@ -646,8 +664,12 @@ let grade_report_cmd = {
    of slides is the one statically linked into the binary by Web.Init, so
    no on-disk .ml parsing is needed.
      * slide-list   - print every available slide name
-     * slide-decode - print one slide's plaintext (^^probe trigger syntax)
-     * slide-encode - rebuild a slide .ml from a title + plaintext
+     * slide-decode - print one slide's plaintext (Grout rendered as the
+                      `--implicit-hole` marker, default `¿`; refractors
+                      and projectors as their `^^…(...)` trigger syntax)
+     * slide-encode - rebuild a slide .ml from a title + plaintext;
+                      `--implicit-hole` markers are stripped via Destruct
+                      and Grout is reinserted by remold/regrout
    Every other transformation (prettify, suppress warnings, analyze) is done
    generically on plaintext via `hazel format` / `hazel analyze` / etc. */
 
@@ -676,24 +698,39 @@ let slide_list_cmd = {
   Cmd.v(info, Term.(const(slide_list) $ const()));
 };
 
-let slide_decode = (name: string): unit => {
+let slide_decode = (implicit_hole: string, name: string): unit => {
   let slide = lookup_slide_or_die(name);
-  print_endline(Slide.slide_to_text(slide));
+  /* `print_string`, not `print_endline`: the slide text already preserves
+   * its trailing newlines; an extra `\n` would re-enter on re-parse as a
+   * Secondary whitespace piece, breaking the CLI round-trip fixed-point
+   * even though the core TextRoundtrip is fixed-point. */
+  print_string(Slide.slide_to_text(~implicit_hole, slide));
 };
 
 let slide_decode_cmd = {
   let doc =
     "Print a named slide's program as plaintext. Manual refractors are "
     ++ "rendered with `^^probe(...)` / `^^statics(...)` trigger syntax so the "
-    ++ "output is reparseable.";
+    ++ "output is reparseable. Implicit holes (Grout) are rendered with "
+    ++ "`--implicit-hole` (default `¿`) so `slide-encode` can identify and "
+    ++ "strip them when round-tripping.";
   let info = Cmd.info("slide-decode", ~doc);
-  Cmd.v(info, Term.(const(slide_decode) $ slide_name_arg));
+  Cmd.v(
+    info,
+    Term.(const(slide_decode) $ implicit_hole_arg $ slide_name_arg),
+  );
 };
 
 let slide_encode =
-    (title: string, text_path: string, output: option(string)): unit => {
+    (
+      implicit_hole: string,
+      title: string,
+      text_path: string,
+      output: option(string),
+    )
+    : unit => {
   let text = read_input(text_path);
-  let slide = Slide.text_to_slide(~title, text);
+  let slide = Slide.text_to_slide(~implicit_hole, ~title, text);
   let rendered = Slide.render_slide_file(slide);
   switch (output) {
   | None => print_string(rendered)
@@ -708,7 +745,10 @@ let slide_encode_cmd = {
   let doc =
     "Build a slide .ml file from a title and a Hazel plaintext program. "
     ++ "Refractors written as `^^probe(...)` / `^^statics(...)` in the input "
-    ++ "are rebuilt by the parser's trigger module on insertion.";
+    ++ "are rebuilt by the parser's trigger module on insertion. "
+    ++ "Markers matching `--implicit-hole` (default `¿`) are removed via "
+    ++ "Destruct, letting the parser's remold/regrout pass reinsert Grout "
+    ++ "in the canonical position.";
   let title_arg = {
     let doc = "Slide title (the first element of the persisted tuple).";
     Arg.(
@@ -726,7 +766,13 @@ let slide_encode_cmd = {
   let info = Cmd.info("slide-encode", ~doc);
   Cmd.v(
     info,
-    Term.(const(slide_encode) $ title_arg $ text_arg $ output_arg),
+    Term.(
+      const(slide_encode)
+      $ implicit_hole_arg
+      $ title_arg
+      $ text_arg
+      $ output_arg
+    ),
   );
 };
 

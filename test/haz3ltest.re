@@ -49,6 +49,7 @@ let (suite, _) =
     ]
     @ Test_Introduce.tests
     @ Test_ReparseDocSlides.tests
+    @ Test_TextRoundtrip.tests
     @ Test_MatchExp.tests
     @ Test_RefractorSerialization.tests
     @ [
