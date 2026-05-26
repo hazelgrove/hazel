@@ -1,3 +1,7 @@
+/* Structural reparse check: parse(slide.backup_text) ≡ original segment.
+ * Complements Test_TextRoundtrip's text fixed-point — segment equality
+ * catches shape divergences that the text projection would hide. */
+
 open Web;
 open Alcotest;
 open Haz3lcore;
