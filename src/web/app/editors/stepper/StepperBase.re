@@ -29,6 +29,7 @@ and step_model = {
   hidden: Calc.saved(bool),
   proof_validity: Calc.saved(option(bool)),
   editor_info_map: Calc.saved(Statics.Map.t),
+  export_warning: option(string),
 };
 
 let init_step = {
@@ -39,6 +40,7 @@ let init_step = {
   hidden: Calc.Pending,
   proof_validity: Calc.Pending,
   editor_info_map: Calc.Pending,
+  export_warning: None,
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -76,7 +78,8 @@ and step_action =
   | AddForall
   | AddAxiomStep(string, int, Exp.t, Direction.t, string)
   | AddAlgebriteStep(int, Exp.t, Exp.t)
-  | AddWrittenStep(string, int, Exp.t, Exp.t);
+  | AddWrittenStep(string, int, Exp.t, Exp.t)
+  | CoqExport;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type step_kind_focus =
@@ -659,6 +662,7 @@ and Stepper: {
     hidden: Calc.Pending,
     proof_validity: Calc.Pending,
     editor_info_map: Calc.Pending,
+    export_warning: None,
   };
 
   let rec persist = (model: model): persistent => {
@@ -677,6 +681,7 @@ and Stepper: {
       hidden: Calc.Pending,
       proof_validity: Calc.Pending,
       editor_info_map: Calc.Pending,
+      export_warning: None,
     };
   };
 
@@ -686,11 +691,136 @@ and Stepper: {
          ~print="get_validity called before calculate on stepper",
        );
 
+  let coq_tactic_for_axiom = name =>
+    switch (name) {
+    | "Iden(+)L" => "rewrite Z.add_0_l"
+    | "Iden(+)R" => "rewrite Z.add_0_r"
+    | "Iden(*)L" => "rewrite Z.mul_1_l"
+    | "Iden(*)R" => "rewrite Z.mul_1_r"
+    | "Zero(*)L" => "rewrite Z.mul_0_l"
+    | "Zero(*)R" => "rewrite Z.mul_0_r"
+    | "Comm(+)" => "rewrite Z.add_comm"
+    | "Assoc(+)" => "rewrite Z.add_assoc"
+    | "Comm(*)" => "rewrite Z.mul_comm"
+    | "Assoc(*)" => "rewrite Z.mul_assoc"
+    | _ => "cbv"
+    };
+
+  let single_step_export = (ind, step: step_model, forall_str) => {
+    let old_fragment = CoqExport.string_of_d(step.expr |> Calc.get_saved_exc);
+    switch (step.next_step) {
+    | Some(next) =>
+      let new_fragment =
+        CoqExport.string_of_d(next.expr |> Calc.get_saved_exc);
+      let old_expr = CoqExport.string_of_d(step.expr |> Calc.get_saved_exc);
+      let new_expr = CoqExport.string_of_d(next.expr |> Calc.get_saved_exc);
+      let rewrite_index =
+        switch (step.step_kind) {
+        | SingleStep(single_step) =>
+          CoqExport.index_of_like_terms(
+            EvaluatorStep.get_step_ctx(
+              single_step.evalobj |> Calc.get_saved_exc,
+            ),
+            next.expr |> Calc.get_saved_exc,
+          )
+        | _ => 1
+        };
+      Printf.sprintf(
+        "Lemma equiv_exp%d:%s%s = %s.\nProof.\nintros.\ncut (%s=%s).\n- intros. rewrite <- H at %d. reflexivity.\n- intros. ring.\nQed.",
+        ind,
+        forall_str,
+        new_expr,
+        old_expr,
+        old_fragment,
+        new_fragment,
+        rewrite_index,
+      );
+    | None => ""
+    };
+  };
+
+  let rec coq_export_steps = (step: step_model) =>
+    switch (step.next_step) {
+    | None => []
+    | Some(next_step) =>
+      switch (Calc.get_saved_exc(step.expr) |> Exp.term_of) {
+      | Fun(_, _, _, _) => coq_export_steps(next_step)
+      | _ => [step, ...coq_export_steps(next_step)]
+      }
+    };
+
+  let export_coq = (first_step: step_model): option(string) => {
+    let steps = coq_export_steps(first_step);
+    if (List.length(steps) == 0) {
+      None;
+    } else {
+      let first_exp = Calc.get_saved_exc(List.nth(steps, 0).expr);
+      let unique_vars = CoqExport.unique_vars_in_ast(first_exp);
+      let forall_str =
+        switch (unique_vars) {
+        | [] => ""
+        | vars => "forall " ++ String.concat(" ", vars) ++ ","
+        };
+      let lemmas_and_invocations =
+        List.mapi(
+          (ind, step) =>
+            (
+              single_step_export(List.length(steps) - ind, step, forall_str),
+              Printf.sprintf(
+                "rewrite <- equiv_exp%d.",
+                List.length(steps) - ind,
+              ),
+            ),
+          steps,
+        );
+      let (lemmas, invocations) = List.split(lemmas_and_invocations);
+      let first_expr = CoqExport.string_of_d(first_exp);
+      let last_step = List.nth(steps, List.length(steps) - 1);
+      switch (last_step.next_step) {
+      | Some(next) =>
+        let final_expr =
+          CoqExport.string_of_d(next.expr |> Calc.get_saved_exc);
+        Some(
+          Printf.sprintf(
+            "From Stdlib Require Import ZArith Lia.\nOpen Scope Z_scope.\n%s\nTheorem equiv_exp:%s%s=%s.\nProof.\nintros.\n%s\nreflexivity. Qed.",
+            String.concat("\n", lemmas),
+            forall_str,
+            final_expr,
+            first_expr,
+            String.concat("\n", invocations),
+          ),
+        );
+      | None => None
+      };
+    };
+  };
+
   let rec update =
           (~settings, action: step_action, model: step_model)
           : Updated.t(step_model) => {
     Updated.(
       switch (action, model.step_kind, model.next_step) {
+      | (CoqExport, _, _) =>
+        switch (export_coq(model)) {
+        | Some(coq_data) =>
+          JsUtil.download_string_file(
+            ~filename="stepper_coq_export.v",
+            ~content_type="text/plain",
+            ~contents=coq_data,
+          );
+          {
+            ...model,
+            export_warning: None,
+          }
+          |> return_quiet;
+        | None =>
+          {
+            ...model,
+            export_warning:
+              Some("Cannot export Coq proof: this proof has no steps."),
+          }
+          |> return_quiet
+        }
       | (EditorAction(ea), _, _) =>
         switch (model.editor) {
         | Calc.Pending => model |> raise_invalid_action
@@ -825,6 +955,7 @@ and Stepper: {
     | AddAxiomStep(_) => true
     | AddAlgebriteStep(_) => true
     | AddWrittenStep(_) => true
+    | CoqExport => false
     | StepKindAction(action) => StepKind.can_undo(action)
     };
   };
@@ -843,6 +974,7 @@ and Stepper: {
               hidden,
               proof_validity,
               editor_info_map: info_map,
+              export_warning,
             }: step_model,
           )
           : (step_model, Calc.t(Exp.t), Calc.t(option(bool))) => {
@@ -930,6 +1062,7 @@ and Stepper: {
         hidden: hidden |> Calc.save,
         proof_validity: proof_validity |> Calc.save,
         editor_info_map: info_map |> Calc.save,
+        export_warning,
       },
       last_expr,
       proof_validity,
@@ -1217,6 +1350,29 @@ and Stepper: {
         ~is_toplevel: bool,
         root_step,
       ) => {
+    let export_controls = [
+      WebUtil.div_c(
+        "stepper-export-controls",
+        [
+          Widgets.button(
+            Icons.export,
+            _ => inject(CoqExport),
+            ~tooltip="Export steps as Coq proof",
+          ),
+        ]
+        @ (
+          switch (root_step.export_warning) {
+          | Some(message) => [
+              WebUtil.div_c(
+                "stepper-export-warning",
+                [WebUtil.Node.text(message)],
+              ),
+            ]
+          | None => []
+          }
+        ),
+      ),
+    ];
     WebUtil.[
       Node.div(
         ~attrs=[Attr.classes(["stepper", "cell-result"])],
@@ -1229,7 +1385,8 @@ and Stepper: {
           ~is_toplevel,
           ~undo=None,
           root_step,
-        ),
+        )
+        @ export_controls,
       ),
     ];
   };

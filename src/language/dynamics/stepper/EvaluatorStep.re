@@ -423,6 +423,8 @@ let get_step_id = (step: step): Id.t => step.d_loc |> DHExp.rep_id;
 
 let get_step_kind = (step: step): step_kind => step.knd;
 
+let get_step_ctx = (step: step): EvalCtx.t => step.ctx;
+
 let take_step = (step: EvalObj.t) => {
   let+ next_expr = take_step(step.env, step.d_loc);
   let next_expr = {
