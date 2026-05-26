@@ -49,7 +49,8 @@ let has_structural =
     (p: ProblemCollection.problem) =>
       switch (p.source) {
       | Structural(d) => d == desc
-      | FromInfo(_) => false
+      | FromInfo(_)
+      | FromProjector(_) => false
       },
     problems,
   );
@@ -445,6 +446,39 @@ let make_aggregates_counts_across_groups = () => {
   );
 };
 
+let projector_error_collection = () => {
+  /* Synthesize a projector error in the problem context and verify it
+   * surfaces as a Projector-category problem. */
+  let (ctx, _) = from_string_exn("1");
+  let err: Haz3lcore.ProjectorBase.error = {message: "synthetic error"};
+  let fake_id = Haz3lcore.Id.mk();
+  let ctx_with_err = {
+    ...ctx,
+    projector_errors: [(fake_id, Language.ProjectorKind.Fold, err)],
+  };
+  let problems =
+    Haz3lcore.ProblemCollection.collect_all_problems(ctx_with_err);
+  check(
+    int,
+    "one projector-category problem",
+    1,
+    count_by_category(Projector, problems),
+  );
+  check(
+    bool,
+    "problem source is FromProjector",
+    true,
+    List.exists(
+      (p: Haz3lcore.ProblemCollection.problem) =>
+        switch (p.source) {
+        | FromProjector(_, e) => e.message == "synthetic error"
+        | _ => false
+        },
+      problems,
+    ),
+  );
+};
+
 let collect_cases = [
   test_case("Clean program has no errors", `Quick, clean_program),
   test_case("Juxtaposed literals", `Quick, juxtaposed_literals),
@@ -452,6 +486,11 @@ let collect_cases = [
   test_case("Incomplete tile", `Quick, incomplete_tile),
   test_case("Trailing unbound var", `Quick, trailing_unbound_var),
   test_case("Trailing var after let", `Quick, trailing_var_after_let),
+  test_case(
+    "Projector errors surface as problems",
+    `Quick,
+    projector_error_collection,
+  ),
 ];
 
 let nearest_measured_id_cases = [

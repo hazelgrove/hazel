@@ -222,6 +222,8 @@ let problem_row =
     | Structural(desc) =>
       span(~attrs=[clss(["problem-description"])], [text(desc)])
     | FromInfo(ci) => problem_status_view(~globals, ci)
+    | FromProjector(_, {message}) =>
+      span(~attrs=[clss(["problem-description"])], [text(message)])
     };
   row_view(
     ~globals,
