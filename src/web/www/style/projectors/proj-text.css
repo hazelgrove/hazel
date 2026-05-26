@@ -39,18 +39,18 @@
   color: var(--SAND);
   background: repeating-linear-gradient(
     var(--NONE),
-    var(--NONE) 1.41em,
-    var(--textarea-h-stripe) 1.41em,
-    var(--textarea-h-stripe) 1.47em /* line-height */
+    var(--NONE) calc((var(--line-height) - 0.06) * 1em),
+    var(--textarea-h-stripe) calc((var(--line-height) - 0.06) * 1em),
+    var(--textarea-h-stripe) calc(var(--line-height) * 1em) /* line-height */
   );
 }
 
 .projector.text.selected .cols {
   background: repeating-linear-gradient(
     var(--NONE),
-    var(--NONE) 1.41em,
-    var(--textarea-h-strip-selected) 1.41em,
-    var(--textarea-h-strip-selected) 1.47em /* line-height */
+    var(--NONE) calc((var(--line-height) - 0.06) * 1em),
+    var(--textarea-h-strip-selected) calc((var(--line-height) - 0.06) * 1em),
+    var(--textarea-h-strip-selected) calc(var(--line-height) * 1em) /* line-height */
   );
 }
 .projector.text.selected > svg {

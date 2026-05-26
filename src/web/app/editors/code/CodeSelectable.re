@@ -11,7 +11,6 @@ module Update = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     | Move(Action.move)
-    | Jump(Action.jump_target)
     | Select(Action.select)
     | Unselect(option(Util.Direction.t))
     | Copy;
@@ -19,7 +18,6 @@ module Update = {
   let can_undo = (action: t) => {
     switch (action) {
     | Move(move) => Action.is_historic(Move(move))
-    | Jump(target) => Action.is_historic(Jump(target))
     | Select(select) => Action.is_historic(Select(select))
     | Unselect(dir) => Action.is_historic(Unselect(dir))
     | Copy => false
@@ -30,7 +28,6 @@ module Update = {
     let action': CodeEditable.Update.t =
       switch (action) {
       | Move(move) => Perform(Move(move))
-      | Jump(target) => Perform(Jump(target))
       | Select(select) => Perform(Select(select))
       | Unselect(dir) => Perform(Unselect(dir))
       | Copy => Perform(Copy)
@@ -42,24 +39,24 @@ module Update = {
     fun
     // These actions are allowed in a CodeSelectable
     | Perform(Move(move)) => Some(Move(move))
-    | Perform(Jump(target)) => Some(Jump(target))
     | Perform(Select(select)) => Some(Select(select))
     | Perform(Unselect(dir)) => Some(Unselect(dir))
     | Perform(Copy) => Some(Copy)
 
     // These actions are not allowed in a CodeSelectable
     | Perform(
-        Destruct(_) | Insert(_) | RotateBackpack | MoveToBackpackTarget(_) |
-        Pick_up |
-        Put_down |
-        Paste(_) |
-        Reparse |
-        Cut |
+        Destruct(_) | Insert(_) | Put_down | Paste(_) | Reparse | Cut |
         Buffer(_) |
         Project(_) |
-        Introduce,
+        Structural(_) |
+        Probe(_) |
+        PrettyPrint |
+        Dump |
+        Introduce |
+        ToggleLineComment,
       )
     | DebugConsole(_)
+    | ContextMenu(_)
     | TAB => None;
 
   let calculate = CodeEditable.Update.calculate;
@@ -68,8 +65,17 @@ module Update = {
 module Selection = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = CodeEditable.Selection.t;
-  let get_cursor_info = (~selection, model) =>
-    CodeEditable.Selection.get_cursor_info(~selection, model)
+  let get_cursor_info = (~inject, ~selection, model) =>
+    CodeEditable.Selection.get_cursor_info(
+      ~inject=
+        a =>
+          switch (Update.convert_action(a)) {
+          | Some(action) => inject(action)
+          | None => Ui_effect.Ignore
+          },
+      ~selection,
+      model,
+    )
     |> (
       ci =>
         Cursor.{
@@ -78,20 +84,29 @@ module Selection = {
         }
     )
     |> Cursor.map_opt(Update.convert_action);
-  let handle_key_event =
-      (~selection, model: Model.t, key: Key.t): option(Update.t) =>
-    CodeEditable.Selection.handle_key_event(~selection, model, key)
-    |> Option.bind(_, Update.convert_action);
 };
 
 module View = {
   type event = CodeEditable.View.event;
 
-  let view = (~inject: Update.t => 'a) =>
-    CodeEditable.View.view(~inject=a =>
-      switch (Update.convert_action(a)) {
-      | Some(action) => inject(action)
-      | None => Ui_effect.Ignore
-      }
-    );
+  let wrap_edit_mode =
+      (edit_mode: EditMode.t(Update.t, unit))
+      : EditMode.t(CodeEditable.Update.t, unit) =>
+    switch (edit_mode) {
+    | ReadOnly => ReadOnly
+    | Editable({inject, escape, take_focus, focus}) =>
+      Editable({
+        inject: a =>
+          switch (Update.convert_action(a)) {
+          | Some(action) => inject(action)
+          | None => Ui_effect.Ignore
+          },
+        escape,
+        take_focus,
+        focus,
+      })
+    };
+
+  let view = (~edit_mode) =>
+    CodeEditable.View.view(~edit_mode=wrap_edit_mode(edit_mode));
 };

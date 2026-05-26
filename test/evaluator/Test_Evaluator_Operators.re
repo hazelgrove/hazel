@@ -15,5 +15,38 @@ let tests = (
     test_case("Inconsistent type ascription in subterm", `Quick, () =>
       parse_and_evaluate_test("1 + (4 : String)", {|1 + (4 : String)|})
     ),
+    test_case(
+      "Ascriptions around indet operators collapse",
+      `Quick,
+      () => {
+        parse_and_evaluate_test("x + y", "(x + y) : Int");
+        parse_and_evaluate_test("x - y", "(x - y) : Int");
+        parse_and_evaluate_test("x * y", "(x * y) : Int");
+        parse_and_evaluate_test("x ** y", "(x ** y) : Int");
+        parse_and_evaluate_test("x / y", "(x / y) : Int");
+        parse_and_evaluate_test("x < y", "(x < y) : Bool");
+        parse_and_evaluate_test("x <= y", "(x <= y) : Bool");
+        parse_and_evaluate_test("x > y", "(x > y) : Bool");
+        parse_and_evaluate_test("x >= y", "(x >= y) : Bool");
+        parse_and_evaluate_test(
+          ~ignore_dynamic_errors=true,
+          "x == y",
+          "(x == y) : Bool",
+        );
+        parse_and_evaluate_test(
+          ~ignore_dynamic_errors=true,
+          "x != y",
+          "(x != y) : Bool",
+        );
+        parse_and_evaluate_test("s1 ++ s2", "(s1 ++ s2) : String");
+        parse_and_evaluate_test("s1 +. s2", "(s1 +. s2) : Float");
+        parse_and_evaluate_test("s1 -. s2", "(s1 -. s2) : Float");
+        parse_and_evaluate_test("s1 *. s2", "(s1 *. s2) : Float");
+        parse_and_evaluate_test("s1 **. s2", "(s1 **. s2) : Float");
+        parse_and_evaluate_test("s1 /. s2", "(s1 /. s2) : Float");
+        parse_and_evaluate_test("b1 && b2", "(b1 && b2) : Bool");
+        parse_and_evaluate_test("b1 || b2", "(b1 || b2) : Bool");
+      },
+    ),
   ],
 );

@@ -12,10 +12,14 @@ let context_entry_view = (~globals, entry: Language.Ctx.entry): Node.t => {
     CodeViewable.view_typ(
       ~globals,
       ~settings={
+        secondary: AutoFormat,
+        parenthesization: Defensive,
+        label_format: QuoteWhenNecessary,
         inline: true,
         fold_case_clauses: false,
-        fold_fn_bodies: false,
+        fold_fn_bodies: `NoFold,
         hide_fixpoints: false,
+        show_ascriptions: true,
         show_filters: false,
         show_unknown_as_hole: true,
       },
@@ -68,7 +72,7 @@ let ctx_view = (~globals, ctx: Language.Ctx.t): Node.t =>
     List.map(
       context_entry_view(~globals),
       ctx
-      |> Language.Ctx.filter_duplicates
+      |> Language.Ctx.filter_shadowed
       |> Language.Ctx.filter_stepper_filter_variables
       |> (x => x.entries)
       |> List.rev,
@@ -77,7 +81,7 @@ let ctx_view = (~globals, ctx: Language.Ctx.t): Node.t =>
 
 let ctx_sorts_view = (~globals, ci: Language.Statics.Info.t) =>
   Language.Info.ctx_of(ci)
-  |> Language.Ctx.filter_duplicates
+  |> Language.Ctx.filter_shadowed
   |> Language.Ctx.filter_stepper_filter_variables
   |> (x => x.entries)
   |> List.rev

@@ -56,7 +56,7 @@ let plain_search: (string, string, int) => int =
 let to_lines = String.split_on_char('\n');
 
 let line_widths = (s: string): list(int) =>
-  s |> to_lines |> List.map(String.length);
+  s |> to_lines |> List.map(Unicode.length);
 
 let max_line_width = (s: string): int =>
   s |> line_widths |> List.fold_left(max, 0);
@@ -67,23 +67,17 @@ let num_linebreaks = (s: string) => {
   s |> String.to_seq |> Seq.filter((==)('\n')) |> Seq.length;
 };
 
-// let escape_linebreaks: string => string = replace(regexp("\n"), "\\n");
-// let unescape_linebreaks: string => string = replace(regexp("\\\\n"), "\n");
-// let trim_leading = replace(regexp("\n[ ]*"), "\n");
-
-/* WEIRD: figure out why above dont work. When they're
- * gone we can remove Re.Str entirely */
-
-let escape_linebreaks: string => string =
-  Re.Str.global_replace(Re.Str.regexp("\n"), "\\n");
+let escape_linebreaks: string => string = replace(regexp("\n"), _, "\\n");
 
 let unescape_linebreaks: string => string =
-  Re.Str.global_replace(Re.Str.regexp("\\\\n"), "\n");
+  replace(regexp("\\\\n"), _, "\n");
 
 let trim_leading = (s: string): string => {
   s
-  |> Re.Str.global_replace(Re.Str.regexp("^[ ]*"), "")  // Remove leading spaces at start
-  |> Re.Str.global_replace(Re.Str.regexp("\n[ ]*"), "\n"); // Remove leading spaces after newlines
+  |> replace(regexp("\r\n"), _, "\n")  // Normalize Windows line breaks
+  |> replace(regexp("\r"), _, "\n")  // Normalize old Mac line breaks
+  |> replace(regexp("^[ ]*"), _, "")  // Remove leading spaces at start
+  |> replace(regexp("\n[ ]*"), _, "\n"); // Remove leading spaces after newlines
 };
 
 let isEmptyOrWhitespace = str => {
@@ -127,4 +121,164 @@ let trim_trailing_whitespace = (str: string): string => {
   };
   let trimmed_lines = List.map(trim_line, lines);
   String.concat("\n", trimmed_lines);
+};
+
+let prefixes = (s: string): list(string) => {
+  let len = String.length(s);
+  let rec aux = (i: int) =>
+    if (i > len) {
+      [];
+    } else {
+      [String.sub(s, 0, i)] @ aux(i + 1);
+    };
+  if (len == 0) {
+    [""];
+  } else {
+    aux(1);
+  };
+};
+
+let levenshtein_distance = (a: string, b: string): int => {
+  let a_len = String.length(a);
+  let b_len = String.length(b);
+  if (a_len == 0) {
+    b_len;
+  } else if (b_len == 0) {
+    a_len;
+  } else {
+    let prev = Array.init(b_len + 1, i => i);
+    let curr = Array.make(b_len + 1, 0);
+    for (i in 1 to a_len) {
+      curr[0] = i;
+      let ai = a.[i - 1];
+      for (j in 1 to b_len) {
+        let bj = b.[j - 1];
+        let cost =
+          if (ai == bj) {
+            0;
+          } else {
+            1;
+          };
+        let deletion = prev[j] + 1;
+        let insertion = curr[j - 1] + 1;
+        let substitution = prev[j - 1] + cost;
+        let m =
+          if (deletion < insertion) {
+            deletion;
+          } else {
+            insertion;
+          };
+        curr[j] = (
+          if (m < substitution) {
+            m;
+          } else {
+            substitution;
+          }
+        );
+      };
+      for (k in 0 to b_len) {
+        prev[k] = curr[k];
+      };
+    };
+    prev[b_len];
+  };
+};
+
+/* Compute edit distance between two lists of strings using the Levenshtein algorithm */
+let levenshtein_list_distance = (a: list(string), b: list(string)): int => {
+  let a_len = List.length(a);
+  let b_len = List.length(b);
+  /* Fast-paths */
+  if (a_len == 0) {
+    b_len;
+  } else if (b_len == 0) {
+    a_len;
+  } else {
+    let a_arr = Array.of_list(a);
+    let b_arr = Array.of_list(b);
+    let prev = Array.init(b_len + 1, i => i);
+    let curr = Array.make(b_len + 1, 0);
+
+    let min3 = (x, y, z) => {
+      let m =
+        if (x < y) {
+          x;
+        } else {
+          y;
+        };
+      if (m < z) {
+        m;
+      } else {
+        z;
+      };
+    };
+
+    for (i in 1 to a_len) {
+      curr[0] = i;
+      let ai = a_arr[i - 1];
+      for (j in 1 to b_len) {
+        let bj = b_arr[j - 1];
+        let cost =
+          if (ai == bj) {
+            0;
+          } else {
+            1;
+          };
+        let deletion = prev[j] + 1;
+        let insertion = curr[j - 1] + 1;
+        let substitution = prev[j - 1] + cost;
+        curr[j] = min3(deletion, insertion, substitution);
+      };
+      /* copy curr into prev for next iteration */
+      for (k in 0 to b_len) {
+        prev[k] = curr[k];
+      };
+    };
+    prev[b_len];
+  };
+};
+
+// Removes double quotes from string and escapes newlines
+// Update once https://github.com/hazelgrove/hazel/issues/786 is done
+let sanitize_for_string_expression = (s: string): string => {
+  s |> replace(regexp("\""), _, "") |> replace(regexp("\n"), _, "\\n");
+};
+
+let sanitize_for_label = (s: string): string => {
+  s |> replace(regexp("`"), _, "");
+};
+
+// AI generated function
+// checks if 'sub' is a subsequence of 's'
+// (i.e., all characters of 'sub' appear in 's' in the same order, but not necessarily consecutively)
+// case insensitive, ignores spaces on sub
+let subseq_search = (s: string, sub: string): bool => {
+  let s_len = String.length(s);
+  let sub_len = String.length(sub);
+
+  let rec search = (s_idx: int, sub_idx: int): bool =>
+    // If we've matched all characters in sub, we're done
+    if (sub_idx >= sub_len) {
+      true;
+    } else if
+      // If we've exhausted s but still have characters to match in sub
+      (s_idx >= s_len) {
+      false;
+    } else if
+      // Skip spaces in sub
+      (sub.[sub_idx] == ' ') {
+      search(s_idx, sub_idx + 1);
+    } else if
+      // If current characters match (case insensitive), advance both indices
+      (Char.lowercase_ascii(s.[s_idx]) == Char.lowercase_ascii(sub.[sub_idx])) {
+      search(s_idx + 1, sub_idx + 1);
+    } else {
+      // If they don't match, advance only the s index
+      search(
+        s_idx + 1,
+        sub_idx,
+      );
+    };
+
+  search(0, 0);
 };

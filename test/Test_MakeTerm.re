@@ -11,7 +11,7 @@ let exp_typ =
   );
 
 let parse_exp = (s: string) => {
-  switch (Haz3lcore.Parser.to_term(s)) {
+  switch (Haz3lcore.Parser.to_term(s, ~root=Exp)) {
   | Some(e) => e
   | None => Alcotest.fail("Failed to parse expression: " ++ s)
   };
@@ -70,7 +70,42 @@ let tests =
           "type x = Int in 1",
         )
       ),
-      test_case("Singleton Labled Tuple ascription in let", `Quick, () =>
+      test_case(
+        "Duplicate constructors in type alias don't become bad entries",
+        `Quick,
+        ()
+        // turning them into bad entries led to this regression
+        // https://github.com/hazelgrove/hazel/issues/1458
+        =>
+          exp_check(
+            ty_alias(
+              TPat.var("A2"),
+              Typ.(
+                sum([
+                  Variant(
+                    "A",
+                    Language.ConstructorMap.mk_variant_ann(
+                      ~ids=[Util.Id.mk()],
+                      (),
+                    ),
+                    None,
+                  ),
+                  Variant(
+                    "A",
+                    Language.ConstructorMap.mk_variant_ann(
+                      ~ids=[Util.Id.mk()],
+                      (),
+                    ),
+                    None,
+                  ),
+                ])
+              ),
+              empty_hole(),
+            ),
+            "type A2 = A + A in ?",
+          )
+        ),
+      test_case("Singleton Labeled Tuple ascription in let", `Quick, () =>
         exp_check(
           let_(
             Pat.asc(
@@ -141,15 +176,89 @@ let tests =
           {|let x : (l=Int, l2=String) = (l=32, l2="") in x|},
         )
       ),
+      test_case("Unparenthesized labeled tuple element in list", `Quick, () => {
+        exp_check(
+          list_lit([tuple([tup_label(label("l"), int(32))]), int(1)]),
+          {|[l=32, 1]|},
+        )
+      }),
       test_case("Malformed label in singleton tuple", `Quick, () =>
         exp_check(
           parens(tuple([tup_label(multi_hole([Exp(int(1))]), int(3))])),
           "(1=3)",
         )
       ),
+      test_case("Quoted label in tuple", `Quick, () =>
+        exp_check(tuple([tup_label(label("a"), int(3))]), "(`a`=3)")
+      ),
+      test_case("Quoted label in projection", `Quick, () =>
+        exp_check(dot(empty_hole(), label("a")), "?.`a`")
+      ),
+      test_case(
+        "Quoted label with non-alpha characters",
+        `Quick,
+        () => {
+          exp_check(dot(empty_hole(), label("a-b_c")), "?.`a-b_c`");
+          exp_check(
+            tuple([
+              tup_label(label(" "), int(1)),
+              tup_label(label(""), int(2)),
+            ]),
+            "(` `=1, ``=2)",
+          );
+          exp_check(
+            tuple([tup_label(label("multi word label"), int(1))]),
+            "(`multi word label`=1)",
+          );
+        },
+      ),
+      test_case(
+        "Tuple extension and function application precedence", `Quick, () =>
+        exp_check(
+          tuple_extension(
+            tuple([]),
+            ap(Forward, var("from_lvs"), list_lit([])),
+          ),
+          {|() ... from_lvs([])|},
+        )
+      ),
+      test_case("Quoted label in pattern", `Quick, () =>
+        exp_check(
+          fn(
+            Pat.(tuple([tup_label(label("a"), empty_hole())])),
+            empty_hole(),
+            None,
+            None,
+          ),
+          {|fun (`a`=?) -> ?|},
+        )
+      ),
+      test_case("Quoted label in type", `Quick, () =>
+        exp_check(
+          ty_alias(
+            TPat.var("t"),
+            Typ.(prod([tup_label(label("a"), Typ.int())])),
+            empty_hole(),
+          ),
+          {|type t = (`a`=Int) in ?|},
+        )
+      ),
+      test_case("Dot projection with Quoted label", `Quick, () =>
+        exp_check(dot(empty_hole(), label("a")), "? . `a`")
+      ),
       test_case("Scientific notation floating point", `Quick, () =>
         exp_check(float(1.2e30), "1.2e30")
       ),
+      test_case("group_by_label flips variable to label sort", `Quick, () => {
+        exp_check(
+          ap(
+            Forward,
+            var("group_by_label"),
+            tuple([label("l"), list_lit([])]),
+          ),
+          {|group_by_label(`l`,  [])|},
+        )
+      }),
       test_case("Livelit name parsing", `Quick, () =>
         exp_check(livelit_name("slider"), "^slider")
       ),
@@ -158,6 +267,129 @@ let tests =
           ap(Forward, livelit_name("slider"), int(50)),
           "^slider(50)",
         )
+      ),
+      test_case("Product extension in ascription", `Quick, () =>
+        exp_check(
+          asc(
+            empty_hole(),
+            Typ.(
+              prod_extension(
+                prod([tup_label(label("a"), int()), string()]),
+                prod([
+                  tup_label(label("b"), int()),
+                  tup_label(label("c"), float()),
+                ]),
+              )
+            ),
+          ),
+          "? : (a=Int, String) ... (b=Int, c=Float)",
+        )
+      ),
+      test_case("Singleton unlabeled tuple", `Quick, () =>
+        exp_check(
+          tuple([tup_label(explicit_non_label(), int(1))]),
+          "(_ = 1)",
+        )
+      ),
+      test_case("Multiple unlabeled tuple entries", `Quick, () =>
+        exp_check(
+          tuple([
+            tup_label(explicit_non_label(), int(1)),
+            tup_label(explicit_non_label(), int(2)),
+            tup_label(explicit_non_label(), int(3)),
+          ]),
+          "(_ = 1, _ = 2, _ = 3)",
+        )
+      ),
+      test_case("Explicit unlabeled in type", `Quick, () =>
+        exp_check(
+          asc(
+            empty_hole(),
+            Typ.(prod([tup_label(explicit_non_label(), int())])),
+          ),
+          "? : (_=Int)",
+        )
+      ),
+      test_case("Explicit unlabeled in pattern", `Quick, () =>
+        exp_check(
+          let_(
+            Pat.(tuple([tup_label(explicit_non_label(), var("x"))])),
+            tuple([tup_label(explicit_non_label(), int(1))]),
+            var("x"),
+          ),
+          {|let (_=x) = (_=1) in x|},
+        )
+      ),
+      /* Module parsing tests */
+      test_case("Empty module", `Quick, () =>
+        exp_check(module_([]), {|{}|})
+      ),
+      test_case("Module with single let binding", `Quick, () =>
+        exp_check(
+          module_([Mod.mod_let(Pat.var("x"), int(1))]),
+          {|{ let x = 1 }|},
+        )
+      ),
+      test_case("Module with multiple bindings", `Quick, () =>
+        exp_check(
+          module_([
+            Mod.mod_let(Pat.var("x"), int(1)),
+            Mod.mod_let(Pat.var("y"), int(2)),
+          ]),
+          {|{ let x = 1; let y = 2 }|},
+        )
+      ),
+      test_case("Module with type alias", `Quick, () =>
+        exp_check(
+          module_([
+            Mod.mod_type(TPat.var("T"), Typ.int()),
+            Mod.mod_let(Pat.var("x"), int(1)),
+          ]),
+          {|{ type T = Int; let x = 1 }|},
+        )
+      ),
+      test_case("Module dot access", `Quick, () =>
+        exp_check(
+          dot(module_([Mod.mod_let(Pat.var("x"), int(1))]), label("x")),
+          {|{ let x = 1 }.x|},
+        )
+      ),
+      test_case("Nested module", `Quick, () =>
+        exp_check(
+          module_([
+            Mod.mod_let(
+              Pat.var("m"),
+              module_([Mod.mod_let(Pat.var("y"), int(1))]),
+            ),
+          ]),
+          {|{ let m = { let y = 1 } }|},
+        )
+      ),
+      /* Note: M.x parses as Dot(Constructor("M"), Label("x")) because
+         MakeTerm produces Constructor for capitalized names in expression
+         position. The capitalized-to-Var fallback happens during statics. */
+      test_case("Module keyword", `Quick, () =>
+        exp_check(
+          module_exp(
+            MPat.var("M"),
+            module_([Mod.mod_let(Pat.var("x"), int(1))]),
+            dot(constructor("M", None), label("x")),
+          ),
+          {|module M = { let x = 1 } in M.x|},
+        )
+      ),
+      test_case("Module keyword lowercase", `Quick, () =>
+        exp_check(
+          module_exp(
+            MPat.var("m"),
+            module_([Mod.mod_let(Pat.var("x"), int(1))]),
+            dot(var("m"), label("x")),
+          ),
+          {|module m = { let x = 1 } in m.x|},
+        )
+      ),
+      test_case("Module with bare expression", `Quick, () =>
+        exp_check(module_([Mod.mod_exp(int(42))]), {|{ 42 }|})
       ),
     ],
   );

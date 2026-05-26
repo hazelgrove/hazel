@@ -1,6 +1,15 @@
 open Util;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type custom_statics =
+  | ToLvs
+  | ProjectLabels
+  | OmitLabels
+  | OmitAllLabels
+  | GroupByLabel
+  | SelectLabels;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type kind =
   | Singleton(TermBase.typ_t)
   | Abstract;
@@ -10,6 +19,7 @@ type var_entry = {
   name: Var.t,
   id: Id.t,
   typ: TermBase.typ_t,
+  custom_statics: option(custom_statics),
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -144,27 +154,34 @@ let lookup_alias = (ctx: t, name: string): option(TermBase.Typ.t) =>
     )
   };
 
-let add_ctrs = (ctx: t, name: string, id: Id.t, ctrs: TermBase.Typ.sum_map): t => {
+let add_ctrs = (ctx: t, name: string, ctrs: TermBase.Typ.sum_map): t => {
   ...ctx,
   entries:
     List.filter_map(
       fun
-      | ConstructorMap.Variant(ctr, _, typ) =>
-        Some(
-          ConstructorEntry({
-            name: ctr,
-            id,
-            typ:
-              switch (typ) {
-              | None => (Var(name): TermBase.typ_term) |> IdTagged.fresh
-              | Some(typ) =>
-                (
-                  Arrow(typ, (Var(name): TermBase.typ_term) |> IdTagged.fresh): TermBase.typ_term
-                )
-                |> IdTagged.fresh
-              },
-          }),
-        )
+      | ConstructorMap.Variant(ctr, ann, typ) => {
+          assert(ann.ids != []);
+          let ctr_id = List.hd(ann.ids);
+          Some(
+            ConstructorEntry({
+              name: ctr,
+              id: ctr_id,
+              typ:
+                switch (typ) {
+                | None => (Var(name): TermBase.typ_term) |> IdTagged.fresh
+                | Some(typ) =>
+                  (
+                    Arrow(
+                      typ,
+                      (Var(name): TermBase.typ_term) |> IdTagged.fresh,
+                    ): TermBase.typ_term
+                  )
+                  |> IdTagged.fresh
+                },
+              custom_statics: None,
+            }),
+          );
+        }
       | ConstructorMap.BadEntry(_) => None,
       ctrs,
     )
@@ -214,8 +231,8 @@ let added_bindings = (ctx_after: t, ctx_before: t): t => {
 
 module VarSet = Set.Make(Var);
 
-// Note: filter out duplicates when rendering
-let filter_duplicates = (ctx: t): t => {
+/* Removes shadowed variables from the context */
+let filter_shadowed = (ctx: t): t => {
   ...ctx,
   entries:
     ctx.entries
@@ -265,16 +282,21 @@ let filter_stepper_filter_variables = (ctx: t): t => {
     |> List.rev,
 };
 
+/* Keep in sync with Token.base_typs */
 let is_base_typ = (name: string): bool =>
-  name == "Int"
-  || name == "SInt"
+  name == "Bool"
   || name == "Float"
-  || name == "Bool"
+  || name == "Int"
+  || name == "Nat"
+  || name == "SInt"
   || name == "String"
-  || name == "Nat";
-
-let shadows_typ = (ctx: t, name: string): bool =>
-  is_base_typ(name) || lookup_tvar(ctx, name) != None;
+  || name == "DrvJdmt"
+  || name == "DrvCtx"
+  || name == "DrvProp"
+  || name == "ALFAExp"
+  || name == "DrvPat"
+  || name == "ALFATyp"
+  || name == "DrvTPat";
 
 let empty_pre_elaboration = {
   use_mode: Some(Operators.default_mode),
@@ -302,3 +324,11 @@ let concat = (ctx1: t, ctx2: t): t => {
   ...ctx1,
   entries: ctx1.entries @ ctx2.entries,
 };
+
+let get_var_entries = (ctx: t): list(var_entry) =>
+  List.filter_map(
+    fun
+    | VarEntry(v) => Some(v)
+    | _ => None,
+    ctx.entries,
+  );

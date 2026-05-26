@@ -95,7 +95,7 @@ let float_exps = (f: float): group => {
 
 let string_exp = (s: string): form => {
   id: StringExp,
-  syntactic_form: [s |> abbreviate |> Haz3lcore.Form.string_quote |> exp],
+  syntactic_form: [s |> abbreviate |> Haz3lcore.Token.string_quote |> exp],
   expandable_id: None,
   explanation: "A string literal. Any character besides double quotes (`\"`) can be used.",
   examples: [],

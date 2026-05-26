@@ -16,10 +16,6 @@ type op_un_bool =
   | Not;
 
 [@deriving (show({with_path: false}), sexp, yojson, eq, enumerate)]
-type op_un_meta =
-  | Unquote;
-
-[@deriving (show({with_path: false}), sexp, yojson, eq, enumerate)]
 type op_un_num =
   | Minus;
 
@@ -38,18 +34,50 @@ type op_bin_num =
   | LessThan
   | LessThanOrEqual
   | GreaterThan
+  | GreaterThanOrEqual;
+
+/* Float gets its own Equals/NotEquals (surfaced as `==.`/`!=.`) rather
+   than reusing op_bin_poly, because IEEE float equality isn't structural
+   (e.g. NaN != NaN) and we want the type checker/evaluator to distinguish
+   it from polymorphic equality. Int/Nat/SInt equality goes through
+   op_bin_poly below. */
+[@deriving (show({with_path: false}), sexp, yojson, eq, enumerate)]
+type op_bin_float =
+  | Plus
+  | Minus
+  | Times
+  | Power
+  | Divide
+  | LessThan
+  | LessThanOrEqual
+  | GreaterThan
   | GreaterThanOrEqual
   | Equals
   | NotEquals;
 
+let op_bin_float_of_num: op_bin_num => op_bin_float =
+  fun
+  | Plus => Plus
+  | Minus => Minus
+  | Times => Times
+  | Power => Power
+  | Divide => Divide
+  | LessThan => LessThan
+  | LessThanOrEqual => LessThanOrEqual
+  | GreaterThan => GreaterThan
+  | GreaterThanOrEqual => GreaterThanOrEqual;
+
 [@deriving (show({with_path: false}), sexp, yojson, eq, enumerate)]
 type op_bin_string =
-  | Concat
-  | Equals;
+  | Concat;
+
+[@deriving (show({with_path: false}), sexp, yojson, eq, enumerate)]
+type op_bin_poly =
+  | Equals
+  | NotEquals;
 
 [@deriving (show({with_path: false}), sexp, yojson, eq, enumerate)]
 type op_un =
-  | Meta(op_un_meta)
   | Int(op_un_num)
   | Nat(op_un_num)
   | SInt(op_un_num)
@@ -61,9 +89,10 @@ type op_bin =
   | Int(op_bin_num)
   | SInt(op_bin_num)
   | Nat(op_bin_num)
-  | Float(op_bin_num)
+  | Float(op_bin_float)
   | Bool(op_bin_bool)
-  | String(op_bin_string);
+  | String(op_bin_string)
+  | Poly(op_bin_poly);
 
 [@deriving (show({with_path: false}), sexp, yojson, eq, enumerate)]
 type ap_direction =
@@ -113,7 +142,6 @@ let replace_un_op = (op: op_un, use_mode: option(mode)): op_un => {
   | (Int(op) | Nat(op) | Float(op) | SInt(op), Some(Nat)) => Nat(op)
   | (Int(op) | Nat(op) | Float(op) | SInt(op), Some(Float)) => Float(op)
   | (Bool(op), _) => Bool(op)
-  | (Meta(op), _) => Meta(op)
   };
 };
 
@@ -122,21 +150,18 @@ let replace_bin_op = (op: op_bin, use_mode: option(mode)): op_bin => {
   | (op, None) => op
   | (Int(op), Some(Int)) => Int(op)
   | (Int(op), Some(Nat)) => Nat(op)
-  | (Int(op), Some(Float)) => Float(op)
+  | (Int(op), Some(Float)) => Float(op_bin_float_of_num(op))
   | (Int(op), Some(SInt)) => SInt(op)
   | (SInt(op), _) => SInt(op)
   | (Nat(op), _) => Nat(op)
   | (Float(op), _) => Float(op)
   | (Bool(op), _) => Bool(op)
   | (String(op), _) => String(op)
+  | (Poly(op), _) => Poly(op)
   };
 };
 
 /* ========== PRINTING ========== */
-
-let show_op_un_meta: op_un_meta => string =
-  fun
-  | Unquote => "Un-quotation";
 
 let show_op_un_bool: op_un_bool => string =
   fun
@@ -148,7 +173,6 @@ let show_op_un_num: op_un_num => string =
 
 let show_unop: op_un => string =
   fun
-  | Meta(op) => show_op_un_meta(op)
   | Bool(op) => show_op_un_bool(op)
   | Float(op)
   | Nat(op)
@@ -170,11 +194,9 @@ let show_op_bin_num: op_bin_num => string =
   | LessThan => "Less Than"
   | LessThanOrEqual => "Less Than or Equal"
   | GreaterThan => "Greater Than"
-  | GreaterThanOrEqual => "Greater Than or Equal"
-  | Equals => "Equality"
-  | NotEquals => "Inequality";
+  | GreaterThanOrEqual => "Greater Than or Equal";
 
-let show_op_bin_float: op_bin_num => string =
+let show_op_bin_float: op_bin_float => string =
   fun
   | Plus => "Float Addition"
   | Minus => "Float Subtraction"
@@ -190,8 +212,12 @@ let show_op_bin_float: op_bin_num => string =
 
 let show_op_bin_string: op_bin_string => string =
   fun
-  | Concat => "String Concatenation"
-  | Equals => "String Equality";
+  | Concat => "String Concatenation";
+
+let show_op_bin_poly: op_bin_poly => string =
+  fun
+  | Equals => "Polymorphic Equality"
+  | NotEquals => "Polymorphic Inequality";
 
 let show_binop: op_bin => string =
   fun
@@ -200,7 +226,8 @@ let show_binop: op_bin => string =
   | Nat(op) => show_op_bin_num(op)
   | Float(op) => show_op_bin_float(op)
   | Bool(op) => show_op_bin_bool(op)
-  | String(op) => show_op_bin_string(op);
+  | String(op) => show_op_bin_string(op)
+  | Poly(op) => show_op_bin_poly(op);
 
 let bool_op_to_string = (op: op_bin_bool): string => {
   switch (op) {
@@ -220,12 +247,10 @@ let int_op_to_string = (op: op_bin_num): string => {
   | LessThanOrEqual => "<="
   | GreaterThan => ">"
   | GreaterThanOrEqual => ">="
-  | Equals => "=="
-  | NotEquals => "!="
   };
 };
 
-let float_op_to_string = (op: op_bin_num): string => {
+let float_op_to_string = (op: op_bin_float): string => {
   switch (op) {
   | Plus => "+."
   | Minus => "-."
@@ -244,7 +269,13 @@ let float_op_to_string = (op: op_bin_num): string => {
 let string_op_to_string = (op: op_bin_string): string => {
   switch (op) {
   | Concat => "++"
-  | Equals => "$=="
+  };
+};
+
+let poly_op_to_string = (op: op_bin_poly): string => {
+  switch (op) {
+  | Equals => "=="
+  | NotEquals => "!="
   };
 };
 
@@ -256,6 +287,7 @@ let bin_op_to_string = (op: op_bin): string => {
   | Float(op) => float_op_to_string(op)
   | Bool(op) => bool_op_to_string(op)
   | String(op) => string_op_to_string(op)
+  | Poly(op) => poly_op_to_string(op)
   };
 };
 
@@ -279,7 +311,6 @@ let semantics_of_un_op = (op: op_un): un_semantics =>
   | SInt(Minus) => Defined(SInt, SInt, just(x => - x))
   | Nat(Minus) => Undefined("Cannot negate a natural number")
   | Bool(Not) => Defined(Bool, Bool, just(x => !x))
-  | Meta(Unquote) => failwith("semantics of Meta Unquote") // should be unreachable
   };
 
 type bin_semantics =
@@ -290,6 +321,7 @@ type bin_semantics =
       ('a, 'b) => Either.t('c, InvalidOperationError.t),
     )
     : bin_semantics
+  | DefinedPoly(op_bin_poly)
   | Undefined(string);
 
 let just = (f, x, y) => Either.L(f(x, y));
@@ -329,8 +361,6 @@ let semantics_of_bin_op = (op: op_bin): bin_semantics =>
   | Int(LessThanOrEqual) => Defined(Int, Int, Bool, just((<=)))
   | Int(GreaterThan) => Defined(Int, Int, Bool, just((>)))
   | Int(GreaterThanOrEqual) => Defined(Int, Int, Bool, just((>=)))
-  | Int(Equals) => Defined(Int, Int, Bool, just((==)))
-  | Int(NotEquals) => Defined(Int, Int, Bool, just((!=)))
 
   | SInt(Plus) => Defined(SInt, SInt, SInt, just((+)))
   | SInt(Minus) => Defined(SInt, SInt, SInt, just((-)))
@@ -341,8 +371,6 @@ let semantics_of_bin_op = (op: op_bin): bin_semantics =>
   | SInt(LessThanOrEqual) => Defined(SInt, SInt, Bool, just((<=)))
   | SInt(GreaterThan) => Defined(SInt, SInt, Bool, just((>)))
   | SInt(GreaterThanOrEqual) => Defined(SInt, SInt, Bool, just((>=)))
-  | SInt(Equals) => Defined(SInt, SInt, Bool, just((==)))
-  | SInt(NotEquals) => Defined(SInt, SInt, Bool, just((!=)))
 
   | Nat(Plus) => Defined(Nat, Nat, Nat, just(Bigint.(+)))
   | Nat(Minus) =>
@@ -356,8 +384,6 @@ let semantics_of_bin_op = (op: op_bin): bin_semantics =>
   | Nat(LessThanOrEqual) => Defined(Nat, Nat, Bool, just((<=)))
   | Nat(GreaterThan) => Defined(Nat, Nat, Bool, just((>)))
   | Nat(GreaterThanOrEqual) => Defined(Nat, Nat, Bool, just((>=)))
-  | Nat(Equals) => Defined(Nat, Nat, Bool, just((==)))
-  | Nat(NotEquals) => Defined(Nat, Nat, Bool, just((!=)))
 
   | Float(Plus) => Defined(Float, Float, Float, just((+.)))
   | Float(Minus) => Defined(Float, Float, Float, just((-.)))
@@ -372,10 +398,12 @@ let semantics_of_bin_op = (op: op_bin): bin_semantics =>
   | Float(NotEquals) => Defined(Float, Float, Bool, just((!=)))
 
   | String(Concat) => Defined(String, String, String, just((++)))
-  | String(Equals) => Defined(String, String, Bool, just((==)))
 
   | Bool(And) => Defined(Bool, Bool, Bool, just((&&))) // Note: booleans have extra short-cutting rules in transition
   | Bool(Or) => Defined(Bool, Bool, Bool, just((||)))
+
+  | Poly(Equals) => DefinedPoly(Equals)
+  | Poly(NotEquals) => DefinedPoly(NotEquals)
   };
 
 /* ========== BUILTINS ========== */
@@ -391,8 +419,6 @@ let op_name = (op: op_bin): string =>
   | Int(LessThanOrEqual) => "int_lte"
   | Int(GreaterThan) => "int_gt"
   | Int(GreaterThanOrEqual) => "int_gte"
-  | Int(Equals) => "int_eq"
-  | Int(NotEquals) => "int_neq"
   | SInt(Plus) => "sint_plus"
   | SInt(Minus) => "sint_minus"
   | SInt(Times) => "sint_times"
@@ -402,8 +428,6 @@ let op_name = (op: op_bin): string =>
   | SInt(LessThanOrEqual) => "sint_lte"
   | SInt(GreaterThan) => "sint_gt"
   | SInt(GreaterThanOrEqual) => "sint_gte"
-  | SInt(Equals) => "sint_eq"
-  | SInt(NotEquals) => "sint_neq"
   | Nat(Plus) => "nat_plus"
   | Nat(Minus) => "nat_minus"
   | Nat(Times) => "nat_times"
@@ -413,8 +437,6 @@ let op_name = (op: op_bin): string =>
   | Nat(LessThanOrEqual) => "nat_lte"
   | Nat(GreaterThan) => "nat_gt"
   | Nat(GreaterThanOrEqual) => "nat_gte"
-  | Nat(Equals) => "nat_eq"
-  | Nat(NotEquals) => "nat_neq"
   | Float(Plus) => "float_plus"
   | Float(Minus) => "float_minus"
   | Float(Times) => "float_times"
@@ -427,9 +449,10 @@ let op_name = (op: op_bin): string =>
   | Float(Equals) => "float_eq"
   | Float(NotEquals) => "float_neq"
   | String(Concat) => "string_concat"
-  | String(Equals) => "string_eq"
   | Bool(And) => "bool_and"
   | Bool(Or) => "bool_or"
+  | Poly(Equals) => "poly_eq"
+  | Poly(NotEquals) => "poly_neq"
   };
 
 let builtins = {
@@ -438,6 +461,7 @@ let builtins = {
     |> List.filter_map(op =>
          switch (semantics_of_bin_op(op)) {
          | Undefined(_) => None
+         | DefinedPoly(_) => None
          | Defined(x, y, z, f) => Some((op_name(op), TwoFun(x, y, z, f)))
          }
        )

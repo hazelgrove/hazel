@@ -24,3 +24,6 @@ type site = {
 /* An enclosing list of binding sites */
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type stem = list(site);
+
+let variable_names = (bindings: s): list(string) =>
+  List.map((b: t) => b.name, bindings);

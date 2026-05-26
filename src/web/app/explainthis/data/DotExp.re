@@ -9,6 +9,12 @@ let dot_example_1 = {
   message: "Retrieves the element in the tuple associated with the label 'x', which in this example is 1.",
 };
 
+let dot_example_2 = {
+  sub_id: Dot2,
+  term: mk_example("[(x=1, y=2), (x=3, y=4)].x"),
+  message: "Broadcasts the label 'x' across the list of labeled tuples, retrieving [1, 3] in this example.",
+};
+
 let tup = Var("e") |> Exp.fresh;
 let lab = Label("label") |> Exp.fresh;
 
@@ -31,7 +37,7 @@ let dot_exp: form = {
       ),
     expandable_id: None,
     explanation,
-    examples: [dot_example_1],
+    examples: [dot_example_1, dot_example_2],
   };
 };
 

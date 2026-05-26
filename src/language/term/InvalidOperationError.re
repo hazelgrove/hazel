@@ -5,7 +5,8 @@ type t =
   | DivideByZero
   | NegativeExponent
   | NegativeNat
-  | IntegerTooBig;
+  | IntegerTooBig
+  | Incomparable;
 
 let err_msg = (err: t): string =>
   switch (err) {
@@ -15,4 +16,5 @@ let err_msg = (err: t): string =>
   | NegativeExponent => "Error: Negative Exponent in Integer Exponentiation (Consider using **.)"
   | NegativeNat => "Error: Cannot convert negative number to Nat"
   | IntegerTooBig => "Error: Integer too big"
+  | Incomparable => "Error: Incomparable Types"
   };

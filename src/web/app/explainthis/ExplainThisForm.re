@@ -77,9 +77,7 @@ type numeric_bin_op_examples =
   | GreaterThanFalse
   | GreaterThanEqualGreater
   | GreaterThanEqualEqual
-  | GreaterThanEqualFalse
-  | EqualFalse
-  | EqualTrue;
+  | GreaterThanEqualFalse;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type example_id =
@@ -90,7 +88,9 @@ type example_id =
   | Fun(fun_examples)
   | Label1
   | Label2
+  | Label3
   | Dot1
+  | Dot2
   | DotTyp
   | Fix1
   | Fix2
@@ -99,7 +99,14 @@ type example_id =
   | TupleLabeled1
   | TupleLabeled2
   | TupleLabeled3
+  | TupleExtension1
+  | TupleExtension2
+  | TupleExtension3
   | Let(let_examples)
+  | Theorem
+  | ProofOf
+  | Forall
+  | Yes
   | UseExp1
   | TypFunAp
   | FunAp
@@ -117,12 +124,16 @@ type example_id =
   | IntUnaryMinus
   | Int(numeric_bin_op_examples)
   | Float(numeric_bin_op_examples)
+  | FloatEqualFalse
+  | FloatEqualTrue
+  | PolyEqualFalse
+  | PolyEqualTrue
+  | PolyNotEqualTrue
+  | PolyNotEqualFalse
   | AndFalse
   | AndTrue
   | OrFalse
   | OrTrue
-  | StringEqualFalse
-  | StringEqualTrue
   | CaseWildSimple
   | CaseWildTuple
   | CaseInt
@@ -137,7 +148,15 @@ type example_id =
   | Undefined2
   | Asc1
   | Asc2
-  | Asc3;
+  | Asc3
+  | Module1
+  | ModLet1
+  | ModType1
+  | Sig1
+  | SigLet1
+  | SigType1
+  | ModuleKeyword1
+  | ModuleKeywordDecl1;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type example = {
@@ -167,10 +186,12 @@ type pat_sub_form_id =
   | Tuple2
   | Tuple3
   | Ctr
-  | Ap;
+  | ApFunc
+  | ApCons;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type form_id =
+  | Derivation
   | EmptyHoleExp
   | MultiHoleExp
   | TrivExp
@@ -196,6 +217,8 @@ type form_id =
   | Tuple3Exp
   | LetExp(pat_sub_form_id)
   | FixExp(pat_sub_form_id)
+  | TheoremExp
+  | ProofObjectExp
   | TypFunApExp
   | FunApExp
   | ConApExp
@@ -229,7 +252,8 @@ type form_id =
   | TuplePat
   | Tuple2Pat
   | Tuple3Pat
-  | ApPat
+  | ApFuncPat
+  | ApConsPat
   | TypAnnPat
   | EmptyHoleTyp
   | MultiHoleTyp
@@ -241,7 +265,7 @@ type form_id =
   | StrTyp
   | VarTyp
   | ListTyp
-  | ForallTyp
+  | PolyTyp
   | RecTyp
   | ArrowTyp
   | Arrow3Typ
@@ -252,6 +276,8 @@ type form_id =
   | Tuple3Typ
   | DotTyp
   | Label
+  | ForallExp
+  | ProofOfTyp
   | LabelledSumTyp
   | SumTypUnaryConstructorDef
   | SumTypNullaryConstructorDef
@@ -264,7 +290,16 @@ type form_id =
   | FilterDebug
   | FilterHide
   | FilterSelector
-  | AscExp;
+  | AscExp
+  | TupleExtensionExp
+  | ModuleExp
+  | ModLetDecl
+  | ModTypeDecl
+  | SigTyp
+  | SigLetDecl
+  | SigTypeDecl
+  | ModuleKeywordExp
+  | ModuleKeywordDecl;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type form = {
@@ -279,6 +314,7 @@ type form = {
 // MAYBE don't even need an id at all for the group - just use the most specific (1st) form id in forms
 [@deriving (show({with_path: false}), sexp, yojson)]
 type group_id =
+  | Derivation
   | EmptyHoleExp
   | MultiHoleExp
   | TrivExp
@@ -304,6 +340,8 @@ type group_id =
   | Tuple2Exp
   | Tuple3Exp
   | LetExp(pat_sub_form_id)
+  | TheoremExp
+  | ProofObjectExp
   | TypFunApExp
   | FixExp(pat_sub_form_id)
   | FunApExp
@@ -320,6 +358,7 @@ type group_id =
   | CaseExp
   | TyAliasExp
   | PipelineExp
+  | TupleExtensionExp
   | UseExp
   | EmptyHolePat
   | MultiHolePat
@@ -340,7 +379,8 @@ type group_id =
   | TuplePat
   | Tuple2Pat
   | Tuple3Pat
-  | ApPat
+  | ApFuncPat
+  | ApConsPat
   | TypAnnPat
   | EmptyHoleTyp
   | MultiHoleTyp
@@ -351,8 +391,10 @@ type group_id =
   | StrTyp
   | VarTyp
   | ListTyp
-  | ForallTyp
+  | PolyTyp
   | RecTyp
+  | ForallExp
+  | ProofOfTyp
   | ArrowTyp
   | Arrow3Typ
   | LabeledTyp
@@ -372,7 +414,15 @@ type group_id =
   | FilterEval
   | FilterDebug
   | FilterHide
-  | FilterSelector;
+  | FilterSelector
+  | ModuleExp
+  | ModLetDecl
+  | ModTypeDecl
+  | SigTyp
+  | SigLetDecl
+  | SigTypeDecl
+  | ModuleKeywordExp
+  | ModuleKeywordDecl;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type group = {

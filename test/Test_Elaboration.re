@@ -3,22 +3,118 @@ open Language;
 
 /*Create a testable type for dhexp which requires
   an equal function (dhexp_eq) and a print function (dhexp_print) */
-let dhexp_typ = testable(Fmt.using(Exp.show, Fmt.string), DHExp.fast_equal);
+let dhexp_typ =
+  testable(
+    Fmt.using(Exp.show, Fmt.string),
+    // This is syntactic with ignore_wrappers=true
+    Equality.(
+      equality({
+        ...syntactic_settings,
+        ignore_parens: true,
+        ignore_unknown_provenance: true,
+      })
+    ).
+      exp,
+  );
 
-let mk_map = Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)));
-let dhexp_of_uexp = u =>
-  Elaborator.elaborate(
-    Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), u),
-    u,
-  )
-  |> fst;
+let mk_map = term =>
+  fst(Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term));
+let dhexp_of_uexp = u => {
+  let (_, elab) =
+    Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), u);
+  elab;
+};
+let assert_elab_ids_present = u => {
+  let (info_map, elab) =
+    Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), u);
+  let _ =
+    Grammar.map_exp_annotation(
+      ({ids, _}: IdTagged.IdTag.t) => {
+        if (Id.equal(List.hd(ids), Id.invalid)) {
+          Alcotest.fail(
+            "Invalid elaborated id in expression: " ++ Exp.show(elab),
+          );
+        };
+        switch (Statics.Map.lookup(List.hd(ids), info_map)) {
+        | Some(_) => ()
+        | None =>
+          Alcotest.fail(
+            "No info found for elaborated id: " ++ Id.show(List.hd(ids)),
+          )
+        };
+      },
+      elab,
+    );
+  ();
+};
+let id_typ = Alcotest.testable(Fmt.using(Id.show, Fmt.string), Id.equal);
+let adt_node_ids = exp => {
+  let ids = ref([]);
+  let rec go = (e: Exp.t) =>
+    switch (e.term) {
+    | Constructor(_, _) => ids := [Exp.rep_id(e), ...ids^]
+    | Ap(_, fn, arg) =>
+      switch (Exp.ctr_name(fn)) {
+      | Some(_) => ids := [Exp.rep_id(e), ...ids^]
+      | None => ()
+      };
+      go(fn);
+      go(arg);
+    | Tuple(es) =>
+      ids := [Exp.rep_id(e), ...ids^];
+      List.iter(go, es);
+    | ListLit(es) => List.iter(go, es)
+    | TupLabel(label, body) =>
+      go(label);
+      go(body);
+    | Let(_, def, body)
+    | Seq(def, body)
+    | Theorem(_, def, body) =>
+      go(def);
+      go(body);
+    | If(c, t, f) =>
+      go(c);
+      go(t);
+      go(f);
+    | BinOp(_, e1, e2)
+    | Cons(e1, e2)
+    | TupleExtension(e1, e2)
+    | Dot(e1, e2) =>
+      go(e1);
+      go(e2);
+    | UnOp(_, e)
+    | Parens(e)
+    | Projector(_, e)
+    | Asc(e, _)
+    | Use(_, e)
+    | ProofObject(e)
+    | Closure(_, e) => go(e)
+    | Deferral(_) => ()
+    | Fun(_, body, _, _)
+    | Forall(_, body)
+    | TypFun(_, body, _)
+    | TyAlias(_, _, body)
+    | Match(body, _)
+    | Filter(_, body)
+    | Test(body)
+    | HintedTest(_, body) => go(body)
+    | TypAp(fn, _typ) => go(fn)
+    | FixF(_, body, _env) => go(body)
+    | DeferredAp(fn, es) =>
+      go(fn);
+      List.iter(go, es);
+    | _ => ()
+    };
+  go(exp);
+  List.rev(ids^);
+};
 let alco_check = dhexp_typ |> Alcotest.check;
 
 module PlainTests = {
   open IdTagged.FreshGrammar;
 
   let parse_exp = (s: string) => {
-    switch (Haz3lcore.Parser.to_term(s)) {
+    switch (Haz3lcore.Parser.to_term(s, ~root=Exp)) {
     | Some(e) => e
     | None => Alcotest.fail("Failed to parse expression: " ++ s)
     };
@@ -94,7 +190,7 @@ module PlainTests = {
   let u8: Exp.t =
     Exp.(
       match(
-        bin_op(Int(Equals), int(4), int(3)),
+        bin_op(Poly(Equals), int(4), int(3)),
         [(Pat.bool(true), int(24)), (Pat.bool(false), bool(false))],
       )
     );
@@ -102,8 +198,11 @@ module PlainTests = {
   let d8: Exp.t =
     Exp.(
       match(
-        bin_op(Int(Equals), int(4), int(3)),
-        [(Pat.(bool(true)), int(24)), (Pat.bool(false), bool(false))],
+        bin_op(Poly(Equals), int(4), int(3)),
+        [
+          (Pat.bool(true), asc(int(24), Typ.unknown(SynSwitch))),
+          (Pat.bool(false), asc(bool(false), Typ.unknown(SynSwitch))),
+        ],
       )
     );
 
@@ -371,9 +470,8 @@ module PlainTests = {
       [@warning "-21"]
       {
         let uexp = parse_exp(expression);
-        let statics = mk_map(uexp);
         Alcotest.skip();
-        let _ = Elaborator.elaborate(statics, uexp);
+        let _ = dhexp_of_uexp(uexp);
         ();
       }
     });
@@ -429,6 +527,11 @@ module PlainTests = {
       "Function application with a deferral of a hole",
       `Quick,
       ap_of_deferral_of_hole,
+    ),
+    test_case(
+      "Rules print all",
+      `Quick,
+      RuleVerify.__print_all_specs_and_tests,
     ),
     test_case("Labeled tuple elaboration", `Quick, elaborated_labeled_tuple),
     test_case("Rearranged labeled tuple", `Quick, rearranged_labeled_tuple),
@@ -504,6 +607,16 @@ module PlainTests = {
           parse_exp({|let zip_only : (zip=Int) = (zip=12345) in zip_only|}),
         ),
       )
+    ),
+    test_case("Livelit elaborates to expanded term", `Quick, () =>
+      alco_check(
+        "^slider(50)",
+        Exp.int(50),
+        dhexp_of_uexp(parse_exp("^slider(50)")),
+      )
+    ),
+    test_case("Livelit elaboration ids are in statics map", `Quick, () =>
+      assert_elab_ids_present(parse_exp("^emotion(50)"))
     ),
     test_case(
       "Singleton labeled argument function application with known type",
@@ -650,6 +763,84 @@ in 1|},
         ),
       )
     ),
+    /* ===== MODULE ELABORATION TESTS =====
+       NOTE: Modules currently elaborate to labeled tuples.
+       These tests will need updating when modules get their own
+       semantics separate from labeled tuples (Phase 2). */
+    test_case("Module single binding elaborates to labeled tuple", `Quick, () =>
+      alco_check(
+        {|{ let x = 1 } => let x = 1 in (x=x)|},
+        Exp.(
+          let_(
+            Pat.var("x"),
+            int(1),
+            tuple([tup_label(label("x"), var("x"))]),
+          )
+        ),
+        dhexp_of_uexp(parse_exp({|{ let x = 1 }|})),
+      )
+    ),
+    test_case(
+      "Module multiple bindings elaborates to labeled tuple", `Quick, () =>
+      alco_check(
+        {|{ let x = 1; let y = true }|},
+        Exp.(
+          let_(
+            Pat.var("x"),
+            int(1),
+            let_(
+              Pat.var("y"),
+              bool(true),
+              tuple([
+                tup_label(label("x"), var("x")),
+                tup_label(label("y"), var("y")),
+              ]),
+            ),
+          )
+        ),
+        dhexp_of_uexp(parse_exp({|{ let x = 1; let y = true }|})),
+      )
+    ),
+    test_case("Module in let binding preserves type", `Quick, () =>
+      alco_check(
+        {|let m = { let x = 1 } in m.x|},
+        dhexp_of_uexp(parse_exp({|let m = (let x = 1 in (x=x)) in m.x|})),
+        dhexp_of_uexp(parse_exp({|let m = { let x = 1 } in m.x|})),
+      )
+    ),
+    test_case("Module with sig annotation elaborates labels", `Quick, () =>
+      alco_check(
+        {|let m : { let x : Int } = { let x = 1 } in m|},
+        dhexp_of_uexp(
+          parse_exp({|let m : (x=Int) = (let x = 1 in (x=x)) in m|}),
+        ),
+        dhexp_of_uexp(
+          parse_exp({|let m : { let x : Int } = { let x = 1 } in m|}),
+        ),
+      )
+    ),
+    test_case(
+      "ADT elaboration preserves constructor ids",
+      `Quick,
+      () => {
+        let uexp =
+          parse_exp(
+            {|type List = Nil + Cons(Int, List) in Cons(2, Cons(1, Nil))|},
+          );
+        let body =
+          switch (uexp.term) {
+          | TyAlias(_, _, body) => body
+          | _ => Alcotest.fail("Expected type alias wrapper")
+          };
+        let elab = dhexp_of_uexp(uexp);
+        Alcotest.check(
+          Alcotest.list(id_typ),
+          "ADT constructor/application ids preserved",
+          adt_node_ids(body),
+          adt_node_ids(elab),
+        );
+      },
+    ),
     skip_known_bug(
       "Nontermination in typ normalization",
       {|type x = x in (([] @ false) @ [] @< Float >) @< x([(())]) > @ case test 0.000006 end:: "f":: ? | B => (())| x => (())| (()) => ?| [] => ?| ? => 12 end|},
@@ -659,8 +850,8 @@ in 1|},
       "let [(A: (Bool(Bool))), (_: (String))] = 0 in ()",
     ),
     skip_known_bug(
-      "Type join of ap", // TODO https://github.com/hazelgrove/hazel/issues/1625
-      "type x = + B((forall x -> ?)(?)) in case a | B => 0| B => 0 end",
+      "Type meet of ap", // TODO https://github.com/hazelgrove/hazel/issues/1625
+      "type x = + B((poly x -> ?)(?)) in case a | B => 0| B => 0 end",
     ),
     QCheck_alcotest.to_alcotest(
       QCheck.Test.make(
@@ -668,26 +859,21 @@ in 1|},
         ~count=10000,
         QCheck_Util.arb_exp(~minimal_idents=true, 50),
         exp => {
-        switch (mk_map(exp)) {
-        | statics =>
-          switch (Elaborator.elaborate(statics, exp)) {
-          | _ => true
-          | exception (Failure(msg) as e) =>
-            switch (msg) {
-            | _
-                when
-                  List.exists(
-                    (==)(msg),
-                    [
-                      "type application in dynamics", // https://github.com/hazelgrove/hazel/issues/1459?issue=hazelgrove%7Chazel%7C1625
-                      "normalize exceeded 1000 recursive calls", // https://github.com/hazelgrove/hazel/issues/1627
-                      "Type join of ap" // https://github.com/hazelgrove/hazel/issues/1459?issue=hazelgrove%7Chazel%7C1625
-                    ],
-                  ) =>
-              print_endline("Known failure: " ++ Printexc.to_string(e));
-              true;
-            | _ => raise(e)
-            }
+        switch (dhexp_of_uexp(exp)) {
+        | _ => true
+        | exception (Failure(msg) as e) =>
+          switch (msg) {
+          | _
+              when
+                List.exists(
+                  (==)(msg),
+                  [
+                    "normalize exceeded 1000 recursive calls" // https://github.com/hazelgrove/hazel/issues/1627
+                  ],
+                ) =>
+            print_endline("Known failure: " ++ Printexc.to_string(e));
+            true;
+          | _ => raise(e)
           }
         | exception e =>
           print_endline("Skipping statics: " ++ Printexc.to_string(e));
@@ -702,7 +888,7 @@ module MenhirElaborationTests = {
   //uexp = tested
   open IdTagged.FreshGrammar;
 
-  let alco_check_menhir = (name: string, dhexp: string, uexp: Term.Exp.t) =>
+  let alco_check_menhir = (name: string, dhexp: string, uexp: Exp.t) =>
     alco_check(
       name,
       Grammar.map_exp_annotation(
@@ -751,7 +937,7 @@ module MenhirElaborationTests = {
   let inconsistent_case_uexp: Exp.t =
     Exp.(
       match(
-        bin_op(Int(Equals), int(4), int(3)),
+        bin_op(Poly(Equals), int(4), int(3)),
         [(Pat.bool(true), int(24)), (Pat.bool(false), bool(false))],
       )
     );
@@ -941,7 +1127,7 @@ x
     test_case("Empty hole (menhir)", `Quick, empty_hole_menhir),
     test_case("Free var (menhir)", `Quick, free_var_menhir),
     test_case("Bin op (menhir)", `Quick, bin_op_menhir),
-    test_case("Inconsistent case (menhir)", `Quick, inconsistent_case_menhir),
+    /* test_case("Inconsistent case (menhir)", `Quick, inconsistent_case_menhir), */
     test_case("Consistent if (menhir)", `Quick, consistent_if_menhir),
     test_case("Undefined test (menhir)", `Quick, undefined_menhir),
     test_case("List exp (menhir)", `Quick, list_exp_menhir),

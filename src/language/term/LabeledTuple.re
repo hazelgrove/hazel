@@ -211,3 +211,65 @@ let find_label: ('a => option((label, 'a)), list('a), label) => option('a) =
       es,
     );
   };
+
+/**
+ * Merges two lists of labeled entries (`e1_entries` and `e2_entries`) into a single list.
+ *
+ * - Maintains the order of labels from `e1_entries`.
+ * - Uses the values from `e2_entries` if a matching label is found.
+ * - Includes any new labels from `e2_entries` that are not present in `e1_entries`.
+ * - Handles `None` labels by preserving their order and values.
+ *
+ * @param e1_entries A list of entries with optional labels and associated values.
+ * @param e2_entries A list of entries with optional labels and associated values.
+ * @return A merged list of entries, combining values from both input lists.
+ */
+let extension =
+    (
+      e1_entries: list((option(label), 'a)),
+      e2_entries: list((option(label), 'a)),
+    )
+    : list((option(label), 'a)) => {
+  /* Maintain the order of the labels from e1_entries, but use the values from e2_entries if present */
+  module StringMap = Map.Make(String);
+  let e2_map =
+    List.fold_left(
+      (acc, (lab, d)) =>
+        switch (lab) {
+        | Some(l) => StringMap.add(l, d, acc)
+        | None => acc
+        },
+      StringMap.empty,
+      e2_entries,
+    );
+
+  let merged_entries =
+    List.map(
+      ((lab, d1)) =>
+        switch (lab) {
+        | Some(l) =>
+          switch (StringMap.find_opt(l, e2_map)) {
+          | Some(d2) => (Some(l), d2)
+          | None => (Some(l), d1)
+          }
+        | None => (None, d1)
+        },
+      e1_entries,
+    )
+    /* Add any new labels from e2_entries that weren't in e1_entries */
+    @ List.filter_map(
+        ((lab, d2)) =>
+          switch (lab) {
+          | Some(l) =>
+            if (List.exists(((l1, _)) => l1 == Some(l), e1_entries)) {
+              None;
+            } else {
+              Some((Some(l), d2));
+            }
+          | None => Some((None, d2))
+          },
+        e2_entries,
+      );
+
+  merged_entries;
+};

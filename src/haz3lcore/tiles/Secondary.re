@@ -1,33 +1,21 @@
 open Util;
-
-[@deriving (show({with_path: false}), sexp, yojson, enumerate)]
-type cls = Language.Secondary.cls;
+open Language.Secondary;
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
-type secondary_content =
-  | Whitespace(string)
-  | Comment(string);
+type t = Language.Secondary.t;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
-type t = {
-  id: Id.t,
-  content: secondary_content,
+let mk_empty = id => {
+  content: Whitespace(Token.empty),
+  id,
 };
 
-let equal = (a: t, b: t) => a.content == b.content;
-let cls_of = (s: t): cls =>
-  switch (s.content) {
-  | Whitespace(_) => Whitespace
-  | Comment(_) => Comment
-  };
-
 let mk_space = id => {
-  content: Whitespace(Form.space),
+  content: Whitespace(Token.space),
   id,
 };
 
 let mk_newline = id => {
-  content: Whitespace(Form.linebreak),
+  content: Whitespace(Token.linebreak),
   id,
 };
 
@@ -38,17 +26,24 @@ let construct_comment = content =>
     Comment(content);
   };
 
+let mk = (id: Id.t, content: string): t => {
+  id,
+  content:
+    Token.is_comment(content)
+      ? construct_comment(content) : Whitespace(content),
+};
+
 let is_space: t => bool =
   w =>
     switch (w.content) {
-    | Whitespace(s) => s == Form.space
+    | Whitespace(s) => s == Token.space
     | _ => false
     };
 
 let is_linebreak: t => bool =
   w =>
     switch (w.content) {
-    | Whitespace(s) => s == Form.linebreak
+    | Whitespace(s) => s == Token.linebreak
     | _ => false
     };
 
@@ -73,5 +68,7 @@ let get_string: secondary_content => string =
     | Comment(s)
     | Whitespace(s) => s
     };
+
+let length = (s: t): int => Token.length(get_string(s.content));
 
 let id = w => w.id;

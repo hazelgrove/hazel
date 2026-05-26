@@ -55,15 +55,9 @@ let pop = (d: Direction.t, rs: t): option((Piece.t, t)) =>
 let zip = (~sel=Segment.empty, {siblings, ancestors}: t) =>
   Ancestors.zip(Siblings.zip(~sel, siblings), ancestors);
 
-let local_incomplete_tiles = ({siblings: (pre, suf), ancestors}: t) => {
-  let sibs =
-    switch (ancestors) {
-    | [] => (pre, suf)
-    | [(a, _), ..._] =>
-      let (l, r) = Ancestor.container_shards(a);
-      ([l, ...pre], suf @ [r]);
-    };
-  Siblings.incomplete_tiles(sibs);
+let local_missing_shards = ({siblings, ancestors}: t): list(Tile.t) => {
+  Siblings.local_missing_shards(siblings)
+  @ Ancestors.local_missing_shards(ancestors);
 };
 
 let parent =
@@ -86,9 +80,88 @@ let delete_parent = ({siblings, ancestors}: t): t => {
   };
 };
 
-let remold = ({siblings, ancestors}: t): t => {
-  let s = Ancestors.sort(ancestors);
+/* The sort at the current insertion point, accounting for
+ * infix operators with heterogeneous child sorts (e.g. type
+ * annotation ':' in patterns). This looks at the right nib
+ * of the last tile to the left, which determines what sort
+ * should come next - the same logic used by Segment.remold. */
+let sort = (~root, {siblings: (pre, _), ancestors}: t): Sort.t => {
+  let outer_sort = Ancestors.sort(root, ancestors);
+  let rec find_last_tile =
+    fun
+    | [] => None
+    | [p, ...rest] =>
+      switch (Piece.is_tile(p)) {
+      | Some(t) => Some(t)
+      | None => find_last_tile(rest)
+      };
+  switch (find_last_tile(List.rev(pre))) {
+  | None => outer_sort
+  | Some(t) =>
+    let (_, r) = Tile.nibs(t);
+    r.sort;
+  };
+};
+
+/* Remold the immediate parent ancestor tile based on its
+ * sibling context. This handles cases where completing a
+ * bidelimited form (e.g. putting down `(` from backpack to
+ * complete `(...)`) leaves the caret inside, and the parent
+ * tile needs a different mold (e.g. `ap(...)` instead of
+ * plain parens) to fit its neighbors. */
+let remold_parent = (~root, ancestors: Ancestors.t): Ancestors.t =>
+  switch (ancestors) {
+  | [] => []
+  | [(a, sibs), ...rest] =>
+    let outer_sort = Ancestors.sort(root, rest);
+    let (pre, _) = sibs;
+    let sort = {
+      let rec find_last_tile = (
+        fun
+        | [] => None
+        | [p, ...rest] =>
+          switch (Piece.is_tile(p)) {
+          | Some(t) => Some(t)
+          | None => find_last_tile(rest)
+          }
+      );
+      switch (find_last_tile(List.rev(pre))) {
+      | None => outer_sort
+      | Some(t) =>
+        let (_, r) = Tile.nibs(t);
+        r.sort;
+      };
+    };
+    switch (Form.Molds.try_get(sort, a.label)) {
+    | None
+    | Some([_]) => [(a, sibs), ...rest]
+    | Some(molds) =>
+      let (pre, _) = sibs;
+      let (_, left_shape, _) =
+        Segment.shape_affix(Left, pre, Nib.Shape.concave());
+      let l_idx = Ancestor.l_shard(a);
+      let a =
+        switch (
+          molds
+          |> List.filter(mold => {
+               let (l_nib, _) = Mold.nibs(~index=l_idx, mold);
+               Nib.Shape.fits(left_shape, Nib.shape(l_nib));
+             })
+        ) {
+        | [mold, ..._] => {
+            ...a,
+            mold,
+          }
+        | [] => a
+        };
+      [(a, sibs), ...rest];
+    };
+  };
+
+let remold = ({siblings, ancestors}: t, root: Sort.t): t => {
+  let s = Ancestors.sort(root, ancestors);
   let siblings = Siblings.remold(siblings, s);
+  let ancestors = remold_parent(~root, ancestors);
   {
     ancestors,
     siblings,
@@ -128,10 +201,10 @@ let regrout = (d: Direction.t, {siblings, ancestors}: t): t => {
           : (
             switch (d) {
             | Left =>
-              let trim = add_grout(~d=Right, s_r, trim_r);
+              let trim = add_grout(s_r, trim_r);
               (seg_l, to_seg(trim));
             | Right =>
-              let trim = add_grout(~d=Left, s_l, trim_l);
+              let trim = add_grout(s_l, trim_l);
               (to_seg(trim), seg_r);
             }
           )
@@ -169,7 +242,9 @@ let reassemble_parent = (rs: t): t =>
           shards: a.shards |> PairUtil.map_fst(ss => ss @ shards_l),
           children:
             a.children
-            |> PairUtil.map_fst(kids => kids @ [outer_l, ...kids_l]),
+            |> PairUtil.map_fst(kids =>
+                 Segment.inner_regrout(kids @ [outer_l, ...kids_l])
+               ),
         };
         (a, inner_l);
       };
@@ -183,7 +258,9 @@ let reassemble_parent = (rs: t): t =>
           shards: a.shards |> PairUtil.map_snd(ss => shards_r @ ss),
           children:
             a.children
-            |> PairUtil.map_snd(kids => [outer_r, ...kids_r] @ kids),
+            |> PairUtil.map_snd(kids =>
+                 Segment.inner_regrout([outer_r, ...kids_r] @ kids)
+               ),
         };
         (a, inner_r);
       };
@@ -196,6 +273,15 @@ let reassemble_parent = (rs: t): t =>
 let reassemble_siblings = (rs: t) => {
   ...rs,
   siblings: Siblings.reassemble(rs.siblings),
+};
+
+/* Rescan across combined siblings: converts standalone monotiles
+ * that match missing shards of incomplete tiles on the other side.
+ * This must run before the cross-sibling `go` function so that
+ * converted tiles have the correct IDs for reassembly. */
+let rescan_siblings = (rs: t) => {
+  ...rs,
+  siblings: Siblings.rescan(rs.siblings),
 };
 
 let reassemble = (rs: t): t => {

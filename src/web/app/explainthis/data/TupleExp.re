@@ -99,6 +99,50 @@ let tuple_exp_size3: form = {
   };
 };
 
+let _exp_x = exp("x");
+let _exp_y = exp("y");
+let tuple_extension_exp_coloring_ids =
+    (~x_id: Id.t, ~y_id: Id.t): list((Id.t, Id.t)) => [
+  (Piece.id(_exp_x), x_id),
+  (Piece.id(_exp_y), y_id),
+];
+let tuple_extension_exp: form = {
+  let explanation = "Creates a tuple by combining the [*first operand*](%s) and the [*second operand*](%s), updating elements with the same labels.";
+  {
+    id: TupleExtensionExp,
+    syntactic_form: [_exp_x, space(), tuple_extension_exp(), space(), _exp_y],
+    expandable_id: None,
+    explanation,
+    examples: [
+      {
+        sub_id: TupleExtension1,
+        term: mk_example("(1, 2) ... (3, 4)"),
+        message: "Combines the tuples (1, 2) and (3, 4) into a new tuple.",
+      },
+      {
+        sub_id: TupleExtension2,
+        term: mk_example("(x=1, y=2) ... (x=3, z=4)"),
+        message: "Combines the labeled tuples (x=1, y=2) and (x=3, z=4), updating the x label to 3 and adding a new label z with value 4.",
+      },
+      {
+        sub_id: TupleExtension3,
+        term:
+          mk_example(
+            {|("Alice", active=true, age=30, location="Paris") ... ("Engineer", age=31, department="R&D", active=false)|},
+          ),
+        message: {|Combines a partially labeled tuple representing a user with another tuple containing new and overlapping fields.
+        The `age` and `active` labels are updated, and a new label `department` is added. The unlabeled string "Engineer" is
+        added in order after the original unlabeled "Alice".|},
+      },
+    ],
+  };
+};
+
+let tuple_extensions: group = {
+  id: TupleExtensionExp,
+  forms: [tuple_extension_exp],
+};
+
 let tuples: group = {
   id: TupleExp,
   forms: [tuple_exp],

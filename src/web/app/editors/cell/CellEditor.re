@@ -17,16 +17,31 @@ module Model = {
       editor,
       statics: CachedStatics.empty,
       dynamics: Language.Dynamics.Map.empty,
+      context_menu: None,
     },
     result: EvalResult.Model.init,
   };
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type persistent = CodeEditable.Model.persistent;
+  type persistent = {
+    editor: CodeEditable.Model.persistent,
+    result: EvalResult.Model.persistent,
+  };
 
-  let persist = model => model.editor |> CodeEditable.Model.persist;
-  let to_string = model => model.editor |> CodeEditable.Model.to_string;
-  let unpersist = (~settings as _, pz) =>
-    pz |> PersistentZipper.unpersist |> Editor.Model.mk |> mk;
+  let persist = (model: t): persistent => {
+    editor: model.editor |> CodeEditable.Model.persist,
+    result: model.result |> EvalResult.Model.persist,
+  };
+
+  let unpersist = (~settings as _=?, {editor, result}: persistent): t => {
+    editor: CodeEditable.Model.unpersist(editor),
+    result: EvalResult.Model.unpersist(result),
+  };
+
+  let to_string = (model: t) => model.editor |> CodeEditable.Model.to_string;
+
+  let zipper = (model: t) => model.editor.editor.state.zipper;
+
+  let sort = (model: t): Sort.t => CodeEditable.Model.sort(model.editor);
 };
 
 module Update = {
@@ -54,7 +69,7 @@ module Update = {
         editor,
       };
     | ResultAction(action) =>
-      let* result =
+      let updated =
         EvalResult.Update.update(
           ~settings={
             ...settings,
@@ -66,9 +81,18 @@ module Update = {
           action,
           model.result,
         );
+      /* If the editor has pending_probe_cursor, force recalculation so
+         resolve_pending_probe_cursor can run with the new dynamics */
+      let needs_recalc =
+        model.editor.editor.state.zipper.refractors.pending_probe_cursor
+        != None;
       {
-        ...model,
-        result,
+        ...updated,
+        recalculate: updated.recalculate || needs_recalc,
+        model: {
+          ...model,
+          result: updated.model,
+        },
       };
     };
   };
@@ -76,21 +100,29 @@ module Update = {
   let calculate =
       (
         ~settings,
+        ~autoprobe_mode=false,
         ~is_edited,
+        ~statics_mode=CodeWithStatics.StaticsNormal,
         ~queue_worker,
         ~stitch,
         {editor, result}: Model.t,
       )
       : Model.t => {
+    /* First pass: calculate editor with current dynamics (may be stale) */
     let editor =
       CodeEditable.Update.calculate(
         ~settings,
+        ~autoprobe_mode,
         ~is_edited,
+        ~statics_mode,
         ~stitch,
         ~dynamics=EvalResult.Model.dynamics(result),
         ~is_dynamic_term=false,
         editor,
       );
+    /* Save probe results reference before result calculation */
+    let probes_before = EvalResult.Model.probe_results(result);
+    /* Calculate result (may produce new dynamics from worker) */
     let result =
       EvalResult.Update.calculate(
         ~settings={
@@ -102,6 +134,38 @@ module Update = {
         editor |> CodeEditable.Model.get_statics,
         result,
       );
+    /* Detect if dynamics changed (ensures cursor aligns with render-time dynamics).
+     * Compare inner maps, not Option wrappers (Option.map creates new Some each call) */
+    let probes_after = EvalResult.Model.probe_results(result);
+    let dynamics_changed =
+      switch (probes_before, probes_after) {
+      | (None, None) => false
+      | (Some(a), Some(b)) => a !== b
+      | _ => true
+      };
+    /* Second pass: if there's a pending focus, pending_probe_cursor waiting
+       for dynamics, or dynamics changed since the first pass */
+    let has_pending_focus =
+      editor.editor.state.zipper.refractors.sample_focus.pending_focus != None;
+    let has_pending_cursor =
+      editor.editor.state.zipper.refractors.pending_probe_cursor != None;
+    let needs_second_pass =
+      has_pending_focus || has_pending_cursor || dynamics_changed;
+    let editor =
+      if (needs_second_pass) {
+        /* Pass autoprobe_mode to second pass to avoid clear_autoprobe removing the probe */
+        CodeEditable.Update.calculate(
+          ~settings,
+          ~autoprobe_mode,
+          ~is_edited=false, /* Not an edit, just resolving pending focus/cursor */
+          ~stitch,
+          ~dynamics=EvalResult.Model.dynamics(result),
+          ~is_dynamic_term=false,
+          editor,
+        );
+      } else {
+        editor;
+      };
     {
       editor,
       result,
@@ -116,32 +180,26 @@ module Selection = {
     | MainEditor
     | Result(EvalResult.Selection.t);
 
-  let get_cursor_info = (~selection, model: Model.t): cursor(Update.t) => {
+  let get_cursor_info =
+      (~inject: Update.t => Ui_effect.t(unit), ~selection, model: Model.t)
+      : cursor(Update.t) => {
     switch (selection) {
     | MainEditor =>
       let+ ci =
-        CodeEditable.Selection.get_cursor_info(~selection=(), model.editor);
+        CodeEditable.Selection.get_cursor_info(
+          ~inject=a => inject(MainEditor(a)),
+          ~selection=(),
+          model.editor,
+        );
       Update.MainEditor(ci);
     | Result(selection) =>
       let+ ci =
-        EvalResult.Selection.get_cursor_info(~selection, model.result);
+        EvalResult.Selection.get_cursor_info(
+          ~inject=a => inject(ResultAction(a)),
+          ~selection,
+          model.result,
+        );
       Update.ResultAction(ci);
-    };
-  };
-
-  let handle_key_event =
-      (~selection, ~event, model: Model.t): option(Update.t) => {
-    switch (selection) {
-    | MainEditor =>
-      CodeEditable.Selection.handle_key_event(
-        ~selection=(),
-        model.editor,
-        event,
-      )
-      |> Option.map(x => Update.MainEditor(x))
-    | Result(selection) =>
-      EvalResult.Selection.handle_key_event(~selection, model.result, ~event)
-      |> Option.map(x => Update.ResultAction(x))
     };
   };
 
@@ -162,9 +220,9 @@ module View = {
         ~inject: Update.t => Ui_effect.t(unit),
         ~selected: option(Selection.t),
         ~caption: option(Node.t)=?,
-        ~sort=?,
         ~result_kind=?,
         ~locked=false,
+        ~lines=false,
         model: Model.t,
       ) => {
     let (footer, overlays) =
@@ -185,7 +243,7 @@ module View = {
           | JumpTo(id) =>
             Effect.Many([
               signal(MakeActive(MainEditor)),
-              inject(MainEditor(Perform(Jump(TileId(id))))),
+              inject(MainEditor(Perform(Move(Goal(TileId(id)))))),
             ]),
         ~inject=a => inject(ResultAction(a)),
         ~selected={
@@ -209,13 +267,18 @@ module View = {
               ? _ => Ui_effect.Ignore
               : fun
                 | MakeActive => signal(MakeActive(MainEditor)),
-          ~inject=
+          ~edit_mode=
             locked
-              ? _ => Ui_effect.Ignore
-              : (action => inject(MainEditor(action))),
-          ~selected=selected == Some(MainEditor),
+              ? EditMode.ReadOnly
+              : Editable({
+                  inject: action => inject(MainEditor(action)),
+                  escape: _ => Ui_effect.Ignore,
+                  take_focus: _ => Ui_effect.Ignore,
+                  focus: selected == Some(MainEditor) ? Some() : None,
+                }),
           ~overlays=overlays(model.editor.editor),
-          ~sort?,
+          ~lines,
+          ~dynamics=EvalResult.Model.dynamics(model.result),
           model.editor,
         ),
       ]

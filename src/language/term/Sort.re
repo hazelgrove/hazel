@@ -1,21 +1,47 @@
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type t =
+  | Drv(DrvSort.t)
   | Any
   | Pat
   | Typ
   | TPat
   | Rul
-  | Exp;
+  | Exp
+  | Mod
+  | Sig
+  | MPat;
 
-let root = Exp;
+let to_string =
+  fun
+  | Drv(s) => DrvSort.to_string(s)
+  | _ as s => show(s);
 
-let to_string = show;
+let class_of =
+  fun
+  | Drv(s) => DrvSort.class_of(s)
+  | _ as s => show(s);
+
+let all =
+  (DrvSort.all |> List.map(s => Drv(s))) @ [Any, Pat, Typ, Rul, Exp, TPat];
+
+let consistent = (s, s') =>
+  switch (s, s') {
+  | (Any, _)
+  | (_, Any) => true
+  | (Drv(s), Drv(s')) => DrvSort.consistent(s, s')
+  | (Drv(_), _) => false
+  | _ => s == s'
+  };
 
 let to_string_verbose =
   fun
+  | Drv(s) => DrvSort.to_string_verbose(s)
   | Any => "any"
   | Pat => "pattern"
   | TPat => "type pattern"
   | Typ => "type"
   | Rul => "rule"
-  | Exp => "expression";
+  | Exp => "expression"
+  | Mod => "module"
+  | Sig => "signature"
+  | MPat => "module pattern";

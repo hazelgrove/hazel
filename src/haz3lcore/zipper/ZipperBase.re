@@ -1,30 +1,59 @@
 open Util;
 
-module Caret = {
-  [@deriving (show({with_path: false}), sexp, yojson, eq)]
-  type t =
-    | Outer
-    | Inner(int, int);
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
+type caret =
+  | Outer
+  | Inner(int);
 
-  let decrement: t => t =
-    fun
-    | Outer
-    | Inner(_, 0) => Outer
-    | Inner(d, c) => Inner(d, c - 1);
-
-  let offset: t => int =
-    fun
-    | Outer => 0
-    | Inner(_, c) => c + 1;
-};
+/* Refractor state extracted to Refractors.re - see state location docs there */
+module Refractor = Refractors;
 
 // assuming single backpack, shards may appear in selection, backpack, or siblings
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type t = {
   selection: Selection.t,
-  backpack: Backpack.t,
   relatives: Relatives.t,
-  caret: Caret.t,
+  caret,
+  /* Like projectors but not replacing syntax */
+  refractors: Refractor.t,
+};
+
+let update_refractors = (z: t, f: Refractor.t => Refractor.t): t => {
+  ...z,
+  refractors: f(z.refractors),
+};
+
+let update_manuals = (f, z: t): t => {
+  ...z,
+  refractors: {
+    ...z.refractors,
+    manuals: f(z.refractors.manuals),
+  },
+};
+
+let add_manual = (id: Id.t, kind: ProjectorCore.Kind.t, z: t): t =>
+  update_manuals(x => [(id, Refractors.mk_entry(kind)), ...x], z);
+
+let update_ephemerals = (f, z: t): t => {
+  ...z,
+  refractors: {
+    ...z.refractors,
+    multis: {
+      ...z.refractors.multis,
+      ephemerals: f(z.refractors.multis.ephemerals),
+    },
+  },
+};
+
+let update_suppressed = (f, z: t): t => {
+  ...z,
+  refractors: {
+    ...z.refractors,
+    multis: {
+      ...z.refractors.multis,
+      suppressed: f(z.refractors.multis.suppressed),
+    },
+  },
 };
 
 let update_relatives = (f: Relatives.t => Relatives.t, z: t): t => {
@@ -138,9 +167,9 @@ module MapPiece = {
     };
   };
 
-  let left_sib_has_id = sib_has_id(Siblings.left_neighbor);
+  let left_sib_has_id = sib_has_id(Siblings.neighbor(Left));
 
-  let right_sib_has_id = sib_has_id(Siblings.right_neighbor);
+  let right_sib_has_id = sib_has_id(Siblings.neighbor(Right));
 
   let update_left_sib = (f: Piece.t => Segment.t, z: t) => {
     let (l, r) = z.relatives.siblings;

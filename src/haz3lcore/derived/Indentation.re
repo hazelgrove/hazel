@@ -27,8 +27,6 @@ let next_pieces = (seg: Segment.t): list(option(Piece.t)) => {
     };
   go(seg);
 };
-/* Memoize for perf */
-let indent_hash = Hashtbl.create(10000);
 
 let union_all =
   List.fold_left(
@@ -116,7 +114,7 @@ let is_comma = (p: Piece.t): bool =>
 
 let is_case_rule = (p: Piece.t): bool =>
   switch (p) {
-  | Tile({label: ["|"], _}) => true /* hack to reduce case-rule entry jank */
+  //| Tile({label: ["|"], _}) => true /* hack to reduce case-rule entry jank */
   | Tile({label: ["|", "=>"], _}) => true
   | _ => false
   };
@@ -156,6 +154,9 @@ let rec go' = ((not_top, base: int, seg: Segment.t)) => {
             | (None, _) when not_top => level + 2
             | (_, Some(next)) when is_case_rule(next) => base
             | (_, None) => base
+            | (_, Some(p)) when Piece.is_infix_delimiter_op_prefix(p) =>
+              /* Special case fof kw prefixes */
+              base
             | (_, Some(_)) => level
             };
           (level, Id.Map.add(w.id, level, map));
@@ -180,15 +181,7 @@ let rec go' = ((not_top, base: int, seg: Segment.t)) => {
     );
   map;
 }
-and go = (~not_top, base: int, seg: Segment.t) => {
-  let arg = (not_top, base, seg);
-  try(Hashtbl.find(indent_hash, arg)) {
-  | _ =>
-    let res = go'(arg);
-    Hashtbl.add(indent_hash, arg, res);
-    res;
-  };
-};
+and go = (~not_top, base: int, seg: Segment.t) => go'((not_top, base, seg));
 
 let level_map = (seg: Segment.t): Id.Map.t(int) =>
   go(~not_top=false, 0, seg);

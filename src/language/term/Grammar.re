@@ -1,38 +1,10 @@
 open Util;
 
-module Annotated = {
-  [@deriving (show({with_path: false}), sexp, yojson, eq)]
-  type t('a, 'b) = {
-    term: 'a,
-    annotation: 'b,
-  };
-  /* uncomment to make terms pp without annotation */
-  //   let pp:
-  //     type a b.
-  //       (
-  //         (Format.formatter, a) => unit,
-  //         (Format.formatter, b) => unit,
-  //         Format.formatter,
-  //         t(a, b)
-  //       ) =>
-  //       unit =
-  //     (fmt_a, _, fmtr, t) => {
-  //       fmt_a(fmtr, t.term);
-  //     };
-
-  let term_of = x => x.term;
-  let unwrap = x => (
-    x.term,
-    term' => {
-      ...x,
-      term: term',
-    },
-  );
-
-  let empty = term => {
-    term,
-    annotation: (),
-  };
+/* Projector metadata for term-level projector wrappers */
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
+type projector_data = {
+  kind: ProjectorKind.t,
+  model: string,
 };
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
@@ -47,6 +19,10 @@ type any_t('a) =
   | Typ(typ_t('a))
   | TPat(tpat_t('a))
   | Rul(rul_t('a))
+  | Drv(DrvGrammar.any_t('a))
+  | Mod(mod_t('a))
+  | Sig(sig_t('a))
+  | MPat(mpat_t('a))
   | Any(unit)
 and exp_term('a) =
   | Invalid(string)
@@ -56,6 +32,7 @@ and exp_term('a) =
   | Deferral(deferral_position_t)
   | Undefined
   | Atom(Atom.t)
+  | DrvQuote(DrvGrammar.any_t('a), DrvSort.t)
   | ListLit(list(exp_t('a)))
   /* The type double-option field of this constructor is required to assign the correct
      statics to constructors after evaluation. In dynamic expressions `Some(None)` means
@@ -66,12 +43,16 @@ and exp_term('a) =
   | TypFun(tpat_t('a), exp_t('a), option(Var.t))
   | Tuple(list(exp_t('a)))
   | Label(string)
+  | ExplicitNonlabel
   | TupLabel(exp_t('a), exp_t('a))
   | Dot(exp_t('a), exp_t('a))
   | LivelitName(string)
   | Var(Var.t)
   | Let(pat_t('a), exp_t('a), exp_t('a))
-  | FixF(pat_t('a), exp_t('a), option(closure_environment_t('a)))
+  | Theorem(pat_t('a), exp_t('a), exp_t('a))
+  | ProofObject(exp_t('a))
+  | Forall(pat_t('a), exp_t('a))
+  | FixF(pat_t('a), exp_t('a), option(Environment.t(exp_t('a))))
   | TyAlias(tpat_t('a), typ_t('a), exp_t('a))
   | Use(typ_t('a), exp_t('a))
   | Ap(Operators.ap_direction, exp_t('a), exp_t('a))
@@ -82,22 +63,26 @@ and exp_term('a) =
   | Test(exp_t('a))
   | HintedTest(exp_t('a), exp_t('a))
   | Filter(stepper_filter_kind_t('a), exp_t('a))
-  | Closure([@show.opaque] closure_environment_t('a), exp_t('a))
+  | Closure([@show.opaque] Environment.t(exp_t('a)), exp_t('a))
   | Parens(exp_t('a)) // (
-  | Probe(exp_t('a), Probe.t)
+  | Projector(projector_data, exp_t('a))
   | Cons(exp_t('a), exp_t('a))
   | ListConcat(exp_t('a), exp_t('a))
   | UnOp(Operators.op_un, exp_t('a))
   | BinOp(Operators.op_bin, exp_t('a), exp_t('a))
   | BuiltinFun(string)
   | Match(exp_t('a), list((pat_t('a), exp_t('a))))
+  | TupleExtension(exp_t('a), exp_t('a))
   | Asc(exp_t('a), typ_t('a))
+  | Module(list(mod_t('a)))
+  | ModuleExp(mpat_t('a), exp_t('a), exp_t('a))
 and exp_t('a) = Annotated.t(exp_term('a), 'a)
 and pat_term('a) =
   | Invalid(string)
   | EmptyHole
   | MultiHole(list(any_t('a)))
   | Wild
+  | ExplicitNonlabel
   | Atom(Atom.t)
   | ListLit(list(pat_t('a)))
   | Constructor(string, option(option(typ_t('a)))) // see comment on constructor expressions
@@ -107,24 +92,30 @@ and pat_term('a) =
   | Label(string)
   | TupLabel(pat_t('a), pat_t('a))
   | Parens(pat_t('a))
-  | Probe(pat_t('a), Probe.t)
+  | Projector(projector_data, pat_t('a))
   | Ap(pat_t('a), pat_t('a))
   | Asc(pat_t('a), typ_t('a))
 and pat_t('a) = Annotated.t(pat_term('a), 'a)
 and typ_term('a) =
   | Unknown(type_provenance('a))
   | Atom(Atom.cls)
+  | DrvQuoteTy(DrvSort.t)
   | Var(string)
   | List(typ_t('a))
   | Arrow(typ_t('a), typ_t('a))
   | Sum(ConstructorMap.t(typ_t('a)))
   | Prod(list(typ_t('a)))
+  | ExplicitNonlabel
   | Label(string)
   | TupLabel(typ_t('a), typ_t('a))
   | Parens(typ_t('a))
-  | Ap(typ_t('a), typ_t('a))
+  | Projector(projector_data, typ_t('a))
   | Rec(tpat_t('a), typ_t('a))
-  | Forall(tpat_t('a), typ_t('a))
+  | Poly(tpat_t('a), typ_t('a))
+  | ProofOf(exp_t('a))
+  | ProdProjection(typ_t('a), typ_t('a))
+  | ProdExtension(typ_t('a), typ_t('a))
+  | Sig(list(sig_t('a)))
 and typ_t('a) = Annotated.t(typ_term('a), 'a)
 and tpat_term('a) =
   | Invalid(string)
@@ -137,12 +128,29 @@ and rul_term('a) =
   | MultiHole(list(any_t('a)))
   | Rules(exp_t('a), list((pat_t('a), exp_t('a))))
 and rul_t('a) = Annotated.t(rul_term('a), 'a)
-and environment_t('a) = VarBstMap.Ordered.t_(exp_t('a))
-and closure_environment_t('a) = {
-  id: Id.t,
-  env: environment_t('a),
-  call_stack: Probe.call_stack,
-}
+and mod_term('a) =
+  | Invalid(string)
+  | EmptyHole
+  | MultiHole(list(any_t('a)))
+  | ModLet(pat_t('a), exp_t('a))
+  | ModType(tpat_t('a), typ_t('a))
+  | ModExp(exp_t('a))
+  | ModuleMod(mpat_t('a), exp_t('a))
+and mod_t('a) = Annotated.t(mod_term('a), 'a)
+and sig_term('a) =
+  | Invalid(string)
+  | EmptyHole
+  | MultiHole(list(any_t('a)))
+  | SigLet(pat_t('a))
+  | SigType(tpat_t('a), typ_t('a))
+and sig_t('a) = Annotated.t(sig_term('a), 'a)
+and mpat_term('a) =
+  | Invalid(string)
+  | EmptyHole
+  | MultiHole(list(any_t('a)))
+  | Var(Var.t)
+  | Asc(mpat_t('a), typ_t('a))
+and mpat_t('a) = Annotated.t(mpat_term('a), 'a)
 and stepper_filter_kind_t('a) =
   | Filter(filter('a))
   | Residue(int, FilterAction.t)
@@ -176,6 +184,7 @@ let rec map_exp_annotation: type a b. (a => b, exp_t(a)) => exp_t(b) =
         | Deferral(pos) => Deferral(pos)
         | Undefined => Undefined
         | Atom(c) => Atom(c)
+        | DrvQuote(d, s) => DrvQuote(DrvGrammar.map_any_annotation(f, d), s)
         | LivelitName(s) => LivelitName(s)
         | ListLit(l) => ListLit(List.map(x => map_exp_annotation(f, x), l))
         | Constructor(s, t) =>
@@ -191,6 +200,7 @@ let rec map_exp_annotation: type a b. (a => b, exp_t(a)) => exp_t(b) =
           TypFun(map_tpat_annotation(f, p), map_exp_annotation(f, e), v)
         | Tuple(l) => Tuple(List.map(x => map_exp_annotation(f, x), l))
         | Label(l) => Label(l)
+        | ExplicitNonlabel => ExplicitNonlabel
         | TupLabel(l, e) =>
           TupLabel(map_exp_annotation(f, l), map_exp_annotation(f, e))
         | Dot(e1, e2) =>
@@ -202,6 +212,15 @@ let rec map_exp_annotation: type a b. (a => b, exp_t(a)) => exp_t(b) =
             map_exp_annotation(f, e1),
             map_exp_annotation(f, e2),
           )
+        | Theorem(p, e1, e2) =>
+          Theorem(
+            map_pat_annotation(f, p),
+            map_exp_annotation(f, e1),
+            map_exp_annotation(f, e2),
+          )
+        | ProofObject(t) => ProofObject(map_exp_annotation(f, t))
+        | Forall(p, e) =>
+          Forall(map_pat_annotation(f, p), map_exp_annotation(f, e))
         | FixF(p, e, _) =>
           FixF(map_pat_annotation(f, p), map_exp_annotation(f, e), None)
         | TyAlias(p, t, e) =>
@@ -239,11 +258,11 @@ let rec map_exp_annotation: type a b. (a => b, exp_t(a)) => exp_t(b) =
           )
         | Closure(env, e) =>
           Closure(
-            map_closure_environment_annotation(f, env),
+            Environment.map(map_exp_annotation(f), env),
             map_exp_annotation(f, e),
           )
         | Parens(e) => Parens(map_exp_annotation(f, e))
-        | Probe(e, probe) => Probe(map_exp_annotation(f, e), probe)
+        | Projector(data, e) => Projector(data, map_exp_annotation(f, e))
         | Cons(e1, e2) =>
           Cons(map_exp_annotation(f, e1), map_exp_annotation(f, e2))
         | ListConcat(e1, e2) =>
@@ -261,8 +280,20 @@ let rec map_exp_annotation: type a b. (a => b, exp_t(a)) => exp_t(b) =
               l,
             ),
           )
+        | TupleExtension(e1, e2) =>
+          TupleExtension(
+            map_exp_annotation(f, e1),
+            map_exp_annotation(f, e2),
+          )
         | Asc(e, t) =>
           Asc(map_exp_annotation(f, e), map_typ_annotation(f, t))
+        | Module(items) => Module(List.map(map_mod_annotation(f), items))
+        | ModuleExp(mp, def, body) =>
+          ModuleExp(
+            map_mpat_annotation(f, mp),
+            map_exp_annotation(f, def),
+            map_exp_annotation(f, body),
+          )
         };
       {
         term,
@@ -280,6 +311,10 @@ and map_any_annotation: 'a 'b. ('a => 'b, any_t('a)) => any_t('b) =
     | Typ(t) => Typ(map_typ_annotation(f, t))
     | TPat(tp) => TPat(map_tpat_annotation(f, tp))
     | Rul(r) => Rul(map_rul_annotation(f, r))
+    | Drv(d) => Drv(DrvGrammar.map_any_annotation(f, d))
+    | Mod(m) => Mod(map_mod_annotation(f, m))
+    | Sig(s) => Sig(map_sig_annotation(f, s))
+    | MPat(mp) => MPat(map_mpat_annotation(f, mp))
     | Any(_) => Any()
     };
   }
@@ -303,11 +338,12 @@ and map_pat_annotation: 'a 'b. ('a => 'b, pat_t('a)) => pat_t('b) =
           Cons(map_pat_annotation(f, p1), map_pat_annotation(f, p2))
         | Var(v) => Var(v)
         | Tuple(l) => Tuple(List.map(x => map_pat_annotation(f, x), l))
+        | ExplicitNonlabel => ExplicitNonlabel
         | Label(l) => Label(l)
         | TupLabel(p1, p2) =>
           TupLabel(map_pat_annotation(f, p1), map_pat_annotation(f, p2))
         | Parens(p) => Parens(map_pat_annotation(f, p))
-        | Probe(p, probe) => Probe(map_pat_annotation(f, p), probe)
+        | Projector(data, p) => Projector(data, map_pat_annotation(f, p))
         | Ap(p1, p2) =>
           Ap(map_pat_annotation(f, p1), map_pat_annotation(f, p2))
         | Asc(p, t) =>
@@ -325,23 +361,36 @@ and map_typ_annotation: 'a 'b. ('a => 'b, typ_t('a)) => typ_t('b) =
         switch (term) {
         | Unknown(p) => Unknown(map_type_provenance_annotation(f, p))
         | Atom(c) => Atom(c)
+        | DrvQuoteTy(s) => DrvQuoteTy(s)
         | Var(s) => Var(s)
         | List(t) => List(map_typ_annotation(f, t))
         | Arrow(t1, t2) =>
           Arrow(map_typ_annotation(f, t1), map_typ_annotation(f, t2))
         | Parens(t) => Parens(map_typ_annotation(f, t))
-        | Ap(t1, t2) =>
-          Ap(map_typ_annotation(f, t1), map_typ_annotation(f, t2))
+        | Projector(data, t) => Projector(data, map_typ_annotation(f, t))
         | Rec(tp, t) =>
           Rec(map_tpat_annotation(f, tp), map_typ_annotation(f, t))
-        | Forall(tp, t) =>
-          Forall(map_tpat_annotation(f, tp), map_typ_annotation(f, t))
+        | Poly(tp, t) =>
+          Poly(map_tpat_annotation(f, tp), map_typ_annotation(f, t))
+        | ProofOf(e) => ProofOf(map_exp_annotation(f, e))
         | Prod(l) => Prod(List.map(x => map_typ_annotation(f, x), l))
         | Label(l) => Label(l)
+        | ExplicitNonlabel => ExplicitNonlabel
         | TupLabel(t1, t2) =>
           TupLabel(map_typ_annotation(f, t1), map_typ_annotation(f, t2))
         | Sum(m) =>
           Sum(ConstructorMap.map_preserving(map_typ_annotation(f), m))
+        | ProdProjection(t1, t2) =>
+          ProdProjection(
+            map_typ_annotation(f, t1),
+            map_typ_annotation(f, t2),
+          )
+        | ProdExtension(t1, t2) =>
+          ProdExtension(
+            map_typ_annotation(f, t1),
+            map_typ_annotation(f, t2),
+          )
+        | Sig(items) => Sig(List.map(map_sig_annotation(f), items))
         },
       annotation: new_annotation,
     };
@@ -385,6 +434,64 @@ and map_rul_annotation: 'a 'b. ('a => 'b, rul_t('a)) => rul_t('b) =
       annotation: new_annotation,
     };
   }
+and map_mod_annotation: 'a 'b. ('a => 'b, mod_t('a)) => mod_t('b) =
+  (f, e) => {
+    let (term, annotation) = (e.term, e.annotation);
+    let new_annotation = f(annotation);
+    {
+      term:
+        switch (term) {
+        | Invalid(s) => Invalid(s)
+        | EmptyHole => EmptyHole
+        | MultiHole(l) =>
+          MultiHole(List.map(x => map_any_annotation(f, x), l))
+        | ModLet(p, e) =>
+          ModLet(map_pat_annotation(f, p), map_exp_annotation(f, e))
+        | ModType(tp, t) =>
+          ModType(map_tpat_annotation(f, tp), map_typ_annotation(f, t))
+        | ModExp(e) => ModExp(map_exp_annotation(f, e))
+        | ModuleMod(mp, e) =>
+          ModuleMod(map_mpat_annotation(f, mp), map_exp_annotation(f, e))
+        },
+      annotation: new_annotation,
+    };
+  }
+and map_sig_annotation: 'a 'b. ('a => 'b, sig_t('a)) => sig_t('b) =
+  (f, e) => {
+    let (term, annotation) = (e.term, e.annotation);
+    let new_annotation = f(annotation);
+    {
+      term:
+        switch (term) {
+        | Invalid(s) => Invalid(s)
+        | EmptyHole => EmptyHole
+        | MultiHole(l) =>
+          MultiHole(List.map(x => map_any_annotation(f, x), l))
+        | SigLet(p) => SigLet(map_pat_annotation(f, p))
+        | SigType(tp, t) =>
+          SigType(map_tpat_annotation(f, tp), map_typ_annotation(f, t))
+        },
+      annotation: new_annotation,
+    };
+  }
+and map_mpat_annotation: 'a 'b. ('a => 'b, mpat_t('a)) => mpat_t('b) =
+  (f, e) => {
+    let (term, annotation) = (e.term, e.annotation);
+    let new_annotation = f(annotation);
+    {
+      term:
+        switch (term) {
+        | Invalid(s) => Invalid(s)
+        | EmptyHole => EmptyHole
+        | MultiHole(l) =>
+          MultiHole(List.map(x => map_any_annotation(f, x), l))
+        | Var(v) => Var(v)
+        | Asc(mp, t) =>
+          Asc(map_mpat_annotation(f, mp), map_typ_annotation(f, t))
+        },
+      annotation: new_annotation,
+    };
+  }
 and map_stepper_filter_kind_annotation:
   'a 'b.
   ('a => 'b, stepper_filter_kind_t('a)) => stepper_filter_kind_t('b)
@@ -398,13 +505,6 @@ and map_stepper_filter_kind_annotation:
       })
     | Residue(i, act) => Residue(i, act)
     };
-  }
-and map_closure_environment_annotation:
-  type a b. (a => b, closure_environment_t(a)) => closure_environment_t(b) =
-  (f, {id, env, call_stack}) => {
-    id,
-    env: VarBstMap.Ordered.mapo(((_, y)) => map_exp_annotation(f, y), env),
-    call_stack,
   }
 
 and map_type_provenance_annotation:
@@ -441,9 +541,17 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
   type typ = typ_t(DefaultAnnotation.t);
   type tpat = tpat_t(DefaultAnnotation.t);
   type typ_provenance = type_provenance(DefaultAnnotation.t);
+  type mod_ = mod_t(DefaultAnnotation.t);
 
   let default_annotation = ann =>
     Option.value(~default=DefaultAnnotation.default_value(), ann);
+  module DrvGrammar = {
+    let placeholder = (~ann=?, ()): DrvGrammar.any_t(DefaultAnnotation.t) =>
+      DrvGrammar.Exp({
+        term: DrvGrammar.Hole(Invalid("place_holder")),
+        annotation: default_annotation(ann),
+      });
+  };
   module Exp = {
     type t = exp_t(DefaultAnnotation.t);
     let invalid = (~ann=?, s): exp_t(DefaultAnnotation.t) => {
@@ -500,6 +608,10 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       term: Atom(Nat(i)),
       annotation: default_annotation(ann),
     };
+    let drv_exp = (~ann=?, d, s): exp_t(DefaultAnnotation.t) => {
+      term: DrvQuote(d, s),
+      annotation: default_annotation(ann),
+    };
     let list_lit = (~ann=?, l): exp_t(DefaultAnnotation.t) => {
       term: ListLit(l),
       annotation: default_annotation(ann),
@@ -520,6 +632,10 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       term: Tuple(l),
       annotation: default_annotation(ann),
     };
+    let explicit_non_label = (~ann=?, ()): exp_t(DefaultAnnotation.t) => {
+      term: ExplicitNonlabel,
+      annotation: default_annotation(ann),
+    };
     let label = (~ann=?, l): exp_t(DefaultAnnotation.t) => {
       term: Label(l),
       annotation: default_annotation(ann),
@@ -530,6 +646,10 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
     };
     let dot = (~ann=?, e1, e2): exp_t(DefaultAnnotation.t) => {
       term: Dot(e1, e2),
+      annotation: default_annotation(ann),
+    };
+    let tuple_extension = (~ann=?, e1, e2): exp_t(DefaultAnnotation.t) => {
+      term: TupleExtension(e1, e2),
       annotation: default_annotation(ann),
     };
     let var = (~ann=?, v): exp_t(DefaultAnnotation.t) => {
@@ -546,6 +666,18 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
     };
     let let_ = (~ann=?, p, e1, e2): exp_t(DefaultAnnotation.t) => {
       term: Let(p, e1, e2),
+      annotation: default_annotation(ann),
+    };
+    let theorem = (~ann=?, p, e1, e2): exp_t(DefaultAnnotation.t) => {
+      term: Theorem(p, e1, e2),
+      annotation: default_annotation(ann),
+    };
+    let proof_object = (~ann=?, t): exp_t(DefaultAnnotation.t) => {
+      term: ProofObject(t),
+      annotation: default_annotation(ann),
+    };
+    let forall = (~ann=?, p, e): exp_t(DefaultAnnotation.t) => {
+      term: Forall(p, e),
       annotation: default_annotation(ann),
     };
     let fix_f = (~ann=?, p, e, env): exp_t(DefaultAnnotation.t) => {
@@ -600,8 +732,8 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       term: Parens(e),
       annotation: default_annotation(ann),
     };
-    let probe = (~ann=?, e1, e2): exp_t(DefaultAnnotation.t) => {
-      term: Probe(e1, e2),
+    let projector = (~ann=?, data, e): exp_t(DefaultAnnotation.t) => {
+      term: Projector(data, e),
       annotation: default_annotation(ann),
     };
     let cons = (~ann=?, e1, e2): exp_t(DefaultAnnotation.t) => {
@@ -630,6 +762,14 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
     };
     let asc = (~ann=?, e, t): exp_t(DefaultAnnotation.t) => {
       term: Asc(e, t),
+      annotation: default_annotation(ann),
+    };
+    let module_ = (~ann=?, m): exp_t(DefaultAnnotation.t) => {
+      term: Module(m),
+      annotation: default_annotation(ann),
+    };
+    let module_exp = (~ann=?, mp, def, body): exp_t(DefaultAnnotation.t) => {
+      term: ModuleExp(mp, def, body),
       annotation: default_annotation(ann),
     };
   };
@@ -700,6 +840,10 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       term: Tuple(l),
       annotation: default_annotation(ann),
     };
+    let explicit_non_label = (~ann=?, ()): pat_t(DefaultAnnotation.t) => {
+      term: ExplicitNonlabel,
+      annotation: default_annotation(ann),
+    };
     let label = (~ann=?, l): pat_t(DefaultAnnotation.t) => {
       term: Label(l),
       annotation: default_annotation(ann),
@@ -712,8 +856,8 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       term: Parens(p),
       annotation: default_annotation(ann),
     };
-    let probe = (~ann=?, p1, p2): pat_t(DefaultAnnotation.t) => {
-      term: Probe(p1, p2),
+    let projector = (~ann=?, data, p): pat_t(DefaultAnnotation.t) => {
+      term: Projector(data, p),
       annotation: default_annotation(ann),
     };
     let ap = (~ann=?, p1, p2): pat_t(DefaultAnnotation.t) => {
@@ -756,6 +900,10 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       term: Atom(Nat),
       annotation: default_annotation(ann),
     };
+    let drv_typ = (~ann=?, s): typ_t(DefaultAnnotation.t) => {
+      term: DrvQuoteTy(s),
+      annotation: default_annotation(ann),
+    };
     let var = (~ann=?, s): typ_t(DefaultAnnotation.t) => {
       term: Var(s),
       annotation: default_annotation(ann),
@@ -776,8 +924,20 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       term: Prod(l),
       annotation: default_annotation(ann),
     };
+    let prod_projection = (~ann=?, t1, t2): typ_t(DefaultAnnotation.t) => {
+      term: ProdProjection(t1, t2),
+      annotation: default_annotation(ann),
+    };
+    let prod_extension = (~ann=?, t1, t2): typ_t(DefaultAnnotation.t) => {
+      term: ProdExtension(t1, t2),
+      annotation: default_annotation(ann),
+    };
     let label = (~ann=?, l): typ_t(DefaultAnnotation.t) => {
       term: Label(l),
+      annotation: default_annotation(ann),
+    };
+    let explicit_non_label = (~ann=?, ()): typ_t(DefaultAnnotation.t) => {
+      term: ExplicitNonlabel,
       annotation: default_annotation(ann),
     };
     let tup_label = (~ann=?, t1, t2): typ_t(DefaultAnnotation.t) => {
@@ -788,16 +948,20 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       term: Parens(t),
       annotation: default_annotation(ann),
     };
-    let ap = (~ann=?, t1, t2): typ_t(DefaultAnnotation.t) => {
-      term: Ap(t1, t2),
+    let projector = (~ann=?, data, t): typ_t(DefaultAnnotation.t) => {
+      term: Projector(data, t),
       annotation: default_annotation(ann),
     };
     let rec_ = (~ann=?, tp, t): typ_t(DefaultAnnotation.t) => {
       term: Rec(tp, t),
       annotation: default_annotation(ann),
     };
-    let forall = (~ann=?, tp, t): typ_t(DefaultAnnotation.t) => {
-      term: Forall(tp, t),
+    let poly = (~ann=?, tp, t): typ_t(DefaultAnnotation.t) => {
+      term: Poly(tp, t),
+      annotation: default_annotation(ann),
+    };
+    let proof_of = (~ann=?, e): typ_t(DefaultAnnotation.t) => {
+      term: ProofOf(e),
       annotation: default_annotation(ann),
     };
     let empty_hole = (~ann=?, ()): typ_t(DefaultAnnotation.t) => {
@@ -840,15 +1004,81 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
     };
   };
 
-  let environment = (env): environment_t(DefaultAnnotation.t) => {
-    VarBstMap.Ordered.mapo(((_, y)) => map_exp_annotation(x => x, y), env);
+  module Mod = {
+    let invalid = (~ann=?, s): mod_t(DefaultAnnotation.t) => {
+      term: Invalid(s),
+      annotation: default_annotation(ann),
+    };
+    let empty_hole = (~ann=?, ()): mod_t(DefaultAnnotation.t) => {
+      term: EmptyHole,
+      annotation: default_annotation(ann),
+    };
+    let multi_hole = (~ann=?, l): mod_t(DefaultAnnotation.t) => {
+      term: MultiHole(l),
+      annotation: default_annotation(ann),
+    };
+    let mod_let = (~ann=?, p, e): mod_t(DefaultAnnotation.t) => {
+      term: ModLet(p, e),
+      annotation: default_annotation(ann),
+    };
+    let mod_type = (~ann=?, tp, t): mod_t(DefaultAnnotation.t) => {
+      term: ModType(tp, t),
+      annotation: default_annotation(ann),
+    };
+    let mod_exp = (~ann=?, e): mod_t(DefaultAnnotation.t) => {
+      term: ModExp(e),
+      annotation: default_annotation(ann),
+    };
+    let module_mod = (~ann=?, mp, e): mod_t(DefaultAnnotation.t) => {
+      term: ModuleMod(mp, e),
+      annotation: default_annotation(ann),
+    };
   };
 
-  let closure_environment =
-      (~callstack, id, env): closure_environment_t(DefaultAnnotation.t) => {
-    id,
-    env: environment(env),
-    call_stack: callstack,
+  module Sig = {
+    let invalid = (~ann=?, s): sig_t(DefaultAnnotation.t) => {
+      term: Invalid(s),
+      annotation: default_annotation(ann),
+    };
+    let empty_hole = (~ann=?, ()): sig_t(DefaultAnnotation.t) => {
+      term: EmptyHole,
+      annotation: default_annotation(ann),
+    };
+    let multi_hole = (~ann=?, l): sig_t(DefaultAnnotation.t) => {
+      term: MultiHole(l),
+      annotation: default_annotation(ann),
+    };
+    let sig_let = (~ann=?, p): sig_t(DefaultAnnotation.t) => {
+      term: SigLet(p),
+      annotation: default_annotation(ann),
+    };
+    let sig_type = (~ann=?, tp, t): sig_t(DefaultAnnotation.t) => {
+      term: SigType(tp, t),
+      annotation: default_annotation(ann),
+    };
+  };
+
+  module MPat = {
+    let invalid = (~ann=?, s): mpat_t(DefaultAnnotation.t) => {
+      term: Invalid(s),
+      annotation: default_annotation(ann),
+    };
+    let empty_hole = (~ann=?, ()): mpat_t(DefaultAnnotation.t) => {
+      term: EmptyHole,
+      annotation: default_annotation(ann),
+    };
+    let multi_hole = (~ann=?, l): mpat_t(DefaultAnnotation.t) => {
+      term: MultiHole(l),
+      annotation: default_annotation(ann),
+    };
+    let var = (~ann=?, v): mpat_t(DefaultAnnotation.t) => {
+      term: Var(v),
+      annotation: default_annotation(ann),
+    };
+    let asc = (~ann=?, mp, t): mpat_t(DefaultAnnotation.t) => {
+      term: Asc(mp, t),
+      annotation: default_annotation(ann),
+    };
   };
 
   module StepperFilter = {

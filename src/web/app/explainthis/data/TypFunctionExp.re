@@ -6,7 +6,7 @@ let poly_id_ex = {
   sub_id: TypFun(Basic),
   term:
     mk_example(
-      "let id : \n forall a -> (a -> a) = \n typfun a -> \n fun x : a -> x \n in id",
+      "let id : \n poly a -> (a -> a) = \n typfun a -> \n fun x : a -> x \n in id",
     ),
   message: "The polymorphic identity function. It may be instantiated at any type a, after which the function acts as type (a -> a).",
 };

@@ -1,134 +1,52 @@
 open Util;
-open Zipper;
-open Language;
 
-let buffer_clear = (z: t): t =>
-  switch (z.selection.mode) {
-  | Buffer(Unparsed) => {
-      ...z,
-      selection: Selection.mk([]),
-    }
-
-  | Buffer(Parsed) => z |> Zipper.destruct |> Zipper.regrout(Left)
-  | Normal => z
-  };
-
-let set_tydi_buffer = (info_map: Language.Statics.Map.t, z: t): t =>
-  switch (TyDi.set_buffer(~info_map, z)) {
-  | None => z
-  | Some(z) => z
-  };
-
-let set_llm_buffer = (z: t, response: string): t =>
-  switch (
-    {
-      open OptUtil.Syntax;
-      //TODO: Error feedback on below
-      let* content = Parser.to_zipper(response);
-      let+ _ = [] == content.backpack ? Some() : None;
-      Zipper.set_buffer(z, ~content=Zipper.zip(content), ~mode=Parsed);
-    }
-  ) {
-  | None => z
-  | Some(z) => z
-  };
-
-let paste = (z: Zipper.t, str: string): option(Zipper.t) => {
-  open Util.OptUtil.Syntax;
-  let* z = Parser.to_zipper(~zipper_init=z, str);
-  /* HACK(andrew): Insert/Destruct below is a hack to deal
-     with the fact that pasting something like "let a = b in"
-     won't trigger the barfing of the "in"; to trigger this,
-     we insert a space, and then we immediately delete it */
-  let* z = Insert.go(" ", z);
-  let+ z = Destruct.go(Left, z);
-  remold_regrout(Left, z);
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
+type state = {
+  zipper: Zipper.t,
+  col_target: option(int),
 };
 
-let paste_segment = (z: Zipper.t, segment: Segment.t): Zipper.t => {
-  let replace_selection = (z, focus, segment): Zipper.t =>
-    {
-      ...z,
-      selection: Selection.mk(~focus, segment),
-    }
-    |> Zipper.unselect
-    |> Zipper.remold_regrout(Util.Direction.Right)
-    |> Zipper.remold_regrout(Util.Direction.Left);
-  replace_selection(z, z.selection.focus, segment);
-};
+let return = (error: Action.Failure.t, z: option(Zipper.t)) =>
+  Result.of_option(~error, z);
 
-let go_z =
+let go =
     (
-      ~settings as _: Language.CoreSettings.t,
-      statics: CachedStatics.t,
+      ~settings: Language.CoreSettings.t,
+      ~statics: CachedStatics.t,
+      ~syntax: CachedSyntax.t,
+      ~root,
       a: Action.t,
-      module M: Move.S,
-      z: Zipper.t,
+      {zipper: z, col_target}: state,
     )
     : Action.Result.t(Zipper.t) => {
-  module Move = Move.Make(M);
-  module Select = Select.Make(M);
-
-  let buffer_accept = (z): option(Zipper.t) =>
-    switch (z.selection.mode) {
-    | Normal => None
-    | Buffer(Parsed) =>
-      let z = Zipper.directional_unselect(Right, z);
-      Some(z);
-    | Buffer(Unparsed) =>
-      switch (TyDi.get_unparsed_buffer(z)) {
-      | None => None
-      | Some(completion)
-          when StringUtil.match(StringUtil.regexp(".*\\)::$"), completion) =>
-        /* Slightly hacky. There's currently only one genre of completion
-         * that creates more than one hole on intial expansion: when on eg
-         * 1 :: a|, we suggest "abs( )::" via lookahead. In such a case we
-         * want the caret to end up to the left of the first hole, whereas
-         * pasting would leave it to the left of the second. Thus we move
-         * left to the previous hole. */
-        let z = {
-          open OptUtil.Syntax;
-          let* z = paste(z, completion);
-          let* z = Move.go(Goal(Piece(Grout, Left)), z);
-          Move.go(Local(Left(ByToken)), z);
-        };
-        z;
-      | Some(completion) => paste(z, completion)
-      }
-    };
-
-  let smart_select = (n, z: t): option(Zipper.t) => {
-    switch (n) {
-    | 2 => Select.indicated_token(z)
-    | 3 =>
-      open OptUtil.Syntax;
-      /* For things where triple-clicking would otherwise have
-       * no additional effect, select the parent term instead */
-      let* (p, _, _) = Indicated.piece''(z);
-      Piece.is_term(p)
-        ? Select.parent_of_indicated(z, statics.info_map)
-        : Select.current_term(~defs_exclude_bodies=true, ~case_rules=true, z);
-    | _ => None
-    };
-  };
-
+  let maybe_reassoc = settings.deep_reassociate ? Reassociate.go : Fun.id;
   switch (a) {
-  | Paste(String(clipboard)) =>
-    switch (paste(z, clipboard)) {
-    | None => Error(CantPaste)
-    | Some(z) => Ok(z)
-    }
   | Introduce =>
-    Select.current_term(~defs_exclude_bodies=false, ~case_rules=false, z)
-    |> Option.bind(_, Introduce.introduce(statics.info_map, _))
-    |> Result.of_option(~error=Action.Failure.CantIntroduce)
-  | Paste(Segment(segment)) => Ok(paste_segment(z, segment))
+    Select.current_term(
+      syntax.term_data,
+      ~defs_exclude_bodies=false,
+      ~case_rules=false,
+      z,
+    )
+    |> OptUtil.and_then(
+         Introduce.introduce(Indicated.ci_of(z, statics.info_map)),
+       )
+    |> return(CantIntroduce)
+  | Paste(clipboard) =>
+    switch (Parser.try_segment_paste(clipboard, z, ~root)) {
+    | Some(z) => Ok(maybe_reassoc(z))
+    | None =>
+      (
+        Parser.can_fast_paste(clipboard, z, ~root)
+          ? Parser.fast_paste(clipboard, z, ~root)
+          : Parser.to_zipper(~root, ~zipper_init=z, clipboard)
+      )
+      |> Option.map(maybe_reassoc)
+      |> return(CantPaste)
+    }
   | Cut =>
     /* System clipboard handling is done in Page.view handlers */
-    switch (Destruct.go(Left, z)) {
-    | None => Error(Cant_destruct)
-    | Some(z) => Ok(z)
-    }
+    Destruct.go(Left, z, ~root) |> return(Cant_destruct)
   | Copy =>
     /* System clipboard handling itself is done in Page.view handlers.
      * This doesn't change state but is included here for logging purposes */
@@ -137,140 +55,148 @@ let go_z =
     /* This serializes the current editor to text, resets the current
        editor, and then deserializes. It is intended as a (tactical)
        nuclear option for weird backpack states */
-    let reparse = z =>
-      Parser.to_zipper(
-        ~zipper_init=Zipper.init(),
-        Printer.of_zipper(~holes="", ~indent="", z),
-      );
-    switch (reparse(z)) {
-    | None => Error(CantReparse)
-    | Some(z) => Ok(z)
+    Parser.to_zipper(~root, Printer.of_zipper(~holes="", ~indent="", z))
+    |> return(CantReparse)
+  | PrettyPrint =>
+    /* Remember which tile the caret was on so we can restore the
+       caret position after prettifying. Pretty-printing preserves
+       tile IDs (it only rearranges whitespace), so the same piece
+       can be located in the new segment. Falls back to the default
+       caret position (end of document) if there is no indicated
+       tile or the ID can't be located. */
+    let prev_id = Indicated.index(z);
+    let seg = Zipper.unselect_and_zip(z);
+    let pretty = PrettySegment.prettify(seg);
+    let z = {
+      ...Zipper.unzip(pretty),
+      refractors: z.refractors,
     };
-  | Buffer(Set(TyDi)) => Ok(set_tydi_buffer(statics.info_map, z))
-  | Buffer(Set(LLM(response))) => Ok(set_llm_buffer(z, response))
-  | Buffer(Accept) =>
-    switch (buffer_accept(z)) {
-    | None => Error(CantAccept)
-    | Some(z) => Ok(z)
-    }
-  | Buffer(Clear) => Ok(buffer_clear(z))
-  | Project(a) =>
-    ProjectorPerform.go(
-      Move.jump_to_id_indicated,
-      Move.jump_to_side_of_id,
-      Select.current_term(~defs_exclude_bodies=false, ~case_rules=false),
-      a,
-      z,
-    )
-  | Move(d) =>
-    Move.go(d, z) |> Result.of_option(~error=Action.Failure.Cant_move)
-  | Jump(jump_target) =>
-    (
-      switch (jump_target) {
-      | BindingSiteOfIndicatedVar =>
-        open OptUtil.Syntax;
-        let* idx = Indicated.index(z);
-        let* ci = Id.Map.find_opt(idx, statics.info_map);
-        let* binding_id = Language.Info.get_binding_site(ci);
-        Move.jump_to_id_indicated(z, binding_id);
-      | TileId(id) => Move.jump_to_id_indicated(z, id)
-      }
-    )
-    |> Result.of_option(~error=Action.Failure.Cant_move)
-  | Unselect(Some(d)) => Ok(Zipper.directional_unselect(d, z))
-  | Unselect(None) => Ok(Zipper.unselect(z))
-  | Select(All) =>
     let z =
-      switch (Move.do_extreme(Move.primary(ByToken), Up, z)) {
-      | Some(z) => z
+      switch (prev_id) {
+      | Some(id) =>
+        switch (Move.jump_to_id_indicated(z, id)) {
+        | Some(z') => z'
+        | None => z
+        }
       | None => z
       };
-    switch (Select.go(Extreme(Down), z)) {
-    | Some(z) => Ok(z)
-    | None => Error(Action.Failure.Cant_select)
-    };
+    Some(z) |> return(CantReparse);
+  | Buffer(a) =>
+    Buffer.go(~ci=Indicated.ci_for_completion(z, statics.info_map), a, z)
+  | Project(a) =>
+    let refractor_list =
+      List.map(fst, z.refractors.manuals)
+      @ List.map(fst, Id.Map.to_list(z.refractors.multis.ephemerals));
+    ProjectorPerform.go(
+      syntax.term_data,
+      a,
+      z,
+      syntax.projector_list,
+      refractor_list,
+    );
+  | Move(d) =>
+    Move.go(
+      ~statics=statics.info_map,
+      ~problem_ids=
+        Seq.append(
+          List.to_seq(statics.error_ids),
+          Seq.append(
+            List.to_seq(statics.warning_ids),
+            Seq.filter_map(
+              (g: Grout.t) => g.shape == Convex ? Some(g.id) : None,
+              List.to_seq(Segment.holes(syntax.segment)),
+            ),
+          ),
+        ),
+      ~col_target=Option.value(col_target, ~default=0),
+      ~measured=syntax.measured,
+      d,
+      z,
+    )
+    |> return(Cant_move)
+  | Unselect(Some(d)) => Ok(Zipper.directional_unselect(d, z))
+  | Unselect(None) => Ok(Zipper.unselect(z))
+  | Select(Resize(Local(d, _))) =>
+    Select.local(d, z) |> return(Cant_select)
+  | Select(Resize(Vertical(d))) =>
+    Select.vertical(
+      ~col_target=Option.value(col_target, ~default=0),
+      ~measured=syntax.measured,
+      d,
+      z,
+    )
+    |> return(Cant_select)
+  | Select(Resize(Start)) => Ok(Select.to_start(z))
+  | Select(Resize(End)) => Ok(Select.to_end(z))
+  | Select(Resize(Line(d))) =>
+    Select.to_linebreak(d, z) |> return(Cant_select)
+  | Select(Resize(Point(goal))) =>
+    Select.to_point(~measured=syntax.measured, ~goal, z)
+    |> return(Cant_select)
+  | Select(Resize(Goal(_))) => failwith("Select not implemented for goals")
+  | Select(All) => Ok(Select.all(z))
+  | Select(PointToPoint((p1, p2))) =>
+    z
+    |> Move.to_point(~measured=syntax.measured, ~goal=p1)
+    |> OptUtil.and_then(z =>
+         Select.to_point(~measured=syntax.measured, ~goal=p2, z)
+       )
+    |> return(Cant_select)
   | Select(Term(Current)) =>
-    switch (
-      Select.current_term(~defs_exclude_bodies=true, ~case_rules=true, z)
-    ) {
-    | None => Error(Cant_select)
-    | Some(z) => Ok(z)
-    }
+    Select.select_enclosing_term(
+      syntax.term_data,
+      syntax.measured,
+      statics.info_map,
+      z,
+    )
+    |> return(Cant_select)
   | Select(Smart(n)) =>
-    switch (smart_select(n, z)) {
-    | None => Error(Cant_select)
-    | Some(z) => Ok(z)
-    }
+    Select.smart(syntax.term_data, statics.info_map, n, z)
+    |> return(Cant_select)
   | Select(Term(Id(id, d))) =>
-    switch (Select.term(id, z)) {
-    | Some(z) =>
-      let z = d == Right ? z : Zipper.toggle_focus(z);
-      Ok(z);
-    | None => Error(Action.Failure.Cant_select)
-    }
-  | Select(Tile(Current)) =>
-    switch (Select.current_tile(z)) {
+    switch (
+      Select.term(
+        ~defs_exclude_bodies=false,
+        ~case_rules=false,
+        syntax.term_data,
+        id,
+        z,
+      )
+    ) {
+    | Some(z) => Ok(d == Right ? z : Zipper.toggle_focus(z))
     | None => Error(Cant_select)
-    | Some(z) => Ok(z)
     }
+  | Select(Tile(Current)) => Select.current_tile(z) |> return(Cant_select)
   | Select(Tile(Id(id, d))) =>
     switch (Select.tile(id, z)) {
-    | Some(z) =>
-      let z = d == Right ? z : Zipper.toggle_focus(z);
-      Ok(z);
-    | None => Error(Action.Failure.Cant_select)
+    | Some(z) => Ok(d == Right ? z : Zipper.toggle_focus(z))
+    | None => Error(Cant_select)
     }
-  | Select(Resize(d)) =>
-    switch (Select.go(d, z)) {
-    | None => Ok(z)
-    | Some(z) => Ok(z)
-    }
+  | Select(ToggleFocus) => Ok(Zipper.toggle_focus(z))
+  | Select(SetFocus(d)) => Ok(Zipper.set_focus(z, d))
   | Destruct(d) =>
-    z
-    |> Destruct.go(d)
-    |> Result.of_option(~error=Action.Failure.Cant_destruct)
+    Destruct.go(d, z, ~root)
+    |> Option.map(maybe_reassoc)
+    |> return(Cant_destruct)
   | Insert(char) =>
-    let id =
-      switch (Indicated.index(z)) {
-      | Some(id) => id
-      | None => Id.invalid
-      };
-
-    let ctx =
-      switch (Id.Map.find_opt(id, statics.info_map)) {
-      | Some(ci) => Info.ctx_of(ci)
-      | None => Ctx.empty
-      };
-
     z
-    |> Insert.go(char, ~ctx)
-    /* note: remolding here is done case-by-case */
-    |> Result.of_option(~error=Action.Failure.Cant_insert);
-  | Pick_up => Ok(remold_regrout(Left, Zipper.pick_up(z)))
+    |> Insert.go(
+         ~deep_reassociate=settings.deep_reassociate,
+         char,
+         ~ci=Indicated.ci_of(z, statics.info_map),
+         ~root,
+       )
+    |> Option.map(maybe_reassoc)
+    |> return(Cant_insert)
   | Put_down =>
-    let z =
-      /* Alternatively, putting down inside token could eiter merge-in or split */
-      switch (z.caret) {
-      | Inner(_) => None
-      | Outer => Zipper.put_down_regrout_remold(Left, z)
-      };
-    z |> Result.of_option(~error=Action.Failure.Cant_put_down);
-  | RotateBackpack =>
-    let z = {
-      ...z,
-      backpack: Util.ListUtil.rotate(z.backpack),
-    };
-    Ok(z);
-  | MoveToBackpackTarget((Left(_) | Right(_)) as d) =>
-    if (Backpack.restricted(z.backpack)) {
-      Move.to_backpack_target(d, z)
-      |> Result.of_option(~error=Action.Failure.Cant_move);
-    } else {
-      Move.go(Local(d), z)
-      |> Result.of_option(~error=Action.Failure.Cant_move);
-    }
-  | MoveToBackpackTarget((Up | Down) as d) =>
-    Move.to_backpack_target(d, z)
-    |> Result.of_option(~error=Action.Failure.Cant_move)
+    Zipper.put_down(z, ~root)
+    |> Option.map(maybe_reassoc)
+    |> return(Cant_put_down)
+  | Probe(a) => Ok(ProbePerform.go(~statics, ~syntax, a, z))
+  | Dump => Ok(Dump.to_zipper(z, ~root))
+  | ToggleLineComment =>
+    Comment.go(~deep_reassociate=settings.deep_reassociate, z, ~root)
+    |> return(Cant_destruct)
+  | Structural(a) => CompositionGo.Public.go(~syntax, ~z, ~a, ~return)
   };
 };

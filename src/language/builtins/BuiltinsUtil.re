@@ -13,6 +13,7 @@ type fn = {
   arg: Typ.term,
   ret: Typ.term,
   imp: DHExp.t => option(DHExp.t),
+  custom_statics: option(Ctx.custom_statics),
 };
 
 [@deriving (show({with_path: false}), sexp)]
@@ -46,13 +47,21 @@ let ctx_entry_of_builtin: builtin => Ctx.entry =
       name,
       typ: typ |> Typ.fresh,
       id: Id.invalid,
+      custom_statics: None,
     })
-  | Fn({name, arg, ret, _})
+  | Fn({name, arg, ret, custom_statics, _}) =>
+    Ctx.VarEntry({
+      name,
+      typ: Fresh.Typ.arrow(Typ.fresh(arg), Typ.fresh(ret)),
+      id: Id.invalid,
+      custom_statics,
+    })
   | HazelFn({name, arg, ret, _}) =>
     Ctx.VarEntry({
       name,
       typ: Fresh.Typ.arrow(Typ.fresh(arg), Typ.fresh(ret)),
       id: Id.invalid,
+      custom_statics: None,
     });
 
 let form_of_builtin:
@@ -60,14 +69,13 @@ let form_of_builtin:
   fun
   | Const(_) => None
   | Fn({name, imp, _}) => Some((name, imp))
-  | HazelFn({name, imp, _}) =>
-    Some((name, (d => Some(Fresh.Exp.ap(Forward, imp, d)))));
+  | HazelFn(_) => None;
 
 let imp_of_builtin: builtin => (string, TermBase.exp_t) =
   fun
   | Const({name, imp, _}) => (name, imp)
-  | Fn({name, _})
-  | HazelFn({name, _}) => (name, Fresh.Exp.builtin_fun(name));
+  | HazelFn({name, imp, _}) => (name, imp)
+  | Fn({name, _}) => (name, Fresh.Exp.builtin_fun(name));
 
 let name_of_builtin: builtin => string =
   fun
@@ -130,6 +138,7 @@ let of_atom_builtin = ((name: string, b: Atom.builtin)): builtin => {
         | R(_) => None
         };
       },
+      custom_statics: None,
     })
   | TwoFun(k1, k2, k3, f) =>
     Fn({
@@ -153,6 +162,7 @@ let of_atom_builtin = ((name: string, b: Atom.builtin)): builtin => {
             };
           }
         ),
+      custom_statics: None,
     })
   };
 };

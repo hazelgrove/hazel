@@ -7,7 +7,7 @@ open Haz3lcore;
 module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type open_box =
-    | AxiomsOpen
+    | AxiomsOpen(AxiomsBox.Model.t)
     | RewritesOpen({
         editor: CodeEditable.Model.t,
         cached_exp: Calc.saved(Exp.t),
@@ -16,40 +16,54 @@ module Model = {
     | NoneOpen;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type rewrites = {rewrites: list((string, Exp.t))};
+  type assumptions = list(AssumptionBox.Model.t);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
     next_steps: Calc.saved(EvaluatorStep.status),
+    refls: Calc.saved(list(Exp.t)),
     selected_id: Calc.saved(option(Id.t)),
     selected_exp: Calc.saved(option(Exp.t)),
     full_exp: Calc.saved(Exp.t),
-    rewrites: Calc.saved(option(rewrites)),
+    assumptions: Calc.saved(option(assumptions)),
     open_box,
+    cached_env: Calc.saved(Environment.t(Exp.t)) // TODO[Matt]: remove this later, just to get env into view for now.
   };
 
   let init = {
     next_steps: Calc.Pending,
+    refls: Calc.Pending,
     selected_id: Calc.Pending,
     selected_exp: Calc.Pending,
     full_exp: Calc.Pending,
-    rewrites: Calc.Pending,
+    assumptions: Calc.Pending,
     open_box: NoneOpen,
+    cached_env: Calc.Pending,
   };
   let get_selected_exp = (m: t): Exp.t =>
     m.selected_exp
     |> Calc.saved_to_option
     |> Option.join
     |> OptUtil.get(() => EmptyHole |> Exp.fresh);
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type persistent = unit;
+
+  let persist = (_: t): persistent => ();
+
+  let unpersist = (_: persistent): t => init;
 };
 
 module Update = {
+  open Updated;
+
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     | ToggleAxioms
     | ProposeRewrite
     | UpdateResult(bool)
-    | RewriteEditorAction(CodeEditable.Update.t);
+    | RewriteEditorAction(CodeEditable.Update.t)
+    | AxiomBoxAction(AxiomsBox.Update.t);
 
   let update = (~settings, action, model: Model.t): Updated.t(Model.t) => {
     switch (action, model.open_box) {
@@ -57,21 +71,24 @@ module Update = {
       let open_box =
         switch (model.open_box) {
         | NoneOpen
-        | RewritesOpen(_) => Model.AxiomsOpen
-        | AxiomsOpen => Model.NoneOpen
+        | RewritesOpen(_) => Model.AxiomsOpen(AxiomsBox.Model.init)
+        | AxiomsOpen(_) => Model.NoneOpen
         };
       Model.{
         ...model,
         open_box,
       }
-      |> Updated.return_quiet;
+      |> Updated.return_quiet(~logged=true);
     | (ProposeRewrite, _) =>
       let open_box =
         switch (model.open_box) {
         | NoneOpen
-        | AxiomsOpen =>
+        | AxiomsOpen(_) =>
           Model.RewritesOpen({
-            editor: CodeEditable.Model.mk(Editor.Model.mk(Zipper.init())),
+            editor:
+              CodeEditable.Model.mk(
+                Editor.Model.mk(Zipper.init(), ~root=Exp),
+              ),
             cached_exp: Calc.Pending,
             cached_result: None,
           })
@@ -81,9 +98,8 @@ module Update = {
         ...model,
         open_box,
       }
-      |> Updated.return_quiet(~recalculate=true);
+      |> Updated.return_quiet(~recalculate=true, ~logged=true);
     | (RewriteEditorAction(action), RewritesOpen({editor, _} as r)) =>
-      open Updated;
       let* new_editor = CodeEditable.Update.update(~settings, action, editor);
       Model.{
         ...model,
@@ -93,7 +109,7 @@ module Update = {
             editor: new_editor,
           }),
       };
-    | (RewriteEditorAction(_), _) => model |> Updated.return_quiet
+    | (RewriteEditorAction(_), _) => model |> Updated.raise_invalid_action
     | (UpdateResult(result), RewritesOpen(r)) =>
       Model.{
         ...model,
@@ -103,8 +119,15 @@ module Update = {
             cached_result: Some(result),
           }),
       }
-      |> Updated.return_quiet
-    | (UpdateResult(_), _) => model |> Updated.return_quiet
+      |> Updated.return_quiet(~logged=true)
+    | (UpdateResult(_), _) => model |> Updated.raise_invalid_action
+    | (AxiomBoxAction(action), AxiomsOpen(m)) =>
+      let* updated = AxiomsBox.Update.update(~settings, action, m);
+      Model.{
+        ...model,
+        open_box: Model.AxiomsOpen(updated),
+      };
+    | (AxiomBoxAction(_), _) => model |> Updated.raise_invalid_action
     };
   };
 
@@ -113,7 +136,8 @@ module Update = {
     | ToggleAxioms
     | ProposeRewrite
     | UpdateResult(_)
-    | RewriteEditorAction(_) => false
+    | RewriteEditorAction(_)
+    | AxiomBoxAction(_) => false
     };
   };
 
@@ -121,16 +145,18 @@ module Update = {
       (
         ~settings,
         exp,
-        ctx: Calc.t(Ctx.t),
-        _state,
+        info_map,
+        ctx: Calc.t(SemanticCtx.t),
         new_next_steps,
         {
           next_steps: _,
-          rewrites,
+          refls,
+          assumptions,
           selected_exp,
           full_exp: _,
           selected_id,
           open_box,
+          cached_env,
         }: Model.t,
         editor,
       )
@@ -139,16 +165,19 @@ module Update = {
       // hacky way to get a currently-selected id
       {
         let editor: CodeSelectable.Model.t = editor |> Calc.get_value;
-        try({
-          let zipper = editor.editor.state.zipper;
-          let selection = zipper.selection.content;
-          let skel = Segment.skel(selection);
-          let root = Skel.root(skel);
-          let idx = Aba.first_a(root);
-          let piece = List.nth(selection, idx);
-          let id = Piece.id(piece);
-          Some(id);
-        }) {
+        try(
+          {
+            open OptUtil.Syntax;
+            let zipper = editor.editor.state.zipper;
+            let* id =
+              TermData.get_root_id_using_ranges(
+                zipper.selection.content,
+                editor.editor.syntax.term_data,
+                editor.editor.syntax.measured,
+              );
+            Some(id);
+          }
+        ) {
         | _ => None
         };
       }
@@ -163,15 +192,50 @@ module Update = {
         let* exp' = ProofHacks.find_exp_id(id, exp);
         Some(exp');
       };
-    let rewrites =
-      rewrites
+    let assumptions =
+      assumptions
       |> {
-        let.calc exp = selected_exp;
-        open OptUtil.Syntax;
-        let* exp' = exp;
-        Some(
-          Model.{rewrites: ProofCtx.get_rewrites_with_names(Axioms.v, exp')},
-        );
+        let.calc _exp = selected_exp
+        and.calc ctx = ctx;
+        let proof_ctx =
+          ctx
+          |> SemanticCtx.get_env
+          |> Environment.to_list
+          |> List.filter_map(((name, exp)) =>
+               switch (Exp.term_of(exp)) {
+               | Grammar.ProofObject(e) => Some((name, e))
+               | _ => None
+               }
+             )
+          |> List.fold_left(
+               (acc, (name, exp)) => ProofCtx.add_exp(name, exp, acc),
+               Axioms.v,
+             )
+          |> List.map(ctx_entry => AssumptionBox.Model.{ctx_entry: ctx_entry});
+        Some(proof_ctx);
+      };
+    let refls =
+      refls
+      |> {
+        let.calc exp = exp
+        and.calc ctx = ctx
+        and.calc new_next_steps = new_next_steps
+        and.calc info_map = info_map;
+        let next_steps =
+          new_next_steps
+          |> (
+            fun
+            | EvaluatorStep.AutoStep(_) => []
+            | EvaluatorStep.AvailableSteps(steps) => steps
+          );
+        ProofHacks.find_refls(~info_map, ~env=SemanticCtx.get_env(ctx), exp)
+        |> List.filter(e =>
+             !
+               List.exists(
+                 s => e |> Exp.rep_id == EvaluatorStep.get_step_id(s),
+                 next_steps,
+               )
+           );
       };
     let open_box =
       switch (open_box) {
@@ -184,7 +248,7 @@ module Update = {
             ~is_dynamic_term=true,
             ~dynamics=Dynamics.Map.empty,
             ~stitch=x => x,
-            ~ctx=Calc.get_value(ctx),
+            ~ctx=Calc.get_value(ctx) |> SemanticCtx.get_ctx,
             editor,
           );
         // Extract an exp from the editor
@@ -206,15 +270,26 @@ module Update = {
           cached_exp: cached_exp |> Calc.save,
           cached_result: cached_result |> Calc.get_value,
         });
-      | AxiomsOpen => AxiomsOpen
+      | AxiomsOpen(m) =>
+        AxiomsOpen(
+          AxiomsBox.Update.calculate(~info_map, ~ctx, ~selected_exp, m),
+        )
       | NoneOpen => NoneOpen
+      };
+    let cached_env =
+      cached_env
+      |> {
+        let.calc ctx = ctx;
+        SemanticCtx.get_env(ctx);
       };
     {
       next_steps: new_next_steps |> Calc.save,
-      rewrites: rewrites |> Calc.save,
+      refls: refls |> Calc.save,
+      assumptions: assumptions |> Calc.save,
       full_exp: exp |> Calc.save,
       selected_exp: selected_exp |> Calc.save,
       selected_id: selected_id |> Calc.save,
+      cached_env: cached_env |> Calc.save,
       open_box,
     };
   };
@@ -226,23 +301,25 @@ module Selection = {
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
-    | RewriteEditor(CodeEditable.Selection.t);
+    | RewriteEditor(CodeEditable.Selection.t)
+    | AxiomBoxSelection(AxiomsBox.Selection.t);
 
-  let get_cursor_info = (~selection: t, model: Model.t): cursor(Update.t) => {
+  let get_cursor_info =
+      (~inject, ~selection: t, model: Model.t): cursor(Update.t) => {
     switch (selection, model.open_box) {
     | (RewriteEditor(selection), RewritesOpen({editor, _})) =>
-      let+ ci = CodeEditable.Selection.get_cursor_info(~selection, editor);
+      let+ ci =
+        CodeEditable.Selection.get_cursor_info(
+          ~inject=a => inject(Update.RewriteEditorAction(a)),
+          ~selection,
+          editor,
+        );
       Update.RewriteEditorAction(ci);
     | (RewriteEditor(_), _) => empty
-    };
-  };
-
-  let handle_key_event = (~selection: t, ~event, ~model: Model.t) => {
-    switch (selection, model.open_box) {
-    | (RewriteEditor(selection), RewritesOpen({editor, _})) =>
-      CodeEditable.Selection.handle_key_event(~selection, editor, event)
-      |> Option.map(x => Update.RewriteEditorAction(x))
-    | (RewriteEditor(_), _) => None
+    | (AxiomBoxSelection(selection), AxiomsOpen(m)) =>
+      let+ ci = AxiomsBox.Selection.get_cursor_info(~selection, m);
+      Update.AxiomBoxAction(ci);
+    | (AxiomBoxSelection(_), _) => empty
     };
   };
 };
@@ -252,10 +329,12 @@ module View = {
   type event =
     | AddInduction(option(Exp.t))
     | AddForall
-    | CoqExport
     | HideStepper
-    | AddAxiomStep(Exp.t, Exp.t, string)
-    | MakeActive(Selection.t);
+    | AddAxiomStep(string, int, Exp.t, Direction.t, string)
+    | AddAlgebriteStep(int, Exp.t, Exp.t)
+    | MakeActive(Selection.t)
+    | TakeStep(int)
+    | Refl(int);
 
   let get_segment_bounds = (~measured: Measured.t, segment: Segment.t) => {
     let* first_piece = ListUtil.hd_opt(segment);
@@ -297,56 +376,6 @@ module View = {
     Some((left, right, start_y, end_y + 1));
   };
 
-  let view_rewrites = (~globals, ~signal, model: Model.t) => {
-    let unpacked_rewrites =
-      model.rewrites
-      |> Calc.get_saved_exc(~print="view_step_rewrites")
-      |> Option.value(~default=Model.{rewrites: []})
-      |> (r => r.rewrites);
-    (
-      unpacked_rewrites |> List.is_empty
-        ? [] : [WebUtil.Node.text("Rewrites:")]
-    )
-    @ (
-      List.map(
-        ((axiom_name, exp): (string, Exp.t)) =>
-          [
-            WebUtil.div_c(
-              "axiom-row",
-              [
-                Widgets.button(Icons.star, _ =>
-                  signal(
-                    AddAxiomStep(
-                      Model.get_selected_exp(model),
-                      exp,
-                      axiom_name,
-                    ),
-                  )
-                ),
-                exp
-                |> Haz3lcore.ExpToSegment.(
-                     exp_to_segment(
-                       ~settings=
-                         Settings.of_core(
-                           ~inline=false,
-                           globals.settings.core,
-                         ),
-                     )
-                   )
-                |> CodeViewable.view_segment(
-                     ~globals,
-                     ~sort=Exp,
-                     ~shape_map=Haz3lcore.Id.Map.empty,
-                   ),
-              ],
-            ),
-          ],
-        unpacked_rewrites,
-      )
-      |> List.flatten
-    );
-  };
-
   let view_overlay =
       (
         ~globals: Globals.t,
@@ -354,6 +383,7 @@ module View = {
         ~inject: Update.t => Ui_effect.t(unit),
         ~editor: CodeSelectable.Model.t,
         ~selected: option(Selection.t),
+        ~info_map,
         model: Model.t,
       ) =>
     {
@@ -379,6 +409,39 @@ module View = {
         );
       };
 
+      let show_step_button =
+        switch (
+          model.selected_exp |> Calc.get_saved_exc(~print="Selected Exp")
+        ) {
+        | Some(selected_exp) =>
+          List.find_index(
+            x => x == (selected_exp |> Exp.rep_id),
+            model.next_steps
+            |> Calc.get_saved_exc(~print="next_steps")
+            |> (
+              fun
+              | AutoStep(_) => []
+              | AvailableSteps(steps) => steps
+            )
+            |> List.map(step => step |> EvaluatorStep.get_step_id),
+          )
+        | None => None
+        };
+
+      let show_refl_button =
+        switch (
+          model.selected_exp |> Calc.get_saved_exc(~print="Selected Exp")
+        ) {
+        | Some(selected_exp) =>
+          List.find_index(
+            x => x == (selected_exp |> Exp.rep_id),
+            model.refls
+            |> Calc.get_saved_exc(~print="refls")
+            |> List.map(refl => refl |> Exp.rep_id),
+          )
+        | None => None
+        };
+
       let show_function_body_button = {
         Calc.get_saved_exc(model.selected_exp)
         == Some(Calc.get_saved_exc(model.full_exp))
@@ -391,6 +454,34 @@ module View = {
         Node.div(
           ~attrs=[Attr.classes(["proof-selection-buttons"])],
           (
+            switch (show_step_button) {
+            | None => []
+            | Some(idx) => [
+                proof_button(
+                  ~callback=Ui_effect.Many([signal(TakeStep(idx))]),
+                  "Step",
+                ),
+              ]
+            }
+          )
+          @ (
+            switch (show_refl_button) {
+            | None => []
+            | Some(idx) => [
+                proof_button(
+                  ~callback=
+                    Ui_effect.Many([
+                      globals.inject_global(
+                        Set(Evaluation(ForceShowRecord)),
+                      ),
+                      signal(Refl(idx)),
+                    ]),
+                  "Reflexivity",
+                ),
+              ]
+            }
+          )
+          @ (
             show_function_body_button
               ? [
                 proof_button(
@@ -407,8 +498,8 @@ module View = {
               : []
           )
           @ [
-            proof_button(~callback=inject(ProposeRewrite), "Rewrite ▼"),
-            proof_button(~callback=inject(ToggleAxioms), "Axioms ▼"),
+            proof_button(~callback=inject(ProposeRewrite), "Algebra ▼"),
+            proof_button(~callback=inject(ToggleAxioms), "Assumptions ▼"),
             proof_button(
               ~callback=
                 Ui_effect.Many([
@@ -420,7 +511,7 @@ module View = {
                     ),
                   ),
                 ]),
-              "Cases",
+              "Cases/Induction",
             ),
           ],
         );
@@ -451,10 +542,33 @@ module View = {
               @ {
                 switch (model.open_box) {
                 | NoneOpen => []
-                | AxiomsOpen => [
+                | AxiomsOpen(m) => [
                     div_c(
                       "axiom-box",
-                      view_rewrites(~globals, ~signal, model),
+                      AxiomsBox.View.view(
+                        ~globals,
+                        ~info_map,
+                        ~env=
+                          model.cached_env
+                          |> Calc.get_saved_exc(~print="env not cached"),
+                        ~inject=
+                          (a: AxiomsBox.Update.t) =>
+                            inject(AxiomBoxAction(a)),
+                        ~take_focus=
+                          (s: AxiomsBox.Selection.t) =>
+                            signal(MakeActive(AxiomBoxSelection(s))),
+                        ~add_axiom_step=
+                          (a, b, c, d, e) =>
+                            signal(AddAxiomStep(a, b, c, d, e)),
+                        ~full_exp=
+                          model.full_exp
+                          |> Calc.get_saved_exc(~print="full_exp not cached"),
+                        ~selected_exp=
+                          model.selected_exp
+                          |> Calc.get_saved_exc(~print="Selected Exp")
+                          |> Option.value(~default=EmptyHole |> Exp.fresh, _),
+                        m,
+                      ),
                     ),
                   ]
                 | RewritesOpen({editor, cached_exp, cached_result}) =>
@@ -485,9 +599,9 @@ module View = {
                           ~settings=
                             ExpToSegment.Settings.of_core(
                               ~inline=false,
+                              ~fold_fn_bodies=`Text,
                               globals.settings.core,
                             ),
-                          ~shape_map=Haz3lcore.Id.Map.empty,
                           Exp(unboxed_selected_exp),
                         ),
                         Node.text("With: "),
@@ -500,12 +614,19 @@ module View = {
                                 fun
                                 | MakeActive =>
                                   signal(MakeActive(RewriteEditor())),
-                              ~inject=x => inject(RewriteEditorAction(x)),
-                              ~selected=
-                                switch (selected) {
-                                | Some(RewriteEditor ()) => true
-                                | _ => false
-                                },
+                              ~edit_mode=
+                                EditMode.Editable({
+                                  inject: x =>
+                                    inject(RewriteEditorAction(x)),
+                                  escape: _ => Ui_effect.Ignore,
+                                  take_focus: _ => Ui_effect.Ignore,
+                                  focus:
+                                    switch (selected) {
+                                    | Some(RewriteEditor ()) => Some()
+                                    | _ => None
+                                    },
+                                }),
+                              ~dynamics=Dynamics.Map.empty,
                               editor,
                             ),
                           ],
@@ -521,10 +642,20 @@ module View = {
                               ~tooltip="replace",
                               _ =>
                               signal(
-                                AddAxiomStep(
+                                AddAlgebriteStep(
+                                  ProofHacks.exp_idx(
+                                    unboxed_selected_exp,
+                                    model.full_exp
+                                    |> Calc.get_saved_exc(~print="full_exp"),
+                                  ),
                                   unboxed_selected_exp,
-                                  unboxed_cached_exp,
-                                  "UserRewrite",
+                                  unboxed_cached_exp
+                                  |> Substitution.in_exp(
+                                       model.cached_env
+                                       |> Calc.get_saved_exc(
+                                            ~print="env not cached",
+                                          ),
+                                     ),
                                 ),
                               )
                             ),
@@ -538,8 +669,20 @@ module View = {
                                 inject(
                                   UpdateResult(
                                     RewriteChecker.check_rewrite(
-                                      unboxed_selected_exp,
-                                      unboxed_cached_exp,
+                                      unboxed_selected_exp
+                                      |> Substitution.in_exp(
+                                           model.cached_env
+                                           |> Calc.get_saved_exc(
+                                                ~print="env not cached",
+                                              ),
+                                         ),
+                                      unboxed_cached_exp
+                                      |> Substitution.in_exp(
+                                           model.cached_env
+                                           |> Calc.get_saved_exc(
+                                                ~print="env not cached",
+                                              ),
+                                         ),
                                     ),
                                   ),
                                 ),
@@ -562,7 +705,7 @@ module View = {
   let view_justification =
       (
         ~globals: Globals.t,
-        ~signal,
+        ~hide_stepper: Ui_effect.t(unit),
         ~undo: option(Ui_effect.t(unit)),
         ~is_toplevel: bool,
         _model: Model.t,
@@ -577,16 +720,8 @@ module View = {
         ~disabled=Option.is_none(undo),
         ~tooltip="Step Backwards",
       );
-    let button_prover_export =
-      Widgets.button(
-        Icons.export,
-        _ => signal(CoqExport),
-        ~tooltip="Export steps as Coq proof",
-      );
     let button_hide_stepper =
-      Widgets.toggle(~tooltip="Show Stepper", "s", true, _ =>
-        signal(HideStepper)
-      );
+      Widgets.toggle(~tooltip="Show Stepper", "s", true, _ => hide_stepper);
     let toggle_show_history =
       Widgets.toggle(
         ~tooltip="Show History",
@@ -601,7 +736,7 @@ module View = {
       );
     Node.div(
       ~attrs=[Attr.classes(["stepper-controls"])],
-      [button_back, button_prover_export]
+      [button_back]
       @ (
         is_toplevel
           ? [eval_settings, toggle_show_history, button_hide_stepper] : []

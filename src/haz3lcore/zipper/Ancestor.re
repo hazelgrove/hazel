@@ -27,10 +27,6 @@ let nibs = (a: t) => {
   let (_, r) = Mold.nibs(~index=r_shard(a), a.mold);
   (l, r);
 };
-let shapes = a => {
-  let (l, r) = nibs(a);
-  (l.shape, r.shape);
-};
 
 let zip = (child: Segment.t, {id, label, mold, shards, children}: t): Tile.t => {
   id,
@@ -40,30 +36,19 @@ let zip = (child: Segment.t, {id, label, mold, shards, children}: t): Tile.t => 
   children: fst(children) @ [child, ...snd(children)],
 };
 
-let sorted_children = (a: t) => {
-  let n = List.length(fst(a.children));
-  let t = zip(Segment.empty, a);
-  let (l, _, r) = ListUtil.split_nth(n, Tile.sorted_children(t));
-  (l, r);
-};
-
-let remold = (a: t): list(t) =>
-  Molds.get(a.label)
-  |> List.map(mold =>
-       {
-         ...a,
-         mold,
-       }
-     );
-
 let sort = (a: t): Sort.t => {
-  let (pre, suf) = a.shards;
-  switch (ListUtil.split_last_opt(pre), suf) {
-  | (Some((_, i)), [j, ..._]) =>
+  let (pre, _suf) = a.shards;
+  switch (ListUtil.split_last_opt(pre)) {
+  | Some((_, i)) =>
     let (_, l) = Mold.nibs(~index=i, a.mold);
-    let (r, _) = Mold.nibs(~index=j, a.mold);
-    l.sort == r.sort ? l.sort : Any;
-  | _ => raise(Empty_shard_affix)
+    /* Use the right nib of the last left shard: this is the
+     * sort of the child immediately after the caret's left
+     * boundary. Correct even when shards are missing between
+     * the left and right boundaries (e.g. partial let...in
+     * without =), where checking both nibs would disagree
+     * and previously fell back to Any. */
+    l.sort;
+  | None => raise(Empty_shard_affix)
   };
 };
 
@@ -78,16 +63,14 @@ let disassemble =
   (flatten(shards_l, kids_l), flatten(shards_r, kids_r));
 };
 
-let container_shards = (a: t): (Piece.t, Piece.t) => {
-  let (shards_l, shards_r) =
-    a.shards
-    |> TupleUtil.map2(Tile.split_shards(a.id, a.label, a.mold))
-    |> TupleUtil.map2(List.map(Tile.to_piece));
-  let l =
+let missing_middle_shards = (a: t): list(Tile.t) => {
+  let (shards_l, shards_r) = a.shards;
+  let last_l =
     ListUtil.last_opt(shards_l) |> OptUtil.get_or_raise(Empty_shard_affix);
-  let r =
+  let first_r =
     ListUtil.hd_opt(shards_r) |> OptUtil.get_or_raise(Empty_shard_affix);
-  (l, r);
+  let ls = List.init(first_r - last_l - 1, i => last_l + i + 1);
+  Tile.split_shards(a.id, a.label, a.mold, ls);
 };
 
 let reassemble = (match_l: Aba.t(Tile.t, Segment.t) as 'm, match_r: 'm): t => {

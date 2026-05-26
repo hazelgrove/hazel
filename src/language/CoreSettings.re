@@ -7,6 +7,8 @@ module Evaluation = {
     show_fn_bodies: bool,
     show_fixpoints: bool,
     show_ascription_steps: bool,
+    show_ascriptions: bool,
+    show_case_steps: bool,
     show_lookup_steps: bool,
     show_stepper_filters: bool,
     // TODO[Matt]: Move this to somewhere where it is a per-scratch setting
@@ -21,6 +23,8 @@ module Evaluation = {
     show_fn_bodies: false,
     show_fixpoints: false,
     show_ascription_steps: false,
+    show_ascriptions: false,
+    show_case_steps: false,
     show_lookup_steps: false,
     show_stepper_filters: false,
     stepper_history: false,
@@ -36,7 +40,10 @@ type t = {
   elaborate: bool,
   assist: bool,
   dynamics: bool,
+  probe_all: bool,
+  deep_reassociate: bool,
   flip_animations: bool,
+  display_warnings: bool,
   evaluation: Evaluation.t,
 };
 
@@ -45,7 +52,10 @@ let off: t = {
   elaborate: false,
   assist: false,
   dynamics: false,
+  probe_all: false,
+  deep_reassociate: false,
   flip_animations: false,
+  display_warnings: false,
   evaluation: Evaluation.init,
 };
 
@@ -54,6 +64,27 @@ let on: t = {
   elaborate: true,
   assist: true,
   dynamics: true,
+  probe_all: false, /* Off by default even in "on" config - opt-in feature */
+  deep_reassociate: false,
   flip_animations: true,
+  display_warnings: true,
   evaluation: Evaluation.init,
 };
+
+let eq_ignoring_stepper_modals = (a: t, b: t) =>
+  {
+    ...a,
+    evaluation: {
+      ...a.evaluation,
+      stepper_history: false,
+      show_settings: false,
+    },
+  }
+  == {
+       ...b,
+       evaluation: {
+         ...b.evaluation,
+         stepper_history: false,
+         show_settings: false,
+       },
+     };

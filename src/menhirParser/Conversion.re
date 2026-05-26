@@ -29,12 +29,6 @@ module FilterAction = {
 module Operators = {
   open Language.Operators;
 
-  let op_un_meta_of_menhir_ast = (op: AST.op_un_meta) => {
-    switch (op) {
-    | Unquote => Unquote
-    };
-  };
-
   let op_un_int_of_menhir_ast = (op: AST.op_un_int): op_un_num => {
     switch (op) {
     | Minus => Minus
@@ -49,7 +43,6 @@ module Operators = {
 
   let op_un_of_menhir_ast = (op: AST.op_un): op_un => {
     switch (op) {
-    | Meta(meta) => Meta(op_un_meta_of_menhir_ast(meta))
     | Int(i) => Int(op_un_int_of_menhir_ast(i))
     | Bool(b) => Bool(op_un_bool_of_menhir_ast(b))
     };
@@ -71,8 +64,6 @@ module Operators = {
         | LessThanOrEqual => LessThanOrEqual
         | GreaterThan => GreaterThan
         | GreaterThanOrEqual => GreaterThanOrEqual
-        | Equals => Equals
-        | NotEquals => NotEquals
         },
       )
     | Float(op_float) =>
@@ -102,7 +93,13 @@ module Operators = {
       StringOp(
         switch (op_string) {
         | Concat => Concat
+        },
+      )
+    | Poly(op_poly) =>
+      PolyOp(
+        switch (op_poly) {
         | Equals => Equals
+        | NotEquals => NotEquals
         },
       )
     };
@@ -110,12 +107,6 @@ module Operators = {
 
   let of_core_op_un = (op: op_un): AST.op_un => {
     switch (op) {
-    | Meta(meta) =>
-      Meta(
-        switch (meta) {
-        | Unquote => Unquote
-        },
-      )
     | Nat(i)
     | Float(i)
     | SInt(i)
@@ -135,7 +126,7 @@ module Operators = {
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  let float_op_of_menhir_ast = (op: AST.op_bin_float): op_bin_num => {
+  let float_op_of_menhir_ast = (op: AST.op_bin_float): op_bin_float => {
     switch (op) {
     | Plus => Plus
     | Minus => Minus
@@ -155,7 +146,14 @@ module Operators = {
   let string_op_of_menhir_ast = (op: AST.op_bin_string): op_bin_string => {
     switch (op) {
     | Concat => Concat
+    };
+  };
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  let poly_op_of_menhir_ast = (op: AST.op_bin_poly): op_bin_poly => {
+    switch (op) {
     | Equals => Equals
+    | NotEquals => NotEquals
     };
   };
 
@@ -179,8 +177,6 @@ module Operators = {
     | LessThanOrEqual => LessThanOrEqual
     | GreaterThan => GreaterThan
     | GreaterThanOrEqual => GreaterThanOrEqual
-    | Equals => Equals
-    | NotEquals => NotEquals
     };
   };
 
@@ -191,13 +187,25 @@ module Operators = {
     | FloatOp(op_float) => Float(float_op_of_menhir_ast(op_float))
     | BoolOp(op_bool) => Bool(bool_op_of_menhir_ast(op_bool))
     | StringOp(op_string) => String(string_op_of_menhir_ast(op_string))
+    | PolyOp(op_poly) => Poly(poly_op_of_menhir_ast(op_poly))
     };
+  };
+};
+
+/* Convert an indicated Pat to an indicated MPat for module name position */
+let rec mpat_of_pat = (p: IndicatedG.pat): Language.Grammar.mpat_t(bool) => {
+  switch (p.term) {
+  | Var(name) => IndicatedG.MPat.var(name)
+  | Asc(inner, typ) => IndicatedG.MPat.asc(mpat_of_pat(inner), typ)
+  | Parens(inner) => mpat_of_pat(inner)
+  | _ => IndicatedG.MPat.empty_hole()
   };
 };
 
 module rec Exp: {
   let of_menhir_ast: AST.exp => IndicatedG.exp;
   let of_core: IndicatedG.exp => AST.exp;
+  let pat_of_mpat: Language.Grammar.mpat_t(bool) => AST.pat;
   let get_indicated_ids:
     IndicatedG.exp => (Language.Exp.t, list(Language.Id.t));
 } = {
@@ -214,11 +222,25 @@ module rec Exp: {
     | TupleExp([TupLabel(_) as tl]) => parens(tuple([of_menhir_ast(tl)]))
     | TupleExp([e]) => parens(of_menhir_ast(e))
     | TupleExp(e) => parens(tuple(List.map(of_menhir_ast, e)))
+    | TupleExtension(e1, e2) =>
+      tuple_extension(of_menhir_ast(e1), of_menhir_ast(e2))
     | Label(s) => label(s)
+    | ExplicitNonlabel => explicit_non_label()
     | TupLabel(e1, e2) => tup_label(of_menhir_ast(e1), of_menhir_ast(e2))
-    | Dot(e1, e2) => dot(of_menhir_ast(e1), of_menhir_ast(e2))
+    | Dot(e1, e2) =>
+      switch (e2) {
+      | Var(s)
+      | Label(s)
+      | Constructor(s, None) => dot(of_menhir_ast(e1), label(s))
+      | EmptyHole => dot(of_menhir_ast(e1), empty_hole())
+      | _ => dot(of_menhir_ast(e1), multi_hole([Exp(of_menhir_ast(e2))]))
+      }
     | Let(p, e1, e2) =>
       let_(Pat.of_menhir_ast(p), of_menhir_ast(e1), of_menhir_ast(e2))
+    | Theorem(p, e1, e2) =>
+      theorem(Pat.of_menhir_ast(p), of_menhir_ast(e1), of_menhir_ast(e2))
+    | ProofObject(t) => proof_object(Exp.of_menhir_ast(t))
+    | ForallExp(p, e) => forall(Pat.of_menhir_ast(p), of_menhir_ast(e))
     | FixF(p, e) => fix_f(Pat.of_menhir_ast(p), of_menhir_ast(e), None)
     | TypFun(t, e) =>
       typ_fun(TPat.of_menhir_ast(t), of_menhir_ast(e), None)
@@ -307,6 +329,18 @@ module rec Exp: {
         annotation: true,
         term: of_menhir_ast(e).term,
       }
+    | Module(items) => module_(List.map(ModItem.of_menhir_ast, items))
+    | ModuleExp(p, e1, e2) =>
+      let mp = mpat_of_pat(Pat.of_menhir_ast(p));
+      module_exp(mp, of_menhir_ast(e1), of_menhir_ast(e2));
+    };
+  };
+
+  let rec pat_of_mpat = (mp: Language.Grammar.mpat_t(bool)): AST.pat => {
+    switch (mp.term) {
+    | Var(name) => VarPat(name)
+    | Asc(inner, typ) => AscPat(pat_of_mpat(inner), Typ.of_core(typ))
+    | _ => WildPat
     };
   };
 
@@ -319,7 +353,12 @@ module rec Exp: {
     | Deferral(InAp) => Deferral
     | ListLit(l) => ListExp(List.map(of_core, l))
     | Tuple(l) => TupleExp(List.map(of_core, l))
+    | TupleExtension(e1, e2) => TupleExp([of_core(e1), of_core(e2)])
     | Let(p, e1, e2) => Let(Pat.of_core(p), of_core(e1), of_core(e2))
+    | Theorem(p, e1, e2) =>
+      Theorem(Pat.of_core(p), of_core(e1), of_core(e2))
+    | ProofObject(t) => ProofObject(Exp.of_core(t))
+    | Forall(p, e) => ForallExp(Pat.of_core(p), Exp.of_core(e))
     | FixF(p, e, _) => FixF(Pat.of_core(p), of_core(e))
     | TypFun(tp, e, _) => TypFun(TPat.of_core(tp), of_core(e))
     | Undefined => Undefined
@@ -354,19 +393,28 @@ module rec Exp: {
       )
     | Deferral(_) => Deferral
     | Filter(Residue(_), _) => raise(Failure("Residue not supported"))
+    | MultiHole([Exp(e)]) => of_core(e) // unwrap single exp multi-holes. just used for label parse failure
     | MultiHole(_) => raise(Failure("MultiHole not supported"))
     | Closure(_) => raise(Failure("Closure not supported"))
     | Parens(e) => of_core(e)
-    | Probe(e, _) => of_core(e)
     | Constructor(s, typ) =>
       Constructor(s, Option.map(Option.map(Typ.of_core), typ))
     | DeferredAp(e, es) =>
       ApExp(of_core(e), TupleExp(List.map(of_core, es)))
     | Fun(p, e, _, name_opt) => Fun(Pat.of_core(p), of_core(e), name_opt)
     | Label(s) => Label(s)
+    | ExplicitNonlabel => ExplicitNonlabel
     | TupLabel(e1, e2) => TupLabel(of_core(e1), of_core(e2))
     | Dot(e1, e2) => Dot(of_core(e1), of_core(e2))
     | Ap(Reverse, _, _) => raise(Failure("Reverse not supported"))
+    /* The menhir parser grammar has no syntax for derivation terms, so
+       converting core DrvQuote values back to the menhir AST is not
+       meaningful. */
+    | DrvQuote(_) => raise(Failure("DrvQuote not supported"))
+    | Projector(_, e) => of_core(e)
+    | Module(items) => Module(List.map(ModItem.of_core, items))
+    | ModuleExp(mp, def, body) =>
+      ModuleExp(pat_of_mpat(mp), of_core(def), of_core(body))
     };
   };
 
@@ -382,7 +430,10 @@ module rec Exp: {
           if (indicated) {
             Dynarray.add_last(indicated_ids, id);
           };
-          {ids: [id]};
+          {
+            ids: [id],
+            secondary: IdTagged.IdTag.empty_secondary,
+          };
         },
         indicated_exp,
       );
@@ -413,10 +464,15 @@ and Typ: {
     | TupleType([t]) => parens(of_menhir_ast(t))
     | TupleType(ts) => parens(prod(List.map(of_menhir_ast, ts)))
     | LabelType(s) => label(s)
+    | ExplicitNonlabel => explicit_non_label()
     | TupLabelType(t1, t2) =>
       tup_label(of_menhir_ast(t1), of_menhir_ast(t2))
     | ArrayType(t) => list(of_menhir_ast(t))
     | ArrowType(t1, t2) => arrow(of_menhir_ast(t1), of_menhir_ast(t2))
+    | ProdProjection(t1, t2) =>
+      prod_projection(of_menhir_ast(t1), of_menhir_ast(t2))
+    | ProdExtension(t1, t2) =>
+      prod_extension(of_menhir_ast(t1), of_menhir_ast(t2))
     | SumTyp(sumterms) =>
       open Language;
       let converted_terms: list(ConstructorMap.variant(IndicatedG.typ)) =
@@ -424,21 +480,29 @@ and Typ: {
           (sumterm: AST.sumterm): ConstructorMap.variant(IndicatedG.typ) =>
             switch (sumterm) {
             | Variant(name, typ) =>
-              Variant(name, [Id.mk()], Option.map(of_menhir_ast, typ))
+              Variant(
+                name,
+                ConstructorMap.mk_variant_ann(~ids=[Id.mk()], ()),
+                Option.map(of_menhir_ast, typ),
+              )
             | BadEntry(typ) => BadEntry(of_menhir_ast(typ))
             },
           sumterms,
         );
       parens(sum(converted_terms));
-    | ForallType(tp, t) =>
-      parens(forall(TPat.of_menhir_ast(tp), of_menhir_ast(t)))
+    | PolyType(tp, t) =>
+      parens(poly(TPat.of_menhir_ast(tp), of_menhir_ast(t)))
     | RecType(tp, t) =>
       parens(rec_(TPat.of_menhir_ast(tp), of_menhir_ast(t)))
+    | ProofOfType(e) => proof_of(Exp.of_menhir_ast(e))
+    | Sig(items) => {
+        annotation: false,
+        term: Sig(List.map(SigItem.of_menhir_ast, items)),
+      }
     | IndicationTyp(t) => {
         annotation: true,
         term: of_menhir_ast(t).term,
       }
-    | ApTyp(t1, t2) => ap(of_menhir_ast(t1), of_menhir_ast(t2))
     };
   };
 
@@ -463,12 +527,15 @@ and Typ: {
     | List(t) => ArrayType(of_core(t))
     | Arrow(t1, t2) => ArrowType(of_core(t1), of_core(t2))
     | Unknown(p) => UnknownType(of_core_type_provenance(p))
-    | Forall(tp, t) => ForallType(TPat.of_core(tp), of_core(t))
+    | Poly(tp, t) => PolyType(TPat.of_core(tp), of_core(t))
     | Rec(tp, t) => RecType(TPat.of_core(tp), of_core(t))
+    | ProofOf(e) => ProofOfType(Exp.of_core(e))
     | Parens(t) => of_core(t)
     | Label(s) => LabelType(s)
+    | ExplicitNonlabel => (ExplicitNonlabel: AST.typ)
     | TupLabel(t1, t2) => TupLabelType(of_core(t1), of_core(t2))
-    | Ap(t1, t2) => ApTyp(of_core(t1), of_core(t2))
+    | ProdProjection(t1, t2) => ProdProjection(of_core(t1), of_core(t2))
+    | ProdExtension(t1, t2) => ProdExtension(of_core(t1), of_core(t2))
     | Sum(constructors) =>
       let sumterms =
         List.map(
@@ -482,6 +549,10 @@ and Typ: {
           constructors,
         );
       SumTyp(sumterms);
+    /* Same as DrvQuote in the Exp case: no menhir syntax for Drv types. */
+    | DrvQuoteTy(_) => raise(Failure("DrvQuoteTy not supported"))
+    | Projector(_, t) => of_core(t)
+    | Sig(items) => Sig(List.map(SigItem.of_core, items))
     };
   };
 }
@@ -534,6 +605,7 @@ and Pat: {
         annotation: true,
         term: of_menhir_ast(p).term,
       }
+    | ExplicitNonlabel => explicit_non_label()
     };
   };
   let rec of_core = (pat: IndicatedG.pat): AST.pat => {
@@ -552,9 +624,64 @@ and Pat: {
     | MultiHole(_) => raise(Failure("MultiHole not supported"))
     | Asc(p, t) => AscPat(of_core(p), Typ.of_core(t))
     | Parens(p) => of_core(p)
-    | Probe(p, _) => of_core(p)
     | Label(s) => LabelPat(s)
+    | ExplicitNonlabel => ExplicitNonlabel
     | TupLabel(p1, p2) => TupLabelPat(of_core(p1), of_core(p2))
+    | Projector(_, p) => of_core(p)
+    };
+  };
+}
+and ModItem: {
+  let of_menhir_ast: AST.mod_item => IndicatedG.mod_;
+  let of_core: IndicatedG.mod_ => AST.mod_item;
+} = {
+  open IndicatedG.Mod;
+  let of_menhir_ast = (item: AST.mod_item): IndicatedG.mod_ => {
+    switch (item) {
+    | ModItemLet(p, e) =>
+      mod_let(Pat.of_menhir_ast(p), Exp.of_menhir_ast(e))
+    | ModItemType(tp, t) =>
+      mod_type(TPat.of_menhir_ast(tp), Typ.of_menhir_ast(t))
+    | ModItemExp(e) => mod_exp(Exp.of_menhir_ast(e))
+    | ModItemModule(p, e) =>
+      let mp = mpat_of_pat(Pat.of_menhir_ast(p));
+      module_mod(mp, Exp.of_menhir_ast(e));
+    };
+  };
+
+  let of_core = (mod_: IndicatedG.mod_): AST.mod_item => {
+    switch (mod_.term) {
+    | ModLet(p, e) => ModItemLet(Pat.of_core(p), Exp.of_core(e))
+    | ModType(tp, t) => ModItemType(TPat.of_core(tp), Typ.of_core(t))
+    | ModExp(e) => ModItemExp(Exp.of_core(e))
+    | ModuleMod(mp, e) =>
+      ModItemModule(Exp.pat_of_mpat(mp), Exp.of_core(e))
+    | Invalid(_)
+    | EmptyHole
+    | MultiHole(_) => ModItemExp(EmptyHole)
+    };
+  };
+}
+and SigItem: {
+  let of_menhir_ast: AST.sig_item => Language.Grammar.sig_t(bool);
+  let of_core: Language.Grammar.sig_t(bool) => AST.sig_item;
+} = {
+  open IndicatedG.Sig;
+  let of_menhir_ast = (item: AST.sig_item): Language.Grammar.sig_t(bool) => {
+    switch (item) {
+    | SigItemLet(p) => sig_let(Pat.of_menhir_ast(p))
+    | SigItemType(tp, t) =>
+      sig_type(TPat.of_menhir_ast(tp), Typ.of_menhir_ast(t))
+    };
+  };
+
+  let of_core = (sig_: Language.Grammar.sig_t(bool)): AST.sig_item => {
+    switch (sig_.term) {
+    | SigLet(p) => SigItemLet(Pat.of_core(p))
+    | SigType(tp, t) => SigItemType(TPat.of_core(tp), Typ.of_core(t))
+    | Invalid(_)
+    | EmptyHole
+    | MultiHole(_) => SigItemLet(EmptyHolePat)
     };
   };
 };

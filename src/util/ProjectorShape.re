@@ -30,14 +30,6 @@ let inline = (width: int): t => {
 };
 let default: t = inline(0);
 
-let token = (shape: t): string =>
-  switch (shape.vertical) {
-  | Inline
-  | Tab(_) => String.make(shape.horizontal, ' ')
-  | Block(num_lb) =>
-    String.make(num_lb, '\n') ++ String.make(shape.horizontal, ' ')
-  };
-
 [@deriving (show({with_path: false}), sexp, yojson)]
 type shape = t;
 

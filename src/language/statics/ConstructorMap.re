@@ -1,34 +1,44 @@
 open Util.OptUtil.Syntax;
 open Util;
 
+/* Secondary runs type - duplicated here from IdTagged to avoid dependency cycle.
+   Stores (before, after) pairs for round-tripping whitespace/comments. */
+[@deriving (show({with_path: false}), sexp, yojson)]
+type secondary_runs = (list(Secondary.t), list(Secondary.t));
+
+let empty_secondary: secondary_runs = ([], []);
+
+/* Annotation for variants - stores ids and secondary for round-tripping. */
+[@deriving (show({with_path: false}), sexp, yojson)]
+type variant_ann = {
+  ids: list(Id.t),
+  secondary: secondary_runs,
+};
+
+let empty_variant_ann: variant_ann = {
+  ids: [],
+  secondary: empty_secondary,
+};
+let mk_variant_ann = (~ids, ~secondary=empty_secondary, ()): variant_ann => {
+  ids,
+  secondary,
+};
+
+/* Variant now stores full annotation to preserve secondary for round-tripping.
+   Previously stored only list(Id.t), losing whitespace information. */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type variant('a) =
-  | Variant(Constructor.t, list(Id.t), option('a))
+  | Variant(Constructor.t, variant_ann, option('a))
   | BadEntry('a);
+
+/* Helper to extract ids from annotation for backwards compatibility */
+let variant_ids =
+  fun
+  | Variant(_, ann, _) => ann.ids
+  | BadEntry(_) => [];
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t('a) = list(variant('a));
-
-let mk =
-    (
-      ~mk_bad: (Constructor.t, list(Id.t), option('a)) => 'a,
-      with_duplicates: list(variant('a)),
-    )
-    : t('a) => {
-  let rec go = (xs, seen: list(Constructor.t)) => {
-    switch (xs) {
-    | [] => []
-    | [BadEntry(x), ...xs] => [BadEntry(x), ...go(xs, seen)]
-    | [Variant(ctr, ids, value), ...xs] =>
-      if (List.mem(ctr, seen)) {
-        [BadEntry(mk_bad(ctr, ids, value)), ...go(xs, seen)];
-      } else {
-        [Variant(ctr, ids, value), ...go(xs, List.cons(ctr, seen))];
-      }
-    };
-  };
-  go(with_duplicates, []);
-};
 
 let equal_constructor =
     (eq: ('a, 'a) => bool, x: variant('a), y: variant('a)): bool =>
@@ -112,13 +122,13 @@ let venn_regions =
   go(xs, ys, [], [], [], []);
 };
 
-let join_entry =
-    (join: ('a, 'a) => option('a), (x: variant('a), y: variant('a)))
+let meet_entry =
+    (meet: ('a, 'a) => option('a), (x: variant('a), y: variant('a)))
     : option(variant('a)) =>
   switch (x, y) {
   | (Variant(ctr1, ids1, Some(value1)), Variant(ctr2, _, Some(value2)))
       when Constructor.equal(ctr1, ctr2) =>
-    let+ value = join(value1, value2);
+    let+ value = meet(value1, value2);
     Variant(ctr1, ids1, Some(value));
   | (Variant(ctr1, ids1, None), Variant(ctr2, _, None))
       when Constructor.equal(ctr1, ctr2) =>
@@ -127,27 +137,27 @@ let join_entry =
   | _ => None
   };
 
-let join =
+let meet =
     (
       eq: ('a, 'a) => bool,
-      join: ('a, 'a) => option('a),
+      meet: ('a, 'a) => option('a),
       m1: t('a),
       m2: t('a),
     )
     : option(t('a)) => {
   let (inter, left, right) = venn_regions(same_constructor(eq), m1, m2);
-  let join_entries = List.filter_map(join_entry(join), inter);
-  if (List.length(join_entries) == List.length(inter)) {
+  let meet_entries = List.filter_map(meet_entry(meet), inter);
+  if (List.length(meet_entries) == List.length(inter)) {
     switch (
       has_good_entry(left),
       has_bad_entry(m1),
       has_good_entry(right),
       has_bad_entry(m2),
     ) {
-    | (_, true, _, true) => Some(join_entries @ left @ right)
-    | (false, true, _, _) => Some(join_entries @ right)
-    | (_, _, false, true) => Some(join_entries @ left)
-    | _ when left == [] && right == [] => Some(join_entries)
+    | (_, true, _, true) => Some(meet_entries @ left @ right)
+    | (false, true, _, _) => Some(meet_entries @ right)
+    | (_, _, false, true) => Some(meet_entries @ left)
+    | _ when left == [] && right == [] => Some(meet_entries)
     | _ => None
     };
   } else {
