@@ -1414,8 +1414,7 @@ module Agent = {
                 "update_binding_clause",
                 "delete_binding_clause",
                 "delete_body",
-                "insert_after",
-                "insert_before",
+                "overwrite",
               ],
             ) => "Edit"
       | n

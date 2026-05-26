@@ -214,15 +214,15 @@ let edit_action_tests = (
       "let a = 1 in let b = a + 2 in a + b",
     ),
     edit_test(
-      "insert_before",
+      "overwrite: wrap with new let before (insert-before equiv.)",
       "let a = 1 in let b = 2 in a + b",
-      Insert(Before, "b", "let x = a in"),
+      Overwrite("% let b", "let x = a in $"),
       "let a = 1 in let x = a in let b = 2 in a + b",
     ),
     edit_test(
-      "insert_after",
+      "overwrite: wrap body with new let (insert-after equiv.)",
       "let a = 1 in let b = 2 in a + b",
-      Insert(After, "a", "let x = a in"),
+      Overwrite("let a = _ in %", "let x = a in $"),
       "let a = 1 in let x = a in let b = 2 in a + b",
     ),
     edit_test(
@@ -639,97 +639,7 @@ let update_binding_clause_tests = (
 );
 
 /* ============================================================
-   7. INSERT — before and after, various positions
-   ============================================================ */
-
-let insert_tests = (
-  "AgentTools.Insert",
-  [
-    test_case(
-      "insert_before first binding",
-      `Quick,
-      () => {
-        let result =
-          apply_and_render(
-            "let a = 1 in let b = 2 in a + b",
-            Insert(Before, "a", "let z = 0 in"),
-          );
-        check_rendered(
-          "insert_before_first",
-          "let z = 0 in let a = 1 in let b = 2 in a + b",
-          result,
-        );
-      },
-    ),
-    test_case(
-      "insert_after last binding",
-      `Quick,
-      () => {
-        let result =
-          apply_and_render(
-            "let a = 1 in let b = 2 in a + b",
-            Insert(After, "b", "let c = a + b in"),
-          );
-        check_rendered(
-          "insert_after_last",
-          "let a = 1 in let b = 2 in let c = a + b in a + b",
-          result,
-        );
-      },
-    ),
-    test_case(
-      "insert_before with annotated binding",
-      `Quick,
-      () => {
-        let result =
-          apply_and_render(
-            "let a = 1 in let b = 2 in a + b",
-            Insert(Before, "b", "let x : Int = a in"),
-          );
-        check_rendered(
-          "insert_before_annotated",
-          "let a = 1 in let x : Int = a in let b = 2 in a + b",
-          result,
-        );
-      },
-    ),
-    test_case(
-      "insert_after with function binding",
-      `Quick,
-      () => {
-        let result =
-          apply_and_render(
-            "let a = 1 in a",
-            Insert(After, "a", "let f = fun x -> x + a in"),
-          );
-        check_rendered(
-          "insert_after_fun",
-          "let a = 1 in let f = fun x -> x + a in a",
-          result,
-        );
-      },
-    ),
-    test_case(
-      "insert_before in three-binding chain",
-      `Quick,
-      () => {
-        let result =
-          apply_and_render(
-            "let a = 1 in let b = 2 in let c = 3 in a + b + c",
-            Insert(Before, "c", "let d = a + b in"),
-          );
-        check_rendered(
-          "insert_before_third",
-          "let a = 1 in let b = 2 in let d = a + b in let c = 3 in a + b + c",
-          result,
-        );
-      },
-    ),
-  ],
-);
-
-/* ============================================================
-   8. DELETE — binding clause and body deletion
+   7. DELETE — binding clause and body deletion
    ============================================================ */
 
 let delete_tests = (
@@ -851,18 +761,11 @@ let static_error_tests = (
         "unbound_var_def",
       )
     }),
-    test_case("insert_before warns on ill-typed binding", `Quick, () => {
+    test_case("overwrite warns on ill-typed wrapping binding", `Quick, () => {
       expect_warning(
         "let a = 1 in a",
-        Insert(Before, "a", "let x : Int = true in"),
-        "insert_before_type_error",
-      )
-    }),
-    test_case("insert_after warns on ill-typed binding", `Quick, () => {
-      expect_warning(
-        "let a = 1 in a",
-        Insert(After, "a", "let x : String = 42 in"),
-        "insert_after_type_error",
+        Overwrite("% let a", "let x : Int = true in $"),
+        "overwrite_type_error",
       )
     }),
   ],
@@ -940,32 +843,32 @@ let nested_definition_tests = (
       },
     ),
     test_case(
-      "insert_after into nested scope",
+      "overwrite (insert-after equiv.) into nested scope",
       `Quick,
       () => {
         let result =
           apply_and_render(
             "let a = let b = 1 in b in a",
-            Insert(After, "a/b", "let c = b + 1 in"),
+            Overwrite("a/ let b = _ in %", "let c = b + 1 in $"),
           );
         check_rendered(
-          "insert_after_nested",
+          "overwrite_after_nested",
           "let a = let b = 1 in let c = b + 1 in b in a",
           result,
         );
       },
     ),
     test_case(
-      "insert_before into nested scope",
+      "overwrite (insert-before equiv.) into nested scope",
       `Quick,
       () => {
         let result =
           apply_and_render(
             "let a = let b = 1 in b in a",
-            Insert(Before, "a/b", "let z = 0 in"),
+            Overwrite("a/ % let b", "let z = 0 in $"),
           );
         check_rendered(
-          "insert_before_nested",
+          "overwrite_before_nested",
           "let a = let z = 0 in let b = 1 in b in a",
           result,
         );
@@ -1002,18 +905,11 @@ let invalid_path_tests = (
         "nonexistent_path_delete",
       )
     }),
-    test_case("insert_before with nonexistent path fails", `Quick, () => {
+    test_case("overwrite with nonexistent selector fails", `Quick, () => {
       expect_any_failure(
         "let a = 1 in a",
-        Insert(Before, "nonexistent", "let x = 1 in"),
-        "nonexistent_path_insert_before",
-      )
-    }),
-    test_case("insert_after with nonexistent path fails", `Quick, () => {
-      expect_any_failure(
-        "let a = 1 in a",
-        Insert(After, "nonexistent", "let x = 1 in"),
-        "nonexistent_path_insert_after",
+        Overwrite("% let nonexistent", "$"),
+        "nonexistent_selector_overwrite",
       )
     }),
   ],
@@ -1551,32 +1447,32 @@ let module_edit_action_tests = (
       },
     ),
     test_case(
-      "insert module item before",
+      "overwrite splices new module item before existing (via $)",
       `Quick,
       () => {
         let result =
           apply_and_render(
             "let m = { let a = 1; let c = 3 } in m.a + m.c",
-            Insert(Before, "m/c", "let b = 2"),
+            Overwrite("m/c", "let b = 2; $"),
           );
         check_rendered(
-          "insert module item before",
+          "overwrite module item before",
           "let m = { let a = 1; let b = 2; let c = 3 } in m.a + m.c",
           result,
         );
       },
     ),
     test_case(
-      "insert module item after",
+      "overwrite splices new module item after existing (via $)",
       `Quick,
       () => {
         let result =
           apply_and_render(
             "let m = { let a = 1; let c = 3 } in m.a + m.c",
-            Insert(After, "m/a", "let b = 2"),
+            Overwrite("m/a", "$; let b = 2"),
           );
         check_rendered(
-          "insert module item after",
+          "overwrite module item after",
           "let m = { let a = 1; let b = 2; let c = 3 } in m.a + m.c",
           result,
         );
@@ -1666,10 +1562,10 @@ let edge_case_tests = (
         "parse error",
       )
     ),
-    test_case("invalid token warned", `Quick, () =>
-      expect_warning(
+    test_case("invalid token in overwrite produces error", `Quick, () =>
+      expect_any_failure(
         "let a = 1 in let b = 2 in a + b",
-        Insert(After, "a", "let c = $invalid"),
+        Overwrite("let a = _ in %", "let c = !@invalid in $"),
         "invalid token",
       )
     ),
@@ -3136,14 +3032,17 @@ let selector_tests = (
         check(string, "else branch", "x - 1", result);
       },
     ),
-    /* InsertAfter via selector + verify result via selector query */
+    /* Overwrite via selector + verify result via selector query */
     test_case(
-      "selector roundtrip: insert then query",
+      "selector roundtrip: overwrite then query",
       `Quick,
       () => {
         let code = "let x = 1 in x + 1";
         switch (
-          run_agent_action(code, SelectorInsertAfter("% let x", "let y = 2"))
+          run_agent_action(
+            code,
+            Overwrite("let x = _ in %", "let y = 2 in $"),
+          )
         ) {
         | Ok(new_z) =>
           let new_term = MakeTerm.from_zip_for_sem(new_z, ~root=Exp).term;
@@ -3154,7 +3053,7 @@ let selector_tests = (
           let x_results = Selector.query("let x = %", new_term);
           check(int, "x binding still there", 1, List.length(x_results));
         | Error(err) =>
-          Alcotest.fail("Insert failed: " ++ Action.Failure.show(err))
+          Alcotest.fail("Overwrite failed: " ++ Action.Failure.show(err))
         };
       },
     ),
@@ -5227,46 +5126,24 @@ let selector_edit_tests = (
         Alcotest.fail("Unexpected error: " ++ Action.Failure.show(err))
       }
     }),
-    /* === SelectorInsert tests === */
-    /* InsertAfter: insert let binding after anchor */
+    /* === Overwrite: selector + $ placeholder === */
+    /* Insert-after equivalent: wrap the body of x with a new let */
     edit_test(
-      "SelectorInsertAfter: let after anchor",
+      "Overwrite: wrap body with new let (insert-after equiv.)",
       "let x = 1 in x + 1",
-      SelectorInsertAfter("% let x", "let y = 2"),
+      Overwrite("let x = _ in %", "let y = 2 in $"),
       "let x = 1 in let y = 2 in x + 1",
     ),
-    /* InsertBefore: insert let binding before anchor */
+    /* Insert-before equivalent: wrap the whole let with a new outer let */
     edit_test(
-      "SelectorInsertBefore: let before anchor",
+      "Overwrite: wrap whole let (insert-before equiv.)",
       "let x = 1 in x + 1",
-      SelectorInsertBefore("% let x", "let y = 2"),
+      Overwrite("% let x", "let y = 2 in $"),
       "let y = 2 in let x = 1 in x + 1",
     ),
-    /* InsertAfter in module: insert after a module item */
-    edit_test(
-      "SelectorInsertAfter: module item",
-      "module M = { let x = 1 } in M.x",
-      SelectorInsertAfter("M/x = %", "let y = 2"),
-      /* Space before ; is from original item's stored after-secondary
-         (was space before } in original code). Cosmetic artifact of
-         PreserveExact preserving positional whitespace. */
-      "module M = { let x = 1 ; let y = 2 } in M.x",
-    ),
-    /* InsertBefore in module: insert before a module item */
-    edit_test(
-      "SelectorInsertBefore: module item",
-      "module M = { let x = 1 } in M.x",
-      SelectorInsertBefore("M/x = %", "let y = 0"),
-      "module M = { let y = 0; let x = 1 } in M.x",
-    ),
     /* Error: selector no match */
-    test_case("SelectorInsertAfter: no match", `Quick, () => {
-      switch (
-        run_agent_action(
-          "let x = 1 in x",
-          SelectorInsertAfter("% let z", "let y = 2"),
-        )
-      ) {
+    test_case("Overwrite: selector with no match fails", `Quick, () => {
+      switch (run_agent_action("let x = 1 in x", Overwrite("% let z", "$"))) {
       | Ok(_) => Alcotest.fail("Expected failure: no match")
       | Error(Action.Failure.Composition_action_failure(msg)) =>
         check(
@@ -5282,61 +5159,227 @@ let selector_edit_tests = (
   ],
 );
 
-/* === Robust selector insert (definition anchors, seq lines, collections) === */
+/* === Overwrite tests for various structural contexts === */
 
-let selector_insert_robust_tests = (
-  "AgentTools.SelectorInsertRobust",
+let overwrite_tests = (
+  "AgentTools.Overwrite",
   [
+    /* ============================================================
+       A. BASIC $ MECHANICS
+       ============================================================ */
+    /* $ alone = identity (no-op) */
     edit_test(
-      "SelectorInsertAfter: let via definition anchor",
+      "identity: $ alone is no-op",
       "let x = 1 in x + 1",
-      SelectorInsertAfter("x = %", "let y = 2"),
-      "let x = 1 in let y = 2 in x + 1",
+      Overwrite("let x = %", "$"),
+      "let x = 1 in x + 1",
     ),
+    /* No $ = pure replace */
     edit_test(
-      "SelectorInsertBefore: let via definition anchor",
-      "let a = 1 in a",
-      SelectorInsertBefore("a = %", "let b = 0"),
-      "let b = 0 in let a = 1 in a",
+      "pure replace: no $ replaces target entirely",
+      "let x = 1 in x + 1",
+      Overwrite("let x = %", "99"),
+      "let x = 99 in x + 1",
     ),
+    /* $ used in a wrapping expression */
+    edit_test(
+      "wrap: $ + 1 in def position",
+      "let x = 1 in x",
+      Overwrite("let x = %", "$ + 1"),
+      "let x = 1 + 1 in x",
+    ),
+    /* $ used twice: each gets its own copy */
     test_case(
-      "SelectorInsertAfter: case arm after | B =>",
+      "multiple $: each occurrence is substituted",
       `Quick,
       () => {
-        let case_code = "let f = fun x -> case x | A => 1 | B => 2 end in f";
         let result =
           apply_and_render(
-            case_code,
-            SelectorInsertAfter("\\... | B => %", "| C => 3"),
+            "let x = 5 in x",
+            Overwrite("let x = %", "$ + $"),
           );
-        check(bool, "has C", true, string_contains("C", result));
-        check(bool, "has 3", true, string_contains("3", result));
+        check(
+          bool,
+          "result contains addition",
+          true,
+          string_contains("+", result),
+        );
+        check(bool, "result contains 5", true, string_contains("5", result));
       },
     ),
+    /* ============================================================
+       B. EXPRESSION-LEVEL OVERWRITE
+       ============================================================ */
+    /* Replace body of a let */
+    edit_test(
+      "exp: replace let body",
+      "let x = 1 in x + 1",
+      Overwrite("let x = _ in %", "x * 2"),
+      "let x = 1 in x * 2",
+    ),
+    /* Wrap whole let with new binding */
+    edit_test(
+      "exp: let-chain prepend (wrap with new let)",
+      "let x = 1 in x",
+      Overwrite("% let x", "let y = 0 in $"),
+      "let y = 0 in let x = 1 in x",
+    ),
+    /* Wrap a let body with new binding */
+    edit_test(
+      "exp: let-chain append (wrap body with new let)",
+      "let x = 1 in x",
+      Overwrite("let x = _ in %", "let y = 2 in $"),
+      "let x = 1 in let y = 2 in x",
+    ),
+    /* Replace an if condition */
+    edit_test(
+      "exp: replace if condition",
+      "if true then 1 else 0",
+      Overwrite("if %", "false"),
+      "if false then 1 else 0",
+    ),
+    /* Wrap a function body */
+    edit_test(
+      "exp: wrap fun body",
+      "let f = fun x -> x in f",
+      Overwrite("\\... fun _ -> %", "$ + 1"),
+      "let f = fun x -> x + 1 in f",
+    ),
+    /* Replace a test body */
+    edit_test(
+      "exp: replace test body",
+      "let x = 1 in test x == 1 end; x",
+      Overwrite("\\... test %", "x > 0"),
+      "let x = 1 in test x > 0 end; x",
+    ),
+    /* ============================================================
+       C. PATTERN-LEVEL OVERWRITE
+       ============================================================ */
+    /* Rename a let pattern — overwrite is structural replacement,
+       not a refactoring rename, so use sites are NOT updated. */
+    edit_test(
+      "pat: rename let pattern (no use-site rename)",
+      "let x = 1 in x",
+      Overwrite("let % x", "y"),
+      "let y = 1 in x",
+    ),
+    /* Replace let pattern with tuple destructuring — again, use
+       sites reference the old name, not the destructured names. */
+    edit_test(
+      "pat: replace with tuple pattern (no use-site rename)",
+      "let x = (1, 2) in x",
+      Overwrite("let % x", "(a, b)"),
+      "let (a, b) = (1, 2) in x",
+    ),
+    /* $ identity on a pattern */
+    edit_test(
+      "pat: $ identity on pattern",
+      "let x = 1 in x",
+      Overwrite("let % x", "$"),
+      "let x = 1 in x",
+    ),
+    /* ============================================================
+       D. TYPE-LEVEL OVERWRITE
+       ============================================================ */
+    /* Replace type annotation */
+    edit_test(
+      "typ: replace annotation",
+      "let x : Int = 1 in x",
+      Overwrite("let x : %", "Bool"),
+      "let x : Bool = 1 in x",
+    ),
+    /* $ identity on a type */
+    edit_test(
+      "typ: $ identity on type annotation",
+      "let x : Int = 1 in x",
+      Overwrite("let x : %", "$"),
+      "let x : Int = 1 in x",
+    ),
+    /* Replace type in type alias */
+    edit_test(
+      "typ: replace type alias def",
+      "type T = Int in let x : T = 1 in x",
+      Overwrite("type T = %", "Bool"),
+      "type T = Bool in let x : T = 1 in x",
+    ),
+    /* ============================================================
+       E. MODULE-LEVEL OVERWRITE
+       ============================================================ */
+    /* Append module item */
     test_case(
-      "SelectorInsertBefore: case arm before | B =>",
+      "mod: splice append ($; let b = 2)",
       `Quick,
       () => {
-        let case_code = "let f = fun x -> case x | A => 1 | B => 2 end in f";
         let result =
           apply_and_render(
-            case_code,
-            SelectorInsertBefore("\\... | B => %", "| Z => 0"),
+            "let m = { let a = 1; let c = 3 } in m.a",
+            Overwrite("m/a", "$; let b = 2"),
           );
-        check(bool, "has Z", true, string_contains("Z", result));
+        check(bool, "has b", true, string_contains("let b", result));
+        check(bool, "keeps a", true, string_contains("let a", result));
+        check(bool, "keeps c", true, string_contains("let c", result));
       },
     ),
+    /* Prepend module item */
     test_case(
-      "SelectorInsertAfter: test line with focus inside body",
+      "mod: splice prepend (let b = 2; $)",
+      `Quick,
+      () => {
+        let result =
+          apply_and_render(
+            "let m = { let a = 1; let c = 3 } in m.a + m.c",
+            Overwrite("m/c", "let b = 2; $"),
+          );
+        check(bool, "has b", true, string_contains("let b", result));
+        check(bool, "keeps a", true, string_contains("let a", result));
+        check(bool, "keeps c", true, string_contains("let c", result));
+      },
+    ),
+    /* Pure replace module item (no $) */
+    test_case(
+      "mod: pure replace item",
+      `Quick,
+      () => {
+        let result =
+          apply_and_render(
+            "let m = { let a = 1; let b = 2 } in m.a",
+            Overwrite("m/b", "let z = 99"),
+          );
+        check(bool, "has z", true, string_contains("let z", result));
+        check(bool, "no b", false, string_contains("let b", result));
+      },
+    ),
+    /* ============================================================
+       F. SEQUENCE SPLICING
+       ============================================================ */
+    /* Seq append: $; new */
+    test_case(
+      "seq: append new test ($; new)",
+      `Quick,
+      () => {
+        let code = "let x = 1 in test x == 1 end; test x > 0 end; x";
+        let result =
+          apply_and_render(
+            code,
+            Overwrite("let x = _ in #1 #0", "$; test x < 10 end"),
+          );
+        check(bool, "has x == 1", true, string_contains("x == 1", result));
+        check(bool, "has x > 0", true, string_contains("x > 0", result));
+        check(bool, "has x < 10", true, string_contains("x < 10", result));
+      },
+    ),
+    /* Seq prepend: new; $ */
+    test_case(
+      "seq: prepend new test (new; $)",
       `Quick,
       () => {
         let code = "let x = 1 in test x == 1 end; x";
         let result =
           apply_and_render(
             code,
-            SelectorInsertAfter("\\... test %", "test x > 0 end"),
+            Overwrite("let x = _ in #0", "test x < 0 end; $"),
           );
-        check(bool, "has new test", true, string_contains("x > 0", result));
+        check(bool, "has new test", true, string_contains("x < 0", result));
         check(
           bool,
           "keeps old test",
@@ -5345,73 +5388,185 @@ let selector_insert_robust_tests = (
         );
       },
     ),
+    /* ============================================================
+       G. LIST SPLICING
+       ============================================================ */
+    /* List splice: $, 99 (append after element) */
     test_case(
-      "SelectorInsertBefore: test line with focus inside body",
-      `Quick,
-      () => {
-        let code = "let x = 1 in test x == 1 end; x";
-        let result =
-          apply_and_render(
-            code,
-            SelectorInsertBefore("\\... test %", "test x < 0 end"),
-          );
-        check(bool, "has new test", true, string_contains("x < 0", result));
-      },
-    ),
-    test_case(
-      "SelectorInsertAfter: list element via inner focus",
+      "list: splice append ($, 99)",
       `Quick,
       () => {
         let result =
           apply_and_render(
             "let xs = [1, 2, 3] in xs",
-            SelectorInsertAfter("xs/ [ _ %", "4"),
+            Overwrite("xs/ [ _ %", "$, 99"),
           );
-        check(bool, "has 4", true, string_contains("4", result));
-        check(bool, "still has 2", true, string_contains("2", result));
+        check(bool, "has 99", true, string_contains("99", result));
+        check(bool, "keeps 2", true, string_contains("2", result));
+        check(bool, "keeps 3", true, string_contains("3", result));
       },
     ),
+    /* List splice: 99, $ (prepend before element) */
     test_case(
-      "SelectorInsertBefore: tuple element via inner focus",
+      "list: splice prepend (99, $)",
+      `Quick,
+      () => {
+        let result =
+          apply_and_render(
+            "let xs = [1, 2, 3] in xs",
+            Overwrite("xs/ [ _ %", "99, $"),
+          );
+        check(bool, "has 99", true, string_contains("99", result));
+        check(bool, "keeps 2", true, string_contains("2", result));
+      },
+    ),
+    /* List element plain replace (no $, no splice) */
+    test_case(
+      "list: plain replace element",
+      `Quick,
+      () => {
+        let result =
+          apply_and_render(
+            "let xs = [1, 2, 3] in xs",
+            Overwrite("xs/ [ _ %", "99"),
+          );
+        check(
+          bool,
+          "replaced element with 99",
+          true,
+          string_contains("99", result),
+        );
+      },
+    ),
+    /* ============================================================
+       H. TUPLE SPLICING
+       ============================================================ */
+    /* Tuple splice: 0, $ (prepend before element) */
+    test_case(
+      "tuple: splice prepend (0, $)",
       `Quick,
       () => {
         let result =
           apply_and_render(
             "let p = (1, 2, 3) in p",
-            SelectorInsertBefore("p/ ( _ _ %", "0"),
+            Overwrite("p/ ( _ _ %", "0, $"),
           );
-        check(bool, "has leading 0", true, string_contains("0", result));
-        check(bool, "still has 3", true, string_contains("3", result));
+        check(bool, "has 0", true, string_contains("0", result));
+        check(bool, "keeps 3", true, string_contains("3", result));
       },
     ),
+    /* Tuple splice: $, 0 (append after element) */
     test_case(
-      "SelectorInsertAfter: type alias binding anchor",
+      "tuple: splice append ($, 0)",
       `Quick,
       () => {
         let result =
           apply_and_render(
-            "type T = Int in 0",
-            SelectorInsertAfter("% type T", "let x = 1"),
+            "let p = (1, 2, 3) in p",
+            Overwrite("p/ ( %", "$, 0"),
           );
-        check(bool, "has let x", true, string_contains("let x", result));
-        check(bool, "keeps type T", true, string_contains("type T", result));
+        check(bool, "has 0", true, string_contains("0", result));
+        check(bool, "keeps 1", true, string_contains("1", result));
       },
     ),
-    test_case(
-      "SelectorInsertAfter: populates module incrementally",
-      `Quick,
-      () => {
-        let code = "module M = { let x = 1 } in M.x";
-        let r1 =
-          apply_and_render(
-            code,
-            SelectorInsertAfter("M/x = %", "let y = 2"),
-          );
-        let r2 =
-          apply_and_render(r1, SelectorInsertAfter("M/y = %", "let z = 3"));
-        check(bool, "has y", true, string_contains("y", r2));
-        check(bool, "has z", true, string_contains("z", r2));
-      },
+    /* ============================================================
+       I. ERROR CASES — selector issues
+       ============================================================ */
+    /* Selector matches nothing */
+    test_case("error: no match selector", `Quick, () =>
+      expect_composition_failure(
+        "let x = 1 in x",
+        Overwrite("% let nonexistent", "$"),
+        "no match",
+      )
+    ),
+    /* Ambiguous selector (multiple matches) */
+    test_case("error: ambiguous selector", `Quick, () =>
+      expect_composition_failure(
+        "let x = 1 in let x = 2 in x",
+        Overwrite("let x = %", "99"),
+        "ambiguous selector",
+      )
+    ),
+    /* ============================================================
+       J. ERROR CASES — invalid code for target sort
+       ============================================================ */
+    /* Expression-only syntax in pattern position */
+    test_case("error: invalid code in pattern position", `Quick, () =>
+      expect_composition_failure(
+        "let x = 1 in x + 1",
+        Overwrite("let % x", "$ + 1"),
+        "invalid pat code",
+      )
+    ),
+    /* Expression-only syntax in type position: `$ + 1` produces
+       a broken type (MultiHole) — should error. */
+    test_case("error: invalid code in type position", `Quick, () =>
+      expect_composition_failure(
+        "let x : Int = 1 in x",
+        Overwrite("let x : %", "$ + 1"),
+        "invalid typ code",
+      )
+    ),
+    /* Unparseable code */
+    test_case("error: unparseable code", `Quick, () =>
+      expect_any_failure(
+        "let a = 1 in a",
+        Overwrite("let a = %", "!@invalid"),
+        "unparseable code",
+      )
+    ),
+    /* ============================================================
+       K. EDGE CASES
+       ============================================================ */
+    /* Overwrite with hole */
+    edit_test(
+      "edge: replace with hole (?)",
+      "let x = 1 in x",
+      Overwrite("let x = %", "?"),
+      "let x = ? in x",
+    ),
+    /* Overwrite on nested definition via chain */
+    edit_test(
+      "edge: nested def via chain (a/ let b = %)",
+      "let a = let b = 1 in b in a",
+      Overwrite("a/ let b = %", "42"),
+      "let a = let b = 42 in b in a",
+    ),
+    /* Overwrite preserves line breaks */
+    edit_test(
+      "edge: preserves line break in let chain",
+      "let x = 1\nin x + 1",
+      Overwrite("let x = %", "42"),
+      "let x = 42\nin x + 1",
+    ),
+    /* Replace with compound expression */
+    edit_test(
+      "edge: replace def with if-then-else",
+      "let x = 1 in x",
+      Overwrite("let x = %", "if true then 1 else 0"),
+      "let x = if true then 1 else 0 in x",
+    ),
+    /* Replace with fun expression */
+    edit_test(
+      "edge: replace def with function",
+      "let f = 1 in f",
+      Overwrite("let f = %", "fun x -> x + 1"),
+      "let f = fun x -> x + 1 in f",
+    ),
+    /* Overwrite body of a type alias */
+    edit_test(
+      "edge: overwrite body after type alias",
+      "type T = Int in let a : T = 1 in a",
+      Overwrite("type T _... in %", "let z = 0 in $"),
+      "type T = Int in let z = 0 in let a : T = 1 in a",
+    ),
+    /* Wrap before type alias */
+    edit_test(
+      "edge: wrap before type alias",
+      "type T = Int in let a : T = 1 in a",
+      Overwrite("% type T", "let z = 0 in $"),
+      "let z = 0 in type T = Int in let a : T = 1 in a",
     ),
   ],
 );
@@ -5470,30 +5625,18 @@ let whitespace_tests = (
       SelectorDelete("x = %"),
       "let x = ?\nin let y = 2\nin x + y",
     ),
-    /* --- New bindings get appropriate line breaks --- */
+    /* --- Overwrite preserves line breaks on let-chain wrapping --- */
     edit_test(
-      "insert_after adds newline for new binding",
-      "let a = 1\nin a + 1",
-      Insert(After, "a", "let b = 2"),
-      "let a = 1\nin let b = 2\nin a + 1",
-    ),
-    edit_test(
-      "insert_before adds newline for new binding",
-      "let a = 1\nin a + 1",
-      Insert(Before, "a", "let b = 0"),
-      "let b = 0\nin let a = 1\nin a + 1",
-    ),
-    edit_test(
-      "selector_insert_after with line breaks",
+      "overwrite wraps body with new let, preserves line breaks",
       "let x = 1\nin x + 1",
-      SelectorInsertAfter("% let x", "let y = 2"),
-      "let x = 1\nin let y = 2\nin x + 1",
+      Overwrite("let x = _ in %", "let y = 2 in $"),
+      "let x = 1\nin let y = 2 in x + 1",
     ),
     edit_test(
-      "selector_insert_before with line breaks",
+      "overwrite wraps whole let, preserves line breaks",
       "let x = 1\nin x + 1",
-      SelectorInsertBefore("% let x", "let y = 2"),
-      "let y = 2\nin let x = 1\nin x + 1",
+      Overwrite("% let x", "let y = 2 in $"),
+      "let y = 2 in let x = 1\nin x + 1",
     ),
     /* --- Pattern/type updates preserve line breaks --- */
     edit_test(
@@ -5640,28 +5783,18 @@ let composition_utils_tests = (
       },
     ),
     test_case(
-      "parse insert_after tool call",
+      "parse overwrite tool call",
       `Quick,
       () => {
-        let args = mk_json_args([("path", "a"), ("code", "let b = 2 in")]);
+        let args =
+          mk_json_args([
+            ("selector", "% let x"),
+            ("code", "let y = 2 in $"),
+          ]);
         switch (
-          CompositionUtils.Public.action_of(~tool_name="insert_after", ~args)
+          CompositionUtils.Public.action_of(~tool_name="overwrite", ~args)
         ) {
-        | Action(EditorAction(Insert(After, "a", "let b = 2 in"))) => ()
-        | Action(_) => Alcotest.fail("Parsed to wrong action variant")
-        | Failure(msg) => Alcotest.fail("Failed to parse: " ++ msg)
-        };
-      },
-    ),
-    test_case(
-      "parse insert_before tool call",
-      `Quick,
-      () => {
-        let args = mk_json_args([("path", "b"), ("code", "let x = 0 in")]);
-        switch (
-          CompositionUtils.Public.action_of(~tool_name="insert_before", ~args)
-        ) {
-        | Action(EditorAction(Insert(Before, "b", "let x = 0 in"))) => ()
+        | Action(EditorAction(Overwrite("% let x", "let y = 2 in $"))) => ()
         | Action(_) => Alcotest.fail("Parsed to wrong action variant")
         | Failure(msg) => Alcotest.fail("Failed to parse: " ++ msg)
         };
@@ -6002,19 +6135,24 @@ let sequential_operations_tests = (
   "AgentTools.SequentialOperations",
   [
     test_case(
-      "insert then update definition",
+      "overwrite then update definition",
       `Quick,
       () => {
         let code = "let a = 1 in a";
         let z =
-          switch (run_agent_action(code, Insert(After, "a", "let b = 0 in"))) {
+          switch (
+            run_agent_action(
+              code,
+              Overwrite("let a = _ in %", "let b = 0 in $"),
+            )
+          ) {
           | Ok(z) => z
           | Error(err) =>
-            Alcotest.fail("Insert failed: " ++ Action.Failure.show(err))
+            Alcotest.fail("Overwrite failed: " ++ Action.Failure.show(err))
           };
         let rendered = render_zipper(z);
         check_rendered(
-          "after insert",
+          "after overwrite",
           "let a = 1 in let b = 0 in a",
           rendered,
         );
@@ -6098,7 +6236,7 @@ let sequential_operations_tests = (
             ~statics=CachedStatics.empty,
             ~syntax=CachedSyntax.init(z),
             ~root=Exp,
-            Structural(Insert(Before, "c", "let d = a * 2 in")),
+            Structural(Overwrite("% let c", "let d = a * 2 in $")),
             {
               zipper: z,
               col_target: None,
@@ -6199,32 +6337,32 @@ let type_alias_tests = (
       },
     ),
     test_case(
-      "insert_before type alias",
+      "overwrite wraps before type alias (insert-before equiv.)",
       `Quick,
       () => {
         let result =
           apply_and_render(
             "type T = Int in let a : T = 1 in a",
-            Insert(Before, "T", "let z = 0 in"),
+            Overwrite("% type T", "let z = 0 in $"),
           );
         check_rendered(
-          "insert_before_type_alias",
+          "overwrite_before_type_alias",
           "let z = 0 in type T = Int in let a : T = 1 in a",
           result,
         );
       },
     ),
     test_case(
-      "insert_after type alias",
+      "overwrite wraps body of type alias (insert-after equiv.)",
       `Quick,
       () => {
         let result =
           apply_and_render(
             "type T = Int in let a : T = 1 in a",
-            Insert(After, "T", "let z = 0 in"),
+            Overwrite("type T _... in %", "let z = 0 in $"),
           );
         check_rendered(
-          "insert_after_type_alias",
+          "overwrite_after_type_alias",
           "type T = Int in let z = 0 in let a : T = 1 in a",
           result,
         );
@@ -6354,10 +6492,10 @@ let complex_program_tests = (
         let result =
           apply_and_render(
             "let a = 1 in a",
-            Insert(After, "a", "let double = fun x -> x * 2 in"),
+            Overwrite("let a = _ in %", "let double = fun x -> x * 2 in $"),
           );
         check_rendered(
-          "insert_function",
+          "overwrite_function",
           "let a = 1 in let double = fun x -> x * 2 in a",
           result,
         );
@@ -6460,7 +6598,10 @@ let complex_program_tests = (
         let result =
           apply_and_render(
             record_program,
-            Insert(After, "dist", "let manhattan = fun p -> p.x + p.y"),
+            Overwrite(
+              "let dist = _ in %",
+              "let manhattan = fun p -> p.x + p.y in $",
+            ),
           );
         check(
           bool,
@@ -6804,27 +6945,6 @@ let case_arm_tests = (
         check(bool, "has C", true, string_contains("C", result));
       },
     ),
-    test_case(
-      "insert case arm via dispatch",
-      `Quick,
-      () => {
-        let case_code = "let f = fun x -> case x | A => 1 | B => 2 end in f";
-        let result =
-          apply_and_render(case_code, Insert(After, "f/|B", "C => 3"));
-        check(bool, "has C", true, string_contains("C", result));
-        check(bool, "has 3", true, string_contains("3", result));
-      },
-    ),
-    test_case(
-      "insert case arm before via dispatch",
-      `Quick,
-      () => {
-        let case_code = "let f = fun x -> case x | A => 1 | B => 2 end in f";
-        let result =
-          apply_and_render(case_code, Insert(Before, "f/|A", "Z => 0"));
-        check(bool, "has Z", true, string_contains("Z", result));
-      },
-    ),
   ],
 );
 
@@ -6963,15 +7083,6 @@ let list_element_tests = (
           apply_and_render(list_program, Delete(BindingClause, "xs/[1]"));
         check(bool, "has 1", true, string_contains("1", result));
         check(bool, "has 3", true, string_contains("3", result));
-      },
-    ),
-    test_case(
-      "insert list element via dispatch",
-      `Quick,
-      () => {
-        let result =
-          apply_and_render(list_program, Insert(After, "xs/[2]", "4"));
-        check(bool, "has 4", true, string_contains("4", result));
       },
     ),
   ],
@@ -7119,15 +7230,6 @@ let tuple_element_tests = (
           apply_and_render(tuple_program, Delete(BindingClause, "p/(1)"));
         check(bool, "has 1", true, string_contains("1", result));
         check(bool, "has 3", true, string_contains("3", result));
-      },
-    ),
-    test_case(
-      "insert tuple element via dispatch",
-      `Quick,
-      () => {
-        let result =
-          apply_and_render(tuple_program, Insert(After, "p/(2)", "4"));
-        check(bool, "has 4", true, string_contains("4", result));
       },
     ),
   ],
@@ -7526,7 +7628,7 @@ let tool_json_tests = (
       `Quick,
       () => {
         let tools = CompositionUtils.Public.tools;
-        check(int, "tool count", 36, List.length(tools));
+        check(int, "tool count", 33, List.length(tools));
       },
     ),
     test_case(
@@ -7591,8 +7693,6 @@ let tool_json_tests = (
           "update_binding_clause",
           "delete_binding_clause",
           "delete_body",
-          "insert_after",
-          "insert_before",
         ];
         let tools = CompositionUtils.Public.tools;
         List.iter(
@@ -7685,7 +7785,6 @@ let tests = [
   update_body_tests,
   update_pattern_tests,
   update_binding_clause_tests,
-  insert_tests,
   delete_tests,
   static_error_tests,
   nested_definition_tests,
@@ -7703,7 +7802,7 @@ let tests = [
   canonical_tests,
   canonical_read_tests,
   selector_edit_tests,
-  selector_insert_robust_tests,
+  overwrite_tests,
   gap_tests,
   whitespace_tests,
   completeness_tests,

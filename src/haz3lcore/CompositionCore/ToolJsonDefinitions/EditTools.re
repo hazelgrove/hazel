@@ -535,151 +535,6 @@ let update_type_annotation: API.Json.t =
     ),
   ]);
 
-let insert_after_description = {|
-Inserts a new binding immediately after the binding at the given path.
-The inserted code becomes part of the program between the target binding and its original body.
-
-Parameters:
-path: string — slash-delimited path to the binding after which to insert
-code: string — the code to insert (typically a let...in or type...in binding)
-
-Example:
-Given the program:
-```
-let a = 10 in
-let b = "hello" in
-?
-```
-Calling insert_after(path="a", code="let doubled = a * 2 in") produces:
-```
-let a = 10 in
-let doubled = a * 2 in
-let b = "hello" in
-?
-```
-Note: The new binding is inserted between "a" and "b". The rest of the program is preserved.
-|};
-
-let insert_after: API.Json.t =
-  `Assoc([
-    ("type", `String("function")),
-    (
-      "function",
-      `Assoc([
-        ("name", `String("insert_after")),
-        ("description", `String(insert_after_description)),
-        (
-          "parameters",
-          `Assoc([
-            ("type", `String("object")),
-            (
-              "properties",
-              `Assoc([
-                (
-                  "path",
-                  `Assoc([
-                    ("type", `String("string")),
-                    (
-                      "description",
-                      `String(
-                        "Slash-delimited path to the node after which the code should be inserted.",
-                      ),
-                    ),
-                  ]),
-                ),
-                (
-                  "code",
-                  `Assoc([
-                    ("type", `String("string")),
-                    (
-                      "description",
-                      `String(
-                        "The code to insert after the referenced expression.",
-                      ),
-                    ),
-                  ]),
-                ),
-              ]),
-            ),
-            ("required", `List([`String("path"), `String("code")])),
-          ]),
-        ),
-      ]),
-    ),
-  ]);
-
-let insert_before_description = {|
-Inserts a new binding immediately before the binding at the given path.
-
-Parameters:
-path: string — slash-delimited path to the binding before which to insert
-code: string — the code to insert (typically a let...in or type...in binding)
-
-Example:
-Given the program:
-```
-let a = ⋱ in
-let b = "hello" in
-?
-```
-Calling insert_before(path="b", code="let prefix = \"world\" in") produces:
-```
-let a = ⋱ in
-let prefix = "world" in
-let b = "hello" in
-?
-```
-Note: The new binding is inserted between "a" and "b". The rest of the program is preserved.
-|};
-
-let insert_before: API.Json.t =
-  `Assoc([
-    ("type", `String("function")),
-    (
-      "function",
-      `Assoc([
-        ("name", `String("insert_before")),
-        ("description", `String(insert_before_description)),
-        (
-          "parameters",
-          `Assoc([
-            ("type", `String("object")),
-            (
-              "properties",
-              `Assoc([
-                (
-                  "path",
-                  `Assoc([
-                    ("type", `String("string")),
-                    (
-                      "description",
-                      `String(
-                        "Slash-delimited path to the node before which the code should be inserted.",
-                      ),
-                    ),
-                  ]),
-                ),
-                (
-                  "code",
-                  `Assoc([
-                    ("type", `String("string")),
-                    (
-                      "description",
-                      `String(
-                        "The code to insert before the referenced expression.",
-                      ),
-                    ),
-                  ]),
-                ),
-              ]),
-            ),
-            ("required", `List([`String("path"), `String("code")])),
-          ]),
-        ),
-      ]),
-    ),
-  ]);
-
 /* === Selector-based edit tools === */
 
 let selector_update_description = {|
@@ -823,36 +678,91 @@ let selector_delete: API.Json.t =
     ),
   ]);
 
-let selector_insert_after_description = {|
+let overwrite_description = {|
 Description:
-Inserts code after the anchor matched by a selector expression.
-The `%` in the selector marks the anchor point (the existing binding/item), and
-new code is inserted immediately after it.
-Works with let-bindings, module items, list elements, tuple elements, and case arms.
+Replaces the focused subtree matched by a selector expression with new code.
+This is a semantic-aware overwrite: the `$` token in `code` stands for the
+originally selected subtree. The new code is parsed at the right sort and
+spliced into the parent context. Use `$` to express insert-before / insert-after
+patterns, as well as in-place wrapping of the original subtree.
+
+The selector must contain exactly one `%` (focus marker) identifying the
+target. The `code` may contain zero or more `$` placeholders. When `$` is
+absent, overwrite behaves like a plain replace. When `$` appears, the original
+subtree is substituted at each `$` position (re-parsed for fresh ids on the
+second and later occurrences).
+
+Splicing rules (only when the target is a *direct* child of the parent):
+- target is a list element and parsed code is a tuple → splice tuple elements
+  into the list at the target's index;
+- target is a tuple element and parsed code is a tuple → splice tuple elements
+  into the tuple at the target's index;
+- target is a module item and parsed code is a `;`-sequence → splice items into
+  the module.
+Otherwise the target is replaced by the parsed (substituted) code.
 
 Parameters:
-selector: string — selector expression with `%` marking the anchor
-code: string — code to insert after the anchor
+selector: string — selector expression with exactly one `%` focus
+code: string — replacement code, with optional `$` to mark the original
 
 Example(s):
-Given the program:
+Plain replace (no `$`):
+Given `let x = 1 in test x == 1 end; x`, calling
+overwrite(selector="let x = _ in #0", code="test x == 2 end") results in
 ```
-let x = 1 in x + 1
+let x = 1 in test x == 2 end; x
 ```
-Calling selector_insert_after(selector="% let x", code="let y = 2") results in:
+
+Append in a `;`-sequence (`$` first, then new code):
+Given `let x = 1 in test x == 1 end; test x > 0 end; x`, calling
+overwrite(selector="let x = _ in #1 #0", code="$; test x < 10 end") results in
 ```
-let x = 1 in let y = 2 in x + 1
+let x = 1 in test x == 1 end; test x > 0 end; test x < 10 end; x
 ```
+
+Prepend in a `;`-sequence (new code first, then `$`):
+Given `let x = 1 in test x == 1 end; x`, calling
+overwrite(selector="let x = _ in #0", code="test x < 0 end; $") results in
+```
+let x = 1 in test x < 0 end; test x == 1 end; x
+```
+
+Wrap an expression (use `$` inside larger expression):
+Given `let x = 1 in x`, calling
+overwrite(selector="let x = %", code="$ + 1") results in
+```
+let x = 1 + 1 in x
+```
+
+Insert before a let-chain (wrap the whole `let` with another `let`):
+Given `let x = 1 in x`, calling
+overwrite(selector="% let x", code="let y = 0 in $") results in
+```
+let y = 0 in let x = 1 in x
+```
+
+List/tuple splice with `,`:
+Given `let xs = [1, 2, 3] in xs`, calling
+overwrite(selector="xs/ #1", code="$, 99") results in
+```
+let xs = [1, 2, 99, 3] in xs
+```
+Calling overwrite(selector="xs/ #1", code="99, $") results in
+```
+let xs = [1, 99, 2, 3] in xs
+```
+
+Limitation: `$` inside a string literal in `code` is also substituted.
 |};
 
-let selector_insert_after: API.Json.t =
+let overwrite: API.Json.t =
   `Assoc([
     ("type", `String("function")),
     (
       "function",
       `Assoc([
-        ("name", `String("selector_insert_after")),
-        ("description", `String(selector_insert_after_description)),
+        ("name", `String("overwrite")),
+        ("description", `String(overwrite_description)),
         (
           "parameters",
           `Assoc([
@@ -867,86 +777,20 @@ let selector_insert_after: API.Json.t =
                     (
                       "description",
                       `String(
-                        "Selector expression with % marking the insertion anchor.",
+                        "Selector expression with exactly one % focus (e.g. \"let x = %\", \"\\... test %\").",
                       ),
                     ),
                   ]),
                 ),
                 (
                   "code",
-                  `Assoc([
-                    ("type", `String("string")),
-                    (
-                      "description",
-                      `String("The code to insert after the anchor."),
-                    ),
-                  ]),
-                ),
-              ]),
-            ),
-            ("required", `List([`String("selector"), `String("code")])),
-          ]),
-        ),
-      ]),
-    ),
-  ]);
-
-let selector_insert_before_description = {|
-Description:
-Inserts code before the anchor matched by a selector expression.
-The `%` in the selector marks the anchor point (the existing binding/item), and
-new code is inserted immediately before it.
-Works with let-bindings, module items, list elements, tuple elements, and case arms.
-
-Parameters:
-selector: string — selector expression with `%` marking the anchor
-code: string — code to insert before the anchor
-
-Example(s):
-Given the program:
-```
-let x = 1 in x + 1
-```
-Calling selector_insert_before(selector="% let x", code="let y = 2") results in:
-```
-let y = 2 in let x = 1 in x + 1
-```
-|};
-
-let selector_insert_before: API.Json.t =
-  `Assoc([
-    ("type", `String("function")),
-    (
-      "function",
-      `Assoc([
-        ("name", `String("selector_insert_before")),
-        ("description", `String(selector_insert_before_description)),
-        (
-          "parameters",
-          `Assoc([
-            ("type", `String("object")),
-            (
-              "properties",
-              `Assoc([
-                (
-                  "selector",
                   `Assoc([
                     ("type", `String("string")),
                     (
                       "description",
                       `String(
-                        "Selector expression with % marking the insertion anchor.",
+                        "The new code. May contain $ tokens that stand for the original focused subtree.",
                       ),
-                    ),
-                  ]),
-                ),
-                (
-                  "code",
-                  `Assoc([
-                    ("type", `String("string")),
-                    (
-                      "description",
-                      `String("The code to insert before the anchor."),
                     ),
                   ]),
                 ),

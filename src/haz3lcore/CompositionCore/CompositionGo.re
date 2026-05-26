@@ -110,10 +110,6 @@ module Local = {
       )
       : option((Segment.t, option(Segment.t))) => {
     switch (action) {
-    | Insert(_, _, _) =>
-      let* old_segment = segment_of_term(old_zipper, None, syntax);
-      let new_segment = segment_of_term(new_zipper, None, syntax);
-      Some((old_segment, new_segment));
     | Update(_, path, _)
     | Delete(_, path) =>
       let* old_node_map =
@@ -129,8 +125,7 @@ module Local = {
       Some((old_segment, new_segment));
     | SelectorUpdate(_, _)
     | SelectorDelete(_)
-    | SelectorInsertBefore(_, _)
-    | SelectorInsertAfter(_, _) =>
+    | Overwrite(_, _) =>
       /* Selector-driven edits: diff the whole program */
       let* old_segment = segment_of_term(old_zipper, None, syntax);
       let new_segment = segment_of_term(new_zipper, None, syntax);
@@ -148,7 +143,6 @@ module Local = {
       | Update(Pattern, _, _) => (true, false, false)
       | Update(TypeAnnotation, _, _) => (true, true, false)
       | Update(BindingClause, _, _) => (false, true, false)
-      | Insert(_, _, _) => (false, false, false)
       | Delete(BindingClause, _) => (false, true, false)
       | Delete(Body, _) => (false, false, true)
       | Delete(Definition | Pattern | TypeAnnotation, _) => (
@@ -159,8 +153,7 @@ module Local = {
       /* Selector-driven: check everything since we don't know the target */
       | SelectorUpdate(_, _) => (true, true, true)
       | SelectorDelete(_) => (true, true, true)
-      | SelectorInsertBefore(_, _) => (false, false, false)
-      | SelectorInsertAfter(_, _) => (false, false, false)
+      | Overwrite(_, _) => (true, true, true)
       };
     };
 
@@ -627,56 +620,6 @@ module Local = {
           ),
         )
       };
-    | Insert(Before, path, code)
-    | Insert(After, path, code) =>
-      let target_id = path_to_id(initial_node_map, path);
-      let dir =
-        switch (e) {
-        | Insert(Before, _, _) => Direction.Left
-        | _ => Direction.Right
-        };
-      switch (TermEdit.try_insert_at(initial_z, target_id, code, dir)) {
-      | Some((new_z, _kind)) =>
-        switch (PerformUtils.parse_error_check(new_z)) {
-        | Some(parse_err) =>
-          Error(Action.Failure.Composition_action_failure(parse_err))
-        | None =>
-          let new_info_map = mk_statics(new_z);
-          let old_errors = ErrorPrint.all(initial_info_map);
-          let new_errors = ErrorPrint.all(new_info_map);
-          let warning =
-            if (List.length(new_errors) > List.length(old_errors)) {
-              Some(
-                "Warning: this edit introduced new static error(s): "
-                ++ String.concat(", ", new_errors)
-                ++ ". Use get_statics to investigate.",
-              );
-            } else {
-              None;
-            };
-          Ok((new_z, warning));
-        }
-      | None =>
-        let kind = TermEdit.insert_kind_label(initial_z, target_id);
-        let where =
-          switch (e) {
-          | Insert(Before, _, _) => "before"
-          | _ => "after"
-          };
-        Error(
-          Action.Failure.Composition_action_failure(
-            "Failed to insert "
-            ++ kind
-            ++ " "
-            ++ where
-            ++ " \""
-            ++ path
-            ++ "\": could not parse \""
-            ++ code
-            ++ "\" as valid code.",
-          ),
-        );
-      };
     | Delete(BindingClause, path) =>
       let target_id = path_to_id(initial_node_map, path);
       let (term_edit_result, kind) =
@@ -822,38 +765,45 @@ module Local = {
         Ok((new_z, None));
       };
 
-    | SelectorInsertBefore(selector, code)
-    | SelectorInsertAfter(selector, code) =>
-      let dir =
-        switch (e) {
-        | SelectorInsertBefore(_, _) => Direction.Left
-        | _ => Direction.Right
-        };
+    | Overwrite(selector, code) =>
       let term = MakeTerm.from_zip_for_sem(initial_z, ~root=Exp).term;
       switch (Selector.query_unique(selector, term)) {
       | Error(msg) => Error(Action.Failure.Composition_action_failure(msg))
-      | Ok({focused_id, _}) =>
-        switch (TermEdit.try_insert_at(initial_z, focused_id, code, dir)) {
-        | Some((new_z, _kind)) =>
+      | Ok({focused, focused_id, _}) =>
+        let edit_result =
+          switch (focused) {
+          | FocusExp(e) =>
+            TermEdit.overwrite_exp(initial_z, focused_id, e, code)
+          | FocusPat(p) =>
+            TermEdit.overwrite_pat(initial_z, focused_id, p, code)
+          | FocusTyp(t) =>
+            TermEdit.overwrite_typ(initial_z, focused_id, t, code)
+          | FocusMod(m) =>
+            TermEdit.overwrite_mod(initial_z, focused_id, m, code)
+          };
+        switch (edit_result) {
+        | Error(msg) => Error(Action.Failure.Composition_action_failure(msg))
+        | Ok(new_z) =>
           switch (PerformUtils.parse_error_check(new_z)) {
           | Some(parse_err) =>
             Error(Action.Failure.Composition_action_failure(parse_err))
-          | None => Ok((new_z, None))
+          | None =>
+            let new_info_map = mk_statics(new_z);
+            let old_errors = ErrorPrint.all(initial_info_map);
+            let new_errors = ErrorPrint.all(new_info_map);
+            let warning =
+              if (List.length(new_errors) > List.length(old_errors)) {
+                Some(
+                  "Warning: this edit introduced new static error(s): "
+                  ++ String.concat(", ", new_errors)
+                  ++ ". Use get_statics to investigate.",
+                );
+              } else {
+                None;
+              };
+            Ok((new_z, warning));
           }
-        | None =>
-          let kind = TermEdit.insert_kind_label(initial_z, focused_id);
-          Error(
-            Action.Failure.Composition_action_failure(
-              "Failed to insert "
-              ++ kind
-              ++ " via selector \""
-              ++ selector
-              ++ "\": could not parse \""
-              ++ code
-              ++ "\" as valid code.",
-            ),
-          );
-        }
+        };
       };
     };
   };
@@ -1265,8 +1215,7 @@ module Local = {
     switch (a) {
     | SelectorUpdate(_)
     | SelectorDelete(_)
-    | SelectorInsertBefore(_)
-    | SelectorInsertAfter(_) =>
+    | Overwrite(_) =>
       let initial_info_map = mk_statics(z);
       /* Pass an empty node map — selector edits don't use it */
       edit_dispatch(

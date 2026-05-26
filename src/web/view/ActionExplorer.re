@@ -9,11 +9,11 @@ open Haz3lcore;
 
    Selector (default):
      Read (default): Syntax / Statics / Context / Canonical
-     Update / Delete / Insert Before / Insert After
+     Update / Delete / Overwrite ($)
 
    Original:
      Read: Syntax / Statics / Context / Completeness
-     Update / Insert / Delete
+     Update / Delete
 
    With text inputs for path/selector/code as appropriate,
    execute button, and result/error display. */
@@ -27,14 +27,12 @@ module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type action_kind =
     | Update
-    | Insert
     | Delete
     | Read
     | SelectorRead
     | SelectorUpdate
     | SelectorDelete
-    | SelectorInsertBefore
-    | SelectorInsertAfter;
+    | Overwrite;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type target =
@@ -43,11 +41,6 @@ module Model = {
     | Pattern
     | BindingClause
     | TypeAnnotation;
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type direction =
-    | Before
-    | After;
 
   /* Read sub-kinds for the Original tier (path-based) */
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -70,7 +63,6 @@ module Model = {
     tier,
     action_kind,
     target,
-    direction,
     read_kind,
     selector_read_kind,
     path: string,
@@ -84,7 +76,6 @@ module Model = {
     tier: Selector,
     action_kind: SelectorRead,
     target: Body,
-    direction: Before,
     read_kind: GetSyntax,
     selector_read_kind: SelSyntax,
     path: "",
@@ -114,13 +105,6 @@ module Model = {
         | TypeAnnotation => TypeAnnotation
         };
       Some(Update(target, model.path, model.code));
-    | Insert =>
-      let dir =
-        switch (model.direction) {
-        | Before => Action.Structural.Before
-        | After => After
-        };
-      Some(Insert(dir, model.path, model.code));
     | Delete =>
       let target =
         switch (model.target) {
@@ -133,10 +117,7 @@ module Model = {
       Some(Delete(target, model.path));
     | SelectorUpdate => Some(SelectorUpdate(model.selector, model.code))
     | SelectorDelete => Some(SelectorDelete(model.selector))
-    | SelectorInsertBefore =>
-      Some(SelectorInsertBefore(model.selector, model.code))
-    | SelectorInsertAfter =>
-      Some(SelectorInsertAfter(model.selector, model.code))
+    | Overwrite => Some(Overwrite(model.selector, model.code))
     | Read
     | SelectorRead => None /* Read actions handled separately */
     };
@@ -167,7 +148,6 @@ module Update = {
     | SetTier(Model.tier)
     | SetActionKind(Model.action_kind)
     | SetTarget(Model.target)
-    | SetDirection(Model.direction)
     | SetReadKind(Model.read_kind)
     | SetSelectorReadKind(Model.selector_read_kind)
     | SetPath(string)
@@ -198,10 +178,6 @@ module Update = {
     | SetTarget(target) => {
         ...model,
         target,
-      }
-    | SetDirection(direction) => {
-        ...model,
-        direction,
       }
     | SetReadKind(read_kind) => {
         ...model,
@@ -321,14 +297,12 @@ module View = {
     let action_kind_str =
       switch (model.action_kind) {
       | Update => "update"
-      | Insert => "insert"
       | Delete => "delete"
       | Read => "read"
       | SelectorRead => "sel_read"
       | SelectorUpdate => "sel_update"
       | SelectorDelete => "sel_delete"
-      | SelectorInsertBefore => "sel_insert_before"
-      | SelectorInsertAfter => "sel_insert_after"
+      | Overwrite => "overwrite"
       };
 
     let action_options =
@@ -337,13 +311,11 @@ module View = {
           ("sel_read", "Read"),
           ("sel_update", "Update"),
           ("sel_delete", "Delete"),
-          ("sel_insert_before", "Insert Before"),
-          ("sel_insert_after", "Insert After"),
+          ("overwrite", "Overwrite ($)"),
         ]
       | Original => [
           ("read", "Read"),
           ("update", "Update"),
-          ("insert", "Insert"),
           ("delete", "Delete"),
         ]
       };
@@ -358,14 +330,12 @@ module View = {
           SetActionKind(
             switch (v) {
             | "update" => Update
-            | "insert" => Insert
             | "delete" => Delete
             | "read" => Read
             | "sel_read" => SelectorRead
             | "sel_update" => SelectorUpdate
             | "sel_delete" => SelectorDelete
-            | "sel_insert_before" => SelectorInsertBefore
-            | "sel_insert_after" => SelectorInsertAfter
+            | "overwrite" => Overwrite
             | _ => Read
             },
           ),
@@ -402,29 +372,6 @@ module View = {
             | "binding_clause" => BindingClause
             | "type_annotation" => TypeAnnotation
             | _ => Body
-            },
-          ),
-        )
-      );
-
-    /* --- Direction selector (for Original Insert) --- */
-    let direction_str =
-      switch (model.direction) {
-      | Before => "before"
-      | After => "after"
-      };
-
-    let direction_select =
-      select_input(
-        ~clss="ae-direction",
-        ~value=direction_str,
-        ~options=[("before", "Before"), ("after", "After")],
-        ~on_change=v =>
-        inject(
-          SetDirection(
-            switch (v) {
-            | "after" => After
-            | _ => Before
             },
           ),
         )
@@ -573,8 +520,7 @@ module View = {
           execute_button,
           highlight_count,
         ]
-      | SelectorInsertBefore
-      | SelectorInsertAfter => [
+      | Overwrite => [
           tier_select,
           action_select,
           selector_input,
@@ -605,15 +551,6 @@ module View = {
           tier_select,
           action_select,
           target_select,
-          path_input,
-          code_input,
-          execute_button,
-          highlight_count,
-        ]
-      | Insert => [
-          tier_select,
-          action_select,
-          direction_select,
           path_input,
           code_input,
           execute_button,
