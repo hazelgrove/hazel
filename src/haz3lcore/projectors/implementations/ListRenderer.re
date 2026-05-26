@@ -67,30 +67,6 @@ let update = (model: model, action: action): model =>
     }
   };
 
-/* Rewrite the projected expression `xs` to `f(xs)` for a simple
- * single-arg wrapper, or to `g(?, xs)` when an extra hole-filled arg
- * is needed (e.g. `map(?, xs)` for the user's function). */
-let wrap_call =
-    (info: info, fname: string, ~hole_first: bool): option(Base.segment) =>
-  info.utility.lift_syntax(
-    ~inline=false,
-    fun
-    | Exp(exp) =>
-      IdTagged.FreshGrammar.(
-        Exp(
-          hole_first
-            ? Exp.ap(
-                Forward,
-                Exp.var(fname),
-                Exp.tuple([Exp.empty_hole(), exp]),
-              )
-            : Exp.ap(Forward, Exp.var(fname), exp),
-        )
-      )
-    | other => other,
-    info.syntax,
-  );
-
 let item_view =
     (
       ~utility: utility,
@@ -122,6 +98,11 @@ let item_view =
 
 type menu_data = list(Menu.item(unit => Ui_effect.t(unit)));
 
+/* Each menu item is described as a `RendererTransforms.transform`,
+ * a function-valued Exp that gets composed into `xs |> t` via
+ * `apply_transforms`. The argument shapes match Hazel's stdlib
+ * (`BuiltinsList.re`): `map(xs, f)`, `filter(xs, p)`, `sort(cmp, xs)`,
+ * and the single-arg `reverse`/`length`/`head`/`tail`. */
 let build_menu =
     (
       info: info,
@@ -129,38 +110,78 @@ let build_menu =
       parent: external_action => Ui_effect.t(unit),
     )
     : menu_data => {
-  let apply = (seg_opt: option(Base.segment)): Ui_effect.t(unit) =>
-    switch (seg_opt) {
+  let apply = (ts: list(RendererTransforms.transform)): Ui_effect.t(unit) =>
+    switch (RendererTransforms.to_segment(info, ts)) {
     | Some(seg) => Effect.Many([local(CloseMenu), parent(SetSyntax(seg))])
     | None => local(CloseMenu)
     };
   let leaf = (~tooltip, label, action) =>
     Menu.action_item(~tooltip, ~on_hover=true, label, action);
-  let call = (name, ~hole_first) =>
-    apply(wrap_call(info, name, ~hole_first));
+  /* `xs |> name(?)` — single list argument. */
+  let single = name =>
+    RendererTransforms.Listwise(IdTagged.FreshGrammar.Exp.var(name));
+  /* `xs |> map(?, fun x -> ?)` / `xs |> filter(?, fun x -> ?)`.
+   * Deferral(InAp) is the `?` that the `|>` fills with `xs`, putting
+   * the list in the first arg position to match `map(xs, f)`. */
+  let row_fn = name =>
+    RendererTransforms.Listwise(
+      IdTagged.FreshGrammar.(
+        Exp.(
+          deferred_ap(
+            var(name),
+            [deferral(InAp), fn(Pat.var("x"), empty_hole(), None, None)],
+          )
+        )
+      ),
+    );
+  /* `xs |> sort(fun (a, b) -> ?, ?)` — comparator-first to match
+   * `sort(cmp, xs)`. Body is a hole because, unlike a typed table
+   * column, we don't know the element type generically. */
+  let sort_t =
+    RendererTransforms.Listwise(
+      IdTagged.FreshGrammar.(
+        Exp.(
+          deferred_ap(
+            var("sort"),
+            [
+              fn(
+                Pat.tuple([Pat.var("a"), Pat.var("b")]),
+                empty_hole(),
+                None,
+                None,
+              ),
+              deferral(InAp),
+            ],
+          )
+        )
+      ),
+    );
   [
     leaf(~tooltip="Wrap with reverse(xs)", "Reverse", () =>
-      call("reverse", ~hole_first=false)
+      apply([single("reverse")])
     ),
-    leaf(~tooltip="Wrap with sort(xs)", "Sort", () =>
-      call("sort", ~hole_first=false)
+    leaf(
+      ~tooltip="Wrap with sort(cmp, xs) — fill in the comparator",
+      "Sort…",
+      () =>
+      apply([sort_t])
     ),
     leaf(~tooltip="Wrap with length(xs)", "Length", () =>
-      call("length", ~hole_first=false)
+      apply([single("length")])
     ),
     Menu.divider,
-    leaf(~tooltip="Wrap with map(f, xs) — fill in f", "Map…", () =>
-      call("map", ~hole_first=true)
+    leaf(~tooltip="Wrap with map(xs, f) — fill in f", "Map…", () =>
+      apply([row_fn("map")])
     ),
-    leaf(~tooltip="Wrap with filter(p, xs) — fill in p", "Filter…", () =>
-      call("filter", ~hole_first=true)
+    leaf(~tooltip="Wrap with filter(xs, p) — fill in p", "Filter…", () =>
+      apply([row_fn("filter")])
     ),
     Menu.divider,
     leaf(~tooltip="Wrap with head(xs)", "Head", () =>
-      call("head", ~hole_first=false)
+      apply([single("head")])
     ),
     leaf(~tooltip="Wrap with tail(xs)", "Tail", () =>
-      call("tail", ~hole_first=false)
+      apply([single("tail")])
     ),
   ];
 };
@@ -175,14 +196,9 @@ let toolbar =
     )
     : Node.t => {
   let menu_button =
-    Node.div(
-      ~attrs=[
-        Attr.id(menu_button_id),
-        Attr.classes(["icon", "closure-nav-button", "menu-trigger"]),
-        Attr.on_click(_ => local(ToggleMenu)),
-        Attr.title("List options"),
-      ],
-      [Node.text("⋮")],
+    RendererMenu.menu_trigger_button(
+      ~id=menu_button_id, ~title="List options", ~on_click=() =>
+      local(ToggleMenu)
     );
   Node.div(
     ~attrs=[
@@ -235,54 +251,23 @@ let render =
   /* Keyboard / click-outside listener (reuses the table column-menu
    * machinery via the shared "column-menu" CSS class). */
   let menu_items = build_menu(info, local, parent);
-  let handle_key = (key: string): option(Ui_effect.t(unit)) =>
-    Menu.key_dispatcher(
-      ~items=menu_items,
-      ~dispatch_menu=a => local(MenuAction(a)),
-      ~dispatch_action=thunk => thunk(),
-      model.menu_state,
-      key,
-    );
-  ColumnMenuListener.sync(
+  RendererMenu.sync_listener(
     ~menu_open,
     ~on_close=local(CloseMenu),
-    ~handle_key,
-    (),
+    ~items=menu_items,
+    ~inject_menu_action=a => local(MenuAction(a)),
+    ~menu_state=model.menu_state,
   );
 
   let menu_node =
     if (menu_open) {
-      let dir =
-        Menu.direction_from_id(
-          ~menu_height=200.0,
-          ~menu_width=180.0,
-          menu_button_id,
-        );
-      let dir_class =
-        switch (dir) {
-        | {vertical: `Down, horizontal: `Right} => "cm-down-right"
-        | {vertical: `Down, horizontal: `Left} => "cm-down-left"
-        | {vertical: `Up, horizontal: `Right} => "cm-up-right"
-        | {vertical: `Up, horizontal: `Left} => "cm-up-left"
-        };
-      let menu_nodes =
-        Menu.render(
-          ~inject_action=thunk => thunk(),
-          ~inject_menu=a => local(MenuAction(a)),
-          ~item_class="named-menu-item",
-          ~items=menu_items,
-          model.menu_state,
-        );
-      Node.div(
-        ~attrs=[
-          Attr.classes([
-            "context-menu",
-            "column-menu",
-            "list-menu",
-            dir_class,
-          ]),
-        ],
-        [WebUtil.div_c("group", [WebUtil.div_c("contents", menu_nodes)])],
+      RendererMenu.floating_menu_node(
+        ~menu_button_id,
+        ~menu_state=model.menu_state,
+        ~items=menu_items,
+        ~inject_menu_action=a => local(MenuAction(a)),
+        ~extra_classes=["list-menu"],
+        (),
       );
     } else {
       Node.none;

@@ -368,17 +368,9 @@ let render =
   let (headers, rows) = value;
   let menu_button_id = i => "column-menu-button-" ++ string_of_int(i);
   let make_menu_button = i =>
-    Node.div(
-      ~attrs=[
-        Attr.id(menu_button_id(i)),
-        /* `menu-trigger` exempts the button from MenuListener's
-         * click-outside detection so opening + closing both flow
-         * through ShowMenu, letting it toggle the same column. */
-        Attr.classes(["icon", "closure-nav-button", "menu-trigger"]),
-        Attr.on_click(_ => local(ShowMenu(i))),
-        Attr.title("Column options"),
-      ],
-      [Node.text("⋮")],
+    RendererMenu.menu_trigger_button(
+      ~id=menu_button_id(i), ~title="Column options", ~on_click=() =>
+      local(ShowMenu(i))
     );
 
   /* Headers: just label + menu button. The actual dropdown is rendered
@@ -444,24 +436,20 @@ let render =
     };
 
   /* Sync the document-level click-outside + keyboard listeners. */
-  let handle_key = (key: string): option(Ui_effect.t(unit)) =>
+  let (sync_items, sync_state) =
     switch (model.menu_state) {
-    | None => None
-    | Some((col, menu_t)) =>
-      let items = items_for_column(info, exp, headers, local, parent, col);
-      Menu.key_dispatcher(
-        ~items,
-        ~dispatch_menu=a => local(MenuAction(a)),
-        ~dispatch_action=thunk => thunk(),
+    | None => ([], Menu.closed)
+    | Some((col, menu_t)) => (
+        items_for_column(info, exp, headers, local, parent, col),
         menu_t,
-        key,
-      );
+      )
     };
-  ColumnMenuListener.sync(
+  RendererMenu.sync_listener(
     ~menu_open=model.menu_state != None,
     ~on_close=local(CloseMenu),
-    ~handle_key,
-    (),
+    ~items=sync_items,
+    ~inject_menu_action=a => local(MenuAction(a)),
+    ~menu_state=sync_state,
   );
 
   let table_node =
@@ -502,36 +490,14 @@ let render =
     switch (model.menu_state) {
     | Some((j, menu_t)) =>
       let items = items_for_column(info, exp, headers, local, parent, j);
-      let dir =
-        Menu.direction_from_id(
-          ~menu_height=200.0,
-          ~menu_width=180.0,
-          menu_button_id(j),
-        );
-      let dir_class =
-        switch (dir) {
-        | {vertical: `Down, horizontal: `Right} => "cm-down-right"
-        | {vertical: `Down, horizontal: `Left} => "cm-down-left"
-        | {vertical: `Up, horizontal: `Right} => "cm-up-right"
-        | {vertical: `Up, horizontal: `Left} => "cm-up-left"
-        };
-      let menu_nodes =
-        Menu.render(
-          ~inject_action=thunk => thunk(),
-          ~inject_menu=a => local(MenuAction(a)),
-          ~item_class="named-menu-item",
-          ~items,
-          menu_t,
-        );
-      Node.div(
-        ~attrs=[
+      RendererMenu.floating_menu_node(
+        ~menu_button_id=menu_button_id(j),
+        ~menu_state=menu_t,
+        ~items,
+        ~inject_menu_action=a => local(MenuAction(a)),
+        ~extra_classes=["column-menu-floating"],
+        ~extra_attrs=[
           Attr.id("column-menu-" ++ string_of_int(j)),
-          Attr.classes([
-            "context-menu",
-            "column-menu",
-            "column-menu-floating",
-            dir_class,
-          ]),
           Attr.create(
             "style",
             Printf.sprintf(
@@ -541,7 +507,7 @@ let render =
             ),
           ),
         ],
-        [WebUtil.div_c("group", [WebUtil.div_c("contents", menu_nodes)])],
+        (),
       );
     | None => Node.none
     };
