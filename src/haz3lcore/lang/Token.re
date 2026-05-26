@@ -225,6 +225,7 @@ let base_typs = [
   "Nat",
   "SInt",
   "String",
+  "Void",
   "DrvJdmt",
   "DrvCtx",
   "DrvProp",
