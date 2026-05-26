@@ -11,6 +11,7 @@
   color: var(--cell-result-text);
   padding: 0.5em;
   padding-left: 1.2em;
+  isolation: isolate;
 }
 
 .cell-result:has(+ .theorems),
