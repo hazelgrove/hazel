@@ -301,6 +301,7 @@ let handle = (idx, kind, action: external_action): Action.t =>
   | Escape(d) => Project(Escape(idx, d))
   | EscapeToLineEnd(kind) => Project(EscapeToLineEnd(idx, kind))
   | SetSyntax(f) => Project(SetSyntax(idx, kind, f))
+  | ReplaceWithSyntax(f) => Project(ReplaceWithSyntax(idx, kind, f))
   | SampleFocus(sc) => Project(SampleFocus(sc))
   | Probe(p) => Probe(p)
   | FocusById(_) => failwith("FocusById: intercepted in parent closure")

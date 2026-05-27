@@ -1209,7 +1209,7 @@ let roundtrip_grout_string_tests = (
    text → segment → term → segment → text
 
    Projector syntax: ^^<kind>(<content>)
-   Where <kind> is one of: fold, slider, sliderf, check, text, card, livelit, csv
+   Where <kind> is one of: fold, slider, sliderf, check, text, card, livelit, csv, equation
    (probe and statics are refractors with different behavior)
    ============================================================================ */
 
@@ -1226,6 +1226,7 @@ let roundtrip_projector_tests = (
     /* Test secondary inside various wrappers */
     roundtrip_test({|Parens: simple|}, {|(1 + 2)|}),
     roundtrip_test({|Fold: simple|}, {|^^fold(1 + 2)|}),
+    roundtrip_test({|Equation: simple|}, {|^^equation(x ** 2 + 1)|}),
     roundtrip_test({|Fold in function|}, {|fun x -> ^^fold(x * 2)|}),
     /* Nested projectors */
     roundtrip_test({|Nested: slider in fold|}, {|^^fold(^^slider(50) + 1)|}),

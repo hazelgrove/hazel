@@ -98,6 +98,17 @@ let update =
     : ZipperBase.t =>
   ZipperBase.MapPiece.fast_local_seg(update_piece(f, id), id, z);
 
+let replace_piece =
+    (replacement: Base.segment, id: Id.t, piece: Base.piece): Base.segment =>
+  switch (piece) {
+  | Projector(pr) when pr.id == id => replacement
+  | x => [x]
+  };
+
+let replace_projector =
+    (replacement: Base.segment, id: Id.t, z: ZipperBase.t): ZipperBase.t =>
+  ZipperBase.MapPiece.fast_local_seg(replace_piece(replacement, id), id, z);
+
 let go =
     (
       term_data: TermData.t,
@@ -266,6 +277,20 @@ let go =
         ),
       );
     };
+  | ReplaceWithSyntax(idx, kind, seg) =>
+    if (ProjectorCore.Kind.is_refractor(kind)) {
+      Error(Cant_project);
+    } else {
+      let id = idx_to_id(kind, idx);
+      let replacement =
+        seg
+        |> Segment.unparenthesize
+        |> Segment.trim_secondary(Right)
+        |> Segment.trim_secondary(Left)
+        |> Segment.parenthesize
+        |> Piece.unparenthesize;
+      Ok(replace_projector(replacement, id, z));
+    }
   | SetModel(idx, kind, new_model) =>
     let id = idx_to_id(kind, idx);
     Ok(

@@ -3,6 +3,7 @@
 import {NinjaKeys} from 'ninja-keys';
 import hotkeys from 'hotkeys-js'
 import Algebrite from 'algebrite';
+import 'mathlive';
 window.Algebrite = Algebrite;
 
 // This is the default behavior for the hotkeys module but I'm overriding it for the

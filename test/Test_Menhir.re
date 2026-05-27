@@ -392,6 +392,10 @@ let tests =
       ),
       menhir_maketerm_equivalent_test("Fold Projector Exp", "^^fold(1)"),
       menhir_maketerm_equivalent_test(
+        "Equation Projector Exp",
+        "^^equation(x ** 2 + 1)",
+      ),
+      menhir_maketerm_equivalent_test(
         "Fold Projector Typ",
         "type foo = ^^fold(Int) in 3",
       ),

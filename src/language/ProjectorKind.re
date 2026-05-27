@@ -17,7 +17,8 @@ type t =
   | Livelit
   | TextArea
   | Table
-  | Csv;
+  | Csv
+  | Equation;
 
 let livelit_projectors: list(t) = [
   Csv, /* Competes with Card for empty list */
@@ -27,6 +28,7 @@ let livelit_projectors: list(t) = [
   SliderF,
   TextArea,
   Table,
+  Equation,
   Card,
   Livelit,
 ];
@@ -54,6 +56,7 @@ let name = (p: t): string =>
   | TextArea => "text"
   | Table => "table"
   | Csv => "csv"
+  | Equation => "equation"
   };
 
 /* This must be updated and kept 1-to-1 with the above
@@ -72,6 +75,7 @@ let of_name = (p: string): t =>
   | "card" => Card
   | "table" => Table
   | "csv" => Csv
+  | "equation" => Equation
   | _ => failwith("Unknown projector kind")
   };
 

@@ -1,0 +1,86 @@
+.projector.equation {
+  z-index: var(--projector-hover-z);
+}
+
+.projector.equation > svg {
+  opacity: 0.18;
+}
+
+.projector.equation .equation-inner {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  max-width: calc(100vw - 3rem);
+  padding: 0.15rem 0.25rem;
+  border: 1px solid color-mix(in oklch, var(--shard_projector), black 22%);
+  border-radius: 6px;
+  background: var(--T2);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 12%);
+}
+
+.projector.equation math-field {
+  width: 24rem;
+  min-width: 16rem;
+  max-width: 36rem;
+  padding: 0.15rem 0.35rem;
+  border: 1px solid var(--BR2);
+  border-radius: 4px;
+  background: var(--BR1);
+  color: var(--BR4);
+  font-size: 1rem;
+}
+
+.projector.equation textarea {
+  width: 24rem;
+  min-width: 16rem;
+  height: 1.9rem;
+  padding: 0.15rem 0.35rem;
+  border: 1px solid var(--BR2);
+  border-radius: 4px;
+  resize: horizontal;
+  font: inherit;
+  color: var(--BR4);
+  background: var(--BR1);
+}
+
+.projector.equation .equation-actions {
+  display: inline-flex;
+  gap: 0.2rem;
+  align-items: center;
+}
+
+.projector.equation .equation-action {
+  padding: 0.1rem 0.35rem;
+  border: 1px solid var(--BR2);
+  border-radius: 4px;
+  background: var(--BR1);
+  color: var(--BR4);
+  font-size: 0.75rem;
+  line-height: 1.2;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.projector.equation .equation-action:hover {
+  background: var(--BR2);
+}
+
+.projector.equation .equation-var {
+  width: 2.5rem;
+  padding: 0.1rem 0.25rem;
+  border: 1px solid var(--BR2);
+  border-radius: 4px;
+  background: var(--BR1);
+  color: var(--BR4);
+  font: inherit;
+  font-size: 0.8rem;
+}
+
+.projector.equation .equation-status {
+  max-width: 18rem;
+  color: var(--BR3);
+  font-size: 0.72rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
