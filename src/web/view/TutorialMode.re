@@ -297,20 +297,38 @@ module Update = {
             Editor(pos', ResultAction(UpdateResult(result'))),
           );
         }),
-      ~timeout=_ => {
-        let _ =
-          Tutorial.map_stitched(
-            (pos, _) =>
-              schedule_action(
-                Editor(
-                  pos,
-                  ResultAction(UpdateResult(ResultFail(Timeout))),
+      ~timeout=
+        _ => {
+          let _ =
+            Tutorial.map_stitched(
+              (pos, _) =>
+                schedule_action(
+                  Editor(
+                    pos,
+                    ResultAction(UpdateResult(ResultFail(Timeout))),
+                  ),
                 ),
-              ),
-            model.cells,
-          );
-        ();
-      },
+              model.cells,
+            );
+          ();
+        },
+      ~on_ack=
+        () => {
+          let _ =
+            Tutorial.map_stitched(
+              (pos, _) =>
+                schedule_action(
+                  Editor(
+                    pos,
+                    ResultAction(
+                      UpdateResult(Language.ProgramResult.evaluating),
+                    ),
+                  ),
+                ),
+              model.cells,
+            );
+          ();
+        },
     );
     /* The following section pulls statics back from cells into the editors
        There are many ad-hoc things about this code, including the fact that
@@ -563,7 +581,7 @@ module View = {
             let inner_result = hidden_tests.result.result;
             let result = inner_result |> Util.Calc.get_value;
             switch (result) {
-            | ResultPending =>
+            | ResultPending(_) =>
               div(
                 ~attrs=[Attr.classes(["checkmark-grey", "pending"])],
                 [text("🤔")],

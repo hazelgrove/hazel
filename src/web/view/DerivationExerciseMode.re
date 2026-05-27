@@ -13,7 +13,7 @@ let stitched_results =
       fun
       | Some(ProgramResult.ResultOk(r)) => Some(r.result)
       | Some(ResultFail(_))
-      | Some(ResultPending)
+      | Some(ResultPending(_))
       | None => None
     )
   );
@@ -469,20 +469,38 @@ module Update = {
             Editor(pos', ResultAction(UpdateResult(result'))),
           );
         }),
-      ~timeout=_ => {
-        let _ =
-          DerivationExercise.map_stitched(
-            (pos, _) =>
-              schedule_action(
-                Editor(
-                  pos,
-                  ResultAction(UpdateResult(ResultFail(Timeout))),
+      ~timeout=
+        _ => {
+          let _ =
+            DerivationExercise.map_stitched(
+              (pos, _) =>
+                schedule_action(
+                  Editor(
+                    pos,
+                    ResultAction(UpdateResult(ResultFail(Timeout))),
+                  ),
                 ),
-              ),
-            model.cells,
-          );
-        ();
-      },
+              model.cells,
+            );
+          ();
+        },
+      ~on_ack=
+        () => {
+          let _ =
+            DerivationExercise.map_stitched(
+              (pos, _) =>
+                schedule_action(
+                  Editor(
+                    pos,
+                    ResultAction(
+                      UpdateResult(Language.ProgramResult.evaluating),
+                    ),
+                  ),
+                ),
+              model.cells,
+            );
+          ();
+        },
     );
     /* The following section pulls statics back from cells into the editors
        There are many ad-hoc things about this code, including the fact that

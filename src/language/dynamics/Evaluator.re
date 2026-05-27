@@ -15,6 +15,86 @@ module Trampoline = {
   type callstack('a, 'b) =
     | Finished: callstack('a, 'a)
     | Continue('a => t('b), callstack('b, 'c)): callstack('a, 'c);
+  type continuation('a) =
+    | Continuation(t('b), callstack('b, 'a), int): continuation('a);
+  type slice('a) =
+    | SliceDone(step_constrained('a))
+    | SliceYielded(continuation('a));
+
+  let rec run_slice:
+    type a b.
+      (
+        ~step_limit: int=?,
+        ~step_budget: int,
+        ~step_counter: int,
+        ~slice_counter: int,
+        t(b),
+        callstack(b, a)
+      ) =>
+      slice(a) =
+    (
+      ~step_limit: option(int)=?,
+      ~step_budget,
+      ~step_counter,
+      ~slice_counter,
+      t: t(b),
+      callstack: callstack(b, a),
+    ) => {
+      switch (step_limit) {
+      | Some(x) when x <= step_counter => SliceDone(StepLimitExceeded)
+      | _ when slice_counter >= step_budget =>
+        SliceYielded(Continuation(t, callstack, step_counter))
+      | _ =>
+        switch (t) {
+        | Bind(t, f) =>
+          run_slice(
+            ~step_limit?,
+            ~step_budget,
+            ~step_counter=step_counter + 1,
+            ~slice_counter=slice_counter + 1,
+            t,
+            Continue(f, callstack),
+          )
+        | Next(f) =>
+          run_slice(
+            ~step_limit?,
+            ~step_budget,
+            ~step_counter=step_counter + 1,
+            ~slice_counter=slice_counter + 1,
+            f(),
+            callstack,
+          )
+        | Done(x) =>
+          switch (callstack) {
+          | Finished => SliceDone(Completed(x))
+          | Continue(f, callstack) =>
+            run_slice(
+              ~step_limit?,
+              ~step_budget,
+              ~step_counter=step_counter + 1,
+              ~slice_counter=slice_counter + 1,
+              f(x),
+              callstack,
+            )
+          }
+        }
+      };
+    };
+
+  let start = t => Continuation(t, Finished, 0);
+
+  let run_slice = (~step_limit: option(int)=?, ~step_budget, continuation) => {
+    let Continuation(t, callstack, step_counter) = continuation;
+    run_slice(
+      ~step_limit?,
+      ~step_budget,
+      ~step_counter,
+      ~slice_counter=0,
+      t,
+      callstack,
+    );
+  };
+
   let rec run:
     type a b.
       (~step_limit: int=?, ~step_counter: int=?, t(b), callstack(b, a)) =>
@@ -388,6 +468,63 @@ let evaluate_and_limit =
   | StepLimitExceeded => StepLimitExceeded
   };
 };
+
+type yielding_evaluation = {
+  env: Environment.t(Exp.t),
+  state: ref(EvaluatorState.t),
+  continuation:
+    Trampoline.continuation(
+      (EvaluatorEVMode.status, list(EvaluatorState.effect), DHExp.t),
+    ),
+};
+
+type yielding_result =
+  | EvaluationCompleted((Exp.t, EvaluatorState.t))
+  | EvaluationYielded(yielding_evaluation)
+  | EvaluationStepLimitExceeded;
+
+let start_yielding_evaluation =
+    (
+      ~targets: Sample.targets=Sample.no_targets,
+      ~prev: IncrEval.t=IncrEval.empty,
+      ~info_map: EvalInfoMap.t=EvalInfoMap.empty,
+      ~env,
+      ~reuse_map: IncrEval.reuse_map=IncrEval.clean_reuse_map_of_env(env),
+      d: DHExp.t,
+    )
+    : yielding_evaluation => {
+  let state = ref(EvaluatorState.mk(~targets));
+  let result =
+    evaluate(~prev, ~info_map, ~call_stack=[], ~reuse_map, state, env, d);
+  {
+    env,
+    state,
+    continuation: Trampoline.start(result),
+  };
+};
+
+let run_yielding_slice =
+    (
+      ~step_limit: option(int)=?,
+      ~step_budget: int,
+      evaluation: yielding_evaluation,
+    )
+    : yielding_result =>
+  switch (
+    Trampoline.run_slice(~step_limit?, ~step_budget, evaluation.continuation)
+  ) {
+  | SliceDone(Completed((_, _, x))) =>
+    EvaluationCompleted((
+      x |> Substitution.in_exp(evaluation.env) |> Exp.replace_all_ids,
+      evaluation.state^,
+    ))
+  | SliceDone(StepLimitExceeded) => EvaluationStepLimitExceeded
+  | SliceYielded(continuation) =>
+    EvaluationYielded({
+      ...evaluation,
+      continuation,
+    })
+  };
 
 let evaluate =
     (
