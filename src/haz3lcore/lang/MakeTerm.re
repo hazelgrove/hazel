@@ -1256,6 +1256,7 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
         | (["Float"], []) => Atom(Float)
         | (["String"], []) => Atom(String)
         | (["Nat"], []) => Atom(Nat)
+        | (["Void"], []) => Sum([])
         | (["DrvJdmt"], []) => DrvQuoteTy(Jdmt)
         | (["DrvCtx"], []) => DrvQuoteTy(Ctx)
         | (["DrvProp"], []) => DrvQuoteTy(Prop)
@@ -1545,7 +1546,7 @@ and unsorted =
   let tile_kids = (p: Piece.t): list(Any.t) =>
     switch (p) {
     | Secondary(_) => []
-    | Projector({id, kind, model, syntax} as pr) =>
+    | Projector({id, kind, model, syntax, _} as pr) =>
       let _ = log_projector(pr);
       let sort = Piece.sort(syntax) |> fst;
       let seg = Piece.unparenthesize(syntax);
@@ -1975,6 +1976,9 @@ let for_projection =
         | Mod => Some(Mod(mod_(unsorted)))
         | Sig => Some(Sig(sig_(unsorted)))
         | MPat => Some(MPat(mpat(unsorted)))
+        /* virtual-grout: holes are represented as structural Any tiles.
+         * Keep them as Any rather than defaulting to Exp (dev's fallback)
+         * so the hole-detection in CachedSyntax sees them. */
         | Any => Some(Any()) /* hole tiles */
         };
       };
