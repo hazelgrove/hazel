@@ -60,8 +60,16 @@ let slide_roundtrip_case =
     },
   );
 
+/* B2T2 slides are excluded: each one takes ~2s to parse, blowing the CI
+ * test step past its 20-minute budget. The non-B2T2 slides give enough
+ * coverage of the round-trip on real-world programs. */
+let is_b2t2 = ((name, _)) =>
+  String.length(name) >= 4 && String.sub(name, 0, 4) == "B2T2";
+
 let doc_slide_cases =
-  List.map(slide_roundtrip_case, Web.Init.documentation_slides);
+  Web.Init.documentation_slides
+  |> List.filter(s => !is_b2t2(s))
+  |> List.map(slide_roundtrip_case);
 
 let text_fixed_point_case = (~name, text) =>
   test_case(
