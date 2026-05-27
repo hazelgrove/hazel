@@ -65,27 +65,6 @@ let remold = (z: t, ~root): t => {
 let remold_regrout = (d: Direction.t, z: t, ~root): t =>
   z |> remold(~root) |> regrout(d);
 
-/* Convert singleton shard tiles in siblings whose token matches a
- * missing shard of an ancestor tile, giving them the ancestor's ID
- * so reassemble_parent can reconnect them. This handles the case
- * where a delimiter (e.g. =) is re-inserted via paste with a fresh
- * ID that doesn't match the ancestor tile.
- *
- * Walks the full ancestor chain since the matching ancestor may not
- * be the immediate parent (e.g., after typing `(0` the immediate
- * parent is `(...)` but the missing `=` belongs to grandparent `let`).
- *
- * Only converts singleton shards (shards list has 1 element) — these
- * are tiles that Insert.go created during paste with the right token
- * but a fresh ID. */
-/* Convert singleton shard tiles whose token matches a missing shard
- * of an ancestor tile, giving them the ancestor's ID so
- * reassemble_parent can reconnect them. Scans BOTH direct siblings
- * AND ancestor-level siblings (since the matching token may have been
- * pushed to a parent scope during expansion — e.g., after typing `(0`
- * the `=` is in the grandparent's context, not direct siblings).
- *
- * Only converts singleton shards (shards list has 1 element). */
 /* Rescan ancestor-level siblings: converts standalone monotiles that
  * match a parent ancestor's missing shards, giving them the parent's
  * ID, then absorbs them into the parent via reassemble_parent-style
