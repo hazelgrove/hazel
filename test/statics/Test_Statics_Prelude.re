@@ -266,17 +266,6 @@ let fully_consistent_typecheck =
   );
 };
 
-let statics_does_not_crash = (message: string, expression: string) =>
-  test_case(
-    message,
-    `Quick,
-    () => {
-      let uexp = parse_exp(expression);
-      let _ = statics(uexp);
-      ();
-    },
-  );
-
 let skip_known_bug = (message: string, expression: string) =>
   test_case("Known Bug: " ++ message, `Quick, () => {
     [@warning "-21"]
