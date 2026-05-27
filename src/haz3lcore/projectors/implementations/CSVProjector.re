@@ -74,6 +74,7 @@ module M: Projector = {
 
     switch (
       info.utility.lift_syntax(
+        ~inline=true,
         fun
         | Exp(any) =>
           Exp({
@@ -95,6 +96,7 @@ module M: Projector = {
 
   let focusable = Focusable.non;
   let dynamics = false;
+  let elaborate_syntax = false;
   let placeholder = (m, _) =>
     switch (m) {
     | FileLoaded({filename, _}) =>
@@ -154,6 +156,7 @@ module M: Projector = {
       )
     );
   };
+  let error = (_, _): option(ProjectorBase.error) => None;
 
   let view = ({model, info, local, parent, _}: View.args(model, action)) =>
     View.mk(
