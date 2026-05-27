@@ -20,6 +20,8 @@ module ViewCache = {
     statics_map: Language.Statics.Map.t,
     dynamics_map: Language.Dynamics.Map.t,
     sample_focus: Language.Sample.Focus.t,
+    elaborated: option(Language.Exp.t),
+    core_settings: Language.CoreSettings.t,
     settings_version: int,
     status: View.status,
     model: string,
@@ -28,7 +30,16 @@ module ViewCache = {
   let cache: Hashtbl.t(Id.t, entry) = Hashtbl.create(64);
 
   let lookup =
-      (id, ~statics_map, ~dynamics_map, ~sample_focus, ~status, ~model)
+      (
+        id,
+        ~statics_map,
+        ~dynamics_map,
+        ~sample_focus,
+        ~elaborated,
+        ~core_settings,
+        ~status,
+        ~model,
+      )
       : option(View.t) =>
     switch (Hashtbl.find_opt(cache, id)) {
     | Some(e)
@@ -36,6 +47,8 @@ module ViewCache = {
           e.statics_map === statics_map
           && e.dynamics_map === dynamics_map
           && Language.Sample.Focus.equal(e.sample_focus, sample_focus)
+          && CachedSyntax.elaborated_phys_eq(e.elaborated, elaborated)
+          && e.core_settings == core_settings
           && e.settings_version == ProbeProj.Settings.version^
           && e.status == status
           && e.model == model =>
@@ -44,7 +57,17 @@ module ViewCache = {
     };
 
   let store =
-      (id, ~statics_map, ~dynamics_map, ~sample_focus, ~status, ~model, ~view) =>
+      (
+        id,
+        ~statics_map,
+        ~dynamics_map,
+        ~sample_focus,
+        ~elaborated,
+        ~core_settings,
+        ~status,
+        ~model,
+        ~view,
+      ) =>
     Hashtbl.replace(
       cache,
       id,
@@ -52,6 +75,8 @@ module ViewCache = {
         statics_map,
         dynamics_map,
         sample_focus,
+        elaborated,
+        core_settings,
         settings_version: ProbeProj.Settings.version^,
         status,
         model,
@@ -101,10 +126,14 @@ module Model = {
     measurement: Measured.measurement,
     offside_base: int,
     status,
-    /* Map refs for view cache identity comparison */
+    /* Map refs for view cache identity comparison. `elaborated` is the whole-
+     * editor elaborated Exp.t that P.view() may consume via info.elaborated;
+     * it must participate in the cache key since info.elaborated is derived
+     * from it. Refractors pass None. */
     statics_map: Language.Statics.Map.t,
     dynamics_map: Language.Dynamics.Map.t,
     sample_focus: Language.Sample.Focus.t,
+    elaborated: option(Language.Exp.t),
   };
 
   type t = list(projector_data);
@@ -156,6 +185,7 @@ module Model = {
         ~dynamics: Language.Dynamics.Map.t,
         ~sample_focus: Language.Sample.Focus.t,
         ~editor_active: bool,
+        ~elaborated: option(Language.Exp.t),
       ) => {
     let {projectors, measured, term_data, selection_ids, _}: CachedSyntax.t = syntax;
     List.filter_map(
@@ -163,7 +193,13 @@ module Model = {
         let* p = Id.Map.find_opt(id, projectors);
         let+ measurement = Measured.find_pr_opt(p, measured);
         let info =
-          ProjectorInfo.mk_info(p, ~sample_focus, ~statics, ~dynamics);
+          ProjectorInfo.mk_info(
+            p,
+            ~sample_focus,
+            ~statics,
+            ~dynamics,
+            ~elaborated,
+          );
         {
           p,
           info,
@@ -183,6 +219,7 @@ module Model = {
           statics_map: statics,
           dynamics_map: dynamics,
           sample_focus,
+          elaborated,
         };
       },
       Id.Map.bindings(projectors),
@@ -204,10 +241,13 @@ let backing_deco =
 /* Adds attributes to a projector UI to support
  * custom styling when selected or indicated */
 let projector_clss =
-    ({kind, sort, indication, selected, error, warning}: Model.status) =>
+    (
+      ~view_error: bool=false,
+      {kind, sort, indication, selected, error, warning}: Model.status,
+    ) =>
   ["projector", ProjectorCore.Kind.name(kind), Sort.show(sort)]
   @ (selected ? ["selected"] : [])
-  @ (error ? ["error"] : [])
+  @ (error || view_error ? ["error"] : [])
   @ (warning ? ["warning"] : [])
   @ (
     switch (indication) {
@@ -226,13 +266,14 @@ let view_wrapper =
       ~font_metrics: FontMetrics.t,
       ~measurement: Measured.measurement,
       ~status: Model.status,
+      ~view_error: bool=false,
       ~idx: int,
       ~kind: ProjectorCore.Kind.t,
       views: list(Node.t),
     ) =>
   div(
     ~attrs=[
-      Attr.classes(projector_clss(status)),
+      Attr.classes(projector_clss(~view_error, status)),
       /* Stopping propagation here stops the base editor's
        * drag-select interaction from being triggered.
        * However, we let right-clicks bubble through so the
@@ -254,12 +295,12 @@ let view_wrapper =
   );
 
 /* Dispatches projector external actions to editor-level actions */
-let handle = (idx, action: external_action): Action.t =>
+let handle = (idx, kind, action: external_action): Action.t =>
   switch (action) {
   | Remove => Project(RemoveIndicated)
   | Escape(d) => Project(Escape(idx, d))
   | EscapeToLineEnd(kind) => Project(EscapeToLineEnd(idx, kind))
-  | SetSyntax(f) => Project(SetSyntax(idx, f))
+  | SetSyntax(f) => Project(SetSyntax(idx, kind, f))
   | SampleFocus(sc) => Project(SampleFocus(sc))
   | Probe(p) => Probe(p)
   | FocusById(_) => failwith("FocusById: intercepted in parent closure")
@@ -371,7 +412,17 @@ let mk_view =
     (
       inject: Action.t => Ui_effect.t(unit),
       font_metrics: FontMetrics.t,
-      {p, info, status, statics_map, dynamics_map, sample_focus, _}: Model.projector_data,
+      ~core_settings: Language.CoreSettings.t,
+      {
+        p,
+        info,
+        status,
+        statics_map,
+        dynamics_map,
+        sample_focus,
+        elaborated,
+        _,
+      }: Model.projector_data,
       projector_list: list(Id.t),
     )
     : View.t =>
@@ -381,6 +432,8 @@ let mk_view =
       ~statics_map,
       ~dynamics_map,
       ~sample_focus,
+      ~elaborated,
+      ~core_settings,
       ~status,
       ~model=p.model,
     )
@@ -409,7 +462,7 @@ let mk_view =
               inject(Project(Focus(target_idx, Probe, None)))
             | None => Effect.Ignore
             };
-          | a => inject(handle(idx, a))
+          | a => inject(handle(idx, p.kind, a))
           },
         view_seg:
           (~single_line=?, ~background=?, ~text_only=?, sort, segment) =>
@@ -422,12 +475,15 @@ let mk_view =
             segment,
           ),
         status,
+        core_settings,
       });
     ViewCache.store(
       p.id,
       ~statics_map,
       ~dynamics_map,
       ~sample_focus,
+      ~elaborated,
+      ~core_settings,
       ~status,
       ~model=p.model,
       ~view,
@@ -442,12 +498,21 @@ let split_views =
       inject: Action.t => Ui_effect.t(unit),
       make_active,
       font_metrics: FontMetrics.t,
+      ~core_settings: Language.CoreSettings.t,
       ~skip_inline: bool,
       {p, offside_base, measurement, status, _} as projector_data: Model.projector_data,
       projector_list: list(Id.t),
     )
     : (Node.t, option(Node.t)) => {
   let idx = List.find_index(x => x == p.id, projector_list) |> Option.get;
+  let views =
+    mk_view(
+      inject,
+      font_metrics,
+      ~core_settings,
+      projector_data,
+      projector_list,
+    );
   let wrapper =
     view_wrapper(
       ~inject,
@@ -455,10 +520,10 @@ let split_views =
       ~font_metrics,
       ~measurement,
       ~status,
+      ~view_error=views.error,
       ~idx,
       ~kind=p.kind,
     );
-  let views = mk_view(inject, font_metrics, projector_data, projector_list);
   let line_view = {
     let offside_view =
       views.offside
@@ -484,6 +549,7 @@ let all =
       inject: Action.t => Ui_effect.t(unit),
       make_active,
       font_metrics: FontMetrics.t,
+      ~core_settings: Language.CoreSettings.t,
       ~visible: option(visible_rows)=?,
       projector_data: list(Model.projector_data),
       projector_list: list(Id.t),
@@ -505,6 +571,7 @@ let all =
     |> List.map(
          split_views(
            ~skip_inline=false,
+           ~core_settings,
            inject,
            make_active,
            font_metrics,
