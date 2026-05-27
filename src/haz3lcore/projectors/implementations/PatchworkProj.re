@@ -163,6 +163,8 @@ module M: Projector = {
 
   let dynamics: bool = false;
 
+  let elaborate_syntax: bool = false;
+
   let placeholder_size: ProjectorCore.Shape.t = {
     horizontal: 48,
     vertical: Block(18),
@@ -171,6 +173,8 @@ module M: Projector = {
   let placeholder = (_model: model, _info: info): ProjectorCore.Shape.t => placeholder_size;
 
   let update = (model: model, _info: info, _action: action): model => model;
+
+  let error = (_, _): option(ProjectorBase.error) => None;
 
   let view = ({info, status, _}: View.args(model, action)): View.t => {
     let indicated_class: list(string) =
