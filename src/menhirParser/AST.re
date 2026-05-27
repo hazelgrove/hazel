@@ -87,6 +87,7 @@ type typ =
   | FloatType
   | BoolType
   | NatType
+  | VoidType
   | SumTyp(sumtype)
   | UnknownType(typ_provenance)
   | TupleType(list(typ))
@@ -501,6 +502,7 @@ and gen_typ_sized: (~minimal_idents: bool, int) => QCheck.Gen.t(typ) =
           return(StringType),
           return(FloatType),
           return(BoolType),
+          return(VoidType),
           return(TupleType([])),
           return(UnknownType(EmptyHole)), // Only doing emptyhole because internal doesn't have a distinct representation in ExpToSegment
           map(x => SumTyp([Variant(x, None)]), gen_constructor_ident),
@@ -1307,6 +1309,7 @@ and shrink_typ: QCheck.Shrink.t(typ) =
         | FloatType
         | BoolType
         | NatType => return(TupleType([]))
+        | VoidType
         | IndicationTyp(_)
         | UnknownType(_)
         | InvalidTyp(_)
