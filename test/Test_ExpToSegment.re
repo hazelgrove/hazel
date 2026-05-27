@@ -341,6 +341,22 @@ let tests = (
         ),
       )
     }),
+    test_case("Void type (empty sum) prints as Void", `Quick, () => {
+      check(
+        string,
+        "Void type",
+        "Void",
+        print_seg(
+          ExpToSegment.typ_to_segment(
+            ~settings=exp_to_segment_settings,
+            IdTagged.FreshGrammar.Typ.sum([]),
+          ),
+        ),
+      )
+    }),
+    test_case("Void type round-trips through MakeTerm", `Quick, () => {
+      type_equivalent_to_make_term("Void")
+    }),
     test_case("Cons followed by negation", `Quick, () =>
       equivalent_to_make_term({|"":: - a|})
     ),
