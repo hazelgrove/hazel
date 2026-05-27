@@ -589,7 +589,8 @@ and uexp_to_info_map =
         )
       ) {
       | None =>
-        let syn_no_meet = SynTy.meet_of(List, Unknown(Internal |> Prov.fresh) |> Typ.temp);
+        let syn_no_meet =
+          SynTy.meet_of(List, Unknown(Internal |> Prov.fresh) |> Typ.temp);
         add(
           ~elab_term=ListConcat(e1_elab, e2_elab) |> rewrap,
           ~elab_syn_ty=syn_no_meet,
@@ -710,14 +711,23 @@ and uexp_to_info_map =
         let ((es, es_elabs), m) =
           map_m_go(
             m,
-            [Unknown(Internal |> Prov.fresh) |> Typ.temp, Unknown(Internal |> Prov.fresh) |> Typ.temp],
+            [
+              Unknown(Internal |> Prov.fresh) |> Typ.temp,
+              Unknown(Internal |> Prov.fresh) |> Typ.temp,
+            ],
             [e1, e2],
           );
         let tys = List.map(Info.exp_ty, es);
         let elab_poly =
           BinOp(op, List.nth(es_elabs, 0), List.nth(es_elabs, 1)) |> rewrap;
         let co_poly = CoCtx.union(List.map(Info.exp_co_ctx, es));
-        switch (Typ.meet_all(~empty=Unknown(Internal |> Prov.fresh) |> Typ.temp, ctx, tys)) {
+        switch (
+          Typ.meet_all(
+            ~empty=Unknown(Internal |> Prov.fresh) |> Typ.temp,
+            ctx,
+            tys,
+          )
+        ) {
         | None =>
           add(
             ~elab_term=elab_poly,
@@ -809,7 +819,8 @@ and uexp_to_info_map =
       | _ =>
         add(
           ~elab_term,
-          ~elab_syn_ty=IdTagged.FreshGrammar.Typ.unknown(Internal |> Prov.fresh),
+          ~elab_syn_ty=
+            IdTagged.FreshGrammar.Typ.unknown(Internal |> Prov.fresh),
           ~marks=[],
           ~co_ctx,
           m,
@@ -913,7 +924,8 @@ and uexp_to_info_map =
                       ~elab_term=label,
                       ~ctx,
                       ~ana=labmode,
-                      ~elab_syn_ty=Unknown(SynSwitch |> Prov.fresh) |> Typ.temp,
+                      ~elab_syn_ty=
+                        Unknown(SynSwitch |> Prov.fresh) |> Typ.temp,
                       ~marks=[],
                       ~co_ctx=CoCtx.empty,
                       ~label_inference=None,
@@ -1320,7 +1332,8 @@ and uexp_to_info_map =
       | List({term: Unknown(_), _}) =>
         add(
           ~elab_term=dot_elab,
-          ~elab_syn_ty=List(Unknown(Internal |> Prov.fresh) |> Typ.temp) |> Typ.temp,
+          ~elab_syn_ty=
+            List(Unknown(Internal |> Prov.fresh) |> Typ.temp) |> Typ.temp,
           ~marks=[],
           ~dot_labels=available_labels,
           ~co_ctx=dot_co_ctx,
@@ -1652,7 +1665,9 @@ and uexp_to_info_map =
           );
         | R(expected) =>
           let ty_ins =
-            List.init(num_args, _ => Unknown(Internal |> Prov.fresh) |> Typ.temp);
+            List.init(num_args, _ =>
+              Unknown(Internal |> Prov.fresh) |> Typ.temp
+            );
           let ((args, args_elabs), m) = map_m_go(m, ty_ins, args);
           let arg_co_ctx = CoCtx.union(List.map(Info.exp_co_ctx, args));
           add(
@@ -1856,9 +1871,12 @@ and uexp_to_info_map =
           let def_ctx = p_ana'.ctx;
           let (def_base2, _, _) = go(~ctx=def_ctx, ~ana=p_syn.ty, def, m);
           let ana_ty_fn = ((ty_fn1, ty_fn2), ty_p) => {
-            Typ.term_of(ty_p) == Unknown(SynSwitch |> Prov.fresh)
-            && !Typ.equal(ty_fn1, ty_fn2)
-              ? ty_fn1 : ty_p;
+            let is_syn_switch =
+              switch (Typ.term_of(ty_p)) {
+              | Unknown({term: SynSwitch, _}) => true
+              | _ => false
+              };
+            is_syn_switch && !Typ.equal(ty_fn1, ty_fn2) ? ty_fn1 : ty_p;
           };
           let ana =
             switch (
@@ -2345,7 +2363,11 @@ and uexp_to_info_map =
           m,
         )
       | None
-          when Typ.fast_equal(Unknown(Internal |> Prov.fresh) |> Typ.temp, typ.user_term) =>
+          when
+            Typ.fast_equal(
+              Unknown(Internal |> Prov.fresh) |> Typ.temp,
+              typ.user_term,
+            ) =>
         add(
           ~elab_term=body_elab,
           ~elab_syn_ty=body.elab_syn_ty,
@@ -2761,7 +2783,8 @@ and upat_to_info_map =
       let syn_tys = List.map((info: Info.pat) => info.elab_syn_ty, infos);
       switch (Typ.meet_all(~empty=unknown, ctx, syn_tys)) {
       | None =>
-        let syn_no_meet = SynTy.meet_of(List, Unknown(Internal |> Prov.fresh) |> Typ.temp);
+        let syn_no_meet =
+          SynTy.meet_of(List, Unknown(Internal |> Prov.fresh) |> Typ.temp);
         add(
           ~elab_term=ListLit(ps_elabs) |> rewrap,
           ~elab_syn_ty=syn_no_meet,
@@ -2819,7 +2842,8 @@ and upat_to_info_map =
       /* NOTE: The self type assigned to pattern variables (Unknown)
          may be SynSwitch, but SynSwitch is never added to the context;
          Unknown(Internal |> Prov.fresh) is used in this case */
-      let ctx_typ = fixed_typ(ctx, ana, Unknown(Internal |> Prov.fresh) |> Typ.temp);
+      let ctx_typ =
+        fixed_typ(ctx, ana, Unknown(Internal |> Prov.fresh) |> Typ.temp);
       let entry =
         Ctx.VarEntry({
           name,
@@ -3078,7 +3102,8 @@ and upat_to_info_map =
                       ~co_ctx,
                       ~ana=labmode,
                       ~ancestors=ancestors_inclusive,
-                      ~elab_syn_ty=Unknown(SynSwitch |> Prov.fresh) |> Typ.temp,
+                      ~elab_syn_ty=
+                        Unknown(SynSwitch |> Prov.fresh) |> Typ.temp,
                       ~marks=[],
                       ~constraint_=Coverage.Constraint.Truth,
                       ~label_inference=None,
@@ -3365,7 +3390,8 @@ and utyp_to_info_map =
       ([m], None);
     };
     switch (expects, utyp.term) {
-    | (_, Unknown({term: Hole(Invalid(token)), _})) => err(BadToken(token))
+    | (_, Unknown({term: Hole(Invalid(token)), _})) =>
+      err(BadToken(token))
     | (LabelExpected(_), Unknown({term: Hole(EmptyHole), _})) =>
       ok(Message.EmptyLabel)
     | (LabelProjectionExpected(_), Unknown({term: Hole(EmptyHole), _})) =>
@@ -3449,7 +3475,8 @@ and utyp_to_info_map =
       | ty_n => err(TypWantProduct(ty_n))
       }
     | (_, Unknown({term: Hole(EmptyHole), _})) => ok(Message.Type(utyp))
-    | (_, Unknown({term: Hole(MultiHole(_tms)), _})) => err(TypParseFailure)
+    | (_, Unknown({term: Hole(MultiHole(_tms)), _})) =>
+      err(TypParseFailure)
     | (VariantExpected(Unique, sum_ty), Var(name))
     | (ConstructorExpected(Unique, sum_ty), Var(name)) =>
       ok(Message.Variant(name, sum_ty))
@@ -4007,8 +4034,7 @@ let mk_with_inference =
           e,
         );
       let info_map = m_ref^;
-      let inference_map =
-        Inference.solve(collect_all_constraints(info_map));
+      let inference_map = Inference.solve(collect_all_constraints(info_map));
       (info_map, elab, inference_map);
     },
   );

@@ -12,21 +12,28 @@ let rec arrow = (ctx, ty) =>
   | Parens(ty) => arrow(ctx, ty)
   | Arrow(ty_in, ty_out) => Some((ty_in, ty_out))
   | Unknown({term: SynSwitch, _}) =>
-    Some((Unknown(SynSwitch |> Prov.fresh) |> temp, Unknown(SynSwitch |> Prov.fresh) |> temp))
+    Some((
+      Unknown(SynSwitch |> Prov.fresh) |> temp,
+      Unknown(SynSwitch |> Prov.fresh) |> temp,
+    ))
   | _ => None
   };
 
 let arrow_tolerant = (ctx, ty) =>
   arrow(ctx, ty)
   |> Option.value(
-       ~default=(Unknown(Internal |> Prov.fresh) |> temp, Unknown(Internal |> Prov.fresh) |> temp),
+       ~default=(
+         Unknown(Internal |> Prov.fresh) |> temp,
+         Unknown(Internal |> Prov.fresh) |> temp,
+       ),
      );
 
 let rec poly_pair = (ctx, ty) =>
   switch (term_of(weak_head_normalize(ctx, ty))) {
   | Parens(ty) => poly_pair(ctx, ty)
   | Poly(t, ty) => Some((Some(t), ty))
-  | Unknown({term: SynSwitch, _}) => Some((None, Unknown(SynSwitch |> Prov.fresh) |> temp))
+  | Unknown({term: SynSwitch, _}) =>
+    Some((None, Unknown(SynSwitch |> Prov.fresh) |> temp))
   | _ => None
   };
 
@@ -58,7 +65,11 @@ let rec prod_strict:
       }
     | Unknown({term: SynSwitch, _}) => (
         es,
-        Some(List.init(List.length(es), _ => Unknown(SynSwitch |> Prov.fresh) |> temp)),
+        Some(
+          List.init(List.length(es), _ =>
+            Unknown(SynSwitch |> Prov.fresh) |> temp
+          ),
+        ),
       )
     | _ => (es, None)
     };
@@ -70,7 +81,10 @@ let prod = (ctx, es, get_label_es, ty, constructor) => {
     es,
     tys_opt
     |> Option.value(
-         ~default=List.init(List.length(es), _ => Unknown(Internal |> Prov.fresh) |> temp),
+         ~default=
+           List.init(List.length(es), _ =>
+             Unknown(Internal |> Prov.fresh) |> temp
+           ),
        ),
   );
 };
@@ -79,12 +93,14 @@ let rec list_strict = (ctx, ty) =>
   switch (term_of(weak_head_normalize(ctx, ty))) {
   | Parens(ty) => list_strict(ctx, ty)
   | List(ty) => Some(ty)
-  | Unknown({term: SynSwitch, _}) => Some(Unknown(SynSwitch |> Prov.fresh) |> temp)
+  | Unknown({term: SynSwitch, _}) =>
+    Some(Unknown(SynSwitch |> Prov.fresh) |> temp)
   | _ => None
   };
 
 let list_tolerant = (ctx, ty) =>
-  list_strict(ctx, ty) |> Option.value(~default=Unknown(Internal |> Prov.fresh) |> temp);
+  list_strict(ctx, ty)
+  |> Option.value(~default=Unknown(Internal |> Prov.fresh) |> temp);
 
 let rec args = (ctx, ty, arity): Either.t('a, int) => {
   switch (term_of(weak_head_normalize(ctx, ty))) {
@@ -92,7 +108,8 @@ let rec args = (ctx, ty, arity): Either.t('a, int) => {
   | Prod(tys) when List.length(tys) == arity => L(tys)
   | Prod(tys) => R(List.length(tys))
   | _ when arity == 1 => L([ty])
-  | Unknown(_) => L(List.init(arity, _ => Unknown(Internal |> Prov.fresh) |> temp))
+  | Unknown(_) =>
+    L(List.init(arity, _ => Unknown(Internal |> Prov.fresh) |> temp))
   | _ => R(1)
   };
 };
@@ -101,6 +118,9 @@ let label = (ctx, ty): option((Typ.t, Typ.t)) =>
   switch (term_of(weak_head_normalize(ctx, ty))) {
   | TupLabel({term: Label(ml), _}, ty) => Some((Label(ml) |> temp, ty))
   | Unknown({term: SynSwitch, _}) =>
-    Some((Unknown(SynSwitch |> Prov.fresh) |> temp, Unknown(SynSwitch |> Prov.fresh) |> temp))
+    Some((
+      Unknown(SynSwitch |> Prov.fresh) |> temp,
+      Unknown(SynSwitch |> Prov.fresh) |> temp,
+    ))
   | _ => None
   };

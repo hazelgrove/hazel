@@ -62,12 +62,7 @@ let sample_expression = (cls_exp: Exp.cls): Grammar.UnitGrammar.exp => {
       | ProofObject => proof_object(Exp.empty_hole())
       | Forall => forall(Pat.empty_hole(), empty_hole())
       | FixF => fix_f(Pat.empty_hole(), empty_hole(), None)
-      | TyAlias =>
-        ty_alias(
-          TPat.empty_hole(),
-          Typ.empty_hole(),
-          empty_hole(),
-        )
+      | TyAlias => ty_alias(TPat.empty_hole(), Typ.empty_hole(), empty_hole())
       | Use => use(Typ.empty_hole(), empty_hole())
       | Ap => ap(Forward, empty_hole(), empty_hole())
       | TypAp => typ_ap(empty_hole(), Typ.empty_hole())
@@ -159,7 +154,8 @@ let sample_type = (cls_typ: Typ.cls): Grammar.UnitGrammar.typ => {
         | Atom(Nat) => nat()
         | DrvQuoteTy => drv_typ(DrvSort.Jdmt)
         | List => list(unknown(hole(EmptyHole)))
-        | Arrow => arrow(unknown(hole(EmptyHole)), unknown(hole(EmptyHole)))
+        | Arrow =>
+          arrow(unknown(hole(EmptyHole)), unknown(hole(EmptyHole)))
         | Var => var("x")
         | Prod => prod([])
         | TupLabel =>
@@ -185,12 +181,24 @@ let sample_type = (cls_typ: Typ.cls): Grammar.UnitGrammar.typ => {
         | MultiHole => unknown(hole(MultiHole([])))
         | Sum => sum([])
         | ProdProjection =>
-          prod_projection(unknown(hole(EmptyHole)), unknown(hole(EmptyHole)))
+          prod_projection(
+            unknown(hole(EmptyHole)),
+            unknown(hole(EmptyHole)),
+          )
         | ProdExtension =>
-          prod_extension(unknown(hole(EmptyHole)), unknown(hole(EmptyHole)))
+          prod_extension(
+            unknown(hole(EmptyHole)),
+            unknown(hole(EmptyHole)),
+          )
         | Constructor => assert(false) // Excluded because there is no Typ constructor
         | Projector =>
-          projector({kind: Fold, model: ""}, unknown(hole(EmptyHole)))
+          projector(
+            {
+              kind: Fold,
+              model: "",
+            },
+            unknown(hole(EmptyHole)),
+          )
         | Sig => assert(false) /* Excluded: Sig is surface syntax only */
         }
       )

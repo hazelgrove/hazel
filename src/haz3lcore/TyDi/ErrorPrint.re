@@ -68,13 +68,19 @@ let core_mark_string = (ctx: Ctx.t, ana: Typ.t, m: Mark.t): string => {
   | FreeConstructor(_name) => prn("Constructor is not defined")
   | ExpectationMismatch({ana, syn}) => expectation(ana, syn)
   | NoMeet(PolyEq, tys)
-  | NoMeet(_, tys) when ana.term == Unknown(SynSwitch |> Prov.fresh) =>
+  | NoMeet(_, tys)
+      when
+        switch (ana.term) {
+        | Unknown({term: SynSwitch, _}) => true
+        | _ => false
+        } =>
     prn(
       "Expecting branches to have consistent types but got types: %s",
       List.map(Print.typ, Typ.of_source(tys)) |> String.concat(", "),
     )
   | NoMeet(wrap, _tys) =>
-    let syn: Typ.t = SynTy.meet_of(wrap, Unknown(Internal |> Prov.fresh) |> Typ.temp);
+    let syn: Typ.t =
+      SynTy.meet_of(wrap, Unknown(Internal |> Prov.fresh) |> Typ.temp);
     switch (Typ.meet(ctx, ana, syn)) {
     | Some(_) => "(static error)"
     | None =>
