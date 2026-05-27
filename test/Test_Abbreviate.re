@@ -4,10 +4,14 @@ open Language;
 
 let ellipsis = "…";
 
-/* Settings matching what ProbeProj uses for rendering abbreviated terms */
+/* Settings matching what ProbeProj uses for rendering abbreviated terms.
+   project_tables is disabled here to mirror ProjectorInfo.utility.term_to_seg —
+   auto-table-projection is a downstream display concern and would wrap output
+   in `^^table(...)`, defeating Abbreviate's budget bound. */
 let abbrev_settings: ExpToSegment.Settings.t = {
   ...ExpToSegment.Settings.of_core(~inline=true, CoreSettings.off),
   show_unknown_as_hole: false,
+  project_tables: false,
 };
 
 let exp_to_seg = ExpToSegment.exp_to_segment(~settings=abbrev_settings);
