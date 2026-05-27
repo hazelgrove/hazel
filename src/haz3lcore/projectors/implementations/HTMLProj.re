@@ -170,6 +170,8 @@ module M: Projector = {
 
   let focusable = Focusable.non;
   let dynamics = false;
+  let elaborate_syntax = false;
+  let error = (_, _): option(ProjectorBase.error) => None;
 
   let placeholder = (m: model, _) =>
     ProjectorCore.Shape.{
@@ -206,7 +208,9 @@ module M: Projector = {
 
     // Inject updates the underlying syntax (expression only)
     let inject_exp = (new_exp: DHExp.t) =>
-      parent(SetSyntax(Exp(new_exp) |> info.utility.term_to_seg));
+      parent(
+        SetSyntax(Exp(new_exp) |> info.utility.term_to_seg(~inline=true)),
+      );
 
     // Check if model is an App type vs plain Html
     let (html_model, subscriptions) =
@@ -236,7 +240,7 @@ module M: Projector = {
       inject: inject_exp,
       view_term: term =>
         Exp(term)
-        |> info.utility.term_to_seg
+        |> info.utility.term_to_seg(~inline=true)
         |> view_seg(~background=false, Exp),
       projector_id: Some(info.id),
       subscriptions,
