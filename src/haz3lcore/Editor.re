@@ -181,10 +181,7 @@ module Update = {
      * Buffer(Set(TyDi)) path. */
     let zipper =
       if (settings.assist && settings.statics && is_edited) {
-        Buffer.set_assist_buffer(
-          ~info_map=statics.info_map,
-          state.zipper,
-        );
+        Buffer.set_assist_buffer(~info_map=statics.info_map, state.zipper);
       } else {
         state.zipper;
       };

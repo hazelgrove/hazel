@@ -34,7 +34,11 @@ let invoked_projector = (name: string, syntax: Segment.t): option(Piece.t) => {
   ProjectorPerform.init(
     kind,
     syntax,
-    ~elaborated=CachedStatics.empty.elaborated,
+    ~elaborated=
+      Language.Exp.{
+        term: Tuple([]),
+        annotation: Language.IdTagged.IdTag.temp(),
+      },
   );
 };
 
@@ -123,7 +127,11 @@ let expand_livelit = (~ctx, z: t): option(t) =>
       ProjectorPerform.init(
         Livelit,
         seg,
-        ~elaborated=CachedStatics.empty.elaborated,
+        ~elaborated=
+          Language.Exp.{
+            term: Tuple([]),
+            annotation: Language.IdTagged.IdTag.temp(),
+          },
       );
     Zipper.update_siblings(((_, r)) => (l @ [pr], r), z);
   | _ => None
