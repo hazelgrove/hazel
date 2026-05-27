@@ -1135,6 +1135,7 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
         | (["Float"], []) => Atom(Float)
         | (["String"], []) => Atom(String)
         | (["Nat"], []) => Atom(Nat)
+        | (["Void"], []) => Sum([])
         | (["DrvJdmt"], []) => DrvQuoteTy(Jdmt)
         | (["DrvCtx"], []) => DrvQuoteTy(Ctx)
         | (["DrvProp"], []) => DrvQuoteTy(Prop)
@@ -1415,7 +1416,7 @@ and unsorted = (sort: Sort.t, skel: Skel.t, seg: Segment.t): unsorted => {
     switch (p) {
     | Secondary(_)
     | Grout(_) => []
-    | Projector({id, kind, model, syntax} as pr) =>
+    | Projector({id, kind, model, syntax, _} as pr) =>
       let _ = log_projector(pr);
       let sort = Piece.sort(syntax) |> fst;
       let seg = Piece.unparenthesize(syntax);
@@ -1606,7 +1607,15 @@ let for_projection =
         | Mod => Some(Mod(mod_(unsorted)))
         | Sig => Some(Sig(sig_(unsorted)))
         | MPat => Some(MPat(mpat(unsorted)))
-        | Any => Some(Any()) /* grout */
+        /* Default unresolved sort to Exp, matching go_s above.
+         * Reject bare Tuple(_) for the same reason as the Exp
+         * branch: at top level it isn't well-structured in
+         * isolation. */
+        | Any =>
+          switch (exp(unsorted)) {
+          | {term: Tuple(_), _} => None
+          | e => Some(Grammar.Exp(e))
+          }
         };
       };
     }

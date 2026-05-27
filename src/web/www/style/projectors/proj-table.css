@@ -1,0 +1,102 @@
+/* PROJECTOR: Tables */
+
+/* Tables */
+.table table,
+table.table {
+    border-collapse: collapse;
+    /* font-size: 0.875rem; */
+    width: 100%;
+    margin-top: 0;
+    margin-bottom: 0;
+    margin-left: 0px;
+    margin-right: 0px;
+    table-layout: auto;
+    text-align: center;
+    background-color: var(--df-bg);
+    height: 98%;
+}
+
+.table th {
+    z-index: calc(var(--projector-z) + 1);
+    opacity: 1;
+    height: calc(var(--line-height) * 1em);
+    background-color: var(--table-header-bg);
+    /* Reset the browser's UA default (th { font-weight: bold }) so
+     * descendants like the column menu don't inherit it. */
+    font-weight: normal;
+}
+
+/* Typography lives on the label wrapper so it doesn't inherit into
+ * nested children (e.g. the column menu sitting inside the <th>). */
+.table th .column-label {
+    font-weight: 600;
+    color: var(--BR4);
+    font-family: var(--code-font);
+}
+
+.table th,
+.table td {
+    vertical-align: middle;
+    padding: 0px;
+}
+
+.table td {
+    overflow: hidden;
+}
+.table tr:nth-child(even) {
+    background-color: var(--df-zebra-bg);
+}
+
+/* Scoped to tbody so the header row doesn't get a row-wide highlight
+ * (which would visually keep the "+" add-column cell "hovered" as the
+ * cursor moves across other column headers in the same row). */
+.table tbody tr:hover {
+    background-color: var(--df-hover-bg);
+}
+
+/* Threshold of 10 rows must stay in sync with scroll_threshold_rows
+   in TableProj.re's placeholder sizing — if either moves, both must. */
+div.projector.table:has(tbody tr:nth-child(10)) > .table-inner {
+    overflow-y: auto;
+}
+
+div.projector.table:has(tbody tr:nth-child(10)) .table th {
+    position: sticky;
+    top: 0;
+}
+
+
+.projector.table {
+    height: 100%;
+    width: 100%;
+    overflow: visible;
+    box-sizing: content-box;
+
+    display: flex;
+    flex-direction: initial;
+    justify-content: initial;
+    align-items: initial;
+    gap: initial;
+}
+
+.projector.table > .table-inner {
+    width: 100%;
+    height: 100%;
+    padding: 0 5px;
+    box-sizing: border-box;
+}
+
+.projector.table .code {
+    overflow-y: hidden;
+    font-size: calc(var(--base-font-size) * 0.9);
+}
+
+.projector.table > .table-inner > .table-error-banner {
+    color: var(--R1);
+    font-size: calc(var(--base-font-size) * 0.95);
+    line-height: 1.2;
+    padding: 0.35em 0.5em 0.25em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}

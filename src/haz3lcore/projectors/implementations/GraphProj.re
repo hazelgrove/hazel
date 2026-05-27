@@ -868,6 +868,8 @@ module M: Projector = {
 
   let dynamics = true;
 
+  let elaborate_syntax = false;
+
   let placeholder = (_model: model, _info: info): ProjectorCore.Shape.t =>
     ProjectorCore.Shape.{
       vertical: Block(12),
@@ -875,6 +877,8 @@ module M: Projector = {
     };
 
   let update = (model: model, _info: info, _action: action): model => model;
+
+  let error = (_, _): option(ProjectorBase.error) => None;
 
   let build_error_view = (~message: string, ~warnings: list(string)): Node.t =>
     wrap_with_warnings(

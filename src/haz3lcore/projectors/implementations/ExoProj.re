@@ -25,6 +25,8 @@ module M = (ExoP: {
 
   let focusable = Focusable.non;
   let dynamics = false;
+  let elaborate_syntax = false;
+  let error = (_, _): option(ProjectorBase.error) => None;
 
   let placeholder = (model: model, _): ProjectorCore.Shape.t => {
     let px_to_grid = (value: int, multiple: float): int =>
