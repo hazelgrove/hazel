@@ -21,6 +21,7 @@ type t =
   | Card
   | Livelit
   | TextArea
+  | Table
   | Csv
   | NotePicker
   | RhythmGrid
@@ -34,6 +35,7 @@ let livelit_projectors: list(t) = [
   SliderF,
   Knob,
   TextArea,
+  Table,
   Csv, /* Competes with Card for empty list */
   Card, /* Competes with Csv for empty list */
   Livelit,
@@ -67,6 +69,7 @@ let name = (p: t): string =>
   | Card => "card"
   | Livelit => "livelit"
   | TextArea => "text"
+  | Table => "table"
   | Csv => "csv"
   | NotePicker => "notes"
   | RhythmGrid => "rhythm"
@@ -91,6 +94,7 @@ let of_name = (p: string): t =>
   | "text" => TextArea
   | "livelit" => Livelit
   | "card" => Card
+  | "table" => Table
   | "csv" => Csv
   | "notes" => NotePicker
   | "rhythm" => RhythmGrid

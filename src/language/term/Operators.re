@@ -94,6 +94,18 @@ type op_bin =
   | String(op_bin_string)
   | Poly(op_bin_poly);
 
+/* Lift a numeric op to the cls-correct BinOp, or None for non-numeric
+ * classes. */
+let numeric_bin_op = (cls: Atom.cls, op: op_bin_num): option(op_bin) =>
+  switch (cls) {
+  | Int => Some(Int(op))
+  | SInt => Some(SInt(op))
+  | Nat => Some(Nat(op))
+  | Float => Some(Float(op_bin_float_of_num(op)))
+  | Bool
+  | String => None
+  };
+
 [@deriving (show({with_path: false}), sexp, yojson, eq, enumerate)]
 type ap_direction =
   | Forward

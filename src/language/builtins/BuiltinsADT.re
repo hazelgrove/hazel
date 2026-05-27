@@ -231,3 +231,49 @@ let constructors: Ctx.t = {
 
 let builtins = Option.builtins;
 let constructor_entries = constructors.entries @ types;
+
+/* Build an Ord-returning compare builtin from an Atom.compare_entry, the
+ * same way of_atom_builtin handles atom-to-atom conversions. */
+let of_atom_compare =
+    ((name, Atom.Cmp(kind, cmp)): (string, Atom.compare_entry))
+    : BuiltinsUtil.fn => {
+  let ty = Typ.fresh_atom(Atom.cls_of_kind(kind));
+  BuiltinsUtil.{
+    name,
+    arg: Prod([ty, ty]),
+    ret: Ord.t.term,
+    imp:
+      binary((d1, d2) => {
+        let-unbox n1 = (Atom(kind), d1);
+        let-unbox n2 = (Atom(kind), d2);
+        Some(
+          switch (cmp(n1, n2)) {
+          | 0 => Ord.eq
+          | n when n < 0 => Ord.lt
+          | _ => Ord.gt
+          },
+        );
+      }),
+    custom_statics: None,
+  };
+};
+
+/* Flip Lt ↔ Gt, leave Eq alone. Lets a descending sort reuse an ascending
+ * comparator without a second pass to reverse the list. */
+let invert_ord: BuiltinsUtil.fn =
+  BuiltinsUtil.{
+    name: "invert_ord",
+    arg: Ord.t.term,
+    ret: Ord.t.term,
+    imp: d =>
+      switch (DHExp.term_of(d)) {
+      | Constructor("Lt", _) => Some(Ord.gt)
+      | Constructor("Gt", _) => Some(Ord.lt)
+      | Constructor("Eq", _) => Some(Ord.eq)
+      | _ => None
+      },
+    custom_statics: None,
+  };
+
+let ord_builtins: list(BuiltinsUtil.fn) =
+  [invert_ord] @ List.map(of_atom_compare, Atom.compare_builtins);
