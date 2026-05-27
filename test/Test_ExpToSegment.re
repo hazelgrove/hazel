@@ -138,6 +138,45 @@ let tests = (
       },
     ),
     test_case(
+      "Folded FixF hides recursive marker",
+      `Quick,
+      () => {
+        open IdTagged.FreshGrammar;
+        let settings = {
+          ...exp_to_segment_settings,
+          fold_fn_bodies: `Fold,
+          hide_fixpoints: true,
+        };
+        let exp =
+          Exp.(
+            fix_f(
+              Pat.var("fac"),
+              fn(Pat.var("n"), var("n"), None, Some("fac+")),
+              None,
+            )
+          );
+        let expected_model =
+          FoldProj.sexp_of_t({
+            text: "<fac>",
+            expanded: false,
+            always_render: true,
+          })
+          |> Sexplib.Sexp.to_string;
+        let seg = ExpToSegment.exp_to_segment(~settings, exp);
+        switch (seg) {
+        | [Projector({kind: Fold, model, _})] =>
+          check(string, "fold label", expected_model, model);
+        | _ => Alcotest.fail("expected folded FixF projector")
+        };
+        let seg = ExpToSegment.exp_to_segment(~settings, Exp.parens(exp));
+        switch (seg) {
+        | [Projector({kind: Fold, model, _})] =>
+          check(string, "parenthesized fold label", expected_model, model)
+        | _ => Alcotest.fail("expected folded Parens(FixF) projector")
+        };
+      },
+    ),
+    test_case(
       "Tuple",
       `Quick,
       () => {

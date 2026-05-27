@@ -1934,11 +1934,18 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
       |> fold_fun_if(settings.fold_fn_bodies, name, _, inner_exp),
     );
   | Parens({term: FixF(p, e, _), _} as inner_exp) =>
+    // TODO: Add optional newlines
     let id = inner_exp |> Exp.rep_id;
     let+ p = pat_to_pretty(~settings: Settings.t, p)
     and+ e = go(e);
+    let name = Exp.get_fn_name(inner_exp) |> Option.value(~default="fun");
     let name =
-      "<" ++ (Exp.get_fn_name(exp) |> Option.value(~default="fun")) ++ ">";
+      if (settings.hide_fixpoints && String.ends_with(~suffix="+", name)) {
+        String.sub(name, 0, String.length(name) - 1);
+      } else {
+        name;
+      };
+    let name = "<" ++ name ++ ">";
     let fix_form = [mk_form(Fix, id, [p])] @ e;
     wrap(
       exp,
@@ -2112,8 +2119,14 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     let id = exp |> Exp.rep_id;
     let+ p = pat_to_pretty(~settings: Settings.t, p)
     and+ e = go(e);
+    let name = Exp.get_fn_name(exp) |> Option.value(~default="fun");
     let name =
-      "<" ++ (Exp.get_fn_name(exp) |> Option.value(~default="fun")) ++ ">";
+      if (settings.hide_fixpoints && String.ends_with(~suffix="+", name)) {
+        String.sub(name, 0, String.length(name) - 1);
+      } else {
+        name;
+      };
+    let name = "<" ++ name ++ ">";
     wrap(
       exp,
       [mk_form(Fix, id, [p])]
