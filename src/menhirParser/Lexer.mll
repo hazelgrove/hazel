@@ -110,6 +110,7 @@ rule token =
     | "Float" { FLOAT_TYPE }
     | "Bool" { BOOL_TYPE }
     | "String" { STRING_TYPE }
+    | "Void" { VOID_TYPE }
     | "Unknown" { UNKNOWN }
     | "Internal" { INTERNAL }
     (* DHExp Annotations *)
