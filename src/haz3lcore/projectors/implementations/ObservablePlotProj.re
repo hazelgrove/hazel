@@ -846,6 +846,8 @@ module M: Projector = {
 
   let dynamics = true;
 
+  let elaborate_syntax = false;
+
   let placeholder = (model: model, _info: info): ProjectorCore.Shape.t =>
     ProjectorCore.Shape.{
       vertical: Block(model.height_blocks),
@@ -859,6 +861,8 @@ module M: Projector = {
         height_blocks: clamp_height_blocks(height_blocks),
       }
     };
+
+  let error = (_, _): option(ProjectorBase.error) => None;
 
   let view =
       ({model, info, local, status, _}: View.args(model, action)): View.t => {

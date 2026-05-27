@@ -10,6 +10,8 @@
 @import "proj-slider.css";
 @import "proj-livelit.css";
 @import "proj-graph.css";
+@import "proj-table.css";
+@import "proj-table-probe.css";
 @import "proj-csv.css";
 
 /* Default projector styles */
@@ -34,6 +36,10 @@
 
 .refractors .projector.probe.indicated {
   z-index: 11;
+}
+/* Elevate probe stacking context when table/rich-probe modal is open */
+.refractors .projector.probe.indicated:has(.modal-backdrop) {
+  z-index: var(--modal-back-z);
 }
 
 .projector > svg {

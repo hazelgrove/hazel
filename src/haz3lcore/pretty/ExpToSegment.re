@@ -40,6 +40,7 @@ module Settings = {
       | `Text
       | `NoFold
     ],
+    project_tables: bool,
     hide_fixpoints: bool,
     show_filters: bool,
     show_ascriptions: bool,
@@ -53,6 +54,7 @@ module Settings = {
     inline,
     show_ascriptions: settings.evaluation.show_ascriptions,
     fold_case_clauses: !settings.evaluation.show_case_clauses,
+    project_tables: settings.evaluation.project_tables,
     fold_fn_bodies:
       fold_fn_bodies
       |> Option.value(
@@ -70,6 +72,7 @@ module Settings = {
       label_format: QuoteWhenNecessary,
       inline,
       fold_case_clauses: false,
+      project_tables: false,
       fold_fn_bodies: `NoFold,
       show_ascriptions: true,
       hide_fixpoints: false,
@@ -480,7 +483,7 @@ let rec parenthesize =
   | Ap(Reverse, e1, e2) =>
     Ap(
       Reverse,
-      parenthesize(e1) |> paren_at(Precedence.eqs),
+      parenthesize(e1) |> paren_at(Precedence.eqs), // Associativity is backwards because e2 goes before e1
       parenthesize(e2) |> paren_assoc_at(Precedence.eqs),
     )
     |> rewrap
@@ -1191,6 +1194,16 @@ let fold_fun_if = (condition, f_name: string, pieces, exp) =>
   | `NoFold => pieces
   };
 
+let project_table_if = (should_project, pieces) =>
+  if (should_project) {
+    switch (MakeTerm.for_projection([pieces])) {
+    | None => [pieces]
+    | Some(any) => [ProjectorInit.init_or_noop(Table, pieces, any)]
+    };
+  } else {
+    [pieces];
+  };
+
 let rec drv_exp_to_pretty =
         (~settings: Settings.t, syntax: Drv.Exp.t, ~sort: DrvSort.t): pretty => {
   let mk_form = mk_form(~secondary=settings.secondary);
@@ -1793,7 +1806,10 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
             ),
         ],
       );
-    wrap(exp, p_just([form(x, xs)]));
+    wrap(
+      exp,
+      p_just(form(x, xs) |> project_table_if(settings.project_tables)),
+    );
   // TODO: Add optional newlines
   | Var(v) => wrap(exp, text_to_pretty(exp |> Exp.rep_id, Sort.Exp, v))
   | BinOp(op, l, r) =>
@@ -2098,6 +2114,9 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     wrap(
       exp,
       e2
+      @ (
+        settings.inline == Inline ? [] : [Secondary(mk_newline(Id.mk()))]
+      )
       @ [
         Tile({
           id,
@@ -2804,7 +2823,7 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
     let+ t1 = go(t1)
     and+ t2 = go(t2);
     wrap(typ, t1 @ [mk_form(TypeArrow, id, [])] @ t2);
-  | Sum([]) => failwith("Empty Sums are not allowed")
+  | Sum([]) => wrap(typ, text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "Void"))
   | Sum([t]) =>
     let id = typ |> Typ.rep_id;
     let+ t = go_constructor(t);

@@ -100,6 +100,7 @@ open AST
 %token FLOAT_TYPE
 %token BOOL_TYPE
 %token STRING_TYPE
+%token VOID_TYPE
 %token UNKNOWN
 %token INTERNAL
 
@@ -246,6 +247,7 @@ typ:
     | FLOAT_TYPE { FloatType }
     | BOOL_TYPE { BoolType }
     | STRING_TYPE { StringType }
+    | VOID_TYPE { VoidType }
     | UNKNOWN; INTERNAL { UnknownType(Internal) }
     | QUESTION { UnknownType(EmptyHole) }
     | UNIT { TupleType([]) }
