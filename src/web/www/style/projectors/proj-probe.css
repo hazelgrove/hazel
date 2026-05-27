@@ -344,9 +344,9 @@
 .live-offside .nav-bar {
   position: absolute;
   left: -1.85em;
-  top: -0.22em;
+  top: -0.13em;
   width: 1.7em;
-  height: 1.9em;
+  height: 1.8em;
   pointer-events: none;
   overflow: visible;
 }
@@ -549,7 +549,8 @@
   /* overflow: hidden; */
 }
 .live-offside.Many
-  .sample:has(.value.unrelated:not(.depth-above):not(.depth-below)) .value {
+  .sample:has(.value.unrelated:not(.depth-above):not(.depth-below))
+  .value {
   background-color: #e5efe8;
 }
 
@@ -635,7 +636,10 @@
   background-color: #d6eed6;
 }
 
-.projector.probe.indicated .live-offside:focus .sample:has(.value.focus) .value {
+.projector.probe.indicated
+  .live-offside:focus
+  .sample:has(.value.focus)
+  .value {
   outline: 1.5px solid var(--R1);
   background-color: oklch(from var(--bkg) calc(l * 0.96) calc(c + 0.04) h);
 }
