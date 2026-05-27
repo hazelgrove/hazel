@@ -692,6 +692,8 @@ module Selection = {
    * - call_stack_rev: the sightline call_stack in outermost-first order
    * - view_index: position in the outermost-first list to find siblings
    * - probe_map: all samples across all probes */
+  /* Find sibling frames at a given depth, sorted to match tree display order
+   * (sightline-first, then by evaluation order / min seq). */
   let find_siblings =
       (
         ~call_stack_rev: call_stack,
@@ -706,28 +708,40 @@ module Selection = {
       /* The prefix is everything before view_index in outermost-first order */
       let prefix = ListUtil.slice(0, view_index, call_stack_rev);
       let prefix_ids = ids_of_stack(prefix);
-      /* Collect all distinct frames at view_index from all samples */
-      let all_frames = ref([]);
+      /* Collect distinct frames with their min seq for sorting */
+      let frame_seqs: ref(list((stack_frame, int))) = ref([]);
       Id.Map.iter(
         (_, samples) =>
           List.iter(
             (sample: t) => {
-              /* Convert sample's call_stack to outermost-first */
               let sample_rev = List.rev(sample.call_stack);
               let sample_len = List.length(sample_rev);
               if (sample_len > view_index) {
-                /* Check prefix match */
                 let sample_prefix =
                   ListUtil.slice(0, view_index, sample_rev);
                 let sample_prefix_ids = ids_of_stack(sample_prefix);
                 if (sample_prefix_ids == prefix_ids) {
                   let frame_at_depth = List.nth(sample_rev, view_index);
-                  /* Deduplicate by ID */
-                  if (!List.exists(
-                        f => equal_stack_frame(f, frame_at_depth),
-                        all_frames^,
-                      )) {
-                    all_frames := [frame_at_depth, ...all_frames^];
+                  switch (
+                    List.find_opt(
+                      ((f, _)) => equal_stack_frame(f, frame_at_depth),
+                      frame_seqs^,
+                    )
+                  ) {
+                  | Some((_, existing_seq)) =>
+                    /* Update min_seq if this sample is earlier */
+                    if (sample.seq < existing_seq) {
+                      frame_seqs :=
+                        List.map(
+                          ((f, s)) =>
+                            equal_stack_frame(f, frame_at_depth)
+                              ? (f, sample.seq) : (f, s),
+                          frame_seqs^,
+                        );
+                    }
+                  | None =>
+                    frame_seqs :=
+                      frame_seqs^ @ [(frame_at_depth, sample.seq)]
                   };
                 };
               };
@@ -736,7 +750,29 @@ module Selection = {
           ),
         probe_map,
       );
-      List.rev(all_frames^);
+      /* Sort by min seq, then rotate to sightline (same cycle as tree) */
+      let sorted =
+        List.sort(
+          ((_, a_seq), (_, b_seq)) => compare(a_seq, b_seq),
+          frame_seqs^,
+        );
+      let current_frame =
+        view_index < n ? Some(List.nth(call_stack_rev, view_index)) : None;
+      let rotated =
+        switch (current_frame) {
+        | Some(cf) =>
+          switch (
+            List.find_index(((f, _)) => equal_stack_frame(f, cf), sorted)
+          ) {
+          | Some(i) =>
+            let before = ListUtil.slice(0, i, sorted);
+            let after = ListUtil.slice(i, List.length(sorted) - i, sorted);
+            after @ before;
+          | None => sorted
+          }
+        | None => sorted
+        };
+      List.map(fst, rotated);
     };
   };
 
@@ -785,13 +821,14 @@ module CallTree = {
   type node = {
     frame: stack_frame,
     children: list(node),
+    min_seq: int, /* Earliest evaluation order among all samples through this node */
   };
 
   /* A forest (list of root nodes) representing the top-level call tree */
   type t = list(node);
 
-  /* Insert an outermost-first path into the trie */
-  let rec insert_path = (path: call_stack, forest: t): t =>
+  /* Insert an outermost-first path into the trie, tracking min seq */
+  let rec insert_path = (path: call_stack, seq: int, forest: t): t =>
     switch (path) {
     | [] => forest
     | [frame, ...rest] =>
@@ -801,7 +838,11 @@ module CallTree = {
           (node: node) =>
             if (equal_stack_frame(node.frame, frame)) {
               found := true;
-              {...node, children: insert_path(rest, node.children)};
+              {
+                ...node,
+                children: insert_path(rest, seq, node.children),
+                min_seq: min(node.min_seq, seq),
+              };
             } else {
               node;
             },
@@ -810,25 +851,76 @@ module CallTree = {
       if (found^) {
         forest';
       } else {
-        forest @ [{frame, children: insert_path(rest, [])}];
+        forest
+        @ [{frame, children: insert_path(rest, seq, []), min_seq: seq}];
       };
     };
 
-  /* Build a call tree from all samples in a probe_map */
-  let of_probe_map = (probe_map: Id.Map.t(list(sample))): t => {
-    Id.Map.fold(
-      (_, samples, forest) =>
-        List.fold_left(
-          (acc, s: sample) => {
-            let path = List.rev(s.call_stack);
-            insert_path(path, acc);
-          },
-          forest,
-          samples,
-        ),
-      probe_map,
-      [],
+  /* Rotate a list to start at the element matching a predicate,
+   * preserving relative order (eval-order cycle). */
+  let rotate_to = (pred: 'a => bool, xs: list('a)): list('a) =>
+    switch (List.find_index(pred, xs)) {
+    | Some(i) =>
+      let before = ListUtil.slice(0, i, xs);
+      let after = ListUtil.slice(i, List.length(xs) - i, xs);
+      after @ before;
+    | None => xs
+    };
+
+  /* Sort children by evaluation order (min_seq), then rotate so the
+   * sightline child is first. Preserves relative cycle order. */
+  let sort_children =
+      (~sightline_rev: call_stack, ~depth: int, children: list(node))
+      : list(node) => {
+    let sorted = List.sort(
+      (a: node, b: node) => compare(a.min_seq, b.min_seq),
+      children,
     );
+    let on_sightline = (n: node): bool =>
+      depth < List.length(sightline_rev)
+      && equal_stack_frame(List.nth(sightline_rev, depth), n.frame);
+    rotate_to(on_sightline, sorted);
+  };
+
+  /* Recursively sort all children in the tree */
+  let rec sort_tree =
+          (~sightline_rev: call_stack, ~depth: int, forest: t): t =>
+    List.map(
+      (node: node) => {
+        let sorted_children =
+          sort_children(~sightline_rev, ~depth=depth + 1, node.children);
+        {
+          ...node,
+          children:
+            sort_tree(
+              ~sightline_rev,
+              ~depth=depth + 1,
+              sorted_children,
+            ),
+        };
+      },
+      sort_children(~sightline_rev, ~depth, forest),
+    );
+
+  /* Build a call tree from all samples in a probe_map.
+   * Sorted: sightline-first at each level, then by evaluation order. */
+  let of_probe_map =
+      (~sightline_rev: call_stack, probe_map: Id.Map.t(list(sample))): t => {
+    let forest =
+      Id.Map.fold(
+        (_, samples, forest) =>
+          List.fold_left(
+            (acc, s: sample) => {
+              let path = List.rev(s.call_stack);
+              insert_path(path, s.seq, acc);
+            },
+            forest,
+            samples,
+          ),
+        probe_map,
+        [],
+      );
+    sort_tree(~sightline_rev, ~depth=0, forest);
   };
 
   /* Flatten a tree into lines for display. Each line is a list of
@@ -935,13 +1027,50 @@ module CallTree = {
     lines^;
   };
 
-  /* Check if a path through the tree matches the sightline up to a given depth.
-   * Used to highlight the current sightline in the tree view. */
+  /* Check if a tree entry is on the sightline by comparing its full
+   * path (root to entry) against the sightline prefix up to that depth.
+   * This correctly handles recursive functions where the same frame ID
+   * appears on multiple branches at the same depth. */
   let is_on_sightline =
       (~sightline_rev: call_stack, entry: line_entry): bool => {
-    let depth = entry.depth;
-    depth < List.length(sightline_rev)
-    && equal_stack_frame(List.nth(sightline_rev, depth), entry.frame);
+    let path_len = List.length(entry.path);
+    let sight_len = List.length(sightline_rev);
+    path_len <= sight_len
+    && List.for_all2(
+         equal_stack_frame,
+         entry.path,
+         ListUtil.slice(0, path_len, sightline_rev),
+       );
+  };
+
+  /* Follow a path (outermost-first) through the tree and return the
+   * first child frame at the next depth. Used by Right-arrow in tree
+   * mode to extend the sightline beyond its current depth. */
+  let first_child_at =
+      (~path_rev: call_stack, forest: t): option(stack_frame) => {
+    let rec find_node = (path: call_stack, nodes: list(node)): option(node) =>
+      switch (path) {
+      | [] => None
+      | [frame] =>
+        List.find_opt(
+          (n: node) => equal_stack_frame(n.frame, frame),
+          nodes,
+        )
+      | [frame, ...rest] =>
+        switch (
+          List.find_opt(
+            (n: node) => equal_stack_frame(n.frame, frame),
+            nodes,
+          )
+        ) {
+        | Some(n) => find_node(rest, n.children)
+        | None => None
+        }
+      };
+    switch (find_node(path_rev, forest)) {
+    | Some({children: [first, ..._], _}) => Some(first.frame)
+    | _ => None
+    };
   };
 };
 

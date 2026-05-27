@@ -345,19 +345,13 @@ let switch_sibling =
      * drop everything deeper since the subtree may differ */
     let truncated_rev =
       Util.ListUtil.slice(0, view_index + 1, new_stack_rev);
-    /* Convert back to innermost-first for the Capture data */
+    /* Convert back to innermost-first for SetSightline */
     let new_stack = List.rev(truncated_rev);
-    let capture_data: Sample.Capture.t = {
-      call_stack: new_stack,
-      time: 0.0,
-      seq: 0,
-      step_start: 0,
-      step_end: 0,
-    };
+    let new_index = List.length(new_stack) - 1;
     Effect.Many([
       globals.inject_global(
         ActiveEditor(
-          Project(SampleFocus(Capture(capture_data, None))),
+          Project(SampleFocus(SetSightline(new_stack, new_index))),
         ),
       ),
       Effect.Stop_propagation,
@@ -404,13 +398,47 @@ let key_handler =
       Stop_propagation,
     ]);
   | D("ArrowRight") =>
-    /* Move to deeper level (toward innermost call) */
-    let new_index = min(max_index, index + 1);
-    Many([
-      set_focus_index(~globals, new_index, evt),
-      jump_to_index(new_index),
-      Stop_propagation,
-    ]);
+    /* Move to deeper level (toward innermost call).
+     * In tree mode, if at the end of the sightline, extend by
+     * following the first child in the call tree. */
+    if (index < max_index) {
+      let new_index = index + 1;
+      Many([
+        set_focus_index(~globals, new_index, evt),
+        jump_to_index(new_index),
+        Stop_propagation,
+      ]);
+    } else if (view_mode_ref^ == TreeView) {
+      /* At boundary in tree mode: try to extend the sightline */
+      let tree =
+        Sample.CallTree.of_probe_map(~sightline_rev=call_stack_rev, probe_map);
+      switch (
+        Sample.CallTree.first_child_at(~path_rev=call_stack_rev, tree)
+      ) {
+      | Some(child_frame) =>
+        /* Extend the path and set sightline directly */
+        let extended_rev = call_stack_rev @ [child_frame];
+        let new_stack = List.rev(extended_rev);
+        let new_index = List.length(extended_rev) - 1;
+        let jump_effect =
+          is_in_user_code(~info_map, child_frame.id)
+            ? jump_to(~globals, child_frame.id, evt) : Effect.Ignore;
+        Many([
+          globals.inject_global(
+            ActiveEditor(
+              Project(
+                SampleFocus(SetSightline(new_stack, new_index)),
+              ),
+            ),
+          ),
+          jump_effect,
+          Stop_propagation,
+        ]);
+      | None => Many([Stop_propagation])
+      };
+    } else {
+      Many([Stop_propagation]);
+    };
   | D("ArrowUp") | D("ArrowDown") =>
     /* Navigate between sibling branches at the focused depth. */
     let n = List.length(call_stack_rev);
@@ -510,26 +538,34 @@ let tree_entry =
   let on_sightline =
     Sample.CallTree.is_on_sightline(~sightline_rev, entry);
   let is_focused = on_sightline && entry.depth == index;
+  /* Position classes: match single-mode breadcrumb coloring.
+   * - focused (green): the entry at the focus depth on the sightline
+   * - above (pink): sightline entries shallower than focus
+   * - below/ghost (blue): sightline entries deeper than focus
+   * - off-path (brown): entries not on the current sightline */
+  let position_class =
+    if (is_focused) {
+      "focused";
+    } else if (on_sightline && entry.depth < index) {
+      "above";
+    } else if (on_sightline) {
+      "below";
+    } else {
+      "off-path";
+    };
   let classes =
-    ["tree-entry"]
-    @ (on_sightline ? ["on-sightline"] : [])
-    @ (is_focused ? ["focused"] : []);
+    ["tree-entry", position_class]
+    @ (on_sightline ? ["on-sightline"] : []);
 
-  /* Build a Capture to switch the sightline to this entry's branch.
-   * The path is outermost-first; Capture wants innermost-first. */
+  /* Switch the sightline to this entry's branch via SetSightline.
+   * The path is outermost-first; SetSightline wants innermost-first. */
   let on_click = evt => {
     let new_stack = List.rev(entry.path);
-    let capture_data: Sample.Capture.t = {
-      call_stack: new_stack,
-      time: 0.0,
-      seq: 0,
-      step_start: 0,
-      step_end: 0,
-    };
-    let capture_effect =
+    let new_index = List.length(new_stack) - 1;
+    let sightline_effect =
       globals.inject_global(
         ActiveEditor(
-          Project(SampleFocus(Capture(capture_data, None))),
+          Project(SampleFocus(SetSightline(new_stack, new_index))),
         ),
       );
     let call_site_target =
@@ -537,8 +573,8 @@ let tree_entry =
         ? Some(frame.id) : None;
     switch (call_site_target) {
     | Some(target_id) =>
-      Effect.Many([capture_effect, jump_to(~globals, target_id, evt)])
-    | None => capture_effect
+      Effect.Many([sightline_effect, jump_to(~globals, target_id, evt)])
+    | None => sightline_effect
     };
   };
 
@@ -578,7 +614,7 @@ let tree_view =
       ~index: int,
     )
     : Node.t => {
-  let tree = Sample.CallTree.of_probe_map(probe_map);
+  let tree = Sample.CallTree.of_probe_map(~sightline_rev, probe_map);
   let lines = Sample.CallTree.flatten(tree);
   let n_cols = max_depth(lines) + 1;
   /* Each depth gets 2 grid columns: one for branch char, one for name.

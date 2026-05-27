@@ -139,11 +139,21 @@ let toggle_anti_pin = (z: Zipper.t, depth: int): Zipper.t =>
     }
   );
 
+/* Directly set call_stack and index, bypassing suffix-preservation.
+ * Used by tree view navigation (switch_sibling) where we know exactly
+ * what the sightline should be and don't want Capture's heuristics. */
+let set_sightline =
+    (z: Zipper.t, call_stack: Sample.call_stack, index: int): Zipper.t =>
+  update(z, sample_focus =>
+    {...sample_focus, call_stack, index}
+  );
+
 let go = (z: Zipper.t, a: Action.sample_focus): Zipper.t =>
   switch (a) {
   | Capture(sample, id) => capture(z, sample, id)
   | TogglePin(call_stack) => toggle_pin_call(z, call_stack)
   | ToggleAntiPin(depth) => toggle_anti_pin(z, depth)
   | SetIndex(i) => set_index(z, i)
+  | SetSightline(call_stack, index) => set_sightline(z, call_stack, index)
   | Reset => reset(z)
   };

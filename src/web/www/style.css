@@ -425,7 +425,6 @@ select {
   cursor: pointer;
   padding: 0 0.3em;
   border-radius: 1em;
-  color: var(--BR3);
   transition: background-color 0.1s;
 }
 
@@ -433,15 +432,25 @@ select {
   background-color: white;
 }
 
-#sample-focus-bar .tree-entry.on-sightline {
-  color: var(--G0);
-}
-
+/* Coloring matches single-mode breadcrumb scheme */
 #sample-focus-bar .tree-entry.focused {
   color: var(--G0);
   background-color: var(--G5);
   font-weight: 500;
   text-decoration: underline;
+}
+
+#sample-focus-bar .tree-entry.above {
+  color: var(--sample-above-text);
+}
+
+#sample-focus-bar .tree-entry.below {
+  color: var(--sample-below-text);
+  opacity: 0.7;
+}
+
+#sample-focus-bar .tree-entry.off-path {
+  color: var(--BR1);
 }
 
 #sample-focus-bar .tree-branch {
