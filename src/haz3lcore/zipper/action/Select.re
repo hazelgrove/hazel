@@ -40,13 +40,6 @@ let focus_max_idx = (z: Zipper.t): int =>
   | None => 0
   };
 
-/* Max inner index of the neighbor piece in direction d */
-let neighbor_max_idx = (d: Direction.t, z: Zipper.t): int =>
-  switch (Siblings.neighbor(d, z.relatives.siblings)) {
-  | Some(p) => piece_max_idx(p) |> Option.value(~default=0)
-  | None => 0
-  };
-
 /* Set caret to the edge of a token when entering it from direction d.
  * Right means entering from the left (set Inner(0)),
  * Left means entering from the right (set Inner(max_idx)). */
@@ -126,8 +119,13 @@ and grow_by_char = (d: Direction.t, z: Zipper.t): option(Zipper.t) => {
   | Inner(n) when is_empty =>
     /* Starting a new selection from inside a token.
      * The token is the right sibling. We need to pop it into
-     * selection and set anchor_caret to remember our start. */
-    let max_idx = neighbor_max_idx(Right, z);
+     * selection and set anchor_caret to remember our start.
+     *
+     * `max_idx` is computed *after* grow_selection pulls the shard into
+     * the selection (via `focus_max_idx`), not from the raw right sibling.
+     * The latter returns 0 for multi-shard tiles (e.g. the whole let-in
+     * tile reported by `Siblings.neighbor`), which would collapse the
+     * Right branch to Outer and over-select. */
     switch (d) {
     | Right =>
       /* Growing right: focus=Right, pop from right siblings */
@@ -143,6 +141,7 @@ and grow_by_char = (d: Direction.t, z: Zipper.t): option(Zipper.t) => {
           anchor_caret: CaretBase.Inner(n),
         },
       };
+      let max_idx = focus_max_idx(z);
       n < max_idx
         ? Zipper.Caret.set(Inner(n + 1), z) : Zipper.Caret.set(Outer, z);
     | Left =>
@@ -168,7 +167,7 @@ and grow_by_char = (d: Direction.t, z: Zipper.t): option(Zipper.t) => {
       };
       n > 0
         ? Zipper.Caret.set(Inner(n - 1), z) : Zipper.Caret.set(Outer, z);
-    };
+    }
 
   | Inner(n) =>
     /* Already have a selection, caret is inside the focus-side
@@ -256,11 +255,30 @@ and shrink_by_char = (d: Direction.t, z: Zipper.t): option(Zipper.t) => {
           ),
         );
       | CaretBase.Inner(an) =>
-        /* Anchor was inside the token. We need Inner(an) to reference
-         * this piece, so it must end up in right siblings.
-         * directional_unselect(Left) always puts content to the right. */
+        /* Anchor was inside the token. Inner(an) needs to reference
+         * the anchor-side piece, but the standard unselect+reassemble
+         * may absorb that piece back into an ancestor or shuffle
+         * adjacent Secondaries across the caret. Save (tile_id, shard_idx)
+         * for the anchor shard; after unselect, navigate to that shard
+         * via `jump_to_shard` and re-set the caret to Inner(an). */
+        let anchor_locator =
+          switch (Selection.anchor_piece(z.selection)) {
+          | Some(Tile(t)) =>
+            switch (t.shards) {
+            | [idx] => Some((t.id, idx))
+            | _ => None
+            }
+          | _ => None
+          };
         let z = Zipper.directional_unselect(Left, z);
-        Some(Zipper.Caret.set(Inner(an), z));
+        switch (anchor_locator) {
+        | Some((tile_id, shard_idx)) =>
+          switch (Move.jump_to_shard(z, tile_id, shard_idx)) {
+          | Some(z') => Some(Zipper.Caret.set(Inner(an), z'))
+          | None => Some(Zipper.Caret.set(Inner(an), z))
+          }
+        | None => Some(Zipper.Caret.set(Inner(an), z))
+        };
       };
     } else {
       /* Not at crossover: move one position towards anchor */
@@ -311,14 +329,43 @@ and shrink_by_char = (d: Direction.t, z: Zipper.t): option(Zipper.t) => {
          * is a single local step (and the caret column changes,
          * which keeps do_towards_point's no-progress guard honest). */
         let entry_idx = d == Right ? 0 : max_idx;
+        /* Crossover at edge only meaningful when content has a single
+         * piece: in that case anchor_caret's Inner index references the
+         * same piece the focus is shrinking into. With multi-piece
+         * content, the anchor lives in a different piece on the opposite
+         * end and the index match is coincidental. (The Inner branch
+         * above has this same `[_single]` guard.) */
         let crossover_at_edge =
-          switch (z.selection.anchor_caret) {
-          | CaretBase.Inner(an) => an == entry_idx
-          | CaretBase.Outer => false
+          switch (z.selection.content, z.selection.anchor_caret) {
+          | ([_single], CaretBase.Inner(an)) => an == entry_idx
+          | _ => false
           };
         if (crossover_at_edge) {
+          /* Collapse to anchor at Inner(entry_idx). The anchor-side
+           * piece needs to be the right neighbor for Inner to render
+           * at the anchor's column; reassemble may absorb it into an
+           * ancestor or shuffle Secondaries, so navigate to it via
+           * (tile_id, shard_idx) post-unselect — same shape as the
+           * Inner-branch at_crossover handler above and as
+           * `Move.pre_unselect`. */
+          let anchor_locator =
+            switch (Selection.anchor_piece(z.selection)) {
+            | Some(Tile(t)) =>
+              switch (t.shards) {
+              | [idx] => Some((t.id, idx))
+              | _ => None
+              }
+            | _ => None
+            };
           let z = Zipper.directional_unselect(Left, z);
-          Some(Zipper.Caret.set(Inner(entry_idx), z));
+          switch (anchor_locator) {
+          | Some((tile_id, shard_idx)) =>
+            switch (Move.jump_to_shard(z, tile_id, shard_idx)) {
+            | Some(z') => Some(Zipper.Caret.set(Inner(entry_idx), z'))
+            | None => Some(Zipper.Caret.set(Inner(entry_idx), z))
+            }
+          | None => Some(Zipper.Caret.set(Inner(entry_idx), z))
+          };
         } else {
           Some(enter_token_edge(d, max_idx, z));
         };

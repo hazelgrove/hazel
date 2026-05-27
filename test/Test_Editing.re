@@ -3650,6 +3650,428 @@ let char_selection_tests = [
   ),
 ];
 
+/* Red tests for selection bugs in multi-delimiter forms.
+ *
+ * These tests target subtleties in how Inner caret positions inside
+ * the shards of multi-delimiter tiles (let-in, case-end, etc.)
+ * interact with shift-arrow extension and plain-arrow break-out.
+ *
+ * Bug A — Over-eager shift+right from an Inner caret of a multi-shard
+ *   delimiter selects two chars instead of one. Root suspicion:
+ *   `Select.grow_by_char`'s `Inner(n) when is_empty` branch computes
+ *   `max_idx` via `neighbor_max_idx`, which calls `Siblings.neighbor`
+ *   directly. For a multi-shard tile the right neighbor is the whole
+ *   tile, whose `Piece.token_of` returns None, so `max_idx` falls
+ *   through to the default 0. With n=0, `n < max_idx` is false, so
+ *   the caret is set to Outer (right edge of the first shard) instead
+ *   of Inner(n+1) (one char past). The single-shard `Outer` branch
+ *   avoids this by calling `decompose_multi_shard_neighbor` first.
+ *
+ * Bug B — Plain right/left to break a partial-token selection leaves
+ *   the caret at the wrong column with Inner shape. `directional_unselect`
+ *   keeps `z.caret = Inner(n)` (the focus-side inner position) when
+ *   landing at focus. After `unselect` prepends the content to the
+ *   opposite side, Inner(n) now references a different right neighbor
+ *   (or no neighbor). Caret renders as Inner one char past whatever
+ *   came after the unselected piece, instead of at the boundary where
+ *   the selection ended. */
+let multi_delim_selection_bug_tests = [
+  /* Bug A: Inner(0) of multi-shard delimiter over-selects on shift+right.
+   * "let" has length 3 (max_idx=1). Starting at l|et, shift+right should
+   * select just "e". Expected: l§e¦t...; suspected actual: l§et¦... */
+  test(
+    ~name="Bug A1: shift+right from Inner(0) of 'let' selects 1 char (e)",
+    ~acts=mk({|l¦et x = 1 in x|}) @ sel_r(1),
+    ~goal={|l§e¦t x = 1 in x|},
+  ),
+  /* Bug A: Inner(0) of multi-shard "case" (length 4, max_idx=2). */
+  test(
+    ~name="Bug A2: shift+right from Inner(0) of 'case' selects 1 char (a)",
+    ~acts=mk({|c¦ase 1 | _ => 1 end|}) @ sel_r(1),
+    ~goal={|c§a¦se 1 | _ => 1 end|},
+  ),
+  test(
+    ~name="Bug A3: shift+right from Inner(1) of 'case' selects 1 char (s)",
+    ~acts=mk({|ca¦se 1 | _ => 1 end|}) @ sel_r(1),
+    ~goal={|ca§s¦e 1 | _ => 1 end|},
+  ),
+  /* Bug A: Inner(0) of trailing multi-shard delimiter "end" (length 3, max_idx=1). */
+  test(
+    ~name="Bug A4: shift+right from Inner(0) of 'end' selects 1 char (n)",
+    ~acts=mk({|case 1 | _ => 1 e¦nd|}) @ sel_r(1),
+    ~goal={|case 1 | _ => 1 e§n¦d|},
+  ),
+  /* Control: same starting positions but shift+left (user reports this
+   * direction is unaffected). These should pass on current code. */
+  test(
+    ~name="Control: shift+left from Inner(0) of 'let' selects 1 char (l)",
+    ~acts=mk({|l¦et x = 1 in x|}) @ sel_l(1),
+    ~goal={|¦l§et x = 1 in x|},
+  ),
+  test(
+    ~name="Control: shift+left from Inner(1) of 'case' selects 1 char (a)",
+    ~acts=mk({|ca¦se 1 | _ => 1 end|}) @ sel_l(1),
+    ~goal={|c¦a§se 1 | _ => 1 end|},
+  ),
+  /* Bug B: Move(Right) after shift+right from Outer-left of monotile.
+   * After selecting "v", press right to break: caret should land at
+   * the boundary where the selection ended (between v and a), i.e.
+   * "let v¦ariable...". Suspected actual: caret jumps to one column
+   * past the right edge of "variable" because target_caret retained
+   * Inner(0) from the focus side. */
+  test(
+    ~name="Bug B1: Move(Right) after sel_r(1) lands at right of first char",
+    ~acts=
+      mk({|let ¦variable = 1 in variable|})
+      @ sel_r(1)
+      @ [Move(Local(Right, ByChar))],
+    ~goal={|let v¦ariable = 1 in variable|},
+  ),
+  /* Same shape inside a multi-shard delimiter: Inner(0) of "in",
+   * shift+right selects "n", then plain left to break. Caret should
+   * return to anchor (between i and n). User reports it jumps to
+   * before "i" with Inner shape. */
+  test(
+    ~name=
+      "Bug B2: Move(Left) after sel_r(1) from Inner(0) of 'in' returns to anchor",
+    ~acts=
+      mk({|let x = 1 i¦n x|}) @ sel_r(1) @ [Move(Local(Left, ByChar))],
+    ~goal={|let x = 1 i¦n x|},
+  ),
+  /* Move(Right) (the focus direction) after sel_r(1) from Inner(0) of
+   * "in" should also land at the focus side (after "n", at right edge
+   * of "in"). Cross-check with Bug B1's monotile shape. */
+  test(
+    ~name=
+      "Bug B3: Move(Right) after sel_r(1) from Inner(0) of 'in' lands at right of 'in'",
+    ~acts=
+      mk({|let x = 1 i¦n x|}) @ sel_r(1) @ [Move(Local(Right, ByChar))],
+    ~goal={|let x = 1 in¦ x|},
+  ),
+  /* Move(Right) after sel_r(1) from Outer-left of multi-shard "let".
+   * Mirrors Bug B1 but with a multi-shard delimiter as the focus
+   * piece. Selection is "l"; breaking right should leave caret between
+   * l and e. */
+  test(
+    ~name=
+      "Bug B4: Move(Right) after sel_r(1) from Outer-left of 'let' lands at l|e",
+    ~acts=
+      mk({|¦let x = 1 in x|}) @ sel_r(1) @ [Move(Local(Right, ByChar))],
+    ~goal={|l¦et x = 1 in x|},
+  ),
+  /* Bug C — Multi-piece char-level selection collapses to empty when
+   * the focus shrinks back into a multi-char piece whose entry index
+   * happens to match `anchor_caret`'s Inner index (which actually
+   * lives in a *different* piece on the other end of the selection).
+   *
+   * Root suspicion: `shrink_by_char`'s `Outer` branch checks
+   * `crossover_at_edge` via `anchor_caret == Inner(entry_idx)` without
+   * first verifying the selection contains only one piece. The
+   * companion `Inner(n)` branch above it explicitly guards on
+   * `[_single]` content; the Outer branch is missing that guard.
+   *
+   * Setup uses `+` to keep the program grammatical (juxtaposition
+   * isn't application in Hazel). From `x + hello + h|ello` (Inner(0)
+   * of last "hello"), grow left 9 chars so focus lands at Outer-left
+   * of middle "hello", anchor Inner(0) of last "hello". Then shift+
+   * right once should shrink the selection by one char from focus,
+   * leaving `x + h¦ello + h§ello`. Suspected actual: collapses to
+   * empty (`x + h¦ello + hello`). */
+  test(
+    ~name=
+      "Bug C1: shrink one char into multi-piece selection keeps selection non-empty",
+    ~acts=mk({|x + hello + h¦ello|}) @ sel_l(9) @ sel_r(1),
+    ~goal={|x + h¦ello + h§ello|},
+  ),
+  /* Bug C — same shape but with a multi-shard delimiter as the
+   * focus-side piece (closer to the user's reported scenario).
+   * Caret starts at Inner(0) of "fun" (between f and u). Grow left
+   * 9 chars so focus lands at Outer-left of "let". Then shift+right
+   * once should shrink by 1 char (focus moves to Inner(0) of "let"),
+   * keeping the rest of the selection. Suspected actual: selection
+   * collapses, then a subsequent shift+right would exhibit Bug A. */
+  test(
+    ~name=
+      "Bug C2: shrink into 'let' from multi-piece selection keeps selection",
+    ~acts=mk({|let x = f¦un y -> y in x|}) @ sel_l(9) @ sel_r(1),
+    ~goal={|l¦et x = f§un y -> y in x|},
+  ),
+  /* --- Bug A coverage extension --------------------------------------
+   * Predicted pattern: any Inner(n) of a multi-shard tile's shard
+   * where 0 <= n < real_max_idx exhibits over-selection on shift+right,
+   * because `neighbor_max_idx` reads the whole multi-shard tile (token_of
+   * returns None) and falls back to default 0. */
+  test(
+    ~name="Bug A5: shift+right from Inner(0) of 'fun' selects 1 char (u)",
+    ~acts=mk({|f¦un x -> x|}) @ sel_r(1),
+    ~goal={|f§u¦n x -> x|},
+  ),
+  test(
+    ~name="Bug A6: shift+right from Inner(0) of 'then' selects 1 char (h)",
+    ~acts=mk({|if x t¦hen y else z|}) @ sel_r(1),
+    ~goal={|if x t§h¦en y else z|},
+  ),
+  test(
+    ~name="Bug A7: shift+right from Inner(1) of 'then' selects 1 char (e)",
+    ~acts=mk({|if x th¦en y else z|}) @ sel_r(1),
+    ~goal={|if x th§e¦n y else z|},
+  ),
+  test(
+    ~name="Bug A8: shift+right from Inner(0) of 'else' selects 1 char (l)",
+    ~acts=mk({|if x then y e¦lse z|}) @ sel_r(1),
+    ~goal={|if x then y e§l¦se z|},
+  ),
+  test(
+    ~name="Bug A9: shift+right from Inner(1) of 'else' selects 1 char (s)",
+    ~acts=mk({|if x then y el¦se z|}) @ sel_r(1),
+    ~goal={|if x then y el§s¦e z|},
+  ),
+  /* Control: shift+right from Inner(max_idx) of a multi-shard delim
+   * happens to land correctly even with the bug, because n == max_idx
+   * already means n < buggy_max_idx (0) is false → caret=Outer, and
+   * the selection ends up the right (1-char) width by coincidence.
+   * Lock in this current behavior. */
+  test(
+    ~name="Control: shift+right from Inner(max) of 'then' selects 1 char (n)",
+    ~acts=mk({|if x the¦n y else z|}) @ sel_r(1),
+    ~goal={|if x the§n¦ y else z|},
+  ),
+  /* --- Bug B coverage extension --------------------------------------
+   * Predicted pattern: plain arrow breaks selection to the focus side,
+   * `directional_unselect` preserves `target_caret = z.caret = Inner(n)`,
+   * but after `unselect` the focus piece is in the wrong sibling list
+   * for `Inner(n)`'s right-neighbor convention. The existing swap fires
+   * only when the right neighbor is `None`. */
+  /* Break-to-focus from Inner(n>0) inside a monotile, with content
+   * to the right. Selection of "iab" via grow from Inner(2) of
+   * "variable". Move(Right) should land at the right edge of the
+   * selection (Inner(5) → between b and l).*/
+  test(
+    ~name=
+      "Bug B5: Move(Right) after multi-char grow from Inner(2) lands at Inner(5)",
+    ~acts=
+      mk({|var¦iable + 1|}) @ sel_r(3) @ [Move(Local(Right, ByChar))],
+    ~goal={|variab¦le + 1|},
+  ),
+  /* Symmetric: shift+left grow from Inner(2), then plain left
+   * (break-to-focus on the left side). Tests the same swap shape
+   * but in the opposite direction. */
+  test(
+    ~name=
+      "Bug B6: Move(Left) after multi-char grow_left from Inner(2) lands at Inner(0)",
+    ~acts=mk({|var¦iable + 1|}) @ sel_l(2) @ [Move(Local(Left, ByChar))],
+    ~goal={|v¦ariable + 1|},
+  ),
+  /* Break-to-anchor (plain arrow opposite focus): should land at
+   * the unchanged anchor position. This already works in many cases;
+   * locking it in as a regression guard against fixes to Bug B that
+   * might inadvertently affect the anchor-side landing. */
+  test(
+    ~name=
+      "Control: Move(Left) after sel_r(1) from Inner(2) of 'variable' returns to anchor",
+    ~acts=mk({|var¦iable + 1|}) @ sel_r(1) @ [Move(Local(Left, ByChar))],
+    ~goal={|var¦iable + 1|},
+  ),
+  /* Bug B with multi-shard delimiter as the focus piece, but the
+   * focus is at an *inner* position (not Outer like B4). After
+   * sel_r(1) from Outer-left of "let", a SECOND sel_r(1) should
+   * advance focus one more char (currently exhibits Bug A — that's
+   * tested above). Then Move(Right) should land at the focus column. */
+  test(
+    ~name=
+      "Bug B7: Move(Right) after sel_r(2) from Outer-left of 'let' lands at l e|t",
+    ~acts=
+      mk({|¦let x = 1 in x|}) @ sel_r(2) @ [Move(Local(Right, ByChar))],
+    ~goal={|le¦t x = 1 in x|},
+  ),
+  /* --- Bug C coverage extension --------------------------------------
+   * Verify the bug only fires when anchor and focus are in *different*
+   * pieces (which is the missing `[_single]` guard). When the multi-
+   * piece selection's focus and anchor index don't collide, no bug. */
+  /* Multi-piece selection where shrinking from focus-side Outer does
+   * NOT match entry_idx — should shrink correctly by 1 char. Setup
+   * uses `+` to keep program grammatical. Grow left from Inner(1)
+   * of last "hello" so anchor_caret = Inner(1) (not 0). Then shrink
+   * — entry_idx=0 won't match anchor 1, so the crossover_at_edge
+   * guard returns false on current code. Selection should shrink to
+   * `x + h¦ello + he§llo`. */
+  test(
+    ~name=
+      "Control C3: shrink when anchor Inner != entry_idx does not collapse",
+    ~acts=mk({|x + hello + he¦llo|}) @ sel_l(10) @ sel_r(1),
+    ~goal={|x + h¦ello + he§llo|},
+  ),
+  /* --- Round-trip invariants -----------------------------------------
+   * grow N then shrink N should return to the starting state. Several
+   * variations covering Inner caret positions, multi-shard delims, and
+   * cross-boundary selections. */
+  test(
+    ~name=
+      "Round-trip: grow_r 3, shrink_l 3 from Inner of multi-shard returns to start",
+    ~acts=mk({|f¦un x -> x|}) @ sel_r(3) @ sel_l(3),
+    ~goal={|f¦un x -> x|},
+  ),
+  test(
+    ~name=
+      "Round-trip: grow_l 3, shrink_r 3 from Inner of multi-shard returns to start",
+    ~acts=mk({|if x the¦n y else z|}) @ sel_l(3) @ sel_r(3),
+    ~goal={|if x the¦n y else z|},
+  ),
+  /* Note: the user's exact reproduction (multi-row program with a
+   * Vertical(Up, ByChar) selection action) currently errors with
+   * `Cant_select` during the Vertical step when the program is
+   * constructed via `mk` with embedded newlines. We've already
+   * captured the underlying Bug C in the single-line C2 test above;
+   * the multi-row variant adds no new failure mode for Bug C beyond
+   * what C2 already demonstrates. If desired, a vertical-action probe
+   * could be added under a different setup. */
+];
+
+/* Tests that also assert the local backpack is empty after the
+ * operation — a fix to the partial-token unselect path is only correct
+ * if it doesn't leave incomplete tile shards floating in siblings.
+ * `Zipper.local_backpack` returns the list of incomplete tile shards
+ * inferred from the current relatives; the standard invariant after
+ * any user-visible operation is that this list is empty. */
+let test_caret_and_backpack = (~name, ~acts, ~goal): test_case(_) =>
+  test_case(
+    name,
+    `Quick,
+    () => {
+      let z = acts |> perform(Zipper.init());
+      let actual = printer(z);
+      check(testable(Fmt.string, String.equal), "caret", goal, actual);
+      let bp = Zipper.local_backpack(z);
+      check(
+        Alcotest.int,
+        "backpack empty (labels: "
+        ++ String.concat(
+             ",",
+             List.map(t => String.concat("", t.Tile.label), bp),
+           )
+        ++ ")",
+        0,
+        List.length(bp),
+      );
+    },
+  );
+
+/* Interactive bugs reported on the if-then-else form. These tests check
+ * BOTH the rendered caret position AND that local_backpack is empty,
+ * since a fix that achieves the right column by leaving incomplete tile
+ * shards as siblings would surface as visible backpack contents in the
+ * editor.
+ *
+ * Note: bare Shift+Arrow in the editor uses BySmart by default
+ * (`selection_chunkiness=false`); option+shift uses ByChar. Both paths
+ * should produce empty backpacks after a break. We test both. */
+let sel_smart_r_bp = (n: int): list(Action.t) =>
+  List.init(n, _ => Action.Select(Resize(Local(Right, BySmart))));
+let sel_smart_l_bp = (n: int): list(Action.t) =>
+  List.init(n, _ => Action.Select(Resize(Local(Left, BySmart))));
+let multi_delim_backpack_tests = [
+  /* User repro 1 (ByChar): Inner(1) of "then" + sel_l(1) + Move(Right). */
+  test_caret_and_backpack(
+    ~name="Backpack ByChar: Inner(1) of 'then' + sel_l(1) + Move(Right)",
+    ~acts=
+      mk({|if x th¦en y else z|})
+      @ sel_l(1)
+      @ [Move(Local(Right, ByChar))],
+    ~goal={|if x th¦en y else z|},
+  ),
+  /* Same but BySmart selection (editor default). */
+  test_caret_and_backpack(
+    ~name=
+      "Backpack BySmart: Inner(1) of 'then' + sel_smart_l(1) + Move(Right)",
+    ~acts=
+      mk({|if x th¦en y else z|})
+      @ sel_smart_l_bp(1)
+      @ [Move(Local(Right, ByChar))],
+    ~goal={|if x th¦en y else z|},
+  ),
+  /* User repro 2 (ByChar): Inner(2) of "then" + sel_r(1) + Move(Left). */
+  test_caret_and_backpack(
+    ~name="Backpack ByChar: Inner(2) of 'then' + sel_r(1) + Move(Left)",
+    ~acts=
+      mk({|if x the¦n y else z|})
+      @ sel_r(1)
+      @ [Move(Local(Left, ByChar))],
+    ~goal={|if x the¦n y else z|},
+  ),
+  /* Same but BySmart selection. */
+  test_caret_and_backpack(
+    ~name="Backpack BySmart: Inner(2) of 'then' + sel_smart_r(1) + Move(Left)",
+    ~acts=
+      mk({|if x the¦n y else z|})
+      @ sel_smart_r_bp(1)
+      @ [Move(Local(Left, ByChar))],
+    ~goal={|if x the¦n y else z|},
+  ),
+  /* Followup: from the broken state above, pressing right shouldn't
+   * jump multiple chars. */
+  test_caret_and_backpack(
+    ~name="Backpack ByChar: after sel_r(1)+Left, plain Right moves 1 char",
+    ~acts=
+      mk({|if x the¦n y else z|})
+      @ sel_r(1)
+      @ [Move(Local(Left, ByChar))]
+      @ [Move(Local(Right, ByChar))],
+    ~goal={|if x then¦ y else z|},
+  ),
+  /* BySmart variant of the followup. */
+  test_caret_and_backpack(
+    ~name=
+      "Backpack BySmart: after sel_smart_r(1)+Left, plain Right moves 1 char",
+    ~acts=
+      mk({|if x the¦n y else z|})
+      @ sel_smart_r_bp(1)
+      @ [Move(Local(Left, ByChar))]
+      @ [Move(Local(Right, ByChar))],
+    ~goal={|if x then¦ y else z|},
+  ),
+  /* User-reported bug: from the LAST inner position of a non-leading
+   * delimiter (Inner(max_idx) of "then" or "else"), shift+right selects
+   * the last char, then shift+left (NOT plain left — shift is still
+   * down) should collapse back to the anchor at Inner(max_idx). User
+   * reports caret ends up at Inner(max_idx-1) instead. This is a SHRINK
+   * via the at_crossover path in shrink_by_char's Outer branch, not a
+   * plain-arrow break via Move.pre_unselect. */
+  test_caret_and_backpack(
+    ~name="Backpack ByChar shrink: Inner(2) of 'then' + sel_r(1) + sel_l(1)",
+    ~acts=mk({|if x the¦n y else z|}) @ sel_r(1) @ sel_l(1),
+    ~goal={|if x the¦n y else z|},
+  ),
+  test_caret_and_backpack(
+    ~name=
+      "Backpack BySmart shrink: Inner(2) of 'then' + sel_smart_r(1) + sel_smart_l(1)",
+    ~acts=
+      mk({|if x the¦n y else z|}) @ sel_smart_r_bp(1) @ sel_smart_l_bp(1),
+    ~goal={|if x the¦n y else z|},
+  ),
+  /* Same pattern for "else" — Inner(max_idx)=Inner(2) of "else" is
+   * between s and e of "else". */
+  test_caret_and_backpack(
+    ~name="Backpack ByChar shrink: Inner(2) of 'else' + sel_r(1) + sel_l(1)",
+    ~acts=mk({|if x then y els¦e z|}) @ sel_r(1) @ sel_l(1),
+    ~goal={|if x then y els¦e z|},
+  ),
+  test_caret_and_backpack(
+    ~name=
+      "Backpack BySmart shrink: Inner(2) of 'else' + sel_smart_r(1) + sel_smart_l(1)",
+    ~acts=
+      mk({|if x then y els¦e z|}) @ sel_smart_r_bp(1) @ sel_smart_l_bp(1),
+    ~goal={|if x then y els¦e z|},
+  ),
+  /* Symmetric: from Inner(0) of "then" (first inner position), shift+left
+   * selects "t", then shift+right should collapse back to anchor Inner(0).
+   * This hits crossover_at_edge for d=Right (entry_idx=0). */
+  test_caret_and_backpack(
+    ~name="Backpack ByChar shrink: Inner(0) of 'then' + sel_l(1) + sel_r(1)",
+    ~acts=mk({|if x t¦hen y else z|}) @ sel_l(1) @ sel_r(1),
+    ~goal={|if x t¦hen y else z|},
+  ),
+];
+
 /* Helper: cut-paste round-trip test. Selects the range, copies the
  * selected text, cuts, pastes the copied text back, and checks:
  * 1. Text matches expected goal
@@ -4399,5 +4821,7 @@ let tests = [
   ("Editing.CommentToggleExtra", comment_toggle_extra_tests),
   ("Editing.AncestorSort", ancestor_sort_tests),
   ("Editing.CharSelection", char_selection_tests),
+  ("Editing.MultiDelimSelectionBugs", multi_delim_selection_bug_tests),
+  ("Editing.MultiDelimBackpackBugs", multi_delim_backpack_tests),
   ("Editing.CrossBoundary", cross_boundary_tests),
 ];

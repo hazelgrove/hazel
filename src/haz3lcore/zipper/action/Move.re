@@ -91,6 +91,35 @@ let jump_to_side_of_id = (d: Direction.t, z, id): option(t) => {
     ? Some(z) : do_until(local(ByToken, Direction.toggle(d)), at_piece, z);
 };
 
+/* Navigate so that the generalized right neighbor is the specific
+ * shard identified by (tile_id, shard_idx). For monotile tiles this
+ * is equivalent to `jump_to_side_of_id(Left, z, tile_id)`, but for
+ * multi-shard tiles different shards share the same tile id, and
+ * we need to position relative to a specific one. Walks by_token
+ * from program start until the generalized right neighbor matches. */
+let jump_to_shard = (z: t, tile_id: Id.t, shard_idx: int): option(t) => {
+  let is_target_shard = (p: Piece.t): bool =>
+    switch (p) {
+    | Tile(t) =>
+      Id.equal(t.id, tile_id)
+      && (
+        switch (t.shards) {
+        | [idx] => idx == shard_idx
+        | _ => false
+        }
+      )
+    | _ => false
+    };
+  let at_target = neighbors =>
+    switch (neighbors) {
+    | (_, Some(p)) => is_target_shard(p)
+    | _ => false
+    };
+  let z = do_to_extreme(local(ByToken, Left), z);
+  at_target(Zipper.generalized_neighbors(z))
+    ? Some(z) : do_until(local(ByToken, Right), at_target, z);
+};
+
 /* Moves to the left side of the token with the given id,
  * then checks if it's indicated. If not, move one token
  * to the right. I believe but have not proved this
@@ -226,7 +255,49 @@ let pre_unselect = (a: Action.move, z: t): t => {
     | Point(_)
     | Goal(_) => z.selection.focus
     };
-  Zipper.directional_unselect(d, z);
+  /* When the target caret is Inner-of-token, the standard
+   * unselect+reassemble may absorb the boundary piece back into an
+   * ancestor, leaving the caret structurally at a position that's not
+   * the user's expected column (`Inner(n)` is right-neighbor-relative,
+   * and after reassemble the right neighbor may not be the piece the
+   * caret was naming).
+   *
+   * Save the boundary piece's id pre-unselect; after unselect, locate
+   * that piece via `jump_to_side_of_id` (which uses by_token navigation
+   * through the canonical structure, including descent into ancestor
+   * shards) and re-set the caret to `Inner(n)` of it. by_token's
+   * machinery is what `by_char` is built on, so the resulting state is
+   * always one navigation could have produced — no need to skip the
+   * reassemble step or otherwise leave the structure denormalized. */
+  let landing_at_anchor = d != z.selection.focus;
+  let target_caret: CaretBase.t =
+    landing_at_anchor ? z.selection.anchor_caret : z.caret;
+  let boundary_locator =
+    switch (target_caret) {
+    | Inner(_) =>
+      let p =
+        landing_at_anchor
+          ? Selection.anchor_piece(z.selection)
+          : Selection.focus_piece(z.selection);
+      switch (p) {
+      | Some(Tile(t)) =>
+        switch (t.shards) {
+        | [idx] => Some((t.id, idx))
+        | _ => None
+        }
+      | _ => None
+      };
+    | Outer => None
+    };
+  let z = Zipper.directional_unselect(d, z);
+  switch (boundary_locator, target_caret) {
+  | (Some((tile_id, shard_idx)), Inner(_)) =>
+    switch (jump_to_shard(z, tile_id, shard_idx)) {
+    | Some(z') => Zipper.Caret.set(target_caret, z')
+    | None => z
+    }
+  | _ => z
+  };
 };
 let go =
     (
