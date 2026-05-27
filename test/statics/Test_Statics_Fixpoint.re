@@ -1,3 +1,4 @@
+open Language;
 open Test_Statics_Prelude;
 open Alcotest;
 let tests = (
@@ -17,7 +18,10 @@ let tests = (
                     Marks([
                       ExpectationMismatch({
                         ana: FTemp.Typ.prod([]),
-                        syn: FTemp.Typ.list(FTemp.Typ.unknown(Internal)),
+                        syn:
+                          FTemp.Typ.list(
+                            FTemp.Typ.unknown(Internal |> Prov.fresh),
+                          ),
                       }),
                     ]),
                   ),

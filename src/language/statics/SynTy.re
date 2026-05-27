@@ -5,4 +5,4 @@ let meet_of = (j: Mark.meet_type, ty: Typ.t): Typ.t =>
   | List => List(ty) |> Typ.fresh
   };
 
-let unknown_internal = () => Unknown(Internal) |> Typ.temp;
+let unknown_internal = () => Unknown(Internal |> Prov.fresh) |> Typ.temp;

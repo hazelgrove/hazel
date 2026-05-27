@@ -709,9 +709,21 @@ and parenthesize_typ =
   let should_auto_wrap_tuple = parenthesization == Defensive;
   let (term, rewrap) = Typ.unwrap(typ);
   switch (term) {
-  // Indivisible forms dont' change
+  // Indivisible forms dont' change (MultiHole handled separately below)
   | Var(_)
-  | Unknown(_)
+  | Unknown({
+      term:
+        Hole(EmptyHole | CycleHole | Invalid(_)) | SynSwitch | Internal |
+        LArrow(_) |
+        RArrow(_) |
+        NProduct(_) |
+        MList(_) |
+        RForall(_) |
+        TupLabel(_) |
+        TupLabelArg(_) |
+        Meet(_),
+      _,
+    })
   | Atom(_)
   | DrvQuoteTy(_) => typ
 

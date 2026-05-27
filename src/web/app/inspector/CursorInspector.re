@@ -229,7 +229,7 @@ let core_mark_err_view =
     | CompareFun(ty) => [text("values cannot be compared:"), view_type(ty)]
     | ExpectationMismatch({ana, syn}) => expectation_view(~ana, ~syn)
     | NoMeet(PolyEq, tys)
-    | NoMeet(_, tys) when ana.term == Unknown(SynSwitch) => [
+    | NoMeet(_, tys) when ana.term == Unknown(SynSwitch |> Prov.fresh) => [
         text(elements_noun(cls) ++ " have inconsistent types:"),
         ...ListUtil.join(
              text(","),
@@ -237,7 +237,7 @@ let core_mark_err_view =
            ),
       ]
     | NoMeet(wrap, _) =>
-      let syn: Typ.t = SynTy.meet_of(wrap, Unknown(Internal) |> Typ.temp);
+      let syn: Typ.t = SynTy.meet_of(wrap, Unknown(Internal |> Prov.fresh) |> Typ.temp);
       switch (Typ.meet(ctx, ana, syn)) {
       | Some(_) => [text("Type error")]
       | None =>
@@ -612,7 +612,7 @@ let exp_mark_err_view =
         Statics.ana_skip_explicit_nonlabel(ana).term,
       ) {
       | (Some(NoMeet(PolyEq, tys)), _) => Some(Typ.of_source(tys))
-      | (Some(NoMeet(_, tys)), Unknown(SynSwitch)) =>
+      | (Some(NoMeet(_, tys)), Unknown({term: SynSwitch, _})) =>
         Some(Typ.of_source(tys))
       | _ => None
       };

@@ -85,6 +85,7 @@ let mk_info =
       },
     utility,
   };
+};
 
 module ShapeMapSemantics = {
   let from_semantics =

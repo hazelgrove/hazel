@@ -10,7 +10,7 @@ let collect_module_refs_in_typ = (ctx: Ctx.t, id: Id.t, typ: Typ.t): CoCtx.t => 
   |> List.filter_map(name =>
        switch (Ctx.lookup_var(ctx, name)) {
        | Some(_) =>
-         Some(CoCtx.singleton(name, id, Unknown(Internal) |> Typ.temp))
+         Some(CoCtx.singleton(name, id, Unknown(Internal |> Prov.fresh) |> Typ.temp))
        | None => None
        }
      )
@@ -121,7 +121,7 @@ let module_actual_type = (items: list(Mod.t), m: StaticsBase.Map.t): Typ.t => {
          let ty =
            switch (StaticsBase.Map.lookup_pat(Pat.rep_id(pat), m)) {
            | Some({ty, ctx: pat_ctx, _}) => Typ.normalize(pat_ctx, ty)
-           | None => Typ.temp(Unknown(Internal))
+           | None => Typ.temp(Unknown(Internal |> Prov.fresh))
            };
          TupLabel(Label(name) |> Typ.temp, ty) |> Typ.temp;
        });

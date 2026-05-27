@@ -65,12 +65,12 @@ let sample_expression = (cls_exp: Exp.cls): Grammar.UnitGrammar.exp => {
       | TyAlias =>
         ty_alias(
           TPat.empty_hole(),
-          Typ.unknown(Hole(EmptyHole)),
+          Typ.empty_hole(),
           empty_hole(),
         )
-      | Use => use(Typ.unknown(Hole(EmptyHole)), empty_hole())
+      | Use => use(Typ.empty_hole(), empty_hole())
       | Ap => ap(Forward, empty_hole(), empty_hole())
-      | TypAp => typ_ap(empty_hole(), Typ.unknown(Hole(EmptyHole)))
+      | TypAp => typ_ap(empty_hole(), Typ.empty_hole())
       | DeferredAp => deferred_ap(empty_hole(), [empty_hole()])
       | If => if_(empty_hole(), empty_hole(), empty_hole())
       | Seq => seq(empty_hole(), empty_hole())
@@ -147,51 +147,53 @@ let sample_pattern = (cls_pat: Pat.cls): Grammar.UnitGrammar.pat => {
 
 let sample_type = (cls_typ: Typ.cls): Grammar.UnitGrammar.typ => {
   Grammar.UnitGrammar.(
-    Typ.(
-      switch (cls_typ) {
-      | Invalid => unknown(Hole(Invalid("invalid")))
-      | Atom(Bool) => bool()
-      | Atom(Int) => int()
-      | Atom(SInt) => sint()
-      | Atom(Float) => float()
-      | Atom(String) => string()
-      | Atom(Nat) => nat()
-      | DrvQuoteTy => drv_typ(DrvSort.Jdmt)
-      | List => list(unknown(Hole(EmptyHole)))
-      | Arrow => arrow(unknown(Hole(EmptyHole)), unknown(Hole(EmptyHole)))
-      | Var => var("x")
-      | Prod => prod([])
-      | TupLabel =>
-        tup_label(unknown(Hole(EmptyHole)), unknown(Hole(EmptyHole)))
-      | Parens => parens(unknown(Hole(EmptyHole)))
-      | Rec => rec_(TPat.var("x"), unknown(Hole(EmptyHole)))
-      | Poly => poly(TPat.var("x"), unknown(Hole(EmptyHole)))
-      | ProofOf => proof_of(Exp.var("x"))
-      | EmptyHole => unknown(Hole(EmptyHole))
-      | SynSwitch => unknown(SynSwitch)
-      | Internal => unknown(Internal)
-      | Label => label("label")
-      | ExplicitNonlabel => explicit_non_label()
-      | MultiHole => unknown(Hole(MultiHole([])))
-      | Sum => sum([])
-      | ProdProjection =>
-        prod_projection(
-          unknown(Hole(EmptyHole)),
-          unknown(Hole(EmptyHole)),
-        )
-      | ProdExtension =>
-        prod_extension(unknown(Hole(EmptyHole)), unknown(Hole(EmptyHole)))
-      | Constructor => assert(false) // Excluded because there is no Typ constructor
-      | Projector =>
-        projector(
-          {
-            kind: Fold,
-            model: "",
-          },
-          unknown(Hole(EmptyHole)),
-        )
-      | Sig => assert(false) /* Excluded: Sig is surface syntax only */
-      }
+    TypeProvenance.(
+      Typ.(
+        switch (cls_typ) {
+        | Invalid => unknown(hole(Invalid("invalid")))
+        | Atom(Bool) => bool()
+        | Atom(Int) => int()
+        | Atom(SInt) => sint()
+        | Atom(Float) => float()
+        | Atom(String) => string()
+        | Atom(Nat) => nat()
+        | DrvQuoteTy => drv_typ(DrvSort.Jdmt)
+        | List => list(unknown(hole(EmptyHole)))
+        | Arrow => arrow(unknown(hole(EmptyHole)), unknown(hole(EmptyHole)))
+        | Var => var("x")
+        | Prod => prod([])
+        | TupLabel =>
+          tup_label(unknown(hole(EmptyHole)), unknown(hole(EmptyHole)))
+        | Parens => parens(unknown(hole(EmptyHole)))
+        | Rec => rec_(TPat.var("x"), unknown(hole(EmptyHole)))
+        | Poly => poly(TPat.var("x"), unknown(hole(EmptyHole)))
+        | ProofOf => proof_of(Exp.var("x"))
+        | EmptyHole => unknown(hole(EmptyHole))
+        | CycleHole => unknown(hole(CycleHole))
+        | SynSwitch => unknown(syn_switch())
+        | Internal => unknown(internal())
+        | LArrow => unknown(larrow(Hole(EmptyHole)))
+        | RArrow => unknown(rarrow(Hole(EmptyHole)))
+        | NProduct => unknown(nproduct(0, Hole(EmptyHole)))
+        | MList => unknown(mlist(Hole(EmptyHole)))
+        | RForall => unknown(rforall(Hole(EmptyHole)))
+        | TupLabelProv => unknown(tup_label_label(Hole(EmptyHole)))
+        | TupLabelArg => unknown(tup_label_arg(Hole(EmptyHole)))
+        | Meet => unknown(join(hole(EmptyHole), hole(EmptyHole)))
+        | Label => label("label")
+        | ExplicitNonlabel => explicit_non_label()
+        | MultiHole => unknown(hole(MultiHole([])))
+        | Sum => sum([])
+        | ProdProjection =>
+          prod_projection(unknown(hole(EmptyHole)), unknown(hole(EmptyHole)))
+        | ProdExtension =>
+          prod_extension(unknown(hole(EmptyHole)), unknown(hole(EmptyHole)))
+        | Constructor => assert(false) // Excluded because there is no Typ constructor
+        | Projector =>
+          projector({kind: Fold, model: ""}, unknown(hole(EmptyHole)))
+        | Sig => assert(false) /* Excluded: Sig is surface syntax only */
+        }
+      )
     )
   );
 };

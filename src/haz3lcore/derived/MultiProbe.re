@@ -155,7 +155,7 @@ let term_is_hole = (term: Language.Any.t): bool =>
   switch (term) {
   | Exp({term: EmptyHole | MultiHole(_), _})
   | Pat({term: EmptyHole | MultiHole(_), _})
-  | Typ({term: Unknown(Hole(EmptyHole | MultiHole(_))), _})
+  | Typ({term: Unknown({term: Hole(EmptyHole | MultiHole(_)), _}), _})
   | TPat({term: EmptyHole | MultiHole(_), _}) => true
   | _ => false
   };

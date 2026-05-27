@@ -10,6 +10,7 @@ type t =
   | Fold
   | Probe
   | Statics
+  | TypeHole
   | Checkbox
   | Slider
   | SliderF
@@ -30,7 +31,7 @@ let livelit_projectors: list(t) = [
 ];
 
 /* Note: Probe intentionally excluded - probes use separate action path */
-let projectors: list(t) = livelit_projectors @ [Fold];
+let projectors: list(t) = livelit_projectors @ [Fold, TypeHole];
 
 /* Refractors are like probes - additive decorations, not syntax-replacing */
 let refractors: list(t) = [Probe, Statics];
@@ -44,6 +45,7 @@ let name = (p: t): string =>
   | Fold => "fold"
   | Probe => "probe"
   | Statics => "statics"
+  | TypeHole => "type-hole"
   | Checkbox => "check"
   | Slider => "slider"
   | SliderF => "sliderf"
@@ -61,6 +63,7 @@ let of_name = (p: string): t =>
   | "fold" => Fold
   | "probe" => Probe
   | "statics" => Statics
+  | "type-hole" => TypeHole
   | "check" => Checkbox
   | "slider" => Slider
   | "sliderf" => SliderF

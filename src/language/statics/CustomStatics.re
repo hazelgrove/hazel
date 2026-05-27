@@ -8,8 +8,8 @@ type tuple_entry =
 type tuple_type = list(tuple_entry);
 
 // Constants and helper functions
-let unknown = Unknown(Internal) |> Typ.temp;
-let syn = Unknown(SynSwitch) |> Typ.temp;
+let unknown = Unknown(Internal |> Prov.fresh) |> Typ.temp;
+let syn = Unknown(SynSwitch |> Prov.fresh) |> Typ.temp;
 let mk_builtin_ap_elab = (fn_info: Info.exp, arg_elab: Exp.t): Exp.t =>
   Ap(Forward, fn_info.elab_term, arg_elab) |> Exp.fresh;
 
@@ -133,10 +133,10 @@ let analyze_label_to_info_map =
     switch (label.term) {
     | Label(name) =>
       /* `uexp_to_info_map` defaults Label(name) to UnexpectedLabelSort with
-         elab_syn_ty=Unknown(Internal) because most occurrences of a bare label
+         elab_syn_ty=Unknown(Internal |> Prov.fresh) because most occurrences of a bare label
          are wrong. In label position, the correct self type is Label(name);
          clear the mark AND patch the synthesized type so the cursor inspector
-         shows Label(name) rather than Unknown(Internal). */
+         shows Label(name) rather than Unknown(Internal |> Prov.fresh). */
       let m = set_marks_exp(m, label, []);
       let m = patch_elab_syn_ty_exp(m, label, Label(name) |> Typ.temp);
       set_label_sort_exp(m, label, true);
@@ -248,6 +248,7 @@ let handle_tuple_operation =
             ancestors,
             user_term: arg,
             elab_term: arg,
+            constraints: [],
             label_inference: None,
             inferred_label: None,
             label_sort: false,
@@ -441,6 +442,7 @@ let group_by_label_statics =
             ancestors,
             user_term: arg,
             elab_term: arg,
+            constraints: [],
             label_inference: None,
             inferred_label: None,
             label_sort: false,
@@ -517,7 +519,7 @@ let to_lvs_statics =
       let val_typs = List.map(snd, entries);
       let joined_typ =
         Util.OptUtil.fold_left_opt(
-          (acc, t) => Typ.meet(ctx, acc, t),
+          (acc, t) => Typ.meet(ctx, acc, t) |> Option.map(fst),
           val_typs,
           unknown,
         )

@@ -52,7 +52,7 @@ module Solution = {
     | ProdProjection(t, t)
     | ProdExtension(t, t)
     | Multi(list(t))
-  and t = Grammar.Annotated.t(term, IdTagged.IdTag.t);
+  and t = Annotated.t(term, IdTagged.IdTag.t);
 
   let term_of = IdTagged.term_of;
   let temp = IdTagged.temp;
@@ -152,6 +152,10 @@ module Solution = {
       ProdProjection(of_typ(t1), of_typ(t2)) |> rewrap
     | ProdExtension(t1, t2) =>
       ProdExtension(of_typ(t1), of_typ(t2)) |> rewrap
+    /* dev-side sorts that don't participate in inference; treat as opaque. */
+    | DrvQuoteTy(_)
+    | Sig(_) => Unknown(Hole(EmptyHole) |> Prov.fresh) |> rewrap
+    | Projector(_, t) => of_typ(t)
     };
   };
 
@@ -506,6 +510,9 @@ let rec provs_in_typ = (~include_prov=_ => true, t: Typ.t): list(Prov.t) => {
   | ProdProjection(ty1, ty2)
   | ProdExtension(ty1, ty2) =>
     provs_in_typ(~include_prov, ty1) @ provs_in_typ(~include_prov, ty2)
+  | DrvQuoteTy(_) => []
+  | Sig(_) => []
+  | Projector(_, t) => provs_in_typ(~include_prov, t)
   };
 };
 
@@ -578,7 +585,10 @@ let rec unfold_constramnot =
   | (ProdExtension(_), _)
   | (ProdProjection(_), _)
   | (ExplicitNonlabel, _)
-  | (ProofOf(_), _) => []
+  | (ProofOf(_), _)
+  | (DrvQuoteTy(_), _)
+  | (Projector(_), _)
+  | (Sig(_), _) => []
   };
 }
 and unfold_constramnot_produdct = (args1, args2): list(canonical_constramnot) =>
@@ -641,7 +651,7 @@ module PossibleProvTypesMap: {
   };
   let lookup_prov = (p: Prov.t, m: t): data_elem =>
     lookup(StringProv.of_prov(p), m);
-  let lookup_get = (p: Prov.t, m: t): data =>
+  let _lookup_get = (p: Prov.t, m: t): data =>
     UnionFind.get(lookup_prov(p, m));
 
   let merge_data = ((p, l1, l2): data, (_, l3, l4): data): data => {
@@ -889,6 +899,11 @@ let rec solution_typ_replace_typ =
       solution_typ_replace_typ(prov, t1, sol_typ, prov_map),
       solution_typ_replace_typ(prov, t2, sol_typ, prov_map),
     )
+    |> rewrap_typ
+  | DrvQuoteTy(_) as st => st |> rewrap_typ
+  | Sig(_) as st => st |> rewrap_typ
+  | Projector(data, t) =>
+    Projector(data, solution_typ_replace_typ(prov, t, sol_typ, prov_map))
     |> rewrap_typ
   };
 };

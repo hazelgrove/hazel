@@ -39,7 +39,7 @@ module TupleExtension = {
     test_case("Tuple extension with non-tuple args", `Quick, () =>
       annotated_tree_test(
         "1 ... 2",
-        unknown(Internal),
+        unknown(Internal |> Prov.fresh),
         FIError.(
           Exp.(
             tuple_extension(
@@ -53,7 +53,7 @@ module TupleExtension = {
     test_case("Tuple extension with hole", `Quick, () =>
       annotated_tree_test(
         "? ... (3, 4)",
-        unknown(Internal),
+        unknown(Internal |> Prov.fresh),
         FIError.Exp.(
           tuple_extension(empty_hole(), tuple([int(3), int(4)]))
         ),
@@ -397,12 +397,12 @@ let tests = (
     fully_consistent_typecheck(
       "Reconstructed labeled tuple without values",
       {|let x : (l=|},
-      Some(unknown(Internal)),
+      Some(unknown(Internal |> Prov.fresh)),
     ),
     fully_consistent_typecheck(
       "Singleton labeled argument let with unknown type",
       {|let x : (a=?) = (a=1) in x|},
-      Some(prod([tup_label(label("a"), unknown(Hole(EmptyHole)))])),
+      Some(prod([tup_label(label("a"), empty_hole())])),
     ),
     fully_consistent_typecheck(
       "nested different singleton labeled arguments",
@@ -423,7 +423,7 @@ let tests = (
             prod([
               tup_label(
                 label("b"),
-                prod([tup_label(label("c"), unknown(Hole(EmptyHole)))]),
+                prod([tup_label(label("c"), empty_hole())]),
               ),
             ]),
           ),
@@ -433,12 +433,12 @@ let tests = (
     fully_consistent_typecheck(
       "Singleton labeled argument function application with unknown type",
       {|(fun a=x->x)(a=1)|},
-      Some(unknown(Internal)),
+      Some(unknown(Internal |> Prov.fresh)),
     ),
     fully_consistent_typecheck(
       "Singleton labeled argument function application with no labeled param",
       {|(fun a=x->x)(1)|},
-      Some(unknown(Internal)),
+      Some(unknown(Internal |> Prov.fresh)),
     ),
     fully_consistent_typecheck(
       "Singleton labeled argument not labeled in pattern",
@@ -547,7 +547,12 @@ let tests = (
                 invalid_labels: [],
                 typ:
                   FTemp.Typ.(
-                    prod([tup_label(label("a"), unknown(Internal))])
+                    prod([
+                      tup_label(
+                        label("a"),
+                        unknown(Internal |> Prov.fresh),
+                      ),
+                    ])
                   ),
               }),
             ]),
@@ -569,7 +574,7 @@ let tests = (
           );
         annotated_tree_test(
           {|(a="hello", a=3)|},
-          prod([tup_label(label("a"), unknown(Internal))]),
+          prod([tup_label(label("a"), unknown(Internal |> Prov.fresh))]),
           FIError.(
             Exp.(
               parens(
@@ -598,7 +603,7 @@ let tests = (
     test_case("Bad label projection", `Quick, () => {
       annotated_tree_test(
         {|(1, 2) . 1|},
-        unknown(Internal),
+        unknown(Internal |> Prov.fresh),
         FIError.(
           Exp.(
             dot(
@@ -618,7 +623,7 @@ let tests = (
     test_case("Singleton Bad label synthesis", `Quick, () => {
       annotated_tree_test(
         {|(1="hello")|},
-        prod([tup_label(unknown(Internal), string())]),
+        prod([tup_label(unknown(Internal |> Prov.fresh), string())]),
         FIError.(
           Exp.(
             parens(
@@ -634,7 +639,12 @@ let tests = (
                         invalid_labels: [],
                         typ:
                           Typ.(
-                            prod([tup_label(unknown(Internal), string())])
+                            prod([
+                              tup_label(
+                                unknown(Internal |> Prov.fresh),
+                                string(),
+                              ),
+                            ])
                           ),
                       }),
                     ])
@@ -653,7 +663,12 @@ let tests = (
                           invalid_labels: [],
                           typ:
                             Typ.(
-                              prod([tup_label(unknown(Internal), string())])
+                              prod([
+                                tup_label(
+                                  unknown(Internal |> Prov.fresh),
+                                  string(),
+                                ),
+                              ])
                             ),
                         }),
                       ])
@@ -672,7 +687,12 @@ let tests = (
                               duplicate_labels: [],
                               invalid_labels: [],
                               typ:
-                                Typ.(tup_label(unknown(Internal), string())),
+                                Typ.(
+                                  tup_label(
+                                    unknown(Internal |> Prov.fresh),
+                                    string(),
+                                  )
+                                ),
                             }),
                           ])
                         ),
@@ -711,7 +731,7 @@ let tests = (
       annotated_tree_test(
         {|(1="hello", a=3)|},
         prod([
-          tup_label(unknown(Internal), string()),
+          tup_label(unknown(Internal |> Prov.fresh), string()),
           tup_label(label("a"), int()),
         ]),
         FIError.(
@@ -730,7 +750,10 @@ let tests = (
                         typ:
                           Typ.(
                             prod([
-                              tup_label(unknown(Internal), string()),
+                              tup_label(
+                                unknown(Internal |> Prov.fresh),
+                                string(),
+                              ),
                               tup_label(label("a"), int()),
                             ])
                           ),
@@ -752,7 +775,10 @@ let tests = (
                           typ:
                             Typ.(
                               prod([
-                                tup_label(unknown(Internal), string()),
+                                tup_label(
+                                  unknown(Internal |> Prov.fresh),
+                                  string(),
+                                ),
                                 tup_label(label("a"), int()),
                               ])
                             ),
@@ -773,7 +799,12 @@ let tests = (
                               duplicate_labels: [],
                               invalid_labels: [],
                               typ:
-                                Typ.(tup_label(unknown(Internal), string())),
+                                Typ.(
+                                  tup_label(
+                                    unknown(Internal |> Prov.fresh),
+                                    string(),
+                                  )
+                                ),
                             }),
                           ])
                         ),
@@ -952,7 +983,7 @@ let tests = (
     test_case("Label not in tuple", `Quick, () => {
       annotated_tree_test(
         {|'a'|},
-        unknown(Internal),
+        unknown(Internal |> Prov.fresh),
         FIError.(
           Exp.(label(~ann=Some(Marks([UnexpectedLabelSort("a")])), "a"))
         ),
@@ -961,12 +992,12 @@ let tests = (
     fully_consistent_typecheck(
       "Projection of unknown",
       {|((a=1) : ?) .a|},
-      Some(unknown(Internal)),
+      Some(unknown(Internal |> Prov.fresh)),
     ),
     fully_consistent_typecheck(
       "Projection of list of unknown",
       {|([(a=1) : ?]).a|},
-      Some(list(unknown(Internal))),
+      Some(list(unknown(Internal |> Prov.fresh))),
     ),
     test_case(
       "Nested tuple with duplicate labels",
@@ -989,7 +1020,10 @@ let tests = (
           );
         annotated_tree_test(
           {|((a=1,a=2), 3)|},
-          prod([prod([tup_label(label("a"), unknown(Internal))]), int()]),
+          prod([
+            prod([tup_label(label("a"), unknown(Internal |> Prov.fresh))]),
+            int(),
+          ]),
           FIError.(
             Exp.(
               tuple([
@@ -1004,7 +1038,10 @@ let tests = (
                             invalid_labels: [],
                             typ:
                               prod([
-                                tup_label(label("a"), unknown(Internal)),
+                                tup_label(
+                                  label("a"),
+                                  unknown(Internal |> Prov.fresh),
+                                ),
                               ]),
                           }),
                         ])
@@ -1043,7 +1080,12 @@ let tests = (
                 invalid_labels: [],
                 typ:
                   FTemp.Typ.(
-                    prod([tup_label(label("a"), unknown(Internal))])
+                    prod([
+                      tup_label(
+                        label("a"),
+                        unknown(Internal |> Prov.fresh),
+                      ),
+                    ])
                   ),
               }),
             ]),
@@ -1055,7 +1097,10 @@ let tests = (
                 malformed_labels: [],
                 duplicate_labels: ["a"],
                 invalid_labels: [],
-                typ: FTemp.Typ.(tup_label(label("a"), unknown(Internal))),
+                typ:
+                  FTemp.Typ.(
+                    tup_label(label("a"), unknown(Internal |> Prov.fresh))
+                  ),
               }),
             ]),
           );
@@ -1063,7 +1108,10 @@ let tests = (
           Some(Marks([DuplicateLabel("a", FTemp.Typ.label("a"))]));
         annotated_tree_test(
           {|fun (a=a, a=b) -> 1|},
-          arrow(prod([tup_label(label("a"), unknown(Internal))]), int()),
+          arrow(
+            prod([tup_label(label("a"), unknown(Internal |> Prov.fresh))]),
+            int(),
+          ),
           FIError.(
             Exp.(
               fn(

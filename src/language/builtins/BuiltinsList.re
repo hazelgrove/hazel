@@ -3077,8 +3077,8 @@ let go: ([?], [?], [?]) -> [?] =
       str: {|fix unique -> fun xs ->
               fold_left(xs, fun (seen, x) -> if mem(seen, x) then seen else seen @ [x], [])|},
       name: "unique",
-      arg: List(unknown(Internal)),
-      ret: List(unknown(Internal)),
+      arg: List(unknown(Internal |> Prov.fresh)),
+      ret: List(unknown(Internal |> Prov.fresh)),
       imp: {
         Fresh.(
           Exp.(
@@ -3136,12 +3136,12 @@ let go: ([?], [?], [?]) -> [?] =
       name: "pivot_table",
       arg:
         Prod([
-          list(unknown(Internal)),
-          arrow(unknown(Internal), string()),
-          arrow(unknown(Internal), unknown(Internal)),
-          arrow(list(unknown(Internal)), unknown(Internal)),
+          list(unknown(Internal |> Prov.fresh)),
+          arrow(unknown(Internal |> Prov.fresh), string()),
+          arrow(unknown(Internal |> Prov.fresh), unknown(Internal |> Prov.fresh)),
+          arrow(list(unknown(Internal |> Prov.fresh)), unknown(Internal |> Prov.fresh)),
         ]),
-      ret: List(unknown(Internal)),
+      ret: List(unknown(Internal |> Prov.fresh)),
       imp: {
         open Fresh;
         open Exp;
@@ -3262,10 +3262,10 @@ let go: ([?], [?], [?]) -> [?] =
       name: "group_on_key",
       arg:
         Prod([
-          list(unknown(Internal)),
-          arrow(unknown(Internal), unknown(Internal)),
+          list(unknown(Internal |> Prov.fresh)),
+          arrow(unknown(Internal |> Prov.fresh), unknown(Internal |> Prov.fresh)),
         ]),
-      ret: List(prod([unknown(Internal), list(unknown(Internal))])),
+      ret: List(prod([unknown(Internal |> Prov.fresh), list(unknown(Internal |> Prov.fresh))])),
       imp: {
         Fresh.(
           Exp.(

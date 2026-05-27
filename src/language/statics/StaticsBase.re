@@ -276,14 +276,14 @@ let map_m2 = (f, xs, ys, m: Map.t) =>
     ys,
   );
 
-let syn = Unknown(SynSwitch) |> Typ.temp;
+let syn = Unknown(SynSwitch |> Prov.fresh) |> Typ.temp;
 
 /* Type after hole fixing: best type consistent with analysis expectation and
    statics synthetic type (Typ.meet). On meet failure, prefer syn under
    synthesis and ana under analysis. */
 let fixed_typ = (ctx: Ctx.t, ana: Typ.t, elab_syn_ty: Typ.t): Typ.t =>
   switch (Typ.meet(ctx, ana, elab_syn_ty)) {
-  | Some(ty) => ty
+  | Some((ty, _)) => ty
   | None =>
     if (Typ.is_syn_plus(ana)) {
       elab_syn_ty;
@@ -332,11 +332,11 @@ let syn_ana_ok_common =
     (ctx: Ctx.t, ty_ana: Typ.t, elab_syn_ty: Typ.t): Message.ok_common => {
   let ana = ana_skip_explicit_nonlabel(ty_ana);
   switch (ana.term) {
-  | Unknown(SynSwitch) => Message.Syn(elab_syn_ty)
+  | Unknown({term: SynSwitch, _}) => Message.Syn(elab_syn_ty)
   | _ =>
     switch (Typ.meet(ctx, ana, elab_syn_ty)) {
     | None => Message.Syn(elab_syn_ty)
-    | Some(meet) =>
+    | Some((meet, _)) =>
       Message.Ana(
         Message.Consistent({
           ana,
@@ -353,7 +353,7 @@ let expectation_mismatch_mark =
   let ana' = ana_skip_explicit_nonlabel(ana);
   let syn' = ana_skip_explicit_nonlabel(elab_syn_ty);
   switch (ana'.term) {
-  | Unknown(SynSwitch) => None
+  | Unknown({term: SynSwitch, _}) => None
   | _ =>
     switch (Typ.meet(ctx, ana', syn')) {
     | Some(_) => None
@@ -405,7 +405,7 @@ let prepend_pat_mark =
 let fresh_ascription = (ctx: Ctx.t, d: Exp.t, t: Typ.t, t': option(Typ.t)) => {
   IdTagged.FreshGrammar.Exp.(
     switch (t') {
-    | Some({term: Unknown(Internal), _}) => d
+    | Some({term: Unknown({term: Internal, _}), _}) => d
     | Some(ty)
         when !Typ.fast_equal(Typ.normalize(ctx, ty), Typ.normalize(ctx, t)) =>
       asc(d, ty)
@@ -472,6 +472,7 @@ module type ExpressionStatics = {
       ~ana: Typ.t=?,
       ~ancestors: Info.ancestors=?,
       ~co_ctx: CoCtx.t,
+      ~constraints: list(Typ.equivalence)=?,
       ~message: Message.t=?,
       ~label_inference: option(Info.label_inference(Info.exp))=?, // TODO[Matt]: combine with message
       ~inferred_label: option(string)=?,

@@ -404,6 +404,7 @@ module Projectors = {
     switch (kind) {
     | Fold => "Fold"
     | Statics => "Statics"
+    | TypeHole => "Type Hole"
     | Checkbox => "Checkbox"
     | Slider => "Slider"
     | SliderF => "SliderF"

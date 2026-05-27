@@ -13,12 +13,12 @@ let free_constructor_syn_ty = (name: Constructor.t): Typ.t =>
 
 let syn_marks_match =
     (ctx: Ctx.t, tys: list(Typ.t), ids: list(Id.t)): (Typ.t, list(Mark.t)) =>
-  switch (Typ.meet_all(~empty=Unknown(Internal) |> Typ.fresh, ctx, tys)) {
+  switch (Typ.meet_all(~empty=Unknown(Internal |> Prov.fresh) |> Typ.fresh, ctx, tys)) {
   | None => (
       SynTy.meet_of(Id, SynTy.unknown_internal()),
       [Mark.NoMeet(Id, Typ.add_source(ids, tys))],
     )
-  | Some(ty) => (ty, [])
+  | Some((ty, _)) => (ty, [])
   };
 
 let ctr_ana_typ =

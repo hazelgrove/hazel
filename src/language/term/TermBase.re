@@ -363,6 +363,9 @@ and Typ: {
   type term = typ_term;
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = typ_t;
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type equivalence =
+    | Con(t, t);
 
   type sum_map = ConstructorMap.t(t);
 
@@ -382,6 +385,9 @@ and Typ: {
   type term = typ_term;
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = typ_t;
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type equivalence =
+    | Con(t, t);
 
   type sum_map = ConstructorMap.t(t);
 
