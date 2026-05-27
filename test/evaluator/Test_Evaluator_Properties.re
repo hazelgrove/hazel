@@ -377,9 +377,44 @@ let qcheck_incremental_matches_fresh_after_edit =
     },
   );
 
+let rec finish_yielding = (~remaining_slices: int, evaluation) => {
+  if (remaining_slices <= 0) {
+    fail("Yielding evaluation did not complete");
+  };
+  switch (Evaluator.run_yielding_slice(~step_budget=1, evaluation)) {
+  | EvaluationCompleted(value) => value
+  | EvaluationYielded(evaluation) =>
+    finish_yielding(~remaining_slices=remaining_slices - 1, evaluation)
+  | EvaluationStepLimitExceeded => fail("Unexpected step limit")
+  };
+};
+
+let yielding_evaluation_test =
+  test_case("Yielding evaluation resumes to the synchronous result", `Quick, () => {
+    let (_, exp) =
+      Statics.mk(
+        CoreSettings.on,
+        Builtins.ctx_init(Some(Int)),
+        parse_exp("let x = 1 in let y = 2 in x + y"),
+      );
+    let (sync_exp, _) = Evaluator.evaluate(~env=Builtins.env_init, exp);
+    let evaluation =
+      Evaluator.start_yielding_evaluation(~env=Builtins.env_init, exp);
+    let evaluation =
+      switch (Evaluator.run_yielding_slice(~step_budget=1, evaluation)) {
+      | EvaluationYielded(evaluation) => evaluation
+      | EvaluationCompleted(_) =>
+        fail("Expected yielding evaluation to yield with a one-step budget")
+      | EvaluationStepLimitExceeded => fail("Unexpected step limit")
+      };
+    let (yielded_exp, _) = finish_yielding(~remaining_slices=1000, evaluation);
+    check(dhexp_typ, "yielding evaluation result", sync_exp, yielded_exp);
+  });
+
 let tests = (
   "Evaluator.Properties",
   [
+    yielding_evaluation_test,
     QCheck_alcotest.to_alcotest(qcheck_evaluator_does_not_crash_test),
     QCheck_alcotest.to_alcotest(qcheck_stepper_confluence),
     QCheck_alcotest.to_alcotest(qcheck_pattern_equivalence_test),

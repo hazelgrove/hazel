@@ -397,25 +397,58 @@ module Update = {
           | _ => ()
           };
         }),
-      ~timeout=_ => {
-      List.iter(
-        fun
-        | "lemmas" => {
-            schedule_action(
-              Prelude(ResultAction(UpdateResult(ResultFail(Timeout)))),
-            );
-            schedule_action(
-              Lemmas(ResultAction(UpdateResult(ResultFail(Timeout)))),
-            );
-          }
-        | "theorem" =>
-          schedule_action(
-            Theorem(ResultAction(UpdateResult(ResultFail(Timeout)))),
+      ~timeout=
+        _ => {
+          List.iter(
+            fun
+            | "lemmas" => {
+                schedule_action(
+                  Prelude(ResultAction(UpdateResult(ResultFail(Timeout)))),
+                );
+                schedule_action(
+                  Lemmas(ResultAction(UpdateResult(ResultFail(Timeout)))),
+                );
+              }
+            | "theorem" =>
+              schedule_action(
+                Theorem(ResultAction(UpdateResult(ResultFail(Timeout)))),
+              )
+            | _ => (),
+            List.map(((pos, _)) => pos, worker_request^),
           )
-        | _ => (),
-        List.map(((pos, _)) => pos, worker_request^),
-      )
-    });
+        },
+      ~on_ack=
+        () =>
+          List.iter(
+            fun
+            | "lemmas" => {
+                schedule_action(
+                  Prelude(
+                    ResultAction(
+                      UpdateResult(Language.ProgramResult.evaluating),
+                    ),
+                  ),
+                );
+                schedule_action(
+                  Lemmas(
+                    ResultAction(
+                      UpdateResult(Language.ProgramResult.evaluating),
+                    ),
+                  ),
+                );
+              }
+            | "theorem" =>
+              schedule_action(
+                Theorem(
+                  ResultAction(
+                    UpdateResult(Language.ProgramResult.evaluating),
+                  ),
+                ),
+              )
+            | _ => (),
+            List.map(((pos, _)) => pos, worker_request^),
+          ),
+    );
 
     {
       ...model,

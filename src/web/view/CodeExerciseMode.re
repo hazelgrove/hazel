@@ -498,20 +498,38 @@ module Update = {
             Editor(pos', ResultAction(UpdateResult(result'))),
           );
         }),
-      ~timeout=_ => {
-        let _ =
-          CodeExercise.map_stitched(
-            (pos, _) =>
-              schedule_action(
-                Editor(
-                  pos,
-                  ResultAction(UpdateResult(ResultFail(Timeout))),
+      ~timeout=
+        _ => {
+          let _ =
+            CodeExercise.map_stitched(
+              (pos, _) =>
+                schedule_action(
+                  Editor(
+                    pos,
+                    ResultAction(UpdateResult(ResultFail(Timeout))),
+                  ),
                 ),
-              ),
-            model.cells,
-          );
-        ();
-      },
+              model.cells,
+            );
+          ();
+        },
+      ~on_ack=
+        () => {
+          let _ =
+            CodeExercise.map_stitched(
+              (pos, _) =>
+                schedule_action(
+                  Editor(
+                    pos,
+                    ResultAction(
+                      UpdateResult(Language.ProgramResult.evaluating),
+                    ),
+                  ),
+                ),
+              model.cells,
+            );
+          ();
+        },
     );
 
     /* The following section pulls statics back from cells into the editors

@@ -37,7 +37,7 @@ module Model = {
     cached_settings: Calc.Pending,
     elab: Calc.Pending,
     cached_targets: Calc.Pending,
-    result: Calc.NewValue(ProgramResult.ResultPending),
+    result: Calc.NewValue(ProgramResult.awaiting_worker_ack),
     dynamics: Calc.Pending,
     incr_eval: Calc.Pending,
     display: Evaluation(Calc.Pending),
@@ -60,7 +60,7 @@ module Model = {
         cached_settings: Calc.Pending,
         elab: Calc.Pending,
         cached_targets: Calc.Pending,
-        result: Calc.NewValue(ProgramResult.ResultPending),
+        result: Calc.NewValue(ProgramResult.awaiting_worker_ack),
         dynamics: Calc.Pending,
         incr_eval: Calc.Pending,
         display: Stepper(StepperView.Model.unpersist(stepper)),
@@ -214,7 +214,7 @@ module Update = {
         and.calc targets = targets;
         switch (queue_worker) {
         // Dynamics is off:
-        | _ when !settings.dynamics => ProgramResult.ResultPending
+        | _ when !settings.dynamics => ProgramResult.awaiting_worker_ack
         // Using the webworker:
         | Some(queue_worker) =>
           queue_worker({
@@ -223,7 +223,7 @@ module Update = {
             eval_info_map,
             prev: prev_incr,
           });
-          ProgramResult.ResultPending;
+          ProgramResult.awaiting_worker_ack;
         // Using the main thread:
         | None =>
           switch (
@@ -252,7 +252,7 @@ module Update = {
       |> {
         let.calc result = result;
         switch (result) {
-        | ProgramResult.ResultPending => dynamics |> Calc.get_saved(None)
+        | ProgramResult.ResultPending(_) => dynamics |> Calc.get_saved(None)
         | ProgramResult.ResultFail(_) => dynamics |> Calc.get_saved(None)
         | ProgramResult.ResultOk({state, _}) =>
           Some(
@@ -271,7 +271,7 @@ module Update = {
       |> {
         let.calc result = result;
         switch (result) {
-        | ProgramResult.ResultPending =>
+        | ProgramResult.ResultPending(_) =>
           incr_eval |> Calc.get_saved(IncrEval.empty)
         | ProgramResult.ResultFail(_) => IncrEval.empty
         | ProgramResult.ResultOk({state, _}) => state.incr_eval
@@ -297,7 +297,8 @@ module Update = {
                 exp |> CodeSelectable.Model.mk_from_exp(~settings, ~root=Exp),
               ))
             | ResultFail(_)
-            | ResultPending => ev_display |> Calc.get_saved_opt |> Option.join
+            | ResultPending(_) =>
+              ev_display |> Calc.get_saved_opt |> Option.join
             };
           };
         let result_changed = Calc.is_new(ev_calc);
@@ -420,11 +421,18 @@ module View = {
     | Timeout => "Evaluation timed out"
     };
 
-  let status_of: ProgramResult.t('a) => string =
+  let result_status_of: ProgramResult.t('a) => string =
     fun
-    | ResultPending => "pending"
+    | ResultPending(_) => "pending"
     | ResultOk(_) => "ok"
     | ResultFail(_) => "fail";
+
+  let status_classes_of: ProgramResult.t('a) => list(string) =
+    fun
+    | ResultPending(AwaitingWorkerAck) => ["pending", "pending-attention"]
+    | ResultPending(Evaluating) => ["pending", "pending-evaluating"]
+    | ResultOk(_) => ["ok"]
+    | ResultFail(_) => ["fail"];
 
   let live_eval =
       (
@@ -473,14 +481,14 @@ module View = {
         exn_view
         @ [
           div(
-            ~attrs=[Attr.classes(["status", status_of(result)])],
+            ~attrs=[Attr.classes(["status"] @ status_classes_of(result))],
             [
               div(~attrs=[Attr.classes(["spinner"])], []),
               div(~attrs=[Attr.classes(["eq"])], [text("≡")]),
             ],
           ),
           div(
-            ~attrs=[Attr.classes(["result", status_of(result)])],
+            ~attrs=[Attr.classes(["result", result_status_of(result)])],
             Option.to_list(code_view),
           ),
         ]

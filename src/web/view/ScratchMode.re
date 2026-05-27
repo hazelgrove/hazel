@@ -1109,6 +1109,15 @@ module Update = {
                   ResultAction(UpdateResult(ResultFail(Timeout))),
                 ),
               ),
+          ~on_ack=
+            () =>
+              schedule_action(
+                CellAction(
+                  ResultAction(
+                    UpdateResult(Language.ProgramResult.evaluating),
+                  ),
+                ),
+              ),
         )
       };
       let new_sp =
