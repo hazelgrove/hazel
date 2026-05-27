@@ -1,4 +1,3 @@
-open Util;
 open Util.WebUtil;
 open Haz3lcore;
 
@@ -9,9 +8,11 @@ open Haz3lcore;
 /* This file follows conventions in [docs/ui-architecture.md] */
 
 module Model = {
-  /* Context menu state: None = closed, Some(n) = open with item n selected */
+  /* Context menu state lives in Util.Menu — None = closed, Some({…})
+   * holds the selected item index and (unused for the editor menu) the
+   * submenu path. */
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type context_menu_state = option(int);
+  type context_menu_state = Util.Menu.t;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
@@ -22,7 +23,8 @@ module Model = {
     dynamics: Language.Dynamics.Map.t,
   };
 
-  let context_menu_is_open = (model: t): bool => model.context_menu != None;
+  let context_menu_is_open = (model: t): bool =>
+    Util.Menu.is_open(model.context_menu);
 
   let mk =
       (
@@ -148,6 +150,22 @@ module Update = {
         {editor, statics, context_menu, _}: Model.t,
       )
       : Model.t => {
+    /* Throttle gate: decide whether to do a full statics recompute this
+     * frame. When we reuse, `statics` keeps its ref — CachedSyntax.calculate
+     * then skips the shape pass via phys-eq on info_map/elaborated. */
+    let statics =
+      statics_mode == StaticsForce || is_edited && statics_mode != StaticsDefer
+        ? CachedStatics.init(
+            ~settings,
+            ~stitch,
+            ~ctx?,
+            ~ana?,
+            ~is_dynamic_term,
+            ~root=editor.root,
+            editor.state.zipper,
+          )
+        : statics;
+
     /* Capture ephemerals before editor calculation to detect auto probe changes */
     let old_ephemerals = editor.state.zipper.refractors.multis.ephemerals;
 
@@ -184,7 +202,11 @@ module Update = {
      * together via init_with_assist. This resolves the circular dependency
      * (buffer needs info_map, statics needs buffer) in a clean two-pass
      * approach. Editor.calculate's buffer (from old statics) serves as a
-     * fast visual preview; this pass produces the authoritative result. */
+     * fast visual preview; this pass produces the authoritative result.
+     *
+     * When statics is not refreshed, refresh `statics.targets` against
+     * the post-probe-effects refractors. Cheap O(|probe_ids|) fold; only
+     * this field depends on refractors, so the rest of statics stays valid. */
     let (editor, statics) =
       if (statics_refreshed) {
         let (zipper, statics) =
@@ -211,6 +233,8 @@ module Update = {
           };
         (editor, statics);
       } else {
+        let statics =
+          CachedStatics.with_targets(~settings, editor.state.zipper, statics);
         (editor, statics);
       };
     {

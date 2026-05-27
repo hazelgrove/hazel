@@ -290,6 +290,7 @@ let is_base_typ = (name: string): bool =>
   || name == "Nat"
   || name == "SInt"
   || name == "String"
+  || name == "Void"
   || name == "DrvJdmt"
   || name == "DrvCtx"
   || name == "DrvProp"
