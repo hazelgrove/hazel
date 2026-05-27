@@ -376,6 +376,10 @@
 
 .live-offside .value {
   cursor: pointer;
+  padding: 0 0.1em;
+  border-bottom-color: var(--bottom-border-clr);
+  border-radius: 0.05em 0.05em 0.05em 0.2em;
+  transition: box-shadow 0.1s ease-in-out;
 }
 
 /* .live-offside .sample .code {
@@ -386,7 +390,8 @@
   cursor: col-resize;
 } */
 
-/* TOKEN BKG */
+/* TOKEN BKG. Layout lives on .sample; visual fills live on .value (so
+ * they don't bleed into the context-menu when it flows in-line). */
 .live-offside .sample {
   position: relative;
   --bottom-border-clr: none;
@@ -394,14 +399,10 @@
   --depth-shadow: oklch(0.75 0 0);
   --num-levels: 7;
   --base: 0;
-  padding: 0 0.1em;
-  border-bottom-color: var(--bottom-border-clr);
-  border-radius: 0.05em 0.05em 0.05em 0.2em;
   transition:
     scale 0.1s ease-in-out,
     transform 0.1s ease-in-out,
     translate 0.1s ease-in-out,
-    box-shadow 0.1s ease-in-out,
     top 0.1s ease-in-out;
 }
 
@@ -409,9 +410,11 @@
  * samples (blue/pink), the call-context color is more informative than
  * the indet indicator, so we let it show through. */
 .live-offside .sample:has(.value.indet.focus) {
-  background-color: var(--T2) !important;
   --depth-shadow: oklch(0.46 0 0);
   --bottom-border-clr: oklch(0.4 0 0);
+}
+.live-offside .sample:has(.value.indet.focus) .value {
+  background-color: var(--T2) !important;
 }
 /* .live-offside .sample:has(.value.cursor-callee) {
   --below-shadow: var(--exp-ap-indicated);
@@ -429,93 +432,119 @@
 /* Color layer: background colors + coordinated depth shadow from scheme */
 .live-offside .sample:has(.value.related-after),
 .live-offside .sample:has(.value.tangent-after) {
-  background-color: var(--sample-below-bg);
   --depth-shadow: var(--sample-below-shadow);
   --bottom-border-clr: var(--sample-below-shadow);
 }
+.live-offside .sample:has(.value.related-after) .value,
+.live-offside .sample:has(.value.tangent-after) .value {
+  background-color: var(--sample-below-bg);
+}
 .live-offside .sample:has(.value.related-before),
 .live-offside .sample:has(.value.tangent-before) {
-  background-color: var(--sample-above-bg);
   --depth-shadow: var(--sample-above-shadow);
   --bottom-border-clr: var(--sample-above-shadow);
+}
+.live-offside .sample:has(.value.related-before) .value,
+.live-offside .sample:has(.value.tangent-before) .value {
+  background-color: var(--sample-above-bg);
 }
 .live-offside .sample:has(.value.focus) {
   --depth-shadow: var(--exp-shadow);
   --bottom-border-clr: var(--exp-shadow);
 }
-/* Structural layer: depth effects from call stack (colors from --depth-shadow) */
+/* Structural layer: depth effects from call stack (colors from --depth-shadow).
+ * Layout transforms (top/translate/height) stay on .sample so the whole
+ * sample (including its context menu) moves together; visual box-shadow
+ * and border edges live on .value so they don't wrap the menu. */
 .live-offside.Many .sample:has(.value.depth-above) {
   position: relative;
   top: -3.5px;
+}
+.live-offside.Many .value.depth-above {
   box-shadow: 0 3.5px 0 var(--depth-shadow);
   border-bottom-width: 1px;
   border-bottom-style: solid;
 }
 .live-offside.Many .sample:has(.value.depth-below) {
   translate: 0 3px;
+  height: calc(1.45em - 4.25px);
+}
+.live-offside.Many .value.depth-below {
   box-shadow:
     0px -0.75px 0 var(--depth-shadow),
     0px -1.5px 0 var(--depth-shadow),
     0px -2.25px 0 var(--depth-shadow),
     0px -3px 0 var(--depth-shadow);
-  height: calc(1.45em - 4.25px);
 }
 
 .live-offside.Many .sample:has(.value.depth-above.depth-1) {
   top: -1.5px;
+}
+.live-offside.Many .value.depth-above.depth-1 {
   box-shadow: 0 1.5px 0 var(--depth-shadow);
 }
 .sample:has(.value.depth-below) {
   position: relative;
+}
+.value.depth-below {
   border-radius: 0.05em 0.2em 0.05em 0.2em;
   border: none;
   /* overflow: hidden; */
 }
 .live-offside.Many
-  .sample:has(.value.unrelated:not(.depth-above):not(.depth-below)) {
+  .sample:has(.value.unrelated:not(.depth-above):not(.depth-below)) .value {
   background-color: #e5efe8;
 }
 
 .live-offside.Many .sample:has(.value.depth-above.depth-2) {
   top: -2.5px;
+}
+.live-offside.Many .value.depth-above.depth-2 {
   box-shadow: 0 2.5px 0 var(--depth-shadow);
 }
 .live-offside.Many .sample:has(.value.depth-below.depth-1) {
-  border: none;
   translate: 0 0.75px;
-  box-shadow: 0px -0.75px 0 var(--depth-shadow);
-  border: none;
   height: calc(1.45em - 2px);
+}
+.live-offside.Many .value.depth-below.depth-1 {
+  border: none;
+  box-shadow: 0px -0.75px 0 var(--depth-shadow);
 }
 
 .live-offside.Many .sample:has(.value.depth-below.depth-2) {
-  border: none;
   translate: 0 1.5px;
+  height: calc(1.45em - 2.75px);
+}
+.live-offside.Many .value.depth-below.depth-2 {
+  border: none;
   box-shadow:
     0px -0.75px 0 var(--depth-shadow),
     0px -1.5px 0 var(--depth-shadow);
-  height: calc(1.45em - 2.75px);
 }
 
 .live-offside.Many .sample:has(.value.depth-below.depth-3) {
-  border: none;
   translate: 0 2.25px;
+  height: calc(1.45em - 3.5px);
+}
+.live-offside.Many .value.depth-below.depth-3 {
+  border: none;
   box-shadow:
     0px -0.75px 0 var(--depth-shadow),
     0px -1.5px 0 var(--depth-shadow),
     0px -2.25px 0 var(--depth-shadow);
-  height: calc(1.45em - 3.5px);
 }
 
 .live-offside.Many .sample:has(.value.depth-below.depth-4) {
-  border: none;
   translate: 0 3px;
+  height: calc(1.45em - 4.25px);
+}
+.live-offside.Many .value.depth-below.depth-4 {
+  border: none;
   box-shadow:
     0px -0.75px 0 var(--depth-shadow),
     0px -1.5px 0 var(--depth-shadow),
     0px -2.25px 0 var(--depth-shadow),
     0px -3px 0 var(--depth-shadow);
-  height: calc(1.45em - 4.25px);
 }
 
 /* TOKEN BKG INDICATED + HOVER */
@@ -535,28 +564,25 @@
     border-bottom-color: transparent;
   }
 }
-.projector.probe:not(.indicated) .sample:hover {
-  /* outline-color: var(--exp-indicated); */
-  /* outline-width: 0;
-  outline-style: none; */
+.projector.probe:not(.indicated) .sample:hover .value {
   border-bottom: 1px double var(--R1);
   animation: flash-border 1s infinite;
 }
 
-.live-offside .sample:has(.value.focus) {
+.live-offside .sample:has(.value.focus) .value {
   background-color: var(--bkg);
 }
 
 /* Fallback style for when above/below are turned off */
-.live-offside.Single .sample {
+.live-offside.Single .sample .value {
   background-color: #d6eed6;
 }
 
-.projector.probe.indicated .live-offside:focus .sample:has(.value.focus) {
+.projector.probe.indicated .live-offside:focus .sample:has(.value.focus) .value {
   outline: 1.5px solid var(--R1);
   background-color: oklch(from var(--bkg) calc(l * 0.96) calc(c + 0.04) h);
 }
-.projector.probe.indicated .live-offside .sample:has(.value.focus) {
+.projector.probe.indicated .live-offside .sample:has(.value.focus) .value {
   outline: 1.5px solid var(--G0);
 }
 
@@ -744,6 +770,26 @@
 
 .sample-context-menu .action-item:hover .pin-icon {
   background-color: var(--R1);
+}
+
+.sample-context-menu .action-item.rich-probe-action .table-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 1.3em;
+  width: 1.3em;
+  border-radius: 1em;
+  background-color: var(--LABEL);
+  scale: 0.75;
+}
+
+.sample-context-menu .action-item.rich-probe-action .table-badge svg {
+  width: 70%;
+  height: 70%;
+}
+
+.sample-context-menu .action-item.rich-probe-action .table-badge svg path {
+  fill: white;
 }
 
 .live-offside .live-env {

@@ -16,6 +16,9 @@ let (suite, _) =
     [
       Test_ListUtil.tests,
       Test_OptUtil.tests,
+      Test_Atom.tests,
+      Test_Operators.tests,
+      Test_BuiltinsADT.tests,
       Test_CsvUtil.tests,
       Test_Grammar.tests,
       Test_Abbreviate.tests,
@@ -51,6 +54,11 @@ let (suite, _) =
     //@ Test_DocSlideMigration.tests
     @ Test_MatchExp.tests
     @ Test_RefractorSerialization.tests
+    @ [
+      Test_TableCore.tests,
+      Test_TableTransforms.tests,
+      Test_RichProbeRegistry.tests,
+    ]
     @ Test_PrettyPrint.tests
     @ Test_TyDi.tests
     @ [Test_UnusedWarnings.tests]

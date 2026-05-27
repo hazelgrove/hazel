@@ -240,7 +240,11 @@ module SyntaxTerm = {
   };
 
   let put = (info, syntax): option(Base.segment) =>
-    info.utility.lift_syntax(_ => syntax_to_any(syntax), info.syntax);
+    info.utility.lift_syntax(
+      ~inline=true,
+      _ => syntax_to_any(syntax),
+      info.syntax,
+    );
 
   let get_opt = (any: Any.t): option(state) =>
     switch (any |> any_to_syntax) {
@@ -613,6 +617,7 @@ module M: Projector = {
   type action = a;
   let focusable = Focusable.non;
   let dynamics = false;
+  let elaborate_syntax = false;
 
   let init = (info: TermBase.Any.t): option(model) =>
     SyntaxTerm.get_opt(info) != None ? Some({mode: Show}) : None;
@@ -627,6 +632,8 @@ module M: Projector = {
     | SetMode(mode) => {mode: mode}
     };
 
+  let error = (_, _): option(ProjectorBase.error) => None;
+
   let view =
       ({model, info, local, parent, _}: View.args(model, action)): View.t => {
     inline:
@@ -638,5 +645,6 @@ module M: Projector = {
       },
     offside: None,
     overlay: None,
+    error: false,
   };
 };
