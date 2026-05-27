@@ -1,0 +1,184 @@
+/* PROJECTOR: Rich Probes for Tables */
+
+/* Empty hole indicator in table headers */
+.table th .empty-hole {
+    width: 0.6em;
+    height: 0.6em;
+    vertical-align: middle;
+}
+
+/* Closure Navigation Buttons in Table Header */
+.closure-nav-button {
+    cursor: pointer;
+    padding: 2px 6px;
+    margin: 0 4px;
+    border-radius: 3px;
+    background-color: var(--table-header-bg);
+    color: var(--BR2);
+    font-size: 14px;
+    transition: all 0.2s ease;
+    user-select: none;
+    display: inline-block;
+    vertical-align: middle;
+}
+
+.closure-nav-button:hover {
+    background-color: var(--df-hover-bg);
+    transform: scale(1.05);
+}
+
+.closure-nav-button:active {
+    transform: scale(0.95);
+}
+
+/* Column Menu — adopts .context-menu styling from editor.css but anchors
+ * inside the <th> cell. The editor menu's .open-* classes carry transforms
+ * keyed to a caret point, so we don't reuse them here; .cm-* classes flip
+ * the menu against the cell edges instead. */
+.table th .context-menu.column-menu {
+    z-index: calc(var(--projector-z) + 2);
+    /* Defeat the editor menu's directional transforms / radius if any
+     * leaked through; .cm-* rules below set the actual anchoring. */
+    transform: none;
+    animation: column-menu-open 0.12s ease-out;
+}
+.column-menu.cm-down-right {
+    top: 100%; left: 0; right: auto; bottom: auto;
+    transform-origin: top left;
+    border-radius: 0 0.5em 0.5em 0.5em;
+}
+.column-menu.cm-down-left {
+    top: 100%; right: 0; left: auto; bottom: auto;
+    transform-origin: top right;
+    border-radius: 0.5em 0 0.5em 0.5em;
+}
+.column-menu.cm-up-right {
+    bottom: 100%; left: 0; right: auto; top: auto;
+    transform-origin: bottom left;
+    border-radius: 0.5em 0.5em 0.5em 0;
+}
+.column-menu.cm-up-left {
+    bottom: 100%; right: 0; left: auto; top: auto;
+    transform-origin: bottom right;
+    border-radius: 0.5em 0.5em 0 0.5em;
+}
+@keyframes column-menu-open {
+    from { opacity: 0; transform: scale(0.95); }
+    to   { opacity: 1; transform: scale(1); }
+}
+
+/* Indicate which column the open menu belongs to. */
+.modal .table th.menu-open {
+    background-color: var(--df-hover-bg);
+}
+
+.modal .table th.menu-open .closure-nav-button {
+    background-color: var(--df-hover-bg);
+}
+
+/* Modal backdrop for rich probe table */
+.modal-backdrop.live-offside {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: var(--modal-z);
+  margin-top: 5px;
+}
+
+/* When the rich-probe modal is open, pull the active sample menu into
+   normal flow so the modal's `top: 100%` anchor includes the menu's
+   height — modal stacks below the menu instead of overlapping it. */
+.projector.probe:has(.modal-backdrop)
+  .live-offside
+  .sample-context-menu.dropdown-active {
+  position: relative;
+}
+
+/* Top-align samples and sample-groups so the one growing to fit its
+   in-flow menu extends downward rather than shifting up relative to
+   its neighbors. */
+.projector.probe:has(.modal-backdrop) .live-offside,
+.projector.probe:has(.modal-backdrop) .live-offside .sample-groups,
+.projector.probe:has(.modal-backdrop) .live-offside .sample-group {
+  align-items: flex-start;
+}
+
+.modal-backdrop.live-offside .modal {
+  background-color: var(--df-bg);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  padding: 0;
+  overflow: visible;
+  pointer-events: auto;
+  position: relative;
+}
+
+.modal-backdrop.live-offside .modal .modal-close-btn {
+  position: absolute;
+  top: 0;
+  right: -18px;
+  width: 16px;
+  height: 16px;
+  line-height: 14px;
+  text-align: center;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--BR2);
+  cursor: pointer;
+  user-select: none;
+  /* Must exceed .table th z-index (projector-z + 1) so the button
+     stays visible if it ever overlaps sticky headers. */
+  z-index: calc(var(--projector-z) + 10);
+}
+
+.modal-backdrop.live-offside .modal .modal-close-btn:hover {
+  color: var(--R1);
+}
+
+.modal .table th {
+    position: relative;
+    padding-left: 15px;
+    padding-right: 15px;
+    /* Keep header label and the inline-block column-options button on the
+     * same line even when the modal-backdrop (position: absolute, inside a
+     * flex .sample-group) shrinks under an empty/indet sample value. */
+    white-space: nowrap;
+}
+
+.modal .table {
+    width: 100%;
+    margin-left: 0;
+    margin-right: 0;
+    border-radius: 8px;
+}
+
+.modal .table th:first-child {
+    border-top-left-radius: 8px;
+}
+
+.modal .table th:last-child {
+    border-top-right-radius: 8px;
+}
+
+.modal .table tr:last-child td:first-child {
+    border-bottom-left-radius: 8px;
+}
+
+.modal .table tr:last-child td:last-child {
+    border-bottom-right-radius: 8px;
+}
+
+/* Add Column Header Button */
+.table th.add-column-header {
+    cursor: pointer;
+    padding: 2px 8px;
+    color: var(--BR3);
+    font-size: 1rem;
+    user-select: none;
+    transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.table th.add-column-header:hover {
+    color: var(--BR4);
+    background-color: var(--df-hover-bg);
+}

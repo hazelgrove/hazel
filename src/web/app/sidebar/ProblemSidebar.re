@@ -199,6 +199,8 @@ let problem_row =
     | Structural(desc) =>
       span(~attrs=[clss(["problem-description"])], [text(desc)])
     | FromInfo(ci) => problem_status_view(~globals, ci)
+    | FromProjector(_, {message}) =>
+      span(~attrs=[clss(["problem-description"])], [text(message)])
     };
   row_view(
     ~globals,
@@ -258,7 +260,7 @@ let view =
           cat,
           collect_category(ctx, cat) |> List.of_seq |> sort_by_pos(ctx),
         ),
-      [Syntax, Hole, Static, Warning],
+      [Syntax, Hole, Static, Warning, Projector],
     );
   let problems_settings = globals.settings.sidebar.problems;
   let has_any_problems =
