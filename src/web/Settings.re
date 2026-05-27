@@ -52,6 +52,7 @@ module Model = {
         show_settings: false,
         show_hidden_steps: false,
         enable_proof: false,
+        project_tables: false,
       },
     },
     async_evaluation: false,
@@ -134,7 +135,8 @@ module Update = {
     | ShowLookups
     | ShowFilters
     | ShowSettings
-    | ShowHiddenSteps;
+    | ShowHiddenSteps
+    | ProjectTables;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
@@ -253,6 +255,10 @@ module Update = {
           | EnableProof => {
               ...evaluation,
               enable_proof: !evaluation.enable_proof,
+            }
+          | ProjectTables => {
+              ...evaluation,
+              project_tables: !evaluation.project_tables,
             }
           | ShowCaseClauses => {
               ...evaluation,

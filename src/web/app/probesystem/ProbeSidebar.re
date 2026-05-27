@@ -132,7 +132,15 @@ let kbd = (shortcut: string) =>
 /* Inline arrow glyph for use inside `qr_how` text, sharing the
  * probe nav-bar's arrow SVG (recolored to currentColor via a CSS
  * mask). Direction picks one of the four rotation variants. */
-let arrow_icon = (direction: [ | `Left | `Right | `Up | `Down]) => {
+let arrow_icon =
+    (
+      direction: [
+        | `Left
+        | `Right
+        | `Up
+        | `Down
+      ],
+    ) => {
   let dir_cls =
     switch (direction) {
     | `Left => "left"
@@ -853,6 +861,10 @@ let sample_drawer_view =
        * has no local-action dispatcher; drawer-mode toggle isn't meaningful
        * from here. Safe no-op until we route per-probe actions. */
       local: _ => Ui_effect.Ignore,
+      sort: Info.sort_of(statics),
+      /* Rich-probe modal state is per-projector and not threaded through
+       * the sidebar yet; no renderer is treated as active. */
+      active_renderer_id: None,
     };
     let view_seg =
         (~single_line=?, ~background=?, ~text_only=?, sort, segment) =>

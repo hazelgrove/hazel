@@ -4,6 +4,8 @@ open Virtual_dom.Vdom;
 
 open Js_of_ocaml;
 open Language;
+open RichProbe;
+open RichProbeRegistry;
 
 /* Global probe display state. See ZipperBase.re for full probe state documentation.
  * - Settings.s: Global display settings (window mode, cutoffs)
@@ -12,8 +14,37 @@ open Language;
  * These use mutable refs for simplicity since they're UI-only state. */
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type probe_model = {
+  active_renderer: option(packed_model),
+  drawer_mode: bool,
+};
+
+let init_probe_model: probe_model = {
+  active_renderer: None,
+  drawer_mode: false,
+};
+
+/* Any deserialization failure resets to defaults — the record is
+ * pure transient UI state. Known failure modes are logged for
+ * debuggability; unknown ones still degrade gracefully.
+ * Tolerates older serialized models (without drawer_mode) via fallback. */
+let probe_model_of_sexp = sexp =>
+  switch (probe_model_of_sexp(sexp)) {
+  | model => model
+  | exception (RichProbeRegistry.Unknown_renderer(rid)) =>
+    print_endline("probe_model_of_sexp: unknown renderer " ++ rid);
+    init_probe_model;
+  | exception (Failure(msg)) =>
+    print_endline("probe_model_of_sexp: malformed payload: " ++ msg);
+    init_probe_model;
+  | exception _ => init_probe_model
+  };
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type action =
   | ChangeLength(int, int)
+  | ToggleModal(option(packed_model))
+  | RendererAction(packed_action)
   | ToggleWindowMode
   | ToggleDrawerMode
   | SetDrawerMode(bool)
@@ -180,6 +211,10 @@ type probe_ctx = {
   utility: ProjectorBase.utility,
   parent: external_action => Ui_effect.t(unit),
   local: action => Ui_effect.t(unit),
+  sort: Sort.t,
+  /* Id of the currently-open rich-probe renderer, if any. Drives the
+   * "View as <id>" / "Hide <id>" toggle label in the sample menu. */
+  active_renderer_id: option(string),
 };
 
 /* Stateful window offset management (GUI-specific) */
@@ -190,7 +225,7 @@ module WindowState = {
     | None => 0
     };
 
-  let set_offset = (k: Id.t, v: int) => Hashtbl.add(offset, k, v);
+  let set_offset = (k: Id.t, v: int) => Hashtbl.replace(offset, k, v);
 
   /* Update offset and return (new_offset, max_samples) */
   let reform =
@@ -228,7 +263,8 @@ module SampleLength = {
     Hashtbl.find_opt(lengths, sample.id)
     |> Option.value(~default=window == Single ? 150 : 12);
 
-  let set = (id: int, length: int): unit => Hashtbl.add(lengths, id, length);
+  let set = (id: int, length: int): unit =>
+    Hashtbl.replace(lengths, id, length);
 };
 
 /* Select samples to display, using stateful window offset.
@@ -275,27 +311,19 @@ let select_samples =
   };
 };
 
-let len_seg = (utility: utility, seg: Segment.t): int =>
-  seg |> utility.seg_to_string |> Unicode.Width.columns_of_string;
-
-let seg_of_exp = (utility: utility, exp: Exp.t): (Segment.t, int) => {
-  let seg = utility.term_to_seg(Exp(exp));
-  (seg, len_seg(utility, seg));
-};
-
-let abbreviated_seg_of =
-    (utility: utility, available: int, exp: Exp.t): (Segment.t, int) => {
-  let (abbr_exp, _length) =
-    exp |> DHExp.strip_ascriptions |> Abbreviate.abbreviate_exp(~available);
-  seg_of_exp(utility, abbr_exp);
-};
+let seg_of_exp = ProbeUtil.seg_of_exp;
+let abbreviated_seg_of = ProbeUtil.abbreviated_seg_of;
 
 /* Pretty-print a value to a multi-line segment at the given width.
  * Skips Abbreviate since drawer mode is the use case where samples
  * are allowed to span as many lines as they need. */
 let pretty_seg_of_value =
     (utility: utility, ~width: int, exp: Exp.t): Segment.t => {
-  let seg = utility.term_to_seg(Exp(exp |> DHExp.strip_ascriptions));
+  /* Pretty-print to a multi-line drawer: ask term_to_seg for the
+   * non-inline (block) form so PrettySegment has real linebreaks
+   * to fold rather than a single squashed line. */
+  let seg =
+    utility.term_to_seg(~inline=false, Exp(exp |> DHExp.strip_ascriptions));
   PrettySegment.prettify(~width, seg);
 };
 
@@ -527,6 +555,11 @@ module Debug = {
     ++ Printf.sprintf("%.0f", sample.time);
 };
 
+/* Find first compatible renderer for an expression */
+let find_compatible_renderer =
+    (sort: Sort.t, exp: Exp.t): option(RichProbe.packed_renderer) =>
+  List.find_opt(r => r.can_handle(sort, exp), renderers);
+
 let pin_call = (ctx: probe_ctx) =>
   switch (ctx.ap_id, Dynamics.Info.is_in(ctx.dynamics)) {
   | (Some(ap_id), Some(sample)) =>
@@ -652,7 +685,6 @@ let value_view =
 
   div(
     ~attrs=[
-      // Attr.title(Debug.str(~ap_id, sample)),
       Attr.classes(
         ["value", ...length_class]
         @ cursor_clss(
@@ -724,9 +756,18 @@ let pin_view = (ctx: probe_ctx, sample: Sample.t) =>
     [];
   };
 
-/* Generate unique dropdown ID for a sample */
-let dropdown_id = (sample_id: int): string =>
-  "sample-dropdown-" ++ string_of_int(sample_id);
+/* Generate a DOM id that's unique per sample-instance. sample.id is
+ * Hashtbl.hash((stack, syntax_id)) and is intentionally coarse — recursive
+ * invocations frequently collide on it. Combining with step_start/step_end
+ * disambiguates. If Sample.id is ever made truly unique, simplify this back
+ * to just sample.id. See issue #2288. */
+let dropdown_id = (sample: Sample.t): string =>
+  Printf.sprintf(
+    "sample-dropdown-%d-%d-%d",
+    sample.id,
+    sample.step_start,
+    sample.step_end,
+  );
 
 /* Step into handler for sample context menu */
 let step_into_sample =
@@ -824,24 +865,57 @@ let dock_toggle = (): Node.t => {
   );
 };
 
+/* Rich probe action: open a domain-specific visualization via ToggleModal.
+   One menu item per compatible renderer; r.badge supplies the icon.
+   Label flips to "Hide <id>" when this renderer's modal is already open,
+   since dispatching ToggleModal again closes it. */
+let rich_probe_action =
+    (ctx: probe_ctx, sample: Sample.t, r: packed_renderer): Node.t => {
+  let is_active = ctx.active_renderer_id == Some(r.id);
+  let label = (is_active ? "Hide " : "View as ") ++ r.id;
+  div(
+    ~attrs=[
+      Attr.classes(["action-item", "rich-probe-action"]),
+      Attr.on_pointerdown(_ =>
+        ctx.local(ToggleModal(r.init_model(ctx.sort, sample.value)))
+      ),
+    ],
+    [r.badge, text(label)],
+  );
+};
+
+let rich_probe_items = (ctx: probe_ctx, _sample: Sample.t): list(Node.t) =>
+  switch (Dynamics.Info.most_aligned_sample(ctx.ap_id, ctx.dynamics)) {
+  | None => []
+  | Some(indicated) =>
+    renderers
+    |> List.filter_map(r =>
+         r.can_handle(ctx.sort, indicated.value)
+           ? Some(rich_probe_action(ctx, indicated, r)) : None
+       )
+  };
+
 /* Drawer-mode toggle: flips this probe between inline-offside display
  * and below-line full-width pretty-printed drawer. Per-probe state
  * (ProbeProj.M.model.drawer_mode), so dispatched via local. Now drawn
  * as the chevron portion of the consolidated SVG nav-bar (see
  * `nav_bar_view`), not a standalone div. */
 
-/* Context actions for a sample (Pin/Unpin, Step Into, etc.). The
- * dock toggle is always appended at the row's far right, so the user
+/* Context actions for a sample (Pin/Unpin, Step Into, rich-probe views, etc.).
+ * The dock toggle is always appended at the row's far right, so the user
  * can switch between hover/sidebar views from either context. */
 let sample_context_actions =
     (ctx: probe_ctx, ~can_step_into: bool, sample: Sample.t): list(Node.t) => {
+  let rich_items = rich_probe_items(ctx, sample);
   let primary =
     switch (ctx.ap_id) {
     | Some(ap_id) =>
       [pin_action(ctx, sample)]
       @ (can_step_into ? [step_into_action(ctx, sample, ap_id)] : [])
-    | None when sample.call_stack != [] => [focus_action(ctx, sample)]
-    | None => []
+      @ rich_items
+    | None when sample.call_stack != [] =>
+      [focus_action(ctx, sample)] @ rich_items
+    | None => rich_items
     };
   [
     div(
@@ -1087,7 +1161,7 @@ let sample_context_menu =
           @ (show_env ? ["dropdown-active"] : []),
         ),
       ]
-      @ SafeTriangle.CSSDropdown.menu_attrs(dropdown_id(sample.id)),
+      @ SafeTriangle.CSSDropdown.menu_attrs(dropdown_id(sample)),
     nodes,
   );
 };
@@ -1129,8 +1203,14 @@ let sample_view =
       sample: Sample.t,
     ) => {
   let hide_env = hide_env(ctx.statics);
+  let has_rich =
+    switch (Dynamics.Info.most_aligned_sample(ctx.ap_id, ctx.dynamics)) {
+    | Some(indicated) =>
+      List.exists(r => r.can_handle(ctx.sort, indicated.value), renderers)
+    | None => false
+    };
   let has_dropdown =
-    !(hide_env && ctx.ap_id == None) || sample.call_stack != [];
+    !(hide_env && ctx.ap_id == None) || sample.call_stack != [] || has_rich;
   /* In DockedSidebar the per-sample hover dropdown is hidden; the same
    * content is rendered by the probe sidebar instead. */
   let render_dropdown =
@@ -1151,8 +1231,7 @@ let sample_view =
       [Attr.classes(sample_classes)]
       @ (
         render_dropdown
-          ? SafeTriangle.CSSDropdown.trigger_attrs(dropdown_id(sample.id))
-          : []
+          ? SafeTriangle.CSSDropdown.trigger_attrs(dropdown_id(sample)) : []
       ),
     [value_view(~display, ctx, ~num_total, view_seg, local, sample)]
     @ pin_view(ctx, sample)
@@ -1326,9 +1405,7 @@ let nav_bar_view = (ctx: probe_ctx, ~num_total, ~show_arrows: bool) => {
       ],
       [
         title(side == "left" ? "Previous sample (←)" : "Next sample (→)"),
-        polygon(
-          side == "left" ? "-7,-2 -1,-8 -1,4" : "1,-8 7,-2 1,4",
-        ),
+        polygon(side == "left" ? "-7,-2 -1,-8 -1,4" : "1,-8 7,-2 1,4"),
         hit_rect(~x=hit_x, ~y="-10", ~w="9", ~h="11"),
       ],
     );
@@ -1342,7 +1419,15 @@ let nav_bar_view = (ctx: probe_ctx, ~num_total, ~show_arrows: bool) => {
         ),
       ],
       [
-        title("Toggle drawer (" ++ meta ++ {js|↓|js} ++ " / " ++ meta ++ {js|↑|js} ++ ")"),
+        title(
+          "Toggle drawer ("
+          ++ meta
+          ++ {js|↓|js}
+          ++ " / "
+          ++ meta
+          ++ {js|↑|js}
+          ++ ")",
+        ),
         polygon("-6,1 -7,2 0,9 7,2 6,1 0,7"),
         hit_rect(~x="-9", ~y="1", ~w="18", ~h="9"),
       ],
@@ -1366,10 +1451,7 @@ let nav_bar_view = (ctx: probe_ctx, ~num_total, ~show_arrows: bool) => {
       : [];
   Node.create_svg(
     "svg",
-    ~attrs=[
-      Attr.classes(["nav-bar"]),
-      svg_attr("viewBox", "-9 -10 18 20"),
-    ],
+    ~attrs=[Attr.classes(["nav-bar"]), svg_attr("viewBox", "-9 -10 18 20")],
     arrow_groups @ [toggle_group],
   );
 };
@@ -1558,7 +1640,7 @@ let key_handler =
   | D("c" | "C") when Key.meta_held(evt) || Key.ctrl_held(evt) =>
     switch (indicated_sample(ctx)) {
     | Some(sample) =>
-      let seg = ctx.utility.term_to_seg(Exp(sample.value));
+      let seg = ctx.utility.term_to_seg(~inline=true, Exp(sample.value));
       let str = ctx.utility.seg_to_string(seg);
       let _ =
         Js.Unsafe.global##.navigator##.clipboard##writeText(Js.string(str));
@@ -1605,12 +1687,21 @@ type offside_data = {
 };
 
 let prepare_offside =
-    (info: info, local, parent, ~settings: settings)
+    (
+      info: info,
+      local,
+      parent,
+      ~settings: settings,
+      ~sort: Sort.t,
+      ~model: probe_model,
+    )
     : option(offside_data) =>
   switch (info.dynamics, info.statics) {
   | (Some(dynamics), Some(statics)) =>
     let id = info.id;
     let ap_id = Sample.Focus.cur_var_ap(statics);
+    let active_renderer_id =
+      Option.map(RichProbe.renderer_id_of_model, model.active_renderer);
     let ctx = {
       ap_id,
       statics,
@@ -1619,6 +1710,8 @@ let prepare_offside =
       utility: info.utility,
       parent,
       local,
+      sort,
+      active_renderer_id,
     };
     let filtered_samples =
       Sample.Selection.filter_by_pin(
@@ -1719,7 +1812,10 @@ let live_offside_view =
     ~attrs=[
       Attr.id(Id.cls(id)),
       Attr.create("data-probe-id", Id.to_string(id)),
-      Attr.create("data-cursor-aligned", is_cursor_aligned ? "true" : "false"),
+      Attr.create(
+        "data-cursor-aligned",
+        is_cursor_aligned ? "true" : "false",
+      ),
       Attr.tabindex(0),
       Attr.on_keydown(key_handler(ctx, ~id, ~drawer_mode_active, local)),
       Attr.classes(
@@ -1778,13 +1874,38 @@ let live_offside_view =
   );
 };
 
-let overlay_view = (info: info): Node.t =>
+let get_current = (~settings, info: info) => {
+  switch (info.dynamics, info.statics) {
+  | (Some(di), Some(statics)) =>
+    let ap_id = Sample.Focus.cur_var_ap(statics);
+    /* First try to get the indicated closure */
+    switch (Dynamics.Info.most_aligned_sample(ap_id, di)) {
+    | Some(closure) => Some(closure.value)
+    | None =>
+      /* Fallback: get the first sample */
+      let samples = select_samples(~settings, ~id=info.id, ~ap_id, di);
+      ListUtil.hd_opt(samples) |> Option.map((s: Sample.t) => s.value);
+    };
+  | _ => None
+  };
+};
+
+let overlay_view = (~settings, ~sort, info: info): Node.t =>
   switch (info.dynamics, info.statics) {
   | (Some(dynamics), Some(statics)) =>
     let ap_id = Sample.Focus.cur_var_ap(statics);
+    let has_renderer =
+      switch (get_current(~settings, info)) {
+      | Some(exp) => Option.is_some(find_compatible_renderer(sort, exp))
+      | None => false
+      };
     div(
       ~attrs=[
-        Attr.classes(["overlay"] @ (Option.is_some(ap_id) ? ["ap"] : [])),
+        Attr.classes(
+          ["overlay"]
+          @ (Option.is_some(ap_id) ? ["ap"] : [])
+          @ (has_renderer ? ["has-renderer"] : []),
+        ),
       ],
       [num_samples_view(~ap_id, dynamics)],
     );
@@ -1796,10 +1917,10 @@ type a = action;
 
 module M: Projector = {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type model = {drawer_mode: bool};
-  let init_model: model = {drawer_mode: false};
-  /* Tolerate old serialized models (originally `unit`) by falling back
-   * to the default whenever sexp parsing doesn't match the new shape. */
+  type model = probe_model;
+  let init_model: model = init_probe_model;
+  /* Tolerate old serialized models that don't match the current shape
+   * by falling back to defaults whenever sexp parsing fails. */
   let model_of_sexp = sexp =>
     try(model_of_sexp(sexp)) {
     | _ => init_model
@@ -1807,19 +1928,21 @@ module M: Projector = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type action = a;
 
-  let init = (any: Any.t) =>
+  let init = (any: Any.t) => {
     switch (any) {
     | Exp(_)
     | Pat(_) => Some(init_model)
     | Any(_) => Some(init_model) /* Grout don't have sorts */
     | _ => None
     };
+  };
 
   let dynamics = true;
+  let elaborate_syntax = false;
 
   let focusable =
     Focusable.{
-      pointer: Some(id => JsUtil.get_elem_by_id(Id.cls(id))##focus),
+      pointer: Some(id => {JsUtil.get_elem_by_id(Id.cls(id))##focus}),
       keyboard: None,
     };
 
@@ -1833,7 +1956,7 @@ module M: Projector = {
       ProjectorCore.Shape.default;
     };
 
-  let update = (model: model, info: info, a: action) => {
+  let update = (model: model, info: info, a: action): model => {
     switch (a) {
     | ChangeLength(id, len) =>
       SampleLength.set(id, len);
@@ -1851,21 +1974,120 @@ module M: Projector = {
        * new .live-offside is in the DOM by then and `elem.focus()`
        * sticks. Keeps the probe keyboard-active across toggles. */
       FocusEffect.schedule(info.id);
-      {drawer_mode: !model.drawer_mode};
+      {
+        ...model,
+        drawer_mode: !model.drawer_mode,
+      };
     | SetDrawerMode(b) =>
       Settings.version := Settings.version^ + 1;
       FocusEffect.schedule(info.id);
-      {drawer_mode: b};
+      {
+        ...model,
+        drawer_mode: b,
+      };
     | ResetSettings =>
       Settings.reset_mode();
       SampleLength.reset();
       model;
+    | ToggleModal(pm) =>
+      switch (model.active_renderer) {
+      | None => {
+          ...model,
+          active_renderer: pm,
+        }
+      | Some(_) => {
+          ...model,
+          active_renderer: None,
+        }
+      }
+    | RendererAction(pa) =>
+      /* Dispatch through the action's renderer. update_model's internal
+       * Type.Id casts no-op on a model/action mismatch, so an explicit
+       * id check here is redundant. */
+      switch (
+        model.active_renderer,
+        find(RichProbe.renderer_id_of_action(pa)),
+      ) {
+      | (Some(pm), Some(r)) => {
+          ...model,
+          active_renderer: Some(r.update_model(pm, pa)),
+        }
+      | _ => model
+      }
     };
   };
 
+  /* Modal overlay for dynamic renderer display */
+  let modal_overlay =
+      (
+        ~settings,
+        model,
+        info,
+        ~local: action => Ui_effect.t(unit),
+        ~parent,
+        ~view_seg,
+        ~sort,
+      )
+      : list(Node.t) => {
+    switch (model.active_renderer, get_current(~settings, info)) {
+    | (Some(pm), Some(exp)) =>
+      let rid = RichProbe.renderer_id_of_model(pm);
+      /* Find the renderer and check if it can still handle the expression */
+      switch (find(rid)) {
+      | Some(renderer) when renderer.can_handle(sort, exp) =>
+        let rendered =
+          renderer.render_model(
+            pm,
+            ~info,
+            ~exp,
+            ~view_seg,
+            ~local=pa => local(RendererAction(pa)),
+            ~parent,
+            ~sort,
+            (),
+          );
+        switch (rendered) {
+        | None => []
+        | Some(content) => [
+            div(
+              ~attrs=[Attr.classes(["modal-backdrop", "live-offside"])],
+              [
+                div(
+                  ~attrs=[
+                    Attr.classes(["modal"]),
+                    Attr.on_click(_ => Effect.Stop_propagation),
+                  ],
+                  [
+                    div(
+                      ~attrs=[
+                        Attr.classes(["modal-close-btn"]),
+                        Attr.title("Close"),
+                        Attr.on_click(_ => local(ToggleModal(None))),
+                      ],
+                      [text("×")],
+                    ),
+                    content,
+                  ],
+                ),
+              ],
+            ),
+          ]
+        };
+      | _ => []
+      };
+    | _ => []
+    };
+  };
+
+  let error = (_, _): option(ProjectorBase.error) => None;
+
   let view =
-      ({model, info, local, parent, view_seg, _}: View.args(model, action)) => {
+      (
+        {info, local, parent, view_seg, model, status, _}:
+          View.args(model, action),
+      ) => {
     let settings = Settings.s^;
+    let sort = status.sort;
     /* Two compositional pieces (nav-bar component + samples-bearing
      * .live-offside) get routed to the projector's slots differently
      * per mode:
@@ -1877,29 +2099,46 @@ module M: Projector = {
      * The focusable .live-offside (id, key-handlers, tabindex) always
      * goes wherever the samples live, so probe-navigation/cursor logic
      * stays attached to the same DOM element regardless of mode. */
-    let data_opt = prepare_offside(info, local, parent, ~settings);
+    let data_opt =
+      prepare_offside(info, local, parent, ~settings, ~sort, ~model);
     let drawer = model.drawer_mode;
+    let offside_main =
+      switch (data_opt, drawer) {
+      | (None, _) => empty_view(~id=info.id, ~settings)
+      | (Some(data), false) =>
+        live_offside_view(
+          ~display=Inline,
+          ~include_nav_bar=true,
+          ~drawer_mode_active=false,
+          data,
+          local,
+          view_seg,
+          ~settings,
+        )
+      | (Some(data), true) => nav_bar_wrapper_view(data, ~settings)
+      };
+    let modal_nodes =
+      modal_overlay(
+        ~settings,
+        model,
+        info,
+        ~local,
+        ~parent,
+        ~view_seg,
+        ~sort,
+      );
+    /* Wrap offside content + modal nodes in a containerless div only when
+     * the modal is open; otherwise return offside_main directly so we don't
+     * add an extra DOM level around the (positioned) .live-offside. */
+    let offside_node =
+      switch (modal_nodes) {
+      | [] => offside_main
+      | _ => div([offside_main] @ modal_nodes)
+      };
     View.{
       inline: Node.div([]),
-      overlay: Some(overlay_view(info)),
-      offside:
-        switch (data_opt, drawer) {
-        | (None, _) => Some(empty_view(~id=info.id, ~settings))
-        | (Some(data), false) =>
-          Some(
-            live_offside_view(
-              ~display=Inline,
-              ~include_nav_bar=true,
-              ~drawer_mode_active=false,
-              data,
-              local,
-              view_seg,
-              ~settings,
-            ),
-          )
-        | (Some(data), true) =>
-          Some(nav_bar_wrapper_view(data, ~settings))
-        },
+      overlay: Some(overlay_view(~settings, ~sort, info)),
+      offside: Some(offside_node),
       below:
         switch (data_opt, drawer) {
         | (Some(data), true) =>
@@ -1916,6 +2155,7 @@ module M: Projector = {
           )
         | _ => None
         },
+      error: false,
     };
   };
 };
