@@ -569,61 +569,7 @@ module Selection = {
 };
 
 module View = {
-  let is_input_field = (elId: option(string)) => {
-    switch (elId) {
-    | Some("title-input-box")
-    | Some("module-name-input")
-    | Some("prompt-input-box")
-    | Some("test-required-input")
-    | Some("point-max-input")
-    | Some("agent-api-key-input") => true
-    | Some(id) when String.starts_with(~prefix="hint-input", id) => true
-    | Some(id) when String.starts_with(~prefix="syntax-hint-input", id) =>
-      true
-    | Some(id) when String.starts_with(~prefix="impl-hint-input", id) => true
-    | _ => false
-    };
-  };
-
-  let selection_has_refractors =
-      (
-        refractors: Haz3lcore.Zipper.Refractor.t,
-        selection: Haz3lcore.Segment.t,
-      )
-      : bool =>
-    if (List.is_empty(refractors.manuals)) {
-      false;
-    } else {
-      let ids = Haz3lcore.Segment.ids(selection);
-      List.exists(
-        id =>
-          List.exists(((id2, _)) => Id.equal(id, id2), refractors.manuals),
-        ids,
-      );
-    };
-
-  let copy = (cursor: Cursor.cursor(Editors.Update.t)): unit => {
-    let str = (cursor.selected_text |> Option.value(~default=() => ""))();
-    let should_set =
-      switch (cursor.editor, cursor.selection) {
-      | (Some(editor), Some(selection)) =>
-        /* If the selection contains refractors, we forgo the segment cache
-         * for the sake of preserving refractors in the copy via expanding
-         * their text invocation form, i.e. ^^refractor_name(<syntax>) */
-        !selection_has_refractors(editor.state.zipper.refractors, selection)
-      | _ => true
-      };
-    should_set
-      ? Haz3lcore.Parser.set_segment_cache(cursor.selection, str) : ();
-    JsUtil.copy(str);
-  };
-
-  let handlers =
-      (
-        ~inject: Update.t => Ui_effect.t(unit),
-        ~cursor: Cursor.cursor(Editors.Update.t),
-        model: Model.t,
-      ) => {
+  let handlers = (~inject: Update.t => Ui_effect.t(unit), model: Model.t) => {
     let handle_key_event = (key: Key.t): Effect.t(unit) => {
       let meta_down = key.meta == Down;
       let meta_effects =
@@ -735,64 +681,6 @@ module View = {
       Attr.on_focus(_ => {
         JsUtil.focus_clipboard_shim();
         Effect.Ignore;
-      }),
-      Attr.on_copy(evt => {
-        /* Only hijack copy when the target lives inside a code editor —
-           editor-level Cmd+C now handles its own clipboard write, but the
-           native event still bubbles in cases where focus is on #page or
-           the editor's tabindex div without our key handler having run.
-           For sidebar / system-message / agent-message / inputs, fall
-           through to the browser's default DOM-selection copy. */
-        let target = Js.Opt.to_option(evt##.target);
-        switch (target) {
-        | Some(el) =>
-          let el = Js.Unsafe.coerce(el);
-          if (JsUtil.has_ancestor_class(el, "code-editor")) {
-            copy(cursor);
-          };
-        | None => ()
-        };
-        Effect.Ignore;
-      }),
-      Attr.on_cut(evt => {
-        let target = Js.Opt.to_option(evt##.target);
-        switch (target) {
-        | Some(el) =>
-          let elId = Js.Opt.to_option(Js.Unsafe.coerce(el)##.id);
-          if (is_input_field(elId)) {
-            Effect.Ignore;
-          } else {
-            copy(cursor);
-            switch (cursor.editor_action(Destruct(Right))) {
-            | Some(action) => inject(Editors(action))
-            | None => Effect.Ignore
-            };
-          };
-        | None => Effect.Ignore
-        };
-      }),
-    ]
-    @ [
-      Attr.on_paste(evt => {
-        let target = Js.Opt.to_option(evt##.target);
-        switch (target) {
-        | Some(el) =>
-          let elId = Js.Opt.to_option(Js.Unsafe.coerce(el)##.id);
-          if (is_input_field(elId)) {
-            Effect.Ignore;
-          } else {
-            let text =
-              Js.to_string(evt##.clipboardData##getData(Js.string("text")));
-            let action =
-              Haz3lcore.Action.Paste(Util.StringUtil.trim_leading(text));
-            Dom.preventDefault(evt);
-            switch (cursor.editor_action(action)) {
-            | None => Effect.Ignore
-            | Some(action) => inject(Editors(action))
-            };
-          };
-        | None => Effect.Ignore
-        };
       }),
     ];
   };
@@ -1014,7 +902,7 @@ module View = {
       Selection.get_cursor_info(~inject, ~selection=model.selection, model);
     NinjaKeys.initialize(cursor.contextual_actions);
     div(
-      ~attrs=[Attr.id("page"), ...handlers(~cursor, ~inject, model)],
+      ~attrs=[Attr.id("page"), ...handlers(~inject, model)],
       [FontSpecimen.view, JsUtil.clipboard_shim]
       @ main_view(~log_model, ~get_log_and, ~cursor, ~inject, model),
     );
