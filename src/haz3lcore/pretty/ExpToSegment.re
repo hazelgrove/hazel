@@ -2114,9 +2114,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     wrap(
       exp,
       e2
-      @ (
-        settings.inline == Inline ? [] : [Secondary(mk_newline(Id.mk()))]
-      )
+      @ (settings.inline == Inline ? [] : [Secondary(mk_newline(Id.mk()))])
       @ [
         Tile({
           id,
