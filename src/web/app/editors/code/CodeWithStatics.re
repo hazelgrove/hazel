@@ -1,4 +1,3 @@
-open Util;
 open Util.WebUtil;
 open Haz3lcore;
 
@@ -9,9 +8,11 @@ open Haz3lcore;
 /* This file follows conventions in [docs/ui-architecture.md] */
 
 module Model = {
-  /* Context menu state: None = closed, Some(n) = open with item n selected */
+  /* Context menu state lives in Util.Menu — None = closed, Some({…})
+   * holds the selected item index and (unused for the editor menu) the
+   * submenu path. */
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type context_menu_state = option(int);
+  type context_menu_state = Util.Menu.t;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
@@ -22,7 +23,8 @@ module Model = {
     dynamics: Language.Dynamics.Map.t,
   };
 
-  let context_menu_is_open = (model: t): bool => model.context_menu != None;
+  let context_menu_is_open = (model: t): bool =>
+    Util.Menu.is_open(model.context_menu);
 
   let mk =
       (
@@ -152,8 +154,21 @@ module Update = {
         {editor, statics, context_menu, _}: Model.t,
       )
       : Model.t => {
-    /* Capture ephemerals before editor calculation to detect auto probe changes */
-    let old_ephemerals = editor.state.zipper.refractors.multis.ephemerals;
+    /* Throttle gate: decide whether to do a full statics recompute this
+     * frame. When we reuse, `statics` keeps its ref — CachedSyntax.calculate
+     * then skips the shape pass via phys-eq on info_map/elaborated. */
+    let statics =
+      statics_mode == StaticsForce || is_edited && statics_mode != StaticsDefer
+        ? CachedStatics.init(
+            ~settings,
+            ~stitch,
+            ~ctx?,
+            ~ana?,
+            ~is_dynamic_term,
+            ~root=editor.root,
+            editor.state.zipper,
+          )
+        : statics;
 
     let editor =
       Editor.Update.calculate(
@@ -165,35 +180,11 @@ module Update = {
         editor,
       );
 
-    /* Ephemerals can change without an explicit edit in several cases:
-     * (1) cursor movement in autoprobe mode (cursor crosses into a new
-     *     top-level definition), and
-     * (2) on reload, when add_ids_from_multi_term rebuilds ephemerals
-     *     from persisted multis.ids once the info_map becomes available.
-     * In both cases we must recalculate statics so probe targets match
-     * the new ephemerals and the evaluator collects samples for them. */
-    let probes_changed =
-      !
-        Id.Map.equal(
-          Refractors.equal_entry,
-          old_ephemerals,
-          editor.state.zipper.refractors.multis.ephemerals,
-        );
-
+    /* Refresh `statics.targets` against the post-probe-effects refractors.
+     * Cheap O(|probe_ids|) fold; only this field depends on refractors, so
+     * the rest of statics stays valid. */
     let statics =
-      statics_mode == StaticsForce
-      || (is_edited || probes_changed)
-      && statics_mode != StaticsDefer
-        ? CachedStatics.init(
-            ~settings,
-            ~stitch,
-            ~ctx?,
-            ~ana?,
-            ~is_dynamic_term,
-            ~root=editor.root,
-            editor.state.zipper,
-          )
-        : statics;
+      CachedStatics.with_targets(~settings, editor.state.zipper, statics);
     {
       editor,
       statics,

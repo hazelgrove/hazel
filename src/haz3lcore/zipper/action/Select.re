@@ -124,7 +124,11 @@ and grow_by_char = (d: Direction.t, z: Zipper.t): option(Zipper.t) => {
      * and over-select. */
     switch (d) {
     | Right =>
-      let+ z = Zipper.grow_selection({...z, caret: Outer});
+      let+ z =
+        Zipper.grow_selection({
+          ...z,
+          caret: Outer,
+        });
       let z = {
         ...z,
         selection: {
@@ -231,7 +235,8 @@ and shrink_by_char = (d: Direction.t, z: Zipper.t): option(Zipper.t) => {
           ),
         );
       | CaretBase.Inner(an) =>
-        let locator = Move.shard_locator(Selection.anchor_piece(z.selection));
+        let locator =
+          Move.shard_locator(Selection.anchor_piece(z.selection));
         let z = Zipper.directional_unselect(Left, z);
         Some(
           Move.canonicalize_inner_unselect(

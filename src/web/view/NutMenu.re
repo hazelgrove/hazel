@@ -103,6 +103,12 @@ let values_group = (~globals: Globals.t) => {
         tooltip: Some("Show fixpoint expressions in evaluated results"),
       },
       {
+        name: "Tables",
+        active: s.project_tables,
+        setting: Evaluation(ProjectTables),
+        tooltip: Some("Project tables in evaluated results"),
+      },
+      {
         name: "Ascriptions",
         active: s.show_ascriptions,
         setting: Evaluation(ShowAscriptions),
