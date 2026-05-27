@@ -36,6 +36,8 @@ module M: Projector = {
 
   let dynamics = true; /* Need dynamics to get evaluated value */
   let focusable = Focusable.non;
+  let elaborate_syntax = false;
+  let error = (_, _): option(ProjectorBase.error) => None;
   let placeholder = (_, _) => ProjectorCore.Shape.default;
 
   let update = (model, _info, _action: action) => model; /* State is global, not in model */
@@ -97,6 +99,7 @@ module M: Projector = {
     View.{
       inline: div([]),
       overlay: None,
+      error: false,
       offside:
         Some(
           div(

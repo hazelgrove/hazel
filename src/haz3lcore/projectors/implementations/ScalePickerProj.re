@@ -73,6 +73,7 @@ module M: Projector = {
   let put = (info: info, v: string): Base.segment =>
     switch (
       info.utility.lift_syntax(
+        ~inline=true,
         fun
         | Exp({term: Ap(dir, ctor, arg), _} as t) =>
           Exp({
@@ -97,6 +98,8 @@ module M: Projector = {
 
   let focusable = Focusable.non;
   let dynamics = false;
+  let elaborate_syntax = false;
+  let error = (_, _): option(ProjectorBase.error) => None;
   /* 3 rows for scale grid */
   let placeholder = (_, _) => {
     ProjectorShape.horizontal: 21,

@@ -75,6 +75,7 @@ module M: Projector = {
   let put = (info: info, x: float, y: float): Base.segment =>
     switch (
       info.utility.lift_syntax(
+        ~inline=true,
         fun
         | Exp({term: Tuple([tx, ty]), _} as t) =>
           Exp({
@@ -120,6 +121,8 @@ module M: Projector = {
 
   let focusable = Focusable.non;
   let dynamics = false;
+  let elaborate_syntax = false;
+  let error = (_, _): option(ProjectorBase.error) => None;
   /* XY Pad needs square space - 5 rows for a good touch target */
   let placeholder = (_, _) => {
     ProjectorShape.horizontal: 10,

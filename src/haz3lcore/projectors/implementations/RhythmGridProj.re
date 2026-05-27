@@ -89,6 +89,7 @@ module M: Projector = {
   let put = (info: info, v: string): Base.segment =>
     switch (
       info.utility.lift_syntax(
+        ~inline=true,
         fun
         | Exp({term: Ap(dir, ctor, arg), _} as t) =>
           Exp({
@@ -113,6 +114,8 @@ module M: Projector = {
 
   let focusable = Focusable.non;
   let dynamics = false;
+  let elaborate_syntax = false;
+  let error = (_, _): option(ProjectorBase.error) => None;
   /* Rhythm grid needs ~6 rows: controls + 4 drum rows + padding */
   let placeholder = ({steps, _}, _) => {
     ProjectorShape.horizontal: steps * 2 + 8,
