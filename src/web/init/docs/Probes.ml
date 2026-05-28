@@ -2780,8 +2780,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
       refractors =
         "((03448954-5408-4682-b6c3-7a08e40cb287((kind \
          Probe)(model\"((active_renderer((table((menu_state()))))))\")))(ce8d0375-c6b7-4735-b875-0beaba96612b((kind \
-         Statics)(model \
-         Dynamic)))(e7a30b34-7753-4cca-a941-d1dfc38045a1((kind \
+         Statics)(model Dynamic)))(e7a30b34-7753-4cca-a941-d1dfc38045a1((kind \
          Probe)(model\"((active_renderer((table((menu_state()))))))\")))(01b8885d-2bb0-4d1b-89df-d1723fcc919f((kind \
          Probe)(model\"()\")))(0626cd00-4c2d-426c-988a-ff577e24b50c((kind \
          Probe)(model\"()\")))(07e0c1c5-957e-4eaa-8ec8-187588fc3595((kind \

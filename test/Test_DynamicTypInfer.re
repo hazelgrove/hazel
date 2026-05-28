@@ -61,6 +61,7 @@ let typ_to_string = (ty: Typ.t): string => {
         show_unknown_as_hole: true,
         show_ascriptions: true,
         raise_if_padding: false,
+        project_tables: false,
       },
       ty,
     );
