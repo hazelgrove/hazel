@@ -21,6 +21,7 @@ module Model = {
     relative_line_numbers: bool,
     cap_undo_stack: bool,
     show_row_lines: bool,
+    show_incremental_deco: bool,
   };
 
   let init = {
@@ -49,6 +50,7 @@ module Model = {
         show_settings: false,
         show_hidden_steps: false,
         enable_proof: false,
+        project_tables: false,
       },
     },
     async_evaluation: false,
@@ -76,6 +78,7 @@ module Model = {
     relative_line_numbers: false,
     cap_undo_stack: false,
     show_row_lines: false,
+    show_incremental_deco: false,
   };
 
   let fix_instructor_mode = settings =>
@@ -129,7 +132,8 @@ module Update = {
     | ShowLookups
     | ShowFilters
     | ShowSettings
-    | ShowHiddenSteps;
+    | ShowHiddenSteps
+    | ProjectTables;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
@@ -155,7 +159,8 @@ module Update = {
     | ToggleLineNumbers
     | ToggleRelativeLineNumbers
     | CapUndoStack
-    | ShowRowLines;
+    | ShowRowLines
+    | ShowIncrementalDeco;
 
   let can_undo = (action: t) => {
     switch (action) {
@@ -253,6 +258,10 @@ module Update = {
           | EnableProof => {
               ...evaluation,
               enable_proof: !evaluation.enable_proof,
+            }
+          | ProjectTables => {
+              ...evaluation,
+              project_tables: !evaluation.project_tables,
             }
           | ShowCaseClauses => {
               ...evaluation,
@@ -421,6 +430,10 @@ module Update = {
       | ShowRowLines => {
           ...settings,
           show_row_lines: !settings.show_row_lines,
+        }
+      | ShowIncrementalDeco => {
+          ...settings,
+          show_incremental_deco: !settings.show_incremental_deco,
         }
       }
     )

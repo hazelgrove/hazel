@@ -59,6 +59,11 @@
   --highlight-f: oklch(from var(--highlight-a) l c calc(h - 5 * 60));
 
 
+  /* Incremental evaluator "frozen" tint: behind code reused from the
+   * previous evaluation run (cache hit), left as-is by the worker. */
+  --incremental-frozen: rgba(200, 230, 255, 0.55);
+  --incremental-frozen-edge: rgba(140, 190, 240, 0.55);
+
   /* MOSS - affirmations */
   --G0: oklch(70% 0.15 150); /* page title, passing tests */
   --G1: oklch(85% 0.15 150); /* ! passing tests hover */
@@ -249,6 +254,12 @@
   --select-z: 4;
   --stepper-interactive-z: 5;
   --projector-underlay-z: 9;
+
+  /* TABLE PROJECTOR */
+  --df-bg: var(--SAND);
+  --table-header-bg: var(--shard-caret-exp);
+  --df-zebra-bg: var(--T2);
+  --df-hover-bg: hsl(120, 40%, 85%);
 
   /* AT CODE LEVEL */
   --code-text-z: 10;

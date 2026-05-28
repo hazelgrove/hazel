@@ -16,6 +16,7 @@ let exp_to_segment_settings: ExpToSegment.Settings.t = {
   show_filters: true,
   show_unknown_as_hole: true,
   raise_if_padding: false,
+  project_tables: false,
 };
 
 let exp_to_segment =
@@ -341,6 +342,22 @@ let tests = (
         ),
       )
     }),
+    test_case("Void type (empty sum) prints as Void", `Quick, () => {
+      check(
+        string,
+        "Void type",
+        "Void",
+        print_seg(
+          ExpToSegment.typ_to_segment(
+            ~settings=exp_to_segment_settings,
+            IdTagged.FreshGrammar.Typ.sum([]),
+          ),
+        ),
+      )
+    }),
+    test_case("Void type round-trips through MakeTerm", `Quick, () => {
+      type_equivalent_to_make_term("Void")
+    }),
     test_case("Cons followed by negation", `Quick, () =>
       equivalent_to_make_term({|"":: - a|})
     ),
@@ -494,6 +511,7 @@ let exp_to_segment_roundtrip_settings: ExpToSegment.Settings.t = {
   show_filters: true,
   show_unknown_as_hole: true,
   raise_if_padding: false,
+  project_tables: false,
 };
 
 let exp_to_segment_roundtrip =
@@ -534,6 +552,11 @@ let roundtrip_tests = (
     roundtrip_test({|Binary op: chained compact|}, {|1+2+3|}),
     roundtrip_test({|Binary op: chained mixed|}, {|1 +2+ 3|}),
     roundtrip_test({|Binary op: chained 4 terms|}, {|1 + 2 + 3 + 4|}),
+    /* Pipeline (|>) — Ap(Reverse). Left-associative, so chained pipes
+       must round-trip without gaining parens. */
+    roundtrip_test({|Pipeline: simple|}, {|x |> f|}),
+    roundtrip_test({|Pipeline: chained|}, {|x |> f |> g|}),
+    roundtrip_test({|Pipeline: chained 4 terms|}, {|x |> f |> g |> h|}),
     /* Prefix operators */
     roundtrip_test({|Prefix: negation|}, {|-x|}),
     roundtrip_test({|Prefix: negation with space|}, {|- x|}),
@@ -1107,6 +1130,7 @@ let grout_structural_settings: ExpToSegment.Settings.t = {
   show_filters: true,
   show_unknown_as_hole: true,
   raise_if_padding: false,
+  project_tables: false,
 };
 
 /* String-to-string grout tests: parse strings, verify round-trip preserves text.

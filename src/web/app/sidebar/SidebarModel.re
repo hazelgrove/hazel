@@ -12,7 +12,7 @@ module Settings = {
   [@deriving (show({with_path: false}), sexp, yojson, enumerate)]
   type problem_category =
     Haz3lcore.ProblemCollection.problem_category =
-      | Syntax | Hole | Static | Warning | LiveTyping;
+      | Syntax | Hole | Static | Warning | LiveTyping | Projector;
 
   /* Base CSS class for a category */
   let category_cls = cat =>
@@ -22,6 +22,7 @@ module Settings = {
     | Static => "static"
     | Warning => "warning"
     | LiveTyping => "live-typing"
+    | Projector => "projector-error"
     };
 
   /* Human-readable label */
@@ -32,6 +33,7 @@ module Settings = {
     | Static => "Static Errors"
     | Warning => "Warnings"
     | LiveTyping => "Live Typing Errors"
+    | Projector => "Projector Errors"
     };
 
   /* Short label for legend */
@@ -42,6 +44,7 @@ module Settings = {
     | Static => "Static"
     | Warning => "Warning"
     | LiveTyping => "Live Typing"
+    | Projector => "Projector"
     };
 
   /* Badge severity: categories with higher values take priority in the tab icon.
@@ -49,8 +52,9 @@ module Settings = {
   let category_badge_severity = cat =>
     switch (cat) {
     | Syntax
-    | Static => 2
+    | Static
     | LiveTyping => 2
+    | Projector
     | Warning => 1
     | Hole => 0
     };
@@ -61,6 +65,7 @@ module Settings = {
     | Syntax
     | Static => "has-errors"
     | LiveTyping => "has-live-typing"
+    | Projector
     | Warning => "has-warnings"
     | Hole => "has-holes"
     };
@@ -71,6 +76,7 @@ module Settings = {
     | Syntax
     | Static => "error"
     | LiveTyping => "live typing error"
+    | Projector
     | Warning => "warning"
     | Hole => "hole"
     };

@@ -21,6 +21,7 @@ module Model = {
     elab: Calc.saved(Exp.t),
     cached_targets: Calc.saved(Sample.targets), /* Input targets for cache invalidation */
     result: Calc.t(ProgramResult.t(ProgramResult.inner)),
+    incr_eval: Calc.saved(IncrEval.t),
     display,
     theorems: Theorems.Model.t,
   };
@@ -36,6 +37,7 @@ module Model = {
     elab: Calc.Pending,
     cached_targets: Calc.Pending,
     result: Calc.NewValue(ProgramResult.ResultPending),
+    incr_eval: Calc.Pending,
     display: Evaluation(Calc.Pending),
     theorems: Theorems.Model.init,
   };
@@ -57,6 +59,7 @@ module Model = {
         elab: Calc.Pending,
         cached_targets: Calc.Pending,
         result: Calc.NewValue(ProgramResult.ResultPending),
+        incr_eval: Calc.Pending,
         display: Stepper(StepperView.Model.unpersist(stepper)),
         theorems,
       }
@@ -114,6 +117,9 @@ module Model = {
          | None => Dynamics.empty
          }
        );
+
+  let incr_eval = (model: t): IncrEval.t =>
+    model.incr_eval |> Calc.get_saved(IncrEval.empty);
 
   let get_elaboration = (model: t): option(Exp.t) =>
     model.elab |> Calc.get_saved_opt;
@@ -193,7 +199,15 @@ module Update = {
         ~queue_worker: option(WorkerServer.Request.value => unit),
         ~is_edited: bool,
         statics: Haz3lcore.CachedStatics.t,
-        {cached_settings, elab, cached_targets, result, display, theorems}: Model.t,
+        {
+          cached_settings,
+          elab,
+          cached_targets,
+          result,
+          incr_eval,
+          display,
+          theorems,
+        }: Model.t,
       ) => {
     // Check whether settings / elab / targets have changed
     let settings =
@@ -207,6 +221,18 @@ module Update = {
         cached_targets,
       );
 
+    /* Previous incremental map, if the last evaluation produced one. Pull
+     * from the saved field so it survives intermediate pending states
+     * (during which `result` itself is ResultPending). */
+    let prev_incr = incr_eval |> Calc.get_saved(IncrEval.empty);
+    /* Project statics to the serializable slice the incremental evaluator
+     * needs. The raw info_map can't cross postMessage because LivelitCtx
+     * entries contain OCaml closures. */
+    let eval_info_map =
+      EvalInfoMap.of_info_map(
+        ~probe_all=Calc.get_value(settings).probe_all,
+        statics.info_map,
+      );
     // Calculate the result
     let result: Calc.t(ProgramResult.t(ProgramResult.inner)) =
       result
@@ -223,6 +249,8 @@ module Update = {
           queue_worker({
             expr: elab,
             targets,
+            eval_info_map,
+            prev: prev_incr,
           });
           ProgramResult.ResultPending;
         // Using the main thread:
@@ -231,6 +259,8 @@ module Update = {
             WorkerServer.work({
               expr: elab,
               targets,
+              eval_info_map,
+              prev: prev_incr,
             })
           ) {
           | Ok((exp, state)) =>
@@ -242,6 +272,18 @@ module Update = {
             )
           | Error(e) => ProgramResult.ResultFail(e)
           }
+        };
+      };
+
+    let incr_eval =
+      incr_eval
+      |> {
+        let.calc result = result;
+        switch (result) {
+        | ProgramResult.ResultPending =>
+          incr_eval |> Calc.get_saved(IncrEval.empty)
+        | ProgramResult.ResultFail(_) => IncrEval.empty
+        | ProgramResult.ResultOk({state, _}) => state.incr_eval
         };
       };
 
@@ -322,6 +364,7 @@ module Update = {
         elab: elab |> Calc.save,
         cached_targets: targets |> Calc.save,
         result: result |> Calc.make_old,
+        incr_eval: incr_eval |> Calc.save,
         display,
         theorems,
       }: Model.t

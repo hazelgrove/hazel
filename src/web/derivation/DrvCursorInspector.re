@@ -25,6 +25,7 @@ let drv_view = (~globals, status: DrvInfo.t) => {
           show_ascriptions: false,
           show_unknown_as_hole: false,
           raise_if_padding: false,
+          project_tables: false,
         },
     );
   let view_type = (typ: Typ.t) =>

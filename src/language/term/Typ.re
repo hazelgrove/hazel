@@ -35,6 +35,7 @@ let unwrap: t => (term, term => t) = IdTagged.unwrap;
 let rep_id: t => Id.t = IdTagged.rep_id;
 
 let fresh: term => t = IdTagged.fresh;
+let fresh_atom: Atom.cls => t = cls => fresh(Atom(cls));
 /* fresh assigns a random id, whereas temp assigns Id.invalid, which
    is a lot faster, and since we so often make types and throw them away
    shortly after, it makes sense to use it. */
@@ -346,6 +347,7 @@ let rec vars = (ty: t): list(Var.t) =>
   | ProdExtension(ty1, ty2) => vars(ty1) @ vars(ty2)
   | Sig(_) => []
   };
+
 let rec aliases_deep = (ctx: Ctx.t, ty: t): list((string, t)) => {
   let defs =
     List.concat_map(
@@ -441,6 +443,8 @@ let rec count_unknowns = (ty: t): int =>
   | ProdExtension(ty1, ty2) => count_unknowns(ty1) + count_unknowns(ty2)
   | Sig(_) => 0
   };
+
+let contains_unknown = (ty: t): bool => count_unknowns(ty) > 0;
 
 let rec contains_sum_or_var = (ty: t): bool =>
   switch (ty.term) {
@@ -557,8 +561,33 @@ let rec subst = (s: t, x: TPat.t, ty: t): t => {
 
 let unroll = (ty: t): t =>
   switch (term_of(ty)) {
-  | Rec(tp, ty_body) => subst(ty, tp, ty_body)
+  | Rec(tp, ty_body) =>
+    switch (TPat.tyvar_of_utpat(tp)) {
+    | None => ty_body
+    | Some(_) => subst(ty, tp, ty_body)
+    }
   | _ => ty
+  };
+
+/* Unroll a Rec type until its head is not a Rec. Returns None on self-loop
+   types like `rec x -> x` where unrolling cannot make progress. Normalizes
+   the body first so that vacuous inner Recs (e.g. `rec x -> (rec ? -> x)`)
+   are recognized as the equivalent self-loop. See hazelgrove/hazel#2235,
+   #1624. */
+let rec unroll_to_non_rec = (ty: t): option(t) =>
+  switch (term_of(ty)) {
+  | Rec(tp, body) =>
+    switch (unroll_to_non_rec(body)) {
+    | None => None
+    | Some(body') =>
+      switch (TPat.tyvar_of_utpat(tp), term_of(body')) {
+      | (Some(w), Var(v)) when v == w => None
+      | _ =>
+        let (_, rewrap) = Annotated.unwrap(ty);
+        unroll_to_non_rec(unroll(Grammar.Rec(tp, body') |> rewrap));
+      }
+    }
+  | _ => Some(ty)
   };
 
 /* Type Equality: This coincides with alpha equivalence for normalized types.

@@ -369,6 +369,10 @@
   background-color: var(--live-typing-stroke);
 }
 
+.legend-swatch.projector-error {
+  background-color: var(--R1);
+}
+
 .problem-nav-buttons {
   display: flex;
   gap: 2px;

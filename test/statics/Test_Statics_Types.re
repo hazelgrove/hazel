@@ -473,10 +473,90 @@ let tests = (
       "Typ.weak_head_normalize infinite recursion", // https://github.com/hazelgrove/hazel/issues/1621
       "type y = y in type ? = y in ?",
     ),
-    skip_known_bug(
-      "Coverage.all_ctrs_of_typ infinite recursion", // https://github.com/hazelgrove/hazel/issues/1624
-      "fun ((()): ((rec x -> (rec y -> x)))) -> []",
-    ),
+    test_case(
+      // https://github.com/hazelgrove/hazel/issues/1624
+
+        "Coverage.all_ctrs_of_typ no infinite recursion on nested non-productive Rec",
+        `Quick,
+        () => {
+          let rec_type =
+            FTemp.Typ.(
+              rec_(
+                FTemp.TPat.var("x"),
+                rec_(FTemp.TPat.var("y"), var("x")),
+              )
+            );
+          let mismatch =
+            Marks([
+              ExpectationMismatch({
+                ana: rec_type,
+                syn: FTemp.Typ.prod([]),
+              }),
+            ]);
+          annotated_tree_test(
+            "fun (() : rec x -> rec y -> x) -> []",
+            FTemp.Typ.(arrow(rec_type, list(unknown(Internal)))),
+            FIError.Exp.(
+              fn(
+                FIError.Pat.(
+                  asc(
+                    tuple(~ann=Some(mismatch), []),
+                    FIError.Typ.(
+                      rec_(
+                        FIError.TPat.var("x"),
+                        rec_(FIError.TPat.var("y"), var("x")),
+                      )
+                    ),
+                  )
+                ),
+                list_lit([]),
+              )
+            ),
+          );
+        },
+      ),
+    test_case(
+      // https://github.com/hazelgrove/hazel/issues/2235
+
+        "Coverage.all_ctrs_of_typ no infinite recursion on Rec with hole binder",
+        `Quick,
+        () => {
+          let rec_type =
+            FTemp.Typ.(
+              rec_(
+                FTemp.TPat.var("x"),
+                rec_(FTemp.TPat.empty_hole(), var("x")),
+              )
+            );
+          let mismatch =
+            Marks([
+              ExpectationMismatch({
+                ana: rec_type,
+                syn: FTemp.Typ.prod([]),
+              }),
+            ]);
+          annotated_tree_test(
+            "fun (() : rec x -> rec ? -> x) -> 132032.832758",
+            FTemp.Typ.(arrow(rec_type, float())),
+            FIError.Exp.(
+              fn(
+                FIError.Pat.(
+                  asc(
+                    tuple(~ann=Some(mismatch), []),
+                    FIError.Typ.(
+                      rec_(
+                        FIError.TPat.var("x"),
+                        rec_(FIError.TPat.empty_hole(), var("x")),
+                      )
+                    ),
+                  )
+                ),
+                float(132032.832758),
+              )
+            ),
+          );
+        },
+      ),
     skip_known_bug(
       "all_ctrs_of_type called with a non-normalized type", // https://github.com/hazelgrove/hazel/issues/1626
       {|fun (?: (Float((+ A(Bool))))) -> ""|},

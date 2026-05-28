@@ -10,9 +10,11 @@ open WebUtil;
 /* This file follows conventions in [docs/ui-architecture.md] */
 
 module Model = {
-  /* Context menu state: None = closed, Some(n) = open with item n selected */
+  /* Context menu state lives in Util.Menu — None = closed, Some({…})
+   * holds the selected item index and (unused for the editor menu) the
+   * submenu path. */
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type context_menu_state = option(int);
+  type context_menu_state = Util.Menu.t;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
@@ -25,7 +27,8 @@ module Model = {
     sample_focus: Calc.saved(Language.Sample.Focus.t),
   };
 
-  let context_menu_is_open = (model: t): bool => model.context_menu != None;
+  let context_menu_is_open = (model: t): bool =>
+    Util.Menu.is_open(model.context_menu);
 
   let mk = (~dynamics=Dynamics.empty, ~statics=CachedStatics.empty, editor) => {
     {
@@ -211,6 +214,11 @@ module Update = {
             editor.state.zipper,
           )
         : statics;
+    /* Refresh `statics.targets` against the post-probe-effects refractors.
+     * Cheap O(|probe_ids|) fold; only this field depends on refractors, so
+     * the rest of statics stays valid. */
+    let statics =
+      CachedStatics.with_targets(~settings, editor.state.zipper, statics);
 
     let ctx_init: Ctx.t = Builtins.ctx_init(Some(Int));
 

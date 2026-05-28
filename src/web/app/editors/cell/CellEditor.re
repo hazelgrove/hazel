@@ -287,6 +287,7 @@ module View = {
             EvalResult.Model.probe_results(model.result)
             |> Util.Calc.get_value
             |> Option.value(~default=Language.Dynamics.Map.empty),
+          ~incr_eval=EvalResult.Model.incr_eval(model.result),
           model.editor,
         ),
       ]

@@ -1254,6 +1254,60 @@ count(3)|},
   ),
 ];
 
+/* Regression tests for hazelgrove/hazel#2264: probes on applications of
+   builtin tuple operations (those with custom_statics) used to produce zero
+   samples because mk_builtin_ap_elab built the elab Ap with a fresh id,
+   so the runtime target lookup never matched the user_term id keyed in
+   the info_map. */
+let custom_statics_tuple_op_tests = [
+  /* Full Ap: to_lvs */
+  probe_count_test(
+    "Probe on to_lvs full application",
+    {|let t = (a=1, b=2) in ^^probe(to_lvs(t))|},
+    [(0, 1)],
+  ),
+  /* Full Ap: omit_all_labels */
+  probe_count_test(
+    "Probe on omit_all_labels full application",
+    {|let t = (a=1, b=2) in ^^probe(omit_all_labels(t))|},
+    [(0, 1)],
+  ),
+  /* Full Ap: project_labels (uses handle_tuple_operation) */
+  probe_count_test(
+    "Probe on project_labels full application",
+    {|let t = (a=1, b=2) in ^^probe(project_labels(t, a))|},
+    [(0, 1)],
+  ),
+  /* Full Ap: select_labels (uses handle_tuple_operation) */
+  probe_count_test(
+    "Probe on select_labels full application",
+    {|let t = (a=1, b=2) in ^^probe(select_labels(t, a))|},
+    [(0, 1)],
+  ),
+  /* Full Ap: omit_labels (uses handle_tuple_operation) */
+  probe_count_test(
+    "Probe on omit_labels full application",
+    {|let t = (a=1, b=2) in ^^probe(omit_labels(t, a))|},
+    [(0, 1)],
+  ),
+  /* Full Ap: group_by_label */
+  probe_count_test(
+    "Probe on group_by_label full application",
+    {|let rows = [(k="x", v=1), (k="x", v=2), (k="y", v=3)]
+in ^^probe(group_by_label(rows, k))|},
+    [(1, 1)],
+  ),
+  /* Multi-call: each invocation should record its own sample. */
+  probe_count_test(
+    "Probe on to_lvs in function called multiple times",
+    {|let f = fun t -> ^^probe(to_lvs(t))
+in let _ = f((a=1, b=2))
+in let _ = f((a=3, b=4))
+in f((a=5, b=6))|},
+    [(0, 3)],
+  ),
+];
+
 let tests = [
   ("Evaluator.Probes.Basic", basic_tests),
   ("Evaluator.Probes.Operators", operator_tests),
@@ -1265,4 +1319,5 @@ let tests = [
   ("Evaluator.Probes.DuplicatePrevention", duplicate_prevention_tests),
   ("Evaluator.Probes.Modules", module_tests),
   ("Evaluator.Probes.Spread", spread_tests),
+  ("Evaluator.Probes.CustomStaticsTupleOps", custom_statics_tuple_op_tests),
 ];

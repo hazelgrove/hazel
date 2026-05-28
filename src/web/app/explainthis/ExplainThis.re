@@ -2707,7 +2707,9 @@ let get_doc =
       default
     }
   | Some(InfoTyp({user_term: term, _} as typ_info)) =>
-    switch (bypass_parens_typ(term).term) {
+    let typ = bypass_parens_typ(term);
+    switch (typ.term) {
+    | _ when Typ.is_void(typ) => get_message(TerminalTyp.void)
     | Unknown(SynSwitch)
     | Unknown(Internal)
     | Unknown(Hole(EmptyHole)) => get_message(HoleTyp.empty_hole)
@@ -2969,7 +2971,7 @@ let get_doc =
       simple(
         "`DrvTPat` is the type of ALFA type patterns, used in binding positions within ALFA type abstractions.",
       )
-    }
+    };
   | Some(InfoTPat(info)) =>
     switch (info.user_term.term) {
     | Invalid(_) => simple("Type names must begin with a capital letter")
