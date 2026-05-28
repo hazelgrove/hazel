@@ -34,6 +34,7 @@ let roundtrip_settings: ExpToSegment.Settings.t = {
   show_ascriptions: true,
   show_filters: true,
   show_unknown_as_hole: true,
+  project_tables: false,
 };
 
 /* Create a newline Secondary token */
