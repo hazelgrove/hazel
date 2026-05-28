@@ -444,8 +444,6 @@ let rec count_unknowns = (ty: t): int =>
   | Sig(_) => 0
   };
 
-let contains_unknown = (ty: t): bool => count_unknowns(ty) > 0;
-
 let rec contains_sum_or_var = (ty: t): bool =>
   switch (ty.term) {
   | Atom(_)
