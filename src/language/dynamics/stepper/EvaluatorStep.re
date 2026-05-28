@@ -217,19 +217,31 @@ let rec matches =
 
 let should_hide_eval_obj =
     (~settings, x: EvalObj.t): (FilterAction.action, EvalObj.t) => {
-  let (act, idx, ctx) =
-    matches(Environment.empty, [], x.ctx, x.d_loc, (Step, One), 0);
-  let x = {
-    ...x,
-    ctx,
-  };
-  switch (act) {
-  | (Eval, _) => (Eval, x)
-  // Skip over Ascription
-  | (Step, _) when step_kind_is_unrenderable(~settings, x.knd) => (Eval, x)
-  | (Step, _) when idx > 0 => (Step, x)
-  | (Step, _) when should_hide_step_kind(~settings, x.knd) => (Eval, x)
-  | (Step, _) => (Step, x)
+  switch (x.knd) {
+  | CompleteFilter =>
+    /* CompleteFilter removes internal filter bookkeeping. Running filter
+       matching on this step can re-introduce a Residue wrapper around the
+       expression it just unwrapped, causing an infinite sequence of hidden
+       CompleteFilter steps. */
+    (Eval, x)
+  | _ =>
+    let (act, idx, ctx) =
+      matches(Environment.empty, [], x.ctx, x.d_loc, (Step, One), 0);
+    let x = {
+      ...x,
+      ctx,
+    };
+    switch (act) {
+    | (Eval, _) => (Eval, x)
+    // Skip over Ascription
+    | (Step, _) when step_kind_is_unrenderable(~settings, x.knd) => (
+        Eval,
+        x,
+      )
+    | (Step, _) when idx > 0 => (Step, x)
+    | (Step, _) when should_hide_step_kind(~settings, x.knd) => (Eval, x)
+    | (Step, _) => (Step, x)
+    };
   };
 };
 

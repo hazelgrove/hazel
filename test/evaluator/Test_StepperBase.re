@@ -260,6 +260,112 @@ let run_step_chain =
   };
 };
 
+let fac_stop_program = {|
+debug eval($e) in
+let fac : Int -> Int =
+  fun n ->
+    if n < 2 then 1 else n * fac(n - 1)
+in
+debug stop(fac($v)) in
+fac(3)|};
+
+let stepper_ctx =
+  SemanticCtx.of_ctx_and_env(Builtins.ctx_init(None), Builtins.closure_env);
+
+let calculate_stepper_view = (~fresh, elab, model) =>
+  Web.StepperView.Update.calculate(
+    ~settings=Calc.OldValue(CoreSettings.on),
+    ~ctx=Calc.OldValue(stepper_ctx),
+    fresh ? Calc.NewValue(elab) : Calc.OldValue(elab),
+    model,
+  );
+
+let update_stepper_view = (action, model) =>
+  Web.StepperView.Update.update(
+    ~settings=Web.Settings.Model.init,
+    action,
+    model,
+  ).
+    model;
+
+let missing_available_steps = (m: Web.MissingStep.Model.t) =>
+  m.next_steps
+  |> Calc.get_saved_exc(~print="expected calculated missing step")
+  |> (
+    fun
+    | EvaluatorStep.AutoStep(_) => []
+    | EvaluatorStep.AvailableSteps(steps) => steps
+  );
+
+let action_at_deepest_available =
+    (model: StepperBase.step_model): option(StepperBase.step_action) => {
+  let action_at_current = (model: StepperBase.step_model) =>
+    switch (model.step_kind) {
+    | StepperBase.MissingStep(m) =>
+      switch (missing_available_steps(m)) {
+      | [_, ..._] => Some(StepperBase.StepForward(0))
+      | [] => None
+      }
+    | _ => None
+    };
+
+  let rec loop = (model: StepperBase.step_model) =>
+    switch (model.next_step) {
+    | Some(next) =>
+      switch (loop(next)) {
+      | Some(action) => Some(StepperBase.NextStep(action))
+      | None => action_at_current(model)
+      }
+    | None => action_at_current(model)
+    };
+
+  loop(model);
+};
+
+let apply_deepest_available_action = (model: Web.StepperView.Model.t) =>
+  switch (action_at_deepest_available(model.root)) {
+  | Some(action) => update_stepper_view(action, model)
+  | None => Alcotest.fail("expected an available step")
+  };
+
+let stepper_pure_exp = elab =>
+  elab |> Substitution.in_exp(Builtins.env_init) |> Exp.replace_all_ids;
+
+let step_status_with_stepper_env = exp =>
+  EvaluatorStep.get_status(
+    ~settings=CoreSettings.on,
+    exp,
+    Builtins.closure_env,
+  );
+
+let rec count_available_steps_with_env = (~limit, ~exp, ~count) =>
+  if (limit <= 0) {
+    Alcotest.fail("step count exceeded limit");
+  } else {
+    switch (step_status_with_stepper_env(exp)) {
+    | AutoStep(step) =>
+      switch (EvaluatorStep.take_step(step)) {
+      | None => count
+      | Some(exp') =>
+        count_available_steps_with_env(~limit=limit - 1, ~exp=exp', ~count)
+      }
+    | AvailableSteps(steps) =>
+      switch (steps) {
+      | [] => count
+      | [step, ..._] =>
+        switch (EvaluatorStep.take_step(step)) {
+        | None => count
+        | Some(exp') =>
+          count_available_steps_with_env(
+            ~limit=limit - 1,
+            ~exp=exp',
+            ~count=count + 1,
+          )
+        }
+      }
+    };
+  };
+
 let tests = (
   "StepperBase",
   [
@@ -320,6 +426,36 @@ let tests = (
           )
         | None => Alcotest.fail("expected nth_exp to find residue target")
         };
+      },
+    ),
+    test_case(
+      "taking recursive stop step does not overflow",
+      `Quick,
+      () => {
+        let elab = fac_stop_program |> parse_exp |> elaborate;
+        let pure_count =
+          count_available_steps_with_env(
+            ~limit=1000,
+            ~exp=stepper_pure_exp(elab),
+            ~count=0,
+          );
+        check(int, "pure evaluator visible recursive stops", 3, pure_count);
+        let model =
+          Web.StepperView.Model.init
+          |> calculate_stepper_view(~fresh=true, elab);
+        let model =
+          model
+          |> apply_deepest_available_action
+          |> calculate_stepper_view(~fresh=false, elab);
+        let model =
+          model
+          |> apply_deepest_available_action
+          |> calculate_stepper_view(~fresh=false, elab);
+        let _model =
+          model
+          |> apply_deepest_available_action
+          |> calculate_stepper_view(~fresh=false, elab);
+        check(bool, "step calculate completed", true, true);
       },
     ),
     // ============================================================
