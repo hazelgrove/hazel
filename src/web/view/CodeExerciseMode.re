@@ -694,13 +694,8 @@ module View = {
     let score_view =
       CodeGrading.GradingReport.view_overall_score(grading_report);
 
-    /* Render a cell, but only if it is shown for the current user.
-       `shown_in` is the single source of truth — shared with the sidebar
-       and jump-to-tile — and `this_pos` is the cell's only pos reference.
-       Returns a 0-or-1 element list; the `? :` defers building the cell
-       view, so instructor-only cells aren't built for students.
-       `result_kind` is a thunk so a hidden cell's (possibly expensive)
-       result view isn't built either. */
+    /* Renders a cell only if `shown_in`; returns [] when hidden.
+       `result_kind` is thunked so hidden cells build nothing. */
     let editor_view =
         (
           ~caption: string,
@@ -952,9 +947,7 @@ module View = {
         ~max_points=grading_report.point_distribution.impl_grading,
       );
 
-    /* The Mutation Tests section is instructor-only (gated on
-       instructor_mode in the assembly). Built inside this thunk so none of
-       it — mutant cells or the add button — is constructed for students. */
+    /* Instructor-only authoring section; thunked so students build none of it. */
     let wrong_impl_section = () => {
       let mutant_views =
         List.combine(eds.hidden_bugs, hidden_bugs)
@@ -1007,10 +1000,8 @@ module View = {
       ]);
     };
 
-    /* Each editor cell self-gates on `shown_in` (see `editor_view`) and is
-       already `[]` when hidden, so they concatenate directly. Non-editor
-       views (context inspector, grading reports) are always shown. The
-       Mutation Tests section is instructor-only. */
+    /* Editor cells self-gate (see `editor_view`); non-editor views always
+       show; the mutants section is instructor-only. */
     [score_view, title_view, module_name_view, prompt_view]
     @ prelude_view
     @ correct_impl_view
