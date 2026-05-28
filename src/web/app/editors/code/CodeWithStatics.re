@@ -160,11 +160,12 @@ module Update = {
      * sees equal probe_targets and reuses the old `state.probes`, making a
      * newly placed probe show empty until the next force-refresh. */
     let probes_differ = z =>
-      !Language.Id.Map.equal(
-        (==),
-        CachedStatics.probe_ids_of_zipper(z),
-        Language.Id.Map.map(_ => (), statics.targets),
-      );
+      !
+        Language.Id.Map.equal(
+          (==),
+          CachedStatics.probe_ids_of_zipper(z),
+          Language.Id.Map.map(_ => (), statics.targets),
+        );
     let do_init = () =>
       CachedStatics.init(
         ~settings,
@@ -195,8 +196,7 @@ module Update = {
     /* Editor.calculate may have placed/removed probes (autoprobe target
      * regeneration, collision cleanup). If so, statics needs to reflect
      * the new probe_ids so eval_info_map's probe_targets are correct. */
-    let statics =
-      probes_differ(editor.state.zipper) ? do_init() : statics;
+    let statics = probes_differ(editor.state.zipper) ? do_init() : statics;
 
     /* Refresh `statics.targets` against the post-probe-effects refractors.
      * Cheap O(|probe_ids|) fold; only this field depends on refractors, so
