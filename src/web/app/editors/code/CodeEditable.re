@@ -104,6 +104,7 @@ module Update = {
       let new_state =
         ContextMenu.WithContext.update(
           ~info_map=model.statics.info_map,
+          ~elaborated=model.statics.elaborated,
           ~zipper=model.editor.state.zipper,
           action,
           model.context_menu,
@@ -404,34 +405,20 @@ module Selection = {
     | k =>
       Keyboard.handle_key_event(k) |> Option.map(x => Update.Perform(x));
 
-  let handle_key_event = (~selection, model: Model.t, key: Key.t) => {
-    /* Delegate to context menu key handler when menu is open */
-    let context_menu_result =
-      ContextMenu.WithContext.handle_key(
-        ~info_map=model.statics.info_map,
-        ~zipper=model.editor.state.zipper,
-        key.key,
-        model.context_menu,
-      );
-    switch (context_menu_result) {
-    | ContextMenu.WithContext.MenuUpdate(action) =>
-      Some(Update.ContextMenu(action))
-    | ContextMenu.WithContext.EditorAction(action) =>
-      Some(Update.Perform(action))
-    | ContextMenu.WithContext.Unhandled =>
-      /* Fall through to projector key handoff, then base handler */
-      switch (
-        ProjectorView.key_handoff(
-          model.editor,
-          key,
-          model.editor.syntax.projector_list,
-        )
-      ) {
-      | Some(action) => Some(Update.Perform(Project(action)))
-      | None => handle_key_event(~selection, model, key)
-      }
+  let handle_key_event = (~selection, model: Model.t, key: Key.t) =>
+    /* Context menu key dispatch (Escape/ArrowUp/ArrowDown/Enter) is handled
+     * at the document level by ContextMenuListener while the menu is open,
+     * so it doesn't reach this handler. */
+    switch (
+      ProjectorView.key_handoff(
+        model.editor,
+        key,
+        model.editor.syntax.projector_list,
+      )
+    ) {
+    | Some(action) => Some(Update.Perform(Project(action)))
+    | None => handle_key_event(~selection, model, key)
     };
-  };
 
   let jump_to_tile = (id: Id.t, model: Model.t): option(Update.t) => {
     switch (TermData.root_tile(id, model.editor.syntax.term_data)) {
@@ -545,10 +532,24 @@ module View = {
       | ReadOnly => (_ => Ui_effect.Ignore)
       | Editable({escape, _}) => escape
       };
-    /* Sync document-level click listener for closing context menu */
+    /* Sync document-level listeners (click-outside + keyboard) for the
+     * context menu. Keys are dispatched at capture phase so the editor's
+     * window-level handler doesn't see them while the menu is open. */
     ContextMenuListener.sync(
-      selected && Model.context_menu_is_open(model),
-      inject(ContextMenu(ContextMenu.Model.Close)),
+      ~menu_open=selected && Model.context_menu_is_open(model),
+      ~on_close=inject(ContextMenu(ContextMenu.Model.Close)),
+      ~handle_key=
+        key_str =>
+          ContextMenu.WithContext.handle_listener_key(
+            ~info_map=model.statics.info_map,
+            ~elaborated=model.statics.elaborated,
+            ~zipper=model.editor.state.zipper,
+            ~dispatch_menu=a => inject(ContextMenu(a)),
+            ~dispatch_action=a => inject(Perform(a)),
+            model.context_menu,
+            key_str,
+          ),
+      (),
     );
     let edit_decos =
       selected
@@ -569,7 +570,7 @@ module View = {
           ]
           @ (
             switch (model.context_menu) {
-            | Some(selected_index) => [
+            | Some(_) => [
                 /* Backdrop for scroll-close. Click handling is done via
                    ContextMenuListener's document-level event listener. */
                 Node.div(
@@ -583,10 +584,12 @@ module View = {
                 ),
                 ContextMenu.view(
                   ~inject=a => inject(Perform(a)),
+                  ~inject_menu=a => inject(ContextMenu(a)),
                   ~syntax=model.editor.syntax,
                   ~info_map=model.statics.info_map,
+                  ~elaborated=model.statics.elaborated,
                   ~font_metrics=globals.font_metrics,
-                  ~selected_index,
+                  ~model=model.context_menu,
                   model.editor.state.zipper,
                 ),
               ]
@@ -619,6 +622,7 @@ module View = {
         x => inject(Perform(x)),
         signal(MakeActive),
         globals.font_metrics,
+        ~core_settings=globals.settings.core,
         ~visible?,
         refractor_data,
         List.map(fst, zipper.refractors.manuals)
@@ -630,6 +634,7 @@ module View = {
         x => inject(Perform(x)),
         signal(MakeActive),
         globals.font_metrics,
+        ~core_settings=globals.settings.core,
         ~visible?,
         ProjectorView.Model.mk(
           ~syntax=model.editor.syntax,
@@ -638,6 +643,7 @@ module View = {
           ~dynamics,
           ~sample_focus=zipper.refractors.sample_focus,
           ~editor_active=selected,
+          ~elaborated=Some(model.statics.elaborated),
         ),
         model.editor.syntax.projector_list,
       );

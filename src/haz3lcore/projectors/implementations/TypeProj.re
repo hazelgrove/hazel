@@ -57,6 +57,7 @@ module M: Projector = {
   };
 
   let dynamics = true;
+  let elaborate_syntax = false;
   let focusable = Focusable.non;
 
   let display_mode = (model: model, statics: option(Language.Info.t)): string => {
@@ -112,7 +113,7 @@ module M: Projector = {
       ~attrs=[Attr.classes(["type-cell"])],
       [
         Typ(typ)
-        |> utility.term_to_seg
+        |> utility.term_to_seg(~inline=true)
         |> view_seg(~single_line=true, ~classes, Sort.Typ),
       ],
     );
@@ -132,6 +133,7 @@ module M: Projector = {
   };
 
   let placeholder = (_, _) => ProjectorCore.Shape.default;
+  let error = (_, _): option(ProjectorBase.error) => None;
 
   let view = ({model, info, local, view_seg, _}: View.args(model, action)) =>
     View.{
@@ -152,5 +154,6 @@ module M: Projector = {
           ),
         ),
       overlay: None,
+      error: false,
     };
 };
