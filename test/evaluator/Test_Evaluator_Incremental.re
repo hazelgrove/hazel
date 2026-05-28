@@ -1278,9 +1278,46 @@ let test_reuse_provenance_distinguishes_pattern_shapes = () => {
   );
 };
 
+/* Regression: incremental cache reuse of a TypAp subtree must replay
+ * the RecordTypeInstantiation effect so the resulting state.type_insts
+ * has the instantiation entries. If the StateSlice doesn't capture/replay
+ * type_insts, cache reuse silently drops them. */
+let test_typ_inst_survives_incremental_reuse = () => {
+  /* Two type applications of the same typfun. Running twice with the same
+   * Exp.t simulates a no-op edit cycle: the second run should reuse the
+   * cached entries (typAps included), and state.type_insts on the second
+   * run must still contain both instantiations. */
+  let src = {|let f = typfun a -> fun i -> (i : ? : a) in let _ = f@<String>("") in f@<Int>("")|};
+  let exp = parse_exp(src);
+  let (_, state1, incr1) = eval_incr(exp);
+  let n1 =
+    Id.Map.fold((_, l, acc) => acc + List.length(l), state1.type_insts, 0);
+  check(
+    bool,
+    "First run records at least 2 type instantiations",
+    true,
+    n1 >= 2,
+  );
+  let (_, state2, incr2) = eval_incr(~prev=incr1, exp);
+  check(bool, "Second run actually reused entries", true, incr2.reused != []);
+  let n2 =
+    Id.Map.fold((_, l, acc) => acc + List.length(l), state2.type_insts, 0);
+  check(
+    int,
+    "Second run preserves type_inst count under incremental reuse",
+    n1,
+    n2,
+  );
+};
+
 let tests = (
   "Evaluator.Incremental",
   [
+    test_case(
+      "Typ instantiations survive incremental reuse",
+      `Quick,
+      test_typ_inst_survives_incremental_reuse,
+    ),
     test_case(
       "DIAG module in unchanged rhs tuple lands in frozen",
       `Quick,

@@ -372,6 +372,11 @@ let capture_slice = (~before: t, ~after: t): StateSlice.t => {
     StateSlice.diff_theorems(~before=before.theorems, ~after=after.theorems),
   app_args:
     StateSlice.diff_app_args(~before=before.app_args, ~after=after.app_args),
+  type_insts:
+    StateSlice.diff_type_insts(
+      ~before=before.type_insts,
+      ~after=after.type_insts,
+    ),
 };
 
 /* Replay a slice into `state`: add its sample/test/theorem/app_arg entries,
@@ -418,6 +423,19 @@ let replay_slice = (slice: StateSlice.t, state: t): t => {
       slice.app_args,
       state.app_args,
     );
+  let type_insts =
+    Id.Map.fold(
+      (id, new_entries, acc) => {
+        let existing =
+          switch (Id.Map.find_opt(id, acc)) {
+          | Some(l) => l
+          | None => []
+          };
+        Id.Map.add(id, existing @ new_entries, acc);
+      },
+      slice.type_insts,
+      state.type_insts,
+    );
   {
     ...state,
     step_count: state.step_count + slice.steps,
@@ -425,5 +443,6 @@ let replay_slice = (slice: StateSlice.t, state: t): t => {
     tests,
     theorems,
     app_args,
+    type_insts,
   };
 };

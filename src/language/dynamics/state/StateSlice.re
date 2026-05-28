@@ -12,6 +12,7 @@ type t = {
   tests: list((Id.t, list(TestMap.instance_report))),
   theorems: list((Id.t, string, Environment.t(Exp.t), Exp.t)),
   app_args: Id.Map.t(list((Sample.call_stack, Sample.Env.elided_value))),
+  type_insts: Dynamics.TypeInstMap.t,
 };
 
 let empty: t = {
@@ -21,6 +22,7 @@ let empty: t = {
   tests: [],
   theorems: [],
   app_args: Id.Map.empty,
+  type_insts: Dynamics.TypeInstMap.empty,
 };
 
 let diff_probes = (~before: Sample.Map.t, ~after: Sample.Map.t): Sample.Map.t =>
@@ -117,3 +119,28 @@ let shift_sample = (delta: int, s: Sample.t): Sample.t => {
   step_start: s.step_start + delta,
   step_end: s.step_end + delta,
 };
+
+let diff_type_insts =
+    (~before: Dynamics.TypeInstMap.t, ~after: Dynamics.TypeInstMap.t)
+    : Dynamics.TypeInstMap.t =>
+  Id.Map.fold(
+    (id, after_entries, acc) => {
+      let before_count =
+        switch (Id.Map.find_opt(id, before)) {
+        | Some(l) => List.length(l)
+        | None => 0
+        };
+      let after_count = List.length(after_entries);
+      let new_count = after_count - before_count;
+      if (new_count > 0) {
+        /* Take the tail entries (new ones are appended in TypeInstMap.extend) */
+        let new_entries =
+          List.filteri((i, _) => i >= before_count, after_entries);
+        Id.Map.add(id, new_entries, acc);
+      } else {
+        acc;
+      };
+    },
+    after,
+    Id.Map.empty,
+  );
