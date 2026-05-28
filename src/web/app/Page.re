@@ -95,7 +95,12 @@ module Update = {
       let sp = List.nth(m.scratchpads, m.current);
       switch (sp.kind) {
       | Code({editor, _}) => [(None, [editor.editor])]
-      | Drv(dm) => DerivationExerciseMode.Model.get_problem_editors(dm)
+      | Drv(dm) =>
+        /* Scratch/documentation Drv slides don't render the Prelude. */
+        DerivationExerciseMode.Model.get_problem_editors(
+          ~scratch_mode=true,
+          dm,
+        )
       };
     };
     switch (model.editors) {

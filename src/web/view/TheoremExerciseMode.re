@@ -108,6 +108,9 @@ module Model = {
     prefix ++ TheoremExercise.show_spec(spec) ++ "\n";
   };
 
+  /* Editors whose problems should appear in the Problems sidebar. All three
+     cells are always rendered (Prelude read-only, Theorem prove-only) and
+     all are jumpable, so all are listed. */
   let get_problem_editors =
       (model: t): list((option(string), list(CodeEditable.Model.t))) => [
     (Some("Prelude"), [model.cells.prelude.editor]),

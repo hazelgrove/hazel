@@ -124,7 +124,7 @@ module Model = {
     ];
     List.filter_map(
       ((pos, label, cell: CellEditor.Model.t)) =>
-        CodeExercise.visible_in(pos, ~instructor_mode)
+        CodeExercise.shown_in(pos, ~instructor_mode)
           ? Some((Some(label), [cell.editor])) : None,
       pairs,
     );
@@ -335,7 +335,7 @@ module Update = {
     let instructor_mode = settings.instructor_mode;
     switch (action) {
     | Editor(pos, MainEditor(action))
-        when CodeExercise.visible_in(pos, ~instructor_mode) =>
+        when CodeExercise.is_editable(pos, ~instructor_mode) =>
       // Redirect to editors
       let editor =
         CodeExercise.main_editor_of_state(~selection=pos, model.editors);
@@ -392,7 +392,7 @@ module Update = {
       }
     | Editor(pos, ResultAction(_) as action)
         when
-          CodeExercise.visible_in(pos, ~instructor_mode)
+          CodeExercise.is_editable(pos, ~instructor_mode)
           || action
           |> (
             fun
@@ -633,7 +633,7 @@ module Selection = {
     CodeExercise.positioned_editors(model.editors)
     |> List.find_opt(((p, e: Editor.t)) =>
          TermData.root_piece(id, e.syntax.term_data) != None
-         && CodeExercise.visible_in(
+         && CodeExercise.shown_in(
               p,
               ~instructor_mode=settings.instructor_mode,
             )

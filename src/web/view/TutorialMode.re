@@ -41,7 +41,7 @@ module Model = {
   let persist = (exercise: t, ~instructor_mode: bool) => {
     Tutorial.positioned_editors(exercise.editors)
     |> List.filter(((pos, _)) =>
-         Tutorial.visible_in(pos, ~instructor_mode)
+         Tutorial.is_editable(pos, ~instructor_mode)
        )
     |> List.map(((pos, editor: Editor.t)) =>
          (pos, editor.state.zipper |> PersistentZipper.persist)
@@ -125,7 +125,7 @@ module Update = {
         },
       })
     | Editor(pos, MainEditor(action))
-        when Tutorial.visible_in(pos, ~instructor_mode) =>
+        when Tutorial.is_editable(pos, ~instructor_mode) =>
       // Redirect to editors
       let editor =
         Tutorial.main_editor_of_state(~selection=pos, model.editors);
@@ -182,7 +182,7 @@ module Update = {
       }
     | Editor(pos, ResultAction(_) as action)
         when
-          Tutorial.visible_in(pos, ~instructor_mode)
+          Tutorial.is_editable(pos, ~instructor_mode)
           || action
           |> (
             fun
@@ -385,7 +385,7 @@ module Selection = {
     Tutorial.positioned_editors(model.editors)
     |> List.find_opt(((p, e: Editor.t)) =>
          TermData.root_piece(tile, e.syntax.term_data) != None
-         && Tutorial.visible_in(p, ~instructor_mode=settings.instructor_mode)
+         && Tutorial.is_editable(p, ~instructor_mode=settings.instructor_mode)
        )
     |> Option.map(((pos, _)) =>
          (

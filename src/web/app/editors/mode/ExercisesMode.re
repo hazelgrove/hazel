@@ -224,7 +224,8 @@ module Model = {
     switch (current) {
     | Code(e) =>
       CodeExerciseMode.Model.get_problem_editors(~instructor_mode, e)
-    | Derivation(e) => DerivationExerciseMode.Model.get_problem_editors(e)
+    | Derivation(e) =>
+      DerivationExerciseMode.Model.get_problem_editors(~scratch_mode=false, e)
     | Theorem(e) => TheoremExerciseMode.Model.get_problem_editors(e)
     };
   };

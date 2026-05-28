@@ -158,14 +158,20 @@ module Model = {
     get_derivation_info_at(model.pos, model);
 
   /* Editors whose problems should appear in the Problems sidebar, each
-     paired with a display label. All tree judgement editors are bundled
-     into a single "Derivation" group (multi-source, so per-row line
-     numbers are suppressed since L# would refer to different editors'
-     geometries). Trees are walked in postorder so within-tree order
-     matches the visual top-to-bottom layout (premises above the
-     conclusion); trees themselves are in display order. */
+     paired with a display label. Only cells that are actually rendered are
+     listed: the Prelude is shown in exercise mode but not in scratch /
+     documentation Drv slides, and abbreviation tree nodes carry no editor
+     (`None` in `cells.trees`, dropped below). Read-only cells (e.g. the
+     student-mode Prelude or the goal conclusion) are still shown and
+     jumpable, so they stay. All tree judgement editors are bundled into a
+     single "Derivation" group (multi-source, so per-row line numbers are
+     suppressed since L# would refer to different editors' geometries).
+     Trees are walked in postorder so within-tree order matches the visual
+     top-to-bottom layout (premises above the conclusion); trees themselves
+     are in display order. */
   let get_problem_editors =
-      (model: t): list((option(string), list(CodeEditable.Model.t))) => {
+      (~scratch_mode: bool, model: t)
+      : list((option(string), list(CodeEditable.Model.t))) => {
     let rec postorder = (Tree.Node(v, c)) =>
       List.concat_map(postorder, c) @ [v];
     let tree_editors =
@@ -180,11 +186,9 @@ module Model = {
                 )
               )
          );
-    [
-      (Some("Prelude"), [model.cells.prelude.editor]),
-      (Some("Setup"), [model.cells.setup.editor]),
-      (Some("Derivation"), tree_editors),
-    ];
+    (scratch_mode ? [] : [(Some("Prelude"), [model.cells.prelude.editor])])
+    @ [(Some("Setup"), [model.cells.setup.editor])]
+    @ [(Some("Derivation"), tree_editors)];
   };
 };
 
