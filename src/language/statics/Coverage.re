@@ -113,8 +113,11 @@ module Ctr = {
            )
         |> Map.of_list,
       )
-    | Rec({term: Var(w), _}, {term: Var(v), _}) when v == w => Unknown
-    | Rec(_) => all_ctrs_of_typ(Typ.unroll(ty))
+    | Rec(_) =>
+      switch (Typ.unroll_to_non_rec(ty)) {
+      | None => Unknown
+      | Some(ty') => all_ctrs_of_typ(ty')
+      }
     | Prod(elts) =>
       Finite(Map.singleton(tuple_ctr(List.length(elts)), elts))
     | ProofOf(_) => Infinite
@@ -1082,14 +1085,16 @@ module CheckMatrix: CheckMatrix = {
     switch (col_tys) {
     | [] => failwith("Empty column types.")
     | [first_col_ty, ...rem_col_tys] =>
-      if (Typ.is_void(first_col_ty)) {
+      switch (Ctr.all_ctrs_of_typ(first_col_ty)) {
+      | Finite(map) when Ctr.Map.is_empty(map) =>
+        /* No constructors (e.g. Void): no value of this type can exist, so
+           every row is unreachable and the match is vacuously exhaustive. */
         {
           is_exhaustive: true,
           unseen_pattern: UnseenPatternList.empty,
           redundant_rows: List.init(List.length(m), i => i),
-        };
-      } else {
-        let all_ctrs = Ctr.all_ctrs_of_typ(first_col_ty);
+        }
+      | all_ctrs =>
         let Submatrices.{
           ctrs,
           first_col_exhaustive,

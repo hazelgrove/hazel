@@ -78,6 +78,17 @@ let rep_id: t => Id.t = IdTagged.rep_id;
 let term_of: t => term = IdTagged.term_of;
 let unwrap: t => (term, term => t) = IdTagged.unwrap;
 
+let strip_projectors =
+  map_term(
+    ~f_exp=
+      (continue, exp) =>
+        switch (term_of(exp)) {
+        | Projector(_, e) => continue(e)
+        | _ => continue(exp)
+        },
+    _,
+  );
+
 let rec cls_of_term: type a. Grammar.exp_term(a) => cls =
   fun
   | Invalid(_) => Invalid
@@ -467,6 +478,27 @@ let rec get_fn_def_id = (e: t) =>
   };
 
 let to_tuple = (es: list(t)): t => TempGrammar.Exp.(tuple(es));
+
+let find_by_id = (id: Id.t, exp: t): option(t) => {
+  module M = {
+    exception Found(t);
+  };
+  switch (
+    map_term(
+      ~f_exp=
+        (cont, exp) =>
+          if (rep_id(exp) == id) {
+            raise(M.Found(exp));
+          } else {
+            cont(exp);
+          },
+      exp,
+    )
+  ) {
+  | exception (M.Found(x)) => Some(x)
+  | _ => None
+  };
+};
 
 /* Inject a function name into a Fun or TypFun expression. */
 let add_name = (name: option(string), exp: t): t => {
