@@ -151,10 +151,24 @@ module Update = {
       )
       : Model.t => {
     /* Throttle gate: decide whether to do a full statics recompute this
-     * frame. When we reuse, `statics` keeps its ref — CachedSyntax.calculate
-     * then skips the shape pass via phys-eq on info_map/elaborated. */
+     * frame. When we reuse, `statics` keeps its ref so CachedSyntax.calculate
+     * skips the shape pass via phys-eq on info_map/elaborated.
+     *
+     * Bypass the debounce when probe ids changed. Otherwise `with_targets`
+     * updates `statics.targets` from the new refractors but leaves
+     * `info_map`'s per-id `probe_targets` stale, so IncrEval's reuse_check
+     * sees equal probe_targets and reuses the old `state.probes`, making a
+     * newly placed probe show empty until the next force-refresh. */
+    let probes_changed = {
+      let current = CachedStatics.probe_ids_of_zipper(editor.state.zipper);
+      let cached = Language.Id.Map.map(_ => (), statics.targets);
+      !Language.Id.Map.equal((==), current, cached);
+    };
     let statics =
-      statics_mode == StaticsForce || is_edited && statics_mode != StaticsDefer
+      statics_mode == StaticsForce
+      || probes_changed
+      || is_edited
+      && statics_mode != StaticsDefer
         ? CachedStatics.init(
             ~settings,
             ~stitch,
