@@ -112,6 +112,7 @@ let go =
         ),
       ~col_target=Option.value(col_target, ~default=0),
       ~measured=syntax.measured,
+      ~refractor_shape_map=syntax.refractor_shape_map,
       d,
       z,
     )
@@ -124,6 +125,7 @@ let go =
     Select.vertical(
       ~col_target=Option.value(col_target, ~default=0),
       ~measured=syntax.measured,
+      ~refractor_shape_map=syntax.refractor_shape_map,
       d,
       z,
     )
