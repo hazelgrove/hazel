@@ -1132,6 +1132,7 @@ module Update = {
       let new_m =
         DerivationExerciseMode.Update.calculate(
           ~settings,
+          ~autoprobe_mode,
           ~is_edited,
           ~schedule_action=a => schedule_action(DrvAction(a)),
           m,

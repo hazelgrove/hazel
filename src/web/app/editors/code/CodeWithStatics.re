@@ -159,26 +159,28 @@ module Update = {
      * `info_map`'s per-id `probe_targets` stale, so IncrEval's reuse_check
      * sees equal probe_targets and reuses the old `state.probes`, making a
      * newly placed probe show empty until the next force-refresh. */
-    let probes_changed = {
-      let current = CachedStatics.probe_ids_of_zipper(editor.state.zipper);
-      let cached = Language.Id.Map.map(_ => (), statics.targets);
-      !Language.Id.Map.equal((==), current, cached);
-    };
-    let statics =
+    let probes_differ = z =>
+      !Language.Id.Map.equal(
+        (==),
+        CachedStatics.probe_ids_of_zipper(z),
+        Language.Id.Map.map(_ => (), statics.targets),
+      );
+    let do_init = () =>
+      CachedStatics.init(
+        ~settings,
+        ~stitch,
+        ~ctx?,
+        ~ana?,
+        ~is_dynamic_term,
+        ~root=editor.root,
+        editor.state.zipper,
+      );
+    let needs_refresh =
       statics_mode == StaticsForce
-      || probes_changed
+      || probes_differ(editor.state.zipper)
       || is_edited
-      && statics_mode != StaticsDefer
-        ? CachedStatics.init(
-            ~settings,
-            ~stitch,
-            ~ctx?,
-            ~ana?,
-            ~is_dynamic_term,
-            ~root=editor.root,
-            editor.state.zipper,
-          )
-        : statics;
+      && statics_mode != StaticsDefer;
+    let statics = needs_refresh ? do_init() : statics;
 
     let editor =
       Editor.Update.calculate(
@@ -189,6 +191,12 @@ module Update = {
         dynamics,
         editor,
       );
+
+    /* Editor.calculate may have placed/removed probes (autoprobe target
+     * regeneration, collision cleanup). If so, statics needs to reflect
+     * the new probe_ids so eval_info_map's probe_targets are correct. */
+    let statics =
+      probes_differ(editor.state.zipper) ? do_init() : statics;
 
     /* Refresh `statics.targets` against the post-probe-effects refractors.
      * Cheap O(|probe_ids|) fold; only this field depends on refractors, so

@@ -323,6 +323,7 @@ module Update = {
         TutorialsMode.Update.calculate(
           ~schedule_action=a => schedule_action(Tutorial(a)),
           ~settings,
+          ~autoprobe_mode,
           ~is_edited,
           m,
         ),
@@ -332,6 +333,7 @@ module Update = {
         ExercisesMode.Update.calculate(
           ~schedule_action=a => schedule_action(Exercises(a)),
           ~settings,
+          ~autoprobe_mode,
           ~is_edited,
           m,
         ),
