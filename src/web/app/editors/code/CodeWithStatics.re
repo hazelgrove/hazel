@@ -166,7 +166,13 @@ module Update = {
           CachedStatics.probe_ids_of_zipper(z),
           Language.Id.Map.map(_ => (), statics.targets),
         );
-    let do_init = () =>
+    /* `editor` is taken as a parameter so the post-Editor.calculate call
+     * sees the *new* zipper (with the autoprobe placement). A captured
+     * closure would always read the pre-Editor zipper and produce an
+     * info_map whose `probe_targets` still lacks the new probe id, which
+     * lets IncrEval.reuse_check incorrectly reuse the cached `state.probes`
+     * and leaves the new probe showing ∅ until the next edit. */
+    let do_init = (editor: Editor.t) =>
       CachedStatics.init(
         ~settings,
         ~stitch,
@@ -181,7 +187,7 @@ module Update = {
       || probes_differ(editor.state.zipper)
       || is_edited
       && statics_mode != StaticsDefer;
-    let statics = needs_refresh ? do_init() : statics;
+    let statics = needs_refresh ? do_init(editor) : statics;
 
     let editor =
       Editor.Update.calculate(
@@ -196,7 +202,8 @@ module Update = {
     /* Editor.calculate may have placed/removed probes (autoprobe target
      * regeneration, collision cleanup). If so, statics needs to reflect
      * the new probe_ids so eval_info_map's probe_targets are correct. */
-    let statics = probes_differ(editor.state.zipper) ? do_init() : statics;
+    let statics =
+      probes_differ(editor.state.zipper) ? do_init(editor) : statics;
 
     /* Refresh `statics.targets` against the post-probe-effects refractors.
      * Cheap O(|probe_ids|) fold; only this field depends on refractors, so
