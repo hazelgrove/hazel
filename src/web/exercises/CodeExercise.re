@@ -418,11 +418,8 @@ let is_editable = (pos, ~instructor_mode) => {
   };
 };
 
-/* Whether a cell is *rendered* for the current user. Differs from
-   `is_editable` (which gates *editing*) only for the Prelude, which is
-   shown read-only to students. Drives which cells feed the Problems
-   sidebar and can be jumped to — read-only cells are still navigable
-   (CodeSelectable permits Move), so jumping into them works. */
+/* Whether a cell is *rendered* (vs. `is_editable`, which gates editing).
+   Drives the Problems sidebar and jump-to-tile. */
 let shown_in = (pos, ~instructor_mode) =>
   switch (pos) {
   | Prelude => true
