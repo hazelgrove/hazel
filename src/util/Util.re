@@ -20,6 +20,7 @@ module TupleUtil = TupleUtil;
 module WebUtil = WebUtil;
 module JsUtil = JsUtil;
 module SampleAnchor = SampleAnchor;
+module ScrollDebug = ScrollDebug;
 module Menu = Menu;
 module MenuListener = MenuListener;
 module ContextMenuListener = ContextMenuListener;

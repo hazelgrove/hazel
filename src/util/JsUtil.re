@@ -208,17 +208,31 @@ let scroll_cursor_into_view_if_needed = () =>
   try({
     let caret_elem = get_elem_by_id("caret");
     switch (find_scroll_container(caret_elem)) {
-    | Some(container) => scroll_vertically_into_view(container, caret_elem)
+    | Some(container) =>
+      let sT_before = ScrollDebug.main_scroll_top();
+      scroll_vertically_into_view(container, caret_elem);
+      let sT_after = ScrollDebug.main_scroll_top();
+      ScrollDebug.log(
+        "SI",
+        Printf.sprintf(
+          "scroll_into_view container sT=%.1f->%.1f delta=%+.1f",
+          sT_before,
+          sT_after,
+          sT_after -. sT_before,
+        ),
+      );
+      ScrollDebug.mark_sT();
     | None =>
+      ScrollDebug.log("SI", "scroll_into_view fallback scrollIntoView()");
       caret_elem##scrollIntoView(
         Js.Unsafe.obj([|
           ("block", Js.Unsafe.inject(Js.string("nearest"))),
           ("inline", Js.Unsafe.inject(Js.string("nearest"))),
         |]),
-      )
+      );
     };
   }) {
-  | Assert_failure(_) => ()
+  | Assert_failure(_) => ScrollDebug.log("SI", "scroll_into_view assert-failure")
   };
 
 module Fragment = {
@@ -344,6 +358,26 @@ let setup_focus_bar_scroll_compensation = () =>
             Js.Unsafe.get(main, Js.string("scrollTop"));
           if (delta != 0.0 && scroll_top > 0.0) {
             Js.Unsafe.set(main, Js.string("scrollTop"), scroll_top +. delta);
+            ScrollDebug.log(
+              "FB",
+              Printf.sprintf(
+                "resize bar dy=%+.1f sT=%.1f->%.1f (h=%.1f)",
+                delta,
+                scroll_top,
+                scroll_top +. delta,
+                new_height,
+              ),
+            );
+            ScrollDebug.mark_sT();
+          } else if (delta != 0.0) {
+            ScrollDebug.log(
+              "FB",
+              Printf.sprintf(
+                "resize bar dy=%+.1f sT=%.1f (at-top, no scroll)",
+                delta,
+                scroll_top,
+              ),
+            );
           };
         });
       let observer =

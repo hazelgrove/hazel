@@ -193,6 +193,19 @@ let start = default_model => {
     let%map model = app_model;
     Bonsai.Effect.of_sync_fun(
       () => {
+        ScrollDebug.next_frame();
+        /* Drift detection only during EdgeScroll-active periods (drag at
+         * edge); otherwise wheel-scroll would flood the log. */
+        ScrollDebug.check_drift(~in_drag=EdgeScroll.is_active(), ());
+        if (scroll_to_caret.contents) {
+          ScrollDebug.log(
+            "AF",
+            Printf.sprintf(
+              "frame_start sT=%.1f scroll_to_caret=t",
+              ScrollDebug.main_scroll_top(),
+            ),
+          );
+        };
         if (scroll_to_caret.contents) {
           scroll_to_caret := false;
           JsUtil.scroll_cursor_into_view_if_needed();
@@ -210,25 +223,29 @@ let start = default_model => {
          * background to match. CSS-only intrinsic sizing can't see
          * absolute descendants, so we measure here. */
         JsUtil.update_main_scroll_width();
-        /* Reactive caret-anchor: keep the caret's screen-y stable when
-         * the cached layout was rebuilt this frame (edit / refractor /
-         * dynamics arrival) and the caret's logical position didn't
-         * change. Gating on `measured` reference identity suppresses
-         * spurious compensation on idle / arrow-key / animation frames
-         * where layout didn't actually rebuild.
-         * Runs before SampleAnchor.consume so it sees its own delta
-         * cleanly; `refresh` below resets the baseline after Sample-
-         * Anchor scrolls so we don't try to undo it next frame. */
+        /* Cause-driven refractor-shift compensation: when a drawer
+         * above the caret changes height, scroll #main by the exact
+         * pixel delta so the caret row stays put. Compensation is
+         * gated by `refractor_shape_map` reference identity, so idle
+         * frames and refractor-irrelevant edits do zero work. */
         let editor =
           Page.Update.get_editor(model.model.current.current).editor;
         let zipper = editor.state.zipper;
         let measured = editor.syntax.measured;
-        CaretAnchor.update(~measured, zipper);
+        let font_metrics =
+          model.model.current.current.globals.font_metrics;
+        RefractorShift.update(
+          ~font_metrics,
+          ~refractor_shape_map=editor.syntax.refractor_shape_map,
+          ~measured,
+          zipper,
+        );
+        ScrollDebug.mark_sT();
         /* Sample-focus anchor compensation: if Left/Right in the sample
          * focus bar captured the indicated sample's screen-y before
          * dispatch, restore it now so the user's eye stays on it. */
         SampleAnchor.consume();
-        CaretAnchor.refresh(~measured, zipper);
+        ScrollDebug.mark_sT();
         model.model.current.current.globals.settings.core.statics
           ? Animation.go() : ();
       },

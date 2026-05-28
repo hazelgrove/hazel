@@ -43,12 +43,17 @@ let read_top = (): option(float) => {
 };
 
 let capture = (): unit => {
-  pending := read_top();
+  let v = read_top();
+  pending := v;
+  switch (v) {
+  | Some(y) => ScrollDebug.log("SA", Printf.sprintf("capture top=%.1f", y))
+  | None => ()
+  };
 };
 
 let consume = (): unit =>
   switch (pending^) {
-  | None => ()
+  | None => () /* nothing pending: silent (the common case) */
   | Some(old_top) =>
     pending := None;
     switch (read_top()) {
@@ -64,6 +69,16 @@ let consume = (): unit =>
             Js.Unsafe.set(main, Js.string("scrollTop"), st +. delta);
           },
         );
+        ScrollDebug.log(
+          "SA",
+          Printf.sprintf(
+            "consume SCROLLED dy=%+.1f (old=%.1f new=%.1f)",
+            delta,
+            old_top,
+            new_top,
+          ),
+        );
+        ScrollDebug.mark_sT();
       };
     };
   };

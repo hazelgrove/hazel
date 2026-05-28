@@ -19,6 +19,8 @@ let timer_id: ref(option(Dom_html.interval_id)) = ref(None);
 let last_client_y: ref(float) = ref(0.0);
 let on_tick: ref(option(unit => unit)) = ref(None);
 
+let is_active = (): bool => timer_id^ != None;
+
 let clear_timer = () =>
   switch (timer_id^) {
   | Some(id) =>
@@ -62,12 +64,30 @@ let tick = () =>
   | None => ()
   | Some(container) =>
     let delta = compute_delta(last_client_y^);
+    let sT_before: float = Js.Unsafe.get(container, Js.string("scrollTop"));
     if (delta != 0.0) {
       JsUtil.adjust_scroll(container, delta);
+      let sT_after: float = Js.Unsafe.get(container, Js.string("scrollTop"));
+      let on_tick_present = on_tick^ != None;
+      ScrollDebug.log(
+        "ES",
+        Printf.sprintf(
+          "tick cy=%.1f delta=%+.1f sT=%.1f->%.1f on_tick=%b",
+          last_client_y^,
+          delta,
+          sT_before,
+          sT_after,
+          on_tick_present,
+        ),
+      );
+      ScrollDebug.mark_sT();
       switch (on_tick^) {
       | Some(f) => f()
       | None => ()
       };
+    } else {
+      ();
+        /* Deadzone tick: no scroll, no log (would be noise). */
     };
   };
 
@@ -87,9 +107,26 @@ let update = (~client_y: float, ~on_scroll: unit => unit) => {
   last_client_y := client_y;
   on_tick := Some(on_scroll);
   let delta = compute_delta(client_y);
+  let was_active = timer_id^ != None;
   if (delta != 0.0) {
     ensure_timer();
+    if (!was_active) {
+      ScrollDebug.log(
+        "ES",
+        Printf.sprintf(
+          "update cy=%.1f delta=%+.1f START timer",
+          client_y,
+          delta,
+        ),
+      );
+    };
   } else {
+    if (was_active) {
+      ScrollDebug.log(
+        "ES",
+        Printf.sprintf("update cy=%.1f delta=0 STOP timer", client_y),
+      );
+    };
     clear_timer();
   };
 };
