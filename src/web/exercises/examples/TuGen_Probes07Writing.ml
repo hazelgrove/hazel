@@ -3,14 +3,14 @@
 
 let exercise : Tutorial.spec = {
   id = Option.get (Haz3lcore.Id.of_string "70000021-7507-4000-8000-000000000000");
-  title = "Probes / 07 Writing";
+  title = "Probes / 07 - Writing";
   version = 1;
   module_name = "TuGen_Probes07Writing";
   prompt = {x|Work through the inline instructions in the editor below.|x};
   display_hint = {x||x};
   task_reference = {x||x};
   your_impl =
-    Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|# WRITING WITH LIVE VALUES #
+    Haz3lcore.Move.to_start (Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|# WRITING WITH LIVE VALUES #
 
 # In this tutorial you'll write code step by step.           #
 # Turn on Auto Mode (microscope icon, top right).            #
@@ -176,7 +176,7 @@ let exercise : Tutorial.spec = {
 # so you could verify correctness as you went.                #
 # ============================================================ #
 
-# END #|x});
+# END #|x}));
   hidden_tests =
     {
       tests =

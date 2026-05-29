@@ -3,7 +3,7 @@
 
 let exercise : Tutorial.spec = {
   id = Option.get (Haz3lcore.Id.of_string "a0000003-0003-0003-0003-000000000003");
-  title = "Basics / 03 Integer Arithmetic";
+  title = "Basics / 03 - Integer Arithmetic";
   version = 3;
   module_name = "TuGen_Basics03IntegerArithmetic";
   prompt = {x|Hazel supports arithmetic on integers using the operators:
@@ -20,7 +20,7 @@ The editor below contains `2 +` with a hole after the `+`. Complete the expressi
 - `4 * 3` — multiplication
 - `10 / 3` — integer division|x};
   your_impl =
-    Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|2 + ¿|x});
+    Haz3lcore.Move.to_start (Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|2 + ¿|x}));
   hidden_tests =
     {
       tests =

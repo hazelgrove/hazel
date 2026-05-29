@@ -3,14 +3,14 @@
 
 let exercise : Tutorial.spec = {
   id = Option.get (Haz3lcore.Id.of_string "7000001f-7507-4000-8000-000000000000");
-  title = "Probes / 05 Variant Map Fold";
+  title = "Probes / 05 - Variant Map Fold";
   version = 1;
   module_name = "TuGen_Probes05VariantMapFold";
   prompt = {x|Work through the inline instructions in the editor below.|x};
   display_hint = {x||x};
   task_reference = {x||x};
   your_impl =
-    Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|# PART 5 VARIANT: STEP INTO WITH MAP + FOLD #
+    Haz3lcore.Move.to_start (Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|# PART 5 VARIANT: STEP INTO WITH MAP + FOLD #
 
 # This function has a two-stage pipeline: map transforms #
 # the data, then fold aggregates it. From outside you see #
@@ -75,7 +75,7 @@ weekly_total(shade);
 weekly_total(sun);
 weekly_total(all)
 
-# END #|x});
+# END #|x}));
   hidden_tests =
     {
       tests =

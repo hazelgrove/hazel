@@ -3,7 +3,7 @@
 
 let exercise : Tutorial.spec = {
   id = Option.get (Haz3lcore.Id.of_string "a0000007-0007-0007-0007-000000000007");
-  title = "Basics / 09 Multi Argument Functions";
+  title = "Basics / 09 - Multi Argument Functions";
   version = 8;
   module_name = "TuGen_Basics09MultiArgumentFunctions";
   prompt = {x|Hazel does NOT support currying but supports multi-argument functions via tuples:
@@ -35,8 +35,8 @@ in
 add(3, 4)
 ```|x};
   your_impl =
-    Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|let perimeter : (Int, Int) -> Int = ¿ in
-perimeter(3, 4)|x});
+    Haz3lcore.Move.to_start (Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|let perimeter : (Int, Int) -> Int = ¿ in
+perimeter(3, 4)|x}));
   hidden_tests =
     {
       tests =

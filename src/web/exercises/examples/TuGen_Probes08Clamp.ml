@@ -3,14 +3,14 @@
 
 let exercise : Tutorial.spec = {
   id = Option.get (Haz3lcore.Id.of_string "70000022-7507-4000-8000-000000000000");
-  title = "Probes / 08 Clamp";
+  title = "Probes / 08 - Clamp";
   version = 1;
   module_name = "TuGen_Probes08Clamp";
   prompt = {x|Work through the inline instructions in the editor below.|x};
   display_hint = {x||x};
   task_reference = {x||x};
   your_impl =
-    Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|# PROBES TUTORIAL - PART 8: WRITING EXERCISE (CLAMP)               #
+    Haz3lcore.Move.to_start (Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|# PROBES TUTORIAL - PART 8: WRITING EXERCISE (CLAMP)               #
 
 # Now it's your turn to write some Hazel code.                     #
 # Implement `clamp`: constrain a number to be within [lo, hi].     #
@@ -57,7 +57,7 @@ clamp(10, 0, 10)
 == 10
 end
 
-# END OF PART 8 - Select the next slide from the top menu       #|x});
+# END OF PART 8 - Select the next slide from the top menu       #|x}));
   hidden_tests =
     {
       tests =

@@ -3,7 +3,7 @@
 
 let exercise : Tutorial.spec = {
   id = Option.get (Haz3lcore.Id.of_string "a0000012-0012-0012-0012-000000000012");
-  title = "Basics / 14 List Literals";
+  title = "Basics / 14 - List Literals";
   version = 13;
   module_name = "TuGen_Basics14ListLiterals";
   prompt = {x|In Hazel, you can create a list by writing its elements between square brackets, separated by commas. For example, `[1, 2, 3]` is a list of three integers.
@@ -20,8 +20,8 @@ Complete the let binding below so that `first_four` contains the first four posi
 ### List Type
 `[Int]`, `[String]`, `[Bool]`|x};
   your_impl =
-    Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|let first_four : [Int] = [?] in
-first_four|x});
+    Haz3lcore.Move.to_start (Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|let first_four : [Int] = [?] in
+first_four|x}));
   hidden_tests =
     {
       tests =

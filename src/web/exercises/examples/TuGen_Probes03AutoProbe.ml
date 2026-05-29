@@ -3,14 +3,14 @@
 
 let exercise : Tutorial.spec = {
   id = Option.get (Haz3lcore.Id.of_string "70000018-7507-4000-8000-000000000000");
-  title = "Probes / 03 Auto Probe";
+  title = "Probes / 03 - Auto Probe";
   version = 1;
   module_name = "TuGen_Probes03AutoProbe";
   prompt = {x|Work through the inline instructions in the editor below.|x};
   display_hint = {x||x};
   task_reference = {x||x};
   your_impl =
-    Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|# PROBES TUTORIAL - PART 3: AUTO-PROBE MODE #
+    Haz3lcore.Move.to_start (Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|# PROBES TUTORIAL - PART 3: AUTO-PROBE MODE #
 
 # There's a bit bigger program to explore this time! #
 # Don't worry terribly much about the details of this program; #
@@ -182,7 +182,7 @@ end;
 
 bed_schedule(shade_garden, Full)
 
-# END OF PART 3 - Select the next slide from the top menu #|x});
+# END OF PART 3 - Select the next slide from the top menu #|x}));
   hidden_tests =
     {
       tests =

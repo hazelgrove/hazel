@@ -3,7 +3,7 @@
 
 let exercise : Tutorial.spec = {
   id = Option.get (Haz3lcore.Id.of_string "a0000006-0006-0006-0006-000000000006");
-  title = "Basics / 08 Functions";
+  title = "Basics / 08 - Functions";
   version = 7;
   module_name = "TuGen_Basics08Functions";
   prompt = {x|Functions are expressions that take inputs and produce outputs. In Hazel, you write an anonymous function as:
@@ -30,8 +30,8 @@ in
 inc(1)
 ```|x};
   your_impl =
-    Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|let triple : Int -> Int = fun n -> ¿ in
-triple(10)|x});
+    Haz3lcore.Move.to_start (Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|let triple : Int -> Int = fun n -> ¿ in
+triple(10)|x}));
   hidden_tests =
     {
       tests =

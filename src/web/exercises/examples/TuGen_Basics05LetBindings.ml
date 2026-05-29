@@ -3,7 +3,7 @@
 
 let exercise : Tutorial.spec = {
   id = Option.get (Haz3lcore.Id.of_string "a0000005-0005-0005-0005-000000000005");
-  title = "Basics / 05 Let Bindings";
+  title = "Basics / 05 - Let Bindings";
   version = 6;
   module_name = "TuGen_Basics05LetBindings";
   prompt = {x|A `let` expression binds a variable to a value within a body expression.
@@ -45,9 +45,9 @@ Variables bound by `let` are available in the body after `in`.
 
 Float literals need a decimal point: `0.`, `1.0`, `3.14`|x};
   your_impl =
-    Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|let price : Float = 50. in
+    Haz3lcore.Move.to_start (Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|let price : Float = 50. in
 let total = price +. tip in
-total|x});
+total|x}));
   hidden_tests =
     {
       tests =

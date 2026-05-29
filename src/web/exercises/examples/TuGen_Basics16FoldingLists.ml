@@ -3,7 +3,7 @@
 
 let exercise : Tutorial.spec = {
   id = Option.get (Haz3lcore.Id.of_string "a0000015-0015-0015-0015-000000000015");
-  title = "Basics / 16 Folding Lists";
+  title = "Basics / 16 - Folding Lists";
   version = 16;
   module_name = "TuGen_Basics16FoldingLists";
   prompt = {x|The built-in function `fold_left` processes a list element by element, accumulating a result. It has the signature `fold_left : ([T], (U, T) -> U, U) -> U`.
@@ -48,8 +48,8 @@ in
 double([1, 2, 3])
 ```|x};
   your_impl =
-    Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|let join : [String] -> String = ¿ in
-join(["a", "b", "c"])|x});
+    Haz3lcore.Move.to_start (Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|let join : [String] -> String = ¿ in
+join(["a", "b", "c"])|x}));
   hidden_tests =
     {
       tests =

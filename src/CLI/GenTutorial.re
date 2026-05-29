@@ -181,15 +181,40 @@ let module_name_of = (rel: string): string => {
   module_prefix ++ camel;
 };
 
-let title_of = (rel: string): string =>
-  Filename.chop_suffix(rel, ".hz")
-  |> String.split_on_char('/')
-  |> List.map(seg =>
-       String.split_on_char('-', seg)
-       |> List.map(String.capitalize_ascii)
-       |> String.concat(" ")
-     )
-  |> String.concat(" / ");
+let cap_words = (s: string): string =>
+  String.split_on_char('-', s)
+  |> List.filter(w => w != "")
+  |> List.map(String.capitalize_ascii)
+  |> String.concat(" ");
+
+let is_digits = (s: string): bool =>
+  s != "" && String.for_all(c => c >= '0' && c <= '9', s);
+
+/* "basics/01-holes" -> "Basics / 01 - Holes"; a leading numeric token in the
+   filename is separated from the title words by " - ". */
+let title_of = (rel: string): string => {
+  let segs = String.split_on_char('/', Filename.chop_suffix(rel, ".hz"));
+  switch (List.rev(segs)) {
+  | [] => ""
+  | [last, ...rev_dirs] =>
+    let file_title =
+      switch (String.split_on_char('-', last)) {
+      | [num, ...rest] when is_digits(num) && List.exists(w => w != "", rest) =>
+        num
+        ++ " - "
+        ++ (
+          rest
+          |> List.filter(w => w != "")
+          |> List.map(String.capitalize_ascii)
+          |> String.concat(" ")
+        )
+      | _ => cap_words(last)
+      };
+    let prefix =
+      List.rev(rev_dirs) |> List.map(cap_words) |> String.concat(" / ");
+    prefix == "" ? file_title : prefix ++ " / " ++ file_title;
+  };
+};
 
 let id_string = (i: int): string =>
   Printf.sprintf("%08x-7507-4000-8000-000000000000", 0x70000000 + i);
@@ -264,9 +289,9 @@ let generate_ml_file = (i: int, rel_path: string): option(string) => {
       ++ "  task_reference = "
       ++ quoted(s.reference)
       ++ ";\n"
-      ++ "  your_impl =\n    Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp "
+      ++ "  your_impl =\n    Haz3lcore.Move.to_start (Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp "
       ++ quoted(code)
-      ++ ");\n"
+      ++ "));\n"
       ++ "  hidden_tests =\n    {\n      tests =\n        Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp "
       ++ quoted(test)
       ++ ");\n      hints = "

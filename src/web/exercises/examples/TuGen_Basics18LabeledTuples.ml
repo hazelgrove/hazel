@@ -3,7 +3,7 @@
 
 let exercise : Tutorial.spec = {
   id = Option.get (Haz3lcore.Id.of_string "32aa8e06-b0d4-4459-8879-13575a45768b");
-  title = "Basics / 18 Labeled Tuples";
+  title = "Basics / 18 - Labeled Tuples";
   version = 1;
   module_name = "TuGen_Basics18LabeledTuples";
   prompt = {x|Hazel supports labeled tuples, which let you associate labels with tuple elements — giving an ordered version of records. They also support projection by label:
@@ -27,10 +27,10 @@ species="dog") in
 pet.name
 ```|x};
   your_impl =
-    Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|type Point = (x=Float, y=Float) in
+    Haz3lcore.Move.to_start (Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|type Point = (x=Float, y=Float) in
 
 let p : Point = ¿ in
-p|x});
+p|x}));
   hidden_tests =
     {
       tests =

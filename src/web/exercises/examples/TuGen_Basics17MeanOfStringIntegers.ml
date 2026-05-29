@@ -3,7 +3,7 @@
 
 let exercise : Tutorial.spec = {
   id = Option.get (Haz3lcore.Id.of_string "a0000016-0016-0016-0016-000000000016");
-  title = "Basics / 17 Mean Of String Integers";
+  title = "Basics / 17 - Mean Of String Integers";
   version = 16;
   module_name = "TuGen_Basics17MeanOfStringIntegers";
   prompt = {x|This task tests your understanding of the concepts from the previous tutorials.
@@ -102,12 +102,12 @@ length([1.0, 2.0, 3.0])
 
 Float literals need a decimal point: `0.`, `1.0`, `3.14`|x};
   your_impl =
-    Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|let string_mean : [String] -> Float = fun strings ->
+    Haz3lcore.Move.to_start (Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|let string_mean : [String] -> Float = fun strings ->
 let floats : [Float] = ¿ in
 let sum : Float = ¿ in
 ¿
 in
-string_mean(["1", "2", "3"])|x});
+string_mean(["1", "2", "3"])|x}));
   hidden_tests =
     {
       tests =

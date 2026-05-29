@@ -3,7 +3,7 @@
 
 let exercise : Tutorial.spec = {
   id = Option.get (Haz3lcore.Id.of_string "a0000009-0009-0009-0009-000000000009");
-  title = "Basics / 07 Type Annotations";
+  title = "Basics / 07 - Type Annotations";
   version = 9;
   module_name = "TuGen_Basics07TypeAnnotations";
   prompt = {x|Hazel's type system ensures that expressions are used in ways that make sense. You can explicitly annotate an expression with a type using the `:` operator. For example, `(1 : Int)` asserts that `1` has type `Int`.
@@ -36,7 +36,7 @@ let z : Bool = true in
 ### Basic Types
 `Int`, `Float`, `Bool`, `String`|x};
   your_impl =
-    Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|("1" : Int)|x});
+    Haz3lcore.Move.to_start (Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|("1" : Int)|x}));
   hidden_tests =
     {
       tests =

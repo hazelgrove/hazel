@@ -3,7 +3,7 @@
 
 let exercise : Tutorial.spec = {
   id = Option.get (Haz3lcore.Id.of_string "a0000011-0011-0011-0011-000000000011");
-  title = "Basics / 13 Case Expressions";
+  title = "Basics / 13 - Case Expressions";
   version = 12;
   module_name = "TuGen_Basics13CaseExpressions";
   prompt = {x|Case expressions let you pattern match on a value.
@@ -94,11 +94,11 @@ string_sub("012345", 2, 3)
 string_length("012345")
 ```|x};
   your_impl =
-    Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|let process_string_pair : (String, String) -> String = fun p ->
+    Haz3lcore.Move.to_start (Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|let process_string_pair : (String, String) -> String = fun p ->
 case p
 end
 in
-process_string_pair("pre", "hazel")|x});
+process_string_pair("pre", "hazel")|x}));
   hidden_tests =
     {
       tests =

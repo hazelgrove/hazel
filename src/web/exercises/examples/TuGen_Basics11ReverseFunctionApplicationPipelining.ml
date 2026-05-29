@@ -3,7 +3,7 @@
 
 let exercise : Tutorial.spec = {
   id = Option.get (Haz3lcore.Id.of_string "a0000009-0008-0008-0008-000000000008");
-  title = "Basics / 11 Reverse Function Application  Pipelining ";
+  title = "Basics / 11 - Reverse Function Application Pipelining";
   version = 9;
   module_name = "TuGen_Basics11ReverseFunctionApplicationPipelining";
   prompt = {x|Ordinary function application in Hazel looks like:
@@ -132,10 +132,10 @@ float_of_int(7)
 int_of_float(3.99)
 ```|x};
   your_impl =
-    Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|let positive_floats : [Int] -> [Float] = fun ns ->
+    Haz3lcore.Move.to_start (Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|let positive_floats : [Int] -> [Float] = fun ns ->
 ¿
 in
-positive_floats([-1, 2, 1])|x});
+positive_floats([-1, 2, 1])|x}));
   hidden_tests =
     {
       tests =

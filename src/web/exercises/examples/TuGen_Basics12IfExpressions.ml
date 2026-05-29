@@ -3,7 +3,7 @@
 
 let exercise : Tutorial.spec = {
   id = Option.get (Haz3lcore.Id.of_string "a0000030-0030-0030-0030-000000000030");
-  title = "Basics / 12 If Expressions";
+  title = "Basics / 12 - If Expressions";
   version = 1;
   module_name = "TuGen_Basics12IfExpressions";
   prompt = {x|If expressions let you choose between two values based on a condition.
@@ -71,8 +71,8 @@ else 1
 - `<=` — less than or equal
 - `>=` — greater than or equal|x};
   your_impl =
-    Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|let clamp = fun x -> x in
-clamp(50)|x});
+    Haz3lcore.Move.to_start (Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|let clamp = fun x -> x in
+clamp(50)|x}));
   hidden_tests =
     {
       tests =

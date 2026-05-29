@@ -3,14 +3,14 @@
 
 let exercise : Tutorial.spec = {
   id = Option.get (Haz3lcore.Id.of_string "70000017-7507-4000-8000-000000000000");
-  title = "Probes / 02 Functions And Cursor";
+  title = "Probes / 02 - Functions And Cursor";
   version = 1;
   module_name = "TuGen_Probes02FunctionsAndCursor";
   prompt = {x|Work through the inline instructions in the editor below.|x};
   display_hint = {x||x};
   task_reference = {x||x};
   your_impl =
-    Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|# PROBES TUTORIAL - PART 2: FUNCTIONS AND THE DYNAMIC CURSOR #
+    Haz3lcore.Move.to_start (Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|# PROBES TUTORIAL - PART 2: FUNCTIONS AND THE DYNAMIC CURSOR #
 
 # When a function is called multiple times, each call #
 # generates its own sample. Let's see what that looks like! #
@@ -84,7 +84,7 @@ watering_amount(180, Waning)
 # Similarly to single mode, left/right arrow keys move samples. #
 # Double-click again (or Space) to go back to Single mode. #
 
-# END OF PART 2 - Select the next slide from the top menu #|x});
+# END OF PART 2 - Select the next slide from the top menu #|x}));
   hidden_tests =
     {
       tests =

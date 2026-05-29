@@ -3,14 +3,14 @@
 
 let exercise : Tutorial.spec = {
   id = Option.get (Haz3lcore.Id.of_string "7000001d-7507-4000-8000-000000000000");
-  title = "Probes / 05 Step Into";
+  title = "Probes / 05 - Step Into";
   version = 1;
   module_name = "TuGen_Probes05StepInto";
   prompt = {x|Work through the inline instructions in the editor below.|x};
   display_hint = {x||x};
   task_reference = {x||x};
   your_impl =
-    Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|# PROBES TUTORIAL - PART 5: STEP INTO AND THE DYNAMIC CURSOR BAR #
+    Haz3lcore.Move.to_start (Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|# PROBES TUTORIAL - PART 5: STEP INTO AND THE DYNAMIC CURSOR BAR #
 # You've pinned a call and can see values inside a function. #
 # But what if the bug is deeper, inside a function that your #
 # function calls? Step Into follows the call stack down. #
@@ -68,7 +68,7 @@ test daily_water(200, 2, Waxing) == 165 end;
 
 daily_water(100, 1, Full)
 
-# END OF PART 5 - Select the next slide from the top menu #|x});
+# END OF PART 5 - Select the next slide from the top menu #|x}));
   hidden_tests =
     {
       tests =

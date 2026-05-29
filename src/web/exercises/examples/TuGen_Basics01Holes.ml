@@ -3,7 +3,7 @@
 
 let exercise : Tutorial.spec = {
   id = Option.get (Haz3lcore.Id.of_string "a0000001-0001-0001-0001-000000000001");
-  title = "Basics / 01 Holes";
+  title = "Basics / 01 - Holes";
   version = 1;
   module_name = "TuGen_Basics01Holes";
   prompt = {x|# Welcome to Hazel!
@@ -21,9 +21,9 @@ Your goal is to fill the empty hole in the program below so that the arithmetic 
 42 - 20
 ```|x};
   your_impl =
-    Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|let target = 42 in
+    Haz3lcore.Move.to_start (Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|let target = 42 in
 let partial = 20 + ¿ in
-target == partial|x});
+target == partial|x}));
   hidden_tests =
     {
       tests =

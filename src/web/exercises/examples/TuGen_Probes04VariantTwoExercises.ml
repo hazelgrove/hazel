@@ -3,14 +3,14 @@
 
 let exercise : Tutorial.spec = {
   id = Option.get (Haz3lcore.Id.of_string "7000001c-7507-4000-8000-000000000000");
-  title = "Probes / 04 Variant Two Exercises";
+  title = "Probes / 04 - Variant Two Exercises";
   version = 1;
   module_name = "TuGen_Probes04VariantTwoExercises";
   prompt = {x|Work through the inline instructions in the editor below.|x};
   display_hint = {x||x};
   task_reference = {x||x};
   your_impl =
-    Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|# PART 4 VARIANT: TWO PIN EXERCISES #
+    Haz3lcore.Move.to_start (Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|# PART 4 VARIANT: TWO PIN EXERCISES #
 
 # This variant has two exercises. The first teaches pin #
 # from a test call site. The second uses map and teaches #
@@ -130,7 +130,7 @@ test bed_labels(sun_terrace)
 == ["🌸 Orchid: 180ml", "🍄 Cactus: 50ml", "🌹 Rose: 190ml"]
 end
 
-# END OF PART 4 #|x});
+# END OF PART 4 #|x}));
   hidden_tests =
     {
       tests =

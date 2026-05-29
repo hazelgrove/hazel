@@ -3,14 +3,14 @@
 
 let exercise : Tutorial.spec = {
   id = Option.get (Haz3lcore.Id.of_string "7000001a-7507-4000-8000-000000000000");
-  title = "Probes / 04 Pinning";
+  title = "Probes / 04 - Pinning";
   version = 1;
   module_name = "TuGen_Probes04Pinning";
   prompt = {x|Work through the inline instructions in the editor below.|x};
   display_hint = {x||x};
   task_reference = {x||x};
   your_impl =
-    Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|# PROBES TUTORIAL - PART 4: PINNING                               #
+    Haz3lcore.Move.to_start (Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|# PROBES TUTORIAL - PART 4: PINNING                               #
 
 # A bug has snuck into the garden data and left... a bug!         #
 # With many calls generating a wall of samples, it's hard to see  #
@@ -143,7 +143,7 @@ bed_labels(sun_terrace)
 == ["🌸 Orchid: 180ml", "🍄 Cactus: 50ml", "🌹 Rose: 190ml"]
 end
 
-# END OF PART 4 - Select the next slide from the top menu          #|x});
+# END OF PART 4 - Select the next slide from the top menu          #|x}));
   hidden_tests =
     {
       tests =

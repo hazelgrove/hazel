@@ -3,7 +3,7 @@
 
 let exercise : Tutorial.spec = {
   id = Option.get (Haz3lcore.Id.of_string "a89174ca-034d-43d7-b478-330388a2d712");
-  title = "Basics / 19 Labeled Tuple Projection";
+  title = "Basics / 19 - Labeled Tuple Projection";
   version = 1;
   module_name = "TuGen_Basics19LabeledTupleProjection";
   prompt = {x|Hazel's labeled tuples support record-style projection:
@@ -57,9 +57,9 @@ pet.name
 "hello" ++ " world"
 ```|x};
   your_impl =
-    Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|type Person = (first_name=String, last_name=String, age=Int) in
+    Haz3lcore.Move.to_start (Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|type Person = (first_name=String, last_name=String, age=Int) in
 let greeting : (Person -> String) = ¿ in
-greeting((first_name="George", last_name="Garcia", age=12))|x});
+greeting((first_name="George", last_name="Garcia", age=12))|x}));
   hidden_tests =
     {
       tests =

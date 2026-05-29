@@ -3,14 +3,14 @@
 
 let exercise : Tutorial.spec = {
   id = Option.get (Haz3lcore.Id.of_string "70000023-7507-4000-8000-000000000000");
-  title = "Probes / 09 Running Sum";
+  title = "Probes / 09 - Running Sum";
   version = 1;
   module_name = "TuGen_Probes09RunningSum";
   prompt = {x|Work through the inline instructions in the editor below.|x};
   display_hint = {x||x};
   task_reference = {x||x};
   your_impl =
-    Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|# PROBES TUTORIAL - PART 9: WRITING EXERCISE (FOLD)                #
+    Haz3lcore.Move.to_start (Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|# PROBES TUTORIAL - PART 9: WRITING EXERCISE (FOLD)                #
 
 # Implement `running_sum`: compute a list where each element       #
 # is the sum of all elements up to that position.                   #
@@ -60,7 +60,7 @@ running_sum([1, 1, 1, 1])
 == [1, 2, 3, 4]
 end
 
-# END OF PART 9 - Select the next slide from the top menu       #|x});
+# END OF PART 9 - Select the next slide from the top menu       #|x}));
   hidden_tests =
     {
       tests =

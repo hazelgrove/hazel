@@ -3,14 +3,14 @@
 
 let exercise : Tutorial.spec = {
   id = Option.get (Haz3lcore.Id.of_string "70000020-7507-4000-8000-000000000000");
-  title = "Probes / 06 Print";
+  title = "Probes / 06 - Print";
   version = 1;
   module_name = "TuGen_Probes06Print";
   prompt = {x|Work through the inline instructions in the editor below.|x};
   display_hint = {x||x};
   task_reference = {x||x};
   your_impl =
-    Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|# PROBES TUTORIAL - PART 6: PRINT STATEMENTS #
+    Haz3lcore.Move.to_start (Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|# PROBES TUTORIAL - PART 6: PRINT STATEMENTS #
 # Hazel also has traditional print-statement debugging. #
 # `print(expr)` sends a value to the print panel in the #
 # sidebar, then returns unit. Use `;` to sequence it: #
@@ -37,7 +37,7 @@ test double(21) == 42 end;
 
 double(7)
 
-# END OF PART 6 #|x});
+# END OF PART 6 #|x}));
   hidden_tests =
     {
       tests =

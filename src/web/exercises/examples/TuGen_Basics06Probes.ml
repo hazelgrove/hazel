@@ -3,7 +3,7 @@
 
 let exercise : Tutorial.spec = {
   id = Option.get (Haz3lcore.Id.of_string "a0000020-0020-0020-0020-000000000020");
-  title = "Basics / 06 Probes";
+  title = "Basics / 06 - Probes";
   version = 1;
   module_name = "TuGen_Basics06Probes";
   prompt = {x|**Probes** let you inspect runtime values directly in the editor — no print statements needed. You place a **probe** on an expression or pattern, and the values that appear to the right are called **probe samples**.
@@ -49,9 +49,9 @@ map([10, 20], f)
 ```
 Probing `x + 1` shows probe samples: `11`, `21`|x};
   your_impl =
-    Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|let add_tax = fun price -> price +. price *. 0.5 in
+    Haz3lcore.Move.to_start (Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|let add_tax = fun price -> price +. price *. 0.5 in
 let totals = map([3.0, 7.0, 5.0], add_tax) in
-totals|x});
+totals|x}));
   hidden_tests =
     {
       tests =

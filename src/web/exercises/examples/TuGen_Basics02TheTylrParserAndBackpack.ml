@@ -3,7 +3,7 @@
 
 let exercise : Tutorial.spec = {
   id = Option.get (Haz3lcore.Id.of_string "a0000002-0002-0002-0002-000000000002");
-  title = "Basics / 02 The Tylr Parser And Backpack";
+  title = "Basics / 02 - The Tylr Parser And Backpack";
   version = 3;
   module_name = "TuGen_Basics02TheTylrParserAndBackpack";
   prompt = {x|Hazel uses a tile-based parser called Tylr. When you type a multi-token form like `let`, Tylr automatically tracks the remaining delimiters that are needed to complete the syntactic form. These obligations are held in the *backpack*, shown in yellow above the cursor.
@@ -27,7 +27,7 @@ a
 - **Tab** drops the next obligation from the backpack
 - Typing the delimiter (e.g. `in`) also works|x};
   your_impl =
-    Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|let x = ¿|x});
+    Haz3lcore.Move.to_start (Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|let x = ¿|x}));
   hidden_tests =
     {
       tests =

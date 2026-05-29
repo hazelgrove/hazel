@@ -3,7 +3,7 @@
 
 let exercise : Tutorial.spec = {
   id = Option.get (Haz3lcore.Id.of_string "73bc65c8-0e53-478d-a74d-a0b0653674a9");
-  title = "Basics / 21 Labeled Tuple Omission";
+  title = "Basics / 21 - Labeled Tuple Omission";
   version = 1;
   module_name = "TuGen_Basics21LabeledTupleOmission";
   prompt = {x|Entries can be dropped from a labeled tuple with `omit_labels`.
@@ -48,10 +48,10 @@ omit_labels(
 `c`)
 ```|x};
   your_impl =
-    Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|let drop_secrets = fun t -> 
+    Haz3lcore.Move.to_start (Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|let drop_secrets = fun t -> 
 ¿
 in
-drop_secrets((not_secret="public information", secret="to redact"))|x});
+drop_secrets((not_secret="public information", secret="to redact"))|x}));
   hidden_tests =
     {
       tests =

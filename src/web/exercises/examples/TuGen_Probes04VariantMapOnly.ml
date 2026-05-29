@@ -3,14 +3,14 @@
 
 let exercise : Tutorial.spec = {
   id = Option.get (Haz3lcore.Id.of_string "7000001b-7507-4000-8000-000000000000");
-  title = "Probes / 04 Variant Map Only";
+  title = "Probes / 04 - Variant Map Only";
   version = 1;
   module_name = "TuGen_Probes04VariantMapOnly";
   prompt = {x|Work through the inline instructions in the editor below.|x};
   display_hint = {x||x};
   task_reference = {x||x};
   your_impl =
-    Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|# PART 4 VARIANT: PIN WITH MAP #
+    Haz3lcore.Move.to_start (Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|# PART 4 VARIANT: PIN WITH MAP #
 
 # A 🐛 has sneaked into our garden data! This time, #
 # we're using map to process plants in batches. The map #
@@ -99,7 +99,7 @@ test bed_labels(sun_terrace)
 == ["🌸 Orchid: 180ml", "🍄 Cactus: 50ml", "🌹 Rose: 190ml"]
 end
 
-# END #|x});
+# END #|x}));
   hidden_tests =
     {
       tests =

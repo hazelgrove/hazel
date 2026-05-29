@@ -3,7 +3,7 @@
 
 let exercise : Tutorial.spec = {
   id = Option.get (Haz3lcore.Id.of_string "a0000008-0008-0008-0008-000000000008");
-  title = "Basics / 10 Partial Application";
+  title = "Basics / 10 - Partial Application";
   version = 9;
   module_name = "TuGen_Basics10PartialApplication";
   prompt = {x|Hazel does NOT support currying, but it does support partial application via explicit deferred function arguments using `_`. So writing:
@@ -44,9 +44,9 @@ in
 double([1, 2, 3])
 ```|x};
   your_impl =
-    Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|let max = fun (a : Int, b : Int) -> if a > b then a else b in
+    Haz3lcore.Move.to_start (Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|let max = fun (a : Int, b : Int) -> if a > b then a else b in
 let non_negative : Int -> Int = ¿ in
-non_negative(5)|x});
+non_negative(5)|x}));
   hidden_tests =
     {
       tests =

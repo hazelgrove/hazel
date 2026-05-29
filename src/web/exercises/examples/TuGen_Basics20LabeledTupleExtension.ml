@@ -3,7 +3,7 @@
 
 let exercise : Tutorial.spec = {
   id = Option.get (Haz3lcore.Id.of_string "fd42ef8a-11ce-4e7b-9993-e50f2bb096e7");
-  title = "Basics / 20 Labeled Tuple Extension";
+  title = "Basics / 20 - Labeled Tuple Extension";
   version = 1;
   module_name = "TuGen_Basics20LabeledTupleExtension";
   prompt = {x|To easily update and extend labeled tuples, Hazel provides an extension operator (`...`).
@@ -60,11 +60,11 @@ pet.name
 - `4 * 3` — multiplication
 - `10 / 3` — integer division|x};
   your_impl =
-    Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|type Person = (first=String, age=Int, last=String) in
+    Haz3lcore.Move.to_start (Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|type Person = (first=String, age=Int, last=String) in
 let update_person = fun (p : Person) ->
 ¿
 in
-update_person((first="Thor", age=30, last="Odinson"))|x});
+update_person((first="Thor", age=30, last="Odinson"))|x}));
   hidden_tests =
     {
       tests =
