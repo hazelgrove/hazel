@@ -1213,97 +1213,108 @@ let editor_effects =
   |> resolve_pending_probe_cursor(~dynamics, ~syntax, ~info_map)
   |> maybe_reset_cursor;
 
-/* AUTO PROBE: automatically place a multi probe on the top-level
- * definition body that the cursor is currently inside. When the cursor
- * moves to a different definition, the probe follows. */
-
-/* Determines what expression to probe based on cursor position (for auto probe).
+/* AUTO PROBE: pick one expression to probe based on cursor position.
  *
- * Walk ancestors from outermost to innermost. For each:
- * - Test: return test body (done)
- * - Let: check if child-toward-cursor is the body
- *   - If child == body: skip (cursor is in body, this let doesn't apply)
- *   - Otherwise: return this let's def (cursor is in def/pattern/on-delimiter)
+ * Walk ancestors outermost-to-innermost. At each ancestor we know which
+ * child is on the path to the cursor.
  *
- * The key insight: the ONLY way to not probe a let's def is if the cursor
- * is in its body. Being on the let delimiter, pattern, or def all qualify.
- */
+ *   Let(p, def, body):
+ *     cursor in body          → continue inward
+ *     cursor in def/pat/delim → probe def
+ *   Seq(e1, e2):
+ *     cursor in e1 or e2      → continue inward
+ *     cursor on ;             → probe e1
+ *   TyAlias(p, ty, body):
+ *     cursor in body          → continue inward
+ *     cursor in ty/pat/delim  → no probe (types aren't probeable)
+ *   anything else (bare expr) → probe this ancestor itself
+ *
+ * If the walk falls through without picking anything, apply the same
+ * rules to the cursor's own piece.
+ *
+ * Tests are not special-cased here; instead, any returned target id that
+ * names a Test/HintedTest is rewritten to its body via `unwrap_test`.
+ * This keeps the probe on the boolean condition (the useful value)
+ * whether the cursor is in the test body, on the test, or on a Seq `;`
+ * immediately after the test. */
 let toplevel_def_body_id = (~statics: Statics.Map.t, ~id: Id.t): option(Id.t) => {
   open Language;
 
-  /* Walk from outermost to innermost ancestor.
-   * At each step, `child_id` is the next item toward the cursor.
-   * ancestors is innermost-first, so we walk from the end. */
+  let unwrap_test = (id: Id.t): Id.t =>
+    switch (Statics.Map.lookup(id, statics)) {
+    | Some(
+        InfoExp({
+          user_term: {term: Test(body) | HintedTest(body, _), _},
+          _,
+        }),
+      ) =>
+      IdTagged.rep_id(body)
+    | _ => id
+    };
+
+  let probe_for_piece = (id: Id.t): option(Id.t) =>
+    switch (Statics.Map.lookup(id, statics)) {
+    | Some(InfoExp({user_term: {term: Let(_, def, _), _}, _})) =>
+      Some(IdTagged.rep_id(def))
+    | Some(InfoExp({user_term: {term: Seq(e1, _), _}, _})) =>
+      Some(IdTagged.rep_id(e1))
+    | Some(InfoExp({user_term: {term: TyAlias(_), _}, _})) => None
+    | Some(InfoExp({user_term, _})) => Some(IdTagged.rep_id(user_term))
+    | _ => None
+    };
+
   let find_target = (starting_id: Id.t, ancestors: list(Id.t)): option(Id.t) => {
     let len = List.length(ancestors);
-
     let rec walk = (idx: int): option(Id.t) =>
       if (idx < 0) {
         None;
       } else {
         let anc_id = List.nth(ancestors, idx);
-        /* Child is the next ancestor toward cursor, or starting_id if innermost */
         let child_id =
           if (idx == 0) {
             starting_id;
           } else {
             List.nth(ancestors, idx - 1);
           };
-
         switch (Statics.Map.lookup(anc_id, statics)) {
-        | Some(
-            InfoExp({
-              user_term: {term: Test(body) | HintedTest(body, _), _},
-              _,
-            }),
-          ) =>
-          /* Test: return its body */
-          Some(IdTagged.rep_id(body))
-
         | Some(InfoExp({user_term: {term: Let(_, def, body), _}, _})) =>
-          let body_id = IdTagged.rep_id(body);
-          if (Id.equal(child_id, body_id)) {
-            /* Child is body → cursor is in body → skip, continue inward */
-            walk(
-              idx - 1,
-            );
+          if (Id.equal(child_id, IdTagged.rep_id(body))) {
+            walk(idx - 1);
           } else {
-            /* Child is def/pattern/or this is the cursor → return def */
-            Some(
-              IdTagged.rep_id(def),
-            );
+            Some(IdTagged.rep_id(def));
+          }
+        | Some(InfoExp({user_term: {term: Seq(e1, e2), _}, _})) =>
+          let e1_id = IdTagged.rep_id(e1);
+          let e2_id = IdTagged.rep_id(e2);
+          if (Id.equal(child_id, e1_id) || Id.equal(child_id, e2_id)) {
+            walk(idx - 1);
+          } else {
+            Some(e1_id);
           };
-
+        | Some(InfoExp({user_term: {term: TyAlias(_, _, body), _}, _})) =>
+          if (Id.equal(child_id, IdTagged.rep_id(body))) {
+            walk(idx - 1);
+          } else {
+            None;
+          }
         | _ =>
-          /* Not a let or test, continue inward */
-          walk(idx - 1)
+          /* Non-chain ancestor: the bare expression containing the cursor.
+           * Probe it. */
+          Some(anc_id)
         };
       };
-
     walk(len - 1);
   };
 
   switch (Statics.Map.lookup(id, statics)) {
-  | Some(
-      InfoExp({user_term: {term: Test(body) | HintedTest(body, _), _}, _}),
-    ) =>
-    /* Starting point IS a test → return its body */
-    Some(IdTagged.rep_id(body))
-
   | Some(info) =>
     let ancestors = Info.ancestors_of(info);
-    switch (find_target(id, ancestors)) {
-    | Some(def_id) => Some(def_id)
-    | None =>
-      /* No outer let found where we're in def.
-         Check if starting_id itself is a top-level let → return its def */
-      switch (info) {
-      | InfoExp({user_term: {term: Let(_, def, _), _}, _}) =>
-        Some(IdTagged.rep_id(def))
-      | _ => None
-      }
-    };
-
+    let target =
+      switch (find_target(id, ancestors)) {
+      | Some(_) as result => result
+      | None => probe_for_piece(id)
+      };
+    Option.map(unwrap_test, target);
   | None => None
   };
 };
@@ -1331,27 +1342,66 @@ let clear_autoprobe =
        )
   };
 
-/* Get the top-level definition body ID that the cursor is currently inside.
- * When the cursor is on whitespace/comments (secondaries), we fall back to
- * using the nearest ancestor tile's ID, since secondaries don't have statics. */
+/* Pick the id to base autoprobe placement on.
+ *
+ * 1. `Indicated.index` for the typical cursor-on-tile case (also handles
+ *    Inner caret correctly — e.g., cursor inside the `let` keyword of a
+ *    later let, which must indicate THAT let, not whatever's to the
+ *    left).
+ * 2. Left-bias fallback: if Indicated couldn't pick anything probeable
+ *    (e.g., cursor sits in trailing whitespace), skip past secondaries
+ *    on the left and use the nearest meaningful piece. Keeps the probe
+ *    sticky after typing a trailing space.
+ * 3. Containing tile fallback: cursor surrounded only by whitespace with
+ *    no left-meaningful piece reachable — probe the enclosing tile (e.g.
+ *    cursor on a blank line within a let body → probe the let's def). */
 let current_toplevel_def =
     (info_map: Statics.Map.t, z: Zipper.t): option(Id.t) => {
   let try_id = id => toplevel_def_body_id(~statics=info_map, ~id);
 
-  /* First try the indicated piece */
-  let from_indicated =
+  let from_indicated = () =>
     switch (Indicated.index(z)) {
     | None => None
     | Some(cursor_id) => try_id(cursor_id)
     };
 
-  /* If that failed (e.g., cursor on whitespace), try the zipper ancestor */
-  switch (from_indicated) {
-  | Some(_) => from_indicated
-  | None =>
+  let from_left = () => {
+    let (l_sibs, _) = ZipperBase.sibs_with_sel(z);
+    /* l_sibs is in source order; trim cursor-side (right-end) secondaries
+     * then take the last remaining piece (the closest non-secondary to
+     * the cursor on the left). */
+    let trimmed = Segment.trim_secondary(Right, l_sibs);
+    switch (ListUtil.split_last_opt(trimmed)) {
+    | Some((_, last)) => try_id(Piece.id(last))
+    | None => None
+    };
+  };
+
+  let from_right = () => {
+    let (_, r_sibs) = ZipperBase.sibs_with_sel(z);
+    let trimmed = Segment.trim_secondary(Left, r_sibs);
+    switch (trimmed) {
+    | [first, ..._] => try_id(Piece.id(first))
+    | [] => None
+    };
+  };
+
+  let from_ancestor = () =>
     switch (z.relatives.ancestors) {
     | [] => None
     | [(ancestor, _), ..._] => try_id(ancestor.id)
+    };
+
+  switch (from_indicated()) {
+  | Some(_) as r => r
+  | None =>
+    switch (from_right()) {
+    | Some(_) as r => r
+    | None =>
+      switch (from_left()) {
+      | Some(_) as r => r
+      | None => from_ancestor()
+      }
     }
   };
 };

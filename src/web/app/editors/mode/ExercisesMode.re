@@ -492,7 +492,14 @@ module Update = {
   };
 
   let calculate =
-      (~settings, ~is_edited, ~schedule_action, model: Model.t): Model.t => {
+      (
+        ~settings,
+        ~autoprobe_mode,
+        ~is_edited,
+        ~schedule_action,
+        model: Model.t,
+      )
+      : Model.t => {
     let current_exercise = Model.get_current(model);
     let current_exercise =
       switch (current_exercise) {
@@ -500,6 +507,7 @@ module Update = {
         Model.Code(
           CodeExerciseMode.Update.calculate(
             ~settings,
+            ~autoprobe_mode,
             ~is_edited,
             ~schedule_action=a => schedule_action(Exercise(a)),
             ex,
@@ -509,6 +517,7 @@ module Update = {
         Model.Derivation(
           DerivationExerciseMode.Update.calculate(
             ~settings,
+            ~autoprobe_mode,
             ~is_edited,
             ~schedule_action=a => schedule_action(Derivation(a)),
             ex,
@@ -518,6 +527,7 @@ module Update = {
         Model.Theorem(
           TheoremExerciseMode.Update.calculate(
             ~settings,
+            ~autoprobe_mode,
             ~is_edited,
             ~schedule_action=a => schedule_action(TheoremExercise(a)),
             ex,
