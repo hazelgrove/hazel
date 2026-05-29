@@ -1,114 +1,120 @@
-# Conjoined Tutorial Plan (Hazel intro → probes)
+# Conjoined Tutorial — Design Notes (v2)
 
-Goal: one Tutorial-mode sequence that takes an FP-familiar-but-not-Hazel study
-participant from "what is a hole" through enough Hazel to read/write the task
-programs, then through **all** probe features the study needs (per
-`probes-user-study/README.md`: "teach all features without prescribing usage").
+## Organizing principle
+**Not** "Hazel basics, then a probes section." Instead: a single woven
+progression that introduces Hazel language features incrementally and uses
+**probes as the expository vehicle** for each one. Probes stay *on* throughout
+(manual or auto) wherever they illuminate the semantics being taught.
 
-Two source sequences now both live in `probes-study` and both render today:
+The tutorial's job is singular: **prepare participants for the study tasks**
+(program writing + debugging) so those tasks feel natural. That means by the
+end they've met the Hazel features the tasks use and the probe features useful
+for them — built up organically rather than as a feature checklist.
 
-- **Onboarding lessons** — 22 hand-written `Tu_*.ml`, gated Tutorial mode.
-  The Hazel-programming spine.
-- **Probe-study slides** — 16 `.hz` files (was Documentation-only). As of this
-  branch they're *also* generated into Tutorial mode (`TuGen_*`, appended after
-  the 22) via `./hazel gen-tutorial`. The probe-feature half.
+(The paper's spatial/temporal/granularity framing is a loose retrospective
+lens, not crisp dimensions — this plan does **not** organize around it, and the
+autoprobe=spatial / pin=temporal mapping is deliberately dropped.)
 
-## A. Onboarding lessons (the Hazel spine), in order
+## The spine: language complexity drives probe-value multiplicity
+The cleanest through-line — and one already latent in the existing probe
+slides — is that each construct changes *how many values* an expression takes
+at runtime, and each step motivates a new probe capability:
 
-| # | Lesson | Keep? |
-|---|--------|-------|
-| 1 | Holes | ✅ |
-| 2 | The Tylr Parser and Backpack | ✅ (editor mechanics — essential for non-Hazel users) |
-| 3 | Integer Arithmetic | ✅ |
-| 4 | Floating Point Arithmetic | ✅ |
-| 5 | Let Bindings | ✅ |
-| 6 | **Probes** | ✅ — already spliced here; see merge note |
-| 7 | Type Annotations | ✅ |
-| 8 | Functions | ✅ |
-| 9 | Multi-Argument Functions | ✅ |
-| 10 | Partial Application | ➖ optional (depends on task needs) |
-| 11 | Reverse Function Application (Pipelining) | ✅ (mentions task uses pipelines) |
-| 12 | If Expressions | ✅ |
-| 13 | Case Expressions | ✅ |
-| 14 | List Literals | ✅ |
-| 15 | Mapping Over Lists | ✅ |
-| 16 | Folding Lists | ✅ |
-| 17 | Mean of String Integers | ➖ optional (a worked example/task) |
-| 18 | Labeled Tuples | ❌ **table-specific** |
-| 19 | Labeled Tuple Projection | ❌ **table-specific** |
-| 20 | Labeled Tuple Extension | ❌ **table-specific** |
-| 21 | Labeled Tuple Omission | ❌ **table-specific** |
-| 22 | Labeled Tuple List Conversions | ❌ **table-specific** |
+| Hazel feature | values per expr | probe capability it motivates |
+|---|---|---|
+| literals, arithmetic, `let` (straight-line) | exactly **1** | place a probe; read the value; environment on click |
+| `if` / `case` (branching) | **0 or 1** (un-taken branch → none) | the `∅` "never evaluated" indicator |
+| function literals, called > once | **0 / 1 / many** | navigate samples (←/→, single vs many mode); "one per call" |
+| recursion / folds (many calls) | **many** — hard to find the one you want | **pin** a call to filter to its downstream; **step-into** one call |
+| — (advanced, optional) | relating samples across the call stack | dynamic cursor, alignment (`⊖`), sample **colors** |
+| writing / exploring | live values as you type | **autoprobe** |
 
-## B. Probe-study slides (the probe half), in order
+This is already how `probes/01-fundamentals` (1 → `∅` via `case`) and
+`probes/02-functions-and-cursor` (→ many + navigation, then dynamic cursor)
+actually unfold. So most content exists; the work is **sequencing it against
+the language lessons and trimming** — not writing from scratch.
 
-| File | Teaches | Paper dimension |
-|------|---------|-----------------|
-| 01-fundamentals | probe basics + Hazel let/sum-type/case | spatial (manual) |
-| 02-functions-and-cursor | sample-per-call, navigating samples | spatial + cursor |
-| 03-auto-probe | autoprobe mode | spatial (auto) |
-| 04-pin / 04-pinning / 04-variant-* | call pinning | **temporal** |
-| 05-step-into / 05-variant-* | step into nested calls | relational |
-| 06-print | print-statement debugging | study baseline (probes-vs-print) |
-| 07-writing | composing a program with probes | (writing-task warmup) |
-| 08-clamp | write a clamp fn w/ probes | (writing task) |
-| 09-running-sum | accumulation/fold w/ probes | (writing task) |
-| 10-colors-and-alignment / 10-sample-colors | sample coloring by call-stack relation | **dynamic cursor** |
+It's a framing, not the only one. But it gives a reason for the *order* and
+makes probes feel like a lens on the language rather than a bolted-on feature.
 
-## Merge opportunities (dedupe Hazel content)
+## Consequence: reorder so multiplicity builds monotonically
+Alexander's order currently puts **Functions (08) before If (12) / Case (13)**,
+so the probe-value count jumps to "many" before "0-or-1" is even established.
+To get the clean **1 → 0/1 → many** build, conditionals should come *before*
+functions. Proposed core stretch:
 
-The probe-study slides were written standalone, so several re-teach Hazel that
-the onboarding spine already covers. When promoting them, strip the redundant
-Hazel and lean on the earlier lessons:
+```
+Holes → Parser/Backpack → arithmetic → Let
+  → [basic probe: 1 value]
+  → If → Case            (→ the ∅ "not evaluated" indicator)
+  → Type Annotations
+  → Functions            (→ many values + sample navigation)
+  → Multi-arg / Partial
+  → Lists → Map → Fold   (→ pin / step-into when there are many samples)
+  → Pipelining
+  → [autoprobe]
+  → writing & debugging warmups
+  → exploration arenas
+```
 
-- **01-fundamentals** re-teaches `let`, sum types, and `case`. Onboarding
-  already has Let Bindings (5), Case Expressions (13), and a Probes lesson (6).
-  → Fold 01's *probe* content into/after lesson 6; drop its Hazel re-teaching.
-- **02-functions-and-cursor** overlaps Functions (8) and the existing Tu_Probes
-  ("a sample per call"). → Merge the cursor/navigation bits into the probes
-  thread; don't re-introduce functions.
-- **08-clamp / 09-running-sum** are write-a-function tasks that overlap Fold
-  (16) / Mean-of-String-Integers (17). → Keep as *probe-driven writing*
-  practice at the end, or merge into the study's writing-task set.
-- **Variant slides** are alternate takes, not a sequence — consolidate to one
-  each: `04-*` (pin) → keep one; `05-*` (step-into) → keep one;
-  `10-*` (colors) → keep one. (They were all brought over so you can pick.)
+## Merger vs. replacement of Alexander's lessons
+**Keep his language lessons as the backbone; weave probes into them; replace
+only the overlapping probe-intro.**
 
-## Table content to remove (for the probe study)
+- His 22 are solid *language-feature* lessons. Keep them as the spine — but
+  **add probes** (autoprobe on, or "place a probe on X to see…") so each
+  feature is taught *through* its runtime values. **This probe-ification is the
+  main new authoring work.**
+- **Redundant probe intros — pick one.** `basics/06-probes` (add-probe +
+  probe-in-function via `add_tax`/`map`) overlaps your `probes/01-fundamentals`
+  (add-probe + environment + case-`∅`) and `probes/02-functions-and-cursor`
+  (functions → many). Your 01/02 are better *staged* (they respect the build);
+  his 06 jumps to "many" immediately. → **Retire `basics/06-probes`** as a
+  standalone (optionally reuse its `add_tax`/`map` as a later writing warmup);
+  use 01/02 as the probe introduction, placed at the right points (01 right
+  after `let`; the "many" half of 02 right after Functions).
+- **Cut for the study:** the 5 labeled-tuple lessons (`basics/18–22`) and table
+  content — almost certainly not needed (confirm against task requirements).
+- **Consolidate your variants** to one each: `04 - Pin`/`Pinning`/`Variant Map
+  Only`/`Variant Two Exercises`; `05 - Step Into`/`Variant Fold`/`Variant Map
+  Fold`; `10 - Colors And Alignment`/`Sample Colors`.
 
-- **Tutorial:** onboarding lessons **18–22** (the five "Labeled Tuple …"
-  lessons) — they exist to teach the spreadsheet/table-projector feature.
-  Remove from `TutorialSettings_base.re`.
-- **Slides/data:** `src/b2t2/` (B2T2 spreadsheet-benchmark slides; only 1 slide
-  remains on this branch) and its `Slides.re` registry entry, if you want them
-  out of the Documentation tab.
-- **Keep (do not delete):** the table *projector* implementation
-  (`TableCore`/`TableProj`/`TableRenderer`/`SliderProj`/`CSVProjector`) and the
-  labeled-tuple *language* support — these are core/shared and may be exercised
-  by probe sample rendering. Removing them is a code change, not a tutorial
-  edit; only do it if you specifically want to slim the build.
+## Probe features: core vs. show-and-tell
+- **Core** (tasks depend on these): add/remove probe, reading samples +
+  environment, the `∅` indicator, navigating many samples (single/many,
+  ←/→), **pinning**, **step-into**, **autoprobe**, and **print** (the study's
+  debugging baseline).
+- **Show-and-tell** (introduce only as far as it lands): dynamic cursor + `⊖`
+  alignment, sample **colors**. `probes/02` currently front-loads the dynamic
+  cursor very early and densely — consider **splitting it**: keep
+  functions→many+navigation in the main line, defer dynamic-cursor / `⊖` /
+  colors to a later optional "here's more you can do" slide.
 
-## Proposed conjoined order (target)
+## Building toward the tasks (and the qualitative half)
+- The first ~hour is mostly **habituation and qualitative feel** for probes —
+  so favor "turn probes on and *notice* …" over rigid gated drills (gating
+  optional per slide; not every slide needs a passing-test gate).
+- End the tutorial with a small **writing** warmup (you have `clamp`,
+  `running-sum`), a small **debugging** warmup, then one or two **exploration
+  arenas** — bigger programs (you have these in `probes/03-auto-probe`,
+  `07-writing`) where participants poke around freely. These double as
+  qualitative-feedback surfaces and on-ramps to the real tasks.
+- Sequence so the *last tutorial slide and the first task feel continuous* —
+  the tasks are garden-themed, so theming the warmups similarly helps.
 
-**Phase 1 — Hazel basics** (onboarding 1–9, 11–16; drop 18–22; 10/17 optional):
-Holes → Parser/Backpack → Int → Float → Let → Type Annotations → Functions →
-Multi-arg → Pipelining → If → Case → Lists → Map → Fold.
+## Open questions / to decide
+1. **Task feature audit** (do this first): which Hazel features do the actual
+   `study/debugging/*` and `study/writing/*` tasks require? That set defines
+   what's *essential* vs. nice-to-have in the basics, and what can be cut.
+2. Per lesson: **probe-ify Alexander's version** vs. author a fresh
+   probe-centric one.
+3. Where to introduce **autoprobe** — a labeled mode after manual probes are
+   comfortable, or earlier as the default always-on lens.
+4. **Gating**: which (if any) slides gate on a passing test vs. pure
+   exploration — leans mostly toward exploration given the qualitative goal.
 
-**Phase 2 — Probes** (probe-study, consolidated):
-Probe basics → sample-per-call/navigation → Autoprobe → Pin (temporal) →
-Step-into → Sample colors / dynamic cursor → Print (baseline) →
-probe-driven writing practice (clamp, running-sum).
-
-Where exactly probes "starts" is a knob: the current build keeps a short Probes
-intro early (lesson 6, so participants can use probes *while* learning Hazel)
-and puts the deeper probe features in Phase 2. That matches the study's "live
-values during authoring" angle.
-
-## Status in this branch (v1)
-
-- All 16 probe-study slides are generated into Tutorial mode and appended after
-  the 22 onboarding lessons (so the 5 table lessons + the variant slides are
-  still present — prune per above).
-- Every generated slide currently has a placeholder passing test (`test true
-  end`) so it shows ✔; add `@test` sections to gate.
-- Authoring loop + format: see `hazel-programs/tutorial/README.md`.
+---
+*Supersedes the v1 draft, which framed this as "Phase 1 Hazel → Phase 2 probes"
+organized by the paper's dimensions. This v2 reflects the woven,
+multiplicity-driven framing: language features as the spine, probes as the lens,
+everything aimed at making the study tasks feel natural.*
