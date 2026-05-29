@@ -107,6 +107,6 @@ in
 process_string_pair("pre", "hazel")
 
 @test
-test process_string_pair("pre", "hazel") $== "haz" end;
-test process_string_pair("post", "hazel") $== "el" end;
-test process_string_pair("other", "hazel") $== "hazel" end
+test process_string_pair("pre", "hazel") == "haz" end;
+test process_string_pair("post", "hazel") == "el" end;
+test process_string_pair("other", "hazel") == "hazel" end

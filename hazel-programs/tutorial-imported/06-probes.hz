@@ -55,4 +55,4 @@ let totals = map([3.0, 7.0, 5.0], add_tax) in
 totals
 
 @test
-test true end¿
+test true end

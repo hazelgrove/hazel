@@ -24,7 +24,7 @@ Fill in the list with the first four positive integers
 first_four should be [1, 2, 3, 4]
 
 @code
-let first_four : [Int] = [¿] in
+let first_four : [Int] = [?] in
 first_four
 
 @test

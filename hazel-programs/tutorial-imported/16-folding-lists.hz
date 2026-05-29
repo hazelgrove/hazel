@@ -58,6 +58,6 @@ let join : [String] -> String = ¿ in
 join(["a", "b", "c"])
 
 @test
-test join(["a", "b", "c"]) $== "abc" end;
-test join([]) $== "" end;
-test join(["hello", " ", "world"]) $== "hello world" end
+test join(["a", "b", "c"]) == "abc" end;
+test join([]) == "" end;
+test join(["hello", " ", "world"]) == "hello world" end
