@@ -6,11 +6,11 @@ let exercise : Tutorial.spec = {
   title = "09 Running Sum";
   version = 1;
   module_name = "TuGen_09RunningSum";
-  prompt = {md|Work through the inline instructions in the editor below.|md};
-  display_hint = "";
-  task_reference = "";
+  prompt = {x|Work through the inline instructions in the editor below.|x};
+  display_hint = {x||x};
+  task_reference = {x||x};
   your_impl =
-    Option.get (Haz3lcore.Parser.to_zipper ~root:Exp {hz|# PROBES TUTORIAL - PART 9: WRITING EXERCISE (FOLD)                #
+    Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|# PROBES TUTORIAL - PART 9: WRITING EXERCISE (FOLD)                #
 
 # Implement `running_sum`: compute a list where each element       #
 # is the sum of all elements up to that position.                   #
@@ -60,11 +60,11 @@ running_sum([1, 1, 1, 1])
 == [1, 2, 3, 4]
 end
 
-# END OF PART 9 - Select the next slide from the top menu       #|hz});
+# END OF PART 9 - Select the next slide from the top menu       #|x});
   hidden_tests =
     {
       tests =
-        Option.get (Haz3lcore.Parser.to_zipper ~root:Exp {hz|test true end|hz});
+        Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|test true end|x});
       hints = [];
     };
   wrapper = false;

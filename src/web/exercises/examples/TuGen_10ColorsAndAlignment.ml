@@ -6,11 +6,11 @@ let exercise : Tutorial.spec = {
   title = "10 Colors And Alignment";
   version = 1;
   module_name = "TuGen_10ColorsAndAlignment";
-  prompt = {md|Work through the inline instructions in the editor below.|md};
-  display_hint = "";
-  task_reference = "";
+  prompt = {x|Work through the inline instructions in the editor below.|x};
+  display_hint = {x||x};
+  task_reference = {x||x};
   your_impl =
-    Option.get (Haz3lcore.Parser.to_zipper ~root:Exp {hz|# SAMPLE COLORS & DYNAMIC FOCUS ALIGNMENT #
+    Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|# SAMPLE COLORS & DYNAMIC FOCUS ALIGNMENT #
 
 
 # 1 - 'Focussed', 'Before', and 'After' #
@@ -107,11 +107,11 @@ case ^^probe(x)
 let r = ^^probe(fact(x-1)) 
 in x*^^probe(r)  
 end in
-test ^^probe(fact(5)) == 120 end;|hz});
+test ^^probe(fact(5)) == 120 end;|x});
   hidden_tests =
     {
       tests =
-        Option.get (Haz3lcore.Parser.to_zipper ~root:Exp {hz|test true end|hz});
+        Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|test true end|x});
       hints = [];
     };
   wrapper = false;

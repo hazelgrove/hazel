@@ -6,11 +6,11 @@ let exercise : Tutorial.spec = {
   title = "05 Variant Map Fold";
   version = 1;
   module_name = "TuGen_05VariantMapFold";
-  prompt = {md|Work through the inline instructions in the editor below.|md};
-  display_hint = "";
-  task_reference = "";
+  prompt = {x|Work through the inline instructions in the editor below.|x};
+  display_hint = {x||x};
+  task_reference = {x||x};
   your_impl =
-    Option.get (Haz3lcore.Parser.to_zipper ~root:Exp {hz|# PART 5 VARIANT: STEP INTO WITH MAP + FOLD #
+    Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|# PART 5 VARIANT: STEP INTO WITH MAP + FOLD #
 
 # This function has a two-stage pipeline: map transforms #
 # the data, then fold aggregates it. From outside you see #
@@ -75,11 +75,11 @@ weekly_total(shade);
 weekly_total(sun);
 weekly_total(all)
 
-# END #|hz});
+# END #|x});
   hidden_tests =
     {
       tests =
-        Option.get (Haz3lcore.Parser.to_zipper ~root:Exp {hz|test true end|hz});
+        Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|test true end|x});
       hints = [];
     };
   wrapper = false;

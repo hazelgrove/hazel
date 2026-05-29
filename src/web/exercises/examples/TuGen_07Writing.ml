@@ -6,11 +6,11 @@ let exercise : Tutorial.spec = {
   title = "07 Writing";
   version = 1;
   module_name = "TuGen_07Writing";
-  prompt = {md|Work through the inline instructions in the editor below.|md};
-  display_hint = "";
-  task_reference = "";
+  prompt = {x|Work through the inline instructions in the editor below.|x};
+  display_hint = {x||x};
+  task_reference = {x||x};
   your_impl =
-    Option.get (Haz3lcore.Parser.to_zipper ~root:Exp {hz|# WRITING WITH LIVE VALUES #
+    Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|# WRITING WITH LIVE VALUES #
 
 # In this tutorial you'll write code step by step.           #
 # Turn on Auto Mode (microscope icon, top right).            #
@@ -176,11 +176,11 @@ let exercise : Tutorial.spec = {
 # so you could verify correctness as you went.                #
 # ============================================================ #
 
-# END #|hz});
+# END #|x});
   hidden_tests =
     {
       tests =
-        Option.get (Haz3lcore.Parser.to_zipper ~root:Exp {hz|test true end|hz});
+        Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|test true end|x});
       hints = [];
     };
   wrapper = false;

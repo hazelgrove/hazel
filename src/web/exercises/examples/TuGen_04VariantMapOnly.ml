@@ -6,11 +6,11 @@ let exercise : Tutorial.spec = {
   title = "04 Variant Map Only";
   version = 1;
   module_name = "TuGen_04VariantMapOnly";
-  prompt = {md|Work through the inline instructions in the editor below.|md};
-  display_hint = "";
-  task_reference = "";
+  prompt = {x|Work through the inline instructions in the editor below.|x};
+  display_hint = {x||x};
+  task_reference = {x||x};
   your_impl =
-    Option.get (Haz3lcore.Parser.to_zipper ~root:Exp {hz|# PART 4 VARIANT: PIN WITH MAP #
+    Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|# PART 4 VARIANT: PIN WITH MAP #
 
 # A 🐛 has sneaked into our garden data! This time, #
 # we're using map to process plants in batches. The map #
@@ -99,11 +99,11 @@ test bed_labels(sun_terrace)
 == ["🌸 Orchid: 180ml", "🍄 Cactus: 50ml", "🌹 Rose: 190ml"]
 end
 
-# END #|hz});
+# END #|x});
   hidden_tests =
     {
       tests =
-        Option.get (Haz3lcore.Parser.to_zipper ~root:Exp {hz|test true end|hz});
+        Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|test true end|x});
       hints = [];
     };
   wrapper = false;

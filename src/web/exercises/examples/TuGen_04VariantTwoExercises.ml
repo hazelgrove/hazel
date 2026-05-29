@@ -6,11 +6,11 @@ let exercise : Tutorial.spec = {
   title = "04 Variant Two Exercises";
   version = 1;
   module_name = "TuGen_04VariantTwoExercises";
-  prompt = {md|Work through the inline instructions in the editor below.|md};
-  display_hint = "";
-  task_reference = "";
+  prompt = {x|Work through the inline instructions in the editor below.|x};
+  display_hint = {x||x};
+  task_reference = {x||x};
   your_impl =
-    Option.get (Haz3lcore.Parser.to_zipper ~root:Exp {hz|# PART 4 VARIANT: TWO PIN EXERCISES #
+    Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|# PART 4 VARIANT: TWO PIN EXERCISES #
 
 # This variant has two exercises. The first teaches pin #
 # from a test call site. The second uses map and teaches #
@@ -130,11 +130,11 @@ test bed_labels(sun_terrace)
 == ["🌸 Orchid: 180ml", "🍄 Cactus: 50ml", "🌹 Rose: 190ml"]
 end
 
-# END OF PART 4 #|hz});
+# END OF PART 4 #|x});
   hidden_tests =
     {
       tests =
-        Option.get (Haz3lcore.Parser.to_zipper ~root:Exp {hz|test true end|hz});
+        Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|test true end|x});
       hints = [];
     };
   wrapper = false;

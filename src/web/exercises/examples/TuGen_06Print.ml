@@ -6,11 +6,11 @@ let exercise : Tutorial.spec = {
   title = "06 Print";
   version = 1;
   module_name = "TuGen_06Print";
-  prompt = {md|Work through the inline instructions in the editor below.|md};
-  display_hint = "";
-  task_reference = "";
+  prompt = {x|Work through the inline instructions in the editor below.|x};
+  display_hint = {x||x};
+  task_reference = {x||x};
   your_impl =
-    Option.get (Haz3lcore.Parser.to_zipper ~root:Exp {hz|# PROBES TUTORIAL - PART 6: PRINT STATEMENTS #
+    Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|# PROBES TUTORIAL - PART 6: PRINT STATEMENTS #
 # Hazel also has traditional print-statement debugging. #
 # `print(expr)` sends a value to the print panel in the #
 # sidebar, then returns unit. Use `;` to sequence it: #
@@ -37,11 +37,11 @@ test double(21) == 42 end;
 
 double(7)
 
-# END OF PART 6 #|hz});
+# END OF PART 6 #|x});
   hidden_tests =
     {
       tests =
-        Option.get (Haz3lcore.Parser.to_zipper ~root:Exp {hz|test true end|hz});
+        Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|test true end|x});
       hints = [];
     };
   wrapper = false;

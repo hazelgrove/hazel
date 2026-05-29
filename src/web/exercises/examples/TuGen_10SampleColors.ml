@@ -6,11 +6,11 @@ let exercise : Tutorial.spec = {
   title = "10 Sample Colors";
   version = 1;
   module_name = "TuGen_10SampleColors";
-  prompt = {md|Work through the inline instructions in the editor below.|md};
-  display_hint = "";
-  task_reference = "";
+  prompt = {x|Work through the inline instructions in the editor below.|x};
+  display_hint = {x||x};
+  task_reference = {x||x};
   your_impl =
-    Option.get (Haz3lcore.Parser.to_zipper ~root:Exp {hz|# PROBES TUTORIAL - PART 10: SAMPLE COLORS                        #
+    Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|# PROBES TUTORIAL - PART 10: SAMPLE COLORS                        #
 
 # When you click a sample, other samples change color. These      #
 # colors show how each sample's evaluation relates to the one     #
@@ -112,11 +112,11 @@ in
 # tasks, the colors help you see at a glance which samples        #
 # are connected to whatever you're currently focused on.           #
 
-# END OF PART 10 - Select the next slide from the top menu        #|hz});
+# END OF PART 10 - Select the next slide from the top menu        #|x});
   hidden_tests =
     {
       tests =
-        Option.get (Haz3lcore.Parser.to_zipper ~root:Exp {hz|test true end|hz});
+        Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|test true end|x});
       hints = [];
     };
   wrapper = false;

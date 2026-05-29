@@ -2,59 +2,48 @@
  * GenTutorial: Generate Tutorial.spec ML files from tutorial text files.
  * =====================================================================
  *
- * This is the Tutorial-mode counterpart to GenSlides. Where GenSlides emits
- * (title, PersistentSegment.t) Documentation slides, GenTutorial emits
- * Tutorial.spec records that render as gated Tutorial-mode lessons (prompt
- * panel + editor + hidden tests).
+ * Tutorial-mode counterpart to GenSlides. Emits Tutorial.spec records that
+ * render as gated Tutorial-mode lessons (prompt panel + editor + hidden
+ * tests). The inverse direction (existing spec -> text) lives in
+ * TutorialDecode.re (`./hazel tutorial-decode`).
  *
  * USAGE:
  *   ./hazel gen-tutorial         # Generate Tutorial.spec files from text
  *   ./hazel gen-tutorial-clean   # Remove generated files, restore empty stub
- *   dune build                   # Rebuild after generating
+ *   dune build
  *
  * INPUT FORMAT (hazel-programs/tutorial/<NN-name>.hz):
- *   A plain text file. Optional section markers (a line that is exactly
- *   `@prompt`, `@code`, or `@test`) split the file into:
- *     @prompt  -> markdown shown in the instructions panel
- *     @code    -> Hazel source loaded into the editor (your_impl)
- *     @test    -> Hazel `test ... end` used as the (currently non-gating)
- *                 hidden test; defaults to `test true end` if omitted
- *   With NO markers, the ENTIRE file is treated as @code (so the existing
- *   probe-study tutorial .hz files convert verbatim, instructions inline as
- *   comments). This is the v1 "bring the editor content over" path.
+ *   Plain text split by marker lines that are *exactly*:
+ *     @prompt     -> markdown shown in the instructions panel
+ *     @code       -> editor contents (your_impl)  [REQUIRED in practice]
+ *     @test       -> hidden test; defaults to `test true end`
+ *     @hint       -> display_hint (short string)
+ *     @reference  -> task_reference markdown
+ *     @hints      -> one hint string per non-empty line (hidden_tests.hints)
+ *     @flags      -> whitespace-separated tokens: `wrapper`, `show_report`,
+ *                    `version=N`, `id=<uuid>` (carried through round-trips)
+ *   With NO markers, the entire file is treated as @code.
  *
- * OUTPUT (src/web/exercises/examples/):
- *   - TuGen_<Name>.ml          one Tutorial.spec per input file
- *   - TutorialGenerated.ml     aggregation: `let all : Tutorial.spec list`
- *   These live INSIDE the `web` library (examples/ is under
- *   `(include_subdirs unqualified)`), so they can reference Tutorial.spec.
+ *   Code/test are parsed with TextRoundtrip.of_text, so the `¿` implicit-hole
+ *   marker and `^^probe(...)` projector syntax produced by `tutorial-decode`
+ *   round-trip correctly.
  *
- * WIRING (one-time, already done):
- *   src/web/exercises/settings/TutorialSettings_base.re appends
- *   `@ TutorialGenerated.all` to the hand-written `lessons` list, so
- *   generated slides show up after the onboarding lessons.
- *
- * NOTE: gating. Each generated slide gets a placeholder `test true end`
- * hidden test, which trivially passes (the slide shows ✔ immediately). Add a
- * real `@test` section to gate a slide on a meaningful condition.
+ * OUTPUT (src/web/exercises/examples/): TuGen_<Name>.ml + TutorialGenerated.ml
+ * (`let all : Tutorial.spec list`), appended to `lessons` in
+ * TutorialSettings_base.re.
  */
 
 let input_dir = "hazel-programs/tutorial";
 let output_dir = "src/web/exercises/examples";
 let module_prefix = "TuGen_";
 let aggregation_module = "TutorialGenerated.ml";
-
-/* Strip common leading indentation from @code before parsing (matches
-   GenSlides; the tutorial .hz files are authored at column 0). */
 let strip_indentation = true;
-
 let default_prompt = "Work through the inline instructions in the editor below.";
 
-/* Write a string to a file */
 let write_file = (path: string, content: string): unit =>
   Core.Out_channel.write_all(path, ~data=content);
 
-/* Pick a {tag|...|tag} quoted-string delimiter not present in `content`. */
+/* Pick a {tag|...|tag} delimiter not present in `content`. */
 let rec pick_tag = (content: string, tag: string): string =>
   if (Core.String.is_substring(content, ~substring="|" ++ tag ++ "}")) {
     pick_tag(content, tag ++ "z");
@@ -62,73 +51,170 @@ let rec pick_tag = (content: string, tag: string): string =>
     tag;
   };
 
-/* Emit an OCaml double-quoted string literal for simple values. */
 let ocaml_string = (s: string): string => "\"" ++ String.escaped(s) ++ "\"";
+
+/* OCaml {tag|...|tag} quoted-string literal with a safe delimiter. */
+let quoted = (s: string): string => {
+  let t = pick_tag(s, "x");
+  "{" ++ t ++ "|" ++ s ++ "|" ++ t ++ "}";
+};
 
 type sections = {
   prompt: string,
   code: string,
   test: string,
+  hint: string,
+  reference: string,
+  hints: list(string),
+  wrapper: bool,
+  show_report: bool,
+  version: int,
+  id: option(string),
 };
 
-/* Split input on `@prompt` / `@code` / `@test` marker lines. Default
-   section is `code`, so a file with no markers is entirely code. */
+let empty_sections = {
+  prompt: "",
+  code: "",
+  test: "",
+  hint: "",
+  reference: "",
+  hints: [],
+  wrapper: false,
+  show_report: false,
+  version: 1,
+  id: None,
+};
+
+let parse_flags = (s: sections, body: string): sections => {
+  let toks =
+    String.split_on_char('\n', body)
+    |> List.concat_map(String.split_on_char(' '))
+    |> List.map(String.trim)
+    |> List.filter(t => t != "");
+  List.fold_left(
+    (acc, tok) =>
+      switch (tok) {
+      | "wrapper" => {...acc, wrapper: true}
+      | "show_report" => {...acc, show_report: true}
+      | _ when String.length(tok) > 8 && String.sub(tok, 0, 8) == "version=" => {
+          ...acc,
+          version:
+            try(int_of_string(String.sub(tok, 8, String.length(tok) - 8))) {
+            | _ => acc.version
+            },
+        }
+      | _ when String.length(tok) > 3 && String.sub(tok, 0, 3) == "id=" => {
+          ...acc,
+          id: Some(String.sub(tok, 3, String.length(tok) - 3)),
+        }
+      | _ => acc
+      },
+    s,
+    toks,
+  );
+};
+
+/* Split input on `@prompt`/`@code`/`@test`/`@hint`/`@reference`/`@hints`/`@flags`
+   marker lines. Default section is `code`. */
 let parse_sections = (content: string): sections => {
   let lines = String.split_on_char('\n', content);
-  let (prompt, code, test, _) =
+  /* accumulate raw section bodies keyed by name */
+  let (acc, _cur) =
     List.fold_left(
-      ((p, c, t, cur), line) =>
+      ((acc, cur), line) =>
         switch (String.trim(line)) {
-        | "@prompt" => (p, c, t, `Prompt)
-        | "@code" => (p, c, t, `Code)
-        | "@test" => (p, c, t, `Test)
+        | "@prompt" => (acc, `Prompt)
+        | "@code" => (acc, `Code)
+        | "@test" => (acc, `Test)
+        | "@hint" => (acc, `Hint)
+        | "@reference" => (acc, `Reference)
+        | "@hints" => (acc, `Hints)
+        | "@flags" => (acc, `Flags)
         | _ =>
-          switch (cur) {
-          | `Prompt => (p ++ line ++ "\n", c, t, cur)
-          | `Code => (p, c ++ line ++ "\n", t, cur)
-          | `Test => (p, c, t ++ line ++ "\n", cur)
-          }
+          let key =
+            switch (cur) {
+            | `Prompt => "prompt"
+            | `Code => "code"
+            | `Test => "test"
+            | `Hint => "hint"
+            | `Reference => "reference"
+            | `Hints => "hints"
+            | `Flags => "flags"
+            };
+          let prev =
+            try(List.assoc(key, acc)) {
+            | Not_found => ""
+            };
+          (
+            [(key, prev ++ line ++ "\n"), ...List.remove_assoc(key, acc)],
+            cur,
+          );
         },
-      ("", "", "", `Code),
+      ([], `Code),
       lines,
     );
-  {prompt: String.trim(prompt), code, test: String.trim(test)};
+  let get = k => try(List.assoc(k, acc)) {
+              | Not_found => ""
+              };
+  let s = {
+    ...empty_sections,
+    prompt: String.trim(get("prompt")),
+    code: get("code"),
+    test: String.trim(get("test")),
+    hint: String.trim(get("hint")),
+    reference: String.trim(get("reference")),
+    hints:
+      String.split_on_char('\n', get("hints"))
+      |> List.map(String.trim)
+      |> List.filter(h => h != ""),
+  };
+  parse_flags(s, get("flags"));
 };
 
-/* "01-fundamentals.hz" -> "TuGen_01Fundamentals" */
 let module_name_of = (rel: string): string => {
   let base = Filename.chop_suffix(rel, ".hz");
   let camel =
-    String.split_on_char('-', base)
+    String.split_on_char('/', base)
+    |> List.concat_map(String.split_on_char('-'))
     |> List.map(String.capitalize_ascii)
     |> String.concat("");
   module_prefix ++ camel;
 };
 
-/* "01-fundamentals.hz" -> "01 Fundamentals" */
 let title_of = (rel: string): string =>
   Filename.chop_suffix(rel, ".hz")
-  |> String.split_on_char('-')
-  |> List.map(String.capitalize_ascii)
-  |> String.concat(" ");
+  |> String.split_on_char('/')
+  |> List.map(seg =>
+       String.split_on_char('-', seg)
+       |> List.map(String.capitalize_ascii)
+       |> String.concat(" ")
+     )
+  |> String.concat(" / ");
 
-/* Deterministic, valid UUID per index (stable localStorage keys across
-   regenerations). Uses a high first group to avoid colliding with the
-   hand-written specs' "a..." ids. */
 let id_string = (i: int): string =>
   Printf.sprintf("%08x-7507-4000-8000-000000000000", 0x70000000 + i);
 
-let find_hz_files = (): list(string) =>
+let rec find_hz_files = (base: string, rel: string): list(string) => {
+  let full = rel == "" ? base : base ++ "/" ++ rel;
   try(
-    Sys.readdir(input_dir)
+    Sys.readdir(full)
     |> Array.to_list
-    |> List.filter(e => Filename.check_suffix(e, ".hz"))
-    |> List.sort(String.compare)
+    |> List.concat_map(entry => {
+         let entry_rel = rel == "" ? entry : rel ++ "/" ++ entry;
+         if (Sys.is_directory(full ++ "/" ++ entry)) {
+           find_hz_files(base, entry_rel);
+         } else if (Filename.check_suffix(entry, ".hz")) {
+           [entry_rel];
+         } else {
+           [];
+         };
+       })
   ) {
   | Sys_error(msg) =>
     prerr_endline("Warning: " ++ msg);
     [];
   };
+};
 
 let generate_ml_file = (i: int, rel_path: string): option(string) => {
   let input_path = input_dir ++ "/" ++ rel_path;
@@ -137,20 +223,20 @@ let generate_ml_file = (i: int, rel_path: string): option(string) => {
   let output_path = output_dir ++ "/" ++ module_name ++ ".ml";
   try({
     let raw = Core.In_channel.read_all(input_path);
-    let {prompt, code, test} = parse_sections(raw);
-    let code = strip_indentation ? Util.StringUtil.trim_leading(code) : code;
+    let s = parse_sections(raw);
+    let code = strip_indentation ? Util.StringUtil.trim_leading(s.code) : s.code;
     let code = String.trim(code);
-    /* Validate the editor code parses; warn but still emit (the generated
-       Option.get would otherwise raise at load time). */
-    switch (Haz3lcore.Parser.to_zipper(~root=Exp, code)) {
+    switch (Haz3lcore.TextRoundtrip.of_text(~root=Exp, code)) {
     | None => prerr_endline("WARNING: @code failed to parse in " ++ rel_path)
     | Some(_) => ()
     };
-    let test = test == "" ? "test true end" : test;
-    let prompt = prompt == "" ? default_prompt : prompt;
-    let code_tag = pick_tag(code, "hz");
-    let test_tag = pick_tag(test, "hz");
-    let prompt_tag = pick_tag(prompt, "md");
+    let test = s.test == "" ? "test true end" : s.test;
+    let prompt = s.prompt == "" ? default_prompt : s.prompt;
+    let id = Option.value(s.id, ~default=id_string(i));
+    let hints_ml =
+      "["
+      ++ (s.hints |> List.map(ocaml_string) |> String.concat("; "))
+      ++ "]";
     let ml =
       "(* Auto-generated by: ./hazel gen-tutorial -- DO NOT EDIT *)\n"
       ++ "(* Source: "
@@ -158,40 +244,40 @@ let generate_ml_file = (i: int, rel_path: string): option(string) => {
       ++ " *)\n\n"
       ++ "let exercise : Tutorial.spec = {\n"
       ++ "  id = Option.get (Haz3lcore.Id.of_string "
-      ++ ocaml_string(id_string(i))
+      ++ ocaml_string(id)
       ++ ");\n"
       ++ "  title = "
       ++ ocaml_string(title)
       ++ ";\n"
-      ++ "  version = 1;\n"
+      ++ "  version = "
+      ++ string_of_int(s.version)
+      ++ ";\n"
       ++ "  module_name = "
       ++ ocaml_string(module_name)
       ++ ";\n"
-      ++ "  prompt = {"
-      ++ prompt_tag
-      ++ "|"
-      ++ prompt
-      ++ "|"
-      ++ prompt_tag
-      ++ "};\n"
-      ++ "  display_hint = \"\";\n"
-      ++ "  task_reference = \"\";\n"
-      ++ "  your_impl =\n    Option.get (Haz3lcore.Parser.to_zipper ~root:Exp {"
-      ++ code_tag
-      ++ "|"
-      ++ code
-      ++ "|"
-      ++ code_tag
-      ++ "});\n"
-      ++ "  hidden_tests =\n    {\n      tests =\n        Option.get (Haz3lcore.Parser.to_zipper ~root:Exp {"
-      ++ test_tag
-      ++ "|"
-      ++ test
-      ++ "|"
-      ++ test_tag
-      ++ "});\n      hints = [];\n    };\n"
-      ++ "  wrapper = false;\n"
-      ++ "  show_report = false;\n"
+      ++ "  prompt = "
+      ++ quoted(prompt)
+      ++ ";\n"
+      ++ "  display_hint = "
+      ++ quoted(s.hint)
+      ++ ";\n"
+      ++ "  task_reference = "
+      ++ quoted(s.reference)
+      ++ ";\n"
+      ++ "  your_impl =\n    Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp "
+      ++ quoted(code)
+      ++ ");\n"
+      ++ "  hidden_tests =\n    {\n      tests =\n        Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp "
+      ++ quoted(test)
+      ++ ");\n      hints = "
+      ++ hints_ml
+      ++ ";\n    };\n"
+      ++ "  wrapper = "
+      ++ string_of_bool(s.wrapper)
+      ++ ";\n"
+      ++ "  show_report = "
+      ++ string_of_bool(s.show_report)
+      ++ ";\n"
       ++ "}\n";
     write_file(output_path, ml);
     print_endline("Generated: " ++ module_name ++ ".ml");
@@ -207,9 +293,7 @@ let generate_ml_file = (i: int, rel_path: string): option(string) => {
 
 let generate_aggregation = (modules: list(string)): unit => {
   let refs =
-    modules
-    |> List.map(m => "  " ++ m ++ ".exercise;")
-    |> String.concat("\n");
+    modules |> List.map(m => "  " ++ m ++ ".exercise;") |> String.concat("\n");
   let content =
     "(* Auto-generated by: ./hazel gen-tutorial *)\n"
     ++ "(* To remove: ./hazel gen-tutorial-clean *)\n\n"
@@ -222,8 +306,10 @@ let generate_aggregation = (modules: list(string)): unit => {
 
 let generate = (): unit => {
   print_endline("Generating tutorial slides from: " ++ input_dir);
-  let files = find_hz_files();
-  print_endline("Found " ++ string_of_int(List.length(files)) ++ " .hz files\n");
+  let files = find_hz_files(input_dir, "") |> List.sort(String.compare);
+  print_endline(
+    "Found " ++ string_of_int(List.length(files)) ++ " .hz files\n",
+  );
   let modules =
     List.mapi((i, f) => generate_ml_file(i, f), files)
     |> List.filter_map(x => x);

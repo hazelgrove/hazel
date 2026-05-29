@@ -6,11 +6,11 @@ let exercise : Tutorial.spec = {
   title = "03 Auto Probe";
   version = 1;
   module_name = "TuGen_03AutoProbe";
-  prompt = {md|Work through the inline instructions in the editor below.|md};
-  display_hint = "";
-  task_reference = "";
+  prompt = {x|Work through the inline instructions in the editor below.|x};
+  display_hint = {x||x};
+  task_reference = {x||x};
   your_impl =
-    Option.get (Haz3lcore.Parser.to_zipper ~root:Exp {hz|# PROBES TUTORIAL - PART 3: AUTO-PROBE MODE #
+    Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|# PROBES TUTORIAL - PART 3: AUTO-PROBE MODE #
 
 # There's a bit bigger program to explore this time! #
 # Don't worry terribly much about the details of this program; #
@@ -182,11 +182,11 @@ end;
 
 bed_schedule(shade_garden, Full)
 
-# END OF PART 3 - Select the next slide from the top menu #|hz});
+# END OF PART 3 - Select the next slide from the top menu #|x});
   hidden_tests =
     {
       tests =
-        Option.get (Haz3lcore.Parser.to_zipper ~root:Exp {hz|test true end|hz});
+        Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|test true end|x});
       hints = [];
     };
   wrapper = false;

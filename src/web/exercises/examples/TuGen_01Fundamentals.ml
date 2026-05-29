@@ -6,11 +6,11 @@ let exercise : Tutorial.spec = {
   title = "01 Fundamentals";
   version = 1;
   module_name = "TuGen_01Fundamentals";
-  prompt = {md|Work through the inline instructions in the editor below.|md};
-  display_hint = "";
-  task_reference = "";
+  prompt = {x|Work through the inline instructions in the editor below.|x};
+  display_hint = {x||x};
+  task_reference = {x||x};
   your_impl =
-    Option.get (Haz3lcore.Parser.to_zipper ~root:Exp {hz|# PROBES TUTORIAL - PART 1: FUNDAMENTALS #
+    Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|# PROBES TUTORIAL - PART 1: FUNDAMENTALS #
 # Probes show you runtime values of expressions, inline in the editor. #
 
 # TRY THIS: Put your cursor on the `*` in `250 * 7` below and #
@@ -56,11 +56,11 @@ end
 # Go back up and try changing `Full` below to `New`. #
 # Which branch will light up this time? #
 
-# END OF PART 1 - Select the next slide from the top menu #|hz});
+# END OF PART 1 - Select the next slide from the top menu #|x});
   hidden_tests =
     {
       tests =
-        Option.get (Haz3lcore.Parser.to_zipper ~root:Exp {hz|test true end|hz});
+        Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|test true end|x});
       hints = [];
     };
   wrapper = false;

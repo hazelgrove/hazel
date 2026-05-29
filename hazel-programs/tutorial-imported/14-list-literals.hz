@@ -1,0 +1,31 @@
+@flags
+show_report version=13 id=a0000012-0012-0012-0012-000000000012
+
+@prompt
+In Hazel, you can create a list by writing its elements between square brackets, separated by commas. For example, `[1, 2, 3]` is a list of three integers.
+
+The type of a list is written as `[T]` where `T` is the type of the elements. So `[1, 2, 3]` has type `[Int]`, and `["hello", "world"]` has type `[String]`. All elements in a list must have the same type.
+
+Complete the let binding below so that `first_four` contains the first four positive integers: `[1, 2, 3, 4]`.
+
+@hint
+Fill in the list with the first four positive integers
+
+@reference
+### List Literal
+```hazelnoeval
+[1, 2, 3]
+```
+
+### List Type
+`[Int]`, `[String]`, `[Bool]`
+
+@hints
+first_four should be [1, 2, 3, 4]
+
+@code
+let first_four : [Int] = [¿] in
+first_four
+
+@test
+test first_four == [1, 2, 3, 4] end

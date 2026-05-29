@@ -6,11 +6,11 @@ let exercise : Tutorial.spec = {
   title = "05 Variant Fold";
   version = 1;
   module_name = "TuGen_05VariantFold";
-  prompt = {md|Work through the inline instructions in the editor below.|md};
-  display_hint = "";
-  task_reference = "";
+  prompt = {x|Work through the inline instructions in the editor below.|x};
+  display_hint = {x||x};
+  task_reference = {x||x};
   your_impl =
-    Option.get (Haz3lcore.Parser.to_zipper ~root:Exp {hz|# PART 5 VARIANT: STEP INTO + FOLD #
+    Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|# PART 5 VARIANT: STEP INTO + FOLD #
 
 # fold_left processes a list one element at a time, #
 # building up a result. From the outside, you just see #
@@ -64,11 +64,11 @@ total_water(shade);
 total_water(sun);
 total_water(all)
 
-# END #|hz});
+# END #|x});
   hidden_tests =
     {
       tests =
-        Option.get (Haz3lcore.Parser.to_zipper ~root:Exp {hz|test true end|hz});
+        Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|test true end|x});
       hints = [];
     };
   wrapper = false;

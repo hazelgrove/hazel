@@ -1,0 +1,64 @@
+@flags
+show_report version=1 id=73bc65c8-0e53-478d-a74d-a0b0653674a9
+
+@prompt
+Entries can be dropped from a labeled tuple with `omit_labels`.
+
+```hazel
+let coordinate = (x=1, y=2, z=3) in
+omit_labels(coordinate, `x`)
+```
+
+Labels are not strings, so they are delimited by backticks rather than double quotes to give them stronger typing.
+
+Multiple labels can be provided as extra arguments:
+
+```hazel
+omit_labels((a=1, b=2, c=3, d=4), `a`, `c`)
+```
+
+# Task
+
+Drop the `secret` field from the tuple:
+
+```hazelnostatics
+drop_secrets((not_secret="public information", secret="to redact"))
+==
+(not_secret="public information")
+```
+
+@hint
+Remove the `secret` field
+
+@reference
+### Label Omission
+Drop a single field by label:
+```hazel
+let coordinate = (x=1, y=2, z=3) in
+omit_labels(coordinate, `x`)
+```
+
+---
+
+Drop multiple fields by passing extra label arguments:
+```hazel
+omit_labels(
+(a=1, b=2, c=3, d=4),
+`a`,
+`c`)
+```
+
+@hints
+Example input
+Don't specialize on the example but use omit_labels
+
+@code
+let drop_secrets = fun t -> 
+¿
+in
+drop_secrets((not_secret="public information", secret="to redact"))
+
+@test
+test drop_secrets((not_secret="public information", secret="to redact")) == (not_secret="public information") end;
+let t = (a=1, b=2, c=3, secret=123) in
+test drop_secrets(t) == (a=1, b=2, c=3) end

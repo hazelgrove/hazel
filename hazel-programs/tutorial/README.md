@@ -1,75 +1,79 @@
 # Tutorial-mode slides (authored from text)
 
-These `.hz` text files are compiled into **Tutorial-mode** lessons (the gated,
-prompt-panel UI — same machinery as the hand-written `Tu_*.ml` lessons), via
-`./hazel gen-tutorial`. This is the Tutorial-mode counterpart to `gen-slides`
-(which makes read-only Documentation slides under `hazel-programs/study/`).
+These `.hz` text files compile into **Tutorial-mode** lessons (the gated,
+prompt-panel UI — same machinery as the hand-written `Tu_*.ml` lessons) via
+`./hazel gen-tutorial`. There is also an inverse (`tutorial-decode`) that turns
+existing hand-written `Tutorial.spec` lessons back into this text format, and a
+verifier (`tutorial-verify`).
 
 ## The iteration loop
 
 ```bash
-# 1. Edit / add / reorder .hz files in this directory.
+# 1. Edit / add / reorder .hz files in this directory (subdirs allowed).
 # 2. Regenerate the Tutorial.spec .ml files:
 ./hazel gen-tutorial
 # 3. Rebuild and run the app:
-make dev      # or: dune build src --profile dev ; then serve
+make dev
 ```
 
-`gen-tutorial` writes one `TuGen_<Name>.ml` per file into
-`src/web/exercises/examples/`, plus an aggregation `TutorialGenerated.ml`
-(`let all : Tutorial.spec list`). That `all` is appended to the `lessons` list
-in `src/web/exercises/settings/TutorialSettings_base.re`, so generated slides
-appear **after** the hand-written onboarding lessons, in filename order.
-
-To wipe the generated files (restores an empty stub):
-
-```bash
-./hazel gen-tutorial-clean
-```
+`gen-tutorial` reads `.hz` files **recursively** (ordered by relative path),
+writes one `TuGen_<Name>.ml` per file into `src/web/exercises/examples/`, plus
+an aggregation `TutorialGenerated.ml` (`let all : Tutorial.spec list`). That
+`all` is appended to `lessons` in
+`src/web/exercises/settings/TutorialSettings_base.re`. `./hazel
+gen-tutorial-clean` wipes the generated files.
 
 ## File format
 
-A plain Hazel program. Optionally split into sections with marker lines that
-are *exactly* `@prompt`, `@code`, or `@test`:
+A plain Hazel program, optionally split by marker lines that are *exactly*:
 
+| marker | maps to | notes |
+|---|---|---|
+| `@prompt` | `prompt` | markdown for the instructions panel |
+| `@code` | `your_impl` | editor contents (parsed with `TextRoundtrip.of_text`) |
+| `@test` | `hidden_tests.tests` | defaults to `test true end` |
+| `@hint` | `display_hint` | short one-liner |
+| `@reference` | `task_reference` | markdown for the Task Reference sidebar |
+| `@hints` | `hidden_tests.hints` | one hint per non-empty line |
+| `@flags` | misc | space-separated: `wrapper`, `show_report`, `version=N`, `id=<uuid>` |
+
+- **No markers** → the whole file is `@code`.
+- Holes are written as `¿` (the implicit-hole marker). For a hole you want to
+  *survive* re-parsing inside a container (e.g. a fillable list element), prefer
+  the explicit hole token `?` — `[?]` round-trips, whereas implicit `[¿]` may
+  collapse to `[]`. Probes/projectors round-trip as `^^probe(...)`.
+- `wrapper` wraps the impl as `let answer = <impl> in …` so the hidden tests
+  reference `answer` (used by "write one expression" lessons).
+
+## Importing the hand-written lessons → text
+
+```bash
+./hazel tutorial-decode            # writes all hand-written lessons to
+                                   #   hazel-programs/tutorial-imported/
+./hazel tutorial-decode "Holes"    # prints matching lessons to stdout
 ```
-@prompt
-Markdown shown in the instructions panel to the left of the editor.
-You can use **bold**, lists, `code`, etc.
 
-@code
-let x = 1 in
-x + 1
+`tutorial-imported/` is a sibling dir (NOT under this one) so it isn't picked up
+by `gen-tutorial` until you deliberately move files in. To make the whole
+sequence text-authored: move the imported files in here (e.g. under a `basics/`
+subdir), remove the hand-written entries from `TutorialSettings_base.lessons`
+(leaving `lessons = TutorialGenerated.all`), and `gen-tutorial`.
 
-@test
-test x + 1 == 2 end
+## Verifying
+
+```bash
+./hazel tutorial-verify            # per-slide OK/MISMATCH + summary
+./hazel tutorial-verify --verbose  # also print before/after text for mismatches
 ```
 
-- **No markers** → the entire file is treated as `@code`. (This is how the
-  existing probe-study tutorial slides were brought over verbatim, with their
-  instructions still inline as `# comments #`.)
-- `@prompt` → markdown for the instructions panel. Defaults to a placeholder.
-- `@code` → the editor contents (`your_impl`). Must parse as a Hazel
-  expression; `gen-tutorial` prints a WARNING if it doesn't.
-- `@test` → a Hazel `test … end` used as the hidden test. **Defaults to
-  `test true end`**, which trivially passes — so by default a slide is
-  *ungated* but shows a ✔. Put a real condition here to gate the slide.
+`tutorial-verify` checks that each slide's impl/tests text is a **fixed point**
+of the text round-trip (`to_text` == `to_text ∘ of_text ∘ to_text`). A clean
+slide is reproduced faithfully by decode→encode (IDs aside). Known
+non-fixed-points are grout-placement quirks in `TextRoundtrip` (e.g. `[¿]`→`[]`,
+or a stray `¿` next to the `$==` test operator) — see the `?`-vs-`¿` note above.
 
-## Ordering & titles
+## Generator source
 
-- Slides are ordered by filename (`01-…`, `02-…`, …). Reorder by renaming.
-- Title is the humanized filename: `03-auto-probe.hz` → `"03 Auto Probe"`.
-- Module/id are derived deterministically from the filename, so localStorage
-  state is stable across regenerations.
-
-## Notes / current limitations (v1)
-
-- Only the **editor content** and a markdown prompt come from text. The richer
-  `Tutorial.spec` fields (`display_hint`, `task_reference`, real gating tests)
-  are minimal/placeholder and can be filled in by editing the generated `.ml`
-  — but that edit will be overwritten on the next `gen-tutorial`. Prefer adding
-  an `@test` / `@prompt` section to the source instead.
-- These slides duplicate the Documentation versions under
-  `hazel-programs/study/tutorial/` for now. The Documentation copies can be
-  retired once the Tutorial-mode versions are the canonical ones.
-- Generator source: `src/CLI/GenTutorial.re`.
+`src/CLI/GenTutorial.re` (text→spec), `src/CLI/TutorialDecode.re`
+(spec→text + verify). The text round-trip engine is
+`src/haz3lcore/zipper/TextRoundtrip.re` (from the `slide-cli` work).

@@ -651,6 +651,24 @@ let gen_tutorial_clean_cmd = {
   Cmd.v(info, Term.(const(GenTutorial.clean) $ const()));
 };
 
+let tutorial_verify_cmd = {
+  let doc = "Round-trip-check every Tutorial-mode slide: assert to_text is a fixed point of (of_text >> to_text) for each slide's impl and tests.";
+  let verbose_arg = {
+    let doc = "Print the before/after text for any mismatching slide.";
+    Arg.(value & flag & info(["verbose", "v"], ~doc));
+  };
+  let info = Cmd.info("tutorial-verify", ~doc);
+  Cmd.v(info, Term.(const(TutorialDecode.verify) $ verbose_arg));
+};
+
+let tutorial_decode_cmd = {
+  let doc = "Decode Tutorial-mode slides to text. With no arg, writes all hand-written lessons to hazel-programs/tutorial/imported/. With a title substring, prints matching slides to stdout.";
+  let filter_arg =
+    Arg.(value & pos(0, some(string), None) & info([], ~docv="SUBSTR"));
+  let info = Cmd.info("tutorial-decode", ~doc);
+  Cmd.v(info, Term.(const(TutorialDecode.decode) $ filter_arg));
+};
+
 let output_arg = {
   let doc = "Path to write output to. If omitted, output is written to stdout.";
   Arg.(value & opt(some(string), None) & info(["output", "o"], ~doc));
@@ -834,6 +852,8 @@ let default_cmd = {
       gen_slides_clean_cmd,
       gen_tutorial_cmd,
       gen_tutorial_clean_cmd,
+      tutorial_verify_cmd,
+      tutorial_decode_cmd,
       grade_json_cmd,
       grade_report_cmd,
       bench_parse_cmd,

@@ -6,11 +6,11 @@ let exercise : Tutorial.spec = {
   title = "02 Functions And Cursor";
   version = 1;
   module_name = "TuGen_02FunctionsAndCursor";
-  prompt = {md|Work through the inline instructions in the editor below.|md};
-  display_hint = "";
-  task_reference = "";
+  prompt = {x|Work through the inline instructions in the editor below.|x};
+  display_hint = {x||x};
+  task_reference = {x||x};
   your_impl =
-    Option.get (Haz3lcore.Parser.to_zipper ~root:Exp {hz|# PROBES TUTORIAL - PART 2: FUNCTIONS AND THE DYNAMIC CURSOR #
+    Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|# PROBES TUTORIAL - PART 2: FUNCTIONS AND THE DYNAMIC CURSOR #
 
 # When a function is called multiple times, each call #
 # generates its own sample. Let's see what that looks like! #
@@ -84,11 +84,11 @@ watering_amount(180, Waning)
 # Similarly to single mode, left/right arrow keys move samples. #
 # Double-click again (or Space) to go back to Single mode. #
 
-# END OF PART 2 - Select the next slide from the top menu #|hz});
+# END OF PART 2 - Select the next slide from the top menu #|x});
   hidden_tests =
     {
       tests =
-        Option.get (Haz3lcore.Parser.to_zipper ~root:Exp {hz|test true end|hz});
+        Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|test true end|x});
       hints = [];
     };
   wrapper = false;
