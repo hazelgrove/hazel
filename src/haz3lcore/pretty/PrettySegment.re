@@ -855,13 +855,18 @@ and segment_to_doc = (s: settings, pieces: list(Piece.t)): doc =>
 
   /* Piece followed by comma: keep comma with left operand, break after.
      Trailing comments after comma stay on the same line.
-     All-or-nothing: no Group wrapper on rest. */
+     All-or-nothing: no Group wrapper on rest.
+     The first piece goes through `segment_to_doc(s, [p])` (not
+     `piece_doc(p)`) so that if it's a tile-with-children (e.g. a
+     parens-wrapped sub-tuple), build_tile_doc decomposes it into a
+     Group with internal break points and recursive processing —
+     matching the symmetric treatment given to `rest_after` below. */
   | [p, comma, ...rest] when is_comma(comma) =>
     let (comments, rest_after) = absorb_comments(rest);
     let left =
       List.fold_left(
         (acc, c) => Cat(acc, cats([Space, piece_doc(c)])),
-        cats([piece_doc(p), piece_doc(comma)]),
+        cats([segment_to_doc(s, [p]), piece_doc(comma)]),
         comments,
       );
     cats([

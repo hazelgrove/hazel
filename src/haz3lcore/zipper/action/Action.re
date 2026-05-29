@@ -192,10 +192,16 @@ let is_edit: t => bool =
   | Unselect(_) => false
   | Project(p) =>
     switch (p) {
-    | SetModel(_) => false
     | SetSyntax(_)
     | SetIndicated(_)
     | RemoveIndicated => true
+    | SetModel(_)
+    /* SetModel is not classified as an edit at the action layer.
+     * CachedSyntax detects shape-affecting projector/refractor model
+     * changes via reference equality of the maps it depends on
+     * (see CachedSyntax.calculate). This keeps the edit pipeline —
+     * including the statics recompute — out of every slider drag
+     * and similar continuous projector actions. */
     | Focus(_)
     | SampleFocus(_)
     | Escape(_)

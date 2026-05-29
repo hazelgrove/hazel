@@ -208,17 +208,31 @@ let scroll_cursor_into_view_if_needed = () =>
   try({
     let caret_elem = get_elem_by_id("caret");
     switch (find_scroll_container(caret_elem)) {
-    | Some(container) => scroll_vertically_into_view(container, caret_elem)
+    | Some(container) =>
+      let sT_before = ScrollDebug.main_scroll_top();
+      scroll_vertically_into_view(container, caret_elem);
+      let sT_after = ScrollDebug.main_scroll_top();
+      ScrollDebug.log(
+        "SI",
+        Printf.sprintf(
+          "scroll_into_view container sT=%.1f->%.1f delta=%+.1f",
+          sT_before,
+          sT_after,
+          sT_after -. sT_before,
+        ),
+      );
+      ScrollDebug.mark_sT();
     | None =>
+      ScrollDebug.log("SI", "scroll_into_view fallback scrollIntoView()");
       caret_elem##scrollIntoView(
         Js.Unsafe.obj([|
           ("block", Js.Unsafe.inject(Js.string("nearest"))),
           ("inline", Js.Unsafe.inject(Js.string("nearest"))),
         |]),
-      )
+      );
     };
   }) {
-  | Assert_failure(_) => ()
+  | Assert_failure(_) => ScrollDebug.log("SI", "scroll_into_view assert-failure")
   };
 
 module Fragment = {
@@ -283,6 +297,28 @@ let delay = (delay: float, callback: unit => unit) => {
   ();
 };
 
+/* Measure the horizontal extent of #main's content (including
+ * absolutely-positioned descendants like probe overlays / drawers
+ * that would otherwise not contribute to any ancestor's intrinsic
+ * width) and publish it as a CSS variable. The cell's width rule
+ * reads `--main-scroll-width` to stretch the cell background across
+ * everything the page has been pushed to. Two passes: reset the
+ * variable first so the cell's own previously-set width doesn't
+ * inflate the measurement, force a layout, then read scrollWidth. */
+let update_main_scroll_width = () =>
+  Js.Opt.iter(
+    Dom_html.document##getElementById(Js.string("main")),
+    main => {
+      set_css_custom_property("--main-scroll-width", "max-content");
+      let _: int = Js.Unsafe.get(main, "offsetWidth");
+      let sw: int = Js.Unsafe.get(main, "scrollWidth");
+      set_css_custom_property(
+        "--main-scroll-width",
+        string_of_int(sw) ++ "px",
+      );
+    },
+  );
+
 /* Scroll compensation for sample focus bar:
  * When the bar's height changes (appearing/disappearing), adjust #main's
  * scrollTop so visible code doesn't shift. Only compensates when scrolled
@@ -322,6 +358,26 @@ let setup_focus_bar_scroll_compensation = () =>
             Js.Unsafe.get(main, Js.string("scrollTop"));
           if (delta != 0.0 && scroll_top > 0.0) {
             Js.Unsafe.set(main, Js.string("scrollTop"), scroll_top +. delta);
+            ScrollDebug.log(
+              "FB",
+              Printf.sprintf(
+                "resize bar dy=%+.1f sT=%.1f->%.1f (h=%.1f)",
+                delta,
+                scroll_top,
+                scroll_top +. delta,
+                new_height,
+              ),
+            );
+            ScrollDebug.mark_sT();
+          } else if (delta != 0.0) {
+            ScrollDebug.log(
+              "FB",
+              Printf.sprintf(
+                "resize bar dy=%+.1f sT=%.1f (at-top, no scroll)",
+                delta,
+                scroll_top,
+              ),
+            );
           };
         });
       let observer =

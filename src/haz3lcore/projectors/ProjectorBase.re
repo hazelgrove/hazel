@@ -107,13 +107,17 @@ module View = {
   /* A projector has an inline view, which replaces the underlying
    * syntax. Optionally, it may have an overlay view, which is shown
    * in the same place, but above most base editor decorations
-   * including the inline views of all other projectors, and/or
-   * an offside view, which is rendered at the end of the base
-   * editor line containing the projector */
+   * including the inline views of all other projectors; an offside
+   * view, which is rendered at the end of the base editor line
+   * containing the projector; and/or a below view, which is rendered
+   * starting on the line *after* the projector's line at the left
+   * edge of the editor pane. Use below in combination with a
+   * Tab(n) placeholder so the framework reserves the rows. */
   type t = {
     inline: Node.t,
     overlay: option(Node.t),
     offside: option(Node.t),
+    below: option(Node.t),
     /* If true, the projector div gets the "error" class,
      * triggering the dashed red SVG border from proj-base.css */
     error: bool,
@@ -157,10 +161,11 @@ module View = {
     core_settings: Language.CoreSettings.t,
   };
 
-  let mk = (~overlay=None, ~offside=None, ~error=false, inline) => {
+  let mk = (~overlay=None, ~offside=None, ~below=None, ~error=false, inline) => {
     inline,
     overlay,
     offside,
+    below,
     error,
   };
 };

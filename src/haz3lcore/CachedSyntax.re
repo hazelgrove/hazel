@@ -28,6 +28,22 @@ type t = {
    * underlying editor. In principle calculating this can involve
    * both static and dynamic information, so we cache this for perf */
   shape_map: ProjectorCore.Shape.Map.t,
+  /* Per-refractor extra-row reservations. Refractors overlay the
+   * underlying syntax rather than replacing it, so only the vertical
+   * count is meaningful here. Built in mk by running each refractor's
+   * placeholder and reducing the resulting Shape.vertical to an int.
+   * Both Measured.of_segment and Code.view consume this; if either
+   * side disagrees with the other, decorations drift out of sync with
+   * caret/text positions. */
+  refractor_shape_map: Id.Map.t(int),
+  /* References to the refractor stores this cache was built from.
+   * Compared by physical equality in `calculate` to detect refractor
+   * model mutations (e.g. probe drawer-mode toggle). The Zipper is
+   * functional, so any SetModel touching a refractor produces a fresh
+   * map reference; if these match the new zipper's, the shape map is
+   * still valid and we skip the rebuild. */
+  cached_manuals: Refractors.RefractorList.t,
+  cached_ephemerals: Refractors.Map.t,
   /* Errors reported by projectors (e.g. "can't render as table") */
   projector_errors: Id.Map.t(ProjectorBase.error),
   cached_backpack: list(Tile.t),
@@ -45,6 +61,70 @@ let t_of_sexp = _ => failwith("Editor.Meta.t_of_sexp");
 let yojson_of_t = _ => failwith("Editor.Meta.yojson_of_t");
 let t_of_yojson = _ => failwith("Editor.Meta.t_of_yojson");
 
+/* Build refractor shape map by running each refractor's placeholder
+ * and extracting the deferred-linebreak count. Refractors overlay
+ * existing syntax, so only the vertical row count is meaningful;
+ * the int stored is "extra rows to reserve after the refractor's
+ * underlying tile". Probe drawer-mode is the current consumer. */
+/* The same trim-and-parenthesize pipeline RefractorView uses to derive
+ * the projector's underlying syntax piece from term_data. Falls back to
+ * an empty Secondary when the id has no resolvable segment yet (initial
+ * frames before MakeTerm has populated term_data). */
+let refractor_syntax_piece = (id: Id.t, term_data: TermData.t): Base.piece =>
+  Option.value(
+    TermData.segment(id, term_data)
+    |> Option.map(Segment.unparenthesize)
+    |> Option.map(Segment.trim_secondary(Left))
+    |> Option.map(Segment.trim_secondary(Right))
+    |> Option.map(Segment.parenthesize),
+    ~default=
+      Base.Secondary({
+        id: Id.invalid,
+        content: Whitespace(""),
+      }),
+  );
+
+let mk_refractor_shape_map =
+    (
+      z: Zipper.t,
+      term_data: TermData.t,
+      info_map,
+      dyn_map,
+      ~elaborated: option(Language.Exp.t),
+    )
+    : Id.Map.t(int) => {
+  let entries =
+    Id.Map.union(
+      (_, _, b) => Some(b),
+      z.refractors.manuals |> Id.Map.of_list,
+      z.refractors.multis.ephemerals,
+    );
+  Id.Map.mapi(
+    (id, entry: Refractors.entry) => {
+      let syntax_piece = refractor_syntax_piece(id, term_data);
+      let p = Refractors.to_projector(syntax_piece, id, entry);
+      let info =
+        ProjectorInfo.mk_info(
+          p,
+          ~sample_focus=z.refractors.sample_focus,
+          ~statics=info_map,
+          ~dynamics=dyn_map,
+          ~elaborated,
+        );
+      let (module P) = ProjectorInit.to_module(entry.kind);
+      let shape = P.placeholder(entry.model, info);
+      switch (shape.vertical) {
+      | Inline
+      | Block(0)
+      | Tab(0) => 0
+      | Tab(n)
+      | Block(n) => n
+      };
+    },
+    entries,
+  );
+};
+
 let mk = (~info_map, ~dyn_map, ~elaborated=None, z): t => {
   let segment = Zipper.unselect_and_zip(z);
   let MakeTerm.{term: _, terms, projectors, projector_list, term_data} =
@@ -57,7 +137,8 @@ let mk = (~info_map, ~dyn_map, ~elaborated=None, z): t => {
       dyn_map,
       ~elaborated,
     );
-  let refractor_shape_map = Id.Map.empty; // z.refractors.map |> Id.Map.map(_p => 2);
+  let refractor_shape_map =
+    mk_refractor_shape_map(z, term_data, info_map, dyn_map, ~elaborated);
   let measured =
     Measured.of_segment(segment, projector_shapes, refractor_shape_map);
   {
@@ -70,6 +151,9 @@ let mk = (~info_map, ~dyn_map, ~elaborated=None, z): t => {
     projectors,
     projector_list,
     shape_map: projector_shapes,
+    refractor_shape_map,
+    cached_manuals: z.refractors.manuals,
+    cached_ephemerals: z.refractors.multis.ephemerals,
     projector_errors,
     cached_backpack: Segment.global_missing_shards(segment),
     shape_info_map: info_map,
@@ -88,10 +172,11 @@ let mark_old: t => t =
   };
 
 /* Recompute only the statics-derived fields (shape_map, projector_errors,
- * measured) while reusing the segment/term_data from a prior `mk` pass.
- * Used on refresh-only frames: statics changed but the segment did not,
- * so a full `mk` would be wasteful but shapes/measured need the new
- * elaborated expression (e.g. TableProj placeholder size). */
+ * refractor_shape_map, measured) while reusing the segment/term_data from a
+ * prior `mk` pass. Used on refresh-only frames: statics or refractor model
+ * changed but the segment did not, so a full `mk` would be wasteful but
+ * shapes/measured need the new elaborated expression (e.g. TableProj
+ * placeholder size) or new refractor state (e.g. probe drawer-mode). */
 let refresh_shapes =
     (z: Zipper.t, info_map, dyn_map, ~elaborated=None, old: t) => {
   let (shape_map, projector_errors) =
@@ -102,14 +187,18 @@ let refresh_shapes =
       dyn_map,
       ~elaborated,
     );
-  let refractor_shape_map = Id.Map.empty;
+  let refractor_shape_map =
+    mk_refractor_shape_map(z, old.term_data, info_map, dyn_map, ~elaborated);
   let measured =
     Measured.of_segment(old.segment, shape_map, refractor_shape_map);
   {
     ...old,
     shape_map,
+    refractor_shape_map,
     projector_errors,
     measured,
+    cached_manuals: z.refractors.manuals,
+    cached_ephemerals: z.refractors.multis.ephemerals,
     shape_info_map: info_map,
     shape_dyn_map: dyn_map,
     shape_elaborated: elaborated,
@@ -130,14 +219,19 @@ let elaborated_phys_eq =
 
 /* Decide how much work to do based on what changed:
  *   - `old.old` flag (segment changed from an edit/buffer clear) → full `mk`
- *   - statics-input refs changed (info_map / dyn_map / elaborated) → refresh shapes
+ *   - statics-input refs changed (info_map / dyn_map / elaborated)
+ *     OR refractor model refs changed (manuals / ephemerals) → refresh shapes
  *   - otherwise just update selection_ids (cheap cursor-only path) */
-let calculate = (z: Zipper.t, info_map, dyn_map, ~elaborated=None, old: t) =>
+let calculate = (z: Zipper.t, info_map, dyn_map, ~elaborated=None, old: t) => {
+  let refractor_inputs_changed =
+    z.refractors.manuals !== old.cached_manuals
+    || z.refractors.multis.ephemerals !== old.cached_ephemerals;
   if (old.old) {
     mk(z, ~info_map, ~dyn_map, ~elaborated);
   } else if (info_map !== old.shape_info_map
              || dyn_map !== old.shape_dyn_map
-             || !elaborated_phys_eq(elaborated, old.shape_elaborated)) {
+             || !elaborated_phys_eq(elaborated, old.shape_elaborated)
+             || refractor_inputs_changed) {
     refresh_shapes(z, info_map, dyn_map, ~elaborated, old);
   } else {
     {
@@ -145,3 +239,4 @@ let calculate = (z: Zipper.t, info_map, dyn_map, ~elaborated=None, old: t) =>
       selection_ids: Selection.selection_ids(z.selection),
     };
   };
+};

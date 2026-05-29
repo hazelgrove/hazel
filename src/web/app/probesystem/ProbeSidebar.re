@@ -129,6 +129,28 @@ let legend_item = (~tooltip: string, sample_view: Node.t) =>
 let kbd = (shortcut: string) =>
   span(~attrs=[clss(["kbd-badge"])], [text(shortcut)]);
 
+/* Inline arrow glyph for use inside `qr_how` text, sharing the
+ * probe nav-bar's arrow SVG (recolored to currentColor via a CSS
+ * mask). Direction picks one of the four rotation variants. */
+let arrow_icon =
+    (
+      direction: [
+        | `Left
+        | `Right
+        | `Up
+        | `Down
+      ],
+    ) => {
+  let dir_cls =
+    switch (direction) {
+    | `Left => "left"
+    | `Right => "right"
+    | `Up => "up"
+    | `Down => "down"
+    };
+  span(~attrs=[clss(["arrow-icon", dir_cls])], []);
+};
+
 /* A joined pill: pointer icon (outline) + kbd badge (filled).
  * Reads as "click, then press key". */
 let _click_kbd = (shortcut: string) =>
@@ -654,7 +676,7 @@ let quick_ref_row =
       ~click_shortcut2=?,
       ~badge_cls=?,
       action: string,
-      how: string,
+      how: list(Node.t),
     ) => {
   let wrap_cls = (nodes: list(Node.t)) =>
     switch (badge_cls) {
@@ -680,7 +702,7 @@ let quick_ref_row =
     Node.td(~attrs=[clss(["qr-action"])], [text(action)]),
     Node.td(
       ~attrs=[clss(["qr-how"])],
-      [span(~attrs=[clss(["qr-how-text"])], [text(how)])] @ badge_nodes,
+      [span(~attrs=[clss(["qr-how-text"])], how)] @ badge_nodes,
     ),
   ]);
 };
@@ -719,25 +741,25 @@ let quick_ref_view =
             ~shortcut=meta ++ "E",
             ~badge_cls="qr-cmd-e",
             "Add/remove probe",
-            "Right-click term",
+            [text("Right-click term")],
           ),
           quick_ref_row(
             ~click_shortcut="/",
             ~badge_cls="qr-when-focused",
             "See env/args",
-            "Hover over sample",
+            [text("Hover over sample")],
           ),
           quick_ref_row(
             ~click_shortcut="P",
             ~badge_cls="qr-when-focused",
             "Pin call",
-            {js|Click sample › Pin|js},
+            [text({js|Click sample › Pin|js})],
           ),
           quick_ref_row(
             ~click_shortcut={js|↩|js},
             ~badge_cls="qr-when-focused",
             "Step into call",
-            {js|Click sample › Step|js},
+            [text({js|Click sample › Step|js})],
           ),
           /* Group 2: Navigation */
           quick_ref_divider,
@@ -746,36 +768,43 @@ let quick_ref_view =
             ~click_shortcut2={js|→|js},
             ~badge_cls="qr-when-focused",
             "Navigate samples",
-            {js|Click ◀▶ sample|js},
+            [text("Click "), arrow_icon(`Left), arrow_icon(`Right)],
           ),
           quick_ref_row(
             ~click_shortcut={js|↑|js},
             ~click_shortcut2={js|↓|js},
             ~badge_cls="qr-when-focused",
             "Navigate probes",
-            "Click sample",
+            [text("Click sample")],
           ),
           quick_ref_row(
             ~click_shortcut={js|⇧←|js},
             ~click_shortcut2={js|⇧→|js},
             ~badge_cls="qr-when-focused",
             "Resize sample",
-            "Drag sample",
+            [text("Drag sample")],
           ),
           /* Group 3: Focus */
           quick_ref_divider,
           quick_ref_row(
+            ~click_shortcut=meta ++ {js|↓|js},
+            ~click_shortcut2=meta ++ {js|↑|js},
+            ~badge_cls="qr-when-focused",
+            "Expand probe",
+            [text("Click "), arrow_icon(`Down)],
+          ),
+          quick_ref_row(
             ~shortcut=meta ++ {js|↩|js},
             ~badge_cls="qr-focus-probe",
             "Focus probe",
-            "Click sample",
+            [text("Click sample")],
           ),
           quick_ref_row(
             ~click_shortcut=meta ++ {js|↩|js},
             ~click_shortcut2="Esc",
             ~badge_cls="qr-when-focused",
             "Focus editor",
-            "Click editor",
+            [text("Click editor")],
           ),
         ],
       ),
@@ -789,6 +818,80 @@ let quick_ref_view =
       ),
     ],
   );
+};
+
+/* Sidebar drawer: when sample_drawer_in_sidebar is on, render the same
+ * actions/args/env content that would otherwise appear as a per-sample
+ * hover dropdown. Returns [] when nothing is indicated or the indicated
+ * tile has no probe / no aligned sample. */
+let sample_drawer_view =
+    (~globals: Globals.t, ~editor: CodeEditable.Model.t): list(Node.t) => {
+  let z = editor.editor.state.zipper;
+  open Util.OptUtil.Syntax;
+  let result = {
+    let* indicated_id = Indicated.index(z);
+    let* statics = Statics.Map.lookup(indicated_id, editor.statics.info_map);
+    let* samples = Dynamics.Map.lookup(indicated_id, editor.dynamics);
+    let sample_focus = z.refractors.sample_focus;
+    let dynamics: Dynamics.Info.t = {
+      samples,
+      sample_focus,
+    };
+    let ap_id = Sample.Focus.cur_var_ap(statics);
+    let* sample = Dynamics.Info.most_aligned_sample(ap_id, dynamics);
+    let parent = (action: ProjectorBase.external_action) =>
+      switch (action) {
+      | SampleFocus(sf) =>
+        globals.inject_global(ActiveEditor(Project(SampleFocus(sf))))
+      | Probe(p) => globals.inject_global(ActiveEditor(Probe(p)))
+      | Remove
+      | Escape(_)
+      | EscapeToLineEnd(_)
+      | SetSyntax(_)
+      | FocusById(_) => Ui_effect.Ignore
+      };
+    let ctx: ProbeProj.probe_ctx = {
+      ap_id,
+      statics,
+      settings: ProbeProj.Settings.s^,
+      dynamics,
+      utility: ProjectorInfo.utility,
+      parent,
+      /* The sidebar doesn't render via a per-projector pipeline, so it
+       * has no local-action dispatcher; drawer-mode toggle isn't meaningful
+       * from here. Safe no-op until we route per-probe actions. */
+      local: _ => Ui_effect.Ignore,
+      sort: Info.sort_of(statics),
+      /* Rich-probe modal state is per-projector and not threaded through
+       * the sidebar yet; no renderer is treated as active. */
+      active_renderer_id: None,
+    };
+    let view_seg =
+        (~single_line=?, ~background=?, ~text_only=?, sort, segment) =>
+      ProjectorView.flex_code(
+        ~font_metrics=globals.font_metrics,
+        ~single_line?,
+        ~background?,
+        ~text_only?,
+        sort,
+        segment,
+      );
+    let view_seg_line = (~text_only, segment) =>
+      view_seg(
+        ~single_line=true,
+        ~background=false,
+        ~text_only,
+        Sort.Exp,
+        segment,
+      );
+    ProbeProj.sample_context_drawer(ctx, view_seg_line, sample);
+  };
+  switch (result) {
+  | Some(node) => [
+      div(~attrs=[clss(["sample-drawer-slot", "panel"])], [node]),
+    ]
+  | None => []
+  };
 };
 
 let probearium =
@@ -816,8 +919,12 @@ let probearium =
       }
     | None => false
     };
-  [
-    div(~attrs=[clss(["header"])], [mode_title(~explain_this_inject)]),
+  let drawer_slot =
+    globals.settings.sample_drawer_in_sidebar
+      ? sample_drawer_view(~globals, ~editor) : [];
+  [div(~attrs=[clss(["header"])], [mode_title(~explain_this_inject)])]
+  @ drawer_slot
+  @ [
     toggle_controls_view(~globals, ~explain_this_inject),
     quick_ref_view(
       ~indicated_can_probe,

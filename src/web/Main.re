@@ -193,6 +193,19 @@ let start = default_model => {
     let%map model = app_model;
     Bonsai.Effect.of_sync_fun(
       () => {
+        ScrollDebug.next_frame();
+        /* Drift detection only during EdgeScroll-active periods (drag at
+         * edge); otherwise wheel-scroll would flood the log. */
+        ScrollDebug.check_drift(~in_drag=EdgeScroll.is_active(), ());
+        if (scroll_to_caret.contents) {
+          ScrollDebug.log(
+            "AF",
+            Printf.sprintf(
+              "frame_start sT=%.1f scroll_to_caret=t",
+              ScrollDebug.main_scroll_top(),
+            ),
+          );
+        };
         if (scroll_to_caret.contents) {
           scroll_to_caret := false;
           JsUtil.scroll_cursor_into_view_if_needed();
@@ -205,6 +218,34 @@ let start = default_model => {
         JsUtil.setup_focus_bar_scroll_compensation();
         /* Update floating elements (backpack) to viewport coordinates */
         FloatingElement.update_all();
+        /* Publish #main's effective scroll width (including absolutely-
+         * positioned probe overlays / drawers) so .cell can stretch its
+         * background to match. CSS-only intrinsic sizing can't see
+         * absolute descendants, so we measure here. */
+        JsUtil.update_main_scroll_width();
+        /* Cause-driven refractor-shift compensation: when a drawer
+         * above the caret changes height, scroll #main by the exact
+         * pixel delta so the caret row stays put. Compensation is
+         * gated by `refractor_shape_map` reference identity, so idle
+         * frames and refractor-irrelevant edits do zero work. */
+        let editor =
+          Page.Update.get_editor(model.model.current.current).editor;
+        let zipper = editor.state.zipper;
+        let measured = editor.syntax.measured;
+        let font_metrics =
+          model.model.current.current.globals.font_metrics;
+        RefractorShift.update(
+          ~font_metrics,
+          ~refractor_shape_map=editor.syntax.refractor_shape_map,
+          ~measured,
+          zipper,
+        );
+        ScrollDebug.mark_sT();
+        /* Sample-focus anchor compensation: if Left/Right in the sample
+         * focus bar captured the indicated sample's screen-y before
+         * dispatch, restore it now so the user's eye stays on it. */
+        SampleAnchor.consume();
+        ScrollDebug.mark_sT();
         model.model.current.current.globals.settings.core.statics
           ? Animation.go() : ();
       },

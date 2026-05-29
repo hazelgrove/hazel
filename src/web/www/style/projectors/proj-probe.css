@@ -327,14 +327,71 @@
   display: none;
 }
 
+/* Row-level controls: one SVG containing three independent-clickable
+ * regions (left arrow / right arrow / down-chevron drawer-toggle).
+ * Absolute-positioned in the gutter to the left of .live-offside so
+ * samples always start at the live-offside left edge (column 0) —
+ * other UI (highlights, decorations) depends on that contract. Code-
+ * ↔-offside spacing is controlled by `ProjectorView.offside_offset`,
+ * not CSS margin.
+ *
+ * Sized at line-height + ~30% so the control is comparable to a
+ * one-line sample's vertical extent. Vertical centering: extra
+ * height (height − 1em line-height) is split between top and bottom.
+ *
+ * The control looks identical in inline and drawer modes — no flip,
+ * no per-mode variation. The chevron always points down. */
 .live-offside .nav-bar {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 2px;
   position: absolute;
-  left: -1.75em;
-  top: 0.35em;
+  left: -1.85em;
+  top: -0.13em;
+  width: 1.7em;
+  height: 1.8em;
+  pointer-events: none;
+  overflow: visible;
+}
+
+/* Visual polygons inherit fill from the parent group; hit rects are
+ * transparent but capture pointer events over their bounding box so
+ * the regions stay easy to click. */
+.live-offside .nav-bar .visual {
+  fill: var(--exp-base);
+  pointer-events: none;
+}
+
+.live-offside .nav-bar .hit {
+  fill: transparent;
+  pointer-events: all;
+  cursor: pointer;
+}
+
+/* Drawer-mode-active indicator: the chevron darkens to --exp-indicated
+ * (the G0 variant of --exp-base) so users have a visual cue that the
+ * drawer is currently open, without moving/rotating the click target.
+ * Declared BEFORE the hover rule so hover wins on specificity tie. */
+.live-offside.drawer-mode .nav-bar .drawer-mode-toggle .visual {
+  fill: var(--exp-indicated);
+}
+
+/* Per-region hover: the three named groups turn red when their hit
+ * rect is hovered. Target classes (not `g:hover`) so future <g>
+ * wrappers around the groups don't accidentally turn the whole
+ * control red. */
+.live-offside .nav-bar .nav-left:hover .visual,
+.live-offside .nav-bar .nav-right:hover .visual,
+.live-offside .nav-bar .drawer-mode-toggle:hover .visual {
+  fill: var(--R1);
+}
+
+/* Disabled arrow: dim and ignore clicks. */
+.live-offside .nav-bar .nav-left.disabled .visual,
+.live-offside .nav-bar .nav-right.disabled .visual {
+  opacity: 0.15;
+}
+.live-offside .nav-bar .nav-left.disabled .hit,
+.live-offside .nav-bar .nav-right.disabled .hit {
+  pointer-events: none;
+  cursor: default;
 }
 
 .live-offside .ellipsis {
@@ -492,7 +549,8 @@
   /* overflow: hidden; */
 }
 .live-offside.Many
-  .sample:has(.value.unrelated:not(.depth-above):not(.depth-below)) .value {
+  .sample:has(.value.unrelated:not(.depth-above):not(.depth-below))
+  .value {
   background-color: #e5efe8;
 }
 
@@ -578,12 +636,27 @@
   background-color: #d6eed6;
 }
 
-.projector.probe.indicated .live-offside:focus .sample:has(.value.focus) .value {
+.projector.probe.indicated
+  .live-offside:focus
+  .sample:has(.value.focus)
+  .value {
   outline: 1.5px solid var(--R1);
   background-color: oklch(from var(--bkg) calc(l * 0.96) calc(c + 0.04) h);
 }
 .projector.probe.indicated .live-offside .sample:has(.value.focus) .value {
   outline: 1.5px solid var(--G0);
+}
+
+/* In drawer mode, render the sample-focus outline inset (entirely
+ * inside the sample's bounding box) instead of the default outside
+ * placement. Prevents the wrapper's vertical `overflow: hidden`
+ * (which caps the drawer at 15 lines) from clipping the top/bottom
+ * stroke when the focused sample sits at the scroll-viewport edge.
+ * `outline-offset: -1.5px` matches the 1.5px outline-width, so the
+ * outline's outer edge is flush with the border edge — equivalent
+ * placement to outside-default, just flipped to the inside. */
+.below-wrapper .live-offside .sample:has(.value.focus) {
+  outline-offset: -1.5px;
 }
 
 .live-offside .sample:hover {
@@ -682,44 +755,43 @@
   color: white;
 } */
 
-/* SAMPLE CONTEXT MENU (dropdown) */
+/* SAMPLE CONTEXT — inner content shared by hover dropdown and sidebar drawer.
+ *
+ * Inner classes (.context-actions, .action-item, .call-display, .live-env,
+ * .live-env-entry, .environment-section) are styled directly without a
+ * parent scope so they look the same in both contexts. Outer chrome
+ * (positioning, visibility) is split into:
+ *   - dropdown chrome: .live-offside .sample-context-menu
+ *   - drawer chrome:   #probe-sidebar .sample-context-drawer (in probesystem.css)
+ *
+ * Per-context overrides go on the outer-class selector
+ * (e.g. `.sample-context-drawer .live-env { ... }`). */
 
-.live-offside .sample-context-menu {
-  border-radius: 0 0.2em 0.2em 0.2em;
-  background-color: var(--BR1);
-  display: none;
-  position: absolute;
-  /* translate: 0 1px; */
-  left: 3px;
-  /* scale: 0.75; */
-  transform-origin: top left;
-  border-bottom: 1px solid var(--BR2);
-}
+/* --- Inner: context actions section --- */
 
-/* Context actions section */
-.sample-context-menu .context-actions {
+.context-actions {
   display: flex;
   flex-direction: row;
   gap: 0.6em;
   padding: 0.2em 0.5em;
 }
 
-/* Vertical layout when no environment */
-.sample-context-menu.no-env .context-actions {
-  flex-direction: column;
-  gap: 0.1em;
+/* In .no-env mode (no env/args section), the action row is the only
+ * content of the panel. Keep it horizontal so the dock toggle stays
+ * on the same line as the primary action; give the pills a touch
+ * more padding for visual balance. */
+.no-env .context-actions {
   padding: 0.3em 0.4em;
 }
-.sample-context-menu.no-env .action-item {
-  justify-content: space-between;
+.no-env .action-item {
   padding: 0.15em 0.4em;
 }
 
-.sample-context-menu .action-item {
+.action-item {
   cursor: pointer;
+  user-select: none !important;
   display: flex;
   align-items: center;
-  /* outline: 0.6px solid var(--BR4); */
   border-radius: 1em;
   width: fit-content;
   padding: 0 0.3em;
@@ -728,11 +800,11 @@
   white-space: nowrap;
 }
 
-.sample-context-menu .action-item:hover {
+.action-item:hover {
   background-color: var(--T3);
 }
 
-.sample-context-menu .action-item .shortcut {
+.action-item .shortcut {
   margin-left: 0.3em;
   padding: 0 0.3em;
   font-size: 0.8em;
@@ -741,11 +813,12 @@
   border-radius: 0.2em;
 }
 
-.sample-context-menu .action-item.pinned .pin-icon {
+.action-item.pinned .pin-icon,
+.action-item:hover .pin-icon {
   background-color: var(--R1);
 }
 
-.sample-context-menu .action-item .pin-icon {
+.action-item .pin-icon {
   height: 1.3em;
   width: 1.3em;
   border-radius: 1em;
@@ -756,7 +829,7 @@
   scale: 0.75;
 }
 
-.sample-context-menu .action-item .step-into-icon {
+.action-item .step-into-icon {
   height: 1.3em;
   width: 1.3em;
   border-radius: 1em;
@@ -768,10 +841,19 @@
   scale: 0.75;
 }
 
-.sample-context-menu .action-item:hover .pin-icon {
-  background-color: var(--R1);
+/* Dock toggle (rightmost icon in the context-actions row). Swaps the
+ * sample drawer between hover dropdown and sidebar; the bar-arrow glyph
+ * points toward the destination. */
+.action-item.dock-toggle {
+  margin-left: auto;
+  padding: 0 0.35em;
+  font-size: 0.85em;
+  line-height: 1;
+  color: var(--BR3);
 }
 
+/* Rich-probe renderer badge inside the sample context menu (the round
+ * label-colored chip that holds the renderer's SVG icon). */
 .sample-context-menu .action-item.rich-probe-action .table-badge {
   display: inline-flex;
   align-items: center;
@@ -797,12 +879,115 @@
   background-color: var(--live-env-bkg);
 }
 
-.sample-context-menu .context-actions + .environment-section .live-env {
-  border-top: 0.6px solid var(--BR3);
+/* Drawer-mode toggle: row-level affordance that flips this probe
+ * between inline-offside and a pretty-printed multi-line drawer below
+ * the line. Lives in the nav-bar gutter alongside the overflow arrows
+ * (see `.live-offside .nav-bar .drawer-mode-toggle` below). */
+
+/* === Below-line drawer === */
+
+/* Framework wrapper for projector `below` views. Drawer-mode probes
+ * mount the regular .live-offside content here, so this wrapper acts
+ * as the "value zone" stripe behind the samples: a subtly darker band
+ * across the editor pane indicating you're not in normal code-text
+ * anymore. The samples themselves render with their usual .sample
+ * chrome on top.
+ *
+ * The stripe tracks `--main-scroll-width`, the same variable that
+ * sizes the cell background (published by JS in after_display). With
+ * `margin-left: -1em` to extend past the `.code-editor` padding-left,
+ * `padding-left: 1em` to keep inner content at code col 0, and
+ * `padding-right: 1em`, the stripe's outer edges land flush against
+ * the cell's outer edges. `width: max-content` lets the stripe still
+ * grow further right when sample cells are wider; that growth will
+ * feed back into `--main-scroll-width` on the next render so the
+ * cell catches up. */
+.below-wrapper {
+  pointer-events: auto;
+  background-color: var(--T2);
+  /* `box-sizing: border-box` is global (style.css), so `min-width`
+   * here is the *outer* (border-box) width — padding is already
+   * included. No subtraction for padding, unlike a content-box
+   * world. The stripe's outer right then lands at exactly the
+   * cell's outer right. */
+  min-width: var(--main-scroll-width, 100ch);
+  width: max-content;
+  margin-left: -1em;
+  padding-left: 1em;
+  padding-right: 1em;
+  border: 1px solid oklch(0.87 0.04 89.74);
+  border-width: 1px 0 0px 0;
+  /* Cap at 15 lines (matches DrawerHeight.max_rows). Taller samples
+   * scroll vertically inside the wrapper rather than pushing code
+   * arbitrarily far down. `width: max-content` above means there's no
+   * horizontal overflow inside the wrapper, so we can use the simpler
+   * `overflow: hidden auto` without spawning a horizontal scrollbar. */
+  max-height: calc(15 * var(--line-height) * 1em);
+  overflow: hidden auto;
 }
 
-/* Call display section showing function call with argument values */
-.sample-context-menu .call-display {
+/* With line numbers on, `.code-editor` has `padding-left: 0`, so the
+ * stripe shouldn't extend leftward past col 0 of code. */
+.has-line-numbers .below-wrapper {
+  margin-left: 0;
+  padding-left: 0;
+}
+
+/* Drawer-mode overrides for the shared .live-offside layout.
+ *
+ * The default inline-offside layout (above) baseline- and center-aligns
+ * cells so a row of single-line samples sits nicely on one row of
+ * code. In drawer mode the cells can be many rows tall, so we
+ * top-align everything: every sample's first row lines up with the
+ * first reserved row beneath the probe's line, instead of cells
+ * being baseline/center-aligned against each other.
+ *
+ * Gaps are bumped to ~2x the inline values so tall cells have a
+ * little more breathing room. Per-sample padding stays at the inline
+ * value. */
+.below-wrapper .live-offside,
+.below-wrapper .live-offside .sample-group {
+  align-items: flex-start;
+}
+
+.below-wrapper .live-offside {
+  gap: 12px;
+}
+
+.below-wrapper .live-offside .sample-groups {
+  gap: 10px;
+}
+
+.below-wrapper .live-offside .sample-group {
+  gap: 4px;
+}
+
+/* In drawer mode the nav-bar lives in the INLINE (offside) slot — NOT
+ * in the drawer below — so the controls stay at end-of-line and don't
+ * visually jump when toggling modes. The drawer slot has samples only.
+ * The chevron's up-arrow orientation is achieved by an SVG-internal
+ * scale(1,-1) transform on a wrapping <g> (see nav_bar_view), not by
+ * CSS — so no override is needed here. */
+
+/* The depth-stacking effect on off-context samples in Many mode (the
+ * stacked-card visual for .depth-above / .depth-below) sets a
+ * one-row hardcoded height on .sample. That's correct for inline
+ * cells (always one row) but clamps multi-row drawer cells to one
+ * row's worth of background, so values overflow visually without
+ * their colored backing and the .below-wrapper stripe collapses to
+ * one row of height. Release the height and the vertical translate
+ * inside drawer mode; the box-shadow depth effect on the cell's edge
+ * still renders. */
+.below-wrapper .live-offside.Many .sample:has(.value.depth-above),
+.below-wrapper .live-offside.Many .sample:has(.value.depth-below) {
+  height: auto;
+  top: auto;
+  translate: none;
+}
+
+/* --- Inner: call display section --- */
+
+.call-display {
   display: flex;
   flex-direction: row;
   align-items: baseline;
@@ -814,35 +999,64 @@
   white-space: nowrap;
 }
 
-.sample-context-menu .context-actions + .call-display {
-  border-top: 0.6px solid var(--BR3);
-}
-
-.sample-context-menu .call-display + .environment-section .live-env {
-  border-top: 0.6px solid var(--BR3);
-}
-
-.sample-context-menu .call-display .paren {
+.call-display .paren {
   font-weight: bold;
 }
 
 /* Multiline call display for tuple arguments */
-.sample-context-menu .call-display.multiline {
+.call-display.multiline {
   flex-direction: column;
   align-items: flex-start;
 }
 
-.sample-context-menu .call-display .call-header {
+.call-display .call-header {
   display: flex;
   flex-direction: row;
   align-items: baseline;
 }
 
-.sample-context-menu .call-display .call-arg-row {
+.call-display .call-arg-row {
   display: flex;
   flex-direction: row;
   align-items: baseline;
   padding-left: 1em;
+}
+
+/* --- Inner: environment section --- */
+
+.live-env {
+  padding: 0.2em 0.55em;
+  background-color: var(--live-env-bkg);
+}
+
+.live-env .live-env-entry {
+  display: flex;
+  flex-direction: row;
+  white-space: pre;
+  align-items: baseline;
+  color: var(--GB0);
+  font-family: var(--code-font);
+  font-size: var(--base-font-size);
+}
+
+/* --- Inner: dividers between sections (structural, not chrome-specific) --- */
+
+.context-actions + .call-display,
+.context-actions + .environment-section .live-env,
+.call-display + .environment-section .live-env {
+  border-top: 0.6px solid var(--BR3);
+}
+
+/* --- Dropdown chrome: hover-triggered, absolute-positioned, hidden by default --- */
+
+.live-offside .sample-context-menu {
+  border-radius: 0 0.2em 0.2em 0.2em;
+  background-color: var(--BR1);
+  display: none;
+  position: absolute;
+  left: 3px;
+  transform-origin: top left;
+  border-bottom: 1px solid var(--BR2);
 }
 
 /* Show sample context menu only via JS-managed dropdown-active class
@@ -859,48 +1073,11 @@
   display: none;
 }
 
-.live-offside .live-env .live-env-entry {
-  display: flex;
-  flex-direction: row;
-  white-space: pre;
-  align-items: baseline;
-  color: var(--GB0);
-  font-family: var(--code-font);
-  font-size: var(--base-font-size);
-}
-
-.projector.probe .nav-arrow {
-  width: 10px;
-  height: 13px;
-  color: var(--exp-indicated);
-  background: url(../../img/noun-arrow-3130579.svg);
-  background-size: cover;
-  color: var(--NONE);
-}
-.projector.probe .nav-arrow:not(.disabled) {
-  cursor: pointer;
-}
-.projector.probe .nav-arrow:last-child {
-  transform: rotate(180deg);
-}
-.projector.probe .nav-arrow {
-  filter: invert(1) brightness(0.7) sepia(1) hue-rotate(61deg) saturate(0.6);
-}
-/* .projector.probe.Pat .nav-arrow {
-  filter: invert(1) brightness(0.7) sepia(1) hue-rotate(141deg) saturate(0.6);
-} */
-
-.projector.probe:not(.indicated) .nav-arrow {
+/* Nav-bar (the consolidated SVG control) is only visible when the
+ * probe is indicated — matches the previous nav-arrow precedent. */
+.projector.probe:not(.indicated) .nav-bar {
   pointer-events: none;
   opacity: 0% !important;
-}
-
-.projector.probe .nav-arrow.disabled {
-  opacity: 15%;
-}
-
-.projector.probe .nav-arrow:not(.disabled):hover {
-  filter: invert(1) brightness(0.4) sepia(1) hue-rotate(310deg) saturate(10);
 }
 
 /* Indicator explaining why no samples are shown */

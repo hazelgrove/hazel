@@ -270,16 +270,17 @@ let go =
     let id = idx_to_id(kind, idx);
     Ok(
       if (ProjectorCore.Kind.is_refractor(kind)) {
+        /* Refractor model lives in either `manuals` (user-placed) or
+         * `multis.ephemerals` (auto-rebuilt from `multis.ids`).
+         * Zipper.update_refractor handles both stores. */
         Zipper.update_refractor(
           id,
           fun
           | Some(entry: Refractors.entry) =>
-            Some(
-              Refractors.{
-                kind: entry.kind,
-                model: new_model,
-              },
-            )
+            Some({
+              ...entry,
+              model: new_model,
+            })
           | None => None,
           z,
         );

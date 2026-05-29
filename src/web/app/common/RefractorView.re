@@ -72,7 +72,11 @@ let mk_data =
         info,
         measurement,
         offside_base:
-          ProjectorView.Model.offside_base(~offset=4, measurement, measured),
+          ProjectorView.Model.offside_base(
+            ~offset=ProjectorView.offside_offset,
+            measurement,
+            measured,
+          ),
         status:
           ProjectorView.Model.mk_status(
             p,

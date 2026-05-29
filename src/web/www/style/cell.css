@@ -40,6 +40,14 @@
 :is(#main.Scratch,
 #main.Documentation):not(.Derivations) .cell {
   flex-grow: 1;
+  /* Stretch the cell's background to cover everything #main's scroll
+   * extent contains, including absolutely-positioned descendants like
+   * probe drawers/overlays that don't contribute to CSS intrinsic
+   * sizing. `--main-scroll-width` is published by JS in after_display
+   * (Main.re). Fallback is `max-content` so the cell still grows with
+   * in-flow content if JS hasn't run yet. min-width: 100% from the
+   * general .cell rule still applies for narrow-content cases. */
+  width: var(--main-scroll-width, max-content);
 }
 
 #main.Tutorial,

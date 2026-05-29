@@ -16,6 +16,9 @@ module Model = {
     /* Auto probe: automatically place a multi probe on the body of
        whichever top-level definition the cursor is currently inside */
     autoprobe_mode: bool,
+    /* When true, the sample context drawer (actions/args/env) is shown
+       in the probe sidebar instead of as a hover dropdown on samples. */
+    sample_drawer_in_sidebar: bool,
     agent_globals: AgentGlobals.Model.t,
     line_numbers: bool,
     relative_line_numbers: bool,
@@ -72,6 +75,7 @@ module Model = {
       },
     },
     autoprobe_mode: false,
+    sample_drawer_in_sidebar: false,
     agent_globals: AgentGlobals.init(),
     line_numbers: false,
     relative_line_numbers: false,
@@ -154,6 +158,8 @@ module Update = {
     | DisplayWarnings
     | FlipAnimations
     | AutoprobeMode
+    | SampleDrawerInSidebar
+    | SampleStickyInPlace
     | ToggleLineNumbers
     | ToggleRelativeLineNumbers
     | CapUndoStack
@@ -406,6 +412,43 @@ module Update = {
           ...settings,
           autoprobe_mode: !settings.autoprobe_mode,
         }
+      | SampleDrawerInSidebar =>
+        /* Dock toggle along the "location" dimension; preserves the
+         * "persistent" intent. From DockedSidebar lands in StickyInPlace
+         * (not HoverOnly) so undocking doesn't clobber the user's
+         * desire to see context always. From HoverOnly jumps to
+         * DockedSidebar (the only way to reach docked from there, so
+         * persistent gets turned on as a side effect). */
+        Haz3lcore.ProbeProj.Settings.(
+          {
+            let new_docked = !settings.sample_drawer_in_sidebar;
+            set_display_mode(new_docked ? DockedSidebar : StickyInPlace);
+            {
+              ...settings,
+              sample_drawer_in_sidebar: new_docked,
+            };
+          }
+        )
+      | SampleStickyInPlace =>
+        /* '/' key. Asymmetric — can leave DockedSidebar but never
+         * enters it. From DockedSidebar this also clears the persisted
+         * dock so the user is no longer docked on reload. */
+        Haz3lcore.ProbeProj.Settings.(
+          switch (display_mode^) {
+          | DockedSidebar =>
+            set_display_mode(StickyInPlace);
+            {
+              ...settings,
+              sample_drawer_in_sidebar: false,
+            };
+          | StickyInPlace =>
+            set_display_mode(HoverOnly);
+            settings;
+          | HoverOnly =>
+            set_display_mode(StickyInPlace);
+            settings;
+          }
+        )
       | ToggleLineNumbers => {
           ...settings,
           line_numbers: !settings.line_numbers,

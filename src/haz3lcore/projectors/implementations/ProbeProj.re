@@ -14,21 +14,30 @@ open RichProbeRegistry;
  * These use mutable refs for simplicity since they're UI-only state. */
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type probe_model = {active_renderer: option(packed_model)};
+type probe_model = {
+  active_renderer: option(packed_model),
+  drawer_mode: bool,
+};
 
-/* Any deserialization failure resets to closed-modal — the record is
+let init_probe_model: probe_model = {
+  active_renderer: None,
+  drawer_mode: false,
+};
+
+/* Any deserialization failure resets to defaults — the record is
  * pure transient UI state. Known failure modes are logged for
- * debuggability; unknown ones still degrade gracefully. */
+ * debuggability; unknown ones still degrade gracefully.
+ * Tolerates older serialized models (without drawer_mode) via fallback. */
 let probe_model_of_sexp = sexp =>
   switch (probe_model_of_sexp(sexp)) {
   | model => model
   | exception (RichProbeRegistry.Unknown_renderer(rid)) =>
     print_endline("probe_model_of_sexp: unknown renderer " ++ rid);
-    {active_renderer: None};
+    init_probe_model;
   | exception (Failure(msg)) =>
     print_endline("probe_model_of_sexp: malformed payload: " ++ msg);
-    {active_renderer: None};
-  | exception _ => {active_renderer: None}
+    init_probe_model;
+  | exception _ => init_probe_model
   };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -37,8 +46,19 @@ type action =
   | ToggleModal(option(packed_model))
   | RendererAction(packed_action)
   | ToggleWindowMode
-  | ToggleShowEnv
+  | ToggleDrawerMode
+  | SetDrawerMode(bool)
   | ResetSettings;
+
+/* How a sample's value should be rendered inside the offside view.
+ * Inline is the existing single-line, Abbreviate-budgeted display
+ * (one row in the editor, horizontal budget set by SampleLength).
+ * Block is the multi-line drawer display, pretty-printed to wrap at
+ * a per-sample width pulled from SampleLength in `value_view`, with
+ * `settings.drawer.width` as the default when none is set. */
+type sample_display =
+  | Inline
+  | Block;
 
 module Settings = {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -46,6 +66,12 @@ module Settings = {
     | Calls
     | Hybrid
     | StepRange;
+
+  /* Per-drawer display configuration. Currently only the line-wrap
+   * target width; will grow over time (height cap, indent-respect,
+   * etc.) so we keep it as a nested record from the start. */
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type drawer_settings = {width: int};
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type settings = {
@@ -55,6 +81,7 @@ module Settings = {
     after_cutoff: option(int),
     caller_cutoff: option(int),
     callee_cutoff: option(int),
+    drawer: drawer_settings,
   };
 
   type set_action =
@@ -65,6 +92,8 @@ module Settings = {
     | ToggleCallerCutoff
     | ToggleCalleeCutoff;
 
+  let init_drawer: drawer_settings = {width: 80};
+
   let init: settings = {
     window: Single,
     sample_base: Hybrid,
@@ -72,6 +101,7 @@ module Settings = {
     after_cutoff: None,
     caller_cutoff: None,
     callee_cutoff: None,
+    drawer: init_drawer,
   };
 
   /* When true, ArrowUp/Down skip probes that have no samples
@@ -111,15 +141,55 @@ module Settings = {
   let s = ref(init);
   let version = ref(0);
 
-  /* When true, the context menu dropdown is shown for the indicated sample
-   * without hovering. Toggled by '/' key. Persists across probe navigation. */
-  let show_env = ref(false);
+  /* Where the sample context drawer (actions/args/env) is shown.
+   * Three mutually exclusive states:
+   *   HoverOnly:     dropdown appears on hover, hides off-hover (default).
+   *   StickyInPlace: dropdown is pinned open for the indicated sample
+   *                  without hover. Transient (resets on app reload).
+   *                  Toggled by '/' key.
+   *   DockedSidebar: content rendered in the probe sidebar drawer
+   *                  instead of as a per-sample dropdown. Persistent
+   *                  (mirror of web/Settings.sample_drawer_in_sidebar).
+   *                  Toggled by Cmd/Ctrl+; or the dock-arrow icon.
+   * The '/' key can also exit DockedSidebar into StickyInPlace (the
+   * asymmetric "undock to in-place" behavior); the icon is the only
+   * thing that enters DockedSidebar. See ProjectorView.ViewCache —
+   * mutations must go through set_display_mode so version bumps and
+   * the projector view cache invalidates. */
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type display_mode =
+    | HoverOnly
+    | StickyInPlace
+    | DockedSidebar;
+
+  let display_mode = ref(HoverOnly);
+
+  /* Callbacks invoked by UI affordances inside the projector view
+   * (which can only dispatch external_actions through the framework
+   * API, not global Settings updates). Both are set by Page.view on
+   * each render so they capture the current `inject`. */
+  let on_drawer_toggle: ref(unit => Virtual_dom.Vdom.Effect.t(unit)) =
+    ref(_ => Virtual_dom.Vdom.Effect.Ignore);
+  let on_sticky_toggle: ref(unit => Virtual_dom.Vdom.Effect.t(unit)) =
+    ref(_ => Virtual_dom.Vdom.Effect.Ignore);
+
+  /* Write `display_mode` AND bump version so the projector view cache
+   * (keyed on Settings.version) invalidates on the next render. */
+  let set_display_mode = (m: display_mode) => {
+    display_mode := m;
+    version := version^ + 1;
+  };
 
   let reset_mode = () => {
     Hashtbl.clear(offset);
     s := init;
+    /* Only clear the transient StickyInPlace bit; preserve the user's
+     * persisted DockedSidebar preference (matches the old reset behavior
+     * which only cleared show_env). */
+    if (display_mode^ == StickyInPlace) {
+      display_mode := HoverOnly;
+    };
     version := version^ + 1;
-    show_env := false;
   };
 
   let go = (a: set_action): unit => {
@@ -140,6 +210,7 @@ type probe_ctx = {
   dynamics: Dynamics.Info.t,
   utility: ProjectorBase.utility,
   parent: external_action => Ui_effect.t(unit),
+  local: action => Ui_effect.t(unit),
   sort: Sort.t,
   /* Id of the currently-open rich-probe renderer, if any. Drives the
    * "View as <id>" / "Hide <id>" toggle label in the sample menu. */
@@ -242,6 +313,78 @@ let select_samples =
 
 let seg_of_exp = ProbeUtil.seg_of_exp;
 let abbreviated_seg_of = ProbeUtil.abbreviated_seg_of;
+
+/* Pretty-print a value to a multi-line segment at the given width.
+ * Skips Abbreviate since drawer mode is the use case where samples
+ * are allowed to span as many lines as they need. */
+let pretty_seg_of_value =
+    (utility: utility, ~width: int, exp: Exp.t): Segment.t => {
+  /* Pretty-print to a multi-line drawer: ask term_to_seg for the
+   * non-inline (block) form so PrettySegment has real linebreaks
+   * to fold rather than a single squashed line. */
+  let seg =
+    utility.term_to_seg(~inline=false, Exp(exp |> DHExp.strip_ascriptions));
+  PrettySegment.prettify(~width, seg);
+};
+
+/* Rows reserved for a probe's drawer-mode Tab(n) placeholder.
+ * Pretty-prints each visible sample at the drawer's wrap width,
+ * counts rows via Measured, returns the max. With no samples
+ * available (no focus-aligned samples, no samples yet) falls back
+ * to 1 row — just enough for the empty-status icon. Refractor
+ * drawer height transitions are smoothed out by the caret-shift
+ * compensation in `CachedSyntax.calculate` rather than a cache
+ * here. */
+module DrawerHeight = {
+  /* Max rows the drawer can reserve via Tab(n); content taller than
+   * this scrolls inside `.below-wrapper` (see overflow-y: auto in
+   * proj-probe.css). Prevents a single deeply-nested sample from
+   * pushing code arbitrarily far down. */
+  let max_rows = 15;
+
+  /* Row count via Measured. PrettySegment.format_segment ends with
+   * Segment.reassemble, which folds the formatter's flat output back
+   * into nested tile structure, so naively scanning top-level pieces
+   * for Secondary linebreaks undercounts. Measured.of_segment runs the
+   * canonical layout walk (handling indentation, deferred linebreaks,
+   * etc.) and `total_rows` reads off its row tally directly. */
+  let row_count = (seg: Segment.t): int =>
+    Measured.of_segment(seg, ProjectorCore.Shape.Map.empty, Id.Map.empty)
+    |> Measured.total_rows;
+
+  let sample_rows = (utility: utility, ~width: int, sample: Sample.t): int =>
+    row_count(pretty_seg_of_value(utility, ~width, sample.value));
+
+  let compute = (info: info): int =>
+    switch (info.dynamics, info.statics) {
+    | (Some(dynamics), Some(statics)) =>
+      let settings = Settings.s^;
+      let ap_id = Sample.Focus.cur_var_ap(statics);
+      let samples = select_samples(~settings, ~id=info.id, ~ap_id, dynamics);
+      switch (samples) {
+      | [] => 1
+      | _ =>
+        /* Per-sample width: matches value_view's Block branch so the
+         * reserved row count (Tab(n)) aligns with the rendered drawer
+         * heights. Falls back to settings.drawer.width if no explicit
+         * width set. */
+        let heights =
+          List.map(
+            (sample: Sample.t) =>
+              sample_rows(
+                info.utility,
+                ~width=
+                  Hashtbl.find_opt(SampleLength.lengths, sample.id)
+                  |> Option.value(~default=settings.drawer.width),
+                sample,
+              ),
+            samples,
+          );
+        min(max_rows, List.fold_left(max, 1, heights));
+      };
+    | _ => 1
+    };
+};
 
 let pos_rel_to_target = (e: Js.t(Dom_html.mouseEvent)): Point.t => {
   open Float;
@@ -468,7 +611,14 @@ module ValueState = {
 };
 
 let value_view =
-    (ctx: probe_ctx, ~num_total, view_seg, local, sample: Sample.t) => {
+    (
+      ~display: sample_display,
+      ctx: probe_ctx,
+      ~num_total,
+      view_seg,
+      local,
+      sample: Sample.t,
+    ) => {
   let {settings, ap_id, utility, _} = ctx;
   let val_pointerdown = (e: Js.t(Dom_html.pointerEvent)) => {
     if (Js.to_bool(e##.shiftKey)) {
@@ -497,26 +647,46 @@ let value_view =
     | Some(_) when Js.to_bool(e##.shiftKey) =>
       let goal = pos_rel_to_target(e);
       let target_width = max(1, goal.col);
-      let width_at = (b: int): int =>
-        abbreviated_seg_of(utility, b, sample.value) |> snd;
-      let budget = find_best_budget(width_at, target_width);
+      /* Inline: rendered width isn't a linear function of budget
+       * (Abbreviate makes discrete decisions), so bisect for the budget
+       * whose output fits target_width. Block: pretty-print wrap width
+       * IS target_width directly. Both update SampleLength.lengths via
+       * ChangeLength; value_view's Block branch reads the same map. */
+      let budget =
+        switch (display) {
+        | Inline =>
+          let width_at = (b: int): int =>
+            abbreviated_seg_of(utility, b, sample.value) |> snd;
+          find_best_budget(width_at, target_width);
+        | Block => target_width
+        };
       local(ChangeLength(sample.id, budget));
     | _ => Effect.Ignore
     };
   };
 
-  let length =
-    if (!SampleLength.is_explicit(sample) && num_total == 1) {
-      150;
-    } else {
-      SampleLength.get(settings.window, sample);
+  let (seg, length_class) =
+    switch (display) {
+    | Inline =>
+      let length =
+        if (!SampleLength.is_explicit(sample) && num_total == 1) {
+          150;
+        } else {
+          SampleLength.get(settings.window, sample);
+        };
+      let (seg, length) = abbreviated_seg_of(utility, length, sample.value);
+      (seg, [length_cls(length)]);
+    | Block =>
+      let width =
+        Hashtbl.find_opt(SampleLength.lengths, sample.id)
+        |> Option.value(~default=settings.drawer.width);
+      (pretty_seg_of_value(utility, ~width, sample.value), []);
     };
-  let (seg, length) = abbreviated_seg_of(utility, length, sample.value);
 
   div(
     ~attrs=[
       Attr.classes(
-        ["value", length_cls(length)]
+        ["value", ...length_class]
         @ cursor_clss(
             ~settings=ctx.settings,
             ~ap_id=ctx.ap_id,
@@ -626,7 +796,7 @@ let pin_action = (ctx: probe_ctx, sample: Sample.t) => {
       Attr.on_pointerdown(_ => pin_call(ctx)),
     ],
     [
-      div(~attrs=[Attr.classes(["pin-icon"])], []),
+      // div(~attrs=[Attr.classes(["pin-icon"])], []),
       text(is_pinned ? "Unpin this call" : "Pin this call"),
       span(~attrs=[Attr.classes(["shortcut"])], [text("P")]),
     ],
@@ -643,7 +813,7 @@ let focus_action = (ctx: probe_ctx, sample: Sample.t) => {
       Attr.on_pointerdown(_ => focus_call(ctx)),
     ],
     [
-      div(~attrs=[Attr.classes(["pin-icon"])], []),
+      // div(~attrs=[Attr.classes(["pin-icon"])], []),
       text(is_focused ? "Unpin enclosing call" : "Pin enclosing call"),
       span(~attrs=[Attr.classes(["shortcut"])], [text("P")]),
     ],
@@ -666,68 +836,93 @@ let step_into_action = (ctx: probe_ctx, sample: Sample.t, ap_id: Id.t) =>
         ),
     ],
     [
-      div(~attrs=[Attr.classes(["step-into-icon"])], []),
+      // div(~attrs=[Attr.classes(["step-into-icon"])], []),
       text("Step into"),
       span(~attrs=[Attr.classes(["shortcut"])], [text("Enter")]),
     ],
   );
+
+/* Dock toggle: swaps the sample drawer between hover dropdown
+ * (in the editor offside view) and the probe sidebar. The bar-arrow
+ * glyph points toward the destination: → bar (sidebar) when currently
+ * a hover dropdown; bar ← when currently docked in the sidebar. */
+let dock_toggle = (): Node.t => {
+  let docked = Settings.display_mode^ == Settings.DockedSidebar;
+  let icon = docked ? {js|⇤|js} : {js|⇥|js};
+  let tooltip =
+    docked
+      ? "Undock sample drawer (Cmd+;)"
+      : "Dock sample drawer in sidebar (Cmd+;)";
+  div(
+    ~attrs=[
+      Attr.classes(["action-item", "dock-toggle"]),
+      Attr.title(tooltip),
+      Attr.on_pointerdown(_ =>
+        Effect.Many([Effect.Stop_propagation, Settings.on_drawer_toggle^()])
+      ),
+    ],
+    [text(icon)],
+  );
+};
 
 /* Rich probe action: open a domain-specific visualization via ToggleModal.
    One menu item per compatible renderer; r.badge supplies the icon.
    Label flips to "Hide <id>" when this renderer's modal is already open,
    since dispatching ToggleModal again closes it. */
 let rich_probe_action =
-    (ctx: probe_ctx, local, sample: Sample.t, r: packed_renderer): Node.t => {
+    (ctx: probe_ctx, sample: Sample.t, r: packed_renderer): Node.t => {
   let is_active = ctx.active_renderer_id == Some(r.id);
   let label = (is_active ? "Hide " : "View as ") ++ r.id;
   div(
     ~attrs=[
       Attr.classes(["action-item", "rich-probe-action"]),
       Attr.on_pointerdown(_ =>
-        local(ToggleModal(r.init_model(ctx.sort, sample.value)))
+        ctx.local(ToggleModal(r.init_model(ctx.sort, sample.value)))
       ),
     ],
     [r.badge, text(label)],
   );
 };
 
-let rich_probe_items =
-    (ctx: probe_ctx, local, _sample: Sample.t): list(Node.t) =>
+let rich_probe_items = (ctx: probe_ctx, _sample: Sample.t): list(Node.t) =>
   switch (Dynamics.Info.most_aligned_sample(ctx.ap_id, ctx.dynamics)) {
   | None => []
   | Some(indicated) =>
     renderers
     |> List.filter_map(r =>
          r.can_handle(ctx.sort, indicated.value)
-           ? Some(rich_probe_action(ctx, local, indicated, r)) : None
+           ? Some(rich_probe_action(ctx, indicated, r)) : None
        )
   };
 
-/* Context actions for a sample (Pin/Unpin, Step Into, rich-probe views, etc.) */
+/* Drawer-mode toggle: flips this probe between inline-offside display
+ * and below-line full-width pretty-printed drawer. Per-probe state
+ * (ProbeProj.M.model.drawer_mode), so dispatched via local. Now drawn
+ * as the chevron portion of the consolidated SVG nav-bar (see
+ * `nav_bar_view`), not a standalone div. */
+
+/* Context actions for a sample (Pin/Unpin, Step Into, rich-probe views, etc.).
+ * The dock toggle is always appended at the row's far right, so the user
+ * can switch between hover/sidebar views from either context. */
 let sample_context_actions =
-    (ctx: probe_ctx, local, ~can_step_into: bool, sample: Sample.t)
-    : list(Node.t) => {
-  let rich_items = rich_probe_items(ctx, local, sample);
-  switch (ctx.ap_id) {
-  | Some(ap_id) => [
-      div(
-        ~attrs=[Attr.classes(["context-actions"])],
-        [pin_action(ctx, sample)]
-        @ (can_step_into ? [step_into_action(ctx, sample, ap_id)] : [])
-        @ rich_items,
-      ),
-    ]
-  | None when sample.call_stack != [] => [
-      div(
-        ~attrs=[Attr.classes(["context-actions"])],
-        [focus_action(ctx, sample)] @ rich_items,
-      ),
-    ]
-  | None when rich_items != [] => [
-      div(~attrs=[Attr.classes(["context-actions"])], rich_items),
-    ]
-  | None => []
-  };
+    (ctx: probe_ctx, ~can_step_into: bool, sample: Sample.t): list(Node.t) => {
+  let rich_items = rich_probe_items(ctx, sample);
+  let primary =
+    switch (ctx.ap_id) {
+    | Some(ap_id) =>
+      [pin_action(ctx, sample)]
+      @ (can_step_into ? [step_into_action(ctx, sample, ap_id)] : [])
+      @ rich_items
+    | None when sample.call_stack != [] =>
+      [focus_action(ctx, sample)] @ rich_items
+    | None => rich_items
+    };
+  [
+    div(
+      ~attrs=[Attr.classes(["context-actions"])],
+      primary @ [dock_toggle()],
+    ),
+  ];
 };
 
 /* Get function name from statics info if this is an Ap expression */
@@ -922,14 +1117,41 @@ let sample_environment =
     ];
 };
 
-/* Sample context menu (dropdown) combining actions and environment */
-let sample_context_menu =
-    (~show_env, ctx: probe_ctx, local, view_seg, sample: Sample.t): Node.t => {
+/* Don't redundantly show an env for variable references, patterns */
+let hide_env = (statics: Language.Statics.Info.t): bool =>
+  switch (statics) {
+  | InfoExp({user_term: {term: Var(_), _}, _}) => true
+  | InfoPat(_) => true
+  | _ => false
+  };
+
+/* Inner sections of the sample context drawer: actions, call display, env.
+ * Used by both the hover dropdown (sample_context_menu) and the sidebar
+ * drawer (sample_context_drawer). Also returns has_env/has_call flags so
+ * the dropdown can adjust its chrome. */
+let sample_context_sections =
+    (ctx: probe_ctx, view_seg, sample: Sample.t): (bool, bool, list(Node.t)) => {
   /* Get variable names shown in call display to filter from environment */
   let filter_vars = List.filter_map(Fun.id, get_arg_var_info(ctx.statics));
   let env_elems = filtered_env_entries(~filter_vars, sample);
   let has_env = env_elems != [];
   let has_call = Option.is_some(sample.args);
+  let nodes =
+    sample_context_actions(
+      ctx,
+      ~can_step_into=can_step_into(ctx.statics),
+      sample,
+    )
+    @ sample_call_display(ctx, view_seg, sample)
+    @ sample_environment(ctx, ~filter_vars, view_seg, sample);
+  (has_env, has_call, nodes);
+};
+
+/* Sample context menu (dropdown) combining actions and environment */
+let sample_context_menu =
+    (~show_env, ctx: probe_ctx, view_seg, sample: Sample.t): Node.t => {
+  let (has_env, has_call, nodes) =
+    sample_context_sections(ctx, view_seg, sample);
   div(
     ~attrs=
       [
@@ -940,27 +1162,39 @@ let sample_context_menu =
         ),
       ]
       @ SafeTriangle.CSSDropdown.menu_attrs(dropdown_id(sample)),
-    sample_context_actions(
-      ctx,
-      local,
-      ~can_step_into=can_step_into(ctx.statics),
-      sample,
-    )
-    @ sample_call_display(ctx, view_seg, sample)
-    @ sample_environment(ctx, ~filter_vars, view_seg, sample),
+    nodes,
   );
 };
 
-/* Don't redundantly show an env for variable references, patterns */
-let hide_env = (statics: Language.Statics.Info.t): bool =>
-  switch (statics) {
-  | InfoExp({user_term: {term: Var(_), _}, _}) => true
-  | InfoPat(_) => true
-  | _ => false
+/* Sidebar drawer rendering: same content as the dropdown, without
+ * SafeTriangle hover chrome. Returns None when there's nothing to show. */
+let sample_context_drawer =
+    (ctx: probe_ctx, view_seg, sample: Sample.t): option(Node.t) => {
+  let (has_env, has_call, nodes) =
+    sample_context_sections(ctx, view_seg, sample);
+  /* Mirror sample_view's has_dropdown gate: a non-Ap term that's a Var or
+   * Pat with no enclosing call has nothing useful to show. */
+  let hide_env = hide_env(ctx.statics);
+  let has_dropdown =
+    !(hide_env && ctx.ap_id == None) || sample.call_stack != [];
+  if (!has_dropdown && !has_env && !has_call) {
+    None;
+  } else {
+    /* Inner content rules (.context-actions, .live-env, .call-display, ...)
+     * are unscoped in proj-probe.css, so the drawer styles itself via
+     * those inner classes. Sidebar-specific tweaks live under
+     * `#probe-sidebar .sample-context-drawer` in probesystem.css.
+     * `.no-env` toggles the vertical action layout when there's
+     * nothing else to show. */
+    let classes =
+      ["sample-context-drawer"] @ (has_env || has_call ? [] : ["no-env"]);
+    Some(div(~attrs=[Attr.classes(classes)], nodes));
   };
+};
 
 let sample_view =
     (
+      ~display: sample_display,
       ctx: probe_ctx,
       ~indicated_sample_id,
       ~num_total,
@@ -977,19 +1211,33 @@ let sample_view =
     };
   let has_dropdown =
     !(hide_env && ctx.ap_id == None) || sample.call_stack != [] || has_rich;
-  let show_env = Settings.show_env^ && indicated_sample_id == Some(sample.id);
+  /* In DockedSidebar the per-sample hover dropdown is hidden; the same
+   * content is rendered by the probe sidebar instead. */
+  let render_dropdown =
+    has_dropdown && Settings.display_mode^ != Settings.DockedSidebar;
+  /* StickyInPlace pins the dropdown open for the indicated sample
+   * (the in-place equivalent of DockedSidebar). */
+  let is_indicated = indicated_sample_id == Some(sample.id);
+  let show_env =
+    Settings.display_mode^ == Settings.StickyInPlace && is_indicated;
+  /* The `indicated-sample` class marks this probe's most-aligned sample.
+   * Combined with `.projector.probe.indicated` (set on the unique probe
+   * adjacent to the caret), this gives a single DOM anchor element used
+   * by `SampleAnchor` to compensate scroll on Left/Right SetIndex. */
+  let sample_classes =
+    ["sample"] @ (is_indicated ? ["indicated-sample"] : []);
   div(
     ~attrs=
-      [Attr.classes(["sample"])]
+      [Attr.classes(sample_classes)]
       @ (
-        has_dropdown
+        render_dropdown
           ? SafeTriangle.CSSDropdown.trigger_attrs(dropdown_id(sample)) : []
       ),
-    [value_view(ctx, ~num_total, view_seg, local, sample)]
+    [value_view(~display, ctx, ~num_total, view_seg, local, sample)]
     @ pin_view(ctx, sample)
     @ (
-      has_dropdown
-        ? [sample_context_menu(~show_env, ctx, local, view_seg, sample)] : []
+      render_dropdown
+        ? [sample_context_menu(~show_env, ctx, view_seg, sample)] : []
     ),
   );
 };
@@ -1099,20 +1347,112 @@ let move_cursor = (ctx: probe_ctx, offset: int) => {
   };
 };
 
-let nav_bar_view = (ctx: probe_ctx, ~num_total) => {
-  let nav_arrow = (cond: bool, offset: int): Node.t =>
-    Node.div(
+/* Row-level controls for a probe sample row, drawn as a single SVG
+ * containing three independently-clickable regions:
+ *   - left arrow (previous sample)   — left half of rotated square
+ *   - right arrow (next sample)      — right half of rotated square
+ *   - drawer-mode toggle             — chevron below the arrows
+ * Each region is a <g> with a visual <polygon> plus an invisible
+ * <rect> hit-target; CSS `:hover` on the group flips the polygon
+ * fill to red. The chevron's hit-rect is drawn LAST so it's on top
+ * in z-order, meaning the diamond's bottom corners (which fall inside
+ * the chevron's hit area) dispatch to the toggle rather than to an
+ * arrow.
+ *
+ * Geometry (in viewBox units, free parameters s/√2 = 7 and gap g = 2):
+ *   Diamond center at (0, -2), chevron outer at (0, +2). Whole shape
+ *   is centered at (0, 0) so CSS `scaleY(-1)` flips it in drawer mode
+ *   around the actual bounding-box center.
+ *
+ * Arrows only render when show_arrows is true (overflow exists). The
+ * drawer toggle always renders so it's reachable on any indicated
+ * probe. */
+let nav_bar_view = (ctx: probe_ctx, ~num_total, ~show_arrows: bool) => {
+  let disable_left =
+    num_total < Sample.Window.max_samples(ctx.settings.window);
+  let disable_right =
+    num_total < Sample.Window.max_samples(ctx.settings.window);
+  let svg_attr = (k, v) => Attr.create(k, v);
+  let polygon = points =>
+    Node.create_svg(
+      "polygon",
+      ~attrs=[Attr.classes(["visual"]), svg_attr("points", points)],
+      [],
+    );
+  let hit_rect = (~x, ~y, ~w, ~h) =>
+    Node.create_svg(
+      "rect",
       ~attrs=[
-        Attr.classes(["nav-arrow"] @ (cond ? ["disabled"] : [])),
-        Attr.on_click(_ => move_cursor(ctx, offset)),
+        Attr.classes(["hit"]),
+        svg_attr("x", x),
+        svg_attr("y", y),
+        svg_attr("width", w),
+        svg_attr("height", h),
       ],
       [],
     );
-  let show_left = num_total < Sample.Window.max_samples(ctx.settings.window);
-  let show_right = num_total < Sample.Window.max_samples(ctx.settings.window);
-  div(
-    ~attrs=[Attr.classes(["nav-bar"])],
-    [nav_arrow(show_left, 1), nav_arrow(show_right, -1)],
+  let title = (label: string) =>
+    Node.create_svg("title", [Node.text(label)]);
+  /* Mac shows the Cmd glyph as `⌘X`; PC/Linux shows `Ctrl+X`. Matches
+   * the convention used in ProbeSidebar's quick reference. */
+  let meta = Util.Os.is_mac^ ? {js|⌘|js} : "Ctrl+";
+  let arrow_group = (~side, ~disabled: bool, ~offset: int, ~hit_x: string) =>
+    Node.create_svg(
+      "g",
+      ~attrs=[
+        Attr.classes(["nav-" ++ side] @ (disabled ? ["disabled"] : [])),
+        Attr.on_click(_ => move_cursor(ctx, offset)),
+      ],
+      [
+        title(side == "left" ? "Previous sample (←)" : "Next sample (→)"),
+        polygon(side == "left" ? "-7,-2 -1,-8 -1,4" : "1,-8 7,-2 1,4"),
+        hit_rect(~x=hit_x, ~y="-10", ~w="9", ~h="11"),
+      ],
+    );
+  let toggle_group =
+    Node.create_svg(
+      "g",
+      ~attrs=[
+        Attr.classes(["drawer-mode-toggle"]),
+        Attr.on_pointerdown(_ =>
+          Effect.Many([Effect.Stop_propagation, ctx.local(ToggleDrawerMode)])
+        ),
+      ],
+      [
+        title(
+          "Toggle drawer ("
+          ++ meta
+          ++ {js|↓|js}
+          ++ " / "
+          ++ meta
+          ++ {js|↑|js}
+          ++ ")",
+        ),
+        polygon("-6,1 -7,2 0,9 7,2 6,1 0,7"),
+        hit_rect(~x="-9", ~y="1", ~w="18", ~h="9"),
+      ],
+    );
+  let arrow_groups =
+    show_arrows
+      ? [
+        arrow_group(
+          ~side="left",
+          ~disabled=disable_left,
+          ~offset=1,
+          ~hit_x="-9",
+        ),
+        arrow_group(
+          ~side="right",
+          ~disabled=disable_right,
+          ~offset=-1,
+          ~hit_x="0",
+        ),
+      ]
+      : [];
+  Node.create_svg(
+    "svg",
+    ~attrs=[Attr.classes(["nav-bar"]), svg_attr("viewBox", "-9 -10 18 20")],
+    arrow_groups @ [toggle_group],
   );
 };
 
@@ -1179,7 +1519,8 @@ let round_down = (ctx: probe_ctx, sample: Sample.t): int => {
 let indicated_sample = (ctx: probe_ctx): option(Sample.t) =>
   Dynamics.Info.most_aligned_sample(ctx.ap_id, ctx.dynamics);
 
-let key_handler = (ctx: probe_ctx, ~id: Id.t, local, evt) => {
+let key_handler =
+    (ctx: probe_ctx, ~id: Id.t, ~drawer_mode_active: bool, local, evt) => {
   let {ap_id, parent, _} = ctx;
   open Effect;
   let key = Key.mk(KeyDown, evt);
@@ -1188,6 +1529,10 @@ let key_handler = (ctx: probe_ctx, ~id: Id.t, local, evt) => {
   | D("Escape") when key.shift == Down =>
     JsUtil.get_elem_by_id(Id.cls(id))##blur;
     Many([local(ResetSettings), parent(SampleFocus(Reset))]);
+  | D("Escape") when drawer_mode_active =>
+    /* Two-stage Esc: first Esc collapses the drawer (stays focused),
+     * second Esc blurs (handled by the rule below). */
+    Many([local(SetDrawerMode(false)), Stop_propagation, Prevent_default])
   | D("Escape") =>
     JsUtil.get_elem_by_id(Id.cls(id))##blur;
     Many([Stop_propagation, Prevent_default]);
@@ -1226,10 +1571,21 @@ let key_handler = (ctx: probe_ctx, ~id: Id.t, local, evt) => {
       };
     Many([effect, Stop_propagation, Prevent_default]);
   | D("ArrowRight") =>
+    /* Stash indicated sample's screen-y BEFORE dispatch so
+     * Main.after_display can compensate any reflow above it. */
+    SampleAnchor.capture();
     // Prevent_default below stops aggressive horizontal scroll
-    Many([move_cursor(ctx, -1), Stop_propagation, Prevent_default])
+    Many([move_cursor(ctx, -1), Stop_propagation, Prevent_default]);
   | D("ArrowLeft") =>
-    Many([move_cursor(ctx, 1), Stop_propagation, Prevent_default])
+    SampleAnchor.capture();
+    Many([move_cursor(ctx, 1), Stop_propagation, Prevent_default]);
+  | D("ArrowDown") when key.meta == Down || key.ctrl == Down =>
+    /* Enter drawer mode for this probe. Idempotent if already in
+     * drawer mode. Paired with Cmd/Ctrl+ArrowUp below to exit. */
+    Many([local(SetDrawerMode(true)), Stop_propagation, Prevent_default])
+  | D("ArrowUp") when key.meta == Down || key.ctrl == Down =>
+    /* Exit drawer mode. Idempotent if not in drawer mode. */
+    Many([local(SetDrawerMode(false)), Stop_propagation, Prevent_default])
   | D("ArrowDown") =>
     let skip = Settings.skip_unaligned_nav;
     let effect =
@@ -1271,7 +1627,16 @@ let key_handler = (ctx: probe_ctx, ~id: Id.t, local, evt) => {
       ])
     | _ => Many([Stop_propagation, Prevent_default])
     }
-  | D("/") => Many([local(ToggleShowEnv), Stop_propagation, Prevent_default])
+  | D(";") when key.meta == Down || key.ctrl == Down => Ignore /* Defer to page-level handler: toggle sidebar drawer mode */
+  | D("/") =>
+    /* Sticky-in-place toggle. Handler in web/Settings owns the
+     * transition logic (including the asymmetric DockedSidebar →
+     * StickyInPlace move which also clears the persisted dock). */
+    Many([Settings.on_sticky_toggle^(), Stop_propagation, Prevent_default])
+  | D("\\") =>
+    /* Per-probe drawer-mode toggle: pretty-printed multi-line samples
+     * displayed below the line, full editor-pane width. */
+    Many([local(ToggleDrawerMode), Stop_propagation, Prevent_default])
   | D("c" | "C") when Key.meta_held(evt) || Key.ctrl_held(evt) =>
     switch (indicated_sample(ctx)) {
     | Some(sample) =>
@@ -1308,7 +1673,20 @@ let empty_view = (~id: Id.t, ~settings: settings) =>
     ],
   );
 
-let offside_view =
+/* Pre-computed data shared by every offside-view renderer (full
+ * live-offside, nav-only wrapper, drawer below). Built once per
+ * render so we don't redo selection/filter work for both slots. */
+type offside_data = {
+  ctx: probe_ctx,
+  id: Id.t,
+  num_total: int,
+  num_shown: int,
+  groups: list(list(Sample.t)),
+  is_cursor_aligned: bool,
+  empty_status: option(Sample.Selection.empty_status),
+};
+
+let prepare_offside =
     (
       info: info,
       local,
@@ -1316,8 +1694,8 @@ let offside_view =
       ~settings: settings,
       ~sort: Sort.t,
       ~model: probe_model,
-      view_seg: View.seg,
-    ) =>
+    )
+    : option(offside_data) =>
   switch (info.dynamics, info.statics) {
   | (Some(dynamics), Some(statics)) =>
     let id = info.id;
@@ -1331,10 +1709,10 @@ let offside_view =
       dynamics,
       utility: info.utility,
       parent,
+      local,
       sort,
       active_renderer_id,
     };
-    /* Filter samples once and reuse for both num_total and selection */
     let filtered_samples =
       Sample.Selection.filter_by_pin(
         ~ap_id,
@@ -1358,15 +1736,11 @@ let offside_view =
         dynamics,
       );
     let (num_shown, groups) = Sample.Selection.collate(samples);
-
-    /* Check if this probe is the target of a pending step-into focus */
     let is_evaluating =
       switch (dynamics.sample_focus.pending_focus) {
       | Some({probe_id, _}) => probe_id == id
       | None => false
       };
-
-    /* Determine what to show when no samples are displayed */
     let empty_status =
       Sample.Selection.get_empty_status(
         ~num_total,
@@ -1374,65 +1748,131 @@ let offside_view =
         ~is_evaluating,
         (),
       );
-    Node.div(
-      ~attrs=[
-        Attr.id(Id.cls(id)),
-        Attr.create("data-probe-id", Id.to_string(id)),
-        Attr.create(
-          "data-cursor-aligned",
-          is_cursor_aligned ? "true" : "false",
-        ),
-        Attr.tabindex(0),
-        Attr.on_keydown(key_handler(ctx, ~id, local)),
-        Attr.classes([
-          "live-offside",
-          settings.window |> Sample.Window.show_mode,
-        ]),
-      ],
-      switch (empty_status) {
-      | Some(status) => [empty_status_view(ctx, ~status, local)]
-      | None =>
-        /* Overflow indicator: shown when samples ARE displayed but more exist */
-        let overflow_view =
-          num_shown > 0 && num_shown < num_total
-            ? [nav_bar_view(ctx, ~num_total), ellipsis_view(local)] : [];
-        let view_seg_line = (~text_only, segment) =>
-          view_seg(
-            ~single_line=true,
-            ~background=false,
-            ~text_only,
-            Sort.Exp,
-            segment,
-          );
-        let indicated_sample_id =
-          indicated_sample(ctx) |> Option.map((s: Sample.t) => s.id);
-        let sample_view =
-          sample_view(
-            ctx,
-            ~indicated_sample_id,
-            ~num_total,
-            view_seg_line,
-            local,
-          );
-        let group_views =
-          List.map(
-            samples =>
-              Node.div(
-                ~attrs=[Attr.classes(["sample-group"])],
-                List.map(sample_view, samples),
-              ),
-            groups,
-          );
-        (
-          group_views == []
-            ? []
-            : [div(~attrs=[Attr.classes(["sample-groups"])], group_views)]
-        )
-        @ overflow_view;
-      },
-    );
-  | _ => empty_view(~id=info.id, ~settings)
+    Some({
+      ctx,
+      id,
+      num_total,
+      num_shown,
+      groups,
+      is_cursor_aligned,
+      empty_status,
+    });
+  | _ => None
   };
+
+/* Minimal wrapper used in the inline (offside) slot when drawer mode
+ * is active: just the nav-bar, sitting where it would in inline mode,
+ * so the controls don't visually jump when toggling drawer-mode.
+ *
+ * NO id / focus / key-handlers — the focusable .live-offside lives in
+ * the `below` slot with the samples (see `live_offside_view`).
+ * `.drawer-mode` class drives the up-arrow rotation on the toggle. */
+let nav_bar_wrapper_view = (data: offside_data, ~settings: settings): Node.t => {
+  let has_overflow = data.num_shown > 0 && data.num_shown < data.num_total;
+  Node.div(
+    ~attrs=[
+      Attr.classes([
+        "live-offside",
+        "nav-only",
+        "drawer-mode",
+        settings.window |> Sample.Window.show_mode,
+      ]),
+    ],
+    [
+      nav_bar_view(
+        data.ctx,
+        ~num_total=data.num_total,
+        ~show_arrows=has_overflow,
+      ),
+    ],
+  );
+};
+
+/* Focusable .live-offside with the canonical id, key-handlers, and
+ * cursor-alignment data attribute. Optionally includes the nav-bar
+ * inline (true in inline mode; false in drawer mode, where the nav-
+ * bar lives in the offside slot's `nav_bar_wrapper_view` instead). */
+let live_offside_view =
+    (
+      ~display: sample_display,
+      ~include_nav_bar: bool,
+      ~drawer_mode_active: bool,
+      data: offside_data,
+      local,
+      view_seg: View.seg,
+      ~settings: settings,
+    )
+    : Node.t => {
+  let {ctx, id, num_total, num_shown, groups, is_cursor_aligned, empty_status} = data;
+  let base_classes = [
+    "live-offside",
+    settings.window |> Sample.Window.show_mode,
+  ];
+  Node.div(
+    ~attrs=[
+      Attr.id(Id.cls(id)),
+      Attr.create("data-probe-id", Id.to_string(id)),
+      Attr.create(
+        "data-cursor-aligned",
+        is_cursor_aligned ? "true" : "false",
+      ),
+      Attr.tabindex(0),
+      Attr.on_keydown(key_handler(ctx, ~id, ~drawer_mode_active, local)),
+      Attr.classes(
+        base_classes @ (drawer_mode_active ? ["drawer-mode"] : []),
+      ),
+    ],
+    switch (empty_status) {
+    | Some(status) => [empty_status_view(ctx, ~status, local)]
+    | None =>
+      /* Block-display segments carry real linebreaks, so the layout
+       * hint `single_line` must follow the display mode. */
+      let single_line =
+        switch (display) {
+        | Inline => true
+        | Block => false
+        };
+      let view_seg_line = (~text_only, segment) =>
+        view_seg(
+          ~single_line,
+          ~background=false,
+          ~text_only,
+          Sort.Exp,
+          segment,
+        );
+      let indicated_sample_id =
+        indicated_sample(ctx) |> Option.map((s: Sample.t) => s.id);
+      let sample_view =
+        sample_view(
+          ~display,
+          ctx,
+          ~indicated_sample_id,
+          ~num_total,
+          view_seg_line,
+          local,
+        );
+      let group_views =
+        List.map(
+          samples =>
+            Node.div(
+              ~attrs=[Attr.classes(["sample-group"])],
+              List.map(sample_view, samples),
+            ),
+          groups,
+        );
+      let samples_part =
+        group_views == []
+          ? []
+          : [div(~attrs=[Attr.classes(["sample-groups"])], group_views)];
+      let has_overflow = num_shown > 0 && num_shown < num_total;
+      let nav_bar_part =
+        include_nav_bar
+          ? [nav_bar_view(ctx, ~num_total, ~show_arrows=has_overflow)] : [];
+      let overflow_indicator = has_overflow ? [ellipsis_view(local)] : [];
+      nav_bar_part @ samples_part @ overflow_indicator;
+    },
+  );
+};
 
 let get_current = (~settings, info: info) => {
   switch (info.dynamics, info.statics) {
@@ -1478,14 +1918,21 @@ type a = action;
 module M: Projector = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type model = probe_model;
+  let init_model: model = init_probe_model;
+  /* Tolerate old serialized models that don't match the current shape
+   * by falling back to defaults whenever sexp parsing fails. */
+  let model_of_sexp = sexp =>
+    try(model_of_sexp(sexp)) {
+    | _ => init_model
+    };
   [@deriving (show({with_path: false}), sexp, yojson)]
   type action = a;
 
   let init = (any: Any.t) => {
     switch (any) {
     | Exp(_)
-    | Pat(_) => Some({active_renderer: None})
-    | Any(_) => Some({active_renderer: None}) /* Grout don't have sorts */
+    | Pat(_) => Some(init_model)
+    | Any(_) => Some(init_model) /* Grout don't have sorts */
     | _ => None
     };
   };
@@ -1499,10 +1946,18 @@ module M: Projector = {
       keyboard: None,
     };
 
-  let placeholder = (_, _) => ProjectorCore.Shape.default;
+  let placeholder = (model: model, info) =>
+    if (model.drawer_mode) {
+      ProjectorCore.Shape.{
+        horizontal: 0,
+        vertical: Tab(DrawerHeight.compute(info)),
+      };
+    } else {
+      ProjectorCore.Shape.default;
+    };
 
-  let update = (model: probe_model, _info: info, action: action): probe_model => {
-    switch (action) {
+  let update = (model: model, info: info, a: action): model => {
+    switch (a) {
     | ChangeLength(id, len) =>
       SampleLength.set(id, len);
       Settings.version := Settings.version^ + 1;
@@ -1510,18 +1965,40 @@ module M: Projector = {
     | ToggleWindowMode =>
       Settings.go(ToggleWindow);
       model;
-    | ToggleShowEnv =>
-      Settings.show_env := ! Settings.show_env^;
+    | ToggleDrawerMode =>
       Settings.version := Settings.version^ + 1;
-      model;
+      /* Toggling drawer mode moves the focusable .live-offside DOM node
+       * between the offside slot (inline mode) and the below slot
+       * (drawer mode). Browsers drop focus on the unmounted element, so
+       * schedule a focus restoration via the after_display hook — the
+       * new .live-offside is in the DOM by then and `elem.focus()`
+       * sticks. Keeps the probe keyboard-active across toggles. */
+      FocusEffect.schedule(info.id);
+      {
+        ...model,
+        drawer_mode: !model.drawer_mode,
+      };
+    | SetDrawerMode(b) =>
+      Settings.version := Settings.version^ + 1;
+      FocusEffect.schedule(info.id);
+      {
+        ...model,
+        drawer_mode: b,
+      };
     | ResetSettings =>
       Settings.reset_mode();
       SampleLength.reset();
       model;
     | ToggleModal(pm) =>
       switch (model.active_renderer) {
-      | None => {active_renderer: pm}
-      | Some(_) => {active_renderer: None}
+      | None => {
+          ...model,
+          active_renderer: pm,
+        }
+      | Some(_) => {
+          ...model,
+          active_renderer: None,
+        }
       }
     | RendererAction(pa) =>
       /* Dispatch through the action's renderer. update_model's internal
@@ -1532,6 +2009,7 @@ module M: Projector = {
         find(RichProbe.renderer_id_of_action(pa)),
       ) {
       | (Some(pm), Some(r)) => {
+          ...model,
           active_renderer: Some(r.update_model(pm, pa)),
         }
       | _ => model
@@ -1600,7 +2078,9 @@ module M: Projector = {
     | _ => []
     };
   };
+
   let error = (_, _): option(ProjectorBase.error) => None;
+
   let view =
       (
         {info, local, parent, view_seg, model, status, _}:
@@ -1608,34 +2088,73 @@ module M: Projector = {
       ) => {
     let settings = Settings.s^;
     let sort = status.sort;
+    /* Two compositional pieces (nav-bar component + samples-bearing
+     * .live-offside) get routed to the projector's slots differently
+     * per mode:
+     *   Inline mode  — offside = .live-offside w/ nav-bar + samples
+     *                  below   = none
+     *   Drawer mode  — offside = nav-bar wrapper (controls stay put at
+     *                            end-of-line, no samples)
+     *                  below   = .live-offside w/ samples only
+     * The focusable .live-offside (id, key-handlers, tabindex) always
+     * goes wherever the samples live, so probe-navigation/cursor logic
+     * stays attached to the same DOM element regardless of mode. */
+    let data_opt =
+      prepare_offside(info, local, parent, ~settings, ~sort, ~model);
+    let drawer = model.drawer_mode;
+    let offside_main =
+      switch (data_opt, drawer) {
+      | (None, _) => empty_view(~id=info.id, ~settings)
+      | (Some(data), false) =>
+        live_offside_view(
+          ~display=Inline,
+          ~include_nav_bar=true,
+          ~drawer_mode_active=false,
+          data,
+          local,
+          view_seg,
+          ~settings,
+        )
+      | (Some(data), true) => nav_bar_wrapper_view(data, ~settings)
+      };
+    let modal_nodes =
+      modal_overlay(
+        ~settings,
+        model,
+        info,
+        ~local,
+        ~parent,
+        ~view_seg,
+        ~sort,
+      );
+    /* Wrap offside content + modal nodes in a containerless div only when
+     * the modal is open; otherwise return offside_main directly so we don't
+     * add an extra DOM level around the (positioned) .live-offside. */
+    let offside_node =
+      switch (modal_nodes) {
+      | [] => offside_main
+      | _ => div([offside_main] @ modal_nodes)
+      };
     View.{
       inline: Node.div([]),
       overlay: Some(overlay_view(~settings, ~sort, info)),
-      offside:
-        Some(
-          div(
-            [
-              offside_view(
-                info,
-                local,
-                parent,
-                ~settings,
-                ~sort,
-                ~model,
-                view_seg,
-              ),
-            ]
-            @ modal_overlay(
-                ~settings,
-                model,
-                info,
-                ~local,
-                ~parent,
-                ~view_seg,
-                ~sort,
-              ),
-          ),
-        ),
+      offside: Some(offside_node),
+      below:
+        switch (data_opt, drawer) {
+        | (Some(data), true) =>
+          Some(
+            live_offside_view(
+              ~display=Block,
+              ~include_nav_bar=false,
+              ~drawer_mode_active=true,
+              data,
+              local,
+              view_seg,
+              ~settings,
+            ),
+          )
+        | _ => None
+        },
       error: false,
     };
   };

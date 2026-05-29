@@ -321,6 +321,27 @@ let offside_wrapper =
     [v],
   );
 
+/* Wrap a below view: position starting on the next line at the editor
+ * pane's left edge. The view_wrapper around us is already absolutely
+ * positioned at the projector's (row, col); shift back by origin.col
+ * to reach col 0 of the pane, and down by one row_height. Use Tab(n)
+ * placeholder so the framework reserves the additional rows. */
+let below_wrapper = (font_metrics: FontMetrics.t, origin_col: int, v: Node.t) =>
+  div(
+    ~attrs=[
+      Attr.classes(["below-wrapper"]),
+      Attr.create(
+        "style",
+        Printf.sprintf(
+          "position: absolute; top: %fpx; left: %fpx;",
+          font_metrics.row_height,
+          -. (font_metrics.col_width *. float_of_int(origin_col)),
+        ),
+      ),
+    ],
+    [v],
+  );
+
 let simple_code =
     (~background=false, ~is_single_line=false, font_metrics, _sort, segment)
     : Node.t => {
@@ -529,10 +550,15 @@ let split_views =
       views.offside
       |> Option.map(offside_wrapper(font_metrics, offside_base))
       |> Option.to_list;
+    let below_view =
+      views.below
+      |> Option.map(below_wrapper(font_metrics, measurement.origin.col))
+      |> Option.to_list;
     wrapper(
       (skip_inline ? [] : [views.inline])
       @ [backing_deco(~font_metrics, ~measurement, p)]
-      @ offside_view,
+      @ offside_view
+      @ below_view,
     );
   };
   let overlay_view = Option.map(v => wrapper([v]), views.overlay);
