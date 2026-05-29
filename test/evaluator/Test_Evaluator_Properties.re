@@ -338,13 +338,15 @@ let qcheck_incremental_matches_fresh_after_edit =
             Some((info_map_edit, elab_edit)),
           ) =>
           let info_slice_orig =
-            EvalInfoMap.of_info_map(
+            EvalInfo.of_info_map(
               ~probe_all=CoreSettings.on.probe_all,
+              ~targets=Id.Map.empty,
               info_map_orig,
             );
           let info_slice_edit =
-            EvalInfoMap.of_info_map(
+            EvalInfo.of_info_map(
               ~probe_all=CoreSettings.on.probe_all,
+              ~targets=Id.Map.empty,
               info_map_edit,
             );
           /* Baseline run (no prev) of the original — its incr_eval becomes

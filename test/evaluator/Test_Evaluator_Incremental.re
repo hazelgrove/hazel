@@ -47,7 +47,7 @@ let eval_incr =
     : (Exp.t, EvaluatorState.t, IncrEval.t) => {
   let (info_map, elab) = statics_and_elab(exp);
   let info_map =
-    EvalInfoMap.of_info_map(~probe_all=CoreSettings.on.probe_all, info_map);
+    EvalInfo.of_info_map(~probe_all=CoreSettings.on.probe_all, ~targets=Id.Map.empty, info_map);
   let (result, state) =
     Evaluator.evaluate(~prev, ~info_map, ~env=Builtins.env_init, elab);
   (result, state, state.incr_eval);
@@ -600,7 +600,7 @@ let test_probe_replay_on_reuse = () => {
   let exp = parse_exp(src);
   let (info_map, elab) = statics_and_elab(exp);
   let info_map =
-    EvalInfoMap.of_info_map(~probe_all=CoreSettings.on.probe_all, info_map);
+    EvalInfo.of_info_map(~probe_all=CoreSettings.on.probe_all, ~targets=Id.Map.empty, info_map);
   /* First run: no probes targeted. */
   let (_, state1) =
     Evaluator.evaluate(

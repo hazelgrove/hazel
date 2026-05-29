@@ -19,22 +19,22 @@ open Test_Evaluator_Prelude;
 let get_all_samples = (code: string): list(Sample.t) => {
   let (_term, elaborated, _info_map, targets) = parse_with_probes(code);
   let (_, state) =
-    Evaluator.evaluate(~targets, ~env=Builtins.env_init, elaborated);
+    Evaluator.evaluate(~info_map=EvalInfo.{statics:Id.Map.empty, targets:targets}, ~env=Builtins.env_init, elaborated);
   let probes = EvaluatorState.get_probes(state);
   Id.Map.bindings(probes) |> List.concat_map(snd);
 };
 
 /* Show call stack for debugging */
-let show_call_stack = (cs: Sample.call_stack): string =>
+let show_call_stack = (cs: CallStack.t): string =>
   "["
   ++ String.concat(
        ", ",
-       List.map((f: Sample.stack_frame) => Id.str3(f.id), cs),
+       List.map((f: CallStack.frame) => Id.str3(f.id), cs),
      )
   ++ "]";
 
 let call_stack_testable =
-  testable(Fmt.using(show_call_stack, Fmt.string), Sample.equal_call_stack);
+  testable(Fmt.using(show_call_stack, Fmt.string), CallStack.equal);
 
 /* Test that multiple top-level probed applications have the same (empty) call_stack.
  * This is the bug: if they have different call_stacks (containing their own app_ids),

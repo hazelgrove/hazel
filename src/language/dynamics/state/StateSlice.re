@@ -11,7 +11,6 @@ type t = {
   probes: Sample.Map.t,
   tests: list((Id.t, list(TestMap.instance_report))),
   theorems: list((Id.t, string, Environment.t(Exp.t), Exp.t)),
-  app_args: Id.Map.t(list((Sample.call_stack, Sample.Env.elided_value))),
 };
 
 let empty: t = {
@@ -20,7 +19,6 @@ let empty: t = {
   probes: Sample.Map.empty,
   tests: [],
   theorems: [],
-  app_args: Id.Map.empty,
 };
 
 let diff_probes = (~before: Sample.Map.t, ~after: Sample.Map.t): Sample.Map.t =>
@@ -87,10 +85,10 @@ let diff_theorems =
 
 let diff_app_args =
     (
-      ~before: Id.Map.t(list((Sample.call_stack, Sample.Env.elided_value))),
-      ~after: Id.Map.t(list((Sample.call_stack, Sample.Env.elided_value))),
+      ~before: Id.Map.t(list((CallStack.t, Sample.Env.elided_value))),
+      ~after: Id.Map.t(list((CallStack.t, Sample.Env.elided_value))),
     )
-    : Id.Map.t(list((Sample.call_stack, Sample.Env.elided_value))) =>
+    : Id.Map.t(list((CallStack.t, Sample.Env.elided_value))) =>
   Id.Map.fold(
     (id, after_entries, acc) => {
       let before_count =
