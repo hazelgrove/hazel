@@ -49,8 +49,8 @@ let (suite, _) =
       Test_ProblemCollection.tests,
     ]
     @ Test_Introduce.tests
-    // Disabled on probes-study: too many doc slides makes this too slow
-    //@ Test_ReparseDocSlides.tests
+    @ Test_ReparseDocSlides.tests
+    @ Test_TextRoundtrip.tests
     @ Test_MatchExp.tests
     @ Test_RefractorSerialization.tests
     @ [
