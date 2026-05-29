@@ -20,10 +20,10 @@ module Info = {
 
   let is_in = (di: t): option(Sample.t) => {
     let cursor_ids =
-      Sample.ids_of_stack(Sample.Focus.effective_stack(di.sample_focus));
+      CallStack.ids_of_stack(Sample.Focus.effective_stack(di.sample_focus));
     List.find_opt(
       (sample: Sample.t) =>
-        Sample.ids_of_stack(sample.call_stack) == cursor_ids,
+        CallStack.ids_of_stack(sample.call_stack) == cursor_ids,
       di.samples,
     );
   };

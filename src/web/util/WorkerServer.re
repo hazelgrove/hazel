@@ -8,14 +8,13 @@ module Request = {
   [@deriving (show, sexp, yojson)]
   type value = {
     expr: Language.Exp.t,
-    targets: Language.Sample.targets,
     /* Projected statics data used by the incremental driver to look up
      * per-id sub-elaborations and co-ctxs. We ship this slice instead of
      * the full StaticsBase.Map.t because the full map transitively contains
      * LivelitCtx entries that embed OCaml closures, which the structured-
      * clone algorithm postMessage uses rejects. Pass the empty slice to
      * opt out of incremental reuse. */
-    eval_info_map: Language.EvalInfoMap.t,
+    eval_info_map: Language.EvalInfo.t,
     /* Previous run's incremental map; pass IncrEval.empty on first run. */
     prev: Language.IncrEval.t,
   };
@@ -63,10 +62,9 @@ module ServerMessage = {
 };
 
 let work = (req_value: Request.value): Response.value => {
-  let Request.{expr, targets, eval_info_map, prev} = req_value;
+  let Request.{expr, eval_info_map, prev} = req_value;
   switch (
     Language.Evaluator.evaluate(
-      ~targets,
       ~prev,
       ~info_map=eval_info_map,
       ~env=Language.Builtins.env_init,
@@ -121,10 +119,9 @@ let finish_success = ((result, state)): Response.value =>
   Ok((result, Language.EvaluatorState.clear_transient(state)));
 
 let start_work = (req_value: Request.value): started_work => {
-  let Request.{expr, targets, eval_info_map, prev} = req_value;
+  let Request.{expr, eval_info_map, prev} = req_value;
   switch (
     Language.Evaluator.start_yielding_evaluation(
-      ~targets,
       ~prev,
       ~info_map=eval_info_map,
       ~env=Language.Builtins.env_init,

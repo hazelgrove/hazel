@@ -206,9 +206,9 @@ let rec evaluate =
         (
           ~reuse_map: IncrEval.reuse_map,
           ~prev: IncrEval.t=IncrEval.empty,
-          ~info_map: EvalInfoMap.t,
+          ~info_map: EvalInfo.t,
           ~in_closure=?,
-          ~call_stack: Sample.call_stack,
+          ~call_stack: CallStack.t',
           state: ref(EvaluatorState.t),
           env,
           init: DHExp.t,
@@ -252,7 +252,7 @@ let rec evaluate =
     state := EvaluatorState.mark_incr_reused(state^, expr_id);
     Trampoline.return((EvaluatorEVMode.Final, [], entry.value));
   | None =>
-    switch (Id.Map.find_opt(expr_id, state^.targets)) {
+    switch (Id.Map.find_opt(expr_id, info_map.targets)) {
     | Some(_) => state := EvaluatorState.record_probe_start(state^, expr_id)
     | None => ()
     };
@@ -274,7 +274,7 @@ let rec evaluate =
               init,
             ),
           ~mode=`Environment,
-          ~targets=state^.targets,
+          ~targets=info_map.targets,
           ~in_closure?,
           env,
           init,
@@ -283,7 +283,7 @@ let rec evaluate =
       /* If this expression is in the targets and evaluation is complete,
        * emit RecordExpProbe effect */
       let effects =
-        switch (is_finished, Id.Map.find_opt(expr_id, state^.targets)) {
+        switch (is_finished, Id.Map.find_opt(expr_id, info_map.targets)) {
         | (Final, Some(pr)) => [
             EvaluatorState.RecordExpProbe(pr),
             ...effects,
@@ -299,7 +299,15 @@ let rec evaluate =
        *   call_stack (what it was before entering the function) */
       let original_call_stack = call_stack;
       let (call_stack, new_state) =
-        EvaluatorState.update(state^, call_stack, env, init, next, effects);
+        EvaluatorState.update(
+          info_map,
+          state^,
+          call_stack,
+          env,
+          init,
+          next,
+          effects,
+        );
       state := new_state;
 
       /* Binder body provenance map: RecordPatMatch describes `pat <- rhs`.
@@ -353,7 +361,7 @@ let rec evaluate =
          * - ^^probe(f(x)) records a sample with the call_stack BEFORE entering f
          * - Expressions inside f see the app_id of f(x) in their call_stacks
          */
-        switch (Id.Map.find_opt(expr_id, state^.targets)) {
+        switch (Id.Map.find_opt(expr_id, info_map.targets)) {
         | Some(probe) =>
           let.trampoline (_, _, final_value) =
             Trampoline.Next(
@@ -373,10 +381,10 @@ let rec evaluate =
             |> Option.value(~default=0);
           let step_end = state^.step_count - 1;
           let args =
-            EvaluatorState.lookup_app_arg(
-              state^,
+            CallStack.lookup_app_arg(
+              call_stack,
               expr_id,
-              original_call_stack,
+              original_call_stack.stack,
             );
           let sample =
             Sample.mk(
@@ -386,7 +394,7 @@ let rec evaluate =
               expr_id,
               final_value,
               env,
-              original_call_stack,
+              original_call_stack.stack,
               probe,
             );
           state := EvaluatorState.clear_probe_start(state^, expr_id);
@@ -411,10 +419,10 @@ let rec evaluate =
 
     // Record incremental entry if required
     let info_snapshot =
-      if (call_stack != []) {
+      if (call_stack.stack != []) {
         None;
       } else {
-        EvalInfoMap.find_opt(expr_id, info_map);
+        EvalInfo.find_opt(expr_id, info_map);
       };
     switch (info_snapshot) {
     | None => eval_core()
@@ -447,17 +455,24 @@ let rec evaluate =
 let evaluate_and_limit =
     (
       ~step_limit: option(int)=?,
-      ~targets: Sample.targets=Sample.no_targets,
       ~prev: IncrEval.t=IncrEval.empty,
-      ~info_map: EvalInfoMap.t=EvalInfoMap.empty,
+      ~info_map: EvalInfo.t=EvalInfo.empty,
       ~env,
       ~reuse_map: IncrEval.reuse_map=IncrEval.clean_reuse_map_of_env(env),
       d: DHExp.t,
     )
     : step_constrained((Exp.t, EvaluatorState.t)) => {
-  let state = ref(EvaluatorState.mk(~targets));
+  let state = ref(EvaluatorState.empty);
   let result =
-    evaluate(~prev, ~info_map, ~call_stack=[], ~reuse_map, state, env, d);
+    evaluate(
+      ~prev,
+      ~info_map,
+      ~call_stack=CallStack.empty,
+      ~reuse_map,
+      state,
+      env,
+      d,
+    );
   let result = Trampoline.run(~step_limit?, result);
   switch (result) {
   | Completed((_, _, x)) =>
@@ -482,17 +497,24 @@ type yielding_result =
 
 let start_yielding_evaluation =
     (
-      ~targets: Sample.targets=Sample.no_targets,
       ~prev: IncrEval.t=IncrEval.empty,
-      ~info_map: EvalInfoMap.t=EvalInfoMap.empty,
+      ~info_map: EvalInfo.t=EvalInfo.empty,
       ~env,
       ~reuse_map: IncrEval.reuse_map=IncrEval.clean_reuse_map_of_env(env),
       d: DHExp.t,
     )
     : yielding_evaluation => {
-  let state = ref(EvaluatorState.mk(~targets));
+  let state = ref(EvaluatorState.empty);
   let result =
-    evaluate(~prev, ~info_map, ~call_stack=[], ~reuse_map, state, env, d);
+    evaluate(
+      ~prev,
+      ~info_map,
+      ~call_stack=CallStack.empty,
+      ~reuse_map,
+      state,
+      env,
+      d,
+    );
   {
     env,
     state,
@@ -525,14 +547,13 @@ let run_yielding_slice =
 
 let evaluate =
     (
-      ~targets: Sample.targets=Sample.no_targets,
       ~prev: IncrEval.t=IncrEval.empty,
-      ~info_map: EvalInfoMap.t=EvalInfoMap.empty,
+      ~info_map: EvalInfo.t=EvalInfo.empty,
       ~env,
       d: DHExp.t,
     )
     : (Exp.t, EvaluatorState.t) =>
-  switch (evaluate_and_limit(~targets, ~prev, ~info_map, ~env, d)) {
+  switch (evaluate_and_limit(~prev, ~info_map, ~env, d)) {
   | Completed(x) => x
   | StepLimitExceeded =>
     raise(Failure("Impossible: Step limit exceeded when not set"))

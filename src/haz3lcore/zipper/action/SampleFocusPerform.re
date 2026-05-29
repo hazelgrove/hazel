@@ -10,7 +10,7 @@ let update = (z: Zipper.t, f: Sample.Focus.t => Sample.Focus.t) =>
   );
 
 let update_pinned_call =
-    (z: Zipper.t, f: option(Sample.call_stack) => option(Sample.call_stack)) =>
+    (z: Zipper.t, f: option(CallStack.t) => option(CallStack.t)) =>
   update(z, sample_focus =>
     {
       ...sample_focus,
@@ -44,7 +44,7 @@ let capture = (z: Zipper.t, data: Sample.Capture.t, id): Zipper.t => {
              call_stack tracks the call we're looking at, not just the
              calls we're inside of. Index stays at the original depth,
              so this frame appears "below" (ghosted) in the breadcrumbs. */
-          let extended: Sample.call_stack = [
+          let extended: CallStack.t = [
             {
               id: ap_id,
               name: None,
@@ -56,7 +56,7 @@ let capture = (z: Zipper.t, data: Sample.Capture.t, id): Zipper.t => {
         | None =>
           !
             ListUtil.is_suffix_of(
-              ~eq=Sample.equal_stack_frame,
+              ~eq=CallStack.equal_frame,
               data.call_stack,
               sample_focus.call_stack,
             )
@@ -73,7 +73,9 @@ let toggle_pin_call = (z: Zipper.t, call_stack): Zipper.t =>
     /* Compare by ID only - function names may differ */
     switch (pinned_call) {
     | Some(existing)
-        when Sample.ids_of_stack(call_stack) == Sample.ids_of_stack(existing) =>
+        when
+          CallStack.ids_of_stack(call_stack)
+          == CallStack.ids_of_stack(existing) =>
       None
     | _ => Some(call_stack)
     }
@@ -86,13 +88,13 @@ let reset = (z: Zipper.t): Zipper.t =>
    the sample that matches the target stack. Called from Probes
    after it looks up the samples from dynamics. */
 let resolve_pending_focus =
-    (z: Zipper.t, samples: list(Sample.t), target_stack: Sample.call_stack)
+    (z: Zipper.t, samples: list(Sample.t), target_stack: CallStack.t)
     : Zipper.t => {
   /* Compare by ID only - target_stack may have None for function names */
-  let target_ids = Sample.ids_of_stack(target_stack);
+  let target_ids = CallStack.ids_of_stack(target_stack);
   let matching_sample =
     List.find_opt(
-      (s: Sample.t) => Sample.ids_of_stack(s.call_stack) == target_ids,
+      (s: Sample.t) => CallStack.ids_of_stack(s.call_stack) == target_ids,
       samples,
     );
   switch (matching_sample) {

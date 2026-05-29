@@ -252,18 +252,18 @@ let update_maps_after_binding =
 
 let reuse_check =
     (
-      ~call_stack: Sample.call_stack,
+      ~call_stack: CallStack.t',
       ~prev: t,
       ~reuse_map: reuse_map,
-      ~info_map: EvalInfoMap.t,
+      ~info_map: EvalInfo.t,
       ~id: Id.t,
     )
     : option(entry) => {
   open OptUtil.Syntax;
 
-  let* () = OptUtil.some_if(call_stack == [] && !is_empty(prev), ());
+  let* () = OptUtil.some_if(call_stack.stack == [] && !is_empty(prev), ());
   let* entry = Id.Map.find_opt(id, prev.entries);
-  let* info = EvalInfoMap.find_opt(id, info_map);
+  let* info = EvalInfo.find_opt(id, info_map);
 
   let elab_same = Exp.fast_equal(entry.prev_elab, info.elab_term);
   let* () = OptUtil.some_if(elab_same, ());

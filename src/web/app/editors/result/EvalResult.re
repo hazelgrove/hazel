@@ -201,8 +201,9 @@ module Update = {
      * needs. The raw info_map can't cross postMessage because LivelitCtx
      * entries contain OCaml closures. */
     let eval_info_map =
-      EvalInfoMap.of_info_map(
+      EvalInfo.of_info_map(
         ~probe_all=Calc.get_value(settings).probe_all,
+        ~targets=Calc.get_value(targets),
         statics.info_map,
       );
     let result =
@@ -211,7 +212,7 @@ module Update = {
         let.calc_t elab = elab
         // TODO[Matt]: We could make this more fine-grained, we only care about one setting
         and.calc settings = settings
-        and.calc targets = targets;
+        and.calc _ = targets;
         switch (queue_worker) {
         // Dynamics is off:
         | _ when !settings.dynamics => ProgramResult.awaiting_worker_ack
@@ -219,7 +220,6 @@ module Update = {
         | Some(queue_worker) =>
           queue_worker({
             expr: elab,
-            targets,
             eval_info_map,
             prev: prev_incr,
           });
@@ -229,7 +229,6 @@ module Update = {
           switch (
             WorkerServer.work({
               expr: elab,
-              targets,
               eval_info_map,
               prev: prev_incr,
             })

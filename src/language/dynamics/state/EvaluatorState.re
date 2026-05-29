@@ -1,22 +1,29 @@
 open Util;
 
-/* Argument values for function applications, keyed by app_id.
- * Each entry is a list of (call_stack_before_entering, elided_arg_value).
- * The call_stack is the stack BEFORE entering the function, so we can match
- * samples taken inside the function with their calling arguments. */
-[@deriving (show({with_path: false}), sexp, yojson)]
-type app_args_t =
-  Id.Map.t(list((Sample.call_stack, Sample.Env.elided_value)));
+/*
+   _____            _             _               ____  _        _
+  | ____|_   ____ _| |_   _  __ _| |_ ___  _ __  / ___|| |_ __ _| |_ ___
+  |  _| \ \ / / _` | | | | |/ _` | __/ _ \| '__| \___ \| __/ _` | __/ _ \
+  | |___ \ V / (_| | | |_| | (_| | || (_) | |     ___) | || (_| | ||  __/
+  |_____| \_/ \__,_|_|\__,_|\__,_|\__\___/|_|    |____/ \__\__,_|\__\___|
+
+ Hazel is a PURE LANGUAGE, there is NO STATE, NOTHING TO SEE HERE, PLEASE MOVE ALONG.
+
+ Ok so we have some state but it is all WRITE-ONLY** during evaluation, so it's
+ essentially just a log we can use to query what happened during evaluation.
+
+ ** Technically actually is't not write-only, we do read from it, but ONLY to get
+ the current step count in order to record information in this state, not to affect
+ evaluation in any way.
+ */
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
   theorems: list((Id.t, string, Environment.t(Exp.t), Exp.t)),
   tests: TestMap.t,
   probes: Sample.Map.t,
-  app_args: app_args_t, /* Argument values for function applications */
   step_count: int,
   pending_probe_starts: Id.Map.t(list(int)), /* Stack per probe_id; nested recursive calls push/pop */
-  targets: Sample.targets, /* IDs of expressions/patterns to sample */
   incr_eval: IncrEval.t /* Per-id cache entries and reuse/recalc bookkeeping for the incremental evaluator */
 };
 
@@ -35,18 +42,14 @@ type effect =
   | RecordTheorem(Id.t, string, Environment.t(Exp.t), Exp.t)
   | RecordPrint(DHExp.t); /* Println for probes study */
 
-let mk = (~targets: Sample.targets): t => {
+let empty: t = {
   tests: TestMap.empty,
   probes: Sample.Map.empty,
-  app_args: Id.Map.empty,
   step_count: 0,
   pending_probe_starts: Id.Map.empty,
-  targets,
   theorems: [],
   incr_eval: IncrEval.empty,
 };
-
-let init: t = mk(~targets=Sample.no_targets);
 
 let get_step_count = ({step_count, _}: t): int => step_count;
 
@@ -90,8 +93,6 @@ let get_probes = ({probes, _}) => probes;
 
 let get_theorems = ({theorems, _}) => theorems;
 
-let get_app_args = ({app_args, _}) => app_args;
-
 let get_incr_eval = ({incr_eval, _}: t) => incr_eval;
 
 let add_incr_entry = (state: t, id: Id.t, entry: IncrEval.entry): t => {
@@ -117,51 +118,13 @@ let mark_incr_recalculated = (state: t, id: Id.t): t => {
  * - targets: only needed during evaluation */
 let clear_transient = (state: t): t => {
   ...state,
-  app_args: Id.Map.empty,
   pending_probe_starts: Id.Map.empty,
-  targets: Id.Map.empty,
 };
 
 /* Elide arg value for storage (handles closures, etc.) */
 let elide_arg =
     (env: Environment.t(Exp.t), d: DHExp.t): Sample.Env.elided_value =>
   Sample.Env.elide(env, d);
-
-/* Add an argument value for an application */
-let add_app_arg =
-    (
-      state: t,
-      app_id: Id.t,
-      call_stack: Sample.call_stack,
-      arg: Sample.Env.elided_value,
-    )
-    : t => {
-  let existing =
-    Id.Map.find_opt(app_id, state.app_args) |> Option.value(~default=[]);
-  {
-    ...state,
-    app_args:
-      Id.Map.add(app_id, [(call_stack, arg), ...existing], state.app_args),
-  };
-};
-
-/* Look up argument value for an application at a specific call_stack.
- * Used when creating samples for probes on Ap expressions. */
-let lookup_app_arg =
-    (state: t, app_id: Id.t, call_stack: Sample.call_stack)
-    : option(Sample.Env.elided_value) => {
-  let call_stack_ids = Sample.ids_of_stack(call_stack);
-  switch (Id.Map.find_opt(app_id, state.app_args)) {
-  | None => None
-  | Some(entries) =>
-    List.find_map(
-      ((stored_stack, arg)) =>
-        Sample.ids_of_stack(stored_stack) == call_stack_ids
-          ? Some(arg) : None,
-      entries,
-    )
-  };
-};
 
 let add_test = (state: t, instance_report: TestMap.instance_report) => {
   ...state,
@@ -214,14 +177,15 @@ let add_theorem = ({theorems, _} as es, id, name, env, goal) => {
 
 let update =
     (
+      info_map: EvalInfo.t,
       state: t,
-      call_stack: Sample.call_stack,
+      call_stack: CallStack.t',
       env: Environment.t(Exp.t),
       init: DHExp.t,
       next: DHExp.t,
       side_effects: list(effect),
     )
-    : (Sample.call_stack, t) => {
+    : (CallStack.t', t) => {
   /* Increment step count for this evaluation step */
   let state = {
     ...state,
@@ -229,30 +193,30 @@ let update =
   };
 
   List.fold_left(
-    ((call_stack: Sample.call_stack, state: t), effect: effect) =>
+    ((call_stack: CallStack.t', state: t), effect: effect) =>
       switch (effect) {
       | RecordStackFrame(fn_name, arg_opt, fn_def_id) =>
         let app_id = DHExp.rep_id(init);
         /* Only store argument value if this app_id is a probe target.
          * This avoids accumulating massive app_args data for programs
          * with many function calls but no probes on those calls. */
-        let state =
+        let call_stack =
           switch (arg_opt) {
-          | Some(arg) when Id.Map.mem(app_id, state.targets) =>
+          | Some(arg) when Id.Map.mem(app_id, info_map.targets) =>
             let elided_arg = elide_arg(env, arg);
-            add_app_arg(state, app_id, call_stack, elided_arg);
+            CallStack.add_app_arg(call_stack, app_id, elided_arg);
           | Some(_)
-          | None => state
+          | None => call_stack
           };
         (
-          [
+          CallStack.add_entry(
+            call_stack,
             {
               id: app_id,
               name: fn_name,
               fn_def_id,
             },
-            ...call_stack,
-          ],
+          ),
           state,
         );
       | RecordTest(instance_report) => (
@@ -267,7 +231,8 @@ let update =
           get_probe_start(state, probe_id) |> Option.value(~default=0);
         let step_end = state.step_count - 1;
         /* Look up arg if this probe is on an Ap expression */
-        let args = lookup_app_arg(state, probe_id, call_stack);
+        let args =
+          CallStack.lookup_app_arg(call_stack, probe_id, call_stack.stack);
         let sample =
           Sample.mk(
             ~args,
@@ -276,7 +241,7 @@ let update =
             probe_id,
             next,
             env,
-            call_stack,
+            call_stack.stack,
             pr,
           );
         let state = clear_probe_start(state, probe_id);
@@ -289,11 +254,11 @@ let update =
         let step = state.step_count;
         let state =
           List.fold_left(
-            (
-              state: t,
-              sample_closure: (Sample.call_stack, int, int) => Sample.t,
-            ) =>
-              add_sample(state, sample_closure(call_stack, step, step)),
+            (state: t, sample_closure: (CallStack.t, int, int) => Sample.t) =>
+              add_sample(
+                state,
+                sample_closure(call_stack.stack, step, step),
+              ),
             state,
             sample_closures,
           );
@@ -314,7 +279,7 @@ let update =
             DHExp.rep_id(init),
             value,
             env,
-            call_stack,
+            call_stack.stack,
             Sample.empty_capture_spec,
           );
         (call_stack, add_sample(state, sample));
@@ -336,8 +301,6 @@ let capture_slice = (~before: t, ~after: t): StateSlice.t => {
   tests: StateSlice.diff_tests(~before=before.tests, ~after=after.tests),
   theorems:
     StateSlice.diff_theorems(~before=before.theorems, ~after=after.theorems),
-  app_args:
-    StateSlice.diff_app_args(~before=before.app_args, ~after=after.app_args),
 };
 
 /* Replay a slice into `state`: add its sample/test/theorem/app_arg entries,
@@ -371,25 +334,11 @@ let replay_slice = (slice: StateSlice.t, state: t): t => {
       slice.tests,
     );
   let theorems = state.theorems @ slice.theorems;
-  let app_args =
-    Id.Map.fold(
-      (id, new_entries, acc) => {
-        let existing =
-          switch (Id.Map.find_opt(id, acc)) {
-          | Some(l) => l
-          | None => []
-          };
-        Id.Map.add(id, new_entries @ existing, acc);
-      },
-      slice.app_args,
-      state.app_args,
-    );
   {
     ...state,
     step_count: state.step_count + slice.steps,
     probes,
     tests,
     theorems,
-    app_args,
   };
 };
