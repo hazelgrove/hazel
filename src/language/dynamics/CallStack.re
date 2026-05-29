@@ -54,7 +54,8 @@ type app_args = Id.Map.t(list((t, elided_value)));
 
 type t' = {
   stack: t,
-  app_args /* Argument values for function applications */
+  app_args /* Argument values for function applications */,
+  pending_probe_starts: Id.Map.t(list(int)) /* Stack per probe_id; nested recursive calls push/pop */
 };
 
 /* Add an argument value for an application */
@@ -92,4 +93,39 @@ let add_entry = (state: t', frame: frame): t' => {
 let empty = {
   stack: [],
   app_args: Id.Map.empty,
+  pending_probe_starts: Id.Map.empty,
+};
+
+let record_probe_start = (state: t', probe_id: Id.t, step_count: int): t' => {
+  let stack =
+    Id.Map.find_opt(probe_id, state.pending_probe_starts)
+    |> Option.value(~default=[]);
+  {
+    ...state,
+    pending_probe_starts:
+      Id.Map.add(
+        probe_id,
+        [step_count, ...stack],
+        state.pending_probe_starts,
+      ),
+  };
+};
+
+let get_probe_start = (state: t', probe_id: Id.t): option(int) =>
+  switch (Id.Map.find_opt(probe_id, state.pending_probe_starts)) {
+  | Some([head, ..._]) => Some(head)
+  | _ => None
+  };
+
+let clear_probe_start = (state: t', probe_id: Id.t): t' => {
+  let pending =
+    switch (Id.Map.find_opt(probe_id, state.pending_probe_starts)) {
+    | Some([_, ...rest]) when rest != [] =>
+      Id.Map.add(probe_id, rest, state.pending_probe_starts)
+    | _ => Id.Map.remove(probe_id, state.pending_probe_starts)
+    };
+  {
+    ...state,
+    pending_probe_starts: pending,
+  };
 };
