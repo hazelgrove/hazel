@@ -66,7 +66,7 @@ module Model = {
       highlight: NoHighlight,
     },
     sidebar: {
-      panel: LanguageDocumentation,
+      panel: TaskReference,
       show: true,
       problems: {
         collapsed: [],

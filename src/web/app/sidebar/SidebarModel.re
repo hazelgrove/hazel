@@ -7,7 +7,8 @@ module Settings = {
     | HelpfulAssistant
     | Probes
     | LogControl
-    | Problems;
+    | Problems
+    | TaskReference;
 
   [@deriving (show({with_path: false}), sexp, yojson, enumerate)]
   type problem_category =

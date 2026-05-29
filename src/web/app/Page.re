@@ -894,6 +894,13 @@ module View = {
       export_all: Export.export_all,
     };
     let bottom_bar = CursorInspector.view(~globals, cursor);
+    let task_reference: option(string) =
+      switch (editors) {
+      | Tutorial(t) =>
+        let s = TutorialsMode.Model.get_current(t).editors.task_reference;
+        s == "" ? None : Some(s);
+      | _ => None
+      };
     let sidebar =
       Sidebar.view(
         ~globals,
@@ -910,6 +917,7 @@ module View = {
         ~log_model,
         ~log_count,
         ~cursor,
+        ~task_reference,
       );
     let editors_view =
       Editors.View.view(
