@@ -646,6 +646,18 @@ let gen_slides_clean_cmd = {
   Cmd.v(info, Term.(const(GenSlides.clean) $ const()));
 };
 
+let gen_tutorial_cmd = {
+  let doc = "Generate Tutorial-mode slides (Tutorial.spec) from text files in hazel-programs/tutorial/. See src/CLI/GenTutorial.re for the input format.";
+  let info = Cmd.info("gen-tutorial", ~doc);
+  Cmd.v(info, Term.(const(GenTutorial.generate) $ const()));
+};
+
+let gen_tutorial_clean_cmd = {
+  let doc = "Remove generated Tutorial-mode slide files and restore stub.";
+  let info = Cmd.info("gen-tutorial-clean", ~doc);
+  Cmd.v(info, Term.(const(GenTutorial.clean) $ const()));
+};
+
 let output_arg = {
   let doc = "Path to write output to. If omitted, output is written to stdout.";
   Arg.(value & opt(some(string), None) & info(["output", "o"], ~doc));
@@ -709,6 +721,8 @@ let default_cmd = {
       test_cmd,
       gen_slides_cmd,
       gen_slides_clean_cmd,
+      gen_tutorial_cmd,
+      gen_tutorial_clean_cmd,
       grade_json_cmd,
       grade_report_cmd,
       bench_parse_cmd,

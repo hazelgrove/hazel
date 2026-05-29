@@ -24,4 +24,5 @@ let lessons: list(Tutorial.spec) = [
   Tu_TupleExtension.exercise,
   Tu_LabelOmission.exercise,
   Tu_TupleList.exercise,
-];
+]
+@ TutorialGenerated.all;
