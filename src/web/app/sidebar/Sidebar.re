@@ -16,12 +16,16 @@ let switch_to = (~globals: Globals.t, panel: SidebarModel.Settings.panel, _) =>
   Effect.Many([
     globals.inject_global(Set(Sidebar(SwitchPanel(panel)))),
     Effect.Stop_propagation,
+    /* Keep editor focus when switching sidebar sections. */
+    Effect.Prevent_default,
   ]);
 
 let switch_assistant = (~globals: Globals.t, _) =>
   Effect.Many([
     globals.inject_global(Set(Sidebar(ToggleShow))),
     Effect.Stop_propagation,
+    /* Keep editor focus when collapsing/expanding the sidebar. */
+    Effect.Prevent_default,
   ]);
 
 let tab_of =
