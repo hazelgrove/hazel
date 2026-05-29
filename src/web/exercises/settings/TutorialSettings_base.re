@@ -1,28 +1,8 @@
 let filename = "haz3l-demo";
 let log_key = filename;
 
-let lessons: list(Tutorial.spec) = [
-  Tu_Holes.exercise,
-  Tu_TylrParser.exercise,
-  Tu_Arithmetic.int_exercise,
-  Tu_FloatingPointArithmetic.exercise,
-  Tu_LetBindings.exercise,
-  Tu_Probes.exercise,
-  Tu_TypeAnnotations.exercise,
-  Tu_Functions.exercise,
-  Tu_FunctionMultiArg.exercise,
-  Tu_Partial.exercise,
-  Tu_Pipelines.exercise,
-  Tu_IfExpressions.exercise,
-  Tu_CaseExpressions.exercise,
-  Tu_Lists.exercise,
-  Tu_ListMap.exercise,
-  Tu_ListFold.exercise,
-  Tu_StringMean.exercise,
-  Tu_LabeledTuples.exercise,
-  Tu_Projection.exercise,
-  Tu_TupleExtension.exercise,
-  Tu_LabelOmission.exercise,
-  Tu_TupleList.exercise,
-]
-@ TutorialGenerated.all;
+/* The tutorial sequence is now generated from text files in
+   hazel-programs/tutorial/ (basics/ then probes/) via `./hazel gen-tutorial`.
+   The hand-written Tu_*.ml lessons remain in examples/ for reference but are
+   no longer wired in. To restore one, add it back to this list. */
+let lessons: list(Tutorial.spec) = TutorialGenerated.all;
