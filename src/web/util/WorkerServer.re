@@ -77,10 +77,7 @@ let work = (req_value: Request.value): Response.value => {
   | exception exn =>
     print_endline("EXN:" ++ Printexc.to_string(exn));
     Error(Language.ProgramResult.UnknownException(Printexc.to_string(exn)));
-  | (result, state) =>
-    /* Clear transient data before sending to avoid serializing massive
-     * amounts of unnecessary data (e.g., app_args can be 100MB+). */
-    Ok((result, Language.EvaluatorState.clear_transient(state)))
+  | (result, state) => Ok((result, state))
   };
 };
 
@@ -116,7 +113,7 @@ let error_response = exn =>
   };
 
 let finish_success = ((result, state)): Response.value =>
-  Ok((result, Language.EvaluatorState.clear_transient(state)));
+  Ok((result, state));
 
 let start_work = (req_value: Request.value): started_work => {
   let Request.{expr, eval_info_map, prev} = req_value;

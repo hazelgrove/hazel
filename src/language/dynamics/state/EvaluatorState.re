@@ -23,7 +23,6 @@ type t = {
   tests: TestMap.t,
   probes: Sample.Map.t,
   step_count: int,
-  pending_probe_starts: Id.Map.t(list(int)), /* Stack per probe_id; nested recursive calls push/pop */
   incr_eval: IncrEval.t /* Per-id cache entries and reuse/recalc bookkeeping for the incremental evaluator */
 };
 
@@ -46,46 +45,11 @@ let empty: t = {
   tests: TestMap.empty,
   probes: Sample.Map.empty,
   step_count: 0,
-  pending_probe_starts: Id.Map.empty,
   theorems: [],
   incr_eval: IncrEval.empty,
 };
 
 let get_step_count = ({step_count, _}: t): int => step_count;
-
-let record_probe_start = (state: t, probe_id: Id.t): t => {
-  let stack =
-    Id.Map.find_opt(probe_id, state.pending_probe_starts)
-    |> Option.value(~default=[]);
-  {
-    ...state,
-    pending_probe_starts:
-      Id.Map.add(
-        probe_id,
-        [state.step_count, ...stack],
-        state.pending_probe_starts,
-      ),
-  };
-};
-
-let get_probe_start = (state: t, probe_id: Id.t): option(int) =>
-  switch (Id.Map.find_opt(probe_id, state.pending_probe_starts)) {
-  | Some([head, ..._]) => Some(head)
-  | _ => None
-  };
-
-let clear_probe_start = (state: t, probe_id: Id.t): t => {
-  let pending =
-    switch (Id.Map.find_opt(probe_id, state.pending_probe_starts)) {
-    | Some([_, ...rest]) when rest != [] =>
-      Id.Map.add(probe_id, rest, state.pending_probe_starts)
-    | _ => Id.Map.remove(probe_id, state.pending_probe_starts)
-    };
-  {
-    ...state,
-    pending_probe_starts: pending,
-  };
-};
 
 let get_tests = ({tests, _}) => tests;
 
@@ -110,30 +74,6 @@ let mark_incr_recalculated = (state: t, id: Id.t): t => {
   incr_eval: IncrEval.mark_recalculated(id, state.incr_eval),
 };
 
-/* Clear transient data that's only needed during evaluation.
- * Call this before sending EvaluatorState over postMessage
- * to avoid serializing massive amounts of unnecessary data.
- * - app_args: only needed to look up args during sample creation
- * - pending_probe_starts: only needed during evaluation
- * - targets: only needed during evaluation */
-let clear_transient = (state: t): t => {
-  ...state,
-  pending_probe_starts: Id.Map.empty,
-};
-
-/* Elide arg value for storage (handles closures, etc.) */
-let elide_arg =
-    (env: Environment.t(Exp.t), d: DHExp.t): Sample.Env.elided_value =>
-  Sample.Env.elide(env, d);
-
-let add_test = (state: t, instance_report: TestMap.instance_report) => {
-  ...state,
-  tests:
-    TestMap.extend(
-      (DHExp.rep_id(instance_report.exp), instance_report),
-      state.tests,
-    ),
-};
 let add_sample = (state: t, sample: Sample.t) => {
   /* Deduplicate: skip recording if an existing sample for this
    * syntax_id makes the new one redundant.
@@ -168,13 +108,6 @@ let add_sample = (state: t, sample: Sample.t) => {
   };
 };
 
-let add_theorem = ({theorems, _} as es, id, name, env, goal) => {
-  {
-    ...es,
-    theorems: theorems |> List.append([(id, name, env, goal)]),
-  };
-};
-
 let update =
     (
       info_map: EvalInfo.t,
@@ -186,6 +119,27 @@ let update =
       side_effects: list(effect),
     )
     : (CallStack.t', t) => {
+  /* Elide arg value for storage (handles closures, etc.) */
+  let elide_arg =
+      (env: Environment.t(Exp.t), d: DHExp.t): Sample.Env.elided_value =>
+    Sample.Env.elide(env, d);
+
+  let add_test = (state: t, instance_report: TestMap.instance_report) => {
+    ...state,
+    tests:
+      TestMap.extend(
+        (DHExp.rep_id(instance_report.exp), instance_report),
+        state.tests,
+      ),
+  };
+
+  let add_theorem = ({theorems, _} as es, id, name, env, goal) => {
+    {
+      ...es,
+      theorems: theorems |> List.append([(id, name, env, goal)]),
+    };
+  };
+
   /* Increment step count for this evaluation step */
   let state = {
     ...state,
@@ -228,7 +182,8 @@ let update =
         /* step_start is when we began evaluating the probe (recorded earlier)
          * step_end is step_count - 1 because this step is the "strip probe" step */
         let step_start =
-          get_probe_start(state, probe_id) |> Option.value(~default=0);
+          CallStack.get_probe_start(call_stack, probe_id)
+          |> Option.value(~default=0);
         let step_end = state.step_count - 1;
         /* Look up arg if this probe is on an Ap expression */
         let args =
@@ -244,7 +199,7 @@ let update =
             call_stack.stack,
             pr,
           );
-        let state = clear_probe_start(state, probe_id);
+        let call_stack = CallStack.clear_probe_start(call_stack, probe_id);
         (call_stack, add_sample(state, sample));
       | RecordPatMatch({samples: sample_closures, _}) =>
         /* Pattern probes are recorded at the current step, then we

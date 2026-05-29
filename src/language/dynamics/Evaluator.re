@@ -252,10 +252,12 @@ let rec evaluate =
     state := EvaluatorState.mark_incr_reused(state^, expr_id);
     Trampoline.return((EvaluatorEVMode.Final, [], entry.value));
   | None =>
-    switch (Id.Map.find_opt(expr_id, info_map.targets)) {
-    | Some(_) => state := EvaluatorState.record_probe_start(state^, expr_id)
-    | None => ()
-    };
+    let call_stack =
+      switch (Id.Map.find_opt(expr_id, info_map.targets)) {
+      | Some(_) =>
+        CallStack.record_probe_start(call_stack, expr_id, state^.step_count)
+      | None => call_stack
+      };
 
     let state_before = state^;
 
@@ -377,7 +379,7 @@ let rec evaluate =
                 ),
             );
           let step_start =
-            EvaluatorState.get_probe_start(state^, expr_id)
+            CallStack.get_probe_start(call_stack, expr_id)
             |> Option.value(~default=0);
           let step_end = state^.step_count - 1;
           let args =
@@ -397,7 +399,7 @@ let rec evaluate =
               original_call_stack.stack,
               probe,
             );
-          state := EvaluatorState.clear_probe_start(state^, expr_id);
+          let _ = CallStack.clear_probe_start(call_stack, expr_id);
           state := EvaluatorState.add_sample(state^, sample);
           Trampoline.return((EvaluatorEVMode.Final, [], final_value));
         | None =>
