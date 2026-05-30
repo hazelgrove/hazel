@@ -1309,10 +1309,13 @@ let sample_view =
    * Combined with `.projector.probe.indicated` (set on the unique probe
    * adjacent to the caret), this gives a single DOM anchor element used
    * by `SampleAnchor` to compensate scroll on Left/Right SetIndex.
-   * `menu-trigger` exempts the sample from SampleMenuListener's
-   * click-outside dismissal so the opening alt-click isn't undone. */
+   * NB: samples are intentionally NOT tagged `menu-trigger` — that class
+   * exempts an element from SampleMenuListener's click-outside dismissal,
+   * and tagging every sample made clicking another sample fail to close an
+   * open dropdown. The opening click is protected instead by the listener's
+   * capture-phase ordering (no menu is open yet) plus its grace window. */
   let sample_classes =
-    ["sample", "menu-trigger"] @ (is_indicated ? ["indicated-sample"] : []);
+    ["sample"] @ (is_indicated ? ["indicated-sample"] : []);
   div(
     ~attrs=[Attr.classes(sample_classes)],
     [
