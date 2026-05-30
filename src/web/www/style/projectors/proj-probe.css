@@ -958,6 +958,26 @@
   padding-left: 0;
 }
 
+/* Tutorial/Exercises: each slide is its own cell (`width: auto`), unlike
+ * Scratch/Documentation where one cell fills #main. The stripe's
+ * `min-width: var(--main-scroll-width)` is the full *pane* width, which
+ * exceeds an individual slide cell — so the absolutely-positioned stripe
+ * spilled past the cell's right edge (and pushed #main's horizontal
+ * scroll). Clip it at the cell so it is capped at the cell width.
+ *   - `:has(.below-wrapper)` scopes the clip to cells that actually hold
+ *     a drawer; inline-mode probe samples render in the same absolutely-
+ *     positioned offside layer and may legitimately extend rightward, so
+ *     we must not clip cells without a drawer.
+ *   - `overflow-x: clip` (not `hidden`) is required: it caps the x-axis
+ *     while leaving `overflow-y: visible`. `overflow-x: hidden` would
+ *     coerce `overflow-y` to `auto`, turning the cell into a vertical
+ *     scroller.
+ * Scratch/Documentation are intentionally left to overflow indefinitely. */
+#main.Tutorial .cell:has(.below-wrapper),
+#main.Exercises .cell:has(.below-wrapper) {
+  overflow-x: clip;
+}
+
 /* Drawer-mode overrides for the shared .live-offside layout.
  *
  * The default inline-offside layout (above) baseline- and center-aligns
