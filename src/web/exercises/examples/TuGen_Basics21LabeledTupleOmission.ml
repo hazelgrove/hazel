@@ -48,10 +48,10 @@ omit_labels(
 `c`)
 ```|x};
   your_impl =
-    Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|let drop_secrets = fun t -> 
+    Haz3lcore.Zipper.caret_to_start (Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|let drop_secrets = fun t -> 
 ¿
 in
-drop_secrets((not_secret="public information", secret="to redact"))|x});
+drop_secrets((not_secret="public information", secret="to redact"))|x}));
   hidden_tests =
     {
       tests =

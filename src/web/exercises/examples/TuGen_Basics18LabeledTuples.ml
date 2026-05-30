@@ -27,10 +27,10 @@ species="dog") in
 pet.name
 ```|x};
   your_impl =
-    Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|type Point = (x=Float, y=Float) in
+    Haz3lcore.Zipper.caret_to_start (Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|type Point = (x=Float, y=Float) in
 
 let p : Point = ¿ in
-p|x});
+p|x}));
   hidden_tests =
     {
       tests =

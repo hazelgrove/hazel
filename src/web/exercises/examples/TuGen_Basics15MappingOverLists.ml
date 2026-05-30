@@ -34,8 +34,8 @@ map([1, 2, 3], fun x -> x + 1)
 - `4 * 3` — multiplication
 - `10 / 3` — integer division|x};
   your_impl =
-    Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|let double_all : [Int] -> [Int] = ¿ in
-double_all([1, 2, 3])|x});
+    Haz3lcore.Zipper.caret_to_start (Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|let double_all : [Int] -> [Int] = ¿ in
+double_all([1, 2, 3])|x}));
   hidden_tests =
     {
       tests =

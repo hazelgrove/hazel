@@ -27,7 +27,7 @@ a
 - **Tab** drops the next obligation from the backpack
 - Typing the delimiter (e.g. `in`) also works|x};
   your_impl =
-    Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|let x = ¿|x});
+    Haz3lcore.Zipper.caret_to_start (Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|let x = ¿|x}));
   hidden_tests =
     {
       tests =

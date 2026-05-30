@@ -94,11 +94,11 @@ string_sub("012345", 2, 3)
 string_length("012345")
 ```|x};
   your_impl =
-    Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|let process_string_pair : (String, String) -> String = fun p ->
+    Haz3lcore.Zipper.caret_to_start (Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|let process_string_pair : (String, String) -> String = fun p ->
 case p
 end
 in
-process_string_pair("pre", "hazel")|x});
+process_string_pair("pre", "hazel")|x}));
   hidden_tests =
     {
       tests =

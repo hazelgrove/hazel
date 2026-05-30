@@ -21,9 +21,9 @@ Your goal is to fill the empty hole in the program below so that the arithmetic 
 42 - 20
 ```|x};
   your_impl =
-    Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|let target = 42 in
+    Haz3lcore.Zipper.caret_to_start (Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|let target = 42 in
 let partial = 20 + ¿ in
-target == partial|x});
+target == partial|x}));
   hidden_tests =
     {
       tests =

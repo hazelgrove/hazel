@@ -289,9 +289,9 @@ let generate_ml_file = (i: int, rel_path: string): option(string) => {
       ++ "  task_reference = "
       ++ quoted(s.reference)
       ++ ";\n"
-      ++ "  your_impl =\n    Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp "
+      ++ "  your_impl =\n    Haz3lcore.Zipper.caret_to_start (Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp "
       ++ quoted(code)
-      ++ ");\n"
+      ++ "));\n"
       ++ "  hidden_tests =\n    {\n      tests =\n        Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp "
       ++ quoted(test)
       ++ ");\n      hints = "

@@ -20,7 +20,7 @@ The editor below contains `2 +` with a hole after the `+`. Complete the expressi
 - `4 * 3` — multiplication
 - `10 / 3` — integer division|x};
   your_impl =
-    Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|2 + ¿|x});
+    Haz3lcore.Zipper.caret_to_start (Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|2 + ¿|x}));
   hidden_tests =
     {
       tests =

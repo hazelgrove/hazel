@@ -122,13 +122,13 @@ map([1, 2, 3], fun x -> x + 1)
 |> (fun x -> x + 1)
 ```|x};
   your_impl =
-    Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|let update_entry = 
+    Haz3lcore.Zipper.caret_to_start (Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|let update_entry = 
 fun (t, label_predicate : (String -> Bool), fn : (? -> ?)) ->
 ¿
 in
 update_entry((apple=1, pear=2, avocado=3), 
 string_match("^a",_), 
-fun n -> n + 1)|x});
+fun n -> n + 1)|x}));
   hidden_tests =
     {
       tests =

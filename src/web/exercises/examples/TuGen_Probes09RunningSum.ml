@@ -10,7 +10,7 @@ let exercise : Tutorial.spec = {
   display_hint = {x||x};
   task_reference = {x||x};
   your_impl =
-    Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|# PROBES TUTORIAL - PART 9: WRITING EXERCISE (FOLD)                #
+    Haz3lcore.Zipper.caret_to_start (Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|# PROBES TUTORIAL - PART 9: WRITING EXERCISE (FOLD)                #
 
 # Implement `running_sum`: compute a list where each element       #
 # is the sum of all elements up to that position.                   #
@@ -60,7 +60,7 @@ running_sum([1, 1, 1, 1])
 == [1, 2, 3, 4]
 end
 
-# END OF PART 9 - Select the next slide from the top menu       #|x});
+# END OF PART 9 - Select the next slide from the top menu       #|x}));
   hidden_tests =
     {
       tests =

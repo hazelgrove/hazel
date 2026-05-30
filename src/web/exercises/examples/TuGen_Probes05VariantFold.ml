@@ -10,7 +10,7 @@ let exercise : Tutorial.spec = {
   display_hint = {x||x};
   task_reference = {x||x};
   your_impl =
-    Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|# PART 5 VARIANT: STEP INTO + FOLD #
+    Haz3lcore.Zipper.caret_to_start (Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|# PART 5 VARIANT: STEP INTO + FOLD #
 
 # fold_left processes a list one element at a time, #
 # building up a result. From the outside, you just see #
@@ -64,7 +64,7 @@ total_water(shade);
 total_water(sun);
 total_water(all)
 
-# END #|x});
+# END #|x}));
   hidden_tests =
     {
       tests =

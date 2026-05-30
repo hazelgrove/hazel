@@ -45,6 +45,16 @@ let unzip = (~direction: Direction.t=Right, seg: Segment.t): t => {
   refractors: Refractor.init,
 };
 
+/* Cheap caret-to-start: zip to a segment then unzip with the caret at the
+   leftmost edge, preserving projectors (refractors, which unzip otherwise
+   resets). Unlike Move.to_start — which walks the caret token-by-token via
+   do_to_extreme and is far too slow to run eagerly for many editors at once —
+   this is a single structural rebuild. */
+let caret_to_start = (z: t): t => {
+  ...unzip(~direction=Left, zip(z)),
+  refractors: z.refractors,
+};
+
 let regrout = (d: Direction.t, z: t): t => {
   assert(Selection.is_empty(z.selection));
   let relatives = Relatives.regrout(d, z.relatives);

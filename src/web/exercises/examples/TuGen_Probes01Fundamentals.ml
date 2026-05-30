@@ -10,7 +10,7 @@ let exercise : Tutorial.spec = {
   display_hint = {x||x};
   task_reference = {x||x};
   your_impl =
-    Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|# PROBES TUTORIAL - PART 1: FUNDAMENTALS #
+    Haz3lcore.Zipper.caret_to_start (Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|# PROBES TUTORIAL - PART 1: FUNDAMENTALS #
 # Probes show you runtime values of expressions, inline in the editor. #
 
 # TRY THIS: Put your cursor on the `*` in `250 * 7` below and #
@@ -56,7 +56,7 @@ end
 # Go back up and try changing `Full` below to `New`. #
 # Which branch will light up this time? #
 
-# END OF PART 1 - Select the next slide from the top menu #|x});
+# END OF PART 1 - Select the next slide from the top menu #|x}));
   hidden_tests =
     {
       tests =

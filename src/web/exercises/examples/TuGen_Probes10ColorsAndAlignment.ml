@@ -10,7 +10,7 @@ let exercise : Tutorial.spec = {
   display_hint = {x||x};
   task_reference = {x||x};
   your_impl =
-    Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|# SAMPLE COLORS & DYNAMIC FOCUS ALIGNMENT #
+    Haz3lcore.Zipper.caret_to_start (Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|# SAMPLE COLORS & DYNAMIC FOCUS ALIGNMENT #
 
 
 # 1 - 'Focussed', 'Before', and 'After' #
@@ -107,7 +107,7 @@ case ^^probe(x)
 let r = ^^probe(fact(x-1)) 
 in x*^^probe(r)  
 end in
-test ^^probe(fact(5)) == 120 end;|x});
+test ^^probe(fact(5)) == 120 end;|x}));
   hidden_tests =
     {
       tests =

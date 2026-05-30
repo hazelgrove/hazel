@@ -60,11 +60,11 @@ pet.name
 - `4 * 3` — multiplication
 - `10 / 3` — integer division|x};
   your_impl =
-    Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|type Person = (first=String, age=Int, last=String) in
+    Haz3lcore.Zipper.caret_to_start (Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|type Person = (first=String, age=Int, last=String) in
 let update_person = fun (p : Person) ->
 ¿
 in
-update_person((first="Thor", age=30, last="Odinson"))|x});
+update_person((first="Thor", age=30, last="Odinson"))|x}));
   hidden_tests =
     {
       tests =

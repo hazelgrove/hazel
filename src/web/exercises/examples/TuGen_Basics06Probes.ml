@@ -49,9 +49,9 @@ map([10, 20], f)
 ```
 Probing `x + 1` shows probe samples: `11`, `21`|x};
   your_impl =
-    Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|let add_tax = fun price -> price +. price *. 0.5 in
+    Haz3lcore.Zipper.caret_to_start (Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|let add_tax = fun price -> price +. price *. 0.5 in
 let totals = map([3.0, 7.0, 5.0], add_tax) in
-totals|x});
+totals|x}));
   hidden_tests =
     {
       tests =
