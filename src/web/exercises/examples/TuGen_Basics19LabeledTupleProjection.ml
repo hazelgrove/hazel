@@ -57,9 +57,9 @@ pet.name
 "hello" ++ " world"
 ```|x};
   your_impl =
-    Haz3lcore.Move.to_start (Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|type Person = (first_name=String, last_name=String, age=Int) in
+    Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|type Person = (first_name=String, last_name=String, age=Int) in
 let greeting : (Person -> String) = ¿ in
-greeting((first_name="George", last_name="Garcia", age=12))|x}));
+greeting((first_name="George", last_name="Garcia", age=12))|x});
   hidden_tests =
     {
       tests =

@@ -36,7 +36,7 @@ let z : Bool = true in
 ### Basic Types
 `Int`, `Float`, `Bool`, `String`|x};
   your_impl =
-    Haz3lcore.Move.to_start (Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|("1" : Int)|x}));
+    Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|("1" : Int)|x});
   hidden_tests =
     {
       tests =

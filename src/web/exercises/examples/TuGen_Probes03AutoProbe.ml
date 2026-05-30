@@ -10,7 +10,7 @@ let exercise : Tutorial.spec = {
   display_hint = {x||x};
   task_reference = {x||x};
   your_impl =
-    Haz3lcore.Move.to_start (Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|# PROBES TUTORIAL - PART 3: AUTO-PROBE MODE #
+    Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|# PROBES TUTORIAL - PART 3: AUTO-PROBE MODE #
 
 # There's a bit bigger program to explore this time! #
 # Don't worry terribly much about the details of this program; #
@@ -182,7 +182,7 @@ end;
 
 bed_schedule(shade_garden, Full)
 
-# END OF PART 3 - Select the next slide from the top menu #|x}));
+# END OF PART 3 - Select the next slide from the top menu #|x});
   hidden_tests =
     {
       tests =

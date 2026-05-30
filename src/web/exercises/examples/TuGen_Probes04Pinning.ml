@@ -10,7 +10,7 @@ let exercise : Tutorial.spec = {
   display_hint = {x||x};
   task_reference = {x||x};
   your_impl =
-    Haz3lcore.Move.to_start (Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|# PROBES TUTORIAL - PART 4: PINNING                               #
+    Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|# PROBES TUTORIAL - PART 4: PINNING                               #
 
 # A bug has snuck into the garden data and left... a bug!         #
 # With many calls generating a wall of samples, it's hard to see  #
@@ -143,7 +143,7 @@ bed_labels(sun_terrace)
 == ["🌸 Orchid: 180ml", "🍄 Cactus: 50ml", "🌹 Rose: 190ml"]
 end
 
-# END OF PART 4 - Select the next slide from the top menu          #|x}));
+# END OF PART 4 - Select the next slide from the top menu          #|x});
   hidden_tests =
     {
       tests =

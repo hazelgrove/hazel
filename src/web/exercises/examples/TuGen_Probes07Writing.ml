@@ -10,7 +10,7 @@ let exercise : Tutorial.spec = {
   display_hint = {x||x};
   task_reference = {x||x};
   your_impl =
-    Haz3lcore.Move.to_start (Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|# WRITING WITH LIVE VALUES #
+    Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|# WRITING WITH LIVE VALUES #
 
 # In this tutorial you'll write code step by step.           #
 # Turn on Auto Mode (microscope icon, top right).            #
@@ -176,7 +176,7 @@ let exercise : Tutorial.spec = {
 # so you could verify correctness as you went.                #
 # ============================================================ #
 
-# END #|x}));
+# END #|x});
   hidden_tests =
     {
       tests =

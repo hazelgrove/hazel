@@ -132,10 +132,10 @@ float_of_int(7)
 int_of_float(3.99)
 ```|x};
   your_impl =
-    Haz3lcore.Move.to_start (Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|let positive_floats : [Int] -> [Float] = fun ns ->
+    Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|let positive_floats : [Int] -> [Float] = fun ns ->
 ¿
 in
-positive_floats([-1, 2, 1])|x}));
+positive_floats([-1, 2, 1])|x});
   hidden_tests =
     {
       tests =

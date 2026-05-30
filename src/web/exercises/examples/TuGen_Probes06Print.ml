@@ -10,7 +10,7 @@ let exercise : Tutorial.spec = {
   display_hint = {x||x};
   task_reference = {x||x};
   your_impl =
-    Haz3lcore.Move.to_start (Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|# PROBES TUTORIAL - PART 6: PRINT STATEMENTS #
+    Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|# PROBES TUTORIAL - PART 6: PRINT STATEMENTS #
 # Hazel also has traditional print-statement debugging. #
 # `print(expr)` sends a value to the print panel in the #
 # sidebar, then returns unit. Use `;` to sequence it: #
@@ -37,7 +37,7 @@ test double(21) == 42 end;
 
 double(7)
 
-# END OF PART 6 #|x}));
+# END OF PART 6 #|x});
   hidden_tests =
     {
       tests =

@@ -71,8 +71,8 @@ else 1
 - `<=` — less than or equal
 - `>=` — greater than or equal|x};
   your_impl =
-    Haz3lcore.Move.to_start (Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|let clamp = fun x -> x in
-clamp(50)|x}));
+    Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|let clamp = fun x -> x in
+clamp(50)|x});
   hidden_tests =
     {
       tests =

@@ -10,7 +10,7 @@ let exercise : Tutorial.spec = {
   display_hint = {x||x};
   task_reference = {x||x};
   your_impl =
-    Haz3lcore.Move.to_start (Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|# PART 5 VARIANT: STEP INTO WITH MAP + FOLD #
+    Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|# PART 5 VARIANT: STEP INTO WITH MAP + FOLD #
 
 # This function has a two-stage pipeline: map transforms #
 # the data, then fold aggregates it. From outside you see #
@@ -75,7 +75,7 @@ weekly_total(shade);
 weekly_total(sun);
 weekly_total(all)
 
-# END #|x}));
+# END #|x});
   hidden_tests =
     {
       tests =

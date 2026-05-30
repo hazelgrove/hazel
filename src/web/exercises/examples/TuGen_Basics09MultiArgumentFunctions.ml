@@ -35,8 +35,8 @@ in
 add(3, 4)
 ```|x};
   your_impl =
-    Haz3lcore.Move.to_start (Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|let perimeter : (Int, Int) -> Int = ¿ in
-perimeter(3, 4)|x}));
+    Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|let perimeter : (Int, Int) -> Int = ¿ in
+perimeter(3, 4)|x});
   hidden_tests =
     {
       tests =

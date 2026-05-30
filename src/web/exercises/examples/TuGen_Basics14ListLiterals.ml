@@ -20,8 +20,8 @@ Complete the let binding below so that `first_four` contains the first four posi
 ### List Type
 `[Int]`, `[String]`, `[Bool]`|x};
   your_impl =
-    Haz3lcore.Move.to_start (Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|let first_four : [Int] = [?] in
-first_four|x}));
+    Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|let first_four : [Int] = [?] in
+first_four|x});
   hidden_tests =
     {
       tests =

@@ -10,7 +10,7 @@ let exercise : Tutorial.spec = {
   display_hint = {x||x};
   task_reference = {x||x};
   your_impl =
-    Haz3lcore.Move.to_start (Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|# PROBES TUTORIAL - PART 4: PINNING #
+    Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|# PROBES TUTORIAL - PART 4: PINNING #
 
 # A 🐛 has sneaked into our garden data and left a bug! #
 # One test below is failing, but with 10 calls generating #
@@ -74,7 +74,7 @@ test make_label(daisy, 7) == "🌱 Daisy: 1120ml/7d" end;
 # This test is FAILING! #
 test make_label(rose, 7) == "🌹 Rose: 1330ml/7d" end
 
-# END OF PART 4 - Select the next slide from the top menu #|x}));
+# END OF PART 4 - Select the next slide from the top menu #|x});
   hidden_tests =
     {
       tests =

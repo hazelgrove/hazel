@@ -30,8 +30,8 @@ in
 inc(1)
 ```|x};
   your_impl =
-    Haz3lcore.Move.to_start (Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|let triple : Int -> Int = fun n -> ¿ in
-triple(10)|x}));
+    Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|let triple : Int -> Int = fun n -> ¿ in
+triple(10)|x});
   hidden_tests =
     {
       tests =

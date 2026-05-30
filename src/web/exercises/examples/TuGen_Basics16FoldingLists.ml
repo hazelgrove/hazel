@@ -48,8 +48,8 @@ in
 double([1, 2, 3])
 ```|x};
   your_impl =
-    Haz3lcore.Move.to_start (Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|let join : [String] -> String = ¿ in
-join(["a", "b", "c"])|x}));
+    Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|let join : [String] -> String = ¿ in
+join(["a", "b", "c"])|x});
   hidden_tests =
     {
       tests =

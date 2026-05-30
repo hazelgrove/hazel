@@ -10,7 +10,7 @@ let exercise : Tutorial.spec = {
   display_hint = {x||x};
   task_reference = {x||x};
   your_impl =
-    Haz3lcore.Move.to_start (Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|# PART 4 VARIANT: TWO PIN EXERCISES #
+    Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|# PART 4 VARIANT: TWO PIN EXERCISES #
 
 # This variant has two exercises. The first teaches pin #
 # from a test call site. The second uses map and teaches #
@@ -130,7 +130,7 @@ test bed_labels(sun_terrace)
 == ["🌸 Orchid: 180ml", "🍄 Cactus: 50ml", "🌹 Rose: 190ml"]
 end
 
-# END OF PART 4 #|x}));
+# END OF PART 4 #|x});
   hidden_tests =
     {
       tests =

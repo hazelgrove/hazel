@@ -32,7 +32,7 @@ The editor below contains `3.0 * 2.0`, which uses the *integer* multiplication o
 
 Float literals need a decimal point: `0.`, `1.0`, `3.14`|x};
   your_impl =
-    Haz3lcore.Move.to_start (Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|3.0 * 2.0|x}));
+    Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|3.0 * 2.0|x});
   hidden_tests =
     {
       tests =

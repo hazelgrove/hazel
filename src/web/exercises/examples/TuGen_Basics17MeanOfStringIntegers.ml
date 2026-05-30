@@ -102,12 +102,12 @@ length([1.0, 2.0, 3.0])
 
 Float literals need a decimal point: `0.`, `1.0`, `3.14`|x};
   your_impl =
-    Haz3lcore.Move.to_start (Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|let string_mean : [String] -> Float = fun strings ->
+    Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|let string_mean : [String] -> Float = fun strings ->
 let floats : [Float] = ¿ in
 let sum : Float = ¿ in
 ¿
 in
-string_mean(["1", "2", "3"])|x}));
+string_mean(["1", "2", "3"])|x});
   hidden_tests =
     {
       tests =
