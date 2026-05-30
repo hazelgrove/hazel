@@ -51,7 +51,11 @@ let has_ancestor_with_class =
 };
 
 module Make = (C: Config) => {
-  let close_effect: ref(option(Effect.t(unit))) = ref(None);
+  /* Thunk, not a prebuilt effect: callers build on_close via `local(action)`,
+   * which runs the projector update eagerly when called. Storing/calling it
+   * as a thunk defers that to the moment the menu actually closes, rather
+   * than on every sync (= every render). */
+  let close_effect: ref(option(unit => Effect.t(unit))) = ref(None);
   let on_key: ref(option(string => option(Effect.t(unit)))) = ref(None);
   let is_active: ref(bool) = ref(false);
   /* Grace period after open so the same click that opened the menu
@@ -62,10 +66,10 @@ module Make = (C: Config) => {
   let execute_close = () =>
     switch (close_effect^) {
     | None => ()
-    | Some(effect) =>
+    | Some(on_close) =>
       let now = Js.Unsafe.global##.performance##now();
       if (now -. opened_at^ > 50.0) {
-        Effect.Expert.handle(effect);
+        Effect.Expert.handle(on_close());
       };
     };
 
@@ -177,7 +181,7 @@ module Make = (C: Config) => {
   let sync =
       (
         ~menu_open: bool,
-        ~on_close: Effect.t(unit),
+        ~on_close: unit => Effect.t(unit),
         ~handle_key: option(string => option(Effect.t(unit)))=?,
         (),
       )

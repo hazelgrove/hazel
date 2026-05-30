@@ -892,6 +892,9 @@ let sample_drawer_view =
       | FocusById(_) => Ui_effect.Ignore
       };
     let ctx: ProbeProj.probe_ctx = {
+      /* Sidebar isn't per-projector and its `parent` ignores FocusById,
+       * so the projector-focus id is a no-op here. */
+      id: Id.invalid,
       ap_id,
       statics,
       settings: ProbeProj.Settings.s^,

@@ -17,11 +17,20 @@ open RichProbeRegistry;
 type probe_model = {
   active_renderer: option(packed_model),
   drawer_mode: bool,
+  /* Bumped on every dropdown open/close. The dropdown's visibility is
+   * read from the global Settings.open_dropdown ref, but a projector
+   * SetModel only repaints when the model changes structurally
+   * (SetModel is deliberately not an edit — see Action.is_edit). With
+   * an unchanged model the toggle would set the global ref but never
+   * re-render, so the dropdown would never actually appear/disappear.
+   * Mutating this int forces that repaint. */
+  dropdown_redraw: int,
 };
 
 let init_probe_model: probe_model = {
   active_renderer: None,
   drawer_mode: false,
+  dropdown_redraw: 0,
 };
 
 /* Any deserialization failure resets to defaults — the record is
@@ -223,6 +232,10 @@ open Node;
 /* Shared context for probe view functions. Constructed once in offside_view
  * after unwrapping dynamics and statics, then threaded to all child views. */
 type probe_ctx = {
+  /* This projector's term id (info.id), used to focus the projector
+     via parent(FocusById(id)) — the framework's Focus action that a
+     normal left-click triggers but a right-click does not. */
+  id: Id.t,
   ap_id: option(Id.t),
   statics: Language.Statics.Info.t,
   settings,
@@ -645,7 +658,11 @@ module ValueState = {
 let value_view =
     (
       ~display: sample_display,
-      ~alt_toggle: Ui_effect.t(unit),
+      /* Thunk, NOT a prebuilt effect: `local(action)` runs P.update
+         eagerly when called, so passing `local(ToggleDropdown(did))`
+         directly would toggle open_dropdown on every render. Deferring
+         it behind `unit =>` means the toggle only runs on click. */
+      ~alt_toggle: unit => Ui_effect.t(unit),
       ctx: probe_ctx,
       ~num_total,
       view_seg,
@@ -730,17 +747,43 @@ let value_view =
         @ (!ValueChecker.is_value(sample.value) ? ["indet"] : []),
       ),
       Attr.on_double_click(_ => local(ToggleWindowMode)),
-      Attr.on_pointerdown(evt =>
-        Js.to_bool(Js.Unsafe.coerce(evt)##.altKey)
-          ? Effect.Many([
-              alt_toggle,
-              Effect.Stop_propagation,
-              Effect.Prevent_default,
-            ])
-          : Key.meta_held(evt)
-              ? Option.is_some(ctx.ap_id) ? pin_call(ctx) : focus_call(ctx)
-              : val_pointerdown(evt)
+      /* Suppress the native browser menu so our dropdown is the only
+         context menu over a sample — unless Ctrl is held, which (as on
+         the editor) is the escape hatch to the native menu. */
+      Attr.on_contextmenu(evt =>
+        Key.ctrl_held(evt)
+          ? Effect.Ignore
+          : Effect.Many([Effect.Stop_propagation, Effect.Prevent_default])
       ),
+      Attr.on_pointerdown(evt => {
+        let button: int = Js.Unsafe.coerce(evt)##.button;
+        let alt = Js.to_bool(Js.Unsafe.coerce(evt)##.altKey);
+        let ctrl = Key.ctrl_held(evt);
+        button == 2 && ctrl
+          /* Ctrl + right-click defers to the native browser menu (same
+             escape hatch the editor's context menu offers). */
+          ? Effect.Ignore
+          : button == 2 || alt
+              /* Right-click (or alt-click) opens the sample's context
+                 dropdown and stops the event before it reaches the code
+                 editor's pointerdown handler, which would otherwise open
+                 the editor's own context menu.
+                 - parent(FocusById id): the projector Focus a normal
+                   left-click triggers via the framework wrapper (which
+                   ignores right-clicks); needed for correct z-index.
+                 - val_pointerdown: the sample-focus (SampleFocus Capture)
+                   a normal click also does. */
+              ? Effect.Many([
+                  ctx.parent(FocusById(ctx.id)),
+                  val_pointerdown(evt),
+                  alt_toggle(),
+                  Effect.Stop_propagation,
+                  Effect.Prevent_default,
+                ])
+              : Key.meta_held(evt)
+                  ? Option.is_some(ctx.ap_id) ? pin_call(ctx) : focus_call(ctx)
+                  : val_pointerdown(evt);
+      }),
       Attr.on_pointerup(val_pointerup),
       Attr.on_mousemove(val_mousemove),
     ],
@@ -1297,7 +1340,7 @@ let sample_view =
     [
       value_view(
         ~display,
-        ~alt_toggle=local(ToggleDropdown(did)),
+        ~alt_toggle=() => local(ToggleDropdown(did)),
         ctx,
         ~num_total,
         view_seg,
@@ -1778,6 +1821,7 @@ let prepare_offside =
     let active_renderer_id =
       Option.map(RichProbe.renderer_id_of_model, model.active_renderer);
     let ctx = {
+      id,
       ap_id,
       statics,
       settings,
@@ -1888,7 +1932,12 @@ let live_offside_view =
    * close effect captures the current `local`. Idempotent across probes. */
   SampleMenuListener.sync(
     ~menu_open=Settings.open_dropdown^ != None,
-    ~on_close=local(SetDropdown(None)),
+    /* Thunk: `local(action)` runs the projector update eagerly when called,
+       so passing `local(SetDropdown(None))` directly would reset
+       open_dropdown on EVERY render — instantly cancelling any dropdown a
+       click just opened. The listener calls this only when it actually
+       fires the close. */
+    ~on_close=() => local(SetDropdown(None)),
     (),
   );
   Node.div(
@@ -2072,10 +2121,16 @@ module M: Projector = {
       Settings.set_open_dropdown(
         Settings.open_dropdown^ == Some(did) ? None : Some(did),
       );
-      model;
+      {
+        ...model,
+        dropdown_redraw: model.dropdown_redraw + 1,
+      };
     | SetDropdown(o) =>
       Settings.set_open_dropdown(o);
-      model;
+      {
+        ...model,
+        dropdown_redraw: model.dropdown_redraw + 1,
+      };
     | ResetSettings =>
       Settings.reset_mode();
       SampleLength.reset();

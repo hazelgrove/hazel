@@ -537,7 +537,7 @@ module View = {
      * window-level handler doesn't see them while the menu is open. */
     ContextMenuListener.sync(
       ~menu_open=selected && Model.context_menu_is_open(model),
-      ~on_close=inject(ContextMenu(ContextMenu.Model.Close)),
+      ~on_close=() => inject(ContextMenu(ContextMenu.Model.Close)),
       ~handle_key=
         key_str =>
           ContextMenu.WithContext.handle_listener_key(
