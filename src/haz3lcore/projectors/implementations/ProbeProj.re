@@ -940,28 +940,22 @@ let rich_probe_items = (ctx: probe_ctx, _sample: Sample.t): list(Node.t) =>
  * as the chevron portion of the consolidated SVG nav-bar (see
  * `nav_bar_view`), not a standalone div. */
 
-/* Context actions for a sample (Pin/Unpin, Step Into, rich-probe views, etc.).
- * The dock toggle is always appended at the row's far right, so the user
- * can switch between hover/sidebar views from either context. */
-let sample_context_actions =
+/* Primary actions for a sample (Pin/Unpin, Step Into, Focus, rich-probe
+ * views). Empty when there's nothing actionable. The caller wraps these
+ * in the context-actions row (with the dock toggle appended at the row's
+ * far right) — but only when the menu has content worth showing. */
+let sample_primary_actions =
     (ctx: probe_ctx, ~can_step_into: bool, sample: Sample.t): list(Node.t) => {
   let rich_items = rich_probe_items(ctx, sample);
-  let primary =
-    switch (ctx.ap_id) {
-    | Some(ap_id) =>
-      [pin_action(ctx, sample)]
-      @ (can_step_into ? [step_into_action(ctx, sample, ap_id)] : [])
-      @ rich_items
-    | None when sample.call_stack != [] =>
-      [focus_action(ctx, sample)] @ rich_items
-    | None => rich_items
-    };
-  [
-    div(
-      ~attrs=[Attr.classes(["context-actions"])],
-      primary @ [dock_toggle()],
-    ),
-  ];
+  switch (ctx.ap_id) {
+  | Some(ap_id) =>
+    [pin_action(ctx, sample)]
+    @ (can_step_into ? [step_into_action(ctx, sample, ap_id)] : [])
+    @ rich_items
+  | None when sample.call_stack != [] =>
+    [focus_action(ctx, sample)] @ rich_items
+  | None => rich_items
+  };
 };
 
 /* Get function name from statics info if this is an Ap expression */
@@ -1175,36 +1169,58 @@ let sample_context_sections =
   let env_elems = filtered_env_entries(~filter_vars, sample);
   let has_env = env_elems != [];
   let has_call = Option.is_some(sample.args);
-  let nodes =
-    sample_context_actions(
+  let primary =
+    sample_primary_actions(
       ctx,
       ~can_step_into=can_step_into(ctx.statics),
       sample,
-    )
-    @ sample_call_display(ctx, view_seg, sample)
-    @ sample_environment(ctx, ~filter_vars, view_seg, sample);
+    );
+  let call_display = sample_call_display(ctx, view_seg, sample);
+  let env = sample_environment(ctx, ~filter_vars, view_seg, sample);
+  /* With no actions, no call display and no environment, the only
+   * thing the menu could show is the lone dock toggle — not worth a
+   * menu. Emit no nodes so the callers suppress the whole menu (and
+   * therefore the dock icon) rather than docking an empty drawer. */
+  let nodes =
+    primary == [] && call_display == [] && env == []
+      ? []
+      : (
+          [
+            div(
+              ~attrs=[Attr.classes(["context-actions"])],
+              primary @ [dock_toggle()],
+            ),
+          ]
+          @ call_display
+          @ env
+        );
   (has_env, has_call, nodes);
 };
 
 /* Sample context menu (dropdown) combining actions and environment */
 let sample_context_menu =
-    (~show_env, ctx: probe_ctx, view_seg, sample: Sample.t): Node.t => {
+    (~show_env, ctx: probe_ctx, view_seg, sample: Sample.t): list(Node.t) => {
   let (has_env, has_call, nodes) =
     sample_context_sections(ctx, view_seg, sample);
-  div(
-    ~attrs=
-      [
-        Attr.classes(
-          ["sample-context-menu"]
-          @ (has_env || has_call ? [] : ["no-env"])
-          @ (show_env ? ["dropdown-active"] : []),
-        ),
-        /* id only — visibility is driven by the dropdown-active class
-         * (set via show_env); no SafeTriangle hover handlers. */
-        Attr.id(dropdown_id(sample)),
-      ],
-    nodes,
-  );
+  switch (nodes) {
+  /* Nothing to show: no menu, and so no lone dock icon. */
+  | [] => []
+  | _ => [
+      div(
+        ~attrs=[
+          Attr.classes(
+            ["sample-context-menu"]
+            @ (has_env || has_call ? [] : ["no-env"])
+            @ (show_env ? ["dropdown-active"] : []),
+          ),
+          /* id only — visibility is driven by the dropdown-active class
+           * (set via show_env); no SafeTriangle hover handlers. */
+          Attr.id(dropdown_id(sample)),
+        ],
+        nodes,
+      ),
+    ]
+  };
 };
 
 /* Sidebar drawer rendering: same content as the dropdown, without
@@ -1218,7 +1234,10 @@ let sample_context_drawer =
   let hide_env = hide_env(ctx.statics);
   let has_dropdown =
     !(hide_env && ctx.ap_id == None) || sample.call_stack != [];
-  if (!has_dropdown && !has_env && !has_call) {
+  /* nodes == [] is the precise "empty menu" signal from
+   * sample_context_sections; the has_dropdown heuristic is the older,
+   * coarser gate kept for its non-empty cases. */
+  if (nodes == [] || !has_dropdown && !has_env && !has_call) {
     None;
   } else {
     /* Inner content rules (.context-actions, .live-env, .call-display, ...)
@@ -1292,7 +1311,7 @@ let sample_view =
     @ pin_view(ctx, sample)
     @ (
       render_dropdown
-        ? [sample_context_menu(~show_env, ctx, view_seg, sample)] : []
+        ? sample_context_menu(~show_env, ctx, view_seg, sample) : []
     ),
   );
 };
