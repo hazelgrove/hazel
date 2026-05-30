@@ -2,12 +2,16 @@
 (* To remove: ./hazel gen-tutorial-clean *)
 
 let all : Tutorial.spec list = [
+  TuGen_Archive04FloatingPointArithmetic.exercise;
+  TuGen_Archive06Probes.exercise;
+  TuGen_Archive19LabeledTupleProjection.exercise;
+  TuGen_Archive20LabeledTupleExtension.exercise;
+  TuGen_Archive21LabeledTupleOmission.exercise;
+  TuGen_Archive22LabeledTupleListConversions.exercise;
   TuGen_Basics01Holes.exercise;
   TuGen_Basics02TheTylrParserAndBackpack.exercise;
   TuGen_Basics03IntegerArithmetic.exercise;
-  TuGen_Basics04FloatingPointArithmetic.exercise;
   TuGen_Basics05LetBindings.exercise;
-  TuGen_Basics06Probes.exercise;
   TuGen_Basics07TypeAnnotations.exercise;
   TuGen_Basics08Functions.exercise;
   TuGen_Basics09MultiArgumentFunctions.exercise;
@@ -20,10 +24,6 @@ let all : Tutorial.spec list = [
   TuGen_Basics16FoldingLists.exercise;
   TuGen_Basics17MeanOfStringIntegers.exercise;
   TuGen_Basics18LabeledTuples.exercise;
-  TuGen_Basics19LabeledTupleProjection.exercise;
-  TuGen_Basics20LabeledTupleExtension.exercise;
-  TuGen_Basics21LabeledTupleOmission.exercise;
-  TuGen_Basics22LabeledTupleListConversions.exercise;
   TuGen_Probes01Fundamentals.exercise;
   TuGen_Probes02FunctionsAndCursor.exercise;
   TuGen_Probes03AutoProbe.exercise;
