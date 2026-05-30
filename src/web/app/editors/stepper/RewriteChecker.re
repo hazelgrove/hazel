@@ -21,15 +21,41 @@ type normal_form =
   | Evaluated(Exp.t)
   | Affine(affine);
 
+type normalized = {
+  normal_form,
+  rule_ids: list(string),
+};
+
+type check_result = {
+  justification: string,
+  group: option(Axioms.rewrite_group),
+  trace: list(Axioms.rewrite_rule),
+  exportable: bool,
+};
+
 type checker = {
   justification: string,
+  group: option(Axioms.rewrite_group),
   normalize:
     (~settings: CoreSettings.t, ~env: Environment.t(Exp.t), Exp.t) =>
-    option(normal_form),
+    option(normalized),
   equivalent: (normal_form, normal_form) => bool,
 };
 
 let is_zero = Bigint.equal(Bigint.zero);
+
+let dedup = values =>
+  values
+  |> List.fold_left(
+       (acc, value) => List.mem(value, acc) ? acc : [value, ...acc],
+       [],
+     )
+  |> List.rev;
+
+let trace_rules = (group, rule_ids) =>
+  rule_ids
+  |> dedup
+  |> List.filter_map(rule_id => Axioms.rewrite_rule_by_id(group, rule_id));
 
 let rec add_term = (name, coeff, terms) =>
   if (is_zero(coeff)) {
@@ -100,32 +126,96 @@ let affine_constant = (a: affine): option(Bigint.t) =>
   | [_, ..._] => None
   };
 
-let rec affine_of_exp = (exp: Exp.t): option(affine) =>
+type affine_normalization = {
+  affine,
+  rule_ids: list(string),
+};
+
+let affine_normalization = (affine, rule_ids) => {
+  affine: canonicalize(affine),
+  rule_ids: dedup(rule_ids),
+};
+
+let rec affine_of_exp = (exp: Exp.t): option(affine_normalization) =>
   switch (exp.term) {
   | Atom(Int(value))
-  | Atom(Nat(value)) => Some(affine_const(value))
-  | Atom(SInt(value)) => Some(affine_const(Bigint.of_int(value)))
-  | Var(name) => Some(affine_var(name))
+  | Atom(Nat(value)) =>
+    Some(affine_normalization(affine_const(value), []))
+  | Atom(SInt(value)) =>
+    Some(affine_normalization(affine_const(Bigint.of_int(value)), []))
+  | Var(name) => Some(affine_normalization(affine_var(name), []))
   | Parens(exp)
   | Asc(exp, _) => affine_of_exp(exp)
   | UnOp(Int(Minus) | SInt(Minus), exp) =>
-    affine_of_exp(exp) |> Option.map(affine_negate)
+    affine_of_exp(exp)
+    |> Option.map(normalized =>
+         affine_normalization(
+           affine_negate(normalized.affine),
+           ["arith.add_neg", ...normalized.rule_ids],
+         )
+       )
   | BinOp(Int(Plus) | Nat(Plus) | SInt(Plus), left, right) =>
     switch (affine_of_exp(left), affine_of_exp(right)) {
-    | (Some(left), Some(right)) => Some(affine_add(left, right))
+    | (Some(left), Some(right)) =>
+      Some(
+        affine_normalization(
+          affine_add(left.affine, right.affine),
+          [
+            "arith.add_assoc",
+            "arith.add_comm",
+            "arith.const_fold",
+            "arith.collect_like_terms",
+            ...left.rule_ids @ right.rule_ids,
+          ],
+        ),
+      )
     | _ => None
     }
   | BinOp(Int(Minus) | SInt(Minus), left, right) =>
     switch (affine_of_exp(left), affine_of_exp(right)) {
-    | (Some(left), Some(right)) => Some(affine_sub(left, right))
+    | (Some(left), Some(right)) =>
+      Some(
+        affine_normalization(
+          affine_sub(left.affine, right.affine),
+          [
+            "arith.add_assoc",
+            "arith.add_neg",
+            "arith.const_fold",
+            "arith.collect_like_terms",
+            ...left.rule_ids @ right.rule_ids,
+          ],
+        ),
+      )
     | _ => None
     }
   | BinOp(Int(Times) | Nat(Times) | SInt(Times), left, right) =>
     switch (affine_of_exp(left), affine_of_exp(right)) {
     | (Some(left), Some(right)) =>
-      switch (affine_constant(left), affine_constant(right)) {
-      | (Some(coeff), _) => Some(affine_scale(coeff, right))
-      | (_, Some(coeff)) => Some(affine_scale(coeff, left))
+      switch (affine_constant(left.affine), affine_constant(right.affine)) {
+      | (Some(coeff), _) =>
+        Some(
+          affine_normalization(
+            affine_scale(coeff, right.affine),
+            [
+              "arith.mul_const",
+              "arith.const_fold",
+              "arith.collect_like_terms",
+              ...left.rule_ids @ right.rule_ids,
+            ],
+          ),
+        )
+      | (_, Some(coeff)) =>
+        Some(
+          affine_normalization(
+            affine_scale(coeff, left.affine),
+            [
+              "arith.mul_const",
+              "arith.const_fold",
+              "arith.collect_like_terms",
+              ...left.rule_ids @ right.rule_ids,
+            ],
+          ),
+        )
       | (None, None) => None
       }
     | _ => None
@@ -200,14 +290,31 @@ let normalize_affine = (~settings, ~env, exp: Exp.t): option(normal_form) => {
   |> DHExp.strip_ascriptions
   |> take_auto_steps(~settings, ~env)
   |> affine_of_exp
-  |> Option.map(a => Affine(canonicalize(a)));
+  |> Option.map(normalized => Affine(canonicalize(normalized.affine)));
+};
+
+let normalize_affine_with_trace =
+    (~settings, ~env, exp: Exp.t): option(normalized) => {
+  exp
+  |> DHExp.strip_ascriptions
+  |> take_auto_steps(~settings, ~env)
+  |> affine_of_exp
+  |> Option.map(normalized =>
+       {
+         normal_form: Affine(canonicalize(normalized.affine)),
+         rule_ids: normalized.rule_ids,
+       }
+     );
 };
 
 let normalize_by_evaluation =
-    (~settings as _: CoreSettings.t, ~env, exp: Exp.t): option(normal_form) => {
+    (~settings as _: CoreSettings.t, ~env, exp: Exp.t): option(normalized) => {
   switch (Evaluator.evaluate_and_limit(~env, ~step_limit=1000, exp)) {
   | Completed((value, _)) =>
-    Some(Evaluated(value |> DHExp.strip_ascriptions))
+    Some({
+      normal_form: Evaluated(value |> DHExp.strip_ascriptions),
+      rule_ids: [],
+    })
   | StepLimitExceeded => None
   | exception _ => None
   };
@@ -215,7 +322,8 @@ let normalize_by_evaluation =
 
 let affine_checker = {
   justification: "arithmetic",
-  normalize: normalize_affine,
+  group: Some(Axioms.arithmetic_rewrite_group),
+  normalize: normalize_affine_with_trace,
   equivalent: (left, right) =>
     switch (left, right) {
     | (Affine(left), Affine(right)) => left == right
@@ -225,6 +333,7 @@ let affine_checker = {
 
 let evaluation_checker = {
   justification: "same evaluated result",
+  group: None,
   normalize: normalize_by_evaluation,
   equivalent: (left, right) =>
     switch (left, right) {
@@ -251,8 +360,19 @@ let check_with = (~settings, ~env, from_: Exp.t, to_: Exp.t, checker) => {
     checker.normalize(~settings, ~env, to_),
   ) {
   | (Some(from_normal), Some(to_normal))
-      when checker.equivalent(from_normal, to_normal) =>
-    Some(checker.justification)
+      when checker.equivalent(from_normal.normal_form, to_normal.normal_form) =>
+    let trace =
+      switch (checker.group) {
+      | Some(group) =>
+        trace_rules(group, from_normal.rule_ids @ to_normal.rule_ids)
+      | None => []
+      };
+    Some({
+      justification: checker.justification,
+      group: checker.group,
+      trace,
+      exportable: trace != [],
+    });
   | _ => None
   };
 };
@@ -267,10 +387,19 @@ let check_rewrite = (~settings, ~env, from_: Exp.t, to_: Exp.t): bool => {
   };
 };
 
-let check_written_step =
-    (~settings, ~env, from_: Exp.t, to_: Exp.t): option(string) => {
+let check_rewrite_result = (~settings, ~env, from_: Exp.t, to_: Exp.t) =>
+  check_with(~settings, ~env, from_, to_, affine_checker);
+
+let check_written_step_result =
+    (~settings, ~env, from_: Exp.t, to_: Exp.t): option(check_result) => {
   written_step_checkers
   |> List.find_map(checker =>
        check_with(~settings, ~env, from_, to_, checker)
      );
+};
+
+let check_written_step =
+    (~settings, ~env, from_: Exp.t, to_: Exp.t): option(string) => {
+  check_written_step_result(~settings, ~env, from_, to_)
+  |> Option.map((result: check_result) => result.justification);
 };
