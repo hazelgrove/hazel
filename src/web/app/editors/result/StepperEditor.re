@@ -88,43 +88,78 @@ module View = {
       ) => {
     open WebUtil;
 
+    let step_segment = (~class_name, ~attrs=[], id: Id.t): option(Node.t) => {
+      switch (TermData.segment(id, syntax.term_data)) {
+      | None => None
+      | Some(segment) =>
+        Some(
+          Node.div(
+            ~attrs=[Attr.class_(class_name)] @ attrs,
+            Highlight.of_segment(
+              ~measured=syntax.measured,
+              ~shape_map=syntax.shape_map,
+              ~font_metrics,
+              ~shape_init=Some(Convex),
+              ~clss=[],
+              segment,
+            ),
+          ),
+        )
+      };
+    };
+
     let next_steps =
-        (next_steps: list(Id.t), ~inject: int => Ui_effect.t(unit)) =>
+        (next_steps: list(Id.t), ~inject: int => Ui_effect.t(unit)) => {
+      let step_tile = id =>
+        switch (TermData.segment(id, syntax.term_data)) {
+        | Some(segment) =>
+          switch (
+            segment
+            |> List.find_opt(
+                 fun
+                 | Piece.Tile(t) => Tile.id(t) == id
+                 | _ => false,
+               )
+          ) {
+          | Some(Piece.Tile(t)) => Some(t)
+          | _ => TermData.root_tile(id, syntax.term_data)
+          }
+        | None => TermData.root_tile(id, syntax.term_data)
+        };
       next_steps
-      |> List.filter_map(TermData.root_tile(_, syntax.term_data))
-      |> List.mapi((i, t: Tile.t) =>
-           div_c(
-             "step-next",
-             Arms.term(
-               ~attr=[Attr.on_mousedown(_ => inject(i))],
-               ~font_metrics,
-               ~syntax,
-               t,
-             ),
-           )
-         );
+      |> List.mapi((i, id) =>
+           switch (step_tile(id)) {
+           | Some(t) =>
+             Some(
+               div_c(
+                 "step-next",
+                 Arms.term(
+                   ~attr=[Attr.on_mousedown(_ => inject(i))],
+                   ~font_metrics,
+                   ~syntax,
+                   t,
+                 ),
+               ),
+             )
+           | None => None
+           }
+         )
+      |> List.filter_map(Fun.id);
+    };
     let taken_steps = (taken_steps: list(Id.t)) =>
-      taken_steps
-      |> List.filter_map(TermData.root_tile(_, syntax.term_data))
-      |> List.map(t =>
-           div_c("step-taken", Arms.term(~font_metrics, ~syntax, t))
-         );
+      taken_steps |> List.filter_map(step_segment(~class_name="step-taken"));
 
     let refl_steps =
         (refl_steps: list(Id.t), ~inject: int => Ui_effect.t(unit)) =>
       refl_steps
-      |> List.filter_map(TermData.root_tile(_, syntax.term_data))
-      |> List.mapi((i, t: Tile.t) =>
-           div_c(
-             "step-refl",
-             Arms.term(
-               ~attr=[Attr.on_mousedown(_ => inject(i))],
-               ~font_metrics,
-               ~syntax,
-               t,
-             ),
+      |> List.mapi((i, id) =>
+           step_segment(
+             ~class_name="step-refl",
+             ~attrs=[Attr.on_mousedown(_ => inject(i))],
+             id,
            )
-         );
+         )
+      |> List.filter_map(Fun.id);
 
     taken_steps(model.taken_steps)
     @ (
@@ -149,17 +184,15 @@ module View = {
     @ refl_steps(model.refls, ~inject=x =>
         {
           open OptUtil.Syntax;
+          let refl_id = List.nth(model.refls, x);
           let+ range =
             TermData.extreme_measures(
-              List.nth(model.refls, x),
+              refl_id,
               model.editor.editor.syntax.term_data,
               model.editor.editor.syntax.measured,
             );
-          Some(List.nth(model.refls, x)) == selected_id
-            ? signal(Refl(x))
-            : {
-              inject(Select(PointToPoint(range)));
-            };
+          Some(refl_id) == selected_id
+            ? signal(Refl(x)) : inject(Select(PointToPoint(range)));
         }
         |> Option.value(~default=Ui_effect.Ignore)
       );
@@ -179,7 +212,6 @@ module View = {
         model: Model.t,
       ) => {
     CodeSelectable.View.view(
-      ~expand_selection=true,
       ~dynamics=Language.Dynamics.Map.empty,
       ~signal=
         fun

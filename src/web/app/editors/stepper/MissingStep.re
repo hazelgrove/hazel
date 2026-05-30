@@ -30,6 +30,7 @@ module Model = {
     selected_id: Calc.saved(option(Id.t)),
     selected_exp: Calc.saved(option(Exp.t)),
     full_exp: Calc.saved(Exp.t),
+    full_visible_exp: Calc.saved(Exp.t),
     assumptions: Calc.saved(option(assumptions)),
     open_box,
     cached_env: Calc.saved(Environment.t(Exp.t)) // TODO[Matt]: remove this later, just to get env into view for now.
@@ -41,6 +42,7 @@ module Model = {
     selected_id: Calc.Pending,
     selected_exp: Calc.Pending,
     full_exp: Calc.Pending,
+    full_visible_exp: Calc.Pending,
     assumptions: Calc.Pending,
     open_box: NoneOpen,
     cached_env: Calc.Pending,
@@ -184,6 +186,7 @@ module Update = {
           assumptions,
           selected_exp,
           full_exp: _,
+          full_visible_exp: _,
           selected_id,
           open_box,
           cached_env,
@@ -191,10 +194,12 @@ module Update = {
         editor,
       )
       : Model.t => {
+    let editor: CodeSelectable.Model.t = editor |> Calc.get_value;
+    let full_visible_exp = Calc.NewValue(editor.statics.term);
+    let visible_terms = Calc.NewValue(editor.editor.syntax.terms);
     let selected_id =
       // hacky way to get a currently-selected id
-      {
-        let editor: CodeSelectable.Model.t = editor |> Calc.get_value;
+      (
         try(
           {
             open OptUtil.Syntax;
@@ -209,18 +214,42 @@ module Update = {
           }
         ) {
         | _ => None
-        };
-      }
+        }
+      )
       |> Calc.set(_, selected_id);
     let selected_exp =
       selected_exp
       |> {
         let.calc selected_id = selected_id
-        and.calc exp = exp;
+        and.calc exp = exp
+        and.calc full_visible_exp = full_visible_exp
+        and.calc visible_terms = visible_terms
+        and.calc info_map = info_map;
         open OptUtil.Syntax;
         let* id = selected_id;
-        let* exp' = ProofHacks.find_exp_id(id, exp);
-        Some(exp');
+        switch (ProofHacks.find_exp_id(id, full_visible_exp)) {
+        | Some(exp') => Some(exp')
+        | None =>
+          switch (Id.Map.find_opt(id, visible_terms)) {
+          | Some(Exp(exp')) => Some(exp')
+          | _ =>
+            switch (ProofHacks.find_exp_id(id, exp)) {
+            | Some(exp') => Some(exp')
+            | None =>
+              switch (Statics.Map.lookup(id, info_map)) {
+              | Some(Info.InfoExp({user_term, _})) => Some(user_term)
+              | _ =>
+                print_endline(
+                  "[selected-exp-debug] missing id="
+                  ++ Id.str8(id)
+                  ++ " info_map_empty="
+                  ++ (Id.Map.is_empty(info_map) ? "true" : "false"),
+                );
+                None;
+              }
+            }
+          }
+        };
       };
     let assumptions =
       assumptions
@@ -262,7 +291,15 @@ module Update = {
         |> List.filter(e =>
              !
                List.exists(
-                 s => e |> Exp.rep_id == EvaluatorStep.get_step_id(s),
+                 s =>
+                   e
+                   |> Exp.rep_id
+                   == (
+                        EvaluatorStep.get_step_id_in(s, exp)
+                        |> Option.value(
+                             ~default=EvaluatorStep.get_step_id(s),
+                           )
+                      ),
                  next_steps,
                )
              || settings.evaluation.write_out_steps
@@ -388,6 +425,7 @@ module Update = {
       refls: refls |> Calc.save,
       assumptions: assumptions |> Calc.save,
       full_exp: exp |> Calc.save,
+      full_visible_exp: full_visible_exp |> Calc.save,
       selected_exp: selected_exp |> Calc.save,
       selected_id: selected_id |> Calc.save,
       open_box,
@@ -446,7 +484,8 @@ module View = {
     | AddWrittenStep(string, int, Exp.t, Exp.t)
     | MakeActive(Selection.t)
     | TakeStep(int)
-    | Refl(int);
+    | Refl(int)
+    | StepHere(list(Language.Id.t), bool);
 
   let get_segment_bounds = (~measured: Measured.t, segment: Segment.t) => {
     let* first_piece = ListUtil.hd_opt(segment);
@@ -524,23 +563,30 @@ module View = {
       };
 
       let show_step_button =
-        switch (
-          model.selected_exp |> Calc.get_saved_exc(~print="Selected Exp")
-        ) {
-        | _ when globals.settings.core.evaluation.write_out_steps => None
-        | Some(selected_exp) =>
-          List.find_index(
-            x => x == (selected_exp |> Exp.rep_id),
-            model.next_steps
-            |> Calc.get_saved_exc(~print="next_steps")
-            |> (
-              fun
-              | AutoStep(_) => []
-              | AvailableSteps(steps) => steps
-            )
-            |> List.map(step => step |> EvaluatorStep.get_step_id),
-          )
-        | None => None
+        if (globals.settings.core.evaluation.write_out_steps) {
+          None;
+        } else {
+          switch (
+            model.selected_id |> Calc.get_saved_exc(~print="Selected Id")
+          ) {
+          | Some(selected_id) =>
+            let visible_exp = editor.statics.term;
+            List.find_index(
+              step_id => step_id == selected_id,
+              model.next_steps
+              |> Calc.get_saved_exc(~print="next_steps")
+              |> (
+                fun
+                | AutoStep(_) => []
+                | AvailableSteps(steps) => steps
+              )
+              |> List.map(step =>
+                   EvaluatorStep.get_step_id_in(step, visible_exp)
+                   |> Option.value(~default=EvaluatorStep.get_step_id(step))
+                 ),
+            );
+          | None => None
+          };
         };
 
       let show_refl_button =
@@ -559,8 +605,8 @@ module View = {
 
       let show_function_body_button = {
         Calc.get_saved_exc(model.selected_exp)
-        == Some(Calc.get_saved_exc(model.full_exp))
-        && Exp.is_fun(Calc.get_saved_exc(model.full_exp));
+        == Some(Calc.get_saved_exc(model.full_visible_exp))
+        && Exp.is_fun(Calc.get_saved_exc(model.full_visible_exp));
       };
 
       let view_rewrites_box = (editor, cached_exp, cached_result) => {
@@ -633,8 +679,8 @@ module View = {
                       AddAlgebriteStep(
                         ProofHacks.exp_idx(
                           unboxed_selected_exp,
-                          model.full_exp
-                          |> Calc.get_saved_exc(~print="full_exp"),
+                          model.full_visible_exp
+                          |> Calc.get_saved_exc(~print="full_visible_exp"),
                         ),
                         unboxed_selected_exp,
                         unboxed_cached_exp
@@ -725,8 +771,8 @@ module View = {
                         j,
                         ProofHacks.exp_idx(
                           unboxed_selected_exp,
-                          model.full_exp
-                          |> Calc.get_saved_exc(~print="full_exp"),
+                          model.full_visible_exp
+                          |> Calc.get_saved_exc(~print="full_visible_exp"),
                         ),
                         unboxed_selected_exp,
                         unboxed_cached_exp
@@ -746,6 +792,52 @@ module View = {
         ];
       };
 
+      let selected_tile_ids =
+        editor.editor.state.zipper.selection.content
+        |> List.filter_map(
+             fun
+             | Haz3lcore.Piece.Tile(t) => Some(Haz3lcore.Tile.id(t))
+             | _ => None,
+           );
+      let selected_assoc_ids =
+        selected_tile_ids
+        |> List.concat_map(id =>
+             Language.AssocSelection.find_reparenthesize_for_id(
+               id,
+               editor.statics.info_map,
+             )
+           );
+      let step_here_ids =
+        switch (selected_assoc_ids) {
+        | [] => selected_tile_ids
+        | ids => ids
+        };
+      let show_step_here =
+        List.exists(
+          id =>
+            Language.AssocSelection.needs_reparenthesization(
+              id,
+              editor.statics.info_map,
+            ),
+          selected_tile_ids,
+        );
+      let reparenthesize_result =
+        if (show_step_here) {
+          Language.Reparenthesize.reparenthesize_selection(
+            ~selected_ids=step_here_ids,
+            editor.statics.term,
+          );
+        } else {
+          None;
+        };
+      let step_here_button =
+        switch (reparenthesize_result) {
+        | Some({selected_is_single_binop: true, _}) =>
+          Some(("Step here", true))
+        | Some(_) => Some(("Parenthesize", false))
+        | None => None
+        };
+
       let text_arrow = (b: bool) => if (b) {"▲"} else {"▼"};
 
       // I want to make a bunch of buttons here:
@@ -754,6 +846,20 @@ module View = {
         Node.div(
           ~attrs=[Attr.classes(["proof-selection-buttons"])],
           (
+            switch (step_here_button) {
+            | None => []
+            | Some((label, evaluate_after_parenthesize)) => [
+                proof_button(
+                  ~callback=
+                    signal(
+                      StepHere(step_here_ids, evaluate_after_parenthesize),
+                    ),
+                  label,
+                ),
+              ]
+            }
+          )
+          @ (
             switch (show_step_button) {
             | None => []
             | Some(idx) => [
@@ -905,8 +1011,10 @@ module View = {
                           (a, b, c, d, e) =>
                             signal(AddAxiomStep(a, b, c, d, e)),
                         ~full_exp=
-                          model.full_exp
-                          |> Calc.get_saved_exc(~print="full_exp not cached"),
+                          model.full_visible_exp
+                          |> Calc.get_saved_exc(
+                               ~print="full_visible_exp not cached",
+                             ),
                         ~selected_exp=
                           model.selected_exp
                           |> Calc.get_saved_exc(~print="Selected Exp")

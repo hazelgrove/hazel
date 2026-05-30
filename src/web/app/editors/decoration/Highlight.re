@@ -420,8 +420,41 @@ let selection =
       ~measured: Measured.t,
       ~shape_map: ProjectorCore.Shape.Map.t,
       ~font_metrics: FontMetrics.t,
+      ~statics: CachedStatics.t,
       z: Zipper.t,
-    ) =>
+    ) => {
+  let find_assoc_for_id = (id: Id.t): list(Id.t) =>
+    Language.AssocSelection.find_assoc_for_id(id, statics.info_map);
+
+  let associative_segment = (z: Zipper.t): Segment.t => {
+    let tile_ids =
+      z.selection.content
+      |> List.filter_map(piece =>
+           switch (piece) {
+           | Piece.Tile(t) => Some(Tile.id(t))
+           | Piece.Secondary(s) => Some(Secondary.id(s))
+           | _ => None
+           }
+         );
+    let assoc_ids = tile_ids |> List.concat_map(find_assoc_for_id);
+    switch (assoc_ids) {
+    | [] => z.selection.content
+    | assoc_ids =>
+      /* Search the current-level segment (left siblings + selection + right
+         siblings) rather than Zipper.zip(z). Zipper.zip assembles the cursor
+         level into its ancestor tile, so inner pieces would only appear as
+         nested children of that tile, not as top-level pieces to filter over.
+         Multi-shard tiles (e.g. `let = in`) share one ID across all shards;
+         using List.filter (no dedup by ID) ensures all shards are included. */
+      let (left_sibs, right_sibs) = z.relatives.siblings;
+      left_sibs
+      @ z.selection.content
+      @ right_sibs
+      |> List.filter(piece =>
+           List.exists(id => id == Piece.id(piece), assoc_ids)
+         );
+    };
+  };
   div_c(
     "selects",
     of_segment(
@@ -430,9 +463,10 @@ let selection =
       ~font_metrics,
       ~shape_init=Some(fst(Siblings.shapes(z.relatives.siblings))),
       ~clss=["selected", Selection.buffer_cls(z.selection)],
-      z.selection.content,
+      associative_segment(z),
     ),
   );
+};
 
 // Expands selection to make it a subtree of the exp
 let selection_expanded =

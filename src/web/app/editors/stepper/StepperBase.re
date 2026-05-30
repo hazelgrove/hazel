@@ -17,6 +17,13 @@ type step_kind_model =
   | AxiomStep(AxiomStep.model'(step_model))
   | AlgebriteStep(AlgebriteStep.model'(step_model))
   | WrittenStep(WrittenStep.model'(step_model))
+  | ReparenthesizeStep({
+      original_exp: Exp.t,
+      reparenthesized_exp: Exp.t,
+      selected_id: option(Id.t),
+      evaluate_after_parenthesize: bool,
+      next_exp: Calc.saved(Exp.t),
+    })
 
 and step_model = {
   // Calculated
@@ -52,6 +59,7 @@ type persistent_step_kind =
   | AxiomStep(AxiomStep.persistent'(persistent_step))
   | AlgebriteStep(AlgebriteStep.persistent'(persistent_step))
   | WrittenStep(WrittenStep.persistent'(persistent_step))
+  | ReparenthesizeStep(Exp.t, Exp.t) /* original_exp, reparenthesized_exp */
 
 and persistent_step = {
   step_kind: persistent_step_kind,
@@ -74,6 +82,7 @@ and step_action =
   | NextStep(step_action)
   | RemoveStep
   | StepForward(int)
+  | StepForwardOnSelection(list(Id.t), bool)
   | AddInduction(option(Exp.t))
   | AddForall
   | AddAxiomStep(string, int, Exp.t, Direction.t, string)
@@ -135,6 +144,8 @@ module rec StepKind: {
     | AxiomStep(m) => AxiomStep(AxiomStep.persist(m))
     | AlgebriteStep(m) => AlgebriteStep(AlgebriteStep.persist(m))
     | WrittenStep(m) => WrittenStep(WrittenStep.persist(m))
+    | ReparenthesizeStep({original_exp, reparenthesized_exp, _}) =>
+      ReparenthesizeStep(original_exp, reparenthesized_exp)
     };
   };
 
@@ -147,6 +158,14 @@ module rec StepKind: {
     | AxiomStep(m) => AxiomStep(AxiomStep.unpersist(m))
     | AlgebriteStep(m) => AlgebriteStep(AlgebriteStep.unpersist(m))
     | WrittenStep(m) => WrittenStep(WrittenStep.unpersist(m))
+    | ReparenthesizeStep(original_exp, reparenthesized_exp) =>
+      ReparenthesizeStep({
+        original_exp,
+        reparenthesized_exp,
+        selected_id: None,
+        evaluate_after_parenthesize: false,
+        next_exp: Calc.Pending,
+      })
     };
   };
 
@@ -360,6 +379,66 @@ module rec StepKind: {
           m,
         );
       (WrittenStep(m): model, h, e, v);
+    | ReparenthesizeStep({
+        original_exp,
+        reparenthesized_exp,
+        selected_id,
+        evaluate_after_parenthesize,
+        _,
+      }) =>
+      let current_exp = exp |> Calc.get_value;
+      if (!DHExp.fast_equal(current_exp, original_exp)) {
+        None; /* upstream changed; fall back to MissingStep */
+      } else {
+        let next_exp =
+          if (evaluate_after_parenthesize) {
+            let steps =
+              switch (
+                EvaluatorStep.get_status(
+                  ~settings=Calc.get_value(settings),
+                  reparenthesized_exp,
+                  Calc.get_value(ctx) |> SemanticCtx.get_env,
+                )
+              ) {
+              | AutoStep(step) => [step]
+              | AvailableSteps(steps) => steps
+              };
+            let matching_step =
+              switch (selected_id) {
+              | None => None
+              | Some(selected_id) =>
+                steps
+                |> List.find_opt(step =>
+                     switch (
+                       EvaluatorStep.get_step_id_in(step, reparenthesized_exp)
+                     ) {
+                     | Some(id) => id == selected_id
+                     | None => EvaluatorStep.get_step_id(step) == selected_id
+                     }
+                   )
+              };
+            switch (matching_step) {
+            | Some(step) =>
+              EvaluatorStep.take_step(step)
+              |> Option.value(~default=reparenthesized_exp)
+            | None => reparenthesized_exp
+            };
+          } else {
+            reparenthesized_exp;
+          };
+        Some((
+          ReparenthesizeStep({
+            original_exp,
+            reparenthesized_exp,
+            selected_id,
+            evaluate_after_parenthesize,
+            next_exp: Calc.Calculated(next_exp),
+          }): model,
+          Calc.set(false, hidden),
+          Some(Calc.NewValue(next_exp)),
+          Calc.OldValue(None),
+        ));
+      };
     };
 
   let get_cursor_info = (~inject, ~focus: focus, model: model) =>
@@ -477,7 +556,8 @@ module rec StepKind: {
           ~take_focus=x => take_focus(ForallStep(x)),
           m,
         )
-      | MissingStep(_) => (
+      | MissingStep(_)
+      | ReparenthesizeStep(_) => (
           (~globals as _, ~hide_stepper as _, ~undo as _, ~is_toplevel as _) =>
             []
         )
@@ -585,6 +665,7 @@ module rec StepKind: {
         ~undo,
         m,
       )
+    | ReparenthesizeStep(_) => WebUtil.Node.text("reparenthesize")
     | AxiomStep(m) =>
       AxiomStep.view_justification(
         ~globals,
@@ -869,6 +950,41 @@ and Stepper: {
         | None => model |> raise_invalid_action
         };
       | (StepForward(_), _, _) => model |> raise_invalid_action
+      | (
+          StepForwardOnSelection(selected_ids, evaluate_after_parenthesize),
+          MissingStep(_),
+          _,
+        ) =>
+        let exp =
+          model.expr |> Calc.get_saved_exc(~print="StepForwardOnSelection");
+        let visible_exp =
+          (
+            model.editor |> Calc.get_saved_exc(~print="StepForwardOnSelection")
+          ).
+            statics.
+            term;
+        let result =
+          Reparenthesize.reparenthesize_selection(~selected_ids, visible_exp)
+          |> Option.map((result: Reparenthesize.result) => {
+               let new_exp = result.exp;
+               let selected_id = result.selected_id;
+               {
+                 ...model,
+                 step_kind:
+                   ReparenthesizeStep({
+                     original_exp: exp,
+                     reparenthesized_exp: new_exp,
+                     selected_id: Some(selected_id),
+                     evaluate_after_parenthesize,
+                     next_exp: Calc.Pending,
+                   }),
+               };
+             });
+        switch (result) {
+        | Some(m) => m |> return
+        | None => model |> raise_invalid_action
+        };
+      | (StepForwardOnSelection(_, _), _, _) => model |> raise_invalid_action
       | (AddInduction(exp), MissingStep(_), _) =>
         {
           ...model,
@@ -950,6 +1066,7 @@ and Stepper: {
     | NextStep(next) => can_undo(next)
     | RemoveStep => true
     | StepForward(_) => true
+    | StepForwardOnSelection(_, _) => true
     | AddInduction(_) => true
     | AddForall => true
     | AddAxiomStep(_) => true
@@ -967,7 +1084,7 @@ and Stepper: {
             ~ctx: Calc.t(SemanticCtx.t),
             ~ana: Calc.t(Typ.t),
             {
-              expr: _,
+              expr: prev_expr,
               editor,
               step_kind,
               next_step,
@@ -978,21 +1095,44 @@ and Stepper: {
             }: step_model,
           )
           : (step_model, Calc.t(Exp.t), Calc.t(option(bool))) => {
+    let expr_changed =
+      switch (prev_expr) {
+      | Calc.Pending => true
+      | Calc.Calculated(prev_expr) =>
+        !Exp.fast_equal(prev_expr, Calc.get_value(expr))
+      };
     let editor =
-      editor
-      |> {
-        let.calc settings = settings
-        and.calc expr = expr
-        and.calc _ctx = ctx
-        and.calc _ana = ana;
-        expr |> CodeWithStatics.Model.mk_from_exp(~settings, ~root=Exp);
+      switch (editor, expr_changed) {
+      | (Calc.Calculated(editor), false) => Calc.OldValue(editor)
+      | _ =>
+        editor
+        |> {
+          let.calc settings = settings
+          and.calc expr = expr
+          and.calc _ctx = ctx
+          and.calc _ana = ana;
+          expr
+          |> CodeWithStatics.Model.mk_from_exp(
+               ~settings,
+               ~root=Exp,
+               ~parenthesization=Haz3lcore.ExpToSegment.Settings.Defensive,
+             );
+        }
       };
-    let info_map =
-      info_map
-      |> {
-        let.calc editor: CodeSelectable.Model.t = editor;
-        editor.statics.info_map;
-      };
+    // TODO: Make editor calculation more incremental
+    let editor =
+      CodeSelectable.Update.calculate(
+        ~is_dynamic_term=true,
+        ~settings=Calc.get_value(settings),
+        ~is_edited=expr_changed,
+        ~ctx=Calc.get_value(ctx) |> SemanticCtx.get_ctx,
+        ~dynamics=Dynamics.Map.empty,
+        ~ana=Calc.get_value(ana),
+        ~stitch=_ => Calc.get_value(expr),
+        Calc.get_value(editor),
+      );
+    let info_map = Calc.NewValue(editor.statics.info_map);
+    let editor = Calc.OldValue(editor);
     let (step_kind, hidden, next_expr, inner_validity) =
       StepKind.calculate(
         ~settings,
@@ -1039,24 +1179,11 @@ and Stepper: {
         };
       };
 
-    // TODO: Make editor calculation more incremental
-    let editor =
-      CodeSelectable.Update.calculate(
-        ~is_dynamic_term=true,
-        ~settings=Calc.get_value(settings),
-        ~is_edited=true,
-        ~ctx=Calc.get_value(ctx) |> SemanticCtx.get_ctx,
-        ~dynamics=Dynamics.Map.empty,
-        ~ana=Calc.get_value(ana),
-        ~stitch=_ => Calc.get_value(expr),
-        Calc.get_value(editor),
-      );
-
     (
       {
         expr: expr |> Calc.save,
 
-        editor: Calc.Calculated(editor),
+        editor: editor |> Calc.save,
         step_kind,
         next_step,
         hidden: hidden |> Calc.save,
@@ -1137,6 +1264,11 @@ and Stepper: {
           | AxiomStep(m) => [m.at_exp |> Exp.rep_id]
           | _ => []
           };
+        let rendered_expr =
+          (model.editor |> Calc.get_saved_exc(~print="editor")).statics.term;
+        let step_id_in_expr = step =>
+          EvaluatorStep.get_step_id_in(step, rendered_expr)
+          |> Option.value(~default=EvaluatorStep.get_step_id(step));
         let next_steps =
           switch (model.step_kind) {
           | MissingStep(m) =>
@@ -1147,7 +1279,7 @@ and Stepper: {
               | AutoStep(_) => []
               | AvailableSteps(steps) => steps
             )
-            |> List.map(step => step |> EvaluatorStep.get_step_id)
+            |> List.map(step_id_in_expr)
           | _ => []
           };
         let selected_exp =
@@ -1182,10 +1314,14 @@ and Stepper: {
                   inject(
                     AddAxiomStep(
                       "reflexivity",
-                      ProofHacks.exp_idx(
-                        from_exp,
-                        model.expr |> Calc.get_saved_exc(~print="expr"),
-                      ),
+                      try(
+                        ProofHacks.exp_idx(
+                          from_exp,
+                          model.expr |> Calc.get_saved_exc(~print="expr"),
+                        )
+                      ) {
+                      | _ => 0
+                      },
                       from_exp,
                       Direction.Right,
                       "Reflexive(==)",
@@ -1232,6 +1368,13 @@ and Stepper: {
                     | AddWrittenStep(just, idx, e1, e2) =>
                       inject(AddWrittenStep(just, idx, e1, e2))
                     | TakeStep(i) => inject(StepForward(i))
+                    | StepHere(ids, evaluate_after_parenthesize) =>
+                      inject(
+                        StepForwardOnSelection(
+                          ids,
+                          evaluate_after_parenthesize,
+                        ),
+                      )
                     | Refl(i) => {
                         let refl_exps =
                           switch (model.step_kind) {
@@ -1243,10 +1386,15 @@ and Stepper: {
                         inject(
                           AddAxiomStep(
                             "reflexivity",
-                            ProofHacks.exp_idx(
-                              from_exp,
-                              model.expr |> Calc.get_saved_exc(~print="expr"),
-                            ),
+                            try(
+                              ProofHacks.exp_idx(
+                                from_exp,
+                                model.expr
+                                |> Calc.get_saved_exc(~print="expr"),
+                              )
+                            ) {
+                            | _ => 0
+                            },
                             from_exp,
                             Direction.Right,
                             "Reflexive(==)",

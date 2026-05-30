@@ -476,6 +476,7 @@ module View = {
       (
         ~expand_selection,
         ~syntax: CachedSyntax.t,
+        ~statics: CachedStatics.t,
         ~info_map: Language.Statics.Map.t,
         ~globals: Globals.t,
         z: Zipper.t,
@@ -493,16 +494,21 @@ module View = {
       ~syntax,
       z,
     ),
-    (
-      expand_selection
-        ? Highlight.selection_expanded(~term_data=syntax.term_data)
-        : Highlight.selection
-    )(
-      ~measured=syntax.measured,
-      ~shape_map=syntax.shape_map,
-      ~font_metrics=globals.font_metrics,
-      z,
-    ),
+    expand_selection
+      ? Highlight.selection_expanded(
+          ~term_data=syntax.term_data,
+          ~measured=syntax.measured,
+          ~shape_map=syntax.shape_map,
+          ~font_metrics=globals.font_metrics,
+          z,
+        )
+      : Highlight.selection(
+          ~measured=syntax.measured,
+          ~shape_map=syntax.shape_map,
+          ~font_metrics=globals.font_metrics,
+          ~statics,
+          z,
+        ),
     Backpack.view(
       ~font_metrics=globals.font_metrics,
       ~measured=syntax.measured,
@@ -565,6 +571,7 @@ module View = {
         deco(
           ~expand_selection,
           ~syntax=model.editor.syntax,
+          ~statics=model.statics,
           ~info_map=model.statics.info_map,
           ~globals,
           model.editor.state.zipper,
@@ -604,18 +611,21 @@ module View = {
           }
         )
       | JustHighlight => [
-          (
-            expand_selection
-              ? Highlight.selection_expanded(
-                  ~term_data=model.editor.syntax.term_data,
-                )
-              : Highlight.selection
-          )(
-            ~measured=model.editor.syntax.measured,
-            ~shape_map=model.editor.syntax.shape_map,
-            ~font_metrics=globals.font_metrics,
-            model.editor.state.zipper,
-          ),
+          expand_selection
+            ? Highlight.selection_expanded(
+                ~term_data=model.editor.syntax.term_data,
+                ~measured=model.editor.syntax.measured,
+                ~shape_map=model.editor.syntax.shape_map,
+                ~font_metrics=globals.font_metrics,
+                model.editor.state.zipper,
+              )
+            : Highlight.selection(
+                ~measured=model.editor.syntax.measured,
+                ~shape_map=model.editor.syntax.shape_map,
+                ~font_metrics=globals.font_metrics,
+                ~statics=model.statics,
+                model.editor.state.zipper,
+              ),
         ]
       | No => []
       };

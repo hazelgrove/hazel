@@ -31,7 +31,10 @@ module EvalObj = {
   let persist = (obj: t): persistent => {
     let full_exp = EvalCtx.compose(obj.ctx, obj.d_loc);
     {
-      exp_idx: ProofHacks.exp_idx(obj.d_loc, full_exp),
+      exp_idx:
+        try(ProofHacks.exp_idx(obj.d_loc, full_exp)) {
+        | _ => 0
+        },
       at_exp: obj.d_loc,
     };
   };
@@ -332,7 +335,32 @@ module Decompose = {
 
   module Decomp = Transition(DecomposeEVMode);
   let rec decompose = (~in_closure=?, env, exp) => {
-    switch (exp) {
+    let (term, _) = DHExp.unwrap(exp);
+    switch (term) {
+    | Parens(inner) =>
+      let ids = [DHExp.rep_id(exp)];
+      switch (decompose(~in_closure?, env, inner)) {
+      | Result.Step(inner_steps) when !List.is_empty(inner_steps) =>
+        Result.Step(
+          inner_steps
+          |> List.map(
+               EvalObj.wrap(ctx =>
+                 EvalCtx.Term({
+                   term: EvalCtx.Parens(ctx),
+                   ids,
+                 })
+               ),
+             ),
+        )
+      | _ =>
+        Decomp.transition(
+          decompose,
+          ~mode=`Substitution,
+          ~in_closure?,
+          env,
+          exp,
+        )
+      };
     | _ =>
       Decomp.transition(
         decompose,
@@ -421,6 +449,25 @@ let get_status = (~settings: CoreSettings.t, exp, env) => {
 
 let get_step_id = (step: step): Id.t => step.d_loc |> DHExp.rep_id;
 
+let rec display_exp_for_step = (knd: step_kind, exp: Exp.t): Exp.t =>
+  switch (knd, Exp.term_of(exp)) {
+  | (RemoveParens, _) => exp
+  | (_, Parens(inner)) => display_exp_for_step(knd, inner)
+  | _ => exp
+  };
+
+let rec ids_with_paren_inners = (exp: Exp.t): list(list(Id.t)) =>
+  switch (Exp.term_of(exp)) {
+  | Parens(inner) => [IdTagged.ids(exp), ...ids_with_paren_inners(inner)]
+  | _ => [IdTagged.ids(exp)]
+  };
+
+let get_step_id_in = (step: step, exp: Exp.t): option(Id.t) => {
+  let persistent = EvalObj.persist(step);
+  ProofHacks.nth_exp(persistent.at_exp, persistent.exp_idx, exp)
+  |> Option.map(exp => exp |> display_exp_for_step(step.knd) |> Exp.rep_id);
+};
+
 let get_step_kind = (step: step): step_kind => step.knd;
 
 let get_step_ctx = (step: step): EvalCtx.t => step.ctx;
@@ -452,12 +499,13 @@ let refresh_step =
   let eos =
     decompose(exp, env)
     |> List.map(should_hide_eval_obj(~settings=settings.evaluation)); // NOTE: should_hide_eval_obj actually changes the eval obj to do filter bookkeeping!!!
-  let* desired_id =
+  let* desired_ids =
     ProofHacks.nth_exp(step.at_exp, step.exp_idx, exp)
-    |> Option.map(IdTagged.ids);
+    |> Option.map(ids_with_paren_inners);
   let* (h, x) =
     List.find_opt(
-      ((_, step': step)) => IdTagged.ids(step'.d_loc) == desired_id,
+      ((_, step': step)) =>
+        List.exists(ids => IdTagged.ids(step'.d_loc) == ids, desired_ids),
       eos,
     );
   Some((h, x));

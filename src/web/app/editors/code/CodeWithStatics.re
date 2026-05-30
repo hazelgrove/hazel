@@ -41,12 +41,16 @@ module Model = {
         ~settings: Language.CoreSettings.t,
         ~inline=false,
         ~root: Sort.t,
+        ~parenthesization=ExpToSegment.Settings.Structural,
         term: Language.Exp.t,
       ) => {
     let seg =
       ExpToSegment.exp_to_segment(
         term,
-        ~settings=ExpToSegment.Settings.of_core(~inline, settings),
+        ~settings={
+          ...ExpToSegment.Settings.of_core(~inline, settings),
+          parenthesization,
+        },
       );
     let seg = inline ? seg : PrettySegment.prettify(seg);
     seg |> Zipper.unzip |> Editor.Model.mk(~root) |> mk;
