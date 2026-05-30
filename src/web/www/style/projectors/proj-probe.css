@@ -34,6 +34,13 @@
   --sample-below-bg: oklch(0.93 0.03 195);
   --sample-above-shadow: oklch(0.85 0.08 355); /* pinkish/magenta */
   --sample-below-shadow: oklch(0.8 0.09 230); /* blue */
+
+  /* Simple scheme: a single subdued "off-focus" green for every
+     non-focal sample. Same desaturation/offness as the above/below
+     tangents, but in the focus hue (150) instead of pink/blue. */
+  --sample-off-text: oklch(0.72 0.09 150);
+  --sample-off-bg: oklch(0.95 0.03 150);
+  --sample-off-shadow: oklch(0.85 0.06 150);
 }
 
 /* Turn off caret when text projector is focused */
@@ -505,6 +512,14 @@
 .live-offside .sample:has(.value.tangent-before) .value {
   background-color: var(--sample-above-bg);
 }
+/* Simple scheme: every non-focal sample shares one subdued green. */
+.live-offside .sample:has(.value.off-focus) {
+  --depth-shadow: var(--sample-off-shadow);
+  --bottom-border-clr: var(--sample-off-shadow);
+}
+.live-offside .sample:has(.value.off-focus) .value {
+  background-color: var(--sample-off-bg);
+}
 .live-offside .sample:has(.value.focus) {
   --depth-shadow: var(--exp-shadow);
   --bottom-border-clr: var(--exp-shadow);
@@ -608,7 +623,8 @@
 /* TOKEN BKG INDICATED + HOVER */
 .projector.probe.indicated .Many.sample:has(.value.unrelated),
 .projector.probe.indicated .Many.sample:has(.value.tangent-before),
-.projector.probe.indicated .Many.sample:has(.value.tangent-after) {
+.projector.probe.indicated .Many.sample:has(.value.tangent-after),
+.projector.probe.indicated .Many.sample:has(.value.off-focus) {
   filter: contrast(0.5) brightness(1.32) saturate(0.7);
 }
 
@@ -740,6 +756,15 @@
 }
 .live-offside.Single .value.tangent-after .code-text .token {
   color: var(--sample-below-text);
+}
+/* Simple scheme: subdued green for every non-focal sample, with the
+   same Many-mode fade as the tangents above. */
+.live-offside.Many .value.off-focus .code-text .token {
+  color: var(--sample-off-text);
+  opacity: 0.7;
+}
+.live-offside.Single .value.off-focus .code-text .token {
+  color: var(--sample-off-text);
 }
 /* Saturated text for related (caller/callee) samples */
 .live-offside.Many .value.related-before .code-text .token,

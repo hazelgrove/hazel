@@ -67,7 +67,12 @@ module Settings = {
   type sample_base =
     | Calls
     | Hybrid
-    | StepRange;
+    | StepRange
+    /* Simplest scheme: two colors only. Green for samples at the
+       cursor's call-stack level (the Calls-mode `is_call_cursor`
+       set, including sibling top-level samples), subdued green for
+       everything else. No before/after pink/blue, no step-range. */
+    | Simple;
 
   /* Per-drawer display configuration. Currently only the line-wrap
    * target width; will grow over time (height cap, indent-respect,
@@ -534,6 +539,19 @@ let color_clss =
         step_range_clss(); /* Everything else: step range coloring */
       };
     }
+  | Simple =>
+    /* Two-color collapse of Calls: same call-stack level as the
+       cursor => focus green; everything else => one subdued green.
+       Unlike Hybrid, top-level samples are not special-cased, so
+       sibling top-level samples turn green like in Calls mode. */
+    let relation =
+      Sample.Focus.relation(
+        ~trimmed=true,
+        ~ap_id,
+        dynamics.sample_focus,
+        sample,
+      );
+    relation.is_call_cursor ? ["focus"] : ["off-focus"];
   };
 };
 

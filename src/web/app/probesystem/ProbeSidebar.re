@@ -173,139 +173,169 @@ let legend_view = (~globals as _: Globals.t, ~explain_this_inject) => {
     fn_def_id: None,
   };
   let legend_sample = legend_sample(~mode);
-  /* Labels vary by color scheme */
+  /* Labels vary by color scheme (unused in Simple, which collapses
+     all non-focal samples to a single subdued color). */
   let (before_label, after_label, contains_label, inside_label) =
     switch (color_scheme) {
     | Calls => ("Above", "Below", "Caller", "Callee")
     | Hybrid
-    | StepRange => ("Before", "After", "Contains", "Inside")
+    | StepRange
+    | Simple => ("Before", "After", "Contains", "Inside")
     };
+  let focused_item =
+    legend_item(
+      ~tooltip=
+        "This sample is at the current focal position in the call stack.",
+      legend_sample(
+        ~indicated=true,
+        ~ap_id=None,
+        ~indicated_call=None,
+        ~cursor_stack=[f],
+        ~sample_stack=[f],
+        ~step_range=(10, 20),
+        ~focus_step_range=Some((10, 20)),
+        ~caption="Focused",
+      ),
+    );
+  /* Simple uses two colors only, so its legend is just the focal
+     swatch plus one "everything else" swatch. */
+  let simple_items = [
+    focused_item,
+    legend_item(
+      ~tooltip="Every sample outside the focal call is shown in the same subdued green.",
+      legend_sample(
+        ~indicated=false,
+        ~ap_id=None,
+        ~indicated_call=None,
+        ~cursor_stack=[f],
+        ~sample_stack=[{...f, id: Id.mk()}],
+        ~step_range=(0, 0),
+        ~focus_step_range=None,
+        ~caption="Other",
+      ),
+    ),
+  ];
+  let standard_items = [
+    legend_item(
+      ~tooltip=
+        switch (color_scheme) {
+        | Calls => "This sample is from a shallower call stack depth than the focus."
+        | Hybrid
+        | StepRange
+        | Simple => "This sample's step range ends before the focus starts."
+        },
+      legend_sample(
+        ~indicated=false,
+        ~ap_id=None,
+        ~indicated_call=None,
+        ~cursor_stack=[f, f],
+        ~sample_stack=[f],
+        ~step_range=(0, 5),
+        ~focus_step_range=focus,
+        ~caption=before_label,
+      ),
+    ),
+    focused_item,
+    legend_item(
+      ~tooltip=
+        switch (color_scheme) {
+        | Calls => "This sample is from a deeper call stack depth than the focus."
+        | Hybrid
+        | StepRange
+        | Simple => "This sample's step range starts after the focus ends."
+        },
+      legend_sample(
+        ~indicated=false,
+        ~ap_id=None,
+        ~indicated_call=None,
+        ~cursor_stack=[f],
+        ~sample_stack=[f, f],
+        ~step_range=(25, 30),
+        ~focus_step_range=focus,
+        ~caption=after_label,
+      ),
+    ),
+    legend_item(
+      ~tooltip=
+        switch (color_scheme) {
+        | Calls => "This sample is from a call site on the focus's call chain (a direct caller)."
+        | Hybrid
+        | StepRange
+        | Simple => "This sample's step range strictly contains the focal range."
+        },
+      legend_sample(
+        ~indicated=false,
+        ~indicated_call=None,
+        ~ap_id=Some(Id.invalid),
+        ~cursor_stack=[f, f],
+        ~sample_stack=[f],
+        ~step_range=(5, 25),
+        ~focus_step_range=focus,
+        ~caption=contains_label,
+      ),
+    ),
+    switch (mode) {
+    | Single =>
+      legend_item(
+        ~tooltip=
+          "Samples not shown as they are not within the probe focus; click to realign the focus and show them.",
+        div(~attrs=[clss(["legend-not-aligned"])], [text({js|⊖|js})]),
+      )
+    | Many =>
+      legend_item(
+        ~tooltip=
+          "This sample is from a different branch of the call stack than the focus.",
+        legend_sample(
+          ~indicated=false,
+          ~ap_id=None,
+          ~indicated_call=None,
+          ~cursor_stack=[
+            {
+              ...f,
+              id: Id.mk(),
+            },
+          ],
+          ~sample_stack=[f],
+          ~step_range=(0, 0),
+          ~focus_step_range=None,
+          ~caption="Unfocused",
+        ),
+      )
+    },
+    legend_item(
+      ~tooltip=
+        switch (color_scheme) {
+        | Calls => "This sample is from a function called from the focal sample (a direct callee)."
+        | Hybrid
+        | StepRange
+        | Simple => "This sample's step range is strictly inside the focus."
+        },
+      legend_sample(
+        ~indicated=false,
+        ~indicated_call=Some(Id.invalid),
+        ~ap_id=None,
+        ~cursor_stack=[f],
+        ~sample_stack=[f, f],
+        ~step_range=(12, 18),
+        ~focus_step_range=focus,
+        ~caption=inside_label,
+      ),
+    ),
+  ];
   div(
     ~attrs=[clss(["legend", "panel"])],
-    [
-      div(~attrs=[clss(["title"])], [text("Sample Focus Legend")]),
-      legend_item(
-        ~tooltip=
-          switch (color_scheme) {
-          | Calls => "This sample is from a shallower call stack depth than the focus."
-          | Hybrid
-          | StepRange => "This sample's step range ends before the focus starts."
-          },
-        legend_sample(
-          ~indicated=false,
-          ~ap_id=None,
-          ~indicated_call=None,
-          ~cursor_stack=[f, f],
-          ~sample_stack=[f],
-          ~step_range=(0, 5),
-          ~focus_step_range=focus,
-          ~caption=before_label,
-        ),
-      ),
-      legend_item(
-        ~tooltip=
-          "This sample is at the current focal position in the call stack.",
-        legend_sample(
-          ~indicated=true,
-          ~ap_id=None,
-          ~indicated_call=None,
-          ~cursor_stack=[f],
-          ~sample_stack=[f],
-          ~step_range=(10, 20),
-          ~focus_step_range=Some((10, 20)),
-          ~caption="Focused",
-        ),
-      ),
-      legend_item(
-        ~tooltip=
-          switch (color_scheme) {
-          | Calls => "This sample is from a deeper call stack depth than the focus."
-          | Hybrid
-          | StepRange => "This sample's step range starts after the focus ends."
-          },
-        legend_sample(
-          ~indicated=false,
-          ~ap_id=None,
-          ~indicated_call=None,
-          ~cursor_stack=[f],
-          ~sample_stack=[f, f],
-          ~step_range=(25, 30),
-          ~focus_step_range=focus,
-          ~caption=after_label,
-        ),
-      ),
-      legend_item(
-        ~tooltip=
-          switch (color_scheme) {
-          | Calls => "This sample is from a call site on the focus's call chain (a direct caller)."
-          | Hybrid
-          | StepRange => "This sample's step range strictly contains the focal range."
-          },
-        legend_sample(
-          ~indicated=false,
-          ~indicated_call=None,
-          ~ap_id=Some(Id.invalid),
-          ~cursor_stack=[f, f],
-          ~sample_stack=[f],
-          ~step_range=(5, 25),
-          ~focus_step_range=focus,
-          ~caption=contains_label,
-        ),
-      ),
-      switch (mode) {
-      | Single =>
-        legend_item(
-          ~tooltip=
-            "Samples not shown as they are not within the probe focus; click to realign the focus and show them.",
-          div(~attrs=[clss(["legend-not-aligned"])], [text({js|⊖|js})]),
-        )
-      | Many =>
-        legend_item(
-          ~tooltip=
-            "This sample is from a different branch of the call stack than the focus.",
-          legend_sample(
-            ~indicated=false,
-            ~ap_id=None,
-            ~indicated_call=None,
-            ~cursor_stack=[
-              {
-                ...f,
-                id: Id.mk(),
-              },
-            ],
-            ~sample_stack=[f],
-            ~step_range=(0, 0),
-            ~focus_step_range=None,
-            ~caption="Unfocused",
-          ),
-        )
-      },
-      legend_item(
-        ~tooltip=
-          switch (color_scheme) {
-          | Calls => "This sample is from a function called from the focal sample (a direct callee)."
-          | Hybrid
-          | StepRange => "This sample's step range is strictly inside the focus."
-          },
-        legend_sample(
-          ~indicated=false,
-          ~indicated_call=Some(Id.invalid),
-          ~ap_id=None,
-          ~cursor_stack=[f],
-          ~sample_stack=[f, f],
-          ~step_range=(12, 18),
-          ~focus_step_range=focus,
-          ~caption=inside_label,
-        ),
-      ),
+    [div(~attrs=[clss(["title"])], [text("Sample Focus Legend")])]
+    @ (color_scheme == Simple ? simple_items : standard_items)
+    @ [
       div(~attrs=[clss(["legend-divider"])], []),
       div(~attrs=[clss(["title"])], [text("Sample Color Scheme")]),
       {
         let next_mode: ProbeProj.Settings.sample_base =
           switch (color_scheme) {
+          | Simple => Calls
           | Calls => Hybrid
           | Hybrid => StepRange
-          | StepRange => Calls
+          | StepRange => Simple
           };
         let segment = (label, tooltip, mode) =>
           div(
@@ -325,6 +355,11 @@ let legend_view = (~globals as _: Globals.t, ~explain_this_inject) => {
         div(
           ~attrs=[clss(["segmented-control"])],
           [
+            segment(
+              "Simple",
+              "Two colors only: green for the focal call's call-stack level, subdued green for everything else.",
+              Simple,
+            ),
             segment(
               "Calls",
               "Color by call stack relations: relative call depth, callers, callees.",
