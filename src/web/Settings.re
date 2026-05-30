@@ -413,16 +413,12 @@ module Update = {
           autoprobe_mode: !settings.autoprobe_mode,
         }
       | SampleDrawerInSidebar =>
-        /* Dock toggle along the "location" dimension; preserves the
-         * "persistent" intent. From DockedSidebar lands in StickyInPlace
-         * (not HoverOnly) so undocking doesn't clobber the user's
-         * desire to see context always. From HoverOnly jumps to
-         * DockedSidebar (the only way to reach docked from there, so
-         * persistent gets turned on as a side effect). */
+        /* Dock toggle — independent of sticky. Mirrors the persisted
+         * `sample_drawer_in_sidebar` into ProbeProj's `docked` ref. */
         Haz3lcore.ProbeProj.Settings.(
           {
             let new_docked = !settings.sample_drawer_in_sidebar;
-            set_display_mode(new_docked ? DockedSidebar : StickyInPlace);
+            set_docked(new_docked);
             {
               ...settings,
               sample_drawer_in_sidebar: new_docked,
@@ -430,22 +426,10 @@ module Update = {
           }
         )
       | SampleStickyInPlace =>
-        /* '/' key. Asymmetric — can leave DockedSidebar but never
-         * enters it. From DockedSidebar this also clears the persisted
-         * dock so the user is no longer docked on reload. */
+        /* '/' key — toggles sticky only; independent of docking. */
         Haz3lcore.ProbeProj.Settings.(
-          switch (display_mode^) {
-          | DockedSidebar =>
-            set_display_mode(StickyInPlace);
-            {
-              ...settings,
-              sample_drawer_in_sidebar: false,
-            };
-          | StickyInPlace =>
-            set_display_mode(HoverOnly);
-            settings;
-          | HoverOnly =>
-            set_display_mode(StickyInPlace);
+          {
+            set_sticky(!sticky^);
             settings;
           }
         )

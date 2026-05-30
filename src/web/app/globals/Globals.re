@@ -130,10 +130,8 @@ module Model = {
 
   let load = () => {
     let settings = Settings.Store.load();
-    Haz3lcore.ProbeProj.Settings.set_display_mode(
-      settings.sample_drawer_in_sidebar
-        ? Haz3lcore.ProbeProj.Settings.DockedSidebar
-        : Haz3lcore.ProbeProj.Settings.HoverOnly,
+    Haz3lcore.ProbeProj.Settings.set_docked(
+      settings.sample_drawer_in_sidebar,
     );
     init(~settings, ());
   };

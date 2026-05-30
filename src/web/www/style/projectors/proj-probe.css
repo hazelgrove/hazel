@@ -1115,6 +1115,15 @@
   display: none;
 }
 
+/* Sticky ('/') mode: show the dropdown for the focal sample of the offside
+ * you're keyboard-controlling. `.sticky` is set whenever sticky mode is on;
+ * `:focus` narrows to the one offside that has keyboard focus, and
+ * `.value.focus` to its single focal (red-outlined) sample — so exactly one
+ * dropdown shows, and it follows arrow-key navigation. */
+.live-offside.sticky:focus .sample:has(.value.focus) .sample-context-menu:not(:empty) {
+  display: block;
+}
+
 /* Nav-bar (the consolidated SVG control) is only visible when the
  * probe is indicated — matches the previous nav-arrow precedent. */
 .projector.probe:not(.indicated) .nav-bar {

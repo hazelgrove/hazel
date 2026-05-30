@@ -157,50 +157,38 @@ module Settings = {
   let s = ref(init);
   let version = ref(0);
 
-  /* Where the sample context drawer (actions/args/env) is shown.
-   * Three mutually exclusive states:
-   *   HoverOnly:     dropdown appears on hover, hides off-hover (default).
-   *   StickyInPlace: dropdown is pinned open for the indicated sample
-   *                  without hover. Transient (resets on app reload).
-   *                  Toggled by '/' key.
-   *   DockedSidebar: content rendered in the probe sidebar drawer
-   *                  instead of as a per-sample dropdown. Persistent
-   *                  (mirror of web/Settings.sample_drawer_in_sidebar).
-   *                  Toggled by Cmd/Ctrl+; or the dock-arrow icon.
-   * The '/' key can also exit DockedSidebar into StickyInPlace (the
-   * asymmetric "undock to in-place" behavior); the icon is the only
-   * thing that enters DockedSidebar. See ProjectorView.ViewCache —
-   * mutations must go through set_display_mode so version bumps and
-   * the projector view cache invalidates. */
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type display_mode =
-    | HoverOnly
-    | StickyInPlace
-    | DockedSidebar;
+  /* Two independent axes for showing a sample's context (actions/args/env),
+   * orthogonal to `open_dropdown` (the per-sample right-click dropdown):
+   *   sticky: '/' keyboard mode — the focused sample's in-place dropdown
+   *           stays open and follows arrow-nav. Transient (resets on
+   *           reload); visibility is CSS-driven off the focused offside.
+   *   docked: dock-to-sidebar — the sidebar additionally shows the focused
+   *           sample's context. Persisted (mirrors
+   *           web/Settings.sample_drawer_in_sidebar); toggled by Cmd/Ctrl+;
+   *           or the dock icon.
+   * Writers bump version so the projector view cache invalidates. */
+  let sticky = ref(false);
+  let docked = ref(false);
 
-  let display_mode = ref(HoverOnly);
-
-  /* Callbacks invoked by UI affordances inside the projector view
-   * (which can only dispatch external_actions through the framework
-   * API, not global Settings updates). Both are set by Page.view on
-   * each render so they capture the current `inject`. */
+  /* Callbacks invoked by UI affordances inside the projector view (which can
+   * only dispatch external_actions, not global Settings updates). Set by
+   * Page.view each render so they capture the current `inject`. */
   let on_drawer_toggle: ref(unit => Virtual_dom.Vdom.Effect.t(unit)) =
     ref(_ => Virtual_dom.Vdom.Effect.Ignore);
   let on_sticky_toggle: ref(unit => Virtual_dom.Vdom.Effect.t(unit)) =
     ref(_ => Virtual_dom.Vdom.Effect.Ignore);
 
-  /* Write `display_mode` AND bump version so the projector view cache
-   * (keyed on Settings.version) invalidates on the next render. */
-  let set_display_mode = (m: display_mode) => {
-    display_mode := m;
+  let set_sticky = (b: bool) => {
+    sticky := b;
+    version := version^ + 1;
+  };
+  let set_docked = (b: bool) => {
+    docked := b;
     version := version^ + 1;
   };
 
-  /* DOM id of the single sample dropdown opened by alt-click (None = closed).
-   * Independent of display_mode: works in the default (non-docked) view to
-   * give the sample dropdown context-menu semantics (alt-click to open,
-   * click-outside/Escape to close via SampleMenuListener). Transient; bumps
-   * version so the projector view cache invalidates. */
+  /* DOM id of the single sample dropdown opened by right-click (None =
+   * closed). Independent of sticky/docked. Transient; bumps version. */
   let open_dropdown: ref(option(string)) = ref(None);
   let set_open_dropdown = (o: option(string)) => {
     open_dropdown := o;
@@ -211,12 +199,8 @@ module Settings = {
     Hashtbl.clear(offset);
     s := init;
     open_dropdown := None;
-    /* Only clear the transient StickyInPlace bit; preserve the user's
-     * persisted DockedSidebar preference (matches the old reset behavior
-     * which only cleared show_env). */
-    if (display_mode^ == StickyInPlace) {
-      display_mode := HoverOnly;
-    };
+    /* Clear the transient sticky bit; preserve the persisted dock pref. */
+    sticky := false;
     version := version^ + 1;
   };
 
@@ -929,7 +913,7 @@ let step_into_action = (ctx: probe_ctx, sample: Sample.t, ap_id: Id.t) =>
  * glyph points toward the destination: → bar (sidebar) when currently
  * a hover dropdown; bar ← when currently docked in the sidebar. */
 let dock_toggle = (): Node.t => {
-  let docked = Settings.display_mode^ == Settings.DockedSidebar;
+  let docked = Settings.docked^;
   let icon = docked ? {js|⇤|js} : {js|⇥|js};
   let tooltip =
     docked
@@ -1312,21 +1296,15 @@ let sample_view =
     };
   let has_dropdown =
     !(hide_env && ctx.ap_id == None) || sample.call_stack != [] || has_rich;
-  /* In DockedSidebar the per-sample hover dropdown is hidden; the same
-   * content is rendered by the probe sidebar instead. */
-  let render_dropdown =
-    has_dropdown && Settings.display_mode^ != Settings.DockedSidebar;
-  /* StickyInPlace pins the dropdown open for the indicated sample
-   * (the in-place equivalent of DockedSidebar). */
+  /* In-place dropdown always available; docking is additive (the sidebar
+   * shows the focused sample's context too, it doesn't replace this). */
+  let render_dropdown = has_dropdown;
   let is_indicated = indicated_sample_id == Some(sample.id);
   let did = dropdown_id(sample);
-  /* Shown when pinned in place (StickyInPlace, indicated) OR explicitly
-   * opened by alt-click (open_dropdown) — the latter gives the dropdown
-   * context-menu semantics in the default view. */
-  let show_env =
-    Settings.display_mode^ == Settings.StickyInPlace
-    && is_indicated
-    || Settings.open_dropdown^ == Some(did);
+  /* The right-click dropdown's visibility. Sticky-mode visibility is
+   * handled in CSS (the focused offside's focal sample), so it isn't an
+   * OCaml concern here. */
+  let show_env = Settings.open_dropdown^ == Some(did);
   /* The `indicated-sample` class marks this probe's most-aligned sample.
    * Combined with `.projector.probe.indicated` (set on the unique probe
    * adjacent to the caret), this gives a single DOM anchor element used
@@ -1747,9 +1725,7 @@ let key_handler =
     }
   | D(";") when key.meta == Down || key.ctrl == Down => Ignore /* Defer to page-level handler: toggle sidebar drawer mode */
   | D("/") =>
-    /* Sticky-in-place toggle. Handler in web/Settings owns the
-     * transition logic (including the asymmetric DockedSidebar →
-     * StickyInPlace move which also clears the persisted dock). */
+    /* Toggle sticky mode (independent of docking); web/Settings owns it. */
     Many([Settings.on_sticky_toggle^(), Stop_propagation, Prevent_default])
   | D("\\") =>
     /* Per-probe drawer-mode toggle: pretty-printed multi-line samples
@@ -1923,10 +1899,14 @@ let live_offside_view =
     )
     : Node.t => {
   let {ctx, id, num_total, num_shown, groups, is_cursor_aligned, empty_status} = data;
-  let base_classes = [
-    "live-offside",
-    settings.window |> Sample.Window.show_mode,
-  ];
+  let base_classes =
+    [
+      "live-offside",
+      settings.window |> Sample.Window.show_mode,
+    ]
+    /* Sticky ('/') mode: CSS shows the focused offside's focal-sample
+       dropdown off this hook (see proj-probe.css). */
+    @ (Settings.sticky^ ? ["sticky"] : []);
   /* Context-menu-style dismissal for the alt-click sample dropdown:
    * click-outside / window-blur closes it. Re-synced every render so the
    * close effect captures the current `local`. Idempotent across probes. */
