@@ -77,6 +77,22 @@
   justify-items: stretch; /* or center if you prefer tighter layout */
 }
 
+/* Simple scheme has only two swatches (Focused / Unfocused). Lay them out
+ * spread across the row rather than the 3-col grid's left+middle: flex with
+ * space-between puts Focused at the left and Unfocused at the right, with the
+ * title/divider/scheme-toggle still on their own full-width lines. */
+#probe-sidebar .legend.simple {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+#probe-sidebar .legend.simple > .title,
+#probe-sidebar .legend.simple > .legend-divider,
+#probe-sidebar .legend.simple > .segmented-control {
+  flex-basis: 100%;
+}
+
 #probe-sidebar .panel {
   padding: 0.5em;
   outline: 1px solid var(--BR1);
