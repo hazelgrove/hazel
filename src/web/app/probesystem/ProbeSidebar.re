@@ -202,13 +202,19 @@ let legend_view = (~globals as _: Globals.t, ~explain_this_inject) => {
   let simple_items = [
     focused_item,
     legend_item(
-      ~tooltip="Every sample outside the focal call is shown in the same subdued green.",
+      ~tooltip=
+        "Every sample outside the focal call is shown in the same subdued green.",
       legend_sample(
         ~indicated=false,
         ~ap_id=None,
         ~indicated_call=None,
         ~cursor_stack=[f],
-        ~sample_stack=[{...f, id: Id.mk()}],
+        ~sample_stack=[
+          {
+            ...f,
+            id: Id.mk(),
+          },
+        ],
         ~step_range=(0, 0),
         ~focus_step_range=None,
         ~caption="Other",

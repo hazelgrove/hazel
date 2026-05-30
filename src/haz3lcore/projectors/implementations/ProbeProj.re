@@ -1184,16 +1184,14 @@ let sample_context_sections =
   let nodes =
     primary == [] && call_display == [] && env == []
       ? []
-      : (
-          [
-            div(
-              ~attrs=[Attr.classes(["context-actions"])],
-              primary @ [dock_toggle()],
-            ),
-          ]
-          @ call_display
-          @ env
-        );
+      : [
+          div(
+            ~attrs=[Attr.classes(["context-actions"])],
+            primary @ [dock_toggle()],
+          ),
+        ]
+        @ call_display
+        @ env;
   (has_env, has_call, nodes);
 };
 
@@ -1293,8 +1291,7 @@ let sample_view =
    * `menu-trigger` exempts the sample from SampleMenuListener's
    * click-outside dismissal so the opening alt-click isn't undone. */
   let sample_classes =
-    ["sample", "menu-trigger"]
-    @ (is_indicated ? ["indicated-sample"] : []);
+    ["sample", "menu-trigger"] @ (is_indicated ? ["indicated-sample"] : []);
   div(
     ~attrs=[Attr.classes(sample_classes)],
     [
