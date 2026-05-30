@@ -747,7 +747,7 @@ let quick_ref_view =
             ~click_shortcut="/",
             ~badge_cls="qr-when-focused",
             "See env/args",
-            [text("Hover over sample")],
+            [text("Alt-click sample")],
           ),
           quick_ref_row(
             ~click_shortcut="P",

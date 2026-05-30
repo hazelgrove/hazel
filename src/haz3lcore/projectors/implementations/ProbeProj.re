@@ -48,6 +48,8 @@ type action =
   | ToggleWindowMode
   | ToggleDrawerMode
   | SetDrawerMode(bool)
+  | ToggleDropdown(string)
+  | SetDropdown(option(string))
   | ResetSettings;
 
 /* How a sample's value should be rendered inside the offside view.
@@ -180,9 +182,21 @@ module Settings = {
     version := version^ + 1;
   };
 
+  /* DOM id of the single sample dropdown opened by alt-click (None = closed).
+   * Independent of display_mode: works in the default (non-docked) view to
+   * give the sample dropdown context-menu semantics (alt-click to open,
+   * click-outside/Escape to close via SampleMenuListener). Transient; bumps
+   * version so the projector view cache invalidates. */
+  let open_dropdown: ref(option(string)) = ref(None);
+  let set_open_dropdown = (o: option(string)) => {
+    open_dropdown := o;
+    version := version^ + 1;
+  };
+
   let reset_mode = () => {
     Hashtbl.clear(offset);
     s := init;
+    open_dropdown := None;
     /* Only clear the transient StickyInPlace bit; preserve the user's
      * persisted DockedSidebar preference (matches the old reset behavior
      * which only cleared show_env). */
@@ -613,6 +627,7 @@ module ValueState = {
 let value_view =
     (
       ~display: sample_display,
+      ~alt_toggle: Ui_effect.t(unit),
       ctx: probe_ctx,
       ~num_total,
       view_seg,
@@ -698,9 +713,15 @@ let value_view =
       ),
       Attr.on_double_click(_ => local(ToggleWindowMode)),
       Attr.on_pointerdown(evt =>
-        Key.meta_held(evt)
-          ? Option.is_some(ctx.ap_id) ? pin_call(ctx) : focus_call(ctx)
-          : val_pointerdown(evt)
+        Js.to_bool(Js.Unsafe.coerce(evt)##.altKey)
+          ? Effect.Many([
+              alt_toggle,
+              Effect.Stop_propagation,
+              Effect.Prevent_default,
+            ])
+          : Key.meta_held(evt)
+              ? Option.is_some(ctx.ap_id) ? pin_call(ctx) : focus_call(ctx)
+              : val_pointerdown(evt)
       ),
       Attr.on_pointerup(val_pointerup),
       Attr.on_mousemove(val_mousemove),
@@ -1160,8 +1181,10 @@ let sample_context_menu =
           @ (has_env || has_call ? [] : ["no-env"])
           @ (show_env ? ["dropdown-active"] : []),
         ),
-      ]
-      @ SafeTriangle.CSSDropdown.menu_attrs(dropdown_id(sample)),
+        /* id only — visibility is driven by the dropdown-active class
+         * (set via show_env); no SafeTriangle hover handlers. */
+        Attr.id(dropdown_id(sample)),
+      ],
     nodes,
   );
 };
@@ -1218,22 +1241,36 @@ let sample_view =
   /* StickyInPlace pins the dropdown open for the indicated sample
    * (the in-place equivalent of DockedSidebar). */
   let is_indicated = indicated_sample_id == Some(sample.id);
+  let did = dropdown_id(sample);
+  /* Shown when pinned in place (StickyInPlace, indicated) OR explicitly
+   * opened by alt-click (open_dropdown) — the latter gives the dropdown
+   * context-menu semantics in the default view. */
   let show_env =
-    Settings.display_mode^ == Settings.StickyInPlace && is_indicated;
+    Settings.display_mode^ == Settings.StickyInPlace
+    && is_indicated
+    || Settings.open_dropdown^ == Some(did);
   /* The `indicated-sample` class marks this probe's most-aligned sample.
    * Combined with `.projector.probe.indicated` (set on the unique probe
    * adjacent to the caret), this gives a single DOM anchor element used
-   * by `SampleAnchor` to compensate scroll on Left/Right SetIndex. */
+   * by `SampleAnchor` to compensate scroll on Left/Right SetIndex.
+   * `menu-trigger` exempts the sample from SampleMenuListener's
+   * click-outside dismissal so the opening alt-click isn't undone. */
   let sample_classes =
-    ["sample"] @ (is_indicated ? ["indicated-sample"] : []);
+    ["sample", "menu-trigger"]
+    @ (is_indicated ? ["indicated-sample"] : []);
   div(
-    ~attrs=
-      [Attr.classes(sample_classes)]
-      @ (
-        render_dropdown
-          ? SafeTriangle.CSSDropdown.trigger_attrs(dropdown_id(sample)) : []
+    ~attrs=[Attr.classes(sample_classes)],
+    [
+      value_view(
+        ~display,
+        ~alt_toggle=local(ToggleDropdown(did)),
+        ctx,
+        ~num_total,
+        view_seg,
+        local,
+        sample,
       ),
-    [value_view(~display, ctx, ~num_total, view_seg, local, sample)]
+    ]
     @ pin_view(ctx, sample)
     @ (
       render_dropdown
@@ -1526,6 +1563,10 @@ let key_handler =
   let key = Key.mk(KeyDown, evt);
   switch (key.key) {
   | D("E" | "e") when key.meta == Down || key.ctrl == Down => parent(Remove)
+  | D("Escape") when Settings.open_dropdown^ != None =>
+    /* First Escape closes an alt-click-opened sample dropdown (stays
+     * focused); subsequent Escapes fall through to the cases below. */
+    Many([local(SetDropdown(None)), Stop_propagation, Prevent_default])
   | D("Escape") when key.shift == Down =>
     JsUtil.get_elem_by_id(Id.cls(id))##blur;
     Many([local(ResetSettings), parent(SampleFocus(Reset))]);
@@ -1808,6 +1849,14 @@ let live_offside_view =
     "live-offside",
     settings.window |> Sample.Window.show_mode,
   ];
+  /* Context-menu-style dismissal for the alt-click sample dropdown:
+   * click-outside / window-blur closes it. Re-synced every render so the
+   * close effect captures the current `local`. Idempotent across probes. */
+  SampleMenuListener.sync(
+    ~menu_open=Settings.open_dropdown^ != None,
+    ~on_close=local(SetDropdown(None)),
+    (),
+  );
   Node.div(
     ~attrs=[
       Attr.id(Id.cls(id)),
@@ -1985,6 +2034,14 @@ module M: Projector = {
         ...model,
         drawer_mode: b,
       };
+    | ToggleDropdown(did) =>
+      Settings.set_open_dropdown(
+        Settings.open_dropdown^ == Some(did) ? None : Some(did),
+      );
+      model;
+    | SetDropdown(o) =>
+      Settings.set_open_dropdown(o);
+      model;
     | ResetSettings =>
       Settings.reset_mode();
       SampleLength.reset();

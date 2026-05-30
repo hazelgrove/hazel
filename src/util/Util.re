@@ -25,6 +25,7 @@ module Menu = Menu;
 module MenuListener = MenuListener;
 module ContextMenuListener = ContextMenuListener;
 module ColumnMenuListener = ColumnMenuListener;
+module SampleMenuListener = SampleMenuListener;
 module Key = Key;
 module Os = Os;
 module Point = Point;

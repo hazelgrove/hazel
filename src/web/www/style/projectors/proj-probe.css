@@ -1059,17 +1059,14 @@
   border-bottom: 1px solid var(--BR2);
 }
 
-/* Show sample context menu only via JS-managed dropdown-active class
- * (with configurable delay via SafeTriangle.Config.show_delay) */
-.projector.probe.indicated
-  .live-offside:focus
-  .sample:has(.value.focus)
-  .sample-context-menu.dropdown-active {
+/* Show the sample context menu purely via the JS-managed dropdown-active
+ * class (set by ProbeProj when open_dropdown matches this sample). Opened by
+ * alt-click on the sample (or '/' on the focused sample) and dismissed
+ * context-menu-style by SampleMenuListener. Hover-to-open was removed. */
+.live-offside .sample-context-menu.dropdown-active {
   display: block;
 }
-.projector.probe.indicated
-  .sample:has(.value.focus)
-  .sample-context-menu.dropdown-active:empty {
+.live-offside .sample-context-menu.dropdown-active:empty {
   display: none;
 }
 
