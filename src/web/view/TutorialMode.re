@@ -432,6 +432,8 @@ module View = {
         ~inject: Update.t => 'b,
         ~inject_explainthis: ExplainThisUpdate.update => 'b,
         ~selection: option(Selection.t),
+        ~is_first: bool,
+        ~is_last: bool,
         model: Model.t,
       ) => {
     let eds = model.editors;
@@ -498,7 +500,7 @@ module View = {
     };
 
     let prev_button_view =
-      if (model.editors.version > 1) {
+      if (!is_first) {
         div(
           ~attrs=[Attr.class_("prev-button")],
           [Widgets.button(Icons.prev, _ => inject(MoveToPrevExercise))],
@@ -557,7 +559,7 @@ module View = {
         ],
       );
     let next_button_view =
-      model.editors.version < 10
+      !is_last
         ? div(
             ~attrs=[Attr.class_("next-button")],
             [Widgets.button(Icons.next, _ => inject(MoveToNextExercise))],

@@ -338,6 +338,8 @@ module View = {
     TutorialMode.View.view(
       ~globals,
       ~inject=a => inject(Update.Tutorial(a)),
+      ~is_first=model.current == 0,
+      ~is_last=model.current == List.length(model.exercises) - 1,
       current,
     );
   };
