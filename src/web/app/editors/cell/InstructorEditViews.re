@@ -3,16 +3,25 @@ open Virtual_dom.Vdom;
 open Node;
 
 /* Reusable instructor-mode header editors for exercises.
-   Provides pencil/confirm/cancel UI for editing a title, module name, and
-   prompt (with markdown rendering for the prompt via ExplainThis). */
+   Provides pencil/confirm/cancel UI for editing a title, module name,
+   and prompt (with markdown rendering for the prompt via ExplainThis). */
 
-/* The DOM ids below are also recognized by Page.View.is_input_field so that
-   keyboard shortcuts are bypassed while these inputs have focus. Only one
-   exercise is visible at a time, so reusing these ids across exercise kinds
-   is safe. */
+/* The DOM ids below are also recognized by Page.View.is_input_field so
+   that keyboard shortcuts are bypassed while these inputs have focus.
+   Only one exercise is visible at a time, so reusing these ids across
+   exercise kinds is safe. */
 let title_input_id = "title-input-box";
 let module_name_input_id = "module-name-input";
 let prompt_input_id = "prompt-input-box";
+
+/* Pencil/confirm/cancel buttons rendered with the design-system Button.
+   The `.edit-icon` wrapper preserves the existing positioning rules
+   (see cell.css). */
+let edit_icon = (~tooltip="", icon, action) =>
+  div(
+    ~attrs=[Attr.class_("edit-icon")],
+    [Components.button(~tooltip, [icon], action)],
+  );
 
 /* Title: bold headline, editable in instructor mode. */
 let title_view =
@@ -31,55 +40,43 @@ let title_view =
       Obj.magic(Js_of_ocaml.Js.some(JsUtil.get_elem_by_id(title_input_id)))##.value;
     Effect.Many([update_title(new_value), toggle_editing(ev)]);
   };
+  let body =
+    instructor_mode
+      ? is_editing
+          ? div(
+              ~attrs=[Attr.class_("title-edit")],
+              [
+                input(
+                  ~attrs=[
+                    Attr.class_("title-text"),
+                    Attr.id(title_input_id),
+                    Attr.value(title),
+                    Attr.on_focus(on_focus_textbox),
+                  ],
+                  (),
+                ),
+                edit_icon(Icons.confirm, confirm),
+                edit_icon(Icons.cancel, toggle_editing),
+              ],
+            )
+          : div(
+              ~attrs=[Attr.class_("title-edit")],
+              [
+                div(
+                  ~attrs=[
+                    Attr.classes([
+                      "title-text",
+                      title == "" ? "title-placeholder" : "",
+                    ]),
+                  ],
+                  [text(placeholder)],
+                ),
+                edit_icon(Icons.pencil, toggle_editing),
+              ],
+            )
+      : Components.heading(~level=`H1, [text(title)]);
   CellCommon.simple_cell_view([
-    div(
-      ~attrs=[Attr.class_("title-cell")],
-      [
-        instructor_mode
-          ? is_editing
-              ? div(
-                  ~attrs=[Attr.class_("title-edit")],
-                  [
-                    input(
-                      ~attrs=[
-                        Attr.class_("title-text"),
-                        Attr.id(title_input_id),
-                        Attr.value(title),
-                        Attr.on_focus(on_focus_textbox),
-                      ],
-                      (),
-                    ),
-                    div(
-                      ~attrs=[Attr.class_("edit-icon")],
-                      [Widgets.button(Icons.confirm, confirm)],
-                    ),
-                    div(
-                      ~attrs=[Attr.class_("edit-icon")],
-                      [Widgets.button(Icons.cancel, toggle_editing)],
-                    ),
-                  ],
-                )
-              : div(
-                  ~attrs=[Attr.class_("title-edit")],
-                  [
-                    div(
-                      ~attrs=[
-                        Attr.classes([
-                          "title-text",
-                          title == "" ? "title-placeholder" : "",
-                        ]),
-                      ],
-                      [text(placeholder)],
-                    ),
-                    div(
-                      ~attrs=[Attr.class_("edit-icon")],
-                      [Widgets.button(Icons.pencil, toggle_editing)],
-                    ),
-                  ],
-                )
-          : div(~attrs=[Attr.class_("title-text")], [text(title)]),
-      ],
-    ),
+    div(~attrs=[Attr.class_("title-cell")], [body]),
   ]);
 };
 
@@ -121,14 +118,8 @@ let module_name_view =
                     ],
                     (),
                   ),
-                  div(
-                    ~attrs=[Attr.class_("edit-icon")],
-                    [Widgets.button(Icons.confirm, confirm)],
-                  ),
-                  div(
-                    ~attrs=[Attr.class_("edit-icon")],
-                    [Widgets.button(Icons.cancel, toggle_editing)],
-                  ),
+                  edit_icon(Icons.confirm, confirm),
+                  edit_icon(Icons.cancel, toggle_editing),
                 ],
               )
             : div(
@@ -143,10 +134,7 @@ let module_name_view =
                     ],
                     [text(placeholder)],
                   ),
-                  div(
-                    ~attrs=[Attr.class_("edit-icon")],
-                    [Widgets.button(Icons.pencil, toggle_editing)],
-                  ),
+                  edit_icon(Icons.pencil, toggle_editing),
                 ],
               ),
         ],
@@ -154,8 +142,8 @@ let module_name_view =
     : Node.none;
 };
 
-/* Prompt: rendered markdown in both view and student modes; textarea when
-   instructor toggles editing. */
+/* Prompt: rendered markdown in both view and student modes; textarea
+   when instructor toggles editing. */
 let prompt_view =
     (
       ~globals: Globals.t,
@@ -203,14 +191,8 @@ let prompt_view =
                       ),
                     ],
                   ),
-                  div(
-                    ~attrs=[Attr.class_("edit-icon")],
-                    [Widgets.button(Icons.confirm, confirm)],
-                  ),
-                  div(
-                    ~attrs=[Attr.class_("edit-icon")],
-                    [Widgets.button(Icons.cancel, toggle_editing)],
-                  ),
+                  edit_icon(Icons.confirm, confirm),
+                  edit_icon(Icons.cancel, toggle_editing),
                 ],
               )
             : div(
@@ -227,7 +209,13 @@ let prompt_view =
                   ),
                   div(
                     ~attrs=[Attr.class_("edit-pencil")],
-                    [Widgets.button(Icons.pencil, toggle_editing)],
+                    [
+                      Components.button(
+                        ~tooltip="Edit Prompt",
+                        [Icons.pencil],
+                        toggle_editing,
+                      ),
+                    ],
                   ),
                 ],
               )

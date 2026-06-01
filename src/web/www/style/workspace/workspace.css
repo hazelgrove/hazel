@@ -1,0 +1,687 @@
+/* Workspace surface — base + primitives + containers + placements.
+   Conservative port: values match dominant patterns in the legacy CSS.
+   See docs/style/surfaces.md and docs/style/elements.md. */
+
+/* ============================================================
+   Local scale tokens (values chosen to match existing patterns).
+   Promote to variables.css once stable.
+   ============================================================ */
+
+:root {
+  --space-xs: 0.2em;
+  --space-sm: 0.5em;
+  --space-md: 0.75em;
+  --space-lg: 1em;
+
+  --radius-sm: 0.3em;
+  --radius-md: 0.4em;
+  --radius-pill: 999px;
+
+  --text-sm: 0.85em;
+  --text-md: 1em;
+  --text-lg: 1.2em;
+
+  --transition-base: 0.2s ease;
+}
+
+/* ============================================================
+   Workspace surface — base
+   ============================================================ */
+
+.workspace-surface {
+  font-family: var(--ui-font);
+  font-size: var(--base-font-size);
+  color: var(--STONE);
+  background: var(--ui-bkg);
+  line-height: var(--line-height);
+}
+
+.workspace-surface p { margin: 0 0 0.8em; }
+.workspace-surface p:last-child { margin-bottom: 0; }
+
+/* Hyperlinks — ports `.agent-main-menu-info a` */
+.workspace-surface a {
+  color: var(--BR3);
+  text-decoration: underline;
+  transition: color var(--transition-base);
+}
+.workspace-surface a:hover {
+  color: var(--BR4);
+}
+
+/* ============================================================
+   Row — flex horizontal with default gap; for inline groups
+   ============================================================ */
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  flex-wrap: wrap;
+}
+
+/* ============================================================
+   Heading — three levels, each ported from an existing pattern:
+   - h1 ports `.title-cell .title-text` (cell.css): exercise title.
+   - h2 ports `.cell-caption strong` (cell.css): all-caps cell label.
+   - h3 ports `#probe-sidebar .legend .title` (probesystem.css):
+     small subtle subsection label.
+   ============================================================ */
+
+.heading {
+  font-family: var(--ui-font);
+  margin: 0;
+}
+
+/* Headings own both their top and bottom rhythm — generous top margin to
+   space them from preceding content; tight bottom margin to group with
+   the content that follows. :first-child suppresses top space at the
+   start of a container. Margin-collapsing handles adjacent cases. */
+
+.heading.h1 {
+  font-size: 1.5rem;
+  font-weight: bold;
+  color: var(--BR4);
+  margin: 1.5em 0 0.4em;
+}
+
+.heading.h2 {
+  font-size: 0.85em;
+  font-weight: bold;
+  color: var(--ui-header-text);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin: 1.5em 0 0.3em;
+}
+
+.heading.h3 {
+  font-size: 0.85em;
+  font-weight: normal;
+  color: var(--BR2);
+  margin: 1.2em 0 0.3em;
+}
+
+.heading:first-child {
+  margin-top: 0;
+}
+
+/* Subtitle — small subdued inline label, typically used as a
+   non-uppercase aside next to a heading (e.g. "(Read-Only)", "#1").
+   Matches the heading's bottom margin (none) when used inside a row. */
+.subtitle {
+  font-size: var(--text-sm);
+  color: var(--BR4);
+  font-weight: normal;
+  opacity: 0.7;
+}
+
+/* When heading or subtitle is laid out inside a row, drop their
+   vertical margins so the row's baseline alignment works. */
+.row > .heading,
+.row > .subtitle {
+  margin: 0;
+}
+
+/* ============================================================
+   Button — visible icon button. Ports the `.cell-result .icon`
+   pattern (stepper top "remove step" button, settings-modal,
+   nut-menu): 20px wrap, BR2 colour, wobble + scale + brightness
+   animation on hover.
+
+   `.button.subtle` ports `.stepper .subtle-button`: opacity 0
+   until the parent (or the button itself) is hovered.
+   ============================================================ */
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  min-height: 20px;
+  padding: 0;
+  background: transparent;
+  color: var(--BR2);
+  cursor: pointer;
+  user-select: none;
+  transition: opacity 0.3s;
+}
+
+.button > * {
+  transition: transform var(--transition-base),
+              filter var(--transition-base);
+  display: inline-block;
+}
+
+.button > svg {
+  fill: var(--BR2);
+}
+
+.button:hover > * {
+  animation: wobble 0.6s ease 0s 1 normal forwards;
+  transform: scale(1.3);
+  filter: brightness(1.1);
+}
+
+.button.disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.button.disabled:hover > * {
+  animation: none;
+  transform: none;
+  filter: none;
+}
+
+.button.active > * {
+  transform: scale(1.15);
+}
+
+.tabs > .button:hover > *,
+.tabs.horizontal > .button:hover > *,
+.tabs.title > .button:hover > * {
+  animation: none;
+  transform: none;
+  filter: none;
+}
+
+.button.subtle {
+  opacity: 0;
+}
+
+.button.subtle:hover,
+*:hover > .button.subtle {
+  opacity: 1;
+}
+
+/* ============================================================
+   Toggle — faithful port of toggle.css
+   ============================================================ */
+
+.toggle {
+  display: inline-block;
+  position: relative;
+  height: 1.2em;
+  width: 2em;
+  background-color: var(--shard-exp);
+  border-radius: 2em;
+  cursor: pointer;
+  border: solid 1px transparent;
+  box-shadow: inset 1px 1px 9px -3px rgb(4 4 4 / 8%),
+              1px 2px 6px -2px rgb(0 0 0 / 1%);
+  transition: margin 0.1s ease-in;
+}
+
+.toggle:hover {
+  animation: wobble 0.4s ease 0s 1 normal none;
+}
+
+.toggle > .knob {
+  width: 0.9em;
+  height: 0.9em;
+  background-color: var(--toggle-knob);
+  border: solid 1px rgba(126, 126, 126, 0.07);
+  border-radius: 1.5em;
+  margin: 1px 0.9em 1px 1px;
+  box-shadow: 0 1px 3px rgb(106 106 106 / 26%),
+              0 5px 1px rgb(106 106 106 / 13%);
+  transition: margin 0.1s ease-in;
+}
+
+.toggle.active { background-color: var(--BR2); }
+.toggle.active > .knob {
+  margin-left: 0.9em;
+  margin-right: 1px;
+}
+
+/* ============================================================
+   Text input — ports `.user-message-input` (agent-chat-messages):
+   8px radius, 0.6px BR2 border, SAND fill, BR3 border + outline on focus.
+   ============================================================ */
+
+.text-input {
+  font-family: var(--ui-font);
+  font-size: var(--text-md);
+  color: var(--STONE);
+  background-color: var(--SAND);
+  padding: 0.6em 0.8em;
+  border: 0.6px solid var(--BR2);
+  border-radius: 8px;
+  transition: border-color var(--transition-base);
+}
+
+.text-input:hover {
+  border-color: var(--BR3);
+}
+
+.text-input:focus {
+  outline: 0.6px solid var(--BR3);
+  border-color: var(--BR3);
+}
+
+/* ============================================================
+   Select — ports `#top-bar #editor-mode select`:
+   transparent, BR4 colour, pill radius, SAND fill on hover.
+   ============================================================ */
+
+.select {
+  font-family: var(--ui-font);
+  font-size: inherit;
+  color: var(--select-text);
+  background: transparent;
+  border: none;
+  outline: none;
+  cursor: pointer;
+  padding: 0.2em 0.6em;
+  border-radius: 1em;
+  transition: background-color var(--transition-base);
+}
+
+.select:hover {
+  background-color: var(--SAND);
+}
+
+/* ============================================================
+   Code inline
+   ============================================================ */
+
+.code-inline {
+  font-family: var(--code-font);
+  font-size: 0.9em;
+  padding: 0.1em 0.3em;
+  background: var(--SAND);
+  color: var(--token-exp);
+  border-radius: 0.2em;
+}
+
+/* ============================================================
+   Badge — semantics ported from `.tab-status-indicator`,
+   `.ci-status-*`, test pass/fail vars
+   ============================================================ */
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.4em;
+  height: 1.4em;
+  padding: 0 var(--space-sm);
+  font-size: var(--text-sm);
+  font-weight: bold;
+  border-radius: var(--radius-pill);
+  background: var(--BR2);
+  color: var(--SAND);
+}
+
+.badge.status.error   { background: var(--ci-status-error-bkg);   color: var(--ci-status-error-text); }
+.badge.status.warning { background: var(--ci-status-warning-bkg); color: var(--ci-status-warning-text); }
+.badge.status.ok      { background: var(--test-pass-active);      color: var(--test-pass); }
+
+.badge.count { background: var(--BR2); color: var(--SAND); }
+
+.badge.kbd {
+  font-family: var(--code-font);
+  background: var(--T2);
+  color: var(--BR4);
+  border-radius: var(--radius-sm);
+  font-weight: normal;
+}
+
+/* ============================================================
+   Progress bar — two flavours.
+
+   Continuous: ports the agent token-context-meter
+     (agent-chat-messages.css). `.track` contains a `.fill`
+     whose width is the progress.
+
+   Segmented: ports the test-panel `.test-bar`. `.track` contains
+     a row of `.segment` divs, each status-coded and clickable.
+   ============================================================ */
+
+.progress-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2em;
+}
+
+.progress-bar > .label {
+  font-family: var(--code-font);
+  font-size: 0.72em;
+  color: var(--BR4);
+  text-align: center;
+  line-height: 1.25;
+  white-space: nowrap;
+}
+
+.progress-bar > .track {
+  height: 5px;
+  border-radius: 3px;
+  background-color: var(--context-meter-track);
+  overflow: hidden;
+  width: 100%;
+}
+
+.progress-bar > .track > .fill {
+  height: 100%;
+  border-radius: 3px;
+  background-color: var(--context-meter-fill);
+  transition: width 0.2s ease;
+}
+
+/* Segmented variant — clickable status-coded segments. */
+.progress-bar.segmented > .track {
+  background: transparent;
+  border-radius: 0;
+  overflow: visible;
+  height: 0.5em;
+  display: flex;
+  gap: 1px;
+}
+
+.progress-bar.segmented > .track > .segment {
+  flex: 1;
+  cursor: pointer;
+  transition: background-color var(--transition-base);
+}
+
+.progress-bar.segmented > .track > .segment:first-child { border-radius: 0.3em 0 0 0.3em; }
+.progress-bar.segmented > .track > .segment:last-child  { border-radius: 0 0.3em 0.3em 0; }
+.progress-bar.segmented > .track > .segment:only-child  { border-radius: 0.3em; }
+
+.progress-bar.segmented > .track > .segment.pass        { background: var(--test-pass); }
+.progress-bar.segmented > .track > .segment.fail        { background: var(--test-fail); }
+.progress-bar.segmented > .track > .segment.indet       { background: var(--test-indet); }
+.progress-bar.segmented > .track > .segment.pass:hover  { background: var(--test-pass-active); }
+.progress-bar.segmented > .track > .segment.fail:hover  { background: var(--test-fail-active); }
+.progress-bar.segmented > .track > .segment.indet:hover { background: var(--test-indet-active); }
+
+/* ============================================================
+   Divider
+   ============================================================ */
+
+.divider {
+  height: 1px;
+  width: 100%;
+  background: var(--BR1);
+  border: none;
+  margin: var(--space-sm) 0;
+}
+
+.divider.vertical {
+  width: 1px;
+  height: 1em;
+  margin: 0 var(--space-sm);
+  display: inline-block;
+  background: var(--BR1);
+}
+
+/* ============================================================
+   List row — ports `.problem-row` structural styling
+   (Corresponds to .problem-row in sidebar.css and
+    .history-chat-item in agent-chat.css. Menu items are likely
+    their own surface — not absorbed here.)
+   ============================================================ */
+
+.list-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-sm);
+  padding-left: var(--space-md);
+  cursor: pointer;
+  transition: background-color var(--transition-base);
+  border-top: 1px solid var(--BR2);
+  border-bottom: 1px solid var(--BR2);
+}
+
+.list-row + .list-row {
+  border-top: none;
+}
+
+.list-row:hover { background-color: var(--menu-item-hover-bkg); }
+
+.list-row > .leading,
+.list-row > .trailing {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.list-row > .label {
+  flex: 1;
+  min-width: 0;
+}
+
+.list-row.active {
+  background-color: var(--Y1);
+  font-weight: 600;
+}
+
+.list-row.expanded { background-color: var(--T2); }
+
+/* Status variants — port `.problem-row.{,syntax,hole,warning}` from
+   sidebar.css. Each adds a left accent + tinted background; hover and
+   active intensify both. */
+
+.list-row.error {
+  border-left: 3px solid color-mix(in srgb, var(--R1) 40%, transparent);
+  background-color: color-mix(in srgb, var(--R0) 50%, transparent);
+}
+.list-row.error:hover {
+  background-color: var(--R0);
+  filter: brightness(0.95);
+}
+.list-row.error.active {
+  border-left: 5px solid var(--R2);
+  background-color: var(--ci-status-error-bkg);
+  box-shadow: inset 0 0 0 1px var(--R1);
+}
+
+.list-row.syntax {
+  border-left: 3px solid color-mix(in srgb, var(--Y1) 60%, transparent);
+  background-color: color-mix(in srgb, var(--Y0) 50%, transparent);
+}
+.list-row.syntax:hover {
+  background-color: var(--Y0);
+}
+.list-row.syntax.active {
+  border-left: 5px solid var(--Y2);
+  background-color: color-mix(in srgb, var(--Y0) 80%, transparent);
+  box-shadow: inset 0 0 0 1px var(--Y1);
+}
+
+.list-row.hole {
+  border-left: 3px solid color-mix(in srgb, var(--hole-stroke) 60%, transparent);
+  background-color: color-mix(in srgb, var(--hole-fill) 50%, transparent);
+}
+.list-row.hole:hover {
+  background-color: var(--hole-fill);
+}
+.list-row.hole.active {
+  border-left: 5px solid var(--hole-active);
+  background-color: color-mix(in srgb, var(--hole-fill) 80%, transparent);
+  box-shadow: inset 0 0 0 1px var(--hole-stroke);
+}
+
+.list-row.warning {
+  border-left: 3px solid color-mix(in srgb, var(--warning-hole-stroke) 60%, transparent);
+  background-color: color-mix(in srgb, var(--warning-hole-fill) 50%, transparent);
+}
+.list-row.warning:hover {
+  background-color: var(--warning-hole-fill);
+}
+.list-row.warning.active {
+  border-left: 5px solid var(--warning-hole-stroke);
+  background-color: color-mix(in srgb, var(--warning-hole-fill) 80%, transparent);
+  box-shadow: inset 0 0 0 1px var(--warning-hole-stroke);
+}
+
+/* ============================================================
+   Tabs container — vertical strip ports `#persistent .tab`
+   (sidebar.css); horizontal ports the probarium `.mode-label`
+   pattern with a `/` separator between items.
+   ============================================================ */
+
+.tabs {
+  display: flex;
+  flex-direction: column;
+  width: fit-content;
+}
+
+.tabs > .button {
+  box-sizing: border-box;
+  min-height: 2.5em;
+  min-width: 2.5em;
+  background: transparent;
+  border-radius: 0;
+  border-right: 0.2em solid transparent;
+  fill: var(--BR3);
+  transition: color var(--transition-base), fill var(--transition-base);
+}
+
+.tabs > .button:hover:not(.active) {
+  background: transparent;
+  fill: var(--BR4);
+  color: var(--BR4);
+}
+
+.tabs > .button.active {
+  background: transparent;
+  border-right-color: var(--BR3);
+  padding-left: 0.2em;
+  color: var(--BR4);
+  fill: var(--BR4);
+}
+
+/* Horizontal — ports the probarium sample-color-scheme
+   `.segmented-control`: bordered strip, equal-width segments
+   separated by hairlines, Y1 fill when active. */
+.tabs.horizontal {
+  display: flex;
+  flex-direction: row;
+  width: auto;
+  border: 1px solid var(--BR1);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.tabs.horizontal > .button {
+  flex: 1;
+  text-align: center;
+  background: transparent;
+  border: none;
+  border-right: 1px solid var(--BR1);
+  border-radius: 0;
+  padding: 0.2em 0.4em;
+  font-family: var(--ui-font);
+  font-size: var(--text-sm);
+  font-weight: normal;
+  text-transform: none;
+  color: var(--STONE);
+  min-height: 0;
+  min-width: 0;
+}
+
+.tabs.horizontal > .button:last-child {
+  border-right: none;
+}
+
+.tabs.horizontal > .button:hover:not(.active) {
+  background: var(--Y0);
+}
+
+.tabs.horizontal > .button.active {
+  background: var(--Y1);
+  color: var(--BR4);
+  font-weight: 500;
+}
+
+/* Title — ports the probarium `#probe-sidebar .main-title`
+   pattern: bold uppercase mode-label group used as a switchable
+   panel title. Bigger and bolder than `.horizontal`; no border. */
+.tabs.title {
+  display: flex;
+  flex-direction: row;
+  width: auto;
+  gap: 0.6em;
+  align-items: center;
+}
+
+.tabs.title > .button {
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  padding: 0;
+  min-height: 0;
+  min-width: 0;
+  font-family: var(--ui-font);
+  font-size: var(--text-md);
+  font-weight: bold;
+  text-transform: uppercase;
+  color: var(--BR1);
+}
+
+.tabs.title > .button:hover:not(.active) {
+  background: transparent;
+  color: var(--BR2);
+}
+
+.tabs.title > .button.active {
+  background: transparent;
+  color: var(--ui-header-text);
+}
+
+.tabs.title > .button + .button::before {
+  content: "/";
+  color: var(--BR1);
+  margin-right: 0.6em;
+  font-weight: normal;
+}
+
+/* ============================================================
+   Placements
+   ============================================================ */
+
+.workspace-surface.inline {
+  /* default — flush with parent, no chrome at the top level */
+}
+
+/* A workspace nested inside another workspace gets the probarium
+   outline-rect treatment (`#probe-sidebar .panel`) so it reads
+   as a contained section. The outer page-level workspace stays
+   chromeless because nothing is its workspace-surface ancestor. */
+.workspace-surface .workspace-surface.inline {
+  outline: 1px solid var(--BR1);
+  border-radius: var(--radius-sm);
+  padding: var(--space-sm);
+}
+
+/* `raised` is the same chrome as nested inline, plus a shadow.
+   Used for menus, popovers, and (composed with a backdrop and
+   centred positioning) modal-style dialogs. */
+.workspace-surface.raised {
+  outline: 1px solid var(--BR1);
+  border-radius: var(--radius-sm);
+  padding: var(--space-sm);
+  box-shadow: 0px 10px 20px var(--menu-shadow);
+}
+
+/* `tooltip` keeps things small and light */
+.workspace-surface.tooltip {
+  display: inline-block;
+  padding: var(--space-xs) var(--space-sm);
+  font-size: var(--text-sm);
+  background: var(--SAND);
+  color: var(--STONE);
+  border: 1px solid var(--BR2);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 2px 6px var(--SHADOW);
+}
+
+.modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background-color: #00000060;
+}

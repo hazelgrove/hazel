@@ -1,0 +1,54 @@
+/* Code surface — base styles.
+   See docs/style/surfaces.md. */
+
+.code-surface {
+  font-family: var(--code-font);
+  font-size: var(--base-font-size);
+  line-height: var(--line-height);
+  color: var(--STONE);
+  background: var(--SAND);
+  padding: 0.6em 0.8em;
+}
+
+/* Inset placement — hex-cut shape ported from `.inline-editor-wrapper`
+   (stepper.css), used in induction pattern editors.
+
+   `clip-path` is applied AFTER `filter` per the CSS painting order,
+   which means a `drop-shadow` on the same element gets clipped away
+   along with the box. So the shadow is hosted on the surface itself
+   and the hex clip is applied to a `::before` that paints the hex bg
+   + border behind the content. The content sits on top, unclipped.
+*/
+.code-surface.inset {
+  position: relative;
+  background: transparent;
+  filter:
+    drop-shadow(0 1px 2px var(--SHADOW))
+    drop-shadow(0 6px 12px var(--SHADOW));
+}
+
+.code-surface.inset::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--SAND);
+  border: 1px dotted var(--cell-result-border);
+  clip-path: polygon(
+    0.5em 0%,
+    calc(100% - 0.5em) 0%,
+    100% 50%,
+    calc(100% - 0.5em) 100%,
+    0.5em 100%,
+    0% 50%
+  );
+  z-index: 0;
+}
+
+.code-surface.inset > * {
+  position: relative;
+  z-index: 1;
+}
+
+.token.kw  { color: var(--BR4); font-weight: bold; }
+.token.id  { color: var(--token-exp); }
+.token.num { color: var(--token-typ); }

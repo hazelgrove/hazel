@@ -1,6 +1,5 @@
 open Haz3lcore;
 open Virtual_dom.Vdom;
-open Node;
 open Util;
 
 /* The exercises mode interface for a single exercise. Composed of multiple editors and results. */
@@ -773,8 +772,8 @@ module View = {
                 prelude.editor.statics.info_map,
               );
             switch (correct_impl_trailing_hole_ctx, prelude_trailing_hole_ctx) {
-            | (None, _) => Node.div([text("No context available (1)")])
-            | (_, None) => Node.div([text("No context available (2)")]) // TODO show exercise configuration error
+            | (None, _) => CellCommon.empty_state("No context available (1)")
+            | (_, None) => CellCommon.empty_state("No context available (2)") // TODO show exercise configuration error
             | (
                 Some(correct_impl_trailing_hole_ctx),
                 Some(prelude_trailing_hole_ctx),
@@ -785,7 +784,7 @@ module View = {
                   prelude_trailing_hole_ctx,
                 );
               switch (specific_ctx) {
-              | None => Node.div([text("No context available")]) // TODO show exercise configuration error
+              | None => CellCommon.empty_state("No context available") // TODO show exercise configuration error
               | Some(specific_ctx) =>
                 ContextInspector.ctx_view(~globals, specific_ctx)
               };
@@ -867,34 +866,20 @@ module View = {
     let add_wrong_impl_view =
       CellCommon.simple_cell_view([
         CellCommon.simple_cell_item([
-          div(
-            ~attrs=[Attr.class_("wrong-impl-cell-caption")],
-            [
-              div(
-                ~attrs=[
-                  Attr.class_("instructor-edit-icon"),
-                  Attr.id("add-icon"),
-                ],
-                [
-                  Widgets.button(
-                    Icons.add,
-                    _ =>
-                      Ui_effect.Many([
-                        inject(Instructor(AddBuggyImplementation)),
-                        signal(
-                          MakeActive(
-                            Cell(
-                              HiddenBugs(List.length(hidden_bugs)),
-                              MainEditor,
-                            ),
-                          ),
-                        ),
-                      ]),
-                    ~tooltip="Add Buggy Implementation",
+          CellCommon.add_impl_caption(
+            ~tooltip="Add Buggy Implementation",
+            ~action=
+              Ui_effect.Many([
+                inject(Instructor(AddBuggyImplementation)),
+                signal(
+                  MakeActive(
+                    Cell(
+                      HiddenBugs(List.length(hidden_bugs)),
+                      MainEditor,
+                    ),
                   ),
-                ],
-              ),
-            ],
+                ),
+              ]),
           ),
         ]),
       ]);
