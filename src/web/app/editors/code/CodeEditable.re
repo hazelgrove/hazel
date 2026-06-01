@@ -534,7 +534,7 @@ module View = {
         ~overlays: list(Node.t)=[],
         ~lines: bool=false,
         ~dynamics: Language.Dynamics.Map.t,
-        ~incr_eval: Language.IncrEval.t=Language.IncrEval.empty,
+        ~incr_eval: Language.EvaluatorState.incr_eval=Language.IncrEval.empty,
         ~expand_selection=?,
         model: Model.t,
       ) => {

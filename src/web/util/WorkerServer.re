@@ -16,7 +16,7 @@ module Request = {
      * opt out of incremental reuse. */
     eval_info_map: Language.EvalInfo.t,
     /* Previous run's incremental map; pass IncrEval.empty on first run. */
-    prev: Language.IncrEval.t,
+    prev: Language.EvaluatorState.incr_eval,
   };
   [@deriving (show, sexp, yojson)]
   type t = list((string, value));
