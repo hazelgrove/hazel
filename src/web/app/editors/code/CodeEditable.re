@@ -475,6 +475,7 @@ module View = {
   let deco =
       (
         ~expand_selection=false,
+        ~associative_selection=false,
         ~syntax: CachedSyntax.t,
         ~statics: CachedStatics.t,
         ~info_map: Language.Statics.Map.t,
@@ -503,6 +504,7 @@ module View = {
           z,
         )
       : Highlight.selection(
+          ~associative=associative_selection,
           ~measured=syntax.measured,
           ~shape_map=syntax.shape_map,
           ~font_metrics=globals.font_metrics,
@@ -537,6 +539,7 @@ module View = {
         ~lines: bool=false,
         ~dynamics: Language.Dynamics.Map.t,
         ~expand_selection=?,
+        ~associative_selection=?,
         model: Model.t,
       ) => {
     let selected = EditMode.is_active(edit_mode);
@@ -559,6 +562,7 @@ module View = {
       selected
         ? deco(
             ~expand_selection?,
+            ~associative_selection?,
             ~syntax=model.editor.syntax,
             ~statics=model.statics,
             ~info_map=model.statics.info_map,

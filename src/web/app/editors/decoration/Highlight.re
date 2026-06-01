@@ -417,6 +417,7 @@ let of_segment =
 
 let selection =
     (
+      ~associative=false,
       ~measured: Measured.t,
       ~shape_map: ProjectorCore.Shape.Map.t,
       ~font_metrics: FontMetrics.t,
@@ -463,7 +464,7 @@ let selection =
       ~font_metrics,
       ~shape_init=Some(fst(Siblings.shapes(z.relatives.siblings))),
       ~clss=["selected", Selection.buffer_cls(z.selection)],
-      associative_segment(z),
+      associative ? associative_segment(z) : z.selection.content,
     ),
   );
 };

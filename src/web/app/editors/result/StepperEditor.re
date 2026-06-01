@@ -175,6 +175,7 @@ module View = {
       ) => {
     CodeSelectable.View.view(
       ~dynamics=Language.Dynamics.Map.empty,
+      ~associative_selection=true,
       ~signal=
         fun
         | MakeActive => signal(MakeActive),
