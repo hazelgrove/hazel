@@ -306,22 +306,6 @@ let string_fns: list(BuiltinsUtil.fn) = [
     },
     custom_statics: None,
   },
-  BuiltinsADT.{
-    name: "string_compare",
-    arg: Prod([string(), string()]),
-    ret: Ord.t.term,
-    imp:
-      binary((d1, d2) => {
-        let-unbox s1 = (Atom(String), d1);
-        let-unbox s2 = (Atom(String), d2);
-        switch (String.compare(s1, s2)) {
-        | 0 => Some(Ord.eq)
-        | n when n < 0 => Some(Ord.lt)
-        | _ => Some(Ord.gt)
-        };
-      }),
-    custom_statics: None,
-  },
   {
     name: "string_trim",
     arg: Atom(String),

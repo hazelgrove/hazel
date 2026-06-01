@@ -54,7 +54,7 @@ let ctx_toggle = (~globals: Globals.t): Node.t =>
     //[text("Γ")],
   );
 
-let term_view = (~globals: Globals.t, ci) => {
+let term_view = (~globals: Globals.t, ~force_error=false, ci) => {
   /* Drv(_) sorts have verbose type-level names like "DrvJdmt"/"DrvProp"
      via Sort.to_string (needed for pretty-printing `DrvQuoteTy`). For the
      inspector header we prefer the terse form ("Jdmt", "Prop", ...),
@@ -74,7 +74,7 @@ let term_view = (~globals: Globals.t, ci) => {
       clss(
         ["ci-header", sort_class]
         @ (
-          Info.is_error(ci)
+          force_error || Info.is_error(ci)
             ? [errc]
             : Info.is_warning(ci) && globals.settings.core.display_warnings
                 ? [warnc] : [okc]
@@ -110,6 +110,7 @@ let code_view_settings: Haz3lcore.ExpToSegment.Settings.t = {
   show_ascriptions: true,
   show_filters: false,
   show_unknown_as_hole: true,
+  project_tables: false,
 };
 
 let view_any = (~globals, any: Any.t) =>
@@ -1077,6 +1078,20 @@ let inspector_view = (~globals: Globals.t, ci): Node.t =>
     view_of_info(~globals, ci),
   );
 
+let projector_error_inspector =
+    (
+      ~globals: Globals.t,
+      ci: Language.Info.t,
+      err: Haz3lcore.ProjectorBase.error,
+    ) =>
+  div(
+    ~attrs=[Attr.id("cursor-inspector"), clss([errc])],
+    [
+      term_view(~globals, ~force_error=true, ci),
+      div_err([text(err.message)]),
+    ],
+  );
+
 let build_info_view = (~globals: Globals.t) => {
   let link_attrs = href => [
     Attr.create("href", href),
@@ -1148,18 +1163,34 @@ let build_info_view = (~globals: Globals.t) => {
 
 let view = (~globals: Globals.t, cursor: Cursor.cursor(Editors.Update.t)) => {
   let bar_view = children => div(~attrs=[Attr.id("bottom-bar")], children);
-  let left =
-    switch (cursor.info) {
-    | _ when !globals.settings.core.statics => div_empty
-    | None =>
+  let err_view = err =>
+    bar_view([
       div(
         ~attrs=[Attr.id("cursor-inspector"), clss(["no-info"])],
-        [
-          div(~attrs=[clss(["icon"])], [Icons.magnify]),
-          text("Whitespace or Comment"),
-        ],
-      )
-    | Some(ci) => inspector_view(~globals, ci)
+        [div(~attrs=[clss(["icon"])], [Icons.magnify]), text(err)],
+      ),
+    ]);
+  /* Look up projector error for the indicated piece */
+  let projector_err =
+    switch (cursor.indicated_piece, cursor.editor) {
+    | (Some(Projector({id, kind, _})), Some(editor)) =>
+      switch (Id.Map.find_opt(id, editor.syntax.projector_errors)) {
+      | Some(err) => Some((kind, err))
+      | None => None
+      }
+    | _ => None
     };
+  let left = switch (cursor.info) {
+  | _ when !globals.settings.core.statics => div_empty
+  | None => err_view("Whitespace or Comment")
+  | Some(ci) =>
+    /* Show projector error instead of normal status,
+     * unless there's a statics error (which takes priority) */
+    switch (projector_err) {
+    | Some((_, err)) when !Info.is_error(ci) =>
+      bar_view([projector_error_inspector(~globals, ci, err)])
+    | _ => bar_view([inspector_view(~globals, ci)])
+    }
+  };
   bar_view([left, build_info_view(~globals)]);
 };

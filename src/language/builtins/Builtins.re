@@ -8,6 +8,7 @@ let builtins =
   @ List.map(fn_builtin, BuiltinsBase.string_fns)
   @ List.map(fn_builtin, BuiltinsBase.pair_fns)
   @ List.map(of_atom_builtin, Atom.converter_builtins)
+  @ List.map(fn_builtin, BuiltinsADT.ord_builtins)
   @ List.map(of_atom_builtin, Operators.builtins)
   @ List.map(hazel_fn_builtin, BuiltinsList.builtins)
   @ List.map(hazel_fn_builtin, BuiltinsADT.builtins)
