@@ -23,6 +23,9 @@ module Model = {
     result: Calc.t(ProgramResult.t(ProgramResult.inner)),
     dynamics: Calc.saved(option(Dynamics.t)),
     incr_eval: Calc.saved(EvaluatorState.incr_eval),
+    streaming_incr_eval: Calc.saved(option(EvaluatorState.incr_eval)),
+    streaming_state: Calc.saved(option(EvaluatorState.t)),
+    pending_eval_ids: list(Id.t),
     display,
     theorems: Theorems.Model.t,
   };
@@ -40,6 +43,9 @@ module Model = {
     result: Calc.NewValue(ProgramResult.awaiting_worker_ack),
     dynamics: Calc.Pending,
     incr_eval: Calc.Pending,
+    streaming_incr_eval: Calc.Pending,
+    streaming_state: Calc.Pending,
+    pending_eval_ids: [],
     display: Evaluation(Calc.Pending),
     theorems: Theorems.Model.init,
   };
@@ -63,6 +69,9 @@ module Model = {
         result: Calc.NewValue(ProgramResult.awaiting_worker_ack),
         dynamics: Calc.Pending,
         incr_eval: Calc.Pending,
+        streaming_incr_eval: Calc.Pending,
+        streaming_state: Calc.Pending,
+        pending_eval_ids: [],
         display: Stepper(StepperView.Model.unpersist(stepper)),
         theorems,
       }
@@ -92,6 +101,16 @@ module Model = {
   let incr_eval = (model: t): EvaluatorState.incr_eval =>
     model.incr_eval |> Calc.get_saved(IncrEval.empty);
 
+  let eval_is_pending = (model: t): bool =>
+    switch (Calc.get_value(model.result)) {
+    | ProgramResult.ResultPending(_) => true
+    | ProgramResult.ResultOk(_)
+    | ProgramResult.ResultFail(_) => false
+    };
+
+  let pending_eval_ids = (model: t): list(Id.t) =>
+    eval_is_pending(model) ? model.pending_eval_ids : [];
+
   let get_elaboration = (model: t): option(Exp.t) =>
     model.elab |> Calc.get_saved_opt;
 };
@@ -99,12 +118,95 @@ module Model = {
 module Update = {
   open Updated;
 
+  let is_chain = (exp: Exp.t) =>
+    switch (Exp.term_of(exp)) {
+    | Let(_)
+    | Seq(_) => true
+    | _ => false
+    };
+
+  let is_inside_function = (info_map, info) =>
+    Info.ancestors_of(info)
+    |> List.exists(ancestor_id =>
+         switch (Id.Map.find_opt(ancestor_id, info_map)) {
+         | Some(Info.InfoExp({user_term, _})) =>
+           switch (Exp.term_of(user_term)) {
+           | Fun(_)
+           | TypFun(_) => true
+           | _ => false
+           }
+         | _ => false
+         }
+       );
+
+  let is_top_level_leaf = (info_map, id, info) =>
+    switch (info) {
+    | Info.InfoExp({user_term, _}) when !is_inside_function(info_map, info) =>
+      switch (Info.parent_id_of(info)) {
+      | None => !is_chain(user_term)
+      | Some(parent_id) =>
+        switch (Id.Map.find_opt(parent_id, info_map)) {
+        | Some(Info.InfoExp({user_term: parent, _})) =>
+          switch (Exp.term_of(parent)) {
+          | Let(_, def, body) =>
+            Id.equal(id, Exp.rep_id(def))
+            || Id.equal(id, Exp.rep_id(body))
+            && !is_chain(user_term)
+          | Seq(d1, d2) =>
+            Id.equal(id, Exp.rep_id(d1))
+            || Id.equal(id, Exp.rep_id(d2))
+            && !is_chain(user_term)
+          | Test(_)
+          | HintedTest(_, _) => false
+          | _ => false
+          }
+        | _ => false
+        }
+      }
+    | _ => false
+    };
+
+  let pending_eval_worklist = (info_map: Statics.Map.t): list(Id.t) =>
+    Id.Map.fold(
+      (id, info, acc) =>
+        is_top_level_leaf(info_map, id, info) ? [id, ...acc] : acc,
+      info_map,
+      [],
+    );
+
+  let stream_visible_ids =
+      (stream: IncrEval.t(EvaluatorState.t)): list(Id.t) =>
+    Id.Map.fold(
+      (id, entry: IncrEval.entry(EvaluatorState.t), acc) => {
+        let subtree_ids = ref([]);
+        let f_exp = (continue, e: Exp.t): Exp.t => {
+          subtree_ids := [Exp.rep_id(e), ...subtree_ids^];
+          continue(e);
+        };
+        let _ = TermBase.Exp.map_term(~f_exp, entry.prev_elab);
+        [id, ...subtree_ids^] @ acc;
+      },
+      stream.entries,
+      [],
+    );
+
+  let remove_streamed_ids = (stream, pending_eval_ids) => {
+    let completed_ids =
+      stream_visible_ids(stream) |> List.sort_uniq(Id.compare);
+    pending_eval_ids
+    |> List.filter(id =>
+         !List.exists(done_id => Id.equal(id, done_id), completed_ids)
+       );
+  };
+
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     | ToggleStepper
     | StepperAction(StepperView.Update.t)
     | EvalEditorAction(CodeSelectable.Update.t)
     | UpdateResult(ProgramResult.t(ProgramResult.inner))
+    | UpdateStreamingEval(IncrEval.t(EvaluatorState.t))
+    | MergeStreamingEval(IncrEval.t(EvaluatorState.t))
     | TheoremsAction(Theorems.Update.t);
 
   let can_undo = (action: t) => {
@@ -113,6 +215,8 @@ module Update = {
     | StepperAction(action) => StepperView.Update.can_undo(action)
     | EvalEditorAction(action) => CodeSelectable.Update.can_undo(action)
     | UpdateResult(_) => false
+    | UpdateStreamingEval(_)
+    | MergeStreamingEval(_) => false
     | TheoremsAction(action) => Theorems.Update.can_undo(action)
     };
   };
@@ -160,8 +264,36 @@ module Update = {
       {
         ...model,
         result: Calc.NewValue(result),
+        pending_eval_ids:
+          switch (result) {
+          | ProgramResult.ResultPending(_) => model.pending_eval_ids
+          | ProgramResult.ResultOk(_)
+          | ProgramResult.ResultFail(_) => []
+          },
       }
       |> Updated.return_quiet
+    | (UpdateStreamingEval(stream), _) =>
+      {
+        ...model,
+        result: Calc.NewValue(ProgramResult.evaluating),
+        streaming_incr_eval: Calc.Calculated(Some(stream)),
+        streaming_state: Calc.Pending,
+        pending_eval_ids: remove_streamed_ids(stream, model.pending_eval_ids),
+      }
+      |> Updated.return_quiet
+    | (MergeStreamingEval(stream), _) =>
+      let current =
+        model.streaming_incr_eval
+        |> Calc.get_saved(None)
+        |> Option.value(~default=IncrEval.empty);
+      {
+        ...model,
+        streaming_incr_eval:
+          Calc.Calculated(Some(IncrEval.add_stream(stream, current))),
+        streaming_state: Calc.Pending,
+        pending_eval_ids: remove_streamed_ids(stream, model.pending_eval_ids),
+      }
+      |> Updated.return_quiet;
     };
 
   let calculate =
@@ -177,6 +309,9 @@ module Update = {
           result,
           dynamics,
           incr_eval,
+          streaming_incr_eval,
+          streaming_state,
+          pending_eval_ids,
           display,
           theorems,
         }: Model.t,
@@ -227,7 +362,7 @@ module Update = {
         // Using the main thread:
         | None =>
           switch (
-            WorkerServer.work({
+            WorkerServer.evaluate_sync({
               expr: elab,
               eval_info_map,
               prev: prev_incr,
@@ -245,15 +380,73 @@ module Update = {
         };
       };
 
+    let streaming_incr_eval =
+      streaming_incr_eval
+      |> {
+        let.calc result = result;
+        switch (result) {
+        | ProgramResult.ResultPending(Evaluating) =>
+          streaming_incr_eval |> Calc.get_saved(None)
+        | ProgramResult.ResultPending(AwaitingWorkerAck)
+        | ProgramResult.ResultFail(_)
+        | ProgramResult.ResultOk(_) => None
+        };
+      };
+
+    let pending_eval_ids =
+      switch (result) {
+      | NewValue(ProgramResult.ResultPending(AwaitingWorkerAck)) =>
+        if (Calc.get_value(settings).dynamics) {
+          switch (queue_worker) {
+          | Some(_) => pending_eval_worklist(statics.info_map)
+          | None => []
+          };
+        } else {
+          [];
+        }
+      | NewValue(ProgramResult.ResultOk(_))
+      | NewValue(ProgramResult.ResultFail(_)) => []
+      | NewValue(ProgramResult.ResultPending(Evaluating))
+      | OldValue(ProgramResult.ResultPending(_)) => pending_eval_ids
+      | OldValue(ProgramResult.ResultOk(_))
+      | OldValue(ProgramResult.ResultFail(_)) => []
+      };
+
+    let streaming_state =
+      streaming_state
+      |> {
+        let.calc elab = elab
+        and.calc streaming_incr_eval = streaming_incr_eval;
+        switch (streaming_incr_eval) {
+        | Some(streaming_incr_eval) =>
+          Some(
+            StreamCollector.collect_stream_state(streaming_incr_eval, elab),
+          )
+        | None => None
+        };
+      };
+
     // Turn state into dynamics map
     let dynamics =
       dynamics
       |> {
-        let.calc result = result;
-        switch (result) {
-        | ProgramResult.ResultPending(_) => dynamics |> Calc.get_saved(None)
-        | ProgramResult.ResultFail(_) => dynamics |> Calc.get_saved(None)
-        | ProgramResult.ResultOk({state, _}) =>
+        let.calc result = result
+        and.calc streaming_state = streaming_state;
+        switch (result, streaming_state) {
+        | (ProgramResult.ResultPending(_), Some(state)) =>
+          Some(
+            Dynamics.{
+              probe_map: state |> EvaluatorState.get_probes,
+              test_results:
+                state |> EvaluatorState.get_tests |> TestResults.mk_results,
+              theorems: state |> EvaluatorState.get_theorems,
+            },
+          )
+        | (ProgramResult.ResultPending(_), None) =>
+          dynamics |> Calc.get_saved(None)
+        | (ProgramResult.ResultFail(_), _) =>
+          dynamics |> Calc.get_saved(None)
+        | (ProgramResult.ResultOk({state, _}), _) =>
           Some(
             Dynamics.{
               probe_map: state |> EvaluatorState.get_probes,
@@ -268,12 +461,14 @@ module Update = {
     let incr_eval =
       incr_eval
       |> {
-        let.calc result = result;
-        switch (result) {
-        | ProgramResult.ResultPending(_) =>
+        let.calc result = result
+        and.calc streaming_incr_eval = streaming_incr_eval;
+        switch (result, streaming_incr_eval) {
+        | (ProgramResult.ResultPending(_), Some(streaming_incr_eval)) => streaming_incr_eval
+        | (ProgramResult.ResultPending(_), None) =>
           incr_eval |> Calc.get_saved(IncrEval.empty)
-        | ProgramResult.ResultFail(_) => IncrEval.empty
-        | ProgramResult.ResultOk({state, _}) => state.incr_eval
+        | (ProgramResult.ResultFail(_), _) => IncrEval.empty
+        | (ProgramResult.ResultOk({state, _}), _) => state.incr_eval
         };
       };
 
@@ -358,6 +553,9 @@ module Update = {
         result: result |> Calc.make_old,
         dynamics: dynamics |> Calc.save,
         incr_eval: incr_eval |> Calc.save,
+        streaming_incr_eval: streaming_incr_eval |> Calc.save,
+        streaming_state: streaming_state |> Calc.save,
+        pending_eval_ids,
         display,
         theorems,
       }: Model.t

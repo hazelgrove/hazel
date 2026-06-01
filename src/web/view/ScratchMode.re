@@ -1110,13 +1110,18 @@ module Update = {
                 ),
               ),
           ~on_ack=
-            () =>
+            initial =>
+              switch (initial |> List.hd |> snd) {
+              | stream =>
+                schedule_action(
+                  CellAction(ResultAction(UpdateStreamingEval(stream))),
+                )
+              | exception _ => ()
+              },
+          ~on_stream=
+            (_, stream) =>
               schedule_action(
-                CellAction(
-                  ResultAction(
-                    UpdateResult(Language.ProgramResult.evaluating),
-                  ),
-                ),
+                CellAction(ResultAction(MergeStreamingEval(stream))),
               ),
         )
       };

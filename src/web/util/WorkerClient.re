@@ -8,7 +8,9 @@ let evalTimeoutDuration = 20000; // Evaluation timeout in ms
 type callbacks = {
   handler: Response.t => unit,
   timeout: Request.t => unit,
-  on_ack: unit => unit,
+  on_ack:
+    list((key, Language.IncrEval.t(Language.EvaluatorState.t))) => unit,
+  on_stream: (key, Language.IncrEval.t(Language.EvaluatorState.t)) => unit,
 };
 
 type latest = {
@@ -67,13 +69,21 @@ let start_eval_timeout = latest => {
     );
 };
 
-let handle_ack = request_id =>
+let handle_ack = ({ServerMessage.request_id, initial}: ServerMessage.ack) =>
   if (is_latest(request_id)) {
     clear_timer(ackTimeoutId);
     switch (latestRequest^) {
     | Some(latest) =>
-      latest.callbacks.on_ack();
+      latest.callbacks.on_ack(initial);
       start_eval_timeout(latest);
+    | None => ()
+    };
+  }
+and handle_stream =
+    ({ServerMessage.request_id, key, update}: ServerMessage.stream) =>
+  if (is_latest(request_id)) {
+    switch (latestRequest^) {
+    | Some(latest) => latest.callbacks.on_stream(key, update)
     | None => ()
     };
   }
@@ -92,7 +102,8 @@ let setupWorkerMessageHandler = worker => {
   worker##.onmessage :=
     Dom.handler(evt => {
       switch (evt##.data) {
-      | ServerMessage.Ack(request_id) => handle_ack(request_id)
+      | ServerMessage.Ack(ack) => handle_ack(ack)
+      | ServerMessage.Stream(stream) => handle_stream(stream)
       | ServerMessage.Result({request_id, response}) =>
         handle_result(request_id, response)
       };
@@ -140,7 +151,10 @@ let request =
       req: Request.t,
       ~handler: Response.t => unit,
       ~timeout: Request.t => unit,
-      ~on_ack: unit => unit,
+      ~on_ack:
+         list((key, Language.IncrEval.t(Language.EvaluatorState.t))) => unit,
+      ~on_stream:
+         (key, Language.IncrEval.t(Language.EvaluatorState.t)) => unit,
     )
     : unit =>
   switch (req) {
@@ -155,6 +169,7 @@ let request =
         handler,
         timeout,
         on_ack,
+        on_stream,
       },
     };
     latestRequest := Some(latest);

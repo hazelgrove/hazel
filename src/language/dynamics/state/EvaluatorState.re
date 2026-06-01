@@ -125,16 +125,6 @@ let add_incr_entry = (state: t, id: Id.t, entry: IncrEval.entry(t)): t => {
   incr_eval: IncrEval.add_entry(id, entry, state.incr_eval),
 };
 
-let mark_incr_reused = (state: t, id: Id.t): t => {
-  ...state,
-  incr_eval: IncrEval.mark_reused(id, state.incr_eval),
-};
-
-let mark_incr_recalculated = (state: t, id: Id.t): t => {
-  ...state,
-  incr_eval: IncrEval.mark_recalculated(id, state.incr_eval),
-};
-
 let add_sample = (state: t, sample: Sample.t) => {
   /* Deduplicate: skip recording if an existing sample for this
    * syntax_id makes the new one redundant.

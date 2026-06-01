@@ -396,6 +396,60 @@ let rec finish_yielding = (~remaining_slices: int, evaluation) => {
   };
 };
 
+let rec finish_yielding_with_stream =
+        (~remaining_slices: int, ~stream, evaluation) => {
+  if (remaining_slices <= 0) {
+    fail("Yielding evaluation did not complete");
+  };
+  switch (Evaluator.run_yielding_slice(~step_budget=1, evaluation)) {
+  | EvaluationCompleted(value) =>
+    let stream =
+      IncrEval.add_stream(
+        Evaluator.drain_streaming_outbox(evaluation),
+        stream,
+      );
+    (value, stream);
+  | EvaluationYielded(evaluation) =>
+    let stream =
+      IncrEval.add_stream(
+        Evaluator.drain_streaming_outbox(evaluation),
+        stream,
+      );
+    finish_yielding_with_stream(
+      ~remaining_slices=remaining_slices - 1,
+      ~stream,
+      evaluation,
+    );
+  };
+};
+
+let finish_yielding_with_stream =
+    (~remaining_slices: int, ~stream, evaluation) => {
+  if (remaining_slices <= 0) {
+    fail("Yielding evaluation did not complete");
+  };
+  switch (Evaluator.run_yielding_slice(~step_budget=1, evaluation)) {
+  | EvaluationCompleted(value) =>
+    let stream =
+      IncrEval.add_stream(
+        Evaluator.drain_streaming_outbox(evaluation),
+        stream,
+      );
+    (value, stream);
+  | EvaluationYielded(evaluation) =>
+    let stream =
+      IncrEval.add_stream(
+        Evaluator.drain_streaming_outbox(evaluation),
+        stream,
+      );
+    finish_yielding_with_stream(
+      ~remaining_slices=remaining_slices - 1,
+      ~stream,
+      evaluation,
+    );
+  };
+};
+
 let yielding_evaluation_test =
   test_case(
     "Yielding evaluation resumes to the synchronous result",
@@ -422,10 +476,58 @@ let yielding_evaluation_test =
     },
   );
 
+let yielding_streaming_outbox_test =
+  test_case(
+    "Yielding evaluation streams completed incremental entries",
+    `Quick,
+    () => {
+      let (info_map, exp) =
+        Statics.mk(
+          CoreSettings.on,
+          Builtins.ctx_init(Some(Int)),
+          parse_exp("let x = 1 in let y = x + 2 in y"),
+        );
+      let info_map =
+        EvalInfo.of_info_map(
+          ~probe_all=CoreSettings.on.probe_all,
+          ~targets=Id.Map.empty,
+          info_map,
+        );
+      let evaluation =
+        Evaluator.start_yielding_evaluation(
+          ~info_map,
+          ~env=Builtins.env_init,
+          exp,
+        );
+      let ((_, final_state), stream) =
+        finish_yielding_with_stream(
+          ~remaining_slices=1000,
+          ~stream=IncrEval.empty,
+          evaluation,
+        );
+      check(
+        int,
+        "streamed entry count matches final entries",
+        Id.Map.cardinal(final_state.incr_eval.entries),
+        Id.Map.cardinal(stream.entries),
+      );
+      check(
+        bool,
+        "every streamed id appears in final entries",
+        true,
+        Id.Map.for_all(
+          (id, _) => Id.Map.mem(id, final_state.incr_eval.entries),
+          stream.entries,
+        ),
+      );
+    },
+  );
+
 let tests = (
   "Evaluator.Properties",
   [
     yielding_evaluation_test,
+    yielding_streaming_outbox_test,
     QCheck_alcotest.to_alcotest(qcheck_evaluator_does_not_crash_test),
     QCheck_alcotest.to_alcotest(qcheck_stepper_confluence),
     QCheck_alcotest.to_alcotest(qcheck_pattern_equivalence_test),

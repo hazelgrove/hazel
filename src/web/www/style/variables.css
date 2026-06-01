@@ -63,6 +63,9 @@
    * previous evaluation run (cache hit), left as-is by the worker. */
   --incremental-frozen: rgba(200, 230, 255, 0.55);
   --incremental-frozen-edge: rgba(140, 190, 240, 0.55);
+  --incremental-pending: oklch(from var(--STONE) l c h / 11%);
+  --incremental-pending-edge: oklch(from var(--STONE) l c h / 16%);
+  --incremental-active-sweep: oklch(100% 0 0 / 56%);
 
   /* MOSS - affirmations */
   --G0: oklch(70% 0.15 150); /* page title, passing tests */

@@ -534,7 +534,9 @@ module View = {
         ~overlays: list(Node.t)=[],
         ~lines: bool=false,
         ~dynamics: Language.Dynamics.Map.t,
-        ~incr_eval: Language.EvaluatorState.incr_eval=Language.IncrEval.empty,
+        ~incr_eval: option(Language.EvaluatorState.incr_eval)=?,
+        ~pending_eval_ids: list(Id.t)=[],
+        ~show_active_eval: bool=false,
         ~expand_selection=?,
         model: Model.t,
       ) => {
@@ -665,26 +667,31 @@ module View = {
         model.editor.syntax.projector_list,
       );
     ProjectorView.ViewCache.log_frame();
-    /* Tint the background behind ids reused from the last run (cache hits)
-     * with an icy wash, so the user can see what the incremental evaluator
-     * is skipping. Gated behind a nut-menu setting because it's distracting
-     * during normal editing. */
+    /* The nut-menu setting only controls blue cache-hit highlights. Pending
+     * evaluation highlights are transient progress feedback, so keep them on
+     * while the worker is running. */
     let incr_eval_overlay =
-      if (globals.settings.show_incremental_deco) {
-        [
+      switch (
+        incr_eval,
+        globals.settings.show_incremental_deco || pending_eval_ids != [],
+      ) {
+      | (Some(incr_eval), true) => [
           Node.div(
             ~attrs=[Attr.classes(["code-deco", "incremental-deco"])],
             [
               Highlight.incr_eval(
                 ~font_metrics=globals.font_metrics,
                 ~syntax=model.editor.syntax,
+                ~pending_eval_ids,
+                ~show_active_eval,
+                ~show_frozen=globals.settings.show_incremental_deco,
                 incr_eval,
               ),
             ],
           ),
-        ];
-      } else {
-        [];
+        ]
+      | (None, _)
+      | (Some(_), false) => []
       };
     let overlays =
       incr_eval_overlay
