@@ -81,6 +81,7 @@ type settings = {
   use_expr_wildcards: option((Environment.t(Exp.t), Exp.t) => bool), // In order to turn this setting on, you must provide a function that decides whether something is a value (i.e. whether it matches $v)
   ignore_fixpoints: bool, // Hideously unsound, used to hide function steps in the stepper
   allow_fixpoint_unrolling: bool, // Enable comparing expressions up to fixpoint unrolling (e.g., fix f. body === body[fix f. body / f])
+  var_eq_named_fun: bool, // Var(x) on the left may match a function whose name is x (not symmetric)
   free_var_handler: option((Alphas.t, string, Exp.t) => bool), // Note[Matt]: to be used in MatchExp
   /* The following two options shouldn't really be `settings' but they're
      packaged with settings because they remain the same throughout a single
@@ -107,6 +108,7 @@ let equality =
         use_expr_wildcards,
         ignore_fixpoints,
         allow_fixpoint_unrolling,
+        var_eq_named_fun,
         free_var_handler,
         env1,
         env2,
@@ -118,6 +120,25 @@ let equality =
   } else {
     ();
   };
+
+  let rec fn_name = (e: Exp.t): option(string) =>
+    switch (e |> Annotated.term_of) {
+    | Fun(_, _, _, name) => name
+    | FixF(_, body, _) => fn_name(body)
+    | TypFun(_, _, name) => name
+    | Parens(body) when ignore_parens => fn_name(body)
+    | Asc(body, _) when ignore_ascriptions => fn_name(body)
+    | _ => None
+    };
+
+  let var_matches_fn_name = (x: string, e: Exp.t): bool =>
+    switch (fn_name(e)) {
+    | Some(name) =>
+      name == x
+      || String.ends_with(~suffix="+", name)
+      && String.sub(name, 0, String.length(name) - 1) == x
+    | None => false
+    };
 
   let rec exp =
           (
@@ -300,6 +321,7 @@ let equality =
       };
       switch (lookup1) {
       | Some(v1) => exp'(v1, e2)
+      | None when var_eq_named_fun && var_matches_fn_name(x, e2) => true
       | None =>
         switch (free_var_handler) {
         | Some(handler) => handler(alphas_exp, x, e2)
@@ -473,6 +495,11 @@ let equality =
     | (ListLit(_), _) => false
     | (Use(t1, e1), Use(t2, e2)) => typ'(t1, t2) && exp'(e1, e2)
     | (Use(_, _), _) => false
+    | (Ap(d1, e11, e12), Ap(d2, e21, e22)) when var_eq_named_fun =>
+      switch (e11 |> Annotated.term_of) {
+      | Var(x) when d1 == d2 && var_matches_fn_name(x, e21) => exp'(e12, e22)
+      | _ => d1 == d2 && exp'(e11, e21) && exp'(e12, e22)
+      }
     | (Ap(d1, e11, e12), Ap(d2, e21, e22)) =>
       d1 == d2 && exp'(e11, e21) && exp'(e12, e22)
     | (Ap(_, _, _), _) => false
@@ -1050,6 +1077,7 @@ let syntactic_settings = {
   use_expr_wildcards: None,
   ignore_fixpoints: false,
   allow_fixpoint_unrolling: false,
+  var_eq_named_fun: false,
   free_var_handler: None,
   env1: None,
   env2: None,
@@ -1073,6 +1101,7 @@ let semantic_settings = {
   use_expr_wildcards: None,
   ignore_fixpoints: false,
   allow_fixpoint_unrolling: true,
+  var_eq_named_fun: false,
   free_var_handler: None,
   env1: None,
   env2: None,

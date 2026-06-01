@@ -99,7 +99,7 @@ let check_rewrite = (~settings, ~env, from_: Exp.t, to_: Exp.t): bool => {
 };
 
 let check_written_step =
-    (~settings, ~env, from_: Exp.t, to_: Exp.t): option(string) => {
+    (~settings, ~env, from_: Exp.t, to_: Exp.t): option((string, Exp.t)) => {
   let take_and_justify = (es: EvaluatorStep.step): option((string, Exp.t)) => {
     switch (EvaluatorStep.take_step(es)) {
     | Some(next_exp) =>
@@ -130,13 +130,13 @@ let check_written_step =
           env1: Some(env),
           env2: Some(env),
           ignore_ascriptions: true,
+          var_eq_named_fun: true,
         },
       ).
         exp(
-        e,
         to_,
+        e,
       ),
     next_exps,
-  )
-  |> Option.map(fst);
+  );
 };

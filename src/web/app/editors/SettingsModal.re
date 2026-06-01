@@ -36,6 +36,12 @@ let view =
         Evaluation(EnableProof),
       ),
       setting(
+        "✍",
+        "write out steps",
+        settings.write_out_steps,
+        Evaluation(WriteOutSteps),
+      ),
+      setting(
         "|",
         "show case clauses",
         settings.show_case_clauses,

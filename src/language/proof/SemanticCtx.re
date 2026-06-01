@@ -88,3 +88,123 @@ let add_hypothesis = (t: t, name: Var.t, hyp: Exp.t): (t, Binding.t) => {
 
 let get_ctx = (t: t): Ctx.t => t.ctx;
 let get_env = (t: t): Environment.t(Exp.t) => t.env;
+
+let rec collect_mod_binding_names = (items: list(Mod.t)): list(Var.t) =>
+  List.concat_map(
+    (item: Mod.t) =>
+      switch (item.term) {
+      | ModLet(p, e) => Pat.bound_vars(p) @ collect_binding_names(e)
+      | ModuleMod(mp, e) =>
+        (
+          switch (mp.term) {
+          | Var(name) => [name]
+          | Asc(inner, _) =>
+            switch (inner.term) {
+            | Var(name) => [name]
+            | _ => []
+            }
+          | _ => []
+          }
+        )
+        @ collect_binding_names(e)
+      | ModExp(e) => collect_binding_names(e)
+      | ModType(_, _) => []
+      | Invalid(_)
+      | EmptyHole
+      | MultiHole(_) => []
+      },
+    items,
+  )
+and collect_binding_names = (exp: Exp.t): list(Var.t) => {
+  let names = ref([]);
+  let add_pat = (p: Pat.t) => names := Pat.bound_vars(p) @ names^;
+  let _ =
+    Exp.map_term(
+      ~f_exp=
+        (cont, exp) => {
+          switch (exp.term) {
+          | Let(p, _, _) => add_pat(p)
+          | Theorem(p, _, _) => add_pat(p)
+          | Forall(p, _) => add_pat(p)
+          | FixF(p, _, _) => add_pat(p)
+          | Fun(p, _, _, _) => add_pat(p)
+          | Match(_, rules) => List.iter(((p, _)) => add_pat(p), rules)
+          | Module(items) =>
+            names := collect_mod_binding_names(items) @ names^
+          | ModuleExp(mp, def, body) =>
+            switch (mp.term) {
+            | Var(name) => names := [name, ...names^]
+            | Asc(inner, _) =>
+              switch (inner.term) {
+              | Var(name) => names := [name, ...names^]
+              | _ => ()
+              }
+            | _ => ()
+            };
+            names :=
+              collect_binding_names(def)
+              @ collect_binding_names(body)
+              @ names^;
+          | _ => ()
+          };
+          cont(exp);
+        },
+      exp,
+    );
+  names^ |> ListUtil.dedup;
+};
+
+let collect_named_fn_names = (exp: Exp.t): list(Var.t) => {
+  let names = ref([]);
+  let _ =
+    Exp.map_term(
+      ~f_exp=
+        (cont, e) => {
+          switch (Exp.get_fn_name(e)) {
+          | Some(name) =>
+            let name =
+              if (String.ends_with(~suffix="+", name)) {
+                String.sub(name, 0, String.length(name) - 1);
+              } else {
+                name;
+              };
+            names := [name, ...names^];
+          | None => ()
+          };
+          cont(e);
+        },
+      exp,
+    );
+  names^ |> ListUtil.dedup;
+};
+
+let names_from_exp = (exp: Exp.t): list(Var.t) =>
+  ListUtil.dedup(collect_binding_names(exp) @ collect_named_fn_names(exp));
+
+let add_binding_names = (ctx: Ctx.t, names: list(Var.t)): Ctx.t =>
+  List.fold_left(
+    (ctx, name) =>
+      switch (Ctx.lookup_var(ctx, name)) {
+      | Some(_) => ctx
+      | None =>
+        Ctx.extend(
+          ctx,
+          Ctx.VarEntry({
+            name,
+            id: Id.mk(),
+            typ: Typ.temp(Unknown(Internal)),
+            custom_statics: None,
+          }),
+        )
+      },
+    ctx,
+    names,
+  );
+
+let add_binding_names_from_exp = (ctx: Ctx.t, exp: Exp.t): Ctx.t =>
+  add_binding_names(ctx, names_from_exp(exp));
+
+let extend_with_exp_names = (sctx: t, exp: Exp.t): t => {
+  ctx: add_binding_names_from_exp(sctx.ctx, exp),
+  env: sctx.env,
+};

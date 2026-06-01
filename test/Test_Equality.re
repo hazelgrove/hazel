@@ -415,6 +415,62 @@ let tests = (
       },
     ),
     test_case(
+      "var_eq_named_fun is asymmetric",
+      `Quick,
+      () => {
+        let id_fun = Exp.fn(Pat.var("x"), Exp.var("x"), None, Some("id"));
+        let var = Exp.var("id");
+        let eq =
+          Equality.equality({
+            ...Equality.semantic_settings,
+            var_eq_named_fun: true,
+          });
+        check(bool, "Var(id) === fun id (named)", true, eq.exp(var, id_fun));
+        check(
+          bool,
+          "fun id (named) !== Var(id)",
+          false,
+          eq.exp(id_fun, var),
+        );
+      },
+    ),
+    test_case(
+      "var_eq_named_fun matches fixpoint name with + suffix",
+      `Quick,
+      () => {
+        let fac_fun = Exp.fn(Pat.var("n"), Exp.int(0), None, Some("fac+"));
+        let fix = Exp.fix_f(Pat.var("fac"), fac_fun, None);
+        let var = Exp.var("fac");
+        let eq =
+          Equality.equality({
+            ...Equality.semantic_settings,
+            var_eq_named_fun: true,
+          });
+        check(
+          bool,
+          "Var(fac) === fix fac. ... (named fac+)",
+          true,
+          eq.exp(var, fix),
+        );
+      },
+    ),
+    test_case(
+      "var_eq_named_fun matches named fn in application",
+      `Quick,
+      () => {
+        let fac_fun = Exp.fn(Pat.var("n"), Exp.int(0), None, Some("fac+"));
+        let fix = Exp.fix_f(Pat.var("fac"), fac_fun, None);
+        let user_ap = Exp.ap(Forward, Exp.var("fac"), Exp.int(3));
+        let eval_ap = Exp.ap(Forward, fix, Exp.int(3));
+        let eq =
+          Equality.equality({
+            ...Equality.semantic_settings,
+            var_eq_named_fun: true,
+          });
+        check(bool, "fac(3) === <fac>(3)", true, eq.exp(user_ap, eval_ap));
+      },
+    ),
+    test_case(
       "fixpoint with proof_of traverses all sorts",
       `Quick,
       () => {

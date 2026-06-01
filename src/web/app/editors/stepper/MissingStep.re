@@ -16,7 +16,7 @@ module Model = {
     | WrittenStepOpen({
         editor: CodeEditable.Model.t,
         cached_exp: Calc.saved(Exp.t),
-        cached_result: Calc.saved(option(string)),
+        cached_result: Calc.saved(option((string, Exp.t))),
       })
     | NoneOpen;
 
@@ -32,7 +32,8 @@ module Model = {
     full_exp: Calc.saved(Exp.t),
     assumptions: Calc.saved(option(assumptions)),
     open_box,
-    cached_env: Calc.saved(Environment.t(Exp.t)) // TODO[Matt]: remove this later, just to get env into view for now.
+    cached_env: Calc.saved(Environment.t(Exp.t)), // TODO[Matt]: remove this later, just to get env into view for now.
+    inner_ctx: Calc.saved(SemanticCtx.t),
   };
 
   let init = {
@@ -44,6 +45,7 @@ module Model = {
     assumptions: Calc.Pending,
     open_box: NoneOpen,
     cached_env: Calc.Pending,
+    inner_ctx: Calc.Pending,
   };
   let get_selected_exp = (m: t): Exp.t =>
     m.selected_exp
@@ -187,6 +189,7 @@ module Update = {
           selected_id,
           open_box,
           cached_env,
+          inner_ctx,
         }: Model.t,
         editor,
       )
@@ -268,6 +271,24 @@ module Update = {
              || settings.evaluation.write_out_steps
            );
       };
+    let inner_ctx =
+      Calc.update(
+        exp,
+        exp => {
+          let base =
+            inner_ctx
+            |> Calc.saved_to_option
+            |> Option.value(~default=Calc.get_value(ctx));
+          SemanticCtx.extend_with_exp_names(base, exp);
+        },
+        inner_ctx,
+      )
+      |> Calc.save;
+    let editor_ctx =
+      inner_ctx
+      |> Calc.saved_to_option
+      |> Option.map(SemanticCtx.get_ctx)
+      |> Option.value(~default=SemanticCtx.get_ctx(Calc.get_value(ctx)));
     let open_box =
       switch (open_box) {
       | RewritesOpen({editor, cached_exp, cached_result}) =>
@@ -277,9 +298,10 @@ module Update = {
             ~settings,
             ~is_edited=true,
             ~is_dynamic_term=true,
+            ~statics_mode=CodeWithStatics.StaticsForce,
             ~dynamics=Dynamics.Map.empty,
             ~stitch=x => x,
-            ~ctx=Calc.get_value(ctx) |> SemanticCtx.get_ctx,
+            ~ctx=editor_ctx,
             editor,
           );
         // Extract an exp from the editor
@@ -320,9 +342,10 @@ module Update = {
             ~settings,
             ~is_edited=true,
             ~is_dynamic_term=true,
+            ~statics_mode=CodeWithStatics.StaticsForce,
             ~dynamics=Dynamics.Map.empty,
             ~stitch=x => x,
-            ~ctx=Calc.get_value(ctx) |> SemanticCtx.get_ctx,
+            ~ctx=editor_ctx,
             editor,
           );
         // Extract an exp from the editor
@@ -369,12 +392,22 @@ module Update = {
           when
             !settings.evaluation.enable_proof
             && settings.evaluation.write_out_steps =>
+        let editor =
+          CodeEditable.Model.mk(Editor.Model.mk(~root=Exp, Zipper.init()))
+          |> CodeEditable.Update.calculate(
+               ~settings,
+               ~is_edited=false,
+               ~is_dynamic_term=true,
+               ~statics_mode=CodeWithStatics.StaticsForce,
+               ~dynamics=Dynamics.Map.empty,
+               ~stitch=x => x,
+               ~ctx=editor_ctx,
+             );
         Model.WrittenStepOpen({
-          editor:
-            CodeEditable.Model.mk(Editor.Model.mk(~root=Exp, Zipper.init())),
+          editor,
           cached_exp: Calc.Pending,
           cached_result: Calc.Pending,
-        })
+        });
       | NoneOpen => NoneOpen
       };
     let cached_env =
@@ -392,6 +425,7 @@ module Update = {
       selected_id: selected_id |> Calc.save,
       open_box,
       cached_env: cached_env |> Calc.save,
+      inner_ctx,
     };
   };
 };
@@ -624,26 +658,24 @@ module View = {
               switch (cached_result) {
               | Some(true) => [
                   Node.text("Valid"),
-                  Widgets.button(
-                    ~clss=["proof-button"],
-                    Node.text("Replace"),
-                    ~tooltip="replace",
-                    _ =>
-                    signal(
-                      AddAlgebriteStep(
-                        ProofHacks.exp_idx(
+                  proof_button(
+                    ~callback=
+                      signal(
+                        AddAlgebriteStep(
+                          ProofHacks.exp_idx(
+                            unboxed_selected_exp,
+                            model.full_exp
+                            |> Calc.get_saved_exc(~print="full_exp"),
+                          ),
                           unboxed_selected_exp,
-                          model.full_exp
-                          |> Calc.get_saved_exc(~print="full_exp"),
+                          unboxed_cached_exp
+                          |> Substitution.in_exp(
+                               model.cached_env
+                               |> Calc.get_saved_exc(~print="env not cached"),
+                             ),
                         ),
-                        unboxed_selected_exp,
-                        unboxed_cached_exp
-                        |> Substitution.in_exp(
-                             model.cached_env
-                             |> Calc.get_saved_exc(~print="env not cached"),
-                           ),
                       ),
-                    )
+                    "Replace",
                   ),
                 ]
               | Some(false) => [Node.text("Invalid")]
@@ -654,9 +686,7 @@ module View = {
         ];
       };
 
-      let view_written_step_box = (editor, cached_exp, cached_result) => {
-        let unboxed_cached_exp =
-          Calc.get_saved_exc(~print="cached exp not calculated", cached_exp);
+      let view_written_step_box = (editor, cached_result) => {
         let unboxed_selected_exp =
           Option.value(
             ~default=EmptyHole |> Exp.fresh,
@@ -713,29 +743,23 @@ module View = {
             ]
             @ {
               switch (cached_result) {
-              | Some(Some(j)) => [
+              | Some(Some((j, resolved_exp))) => [
                   Node.text("Valid"),
-                  Widgets.button(
-                    ~clss=["proof-button"],
-                    Node.text("Replace"),
-                    ~tooltip="replace",
-                    _ =>
-                    signal(
-                      AddWrittenStep(
-                        j,
-                        ProofHacks.exp_idx(
+                  proof_button(
+                    ~callback=
+                      signal(
+                        AddWrittenStep(
+                          j,
+                          ProofHacks.exp_idx(
+                            unboxed_selected_exp,
+                            model.full_exp
+                            |> Calc.get_saved_exc(~print="full_exp"),
+                          ),
                           unboxed_selected_exp,
-                          model.full_exp
-                          |> Calc.get_saved_exc(~print="full_exp"),
+                          resolved_exp,
                         ),
-                        unboxed_selected_exp,
-                        unboxed_cached_exp
-                        |> Substitution.in_exp(
-                             model.cached_env
-                             |> Calc.get_saved_exc(~print="env not cached"),
-                           ),
                       ),
-                    )
+                    "Replace",
                   ),
                 ]
               | Some(None) => [Node.text("Invalid")]
@@ -921,11 +945,10 @@ module View = {
                     cached_exp,
                     cached_result |> Calc.saved_to_option,
                   )
-                | WrittenStepOpen({editor, cached_exp, cached_result}) =>
+                | WrittenStepOpen(w) =>
                   view_written_step_box(
-                    editor,
-                    cached_exp,
-                    cached_result |> Calc.saved_to_option,
+                    w.editor,
+                    w.cached_result |> Calc.saved_to_option,
                   )
                 };
               },
