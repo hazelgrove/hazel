@@ -30,7 +30,7 @@
   pointer-events: none;
 }
 
-#build-info:hover .build-info-panel,
+#build-info:not(.hover-suppressed):hover .build-info-panel,
 #build-info.visible .build-info-panel {
   max-width: none;
   padding: 0 0.8em;
@@ -66,7 +66,7 @@
   transition: scale 0.1s ease-in, fill 0.2s ease-in;
 }
 
-#build-info:hover .git,
+#build-info:not(.hover-suppressed):hover .git,
 #build-info.visible .git {
   background-color: #dfcc99;
   outline: 0.3px solid var(--BR3);
@@ -74,7 +74,7 @@
   border-radius: 0;
 }
 
-#build-info:hover .git svg,
+#build-info:not(.hover-suppressed):hover .git svg,
 #build-info.visible .git svg {
   fill: var(--BR4);
 }

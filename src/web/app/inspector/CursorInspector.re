@@ -122,6 +122,8 @@ let view_type = (~globals, typ: Typ.t) =>
   |> CodeViewable.view_typ(~globals, ~settings=code_view_settings)
   |> code_box_container;
 
+let build_info_hover_suppressed = ref(false);
+
 let core_mark_err_view =
     (
       ~globals,
@@ -1112,18 +1114,29 @@ let build_info_view = (~globals: Globals.t) => {
       ~attrs=BuildInfo.dirty ? [clss(["build-info-dirty"])] : [],
       [branch_link, commit_part],
     );
+  let hover_suppressed = build_info_hover_suppressed.contents;
   div(
     ~attrs=[
       Attr.id("build-info"),
+      Attr.on_mouseleave(_ => {
+        build_info_hover_suppressed.contents = false;
+        Ui_effect.Ignore;
+      }),
       clss(
         ["build-info"]
+        @ (hover_suppressed ? ["hover-suppressed"] : [])
         @ (globals.settings.build_info_expanded ? ["visible"] : []),
       ),
     ],
     [
       div(
         ~attrs=[
-          Attr.on_click(_ => globals.inject_global(Set(BuildInfoExpanded))),
+          Attr.on_click(_ => {
+            if (globals.settings.build_info_expanded) {
+              build_info_hover_suppressed.contents = true;
+            };
+            globals.inject_global(Set(BuildInfoExpanded));
+          }),
           clss(["git"]),
         ],
         [Icons.git],
