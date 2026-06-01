@@ -19,7 +19,8 @@ let evaluate = (exp: Exp.t): Exp.t => {
 };
 
 let evaluate_incremental =
-    (~prev: IncrEval.t=IncrEval.empty, exp: Exp.t): (Exp.t, IncrEval.t) => {
+    (~prev: EvaluatorState.incr_eval=IncrEval.empty, exp: Exp.t)
+    : (Exp.t, EvaluatorState.incr_eval) => {
   let (info_map, elab) = statics_and_elab(exp);
   let info_map =
     EvalInfo.of_info_map(

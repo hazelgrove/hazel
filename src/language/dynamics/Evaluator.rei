@@ -14,7 +14,7 @@ type yielding_result =
 
 let evaluate:
   (
-    ~prev: IncrEval.t=?,
+    ~prev: EvaluatorState.incr_eval=?,
     ~info_map: EvalInfo.t=?,
     ~env: Environment.t(Exp.t),
     Exp.t
@@ -24,7 +24,7 @@ let evaluate:
 let evaluate_and_limit:
   (
     ~step_limit: int=?,
-    ~prev: IncrEval.t=?,
+    ~prev: EvaluatorState.incr_eval=?,
     ~info_map: EvalInfo.t=?,
     ~env: Environment.t(Exp.t),
     ~reuse_map: IncrEval.reuse_map=?,
@@ -34,7 +34,7 @@ let evaluate_and_limit:
 
 let start_yielding_evaluation:
   (
-    ~prev: IncrEval.t=?,
+    ~prev: EvaluatorState.incr_eval=?,
     ~info_map: EvalInfo.t=?,
     ~env: Environment.t(Exp.t),
     ~reuse_map: IncrEval.reuse_map=?,

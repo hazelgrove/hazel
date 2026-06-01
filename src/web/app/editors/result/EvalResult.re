@@ -22,7 +22,7 @@ module Model = {
     cached_targets: Calc.saved(Sample.targets), /* Input targets for cache invalidation */
     result: Calc.t(ProgramResult.t(ProgramResult.inner)),
     dynamics: Calc.saved(option(Dynamics.t)),
-    incr_eval: Calc.saved(IncrEval.t),
+    incr_eval: Calc.saved(EvaluatorState.incr_eval),
     display,
     theorems: Theorems.Model.t,
   };
@@ -89,7 +89,7 @@ module Model = {
     | None => Dynamics.Map.mk(Sample.Map.empty)
     };
 
-  let incr_eval = (model: t): IncrEval.t =>
+  let incr_eval = (model: t): EvaluatorState.incr_eval =>
     model.incr_eval |> Calc.get_saved(IncrEval.empty);
 
   let get_elaboration = (model: t): option(Exp.t) =>

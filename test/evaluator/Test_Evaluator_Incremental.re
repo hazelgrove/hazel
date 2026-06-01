@@ -40,11 +40,11 @@ let statics_and_elab = (exp: Exp.t): (Statics.Map.t, Exp.t) =>
 let statics_of = (exp: Exp.t): Statics.Map.t => fst(statics_and_elab(exp));
 
 /* Run the incremental evaluator end-to-end, returning the evaluated Exp.t,
- * final EvaluatorState, and resulting IncrEval.t (for test-readability we
+ * final EvaluatorState, and resulting incr_eval map (for test-readability we
  * surface the incr map separately even though it also lives in state). */
 let eval_incr =
-    (~prev: IncrEval.t=IncrEval.empty, exp: Exp.t)
-    : (Exp.t, EvaluatorState.t, IncrEval.t) => {
+    (~prev: EvaluatorState.incr_eval=IncrEval.empty, exp: Exp.t)
+    : (Exp.t, EvaluatorState.t, EvaluatorState.incr_eval) => {
   let (info_map, elab) = statics_and_elab(exp);
   let info_map =
     EvalInfo.of_info_map(~probe_all=CoreSettings.on.probe_all, ~targets=Id.Map.empty, info_map);

@@ -14,17 +14,22 @@ open Util;
 
  ** Technically actually is't not write-only, we do read from it, but ONLY to get
  the current step count in order to record information in this state, not to affect
- evaluation in any way.
+ evaluation in any way. You'll notice that this step count thing is what requires
+ most of the work in appending states.
  */
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
+  initial_step_count: int,
   theorems: list((Id.t, string, Environment.t(Exp.t), Exp.t)),
   tests: TestMap.t,
   probes: Sample.Map.t,
   step_count: int,
-  incr_eval: IncrEval.t /* Per-id cache entries and reuse/recalc bookkeeping for the incremental evaluator */
-};
+  incr_eval,
+}
+
+// Note[Matt]: There are probably memory improvements to be made here by untying this knot.
+and incr_eval = IncrEval.t(t);
 
 type effect =
   | RecordTest(TestMap.instance_report)
@@ -42,6 +47,7 @@ type effect =
   | RecordPrint(DHExp.t); /* Println for probes study */
 
 let empty: t = {
+  initial_step_count: 0,
   tests: TestMap.empty,
   probes: Sample.Map.empty,
   step_count: 0,
@@ -49,7 +55,62 @@ let empty: t = {
   incr_eval: IncrEval.empty,
 };
 
+let empty_at = (step_count: int): t => {
+  ...empty,
+  initial_step_count: step_count,
+  step_count,
+};
+
 let get_step_count = ({step_count, _}: t): int => step_count;
+
+let shift_sample = (delta: int, s: Sample.t): Sample.t => {
+  ...s,
+  step_start: s.step_start + delta,
+  step_end: s.step_end + delta,
+};
+
+/* Merge `ext` into `base`, shifting probe step bounds when the timelines
+ * don't line up (base.step_count vs ext.initial_step_count). */
+let append = (base: t, ext: t): t => {
+  let delta = base.step_count - ext.initial_step_count;
+  let probes =
+    Id.Map.fold(
+      (id, ext_samples, acc) => {
+        let samples =
+          if (delta == 0) {
+            ext_samples;
+          } else {
+            List.map(shift_sample(delta), ext_samples);
+          };
+        let existing =
+          switch (Id.Map.find_opt(id, acc)) {
+          | Some(l) => l
+          | None => []
+          };
+        Id.Map.add(id, samples @ existing, acc);
+      },
+      ext.probes,
+      base.probes,
+    );
+  let tests =
+    List.fold_left(
+      (acc, (id, reports)) =>
+        List.fold_left(
+          (acc, report) => TestMap.extend((id, report), acc),
+          acc,
+          reports,
+        ),
+      base.tests,
+      ext.tests,
+    );
+  {
+    ...base,
+    step_count: base.step_count + (ext.step_count - ext.initial_step_count),
+    probes,
+    tests,
+    theorems: base.theorems @ ext.theorems,
+  };
+};
 
 let get_tests = ({tests, _}) => tests;
 
@@ -59,7 +120,7 @@ let get_theorems = ({theorems, _}) => theorems;
 
 let get_incr_eval = ({incr_eval, _}: t) => incr_eval;
 
-let add_incr_entry = (state: t, id: Id.t, entry: IncrEval.entry): t => {
+let add_incr_entry = (state: t, id: Id.t, entry: IncrEval.entry(t)): t => {
   ...state,
   incr_eval: IncrEval.add_entry(id, entry, state.incr_eval),
 };
@@ -246,54 +307,4 @@ let update =
     (call_stack, state),
     side_effects,
   );
-};
-
-/* Capture the delta between `before` and `after` as a StateSlice. */
-let capture_slice = (~before: t, ~after: t): StateSlice.t => {
-  origin: before.step_count,
-  steps: after.step_count - before.step_count,
-  probes: StateSlice.diff_probes(~before=before.probes, ~after=after.probes),
-  tests: StateSlice.diff_tests(~before=before.tests, ~after=after.tests),
-  theorems:
-    StateSlice.diff_theorems(~before=before.theorems, ~after=after.theorems),
-};
-
-/* Replay a slice into `state`: add its sample/test/theorem/app_arg entries,
- * bump step_count by the slice's step delta. Probe step bounds are shifted
- * so they sit within the current step_count window. */
-let replay_slice = (slice: StateSlice.t, state: t): t => {
-  let delta = state.step_count - slice.origin;
-  let probes =
-    Id.Map.fold(
-      (id, new_samples, acc) => {
-        let shifted = List.map(StateSlice.shift_sample(delta), new_samples);
-        let existing =
-          switch (Id.Map.find_opt(id, acc)) {
-          | Some(l) => l
-          | None => []
-          };
-        Id.Map.add(id, shifted @ existing, acc);
-      },
-      slice.probes,
-      state.probes,
-    );
-  let tests =
-    List.fold_left(
-      (acc, (id, new_reports)) =>
-        List.fold_left(
-          (acc, report) => TestMap.extend((id, report), acc),
-          acc,
-          new_reports,
-        ),
-      state.tests,
-      slice.tests,
-    );
-  let theorems = state.theorems @ slice.theorems;
-  {
-    ...state,
-    step_count: state.step_count + slice.steps,
-    probes,
-    tests,
-    theorems,
-  };
 };

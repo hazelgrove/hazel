@@ -31,17 +31,17 @@ type provenance = {
 type reuse_map = VarMap.t_(provenance);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type entry = {
+type entry('state) = {
   prev_elab: Exp.t,
   prev_reuse_map: reuse_map,
   prev_probe_targets: EvalInfo.probe_targets,
   value: DHExp.t,
-  state: StateSlice.t,
+  state: 'state,
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type t = {
-  entries: Id.Map.t(entry),
+type t('state) = {
+  entries: Id.Map.t(entry('state)),
   /* Ids evaluated from scratch on this run (cache miss). UI tint. */
   recalculated: list(Id.t),
   /* Ids short-circuited via reuse_check (cache hit). Not the complement of
@@ -49,37 +49,38 @@ type t = {
   reused: list(Id.t),
 };
 
-let empty: t = {
+let empty: t('state) = {
   entries: Id.Map.empty,
   recalculated: [],
   reused: [],
 };
 
-let is_empty = (incr: t): bool =>
+let is_empty = (incr: t('state)): bool =>
   Id.Map.is_empty(incr.entries)
   && incr.recalculated == []
   && incr.reused == [];
 
-let add_entry = (id: Id.t, entry: entry, incr: t): t => {
+let add_entry =
+    (id: Id.t, entry: entry('state), incr: t('state)): t('state) => {
   ...incr,
   entries: Id.Map.add(id, entry, incr.entries),
 };
 
-let mark_recalculated = (id: Id.t, incr: t): t => {
+let mark_recalculated = (id: Id.t, incr: t('state)): t('state) => {
   ...incr,
   recalculated: [id, ...incr.recalculated],
 };
 
-let mark_reused = (id: Id.t, incr: t): t => {
+let mark_reused = (id: Id.t, incr: t('state)): t('state) => {
   ...incr,
   reused: [id, ...incr.reused],
 };
 
 /* The set of ids the UI should paint as "frozen" this run.*/
-let frozen_ids = (incr: t): list(Id.t) => {
+let frozen_ids = (incr: t('state)): list(Id.t) => {
   let acc = ref([]);
   let collect_subtree = (root: Exp.t): unit => {
-    let f_exp = (continue, e: Exp.t) => {
+    let f_exp = (continue, e: Exp.t): Exp.t => {
       acc := [Exp.rep_id(e), ...acc^];
       continue(e);
     };
@@ -241,7 +242,8 @@ let with_pat_provenance =
   pat_provenance(~source_id, ~flag, pat)
   @ remove_pat_bindings(pat, reuse_map);
 
-let was_reused = (id: Id.t, incr: t): bool => List.mem(id, incr.reused);
+let was_reused = (id: Id.t, incr: t('state)): bool =>
+  List.mem(id, incr.reused);
 
 let update_maps_after_binding =
     (~rhs_reused: bool, ~source_id: Id.t, pat: Pat.t, ~reuse_map: reuse_map)
@@ -253,12 +255,12 @@ let update_maps_after_binding =
 let reuse_check =
     (
       ~call_stack: CallStack.t',
-      ~prev: t,
+      ~prev: t('state),
       ~reuse_map: reuse_map,
       ~info_map: EvalInfo.t,
       ~id: Id.t,
     )
-    : option(entry) => {
+    : option(entry('state)) => {
   open OptUtil.Syntax;
 
   let* () = OptUtil.some_if(call_stack.stack == [] && !is_empty(prev), ());

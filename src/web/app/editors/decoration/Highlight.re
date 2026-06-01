@@ -645,7 +645,7 @@ let incr_eval =
     (
       ~font_metrics: FontMetrics.t,
       ~syntax: CachedSyntax.t,
-      incr: Language.IncrEval.t,
+      incr: Language.EvaluatorState.incr_eval,
     ) => {
   /* `frozen_ids` walks each reused subtree's prev_elab and emits every
    * rep_id encountered. Many of those ids have nested or duplicate
