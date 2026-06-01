@@ -1180,17 +1180,18 @@ let view = (~globals: Globals.t, cursor: Cursor.cursor(Editors.Update.t)) => {
       }
     | _ => None
     };
-  let left = switch (cursor.info) {
-  | _ when !globals.settings.core.statics => div_empty
-  | None => err_view("Whitespace or Comment")
-  | Some(ci) =>
-    /* Show projector error instead of normal status,
-     * unless there's a statics error (which takes priority) */
-    switch (projector_err) {
-    | Some((_, err)) when !Info.is_error(ci) =>
-      bar_view([projector_error_inspector(~globals, ci, err)])
-    | _ => bar_view([inspector_view(~globals, ci)])
-    }
-  };
+  let left =
+    switch (cursor.info) {
+    | _ when !globals.settings.core.statics => div_empty
+    | None => err_view("Whitespace or Comment")
+    | Some(ci) =>
+      /* Show projector error instead of normal status,
+       * unless there's a statics error (which takes priority) */
+      switch (projector_err) {
+      | Some((_, err)) when !Info.is_error(ci) =>
+        bar_view([projector_error_inspector(~globals, ci, err)])
+      | _ => bar_view([inspector_view(~globals, ci)])
+      }
+    };
   bar_view([left, build_info_view(~globals)]);
 };
