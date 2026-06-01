@@ -43,6 +43,13 @@ let has_lean_hint = (rule: Axioms.rewrite_rule) =>
 let has_trace_rule = (rule_id, result: Web.RewriteChecker.check_result) =>
   result.trace |> List.exists(rule => rewrite_rule_id(rule) == rule_id);
 
+let check_simplifies = (name, input, expected) =>
+  switch (Web.RewriteChecker.simplify_arithmetic(~settings, ~env, input)) {
+  | Some(actual) =>
+    check(bool, name, true, Language.Exp.fast_equal(expected, actual))
+  | None => fail(name ++ " did not simplify")
+  };
+
 let tests = (
   "RewriteChecker",
   [
@@ -84,6 +91,23 @@ let tests = (
         minus(plus(Exp.var("x"), Exp.int(3)), Exp.var("x")),
         Exp.int(3),
         Some("arithmetic"),
+      )
+    ),
+    test_case("affine simplifier produces grouped expression", `Quick, () =>
+      check_simplifies(
+        "1 + 2 + x -> x + 3",
+        plus(plus(Exp.int(1), Exp.int(2)), Exp.var("x")),
+        plus(Exp.var("x"), Exp.int(3)),
+      )
+    ),
+    test_case("affine simplifier groups coefficients", `Quick, () =>
+      check_simplifies(
+        "x + x + x + 10 -> 3 * x + 10",
+        plus(
+          plus(plus(Exp.var("x"), Exp.var("x")), Exp.var("x")),
+          Exp.int(10),
+        ),
+        plus(times(Exp.int(3), Exp.var("x")), Exp.int(10)),
       )
     ),
     test_case(

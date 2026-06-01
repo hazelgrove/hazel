@@ -24,6 +24,11 @@ type step_kind_model =
       evaluate_after_parenthesize: bool,
       next_exp: Calc.saved(Exp.t),
     })
+  | AutoSimplifyStep({
+      original_exp: Exp.t,
+      simplified_exp: Exp.t,
+      next_exp: Calc.saved(Exp.t),
+    })
 
 and step_model = {
   // Calculated
@@ -60,6 +65,7 @@ type persistent_step_kind =
   | AlgebriteStep(AlgebriteStep.persistent'(persistent_step))
   | WrittenStep(WrittenStep.persistent'(persistent_step))
   | ReparenthesizeStep(Exp.t, Exp.t) /* original_exp, reparenthesized_exp */
+  | AutoSimplifyStep(Exp.t, Exp.t) /* original_exp, simplified_exp */
 
 and persistent_step = {
   step_kind: persistent_step_kind,
@@ -83,6 +89,7 @@ and step_action =
   | RemoveStep
   | StepForward(int)
   | StepForwardOnSelection(list(Id.t), bool)
+  | AutoSimplifySelection(Exp.t, Exp.t)
   | AddInduction(option(Exp.t))
   | AddForall
   | AddAxiomStep(string, int, Exp.t, Direction.t, string)
@@ -146,6 +153,8 @@ module rec StepKind: {
     | WrittenStep(m) => WrittenStep(WrittenStep.persist(m))
     | ReparenthesizeStep({original_exp, reparenthesized_exp, _}) =>
       ReparenthesizeStep(original_exp, reparenthesized_exp)
+    | AutoSimplifyStep({original_exp, simplified_exp, _}) =>
+      AutoSimplifyStep(original_exp, simplified_exp)
     };
   };
 
@@ -164,6 +173,12 @@ module rec StepKind: {
         reparenthesized_exp,
         selected_id: None,
         evaluate_after_parenthesize: false,
+        next_exp: Calc.Pending,
+      })
+    | AutoSimplifyStep(original_exp, simplified_exp) =>
+      AutoSimplifyStep({
+        original_exp,
+        simplified_exp,
         next_exp: Calc.Pending,
       })
     };
@@ -439,6 +454,22 @@ module rec StepKind: {
           Calc.OldValue(None),
         ));
       };
+    | AutoSimplifyStep({original_exp, simplified_exp, _}) =>
+      let current_exp = exp |> Calc.get_value;
+      if (!DHExp.fast_equal(current_exp, original_exp)) {
+        None;
+      } else {
+        Some((
+          AutoSimplifyStep({
+            original_exp,
+            simplified_exp,
+            next_exp: Calc.Calculated(simplified_exp),
+          }): model,
+          Calc.set(false, hidden),
+          Some(Calc.NewValue(simplified_exp)),
+          Calc.OldValue(None),
+        ));
+      };
     };
 
   let get_cursor_info = (~inject, ~focus: focus, model: model) =>
@@ -500,6 +531,8 @@ module rec StepKind: {
             model,
           );
         (WrittenStep(focus_info): action);
+      | (_, ReparenthesizeStep(_))
+      | (_, AutoSimplifyStep(_)) => Cursor.empty
       | (
           SingleStep(_) | InductionStep(_) | ForallStep(_) | MissingStep(_) |
           AxiomStep(_) |
@@ -557,7 +590,8 @@ module rec StepKind: {
           m,
         )
       | MissingStep(_)
-      | ReparenthesizeStep(_) => (
+      | ReparenthesizeStep(_)
+      | AutoSimplifyStep(_) => (
           (~globals as _, ~hide_stepper as _, ~undo as _, ~is_toplevel as _) =>
             []
         )
@@ -666,6 +700,7 @@ module rec StepKind: {
         m,
       )
     | ReparenthesizeStep(_) => WebUtil.Node.text("reparenthesize")
+    | AutoSimplifyStep(_) => WebUtil.Node.text("auto simplify")
     | AxiomStep(m) =>
       AxiomStep.view_justification(
         ~globals,
@@ -985,6 +1020,22 @@ and Stepper: {
         | None => model |> raise_invalid_action
         };
       | (StepForwardOnSelection(_, _), _, _) => model |> raise_invalid_action
+      | (
+          AutoSimplifySelection(original_exp, simplified_exp),
+          MissingStep(_),
+          _,
+        ) =>
+        {
+          ...model,
+          step_kind:
+            AutoSimplifyStep({
+              original_exp,
+              simplified_exp,
+              next_exp: Calc.Pending,
+            }),
+        }
+        |> return
+      | (AutoSimplifySelection(_, _), _, _) => model |> raise_invalid_action
       | (AddInduction(exp), MissingStep(_), _) =>
         {
           ...model,
@@ -1067,6 +1118,7 @@ and Stepper: {
     | RemoveStep => true
     | StepForward(_) => true
     | StepForwardOnSelection(_, _) => true
+    | AutoSimplifySelection(_, _) => true
     | AddInduction(_) => true
     | AddForall => true
     | AddAxiomStep(_) => true
@@ -1367,6 +1419,10 @@ and Stepper: {
                       inject(AddAlgebriteStep(idx, e1, e2))
                     | AddWrittenStep(just, idx, e1, e2) =>
                       inject(AddWrittenStep(just, idx, e1, e2))
+                    | AutoSimplify(original_exp, simplified_exp) =>
+                      inject(
+                        AutoSimplifySelection(original_exp, simplified_exp),
+                      )
                     | TakeStep(i) => inject(StepForward(i))
                     | StepHere(ids, evaluate_after_parenthesize) =>
                       inject(

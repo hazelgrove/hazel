@@ -482,6 +482,7 @@ module View = {
     | AddAxiomStep(string, int, Exp.t, Direction.t, string)
     | AddAlgebriteStep(int, Exp.t, Exp.t)
     | AddWrittenStep(string, int, Exp.t, Exp.t)
+    | AutoSimplify(Exp.t, Exp.t)
     | MakeActive(Selection.t)
     | TakeStep(int)
     | Refl(int)
@@ -837,6 +838,42 @@ module View = {
         | Some(_) => Some(("Parenthesize", false))
         | None => None
         };
+      let auto_simplify = {
+        open OptUtil.Syntax;
+        let full_exp =
+          model.full_exp |> Calc.get_saved_exc(~print="full_exp");
+        let full_visible_exp =
+          model.full_visible_exp
+          |> Calc.get_saved_exc(~print="full_visible_exp");
+        let env =
+          model.cached_env |> Calc.get_saved_exc(~print="env not cached");
+        let* (base_exp, selected_id, selected_exp) =
+          switch (reparenthesize_result) {
+          | Some(result: Language.Reparenthesize.result) =>
+            let* selected_exp =
+              ProofHacks.find_exp_id(result.selected_id, result.exp);
+            Some((result.exp, result.selected_id, selected_exp));
+          | None =>
+            let* selected_exp =
+              model.selected_exp |> Calc.get_saved_exc(~print="Selected Exp");
+            Some((full_visible_exp, Exp.rep_id(selected_exp), selected_exp));
+          };
+        let* simplified_exp =
+          selected_exp
+          |> Substitution.in_exp(env)
+          |> RewriteChecker.simplify_arithmetic(
+               ~settings=globals.settings.core,
+               ~env,
+             );
+        let replaced_exp =
+          try(
+            ProofHacks.replace_exp_id(selected_id, base_exp, simplified_exp)
+          ) {
+          | _ => base_exp
+          };
+        Exp.fast_equal(base_exp, replaced_exp)
+          ? None : Some((full_exp, replaced_exp));
+      };
 
       let text_arrow = (b: bool) => if (b) {"▲"} else {"▼"};
 
@@ -855,6 +892,18 @@ module View = {
                       StepHere(step_here_ids, evaluate_after_parenthesize),
                     ),
                   label,
+                ),
+              ]
+            }
+          )
+          @ (
+            switch (auto_simplify) {
+            | None => []
+            | Some((original_exp, simplified_exp)) => [
+                proof_button(
+                  ~callback=
+                    signal(AutoSimplify(original_exp, simplified_exp)),
+                  "Auto Eval",
                 ),
               ]
             }

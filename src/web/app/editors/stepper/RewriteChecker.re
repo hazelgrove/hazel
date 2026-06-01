@@ -293,6 +293,50 @@ let normalize_affine = (~settings, ~env, exp: Exp.t): option(normal_form) => {
   |> Option.map(normalized => Affine(canonicalize(normalized.affine)));
 };
 
+let int_exp = value => Exp.fresh(Atom(Int(value)));
+
+let var_exp = name => Exp.fresh(Var(name));
+
+let plus_exp = (left, right) =>
+  Exp.fresh(BinOp(Operators.Int(Operators.Plus), left, right));
+
+let times_exp = (left, right) =>
+  Exp.fresh(BinOp(Operators.Int(Operators.Times), left, right));
+
+let negate_exp = exp =>
+  Exp.fresh(UnOp(Operators.Int(Operators.Minus), exp));
+
+let exp_of_term = ((name, coeff)) => {
+  let variable = var_exp(name);
+  if (Bigint.equal(coeff, Bigint.one)) {
+    variable;
+  } else if (Bigint.equal(coeff, Bigint.neg(Bigint.one))) {
+    negate_exp(variable);
+  } else if (Bigint.(<)(coeff, Bigint.zero)) {
+    negate_exp(times_exp(int_exp(Bigint.abs(coeff)), variable));
+  } else {
+    times_exp(int_exp(coeff), variable);
+  };
+};
+
+let exp_of_affine = (a: affine): Exp.t => {
+  let terms = a.terms |> List.map(exp_of_term);
+  let parts = is_zero(a.constant) ? terms : terms @ [int_exp(a.constant)];
+  switch (parts) {
+  | [] => int_exp(Bigint.zero)
+  | [part] => part
+  | [first, second, ...rest] =>
+    List.fold_left(plus_exp, plus_exp(first, second), rest)
+  };
+};
+
+let simplify_arithmetic = (~settings, ~env, exp: Exp.t): option(Exp.t) => {
+  switch (normalize_affine(~settings, ~env, exp)) {
+  | Some(Affine(affine)) => Some(exp_of_affine(affine))
+  | _ => None
+  };
+};
+
 let normalize_affine_with_trace =
     (~settings, ~env, exp: Exp.t): option(normalized) => {
   exp
