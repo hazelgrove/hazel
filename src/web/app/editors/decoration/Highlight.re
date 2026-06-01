@@ -572,3 +572,57 @@ let colors =
       },
     ),
   );
+
+let incr_eval =
+    (
+      ~font_metrics: FontMetrics.t,
+      ~syntax: CachedSyntax.t,
+      incr: Language.IncrEval.t,
+    ) => {
+  /* `frozen_ids` walks each reused subtree's prev_elab and emits every
+   * rep_id encountered. Many of those ids have nested or duplicate
+   * source ranges; painting them each as its own SVG stacks the 0.55
+   * alpha and makes inner regions look darker than the surrounding
+   * tint. Keep one id per maximal (outermost) range so each visible
+   * region gets exactly one decoration. Ids without a measurable range
+   * (elab-internal, no segment) are dropped here — the surviving ids in
+   * the same subtree cover the visible portion. */
+  let ranged_ids =
+    Language.IncrEval.frozen_ids(incr)
+    |> List.sort_uniq(Id.compare)
+    |> List.filter_map(id =>
+         switch (
+           TermData.extreme_measures(id, syntax.term_data, syntax.measured)
+         ) {
+         | Some(range) => Some((id, range))
+         | None => None
+         }
+       );
+  let range_eq = ((o1, l1), (o2, l2)) =>
+    Point.equals(o1, o2) && Point.equals(l1, l2);
+  let range_contains = ((o1, l1), (o2, l2)) =>
+    Point.compare(o1, o2) <= 0 && Point.compare(l2, l1) <= 0;
+  let outermost =
+    List.fold_left(
+      (acc, (id, r)) =>
+        if (List.exists(
+              ((_, r2)) => range_contains(r2, r) && !range_eq(r2, r),
+              ranged_ids,
+            )
+            || List.exists(((_, r2)) => range_eq(r2, r), acc)) {
+          acc;
+        } else {
+          [(id, r), ...acc];
+        },
+      [],
+      ranged_ids,
+    );
+  div_c(
+    "incremental-highlights",
+    List.concat_map(
+      ((id, _)) =>
+        color(~syntax, ~font_metrics, ["incremental-frozen"], id),
+      outermost,
+    ),
+  );
+};

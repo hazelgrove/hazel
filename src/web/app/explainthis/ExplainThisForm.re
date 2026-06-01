@@ -138,6 +138,7 @@ type example_id =
   | CaseWildTuple
   | CaseInt
   | CaseBool
+  | VoidAbsurd
   | Pipeline1
   | FilterStep
   | FilterEval
@@ -263,6 +264,7 @@ type form_id =
   | FloatTyp
   | BoolTyp
   | StrTyp
+  | VoidTyp
   | VarTyp
   | ListTyp
   | PolyTyp
@@ -385,10 +387,12 @@ type group_id =
   | EmptyHoleTyp
   | MultiHoleTyp
   | IntTyp
+  | SIntTyp
   | NatTyp
   | FloatTyp
   | BoolTyp
   | StrTyp
+  | VoidTyp
   | VarTyp
   | ListTyp
   | PolyTyp

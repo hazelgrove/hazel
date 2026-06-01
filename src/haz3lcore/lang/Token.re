@@ -131,6 +131,7 @@ let keywords = [
   "then",
   "else",
   "hint",
+  "module",
 ];
 
 let is_keyword = match(regexp("^(" ++ concat("|", keywords) ++ ")$"));
@@ -224,6 +225,7 @@ let base_typs = [
   "Nat",
   "SInt",
   "String",
+  "Void",
   "DrvJdmt",
   "DrvCtx",
   "DrvProp",
