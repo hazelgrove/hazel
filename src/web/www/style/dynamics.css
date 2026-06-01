@@ -180,3 +180,39 @@ svg.shard.incremental-frozen > path {
 svg.shard.incremental-frozen {
   filter: drop-shadow(0 0 1px rgba(160, 210, 255, 0.75));
 }
+
+svg.shard.incremental-pending > path {
+  fill: var(--incremental-pending, oklch(52% 0.03 220 / 11%));
+  stroke: var(--incremental-pending-edge, oklch(52% 0.03 220 / 16%));
+  stroke-width: 0.5px;
+  vector-effect: non-scaling-stroke;
+}
+
+svg.shard.incremental-active > path {
+  fill: var(--incremental-pending, oklch(52% 0.03 220 / 11%));
+}
+
+svg.shard.incremental-active .incremental-sweep {
+  fill: var(--incremental-active-sweep, oklch(100% 0 0 / 56%));
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: incremental-active-sweep 1.35s cubic-bezier(0.4, 0, 0.2, 1)
+    infinite;
+}
+
+@keyframes incremental-active-sweep {
+  0% {
+    transform: translateX(-130%);
+    opacity: 0;
+  }
+  18% {
+    opacity: 1;
+  }
+  65% {
+    opacity: 0.9;
+  }
+  100% {
+    transform: translateX(240%);
+    opacity: 0;
+  }
+}

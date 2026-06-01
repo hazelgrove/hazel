@@ -418,36 +418,40 @@ module Update = {
           )
         },
       ~on_ack=
-        () =>
+        initial =>
           List.iter(
             fun
-            | "lemmas" => {
+            | ("lemmas", stream) => {
                 schedule_action(
-                  Prelude(
-                    ResultAction(
-                      UpdateResult(Language.ProgramResult.evaluating),
-                    ),
-                  ),
+                  Prelude(ResultAction(UpdateStreamingEval(stream))),
                 );
                 schedule_action(
-                  Lemmas(
-                    ResultAction(
-                      UpdateResult(Language.ProgramResult.evaluating),
-                    ),
-                  ),
+                  Lemmas(ResultAction(UpdateStreamingEval(stream))),
                 );
               }
-            | "theorem" =>
+            | ("theorem", stream) =>
               schedule_action(
-                Theorem(
-                  ResultAction(
-                    UpdateResult(Language.ProgramResult.evaluating),
-                  ),
-                ),
+                Theorem(ResultAction(UpdateStreamingEval(stream))),
               )
             | _ => (),
-            List.map(((pos, _)) => pos, worker_request^),
+            initial,
           ),
+      ~on_stream=
+        (pos, stream) =>
+          switch (pos) {
+          | "lemmas" =>
+            schedule_action(
+              Prelude(ResultAction(MergeStreamingEval(stream))),
+            );
+            schedule_action(
+              Lemmas(ResultAction(MergeStreamingEval(stream))),
+            );
+          | "theorem" =>
+            schedule_action(
+              Theorem(ResultAction(MergeStreamingEval(stream))),
+            )
+          | _ => ()
+          },
     );
 
     {

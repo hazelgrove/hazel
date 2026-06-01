@@ -1,25 +1,23 @@
 open Util;
 module Js = Js_of_ocaml.Js;
 
-[@deriving (sexp, yojson)]
+[@deriving (show, sexp, yojson)]
 type key = string;
 
 module Request = {
   [@deriving (show, sexp, yojson)]
   type value = {
     expr: Language.Exp.t,
-    /* Projected statics data used by the incremental driver to look up
-     * per-id sub-elaborations and co-ctxs. We ship this slice instead of
-     * the full StaticsBase.Map.t because the full map transitively contains
-     * LivelitCtx entries that embed OCaml closures, which the structured-
-     * clone algorithm postMessage uses rejects. Pass the empty slice to
-     * opt out of incremental reuse. */
     eval_info_map: Language.EvalInfo.t,
-    /* Previous run's incremental map; pass IncrEval.empty on first run. */
     prev: Language.EvaluatorState.incr_eval,
   };
   [@deriving (show, sexp, yojson)]
-  type t = list((string, value));
+  type batch = list((string, value));
+  [@deriving (show, sexp, yojson)]
+  type t = {
+    request_id: int,
+    batch,
+  };
 };
 
 module Response = {
@@ -38,17 +36,24 @@ module Response = {
 
 module ClientMessage = {
   [@deriving (show, sexp, yojson)]
-  type evaluate = {
-    request_id: int,
-    batch: Request.t,
-  };
-
-  [@deriving (show, sexp, yojson)]
   type t =
-    | Evaluate(evaluate);
+    | Evaluate(Request.t);
 };
 
 module ServerMessage = {
+  [@deriving (show, sexp, yojson)]
+  type ack = {
+    request_id: int,
+    initial: list((key, Language.IncrEval.t(Language.EvaluatorState.t))),
+  };
+
+  [@deriving (show, sexp, yojson)]
+  type stream = {
+    request_id: int,
+    key,
+    update: Language.IncrEval.t(Language.EvaluatorState.t),
+  };
+
   [@deriving (show, sexp, yojson)]
   type result = {
     request_id: int,
@@ -57,7 +62,8 @@ module ServerMessage = {
 
   [@deriving (show, sexp, yojson)]
   type t =
-    | Ack(int)
+    | Ack(ack)
+    | Stream(stream)
     | Result(result);
 };
 
@@ -189,7 +195,7 @@ let module_of_encoding = (e: encoding): (module ENCODING) =>
  * change it. */
 module Active = MarshalEncoding;
 
-let work = (req_value: Request.value): Response.value => {
+let evaluate_sync = (req_value: Request.value): Response.value => {
   let Request.{expr, eval_info_map, prev} = req_value;
   switch (
     Language.Evaluator.evaluate(
@@ -209,26 +215,43 @@ let work = (req_value: Request.value): Response.value => {
   };
 };
 
-type started_work =
-  | Started(Language.Evaluator.yielding_evaluation)
-  | Finished(Response.value);
+type evaluation_start =
+  | Yielding(Language.Evaluator.yielding_evaluation)
+  | CompletedImmediately(Response.value);
 
 type running = {
   request_id: int,
   key,
-  remaining: Request.t,
+  remaining: Request.batch,
   completed: Response.t,
   evaluation: Language.Evaluator.yielding_evaluation,
 };
 
 type runtime =
   | Idle
+  | Starting
   | Running(running);
 
+type model = {
+  latest_request: option(Request.t),
+  runtime,
+  slice_already_scheduled: bool,
+};
+
 let slice_step_budget = 5000;
-let latest_request: ref(option(ClientMessage.evaluate)) = ref(None);
-let runtime = ref(Idle);
-let pump_scheduled = ref(false);
+let initial_model = {
+  latest_request: None,
+  runtime: Idle,
+  slice_already_scheduled: false,
+};
+
+/* Worker execution model:
+ * - `on_request` records only the newest batch and immediately ACKs with
+ *   predicted reusable entries for UI tinting.
+ * - The worker evaluates one batch item at a time in small async slices.
+ * - After each yielded slice, completed cache entries are streamed to the UI.
+ * - If a newer request arrives, the next scheduled slice abandons the stale
+ *   batch and begins the latest one. */
 
 let error_response = exn =>
   switch (exn) {
@@ -243,7 +266,24 @@ let error_response = exn =>
 let finish_success = ((result, state)): Response.value =>
   Ok((result, state));
 
-let start_work = (req_value: Request.value): started_work => {
+let predict_reuse_for_request = ((key, req_value): (key, Request.value)) => {
+  let Request.{expr, eval_info_map, prev} = req_value;
+  let stream =
+    switch (
+      Language.ReusePass.reuse_pass(
+        ~prev,
+        ~info_map=eval_info_map,
+        ~env=Language.Builtins.env_init,
+        expr,
+      )
+    ) {
+    | exception _ => Language.IncrEval.empty
+    | stream => stream
+    };
+  (key, stream);
+};
+
+let start_evaluation = (req_value: Request.value): evaluation_start => {
   let Request.{expr, eval_info_map, prev} = req_value;
   switch (
     Language.Evaluator.start_yielding_evaluation(
@@ -253,13 +293,13 @@ let start_work = (req_value: Request.value): started_work => {
       expr,
     )
   ) {
-  | exception exn => Finished(error_response(exn))
-  | evaluation => Started(evaluation)
+  | exception exn => CompletedImmediately(error_response(exn))
+  | evaluation => Yielding(evaluation)
   };
 };
 
-let is_latest = request_id =>
-  switch (latest_request^) {
+let is_latest = (model, request_id) =>
+  switch (model.latest_request) {
   | Some({request_id: latest_request_id, _}) =>
     request_id == latest_request_id
   | None => false
@@ -271,8 +311,8 @@ let is_latest = request_id =>
 let post_message = (msg: ServerMessage.t): unit =>
   Js_of_ocaml.Worker.post_message(Active.encode_response(msg));
 
-let post_result = (request_id, completed) =>
-  if (is_latest(request_id)) {
+let post_batch_result = (model, request_id, completed) =>
+  if (is_latest(model, request_id)) {
     post_message(
       ServerMessage.Result({
         request_id,
@@ -281,7 +321,37 @@ let post_result = (request_id, completed) =>
     );
   };
 
-let schedule = callback => {
+let post_stream_update =
+    (
+      model,
+      request_id,
+      key,
+      update: Language.IncrEval.t(Language.EvaluatorState.t),
+    ) =>
+  if (is_latest(model, request_id) && !Id.Map.is_empty(update.entries)) {
+    post_message(
+      ServerMessage.Stream({
+        request_id,
+        key,
+        update,
+      }),
+    );
+  };
+
+let flush_stream_update = (model, request_id, key, evaluation) => {
+  let update = Language.Evaluator.drain_streaming_outbox(evaluation);
+  post_stream_update(model, request_id, key, update);
+};
+
+let post_ack = (request: Request.t) =>
+  post_message(
+    ServerMessage.Ack({
+      request_id: request.request_id,
+      initial: List.map(predict_reuse_for_request, request.batch),
+    }),
+  );
+
+let schedule_async = callback => {
   ignore(
     Js.Unsafe.meth_call(
       Js.Unsafe.global,
@@ -294,43 +364,65 @@ let schedule = callback => {
   );
 };
 
-let rec start_next = (request_id, completed, remaining) =>
+let rec evaluate_next_batch_item = (model, request_id, completed, remaining) =>
   switch (remaining) {
   | [] =>
-    runtime := Idle;
-    post_result(request_id, completed);
+    let model = {
+      ...model,
+      runtime: Idle,
+    };
+    post_batch_result(model, request_id, completed);
+    model;
   | [(key, req_value), ...remaining] =>
-    switch (start_work(req_value)) {
-    | Finished(response) =>
-      start_next(request_id, [(key, response), ...completed], remaining)
-    | Started(evaluation) =>
-      runtime :=
-        Running({
-          request_id,
-          key,
-          remaining,
-          completed,
-          evaluation,
-        });
-      schedule_pump();
+    switch (start_evaluation(req_value)) {
+    | CompletedImmediately(response) =>
+      evaluate_next_batch_item(
+        model,
+        request_id,
+        [(key, response), ...completed],
+        remaining,
+      )
+    | Yielding(evaluation) =>
+      let model = {
+        ...model,
+        runtime:
+          Running({
+            request_id,
+            key,
+            remaining,
+            completed,
+            evaluation,
+          }),
+      };
+      model;
     }
   }
-and start_latest = () =>
-  switch (latest_request^) {
-  | None => runtime := Idle
-  | Some({request_id, batch}) => start_next(request_id, [], batch)
+and begin_latest_batch = model =>
+  switch (model.latest_request) {
+  | None => {
+      ...model,
+      runtime: Idle,
+    }
+  | Some({request_id, batch}) =>
+    evaluate_next_batch_item(model, request_id, [], batch)
   }
-and finish_running = (running, response) =>
-  start_next(
+and finish_current_item = (model, running, response) =>
+  evaluate_next_batch_item(
+    model,
     running.request_id,
     [(running.key, response), ...running.completed],
     running.remaining,
   )
-and pump = () => {
-  pump_scheduled := false;
-  switch (runtime^) {
-  | Idle => start_latest()
-  | Running(running) when !is_latest(running.request_id) => start_latest()
+and run_scheduled_slice = model => {
+  let model = {
+    ...model,
+    slice_already_scheduled: false,
+  };
+  switch (model.runtime) {
+  | Idle => model
+  | Starting => begin_latest_batch(model)
+  | Running(running) when !is_latest(model, running.request_id) =>
+    begin_latest_batch(model)
   | Running(running) =>
     switch (
       Language.Evaluator.run_yielding_slice(
@@ -338,30 +430,62 @@ and pump = () => {
         running.evaluation,
       )
     ) {
-    | exception exn => finish_running(running, error_response(exn))
+    | exception exn =>
+      finish_current_item(model, running, error_response(exn))
     | EvaluationCompleted(value) =>
-      finish_running(running, finish_success(value))
+      flush_stream_update(
+        model,
+        running.request_id,
+        running.key,
+        running.evaluation,
+      );
+      finish_current_item(model, running, finish_success(value));
     | EvaluationYielded(evaluation) =>
-      runtime :=
-        Running({
-          ...running,
-          evaluation,
-        });
-      schedule_pump();
+      flush_stream_update(model, running.request_id, running.key, evaluation);
+      let model = {
+        ...model,
+        runtime:
+          Running({
+            ...running,
+            evaluation,
+          }),
+      };
+      model;
     }
   };
-}
-and schedule_pump = () =>
-  if (! pump_scheduled^) {
-    pump_scheduled := true;
-    schedule(pump);
-  };
-
-let on_request = (req: Active.request): unit => {
-  let ClientMessage.Evaluate(request) = Active.decode_request(req);
-  latest_request := Some(request);
-  post_message(ServerMessage.Ack(request.request_id));
-  schedule_pump();
 };
 
-let start = () => Js_of_ocaml.Worker.set_onmessage(on_request);
+let install_message_handler = () => {
+  let model = ref(initial_model);
+
+  let rec commit = next_model => {
+    let should_schedule_slice =
+      switch (next_model.runtime) {
+      | Idle => false
+      | Starting
+      | Running(_) => !model^.slice_already_scheduled
+      };
+    model :=
+      should_schedule_slice
+        ? {
+          ...next_model,
+          slice_already_scheduled: true,
+        }
+        : next_model;
+    if (should_schedule_slice) {
+      schedule_async(() => commit(run_scheduled_slice(model^)));
+    };
+  };
+
+  let on_request = (req: Active.request): unit => {
+    let ClientMessage.Evaluate(request) = Active.decode_request(req);
+    post_ack(request);
+    commit({
+      ...model^,
+      latest_request: Some(request),
+      runtime: Starting,
+    });
+  };
+
+  Js_of_ocaml.Worker.set_onmessage(on_request);
+};

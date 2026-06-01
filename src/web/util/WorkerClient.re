@@ -7,13 +7,14 @@ let evalTimeoutDuration = 20000; // Evaluation timeout in ms
 
 type callbacks = {
   handler: Response.t => unit,
-  timeout: Request.t => unit,
-  on_ack: unit => unit,
+  timeout: Request.batch => unit,
+  on_ack:
+    list((key, Language.IncrEval.t(Language.EvaluatorState.t))) => unit,
+  on_stream: (key, Language.IncrEval.t(Language.EvaluatorState.t)) => unit,
 };
 
 type latest = {
-  request_id: int,
-  batch: Request.t,
+  request: Request.t,
   callbacks,
   /* Correlates this request with its WorkerMetrics record (None when
    * metrics are off) so the response-side benchmark lands on the row
@@ -41,7 +42,7 @@ let clear_timeouts = () => {
 
 let is_latest = request_id =>
   switch (latestRequest^) {
-  | Some({request_id: latest_request_id, _}) =>
+  | Some({request: {request_id: latest_request_id, _}, _}) =>
     request_id == latest_request_id
   | None => false
   };
@@ -49,15 +50,8 @@ let is_latest = request_id =>
 /* Both directions cross postMessage in the Active encoding, not as live
  * values, to dodge the structured-clone overflow on deep results (#2368;
  * see WorkerServer.Active). Callers still deal in Request.t/Response.t. */
-let post_evaluate = (worker, request_id, batch) =>
-  worker##postMessage(
-    Active.encode_request(
-      ClientMessage.Evaluate({
-        request_id,
-        batch,
-      }),
-    ),
-  );
+let post_evaluate = (worker, request: Request.t) =>
+  worker##postMessage(Active.encode_request(ClientMessage.Evaluate(request)));
 
 let start_eval_timeout = latest => {
   clear_timer(evalTimeoutId);
@@ -65,10 +59,10 @@ let start_eval_timeout = latest => {
     Some(
       Dom_html.window##setTimeout(
         Js.wrap_callback(() =>
-          if (is_latest(latest.request_id)) {
+          if (is_latest(latest.request.request_id)) {
             clear_timeouts();
             latestRequest := None;
-            latest.callbacks.timeout(latest.batch);
+            latest.callbacks.timeout(latest.request.batch);
           }
         ),
         float_of_int(evalTimeoutDuration),
@@ -76,13 +70,21 @@ let start_eval_timeout = latest => {
     );
 };
 
-let handle_ack = request_id =>
+let handle_ack = ({ServerMessage.request_id, initial}: ServerMessage.ack) =>
   if (is_latest(request_id)) {
     clear_timer(ackTimeoutId);
     switch (latestRequest^) {
     | Some(latest) =>
-      latest.callbacks.on_ack();
+      latest.callbacks.on_ack(initial);
       start_eval_timeout(latest);
+    | None => ()
+    };
+  }
+and handle_stream =
+    ({ServerMessage.request_id, key, update}: ServerMessage.stream) =>
+  if (is_latest(request_id)) {
+    switch (latestRequest^) {
+    | Some(latest) => latest.callbacks.on_stream(key, update)
     | None => ()
     };
   }
@@ -101,7 +103,8 @@ let setupWorkerMessageHandler = worker => {
   worker##.onmessage :=
     Dom.handler(evt => {
       switch (Active.decode_response(evt##.data)) {
-      | ServerMessage.Ack(request_id) => handle_ack(request_id)
+      | ServerMessage.Ack(ack) => handle_ack(ack)
+      | ServerMessage.Stream(stream) => handle_stream(stream)
       | ServerMessage.Result({request_id, response}) as msg =>
         /* Grab the metrics correlation id before handle_result clears
          * latestRequest. Hand the result off first; benchmarking the other
@@ -109,8 +112,8 @@ let setupWorkerMessageHandler = worker => {
          * latency. */
         let metrics_id =
           switch (latestRequest^) {
-          | Some({request_id: rid, metrics_id, _}) when rid == request_id =>
-            metrics_id
+          | Some({request: {request_id: rid, _}, metrics_id, _})
+              when rid == request_id => metrics_id
           | _ => None
           };
         handle_result(request_id, response);
@@ -143,13 +146,9 @@ let rec start_ack_timeout = latest => {
     Some(
       Dom_html.window##setTimeout(
         Js.wrap_callback(() =>
-          if (is_latest(latest.request_id)) {
+          if (is_latest(latest.request.request_id)) {
             restart_worker();
-            post_evaluate(
-              workerRef.contents,
-              latest.request_id,
-              latest.batch,
-            );
+            post_evaluate(workerRef.contents, latest.request);
             start_ack_timeout(latest);
           }
         ),
@@ -160,13 +159,16 @@ let rec start_ack_timeout = latest => {
 
 let request =
     (
-      req: Request.t,
+      batch: Request.batch,
       ~handler: Response.t => unit,
-      ~timeout: Request.t => unit,
-      ~on_ack: unit => unit,
+      ~timeout: Request.batch => unit,
+      ~on_ack:
+         list((key, Language.IncrEval.t(Language.EvaluatorState.t))) => unit,
+      ~on_stream:
+         (key, Language.IncrEval.t(Language.EvaluatorState.t)) => unit,
     )
     : unit =>
-  switch (req) {
+  switch (batch) {
   | [] => ()
   | _ =>
     clear_timeouts();
@@ -180,7 +182,7 @@ let request =
           id,
           ClientMessage.Evaluate({
             request_id: nextRequestId^,
-            batch: req,
+            batch,
           }),
         );
         Some(id);
@@ -188,16 +190,19 @@ let request =
         None;
       };
     let latest = {
-      request_id: nextRequestId^,
-      batch: req,
+      request: {
+        request_id: nextRequestId^,
+        batch,
+      },
       callbacks: {
         handler,
         timeout,
         on_ack,
+        on_stream,
       },
       metrics_id,
     };
     latestRequest := Some(latest);
-    post_evaluate(workerRef.contents, latest.request_id, latest.batch);
+    post_evaluate(workerRef.contents, latest.request);
     start_ack_timeout(latest);
   };

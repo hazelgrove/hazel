@@ -313,22 +313,28 @@ module Update = {
           ();
         },
       ~on_ack=
-        () => {
+        initial => {
           let _ =
-            Tutorial.map_stitched(
-              (pos, _) =>
+            List.iter(
+              ((pos, stream)) =>
                 schedule_action(
                   Editor(
-                    pos,
-                    ResultAction(
-                      UpdateResult(Language.ProgramResult.evaluating),
-                    ),
+                    Tutorial.pos_of_key(pos),
+                    ResultAction(UpdateStreamingEval(stream)),
                   ),
                 ),
-              model.cells,
+              initial,
             );
           ();
         },
+      ~on_stream=
+        (pos, stream) =>
+          schedule_action(
+            Editor(
+              Tutorial.pos_of_key(pos),
+              ResultAction(MergeStreamingEval(stream)),
+            ),
+          ),
     );
     /* The following section pulls statics back from cells into the editors
        There are many ad-hoc things about this code, including the fact that

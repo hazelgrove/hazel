@@ -40,44 +40,46 @@ type entry('state) = {
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type t('state) = {
-  entries: Id.Map.t(entry('state)),
-  /* Ids evaluated from scratch on this run (cache miss). UI tint. */
-  recalculated: list(Id.t),
-  /* Ids short-circuited via reuse_check (cache hit). Not the complement of
-   * `recalculated`: a recalculated parent can still contain reused children. */
-  reused: list(Id.t),
-};
+type t('state) = {entries: Id.Map.t(entry('state))};
 
-let empty: t('state) = {
-  entries: Id.Map.empty,
-  recalculated: [],
-  reused: [],
-};
+let empty: t('state) = {entries: Id.Map.empty};
 
-let is_empty = (incr: t('state)): bool =>
-  Id.Map.is_empty(incr.entries)
-  && incr.recalculated == []
-  && incr.reused == [];
+let is_empty = (incr: t('state)): bool => Id.Map.is_empty(incr.entries);
 
 let add_entry =
     (id: Id.t, entry: entry('state), incr: t('state)): t('state) => {
-  ...incr,
   entries: Id.Map.add(id, entry, incr.entries),
 };
 
-let mark_recalculated = (id: Id.t, incr: t('state)): t('state) => {
-  ...incr,
-  recalculated: [id, ...incr.recalculated],
+let add_stream = (stream: t('state), incr: t('state)): t('state) => {
+  entries:
+    Id.Map.union(
+      (_, _old, new_) => Some(new_),
+      incr.entries,
+      stream.entries,
+    ),
 };
 
-let mark_reused = (id: Id.t, incr: t('state)): t('state) => {
-  ...incr,
-  reused: [id, ...incr.reused],
+let copy_descendant_entries =
+    (~root_id: Id.t, ~root: Exp.t, ~prev: t('state), incr: t('state))
+    : t('state) => {
+  let acc = ref(incr);
+  let f_exp = (continue, e: Exp.t): Exp.t => {
+    let sub_id = Exp.rep_id(e);
+    if (!Id.equal(sub_id, root_id)) {
+      switch (Id.Map.find_opt(sub_id, prev.entries)) {
+      | Some(sub_entry) => acc := add_entry(sub_id, sub_entry, acc^)
+      | None => ()
+      };
+    };
+    continue(e);
+  };
+  let _ = TermBase.Exp.map_term(~f_exp, root);
+  acc^;
 };
 
 /* The set of ids the UI should paint as "frozen" this run.*/
-let frozen_ids = (incr: t('state)): list(Id.t) => {
+let frozen_ids = (~ack_incr: t('state)): list(Id.t) => {
   let acc = ref([]);
   let collect_subtree = (root: Exp.t): unit => {
     let f_exp = (continue, e: Exp.t): Exp.t => {
@@ -87,13 +89,9 @@ let frozen_ids = (incr: t('state)): list(Id.t) => {
     let _ = TermBase.Exp.map_term(~f_exp, root);
     ();
   };
-  List.iter(
-    id =>
-      switch (Id.Map.find_opt(id, incr.entries)) {
-      | Some(entry) => collect_subtree(entry.prev_elab)
-      | None => acc := [id, ...acc^]
-      },
-    incr.reused,
+  Id.Map.iter(
+    (_, entry) => collect_subtree(entry.prev_elab),
+    ack_incr.entries,
   );
   acc^;
 };
@@ -241,9 +239,6 @@ let with_pat_provenance =
     : reuse_map =>
   pat_provenance(~source_id, ~flag, pat)
   @ remove_pat_bindings(pat, reuse_map);
-
-let was_reused = (id: Id.t, incr: t('state)): bool =>
-  List.mem(id, incr.reused);
 
 let update_maps_after_binding =
     (~rhs_reused: bool, ~source_id: Id.t, pat: Pat.t, ~reuse_map: reuse_map)
