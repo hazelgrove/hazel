@@ -2,6 +2,23 @@ open Util;
 open Calc.Syntax;
 open Language;
 
+let env_with_symbolic_ctx_vars =
+    (ctx: Ctx.t, env: Environment.t(Exp.t)): Environment.t(Exp.t) =>
+  Ctx.get_var_entries(ctx)
+  |> List.fold_left(
+       (env, var_entry: Ctx.var_entry) =>
+         switch (Environment.lookup(env, var_entry.name)) {
+         | Some(_) => env
+         | None =>
+           Environment.extend(
+             ~id=var_entry.id,
+             env,
+             (var_entry.name, Exp.fresh(Var(var_entry.name))),
+           )
+         },
+       env,
+     );
+
 module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type theorem = {
@@ -388,6 +405,7 @@ module Update = {
                    |> {
                      let.calc ctx = ctx
                      and.calc env = env;
+                     let env = env_with_symbolic_ctx_vars(ctx, env);
                      SemanticCtx.of_ctx_and_env(ctx, env);
                    };
 

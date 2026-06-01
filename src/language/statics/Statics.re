@@ -11,6 +11,28 @@ include StaticsBase;
 let add_info = Map.add_info;
 let add_missing_info = Map.add_missing_info;
 
+let extend_ctx_with_explore_assumptions = (ctx: Ctx.t, co_ctx: CoCtx.t): Ctx.t => {
+  VarMap.to_list(co_ctx)
+  |> List.fold_left(
+       (ctx, (name, entries: list(CoCtx.entry))) =>
+         switch (Ctx.lookup_var(ctx, name), entries) {
+         | (Some(_), _)
+         | (_, []) => ctx
+         | (None, [first_entry, ..._]) =>
+           Ctx.extend(
+             ctx,
+             Ctx.VarEntry({
+               name,
+               id: Id.next(first_entry.id),
+               typ: CoCtx.meet(ctx, entries),
+               custom_statics: None,
+             }),
+           )
+         },
+       ctx,
+     );
+};
+
 let rec any_to_info_map =
         (
           ~ctx: Ctx.t,
@@ -2215,14 +2237,20 @@ and uexp_to_info_map =
         m,
       );
     | Explore(e1, e2) =>
-      let (e1, e1_elab, m) =
+      let (e1_pre, _, m) =
         go(~ctx, ~ana=Unknown(Internal) |> Typ.temp, e1, m);
+      let explore_ctx =
+        extend_ctx_with_explore_assumptions(ctx, e1_pre.co_ctx);
+      let (e1, e1_elab, m) =
+        go(~ctx=explore_ctx, ~ana=Unknown(Internal) |> Typ.temp, e1, m);
       let (e2, e2_elab, m) = go(~ctx, ~ana, e2, m);
       add(
+        ~ctx=explore_ctx,
         ~elab_term=Explore(e1_elab, e2_elab) |> rewrap,
         ~elab_syn_ty=e2.elab_syn_ty,
         ~marks=[],
-        ~co_ctx=CoCtx.union([e1.co_ctx, e2.co_ctx]),
+        ~co_ctx=
+          CoCtx.union([CoCtx.mk(ctx, explore_ctx, e1.co_ctx), e2.co_ctx]),
         m,
       );
     | ProofObject(e) =>
