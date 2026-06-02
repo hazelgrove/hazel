@@ -218,8 +218,14 @@ let editors = eds =>
   @ List.map(wrong_impl => wrong_impl.impl, eds.hidden_bugs)
   @ [eds.hidden_tests.tests];
 
+/* NOTE: YourTestsValidation is listed before YourTestsTesting because
+   they share the same underlying `your_tests.tests` editor, and
+   jump-to-tile uses this order to pick a winner for shared ids. Tile
+   clicks that target a token in the student's tests should land in the
+   "Test Validation" cell rather than the "Implementation Validation"
+   one. */
 let editor_positions = (eds: p('a)) =>
-  [Prelude, CorrectImpl, YourTestsTesting, YourTestsValidation, YourImpl]
+  [Prelude, CorrectImpl, YourTestsValidation, YourTestsTesting, YourImpl]
   @ List.mapi((i, _) => HiddenBugs(i), eds.hidden_bugs)
   @ [HiddenTests];
 
@@ -400,7 +406,7 @@ let eds_of_spec =
   };
 };
 
-let visible_in = (pos, ~instructor_mode) => {
+let is_editable = (pos, ~instructor_mode) => {
   switch (pos) {
   | Prelude => instructor_mode
   | CorrectImpl => instructor_mode
@@ -411,6 +417,14 @@ let visible_in = (pos, ~instructor_mode) => {
   | HiddenTests => instructor_mode
   };
 };
+
+/* Whether a cell is *rendered* (vs. `is_editable`, which gates editing).
+   Drives the Problems sidebar and jump-to-tile. */
+let shown_in = (pos, ~instructor_mode) =>
+  switch (pos) {
+  | Prelude => true
+  | _ => is_editable(pos, ~instructor_mode)
+  };
 
 let update_exercise_title = ({eds, _}: state, new_title: string) => {
   eds: {
@@ -937,7 +951,7 @@ let blank_spec =
 let persist = (state: state, ~instructor_mode: bool) => {
   let zippers =
     positioned_editors(state.eds)
-    |> List.filter(((pos, _)) => visible_in(pos, ~instructor_mode))
+    |> List.filter(((pos, _)) => is_editable(pos, ~instructor_mode))
     |> List.map(((pos, editor: Editor.t)) => {
          (pos, PersistentZipper.persist(editor.state.zipper))
        });
@@ -980,7 +994,7 @@ let unpersist =
     )
     : state => {
   let lookup = (pos, default) =>
-    if (visible_in(pos, ~instructor_mode)) {
+    if (is_editable(pos, ~instructor_mode)) {
       switch (List.assoc_opt(pos, editors)) {
       | Some(persisted_zipper) =>
         let zipper = PersistentZipper.unpersist(persisted_zipper, ~root=Exp);

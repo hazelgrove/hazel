@@ -421,7 +421,7 @@ module Selection = {
     };
 
   let jump_to_tile = (id: Id.t, model: Model.t): option(Update.t) => {
-    switch (TermData.root_tile(id, model.editor.syntax.term_data)) {
+    switch (TermData.root_piece(id, model.editor.syntax.term_data)) {
     | Some(_) => Some(Perform(Move(Goal(TileId(id)))))
     | None => None
     };
@@ -835,6 +835,9 @@ module View = {
           @ (selected ? ["selected"] : [])
           @ (display_line_numbers ? ["has-line-numbers"] : []),
         ),
+        /* Tag the active cell so a sidebar jump can move DOM focus to it
+           (see JsUtil.active_cell_id / ProbePerform.FocusEffect). */
+        selected ? Attr.id(JsUtil.active_cell_id) : Attr.empty,
         key_handler_attr,
         Attr.on_contextmenu(evt =>
           switch (Pointer.Event.mk(evt)) {

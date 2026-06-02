@@ -43,11 +43,9 @@ let (suite, _) =
     @ Test_MultiProbe.tests
     @ [Test_SampleSelection.tests]
     @ Test_Indentation.tests
-    @ [
-      Test_Coverage.tests,
-      Test_Unboxing.tests,
-      Test_ProblemCollection.tests,
-    ]
+    @ [Test_Coverage.tests, Test_Unboxing.tests]
+    @ Test_ProblemCollection.tests
+    @ [Test_TermData.tests]
     @ Test_Introduce.tests
     @ Test_ReparseDocSlides.tests
     @ Test_MatchExp.tests
