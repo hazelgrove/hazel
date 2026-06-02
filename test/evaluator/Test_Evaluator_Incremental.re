@@ -1327,7 +1327,12 @@ n|};
   };
   let (r1, _, incr1) = eval_incr(exp1);
   let (r2, _, incr2) = eval_incr(~prev=incr1, exp2);
-  check(dhexp_typ, "Run 1: string_length(\"hello\") = 5", parse_exp("5"), r1);
+  check(
+    dhexp_typ,
+    "Run 1: string_length(\"hello\") = 5",
+    parse_exp("5"),
+    r1,
+  );
   check(dhexp_typ, "Run 2: result unchanged = 5", parse_exp("5"), r2);
   /* The bug we're pinning: without seeding the reuse_map from env, the
    * builtin name in the Ap's co_ctx forces a permanent cache miss here. */
