@@ -364,24 +364,34 @@ let rec evaluate =
       /* Binder body provenance map: RecordPatMatch describes `pat <- rhs`.
        * We add pattern provenance only when the rhs value came from the
        * previous cache. Otherwise the binding shadows any outer provenance
-       * for those names and dependents must be recalculated. */
+       * for those names and dependents must be recalculated.
+       *
+       * Function bodies are not incremental-cache boundaries: we do not record
+       * entries while inside a call stack, and reuse_check also refuses reuse
+       * there. In probe-enabled runs, keep the old path because probe capture
+       * shares this evaluation plumbing and relies on the fully threaded maps. */
       let body_reuse_map =
-        List.fold_left(
-          (reuse_map, effect) =>
-            switch (effect) {
-            | EvaluatorState.RecordPatMatch({pat, rhs, _}) =>
-              let source_id = DHExp.rep_id(rhs);
-              IncrEval.update_maps_after_binding(
-                ~rhs_reused=IncrEval.was_reused(source_id, state^.incr_eval),
-                ~source_id,
-                pat,
-                ~reuse_map,
-              );
-            | _ => reuse_map
-            },
-          reuse_map,
-          effects,
-        );
+        if (call_stack.stack != [] && Id.Map.is_empty(info_map.targets)) {
+          reuse_map;
+        } else {
+          List.fold_left(
+            (reuse_map, effect) =>
+              switch (effect) {
+              | EvaluatorState.RecordPatMatch({pat, rhs, _}) =>
+                let source_id = DHExp.rep_id(rhs);
+                IncrEval.update_maps_after_binding(
+                  ~rhs_reused=
+                    IncrEval.was_reused(source_id, state^.incr_eval),
+                  ~source_id,
+                  pat,
+                  ~reuse_map,
+                );
+              | _ => reuse_map
+              },
+            reuse_map,
+            effects,
+          );
+        };
 
       switch (is_finished) {
       | Final =>
