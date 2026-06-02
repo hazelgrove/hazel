@@ -37,7 +37,10 @@ let execute = (): bool =>
   switch (scheduled^) {
   | Some(Editor) =>
     scheduled := None;
-    JsUtil.focus_clipboard_shim();
+    /* Focus the editor element itself (not the page-level clipboard
+       shim) so the caret is restored — the shim only captures keys,
+       it does not satisfy the `.code-editor:focus` caret CSS. */
+    JsUtil.focus_active_editor();
     true;
   | Some(Probe(probe_id)) =>
     scheduled := None;

@@ -106,6 +106,25 @@ let clipboard_shim_id = "clipboard-shim";
 
 let focus_clipboard_shim = () => get_elem_by_id(clipboard_shim_id)##focus;
 
+/* Focus the active editor's DOM element so the editor caret becomes
+   visible. The caret is gated by CSS on `.code-editor:focus`, so
+   focusing the page-level clipboard shim is NOT sufficient — the
+   `.code-editor` element itself must hold DOM focus. Falls back to the
+   shim if no active editor is mounted (e.g. before first render).
+   `preventScroll` avoids competing with an in-progress jump/scroll. */
+let focus_active_editor = () =>
+  switch (
+    Js.Opt.to_option(
+      Dom_html.document##querySelector(Js.string(".code-editor.selected")),
+    )
+  ) {
+  | Some(el) =>
+    Js.Unsafe.coerce(el)##focus(
+      Js.Unsafe.obj([|("preventScroll", Js.Unsafe.inject(Js._true))|]),
+    )
+  | None => focus_clipboard_shim()
+  };
+
 let clipboard_shim = {
   Node.textarea(~attrs=[Attr.id(clipboard_shim_id)], []);
 };

@@ -332,8 +332,10 @@ let key_handler =
     SampleAnchor.capture();
     Many([set_focus_index(~globals, new_index, evt), Stop_propagation]);
   | D("Enter") =>
-    /* Jump to call site of current entry, then refocus main editor. */
-    JsUtil.focus_clipboard_shim();
+    /* Jump to call site of current entry, then refocus main editor.
+       schedule_editor defers the focus to after_display so it lands
+       after the jump re-renders the editor. */
+    FocusEffect.schedule_editor();
     if (index >= 0 && index < List.length(call_stack)) {
       let target = get_call_site_target(~info_map, ~call_stack, ~index);
       switch (target) {
@@ -424,7 +426,10 @@ let view =
         @ (is_unknown ? ["unknown"] : [])
         @ (position_class != "" ? [position_class] : []);
 
-      let on_entry_click = evt =>
+      let on_entry_click = evt => {
+        /* Clicking moves DOM focus onto the (focusable) bar; restore it
+           to the editor after the jump so the caret stays visible. */
+        FocusEffect.schedule_editor();
         switch (call_site_target) {
         | Some(target_id) =>
           Effect.Many([
@@ -433,6 +438,7 @@ let view =
           ])
         | None => set_focus_index(~globals, i, evt)
         };
+      };
 
       let is_pinned = Some(app_id) == pinned_head_id;
       let pin_icon =
@@ -550,7 +556,11 @@ let view =
           };
         switch (def_target) {
         | Some(target_id) =>
-          let on_body_click = evt => jump_to(~globals, target_id, evt);
+          let on_body_click = evt => {
+            /* Restore editor focus after the jump (see on_entry_click). */
+            FocusEffect.schedule_editor();
+            jump_to(~globals, target_id, evt);
+          };
           let body_sep_ghost = max_index > index;
           let body_sep_classes =
             ["breadcrumb-separator"] @ (body_sep_ghost ? ["ghost"] : []);
