@@ -85,6 +85,38 @@ module Update = {
     };
   };
 
+  /* Editors feeding the Problems sidebar, paired with display labels.
+     `None` labels indicate no section header. */
+  let get_problem_editors =
+      (model: Model.t): list((option(string), list(CodeEditable.Model.t))) => {
+    let scratchpad_editors =
+        (m: ScratchMode.Model.t)
+        : list((option(string), list(CodeEditable.Model.t))) => {
+      let sp = List.nth(m.scratchpads, m.current);
+      switch (sp.kind) {
+      | Code({editor, _}) => [(None, [editor.editor])]
+      | Drv(dm) =>
+        /* Scratch/documentation Drv slides don't render the Prelude. */
+        DerivationExerciseMode.Model.get_problem_editors(
+          ~scratch_mode=true,
+          dm,
+        )
+      };
+    };
+    switch (model.editors) {
+    | Scratch(m) => scratchpad_editors(m)
+    | Documentation(m) => scratchpad_editors(m)
+    | Tutorial(m) => [
+        (None, [List.nth(m.exercises, m.current).cells.user_impl.editor]),
+      ]
+    | Exercises(m) =>
+      ExercisesMode.Model.get_problem_editors(
+        ~instructor_mode=model.globals.settings.instructor_mode,
+        m,
+      )
+    };
+  };
+
   [@deriving (show({with_path: false}), sexp, yojson)]
   type benchmark_action =
     | Start
@@ -165,6 +197,11 @@ module Update = {
             action,
             model.editors,
           );
+        /* The jump moves the model selection to the target cell but not DOM
+           focus (which stays on the clicked sidebar row). Schedule a focus
+           of the now-active cell after render so the editor receives
+           keystrokes and the caret (gated on :focus) shows there. */
+        Haz3lcore.ProbePerform.FocusEffect.schedule_cell();
         {
           ...model,
           editors,
@@ -898,6 +935,7 @@ module View = {
         ~editors,
         ~selection=model.selection,
         ~editor=Update.get_editor(model),
+        ~problem_editors=Update.get_problem_editors(model),
         ~signal=
           fun
           | MakeActive(s: Selection.t) => inject(MakeActive(s)),
