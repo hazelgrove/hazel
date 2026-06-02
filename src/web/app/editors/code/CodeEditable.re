@@ -784,6 +784,44 @@ module View = {
         );
       } else {
         let z = model.editor.state.zipper;
+        /* Editor-level clipboard helpers. Bypass the page-level
+           on_copy/on_paste path because Firefox refuses to dispatch
+           native clipboard events to non-editable focused elements
+           (the editor div has tabindex(0) but is not contenteditable). */
+        let selection_has_refractors =
+            (refractors: Haz3lcore.Zipper.Refractor.t, selection) =>
+          if (List.is_empty(refractors.manuals)) {
+            false;
+          } else {
+            let ids = Haz3lcore.Segment.ids(selection);
+            List.exists(
+              id =>
+                List.exists(
+                  ((id2, _)) => Id.equal(id, id2),
+                  refractors.manuals,
+                ),
+              ids,
+            );
+          };
+        let copy_selection = () => {
+          let segment = z.selection.content;
+          let str =
+            Printer.of_segment(
+              ~indent=" ",
+              ~refractors=z.refractors.manuals,
+              segment,
+            );
+          if (!selection_has_refractors(z.refractors, segment)) {
+            Haz3lcore.Parser.set_segment_cache(Some(segment), str);
+          };
+          JsUtil.write_clipboard(str);
+        };
+        let paste_from_clipboard = () =>
+          JsUtil.read_clipboard(text => {
+            let action =
+              Haz3lcore.Action.Paste(Util.StringUtil.trim_leading(text));
+            Bonsai.Effect.Expert.handle(inject(Perform(action)));
+          });
         Key.handler(~f=key => {
           /* 1. Check for arrow key escape at boundaries FIRST.
            *    Keyboard.handle_key_event always returns Some for arrows,
@@ -815,8 +853,75 @@ module View = {
                 && z.relatives.ancestors == []
                 && snd(Siblings.neighbors(z.relatives.siblings)) == None =>
             Effect.Many([Effect.Prevent_default, escape(Right)])
+          /* 2. Cmd/Ctrl + C/X/V handled here rather than via the page
+             on_copy/on_paste handlers, so they keep working in
+             Firefox when focus is on a non-editable editor div. */
+          | {
+              key: D("c" | "C"),
+              sys: Mac,
+              shift: Up,
+              meta: Down,
+              ctrl: Up,
+              alt: Up,
+              _,
+            }
+          | {
+              key: D("c" | "C"),
+              sys: PC,
+              shift: Up,
+              meta: Up,
+              ctrl: Down,
+              alt: Up,
+              _,
+            } =>
+            copy_selection();
+            Effect.Many([Effect.Prevent_default, Effect.Stop_propagation]);
+          | {
+              key: D("x" | "X"),
+              sys: Mac,
+              shift: Up,
+              meta: Down,
+              ctrl: Up,
+              alt: Up,
+              _,
+            }
+          | {
+              key: D("x" | "X"),
+              sys: PC,
+              shift: Up,
+              meta: Up,
+              ctrl: Down,
+              alt: Up,
+              _,
+            } =>
+            copy_selection();
+            Effect.Many([
+              Effect.Prevent_default,
+              Effect.Stop_propagation,
+              inject(Perform(Destruct(Right))),
+            ]);
+          | {
+              key: D("v" | "V"),
+              sys: Mac,
+              shift: Up,
+              meta: Down,
+              ctrl: Up,
+              alt: Up,
+              _,
+            }
+          | {
+              key: D("v" | "V"),
+              sys: PC,
+              shift: Up,
+              meta: Up,
+              ctrl: Down,
+              alt: Up,
+              _,
+            } =>
+            paste_from_clipboard();
+            Effect.Many([Effect.Prevent_default, Effect.Stop_propagation]);
           | _ =>
-            /* 2. Normal editor key handling:
+            /* 3. Normal editor key handling:
              *    context menu → projector handoff → Keyboard */
             switch (Selection.handle_key_event(~selection=(), model, key)) {
             | Some(action) =>
