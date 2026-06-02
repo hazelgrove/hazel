@@ -23,6 +23,7 @@ type t = {
 type effect =
   | RecordTest(TestMap.instance_report)
   | RecordExpProbe(Sample.capture_spec)
+  | RecordAscriptionProbe((Id.t, Sample.capture_spec, Exp.t))
   | RecordStackFrame(option(string), option(DHExp.t), option(Id.t)) /* (fn_name, arg_value, fn_def_id) */
   /* A pattern was matched against a value during evaluation. Carries the
    * pat and rhs so the incremental evaluator can decide which body-scoped
@@ -281,6 +282,26 @@ let update =
           );
         let state = clear_probe_start(state, probe_id);
         (call_stack, add_sample(state, sample));
+      | RecordAscriptionProbe((id, capture_spec, ascribed_exp)) =>
+        let step = state.step_count;
+        /* Substitute env so a Var body resolves to its runtime value. */
+        let ascribed_exp = Substitution.in_exp(env, ascribed_exp);
+        let sample =
+          Sample.mk(
+            ~step_start=step,
+            ~step_end=step,
+            id,
+            ascribed_exp,
+            env,
+            call_stack,
+            capture_spec,
+          );
+        let state = add_sample(state, sample);
+        let state = {
+          ...state,
+          step_count: state.step_count + 1,
+        };
+        (call_stack, state);
       | RecordPatMatch({samples: sample_closures, _}) =>
         /* Pattern probes are recorded at the current step, then we
          * increment to ensure patterns don't share step boundaries

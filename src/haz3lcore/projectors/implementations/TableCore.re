@@ -50,7 +50,8 @@ let rec normalize_row = (e: Exp.t): Exp.t =>
   switch (e.term) {
   | Parens(inner) => normalize_row(inner)
   | Asc(_, _) =>
-    let stepped = Ascriptions.transition_multiple(e);
+    let (_, stepped) =
+      Ascriptions.transition_multiple(~targets=Sample.no_targets, e);
     stepped === e ? e : normalize_row(stepped);
   | _ => e
   };

@@ -14,6 +14,7 @@ module CsvUtil = CsvUtil;
 module Result = Result;
 module StateMonad = StateMonad;
 module StringUtil = StringUtil;
+module WriterMonad = WriterMonad;
 module Tree = Tree;
 module TimeUtil = TimeUtil;
 module TupleUtil = TupleUtil;
