@@ -106,6 +106,30 @@ let clipboard_shim_id = "clipboard-shim";
 
 let focus_clipboard_shim = () => get_elem_by_id(clipboard_shim_id)##focus;
 
+/* The id carried by whichever code-editor cell is currently the active
+   (model-selected) one. Used to move DOM focus to a cell after a sidebar
+   jump, so the editor receives keystrokes and the caret (gated on :focus)
+   shows there. */
+let active_cell_id = "active-code-editor";
+
+/* Focus the active cell without scrolling it into view — scroll is handled
+   separately (scroll_cursor_into_view_if_needed), and the browser's default
+   focus scroll would fight it. */
+let focus_active_cell = (): bool =>
+  switch (get_elem_by_id_opt(active_cell_id)) {
+  | Some(elem) =>
+    let _: unit =
+      Js.Unsafe.meth_call(
+        elem,
+        "focus",
+        [|
+          Js.Unsafe.obj([|("preventScroll", Js.Unsafe.inject(Js._true))|]),
+        |],
+      );
+    true;
+  | None => false
+  };
+
 let clipboard_shim = {
   Node.textarea(~attrs=[Attr.id(clipboard_shim_id)], []);
 };
