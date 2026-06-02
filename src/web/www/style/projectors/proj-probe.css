@@ -1125,8 +1125,13 @@
 }
 
 /* Nav-bar (the consolidated SVG control) is only visible when the
- * probe is indicated — matches the previous nav-arrow precedent. */
-.projector.probe:not(.indicated) .nav-bar {
+ * probe is indicated — matches the previous nav-arrow precedent.
+ * The `.hit` rects must be included explicitly: they set
+ * `pointer-events: all`, which re-enables them on the descendant even
+ * when the parent `.nav-bar` is `pointer-events: none` (per spec). So
+ * without this, the bar stays clickable while invisible. */
+.projector.probe:not(.indicated) .nav-bar,
+.projector.probe:not(.indicated) .nav-bar .hit {
   pointer-events: none;
   opacity: 0% !important;
 }
