@@ -22,23 +22,20 @@
   outline: none;
 }
 
-#main .code-editor.has-line-numbers{
+#main .code-editor.has-line-numbers {
   padding-left: 0;
 }
-
 
 #main.Scratch,
 #main.Documentation {
   background-color: var(--ui-bkg);
 }
 
-:is(#main.Scratch,
-#main.Documentation):not(.Derivations) > * > .code-editor {
+:is(#main.Scratch, #main.Documentation):not(.Derivations) > * > .code-editor {
   background-color: var(--cell-active);
 }
 
-:is(#main.Scratch,
-#main.Documentation):not(.Derivations) .cell {
+:is(#main.Scratch, #main.Documentation):not(.Derivations) .cell {
   flex-grow: 1;
   /* Stretch the cell's background to cover everything #main's scroll
    * extent contains, including absolutely-positioned descendants like
@@ -54,13 +51,17 @@
 #main.Exercises,
 #main.Derivations {
   padding: 1.5em;
-  padding-top: 3.5em;
   display: flex;
   flex-direction: column;
   justify-content: flex-start;
   gap: 1.2em;
   background-color: var(--ui-bkg);
   scrollbar-color: var(--main-scroll-thumb) var(--NONE);
+}
+
+#main.Exercises,
+#main.Derivations {
+  padding-top: 3.5em;
 }
 
 /* Derivation slides inside the unified Scratch/Documentation modes
