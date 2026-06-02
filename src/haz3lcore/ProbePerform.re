@@ -1280,9 +1280,30 @@ let toplevel_def_body_id = (~statics: Statics.Map.t, ~id: Id.t): option(Id.t) =>
     walk(len - 1);
   };
 
+  /* WORKAROUND: collapse consecutive duplicate ids in the ancestor chain.
+   * Function-definition sugar (`let f(x) = ...`) desugars to
+   * `let f = fun x -> ...` while reusing the surface Let's id (see
+   * FunctionSugar.rewrite + the function-sugar dispatch in Statics.re,
+   * which recurses through `go` and so pushes that id onto `ancestors`
+   * twice). The positional walk in `find_target` assumes each ancestor is
+   * a distinct node whose child-on-path is the next entry, so a duplicated
+   * id makes it read a cursor in the let body as if it were in the def and
+   * probe the function body instead. Dropping adjacent duplicates makes the
+   * walk see each Let once. Remove once the duplication is fixed at the
+   * statics source. */
+  let rec dedup_adjacent = (ids: list(Id.t)): list(Id.t) =>
+    switch (ids) {
+    | []
+    | [_] => ids
+    | [x, y, ...rest] =>
+      Id.equal(x, y)
+        ? dedup_adjacent([y, ...rest])
+        : [x, ...dedup_adjacent([y, ...rest])]
+    };
+
   switch (Statics.Map.lookup(id, statics)) {
   | Some(info) =>
-    let ancestors = Info.ancestors_of(info);
+    let ancestors = dedup_adjacent(Info.ancestors_of(info));
     let target =
       switch (find_target(id, ancestors)) {
       | Some(_) as result => result

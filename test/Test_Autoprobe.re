@@ -183,6 +183,40 @@ let bare_expression_tests = [
   ),
 ];
 
+/* Function-definition sugar: `let f(args) = body` desugars (in statics) to
+ * `let f = fun args -> body` while reusing the surface Let's id. That reuse
+ * duplicates the Let in the cursor's ancestor chain, which used to make
+ * auto-probe target the function body even when the cursor was in the let
+ * body. Guards the dedup_adjacent workaround in
+ * ProbePerform.toplevel_def_body_id. */
+let function_sugar_tests = [
+  auto(
+    ~name="sugar: cursor in let body probes let body (not the function body)",
+    ~input="let f(x: Int): Int = x + 1 in ¦f(5)",
+    ~probed="f(5)",
+  ),
+  auto(
+    ~name="sugar: cursor in function body probes function body",
+    ~input="let f(x: Int): Int = ¦x + 1 in f(5)",
+    ~probed="x + 1",
+  ),
+  auto(
+    ~name="sugar inside let-body call probes let body",
+    ~input="let f(x: Int): Int = x + 1 in f¦(5)",
+    ~probed="f(5)",
+  ),
+  auto(
+    ~name="sugar no return type: cursor in let body probes let body",
+    ~input="let f(x: Int) = x + 1 in ¦f(5)",
+    ~probed="f(5)",
+  ),
+  auto(
+    ~name="sugar no return type: cursor in function body probes function body",
+    ~input="let f(x: Int) = ¦x + 1 in f(5)",
+    ~probed="x + 1",
+  ),
+];
+
 let tyalias_tests = [
   auto(
     ~name="cursor in tyalias body probes body (transparent)",
@@ -200,6 +234,7 @@ let tests = [
   ("Autoprobe.BasicLet", basic_let_tests),
   ("Autoprobe.NestedLet", nested_let_tests),
   ("Autoprobe.Seq", seq_tests),
+  ("Autoprobe.FunctionSugar", function_sugar_tests),
   ("Autoprobe.BareExpression", bare_expression_tests),
   ("Autoprobe.TyAlias", tyalias_tests),
 ];
