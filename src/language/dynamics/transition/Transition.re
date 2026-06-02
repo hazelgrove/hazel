@@ -413,6 +413,8 @@ module Transition = (EV: EV_MODE) => {
         term,
         ids: [rep_id(d)],
       });
+    let generated = term =>
+      Id.Map.is_empty(targets) ? Exp.temp(term) : Exp.fresh(term);
 
     let (let.wrap_closure) = ((env, d'), f: unit => rule) =>
       switch (mode) {
@@ -422,7 +424,7 @@ module Transition = (EV: EV_MODE) => {
 
     let subst_env = (env, d) =>
       switch (mode) {
-      | `Environment => Closure(env, d) |> fresh
+      | `Environment => generated(Closure(env, d))
       | `Substitution => d |> Substitution.in_exp(env)
       };
 
@@ -501,7 +503,7 @@ module Transition = (EV: EV_MODE) => {
     | Theorem({term: Var(n), _} as dp, e, d1) =>
       let. _ = otherwise(env, d);
       let e' = Substitution.in_exp(env, e);
-      let env' = Environment.extend(env, (n, ProofObject(e') |> Exp.fresh));
+      let env' = Environment.extend(env, (n, generated(ProofObject(e'))));
       Step({
         expr: subst_env(env', d1),
         side_effects: [
@@ -614,7 +616,7 @@ module Transition = (EV: EV_MODE) => {
         | _ => "No hint available."
         };
       Step({
-        expr: Tuple([]) |> fresh,
+        expr: generated(Tuple([])),
         side_effects: [
           RecordTest({
             exp: d,
@@ -667,8 +669,12 @@ module Transition = (EV: EV_MODE) => {
       | Asc(d1'', {term: Arrow(t1, t2), _}) =>
         Step({
           expr:
-            Asc(Ap(Forward, d1'', Asc(d2', t1) |> fresh) |> fresh, t2)
-            |> fresh,
+            generated(
+              Asc(
+                generated(Ap(Forward, d1'', generated(Asc(d2', t1)))),
+                t2,
+              ),
+            ),
           side_effects: [],
           kind: Ascription,
           is_value: false,
@@ -858,7 +864,7 @@ module Transition = (EV: EV_MODE) => {
           switch (f(n)) {
           | Either.L(return_value) =>
             // operator was successful
-            Atom(Atom.repack(out_ty, return_value)) |> Exp.fresh
+            generated(Atom(Atom.repack(out_ty, return_value)))
           | Either.R(error) =>
             // e.g. divide by zero
             dynamic_error_hole(UnOp(op, d1) |> rewrap, error)
@@ -919,14 +925,14 @@ module Transition = (EV: EV_MODE) => {
           | None => Indet
           | Some(true) =>
             Step({
-              expr: Atom(Bool(poly_op == Equals)) |> fresh,
+              expr: generated(Atom(Bool(poly_op == Equals))),
               side_effects: [],
               kind: BinOp(op),
               is_value: true,
             })
           | Some(false) =>
             Step({
-              expr: Atom(Bool(poly_op != Equals)) |> fresh,
+              expr: generated(Atom(Bool(poly_op != Equals))),
               side_effects: [],
               kind: BinOp(op),
               is_value: false,
@@ -940,7 +946,7 @@ module Transition = (EV: EV_MODE) => {
           switch (f(n1, n2)) {
           | Either.L(return_value) =>
             // operator was successful
-            Atom(Atom.repack(out_ty, return_value)) |> Exp.fresh
+            generated(Atom(Atom.repack(out_ty, return_value)))
           | Either.R(error) =>
             // e.g. divide by zero
             dynamic_error_hole(BinOp(op, d1, d2) |> rewrap, error)
@@ -1001,8 +1007,8 @@ module Transition = (EV: EV_MODE) => {
               : Indet
           | ListLit(ds) =>
             let mapped =
-              List.map(d => Dot(d, lab |> Exp.fresh) |> Exp.fresh, ds);
-            let ls = ListLit(mapped) |> Exp.fresh;
+              List.map(d => generated(Dot(d, generated(lab))), ds);
+            let ls = generated(ListLit(mapped));
             Step({
               expr: ls,
               side_effects: [],
