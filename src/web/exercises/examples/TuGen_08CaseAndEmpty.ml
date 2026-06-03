@@ -8,7 +8,7 @@ let exercise : Tutorial.spec = {
   module_name = "TuGen_08CaseAndEmpty";
   prompt = {x|A *sum type* lists a fixed set of options, separated by `+`s:
 ```hazelnostatics
-type MoonPhase = New + Waxing + Full + Waning in Full : MoonPhase
+type MoonPhase = New + Waxing + Full + Waning in ...
 ```
 
 A `case` expression matches a value against patterns, top to bottom. A wildcard `_` pattern matches anything.

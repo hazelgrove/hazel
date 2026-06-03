@@ -8,7 +8,7 @@ let exercise : Tutorial.spec = {
   module_name = "TuGen_09VariantsWithData";
   prompt = {x|A variant can carry data. Give a constructor a payload in its type, and bind that payload in the matching pattern:
 ```hazelnostatics
-type Care = Water(Int) + Trim + Skip in Water(1729)
+type Care = Water(Int) + Trim + Skip in ...
 ```
 Matching `Water(amount)` pulls the carried value into `amount`. This is how the garden's actions are modeled.
 

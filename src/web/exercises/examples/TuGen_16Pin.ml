@@ -9,8 +9,8 @@ let exercise : Tutorial.spec = {
   prompt = {x|With many calls, every probe shows a wall of samples. **Pin** locks onto one call, so every probe shows just that call's run.
 
 **Try this**
-1. Turn on auto-probe and click inside `weekly`. Each line shows four samples, one per call below.
-2. Probe the `weekly(orchid)` call below. Click its sample and choose **Pin this call** (or press `P`).
+1. Put multi-probe on `weekly`'s let definition, and switch to multi mode. Note each line shows four samples, one per call below.
+2. Probe the `weekly(orchid)` call below. Right-click its sample and choose **Pin this call** (or press `P`).
 3. Back inside the function, every probe now shows only Orchid's run.
 4. A **⍟** marks samples hidden by the pin. Click it to unpin.|x};
   display_hint = {x|Probe a call, then *Pin this call* from its sample.|x};

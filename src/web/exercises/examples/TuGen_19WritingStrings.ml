@@ -17,7 +17,9 @@ Keep only the log entries that mention a bloom. Fill the test so `filter` keeps 
 - `string_length(s)`, `string_sub(s, start, len)`|x};
   your_impl =
     Haz3lcore.Zipper.caret_to_start (Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|let entries = ["moonbloom ok", "cactus dry", "starbloom ok"] in
-filter(entries, fun e -> ¿)|x}));
+filter(entries, fun e ->
+¿
+)|x}));
   hidden_tests =
     {
       tests =

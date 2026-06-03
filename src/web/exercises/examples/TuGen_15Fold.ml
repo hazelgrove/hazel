@@ -8,7 +8,7 @@ let exercise : Tutorial.spec = {
   module_name = "TuGen_15Fold";
   prompt = {x|`fold_left` combines a list into a single value, carrying an accumulator from left to right:
 ```hazelnostatics
-fold_left(list, fun (acc, x) -> ..., start)
+fold_left(list, fun (acc, x) -> ... , start)
 ```
 
 # Task
@@ -21,7 +21,11 @@ fold_left([1, 2, 3], fun (acc, x) -> acc + x, 0)
 `acc` carries the running result; `x` is the current element.|x};
   your_impl =
     Haz3lcore.Zipper.caret_to_start (Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|let waters = [250, 180, 50, 200] in
-fold_left(waters, fun (acc, w) -> ¿, 0)|x}));
+fold_left(
+waters,
+fun (acc, w) ->
+¿
+, 0)|x}));
   hidden_tests =
     {
       tests =

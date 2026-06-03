@@ -4,7 +4,7 @@ wrapper show_report version=1 id=b0000013-0013-0013-0013-000000000013
 @prompt
 `fold_left` combines a list into a single value, carrying an accumulator from left to right:
 ```hazelnostatics
-fold_left(list, fun (acc, x) -> ..., start)
+fold_left(list, fun (acc, x) -> ... , start)
 ```
 
 # Task
@@ -25,7 +25,11 @@ The total is 680.
 
 @code
 let waters = [250, 180, 50, 200] in
-fold_left(waters, fun (acc, w) -> ¿, 0)
+fold_left(
+waters,
+fun (acc, w) ->
+¿
+, 0)
 
 @test
 test answer == 680 end

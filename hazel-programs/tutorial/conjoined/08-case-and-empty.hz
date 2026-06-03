@@ -4,7 +4,7 @@ wrapper show_report version=1 id=b0000007-0007-0007-0007-000000000007
 @prompt
 A *sum type* lists a fixed set of options, separated by `+`s:
 ```hazelnostatics
-type MoonPhase = New + Waxing + Full + Waning in Full : MoonPhase
+type MoonPhase = New + Waxing + Full + Waning in ...
 ```
 
 A `case` expression matches a value against patterns, top to bottom. A wildcard `_` pattern matches anything.

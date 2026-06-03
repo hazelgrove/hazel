@@ -13,8 +13,8 @@ Set the new-moon bonus so the week totals **1800**, then explore.
 
 **Explore**
 - Probe `week` to see the subtotal (`1750`).
-- You can also read a variable *without* probing it. Probe `watered`, then **right-click that sample** (a two-finger tap on a Mac trackpad, or Option-click) to open a dropdown of the values feeding it, including `week`.
-- You never have to use the dropdown. Probing `week` directly works just as well. Two ways to see the same thing.|x};
+- Put a probe on the `+` in the `watered` definition, then **right-click that sample** (a two-finger tap on a Mac trackpad, or Option-click) to see a dropdown of the value of variables it contains, including `week`.
+- You don't have to use this dropdown; probing `week` directly works just as well. Two ways to see the same thing.|x};
   display_hint = {x|The new-moon bonus is 50.|x};
   task_reference = {x|### Probes
 - **Add / remove a probe**: Cmd/Ctrl+E, or right-click then *Add probe*

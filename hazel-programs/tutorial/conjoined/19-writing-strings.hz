@@ -21,7 +21,9 @@ Keep "moonbloom ok" and "starbloom ok".
 
 @code
 let entries = ["moonbloom ok", "cactus dry", "starbloom ok"] in
-filter(entries, fun e -> ¿)
+filter(entries, fun e ->
+¿
+)
 
 @test
 test answer == ["moonbloom ok", "starbloom ok"] end

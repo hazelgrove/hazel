@@ -12,7 +12,8 @@ map([1, 2, 3], fun n -> n * 2)
 ```
 
 # Task
-Give every plant its 50 ml new-moon top-up. Map over the waters, adding 50 to each.|x};
+
+Just for fun, turn on autoprobe (Ctrl/Cmd-P) if it's not already on. Then, give every plant its 50 ml new-moon top-up. Map over the watering cans, adding 50 to each.|x};
   display_hint = {x|`fun w -> w + 50`|x};
   task_reference = {x|### Map and lambdas
 ```hazel
@@ -24,13 +25,15 @@ map([1, 2, 3], fun n -> n + 1)
 - `filter(xs, fun x -> x > 100)` keeps the elements that pass
 - `mapi(xs, fun (i, x) -> ...)` like map, but also gives the index `i`|x};
   your_impl =
-    Haz3lcore.Zipper.caret_to_start (Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|let waters = [250, 180, 50, 200] in
-map(waters, fun w -> ¿)|x}));
+    Haz3lcore.Zipper.caret_to_start (Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|let watering_cans = [250, 180, 50, 200] in
+map(watering_cans, fun w ->
+¿
+)|x}));
   hidden_tests =
     {
       tests =
         Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|test answer == [300, 230, 100, 250] end|x});
-      hints = ["Each water gains 50: [300, 230, 100, 250]."];
+      hints = ["Each watering cans gains 50: [300, 230, 100, 250]."];
     };
   wrapper = true;
   show_report = true;

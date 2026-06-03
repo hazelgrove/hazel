@@ -14,9 +14,9 @@ nightly_totals([250, 180, 50]) == [250, 430, 480]
 ```
 
 # Task
-Fill the fold callback. The accumulator is a tuple `(total, sofar)`: the running total, and the list built so far. Each step returns the new total and `sofar` with that total added to the end.
+Fill the fold callback. The accumulator is a tuple `(total, sofar)`: the running total, and the list built so far. Each step returns the new total and `sofar` with that total added to the end. Some useful list operators: `::` (cons) and `@` (append).
 
-**Turn on auto-probe** (🔬) and click inside the callback. In *many* mode you can watch the accumulator grow.|x};
+**Turn on auto-probe** (Ctrl/Cmd+P) and click inside the callback. In *many* mode you can watch the accumulator grow.|x};
   display_hint = {x|`(total + n, sofar @ [total + n])`|x};
   task_reference = {x|### Fold with a tuple accumulator
 ```hazel
@@ -28,7 +28,12 @@ fold_left([1, 2, 3], fun ((sum, sofar), n) ->
   your_impl =
     Haz3lcore.Zipper.caret_to_start (Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|let nightly_totals(nights: [Int]): [Int] =
 let (_, result) =
-fold_left(nights, fun ((total, sofar), n) -> ¿, (0, []))
+fold_left(
+nights,
+fun ((total, sofar), n) ->
+¿
+,(0, [])
+)
 in
 result
 in

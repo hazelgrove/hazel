@@ -6,10 +6,10 @@ let exercise : Tutorial.spec = {
   title = "20 - Print";
   version = 1;
   module_name = "TuGen_20Print";
-  prompt = {x|Hazel also has classic print-statement debugging. `print(value)` shows a value in the sidebar panel, then carries on. Sequence it with `;`.
+  prompt = {x|Hazel also has classic print-statement debugging. For some tasks we'll ask you to use these instead of probes. Open the 🔬 sidebar and click PRINTARIUM. Now, when you have a `print(value);` in your code, it will print in the sidebar manel when you click `Run`.
 
 # Task
-The garden waters for a week. Add `print(daily);` inside `weekly_water` to log each daily amount, then watch the print panel fill as the calls below run.|x};
+The garden waters for a week. Add `print(daily);` inside `weekly_water` to log each daily amount, then watch the print panel fill as the calls below run. There should be three lines in the panel.|x};
   display_hint = {x|`print(daily);` before the result, inside the function.|x};
   task_reference = {x|### Print
 ```hazel

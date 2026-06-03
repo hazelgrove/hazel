@@ -11,7 +11,7 @@ let exercise : Tutorial.spec = {
 A bed starts at water level `100`. `Water(n)` adds `n`; `Drain` should remove `20`. The bed runs through a list of actions with `fold_left`.
 
 # Task
-One test fails. Turn on auto-probe, step into `run`, and watch the level after each action to find the branch that moves the wrong way. Fix it so the tests pass.|x};
+One test fails. Probe the call to `update` and step into it. Fix it so the tests pass.|x};
   display_hint = {x|Walk the levels from 100. Which action changes it in the wrong direction?|x};
   task_reference = {x|### Folding actions into a model
 ```hazel
@@ -30,13 +30,17 @@ in
 let run(actions: [Action]): Bed =
 fold_left(actions, update, (level = 100))
 in
-run([Water(50), Drain, Water(30)])|x}));
+test
+update(Drain, (level = 100))
+== (level=80)
+end|x}));
   hidden_tests =
     {
       tests =
-        Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|test run([Water(50), Drain, Water(30)]).level == 160 end;
-test run([Drain]).level == 80 end;
-test run([]).level == 100 end|x});
+        Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|test
+  update(Drain, (level = 100))
+   == (level=80)
+end;|x});
       hints = ["From 100, the actions Water(50), Drain, Water(30) should end at 160."];
     };
   wrapper = false;
