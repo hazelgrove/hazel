@@ -121,6 +121,26 @@ module rec StepKind: {
       type focus = step_kind_focus;
 
   let is_missing_step: step_kind_model => bool;
+  let calculate_with_level:
+    (
+      ~rewrite_level: Axioms.rewrite_level,
+      ~settings: Calc.t(CoreSettings.t),
+      ~hidden: Calc.saved(bool),
+      ~exp: Calc.t(Exp.t),
+      ~ctx: Calc.t(SemanticCtx.t),
+      ~editor: Calc.t(CodeSelectable.Model.t),
+      ~info_map: Calc.t(Statics.Map.t),
+      ~ana: Calc.t(Typ.t),
+      step_kind_model
+    ) =>
+    option(
+      (
+        step_kind_model,
+        Calc.t(bool),
+        option(Calc.t(Exp.t)),
+        Calc.t(option(bool)),
+      ),
+    );
 } = {
   /* The StepKind code here is almost all dispatch to the
      individual step modules. */
@@ -239,8 +259,9 @@ module rec StepKind: {
     };
   };
 
-  let rec calculate =
+  let rec calculate_with_level =
           (
+            ~rewrite_level: Axioms.rewrite_level,
             ~settings: Calc.t(CoreSettings.t),
             ~hidden: Calc.saved(bool),
             ~exp: Calc.t(Exp.t),
@@ -311,7 +332,8 @@ module rec StepKind: {
         |> Calc.get_value;
       switch (next_step_to_take) {
       | Some(evalobj) =>
-        calculate(
+        calculate_with_level(
+          ~rewrite_level,
           ~settings,
           ~info_map,
           ~exp=exp |> Calc.make_new,
@@ -329,6 +351,7 @@ module rec StepKind: {
         Some((
           MissingStep(
             MissingStep.Update.calculate(
+              ~rewrite_level,
               ~settings=settings |> Calc.get_value,
               exp,
               info_map,
@@ -471,6 +494,20 @@ module rec StepKind: {
         ));
       };
     };
+
+  let calculate =
+      (~settings, ~hidden, ~exp, ~ctx, ~editor, ~info_map, ~ana, model) =>
+    calculate_with_level(
+      ~rewrite_level=Axioms.Arithmetic,
+      ~settings,
+      ~hidden,
+      ~exp,
+      ~ctx,
+      ~editor,
+      ~info_map,
+      ~ana,
+      model,
+    );
 
   let get_cursor_info = (~inject, ~focus: focus, model: model) =>
     Cursor.(
@@ -760,6 +797,28 @@ and Stepper: {
       type action = step_action and
       type focus = step_focus;
   let get_validity: step_model => option(bool);
+  let calculate_with_level:
+    (
+      ~rewrite_level: Axioms.rewrite_level,
+      ~settings: Calc.t(CoreSettings.t),
+      ~exp: Calc.t(Exp.t),
+      ~ctx: Calc.t(SemanticCtx.t),
+      ~ana: Calc.t(Typ.t),
+      step_model
+    ) =>
+    (step_model, Calc.t(Exp.t), Calc.t(option(bool)));
+  let view_with_automation:
+    (
+      ~globals: Globals.t,
+      ~take_focus: step_focus => Ui_effect.t(unit),
+      ~inject: step_action => Ui_effect.t(unit),
+      ~hide_stepper: Ui_effect.t(unit),
+      ~focus: option(step_focus),
+      ~automation_stage: Axioms.automation_stage,
+      ~is_toplevel: bool,
+      step_model
+    ) =>
+    list(WebUtil.Node.t);
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type model = step_model;
@@ -1129,8 +1188,9 @@ and Stepper: {
     };
   };
 
-  let rec calculate =
+  let rec calculate_with_level =
           (
+            ~rewrite_level: Axioms.rewrite_level,
             ~settings: Calc.t(CoreSettings.t),
             ~exp as expr: Calc.t(Exp.t),
             ~ctx: Calc.t(SemanticCtx.t),
@@ -1186,7 +1246,8 @@ and Stepper: {
     let info_map = Calc.NewValue(editor.statics.info_map);
     let editor = Calc.OldValue(editor);
     let (step_kind, hidden, next_expr, inner_validity) =
-      StepKind.calculate(
+      StepKind.calculate_with_level(
+        ~rewrite_level,
         ~settings,
         ~ctx,
         ~exp=expr,
@@ -1198,7 +1259,8 @@ and Stepper: {
       )
       |> OptUtil.get(() =>
            MissingStep(MissingStep.Model.init)
-           |> StepKind.calculate(
+           |> StepKind.calculate_with_level(
+                ~rewrite_level,
                 ~settings,
                 ~ctx,
                 ~exp=expr,
@@ -1214,7 +1276,14 @@ and Stepper: {
       | Some(next_expr) =>
         let next_step = Option.value(~default=init, next_step);
         let (next_step, last_expr, next_validity) =
-          calculate(~settings, ~exp=next_expr, ~ctx, ~ana, next_step);
+          calculate_with_level(
+            ~rewrite_level,
+            ~settings,
+            ~exp=next_expr,
+            ~ctx,
+            ~ana,
+            next_step,
+          );
         (Some(next_step), last_expr, next_validity);
       | None => (None, expr, inner_validity)
       };
@@ -1247,6 +1316,16 @@ and Stepper: {
       proof_validity,
     );
   };
+
+  let calculate = (~settings, ~exp, ~ctx, ~ana, model) =>
+    calculate_with_level(
+      ~rewrite_level=Axioms.Arithmetic,
+      ~settings,
+      ~exp,
+      ~ctx,
+      ~ana,
+      model,
+    );
 
   let rec get_cursor_info =
           (~inject, ~focus: step_focus, model: step_model)
@@ -1289,6 +1368,7 @@ and Stepper: {
             ~inject: step_action => Ui_effect.t(unit),
             ~hide_stepper: Ui_effect.t(unit),
             ~focus: option(step_focus),
+            ~automation_stage: Axioms.automation_stage,
             ~is_toplevel: bool=false,
             ~undo: option(Ui_effect.t(unit)),
             model: step_model,
@@ -1406,6 +1486,7 @@ and Stepper: {
                     | Some(StepKindFocus(MissingStep(s))) => Some(s)
                     | _ => None
                     },
+                  ~automation_stage,
                   ~signal=
                     fun
                     | HideStepper => hide_stepper
@@ -1531,6 +1612,7 @@ and Stepper: {
             | Some(Next(s)) => Some(s)
             | _ => None
             },
+          ~automation_stage,
           ~undo=
             if (model.hidden |> Calc.get_saved_exc(~print="hidden")) {
               undo;
@@ -1544,13 +1626,14 @@ and Stepper: {
     current_step @ next_step;
   };
 
-  let view =
+  let view_with_automation =
       (
         ~globals: Globals.t,
         ~take_focus: step_focus => Ui_effect.t(unit),
         ~inject: step_action => Ui_effect.t(unit),
         ~hide_stepper: Ui_effect.t(unit),
         ~focus: option(step_focus),
+        ~automation_stage: Axioms.automation_stage,
         ~is_toplevel: bool,
         root_step,
       ) => {
@@ -1586,6 +1669,7 @@ and Stepper: {
           ~hide_stepper,
           ~inject,
           ~focus,
+          ~automation_stage,
           ~is_toplevel,
           ~undo=None,
           root_step,
@@ -1594,4 +1678,25 @@ and Stepper: {
       ),
     ];
   };
+
+  let view =
+      (
+        ~globals: Globals.t,
+        ~take_focus: step_focus => Ui_effect.t(unit),
+        ~inject: step_action => Ui_effect.t(unit),
+        ~hide_stepper: Ui_effect.t(unit),
+        ~focus: option(step_focus),
+        ~is_toplevel: bool,
+        root_step,
+      ) =>
+    view_with_automation(
+      ~globals,
+      ~take_focus,
+      ~inject,
+      ~hide_stepper,
+      ~focus,
+      ~automation_stage=Axioms.MultiStepCheck,
+      ~is_toplevel,
+      root_step,
+    );
 };

@@ -23,6 +23,20 @@ let check_written = (name, left, right, expected) =>
     Web.RewriteChecker.check_written_step(~settings, ~env, left, right),
   );
 
+let check_written_at_level = (name, level, left, right, expected) =>
+  check(
+    option(string),
+    name,
+    expected,
+    Web.RewriteChecker.check_written_step_at_level(
+      ~level,
+      ~settings,
+      ~env,
+      left,
+      right,
+    ),
+  );
+
 let require_written_result = (left, right) =>
   switch (
     Web.RewriteChecker.check_written_step_result(~settings, ~env, left, right)
@@ -32,6 +46,8 @@ let require_written_result = (left, right) =>
   };
 
 let rewrite_group_name = (group: Axioms.rewrite_group) => group.name;
+
+let rewrite_group_level = (group: Axioms.rewrite_group) => group.level;
 
 let rewrite_rule_id = (rule: Axioms.rewrite_rule) => rule.id;
 
@@ -53,9 +69,78 @@ let check_simplifies = (name, input, expected) =>
 let tests = (
   "RewriteChecker",
   [
+    test_case(
+      "rewrite levels are cumulative",
+      `Quick,
+      () => {
+        check(
+          int,
+          "arithmetic rank",
+          0,
+          Axioms.rewrite_level_rank(Arithmetic),
+        );
+        check(
+          list(string),
+          "arithmetic groups",
+          ["arithmetic"],
+          Axioms.allowed_groups(Arithmetic) |> List.map(rewrite_group_name),
+        );
+        check(
+          list(string),
+          "algebra includes arithmetic",
+          ["arithmetic"],
+          Axioms.allowed_groups(Algebra) |> List.map(rewrite_group_name),
+        );
+        check(
+          list(string),
+          "future levels include earlier groups",
+          ["arithmetic"],
+          Axioms.allowed_groups(Calculus) |> List.map(rewrite_group_name),
+        );
+        check(
+          bool,
+          "arithmetic enabled",
+          true,
+          Axioms.rewrite_level_enabled(Arithmetic),
+        );
+        check(
+          bool,
+          "algebra future-disabled",
+          false,
+          Axioms.rewrite_level_enabled(Algebra),
+        );
+      },
+    ),
+    test_case(
+      "arithmetic group carries level metadata",
+      `Quick,
+      () => {
+        check(
+          bool,
+          "arithmetic group level",
+          true,
+          rewrite_group_level(Axioms.arithmetic_rewrite_group) == Arithmetic,
+        );
+        check(
+          int,
+          "arithmetic group rank",
+          Axioms.rewrite_level_rank(Arithmetic),
+          Axioms.arithmetic_rewrite_group.rank,
+        );
+      },
+    ),
     test_case("affine commutes variable addition", `Quick, () =>
       check_written(
         "3 + x = x + 3",
+        plus(Exp.int(3), Exp.var("x")),
+        plus(Exp.var("x"), Exp.int(3)),
+        Some("arithmetic"),
+      )
+    ),
+    test_case("affine checking uses selected cumulative level", `Quick, () =>
+      check_written_at_level(
+        "algebra currently includes arithmetic",
+        Algebra,
         plus(Exp.int(3), Exp.var("x")),
         plus(Exp.var("x"), Exp.int(3)),
         Some("arithmetic"),

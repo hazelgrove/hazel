@@ -1,0 +1,609 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Hazel-Native Normalization and Proof Export Plan</title>
+    <style>
+      :root {
+        --bg: #f6f7f9;
+        --ink: #1d2430;
+        --muted: #5f6b7d;
+        --panel: #ffffff;
+        --line: #d9dee8;
+        --green: #287565;
+        --blue: #315b9e;
+        --amber: #936100;
+        --code: #eef2f7;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--ink);
+        font: 16px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+
+      main {
+        width: min(1120px, calc(100vw - 40px));
+        margin: 0 auto;
+        padding: 40px 0 64px;
+      }
+
+      header {
+        padding-bottom: 24px;
+        margin-bottom: 24px;
+        border-bottom: 1px solid var(--line);
+      }
+
+      h1,
+      h2,
+      h3 {
+        margin: 0;
+        line-height: 1.2;
+        letter-spacing: 0;
+      }
+
+      h1 {
+        font-size: 2.35rem;
+      }
+
+      h2 {
+        font-size: 1.45rem;
+      }
+
+      h3 {
+        font-size: 1.08rem;
+        margin-top: 20px;
+      }
+
+      p {
+        margin: 10px 0 0;
+      }
+
+      ul,
+      ol {
+        margin: 10px 0 0;
+        padding-left: 1.35rem;
+      }
+
+      li + li {
+        margin-top: 6px;
+      }
+
+      section {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 22px;
+        margin-top: 18px;
+      }
+
+      code {
+        background: var(--code);
+        border: 1px solid var(--line);
+        border-radius: 4px;
+        padding: 0.08rem 0.3rem;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 0.92em;
+      }
+
+      pre {
+        margin: 12px 0 0;
+        overflow-x: auto;
+        background: #111827;
+        color: #edf2f7;
+        border-radius: 8px;
+        padding: 16px;
+        font-size: 0.9rem;
+      }
+
+      pre code {
+        background: transparent;
+        border: 0;
+        color: inherit;
+        padding: 0;
+      }
+
+      .lead {
+        max-width: 860px;
+        color: var(--muted);
+        font-size: 1.05rem;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 12px;
+        margin-top: 16px;
+      }
+
+      .tile {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #fbfcff;
+        padding: 14px;
+      }
+
+      .tile strong {
+        display: block;
+        color: var(--green);
+        margin-bottom: 4px;
+      }
+
+      .flow {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 10px;
+        margin-top: 14px;
+      }
+
+      .flow div {
+        border: 1px solid var(--line);
+        border-top: 4px solid var(--blue);
+        border-radius: 8px;
+        background: #fbfcff;
+        padding: 12px;
+      }
+
+      .flow strong {
+        display: block;
+        margin-bottom: 5px;
+      }
+
+      .callout {
+        border-left: 4px solid var(--green);
+        background: #eef8f5;
+        margin-top: 14px;
+        padding: 12px 14px;
+      }
+
+      .warning {
+        border-left-color: var(--amber);
+        background: #fff7e5;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 14px;
+      }
+
+      th,
+      td {
+        border: 1px solid var(--line);
+        padding: 10px;
+        vertical-align: top;
+        text-align: left;
+      }
+
+      th {
+        background: #f0f3f8;
+      }
+
+      @media (max-width: 860px) {
+        main {
+          width: min(100vw - 24px, 1120px);
+          padding-top: 24px;
+        }
+
+        .grid,
+        .flow {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <h1>Hazel-Native Normalization and Proof Export Plan</h1>
+        <p class="lead">
+          The goal is to validate written proof steps without trusting a CAS
+          simplification. Hazel should decide equivalence using a small,
+          inspectable normalizer and, when possible, produce a proof trace that
+          can be exported to a theorem prover.
+        </p>
+        <div class="grid">
+          <div class="tile">
+            <strong>No CAS trust boundary</strong>
+            Avoid accepting a black-box <code>simplify</code> step that cannot
+            be reconstructed by the theorem prover.
+          </div>
+          <div class="tile">
+            <strong>Normalize to decide</strong>
+            Use canonical forms to determine whether two expressions represent
+            the same arithmetic expression.
+          </div>
+          <div class="tile">
+            <strong>Trace to export</strong>
+            Record small rewrite steps so the checker result can become theorem
+            prover evidence.
+          </div>
+        </div>
+      </header>
+
+      <section>
+        <h2>Problem</h2>
+        <p>
+          A CAS can validate examples like <code>3 + x = x + 3</code>, but it
+          does so by returning a large simplification result. That is useful for
+          a UI check but too coarse for a theorem prover export pipeline. The
+          exported proof would either need to trust the CAS or re-prove a hidden
+          simplification.
+        </p>
+        <div class="callout warning">
+          The important distinction is: normalizing for equality is not enough.
+          For export, normalization must either be trusted by the target theorem
+          prover or accompanied by a derivation that the target can replay.
+        </div>
+      </section>
+
+      <section>
+        <h2>Plan A: Hazel-Only Symbolic Normalizer</h2>
+        <p>
+          The first step is to replace Algebrite for simple symbolic arithmetic
+          with a Hazel-native normalizer. This normalizer should start small and
+          be intentionally scoped.
+        </p>
+
+        <h3>Affine Normal Form</h3>
+        <p>
+          Start with linear arithmetic over constants and symbolic terms:
+        </p>
+        <pre><code>type atom =
+  | Const(Bigint.t)
+  | Sym(string)
+  | Other(Exp.t);
+
+type affine = {
+  constant: Bigint.t,
+  terms: list((atom, Bigint.t)),
+};</code></pre>
+        <p>
+          Examples:
+        </p>
+        <ul>
+          <li><code>3 + x</code> normalizes to constant <code>3</code> and term <code>1*x</code>.</li>
+          <li><code>x + 3</code> normalizes to the same form.</li>
+          <li><code>x + x + 3</code> normalizes to constant <code>3</code> and term <code>2*x</code>.</li>
+          <li><code>2 * x + 3</code> can normalize to constant <code>3</code> and term <code>2*x</code>.</li>
+        </ul>
+
+        <h3>Canonicalization Rules</h3>
+        <ol>
+          <li>Flatten addition and subtraction.</li>
+          <li>Fold numeric constants.</li>
+          <li>Recognize constant-times-symbol where easy.</li>
+          <li>Combine like symbolic terms.</li>
+          <li>Drop zero coefficients.</li>
+          <li>Sort symbolic terms by a stable expression key.</li>
+          <li>Compare canonical forms structurally.</li>
+        </ol>
+
+        <div class="callout">
+          This handles common classroom steps such as <code>3 + x</code> to
+          <code>x + 3</code>, <code>1 + 2 + x</code> to <code>x + 3</code>, and
+          <code>x + x</code> to <code>2 * x</code> without any external solver.
+        </div>
+      </section>
+
+      <section>
+        <h2>Current Implementation Status</h2>
+        <p>
+          The current <code>write-multiple-steps</code> branch already
+          implements the first slice of this plan, but not the full theorem
+          prover export story.
+        </p>
+        <table>
+          <thead>
+            <tr>
+              <th>Status</th>
+              <th>Item</th>
+              <th>Notes</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Done</td>
+              <td>Hazel-native affine normalizer</td>
+              <td>
+                <code>RewriteChecker.re</code> has an affine
+                <code>normal_form</code> for constants, variables, addition,
+                subtraction, negation, and constant-times-expression scaling.
+              </td>
+            </tr>
+            <tr>
+              <td>Done</td>
+              <td>Written-step validation through the normalizer</td>
+              <td>
+                <code>check_written_step</code> tries the affine checker and
+                falls back to evaluation equality. Valid written steps become
+                <code>WrittenStep</code> nodes in the stepper.
+              </td>
+            </tr>
+            <tr>
+              <td>Done</td>
+              <td>Coarse checker justification labels</td>
+              <td>
+                Checkers currently return labels such as
+                <code>arithmetic</code> or <code>same evaluated result</code>.
+              </td>
+            </tr>
+            <tr>
+              <td>Partial</td>
+              <td>Coq export fallback</td>
+              <td>
+                Coq export exists and has a warning path for proofs with no
+                steps. The short-term direction is to use theorem-prover
+                arithmetic automation such as <code>ring</code> for generated
+                arithmetic lemma obligations.
+              </td>
+            </tr>
+            <tr>
+              <td>Not yet</td>
+              <td>Structured <code>check_result</code></td>
+              <td>
+                The checker still returns <code>option(string)</code> rather
+                than canonical forms plus proof evidence.
+              </td>
+            </tr>
+            <tr>
+              <td>Not yet</td>
+              <td>Proof traces from normalization</td>
+              <td>
+                The normalizer decides equality but does not record each
+                rewrite rule application.
+              </td>
+            </tr>
+            <tr>
+              <td>Not yet</td>
+              <td>Trace-based theorem prover export</td>
+              <td>
+                Export does not yet replay Hazel-native normalization traces as
+                theorem-prover evidence.
+              </td>
+            </tr>
+            <tr>
+              <td>Not yet</td>
+              <td>Polynomial normalization</td>
+              <td>
+                Symbolic multiplication and distributive expansion remain future
+                work.
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section>
+        <h2>Scaling Beyond Affine Arithmetic</h2>
+        <p>
+          When the examples require multiplication of symbolic expressions, move
+          from affine form to polynomial form.
+        </p>
+        <pre><code>type monomial = list((atom, int));     /* x^2 * y */
+type polynomial = list((monomial, Bigint.t));</code></pre>
+        <p>
+          This supports:
+        </p>
+        <ul>
+          <li><code>x * 3 = 3 * x</code></li>
+          <li><code>(x + 1) * (x + 2) = x^2 + 3*x + 2</code></li>
+          <li>commutativity and associativity of multiplication</li>
+          <li>distributivity when expansion is enabled</li>
+        </ul>
+        <p>
+          This should still be domain-specific, not a general-purpose theorem
+          prover. The normalizer should only implement algebraic laws that Hazel
+          can also emit as proof steps.
+        </p>
+      </section>
+
+      <section>
+        <h2>Plan B: Normalization With Proof Traces</h2>
+        <p>
+          For theorem prover export, the checker should return more than
+          <code>valid</code>. It should return the canonical forms and a
+          replayable list of trusted rewrites.
+        </p>
+        <pre><code>type rewrite_rule =
+  | AddComm
+  | AddAssoc
+  | AddIdentity
+  | AddConst
+  | MulComm
+  | MulAssoc
+  | MulDistrib
+  | MulIdentity
+  | MulConst;
+
+type rewrite_step = {
+  before: Exp.t,
+  after: Exp.t,
+  rule: rewrite_rule,
+};
+
+type check_result = {
+  justification: string,
+  normalized_left: Exp.t,
+  normalized_right: Exp.t,
+  proof_steps_left: list(rewrite_step),
+  proof_steps_right: list(rewrite_step),
+};</code></pre>
+
+        <div class="flow">
+          <div>
+            <strong>Normalize left</strong>
+            Rewrite <code>e1</code> to a canonical expression while recording
+            each small rule application.
+          </div>
+          <div>
+            <strong>Normalize right</strong>
+            Rewrite <code>e2</code> to a canonical expression with its own
+            trace.
+          </div>
+          <div>
+            <strong>Compare</strong>
+            Check that the two canonical expressions are syntactically equal.
+          </div>
+          <div>
+            <strong>Export</strong>
+            Emit <code>e1 = nf</code>, <code>e2 = nf</code>, then combine by
+            symmetry and transitivity.
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <h2>Short-Term Coq Export Fallback</h2>
+        <p>
+          A practical interim fix is to let generated Coq lemmas use arithmetic
+          automation such as <code>ring</code> for simple integer arithmetic
+          obligations. This is better than using <code>cbv; reflexivity</code>,
+          because unfolding <code>Z.add</code> can produce large pattern-match
+          terms that are extensionally equal but not definitionally identical.
+        </p>
+        <div class="callout warning">
+          This fallback should not become the trusted proof story. It proves that
+          Coq can solve the generated arithmetic equality, but it does not
+          explain the user's written Hazel step as a replayable sequence of Hazel
+          rewrite rules.
+        </div>
+        <p>
+          The intended use is therefore:
+        </p>
+        <ol>
+          <li>
+            Use <code>ring</code> as a compatibility fallback so exported files
+            are not broken while the normalizer is still coarse.
+          </li>
+          <li>
+            Continue developing Hazel-native normalization with explicit proof
+            traces.
+          </li>
+          <li>
+            Prefer trace export whenever a checker can explain the step with
+            known rules.
+          </li>
+          <li>
+            Keep theorem prover automation as a fallback or diagnostic aid, not
+            as the primary acceptance criterion for exportable written steps.
+          </li>
+        </ol>
+      </section>
+
+      <section>
+        <h2>Examples</h2>
+        <h3>Commutativity</h3>
+        <pre><code>3 + x
+= x + 3        by AddComm</code></pre>
+
+        <h3>Constant Folding Plus Commutativity</h3>
+        <pre><code>(1 + 2) + x
+= 3 + x        by AddConst
+= x + 3        by AddComm</code></pre>
+
+        <h3>Two-Sided Normalization</h3>
+        <pre><code>left:
+  (1 + 2) + x
+  = 3 + x      by AddConst
+  = x + 3      by AddComm
+
+right:
+  x + (1 + 2)
+  = x + 3      by AddConst
+
+canonical forms match: x + 3</code></pre>
+      </section>
+
+      <section>
+        <h2>Checker API Direction</h2>
+        <p>
+          The current branch already has an extensible checker shape. The next
+          design step is to evolve it from returning just a justification string
+          to returning a structured result.
+        </p>
+        <table>
+          <thead>
+            <tr>
+              <th>Current role</th>
+              <th>Proposed role</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>normal_form</code> decides equality.</td>
+              <td><code>normal_form</code> plus proof trace decides and explains equality.</td>
+            </tr>
+            <tr>
+              <td><code>checker.justification</code> is a short label.</td>
+              <td><code>check_result</code> carries a theorem-prover export payload.</td>
+            </tr>
+            <tr>
+              <td>Algebrite can check arithmetic equivalence.</td>
+              <td>Hazel-native rules check only what can be exported.</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section>
+        <h2>Recommended Implementation Path</h2>
+        <ol>
+          <li>
+            Keep the checker interface, but add a richer
+            <code>check_result</code> type.
+          </li>
+          <li>
+            Implement affine arithmetic normalization in Hazel.
+          </li>
+          <li>
+            Make each normalization transformation record a
+            <code>rewrite_step</code>.
+          </li>
+          <li>
+            Export the trace as theorem-prover steps using known lemmas for
+            associativity, commutativity, identity, and constant arithmetic.
+          </li>
+          <li>
+            Add polynomial normalization only when examples require symbolic
+            multiplication or distribution.
+          </li>
+          <li>
+            Remove or demote Algebrite from trusted written-step validation. It
+            may remain as a suggestion/debug aid, but not as the acceptance
+            criterion for exportable proof steps.
+          </li>
+        </ol>
+      </section>
+
+      <section>
+        <h2>Open Design Questions</h2>
+        <ul>
+          <li>
+            Should normalization preserve the user's intermediate expression as
+            a single proof step, or expand it into multiple hidden/exported
+            theorem-prover steps?
+          </li>
+          <li>
+            Which arithmetic laws are already available in the target theorem
+            prover export, and which need to be generated as lemmas?
+          </li>
+          <li>
+            Should exercises be able to restrict which checker domains are
+            accepted?
+          </li>
+          <li>
+            How should Hazel display a broad normalized step to the learner while
+            exporting a finer trace to the theorem prover?
+          </li>
+        </ul>
+      </section>
+    </main>
+  </body>
+</html>

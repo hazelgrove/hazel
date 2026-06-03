@@ -175,6 +175,7 @@ module Update = {
 
   let calculate =
       (
+        ~rewrite_level: Axioms.rewrite_level,
         ~settings: CoreSettings.t,
         exp,
         info_map,
@@ -343,7 +344,13 @@ module Update = {
                    ),
               );
             let to_exp = Substitution.in_exp(env, to_exp);
-            RewriteChecker.check_rewrite(~settings, ~env, from_exp, to_exp);
+            RewriteChecker.check_rewrite_at_level(
+              ~level=rewrite_level,
+              ~settings,
+              ~env,
+              from_exp,
+              to_exp,
+            );
           };
         Model.RewritesOpen({
           editor,
@@ -386,7 +393,8 @@ module Update = {
                    ),
               );
             let to_exp = Substitution.in_exp(env, to_exp);
-            RewriteChecker.check_written_step(
+            RewriteChecker.check_written_step_at_level(
+              ~level=rewrite_level,
               ~settings,
               ~env,
               from_exp,
@@ -535,6 +543,7 @@ module View = {
         ~inject: Update.t => Ui_effect.t(unit),
         ~editor: CodeSelectable.Model.t,
         ~selected: option(Selection.t),
+        ~automation_stage: Axioms.automation_stage,
         ~info_map,
         model: Model.t,
       ) =>
@@ -877,27 +886,93 @@ module View = {
 
       let text_arrow = (b: bool) => if (b) {"▲"} else {"▼"};
 
-      // I want to make a bunch of buttons here:
-      // Evaluate [TODO], Rewrite, Axioms, Cases,
-      let buttons =
-        Node.div(
-          ~attrs=[Attr.classes(["proof-selection-buttons"])],
-          (
-            switch (step_here_button) {
-            | None => []
-            | Some((label, evaluate_after_parenthesize)) => [
-                proof_button(
-                  ~callback=
-                    signal(
-                      StepHere(step_here_ids, evaluate_after_parenthesize),
-                    ),
-                  label,
-                ),
-              ]
-            }
-          )
-          @ (
-            switch (auto_simplify) {
+      let show_manual_actions = automation_stage == Axioms.Manual;
+      let show_check_actions =
+        automation_stage == Axioms.MultiStepCheck
+        || globals.settings.core.evaluation.write_out_steps;
+      let show_auto_actions = automation_stage == Axioms.AutoEval;
+
+      let manual_action_buttons =
+        show_manual_actions
+          ? (
+              switch (step_here_button) {
+              | None => []
+              | Some((label, evaluate_after_parenthesize)) => [
+                  proof_button(
+                    ~callback=
+                      signal(
+                        StepHere(step_here_ids, evaluate_after_parenthesize),
+                      ),
+                    label,
+                  ),
+                ]
+              }
+            )
+            @ (
+              switch (show_step_button) {
+              | None => []
+              | Some(idx) => [
+                  proof_button(
+                    ~callback=Ui_effect.Many([signal(TakeStep(idx))]),
+                    "Step",
+                  ),
+                ]
+              }
+            )
+            @ (
+              switch (show_refl_button) {
+              | None => []
+              | Some(idx) => [
+                  proof_button(
+                    ~callback=
+                      Ui_effect.Many([
+                        globals.inject_global(
+                          Set(Evaluation(ForceShowRecord)),
+                        ),
+                        signal(Refl(idx)),
+                      ]),
+                    "Reflexivity",
+                  ),
+                ]
+              }
+            )
+            @ (
+              show_function_body_button
+                ? [
+                  proof_button(
+                    ~callback=
+                      Ui_effect.Many([
+                        globals.inject_global(
+                          Set(Evaluation(ForceShowRecord)),
+                        ),
+                        signal(AddForall),
+                      ]),
+                    "Function Body",
+                  ),
+                ]
+                : []
+            )
+          : [];
+
+      let check_action_buttons =
+        show_check_actions
+          ? [
+            proof_button(
+              ~callback=inject(ProposeWrittenStep),
+              "Check Result "
+              ++ text_arrow(
+                   switch (model.open_box) {
+                   | Model.WrittenStepOpen(_) => true
+                   | _ => false
+                   },
+                 ),
+            ),
+          ]
+          : [];
+
+      let auto_action_buttons =
+        show_auto_actions
+          ? switch (auto_simplify) {
             | None => []
             | Some((original_exp, simplified_exp)) => [
                 proof_button(
@@ -907,102 +982,51 @@ module View = {
                 ),
               ]
             }
-          )
-          @ (
-            switch (show_step_button) {
-            | None => []
-            | Some(idx) => [
-                proof_button(
-                  ~callback=Ui_effect.Many([signal(TakeStep(idx))]),
-                  "Step",
+          : [];
+
+      let general_proof_buttons = [
+        proof_button(
+          ~callback=inject(ProposeRewrite),
+          "Rewrite "
+          ++ text_arrow(
+               switch (model.open_box) {
+               | Model.RewritesOpen(_) => true
+               | _ => false
+               },
+             ),
+        ),
+        proof_button(
+          ~callback=inject(ToggleAxioms),
+          "Assumptions "
+          ++ text_arrow(
+               switch (model.open_box) {
+               | Model.AxiomsOpen(_) => true
+               | _ => false
+               },
+             ),
+        ),
+        proof_button(
+          ~callback=
+            Ui_effect.Many([
+              globals.inject_global(Set(Evaluation(ForceShowRecord))),
+              signal(
+                AddInduction(
+                  model.selected_exp
+                  |> Calc.get_saved_exc(~print="Selected Exp"),
                 ),
-              ]
-            }
-          )
-          @ (
-            switch (show_refl_button) {
-            | None => []
-            | Some(idx) => [
-                proof_button(
-                  ~callback=
-                    Ui_effect.Many([
-                      globals.inject_global(
-                        Set(Evaluation(ForceShowRecord)),
-                      ),
-                      signal(Refl(idx)),
-                    ]),
-                  "Reflexivity",
-                ),
-              ]
-            }
-          )
-          @ (
-            show_function_body_button
-              ? [
-                proof_button(
-                  ~callback=
-                    Ui_effect.Many([
-                      globals.inject_global(
-                        Set(Evaluation(ForceShowRecord)),
-                      ),
-                      signal(AddForall),
-                    ]),
-                  "Function Body",
-                ),
-              ]
-              : []
-          )
-          @ (
-            globals.settings.core.evaluation.write_out_steps
-              ? [
-                proof_button(
-                  ~callback=inject(ProposeWrittenStep),
-                  "Take Step "
-                  ++ text_arrow(
-                       switch (model.open_box) {
-                       | Model.WrittenStepOpen(_) => true
-                       | _ => false
-                       },
-                     ),
-                ),
-              ]
-              : []
-          )
-          @ [
-            proof_button(
-              ~callback=inject(ProposeRewrite),
-              "Algebra "
-              ++ text_arrow(
-                   switch (model.open_box) {
-                   | Model.RewritesOpen(_) => true
-                   | _ => false
-                   },
-                 ),
-            ),
-            proof_button(
-              ~callback=inject(ToggleAxioms),
-              "Assumptions "
-              ++ text_arrow(
-                   switch (model.open_box) {
-                   | Model.AxiomsOpen(_) => true
-                   | _ => false
-                   },
-                 ),
-            ),
-            proof_button(
-              ~callback=
-                Ui_effect.Many([
-                  globals.inject_global(Set(Evaluation(ForceShowRecord))),
-                  signal(
-                    AddInduction(
-                      model.selected_exp
-                      |> Calc.get_saved_exc(~print="Selected Exp"),
-                    ),
-                  ),
-                ]),
-              "Cases/Induction",
-            ),
-          ],
+              ),
+            ]),
+          "Cases/Induction",
+        ),
+      ];
+
+      let buttons =
+        Node.div(
+          ~attrs=[Attr.classes(["proof-selection-buttons"])],
+          manual_action_buttons
+          @ check_action_buttons
+          @ auto_action_buttons
+          @ general_proof_buttons,
         );
 
       [

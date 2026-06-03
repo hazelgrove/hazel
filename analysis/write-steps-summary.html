@@ -1,0 +1,1204 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Hazel Write Steps Branch Summary</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #f7f8fb;
+        --panel: #ffffff;
+        --ink: #1e252f;
+        --muted: #647084;
+        --line: #d8dee8;
+        --accent: #1f7a70;
+        --accent-2: #3858a8;
+        --warn: #9b5c00;
+        --code-bg: #eef2f6;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--ink);
+        font: 16px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+
+      main {
+        width: min(1120px, calc(100vw - 40px));
+        margin: 0 auto;
+        padding: 40px 0 64px;
+      }
+
+      header {
+        border-bottom: 1px solid var(--line);
+        padding-bottom: 24px;
+        margin-bottom: 28px;
+      }
+
+      h1,
+      h2,
+      h3 {
+        line-height: 1.18;
+        margin: 0;
+      }
+
+      h1 {
+        font-size: 2.4rem;
+        letter-spacing: 0;
+      }
+
+      h2 {
+        font-size: 1.45rem;
+        margin-top: 34px;
+      }
+
+      h3 {
+        font-size: 1.05rem;
+        margin-top: 22px;
+      }
+
+      p {
+        margin: 10px 0 0;
+      }
+
+      ul,
+      ol {
+        margin: 10px 0 0;
+        padding-left: 1.35rem;
+      }
+
+      li + li {
+        margin-top: 6px;
+      }
+
+      code {
+        background: var(--code-bg);
+        border: 1px solid var(--line);
+        border-radius: 4px;
+        padding: 0.08rem 0.28rem;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 0.92em;
+      }
+
+      pre {
+        margin: 12px 0 0;
+        overflow-x: auto;
+        background: #111827;
+        color: #edf2f7;
+        border-radius: 8px;
+        padding: 16px;
+        font-size: 0.9rem;
+      }
+
+      pre code {
+        background: transparent;
+        border: 0;
+        color: inherit;
+        padding: 0;
+      }
+
+      .summary {
+        margin-top: 20px;
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 14px;
+      }
+
+      .metric,
+      section {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+      }
+
+      .metric {
+        padding: 16px;
+      }
+
+      .metric strong {
+        display: block;
+        color: var(--accent);
+        font-size: 1.35rem;
+      }
+
+      section {
+        padding: 22px;
+        margin-top: 18px;
+      }
+
+      .lead {
+        color: var(--muted);
+        font-size: 1.05rem;
+        max-width: 820px;
+      }
+
+      .flow {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 10px;
+        margin-top: 14px;
+      }
+
+      .flow div {
+        border: 1px solid var(--line);
+        border-top: 4px solid var(--accent-2);
+        border-radius: 8px;
+        padding: 12px;
+        background: #fbfcff;
+      }
+
+      .flow strong {
+        display: block;
+        margin-bottom: 6px;
+      }
+
+      .callout {
+        border-left: 4px solid var(--accent);
+        background: #eef8f6;
+        padding: 12px 14px;
+        margin-top: 14px;
+      }
+
+      .warning {
+        border-left-color: var(--warn);
+        background: #fff7e8;
+      }
+
+      .file-list {
+        columns: 2;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 14px;
+        font-size: 0.95rem;
+      }
+
+      th,
+      td {
+        border: 1px solid var(--line);
+        padding: 9px 10px;
+        text-align: left;
+        vertical-align: top;
+      }
+
+      th {
+        background: #eef2f6;
+        color: #2d3748;
+        font-weight: 650;
+      }
+
+      tbody tr:nth-child(even) {
+        background: #fbfcff;
+      }
+
+      .mockup {
+        margin-top: 16px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #fbfcff;
+        overflow: hidden;
+      }
+
+      .mockup-toolbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        border-bottom: 1px solid var(--line);
+        padding: 12px 14px;
+        background: #eef2f6;
+      }
+
+      .mockup-title {
+        font-weight: 700;
+      }
+
+      .mockup-selection {
+        color: var(--muted);
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 0.9rem;
+      }
+
+      .stage-grid {
+        display: grid;
+        grid-template-columns: minmax(120px, 0.7fr) repeat(3, minmax(150px, 1fr));
+        gap: 1px;
+        background: var(--line);
+      }
+
+      .stage-cell {
+        min-height: 82px;
+        background: #ffffff;
+        padding: 12px;
+      }
+
+      .stage-cell.header {
+        min-height: auto;
+        background: #f4f7fb;
+        font-weight: 700;
+      }
+
+      .level-cell strong,
+      .stage-cell strong {
+        display: block;
+        margin-bottom: 4px;
+      }
+
+      .stage-cell p {
+        margin-top: 4px;
+        color: var(--muted);
+        font-size: 0.9rem;
+      }
+
+      .stage-cell.current {
+        box-shadow: inset 0 0 0 2px var(--accent);
+      }
+
+      .stage-cell.future {
+        background: #fffaf0;
+      }
+
+      .chip-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin-top: 8px;
+      }
+
+      .chip {
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        padding: 2px 8px;
+        background: #f7f8fb;
+        color: var(--muted);
+        font-size: 0.8rem;
+      }
+
+      @media (max-width: 820px) {
+        main {
+          width: min(100vw - 24px, 1120px);
+          padding-top: 24px;
+        }
+
+        .summary,
+        .flow {
+          grid-template-columns: 1fr;
+        }
+
+        .file-list {
+          columns: 1;
+        }
+
+        .mockup-toolbar {
+          align-items: flex-start;
+          flex-direction: column;
+        }
+
+        .stage-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <h1>Write Steps Branch Summary</h1>
+        <p class="lead">
+          The <code>write-steps</code> branch changes proof stepping from a
+          mostly click-driven evaluator-step workflow into a mode where learners
+          can type the next expression themselves. The important recent change is
+          that typed steps are checked by comparing normalized meanings, not by
+          requiring the exact left-associated evaluator step.
+        </p>
+        <div class="summary">
+          <div class="metric">
+            <strong>Written steps</strong>
+            New proof step kind stores the user replacement and justification.
+          </div>
+          <div class="metric">
+            <strong>Normalization</strong>
+            Checkers normalize both sides, then compare normal forms.
+          </div>
+          <div class="metric">
+            <strong>Arithmetic first</strong>
+            Affine arithmetic is checked with a Hazel-native normal form.
+          </div>
+        </div>
+      </header>
+
+      <section>
+        <h2>What Is New</h2>
+        <ul>
+          <li>
+            A new <code>WrittenStep</code> step kind can replace an expression
+            in the proof with a user-entered expression and keep the generated
+            justification text.
+          </li>
+          <li>
+            <code>MissingStep</code> now offers a write-out UI: "From: ... Take
+            a step to: ..." with an inline Hazel editor.
+          </li>
+          <li>
+            A new setting, <code>evaluation.write_out_steps</code>, can be
+            toggled globally and forced per theorem exercise.
+          </li>
+          <li>
+            The reverse-reverse theorem exercise opts into write-out steps.
+          </li>
+          <li>
+            The proof-step overlay can highlight a selected expression without
+            fully activating the editor.
+          </li>
+          <li>
+            Semantic equality gained fixpoint-unrolling support for cases where
+            evaluation and equality need to compare recursive definitions.
+          </li>
+        </ul>
+      </section>
+
+      <section>
+        <h2>Old Written-Step Check</h2>
+        <p>
+          Previously, the written-step checker took the selected expression
+          <code>e1</code>, asked the stepper for its available next evaluation
+          steps, applied each candidate step, consumed automatic steps, and then
+          checked whether the user's expression <code>e2</code> exactly matched
+          one of those results under semantic equality.
+        </p>
+        <pre><code>get_next_exps(e1)
+  |> find result where semantic_equal(result, e2)</code></pre>
+        <p>
+          That made valid algebraic rewrites too rigid. For example, the user
+          could be forced into the evaluator's left-associative path:
+          <code>1 + 2 + 3</code> to <code>3 + 3</code>, rather than another
+          mathematically equivalent expression.
+        </p>
+      </section>
+
+      <section>
+        <h2>New Written-Step Check</h2>
+        <p>
+          The current checker treats validation as a small pipeline: choose a
+          checker, normalize both expressions with that checker, then compare the
+          normal forms. This is intentionally extensible so more proof domains
+          can be added later without rewriting the UI or <code>WrittenStep</code>
+          storage model.
+        </p>
+        <div class="flow">
+          <div>
+            <strong>1. Input</strong>
+            The selected expression and the user-entered expression are already
+            elaborated and environment-substituted by <code>MissingStep</code>.
+          </div>
+          <div>
+            <strong>2. Normalize</strong>
+            A checker maps each expression to a domain-specific normal form.
+          </div>
+          <div>
+            <strong>3. Compare</strong>
+            The checker compares the two normal forms with its own equivalence
+            relation.
+          </div>
+          <div>
+            <strong>4. Justify</strong>
+            A successful checker returns the displayed justification, such as
+            <code>arithmetic</code>.
+          </div>
+        </div>
+        <pre><code>type normal_form =
+  | Evaluated(Exp.t)
+  | Affine(affine);
+
+type checker = {
+  justification: string,
+  normalize: (~settings, ~env, Exp.t) =&gt; option(normal_form),
+  equivalent: (normal_form, normal_form) =&gt; bool,
+};</code></pre>
+      </section>
+
+      <section>
+        <h2>Arithmetic Normalization</h2>
+        <p>
+          The first checker is now <code>affine_checker</code>. It is
+          Hazel-native and handles a limited affine arithmetic fragment over
+          integer-like constants and variables.
+        </p>
+        <ol>
+          <li>
+            Strip dynamic ascriptions with <code>DHExp.strip_ascriptions</code>.
+          </li>
+          <li>
+            Consume hidden automatic stepper transitions with
+            <code>take_auto_steps</code>.
+          </li>
+          <li>
+            Convert supported Hazel arithmetic into an <code>Affine</code>
+            normal form: a constant plus sorted symbolic coefficients.
+          </li>
+          <li>
+            Compare the two affine normal forms structurally.
+          </li>
+        </ol>
+        <pre><code>1 + 2 + 3  ==  3 + 3
+x + 3      ==  3 + x
+(x + 1)+2  ==  x + 3
+2 * x + 3  ==  x + x + 3
+x + 3 - x  ==  3</code></pre>
+        <p>
+          This means the written proof step does not need to follow Hazel's
+          left-associated evaluator path as long as both sides are algebraically
+          equivalent in this supported arithmetic fragment.
+        </p>
+        <div class="callout">
+          Algebrite is no longer part of written-step arithmetic validation. The
+          checker accepts only what the Hazel-native affine normalizer can
+          represent.
+        </div>
+      </section>
+
+      <section>
+        <h2>Third Step: Hazel-Native Affine Checker</h2>
+        <p>
+          The latest implementation replaces the Algebrite-backed arithmetic
+          checker with a small Hazel-native normalizer. This is the first step
+          toward theorem-prover export because the accepted arithmetic fragment
+          is explicit and can later be paired with rewrite traces.
+        </p>
+        <pre><code>type affine = {
+  constant: Bigint.t,
+  terms: list((string, Bigint.t)),
+};</code></pre>
+        <p>
+          The normalizer currently supports:
+        </p>
+        <ul>
+          <li>integer, natural, and signed-integer constants,</li>
+          <li>variables as symbolic terms,</li>
+          <li>addition and subtraction,</li>
+          <li>unary minus for signed/integer expressions,</li>
+          <li>multiplication when at least one side is a constant affine form,</li>
+          <li>combining like terms and sorting variables by name.</li>
+        </ul>
+        <p>
+          It deliberately rejects non-affine symbolic multiplication such as
+          <code>x * x</code>. Unsupported expressions return <code>None</code>
+          and fall through to the bounded evaluation checker.
+        </p>
+        <div class="callout warning">
+          This still validates by comparing normal forms, not by emitting a
+          replayable proof trace. The next export-oriented step is to record
+          rewrite rules such as associativity, commutativity, constant folding,
+          and constant scaling while building the affine form.
+        </div>
+        <p>
+          New quick tests cover <code>3 + x = x + 3</code>,
+          <code>(1 + 2) + x = x + 3</code>,
+          <code>2 * x + 3 = x + x + 3</code>,
+          <code>x * x != x + x</code>, and <code>x + 3 - x = 3</code>.
+        </p>
+      </section>
+
+      <section>
+        <h2>Selected-Range Auto Eval</h2>
+        <p>
+          The newest code path adds an <code>Auto Eval</code> action to the
+          missing-step overlay. It is meant for exploratory proof editing: a
+          user can select a valid expression node, or a range that
+          reparenthesization can turn into a valid expression node, and ask Hazel
+          to simplify that selected subterm using the same Hazel-native affine
+          arithmetic normalizer.
+        </p>
+        <div class="flow">
+          <div>
+            <strong>1. Select</strong>
+            The overlay uses the current selected expression. If the selected
+            range is not already a node, it first asks the reparenthesizer for a
+            version of the expression where the range is represented as a node.
+          </div>
+          <div>
+            <strong>2. Simplify</strong>
+            <code>RewriteChecker.simplify_arithmetic</code> normalizes the
+            selected expression to affine form, then reifies that form back into
+            a Hazel expression.
+          </div>
+          <div>
+            <strong>3. Replace</strong>
+            The simplified subterm is inserted back into the full expression by
+            expression id.
+          </div>
+          <div>
+            <strong>4. Step</strong>
+            <code>StepperBase</code> stores this as an
+            <code>AutoSimplifyStep</code>, so undo, persistence, and stale-step
+            invalidation follow the same stepper machinery as other proof
+            steps.
+          </div>
+        </div>
+        <pre><code>1 + 2 + x              Auto Eval  x + 3
+ whole expression:
+1 + 2 + x + x + 4 + x + 3
+                          Auto Eval  3 * x + 10</code></pre>
+        <p>
+          The action only appears when the simplifier can produce a changed
+          expression. Non-affine selections such as <code>x * x</code>,
+          expressions containing holes, and unsupported programming forms should
+          fail closed rather than making a proof step.
+        </p>
+      </section>
+
+      <section>
+        <h2>Automation Matrix Mockup</h2>
+        <p>
+          The next UI should make two independent choices visible: the
+          mathematical level being used, and the amount of automation Hazel is
+          allowed to perform. Each row is a rewrite group from
+          <code>Axioms.re</code>; each column is a stage of automation for that
+          group.
+        </p>
+
+        <div class="mockup" aria-label="Math automation matrix mockup">
+          <div class="mockup-toolbar">
+            <div>
+              <div class="mockup-title">Math steps for selected expression</div>
+              <div class="mockup-selection">selection: 1 + 2 + x + x</div>
+            </div>
+            <div class="chip-row">
+              <span class="chip">trace required for export</span>
+              <span class="chip">Lean hints shown on demand</span>
+            </div>
+          </div>
+
+          <div class="stage-grid">
+            <div class="stage-cell header">Level</div>
+            <div class="stage-cell header">Manual</div>
+            <div class="stage-cell header">Multi-step check</div>
+            <div class="stage-cell header">Auto eval</div>
+
+            <div class="stage-cell level-cell">
+              <strong>Arithmetic</strong>
+              <p>constants, addition, negation, affine coefficients</p>
+              <div class="chip-row">
+                <span class="chip">add_comm</span>
+                <span class="chip">add_assoc</span>
+                <span class="chip">norm_num</span>
+              </div>
+            </div>
+            <div class="stage-cell">
+              <strong>Write one visible step</strong>
+              <p>User writes <code>1 + 2 + x</code> to <code>3 + x</code>.</p>
+            </div>
+            <div class="stage-cell current">
+              <strong>Accept equivalent result</strong>
+              <p>
+                Hazel checks normal forms, so <code>1 + 2 + x</code> can match
+                <code>x + 3</code>.
+              </p>
+            </div>
+            <div class="stage-cell current">
+              <strong>Simplify selection</strong>
+              <p>
+                Hazel proposes <code>2 * x + 3</code> and records the rewrite
+                group used.
+              </p>
+            </div>
+
+            <div class="stage-cell level-cell">
+              <strong>Algebra</strong>
+              <p>factoring, distribution, equations, cancellation</p>
+              <div class="chip-row">
+                <span class="chip">distrib</span>
+                <span class="chip">ring_nf</span>
+                <span class="chip">cancel</span>
+              </div>
+            </div>
+            <div class="stage-cell">
+              <strong>Pick one law</strong>
+              <p>User applies a named rewrite such as distribution.</p>
+            </div>
+            <div class="stage-cell future">
+              <strong>Normalize within group</strong>
+              <p>
+                Compare algebraic normal forms without accepting unrelated
+                simplifications.
+              </p>
+            </div>
+            <div class="stage-cell future">
+              <strong>Search bounded tactics</strong>
+              <p>
+                Try a small tactic family, then expose the hidden sequence for
+                theorem-prover replay.
+              </p>
+            </div>
+
+            <div class="stage-cell level-cell">
+              <strong>Functions and lists</strong>
+              <p>beta, unfold, map/fold laws, induction hypotheses</p>
+              <div class="chip-row">
+                <span class="chip">rw</span>
+                <span class="chip">simp</span>
+                <span class="chip">induction</span>
+              </div>
+            </div>
+            <div class="stage-cell">
+              <strong>Single program step</strong>
+              <p>Use the existing evaluator stepper or a selected axiom.</p>
+            </div>
+            <div class="stage-cell future">
+              <strong>Check same value or law</strong>
+              <p>
+                Bounded evaluation can compare concrete values; symbolic laws
+                need named rewrite groups.
+              </p>
+            </div>
+            <div class="stage-cell future">
+              <strong>Evaluate subterm</strong>
+              <p>
+                Apply trusted Hazel operations such as unfold, beta, and list
+                rewrite groups.
+              </p>
+            </div>
+
+            <div class="stage-cell level-cell">
+              <strong>Calculus and beyond</strong>
+              <p>future domain-specific rewrite groups</p>
+              <div class="chip-row">
+                <span class="chip">derivative rules</span>
+                <span class="chip">limits</span>
+              </div>
+            </div>
+            <div class="stage-cell future">
+              <strong>Named theorem step</strong>
+              <p>User chooses a specific theorem or rule.</p>
+            </div>
+            <div class="stage-cell future">
+              <strong>Domain normalizer</strong>
+              <p>Use a deliberately scoped normal form for the domain.</p>
+            </div>
+            <div class="stage-cell future">
+              <strong>Guided automation</strong>
+              <p>Run a bounded tactic family with exportable traces.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="callout">
+          The important constraint is that every automatic cell still points
+          back to small trusted rewrites. The UI can hide the intermediate steps,
+          but theorem-prover export needs to recover them through the group name
+          and rule trace.
+        </div>
+
+        <h3>Implementation plan</h3>
+        <p>
+          Rows should be cumulative. Selecting <code>Algebra</code> should allow
+          every arithmetic rewrite plus algebra-specific rewrites; selecting a
+          later row should include every row above it. Columns then control how
+          much automation Hazel applies with that allowed rewrite set.
+        </p>
+        <pre><code>allowed_groups(level) =
+  rewrite_groups
+  |> filter(group =&gt; group.rank &lt;= level.rank)</code></pre>
+        <table>
+          <thead>
+            <tr>
+              <th>Selected level</th>
+              <th>Allowed rewrite groups</th>
+              <th>Example use</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>Arithmetic</code></td>
+              <td><code>arithmetic</code></td>
+              <td>Fold constants, commute addition, collect affine terms.</td>
+            </tr>
+            <tr>
+              <td><code>Algebra</code></td>
+              <td><code>arithmetic + algebra</code></td>
+              <td>Use arithmetic while distributing, factoring, or cancelling.</td>
+            </tr>
+            <tr>
+              <td><code>Functions/lists</code></td>
+              <td><code>arithmetic + algebra + functions/lists</code></td>
+              <td>
+                Use numeric simplification inside unfold, beta, map, and fold
+                rewrites.
+              </td>
+            </tr>
+            <tr>
+              <td><code>Calculus</code></td>
+              <td><code>all earlier groups + calculus</code></td>
+              <td>
+                Use arithmetic and algebra inside domain-specific derivative or
+                limit rules.
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        <p>
+          The intended traversal is left to right within a row, then top to
+          bottom across rows: manual arithmetic, checked arithmetic, automatic
+          arithmetic; manual algebra, checked algebra, automatic algebra; and so
+          on. The UI should still expose this as two controls rather than one
+          long list:
+        </p>
+        <pre><code>Math level:  Arithmetic | Algebra | Functions/lists | Calculus
+Automation:  Manual | Check result | Auto eval</code></pre>
+        <p>
+          Implementation work should move in this order:
+        </p>
+        <ol>
+          <li>
+            Extend <code>Axioms.re</code> so each rewrite group has a stable
+            <code>rank</code>, a level label, prover hints, and explicit rule
+            ids.
+          </li>
+          <li>
+            Add a helper such as <code>allowed_groups(level)</code> and route
+            <code>RewriteChecker</code> through that helper instead of
+            hardcoding arithmetic.
+          </li>
+          <li>
+            Split the UI state into <code>rewrite_level</code> and
+            <code>automation_stage</code>. The current arithmetic checker
+            becomes <code>Arithmetic + Check result</code>; selected-range
+            simplification becomes <code>Arithmetic + Auto eval</code>.
+          </li>
+          <li>
+            Make successful checks and automatic steps return a concrete trace:
+            not just <code>algebra</code>, but the rule sequence such as
+            <code>add_assoc</code>, <code>add_comm</code>,
+            <code>const_fold</code>, <code>distrib</code>, and
+            <code>collect_like_terms</code>.
+          </li>
+          <li>
+            Use the selected level to bound future proof search. For example,
+            <code>Algebra + Auto eval</code> may use arithmetic and algebra
+            tactics, but it should not silently use function/list or calculus
+            rewrites.
+          </li>
+        </ol>
+
+        <h3>Current checker behavior</h3>
+        <p>
+          The checker now has level-aware entry points, but only arithmetic has
+          real rewrite rules today. The active APIs are:
+        </p>
+        <pre><code>check_written_step_at_level(~level, ...)
+check_rewrite_at_level(~level, ...)
+check_rewrite_result_at_level(~level, ...)</code></pre>
+        <p>
+          These functions use <code>allowed_groups(level)</code> to choose which
+          rewrite groups are available. Because <code>arithmetic</code> is the
+          only implemented group right now, every enabled checker path still
+          ultimately uses the affine arithmetic normalizer plus the bounded
+          evaluation fallback.
+        </p>
+        <table>
+          <thead>
+            <tr>
+              <th>Selected level</th>
+              <th>Allowed groups today</th>
+              <th>Practical effect today</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>Arithmetic</code></td>
+              <td><code>arithmetic</code></td>
+              <td>Accept affine arithmetic equivalence and concrete evaluation equality.</td>
+            </tr>
+            <tr>
+              <td><code>Algebra</code></td>
+              <td><code>arithmetic</code></td>
+              <td>
+                Would include arithmetic, but this level is currently disabled
+                in the UI until algebra rules exist.
+              </td>
+            </tr>
+            <tr>
+              <td><code>Functions/lists</code></td>
+              <td><code>arithmetic</code></td>
+              <td>
+                Future level only; no function/list rewrite group is implemented
+                yet.
+              </td>
+            </tr>
+            <tr>
+              <td><code>Calculus</code></td>
+              <td><code>arithmetic</code></td>
+              <td>
+                Future level only; no calculus rewrite group is implemented yet.
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        <p>
+          The current arithmetic checker accepts examples such as
+          <code>3 + x == x + 3</code>, <code>(1 + 2) + x == x + 3</code>,
+          <code>2 * x + 3 == x + x + 3</code>, and
+          <code>x + 3 - x == 3</code>. It rejects non-affine symbolic forms such
+          as <code>x * x</code>, <code>(x + 1) * (x + 2)</code>, and unknown
+          programming forms such as <code>f(x) + 3</code>.
+        </p>
+
+        <h3>Open level-design question</h3>
+        <p>
+          The next design decision is what each level should mean. There are at
+          least three plausible interpretations for <code>Algebra</code>:
+        </p>
+        <table>
+          <thead>
+            <tr>
+              <th>Algebra interpretation</th>
+              <th>Would allow</th>
+              <th>Tradeoff</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Ring-normalization level</td>
+              <td>
+                Polynomial equivalence such as
+                <code>(x + 1) * (x + 2) == x * x + 3 * x + 2</code>.
+              </td>
+              <td>
+                Powerful, but needs a trusted ring-normalization trace/export
+                story.
+              </td>
+            </tr>
+            <tr>
+              <td>Named-rule level</td>
+              <td>
+                Explicit laws such as
+                <code>a * (b + c) == a * b + a * c</code>.
+              </td>
+              <td>
+                More theorem-prover friendly, but weaker unless Hazel adds
+                bounded proof search over rules.
+              </td>
+            </tr>
+            <tr>
+              <td>Equation-solving level</td>
+              <td>
+                Proposition transformations such as
+                <code>x + 3 = 10</code> to <code>x = 7</code>.
+              </td>
+              <td>
+                Useful, but different from expression rewriting because it
+                transforms equations/propositions rather than just terms.
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="callout">
+          Working default: keep <code>Arithmetic</code> conservative and affine.
+          Decide whether <code>Algebra</code> should mean ring normalization,
+          named algebraic laws, equation manipulation, or a staged combination
+          of those.
+        </div>
+      </section>
+
+      <section>
+        <h2>Complex Test Cases</h2>
+        <h3>Arithmetic grouping</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>Selected expression</th>
+              <th>Expected auto eval</th>
+              <th>Purpose</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>1 + 2 + x + x + 4 + x + 3</code></td>
+              <td><code>3 * x + 10</code></td>
+              <td>Collect a full affine expression.</td>
+            </tr>
+            <tr>
+              <td><code>x + 3 + y + 2 + x + y</code></td>
+              <td><code>2 * x + 2 * y + 5</code></td>
+              <td>Combine multiple symbolic coefficients.</td>
+            </tr>
+            <tr>
+              <td><code>3 + x + 2 + y + 5</code></td>
+              <td><code>x + y + 10</code></td>
+              <td>Group constants and preserve symbolic terms.</td>
+            </tr>
+            <tr>
+              <td><code>z + y + x</code></td>
+              <td><code>x + y + z</code></td>
+              <td>Check canonical variable ordering.</td>
+            </tr>
+            <tr>
+              <td><code>2 * x + 3 * x + 4</code></td>
+              <td><code>5 * x + 4</code></td>
+              <td>Combine scaled terms.</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h3>Subterm selection</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>Full expression</th>
+              <th>Selected range</th>
+              <th>Expected full result</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>1 + 2 + x + y</code></td>
+              <td><code>1 + 2 + x</code></td>
+              <td><code>x + 3 + y</code></td>
+            </tr>
+            <tr>
+              <td><code>(1 + 2 + x) * 4</code></td>
+              <td><code>1 + 2 + x</code></td>
+              <td><code>(x + 3) * 4</code></td>
+            </tr>
+            <tr>
+              <td><code>f(1 + 2 + x)</code></td>
+              <td><code>1 + 2 + x</code></td>
+              <td><code>f(x + 3)</code></td>
+            </tr>
+            <tr>
+              <td><code>let a = 1 + 2 + x in a + 4</code></td>
+              <td><code>1 + 2 + x</code></td>
+              <td><code>let a = x + 3 in a + 4</code></td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h3>Reparenthesization-dependent ranges</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>Expression</th>
+              <th>Selected range</th>
+              <th>Expected selected result</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>1 + 2 + x + 4</code></td>
+              <td><code>2 + x + 4</code></td>
+              <td><code>x + 6</code></td>
+            </tr>
+            <tr>
+              <td><code>a + 1 + 2 + x + b</code></td>
+              <td><code>1 + 2 + x</code></td>
+              <td><code>x + 3</code></td>
+            </tr>
+            <tr>
+              <td><code>x + 1 + y + 2 + x + 3</code></td>
+              <td><code>1 + y + 2 + x</code></td>
+              <td><code>x + y + 3</code></td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h3>Negative and rejection cases</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>Expression</th>
+              <th>Expected behavior</th>
+              <th>Purpose</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>x + -3 + 5</code></td>
+              <td><code>x + 2</code></td>
+              <td>Fold signed constants.</td>
+            </tr>
+            <tr>
+              <td><code>x + -x</code></td>
+              <td><code>0</code></td>
+              <td>Cancel opposite symbolic terms.</td>
+            </tr>
+            <tr>
+              <td><code>3 * x + -x</code></td>
+              <td><code>2 * x</code></td>
+              <td>Combine positive and negative coefficients.</td>
+            </tr>
+            <tr>
+              <td><code>x * x</code></td>
+              <td>No <code>Auto Eval</code></td>
+              <td>Reject nonlinear symbolic multiplication.</td>
+            </tr>
+            <tr>
+              <td><code>f(x) + 3</code></td>
+              <td>No <code>Auto Eval</code></td>
+              <td>Reject unknown function calls.</td>
+            </tr>
+            <tr>
+              <td><code>x + ?</code></td>
+              <td>No <code>Auto Eval</code></td>
+              <td>Reject incomplete expressions.</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section>
+        <h2>Evaluation Normalization</h2>
+        <p>
+          The fallback checker is <code>evaluation_checker</code>. It evaluates
+          both expressions with <code>Evaluator.evaluate_and_limit</code> using a
+          bounded step limit, strips ascriptions from the resulting values, and
+          compares those values with Hazel semantic equality.
+        </p>
+        <pre><code>normalize_by_evaluation(e) =
+  Evaluator.evaluate_and_limit(~env, ~step_limit=1000, e)
+  |> value
+  |> DHExp.strip_ascriptions
+  |> Evaluated</code></pre>
+        <p>
+          This handles cases where both expressions compute to the same concrete
+          Hazel value. It is deliberately bounded, so nonterminating or very large
+          computations fail closed rather than hanging the checker.
+        </p>
+      </section>
+
+      <section>
+        <h2>How Evaluation Fits In</h2>
+        <p>
+          Hazel has two related evaluation mechanisms here:
+        </p>
+        <ul>
+          <li>
+            <code>EvaluatorStep.get_status</code> and
+            <code>EvaluatorStep.take_step</code> expose individual visible or
+            automatic stepper transitions for the interactive proof UI.
+          </li>
+          <li>
+            <code>Evaluator.evaluate_and_limit</code> runs the evaluator to a
+            final value, subject to a step limit.
+          </li>
+        </ul>
+        <p>
+          The old written-step checker relied on the first mechanism and matched
+          exactly one visible next step. The new checker can still consume hidden
+          automatic steps during arithmetic normalization, but the main validity
+          question is now semantic: do the selected expression and the typed
+          expression normalize to equivalent forms?
+        </p>
+      </section>
+
+      <section>
+        <h2>Key Files</h2>
+        <ul class="file-list">
+          <li><code>src/web/app/editors/stepper/RewriteChecker.re</code></li>
+          <li><code>src/web/app/editors/stepper/MissingStep.re</code></li>
+          <li><code>src/web/app/editors/stepper/WrittenStep.re</code></li>
+          <li><code>src/web/app/editors/stepper/StepperBase.re</code></li>
+          <li><code>src/language/term/Reparenthesize.re</code></li>
+          <li><code>src/language/dynamics/stepper/EvaluatorStep.re</code></li>
+          <li><code>src/language/dynamics/Evaluator.re</code></li>
+          <li><code>src/language/dynamics/DHExp.re</code></li>
+          <li><code>src/language/term/Equality.re</code></li>
+          <li><code>src/language/dynamics/Substitution.re</code></li>
+          <li><code>src/web/view/TheoremExerciseMode.re</code></li>
+        </ul>
+      </section>
+
+      <section>
+        <h2>Extension Points</h2>
+        <p>
+          To add a richer proof domain later, add another <code>checker</code>
+          value and include it in <code>written_step_checkers</code>. A checker
+          can define its own normal form and equivalence strategy by extending
+          the <code>normal_form</code> variant and implementing:
+        </p>
+        <ul>
+          <li>a domain-specific <code>normalize</code> function,</li>
+          <li>a domain-specific <code>equivalent</code> relation,</li>
+          <li>a short justification string for the proof UI.</li>
+        </ul>
+        <div class="callout">
+          Good future candidates are list algebra, tuple projection/extension
+          laws, induction hypothesis rewriting, and theorem/assumption based
+          rewriting.
+        </div>
+      </section>
+
+      <section>
+        <h2>Current Limitations</h2>
+        <ul>
+          <li>
+            The Hazel-native arithmetic checker is currently affine, so it does
+            not accept nonlinear symbolic expressions such as <code>x * x</code>.
+          </li>
+          <li>
+            The fallback evaluator compares final values, so it is useful for
+            computations but not for symbolic equivalence that does not evaluate
+            to a concrete shared value.
+          </li>
+          <li>
+            The checker accepts broad equivalence for written steps. If an
+            exercise needs single-step discipline, it may need a stricter checker
+            or per-exercise policy.
+          </li>
+          <li>
+            The current displayed justification is checker-level
+            (<code>arithmetic</code> or <code>same evaluated result</code>), not
+            a detailed derivation of the normalization process.
+          </li>
+          <li>
+            <code>Auto Eval</code> currently reifies a canonical affine result,
+            but it does not yet expose the hidden rewrite sequence needed for a
+            theorem prover.
+          </li>
+        </ul>
+      </section>
+
+      <section>
+        <h2>Todos</h2>
+        <ul>
+          <li>
+            Add quick tests for selected-subterm simplification through
+            <code>AutoSimplifyStep</code>, including stale-step invalidation when
+            the original expression changes.
+          </li>
+          <li>
+            Add integration coverage for reparenthesized selected ranges, since
+            those are the selections most likely to miss real AST-node
+            boundaries.
+          </li>
+          <li>
+            Decide whether the normalizer should preserve more source shape or
+            always emit canonical grouped terms such as
+            <code>3 * x + 10</code>.
+          </li>
+          <li>
+            Replace checker-level justifications with trace records built from
+            trusted rewrite groups in <code>Axioms.re</code>.
+          </li>
+          <li>
+            Attach theorem-prover metadata to each rewrite rule, so the hidden
+            simplification can be exported as small replayable prover steps
+            rather than as one large CAS-style <code>simplify</code>.
+          </li>
+          <li>
+            Extend the same automation shape beyond arithmetic: manual
+            single-step eval, normalized equality checking, and automatic
+            subterm evaluation should all be selectable per rewrite group.
+          </li>
+        </ul>
+      </section>
+    </main>
+  </body>
+</html>

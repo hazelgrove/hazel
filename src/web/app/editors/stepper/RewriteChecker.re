@@ -57,6 +57,13 @@ let trace_rules = (group, rule_ids) =>
   |> dedup
   |> List.filter_map(rule_id => Axioms.rewrite_rule_by_id(group, rule_id));
 
+let group_named_at_level = (level, name) =>
+  Axioms.allowed_groups(level)
+  |> List.find_opt((group: Axioms.rewrite_group) => group.name == name);
+
+let arithmetic_group_at_level = level =>
+  group_named_at_level(level, "arithmetic");
+
 let rec add_term = (name, coeff, terms) =>
   if (is_zero(coeff)) {
     terms;
@@ -364,9 +371,9 @@ let normalize_by_evaluation =
   };
 };
 
-let affine_checker = {
+let affine_checker_at_level = level => {
   justification: "arithmetic",
-  group: Some(Axioms.arithmetic_rewrite_group),
+  group: arithmetic_group_at_level(level),
   normalize: normalize_affine_with_trace,
   equivalent: (left, right) =>
     switch (left, right) {
@@ -374,6 +381,8 @@ let affine_checker = {
     | _ => false
     },
 };
+
+let affine_checker = affine_checker_at_level(Axioms.Arithmetic);
 
 let evaluation_checker = {
   justification: "same evaluated result",
@@ -421,29 +430,77 @@ let check_with = (~settings, ~env, from_: Exp.t, to_: Exp.t, checker) => {
   };
 };
 
-let written_step_checkers = [affine_checker, evaluation_checker];
+let written_step_checkers_at_level = level => [
+  affine_checker_at_level(level),
+  evaluation_checker,
+];
+
+let written_step_checkers = written_step_checkers_at_level(Axioms.Arithmetic);
 
 // underscores indicate unused arguments
-let check_rewrite = (~settings, ~env, from_: Exp.t, to_: Exp.t): bool => {
-  switch (check_with(~settings, ~env, from_, to_, affine_checker)) {
+let check_rewrite_at_level =
+    (~level, ~settings, ~env, from_: Exp.t, to_: Exp.t): bool => {
+  switch (
+    check_with(~settings, ~env, from_, to_, affine_checker_at_level(level))
+  ) {
   | Some(_) => true
   | None => false
   };
 };
 
-let check_rewrite_result = (~settings, ~env, from_: Exp.t, to_: Exp.t) =>
-  check_with(~settings, ~env, from_, to_, affine_checker);
+let check_rewrite = (~settings, ~env, from_: Exp.t, to_: Exp.t): bool =>
+  check_rewrite_at_level(
+    ~level=Axioms.Arithmetic,
+    ~settings,
+    ~env,
+    from_,
+    to_,
+  );
 
-let check_written_step_result =
-    (~settings, ~env, from_: Exp.t, to_: Exp.t): option(check_result) => {
-  written_step_checkers
+let check_rewrite_result_at_level =
+    (~level, ~settings, ~env, from_: Exp.t, to_: Exp.t) =>
+  check_with(~settings, ~env, from_, to_, affine_checker_at_level(level));
+
+let check_rewrite_result = (~settings, ~env, from_: Exp.t, to_: Exp.t) =>
+  check_rewrite_result_at_level(
+    ~level=Axioms.Arithmetic,
+    ~settings,
+    ~env,
+    from_,
+    to_,
+  );
+
+let check_written_step_result_at_level =
+    (~level, ~settings, ~env, from_: Exp.t, to_: Exp.t): option(check_result) => {
+  written_step_checkers_at_level(level)
   |> List.find_map(checker =>
        check_with(~settings, ~env, from_, to_, checker)
      );
 };
 
+let check_written_step_result =
+    (~settings, ~env, from_: Exp.t, to_: Exp.t): option(check_result) =>
+  check_written_step_result_at_level(
+    ~level=Axioms.Arithmetic,
+    ~settings,
+    ~env,
+    from_,
+    to_,
+  );
+
+let check_written_step_at_level =
+    (~level, ~settings, ~env, from_: Exp.t, to_: Exp.t): option(string) => {
+  check_written_step_result_at_level(~level, ~settings, ~env, from_, to_)
+  |> Option.map((result: check_result) => result.justification);
+};
+
 let check_written_step =
     (~settings, ~env, from_: Exp.t, to_: Exp.t): option(string) => {
-  check_written_step_result(~settings, ~env, from_, to_)
-  |> Option.map((result: check_result) => result.justification);
+  check_written_step_at_level(
+    ~level=Axioms.Arithmetic,
+    ~settings,
+    ~env,
+    from_,
+    to_,
+  );
 };

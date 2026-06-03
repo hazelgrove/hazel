@@ -1,3 +1,16 @@
+[@deriving (show({with_path: false}), sexp, yojson)]
+type rewrite_level =
+  | Arithmetic
+  | Algebra
+  | FunctionsAndLists
+  | Calculus;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type automation_stage =
+  | Manual
+  | MultiStepCheck
+  | AutoEval;
+
 type prover_hint = {
   prover: string,
   tactic: string,
@@ -12,8 +25,54 @@ type rewrite_rule = {
 type rewrite_group = {
   name: string,
   label: string,
+  level: rewrite_level,
+  rank: int,
   rules: list(rewrite_rule),
 };
+
+let rewrite_levels = [Arithmetic, Algebra, FunctionsAndLists, Calculus];
+
+let automation_stages = [Manual, MultiStepCheck, AutoEval];
+
+let rewrite_level_rank =
+  fun
+  | Arithmetic => 0
+  | Algebra => 1
+  | FunctionsAndLists => 2
+  | Calculus => 3;
+
+let rewrite_level_label =
+  fun
+  | Arithmetic => "Arithmetic"
+  | Algebra => "Algebra"
+  | FunctionsAndLists => "Functions/lists"
+  | Calculus => "Calculus";
+
+let rewrite_level_detail =
+  fun
+  | Arithmetic => "constants and affine terms"
+  | Algebra => "future: distribution and cancellation"
+  | FunctionsAndLists => "future: unfold, beta, map, fold"
+  | Calculus => "future: derivative and limit rules";
+
+let rewrite_level_enabled =
+  fun
+  | Arithmetic => true
+  | Algebra
+  | FunctionsAndLists
+  | Calculus => false;
+
+let automation_stage_label =
+  fun
+  | Manual => "One step"
+  | MultiStepCheck => "Check result"
+  | AutoEval => "Auto simplify";
+
+let automation_stage_detail =
+  fun
+  | Manual => "one visible Hazel step"
+  | MultiStepCheck => "compare normal forms"
+  | AutoEval => "apply rewrite group";
 
 let lean = tactic => {
   prover: "lean",
@@ -23,6 +82,8 @@ let lean = tactic => {
 let arithmetic_rewrite_group = {
   name: "arithmetic",
   label: "arithmetic",
+  level: Arithmetic,
+  rank: rewrite_level_rank(Arithmetic),
   rules: [
     {
       id: "arith.add_comm",
@@ -63,6 +124,11 @@ let arithmetic_rewrite_group = {
 };
 
 let rewrite_groups = [arithmetic_rewrite_group];
+
+let allowed_groups = level => {
+  let max_rank = rewrite_level_rank(level);
+  rewrite_groups |> List.filter(group => group.rank <= max_rank);
+};
 
 let rewrite_group_by_name = name =>
   rewrite_groups |> List.find_opt(group => group.name == name);
