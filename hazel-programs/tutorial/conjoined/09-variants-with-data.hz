@@ -1,0 +1,51 @@
+@flags
+wrapper show_report version=1 id=b0000017-0017-0017-0017-000000000017
+
+@prompt
+A variant can carry data. Give a constructor a payload in its type, and bind that payload in the matching pattern:
+```hazelnostatics
+type Care = Water(Int) + Trim + Skip in Water(1729)
+```
+Matching `Water(amount)` pulls the carried value into `amount`. This is how the garden's actions are modeled.
+
+# Task
+Complete the `Water` branch so watering adds `amount` to the base. `apply(250, Water(50))` should be **300**.
+
+@hint
+`base + amount`
+
+@reference
+### Variants with data
+```hazel
+type Care = Water(Int) + Skip in
+case Water(50)
+| Water(n) => n
+| Skip => 0
+end
+```
+
+### Option
+`Option` is the built-in variant for "maybe a value": `Some(value)` or `None`.
+```hazel
+case Some(7)
+| Some(n) => n
+| None => 0
+end
+```
+
+@hints
+apply(250, Water(50)) should be 300.
+
+@code
+type Care = Water(Int) + Trim + Skip in
+let apply(base: Int, action: Care): Int =
+  case action
+  | Water(amount) => ¿
+  | Trim => base - 10
+  | Skip => base
+  end
+in
+apply(250, Water(50))
+
+@test
+test answer == 300 end

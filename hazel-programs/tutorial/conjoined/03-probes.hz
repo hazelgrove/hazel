@@ -1,0 +1,22 @@
+@flags
+version=1 id=b0000003-0003-0003-0003-000000000003
+
+@prompt
+Hazel shows the value of the whole program at the bottom. To see an *intermediate* value, place a **probe** on an expression and its value appears inline.
+
+**Try this**
+1. Put your cursor on `weekly` and press **Cmd/Ctrl+E** (or right-click, *Add probe*). The subtotal `1750` appears.
+2. There is at most one probe per line. On the first line, try probing `250`, then `250 * 7`. Each one replaces the last.
+3. Probe `weekly + 50` on the second line too. Since it is a different line, both probes show at once.
+
+@hint
+Cursor on an expression, then Cmd/Ctrl+E.
+
+@reference
+### Probes
+- **Add / remove a probe**: Cmd/Ctrl+E, or right-click then *Add probe*
+- At most one probe per line. A new one replaces the old.
+
+@code
+let weekly = 250 * 7 in
+weekly + 50

@@ -1,0 +1,53 @@
+@flags
+wrapper show_report version=1 id=b0000007-0007-0007-0007-000000000007
+
+@prompt
+A *sum type* lists a fixed set of options, separated by `+`s:
+```hazelnostatics
+type MoonPhase = New + Waxing + Full + Waning in Full : MoonPhase
+```
+
+A `case` expression matches a value against patterns, top to bottom. A wildcard `_` pattern matches anything.
+
+# Task
+
+Before you begin, **watch the branches**! Put a probe on the `+` in the `New` branch, on the `-` in the `Full` branch, on `base` in the last branch, and on the `case` itself. Note that only the matching branch shows a value, and that the `case` itself takes on the value of that branch. The others branches show **∅**, meaning those paths never ran.
+
+First, try changing `Full` to `New` and watch a different branch light up, then change it back to pass.
+
+Then: On a full moon the plant wants 30 ml less. Fill the hole so the watering comes to **220**.
+
+
+@hint
+Fill the hole with `30`.
+
+@reference
+### Sum types and case
+```hazel
+type Light = Red + Green in
+case Red
+| Red => "stop"
+| _ => "go"
+end
+```
+
+### Probes
+- **Add / remove a probe**: Cmd/Ctrl+E, or right-click then *Add probe*
+- **∅** means a branch was never evaluated
+
+@hints
+With the full-moon adjustment the result should be 220.
+
+@code
+type MoonPhase = New + Waxing + Full + Waning in
+let base = 250 in
+let phase: MoonPhase = Full in
+
+case phase
+| New => base + 50
+| Full => base - ¿
+| _ => base
+end
+
+@test
+test answer == 220 end

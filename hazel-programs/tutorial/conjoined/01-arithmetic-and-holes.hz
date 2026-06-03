@@ -1,0 +1,26 @@
+@flags
+wrapper version=1 id=b0000001-0001-0001-0001-000000000001
+
+@prompt
+Hazel is a live functional environment. Every edit is a valid program, and it evaluates *around* holes (the hexagons), so you always see a result.
+
+A plant drinks 250 ml a day. A week is `250 * 7`, plus a 50 ml top-up on the new moon. Fill the hole so the week comes to **1800**.
+
+@hint
+A week is 7 days.
+
+@reference
+### Holes
+Hexagons are holes. Hazel evaluates around them. Fill one by typing a value.
+
+### Integer operations
+`(+ - * /)`
+
+@hints
+Fill the hole with `7`.
+
+@code
+250 * ¿ + 50
+
+@test
+test answer == 1800 end

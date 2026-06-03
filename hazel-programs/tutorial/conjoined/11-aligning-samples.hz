@@ -1,0 +1,34 @@
+@flags
+version=1 id=b0000009-0009-0009-0009-000000000009
+
+@prompt
+With probes in several places, Hazel keeps the samples *aligned* to one call at a time. The sample you click is the **focus**, and the others line up with it.
+
+**Try this**
+1. Probe `adjust` inside the function, and probe each of the three calls below.
+2. Click one call's sample. The `adjust` sample lines up with that same call and turns **green**: green means it is from that same run of the function.
+3. A **⊖** marks a sample that exists but is not aligned to your focus. Click a ⊖ to align to it instead.
+
+@hint
+Probe `adjust` and a call, then click between the call samples.
+
+@reference
+### Probes
+- **Focus**: the sample you click; others align to it
+- **⊖**: a sample exists but is not aligned to the focus. Click it to align.
+
+@code
+type MoonPhase = New + Waxing + Full + Waning in
+let watering_amount(base: Int, phase: MoonPhase): Int =
+  let adjust =
+    case phase
+    | New => 50
+    | Full => 0 - 30
+    | _ => 0
+    end
+  in
+  base + adjust
+in
+watering_amount(250, Full);
+watering_amount(180, New);
+watering_amount(50, Waning)

@@ -1,0 +1,41 @@
+@flags
+version=1 id=b0000023-0023-0023-0023-000000000023
+
+@prompt
+# The greenhouse
+
+A larger garden, with nothing to fix. The caretaker tends it by moonlight and records every pour in a ledger no one has read to the end.
+
+Turn on auto-probe and wander: probe a function and step through its samples, **pin** one bed's call and watch the rest fall away, **step into** `weekly` to see a bed totalled night by night.
+
+@reference
+### Everything so far
+Probes (Cmd/Ctrl+E), the variable dropdown (right-click a sample), auto-probe (🔬), many mode (Space), pin (`P`), step into (Enter), and the sample colors.
+
+@code
+type MoonPhase = New + Waxing + Full + Waning in
+type Plant = (name = String, water = Int) in
+
+let watering_amount(base: Int, phase: MoonPhase): Int =
+  case phase
+  | New => base + 50
+  | Full => base - 30
+  | _ => base
+  end
+in
+
+let weekly(plants: [Plant], phase: MoonPhase): Int =
+  fold_left(plants, fun (acc, p) -> acc + watering_amount(p.water, phase), 0)
+in
+
+let fern: Plant = (name = "fern", water = 250) in
+let orchid: Plant = (name = "orchid", water = 180) in
+let cactus: Plant = (name = "cactus", water = 50) in
+let lily: Plant = (name = "lily", water = 200) in
+
+let shade = [fern, lily] in
+let sun = [orchid, cactus] in
+
+weekly(shade, Full);
+weekly(sun, New);
+weekly(shade, Waning)

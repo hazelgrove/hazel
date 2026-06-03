@@ -1,0 +1,27 @@
+@flags
+version=1 id=b0000020-0020-0020-0020-000000000020
+
+@prompt
+Hazel also has classic print-statement debugging. `print(value)` shows a value in the sidebar panel, then carries on. Sequence it with `;`.
+
+# Task
+The garden waters for a week. Add `print(daily);` inside `weekly_water` to log each daily amount, then watch the print panel fill as the calls below run.
+
+@hint
+`print(daily);` before the result, inside the function.
+
+@reference
+### Print
+```hazel
+print(42);
+"done"
+```
+`print` writes a value to the sidebar panel and continues. Each entry shows a sequence number and a source line.
+
+@code
+let weekly_water(daily: Int): Int =
+  daily * 7
+in
+weekly_water(250);
+weekly_water(180);
+weekly_water(50)

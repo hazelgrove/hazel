@@ -33,7 +33,11 @@
  * TutorialSettings_base.re.
  */
 
-let input_dir = "hazel-programs/tutorial";
+/* Conjoined study tutorial: the single ordered sequence lives in the
+   conjoined/ subdir. The sibling basics/, probes/, archive/ dirs are kept as
+   reference sources and are intentionally not generated. To regenerate the old
+   full set instead, point this back at "hazel-programs/tutorial". */
+let input_dir = "hazel-programs/tutorial/conjoined";
 let output_dir = "src/web/exercises/examples";
 let module_prefix = "TuGen_";
 let aggregation_module = "TutorialGenerated.ml";
@@ -94,8 +98,14 @@ let parse_flags = (s: sections, body: string): sections => {
   List.fold_left(
     (acc, tok) =>
       switch (tok) {
-      | "wrapper" => {...acc, wrapper: true}
-      | "show_report" => {...acc, show_report: true}
+      | "wrapper" => {
+          ...acc,
+          wrapper: true,
+        }
+      | "show_report" => {
+          ...acc,
+          show_report: true,
+        }
       | _ when String.length(tok) > 8 && String.sub(tok, 0, 8) == "version=" => {
           ...acc,
           version:
@@ -153,9 +163,10 @@ let parse_sections = (content: string): sections => {
       ([], `Code),
       lines,
     );
-  let get = k => try(List.assoc(k, acc)) {
-              | Not_found => ""
-              };
+  let get = k =>
+    try(List.assoc(k, acc)) {
+    | Not_found => ""
+    };
   let s = {
     ...empty_sections,
     prompt: String.trim(get("prompt")),
@@ -199,7 +210,8 @@ let title_of = (rel: string): string => {
   | [last, ...rev_dirs] =>
     let file_title =
       switch (String.split_on_char('-', last)) {
-      | [num, ...rest] when is_digits(num) && List.exists(w => w != "", rest) =>
+      | [num, ...rest]
+          when is_digits(num) && List.exists(w => w != "", rest) =>
         num
         ++ " - "
         ++ (
@@ -249,7 +261,8 @@ let generate_ml_file = (i: int, rel_path: string): option(string) => {
   try({
     let raw = Core.In_channel.read_all(input_path);
     let s = parse_sections(raw);
-    let code = strip_indentation ? Util.StringUtil.trim_leading(s.code) : s.code;
+    let code =
+      strip_indentation ? Util.StringUtil.trim_leading(s.code) : s.code;
     let code = String.trim(code);
     switch (Haz3lcore.TextRoundtrip.of_text(~root=Exp, code)) {
     | None => prerr_endline("WARNING: @code failed to parse in " ++ rel_path)
@@ -348,23 +361,21 @@ let generate = (): unit => {
 
 let clean = (): unit => {
   print_endline("Cleaning generated tutorial slides from: " ++ output_dir);
-  (
-    try(
-      Sys.readdir(output_dir)
-      |> Array.to_list
-      |> List.iter(entry =>
-           if (Filename.check_suffix(entry, ".ml")
-               && String.length(entry) >= String.length(module_prefix)
-               && String.sub(entry, 0, String.length(module_prefix))
-               == module_prefix) {
-             Sys.remove(output_dir ++ "/" ++ entry);
-             print_endline("Removed: " ++ entry);
-           }
-         )
-    ) {
-    | Sys_error(msg) => prerr_endline("Warning: " ++ msg)
-    }
-  );
+  try(
+    Sys.readdir(output_dir)
+    |> Array.to_list
+    |> List.iter(entry =>
+         if (Filename.check_suffix(entry, ".ml")
+             && String.length(entry) >= String.length(module_prefix)
+             && String.sub(entry, 0, String.length(module_prefix))
+             == module_prefix) {
+           Sys.remove(output_dir ++ "/" ++ entry);
+           print_endline("Removed: " ++ entry);
+         }
+       )
+  ) {
+  | Sys_error(msg) => prerr_endline("Warning: " ++ msg)
+  };
   write_file(
     output_dir ++ "/" ++ aggregation_module,
     "(* Stub - run ./hazel gen-tutorial to populate *)\n\n"

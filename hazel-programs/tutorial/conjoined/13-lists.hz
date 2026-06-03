@@ -1,0 +1,35 @@
+@flags
+show_report version=1 id=b0000011-0011-0011-0011-000000000011
+
+@prompt
+A list holds many values of the same type, written `[a, b, c]`, with type `[T]`.
+
+# Task
+Make `garden` the list of these four base waters: `250`, `180`, `50`, `200`.
+
+@hint
+A list of four integers.
+
+@reference
+### Lists
+```hazel
+[1, 2, 3]
+```
+A list of integers has type `[Int]`.
+
+### List functions
+- `length(xs)` how many elements
+- `nth(xs, 0)` the element at an index
+
+@hints
+garden should be [250, 180, 50, 200].
+
+@code
+let garden: [Int] = [] in # fill me #
+^^probe(nth(garden, 0))
++ ^^probe(nth(garden, 1))
++ ^^probe(nth(garden, 2))
++ ^^probe(nth(garden, 3))
+
+@test
+test garden == [250, 180, 50, 200] end

@@ -1,0 +1,31 @@
+@flags
+wrapper show_report version=1 id=b0000013-0013-0013-0013-000000000013
+
+@prompt
+`fold_left` combines a list into a single value, carrying an accumulator from left to right:
+```hazelnostatics
+fold_left(list, fun (acc, x) -> ..., start)
+```
+
+# Task
+Total the garden's water with `fold_left`, starting from `0`.
+
+@hint
+`fun (acc, w) -> acc + w`
+
+@reference
+### Fold
+```hazel
+fold_left([1, 2, 3], fun (acc, x) -> acc + x, 0)
+```
+`acc` carries the running result; `x` is the current element.
+
+@hints
+The total is 680.
+
+@code
+let waters = [250, 180, 50, 200] in
+fold_left(waters, fun (acc, w) -> ¿, 0)
+
+@test
+test answer == 680 end

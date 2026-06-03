@@ -1,0 +1,40 @@
+@flags
+wrapper version=1 id=b0000002-0002-0002-0002-000000000002
+
+@prompt
+Hazel's parser helps you complete incomplete syntax. When you start a multi-token form like `let ... in`, the delimiters you still owe wait in the *backpack*, shown in yellow above the cursor.
+
+A `let` binds a name for use in the rest of the program:
+```hazelnostatics
+let x = expr in
+body
+```
+
+**Try this**
+1. Fill the definition expression (after the `=`) with `250 * 7`.
+2. Type `in`, and watch it leave the backpack. Backspace it, then press `Tab` to drop it from the backpack instead. Either way works.
+3. Finish the body so the whole program reads `let weekly = 250 * 7 in weekly`. It should evaluate to **1750**.
+
+@hint
+`Tab` drops the next delimiter; typing it works too.
+
+@reference
+### Let
+```hazel
+let a = 1 in
+a
+```
+
+### Backpack
+- `Tab` drops the next delimiter
+- typing it (e.g. `in`) also works
+
+@hints
+Build `let weekly = 250 * 7 in weekly`.
+
+@code
+let weekly = ¿
+
+@test
+test answer == 1750 end;
+¿

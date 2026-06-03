@@ -1,0 +1,34 @@
+@flags
+wrapper show_report version=1 id=b0000016-0016-0016-0016-000000000016
+
+@prompt
+A *labelled tuple* is a kind of *record*. It gives each element a label, so you read it back by name with `.`:
+```hazel
+let plant = (name = "moonleaf", water = 250) in
+plant.name
+```
+
+# Task
+Complete the `plant` record so its `water` is `250`. The program reads `plant.water`, so it should evaluate to **250**.
+
+@hint
+Set water to 250.
+
+@reference
+### Tuple records
+```hazel
+let plant = (name = "moonleaf", water = 250) in
+plant.water
+```
+Read a field with `.field`. The type is written `(name = String, water = Int)`.
+
+@hints
+plant.water should be 250.
+
+@code
+type Plant = (name = String, water = Int) in
+let plant: Plant = (name = "moonleaf", water = ¿) in
+plant.water
+
+@test
+test answer == 250 end

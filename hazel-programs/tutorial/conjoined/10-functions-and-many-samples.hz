@@ -1,0 +1,34 @@
+@flags
+version=1 id=b0000008-0008-0008-0008-000000000008
+
+@prompt
+A function called more than once collects one probe sample *per call*.
+
+`watering_amount` adjusts a base amount by the moon phase. It is called three times below.
+
+**Try this**
+1. Probe the function's body: put your cursor on `case` and add a probe.
+2. Three samples appear, one per call: `220`, `230`, `50`. Use **←/→** to step between them.
+3. Press **Space** for *many* mode to see all three at once. Space again to go back.
+4. In *many* mode the samples take on colors: **pink** ran before the sample you click, **blue** ran after. (More on colors near the end.)
+
+@hint
+Probe the `case`, then use the arrow keys.
+
+@reference
+### Probes
+- **Add / remove a probe**: Cmd/Ctrl+E, or right-click then *Add probe*
+- **Many calls**: one sample per call. ←/→ to step, **Space** for all at once.
+
+@code
+type MoonPhase = New + Waxing + Full + Waning in
+let watering_amount(base: Int, phase: MoonPhase): Int =
+  case phase
+  | New => base + 50
+  | Full => base - 30
+  | _ => base
+  end
+in
+watering_amount(250, Full);
+watering_amount(180, New);
+watering_amount(50, Waning)
