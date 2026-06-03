@@ -79,12 +79,39 @@
   font-weight: bold;
   color: #d39e00;
   font-size: 15px;
-  margin-bottom: 2px;
+  cursor: pointer;
+  user-select: none;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* hide the default disclosure triangle (Firefox + WebKit/Chrome) */
+#main.Tutorial .hint-title::-webkit-details-marker {
+  display: none;
+}
+
+/* custom disclosure arrow, rotates open/closed */
+#main.Tutorial .hint-title::after {
+  content: "▸";
+  font-size: 0.9em;
+  margin-left: 8px;
+  transition: transform 0.15s ease;
+}
+
+#main.Tutorial .hint-cell[open] .hint-title::after {
+  transform: rotate(90deg);
 }
 
 #main.Tutorial .hint-content {
   font-size: 15px;
   color: #555;
+}
+
+/* breathing room between title and content once expanded */
+#main.Tutorial .hint-cell[open] .hint-content {
+  margin-top: 8px;
 }
 
 #main.Tutorial .report-icon {

@@ -538,10 +538,10 @@ module View = {
           ~inject=_ => (),
           hint_placeholder,
         );
-      div(
+      details(
         ~attrs=[Attr.class_("hint-cell")],
         [
-          div(~attrs=[Attr.class_("hint-title")], [text("💡 Hint")]),
+          summary(~attrs=[Attr.class_("hint-title")], [text("💡 Hint")]),
           div(~attrs=[Attr.class_("hint-content")], msg),
         ],
       );
