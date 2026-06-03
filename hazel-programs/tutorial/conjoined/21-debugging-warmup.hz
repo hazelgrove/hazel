@@ -35,12 +35,12 @@ let run(actions: [Action]): Bed =
   fold_left(actions, update, (level = 100))
 in
 test
-  update(Drain, (level = 100))
+  update((level = 100), Drain)
    == (level=80)
 end
 
 @test
 test
-  update(Drain, (level = 100))
+  update((level = 100), Drain)
    == (level=80)
 end;

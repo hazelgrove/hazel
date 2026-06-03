@@ -31,14 +31,14 @@ let run(actions: [Action]): Bed =
 fold_left(actions, update, (level = 100))
 in
 test
-update(Drain, (level = 100))
+update((level = 100), Drain)
 == (level=80)
 end|x}));
   hidden_tests =
     {
       tests =
         Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|test
-  update(Drain, (level = 100))
+  update((level = 100), Drain)
    == (level=80)
 end;|x});
       hints = ["From 100, the actions Water(50), Drain, Water(30) should end at 160."];
