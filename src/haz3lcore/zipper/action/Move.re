@@ -119,12 +119,7 @@ let skip_refractor_dead_rows =
     (id, height, acc) =>
       switch (Measured.find_by_id(id, measured)) {
       | Some({last, _})
-          when
-            height > 0
-            && acc >= last.row
-            + 1
-            && acc <= last.row
-            + height =>
+          when height > 0 && acc >= last.row + 1 && acc <= last.row + height =>
         dir > 0 ? last.row + height + 1 : last.row
       | _ => acc
       },

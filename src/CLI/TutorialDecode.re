@@ -35,34 +35,31 @@ let kv = (name: string, body: string): string =>
 
 let decode_spec = (spec: Web.Tutorial.spec): string =>
   Web.Tutorial.(
-    {
-      let code =
-        TextRoundtrip.to_text(PersistentSegment.persist(spec.your_impl));
-      let test =
-        TextRoundtrip.to_text(
-          PersistentSegment.persist(spec.hidden_tests.tests),
-        );
-      let flags =
-        (spec.wrapper ? ["wrapper"] : [])
-        @ (spec.show_report ? ["show_report"] : [])
-        @ ["version=" ++ string_of_int(spec.version)]
-        @ ["id=" ++ Id.to_string(spec.id)];
-      kv("flags", String.concat(" ", flags))
-      ++ kv("prompt", spec.prompt)
-      ++ (spec.display_hint == "" ? "" : kv("hint", spec.display_hint))
-      ++ (
-        spec.task_reference == ""
-          ? "" : kv("reference", spec.task_reference)
-      )
-      ++ (
-        spec.hidden_tests.hints == []
-          ? "" : kv("hints", String.concat("\n", spec.hidden_tests.hints))
-      )
-      ++ kv("code", String.trim(code))
-      ++ "@test\n"
-      ++ String.trim(test)
-      ++ "\n";
-    }
+    let code =
+      TextRoundtrip.to_text(PersistentSegment.persist(spec.your_impl));
+    let test =
+      TextRoundtrip.to_text(
+        PersistentSegment.persist(spec.hidden_tests.tests),
+      );
+    let flags =
+      (spec.wrapper ? ["wrapper"] : [])
+      @ (spec.show_report ? ["show_report"] : [])
+      @ ["version=" ++ string_of_int(spec.version)]
+      @ ["id=" ++ Id.to_string(spec.id)];
+    kv("flags", String.concat(" ", flags))
+    ++ kv("prompt", spec.prompt)
+    ++ (spec.display_hint == "" ? "" : kv("hint", spec.display_hint))
+    ++ (
+      spec.task_reference == "" ? "" : kv("reference", spec.task_reference)
+    )
+    ++ (
+      spec.hidden_tests.hints == []
+        ? "" : kv("hints", String.concat("\n", spec.hidden_tests.hints))
+    )
+    ++ kv("code", String.trim(code))
+    ++ "@test\n"
+    ++ String.trim(test)
+    ++ "\n"
   );
 
 let is_generated = (spec: Web.Tutorial.spec): bool =>
@@ -71,14 +68,11 @@ let is_generated = (spec: Web.Tutorial.spec): bool =>
     && String.sub(spec.module_name, 0, 6) == "TuGen_"
   );
 
-let title_of = (spec: Web.Tutorial.spec): string =>
-  Web.Tutorial.(spec.title);
+let title_of = (spec: Web.Tutorial.spec): string => Web.Tutorial.(spec.title);
 
 let kebab = (s: string): string =>
   String.lowercase_ascii(s)
-  |> String.map(c =>
-       (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') ? c : '-'
-     );
+  |> String.map(c => c >= 'a' && c <= 'z' || c >= '0' && c <= '9' ? c : '-');
 
 let rec ensure_dir = (path: string): unit =>
   if (!Sys.file_exists(path)) {
@@ -110,7 +104,10 @@ let write_all = (dir: string): unit => {
   List.iteri(
     (i, spec) => {
       let name = Printf.sprintf("%02d-%s.hz", i + 1, kebab(title_of(spec)));
-      Core.Out_channel.write_all(dir ++ "/" ++ name, ~data=decode_spec(spec));
+      Core.Out_channel.write_all(
+        dir ++ "/" ++ name,
+        ~data=decode_spec(spec),
+      );
       print_endline("Wrote: " ++ dir ++ "/" ++ name);
     },
     specs,

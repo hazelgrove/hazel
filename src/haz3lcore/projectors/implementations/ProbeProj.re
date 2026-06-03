@@ -765,7 +765,8 @@ let value_view =
                   Effect.Prevent_default,
                 ])
               : Key.meta_held(evt)
-                  ? Option.is_some(ctx.ap_id) ? pin_call(ctx) : focus_call(ctx)
+                  ? Option.is_some(ctx.ap_id)
+                      ? pin_call(ctx) : focus_call(ctx)
                   : val_pointerdown(evt);
       }),
       Attr.on_pointerup(val_pointerup),
@@ -1903,10 +1904,7 @@ let live_offside_view =
     : Node.t => {
   let {ctx, id, num_total, num_shown, groups, is_cursor_aligned, empty_status} = data;
   let base_classes =
-    [
-      "live-offside",
-      settings.window |> Sample.Window.show_mode,
-    ]
+    ["live-offside", settings.window |> Sample.Window.show_mode]
     /* Sticky ('/') mode: CSS shows the focused offside's focal-sample
        dropdown off this hook (see proj-probe.css). */
     @ (Settings.sticky^ ? ["sticky"] : []);

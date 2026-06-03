@@ -331,7 +331,11 @@ let legend_view = (~globals as _: Globals.t, ~explain_this_inject) => {
   div(
     /* `simple` lets the sidebar spread the two-swatch Simple legend across
        the row instead of leaving them in the 3-col grid's left+middle. */
-    ~attrs=[clss(["legend", "panel"] @ (color_scheme == Simple ? ["simple"] : []))],
+    ~attrs=[
+      clss(
+        ["legend", "panel"] @ (color_scheme == Simple ? ["simple"] : []),
+      ),
+    ],
     [div(~attrs=[clss(["title"])], [text("Sample Focus Legend")])]
     @ (color_scheme == Simple ? simple_items : standard_items)
     @ [

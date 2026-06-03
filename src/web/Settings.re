@@ -429,7 +429,7 @@ module Update = {
         /* '/' key — toggles sticky only; independent of docking. */
         Haz3lcore.ProbeProj.Settings.(
           {
-            set_sticky(!sticky^);
+            set_sticky(! sticky^);
             settings;
           }
         )

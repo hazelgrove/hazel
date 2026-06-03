@@ -54,11 +54,10 @@ let check_enabled = () => {
   };
 };
 
-let next_frame = (): unit => {
+let next_frame = (): unit =>
   if (check_enabled()) {
     incr(frame);
   };
-};
 
 let frame_no = (): int => frame^;
 
@@ -79,9 +78,7 @@ let log = (tag: string, msg: string): unit =>
 /* Read current scrollTop of #main, for logging context. */
 let main_scroll_top = (): float =>
   switch (
-    Js.Opt.to_option(
-      Dom_html.document##getElementById(Js.string("main")),
-    )
+    Js.Opt.to_option(Dom_html.document##getElementById(Js.string("main")))
   ) {
   | None => Float.nan
   | Some(main) => Js.Unsafe.get(main, Js.string("scrollTop"))
