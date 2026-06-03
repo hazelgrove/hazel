@@ -138,11 +138,10 @@ let go =
   | Select(Resize(Line(d))) =>
     Select.to_linebreak(d, z) |> return(Cant_select)
   | Select(Resize(Point(goal, override))) =>
-    /* Mouse drag obeys the selection_chunkiness setting by default
-     * (off → smart, on → char). The drag handler may pass an
-     * explicit `Some(chunkiness)` to override — e.g. Alt+Shift+drag
-     * on Mac (Ctrl+Shift+drag on PC) selects the opposite chunkiness,
-     * mirroring the keyboard modifier mapping. */
+    /* Mouse drag obeys the "Character-level mouse" setting by default
+     * (off → smart, on → char). The drag handler may pass an explicit
+     * `Some(chunkiness)` to override — e.g. Alt+drag on Mac (Ctrl+drag
+     * on PC) selects the opposite chunkiness. */
     let chunkiness: Action.chunkiness =
       switch (override) {
       | Some(c) => c

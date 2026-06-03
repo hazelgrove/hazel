@@ -46,9 +46,11 @@ type t = {
   deep_reassociate: bool,
   flip_animations: bool,
   display_warnings: bool,
-  /* When false (default), bare Shift+Arrow does smart-rounded selection
-   * (char inside starting token, whole-token beyond) and the modifier
-   * variant does pure char. When true, that pairing is swapped. */
+  /* "Character-level mouse". When false (default), a mouse drag does
+   * smart-rounded selection (char inside the starting token, whole-token
+   * beyond) and the modifier (Alt/Ctrl) does pure char; when true, that
+   * pairing is swapped. Only affects the mouse — keyboard Shift+Arrow is
+   * always char-level (modifier → smart). */
   selection_chunkiness: bool,
   evaluation: Evaluation.t,
 };

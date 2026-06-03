@@ -482,7 +482,7 @@ module Selection = {
            ~section="Settings",
            ~mdIcon="tune",
            ~action=inject(Globals(Set(SelectionChunkiness))),
-           "Toggle Character-level Selection",
+           "Toggle Character-level Mouse",
          ),
          mk(
            ~section="Settings",

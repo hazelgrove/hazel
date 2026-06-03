@@ -194,12 +194,12 @@ let dev_group = (~globals: Globals.t) => {
         tooltip: Some("Enable deep reassociation of syntax"),
       },
       {
-        name: "Character-level selection",
+        name: "Character-level mouse",
         active: globals.settings.core.selection_chunkiness,
         setting: SelectionChunkiness,
         tooltip:
           Some(
-            "When on, Shift+Arrow selects by character everywhere. When off (default), Shift+Arrow selects by character inside a token and by whole token beyond; the modifier-key variant does the reverse.",
+            "When on, mouse drag selects by character. When off (default), mouse drag selects by character inside a token and by whole token beyond; holding Alt (Mac) / Ctrl (PC) while dragging does the reverse. Keyboard Shift+Arrow is always character-level (hold Alt/Ctrl for whole-token).",
           ),
       },
       {

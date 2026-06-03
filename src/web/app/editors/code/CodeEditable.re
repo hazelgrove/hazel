@@ -329,8 +329,7 @@ module Selection = {
   };
 
   let handle_key_event =
-      (~settings: Language.CoreSettings.t, ~selection as (), model: Model.t)
-      : (Key.t => option(Update.t)) =>
+      (~selection as (), model: Model.t): (Key.t => option(Update.t)) =>
     fun
     | {key: D("Escape"), _} when is_command_palette_open() =>
       /* Let Escape bubble so NinjaKeys can close itself. */
@@ -404,16 +403,9 @@ module Selection = {
         when Keyboard.is_f_key(key) =>
       Some(Update.DebugConsole(key))
     | k =>
-      Keyboard.handle_key_event(~settings, k)
-      |> Option.map(x => Update.Perform(x));
+      Keyboard.handle_key_event(k) |> Option.map(x => Update.Perform(x));
 
-  let handle_key_event =
-      (
-        ~settings: Language.CoreSettings.t,
-        ~selection,
-        model: Model.t,
-        key: Key.t,
-      ) =>
+  let handle_key_event = (~selection, model: Model.t, key: Key.t) =>
     /* Context menu key dispatch (Escape/ArrowUp/ArrowDown/Enter) is handled
      * at the document level by ContextMenuListener while the menu is open,
      * so it doesn't reach this handler. */
@@ -425,7 +417,7 @@ module Selection = {
       )
     ) {
     | Some(action) => Some(Update.Perform(Project(action)))
-    | None => handle_key_event(~settings, ~selection, model, key)
+    | None => handle_key_event(~selection, model, key)
     };
 
   let jump_to_tile = (id: Id.t, model: Model.t): option(Update.t) => {
@@ -710,9 +702,9 @@ module View = {
       );
 
     /* Pointer modifier → optional chunkiness override for
-     * Select(Resize(Point(...))). Mirrors the keyboard mapping:
-     * Alt on Mac / Ctrl on PC swaps to the non-default chunkiness
-     * (BySmart ↔ ByChar). None means "use the settings default". */
+     * Select(Resize(Point(...))). Alt on Mac / Ctrl on PC swaps to the
+     * non-default chunkiness (BySmart ↔ ByChar) per the "Character-level
+     * mouse" setting. None means "use the settings default". */
     let drag_chunkiness_override =
         (pointer: Pointer.Event.t): option(Action.chunkiness) => {
       let modifier_held =
@@ -721,7 +713,7 @@ module View = {
         | PC => pointer.ctrl == Down
         };
       modifier_held
-        ? Some(Keyboard.modifier_chunk(globals.settings.core)) : None;
+        ? Some(Keyboard.mouse_modifier_chunk(globals.settings.core)) : None;
     };
 
     let move_or_select = (mouse: Pointer.Event.t, pointer_id: int) =>
@@ -890,14 +882,7 @@ module View = {
           | _ =>
             /* 2. Normal editor key handling:
              *    context menu → projector handoff → Keyboard */
-            switch (
-              Selection.handle_key_event(
-                ~settings=globals.settings.core,
-                ~selection=(),
-                model,
-                key,
-              )
-            ) {
+            switch (Selection.handle_key_event(~selection=(), model, key)) {
             | Some(action) =>
               Effect.Many([
                 Effect.Prevent_default,

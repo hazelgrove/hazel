@@ -26,20 +26,24 @@ let is_new_slide = (k: Key.t): bool =>
     }
   );
 
-/* Selection chunkiness for bare Shift+Arrow (default) and the modifier
- * variant. When `selection_chunkiness` is off, the default is smart
- * rounding; when on, the default is pure char. The modifier always does
- * the other one. */
-let default_chunk = (settings: Language.CoreSettings.t): Action.chunkiness =>
-  settings.selection_chunkiness ? ByChar : BySmart;
-let modifier_chunk = (settings: Language.CoreSettings.t): Action.chunkiness =>
+/* Mouse-drag chunkiness. The "Character-level mouse" setting
+ * (selection_chunkiness) sets the no-modifier default — applied in
+ * Perform: off → smart rounding, on → pure char. Holding the modifier
+ * (Alt on Mac / Ctrl on PC) while dragging selects the opposite. */
+let mouse_modifier_chunk =
+    (settings: Language.CoreSettings.t): Action.chunkiness =>
   settings.selection_chunkiness ? BySmart : ByChar;
 
-let handle_key_event =
-    (~settings: Language.CoreSettings.t, k: Key.t): option(Action.t) => {
+/* Keyboard chunkiness. The keyboard favors fine control, so bare
+ * Shift+Arrow is always char-level; holding the modifier (Alt/Ctrl)
+ * switches to smart rounding. Independent of the mouse setting. */
+let kbd_default_chunk: Action.chunkiness = ByChar;
+let kbd_modifier_chunk: Action.chunkiness = BySmart;
+
+let handle_key_event = (k: Key.t): option(Action.t) => {
   let now = (a: Action.t) => Some(a);
-  let def = default_chunk(settings);
-  let modif = modifier_chunk(settings);
+  let def = kbd_default_chunk;
+  let modif = kbd_modifier_chunk;
   switch (k) {
   | {key: U(key), _} =>
     /* Keu-UPpEvents:
