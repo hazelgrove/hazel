@@ -17,7 +17,7 @@ let rec target_subterm_ids = (id: Id.t, info_map: Statics.Map.t) =>
       IdTagged.rep_id(body),
       IdTagged.rep_id(pat),
     ]
-  | Some(InfoExp({user_term: {term: Let(_pat, def, _), _} as let_term, _})) =>
+  | Some(InfoExp({user_term: {term: Let(pat, def, _), _} as let_term, _})) =>
     /* If trying to probe a let, probe the definition instead.
        Exception: if the let is the body of a test, probe the let itself
        (so we see the test result, not just the definition value).
@@ -29,9 +29,22 @@ let rec target_subterm_ids = (id: Id.t, info_map: Statics.Map.t) =>
       | Some(Exp({term: Test(_) | HintedTest(_, _), _})) => true
       | _ => false
       };
-    is_test_body
-      ? [IdTagged.rep_id(let_term)]
-      : target_subterm_ids(IdTagged.rep_id(def), info_map);
+    if (is_test_body) {
+      [IdTagged.rep_id(let_term)];
+    } else {
+      let def_targets = target_subterm_ids(IdTagged.rep_id(def), info_map);
+      /* Function-definition sugar (`let f(args) = body`) keeps the
+         parameters in the surface binder `Ap(Var(f), args)`, which lives
+         on the header line(s) outside the def body's row range. Anchor the
+         args pattern too so the parameters get probed, mirroring the
+         Fun-literal case above which returns [body, pat]. The args pattern
+         is multi-probed, so the existing container logic shows the whole
+         tuple on one line or each parameter when split across lines. */
+      switch (FunctionSugar.detect(pat)) {
+      | Some((_f_name, args, _ret_ty)) => def_targets @ [Pat.rep_id(args)]
+      | None => def_targets
+      };
+    };
   | Some(InfoExp({user_term: {term: ModuleExp(_, def, _), _}, _})) =>
     /* If trying to probe a module expression, probe the definition.
        Recurse so fun literals get drilled into. */
@@ -1314,12 +1327,49 @@ let toplevel_def_body_id = (~statics: Statics.Map.t, ~id: Id.t): option(Id.t) =>
   };
 };
 
-/* Remove the auto probe's multi probe if present */
+/* When `def_id` is the definition body of a function-definition-sugar
+   let (`let f(args) = body`), return the parameter pattern's rep_id so
+   auto-probe can anchor it separately. The parameters live in the surface
+   binder, on the header line(s) outside the body's row range, so a probe
+   anchored on the body alone never shows them (mirrors the Fun/sugar
+   handling in target_subterm_ids).
+
+   We climb the body's ancestor chain to the nearest enclosing Let rather
+   than using parent_term_of, because the desugaring inserts a synthesized
+   Fun (and optional return-type Asc) as the body's immediate parent. */
+let function_sugar_param_anchor =
+    (info_map: Statics.Map.t, def_id: Id.t): option(Id.t) => {
+  let* ci = Statics.Map.lookup(def_id, info_map);
+  let rec climb = (ancs: list(Id.t)): option(Id.t) =>
+    switch (ancs) {
+    | [] => None
+    | [anc_id, ...rest] =>
+      switch (Statics.Map.lookup(anc_id, info_map)) {
+      | Some(InfoExp({user_term: {term: Let(pat, def, _), _}, _})) =>
+        /* Nearest enclosing let. Only anchor params when def_id is this
+           let's def (the function body); when def_id is instead the let's
+           `in` body — e.g. a call site like `f(5)` — those are someone
+           else's params, so return None. Stop at the first let either way. */
+        if (Id.equal(def_id, IdTagged.rep_id(def))) {
+          switch (FunctionSugar.detect(pat)) {
+          | Some((_, args, _)) => Some(Pat.rep_id(args))
+          | None => None
+          };
+        } else {
+          None;
+        }
+      | _ => climb(rest)
+      }
+    };
+  climb(Info.ancestors_of(ci));
+};
+
+/* Remove the auto probe's multi probes if present */
 let clear_autoprobe =
     (~syntax: CachedSyntax.t, ~info_map: Statics.Map.t, z: Zipper.t): Zipper.t =>
   switch (z.refractors.autoprobe_target) {
-  | None => z
-  | Some(old_id) =>
+  | [] => z
+  | old_ids =>
     /* Skip cursor reset here: the syntax cache still has the old probes
      * (since this isn't an edit, CachedSyntax won't recalculate until
      * the next is_edited cycle). If we reset the cursor now, the stale
@@ -1328,11 +1378,16 @@ let clear_autoprobe =
      * departing probes render with their original colors. The cursor
      * will be reset on the next editor_effects call when the probes
      * are actually gone from the syntax cache. */
-    rm_multi(~drill=false, ~reset=false, ~syntax, ~info_map, old_id, z)
+    List.fold_left(
+      (z, old_id) =>
+        rm_multi(~drill=false, ~reset=false, ~syntax, ~info_map, old_id, z),
+      z,
+      old_ids,
+    )
     |> Zipper.update_refractors(_, r =>
          {
            ...r,
-           autoprobe_target: None,
+           autoprobe_target: [],
          }
        )
   };
@@ -1407,18 +1462,28 @@ let current_toplevel_def =
 let update_autoprobe =
     (~syntax: CachedSyntax.t, ~info_map: Statics.Map.t, z: Zipper.t): Zipper.t => {
   let current_def = current_toplevel_def(info_map, z);
-  let prev_def = z.refractors.autoprobe_target;
-  /* If same definition, no change needed */
-  if (Option.equal(Id.equal, current_def, prev_def)) {
+  /* For function-definition sugar, also anchor the parameter pattern so
+     params are probed on the header line(s) alongside the body. */
+  let current_param =
+    switch (current_def) {
+    | Some(def_id) => function_sugar_param_anchor(info_map, def_id)
+    | None => None
+    };
+  let current_anchors =
+    Option.to_list(current_def) @ Option.to_list(current_param);
+  let prev_anchors = z.refractors.autoprobe_target;
+  /* If same anchors, no change needed */
+  if (List.equal(Id.equal, current_anchors, prev_anchors)) {
     z;
   } else {
-    /* Remove old multi probe if exists.
-       Use ~drill=false to match how it was added. */
+    /* Remove old multi probes.
+       Use ~drill=false to match how they were added. */
     let z =
-      switch (prev_def) {
-      | Some(old_id) => rm_multi(~drill=false, ~syntax, ~info_map, old_id, z)
-      | None => z
-      };
+      List.fold_left(
+        (z, old_id) => rm_multi(~drill=false, ~syntax, ~info_map, old_id, z),
+        z,
+        prev_anchors,
+      );
 
     /* Regenerate ephemerals from multis.ids after removal.
        rm_multi(~drill=false) only removes the auto ID itself, not the
@@ -1427,30 +1492,44 @@ let update_autoprobe =
        stale ephemerals would persist for one frame without this. */
     let z = add_ids_from_multi_term(~syntax, ~info_map, z);
 
-    /* Add new multi probe if inside a definition.
+    /* Add new multi probes if inside a definition.
        Use ~drill=false to stay on top-level def, not drill into nested lets.
-       Use autoprobe_updates_cursor to control whether cursor follows.
-       Gated on auto_focus: in manual focus mode, don't jump focus when
-       the cursor crosses into a new top-level definition. */
+       The def body carries cursor following (gated on auto_focus so manual
+       focus mode doesn't jump on def-crossing); the parameter anchor is
+       added without re-triggering cursor following, keeping focus on the
+       body's first sample rather than a parameter. */
     let z =
       switch (current_def) {
-      | Some(new_id) =>
-        add_multi(
-          new_id,
-          ~drill=false,
-          ~set_pending_cursor=autoprobe_updates_cursor && auto_focus(z),
-          ~syntax,
-          ~info_map,
-          z,
-        )
       | None => z
+      | Some(def_id) =>
+        let z =
+          add_multi(
+            def_id,
+            ~drill=false,
+            ~set_pending_cursor=autoprobe_updates_cursor && auto_focus(z),
+            ~syntax,
+            ~info_map,
+            z,
+          );
+        switch (current_param) {
+        | Some(param_id) =>
+          add_multi(
+            param_id,
+            ~drill=false,
+            ~set_pending_cursor=false,
+            ~syntax,
+            ~info_map,
+            z,
+          )
+        | None => z
+        };
       };
 
     /* Update auto probe tracking */
     Zipper.update_refractors(z, r =>
       {
         ...r,
-        autoprobe_target: current_def,
+        autoprobe_target: current_anchors,
       }
     );
   };

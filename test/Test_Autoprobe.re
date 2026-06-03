@@ -107,6 +107,45 @@ let auto = (~name, ~input, ~probed) =>
     },
   );
 
+/* Render the function-sugar parameter anchor (if any) that auto-probe
+ * adds alongside the def body. "<none>" when the enclosing definition is
+ * not function-definition sugar. */
+let param_anchor_str = (z: Zipper.t): string => {
+  let root_segment = Zipper.unselect_and_zip(z);
+  let MakeTerm.{term, _} = MakeTerm.go(root_segment);
+  let (info_map, _) =
+    Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
+  switch (ProbePerform.current_toplevel_def(info_map, z)) {
+  | None => "<no def>"
+  | Some(def_id) =>
+    switch (ProbePerform.function_sugar_param_anchor(info_map, def_id)) {
+    | None => "<none>"
+    | Some(id) =>
+      let syntax = CachedSyntax.mk(~info_map, ~dyn_map=Id.Map.empty, z);
+      switch (TermData.segment(id, syntax.term_data)) {
+      | Some(seg) =>
+        Printer.of_segment(~holes=" ", ~indent="", ~is_single_line=false, seg)
+      | None => "<id not in term_data>"
+      };
+    }
+  };
+};
+
+let param = (~name, ~input, ~param) =>
+  test_case(
+    name,
+    `Quick,
+    () => {
+      let z = mk(input) |> perform(Zipper.init());
+      check(
+        testable(Fmt.string, String.equal),
+        param,
+        param,
+        param_anchor_str(z),
+      );
+    },
+  );
+
 /* ==================================================================
  * TEST SUITES
  * ================================================================== */
@@ -230,8 +269,41 @@ let tyalias_tests = [
   ),
 ];
 
+/* Auto-probe parameter anchoring: for function-definition sugar, the def
+ * body is anchored as before, AND the parameter pattern is anchored
+ * separately so params are probed on the header line(s). These check the
+ * second anchor that update_autoprobe adds (function_sugar_param_anchor). */
+let param_anchor_tests = [
+  param(
+    ~name="sugar one-line: param anchor is the param tuple",
+    ~input="let f(x: Int, y: Int): Int = ¦x + y in f(1, 2)",
+    ~param="x: Int, y: Int",
+  ),
+  param(
+    ~name="sugar no return type: param anchor is the param",
+    ~input="let f(x: Int) = ¦x + 1 in f(1)",
+    ~param="x: Int",
+  ),
+  param(
+    ~name="sugar: cursor in let body still resolves param anchor",
+    ~input="let f(x: Int): Int = x + 1 in ¦f(5)",
+    ~param="<none>",
+  ),
+  param(
+    ~name="plain let: no param anchor",
+    ~input="let x = ¦5 in x + 1",
+    ~param="<none>",
+  ),
+  param(
+    ~name="bare expression: no param anchor",
+    ~input="¦1 + 2",
+    ~param="<none>",
+  ),
+];
+
 let tests = [
   ("Autoprobe.BasicLet", basic_let_tests),
+  ("Autoprobe.ParamAnchor", param_anchor_tests),
   ("Autoprobe.NestedLet", nested_let_tests),
   ("Autoprobe.Seq", seq_tests),
   ("Autoprobe.FunctionSugar", function_sugar_tests),

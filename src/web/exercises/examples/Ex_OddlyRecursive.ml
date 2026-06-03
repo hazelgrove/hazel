@@ -431,7 +431,7 @@ let exercise : Exercise.t =
                   step_range = None;
                   pending_focus = None;
                 };
-              autoprobe_target = None;
+              autoprobe_target = [];
               pending_probe_cursor = None;
             };
         };
@@ -1254,7 +1254,7 @@ let exercise : Exercise.t =
                   step_range = None;
                   pending_focus = None;
                 };
-              autoprobe_target = None;
+              autoprobe_target = [];
               pending_probe_cursor = None;
             };
         };
@@ -1620,7 +1620,7 @@ let exercise : Exercise.t =
                       step_range = None;
                       pending_focus = None;
                     };
-                  autoprobe_target = None;
+                  autoprobe_target = [];
                   pending_probe_cursor = None;
                 };
             };
@@ -1932,7 +1932,7 @@ let exercise : Exercise.t =
                   step_range = None;
                   pending_focus = None;
                 };
-              autoprobe_target = None;
+              autoprobe_target = [];
               pending_probe_cursor = None;
             };
         };
@@ -2270,7 +2270,7 @@ let exercise : Exercise.t =
                         step_range = None;
                         pending_focus = None;
                       };
-                    autoprobe_target = None;
+                    autoprobe_target = [];
                     pending_probe_cursor = None;
                   };
               };
@@ -2608,7 +2608,7 @@ let exercise : Exercise.t =
                         step_range = None;
                         pending_focus = None;
                       };
-                    autoprobe_target = None;
+                    autoprobe_target = [];
                     pending_probe_cursor = None;
                   };
               };
@@ -3693,7 +3693,7 @@ let exercise : Exercise.t =
                         step_range = None;
                         pending_focus = None;
                       };
-                    autoprobe_target = None;
+                    autoprobe_target = [];
                     pending_probe_cursor = None;
                   };
               };
@@ -4649,7 +4649,7 @@ let exercise : Exercise.t =
                       step_range = None;
                       pending_focus = None;
                     };
-                  autoprobe_target = None;
+                  autoprobe_target = [];
                   pending_probe_cursor = None;
                 };
             };
