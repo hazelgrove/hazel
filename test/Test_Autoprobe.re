@@ -301,9 +301,112 @@ let param_anchor_tests = [
   ),
 ];
 
+/* Step-into resolution: mirror what step_into_call_stack computes — from a
+   call `fn(...)`, resolve fn's binding, then the enclosing-let def body
+   (enclosing_let_of_binding) and, for sugar, the parameter anchor. Returns
+   (body_text, param_text). Before the fix, sugar definitions resolved to
+   "<no body>" because Pat.bindings dropped the function name. */
+let step_into_resolution = (~fn: string, program: string): (string, string) => {
+  let zipper =
+    switch (Parser.to_zipper(~root=Exp, program)) {
+    | Some(z) => z
+    | None => fail("parse: " ++ program)
+    };
+  let root_segment = Zipper.unselect_and_zip(zipper);
+  let MakeTerm.{term, _} = MakeTerm.go(root_segment);
+  let (info_map, _) =
+    Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
+  let syntax = CachedSyntax.mk(~info_map, ~dyn_map=Id.Map.empty, zipper);
+  let render = id =>
+    switch (TermData.segment(id, syntax.term_data)) {
+    | Some(seg) =>
+      Printer.of_segment(~holes=" ", ~indent="", ~is_single_line=true, seg)
+    | None => "<not-in-syntax>"
+    };
+  /* Find the call `fn(...)` and resolve fn's binding site, as step-into does. */
+  let binding_id =
+    Id.Map.fold(
+      (_id, info, acc) =>
+        switch (acc, info) {
+        | (Some(_), _) => acc
+        | (None, Info.InfoExp({user_term: {term: Ap(_, fexpr, _), _}, _})) =>
+          switch (IdTagged.term_of(fexpr)) {
+          | Var(n) when n == fn =>
+            switch (Statics.Map.lookup(IdTagged.rep_id(fexpr), info_map)) {
+            | Some(ci_var) => Info.get_binding_site(ci_var)
+            | None => None
+            }
+          | _ => None
+          }
+        | _ => acc
+        },
+      info_map,
+      None,
+    );
+  switch (binding_id) {
+  | None => ("<no binding>", "<no binding>")
+  | Some(bid) =>
+    switch (
+      Statics.Map.enclosing_let_of_binding(~statics=info_map, ~binding_id=bid)
+    ) {
+    | None => ("<no body>", "<no body>")
+    | Some(body_id) =>
+      let param =
+        switch (ProbePerform.function_sugar_param_anchor(info_map, body_id)) {
+        | Some(p) => render(p)
+        | None => "<none>"
+        };
+      (render(body_id), param);
+    }
+  };
+};
+
+let step_into = (~name, ~fn, ~program, ~body, ~param) =>
+  test_case(
+    name,
+    `Quick,
+    () => {
+      let (b, p) = step_into_resolution(~fn, program);
+      check(testable(Fmt.string, String.equal), "body", body, b);
+      check(testable(Fmt.string, String.equal), "param", param, p);
+    },
+  );
+
+let step_into_tests = [
+  step_into(
+    ~name="sugar: resolves body + params",
+    ~fn="f",
+    ~program="let f(x: Int, y: Int): Int = x + y in f(1, 2)",
+    ~body="x + y",
+    ~param="x: Int, y: Int",
+  ),
+  step_into(
+    ~name="sugar no return type: resolves body + param",
+    ~fn="f",
+    ~program="let f(x: Int) = x + 1 in f(2)",
+    ~body="x + 1",
+    ~param="x: Int",
+  ),
+  step_into(
+    ~name="sugar: call nested under another let still resolves",
+    ~fn="f",
+    ~program="let f(x: Int): Int = x + 1 in let g = 5 in f(g)",
+    ~body="x + 1",
+    ~param="x: Int",
+  ),
+  step_into(
+    ~name="fun literal: resolves Fun def body, no sugar param anchor",
+    ~fn="f",
+    ~program="let f = fun (x: Int, y: Int) -> x + y in f(1, 2)",
+    ~body="fun (x: Int, y: Int) -> x + y",
+    ~param="<none>",
+  ),
+];
+
 let tests = [
   ("Autoprobe.BasicLet", basic_let_tests),
   ("Autoprobe.ParamAnchor", param_anchor_tests),
+  ("Autoprobe.StepInto", step_into_tests),
   ("Autoprobe.NestedLet", nested_let_tests),
   ("Autoprobe.Seq", seq_tests),
   ("Autoprobe.FunctionSugar", function_sugar_tests),

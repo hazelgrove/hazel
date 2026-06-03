@@ -836,10 +836,16 @@ let dropdown_id = (sample: Sample.t): string =>
     sample.step_end,
   );
 
-/* Step into handler for sample context menu */
+/* Step into handler for sample context menu. Step-into is terminal — it
+   moves the cursor to the function body — so close the right-click sample
+   dropdown (via the same SetDropdown(None) the Escape/click-outside paths
+   use) before dispatching the StepInto to the parent editor. */
 let step_into_sample =
-    (~parent, ~sample: Sample.t, ~ap_id: Id.t): Ui_effect.t(unit) =>
-  parent(Probe(StepInto(sample.call_stack, ap_id)));
+    (~parent, ~local, ~sample: Sample.t, ~ap_id: Id.t): Ui_effect.t(unit) =>
+  Effect.Many([
+    local(SetDropdown(None)),
+    parent(Probe(StepInto(sample.call_stack, ap_id))),
+  ]);
 
 /* Check if step-into is possible for this probe's function call.
  * Requires: Ap of a named variable that isn't a built-in. */
@@ -898,7 +904,12 @@ let step_into_action = (ctx: probe_ctx, sample: Sample.t, ap_id: Id.t) =>
         =>
           Effect.Many([
             Effect.Stop_propagation,
-            step_into_sample(~parent=ctx.parent, ~sample, ~ap_id),
+            step_into_sample(
+              ~parent=ctx.parent,
+              ~local=ctx.local,
+              ~sample,
+              ~ap_id,
+            ),
           ])
         ),
     ],
@@ -1723,7 +1734,7 @@ let key_handler =
       Many([
         Stop_propagation,
         Prevent_default,
-        step_into_sample(~parent, ~sample, ~ap_id),
+        step_into_sample(~parent, ~local, ~sample, ~ap_id),
       ])
     | _ => Many([Stop_propagation, Prevent_default])
     }

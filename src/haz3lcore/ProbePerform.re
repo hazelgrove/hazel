@@ -645,6 +645,43 @@ let is_jump_target = (info_map: Statics.Map.t, z: Zipper.t): option(Id.t) => {
   Info.get_binding_site(ci);
 };
 
+/* When `def_id` is the definition body of a function-definition-sugar
+   let (`let f(args) = body`), return the parameter pattern's rep_id so
+   it can be anchored separately. The parameters live in the surface
+   binder, on the header line(s) outside the body's row range, so a probe
+   anchored on the body alone never shows them (mirrors the Fun/sugar
+   handling in target_subterm_ids).
+
+   We climb the body's ancestor chain to the nearest enclosing Let rather
+   than using parent_term_of, because the desugaring inserts a synthesized
+   Fun (and optional return-type Asc) as the body's immediate parent. */
+let function_sugar_param_anchor =
+    (info_map: Statics.Map.t, def_id: Id.t): option(Id.t) => {
+  let* ci = Statics.Map.lookup(def_id, info_map);
+  let rec climb = (ancs: list(Id.t)): option(Id.t) =>
+    switch (ancs) {
+    | [] => None
+    | [anc_id, ...rest] =>
+      switch (Statics.Map.lookup(anc_id, info_map)) {
+      | Some(InfoExp({user_term: {term: Let(pat, def, _), _}, _})) =>
+        /* Nearest enclosing let. Only anchor params when def_id is this
+           let's def (the function body); when def_id is instead the let's
+           `in` body — e.g. a call site like `f(5)` — those are someone
+           else's params, so return None. Stop at the first let either way. */
+        if (Id.equal(def_id, IdTagged.rep_id(def))) {
+          switch (FunctionSugar.detect(pat)) {
+          | Some((_, args, _)) => Some(Pat.rep_id(args))
+          | None => None
+          };
+        } else {
+          None;
+        }
+      | _ => climb(rest)
+      }
+    };
+  climb(Info.ancestors_of(ci));
+};
+
 /* STEP-INTO: Sample-Level Navigation Through Execution Traces
  *
  * Step-into operates at the SAMPLE level, not the syntax level. When f(x) is
@@ -755,6 +792,25 @@ let step_into_call_stack =
     | Non => add_multi(body_id, ~syntax, ~info_map, z)
     };
 
+  /* For function-definition sugar, the parameters live in the surface
+     binder (not inside a Fun), so body_id alone doesn't cover them. Add a
+     multi probe on the parameter pattern too — this mirrors how the Fun
+     case probes its pattern via target_subterm_ids(Fun) = [body, pat]. */
+  let param_anchor = function_sugar_param_anchor(info_map, body_id);
+  let z =
+    switch (param_anchor) {
+    | None => z
+    | Some(args_id) =>
+      switch (probe_status(args_id, info_map, z.refractors)) {
+      | Multi
+      | Manual(_)
+      | Statics(_)
+      | Ephemeral(_) => z
+      | Suppressed(_)
+      | Non => add_multi(args_id, ~syntax, ~info_map, z)
+      }
+    };
+
   /* Set pin and dyn cursor using the call_stack */
   let new_stack: Sample.call_stack = [
     {
@@ -766,17 +822,22 @@ let step_into_call_stack =
   ];
 
   /* Determine where to jump and where to look for samples.
-   * For function literals:
-   * - jump_target = pattern (cursor goes to parameters for UX)
-   * - sample_probe_id = inner body (where samples are stored in dynamics)
-   * target_subterm_ids transforms Fun to [inner_body, pattern]. */
+   * - jump_target = parameters (cursor goes to params for UX)
+   * - sample_probe_id = body (where samples are stored in dynamics)
+   * For function literals the params are the Fun's pattern; for
+   * function-definition sugar they're the surface binder's args
+   * (function_sugar_param_anchor), and the body is body_id itself. */
   let (jump_target, _sample_probe_id) =
-    switch (ci_body) {
-    | InfoExp({user_term: {term: Fun(pat, inner_body, _, _), _}, _}) =>
+    switch (param_anchor, ci_body) {
+    | (Some(args_id), _) => (args_id, body_id)
+    | (
+        None,
+        InfoExp({user_term: {term: Fun(pat, inner_body, _, _), _}, _}),
+      ) =>
       let pat_id = IdTagged.rep_id(pat);
       let inner_body_id = IdTagged.rep_id(inner_body);
       (pat_id, inner_body_id);
-    | _ => (body_id, body_id)
+    | (None, _) => (body_id, body_id)
     };
 
   // NOTE(andrew): disabling this for now as it doesn't work right
@@ -1325,43 +1386,6 @@ let toplevel_def_body_id = (~statics: Statics.Map.t, ~id: Id.t): option(Id.t) =>
     Option.map(unwrap_test, target);
   | None => None
   };
-};
-
-/* When `def_id` is the definition body of a function-definition-sugar
-   let (`let f(args) = body`), return the parameter pattern's rep_id so
-   auto-probe can anchor it separately. The parameters live in the surface
-   binder, on the header line(s) outside the body's row range, so a probe
-   anchored on the body alone never shows them (mirrors the Fun/sugar
-   handling in target_subterm_ids).
-
-   We climb the body's ancestor chain to the nearest enclosing Let rather
-   than using parent_term_of, because the desugaring inserts a synthesized
-   Fun (and optional return-type Asc) as the body's immediate parent. */
-let function_sugar_param_anchor =
-    (info_map: Statics.Map.t, def_id: Id.t): option(Id.t) => {
-  let* ci = Statics.Map.lookup(def_id, info_map);
-  let rec climb = (ancs: list(Id.t)): option(Id.t) =>
-    switch (ancs) {
-    | [] => None
-    | [anc_id, ...rest] =>
-      switch (Statics.Map.lookup(anc_id, info_map)) {
-      | Some(InfoExp({user_term: {term: Let(pat, def, _), _}, _})) =>
-        /* Nearest enclosing let. Only anchor params when def_id is this
-           let's def (the function body); when def_id is instead the let's
-           `in` body — e.g. a call site like `f(5)` — those are someone
-           else's params, so return None. Stop at the first let either way. */
-        if (Id.equal(def_id, IdTagged.rep_id(def))) {
-          switch (FunctionSugar.detect(pat)) {
-          | Some((_, args, _)) => Some(Pat.rep_id(args))
-          | None => None
-          };
-        } else {
-          None;
-        }
-      | _ => climb(rest)
-      }
-    };
-  climb(Info.ancestors_of(ci));
 };
 
 /* Remove the auto probe's multi probes if present */
