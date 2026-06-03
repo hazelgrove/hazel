@@ -9,6 +9,21 @@ let empty_cell_editor_persistent = (~root): CellEditor.Model.persistent => {
   result: EvalResult.Model.init |> EvalResult.Model.persist,
 };
 
+let documentation_slides: list((string, PersistentSegment.t)) =
+  [
+    BasicReference.out,
+    Projectors.out,
+    ADTs.out,
+    Tuples.out,
+    Modules.out,
+    Tables.out,
+    Polymorphism.out,
+    Cards.out,
+    Probes.out,
+    Livelits.out,
+  ]
+  @ B2t2.Slides.all_slides;
+
 let startup: PersistentData.t = {
   scratch: (
     0,
@@ -16,19 +31,7 @@ let startup: PersistentData.t = {
   ),
   documentation: (
     0,
-    [
-      BasicReference.out,
-      Projectors.out,
-      ADTs.out,
-      Tuples.out,
-      Modules.out,
-      Tables.out,
-      Polymorphism.out,
-      Cards.out,
-      Probes.out,
-      Livelits.out,
-    ]
-    @ B2t2.Slides.all_slides
+    documentation_slides
     |> List.map(((name, content: PersistentSegment.t)) =>
          (
            name,
