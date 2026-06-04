@@ -102,6 +102,7 @@ module Settings = {
 
   type set_action =
     | ToggleWindow
+    | SetWindow(Sample.Window.mode)
     | SetSampleBase(sample_base)
     | ToggleBeforeCutoff
     | ToggleAfterCutoff
@@ -129,6 +130,10 @@ module Settings = {
     | ToggleWindow => {
         ...settings,
         window: settings.window == Sample.Window.Single ? Many : Single,
+      }
+    | SetWindow(window) => {
+        ...settings,
+        window,
       }
     | SetSampleBase(base) => {
         ...settings,

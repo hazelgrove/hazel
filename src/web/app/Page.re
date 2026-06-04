@@ -309,6 +309,20 @@ module Update = {
           action,
           model.editors,
         );
+      /* Apply the incoming tutorial slide's initial probe settings
+         (auto-probe mode / samples / colors), once per slide entry. The
+         per-slide logic lives in TutorialSlideInit; here we just supply the
+         current slide's module_name and the settings-dispatch channel. */
+      let current_slide =
+        switch (editors) {
+        | Tutorial(t) =>
+          Some(TutorialsMode.Model.get_current(t).editors.module_name)
+        | _ => None
+        };
+      TutorialSlideInit.maybe_apply_on_change(
+        ~set_autoprobe=m => schedule_action(Globals(Set(SetAutoprobe(m)))),
+        current_slide,
+      );
       /* Reset visible_rows when switching to modes without viewport culling,
        * otherwise stale culling bounds hide projectors incorrectly */
       let globals =
