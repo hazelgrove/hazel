@@ -3,575 +3,575 @@ let out : string * Haz3lcore.PersistentSegment.t =
     {
       segment =
         "((Secondary((id \
-         35969b35-f1c8-4f7c-a417-0a6effadd380)(content(Comment\"# WRITING WITH \
+         dceaf4bc-d769-4bca-91da-58621f33f356)(content(Comment\"# WRITING WITH \
          LIVE VALUES #\"))))(Secondary((id \
-         7f1e9b52-f7fd-4edf-b7f2-1cb25f33c60a)(content(Whitespace\"\\n\"))))(Secondary((id \
-         8cfc14f7-356d-4214-a458-5c37e6607f31)(content(Whitespace\"\\n\"))))(Secondary((id \
-         46595fea-0561-4485-a115-06779a45f92c)(content(Comment\"# In this \
+         5e1c574c-ddff-4e48-8474-69dfdd0d29b7)(content(Whitespace\"\\n\"))))(Secondary((id \
+         a9dcd888-afa8-43d5-b1c1-87c171a8308c)(content(Whitespace\"\\n\"))))(Secondary((id \
+         02be82d9-cb54-4f69-b5c1-0fc194a506c5)(content(Comment\"# In this \
          tutorial you'll write code step by step.           \
          #\"))))(Secondary((id \
-         9f7f585b-3757-4770-96e7-78b54e7debd6)(content(Whitespace\"\\n\"))))(Secondary((id \
-         1babadd8-236c-4433-8c82-5aed667fa6f3)(content(Comment\"# Turn on Auto \
+         c19bbb5a-fa5c-40a7-964f-7e6526560e46)(content(Whitespace\"\\n\"))))(Secondary((id \
+         5e97bc66-ad84-49c2-9885-b7a227190505)(content(Comment\"# Turn on Auto \
          Mode (microscope icon, top right).            #\"))))(Secondary((id \
-         266fe828-1d71-4b9c-abfa-17e90a6021ed)(content(Whitespace\"\\n\"))))(Secondary((id \
-         c073ccbc-4cab-4a9b-aff0-8f9c83fbbbdd)(content(Comment\"# Each stage \
+         e23ae199-97da-45b5-88d8-13e3fa42d2bc)(content(Whitespace\"\\n\"))))(Secondary((id \
+         00520db9-4d79-430f-9163-6669d8d0463a)(content(Comment\"# Each stage \
          shows you what to type, then you type it        #\"))))(Secondary((id \
-         10b7ee82-bfed-4ad9-9292-a185d1e531e2)(content(Whitespace\"\\n\"))))(Secondary((id \
-         31b9c11d-b2fb-4e5a-85b5-cec08495fa61)(content(Comment\"# in the \
+         0f643bf7-00a1-46a0-b47b-2e1670a2d03f)(content(Whitespace\"\\n\"))))(Secondary((id \
+         e58ac1fb-4123-4997-b62a-91bee5afe1b1)(content(Comment\"# in the \
          designated area and see probe values appear.        \
          #\"))))(Secondary((id \
-         e610bcd1-453a-40ba-9a6f-bd8ec2d03fc7)(content(Whitespace\"\\n\"))))(Secondary((id \
-         de64328b-f0cb-476d-9f99-83c2481b5738)(content(Whitespace\"\\n\"))))(Secondary((id \
-         8083aea4-9fea-4411-a442-7d59e6ea46ef)(content(Comment\"# \
+         d54ea871-1b32-40c4-a016-020a4670ac28)(content(Whitespace\"\\n\"))))(Secondary((id \
+         de372ff9-caaa-46be-9c3c-aaae235e9439)(content(Whitespace\"\\n\"))))(Secondary((id \
+         7e483e8a-5195-416d-97d8-812e8fe5453f)(content(Comment\"# \
          ============================================================ \
          #\"))))(Secondary((id \
-         c073a820-5374-4d2a-a9f4-a91e21e8e0a3)(content(Whitespace\"\\n\"))))(Secondary((id \
-         b0dc292a-a27a-4493-addf-9268df526be6)(content(Comment\"# STAGE 1: LET \
+         cd5bdab2-4d9c-4d26-beef-5df3f0cba8cb)(content(Whitespace\"\\n\"))))(Secondary((id \
+         60208187-2e1f-4f70-9d59-3b9f145158ff)(content(Comment\"# STAGE 1: LET \
          BINDINGS AND STRINGS                          #\"))))(Secondary((id \
-         e4106d42-2601-431e-8205-50323a5aabc4)(content(Whitespace\"\\n\"))))(Secondary((id \
-         acdc6d64-59ee-4708-97cb-35c66231ca97)(content(Comment\"# \
+         bc55e4b3-9d40-432f-8773-1552d3da35bb)(content(Whitespace\"\\n\"))))(Secondary((id \
+         232698df-b77c-48cd-a4c0-5486d10e7739)(content(Comment\"# \
          ============================================================ \
          #\"))))(Secondary((id \
-         755a3aff-856e-4b02-a145-de09bce00e6e)(content(Whitespace\"\\n\"))))(Secondary((id \
-         11104f72-db37-4718-9f5c-ccce2a3bcfce)(content(Whitespace\"\\n\"))))(Secondary((id \
-         9316797e-4200-4664-a100-b68966a171cd)(content(Comment\"# `let x = \
+         9bfa37f7-d5fd-411a-b0c0-41e26e644502)(content(Whitespace\"\\n\"))))(Secondary((id \
+         e5b92444-ca4c-42e9-90e8-15412211e5ee)(content(Whitespace\"\\n\"))))(Secondary((id \
+         c5dba687-58ce-4cd9-a0c1-73a9fa8c3d82)(content(Comment\"# `let x = \
          expr in body` binds a value. `++` concatenates    \
          #\"))))(Secondary((id \
-         ea192b15-b79f-488c-b676-84144a45c3cd)(content(Whitespace\"\\n\"))))(Secondary((id \
-         6b1c3aa7-f058-4a50-b750-4c8b0acba936)(content(Comment\"# strings. \
+         d3cc3bb0-a14f-4af1-9e66-80b3743e53ed)(content(Whitespace\"\\n\"))))(Secondary((id \
+         6616d1b7-85ef-45cf-a491-055a4081cfe1)(content(Comment\"# strings. \
          `string_of_int` converts a number to a string.    \
          #\"))))(Secondary((id \
-         882e03e9-7f88-4f32-92fa-f356fcd17dee)(content(Whitespace\"\\n\"))))(Secondary((id \
-         f9a42f57-b714-4951-b356-e5ab9c9a1fd7)(content(Comment\"#                                                             \
+         95808c84-b7c4-491d-966b-da68443ec606)(content(Whitespace\"\\n\"))))(Secondary((id \
+         19281443-030d-492f-8d3f-1d36fa882b75)(content(Comment\"#                                                             \
          #\"))))(Secondary((id \
-         f21bfeed-0fc1-4f7f-ba12-534a708a3ed8)(content(Whitespace\"\\n\"))))(Secondary((id \
-         793b94bb-af23-4ca8-b3b9-e56e5d61be1d)(content(Comment\"# Replace the \
+         97ddee72-492a-4134-8b71-36fbb6bfd373)(content(Whitespace\"\\n\"))))(Secondary((id \
+         1bb07c03-6322-4c26-9ff4-c009efdf2ec4)(content(Comment\"# Replace the \
          ? below with:                                   #\"))))(Secondary((id \
-         6a7e217d-9511-43d6-aa90-8d8cd53e06c3)(content(Whitespace\"\\n\"))))(Secondary((id \
-         ebab932c-3d6b-4d9d-99b3-492ab5b9f87b)(content(Comment\"#                                                             \
+         41b99ac6-1dbe-40ae-8898-815c46358101)(content(Whitespace\"\\n\"))))(Secondary((id \
+         9a507cab-43f4-4a8f-a454-e1cce1720515)(content(Comment\"#                                                             \
          #\"))))(Secondary((id \
-         8ce2c7ee-2e94-40fd-91b5-9e062e916682)(content(Whitespace\"\\n\"))))(Secondary((id \
-         db31a13e-8aee-4631-a712-caa5aa485243)(content(Comment\"#   let name = \
+         5a72a06c-20f3-44d0-ad5d-f63dd77d7be9)(content(Whitespace\"\\n\"))))(Secondary((id \
+         cc06cdcb-b94e-406b-8f02-6b50e5a533b4)(content(Comment\"#   let name = \
          \\\"Fern\\\" in                                      \
          #\"))))(Secondary((id \
-         e8b038b0-98a1-43ba-8aec-d701c43f23c9)(content(Whitespace\"\\n\"))))(Secondary((id \
-         f0a518f5-24b2-46b0-a888-263ebdbe82c5)(content(Comment\"#   let water \
+         06bc06e4-85ef-433c-983b-69c19abb72b1)(content(Whitespace\"\\n\"))))(Secondary((id \
+         2ce12040-e38c-4925-bda1-9110f7877f7e)(content(Comment\"#   let water \
          = 250 in                                        #\"))))(Secondary((id \
-         ea50b433-0281-4ef3-b5a5-045712202bb9)(content(Whitespace\"\\n\"))))(Secondary((id \
-         e94160ff-e396-4097-9419-9184dd24357e)(content(Comment\"#   let label \
+         cc6b9acd-1898-4e4b-8cce-e0b1ff3b79b3)(content(Whitespace\"\\n\"))))(Secondary((id \
+         eec12a3f-f425-4960-80ed-5c5ea1a7b8b2)(content(Comment\"#   let label \
          =                                               #\"))))(Secondary((id \
-         d5b8caea-e237-408a-9bb9-d17d35f88852)(content(Whitespace\"\\n\"))))(Secondary((id \
-         cf2f147a-2f5a-4499-a857-964405ad468b)(content(Comment\"#     name ++ \
+         dc75bce2-ebb5-4f29-967e-b3ebd01a27b7)(content(Whitespace\"\\n\"))))(Secondary((id \
+         7f478f56-abae-4d01-8eb5-a505b781558e)(content(Comment\"#     name ++ \
          \\\": \\\" ++ string_of_int(water) ++ \\\"ml\\\"            \
          #\"))))(Secondary((id \
-         138aabb6-a25c-41d0-ab20-692b5f4c68cc)(content(Whitespace\"\\n\"))))(Secondary((id \
-         3587eceb-3c30-4100-8cb2-aa3af8babcbc)(content(Comment\"#   \
+         3b527d66-9059-491e-b8b1-ad290953cd34)(content(Whitespace\"\\n\"))))(Secondary((id \
+         e8e6b10a-52fc-4801-bf01-f732f0264055)(content(Comment\"#   \
          in                                                        \
          #\"))))(Secondary((id \
-         06e4dac6-af89-4a7f-ac48-22f43ce09cd6)(content(Whitespace\"\\n\"))))(Secondary((id \
-         dd4bc453-1632-4bdf-a8d0-8c1f27ce93eb)(content(Comment\"#   \
+         71f72a46-b303-42b7-b8e7-ce7c50b90405)(content(Whitespace\"\\n\"))))(Secondary((id \
+         b4b9578d-7443-4ab3-ac3f-14e52d24434a)(content(Comment\"#   \
          label                                                     \
          #\"))))(Secondary((id \
-         4866da24-94d2-4f0c-b038-cee2dc784c07)(content(Whitespace\"\\n\"))))(Secondary((id \
-         5de39099-2f21-4acf-9a6c-a9019d5d5240)(content(Comment\"#                                                             \
+         fe785f45-44d7-4082-aaca-03e4a8444bcc)(content(Whitespace\"\\n\"))))(Secondary((id \
+         a6989389-5fd5-46d6-83f2-e001339112a5)(content(Comment\"#                                                             \
          #\"))))(Secondary((id \
-         af9f0ebd-6c1d-4877-98dd-868b80d40543)(content(Whitespace\"\\n\"))))(Secondary((id \
-         58ab023b-1d84-4b20-b92e-825ba835ff4a)(content(Comment\"# Then click \
+         458913f3-eecd-4bd5-a690-17bcaf2b69b4)(content(Whitespace\"\\n\"))))(Secondary((id \
+         f0c9f97f-33a8-4c28-9bed-9597ae4698aa)(content(Comment\"# Then click \
          inside your let bindings. Auto-probe should      \
          #\"))))(Secondary((id \
-         ef644253-a246-4a41-8c04-518b0e884c4c)(content(Whitespace\"\\n\"))))(Secondary((id \
-         82a5e9d4-c0e7-4c79-b3ef-a42d7a498431)(content(Comment\"# show \
+         eb455f84-5b31-4d30-b62a-4bd823e844aa)(content(Whitespace\"\\n\"))))(Secondary((id \
+         d0464137-4708-483b-8ffa-7c3c69ea590a)(content(Comment\"# show \
          \\\"Fern\\\", 250, and \\\"Fern: 250ml\\\". Try changing the      \
          #\"))))(Secondary((id \
-         3f2dccfa-251e-460d-b98a-61b0f2b911f3)(content(Whitespace\"\\n\"))))(Secondary((id \
-         804b3f04-2604-46aa-bfc2-c70bdc0510f5)(content(Comment\"# name or \
+         7b7c94da-0ae7-4721-846e-d9d05a20d7d5)(content(Whitespace\"\\n\"))))(Secondary((id \
+         567cf227-cea8-4ad8-b2ef-e007072e6c3b)(content(Comment\"# name or \
          number and watch the label update instantly.        \
          #\"))))(Secondary((id \
-         c5501f03-d25a-4cbc-86fe-8bae840e66e7)(content(Whitespace\"\\n\"))))(Secondary((id \
-         09434e1e-519e-4bc5-9319-0f25a83e5999)(content(Whitespace\"\\n\"))))(Tile((id \
-         dfb45be2-45cf-4385-ab82-b12ea68f772d)(label(?))(mold((out \
+         5f4b7fb8-ed51-4bf0-846f-eb0c22eb40fe)(content(Whitespace\"\\n\"))))(Secondary((id \
+         100b54d9-3db5-4b51-982d-0850535f64ee)(content(Whitespace\"\\n\"))))(Tile((id \
+         15abf534-a159-46e6-9f5d-ab1011e79f2e)(label(?))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         281fa2ab-fb6a-49f3-9fee-d824cd853984)(content(Whitespace\"\\n\"))))(Secondary((id \
-         d62ec91f-fa49-44ee-9f59-1a85e0c26471)(content(Whitespace\"\\n\"))))(Tile((id \
-         161fa30f-c5bc-4464-b390-bde60cbfc0f4)(label(\";\"))(mold((out \
+         58534c44-e817-4869-9e6a-0b6241b89e5e)(content(Whitespace\"\\n\"))))(Secondary((id \
+         68f18dff-e18f-4f89-84d9-30eccba8b58a)(content(Whitespace\"\\n\"))))(Tile((id \
+         56f05aae-6540-4018-8533-1f3f145fe2a0)(label(\";\"))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 35))(sort Exp))((shape(Concave \
          35))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         6425b081-7815-431e-8148-b1203213bb8e)(content(Whitespace\"\\n\"))))(Secondary((id \
-         190f2577-ac5a-4b64-b864-6e8a5e2a608f)(content(Whitespace\"\\n\"))))(Secondary((id \
-         14573ee1-8b8e-4a3f-b2ee-230aeb705cdb)(content(Comment\"# \
+         2e715645-0e84-4838-9bf5-960efad6c92f)(content(Whitespace\"\\n\"))))(Secondary((id \
+         dd06181d-4ada-4641-bbce-751edda02bc5)(content(Whitespace\"\\n\"))))(Secondary((id \
+         0de7b7a4-4662-4526-8845-2b9f9c56797c)(content(Comment\"# \
          ============================================================ \
          #\"))))(Secondary((id \
-         4eb4a053-039b-4ea2-875c-ba8b0de5df22)(content(Whitespace\"\\n\"))))(Secondary((id \
-         f95523f1-232c-4d26-ab63-6b70af07a70a)(content(Comment\"# STAGE 2: A \
+         10021490-6832-4a5a-b981-aaaea8202070)(content(Whitespace\"\\n\"))))(Secondary((id \
+         b4401ba4-3008-49c5-bcaa-d95afd396ee2)(content(Comment\"# STAGE 2: A \
          FUNCTION AND TESTS                              #\"))))(Secondary((id \
-         8616a13d-c5b4-4d38-b7b8-f75bd1077fbf)(content(Whitespace\"\\n\"))))(Secondary((id \
-         22294984-726f-4ec2-9f40-1ca8a65723e9)(content(Comment\"# \
+         2f013388-eaf2-4bbb-9904-8b9230e85c52)(content(Whitespace\"\\n\"))))(Secondary((id \
+         253bbf4d-f9e3-4284-9c16-23ce672d69a6)(content(Comment\"# \
          ============================================================ \
          #\"))))(Secondary((id \
-         fa9f6076-08b3-48bb-b68d-47dc97e6a752)(content(Whitespace\"\\n\"))))(Secondary((id \
-         9d7eeaa9-c590-454f-a8df-4a1c7f5bff8d)(content(Whitespace\"\\n\"))))(Secondary((id \
-         44630bbc-307e-485b-a3c3-eccd60abe46f)(content(Comment\"# Now let's \
+         d2575fea-95e2-48e1-93f8-95fce58751b3)(content(Whitespace\"\\n\"))))(Secondary((id \
+         c81f8900-442d-4583-909e-364ec915bec5)(content(Whitespace\"\\n\"))))(Secondary((id \
+         aade08a0-ed82-4b7a-be35-0081fba77a48)(content(Comment\"# Now let's \
          make the label formatting reusable.               \
          #\"))))(Secondary((id \
-         1cda0020-63c4-49e4-82ea-024d0ccb76f1)(content(Whitespace\"\\n\"))))(Secondary((id \
-         2d8ec707-ad05-44ce-ab27-7e1b7a6c30d8)(content(Comment\"# `fun (a, b) \
+         e9f53256-ad64-4ce7-aadb-34af6ea29c6c)(content(Whitespace\"\\n\"))))(Secondary((id \
+         584c7692-fce6-4f67-b139-87c5ea80bab3)(content(Comment\"# `fun (a, b) \
          -> body` defines a function taking a tuple.     #\"))))(Secondary((id \
-         b2ad13fd-7e30-4db0-8eab-d563a5bbac36)(content(Whitespace\"\\n\"))))(Secondary((id \
-         e635d296-0696-4c5b-8408-09dd28aac636)(content(Comment\"# `test X == Y \
+         93b2229f-d3c4-4ce2-a2dd-644fc45918a1)(content(Whitespace\"\\n\"))))(Secondary((id \
+         906e01d7-94af-4ad6-8c55-c1eb8f871196)(content(Comment\"# `test X == Y \
          end` checks that X equals Y.                  #\"))))(Secondary((id \
-         a383b891-7999-4dcf-b958-e2eedd66f799)(content(Whitespace\"\\n\"))))(Secondary((id \
-         735e1afb-6bcc-46d6-8e3a-d0432b030c7e)(content(Comment\"#                                                             \
+         39e6df58-52ab-43a2-a9c4-f772b97cb975)(content(Whitespace\"\\n\"))))(Secondary((id \
+         bb01c339-27ef-46ac-83f2-5f901d12b746)(content(Comment\"#                                                             \
          #\"))))(Secondary((id \
-         6979e1bd-0546-47b4-ba28-e674d0953a8d)(content(Whitespace\"\\n\"))))(Secondary((id \
-         99b3ec57-d270-428a-abd8-64afd3b3d4af)(content(Comment\"# Replace the \
+         4af078d1-b275-40f4-889f-af03c1c94e15)(content(Whitespace\"\\n\"))))(Secondary((id \
+         44613bc2-2b2a-42be-9b8f-c45ae036a728)(content(Comment\"# Replace the \
          ? below with:                                   #\"))))(Secondary((id \
-         01f3dc84-da74-4a1c-b908-4b47b72f5439)(content(Whitespace\"\\n\"))))(Secondary((id \
-         be496222-5e36-4abd-95d0-618a27f11c01)(content(Comment\"#                                                             \
+         a3da1cea-779f-4293-9aea-d778df4d8341)(content(Whitespace\"\\n\"))))(Secondary((id \
+         48def068-a5b7-403c-87cc-3169bbf26e67)(content(Comment\"#                                                             \
          #\"))))(Secondary((id \
-         9960f978-b683-441b-9b03-198312ee5208)(content(Whitespace\"\\n\"))))(Secondary((id \
-         b2223d33-b7ca-46dd-bcdc-c6eb45bec12b)(content(Comment\"#   let \
+         a9efd154-bc3c-4ea9-8840-f6871cd54465)(content(Whitespace\"\\n\"))))(Secondary((id \
+         a28ad61c-db22-4c4b-b565-7936433f5d6d)(content(Comment\"#   let \
          format_plant: (String, Int) -> String =               \
          #\"))))(Secondary((id \
-         ae674a73-5251-4917-b784-84230b0ca173)(content(Whitespace\"\\n\"))))(Secondary((id \
-         aad0523c-a622-4dd8-ad5c-89343eaa18e7)(content(Comment\"#     fun \
+         96b092dc-4be1-4c74-9211-74d949ff1dcc)(content(Whitespace\"\\n\"))))(Secondary((id \
+         f25865bd-7ab8-481d-bf0c-942d40361840)(content(Comment\"#     fun \
          (name, water) ->                                    \
          #\"))))(Secondary((id \
-         a883bbd8-7582-44b5-a373-0e23696e6e46)(content(Whitespace\"\\n\"))))(Secondary((id \
-         9f7de0da-6665-48b1-8961-3bc270748dd0)(content(Comment\"#     name ++ \
+         31153ba1-35b5-4c20-9dac-949eacb50615)(content(Whitespace\"\\n\"))))(Secondary((id \
+         40d4c49d-9093-4607-8568-e744d5403ac1)(content(Comment\"#     name ++ \
          \\\": \\\" ++ string_of_int(water) ++ \\\"ml\\\"            \
          #\"))))(Secondary((id \
-         5192694a-c787-4712-b65e-0b6b4143a1a6)(content(Whitespace\"\\n\"))))(Secondary((id \
-         0a8069b0-63dd-4a18-a0b6-ef91ed28feac)(content(Comment\"#   \
+         b9afcc5e-7567-4137-aaea-6a6c27cd0f29)(content(Whitespace\"\\n\"))))(Secondary((id \
+         e90c5de1-15e2-4d00-ab2e-0183bf7c26ba)(content(Comment\"#   \
          in                                                        \
          #\"))))(Secondary((id \
-         e1fe56b1-ef1a-40e2-889b-b41ee377da93)(content(Whitespace\"\\n\"))))(Secondary((id \
-         354e6a39-0cf1-467b-a68b-60f35e5dce43)(content(Comment\"#                                                             \
+         80c3d36b-ecbd-48fb-8e01-1ccab0972cb0)(content(Whitespace\"\\n\"))))(Secondary((id \
+         224afca2-926e-4174-b164-fbbafc4e739f)(content(Comment\"#                                                             \
          #\"))))(Secondary((id \
-         fc3d6e7c-02da-4940-97e9-05790d6d557c)(content(Whitespace\"\\n\"))))(Secondary((id \
-         7b812fc7-58fe-4cb5-825b-4f864e194b93)(content(Comment\"#   test \
+         488986dc-8f5d-4295-8f4d-f7b162cff7c4)(content(Whitespace\"\\n\"))))(Secondary((id \
+         c0eb90e7-2406-4db3-b8ca-1e5ac022d7c9)(content(Comment\"#   test \
          format_plant(\\\"Fern\\\", 250)                            \
          #\"))))(Secondary((id \
-         df0c1bc6-372b-4583-ab53-3aa9f2cfdc5c)(content(Whitespace\"\\n\"))))(Secondary((id \
-         fb7c03da-b597-43cf-8c69-6aa3c57cc810)(content(Comment\"#     == \
+         87f713d6-962f-4f95-866c-940edf9da16f)(content(Whitespace\"\\n\"))))(Secondary((id \
+         15bf264c-3dd6-415b-a1b0-54249a15fb2c)(content(Comment\"#     == \
          \\\"Fern: 250ml\\\" end;                                   \
          #\"))))(Secondary((id \
-         e12cbe08-7e59-4a44-a9bc-1b8eefd1eb52)(content(Whitespace\"\\n\"))))(Secondary((id \
-         50620fd3-8fd3-4774-83c7-5b092afa55d5)(content(Comment\"#   test \
+         bdd234b3-e752-4262-ad08-fe2b9da2326e)(content(Whitespace\"\\n\"))))(Secondary((id \
+         68e64871-a593-4874-bf74-575d51717ce3)(content(Comment\"#   test \
          format_plant(\\\"Orchid\\\", 180)                          \
          #\"))))(Secondary((id \
-         8f2cb3bf-b681-48bc-89d2-239b0b8699cd)(content(Whitespace\"\\n\"))))(Secondary((id \
-         f3d06a91-cc4b-424f-8b08-2f61da992397)(content(Comment\"#     == \
+         9f6e21a6-edf4-419e-9949-669a252a3dce)(content(Whitespace\"\\n\"))))(Secondary((id \
+         3f315973-5c31-4520-b86f-c7b2d7a4dbdb)(content(Comment\"#     == \
          \\\"Orchid: 180ml\\\" end;                                 \
          #\"))))(Secondary((id \
-         0494936a-662e-4d71-9887-ec9446553546)(content(Whitespace\"\\n\"))))(Secondary((id \
-         2305a936-206e-4ed1-abff-9b99ebc71788)(content(Comment\"#   test \
+         3e42779a-8950-4efe-8cec-f5b83868d045)(content(Whitespace\"\\n\"))))(Secondary((id \
+         a85c316a-1f4c-42e4-8fa4-bb36600b7990)(content(Comment\"#   test \
          format_plant(\\\"Cactus\\\", 50)                           \
          #\"))))(Secondary((id \
-         365c8de6-766d-43d9-b201-d2b91a97e90e)(content(Whitespace\"\\n\"))))(Secondary((id \
-         23d7501d-54d0-4ff4-a964-1a1db31592f8)(content(Comment\"#     == \
+         9fc871f5-1260-44d5-aee2-73de052d3cac)(content(Whitespace\"\\n\"))))(Secondary((id \
+         4b65b97b-8461-40e7-84f7-c49c95e0b5c4)(content(Comment\"#     == \
          \\\"Cactus: 50ml\\\" end                                   \
          #\"))))(Secondary((id \
-         94265fa9-1670-41ac-adb8-38d78244f6a9)(content(Whitespace\"\\n\"))))(Secondary((id \
-         ae089a4d-5c72-4677-9401-f4cbdcf86f83)(content(Comment\"#                                                             \
+         4ce79e71-dbb8-4a0f-9abb-e5562044275c)(content(Whitespace\"\\n\"))))(Secondary((id \
+         88c932a1-da35-49db-a572-5c22609094ab)(content(Comment\"#                                                             \
          #\"))))(Secondary((id \
-         6aac4062-55fd-492c-ae3a-39445c41f4ac)(content(Whitespace\"\\n\"))))(Secondary((id \
-         26f7ef1d-1708-4f21-adbe-1c13c389f849)(content(Comment\"# Click inside \
+         f7c67c34-2f35-4202-b44a-c83d79763c21)(content(Whitespace\"\\n\"))))(Secondary((id \
+         855af668-0f6d-4fad-a08f-c0d72200d6bb)(content(Comment\"# Click inside \
          format_plant to see auto-probe values for      #\"))))(Secondary((id \
-         014f9250-1f7c-4220-892e-07a3562d8645)(content(Whitespace\"\\n\"))))(Secondary((id \
-         8b8c25a5-3c1b-457e-aa32-d40b7f41d68b)(content(Comment\"# each test \
+         157c60bc-a7df-4825-bc43-e364778506d7)(content(Whitespace\"\\n\"))))(Secondary((id \
+         b9656a34-d724-4e28-8c1a-b728c7958dd4)(content(Comment\"# each test \
          call. Toggle Many mode (Space) to see all         \
          #\"))))(Secondary((id \
-         60ee7bf4-515f-425d-9746-498b14a760ba)(content(Whitespace\"\\n\"))))(Secondary((id \
-         9269ef24-72e3-4156-98dc-c4d4eb5df9e6)(content(Comment\"# three \
+         d5423da6-4590-4e08-93d2-874b8c0099ef)(content(Whitespace\"\\n\"))))(Secondary((id \
+         83515d92-c69c-4c36-9fe1-e41b1fde7f5c)(content(Comment\"# three \
          results side by side.                                 \
          #\"))))(Secondary((id \
-         0efdab61-c9e9-4ff9-84f0-db4d787c0125)(content(Whitespace\"\\n\"))))(Secondary((id \
-         5d170c4d-953c-4f6c-a853-05c0512ed06d)(content(Whitespace\"\\n\"))))(Tile((id \
-         4d0f0434-a781-4809-bd33-04f61d2204a2)(label(?))(mold((out \
+         d863f08c-68b3-4a0a-8a89-5e2a295272c9)(content(Whitespace\"\\n\"))))(Secondary((id \
+         6baa4a50-c670-4976-9f83-218d07ec4e46)(content(Whitespace\"\\n\"))))(Tile((id \
+         f6764a5a-ed94-46a9-b7e3-32fe8c0d7d54)(label(?))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         b3034497-1678-4511-b037-0aa6f5306ce0)(content(Whitespace\"\\n\"))))(Secondary((id \
-         dba6c3c7-b457-4bbf-a278-9356c89531fe)(content(Whitespace\"\\n\"))))(Tile((id \
-         4618b3d9-bba5-4aa2-8dc5-d370d68b80fa)(label(\";\"))(mold((out \
+         6f1d5f1d-fa8d-477e-83b6-8d7dfbc3a899)(content(Whitespace\"\\n\"))))(Secondary((id \
+         324f6a6a-e88e-4af8-8121-55984e64d25e)(content(Whitespace\"\\n\"))))(Tile((id \
+         24c41f06-de5d-42f8-bd0b-fe2dfa516c81)(label(\";\"))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 35))(sort Exp))((shape(Concave \
          35))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         6edb6084-516b-48d4-bf68-62077766c19f)(content(Whitespace\"\\n\"))))(Secondary((id \
-         1fa784fa-03c6-4b63-af48-2c5d441512a7)(content(Whitespace\"\\n\"))))(Secondary((id \
-         cc89f6c6-7b44-4cc5-9e2e-746774c1e45d)(content(Comment\"# \
+         b2548e1c-3bd7-4ef3-8650-cba026da43f1)(content(Whitespace\"\\n\"))))(Secondary((id \
+         ec5381f8-4083-41e3-a7d5-9cabd6149edf)(content(Whitespace\"\\n\"))))(Secondary((id \
+         1b01a6a1-d5d0-4768-b95d-b4427a0d2383)(content(Comment\"# \
          ============================================================ \
          #\"))))(Secondary((id \
-         c6589fa9-a25d-4fc7-9c62-c02a834f8e9d)(content(Whitespace\"\\n\"))))(Secondary((id \
-         c52273aa-8152-4ee4-a45b-8af74c42d9fa)(content(Comment\"# STAGE 3: A \
+         34f5f3f8-9478-45bd-b926-ef094ad7a0a6)(content(Whitespace\"\\n\"))))(Secondary((id \
+         656b0bec-9cd6-4e26-87d7-9318e605ce4a)(content(Comment\"# STAGE 3: A \
          HELPER WITH IF/ELSE                             #\"))))(Secondary((id \
-         b9c24957-b6df-47d2-9fbf-21def0a9999a)(content(Whitespace\"\\n\"))))(Secondary((id \
-         fa43b1ad-c533-48b7-997d-a4d0d52d5ff3)(content(Comment\"# \
+         91f64df2-2512-4243-9992-ad5ada9f0707)(content(Whitespace\"\\n\"))))(Secondary((id \
+         cd01908c-3904-4799-9cd2-bb17340cab04)(content(Comment\"# \
          ============================================================ \
          #\"))))(Secondary((id \
-         a0956be3-21f2-49a8-a5f2-8e82cccd13eb)(content(Whitespace\"\\n\"))))(Secondary((id \
-         967e6c3a-0d2b-47f9-b523-13ff9cde6b58)(content(Whitespace\"\\n\"))))(Secondary((id \
-         794d2afc-a74a-4dd6-8f42-01a76f17143e)(content(Comment\"# Plants with \
+         7c63f3a7-58a5-40e2-91a2-f7646dd2226e)(content(Whitespace\"\\n\"))))(Secondary((id \
+         6cb3707d-2d90-4afd-a034-128a83aa76cb)(content(Whitespace\"\\n\"))))(Secondary((id \
+         072554cc-b9da-4e24-8fbc-8aec0ed0aab5)(content(Comment\"# Plants with \
          high water needs should get a \
          \\240\\159\\146\\167\\240\\159\\146\\167 tag.        \
          #\"))))(Secondary((id \
-         6b28320f-091f-4e85-a31f-1804f68ab9af)(content(Whitespace\"\\n\"))))(Secondary((id \
-         f226f25c-e415-4207-b1ea-f94ed2623f7b)(content(Comment\"# We'll write \
+         96ef0bdb-32cf-4019-b439-b84d61271bf2)(content(Whitespace\"\\n\"))))(Secondary((id \
+         5bd72895-200c-4dcf-b4c9-5d46b406e523)(content(Comment\"# We'll write \
          a helper function using a conditional:          #\"))))(Secondary((id \
-         dd6353e8-d9b4-4eee-a045-95210dfdffda)(content(Whitespace\"\\n\"))))(Secondary((id \
-         f4d673b6-83e7-4757-90a1-e4a01b98be5f)(content(Comment\"#   `if \
+         f1056084-9d14-4b04-a78e-98a1adfbbabd)(content(Whitespace\"\\n\"))))(Secondary((id \
+         032ea49d-496b-48d5-a538-cebfebeac50b)(content(Comment\"#   `if \
          condition then expr1 else expr2`                      \
          #\"))))(Secondary((id \
-         09cb25a3-ef31-40d2-8ef9-c137fb9cd85e)(content(Whitespace\"\\n\"))))(Secondary((id \
-         104808ba-220c-4a2c-909d-0d4a122f0cee)(content(Comment\"#                                                             \
+         f4262886-f813-4321-898f-3fe09659ff69)(content(Whitespace\"\\n\"))))(Secondary((id \
+         1f951ae9-e112-4d88-8bea-de2e41bea772)(content(Comment\"#                                                             \
          #\"))))(Secondary((id \
-         b3fa7731-2c7c-4e51-9609-58958751392f)(content(Whitespace\"\\n\"))))(Secondary((id \
-         3d9fca46-0872-4fed-83a5-74b1ad1cdad7)(content(Comment\"# A note on \
+         5c3fe32d-93fc-4f82-a1f7-1316ebb1bd54)(content(Whitespace\"\\n\"))))(Secondary((id \
+         a3b38978-c185-495f-91c7-eac5f3f05a76)(content(Comment\"# A note on \
          writing order: in practice, you'd first write    \
          #\"))))(Secondary((id \
-         d876a965-2c05-44b5-bcfa-72fad6c08ecf)(content(Whitespace\"\\n\"))))(Secondary((id \
-         135dc759-030e-466f-9bf4-e3cc83568cd9)(content(Comment\"# the CALL to \
+         800a00f5-4e2c-4ddc-9461-83745d46a1c0)(content(Whitespace\"\\n\"))))(Secondary((id \
+         95d41ddf-b9b6-4963-8486-24e6ddb85063)(content(Comment\"# the CALL to \
          water_tag inside format_plant, see a hole       #\"))))(Secondary((id \
-         ffd89112-948e-4cb3-a9cf-ab7cb9a445f9)(content(Whitespace\"\\n\"))))(Secondary((id \
-         18fd9bea-e69c-4dd8-95c0-21f51f87a38a)(content(Comment\"# value, then \
+         5630a0dc-e9e4-46f6-ae5f-7f472db46e06)(content(Whitespace\"\\n\"))))(Secondary((id \
+         bcb8afc0-3246-43e8-aee7-335395aa4f29)(content(Comment\"# value, then \
          go implement the helper above it. This          #\"))))(Secondary((id \
-         c619bc45-e6d3-4137-ae82-65d92b7f463d)(content(Whitespace\"\\n\"))))(Secondary((id \
-         da7096b1-bbdb-4c88-b7e0-930d2c87edec)(content(Comment\"# outside-in \
+         29236f6f-6718-4210-8007-ce9a10542d28)(content(Whitespace\"\\n\"))))(Secondary((id \
+         c18742fe-2e10-4493-85a1-09c5167fa7cc)(content(Comment\"# outside-in \
          approach lets live values guide your writing.    \
          #\"))))(Secondary((id \
-         07b31c25-a115-4e8e-b36a-066d157d9ed8)(content(Whitespace\"\\n\"))))(Secondary((id \
-         bab2618f-fc2d-4a35-a028-f97c7c6bb75a)(content(Comment\"#                                                             \
+         ffb54e1b-6c1b-4948-a5fc-4feea415512a)(content(Whitespace\"\\n\"))))(Secondary((id \
+         bba04859-7d05-4429-ac32-c5b78f21fd41)(content(Comment\"#                                                             \
          #\"))))(Secondary((id \
-         2c90e5f6-b859-407f-b9c1-398bb82e0c4c)(content(Whitespace\"\\n\"))))(Secondary((id \
-         bb8be355-db5a-4a7e-93f9-a7f3f63be70a)(content(Comment\"# Replace the \
+         8f141491-e60a-4656-b3cc-45c0db4a7906)(content(Whitespace\"\\n\"))))(Secondary((id \
+         8abfb229-a573-4dec-83be-bc88ad33c841)(content(Comment\"# Replace the \
          ? below with:                                   #\"))))(Secondary((id \
-         4f56c05d-1b95-4615-9d46-30e641f6ae0f)(content(Whitespace\"\\n\"))))(Secondary((id \
-         2b9ac7e8-3f62-4895-93ca-c0df1d1e3b5e)(content(Comment\"#                                                             \
+         44257b71-f1b3-4e3e-b2d6-6540557c3e3e)(content(Whitespace\"\\n\"))))(Secondary((id \
+         9c0676ec-d05c-43ea-b35e-5df7befa79ed)(content(Comment\"#                                                             \
          #\"))))(Secondary((id \
-         2522e7ae-0fc4-425b-9d92-402f4f25ee8b)(content(Whitespace\"\\n\"))))(Secondary((id \
-         bb537cda-df2d-49c7-a8eb-5610f68b3829)(content(Comment\"#   let \
+         7f363871-38eb-4a94-bc0d-6550e84472b6)(content(Whitespace\"\\n\"))))(Secondary((id \
+         60bb7dc2-f20f-429e-9eb0-3602152c255b)(content(Comment\"#   let \
          water_tag: Int -> String =                            \
          #\"))))(Secondary((id \
-         5f050048-46bb-47a5-bae4-2f14caedd90d)(content(Whitespace\"\\n\"))))(Secondary((id \
-         565fc0a6-f909-4a12-b0c5-7295008b5986)(content(Comment\"#     fun \
+         0915391a-6464-4274-a056-854663473ed3)(content(Whitespace\"\\n\"))))(Secondary((id \
+         a343e911-38f5-4362-924f-65608579fb5f)(content(Comment\"#     fun \
          amount ->                                           \
          #\"))))(Secondary((id \
-         9cfc46e5-eb7e-40f8-a8bc-559c87d2c4a3)(content(Whitespace\"\\n\"))))(Secondary((id \
-         4554f872-7148-4c3e-a7aa-d354adde31d9)(content(Comment\"#     if \
+         55ebce86-30a1-41e0-801f-1d7e9f4a5cc6)(content(Whitespace\"\\n\"))))(Secondary((id \
+         d7340d46-eb8a-41af-b980-3290aa9e7e29)(content(Comment\"#     if \
          amount > 200 then \
          \\\"\\240\\159\\146\\167\\240\\159\\146\\167\\\"                             \
          #\"))))(Secondary((id \
-         63d7fa9f-0ed9-4dee-b176-28b5a91c34d6)(content(Whitespace\"\\n\"))))(Secondary((id \
-         c133a279-6776-4eb5-850d-c37033beb70f)(content(Comment\"#     else \
+         3593afc3-f000-499e-905b-847da150a4f3)(content(Whitespace\"\\n\"))))(Secondary((id \
+         06595fd8-c0ac-4c12-b1df-0c8bb76b4572)(content(Comment\"#     else \
          \\\"\\240\\159\\146\\167\\\"                                               \
          #\"))))(Secondary((id \
-         3d20df1b-caf3-44f8-a857-88df462c491d)(content(Whitespace\"\\n\"))))(Secondary((id \
-         c79e8744-d633-4f58-a36c-4bc76944328a)(content(Comment\"#   \
+         205af200-38af-4001-95ad-04985b086bf9)(content(Whitespace\"\\n\"))))(Secondary((id \
+         6c4292b7-226e-4420-bc1f-cc6571f6b719)(content(Comment\"#   \
          in                                                        \
          #\"))))(Secondary((id \
-         05b13ce2-bcbc-4094-8cdb-5d5de6e77d58)(content(Whitespace\"\\n\"))))(Secondary((id \
-         6ea1de2c-c85e-4aaa-90f3-20d7a2a504e8)(content(Comment\"#                                                             \
+         8e0234c9-e6c9-4ab1-b46f-e9612ae7b413)(content(Whitespace\"\\n\"))))(Secondary((id \
+         4175a564-f80b-4ed1-8806-0cea23da0038)(content(Comment\"#                                                             \
          #\"))))(Secondary((id \
-         8215dc87-43f8-4fa7-bd6a-ec717499767d)(content(Whitespace\"\\n\"))))(Secondary((id \
-         650c4e71-bb62-4de9-aa50-9bae0d02bd48)(content(Comment\"#   let \
+         8967c87b-c5a8-430c-a8fa-9fee9dd21553)(content(Whitespace\"\\n\"))))(Secondary((id \
+         b8e2cb81-198d-42ae-8927-d8e64141bc43)(content(Comment\"#   let \
          format_plant: (String, Int) -> String =               \
          #\"))))(Secondary((id \
-         e3958aa9-e3f3-4e02-88f4-e93dce15fae3)(content(Whitespace\"\\n\"))))(Secondary((id \
-         e819d61f-cbb8-49ef-96df-4ece78289faf)(content(Comment\"#     fun \
+         126ac75f-9913-4473-9969-7bc229284533)(content(Whitespace\"\\n\"))))(Secondary((id \
+         86e8124c-90a9-439d-9b90-790e84104a0e)(content(Comment\"#     fun \
          (name, water) ->                                    \
          #\"))))(Secondary((id \
-         123d9cab-9c06-4c48-9ad4-b8d7514e3e5f)(content(Whitespace\"\\n\"))))(Secondary((id \
-         56b84839-4522-486e-9689-28d295d5605d)(content(Comment\"#     let tag \
+         f680c73e-7b3e-4ff1-b59c-0af44be95b86)(content(Whitespace\"\\n\"))))(Secondary((id \
+         523e3340-676e-4d15-95f3-2a3600c1c165)(content(Comment\"#     let tag \
          = water_tag(water) in                           #\"))))(Secondary((id \
-         bed6dd31-5f9f-4b39-aa29-322005c559a9)(content(Whitespace\"\\n\"))))(Secondary((id \
-         0638e3ce-2b6e-4a80-b6dd-e68bc3c13def)(content(Comment\"#     tag ++ \
+         825eb1bb-b68f-425c-b6e5-d343782e8362)(content(Whitespace\"\\n\"))))(Secondary((id \
+         1b04c3f1-1950-4d37-9af0-6fce644eb761)(content(Comment\"#     tag ++ \
          \\\" \\\" ++ name ++ \\\": \\\"                              \
          #\"))))(Secondary((id \
-         3db029d8-d918-403a-97e2-fb81cff040b2)(content(Whitespace\"\\n\"))))(Secondary((id \
-         a23ce1e2-38ab-4cad-bdac-817e44d69aed)(content(Comment\"#       ++ \
+         06fd63a8-f15d-4e14-8571-f32596e1db07)(content(Whitespace\"\\n\"))))(Secondary((id \
+         5cba0f16-3023-4f29-a146-64cfc6f4e4f7)(content(Comment\"#       ++ \
          string_of_int(water) ++ \\\"ml\\\"                       \
          #\"))))(Secondary((id \
-         005d9bbe-d54e-40b7-afad-1925c9df254d)(content(Whitespace\"\\n\"))))(Secondary((id \
-         ef373a82-bc50-49d9-a1c1-0e0ca30b28b5)(content(Comment\"#   \
+         987bc7f8-8141-4433-ae0d-1bca75802bdd)(content(Whitespace\"\\n\"))))(Secondary((id \
+         4c3de59d-e8a4-4976-888e-d3c8fdd7cbc8)(content(Comment\"#   \
          in                                                        \
          #\"))))(Secondary((id \
-         cea5bece-d218-448f-b71a-e0fcd64579b0)(content(Whitespace\"\\n\"))))(Secondary((id \
-         154c4b28-ac6e-4312-9492-e6d8727acd74)(content(Comment\"#                                                             \
+         b6065a96-fbb0-4ed8-a8b8-644e53676fc6)(content(Whitespace\"\\n\"))))(Secondary((id \
+         9ddf7ca2-48a7-4a02-a352-09a38c8a4110)(content(Comment\"#                                                             \
          #\"))))(Secondary((id \
-         dbe006bf-11a3-4923-a684-a6f215459951)(content(Whitespace\"\\n\"))))(Secondary((id \
-         f9d669e3-b98e-48e6-8261-91626d8c79ef)(content(Comment\"#   test \
+         432c7bdf-cdad-4779-850e-b0f4ac117ed4)(content(Whitespace\"\\n\"))))(Secondary((id \
+         e25fc4a8-bd6d-4b25-9c0b-dccb15108579)(content(Comment\"#   test \
          format_plant(\\\"Fern\\\", 250)                            \
          #\"))))(Secondary((id \
-         d5dd61d1-fe51-4b22-8c34-49f3f378651f)(content(Whitespace\"\\n\"))))(Secondary((id \
-         e48d21b4-4cbd-46b8-a866-99e166c27746)(content(Comment\"#     == \
+         3a0e4b02-ca97-40c1-ab8a-e087df184305)(content(Whitespace\"\\n\"))))(Secondary((id \
+         644deb2e-3765-4b91-b1b8-50f5453476b1)(content(Comment\"#     == \
          \\\"\\240\\159\\146\\167\\240\\159\\146\\167 Fern: 250ml\\\" \
          end;                              #\"))))(Secondary((id \
-         d5ac0dec-8890-48ea-81dc-7de3b050b955)(content(Whitespace\"\\n\"))))(Secondary((id \
-         d6c57073-ef84-4576-8a8d-49a35cc13982)(content(Comment\"#   test \
+         10037d43-118f-42b9-9d2f-a117d7acfe75)(content(Whitespace\"\\n\"))))(Secondary((id \
+         5f3dd6da-a6ae-4699-a393-78ce38f83876)(content(Comment\"#   test \
          format_plant(\\\"Cactus\\\", 50)                           \
          #\"))))(Secondary((id \
-         9f304d8c-6640-46fd-82fc-96ba7cba2688)(content(Whitespace\"\\n\"))))(Secondary((id \
-         6bf01f3f-7cdc-49b6-acb4-dc72fbd75399)(content(Comment\"#     == \
+         1420bb62-967f-40c6-b409-3b38654188f5)(content(Whitespace\"\\n\"))))(Secondary((id \
+         9845b1f6-2e7e-4467-9878-97d6faea2d45)(content(Comment\"#     == \
          \\\"\\240\\159\\146\\167 Cactus: 50ml\\\" \
          end;                               #\"))))(Secondary((id \
-         559c7e2d-6018-40f4-959c-b85da2c66da1)(content(Whitespace\"\\n\"))))(Secondary((id \
-         546e655c-c804-46c8-a567-5c94acbaa2a7)(content(Comment\"#   test \
+         d1442d95-f819-4cb5-9e31-ee012ef9b16d)(content(Whitespace\"\\n\"))))(Secondary((id \
+         03ed7f0b-6878-444d-b7f1-75a3fbbe67b5)(content(Comment\"#   test \
          format_plant(\\\"Lily\\\", 200)                            \
          #\"))))(Secondary((id \
-         20196167-f815-412a-903e-d2cd9683d070)(content(Whitespace\"\\n\"))))(Secondary((id \
-         27043f6a-21fb-4a99-aaad-1b0b68a9433c)(content(Comment\"#     == \
+         e212ae32-44a0-42dd-bcef-57b0f331fa41)(content(Whitespace\"\\n\"))))(Secondary((id \
+         7d0be205-6817-42f3-86c3-62a50fd7be8b)(content(Comment\"#     == \
          \\\"\\240\\159\\146\\167\\240\\159\\146\\167 Lily: 200ml\\\" \
          end                               #\"))))(Secondary((id \
-         d8f6eb5f-04bf-4564-8d5f-ed747d49e280)(content(Whitespace\"\\n\"))))(Secondary((id \
-         f477a228-d20a-415d-83bd-83d1eddcc1f3)(content(Comment\"#                                                             \
+         2486675e-fe07-4e64-97d6-33fd81ba5c13)(content(Whitespace\"\\n\"))))(Secondary((id \
+         3414f201-9bb4-4414-9c24-1448fe759d30)(content(Comment\"#                                                             \
          #\"))))(Secondary((id \
-         117ff080-c35c-4400-8f31-57a16cf5bc8a)(content(Whitespace\"\\n\"))))(Secondary((id \
-         f6e9766b-467b-4e57-8ad3-d771adf78685)(content(Comment\"# The first \
+         6b502a53-23ce-4996-9bf3-897cf1b71bf3)(content(Whitespace\"\\n\"))))(Secondary((id \
+         7ee1c8ad-6301-45aa-a9d2-ce522e5d6649)(content(Comment\"# The first \
          two tests pass. The Lily test FAILS!              \
          #\"))))(Secondary((id \
-         fbfc90e1-f44e-4835-8d0d-78b722a663cd)(content(Whitespace\"\\n\"))))(Secondary((id \
-         2eed5a4e-b8e5-48bb-8878-d5656312f653)(content(Comment\"# Click inside \
+         2202ac59-8541-447c-a52b-f1f0f55fba72)(content(Whitespace\"\\n\"))))(Secondary((id \
+         0d5321d0-1b52-47ef-a746-2368332a2bf4)(content(Comment\"# Click inside \
          water_tag and look at the probe:               #\"))))(Secondary((id \
-         f2c86161-53cc-466c-9363-5296e58f0753)(content(Whitespace\"\\n\"))))(Secondary((id \
-         48c15b1a-0bda-4a25-b4b4-fb20b5d196ba)(content(Comment\"# \
+         0f060590-72df-4e24-9143-151334b5db15)(content(Whitespace\"\\n\"))))(Secondary((id \
+         1aec95f4-c7c0-4627-a242-4b4358f7c9a4)(content(Comment\"# \
          water_tag(200) returns \\\"\\240\\159\\146\\167\\\" not \
          \\\"\\240\\159\\146\\167\\240\\159\\146\\167\\\".                    \
          #\"))))(Secondary((id \
-         8647e7ce-5609-4bd7-9e9b-d3d9f948731e)(content(Whitespace\"\\n\"))))(Secondary((id \
-         477c8a8f-f8e4-4793-9286-188e9d71db31)(content(Comment\"# The > should \
+         200878b3-bef7-4908-a83c-458e97564e1b)(content(Whitespace\"\\n\"))))(Secondary((id \
+         8722407f-622a-4375-9634-c62a35ad6ad8)(content(Comment\"# The > should \
          be >=. Don't fix it \\226\\128\\148 next stage improves      \
          #\"))))(Secondary((id \
-         753f9958-1e61-4125-ae4d-0f22bf157cdc)(content(Whitespace\"\\n\"))))(Secondary((id \
-         04875cc3-afea-43e3-baf0-215282715edb)(content(Comment\"# the whole \
+         2dbd2609-266a-4731-b38e-ec5ae69059b9)(content(Whitespace\"\\n\"))))(Secondary((id \
+         7e9b4f9d-0b74-4a2f-8797-56f754c8b391)(content(Comment\"# the whole \
          approach.                                         \
          #\"))))(Secondary((id \
-         3e89fab8-c597-4777-bdc0-9aec1ea88de1)(content(Whitespace\"\\n\"))))(Secondary((id \
-         567c82c2-7923-4b4e-8478-543532cfeef0)(content(Whitespace\"\\n\"))))(Tile((id \
-         d0d79f80-933b-415a-9cdc-f0ae4bfc7f9d)(label(?))(mold((out \
+         321f1240-5834-49a3-a77a-ec81e0712edb)(content(Whitespace\"\\n\"))))(Secondary((id \
+         a6b1b533-421b-416e-8ccc-c04463d381b9)(content(Whitespace\"\\n\"))))(Tile((id \
+         c08b5f16-8c7c-4952-8654-860fc23b7679)(label(?))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         9848e7fa-a36a-42d2-b94d-0fac23b0146f)(content(Whitespace\"\\n\"))))(Secondary((id \
-         ba453d12-347a-4baa-b73f-3961844bf27a)(content(Whitespace\"\\n\"))))(Tile((id \
-         504b4d16-e1cf-485a-b673-f4c339a696d5)(label(\";\"))(mold((out \
+         c2d906bd-77f6-42c0-b3f5-88b5563b2953)(content(Whitespace\"\\n\"))))(Secondary((id \
+         02b7dff7-70be-43f5-a82e-fab46a399496)(content(Whitespace\"\\n\"))))(Tile((id \
+         7a0e75dc-ea6c-453d-a425-7748cb75a9c6)(label(\";\"))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 35))(sort Exp))((shape(Concave \
          35))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         8d63d7c2-164e-4371-98f5-e372a4145f78)(content(Whitespace\"\\n\"))))(Secondary((id \
-         158ea728-a3cf-4611-ae0e-c694a9833efc)(content(Whitespace\"\\n\"))))(Secondary((id \
-         e63e4c0e-1fc5-4bf3-8faf-cb84dc4d2a3d)(content(Comment\"# \
+         dae892cd-446c-4e30-92b6-26efa6cc5764)(content(Whitespace\"\\n\"))))(Secondary((id \
+         da640356-913d-4dbd-8a60-4f8f33934050)(content(Whitespace\"\\n\"))))(Secondary((id \
+         5106cdcd-4367-4621-8e3c-4b3834706d70)(content(Comment\"# \
          ============================================================ \
          #\"))))(Secondary((id \
-         c461cd8a-becb-4069-90fc-d209289a0041)(content(Whitespace\"\\n\"))))(Secondary((id \
-         2bcc2866-9c97-433a-8d02-f0afbc31c9c8)(content(Comment\"# STAGE 4: A \
+         f88d1c3b-e73a-40ac-b0c9-095be7b930e4)(content(Whitespace\"\\n\"))))(Secondary((id \
+         7789170e-b2d2-4ef2-8d27-a019687c58d9)(content(Comment\"# STAGE 4: A \
          TYPE AND CASE EXPRESSION                        #\"))))(Secondary((id \
-         cae48648-3ec0-4737-a9ac-4479406e98c1)(content(Whitespace\"\\n\"))))(Secondary((id \
-         9928028d-0c3b-4bfa-9dfb-f58d723bf92c)(content(Comment\"# \
+         f37921c6-a0c3-4b43-b81e-a161f7129c8f)(content(Whitespace\"\\n\"))))(Secondary((id \
+         46d200d3-3375-4fd4-a406-78f758f9f3c0)(content(Comment\"# \
          ============================================================ \
          #\"))))(Secondary((id \
-         72fa4f51-32e6-4dd9-af9b-08759c936243)(content(Whitespace\"\\n\"))))(Secondary((id \
-         f568b878-c086-4185-ada7-46e6fca9a8ef)(content(Whitespace\"\\n\"))))(Secondary((id \
-         f729c37c-a462-4f63-89a5-f44a9fae41e7)(content(Comment\"# Two levels \
+         33045758-9fd8-4473-ae47-36407809c388)(content(Whitespace\"\\n\"))))(Secondary((id \
+         89bb267a-1d15-443d-af66-a727cfd73d6b)(content(Whitespace\"\\n\"))))(Secondary((id \
+         280ec5d9-7dda-4e22-a8c8-4899acce1fbe)(content(Comment\"# Two levels \
          isn't enough. Let's use three: Low, Medium,     #\"))))(Secondary((id \
-         6c54044d-903f-4d01-a735-490d2e01e3d7)(content(Whitespace\"\\n\"))))(Secondary((id \
-         2339d744-f274-4233-9718-af0b7c8ea620)(content(Comment\"# High. We \
+         0f957558-1f8d-423b-b050-e76a7fafa78e)(content(Whitespace\"\\n\"))))(Secondary((id \
+         d8265f4e-752d-4536-8600-6f854c120e60)(content(Comment\"# High. We \
          define a sum type and match with a case.          \
          #\"))))(Secondary((id \
-         b900b3f7-9ab0-42f7-9c1b-29511310dae1)(content(Whitespace\"\\n\"))))(Secondary((id \
-         d14bc170-233c-44f8-9612-1d6d595bdd9f)(content(Comment\"#                                                             \
+         00e0eb96-c2a9-4b33-acc4-40571617fec2)(content(Whitespace\"\\n\"))))(Secondary((id \
+         70bf4e98-9e56-4fe3-a14c-4bb059ed9bb4)(content(Comment\"#                                                             \
          #\"))))(Secondary((id \
-         d39dd8d6-fbde-43de-8057-86b6a9e75c9d)(content(Whitespace\"\\n\"))))(Secondary((id \
-         52ff87ce-5a94-4db2-aea9-22a6a6e01f32)(content(Comment\"# `type Name = \
+         1e498ab7-7017-4ca5-a093-d9735b11d543)(content(Whitespace\"\\n\"))))(Secondary((id \
+         fa3a17b8-6e71-46e9-a9da-3e4533a70ff1)(content(Comment\"# `type Name = \
          + V1 + V2 + V3 in` defines a sum type.        #\"))))(Secondary((id \
-         38f2a30f-cfc6-43ec-ab88-55eee59d7976)(content(Whitespace\"\\n\"))))(Secondary((id \
-         cab694eb-1b55-4836-8044-97845a330794)(content(Comment\"# `case expr | \
+         4c5cc7e4-8396-4d1f-9476-8dceff43dc19)(content(Whitespace\"\\n\"))))(Secondary((id \
+         f1bda93e-6119-440c-9f6b-5bad0cfab405)(content(Comment\"# `case expr | \
          V1 => e1 | V2 => e2 | ... end` matches.       #\"))))(Secondary((id \
-         127dbadd-624d-412e-8447-aa8231474241)(content(Whitespace\"\\n\"))))(Secondary((id \
-         2e3f8326-a9b2-486d-888e-df18ae69c54c)(content(Comment\"#                                                             \
+         229928af-8177-45b3-b084-1bcb8c6295be)(content(Whitespace\"\\n\"))))(Secondary((id \
+         97a5fd0d-8494-4ed6-b52f-2e4b6326b067)(content(Comment\"#                                                             \
          #\"))))(Secondary((id \
-         81c14979-2e77-4846-8a6d-d80d0d79a299)(content(Whitespace\"\\n\"))))(Secondary((id \
-         b7a995f3-379a-48af-b6e5-653e460caef4)(content(Comment\"# Replace the \
+         b8408f01-abf0-491d-b3ec-8f9edcf84951)(content(Whitespace\"\\n\"))))(Secondary((id \
+         ec22aed6-e793-40d1-a044-1c6664c40ec1)(content(Comment\"# Replace the \
          ? below with:                                   #\"))))(Secondary((id \
-         c8b2fe99-dd49-43e9-b249-eefa4197456b)(content(Whitespace\"\\n\"))))(Secondary((id \
-         439d5e79-ec6f-4dfb-ae77-4bccc83650e8)(content(Comment\"#                                                             \
+         89c1c0e0-f787-4f6f-86ca-b271405ae9bf)(content(Whitespace\"\\n\"))))(Secondary((id \
+         f9b28015-a204-4760-915d-146685644265)(content(Comment\"#                                                             \
          #\"))))(Secondary((id \
-         e82c8709-f0fe-441f-916a-b162f38a8a5f)(content(Whitespace\"\\n\"))))(Secondary((id \
-         2a551ec2-0d74-466c-8861-8be214d7c927)(content(Comment\"#   type \
+         26ce70d5-2517-4a58-a336-0ab7b6e5128a)(content(Whitespace\"\\n\"))))(Secondary((id \
+         cb6db198-7703-4735-8be4-eb25f2e9eb18)(content(Comment\"#   type \
          WaterLevel = + Low + Medium + High in                \
          #\"))))(Secondary((id \
-         6b25cd8d-448e-4b92-9b1f-1b01e4bd7291)(content(Whitespace\"\\n\"))))(Secondary((id \
-         dd318197-f759-42d4-b588-1c8c966481e2)(content(Comment\"#                                                             \
+         6394d269-6876-4de4-9b1e-63759a5efb3f)(content(Whitespace\"\\n\"))))(Secondary((id \
+         8f5584d2-3ff2-4340-863f-c08597d4651f)(content(Comment\"#                                                             \
          #\"))))(Secondary((id \
-         caf6b58d-fbae-44f6-9f86-9e12cea8cb14)(content(Whitespace\"\\n\"))))(Secondary((id \
-         362e8073-5464-4b58-835d-ce9cefe8e25d)(content(Comment\"#   let \
+         65cb3c47-a5fa-455a-ae11-fc28179f9288)(content(Whitespace\"\\n\"))))(Secondary((id \
+         650d248b-c788-4ded-a16f-295c3e232c98)(content(Comment\"#   let \
          classify: Int -> WaterLevel =                         \
          #\"))))(Secondary((id \
-         0fdfa79e-a3a6-4b8e-89e1-b41533e28519)(content(Whitespace\"\\n\"))))(Secondary((id \
-         af1c44e6-3ae4-442f-b81a-1a35103c39d9)(content(Comment\"#     fun \
+         dd6b282b-9e58-4f31-91c1-6e3f93862ab8)(content(Whitespace\"\\n\"))))(Secondary((id \
+         f1b9b2e6-bd40-4899-85d9-bc1788358ad6)(content(Comment\"#     fun \
          amount ->                                           \
          #\"))))(Secondary((id \
-         8af3016c-aca8-45f7-b659-61ada28b9d39)(content(Whitespace\"\\n\"))))(Secondary((id \
-         019384e3-97ab-4567-838c-76ef1349fb49)(content(Comment\"#     if \
+         a7ecce37-5df0-4ad5-877b-15876468c339)(content(Whitespace\"\\n\"))))(Secondary((id \
+         d9f9c8dc-a14f-44b6-8f5f-73d0973c62e1)(content(Comment\"#     if \
          amount >= 200 then High                              \
          #\"))))(Secondary((id \
-         49e4af7b-ff2a-4322-9388-10d322b6f6cb)(content(Whitespace\"\\n\"))))(Secondary((id \
-         798be43b-9ffd-4a68-ac5a-cbbd71f3ce8a)(content(Comment\"#     else if \
+         94df8328-a12c-4c83-b94f-02f819193e24)(content(Whitespace\"\\n\"))))(Secondary((id \
+         57dbc2a3-259b-4268-a49b-430ce00c1545)(content(Comment\"#     else if \
          amount >= 100 then Medium                       #\"))))(Secondary((id \
-         b8111e58-4cb2-4926-884e-a6ee3da9e9bb)(content(Whitespace\"\\n\"))))(Secondary((id \
-         6f3df861-9493-44e9-9ed6-3a971b627af8)(content(Comment\"#     else \
+         5006e415-9ad6-4225-8149-1c93361afb47)(content(Whitespace\"\\n\"))))(Secondary((id \
+         16b041d3-7a3b-44a7-bc61-8ba647371302)(content(Comment\"#     else \
          Low                                                \
          #\"))))(Secondary((id \
-         cc1dc454-f812-4f08-a4a1-877b6ce2ab51)(content(Whitespace\"\\n\"))))(Secondary((id \
-         90bbc56c-73f0-41be-b86a-2a6b7482cf4d)(content(Comment\"#   \
+         e7e3677d-bc14-4076-9a72-ff97fdb29539)(content(Whitespace\"\\n\"))))(Secondary((id \
+         6b912aca-d163-4e36-a78f-e0edb797cfa4)(content(Comment\"#   \
          in                                                        \
          #\"))))(Secondary((id \
-         38efa256-f570-4271-a98f-2f23b5413031)(content(Whitespace\"\\n\"))))(Secondary((id \
-         8b1de6cf-6a0e-4c01-97e9-f78832de99f1)(content(Comment\"#                                                             \
+         cb264bba-400d-4d69-9efa-08114a7f5c6d)(content(Whitespace\"\\n\"))))(Secondary((id \
+         eb40ba99-34a6-42c9-b32c-f7e2e968bbd4)(content(Comment\"#                                                             \
          #\"))))(Secondary((id \
-         b4fd3f9f-5f36-4b0d-9644-b7cd3a39844a)(content(Whitespace\"\\n\"))))(Secondary((id \
-         6f44541c-7057-47ff-ab06-139b03c45eda)(content(Comment\"#   let \
+         e8885dcc-990f-4134-aa50-765281da7828)(content(Whitespace\"\\n\"))))(Secondary((id \
+         4cef7eb4-f750-48e4-8b5e-b4944e956911)(content(Comment\"#   let \
          format_plant: (String, Int) -> String =               \
          #\"))))(Secondary((id \
-         d4ee7cfd-40e9-4962-854f-5f743aa42e52)(content(Whitespace\"\\n\"))))(Secondary((id \
-         0ccb8602-5930-4794-a86a-0a11f4d297c4)(content(Comment\"#     fun \
+         6a56b4bd-a76e-49f6-b267-10babe2dcdee)(content(Whitespace\"\\n\"))))(Secondary((id \
+         afb3419f-edd9-4edf-a253-b97168c089cc)(content(Comment\"#     fun \
          (name, water) ->                                    \
          #\"))))(Secondary((id \
-         a162c311-936c-4d6d-8947-636956020f7a)(content(Whitespace\"\\n\"))))(Secondary((id \
-         aa53be79-2f6c-4d53-bc1d-e15714529c9a)(content(Comment\"#     let \
+         3b462b10-fa96-49c5-9602-3648c8367a34)(content(Whitespace\"\\n\"))))(Secondary((id \
+         58f25c37-1efa-4762-bdd0-183f66acebb0)(content(Comment\"#     let \
          emoji = case classify(water)                        \
          #\"))))(Secondary((id \
-         ae24e754-34c6-450a-b838-86afb1b0b112)(content(Whitespace\"\\n\"))))(Secondary((id \
-         9393580b-3af0-4f6a-9315-27d20dddaecc)(content(Comment\"#       | Low \
+         3c1d7283-9fc0-4848-85c6-c40faa930e7f)(content(Whitespace\"\\n\"))))(Secondary((id \
+         f8e3165f-a982-438a-bcce-a1d56e539754)(content(Comment\"#       | Low \
          => \
          \\\"\\240\\159\\140\\181\\\"                                         \
          #\"))))(Secondary((id \
-         38efe24a-1cd1-4d44-b323-cf9e4fc84e7a)(content(Whitespace\"\\n\"))))(Secondary((id \
-         00f8f445-94ee-439c-a95c-0a42a491b695)(content(Comment\"#       | \
+         83b8b95e-3b30-48ea-aec3-114ebee3554a)(content(Whitespace\"\\n\"))))(Secondary((id \
+         d969c917-d595-465f-97b4-a562489bef7e)(content(Comment\"#       | \
          Medium => \
          \\\"\\240\\159\\146\\167\\\"                                      \
          #\"))))(Secondary((id \
-         9e8cc88a-6fc7-496f-a92d-f09e3bd83881)(content(Whitespace\"\\n\"))))(Secondary((id \
-         8e2e73e4-356b-4b3c-a915-e58ebf8982e5)(content(Comment\"#       | High \
+         6d93fa87-8301-4222-9716-0415b15a256f)(content(Whitespace\"\\n\"))))(Secondary((id \
+         6e53e87e-1ffe-4767-a9ec-6d406fc15327)(content(Comment\"#       | High \
          => \
          \\\"\\240\\159\\146\\167\\240\\159\\146\\167\\\"                                      \
          #\"))))(Secondary((id \
-         366bd4e1-1358-43d9-a58d-ce3375b65e44)(content(Whitespace\"\\n\"))))(Secondary((id \
-         ce127bc6-0c48-4765-9f2f-67ed3ca98a16)(content(Comment\"#     end \
+         c1629de3-66f1-493e-adce-43f7b6242ea5)(content(Whitespace\"\\n\"))))(Secondary((id \
+         62941eb8-b952-4ab0-9601-f8ff9dfef6c0)(content(Comment\"#     end \
          in                                                  \
          #\"))))(Secondary((id \
-         73ff9ff0-4832-41ac-8f59-05a5b8b9859d)(content(Whitespace\"\\n\"))))(Secondary((id \
-         ae301b92-d98e-4016-93f5-f1204cd5dd72)(content(Comment\"#     emoji ++ \
+         74ca1146-d32f-4554-81b4-90e9dc8b11a8)(content(Whitespace\"\\n\"))))(Secondary((id \
+         d68350d9-628b-440d-9a79-5525f6a94f5f)(content(Comment\"#     emoji ++ \
          \\\" \\\" ++ name ++ \\\": \\\"                            \
          #\"))))(Secondary((id \
-         66682de3-65e1-46f9-ab11-170853923348)(content(Whitespace\"\\n\"))))(Secondary((id \
-         bddd7204-88e6-4c71-8ab8-b440fd188f4e)(content(Comment\"#       ++ \
+         a2c927cc-be6b-42d0-9b1f-26c2e74e7eb6)(content(Whitespace\"\\n\"))))(Secondary((id \
+         5fab77f9-d900-4fbd-a902-148eaa8f1b7a)(content(Comment\"#       ++ \
          string_of_int(water) ++ \\\"ml\\\"                       \
          #\"))))(Secondary((id \
-         5cb2da88-688c-4418-ac60-c4cec839f070)(content(Whitespace\"\\n\"))))(Secondary((id \
-         553f5456-accd-4775-8d1b-a9280b18f894)(content(Comment\"#   \
+         5049613c-cebe-4a77-bb4b-21892d71dff7)(content(Whitespace\"\\n\"))))(Secondary((id \
+         6aed1b51-78c4-4f58-9f5e-37d25944654d)(content(Comment\"#   \
          in                                                        \
          #\"))))(Secondary((id \
-         72114fe7-706c-44b2-b8dd-b797139e9122)(content(Whitespace\"\\n\"))))(Secondary((id \
-         3db96709-febf-4591-b4d8-8ac60eec0c96)(content(Comment\"#                                                             \
+         474d85ad-e9a4-49d1-a069-95d4d748e6e5)(content(Whitespace\"\\n\"))))(Secondary((id \
+         e294fb5e-90d2-4206-9e4c-09bb4bb6c106)(content(Comment\"#                                                             \
          #\"))))(Secondary((id \
-         5564be49-1e02-4833-bc5a-fa64b12658da)(content(Whitespace\"\\n\"))))(Secondary((id \
-         6f54d5ca-f115-4a48-88c3-a1699d642547)(content(Comment\"#   test \
+         bb76cecd-b9ad-4eb0-a445-c5a44d31423d)(content(Whitespace\"\\n\"))))(Secondary((id \
+         7374934a-4fc7-4d4e-8512-58901043e175)(content(Comment\"#   test \
          format_plant(\\\"Fern\\\", 250)                            \
          #\"))))(Secondary((id \
-         b3563f73-6dcf-483e-b04d-aa0e9a6cc19f)(content(Whitespace\"\\n\"))))(Secondary((id \
-         a2a9e3fb-e8aa-470b-b6f8-d93609561001)(content(Comment\"#     == \
+         8020ef44-7f04-4a50-af9e-99afe523b1c4)(content(Whitespace\"\\n\"))))(Secondary((id \
+         baa31241-db38-4f62-b4c1-5e7ae04b9728)(content(Comment\"#     == \
          \\\"\\240\\159\\146\\167\\240\\159\\146\\167 Fern: 250ml\\\" \
          end;                              #\"))))(Secondary((id \
-         6b1f4403-39e0-45eb-adc8-1a21046addf0)(content(Whitespace\"\\n\"))))(Secondary((id \
-         b98bde26-7225-461f-917c-193a463fae84)(content(Comment\"#   test \
+         f3c3f4ae-004c-4920-89fe-5865ac340904)(content(Whitespace\"\\n\"))))(Secondary((id \
+         3cf29353-4fe8-401e-9e11-1f64ccfb0589)(content(Comment\"#   test \
          format_plant(\\\"Orchid\\\", 180)                          \
          #\"))))(Secondary((id \
-         38d5e4ae-4ebb-44ec-9844-b8ccb5a1ec36)(content(Whitespace\"\\n\"))))(Secondary((id \
-         ebe1e059-a912-4f7e-a599-defdf2b6f061)(content(Comment\"#     == \
+         83ade801-aa03-4157-a399-be750bd5ec7d)(content(Whitespace\"\\n\"))))(Secondary((id \
+         8fc33002-1857-48d4-8ab7-f375f7170a23)(content(Comment\"#     == \
          \\\"\\240\\159\\146\\167 Orchid: 180ml\\\" \
          end;                              #\"))))(Secondary((id \
-         5d94eaf2-a9c3-4d8a-a163-11c2a07f5809)(content(Whitespace\"\\n\"))))(Secondary((id \
-         b69038f5-765f-4b13-8a0a-816f5c5b5ae1)(content(Comment\"#   test \
+         b56fd7da-c351-4856-8340-a80c5371c5ed)(content(Whitespace\"\\n\"))))(Secondary((id \
+         a69d940c-1b20-4a4f-a917-9a44cf277d09)(content(Comment\"#   test \
          format_plant(\\\"Cactus\\\", 50)                           \
          #\"))))(Secondary((id \
-         57e52517-5bea-420c-967d-f752b6015d14)(content(Whitespace\"\\n\"))))(Secondary((id \
-         faf83226-1f92-4571-96b1-8f42ebe2512c)(content(Comment\"#     == \
+         e0a9afea-bdf3-43c5-97a2-4796314058a5)(content(Whitespace\"\\n\"))))(Secondary((id \
+         c88fcb7c-d59c-431b-aae4-6768048d47b2)(content(Comment\"#     == \
          \\\"\\240\\159\\140\\181 Cactus: 50ml\\\" \
          end;                               #\"))))(Secondary((id \
-         75305447-70f2-4eb7-9d72-b1f02693bca4)(content(Whitespace\"\\n\"))))(Secondary((id \
-         c71bfe93-2c09-4051-b81c-014d94b0010e)(content(Comment\"#   test \
+         a38760e8-5bd8-46eb-91af-071edad405c8)(content(Whitespace\"\\n\"))))(Secondary((id \
+         c8b69546-ec75-4564-9026-51f81101e970)(content(Comment\"#   test \
          format_plant(\\\"Lily\\\", 200)                            \
          #\"))))(Secondary((id \
-         bd102585-0ea0-461e-b568-c8bfc811610b)(content(Whitespace\"\\n\"))))(Secondary((id \
-         5262f480-8631-4add-a28f-87e0843ac527)(content(Comment\"#     == \
+         3caeeed6-7a08-4815-867f-e3ef6bb00391)(content(Whitespace\"\\n\"))))(Secondary((id \
+         d79211f4-39ef-4d9a-a8f1-8c4a1f00d734)(content(Comment\"#     == \
          \\\"\\240\\159\\146\\167\\240\\159\\146\\167 Lily: 200ml\\\" \
          end                               #\"))))(Secondary((id \
-         07647e9d-24a6-460f-95f7-6671eeab1149)(content(Whitespace\"\\n\"))))(Secondary((id \
-         fe28d831-eaf5-465e-8bf3-cd760bf58a2c)(content(Comment\"#                                                             \
+         8fdc07d7-a2f2-4be8-90b8-fcf18f4a4a42)(content(Whitespace\"\\n\"))))(Secondary((id \
+         f653e25e-154b-47c1-8d76-1eb7f07c469a)(content(Comment\"#                                                             \
          #\"))))(Secondary((id \
-         5bd18605-28a8-415c-b6db-5db12f42f3fc)(content(Whitespace\"\\n\"))))(Secondary((id \
-         fd4d3379-a177-4c86-a982-acfdb7e88012)(content(Comment\"# All four \
+         84ed9047-4021-4f06-b543-5be83a6ed05d)(content(Whitespace\"\\n\"))))(Secondary((id \
+         6228b2a2-8993-408b-b576-f1b3ac3b76ad)(content(Comment\"# All four \
          pass \\226\\128\\148 including Lily! Click inside classify       \
          #\"))))(Secondary((id \
-         c85c7719-7876-4654-97d0-2144a0b4318a)(content(Whitespace\"\\n\"))))(Secondary((id \
-         2cc6cb1f-758e-47a4-95ab-bbe52f985b41)(content(Comment\"# in Many mode \
+         d1121caf-14cc-42af-ae2b-3ed7bbdae464)(content(Whitespace\"\\n\"))))(Secondary((id \
+         d6c80a0d-e77e-41e2-962c-e80f737b3b89)(content(Comment\"# in Many mode \
          to see: High, Medium, Low, High.              #\"))))(Secondary((id \
-         b9d97bdd-fc70-4305-8166-7397c02210cb)(content(Whitespace\"\\n\"))))(Secondary((id \
-         54cfffac-d74e-4fda-b8a4-88b5a685c9ee)(content(Comment\"# The >= 200 \
+         6cda2499-be36-4726-9137-5cef2d606ba5)(content(Whitespace\"\\n\"))))(Secondary((id \
+         cfb7b866-b8a9-40a7-abac-c193faeef115)(content(Comment\"# The >= 200 \
          threshold now handles the boundary correctly.    \
          #\"))))(Secondary((id \
-         b25a8ecf-ad43-4689-904d-e3dd8f07d8bd)(content(Whitespace\"\\n\"))))(Secondary((id \
-         864f0255-b549-439e-9b07-9d82108e0827)(content(Whitespace\"\\n\"))))(Tile((id \
-         4e83cffc-47a4-4bde-8cd8-966b1999cc52)(label(?))(mold((out \
+         c9cfa41f-d3bf-436a-94fc-d03404d3e001)(content(Whitespace\"\\n\"))))(Secondary((id \
+         13631383-b0d9-48e8-9bba-a974b1e6b9cd)(content(Whitespace\"\\n\"))))(Tile((id \
+         730e8eeb-c03c-443e-97c3-341aa12bc9c8)(label(?))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         942fee95-983e-4029-bb5d-555b188ef1f5)(content(Whitespace\"\\n\"))))(Secondary((id \
-         d8c58740-d34c-4faf-a020-6398f361630a)(content(Whitespace\"\\n\"))))(Secondary((id \
-         80b462b5-697e-4658-ae2c-2152f08c7dc9)(content(Comment\"# \
+         aa33175d-5e27-4595-9070-d5928d7981d9)(content(Whitespace\"\\n\"))))(Secondary((id \
+         d134cebb-1f73-42ec-8ad8-1a80c9d8eb0e)(content(Whitespace\"\\n\"))))(Secondary((id \
+         041b9f64-0a1a-4fc5-9b7b-9035b91bc6a7)(content(Comment\"# \
          ============================================================ \
          #\"))))(Secondary((id \
-         c54af47f-ba0a-42d5-8624-1529fa418e7c)(content(Whitespace\"\\n\"))))(Secondary((id \
-         07112c84-e0e8-4b63-aa89-beb266691b5e)(content(Comment\"# \
+         23025725-a3fc-49d4-ae38-5dd1e114752a)(content(Whitespace\"\\n\"))))(Secondary((id \
+         33ce91cb-b832-478b-aed5-daa1e7870418)(content(Comment\"# \
          REVIEW                                                      \
          #\"))))(Secondary((id \
-         3e313ee5-8173-471a-bd5b-319e7bc10910)(content(Whitespace\"\\n\"))))(Secondary((id \
-         757844cd-97d3-4cfb-91cd-d2be35716fe4)(content(Comment\"#                                                             \
+         e510ea53-73bb-4ca2-83b9-b783ae331264)(content(Whitespace\"\\n\"))))(Secondary((id \
+         d88a44ad-e429-4810-8c2c-8afae171bbe4)(content(Comment\"#                                                             \
          #\"))))(Secondary((id \
-         d9adbb99-7d9f-4ed0-a8fd-42f429bf2a32)(content(Whitespace\"\\n\"))))(Secondary((id \
-         a8dca1cb-bc6c-4039-9845-cf242f8dd63f)(content(Comment\"# You've \
+         2a763c15-fba2-44af-8cb7-4e555777ec4c)(content(Whitespace\"\\n\"))))(Secondary((id \
+         2da7da50-b933-4e9d-b4a9-7fc0569b3ce4)(content(Comment\"# You've \
          written:                                             \
          #\"))))(Secondary((id \
-         7bde02df-883c-4105-950d-238fbf001c7b)(content(Whitespace\"\\n\"))))(Secondary((id \
-         9530f70a-1fe8-47e3-8553-1c402c0a8729)(content(Comment\"#   1. Let \
+         381ac14c-0e09-4c54-9e5b-5542600c8bff)(content(Whitespace\"\\n\"))))(Secondary((id \
+         3109cdea-c10d-42f3-9c7d-c6e4a0172c45)(content(Comment\"#   1. Let \
          bindings and string expressions                    \
          #\"))))(Secondary((id \
-         fd2a351f-85ce-4a84-abe2-0c469f57368d)(content(Whitespace\"\\n\"))))(Secondary((id \
-         0410310e-40d6-4a6f-a2e3-273525c30fbe)(content(Comment\"#   2. A \
+         48a31277-7830-4b2c-b3a3-07026b79082f)(content(Whitespace\"\\n\"))))(Secondary((id \
+         817222d9-cfa7-49d3-938d-d12ded9c4494)(content(Comment\"#   2. A \
          function with tests                                  \
          #\"))))(Secondary((id \
-         4343e62b-e805-4282-ae83-1322e4b60902)(content(Whitespace\"\\n\"))))(Secondary((id \
-         8c510fd7-dbb8-46ae-a8d6-4e4ea6ffcb57)(content(Comment\"#   3. A \
+         807c46c0-a96d-497c-9cec-ea337a6860e9)(content(Whitespace\"\\n\"))))(Secondary((id \
+         300a2621-9c25-4e6b-a6f1-08a1bbe5e3d7)(content(Comment\"#   3. A \
          helper with if/else (and caught a boundary bug)      \
          #\"))))(Secondary((id \
-         8e76585a-3dd5-4e0f-b92a-8abfd25a232d)(content(Whitespace\"\\n\"))))(Secondary((id \
-         9c2d912a-f583-4b28-ad2e-b5a9483d13e6)(content(Comment\"#   4. A type \
+         b5e70d40-bef0-4979-a2c0-cb9792c833b7)(content(Whitespace\"\\n\"))))(Secondary((id \
+         bc386dc9-4833-4635-a001-8ab2bd89750b)(content(Comment\"#   4. A type \
          definition with case expression                 #\"))))(Secondary((id \
-         94eb3981-b8c2-4966-90c1-25101bd0ea03)(content(Whitespace\"\\n\"))))(Secondary((id \
-         b3e13b43-0553-4dff-aa8a-cf516c8d9091)(content(Comment\"#                                                             \
+         2a84f7ce-f7ac-4d7d-a835-acb4685e07f1)(content(Whitespace\"\\n\"))))(Secondary((id \
+         55b36243-0673-4906-9b39-d958232b5381)(content(Comment\"#                                                             \
          #\"))))(Secondary((id \
-         e6a314d7-89b5-4969-a917-88bf2effec9b)(content(Whitespace\"\\n\"))))(Secondary((id \
-         452bec8c-e10f-4cd8-8ea9-655e6af18b87)(content(Comment\"# At each \
+         39ba4d3d-109f-496a-8a19-2594267bd931)(content(Whitespace\"\\n\"))))(Secondary((id \
+         d6909dfe-5973-4079-9205-03055fc18c47)(content(Comment\"# At each \
          step, probes showed intermediate values inline,     \
          #\"))))(Secondary((id \
-         4f3e2bc1-be9e-480f-93e8-abf3b290aded)(content(Whitespace\"\\n\"))))(Secondary((id \
-         7fc54cd7-5fcb-4356-b8b8-d3d7ffb2fcab)(content(Comment\"# so you could \
+         bdc8204e-d4be-49b4-8d20-d8568a1eeb4c)(content(Whitespace\"\\n\"))))(Secondary((id \
+         7ed938ff-6150-4c16-9a2f-5bcb0b0223bd)(content(Comment\"# so you could \
          verify correctness as you went.                #\"))))(Secondary((id \
-         15d8c485-f7ff-43ce-8860-04966cd779b0)(content(Whitespace\"\\n\"))))(Secondary((id \
-         7a639e86-1d0f-4ce7-b29b-efa8fd591662)(content(Comment\"# \
+         afd936bf-e40f-4d66-8f03-8e4cea5cb2db)(content(Whitespace\"\\n\"))))(Secondary((id \
+         0de802c0-adbc-4580-a6ee-c585aa97b574)(content(Comment\"# \
          ============================================================ \
          #\"))))(Secondary((id \
-         45675b4f-5ef0-439e-8acb-52050e3c687b)(content(Whitespace\"\\n\"))))(Secondary((id \
-         b025c1ce-9f70-4dd2-beb0-59dc1a5b0920)(content(Whitespace\"\\n\"))))(Secondary((id \
-         18ff590d-a005-4f46-a127-19de49c96ca9)(content(Comment\"# END \
+         ef727281-83ae-4f7c-8509-345b94881ee9)(content(Whitespace\"\\n\"))))(Secondary((id \
+         6b239a35-fd2b-40f0-9ead-127977bf42b7)(content(Whitespace\"\\n\"))))(Secondary((id \
+         1c7150b0-c205-4884-a0fc-a8b284660479)(content(Comment\"# END \
          #\"))))(Secondary((id \
-         031ea709-ae5a-476b-8f23-4d14d6aa751f)(content(Whitespace\"\\n\")))))";
+         b44eeedb-7c76-40c8-86ae-f7ff55d4ff2d)(content(Whitespace\"\\n\")))))";
       backup_text =
         "# WRITING WITH LIVE VALUES #\n\n\
          # In this tutorial you'll write code step by step.           #\n\
