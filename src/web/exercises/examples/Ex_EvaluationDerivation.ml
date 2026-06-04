@@ -12,7 +12,14 @@ let exercise : Exercise.t =
       max_points = 10;
       prelude =
         {
-          selection = { focus = Left; content = []; mode = Normal };
+          selection =
+            {
+              focus = Left;
+              content = [];
+              mode = Normal;
+              anchor_caret = Outer;
+              smart_rounded = false;
+            };
           relatives =
             {
               siblings =
@@ -56,7 +63,14 @@ let exercise : Exercise.t =
         };
       setup =
         {
-          selection = { focus = Left; content = []; mode = Normal };
+          selection =
+            {
+              focus = Left;
+              content = [];
+              mode = Normal;
+              anchor_caret = Outer;
+              smart_rounded = false;
+            };
           relatives =
             {
               siblings =
@@ -106,7 +120,14 @@ let exercise : Exercise.t =
                 {
                   jdmt =
                     {
-                      selection = { focus = Left; content = []; mode = Normal };
+                      selection =
+                        {
+                          focus = Left;
+                          content = [];
+                          mode = Normal;
+                          anchor_caret = Outer;
+                          smart_rounded = false;
+                        };
                       relatives =
                         {
                           siblings =
