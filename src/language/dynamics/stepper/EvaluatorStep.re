@@ -254,11 +254,8 @@ module Decompose = {
   };
 
   module DecomposeEVMode: {
-    include
-      EV_MODE with
-        type result = Result.t and type state = ref(EvaluatorState.t);
+    include EV_MODE with type result = Result.t;
   } = {
-    type state = ref(EvaluatorState.t);
     type requirement('a) = (Result.t, 'a);
     type requirements('a, 'b) = ('b, Result.t, Environment.t(Exp.t), 'a);
     type result = Result.t;
@@ -347,11 +344,8 @@ module Decompose = {
 
 module TakeStep = {
   module TakeStepEVMode: {
-    include
-      EV_MODE with
-        type result = option(DHExp.t) and type state = ref(EvaluatorState.t);
+    include EV_MODE with type result = option(DHExp.t);
   } = {
-    type state = ref(EvaluatorState.t);
     type requirement('a) = 'a;
     type requirements('a, 'b) = 'a;
     type result = option(DHExp.t);

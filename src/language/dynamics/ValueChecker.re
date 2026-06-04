@@ -6,9 +6,8 @@ type t =
   | Expr;
 
 module ValueCheckerEVMode: {
-  include EV_MODE with type result = t and type state = unit;
+  include EV_MODE with type result = t;
 } = {
-  type state = unit;
   type result = t;
 
   type requirement('a) = ('a, result);
