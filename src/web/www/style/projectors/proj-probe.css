@@ -663,15 +663,19 @@
   outline: 1.5px solid var(--G0);
 }
 
-/* In drawer mode, render the sample-focus outline inset (entirely
- * inside the sample's bounding box) instead of the default outside
- * placement. Prevents the wrapper's vertical `overflow: hidden`
- * (which caps the drawer at 15 lines) from clipping the top/bottom
- * stroke when the focused sample sits at the scroll-viewport edge.
- * `outline-offset: -1.5px` matches the 1.5px outline-width, so the
- * outline's outer edge is flush with the border edge — equivalent
- * placement to outside-default, just flipped to the inside. */
-.below-wrapper .live-offside .sample:has(.value.focus) {
+/* In drawer mode, render the sample-focus outline inset (entirely inside
+ * the value's box) instead of the default outside placement. The outline
+ * itself is on `.value` (the `outline: 1.5px solid var(--R1)` rule above),
+ * and `outline-offset` does NOT inherit, so the offset must target `.value`
+ * too — putting it on `.sample` (as before) was a silent no-op, leaving the
+ * outline at offset 0 (outside the box) where it got clipped. Inset keeps
+ * the stroke clear of both clippers: `.below-wrapper`'s `overflow: hidden
+ * auto` (top/bottom, at the 15-line scroll edge) and the Tutorial/Exercises
+ * cell's `overflow-x: clip` (left/right). `-1.5px` matches the 1.5px
+ * outline-width, so the outer edge is flush with the border edge — same
+ * visual placement as outside-default, flipped inward. Outlines don't
+ * affect layout, so nothing shifts. */
+.below-wrapper .live-offside .sample:has(.value.focus) .value {
   outline-offset: -1.5px;
 }
 
