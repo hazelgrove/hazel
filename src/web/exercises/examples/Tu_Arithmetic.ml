@@ -21,7 +21,14 @@ The editor below contains `2 +` with a hole after the `+`. Complete the expressi
       {
         tests =
           {
-            selection = { focus = Left; content = []; mode = Normal };
+            selection =
+              {
+                focus = Left;
+                content = [];
+                mode = Normal;
+                anchor_caret = Outer;
+                smart_rounded = false;
+              };
             relatives =
               {
                 siblings =

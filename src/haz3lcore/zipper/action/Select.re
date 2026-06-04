@@ -14,6 +14,395 @@ let local = (d: Direction.t, z: t): option(t) =>
     z |> Zipper.Caret.set(Outer) |> Zipper.select(d);
   };
 
+/* Max inner index for a piece (Token.length - 2, or None for non-tokens / single-char) */
+let piece_max_idx = (p: Piece.t): option(int) => {
+  let* tok = Piece.token_of(p);
+  let max_idx = Token.length(tok) - 2;
+  max_idx < 0 ? None : Some(max_idx);
+};
+
+/* Get the focus-side boundary piece from selection content */
+let focus_boundary_piece = (z: Zipper.t): option(Piece.t) =>
+  Selection.focus_piece(z.selection);
+
+/* Get the anchor-side boundary piece from selection content */
+let anchor_boundary_piece = (z: Zipper.t): option(Piece.t) =>
+  Selection.anchor_piece(z.selection);
+
+/* Get the next piece in siblings in the focus direction */
+let next_sibling_piece = (z: Zipper.t): option(Piece.t) =>
+  Siblings.neighbor(z.selection.focus, z.relatives.siblings);
+
+/* Max inner index of the focus-side boundary piece in the selection */
+let focus_max_idx = (z: Zipper.t): int =>
+  switch (focus_boundary_piece(z)) {
+  | Some(p) => piece_max_idx(p) |> Option.value(~default=0)
+  | None => 0
+  };
+
+/* Set caret to the edge of a token when entering it from direction d.
+ * Right means entering from the left (set Inner(0)),
+ * Left means entering from the right (set Inner(max_idx)). */
+let enter_token_edge = (d: Direction.t, max_idx: int, z: Zipper.t): Zipper.t =>
+  switch (d) {
+  | Right => Zipper.Caret.set(Inner(0), z)
+  | Left => Zipper.Caret.set(Inner(max_idx), z)
+  };
+
+/* If the next sibling in direction d is a multi-shard tile (with
+ * children), decompose it in-place so that grow_selection picks up
+ * individual shards rather than the entire tile tree. */
+let decompose_multi_shard_neighbor = (d: Direction.t, z: Zipper.t): Zipper.t => {
+  let focus = z.selection.focus;
+  let dir = Selection.is_empty(z.selection) ? d : focus;
+  let (l, r) = z.relatives.siblings;
+  switch (dir) {
+  | Right =>
+    switch (r) {
+    | [Tile(t), ...rest] when List.length(t.shards) > 1 =>
+      let pieces = Tile.disassemble(t);
+      {
+        ...z,
+        relatives: {
+          ...z.relatives,
+          siblings: (l, pieces @ rest),
+        },
+      };
+    | _ => z
+    }
+  | Left =>
+    switch (ListUtil.split_last_opt(l)) {
+    | Some((init, Tile(t))) when List.length(t.shards) > 1 =>
+      let pieces = Tile.disassemble(t);
+      {
+        ...z,
+        relatives: {
+          ...z.relatives,
+          siblings: (init @ pieces, r),
+        },
+      };
+    | _ => z
+    }
+  };
+};
+
+/* Character-level selection: grow the selection by one character in
+ * direction d. Uses anchor_caret to track partial tokens at the
+ * anchor end of the selection. */
+let rec local_by_char = (d: Direction.t, z: Zipper.t): option(Zipper.t) => {
+  let is_growing = Selection.is_empty(z.selection) || d == z.selection.focus;
+
+  if (is_growing) {
+    grow_by_char(d, z);
+  } else {
+    shrink_by_char(d, z);
+  };
+}
+
+and grow_by_char = (d: Direction.t, z: Zipper.t): option(Zipper.t) => {
+  let is_empty = Selection.is_empty(z.selection);
+  /* Ensure focus direction matches growth direction */
+  let z =
+    if (is_empty) {
+      {
+        ...z,
+        selection: {
+          ...z.selection,
+          focus: d,
+        },
+      };
+    } else {
+      z;
+    };
+
+  switch (z.caret) {
+  | Inner(n) when is_empty =>
+    /* Starting from inside a token: pop it into selection and set
+     * anchor_caret. max_idx must be read post-grow via focus_max_idx;
+     * Siblings.neighbor pre-grow returns the whole multi-shard tile
+     * (token_of=None, defaults to 0), which would force Outer here
+     * and over-select. */
+    switch (d) {
+    | Right =>
+      let+ z =
+        Zipper.grow_selection({
+          ...z,
+          caret: Outer,
+        });
+      let z = {
+        ...z,
+        selection: {
+          ...z.selection,
+          anchor_caret: CaretBase.Inner(n),
+        },
+      };
+      let max_idx = focus_max_idx(z);
+      n < max_idx
+        ? Zipper.Caret.set(Inner(n + 1), z) : Zipper.Caret.set(Outer, z);
+    | Left =>
+      let+ z =
+        {
+          ...z,
+          caret: Outer,
+          selection: {
+            ...z.selection,
+            focus: Left,
+          },
+        }
+        |> Zipper.move(Right)
+        |> OptUtil.and_then(z => Zipper.grow_selection(z));
+      let z = {
+        ...z,
+        selection: {
+          ...z.selection,
+          anchor_caret: CaretBase.Inner(n),
+        },
+      };
+      n > 0
+        ? Zipper.Caret.set(Inner(n - 1), z) : Zipper.Caret.set(Outer, z);
+    }
+
+  | Inner(n) =>
+    /* Already have a selection; caret is inside the focus-side
+     * boundary piece of selection.content. */
+    let max_idx = focus_max_idx(z);
+    switch (z.selection.focus) {
+    | Right when n < max_idx => Some(Zipper.Caret.set(Inner(n + 1), z))
+    | Right => Some(Zipper.Caret.set(Outer, z))
+    | Left when n > 0 => Some(Zipper.Caret.set(Inner(n - 1), z))
+    | Left => Some(Zipper.Caret.set(Outer, z))
+    };
+
+  | Outer =>
+    /* `grow_selection_raw` skips reassembly inside selection content
+     * (which would re-fuse shards and break Inner position tracking);
+     * `decompose_multi_shard_neighbor` ensures we select individual
+     * shards rather than whole tile trees. */
+    let z = decompose_multi_shard_neighbor(d, z);
+    let+ z =
+      d == z.selection.focus || Selection.is_empty(z.selection)
+        ? Zipper.grow_selection_raw(z) : Zipper.shrink_selection(z);
+    let p =
+      switch (d) {
+      | Right => ListUtil.last(z.selection.content)
+      | Left => List.hd(z.selection.content)
+      };
+    switch (piece_max_idx(p)) {
+    | None => z
+    | Some(max_idx) => enter_token_edge(d, max_idx, z)
+    };
+  };
+}
+
+and shrink_by_char = (d: Direction.t, z: Zipper.t): option(Zipper.t) => {
+  /* Shrinking: d is opposite to focus. Pulling focus toward anchor. */
+  switch (z.caret) {
+  | Inner(n) =>
+    /* `at_crossover` is meaningful only for single-piece content; with
+     * multiple pieces the anchor lives on the opposite end and these
+     * index comparisons would be coincidental. */
+    let at_crossover = {
+      let sel = z.selection;
+      switch (sel.content) {
+      | [_single] =>
+        switch (sel.anchor_caret) {
+        | CaretBase.Outer =>
+          switch (d) {
+          | Left => n == 0
+          | Right =>
+            let max = focus_max_idx(z);
+            n == max;
+          }
+        | CaretBase.Inner(an) =>
+          switch (d) {
+          | Left => n == an + 1 || n == an
+          | Right => n == an - 1 || n == an
+          }
+        }
+      | _ => false
+      };
+    };
+
+    if (at_crossover) {
+      let anchor_caret = z.selection.anchor_caret;
+      switch (anchor_caret) {
+      | CaretBase.Outer =>
+        let anchor_dir = Direction.toggle(z.selection.focus);
+        Some(
+          Zipper.Caret.set(
+            Outer,
+            Zipper.directional_unselect(anchor_dir, z),
+          ),
+        );
+      | CaretBase.Inner(an) =>
+        let locator =
+          Move.shard_locator(Selection.anchor_piece(z.selection));
+        let z = Zipper.directional_unselect(Left, z);
+        Some(
+          Move.canonicalize_inner_unselect(
+            ~locator,
+            ~target_caret=Inner(an),
+            z,
+          ),
+        );
+      };
+    } else {
+      switch (d) {
+      | Left when n > 0 => Some(Zipper.Caret.set(Inner(n - 1), z))
+      | Right =>
+        let max = focus_max_idx(z);
+        n < max
+          ? Some(Zipper.Caret.set(Inner(n + 1), z))
+          : Zipper.shrink_selection(z)
+            |> Option.map(Zipper.Caret.set(Outer));
+      | Left =>
+        /* n == 0 but not at crossover: more pieces; pop focus-side
+         * piece back to siblings and continue at Outer. */
+        Zipper.shrink_selection(z) |> Option.map(Zipper.Caret.set(Outer))
+      };
+    };
+
+  | Outer =>
+    /* Focus is at a piece boundary. Look at the focus-side boundary
+     * piece in the selection to see if we should enter it. */
+    switch (focus_boundary_piece(z)) {
+    | None =>
+      /* Empty selection — toggle and grow */
+      let selection = Selection.toggle_focus(z.selection);
+      grow_by_char(
+        d,
+        {
+          ...z,
+          selection,
+        },
+      );
+    | Some(p) =>
+      switch (piece_max_idx(p)) {
+      | None =>
+        /* Single-char / non-token piece: shrink by whole piece */
+        Zipper.shrink_selection(z)
+      | Some(max_idx) =>
+        /* If entering from the focus side at Inner(entry_idx) would
+         * coincide with anchor_caret's Inner index, skip the
+         * intermediate state and collapse directly — also keeps the
+         * caret column changing, which honors do_towards_point's
+         * no-progress guard. Only meaningful for single-piece content;
+         * the Inner-branch at_crossover above has the same guard. */
+        let entry_idx = d == Right ? 0 : max_idx;
+        let crossover_at_edge =
+          switch (z.selection.content, z.selection.anchor_caret) {
+          | ([_single], CaretBase.Inner(an)) => an == entry_idx
+          | _ => false
+          };
+        if (crossover_at_edge) {
+          let locator =
+            Move.shard_locator(Selection.anchor_piece(z.selection));
+          let z = Zipper.directional_unselect(Left, z);
+          Some(
+            Move.canonicalize_inner_unselect(
+              ~locator,
+              ~target_caret=Inner(entry_idx),
+              z,
+            ),
+          );
+        } else {
+          Some(enter_token_edge(d, max_idx, z));
+        };
+      }
+    }
+  };
+};
+
+/* Smart-rounded selection: char-granular while the selection stays
+ * within the "starting token" (the token the selection was first
+ * anchored in or entered). When the focus goes *past* the starting
+ * token's edge — i.e., we extend into a new piece — the display
+ * rounds up to the whole starting token (via `smart_rounded`).
+ * Reaching the token's outer edge via a char step is *not* itself a
+ * round-up; that at-edge state renders as a normal partial char
+ * selection. The round-up fires only when the selection crosses into
+ * a new piece.
+ *
+ * The underlying `anchor_caret` is preserved across round-up;
+ * shrinking back to single-piece content clears `smart_rounded`, so
+ * the original partial-token anchor re-displays automatically.
+ *
+ * Growing:
+ * - empty: bootstrap via local_by_char.
+ * - content=[p], Inner(fn): char step (no round-up).
+ * - content=[p], Outer, growing: extend past the starting token by
+ *   one whole piece. If anchor_caret was Inner, set smart_rounded=true
+ *   on this step — this is the "going past" transition.
+ * - content has >1 piece, growing: extend by next whole piece.
+ *
+ * Shrinking:
+ * - content=[p], Inner: char shrink.
+ * - content=[p], Outer: char shrink — re-enter starting token at
+ *   Inner(max_idx), or pop if single-char piece.
+ * - content has >1 pieces: pop focus-side whole piece. If content
+ *   becomes single-piece as a result, clear smart_rounded so the
+ *   original anchor re-displays. */
+let local_smart = (d: Direction.t, z: Zipper.t): option(Zipper.t) => {
+  /* If we arrived here with an Inner caret in multi-piece state
+   * (reachable from a ByChar phase before a chunkiness switch),
+   * round the focus to the Outer edge before dispatching. Smart
+   * mode operates with caret=Outer in multi-piece state; otherwise
+   * the stale Inner(n) gets re-interpreted against later focus
+   * pieces and produces caret jumps several chars into them. The
+   * partial-token offset is intentionally discarded — re-engaging
+   * the modifier resumes ByChar from this Outer position. */
+  let z =
+    switch (z.selection.content, z.caret) {
+    | ([_, _, ..._], Inner(_)) => Zipper.Caret.set(Outer, z)
+    | _ => z
+    };
+  let is_growing = Selection.is_empty(z.selection) || d == z.selection.focus;
+  switch (z.selection.content, z.caret, is_growing) {
+  | ([], _, _)
+  | ([_], Inner(_), _)
+  | ([_], Outer, false) =>
+    /* Char phase. No round-up here — reaching the starting token's
+     * outer edge via a char step renders as a normal partial char
+     * selection. */
+    local_by_char(d, z)
+  | ([_], Outer, true) =>
+    /* Single-piece at edge, growing: extend past the starting token.
+     * This is the step that moves *past* the edge; enable
+     * smart_rounded (only visible if anchor_caret is Inner). */
+    let z = decompose_multi_shard_neighbor(d, z);
+    let+ z' = Zipper.grow_selection_raw(z);
+    switch (z'.selection.anchor_caret) {
+    | CaretBase.Inner(_) => {
+        ...z',
+        selection: {
+          ...z'.selection,
+          smart_rounded: true,
+        },
+      }
+    | CaretBase.Outer => z'
+    };
+  | (_, _, true) =>
+    /* Multi-piece growing: extend by next whole piece. smart_rounded
+     * preserved from prior step. */
+    let z = decompose_multi_shard_neighbor(d, z);
+    Zipper.grow_selection_raw(z);
+  | (_, _, false) =>
+    /* Multi-piece shrinking: pop focus-side whole piece. If this pop
+     * brings us back to single-piece content, clear smart_rounded so
+     * the original (partial-token) anchor re-displays. */
+    let+ z' = Zipper.shrink_selection(z);
+    List.length(z'.selection.content) == 1
+      ? {
+        ...z',
+        selection: {
+          ...z'.selection,
+          smart_rounded: false,
+        },
+      }
+      : z';
+  };
+};
+
 /* Basic term selection uses term data, which is out of date
  * with the parsing logic which makes list listerals. We also
  * treat tuples as including the parens (if any), though this
@@ -500,19 +889,44 @@ let smart = (term_data, info_map, n, z: t): option(t) => {
 };
 
 let vertical =
-    (d: Action.vertical, ~col_target: int, ~measured: Measured.t, z: t)
+    (
+      d: Action.vertical,
+      ~col_target: int,
+      ~measured: Measured.t,
+      ~chunkiness: Action.chunkiness=ByChar,
+      z: t,
+    )
     : option(t) => {
   let goal =
     Point.{
       col: col_target,
       row: Zipper.Caret.point(measured, z).row + (d == Down ? 1 : (-1)),
     };
-  Zipper.do_towards_point(~measured, ~force_progress=true, local, goal, z);
+  let step =
+    switch (chunkiness) {
+    | ByChar => local_by_char
+    | ByToken => local
+    | BySmart => local_smart
+    };
+  Zipper.do_towards_point(~measured, ~force_progress=true, step, goal, z);
 };
 
-let to_point = (~measured: Measured.t, ~goal: Point.t, z: t): option(t) => {
+let to_point =
+    (
+      ~chunkiness: Action.chunkiness=ByChar,
+      ~measured: Measured.t,
+      ~goal: Point.t,
+      z: t,
+    )
+    : option(t) => {
   let anchor = z |> toggle_focus |> Zipper.Caret.point(measured);
-  switch (Zipper.do_towards_point(~measured, ~anchor, local, goal, z)) {
+  let step =
+    switch (chunkiness) {
+    | ByChar => local_by_char
+    | ByToken => local
+    | BySmart => local_smart
+    };
+  switch (Zipper.do_towards_point(~measured, ~anchor, step, goal, z)) {
   | None => Some(z)
   | Some(z) => Some(z)
   };

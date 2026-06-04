@@ -518,6 +518,12 @@ module Selection = {
          mk(
            ~section="Settings",
            ~mdIcon="tune",
+           ~action=inject(Globals(Set(SelectionChunkiness))),
+           "Toggle Character-level Mouse",
+         ),
+         mk(
+           ~section="Settings",
+           ~mdIcon="tune",
            ~action=inject(Globals(Set(Benchmark))),
            "Toggle Print Benchmarks",
          ),

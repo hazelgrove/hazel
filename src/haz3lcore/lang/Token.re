@@ -144,14 +144,16 @@ let is_potential_operand =
 /* Anything else is considered a potential operator, as long
  *  as it does not contain any whitespace, linebreaks, comment
  *  delimiters, string delimiters, or the instant expanding paired
- *  delimiters: ()[]| */
+ *  delimiters: ()[]|, or the implicit-hole marker ¿. ¿ is excluded
+ *  so that decoded slides like `[1, ¿, 3]` don't merge `¿,` into a
+ *  single operator token; see Haz3lcore.TextRoundtrip. */
 
 let is_potential_operator =
   /* Multiline operators not supported */
-  match(regexp("^[^a-zA-Z0-9_'?\\^$\"`#\n\\s\\[\\]\\(\\)\\{\\}]+$"));
+  match(regexp("^[^a-zA-Z0-9_'?\\^$\"`#¿\n\\s\\[\\]\\(\\)\\{\\}]+$"));
 
 let begins_with_potential_operator =
-  match(regexp("^[^a-zA-Z0-9_'?$\"`#\n\\s\\[\\]\\(\\)\\{\\}]+"));
+  match(regexp("^[^a-zA-Z0-9_'?$\"`#¿\n\\s\\[\\]\\(\\)\\{\\}]+"));
 
 let is_potential_token = t =>
   if (match(regexp("^>"), t)) {
@@ -163,6 +165,7 @@ let is_potential_token = t =>
     t == "()"
     || t == "[]"
     || t == "{}"
+    || t == "¿"  /* implicit-hole marker; see Haz3lcore.TextRoundtrip */
     || is_potential_operand(t)
     || is_potential_operator(t)
     || is_string(t)
@@ -276,6 +279,14 @@ let explicit_hole = "?";
 let llm_hole = "??";
 let llm_advanced_reasoning_hole = "?a";
 let is_explicit_hole = t => t == explicit_hole;
+
+/* Implicit-hole marker: the textual stand-in for a Grout piece used by
+ * Haz3lcore.TextRoundtrip so decode|encode round-trips preserve Grout
+ * positions. A single non-identifier, non-operator character that the
+ * tokeniser treats as its own atomic token (won't glue with adjacent
+ * commas, semicolons, or identifiers). */
+let implicit_hole_marker = "¿";
+let is_implicit_hole_marker = t => t == implicit_hole_marker;
 let is_llm_hole = t => t == llm_hole || t == llm_advanced_reasoning_hole;
 
 /* Projector invocation textual syntax */

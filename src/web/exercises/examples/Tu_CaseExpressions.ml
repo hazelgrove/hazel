@@ -68,7 +68,14 @@ let exercise : Tutorial.spec =
        TaskRefDocs.compose [ TaskRefDocs.case_expression; string_operations ]);
     your_impl =
       {
-        selection = { focus = Left; content = []; mode = Normal };
+        selection =
+          {
+            focus = Left;
+            content = [];
+            mode = Normal;
+            anchor_caret = Outer;
+            smart_rounded = false;
+          };
         relatives =
           {
             siblings =
@@ -569,7 +576,14 @@ let exercise : Tutorial.spec =
       {
         tests =
           {
-            selection = { focus = Left; content = []; mode = Normal };
+            selection =
+              {
+                focus = Left;
+                content = [];
+                mode = Normal;
+                anchor_caret = Outer;
+                smart_rounded = false;
+              };
             relatives =
               {
                 siblings =
