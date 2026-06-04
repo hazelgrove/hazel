@@ -730,7 +730,7 @@ module View = {
     Widgets.toggle(
       ~tooltip="Auto-probe mode active (Cmd/Ctrl+P to toggle)",
       "🔬",
-      globals.settings.autoprobe_mode,
+      globals.settings.autoprobe_mode != Haz3lcore.AutoProbe.Off,
       _ =>
       inject(Update.Globals(Set(AutoprobeMode)))
     ),

@@ -1480,21 +1480,108 @@ let current_toplevel_def =
   };
 };
 
-/* Update the auto probe based on current cursor position.
- * Only reconstitutes the probe when the cursor moves to a different
- * top-level definition. */
+/* The program root id, used as the single anchor for `All` mode. A multi
+ * probe anchored here expands (via MultiProbe.ids_to_multiprobe) to one
+ * probe per source row across the whole program — every definition and
+ * sequence component. Guarded against an empty/secondary-only segment
+ * (e.g. a blank program), where there is nothing to anchor. */
+let program_root_id = (syntax: CachedSyntax.t): option(Id.t) =>
+  switch (syntax.segment) {
+  | [] => None
+  | seg =>
+    switch (Segment.root_id(Segment.skel(seg), seg)) {
+    | id => Some(id)
+    | exception _ => None
+    }
+  };
+
+/* Update the auto probe based on the current mode.
+ *
+ * `Caret`: anchor on the top-level definition the cursor is in (following
+ *   the cursor); only reconstitutes when the cursor crosses into a
+ *   different definition.
+ * `All`: anchor on the program root; the anchor is constant, so after the
+ *   first placement cursor moves are no-ops here (the per-row ephemerals
+ *   are still refreshed each edit by editor_effects -> add_ids_from_multi_term).
+ * `Off`: never reached (Editor.calculate calls clear_autoprobe instead);
+ *   handled as empty anchors for totality. */
 let update_autoprobe =
-    (~syntax: CachedSyntax.t, ~info_map: Statics.Map.t, z: Zipper.t): Zipper.t => {
-  let current_def = current_toplevel_def(info_map, z);
-  /* For function-definition sugar, also anchor the parameter pattern so
-     params are probed on the header line(s) alongside the body. */
-  let current_param =
-    switch (current_def) {
-    | Some(def_id) => function_sugar_param_anchor(info_map, def_id)
-    | None => None
+    (
+      ~mode: AutoProbe.t,
+      ~syntax: CachedSyntax.t,
+      ~info_map: Statics.Map.t,
+      z: Zipper.t,
+    )
+    : Zipper.t => {
+  /* Compute the desired anchor ids and a mode-specific "add" step that
+     reconstitutes the probes for those anchors. Both `add` steps use
+     ~drill=false so the anchor itself is multi-probed (and expanded by
+     row), rather than drilling into subterms. */
+  let (current_anchors, add_new) =
+    switch (mode) {
+    | Off => ([], (z => z))
+    | All =>
+      switch (program_root_id(syntax)) {
+      | None => ([], (z => z))
+      | Some(root_id) => (
+          [root_id],
+          (
+            z =>
+              add_multi(
+                root_id,
+                ~drill=false,
+                ~set_pending_cursor=autoprobe_updates_cursor && auto_focus(z),
+                ~syntax,
+                ~info_map,
+                z,
+              )
+          ),
+        )
+      }
+    | Caret =>
+      let current_def = current_toplevel_def(info_map, z);
+      /* For function-definition sugar, also anchor the parameter pattern so
+         params are probed on the header line(s) alongside the body. */
+      let current_param =
+        switch (current_def) {
+        | Some(def_id) => function_sugar_param_anchor(info_map, def_id)
+        | None => None
+        };
+      let anchors =
+        Option.to_list(current_def) @ Option.to_list(current_param);
+      /* Add new multi probes if inside a definition. The def body carries
+         cursor following (gated on auto_focus so manual focus mode doesn't
+         jump on def-crossing); the parameter anchor is added without
+         re-triggering cursor following, keeping focus on the body's first
+         sample rather than a parameter. */
+      let add = z =>
+        switch (current_def) {
+        | None => z
+        | Some(def_id) =>
+          let z =
+            add_multi(
+              def_id,
+              ~drill=false,
+              ~set_pending_cursor=autoprobe_updates_cursor && auto_focus(z),
+              ~syntax,
+              ~info_map,
+              z,
+            );
+          switch (current_param) {
+          | Some(param_id) =>
+            add_multi(
+              param_id,
+              ~drill=false,
+              ~set_pending_cursor=false,
+              ~syntax,
+              ~info_map,
+              z,
+            )
+          | None => z
+          };
+        };
+      (anchors, add);
     };
-  let current_anchors =
-    Option.to_list(current_def) @ Option.to_list(current_param);
   let prev_anchors = z.refractors.autoprobe_target;
   /* If same anchors, no change needed */
   if (List.equal(Id.equal, current_anchors, prev_anchors)) {
@@ -1512,42 +1599,12 @@ let update_autoprobe =
     /* Regenerate ephemerals from multis.ids after removal.
        rm_multi(~drill=false) only removes the auto ID itself, not the
        expanded ephemeral IDs created by add_ids_from_multi_term. When
-       transitioning to None (no definition), add_multi won't run, so
+       transitioning to None (no definition), add_new won't run, so
        stale ephemerals would persist for one frame without this. */
     let z = add_ids_from_multi_term(~syntax, ~info_map, z);
 
-    /* Add new multi probes if inside a definition.
-       Use ~drill=false to stay on top-level def, not drill into nested lets.
-       The def body carries cursor following (gated on auto_focus so manual
-       focus mode doesn't jump on def-crossing); the parameter anchor is
-       added without re-triggering cursor following, keeping focus on the
-       body's first sample rather than a parameter. */
-    let z =
-      switch (current_def) {
-      | None => z
-      | Some(def_id) =>
-        let z =
-          add_multi(
-            def_id,
-            ~drill=false,
-            ~set_pending_cursor=autoprobe_updates_cursor && auto_focus(z),
-            ~syntax,
-            ~info_map,
-            z,
-          );
-        switch (current_param) {
-        | Some(param_id) =>
-          add_multi(
-            param_id,
-            ~drill=false,
-            ~set_pending_cursor=false,
-            ~syntax,
-            ~info_map,
-            z,
-          )
-        | None => z
-        };
-      };
+    /* Add new multi probes for the current anchors. */
+    let z = add_new(z);
 
     /* Update auto probe tracking */
     Zipper.update_refractors(z, r =>

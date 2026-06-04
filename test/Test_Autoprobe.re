@@ -403,7 +403,77 @@ let step_into_tests = [
   ),
 ];
 
+/* "All" mode: a single multi probe anchored on the program root expands
+ * (via MultiProbe.ids_to_multiprobe, ~drill=false) to one probe per source
+ * row across the whole program. This mirrors what update_autoprobe(~mode=All)
+ * places and what `hazel probe --auto` renders. Distinct from the
+ * Test_MultiProbe harness, which narrows the root via target_subterm_ids
+ * (so for a let-chain it only covers the first definition). */
+let all_probed_strs = (program: string): list(string) => {
+  let zipper =
+    switch (Parser.to_zipper(~root=Exp, program)) {
+    | Some(z) => z
+    | None => fail("parse: " ++ program)
+    };
+  let root_segment = Zipper.unselect_and_zip(zipper);
+  let MakeTerm.{term, _} = MakeTerm.go(root_segment);
+  let (info_map, _) =
+    Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
+  let syntax = CachedSyntax.mk(~info_map, ~dyn_map=Id.Map.empty, zipper);
+  switch (ProbePerform.program_root_id(syntax)) {
+  | None => []
+  | Some(root_id) =>
+    ProbePerform.ids_from_term(~syntax, ~info_map, root_id)
+    |> List.filter_map(id =>
+         switch (TermData.segment(id, syntax.term_data)) {
+         | Some(seg) =>
+           Some(
+             Printer.of_segment(
+               ~holes=" ",
+               ~indent="",
+               ~is_single_line=true,
+               seg,
+             ),
+           )
+         | None => None
+         }
+       )
+  };
+};
+
+let all = (~name, ~input, ~probed: list(string)) =>
+  test_case(name, `Quick, () =>
+    check(list(string), name, probed, all_probed_strs(input))
+  );
+
+let all_mode_tests = [
+  all(
+    ~name="let-chain: one probe per definition + final body",
+    ~input="let x = 1 in\nlet y = x + 2 in\nx + y",
+    ~probed=["1", "x + 2", "x + y"],
+  ),
+  all(
+    ~name="sequence: each component, function body not the fun value",
+    ~input="let f = fun x -> x + 1 in\nf(1);\nf(2)",
+    ~probed=["x + 1", "f(1)", "f(2)"],
+  ),
+  all(
+    ~name="bare expression: single probe on the whole expression",
+    ~input="1 + 2",
+    ~probed=["1 + 2"],
+  ),
+  all(
+    /* Def value pushed to its own row: the header row carries only the
+       pattern `n`, so All mode probes the binder there (like the
+       function-sugar param anchor), then the def value, then the body. */
+    ~name="multi-line def: header pattern, def value, final body",
+    ~input="let n =\n  1 + 2 in\nn",
+    ~probed=["n", "1 + 2", "n"],
+  ),
+];
+
 let tests = [
+  ("Autoprobe.All", all_mode_tests),
   ("Autoprobe.BasicLet", basic_let_tests),
   ("Autoprobe.ParamAnchor", param_anchor_tests),
   ("Autoprobe.StepInto", step_into_tests),

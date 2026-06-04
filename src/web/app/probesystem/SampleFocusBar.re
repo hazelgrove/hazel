@@ -361,7 +361,7 @@ let view =
     : Node.t =>
   /* Hide when call stack is empty, unless auto-probe mode keeps bar visible */
   if (refractors.sample_focus.call_stack == []
-      && !globals.settings.autoprobe_mode) {
+      && globals.settings.autoprobe_mode == AutoProbe.Off) {
     div(~attrs=[Attr.id("sample-focus-bar"), Attr.class_("hidden")], []);
   } else {
     let sample_focus = refractors.sample_focus;

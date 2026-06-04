@@ -13,9 +13,10 @@ module Model = {
     show_log_panel: bool,
     explainThis: ExplainThisModel.Settings.t,
     sidebar: SidebarModel.Settings.t,
-    /* Auto probe: automatically place a multi probe on the body of
-       whichever top-level definition the cursor is currently inside */
-    autoprobe_mode: bool,
+    /* Auto probe mode: Off, Caret (follow the cursor's top-level
+       definition), or All (probe the whole program, one probe per row).
+       See Haz3lcore.AutoProbe. */
+    autoprobe_mode: Haz3lcore.AutoProbe.t,
     /* When true, the sample context drawer (actions/args/env) is shown
        in the probe sidebar instead of as a hover dropdown on samples. */
     sample_drawer_in_sidebar: bool,
@@ -74,7 +75,7 @@ module Model = {
         expanded: [],
       },
     },
-    autoprobe_mode: false,
+    autoprobe_mode: Off,
     sample_drawer_in_sidebar: false,
     agent_globals: AgentGlobals.init(),
     line_numbers: false,
@@ -158,6 +159,7 @@ module Update = {
     | DisplayWarnings
     | FlipAnimations
     | AutoprobeMode
+    | SetAutoprobe(Haz3lcore.AutoProbe.t)
     | SampleDrawerInSidebar
     | SampleStickyInPlace
     | ToggleLineNumbers
@@ -408,9 +410,23 @@ module Update = {
           ...settings, //TODO[Matt]: Make sure instructor mode actually makes prelude read-only
           instructor_mode: !settings.instructor_mode,
         }
-      | AutoprobeMode => {
+      | AutoprobeMode =>
+        /* Keyboard/indicator toggle cycles Off <-> All only; Caret is
+           reachable via the segmented control's SetAutoprobe action. */
+        {
           ...settings,
-          autoprobe_mode: !settings.autoprobe_mode,
+          autoprobe_mode:
+            Haz3lcore.AutoProbe.(
+              switch (settings.autoprobe_mode) {
+              | Off => All
+              | Caret
+              | All => Off
+              }
+            ),
+        }
+      | SetAutoprobe(mode) => {
+          ...settings,
+          autoprobe_mode: mode,
         }
       | SampleDrawerInSidebar =>
         /* Dock toggle — independent of sticky. Mirrors the persisted

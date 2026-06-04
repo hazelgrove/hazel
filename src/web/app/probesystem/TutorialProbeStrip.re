@@ -98,12 +98,14 @@ let flags_of_slide = (module_name: string): list(feat) =>
  * so they mirror the real probe sidebar's toggles. */
 
 let auto_probe_toggle = (~globals: Globals.t) => {
-  let is_on = globals.settings.autoprobe_mode;
-  let segment = (label, active) =>
+  let mode_now = globals.settings.autoprobe_mode;
+  let segment = (label, mode: AutoProbe.t) =>
     div(
       ~attrs=[
-        clss(["segment"] @ (active ? ["active"] : [])),
-        Attr.on_pointerdown(_ => globals.inject_global(Set(AutoprobeMode))),
+        clss(["segment"] @ (mode == mode_now ? ["active"] : [])),
+        Attr.on_pointerdown(_ =>
+          globals.inject_global(Set(SetAutoprobe(mode)))
+        ),
       ],
       [text(label)],
     );
@@ -119,13 +121,17 @@ let auto_probe_toggle = (~globals: Globals.t) => {
       ),
       div(
         ~attrs=[clss(["segmented-control"])],
-        [segment("Off", !is_on), segment("On", is_on)],
+        [
+          segment("Off", Off),
+          segment("Caret", Caret),
+          segment("All", All),
+        ],
       ),
       div(
         ~attrs=[clss(["legend-tooltip"])],
         [
           text(
-            "Automatically probe the definition at the cursor, following as you navigate.",
+            "Off, follow the cursor's definition (Caret), or probe the whole program (All).",
           ),
         ],
       ),

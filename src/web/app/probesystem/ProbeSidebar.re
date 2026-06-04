@@ -402,13 +402,13 @@ let toggle_controls_view = (~globals: Globals.t, ~explain_this_inject) => {
       {
         /* Auto Probe toggle */
 
-        let is_on = globals.settings.autoprobe_mode;
-        let segment = (label, active) =>
+        let mode_now = globals.settings.autoprobe_mode;
+        let segment = (label, mode: AutoProbe.t) =>
           div(
             ~attrs=[
-              clss(["segment"] @ (active ? ["active"] : [])),
+              clss(["segment"] @ (mode == mode_now ? ["active"] : [])),
               Attr.on_pointerdown(_ =>
-                globals.inject_global(Set(AutoprobeMode))
+                globals.inject_global(Set(SetAutoprobe(mode)))
               ),
             ],
             [text(label)],
@@ -425,13 +425,17 @@ let toggle_controls_view = (~globals: Globals.t, ~explain_this_inject) => {
             ),
             div(
               ~attrs=[clss(["segmented-control"])],
-              [segment("Off", !is_on), segment("On", is_on)],
+              [
+                segment("Off", Off),
+                segment("Caret", Caret),
+                segment("All", All),
+              ],
             ),
             div(
               ~attrs=[clss(["legend-tooltip"])],
               [
                 text(
-                  "Automatically probe the definition at the cursor, following as you navigate.",
+                  "Off, follow the cursor's definition (Caret), or probe the whole program (All).",
                 ),
               ],
             ),
