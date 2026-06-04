@@ -221,6 +221,16 @@ let dev_group = (~globals: Globals.t) => {
         warning: None,
       },
       {
+        name: "Character-level mouse",
+        active: globals.settings.core.selection_chunkiness,
+        setting: SelectionChunkiness,
+        tooltip:
+          Some(
+            "When on, mouse drag selects by character. When off (default), mouse drag selects by character inside a token and by whole token beyond; holding Alt (Mac) / Ctrl (PC) while dragging does the reverse. Keyboard Shift+Arrow is always character-level (hold Alt/Ctrl for whole-token).",
+          ),
+        warning: None,
+      },
+      {
         name: "Cap Undo Stack",
         active: globals.settings.cap_undo_stack,
         setting: CapUndoStack,
