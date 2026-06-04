@@ -515,6 +515,12 @@
   overflow-x: auto;
 }
 
+#debug-sidebar .debug-field-value:not(.raw) .code {
+  /* .code otherwise forces --base-font-size, rendering larger than the raw
+     <pre>; inherit the field-value size so both modes match. */
+  font-size: inherit;
+}
+
 #debug-sidebar .debug-section-title {
   display: flex;
   align-items: center;
