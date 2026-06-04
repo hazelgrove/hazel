@@ -456,7 +456,7 @@ module View = {
 
     let editor_view =
         (
-          ~caption: string,
+          ~caption: option(string)=?,
           ~subcaption: option(string)=?,
           ~result_kind=`NoResults,
           this_pos: Tutorial.pos,
@@ -474,7 +474,8 @@ module View = {
           },
         ~inject=a => inject(Editor(this_pos, a)),
         ~result_kind,
-        ~caption=CellCommon.caption(caption, ~rest=?subcaption),
+        ~caption=?
+          Option.map(c => CellCommon.caption(c, ~rest=?subcaption), caption),
         ~lines=true,
         cell,
       );
@@ -513,14 +514,7 @@ module View = {
       Always(
         div(
           ~attrs=[Attr.class_("your-impl-wrapper")], // 🆕 Add this wrapper
-          [
-            editor_view(
-              YourImpl,
-              user_impl,
-              ~caption="Your Implementation",
-              ~result_kind=`EvalResults,
-            ),
-          ],
+          [editor_view(YourImpl, user_impl, ~result_kind=`EvalResults)],
         ),
       );
     };
