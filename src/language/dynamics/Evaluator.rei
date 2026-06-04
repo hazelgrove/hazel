@@ -1,16 +1,15 @@
 // INVARIANT: this evaluate function should never return an expression with closures.
 
-[@deriving (show({with_path: false}), eq)]
-type step_constrained('a) =
-  | StepLimitExceeded
-  | Completed('a);
-
 type yielding_evaluation;
 
 type yielding_result =
   | EvaluationCompleted((Exp.t, EvaluatorState.t))
-  | EvaluationYielded(yielding_evaluation)
-  | EvaluationStepLimitExceeded;
+  | EvaluationYielded(yielding_evaluation);
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type limited_result =
+  | LimitedCompleted((Exp.t, EvaluatorState.t))
+  | StepLimitExceeded;
 
 let evaluate:
   (
@@ -23,14 +22,14 @@ let evaluate:
 
 let evaluate_and_limit:
   (
-    ~step_limit: int=?,
+    ~step_limit: int,
     ~prev: EvaluatorState.incr_eval=?,
     ~info_map: EvalInfo.t=?,
     ~env: Environment.t(Exp.t),
     ~reuse_map: IncrEval.reuse_map=?,
     Exp.t
   ) =>
-  step_constrained((Exp.t, EvaluatorState.t));
+  limited_result;
 
 let start_yielding_evaluation:
   (
@@ -43,5 +42,4 @@ let start_yielding_evaluation:
   yielding_evaluation;
 
 let run_yielding_slice:
-  (~step_limit: int=?, ~step_budget: int, yielding_evaluation) =>
-  yielding_result;
+  (~step_budget: int, yielding_evaluation) => yielding_result;

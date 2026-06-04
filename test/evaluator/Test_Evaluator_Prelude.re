@@ -140,10 +140,19 @@ let parse_and_evaluate_test =
     elaborate(parse_exp(actual)),
   );
 
-let step_limited = (t: Alcotest.testable('a)) =>
+let equal_limited_result =
+    (lr1: Evaluator.limited_result, lr2: Evaluator.limited_result) =>
+  switch (lr1, lr2) {
+  | (LimitedCompleted((exp1, _)), LimitedCompleted((exp2, _))) =>
+    Exp.equal(exp1, exp2)
+  | (StepLimitExceeded, StepLimitExceeded) => true
+  | _ => false
+  };
+
+let step_limited = (_: Alcotest.testable('a)) =>
   testable(
-    Fmt.using(Evaluator.show_step_constrained(pp(t)), Fmt.string),
-    Evaluator.equal_step_constrained(equal(t)),
+    Fmt.using(Evaluator.show_limited_result, Fmt.string),
+    equal_limited_result,
   );
 let single_step = (exp: Exp.t) => {
   let step =
@@ -160,8 +169,7 @@ let single_step = (exp: Exp.t) => {
 };
 
 let full_small_step_reduction =
-    (~step_limit=1000, exp: TermBase.exp_t)
-    : Evaluator.step_constrained(Exp.t) => {
+    (~step_limit=1000, exp: TermBase.exp_t): Evaluator.limited_result => {
   let rec go = (~steps_counter=0, exp: TermBase.exp_t): option(Exp.t) =>
     if (steps_counter > step_limit) {
       None;
@@ -174,7 +182,7 @@ let full_small_step_reduction =
 
   switch (go(~steps_counter=0, exp)) {
   | None => StepLimitExceeded
-  | Some(new_exp) => Completed(new_exp)
+  | Some(new_exp) => LimitedCompleted((new_exp, EvaluatorState.empty))
   };
 };
 

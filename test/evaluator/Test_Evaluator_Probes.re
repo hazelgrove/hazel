@@ -89,7 +89,14 @@ let get_samples_by_line = (code: string): IntMap.t(list(string)) => {
       );
 
     let (_, state) =
-      Evaluator.evaluate(~info_map={statics:Id.Map.empty, targets}, ~env=Builtins.env_init, elaborated);
+      Evaluator.evaluate(
+        ~info_map={
+          statics: Id.Map.empty,
+          targets,
+        },
+        ~env=Builtins.env_init,
+        elaborated,
+      );
     let probes = EvaluatorState.get_probes(state);
 
     /* Get segment and measured for position lookup */

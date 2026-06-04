@@ -21,7 +21,15 @@ open Test_Evaluator_Prelude;
 let get_probes_map = (code: string): Id.Map.t(list(Sample.t)) => {
   let (_term, elaborated, _info_map, targets) = parse_with_probes(code);
   let (_, state) =
-    Evaluator.evaluate(~info_map=EvalInfo.{statics:Id.Map.empty, targets:targets}, ~env=Builtins.env_init, elaborated);
+    Evaluator.evaluate(
+      ~info_map=
+        EvalInfo.{
+          statics: Id.Map.empty,
+          targets,
+        },
+      ~env=Builtins.env_init,
+      elaborated,
+    );
   EvaluatorState.get_probes(state);
 };
 
@@ -36,8 +44,7 @@ let partition_by_depth =
 
 /* Make a cursor at a given stack, with optional pin */
 let mk_cursor =
-    (~pinned=None, ~indicated_call=None, stack: CallStack.t)
-    : Sample.Focus.t => {
+    (~pinned=None, ~indicated_call=None, stack: CallStack.t): Sample.Focus.t => {
   call_stack: stack,
   index: List.length(stack) - 1,
   pinned_stack: pinned,
@@ -441,12 +448,7 @@ in ^^probe(f(1)); ^^probe(f(2)); ^^probe(f(3))|};
 
 /* Helper: mk_cursor with explicit index for intent preservation testing */
 let mk_cursor_at_index =
-    (
-      ~pinned=None,
-      ~indicated_call=None,
-      ~index: int,
-      stack: CallStack.t,
-    )
+    (~pinned=None, ~indicated_call=None, ~index: int, stack: CallStack.t)
     : Sample.Focus.t => {
   call_stack: stack,
   index,
@@ -750,7 +752,15 @@ in ^^probe(f(42))|};
       /* Evaluate to get samples */
       let elaborated = elaborate(term);
       let (_, state) =
-        Evaluator.evaluate(~info_map=EvalInfo.{statics:Id.Map.empty, targets:targets}, ~env=Builtins.env_init, elaborated);
+        Evaluator.evaluate(
+          ~info_map=
+            EvalInfo.{
+              statics: Id.Map.empty,
+              targets,
+            },
+          ~env=Builtins.env_init,
+          elaborated,
+        );
       let probes_map = EvaluatorState.get_probes(state);
       /* Find the call probe (wrapping f(42)) and inner probe (on x) */
       let call_probe_id =
