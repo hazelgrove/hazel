@@ -774,12 +774,10 @@ module View = {
 
     let key_handler_attr =
       if (!selected) {
-        /* Always focusable so first click gives DOM focus.
-         * Key events are ignored when not selected — they bubble
-         * to Page.re which handles page-level shortcuts. */
-        Attr.tabindex(
-          0,
-        );
+        /* Key events are ignored when not selected — they bubble
+         * to Page.re which handles page-level shortcuts. The editor
+         * is kept focusable via the unconditional tabindex below. */
+        Attr.empty;
       } else {
         let z = model.editor.state.zipper;
         /* Editor-level clipboard helpers. Bypass the page-level
@@ -940,6 +938,9 @@ module View = {
           @ (selected ? ["selected"] : [])
           @ (display_line_numbers ? ["has-line-numbers"] : []),
         ),
+        /* Always focusable so a click always gives DOM focus — the caret
+         * and the active-cell accent are gated on `.code-editor:focus`. */
+        Attr.tabindex(0),
         key_handler_attr,
         Attr.on_contextmenu(evt =>
           switch (Pointer.Event.mk(evt)) {
