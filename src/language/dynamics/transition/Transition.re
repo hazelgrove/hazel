@@ -155,7 +155,6 @@ let (let-unbox) = ((request, v), f) => {
   f(result);
 };
 module type EV_MODE = {
-  type state;
   type result;
   type requirement('a);
   type requirements('a, 'b);

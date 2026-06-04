@@ -152,7 +152,6 @@ module EvaluatorEVMode: {
 
   include
     EV_MODE with
-      type state = ref(EvaluatorState.t) and
       type result =
         Trampoline.t((status, list(EvaluatorState.effect), DHExp.t));
 } = {
@@ -166,8 +165,6 @@ module EvaluatorEVMode: {
     Trampoline.t((status, list(EvaluatorState.effect), DHExp.t));
   type requirement('a) = Trampoline.t('a);
   type requirements('a, 'b) = Trampoline.t(('a, 'b));
-
-  type state = ref(EvaluatorState.t);
 
   let req_final = (f, _, x) => {
     let.trampoline (_, _, x) = Next(() => f(x));
@@ -212,7 +209,7 @@ let rec evaluate =
           ~info_map: EvalInfoMap.t,
           ~in_closure=?,
           ~call_stack: Sample.call_stack,
-          state: EvaluatorEVMode.state,
+          state: ref(EvaluatorState.t),
           env,
           init: DHExp.t,
         )
