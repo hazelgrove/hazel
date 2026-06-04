@@ -566,7 +566,7 @@
 .live-offside.Many
   .sample:has(.value.unrelated:not(.depth-above):not(.depth-below))
   .value {
-  background-color: #e5efe8;
+  background-color: var(--sample-off-bg);
 }
 
 .live-offside.Many .sample:has(.value.depth-above.depth-2) {
@@ -733,7 +733,7 @@
 }
 
 .live-offside.Many .value.unrelated .code-text .token {
-  color: #437543;
+  color: var(--sample-off-text);
   opacity: 0.7;
 }
 .live-offside.Many .value.tangent-before .code-text .token {
@@ -744,9 +744,6 @@
   color: var(--sample-below-text);
   opacity: 0.7;
 }
-/* .live-offside.Single .value.unrelated .code-text .token {
-  color: rgb(102, 102, 102);
-} */
 .live-offside.Single .value.unrelated .code-text .token {
   color: #437543;
 }
@@ -1120,7 +1117,9 @@
  * `:focus` narrows to the one offside that has keyboard focus, and
  * `.value.focus` to its single focal (red-outlined) sample — so exactly one
  * dropdown shows, and it follows arrow-key navigation. */
-.live-offside.sticky:focus .sample:has(.value.focus) .sample-context-menu:not(:empty) {
+.live-offside.sticky:focus
+  .sample:has(.value.focus)
+  .sample-context-menu:not(:empty) {
   display: block;
 }
 

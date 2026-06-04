@@ -66,12 +66,10 @@
   background-color: 1px solid var(--cell-selected-accent);
   border-left: 5px solid #ffc107;
   padding: 13px;
-  margin: 20px 0;
   border-radius: 8px;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
   font-size: 16px;
   color: #454545;
-  width: calc(100% - 2em);
   gap: 2em;
 }
 
@@ -256,13 +254,17 @@
 #main.Tutorial .next-button:hover {
   transform: scale(1.2);
   color: #ffc107;
-  transition: transform 0.2s ease, color 0.2s ease;
+  transition:
+    transform 0.2s ease,
+    color 0.2s ease;
 }
 
 #main.Tutorial .prev-button:hover {
   transform: scaleX(-1) scale(1.2);
   color: #ffc107;
-  transition: transform 0.2s ease, color 0.2s ease;
+  transition:
+    transform 0.2s ease,
+    color 0.2s ease;
 }
 
 #main.Tutorial .prev-button {
@@ -312,4 +314,5 @@
 #probe-sidebar.tutorial-probe-strip {
   flex: 0 0 auto;
   overflow-y: visible;
+  padding: 1px;
 }
