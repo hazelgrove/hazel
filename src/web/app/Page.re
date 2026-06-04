@@ -787,6 +787,12 @@ module View = {
         s == "" ? None : Some(s);
       | _ => None
       };
+    let tutorial_module: option(string) =
+      switch (editors) {
+      | Tutorial(t) =>
+        Some(TutorialsMode.Model.get_current(t).editors.module_name)
+      | _ => None
+      };
     let sidebar =
       Sidebar.view(
         ~globals,
@@ -804,6 +810,7 @@ module View = {
         ~log_count,
         ~cursor,
         ~task_reference,
+        ~tutorial_module,
       );
     let editors_view =
       Editors.View.view(

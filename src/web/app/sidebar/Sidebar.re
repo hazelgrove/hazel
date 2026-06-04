@@ -155,7 +155,14 @@ let task_reference_tab = (~globals: Globals.t): Node.t =>
 
 let split_task_reference_sections = TaskReferenceSplit.split;
 
-let task_reference_view = (~globals: Globals.t, body: string) => {
+let task_reference_view =
+    (
+      ~globals: Globals.t,
+      ~explain_this_inject,
+      ~editor: CodeWithStatics.Model.t,
+      ~module_name: string,
+      body: string,
+    ) => {
   let render_md = blocks => {
     let (nodes, _) =
       ExplainThis.mk_translation_doc(~globals, ~inject=_ => (), blocks);
@@ -191,21 +198,68 @@ let task_reference_view = (~globals: Globals.t, body: string) => {
         },
       sections,
     );
-  div(
-    ~attrs=[clss(["task-reference-panel"])],
-    [
-      div(
-        ~attrs=[clss(["task-reference-header"])],
-        [
+  let body_div = div(~attrs=[clss(["task-reference-body"])], section_nodes);
+  let flags = TutorialProbeStrip.flags_of_slide(module_name);
+  let console_on = TutorialProbeStrip.console_enabled(flags);
+  /* When the print console is enabled (slide 20+), the panel header becomes a
+   * Reference / Console switch and Console mode swaps the whole body for the
+   * print console. Otherwise the strip (when nonempty) sits between the
+   * "Task Reference" header and the markdown body. The strip and console live
+   * inside a #probe-sidebar wrapper so they inherit the probe panel's styling;
+   * .task-reference-panel remains the ancestor so markdown stays styled. */
+  if (console_on) {
+    let inner =
+      TutorialProbeStrip.console_mode^
+        ? TutorialProbeStrip.console_body(~explain_this_inject, ~editor)
+        : TutorialProbeStrip.strip_view(
+            ~globals,
+            ~explain_this_inject,
+            ~flags,
+          )
+          @ [body_div];
+    div(
+      ~attrs=[clss(["task-reference-panel"])],
+      [
+        div(
+          ~attrs=[Attr.id("probe-sidebar"), clss(["tutorial-probe-strip"])],
+          [
+            TutorialProbeStrip.console_header(~explain_this_inject),
+            ...inner,
+          ],
+        ),
+      ],
+    );
+  } else {
+    let strip =
+      TutorialProbeStrip.strip_view(~globals, ~explain_this_inject, ~flags);
+    let strip_div =
+      strip == []
+        ? []
+        : [
           div(
-            ~attrs=[clss(["task-reference-title"])],
-            [text("Task Reference")],
+            ~attrs=[
+              Attr.id("probe-sidebar"),
+              clss(["tutorial-probe-strip"]),
+            ],
+            strip,
           ),
-        ],
-      ),
-      div(~attrs=[clss(["task-reference-body"])], section_nodes),
-    ],
-  );
+        ];
+    div(
+      ~attrs=[clss(["task-reference-panel"])],
+      [
+        div(
+          ~attrs=[clss(["task-reference-header"])],
+          [
+            div(
+              ~attrs=[clss(["task-reference-title"])],
+              [text("Task Reference")],
+            ),
+          ],
+        ),
+        ...strip_div @ [body_div],
+      ],
+    );
+  };
 };
 
 let collapse_tab = (~globals: Globals.t): Node.t => {
@@ -346,6 +400,7 @@ let view =
       ~editor: CodeWithStatics.Model.t,
       ~signal,
       ~task_reference: option(string),
+      ~tutorial_module: option(string),
     ) => {
   let ctx =
     Haz3lcore.ProblemCollection.make_problem_context(
@@ -401,7 +456,14 @@ let view =
             | Problems => ProblemSidebar.view(~globals, ~cursor, ~ctx)
             | TaskReference =>
               switch (task_reference) {
-              | Some(text) => task_reference_view(~globals, text)
+              | Some(text) =>
+                task_reference_view(
+                  ~globals,
+                  ~explain_this_inject,
+                  ~editor,
+                  ~module_name=Option.value(tutorial_module, ~default=""),
+                  text,
+                )
               | None => div([text("No task reference available.")])
               }
             },

@@ -303,3 +303,13 @@
     transform: rotate(360deg);
   }
 }
+
+/* The tutorial probe strip reuses #probe-sidebar styling but is embedded in
+   the Task Reference panel. There it must size to its content: the inherited
+   `flex: 1` would make it grow and push the markdown body to the bottom of
+   the panel, leaving a large vertical gap. id+class outranks the bare
+   #probe-sidebar rule. */
+#probe-sidebar.tutorial-probe-strip {
+  flex: 0 0 auto;
+  overflow-y: visible;
+}

@@ -16,7 +16,7 @@ else 1
 # Task
 
 **See it as you write**
-*Before you begin writing*, right-click the `clamp` definition and choose *Add multi probe* (or Cmd/Ctrl+E with the cursor on it). A probe lands on each line, so values appear as you type. Add line breaks to see more, join lines to see fewer.
+*Before you begin writing*, put your cursor on the `clamp` definition and add a probe the usual way — **Cmd/Ctrl+E**, or right-click then *Add probe*. It's the same control as before: probing a definition (a `let`) just lands a probe on *each line*, so values appear as you type. Add line breaks to see more, join lines to see fewer.
 
 Over-watering drowns a plant. Complete `clamp` so it holds a watering amount `x` to the range 0 to 100: below 0 gives `0`, above 100 gives `100`, otherwise `x` unchanged.
 
@@ -41,7 +41,7 @@ else 1
 
 ### Probes
 - **Add / remove a probe**: Cmd/Ctrl+E, or right-click then *Add probe*
-- **Multi probe** (on a definition): a probe per line. Add or remove line breaks to control how much you see.
+- **On a definition**: the same control lands a probe per line. Add or remove line breaks to control how much you see.
 
 @hints
 clamp(-5) should be 0
