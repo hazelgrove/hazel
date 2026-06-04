@@ -146,18 +146,61 @@ let probe_status =
   };
 };
 
+/* Memoization for the per-row multi-probe expansion.
+ *
+ * `MultiProbe.ids_to_multiprobe` is an O(program) per-row analysis. It is a
+ * pure function of the syntax snapshots (term_data, terms, measured) +
+ * info_map + the anchor id. Those snapshots are immutable and rebuilt
+ * by-reference on change (CachedSyntax / CachedStatics), reused by reference
+ * otherwise — so we key on PHYSICAL identity of the four refs (===, O(1)
+ * pointer compares, never a structural walk) plus the small Id.t anchor.
+ * When any ref changes we drop the per-anchor result table; within a
+ * stable-syntax run (e.g. pure caret moves) every anchor is served from it.
+ *
+ * Soundness: these structures are never mutated in place, so same-ref
+ * implies same-content (no stale results); a spurious ref change only costs
+ * a recompute. The cache is a single global entry — multiple editors with
+ * distinct syntaxes invalidate each other (correct, just less reuse); the
+ * hot path (one main editor in auto-probe All) keeps it warm. */
+let _expansion_inputs:
+  ref(option((TermData.t, TermMap.t, Measured.t, Statics.Map.t))) =
+  ref(None);
+let _expansion_results: ref(list((Id.t, list(Id.t)))) = ref([]);
+
 let ids_from_term =
-    (~syntax: CachedSyntax.t, ~info_map, id: Id.t): list(Id.t) =>
-  MultiProbe.ids_to_multiprobe(
-    id,
-    syntax.term_data,
-    syntax.terms,
-    syntax.measured,
-    info_map,
-  )
-  |> Option.to_list
-  |> List.flatten
-  |> List.filter_map(Fun.id);
+    (~syntax: CachedSyntax.t, ~info_map, id: Id.t): list(Id.t) => {
+  let inputs_stable =
+    switch (_expansion_inputs^) {
+    | Some((term_data, terms, measured, prev_info_map)) =>
+      term_data === syntax.term_data
+      && terms === syntax.terms
+      && measured === syntax.measured
+      && prev_info_map === info_map
+    | None => false
+    };
+  if (!inputs_stable) {
+    _expansion_inputs :=
+      Some((syntax.term_data, syntax.terms, syntax.measured, info_map));
+    _expansion_results := [];
+  };
+  switch (List.assoc_opt(id, _expansion_results^)) {
+  | Some(result) => result
+  | None =>
+    let result =
+      MultiProbe.ids_to_multiprobe(
+        id,
+        syntax.term_data,
+        syntax.terms,
+        syntax.measured,
+        info_map,
+      )
+      |> Option.to_list
+      |> List.flatten
+      |> List.filter_map(Fun.id);
+    _expansion_results := [(id, result), ..._expansion_results^];
+    result;
+  };
+};
 
 /* Sort IDs by lexical position (earliest first).
  * Uses the start position of each term to determine order. */
@@ -506,7 +549,22 @@ let add_ids_from_multi_term =
       Id.Map.empty,
       ids,
     );
-  let z = Zipper.update_ephemerals(_ => new_ephemeral_map, z);
+  /* Preserve the previous ephemerals ref when the resulting set is identical,
+   * rather than installing a fresh map every frame. A new ref would make
+   * CachedSyntax.calculate take the refresh_shapes path and rebuild Measured
+   * (O(program)) every frame — even on pure caret moves — because it gates on
+   * `multis.ephemerals !==`. Keeping the ref stable lets the cheap
+   * selection-only path run. (O(probes) compare, only over the probe set.) */
+  let z =
+    if (Id.Map.equal(
+          Refractors.equal_entry,
+          new_ephemeral_map,
+          old_ephemerals,
+        )) {
+      z;
+    } else {
+      Zipper.update_ephemerals(_ => new_ephemeral_map, z);
+    };
   /* If there are genuinely new ephemeral IDs, set pending_probe_cursor
      so the sample focus aligns when evaluation results arrive.
      Gated on auto_focus: in manual focus mode, don't auto-capture. */
@@ -1484,16 +1542,39 @@ let current_toplevel_def =
  * probe anchored here expands (via MultiProbe.ids_to_multiprobe) to one
  * probe per source row across the whole program — every definition and
  * sequence component. Guarded against an empty/secondary-only segment
- * (e.g. a blank program), where there is nothing to anchor. */
-let program_root_id = (syntax: CachedSyntax.t): option(Id.t) =>
-  switch (syntax.segment) {
-  | [] => None
-  | seg =>
-    switch (Segment.root_id(Segment.skel(seg), seg)) {
-    | id => Some(id)
-    | exception _ => None
-    }
+ * (e.g. a blank program), where there is nothing to anchor.
+ *
+ * Memoized on physical identity of `syntax.segment`: `Segment.skel` runs a
+ * shunting-yard parse over the program, and update_autoprobe calls this every
+ * frame in All mode (before the anchor short-circuit). The segment ref is
+ * reused across non-edit frames by CachedSyntax, so a caret move hits the
+ * cache; an edit rebuilds the segment and recomputes. */
+let _root_id_segment: ref(option(Segment.t)) = ref(None);
+let _root_id_result: ref(option(Id.t)) = ref(None);
+
+let program_root_id = (syntax: CachedSyntax.t): option(Id.t) => {
+  let stable =
+    switch (_root_id_segment^) {
+    | Some(seg) => seg === syntax.segment
+    | None => false
+    };
+  if (stable) {
+    _root_id_result^;
+  } else {
+    let result =
+      switch (syntax.segment) {
+      | [] => None
+      | seg =>
+        switch (Segment.root_id(Segment.skel(seg), seg)) {
+        | id => Some(id)
+        | exception _ => None
+        }
+      };
+    _root_id_segment := Some(syntax.segment);
+    _root_id_result := result;
+    result;
   };
+};
 
 /* Update the auto probe based on the current mode.
  *
