@@ -546,6 +546,155 @@ let info_view = (~globals, ~raw, ci: Info.t): list(Node.t) =>
   | InfoDrv(d) => drv_view(~globals, d)
   };
 
+/* ---- Syntax sections: the syntactic/zipper layer under the cursor, ----
+   orthogonal to the statics Info above. Sourced from cursor.indicated_piece
+   and cursor.editor (zipper + cached syntax). */
+
+let shape_str = (s: Haz3lcore.Nib.Shape.t): string =>
+  Haz3lcore.Nib.Shape.show(s);
+
+let sort_str = (s: Sort.t): string => Sort.to_string(s);
+
+/* The tile/grout/secondary/projector immediately under the caret. */
+let indicated_piece_fields = (p: Haz3lcore.Piece.t): list(Node.t) =>
+  [field_str("id", id_str(Haz3lcore.Piece.id(p)))]
+  @ Haz3lcore.Piece.get(
+      (w: Haz3lcore.Secondary.t) => {
+        let kind =
+          Haz3lcore.Secondary.is_comment(w)
+            ? "comment"
+            : Haz3lcore.Secondary.is_linebreak(w) ? "linebreak" : "whitespace";
+        [
+          field_str("kind", "Secondary (" ++ kind ++ ")"),
+          field_str(
+            "content",
+            String.escaped(Haz3lcore.Secondary.get_string(w.content)),
+          ),
+        ];
+      },
+      (g: Haz3lcore.Grout.t) =>
+        [
+          field_str("kind", "Grout"),
+          field_str(
+            "shape",
+            switch (g.shape) {
+            | Haz3lcore.Grout.Convex => "Convex"
+            | Concave => "Concave"
+            },
+          ),
+        ],
+      (t: Haz3lcore.Tile.t) => {
+        let (l, r) = Haz3lcore.Tile.shapes(t);
+        [
+          field_str("kind", "Tile"),
+          field_str("label", String.concat(" ", t.label)),
+          field_str("mold.out", sort_str(t.mold.out)),
+          field_str(
+            "mold.in_",
+            "[" ++ String.concat(", ", List.map(sort_str, t.mold.in_)) ++ "]",
+          ),
+          field_str("nibs", shape_str(l) ++ " … " ++ shape_str(r)),
+          field_str(
+            "shards",
+            "["
+            ++ String.concat(", ", List.map(string_of_int, t.shards))
+            ++ "]",
+          ),
+          field_str("children", string_of_int(List.length(t.children))),
+          field_str(
+            "complete",
+            string_of_bool(Haz3lcore.Tile.is_complete(t)),
+          ),
+        ];
+      },
+      _ => [field_str("kind", "Projector")],
+      p,
+    );
+
+/* Caret, selection, and backpack from the editor's zipper. */
+let zipper_fields = (z: Haz3lcore.Zipper.t): list(Node.t) => {
+  let sel = z.selection;
+  let backpack = Haz3lcore.Zipper.local_backpack(z);
+  [
+    field_str("caret", Haz3lcore.CaretBase.show(z.caret)),
+    field_str("selection.focus", Util.Direction.show(sel.focus)),
+    field_str("selection.pieces", string_of_int(List.length(sel.content))),
+    field_str(
+      "selection.empty",
+      string_of_bool(Haz3lcore.Selection.is_empty(sel)),
+    ),
+    field_str(
+      "backpack",
+      string_of_int(List.length(backpack)) ++ " tile(s)",
+    ),
+  ];
+};
+
+/* Layout position of the indicated piece, from the measured cache. */
+let measured_fields =
+    (p: Haz3lcore.Piece.t, measured: Haz3lcore.Measured.t): list(Node.t) =>
+  switch (Haz3lcore.Measured.find_by_id(Haz3lcore.Piece.id(p), measured)) {
+  | None => [field_str("measurement", "(not measured)")]
+  | Some({origin, last}) => [
+      field_str(
+        "origin",
+        Printf.sprintf("row %d, col %d", origin.row, origin.col),
+      ),
+      field_str(
+        "last",
+        Printf.sprintf("row %d, col %d", last.row, last.col),
+      ),
+    ]
+  };
+
+/* Whole-editor / segment summary. */
+let editor_fields = (editor: Haz3lcore.Editor.t): list(Node.t) => {
+  let syntax = editor.syntax;
+  [
+    field_str("root sort", sort_str(editor.root)),
+    field_str("syntax stale", string_of_bool(syntax.old)),
+    field_str("segment pieces", string_of_int(List.length(syntax.segment))),
+    field_str(
+      "projectors",
+      string_of_int(List.length(syntax.projector_list)),
+    ),
+    field_str(
+      "backpack (cached)",
+      string_of_int(List.length(syntax.cached_backpack)) ++ " tile(s)",
+    ),
+  ];
+};
+
+let syntax_view = (~globals, ~cursor: Cursor.cursor(_)): list(Node.t) => {
+  let piece_sec =
+    switch (cursor.indicated_piece) {
+    | None => []
+    | Some(p) =>
+      section(~globals, "Indicated Piece", () => indicated_piece_fields(p))
+    };
+  let (zipper_sec, measured_sec, editor_sec) =
+    switch (cursor.editor) {
+    | None => ([], [], [])
+    | Some(editor) =>
+      let zipper_sec =
+        section(~globals, "Caret & Selection", () =>
+          zipper_fields(editor.state.zipper)
+        );
+      let measured_sec =
+        switch (cursor.indicated_piece) {
+        | None => []
+        | Some(p) =>
+          section(~globals, "Measured", () =>
+            measured_fields(p, editor.syntax.measured)
+          )
+        };
+      let editor_sec =
+        section(~globals, "Segment", () => editor_fields(editor));
+      (zipper_sec, measured_sec, editor_sec);
+    };
+  piece_sec @ zipper_sec @ measured_sec @ editor_sec;
+};
+
 let toggle_bar = (~globals: Globals.t): Node.t => {
   let raw = globals.settings.sidebar.debug_show_raw;
   let on_click = _ => globals.inject_global(Set(Sidebar(ToggleDebugRaw)));
@@ -580,9 +729,17 @@ let view = (~globals: Globals.t, ~cursor: Cursor.cursor(_)): Node.t => {
       toggle_bar(~globals),
       div(
         ~attrs=[clss(["panel-body"])],
-        switch (cursor.info) {
-        | None => [text("No info at cursor.")]
-        | Some(ci) => info_view(~globals, ~raw, ci)
+        {
+          let info_sections =
+            switch (cursor.info) {
+            | None => []
+            | Some(ci) => info_view(~globals, ~raw, ci)
+            };
+          let syntax_sections = syntax_view(~globals, ~cursor);
+          switch (info_sections, syntax_sections) {
+          | ([], []) => [text("No info at cursor.")]
+          | _ => info_sections @ syntax_sections
+          };
         },
       ),
     ],
