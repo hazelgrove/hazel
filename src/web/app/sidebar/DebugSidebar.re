@@ -24,14 +24,77 @@ let code_settings: Haz3lcore.ExpToSegment.Settings.t = {
   project_tables: false,
 };
 
-let section_title = (title: string): Node.t =>
-  div(~attrs=[clss(["debug-section-title"])], [text(title)]);
+/* Copies the raw `show` text to the clipboard. The payload is a thunk so the
+   (potentially expensive) `show` only runs on click, not when the field is
+   built. Revealed on field hover via CSS so it doesn't clutter the list. */
+let copy_button = (payload: unit => string): Node.t =>
+  span(
+    ~attrs=[
+      clss(["debug-copy-button"]),
+      Attr.title("Copy raw value to clipboard"),
+      Attr.on_click(_ => {
+        Util.JsUtil.write_clipboard(payload());
+        Virtual_dom.Vdom.Effect.Ignore;
+      }),
+    ],
+    [text({|⧉|})],
+  );
 
-let field_node = (label: string, body: Node.t): Node.t =>
+/* Label row: optional collapse chevron, the field name, and (when `copy` is
+   given) a copy button carrying the raw `show` text. */
+let label_row =
+    (
+      ~chevron: list(Node.t)=[],
+      ~copy: option(unit => string)=None,
+      label: string,
+    )
+    : Node.t =>
+  div(
+    ~attrs=[clss(["debug-field-label"])],
+    chevron
+    @ [span(~attrs=[clss(["debug-field-name"])], [text(label)])]
+    @ (
+      switch (copy) {
+      | None => []
+      | Some(f) => [copy_button(f)]
+      }
+    ),
+  );
+
+/* Collapsible section header; clicking toggles visibility of `fields`. The
+   fields are a thunk so a collapsed section builds none of them — and since
+   the panel only ever renders the single section under the cursor, that is
+   the dominant cost. Collapse state is keyed by the section title. */
+let section =
+    (~globals: Globals.t, title: string, fields: unit => list(Node.t))
+    : list(Node.t) => {
+  let collapsed =
+    SidebarModel.Settings.is_debug_collapsed(title, globals.settings.sidebar);
+  let title_node =
+    div(
+      ~attrs=[
+        clss(["debug-section-title"]),
+        Attr.on_click(_ =>
+          globals.inject_global(Set(Sidebar(ToggleDebugCollapsed(title))))
+        ),
+      ],
+      [
+        span(
+          ~attrs=[clss(["debug-section-chevron"])],
+          [text(collapsed ? {|▸|} : {|▾|})],
+        ),
+        text(title),
+      ],
+    );
+  [title_node] @ (collapsed ? [] : fields());
+};
+
+let field_node =
+    (~copy: option(unit => string)=None, label: string, body: Node.t): Node.t =>
   div(
     ~attrs=[clss(["debug-field"])],
     [
-      div(~attrs=[clss(["debug-field-label"])], [text(label)]),
+      label_row(~copy, label),
       div(~attrs=[clss(["debug-field-value"])], [body]),
     ],
   );
@@ -40,26 +103,70 @@ let field_str = (label: string, body: string): Node.t =>
   div(
     ~attrs=[clss(["debug-field"])],
     [
-      div(~attrs=[clss(["debug-field-label"])], [text(label)]),
+      label_row(~copy=Some(() => body), label),
       pre(~attrs=[clss(["debug-field-value", "raw"])], [text(body)]),
     ],
   );
+
+/* A collapsible field for heavy values (contexts, term dumps). The body is a
+   thunk so a collapsed field renders nothing below its label, and `copy` is a
+   thunk so the raw `show` only runs on click. Collapse state is keyed by the
+   field label. */
+let field_collapsible =
+    (
+      ~globals: Globals.t,
+      ~copy: unit => string,
+      ~body: unit => Node.t,
+      label: string,
+    )
+    : Node.t => {
+  let collapsed =
+    SidebarModel.Settings.is_debug_collapsed(label, globals.settings.sidebar);
+  let chevron =
+    span(
+      ~attrs=[
+        clss(["debug-field-chevron"]),
+        Attr.on_click(_ =>
+          globals.inject_global(Set(Sidebar(ToggleDebugCollapsed(label))))
+        ),
+      ],
+      [text(collapsed ? {|▸|} : {|▾|})],
+    );
+  div(
+    ~attrs=[clss(["debug-field"])],
+    [label_row(~chevron=[chevron], ~copy=Some(copy), label)]
+    @ (collapsed ? [] : [body()]),
+  );
+};
 
 let field_typ = (~globals, ~raw, label: string, typ: Typ.t): Node.t =>
   raw
     ? field_str(label, Typ.show(typ))
     : field_node(
+        ~copy=Some(() => Typ.show(typ)),
         label,
         CodeViewable.view_typ(~globals, ~settings=code_settings, typ),
       );
 
 let field_any = (~globals, ~raw, label: string, any: Any.t): Node.t =>
-  raw
-    ? field_str(label, Any.show(any))
-    : field_node(
-        label,
-        CodeViewable.view_any(~globals, ~settings=code_settings, any),
-      );
+  field_collapsible(
+    ~globals,
+    ~copy=() => Any.show(any),
+    ~body=
+      () =>
+        raw
+          ? pre(
+              ~attrs=[clss(["debug-field-value", "raw"])],
+              [text(Any.show(any))],
+            )
+          : div(
+              ~attrs=[clss(["debug-field-value"])],
+              [
+                CodeViewable.view_any(~globals, ~settings=code_settings, any),
+              ],
+            ),
+    label,
+  );
 
 let id_str = (id: Id.t): string => Id.to_string(id);
 
@@ -132,14 +239,40 @@ let co_ctx_view_rendered = (~globals, co_ctx: CoCtx.t): Node.t =>
   };
 
 let field_ctx = (~globals, ~raw, label: string, ctx: Ctx.t): Node.t =>
-  raw
-    ? field_str(label, Ctx.show(ctx))
-    : field_node(label, ctx_view_rendered(~globals, ctx));
+  field_collapsible(
+    ~globals,
+    ~copy=() => Ctx.show(ctx),
+    ~body=
+      () =>
+        raw
+          ? pre(
+              ~attrs=[clss(["debug-field-value", "raw"])],
+              [text(Ctx.show(ctx))],
+            )
+          : div(
+              ~attrs=[clss(["debug-field-value"])],
+              [ctx_view_rendered(~globals, ctx)],
+            ),
+    label,
+  );
 
 let field_co_ctx = (~globals, ~raw, label: string, co_ctx: CoCtx.t): Node.t =>
-  raw
-    ? field_str(label, CoCtx.show(co_ctx))
-    : field_node(label, co_ctx_view_rendered(~globals, co_ctx));
+  field_collapsible(
+    ~globals,
+    ~copy=() => CoCtx.show(co_ctx),
+    ~body=
+      () =>
+        raw
+          ? pre(
+              ~attrs=[clss(["debug-field-value", "raw"])],
+              [text(CoCtx.show(co_ctx))],
+            )
+          : div(
+              ~attrs=[clss(["debug-field-value"])],
+              [co_ctx_view_rendered(~globals, co_ctx)],
+            ),
+    label,
+  );
 
 let ancestors_str = (ancestors: Info.ancestors): string =>
   switch (ancestors) {
@@ -176,116 +309,136 @@ let label_inference_str = (li: option(Info.label_inference(_))): string =>
     )
   };
 
-let exp_view = (~globals, ~raw, info: Info.exp): list(Node.t) => [
-  section_title("InfoExp"),
-  field_str("id", id_str(Exp.rep_id(info.user_term))),
-  field_str("cls", Cls.show(info.cls)),
-  field_str("ancestors", ancestors_str(info.ancestors)),
-  field_any(~globals, ~raw, "user_term", Exp(info.user_term)),
-  field_any(~globals, ~raw, "elab_term", Exp(info.elab_term)),
-  field_typ(~globals, ~raw, "ana", info.ana),
-  field_typ(~globals, ~raw, "elab_syn_ty", info.elab_syn_ty),
-  field_typ(~globals, ~raw, "ty (post-fix)", info.ty),
-  field_str("marks", marks_str(info.marks)),
-  field_str("warnings", warnings_str(info.warnings)),
-  field_ctx(~globals, ~raw, "ctx", info.ctx),
-  field_co_ctx(~globals, ~raw, "co_ctx", info.co_ctx),
-  field_str("label_inference", label_inference_str(info.label_inference)),
-  field_str(
-    "inferred_label",
-    Option.value(info.inferred_label, ~default="None"),
-  ),
-  field_str("label_sort", string_of_bool(info.label_sort)),
-  field_str(
-    "dot_labels",
-    "[" ++ String.concat(", ", info.dot_labels) ++ "]",
-  ),
-];
+let exp_view = (~globals, ~raw, info: Info.exp): list(Node.t) =>
+  section(~globals, "InfoExp", () =>
+    [
+      field_str("id", id_str(Exp.rep_id(info.user_term))),
+      field_str("cls", Cls.show(info.cls)),
+      field_str("ancestors", ancestors_str(info.ancestors)),
+      field_any(~globals, ~raw, "user_term", Exp(info.user_term)),
+      field_any(~globals, ~raw, "elab_term", Exp(info.elab_term)),
+      field_typ(~globals, ~raw, "ana", info.ana),
+      field_typ(~globals, ~raw, "elab_syn_ty", info.elab_syn_ty),
+      field_typ(~globals, ~raw, "ty (post-fix)", info.ty),
+      field_str("marks", marks_str(info.marks)),
+      field_str("warnings", warnings_str(info.warnings)),
+      field_ctx(~globals, ~raw, "ctx", info.ctx),
+      field_co_ctx(~globals, ~raw, "co_ctx", info.co_ctx),
+      field_str(
+        "label_inference",
+        label_inference_str(info.label_inference),
+      ),
+      field_str(
+        "inferred_label",
+        Option.value(info.inferred_label, ~default="None"),
+      ),
+      field_str("label_sort", string_of_bool(info.label_sort)),
+      field_str(
+        "dot_labels",
+        "[" ++ String.concat(", ", info.dot_labels) ++ "]",
+      ),
+    ]
+  );
 
-let pat_view = (~globals, ~raw, info: Info.pat): list(Node.t) => [
-  section_title("InfoPat"),
-  field_str("id", id_str(Pat.rep_id(info.user_term))),
-  field_str("cls", Cls.show(info.cls)),
-  field_str("ancestors", ancestors_str(info.ancestors)),
-  field_any(~globals, ~raw, "user_term", Pat(info.user_term)),
-  field_any(~globals, ~raw, "elab_term", Pat(info.elab_term)),
-  field_typ(~globals, ~raw, "ana", info.ana),
-  field_typ(~globals, ~raw, "elab_syn_ty", info.elab_syn_ty),
-  field_typ(~globals, ~raw, "ty (post-fix)", info.ty),
-  field_str("marks", marks_str(info.marks)),
-  field_str("warnings", warnings_str(info.warnings)),
-  field_ctx(~globals, ~raw, "ctx", info.ctx),
-  field_co_ctx(~globals, ~raw, "co_ctx", info.co_ctx),
-  field_str("constraint_", Coverage.Constraint.show(info.constraint_)),
-  field_str("label_inference", label_inference_str(info.label_inference)),
-  field_str(
-    "inferred_label",
-    Option.value(info.inferred_label, ~default="None"),
-  ),
-  field_str("label_sort", string_of_bool(info.label_sort)),
-];
+let pat_view = (~globals, ~raw, info: Info.pat): list(Node.t) =>
+  section(~globals, "InfoPat", () =>
+    [
+      field_str("id", id_str(Pat.rep_id(info.user_term))),
+      field_str("cls", Cls.show(info.cls)),
+      field_str("ancestors", ancestors_str(info.ancestors)),
+      field_any(~globals, ~raw, "user_term", Pat(info.user_term)),
+      field_any(~globals, ~raw, "elab_term", Pat(info.elab_term)),
+      field_typ(~globals, ~raw, "ana", info.ana),
+      field_typ(~globals, ~raw, "elab_syn_ty", info.elab_syn_ty),
+      field_typ(~globals, ~raw, "ty (post-fix)", info.ty),
+      field_str("marks", marks_str(info.marks)),
+      field_str("warnings", warnings_str(info.warnings)),
+      field_ctx(~globals, ~raw, "ctx", info.ctx),
+      field_co_ctx(~globals, ~raw, "co_ctx", info.co_ctx),
+      field_str("constraint_", Coverage.Constraint.show(info.constraint_)),
+      field_str(
+        "label_inference",
+        label_inference_str(info.label_inference),
+      ),
+      field_str(
+        "inferred_label",
+        Option.value(info.inferred_label, ~default="None"),
+      ),
+      field_str("label_sort", string_of_bool(info.label_sort)),
+    ]
+  );
 
-let typ_view = (~globals, ~raw, info: Info.typ): list(Node.t) => [
-  section_title("InfoTyp"),
-  field_str("id", id_str(Typ.rep_id(info.user_term))),
-  field_str("cls", Cls.show(info.cls)),
-  field_str("ancestors", ancestors_str(info.ancestors)),
-  field_typ(~globals, ~raw, "user_term", info.user_term),
-  field_str("expects", TypExpectation.show(info.expects)),
-  field_str("marks", marks_str(info.marks)),
-  field_str("warnings", warnings_str(info.warnings)),
-  field_ctx(~globals, ~raw, "ctx", info.ctx),
-];
+let typ_view = (~globals, ~raw, info: Info.typ): list(Node.t) =>
+  section(~globals, "InfoTyp", () =>
+    [
+      field_str("id", id_str(Typ.rep_id(info.user_term))),
+      field_str("cls", Cls.show(info.cls)),
+      field_str("ancestors", ancestors_str(info.ancestors)),
+      field_typ(~globals, ~raw, "user_term", info.user_term),
+      field_str("expects", TypExpectation.show(info.expects)),
+      field_str("marks", marks_str(info.marks)),
+      field_str("warnings", warnings_str(info.warnings)),
+      field_ctx(~globals, ~raw, "ctx", info.ctx),
+    ]
+  );
 
-let tpat_view = (~globals, ~raw, info: Info.tpat): list(Node.t) => [
-  section_title("InfoTPat"),
-  field_str("id", id_str(TPat.rep_id(info.user_term))),
-  field_str("cls", Cls.show(info.cls)),
-  field_str("ancestors", ancestors_str(info.ancestors)),
-  field_any(~globals, ~raw, "user_term", TPat(info.user_term)),
-  field_str("marks", marks_str(info.marks)),
-  field_str("warnings", warnings_str(info.warnings)),
-  field_ctx(~globals, ~raw, "ctx", info.ctx),
-];
+let tpat_view = (~globals, ~raw, info: Info.tpat): list(Node.t) =>
+  section(~globals, "InfoTPat", () =>
+    [
+      field_str("id", id_str(TPat.rep_id(info.user_term))),
+      field_str("cls", Cls.show(info.cls)),
+      field_str("ancestors", ancestors_str(info.ancestors)),
+      field_any(~globals, ~raw, "user_term", TPat(info.user_term)),
+      field_str("marks", marks_str(info.marks)),
+      field_str("warnings", warnings_str(info.warnings)),
+      field_ctx(~globals, ~raw, "ctx", info.ctx),
+    ]
+  );
 
-let secondary_view = (s: Info.secondary): list(Node.t) => [
-  section_title("Secondary"),
-  field_str("id", id_str(s.id)),
-  field_str("cls", Cls.show(s.cls)),
-  field_str("sort", Sort.show(s.sort)),
-];
+let secondary_view = (~globals, s: Info.secondary): list(Node.t) =>
+  section(~globals, "Secondary", () =>
+    [
+      field_str("id", id_str(s.id)),
+      field_str("cls", Cls.show(s.cls)),
+      field_str("sort", Sort.show(s.sort)),
+    ]
+  );
 
-let mod_view = (~globals, ~raw, m: Info.mod_): list(Node.t) => [
-  section_title("InfoMod"),
-  field_str("id", id_str(m.id)),
-  field_str("cls", Cls.show(m.cls)),
-  field_str("sort", Sort.show(m.sort)),
-  field_str("ancestors", ancestors_str(m.ancestors)),
-  field_ctx(~globals, ~raw, "ctx", m.ctx),
-];
+let mod_view = (~globals, ~raw, m: Info.mod_): list(Node.t) =>
+  section(~globals, "InfoMod", () =>
+    [
+      field_str("id", id_str(m.id)),
+      field_str("cls", Cls.show(m.cls)),
+      field_str("sort", Sort.show(m.sort)),
+      field_str("ancestors", ancestors_str(m.ancestors)),
+      field_ctx(~globals, ~raw, "ctx", m.ctx),
+    ]
+  );
 
-let sig_view = (~globals, ~raw, s: Info.sig_): list(Node.t) => [
-  section_title("InfoSig"),
-  field_str("id", id_str(s.id)),
-  field_str("cls", Cls.show(s.cls)),
-  field_str("sort", Sort.show(s.sort)),
-  field_str("ancestors", ancestors_str(s.ancestors)),
-  field_ctx(~globals, ~raw, "ctx", s.ctx),
-];
+let sig_view = (~globals, ~raw, s: Info.sig_): list(Node.t) =>
+  section(~globals, "InfoSig", () =>
+    [
+      field_str("id", id_str(s.id)),
+      field_str("cls", Cls.show(s.cls)),
+      field_str("sort", Sort.show(s.sort)),
+      field_str("ancestors", ancestors_str(s.ancestors)),
+      field_ctx(~globals, ~raw, "ctx", s.ctx),
+    ]
+  );
 
-let mpat_view = (~globals, ~raw, m: Info.mpat): list(Node.t) => [
-  section_title("InfoMPat"),
-  field_str("id", id_str(m.id)),
-  field_str("cls", Cls.show(m.cls)),
-  field_str("sort", Sort.show(m.sort)),
-  field_str("ancestors", ancestors_str(m.ancestors)),
-  field_ctx(~globals, ~raw, "ctx", m.ctx),
-];
+let mpat_view = (~globals, ~raw, m: Info.mpat): list(Node.t) =>
+  section(~globals, "InfoMPat", () =>
+    [
+      field_str("id", id_str(m.id)),
+      field_str("cls", Cls.show(m.cls)),
+      field_str("sort", Sort.show(m.sort)),
+      field_str("ancestors", ancestors_str(m.ancestors)),
+      field_ctx(~globals, ~raw, "ctx", m.ctx),
+    ]
+  );
 
-let drv_view = (_: DrvInfo.t): list(Node.t) => [
-  section_title("InfoDrv"),
-  field_str("(see DrvInfo)", "—"),
-];
+let drv_view = (~globals, _: DrvInfo.t): list(Node.t) =>
+  section(~globals, "InfoDrv", () => [field_str("(see DrvInfo)", "—")]);
 
 let info_view = (~globals, ~raw, ci: Info.t): list(Node.t) =>
   switch (ci) {
@@ -296,8 +449,8 @@ let info_view = (~globals, ~raw, ci: Info.t): list(Node.t) =>
   | InfoMod(m) => mod_view(~globals, ~raw, m)
   | InfoSig(s) => sig_view(~globals, ~raw, s)
   | InfoMPat(m) => mpat_view(~globals, ~raw, m)
-  | Secondary(s) => secondary_view(s)
-  | InfoDrv(d) => drv_view(d)
+  | Secondary(s) => secondary_view(~globals, s)
+  | InfoDrv(d) => drv_view(~globals, d)
   };
 
 let toggle_bar = (~globals: Globals.t): Node.t => {

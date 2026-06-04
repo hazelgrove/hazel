@@ -75,6 +75,7 @@ module Model = {
         expanded: [],
       },
       debug_show_raw: false,
+      debug_collapsed: [],
     },
     autoprobe_mode: false,
     agent_globals: AgentGlobals.init(),
@@ -384,6 +385,14 @@ module Update = {
             ...settings.sidebar,
             debug_show_raw: !settings.sidebar.debug_show_raw,
           },
+        }
+      | Sidebar(ToggleDebugCollapsed(key)) => {
+          ...settings,
+          sidebar:
+            SidebarModel.Settings.toggle_debug_collapsed(
+              key,
+              settings.sidebar,
+            ),
         }
       | ExplainThis(ToggleShowFeedback) => {
           ...settings,
