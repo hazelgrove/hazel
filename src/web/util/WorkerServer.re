@@ -341,13 +341,6 @@ and pump = () => {
     | exception exn => finish_running(running, error_response(exn))
     | EvaluationCompleted(value) =>
       finish_running(running, finish_success(value))
-    | EvaluationStepLimitExceeded =>
-      finish_running(
-        running,
-        Error(
-          Language.ProgramResult.UnknownException("Step limit exceeded"),
-        ),
-      )
     | EvaluationYielded(evaluation) =>
       runtime :=
         Running({

@@ -24,7 +24,7 @@ let qcheck_evaluator_does_not_crash_test =
           exp,
         )
       ) {
-      | Completed(_)
+      | LimitedCompleted(_)
       | StepLimitExceeded => true
       | exception e =>
         switch (e) {
@@ -69,7 +69,10 @@ let qcheck_stepper_confluence =
         ),
         full_small_step_reduction(~step_limit=100, elaborated_exp),
       ) {
-      | (Completed((bigstep_exp, _)), Completed(smallstep_exp)) =>
+      | (
+          LimitedCompleted((bigstep_exp, _)),
+          LimitedCompleted(smallstep_exp),
+        ) =>
         let show_core_exp = exp =>
           exp
           |> ExpToSegment.exp_to_segment(
@@ -88,7 +91,7 @@ let qcheck_stepper_confluence =
             Equality.semantic.exp,
           ), // Output is easier to view through ExpToSegment. This may result in a loss of information
           "Small step reduction and big step reduction are equal",
-          smallstep_exp,
+          smallstep_exp |> fst,
           bigstep_exp,
         );
         true;
@@ -148,7 +151,10 @@ let qcheck_pattern_equivalence_test =
             elaborated_second,
           );
         switch (evaluated_first, evaluated_second) {
-        | (Completed((first_exp, _)), Completed((second_exp, _))) =>
+        | (
+            LimitedCompleted((first_exp, _)),
+            LimitedCompleted((second_exp, _)),
+          ) =>
           print_endline("First expression: " ++ show_core_exp(first));
           print_endline("Second expression: " ++ show_core_exp(second));
           Alcotest.check(
@@ -159,8 +165,8 @@ let qcheck_pattern_equivalence_test =
           );
           true;
         | (StepLimitExceeded, StepLimitExceeded) => true
-        | (Completed(_), StepLimitExceeded)
-        | (StepLimitExceeded, Completed(_)) =>
+        | (LimitedCompleted(_), StepLimitExceeded)
+        | (StepLimitExceeded, LimitedCompleted(_)) =>
           print_endline("One of the evaluations exceeded the step limit");
           false;
         };
@@ -354,7 +360,7 @@ let qcheck_incremental_matches_fresh_after_edit =
           switch (try_eval(info_slice_orig, elab_orig)) {
           | None
           | Some(StepLimitExceeded) => true
-          | Some(Completed((_, state_before))) =>
+          | Some(LimitedCompleted((_, state_before))) =>
             /* Edited evaluated two ways: incrementally (reusing the baseline's
              * cache) and from scratch (empty prev). These must agree. */
             let fresh = try_eval(info_slice_edit, elab_edit);
@@ -366,8 +372,8 @@ let qcheck_incremental_matches_fresh_after_edit =
               );
             switch (fresh, incr_eval_result) {
             | (
-                Some(Completed((e_fresh, _))),
-                Some(Completed((e_incr, _))),
+                Some(LimitedCompleted((e_fresh, _))),
+                Some(LimitedCompleted((e_incr, _))),
               ) =>
               Equality.semantic.exp(e_fresh, e_incr)
             | _ => true
@@ -387,31 +393,34 @@ let rec finish_yielding = (~remaining_slices: int, evaluation) => {
   | EvaluationCompleted(value) => value
   | EvaluationYielded(evaluation) =>
     finish_yielding(~remaining_slices=remaining_slices - 1, evaluation)
-  | EvaluationStepLimitExceeded => fail("Unexpected step limit")
   };
 };
 
 let yielding_evaluation_test =
-  test_case("Yielding evaluation resumes to the synchronous result", `Quick, () => {
-    let (_, exp) =
-      Statics.mk(
-        CoreSettings.on,
-        Builtins.ctx_init(Some(Int)),
-        parse_exp("let x = 1 in let y = 2 in x + y"),
-      );
-    let (sync_exp, _) = Evaluator.evaluate(~env=Builtins.env_init, exp);
-    let evaluation =
-      Evaluator.start_yielding_evaluation(~env=Builtins.env_init, exp);
-    let evaluation =
-      switch (Evaluator.run_yielding_slice(~step_budget=1, evaluation)) {
-      | EvaluationYielded(evaluation) => evaluation
-      | EvaluationCompleted(_) =>
-        fail("Expected yielding evaluation to yield with a one-step budget")
-      | EvaluationStepLimitExceeded => fail("Unexpected step limit")
-      };
-    let (yielded_exp, _) = finish_yielding(~remaining_slices=1000, evaluation);
-    check(dhexp_typ, "yielding evaluation result", sync_exp, yielded_exp);
-  });
+  test_case(
+    "Yielding evaluation resumes to the synchronous result",
+    `Quick,
+    () => {
+      let (_, exp) =
+        Statics.mk(
+          CoreSettings.on,
+          Builtins.ctx_init(Some(Int)),
+          parse_exp("let x = 1 in let y = 2 in x + y"),
+        );
+      let (sync_exp, _) = Evaluator.evaluate(~env=Builtins.env_init, exp);
+      let evaluation =
+        Evaluator.start_yielding_evaluation(~env=Builtins.env_init, exp);
+      let evaluation =
+        switch (Evaluator.run_yielding_slice(~step_budget=1, evaluation)) {
+        | EvaluationYielded(evaluation) => evaluation
+        | EvaluationCompleted(_) =>
+          fail("Expected yielding evaluation to yield with a one-step budget")
+        };
+      let (yielded_exp, _) =
+        finish_yielding(~remaining_slices=1000, evaluation);
+      check(dhexp_typ, "yielding evaluation result", sync_exp, yielded_exp);
+    },
+  );
 
 let tests = (
   "Evaluator.Properties",

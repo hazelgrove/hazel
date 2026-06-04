@@ -1,150 +1,5 @@
 open Transition;
 
-[@deriving (show({with_path: false}), eq)]
-type step_constrained('a) =
-  | StepLimitExceeded
-  | Completed('a);
-
-// This module defines the stack machine for the evaluator.
-module Trampoline = {
-  type t('a) =
-    | Bind(t('b), 'b => t('a)): t('a)
-    | Next(unit => t('a)): t('a)
-    | Done('a): t('a);
-
-  type callstack('a, 'b) =
-    | Finished: callstack('a, 'a)
-    | Continue('a => t('b), callstack('b, 'c)): callstack('a, 'c);
-  type continuation('a) =
-    | Continuation(t('b), callstack('b, 'a), int): continuation('a);
-  type slice('a) =
-    | SliceDone(step_constrained('a))
-    | SliceYielded(continuation('a));
-
-  let rec run_slice:
-    type a b.
-      (
-        ~step_limit: int=?,
-        ~step_budget: int,
-        ~step_counter: int,
-        ~slice_counter: int,
-        t(b),
-        callstack(b, a)
-      ) =>
-      slice(a) =
-    (
-      ~step_limit: option(int)=?,
-      ~step_budget,
-      ~step_counter,
-      ~slice_counter,
-      t: t(b),
-      callstack: callstack(b, a),
-    ) => {
-      switch (step_limit) {
-      | Some(x) when x <= step_counter => SliceDone(StepLimitExceeded)
-      | _ when slice_counter >= step_budget =>
-        SliceYielded(Continuation(t, callstack, step_counter))
-      | _ =>
-        switch (t) {
-        | Bind(t, f) =>
-          run_slice(
-            ~step_limit?,
-            ~step_budget,
-            ~step_counter=step_counter + 1,
-            ~slice_counter=slice_counter + 1,
-            t,
-            Continue(f, callstack),
-          )
-        | Next(f) =>
-          run_slice(
-            ~step_limit?,
-            ~step_budget,
-            ~step_counter=step_counter + 1,
-            ~slice_counter=slice_counter + 1,
-            f(),
-            callstack,
-          )
-        | Done(x) =>
-          switch (callstack) {
-          | Finished => SliceDone(Completed(x))
-          | Continue(f, callstack) =>
-            run_slice(
-              ~step_limit?,
-              ~step_budget,
-              ~step_counter=step_counter + 1,
-              ~slice_counter=slice_counter + 1,
-              f(x),
-              callstack,
-            )
-          }
-        }
-      };
-    };
-
-  let start = t => Continuation(t, Finished, 0);
-
-  let run_slice = (~step_limit: option(int)=?, ~step_budget, continuation) => {
-    let Continuation(t, callstack, step_counter) = continuation;
-    run_slice(
-      ~step_limit?,
-      ~step_budget,
-      ~step_counter,
-      ~slice_counter=0,
-      t,
-      callstack,
-    );
-  };
-
-  let rec run:
-    type a b.
-      (~step_limit: int=?, ~step_counter: int=?, t(b), callstack(b, a)) =>
-      step_constrained(a) =
-    (
-      ~step_limit: option(int)=?,
-      ~step_counter=0,
-      t: t(b),
-      callstack: callstack(b, a),
-    ) => {
-      switch (step_limit) {
-      | Some(x) when x <= step_counter => StepLimitExceeded
-      | _ =>
-        switch (t) {
-        | Bind(t, f) =>
-          run(
-            ~step_limit?,
-            ~step_counter=step_counter + 1,
-            t,
-            Continue(f, callstack),
-          )
-        | Next(f) =>
-          run(~step_limit?, ~step_counter=step_counter + 1, f(), callstack)
-        | Done(x) =>
-          switch (callstack) {
-          | Finished => Completed(x)
-          | Continue(f, callstack) =>
-            run(
-              ~step_limit?,
-              ~step_counter=step_counter + 1,
-              f(x),
-              callstack,
-            )
-          }
-        }
-      };
-    };
-
-  let run = (~step_limit: option(int)=?, t) =>
-    run(~step_limit?, t, Finished);
-
-  let return = x => Done(x);
-
-  let bind = (t, f) => Bind(t, f);
-
-  module Syntax = {
-    let (let.trampoline) = (x, f) => bind(x, f);
-  };
-};
-
 module EvaluatorEVMode: {
   type status =
     | Final
@@ -552,16 +407,21 @@ let rec evaluate =
   };
 };
 
+[@deriving (show({with_path: false}), sexp, yojson)]
+type limited_result =
+  | LimitedCompleted((Exp.t, EvaluatorState.t))
+  | StepLimitExceeded;
+
 let evaluate_and_limit =
     (
-      ~step_limit: option(int)=?,
+      ~step_limit: int,
       ~prev: EvaluatorState.incr_eval=IncrEval.empty,
       ~info_map: EvalInfo.t=EvalInfo.empty,
       ~env,
       ~reuse_map: IncrEval.reuse_map=IncrEval.clean_reuse_map_of_env(env),
       d: DHExp.t,
     )
-    : step_constrained((Exp.t, EvaluatorState.t)) => {
+    : limited_result => {
   let state = ref(EvaluatorState.empty);
   let result =
     evaluate(
@@ -573,28 +433,31 @@ let evaluate_and_limit =
       env,
       d,
     );
-  let result = Trampoline.run(~step_limit?, result);
+  let result =
+    Trampoline.Yielding.run_slice(
+      ~step_budget=step_limit,
+      result |> Trampoline.Yielding.start,
+    );
   switch (result) {
-  | Completed((_, _, x, fragment)) =>
+  | SliceDone((_, _, x, fragment)) =>
     state := EvaluatorState.append(state^, fragment);
-    Completed((
+    LimitedCompleted((
       x |> Substitution.in_exp(env) |> Exp.replace_all_ids,
       state^,
     ));
-  | StepLimitExceeded => StepLimitExceeded
+  | SliceYielded(_) => StepLimitExceeded
   };
 };
 
 type yielding_evaluation = {
   env: Environment.t(Exp.t),
   state: ref(EvaluatorState.t),
-  continuation: Trampoline.continuation(evaluate_result),
+  continuation: Trampoline.Yielding.continuation(evaluate_result),
 };
 
 type yielding_result =
   | EvaluationCompleted((Exp.t, EvaluatorState.t))
-  | EvaluationYielded(yielding_evaluation)
-  | EvaluationStepLimitExceeded;
+  | EvaluationYielded(yielding_evaluation);
 
 let start_yielding_evaluation =
     (
@@ -619,27 +482,21 @@ let start_yielding_evaluation =
   {
     env,
     state,
-    continuation: Trampoline.start(result),
+    continuation: Trampoline.Yielding.start(result),
   };
 };
 
 let run_yielding_slice =
-    (
-      ~step_limit: option(int)=?,
-      ~step_budget: int,
-      evaluation: yielding_evaluation,
-    )
-    : yielding_result =>
+    (~step_budget: int, evaluation: yielding_evaluation): yielding_result =>
   switch (
-    Trampoline.run_slice(~step_limit?, ~step_budget, evaluation.continuation)
+    Trampoline.Yielding.run_slice(~step_budget, evaluation.continuation)
   ) {
-  | SliceDone(Completed((_, _, x, fragment))) =>
+  | SliceDone((_, _, x, fragment)) =>
     evaluation.state := EvaluatorState.append(evaluation.state^, fragment);
     EvaluationCompleted((
       x |> Substitution.in_exp(evaluation.env) |> Exp.replace_all_ids,
       evaluation.state^,
     ));
-  | SliceDone(StepLimitExceeded) => EvaluationStepLimitExceeded
   | SliceYielded(continuation) =>
     EvaluationYielded({
       ...evaluation,
@@ -654,9 +511,19 @@ let evaluate =
       ~env,
       d: DHExp.t,
     )
-    : (Exp.t, EvaluatorState.t) =>
-  switch (evaluate_and_limit(~prev, ~info_map, ~env, d)) {
-  | Completed(x) => x
-  | StepLimitExceeded =>
-    raise(Failure("Impossible: Step limit exceeded when not set"))
-  };
+    : (Exp.t, EvaluatorState.t) => {
+  let state = ref(EvaluatorState.empty);
+  let result =
+    evaluate(
+      ~prev,
+      ~info_map,
+      ~call_stack=CallStack.empty,
+      ~reuse_map=IncrEval.clean_reuse_map_of_env(env),
+      state,
+      env,
+      d,
+    );
+  let (_, _, e, fragment) = Trampoline.run(result);
+  state := EvaluatorState.append(state^, fragment);
+  (e |> Substitution.in_exp(env) |> Exp.replace_all_ids, state^);
+};
