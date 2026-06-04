@@ -42,6 +42,13 @@ type entry('state) = {
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t('state) = {entries: Id.Map.t(entry('state))};
 
+[@deriving (show({with_path: false}), sexp, yojson)]
+type outbox_entry('state) =
+  | Complete(entry('state))
+  | Partial('state);
+
+type outbox('state) = Id.Map.t(outbox_entry('state));
+
 let empty: t('state) = {entries: Id.Map.empty};
 
 let is_empty = (incr: t('state)): bool => Id.Map.is_empty(incr.entries);
