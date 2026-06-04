@@ -33,29 +33,34 @@ let code_settings_ml: Haz3lcore.ExpToSegment.Settings.t = {
   inline: false,
 };
 
-/* Pretty-print a type/term to the same text the rendered view displays, by
-   printing the segment the code view is built from. Used so the copy button
-   matches what's on screen in rendered mode (raw mode copies `show`). */
+/* Pretty-print a type to the text the rendered view displays, with empty
+   (convex) holes shown explicitly as `?`. Used by the ctx/co_ctx copy text,
+   which has no single pasteable segment to round-trip. */
 let typ_to_text = (~settings, typ: Typ.t): string =>
   Haz3lcore.Printer.of_segment(
+    ~holes="?",
     Haz3lcore.ExpToSegment.typ_to_segment(~settings, typ),
   );
 
-let any_to_text = (~settings, any: Any.t): string =>
-  Haz3lcore.Printer.of_segment(
-    Haz3lcore.ExpToSegment.any_to_segment(~settings, any),
-  );
+/* Copy a rendered term/type the way the editor does: the printed text shows
+   empty holes explicitly as `?`, and the source segment is cached against that
+   text so pasting back into Hazel restores the real (implicit) holes, while
+   pasting into a plain text editor yields the `?` text. */
+let copy_segment = (segment: Haz3lcore.Segment.t): unit => {
+  let str = Haz3lcore.Printer.of_segment(~holes="?", segment);
+  Haz3lcore.Parser.set_segment_cache(Some(segment), str);
+  Util.JsUtil.write_clipboard(str);
+};
 
-/* Copies the raw `show` text to the clipboard. The payload is a thunk so the
-   (potentially expensive) `show` only runs on click, not when the field is
-   built. Revealed on field hover via CSS so it doesn't clutter the list. */
-let copy_button = (payload: unit => string): Node.t =>
+/* Copy button; `on_copy` runs only on click (not when the field is built) and
+   is revealed on field hover via CSS so it doesn't clutter the list. */
+let copy_button = (on_copy: unit => unit): Node.t =>
   span(
     ~attrs=[
       clss(["debug-copy-button"]),
-      Attr.title("Copy raw value to clipboard"),
+      Attr.title("Copy to clipboard"),
       Attr.on_click(_ => {
-        Util.JsUtil.write_clipboard(payload());
+        on_copy();
         Virtual_dom.Vdom.Effect.Ignore;
       }),
     ],
@@ -67,7 +72,7 @@ let copy_button = (payload: unit => string): Node.t =>
 let label_row =
     (
       ~chevron: list(Node.t)=[],
-      ~copy: option(unit => string)=None,
+      ~copy: option(unit => unit)=None,
       label: string,
     )
     : Node.t =>
@@ -112,7 +117,7 @@ let section =
 };
 
 let field_node =
-    (~copy: option(unit => string)=None, label: string, body: Node.t): Node.t =>
+    (~copy: option(unit => unit)=None, label: string, body: Node.t): Node.t =>
   div(
     ~attrs=[clss(["debug-field"])],
     [
@@ -125,7 +130,7 @@ let field_str = (label: string, body: string): Node.t =>
   div(
     ~attrs=[clss(["debug-field"])],
     [
-      label_row(~copy=Some(() => body), label),
+      label_row(~copy=Some(() => Util.JsUtil.write_clipboard(body)), label),
       pre(~attrs=[clss(["debug-field-value", "raw"])], [text(body)]),
     ],
   );
@@ -137,7 +142,7 @@ let field_str = (label: string, body: string): Node.t =>
 let field_collapsible =
     (
       ~globals: Globals.t,
-      ~copy: unit => string,
+      ~copy: unit => unit,
       ~body: unit => Node.t,
       label: string,
     )
@@ -162,20 +167,31 @@ let field_collapsible =
 };
 
 let field_typ = (~globals, ~raw, label: string, typ: Typ.t): Node.t =>
-  raw
-    ? field_str(label, Typ.show(typ))
-    : field_node(
-        ~copy=Some(() => typ_to_text(~settings=code_settings_ml, typ)),
-        label,
-        CodeViewable.view_typ(~globals, ~settings=code_settings_ml, typ),
-      );
+  if (raw) {
+    field_str(label, Typ.show(typ));
+  } else {
+    let seg =
+      Haz3lcore.ExpToSegment.typ_to_segment(~settings=code_settings_ml, typ);
+    field_node(
+      ~copy=Some(() => copy_segment(seg)),
+      label,
+      CodeViewable.view_segment(~globals, seg),
+    );
+  };
 
 let field_any = (~globals, ~raw, label: string, any: Any.t): Node.t =>
   field_collapsible(
     ~globals,
     ~copy=
       () =>
-        raw ? Any.show(any) : any_to_text(~settings=code_settings_ml, any),
+        raw
+          ? Util.JsUtil.write_clipboard(Any.show(any))
+          : copy_segment(
+              Haz3lcore.ExpToSegment.any_to_segment(
+                ~settings=code_settings_ml,
+                any,
+              ),
+            ),
     ~body=
       () =>
         raw
@@ -312,7 +328,9 @@ let co_ctx_to_text = (co_ctx: CoCtx.t): string =>
 let field_ctx = (~globals, ~raw, label: string, ctx: Ctx.t): Node.t =>
   field_collapsible(
     ~globals,
-    ~copy=() => raw ? Ctx.show(ctx) : ctx_to_text(ctx),
+    ~copy=
+      () =>
+        Util.JsUtil.write_clipboard(raw ? Ctx.show(ctx) : ctx_to_text(ctx)),
     ~body=
       () =>
         raw
@@ -330,7 +348,11 @@ let field_ctx = (~globals, ~raw, label: string, ctx: Ctx.t): Node.t =>
 let field_co_ctx = (~globals, ~raw, label: string, co_ctx: CoCtx.t): Node.t =>
   field_collapsible(
     ~globals,
-    ~copy=() => raw ? CoCtx.show(co_ctx) : co_ctx_to_text(co_ctx),
+    ~copy=
+      () =>
+        Util.JsUtil.write_clipboard(
+          raw ? CoCtx.show(co_ctx) : co_ctx_to_text(co_ctx),
+        ),
     ~body=
       () =>
         raw
