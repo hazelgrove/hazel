@@ -24,6 +24,28 @@ let code_settings: Haz3lcore.ExpToSegment.Settings.t = {
   project_tables: false,
 };
 
+/* Same as code_settings but lets the pretty-printer break across lines for
+   terms/types that naturally span multiple lines (let/case bodies, large
+   records, ...). Used for the standalone term and type fields; context rows
+   keep code_settings so each `name : type` row stays on one line. */
+let code_settings_ml: Haz3lcore.ExpToSegment.Settings.t = {
+  ...code_settings,
+  inline: false,
+};
+
+/* Pretty-print a type/term to the same text the rendered view displays, by
+   printing the segment the code view is built from. Used so the copy button
+   matches what's on screen in rendered mode (raw mode copies `show`). */
+let typ_to_text = (~settings, typ: Typ.t): string =>
+  Haz3lcore.Printer.of_segment(
+    Haz3lcore.ExpToSegment.typ_to_segment(~settings, typ),
+  );
+
+let any_to_text = (~settings, any: Any.t): string =>
+  Haz3lcore.Printer.of_segment(
+    Haz3lcore.ExpToSegment.any_to_segment(~settings, any),
+  );
+
 /* Copies the raw `show` text to the clipboard. The payload is a thunk so the
    (potentially expensive) `show` only runs on click, not when the field is
    built. Revealed on field hover via CSS so it doesn't clutter the list. */
@@ -143,15 +165,17 @@ let field_typ = (~globals, ~raw, label: string, typ: Typ.t): Node.t =>
   raw
     ? field_str(label, Typ.show(typ))
     : field_node(
-        ~copy=Some(() => Typ.show(typ)),
+        ~copy=Some(() => typ_to_text(~settings=code_settings_ml, typ)),
         label,
-        CodeViewable.view_typ(~globals, ~settings=code_settings, typ),
+        CodeViewable.view_typ(~globals, ~settings=code_settings_ml, typ),
       );
 
 let field_any = (~globals, ~raw, label: string, any: Any.t): Node.t =>
   field_collapsible(
     ~globals,
-    ~copy=() => Any.show(any),
+    ~copy=
+      () =>
+        raw ? Any.show(any) : any_to_text(~settings=code_settings_ml, any),
     ~body=
       () =>
         raw
@@ -162,7 +186,11 @@ let field_any = (~globals, ~raw, label: string, any: Any.t): Node.t =>
           : div(
               ~attrs=[clss(["debug-field-value"])],
               [
-                CodeViewable.view_any(~globals, ~settings=code_settings, any),
+                CodeViewable.view_any(
+                  ~globals,
+                  ~settings=code_settings_ml,
+                  any,
+                ),
               ],
             ),
     label,
@@ -238,10 +266,53 @@ let co_ctx_view_rendered = (~globals, co_ctx: CoCtx.t): Node.t =>
     )
   };
 
+/* Text analogs of the rendered ctx/co_ctx layouts, so the copy button matches
+   what's displayed in rendered mode (raw mode copies `show`). */
+let ctx_entry_text = (entry: Ctx.entry): string =>
+  switch (entry) {
+  | VarEntry({name, typ, _}) =>
+    name ++ " : " ++ typ_to_text(~settings=code_settings, typ)
+  | ConstructorEntry({name, typ, _}) =>
+    "ctor " ++ name ++ " : " ++ typ_to_text(~settings=code_settings, typ)
+  | TVarEntry({name, kind: Singleton(ty), _}) =>
+    "type " ++ name ++ " = " ++ typ_to_text(~settings=code_settings, ty)
+  | TVarEntry({name, kind: Abstract, _}) => "type " ++ name
+  | LivelitEntry(_) => "livelit"
+  };
+
+let ctx_to_text = (ctx: Ctx.t): string =>
+  switch (ctx.entries) {
+  | [] => "(empty)"
+  | entries => String.concat("\n", List.map(ctx_entry_text, entries))
+  };
+
+let co_ctx_to_text = (co_ctx: CoCtx.t): string =>
+  switch (co_ctx) {
+  | [] => "(empty)"
+  | _ =>
+    String.concat(
+      "\n",
+      List.map(
+        ((name, entries)) =>
+          name
+          ++ String.concat(
+               "",
+               List.map(
+                 (e: CoCtx.entry) =>
+                   "\n  : "
+                   ++ typ_to_text(~settings=code_settings, e.expected_ty),
+                 entries,
+               ),
+             ),
+        co_ctx,
+      ),
+    )
+  };
+
 let field_ctx = (~globals, ~raw, label: string, ctx: Ctx.t): Node.t =>
   field_collapsible(
     ~globals,
-    ~copy=() => Ctx.show(ctx),
+    ~copy=() => raw ? Ctx.show(ctx) : ctx_to_text(ctx),
     ~body=
       () =>
         raw
@@ -259,7 +330,7 @@ let field_ctx = (~globals, ~raw, label: string, ctx: Ctx.t): Node.t =>
 let field_co_ctx = (~globals, ~raw, label: string, co_ctx: CoCtx.t): Node.t =>
   field_collapsible(
     ~globals,
-    ~copy=() => CoCtx.show(co_ctx),
+    ~copy=() => raw ? CoCtx.show(co_ctx) : co_ctx_to_text(co_ctx),
     ~body=
       () =>
         raw
