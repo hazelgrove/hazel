@@ -45,16 +45,16 @@ let none: t = {
  * many mode, slide 12 has you turn on auto-probe) — forcing it would
  * pre-empt the lesson. Only set a value where the prompt assumes a
  * non-default starting state:
- *   - 18 "write one yourself, with auto-probe on"  -> autoprobe Caret
+ *   - 18 "write one yourself, with auto-probe on"  -> autoprobe All
  *   - 22 explains pink/blue/green sample colors, which the global default
  *        Simple scheme can't show                  -> colors Hybrid
- *   - 23 "Turn on auto-probe and wander" (capstone) -> autoprobe Caret
+ *   - 23 "Turn on auto-probe and wander" (capstone) -> autoprobe All
  * Task slides set their own precise values elsewhere. */
 let of_slide = (module_name: string): t =>
   switch (module_name) {
   | "TuGen_18WritingRunningSum" => {
       ...none,
-      autoprobe: Some(Caret),
+      autoprobe: Some(All),
     }
   | "TuGen_22SampleColors" => {
       ...none,
@@ -62,7 +62,7 @@ let of_slide = (module_name: string): t =>
     }
   | "TuGen_23GreenhouseArena" => {
       ...none,
-      autoprobe: Some(Caret),
+      autoprobe: Some(All),
     }
   | _ => none
   };
