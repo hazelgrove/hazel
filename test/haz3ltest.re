@@ -39,6 +39,7 @@ let (suite, _) =
     @ Test_Evaluator.tests
     @ Test_Editing.tests
     @ Test_Reassociate.tests
+    @ [Test_SelectionEffective.tests]
     @ Test_MultiProbe.tests
     @ [Test_SampleSelection.tests]
     @ Test_Indentation.tests

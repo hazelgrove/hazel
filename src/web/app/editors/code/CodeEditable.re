@@ -531,6 +531,9 @@ module View = {
         model: Model.t,
       ) => {
     let selected = EditMode.is_active(edit_mode);
+    let expand_selection = Option.value(expand_selection, ~default=false);
+    let associative_selection =
+      Option.value(associative_selection, ~default=false);
     let inject =
       switch (edit_mode) {
       | ReadOnly => (_ => Ui_effect.Ignore)
@@ -563,8 +566,8 @@ module View = {
     let edit_decos =
       selected
         ? deco(
-            ~expand_selection?,
-            ~associative_selection?,
+            ~expand_selection,
+            ~associative_selection,
             ~syntax=model.editor.syntax,
             ~statics=model.statics,
             ~info_map=model.statics.info_map,
@@ -610,6 +613,19 @@ module View = {
         : [];
     // let t0 = JsUtil.precise_timestamp();
     let zipper = model.editor.state.zipper;
+    let effective_selection_mode =
+      expand_selection
+        ? SelectionEffective.Expanded
+        : associative_selection
+            ? SelectionEffective.Associative : SelectionEffective.Raw;
+    let effective_selection_ids =
+      SelectionEffective.ids(
+        ~mode=effective_selection_mode,
+        ~info_map=model.statics.info_map,
+        ~measured=model.editor.syntax.measured,
+        ~term_data=model.editor.syntax.term_data,
+        zipper,
+      );
     let refractor_data =
       RefractorView.mk_data(
         ~refractors=
@@ -624,6 +640,7 @@ module View = {
         ~dynamics,
         ~sample_focus=zipper.refractors.sample_focus,
         ~editor_active=selected,
+        ~selection_ids=effective_selection_ids,
       );
     // let t1 = JsUtil.precise_timestamp();
     /* Use visible row range from model (updated by scroll handler) */
@@ -655,6 +672,7 @@ module View = {
           ~sample_focus=zipper.refractors.sample_focus,
           ~editor_active=selected,
           ~elaborated=Some(model.statics.elaborated),
+          ~selection_ids=effective_selection_ids,
         ),
         model.editor.syntax.projector_list,
       );

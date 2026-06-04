@@ -424,38 +424,10 @@ let selection =
       ~statics: CachedStatics.t,
       z: Zipper.t,
     ) => {
-  let find_assoc_for_id = (id: Id.t): list(Id.t) =>
-    Language.AssocSelection.find_assoc_for_id(id, statics.info_map);
-
-  let associative_segment = (z: Zipper.t): Segment.t => {
-    let tile_ids =
-      z.selection.content
-      |> List.filter_map(piece =>
-           switch (piece) {
-           | Piece.Tile(t) => Some(Tile.id(t))
-           | Piece.Secondary(s) => Some(Secondary.id(s))
-           | _ => None
-           }
-         );
-    let assoc_ids = tile_ids |> List.concat_map(find_assoc_for_id);
-    switch (assoc_ids) {
-    | [] => z.selection.content
-    | assoc_ids =>
-      /* Search the current-level segment (left siblings + selection + right
-         siblings) rather than Zipper.zip(z). Zipper.zip assembles the cursor
-         level into its ancestor tile, so inner pieces would only appear as
-         nested children of that tile, not as top-level pieces to filter over.
-         Multi-shard tiles (e.g. `let = in`) share one ID across all shards;
-         using List.filter (no dedup by ID) ensures all shards are included. */
-      let (left_sibs, right_sibs) = z.relatives.siblings;
-      left_sibs
-      @ z.selection.content
-      @ right_sibs
-      |> List.filter(piece =>
-           List.exists(id => id == Piece.id(piece), assoc_ids)
-         );
-    };
-  };
+  let effective_segment =
+    associative
+      ? SelectionEffective.associative_segment(~info_map=statics.info_map, z)
+      : z.selection.content;
   div_c(
     "selects",
     of_segment(
@@ -464,7 +436,7 @@ let selection =
       ~font_metrics,
       ~shape_init=Some(fst(Siblings.shapes(z.relatives.siblings))),
       ~clss=["selected", Selection.buffer_cls(z.selection)],
-      associative ? associative_segment(z) : z.selection.content,
+      effective_segment,
     ),
   );
 };
@@ -480,36 +452,25 @@ let selection_expanded =
     ) =>
   div_c(
     "selects",
-    switch (
-      TermData.get_root_id_using_ranges(
-        z.selection.content,
-        term_data,
-        measured,
+    switch (SelectionEffective.expanded_segment(~measured, ~term_data, z)) {
+    | [] => []
+    | seg =>
+      of_segment(
+        ~measured,
+        ~shape_map,
+        ~font_metrics,
+        ~shape_init=Some(fst(Siblings.shapes(z.relatives.siblings))),
+        ~clss=["selected-expanded", Selection.buffer_cls(z.selection)],
+        seg,
       )
-    ) {
-    | None => []
-    | Some(id) =>
-      let seg = TermData.segment(id, term_data);
-      switch (seg) {
-      | None => []
-      | Some(seg) =>
-        of_segment(
+      @ of_segment(
           ~measured,
           ~shape_map,
           ~font_metrics,
           ~shape_init=Some(fst(Siblings.shapes(z.relatives.siblings))),
-          ~clss=["selected-expanded", Selection.buffer_cls(z.selection)],
-          seg,
+          ~clss=["selected", Selection.buffer_cls(z.selection)],
+          z.selection.content,
         )
-        @ of_segment(
-            ~measured,
-            ~shape_map,
-            ~font_metrics,
-            ~shape_init=Some(fst(Siblings.shapes(z.relatives.siblings))),
-            ~clss=["selected", Selection.buffer_cls(z.selection)],
-            z.selection.content,
-          )
-      };
     },
   );
 
