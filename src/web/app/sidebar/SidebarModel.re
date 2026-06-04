@@ -82,23 +82,48 @@ module Settings = {
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type problems_settings = {
-    collapsed: list(problem_category),
+    /* Collapsed category sections keyed by `(editor_label, category)` so
+       each editor group has its own per-category collapse state.
+       Single-editor modes pass `""` as the label. */
+    collapsed: list((string, problem_category)),
+    /* Collapsed editor groups keyed by editor label. Only meaningful when
+       there is more than one group shown. */
+    collapsed_editors: list(string),
     flat: bool,
     expanded: list(Id.t),
   };
 
-  let is_collapsed = (cat, settings) => List.mem(cat, settings.collapsed);
+  let is_collapsed = (label, cat, settings) =>
+    List.mem((label, cat), settings.collapsed);
 
-  let toggle_collapsed = (cat, settings) =>
-    if (is_collapsed(cat, settings)) {
+  let toggle_collapsed = (label, cat, settings) =>
+    if (is_collapsed(label, cat, settings)) {
       {
         ...settings,
-        collapsed: List.filter(c => c != cat, settings.collapsed),
+        collapsed:
+          List.filter(pair => pair != (label, cat), settings.collapsed),
       };
     } else {
       {
         ...settings,
-        collapsed: [cat, ...settings.collapsed],
+        collapsed: [(label, cat), ...settings.collapsed],
+      };
+    };
+
+  let is_editor_collapsed = (label, settings) =>
+    List.mem(label, settings.collapsed_editors);
+
+  let toggle_editor_collapsed = (label, settings) =>
+    if (is_editor_collapsed(label, settings)) {
+      {
+        ...settings,
+        collapsed_editors:
+          List.filter(l => l != label, settings.collapsed_editors),
+      };
+    } else {
+      {
+        ...settings,
+        collapsed_editors: [label, ...settings.collapsed_editors],
       };
     };
 
@@ -119,7 +144,8 @@ module Settings = {
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type problems_action =
-    | ToggleCollapsed(problem_category)
+    | ToggleCollapsed(string, problem_category)
+    | ToggleEditorCollapsed(string)
     | ToggleFlat
     | ToggleExpanded(Id.t);
 
