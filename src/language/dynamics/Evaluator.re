@@ -1,4 +1,5 @@
 open Transition;
+open Trampoline.Syntax;
 
 module EvaluatorEVMode: {
   type status =
@@ -10,8 +11,6 @@ module EvaluatorEVMode: {
       type result =
         Trampoline.t((status, list(EvaluatorState.effect), DHExp.t));
 } = {
-  open Trampoline.Syntax;
-
   type status =
     | Final
     | Uneval;
@@ -66,43 +65,43 @@ type evaluate_result = (
 
 let rec evaluate =
         (
-          ~outbox: option(ref(IncrEval.t(EvaluatorState.t)))=?,
           ~reuse_map: IncrEval.reuse_map,
           ~prev: EvaluatorState.incr_eval=IncrEval.empty,
           ~reused_ids: Id.Map.t(unit),
           ~info_map: EvalInfo.t,
           ~in_closure=?,
           ~call_stack: CallStack.t',
-          state: ref(EvaluatorState.t),
-          env,
-          init: DHExp.t,
+          ~env,
+          exp: DHExp.t,
+          ~parent_state: ref(EvaluatorState.t),
+          ~outbox: option(ref(IncrEval.t(EvaluatorState.t)))=?,
         )
-        : Trampoline.t(evaluate_result) => {
-  open Trampoline.Syntax;
+        : Trampoline.t(DHExp.t) => {
+  /* NOTE: This trampoline looks like it only returns an expression, but
+   * it also mutates the eval_state and outbox references while it's
+   * running. This is a bit of a hack, but it's necessary because the
+   * trampoline is used to implement the incremental evaluation algorithm. */
 
-  let expr_id = DHExp.rep_id(init);
-  /* Inside function calls: mutate the shared state ref for performance.
-   * At top level: accumulate locally and return a fragment for merging. */
-  let use_ref = call_stack.stack != [];
+  let expr_id = DHExp.rep_id(exp);
+
+  /* OPTIMIZATION: If we're at a top level expression, we need to collect a
+   * separate state for incremental evaluation, and later merge it. If we are
+   * not at a top level expression, we can just add it directly to the parent's
+   * state. */
+  let is_top_level = call_stack.stack == [];
   let eval_state =
-    if (use_ref) {
-      state;
-    } else {
-      ref(EvaluatorState.empty_at(state^.step_count));
-    };
-  let current_state = () =>
-    if (use_ref) {
-      state^;
-    } else {
-      eval_state^;
-    };
+    is_top_level
+      ? ref(EvaluatorState.empty_at(parent_state^.step_count)) : parent_state;
+  let current_state = () => eval_state^;
   let set_current_state = (new_state: EvaluatorState.t) =>
-    if (use_ref) {
-      state := new_state;
-    } else {
-      eval_state := new_state;
-    };
-  let empty_fragment = () => EvaluatorState.empty_at(state^.step_count);
+    eval_state := new_state;
+
+  /* If we did collect a separate state, we need to merge it into the parent state at the end */
+  let update_parent =
+    is_top_level
+      ? () =>
+          parent_state := EvaluatorState.append(parent_state^, eval_state^)
+      : (() => ());
 
   switch (
     IncrEval.reuse_check(
@@ -114,53 +113,32 @@ let rec evaluate =
     )
   ) {
   | Some(entry) =>
-    if (use_ref) {
-      state := EvaluatorState.append(state^, entry.state);
-    } else {
-      eval_state := EvaluatorState.append(eval_state^, entry.state);
-      state := EvaluatorState.append(state^, entry.state);
-    };
-    state := EvaluatorState.add_incr_entry(state^, expr_id, entry);
-    let has_missing_probe_samples = (fragment: EvaluatorState.t): bool =>
-      Id.Map.exists(
-        (id, _) => !Id.Map.mem(id, EvaluatorState.get_probes(state^)),
-        EvaluatorState.get_probes(fragment),
-      );
-    state := EvaluatorState.add_incr_entry(state^, expr_id, entry);
-    /* Copy cache entries for every sub-id of the reused subtree from prev
-     * into curr. Without this, descendants of a reused ancestor are absent
-     * from the outgoing incr_eval (because the reuse short-circuits before
-     * we descend), and a later run that can't reuse the ancestor will
-     * cache-miss at the descendants — even though their values are still
-     * valid. Walks entry.prev_elab (which is the cached subtree's elab)
-     * and brings forward each sub-id's prev entry, if any. */
+    // Evaluation cache hit: reuse previous result
+    eval_state := EvaluatorState.append(eval_state^, entry.state);
+    // Add the entry to the next incremental evaluation cache
+    eval_state := EvaluatorState.add_incr_entry(eval_state^, expr_id, entry);
+    // Copy cache entries for every sub-id of the reused subtree from prev
     let f_exp = (continue, e: Exp.t): Exp.t => {
       let sub_id = Exp.rep_id(e);
       if (!Id.equal(sub_id, expr_id)) {
         switch (Id.Map.find_opt(sub_id, prev.entries)) {
         | Some(sub_entry) =>
-          state := EvaluatorState.add_incr_entry(state^, sub_id, sub_entry);
-          if (has_missing_probe_samples(sub_entry.state)) {
-            state := EvaluatorState.append(state^, sub_entry.state);
-          };
+          eval_state :=
+            EvaluatorState.add_incr_entry(eval_state^, sub_id, sub_entry)
         | None => ()
         };
       };
       continue(e);
     };
     let _ = TermBase.Exp.map_term(~f_exp, entry.prev_elab);
-    Trampoline.return((
-      EvaluatorEVMode.Final,
-      [],
-      entry.value,
-      if (use_ref) {
-        empty_fragment();
-      } else {
-        eval_state^;
-      },
-    ));
+    // Return
+    update_parent();
+    Trampoline.return(entry.value);
   | None =>
+    // Evaluation cache miss: evaluate the expression from scratch
     let current_step_count = current_state().step_count;
+
+    // If this expression is a probe target, record the probe start
     let call_stack =
       switch (Id.Map.find_opt(expr_id, info_map.targets)) {
       | Some(_) =>
