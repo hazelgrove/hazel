@@ -850,30 +850,27 @@ module View = {
         ~indicated_id,
       );
 
-    /* Scroll handler for viewport culling. Only enabled for Scratch and
-     * Documentation modes where there's a single editor filling the
-     * scrollable area. Tutorial and Exercises have multiple editors. */
-    let on_scroll = (evt: Js.t(Dom_html.event)) => {
+    /* Scroll handler for viewport culling. Enabled only during auto-probe
+     * mode (where there can be hundreds of probe views), and only for the
+     * single-code-editor modes (Scratch/Documentation/Tutorial). Exercises
+     * has multiple editors and is intentionally left unculled for now.
+     * The range is measured against the editor's OWN code container (not
+     * raw #main scroll), so it's correct whether the editor fills #main
+     * (Scratch) or is nested below prompt cells (Tutorial). */
+    let on_scroll = (_evt: Js.t(Dom_html.event)) => {
       let culling_enabled =
-        switch (editors) {
-        | Scratch(_)
-        | Documentation(_)
-        | Tutorial(_)
-        | Exercises(_) => false
-        };
+        Editors.Model.supports_viewport_culling(editors)
+        && globals.settings.autoprobe_mode != Haz3lcore.AutoProbe.Off;
       if (!culling_enabled) {
         Effect.Ignore;
       } else {
-        let container =
-          Js.Opt.to_option(evt##.currentTarget)
-          |> Option.map(Js.Unsafe.coerce);
-        switch (container) {
+        switch (JsUtil.code_viewport_geometry()) {
         | None => Effect.Ignore
-        | Some(c) =>
+        | Some((scroll_top, client_height)) =>
           let new_visible =
             Globals.VisibleRows.compute(
-              ~scroll_top=float_of_int(c##.scrollTop),
-              ~client_height=float_of_int(c##.clientHeight),
+              ~scroll_top,
+              ~client_height,
               ~row_height=globals.font_metrics.row_height,
               (),
             );

@@ -615,8 +615,13 @@ module View = {
         ~editor_active=selected,
       );
     // let t1 = JsUtil.precise_timestamp();
-    /* Use visible row range from model (updated by scroll handler) */
-    let visible = globals.visible_rows;
+    /* Use visible row range from model (updated by scroll handler / initial
+       seed). Only cull during auto-probe mode — otherwise a stale range
+       could hide manual probes. The range is only ever *set* for
+       single-editor modes (Scratch/Tutorial), so other modes stay None. */
+    let visible =
+      globals.settings.autoprobe_mode == Haz3lcore.AutoProbe.Off
+        ? None : globals.visible_rows;
     let refractors_model =
       RefractorView.all(
         x => inject(Perform(x)),

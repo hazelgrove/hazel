@@ -30,6 +30,39 @@ let restart_caret_animation = () =>
   | _ => ()
   };
 
+/* Seed the viewport-culling row range the first frame it's needed (auto-probe
+   on, single-code-editor mode), so culling activates on load rather than only
+   after the first scroll. Reads the DOM only while visible_rows is None, so it
+   adds no per-frame forced layout; ongoing updates come from Page.on_scroll.
+   Measured against the active editor's local code container — see
+   JsUtil.code_viewport_geometry. */
+let seed_visible_rows =
+    (model: CrashHandling.Model.t, ~dispatch: Page.Update.t => unit): unit => {
+  let page = model.model.current.current;
+  let needed =
+    Editors.Model.supports_viewport_culling(page.editors)
+    && page.globals.settings.autoprobe_mode != Haz3lcore.AutoProbe.Off
+    && Option.is_none(page.globals.visible_rows);
+  if (needed) {
+    switch (JsUtil.code_viewport_geometry()) {
+    | None => ()
+    | Some((scroll_top, client_height)) =>
+      dispatch(
+        Page.Update.Globals(
+          UpdateVisibleRows(
+            Globals.VisibleRows.compute(
+              ~scroll_top,
+              ~client_height,
+              ~row_height=page.globals.font_metrics.row_height,
+              (),
+            ),
+          ),
+        ),
+      )
+    };
+  };
+};
+
 let apply =
     (
       model: CrashHandling.Model.t,
@@ -221,7 +254,8 @@ let start = default_model => {
 
   // Triggers after every update
   let after_display = {
-    let%map model = app_model;
+    let%map model = app_model
+    and app_inject = app_inject;
     Bonsai.Effect.of_sync_fun(
       () => {
         ScrollDebug.next_frame();
@@ -285,6 +319,9 @@ let start = default_model => {
          * dispatch, restore it now so the user's eye stays on it. */
         SampleAnchor.consume();
         ScrollDebug.mark_sT();
+        seed_visible_rows(model, ~dispatch=a =>
+          app_inject(a) |> Bonsai.Effect.Expert.handle
+        );
         model.model.current.current.globals.settings.core.statics
           ? Animation.go() : ();
       },

@@ -22,6 +22,17 @@ module Model = {
     | Tutorial(_) => "Tutorial"
     | Exercises(_) => "Exercises";
 
+  /* Whether viewport culling of probe views is supported in this mode.
+     True for the single-active-code-editor modes (the visible-row range is
+     computed for one editor); Exercises has multiple editors and is left
+     unculled for now. Callers additionally gate on auto-probe mode. */
+  let supports_viewport_culling: t => bool =
+    fun
+    | Scratch(_)
+    | Documentation(_)
+    | Tutorial(_) => true
+    | Exercises(_) => false;
+
   /* Auxiliary classes on the main div, so CSS can target derivation-kind
      scratchpads inside the unified Scratch/Documentation modes. */
   let extra_main_classes = (model: t): list(string) => {

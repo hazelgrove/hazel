@@ -214,6 +214,46 @@ let find_scroll_container =
     (element: Js.t(Dom_html.element)): option(Js.t(Dom_html.element)) =>
   find_scroll_container_node(element_to_node(element));
 
+/* Viewport-culling geometry for the active code editor.
+ *
+ * Returns (scroll_top, client_height) where scroll_top is the editor's
+ * scroll offset relative to its OWN top — i.e. how far editor-local row 0
+ * has scrolled above the viewport top — and client_height is the scroll
+ * container's height. Computed from getBoundingClientRect of the
+ * `.code-container` and its nearest scrollable ancestor, so it's correct
+ * regardless of how the editor is nested (Scratch fills #main; Tutorial
+ * stacks it below prompt cells). Feed scroll_top into VisibleRows.compute,
+ * which expects an offset measured from the editor's row 0.
+ *
+ * None when the elements aren't present, or when there is no scrollable
+ * container yet. Assumes a single active code editor (Scratch/Tutorial);
+ * multi-editor modes (Exercises, Drv slides) are not culled. */
+let code_viewport_geometry = (): option((float, float)) => {
+  let rect_prop = (el, prop): float =>
+    Js.Unsafe.get(
+      Js.Unsafe.meth_call(el, "getBoundingClientRect", [||]),
+      prop,
+    );
+  switch (
+    Js.Opt.to_option(
+      Dom_html.document##querySelector(Js.string(".code-container")),
+    )
+  ) {
+  | None => None
+  | Some(code) =>
+    switch (find_scroll_container(code)) {
+    | None => None
+    | Some(container) =>
+      let scroll_top =
+        Float.max(
+          0.,
+          rect_prop(container, "top") -. rect_prop(code, "top"),
+        );
+      Some((scroll_top, rect_prop(container, "height")));
+    }
+  };
+};
+
 /* Find the nearest ancestor element with the given class */
 let find_ancestor_with_class =
     (el: Js.t(Dom_html.element), class_name: string)
