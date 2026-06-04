@@ -51,7 +51,7 @@ depends: [
   "conf-gmp-powm-sec" {= "4"}
   "conf-libffi" {= "2.0.0"}
   "conf-libssl" {= "4"}
-  "conf-pkg-config" {= "5"}
+  "conf-pkg-config" {= "4"}
   "conf-zlib" {= "1"}
   "core" {= "v0.16.2"}
   "core_bench" {= "v0.16.0"}
