@@ -113,7 +113,7 @@ module Settings = {
 
   let init: settings = {
     window: Single,
-    sample_base: Hybrid,
+    sample_base: Simple,
     before_cutoff: None,
     after_cutoff: None,
     caller_cutoff: None,

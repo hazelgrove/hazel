@@ -38,21 +38,31 @@ let none: t = {
 
 /* Per-slide table (keyed by module_name, mirroring flags_of_slide). Edit
  * these to give a slide a non-default starting point. Slides not listed
- * inherit the current state (no-op). The entries below are name-aligned
- * examples — tune freely. */
+ * inherit the current state (no-op).
+ *
+ * Guiding principle from the slide prompts: do NOT pre-set a knob on the
+ * slide that *teaches* its toggle (e.g. slide 10 has you press Space for
+ * many mode, slide 12 has you turn on auto-probe) — forcing it would
+ * pre-empt the lesson. Only set a value where the prompt assumes a
+ * non-default starting state:
+ *   - 18 "write one yourself, with auto-probe on"  -> autoprobe Caret
+ *   - 22 explains pink/blue/green sample colors, which the global default
+ *        Simple scheme can't show                  -> colors Hybrid
+ *   - 23 "Turn on auto-probe and wander" (capstone) -> autoprobe Caret
+ * Task slides set their own precise values elsewhere. */
 let of_slide = (module_name: string): t =>
   switch (module_name) {
-  | "TuGen_10FunctionsAndManySamples" => {
-      ...none,
-      samples: Some(Many),
-    }
-  | "TuGen_12AutoProbe" => {
+  | "TuGen_18WritingRunningSum" => {
       ...none,
       autoprobe: Some(Caret),
     }
   | "TuGen_22SampleColors" => {
       ...none,
-      colors: Some(Simple),
+      colors: Some(Hybrid),
+    }
+  | "TuGen_23GreenhouseArena" => {
+      ...none,
+      autoprobe: Some(Caret),
     }
   | _ => none
   };
