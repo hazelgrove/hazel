@@ -22,10 +22,8 @@ let out : string * Haz3lcore.PersistentSegment.t =
          c2846735-daf3-40fc-b37f-3de4b8bf7149)(content(Whitespace\" \
          \")))))((Secondary((id \
          286b735c-12c2-44b8-bf32-133053d65fce)(content(Whitespace\" \
-         \"))))(Tile((id \
-         bb89828b-843b-4652-9f27-487378cfd3e3)(label(?))(mold((out \
-         Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
-         Exp))))))(shards(0))(children())))(Secondary((id \
+         \"))))(Grout((id bb89828b-843b-4652-9f27-487378cfd3e3)(shape \
+         Convex)))(Secondary((id \
          2ea9031c-0c44-4b12-be9b-e19a55347636)(content(Whitespace\" \
          \")))))))))(Secondary((id \
          7fb55b02-74ba-40bd-b42d-f6afdca3723e)(content(Whitespace\"\\n\"))))(Secondary((id \
@@ -195,10 +193,8 @@ let out : string * Haz3lcore.PersistentSegment.t =
          3208f6ed-3430-4eac-a83b-81eb9f4b1c21)(content(Whitespace\" \
          \")))))))))(Secondary((id \
          8669d5a4-0182-4aa0-8cad-18d3c585e9c0)(content(Whitespace\" \
-         \"))))(Tile((id \
-         1d88fc22-3693-4502-be53-28db12a22c10)(label(?))(mold((out \
-         Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
-         Exp))))))(shards(0))(children()))))))))(Secondary((id \
+         \"))))(Grout((id 1d88fc22-3693-4502-be53-28db12a22c10)(shape \
+         Convex))))))))(Secondary((id \
          9ba6acf4-e4a7-4502-834c-cd66f20c8b7c)(content(Whitespace\"\\n\")))))))))(Secondary((id \
          a4b70e1f-9d72-4bd4-b018-a5937f553f56)(content(Whitespace\" \
          \")))))))))(Secondary((id \
@@ -3200,15 +3196,13 @@ let out : string * Haz3lcore.PersistentSegment.t =
          \"))))(Secondary((id \
          7e0f3491-0442-4077-bd93-6be567c1ab4d)(content(Whitespace\" \
          \"))))(Secondary((id \
-         7590fcdb-de04-4747-b4ad-148941ed39b2)(content(Whitespace\"\\n\"))))(Tile((id \
-         fedcc3fe-55fe-42e6-95eb-c41d2a6359fe)(label(?))(mold((out \
-         Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
-         Exp))))))(shards(0))(children())))(Secondary((id \
+         7590fcdb-de04-4747-b4ad-148941ed39b2)(content(Whitespace\"\\n\"))))(Grout((id \
+         fedcc3fe-55fe-42e6-95eb-c41d2a6359fe)(shape Convex)))(Secondary((id \
          efefe027-f09e-4bcd-87d6-e2788afae6fb)(content(Whitespace\"\\n\")))))";
       backup_text =
         "# Hazel Language Quick Reference #\n\n\
          # Empty holes stand for missing expressions, patterns, or types #\n\
-         let empty_hole = ? in\n\n\
+         let empty_hole =  in\n\n\
          # Non-empty holes are the red boxes around type errors #\n\
          # (you can still run programs with non-empty holes) #\n\
          let non_empty_hole : Int = true in\n\n\
@@ -3220,7 +3214,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
         \  (let _x = 0 in 1),\n\
         \  # ...and so does the presence of an empty hole in the unused \
          variable's scope #\n\
-        \  (let x = 0 in ?)\n\
+        \  (let x = 0 in )\n\
          ) in\n\n\
          # Booleans #\n\
          let bool: Bool = true in\n\

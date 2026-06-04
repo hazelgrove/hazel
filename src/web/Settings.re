@@ -36,6 +36,7 @@ module Model = {
       deep_reassociate: true,
       flip_animations: true,
       display_warnings: true,
+      selection_chunkiness: false,
       evaluation: {
         show_case_clauses: true,
         show_fn_bodies: false,
@@ -67,6 +68,7 @@ module Model = {
       show: true,
       problems: {
         collapsed: [],
+        collapsed_editors: [],
         flat: false,
         expanded: [],
       },
@@ -142,6 +144,7 @@ module Update = {
     | Dynamics
     | ProbeAll
     | DeepReassociate
+    | SelectionChunkiness
     | Assist
     | Elaborate
     | Benchmark
@@ -210,6 +213,13 @@ module Update = {
           core: {
             ...settings.core,
             deep_reassociate: !settings.core.deep_reassociate,
+          },
+        }
+      | SelectionChunkiness => {
+          ...settings,
+          core: {
+            ...settings.core,
+            selection_chunkiness: !settings.core.selection_chunkiness,
           },
         }
       | Assist => {
@@ -320,13 +330,25 @@ module Update = {
             panel: windowToSwitchTo,
           },
         }
-      | Sidebar(Problems(ToggleCollapsed(cat))) => {
+      | Sidebar(Problems(ToggleCollapsed(label, cat))) => {
           ...settings,
           sidebar: {
             ...settings.sidebar,
             problems:
               SidebarModel.Settings.toggle_collapsed(
+                label,
                 cat,
+                settings.sidebar.problems,
+              ),
+          },
+        }
+      | Sidebar(Problems(ToggleEditorCollapsed(label))) => {
+          ...settings,
+          sidebar: {
+            ...settings.sidebar,
+            problems:
+              SidebarModel.Settings.toggle_editor_collapsed(
+                label,
                 settings.sidebar.problems,
               ),
           },

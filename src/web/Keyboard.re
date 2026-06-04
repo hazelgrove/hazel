@@ -26,8 +26,24 @@ let is_new_slide = (k: Key.t): bool =>
     }
   );
 
+/* Mouse-drag chunkiness. The "Character-level mouse" setting
+ * (selection_chunkiness) sets the no-modifier default — applied in
+ * Perform: off → smart rounding, on → pure char. Holding the modifier
+ * (Alt on Mac / Ctrl on PC) while dragging selects the opposite. */
+let mouse_modifier_chunk =
+    (settings: Language.CoreSettings.t): Action.chunkiness =>
+  settings.selection_chunkiness ? BySmart : ByChar;
+
+/* Keyboard chunkiness. The keyboard favors fine control, so bare
+ * Shift+Arrow is always char-level; holding the modifier (Alt/Ctrl)
+ * switches to smart rounding. Independent of the mouse setting. */
+let kbd_default_chunk: Action.chunkiness = ByChar;
+let kbd_modifier_chunk: Action.chunkiness = BySmart;
+
 let handle_key_event = (k: Key.t): option(Action.t) => {
   let now = (a: Action.t) => Some(a);
+  let def = kbd_default_chunk;
+  let modif = kbd_modifier_chunk;
   switch (k) {
   | {key: U(key), _} =>
     /* Keu-UPpEvents:
@@ -41,8 +57,8 @@ let handle_key_event = (k: Key.t): option(Action.t) => {
     switch (shift, key) {
     | (Up, "ArrowLeft") => now(Move(Local(Left, ByChar)))
     | (Up, "ArrowRight") => now(Move(Local(Right, ByChar)))
-    | (Up, "ArrowUp") => now(Move(Vertical(Up)))
-    | (Up, "ArrowDown") => now(Move(Vertical(Down)))
+    | (Up, "ArrowUp") => now(Move(Vertical(Up, ByChar)))
+    | (Up, "ArrowDown") => now(Move(Vertical(Down, ByChar)))
     | (Up, "Home") => now(Move(Line(Left)))
     | (Up, "End") => now(Move(Line(Right)))
     | (_, "Backspace") => now(Destruct(Left))
@@ -50,10 +66,10 @@ let handle_key_event = (k: Key.t): option(Action.t) => {
     | (Up, "Escape") => now(Unselect(None))
     | (Up, "F12") => now(Move(Goal(BindingSiteOfIndicatedVar)))
     | (Down, "Tab") => now(Move(Goal(NextProblem(Left))))
-    | (Down, "ArrowLeft") => now(Select(Resize(Local(Left, ByToken))))
-    | (Down, "ArrowRight") => now(Select(Resize(Local(Right, ByToken))))
-    | (Down, "ArrowUp") => now(Select(Resize(Vertical(Up))))
-    | (Down, "ArrowDown") => now(Select(Resize(Vertical(Down))))
+    | (Down, "ArrowLeft") => now(Select(Resize(Local(Left, def))))
+    | (Down, "ArrowRight") => now(Select(Resize(Local(Right, def))))
+    | (Down, "ArrowUp") => now(Select(Resize(Vertical(Up, def))))
+    | (Down, "ArrowDown") => now(Select(Resize(Vertical(Down, def))))
     | (Down, "Home") => now(Select(Resize(Line(Left))))
     | (Down, "End") => now(Select(Resize(Line(Right))))
     | (_, "Enter") => now(Insert(Token.linebreak))
@@ -61,6 +77,14 @@ let handle_key_event = (k: Key.t): option(Action.t) => {
       /* Note: length==1 prevent specials like
        * SHIFT from being captured here */
       now(Insert(key))
+    | _ => None
+    }
+  | {key: D(key), sys: Mac, shift: Down, meta: Up, ctrl: Up, alt: Down, _} =>
+    switch (key) {
+    | "ArrowLeft" => now(Select(Resize(Local(Left, modif))))
+    | "ArrowRight" => now(Select(Resize(Local(Right, modif))))
+    | "ArrowUp" => now(Select(Resize(Vertical(Up, modif))))
+    | "ArrowDown" => now(Select(Resize(Vertical(Down, modif))))
     | _ => None
     }
   | {key: D(key), sys: Mac, shift: Down, meta: Down, ctrl: Up, alt: Up, _} =>
@@ -73,10 +97,10 @@ let handle_key_event = (k: Key.t): option(Action.t) => {
     }
   | {key: D(key), sys: PC, shift: Down, meta: Up, ctrl: Down, alt: Up, _} =>
     switch (key) {
-    | "ArrowLeft" => now(Select(Resize(Local(Left, ByToken))))
-    | "ArrowRight" => now(Select(Resize(Local(Right, ByToken))))
-    | "ArrowUp" => now(Select(Resize(Vertical(Up))))
-    | "ArrowDown" => now(Select(Resize(Vertical(Down))))
+    | "ArrowLeft" => now(Select(Resize(Local(Left, modif))))
+    | "ArrowRight" => now(Select(Resize(Local(Right, modif))))
+    | "ArrowUp" => now(Select(Resize(Vertical(Up, modif))))
+    | "ArrowDown" => now(Select(Resize(Vertical(Down, modif))))
     | "Home" => now(Select(Resize(Start)))
     | "End" => now(Select(Resize(End)))
     | _ => None
@@ -139,8 +163,8 @@ let handle_key_event = (k: Key.t): option(Action.t) => {
     }
   | {key: D(key), sys: _, shift: Down, meta: Up, ctrl: Up, alt: Down, _} =>
     switch (key) {
-    | "ArrowLeft" => now(Select(Resize(Local(Left, ByToken))))
-    | "ArrowRight" => now(Select(Resize(Local(Right, ByToken))))
+    | "ArrowLeft" => now(Select(Resize(Local(Left, modif))))
+    | "ArrowRight" => now(Select(Resize(Local(Right, modif))))
     | _ => None
     }
   | _ => None
