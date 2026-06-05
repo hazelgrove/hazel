@@ -681,10 +681,10 @@ let selector_delete: API.Json.t =
 let overwrite_description = {|
 Description:
 Replaces the focused subtree matched by a selector expression with new code.
-This is a semantic-aware overwrite: the `$` token in `code` stands for the
-originally selected subtree. The new code is parsed at the right sort and
-spliced into the parent context. Use `$` to express insert-before / insert-after
-patterns, as well as in-place wrapping of the original subtree.
+The `$` token in `code` stands for the originally selected subtree.
+The new code is parsed at the right sort and spliced into the parent context.
+Use `$` to express insert-before / insert-after patterns, as well as
+in-place wrapping of the original subtree.
 
 The selector must contain exactly one `%` (focus marker) identifying the
 target. The `code` may contain zero or more `$` placeholders. When `$` is

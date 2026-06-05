@@ -4998,6 +4998,100 @@ let gap_tests = (
         check(bool, "at least 1 match", true, List.length(results) >= 1);
       },
     ),
+    /* --- Application call spine (`name(`): plans/selector-calculus-v2.md §15 --- */
+    sel_test(
+      ~name="call: authenticate( first arg",
+      ~code="let ok = authenticate(3, 4, 5) in ok",
+      ~sel="authenticate(",
+      ~expected="3",
+    ),
+    sel_test(
+      ~name="call: authenticate ( _ % second arg",
+      ~code="let ok = authenticate(3, 4, 5) in ok",
+      ~sel="authenticate ( _ %",
+      ~expected="4",
+    ),
+    sel_test(
+      ~name="call: authenticate ( _ _ % third arg",
+      ~code="let ok = authenticate(3, 4, 5) in ok",
+      ~sel="authenticate ( _ _ %",
+      ~expected="5",
+    ),
+    sel_test(
+      ~name="call: authenticate ( _... % last arg",
+      ~code="let ok = authenticate(3, 4, 5) in ok",
+      ~sel="authenticate ( _... %",
+      ~expected="5",
+    ),
+    sel_test(
+      ~name="call: authenticate ( _... % 3 arg by value",
+      ~code="let ok = authenticate(3, 4, 5) in ok",
+      ~sel="authenticate ( _... % 3",
+      ~expected="3",
+    ),
+    sel_test(
+      ~name="call: ok = authenticate( under binding",
+      ~code="let ok = authenticate(3, 4, 5) in ok",
+      ~sel="ok = authenticate(",
+      ~expected="3",
+    ),
+    sel_test(
+      ~name="call: \\... authenticate( at call site",
+      ~code="let ok = authenticate(3, 4, 5) in ok",
+      ~sel="\\... authenticate(",
+      ~expected="3",
+    ),
+    sel_test(
+      ~name="call: % authenticate ( _... ) whole call",
+      ~code="let ok = authenticate(3, 4, 5) in ok",
+      ~sel="% authenticate ( _... )",
+      ~expected="authenticate(3, 4, 5)",
+    ),
+    sel_test(
+      ~name="call: f( unary",
+      ~code="let r = f(3) in r",
+      ~sel="f(",
+      ~expected="3",
+    ),
+    /* Partial application (DeferredAp): first slot is a deferral hole `_` */
+    sel_test(
+      ~name="call: authenticate( DeferredAp first slot",
+      ~code="let ok = authenticate(_, 4, 5) in ok",
+      ~sel="authenticate(",
+      ~expected="_",
+    ),
+    sel_test(
+      ~name="call: authenticate ( _ % DeferredAp arg",
+      ~code="let ok = authenticate(_, 4, 5) in ok",
+      ~sel="authenticate ( _ %",
+      ~expected="4",
+    ),
+    sel_test(
+      ~name="call: f( unary deferral",
+      ~code="let h = f(_) in h",
+      ~sel="f(",
+      ~expected="_",
+    ),
+    /* Regression: tuple literal `(` still walks elements (not Ap) */
+    sel_test(
+      ~name="call regr: tuple t/ ( % unaffected",
+      ~code="let t = (10, 20, 30) in t",
+      ~sel="t/ ( %",
+      ~expected="10",
+    ),
+    /* Fallback: `name(` on a tuple-bound name enters the tuple spine */
+    sel_test(
+      ~name="call fallback: t( tuple first element",
+      ~code="let t = (10, 20, 30) in t",
+      ~sel="t(",
+      ~expected="10",
+    ),
+    sel_test(
+      ~name="call fallback: t ( _ % tuple second element",
+      ~code="let t = (10, 20, 30) in t",
+      ~sel="t ( _ %",
+      ~expected="20",
+    ),
   ],
 );
 

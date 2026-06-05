@@ -149,12 +149,34 @@ let is_binop_token = (s: string): bool =>
   | _ => false
   };
 
+/* Split a glued call head from its trailing "(" so that `authenticate(`
+   tokenizes as `authenticate` + `(` (the call pattern). A part that is
+   only "(" is left alone (maps to LParen). */
+let split_trailing_lparen = (s: string): list(string) => {
+  let len = String.length(s);
+  let rec last_non_paren = i =>
+    if (i >= 0 && s.[i] == '(') {
+      last_non_paren(i - 1);
+    } else {
+      i;
+    };
+  let last = last_non_paren(len - 1);
+  let n_paren = len - 1 - last;
+  if (n_paren == 0 || last < 0) {
+    [s];
+  } else {
+    let prefix = String.sub(s, 0, last + 1);
+    [prefix, ...List.init(n_paren, _ => "(")];
+  };
+};
+
 let tokenize = (input: string): list(token) => {
   /* Split on whitespace, then parse each token */
   let parts =
     input
     |> String.split_on_char(' ')
-    |> List.filter(s => String.length(String.trim(s)) > 0);
+    |> List.filter(s => String.length(String.trim(s)) > 0)
+    |> List.concat_map(split_trailing_lparen);
   List.map(
     part =>
       switch (part) {
@@ -381,6 +403,75 @@ let atom_matches_str = (atom: Atom.t, expected: string): bool =>
       }
     | _ => false
     };
+  };
+
+/* Helper: the function head name of a call expression, for the `name(`
+   call pattern. Unwraps Parens and renders dotted heads like `M.x`. */
+let rec exp_fn_name = (e: Exp.t): option(string) =>
+  switch (Exp.term_of(e)) {
+  | Var(name) => Some(name)
+  | Constructor(name, _) => Some(name)
+  | Parens(inner) => exp_fn_name(inner)
+  | Dot(e1, e2) =>
+    switch (exp_fn_name(e1), exp_fn_name(e2)) {
+    | (Some(a), Some(b)) => Some(a ++ "." ++ b)
+    | _ => None
+    }
+  | _ => None
+  };
+
+let exp_fn_matches = (name: string, e: Exp.t): bool =>
+  switch (exp_fn_name(e)) {
+  | Some(n) => String.equal(n, name)
+  | None => false
+  };
+
+/* Helper: arguments of a complete application Ap(_, fn, arg). The argument
+   is usually a tuple (multi-arg) or a single expression (unary); unwrap
+   Tuple and Parens(Tuple) to a flat list, otherwise a singleton. */
+let ap_args = (arg: Exp.t): list(Exp.t) =>
+  switch (Exp.term_of(arg)) {
+  | Tuple(items) => items
+  | Parens({term: Tuple(items), _}) => items
+  | _ => [arg]
+  };
+
+/* Immediate sub-expressions of an expression. Mirrors the expression
+   children visited by descend_all; used to search for call sites of a
+   `name(` pattern without an explicit \... */
+let child_exps = (e: Exp.t): list(Exp.t) =>
+  switch (Exp.term_of(e)) {
+  | Let(_, def, body) => [def, body]
+  | ModuleExp(_, def, body) => [def, body]
+  | TyAlias(_, _, body) => [body]
+  | If(cond, then_, else_) => [cond, then_, else_]
+  | Match(scrut, rules) => [
+      scrut,
+      ...List.map(((_, body)) => body, rules),
+    ]
+  | Ap(_, fn, arg) => [fn, arg]
+  | DeferredAp(fn, args) => [fn, ...args]
+  | Fun(_, body, _, _) => [body]
+  | Test(body) => [body]
+  | Tuple(es) => es
+  | ListLit(es) => es
+  | Seq(e1, e2) => [e1, e2]
+  | Parens(e1) => [e1]
+  | BinOp(_, e1, e2) => [e1, e2]
+  | UnOp(_, e1) => [e1]
+  | Module(items) =>
+    List.filter_map(
+      (item: Mod.t) =>
+        switch (item.term) {
+        | ModLet(_, def) => Some(def)
+        | ModExp(x) => Some(x)
+        | ModuleMod(_, def) => Some(def)
+        | _ => None
+        },
+      items,
+    )
+  | Asc(e1, _) => [e1]
+  | _ => []
   };
 
 /* Match a binary operator expression against an operator string.
@@ -892,6 +983,12 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
       | None => []
       }
 
+    /* % name ( ... : focus the whole call when the current node is an
+       application headed by `name`. The remaining tokens (`_... )`) are a
+       shape filter and are ignored. */
+    | [MatchFocus, MatchName(name), MatchDelimiter("("), ..._rest] =>
+      search_ap_whole(name, current)
+
     /* Focus + more steps: focus on whatever the remaining steps select */
     | [MatchFocus, ...rest] => walk(rest, current)
 
@@ -954,6 +1051,24 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
           }
         }
       };
+
+    /* name( : enter the argument spine of calls to `name` (the `name(`
+       call pattern). Searches descendants so the call need not be the
+       current node. See plans/selector-calculus-v2.md §15.
+       Fallback: if no call matches, `name` may be bound to a tuple, so
+       enter its definition and walk the tuple spine (like `name/ (`). */
+    | [MatchName(name), MatchDelimiter("("), ...rest] =>
+      switch (search_ap_spine(name, current, rest)) {
+      | [_, ..._] as calls => calls
+      | [] =>
+        find_all_binders_named(name, current)
+        |> List.concat_map(((def, _body)) =>
+             switch (def) {
+             | ExpDef(e) => walk([MatchDelimiter("("), ...rest], e)
+             | TypDef(_) => []
+             }
+           )
+      }
 
     /* name = % : select the definition of all binders named `name` */
     | [MatchName(name), MatchDelimiter("="), MatchFocus] =>
@@ -1957,6 +2072,21 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
         | [] => []
         }
 
+      /* Ellipsis + Focus + atom: focus the first item equal to the value
+         (e.g. `_... % 3` selects the argument whose value is 3). */
+      | [MatchEllipsis, MatchFocus, MatchAtom(expected), ..._] =>
+        let matches_value = (item: Exp.t): bool =>
+          switch (Exp.term_of(item)) {
+          | Atom(actual) => atom_matches_str(actual, expected)
+          | Var(name) => name == expected
+          | Constructor(name, _) => name == expected
+          | _ => false
+          };
+        switch (List.find_opt(matches_value, items)) {
+        | Some(item) => [mk_exp(item)]
+        | None => []
+        };
+
       /* Ellipsis + Focus: skip to last, focus on it */
       | [MatchEllipsis, MatchFocus, ..._] =>
         switch (List.rev(items)) {
@@ -1999,6 +2129,49 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
   and walk_list_spine =
       (items: list(Exp.t), whole: Exp.t, steps: sem_selector) =>
     walk_seq_spine(items, whole, steps)
+
+  /* Match a `name(` call pattern at a single node: if it is an application
+     headed by `name`, walk its argument spine with `rest`; else no match.
+     Ap arguments are unwrapped from their tuple; DeferredAp args are a flat
+     list (program deferrals included). */
+  and walk_ap_spine =
+      (name: string, current: Exp.t, rest: sem_selector): list(match_result) =>
+    switch (Exp.term_of(current)) {
+    | Ap(_, fn, arg) when exp_fn_matches(name, fn) =>
+      walk_seq_spine(ap_args(arg), current, rest)
+    | DeferredAp(fn, args) when exp_fn_matches(name, fn) =>
+      walk_seq_spine(args, current, rest)
+    | _ => []
+    }
+
+  /* Search a subtree for calls to `name`, walking each match's argument
+     spine. Recurses structurally (not via walk) so `authenticate(` finds
+     nested calls without an explicit \... and without looping. */
+  and search_ap_spine =
+      (name: string, e: Exp.t, rest: sem_selector): list(match_result) => {
+    let here = walk_ap_spine(name, e, rest);
+    let children =
+      List.concat_map(c => search_ap_spine(name, c, rest), child_exps(e));
+    here @ children;
+  }
+
+  /* Search a subtree for whole calls to `name` (focus the call node itself),
+     used by the `% name ( ... )` whole-call pattern. */
+  and search_ap_whole = (name: string, e: Exp.t): list(match_result) => {
+    let here =
+      switch (Exp.term_of(e)) {
+      | Ap(_, fn, _) when exp_fn_matches(name, fn) => [
+          mk_exp(~bc="% " ++ name ++ " (", e),
+        ]
+      | DeferredAp(fn, _) when exp_fn_matches(name, fn) => [
+          mk_exp(~bc="% " ++ name ++ " (", e),
+        ]
+      | _ => []
+      };
+    let children =
+      List.concat_map(c => search_ap_whole(name, c), child_exps(e));
+    here @ children;
+  }
 
   /* Walk a module spine: { item1 ; item2 ; ... }
      Supports positional navigation (Slot, Ellipsis, Focus),
@@ -2411,6 +2584,9 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
           )
       | Ap(_, fn, arg) =>
         descend_all(fn, remaining) @ descend_all(arg, remaining)
+      | DeferredAp(fn, args) =>
+        descend_all(fn, remaining)
+        @ List.concat_map(a => descend_all(a, remaining), args)
       | Fun(pat, body, _, _) =>
         descend_all_pat(pat, remaining) @ descend_all(body, remaining)
       | Test(body) => descend_all(body, remaining)
