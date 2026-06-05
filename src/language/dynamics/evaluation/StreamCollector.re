@@ -1,9 +1,13 @@
 open Transition;
 
 module CollectStreamEVMode: {
-  include EV_MODE with type result = (EvaluatorState.t, rule);
+  include
+    EV_MODE with
+      type inner_result = (EvaluatorState.t, rule) and
+      type result = (EvaluatorState.t, rule);
 } = {
   type result = (EvaluatorState.t, rule);
+  type inner_result = result;
   type requirement('a) = (EvaluatorState.t, 'a);
   type requirements('a, 'b) = (EvaluatorState.t, 'a, 'b);
 

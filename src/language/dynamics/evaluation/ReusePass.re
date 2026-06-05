@@ -25,9 +25,13 @@ let reusable_entry =
   );
 
 module ReusePassEVMode: {
-  include EV_MODE with type result = (IncrEval.t(EvaluatorState.t), rule);
+  include
+    EV_MODE with
+      type inner_result = (IncrEval.t(EvaluatorState.t), rule) and
+      type result = (IncrEval.t(EvaluatorState.t), rule);
 } = {
   type result = (IncrEval.t(EvaluatorState.t), rule);
+  type inner_result = result;
   type requirement('a) = (IncrEval.t(EvaluatorState.t), 'a);
   type requirements('a, 'b) = (IncrEval.t(EvaluatorState.t), 'a, 'b);
 
@@ -59,14 +63,19 @@ module ReusePassEVMode: {
 module ReusePassTransition = Transition(ReusePassEVMode);
 
 let update_reuse_map_after_effects =
-    (stream: IncrEval.t(EvaluatorState.t), reuse_map, effects) =>
+    (
+      ~rhs_reused: Id.t => bool,
+      ~reuse_map: IncrEval.reuse_map,
+      effects: list(EvaluatorState.effect),
+    )
+    : IncrEval.reuse_map =>
   List.fold_left(
     (reuse_map, effect) =>
       switch (effect) {
       | EvaluatorState.RecordPatMatch({pat, rhs, _}) =>
         let source_id = DHExp.rep_id(rhs);
         IncrEval.update_maps_after_binding(
-          ~rhs_reused=Id.Map.mem(source_id, stream.entries),
+          ~rhs_reused=rhs_reused(source_id),
           ~source_id,
           pat,
           ~reuse_map,
@@ -103,7 +112,11 @@ let rec reuse_pass_for =
     switch (rule) {
     | Step({expr, side_effects, is_value: false, _}) =>
       let reuse_map =
-        update_reuse_map_after_effects(req_stream, reuse_map, side_effects);
+        update_reuse_map_after_effects(
+          ~rhs_reused=source_id => Id.Map.mem(source_id, req_stream.entries),
+          ~reuse_map,
+          side_effects,
+        );
       stream_union(
         req_stream,
         reuse_pass_for(~prev, ~info_map, ~reuse_map, expr),

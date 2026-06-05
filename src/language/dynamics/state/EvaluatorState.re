@@ -33,7 +33,6 @@ and incr_eval = IncrEval.t(t);
 
 type effect =
   | RecordTest(TestMap.instance_report)
-  | RecordExpProbe(Sample.capture_spec)
   | RecordStackFrame(option(string), option(DHExp.t), option(Id.t)) /* (fn_name, arg_value, fn_def_id) */
   /* A pattern was matched against a value during evaluation. Carries the
    * pat and rhs so the incremental evaluator can decide which body-scoped
@@ -166,7 +165,6 @@ let update =
       call_stack: CallStack.t',
       env: Environment.t(Exp.t),
       init: DHExp.t,
-      next: DHExp.t,
       side_effects: list(effect),
     )
     : (CallStack.t', t) => {
@@ -228,30 +226,6 @@ let update =
           call_stack,
           add_test(state, instance_report),
         )
-      | RecordExpProbe(pr) =>
-        let probe_id = DHExp.rep_id(init);
-        /* step_start is when we began evaluating the probe (recorded earlier)
-         * step_end is step_count - 1 because this step is the "strip probe" step */
-        let step_start =
-          CallStack.get_probe_start(call_stack, probe_id)
-          |> Option.value(~default=0);
-        let step_end = state.step_count - 1;
-        /* Look up arg if this probe is on an Ap expression */
-        let args =
-          CallStack.lookup_app_arg(call_stack, probe_id, call_stack.stack);
-        let sample =
-          Sample.mk(
-            ~args,
-            ~step_start,
-            ~step_end,
-            probe_id,
-            next,
-            env,
-            call_stack.stack,
-            pr,
-          );
-        let call_stack = CallStack.clear_probe_start(call_stack, probe_id);
-        (call_stack, add_sample(state, sample));
       | RecordPatMatch({samples: sample_closures, _}) =>
         /* Pattern probes are recorded at the current step, then we
          * increment to ensure patterns don't share step boundaries
