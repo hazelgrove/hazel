@@ -330,7 +330,7 @@ let install_message_handler = () => {
       switch (next_model.runtime) {
       | Idle => false
       | Starting
-      | Running(_) => !model^.slice_already_scheduled
+      | Running(_) => !next_model.slice_already_scheduled
       };
     model :=
       should_schedule_slice

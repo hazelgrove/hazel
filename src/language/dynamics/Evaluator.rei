@@ -27,6 +27,7 @@ let evaluate_and_limit:
     ~info_map: EvalInfo.t=?,
     ~env: Environment.t(Exp.t),
     ~reuse_map: IncrEval.reuse_map=?,
+    ~outbox: ref(IncrEval.t(EvaluatorState.t))=?,
     Exp.t
   ) =>
   limited_result;

@@ -254,11 +254,13 @@ module Decompose = {
   };
 
   module DecomposeEVMode: {
-    include EV_MODE with type result = Result.t;
+    include
+      EV_MODE with type inner_result = Result.t and type result = Result.t;
   } = {
     type requirement('a) = (Result.t, 'a);
     type requirements('a, 'b) = ('b, Result.t, Environment.t(Exp.t), 'a);
     type result = Result.t;
+    type inner_result = result;
 
     let (&&&): (Result.t, Result.t) => Result.t =
       (u, v) =>
@@ -344,11 +346,14 @@ module Decompose = {
 
 module TakeStep = {
   module TakeStepEVMode: {
-    include EV_MODE with type result = option(DHExp.t);
+    include
+      EV_MODE with
+        type inner_result = option(DHExp.t) and type result = option(DHExp.t);
   } = {
     type requirement('a) = 'a;
     type requirements('a, 'b) = 'a;
     type result = option(DHExp.t);
+    type inner_result = result;
 
     // Assume that everything is either value or final as required.
     let req_final = (_, _, d) => d;

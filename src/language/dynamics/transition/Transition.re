@@ -156,15 +156,16 @@ let (let-unbox) = ((request, v), f) => {
 };
 module type EV_MODE = {
   type result;
+  type inner_result;
   type requirement('a);
   type requirements('a, 'b);
 
   let req_final:
-    (DHExp.t => result, EvalCtx.t => EvalCtx.t, DHExp.t) =>
+    (DHExp.t => inner_result, EvalCtx.t => EvalCtx.t, DHExp.t) =>
     requirement(DHExp.t);
   let req_all_final:
     (
-      DHExp.t => result,
+      DHExp.t => inner_result,
       (EvalCtx.t, (list(DHExp.t), list(DHExp.t))) => EvalCtx.t,
       list(DHExp.t)
     ) =>
@@ -395,7 +396,8 @@ module Transition = (EV: EV_MODE) => {
   let transition =
       (
         req:
-          (~in_closure: unit => unit=?, Environment.t(Exp.t), DHExp.t) => 'a,
+          (~in_closure: unit => unit=?, Environment.t(Exp.t), DHExp.t) =>
+          EV.inner_result,
         ~mode: [
            | `Substitution
            | `Environment
