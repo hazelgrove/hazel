@@ -67,7 +67,6 @@ node_modules
 
 # Project plans (local only)
 plans/
-!plans/selector-calculus-v2.md
 
 # Cursor IDE (local)
 .cursor/

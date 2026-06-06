@@ -1054,7 +1054,7 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
 
     /* name( : enter the argument spine of calls to `name` (the `name(`
        call pattern). Searches descendants so the call need not be the
-       current node. See plans/selector-calculus-v2.md §15.
+       current node.
        Fallback: if no call matches, `name` may be bound to a tuple, so
        enter its definition and walk the tuple spine (like `name/ (`). */
     | [MatchName(name), MatchDelimiter("("), ...rest] =>
