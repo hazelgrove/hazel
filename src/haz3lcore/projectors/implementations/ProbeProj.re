@@ -781,7 +781,15 @@ let value_view =
   );
 };
 
-let env_val = (ctx: probe_ctx, view_seg, sample, en: Sample.Env.entry): Node.t => {
+/* Shared hard cap for code rendered inside the sample dropdown — used for
+ * both env binding values and call-display arguments. A wide sample
+ * otherwise made these uselessly long. Abbreviate treats the budget as a
+ * hard cap, so shorter values still render short. Both sites reference this
+ * one constant so they can't diverge. */
+let dropdown_value_width = 50;
+
+let env_val =
+    (ctx: probe_ctx, view_seg, _sample, en: Sample.Env.entry): Node.t => {
   Node.div(
     ~attrs=[Attr.classes(["live-env-entry"])],
     [
@@ -790,11 +798,7 @@ let env_val = (ctx: probe_ctx, view_seg, sample, en: Sample.Env.entry): Node.t =
       | Opaque => Node.text("Opaque")
       | Val(d) =>
         let (seg, _) =
-          abbreviated_seg_of(
-            ctx.utility,
-            SampleLength.get(ctx.settings.window, sample),
-            d,
-          );
+          abbreviated_seg_of(ctx.utility, dropdown_value_width, d);
         view_seg(~text_only=false, seg);
       },
     ],
@@ -1080,7 +1084,9 @@ let sample_call_display =
     (ctx: probe_ctx, view_seg, sample: Sample.t): list(Node.t) =>
   switch (sample.args, get_fn_name_from_statics(ctx.statics)) {
   | (Some(arg_val), Some(fn_name)) =>
-    let length = SampleLength.get(ctx.settings.window, sample);
+    /* Same hard cap as env values (dropdown_value_width) so arguments and
+     * bindings trim identically and can't drift apart. */
+    let length = dropdown_value_width;
     let arg_var_info = get_arg_var_info(ctx.statics);
     let render_exp = (exp: Exp.t) => {
       let (seg, _) = abbreviated_seg_of(ctx.utility, length, exp);
