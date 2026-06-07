@@ -181,10 +181,23 @@ let view =
            * at the refractor's rightmost point; the Tab(n) rows should
            * land at the linebreak AFTER the last shard, not before any
            * internal linebreak. */
+          /* Walk shards/children strictly left-to-right so the
+           * DeferredLinebreaks side effects (refractor Tab(n) update and
+           * secondary-linebreak consume) fire in document order, matching
+           * Measured.of_segment's `Aba.fold_left`. `Aba.join` uses
+           * `List.fold_right2` (right-to-left evaluation), which reverses
+           * those effects across a tile's sibling children: e.g. a
+           * drawer-mode probe on a `let`'s pattern child would have its
+           * deferred rows set AFTER the linebreak in the definition child
+           * had already consumed the (still-zero) counter — so the code
+           * text wouldn't reserve the drawer's rows while the decorations
+           * (Measured) did. */
           let nodes =
-            Aba.mk(t.shards, t.children)
-            |> Aba.join(i => [of_delim(t, i)], of_segment)
-            |> List.concat;
+            Aba.fold_left(
+              i => [of_delim(t, i)],
+              (acc, seg, i) => acc @ of_segment(seg) @ [of_delim(t, i)],
+              Aba.mk(t.shards, t.children),
+            );
           let _ =
             switch (Id.Map.find_opt(t.id, refractor_shape_map)) {
             | Some(n) =>
