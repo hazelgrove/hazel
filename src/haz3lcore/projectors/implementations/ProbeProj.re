@@ -1241,24 +1241,52 @@ let sample_context_sections =
 
 /* Sample context menu (dropdown) combining actions and environment */
 let sample_context_menu =
-    (~show_env, ctx: probe_ctx, view_seg, sample: Sample.t): list(Node.t) => {
+    (~show_env, ~drawer, ctx: probe_ctx, view_seg, sample: Sample.t)
+    : list(Node.t) => {
   let (has_env, has_call, nodes) =
     sample_context_sections(ctx, view_seg, sample);
+  /* In drawer mode the menu lives inside `.below-wrapper`, whose overflow
+   * clip (the line-cap scroll) would occlude a normally-positioned
+   * dropdown. Promote the *open* menu to a FloatingElement: position:fixed,
+   * repositioned each render/scroll just below its `.sample` anchor's
+   * bottom edge (see Util.FloatingElement, driven from Main.after_display).
+   * This escapes the clip while still tracking the sample. At most one
+   * dropdown is open at a time, so at most one element floats. Inline mode
+   * renders in the unclipped offside layer and needs none of this. */
+  let floating = drawer && show_env;
+  let float_attrs =
+    floating
+      ? [
+        Attr.create("data-float-anchor-class", "sample"),
+        Attr.create("data-float-anchor-edge", "bottom"),
+        Attr.create("data-float-local-top", "0"),
+        Attr.create("data-float-local-left", "3"),
+        /* update_all() overwrites top/left and flips visibility:visible
+         * after measuring; start hidden to avoid a flash at (0,0). */
+        Attr.create(
+          "style",
+          "position: fixed; visibility: hidden; top: 0; left: 0;",
+        ),
+      ]
+      : [];
   switch (nodes) {
   /* Nothing to show: no menu, and so no lone dock icon. */
   | [] => []
   | _ => [
       div(
-        ~attrs=[
-          Attr.classes(
-            ["sample-context-menu"]
-            @ (has_env || has_call ? [] : ["no-env"])
-            @ (show_env ? ["dropdown-active"] : []),
-          ),
-          /* id only — visibility is driven by the dropdown-active class
-           * (set via show_env); no SafeTriangle hover handlers. */
-          Attr.id(dropdown_id(sample)),
-        ],
+        ~attrs=
+          [
+            Attr.classes(
+              ["sample-context-menu"]
+              @ (floating ? ["floating-fixed"] : [])
+              @ (has_env || has_call ? [] : ["no-env"])
+              @ (show_env ? ["dropdown-active"] : []),
+            ),
+            /* id only — visibility is driven by the dropdown-active class
+             * (set via show_env); no SafeTriangle hover handlers. */
+            Attr.id(dropdown_id(sample)),
+          ]
+          @ float_attrs,
         nodes,
       ),
     ]
@@ -1349,7 +1377,14 @@ let sample_view =
     @ pin_view(ctx, sample)
     @ (
       render_dropdown
-        ? sample_context_menu(~show_env, ctx, view_seg, sample) : []
+        ? sample_context_menu(
+            ~show_env,
+            ~drawer=display == Block,
+            ctx,
+            view_seg,
+            sample,
+          )
+        : []
     ),
   );
 };

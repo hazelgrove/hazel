@@ -1116,6 +1116,13 @@
   display: none;
 }
 
+/* Drawer-mode dropdowns are promoted to position:fixed (FloatingElement)
+ * to escape `.below-wrapper`'s overflow clip; the fixed inline style wins
+ * over the absolute rule above. Lift above the code it now floats over. */
+.live-offside .sample-context-menu.floating-fixed {
+  z-index: var(--context-menu-z);
+}
+
 /* Sticky ('/') mode: show the dropdown for the focal sample of the offside
  * you're keyboard-controlling. `.sticky` is set whenever sticky mode is on;
  * `:focus` narrows to the one offside that has keyboard focus, and
