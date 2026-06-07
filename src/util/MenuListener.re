@@ -29,6 +29,11 @@ module type Config = {
    * (falling back to the menu container) after every sync where the menu
    * is open. */
   let scroll_into_view: bool;
+  /* When true, dismiss the menu on `#main` scroll. Used by menus that are
+   * position:fixed (the probe drawer dropdown) and would otherwise lag the
+   * content they're anchored to; menus that scroll together with their
+   * anchor leave this off. */
+  let close_on_scroll: bool;
 };
 
 let has_ancestor_with_class =
@@ -175,6 +180,23 @@ module Make = (C: Config) => {
       let win = Js.Unsafe.coerce(Dom_html.window);
       let _ =
         win##addEventListener(Js.string("blur"), blur_handler, Js._false);
+
+      if (C.close_on_scroll) {
+        switch (JsUtil.get_elem_by_id_opt("main")) {
+        | None => ()
+        | Some(main) =>
+          let main_coerced = Js.Unsafe.coerce(main);
+          let scroll_handler =
+            Js.wrap_callback((_: Js.t(Dom_html.event)) => execute_close());
+          /* Listen for `wheel`, not `scroll`: wheel fires at the start of
+           * the scroll input (before the browser scrolls and repaints), so
+           * the menu closes immediately — matching the editor context
+           * menu's backdrop on_wheel. `scroll` fires only after the paint,
+           * which is the lag that was visible here. */
+          let _ = main_coerced##addEventListener("wheel", scroll_handler);
+          ();
+        };
+      };
       ();
     };
 
