@@ -63,11 +63,10 @@
 }
 
 #main.Tutorial .hint-cell {
-  background-color: 1px solid var(--cell-selected-accent);
-  border-left: 5px solid #ffc107;
+  background-color: var(--Y0);
+  border-left: 3px solid #ffc107;
   padding: 13px;
   border-radius: 8px;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
   font-size: 16px;
   color: #454545;
   gap: 2em;
@@ -75,7 +74,7 @@
 
 #main.Tutorial .hint-title {
   font-weight: bold;
-  color: #d39e00;
+  color: var(--Y3);
   font-size: 15px;
   cursor: pointer;
   user-select: none;
