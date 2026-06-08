@@ -11,13 +11,13 @@ let exercise : Tutorial.spec =
     prompt =
       {x|So far you have placed probes by hand. **Auto-probe** does it for you: turn it on and Hazel puts a multi probe on whichever definition your cursor is in, following you as you move.
 
-Toggle it with **Cmd/Ctrl+P**, or open the probarium sidebar (the **🔬** icon on the right) and use the top toggle.
+Toggle it with **Cmd/Ctrl+P**, or use the **Auto Probe** toggle at the top of this panel.
 
 **Try this**
 1. Turn on auto-probe, then click inside the `watering_amount` function. A probe appears on each line.
 2. Move your cursor into `watering_amount`. The probes follow you.
-3. Similarly, move your cursor to the body of the program (last line); again, the probes should follow
-4. Return to ``watering_amount`. Note how since the parameters are on one line, you get a combined value for both at the end. Insert some linebreaks to put the parameters on different lines. Notice how formatting code in this way lets you decide how granular the intermediate values shown are.|x};
+3. Similarly, move your cursor to the body of the program (last line); again, the probes should follow.
+4. Return to `watering_amount`. Note how since the parameters are on one line, you get a combined value for both at the end. Insert some linebreaks to put the parameters on different lines. Notice how formatting code in this way lets you decide how granular the intermediate values shown are.|x};
     display_hint =
       {x|Cmd/Ctrl+P, then move your cursor between the two functions.|x};
     task_reference =

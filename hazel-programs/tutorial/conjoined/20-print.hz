@@ -2,7 +2,7 @@
 version=1 id=b0000020-0020-0020-0020-000000000020
 
 @prompt
-Hazel also has classic print-statement debugging. For some tasks we'll ask you to use these instead of probes. Open the 🔬 sidebar and click PRINTARIUM. Now, when you have a `print(value);` in your code, it will print in the sidebar manel when you click `Run`.
+Hazel also has classic print-statement debugging. For some tasks we'll ask you to use these instead of probes. Click **Console** at the top of this panel to switch from the reference to the print console. Now, when you have a `print(value);` in your code, it prints there when you click **Run**.
 
 # Task
 The garden waters for a week. Add `print(daily);` inside `weekly_water` to log each daily amount, then watch the print panel fill as the calls below run. There should be three lines in the panel.

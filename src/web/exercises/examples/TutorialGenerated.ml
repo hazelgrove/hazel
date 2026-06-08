@@ -26,4 +26,5 @@ let all : Tutorial.spec list =
     TuGen_21DebuggingWarmup.exercise;
     TuGen_22SampleColors.exercise;
     TuGen_23GreenhouseArena.exercise;
+    TuGen_24ReadingModelValues.exercise;
   ]

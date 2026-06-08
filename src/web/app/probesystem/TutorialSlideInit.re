@@ -64,6 +64,12 @@ let of_slide = (module_name: string): t =>
       ...none,
       autoprobe: Some(All),
     }
+  /* 24 "Reading bigger values": auto-probe All so the big ledger value is
+   * already on screen to practice resize/expand on. */
+  | "TuGen_24ReadingModelValues" => {
+      ...none,
+      autoprobe: Some(All),
+    }
   | _ => none
   };
 

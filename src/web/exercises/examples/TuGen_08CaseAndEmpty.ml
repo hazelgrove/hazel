@@ -18,7 +18,7 @@ A `case` expression matches a value against patterns, top to bottom. A wildcard 
 
 # Task
 
-Before you begin, **watch the branches**! Put a probe on the `+` in the `New` branch, on the `-` in the `Full` branch, on `base` in the last branch, and on the `case` itself. Note that only the matching branch shows a value, and that the `case` itself takes on the value of that branch. The others branches show **∅**, meaning those paths never ran.
+Before you begin, **watch the branches**! Put a probe on the `+` in the `New` branch, on the `-` in the `Full` branch, on `base` in the last branch, and on the `case` itself. Note that only the matching branch shows a value, and that the `case` itself takes on the value of that branch. The other branches show **∅**, meaning those paths never ran.
 
 First, try changing `Full` to `New` and watch a different branch light up, then change it back to pass.
 

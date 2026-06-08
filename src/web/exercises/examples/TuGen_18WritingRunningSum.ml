@@ -9,7 +9,7 @@ let exercise : Tutorial.spec =
     version = 1;
     module_name = "TuGen_18WritingRunningSum";
     prompt =
-      {x|Now write one yourself, with auto-probe on so you can watch it run.
+      {x|Now write one yourself. **Auto-probe is already on for this slide** (we switched it on for you) so you can watch it run.
 
 `nightly_totals` takes each night's watering and returns the *running total* so far:
 ```hazelnostatics
@@ -19,7 +19,7 @@ nightly_totals([250, 180, 50]) == [250, 430, 480]
 # Task
 Fill the fold callback. The accumulator is a tuple `(total, sofar)`: the running total, and the list built so far. Each step returns the new total and `sofar` with that total added to the end. Some useful list operators: `::` (cons) and `@` (append).
 
-**Turn on auto-probe** (Ctrl/Cmd+P) and click inside the callback. In *many* mode you can watch the accumulator grow.|x};
+Click inside the callback, so probes follow your cursor. In *many* mode (press **Space**, or use the **Samples** toggle above) you can watch the accumulator grow. You can cycle auto-probe off/on any time with **Ctrl/Cmd+P** or the **Auto Probe** toggle above.|x};
     display_hint = {x|`(total + n, sofar @ [total + n])`|x};
     task_reference =
       {x|### Fold with a tuple accumulator

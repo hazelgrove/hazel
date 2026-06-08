@@ -2,7 +2,7 @@
 show_report version=1 id=b0000018-0018-0018-0018-000000000018
 
 @prompt
-Now write one yourself, with auto-probe on so you can watch it run.
+Now write one yourself. **Auto-probe is already on for this slide** (we switched it on for you) so you can watch it run.
 
 `nightly_totals` takes each night's watering and returns the *running total* so far:
 ```hazelnostatics
@@ -12,7 +12,7 @@ nightly_totals([250, 180, 50]) == [250, 430, 480]
 # Task
 Fill the fold callback. The accumulator is a tuple `(total, sofar)`: the running total, and the list built so far. Each step returns the new total and `sofar` with that total added to the end. Some useful list operators: `::` (cons) and `@` (append).
 
-**Turn on auto-probe** (Ctrl/Cmd+P) and click inside the callback. In *many* mode you can watch the accumulator grow.
+Click inside the callback, so probes follow your cursor. In *many* mode (press **Space**, or use the **Samples** toggle above) you can watch the accumulator grow. You can cycle auto-probe off/on any time with **Ctrl/Cmd+P** or the **Auto Probe** toggle above.
 
 @hint
 `(total + n, sofar @ [total + n])`

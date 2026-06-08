@@ -13,11 +13,11 @@ let exercise : Tutorial.spec =
 
 A larger garden, with nothing to fix. The caretaker tends it by moonlight and records every pour in a ledger no one has read to the end.
 
-Turn on auto-probe and wander: probe a function and step through its samples, **pin** one bed's call and watch the rest fall away, **step into** `weekly` to see a bed totalled night by night.|x};
+Auto-probe is already on for this finale (we switched it on for you) — wander: probe a function and step through its samples, **pin** one bed's call and watch the rest fall away, **step into** `weekly` to see a bed totalled night by night. Cycle auto-probe off/on with **Cmd/Ctrl+P** or the **Auto Probe** toggle above.|x};
     display_hint = {x||x};
     task_reference =
       {x|### Everything so far
-Probes (Cmd/Ctrl+E), the variable dropdown (right-click a sample), auto-probe (🔬), many mode (Space), pin (`P`), step into (Enter), and the sample colors.|x};
+Probes (Cmd/Ctrl+E), the variable dropdown (right-click a sample), auto-probe (Cmd/Ctrl+P or the **Auto Probe** toggle), many mode (Space or the **Samples** toggle), pin (`P`), step into (Enter), and the sample colors.|x};
     your_impl =
       Haz3lcore.Zipper.caret_to_start
         (Option.get

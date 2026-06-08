@@ -11,18 +11,18 @@ let exercise : Tutorial.spec =
     prompt =
       {x|# Sample colors
 
-When you click a sample, the others take on colors showing how their run relates to it. You met two already: **pink** ran before, **blue** ran after. **Green** is the focus's own run, and gray is unrelated. There is a legend at the bottom of the probe sidebar; nothing here needs memorizing.
+When you click a sample, the others take on colors showing how their run relates to it. You met two already: **pink** ran before, **blue** ran after. **Green** is the focus's own run, and gray is unrelated. We've set the color scheme for this slide so these colors show; the **legend** at the bottom of this panel explains them (and lets you switch schemes). Nothing here needs memorizing.
 
 **Try this**
 1. Probe `first`, `second`, `third`. Click `second`: `first` is pink (ran before), `third` is blue (ran after).
-2. In the watering section, probe `adj` inside `daily_water` and probe the calls. Click a call: its `adj` is green (same run); a call that started before it is pink, one that finished after is blue.
+2. In the watering section, probe `adj` inside `daily_water` and probe the calls. Click a call: its `adj` is green (same run); a call that started before it is pink, one that started after is blue.
 3. Switch to *many* mode and click a sample inside the map. Samples from the same outer call are colored; samples from a different call are gray.|x};
     display_hint = {x||x};
     task_reference =
       {x|### Colors
 - **green**: the focus's own run
 - **pink**: started before the focus
-- **blue**: finished after the focus
+- **blue**: started after the focus
 - **gray**: a different, unrelated call|x};
     your_impl =
       Haz3lcore.Zipper.caret_to_start

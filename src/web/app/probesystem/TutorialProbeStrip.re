@@ -63,6 +63,7 @@ let s16 = s12 @ [Pin, IconPinHidden];
 let s17 = s16 @ [StepInto];
 let s20 = s17 @ [Console];
 let s22 = s20 @ [Legend];
+let s24 = s22 @ [Resize, ExpandProbe];
 
 let flags_of_slide = (module_name: string): list(feat) =>
   switch (module_name) {
@@ -89,6 +90,7 @@ let flags_of_slide = (module_name: string): list(feat) =>
   | "TuGen_21DebuggingWarmup" => s20
   | "TuGen_22SampleColors"
   | "TuGen_23GreenhouseArena" => s22
+  | "TuGen_24ReadingModelValues" => s24
   | _ => s01
   };
 
@@ -204,14 +206,14 @@ let qr_row = (~meta, f: feat): option(Node.t) => {
         ~click_shortcut="P",
         ~badge_cls="qr-when-focused",
         "Pin call",
-        [text({js|Click sample › Pin|js})],
+        [text({js|Right-click sample › Pin|js})],
       )
     | StepInto =>
       ProbeSidebar.quick_ref_row(
         ~click_shortcut={js|↩|js},
         ~badge_cls="qr-when-focused",
         "Step into call",
-        [text({js|Click sample › Step|js})],
+        [text({js|Right-click sample › Step|js})],
       )
     | NavSamples =>
       ProbeSidebar.quick_ref_row(

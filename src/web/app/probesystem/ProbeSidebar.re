@@ -804,13 +804,13 @@ let quick_ref_view =
             ~click_shortcut="P",
             ~badge_cls="qr-when-focused",
             "Pin call",
-            [text({js|Click sample › Pin|js})],
+            [text({js|Right-click sample › Pin|js})],
           ),
           quick_ref_row(
             ~click_shortcut={js|↩|js},
             ~badge_cls="qr-when-focused",
             "Step into call",
-            [text({js|Click sample › Step|js})],
+            [text({js|Right-click sample › Step|js})],
           ),
           /* Group 2: Navigation */
           quick_ref_divider,

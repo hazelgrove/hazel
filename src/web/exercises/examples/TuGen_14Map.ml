@@ -16,7 +16,7 @@ map([1, 2, 3], fun n -> n * 2)
 
 # Task
 
-Just for fun, turn on autoprobe (Ctrl/Cmd-P) if it's not already on. Then, give every plant its 50 ml new-moon top-up. Map over the watering cans, adding 50 to each.|x};
+Just for fun, turn on auto-probe (**Ctrl/Cmd+P**, or the **Auto Probe** toggle at the top of this panel) if it's not already on. Then, give every plant its 50 ml new-moon top-up. Map over the watering cans, adding 50 to each.|x};
     display_hint = {x|`fun w -> w + 50`|x};
     task_reference =
       {x|### Map and lambdas
