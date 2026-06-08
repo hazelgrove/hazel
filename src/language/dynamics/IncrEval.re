@@ -43,19 +43,54 @@ type entry('state) = {
 type t('state) = {entries: Id.Map.t(entry('state))};
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type outbox_entry('state) =
-  | Complete(entry('state))
-  | Partial('state);
+type current('state) = {
+  id: Id.t,
+  state: 'state,
+};
 
-type outbox('state) = Id.Map.t(outbox_entry('state));
+[@deriving (show({with_path: false}), sexp, yojson)]
+type outbox('state) = {
+  completed: t('state),
+  current: option(current('state)),
+};
 
 let empty: t('state) = {entries: Id.Map.empty};
 
+let empty_outbox: outbox('state) = {
+  completed: empty,
+  current: None,
+};
+
+let outbox_of_completed = (completed: t('state)): outbox('state) => {
+  completed,
+  current: None,
+};
+
 let is_empty = (incr: t('state)): bool => Id.Map.is_empty(incr.entries);
+
+let outbox_is_empty = (outbox: outbox('state)): bool =>
+  is_empty(outbox.completed) && Option.is_none(outbox.current);
 
 let add_entry =
     (id: Id.t, entry: entry('state), incr: t('state)): t('state) => {
   entries: Id.Map.add(id, entry, incr.entries),
+};
+
+let add_outbox_entry =
+    (id: Id.t, entry: entry('state), outbox: outbox('state))
+    : outbox('state) => {
+  ...outbox,
+  completed: add_entry(id, entry, outbox.completed),
+};
+
+let set_outbox_current =
+    (~id: Id.t, ~state: 'state, outbox: outbox('state)): outbox('state) => {
+  ...outbox,
+  current:
+    Some({
+      id,
+      state,
+    }),
 };
 
 let add_stream = (stream: t('state), incr: t('state)): t('state) => {
@@ -65,6 +100,12 @@ let add_stream = (stream: t('state), incr: t('state)): t('state) => {
       incr.entries,
       stream.entries,
     ),
+};
+
+let merge_outbox =
+    (stream: outbox('state), outbox: outbox('state)): outbox('state) => {
+  completed: add_stream(stream.completed, outbox.completed),
+  current: stream.current,
 };
 
 let copy_descendant_entries =

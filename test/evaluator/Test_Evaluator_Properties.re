@@ -405,14 +405,14 @@ let rec finish_yielding_with_stream =
   | EvaluationCompleted(value) =>
     let stream =
       IncrEval.add_stream(
-        Evaluator.drain_streaming_outbox(evaluation),
+        Evaluator.drain_streaming_outbox(evaluation).completed,
         stream,
       );
     (value, stream);
   | EvaluationYielded(evaluation) =>
     let stream =
       IncrEval.add_stream(
-        Evaluator.drain_streaming_outbox(evaluation),
+        Evaluator.drain_streaming_outbox(evaluation).completed,
         stream,
       );
     finish_yielding_with_stream(
@@ -432,14 +432,14 @@ let finish_yielding_with_stream =
   | EvaluationCompleted(value) =>
     let stream =
       IncrEval.add_stream(
-        Evaluator.drain_streaming_outbox(evaluation),
+        Evaluator.drain_streaming_outbox(evaluation).completed,
         stream,
       );
     (value, stream);
   | EvaluationYielded(evaluation) =>
     let stream =
       IncrEval.add_stream(
-        Evaluator.drain_streaming_outbox(evaluation),
+        Evaluator.drain_streaming_outbox(evaluation).completed,
         stream,
       );
     finish_yielding_with_stream(
@@ -523,11 +523,79 @@ let yielding_streaming_outbox_test =
     },
   );
 
+let rec yield_until_current = (~remaining_slices: int, evaluation) => {
+  if (remaining_slices <= 0) {
+    fail("Yielding evaluation did not produce a current outbox state");
+  };
+  switch (Evaluator.run_yielding_slice(~step_budget=1, evaluation)) {
+  | EvaluationCompleted(_) =>
+    fail("Expected yielding evaluation to yield before completion")
+  | EvaluationYielded(evaluation) =>
+    let outbox = Evaluator.drain_streaming_outbox(evaluation);
+    switch (outbox.current) {
+    | Some(_) => outbox
+    | None =>
+      yield_until_current(~remaining_slices=remaining_slices - 1, evaluation)
+    };
+  };
+};
+
+let yielding_streaming_current_state_test =
+  test_case(
+    "Yielding evaluation streams current partial state",
+    `Quick,
+    () => {
+      let (info_map, exp) =
+        Statics.mk(
+          CoreSettings.on,
+          Builtins.ctx_init(Some(Int)),
+          parse_exp("let x = 1 + 2 in let y = x + 3 in y"),
+        );
+      let info_map =
+        EvalInfo.of_info_map(
+          ~probe_all=CoreSettings.on.probe_all,
+          ~targets=Id.Map.empty,
+          info_map,
+        );
+      let evaluation =
+        Evaluator.start_yielding_evaluation(
+          ~info_map,
+          ~env=Builtins.env_init,
+          exp,
+        );
+      let outbox = yield_until_current(~remaining_slices=1000, evaluation);
+      switch (outbox.current) {
+      | Some({state, _}) =>
+        let collected = StreamCollector.collect_stream_state(outbox, exp);
+        check(
+          bool,
+          "current state has dynamic work",
+          true,
+          state.step_count > 0,
+        );
+        check(
+          bool,
+          "collector includes current state",
+          true,
+          collected.step_count >= state.step_count,
+        );
+        check(
+          bool,
+          "current state does not recursively carry incr_eval",
+          true,
+          Id.Map.is_empty(state.incr_eval.entries),
+        );
+      | None => fail("Expected current outbox state")
+      };
+    },
+  );
+
 let tests = (
   "Evaluator.Properties",
   [
     yielding_evaluation_test,
     yielding_streaming_outbox_test,
+    yielding_streaming_current_state_test,
     QCheck_alcotest.to_alcotest(qcheck_evaluator_does_not_crash_test),
     QCheck_alcotest.to_alcotest(qcheck_stepper_confluence),
     QCheck_alcotest.to_alcotest(qcheck_pattern_equivalence_test),

@@ -320,7 +320,11 @@ module Update = {
                 schedule_action(
                   Editor(
                     Tutorial.pos_of_key(pos),
-                    ResultAction(UpdateStreamingEval(stream)),
+                    ResultAction(
+                      UpdateStreamingEval(
+                        Language.IncrEval.outbox_of_completed(stream),
+                      ),
+                    ),
                   ),
                 ),
               initial,

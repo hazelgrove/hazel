@@ -39,42 +39,49 @@ module CollectStreamEVMode: {
 module CollectStreamTransition = Transition(CollectStreamEVMode);
 
 let rec collect_stream_state_for =
-        (stream_incr: EvaluatorState.incr_eval, d: DHExp.t): EvaluatorState.t => {
+        (stream: IncrEval.outbox(EvaluatorState.t), d: DHExp.t)
+        : EvaluatorState.t => {
   let id = DHExp.rep_id(d);
-  switch (Id.Map.find_opt(id, stream_incr.entries)) {
+  switch (Id.Map.find_opt(id, stream.completed.entries)) {
   | Some(entry) =>
     let state = EvaluatorState.append(EvaluatorState.empty, entry.state);
     let state = EvaluatorState.add_incr_entry(state, id, entry);
     state;
   | None =>
-    let (req_state, rule) =
-      CollectStreamTransition.transition(
-        (~in_closure=?, _env, child) => {
-          ignore(in_closure);
-          (collect_stream_state_for(stream_incr, child), Indet);
-        },
-        ~mode=`Environment,
-        ~targets=Sample.no_targets,
-        Builtins.env_init,
-        d,
-      );
-    switch (rule) {
-    | Step({expr, is_value: false, _}) =>
-      EvaluatorState.append(
-        req_state,
-        collect_stream_state_for(stream_incr, expr),
-      )
-    | Step({is_value: true, _})
-    | Constructor
-    | Value
-    | Indet => req_state
-    };
+    switch (stream.current) {
+    | Some({id: current_id, state}) when Id.equal(id, current_id) =>
+      EvaluatorState.append(EvaluatorState.empty, state)
+    | Some(_)
+    | None =>
+      let (req_state, rule) =
+        CollectStreamTransition.transition(
+          (~in_closure=?, _env, child) => {
+            ignore(in_closure);
+            (collect_stream_state_for(stream, child), Indet);
+          },
+          ~mode=`Environment,
+          ~targets=Sample.no_targets,
+          Builtins.env_init,
+          d,
+        );
+      switch (rule) {
+      | Step({expr, is_value: false, _}) =>
+        EvaluatorState.append(
+          req_state,
+          collect_stream_state_for(stream, expr),
+        )
+      | Step({is_value: true, _})
+      | Constructor
+      | Value
+      | Indet => req_state
+      };
+    }
   };
 };
 
 let collect_stream_state =
-    (stream_incr: EvaluatorState.incr_eval, d: DHExp.t): EvaluatorState.t => {
-  let state = collect_stream_state_for(stream_incr, d);
+    (stream: IncrEval.outbox(EvaluatorState.t), d: DHExp.t): EvaluatorState.t => {
+  let state = collect_stream_state_for(stream, d);
   {
     ...state,
     incr_eval: {
@@ -82,7 +89,7 @@ let collect_stream_state =
         Id.Map.union(
           (_, existing, _streamed) => Some(existing),
           state.incr_eval.entries,
-          stream_incr.entries,
+          stream.completed.entries,
         ),
     },
   };

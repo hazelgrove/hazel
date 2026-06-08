@@ -423,15 +423,33 @@ module Update = {
             fun
             | ("lemmas", stream) => {
                 schedule_action(
-                  Prelude(ResultAction(UpdateStreamingEval(stream))),
+                  Prelude(
+                    ResultAction(
+                      UpdateStreamingEval(
+                        Language.IncrEval.outbox_of_completed(stream),
+                      ),
+                    ),
+                  ),
                 );
                 schedule_action(
-                  Lemmas(ResultAction(UpdateStreamingEval(stream))),
+                  Lemmas(
+                    ResultAction(
+                      UpdateStreamingEval(
+                        Language.IncrEval.outbox_of_completed(stream),
+                      ),
+                    ),
+                  ),
                 );
               }
             | ("theorem", stream) =>
               schedule_action(
-                Theorem(ResultAction(UpdateStreamingEval(stream))),
+                Theorem(
+                  ResultAction(
+                    UpdateStreamingEval(
+                      Language.IncrEval.outbox_of_completed(stream),
+                    ),
+                  ),
+                ),
               )
             | _ => (),
             initial,

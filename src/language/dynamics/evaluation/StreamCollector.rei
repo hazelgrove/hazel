@@ -1,2 +1,2 @@
 let collect_stream_state:
-  (EvaluatorState.incr_eval, DHExp.t) => EvaluatorState.t;
+  (IncrEval.outbox(EvaluatorState.t), DHExp.t) => EvaluatorState.t;

@@ -27,7 +27,7 @@ let evaluate_and_limit:
     ~info_map: EvalInfo.t=?,
     ~env: Environment.t(Exp.t),
     ~reuse_map: IncrEval.reuse_map=?,
-    ~outbox: ref(IncrEval.t(EvaluatorState.t))=?,
+    ~outbox: ref(IncrEval.outbox(EvaluatorState.t))=?,
     Exp.t
   ) =>
   limited_result;
@@ -46,4 +46,4 @@ let run_yielding_slice:
   (~step_budget: int, yielding_evaluation) => yielding_result;
 
 let drain_streaming_outbox:
-  yielding_evaluation => IncrEval.t(EvaluatorState.t);
+  yielding_evaluation => IncrEval.outbox(EvaluatorState.t);

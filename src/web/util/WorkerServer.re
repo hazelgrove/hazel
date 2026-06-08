@@ -51,7 +51,7 @@ module ServerMessage = {
   type stream = {
     request_id: int,
     key,
-    update: Language.IncrEval.t(Language.EvaluatorState.t),
+    update: Language.IncrEval.outbox(Language.EvaluatorState.t),
   };
 
   [@deriving (show, sexp, yojson)]
@@ -326,9 +326,10 @@ let post_stream_update =
       model,
       request_id,
       key,
-      update: Language.IncrEval.t(Language.EvaluatorState.t),
+      update: Language.IncrEval.outbox(Language.EvaluatorState.t),
     ) =>
-  if (is_latest(model, request_id) && !Id.Map.is_empty(update.entries)) {
+  if (is_latest(model, request_id)
+      && !Language.IncrEval.outbox_is_empty(update)) {
     post_message(
       ServerMessage.Stream({
         request_id,
