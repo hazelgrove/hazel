@@ -304,6 +304,31 @@ let scroll_vertically_into_view =
   };
 };
 
+/* Scroll EVERY vertical-scroll ancestor of `el`, innermost first, so
+ * that `el` ends up visible. Vertical-only (never touches scrollLeft),
+ * so it avoids the horizontal jumps that motivated dropping native
+ * scrollIntoView. Unlike a single `find_scroll_container` call, this
+ * also scrolls the outer page container (#main) when `el` is nested
+ * inside an inner scroll box — e.g. a drawer-mode `.live-offside`
+ * lives inside `.below-wrapper` (overflow-y: auto), which would
+ * otherwise swallow the scroll and leave the page unmoved. Walking
+ * all the way out also makes this correct regardless of how the
+ * element is nested, so we don't have to pick "the" right container. */
+let scroll_vertically_into_view_ancestors =
+    (el: Js.t(Dom_html.element)): unit => {
+  let rec go = (node: Js.t(Dom.node)): unit =>
+    switch (find_scroll_container_node(node)) {
+    | None => ()
+    | Some(container) =>
+      scroll_vertically_into_view(container, el);
+      /* Continue from the container so outer scroll boxes (#main) are
+       * scrolled too; find_scroll_container_node always moves up, so
+       * this terminates at the document root. */
+      go(element_to_node(container));
+    };
+  go(element_to_node(el));
+};
+
 let scroll_cursor_into_view_if_needed = () =>
   try({
     let caret_elem = get_elem_by_id("caret");
@@ -727,11 +752,10 @@ let navigate_probes =
     el##focus(
       Js.Unsafe.obj([|("preventScroll", Js.Unsafe.inject(Js._true))|]),
     );
-    switch (find_scroll_container(Js.Unsafe.coerce(el))) {
-    | Some(container) =>
-      scroll_vertically_into_view(container, Js.Unsafe.coerce(el))
-    | None => ()
-    };
+    /* Scroll all scroll-ancestors (incl. #main), not just the nearest
+     * one: a drawer-mode target lives inside `.below-wrapper`'s own
+     * scroll box, which would otherwise absorb the scroll. */
+    scroll_vertically_into_view_ancestors(Js.Unsafe.coerce(el));
     /* Extract the full probe Id from data-probe-id attribute */
     let probe_id_str =
       el##getAttribute(Js.string("data-probe-id")) |> Js.Opt.to_option;
