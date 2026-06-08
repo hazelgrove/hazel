@@ -6,27 +6,22 @@ exception Found(Exp.t);
 // Find a subexpression by id (delegates to Exp.find_by_id)
 let find_exp_id = Exp.find_by_id;
 
-// `Filter(Residue(...), _)` is a bookkeeping wrapper added by
-// `should_hide_eval_obj` while walking the eval context. For ordinary targets,
-// skip this wrapper while looking through the current expression. If the target
-// is itself a residue filter, however, it must remain matchable.
-let is_residue_filter = (exp: Exp.t): bool =>
-  switch (exp.term) {
-  | Filter(Residue(_, _), _) => true
-  | _ => false
-  };
-
-let skip_residue_for_target = (~target: Exp.t, exp: Exp.t): bool =>
-  is_residue_filter(exp) && !is_residue_filter(target);
-
-// We use syntactic equality (no wrapper stripping) so that nested same-kind
-// wrappers — e.g. `debug eval(...) in debug stop(...) in 6` — don't trigger
-// spurious matches at every wrapper layer. The only structural difference
-// between the persist tree (compose(ctx, d_loc)) and the refresh tree (raw
-// exp) we deliberately tolerate is the `Filter(Residue(...))` wrapper added
-// by `should_hide_eval_obj`, which we strip explicitly above.
-let structurally_equal = (e1: Exp.t, e2: Exp.t): bool =>
-  Equality.syntactic.exp(e1, e2);
+// Equality used to compare candidate occurrences against the target. We keep
+// every tolerance of `Equality.ignoring_ascriptions` (alpha-equivalence,
+// parens, ascriptions, function names, hole provenance, …) so the proof/axiom
+// call sites keep locating user-selected subexpressions as before, and flip
+// only `ignore_filters`. `ignore_filters` is precisely what made the
+// `Filter(Residue(...))` bookkeeping wrapper compare equal to the expression
+// underneath it: the search matched the wrapper and stopped before reaching the
+// real target id. With filters no longer transparent, nested same-kind wrappers
+// (`eval ... in pause ... in ...`) likewise stop matching spuriously.
+let structurally_equal: (Exp.t, Exp.t) => bool =
+  Equality.equality({
+    ...Equality.semantic_settings,
+    ignore_ascriptions: true,
+    ignore_filters: false,
+  }).
+    exp;
 
 // Given an expression e1 that appears in e2, count how many
 // times e1 appears with a different id before e1 in e2.
@@ -38,8 +33,6 @@ let exp_idx = (e1: Exp.t, e2: Exp.t) => {
         (cont, exp) =>
           if (Exp.rep_id(exp) == Exp.rep_id(e1)) {
             raise(Found(exp));
-          } else if (skip_residue_for_target(~target=e1, exp)) {
-            cont(exp);
           } else if (structurally_equal(exp, e1)) {
             n := n^ + 1;
             exp;
@@ -66,9 +59,7 @@ let nth_exp = (e1: Exp.t, n: int, e2: Exp.t) => {
     Exp.map_term(
       ~f_exp=
         (cont, exp) =>
-          if (skip_residue_for_target(~target=e1, exp)) {
-            cont(exp);
-          } else if (structurally_equal(exp, e1)) {
+          if (structurally_equal(exp, e1)) {
             if (count^ == n) {
               raise(Found(exp));
             } else {
