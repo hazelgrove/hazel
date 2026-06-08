@@ -1114,7 +1114,13 @@ module Update = {
               switch (initial |> List.hd |> snd) {
               | stream =>
                 schedule_action(
-                  CellAction(ResultAction(UpdateStreamingEval(stream))),
+                  CellAction(
+                    ResultAction(
+                      UpdateStreamingEval(
+                        Language.IncrEval.outbox_of_completed(stream),
+                      ),
+                    ),
+                  ),
                 )
               | exception _ => ()
               },

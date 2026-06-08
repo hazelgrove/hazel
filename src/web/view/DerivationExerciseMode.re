@@ -492,7 +492,11 @@ module Update = {
                 schedule_action(
                   Editor(
                     DerivationExercise.pos_of_key(pos),
-                    ResultAction(UpdateStreamingEval(stream)),
+                    ResultAction(
+                      UpdateStreamingEval(
+                        Language.IncrEval.outbox_of_completed(stream),
+                      ),
+                    ),
                   ),
                 ),
               initial,

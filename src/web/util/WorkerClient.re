@@ -10,7 +10,8 @@ type callbacks = {
   timeout: Request.t => unit,
   on_ack:
     list((key, Language.IncrEval.t(Language.EvaluatorState.t))) => unit,
-  on_stream: (key, Language.IncrEval.t(Language.EvaluatorState.t)) => unit,
+  on_stream:
+    (key, Language.IncrEval.outbox(Language.EvaluatorState.t)) => unit,
 };
 
 type latest = {
@@ -154,7 +155,7 @@ let request =
       ~on_ack:
          list((key, Language.IncrEval.t(Language.EvaluatorState.t))) => unit,
       ~on_stream:
-         (key, Language.IncrEval.t(Language.EvaluatorState.t)) => unit,
+         (key, Language.IncrEval.outbox(Language.EvaluatorState.t)) => unit,
     )
     : unit =>
   switch (req) {

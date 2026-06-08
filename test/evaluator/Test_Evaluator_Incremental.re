@@ -236,7 +236,11 @@ let test_materialize_stream_state_marks_reused_entries = () => {
   let info_map = eval_info_of_statics(info_map);
   let stream =
     ReusePass.reuse_pass(~prev, ~info_map, ~env=Builtins.env_init, elab);
-  let state = StreamCollector.collect_stream_state(stream, elab);
+  let state =
+    StreamCollector.collect_stream_state(
+      IncrEval.outbox_of_completed(stream),
+      elab,
+    );
   let root_id = Exp.rep_id(elab);
   check(
     bool,

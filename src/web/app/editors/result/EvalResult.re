@@ -23,7 +23,7 @@ module Model = {
     result: Calc.t(ProgramResult.t(ProgramResult.inner)),
     dynamics: Calc.saved(option(Dynamics.t)),
     incr_eval: Calc.saved(EvaluatorState.incr_eval),
-    streaming_incr_eval: Calc.saved(option(EvaluatorState.incr_eval)),
+    streaming_outbox: Calc.saved(option(IncrEval.outbox(EvaluatorState.t))),
     streaming_state: Calc.saved(option(EvaluatorState.t)),
     pending_eval_ids: list(Id.t),
     display,
@@ -43,7 +43,7 @@ module Model = {
     result: Calc.NewValue(ProgramResult.awaiting_worker_ack),
     dynamics: Calc.Pending,
     incr_eval: Calc.Pending,
-    streaming_incr_eval: Calc.Pending,
+    streaming_outbox: Calc.Pending,
     streaming_state: Calc.Pending,
     pending_eval_ids: [],
     display: Evaluation(Calc.Pending),
@@ -69,7 +69,7 @@ module Model = {
         result: Calc.NewValue(ProgramResult.awaiting_worker_ack),
         dynamics: Calc.Pending,
         incr_eval: Calc.Pending,
-        streaming_incr_eval: Calc.Pending,
+        streaming_outbox: Calc.Pending,
         streaming_state: Calc.Pending,
         pending_eval_ids: [],
         display: Stepper(StepperView.Model.unpersist(stepper)),
@@ -175,7 +175,7 @@ module Update = {
     );
 
   let stream_visible_ids =
-      (stream: IncrEval.t(EvaluatorState.t)): list(Id.t) =>
+      (stream: IncrEval.outbox(EvaluatorState.t)): list(Id.t) =>
     Id.Map.fold(
       (id, entry: IncrEval.entry(EvaluatorState.t), acc) => {
         let subtree_ids = ref([]);
@@ -186,7 +186,7 @@ module Update = {
         let _ = TermBase.Exp.map_term(~f_exp, entry.prev_elab);
         [id, ...subtree_ids^] @ acc;
       },
-      stream.entries,
+      stream.completed.entries,
       [],
     );
 
@@ -205,8 +205,8 @@ module Update = {
     | StepperAction(StepperView.Update.t)
     | EvalEditorAction(CodeSelectable.Update.t)
     | UpdateResult(ProgramResult.t(ProgramResult.inner))
-    | UpdateStreamingEval(IncrEval.t(EvaluatorState.t))
-    | MergeStreamingEval(IncrEval.t(EvaluatorState.t))
+    | UpdateStreamingEval(IncrEval.outbox(EvaluatorState.t))
+    | MergeStreamingEval(IncrEval.outbox(EvaluatorState.t))
     | TheoremsAction(Theorems.Update.t);
 
   let can_undo = (action: t) => {
@@ -276,20 +276,20 @@ module Update = {
       {
         ...model,
         result: Calc.NewValue(ProgramResult.evaluating),
-        streaming_incr_eval: Calc.Calculated(Some(stream)),
+        streaming_outbox: Calc.Calculated(Some(stream)),
         streaming_state: Calc.Pending,
         pending_eval_ids: remove_streamed_ids(stream, model.pending_eval_ids),
       }
       |> Updated.return_quiet
     | (MergeStreamingEval(stream), _) =>
       let current =
-        model.streaming_incr_eval
+        model.streaming_outbox
         |> Calc.get_saved(None)
-        |> Option.value(~default=IncrEval.empty);
+        |> Option.value(~default=IncrEval.empty_outbox);
       {
         ...model,
-        streaming_incr_eval:
-          Calc.Calculated(Some(IncrEval.add_stream(stream, current))),
+        streaming_outbox:
+          Calc.Calculated(Some(IncrEval.merge_outbox(stream, current))),
         streaming_state: Calc.Pending,
         pending_eval_ids: remove_streamed_ids(stream, model.pending_eval_ids),
       }
@@ -309,7 +309,7 @@ module Update = {
           result,
           dynamics,
           incr_eval,
-          streaming_incr_eval,
+          streaming_outbox,
           streaming_state,
           pending_eval_ids,
           display,
@@ -380,13 +380,13 @@ module Update = {
         };
       };
 
-    let streaming_incr_eval =
-      streaming_incr_eval
+    let streaming_outbox =
+      streaming_outbox
       |> {
         let.calc result = result;
         switch (result) {
         | ProgramResult.ResultPending(Evaluating) =>
-          streaming_incr_eval |> Calc.get_saved(None)
+          streaming_outbox |> Calc.get_saved(None)
         | ProgramResult.ResultPending(AwaitingWorkerAck)
         | ProgramResult.ResultFail(_)
         | ProgramResult.ResultOk(_) => None
@@ -416,12 +416,10 @@ module Update = {
       streaming_state
       |> {
         let.calc elab = elab
-        and.calc streaming_incr_eval = streaming_incr_eval;
-        switch (streaming_incr_eval) {
-        | Some(streaming_incr_eval) =>
-          Some(
-            StreamCollector.collect_stream_state(streaming_incr_eval, elab),
-          )
+        and.calc streaming_outbox = streaming_outbox;
+        switch (streaming_outbox) {
+        | Some(streaming_outbox) =>
+          Some(StreamCollector.collect_stream_state(streaming_outbox, elab))
         | None => None
         };
       };
@@ -462,9 +460,10 @@ module Update = {
       incr_eval
       |> {
         let.calc result = result
-        and.calc streaming_incr_eval = streaming_incr_eval;
-        switch (result, streaming_incr_eval) {
-        | (ProgramResult.ResultPending(_), Some(streaming_incr_eval)) => streaming_incr_eval
+        and.calc streaming_outbox = streaming_outbox;
+        switch (result, streaming_outbox) {
+        | (ProgramResult.ResultPending(_), Some(streaming_outbox)) =>
+          streaming_outbox.completed
         | (ProgramResult.ResultPending(_), None) =>
           incr_eval |> Calc.get_saved(IncrEval.empty)
         | (ProgramResult.ResultFail(_), _) => IncrEval.empty
@@ -553,7 +552,7 @@ module Update = {
         result: result |> Calc.make_old,
         dynamics: dynamics |> Calc.save,
         incr_eval: incr_eval |> Calc.save,
-        streaming_incr_eval: streaming_incr_eval |> Calc.save,
+        streaming_outbox: streaming_outbox |> Calc.save,
         streaming_state: streaming_state |> Calc.save,
         pending_eval_ids,
         display,
