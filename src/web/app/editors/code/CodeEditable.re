@@ -629,6 +629,7 @@ module View = {
         globals.font_metrics,
         ~core_settings=globals.settings.core,
         ~visible?,
+        ~refractor_shape_map=model.editor.syntax.refractor_shape_map,
         refractor_data,
         List.map(fst, zipper.refractors.manuals)
         @ List.map(fst, Id.Map.to_list(zipper.refractors.multis.ephemerals)),

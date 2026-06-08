@@ -107,13 +107,24 @@ let all =
       font_metrics: FontMetrics.t,
       ~core_settings: Language.CoreSettings.t,
       ~visible: option(Globals.VisibleRows.t)=?,
+      ~refractor_shape_map: Id.Map.t(int)=Id.Map.empty,
       refractor_data: list(ProjectorView.Model.projector_data),
       refractor_list: list(Id.t),
     ) => {
-  let get_row_range = (d: ProjectorView.Model.projector_data) => (
-    d.measurement.origin.row,
-    d.measurement.last.row,
-  );
+  /* A refractor's measurement is collapsed to its anchor point (origin ==
+   * last; see `measurement_of_term`), so its vertical extent is invisible
+   * to the culling test. In drawer mode the drawer reserves `Tab(n)` rows
+   * extending *downward* from the anchor (see ProbeProj.DrawerHeight); that
+   * `n` is recorded per-refractor in `refractor_shape_map`. Extend the
+   * culled row range's bottom edge by `n` so a multi-line drawer that is
+   * still partially on screen isn't disappeared early when its anchor row
+   * scrolls past the top of the viewport. */
+  let get_row_range = (d: ProjectorView.Model.projector_data) => {
+    let drawer_rows =
+      Id.Map.find_opt(d.p.id, refractor_shape_map)
+      |> Option.value(~default=0);
+    (d.measurement.origin.row, d.measurement.last.row + drawer_rows);
+  };
   let (base_views, overlay_views) =
     refractor_data
     |> ProjectorView.filter_by_visibility(visible, _, get_row_range)
