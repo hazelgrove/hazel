@@ -12,12 +12,12 @@ let exercise : Tutorial.spec =
       {x|From the outside, `total_water` is just a number. **Step into** a call to watch the fold build that number up.
 
 **Try this**
-1. Probe both calls below. You see `610` and `230`. Just totals.
+1. The two calls below are probed (auto-probe is on): you see `610` and `230`. Just totals. (If not, probe them with **Cmd/Ctrl+E**.)
 2. Click the `total_water(shade)` sample and press **Enter** (or choose *Step into*).
 3. Your cursor jumps inside `total_water`, aligned to that call.
 4. If in single mode, switch to *many* mode (press **Space**, or use the **Samples** toggle above). See how `acc + p.water` grows over the course of three iterations: `250 → 450 → 610`.
 5. Notice that the **dynamic focus** bar at the top shows the call stack corresponding to the current sample. Click on the first entry, `total_water`, to step back out to the call site. This will be more useful when the call is far from the definition.|x};
-    display_hint = {x|Probe a call, click its sample, press Enter.|x};
+    display_hint = {x|Click a call's sample, then press Enter.|x};
     task_reference =
       {x|### Probes
 - **Step into**: from a call's sample, press Enter (or *Step into*) to enter that call. The matching sample highlights.

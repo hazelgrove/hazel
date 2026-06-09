@@ -12,11 +12,12 @@ let exercise : Tutorial.spec =
       {x|With many calls, every probe shows a wall of samples. **Pin** locks onto one call, so every probe shows just that call's run.
 
 **Try this**
-1. Put multi-probe on `weekly`'s let definition, and switch to *many* mode (press **Space**, or use the **Samples** toggle above). Note each line shows four samples, one per call below.
-2. Probe the `weekly(orchid)` call below. Right-click its sample and choose **Pin this call** (or press `P`).
+1. Auto-probe is on, so `weekly` is already probed. Switch to *many* mode (press **Space**, or use the **Samples** toggle above): each of its lines shows four samples, one per call below. (If auto-probe is off, probe `weekly` with **Cmd/Ctrl+E** first.)
+2. Right-click the `weekly(orchid)` sample below and choose **Pin this call** (or press `P`).
 3. Back inside the function, every probe now shows only Orchid's run.
 4. A **⍟** marks samples hidden by the pin. Click it to unpin.|x};
-    display_hint = {x|Probe a call, then *Pin this call* from its sample.|x};
+    display_hint =
+      {x|Right-click a call's sample, then *Pin this call* (or press `P`).|x};
     task_reference =
       {x|### Probes
 - **Pin this call**: from a call's sample, filter every probe to that call. Press `P` or use the menu.

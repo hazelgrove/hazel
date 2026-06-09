@@ -18,7 +18,7 @@ A **Samples** toggle just appeared at the top of the Task Reference panel; the c
 **Try this**
 1. Probe the function's body: put your cursor on `case` and add a probe.
 2. Notice that the sample shown, `220`, now has arrows to the left. You can click on the right arrow to cycle through the 2 other samples, and the left arrow to go back. Alternatively, click on the sample itself, and use **←/→** on your keyboard to step between them.
-3. Now, press **Space** (or flip the **Samples** toggle at the top of this panel) for *many* mode to see all three at once. Space again to go back.
+3. Now, press **Space** (or flip the **Samples** toggle at the top of the sidebar) for *many* mode to see all three at once. Space again to go back.
 4. Now, finish the third call (`watering_amount(50, Waning)`) so all three run to completion.|x};
     display_hint =
       {x|Finish the third call: `watering_amount(50, Waning)`. Then probe the `case` and use ←/→.|x};

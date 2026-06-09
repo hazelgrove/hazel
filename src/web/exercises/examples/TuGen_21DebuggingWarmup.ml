@@ -14,7 +14,7 @@ let exercise : Tutorial.spec =
 A bed starts at water level `100`. `Water(n)` adds `n`; `Drain` should remove `20`. The bed runs through a list of actions with `fold_left`.
 
 # Task
-One test fails. Probe the call to `update` and step into it. Fix it so the tests pass.|x};
+One test fails. The call to `update` is already probed (auto-probe is on): click its sample and **step into** it, then fix the bug so the tests pass. (No probe? Add one with **Cmd/Ctrl+E**.)|x};
     display_hint =
       {x|Walk the levels from 100. Which action changes it in the wrong direction?|x};
     task_reference =

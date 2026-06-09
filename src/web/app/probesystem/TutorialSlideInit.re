@@ -37,38 +37,67 @@ let none: t = {
 };
 
 /* Per-slide table (keyed by module_name, mirroring flags_of_slide). Edit
- * these to give a slide a non-default starting point. Slides not listed
- * inherit the current state (no-op).
+ * these to give a slide its starting probe settings on entry.
  *
- * Guiding principle from the slide prompts: do NOT pre-set a knob on the
- * slide that *teaches* its toggle (e.g. slide 10 has you press Space for
- * many mode, slide 12 has you turn on auto-probe) — forcing it would
- * pre-empt the lesson. Only set a value where the prompt assumes a
- * non-default starting state:
- *   - 18 "write one yourself, with auto-probe on"  -> autoprobe All
- *   - 22 explains pink/blue/green sample colors, which the global default
- *        Simple scheme can't show                  -> colors Hybrid
- *   - 23 "Turn on auto-probe and wander" (capstone) -> autoprobe All
- * Task slides set their own precise values elsewhere. */
+ * Policy: auto-probe is OFF for the basics (slides 01-12: not introduced
+ * until 12, where the user turns it on), then ON (All, whole program) for the
+ * slides after, so probes appear without manual placement. Cmd/Ctrl+P toggles
+ * All; the Caret follow-the-cursor mode is a performance fallback, set via the
+ * toggle and never pre-set here. Overrides:
+ *   - 13b multi-probes a definition by hand as its lesson  -> Off
+ *   - 20 Print: everything off, the print console is the focus -> Off
+ *   - 22 also needs the Hybrid color scheme so colors show  -> All + Hybrid
+ * Slides not listed inherit the current state (no-op). */
 let of_slide = (module_name: string): t =>
   switch (module_name) {
-  | "TuGen_18WritingRunningSum" => {
+  /* Slides 01-12: auto-probe off (not introduced until 12, where the user
+   * turns it on, so it starts off there too). */
+  | "TuGen_01ArithmeticAndHoles"
+  | "TuGen_02ParserAndBackpack"
+  | "TuGen_03Probes"
+  | "TuGen_04VariablesAndExploring"
+  | "TuGen_05Tuples"
+  | "TuGen_06LabelledTuples"
+  | "TuGen_07IfExpressions"
+  | "TuGen_08CaseAndEmpty"
+  | "TuGen_09VariantsWithData"
+  | "TuGen_10FunctionsAndManySamples"
+  | "TuGen_11AligningSamples"
+  | "TuGen_12AutoProbe" => {
       ...none,
-      autoprobe: Some(All),
+      autoprobe: Some(Off),
     }
-  | "TuGen_22SampleColors" => {
+  /* 13b multi-probes a definition by hand as its lesson; keep it off. */
+  | "TuGen_13bWatchItBuild" => {
       ...none,
-      colors: Some(Hybrid),
+      autoprobe: Some(Off),
     }
-  | "TuGen_23GreenhouseArena" => {
+  /* Print: everything off so the print console is the focus. */
+  | "TuGen_20Print" => {
       ...none,
-      autoprobe: Some(All),
+      autoprobe: Some(Off),
     }
-  /* 24 "Reading bigger values": auto-probe All so the big ledger value is
-   * already on screen to practice resize/expand on. */
+  /* Everything after auto-probe is introduced: All (whole program).
+   * Cmd/Ctrl+P toggles All; Caret is a performance fallback set via the
+   * toggle, never pre-set here. */
+  | "TuGen_13Lists"
+  | "TuGen_14Map"
+  | "TuGen_15Fold"
+  | "TuGen_16Pin"
+  | "TuGen_17StepInto"
+  | "TuGen_18WritingRunningSum"
+  | "TuGen_19WritingStrings"
+  | "TuGen_21DebuggingWarmup"
+  | "TuGen_23GreenhouseArena"
   | "TuGen_24ReadingModelValues" => {
       ...none,
       autoprobe: Some(All),
+    }
+  /* Colors slide: All, plus the Hybrid scheme so the colors actually show. */
+  | "TuGen_22SampleColors" => {
+      ...none,
+      autoprobe: Some(All),
+      colors: Some(Hybrid),
     }
   | _ => none
   };

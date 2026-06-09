@@ -9,7 +9,7 @@ map([1, 2, 3], fun n -> n * 2)
 
 # Task
 
-Just for fun, turn on auto-probe (**Ctrl/Cmd+P**, or the **Auto Probe** toggle at the top of this panel) if it's not already on. Then, give every plant its 50 ml new-moon top-up. Map over the watering cans, adding 50 to each.
+Auto-probe is on, so probes follow along as you write. Give every plant its 50 ml new-moon top-up: map over the watering cans, adding 50 to each.
 
 @hint
 Write a lambda `fun w -> …` that adds 50 to each element.

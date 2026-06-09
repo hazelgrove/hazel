@@ -14,8 +14,8 @@ let exercise : Tutorial.spec =
 When you click a sample, the others take on colors showing how their run relates to it. You met two already: **pink** ran before, **blue** ran after. **Green** is the focus's own run, and gray is unrelated. We've set the color scheme for this slide so these colors show; the **legend** at the bottom of this panel explains them (and lets you switch schemes). Nothing here needs memorizing.
 
 **Try this**
-1. Probe `first`, `second`, `third`. Click `second`: `first` is pink (ran before), `third` is blue (ran after).
-2. In the watering section, probe `adj` inside `daily_water` and probe the calls. Click a call: its `adj` is green (same run); a call that started before it is pink, one that started after is blue.
+1. `first`, `second`, and `third` are already probed (auto-probe is on; if not, probe them with **Cmd/Ctrl+E**). Click `second`'s sample: `first` is pink (ran before), `third` is blue (ran after).
+2. In the watering section, `adj` inside `daily_water` and the calls are probed too. Click a call's sample: its `adj` is green (same run); a call that started before it is pink, one that started after is blue.
 3. Switch to *many* mode and click a sample inside the map. Samples from the same outer call are colored; samples from a different call are gray.|x};
     display_hint = {x||x};
     task_reference =

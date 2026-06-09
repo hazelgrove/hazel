@@ -201,6 +201,16 @@ let cap_words = (s: string): string =>
 let is_digits = (s: string): bool =>
   s != "" && String.for_all(c => c >= '0' && c <= '9', s);
 
+/* True when the token begins with a digit, e.g. "13" or the inserted "13b".
+   Used so an inserted slide like "13b - Watch It Build" keeps the " - "
+   separator that purely-numeric prefixes get. */
+let starts_with_digit = (s: string): bool =>
+  String.length(s) > 0
+  && {
+    let c = s.[0];
+    c >= '0' && c <= '9';
+  };
+
 /* "basics/01-holes" -> "Basics / 01 - Holes"; a leading numeric token in the
    filename is separated from the title words by " - ". */
 let title_of = (rel: string): string => {
@@ -211,7 +221,7 @@ let title_of = (rel: string): string => {
     let file_title =
       switch (String.split_on_char('-', last)) {
       | [num, ...rest]
-          when is_digits(num) && List.exists(w => w != "", rest) =>
+          when starts_with_digit(num) && List.exists(w => w != "", rest) =>
         num
         ++ " - "
         ++ (
