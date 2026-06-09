@@ -530,6 +530,12 @@ module Selection = {
          mk(
            ~section="Settings",
            ~mdIcon="tune",
+           ~action=inject(Globals(Set(ShowDebugPanel))),
+           "Toggle Debug Sidebar",
+         ),
+         mk(
+           ~section="Settings",
+           ~mdIcon="tune",
            ~action=inject(Globals(Set(Dynamics))),
            "Toggle Dynamics",
          ),
