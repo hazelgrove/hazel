@@ -109,11 +109,17 @@ let go =
       ~root,
     )
     : result(ZipperBase.t, Action.Failure.t) => {
-  let projector_idx_to_id = (idx: int): Id.t =>
-    List.nth(projector_list, idx);
-  let refractor_idx_to_id = (idx: int): Id.t =>
-    List.nth(refractor_list, idx);
-  let idx_to_id = (kind: ProjectorCore.Kind.t, idx: int): Id.t =>
+  /* Indices arrive baked into view closures at render time, so they can
+   * be stale by the time the action is processed (e.g. an earlier action
+   * in the same event batch changed the projector/refractor set, or a
+   * cached menu-close thunk fired after a slide switch). Resolve totally:
+   * an out-of-range index drops the action as Cant_project instead of
+   * raising mid-update. */
+  let projector_idx_to_id = (idx: int): option(Id.t) =>
+    List.nth_opt(projector_list, idx);
+  let refractor_idx_to_id = (idx: int): option(Id.t) =>
+    List.nth_opt(refractor_list, idx);
+  let idx_to_id = (kind: ProjectorCore.Kind.t, idx: int): option(Id.t) =>
     ProjectorCore.Kind.is_refractor(kind)
       ? refractor_idx_to_id(idx) : projector_idx_to_id(idx);
 
@@ -208,8 +214,10 @@ let go =
     | None => Error(Cant_project)
     }
   | SetSyntax(idx, kind, seg) =>
-    let id = idx_to_id(kind, idx);
-    /* Strip trailing whitespace/newlines before parenthesizing,
+    switch (idx_to_id(kind, idx)) {
+    | None => Error(Cant_project)
+    | Some(id) =>
+      /* Strip trailing whitespace/newlines before parenthesizing,
      * as lift_syntax(~inline=false) may append trailing newlines */
     let trimmed_seg =
       seg
@@ -266,10 +274,13 @@ let go =
         ),
       );
     };
+    }
   | SetModel(idx, kind, new_model) =>
-    let id = idx_to_id(kind, idx);
-    Ok(
-      if (ProjectorCore.Kind.is_refractor(kind)) {
+    switch (idx_to_id(kind, idx)) {
+    | None => Error(Cant_project)
+    | Some(id) =>
+      Ok(
+        if (ProjectorCore.Kind.is_refractor(kind)) {
         /* Refractor model lives in either `manuals` (user-placed) or
          * `multis.ephemerals` (auto-rebuilt from `multis.ids`).
          * Zipper.update_refractor handles both stores. */
@@ -296,9 +307,12 @@ let go =
         );
       },
     );
+    }
   | Focus(idx, kind, d) =>
-    let id = idx_to_id(kind, idx);
-    switch (d) {
+    switch (idx_to_id(kind, idx)) {
+    | None => Error(Cant_project)
+    | Some(id) =>
+      switch (d) {
     | None =>
       /* Focus by pointer click or probe-to-probe navigation */
       let (module P) = ProjectorInit.to_module(kind);
@@ -337,13 +351,22 @@ let go =
       };
       Ok(z);
     };
+    }
   | Escape(idx, d) =>
-    switch (Move.jump_to_side_of_id(d, z, projector_idx_to_id(idx))) {
+    switch (
+      Option.bind(projector_idx_to_id(idx), id =>
+        Move.jump_to_side_of_id(d, z, id)
+      )
+    ) {
     | Some(z) => Ok(z)
     | None => Error(Cant_project)
     }
   | EscapeToLineEnd(idx, kind) =>
-    switch (Move.jump_to_side_of_id(Right, z, idx_to_id(kind, idx))) {
+    switch (
+      Option.bind(idx_to_id(kind, idx), id =>
+        Move.jump_to_side_of_id(Right, z, id)
+      )
+    ) {
     | Some(z) => Ok(Option.value(~default=z, Move.to_linebreak(Right, z)))
     | None => Error(Cant_project)
     }
