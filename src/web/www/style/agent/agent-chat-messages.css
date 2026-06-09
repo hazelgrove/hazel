@@ -3092,3 +3092,26 @@
   box-shadow: 0 0 4px var(--G0);
 }
 
+/* Chevron that collapses/expands the top action row (icons, context
+   meter, export/copy). Lives on the always-visible top bar. */
+.top-bar-collapse-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  margin-right: 4px;
+  font-family: var(--code-font);
+  font-size: 13px;
+  line-height: 1;
+  color: var(--STONE);
+  opacity: 0.5;
+  cursor: pointer;
+  user-select: none;
+  transition: opacity 0.15s ease;
+}
+
+.top-bar-collapse-toggle:hover {
+  opacity: 1;
+}
+

@@ -547,80 +547,106 @@ let view =
     };
   };
 
+  let top_bar_collapsed = globals.settings.agent_globals.collapse_top_bar;
+  let toggle_top_bar = _ =>
+    Effect.Many([
+      globals.inject_global(
+        Globals.Action.SetAgentGlobals(
+          AgentGlobals.Update.ToggleCollapseTopBar,
+        ),
+      ),
+      Effect.Stop_propagation,
+    ]);
+  let top_bar_toggle_button: Node.t =
+    div(
+      ~attrs=[
+        clss(["top-bar-collapse-toggle"]),
+        Attr.on_click(toggle_top_bar),
+        Attr.title(
+          top_bar_collapsed
+            ? "Show context meter and chat tools"
+            : "Hide context meter and chat tools",
+        ),
+      ],
+      [text(top_bar_collapsed ? "\xE2\x8C\x84" : "\xE2\x8C\x83")],
+    );
+
   // Input area at bottom with buttons above
   div(
     ~attrs=[clss(["chat-input-container"])],
     [
       // Action buttons row - above input, left side buttons and right side export
-      div(
-        ~attrs=[clss(["chat-action-buttons-row"])],
-        [
-          // Left side buttons
-          div(
-            ~attrs=[clss(["chat-action-buttons-left"])],
+      top_bar_collapsed
+        ? Node.none
+        : div(
+            ~attrs=[clss(["chat-action-buttons-row"])],
             [
-              // Prompt button
-              if (chunked_chat.prompt != "") {
-                div(
-                  ~attrs=[
-                    clss(["chat-action-button", "icon"]),
-                    Attr.on_click(switch_to_prompt),
-                    Attr.title("View System Prompt"),
-                  ],
-                  [Icons.prompt],
-                );
-              } else {
-                div(~attrs=[], []);
-              },
-              // Tools button - configure which tools the agent can use
+              // Left side buttons
               div(
-                ~attrs=[
-                  clss(["chat-action-button", "icon"]),
-                  Attr.on_click(switch_to_tools),
-                  Attr.title("Configure Agent Tools"),
+                ~attrs=[clss(["chat-action-buttons-left"])],
+                [
+                  // Prompt button
+                  if (chunked_chat.prompt != "") {
+                    div(
+                      ~attrs=[
+                        clss(["chat-action-button", "icon"]),
+                        Attr.on_click(switch_to_prompt),
+                        Attr.title("View System Prompt"),
+                      ],
+                      [Icons.prompt],
+                    );
+                  } else {
+                    div(~attrs=[], []);
+                  },
+                  // Tools button - configure which tools the agent can use
+                  div(
+                    ~attrs=[
+                      clss(["chat-action-button", "icon"]),
+                      Attr.on_click(switch_to_tools),
+                      Attr.title("Configure Agent Tools"),
+                    ],
+                    [Icons.wrench],
+                  ),
+                  // Context View button (shows agent editor view, static errors, and workbench)
+                  if (chunked_chat.context != "") {
+                    div(
+                      ~attrs=[
+                        clss(["chat-action-button", "icon"]),
+                        Attr.on_click(switch_to_context_view),
+                        Attr.title("View Agent Context"),
+                      ],
+                      [Icons.agent_view],
+                    );
+                  } else {
+                    div(~attrs=[], []);
+                  },
                 ],
-                [Icons.wrench],
               ),
-              // Context View button (shows agent editor view, static errors, and workbench)
-              if (chunked_chat.context != "") {
-                div(
-                  ~attrs=[
-                    clss(["chat-action-button", "icon"]),
-                    Attr.on_click(switch_to_context_view),
-                    Attr.title("View Agent Context"),
-                  ],
-                  [Icons.agent_view],
-                );
-              } else {
-                div(~attrs=[], []);
-              },
+              token_context_meter_node,
+              // Right side export and copy buttons
+              div(
+                ~attrs=[clss(["chat-action-buttons-right"])],
+                [
+                  div(
+                    ~attrs=[
+                      clss(["chat-action-button", "icon"]),
+                      Attr.on_click(export_chat),
+                      Attr.title("Export Messages (JSON)"),
+                    ],
+                    [Icons.export],
+                  ),
+                  div(
+                    ~attrs=[
+                      clss(["chat-action-button", "icon"]),
+                      Attr.on_click(copy_chat),
+                      Attr.title("Copy Chat (Human-readable)"),
+                    ],
+                    [Icons.copy],
+                  ),
+                ],
+              ),
             ],
           ),
-          token_context_meter_node,
-          // Right side export and copy buttons
-          div(
-            ~attrs=[clss(["chat-action-buttons-right"])],
-            [
-              div(
-                ~attrs=[
-                  clss(["chat-action-button", "icon"]),
-                  Attr.on_click(export_chat),
-                  Attr.title("Export Messages (JSON)"),
-                ],
-                [Icons.export],
-              ),
-              div(
-                ~attrs=[
-                  clss(["chat-action-button", "icon"]),
-                  Attr.on_click(copy_chat),
-                  Attr.title("Copy Chat (Human-readable)"),
-                ],
-                [Icons.copy],
-              ),
-            ],
-          ),
-        ],
-      ),
       if (current_chat.pending_send_queue != []) {
         div(
           ~attrs=[clss(["chat-send-queue-panel"])],
@@ -670,6 +696,7 @@ let view =
             div(
               ~attrs=[clss(["chat-input-top-bar-left"])],
               [
+                top_bar_toggle_button,
                 span(
                   ~attrs=[clss(["session-mode-info"])],
                   [

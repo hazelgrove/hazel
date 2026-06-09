@@ -29,6 +29,8 @@ module Model = {
     show_thinking: bool,
     [@yojson.default Edit] [@sexp.default Edit]
     session_mode,
+    [@yojson.default false] [@sexp.default false]
+    collapse_top_bar: bool,
   };
 };
 
@@ -56,6 +58,7 @@ let init = (): Model.t => {
   reasoning_effort: None,
   show_thinking: true,
   session_mode: Edit,
+  collapse_top_bar: false,
 };
 
 let get_active_llm_id = (model: Model.t): option(string) => {
@@ -134,6 +137,7 @@ module Update = {
     | SetOnlyFreeModels(bool)
     | SetReasoningEffort(option(OpenRouter.Payload.Model.effort_level))
     | ToggleShowThinking
+    | ToggleCollapseTopBar
     | CycleSessionMode
     | SwitchInterface(Model.screen);
 
@@ -185,6 +189,10 @@ module Update = {
     | ToggleShowThinking => {
         ...model,
         show_thinking: !model.show_thinking,
+      }
+    | ToggleCollapseTopBar => {
+        ...model,
+        collapse_top_bar: !model.collapse_top_bar,
       }
     | CycleSessionMode => {
         ...model,
