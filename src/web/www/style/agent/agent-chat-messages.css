@@ -361,7 +361,7 @@
   box-sizing: border-box;
   margin: 0.5em 0;
   padding: 0.7em 0.9em;
-  background: var(--main-bkg, rgba(255, 255, 255, 0.55));
+  background: var(--T2);
   border: 0.5px solid var(--BR3, var(--STONE));
   border-left: 3px solid var(--BR2, var(--STONE));
   border-radius: 6px;
@@ -2239,7 +2239,8 @@
 }
 
 .tool-call-signifier {
-  font-size: 0.8em;
+  font-size: 0.85em;
+  line-height: 1.4;
   color: var(--BR3);
   font-family: var(--code-font);
   opacity: 0.8;
@@ -2248,6 +2249,13 @@
   white-space: nowrap;
   min-width: 0;
   flex: 1 1 auto;
+}
+
+/* Separator between tool name and def name so they don't run together */
+.tool-call-signifier::before {
+  content: "·";
+  margin-right: 0.4em;
+  opacity: 0.6;
 }
 
 .tool-call-content {
