@@ -5079,18 +5079,18 @@ let gap_tests = (
       ~sel="t/ ( %",
       ~expected="10",
     ),
-    /* Fallback: `name(` on a tuple-bound name enters the tuple spine */
-    sel_test(
-      ~name="call fallback: t( tuple first element",
-      ~code="let t = (10, 20, 30) in t",
-      ~sel="t(",
-      ~expected="10",
-    ),
-    sel_test(
-      ~name="call fallback: t ( _ % tuple second element",
-      ~code="let t = (10, 20, 30) in t",
-      ~sel="t ( _ %",
-      ~expected="20",
+    test_case(
+      "call: t( no tuple fallback",
+      `Quick,
+      () => {
+        let result = selector_query_unique("let t = (10, 20, 30) in t", "t(");
+        check(
+          bool,
+          "starts with ERROR",
+          true,
+          String.length(result) > 5 && String.sub(result, 0, 5) == "ERROR",
+        );
+      },
     ),
   ],
 );

@@ -1054,21 +1054,9 @@ let resolve_sem = (steps: sem_selector, root: Exp.t): list(match_result) => {
 
     /* name( : enter the argument spine of calls to `name` (the `name(`
        call pattern). Searches descendants so the call need not be the
-       current node.
-       Fallback: if no call matches, `name` may be bound to a tuple, so
-       enter its definition and walk the tuple spine (like `name/ (`). */
+       current node. */
     | [MatchName(name), MatchDelimiter("("), ...rest] =>
-      switch (search_ap_spine(name, current, rest)) {
-      | [_, ..._] as calls => calls
-      | [] =>
-        find_all_binders_named(name, current)
-        |> List.concat_map(((def, _body)) =>
-             switch (def) {
-             | ExpDef(e) => walk([MatchDelimiter("("), ...rest], e)
-             | TypDef(_) => []
-             }
-           )
-      }
+      search_ap_spine(name, current, rest)
 
     /* name = % : select the definition of all binders named `name` */
     | [MatchName(name), MatchDelimiter("="), MatchFocus] =>
