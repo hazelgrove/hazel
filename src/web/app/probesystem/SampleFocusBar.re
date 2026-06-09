@@ -589,7 +589,13 @@ let view =
           Attr.classes(["clear-all"]),
           Attr.title("Remove all probes"),
           Attr.on_pointerdown(_ =>
-            globals.inject_global(ActiveEditor(Probe(RemoveAll)))
+            /* Also switch auto-probe off: with the mode left on, the
+               auto system repopulates the probes that were just cleared,
+               so "remove all" must mean both. */
+            Effect.Many([
+              globals.inject_global(Set(SetAutoprobe(AutoProbe.Off))),
+              globals.inject_global(ActiveEditor(Probe(RemoveAll))),
+            ])
           ),
         ],
         [text("Clear all")],

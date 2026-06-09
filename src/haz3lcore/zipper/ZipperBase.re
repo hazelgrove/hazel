@@ -32,7 +32,16 @@ let update_manuals = (f, z: t): t => {
 };
 
 let add_manual = (~model=?, id: Id.t, kind: ProjectorCore.Kind.t, z: t): t =>
-  update_manuals(x => [(id, Refractors.mk_entry(~model?, kind)), ...x], z);
+  /* Drop any existing entry for this id first: `manuals` is consumed both
+   * as an assoc list (first match wins) and via Id.Map.of_list (last
+   * wins), so a duplicate makes logic and rendering disagree. */
+  update_manuals(
+    x => [
+      (id, Refractors.mk_entry(~model?, kind)),
+      ...List.filter(((id', _)) => id' != id, x),
+    ],
+    z,
+  );
 
 let update_ephemerals = (f, z: t): t => {
   ...z,

@@ -102,21 +102,22 @@ let probe_status =
     (id: Id.t, info_map: Statics.Map.t, refractors: Zipper.Refractor.t)
     : probe_status => {
   let target_ids = target_subterm_ids(id, info_map);
-  /* For manual/statics: check if ALL target IDs have manual entries */
-  if (List.for_all(
-        id => List.assoc_opt(id, refractors.manuals) != None,
-        target_ids,
-      )
-      && target_ids != []) {
+  /* For manual/statics: check if ANY target ID has a manual entry.
+     Requiring ALL would make Manual unreachable whenever a sibling
+     target was cleaned up after the fact — e.g. remove_colliding_probes
+     deletes the pat probe of a single-line `fun` (same end row as the
+     body), and the toggle would then re-add forever instead of removing. */
+  let manual_entries =
+    List.filter_map(
+      id => List.assoc_opt(id, refractors.manuals),
+      target_ids,
+    );
+  if (manual_entries != []) {
     /* Distinguish between probe and statics by checking kind */
     let all_statics =
       List.for_all(
-        id =>
-          switch (List.assoc_opt(id, refractors.manuals)) {
-          | Some(entry: Refractors.entry) => entry.kind == Statics
-          | None => false
-          },
-        target_ids,
+        (entry: Refractors.entry) => entry.kind == Statics,
+        manual_entries,
       );
     all_statics ? Statics(target_ids) : Manual(target_ids);
   } else if
@@ -283,6 +284,17 @@ let has_probe = (id: Id.t, z: Zipper.t): bool =>
   List.assoc_opt(id, z.refractors.manuals) != None
   || Id.Map.mem(id, z.refractors.multis.ephemerals);
 
+/* Promote a multi/ephemeral probe to a manual one (Pin, Step Into),
+ * carrying over the ephemeral entry's model (drawer mode, active
+ * renderer, ...). A fresh default entry would visibly reset the probe
+ * once the ephemeral is filtered out on the next rebuild. */
+let promote_to_manual = (id: Id.t, z: Zipper.t): Zipper.t => {
+  let model =
+    Id.Map.find_opt(id, z.refractors.multis.ephemerals)
+    |> Option.map((e: Refractors.entry) => e.model);
+  Zipper.add_manual(~model?, id, Probe, z);
+};
+
 let maybe_rm_pin = (ids: list(Id.t)): (Zipper.t => Zipper.t) =>
   z =>
     SampleFocusPerform.update_pinned_call(z, p =>
@@ -412,11 +424,9 @@ let remove_colliding_probes = (~syntax: CachedSyntax.t, z: Zipper.t): Zipper.t =
   rm_manual(ids_to_remove, z);
 };
 
-let add_manual =
-    (~syntax: CachedSyntax.t, id: Id.t, info_map: Statics.Map.t, z: Zipper.t)
+let add_manual_targets =
+    (~syntax: CachedSyntax.t, target_ids: list(Id.t), z: Zipper.t)
     : Zipper.t => {
-  let target_ids = target_subterm_ids(id, info_map);
-
   /* Get ending rows for all new probe targets */
   let target_end_rows =
     target_ids
@@ -459,6 +469,18 @@ let add_manual =
   let sorted_ids = sort_ids_lexically(~syntax, target_ids);
   set_pending_probe(sorted_ids, z);
 };
+
+let add_manual =
+    (~syntax: CachedSyntax.t, id: Id.t, info_map: Statics.Map.t, z: Zipper.t)
+    : Zipper.t =>
+  switch (target_subterm_ids(id, info_map)) {
+  | [] =>
+    /* Not probeable (type, label, ...): add nothing. In particular don't
+       set a pending_probe_cursor that could never resolve — while set it
+       suppresses alignment and forces CellEditor's double-calculate pass. */
+    z
+  | target_ids => add_manual_targets(~syntax, target_ids, z)
+  };
 
 let toggle_manual =
     (~syntax: CachedSyntax.t, id: Id.t, ~info_map: Statics.Map.t, z: Zipper.t)
@@ -836,7 +858,7 @@ let step_into_call_stack =
     | Multi
     | Ephemeral(_)
     | Suppressed(_)
-    | Non => Zipper.add_manual(ap_id, Probe, z)
+    | Non => promote_to_manual(ap_id, z)
     };
 
   /* Add multi probe on function body if not already probed */
@@ -1015,7 +1037,7 @@ let go =
       | Multi
       | Ephemeral(_)
       | Suppressed(_)
-      | Non => Zipper.add_manual(ap_id, Probe, z)
+      | Non => promote_to_manual(ap_id, z)
       };
     SampleFocusPerform.toggle_pin_call(z, call_stack);
   | RemoveAll =>
@@ -1151,6 +1173,21 @@ let resolve_pending_probe_cursor =
       z: Zipper.t,
     )
     : Zipper.t => {
+  /* A pending cursor whose ids no longer name any live probe (the probe
+     was edited away before eval returned) can never resolve; clear it
+     rather than letting it wedge — while set it suppresses alignment
+     and forces CellEditor's double-calculate pass on every action. */
+  let z =
+    switch (z.refractors.pending_probe_cursor) {
+    | Some(ids) when !List.exists(id => has_probe(id, z), ids) =>
+      Zipper.update_refractors(z, r =>
+        {
+          ...r,
+          pending_probe_cursor: None,
+        }
+      )
+    | _ => z
+    };
   /* Determine which IDs to try */
   let (target_ids, is_pending) =
     switch (z.refractors.pending_probe_cursor) {
@@ -1299,6 +1336,32 @@ let align_to_indicated_probe =
     };
   };
 
+/* Drop the pinned call stack when an edit retires any of its frame ids
+ * (the pinned call site was deleted or rewritten). A dead pin can never
+ * match a sample again, and because automatic recovery is gated on
+ * auto_focus it would otherwise leave every probe dark (⍟) until the
+ * user finds the manual reset. Frame ids are call-site term ids, so
+ * liveness = presence in the statics map. */
+let drop_dead_pin =
+    (~is_edited: bool, ~info_map: Statics.Map.t, z: Zipper.t): Zipper.t =>
+  if (!is_edited) {
+    z;
+  } else {
+    SampleFocusPerform.update_pinned_call(z, p =>
+      switch (p) {
+      | Some(stack)
+          when
+            List.exists(
+              (frame: Sample.stack_frame) =>
+                Statics.Map.lookup(frame.id, info_map) == None,
+              stack,
+            ) =>
+        None
+      | x => x
+      }
+    );
+  };
+
 /* Post-calculation probe effects: cleanup, multi-probe regeneration,
  * step-into focus resolution, pending probe cursor resolution, and cursor reset.
  * Called from Editor.calculate after syntax and statics are updated. */
@@ -1313,6 +1376,7 @@ let editor_effects =
     : Zipper.t =>
   z
   |> remove_colliding_probes(~syntax)
+  |> drop_dead_pin(~is_edited, ~info_map)
   |> add_ids_from_multi_term(~syntax, ~info_map)
   |> align_to_indicated_probe(~is_edited, ~syntax)
   |> resolve_pending_focus(~dynamics)
@@ -1664,8 +1728,20 @@ let update_autoprobe =
       (anchors, add);
     };
   let prev_anchors = z.refractors.autoprobe_target;
+  /* The anchors can be removed from multis.ids out from under us while
+     autoprobe_target still lists them (RemoveAll; Cmd+E with the cursor
+     on a term that happens to be an anchor, e.g. a top-level `;` in All
+     mode whose Seq rep id IS the root anchor). Without this check the
+     same-anchors short-circuit would then be a permanent no-op: every
+     auto probe gone while the mode still reads All/Caret. Self-heal by
+     re-running placement when an anchor is missing. */
+  let anchors_intact =
+    List.for_all(
+      id => Id.Map.mem(id, z.refractors.multis.ids),
+      current_anchors,
+    );
   /* If same anchors, no change needed */
-  if (List.equal(Id.equal, current_anchors, prev_anchors)) {
+  if (List.equal(Id.equal, current_anchors, prev_anchors) && anchors_intact) {
     z;
   } else {
     /* Remove old multi probes.
