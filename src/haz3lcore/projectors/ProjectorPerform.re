@@ -218,62 +218,65 @@ let go =
     | None => Error(Cant_project)
     | Some(id) =>
       /* Strip trailing whitespace/newlines before parenthesizing,
-     * as lift_syntax(~inline=false) may append trailing newlines */
-    let trimmed_seg =
-      seg
-      |> Segment.unparenthesize
-      |> Segment.trim_secondary(Right)
-      |> Segment.trim_secondary(Left);
-    let parenthesized_piece = Segment.parenthesize(trimmed_seg);
-    if (ProjectorCore.Kind.is_refractor(kind)) {
-      let parenthesized_seg = [parenthesized_piece];
-      let manual_model =
-        List.assoc_opt(id, z.refractors.manuals)
-        |> Option.map((pr: Refractors.entry) => pr.model);
-      let is_ephemeral = Id.Map.mem(id, z.refractors.multis.ephemerals);
-      /* Select the term range and replace with new syntax.
-       * Don't unselect/remold here — the normal update cycle handles that. */
-      let do_replace = () => {
-        let* (l, r) = TermData.extremes_shards(id, term_data);
-        let+ z = Select.shard_range(l, r, z);
-        Zipper.replace_selection(Right, parenthesized_seg, z);
-      };
-      if (is_ephemeral && Option.is_none(manual_model)) {
-        /* Ephemeral refractor: replace syntax only, auto system re-detects */
-        switch (do_replace()) {
-        | Some(z) => Ok(z)
-        | None => Error(Cant_project)
+       * as lift_syntax(~inline=false) may append trailing newlines */
+      let trimmed_seg =
+        seg
+        |> Segment.unparenthesize
+        |> Segment.trim_secondary(Right)
+        |> Segment.trim_secondary(Left);
+      let parenthesized_piece = Segment.parenthesize(trimmed_seg);
+      if (ProjectorCore.Kind.is_refractor(kind)) {
+        let parenthesized_seg = [parenthesized_piece];
+        let manual_model =
+          List.assoc_opt(id, z.refractors.manuals)
+          |> Option.map((pr: Refractors.entry) => pr.model);
+        let is_ephemeral = Id.Map.mem(id, z.refractors.multis.ephemerals);
+        /* Select the term range and replace with new syntax.
+         * Don't unselect/remold here — the normal update cycle handles that. */
+        let do_replace = () => {
+          let* (l, r) = TermData.extremes_shards(id, term_data);
+          let+ z = Select.shard_range(l, r, z);
+          Zipper.replace_selection(Right, parenthesized_seg, z);
+        };
+        if (is_ephemeral && Option.is_none(manual_model)) {
+          /* Ephemeral refractor: replace syntax only, auto system re-detects */
+          switch (do_replace()) {
+          | Some(z) => Ok(z)
+          | None => Error(Cant_project)
+          };
+        } else {
+          /* Manual or fallback: replace and re-register */
+          let new_id =
+            MakeTerm.from_zip_for_sem(
+              Zipper.unzip(~direction=Right, parenthesized_seg),
+              ~root,
+            ).
+              term
+            |> Language.Exp.rep_id;
+          switch (do_replace()) {
+          | Some(z) =>
+            let z =
+              Zipper.update_manuals(
+                List.filter(((mid, _)) => mid != id),
+                z,
+              );
+            Ok(ZipperBase.add_manual(~model=?manual_model, new_id, kind, z));
+          | None => Error(Cant_project)
+          };
         };
       } else {
-        /* Manual or fallback: replace and re-register */
-        let new_id =
-          MakeTerm.from_zip_for_sem(
-            Zipper.unzip(~direction=Right, parenthesized_seg),
-            ~root,
-          ).
-            term
-          |> Language.Exp.rep_id;
-        switch (do_replace()) {
-        | Some(z) =>
-          let z =
-            Zipper.update_manuals(List.filter(((mid, _)) => mid != id), z);
-          Ok(ZipperBase.add_manual(~model=?manual_model, new_id, kind, z));
-        | None => Error(Cant_project)
-        };
+        Ok(
+          update(
+            p =>
+              {
+                ...p,
+                syntax: parenthesized_piece,
+              },
+            id,
+            z,
+          ),
+        );
       };
-    } else {
-      Ok(
-        update(
-          p =>
-            {
-              ...p,
-              syntax: parenthesized_piece,
-            },
-          id,
-          z,
-        ),
-      );
-    };
     }
   | SetModel(idx, kind, new_model) =>
     switch (idx_to_id(kind, idx)) {
@@ -281,76 +284,76 @@ let go =
     | Some(id) =>
       Ok(
         if (ProjectorCore.Kind.is_refractor(kind)) {
-        /* Refractor model lives in either `manuals` (user-placed) or
-         * `multis.ephemerals` (auto-rebuilt from `multis.ids`).
-         * Zipper.update_refractor handles both stores. */
-        Zipper.update_refractor(
-          id,
-          fun
-          | Some(entry: Refractors.entry) =>
-            Some({
-              ...entry,
-              model: new_model,
-            })
-          | None => None,
-          z,
-        );
-      } else {
-        update(
-          pr =>
-            {
-              ...pr,
-              model: new_model,
-            },
-          id,
-          z,
-        );
-      },
-    );
+          /* Refractor model lives in either `manuals` (user-placed) or
+           * `multis.ephemerals` (auto-rebuilt from `multis.ids`).
+           * Zipper.update_refractor handles both stores. */
+          Zipper.update_refractor(
+            id,
+            fun
+            | Some(entry: Refractors.entry) =>
+              Some({
+                ...entry,
+                model: new_model,
+              })
+            | None => None,
+            z,
+          );
+        } else {
+          update(
+            pr =>
+              {
+                ...pr,
+                model: new_model,
+              },
+            id,
+            z,
+          );
+        },
+      )
     }
   | Focus(idx, kind, d) =>
     switch (idx_to_id(kind, idx)) {
     | None => Error(Cant_project)
     | Some(id) =>
       switch (d) {
-    | None =>
-      /* Focus by pointer click or probe-to-probe navigation */
-      let (module P) = ProjectorInit.to_module(kind);
-      switch (P.focusable.pointer) {
-      | Some(focus) => focus(id)
-      | None => ()
-      };
-      let z = Option.value(~default=z, Move.jump_to_id_indicated(z, id));
-      /* Set pending_probe_cursor so the sample focus adapts to the
-         newly focused probe. For pointer clicks on a specific sample,
-         the subsequent Capture action will override with more specific
-         data; for probe-to-probe navigation, most_aligned_sample picks
-         the best match. */
-      let z =
-        Zipper.update_refractors(z, r =>
-          {
-            ...r,
-            pending_probe_cursor: Some([id]),
-          }
-        );
-      Ok(z);
-    | Some(Right) =>
-      /* Focus by arrow key hand-off */
-      let (module P) = ProjectorInit.to_module(kind);
-      switch (P.focusable.keyboard) {
-      | Some(focus) => focus(id, Right)
-      | None => ()
-      };
-      Ok(z);
-    | Some(Left) =>
-      /* Focus by arrow key hand-off */
-      let (module P) = ProjectorInit.to_module(kind);
-      switch (P.focusable.keyboard) {
-      | Some(focus) => focus(id, Left)
-      | None => ()
-      };
-      Ok(z);
-    };
+      | None =>
+        /* Focus by pointer click or probe-to-probe navigation */
+        let (module P) = ProjectorInit.to_module(kind);
+        switch (P.focusable.pointer) {
+        | Some(focus) => focus(id)
+        | None => ()
+        };
+        let z = Option.value(~default=z, Move.jump_to_id_indicated(z, id));
+        /* Set pending_probe_cursor so the sample focus adapts to the
+           newly focused probe. For pointer clicks on a specific sample,
+           the subsequent Capture action will override with more specific
+           data; for probe-to-probe navigation, most_aligned_sample picks
+           the best match. */
+        let z =
+          Zipper.update_refractors(z, r =>
+            {
+              ...r,
+              pending_probe_cursor: Some([id]),
+            }
+          );
+        Ok(z);
+      | Some(Right) =>
+        /* Focus by arrow key hand-off */
+        let (module P) = ProjectorInit.to_module(kind);
+        switch (P.focusable.keyboard) {
+        | Some(focus) => focus(id, Right)
+        | None => ()
+        };
+        Ok(z);
+      | Some(Left) =>
+        /* Focus by arrow key hand-off */
+        let (module P) = ProjectorInit.to_module(kind);
+        switch (P.focusable.keyboard) {
+        | Some(focus) => focus(id, Left)
+        | None => ()
+        };
+        Ok(z);
+      }
     }
   | Escape(idx, d) =>
     switch (

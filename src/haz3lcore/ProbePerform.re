@@ -425,8 +425,7 @@ let remove_colliding_probes = (~syntax: CachedSyntax.t, z: Zipper.t): Zipper.t =
 };
 
 let add_manual_targets =
-    (~syntax: CachedSyntax.t, target_ids: list(Id.t), z: Zipper.t)
-    : Zipper.t => {
+    (~syntax: CachedSyntax.t, target_ids: list(Id.t), z: Zipper.t): Zipper.t => {
   /* Get ending rows for all new probe targets */
   let target_end_rows =
     target_ids

@@ -32,10 +32,14 @@ let get_child_with_class = (element: Js.t(Dom_html.element), className) => {
       if (Js.to_bool(s##.classList##contains(Js.string(className)))) {
         Some(s);
       } else {
-        loop(Js.Opt.to_option(s##.nextSibling) |> Option.map(Js.Unsafe.coerce));
+        loop(
+          Js.Opt.to_option(s##.nextSibling) |> Option.map(Js.Unsafe.coerce),
+        );
       }
     };
-  loop(Js.Opt.to_option(element##.firstChild) |> Option.map(Js.Unsafe.coerce));
+  loop(
+    Js.Opt.to_option(element##.firstChild) |> Option.map(Js.Unsafe.coerce),
+  );
 };
 
 let date_now = () => {

@@ -36,10 +36,11 @@ let add_manual = (~model=?, id: Id.t, kind: ProjectorCore.Kind.t, z: t): t =>
    * as an assoc list (first match wins) and via Id.Map.of_list (last
    * wins), so a duplicate makes logic and rendering disagree. */
   update_manuals(
-    x => [
-      (id, Refractors.mk_entry(~model?, kind)),
-      ...List.filter(((id', _)) => id' != id, x),
-    ],
+    x =>
+      [
+        (id, Refractors.mk_entry(~model?, kind)),
+        ...List.filter(((id', _)) => id' != id, x),
+      ],
     z,
   );
 
