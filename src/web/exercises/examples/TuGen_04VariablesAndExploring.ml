@@ -9,16 +9,16 @@ let exercise : Tutorial.spec =
     version = 1;
     module_name = "TuGen_04VariablesAndExploring";
     prompt =
-      {x|Probes are for poking around. Drop them on different bindings to watch a program build up.
+      {x|A sample shows a value. Right-click a sample and you also see the **variables feeding it** in a dropdown.
 
 # Task
-Set the new-moon bonus so the week totals **1800**, then explore.
+The weekly watering should come to **1800 ml**, but it is off. The total is built from a base amount, the days in a week, and a new-moon bonus. Use the dropdown to find which input is wrong, then fix it.
 
-**Explore**
-- Probe `week` to see the subtotal (`1750`).
-- Put a probe on the `+` in the `watered` definition, then **right-click that sample** (a two-finger tap on a Mac trackpad, or Option-click) to see a dropdown of the value of variables it contains, including `week`.
-- You don't have to use this dropdown; probing `week` directly works just as well. Two ways to see the same thing.|x};
-    display_hint = {x|The new-moon bonus is 50.|x};
+1. Put your cursor on `base * days + bonus` (the `weekly` definition) and press **Cmd/Ctrl+E** to probe it. You get `1755`.
+2. **Right-click that sample** (a two-finger tap on a Mac trackpad, or Option-click). The dropdown lists every variable feeding it: `base`, `days`, and `bonus`.
+3. One of them is wrong. Fix it so `weekly` is **1800**.|x};
+    display_hint =
+      {x|A week is 7 days and the new-moon bonus is 50. Compare those against the dropdown.|x};
     task_reference =
       {x|### Probes
 - **Add / remove a probe**: Cmd/Ctrl+E, or right-click then *Add probe*
@@ -27,18 +27,22 @@ Set the new-moon bonus so the week totals **1800**, then explore.
       Haz3lcore.Zipper.caret_to_start
         (Option.get
            (Haz3lcore.TextRoundtrip.of_text ~root:Exp
-              {x|let daily = 250 in
-let week = daily * 7 in
-let bonus = ¿ in
-let watered = week + bonus in
-watered|x}));
+              {x|let base = 250 in
+let days = 7 in
+let bonus = 5 in
+let weekly = base * days + bonus in
+weekly|x}));
     hidden_tests =
       {
         tests =
           Option.get
             (Haz3lcore.TextRoundtrip.of_text ~root:Exp
                {x|test answer == 1800 end|x});
-        hints = [ "With the bonus set, the week totals 1800." ];
+        hints =
+          [
+            "With base 250, days 7, and bonus 50 the total is 1800; one of \
+             them is off.";
+          ];
       };
     wrapper = true;
     show_report = true;

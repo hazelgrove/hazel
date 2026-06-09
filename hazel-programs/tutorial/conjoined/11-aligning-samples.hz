@@ -1,8 +1,10 @@
 @flags
-version=1 id=b0000009-0009-0009-0009-000000000009
+show_report version=1 id=b0000009-0009-0009-0009-000000000009
 
 @prompt
 With probes in several places, Hazel keeps the samples *aligned* to one call at a time. The sample you click is the **focus**, and the others line up with it.
+
+First, finish the function: it returns `base + adjust`.
 
 **Try this**
 1. This time, instead place a **multi-probe** on the function definition: put your cursor on `let` and add a probe. Recall that this will add a probe for each line in the definition.
@@ -11,7 +13,7 @@ With probes in several places, Hazel keeps the samples *aligned* to one call at 
 4. Using the sample information you see, try to answer the following question: When the `phase` is `New`, what is the value of `base + adjust`? You likely want to use the arrow keys on the `phase` sample (in single-sample mode), or switch to *many* mode (double-click any sample, click a sample and press **Space**, or flip the **Samples** toggle above).
 
 @hint
-Probe `adjust` and a call, then click between the call samples.
+The function returns `base + adjust`. Then probe `adjust` and a call, and click between the call samples.
 
 @reference
 ### Probes
@@ -30,8 +32,11 @@ let watering_amount(
     | _ => 0
     end
   in
-  base + adjust
+  ¿
 in
 watering_amount(250, Full);
 watering_amount(180, New);
 watering_amount(50, Waning)
+
+@test
+test answer == 50 end

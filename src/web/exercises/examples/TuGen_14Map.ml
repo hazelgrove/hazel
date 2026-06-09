@@ -17,7 +17,8 @@ map([1, 2, 3], fun n -> n * 2)
 # Task
 
 Just for fun, turn on auto-probe (**Ctrl/Cmd+P**, or the **Auto Probe** toggle at the top of this panel) if it's not already on. Then, give every plant its 50 ml new-moon top-up. Map over the watering cans, adding 50 to each.|x};
-    display_hint = {x|`fun w -> w + 50`|x};
+    display_hint =
+      {x|Write a lambda `fun w -> …` that adds 50 to each element.|x};
     task_reference =
       {x|### Map and lambdas
 ```hazel
@@ -33,9 +34,7 @@ map([1, 2, 3], fun n -> n + 1)
         (Option.get
            (Haz3lcore.TextRoundtrip.of_text ~root:Exp
               {x|let watering_cans = [250, 180, 50, 200] in
-map(watering_cans, fun w ->
-¿
-)|x}));
+map(watering_cans, ¿)|x}));
     hidden_tests =
       {
         tests =

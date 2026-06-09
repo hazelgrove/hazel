@@ -20,7 +20,8 @@ nightly_totals([250, 180, 50]) == [250, 430, 480]
 Fill the fold callback. The accumulator is a tuple `(total, sofar)`: the running total, and the list built so far. Each step returns the new total and `sofar` with that total added to the end. Some useful list operators: `::` (cons) and `@` (append).
 
 Click inside the callback, so probes follow your cursor. In *many* mode (press **Space**, or use the **Samples** toggle above) you can watch the accumulator grow. You can cycle auto-probe off/on any time with **Ctrl/Cmd+P** or the **Auto Probe** toggle above.|x};
-    display_hint = {x|`(total + n, sofar @ [total + n])`|x};
+    display_hint =
+      {x|Return a pair: the new total, and `sofar` with that new total appended (with `@`).|x};
     task_reference =
       {x|### Fold with a tuple accumulator
 ```hazel

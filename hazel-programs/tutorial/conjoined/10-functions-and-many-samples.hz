@@ -1,19 +1,21 @@
 @flags
-version=1 id=b0000008-0008-0008-0008-000000000008
+show_report version=1 id=b0000008-0008-0008-0008-000000000008
 
 @prompt
 So far, probes have either had one sample (top level expressions), or zero samples (conditional branch not taken). Probes in functions however collect one sample *per call*.
 
 `watering_amount` adjusts a base amount by the moon phase. It is called three times below.
 
+A **Samples** toggle just appeared at the top of the Task Reference panel; the controls there grow as new commands show up.
+
 **Try this**
 1. Probe the function's body: put your cursor on `case` and add a probe.
 2. Notice that the sample shown, `220`, now has arrows to the left. You can click on the right arrow to cycle through the 2 other samples, and the left arrow to go back. Alternatively, click on the sample itself, and use **←/→** on your keyboard to step between them.
-3. Now, press **Space** — or flip the **Samples** toggle at the top of this panel — for *many* mode to see all three at once. Space again to go back.
-4. Notice that the other samples have colors. **Pink** samples started evaluating *before* the focal (green) sample, **blue** ones started *after*.
+3. Now, press **Space** (or flip the **Samples** toggle at the top of this panel) for *many* mode to see all three at once. Space again to go back.
+4. Now, finish the third call (`watering_amount(50, Waning)`) so all three run to completion.
 
 @hint
-Probe the `case`, then use the arrow keys.
+Finish the third call: `watering_amount(50, Waning)`. Then probe the `case` and use ←/→.
 
 @reference
 ### Probes
@@ -31,4 +33,7 @@ let watering_amount(base: Int, phase: MoonPhase): Int =
 in
 watering_amount(250, Full);
 watering_amount(180, New);
-watering_amount(50, Waning)
+watering_amount(50, ¿)
+
+@test
+test answer == 50 end

@@ -4,15 +4,18 @@ wrapper show_report version=1 id=b0000017-0017-0017-0017-000000000017
 @prompt
 A variant can carry data. Give a constructor a payload in its type, and bind that payload in the matching pattern:
 ```hazelnostatics
-type Care = Water(Int) + Trim + Skip in ...
+type Care = Water(Int) + Trim + Skip in "..."
 ```
 Matching `Water(amount)` pulls the carried value into `amount`. This is how the garden's actions are modeled.
 
 # Task
-Complete the `Water` branch so watering adds `amount` to the base. `apply(250, Water(50))` should be **300**.
+
+Before beginning, put your cursor on the `let` of the `apply` definition and add a probe. Note how the samples you see are only partially evaluated, due to the hole.
+
+Now, add a `Water(Int)` variant action to the `Care` type definition, and handle it in the `case`. Then, fill in the call `apply` with `Water(50)` so the result is **300**.
 
 @hint
-`base + amount`
+Add `Water(Int)` to the type, a `| Water(amount) => base + amount` arm to the case, and build the value `Water(50)`.
 
 @reference
 ### Variants with data
@@ -37,15 +40,14 @@ end
 apply(250, Water(50)) should be 300.
 
 @code
-type Care = Water(Int) + Trim + Skip in
+type Care = Trim + Skip in
 let apply(base: Int, action: Care): Int =
   case action
-  | Water(amount) => ¿
   | Trim => base - 10
   | Skip => base
   end
 in
-apply(250, Water(50))
+apply(250, ¿)
 
 @test
 test answer == 300 end

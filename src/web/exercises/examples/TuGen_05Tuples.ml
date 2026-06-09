@@ -18,8 +18,9 @@ name
 You can annotate a binding with its type. A `(name, water)` plant has type `(String, Int)`.
 
 # Task
-Build the plant's label so it reads **`moonleaf needs 250ml`**. Fill the hole to show the water amount.|x};
-    display_hint = {x|`string_of_int(water)` turns the integer into text.|x};
+Take the plant apart into `name` and `water`, then build its label so it reads **`moonleaf needs 250ml`**.|x};
+    display_hint =
+      {x|Destructure a pair with `let (a, b) = pair in`. Turn an Int into text with `string_of_int(…)`.|x};
     task_reference =
       {x|### Tuples
 ```hazel
@@ -42,7 +43,7 @@ count
         (Option.get
            (Haz3lcore.TextRoundtrip.of_text ~root:Exp
               {x|let plant: (String, Int) = ("moonleaf", 250) in
-let (name, water) = plant in
+let ¿ = plant in
 name ++ " needs " ++ ¿ ++ "ml"|x}));
     hidden_tests =
       {

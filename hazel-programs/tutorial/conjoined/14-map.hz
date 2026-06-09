@@ -12,7 +12,7 @@ map([1, 2, 3], fun n -> n * 2)
 Just for fun, turn on auto-probe (**Ctrl/Cmd+P**, or the **Auto Probe** toggle at the top of this panel) if it's not already on. Then, give every plant its 50 ml new-moon top-up. Map over the watering cans, adding 50 to each.
 
 @hint
-`fun w -> w + 50`
+Write a lambda `fun w -> …` that adds 50 to each element.
 
 @reference
 ### Map and lambdas
@@ -30,9 +30,7 @@ Each watering cans gains 50: [300, 230, 100, 250].
 
 @code
 let watering_cans = [250, 180, 50, 200] in
-map(watering_cans, fun w ->
-¿
-)
+map(watering_cans, ¿)
 
 @test
 test answer == [300, 230, 100, 250] end

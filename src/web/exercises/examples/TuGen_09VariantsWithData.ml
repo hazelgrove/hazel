@@ -11,13 +11,17 @@ let exercise : Tutorial.spec =
     prompt =
       {x|A variant can carry data. Give a constructor a payload in its type, and bind that payload in the matching pattern:
 ```hazelnostatics
-type Care = Water(Int) + Trim + Skip in ...
+type Care = Water(Int) + Trim + Skip in "..."
 ```
 Matching `Water(amount)` pulls the carried value into `amount`. This is how the garden's actions are modeled.
 
 # Task
-Complete the `Water` branch so watering adds `amount` to the base. `apply(250, Water(50))` should be **300**.|x};
-    display_hint = {x|`base + amount`|x};
+
+Before beginning, put your cursor on the `let` of the `apply` definition and add a probe. Note how the samples you see are only partially evaluated, due to the hole.
+
+Now, add a `Water(Int)` variant action to the `Care` type definition, and handle it in the `case`. Then, fill in the call `apply` with `Water(50)` so the result is **300**.|x};
+    display_hint =
+      {x|Add `Water(Int)` to the type, a `| Water(amount) => base + amount` arm to the case, and build the value `Water(50)`.|x};
     task_reference =
       {x|### Variants with data
 ```hazel
@@ -40,15 +44,14 @@ end
       Haz3lcore.Zipper.caret_to_start
         (Option.get
            (Haz3lcore.TextRoundtrip.of_text ~root:Exp
-              {x|type Care = Water(Int) + Trim + Skip in
+              {x|type Care = Trim + Skip in
 let apply(base: Int, action: Care): Int =
 case action
-| Water(amount) => ¿
 | Trim => base - 10
 | Skip => base
 end
 in
-apply(250, Water(50))|x}));
+apply(250, ¿)|x}));
     hidden_tests =
       {
         tests =

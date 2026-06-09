@@ -15,9 +15,6 @@ body
 2. Type `in`, and watch it leave the backpack. Backspace it, then press `Tab` to drop it from the backpack instead. Either way works.
 3. Finish the body so the whole program reads `let weekly = 250 * 7 in weekly`. It should evaluate to **1750**.
 
-@hint
-`Tab` drops the next delimiter; typing it works too.
-
 @reference
 ### Let
 ```hazel

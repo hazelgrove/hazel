@@ -15,7 +15,7 @@ Fill the fold callback. The accumulator is a tuple `(total, sofar)`: the running
 Click inside the callback, so probes follow your cursor. In *many* mode (press **Space**, or use the **Samples** toggle above) you can watch the accumulator grow. You can cycle auto-probe off/on any time with **Ctrl/Cmd+P** or the **Auto Probe** toggle above.
 
 @hint
-`(total + n, sofar @ [total + n])`
+Return a pair: the new total, and `sofar` with that new total appended (with `@`).
 
 @reference
 ### Fold with a tuple accumulator

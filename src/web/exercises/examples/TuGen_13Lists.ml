@@ -12,8 +12,9 @@ let exercise : Tutorial.spec =
       {x|A list holds many values of the same type, written `[a, b, c]`, with type `[T]`.
 
 # Task
-Make `garden` the list of these four base waters: `250`, `180`, `50`, `200`.|x};
-    display_hint = {x|A list of four integers.|x};
+Make `garden` the list of these four base waters (`250`, `180`, `50`, `200`), then return how many beds it has with `length`.|x};
+    display_hint =
+      {x|A list is `[a, b, c, d]`. Count it with `length(garden)`.|x};
     task_reference =
       {x|### Lists
 ```hazel
@@ -28,18 +29,16 @@ A list of integers has type `[Int]`.
       Haz3lcore.Zipper.caret_to_start
         (Option.get
            (Haz3lcore.TextRoundtrip.of_text ~root:Exp
-              {x|let garden: [Int] = [] in # fill me #
-^^probe(nth(garden, 0))
-+ ^^probe(nth(garden, 1))
-+ ^^probe(nth(garden, 2))
-+ ^^probe(nth(garden, 3))|x}));
+              {x|let garden: [Int] = ¿ in
+¿|x}));
     hidden_tests =
       {
         tests =
           Option.get
             (Haz3lcore.TextRoundtrip.of_text ~root:Exp
-               {x|test garden == [250, 180, 50, 200] end|x});
-        hints = [ "garden should be [250, 180, 50, 200]." ];
+               {x|test garden == [250, 180, 50, 200] end;
+test answer == 4 end|x});
+        hints = [ "garden should be [250, 180, 50, 200]; length(garden) is 4." ];
       };
     wrapper = false;
     show_report = true;

@@ -16,8 +16,9 @@ plant.name
 ```
 
 # Task
-Complete the `plant` record so its `water` is `250`. The program reads `plant.water`, so it should evaluate to **250**.|x};
-    display_hint = {x|Set water to 250.|x};
+Build a `plant` record for a **fern** that drinks **200 ml**, then read its `water` back so the program is **200**.|x};
+    display_hint =
+      {x|A record is `(field = value, …)`. Match `Plant`'s fields, then read one back with `plant.field`.|x};
     task_reference =
       {x|### Tuple records
 ```hazel
@@ -30,15 +31,16 @@ Read a field with `.field`. The type is written `(name = String, water = Int)`.|
         (Option.get
            (Haz3lcore.TextRoundtrip.of_text ~root:Exp
               {x|type Plant = (name = String, water = Int) in
-let plant: Plant = (name = "moonleaf", water = ¿) in
-plant.water|x}));
+let plant: Plant = ¿ in
+¿|x}));
     hidden_tests =
       {
         tests =
           Option.get
             (Haz3lcore.TextRoundtrip.of_text ~root:Exp
-               {x|test answer == 250 end|x});
-        hints = [ "plant.water should be 250." ];
+               {x|test answer == 200 end|x});
+        hints =
+          [ "Build the fern record, then read plant.water \226\134\146 200." ];
       };
     wrapper = true;
     show_report = true;

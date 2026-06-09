@@ -11,7 +11,7 @@ let exercise : Tutorial.spec =
     prompt =
       {x|A *sum type* lists a fixed set of options, separated by `+`s:
 ```hazelnostatics
-type MoonPhase = New + Waxing + Full + Waning in ...
+type MoonPhase = New + Waxing + Full + Waning in "..."
 ```
 
 A `case` expression matches a value against patterns, top to bottom. A wildcard `_` pattern matches anything.
@@ -20,10 +20,11 @@ A `case` expression matches a value against patterns, top to bottom. A wildcard 
 
 Before you begin, **watch the branches**! Put a probe on the `+` in the `New` branch, on the `-` in the `Full` branch, on `base` in the last branch, and on the `case` itself. Note that only the matching branch shows a value, and that the `case` itself takes on the value of that branch. The other branches show **∅**, meaning those paths never ran.
 
-First, try changing `Full` to `New` and watch a different branch light up, then change it back to pass.
+First, try changing `Full` to `New` and watch a different branch light up; change it back after.
 
 Then: On a full moon the plant wants 30 ml less. Fill the hole so the watering comes to **220**.|x};
-    display_hint = {x|Fill the hole with `30`.|x};
+    display_hint =
+      {x|Only the matching `Full` branch runs (the rest show ∅). Fill its subtraction so watering comes to 220.|x};
     task_reference =
       {x|### Sum types and case
 ```hazel

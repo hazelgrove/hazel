@@ -22,8 +22,7 @@ else 1
 
 # Task
 
-**See it as you write**
-*Before you begin writing*, put your cursor on the `clamp` definition and add a probe the usual way — **Cmd/Ctrl+E**, or right-click then *Add probe*. It's the same control as before: probing a definition (a `let`) just lands a probe on *each line*, so values appear as you type. Add line breaks to see more, join lines to see fewer.
+**See it as you write:** *Before you begin writing*, put your cursor on the `clamp` definition and add a probe the usual way: **Cmd/Ctrl+E**, or right-click then *Add probe*. It's the same control as before: probing a definition (a `let`) just lands a probe on *each line*, so values appear as you type. Add line breaks to see more, join lines to see fewer.
 
 Over-watering drowns a plant. Complete `clamp` so it holds a watering amount `x` to the range 0 to 100: below 0 gives `0`, above 100 gives `100`, otherwise `x` unchanged.|x};
     display_hint =
@@ -52,6 +51,8 @@ else 1
            (Haz3lcore.TextRoundtrip.of_text ~root:Exp
               {x|let clamp(x: Int): Int =
 ¿
+
+
 
 in
 clamp(150)|x}));

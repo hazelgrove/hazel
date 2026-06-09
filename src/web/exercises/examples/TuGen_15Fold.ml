@@ -16,7 +16,7 @@ fold_left(list, fun (acc, x) -> ... , start)
 
 # Task
 Total the garden's water with `fold_left`, starting from `0`.|x};
-    display_hint = {x|`fun (acc, w) -> acc + w`|x};
+    display_hint = {x|Add each element `w` to the running accumulator `acc`.|x};
     task_reference =
       {x|### Fold
 ```hazel

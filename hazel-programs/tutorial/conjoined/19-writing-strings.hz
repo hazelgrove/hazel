@@ -8,7 +8,7 @@ The garden keeps a log. Text comes apart with string functions, and `string_matc
 Keep only the log entries that mention a bloom. Fill the test so `filter` keeps the entries containing `"bloom"`.
 
 @hint
-`string_match("bloom", e)`
+Use `string_match(pattern, e)` to test each entry.
 
 @reference
 ### Strings

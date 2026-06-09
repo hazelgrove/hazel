@@ -13,7 +13,7 @@ let exercise : Tutorial.spec =
 
 # Task
 Keep only the log entries that mention a bloom. Fill the test so `filter` keeps the entries containing `"bloom"`.|x};
-    display_hint = {x|`string_match("bloom", e)`|x};
+    display_hint = {x|Use `string_match(pattern, e)` to test each entry.|x};
     task_reference =
       {x|### Strings
 - `string_match(pattern, s)` is `true` if the pattern occurs in `s`. Patterns are regexes, e.g. `"bloom"` or `"#[0-9]+"`.

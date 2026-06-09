@@ -80,6 +80,7 @@ let flags_of_slide = (module_name: string): list(feat) =>
   | "TuGen_11AligningSamples" => s11
   | "TuGen_12AutoProbe"
   | "TuGen_13Lists"
+  | "TuGen_13bWatchItBuild"
   | "TuGen_14Map"
   | "TuGen_15Fold" => s12
   | "TuGen_16Pin" => s16

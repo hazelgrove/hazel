@@ -9,10 +9,10 @@ plant.name
 ```
 
 # Task
-Complete the `plant` record so its `water` is `250`. The program reads `plant.water`, so it should evaluate to **250**.
+Build a `plant` record for a **fern** that drinks **200 ml**, then read its `water` back so the program is **200**.
 
 @hint
-Set water to 250.
+A record is `(field = value, …)`. Match `Plant`'s fields, then read one back with `plant.field`.
 
 @reference
 ### Tuple records
@@ -23,12 +23,12 @@ plant.water
 Read a field with `.field`. The type is written `(name = String, water = Int)`.
 
 @hints
-plant.water should be 250.
+Build the fern record, then read plant.water → 200.
 
 @code
 type Plant = (name = String, water = Int) in
-let plant: Plant = (name = "moonleaf", water = ¿) in
-plant.water
+let plant: Plant = ¿ in
+¿
 
 @test
-test answer == 250 end
+test answer == 200 end

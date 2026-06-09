@@ -11,9 +11,11 @@ let exercise : Tutorial.spec =
     prompt =
       {x|Hazel shows the value of the whole program at the bottom. To see an *intermediate* value, place a **probe** on an expression and its value appears inline.
 
+**Note**: From here on, the **Task Reference** sidebar on the right keeps a growing **Quick Reference** of probe commands.
+
 **Try this**
-1. Put your cursor on `weekly` and press **Cmd/Ctrl+E** (or right-click, *Add probe*). The subtotal `1750` appears.
-2. There is at most one probe per line. On the first line, try probing `250`, then `250 * 7`. Each one replaces the last.
+1. Put your cursor on `weekly` on the first line and press **Cmd/Ctrl+E** (or right-click, *Add probe*). The subtotal `1750` appears.
+2. There is at most one probe per line. On the first line, try probing `250`, then `250 * 7`. The new probe replaces the last.
 3. Probe `weekly + 50` on the second line too. Since it is a different line, both probes show at once.|x};
     display_hint = {x|Cursor on an expression, then Cmd/Ctrl+E.|x};
     task_reference =

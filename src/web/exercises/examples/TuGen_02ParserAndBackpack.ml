@@ -21,7 +21,7 @@ body
 1. Fill the definition expression (after the `=`) with `250 * 7`.
 2. Type `in`, and watch it leave the backpack. Backspace it, then press `Tab` to drop it from the backpack instead. Either way works.
 3. Finish the body so the whole program reads `let weekly = 250 * 7 in weekly`. It should evaluate to **1750**.|x};
-    display_hint = {x|`Tab` drops the next delimiter; typing it works too.|x};
+    display_hint = {x||x};
     task_reference =
       {x|### Let
 ```hazel

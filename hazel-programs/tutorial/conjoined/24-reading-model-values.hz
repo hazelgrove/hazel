@@ -14,11 +14,11 @@ Auto-probe is already on for this slide (we switched it on for you), so the `led
 3. **Expand** a probe to more rows: **Cmd/Ctrl+↓** for more, **Cmd/Ctrl+↑** for fewer (or click the **⌄** beneath the probe).
 4. **Step into** `record` and switch to *many* mode to watch the ledger grow harvest by harvest.
 
-Nothing to fix here — just practice reading a big value.
+Nothing to fix here; just practice reading a big value.
 
 @reference
 ### Reading values
-- **Resize a sample**: focus it, then **Shift+←/→** — or drag it wider.
+- **Resize a sample**: focus it, then **Shift+←/→**, or drag it wider.
 - **Expand a probe**: **Cmd/Ctrl+↓** for more rows, **Cmd/Ctrl+↑** for fewer (or click the **⌄**).
 
 @code

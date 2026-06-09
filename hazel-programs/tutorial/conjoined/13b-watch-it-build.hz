@@ -1,0 +1,31 @@
+@flags
+version=1 id=b0000025-0025-0025-0025-000000000025
+
+@prompt
+A multi-probe shows one value per source row. So how a definition is *formatted* decides how much you see: pack it onto one line for a single value, or break it across lines to watch the intermediates build up.
+
+This `labels` function turns each plant into a sentence. It uses `map` and strings, which you will meet properly soon. Do not worry about every detail; the point here is to probe and reformat.
+
+**Try this**
+1. Put your cursor on the `labels` definition and add a probe (**Cmd/Ctrl+E**, or right-click then *Add probe*). The body is one line, so the probe shows one value: the finished list of labels.
+2. Each label is built in steps inside the lambda. Break `b.name ++ " needs " ++ string_of_int(b.water * 7) ++ " ml"` across several lines: put the cursor before each `++` and press Enter.
+3. New rows appear, and so do their values. The lambda runs once per plant, so each new row shows three samples: the plant `b`, its `name`, the weekly amount `b.water * 7`, and the sentence taking shape.
+4. Now join some rows back together. Fewer rows means fewer, coarser values. You choose how much detail to see.
+
+@hint
+Put the cursor just before a `++` and press Enter to break the line; press Backspace to join lines back.
+
+@reference
+### Probes
+- **Multi-probe** (on a definition): one probe per row. Break a row to reveal more intermediate values; join rows to see fewer.
+
+@code
+type Plant = (name = String, water = Int) in
+let labels(beds: [Plant]): [String] =
+  map(beds, fun b -> b.name ++ " needs " ++ string_of_int(b.water * 7) ++ " ml")
+in
+labels([
+  (name = "fern", water = 250),
+  (name = "orchid", water = 180),
+  (name = "cactus", water = 50)
+])

@@ -13,12 +13,15 @@ let exercise : Tutorial.spec =
 
 `watering_amount` adjusts a base amount by the moon phase. It is called three times below.
 
+A **Samples** toggle just appeared at the top of the Task Reference panel; the controls there grow as new commands show up.
+
 **Try this**
 1. Probe the function's body: put your cursor on `case` and add a probe.
 2. Notice that the sample shown, `220`, now has arrows to the left. You can click on the right arrow to cycle through the 2 other samples, and the left arrow to go back. Alternatively, click on the sample itself, and use **←/→** on your keyboard to step between them.
-3. Now, press **Space** — or flip the **Samples** toggle at the top of this panel — for *many* mode to see all three at once. Space again to go back.
-4. Notice that the other samples have colors. **Pink** samples started evaluating *before* the focal (green) sample, **blue** ones started *after*.|x};
-    display_hint = {x|Probe the `case`, then use the arrow keys.|x};
+3. Now, press **Space** (or flip the **Samples** toggle at the top of this panel) for *many* mode to see all three at once. Space again to go back.
+4. Now, finish the third call (`watering_amount(50, Waning)`) so all three run to completion.|x};
+    display_hint =
+      {x|Finish the third call: `watering_amount(50, Waning)`. Then probe the `case` and use ←/→.|x};
     task_reference =
       {x|### Probes
 - **Add / remove a probe**: Cmd/Ctrl+E, or right-click then *Add probe*
@@ -37,14 +40,15 @@ end
 in
 watering_amount(250, Full);
 watering_amount(180, New);
-watering_amount(50, Waning)|x}));
+watering_amount(50, ¿)|x}));
     hidden_tests =
       {
         tests =
           Option.get
-            (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|test true end|x});
+            (Haz3lcore.TextRoundtrip.of_text ~root:Exp
+               {x|test answer == 50 end|x});
         hints = [];
       };
     wrapper = false;
-    show_report = false;
+    show_report = true;
   }

@@ -11,13 +11,15 @@ let exercise : Tutorial.spec =
     prompt =
       {x|With probes in several places, Hazel keeps the samples *aligned* to one call at a time. The sample you click is the **focus**, and the others line up with it.
 
+First, finish the function: it returns `base + adjust`.
+
 **Try this**
 1. This time, instead place a **multi-probe** on the function definition: put your cursor on `let` and add a probe. Recall that this will add a probe for each line in the definition.
 2. Click one call's sample. The `adjust` sample lines up with that same call and turns **green**: green means it is from that same run of the function.
 3. A **⊖** marks a sample that exists but is not aligned to your focus. Click a ⊖ to align to it instead.
 4. Using the sample information you see, try to answer the following question: When the `phase` is `New`, what is the value of `base + adjust`? You likely want to use the arrow keys on the `phase` sample (in single-sample mode), or switch to *many* mode (double-click any sample, click a sample and press **Space**, or flip the **Samples** toggle above).|x};
     display_hint =
-      {x|Probe `adjust` and a call, then click between the call samples.|x};
+      {x|The function returns `base + adjust`. Then probe `adjust` and a call, and click between the call samples.|x};
     task_reference =
       {x|### Probes
 - **Focus**: the sample you click; others align to it
@@ -37,7 +39,7 @@ case phase
 | _ => 0
 end
 in
-base + adjust
+¿
 in
 watering_amount(250, Full);
 watering_amount(180, New);
@@ -46,9 +48,10 @@ watering_amount(50, Waning)|x}));
       {
         tests =
           Option.get
-            (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|test true end|x});
+            (Haz3lcore.TextRoundtrip.of_text ~root:Exp
+               {x|test answer == 50 end|x});
         hints = [];
       };
     wrapper = false;
-    show_report = false;
+    show_report = true;
   }

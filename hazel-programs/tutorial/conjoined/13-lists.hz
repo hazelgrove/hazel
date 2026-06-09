@@ -5,10 +5,10 @@ show_report version=1 id=b0000011-0011-0011-0011-000000000011
 A list holds many values of the same type, written `[a, b, c]`, with type `[T]`.
 
 # Task
-Make `garden` the list of these four base waters: `250`, `180`, `50`, `200`.
+Make `garden` the list of these four base waters (`250`, `180`, `50`, `200`), then return how many beds it has with `length`.
 
 @hint
-A list of four integers.
+A list is `[a, b, c, d]`. Count it with `length(garden)`.
 
 @reference
 ### Lists
@@ -22,14 +22,12 @@ A list of integers has type `[Int]`.
 - `nth(xs, 0)` the element at an index
 
 @hints
-garden should be [250, 180, 50, 200].
+garden should be [250, 180, 50, 200]; length(garden) is 4.
 
 @code
-let garden: [Int] = [] in # fill me #
-^^probe(nth(garden, 0))
-+ ^^probe(nth(garden, 1))
-+ ^^probe(nth(garden, 2))
-+ ^^probe(nth(garden, 3))
+let garden: [Int] = ¿ in
+¿
 
 @test
-test garden == [250, 180, 50, 200] end
+test garden == [250, 180, 50, 200] end;
+test answer == 4 end

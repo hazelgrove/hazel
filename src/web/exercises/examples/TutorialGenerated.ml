@@ -16,6 +16,7 @@ let all : Tutorial.spec list =
     TuGen_11AligningSamples.exercise;
     TuGen_12AutoProbe.exercise;
     TuGen_13Lists.exercise;
+    TuGen_13bWatchItBuild.exercise;
     TuGen_14Map.exercise;
     TuGen_15Fold.exercise;
     TuGen_16Pin.exercise;
