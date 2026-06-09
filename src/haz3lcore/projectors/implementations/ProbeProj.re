@@ -875,7 +875,11 @@ let pin_action = (ctx: probe_ctx, sample: Sample.t) => {
       Attr.classes(
         ["action-item", "pin-action"] @ (is_pinned ? ["pinned"] : []),
       ),
-      Attr.on_pointerdown(_ => pin_call(ctx)),
+      Attr.on_pointerdown(_
+        /* Stop propagation to prevent parent wrapper's Focus action:
+           Pin may promote a multi probe to manual, reordering the
+           refractor list and invalidating the wrapper's render-time idx */
+        => Effect.Many([Effect.Stop_propagation, pin_call(ctx)])),
     ],
     [
       // div(~attrs=[Attr.classes(["pin-icon"])], []),
@@ -892,7 +896,9 @@ let focus_action = (ctx: probe_ctx, sample: Sample.t) => {
       Attr.classes(
         ["action-item", "pin-action"] @ (is_focused ? ["pinned"] : []),
       ),
-      Attr.on_pointerdown(_ => focus_call(ctx)),
+      Attr.on_pointerdown(_
+        /* Stop propagation: see pin_action above */
+        => Effect.Many([Effect.Stop_propagation, focus_call(ctx)])),
     ],
     [
       // div(~attrs=[Attr.classes(["pin-icon"])], []),
@@ -2112,7 +2118,16 @@ module M: Projector = {
 
   let focusable =
     Focusable.{
-      pointer: Some(id => {JsUtil.get_elem_by_id(Id.cls(id))##focus}),
+      pointer:
+        Some(
+          id =>
+            /* A stale Focus idx can resolve to a probe with no rendered
+               DOM element; a missed focus beats a crashed update */
+            switch (JsUtil.get_elem_by_id_opt(Id.cls(id))) {
+            | Some(elem) => elem##focus
+            | None => ()
+            },
+        ),
       keyboard: None,
     };
 
