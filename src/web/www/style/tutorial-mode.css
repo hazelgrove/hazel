@@ -315,3 +315,14 @@
   overflow-y: visible;
   padding: 1px;
 }
+
+/* Embedded video on text-only intro slides ({{video:FILE}} in the prompt). */
+#main.Tutorial .prompt-content .tutorial-video {
+  display: block;
+  width: 100%;
+  max-width: 720px;
+  margin: 0.75em auto;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  background: #000;
+}

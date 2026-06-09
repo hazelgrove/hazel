@@ -425,6 +425,71 @@ module View = {
       v,
     );
   };
+
+  /* Inline markers in a slide prompt, kept in the prompt text so a slide
+   * stays plain data (no extra spec field):
+   *   {{video:FILE}}  embeds a <video> player with src "img/FILE"
+   *   {{no_editor}}   hides the implementation editor (text-only slide) */
+  let no_editor_marker = "{{no_editor}}";
+
+  let index_from = (hay: string, needle: string, from: int): option(int) => {
+    let (hl, nl) = (String.length(hay), String.length(needle));
+    let rec go = (i: int): option(int) =>
+      if (i + nl > hl) {
+        None;
+      } else if (String.sub(hay, i, nl) == needle) {
+        Some(i);
+      } else {
+        go(i + 1);
+      };
+    go(from);
+  };
+
+  let has_marker = (s, m) => index_from(s, m, 0) != None;
+
+  let rec remove_all = (s: string, needle: string): string =>
+    switch (index_from(s, needle, 0)) {
+    | None => s
+    | Some(i) =>
+      let nl = String.length(needle);
+      remove_all(
+        String.sub(s, 0, i)
+        ++ String.sub(s, i + nl, String.length(s) - (i + nl)),
+        needle,
+      );
+    };
+
+  type prompt_seg =
+    | Text(string)
+    | Video(string);
+
+  let rec split_video = (s: string): list(prompt_seg) =>
+    switch (index_from(s, "{{video:", 0)) {
+    | None => [Text(s)]
+    | Some(i) =>
+      let after = String.sub(s, i + 8, String.length(s) - (i + 8));
+      switch (index_from(after, "}}", 0)) {
+      | None => [Text(s)]
+      | Some(j) =>
+        let file = String.trim(String.sub(after, 0, j));
+        let rest = String.sub(after, j + 2, String.length(after) - (j + 2));
+        [Text(String.sub(s, 0, i)), Video(file), ...split_video(rest)];
+      };
+    };
+
+  let video_node = (file: string): Node.t =>
+    Node.create(
+      "video",
+      ~attrs=[
+        Attr.create("src", "img/" ++ file),
+        Attr.create("controls", ""),
+        Attr.create("preload", "metadata"),
+        Attr.create("playsinline", ""),
+        Attr.classes(["tutorial-video"]),
+      ],
+      [],
+    );
+
   let view =
       (
         ~globals: Globals.t,
@@ -437,6 +502,7 @@ module View = {
         model: Model.t,
       ) => {
     let eds = model.editors;
+    let text_only = has_marker(eds.prompt, no_editor_marker);
     //let has_checkmark = Model.all_tests_passed(model);
     let {user_impl, hidden_tests}: Tutorial.stitched('a) = model.cells;
 
@@ -488,15 +554,23 @@ module View = {
     //   );
     let prompt_view = {
       let prompt_placeholder = eds.prompt == "" ? "Empty Prompt" : eds.prompt;
-      let (msg, _) =
-        ExplainThis.mk_translation(
-          ~globals,
-          ~inject=inject_explainthis,
-          prompt_placeholder,
-        );
+      let prompt_clean = remove_all(prompt_placeholder, no_editor_marker);
+      let render_seg =
+        fun
+        | Text(t) => {
+            let (msg, _) =
+              ExplainThis.mk_translation(
+                ~globals,
+                ~inject=inject_explainthis,
+                t,
+              );
+            msg;
+          }
+        | Video(file) => [video_node(file)];
+      let nodes = List.concat_map(render_seg, split_video(prompt_clean));
       div(
         ~attrs=[Attr.class_("cell-prompt")],
-        [div(~attrs=[Attr.class_("prompt-content")], msg)],
+        [div(~attrs=[Attr.class_("prompt-content")], nodes)],
       );
     };
 
@@ -630,8 +704,8 @@ module View = {
     @ (eds.display_hint == "" ? [] : [hint_view])
     @ render_cells(
         globals.settings,
-        [
-          your_impl_view,
+        (text_only ? [] : [your_impl_view])
+        @ [
           hidden_tests_view,
           Always(
             div(
@@ -643,7 +717,13 @@ module View = {
                     prev_button_view,
                     div(
                       ~attrs=[Attr.class_("right-nav-cluster")],
-                      [impl_grading_view, report_icon_view, next_button_view],
+                      text_only
+                        ? [next_button_view]
+                        : [
+                          impl_grading_view,
+                          report_icon_view,
+                          next_button_view,
+                        ],
                     ),
                   ],
                 ),

@@ -1,5 +1,5 @@
 @flags
-wrapper version=1 id=b0000001-0001-0001-0001-000000000001
+wrapper show_report version=1 id=b0000001-0001-0001-0001-000000000001
 
 @prompt
 Hazel is a live functional environment. Every edit is a valid program, and it evaluates *around* holes (the hexagons), so you always see a result.

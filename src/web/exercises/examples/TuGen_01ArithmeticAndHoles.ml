@@ -32,5 +32,5 @@ Hexagons are holes. Hazel evaluates around them. Fill one by typing a value.
         hints = [ "Fill the hole with `7`." ];
       };
     wrapper = true;
-    show_report = false;
+    show_report = true;
   }

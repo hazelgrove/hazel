@@ -3,6 +3,7 @@
 
 let all : Tutorial.spec list =
   [
+    TuGen_00Intro.exercise;
     TuGen_01ArithmeticAndHoles.exercise;
     TuGen_02ParserAndBackpack.exercise;
     TuGen_03Probes.exercise;
@@ -28,4 +29,5 @@ let all : Tutorial.spec list =
     TuGen_22SampleColors.exercise;
     TuGen_23GreenhouseArena.exercise;
     TuGen_24ReadingModelValues.exercise;
+    TuGen_25TasksAhead.exercise;
   ]

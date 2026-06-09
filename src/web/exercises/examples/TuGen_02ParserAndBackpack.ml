@@ -46,5 +46,5 @@ a
         hints = [ "Build `let weekly = 250 * 7 in weekly`." ];
       };
     wrapper = true;
-    show_report = false;
+    show_report = true;
   }

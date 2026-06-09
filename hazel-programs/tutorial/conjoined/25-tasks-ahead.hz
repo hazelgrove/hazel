@@ -1,0 +1,13 @@
+@flags
+version=1 id=b0000026-0026-0026-0026-000000000026
+
+@prompt
+{{no_editor}}
+# The tasks ahead
+
+*(Placeholder.)* You have reached the end of the guided tutorial. Next come a series of short **program-writing** and **debugging** tasks that put what you have learned to work.
+
+We will fill this in with an overview: what the tasks look like, how they are structured, and a reminder to keep thinking out loud and to ask questions whenever you need.
+
+@code
+0
