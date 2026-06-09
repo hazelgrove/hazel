@@ -124,12 +124,20 @@ let equal_reuse_map = (a: reuse_map, b: reuse_map): bool =>
        a,
      );
 
+/* `$hole` is a statics-only sentinel for unused-variable warnings. It is not
+ * a runtime dependency, so it should not participate in reuse provenance. */
+let is_runtime_dependency = (name: string): bool => name != "$hole";
+
 let restrict_to_co_ctx = (reuse_map: reuse_map, co_ctx: CoCtx.t): reuse_map =>
   List.fold_right(
     ((name, _), projected) =>
-      switch (VarMap.lookup(reuse_map, name)) {
-      | Some(prov) => [(name, prov), ...projected]
-      | None => projected
+      if (!is_runtime_dependency(name)) {
+        projected;
+      } else {
+        switch (VarMap.lookup(reuse_map, name)) {
+        | Some(prov) => [(name, prov), ...projected]
+        | None => projected
+        };
       },
     VarMap.to_list(co_ctx),
     [],
@@ -139,13 +147,17 @@ let reuse_map_for_co_ctx =
     (reuse_map: reuse_map, co_ctx: CoCtx.t): option(reuse_map) =>
   List.fold_right(
     ((name, _), acc) =>
-      switch (acc) {
-      | None => None
-      | Some(projected) =>
-        switch (VarMap.lookup(reuse_map, name)) {
-        | Some(prov) => Some([(name, prov), ...projected])
+      if (!is_runtime_dependency(name)) {
+        acc;
+      } else {
+        switch (acc) {
         | None => None
-        }
+        | Some(projected) =>
+          switch (VarMap.lookup(reuse_map, name)) {
+          | Some(prov) => Some([(name, prov), ...projected])
+          | None => None
+          }
+        };
       },
     VarMap.to_list(co_ctx),
     Some([]),
