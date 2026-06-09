@@ -938,7 +938,14 @@ let sample_drawer_view =
         Sort.Exp,
         segment,
       );
-    ProbeProj.sample_context_drawer(ctx, view_seg_line, sample);
+    /* The sidebar's `local` is a no-op (no per-projector dispatcher), so
+     * rich "View as" items would render but do nothing — hide them. */
+    ProbeProj.sample_context_drawer(
+      ctx,
+      ~include_rich=false,
+      view_seg_line,
+      sample,
+    );
   };
   switch (result) {
   | Some(node) => [

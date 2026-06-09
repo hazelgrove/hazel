@@ -407,21 +407,25 @@ module DrawerHeight = {
     };
 };
 
-let pos_rel_to_target = (e: Js.t(Dom_html.mouseEvent)): Point.t => {
+let pos_rel_to_target = (e: Js.t(Dom_html.mouseEvent)): option(Point.t) => {
   open Float;
   let (col_width, row_height) = JsUtil.font_metrics_from_specimen();
   let text_box =
     e##.currentTarget
-    |> Js.Opt.get(_, _ => failwith(""))
-    |> JsUtil.get_child_with_class(_, "code")
-    |> Option.get;
-  let x_rel = of_int(e##.clientX) -. text_box##getBoundingClientRect##.left;
-  let y_rel = of_int(e##.clientY) -. text_box##getBoundingClientRect##.top;
-  let row = to_int(y_rel /. row_height);
-  let col = to_int(round(x_rel /. col_width));
-  {
-    row,
-    col,
+    |> Js.Opt.to_option
+    |> Option.map(JsUtil.get_child_with_class(_, "code"))
+    |> Option.join;
+  switch (text_box) {
+  | None => None
+  | Some(text_box) =>
+    let x_rel = of_int(e##.clientX) -. text_box##getBoundingClientRect##.left;
+    let y_rel = of_int(e##.clientY) -. text_box##getBoundingClientRect##.top;
+    let row = to_int(y_rel /. row_height);
+    let col = to_int(round(x_rel /. col_width));
+    Some({
+      row,
+      col,
+    });
   };
 };
 
@@ -682,9 +686,16 @@ let value_view =
   };
 
   let val_mousemove = (e: Js.t(Dom_html.mouseEvent)) => {
-    switch (ValueState.mousedown^) {
-    | Some(_) when Js.to_bool(e##.shiftKey) =>
-      let goal = pos_rel_to_target(e);
+    /* `buttons > 0` guards against a stale drag flag: if pointer capture
+       is lost without a pointerup landing on this element (subtree
+       replaced mid-drag, pointercancel), the flag would otherwise make
+       shift-hover resize samples with no button held. */
+    let buttons: int = Js.Unsafe.get(e, "buttons");
+    switch (
+      ValueState.mousedown^,
+      Js.to_bool(e##.shiftKey) && buttons > 0 ? pos_rel_to_target(e) : None,
+    ) {
+    | (Some(_), Some(goal)) =>
       let target_width = max(1, goal.col);
       /* Inline: rendered width isn't a linear function of budget
        * (Abbreviate makes discrete decisions), so bisect for the budget
@@ -770,8 +781,15 @@ let value_view =
                   Effect.Prevent_default,
                 ])
               : Key.meta_held(evt)
-                  ? Option.is_some(ctx.ap_id)
-                      ? pin_call(ctx) : focus_call(ctx)
+                  /* Stop propagation: Pin may promote a multi probe to
+                     manual, reordering the refractor list and
+                     invalidating the wrapper's render-time Focus idx
+                     (same hazard as the pin context-menu items). */
+                  ? Effect.Many([
+                      Effect.Stop_propagation,
+                      Option.is_some(ctx.ap_id)
+                        ? pin_call(ctx) : focus_call(ctx),
+                    ])
                   : val_pointerdown(evt);
       }),
       Attr.on_pointerup(val_pointerup),
@@ -969,9 +987,15 @@ let rich_probe_action =
   div(
     ~attrs=[
       Attr.classes(["action-item", "rich-probe-action"]),
-      Attr.on_pointerdown(_ =>
-        ctx.local(ToggleModal(r.init_model(ctx.sort, sample.value)))
-      ),
+      Attr.on_pointerdown(_
+        /* Stop propagation so the wrapper's Focus doesn't also fire
+           (caret jump as a side effect of opening a modal) */
+        =>
+          Effect.Many([
+            Effect.Stop_propagation,
+            ctx.local(ToggleModal(r.init_model(ctx.sort, sample.value))),
+          ])
+        ),
     ],
     [r.badge, text(label)],
   );
@@ -999,8 +1023,14 @@ let rich_probe_items = (ctx: probe_ctx, _sample: Sample.t): list(Node.t) =>
  * in the context-actions row (with the dock toggle appended at the row's
  * far right) — but only when the menu has content worth showing. */
 let sample_primary_actions =
-    (ctx: probe_ctx, ~can_step_into: bool, sample: Sample.t): list(Node.t) => {
-  let rich_items = rich_probe_items(ctx, sample);
+    (
+      ctx: probe_ctx,
+      ~can_step_into: bool,
+      ~include_rich: bool=true,
+      sample: Sample.t,
+    )
+    : list(Node.t) => {
+  let rich_items = include_rich ? rich_probe_items(ctx, sample) : [];
   switch (ctx.ap_id) {
   | Some(ap_id) =>
     [pin_action(ctx, sample)]
@@ -1219,7 +1249,8 @@ let hide_env = (statics: Language.Statics.Info.t): bool =>
  * drawer (sample_context_drawer). Also returns has_env/has_call flags so
  * the dropdown can adjust its chrome. */
 let sample_context_sections =
-    (ctx: probe_ctx, view_seg, sample: Sample.t): (bool, bool, list(Node.t)) => {
+    (ctx: probe_ctx, ~include_rich: bool=true, view_seg, sample: Sample.t)
+    : (bool, bool, list(Node.t)) => {
   /* Get variable names shown in call display to filter from environment */
   let filter_vars = List.filter_map(Fun.id, get_arg_var_info(ctx.statics));
   let env_elems = filtered_env_entries(~filter_vars, sample);
@@ -1229,6 +1260,7 @@ let sample_context_sections =
     sample_primary_actions(
       ctx,
       ~can_step_into=can_step_into(ctx.statics),
+      ~include_rich,
       sample,
     );
   let call_display = sample_call_display(ctx, view_seg, sample);
@@ -1308,9 +1340,10 @@ let sample_context_menu =
 /* Sidebar drawer rendering: same content as the dropdown, without
  * SafeTriangle hover chrome. Returns None when there's nothing to show. */
 let sample_context_drawer =
-    (ctx: probe_ctx, view_seg, sample: Sample.t): option(Node.t) => {
+    (ctx: probe_ctx, ~include_rich: bool=true, view_seg, sample: Sample.t)
+    : option(Node.t) => {
   let (has_env, has_call, nodes) =
-    sample_context_sections(ctx, view_seg, sample);
+    sample_context_sections(ctx, ~include_rich, view_seg, sample);
   /* Mirror sample_view's has_dropdown gate: a non-Ap term that's a Var or
    * Pat with no enclosing call has nothing useful to show. */
   let hide_env = hide_env(ctx.statics);

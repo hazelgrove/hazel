@@ -25,19 +25,17 @@ let get_elem_by_selector = selector => {
 };
 
 let get_child_with_class = (element: Js.t(Dom_html.element), className) => {
-  let rec loop = (sibling: Js.t(Dom_html.element)) =>
-    if (Js.to_bool(sibling##.classList##contains(Js.string(className)))) {
-      Some(sibling);
-    } else {
-      loop(
-        Js.Opt.get(sibling##.nextSibling, () => failwith("no sibling"))
-        |> Js.Unsafe.coerce,
-      );
+  let rec loop = (sibling: option(Js.t(Dom_html.element))) =>
+    switch (sibling) {
+    | None => None
+    | Some(s) =>
+      if (Js.to_bool(s##.classList##contains(Js.string(className)))) {
+        Some(s);
+      } else {
+        loop(Js.Opt.to_option(s##.nextSibling) |> Option.map(Js.Unsafe.coerce));
+      }
     };
-  loop(
-    Js.Opt.get(element##.firstChild, () => failwith("no child"))
-    |> Js.Unsafe.coerce,
-  );
+  loop(Js.Opt.to_option(element##.firstChild) |> Option.map(Js.Unsafe.coerce));
 };
 
 let date_now = () => {
