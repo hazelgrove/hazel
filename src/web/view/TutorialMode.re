@@ -503,6 +503,11 @@ module View = {
       ) => {
     let eds = model.editors;
     let text_only = has_marker(eds.prompt, no_editor_marker);
+    /* Only "task" slides show the grading face + report icon. We use the
+       slide's show_report flag (the immutable spec value, not the toggleable
+       editor state) as the signal: task slides set it, exploration slides
+       (whose only test is the default `test true end`) do not. */
+    let show_task_ui = model.spec.show_report && !text_only;
     //let has_checkmark = Model.all_tests_passed(model);
     let {user_impl, hidden_tests}: Tutorial.stitched('a) = model.cells;
 
@@ -717,13 +722,13 @@ module View = {
                     prev_button_view,
                     div(
                       ~attrs=[Attr.class_("right-nav-cluster")],
-                      text_only
-                        ? [next_button_view]
-                        : [
+                      show_task_ui
+                        ? [
                           impl_grading_view,
                           report_icon_view,
                           next_button_view,
-                        ],
+                        ]
+                        : [next_button_view],
                     ),
                   ],
                 ),
