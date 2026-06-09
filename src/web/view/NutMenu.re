@@ -256,6 +256,7 @@ let dev_group = (~globals: Globals.t) => {
         active: globals.settings.show_debug_panel,
         setting: ShowDebugPanel,
         tooltip: Some("Show the debug info sidebar panel"),
+        warning: None,
       },
     ]
     @ (
