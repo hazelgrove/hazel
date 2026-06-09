@@ -599,6 +599,13 @@ module View = {
         : [];
     // let t0 = JsUtil.precise_timestamp();
     let zipper = model.editor.state.zipper;
+    /* Use visible row range from model (updated by scroll handler / initial
+       seed). Only cull during auto-probe mode — otherwise a stale range
+       could hide manual probes. The range is only ever *set* for
+       single-editor modes (Scratch/Tutorial), so other modes stay None. */
+    let visible =
+      globals.settings.autoprobe_mode == Haz3lcore.AutoProbe.Off
+        ? None : globals.visible_rows;
     let refractor_data =
       RefractorView.mk_data(
         ~refractors=
@@ -613,15 +620,11 @@ module View = {
         ~dynamics,
         ~sample_focus=zipper.refractors.sample_focus,
         ~editor_active=selected,
+        ~visible?,
+        ~refractor_shape_map=model.editor.syntax.refractor_shape_map,
+        (),
       );
     // let t1 = JsUtil.precise_timestamp();
-    /* Use visible row range from model (updated by scroll handler / initial
-       seed). Only cull during auto-probe mode — otherwise a stale range
-       could hide manual probes. The range is only ever *set* for
-       single-editor modes (Scratch/Tutorial), so other modes stay None. */
-    let visible =
-      globals.settings.autoprobe_mode == Haz3lcore.AutoProbe.Off
-        ? None : globals.visible_rows;
     let refractors_model =
       RefractorView.all(
         x => inject(Perform(x)),
