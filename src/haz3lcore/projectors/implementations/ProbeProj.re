@@ -1377,24 +1377,38 @@ let sample_view =
       local,
       sample: Sample.t,
     ) => {
-  let hide_env = hide_env(ctx.statics);
-  let has_rich =
-    switch (Dynamics.Info.most_aligned_sample(ctx.ap_id, ctx.dynamics)) {
-    | Some(indicated) =>
-      List.exists(r => r.can_handle(ctx.sort, indicated.value), renderers)
-    | None => false
-    };
-  let has_dropdown =
-    !(hide_env && ctx.ap_id == None) || sample.call_stack != [] || has_rich;
-  /* In-place dropdown always available; docking is additive (the sidebar
-   * shows the focused sample's context too, it doesn't replace this). */
-  let render_dropdown = has_dropdown;
   let is_indicated = indicated_sample_id == Some(sample.id);
   let did = dropdown_id(sample);
   /* The right-click dropdown's visibility. Sticky-mode visibility is
    * handled in CSS (the focused offside's focal sample), so it isn't an
    * OCaml concern here. */
   let show_env = Settings.open_dropdown^ == Some(did);
+  /* Only construct the dropdown when something can actually reveal it:
+   * the dropdown-active class (this sample's menu is open) or sticky
+   * mode (CSS shows the focused offside's focal sample). At most one
+   * menu is ever open, but previously the full menu — call display and
+   * env entries each running the abbreviate/measure/code-view pipeline —
+   * was built for every rendered sample on every cache miss, which
+   * dominated per-probe render cost in auto-probe All mode. Both
+   * open_dropdown and sticky writers bump Settings.version, so flipping
+   * them invalidates the view cache and the menu (re)builds on the next
+   * render. */
+  let render_dropdown =
+    show_env
+    || Settings.sticky^
+    && {
+      let hide_env = hide_env(ctx.statics);
+      let has_rich =
+        switch (Dynamics.Info.most_aligned_sample(ctx.ap_id, ctx.dynamics)) {
+        | Some(indicated) =>
+          List.exists(
+            r => r.can_handle(ctx.sort, indicated.value),
+            renderers,
+          )
+        | None => false
+        };
+      !(hide_env && ctx.ap_id == None) || sample.call_stack != [] || has_rich;
+    };
   /* The `indicated-sample` class marks this probe's most-aligned sample.
    * Combined with `.projector.probe.indicated` (set on the unique probe
    * adjacent to the caret), this gives a single DOM anchor element used
