@@ -353,6 +353,60 @@ let test_function_arg_edit_reuses_other_calls = () => {
   check(bool, "Second run reuses some entries", true, incr2.reused != []);
 };
 
+/* Editing an expression sequenced before a function call should not force
+ * the call to rerun. User repro:
+ *
+ *   let f = fun x ->
+ *     5;
+ *   in
+ *   6; f(20)
+ *
+ * Edit 6 -> 4. The application `f(20)` has the same elab and depends only
+ * on `f`, whose binding is unchanged, so the Ap should be reused. */
+let test_seq_edit_before_function_call_reuses_call = () => {
+  let src = {|let f = fun x ->
+  5;
+in
+6; f(20)|};
+  let exp1 = parse_exp(src);
+  let exp2 = replace_int_lit(~from=6, ~to_=4, exp1);
+  check(
+    bool,
+    "replace_int_lit actually changed the expression",
+    true,
+    !Exp.fast_equal(exp1, exp2),
+  );
+  let f20_id = {
+    let found = ref(None);
+    let f_exp = (continue, e: Exp.t): Exp.t => {
+      switch (e.term) {
+      | Ap(_, _, arg) =>
+        switch (arg.term) {
+        | Atom(Int(n)) when Bigint.to_string(n) == "20" =>
+          found := Some(Exp.rep_id(e))
+        | _ => ()
+        }
+      | _ => ()
+      };
+      continue(e);
+    };
+    let _ = TermBase.Exp.map_term(~f_exp, exp1);
+    switch (found^) {
+    | Some(id) => id
+    | None => failwith("could not locate `f(20)` Ap node")
+    };
+  };
+  let (r1, _, incr1) = eval_incr(exp1);
+  let (r2, _, incr2) = eval_incr(~prev=incr1, exp2);
+  check(dhexp_typ, "Run 2 result is unchanged after 6 -> 4", r1, r2);
+  check(
+    bool,
+    "f(20) is reused after editing only the preceding sequence expression",
+    true,
+    List.mem(f20_id, incr2.reused),
+  );
+};
+
 /* If: editing the UNTAKEN branch leaves the result unchanged; reuse should
  * fire because nothing the taken branch depends on has moved. We bind the
  * condition via a let to keep the if's elab small; the unchanged literal in
@@ -1411,6 +1465,11 @@ let tests = (
       "Function: editing one call's arg reuses the other call",
       `Quick,
       test_function_arg_edit_reuses_other_calls,
+    ),
+    test_case(
+      "Function: seq edit before call reuses f(20)",
+      `Quick,
+      test_seq_edit_before_function_call_reuses_call,
     ),
     test_case(
       "If: untaken-branch edit preserves result and reuses",
