@@ -170,7 +170,7 @@ let mk =
   env: Env.filter(env, spec.refs),
   call_stack: stack,
   args,
-  time: JsUtil.precise_timestamp(),
+  time: TimeUtil.now_ms^(),
   seq: {
     seq_counter := seq_counter^ + 1;
     seq_counter^;

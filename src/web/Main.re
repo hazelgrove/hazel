@@ -240,6 +240,7 @@ switch (JsUtil.Fragment.get_current()) {
   /* Load all IndexedDB data, then construct model and start Bonsai.
      The hazelnut loading spinner (in index.html) stays visible until
      Bonsai renders its first frame. */
+  CoreEffects.install();
   HazelDB.kv_load_all(_pairs => {
     let model = CrashHandling.Model.load();
     let default_model =
@@ -254,5 +255,5 @@ switch (JsUtil.Fragment.get_current()) {
       start(default_model),
       ~bind_to_element_with_id="container",
     );
-  })
+  });
 };

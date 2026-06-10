@@ -31,26 +31,20 @@ module FocusEffect = {
     scheduled := Some(Cell);
   };
 
-  /* Execute any scheduled focus (called from Main.re after_display).
-   * Returns whether focus was executed. */
+  /* Performing a scheduled focus is a frontend concern (the web moves
+   * DOM focus; a terminal frontend has no equivalent). Frontends
+   * install a handler at startup; the default no-op keeps this module
+   * free of DOM dependencies. */
+  let handler: ref(target => bool) = ref(_ => false);
+
+  /* Execute any scheduled focus (called from the frontend after
+   * display, e.g. web Main.re after_display). Returns whether focus
+   * was executed. */
   let execute = (): bool =>
     switch (scheduled^) {
-    | Some(Editor) =>
+    | Some(target) =>
       scheduled := None;
-      JsUtil.focus_clipboard_shim();
-      true;
-    | Some(Cell) =>
-      scheduled := None;
-      JsUtil.focus_active_cell();
-    | Some(Probe(probe_id)) =>
-      scheduled := None;
-      let elem_id = Id.cls(probe_id);
-      switch (JsUtil.get_elem_by_id_opt(elem_id)) {
-      | Some(elem) =>
-        elem##focus;
-        true;
-      | None => false
-      };
+      handler^(target);
     | None => false
     };
 };
