@@ -593,8 +593,9 @@ module View = {
       Always(
         div(
           ~attrs=[Attr.class_("your-impl-wrapper")], // 🆕 Add this wrapper
-          //TODO(andrew): decide whether to leave cell result not shown
-          [editor_view(YourImpl, user_impl /*, ~result_kind=`EvalResults*/)],
+          /* No bottom result (probes are the way to see values in tutorial
+             mode), but keep the pass/fail sigils on test forms. */
+          [editor_view(YourImpl, user_impl, ~result_kind=`TestSigilsOnly)],
         ),
       );
     };

@@ -48,8 +48,8 @@ end|x}));
           Option.get
             (Haz3lcore.TextRoundtrip.of_text ~root:Exp
                {x|test
-  update((level = 100), Drain)
-   == (level=80)
+update((level = 100), Drain)
+== (level=80)
 end;|x});
         hints =
           [

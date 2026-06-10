@@ -53,22 +53,22 @@ The tests at the bottom are the spec. The face turns 🤩 when they all pass.|x}
 # values as you type.                            #
 
 let grove_name = fun path ->
-  ?
+?
 in
 
 test
-  grove_name("/moonlit-grove/ferns/watering")
-  == "moonlit-grove"
+grove_name("/moonlit-grove/ferns/watering")
+== "moonlit-grove"
 end;
 
 test
-  grove_name("/night-garden/herbs/rosemary")
-  == "night-garden"
+grove_name("/night-garden/herbs/rosemary")
+== "night-garden"
 end;
 
 test
-  grove_name("/")
-  == ""
+grove_name("/")
+== ""
 end|x}));
     hidden_tests =
       {
@@ -76,16 +76,16 @@ end|x}));
           Option.get
             (Haz3lcore.TextRoundtrip.of_text ~root:Exp
                {x|test
-  grove_name("/moonlit-grove/ferns/watering")
-  == "moonlit-grove"
+grove_name("/moonlit-grove/ferns/watering")
+== "moonlit-grove"
 end;
 test
-  grove_name("/night-garden/herbs/rosemary")
-  == "night-garden"
+grove_name("/night-garden/herbs/rosemary")
+== "night-garden"
 end;
 test
-  grove_name("/")
-  == ""
+grove_name("/")
+== ""
 end|x});
         hints =
           [

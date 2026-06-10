@@ -36,15 +36,15 @@ This one is small enough to read whole, but try the route in the sidebar anyway:
 
 # What the ledger tracks #
 type Model = (
-  dew = Int,   # loose drops on hand #
-  jars = Int   # full jars stored away #
+dew = Int,   # loose drops on hand #
+jars = Int   # full jars stored away #
 ) in
 
 # What can happen to the ledger #
 type Action =
-  + Collect(Int)  # gather n more drops #
-  + Bottle        # pour 10 loose drops into a new jar #
-  + Spill         # an accident: half the loose drops are lost #
++ Collect(Int)  # gather n more drops #
++ Bottle        # pour 10 loose drops into a new jar #
++ Spill         # an accident: half the loose drops are lost #
 in
 
 # Read the types above, then find the test marked FAILING below. #
@@ -53,46 +53,46 @@ let init : Model = (dew = 0, jars = 0) in
 
 # Apply one action to the ledger #
 let update : (Model, Action) -> Model =
-  fun (m, action) ->
-    case action
-    | Collect(n) =>
-        (dew = m.dew + n, jars = m.jars)
-    | Bottle =>
-        if m.dew < 10
-        then m  # not enough to fill a jar #
-        else (dew = m.dew - 10, jars = m.jars + 1)
-    | Spill =>
-        (dew = m.dew, jars = m.jars / 2)
-    end
+fun (m, action) ->
+case action
+| Collect(n) =>
+(dew = m.dew + n, jars = m.jars)
+| Bottle =>
+if m.dew < 10
+then m  # not enough to fill a jar #
+else (dew = m.dew - 10, jars = m.jars + 1)
+| Spill =>
+(dew = m.dew, jars = m.jars / 2)
+end
 in
 
 # ===== TESTS ===== #
 
 hint "collecting adds drops"
 test
-  let m = update(init, Collect(7)) in
-  m.dew == 7
+let m = update(init, Collect(7)) in
+m.dew == 7
 end;
 
 hint "bottling needs ten drops"
 test
-  let short = (dew = 4, jars = 0) in
-  update(short, Bottle) == short
+let short = (dew = 4, jars = 0) in
+update(short, Bottle) == short
 end;
 
 hint "bottling fills a jar"
 test
-  let full = (dew = 12, jars = 1) in
-  let m = update(full, Bottle) in
-  m.dew == 2 && m.jars == 2
+let full = (dew = 12, jars = 1) in
+let m = update(full, Bottle) in
+m.dew == 2 && m.jars == 2
 end;
 
 # vvv This test is FAILING vvv #
 hint "a spill loses half the loose drops"
 test
-  let morning = (dew = 8, jars = 2) in
-  let m = update(morning, Spill) in
-  m.dew == 4 && m.jars == 2
+let morning = (dew = 8, jars = 2) in
+let m = update(morning, Spill) in
+m.dew == 4 && m.jars == 2
 end
 # ^^^ This test is FAILING ^^^ #|x}));
     hidden_tests =
@@ -101,14 +101,14 @@ end
           Option.get
             (Haz3lcore.TextRoundtrip.of_text ~root:Exp
                {x|test
-  let morning = (dew = 8, jars = 2) in
-  let m = update(morning, Spill) in
-  m.dew == 4 && m.jars == 2
+let morning = (dew = 8, jars = 2) in
+let m = update(morning, Spill) in
+m.dew == 4 && m.jars == 2
 end;
 test
-  let full = (dew = 12, jars = 1) in
-  let m = update(full, Bottle) in
-  m.dew == 2 && m.jars == 2
+let full = (dew = 12, jars = 1) in
+let m = update(full, Bottle) in
+m.dew == 2 && m.jars == 2
 end|x});
         hints =
           [

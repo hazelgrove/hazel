@@ -67,27 +67,27 @@ in len([7, 8, 9])
 # unfold level by level.                       #
 
 let running_sum : [Int] -> [Int] = fun nums ->
-  ?
+?
 in
 
 test
-  running_sum([1, 2, 3])
-  == [1, 3, 6]
+running_sum([1, 2, 3])
+== [1, 3, 6]
 end;
 
 test
-  running_sum([5])
-  == [5]
+running_sum([5])
+== [5]
 end;
 
 test
-  running_sum([])
-  == []
+running_sum([])
+== []
 end;
 
 test
-  running_sum([1, 1, 1, 1])
-  == [1, 2, 3, 4]
+running_sum([1, 1, 1, 1])
+== [1, 2, 3, 4]
 end|x}));
     hidden_tests =
       {
@@ -95,20 +95,20 @@ end|x}));
           Option.get
             (Haz3lcore.TextRoundtrip.of_text ~root:Exp
                {x|test
-  running_sum([1, 2, 3])
-  == [1, 3, 6]
+running_sum([1, 2, 3])
+== [1, 3, 6]
 end;
 test
-  running_sum([5])
-  == [5]
+running_sum([5])
+== [5]
 end;
 test
-  running_sum([])
-  == []
+running_sum([])
+== []
 end;
 test
-  running_sum([1, 1, 1, 1])
-  == [1, 2, 3, 4]
+running_sum([1, 1, 1, 1])
+== [1, 2, 3, 4]
 end|x});
         hints =
           [

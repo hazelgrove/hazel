@@ -80,30 +80,30 @@ The string functions you need are tragically underdocumented. Build one step at 
 # check the probe to see what your pattern did.        #
 
 let clean_entry: String -> String = fun entry ->
-  ?
+?
 
 
 
 in
 
 test
-  clean_entry("  #42 🌕 Full Moon -- clear skies, planted moonbloom  ") ==
-  "🌕 Full Moon: clear skies, planted moonbloom"
+clean_entry("  #42 🌕 Full Moon -- clear skies, planted moonbloom  ") ==
+"🌕 Full Moon: clear skies, planted moonbloom"
 end;
 
 test
-  clean_entry("#7 🌑  New Moon--cloudy,   harvested starfern") ==
-  "🌑 New Moon: cloudy, harvested starfern"
+clean_entry("#7 🌑  New Moon--cloudy,   harvested starfern") ==
+"🌑 New Moon: cloudy, harvested starfern"
 end;
 
 test
-  clean_entry("  #103 🌓 Half Moon -- light rain, pruned duskrose  ") ==
-  "🌓 Half Moon: light rain, pruned duskrose"
+clean_entry("  #103 🌓 Half Moon -- light rain, pruned duskrose  ") ==
+"🌓 Half Moon: light rain, pruned duskrose"
 end;
 
 test
-  clean_entry("#15 🌗 Crescent--foggy,  checked   moth traps") ==
-  "🌗 Crescent: foggy, checked moth traps"
+clean_entry("#15 🌗 Crescent--foggy,  checked   moth traps") ==
+"🌗 Crescent: foggy, checked moth traps"
 end|x}));
     hidden_tests =
       {
@@ -111,20 +111,20 @@ end|x}));
           Option.get
             (Haz3lcore.TextRoundtrip.of_text ~root:Exp
                {x|test
-  clean_entry("  #42 🌕 Full Moon -- clear skies, planted moonbloom  ") ==
-  "🌕 Full Moon: clear skies, planted moonbloom"
+clean_entry("  #42 🌕 Full Moon -- clear skies, planted moonbloom  ") ==
+"🌕 Full Moon: clear skies, planted moonbloom"
 end;
 test
-  clean_entry("#7 🌑  New Moon--cloudy,   harvested starfern") ==
-  "🌑 New Moon: cloudy, harvested starfern"
+clean_entry("#7 🌑  New Moon--cloudy,   harvested starfern") ==
+"🌑 New Moon: cloudy, harvested starfern"
 end;
 test
-  clean_entry("  #103 🌓 Half Moon -- light rain, pruned duskrose  ") ==
-  "🌓 Half Moon: light rain, pruned duskrose"
+clean_entry("  #103 🌓 Half Moon -- light rain, pruned duskrose  ") ==
+"🌓 Half Moon: light rain, pruned duskrose"
 end;
 test
-  clean_entry("#15 🌗 Crescent--foggy,  checked   moth traps") ==
-  "🌗 Crescent: foggy, checked moth traps"
+clean_entry("#15 🌗 Crescent--foggy,  checked   moth traps") ==
+"🌗 Crescent: foggy, checked moth traps"
 end|x});
         hints =
           [

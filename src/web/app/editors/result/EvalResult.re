@@ -579,6 +579,7 @@ module View = {
         ~selected: option(Selection.t),
         ~result_kind: [
            | `NoResults
+           | `TestSigilsOnly
            | `TestResults
            | `EvalResults
            | `NoTheorems
@@ -647,10 +648,27 @@ module View = {
       ];
       (result, (_ => []));
 
+    // No result footer, but keep the pass/fail sigils on test forms
+    // (used by tutorial mode, where probes replace the bottom result):
+    | `TestSigilsOnly when globals.settings.core.dynamics =>
+      let test_overlay = (editor: Haz3lcore.Editor.t) =>
+        switch (Model.test_results(model)) {
+        | Some(result) => [
+            test_result_layer(
+              ~font_metrics=globals.font_metrics,
+              ~measured=editor.syntax.measured,
+              result,
+            ),
+          ]
+        | None => []
+        };
+      ([], test_overlay);
+
     // Not showing any results:
     | `EvalResults
     | `NoTheorems
     | `JustTheorems
+    | `TestSigilsOnly
     | `NoResults => ([], (_ => []))
 
     | `Custom(node) => (

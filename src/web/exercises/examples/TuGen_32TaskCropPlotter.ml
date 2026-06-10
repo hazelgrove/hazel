@@ -51,44 +51,44 @@ type Row = Int in
 type Col = Int in
 
 type Model = (
-  grove = Grove,
-  currentSeed = Plant,
-  seedInventory = [Plant]
+grove = Grove,
+currentSeed = Plant,
+seedInventory = [Plant]
 ) in
 
 type Action =
-  + SelectSeed(Int)
-  + PlantSeed(Row, Col)
-  + Uproot(Row, Col)
-  + ClearGrove
-  + PlantRow(Row)
-  # TODO: Add PlantCol(Col) here #
++ SelectSeed(Int)
++ PlantSeed(Row, Col)
++ Uproot(Row, Col)
++ ClearGrove
++ PlantRow(Row)
+# TODO: Add PlantCol(Col) here #
 in
 
 let init: Model = (
-  grove = [
-    ["", "", ""],
-    ["", "", ""],
-    ["", "", ""]
-  ],
-  currentSeed = "🌱",
-  seedInventory = ["🌱", "🌿", "🍄", "☘️", "🌸"]
+grove = [
+["", "", ""],
+["", "", ""],
+["", "", ""]
+],
+currentSeed = "🌱",
+seedInventory = ["🌱", "🌿", "🍄", "☘️", "🌸"]
 ) in
 
 let setCell: (Grove, Row, Col, Plant) -> Grove =
-  fun grove, row, col, plant ->
-    mapi(grove, fun (i, r) ->
-      if i == row
-      then mapi(r, fun (j, c) -> if j == col then plant else c)
-      else r)
+fun grove, row, col, plant ->
+mapi(grove, fun (i, r) ->
+if i == row
+then mapi(r, fun (j, c) -> if j == col then plant else c)
+else r)
 in
 
 let setRow: (Grove, Row, Plant) -> Grove =
-  fun grove, targetRow, plant ->
-    mapi(grove, fun (i, row) ->
-      if i == targetRow
-      then map(row, fun _ -> plant)
-      else row)
+fun grove, targetRow, plant ->
+mapi(grove, fun (i, row) ->
+if i == targetRow
+then map(row, fun _ -> plant)
+else row)
 in
 
 # TODO: Add setCol helper here #
@@ -96,62 +96,62 @@ in
 # only the cell at the target column.         #
 
 let setAll: (Grove, Plant) -> Grove =
-  fun (grove, plant) ->
-    map(grove, fun row -> map(row, fun _ -> plant))
+fun (grove, plant) ->
+map(grove, fun row -> map(row, fun _ -> plant))
 in
 
 let updateGrove: (Model, Grove -> Grove) -> Model =
-  fun (m, f) -> (f(m.grove), m.currentSeed, m.seedInventory)
+fun (m, f) -> (f(m.grove), m.currentSeed, m.seedInventory)
 in
 
 let update: (Model, Action) -> Model =
-  fun m, action ->
-    case action
-    | SelectSeed(idx) =>
-        (m.grove, nth(m.seedInventory, idx), m.seedInventory)
-    | PlantSeed(row, col) =>
-        updateGrove(m, fun g -> setCell(g, row, col, m.currentSeed))
-    | Uproot(row, col) =>
-        updateGrove(m, fun g -> setCell(g, row, col, ""))
-    | ClearGrove =>
-        updateGrove(m, fun g -> setAll(g, ""))
-    | PlantRow(row) =>
-        updateGrove(m, fun g -> setRow(g, row, m.currentSeed))
-    # TODO: Add PlantCol case here #
-    end
+fun m, action ->
+case action
+| SelectSeed(idx) =>
+(m.grove, nth(m.seedInventory, idx), m.seedInventory)
+| PlantSeed(row, col) =>
+updateGrove(m, fun g -> setCell(g, row, col, m.currentSeed))
+| Uproot(row, col) =>
+updateGrove(m, fun g -> setCell(g, row, col, ""))
+| ClearGrove =>
+updateGrove(m, fun g -> setAll(g, ""))
+| PlantRow(row) =>
+updateGrove(m, fun g -> setRow(g, row, m.currentSeed))
+# TODO: Add PlantCol case here #
+end
 in
 
 let do: (Model, [Action]) -> Model =
-  fun (init: Model, actions: [Action]) ->
-    fold_left(actions, fun (m, a) -> update(m, a), init)
+fun (init: Model, actions: [Action]) ->
+fold_left(actions, fun (m, a) -> update(m, a), init)
 in
 
 # Existing tests #
 test
-  let m = update(init, PlantRow(1)) in
-  m.grove == [["", "", ""], ["🌱", "🌱", "🌱"], ["", "", ""]]
+let m = update(init, PlantRow(1)) in
+m.grove == [["", "", ""], ["🌱", "🌱", "🌱"], ["", "", ""]]
 end;
 
 # New tests for PlantCol #
 test
-  let m = update(init, PlantCol(0)) in
-  m.grove == [["🌱", "", ""], ["🌱", "", ""], ["🌱", "", ""]]
+let m = update(init, PlantCol(0)) in
+m.grove == [["🌱", "", ""], ["🌱", "", ""], ["🌱", "", ""]]
 end;
 
 test
-  let m = update(init, PlantCol(2)) in
-  m.grove == [["", "", "🌱"], ["", "", "🌱"], ["", "", "🌱"]]
+let m = update(init, PlantCol(2)) in
+m.grove == [["", "", "🌱"], ["", "", "🌱"], ["", "", "🌱"]]
 end;
 
 test
-  let m = do(init, [PlantRow(0), PlantCol(1)]) in
-  m.grove == [["🌱", "🌱", "🌱"], ["", "🌱", ""], ["", "🌱", ""]]
+let m = do(init, [PlantRow(0), PlantCol(1)]) in
+m.grove == [["🌱", "🌱", "🌱"], ["", "🌱", ""], ["", "🌱", ""]]
 end;
 
 test
-  let m = do(init, [SelectSeed(2), PlantCol(1)]) in
-  m.grove == [["", "🍄", ""], ["", "🍄", ""], ["", "🍄", ""]]
-  && m.currentSeed == "🍄"
+let m = do(init, [SelectSeed(2), PlantCol(1)]) in
+m.grove == [["", "🍄", ""], ["", "🍄", ""], ["", "🍄", ""]]
+&& m.currentSeed == "🍄"
 end|x}));
     hidden_tests =
       {
@@ -159,25 +159,25 @@ end|x}));
           Option.get
             (Haz3lcore.TextRoundtrip.of_text ~root:Exp
                {x|test
-  let m = update(init, PlantCol(0)) in
-  m.grove == [["🌱", "", ""], ["🌱", "", ""], ["🌱", "", ""]]
+let m = update(init, PlantCol(0)) in
+m.grove == [["🌱", "", ""], ["🌱", "", ""], ["🌱", "", ""]]
 end;
 test
-  let m = update(init, PlantCol(2)) in
-  m.grove == [["", "", "🌱"], ["", "", "🌱"], ["", "", "🌱"]]
+let m = update(init, PlantCol(2)) in
+m.grove == [["", "", "🌱"], ["", "", "🌱"], ["", "", "🌱"]]
 end;
 test
-  let m = do(init, [PlantRow(0), PlantCol(1)]) in
-  m.grove == [["🌱", "🌱", "🌱"], ["", "🌱", ""], ["", "🌱", ""]]
+let m = do(init, [PlantRow(0), PlantCol(1)]) in
+m.grove == [["🌱", "🌱", "🌱"], ["", "🌱", ""], ["", "🌱", ""]]
 end;
 test
-  let m = do(init, [SelectSeed(2), PlantCol(1)]) in
-  m.grove == [["", "🍄", ""], ["", "🍄", ""], ["", "🍄", ""]]
-  && m.currentSeed == "🍄"
+let m = do(init, [SelectSeed(2), PlantCol(1)]) in
+m.grove == [["", "🍄", ""], ["", "🍄", ""], ["", "🍄", ""]]
+&& m.currentSeed == "🍄"
 end;
 test
-  let m = update(init, PlantRow(1)) in
-  m.grove == [["", "", ""], ["🌱", "🌱", "🌱"], ["", "", ""]]
+let m = update(init, PlantRow(1)) in
+m.grove == [["", "", ""], ["🌱", "🌱", "🌱"], ["", "", ""]]
 end|x});
         hints =
           [

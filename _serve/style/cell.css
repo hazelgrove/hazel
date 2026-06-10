@@ -1,0 +1,447 @@
+/* CELL: This is an ill-defined category at the moment;
+ * ~ everything below the main panel, but above the code
+ * display in the hierarchy */
+
+#clipboard-shim {
+  /* probably overkill for hiding it... */
+  position: fixed;
+  opacity: 0.01;
+  width: 1em;
+  height: 1em;
+  top: -1em;
+  left: -1em;
+}
+
+#main .code-editor {
+  /* Only code in primary editor is selectable atm */
+  cursor: text;
+  flex-direction: row;
+  padding-left: 1em;
+  /* Suppress browser focus outline — editors use tabindex for keyboard
+   * focus but have their own visual selection indicators */
+  outline: none;
+}
+
+#main .code-editor.has-line-numbers {
+  padding-left: 0;
+}
+
+#main.Scratch,
+#main.Documentation {
+  background-color: var(--ui-bkg);
+}
+
+:is(#main.Scratch, #main.Documentation):not(.Derivations) > * > .code-editor {
+  background-color: var(--cell-active);
+}
+
+:is(#main.Scratch, #main.Documentation):not(.Derivations) .cell {
+  flex-grow: 1;
+  /* Stretch the cell's background to cover everything #main's scroll
+   * extent contains, including absolutely-positioned descendants like
+   * probe drawers/overlays that don't contribute to CSS intrinsic
+   * sizing. `--main-scroll-width` is published by JS in after_display
+   * (Main.re). Fallback is `max-content` so the cell still grows with
+   * in-flow content if JS hasn't run yet. min-width: 100% from the
+   * general .cell rule still applies for narrow-content cases. */
+  width: var(--main-scroll-width, max-content);
+}
+
+#main.Tutorial,
+#main.Exercises,
+#main.Derivations {
+  padding: 1.5em;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 1.2em;
+  scrollbar-color: var(--main-scroll-thumb) var(--NONE);
+}
+
+#main.Exercises,
+#main.Derivations {
+  padding-top: 3.5em;
+  background-color: var(--ui-bkg);
+}
+
+#main.Tutorial {
+  background-color: var(--SAND);
+}
+
+/* Derivation slides inside the unified Scratch/Documentation modes
+   don't need the tall top padding that Exercises uses for the score/title
+   header; tighten it so the Rule Set label sits near the top bar. */
+#main.Scratch.Derivations,
+#main.Documentation.Derivations {
+  padding-top: 1em;
+}
+
+/* Derivation slides inside the unified Scratch/Documentation modes
+   must not inherit the flex-grow applied to code scratchpad cells. */
+#main.Derivations > .cell {
+  flex: 0 0 auto;
+}
+
+#main.Tutorial .cell,
+#main.Exercises .cell,
+#main.Derivations .cell {
+  width: auto;
+  border-radius: 0.4em;
+}
+
+.cell {
+  border: none;
+  width: fit-content;
+  min-width: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.cell > * {
+  padding: 1em;
+  padding-left: 1.2em;
+}
+
+.cell-item {
+  display: flex;
+  flex-direction: column;
+  gap: 1em;
+}
+
+.result .cell-item {
+  padding: 0em;
+}
+
+.title-cell {
+  padding: 0;
+}
+
+.title-cell .title-text {
+  font-size: 1.5rem;
+  font-weight: bold;
+  color: var(--BR4);
+}
+
+.title-cell .title-placeholder {
+  font-style: italic;
+  color: var(--BR4);
+  opacity: 0.5;
+}
+
+.edit-icon {
+  margin-left: 0.5em;
+  cursor: pointer;
+  fill: #7a6219;
+}
+
+.title-cell .title-edit {
+  font-size: 1.5rem;
+  font-weight: bold;
+  color: var(--light-text-color);
+  flex-grow: 1;
+  display: flex;
+  align-items: center;
+}
+
+.title-edit .edit-icon:hover {
+  animation: wobble 0.6s ease 0s 1 normal forwards;
+}
+
+.wrong-impl-cell-caption {
+  flex-grow: 1;
+  display: flex;
+  align-items: center;
+}
+
+.instructor-edit-icon {
+  margin-top: 0.175em;
+  margin-left: 1em;
+  cursor: pointer;
+  fill: #7a6219;
+}
+
+#add-icon {
+  margin-left: 0em;
+}
+
+.instructor-edit-icon:hover {
+  animation: wobble 0.6s ease 0s 1 normal forwards;
+}
+
+/* DOCUMENTATION SLIDES */
+
+.slide-img {
+  border-radius: 0.4em;
+  margin-bottom: 1em;
+}
+
+#slide {
+  background-color: var(--cell-active);
+  padding: 1em;
+}
+
+.slide {
+  padding: 1em;
+  padding-left: 1.2em;
+}
+
+.slide h1 {
+  margin-top: 0;
+  color: var(--BR4);
+}
+
+.em {
+  font-style: italic;
+}
+
+/* ??? */
+
+.file-select-button {
+  display: none;
+}
+
+/* EDITING */
+
+.cell-module-name {
+  padding-left: 1em;
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+}
+
+.module-name-text {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+}
+
+.module-name-edit {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+}
+
+.module-name-edit label {
+  white-space: nowrap;
+}
+
+.module-name-edit input {
+  margin: 0 0.5em;
+}
+
+.module-name-edit .edit-icon {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 0.5em;
+}
+
+.module-placeholder {
+  display: inline;
+  font-style: italic;
+  color: var(--BR4);
+  opacity: 0.5;
+}
+
+.prompt-edit .prompt-text {
+  width: 500px;
+  height: 300px;
+  padding: 10px;
+  font-size: 16px;
+
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
+.cell-prompt .prompt-edit {
+  font-size: 1rem;
+  width: 80%;
+  color: var(--light-text-color);
+  flex-grow: 1;
+  display: flex;
+  align-items: center;
+}
+
+.cell-prompt .prompt-edit .edit-pencil {
+  align-self: top;
+}
+
+.cell-prompt .prompt-edit .edit-icon {
+  align-self: flex-start;
+}
+
+.cell-prompt .prompt-placeholder {
+  font-style: italic;
+  color: var(--BR4);
+  opacity: 0.5;
+}
+
+.prompt-content {
+  font-size: 1rem;
+}
+
+/* Allow selecting the prompt prose (overrides #page { user-select: none }).
+   Selecting prompt text also moves DOM focus off the editor, which
+   correctly drops the active-cell accent back to its idle pale state. */
+.prompt-content,
+.prompt-content * {
+  user-select: text;
+}
+
+/* Markdown paragraphs inside a prompt. Each blank line in the source
+   produces its own <p>; we space them modestly and trim the outer
+   margins so the prompt cell doesn't pick up extra padding. */
+.prompt-content p {
+  margin: 0.5em 0;
+}
+
+.prompt-content p:first-child {
+  margin-top: 0;
+}
+
+.prompt-content p:last-child {
+  margin-bottom: 0;
+}
+
+/* Match the heading colors used elsewhere in Hazel (e.g. .slide h1,
+   .hsod-body h1) instead of the browser-default near-black/gray.
+   Sizes are scaled below the .title-cell .title-text (1.5rem) so the
+   tutorial title stays the largest text on the page. */
+.prompt-content h1,
+.prompt-content h2,
+.prompt-content h3,
+.prompt-content h4,
+.prompt-content h5,
+.prompt-content h6,
+.task-reference-panel h1,
+.task-reference-panel h2,
+.task-reference-panel h3,
+.task-reference-panel h4,
+.task-reference-panel h5,
+.task-reference-panel h6 {
+  color: var(--BR4);
+  font-family: var(--ui-font);
+}
+
+.prompt-content h1,
+.task-reference-panel h1 {
+  font-size: 1.3rem;
+}
+.prompt-content h2,
+.task-reference-panel h2 {
+  font-size: 1.15rem;
+}
+.prompt-content h3,
+.task-reference-panel h3 {
+  font-size: 1.05rem;
+}
+.prompt-content h4,
+.prompt-content h5,
+.prompt-content h6,
+.task-reference-panel h4,
+.task-reference-panel h5,
+.task-reference-panel h6 {
+  font-size: 1rem;
+}
+
+/* Exercises/Derivations: the active-cell accent tracks the first-class
+   model selection (which of several cells is active), independent of DOM
+   focus — focus may legitimately rest in the sidebar or elsewhere. */
+#main.Exercises .cell:has(.code-editor.selected),
+#main.Derivations .cell:has(.code-editor.selected) {
+  background-color: var(--cell-active);
+}
+
+#main.Exercises .cell.unlocked:has(.code-editor.selected),
+#main.Derivations .cell.unlocked:has(.code-editor.selected) {
+  border-left: 1px solid var(--cell-selected-accent);
+  background-color: var(--cell-active);
+}
+
+/* Tutorial: a single cell is always the model selection, so the accent
+   instead tracks real DOM focus. The red line reads as a spine descending
+   from the UI root: it lights whenever focus lives anywhere below the
+   editor — the editor proper OR an inline projector/probe within it —
+   hence :focus-within rather than :focus. Idle shows a pale line. */
+#main.Tutorial .cell.unlocked:has(.code-editor) {
+  border-left: 1px solid var(--cell-idle-accent);
+}
+
+#main.Tutorial .cell:has(.code-editor:focus-within) {
+  background-color: var(--cell-active);
+}
+
+#main.Tutorial .cell.unlocked:has(.code-editor:focus-within) {
+  border-left-color: var(--cell-selected-accent);
+  background-color: var(--cell-active);
+}
+
+.cell-caption {
+  color: var(--ui-header-text);
+  font-size: 0.8em;
+}
+
+.cell-caption strong {
+  text-transform: uppercase;
+}
+
+.cell.unlocked {
+  border-left: 1px solid var(--cell-exercises-border);
+}
+
+.cell-report {
+  padding: 1.2em;
+  background-color: var(--test-panel-bkg);
+  border-left: 1px solid #0000;
+}
+
+.cell .cell-item:first-child {
+  border-top-left-radius: 0.4em;
+  border-top-right-radius: 0.4em;
+}
+
+.cell .cell-item:last-child {
+  border-bottom-left-radius: 0.4em;
+  border-bottom-right-radius: 0.4em;
+}
+
+.syntax-tests-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.syntax-test-item {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.test-checkbox {
+  display: flex;
+  align-items: center;
+}
+
+.test-checkbox input[type="checkbox"] {
+  width: 1.2rem;
+  height: 1.2rem;
+  cursor: pointer;
+}
+
+.edit-icon,
+.edit-pencil {
+  margin-left: 0.5em;
+  cursor: pointer;
+  fill: #7a6219;
+  display: inline;
+  vertical-align: top;
+}
+
+.edit-icon:hover,
+.edit-pencil:hover {
+  animation: wobble 0.6s ease 0s 1 normal forwards;
+}
+
+.point-num-input {
+  width: 50px;
+  font-size: 12px;
+}

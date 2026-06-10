@@ -305,14 +305,19 @@ let generate_ml_file = (i: int, rel_path: string): option(string) => {
   try({
     let raw = Core.In_channel.read_all(input_path);
     let s = parse_sections(raw);
-    let code =
-      strip_indentation ? Util.StringUtil.trim_leading(s.code) : s.code;
-    let code = String.trim(expand_includes(code));
+    /* Expand includes BEFORE stripping indentation: the included file's
+       own leading whitespace must be stripped too (Hazel re-indents). */
+    let code = expand_includes(s.code);
+    let code = strip_indentation ? Util.StringUtil.trim_leading(code) : code;
+    let code = String.trim(code);
     switch (Haz3lcore.TextRoundtrip.of_text(~root=Exp, code)) {
     | None => prerr_endline("WARNING: @code failed to parse in " ++ rel_path)
     | Some(_) => ()
     };
-    let test = s.test == "" ? "test true end" : expand_includes(s.test);
+    let test =
+      s.test == ""
+        ? "test true end"
+        : Util.StringUtil.trim_leading(expand_includes(s.test));
     let prompt = s.prompt == "" ? default_prompt : s.prompt;
     let id = Option.value(s.id, ~default=id_string(i));
     let hints_ml =
