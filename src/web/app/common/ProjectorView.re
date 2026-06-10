@@ -258,7 +258,16 @@ let projector_clss =
 
 /* Wraps the view function for a projector, absolutely positioning
  * relative to the syntax, adding a default backing decoration, and
- * adding fallthrough handlers where appropriate*/
+ * adding fallthrough handlers where appropriate.
+ *
+ * Keyed by the projector id: with viewport culling, a scroll step can
+ * add/remove probes at the edges of the rendered set. Unkeyed, the vdom
+ * differ matches the container's children positionally, so every node
+ * after the change gets repatched to host a DIFFERENT probe — and if
+ * the user's keyboard focus is on one of them (focused .live-offside,
+ * red-outlined sample), focus visibly jumps off their probe and arrow
+ * keys stop working. Keys make the differ insert/remove only the probes
+ * that actually entered/left, leaving the focused element untouched. */
 let view_wrapper =
     (
       ~inject: Action.t => Ui_effect.t(unit),
@@ -269,9 +278,11 @@ let view_wrapper =
       ~view_error: bool=false,
       ~idx: int,
       ~kind: ProjectorCore.Kind.t,
+      ~id: Id.t,
       views: list(Node.t),
     ) =>
   div(
+    ~key="proj-" ++ Id.to_string(id),
     ~attrs=[
       Attr.classes(projector_clss(~view_error, status)),
       /* Stopping propagation here stops the base editor's
@@ -544,6 +555,7 @@ let split_views =
       ~view_error=views.error,
       ~idx,
       ~kind=p.kind,
+      ~id=p.id,
     );
   let line_view = {
     let offside_view =
