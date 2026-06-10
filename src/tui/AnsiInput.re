@@ -6,7 +6,7 @@ open Util;
 
    Editor-relevant keys become [Util.Key.t] records (the same shape the
    web app builds from DOM events) so they can be fed directly to
-   Web.Keyboard.handle_key_event. Keys that the web handles outside the
+   Keyboard.handle_key_event. Keys that the web handles outside the
    core keymap (save, undo, quit, tab, ...) become [Tui] events. */
 
 [@deriving show({with_path: false})]
@@ -72,7 +72,7 @@ let utf8_len = (c: char): int => {
 
 /* Control bytes 0x00-0x1f outside of tab/enter/escape. TUI-reserved
    chords are intercepted here; the rest pass through as Ctrl+letter so
-   the PC keymap in Web.Keyboard works (Ctrl+A select-all, etc.). */
+   the PC keymap in Keyboard works (Ctrl+A select-all, etc.). */
 let ctrl_event = (code: int): list(event) =>
   switch (code) {
   | 0x03 /* Ctrl+C */

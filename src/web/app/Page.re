@@ -475,7 +475,7 @@ module Selection = {
   let get_cursor_info =
       (~inject: Update.t => Ui_effect.t(unit), ~selection: t, model: Model.t)
       : cursor(Editors.Update.t) => {
-    let meta = Keyboard.meta();
+    let meta = Haz3lcore.Keyboard.meta();
     let mk = ContextualAction.mk;
     Editors.Selection.get_cursor_info(
       ~inject=a => inject(Editors(a)),
@@ -755,7 +755,8 @@ module View = {
                 NinjaKeys.open_command_palette();
                 Effect.Ignore;
               },
-              ~tooltip="Command Palette (" ++ Keyboard.meta() ++ " + k)",
+              ~tooltip=
+                "Command Palette (" ++ Haz3lcore.Keyboard.meta() ++ " + k)",
             ),
             link(
               Icons.github,

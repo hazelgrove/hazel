@@ -70,8 +70,8 @@ serve2:
 repl:
 	dune utop src/haz3lcore
 
-tui: setup-zarith
-	dune build --profile release src/tui/tui.bc.js
+tui:
+	dune build --profile release src/tui/tui.exe
 
 tui-run: tui
 	./hazel-tui $(FILE)

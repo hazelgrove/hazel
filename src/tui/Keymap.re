@@ -1,7 +1,7 @@
 open Haz3lcore;
 
 /* Maps input events to app-level actions. Editor keys delegate to the
-   same Web.Keyboard.handle_key_event the web app uses, so the two
+   same Keyboard.handle_key_event the web app uses, so the two
    frontends share one keymap. TUI-only concerns (save/quit/undo/paging)
    are layered on top. */
 
@@ -49,6 +49,6 @@ let handle = (ev: AnsiInput.event): option(t) =>
       Some(Perform(Project(SetIndicated(Specific(Fold)))))
     | {key: D("†"), _} /* † */ => Some(Perform(Probe(ToggleStatics)))
     | {key: D("π"), _} /* π */ => Some(Perform(PrettyPrint))
-    | _ => Web.Keyboard.handle_key_event(k) |> Option.map(a => Perform(a))
+    | _ => Keyboard.handle_key_event(k) |> Option.map(a => Perform(a))
     }
   };

@@ -1,131 +1,150 @@
-/* Entry point for the Hazel TUI. Run via ./hazel-tui (see repo root),
-   which builds this executable and runs it under node with the browser
-   polyfill preloaded. */
+/* Entry point for the Hazel TUI: a native executable (no node/JS
+   runtime). Run via ./hazel-tui (see repo root) or
+   _build/default/src/tui/tui.exe directly. */
 
 open Haz3ltui;
+
+let eval_debounce = 0.2; /* seconds */
+let esc_flush = 0.03;
 
 /* Echo parsed key events; for developing/debugging the input layer.
    Run as: ./hazel-tui --keys-debug */
 let keys_debug = () => {
-  NodeTerm.install_exit_guards();
-  NodeTerm.set_raw_mode(true);
-  NodeTerm.resume_stdin();
-  print_endline("keys-debug: press keys; Ctrl+C to exit\r");
+  TermIO.install_exit_guards();
+  TermIO.enter();
+  TermIO.write("keys-debug: press keys; Ctrl+C to exit\r\n");
   let state = ref(AnsiInput.init);
-  NodeTerm.on_data(chunk => {
-    let (st, events) = AnsiInput.parse(state^, chunk);
-    state := st;
-    List.iter(
-      ev => {
-        NodeTerm.write(AnsiInput.show_event(ev) ++ "\r\n");
-        switch (Keymap.handle(ev)) {
-        | Some(Quit) =>
-          NodeTerm.set_raw_mode(false);
-          NodeTerm.exit(0);
-        | Some(a) => NodeTerm.write("  -> " ++ Keymap.show(a) ++ "\r\n")
-        | None => NodeTerm.write("  -> (unmapped)\r\n")
-        };
-      },
-      events,
-    );
-  });
+  let quit = ref(false);
+  while (! quit^) {
+    switch (TermIO.read_input(~timeout=None)) {
+    | None => quit := true
+    | Some("") => ()
+    | Some(chunk) =>
+      let (st, events) = AnsiInput.parse(state^, chunk);
+      state := st;
+      List.iter(
+        ev => {
+          TermIO.write(AnsiInput.show_event(ev) ++ "\r\n");
+          switch (Keymap.handle(ev)) {
+          | Some(Quit) => quit := true
+          | Some(a) => TermIO.write("  -> " ++ Keymap.show(a) ++ "\r\n")
+          | None => TermIO.write("  -> (unmapped)\r\n")
+          };
+        },
+        events,
+      );
+    };
+  };
+  TermIO.leave();
 };
 
-let eval_debounce_ms = 200.0;
-let esc_flush_ms = 30.0;
-
 let run = (file: option(string)) => {
-  NodeTerm.install_exit_guards();
-  NodeTerm.enter();
+  TermIO.install_exit_guards();
+  TermIO.install_winch_handler();
+  TermIO.enter();
   let model = ref(App.init(file));
   let input = ref(AnsiInput.init);
-  let eval_timer: ref(option(Js_of_ocaml.Js.Unsafe.any)) = ref(None);
-  let esc_timer: ref(option(Js_of_ocaml.Js.Unsafe.any)) = ref(None);
+  /* absolute-time deadlines for the debounced eval and lone-ESC flush */
+  let eval_at: ref(option(float)) = ref(None);
+  let esc_at: ref(option(float)) = ref(None);
 
   let render = () => {
-    let size = NodeTerm.size();
+    let size = TermIO.size();
     let (frame, m) = App.render(~size, model^);
     model := m;
-    NodeTerm.write(Frame.render(~size, frame));
+    TermIO.write(Frame.render(~size, frame));
   };
 
-  let quit = () => {
-    NodeTerm.leave();
-    NodeTerm.exit(0);
-  };
-
-  let schedule_eval = () => {
-    Option.iter(NodeTerm.clear_timeout, eval_timer^);
-    eval_timer :=
-      Some(
-        NodeTerm.set_timeout(
-          () => {
-            eval_timer := None;
-            if (model^.result == ResultView.Pending) {
-              model := App.run_eval(model^);
-              render();
-            };
-          },
-          eval_debounce_ms,
-        ),
-      );
-  };
-
-  let handle_events = (events: list(AnsiInput.event)): unit => {
+  let handle_events = (events: list(AnsiInput.event)): bool => {
+    let quit = ref(false);
     List.iter(
       ev =>
         switch (Keymap.handle(ev)) {
         | None => ()
         | Some(action) =>
-          let page = App.editor_height(~size=NodeTerm.size(), model^);
+          let page = App.editor_height(~size=TermIO.size(), model^);
           let now = Unix.gettimeofday();
           let (m, should_quit) = App.apply(~now, ~page, model^, action);
           model := App.disarm(m, action);
           if (should_quit) {
-            quit();
+            quit := true;
           };
         },
       events,
     );
-    if (model^.result == ResultView.Pending) {
-      schedule_eval();
+    if (model^.result == ResultView.Pending && eval_at^ == None) {
+      eval_at := Some(Unix.gettimeofday() +. eval_debounce);
     };
     render();
+    quit^;
   };
 
-  NodeTerm.on_data(chunk => {
-    Option.iter(NodeTerm.clear_timeout, esc_timer^);
-    esc_timer := None;
-    let (st, events) = AnsiInput.parse(input^, chunk);
-    input := st;
-    handle_events(events);
-    /* A pending lone ESC is a bare Escape press unless more bytes of a
-       sequence arrive immediately; resolve it on a short timer. */
-    if (st.pending != "") {
-      esc_timer :=
-        Some(
-          NodeTerm.set_timeout(
-            () => {
-              esc_timer := None;
-              let (st, events) = AnsiInput.flush(input^);
-              input := st;
-              handle_events(events);
-            },
-            esc_flush_ms,
-          ),
-        );
+  /* main loop: wait for input until the nearest deadline; fire timers
+     that have come due; re-render on SIGWINCH */
+  let quit = ref(false);
+  while (! quit^) {
+    let now = Unix.gettimeofday();
+    /* fire due timers */
+    switch (esc_at^) {
+    | Some(t) when now >= t =>
+      esc_at := None;
+      let (st, events) = AnsiInput.flush(input^);
+      input := st;
+      if (handle_events(events)) {
+        quit := true;
+      };
+    | _ => ()
     };
-  });
-  NodeTerm.on_resize(render);
-  schedule_eval();
-  render();
+    switch (eval_at^) {
+    | Some(t) when now >= t =>
+      eval_at := None;
+      if (model^.result == ResultView.Pending) {
+        model := App.run_eval(model^);
+        render();
+      };
+    | _ => ()
+    };
+    if (TermIO.resized^) {
+      TermIO.resized := false;
+      TermIO.refresh_size();
+      render();
+    };
+    /* sleep until input or the nearest pending deadline */
+    let timeout =
+      [esc_at^, eval_at^]
+      |> List.filter_map(Fun.id)
+      |> List.fold_left(
+           (acc, t) =>
+             switch (acc) {
+             | None => Some(t)
+             | Some(a) => Some(min(a, t))
+             },
+           None,
+         )
+      |> Option.map(t => max(0.0, t -. Unix.gettimeofday()));
+    switch (TermIO.read_input(~timeout)) {
+    | None => quit := true /* EOF */
+    | Some("") => () /* timeout or signal; loop fires timers */
+    | Some(chunk) =>
+      let (st, events) = AnsiInput.parse(input^, chunk);
+      input := st;
+      /* a pending lone ESC is a bare Escape press unless more bytes of
+         a sequence arrive immediately; resolve it on a short deadline */
+      esc_at :=
+        st.pending != "" ? Some(Unix.gettimeofday() +. esc_flush) : None;
+      if (handle_events(events)) {
+        quit := true;
+      };
+    };
+  };
+  TermIO.leave();
 };
 
 let usage = () => {
   print_endline("usage: hazel-tui [file.haz]");
   print_endline("       hazel-tui --keys-debug");
   print_endline("       hazel-tui --replay '<keys>' [file.haz]");
-  NodeTerm.exit(1);
+  exit(1);
 };
 
 let () = {
@@ -137,12 +156,12 @@ let () = {
   | ["--replay", keys] => print_endline(Replay.run(keys))
   | ["--replay", keys, path] =>
     print_endline(Replay.run(~file=Some(path), keys))
-  | [] when NodeTerm.is_tty() => run(None)
-  | [path] when NodeTerm.is_tty() => run(Some(path))
+  | [] when TermIO.is_tty() => run(None)
+  | [path] when TermIO.is_tty() => run(Some(path))
   | []
   | [_] =>
-    print_endline("hazel-tui: stdout is not a terminal");
-    NodeTerm.exit(1);
+    print_endline("hazel-tui: stdin/stdout is not a terminal");
+    exit(1);
   | _ => usage()
   };
 };

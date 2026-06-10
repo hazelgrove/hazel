@@ -3,7 +3,7 @@
 A terminal UI for the Hazel structured editor, sharing the core editing
 pipeline with the web app: the same `Action.t` / `Perform` / `Measured`
 machinery from `haz3lcore`, and the same key→action map
-(`Web.Keyboard.handle_key_event`).
+(`Keyboard.handle_key_event`, now in haz3lcore).
 
 ## Running
 
@@ -13,13 +13,12 @@ machinery from `haz3lcore`, and the same key→action map
 make tui                 # just build
 ```
 
-Like the Hazel CLI, the TUI is a js_of_ocaml executable run under node
-(`src/CLI/polyfill.js` stubs the browser globals the `web` library touches
-at init). It is not a native binary: the core libraries currently require
-a JS runtime (`Unicode.re` uses `Intl.Segmenter`, `StringUtil.re` uses JS
-regexp, `util` links `bonsai.web`). If the core is ever de-webbed, the
-`Frame.t` renderer interface is the seam where a native notty backend
-would slot in.
+The TUI is a NATIVE executable (`src/tui/tui.exe`) — no node or JS
+runtime involved. The core stack (util/language/haz3lcore) was de-webbed
+on this branch, so the editor pipeline (parsing, statics, evaluation,
+probes) runs as ordinary OCaml. Terminal control is raw-mode Unix
+termios + ANSI escapes (`TermIO.re`); the `Frame.t` renderer interface
+remains the seam where a notty backend could slot in.
 
 ## Key bindings
 
@@ -76,18 +75,20 @@ re-attaches to the caret on the next keyboard action).
 ## Architecture
 
 ```
-stdin bytes ─ AnsiInput ─ Util.Key.t ─ Web.Keyboard / Keymap ─ App.apply
+stdin bytes ─ AnsiInput ─ Util.Key.t ─ Keyboard (haz3lcore) / Keymap ─ App.apply
                                                                   │
    Editor.Update.update / CachedStatics.init / Editor.Update.calculate
                                                                   │
 EditorView (port of web Code.re walk) ─ Frame (styled rows) ─ ANSI ─ stdout
 ```
 
-- `NodeTerm.re` — node stdin/stdout bindings, raw mode, alt screen,
-  crash-safe terminal restore.
+- `TermIO.re` — native terminal control: termios raw mode, alt screen,
+  select-based input with timer deadlines, SIGWINCH resize, crash-safe
+  terminal restore.
 - `AnsiInput.re` — pure escape-sequence parser (tested in
   `test/Test_TuiInput.re`).
-- `Keymap.re` — TUI bindings layered over `Web.Keyboard`.
+- `Keymap.re` — TUI bindings layered over the shared `Keyboard` keymap
+  (now in haz3lcore, used by both frontends).
 - `App.re` — model/update/render; mirrors `CodeWithStatics.Update.calculate`.
 - `EditorView.re` — `CachedSyntax` → styled rows; same token
   classification as web `Code.re`, colors in `Theme.re`.

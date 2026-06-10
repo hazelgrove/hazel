@@ -4,18 +4,15 @@
  (name haz3ltui)
  (modules
   (:standard \ Tui))
- (libraries ppx_yojson_conv.expander haz3lcore web unix)
- (js_of_ocaml)
+ (libraries haz3lcore unix)
  (preprocess
-  (pps js_of_ocaml-ppx ppx_deriving.show ppx_yojson_conv ppx_sexp_conv)))
+  (pps ppx_deriving.show ppx_yojson_conv ppx_sexp_conv)))
 
 (executable
  (name tui)
  (modules Tui)
  (libraries haz3ltui)
- (modes js)
- (preprocess
-  (pps js_of_ocaml-ppx)))
+ (modes exe))
 
 (env
  (dev
