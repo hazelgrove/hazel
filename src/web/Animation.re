@@ -1,4 +1,3 @@
-open Util;
 open Js_of_ocaml;
 
 /* This implements arbitrary gpu-accelerated css position

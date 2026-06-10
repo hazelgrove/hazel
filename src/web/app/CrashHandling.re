@@ -1,5 +1,3 @@
-open Util;
-
 type current_exception =
   | Update(string)
   | Calculate(string)

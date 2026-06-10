@@ -621,7 +621,6 @@ module Selection = {
 module NinjaKeys = {
   open Language;
   open Js_of_ocaml;
-  open Util;
 
   let current_hover_rule = ref(Rule.Assumption);
 

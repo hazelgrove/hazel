@@ -1,4 +1,3 @@
-open Haz3lcore;
 let hazel_language_guide = HazelSyntaxNotes.self;
 
 let identity = [

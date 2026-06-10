@@ -2,7 +2,6 @@ open Virtual_dom.Vdom;
 open Node;
 open WebUtil;
 open Util;
-open Haz3lcore;
 
 let format_duration_ms = (milliseconds: float): string => {
   let total_seconds = milliseconds /. 1000.0;

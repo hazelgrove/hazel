@@ -3,7 +3,6 @@ open Virtual_dom.Vdom;
 open Haz3lcore;
 open ProjectorBase;
 open Language;
-open TableCore;
 open TableCoreView;
 open TableTransforms;
 open TableRenderer;

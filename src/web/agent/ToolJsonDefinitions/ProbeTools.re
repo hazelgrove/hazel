@@ -1,4 +1,3 @@
-open Haz3lcore;
 open Util;
 
 let place_probe_description = {|

@@ -1,5 +1,4 @@
 open Language;
-open Util;
 open Virtual_dom.Vdom;
 open Node;
 open CodeExercise;
