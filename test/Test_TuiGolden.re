@@ -437,10 +437,10 @@ let tests = (
           );
         check(
           bool,
-          "sampled value shown",
+          "both call samples shown",
           true,
           Util.StringUtil.match(
-            Util.StringUtil.regexp("\xe2\x89\xa1 3"), /* ≡ 3 */
+            Util.StringUtil.regexp("\xe2\x89\xa1 3 \xe2\xab\xbd 4"), /* ≡ 3 ⫽ 4 */
             f,
           ),
         );

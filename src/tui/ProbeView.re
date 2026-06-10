@@ -1,12 +1,11 @@
 open Haz3lcore;
 
-/* Offside display of probe sample values: `≡ value` appended after the
-   line containing each probed expression. Reuses haz3lcore's ProbeText
-   (built for text-only probe output): probes locate by refractor +
-   Measured, values format through the same recipe.
-
-   This is the v1 of probe display — latest sample only, no sample
-   focus / step-into / pinning (the web's full probe UI). */
+/* Offside display of probe sample values: `≡ v1 ⫽ v2 ⫽ ...` appended
+   after the line containing each probed expression. Reuses haz3lcore's
+   ProbeText (built for text-only probe output): probes locate by
+   refractor + Measured, values format through the same recipe; Many
+   window mode shows up to 5 samples. No sample focus / step-into /
+   pinning (the web's full probe UI). */
 
 let style = Style.fg(Theme.green);
 
@@ -23,9 +22,7 @@ let by_line =
       ProbeText.get_probes_by_line(refractors, editor.syntax.measured);
     Util.IntMap.bindings(probes_by_line)
     |> List.filter_map(((row, ids)) =>
-         switch (
-           ProbeText.format_probe_values(~window=Single, ~probe_map, ids)
-         ) {
+         switch (ProbeText.format_probe_values(~window=Many, ~probe_map, ids)) {
          | "" => None
          | text => Some((row, [(style, String.trim(text))]))
          | exception _ => None

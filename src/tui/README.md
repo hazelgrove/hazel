@@ -97,9 +97,9 @@ EditorView (port of web Code.re walk) ─ Frame (styled rows) ─ ANSI ─ stdou
 
 Probes work: `Ctrl+E` toggles a probe on the indicated term (saved as
 `^^probe(...)` trigger syntax, interoperable with the web); evaluation
-collects samples for it and the latest value renders offside after the
-line as `≡ value` (`∅` if never reached). Sample focus, step-into, and
-pinning — the web's full probe UI — are not ported.
+collects samples for it and up to 5 render offside after the line as
+`≡ v1 ⫽ v2 ⫽ ...` (`∅` if never reached). Sample focus, step-into,
+and pinning — the web's full probe UI — are not ported.
 
 Projectors with a terminal view (`TermProjector.re` registry) render
 live content inside their measured cell region and respond to clicks:
