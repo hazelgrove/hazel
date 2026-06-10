@@ -237,7 +237,4 @@ test
   ) in
   let result = update(model, TimeTick) in
   result.evolution == Bloom
-end;
-
-# Demo run #
-do(init, [Feed, Play, Sleep, TimeTick, TimeTick])
+end

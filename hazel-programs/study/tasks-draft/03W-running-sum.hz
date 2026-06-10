@@ -9,26 +9,19 @@
 #   running_sum([5]) == [5]                    #
 #   running_sum([]) == []                      #
 #                                              #
-# Available functions:                         #
-#   fold_left(list, fn, init) -> result        #
-#     fn takes (accumulator, element)          #
-#   append(list1, list2) -> list               #
-#   rev(list) -> list                          #
-#   map(list, fn) -> list                      #
-#   length(list) -> Int                        #
+# Some standard library functions that may be  #
+# useful (work out the argument order with     #
+# probes):                                     #
+#   fold_left : ([a], (acc, a) -> acc, acc) -> acc #
+#   append : ([a], [a]) -> [a]                 #
+#   rev : [a] -> [a]                           #
+#   length : [a] -> Int                        #
 #                                              #
-# Syntax reminders:                            #
-#   Tuple: (a, b) = ...                        #
-#   Tuple access via pattern: let (x, y) = t   #
-#   List cons: x::xs, List literal: [1, 2, 3]  #
-#                                              #
-# Tip: You may need to track both the running  #
+# Tip: you may need to track both the running  #
 # total and the result list in your fold.      #
 
 let running_sum = fun nums ->
   ?
-
-  
 in
 
 test

@@ -10,27 +10,20 @@
 #     == "night-garden"                          #
 #   grove_name("/") == ""                        #
 #                                                #
-# Available functions:                           #
-#   string_split(sep, str) -> [String]           #
-#   string_concat(s1, s2) -> String              #
-#   string_length(s) -> Int                      #
-#   string_sub(str, pos, len) -> String          #
-#   nth(list, index) -> element                  #
-#   length(list) -> Int                          #
-#   map(list, fn) -> list                        #
-#   filter(list, pred) -> list                   #
+# Some standard library functions that may be    #
+# useful (work out the argument order with       #
+# probes):                                       #
+#   string_split : (String, String) -> [String]  #
+#   string_sub : (String, Int, Int) -> String    #
+#   string_length : String -> Int                #
+#   nth : ([String], Int) -> String              #
+#   length : [String] -> Int                     #
 #                                                #
-# Function syntax: fun param -> body             #
-# Let binding: let name = value in ...           #
-#                                                #
-# Tip: Turn on auto-probe (microscope toggle)    #
-# to see intermediate values as you type.        #
+# Tip: turn on auto-probe to see intermediate    #
+# values as you type.                            #
 
 let grove_name = fun path ->
   ?
-
-
-
 in
 
 test

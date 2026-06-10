@@ -24,7 +24,7 @@
 #   4. Collapse multiple spaces into one               #
 #   5. Final trim for any leftover edge spaces         #
 #                                                      #
-# Available functions:                                 #
+# Some standard library functions that may be useful:                                 #
 #   string_trim: String -> String                      #
 #   string_match: (String, String) -> Bool             #
 #   string_replace: (String, String, String) -> String #

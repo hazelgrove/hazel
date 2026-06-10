@@ -1,7 +1,10 @@
 # Night Garden Harvest Ledger #
 # Track harvests and streak bonuses #
 
+# ===== DATA TYPES ===== #
+
 # Quality tiers from the moonlit fields #
+# Higher quality = higher value multiplier #
 type Quality =
   + Bronze      # Common harvest, basic value #
   + Silver      # Good quality, moderate bonus #
@@ -10,6 +13,7 @@ type Quality =
 in
 
 # Crops that grow under the night sky #
+# Each crop has a base value determined by cropValue #
 type Crop =
   + Moonmelon   # Glows faintly, sweet taste #
   + Starfruit   # Shaped like stars, tangy #
@@ -19,6 +23,7 @@ type Crop =
 in
 
 # A single harvest from the garden #
+# Combines crop type, quality level, and quantity harvested #
 type Harvest = (
   crop = Crop,
   quality = Quality,
@@ -26,6 +31,10 @@ type Harvest = (
 ) in
 
 # The harvest ledger tracks all harvests and bonuses #
+# harvests: list of all recorded harvests (newest first) #
+# totalValue: cumulative value of all harvests plus claimed bonuses #
+# streakBonus: current unclaimed streak bonus #
+# lastQuality: quality of the most recent harvest (for streak tracking) #
 type Model = (
   harvests = [Harvest],
   totalValue = Int,
@@ -40,7 +49,8 @@ type Action =
   + CloseDay                # End the harvest day, reset streaks #
 in
 
-# Calculate base value of a crop #
+# ===== VALUE CALCULATIONS ===== #
+
 let cropValue : Crop -> Int =
   fun c ->
     case c
@@ -52,7 +62,6 @@ let cropValue : Crop -> Int =
     end
 in
 
-# Quality multiplier for harvest value #
 let qualityMultiplier : Quality -> Int =
   fun q ->
     case q
@@ -64,12 +73,16 @@ let qualityMultiplier : Quality -> Int =
 in
 
 # Calculate the value of a single harvest #
+# Formula: baseValue * qualityMultiplier * quantity #
 let harvestValue : Harvest -> Int =
   fun h ->
     cropValue(h.crop) * qualityMultiplier(h.quality) * h.quantity
 in
 
+# ===== LEDGER STATE ===== #
+
 # Initial empty ledger #
+# Start of a new harvest day with no recorded harvests #
 let initModel : Model = (
   harvests = [],
   totalValue = 0,
@@ -77,18 +90,31 @@ let initModel : Model = (
   lastQuality = Bronze
 ) in
 
+# ===== CORE LOGIC ===== #
+
 # Process a harvest action and update the ledger #
+# This function handles streak detection and bonus calculation #
+# A streak continues when consecutive harvests have the same quality #
 let processHarvest : (Model, Harvest) -> Model =
   fun (ledger, h) ->
+    # Calculate the base value of this harvest #
     let value = harvestValue(h) in
+    # Check if this is the first harvest (no streak possible) #
     let isFirst = length(ledger.harvests) == 0 in
+    # Prepare to update the lastQuality for next comparison #
     let newLast = h.quality in
+    # Determine if the streak continues #
+    # Streak continues if not first AND current quality matches previous #
     let continues = !isFirst && h.quality == newLast in
+    # Calculate new streak bonus #
+    # If streak continues, add 5 to existing bonus #
+    # If streak breaks, reset to 0 #
     let newStreak =
       if continues
       then ledger.streakBonus + 5
       else 0
     in
+    # Return updated ledger #
     (
       harvests = h :: ledger.harvests,
       totalValue = ledger.totalValue + value + newStreak,
@@ -98,6 +124,7 @@ let processHarvest : (Model, Harvest) -> Model =
 in
 
 # Claim the streak bonus and reset it #
+# Adds current streak bonus to total, then zeroes streak #
 let claimBonus : Model -> Model =
   fun ledger ->
     (
@@ -109,6 +136,7 @@ let claimBonus : Model -> Model =
 in
 
 # Close the harvest day - reset streak tracking #
+# Preserves harvests and total, resets streak state #
 let closeDay : Model -> Model =
   fun ledger ->
     (
@@ -119,7 +147,10 @@ let closeDay : Model -> Model =
     )
 in
 
+# ===== ACTION DISPATCH ===== #
+
 # Main update function - dispatch actions #
+# Routes each action type to its handler #
 let update : (Model, Action) -> Model =
   fun (ledger, action) ->
     case action
@@ -130,6 +161,7 @@ let update : (Model, Action) -> Model =
 in
 
 # Run multiple actions in sequence #
+# Folds actions left-to-right, threading the ledger through #
 let run : (Model, [Action]) -> Model =
   fun (ledger, actions) ->
     fold_left(actions, update, ledger)
@@ -291,12 +323,4 @@ test
   ]) in
   ledger.streakBonus == 0 &&
   length(ledger.harvests) == 4
-end;
-
-# Demo: A festival harvest day #
-run(initModel, [
-  RecordHarvest((crop = Moonmelon, quality = Silver, quantity = 2)),
-  RecordHarvest((crop = Starfruit, quality = Silver, quantity = 1)),
-  RecordHarvest((crop = Nightshade, quality = Gold, quantity = 1)),
-  ClaimBonus
-])
+end
