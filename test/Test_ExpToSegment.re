@@ -785,9 +785,9 @@ end|}),
     roundtrip_test({|Theorem: simple|}, {|theorem x = 1 in x|}),
     roundtrip_test({|Theorem: spaced|}, {|theorem x  =  1  in  x|}),
     roundtrip_test({|Theorem: compact|}, {|theorem x=1 in x|}),
-    /* Explore expressions (explore ... in ...) */
-    roundtrip_test({|Explore: simple|}, {|explore 1 + 2 in 3|}),
-    roundtrip_test({|Explore: spaced|}, {|explore  1 + 2  in  3|}),
+    /* Explore expressions (explore ... end) */
+    roundtrip_test({|Explore: simple|}, {|explore 1 + 2 end|}),
+    roundtrip_test({|Explore: spaced|}, {|explore  1 + 2  end|}),
     /* Module expressions: empty module roundtrip */
     roundtrip_test({|Module: empty|}, {|{}|}),
     /* Module text round-trip tests */

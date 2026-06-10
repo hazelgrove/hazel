@@ -407,7 +407,7 @@ let rec replace_exp =
           } else {
             continue(exp);
           }
-        | Explore(_, _) => continue(exp)
+        | Explore(_) => continue(exp)
         | Forall(p, e) =>
           if (is_bound(p)) {
             if (uses_blacklist_var(

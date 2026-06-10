@@ -705,8 +705,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
         | term => ret(ListLit([term]))
         }
       | (["test", "end"], [Exp(test)]) => ret(Test(test))
-      | (["explore", "in"], [Exp(exp)]) =>
-        ret(Explore(exp, hole(tm) |> Exp.fresh))
+      | (["explore", "end"], [Exp(exp)]) => ret(Explore(exp))
       | (["proof_object", "end"], [Exp(proof)]) =>
         ret(ProofObject(proof))
       | (["hint", "test", "end"], [Exp(hint), Exp(test)]) =>
@@ -762,7 +761,6 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
           ModuleExp(mp, def, r)
         | (["theorem", "=", "in"], [Pat(pat), Exp(thm)]) =>
           Theorem(pat, thm, r)
-        | (["explore", "in"], [Exp(exp)]) => Explore(exp, r)
         | (["hide", "in"], [Exp(filter)]) =>
           Filter(
             Filter({

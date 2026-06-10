@@ -4928,7 +4928,7 @@ let explore_editing_tests = [
       let z = mk({|explore 2 + 3¦|}) |> perform(Zipper.init());
       let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
       switch (Language.Exp.term_of(term)) {
-      | Language.Grammar.Explore(_, _) => ()
+      | Language.Grammar.Explore(_) => ()
       | _ =>
         Alcotest.fail(
           "Expected Explore term, got " ++ Language.Exp.show(term),
@@ -4950,7 +4950,7 @@ let explore_editing_tests = [
       let z = mk({|explore 1 +¦|}) |> perform(Zipper.init());
       let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
       switch (Language.Exp.term_of(term)) {
-      | Language.Grammar.Explore(_, _) => ()
+      | Language.Grammar.Explore(_) => ()
       | _ =>
         Alcotest.fail(
           "Expected Explore term, got " ++ Language.Exp.show(term),

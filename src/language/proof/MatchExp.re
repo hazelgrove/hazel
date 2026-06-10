@@ -156,10 +156,8 @@ let rec match_exp =
     let* ctx = match_exp(alphas, ctx, e3, e4);
     match_exp(alphas' @ alphas, ctx, e1, e2);
   | (Theorem(_), _) => None
-  | (Explore(e1, e2), Explore(e3, e4)) =>
-    let* ctx = match_exp(alphas, ctx, e1, e3);
-    match_exp(alphas, ctx, e2, e4);
-  | (Explore(_, _), _) => None
+  | (Explore(e1), Explore(e2)) => match_exp(alphas, ctx, e1, e2)
+  | (Explore(_), _) => None
   | (ProofObject(e1), ProofObject(e2)) => match_exp(alphas, ctx, e1, e2)
   | (ProofObject(_), _) => None
   | (FixF(p1, e1, _), FixF(p2, e2, _)) =>

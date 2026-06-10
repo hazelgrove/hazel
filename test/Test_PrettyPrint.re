@@ -933,11 +933,10 @@ x + y|},
     (),
   ),
   test_format(
-    ~name="Explore chain with arithmetic body",
-    ~input="explore 1 + 2 + 3 in explore 4 + 5 + 6 in ?",
-    ~expected={|explore 1 + 2 + 3 in
-explore 4 + 5 + 6 in
-?|},
+    ~name="Explore with arithmetic body",
+    ~input="explore 1 + 2 + 3 end",
+    ~expected={|explore
+    1 + 2 + 3 end|},
     (),
   ),
   /* Let chain with implicit trailing hole ends on its own line */

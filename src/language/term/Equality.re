@@ -277,10 +277,8 @@ let equality =
       | None => false
       }
     | (Theorem(_, _, _), _) => false
-    | (Explore(e1, e2), Explore(e3, e4)) =>
-      exp(alphas_exp, alphas_typ, e1, e3)
-      && exp(alphas_exp, alphas_typ, e2, e4)
-    | (Explore(_, _), _) => false
+    | (Explore(e1), Explore(e2)) => exp(alphas_exp, alphas_typ, e1, e2)
+    | (Explore(_), _) => false
 
     // Forms with type binders
     | (TypFun(tp1, e1, _), TypFun(tp2, e2, _)) =>

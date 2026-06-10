@@ -119,7 +119,7 @@ module Utils = {
     | Var(_)
     | Module(_) => []
     | ModuleExp(_, def, body) => [def, body]
-    | Explore(e1, e2) => [e1, e2]
+    | Explore(e) => [e]
     | DrvQuote(_) => []
     };
   };

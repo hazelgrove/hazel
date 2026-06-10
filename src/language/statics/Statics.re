@@ -2236,21 +2236,20 @@ and uexp_to_info_map =
           SubexpProbeTargets.union_all([p.probe_targets, e2.probe_targets]),
         m,
       );
-    | Explore(e1, e2) =>
-      let (e1_pre, _, m) =
-        go(~ctx, ~ana=Unknown(Internal) |> Typ.temp, e1, m);
+    | Explore(e) =>
+      let (e_pre, _, m) =
+        go(~ctx, ~ana=Unknown(Internal) |> Typ.temp, e, m);
       let explore_ctx =
-        extend_ctx_with_explore_assumptions(ctx, e1_pre.co_ctx);
-      let (e1, e1_elab, m) =
-        go(~ctx=explore_ctx, ~ana=Unknown(Internal) |> Typ.temp, e1, m);
-      let (e2, e2_elab, m) = go(~ctx, ~ana, e2, m);
+        extend_ctx_with_explore_assumptions(ctx, e_pre.co_ctx);
+      let (e, e_elab, m) =
+        go(~ctx=explore_ctx, ~ana=Unknown(Internal) |> Typ.temp, e, m);
       add(
         ~ctx=explore_ctx,
-        ~elab_term=Explore(e1_elab, e2_elab) |> rewrap,
-        ~elab_syn_ty=e2.elab_syn_ty,
+        ~elab_term=Explore(e_elab) |> rewrap,
+        ~elab_syn_ty=Prod([]) |> Typ.temp,
         ~marks=[],
-        ~co_ctx=
-          CoCtx.union([CoCtx.mk(ctx, explore_ctx, e1.co_ctx), e2.co_ctx]),
+        ~co_ctx=CoCtx.mk(ctx, explore_ctx, e.co_ctx),
+        ~probe_targets=e.probe_targets,
         m,
       );
     | ProofObject(e) =>

@@ -937,7 +937,7 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
           Theorem(p', e1', e2');
         }
 
-      | Explore(e1, e2) =>
+      | Explore(e) =>
         if (available^ < 3) {
           available := available^ - ellipsis_cost;
           Invalid(flat_ellipses);
@@ -949,24 +949,15 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
           Invalid("explore…");
         } else if (available^ < 13) {
           available := available^ - 11;
-          Invalid("explore…in");
-        } else if (available^ < 16) {
-          available := available^ - 13;
-          Invalid("explore…in…");
+          Invalid("explore…end");
         } else {
-          /* Full: "explore " (8) + e1 + " in " (4) + e2 */
+          /* Full: "explore " (8) + e + " end" (4) */
           available := available^ - 12;
-          let pool = available^;
-          let budgets = AbbrevBudget.split_evenly(~total=pool, ~parts=2);
-          let (e1', _) =
-            AbbrevBudget.with_budget(~budget=List.nth(budgets, 0), ~run=() =>
-              abbreviate_exp(e1)
+          let (e', _) =
+            AbbrevBudget.with_budget(~budget=available^, ~run=() =>
+              abbreviate_exp(e)
             );
-          let (e2', _) =
-            AbbrevBudget.with_budget(~budget=List.nth(budgets, 1), ~run=() =>
-              abbreviate_exp(e2)
-            );
-          Explore(e1', e2');
+          Explore(e');
         }
 
       | ProofObject(t) =>

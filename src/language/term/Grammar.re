@@ -50,7 +50,7 @@ and exp_term('a) =
   | Var(Var.t)
   | Let(pat_t('a), exp_t('a), exp_t('a))
   | Theorem(pat_t('a), exp_t('a), exp_t('a))
-  | Explore(exp_t('a), exp_t('a))
+  | Explore(exp_t('a))
   | ProofObject(exp_t('a))
   | Forall(pat_t('a), exp_t('a))
   | FixF(pat_t('a), exp_t('a), option(Environment.t(exp_t('a))))
@@ -219,8 +219,7 @@ let rec map_exp_annotation: type a b. (a => b, exp_t(a)) => exp_t(b) =
             map_exp_annotation(f, e1),
             map_exp_annotation(f, e2),
           )
-        | Explore(e1, e2) =>
-          Explore(map_exp_annotation(f, e1), map_exp_annotation(f, e2))
+        | Explore(e) => Explore(map_exp_annotation(f, e))
         | ProofObject(t) => ProofObject(map_exp_annotation(f, t))
         | Forall(p, e) =>
           Forall(map_pat_annotation(f, p), map_exp_annotation(f, e))
@@ -675,8 +674,8 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       term: Theorem(p, e1, e2),
       annotation: default_annotation(ann),
     };
-    let explore = (~ann=?, e1, e2): exp_t(DefaultAnnotation.t) => {
-      term: Explore(e1, e2),
+    let explore = (~ann=?, e): exp_t(DefaultAnnotation.t) => {
+      term: Explore(e),
       annotation: default_annotation(ann),
     };
     let proof_object = (~ann=?, t): exp_t(DefaultAnnotation.t) => {

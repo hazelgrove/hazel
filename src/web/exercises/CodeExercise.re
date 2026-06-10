@@ -719,7 +719,7 @@ let rec append_exp = (e1: Language.Exp.t, e2: Language.Exp.t): Language.Exp.t =>
   | BuiltinFun(_)
   | Module(_)
   | Asc(_)
-  | Explore(_, _)
+  | Explore(_)
   | ProofObject(_)
   | Match(_) => {
       term: Seq(e1, e2),
