@@ -396,6 +396,103 @@ let svg_of_group =
     );
   };
 
+/* Clip partial-token boundaries for char-level selections.
+ * Adjusts the first/last row's left/right columns when the
+ * selection boundary falls mid-token (Inner caret). */
+let clip_char_selection =
+    (~measured: Measured.t, z: Zipper.t, rows: list(row_data))
+    : list(row_data) => {
+  let content = z.selection.content;
+  switch (content, rows) {
+  | ([], _)
+  | (_, []) => rows
+  | _ =>
+    /* Determine left/right inner offsets based on focus direction.
+     * Content is always left-to-right spatially.
+     * focus=Right: anchor at left, focus at right.
+     * focus=Left: focus at left, anchor at right.
+     *
+     * When smart_rounded is set, the anchor end displays at the outer
+     * boundary of its piece (even if anchor_caret is Inner) — the
+     * selection has been rounded up beyond the starting token. */
+    let anchor_inner: option(int) =
+      z.selection.smart_rounded
+        ? None
+        : (
+          switch (z.selection.anchor_caret) {
+          | CaretBase.Inner(n) => Some(n)
+          | CaretBase.Outer => None
+          }
+        );
+    let focus_inner: option(int) =
+      switch (z.caret) {
+      | Inner(n) => Some(n)
+      | Outer => None
+      };
+    let (left_inner, right_inner) =
+      switch (z.selection.focus) {
+      | Right => (anchor_inner, focus_inner)
+      | Left => (focus_inner, anchor_inner)
+      };
+
+    /* Clip left boundary of first row */
+    let rows =
+      switch (left_inner) {
+      | None => rows
+      | Some(n) =>
+        let left_piece = List.hd(content);
+        let shard = List.hd(Piece.disassemble(left_piece));
+        switch (Piece.token_of(shard)) {
+        | Some(tok) =>
+          let offset = Zipper.Caret.inner_offset_for_token(n, tok);
+          switch (rows) {
+          | [] => []
+          | [first, ...rest] => [
+              {
+                ...first,
+                left_col: first.left_col + offset,
+                left_tip: None,
+              },
+              ...rest,
+            ]
+          };
+        | None => rows
+        };
+      };
+
+    /* Clip right boundary of last row */
+    let rows =
+      switch (right_inner) {
+      | None => rows
+      | Some(n) =>
+        let right_piece = ListUtil.last(content);
+        let last_shard = ListUtil.last(Piece.disassemble(right_piece));
+        switch (Piece.token_of(last_shard)) {
+        | Some(tok) =>
+          let offset = Zipper.Caret.inner_offset_for_token(n, tok);
+          let m =
+            Measured.find_p(~msg="clip_char_sel_right", last_shard, measured);
+          let new_right_col = m.origin.col + offset;
+          switch (ListUtil.split_last_opt(rows)) {
+          | None => []
+          | Some((init, last_row)) =>
+            init
+            @ [
+              {
+                ...last_row,
+                right_col: new_right_col,
+                right_tip: None,
+              },
+            ]
+          };
+        | None => rows
+        };
+      };
+
+    rows;
+  };
+};
+
 /* --- Public API --- */
 
 let of_segment =
@@ -422,50 +519,65 @@ let selection =
       ~shape_map: ProjectorCore.Shape.Map.t,
       ~font_metrics: FontMetrics.t,
       ~statics: CachedStatics.t,
+      ~term_data: TermData.t,
       z: Zipper.t,
     ) => {
-  let find_assoc_for_id = (id: Id.t): list(Id.t) =>
-    Language.AssocSelection.find_assoc_for_id(id, statics.info_map);
-
+  let sort_by_position = (segment: Segment.t): Segment.t =>
+    segment
+    |> List.sort((a, b) => {
+         let a_m = Measured.find_p(~msg="selection assoc sort", a, measured);
+         let b_m = Measured.find_p(~msg="selection assoc sort", b, measured);
+         switch (Int.compare(a_m.origin.row, b_m.origin.row)) {
+         | 0 => Int.compare(a_m.origin.col, b_m.origin.col)
+         | cmp => cmp
+         };
+       });
   let associative_segment = (z: Zipper.t): Segment.t => {
-    let tile_ids =
+    let current_segment =
+      SelectionEffective.associative_segment(~info_map=statics.info_map, z);
+    let current_ids = current_segment |> Segment.ids;
+    let snapped_ids =
       z.selection.content
-      |> List.filter_map(piece =>
-           switch (piece) {
-           | Piece.Tile(t) => Some(Tile.id(t))
-           | Piece.Secondary(s) => Some(Secondary.id(s))
-           | _ => None
-           }
+      |> List.map(Piece.id)
+      |> List.concat_map(id =>
+           Language.AssocSelection.find_assoc_for_id(id, statics.info_map)
          );
-    let assoc_ids = tile_ids |> List.concat_map(find_assoc_for_id);
-    switch (assoc_ids) {
-    | [] => z.selection.content
-    | assoc_ids =>
-      /* Search the current-level segment (left siblings + selection + right
-         siblings) rather than Zipper.zip(z). Zipper.zip assembles the cursor
-         level into its ancestor tile, so inner pieces would only appear as
-         nested children of that tile, not as top-level pieces to filter over.
-         Multi-shard tiles (e.g. `let = in`) share one ID across all shards;
-         using List.filter (no dedup by ID) ensures all shards are included. */
-      let (left_sibs, right_sibs) = z.relatives.siblings;
-      left_sibs
-      @ z.selection.content
-      @ right_sibs
+    let missing_segments =
+      snapped_ids
+      |> List.filter(id =>
+           !List.exists(current_id => current_id == id, current_ids)
+         )
+      |> List.filter_map(id => TermData.segment(id, term_data))
+      |> List.concat
       |> List.filter(piece =>
-           List.exists(id => id == Piece.id(piece), assoc_ids)
+           !
+             List.exists(
+               current_id => current_id == Piece.id(piece),
+               current_ids,
+             )
          );
-    };
+    current_segment @ missing_segments |> sort_by_position;
   };
-  div_c(
-    "selects",
-    of_segment(
+  let effective_segment =
+    associative ? associative_segment(z) : z.selection.content;
+  let rows =
+    rows_of_segment(
       ~measured,
       ~shape_map,
-      ~font_metrics,
       ~shape_init=Some(fst(Siblings.shapes(z.relatives.siblings))),
-      ~clss=["selected", Selection.buffer_cls(z.selection)],
-      associative ? associative_segment(z) : z.selection.content,
-    ),
+      effective_segment,
+    )
+    |> List.map(((m, tips)) => row_data_of(m, tips));
+  /* Clip partial-token boundaries for char-level selections. Snapped
+   * associative selections draw whole pieces from the effective segment. */
+  let rows =
+    effective_segment == z.selection.content
+      ? clip_char_selection(~measured, z, rows) : rows;
+  let clss = ["selected", Selection.buffer_cls(z.selection)];
+  let groups = group_consecutive(rows);
+  div_c(
+    "selects",
+    List.filter_map(svg_of_group(~font_metrics, ~clss), groups),
   );
 };
 
@@ -480,36 +592,25 @@ let selection_expanded =
     ) =>
   div_c(
     "selects",
-    switch (
-      TermData.get_root_id_using_ranges(
-        z.selection.content,
-        term_data,
-        measured,
+    switch (SelectionEffective.expanded_segment(~measured, ~term_data, z)) {
+    | [] => []
+    | seg =>
+      of_segment(
+        ~measured,
+        ~shape_map,
+        ~font_metrics,
+        ~shape_init=Some(fst(Siblings.shapes(z.relatives.siblings))),
+        ~clss=["selected-expanded", Selection.buffer_cls(z.selection)],
+        seg,
       )
-    ) {
-    | None => []
-    | Some(id) =>
-      let seg = TermData.segment(id, term_data);
-      switch (seg) {
-      | None => []
-      | Some(seg) =>
-        of_segment(
+      @ of_segment(
           ~measured,
           ~shape_map,
           ~font_metrics,
           ~shape_init=Some(fst(Siblings.shapes(z.relatives.siblings))),
-          ~clss=["selected-expanded", Selection.buffer_cls(z.selection)],
-          seg,
+          ~clss=["selected", Selection.buffer_cls(z.selection)],
+          z.selection.content,
         )
-        @ of_segment(
-            ~measured,
-            ~shape_map,
-            ~font_metrics,
-            ~shape_init=Some(fst(Siblings.shapes(z.relatives.siblings))),
-            ~clss=["selected", Selection.buffer_cls(z.selection)],
-            z.selection.content,
-          )
-      };
     },
   );
 

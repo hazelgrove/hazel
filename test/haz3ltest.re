@@ -40,16 +40,16 @@ let (suite, _) =
     @ Test_Editing.tests
     @ [Test_Reparenthesize.tests]
     @ Test_Reassociate.tests
+    @ [Test_SelectionEffective.tests]
     @ Test_MultiProbe.tests
     @ [Test_SampleSelection.tests]
     @ Test_Indentation.tests
-    @ [
-      Test_Coverage.tests,
-      Test_Unboxing.tests,
-      Test_ProblemCollection.tests,
-    ]
+    @ [Test_Coverage.tests, Test_Unboxing.tests]
+    @ Test_ProblemCollection.tests
+    @ [Test_TermData.tests]
     @ Test_Introduce.tests
     @ Test_ReparseDocSlides.tests
+    @ Test_TextRoundtrip.tests
     @ Test_MatchExp.tests
     @ Test_RefractorSerialization.tests
     @ [

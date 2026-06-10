@@ -81,7 +81,8 @@ and step_action =
   | AddInduction(option(Exp.t))
   | AddForall
   | AddAxiomStep(string, int, Exp.t, Direction.t, string)
-  | AddAlgebriteStep(int, Exp.t, Exp.t);
+  | AddAlgebriteStep(int, Exp.t, Exp.t)
+  | AddReparenthesizedAlgebriteStep(Exp.t, Exp.t, Exp.t);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type step_kind_focus =
@@ -839,6 +840,46 @@ and Stepper: {
         }
         |> return
       | (AddAlgebriteStep(_, _, _), _, _) => model |> raise_invalid_action
+      | (
+          AddReparenthesizedAlgebriteStep(
+            reparenthesized_exp,
+            at_exp,
+            with_exp,
+          ),
+          MissingStep(_),
+          _,
+        ) =>
+        let exp =
+          model.expr
+          |> Calc.get_saved_exc(~print="AddReparenthesizedAlgebriteStep");
+        {
+          ...model,
+          step_kind:
+            ReparenthesizeStep({
+              original_exp: exp,
+              reparenthesized_exp,
+              selected_id: None,
+              evaluate_after_parenthesize: false,
+              next_exp: Calc.Pending,
+            }),
+          next_step:
+            Some({
+              ...init,
+              step_kind:
+                AlgebriteStep({
+                  at_idx:
+                    try(ProofHacks.exp_idx(at_exp, reparenthesized_exp)) {
+                    | _ => 0
+                    },
+                  at_exp,
+                  with_exp,
+                  next_exp: Calc.Pending,
+                }),
+            }),
+        }
+        |> return;
+      | (AddReparenthesizedAlgebriteStep(_, _, _), _, _) =>
+        model |> raise_invalid_action
       | (StepKindAction(sk_action), _, _) =>
         let* new_step_kind =
           StepKind.update(~settings, sk_action, model.step_kind);
@@ -861,6 +902,7 @@ and Stepper: {
     | AddForall => true
     | AddAxiomStep(_) => true
     | AddAlgebriteStep(_) => true
+    | AddReparenthesizedAlgebriteStep(_) => true
     | StepKindAction(action) => StepKind.can_undo(action)
     };
   };
@@ -1147,6 +1189,8 @@ and Stepper: {
                       inject(AddAxiomStep(name, idx, e1, dir, eq))
                     | AddAlgebriteStep(idx, e1, e2) =>
                       inject(AddAlgebriteStep(idx, e1, e2))
+                    | AddReparenthesizedAlgebriteStep(e1, e2, e3) =>
+                      inject(AddReparenthesizedAlgebriteStep(e1, e2, e3))
                     | TakeStep(i) => inject(StepForward(i))
                     | StepHere(ids, evaluate_after_parenthesize) =>
                       inject(
