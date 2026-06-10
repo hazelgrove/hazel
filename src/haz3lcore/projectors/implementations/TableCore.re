@@ -1,35 +1,10 @@
 open Util;
-open Virtual_dom.Vdom;
-open ProjectorBase;
 open Language;
 
-/* TableCore: Shared table rendering utilities for TableProj and TableRenderer */
-
-/* --- Cell Rendering --- */
+/* TableCore: shared table parsing logic for TableProj and TableRenderer.
+   The cell/assembly rendering half lives in web TableCoreView. */
 
 let max_column_length = 12;
-
-let value_view = (utility: utility, view_seg, exp) => {
-  let (seg, _length) =
-    ProbeUtil.abbreviated_seg_of(utility, max_column_length, exp);
-
-  Node.div(~attrs=[Attr.classes(["value"])], [view_seg(Sort.Exp, seg)]);
-};
-
-/* --- Table Assembly --- */
-
-let row_cells = (utility: utility, view_seg, row: list(Exp.t)): list(Node.t) =>
-  List.map(e => Node.td([value_view(utility, view_seg, e)]), row);
-
-let table_view =
-    (~header_cells: list(Node.t), ~rows: list(list(Node.t))): Node.t =>
-  Node.table(
-    ~attrs=[Attr.classes(["table"])],
-    [
-      Node.thead([Node.tr(header_cells)]),
-      Node.tbody(List.map(r => Node.tr(r), rows)),
-    ],
-  );
 
 /* --- Table Parsing --- */
 

@@ -23,4 +23,7 @@ let install = (): unit => {
 
   /* Wall-clock for probe sample timestamps */
   TimeUtil.now_ms := JsUtil.precise_timestamp;
+
+  /* Per-kind projector focus behavior (DOM focus callbacks) */
+  ProjectorViews.install();
 };

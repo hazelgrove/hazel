@@ -1,8 +1,5 @@
-open Virtual_dom.Vdom;
-open Node;
 open ProjectorBase;
 open Language;
-open Util;
 
 let expected_ty = (info: option(Info.t)): option(Typ.t) =>
   switch (info) {
@@ -33,6 +30,10 @@ type display =
   | Expected
   | Self;
 
+[@deriving (show({with_path: false}), sexp, yojson)]
+type type_action =
+  | ToggleDisplay;
+
 let display_ty = (model: display, statics): option(Typ.t) =>
   switch (model) {
   | _ when expected_ty(statics) |> totalize_ty |> Typ.is_syn =>
@@ -49,13 +50,12 @@ let display_mode = (model: display, statics: option(Info.t)): string =>
   | Expected => "⇐"
   };
 
-module M: Projector = {
+module M: Projector with type model = display and type action = type_action = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type model = display;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type action =
-    | ToggleDisplay;
+  type action = type_action;
 
   let init = (any: Any.t): option(model) => {
     switch (any) {
@@ -68,25 +68,6 @@ module M: Projector = {
 
   let dynamics = false;
   let elaborate_syntax = false;
-  let focusable = Focusable.non;
-
-  let mode_view = (model, info) =>
-    div(
-      ~attrs=[Attr.classes(["mode"])],
-      [text(display_mode(model, info))],
-    );
-
-  let typ_view = (model, info: info, utility, view_seg: View.seg) => {
-    let typ = display_ty(model, info.statics) |> totalize_ty;
-    div(
-      ~attrs=[Attr.classes(["type-cell"])],
-      [
-        Typ(typ)
-        |> utility.term_to_seg(~inline=true)
-        |> view_seg(~single_line=true, Sort.Typ),
-      ],
-    );
-  };
 
   let update = (model, _, a: action) =>
     switch (a, model) {
@@ -96,26 +77,4 @@ module M: Projector = {
 
   let placeholder = (_, _) => ProjectorCore.Shape.default;
   let error = (_, _): option(ProjectorBase.error) => None;
-
-  let view = ({model, info, local, view_seg, _}: View.args(model, action)) =>
-    View.{
-      inline: div([]),
-      offside:
-        Some(
-          div(
-            ~attrs=[
-              Attr.id(Id.cls(info.id)),
-              Attr.tabindex(0),
-              Attr.classes(["offside"]),
-              Attr.on_double_click(_ => local(ToggleDisplay)),
-            ],
-            [
-              mode_view(model, info.statics),
-              typ_view(model, info, info.utility, view_seg),
-            ],
-          ),
-        ),
-      overlay: None,
-      error: false,
-    };
 };

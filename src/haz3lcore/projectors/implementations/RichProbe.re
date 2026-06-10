@@ -1,11 +1,13 @@
-open Virtual_dom.Vdom;
-open ProjectorBase;
 open Language;
 
 module Sexp = Sexplib.Sexp;
 
 /* Signature for domain-specific representations with clear parsing and rendering phases.
       Each RichProbe module handles a specific visualization of syntax elements.
+
+      This is the backend-independent LOGIC half: parsing, state, and
+      serialization. The Vdom rendering half (badge + render) lives in the
+      web frontend; see src/web/projectors/RichProbeView.re.
 
       - 'value': The abstract data type representing the parsed internal representation of the probed value.
         This is parsed and it's presence signifies the ability to visualize the expression.
@@ -30,22 +32,6 @@ module type RichProbe = {
   let parse: (Sort.t, Exp.t) => option(value);
   /* Initialize the probe's state from a parsed value. Assumes value is valid. */
   let init: value => model;
-
-  let badge: Node.t;
-
-  let render:
-    (
-      ~info: info,
-      ~exp: Exp.t,
-      ~value: value,
-      ~view_seg: (Sort.t, Segment.t) => Node.t,
-      ~model: model,
-      ~local: action => Ui_effect.t(unit),
-      ~parent: external_action => Ui_effect.t(unit),
-      ~sort: Sort.t,
-      unit
-    ) =>
-    Node.t;
 };
 
 /* Existential packs for renderer state.
@@ -70,18 +56,6 @@ type packed_renderer = {
   can_handle: (Sort.t, Exp.t) => bool,
   init_model: (Sort.t, Exp.t) => option(packed_model),
   update_model: (packed_model, packed_action) => packed_model,
-  render_model:
-    (
-      packed_model,
-      ~info: info,
-      ~exp: Exp.t,
-      ~view_seg: (Sort.t, Segment.t) => Node.t,
-      ~local: packed_action => Ui_effect.t(unit),
-      ~parent: external_action => Ui_effect.t(unit),
-      ~sort: Sort.t,
-      unit
-    ) =>
-    option(Node.t),
   /* Payload (de)serializers — used by RichProbeRegistry's top-level
    * packed_*_of_sexp/yojson dispatchers to encode/decode the body for
    * *this* renderer. They expect the packed value to belong to this
@@ -94,7 +68,6 @@ type packed_renderer = {
   action_payload_of_sexp: Sexp.t => packed_action,
   yojson_of_action_payload: packed_action => Yojson.Safe.t,
   action_payload_of_yojson: Yojson.Safe.t => packed_action,
-  badge: Node.t,
 };
 
 let renderer_id_of_model = (PModel(rid, _, _): packed_model): string => rid;
@@ -143,24 +116,6 @@ let pack_renderer =
       | (Some(m), Some(a)) => PModel(id, model_id, R.update(m, a))
       | _ => pm
       },
-    render_model: (pm, ~info, ~exp, ~view_seg, ~local, ~parent, ~sort, ()) =>
-      switch (cast_model(pm), R.parse(sort, exp)) {
-      | (Some(m), Some(value)) =>
-        Some(
-          R.render(
-            ~info,
-            ~exp,
-            ~value,
-            ~view_seg,
-            ~model=m,
-            ~local=a => local(PAction(id, action_id, a)),
-            ~parent,
-            ~sort,
-            (),
-          ),
-        )
-      | _ => None
-      },
     sexp_of_model_payload: pm =>
       switch (cast_model(pm)) {
       | Some(m) => R.sexp_of_model(m)
@@ -188,7 +143,6 @@ let pack_renderer =
       },
     action_payload_of_yojson: j =>
       PAction(id, action_id, R.action_of_yojson(j)),
-    badge: R.badge,
   };
 };
 

@@ -1,4 +1,6 @@
-/* TableRenderer - A reusable module for rendering interactive tables with column operations */
+/* TableRenderer - A reusable module for rendering interactive tables with
+   column operations. Logic half only; the Vdom rendering half lives in
+   src/web/projectors/TableRendererView.re. */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type menu_state = option((int, Util.Menu.t));
 [@deriving (show({with_path: false}), sexp, yojson)]

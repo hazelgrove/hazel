@@ -1,7 +1,10 @@
 open Util;
 open ProjectorBase;
-open Virtual_dom.Vdom;
-open Node;
+
+/* Fold projector logic: collapses the underlying syntax to a small
+   glyph. The model and action types live at file level (outside the
+   sealed module below) so that view backends (web: FoldProjView; tui:
+   TermProjector.fold) can reuse them. */
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
@@ -23,16 +26,18 @@ let t_of_sexp = (sexp: Sexplib.Sexp.t): t =>
   | t => t
   };
 
-module M: Projector = {
+[@deriving (show({with_path: false}), sexp, yojson)]
+type fold_action =
+  | Toggle;
+
+module M: Projector with type model = t and type action = fold_action = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type model = t;
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type action =
-    | Toggle;
+  type action = fold_action;
 
   let init = _ => Some(default);
 
-  let focusable = Focusable.non;
   let dynamics = false;
   let elaborate_syntax = false;
 
@@ -43,61 +48,4 @@ module M: Projector = {
     expanded: !m.expanded,
   };
   let error = (_, _): option(ProjectorBase.error) => None;
-
-  let hover_view = (view_seg: View.seg, m, info: info) => {
-    let seg = Segment.unparenthesize(info.syntax);
-    let sort = Segment.sort_of(Segment.skel(seg), seg);
-    div(
-      ~attrs=[
-        Attr.classes(
-          ["hover-view"]
-          @ (
-            m.always_render
-              ? ["always-render"] : m.expanded ? [] : ["collapsed"]
-          ),
-        ),
-      ],
-      [
-        view_seg(~background=true, sort, Segment.unparenthesize(info.syntax)),
-      ],
-    );
-  };
-
-  let view =
-      ({model, info, local, view_seg, status, _}: View.args(model, action)) =>
-    ProjectorBase.View.mk(
-      if (model.always_render) {
-        /* Always render mode: Use checkbox hack for CSS-only toggle */
-        let checkbox_id = "fold-toggle-" ++ Id.to_string(info.id);
-        label(
-          ~attrs=[
-            Attr.create("for", checkbox_id),
-            Attr.classes(["fold-always-render"]),
-          ],
-          [
-            input(
-              ~attrs=[
-                Attr.create("type", "checkbox"),
-                Attr.id(checkbox_id),
-                Attr.classes(["fold-toggle-checkbox"]),
-                Attr.create("style", "display: none;"),
-              ],
-              (),
-            ),
-            text(model.text),
-            hover_view(view_seg, model, info),
-          ],
-        );
-      } else {
-        div(
-          ~attrs=[
-            Attr.on_double_click(_ =>
-              status.indication != None ? local(Toggle) : Ui_effect.Ignore
-            ),
-          ],
-          [text(model.text)]
-          @ (model.expanded ? [hover_view(view_seg, model, info)] : []),
-        );
-      },
-    );
 };
