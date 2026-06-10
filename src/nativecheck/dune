@@ -1,0 +1,5 @@
+(executable
+ (name nativecheck)
+ (modules Nativecheck)
+ (libraries haz3lcore)
+ (modes exe))

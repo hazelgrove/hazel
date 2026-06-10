@@ -1,7 +1,7 @@
 open Virtual_dom.Vdom;
 open Node;
 open Util;
-open Util.WebUtil;
+open WebUtil;
 open Haz3lcore;
 open Language;
 
@@ -317,7 +317,7 @@ let key_handler =
       evt: Js_of_ocaml.Js.t(Js_of_ocaml.Dom_html.keyboardEvent),
     ) => {
   open Effect;
-  let key = Key.mk(KeyDown, evt);
+  let key = KeyEvent.mk(KeyDown, evt);
   switch (key.key) {
   | D("ArrowLeft") =>
     /* Move to shallower level (toward top-level) */

@@ -1,6 +1,6 @@
 open Virtual_dom.Vdom;
 open Node;
-open Util.WebUtil;
+open WebUtil;
 
 let view = (~globals, kind: Language.Ctx.kind): Node.t =>
   switch (kind) {

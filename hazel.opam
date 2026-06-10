@@ -33,6 +33,9 @@ depends: [
   "ppx_deriving_qcheck"
   "bignum"
   "csv"
+  "re"
+  "uuseg"
+  "uucp"
   "odoc" {with-doc}
 ]
 build: [

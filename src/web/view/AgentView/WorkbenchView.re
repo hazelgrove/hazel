@@ -1,6 +1,6 @@
 open Virtual_dom.Vdom;
 open Node;
-open Util.WebUtil;
+open WebUtil;
 open Util;
 open Haz3lcore;
 
@@ -455,6 +455,7 @@ let view =
                               [
                                 text(
                                   TimeUtil.format_time_diff(
+                                    ~now=JsUtil.timestamp(),
                                     task.metadata.last_updated_at,
                                   ),
                                 ),

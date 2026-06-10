@@ -441,7 +441,7 @@ module WithContext = {
       )
       : option(Ui_effect.t(unit)) => {
     let items = get_all_items(~info_map, ~elaborated, zipper);
-    Menu.key_dispatcher(
+    MenuView.key_dispatcher(
       ~items,
       ~dispatch_menu,
       ~dispatch_action,
@@ -476,7 +476,7 @@ let get_direction =
     let caret_top =
       rect##.top +. Float.of_int(point.row + 1) *. font_metrics.row_height;
     let space =
-      Menu.space_from(
+      MenuView.space_from(
         ~anchor_top=caret_top,
         ~anchor_bot=caret_top,
         ~anchor_left=caret_left,
@@ -505,7 +505,7 @@ let view =
   let caret_point = Zipper.Caret.point(syntax.measured, z);
   let items = get_all_items(~info_map, ~elaborated, z);
   let menu_items =
-    Menu.render(
+    MenuView.render(
       ~inject_action=inject,
       ~inject_menu,
       ~item_class="named-menu-item",

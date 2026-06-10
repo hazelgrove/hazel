@@ -1,6 +1,6 @@
 /*
      A helper module for making things calculate incrementally. Eventually
-     this module will hopefully be made redundant by the Bonsai tree.
+     this module will hopefully be made redundant by the bonsai tree.
  */
 
 // ================================================================================

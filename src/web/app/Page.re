@@ -625,7 +625,7 @@ module View = {
         model.globals.meta_down == meta_down
           ? [] : [inject(Globals(SetMetaDown(meta_down)))];
       /* Page-level keys only. Editor-specific keys are handled by
-       * each editor's own Key.handler and won't bubble here
+       * each editor's own KeyEvent.handler and won't bubble here
        * (they call Stop_propagation). */
       let page_action =
         switch (key) {
@@ -714,7 +714,7 @@ module View = {
       );
     };
     [
-      Key.listener(~f=handle_key_event),
+      KeyEvent.listener(~f=handle_key_event),
       Attr.on_blur(_ => {
         JsUtil.focus_clipboard_shim();
         model.globals.meta_down

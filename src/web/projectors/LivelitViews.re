@@ -29,7 +29,7 @@ let of_typed =
 let slider_view = (model: Livelit.Slider.model_t, send_action) => {
   let n = model;
 
-  Util.WebUtil.range(
+  WebUtil.range(
     ~attrs=[
       Attr.on_input((_, v: string) => {
         send_action(Livelit.Slider.SetModel(Bigint.of_string(v)))
@@ -97,7 +97,7 @@ let emotion_view = (model: Livelit.Emotion.model_t, send_action) => {
         ),
       ],
     ),
-    Util.WebUtil.range(
+    WebUtil.range(
       ~attrs=[
         Attr.on_input((_, v) => {
           send_action(Livelit.Emotion.SetModel(Bigint.of_string(v)))

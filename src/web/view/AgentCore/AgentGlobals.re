@@ -77,8 +77,7 @@ module Update = {
       : Model.t => {
     switch (action) {
     | SetApiKey(api_key) =>
-      OpenRouter.AvailableLLMs.Utils.get_models(
-        ~key=api_key, ~handler=response => {
+      OpenRouterHttp.get_models(~key=api_key, ~handler=response => {
         switch (response) {
         | Some(json) =>
           switch (

@@ -358,7 +358,7 @@ let render =
             let items =
               items_for_column(info, exp, headers, local, parent, j);
             let menu_nodes =
-              Menu.render(
+              MenuView.render(
                 ~inject_action=thunk => thunk(),
                 ~inject_menu=a => local(MenuAction(a)),
                 ~item_class="named-menu-item",
@@ -366,7 +366,7 @@ let render =
                 menu_t,
               );
             let dir =
-              Menu.direction_from_id(
+              MenuView.direction_from_id(
                 ~menu_height=200.0,
                 ~menu_width=180.0,
                 menu_button_id(i),
@@ -441,7 +441,7 @@ let render =
     | None => None
     | Some((col, menu_t)) =>
       let items = items_for_column(info, exp, headers, local, parent, col);
-      Menu.key_dispatcher(
+      MenuView.key_dispatcher(
         ~items,
         ~dispatch_menu=a => local(MenuAction(a)),
         ~dispatch_action=thunk => thunk(),

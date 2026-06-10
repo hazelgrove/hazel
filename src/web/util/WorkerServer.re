@@ -65,4 +65,10 @@ let on_request = (req: Request.t): unit => {
   Js_of_ocaml.Worker.post_message(resp);
 };
 
-let start = () => Js_of_ocaml.Worker.set_onmessage(on_request);
+let start = () => {
+  /* The worker evaluates programs (and records probe samples) in its own
+     JS context, so it installs its own clock for sample timestamps. */
+  Util.TimeUtil.now_ms :=
+    (() => Js_of_ocaml.Js.Unsafe.global##.performance##now()##valueOf);
+  Js_of_ocaml.Worker.set_onmessage(on_request);
+};

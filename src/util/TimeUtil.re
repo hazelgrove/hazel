@@ -47,8 +47,9 @@ let measure_time = (name: string, measure: bool, f: unit => 'a): 'a =>
     f();
   };
 
-let format_time_diff = (prior: float): string => {
-  let now = JsUtil.timestamp();
+/* [now] is an epoch timestamp in milliseconds (e.g. JsUtil.timestamp()
+   in the browser); kept as a parameter so this module stays pure. */
+let format_time_diff = (~now: float, prior: float): string => {
   let diff_seconds = (now -. prior) /. 1000.0;
   let diff_mins = floor(diff_seconds /. 60.0);
   let diff_hours = floor(diff_mins /. 60.0);

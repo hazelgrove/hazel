@@ -134,7 +134,7 @@ let value_view =
       ),
       Attr.on_double_click(_ => local(ToggleWindowMode)),
       Attr.on_pointerdown(evt =>
-        Key.meta_held(evt)
+        KeyEvent.meta_held(evt)
           ? Option.is_some(ctx.ap_id) ? pin_call(ctx) : focus_call(ctx)
           : val_pointerdown(evt)
       ),
@@ -711,7 +711,7 @@ let indicated_sample = (ctx: probe_ctx): option(Sample.t) =>
 let key_handler = (ctx: probe_ctx, ~id: Id.t, local, evt) => {
   let {ap_id, parent, _} = ctx;
   open Effect;
-  let key = Key.mk(KeyDown, evt);
+  let key = KeyEvent.mk(KeyDown, evt);
   switch (key.key) {
   | D("E" | "e") when key.meta == Down || key.ctrl == Down => parent(Remove)
   | D("Escape") when key.shift == Down =>
@@ -801,7 +801,7 @@ let key_handler = (ctx: probe_ctx, ~id: Id.t, local, evt) => {
     | _ => Many([Stop_propagation, Prevent_default])
     }
   | D("/") => Many([local(ToggleShowEnv), Stop_propagation, Prevent_default])
-  | D("c" | "C") when Key.meta_held(evt) || Key.ctrl_held(evt) =>
+  | D("c" | "C") when KeyEvent.meta_held(evt) || KeyEvent.ctrl_held(evt) =>
     switch (indicated_sample(ctx)) {
     | Some(sample) =>
       let seg = ctx.utility.term_to_seg(~inline=true, Exp(sample.value));
@@ -811,7 +811,8 @@ let key_handler = (ctx: probe_ctx, ~id: Id.t, local, evt) => {
       Many([Stop_propagation, Prevent_default]);
     | None => Many([Stop_propagation, Prevent_default])
     }
-  | D("z" | "Z") when Key.ctrl_held(evt) || Key.meta_held(evt) => Ignore // Defer to parent editor undo for now
+  | D("z" | "Z") when KeyEvent.ctrl_held(evt) || KeyEvent.meta_held(evt) =>
+    Ignore // Defer to parent editor undo for now
   | _ => Many([Stop_propagation])
   };
 };

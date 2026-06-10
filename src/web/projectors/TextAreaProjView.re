@@ -18,7 +18,7 @@ let focus_parent_editor = (id): unit => {
 
 let key_handler = (id, ~parent, evt) => {
   open Effect;
-  let key = Key.mk(KeyDown, evt);
+  let key = KeyEvent.mk(KeyDown, evt);
 
   switch (key.key) {
   | D("ArrowRight" | "ArrowDown")
@@ -30,10 +30,13 @@ let key_handler = (id, ~parent, evt) => {
     focus_parent_editor(id);
     Many([parent(Escape(Left)), Stop_propagation]);
   /* Defer to parent editor undo for now */
-  | D("z" | "Z" | "y" | "Y") when Key.ctrl_held(evt) || Key.meta_held(evt) =>
+  | D("z" | "Z" | "y" | "Y")
+      when KeyEvent.ctrl_held(evt) || KeyEvent.meta_held(evt) =>
     Many([Prevent_default])
   | D("z" | "Z")
-      when Key.shift_held(evt) && (Key.ctrl_held(evt) || Key.meta_held(evt)) =>
+      when
+        KeyEvent.shift_held(evt)
+        && (KeyEvent.ctrl_held(evt) || KeyEvent.meta_held(evt)) =>
     Many([Prevent_default])
   | D("\"") =>
     /* Hide quotes from both the textarea and parent editor */
