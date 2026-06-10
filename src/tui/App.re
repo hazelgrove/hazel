@@ -2,7 +2,7 @@ open Haz3lcore;
 open Util;
 
 /* The TUI application model and update/render functions. Pure except for
-   Save (writes the file); the node event loop in Tui.re drives it. The
+   Save (writes the file); the select loop in Tui.re drives it. The
    update cycle mirrors CodeWithStatics.Update.calculate minus the
    debounce/worker machinery: perform action -> recompute statics if the
    action edited -> Editor.Update.calculate (syntax/measured). */
@@ -97,10 +97,15 @@ let init = (file: option(string)): model => {
   );
 };
 
-let run_eval = (model: model): model => {
-  let (result, dynamics) = ResultView.run(model.statics);
-  /* recalculate so the syntax cache (probe shapes etc.) sees the new
-     dynamics; statics are unchanged so this is the cheap path */
+/* Install an evaluation result (from the synchronous path or the
+   EvalWorker); recalculate so the syntax cache (probe shapes etc.)
+   sees the new dynamics — statics are unchanged so this is cheap. */
+let apply_eval_result =
+    (
+      (result, dynamics): (ResultView.t, Language.Dynamics.Map.t),
+      model: model,
+    )
+    : model =>
   calculate(
     ~is_edited=false,
     {
@@ -109,7 +114,11 @@ let run_eval = (model: model): model => {
       dynamics,
     },
   );
-};
+
+/* Synchronous evaluation; used by Replay/tests. The interactive loop
+   evaluates in a forked EvalWorker instead. */
+let run_eval = (model: model): model =>
+  apply_eval_result(ResultView.run(model.statics), model);
 
 let perform = (a: Action.t, model: model): model =>
   switch (

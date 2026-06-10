@@ -1,16 +1,20 @@
 open Haz3lcore;
 
-/* Live evaluation of the editor contents. Evaluation is synchronous on
-   the UI thread (no web worker here), so the step limit is essential;
-   callers debounce. */
+open Sexplib.Std;
 
+/* Live evaluation of the editor contents. Interactively, evaluation
+   runs in a forked worker process (EvalWorker) so the UI never blocks;
+   the step limit bounds how long a doomed program burns background CPU
+   before reporting. Replay/tests evaluate synchronously. */
+
+[@deriving (show({with_path: false}), sexp)]
 type t =
   | Pending
   | EvalOk(string)
   | EvalErr(string)
   | TimedOut;
 
-let step_limit = 100_000;
+let step_limit = 100_000_000;
 
 /* Result-printing recipe duplicated from src/CLI/Print.re (CLI modules
    belong to another executable so they can't be linked from here).

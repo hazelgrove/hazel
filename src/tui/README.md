@@ -67,8 +67,10 @@ re-attaches to the caret on the next keyboard action).
 - Editor with line-number gutter; viewport follows the caret.
 - Errors/warnings undercurled in place; backpack (picked-up shards
   awaiting Tab put-down) floats next to the caret as a `⇧` chip.
-- Result pane: live evaluation of the buffer (200 ms debounce,
-  100k-step limit since evaluation is synchronous here).
+- Result pane: live evaluation of the buffer (200 ms debounce),
+  asynchronously in a forked worker process — long evaluations never
+  block typing, and an edit kills the in-flight worker. The 100M-step
+  limit only bounds background CPU on doomed programs.
 - Status bar: file + dirty flag, caret position, type at cursor
   (mini cursor inspector), error/warning counts.
 

@@ -135,6 +135,39 @@ let install_exit_guards = (): unit => {
   };
 };
 
+/* What woke the main loop up */
+type wake =
+  | Input(string) /* bytes from stdin */
+  | Eof /* stdin closed */
+  | Ready(Unix.file_descr) /* an extra fd (e.g. eval worker pipe) is readable */
+  | Tick; /* timeout or signal (e.g. SIGWINCH) */
+
+/* Blocking wait on stdin plus any extra fds, with an optional timeout
+   in seconds. */
+let wait =
+    (~extra: list(Unix.file_descr)=[], ~timeout: option(float), ()): wake => {
+  let t =
+    switch (timeout) {
+    | Some(t) => max(0.0, t)
+    | None => (-1.0)
+    };
+  switch (Unix.select([Unix.stdin, ...extra], [], [], t)) {
+  | exception (Unix.Unix_error(EINTR, _, _)) => Tick /* signal (e.g. WINCH) */
+  | ([], _, _) => Tick /* timeout */
+  | (ready, _, _) =>
+    if (List.mem(Unix.stdin, ready)) {
+      let buf = Bytes.create(4096);
+      switch (Unix.read(Unix.stdin, buf, 0, 4096)) {
+      | 0 => Eof
+      | n => Input(Bytes.sub_string(buf, 0, n))
+      | exception (Unix.Unix_error(EINTR, _, _)) => Tick
+      };
+    } else {
+      Ready(List.hd(ready));
+    }
+  };
+};
+
 /* Blocking wait for input with an optional timeout (seconds).
    Returns the bytes read ("" on timeout), or None on EOF. */
 let read_input = (~timeout: option(float)): option(string) => {

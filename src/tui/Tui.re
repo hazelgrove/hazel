@@ -47,6 +47,16 @@ let run = (file: option(string)) => {
   /* absolute-time deadlines for the debounced eval and lone-ESC flush */
   let eval_at: ref(option(float)) = ref(None);
   let esc_at: ref(option(float)) = ref(None);
+  /* the forked evaluation worker, if one is running */
+  let worker: ref(option(EvalWorker.t)) = ref(None);
+
+  let kill_worker = () =>
+    switch (worker^) {
+    | Some(w) =>
+      EvalWorker.kill(w);
+      worker := None;
+    | None => ()
+    };
 
   let render = () => {
     let size = TermIO.size();
@@ -73,6 +83,8 @@ let run = (file: option(string)) => {
       events,
     );
     if (model^.result == ResultView.Pending && eval_at^ == None) {
+      /* the program changed: any in-flight result is stale */
+      kill_worker();
       eval_at := Some(Unix.gettimeofday() +. eval_debounce);
     };
     render();
@@ -99,8 +111,8 @@ let run = (file: option(string)) => {
     | Some(t) when now >= t =>
       eval_at := None;
       if (model^.result == ResultView.Pending) {
-        model := App.run_eval(model^);
-        render();
+        kill_worker();
+        worker := Some(EvalWorker.start(model^.statics));
       };
     | _ => ()
     };
@@ -122,10 +134,28 @@ let run = (file: option(string)) => {
            None,
          )
       |> Option.map(t => max(0.0, t -. Unix.gettimeofday()));
-    switch (TermIO.read_input(~timeout)) {
-    | None => quit := true /* EOF */
-    | Some("") => () /* timeout or signal; loop fires timers */
-    | Some(chunk) =>
+    let extra =
+      switch (worker^) {
+      | Some(w) => [w.fd]
+      | None => []
+      };
+    switch (TermIO.wait(~extra, ~timeout, ())) {
+    | Eof => quit := true
+    | Tick => () /* timeout or signal; loop fires timers */
+    | Ready(_) =>
+      /* evaluation finished: install the result + probe samples */
+      switch (worker^) {
+      | Some(w) =>
+        worker := None;
+        switch (EvalWorker.collect(w)) {
+        | Some(payload) =>
+          model := App.apply_eval_result(payload, model^);
+          render();
+        | None => () /* worker died mid-write; an edit will reschedule */
+        };
+      | None => ()
+      }
+    | Input(chunk) =>
       let (st, events) = AnsiInput.parse(input^, chunk);
       input := st;
       /* a pending lone ESC is a bare Escape press unless more bytes of
@@ -137,6 +167,7 @@ let run = (file: option(string)) => {
       };
     };
   };
+  kill_worker();
   TermIO.leave();
 };
 
