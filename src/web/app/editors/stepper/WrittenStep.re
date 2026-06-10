@@ -13,6 +13,7 @@ type model'('stepper) = {
   at_exp: Exp.t,
   with_exp: Exp.t,
   justification: string,
+  trace_summary: option(RewriteChecker.trace_summary),
   next_exp: Calc.saved(Exp.t),
 };
 
@@ -22,6 +23,7 @@ type persistent'('stepper) = {
   at_exp: Exp.t,
   with_exp: Exp.t,
   justification: string,
+  trace_summary: option(RewriteChecker.trace_summary),
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -62,6 +64,7 @@ module F =
       at_exp: model.at_exp,
       with_exp: model.with_exp,
       justification: model.justification,
+      trace_summary: model.trace_summary,
     };
   };
 
@@ -71,6 +74,7 @@ module F =
       at_exp: p.at_exp,
       with_exp: p.with_exp,
       justification: p.justification,
+      trace_summary: p.trace_summary,
       next_exp: Calc.Pending,
     };
   };
@@ -93,7 +97,7 @@ module F =
         ~ana as _,
         model: model,
       ) => {
-    let {at_idx, at_exp, with_exp, next_exp, justification} = model;
+    let {at_idx, at_exp, with_exp, next_exp, justification, trace_summary} = model;
     let+ next_exp =
       next_exp
       |> Calc.map_saved(Option.some)
@@ -110,6 +114,7 @@ module F =
         with_exp,
         next_exp: next_exp |> Calc.save,
         justification,
+        trace_summary,
       },
       hidden |> Calc.set(false),
       Some(next_exp),
@@ -133,7 +138,17 @@ module F =
         ~is_toplevel as _: bool,
         m: model,
       ) =>
-    WebUtil.Node.text(m.justification);
+    switch (m.trace_summary) {
+    | Some(summary) =>
+      let rule_count = List.length(summary.rule_ids);
+      let suffix =
+        summary.exportable
+          ? Printf.sprintf(" (%d exportable rules)", rule_count) : "";
+      WebUtil.Node.text(
+        RewriteChecker.trace_summary_label(summary) ++ suffix,
+      );
+    | None => WebUtil.Node.text(m.justification)
+    };
 
   let view_content =
       (

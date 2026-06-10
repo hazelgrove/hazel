@@ -45,6 +45,14 @@ let require_written_result = (left, right) =>
   | None => fail("expected written step to be accepted")
   };
 
+let require_written_trace = (left, right) =>
+  switch (
+    Web.RewriteChecker.check_written_step_trace(~settings, ~env, left, right)
+  ) {
+  | Some(result) => result
+  | None => fail("expected written step trace to be accepted")
+  };
+
 let rewrite_group_name = (group: Axioms.rewrite_group) => group.name;
 
 let rewrite_group_level = (group: Axioms.rewrite_group) => group.level;
@@ -53,16 +61,22 @@ let rewrite_rule_id = (rule: Axioms.rewrite_rule) => rule.id;
 
 let prover_hint_prover = (hint: Axioms.prover_hint) => hint.prover;
 
+let prover_hint_tactic = (hint: Axioms.prover_hint) => hint.tactic;
+
 let has_lean_hint = (rule: Axioms.rewrite_rule) =>
   rule.prover_hints |> List.exists(hint => prover_hint_prover(hint) == "lean");
 
 let has_trace_rule = (rule_id, result: Web.RewriteChecker.check_result) =>
   result.trace |> List.exists(rule => rewrite_rule_id(rule) == rule_id);
 
+let has_rule_id = (rule_id, rule_ids) => rule_ids |> List.mem(rule_id);
+
+let check_exp_equal = (name, expected, actual) =>
+  check(bool, name, true, Language.Exp.fast_equal(expected, actual));
+
 let check_simplifies = (name, input, expected) =>
   switch (Web.RewriteChecker.simplify_arithmetic(~settings, ~env, input)) {
-  | Some(actual) =>
-    check(bool, name, true, Language.Exp.fast_equal(expected, actual))
+  | Some(actual) => check_exp_equal(name, expected, actual)
   | None => fail(name ++ " did not simplify")
   };
 
@@ -233,6 +247,83 @@ let tests = (
       },
     ),
     test_case(
+      "affine written step exposes exportable trace summary",
+      `Quick,
+      () => {
+        let summary =
+          require_written_trace(
+            plus(Exp.int(3), Exp.var("x")),
+            plus(Exp.var("x"), Exp.int(3)),
+          );
+        check(
+          string,
+          "label",
+          "arithmetic",
+          Web.RewriteChecker.trace_summary_label(summary),
+        );
+        check(
+          option(string),
+          "group",
+          Some("arithmetic"),
+          summary.group_name,
+        );
+        check(bool, "exportable", true, summary.exportable);
+        check(
+          bool,
+          "trace has commutativity",
+          true,
+          has_rule_id("arith.add_comm", summary.rule_ids),
+        );
+        check(
+          bool,
+          "trace has collection",
+          true,
+          has_rule_id("arith.collect_like_terms", summary.rule_ids),
+        );
+        check(
+          bool,
+          "from trace keeps side rules",
+          true,
+          has_rule_id("arith.add_comm", summary.from_rule_ids),
+        );
+        check(
+          bool,
+          "to trace keeps side rules",
+          true,
+          has_rule_id("arith.add_comm", summary.to_rule_ids),
+        );
+        check_exp_equal(
+          "from normal expression",
+          plus(Exp.var("x"), Exp.int(3)),
+          summary.from_normal_exp,
+        );
+        check_exp_equal(
+          "to normal expression",
+          plus(Exp.var("x"), Exp.int(3)),
+          summary.to_normal_exp,
+        );
+        let (from_hints, to_hints) =
+          Web.RewriteChecker.trace_summary_prover_hints(
+            ~prover="lean",
+            summary,
+          );
+        check(
+          bool,
+          "from trace has lean hint",
+          true,
+          from_hints
+          |> List.exists(hint => prover_hint_tactic(hint) == "rw [add_comm]"),
+        );
+        check(
+          bool,
+          "to trace has lean hint",
+          true,
+          to_hints
+          |> List.exists(hint => prover_hint_tactic(hint) == "rw [add_comm]"),
+        );
+      },
+    ),
+    test_case(
       "evaluation equality fallback is not exportable",
       `Quick,
       () => {
@@ -251,6 +342,26 @@ let tests = (
         );
         check(bool, "not exportable", false, result.exportable);
         check(int, "no trace", 0, result.trace |> List.length);
+        check(int, "no from trace", 0, result.from_trace |> List.length);
+        check(int, "no to trace", 0, result.to_trace |> List.length);
+        check_exp_equal(
+          "from normal value",
+          Exp.bool(true),
+          result.from_normal_exp,
+        );
+        check_exp_equal(
+          "to normal value",
+          Exp.bool(true),
+          result.to_normal_exp,
+        );
+        let summary = Web.RewriteChecker.trace_summary_of_result(result);
+        let (from_hints, to_hints) =
+          Web.RewriteChecker.trace_summary_prover_hints(
+            ~prover="lean",
+            summary,
+          );
+        check(int, "no from hints", 0, from_hints |> List.length);
+        check(int, "no to hints", 0, to_hints |> List.length);
       },
     ),
   ],

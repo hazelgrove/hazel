@@ -94,7 +94,7 @@ and step_action =
   | AddForall
   | AddAxiomStep(string, int, Exp.t, Direction.t, string)
   | AddAlgebriteStep(int, Exp.t, Exp.t)
-  | AddWrittenStep(string, int, Exp.t, Exp.t)
+  | AddWrittenStep(RewriteChecker.trace_summary, int, Exp.t, Exp.t)
   | CoqExport;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -1142,7 +1142,7 @@ and Stepper: {
         |> return
       | (AddAlgebriteStep(_, _, _), _, _) => model |> raise_invalid_action
       | (
-          AddWrittenStep(justification, at_idx, at_exp, with_exp),
+          AddWrittenStep(trace_summary, at_idx, at_exp, with_exp),
           MissingStep(_),
           _,
         ) =>
@@ -1153,7 +1153,9 @@ and Stepper: {
               at_idx,
               at_exp,
               with_exp,
-              justification,
+              justification:
+                RewriteChecker.trace_summary_label(trace_summary),
+              trace_summary: Some(trace_summary),
               next_exp: Calc.Pending,
             }),
         }

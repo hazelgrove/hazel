@@ -16,7 +16,7 @@ module Model = {
     | WrittenStepOpen({
         editor: CodeEditable.Model.t,
         cached_exp: Calc.saved(Exp.t),
-        cached_result: Calc.saved(option(string)),
+        cached_result: Calc.saved(option(RewriteChecker.trace_summary)),
       })
     | NoneOpen;
 
@@ -393,7 +393,7 @@ module Update = {
                    ),
               );
             let to_exp = Substitution.in_exp(env, to_exp);
-            RewriteChecker.check_written_step_at_level(
+            RewriteChecker.check_written_step_trace_at_level(
               ~level=rewrite_level,
               ~settings,
               ~env,
@@ -489,7 +489,7 @@ module View = {
     | HideStepper
     | AddAxiomStep(string, int, Exp.t, Direction.t, string)
     | AddAlgebriteStep(int, Exp.t, Exp.t)
-    | AddWrittenStep(string, int, Exp.t, Exp.t)
+    | AddWrittenStep(RewriteChecker.trace_summary, int, Exp.t, Exp.t)
     | AutoSimplify(Exp.t, Exp.t)
     | MakeActive(Selection.t)
     | TakeStep(int)
@@ -769,7 +769,7 @@ module View = {
             ]
             @ {
               switch (cached_result) {
-              | Some(Some(j)) => [
+              | Some(Some(trace_summary)) => [
                   Node.text("Valid"),
                   Widgets.button(
                     ~clss=["proof-button"],
@@ -778,7 +778,7 @@ module View = {
                     _ =>
                     signal(
                       AddWrittenStep(
-                        j,
+                        trace_summary,
                         ProofHacks.exp_idx(
                           unboxed_selected_exp,
                           model.full_visible_exp

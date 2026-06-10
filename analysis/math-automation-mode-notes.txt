@@ -1,0 +1,16 @@
+On arithmetic and one-step mode:
+- we don't have any axioms written yet to use in "assumptions" (that's the correct place right?)
+- We should disable the rewrite checker button because that lets us take steps that are too large using algebrite, right? 
+- But maybe a single eval step fill-in-box is fine if it only permits operations that take a single exportable rule. That is, rewrite 1+2+3+4 to 1+2+4+3 BUT NOT 2+1 + 4+3 because that's two commutations, you see? 
+
+Arithmetic and Check result mode:
+- this is good as-is I think, but let's make sure our exportable rules and axioms and all work when we go to do theorem prover export to Lean later. 
+
+Arithmetic and Auto eval:
+- Make sure our simplificaiton procedure also follows good process so we build a tree of those exportable rules for the proof-for-export at the end of this 
+
+After merging/rebasing reparenthesization:
+- Come back to these mode notes before implementing algebra. In particular,
+  decide exactly what "one step" means for exportable arithmetic axioms, and
+  disable or narrow any legacy rewrite checker path that can still accept
+  overly large Algebrite-style steps.

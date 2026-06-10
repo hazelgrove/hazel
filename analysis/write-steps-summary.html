@@ -494,10 +494,14 @@ x + 3 - x  ==  3</code></pre>
           and fall through to the bounded evaluation checker.
         </p>
         <div class="callout warning">
-          This still validates by comparing normal forms, not by emitting a
-          replayable proof trace. The next export-oriented step is to record
-          rewrite rules such as associativity, commutativity, constant folding,
-          and constant scaling while building the affine form.
+          This still validates by comparing normal forms. Successful written
+          steps now preserve an export-oriented trace summary with the checker
+          label, rewrite group, each side's normal expression, side-specific
+          rule ids, combined rule ids, and exportability flag. The next
+          export-oriented bridge resolves those persisted rule ids back to
+          <code>Axioms.re</code> rules and prover hints by side; after that, the
+          remaining work is to replace those rule summaries with replayable
+          before/after proof steps.
         </div>
         <p>
           New quick tests cover <code>3 + x = x + 3</code>,
@@ -1153,14 +1157,15 @@ check_rewrite_result_at_level(~level, ...)</code></pre>
             or per-exercise policy.
           </li>
           <li>
-            The current displayed justification is checker-level
-            (<code>arithmetic</code> or <code>same evaluated result</code>), not
-            a detailed derivation of the normalization process.
+            Written steps now store a trace summary, but the displayed
+            justification is still checker-level (<code>arithmetic</code> or
+            <code>same evaluated result</code>), not a detailed derivation of the
+            normalization process.
           </li>
           <li>
             <code>Auto Eval</code> currently reifies a canonical affine result,
-            but it does not yet expose the hidden rewrite sequence needed for a
-            theorem prover.
+            but it does not yet expose or persist the hidden rewrite sequence
+            needed for a theorem prover.
           </li>
         </ul>
       </section>
@@ -1184,8 +1189,8 @@ check_rewrite_result_at_level(~level, ...)</code></pre>
             <code>3 * x + 10</code>.
           </li>
           <li>
-            Replace checker-level justifications with trace records built from
-            trusted rewrite groups in <code>Axioms.re</code>.
+            Replace trace summaries with replayable proof-step records built
+            from trusted rewrite groups in <code>Axioms.re</code>.
           </li>
           <li>
             Attach theorem-prover metadata to each rewrite rule, so the hidden
@@ -1198,6 +1203,400 @@ check_rewrite_result_at_level(~level, ...)</code></pre>
             subterm evaluation should all be selectable per rewrite group.
           </li>
         </ul>
+      </section>
+
+      <section>
+        <h2>Thesis Proposal Roadmap</h2>
+        <p>
+          Canonical standalone roadmap:
+          <a href="./thesis-proposal-roadmap.html"><code>analysis/thesis-proposal-roadmap.html</code></a>.
+          This section is the compact in-branch copy.
+        </p>
+        <p>
+          Source: <code>/Users/nishant/Downloads/nishant-thesis-proposal-document.pdf</code>.
+          The proposed research frames this branch as one part of a larger Hazel
+          Prover extension: an exploratory engineering-math interface where
+          users can manipulate symbolic derivations in Hazel and export completed
+          step traces to a full theorem prover such as Lean or Rocq.
+        </p>
+
+        <h3>Big Picture Goal</h3>
+        <p>
+          Hazel should support rigorous symbolic work by practitioners who are
+          comfortable with engineering mathematics but not necessarily with proof
+          assistant syntax. The interface should preserve the current
+          paper-like, selection-driven proof workflow while adding enough
+          automation to reduce bookkeeping without hiding reasoning steps that
+          matter for learning, trust, or theorem-prover export.
+        </p>
+
+        <h3>Architecture Requirements</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>Need</th>
+              <th>Implementation Direction</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Retain and manipulate expressions across steps</td>
+              <td>
+                Preserve selected subexpressions, normalized forms, and accepted
+                rewrite traces as first-class stepper state. Avoid storing only
+                display strings such as <code>arithmetic</code>.
+              </td>
+            </tr>
+            <tr>
+              <td>Selectable step granularity</td>
+              <td>
+                Keep the exercise-level automation mode: one visible step,
+                checked multi-step equivalence, or automatic simplification.
+                Each mode should be available per math level rather than chosen
+                independently for every step.
+              </td>
+            </tr>
+            <tr>
+              <td>Curated rule groups</td>
+              <td>
+                Grow <code>Axioms.re</code> from arithmetic metadata into a
+                database of named rewrite groups: algebra, trigonometry,
+                functions, calculus, inequalities, and linear algebra. Each rule
+                needs applicability information and prover mappings.
+              </td>
+            </tr>
+            <tr>
+              <td>Contextual rule application</td>
+              <td>
+                When a user selects a subexpression, filter rewrite rules and
+                operations by syntactic match, preconditions, math level, and
+                automation policy. Multiple valid rules should be visible and
+                selectable rather than silently chosen.
+              </td>
+            </tr>
+            <tr>
+              <td>Operations beyond rewrites</td>
+              <td>
+                Treat differentiation, evaluation at a point, Taylor expansion,
+                and matrix operations as proof-producing operations, not just
+                AST rewrites. Projectors are a likely UI surface for these
+                operations.
+              </td>
+            </tr>
+            <tr>
+              <td>Theorem-prover export</td>
+              <td>
+                Store enough structured proof trace to replay each accepted
+                Hazel action in Lean or Rocq. Collapse traces only when the
+                target prover automation can check the collapsed step and the
+                export records that choice.
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h3>Mathematical Capability Ladder</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>Level</th>
+              <th>Capabilities To Add</th>
+              <th>Why It Matters</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Arithmetic and affine algebra</td>
+              <td>
+                Constant folding, associativity/commutativity, collecting like
+                terms, and constant-times-symbolic terms.
+              </td>
+              <td>
+                This is the current foundation for checked written steps and
+                should become the first proof-traced normalizer.
+              </td>
+            </tr>
+            <tr>
+              <td>Algebraic distribution</td>
+              <td>
+                FOIL, distribution, factoring, powers of simple sums, and
+                explicit intermediate expansion choices.
+              </td>
+              <td>
+                Supports the first proposal case study and tests whether the
+                stepper can present useful medium-sized steps.
+              </td>
+            </tr>
+            <tr>
+              <td>Trigonometric identities</td>
+              <td>
+                Bidirectional identities with applicability filters, including
+                Pythagorean and double-angle rewrites.
+              </td>
+              <td>
+                Introduces multiple valid rewrites for the same selected term,
+                forcing the UI to expose choices rather than over-automating.
+              </td>
+            </tr>
+            <tr>
+              <td>Functions and calculus</td>
+              <td>
+                Function expressions, symbolic differentiation, product rule,
+                chain rule, integration hooks, and evaluation at a point.
+              </td>
+              <td>
+                Moves beyond equational rewrites into operations from
+                expressions to expressions, likely through custom projectors.
+              </td>
+            </tr>
+            <tr>
+              <td>Taylor series workflows</td>
+              <td>
+                Repeated derivatives, substitution/evaluation at an expansion
+                point, retained intermediate expressions, and polynomial
+                assembly.
+              </td>
+              <td>
+                Exercises multi-step retention and trace visibility; early
+                mistakes propagate, so every step needs to remain inspectable.
+              </td>
+            </tr>
+            <tr>
+              <td>Inequality reasoning</td>
+              <td>
+                Bounds, mixed equality/inequality chains, monotonicity and
+                absolute-value rules, and explicit rule justifications.
+              </td>
+              <td>
+                Requires a representational design beyond the current
+                equality-only stepper model.
+              </td>
+            </tr>
+            <tr>
+              <td>Linear algebra and Jacobians</td>
+              <td>
+                Matrix/vector syntax, elementwise symbolic operations,
+                differentiation over matrix entries, and equilibrium
+                substitution.
+              </td>
+              <td>
+                Supports the stretch case study: Jacobian linearization for
+                control-theory style Aero 350 workflows.
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h3>Target Case Studies</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>Case Study</th>
+              <th>Representative Task</th>
+              <th>Implementation Milestone</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Algebraic distribution</td>
+              <td>
+                Expand <code>(x + 1)^2</code> into
+                <code>x^2 + 2x + 1</code> through selected subexpression
+                rewrites.
+              </td>
+              <td>
+                Algebra rewrite group with distribution/factoring rules and
+                proof-traced medium-grain expansion.
+              </td>
+            </tr>
+            <tr>
+              <td>Trigonometric identities</td>
+              <td>
+                Rewrite expressions such as <code>sin^2(x)</code> using a
+                selected identity path toward a target expression.
+              </td>
+              <td>
+                Identity database with match predicates, preconditions, and UI
+                for choosing among applicable rewrites.
+              </td>
+            </tr>
+            <tr>
+              <td>Symbolic differentiation</td>
+              <td>
+                Differentiate expressions such as <code>x^3 * sin(x)</code>
+                using product and chain rules.
+              </td>
+              <td>
+                Differentiation projector with step-by-step and one-shot modes,
+                plus exportable rule traces.
+              </td>
+            </tr>
+            <tr>
+              <td>Taylor series expansion</td>
+              <td>
+                Repeatedly differentiate, evaluate at an expansion point, and
+                assemble an approximation polynomial.
+              </td>
+              <td>
+                Retained intermediate expressions, evaluate-at operation, and
+                structured derivation traces.
+              </td>
+            </tr>
+            <tr>
+              <td>Inequality bounding</td>
+              <td>
+                Prove bounds such as <code>|sin(x) - sin(y)| <= |x - y|</code>
+                by combining equalities, theorem applications, and inequalities.
+              </td>
+              <td>
+                Inequality representation and bounding-rule workflow with
+                recorded justifications.
+              </td>
+            </tr>
+            <tr>
+              <td>Jacobian linearization</td>
+              <td>
+                Compute <code>df/dx</code> for a nonlinear system at an
+                equilibrium as a matrix of symbolic derivatives.
+              </td>
+              <td>
+                Matrix/vector constructs and elementwise symbolic operations
+                over Hazel expressions.
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h3>Evaluation Signals To Preserve</h3>
+        <ul>
+          <li>
+            Low setup cost: users should begin solving representative tasks
+            without learning theorem-prover syntax first.
+          </li>
+          <li>
+            Low interaction overhead: routine rewrites, differentiation, and
+            substitution should not require excessive clicking or typing.
+          </li>
+          <li>
+            Step granularity: automation should avoid both full-expression
+            black-box simplification and tiny bookkeeping-only rewrites.
+          </li>
+          <li>
+            Mathematical coverage: every new implementation slice should map
+            back to at least one proposal case study.
+          </li>
+          <li>
+            Trust and verification: accepted Hazel steps should be inspectable
+            and eventually exportable as machine-checkable proof obligations.
+          </li>
+        </ul>
+      </section>
+
+      <section>
+        <h2>Theorem Prover Trace Plan</h2>
+        <p>
+          The current arithmetic normalizer is good enough to decide whether two
+          affine expressions are equivalent, but it is not yet a proof object.
+          It canonicalizes both expressions into maps of constants and variable
+          coefficients, then compares those normal forms. For theorem prover
+          export, we should keep that normal form as the planner, but also emit
+          a replayable derivation from each original expression to the shared
+          normal form.
+        </p>
+
+        <h3>Target Shape</h3>
+        <pre><code>type proof_step = {
+  before: Exp.t,
+  after: Exp.t,
+  rule: Axioms.rewrite_rule,
+  focus: option(Id.t),
+  prover_hint: option(Axioms.prover_hint),
+};
+
+type normalization_proof = {
+  original: Exp.t,
+  normal: Exp.t,
+  steps: list(proof_step),
+};</code></pre>
+
+        <p>
+          A successful written step should eventually store a
+          <code>normalization_proof</code>, not only a justification string such
+          as <code>arithmetic</code>. For <code>e1 == e2</code>, the checker
+          should produce two traces:
+        </p>
+        <ol>
+          <li><code>e1 = normal_form</code></li>
+          <li><code>e2 = normal_form</code></li>
+        </ol>
+        <p>
+          The exporter can then combine those traces to prove
+          <code>e1 = e2</code> by transitivity and symmetry.
+        </p>
+
+        <h3>Arithmetic Pipeline</h3>
+        <p>
+          The first version should keep the affine-map checker for validation,
+          then generate a structured trace by phase:
+        </p>
+        <ol>
+          <li>Reassociate additions into a predictable tree shape.</li>
+          <li>Push subtraction and negation into coefficients.</li>
+          <li>Normalize constant multiplications such as <code>2 * x</code>.</li>
+          <li>Sort terms using adjacent commutativity swaps.</li>
+          <li>Collect adjacent like terms.</li>
+          <li>Fold constants.</li>
+          <li>Rebuild the canonical expression.</li>
+        </ol>
+
+        <div class="callout">
+          <code>Axioms.re</code> should remain the source of truth for rewrite
+          rule names, groups, and prover hints. <code>RewriteChecker.re</code>
+          should perform normalization and return the trace. The stepper should
+          store the trace. <code>CoqExport.re</code> or a future
+          <code>LeanExport.re</code> should translate each proof step into prover
+          syntax.
+        </div>
+
+        <h3>Exporter Policy</h3>
+        <p>
+          Large tactics such as <code>ring</code>, <code>ring_nf</code>, and
+          <code>norm_num</code> are useful as debugging fallbacks, but they are
+          too coarse to be the trusted export format. The primary export should
+          prefer small named rewrites, using prover metadata attached to
+          <code>Axioms.re</code> rules such as <code>arith.add_assoc</code>,
+          <code>arith.add_comm</code>, <code>arith.const_fold</code>, and
+          <code>arith.collect_like_terms</code>.
+        </p>
+
+        <h3>Implementation Steps</h3>
+        <ol>
+          <li>
+            Done: extend <code>RewriteChecker.normalized</code> with a normal
+            expression and rule ids for the normalization pass.
+          </li>
+          <li>
+            Done: change <code>check_result</code> so it carries each side's
+            normal expression, side-specific rule traces, a combined trace, and
+            exportability metadata.
+          </li>
+          <li>
+            Done: change <code>WrittenStep</code> to persist an exportable
+            summary of the accepted trace.
+          </li>
+          <li>
+            Done: add helper functions that resolve each side of a persisted
+            trace summary back to <code>Axioms.re</code> rules and prover hints.
+          </li>
+          <li>
+            Add an exporter that emits one lemma per hidden normalization phase,
+            then later tighten each phase into smaller primitive rewrite steps.
+          </li>
+          <li>
+            Keep the current affine normalizer as the equivalence oracle while
+            the proof trace becomes increasingly precise.
+          </li>
+        </ol>
       </section>
     </main>
   </body>

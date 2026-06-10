@@ -23,15 +23,79 @@ type normal_form =
 
 type normalized = {
   normal_form,
+  normal_exp: Exp.t,
   rule_ids: list(string),
 };
 
 type check_result = {
   justification: string,
   group: option(Axioms.rewrite_group),
+  from_normal_exp: Exp.t,
+  to_normal_exp: Exp.t,
+  from_trace: list(Axioms.rewrite_rule),
+  to_trace: list(Axioms.rewrite_rule),
   trace: list(Axioms.rewrite_rule),
   exportable: bool,
 };
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type trace_summary = {
+  justification: string,
+  group_name: option(string),
+  from_normal_exp: Exp.t,
+  to_normal_exp: Exp.t,
+  from_rule_ids: list(string),
+  to_rule_ids: list(string),
+  rule_ids: list(string),
+  exportable: bool,
+};
+
+let trace_summary_of_result = (result: check_result): trace_summary => {
+  justification: result.justification,
+  group_name:
+    result.group |> Option.map((group: Axioms.rewrite_group) => group.name),
+  from_normal_exp: result.from_normal_exp,
+  to_normal_exp: result.to_normal_exp,
+  from_rule_ids:
+    result.from_trace |> List.map((rule: Axioms.rewrite_rule) => rule.id),
+  to_rule_ids:
+    result.to_trace |> List.map((rule: Axioms.rewrite_rule) => rule.id),
+  rule_ids: result.trace |> List.map((rule: Axioms.rewrite_rule) => rule.id),
+  exportable: result.exportable,
+};
+
+let trace_summary_label = (summary: trace_summary): string =>
+  summary.justification;
+
+let trace_summary_rules_for_ids = (summary, rule_ids) =>
+  switch (summary.group_name) {
+  | Some(group_name) =>
+    switch (Axioms.rewrite_group_by_name(group_name)) {
+    | Some(group) =>
+      rule_ids
+      |> List.filter_map(rule_id => Axioms.rewrite_rule_by_id(group, rule_id))
+    | None => []
+    }
+  | None => []
+  };
+
+let trace_summary_from_rules = summary =>
+  trace_summary_rules_for_ids(summary, summary.from_rule_ids);
+
+let trace_summary_to_rules = summary =>
+  trace_summary_rules_for_ids(summary, summary.to_rule_ids);
+
+let prover_hints_for_rules = (~prover, rules) =>
+  rules
+  |> List.filter_map((rule: Axioms.rewrite_rule) =>
+       rule.prover_hints
+       |> List.find_opt((hint: Axioms.prover_hint) => hint.prover == prover)
+     );
+
+let trace_summary_prover_hints = (~prover, summary) => (
+  trace_summary_from_rules(summary) |> prover_hints_for_rules(~prover),
+  trace_summary_to_rules(summary) |> prover_hints_for_rules(~prover),
+);
 
 type checker = {
   justification: string,
@@ -350,22 +414,26 @@ let normalize_affine_with_trace =
   |> DHExp.strip_ascriptions
   |> take_auto_steps(~settings, ~env)
   |> affine_of_exp
-  |> Option.map(normalized =>
+  |> Option.map(normalized => {
+       let affine = canonicalize(normalized.affine);
        {
-         normal_form: Affine(canonicalize(normalized.affine)),
+         normal_form: Affine(affine),
+         normal_exp: exp_of_affine(affine),
          rule_ids: normalized.rule_ids,
-       }
-     );
+       };
+     });
 };
 
 let normalize_by_evaluation =
     (~settings as _: CoreSettings.t, ~env, exp: Exp.t): option(normalized) => {
   switch (Evaluator.evaluate_and_limit(~env, ~step_limit=1000, exp)) {
   | Completed((value, _)) =>
+    let normal_exp = value |> DHExp.strip_ascriptions;
     Some({
-      normal_form: Evaluated(value |> DHExp.strip_ascriptions),
+      normal_form: Evaluated(normal_exp),
+      normal_exp,
       rule_ids: [],
-    })
+    });
   | StepLimitExceeded => None
   | exception _ => None
   };
@@ -414,15 +482,22 @@ let check_with = (~settings, ~env, from_: Exp.t, to_: Exp.t, checker) => {
   ) {
   | (Some(from_normal), Some(to_normal))
       when checker.equivalent(from_normal.normal_form, to_normal.normal_form) =>
-    let trace =
+    let (from_trace, to_trace) =
       switch (checker.group) {
-      | Some(group) =>
-        trace_rules(group, from_normal.rule_ids @ to_normal.rule_ids)
-      | None => []
+      | Some(group) => (
+          trace_rules(group, from_normal.rule_ids),
+          trace_rules(group, to_normal.rule_ids),
+        )
+      | None => ([], [])
       };
+    let trace = dedup(from_trace @ to_trace);
     Some({
       justification: checker.justification,
       group: checker.group,
+      from_normal_exp: from_normal.normal_exp,
+      to_normal_exp: to_normal.normal_exp,
+      from_trace,
+      to_trace,
       trace,
       exportable: trace != [],
     });
@@ -492,6 +567,24 @@ let check_written_step_at_level =
     (~level, ~settings, ~env, from_: Exp.t, to_: Exp.t): option(string) => {
   check_written_step_result_at_level(~level, ~settings, ~env, from_, to_)
   |> Option.map((result: check_result) => result.justification);
+};
+
+let check_written_step_trace_at_level =
+    (~level, ~settings, ~env, from_: Exp.t, to_: Exp.t)
+    : option(trace_summary) => {
+  check_written_step_result_at_level(~level, ~settings, ~env, from_, to_)
+  |> Option.map(trace_summary_of_result);
+};
+
+let check_written_step_trace =
+    (~settings, ~env, from_: Exp.t, to_: Exp.t): option(trace_summary) => {
+  check_written_step_trace_at_level(
+    ~level=Axioms.Arithmetic,
+    ~settings,
+    ~env,
+    from_,
+    to_,
+  );
 };
 
 let check_written_step =
