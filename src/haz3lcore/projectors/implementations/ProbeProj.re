@@ -1737,6 +1737,7 @@ let key_handler =
      * focused); subsequent Escapes fall through to the cases below. */
     Many([local(SetDropdown(None)), Stop_propagation, Prevent_default])
   | D("Escape") when key.shift == Down =>
+    FocusEffect.expect_blur();
     JsUtil.get_elem_by_id(Id.cls(id))##blur;
     Many([local(ResetSettings), parent(SampleFocus(Reset))]);
   | D("Escape") when drawer_mode_active =>
@@ -1744,9 +1745,11 @@ let key_handler =
      * second Esc blurs (handled by the rule below). */
     Many([local(SetDrawerMode(false)), Stop_propagation, Prevent_default])
   | D("Escape") =>
+    FocusEffect.expect_blur();
     JsUtil.get_elem_by_id(Id.cls(id))##blur;
     Many([Stop_propagation, Prevent_default]);
   | D("Enter") when key.meta == Down || key.ctrl == Down =>
+    FocusEffect.expect_blur();
     JsUtil.get_elem_by_id(Id.cls(id))##blur;
     Many([
       parent(EscapeToLineEnd(Probe)),
@@ -1755,6 +1758,7 @@ let key_handler =
     ]);
   /* Cmd+Left (Mac) / Home (PC): bounce back to editor */
   | D("ArrowLeft") when key.meta == Down || key.ctrl == Down =>
+    FocusEffect.expect_blur();
     JsUtil.get_elem_by_id(Id.cls(id))##blur;
     Many([
       parent(EscapeToLineEnd(Probe)),
@@ -1762,6 +1766,7 @@ let key_handler =
       Prevent_default,
     ]);
   | D("Home") =>
+    FocusEffect.expect_blur();
     JsUtil.get_elem_by_id(Id.cls(id))##blur;
     Many([Stop_propagation, Prevent_default]);
   | D("ArrowRight") when key.shift == Down =>

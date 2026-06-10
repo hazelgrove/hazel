@@ -288,6 +288,9 @@ let start = default_model => {
         };
         /* Handle scheduled probe focus from step-into (see ProbePerform.FocusEffect) */
         let _ = Haz3lcore.ProbePerform.FocusEffect.execute();
+        /* Restore probe keyboard focus dropped by vdom reorder moves
+           (see FocusEffect keeper notes) */
+        Haz3lcore.ProbePerform.FocusEffect.keep_focus();
         /* Scroll-compensate when focus bar appears/disappears */
         JsUtil.setup_focus_bar_scroll_compensation();
         /* Update floating elements (backpack) to viewport coordinates */

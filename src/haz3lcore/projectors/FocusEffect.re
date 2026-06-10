@@ -53,3 +53,80 @@ let execute = (): bool =>
     };
   | None => false
   };
+
+/* ── Focus keeper ───────────────────────────────────────────────────
+ *
+ * virtual-dom's keyed child reorder (ORDER patches) implements moves as
+ * removeChild + reinsert. The reorder is non-minimal: when one patch
+ * both inserts and removes siblings — exactly what viewport-culling
+ * churn produces on scroll — it relocates "stable" keyed children too.
+ * A moved element silently loses DOM focus in every browser (Firefox
+ * fires no focus events at all for it), so a keyboard-focused probe
+ * (.live-offside, red sample outline) went dark on a two-line scroll.
+ *
+ * Keeper protocol, run from Main.after_display each frame:
+ *   - while a .live-offside holds focus, remember its DOM id;
+ *   - if focus has fallen to a non-target (body / #page / the clipboard
+ *     shim — i.e. nothing meaningfully took it) while an element with
+ *     that id still exists, re-focus it (preventScroll: the element may
+ *     sit in the culling buffer just outside the viewport);
+ *   - if focus moved to anything meaningful, or the probe element is
+ *     gone (culled/deleted), stand down.
+ * Deliberate blurs (the Escape paths in ProbeProj's key handler) call
+ * `expect_blur` first so the keeper doesn't fight them. */
+
+open Js_of_ocaml;
+
+let kept: ref(option(string)) = ref(None);
+let blur_expected: ref(bool) = ref(false);
+
+let expect_blur = (): unit => blur_expected := true;
+
+let focus_no_scroll = (elem: Js.t(Dom_html.element)): unit =>
+  Js.Unsafe.meth_call(
+    elem,
+    "focus",
+    [|
+      Js.Unsafe.inject(
+        Js.Unsafe.obj([|("preventScroll", Js.Unsafe.inject(Js._true))|]),
+      ),
+    |],
+  );
+
+let keep_focus = (): unit => {
+  let active = Js.Opt.to_option(Dom_html.document##.activeElement);
+  let is_live_offside = (el: Js.t(Dom_html.element)): bool =>
+    Js.to_bool(el##.classList##contains(Js.string("live-offside")));
+  switch (active) {
+  | Some(el) when is_live_offside(el) =>
+    let id = Js.to_string(el##.id);
+    kept := id == "" ? None : Some(id);
+    blur_expected := false;
+  | _ =>
+    if (blur_expected^) {
+      kept := None;
+      blur_expected := false;
+    } else {
+      switch (kept^) {
+      | None => ()
+      | Some(id) =>
+        let fell_to_nothing =
+          switch (active) {
+          | None => true
+          | Some(el) =>
+            let tag = Js.to_string(el##.tagName);
+            let eid = Js.to_string(el##.id);
+            tag == "BODY" || eid == "page" || eid == "clipboard-shim";
+          };
+        if (fell_to_nothing) {
+          switch (JsUtil.get_elem_by_id_opt(id)) {
+          | Some(elem) => focus_no_scroll(elem)
+          | None => kept := None /* probe gone: culled out or deleted */
+          };
+        } else {
+          kept := None; /* something else took focus on purpose */
+        };
+      };
+    }
+  };
+};
