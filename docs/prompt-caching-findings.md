@@ -37,6 +37,25 @@ Each turn re-sends the whole prefix, billed: unchanged prefix **0.1×** (read), 
 **1.25×** (write; **2×** for 1-hr TTL), tail after the breakpoint **1×**. You never pay full
 price on what repeats; cache refreshes free on each hit (5-min sliding TTL). [1]
 
+## Meeting questions, settled
+- **"Prompt" = system prompt, or the whole thing?** The whole input (`tools → system → all
+  messages`). Caching reuses *any prefix* of it — "cache the system prompt" and "cache the
+  history" are the same feature at different breakpoint positions. [1][2]
+- **"20k cached, next turn 21k — pay all 21k?"** No. The 20k bills at 0.1× (read), only the
+  ~1k delta is written. You're never charged full price on the repeat. [1]
+- **"So we pay the 25% write premium on the whole history every turn?"** No — only the *new
+  delta* is written each turn; everything before it is read at 0.1×. Premium is paid once per
+  chunk, recouped immediately on the next read. [1]
+- **"Does it cache *any* prefix? Does context editing break it?"** Not arbitrary — it matches
+  the longest cached prefix and only looks back **~20 blocks** per breakpoint. It *is* a strict
+  prefix match, so editing mid-history invalidates everything below the edit. [1][3]
+- **"Why not a breakpoint on every message?"** Unnecessary and impossible — a breakpoint caches
+  *everything before it* (cumulative), and the system auto-checks prior block boundaries within
+  the 20-block window. Hard cap is **4** breakpoints; one near the end usually suffices. [1]
+- **"Is this all providers?"** No. Anthropic = explicit `cache_control` you place (what we use);
+  OpenAI/Gemini/DeepSeek/Grok = automatic. Read ~0.1× (Anthropic/DeepSeek) to ~0.25–0.5× (OpenAI/
+  Gemini). [1][4][5]
+
 ## Constraints
 - **Strict prefix match** — editing mid-history (compaction, clipping stale views) invalidates
   everything below the edit. Keep history append-only; batch any edits. [1][3]
