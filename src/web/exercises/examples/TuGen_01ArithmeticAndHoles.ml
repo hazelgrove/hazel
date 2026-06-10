@@ -21,14 +21,21 @@ Hexagons are holes. Hazel evaluates around them. Fill one by typing a value.
 `(+ - * /)`|x};
     your_impl =
       Haz3lcore.Zipper.caret_to_start
-        (Option.get
-           (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|250 * ¿ + 50|x}));
+        (Haz3lcore.PersistentZipper.unpersist ~root:Exp
+           {
+             Haz3lcore.PersistentZipper.zipper =
+               {x|((selection((focus Left)(content())(mode Normal)))(relatives((siblings(((Tile((id 89f30aa8-d510-4efe-89d0-85dc626ca9d5)(label(250))(mold((out Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort Exp))))))(shards(0))(children())))(Secondary((id c6bd7ee0-1df6-4504-8c6c-6fc6d4392b3f)(content(Whitespace" "))))(Tile((id 3bf4771d-c55c-4f2b-8189-c5764a5ca9be)(label(*))(mold((out Exp)(in_())(nibs(((shape(Concave 27))(sort Exp))((shape(Concave 27))(sort Exp))))))(shards(0))(children())))(Secondary((id d465fd49-d81f-4837-bddb-e5ed357ec857)(content(Whitespace" ")))))((Grout((id 8c6cff98-9015-4c03-bdd6-544cc0d13be2)(shape Convex)))(Secondary((id f2559699-9e35-4415-bb5b-9a7c8d8c8d54)(content(Whitespace" "))))(Tile((id 6ebba964-8ca2-4882-b0f5-3083c22237ee)(label(+))(mold((out Exp)(in_())(nibs(((shape(Concave 28))(sort Exp))((shape(Concave 28))(sort Exp))))))(shards(0))(children())))(Secondary((id b67d4177-7133-417a-8c81-828604bb366e)(content(Whitespace" "))))(Tile((id 2c9b519e-9f26-4c2f-b837-c56972f1d2a6)(label(50))(mold((out Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort Exp))))))(shards(0))(children()))))))(ancestors())))(caret Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index -1)(pinned_stack())(indicated_call())(time())(seq 0)(step_range())(pending_focus())))(autoprobe_target())(pending_probe_cursor()))))|x};
+             backup_text = {x|250 *  + 50|x};
+           });
     hidden_tests =
       {
         tests =
-          Option.get
-            (Haz3lcore.TextRoundtrip.of_text ~root:Exp
-               {x|test answer == 1800 end|x});
+          Haz3lcore.PersistentZipper.unpersist ~root:Exp
+            {
+              Haz3lcore.PersistentZipper.zipper =
+                {x|((selection((focus Left)(content())(mode Normal)))(relatives((siblings(((Tile((id f5e49326-e55d-4744-8c43-ee9377c0bb61)(label(test end))(mold((out Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort Exp))))))(shards(0 1))(children(((Secondary((id fb306db1-8ff6-4a3f-ac8b-bb54cfb9769c)(content(Whitespace" "))))(Tile((id c8315403-b31f-4986-94fc-186ac7d54b27)(label(answer))(mold((out Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort Exp))))))(shards(0))(children())))(Secondary((id 107fb7b4-bfb2-405e-83dd-7874e692f03c)(content(Whitespace" "))))(Tile((id ea151b98-68de-4b6d-a0ce-ff0e9fecb139)(label(==))(mold((out Exp)(in_())(nibs(((shape(Concave 31))(sort Exp))((shape(Concave 31))(sort Exp))))))(shards(0))(children())))(Secondary((id 7d94e3e9-fa85-4f07-8ea1-a30951593750)(content(Whitespace" "))))(Tile((id 9c08838f-3527-41e7-b324-e3dd1bc50c43)(label(1800))(mold((out Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort Exp))))))(shards(0))(children())))(Secondary((id 7e3c4cfd-d0a0-4aa9-9a9a-de5812dc921c)(content(Whitespace" "))))))))))()))(ancestors())))(caret Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index -1)(pinned_stack())(indicated_call())(time())(seq 0)(step_range())(pending_focus())))(autoprobe_target())(pending_probe_cursor()))))|x};
+              backup_text = {x|test answer == 1800 end|x};
+            };
         hints = [ "Fill the hole appropriately." ];
       };
     wrapper = true;

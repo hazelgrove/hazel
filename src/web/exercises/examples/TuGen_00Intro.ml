@@ -29,12 +29,21 @@ At the end there will be a few **program-writing and debugging tasks**; everythi
 This panel on the right is the **Task Reference**. As the tutorial introduces probe commands, a quick reference and a few controls will appear here for the current slide. Glance over whenever you need a reminder.|x};
     your_impl =
       Haz3lcore.Zipper.caret_to_start
-        (Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|0|x}));
+        (Haz3lcore.PersistentZipper.unpersist ~root:Exp
+           {
+             Haz3lcore.PersistentZipper.zipper =
+               {x|((selection((focus Left)(content())(mode Normal)))(relatives((siblings(((Tile((id efbcdd75-8130-4ce0-8f50-6c6b726ab472)(label(0))(mold((out Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort Exp))))))(shards(0))(children()))))()))(ancestors())))(caret Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index -1)(pinned_stack())(indicated_call())(time())(seq 0)(step_range())(pending_focus())))(autoprobe_target())(pending_probe_cursor()))))|x};
+             backup_text = {x|0|x};
+           });
     hidden_tests =
       {
         tests =
-          Option.get
-            (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|test true end|x});
+          Haz3lcore.PersistentZipper.unpersist ~root:Exp
+            {
+              Haz3lcore.PersistentZipper.zipper =
+                {x|((selection((focus Left)(content())(mode Normal)))(relatives((siblings(((Tile((id 4bab80e7-f46c-4a3d-8f36-dbc51e074f55)(label(test end))(mold((out Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort Exp))))))(shards(0 1))(children(((Secondary((id 7391bd68-f560-4073-966a-d27d66c7077f)(content(Whitespace" "))))(Tile((id f64773b2-d289-40a6-9467-3ff12b0860f9)(label(true))(mold((out Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort Exp))))))(shards(0))(children())))(Secondary((id 441cdbfd-a6bd-4eb9-ae90-5448ec09f0ea)(content(Whitespace" "))))))))))()))(ancestors())))(caret Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index -1)(pinned_stack())(indicated_call())(time())(seq 0)(step_range())(pending_focus())))(autoprobe_target())(pending_probe_cursor()))))|x};
+              backup_text = {x|test true end|x};
+            };
         hints = [];
       };
     wrapper = false;

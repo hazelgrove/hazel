@@ -34,15 +34,22 @@ a
 - typing it (e.g. `in`) also works|x};
     your_impl =
       Haz3lcore.Zipper.caret_to_start
-        (Option.get
-           (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|let weekly = ¿|x}));
+        (Haz3lcore.PersistentZipper.unpersist ~root:Exp
+           {
+             Haz3lcore.PersistentZipper.zipper =
+               {x|((selection((focus Left)(content())(mode Normal)))(relatives((siblings(((Tile((id bb07fb95-56a2-4ebf-89db-dd1498bc644c)(label(let = in))(mold((out Exp)(in_(Pat Exp))(nibs(((shape Convex)(sort Exp))((shape(Concave 45))(sort Exp))))))(shards(0 1))(children(((Secondary((id 251d1560-f004-4284-8aba-841b0654033c)(content(Whitespace" "))))(Tile((id d9393374-b43d-41a6-94f8-1c0298e51589)(label(weekly))(mold((out Pat)(in_())(nibs(((shape Convex)(sort Pat))((shape Convex)(sort Pat))))))(shards(0))(children())))(Secondary((id 6a92708d-c03e-486e-8db3-1e803b17baa4)(content(Whitespace" ")))))))))(Secondary((id 738ba521-d9f8-49c6-88ad-dc1c04e1cbe3)(content(Whitespace" ")))))((Grout((id e75933ca-4891-4fa2-a5e4-dc4a8d8681ce)(shape Convex))))))(ancestors())))(caret Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index -1)(pinned_stack())(indicated_call())(time())(seq 0)(step_range())(pending_focus())))(autoprobe_target())(pending_probe_cursor()))))|x};
+             backup_text = {x|let weekly = |x};
+           });
     hidden_tests =
       {
         tests =
-          Option.get
-            (Haz3lcore.TextRoundtrip.of_text ~root:Exp
-               {x|test answer == 1750 end;
-¿|x});
+          Haz3lcore.PersistentZipper.unpersist ~root:Exp
+            {
+              Haz3lcore.PersistentZipper.zipper =
+                {x|((selection((focus Left)(content())(mode Normal)))(relatives((siblings(((Tile((id d6f29fc3-2510-4a92-b86a-4de1a150fa50)(label(test end))(mold((out Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort Exp))))))(shards(0 1))(children(((Secondary((id cc70437f-b71e-4f0b-9679-0f5fb1d923c7)(content(Whitespace" "))))(Tile((id 8b1da65b-5bab-46c4-b63a-430cc8a07911)(label(answer))(mold((out Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort Exp))))))(shards(0))(children())))(Secondary((id 6cfce25d-555f-4c78-a0ad-d3fa41a638d4)(content(Whitespace" "))))(Tile((id 0ab9fee1-6bde-47cc-93c3-5fb43f989b71)(label(==))(mold((out Exp)(in_())(nibs(((shape(Concave 31))(sort Exp))((shape(Concave 31))(sort Exp))))))(shards(0))(children())))(Secondary((id 9c56549c-9aae-438a-8082-b30c3683b689)(content(Whitespace" "))))(Tile((id 3e23b44f-84a3-4c7a-a85f-5a5e86957322)(label(1750))(mold((out Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort Exp))))))(shards(0))(children())))(Secondary((id aeaa97fc-00a5-48f7-9cbb-46d9520da696)(content(Whitespace" ")))))))))(Tile((id 162bdf5d-f922-48ac-9ad2-9158dc1d2eb7)(label(";"))(mold((out Exp)(in_())(nibs(((shape(Concave 35))(sort Exp))((shape(Concave 35))(sort Exp))))))(shards(0))(children())))(Secondary((id 2f42e7b3-f734-440e-b61c-5b382f26742e)(content(Whitespace"\n")))))((Grout((id 6d6abb4f-dcaa-4913-9312-c1ba467c6a91)(shape Convex))))))(ancestors())))(caret Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index -1)(pinned_stack())(indicated_call())(time())(seq 0)(step_range())(pending_focus())))(autoprobe_target())(pending_probe_cursor()))))|x};
+              backup_text = {x|test answer == 1750 end;
+|x};
+            };
         hints = [ "Build `let weekly = 250 * 7 in weekly`." ];
       };
     wrapper = true;

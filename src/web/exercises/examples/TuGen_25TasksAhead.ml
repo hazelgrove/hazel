@@ -28,12 +28,21 @@ Take your time. Ask anything.|x};
     task_reference = {x||x};
     your_impl =
       Haz3lcore.Zipper.caret_to_start
-        (Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|0|x}));
+        (Haz3lcore.PersistentZipper.unpersist ~root:Exp
+           {
+             Haz3lcore.PersistentZipper.zipper =
+               {x|((selection((focus Left)(content())(mode Normal)))(relatives((siblings(((Tile((id f6da0700-7cb3-49c0-b1c4-da7b3474684e)(label(0))(mold((out Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort Exp))))))(shards(0))(children()))))()))(ancestors())))(caret Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index -1)(pinned_stack())(indicated_call())(time())(seq 0)(step_range())(pending_focus())))(autoprobe_target())(pending_probe_cursor()))))|x};
+             backup_text = {x|0|x};
+           });
     hidden_tests =
       {
         tests =
-          Option.get
-            (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|test true end|x});
+          Haz3lcore.PersistentZipper.unpersist ~root:Exp
+            {
+              Haz3lcore.PersistentZipper.zipper =
+                {x|((selection((focus Left)(content())(mode Normal)))(relatives((siblings(((Tile((id 000facef-4e8f-4dcb-8062-c7371541b49a)(label(test end))(mold((out Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort Exp))))))(shards(0 1))(children(((Secondary((id 5084387d-24ae-4672-b401-d9011960a0ad)(content(Whitespace" "))))(Tile((id 36fd461c-48fe-4a83-a57c-5cc29ea3152a)(label(true))(mold((out Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort Exp))))))(shards(0))(children())))(Secondary((id 0d5818ee-1566-4e53-b6a3-a9fe9b67b060)(content(Whitespace" "))))))))))()))(ancestors())))(caret Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index -1)(pinned_stack())(indicated_call())(time())(seq 0)(step_range())(pending_focus())))(autoprobe_target())(pending_probe_cursor()))))|x};
+              backup_text = {x|test true end|x};
+            };
         hints = [];
       };
     wrapper = false;

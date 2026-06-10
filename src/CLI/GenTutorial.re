@@ -297,6 +297,35 @@ let rec find_hz_files = (base: string, rel: string): list(string) => {
   };
 };
 
+/* Parse program text NOW (in the CLI) and emit a PersistentZipper literal,
+   so the app deserializes a fast zipper sexp at startup instead of running
+   the character-by-character parser on every slide (which made tutorial-mode
+   startup take tens of seconds once the big task programs were added). The
+   original text rides along as backup_text: if the zipper serialization
+   format drifts, PersistentZipper.unpersist falls back to parsing it. A
+   parse failure here emits an empty sexp (forcing that fallback) plus a
+   warning, matching the old behavior of deferring the problem to runtime. */
+let persisted_zipper_ml = (rel_path: string, label: string, text: string) => {
+  let persisted =
+    switch (Haz3lcore.TextRoundtrip.of_text(~root=Exp, text)) {
+    | Some(z) => Haz3lcore.PersistentZipper.persist(z)
+    | None =>
+      prerr_endline(
+        "WARNING: " ++ label ++ " failed to parse in " ++ rel_path,
+      );
+      {
+        Haz3lcore.PersistentZipper.zipper: "",
+        backup_text: text,
+      };
+    };
+  "(Haz3lcore.PersistentZipper.unpersist ~root:Exp\n"
+  ++ "  { Haz3lcore.PersistentZipper.zipper = "
+  ++ quoted(persisted.zipper)
+  ++ ";\n    backup_text = "
+  ++ quoted(persisted.backup_text)
+  ++ " })";
+};
+
 let generate_ml_file = (i: int, rel_path: string): option(string) => {
   let input_path = input_dir ++ "/" ++ rel_path;
   let module_name = module_name_of(rel_path);
@@ -310,10 +339,6 @@ let generate_ml_file = (i: int, rel_path: string): option(string) => {
     let code = expand_includes(s.code);
     let code = strip_indentation ? Util.StringUtil.trim_leading(code) : code;
     let code = String.trim(code);
-    switch (Haz3lcore.TextRoundtrip.of_text(~root=Exp, code)) {
-    | None => prerr_endline("WARNING: @code failed to parse in " ++ rel_path)
-    | Some(_) => ()
-    };
     let test =
       s.test == ""
         ? "test true end"
@@ -351,12 +376,12 @@ let generate_ml_file = (i: int, rel_path: string): option(string) => {
       ++ "  task_reference = "
       ++ quoted(s.reference)
       ++ ";\n"
-      ++ "  your_impl =\n    Haz3lcore.Zipper.caret_to_start (Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp "
-      ++ quoted(code)
-      ++ "));\n"
-      ++ "  hidden_tests =\n    {\n      tests =\n        Option.get (Haz3lcore.TextRoundtrip.of_text ~root:Exp "
-      ++ quoted(test)
-      ++ ");\n      hints = "
+      ++ "  your_impl =\n    Haz3lcore.Zipper.caret_to_start\n      "
+      ++ persisted_zipper_ml(rel_path, "@code", code)
+      ++ ";\n"
+      ++ "  hidden_tests =\n    {\n      tests =\n        "
+      ++ persisted_zipper_ml(rel_path, "@test", test)
+      ++ ";\n      hints = "
       ++ hints_ml
       ++ ";\n    };\n"
       ++ "  wrapper = "

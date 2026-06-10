@@ -24,15 +24,22 @@ let exercise : Tutorial.spec =
 - At most one probe per line. A new one replaces the old.|x};
     your_impl =
       Haz3lcore.Zipper.caret_to_start
-        (Option.get
-           (Haz3lcore.TextRoundtrip.of_text ~root:Exp
-              {x|let weekly = 250 * 7 in
-weekly + 50|x}));
+        (Haz3lcore.PersistentZipper.unpersist ~root:Exp
+           {
+             Haz3lcore.PersistentZipper.zipper =
+               {x|((selection((focus Left)(content())(mode Normal)))(relatives((siblings(((Tile((id 00a7acb9-e3cf-4a49-b718-aa653374d928)(label(let = in))(mold((out Exp)(in_(Pat Exp))(nibs(((shape Convex)(sort Exp))((shape(Concave 45))(sort Exp))))))(shards(0 1 2))(children(((Secondary((id 2b35b26d-8738-4dce-9071-b824941b6201)(content(Whitespace" "))))(Tile((id 4f3ec476-1435-4536-ac97-0cc0bc976f66)(label(weekly))(mold((out Pat)(in_())(nibs(((shape Convex)(sort Pat))((shape Convex)(sort Pat))))))(shards(0))(children())))(Secondary((id e5fb3fda-e44e-475b-bdb6-f3c8957b9781)(content(Whitespace" ")))))((Secondary((id 63d85fff-5c86-486a-a456-dde8afe09993)(content(Whitespace" "))))(Tile((id 6f8aba20-c339-4631-b2bd-15ec7eee9e09)(label(250))(mold((out Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort Exp))))))(shards(0))(children())))(Secondary((id 77f4e479-6a36-4966-b6ac-bb0b79d16015)(content(Whitespace" "))))(Tile((id bf860bec-cdbf-417d-be40-33cf09a0db60)(label(*))(mold((out Exp)(in_())(nibs(((shape(Concave 27))(sort Exp))((shape(Concave 27))(sort Exp))))))(shards(0))(children())))(Secondary((id 844f78ad-ba85-40ce-ad03-7a657500a39b)(content(Whitespace" "))))(Tile((id d221d665-99d4-4826-9453-bb1af5a36ee5)(label(7))(mold((out Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort Exp))))))(shards(0))(children())))(Secondary((id ed51dde1-588c-4648-9713-0ed8c140e323)(content(Whitespace" ")))))))))(Secondary((id ae7ae703-20ca-4c81-bcd7-dd0982c9e6bf)(content(Whitespace"\n"))))(Tile((id 2ba31d16-b38f-4b7c-aea2-d9190704a962)(label(weekly))(mold((out Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort Exp))))))(shards(0))(children())))(Secondary((id 81d871d9-b651-41b8-9044-d59e783c4e84)(content(Whitespace" "))))(Tile((id 7dcd0673-82d2-4162-bfd6-58e4fe6dad48)(label(+))(mold((out Exp)(in_())(nibs(((shape(Concave 28))(sort Exp))((shape(Concave 28))(sort Exp))))))(shards(0))(children())))(Secondary((id b77db3c8-01ae-4503-8340-7405460f53c6)(content(Whitespace" "))))(Tile((id 53f5ec93-bc84-46ea-ab8d-ea6824b370ed)(label(50))(mold((out Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort Exp))))))(shards(0))(children()))))()))(ancestors())))(caret Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index -1)(pinned_stack())(indicated_call())(time())(seq 0)(step_range())(pending_focus())))(autoprobe_target())(pending_probe_cursor()))))|x};
+             backup_text = {x|let weekly = 250 * 7 in
+weekly + 50|x};
+           });
     hidden_tests =
       {
         tests =
-          Option.get
-            (Haz3lcore.TextRoundtrip.of_text ~root:Exp {x|test true end|x});
+          Haz3lcore.PersistentZipper.unpersist ~root:Exp
+            {
+              Haz3lcore.PersistentZipper.zipper =
+                {x|((selection((focus Left)(content())(mode Normal)))(relatives((siblings(((Tile((id 9f7d66bc-6ba9-4f74-9193-9351dad4ac39)(label(test end))(mold((out Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort Exp))))))(shards(0 1))(children(((Secondary((id f821ddc5-0b08-456a-8bda-92185ca62608)(content(Whitespace" "))))(Tile((id a26ee7ed-a739-40b0-8c1f-6c0cd7008d6a)(label(true))(mold((out Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort Exp))))))(shards(0))(children())))(Secondary((id 812eb394-1fc1-459b-bb6b-eeaba97e0e1e)(content(Whitespace" "))))))))))()))(ancestors())))(caret Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index -1)(pinned_stack())(indicated_call())(time())(seq 0)(step_range())(pending_focus())))(autoprobe_target())(pending_probe_cursor()))))|x};
+              backup_text = {x|test true end|x};
+            };
         hints = [];
       };
     wrapper = false;
