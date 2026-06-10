@@ -189,6 +189,69 @@ let to_buffer = (model: model, screen: Util.Point.t): Util.Point.t => {
   };
 };
 
+/* Find the projector whose inline region contains the buffer point */
+let projector_at =
+    (model: model, pt: Util.Point.t)
+    : option((Base.projector, Measured.measurement)) => {
+  let measured = model.editor.syntax.measured;
+  let projs = model.editor.syntax.projectors;
+  Id.Map.fold(
+    (id, m: Measured.measurement, acc) =>
+      switch (acc) {
+      | Some(_) => acc
+      | None =>
+        m.origin.row == m.last.row  /* inline shapes only */
+        && m.origin.row == pt.row
+        && m.origin.col <= pt.col
+        && pt.col < m.last.col
+          ? Option.map(pr => (pr, m), Id.Map.find_opt(id, projs)) : None
+      },
+    measured.projectors,
+    None,
+  );
+};
+
+/* Translate a terminal projector's click reaction into editor actions */
+let dispatch_reaction =
+    (
+      model: model,
+      pr: Base.projector,
+      m: Measured.measurement,
+      r: TermProjector.reaction,
+    )
+    : model =>
+  switch (r) {
+  | SetSyntax(seg) =>
+    switch (List.find_index((==)(pr.id), model.editor.syntax.projector_list)) {
+    | Some(idx) => perform(Project(SetSyntax(idx, pr.kind, seg)), model)
+    | None => model
+    }
+  | Remove =>
+    /* land the caret on the projector so RemoveIndicated targets it */
+    let model = perform(Move(Point(m.origin, None)), model);
+    perform(Project(RemoveIndicated), model);
+  };
+
+/* A click landing inside a projector's region goes to its terminal
+   view (if registered and it claims the click) instead of the caret */
+let projector_click = (model: model, pt: Util.Point.t): option(model) => {
+  open Util.OptUtil.Syntax;
+  let* (pr, m) = projector_at(model, pt);
+  let* tp = TermProjector.lookup(pr.kind);
+  let* reaction =
+    switch (TermProjector.mk_info(~statics=model.statics, pr)) {
+    | info =>
+      tp.on_click(
+        ~model=pr.model,
+        ~info,
+        ~rel_col=pt.col - m.origin.col,
+        ~width=m.last.col - m.origin.col,
+      )
+    | exception _ => None
+    };
+  Some(dispatch_reaction(model, pr, m, reaction));
+};
+
 /* Double/triple-click window, matching typical desktop timing */
 let click_streak_window = 0.4;
 
@@ -219,24 +282,28 @@ let on_mouse = (~now: float, ~page: int, model: model, m: AnsiInput.mouse) =>
       dragging: true,
     }
   | Press(screen, false) =>
-    let (last_time, last_loc) = model.last_click;
-    let streak =
-      now
-      -. last_time <= click_streak_window
-      && Util.Point.equals(screen, last_loc)
-        ? model.click_streak + 1 : 1;
     let pt = to_buffer(model, screen);
-    let action: Action.t =
-      switch (streak mod 3) {
-      | 1 => Move(Point(pt, None))
-      | 2 => Select(Smart(2))
-      | _ => Select(Smart(3))
+    switch (projector_click(model, pt)) {
+    | Some(model) => model
+    | None =>
+      let (last_time, last_loc) = model.last_click;
+      let streak =
+        now
+        -. last_time <= click_streak_window
+        && Util.Point.equals(screen, last_loc)
+          ? model.click_streak + 1 : 1;
+      let action: Action.t =
+        switch (streak mod 3) {
+        | 1 => Move(Point(pt, None))
+        | 2 => Select(Smart(2))
+        | _ => Select(Smart(3))
+        };
+      {
+        ...perform(action, model),
+        dragging: streak mod 3 == 1,
+        last_click: (now, screen),
+        click_streak: streak,
       };
-    {
-      ...perform(action, model),
-      dragging: streak mod 3 == 1,
-      last_click: (now, screen),
-      click_streak: streak,
     };
   };
 
@@ -336,7 +403,8 @@ let editor_height = (~size: (int, int), model: model): int => {
 let render = (~size: (int, int), model: model): (Frame.t, model) => {
   let (rows, cols) = size;
   let editor_h = editor_height(~size, model);
-  let buffer_rows = EditorView.rows(model.editor);
+  let (buffer_rows, offsides) =
+    EditorView.rows_with_offside(~statics=Some(model.statics), model.editor);
   let n_rows = List.length(buffer_rows);
   let gutter_w = gutter_width(n_rows);
   let text_w = max(1, cols - gutter_w);
@@ -383,6 +451,20 @@ let render = (~size: (int, int), model: model): (Frame.t, model) => {
     | None => buffer_rows
     };
 
+  /* projector offside views, appended after line ends (post-overlay so
+     selection/underlines never paint them, like the web's offside) */
+  let buffer_rows =
+    offsides == []
+      ? buffer_rows
+      : List.mapi(
+          (r, row) =>
+            switch (List.assoc_opt(r, offsides)) {
+            | Some(spans) => row @ [(Style.default, "  "), ...spans]
+            | None => row
+            },
+          buffer_rows,
+        );
+
   /* viewport rows with line-number gutter */
   let visible =
     List.filteri(
@@ -397,7 +479,7 @@ let render = (~size: (int, int), model: model): (Frame.t, model) => {
            ++ " ";
          [
            (Theme.line_number, num),
-           ...EditorView.clip_row(row, ~col_off, ~width=text_w),
+           ...Frame.clip_row(row, ~col_off, ~width=text_w),
          ];
        });
 
@@ -415,8 +497,7 @@ let render = (~size: (int, int), model: model): (Frame.t, model) => {
       let chip_col = max(gutter_w, caret.col - col_off + gutter_w);
       List.mapi(
         (i, row) =>
-          i == chip_row
-            ? EditorView.overlay_at(row, ~col=chip_col, chip) : row,
+          i == chip_row ? Frame.overlay_at(row, ~col=chip_col, chip) : row,
         editor_area,
       );
     };

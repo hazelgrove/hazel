@@ -78,7 +78,14 @@ let style_of_token =
   style;
 };
 
-let rows = (editor: Editor.Model.t): list(Frame.row) => {
+/* Build the buffer's styled rows. When [statics] is provided,
+   projectors with a registered terminal view (TermProjector) render
+   live content instead of blank space, and their offside views are
+   returned as (row index, spans) for the caller to append after line
+   ends. */
+let rows_with_offside =
+    (~statics: option(CachedStatics.t)=None, editor: Editor.Model.t)
+    : (list(Frame.row), list((int, Frame.row))) => {
   module DeferredLinebreaks = Measured.MkDeferredLinebreaks();
 
   let z = editor.state.zipper;
@@ -90,6 +97,7 @@ let rows = (editor: Editor.Model.t): list(Frame.row) => {
     Selection.is_buffer(z.selection) ? syntax.selection_ids : [];
 
   let b = Builder.create();
+  let offsides: ref(list((int, Frame.row))) = ref([]);
 
   let sort = (t: Tile.t): Sort.t => t.mold.out;
 
@@ -145,13 +153,11 @@ let rows = (editor: Editor.Model.t): list(Frame.row) => {
     | Comment(str) => Builder.emit(b, Theme.comment, str)
     };
 
-  let of_projector = (pr: Base.projector): unit => {
+  /* Fallback when a projector has no terminal view: blank space of
+     its measured shape (folds at least show their glyph) */
+  let of_projector_blank = (pr: Base.projector, size: Point.t): unit => {
     let indent = measure_of(Projector(pr)).last.col;
-    let size = DeferredLinebreaks.of_projector(pr, shape_map);
     let cols = size.row == 0 ? size.col : indent;
-    /* The web draws projector content in a separate decoration layer the
-       TUI doesn't have, so projectors render as blanks of their measured
-       shape; folds at least show their glyph. */
     switch (pr.kind) {
     | ProjectorCore.Kind.Fold when size.row == 0 && size.col >= 1 =>
       Builder.emit(b, Theme.grout, "\xe2\x8b\xb1"); /* ⋱ */
@@ -161,6 +167,37 @@ let rows = (editor: Editor.Model.t): list(Frame.row) => {
         Builder.newline(b, ~count=size.row, ~indent=0);
       };
       Builder.emit(b, Style.default, String.make(cols, ' '));
+    };
+  };
+
+  let of_projector = (pr: Base.projector): unit => {
+    let size = DeferredLinebreaks.of_projector(pr, shape_map);
+    let term_view =
+      switch (statics, TermProjector.lookup(pr.kind)) {
+      | (Some(st), Some(tp)) =>
+        /* registered terminal view; view calls must not take down the
+           frame on unexpected syntax */
+        switch (TermProjector.mk_info(~statics=st, pr)) {
+        | info =>
+          let inline =
+            size.row == 0 && size.col >= 1
+              ? tp.inline_view(~model=pr.model, ~info, ~width=size.col) : None;
+          switch (tp.offside_view(~model=pr.model, ~info)) {
+          | Some(spans) =>
+            let row = List.length(b.rows);
+            offsides := [(row, spans), ...offsides^];
+          | None => ()
+          | exception _ => ()
+          };
+          inline;
+        | exception _ => None
+        }
+      | _ => None
+      };
+    switch (term_view) {
+    | Some(spans) =>
+      List.iter(((st, tx)) => Builder.emit(b, st, tx), spans)
+    | None => of_projector_blank(pr, size)
     };
   };
 
@@ -190,8 +227,11 @@ let rows = (editor: Editor.Model.t): list(Frame.row) => {
   };
 
   of_segment(syntax.segment);
-  Builder.finish(b);
+  (Builder.finish(b), offsides^);
 };
+
+let rows = (editor: Editor.Model.t): list(Frame.row) =>
+  fst(rows_with_offside(editor));
 
 /* Caret position in buffer (row, col) coordinates */
 let caret_point = (editor: Editor.Model.t): Point.t =>
@@ -287,63 +327,7 @@ let error_ranges = (statics: CachedStatics.t, editor: Editor.Model.t) =>
 let warning_ranges = (statics: CachedStatics.t, editor: Editor.Model.t) =>
   id_ranges(statics.warning_ids, editor);
 
-/* === column-wise span surgery (selection overlay, clipping) === */
-
-let cluster_cols = Unicode.Width.columns_of_cluster;
-
-/* Split a span's text at a display-column boundary */
-let split_text_at_col = (text: string, col: int): (string, string) => {
-  let clusters = Unicode.to_list(text);
-  let rec go = (taken, remaining, cs) =>
-    switch (cs) {
-    | [] => (List.rev(taken), [])
-    | [c, ...rest] =>
-      let w = cluster_cols(c);
-      w <= remaining
-        ? go([c, ...taken], remaining - w, rest) : (List.rev(taken), cs);
-    };
-  let (pre, post) = go([], col, clusters);
-  (String.concat("", pre), String.concat("", post));
-};
-
-let span_cols = ((_, text): Frame.span): int =>
-  Unicode.Width.columns_of_string(text);
-
-/* Apply [f] to the styles of all cells in [first, last) columns of a row */
-let map_col_range =
-    (row: Frame.row, ~first: int, ~last: int, f: Style.t => Style.t)
-    : Frame.row => {
-  let rec go = (col, spans) =>
-    switch (spans) {
-    | [] => []
-    | [(style, text) as span, ...rest] =>
-      let w = span_cols(span);
-      let (s_first, s_last) = (col, col + w);
-      if (s_last <= first || s_first >= last) {
-        [span, ...go(s_last, rest)];
-      } else {
-        let (pre, mid_post) =
-          split_text_at_col(text, max(0, first - s_first));
-        let (mid, post) =
-          split_text_at_col(
-            mid_post,
-            min(w, last - s_first) - max(0, first - s_first),
-          );
-        List.filter(
-          ((_, t)) => t != "",
-          [(style, pre), (f(style), mid), (style, post)],
-        )
-        @ go(s_last, rest);
-      };
-    };
-  go(0, row);
-};
-
-/* Pad a row with spaces so overlays can extend past its content */
-let pad_row_to = (row: Frame.row, cols: int): Frame.row => {
-  let w = row |> List.map(span_cols) |> List.fold_left((+), 0);
-  w >= cols ? row : row @ [(Style.default, String.make(cols - w, ' '))];
-};
+/* === overlays in buffer coordinates (row surgery lives in Frame) === */
 
 /* Apply a style transform over a set of (row, col-range) extents */
 let apply_ranges =
@@ -354,7 +338,7 @@ let apply_ranges =
       List.fold_left(
         (row, {range_row, first, last}) =>
           range_row == r && last > first
-            ? map_col_range(row, ~first, ~last, f) : row,
+            ? Frame.map_col_range(row, ~first, ~last, f) : row,
         row,
         ranges,
       ),
@@ -372,49 +356,8 @@ let apply_selection =
         let first = r == from.row ? from.col : 0;
         let last = r == to_.row ? to_.col : 100000;
         let row =
-          r > from.row && r == to_.row ? pad_row_to(row, to_.col) : row;
-        map_col_range(row, ~first, ~last, Style.reverse);
+          r > from.row && r == to_.row ? Frame.pad_row_to(row, to_.col) : row;
+        Frame.map_col_range(row, ~first, ~last, Style.reverse);
       },
     rows,
   );
-
-/* Clip a row horizontally to [col_off, col_off + width) */
-let clip_row = (row: Frame.row, ~col_off: int, ~width: int): Frame.row => {
-  let rec drop = (col, spans) =>
-    switch (spans) {
-    | [] => []
-    | [(style, text) as span, ...rest] =>
-      let w = span_cols(span);
-      if (col + w <= col_off) {
-        drop(col + w, rest);
-      } else if (col >= col_off) {
-        spans;
-      } else {
-        let (_, post) = split_text_at_col(text, col_off - col);
-        [(style, post), ...rest];
-      };
-    };
-  let visible = drop(0, row);
-  let rec take = (cols, spans) =>
-    switch (spans) {
-    | [] => []
-    | [(style, text) as span, ...rest] =>
-      let w = span_cols(span);
-      if (w <= cols) {
-        [span, ...take(cols - w, rest)];
-      } else {
-        let (pre, _) = split_text_at_col(text, cols);
-        [(style, pre)];
-      };
-    };
-  take(width, visible);
-};
-
-/* Splice [spans] over [row] starting at display column [col] (the
-   covered cells are replaced; content before/after is preserved) */
-let overlay_at = (row: Frame.row, ~col: int, spans: Frame.row): Frame.row => {
-  let w = spans |> List.map(span_cols) |> List.fold_left((+), 0);
-  let prefix = pad_row_to(clip_row(row, ~col_off=0, ~width=col), col)
-  and suffix = clip_row(row, ~col_off=col + w, ~width=100000);
-  prefix @ spans @ suffix;
-};

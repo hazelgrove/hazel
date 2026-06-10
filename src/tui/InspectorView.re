@@ -64,8 +64,7 @@ let truncate = (~width: int, s: string): string => {
   let s = Util.StringUtil.escape_linebreaks(s);
   Util.Unicode.Width.columns_of_string(s) <= width
     ? s
-    : fst(EditorView.split_text_at_col(s, max(0, width - 1)))
-      ++ "\xe2\x80\xa6";
+    : fst(Frame.split_text_at_col(s, max(0, width - 1))) ++ "\xe2\x80\xa6";
 };
 
 /* The pane's content lines (sans separator), most important first */

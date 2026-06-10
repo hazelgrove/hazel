@@ -230,6 +230,184 @@ let tests = (
       },
     ),
     test_case(
+      "checkbox projector renders and toggles on click",
+      `Quick,
+      () => {
+        open Haz3lcore;
+        let m = Replay.final_model(~size=small, "true");
+        let (m, _) =
+          App.apply(
+            ~page=8,
+            m,
+            Keymap.Perform(Project(SetIndicated(Specific(Checkbox)))),
+          );
+        let (frame, m) = App.render(~size=small, m);
+        let text = Frame.to_plain_text(frame);
+        check(
+          bool,
+          "renders checked glyph",
+          true,
+          Util.StringUtil.match(
+            Util.StringUtil.regexp("\xe2\x9c\x93"), /* ✓ */
+            text,
+          ),
+        );
+        /* click the checkbox (screen col 2 = buffer col 0, gutter is 2) */
+        let (m, _) =
+          App.apply(
+            ~page=8,
+            m,
+            Keymap.Mouse(
+              AnsiInput.Press(
+                {
+                  row: 0,
+                  col: 2,
+                },
+                false,
+              ),
+            ),
+          );
+        let (frame, m) = App.render(~size=small, m);
+        let text = Frame.to_plain_text(frame);
+        check(
+          bool,
+          "renders unchecked glyph after click",
+          true,
+          Util.StringUtil.match(
+            Util.StringUtil.regexp("\xe2\x9c\x97"), /* ✗ */
+            text,
+          ),
+        );
+        check(
+          bool,
+          "underlying syntax now false",
+          true,
+          Util.StringUtil.match(
+            Util.StringUtil.regexp("false"),
+            FileIo.zipper_to_text(m.editor.state.zipper),
+          ),
+        );
+      },
+    ),
+    test_case(
+      "slider projector renders a bar and sets value on click",
+      `Quick,
+      () => {
+        open Haz3lcore;
+        let m = Replay.final_model(~size=small, "50");
+        let (m, _) =
+          App.apply(
+            ~page=8,
+            m,
+            Keymap.Perform(Project(SetIndicated(Specific(Slider)))),
+          );
+        let (frame, m) = App.render(~size=small, m);
+        check(
+          bool,
+          "renders half-filled bar",
+          true,
+          Util.StringUtil.match(
+            Util.StringUtil.regexp("\\[====----\\]"),
+            Frame.to_plain_text(frame),
+          ),
+        );
+        /* click the rightmost bar cell (rel col 8 -> 100) */
+        let (m, _) =
+          App.apply(
+            ~page=8,
+            m,
+            Keymap.Mouse(
+              AnsiInput.Press(
+                {
+                  row: 0,
+                  col: 10,
+                },
+                false,
+              ),
+            ),
+          );
+        check(
+          bool,
+          "value set to 100",
+          true,
+          Util.StringUtil.match(
+            Util.StringUtil.regexp("100"),
+            FileIo.zipper_to_text(m.editor.state.zipper),
+          ),
+        );
+      },
+    ),
+    test_case(
+      "statics projector shows the type offside",
+      `Quick,
+      () => {
+        open Haz3lcore;
+        let m = Replay.final_model(~size=small, "1 + 2");
+        let (m, _) =
+          App.apply(
+            ~page=8,
+            m,
+            Keymap.Perform(Project(SetIndicated(Specific(Statics)))),
+          );
+        let (frame, _) = App.render(~size=small, m);
+        check(
+          bool,
+          "offside type text",
+          true,
+          Util.StringUtil.match(
+            Util.StringUtil.regexp("Int"),
+            Frame.to_plain_text(frame),
+          ),
+        );
+      },
+    ),
+    test_case(
+      "fold projector renders via registry; click unfolds",
+      `Quick,
+      () => {
+        let f = frame("1 + 2\x1bf");
+        check(
+          bool,
+          "fold glyph shown",
+          true,
+          Util.StringUtil.match(Util.StringUtil.regexp("\xe2\x8b\xb1"), f),
+        );
+        /* click the fold (folded `2` sits at buffer col 4, screen col 6) */
+        let m = Replay.final_model(~size=small, "1 + 2\x1bf");
+        let (m, _) =
+          App.apply(
+            ~page=8,
+            m,
+            Keymap.Mouse(
+              AnsiInput.Press(
+                {
+                  row: 0,
+                  col: 6,
+                },
+                false,
+              ),
+            ),
+          );
+        let (frame, _) = App.render(~size=small, m);
+        let text = Frame.to_plain_text(frame);
+        check(
+          bool,
+          "unfolded: glyph gone",
+          false,
+          Util.StringUtil.match(
+            Util.StringUtil.regexp("\xe2\x8b\xb1"),
+            text,
+          ),
+        );
+        check(
+          bool,
+          "unfolded: syntax restored",
+          true,
+          Util.StringUtil.match(Util.StringUtil.regexp("1 \\+ 2"), text),
+        );
+      },
+    ),
+    test_case(
       "evaluation error is reported, not fatal",
       `Quick,
       () => {

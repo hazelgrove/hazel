@@ -88,10 +88,19 @@ EditorView (port of web Code.re walk) ─ Frame (styled rows) ─ ANSI ─ stdou
   (`./hazel-tui --replay 'let x = 1 in x\r'`), powers
   `test/Test_TuiGolden.re`. `--keys-debug` echoes parsed key events.
 
+Projectors with a terminal view (`TermProjector.re` registry) render
+live content inside their measured cell region and respond to clicks:
+Fold (`⋱`, click to unfold), Checkbox (`✓`/`✗`, click to toggle),
+Slider (`[====----]`, click to set), Statics (type shown offside after
+the line). Other kinds fall back to blank space. The path to sharing
+projector logic/views with the web properly is planned in
+`docs/projector-backend-split.md`.
+
 ## Known limitations
 
-- Projectors render as blank space of their measured shape (folds show
-  `⋱`); there is no projector UI.
+- Projectors without a terminal view render as blank space of their
+  measured shape; Block-shaped (multi-row) terminal views are not yet
+  supported (inline + offside only).
 - TyDi assist is off (`settings.assist = false`); no completion buffer.
 - Emoji widths: Hazel's column accounting may disagree with some
   terminals' wcwidth for exotic graphemes; ASCII is exact.
