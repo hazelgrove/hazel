@@ -1098,7 +1098,8 @@ let resolve_pending_focus = (~dynamics: Dynamics.Map.t, z: Zipper.t): Zipper.t =
  * Returns true if the cursor has an empty call_stack (never captured)
  * or if at least one probe has a sample matching the cursor via
  * most_aligned_index. */
-let cursor_is_aligned = (~dynamics: Dynamics.Map.t, z: Zipper.t): bool => {
+let cursor_is_aligned_uncached =
+    (~dynamics: Dynamics.Map.t, z: Zipper.t): bool => {
   let cursor = z.refractors.sample_focus;
   if (cursor.call_stack == []) {
     true; /* Empty cursor is trivially aligned */
@@ -1116,6 +1117,42 @@ let cursor_is_aligned = (~dynamics: Dynamics.Map.t, z: Zipper.t): bool => {
         },
       all_probe_ids,
     );
+  };
+};
+
+/* The scan above is O(probes x samples) and runs inside every
+ * Editor.calculate (via resolve_pending_probe_cursor), including pure
+ * caret moves. Its inputs are stable across most frames: the dynamics
+ * map (by ref; rebuilt only when a worker result lands), the probe
+ * stores (by ref; ephemerals are ref-preserved when unchanged, see
+ * add_ids_from_multi_term), and the sample focus (small record,
+ * compared structurally). Memoize the verdict on those — same single-
+ * entry physical-identity pattern as the `ids_from_term` memo above. */
+let _cia_key:
+  ref(
+    option(
+      (
+        Dynamics.Map.t,
+        Id.Map.t(Refractors.entry),
+        list((Id.t, Refractors.entry)),
+        Sample.Focus.t,
+        bool,
+      ),
+    ),
+  ) =
+  ref(None);
+
+let cursor_is_aligned = (~dynamics: Dynamics.Map.t, z: Zipper.t): bool => {
+  let cursor = z.refractors.sample_focus;
+  let ephemerals = z.refractors.multis.ephemerals;
+  let manuals = z.refractors.manuals;
+  switch (_cia_key^) {
+  | Some((d, e, m, c, verdict))
+      when d === dynamics && e === ephemerals && m === manuals && c == cursor => verdict
+  | _ =>
+    let verdict = cursor_is_aligned_uncached(~dynamics, z);
+    _cia_key := Some((dynamics, ephemerals, manuals, cursor, verdict));
+    verdict;
   };
 };
 

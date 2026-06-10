@@ -280,8 +280,23 @@ module Cook = (C: Projector) : Cooked => {
       status: args.status,
       core_settings: args.core_settings,
     });
-  let placeholder = m =>
-    m |> Sexplib.Sexp.of_string |> C.model_of_sexp |> C.placeholder;
+  /* placeholder is called per refractor on every shape refresh (each
+   * keystroke and each worker-result frame), and most model strings are
+   * unchanged between calls — memoize the sexp parse by exact string.
+   * Bounded: cleared wholesale if model-string churn ever grows it. */
+  let _placeholder_models: Hashtbl.t(string, C.model) = Hashtbl.create(32);
+  let parse_model_memo = (s: string): C.model =>
+    switch (Hashtbl.find_opt(_placeholder_models, s)) {
+    | Some(m) => m
+    | None =>
+      if (Hashtbl.length(_placeholder_models) > 512) {
+        Hashtbl.clear(_placeholder_models);
+      };
+      let m = deserialize_m(s);
+      Hashtbl.add(_placeholder_models, s, m);
+      m;
+    };
+  let placeholder = m => m |> parse_model_memo |> C.placeholder;
   let update = (m, i, a) =>
     C.update(m |> deserialize_m, i, a |> deserialize_a) |> serialize_m;
   let error = (m, i) => C.error(m |> deserialize_m, i);
