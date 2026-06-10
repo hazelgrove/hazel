@@ -1,4 +1,3 @@
-open Haz3lcore;
 let self = [
   "<hazelLanguageGuide>",
   "Hazel is a typed, live functional programming language with structure-aware editing.",

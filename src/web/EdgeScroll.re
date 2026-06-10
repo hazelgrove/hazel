@@ -1,5 +1,4 @@
 open Js_of_ocaml;
-open Util;
 
 /* Edge-scrolling during drag-select: when the pointer is near the
  * top or bottom edge of the scroll container, automatically scroll

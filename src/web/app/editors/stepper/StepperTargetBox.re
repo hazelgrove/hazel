@@ -1,4 +1,3 @@
-open Util;
 open WebUtil;
 
 module F = (Stepper: StepInterface.STEPPER) => {

@@ -1,4 +1,3 @@
-open Haz3lcore;
 open Util;
 
 let view_entire_definition: API.Json.t =

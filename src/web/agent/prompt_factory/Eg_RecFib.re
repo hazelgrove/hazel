@@ -1,4 +1,3 @@
-open Haz3lcore;
 let self = {|
 The following demonstrates the ideal workflow pattern for implementing a user request.
 Study this example carefully — it shows HOW to think, plan, and act.

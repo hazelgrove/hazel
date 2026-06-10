@@ -1,4 +1,3 @@
-open Haz3lcore;
 let emoji_paint = {|
 
 The followis an example chat interaction between a user and

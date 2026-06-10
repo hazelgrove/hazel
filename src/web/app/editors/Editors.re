@@ -1,5 +1,3 @@
-open Util;
-
 module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type mode =
