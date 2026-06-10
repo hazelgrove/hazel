@@ -408,6 +408,45 @@ let tests = (
       },
     ),
     test_case(
+      "probe shows its sample value offside",
+      `Quick,
+      () => {
+        /* Ctrl+E probes the indicated `1`; eval collects the sample */
+        let f = Replay.run(~size=(10, 60), "let x = 2 in x + 1\x05");
+        check(
+          bool,
+          "value chip after line",
+          true,
+          Util.StringUtil.match(
+            Util.StringUtil.regexp("\xe2\x89\xa1 1"), /* ≡ 1 */
+            f,
+          ),
+        );
+      },
+    ),
+    test_case(
+      "probe inside a function collects from application",
+      `Quick,
+      () => {
+        /* probe in the function body; f(3) provides the first sample */
+        let arrows = String.concat("", List.init(19, _ => "\027[D"));
+        let f =
+          Replay.run(
+            ~size=(10, 60),
+            "let f = fun x -> x * 2 in f(3) + f(4)" ++ arrows ++ "\x05",
+          );
+        check(
+          bool,
+          "sampled value shown",
+          true,
+          Util.StringUtil.match(
+            Util.StringUtil.regexp("\xe2\x89\xa1 3"), /* ≡ 3 */
+            f,
+          ),
+        );
+      },
+    ),
+    test_case(
       "evaluation error is reported, not fatal",
       `Quick,
       () => {

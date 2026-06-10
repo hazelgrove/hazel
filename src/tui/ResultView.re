@@ -35,23 +35,37 @@ let print = (exp: Language.Exp.t): string =>
     ExpToSegment.exp_to_segment(~settings=exp_to_segment_settings, exp),
   );
 
-let run = (statics: CachedStatics.t): t =>
+/* Evaluate the program, also collecting probe samples for the
+   statics-computed targets. Returns the displayable result plus the
+   sample map (Dynamics.Map.t is Sample.Map.t) for probe displays. */
+let run = (statics: CachedStatics.t): (t, Language.Dynamics.Map.t) =>
   switch (
     Language.Evaluator.evaluate_and_limit(
       ~step_limit,
+      ~targets=statics.targets,
       ~env=Language.Builtins.env_init,
       statics.elaborated,
     )
   ) {
-  | exception (Language.EvaluatorError.Exception(reason)) =>
-    EvalErr(Language.EvaluatorError.show(reason))
-  | exception exn => EvalErr(Printexc.to_string(exn))
-  | StepLimitExceeded => TimedOut
-  | Completed((result, _state)) =>
+  | exception (Language.EvaluatorError.Exception(reason)) => (
+      EvalErr(Language.EvaluatorError.show(reason)),
+      Language.Dynamics.Map.empty,
+    )
+  | exception exn => (
+      EvalErr(Printexc.to_string(exn)),
+      Language.Dynamics.Map.empty,
+    )
+  | StepLimitExceeded => (TimedOut, Language.Dynamics.Map.empty)
+  | Completed((result, state)) =>
+    let dynamics =
+      Language.Dynamics.Map.mk(Language.EvaluatorState.get_probes(state));
     switch (print(result)) {
-    | exception exn => EvalErr("print failed: " ++ Printexc.to_string(exn))
-    | text => EvalOk(text)
-    }
+    | exception exn => (
+        EvalErr("print failed: " ++ Printexc.to_string(exn)),
+        dynamics,
+      )
+    | text => (EvalOk(text), dynamics)
+    };
   };
 
 /* Render the result pane: a dim separator line then up to [height - 1]

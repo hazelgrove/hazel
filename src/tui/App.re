@@ -98,8 +98,17 @@ let init = (file: option(string)): model => {
 };
 
 let run_eval = (model: model): model => {
-  ...model,
-  result: ResultView.run(model.statics),
+  let (result, dynamics) = ResultView.run(model.statics);
+  /* recalculate so the syntax cache (probe shapes etc.) sees the new
+     dynamics; statics are unchanged so this is the cheap path */
+  calculate(
+    ~is_edited=false,
+    {
+      ...model,
+      result,
+      dynamics,
+    },
+  );
 };
 
 let perform = (a: Action.t, model: model): model =>
@@ -451,17 +460,22 @@ let render = (~size: (int, int), model: model): (Frame.t, model) => {
     | None => buffer_rows
     };
 
-  /* projector offside views, appended after line ends (post-overlay so
-     selection/underlines never paint them, like the web's offside) */
+  /* projector offside views + probe sample values, appended after line
+     ends (post-overlay so selection/underlines never paint them, like
+     the web's offside) */
+  let offsides =
+    offsides @ ProbeView.by_line(~probe_map=model.dynamics, model.editor);
   let buffer_rows =
     offsides == []
       ? buffer_rows
       : List.mapi(
           (r, row) =>
-            switch (List.assoc_opt(r, offsides)) {
-            | Some(spans) => row @ [(Style.default, "  "), ...spans]
-            | None => row
-            },
+            List.fold_left(
+              (row, (r', spans)) =>
+                r' == r ? row @ [(Style.default, "  "), ...spans] : row,
+              row,
+              offsides,
+            ),
           buffer_rows,
         );
 
