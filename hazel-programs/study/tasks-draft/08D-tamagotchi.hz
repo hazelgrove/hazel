@@ -216,7 +216,7 @@ in
 # Run multiple actions in sequence #
 let do : (Model, [Action]) -> Model =
   fun (model: Model, actions: [Action]) ->
-    fold_left(actions, update, model)
+    fold_left(actions, fun (m, a) -> update(m, a), model)
 in
 
 # Generate n TimeTicks (range is inclusive, so use n-1) #
@@ -226,6 +226,76 @@ let timePasses : Int -> [Action] =
     else map(range(1, n), fun _ -> TimeTick)
 in
 
+hint "feeding fills the belly"
+test
+  let m = update(init, Feed) in
+  m.stats.hunger == 80 && m.memory.timesFed == 1
+end;
+
+hint "play lifts the mood but costs energy"
+test
+  let m = update(init, Play) in
+  m.stats.happiness == 75 && m.stats.energy == 35
+end;
+
+hint "sleep restores energy"
+test
+  let m = update(init, Sleep) in
+  m.stats.energy == 90
+end;
+
+hint "time passing decays stats"
+test
+  let m = update(init, TimeTick) in
+  m.stats.hunger == 45 && m.stats.happiness == 47 && m.stats.energy == 48
+end;
+
+hint "young spirits stay seedlings"
+test
+  let m = do(init, [Feed, Play, Sleep, TimeTick]) in
+  m.evolution == Seedling
+end;
+
+hint "a critically low stat counts as neglect when time passes"
+test
+  let starving = (
+    stats = (hunger = 10, happiness = 50, energy = 50, health = 100),
+    evolution = Sprout,
+    personality = Balanced,
+    memory = (timesFed = 0, timesPlayed = 0, timesSlept = 0, timesNeglected = 0),
+    age = 12
+  ) in
+  let m = update(starving, TimeTick) in
+  m.memory.timesNeglected == 1
+end;
+
+hint "devoted care raises an elder"
+test
+  let devoted = (
+    stats = (hunger = 50, happiness = 50, energy = 50, health = 100),
+    evolution = Bloom,
+    personality = Balanced,
+    memory = (timesFed = 10, timesPlayed = 10, timesSlept = 10, timesNeglected = 0),
+    age = 30
+  ) in
+  let m = update(devoted, TimeTick) in
+  m.evolution == Elder
+end;
+
+hint "heavy neglect wilts the spirit"
+test
+  let neglected = (
+    stats = (hunger = 50, happiness = 50, energy = 50, health = 100),
+    evolution = Sprout,
+    personality = Balanced,
+    memory = (timesFed = 1, timesPlayed = 1, timesSlept = 1, timesNeglected = 9),
+    age = 30
+  ) in
+  let m = update(neglected, TimeTick) in
+  m.evolution == Wilted
+end;
+
+# vvv This test is FAILING vvv #
 hint "moderate care with some neglect becomes bloom"
 test
   let model = (
@@ -238,3 +308,4 @@ test
   let result = update(model, TimeTick) in
   result.evolution == Bloom
 end
+# ^^^ This test is FAILING ^^^ #

@@ -50,7 +50,7 @@ type Action =
 in
 
 # Read the types and comments above to get a feel for the program, #
-# then scroll down to the tests and find the first failing one. #
+# then scroll down to the tests and find the one marked FAILING. #
 
 let isPlanted : Cell -> Bool =
   fun cell ->
@@ -188,7 +188,7 @@ in
 # Run multiple actions in sequence #
 let run : (Model, [Action]) -> Model =
   fun (model, actions) ->
-    fold_left(actions, update, model)
+    fold_left(actions, fun (m, a) -> update(m, a), model)
 in
 
 # Count cells at a specific stage #
@@ -295,6 +295,7 @@ test
   !isPlanted(cell)
 end;
 
+# vvv This test is FAILING vvv #
 hint "multiple waterings progress through stages"
 test
   let m = run(initModel, [
@@ -304,16 +305,7 @@ test
   let cell = getCell(m.field, 0, 0) in
   getStage(cell) == ReadyToHarvest
 end;
-
-hint "can harvest ReadyToHarvest crops"
-test
-  let m = run(initModel, [
-    PlantCrop(0, 0),
-    WaterField, WaterField, WaterField, WaterField,
-    HarvestCrop(0, 0)
-  ]) in
-  !isPlanted(getCell(m.field, 0, 0))
-end;
+# ^^^ This test is FAILING ^^^ #
 
 hint "cannot harvest immature crops"
 test
@@ -323,17 +315,6 @@ test
     HarvestCrop(0, 0)
   ]) in
   isPlanted(getCell(m.field, 0, 0))
-end;
-
-hint "harvesting clears the cell"
-test
-  let m = run(initModel, [
-    PlantCrop(1, 1),
-    WaterField, WaterField, WaterField, WaterField,
-    HarvestCrop(1, 1)
-  ]) in
-  let cell = getCell(m.field, 1, 1) in
-  cell == Empty
 end;
 
 hint "PassDay increments day count"
