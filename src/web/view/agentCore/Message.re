@@ -193,8 +193,14 @@ module Utils = {
       content: sanitized_content,
       timestamp: JsUtil.timestamp(),
       role: System(DeveloperNotes),
+      /* Cache breakpoint anchor: caching the prefix up to dev-notes covers
+         tools + the ~20k system prompt (render order is tools → system →
+         messages), the large static block reused every turn. */
       api_message:
-        Some(OpenRouter.Message.Utils.mk_developer_msg(sanitized_content)),
+        Some({
+          ...OpenRouter.Message.Utils.mk_developer_msg(sanitized_content),
+          cache_anchor: true,
+        }),
       children: [],
       current_child: None,
       reasoning: None,

@@ -51,6 +51,12 @@ module Message = {
       role,
       content: string,
       tool_calls: list(Reply.Model.tool_call),
+      /* Request a prompt-cache breakpoint on this message. Set where the
+         Message-level role is known (the stable system-prompt/dev-notes
+         prefix), never on the volatile context snapshot. Defaulted so older
+         persisted chats still deserialize. */
+      [@yojson.default false] [@sexp.default false]
+      cache_anchor: bool,
     };
   };
 
@@ -80,7 +86,7 @@ module Message = {
         (~cache_breakpoint: bool=false, message: Model.t): Json.t =>
       switch (message.role) {
       | System
-      | Developer when cache_breakpoint =>
+      | Developer when cache_breakpoint || message.cache_anchor =>
         `Assoc([
           ("role", `String(string_of_role(message.role))),
           (
@@ -125,27 +131,32 @@ module Message = {
       role: Assistant,
       content,
       tool_calls,
+      cache_anchor: false,
     };
     let mk_user_msg = (content: string): Model.t => {
       role: User,
       content,
       tool_calls: [],
+      cache_anchor: false,
     };
     let mk_developer_msg = (content: string): Model.t => {
       role: Developer,
       content,
       tool_calls: [],
+      cache_anchor: false,
     };
     let mk_system_msg = (content: string): Model.t => {
       role: System,
       content,
       tool_calls: [],
+      cache_anchor: false,
     };
     let mk_tool_msg =
         (content: string, tool_call: Reply.Model.tool_call): Model.t => {
       role: Tool(tool_call),
       content,
       tool_calls: [],
+      cache_anchor: false,
     };
   };
 };
@@ -220,29 +231,24 @@ module Payload = {
 
     let json_of_payload = (~payload: Model.t): Json.t => {
       let cache_enabled = supports_cache_control(payload.model_id);
-      /* Mark only the last System|Developer message as a cache breakpoint.
-         In Hazel this is the context-snapshot system message appended right
-         before each user turn — the natural stable prefix. */
-      let last_sys_idx = {
-        let idx = ref(-1);
-        List.iteri(
-          (i, m: Message.Model.t) =>
-            switch (m.role) {
-            | System
-            | Developer => idx := i
-            | _ => ()
-            },
-          payload.messages,
-        );
-        idx^;
-      };
+      /* Cache breakpoints are carried per-message via `cache_anchor`, set where
+         the message role is known (the stable system-prompt + dev-notes prefix).
+         We deliberately never anchor the volatile context snapshot, which is
+         regenerated every turn — caching it would pay the write premium for a
+         hit we never get. Strip anchors for non-Anthropic models, which don't
+         honor cache_control and may 400 on the multipart content shape. */
       let messages_json =
-        List.mapi(
-          (i, m: Message.Model.t) =>
-            Message.Utils.json_of_message(
-              ~cache_breakpoint=cache_enabled && i == last_sys_idx,
-              m,
-            ),
+        List.map(
+          (m: Message.Model.t) => {
+            let m =
+              cache_enabled
+                ? m
+                : {
+                  ...m,
+                  cache_anchor: false,
+                };
+            Message.Utils.json_of_message(m);
+          },
           payload.messages,
         );
       let base_fields = [
