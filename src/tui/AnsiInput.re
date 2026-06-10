@@ -21,10 +21,19 @@ type tui_key =
   | PageDown
   | ToggleResultPane; /* Ctrl+R */
 
+/* SGR mouse events; points are 0-based screen coordinates */
+[@deriving show({with_path: false})]
+type mouse =
+  | Press(Point.t, bool) /* left button; bool = shift held */
+  | Drag(Point.t) /* motion with left button held */
+  | Release
+  | Wheel(int); /* rows to scroll; negative = up */
+
 [@deriving show({with_path: false})]
 type event =
   | Editor(Key.t)
   | Tui(tui_key)
+  | Mouse(mouse)
   | PasteText(string); /* bracketed paste */
 
 type state = {pending: string};
@@ -156,6 +165,31 @@ let find_sub = (hay: string, needle: string, from: int): option(int) => {
   go(from);
 };
 
+/* SGR mouse report: CSI < Cb ; Cx ; Cy (M = press/drag, m = release).
+   Cb bits: 0-1 button, +4 shift, +32 motion, +64 wheel. */
+let mouse_event = (params: list(int), final: char): list(event) =>
+  switch (params) {
+  | [cb, cx, cy] =>
+    let pt =
+      Point.{
+        row: cy - 1,
+        col: cx - 1,
+      };
+    if (final == 'm') {
+      [Mouse(Release)];
+    } else if (cb land 64 != 0) {
+      [Mouse(Wheel(cb land 1 == 0 ? (-3) : 3))];
+    } else if (cb land 32 != 0) {
+      cb land 3 == 0 ? [Mouse(Drag(pt))] : [];
+    } else {
+      switch (cb land 3) {
+      | 0 => [Mouse(Press(pt, cb land 4 != 0))]
+      | _ => [] /* middle/right buttons unused */
+      };
+    };
+  | _ => []
+  };
+
 /* Parse a CSI sequence whose parameter bytes start at [i] (i.e. just
    after "\x1b["). Returns None if the sequence is incomplete and we
    should wait for more input; otherwise the events and the index just
@@ -169,6 +203,9 @@ let parse_csi = (s: string, i: int): option((list(event), int)) => {
       let c = Char.code(s.[j]);
       c >= 0x40 && c <= 0x7e ? Some(j) : find_final(j + 1);
     };
+  /* SGR mouse sequences are prefixed with '<' */
+  let is_mouse = i < len && s.[i] == '<';
+  let i = is_mouse ? i + 1 : i;
   switch (find_final(i)) {
   | None => None
   | Some(j) =>
@@ -177,36 +214,44 @@ let parse_csi = (s: string, i: int): option((list(event), int)) => {
       String.sub(s, i, j - i)
       |> String.split_on_char(';')
       |> List.filter_map(int_of_string_opt);
-    let mods =
-      switch (params) {
-      | [_, m, ..._] => mods_of_param(m)
-      | _ => no_mods
+    if (is_mouse) {
+      switch (final) {
+      | 'M'
+      | 'm' => Some((mouse_event(params, final), j + 1))
+      | _ => Some(([], j + 1))
       };
-    switch (final) {
-    | 'A'
-    | 'B'
-    | 'C'
-    | 'D'
-    | 'H'
-    | 'F' =>
-      let name = Option.get(arrow_name(final));
-      Some(([key_event(name, mods)], j + 1));
-    | 'Z' => Some(([Tui(ShiftTab)], j + 1))
-    | '~' =>
-      switch (params) {
-      | [200, ..._] =>
-        /* Bracketed paste: collect everything up to ESC[201~. If the
-           terminator hasn't arrived yet, wait for more input. */
-        switch (find_sub(s, paste_terminator, j + 1)) {
-        | None => None
-        | Some(t) =>
-          let text = String.sub(s, j + 1, t - (j + 1));
-          Some(([PasteText(text)], t + String.length(paste_terminator)));
+    } else {
+      let mods =
+        switch (params) {
+        | [_, m, ..._] => mods_of_param(m)
+        | _ => no_mods
+        };
+      switch (final) {
+      | 'A'
+      | 'B'
+      | 'C'
+      | 'D'
+      | 'H'
+      | 'F' =>
+        let name = Option.get(arrow_name(final));
+        Some(([key_event(name, mods)], j + 1));
+      | 'Z' => Some(([Tui(ShiftTab)], j + 1))
+      | '~' =>
+        switch (params) {
+        | [200, ..._] =>
+          /* Bracketed paste: collect everything up to ESC[201~. If the
+             terminator hasn't arrived yet, wait for more input. */
+          switch (find_sub(s, paste_terminator, j + 1)) {
+          | None => None
+          | Some(t) =>
+            let text = String.sub(s, j + 1, t - (j + 1));
+            Some(([PasteText(text)], t + String.length(paste_terminator)));
+          }
+        | [num, ..._] => Some((tilde_key(num, mods), j + 1))
+        | [] => Some(([], j + 1))
         }
-      | [num, ..._] => Some((tilde_key(num, mods), j + 1))
-      | [] => Some(([], j + 1))
-      }
-    | _ => Some(([], j + 1)) /* unhandled CSI (mouse, focus, ...) */
+      | _ => Some(([], j + 1)) /* unhandled CSI (focus, ...) */
+      };
     };
   };
 };

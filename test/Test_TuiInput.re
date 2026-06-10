@@ -121,6 +121,52 @@ let tests = (
     test_case("alt+char", `Quick, () =>
       check_events("alt+p", [Editor(mk(~alt=true, "p"))], "\x1bp")
     ),
+    test_case("sgr mouse press, drag, release", `Quick, () =>
+      check_events(
+        "press/drag/release",
+        [
+          Mouse(
+            Press(
+              {
+                row: 2,
+                col: 4,
+              },
+              false,
+            ),
+          ),
+          Mouse(
+            Drag({
+              row: 2,
+              col: 6,
+            }),
+          ),
+          Mouse(Release),
+        ],
+        "\x1b[<0;5;3M\x1b[<32;7;3M\x1b[<0;7;3m",
+      )
+    ),
+    test_case("sgr mouse shift-click and wheel", `Quick, () =>
+      check_events(
+        "shift-click/wheel",
+        [
+          Mouse(
+            Press(
+              {
+                row: 0,
+                col: 0,
+              },
+              true,
+            ),
+          ),
+          Mouse(Wheel(-3)),
+          Mouse(Wheel(3)),
+        ],
+        "\x1b[<4;1;1M\x1b[<64;1;1M\x1b[<65;1;1M",
+      )
+    ),
+    test_case("middle/right mouse buttons are ignored", `Quick, () =>
+      check_events("ignored", [], "\x1b[<1;5;3M\x1b[<2;5;3M")
+    ),
     test_case(
       "escape sequence split across chunks",
       `Quick,

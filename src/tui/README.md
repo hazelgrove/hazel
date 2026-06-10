@@ -50,6 +50,11 @@ TUI-level bindings (handled before the editor keymap):
 | Ctrl+Q / Ctrl+C | quit (asks to confirm if unsaved) |
 | Alt+P | pretty-print |
 
+Mouse (SGR tracking): click places the caret; double/triple-click
+selects token/term (same cycle as the web); shift+click and drag
+select; wheel scrolls the viewport without moving the caret (the view
+re-attaches to the caret on the next keyboard action).
+
 ## Layout
 
 - Editor with line-number gutter; viewport follows the caret.

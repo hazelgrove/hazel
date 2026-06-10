@@ -61,13 +61,17 @@ let final_model =
   let model = ref(App.init(file));
   let (st, events) = AnsiInput.parse(AnsiInput.init, unescape(keys));
   let (_, flushed) = AnsiInput.flush(st);
+  /* deterministic fake clock, spaced > the click-streak window so
+     scripted clicks don't accidentally read as double-clicks */
+  let clock = ref(0.0);
   List.iter(
     ev =>
       switch (Keymap.handle(ev)) {
       | None => ()
       | Some(action) =>
+        clock := clock^ +. 1.0;
         let page = App.editor_height(~size, model^);
-        let (m, _quit) = App.apply(~page, model^, action);
+        let (m, _quit) = App.apply(~now=clock^, ~page, model^, action);
         model := App.disarm(m, action);
       },
     events @ flushed,

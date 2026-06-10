@@ -115,6 +115,9 @@ let bracketed_paste_off = "\x1b[?2004l";
 /* autowrap off so an over-wide span can't push the grid out of shape */
 let autowrap_off = "\x1b[?7l";
 let autowrap_on = "\x1b[?7h";
+/* button-event mouse tracking (press/release/drag) + SGR encoding */
+let mouse_on = "\x1b[?1002h\x1b[?1006h";
+let mouse_off = "\x1b[?1006l\x1b[?1002l";
 let sgr_reset = "\x1b[0m";
 
 let entered = ref(false);
@@ -125,7 +128,7 @@ let enter = (): unit =>
     entered := true;
     set_raw_mode(true);
     resume_stdin();
-    write(alt_screen_on ++ bracketed_paste_on ++ autowrap_off);
+    write(alt_screen_on ++ bracketed_paste_on ++ autowrap_off ++ mouse_on);
   };
 
 /* Restore the user's terminal. Idempotent; must run before any exit path
@@ -134,7 +137,8 @@ let leave = (): unit =>
   if (entered^) {
     entered := false;
     write(
-      autowrap_on
+      mouse_off
+      ++ autowrap_on
       ++ bracketed_paste_off
       ++ sgr_reset
       ++ cursor_show

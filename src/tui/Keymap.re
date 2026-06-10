@@ -15,7 +15,9 @@ type t =
   | Redo
   | PageUp
   | PageDown
-  | ToggleResult;
+  | ToggleResult
+  /* screen coordinates; App translates to buffer coordinates */
+  | Mouse(AnsiInput.mouse);
 
 let handle = (ev: AnsiInput.event): option(t) =>
   switch (ev) {
@@ -29,6 +31,7 @@ let handle = (ev: AnsiInput.event): option(t) =>
   | Tui(PageDown) => Some(PageDown)
   | Tui(ToggleResultPane) => Some(ToggleResult)
   | PasteText(s) => Some(Perform(Paste(s)))
+  | Mouse(m) => Some(Mouse(m))
   | Editor(k) =>
     switch (k) {
     /* Web maps Ctrl+S to PrettyPrint; the TUI reserves Ctrl+S for Save,

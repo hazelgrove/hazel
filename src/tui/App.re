@@ -20,6 +20,13 @@ type model = {
   col_off: int,
   status_msg: option(string),
   quit_armed: bool,
+  /* wheel scrolling detaches the viewport from the caret until the
+     next non-wheel action */
+  free_scroll: bool,
+  /* mouse drag/click-streak state (double/triple click cycle) */
+  dragging: bool,
+  last_click: (float, Util.Point.t),
+  click_streak: int,
 };
 
 /* TyDi assist would draw completion buffers we don't fully render yet */
@@ -80,6 +87,10 @@ let init = (file: option(string)): model => {
       col_off: 0,
       status_msg: None,
       quit_armed: false,
+      free_scroll: false,
+      dragging: false,
+      last_click: ((-1.0), Util.Point.zero),
+      click_streak: 0,
     },
   );
 };
@@ -164,17 +175,86 @@ let save = (model: model): model =>
     }
   };
 
+let gutter_width = (n_rows: int): int =>
+  String.length(string_of_int(max(1, n_rows))) + 1;
+
+/* Screen coordinates -> buffer coordinates (gutter + viewport) */
+let to_buffer = (model: model, screen: Util.Point.t): Util.Point.t => {
+  let gutter = gutter_width(List.length(EditorView.rows(model.editor)));
+  {
+    row: screen.row + model.row_off,
+    col: max(0, screen.col - gutter + model.col_off),
+  };
+};
+
+/* Double/triple-click window, matching typical desktop timing */
+let click_streak_window = 0.4;
+
+/* Mouse handling mirrors the web's CodeEditable.move_or_select:
+   click -> Move(Point), click streak cycles Move / Smart(2) / Smart(3),
+   shift+click and drag -> Select(Resize(Point)). */
+let on_mouse = (~now: float, ~page: int, model: model, m: AnsiInput.mouse) =>
+  switch (m) {
+  | Wheel(n) => {
+      ...model,
+      row_off: max(0, model.row_off + n),
+      free_scroll: true,
+    }
+  | Release => {
+      ...model,
+      dragging: false,
+    }
+  | Drag(screen) when model.dragging =>
+    perform(Select(Resize(Point(to_buffer(model, screen), None))), model)
+  | Drag(_) => model
+  | Press(screen, _) when screen.row >= page => model /* below editor */
+  | Press(screen, true) => {
+      ...
+        perform(
+          Select(Resize(Point(to_buffer(model, screen), None))),
+          model,
+        ),
+      dragging: true,
+    }
+  | Press(screen, false) =>
+    let (last_time, last_loc) = model.last_click;
+    let streak =
+      now
+      -. last_time <= click_streak_window
+      && Util.Point.equals(screen, last_loc)
+        ? model.click_streak + 1 : 1;
+    let pt = to_buffer(model, screen);
+    let action: Action.t =
+      switch (streak mod 3) {
+      | 1 => Move(Point(pt, None))
+      | 2 => Select(Smart(2))
+      | _ => Select(Smart(3))
+      };
+    {
+      ...perform(action, model),
+      dragging: streak mod 3 == 1,
+      last_click: (now, screen),
+      click_streak: streak,
+    };
+  };
+
 /* Apply one app action. [page] is the editor viewport height, used for
    PageUp/PageDown (implemented as repeated vertical moves so the caret
-   stays on screen). Returns the new model and whether to quit. */
-let apply = (~page: int, model: model, action: Keymap.t): (model, bool) => {
+   stays on screen) and for hit-testing mouse events. [now] is the time
+   in seconds, used for click-streak detection. Returns the new model
+   and whether to quit. */
+let apply =
+    (~now: float=0.0, ~page: int, model: model, action: Keymap.t)
+    : (model, bool) => {
   let model = {
     ...model,
     status_msg: None,
+    free_scroll: false /* wheel re-sets it below */
   };
   let repeat = (n, a: Action.t, model) =>
     List.fold_left((m, _) => perform(a, m), model, List.init(n, Fun.id));
   switch (action) {
+  | Mouse(m) => (on_mouse(~now, ~page, model, m), false)
   | Perform(a) => (perform(a, model), false)
   | Tab => (perform(tab_action(model.editor.state.zipper), model), false)
   | Save => (save(model), false)
@@ -236,9 +316,6 @@ let editor_height = (~size: (int, int), model: model): int => {
   max(1, rows - 1 - result_pane_height(~rows, model));
 };
 
-let gutter_width = (n_rows: int): int =>
-  String.length(string_of_int(max(1, n_rows))) + 1;
-
 /* Build the frame for the current model; also returns the model with
    viewport offsets clamped so the caret is visible. */
 let render = (~size: (int, int), model: model): (Frame.t, model) => {
@@ -250,11 +327,18 @@ let render = (~size: (int, int), model: model): (Frame.t, model) => {
   let text_w = max(1, cols - gutter_w);
   let caret = EditorView.caret_point(model.editor);
 
-  /* clamp viewport to keep the caret visible */
+  /* clamp viewport to keep the caret visible — unless the user has
+     wheel-scrolled away (free_scroll), in which case only keep the
+     offsets within the buffer */
   let clamp = (off, lo, hi) => max(min(off, lo), hi);
-  let row_off = clamp(model.row_off, caret.row, caret.row - editor_h + 1);
+  let (row_off, col_off) =
+    model.free_scroll
+      ? (min(model.row_off, n_rows - 1), model.col_off)
+      : (
+        clamp(model.row_off, caret.row, caret.row - editor_h + 1),
+        clamp(model.col_off, caret.col, caret.col - text_w + 1),
+      );
   let row_off = max(0, row_off);
-  let col_off = clamp(model.col_off, caret.col, caret.col - text_w + 1);
   let col_off = max(0, col_off);
   let model = {
     ...model,

@@ -107,6 +107,85 @@ let tests = (
       )
     ),
     test_case(
+      "mouse click places the caret",
+      `Quick,
+      () => {
+        /* "1 + 2" on row 0; gutter is 2 cols, so screen col 4 = buffer
+           col 2 (just left of `+`) */
+        let model = Replay.final_model(~size=small, "1 + 2\x1b[<0;5;1M");
+        let caret = EditorView.caret_point(model.editor);
+        check(int, "caret row", 0, caret.row);
+        check(int, "caret col", 2, caret.col);
+      },
+    ),
+    test_case(
+      "double-click selects the clicked token",
+      `Quick,
+      () => {
+        open Haz3lcore;
+        let m1 = Replay.final_model(~size=small, "1 + 234");
+        /* two rapid clicks on `234` (screen col 6 = buffer col 4) */
+        let click =
+          Keymap.Mouse(
+            AnsiInput.Press(
+              {
+                row: 0,
+                col: 6,
+              },
+              false,
+            ),
+          );
+        let (m2, _) = App.apply(~now=1.0, ~page=8, m1, click);
+        let (m3, _) = App.apply(~now=1.2, ~page=8, m2, click);
+        check(
+          bool,
+          "selection non-empty after double click",
+          false,
+          Selection.is_empty(m3.editor.state.zipper.selection),
+        );
+        check(
+          bool,
+          "single click leaves selection empty",
+          true,
+          Selection.is_empty(m2.editor.state.zipper.selection),
+        );
+      },
+    ),
+    test_case(
+      "shift-click selects from caret to point",
+      `Quick,
+      () => {
+        open Haz3lcore;
+        /* caret ends after `2`; shift-click back at buffer col 2 */
+        let model = Replay.final_model(~size=small, "1 + 2\x1b[<4;3;1M");
+        check(
+          bool,
+          "selection non-empty",
+          false,
+          Selection.is_empty(model.editor.state.zipper.selection),
+        );
+      },
+    ),
+    test_case(
+      "wheel scroll detaches viewport from caret",
+      `Quick,
+      () => {
+        let m1 = Replay.final_model(~size=small, "1 + 2");
+        let (m2, _) =
+          App.apply(~page=8, m1, Keymap.Mouse(AnsiInput.Wheel(3)));
+        check(int, "row_off scrolled", 3, m2.row_off);
+        check(bool, "free_scroll set", true, m2.free_scroll);
+        /* a keyboard action re-attaches */
+        let (m3, _) =
+          App.apply(
+            ~page=8,
+            m2,
+            Keymap.Perform(Haz3lcore.Action.Move(Local(Left, ByChar))),
+          );
+        check(bool, "free_scroll cleared", false, m3.free_scroll);
+      },
+    ),
+    test_case(
       "evaluation error is reported, not fatal",
       `Quick,
       () => {

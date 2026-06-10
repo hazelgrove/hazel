@@ -78,7 +78,8 @@ let run = (file: option(string)) => {
         | None => ()
         | Some(action) =>
           let page = App.editor_height(~size=NodeTerm.size(), model^);
-          let (m, should_quit) = App.apply(~page, model^, action);
+          let now = Unix.gettimeofday();
+          let (m, should_quit) = App.apply(~now, ~page, model^, action);
           model := App.disarm(m, action);
           if (should_quit) {
             quit();
