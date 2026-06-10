@@ -1184,6 +1184,14 @@ check_rewrite_result_at_level(~level, ...)</code></pre>
             boundaries.
           </li>
           <li>
+            Obscure left-associativity artifacts entirely in the proof UI. A
+            reparenthesized selected range should feel like one natural
+            selection: no separate green evaluator-step highlight, no user-facing
+            distinction between "Step" and "Step Here", and no extra displayed
+            parentheses such as <code>(4 + x)</code> when the source range was
+            written as <code>4 + x</code>.
+          </li>
+          <li>
             Decide whether the normalizer should preserve more source shape or
             always emit canonical grouped terms such as
             <code>3 * x + 10</code>.

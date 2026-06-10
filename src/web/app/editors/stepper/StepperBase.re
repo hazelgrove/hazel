@@ -95,6 +95,12 @@ and step_action =
   | AddAxiomStep(string, int, Exp.t, Direction.t, string)
   | AddAlgebriteStep(int, Exp.t, Exp.t)
   | AddReparenthesizedAlgebriteStep(Exp.t, Exp.t, Exp.t)
+  | AddReparenthesizedWrittenStep(
+      RewriteChecker.trace_summary,
+      Exp.t,
+      Exp.t,
+      Exp.t,
+    )
   | AddWrittenStep(RewriteChecker.trace_summary, int, Exp.t, Exp.t)
   | CoqExport;
 
@@ -1183,6 +1189,50 @@ and Stepper: {
       | (AddReparenthesizedAlgebriteStep(_, _, _), _, _) =>
         model |> raise_invalid_action
       | (
+          AddReparenthesizedWrittenStep(
+            trace_summary,
+            reparenthesized_exp,
+            at_exp,
+            with_exp,
+          ),
+          MissingStep(_),
+          _,
+        ) =>
+        let exp =
+          model.expr
+          |> Calc.get_saved_exc(~print="AddReparenthesizedWrittenStep");
+        {
+          ...model,
+          step_kind:
+            ReparenthesizeStep({
+              original_exp: exp,
+              reparenthesized_exp,
+              selected_id: None,
+              evaluate_after_parenthesize: false,
+              next_exp: Calc.Pending,
+            }),
+          next_step:
+            Some({
+              ...init,
+              step_kind:
+                WrittenStep({
+                  at_idx:
+                    try(ProofHacks.exp_idx(at_exp, reparenthesized_exp)) {
+                    | _ => 0
+                    },
+                  at_exp,
+                  with_exp,
+                  justification:
+                    RewriteChecker.trace_summary_label(trace_summary),
+                  trace_summary: Some(trace_summary),
+                  next_exp: Calc.Pending,
+                }),
+            }),
+        }
+        |> return;
+      | (AddReparenthesizedWrittenStep(_, _, _, _), _, _) =>
+        model |> raise_invalid_action
+      | (
           AddWrittenStep(trace_summary, at_idx, at_exp, with_exp),
           MissingStep(_),
           _,
@@ -1226,6 +1276,7 @@ and Stepper: {
     | AddAxiomStep(_) => true
     | AddAlgebriteStep(_) => true
     | AddReparenthesizedAlgebriteStep(_) => true
+    | AddReparenthesizedWrittenStep(_) => true
     | AddWrittenStep(_) => true
     | CoqExport => false
     | StepKindAction(action) => StepKind.can_undo(action)
@@ -1542,6 +1593,8 @@ and Stepper: {
                       inject(AddAlgebriteStep(idx, e1, e2))
                     | AddReparenthesizedAlgebriteStep(e1, e2, e3) =>
                       inject(AddReparenthesizedAlgebriteStep(e1, e2, e3))
+                    | AddReparenthesizedWrittenStep(just, e1, e2, e3) =>
+                      inject(AddReparenthesizedWrittenStep(just, e1, e2, e3))
                     | AddWrittenStep(just, idx, e1, e2) =>
                       inject(AddWrittenStep(just, idx, e1, e2))
                     | AutoSimplify(original_exp, simplified_exp) =>

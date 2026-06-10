@@ -17,6 +17,8 @@ module Model = {
       })
     | WrittenStepOpen({
         editor: CodeEditable.Model.t,
+        rewrite_selected_exp: option(Exp.t),
+        rewrite_reparenthesized_exp: option(Exp.t),
         cached_exp: Calc.saved(Exp.t),
         cached_result: Calc.saved(option(RewriteChecker.trace_summary)),
       })
@@ -70,7 +72,7 @@ module Update = {
   type t =
     | ToggleAxioms
     | ProposeRewrite(option(Exp.t), option(Exp.t))
-    | ProposeWrittenStep
+    | ProposeWrittenStep(option(Exp.t), option(Exp.t))
     | RewriteEditorAction(CodeEditable.Update.t)
     | WriteStepEditorAction(CodeEditable.Update.t)
     | AxiomBoxAction(AxiomsBox.Update.t);
@@ -113,7 +115,10 @@ module Update = {
         open_box,
       }
       |> Updated.return_quiet(~recalculate=true, ~logged=true);
-    | (ProposeWrittenStep, _) =>
+    | (
+        ProposeWrittenStep(rewrite_selected_exp, rewrite_reparenthesized_exp),
+        _,
+      ) =>
       let open_box =
         switch (model.open_box) {
         | NoneOpen
@@ -124,6 +129,8 @@ module Update = {
               CodeEditable.Model.mk(
                 Editor.Model.mk(~root=Exp, Zipper.init()),
               ),
+            rewrite_selected_exp,
+            rewrite_reparenthesized_exp,
             cached_exp: Calc.Pending,
             cached_result: Calc.Pending,
           })
@@ -170,7 +177,7 @@ module Update = {
     switch (action) {
     | ToggleAxioms
     | ProposeRewrite(_, _)
-    | ProposeWrittenStep
+    | ProposeWrittenStep(_, _)
     | RewriteEditorAction(_)
     | WriteStepEditorAction(_)
     | AxiomBoxAction(_) => false
@@ -374,7 +381,13 @@ module Update = {
           cached_exp: cached_exp |> Calc.save,
           cached_result: cached_result |> Calc.save,
         });
-      | WrittenStepOpen({editor, cached_exp, cached_result}) =>
+      | WrittenStepOpen({
+          editor,
+          rewrite_selected_exp,
+          rewrite_reparenthesized_exp,
+          cached_exp,
+          cached_result,
+        }) =>
         // Calculate syntax, holes, types, etc for the editor
         let editor =
           CodeEditable.Update.calculate(
@@ -402,6 +415,11 @@ module Update = {
             and.calc from_exp = selected_exp;
             let env = SemanticCtx.get_env(sctx);
             let from_exp =
+              switch (rewrite_selected_exp) {
+              | Some(rewrite_selected_exp) => Some(rewrite_selected_exp)
+              | None => from_exp
+              };
+            let from_exp =
               Substitution.in_exp(
                 env,
                 from_exp
@@ -420,6 +438,8 @@ module Update = {
           };
         Model.WrittenStepOpen({
           editor,
+          rewrite_selected_exp,
+          rewrite_reparenthesized_exp,
           cached_exp: cached_exp |> Calc.save,
           cached_result: cached_result |> Calc.save,
         });
@@ -434,6 +454,8 @@ module Update = {
         Model.WrittenStepOpen({
           editor:
             CodeEditable.Model.mk(Editor.Model.mk(~root=Exp, Zipper.init())),
+          rewrite_selected_exp: None,
+          rewrite_reparenthesized_exp: None,
           cached_exp: Calc.Pending,
           cached_result: Calc.Pending,
         })
@@ -507,6 +529,12 @@ module View = {
     | AddAxiomStep(string, int, Exp.t, Direction.t, string)
     | AddAlgebriteStep(int, Exp.t, Exp.t)
     | AddReparenthesizedAlgebriteStep(Exp.t, Exp.t, Exp.t)
+    | AddReparenthesizedWrittenStep(
+        RewriteChecker.trace_summary,
+        Exp.t,
+        Exp.t,
+        Exp.t,
+      )
     | AddWrittenStep(RewriteChecker.trace_summary, int, Exp.t, Exp.t)
     | AutoSimplify(Exp.t, Exp.t)
     | MakeActive(Selection.t)
@@ -749,17 +777,28 @@ module View = {
         ];
       };
 
-      let view_written_step_box = (editor, cached_exp, cached_result) => {
+      let view_written_step_box =
+          (
+            editor,
+            rewrite_selected_exp,
+            rewrite_reparenthesized_exp,
+            cached_exp,
+            cached_result,
+          ) => {
         let unboxed_cached_exp =
           Calc.get_saved_exc(~print="cached exp not calculated", cached_exp);
         let unboxed_selected_exp =
-          Option.value(
-            ~default=EmptyHole |> Exp.fresh,
-            Calc.get_saved_exc(
-              ~print="selected exp not calculated",
-              model.selected_exp,
-            ),
-          );
+          switch (rewrite_selected_exp) {
+          | Some(rewrite_selected_exp) => rewrite_selected_exp
+          | None =>
+            Option.value(
+              ~default=EmptyHole |> Exp.fresh,
+              Calc.get_saved_exc(
+                ~print="selected exp not calculated",
+                model.selected_exp,
+              ),
+            )
+          };
         [
           // one element list with a div
           // with a list containing two elements
@@ -814,23 +853,38 @@ module View = {
                     ~clss=["proof-button"],
                     Node.text("Replace"),
                     ~tooltip="replace",
-                    _ =>
-                    signal(
-                      AddWrittenStep(
-                        trace_summary,
-                        ProofHacks.exp_idx(
-                          unboxed_selected_exp,
-                          model.full_visible_exp
-                          |> Calc.get_saved_exc(~print="full_visible_exp"),
-                        ),
-                        unboxed_selected_exp,
+                    _ => {
+                      let substituted_cached_exp =
                         unboxed_cached_exp
                         |> Substitution.in_exp(
                              model.cached_env
                              |> Calc.get_saved_exc(~print="env not cached"),
-                           ),
-                      ),
-                    )
+                           );
+                      switch (rewrite_reparenthesized_exp) {
+                      | Some(reparenthesized_exp) =>
+                        signal(
+                          AddReparenthesizedWrittenStep(
+                            trace_summary,
+                            reparenthesized_exp,
+                            unboxed_selected_exp,
+                            substituted_cached_exp,
+                          ),
+                        )
+                      | None =>
+                        signal(
+                          AddWrittenStep(
+                            trace_summary,
+                            ProofHacks.exp_idx(
+                              unboxed_selected_exp,
+                              model.full_visible_exp
+                              |> Calc.get_saved_exc(~print="full_visible_exp"),
+                            ),
+                            unboxed_selected_exp,
+                            substituted_cached_exp,
+                          ),
+                        )
+                      };
+                    },
                   ),
                 ]
               | Some(None) => [Node.text("Invalid")]
@@ -1037,7 +1091,16 @@ module View = {
         show_check_actions
           ? [
             proof_button(
-              ~callback=inject(ProposeWrittenStep),
+              ~callback=
+                inject(
+                  ProposeWrittenStep(
+                    selected_exp_for_rewrite,
+                    switch (reparenthesize_result_for_rewrite) {
+                    | Some(result) => Some(result.exp)
+                    | None => None
+                    },
+                  ),
+                ),
               "Check Result "
               ++ text_arrow(
                    switch (model.open_box) {
@@ -1198,9 +1261,17 @@ module View = {
                     cached_exp,
                     cached_result |> Calc.saved_to_option,
                   )
-                | WrittenStepOpen({editor, cached_exp, cached_result}) =>
+                | WrittenStepOpen({
+                    editor,
+                    rewrite_selected_exp,
+                    rewrite_reparenthesized_exp,
+                    cached_exp,
+                    cached_result,
+                  }) =>
                   view_written_step_box(
                     editor,
+                    rewrite_selected_exp,
+                    rewrite_reparenthesized_exp,
                     cached_exp,
                     cached_result |> Calc.saved_to_option,
                   )
