@@ -40,6 +40,15 @@ let handle = (ev: AnsiInput.event): option(t) =>
        so PrettyPrint moves to Alt+P. */
     | {key: D("p"), alt: Down, ctrl: Up, meta: Up, shift: Up, _} =>
       Some(Perform(PrettyPrint))
+    /* macOS terminals without "Option as Meta" don't send ESC+letter
+       for Option chords; they type the composed character instead
+       (Option+F = ƒ, Option+T = †, Option+P = π). None of these are
+       valid Hazel tokens, so receiving one can only mean the chord —
+       same trick the web keymap uses for its Mac bindings. */
+    | {key: D("ƒ"), _} /* ƒ */ =>
+      Some(Perform(Project(SetIndicated(Specific(Fold)))))
+    | {key: D("†"), _} /* † */ => Some(Perform(Probe(ToggleStatics)))
+    | {key: D("π"), _} /* π */ => Some(Perform(PrettyPrint))
     | _ => Web.Keyboard.handle_key_event(k) |> Option.map(a => Perform(a))
     }
   };

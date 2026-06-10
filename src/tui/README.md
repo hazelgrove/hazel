@@ -51,6 +51,13 @@ TUI-level bindings (handled before the editor keymap):
 | Ctrl+Q / Ctrl+C | quit (asks to confirm if unsaved) |
 | Alt+P | pretty-print |
 
+macOS note: Alt chords (Alt+F fold, Alt+P pretty-print) work either
+way — with "Option as Meta" enabled in your terminal (Terminal.app:
+Profile → Keyboard → Use Option as Meta key; iTerm2: Profile → Keys →
+Option key sends Esc+), or without it (the TUI also recognizes the
+composed characters ƒ/π/† that plain Option typing produces, like the
+web keymap does).
+
 Mouse (SGR tracking): click places the caret; double/triple-click
 selects token/term (same cycle as the web); shift+click and drag
 select; wheel scrolls the viewport without moving the caret (the view

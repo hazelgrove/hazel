@@ -266,6 +266,26 @@ let tests = (
           | None => "(none)"
           },
         );
+        /* macOS Option chords without "Option as Meta": the terminal
+           types the composed char instead of sending ESC+letter */
+        check(
+          string,
+          "literal ƒ (Mac Option+F) folds",
+          "(Perform (Project (SetIndicated (Specific Fold))))",
+          switch (key(Editor(mk("\xc6\x92")))) {
+          | Some(a) => Keymap.show(a)
+          | None => "(none)"
+          },
+        );
+        check(
+          string,
+          "literal π (Mac Option+P) pretty prints",
+          "(Perform PrettyPrint)",
+          switch (key(Editor(mk("\xcf\x80")))) {
+          | Some(a) => Keymap.show(a)
+          | None => "(none)"
+          },
+        );
       },
     ),
   ],
