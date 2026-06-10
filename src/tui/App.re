@@ -401,6 +401,26 @@ let render = (~size: (int, int), model: model): (Frame.t, model) => {
          ];
        });
 
+  /* pad the editor area so the panes + status sit at the bottom */
+  let pad_rows = max(0, editor_h - List.length(visible));
+  let editor_area = visible @ List.init(pad_rows, _ => []);
+
+  /* backpack chip floating above the caret (below when at the top) */
+  let editor_area =
+    switch (BackpackView.view(model.editor)) {
+    | None => editor_area
+    | Some(chip) =>
+      let caret_screen_row = caret.row - row_off;
+      let chip_row = caret_screen_row == 0 ? 1 : caret_screen_row - 1;
+      let chip_col = max(gutter_w, caret.col - col_off + gutter_w);
+      List.mapi(
+        (i, row) =>
+          i == chip_row
+            ? EditorView.overlay_at(row, ~col=chip_col, chip) : row,
+        editor_area,
+      );
+    };
+
   let result_rows =
     model.show_result
       ? ResultView.rows(
@@ -429,14 +449,7 @@ let render = (~size: (int, int), model: model): (Frame.t, model) => {
       model.statics,
     );
 
-  /* pad the editor area so the panes + status sit at the bottom */
-  let pad_rows = max(0, editor_h - List.length(visible));
-  let frame_rows =
-    visible
-    @ List.init(pad_rows, _ => [])
-    @ result_rows
-    @ inspector_rows
-    @ [status];
+  let frame_rows = editor_area @ result_rows @ inspector_rows @ [status];
 
   let cursor =
     Point.{

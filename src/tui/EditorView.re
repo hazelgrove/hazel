@@ -409,3 +409,12 @@ let clip_row = (row: Frame.row, ~col_off: int, ~width: int): Frame.row => {
     };
   take(width, visible);
 };
+
+/* Splice [spans] over [row] starting at display column [col] (the
+   covered cells are replaced; content before/after is preserved) */
+let overlay_at = (row: Frame.row, ~col: int, spans: Frame.row): Frame.row => {
+  let w = spans |> List.map(span_cols) |> List.fold_left((+), 0);
+  let prefix = pad_row_to(clip_row(row, ~col_off=0, ~width=col), col)
+  and suffix = clip_row(row, ~col_off=col + w, ~width=100000);
+  prefix @ spans @ suffix;
+};

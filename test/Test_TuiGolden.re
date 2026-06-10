@@ -211,6 +211,25 @@ let tests = (
       },
     ),
     test_case(
+      "backpack chip shows held shards near the caret",
+      `Quick,
+      () => {
+        /* typing `(` leaves the `)` shard in the backpack */
+        let f = frame("(1");
+        let has = re => Util.StringUtil.match(Util.StringUtil.regexp(re), f);
+        check(bool, "chip with held paren", true, has("\xe2\x87\xa7 \\)"));
+        /* Tab puts it down: chip gone, buffer closed */
+        let f2 = frame("(1\t");
+        check(
+          bool,
+          "chip gone after put-down",
+          false,
+          Util.StringUtil.match(Util.StringUtil.regexp("\xe2\x87\xa7"), f2),
+        );
+        check_buffer("paren closed by tab", "(1)", "(1\t");
+      },
+    ),
+    test_case(
       "evaluation error is reported, not fatal",
       `Quick,
       () => {

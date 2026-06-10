@@ -59,6 +59,8 @@ re-attaches to the caret on the next keyboard action).
 ## Layout
 
 - Editor with line-number gutter; viewport follows the caret.
+- Errors/warnings undercurled in place; backpack (picked-up shards
+  awaiting Tab put-down) floats next to the caret as a `⇧` chip.
 - Result pane: live evaluation of the buffer (200 ms debounce,
   100k-step limit since evaluation is synchronous here).
 - Status bar: file + dirty flag, caret position, type at cursor
