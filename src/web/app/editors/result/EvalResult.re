@@ -257,7 +257,11 @@ module Update = {
         | ProgramResult.ResultOk({state, _}) =>
           Some(
             Dynamics.{
-              probe_map: state |> EvaluatorState.get_probes,
+              /* finalize: convert the evaluator's newest-first storage
+                 to evaluation order once per result, so display-side
+                 lookups are allocation-free (see Sample.Map) */
+              probe_map:
+                state |> EvaluatorState.get_probes |> Sample.Map.finalize,
               test_results:
                 state |> EvaluatorState.get_tests |> TestResults.mk_results,
               theorems: state |> EvaluatorState.get_theorems,

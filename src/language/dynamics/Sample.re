@@ -184,19 +184,28 @@ let mk =
 type sample = t;
 
 /* Samples recorded during evaluation, indexed by the
- * syntax ids of their initial expressions */
+ * syntax ids of their initial expressions.
+ *
+ * Two orderings exist over the same type:
+ *   RAW: as built by the evaluator via `extend` — newest-first
+ *        (prepend for O(1) insert). `lookup`/`fold` reverse on read.
+ *   FINALIZED: converted once via `finalize` when an evaluator-state
+ *        map is installed for display (EvalResult, CLI, debug). Lists
+ *        are in evaluation order; consumers read with plain
+ *        `Dynamics.Map.lookup` (no per-call reversal/allocation —
+ *        it used to copy every probe's sample list on every render
+ *        frame). */
 module Map = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = Id.Map.t(list(sample));
 
   let empty = Id.Map.empty;
 
-  /* Samples are stored in reverse order (prepend for O(1) insert),
-   * so we reverse on lookup to return them in evaluation order */
+  /* RAW maps only: reverse newest-first storage to evaluation order */
   let lookup = (id, map) =>
     Id.Map.find_opt(id, map) |> Option.map(List.rev);
 
-  /* Fold over the map, reversing each sample list to evaluation order */
+  /* RAW maps only: fold, reversing each sample list to evaluation order */
   let fold = (f, map: t, init) =>
     Id.Map.fold(
       (id, samples, acc) => f(id, List.rev(samples), acc),
@@ -204,7 +213,7 @@ module Map = {
       init,
     );
 
-  /* Prepend for O(1) insertion - list is reversed on lookup */
+  /* Prepend for O(1) insertion - produces a RAW map */
   let extend = (id, report, map: t) =>
     Id.Map.update(
       id,
@@ -215,6 +224,10 @@ module Map = {
         },
       map,
     );
+
+  /* One-time RAW -> FINALIZED conversion (each list reversed to
+   * evaluation order). Call exactly once per evaluation result. */
+  let finalize = (map: t): t => Id.Map.map(List.rev, map);
 };
 
 /* Display mode for probe samples */
