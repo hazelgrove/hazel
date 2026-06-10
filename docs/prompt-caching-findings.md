@@ -1,6 +1,6 @@
 # Prompt Caching — Findings & Recommendation
 
-_Last updated: 2026-06-09 · Status: research complete, fix not yet implemented (pending team discussion)_
+_Last updated: 2026-06-09 · Status: Phase 1 implemented and verified live — `cache_read` ≈ 22.3k of a 23.4k prompt (~95%) on `anthropic/claude-sonnet-4.6`. History-caching (Phase 2) still pending._
 
 Investigation into how prompt caching works for the agent's OpenRouter requests, what
 we're doing wrong today, and the recommended fix. Written up from a team meeting where
