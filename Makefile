@@ -1,7 +1,7 @@
 HTML_DIR="$(shell pwd)/_build/default/src/web/www"
 SERVER="http://0.0.0.0:8000/"
 
-.PHONY: all deps change-deps setup-instructor setup-student dev dev-helper dev-student fmt watch watch-release release release-student echo-html-dir serve serve2 repl test clean setup-zarith
+.PHONY: tui tui-run all deps change-deps setup-instructor setup-student dev dev-helper dev-student fmt watch watch-release release release-student echo-html-dir serve serve2 repl test clean setup-zarith
 
 all: dev
 
@@ -69,6 +69,12 @@ serve2:
 
 repl:
 	dune utop src/haz3lcore
+
+tui: setup-zarith
+	dune build --profile release src/tui/tui.bc.js
+
+tui-run: tui
+	./hazel-tui $(FILE)
 
 test:
 	dune fmt --auto-promote || true
