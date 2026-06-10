@@ -1,15 +1,14 @@
 open Util;
-open Virtual_dom.Vdom;
 open Language;
 
-/* This descibes the API for projectors: GUIs which
- * can replace part of the program syntax and perform
- * actions on that underlying syntax, as well as
- * mainting their own custom state. The comments below
- * detail the procedure of defining a new projector.
+/* This describes the API for projector LOGIC: the backend-independent
+ * half of projectors (state, syntax transformations, layout shape).
+ * Views live in the frontends: the web's Vdom views and view registry
+ * are in src/web/projectors (ProjectorViewBase), the terminal views in
+ * src/tui/TermProjector. See docs/projector-backend-split.md.
  *
- * See zipper/projectors/ for examples
- * of currently available projectors */
+ * See projectors/implementations/ for examples of currently available
+ * projector logic modules. */
 
 /* The type of syntax which a projector can replace.
  * Right now projectors can replace a single piece */
@@ -45,7 +44,11 @@ type utility = {
 
 module Focusable = {
   /* Can the projector take focus, in the sense of handling
-   * keyboard input? If so, how can it take focus? */
+   * keyboard input? If so, how can it take focus?
+   *
+   * The callbacks are frontend concerns (the web's move DOM focus),
+   * so they are not part of the logic modules: view backends install
+   * a Kind-indexed mapping in [focusables] below at startup. */
 
   /* Callbacks for projectors to react to getting focus */
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -69,7 +72,16 @@ module Focusable = {
   };
 };
 
-/* External info proivded to all projectors */
+/* Frontend-installed focus behavior per projector kind (see
+ * Focusable above). Consulted by ProjectorPerform's Focus action and
+ * by the web's keyboard hand-off. Default: nothing is focusable. */
+let focusables: ref(ProjectorCore.Kind.t => Focusable.t) =
+  ref(_ => Focusable.non);
+
+let focusable = (kind: ProjectorCore.Kind.t): Focusable.t =>
+  focusables^(kind);
+
+/* External info provided to all projectors */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type info = {
   /* The id of the projector, equal to the id of the root
@@ -103,78 +115,18 @@ type info = {
 /* A projector-reported error, e.g. "can't render as table" */
 type error = {message: string};
 
-module View = {
-  /* A projector has an inline view, which replaces the underlying
-   * syntax. Optionally, it may have an overlay view, which is shown
-   * in the same place, but above most base editor decorations
-   * including the inline views of all other projectors, and/or
-   * an offside view, which is rendered at the end of the base
-   * editor line containing the projector */
-  type t = {
-    inline: Node.t,
-    overlay: option(Node.t),
-    offside: option(Node.t),
-    /* If true, the projector div gets the "error" class,
-     * triggering the dashed red SVG border from proj-base.css */
-    error: bool,
-  };
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type status = {
-    kind: ProjectorCore.Kind.t,
-    sort: Sort.t, /* What sort does the parent editor attribute to the projector? */
-    indication: option(Direction.t), /* Is the parent editor caret adjacent? */
-    selected: bool, /* Is the projector contained within a selection? */
-    error: bool, /* Is there an error mark on the projector? */
-    warning: bool /* Is there a warning mark on the projector? */
-  };
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type seg =
-    (
-      ~single_line: bool=?,
-      ~background: bool=?,
-      ~text_only: bool=?,
-      Sort.t,
-      list(syntax)
-    ) =>
-    Node.t;
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type args('model, 'action) = {
-    model: 'model,
-    info,
-    /* A callback for the projector's own actions */
-    local: 'action => Ui_effect.t(unit),
-    /* A callback for parent editor actions */
-    parent: external_action => Ui_effect.t(unit),
-    /* Creates a non-interactive embedded syntax view,
-     * provided here to address a dependency cycle */
-    view_seg: seg,
-    /* Parent editor context on the projector */
-    status,
-    /* Core settings for feature flags */
-    core_settings: Language.CoreSettings.t,
-  };
-
-  let mk = (~overlay=None, ~offside=None, ~error=false, inline) => {
-    inline,
-    overlay,
-    offside,
-    error,
-  };
-};
-
 /* To add a new projector:
  * 1. Create a new module implementing Projector (e.g. FoldProj)
  * 2. Add an entry for it in ProjectorCore.Kind.t
  * 3. Register the module in ProjectorInit.to_module
- * 4. If you want to expose the projector via a keyboard
+ * 4. Add view modules in the frontends (src/web/projectors,
+ *    optionally src/tui/TermProjector) and register them there
+ * 5. If you want to expose the projector via a keyboard
  *    shortcut, add a Project(...) entry in Keyboard.re
- * 5. If you want to expose the projector in the projector
+ * 6. If you want to expose the projector in the projector
  *    panel bottom bar UI, update ProjectorCore.Kind.name,
  *    ProjectorCore.Kind.of_name, and ProjectorCore.projectors
- * 6. If you want to manually manage the projector as part of
+ * 7. If you want to manually manage the projector as part of
  *    the update cycle, use the implementation of the
  *    SetIndicated action in ProjectorPerform as a guide
  *    for how to add/remove projectors in an editor */
@@ -193,11 +145,6 @@ module type Projector = {
    * to handle the provided term. Otherwise, it should
    * return the desired initial state of the model. */
   let init: Any.t => option(model);
-  /* Does this projector have some notion of internal
-   * positions, whose handling should override the editor
-   * caret & keyboard handlers? If so, provide handlers
-   * here (see Focusable for more information) */
-  let focusable: Focusable.t;
   /* If dynamics is true, this projector will be
    * instrumented with a probe to collect dynamic
    * information during evaluation */
@@ -235,8 +182,6 @@ module type Projector = {
    * invocation before statics have run), the elaborated path
    * is skipped and the projector falls back to the raw syntax. */
   let elaborate_syntax: bool;
-  /* Renders the DOM views for the projector */
-  let view: View.args(model, action) => View.t;
   /* The space left for the projector in the base editor */
   let placeholder: (model, info) => ProjectorCore.Shape.t;
   /* Update the local projector model given an action */
@@ -259,25 +204,17 @@ module Cook = (C: Projector) : Cooked => {
   type action = string;
   let serialize_m = m => m |> C.sexp_of_model |> Sexplib.Sexp.to_string;
   let deserialize_m = s => s |> Sexplib.Sexp.of_string |> C.model_of_sexp;
-  let serialize_a = a => a |> C.sexp_of_action |> Sexplib.Sexp.to_string;
-  let deserialize_a = s => s |> Sexplib.Sexp.of_string |> C.action_of_sexp;
   let init = any => C.init(any) |> Option.map(serialize_m);
-  let focusable = C.focusable;
   let dynamics = C.dynamics;
   let elaborate_syntax = C.elaborate_syntax;
-  let view = (args: View.args(model, action)) =>
-    C.view({
-      model: deserialize_m(args.model),
-      info: args.info,
-      local: a => args.local(serialize_a(a)),
-      parent: args.parent,
-      view_seg: args.view_seg,
-      status: args.status,
-      core_settings: args.core_settings,
-    });
   let placeholder = m =>
     m |> Sexplib.Sexp.of_string |> C.model_of_sexp |> C.placeholder;
   let update = (m, i, a) =>
-    C.update(m |> deserialize_m, i, a |> deserialize_a) |> serialize_m;
+    C.update(
+      m |> deserialize_m,
+      i,
+      a |> Sexplib.Sexp.of_string |> C.action_of_sexp,
+    )
+    |> serialize_m;
   let error = (m, i) => C.error(m |> deserialize_m, i);
 };

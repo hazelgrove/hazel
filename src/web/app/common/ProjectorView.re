@@ -2,6 +2,7 @@ open Haz3lcore;
 open Virtual_dom.Vdom;
 open Node;
 open ProjectorBase;
+open ProjectorViewBase;
 open Util;
 open Util.OptUtil.Syntax;
 open Util.WebUtil;
@@ -118,7 +119,7 @@ let filter_by_visibility =
   };
 
 module Model = {
-  type status = ProjectorBase.View.status;
+  type status = ProjectorViewBase.View.status;
 
   type projector_data = {
     p: Piece.projector,
@@ -443,14 +444,15 @@ let mk_view =
     view;
   | None =>
     ViewCache.misses := ViewCache.misses^ + 1;
-    let (module P) = ProjectorInit.to_module(p.kind);
+    let (module L) = ProjectorInit.to_module(p.kind);
+    let (module PV) = ProjectorViews.to_module(p.kind);
     let idx = List.find_index(x => x == p.id, projector_list) |> Option.get;
     let view =
-      P.view({
+      PV.view({
         model: p.model,
         info,
         local: a => {
-          let new_model = P.update(p.model, info, a);
+          let new_model = L.update(p.model, info, a);
           inject(Project(SetModel(idx, p.kind, new_model)));
         },
         parent: a =>
@@ -616,14 +618,12 @@ let key_handoff =
   ) {
   | _ when z.caret != Outer => None
   | (Some(Left), (Some(Projector({id, kind, _})), _)) =>
-    let (module P) = ProjectorInit.to_module(kind);
     let idx = List.find_index(x => x == id, projector_list) |> Option.get;
-    P.focusable.keyboard != None
+    ProjectorBase.focusable(kind).keyboard != None
       ? Some(Focus(idx, kind, Some(Right))) : None;
   | (Some(Right), (_, Some(Projector({id, kind, _})))) =>
-    let (module P) = ProjectorInit.to_module(kind);
     let idx = List.find_index(x => x == id, projector_list) |> Option.get;
-    P.focusable.keyboard != None
+    ProjectorBase.focusable(kind).keyboard != None
       ? Some(Focus(idx, kind, Some(Left))) : None;
   | _ => None
   };

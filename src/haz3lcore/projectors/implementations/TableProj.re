@@ -1,8 +1,11 @@
 open Util;
-open Virtual_dom.Vdom;
 open ProjectorBase;
 open Language;
 open TableCore;
+
+/* Table projector logic: projects a list of labeled tuples as a table.
+   The web view (table rendering, error banner) lives in
+   src/web/projectors/TableProjView.re, reusing the helpers below. */
 
 let error_message = "Elaborated syntax is not a table: list of labeled tuples with consistent labels.";
 
@@ -28,18 +31,6 @@ let get =
     }
   };
 
-let table =
-    (
-      info,
-      ~parent as _: external_action => Ui_effect.t(unit),
-      (headers, rows): (list(LabeledTuple.label), list(list(Exp.t))),
-      ~view_seg: (Sort.t, Segment.t) => Node.t,
-    ) =>
-  table_view(
-    ~header_cells=List.map(h => Node.th([Node.text(h)]), headers),
-    ~rows=List.map(row_cells(info.utility, view_seg), rows),
-  );
-
 module M: Projector = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type model = unit;
@@ -52,11 +43,6 @@ module M: Projector = {
     | None => None
     };
 
-  let focusable =
-    Focusable.{
-      pointer: None,
-      keyboard: None,
-    };
   let dynamics = false;
   let elaborate_syntax = true;
   let placeholder = (_, info) =>
@@ -119,31 +105,5 @@ module M: Projector = {
     switch (get(info)) {
     | Some(_) => None
     | None => Some(ProjectorBase.{message: error_message})
-    };
-
-  let view = ({info, parent, view_seg, _}: View.args(model, action)): View.t =>
-    switch (get(info)) {
-    | None =>
-      let seg = Segment.unparenthesize(info.syntax);
-      let sort = Segment.sort_of(Segment.skel(seg), seg);
-      let banner =
-        Node.div(
-          ~attrs=[Attr.classes(["table-error-banner"])],
-          [Node.text(error_message)],
-        );
-      View.mk(
-        ~error=true,
-        Node.div(
-          ~attrs=[Attr.classes(["table-inner"])],
-          [banner, view_seg(sort, seg)],
-        ),
-      );
-    | Some(data) =>
-      View.mk(
-        Node.div(
-          ~attrs=[Attr.classes(["table-inner"])],
-          [table(info, ~view_seg, ~parent, data)],
-        ),
-      )
     };
 };

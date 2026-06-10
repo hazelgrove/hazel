@@ -1,5 +1,4 @@
 open Util;
-open Virtual_dom.Vdom;
 open ProjectorBase;
 
 /* Pure helpers are exposed at file level (outside the sealed module
@@ -50,18 +49,9 @@ module M: Projector = {
     | None => None
     };
 
-  let focusable = Focusable.non;
   let dynamics = false;
   let elaborate_syntax = false;
   let placeholder = (_, _) => shape;
   let update = (model, _, _) => model;
   let error = (_, _): option(ProjectorBase.error) => None;
-
-  let view = ({info, parent, _}: View.args(model, action)) =>
-    View.mk(
-      Util.WebUtil.range(
-        ~attrs=[Attr.on_input((_, v) => parent(SetSyntax(put(info, v))))],
-        info |> get |> Bigint.to_string,
-      ),
-    );
 };

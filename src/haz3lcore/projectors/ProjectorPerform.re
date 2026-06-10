@@ -300,8 +300,7 @@ let go =
     switch (d) {
     | None =>
       /* Focus by pointer click or probe-to-probe navigation */
-      let (module P) = ProjectorInit.to_module(kind);
-      switch (P.focusable.pointer) {
+      switch (ProjectorBase.focusable(kind).pointer) {
       | Some(focus) => focus(id)
       | None => ()
       };
@@ -321,16 +320,14 @@ let go =
       Ok(z);
     | Some(Right) =>
       /* Focus by arrow key hand-off */
-      let (module P) = ProjectorInit.to_module(kind);
-      switch (P.focusable.keyboard) {
+      switch (ProjectorBase.focusable(kind).keyboard) {
       | Some(focus) => focus(id, Right)
       | None => ()
       };
       Ok(z);
     | Some(Left) =>
       /* Focus by arrow key hand-off */
-      let (module P) = ProjectorInit.to_module(kind);
-      switch (P.focusable.keyboard) {
+      switch (ProjectorBase.focusable(kind).keyboard) {
       | Some(focus) => focus(id, Left)
       | None => ()
       };

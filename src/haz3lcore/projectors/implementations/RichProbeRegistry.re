@@ -5,7 +5,8 @@
  * renderers depend on RichProbe.RichProbe, so RichProbe can't see them.
  *
  * To add a new renderer: implement RichProbe.RichProbe and add one entry
- * to `renderers` below. */
+ * to `renderers` below, then register its Vdom view in the web view
+ * registry (src/web/projectors/RichProbeViewRegistry.re). */
 
 open RichProbe;
 module Sexp = Sexplib.Sexp;

@@ -1,10 +1,9 @@
 open Util;
 open ProjectorBase;
-open Virtual_dom.Vdom;
 
-/* Pure helpers are exposed at file level (outside the sealed module
-   below) so that alternative view backends (e.g. the TUI) can reuse
-   the projector's semantics without going through the Vdom view. */
+/* Checkbox projector logic: projects a boolean literal as a checkbox.
+   Views live in the frontends (web: CheckboxProjView; tui:
+   TermProjector.checkbox), reusing the helpers below. */
 
 let bool_of = (any: Language.Any.t): option(bool) =>
   switch (any) {
@@ -52,23 +51,9 @@ module M: Projector = {
     | None => None
     };
 
-  let focusable = Focusable.non;
   let dynamics = false;
   let elaborate_syntax = false;
   let placeholder = (_, _) => shape;
   let update = (model, _, _) => model;
   let error = (_, _): option(ProjectorBase.error) => None;
-
-  let view = ({info, parent, _}: View.args(model, action)) =>
-    View.mk(
-      Node.input(
-        ~attrs=
-          [
-            Attr.create("type", "checkbox"),
-            Attr.on_input((_, _) => parent(SetSyntax(toggle(info)))),
-          ]
-          @ (info |> get ? [Attr.checked] : []),
-        (),
-      ),
-    );
 };
