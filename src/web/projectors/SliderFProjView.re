@@ -10,7 +10,7 @@ module V: ProjectorView = {
 
   let view = ({info, parent, _}: View.args(L.model, L.action)) =>
     View.mk(
-      Util.WebUtil.range(
+      WebUtil.range(
         ~attrs=[
           Attr.on_input((_, v) =>
             parent(SetSyntax(SliderFProj.put(info, v)))

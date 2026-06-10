@@ -1,5 +1,5 @@
 open Util;
-open Util.WebUtil;
+open WebUtil;
 open Haz3lcore;
 
 let shard_svg =

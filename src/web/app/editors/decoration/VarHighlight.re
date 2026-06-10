@@ -1,4 +1,4 @@
-open Util.WebUtil;
+open WebUtil;
 open Haz3lcore;
 
 /* Variable binding/reference highlighting.

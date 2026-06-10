@@ -1729,7 +1729,7 @@ module Agent = {
         | _ => ()
         };
       };
-      OpenRouter.Utils.start_chat(~key=api_key, ~payload, ~handler);
+      OpenRouterHttp.start_chat(~key=api_key, ~payload, ~handler);
     };
 
     let test_results_string =
@@ -1827,7 +1827,7 @@ module Agent = {
           ~messages,
           ~tools=[],
         );
-      OpenRouter.Utils.start_chat(~key=api_key, ~payload, ~handler);
+      OpenRouterHttp.start_chat(~key=api_key, ~payload, ~handler);
     };
 
     /** Shared auto (token limit) and manual (/compact) compaction kickoff. */
@@ -1998,7 +1998,7 @@ module Agent = {
         | None => ()
         };
       };
-      OpenRouter.Utils.start_chat(~key=api_key, ~payload, ~handler);
+      OpenRouterHttp.start_chat(~key=api_key, ~payload, ~handler);
     };
 
     let send_message =

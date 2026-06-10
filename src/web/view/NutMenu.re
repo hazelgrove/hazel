@@ -1,6 +1,6 @@
 open Virtual_dom.Vdom;
 open Node;
-open Util.WebUtil;
+open WebUtil;
 open Widgets;
 
 type setting_item = {

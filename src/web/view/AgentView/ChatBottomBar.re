@@ -1,6 +1,6 @@
 open Virtual_dom.Vdom;
 open Node;
-open Util.WebUtil;
+open WebUtil;
 open Util;
 open Js_of_ocaml;
 open Haz3lcore;
@@ -462,7 +462,7 @@ let view =
               Attr.on_input(handle_textarea_input),
               Attr.on_keydown(event => {
                 let key = Js.Optdef.to_option(Js.Unsafe.get(event, "key"));
-                let shift_pressed = Key.shift_held(event);
+                let shift_pressed = KeyEvent.shift_held(event);
                 switch (key) {
                 | Some("ArrowDown") =>
                   switch (slash_menu) {

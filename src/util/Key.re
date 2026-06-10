@@ -1,5 +1,4 @@
 open Ppx_yojson_conv_lib.Yojson_conv;
-open Js_of_ocaml;
 
 [@deriving (show({with_path: false}), yojson)]
 type dir =
@@ -32,36 +31,7 @@ type t = {
   alt: held,
 };
 
-let get_key = evt =>
-  Js.to_string(Js.Optdef.get(evt##.key, () => failwith("JsUtil.get_key")));
-
-let ctrl_held = evt => Js.to_bool(evt##.ctrlKey);
-let shift_held = evt => Js.to_bool(evt##.shiftKey);
-let alt_held = evt => Js.to_bool(evt##.altKey);
-let meta_held = evt => Js.to_bool(evt##.metaKey);
-
-let key_of = (dir: dir, evt): key => {
-  let key = get_key(evt);
-  switch (dir) {
-  | KeyUp => U(key)
-  | KeyDown => D(key)
-  };
-};
-
 let to_held: bool => held = b => b ? Down : Up;
-
-let get_code = evt =>
-  Js.to_string(Js.Optdef.get(evt##.code, () => Js.string("")));
-
-let mk = (dir, evt): t => {
-  key: key_of(dir, evt),
-  code: get_code(evt),
-  sys: Os.is_mac^ ? Mac : PC,
-  shift: to_held(shift_held(evt)),
-  meta: to_held(meta_held(evt)),
-  ctrl: to_held(ctrl_held(evt)),
-  alt: to_held(alt_held(evt)),
-};
 
 let modifier_string = (h: held, m): string => h == Down ? " + " ++ m : "";
 
@@ -79,25 +49,3 @@ let key_dir_string = (key: t): string =>
 
 let to_string = (key: t): string =>
   "KEY" ++ key_dir_string(key) ++ modifiers_string(key);
-
-/* Keyboard event handler for focusable components.
- * Adds tabindex(0) so the element can receive focus and key events. */
-let handler = (~f: t => Virtual_dom.Vdom.Effect.t(unit)) =>
-  Virtual_dom.Vdom.(
-    Attr.many([
-      Attr.on_keydown(evt => f(mk(KeyDown, evt))),
-      Attr.on_keyup(evt => f(mk(KeyUp, evt))),
-      Attr.tabindex(0),
-    ])
-  );
-
-/* Keyboard event listener without tabindex.
- * For elements that catch bubbled key events (e.g. a page-level
- * container) but shouldn't themselves become focusable. */
-let listener = (~f: t => Virtual_dom.Vdom.Effect.t(unit)) =>
-  Virtual_dom.Vdom.(
-    Attr.many([
-      Attr.on_keydown(evt => f(mk(KeyDown, evt))),
-      Attr.on_keyup(evt => f(mk(KeyUp, evt))),
-    ])
-  );

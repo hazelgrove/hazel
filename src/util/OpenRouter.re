@@ -216,35 +216,9 @@ module Model = {
     | Error(error);
 };
 
+/* HTTP entry points (chat / start_chat / get_models) live in the web
+ * library (OpenRouterHttp.re); this module stays platform-free. */
 module Utils = {
-  let chat =
-      (~key: string, ~body: Json.t, ~handler: option(Json.t) => unit): unit => {
-    print_endline("API: POSTing OpenRouter request");
-    request(
-      ~debug=false,
-      ~with_credentials=false,
-      ~method=POST,
-      ~url="https://openrouter.ai/api/v1/chat/completions",
-      ~headers=[
-        ("Content-Type", "application/json"),
-        ("Authorization", "Bearer " ++ key),
-      ],
-      ~body,
-      handler,
-    );
-  };
-
-  let start_chat =
-      (
-        ~payload: Payload.Model.t,
-        ~key: string,
-        ~handler: option(Json.t) => unit,
-      )
-      : unit => {
-    let json_of_payload = Payload.Utils.json_of_payload(~payload);
-    chat(~key, ~body=json_of_payload, ~handler);
-  };
-
   let of_usage = (choices: Json.t): option(Reply.Model.usage) => {
     let* prompt_tokens = API.Json.Parsers.int_field(choices, "prompt_tokens");
     let* completion_tokens =
@@ -463,20 +437,6 @@ module AvailableLLMs = {
   };
 
   module Utils = {
-    let get_models = (~key: string, ~handler: option(Json.t) => unit): unit => {
-      print_endline("API: GETting OpenRouter models");
-      request(
-        ~method=GET,
-        ~url="https://openrouter.ai/api/v1/models",
-        ~headers=[
-          ("Content-Type", "application/json"),
-          ("Authorization", "Bearer " ++ key),
-        ],
-        ~body=`Null,
-        handler,
-      );
-    };
-
     let is_top_model = (name: string): bool => {
       StringUtil.match(StringUtil.regexp("Google"), name)
       || StringUtil.match(StringUtil.regexp("Anthropic"), name)

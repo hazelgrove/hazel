@@ -1,6 +1,6 @@
 open Virtual_dom.Vdom;
 open Node;
-open Util.WebUtil;
+open WebUtil;
 
 module TestStatus = Language.TestStatus;
 module TestMap = Language.TestMap;

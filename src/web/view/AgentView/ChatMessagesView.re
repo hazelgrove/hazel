@@ -1,6 +1,6 @@
 open Virtual_dom.Vdom;
 open Node;
-open Util.WebUtil;
+open WebUtil;
 open Util;
 open Haz3lcore;
 open Js_of_ocaml;
@@ -768,7 +768,7 @@ let view =
                       Attr.on_keydown(event => {
                         let key =
                           Js.Optdef.to_option(Js.Unsafe.get(event, "key"));
-                        let shift_pressed = Key.shift_held(event);
+                        let shift_pressed = KeyEvent.shift_held(event);
                         switch (key) {
                         | Some("Enter") when !shift_pressed =>
                           // Enter without Shift: send message and blur

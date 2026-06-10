@@ -2,7 +2,7 @@ open Virtual_dom.Vdom;
 open Node;
 open Haz3lcore;
 open Util;
-open Util.WebUtil;
+open WebUtil;
 
 /* Helpers for rendering code text with holes and syntax highlighting */
 

@@ -1,6 +1,6 @@
 open Virtual_dom.Vdom;
 open Node;
-open Util.WebUtil;
+open WebUtil;
 open Language;
 
 /* Debug sidebar panel: dumps the statics Info metadata for the term under the
@@ -49,7 +49,7 @@ let typ_to_text = (~settings, typ: Typ.t): string =>
 let copy_segment = (segment: Haz3lcore.Segment.t): unit => {
   let str = Haz3lcore.Printer.of_segment(~holes="?", segment);
   Haz3lcore.Parser.set_segment_cache(Some(segment), str);
-  Util.JsUtil.write_clipboard(str);
+  JsUtil.write_clipboard(str);
 };
 
 /* Copy button; `on_copy` runs only on click (not when the field is built) and
@@ -130,7 +130,7 @@ let field_str = (label: string, body: string): Node.t =>
   div(
     ~attrs=[clss(["debug-field"])],
     [
-      label_row(~copy=Some(() => Util.JsUtil.write_clipboard(body)), label),
+      label_row(~copy=Some(() => JsUtil.write_clipboard(body)), label),
       pre(~attrs=[clss(["debug-field-value", "raw"])], [text(body)]),
     ],
   );
@@ -185,7 +185,7 @@ let field_any = (~globals, ~raw, label: string, any: Any.t): Node.t =>
     ~copy=
       () =>
         raw
-          ? Util.JsUtil.write_clipboard(Any.show(any))
+          ? JsUtil.write_clipboard(Any.show(any))
           : copy_segment(
               Haz3lcore.ExpToSegment.any_to_segment(
                 ~settings=code_settings_ml,
@@ -329,8 +329,7 @@ let field_ctx = (~globals, ~raw, label: string, ctx: Ctx.t): Node.t =>
   field_collapsible(
     ~globals,
     ~copy=
-      () =>
-        Util.JsUtil.write_clipboard(raw ? Ctx.show(ctx) : ctx_to_text(ctx)),
+      () => JsUtil.write_clipboard(raw ? Ctx.show(ctx) : ctx_to_text(ctx)),
     ~body=
       () =>
         raw
@@ -350,7 +349,7 @@ let field_co_ctx = (~globals, ~raw, label: string, co_ctx: CoCtx.t): Node.t =>
     ~globals,
     ~copy=
       () =>
-        Util.JsUtil.write_clipboard(
+        JsUtil.write_clipboard(
           raw ? CoCtx.show(co_ctx) : co_ctx_to_text(co_ctx),
         ),
     ~body=

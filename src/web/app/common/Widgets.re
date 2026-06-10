@@ -1,11 +1,11 @@
 open Virtual_dom.Vdom;
 open Node;
-open Util.WebUtil;
+open WebUtil;
 
 let button = (~clss=[], ~tooltip="", icon, action) =>
   div(
     ~attrs=[
-      Util.WebUtil.clss(["icon"] @ clss),
+      WebUtil.clss(["icon"] @ clss),
       Attr.on_mousedown(action),
       Attr.title(tooltip),
     ],

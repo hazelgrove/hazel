@@ -1,6 +1,6 @@
 open Virtual_dom.Vdom;
 open Node;
-open Util.WebUtil;
+open WebUtil;
 open Util;
 open Icons;
 
@@ -318,7 +318,11 @@ let view =
                       Effect.Stop_propagation,
                     ]);
                   };
-                  let time_ago = TimeUtil.format_time_diff(chat.created_at);
+                  let time_ago =
+                    TimeUtil.format_time_diff(
+                      ~now=JsUtil.timestamp(),
+                      chat.created_at,
+                    );
                   div(
                     ~attrs=[
                       clss(classes),

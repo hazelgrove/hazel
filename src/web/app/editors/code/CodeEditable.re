@@ -886,7 +886,7 @@ module View = {
               Haz3lcore.Action.Paste(Util.StringUtil.trim_leading(text));
             Bonsai.Effect.Expert.handle(inject(Perform(action)));
           });
-        Key.handler(~f=key => {
+        KeyEvent.handler(~f=key => {
           /* 1. Check for arrow key escape at boundaries FIRST.
            *    Keyboard.handle_key_event always returns Some for arrows,
            *    so boundary escape must be checked before delegation. */

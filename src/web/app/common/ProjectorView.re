@@ -5,7 +5,7 @@ open ProjectorBase;
 open ProjectorViewBase;
 open Util;
 open Util.OptUtil.Syntax;
-open Util.WebUtil;
+open WebUtil;
 
 /* Re-export visible_rows type from Globals for convenience */
 type visible_rows = Globals.VisibleRows.t;

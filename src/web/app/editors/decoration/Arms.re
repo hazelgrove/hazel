@@ -372,7 +372,7 @@ let term_range = (~syntax: CachedSyntax.t, p: Piece.t) => {
   };
 };
 
-open Util.WebUtil;
+open WebUtil;
 
 module Errors = {
   let of_id =
