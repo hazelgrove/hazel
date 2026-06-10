@@ -215,6 +215,78 @@ let selection_range = (editor: Editor.Model.t): option((Point.t, Point.t)) => {
   };
 };
 
+/* A (row, first_col, last_col-exclusive) range to be styled */
+type col_range = {
+  range_row: int,
+  first: int,
+  last: int,
+};
+
+/* Per-row ranges covered by a measurement (multi-row spans clamp
+   intermediate rows to their measured max_col) */
+let ranges_of_measurement =
+    (m: Measured.measurement, rows_shape: Measured.Rows.t): list(col_range) =>
+  if (m.origin.row == m.last.row) {
+    [
+      {
+        range_row: m.origin.row,
+        first: m.origin.col,
+        last: m.last.col,
+      },
+    ];
+  } else {
+    let row_max = r =>
+      switch (Measured.Rows.find_opt(r, rows_shape)) {
+      | Some(shape) => shape.max_col
+      | None => 0
+      };
+    List.init(
+      m.last.row - m.origin.row + 1,
+      i => {
+        let r = m.origin.row + i;
+        {
+          range_row: r,
+          first: r == m.origin.row ? m.origin.col : 0,
+          last: r == m.last.row ? m.last.col : row_max(r),
+        };
+      },
+    );
+  };
+
+/* Where the web draws error/warning "arms" under a term, the TUI
+   underlines the term's shards: resolve each statics id to its root
+   tile (as Arms.Errors.of_id does) and take the shard measurements. */
+let id_ranges = (ids: list(Id.t), editor: Editor.Model.t): list(col_range) => {
+  let syntax = editor.syntax;
+  let measured = syntax.measured;
+  ids
+  |> List.concat_map(id =>
+       switch (TermData.root_tile(id, syntax.term_data)) {
+       | Some(t) =>
+         switch (Id.Map.find_opt(t.id, measured.tiles)) {
+         | Some(shards) =>
+           shards
+           |> List.concat_map(((_, m)) =>
+                ranges_of_measurement(m, measured.rows)
+              )
+         | None => []
+         }
+       | None =>
+         /* projectors are not in the tile map (cf. Arms.Errors.of_id) */
+         switch (Id.Map.find_opt(id, measured.projectors)) {
+         | Some(m) => ranges_of_measurement(m, measured.rows)
+         | None => []
+         }
+       }
+     );
+};
+
+let error_ranges = (statics: CachedStatics.t, editor: Editor.Model.t) =>
+  id_ranges(statics.error_ids, editor);
+
+let warning_ranges = (statics: CachedStatics.t, editor: Editor.Model.t) =>
+  id_ranges(statics.warning_ids, editor);
+
 /* === column-wise span surgery (selection overlay, clipping) === */
 
 let cluster_cols = Unicode.Width.columns_of_cluster;
@@ -272,6 +344,22 @@ let pad_row_to = (row: Frame.row, cols: int): Frame.row => {
   let w = row |> List.map(span_cols) |> List.fold_left((+), 0);
   w >= cols ? row : row @ [(Style.default, String.make(cols - w, ' '))];
 };
+
+/* Apply a style transform over a set of (row, col-range) extents */
+let apply_ranges =
+    (rows: list(Frame.row), ranges: list(col_range), f: Style.t => Style.t)
+    : list(Frame.row) =>
+  List.mapi(
+    (r, row) =>
+      List.fold_left(
+        (row, {range_row, first, last}) =>
+          range_row == r && last > first
+            ? map_col_range(row, ~first, ~last, f) : row,
+        row,
+        ranges,
+      ),
+    rows,
+  );
 
 /* Reverse-video the cells between two buffer points (selection overlay) */
 let apply_selection =

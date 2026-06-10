@@ -17,6 +17,14 @@ let check_frame = (msg, expected, keys) =>
 let check_buffer = (msg, expected, keys) =>
   check(string, msg, expected, buffer(keys));
 
+let show_ranges = (ranges: list(EditorView.col_range)): string =>
+  ranges
+  |> List.map((EditorView.{range_row, first, last}) =>
+       Printf.sprintf("%d:%d-%d", range_row, first, last)
+     )
+  |> List.sort(compare)
+  |> String.concat(" ");
+
 let tests = (
   "TuiGolden",
   [
@@ -62,6 +70,40 @@ let tests = (
         "buffer",
         "let y = 7 in y",
         "\x1b[200~let y = 7 in y\x1b[201~",
+      )
+    ),
+    test_case(
+      "type error underlines the inconsistent term's shards",
+      `Quick,
+      () => {
+        let model = Replay.final_model(~size=small, "2 + true");
+        check(
+          string,
+          "error ranges",
+          "0:4-8", /* the `true` token */
+          show_ranges(EditorView.error_ranges(model.statics, model.editor)),
+        );
+      },
+    ),
+    test_case(
+      "well-typed program has no error ranges",
+      `Quick,
+      () => {
+        let model = Replay.final_model(~size=small, "1 + 2");
+        check(
+          string,
+          "error ranges",
+          "",
+          show_ranges(EditorView.error_ranges(model.statics, model.editor)),
+        );
+      },
+    ),
+    test_case("undercurl SGR emission", `Quick, () =>
+      check(
+        string,
+        "sgr",
+        "\x1b[0;38;5;167;4:3;58:5:167m",
+        Style.sgr(Style.undercurl(167, Style.fg(167))),
       )
     ),
     test_case(

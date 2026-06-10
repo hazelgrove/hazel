@@ -262,6 +262,20 @@ let render = (~size: (int, int), model: model): (Frame.t, model) => {
     col_off,
   };
 
+  /* error/warning undercurls (selection reverse-video goes on top) */
+  let buffer_rows =
+    EditorView.apply_ranges(
+      buffer_rows,
+      EditorView.warning_ranges(model.statics, model.editor),
+      Theme.warning_underline,
+    );
+  let buffer_rows =
+    EditorView.apply_ranges(
+      buffer_rows,
+      EditorView.error_ranges(model.statics, model.editor),
+      Theme.error_underline,
+    );
+
   /* selection overlay in buffer coordinates */
   let buffer_rows =
     switch (EditorView.selection_range(model.editor)) {

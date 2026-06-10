@@ -14,6 +14,9 @@ type t = {
   bold: bool,
   dim: bool,
   reverse: bool,
+  /* curly underline in the given 256-color; terminals without undercurl
+     support degrade to a plain underline (4:3 parses as 4 there) */
+  undercurl: option(int),
 };
 
 let default: t = {
@@ -22,6 +25,7 @@ let default: t = {
   bold: false,
   dim: false,
   reverse: false,
+  undercurl: None,
 };
 
 let fg = (n: int): t => {
@@ -39,6 +43,10 @@ let dim = (s: t): t => {
 let reverse = (s: t): t => {
   ...s,
   reverse: true,
+};
+let undercurl = (n: int, s: t): t => {
+  ...s,
+  undercurl: Some(n),
 };
 
 /* Full SGR sequence for this style. Leads with a reset so each span is
@@ -59,6 +67,14 @@ let sgr = (s: t): string => {
       switch (s.bg) {
       | Default => []
       | Ansi256(n) => ["48", "5", string_of_int(n)]
+      }
+    )
+    @ (
+      switch (s.undercurl) {
+      | None => []
+      /* colon sub-parameter syntax: 4:3 = curly underline,
+         58:5:n = underline color */
+      | Some(n) => ["4:3", "58:5:" ++ string_of_int(n)]
       }
     );
   "\x1b[" ++ String.concat(";", attrs) ++ "m";

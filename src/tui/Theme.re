@@ -31,6 +31,8 @@ let of_base_cls = (cls: string): Style.t =>
   };
 
 let comment = Style.fg(green);
+let error_underline = (s: Style.t) => Style.undercurl(red, s);
+let warning_underline = (s: Style.t) => Style.undercurl(yellow, s);
 let grout = Style.dim(Style.default);
 let line_number = Style.dim(Style.default);
 let status_bar = Style.reverse(Style.default);
