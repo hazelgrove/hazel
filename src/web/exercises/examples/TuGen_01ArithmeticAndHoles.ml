@@ -29,7 +29,7 @@ Hexagons are holes. Hazel evaluates around them. Fill one by typing a value.
           Option.get
             (Haz3lcore.TextRoundtrip.of_text ~root:Exp
                {x|test answer == 1800 end|x});
-        hints = [ "Fill the hole with `7`." ];
+        hints = [ "Fill the hole appropriately." ];
       };
     wrapper = true;
     show_report = true;

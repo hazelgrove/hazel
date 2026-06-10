@@ -12,11 +12,11 @@ let exercise : Tutorial.spec =
       {x|{{no_editor}}
 # Welcome
 
+Click the video below for a quick probes demo.
+
 {{video:hazel-probes-intro.mp4}}
 
-Click the video above to play it.
-
-This short tutorial introduces one idea at a time. Read each slide, try what it suggests, and move on when you feel you have gotten what you can from it. Move between slides with the arrows at the bottom, or the slide menu at the top. You set the pace.
+The tutorial to follow introduces one idea at a time. Read each slide, try what it suggests, and move on when you feel you have gotten what you can from it. Move between slides with the arrows at the bottom, or the slide menu at the top.
 
 Some slides ask you to **complete a task**, and the editor checks your work: a **🤔** face shows while your code is incomplete or incorrect, and a **🤩** face once it passes. Other slides just invite you to **explore or try something out**, with nothing to finish. Either way, take your time.
 

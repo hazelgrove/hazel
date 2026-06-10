@@ -12,9 +12,9 @@ let exercise : Tutorial.spec =
       {x|A sample shows a value. Right-click a sample and you also see the **variables feeding it** in a dropdown.
 
 # Task
-The weekly watering should come to **1800 ml**, but it is off. The total is built from a base amount, the days in a week, and a new-moon bonus. Use the dropdown to find which input is wrong, then fix it.
+The weekly watering should come to **1800 ml**, but it is off; perhaps the bonus is set wrong. The total is built from a base amount, the days in a week, and a new-moon bonus. 
 
-1. Put your cursor on `base * days + bonus` (the `weekly` definition) and press **Cmd/Ctrl+E** to probe it. You get `1755`.
+1. Put your cursor on the `+` in `base * days + bonus` (the `weekly` definition) and press **Cmd/Ctrl+E** to probe it. Should show `1755`.
 2. **Right-click that sample** (a two-finger tap on a Mac trackpad, or Option-click). The dropdown lists every variable feeding it: `base`, `days`, and `bonus`.
 3. One of them is wrong. Fix it so `weekly` is **1800**.|x};
     display_hint =
@@ -31,18 +31,14 @@ The weekly watering should come to **1800 ml**, but it is off. The total is buil
 let days = 7 in
 let bonus = 5 in
 let weekly = base * days + bonus in
-weekly|x}));
+test weekly == 1800 end|x}));
     hidden_tests =
       {
         tests =
           Option.get
             (Haz3lcore.TextRoundtrip.of_text ~root:Exp
-               {x|test answer == 1800 end|x});
-        hints =
-          [
-            "With base 250, days 7, and bonus 50 the total is 1800; one of \
-             them is off.";
-          ];
+               {x|test weekly == 1800 end|x});
+        hints = [ "Bonus should be 50." ];
       };
     wrapper = true;
     show_report = true;

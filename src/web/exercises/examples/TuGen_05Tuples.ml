@@ -18,7 +18,7 @@ name
 You can annotate a binding with its type. A `(name, water)` plant has type `(String, Int)`.
 
 # Task
-Take the plant apart into `name` and `water`, then build its label so it reads **`moonleaf needs 250ml`**.|x};
+Take the plant apart into `name` and `water`, then build its label so it reads **moonleaf needs 250ml**. You'll need to convert using `string_of_int`.|x};
     display_hint =
       {x|Destructure a pair with `let (a, b) = pair in`. Turn an Int into text with `string_of_int(…)`.|x};
     task_reference =
