@@ -24,11 +24,34 @@ let totalize_ty = (expected_ty: option(Typ.t)): Typ.t =>
   | None => Typ.fresh(Unknown(Internal))
   };
 
+/* The model and its display logic live at file level (outside the
+   sealed module below) so that alternative view backends (e.g. the
+   TUI) can reuse the projector's semantics without going through the
+   Vdom view. */
+[@deriving (show({with_path: false}), sexp, yojson)]
+type display =
+  | Expected
+  | Self;
+
+let display_ty = (model: display, statics): option(Typ.t) =>
+  switch (model) {
+  | _ when expected_ty(statics) |> totalize_ty |> Typ.is_syn =>
+    statics |> self_ty
+  | Self => statics |> self_ty
+  | Expected => statics |> expected_ty
+  };
+
+let display_mode = (model: display, statics: option(Info.t)): string =>
+  switch (model) {
+  | _ when self_ty(statics) == expected_ty(statics) => "⇔"
+  | _ when expected_ty(statics) |> totalize_ty |> Typ.is_syn => "⇒"
+  | Self => "⇒"
+  | Expected => "⇐"
+  };
+
 module M: Projector = {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type model =
-    | Expected
-    | Self;
+  type model = display;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type action =
@@ -46,22 +69,6 @@ module M: Projector = {
   let dynamics = false;
   let elaborate_syntax = false;
   let focusable = Focusable.non;
-
-  let display_ty = (model, statics): option(Typ.t) =>
-    switch (model) {
-    | _ when expected_ty(statics) |> totalize_ty |> Typ.is_syn =>
-      statics |> self_ty
-    | Self => statics |> self_ty
-    | Expected => statics |> expected_ty
-    };
-
-  let display_mode = (model: model, statics: option(Language.Info.t)): string =>
-    switch (model) {
-    | _ when self_ty(statics) == expected_ty(statics) => "⇔"
-    | _ when expected_ty(statics) |> totalize_ty |> Typ.is_syn => "⇒"
-    | Self => "⇒"
-    | Expected => "⇐"
-    };
 
   let mode_view = (model, info) =>
     div(
