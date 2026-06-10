@@ -29,10 +29,3 @@ let t_of_string = s => {
   | _ => None
   };
 };
-
-let string_of_action = a => {
-  switch (a) {
-  | Step => "step"
-  | Eval => "eval"
-  };
-};
