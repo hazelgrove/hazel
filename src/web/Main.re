@@ -305,6 +305,7 @@ let start = default_model => {
           ~refractor_shape_map=editor.syntax.refractor_shape_map,
           ~sample_focus=zipper.refractors.sample_focus,
           ~font_metrics,
+          ~visible_rows=model.model.current.current.globals.visible_rows,
         );
         /* Cause-driven refractor-shift compensation: when a drawer
          * above the caret changes height, scroll #main by the exact

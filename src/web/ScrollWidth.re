@@ -27,7 +27,8 @@ type key = (
   int, /* ProbeProj.Settings.version */
   Language.Sample.Focus.t,
   FontMetrics.t,
-  int /* viewport width */,
+  int, /* viewport width */
+  option(Globals.VisibleRows.t) /* culling range: changes what renders */,
 );
 
 let last_key: ref(option(key)) = ref(None);
@@ -38,19 +39,21 @@ let update =
       ~refractor_shape_map: Id.Map.t(int),
       ~sample_focus: Language.Sample.Focus.t,
       ~font_metrics: FontMetrics.t,
+      ~visible_rows: option(Globals.VisibleRows.t),
     )
     : unit => {
   let viewport_w = Dom_html.document##.documentElement##.clientWidth;
   let version = ProbeProj.Settings.version^;
   let stale =
     switch (last_key^) {
-    | Some((m, rsm, v, sf, fm, w)) =>
+    | Some((m, rsm, v, sf, fm, w, vr)) =>
       m !== measured
       || rsm !== refractor_shape_map
       || v != version
       || sf != sample_focus
       || fm != font_metrics
       || w != viewport_w
+      || vr != visible_rows
     | None => true
     };
   if (stale) {
@@ -63,6 +66,7 @@ let update =
         sample_focus,
         font_metrics,
         viewport_w,
+        visible_rows,
       ));
   };
 };
