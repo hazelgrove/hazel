@@ -99,6 +99,23 @@ let of_slide = (module_name: string): t =>
       autoprobe: Some(All),
       colors: Some(Hybrid),
     }
+  /* Study tasks: writing tasks start with auto-probe All (ambient feedback
+   * while building); debugging tasks start Off so the probing strategy is
+   * the participant's own choice. */
+  | "TuGen_26TaskGroveName"
+  | "TuGen_28TaskLogCleaner"
+  | "TuGen_30TaskRunningSum"
+  | "TuGen_32TaskCropPlotter" => {
+      ...none,
+      autoprobe: Some(All),
+    }
+  | "TuGen_27TaskGrowthPlotter"
+  | "TuGen_29TaskNutrientRotation"
+  | "TuGen_31TaskHarvestStreak"
+  | "TuGen_33TaskGardenSpirit" => {
+      ...none,
+      autoprobe: Some(Off),
+    }
   | _ => none
   };
 

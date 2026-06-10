@@ -1,0 +1,73 @@
+@flags
+show_report version=1 id=d0000029-0029-0029-0029-000000000029
+
+@prompt
+# Task: The nutrient ledger
+
+A garden plot tracks three soil nutrients while crops are planted, harvested, and composted. The rotation has stopped working: one test, marked **FAILING**, catches it. Find the bug and fix it. The face turns 🤩 when every test passes.
+
+The sidebar has a suggested route. The bug is one wrong line; the work is knowing which.
+
+@hint
+The failing test plants and harvests one crop. Probe its run and compare each nutrient against what the comments promise.
+
+@reference
+### Approach (debugging tasks)
+1. Read the comment block at the top: what does this program do?
+2. Find the **Model** type and read it. Follow any type aliases it mentions.
+3. Read the **Action** type: the operations the program supports.
+4. Scroll to the test marked **FAILING**. Read what it asserts.
+5. Investigate however you like. Some options:
+   - Auto-probe (Cmd/Ctrl+P) and read values near the failing test, or place probes where you suspect trouble.
+   - Probe the failing test's `farm` call, **pin** that run (`P`), and follow the wrong value backwards.
+   - **Step into** `update` (Enter on a sample), or right-click a function name to jump to its definition.
+   - Switch a probe to *many* mode (Space) to watch the model evolve across actions.
+
+@hints
+planting sets the current crop
+cannot plant when crop already growing
+planting has small nutrient cost
+harvesting clears the crop
+harvesting nothing changes nothing
+moonmelon depletes nitrogen heavily
+duskwheat restores nitrogen
+FAILING: nightshade restores nitrogen significantly
+starfruit depletes all nutrients moderately
+compost boosts all nutrients
+compost respects maximum (100)
+season advances counter
+season change causes minor nutrient loss
+nutrients cannot go below 0
+nutrients cannot exceed 100
+Hidden copy: nightshade restores nitrogen significantly
+Hidden copy: duskwheat restores nitrogen
+Hidden copy: compost boosts all nutrients
+
+@code
+{{include:hazel-programs/study/tasks-draft/04D-nutrient-rotation.hz}}
+
+@test
+test
+  let depleted = (
+    soil = (n = 30, p = 60, k = 60),
+    crop = None,
+    season = 1
+  ) in
+  let p = farm(depleted, [Plant(Nightshade), Harvest]) in
+  p.soil.n >= 45
+end;
+test
+  let depleted = (
+    soil = (n = 30, p = 50, k = 50),
+    crop = None,
+    season = 1
+  ) in
+  let p = farm(depleted, [Plant(Duskwheat), Harvest]) in
+  p.soil.n > depleted.soil.n
+end;
+test
+  let p = update(initModel, Compost) in
+  p.soil.n > initModel.soil.n &&
+  p.soil.p > initModel.soil.p &&
+  p.soil.k > initModel.soil.k
+end

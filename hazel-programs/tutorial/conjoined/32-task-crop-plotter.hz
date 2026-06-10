@@ -1,0 +1,57 @@
+@flags
+show_report version=1 id=d0000032-0032-0032-0032-000000000032
+
+@prompt
+# Task: Plant a column
+
+The crop plotter plants seeds on a grid, one action at a time. It already knows how to fill a row; teach it to fill a **column**. The comments mark the three places to touch, and `PlantRow` is your worked example one shelf up.
+
+The face turns 🤩 when the `PlantCol` tests pass.
+
+@hint
+Mirror `setRow`: map over the rows, and in each row change only the cell at the target column. `mapi` hands the callback an index; probe to see which argument it is.
+
+@reference
+### Approach (extension tasks)
+1. Read the comment block: what should the new action do?
+2. Find the existing feature it mirrors (`PlantRow`) and read its three parts: the Action variant, the helper, the update arm.
+3. Build the column versions of each. Auto-probe is on; probe `setCol` calls to watch the grid change.
+4. Unsure about `mapi`? Probe its callback and see which argument is the index.
+
+@hints
+PlantRow still works
+PlantCol fills column 0
+PlantCol fills column 2
+row then column overlap correctly
+selected seed is used for the column
+Hidden copy: PlantCol fills column 0
+Hidden copy: PlantCol fills column 2
+Hidden copy: row then column overlap
+Hidden copy: selected seed is used
+Hidden copy: PlantRow still works
+
+@code
+{{include:hazel-programs/study/tasks-draft/07W-crop-plotter-extend.hz}}
+
+@test
+test
+  let m = update(init, PlantCol(0)) in
+  m.grove == [["🌱", "", ""], ["🌱", "", ""], ["🌱", "", ""]]
+end;
+test
+  let m = update(init, PlantCol(2)) in
+  m.grove == [["", "", "🌱"], ["", "", "🌱"], ["", "", "🌱"]]
+end;
+test
+  let m = do(init, [PlantRow(0), PlantCol(1)]) in
+  m.grove == [["🌱", "🌱", "🌱"], ["", "🌱", ""], ["", "🌱", ""]]
+end;
+test
+  let m = do(init, [SelectSeed(2), PlantCol(1)]) in
+  m.grove == [["", "🍄", ""], ["", "🍄", ""], ["", "🍄", ""]]
+  && m.currentSeed == "🍄"
+end;
+test
+  let m = update(init, PlantRow(1)) in
+  m.grove == [["", "", ""], ["🌱", "🌱", "🌱"], ["", "", ""]]
+end

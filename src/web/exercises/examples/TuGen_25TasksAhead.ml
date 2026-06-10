@@ -12,9 +12,18 @@ let exercise : Tutorial.spec =
       {x|{{no_editor}}
 # The tasks ahead
 
-*(Placeholder.)* You have reached the end of the guided tutorial. Next come a series of short **program-writing** and **debugging** tasks that put what you have learned to work.
+That is the end of the guided part. What follows are real tasks: some **writing** (build a function to a spec), some **debugging** (a working program with one bug and one FAILING test that knows it).
 
-We will fill this in with an overview: what the tasks look like, how they are structured, and a reminder to keep thinking out loud and to ask questions whenever you need.|x};
+A few things to expect:
+
+- **The tests are the goal.** Each task shows a 🤔 face until its tests pass, then 🤩. The tests in the editor are the spec; read them early.
+- **Debugging tasks have a route.** The sidebar suggests one: read the top comments, then the Model type, then the Action type, then find the test marked FAILING. After that, investigate your way.
+- **Probes are a menu, not a script.** Manual probes, auto-probe, many mode, pin, step into, the variable dropdown: use whatever answers the question you actually have. There is no correct combination.
+- **Think out loud.** Say what you expect before you look, and what surprised you after. Wrong guesses are the most useful thing you can give us.
+
+On a few tasks probes will be switched off; you still have `print`, the tests, and your eyes. That contrast is part of what we are studying.
+
+Take your time. Ask anything.|x};
     display_hint = {x||x};
     task_reference = {x||x};
     your_impl =

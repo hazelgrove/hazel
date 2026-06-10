@@ -1,0 +1,60 @@
+@flags
+show_report version=1 id=d0000027-0027-0027-0027-000000000027
+
+@prompt
+# Task: The moonlit field
+
+A field of crops, planted and watered by actions. Something in it has stopped growing; one test, marked **FAILING**, says where the trouble shows. Find the bug and fix it. The face turns 🤩 when every test passes.
+
+Probes are yours to use however you like: place them by hand or turn on auto-probe (Cmd/Ctrl+P). The sidebar has a suggested route through the program.
+
+@hint
+Start from the FAILING test and chase the wrong value backwards: probe the run, pin it, step into update.
+
+@reference
+### Approach (debugging tasks)
+1. Read the comment block at the top: what does this program do?
+2. Find the **Model** type and read it. Follow any type aliases it mentions.
+3. Read the **Action** type: the operations the program supports.
+4. Scroll to the test marked **FAILING**. Read what it asserts.
+5. Investigate however you like. Some options:
+   - Auto-probe (Cmd/Ctrl+P) and read values near the failing test, or place probes where you suspect trouble.
+   - Probe the failing test's `run` call, **pin** that run (`P`), and follow the wrong value backwards.
+   - **Step into** `update` (Enter on a sample), or right-click a function name to jump to its definition.
+   - Switch a probe to *many* mode (Space) to watch the model evolve across actions.
+
+@hints
+can plant a crop in empty cell
+planted crop starts at Seed stage
+cannot plant on occupied cell
+can select different seed types
+can plant multiple crops
+watering advances planted crops
+watering advances all crops simultaneously
+watering does not affect empty cells
+FAILING: multiple waterings progress through stages
+cannot harvest immature crops
+PassDay increments day count
+Hidden copy: multiple waterings progress through stages
+Hidden copy: watering advances planted crops
+Hidden copy: can plant a crop in empty cell
+
+@code
+{{include:hazel-programs/study/tasks-draft/02D-growth-plotter.hz}}
+
+@test
+test
+  let m = run(initModel, [
+    PlantCrop(0, 0),
+    WaterField, WaterField, WaterField, WaterField
+  ]) in
+  getStage(getCell(m.field, 0, 0)) == ReadyToHarvest
+end;
+test
+  let m = run(initModel, [PlantCrop(0, 0), WaterField]) in
+  getStage(getCell(m.field, 0, 0)) == Sprout
+end;
+test
+  let m = update(initModel, PlantCrop(0, 0)) in
+  isPlanted(getCell(m.field, 0, 0))
+end

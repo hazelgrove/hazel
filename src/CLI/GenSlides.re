@@ -49,6 +49,12 @@ let aggregation_module = "AllStudy.re";
  * Uses Util.StringUtil.trim_leading (src/util/StringUtil.re:75-79) */
 let strip_indentation = true;
 
+/* Subdirectories of input_dir to skip entirely. tasks-draft programs are
+ * the canonical sources for the tutorial task slides (referenced via
+ * GenTutorial's {{include:...}}), so they must not ALSO generate
+ * Documentation-mode scratch slides here. */
+let excluded_dirs = ["tasks-draft"];
+
 /* ============================================================================
  * Implementation
  * ============================================================================ */
@@ -107,7 +113,9 @@ let rec find_hz_files = (base_dir: string, rel_path: string): list(string) => {
           };
         let entry_full = base_dir ++ "/" ++ entry_rel;
 
-        if (Sys.is_directory(entry_full)) {
+        if (List.mem(entry_rel, excluded_dirs)) {
+          [];
+        } else if (Sys.is_directory(entry_full)) {
           find_hz_files(base_dir, entry_rel);
         } else if (Filename.check_suffix(entry, ".hz")) {
           [entry_rel];

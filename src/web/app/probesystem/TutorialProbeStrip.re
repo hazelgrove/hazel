@@ -92,6 +92,15 @@ let flags_of_slide = (module_name: string): list(feat) =>
   | "TuGen_22SampleColors"
   | "TuGen_23GreenhouseArena" => s22
   | "TuGen_24ReadingModelValues" => s24
+  /* Study task slides (26+): the full kit. */
+  | "TuGen_26TaskGroveName"
+  | "TuGen_27TaskGrowthPlotter"
+  | "TuGen_28TaskLogCleaner"
+  | "TuGen_29TaskNutrientRotation"
+  | "TuGen_30TaskRunningSum"
+  | "TuGen_31TaskHarvestStreak"
+  | "TuGen_32TaskCropPlotter"
+  | "TuGen_33TaskGardenSpirit" => s24
   | _ => s01
   };
 

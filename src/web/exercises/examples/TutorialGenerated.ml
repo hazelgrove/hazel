@@ -30,4 +30,12 @@ let all : Tutorial.spec list =
     TuGen_23GreenhouseArena.exercise;
     TuGen_24ReadingModelValues.exercise;
     TuGen_25TasksAhead.exercise;
+    TuGen_26TaskGroveName.exercise;
+    TuGen_27TaskGrowthPlotter.exercise;
+    TuGen_28TaskLogCleaner.exercise;
+    TuGen_29TaskNutrientRotation.exercise;
+    TuGen_30TaskRunningSum.exercise;
+    TuGen_31TaskHarvestStreak.exercise;
+    TuGen_32TaskCropPlotter.exercise;
+    TuGen_33TaskGardenSpirit.exercise;
   ]

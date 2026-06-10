@@ -1,0 +1,76 @@
+@flags
+show_report version=1 id=d0000033-0033-0033-0033-000000000033
+
+@prompt
+# Task: The garden spirit
+
+A small spirit tends the garden. It eats, plays, sleeps, remembers how it has been treated, and grows into what its memories make of it. Something in how it evolves is off: a spirit cared for moderately, neglected a little, should bloom, and it does not. One test, marked **FAILING**, holds the case.
+
+This is the biggest program in the set, with several functions feeding each other. Take it slowly; the sidebar route helps. The face turns 🤩 when every test passes.
+
+@hint
+The failing test feeds one model through one TimeTick. Probe `calcEvolution`'s inputs for that run and walk its conditions in order; one of them fires too eagerly.
+
+@reference
+### Approach (debugging tasks)
+1. Read the comment block at the top: what does this program do?
+2. Find the **Model** type and read it. Follow any type aliases it mentions (Stats, Memory, Evolution).
+3. Read the **Action** type: the operations the program supports.
+4. Scroll to the test marked **FAILING**. Read what it asserts.
+5. Investigate however you like. Some options:
+   - Auto-probe (Cmd/Ctrl+P) and read values near the failing test, or place probes where you suspect trouble.
+   - Probe the failing test's `update` call, **pin** that run (`P`), and follow the wrong value backwards.
+   - **Step into** a function (Enter on a sample), or right-click a function name to jump to its definition.
+   - Big model values clip: focus a sample and resize (Shift+←/→) or expand it into rows (Cmd/Ctrl+↓).
+
+@hints
+feeding fills the belly
+play lifts the mood but costs energy
+sleep restores energy
+time passing decays stats
+young spirits stay seedlings
+a critically low stat counts as neglect when time passes
+devoted care raises an elder
+heavy neglect wilts the spirit
+FAILING: moderate care with some neglect becomes bloom
+Hidden copy: moderate care with some neglect becomes bloom
+Hidden copy: devoted care raises an elder
+Hidden copy: heavy neglect wilts the spirit
+
+@code
+{{include:hazel-programs/study/tasks-draft/08D-tamagotchi.hz}}
+
+@test
+test
+  let model = (
+    stats = (hunger = 50, happiness = 50, energy = 50, health = 100),
+    evolution = Seedling,
+    personality = Balanced,
+    memory = (timesFed = 3, timesPlayed = 3, timesSlept = 3, timesNeglected = 3),
+    age = 30
+  ) in
+  let result = update(model, TimeTick) in
+  result.evolution == Bloom
+end;
+test
+  let devoted = (
+    stats = (hunger = 50, happiness = 50, energy = 50, health = 100),
+    evolution = Bloom,
+    personality = Balanced,
+    memory = (timesFed = 10, timesPlayed = 10, timesSlept = 10, timesNeglected = 0),
+    age = 30
+  ) in
+  let m = update(devoted, TimeTick) in
+  m.evolution == Elder
+end;
+test
+  let neglected = (
+    stats = (hunger = 50, happiness = 50, energy = 50, health = 100),
+    evolution = Sprout,
+    personality = Balanced,
+    memory = (timesFed = 1, timesPlayed = 1, timesSlept = 1, timesNeglected = 9),
+    age = 30
+  ) in
+  let m = update(neglected, TimeTick) in
+  m.evolution == Wilted
+end

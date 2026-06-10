@@ -24,6 +24,11 @@
  *                    `version=N`, `id=<uuid>` (carried through round-trips)
  *   With NO markers, the entire file is treated as @code.
  *
+ *   Inside @code and @test, a line that is exactly `{{include:rel/path}}`
+ *   (path relative to the repo root) is replaced with that file's contents.
+ *   Task slides use this to reference a canonical program (e.g. under
+ *   hazel-programs/study/tasks-draft) instead of embedding a drifting copy.
+ *
  *   Code/test are parsed with TextRoundtrip.of_text, so the `¿` implicit-hole
  *   marker and `^^probe(...)` projector syntax produced by `tutorial-decode`
  *   round-trip correctly.
@@ -182,6 +187,35 @@ let parse_sections = (content: string): sections => {
   parse_flags(s, get("flags"));
 };
 
+/* Replace `{{include:rel/path}}` lines with the referenced file's contents
+   (path resolved from the repo root, i.e. the CLI's working directory). A
+   missing file raises, surfacing as the per-slide error in generate_ml_file. */
+let expand_includes = (body: string): string => {
+  let pre = "{{include:";
+  let suf = "}}";
+  String.split_on_char('\n', body)
+  |> List.map(line => {
+       let t = String.trim(line);
+       let is_include =
+         String.length(t) > String.length(pre)
+         + String.length(suf)
+         && String.sub(t, 0, String.length(pre)) == pre
+         && String.sub(t, String.length(t) - String.length(suf), 2) == suf;
+       if (is_include) {
+         let path =
+           String.sub(
+             t,
+             String.length(pre),
+             String.length(t) - String.length(pre) - String.length(suf),
+           );
+         String.trim(Core.In_channel.read_all(String.trim(path)));
+       } else {
+         line;
+       };
+     })
+  |> String.concat("\n");
+};
+
 let module_name_of = (rel: string): string => {
   let base = Filename.chop_suffix(rel, ".hz");
   let camel =
@@ -273,12 +307,12 @@ let generate_ml_file = (i: int, rel_path: string): option(string) => {
     let s = parse_sections(raw);
     let code =
       strip_indentation ? Util.StringUtil.trim_leading(s.code) : s.code;
-    let code = String.trim(code);
+    let code = String.trim(expand_includes(code));
     switch (Haz3lcore.TextRoundtrip.of_text(~root=Exp, code)) {
     | None => prerr_endline("WARNING: @code failed to parse in " ++ rel_path)
     | Some(_) => ()
     };
-    let test = s.test == "" ? "test true end" : s.test;
+    let test = s.test == "" ? "test true end" : expand_includes(s.test);
     let prompt = s.prompt == "" ? default_prompt : s.prompt;
     let id = Option.value(s.id, ~default=id_string(i));
     let hints_ml =
