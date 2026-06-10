@@ -163,15 +163,15 @@ let probe_status =
  * a recompute. The cache is a single global entry — multiple editors with
  * distinct syntaxes invalidate each other (correct, just less reuse); the
  * hot path (one main editor in auto-probe All) keeps it warm. */
-let _expansion_inputs:
+let expansion_inputs:
   ref(option((TermData.t, TermMap.t, Measured.t, Statics.Map.t))) =
   ref(None);
-let _expansion_results: ref(list((Id.t, list(Id.t)))) = ref([]);
+let expansion_results: ref(list((Id.t, list(Id.t)))) = ref([]);
 
 let ids_from_term =
     (~syntax: CachedSyntax.t, ~info_map, id: Id.t): list(Id.t) => {
   let inputs_stable =
-    switch (_expansion_inputs^) {
+    switch (expansion_inputs^) {
     | Some((term_data, terms, measured, prev_info_map)) =>
       term_data === syntax.term_data
       && terms === syntax.terms
@@ -180,11 +180,11 @@ let ids_from_term =
     | None => false
     };
   if (!inputs_stable) {
-    _expansion_inputs :=
+    expansion_inputs :=
       Some((syntax.term_data, syntax.terms, syntax.measured, info_map));
-    _expansion_results := [];
+    expansion_results := [];
   };
-  switch (List.assoc_opt(id, _expansion_results^)) {
+  switch (List.assoc_opt(id, expansion_results^)) {
   | Some(result) => result
   | None =>
     let result =
@@ -198,7 +198,7 @@ let ids_from_term =
       |> Option.to_list
       |> List.flatten
       |> List.filter_map(Fun.id);
-    _expansion_results := [(id, result), ..._expansion_results^];
+    expansion_results := [(id, result), ...expansion_results^];
     result;
   };
 };
@@ -1128,7 +1128,7 @@ let cursor_is_aligned_uncached =
  * add_ids_from_multi_term), and the sample focus (small record,
  * compared structurally). Memoize the verdict on those — same single-
  * entry physical-identity pattern as the `ids_from_term` memo above. */
-let _cia_key:
+let cia_key:
   ref(
     option(
       (
@@ -1146,12 +1146,12 @@ let cursor_is_aligned = (~dynamics: Dynamics.Map.t, z: Zipper.t): bool => {
   let cursor = z.refractors.sample_focus;
   let ephemerals = z.refractors.multis.ephemerals;
   let manuals = z.refractors.manuals;
-  switch (_cia_key^) {
+  switch (cia_key^) {
   | Some((d, e, m, c, verdict))
       when d === dynamics && e === ephemerals && m === manuals && c == cursor => verdict
   | _ =>
     let verdict = cursor_is_aligned_uncached(~dynamics, z);
-    _cia_key := Some((dynamics, ephemerals, manuals, cursor, verdict));
+    cia_key := Some((dynamics, ephemerals, manuals, cursor, verdict));
     verdict;
   };
 };
@@ -1649,17 +1649,17 @@ let current_toplevel_def =
  * frame in All mode (before the anchor short-circuit). The segment ref is
  * reused across non-edit frames by CachedSyntax, so a caret move hits the
  * cache; an edit rebuilds the segment and recomputes. */
-let _root_id_segment: ref(option(Segment.t)) = ref(None);
-let _root_id_result: ref(option(Id.t)) = ref(None);
+let root_id_segment: ref(option(Segment.t)) = ref(None);
+let root_id_result: ref(option(Id.t)) = ref(None);
 
 let program_root_id = (syntax: CachedSyntax.t): option(Id.t) => {
   let stable =
-    switch (_root_id_segment^) {
+    switch (root_id_segment^) {
     | Some(seg) => seg === syntax.segment
     | None => false
     };
   if (stable) {
-    _root_id_result^;
+    root_id_result^;
   } else {
     let result =
       switch (syntax.segment) {
@@ -1670,8 +1670,8 @@ let program_root_id = (syntax: CachedSyntax.t): option(Id.t) => {
         | exception _ => None
         }
       };
-    _root_id_segment := Some(syntax.segment);
-    _root_id_result := result;
+    root_id_segment := Some(syntax.segment);
+    root_id_result := result;
     result;
   };
 };

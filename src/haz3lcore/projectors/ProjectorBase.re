@@ -284,16 +284,16 @@ module Cook = (C: Projector) : Cooked => {
    * keystroke and each worker-result frame), and most model strings are
    * unchanged between calls — memoize the sexp parse by exact string.
    * Bounded: cleared wholesale if model-string churn ever grows it. */
-  let _placeholder_models: Hashtbl.t(string, C.model) = Hashtbl.create(32);
+  let placeholder_models: Hashtbl.t(string, C.model) = Hashtbl.create(32);
   let parse_model_memo = (s: string): C.model =>
-    switch (Hashtbl.find_opt(_placeholder_models, s)) {
+    switch (Hashtbl.find_opt(placeholder_models, s)) {
     | Some(m) => m
     | None =>
-      if (Hashtbl.length(_placeholder_models) > 512) {
-        Hashtbl.clear(_placeholder_models);
+      if (Hashtbl.length(placeholder_models) > 512) {
+        Hashtbl.clear(placeholder_models);
       };
       let m = deserialize_m(s);
-      Hashtbl.add(_placeholder_models, s, m);
+      Hashtbl.add(placeholder_models, s, m);
       m;
     };
   let placeholder = m => m |> parse_model_memo |> C.placeholder;
