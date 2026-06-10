@@ -827,7 +827,10 @@ module View = {
               Haz3lcore.Action.Paste(Util.StringUtil.trim_leading(text));
             Bonsai.Effect.Expert.handle(inject(Perform(action)));
           });
-        Key.handler(~f=key => {
+        /* Key.listener, not Key.handler: the handler variant adds its own
+           tabindex(0), duplicating the unconditional tabindex on this div
+           (vdom warns "not combining attributes" on every render). */
+        Key.listener(~f=key => {
           /* 1. Check for arrow key escape at boundaries FIRST.
            *    Keyboard.handle_key_event always returns Some for arrows,
            *    so boundary escape must be checked before delegation. */
