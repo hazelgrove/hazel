@@ -593,7 +593,8 @@ module View = {
       Always(
         div(
           ~attrs=[Attr.class_("your-impl-wrapper")], // 🆕 Add this wrapper
-          [editor_view(YourImpl, user_impl, ~result_kind=`EvalResults)],
+          //TODO(andrew): decide whether to leave cell result not shown
+          [editor_view(YourImpl, user_impl /*, ~result_kind=`EvalResults*/)],
         ),
       );
     };

@@ -62,9 +62,13 @@
   opacity: 1;
 }
 
+#main.Tutorial .cell:has(.test-panel) {
+  border-left: 1px solid #ffc107;
+}
+
 #main.Tutorial .hint-cell {
   background-color: var(--Y0);
-  border-left: 3px solid #ffc107;
+  border-left: 1px solid #ffc107;
   padding: 13px;
   border-radius: 8px;
   font-size: 16px;

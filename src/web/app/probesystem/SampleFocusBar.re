@@ -588,15 +588,16 @@ let view =
         ~attrs=[
           Attr.classes(["clear-all"]),
           Attr.title("Remove all probes"),
-          Attr.on_pointerdown(_ =>
+          Attr.on_pointerdown(_
             /* Also switch auto-probe off: with the mode left on, the
                auto system repopulates the probes that were just cleared,
                so "remove all" must mean both. */
-            Effect.Many([
-              globals.inject_global(Set(SetAutoprobe(AutoProbe.Off))),
-              globals.inject_global(ActiveEditor(Probe(RemoveAll))),
-            ])
-          ),
+            =>
+              Effect.Many([
+                globals.inject_global(Set(SetAutoprobe(AutoProbe.Off))),
+                globals.inject_global(ActiveEditor(Probe(RemoveAll))),
+              ])
+            ),
         ],
         [text("Clear all")],
       );
@@ -615,7 +616,7 @@ let view =
             Attr.class_("title"),
             Attr.title("Call stack of the focused probe sample"),
           ],
-          [text("probe focus")],
+          [text("stack focus")],
         ),
         div(~attrs=[Attr.class_("breadcrumbs")], entries @ body_icon),
         clear_all_button,

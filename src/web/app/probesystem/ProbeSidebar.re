@@ -993,7 +993,7 @@ let probearium =
       ~indicated_has_manual,
     ),
     legend_view(~globals, ~explain_this_inject),
-    sketch_view(~globals, ~explain_this_inject),
+    //sketch_view(~globals, ~explain_this_inject),
   ];
 };
 
