@@ -5,15 +5,6 @@ open Bonsai.Let_syntax;
 
 let scroll_to_caret = ref(true);
 
-/* Inputs the published #main scroll width depends on, captured on the last
- * re-measure. update_main_scroll_width forces two whole-document layouts
- * (write-read-write on a :root CSS var), so after_display only re-measures
- * when one of these changes: syntax measurements / drawer heights (by
- * reference), probe display state (Settings.version covers sample lengths,
- * window mode, dropdowns), sample focus (changes which samples render),
- * font metrics and viewport width (px scaling). */
-let scroll_width_key = ref(None);
-
 /* Per-slide scroll memory for tutorial mode. Each slide remembers where the
    user last left it; revisiting a slide restores that scroll position, while
    a slide that's never been scrolled opens at the top. */
@@ -306,37 +297,15 @@ let start = default_model => {
         let zipper = editor.state.zipper;
         let measured = editor.syntax.measured;
         let font_metrics = model.model.current.current.globals.font_metrics;
-        /* Publish #main's effective scroll width (including absolutely-
-         * positioned probe overlays / drawers) so .cell can stretch its
-         * background to match. CSS-only intrinsic sizing can't see
-         * absolute descendants, so we measure here — but only when an
-         * input it depends on changed (see scroll_width_key): the
-         * measurement itself forces two full-document layouts, which
-         * scales with probe count and used to run on every frame. */
-        let viewport_w = Dom_html.document##.documentElement##.clientWidth;
-        let key = (
-          measured,
-          editor.syntax.refractor_shape_map,
-          Haz3lcore.ProbeProj.Settings.version^,
-          zipper.refractors.sample_focus,
-          font_metrics,
-          viewport_w,
+        /* Publish #main's effective scroll width so .cell can stretch
+         * its background across probe overlays / drawers. Cause-driven:
+         * see ScrollWidth for the inputs it gates on. */
+        ScrollWidth.update(
+          ~measured,
+          ~refractor_shape_map=editor.syntax.refractor_shape_map,
+          ~sample_focus=zipper.refractors.sample_focus,
+          ~font_metrics,
         );
-        let scroll_width_stale =
-          switch (scroll_width_key^) {
-          | Some((m, rsm, v, sf, fm, w)) =>
-            m !== measured
-            || rsm !== editor.syntax.refractor_shape_map
-            || v != Haz3lcore.ProbeProj.Settings.version^
-            || sf != zipper.refractors.sample_focus
-            || fm != font_metrics
-            || w != viewport_w
-          | None => true
-          };
-        if (scroll_width_stale) {
-          JsUtil.update_main_scroll_width();
-          scroll_width_key := Some(key);
-        };
         /* Cause-driven refractor-shift compensation: when a drawer
          * above the caret changes height, scroll #main by the exact
          * pixel delta so the caret row stays put. Compensation is
