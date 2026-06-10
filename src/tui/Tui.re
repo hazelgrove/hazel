@@ -130,6 +130,7 @@ let usage = () => {
 
 let () = {
   Util.Os.is_mac := false; /* terminals deliver Ctrl, not Cmd: PC keymap */
+  Util.TimeUtil.now_ms := (() => Unix.gettimeofday() *. 1000.0);
   let args = Array.to_list(Sys.argv) |> List.tl;
   switch (args) {
   | ["--keys-debug", ..._] => keys_debug()

@@ -1,3 +1,9 @@
+/* Wall-clock provider in milliseconds. Frontends install a real clock
+   at startup (browser: performance.now via JsUtil; node frontends:
+   Unix.gettimeofday). The pure default keeps this library free of
+   platform dependencies; sample ordering falls back to seq counters. */
+let now_ms: ref(unit => float) = ref(() => 0.0);
+
 let print_time_prefix =
     (name: string, start_time: float, end_time: float): unit => {
   Printf.printf(
