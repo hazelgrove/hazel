@@ -94,6 +94,7 @@ let flags_of_slide = (module_name: string): list(feat) =>
   | "TuGen_24ReadingModelValues" => s24
   /* Study task slides (26+): the full kit. */
   | "TuGen_26TaskGroveName"
+  | "TuGen_26bTaskDewLedger"
   | "TuGen_27TaskGrowthPlotter"
   | "TuGen_28TaskLogCleaner"
   | "TuGen_29TaskNutrientRotation"

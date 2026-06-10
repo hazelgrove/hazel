@@ -1,0 +1,46 @@
+@flags
+show_report version=1 id=d0000034-0034-0034-0034-000000000034
+
+@prompt
+# Task: The dew ledger
+
+Your first debugging task, sized to fit in one hand. The ledger tracks dew drops and jars; one action misbehaves, and the test marked **FAILING** says which. Fix it; the face turns 🤩 when all four tests pass.
+
+This one is small enough to read whole, but try the route in the sidebar anyway: it is the same route you will want on the big ones.
+
+@hint
+Probe the failing test's update call and compare what changed against what the Action's comment says should change.
+
+@reference
+### Approach (debugging tasks)
+1. Read the comment block at the top: what does this program do?
+2. Find the **Model** type and read it.
+3. Read the **Action** type: the operations the program supports.
+4. Scroll to the test marked **FAILING**. Read what it asserts.
+5. Investigate however you like. Some options:
+   - Probe the failing test's `update` call and read the result.
+   - Right-click the sample to see the variables feeding it.
+   - **Step into** `update` (Enter on a sample) and read the arm that ran.
+
+@hints
+collecting adds drops
+bottling needs ten drops
+bottling fills a jar
+FAILING: a spill loses half the loose drops
+Hidden copy: a spill loses half the loose drops
+Hidden copy: bottling fills a jar
+
+@code
+{{include:hazel-programs/study/tasks-draft/00D-dew-ledger.hz}}
+
+@test
+test
+  let morning = (dew = 8, jars = 2) in
+  let m = update(morning, Spill) in
+  m.dew == 4 && m.jars == 2
+end;
+test
+  let full = (dew = 12, jars = 1) in
+  let m = update(full, Bottle) in
+  m.dew == 2 && m.jars == 2
+end

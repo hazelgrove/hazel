@@ -31,6 +31,7 @@ let all : Tutorial.spec list =
     TuGen_24ReadingModelValues.exercise;
     TuGen_25TasksAhead.exercise;
     TuGen_26TaskGroveName.exercise;
+    TuGen_26bTaskDewLedger.exercise;
     TuGen_27TaskGrowthPlotter.exercise;
     TuGen_28TaskLogCleaner.exercise;
     TuGen_29TaskNutrientRotation.exercise;

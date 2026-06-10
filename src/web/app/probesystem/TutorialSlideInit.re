@@ -109,6 +109,7 @@ let of_slide = (module_name: string): t =>
       ...none,
       autoprobe: Some(All),
     }
+  | "TuGen_26bTaskDewLedger"
   | "TuGen_27TaskGrowthPlotter"
   | "TuGen_29TaskNutrientRotation"
   | "TuGen_31TaskHarvestStreak"
