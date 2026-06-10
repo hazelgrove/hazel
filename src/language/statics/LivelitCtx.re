@@ -11,8 +11,6 @@ type model_exp = TermBase.Exp.t /* of type model_t */;
 type expansion_exp = TermBase.Exp.t /* of type expansion_t */;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type action_exp = TermBase.Exp.t /* of type action_t */;
-[@deriving (show({with_path: false}), sexp, yojson)]
-type send_action = action_exp => Ui_effect.t(unit);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type raw_livelit = {
@@ -24,7 +22,6 @@ type raw_livelit = {
   expand: model_exp => option(expansion_exp),
   action_t: TermBase.Typ.t,
   update: (action_exp, model_exp) => model_exp,
-  view: (model_exp, send_action) => Virtual_dom.Vdom.Node.t,
   size: ProjectorShape.t,
 };
 
@@ -49,8 +46,6 @@ module type BuiltinLivelit = {
   let action_from_hazel: action_exp => option(action_t);
 
   let update: (action_t, model_t) => model_t;
-  let view:
-    (model_t, action_t => Ui_effect.t(unit)) => Virtual_dom.Vdom.Node.t;
   let size: ProjectorShape.t;
 };
 
@@ -74,11 +69,5 @@ let raw_of_builtin = (module B: BuiltinLivelit): raw_livelit => {
         B.model_from_hazel(model) |> Option.get,
       ),
     ),
-  view: (model: model_exp, send_action: send_action) => {
-    switch (B.model_from_hazel(model)) {
-    | Some(m) => B.view(m, action => send_action(B.action_to_hazel(action)))
-    | None => Virtual_dom.Vdom.Node.text("Error: invalid model")
-    };
-  },
   size: B.size,
 };
