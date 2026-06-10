@@ -16,6 +16,7 @@ type model = {
   dirty: bool,
   result: ResultView.t,
   show_result: bool,
+  show_inspector: bool,
   row_off: int,
   col_off: int,
   status_msg: option(string),
@@ -83,6 +84,7 @@ let init = (file: option(string)): model => {
       dirty: false,
       result: Pending,
       show_result: true,
+      show_inspector: false,
       row_off: 0,
       col_off: 0,
       status_msg: None,
@@ -281,6 +283,13 @@ let apply =
       },
       false,
     )
+  | ToggleInspector => (
+      {
+        ...model,
+        show_inspector: !model.show_inspector,
+      },
+      false,
+    )
   | Quit =>
     model.dirty && !model.quit_armed
       ? (
@@ -313,7 +322,13 @@ let result_pane_height = (~rows: int, model: model): int =>
 
 let editor_height = (~size: (int, int), model: model): int => {
   let (rows, _) = size;
-  max(1, rows - 1 - result_pane_height(~rows, model));
+  max(
+    1,
+    rows
+    - 1
+    - result_pane_height(~rows, model)
+    - InspectorView.height(~size, model.show_inspector),
+  );
 };
 
 /* Build the frame for the current model; also returns the model with
@@ -406,10 +421,22 @@ let render = (~size: (int, int), model: model): (Frame.t, model) => {
       model.editor.state.zipper,
     );
 
-  /* pad the editor area so result pane + status sit at the bottom */
+  let inspector_rows =
+    InspectorView.rows(
+      ~width=cols,
+      ~height=InspectorView.height(~size, model.show_inspector),
+      model.editor.state.zipper,
+      model.statics,
+    );
+
+  /* pad the editor area so the panes + status sit at the bottom */
   let pad_rows = max(0, editor_h - List.length(visible));
   let frame_rows =
-    visible @ List.init(pad_rows, _ => []) @ result_rows @ [status];
+    visible
+    @ List.init(pad_rows, _ => [])
+    @ result_rows
+    @ inspector_rows
+    @ [status];
 
   let cursor =
     Point.{

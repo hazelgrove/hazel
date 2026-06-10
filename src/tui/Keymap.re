@@ -16,6 +16,7 @@ type t =
   | PageUp
   | PageDown
   | ToggleResult
+  | ToggleInspector
   /* screen coordinates; App translates to buffer coordinates */
   | Mouse(AnsiInput.mouse);
 
@@ -30,6 +31,7 @@ let handle = (ev: AnsiInput.event): option(t) =>
   | Tui(PageUp) => Some(PageUp)
   | Tui(PageDown) => Some(PageDown)
   | Tui(ToggleResultPane) => Some(ToggleResult)
+  | Tui(ToggleInspector) => Some(ToggleInspector)
   | PasteText(s) => Some(Perform(Paste(s)))
   | Mouse(m) => Some(Mouse(m))
   | Editor(k) =>

@@ -186,6 +186,31 @@ let tests = (
       },
     ),
     test_case(
+      "inspector pane explains the error under the cursor",
+      `Quick,
+      () => {
+        /* caret ends after `true`; Ctrl+T opens the inspector */
+        let f = Replay.run(~size=(24, 60), "2 + true\x14");
+        let has = re => Util.StringUtil.match(Util.StringUtil.regexp(re), f);
+        check(bool, "inspector separator", true, has("inspector"));
+        check(
+          bool,
+          "explains the inconsistency",
+          true,
+          has("Expecting type Int but got inconsistent type Bool"),
+        );
+        check(bool, "shows fixed type", true, has("type: Int"));
+        /* Ctrl+T again closes it */
+        let f2 = Replay.run(~size=(12, 60), "2 + true\x14\x14");
+        check(
+          bool,
+          "toggles off",
+          false,
+          Util.StringUtil.match(Util.StringUtil.regexp("inspector"), f2),
+        );
+      },
+    ),
+    test_case(
       "evaluation error is reported, not fatal",
       `Quick,
       () => {

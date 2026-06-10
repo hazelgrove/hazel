@@ -46,6 +46,7 @@ TUI-level bindings (handled before the editor keymap):
 | Ctrl+S | save (web's Ctrl+S PrettyPrint moved to Alt+P) |
 | Ctrl+Z / Ctrl+Y | undo / redo (terminals can't see Ctrl+Shift+Z) |
 | Ctrl+R | toggle result pane |
+| Ctrl+T | toggle cursor inspector pane |
 | PgUp / PgDn | page caret up/down |
 | Ctrl+Q / Ctrl+C | quit (asks to confirm if unsaved) |
 | Alt+P | pretty-print |

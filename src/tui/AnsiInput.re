@@ -19,7 +19,8 @@ type tui_key =
   | ShiftTab
   | PageUp
   | PageDown
-  | ToggleResultPane; /* Ctrl+R */
+  | ToggleResultPane /* Ctrl+R */
+  | ToggleInspector; /* Ctrl+T */
 
 /* SGR mouse events; points are 0-based screen coordinates */
 [@deriving show({with_path: false})]
@@ -80,6 +81,7 @@ let ctrl_event = (code: int): list(event) =>
   | 0x1a /* Ctrl+Z */ => [Tui(Undo)]
   | 0x19 /* Ctrl+Y */ => [Tui(Redo)]
   | 0x12 /* Ctrl+R */ => [Tui(ToggleResultPane)]
+  | 0x14 /* Ctrl+T */ => [Tui(ToggleInspector)]
   | 0x08 /* Ctrl+H / BS */ => [Editor(mk("Backspace"))]
   | _ when code >= 0x01 && code <= 0x1a => [
       Editor(mk(~ctrl=true, String.make(1, Char.chr(code + 0x60)))),
