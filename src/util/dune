@@ -7,7 +7,11 @@
   bignum
   uuidm
   unionFind
-  csv)
+  csv
+  re
+  uuseg
+  uuseg.string
+  uucp)
  (js_of_ocaml)
  (instrumentation
   (backend bisect_ppx))
