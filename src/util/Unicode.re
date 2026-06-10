@@ -1,48 +1,18 @@
 [@coverage exclude_file];
-open Js_of_ocaml;
 
 /* Lightweight Unicode grapheme helpers shared by text editing
-   and measurement. We rely on Intl.Segmenter when available
-   and fall back to simple JS iteration otherwise. */
-
-type unsafe_any = Js.Unsafe.any;
-
-let segmenter_src =
-  "(function () {\n"
-  ++ "  if (typeof Intl === 'undefined' || typeof Intl.Segmenter === 'undefined') {\n"
-  ++ "    return undefined;\n"
-  ++ "  }\n"
-  ++ "  var segmenter = new Intl.Segmenter(undefined, { granularity: 'grapheme' });\n"
-  ++ "  return function (input) {\n"
-  ++ "    return Array.from(segmenter.segment(input), function (result) { return result.segment; });\n"
-  ++ "  };\n"
-  ++ "})()";
-
-let segmenter_fn: Js.Optdef.t(unsafe_any) =
-  Js.Unsafe.eval_string(segmenter_src);
-
-let fallback_segmenter_src = "(function (input) { return Array.from(input); })";
-
-let fallback_segmenter: unsafe_any =
-  Js.Unsafe.eval_string(fallback_segmenter_src);
-
-let to_js_array = (value: unsafe_any) => Js.Unsafe.coerce(value);
+   and measurement. Grapheme segmentation is UAX #29 via the pure-OCaml
+   uuseg library (previously the browser's Intl.Segmenter). */
 
 let graphemes = (s: string): array(string) => {
-  let js_str = Js.string(s);
-  let arr =
-    switch (Js.Optdef.to_option(segmenter_fn)) {
-    | Some(fn) =>
-      to_js_array(Js.Unsafe.fun_call(fn, [|Js.Unsafe.inject(js_str)|]))
-    | None =>
-      to_js_array(
-        Js.Unsafe.fun_call(
-          fallback_segmenter,
-          [|Js.Unsafe.inject(js_str)|],
-        ),
-      )
-    };
-  arr |> Js.to_array |> Array.map(Js.to_string);
+  let (clusters, _) =
+    Uuseg_string.fold_utf_8(
+      `Grapheme_cluster,
+      ((acc, buf), cluster) => ([cluster, ...acc], buf),
+      ([], ()),
+      s,
+    );
+  clusters |> List.rev |> Array.of_list;
 };
 
 let of_graphemes = (clusters: array(string)): string =>
@@ -126,8 +96,6 @@ module Width = {
      number of editor columns they occupy. The measurements stay in OCaml so
      both rendering and caret logic can share them. */
 
-  type unsafe_any = Js.Unsafe.any;
-
   /* Minimal representation of glyph widths.  We purposely limit ourselves to
      one or two columns for now, keeping layout integer-aligned. */
   type t =
@@ -140,22 +108,28 @@ module Width = {
     | Two => 2
     };
 
-  /* JavaScript RegExp for the Unicode Extended_Pictographic block. */
-  let emoji_re: unsafe_any =
-    Js.Unsafe.eval_string("/\\p{Extended_Pictographic}/u");
-
   /* Convert an OCaml string into a list of grapheme clusters using the
      shared Grapheme module. */
   let graphemes = to_list;
 
-  /* Treat anything in the pictographic block as a wide glyph. */
-  let is_emoji_cluster = (cluster: string): bool =>
-    Js.to_bool(
-      Js.Unsafe.fun_call(
-        Js.Unsafe.get(emoji_re, "test"),
-        [|Js.Unsafe.inject(Js.string(cluster))|],
-      ),
-    );
+  /* Treat anything in the pictographic block as a wide glyph (the
+     Unicode Extended_Pictographic property, via uucp — previously a
+     JS /\p{Extended_Pictographic}/u regexp). A cluster is "emoji" if
+     any of its scalars is extended-pictographic, matching the JS
+     regexp's unanchored search. */
+  let is_emoji_cluster = (cluster: string): bool => {
+    let len = String.length(cluster);
+    let rec scan = i =>
+      if (i >= len) {
+        false;
+      } else {
+        let d = String.get_utf_8_uchar(cluster, i);
+        let u = Uchar.utf_decode_uchar(d);
+        Uucp.Emoji.is_extended_pictographic(u)
+          ? true : scan(i + Uchar.utf_decode_length(d));
+      };
+    scan(0);
+  };
 
   let classify_cluster = (cluster: string): t =>
     is_emoji_cluster(cluster) ? Two : One;

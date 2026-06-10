@@ -25,31 +25,44 @@ let repeat = (n, s) => String.concat("", List.init(n, _ => s));
 let abbreviate = (max_len, s) =>
   String.length(s) > max_len ? String.sub(s, 0, max_len) ++ "..." : s;
 
-type regexp = Js_of_ocaml.Regexp.regexp;
+/* Regular expressions via the pure-OCaml `re` library (PCRE syntax,
+   compatible with the JS-style patterns used across the codebase). */
+type regexp = Re.re;
 
-let regexp: string => regexp = Js_of_ocaml.Regexp.regexp;
+let regexp: string => regexp = pat => Re.Pcre.re(pat) |> Re.compile;
 
-let match = (r: regexp, s: string): bool =>
-  Js_of_ocaml.Regexp.string_match(r, s, 0) |> Option.is_some;
+/* Does the pattern match anywhere in the string? (JS exec semantics) */
+let match = (r: regexp, s: string): bool => Re.execp(r, s);
 
-let replace = Js_of_ocaml.Regexp.global_replace;
+/* Replace ALL matches with the literal replacement string (no $1
+   backreference support — no caller uses them) */
+let replace = (r: regexp, s: string, by: string): string =>
+  Re.replace_string(~all=true, r, ~by, s);
 
-let search = Js_of_ocaml.Regexp.search;
+let search = (r: regexp, s: string, idx: int): option(int) =>
+  switch (Re.exec_opt(~pos=idx, r, s)) {
+  | Some(g) => Some(fst(Re.Group.offset(g, 0)))
+  | None => None
+  };
 
 let plain_split: (string, string) => list(string) =
   (str, sep) =>
-    Js_of_ocaml.Regexp.split(Js_of_ocaml.Regexp.regexp_string(sep), str);
+    Re.split_full(Re.compile(Re.str(sep)), str)
+    |> List.filter_map(
+         fun
+         | `Text(t) => Some(t)
+         | `Delim(_) => None,
+       );
 
-let plain_match: (string, string) => bool =
-  regexp => match(Js_of_ocaml.Regexp.regexp(regexp));
+let plain_match: (string, string) => bool = pat => match(regexp(pat));
 
 let plain_replace: (string, string, string) => string =
-  regexp => replace(Js_of_ocaml.Regexp.regexp(regexp));
+  pat => replace(regexp(pat));
 
 let plain_search: (string, string, int) => int =
-  (regexp, str, idx) =>
-    switch (search(Js_of_ocaml.Regexp.regexp(regexp), str, idx)) {
-    | Some((idx, _)) => idx
+  (pat, str, idx) =>
+    switch (search(regexp(pat), str, idx)) {
+    | Some(idx) => idx
     | None => (-1)
     };
 
@@ -85,18 +98,62 @@ let isEmptyOrWhitespace = str => {
   String.length(trimmed) == 0;
 };
 
+/* Pure equivalents of JS encodeURIComponent/decodeURIComponent
+   (same unreserved set: A-Za-z0-9 - _ . ! ~ * ' ( ); UTF-8 bytes
+   percent-encoded with uppercase hex) */
 let compress = (s: string): string => {
-  let result =
-    Js_of_ocaml.Js.encodeURIComponent(Js_of_ocaml.Js.string(s))
-    |> Js_of_ocaml.Js.to_string;
-  result;
+  let unreserved = c =>
+    switch (c) {
+    | 'A' .. 'Z'
+    | 'a' .. 'z'
+    | '0' .. '9'
+    | '-'
+    | '_'
+    | '.'
+    | '!'
+    | '~'
+    | '*'
+    | '\''
+    | '('
+    | ')' => true
+    | _ => false
+    };
+  let buf = Buffer.create(String.length(s));
+  String.iter(
+    c =>
+      unreserved(c)
+        ? Buffer.add_char(buf, c)
+        : Buffer.add_string(buf, Printf.sprintf("%%%02X", Char.code(c))),
+    s,
+  );
+  Buffer.contents(buf);
 };
 
 let decompress = (s: string): string => {
-  let result =
-    Js_of_ocaml.Js.decodeURIComponent(Js_of_ocaml.Js.string(s))
-    |> Js_of_ocaml.Js.to_string;
-  result;
+  let len = String.length(s);
+  let buf = Buffer.create(len);
+  let hex = c =>
+    switch (c) {
+    | '0' .. '9' => Char.code(c) - Char.code('0')
+    | 'a' .. 'f' => Char.code(c) - Char.code('a') + 10
+    | 'A' .. 'F' => Char.code(c) - Char.code('A') + 10
+    | _ => raise(Invalid_argument("decompress: bad escape"))
+    };
+  let rec go = i =>
+    if (i < len) {
+      if (s.[i] == '%' && i + 2 < len) {
+        Buffer.add_char(
+          buf,
+          Char.chr(hex(s.[i + 1]) * 16 + hex(s.[i + 2])),
+        );
+        go(i + 3);
+      } else {
+        Buffer.add_char(buf, s.[i]);
+        go(i + 1);
+      };
+    };
+  go(0);
+  Buffer.contents(buf);
 };
 
 let sanitize_filename = (s: string): string => {
