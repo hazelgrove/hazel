@@ -1,11 +1,15 @@
-open Virtual_dom.Vdom;
 open LivelitCtx;
 open Grammar;
 
 type livelit_name = string;
 
+/* Note: the builtin livelit modules below are left unsealed so that their
+   concrete model/action types and conversion helpers are available to the
+   corresponding views in src/web/projectors/LivelitViews.re. Conformance to
+   BuiltinLivelit is checked when they are packed into `livelits` below. */
+
 // referenced in docs/livelits.md
-module Slider: BuiltinLivelit = {
+module Slider = {
   let name = "slider";
 
   type model_t = Bigint.t;
@@ -77,28 +81,13 @@ module Slider: BuiltinLivelit = {
       };
     };
 
-  let view = (model: model_t, send_action) => {
-    let n = model;
-
-    Util.WebUtil.range(
-      ~attrs=[
-        Attr.on_input((_, v: string) => {
-          send_action(SetModel(Bigint.of_string(v)))
-        }),
-      ],
-      ~min="0",
-      ~max="100",
-      Bigint.to_string(n),
-    );
-  };
-
   let size: Util.ProjectorShape.t = {
     vertical: Inline,
     horizontal: 20,
   };
 };
 
-module Emotion: BuiltinLivelit = {
+module Emotion = {
   let name = "emotion";
 
   /* The model is an integer represented as Bigint.t */
@@ -195,78 +184,9 @@ module Emotion: BuiltinLivelit = {
       vertical: Block(10),
       horizontal: 20,
     };
-
-  let view = (model: model_t, send_action) => {
-    let n = model;
-    let n_int = int_of_string(Bigint.to_string(n));
-    /* Calculate mouth curvature from the model value */
-    let smile = (100.0 -. float_of_int(n_int)) /. 100.0 *. 50.0 -. 25.0;
-    let pathData =
-      "M60 130 Q100 " ++ Printf.sprintf("%.1f", 130.0 -. smile) ++ " 140 130";
-
-    Node.div([
-      Node.create_svg(
-        "svg",
-        ~attrs=[Attr.create("width", "200"), Attr.create("height", "200")],
-        [
-          Node.create_svg(
-            "circle",
-            ~attrs=[
-              Attr.create("cx", "100"),
-              Attr.create("cy", "100"),
-              Attr.create("r", "90"),
-              Attr.create("fill", "yellow"),
-              Attr.create("stroke", "black"),
-            ],
-            [],
-          ),
-          Node.create_svg(
-            "circle",
-            ~attrs=[
-              Attr.create("cx", "65"),
-              Attr.create("cy", "80"),
-              Attr.create("r", "10"),
-              Attr.create("fill", "black"),
-            ],
-            [],
-          ),
-          Node.create_svg(
-            "circle",
-            ~attrs=[
-              Attr.create("cx", "135"),
-              Attr.create("cy", "80"),
-              Attr.create("r", "10"),
-              Attr.create("fill", "black"),
-            ],
-            [],
-          ),
-          Node.create_svg(
-            "path",
-            ~attrs=[
-              Attr.create("d", pathData),
-              Attr.create("stroke", "black"),
-              Attr.create("fill", "transparent"),
-              Attr.create("stroke-width", "5"),
-            ],
-            [],
-          ),
-        ],
-      ),
-      Util.WebUtil.range(
-        ~attrs=[
-          Attr.on_input((_, v) => {
-            send_action(SetModel(Bigint.of_string(v)))
-          }),
-        ],
-        ~min="0",
-        ~max="100",
-        Bigint.to_string(n),
-      ),
-    ]);
-  };
 };
 
-module Js: BuiltinLivelit = {
+module Js = {
   let name = "js";
 
   /* The model holds (code, result) both as strings. */
@@ -396,51 +316,6 @@ module Js: BuiltinLivelit = {
         )
       | _ => None
       };
-
-  /* Render: show code input, a compute button, and the result. */
-  let view = (model: model_t, send_action) => {
-    let {code, result} = model;
-
-    Node.div([
-      /* Code input field */
-      Node.input(
-        ~attrs=[
-          Attr.type_("text"),
-          Attr.value(code),
-          Attr.on_input((_, v: string) => {
-            /* Update the code, keep the same result */
-            send_action(
-              SetModel({
-                code: v,
-                result: model.result,
-              }),
-            )
-          }),
-        ],
-        (),
-      ),
-      /* Compute button */
-      Node.button(
-        ~attrs=[
-          Attr.on_click(_ => {
-            /* Evaluate the code and set the result */
-            let evaluated =
-              Js_of_ocaml.Js.Unsafe.eval_string("String(" ++ code ++ ")");
-
-            send_action(
-              SetModel({
-                code,
-                result: Js_of_ocaml.Js.to_string(evaluated),
-              }),
-            );
-          }),
-        ],
-        [Node.text("Compute")],
-      ),
-      /* Display the current result */
-      Node.div([Node.text("Result: " ++ result)]),
-    ]);
-  };
 
   /* Reasonable default shape. */
   let size: Util.ProjectorShape.t = {

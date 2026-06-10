@@ -50,11 +50,17 @@ module V: ProjectorView = {
             };
           };
 
-          let list_contents = ll.view(model, action_callback);
-          Node.div(
-            ~attrs=[Attr.class_(ll_name), Attr.id(Id.cls(info.id))],
-            [list_contents],
-          );
+          switch (LivelitViews.find(ll.name)) {
+          | Some(view) =>
+            let list_contents = view(model, action_callback);
+            Node.div(
+              ~attrs=[Attr.class_(ll_name), Attr.id(Id.cls(info.id))],
+              [list_contents],
+            );
+          | None =>
+            print_endline("Warning - LivelitProj.view: no view registered");
+            Node.text("No livelit view found");
+          };
         | None =>
           print_endline("Warning - LivelitProj.view: not found in context");
           Node.text("No livelit found");
