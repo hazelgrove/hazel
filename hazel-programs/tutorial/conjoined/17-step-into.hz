@@ -4,19 +4,21 @@ version=1 id=b0000015-0015-0015-0015-000000000015
 @prompt
 From the outside, `total_water` is just a number. **Step into** a call to watch the fold build that number up.
 
+Step into is a shortcut, not a new idea: it is *pin this call* plus *jump to the definition*, in one gesture. You can always do those two separately; this is for when the definition is far away.
+
 **Try this**
 1. The two calls below are probed (auto-probe is on): you see `610` and `230`. Just totals. (If not, probe them with **Cmd/Ctrl+E**.)
 2. Click the `total_water(shade)` sample and press **Enter** (or choose *Step into*).
-3. Your cursor jumps inside `total_water`, aligned to that call.
+3. Your cursor jumps inside `total_water`, pinned to that call.
 4. If in single mode, switch to *many* mode (press **Space**, or use the **Samples** toggle above). See how `acc + p.water` grows over the course of three iterations: `250 → 450 → 610`.
-5. Notice that the **dynamic focus** bar at the top shows the call stack corresponding to the current sample. Click on the first entry, `total_water`, to step back out to the call site. This will be more useful when the call is far from the definition.
+5. The **dynamic focus** bar at the top shows the call stack for the current sample. Click its first entry, `total_water`, to step back out to the call site.
 
 @hint
 Click a call's sample, then press Enter.
 
 @reference
 ### Probes
-- **Step into**: from a call's sample, press Enter (or *Step into*) to enter that call. The matching sample highlights.
+- **Step into**: from a call's sample, press Enter (or *Step into*). Equivalent to pinning the call and jumping to the definition.
 - The **dynamic focus** bar shows where you are in the call stack. Click to navigate.
 
 @code

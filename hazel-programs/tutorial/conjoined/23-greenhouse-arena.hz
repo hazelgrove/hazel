@@ -4,13 +4,20 @@ version=1 id=b0000023-0023-0023-0023-000000000023
 @prompt
 # The greenhouse
 
-A larger garden, with nothing to fix. The caretaker tends it by moonlight and records every pour in a ledger no one has read to the end.
+A larger garden. The caretaker tends it by moonlight and records every pour in a ledger no one has read to the end. Nothing is broken; this is a scavenger hunt. Auto-probe is on, and every tool you have met works here.
 
-Auto-probe is already on for this finale (we switched it on for you). Wander: probe a function and step through its samples, **pin** one bed's call and watch the rest fall away, **step into** `weekly` to see a bed totalled night by night. Cycle auto-probe off/on with **Cmd/Ctrl+P** or the **Auto Probe** toggle above.
+Find out, in any order, by any means:
+
+1. How much water does the **shade** bed get in its Waning week?
+2. One arm of `watering_amount` **never runs**. Which one, and how can you tell at a glance?
+3. Step into the sun bed's New week: how much does the **cactus** drink per day that week?
+4. The two `weekly(shade, ...)` calls differ. Pin one, then the other: which moon costs the caretaker more water, and by how much?
+
+Before each answer, say what you expect first; then look.
 
 @reference
 ### Everything so far
-Probes (Cmd/Ctrl+E), the variable dropdown (right-click a sample), auto-probe (Cmd/Ctrl+P or the **Auto Probe** toggle), many mode (Space or the **Samples** toggle), pin (`P`), step into (Enter), and the sample colors.
+Probes (Cmd/Ctrl+E), the variable dropdown (right-click a sample), auto-probe (Cmd/Ctrl+P or the **Auto Probe** toggle), many mode (Space or the **Samples** toggle), alignment and ⊖, pin (`P`), step into (Enter), and ∅ for code that never ran.
 
 @code
 type MoonPhase = New + Waxing + Full + Waning in
@@ -19,6 +26,7 @@ type Plant = (name = String, water = Int) in
 let watering_amount(base: Int, phase: MoonPhase): Int =
   case phase
   | New => base + 50
+  | Waxing => base + 5
   | Full => base - 30
   | _ => base
   end

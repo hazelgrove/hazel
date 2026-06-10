@@ -20,7 +20,8 @@ body
 **Try this**
 1. Fill the definition expression (after the `=`) with `250 * 7`.
 2. Type `in`, and watch it leave the backpack. Backspace it, then press `Tab` to drop it from the backpack instead. Either way works.
-3. Finish the body so the whole program reads `let weekly = 250 * 7 in weekly`. It should evaluate to **1750**.|x};
+3. Finish the body so the whole program reads `let weekly = 250 * 7 in weekly`.
+4. Probe `weekly` on the last line (**Cmd/Ctrl+E**): it should read **1750**.|x};
     display_hint = {x||x};
     task_reference =
       {x|### Let
@@ -31,13 +32,16 @@ a
 
 ### Backpack
 - `Tab` drops the next delimiter
-- typing it (e.g. `in`) also works|x};
+- typing it (e.g. `in`) also works
+
+### Probes
+- **Add / remove a probe**: Cmd/Ctrl+E, or right-click then *Add probe*|x};
     your_impl =
       Haz3lcore.Zipper.caret_to_start
         (Haz3lcore.PersistentZipper.unpersist ~root:Exp
            {
              Haz3lcore.PersistentZipper.zipper =
-               {x|((selection((focus Left)(content())(mode Normal)))(relatives((siblings(((Tile((id c062ad1b-c449-48d2-b6ad-026b5d7bdacb)(label(let = in))(mold((out Exp)(in_(Pat Exp))(nibs(((shape Convex)(sort Exp))((shape(Concave 45))(sort Exp))))))(shards(0 1))(children(((Secondary((id e5ac3931-6b05-4a02-bd47-c69ec18a13fb)(content(Whitespace" "))))(Tile((id 803ea247-300d-4e4b-889d-328aae8f9699)(label(weekly))(mold((out Pat)(in_())(nibs(((shape Convex)(sort Pat))((shape Convex)(sort Pat))))))(shards(0))(children())))(Secondary((id 6c54c2cb-6e5d-4620-b58b-2d55b3b98259)(content(Whitespace" ")))))))))(Secondary((id 294e54d7-1843-487a-a994-253878bfe94a)(content(Whitespace" ")))))((Grout((id 28917edf-6e4f-488f-8d89-a3b5c4b6a0e0)(shape Convex))))))(ancestors())))(caret Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index -1)(pinned_stack())(indicated_call())(time())(seq 0)(step_range())(pending_focus())))(autoprobe_target())(pending_probe_cursor()))))|x};
+               {x|((selection((focus Left)(content())(mode Normal)))(relatives((siblings(((Tile((id 3b076e59-9b62-44e6-810d-eda4bf6f05dc)(label(let = in))(mold((out Exp)(in_(Pat Exp))(nibs(((shape Convex)(sort Exp))((shape(Concave 45))(sort Exp))))))(shards(0 1))(children(((Secondary((id c9e4014e-cda5-4581-a218-df2d3abc6493)(content(Whitespace" "))))(Tile((id 37ff10e0-8d14-45bf-8be4-148fa748bbc2)(label(weekly))(mold((out Pat)(in_())(nibs(((shape Convex)(sort Pat))((shape Convex)(sort Pat))))))(shards(0))(children())))(Secondary((id 8b5a4636-e90c-4331-a7af-7b9ba026b877)(content(Whitespace" ")))))))))(Secondary((id 016b5184-d94e-4ef0-a3ba-e78e7f54b2fe)(content(Whitespace" ")))))((Grout((id 72837e03-bab3-4762-8c90-998401fc3dc8)(shape Convex))))))(ancestors())))(caret Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index -1)(pinned_stack())(indicated_call())(time())(seq 0)(step_range())(pending_focus())))(autoprobe_target())(pending_probe_cursor()))))|x};
              backup_text = {x|let weekly = |x};
            });
     hidden_tests =
@@ -46,7 +50,7 @@ a
           Haz3lcore.PersistentZipper.unpersist ~root:Exp
             {
               Haz3lcore.PersistentZipper.zipper =
-                {x|((selection((focus Left)(content())(mode Normal)))(relatives((siblings(((Tile((id 4b920547-fddf-4cf4-a66b-fb414001fdae)(label(test end))(mold((out Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort Exp))))))(shards(0 1))(children(((Secondary((id 47ae7513-a10f-43aa-9a05-e7efa943d1e8)(content(Whitespace" "))))(Tile((id 7190a55a-7d2e-48ec-a4e6-934b698afdb1)(label(answer))(mold((out Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort Exp))))))(shards(0))(children())))(Secondary((id 60457bc3-14b7-4137-8cbe-0e130e83b535)(content(Whitespace" "))))(Tile((id 0a137cfe-f04a-4bb3-9d89-4152bf7324d4)(label(==))(mold((out Exp)(in_())(nibs(((shape(Concave 31))(sort Exp))((shape(Concave 31))(sort Exp))))))(shards(0))(children())))(Secondary((id 721c69f3-81ec-47a2-ad92-4fe78c76b6bf)(content(Whitespace" "))))(Tile((id 6d5984a8-0df6-4d48-98f5-b40e9df1110c)(label(1750))(mold((out Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort Exp))))))(shards(0))(children())))(Secondary((id 8c9c7600-2e31-4dd6-bf84-fe75b4976e72)(content(Whitespace" ")))))))))(Tile((id cf9084a2-3840-4ee2-8a71-ce5bdeff1124)(label(";"))(mold((out Exp)(in_())(nibs(((shape(Concave 35))(sort Exp))((shape(Concave 35))(sort Exp))))))(shards(0))(children())))(Secondary((id 11eab89f-0c14-4900-89d6-bcb35a658ad2)(content(Whitespace"\n")))))((Grout((id 90f9f32e-13a3-4f54-aee6-f8cdeb8f8a7a)(shape Convex))))))(ancestors())))(caret Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index -1)(pinned_stack())(indicated_call())(time())(seq 0)(step_range())(pending_focus())))(autoprobe_target())(pending_probe_cursor()))))|x};
+                {x|((selection((focus Left)(content())(mode Normal)))(relatives((siblings(((Tile((id 9bfeb6c5-d8f2-4dcb-ba8f-e7df8c5ad76c)(label(test end))(mold((out Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort Exp))))))(shards(0 1))(children(((Secondary((id b9971408-4970-4f87-80f1-00eba6d724fe)(content(Whitespace" "))))(Tile((id fe515a2d-6350-4c30-b8ce-53f53fa0c5e0)(label(answer))(mold((out Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort Exp))))))(shards(0))(children())))(Secondary((id 39f51748-bb8f-4839-9310-073bd4624735)(content(Whitespace" "))))(Tile((id b986f5e2-184d-47e9-aa36-f8050b9a1978)(label(==))(mold((out Exp)(in_())(nibs(((shape(Concave 31))(sort Exp))((shape(Concave 31))(sort Exp))))))(shards(0))(children())))(Secondary((id 2cabd20c-7827-47ad-a969-e10d5e9a242b)(content(Whitespace" "))))(Tile((id 26d14254-5c42-40df-9401-1960cd934e69)(label(1750))(mold((out Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort Exp))))))(shards(0))(children())))(Secondary((id c10aa68f-fdad-490e-aed9-4a3fe0ada228)(content(Whitespace" ")))))))))(Tile((id 47a41180-cc20-415b-8144-90d397be6ad7)(label(";"))(mold((out Exp)(in_())(nibs(((shape(Concave 35))(sort Exp))((shape(Concave 35))(sort Exp))))))(shards(0))(children())))(Secondary((id 8808f9c9-5599-4334-ba17-ee6380d2efef)(content(Whitespace"\n")))))((Grout((id 9a5ba02a-dfe1-4a8d-ad55-5f38efd99613)(shape Convex))))))(ancestors())))(caret Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index -1)(pinned_stack())(indicated_call())(time())(seq 0)(step_range())(pending_focus())))(autoprobe_target())(pending_probe_cursor()))))|x};
               backup_text = {x|test answer == 1750 end;
 |x};
             };

@@ -1,0 +1,66 @@
+@flags
+version=1 id=b0000024-0024-0024-0024-000000000024
+
+@prompt
+# Models, actions, and bigger values
+
+The debugging tasks ahead all share one shape, and you have seen its pieces. A **model** is a record holding the program's whole state. An **action** describes one change. An **update** function takes a model and an action and returns the next model, and a fold threads the model through a list of actions.
+
+The model below is a `Ledger`: a record with a list of records inside. Values like that overflow a probe's inline slot, so two controls matter here.
+
+**Try this**
+1. The final `fold_left` is probed (auto-probe is on). Its sample holds the finished `Ledger`, clipped to fit inline.
+2. **Resize** it: click the sample, then **Shift+←/→** (or drag it wider).
+3. Better: **expand** the probe into the drawer with **Cmd/Ctrl+↓**. The value unfolds across rows; **Cmd/Ctrl+↑** folds it back. Which harvest in the ledger is worth the most?
+4. **Step into** `update` from its sample and switch to *many* mode: the ledger grows action by action.
+5. Everything here works without the mouse: **Cmd/Ctrl+↩** jumps from the code to that line's probe and **Esc** returns; **←/→** walks samples, **↑/↓** walks probes; **Shift+←/→** resizes; **Cmd/Ctrl+↓/↑** expands. Some people live on these; the mouse does it all too.
+
+@reference
+### Reading values
+- **Resize a sample**: focus it, then **Shift+←/→**, or drag it wider.
+- **Expand a probe**: **Cmd/Ctrl+↓** for more rows, **Cmd/Ctrl+↑** for fewer (or click the **⌄**).
+
+### Keyboard
+- **Cmd/Ctrl+↩** focus the probe on this line; **Esc** back to the editor
+- **←/→** between samples, **↑/↓** between probes
+
+@code
+type Quality = Bronze + Silver + Gold + Starlight in
+type Harvest = (crop = String, quality = Quality, quantity = Int) in
+type Ledger = (harvests = [Harvest], total = Int, lastQuality = Quality) in
+
+type Action = Record(Harvest) + CloseDay in
+
+let value(h: Harvest): Int =
+  let mult =
+    case h.quality
+    | Bronze => 1
+    | Silver => 2
+    | Gold => 3
+    | Starlight => 5
+    end
+  in
+  h.quantity * mult * 10
+in
+
+let update(ledger: Ledger, a: Action): Ledger =
+  case a
+  | Record(h) =>
+    (harvests = h :: ledger.harvests,
+     total = ledger.total + value(h),
+     lastQuality = h.quality)
+  | CloseDay =>
+    (harvests = ledger.harvests,
+     total = ledger.total,
+     lastQuality = Bronze)
+  end
+in
+
+let start: Ledger = (harvests = [], total = 0, lastQuality = Bronze) in
+let nightly = [
+  Record((crop = "moonmelon", quality = Gold, quantity = 12)),
+  Record((crop = "starfruit", quality = Silver, quantity = 8)),
+  Record((crop = "nightshade", quality = Starlight, quantity = 3)),
+  CloseDay
+] in
+fold_left(nightly, fun (ledger, a) -> update(ledger, a), start)

@@ -1,34 +1,140 @@
 @flags
-version=1 id=b0000014-0014-0014-0014-000000000014
+show_report version=1 id=b0000014-0014-0014-0014-000000000014
 
 @prompt
-With many calls, every probe shows a wall of samples. **Pin** locks onto one call, so every probe shows just that call's run.
+A 🐛 has crept into the garden data. Two tests fail because of it, and with ten calls feeding every probe, the samples are a wall of noise. **Pin** cuts through it: lock every probe to one call's run.
 
-**Try this**
-1. Auto-probe is on, so `weekly` is already probed. Switch to *many* mode (press **Space**, or use the **Samples** toggle above): each of its lines shows four samples, one per call below. (If auto-probe is off, probe `weekly` with **Cmd/Ctrl+E** first.)
-2. Right-click the `weekly(orchid)` sample below and choose **Pin this call** (or press `P`).
-3. Back inside the function, every probe now shows only Orchid's run.
-4. A **⍟** marks samples hidden by the pin. Click it to unpin.
+# Exercise 1: pin from a failing test
+1. Auto-probe is on, so `make_label` is already probed. Click inside it and try *many* mode (**Space**): ten calls, ten samples per line. Chaos.
+2. Find the test marked FAILING. Probe its `make_label` call, click the sample, and choose **Pin this call** (or press `P`).
+3. Back inside `make_label`: every probe now shows only that call's run. Can you spot the 🐛 now? Fix the plant data so the test passes.
+4. A **⍟** elsewhere marks samples hidden by your pin; clicking it unpins. Unpin before moving on.
+
+# Exercise 2: pin the enclosing call
+`bed_labels` labels each plant in a bed using `map`. It is called on three beds, so the callback runs 10 times: samples from all three beds, jumbled.
+
+1. Look at `bed_name`: it sits *outside* the map, so it has just 3 samples. Step to **Sun Terrace**.
+2. With that sample focused, press `P` (**Pin enclosing call**): you have pinned `bed_labels(sun_terrace)` itself.
+3. The map callback now shows only Sun Terrace's three plants. If your Exercise 1 fix was right, its FAILING test now passes too.
 
 @hint
-Right-click a call's sample, then *Pin this call* (or press `P`).
+The rose's icon in the plant data is not a rose.
 
 @reference
-### Probes
-- **Pin this call**: from a call's sample, filter every probe to that call. Press `P` or use the menu.
+### Pin
+- **Pin this call**: from a call's sample, press `P` or right-click. Every probe filters to that run.
+- **Pin enclosing call**: from a sample *inside* a function, `P` pins the call it belongs to. Use it to narrow a map to one outer call.
 - **⍟**: samples hidden by a pin. Click to unpin.
 
+@hints
+fern label, 7 days
+fern label, 14 days
+orchid label, 5 days
+orchid label, 10 days
+cactus label, 7 days
+cactus label, 14 days
+lily label, 7 days
+lily label, 3 days
+daisy label, 7 days
+FAILING: rose label, 7 days
+shade garden labels
+mixed bed labels
+FAILING: sun terrace labels
+Hidden copy: rose label
+Hidden copy: sun terrace labels
+
 @code
-type Plant = (name = String, water = Int) in
-let weekly(plant: Plant): Int =
-  let days = 7 in
-  plant.water * days
+type Plant = (
+  name = String,
+  icon = String,
+  water = Int
+) in
+
+let fern: Plant = (name = "Fern", icon = "🌿", water = 250) in
+let orchid: Plant = (name = "Orchid", icon = "🌸", water = 180) in
+let cactus: Plant = (name = "Cactus", icon = "🍄", water = 50) in
+let rose: Plant = (name = "Rose", icon = "🐛", water = 190) in
+let lily: Plant = (name = "Lily", icon = "☘️", water = 200) in
+let daisy: Plant = (name = "Daisy", icon = "🌱", water = 160) in
+
+let make_label: (Plant, Int) -> String =
+  fun (plant, days) ->
+    let header = plant.icon ++ " " ++ plant.name in
+    let total = plant.water * days in
+    let amount =
+      string_of_int(total) ++ "ml/"
+      ++ string_of_int(days) ++ "d" in
+    header ++ ": " ++ amount
 in
-let fern: Plant = (name = "fern", water = 250) in
-let orchid: Plant = (name = "orchid", water = 180) in
-let cactus: Plant = (name = "cactus", water = 50) in
-let lily: Plant = (name = "lily", water = 200) in
-weekly(fern);
-weekly(orchid);
-weekly(cactus);
-weekly(lily)
+
+test make_label(fern, 7) == "🌿 Fern: 1750ml/7d" end;
+test make_label(fern, 14) == "🌿 Fern: 3500ml/14d" end;
+test make_label(orchid, 5) == "🌸 Orchid: 900ml/5d" end;
+test make_label(orchid, 10) == "🌸 Orchid: 1800ml/10d" end;
+test make_label(cactus, 7) == "🍄 Cactus: 350ml/7d" end;
+test make_label(cactus, 14) == "🍄 Cactus: 700ml/14d" end;
+test make_label(lily, 7) == "☘️ Lily: 1400ml/7d" end;
+test make_label(lily, 3) == "☘️ Lily: 600ml/3d" end;
+test make_label(daisy, 7) == "🌱 Daisy: 1120ml/7d" end;
+
+# vvv This test is FAILING vvv #
+test
+  make_label(rose, 7)
+  == "🌹 Rose: 1330ml/7d" end;
+# ^^^ This test is FAILING ^^^ #
+
+type Bed = (
+  name = String,
+  plants = [Plant]
+) in
+
+let shade_garden: Bed = (
+  name = "Shade Garden",
+  plants = [fern, lily, daisy]
+) in
+
+let sun_terrace: Bed = (
+  name = "Sun Terrace",
+  plants = [orchid, cactus, rose]
+) in
+
+let mixed_bed: Bed = (
+  name = "Mixed Bed",
+  plants = [fern, orchid, lily, cactus]
+) in
+
+let bed_labels: Bed -> [String] =
+  fun bed ->
+  let bed_name = bed.name in
+  map(bed.plants, fun plant ->
+    let label = plant.icon ++ " " ++ plant.name in
+    let info = string_of_int(plant.water) ++ "ml" in
+    label ++ ": " ++ info
+  )
+in
+
+test
+  bed_labels(shade_garden)
+  == ["🌿 Fern: 250ml", "☘️ Lily: 200ml", "🌱 Daisy: 160ml"]
+end;
+test
+  bed_labels(mixed_bed)
+  == ["🌿 Fern: 250ml", "🌸 Orchid: 180ml",
+      "☘️ Lily: 200ml", "🍄 Cactus: 50ml"]
+end;
+
+# vvv This test is FAILING vvv #
+test
+  bed_labels(sun_terrace)
+  == ["🌸 Orchid: 180ml", "🍄 Cactus: 50ml", "🌹 Rose: 190ml"]
+end
+# ^^^ This test is FAILING ^^^ #
+
+@test
+test
+  make_label(rose, 7)
+  == "🌹 Rose: 1330ml/7d" end;
+test
+  bed_labels(sun_terrace)
+  == ["🌸 Orchid: 180ml", "🍄 Cactus: 50ml", "🌹 Rose: 190ml"]
+end

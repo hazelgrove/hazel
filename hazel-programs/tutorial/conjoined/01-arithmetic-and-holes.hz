@@ -2,9 +2,12 @@
 wrapper show_report version=1 id=b0000001-0001-0001-0001-000000000001
 
 @prompt
-Hazel is a live functional environment. Every edit is a valid program, and it evaluates *around* holes (the hexagons), so you always see a result.
+Hazel is a live functional environment. Every edit is a valid program, and it evaluates *around* holes (the hexagons), so there is always a value to look at.
 
-A plant drinks 250 ml a day. A week is `250 * 7`, plus a 50 ml top-up on the new moon. Fill the hole so the week comes to **1800**.
+The way to look is a **probe**: put your cursor on the `+` and press **Cmd/Ctrl+E** (or right-click, *Add probe*). The program's value appears right there, hole and all: Hazel computed everything around the missing piece.
+
+# Task
+A plant drinks 250 ml a day. A week is `250 * 7`, plus a 50 ml top-up on the new moon. Fill the hole and watch the probe; you are done when it reads **1800**.
 
 @hint
 A week is 7 days.
@@ -15,6 +18,9 @@ Hexagons are holes. Hazel evaluates around them. Fill one by typing a value.
 
 ### Integer operations
 `(+ - * /)`
+
+### Probes
+- **Add / remove a probe**: Cmd/Ctrl+E, or right-click then *Add probe*
 
 @hints
 Fill the hole appropriately.

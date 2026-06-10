@@ -2,34 +2,31 @@
 wrapper show_report version=1 id=b0000013-0013-0013-0013-000000000013
 
 @prompt
-`fold_left` combines a list into a single value, carrying an accumulator from left to right:
+`fold_left` combines a list into a single value, carrying a running value from left to right:
 ```hazelnostatics
-fold_left(list, fun (acc, x) -> ... , start)
+fold_left(list, fun (a, b) -> ... , start)
 ```
+The callback's pair holds the running value and the current element. Which is which? Auto-probe is on: probe `a` and `b` on separate lines and watch a few samples; one of them grows.
 
 # Task
-Total the garden's water with `fold_left`, starting from `0`.
+Total the garden's watering cans, starting from 0.
 
 @hint
-Add each element `w` to the running accumulator `acc`.
+Break the callback across lines and read the probes: the one that accumulates is your running total. Add the element to it.
 
 @reference
 ### Fold
 ```hazel
-fold_left([1, 2, 3], fun (acc, x) -> acc + x, 0)
+fold_left([1, 2, 3], fun (a, b) -> ¿, 0)
 ```
-`acc` carries the running result; `x` is the current element.
+Combines the list into one value, threading a running value through the callback. Probe the callback's arguments to see which slot it rides in.
 
 @hints
-The total is 680.
+The watering cans total 680.
 
 @code
-let waters = [250, 180, 50, 200] in
-fold_left(
-waters,
-fun (acc, w) ->
-¿
-, 0)
+let watering_cans = [250, 180, 50, 200] in
+fold_left(watering_cans, fun (a, b) -> ¿, 0)
 
 @test
 test answer == 680 end

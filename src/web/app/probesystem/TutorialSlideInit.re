@@ -56,8 +56,7 @@ let of_slide = (module_name: string): t =>
   | "TuGen_02ParserAndBackpack"
   | "TuGen_03Probes"
   | "TuGen_04VariablesAndExploring"
-  | "TuGen_05Tuples"
-  | "TuGen_06LabelledTuples"
+  | "TuGen_05TuplesAndRecords"
   | "TuGen_07IfExpressions"
   | "TuGen_08CaseAndEmpty"
   | "TuGen_09VariantsWithData"
@@ -80,16 +79,14 @@ let of_slide = (module_name: string): t =>
   /* Everything after auto-probe is introduced: All (whole program).
    * Cmd/Ctrl+P toggles All; Caret is a performance fallback set via the
    * toggle, never pre-set here. */
-  | "TuGen_13Lists"
   | "TuGen_14Map"
   | "TuGen_15Fold"
   | "TuGen_16Pin"
   | "TuGen_17StepInto"
-  | "TuGen_18WritingRunningSum"
   | "TuGen_19WritingStrings"
   | "TuGen_21DebuggingWarmup"
   | "TuGen_23GreenhouseArena"
-  | "TuGen_24ReadingModelValues" => {
+  | "TuGen_24ModelAndUpdate" => {
       ...none,
       autoprobe: Some(All),
     }
@@ -122,11 +119,16 @@ let of_slide = (module_name: string): t =>
 
 /* Apply a slide's initial settings. Samples/colors are global ProbeProj
  * refs (direct side effects); autoprobe is Settings state, so the caller
- * supplies a dispatcher. Each is applied only when specified (Some). */
+ * supplies a dispatcher. Autoprobe/samples apply only when specified (Some).
+ * Colors ALWAYS apply: a slide that does not pick a scheme knocks the user
+ * back to the Simple two-color default, so the full scheme forced on the
+ * colors slide (or opted into by the user) does not silently follow them
+ * through the rest of the tutorial. */
 let apply = (~set_autoprobe: AutoProbe.t => unit, init: t): unit => {
   Option.iter(set_autoprobe, init.autoprobe);
   Option.iter(w => ProbeProj.Settings.go(SetWindow(w)), init.samples);
-  Option.iter(c => ProbeProj.Settings.go(SetSampleBase(c)), init.colors);
+  let colors = Option.value(init.colors, ~default=ProbeProj.Settings.Simple);
+  ProbeProj.Settings.go(SetSampleBase(colors));
 };
 
 /* Last slide we applied inits for. Used to fire `apply` exactly once per

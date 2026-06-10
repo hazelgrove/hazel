@@ -52,8 +52,8 @@ let console_enabled = (flags: list(feat)) => mem(flags, Console);
  * the previous set with `@ [..new..]`, so the monotonic "strictly add"
  * intent is visible at a glance and language-only slides simply inherit.
  * Edit these to retune what the sidebar shows where. */
-let s01 = [];
-let s03 = [AddProbe];
+let s01 = [AddProbe];
+let s03 = s01;
 let s04 = s03 @ [SeeVars];
 let s08 = s04 @ [IconEmpty];
 let s10 = s08 @ [SamplesToggle, NavSamples];
@@ -71,27 +71,24 @@ let flags_of_slide = (module_name: string): list(feat) =>
   | "TuGen_02ParserAndBackpack" => s01
   | "TuGen_03Probes" => s03
   | "TuGen_04VariablesAndExploring"
-  | "TuGen_05Tuples"
-  | "TuGen_06LabelledTuples"
+  | "TuGen_05TuplesAndRecords"
   | "TuGen_07IfExpressions" => s04
   | "TuGen_08CaseAndEmpty"
   | "TuGen_09VariantsWithData" => s08
   | "TuGen_10FunctionsAndManySamples" => s10
   | "TuGen_11AligningSamples" => s11
   | "TuGen_12AutoProbe"
-  | "TuGen_13Lists"
   | "TuGen_13bWatchItBuild"
   | "TuGen_14Map"
   | "TuGen_15Fold" => s12
   | "TuGen_16Pin" => s16
   | "TuGen_17StepInto"
-  | "TuGen_18WritingRunningSum"
   | "TuGen_19WritingStrings" => s17
   | "TuGen_20Print"
   | "TuGen_21DebuggingWarmup" => s20
   | "TuGen_22SampleColors"
   | "TuGen_23GreenhouseArena" => s22
-  | "TuGen_24ReadingModelValues" => s24
+  | "TuGen_24ModelAndUpdate" => s24
   /* Study task slides (26+): the full kit. */
   | "TuGen_26TaskGroveName"
   | "TuGen_26bTaskDewLedger"

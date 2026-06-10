@@ -1,0 +1,59 @@
+@flags
+show_report version=1 id=b0000005-0005-0005-0005-000000000005
+
+@prompt
+A *tuple* groups values: `("moonleaf", 250)`. Take it apart by binding a matching pattern:
+```hazelnostatics
+let (name, water) = ("moonleaf", 250) in
+name
+```
+A *labelled tuple* is a kind of *record*: each element gets a label, and you read one back by name with `.`:
+```hazel
+let plant = (name = "moonleaf", water = 250) in
+plant.water
+```
+
+# Task
+Two small builds; probe the lines as you go to watch them take shape.
+
+1. Take `plant` apart into `name` and `water`, then build `label` so it reads **moonleaf needs 250ml**. You will need `string_of_int` to convert.
+2. Build the `fern` record: a `Plant` that drinks **200 ml**. The last line reads its `water` back; probe it to check.
+
+@hint
+Destructure a pair with `let (a, b) = pair in`. A record is `(field = value, ...)`; read with `.field`.
+
+@reference
+### Tuples
+```hazel
+let (name, water) = ("moonleaf", 250) in
+water
+```
+
+### Tuple records
+```hazel
+let plant = (name = "moonleaf", water = 250) in
+plant.water
+```
+The type is written `(name = String, water = Int)`.
+
+### Strings
+- `++` joins strings
+- `string_of_int(250)` is `"250"`
+
+@hints
+label should be "moonleaf needs 250ml"
+fern should be a Plant record with water 200
+
+@code
+let plant: (String, Int) = ("moonleaf", 250) in
+let ¿ = plant in
+let label = name ++ " needs " ++ ¿ ++ "ml" in
+
+type Plant = (name = String, water = Int) in
+let fern: Plant = ¿ in
+
+(label, fern.water)
+
+@test
+test label == "moonleaf needs 250ml" end;
+test fern.water == 200 end

@@ -15,9 +15,9 @@ Walk the levels from 100. Which action changes it in the wrong direction?
 @reference
 ### Folding actions into a model
 ```hazel
-fold_left(actions, update, start_model)
+fold_left(actions, fun (m, a) -> update(m, a), start)
 ```
-`update(model, action)` returns the next model, and the fold carries it forward. This is the pattern behind the study's debugging tasks.
+`update(model, action)` returns the next model, and the fold carries it forward. This is the pattern behind the study's debugging tasks; the little lambda gives `update` a real call site you can probe, pin, and step into.
 
 @hints
 From 100, the actions Water(50), Drain, Water(30) should end at 160.
@@ -32,7 +32,7 @@ let update(bed: Bed, action: Action): Bed =
   end
 in
 let run(actions: [Action]): Bed =
-  fold_left(actions, update, (level = 100))
+  fold_left(actions, fun (bed, a) -> update(bed, a), (level = 100))
 in
 test
   update((level = 100), Drain)

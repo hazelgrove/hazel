@@ -9,22 +9,28 @@ let exercise : Tutorial.spec =
     version = 1;
     module_name = "TuGen_01ArithmeticAndHoles";
     prompt =
-      {x|Hazel is a live functional environment. Every edit is a valid program, and it evaluates *around* holes (the hexagons), so you always see a result.
+      {x|Hazel is a live functional environment. Every edit is a valid program, and it evaluates *around* holes (the hexagons), so there is always a value to look at.
 
-A plant drinks 250 ml a day. A week is `250 * 7`, plus a 50 ml top-up on the new moon. Fill the hole so the week comes to **1800**.|x};
+The way to look is a **probe**: put your cursor on the `+` and press **Cmd/Ctrl+E** (or right-click, *Add probe*). The program's value appears right there, hole and all: Hazel computed everything around the missing piece.
+
+# Task
+A plant drinks 250 ml a day. A week is `250 * 7`, plus a 50 ml top-up on the new moon. Fill the hole and watch the probe; you are done when it reads **1800**.|x};
     display_hint = {x|A week is 7 days.|x};
     task_reference =
       {x|### Holes
 Hexagons are holes. Hazel evaluates around them. Fill one by typing a value.
 
 ### Integer operations
-`(+ - * /)`|x};
+`(+ - * /)`
+
+### Probes
+- **Add / remove a probe**: Cmd/Ctrl+E, or right-click then *Add probe*|x};
     your_impl =
       Haz3lcore.Zipper.caret_to_start
         (Haz3lcore.PersistentZipper.unpersist ~root:Exp
            {
              Haz3lcore.PersistentZipper.zipper =
-               {x|((selection((focus Left)(content())(mode Normal)))(relatives((siblings(((Tile((id 448f16cd-ef5b-4f48-bf33-821557cbf0d5)(label(250))(mold((out Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort Exp))))))(shards(0))(children())))(Secondary((id d0d34823-4284-4157-a368-4d410815185c)(content(Whitespace" "))))(Tile((id b4c6fe1a-6d78-40e1-93c1-694aaeaf35eb)(label(*))(mold((out Exp)(in_())(nibs(((shape(Concave 27))(sort Exp))((shape(Concave 27))(sort Exp))))))(shards(0))(children())))(Secondary((id ccd41290-7b79-446e-886e-6b8292b57f06)(content(Whitespace" ")))))((Grout((id dc25750e-6a88-4da1-ab5e-11252e171d8f)(shape Convex)))(Secondary((id 1283009a-a85c-44b2-9586-28de3f586b6b)(content(Whitespace" "))))(Tile((id d940a030-c9eb-4bc0-bbb7-9af53d81236a)(label(+))(mold((out Exp)(in_())(nibs(((shape(Concave 28))(sort Exp))((shape(Concave 28))(sort Exp))))))(shards(0))(children())))(Secondary((id e54547ba-63a7-459e-840e-82dad32ce0d9)(content(Whitespace" "))))(Tile((id 75d2f220-e19a-40ee-9d96-60e47846b83d)(label(50))(mold((out Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort Exp))))))(shards(0))(children()))))))(ancestors())))(caret Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index -1)(pinned_stack())(indicated_call())(time())(seq 0)(step_range())(pending_focus())))(autoprobe_target())(pending_probe_cursor()))))|x};
+               {x|((selection((focus Left)(content())(mode Normal)))(relatives((siblings(((Tile((id 023eaa07-b738-48c5-8de4-1063d5059c8a)(label(250))(mold((out Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort Exp))))))(shards(0))(children())))(Secondary((id e417d56f-be54-4aba-9485-6d0e8b12499b)(content(Whitespace" "))))(Tile((id f65e9b89-5424-4f26-aafc-bcfb0460510d)(label(*))(mold((out Exp)(in_())(nibs(((shape(Concave 27))(sort Exp))((shape(Concave 27))(sort Exp))))))(shards(0))(children())))(Secondary((id 550d49bc-ff0d-46bf-8e31-cb13c8fbcea0)(content(Whitespace" ")))))((Grout((id 8eef3418-cee7-403f-b7d4-51cfd9705d91)(shape Convex)))(Secondary((id 456403c8-f873-4ad9-9a42-a63d72a81f07)(content(Whitespace" "))))(Tile((id 24256fa3-bd6c-432f-88ec-0058b1b9d2fc)(label(+))(mold((out Exp)(in_())(nibs(((shape(Concave 28))(sort Exp))((shape(Concave 28))(sort Exp))))))(shards(0))(children())))(Secondary((id 18ee3fce-5e7d-46b9-9714-6d3b978836cb)(content(Whitespace" "))))(Tile((id 097396b9-2294-4637-a305-ed21edf0c10f)(label(50))(mold((out Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort Exp))))))(shards(0))(children()))))))(ancestors())))(caret Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index -1)(pinned_stack())(indicated_call())(time())(seq 0)(step_range())(pending_focus())))(autoprobe_target())(pending_probe_cursor()))))|x};
              backup_text = {x|250 *  + 50|x};
            });
     hidden_tests =
@@ -33,7 +39,7 @@ Hexagons are holes. Hazel evaluates around them. Fill one by typing a value.
           Haz3lcore.PersistentZipper.unpersist ~root:Exp
             {
               Haz3lcore.PersistentZipper.zipper =
-                {x|((selection((focus Left)(content())(mode Normal)))(relatives((siblings(((Tile((id 82ecdd0b-9194-4353-ab11-dafc33149876)(label(test end))(mold((out Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort Exp))))))(shards(0 1))(children(((Secondary((id 3d30acaa-6d32-4dcf-ac89-19b0aff0620c)(content(Whitespace" "))))(Tile((id 462e9665-9c7d-4203-a3e4-c6220aa76dc8)(label(answer))(mold((out Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort Exp))))))(shards(0))(children())))(Secondary((id 76d72300-46fb-4232-86a1-a78ade558992)(content(Whitespace" "))))(Tile((id a20388e9-bb09-41e0-af6a-db3c9d5b432a)(label(==))(mold((out Exp)(in_())(nibs(((shape(Concave 31))(sort Exp))((shape(Concave 31))(sort Exp))))))(shards(0))(children())))(Secondary((id fe946338-3349-4855-8c89-167f21d849d5)(content(Whitespace" "))))(Tile((id ef45fb32-1724-44f8-bdcb-c60f0cef557e)(label(1800))(mold((out Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort Exp))))))(shards(0))(children())))(Secondary((id 6a6eaacd-32e9-4ae7-ae20-bbfb5a847da7)(content(Whitespace" "))))))))))()))(ancestors())))(caret Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index -1)(pinned_stack())(indicated_call())(time())(seq 0)(step_range())(pending_focus())))(autoprobe_target())(pending_probe_cursor()))))|x};
+                {x|((selection((focus Left)(content())(mode Normal)))(relatives((siblings(((Tile((id d02cf43e-5e1e-47f9-a21a-e99f355d703c)(label(test end))(mold((out Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort Exp))))))(shards(0 1))(children(((Secondary((id bde7e1d1-b8b7-4469-ba2f-32dfaa80b4cd)(content(Whitespace" "))))(Tile((id 5ba818f6-bec1-459f-baaa-2ca75a8b36ac)(label(answer))(mold((out Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort Exp))))))(shards(0))(children())))(Secondary((id f4168b55-f4e2-45ac-b309-ea63c1a886e8)(content(Whitespace" "))))(Tile((id 026ce959-2401-402d-86c4-8cda1c844bdb)(label(==))(mold((out Exp)(in_())(nibs(((shape(Concave 31))(sort Exp))((shape(Concave 31))(sort Exp))))))(shards(0))(children())))(Secondary((id 6c656d0f-e19b-4def-a906-45d084a42b37)(content(Whitespace" "))))(Tile((id bc8b0b2c-23ae-40ba-b5bd-c0e1d142dd8c)(label(1800))(mold((out Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort Exp))))))(shards(0))(children())))(Secondary((id 8a1eff49-b2a2-4656-9c59-8a9c32599c22)(content(Whitespace" "))))))))))()))(ancestors())))(caret Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index -1)(pinned_stack())(indicated_call())(time())(seq 0)(step_range())(pending_focus())))(autoprobe_target())(pending_probe_cursor()))))|x};
               backup_text = {x|test answer == 1800 end|x};
             };
         hints = [ "Fill the hole appropriately." ];

@@ -1,24 +1,34 @@
 @flags
-show_report version=1 id=b0000009-0009-0009-0009-000000000009
+wrapper show_report version=1 id=b0000009-0009-0009-0009-000000000009
 
 @prompt
-With probes in several places, Hazel keeps the samples *aligned* to one call at a time. The sample you click is the **focus**, and the others line up with it.
+With probes in several places, Hazel keeps the samples *aligned* to one call at a time. The sample you click is the **focus**, and the others line up with it: **green** means same run. A **⊖** marks a sample that exists but is not aligned to your focus; click it to align to it instead.
 
-First, finish the function below: it should return `base + adjust`.
+# Task
+First, finish the function: it should return `base + adjust`.
 
-**Try this**
-1. This time, place a **multi-probe** on the function definition: put your cursor on `let` and add a probe. Recall that this will add a probe for each line in the definition.
-2. Click one call's sample. The `adjust` sample lines up with that same call and turns **green**: green means it is from that same run of the function.
-3. A **⊖** marks a sample that exists but is not aligned to your focus. Click a ⊖ to align to it instead.
-4. Using the sample information you see, try to answer the following question: When the `phase` is `New`, what is the value of `base + adjust`? You likely want to use the arrow keys on the `phase` sample (in single-sample mode), or switch to *many* mode (double-click any sample, click a sample and press **Space**, or flip the **Samples** toggle above).
+The night ledger says these six plants drink **1070 ml** in total, each from its own chart row:
+
+`fern 250 · orchid 180 · cactus 50 · lily 200 · daisy 160 · rose 190`
+
+The program disagrees: one call below passes a base that is not on the chart. Reading six calls is doable; reading sixty would not be, so find it with probes:
+
+1. Place a **multi-probe** on the function definition: cursor on `let`, then **Cmd/Ctrl+E**. One probe lands per line.
+2. Click a `base` sample and step through the calls with **←/→**. The other probes follow in green: each stop is one plant's whole run.
+3. Find the run whose `base` does not match its plant's chart row, fix the call, and the total comes to **1070**.
 
 @hint
-The function returns `base + adjust`. Then probe `adjust` and a call, and click between the call samples.
+The function returns `base + adjust`. Then walk the six runs with the arrows, comparing each base to the chart.
 
 @reference
 ### Probes
-- **Focus**: the sample you click; others align to it
+- **Focus**: the sample you click; others align to it. Green = same run.
 - **⊖**: a sample exists but is not aligned to the focus. Click it to align.
+- **←/→**: step between a probe's samples.
+
+@hints
+The function should return base + adjust.
+The six watering totals should sum to 1070.
 
 @code
 type MoonPhase = New + Waxing + Full + Waning in
@@ -34,9 +44,13 @@ let watering_amount(
   in
   ¿
 in
-watering_amount(250, Full);
-watering_amount(180, New);
-watering_amount(50, Waning)
+let fern = watering_amount(250, Full) in
+let orchid = watering_amount(180, New) in
+let cactus = watering_amount(50, Waning) in
+let lily = watering_amount(200, Waning) in
+let daisy = watering_amount(160, New) in
+let rose = watering_amount(105, Full) in
+fern + orchid + cactus + lily + daisy + rose
 
 @test
-test answer == 50 end
+test answer == 1070 end

@@ -4,7 +4,7 @@ show_report version=1 id=d0000034-0034-0034-0034-000000000034
 @prompt
 # Task: The dew ledger
 
-Your first debugging task, sized to fit in one hand. The ledger tracks dew drops and jars; one action misbehaves, and the test marked **FAILING** says which. Fix it; the face turns 🤩 when all four tests pass.
+First debugging task. The ledger tracks dew drops and jars; one action misbehaves, and the test marked **FAILING** says which. Fix it; the face turns 🤩 when all four tests pass.
 
 This one is small enough to read whole, but try the route in the sidebar anyway: it is the same route you will want on the big ones.
 

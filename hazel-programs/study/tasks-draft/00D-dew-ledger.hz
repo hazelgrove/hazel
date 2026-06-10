@@ -1,6 +1,6 @@
 # The Dew Ledger #
 # Before dawn, the keepers collect dew and bottle it in jars. #
-# This little program keeps the ledger.                       #
+# This program tracks the ledger.                             #
 
 # What the ledger tracks #
 type Model = (
