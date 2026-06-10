@@ -1,3 +1,4 @@
+open Haz3lcore;
 open Util;
 open Language;
 open Language.Statics;

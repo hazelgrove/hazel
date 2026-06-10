@@ -1,3 +1,4 @@
+open Haz3lcore;
 let summarized_docs = [
   "<summarizedHazelDocs>",
   "- Hazel is a live functional programming environment that supports incomplete programs via typed holes.",
