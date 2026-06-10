@@ -9,18 +9,25 @@
 #   running_sum([5]) == [5]                    #
 #   running_sum([]) == []                      #
 #                                              #
-# Some standard library functions that may be  #
-# useful (work out the argument order with     #
-# probes):                                     #
-#   fold_left : ([a], (acc, a) -> acc, acc) -> acc #
-#   append : ([a], [a]) -> [a]                 #
-#   rev : [a] -> [a]                           #
-#   length : [a] -> Int                        #
+# Write it recursively: a function with an     #
+# arrow type annotation can call itself.       #
+# Take a list apart with case:                 #
+#   case nums                                  #
+#   | [] => ...                                #
+#   | x :: rest => ...                         #
+#   end                                        #
+# and build one back up with :: (cons).        #
 #                                              #
-# Tip: you may need to track both the running  #
-# total and the result list in your fold.      #
+# You will likely want a helper function that  #
+# carries the running total as an extra        #
+# argument.                                    #
+#                                              #
+# Tip: probe inside your function and switch   #
+# to many mode. Each recursive call is its own #
+# sample, so you can watch the recursion       #
+# unfold level by level.                       #
 
-let running_sum = fun nums ->
+let running_sum : [Int] -> [Int] = fun nums ->
   ?
 in
 

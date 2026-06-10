@@ -95,7 +95,7 @@ in
 
 let do: (Model, [Action]) -> Model =
   fun (init: Model, actions: [Action]) ->
-    fold_left(actions, update, init)
+    fold_left(actions, fun (m, a) -> update(m, a), init)
 in
 
 # Existing tests #
