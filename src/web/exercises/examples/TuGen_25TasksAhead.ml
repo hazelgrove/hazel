@@ -31,7 +31,7 @@ Take your time. Ask anything.|x};
         (Haz3lcore.PersistentZipper.unpersist ~root:Exp
            {
              Haz3lcore.PersistentZipper.zipper =
-               {x|((selection((focus Left)(content())(mode Normal)))(relatives((siblings(((Tile((id 9cdfe8b6-2c9f-4688-9db3-af3e901fad70)(label(0))(mold((out Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort Exp))))))(shards(0))(children()))))()))(ancestors())))(caret Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index -1)(pinned_stack())(indicated_call())(time())(seq 0)(step_range())(pending_focus())))(autoprobe_target())(pending_probe_cursor()))))|x};
+               {x|((selection((focus Left)(content())(mode Normal)))(relatives((siblings(((Tile((id c93436f9-8c13-4c93-a065-facbc78b3d18)(label(0))(mold((out Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort Exp))))))(shards(0))(children()))))()))(ancestors())))(caret Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index -1)(pinned_stack())(indicated_call())(time())(seq 0)(step_range())(pending_focus())))(autoprobe_target())(pending_probe_cursor()))))|x};
              backup_text = {x|0|x};
            });
     hidden_tests =
@@ -40,7 +40,7 @@ Take your time. Ask anything.|x};
           Haz3lcore.PersistentZipper.unpersist ~root:Exp
             {
               Haz3lcore.PersistentZipper.zipper =
-                {x|((selection((focus Left)(content())(mode Normal)))(relatives((siblings(((Tile((id 5ea7e602-eb50-4340-9a73-5609d6662cd0)(label(test end))(mold((out Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort Exp))))))(shards(0 1))(children(((Secondary((id 5cd5570d-ed40-46ec-950e-e1f978d1961e)(content(Whitespace" "))))(Tile((id c991e955-5330-4ac3-bcaa-60a45cd2473e)(label(true))(mold((out Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort Exp))))))(shards(0))(children())))(Secondary((id ab69f87c-3be7-4a34-af00-7711527a422e)(content(Whitespace" "))))))))))()))(ancestors())))(caret Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index -1)(pinned_stack())(indicated_call())(time())(seq 0)(step_range())(pending_focus())))(autoprobe_target())(pending_probe_cursor()))))|x};
+                {x|((selection((focus Left)(content())(mode Normal)))(relatives((siblings(((Tile((id 8e828ef8-d6b6-4ada-bdad-ab87d8cdc7d7)(label(test end))(mold((out Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort Exp))))))(shards(0 1))(children(((Secondary((id e4741b86-c6d7-495d-a27b-795ab563396b)(content(Whitespace" "))))(Tile((id 5e351135-c73b-4961-a2b3-b4da8538fe7a)(label(true))(mold((out Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort Exp))))))(shards(0))(children())))(Secondary((id 2287f459-7c3b-4e60-b8a0-3fb5d876e080)(content(Whitespace" "))))))))))()))(ancestors())))(caret Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index -1)(pinned_stack())(indicated_call())(time())(seq 0)(step_range())(pending_focus())))(autoprobe_target())(pending_probe_cursor()))))|x};
               backup_text = {x|test true end|x};
             };
         hints = [];

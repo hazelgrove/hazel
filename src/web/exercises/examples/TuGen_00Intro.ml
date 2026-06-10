@@ -18,9 +18,9 @@ Click the video below for a quick probes demo.
 
 The tutorial to follow introduces the Hazel language and programming with probes. Read each slide, try what it suggests, and move on when you feel you have gotten what you can from it. Some slides are quite short. Move between slides with the arrows at the bottom, or the slide menu at the top.
 
-Some slides ask you to **complete a task**, and the editor checks your work: a **🤔** face shows while your code is incomplete or incorrect, and a **🤩** face once it passes. Other slides just invite you to **explore or try something out**, with nothing to finish.
+- Some slides ask you to **complete a task**, and the editor checks your work: a **🤔** face shows while your code is incomplete or incorrect, and a **🤩** face once it passes. Other slides just invite you to **explore or try something out**, with nothing to finish.
 
-As you go, please **think out loud**: tell us what you are trying, what you expect to happen, and what surprises you. Feel free to **ask questions at any time**, and to poke around and explore on your own.
+- As you go, please **think out loud**: tell us what you are trying, what you expect to happen, and what surprises you. Feel free to **ask questions at any time**, and to poke around and explore on your own.
 
 At the end there will be some more substantial **program-writing and debugging tasks** to exercise what you've learned.|x};
     display_hint = {x||x};
@@ -32,7 +32,7 @@ This panel on the right is the **Task Reference**. As the tutorial introduces pr
         (Haz3lcore.PersistentZipper.unpersist ~root:Exp
            {
              Haz3lcore.PersistentZipper.zipper =
-               {x|((selection((focus Left)(content())(mode Normal)))(relatives((siblings(((Tile((id 4244868e-e613-49a4-8259-b7d9fe59afbb)(label(0))(mold((out Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort Exp))))))(shards(0))(children()))))()))(ancestors())))(caret Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index -1)(pinned_stack())(indicated_call())(time())(seq 0)(step_range())(pending_focus())))(autoprobe_target())(pending_probe_cursor()))))|x};
+               {x|((selection((focus Left)(content())(mode Normal)))(relatives((siblings(((Tile((id 82f2fe90-0848-4bed-941f-e2b84a900159)(label(0))(mold((out Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort Exp))))))(shards(0))(children()))))()))(ancestors())))(caret Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index -1)(pinned_stack())(indicated_call())(time())(seq 0)(step_range())(pending_focus())))(autoprobe_target())(pending_probe_cursor()))))|x};
              backup_text = {x|0|x};
            });
     hidden_tests =
@@ -41,7 +41,7 @@ This panel on the right is the **Task Reference**. As the tutorial introduces pr
           Haz3lcore.PersistentZipper.unpersist ~root:Exp
             {
               Haz3lcore.PersistentZipper.zipper =
-                {x|((selection((focus Left)(content())(mode Normal)))(relatives((siblings(((Tile((id de69d442-f5a9-4b3a-a782-8aa6b2b790bc)(label(test end))(mold((out Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort Exp))))))(shards(0 1))(children(((Secondary((id d0e35b68-6ce1-44c8-85ba-2b46d1138a15)(content(Whitespace" "))))(Tile((id a058d5cc-3ac5-4918-9988-d14ec102553d)(label(true))(mold((out Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort Exp))))))(shards(0))(children())))(Secondary((id 4c0d0321-ee50-48f5-9be2-3fc646f94de4)(content(Whitespace" "))))))))))()))(ancestors())))(caret Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index -1)(pinned_stack())(indicated_call())(time())(seq 0)(step_range())(pending_focus())))(autoprobe_target())(pending_probe_cursor()))))|x};
+                {x|((selection((focus Left)(content())(mode Normal)))(relatives((siblings(((Tile((id 90dd8559-ba93-4432-9752-21892d3f3bad)(label(test end))(mold((out Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort Exp))))))(shards(0 1))(children(((Secondary((id 0b8d80d2-5e95-48b4-aebe-ef8831fb35a2)(content(Whitespace" "))))(Tile((id 345ed55f-08b3-4342-af31-e23c8228c6bb)(label(true))(mold((out Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort Exp))))))(shards(0))(children())))(Secondary((id 5d7880e0-16b7-479b-852d-4153f5a24ea9)(content(Whitespace" "))))))))))()))(ancestors())))(caret Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index -1)(pinned_stack())(indicated_call())(time())(seq 0)(step_range())(pending_focus())))(autoprobe_target())(pending_probe_cursor()))))|x};
               backup_text = {x|test true end|x};
             };
         hints = [];
