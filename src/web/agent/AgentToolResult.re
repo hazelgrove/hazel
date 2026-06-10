@@ -1,3 +1,4 @@
+open Haz3lcore;
 open Util;
 open Sexplib.Std;
 open Ppx_yojson_conv_lib.Yojson_conv;

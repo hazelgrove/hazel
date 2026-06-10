@@ -1,5 +1,6 @@
 open Alcotest;
 open Haz3lcore;
+open Web; /* agent layer (CompositionView, WorkbenchTools, ...) moved to web */
 open Language;
 open Action;
 open Util;

@@ -1,3 +1,4 @@
+open Haz3lcore;
 open Util;
 
 let initialize_description = {|

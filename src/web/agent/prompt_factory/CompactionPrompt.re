@@ -1,3 +1,4 @@
+open Haz3lcore;
 /** System prompt for the **compaction** (conversation summarization) LLM call.
     Kept alongside [[CompositionPrompt]] so all agent-facing prompts live in
     [prompt_factory/]. The live agent system prompt excerpt is appended at
