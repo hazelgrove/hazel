@@ -16,6 +16,9 @@ let (suite, _) =
     [
       Test_ListUtil.tests,
       Test_OptUtil.tests,
+      Test_Atom.tests,
+      Test_Operators.tests,
+      Test_BuiltinsADT.tests,
       Test_CsvUtil.tests,
       Test_Grammar.tests,
       Test_Abbreviate.tests,
@@ -38,18 +41,23 @@ let (suite, _) =
     @ Test_Editing.tests
     @ [Test_Reparenthesize.tests]
     @ Test_Reassociate.tests
+    @ [Test_SelectionEffective.tests]
     @ Test_MultiProbe.tests
     @ [Test_SampleSelection.tests]
     @ Test_Indentation.tests
-    @ [
-      Test_Coverage.tests,
-      Test_Unboxing.tests,
-      Test_ProblemCollection.tests,
-    ]
+    @ [Test_Coverage.tests, Test_Unboxing.tests]
+    @ Test_ProblemCollection.tests
+    @ [Test_TermData.tests]
     @ Test_Introduce.tests
     @ Test_ReparseDocSlides.tests
+    @ Test_TextRoundtrip.tests
     @ Test_MatchExp.tests
     @ Test_RefractorSerialization.tests
+    @ [
+      Test_TableCore.tests,
+      Test_TableTransforms.tests,
+      Test_RichProbeRegistry.tests,
+    ]
     @ Test_PrettyPrint.tests
     @ Test_TyDi.tests
     @ [Test_UnusedWarnings.tests]

@@ -96,6 +96,7 @@ type atomic_form =
   | Var
   | DrvVar
   | ExplicitHole
+  | ImplicitHoleMarker
   | LLMHole
   | Wild
   | String
@@ -613,6 +614,10 @@ let get_atomic_form: atomic_form => (Token.t => bool, list(Mold.t)) =
     )
   | ExplicitHole => (
       Token.is_explicit_hole,
+      [op(Exp), op(Pat), op(Typ), op(TPat), op(Drv(Typ))],
+    )
+  | ImplicitHoleMarker => (
+      Token.is_implicit_hole_marker,
       [op(Exp), op(Pat), op(Typ), op(TPat), op(Drv(Typ))],
     )
   | LLMHole => (Token.is_llm_hole, [op(Exp), op(Pat), op(Typ), op(TPat)])

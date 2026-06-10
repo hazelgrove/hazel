@@ -10,6 +10,8 @@ module Model = {
     | AxiomsOpen(AxiomsBox.Model.t)
     | RewritesOpen({
         editor: CodeEditable.Model.t,
+        rewrite_selected_exp: option(Exp.t),
+        rewrite_reparenthesized_exp: option(Exp.t),
         cached_exp: Calc.saved(Exp.t),
         cached_result: Calc.saved(bool),
       })
@@ -67,7 +69,7 @@ module Update = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     | ToggleAxioms
-    | ProposeRewrite
+    | ProposeRewrite(option(Exp.t), option(Exp.t))
     | ProposeWrittenStep
     | RewriteEditorAction(CodeEditable.Update.t)
     | WriteStepEditorAction(CodeEditable.Update.t)
@@ -88,7 +90,7 @@ module Update = {
         open_box,
       }
       |> Updated.return_quiet(~logged=true);
-    | (ProposeRewrite, _) =>
+    | (ProposeRewrite(rewrite_selected_exp, rewrite_reparenthesized_exp), _) =>
       let open_box =
         switch (model.open_box) {
         | NoneOpen
@@ -99,6 +101,8 @@ module Update = {
               CodeEditable.Model.mk(
                 Editor.Model.mk(Zipper.init(), ~root=Exp),
               ),
+            rewrite_selected_exp,
+            rewrite_reparenthesized_exp,
             cached_exp: Calc.Pending,
             cached_result: Calc.Pending,
           })
@@ -165,7 +169,7 @@ module Update = {
   let can_undo = (action: t): bool => {
     switch (action) {
     | ToggleAxioms
-    | ProposeRewrite
+    | ProposeRewrite(_, _)
     | ProposeWrittenStep
     | RewriteEditorAction(_)
     | WriteStepEditorAction(_)
@@ -308,7 +312,13 @@ module Update = {
       };
     let open_box =
       switch (open_box) {
-      | RewritesOpen({editor, cached_exp, cached_result}) =>
+      | RewritesOpen({
+          editor,
+          rewrite_selected_exp,
+          rewrite_reparenthesized_exp,
+          cached_exp,
+          cached_result,
+        }) =>
         // Calculate syntax, holes, types, etc for the editor
         let editor =
           CodeEditable.Update.calculate(
@@ -336,6 +346,11 @@ module Update = {
             and.calc from_exp = selected_exp;
             let env = SemanticCtx.get_env(sctx);
             let from_exp =
+              switch (rewrite_selected_exp) {
+              | Some(rewrite_selected_exp) => Some(rewrite_selected_exp)
+              | None => from_exp
+              };
+            let from_exp =
               Substitution.in_exp(
                 env,
                 from_exp
@@ -354,6 +369,8 @@ module Update = {
           };
         Model.RewritesOpen({
           editor,
+          rewrite_selected_exp,
+          rewrite_reparenthesized_exp,
           cached_exp: cached_exp |> Calc.save,
           cached_result: cached_result |> Calc.save,
         });
@@ -489,6 +506,7 @@ module View = {
     | HideStepper
     | AddAxiomStep(string, int, Exp.t, Direction.t, string)
     | AddAlgebriteStep(int, Exp.t, Exp.t)
+    | AddReparenthesizedAlgebriteStep(Exp.t, Exp.t, Exp.t)
     | AddWrittenStep(RewriteChecker.trace_summary, int, Exp.t, Exp.t)
     | AutoSimplify(Exp.t, Exp.t)
     | MakeActive(Selection.t)
@@ -619,17 +637,18 @@ module View = {
         && Exp.is_fun(Calc.get_saved_exc(model.full_visible_exp));
       };
 
-      let view_rewrites_box = (editor, cached_exp, cached_result) => {
+      let view_rewrites_box =
+          (
+            editor,
+            rewrite_selected_exp,
+            rewrite_reparenthesized_exp,
+            cached_exp,
+            cached_result,
+          ) => {
         let unboxed_cached_exp =
           Calc.get_saved_exc(~print="cached exp not calculated", cached_exp);
         let unboxed_selected_exp =
-          Option.value(
-            ~default=EmptyHole |> Exp.fresh,
-            Calc.get_saved_exc(
-              ~print="selected exp not calculated",
-              model.selected_exp,
-            ),
-          );
+          Option.value(~default=EmptyHole |> Exp.fresh, rewrite_selected_exp);
         [
           // one element list with a div
           // with a list containing two elements
@@ -684,22 +703,42 @@ module View = {
                     ~clss=["proof-button"],
                     Node.text("Replace"),
                     ~tooltip="replace",
-                    _ =>
-                    signal(
-                      AddAlgebriteStep(
-                        ProofHacks.exp_idx(
-                          unboxed_selected_exp,
-                          model.full_visible_exp
-                          |> Calc.get_saved_exc(~print="full_visible_exp"),
-                        ),
-                        unboxed_selected_exp,
+                    _ => {
+                      let substituted_cached_exp =
                         unboxed_cached_exp
                         |> Substitution.in_exp(
                              model.cached_env
                              |> Calc.get_saved_exc(~print="env not cached"),
-                           ),
-                      ),
-                    )
+                           );
+                      switch (rewrite_reparenthesized_exp) {
+                      | Some(reparenthesized_exp) =>
+                        signal(
+                          AddReparenthesizedAlgebriteStep(
+                            reparenthesized_exp,
+                            unboxed_selected_exp,
+                            substituted_cached_exp,
+                          ),
+                        )
+                      | None =>
+                        let at_idx =
+                          try(
+                            ProofHacks.exp_idx(
+                              unboxed_selected_exp,
+                              model.full_visible_exp
+                              |> Calc.get_saved_exc(~print="full_visible_exp"),
+                            )
+                          ) {
+                          | _ => 0
+                          };
+                        signal(
+                          AddAlgebriteStep(
+                            at_idx,
+                            unboxed_selected_exp,
+                            substituted_cached_exp,
+                          ),
+                        );
+                      };
+                    },
                   ),
                 ]
               | Some(false) => [Node.text("Invalid")]
@@ -847,6 +886,46 @@ module View = {
         | Some(_) => Some(("Parenthesize", false))
         | None => None
         };
+      let (selected_exp_for_rewrite, reparenthesize_result_for_rewrite) = {
+        let model_selected_exp =
+          Calc.get_saved_exc(
+            ~print="selected exp not calculated",
+            model.selected_exp,
+          );
+        let reparenthesized_selected_exp =
+          switch (reparenthesize_result) {
+          | Some(result) => Language.Reparenthesize.selected_exp(result)
+          | None => None
+          };
+        switch (
+          model_selected_exp,
+          reparenthesize_result,
+          reparenthesized_selected_exp,
+        ) {
+        | (Some(model_exp), Some(result), Some(reparenthesized_exp))
+            when
+              Language.Reparenthesize.binop_count(reparenthesized_exp)
+              < Language.Reparenthesize.binop_count(model_exp) => (
+            Some(reparenthesized_exp),
+            Some(result),
+          )
+        | (Some(model_exp), _, _)
+            when
+              !
+                Equality.ignoring_ascriptions.exp(
+                  model_exp,
+                  editor.statics.term,
+                ) => (
+            model_selected_exp,
+            None,
+          )
+        | (_, Some(result), Some(reparenthesized_exp)) => (
+            Some(reparenthesized_exp),
+            Some(result),
+          )
+        | _ => (model_selected_exp, None)
+        };
+      };
       let auto_simplify = {
         open OptUtil.Syntax;
         let full_exp =
@@ -986,7 +1065,16 @@ module View = {
 
       let general_proof_buttons = [
         proof_button(
-          ~callback=inject(ProposeRewrite),
+          ~callback=
+            inject(
+              ProposeRewrite(
+                selected_exp_for_rewrite,
+                switch (reparenthesize_result_for_rewrite) {
+                | Some(result) => Some(result.exp)
+                | None => None
+                },
+              ),
+            ),
           "Rewrite "
           ++ text_arrow(
                switch (model.open_box) {
@@ -1096,9 +1184,17 @@ module View = {
                       ),
                     ),
                   ]
-                | RewritesOpen({editor, cached_exp, cached_result}) =>
+                | RewritesOpen({
+                    editor,
+                    rewrite_selected_exp,
+                    rewrite_reparenthesized_exp,
+                    cached_exp,
+                    cached_result,
+                  }) =>
                   view_rewrites_box(
                     editor,
+                    rewrite_selected_exp,
+                    rewrite_reparenthesized_exp,
                     cached_exp,
                     cached_result |> Calc.saved_to_option,
                   )

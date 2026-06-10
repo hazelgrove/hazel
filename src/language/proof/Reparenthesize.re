@@ -7,6 +7,12 @@ type result = {
   selected_is_single_binop: bool,
 };
 
+let selected_exp = (result: result): option(Exp.t) =>
+  ProofHacks.find_exp_id(result.selected_id, result.exp);
+
+let replace_selected = (result: result, with_exp: Exp.t): Exp.t =>
+  ProofHacks.replace_exp_id(result.selected_id, result.exp, with_exp);
+
 let rec binop_count = (exp: Exp.t): int =>
   switch (exp.term) {
   | BinOp(_, l, r) => 1 + binop_count(l) + binop_count(r)

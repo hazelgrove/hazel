@@ -11,6 +11,7 @@
   color: var(--cell-result-text);
   padding: 0.5em;
   padding-left: 1.2em;
+  isolation: isolate;
 }
 
 .cell-result:has(+ .theorems),
@@ -134,4 +135,34 @@
 .cell-result .icon.disabled:hover svg {
   transform: scale(100%);
   cursor: not-allowed;
+}
+
+/* INCREMENTAL EVALUATION DECORATIONS
+ *
+ * Tint behind "frozen" code — ids the incremental evaluator reused from
+ * the previous run rather than re-running. Untinted code is therefore
+ * either (a) actively being recalculated by the worker, or (b) outside
+ * the evaluated region entirely (function bodies etc).
+ *
+ * Ice motif:
+ *  - Cool pale-blue fill at low alpha so the text below stays readable.
+ *  - Thin cyan-blue stroke along each shard outline to suggest crystal
+ *    edges.
+ *  - Soft cyan drop-shadow around each shape as a frost glow.
+ *  - `isolation: isolate` on the wrapper so the drop-shadow only halos
+ *    against our own content, not the code beneath. */
+.incremental-deco {
+  pointer-events: none;
+  isolation: isolate;
+}
+
+svg.shard.incremental-frozen > path {
+  fill: var(--incremental-frozen, rgba(200, 230, 255, 0.55));
+  stroke: var(--incremental-frozen-edge, rgba(140, 190, 240, 0.55));
+  stroke-width: 0.5px;
+  vector-effect: non-scaling-stroke;
+}
+
+svg.shard.incremental-frozen {
+  filter: drop-shadow(0 0 1px rgba(160, 210, 255, 0.75));
 }

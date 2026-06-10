@@ -312,7 +312,10 @@ let mk_bad = (ctr, ids, value) => {
 };
 
 let is_hole_label = (t: string) =>
-  t == " " || Token.is_explicit_hole(t) || Token.is_llm_hole(t);
+  t == " "
+  || Token.is_explicit_hole(t)
+  || Token.is_implicit_hole_marker(t)
+  || Token.is_llm_hole(t);
 
 let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): Any.t =>
   switch (s) {
@@ -546,7 +549,8 @@ and drv_typ_term: unsorted => (Drv.Typ.term, list(Id.t)) = {
     | "Bool" => ret(Bool)
     | "1"
     | "Unit" => ret(Unit)
-    | _ when Token.is_explicit_hole(t) => ret(TypHole)
+    | _ when Token.is_explicit_hole(t) || Token.is_implicit_hole_marker(t) =>
+      ret(TypHole)
     | _
         when
           Token.is_var(t)
@@ -1135,6 +1139,7 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
         | (["Float"], []) => Atom(Float)
         | (["String"], []) => Atom(String)
         | (["Nat"], []) => Atom(Nat)
+        | (["Void"], []) => Sum([])
         | (["DrvJdmt"], []) => DrvQuoteTy(Jdmt)
         | (["DrvCtx"], []) => DrvQuoteTy(Ctx)
         | (["DrvProp"], []) => DrvQuoteTy(Prop)
@@ -1415,7 +1420,7 @@ and unsorted = (sort: Sort.t, skel: Skel.t, seg: Segment.t): unsorted => {
     switch (p) {
     | Secondary(_)
     | Grout(_) => []
-    | Projector({id, kind, model, syntax} as pr) =>
+    | Projector({id, kind, model, syntax, _} as pr) =>
       let _ = log_projector(pr);
       let sort = Piece.sort(syntax) |> fst;
       let seg = Piece.unparenthesize(syntax);
@@ -1606,7 +1611,15 @@ let for_projection =
         | Mod => Some(Mod(mod_(unsorted)))
         | Sig => Some(Sig(sig_(unsorted)))
         | MPat => Some(MPat(mpat(unsorted)))
-        | Any => Some(Any()) /* grout */
+        /* Default unresolved sort to Exp, matching go_s above.
+         * Reject bare Tuple(_) for the same reason as the Exp
+         * branch: at top level it isn't well-structured in
+         * isolation. */
+        | Any =>
+          switch (exp(unsorted)) {
+          | {term: Tuple(_), _} => None
+          | e => Some(Grammar.Exp(e))
+          }
         };
       };
     }

@@ -77,6 +77,15 @@ let compute_targets =
   );
 };
 
+/* Extract probe IDs directly from zipper's refractors (manuals + ephemerals).
+ * Map values to unit since we only need the IDs as keys. */
+let probe_ids_of_zipper = (z: Zipper.t): Id.Map.t(unit) =>
+  Id.Map.union(
+    (_, _, _) => Some(),
+    Id.Map.map(_ => (), Id.Map.of_list(z.refractors.manuals)),
+    Id.Map.map(_ => (), z.refractors.multis.ephemerals),
+  );
+
 let init_from_term =
     (
       ~settings,
@@ -92,7 +101,8 @@ let init_from_term =
       ~default=Builtins.ctx_init(is_dynamic_term ? None : Some(Int)),
       ctx,
     );
-  let (info_map, elaborated) = Statics.mk(~ana?, settings, ctx_init, term);
+  let (info_map, elaborated) =
+    Statics.mk(~ana?, ~probe_ids, settings, ctx_init, term);
   let error_ids = Statics.Map.error_ids(info_map);
   let warning_ids = Statics.Map.warning_ids(info_map);
   let elaborated =
@@ -113,6 +123,19 @@ let init_from_term =
   };
 };
 
+/* Recompute only `targets` from the zipper's current refractors, reusing the
+ * existing info_map. Cheap: O(|probe_ids|) fold. Used at the end of
+ * Editor.Update.calculate to pick up refractor changes made by probe
+ * effects (collision cleanup, auto-probe regen), without redoing statics. */
+let with_targets = (~settings: CoreSettings.t, z: Zipper.t, s: t): t => {
+  let probe_ids = probe_ids_of_zipper(z);
+  let targets = compute_targets(~settings, ~info_map=s.info_map, ~probe_ids);
+  {
+    ...s,
+    targets,
+  };
+};
+
 let init =
     (
       ~settings: CoreSettings.t,
@@ -126,14 +149,7 @@ let init =
     : t => {
   let make_term_result = MakeTerm.from_zip_for_sem(z, ~root);
   let term = make_term_result.term |> stitch;
-  /* Extract probe IDs directly from zipper's refractors (manuals + ephemerals).
-   * Map values to unit since we only need the IDs as keys. */
-  let probe_ids =
-    Id.Map.union(
-      (_, _, _) => Some(),
-      Id.Map.map(_ => (), Id.Map.of_list(z.refractors.manuals)),
-      Id.Map.map(_ => (), z.refractors.multis.ephemerals),
-    );
+  let probe_ids = probe_ids_of_zipper(z);
 
   init_from_term(~settings, ~ctx?, ~is_dynamic_term, ~ana?, ~probe_ids, term);
 };

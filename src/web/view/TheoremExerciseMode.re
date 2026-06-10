@@ -111,6 +111,16 @@ module Model = {
     let spec = spec_of_t(model);
     prefix ++ TheoremExercise.show_spec(spec) ++ "\n";
   };
+
+  /* Editors whose problems should appear in the Problems sidebar. All three
+     cells are always rendered (Prelude read-only, Theorem prove-only) and
+     all are jumpable, so all are listed. */
+  let get_problem_editors =
+      (model: t): list((option(string), list(CodeEditable.Model.t))) => [
+    (Some("Prelude"), [model.cells.prelude.editor]),
+    (Some("Lemmas"), [model.cells.lemmas.editor]),
+    (Some("Theorem"), [model.cells.theorem.editor]),
+  ];
 };
 
 let override_core_settings =
@@ -507,7 +517,7 @@ module Selection = {
 
     let.or () = {
       let* _ =
-        TermData.root_tile(
+        TermData.root_piece(
           tile,
           model.cells.prelude.editor.editor.syntax.term_data,
         );
@@ -518,7 +528,7 @@ module Selection = {
     };
     let.or () = {
       let* _ =
-        TermData.root_tile(
+        TermData.root_piece(
           tile,
           model.cells.lemmas.editor.editor.syntax.term_data,
         );
@@ -529,7 +539,7 @@ module Selection = {
     };
 
     let* _ =
-      TermData.root_tile(
+      TermData.root_piece(
         tile,
         model.cells.theorem.editor.editor.syntax.term_data,
       );

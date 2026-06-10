@@ -94,6 +94,7 @@ and step_action =
   | AddForall
   | AddAxiomStep(string, int, Exp.t, Direction.t, string)
   | AddAlgebriteStep(int, Exp.t, Exp.t)
+  | AddReparenthesizedAlgebriteStep(Exp.t, Exp.t, Exp.t)
   | AddWrittenStep(RewriteChecker.trace_summary, int, Exp.t, Exp.t)
   | CoqExport;
 
@@ -1142,6 +1143,46 @@ and Stepper: {
         |> return
       | (AddAlgebriteStep(_, _, _), _, _) => model |> raise_invalid_action
       | (
+          AddReparenthesizedAlgebriteStep(
+            reparenthesized_exp,
+            at_exp,
+            with_exp,
+          ),
+          MissingStep(_),
+          _,
+        ) =>
+        let exp =
+          model.expr
+          |> Calc.get_saved_exc(~print="AddReparenthesizedAlgebriteStep");
+        {
+          ...model,
+          step_kind:
+            ReparenthesizeStep({
+              original_exp: exp,
+              reparenthesized_exp,
+              selected_id: None,
+              evaluate_after_parenthesize: false,
+              next_exp: Calc.Pending,
+            }),
+          next_step:
+            Some({
+              ...init,
+              step_kind:
+                AlgebriteStep({
+                  at_idx:
+                    try(ProofHacks.exp_idx(at_exp, reparenthesized_exp)) {
+                    | _ => 0
+                    },
+                  at_exp,
+                  with_exp,
+                  next_exp: Calc.Pending,
+                }),
+            }),
+        }
+        |> return;
+      | (AddReparenthesizedAlgebriteStep(_, _, _), _, _) =>
+        model |> raise_invalid_action
+      | (
           AddWrittenStep(trace_summary, at_idx, at_exp, with_exp),
           MissingStep(_),
           _,
@@ -1184,6 +1225,7 @@ and Stepper: {
     | AddForall => true
     | AddAxiomStep(_) => true
     | AddAlgebriteStep(_) => true
+    | AddReparenthesizedAlgebriteStep(_) => true
     | AddWrittenStep(_) => true
     | CoqExport => false
     | StepKindAction(action) => StepKind.can_undo(action)
@@ -1465,10 +1507,8 @@ and Stepper: {
             ~inject=x => inject(EditorAction(x)),
             ~selected=
               switch (focus, model.step_kind) {
-              | (Some(Here(_)), _) => Yes
-              | (_, MissingStep({open_box: NoneOpen, _})) => No
-              | (_, MissingStep(_)) => JustHighlight
-              | _ => No
+              | (Some(Here(_)), _) => true
+              | _ => false
               },
             ~selected_id=selected_exp |> Option.map(Exp.rep_id),
             ~overlays=
@@ -1500,6 +1540,8 @@ and Stepper: {
                       inject(AddAxiomStep(name, idx, e1, dir, eq))
                     | AddAlgebriteStep(idx, e1, e2) =>
                       inject(AddAlgebriteStep(idx, e1, e2))
+                    | AddReparenthesizedAlgebriteStep(e1, e2, e3) =>
+                      inject(AddReparenthesizedAlgebriteStep(e1, e2, e3))
                     | AddWrittenStep(just, idx, e1, e2) =>
                       inject(AddWrittenStep(just, idx, e1, e2))
                     | AutoSimplify(original_exp, simplified_exp) =>

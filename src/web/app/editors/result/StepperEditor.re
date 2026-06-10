@@ -82,7 +82,6 @@ module View = {
         ~font_metrics: FontMetrics.t,
         ~inject: Update.t => Ui_effect.t(unit),
         ~selected_id: option(Id.t),
-        ~write_out_steps: bool,
         signal: event => Ui_effect.t(unit),
         model: Model.t,
       ) => {
@@ -146,6 +145,7 @@ module View = {
          )
       |> List.filter_map(Fun.id);
     };
+
     let taken_steps = (taken_steps: list(Id.t)) =>
       taken_steps |> List.filter_map(step_segment(~class_name="step-taken"));
 
@@ -162,25 +162,21 @@ module View = {
       |> List.filter_map(Fun.id);
 
     taken_steps(model.taken_steps)
-    @ (
-      write_out_steps
-        ? []
-        : next_steps(model.next_steps, ~inject=x =>
-            {
-              open OptUtil.Syntax;
-              let+ range =
-                TermData.extreme_measures(
-                  List.nth(model.next_steps, x),
-                  model.editor.editor.syntax.term_data,
-                  model.editor.editor.syntax.measured,
-                );
-              Some(List.nth(model.next_steps, x)) == selected_id
-                ? signal(TakeStep(x))
-                : inject(Select(PointToPoint(range)));
-            }
-            |> Option.value(~default=Ui_effect.Ignore)
-          )
-    )
+    @ next_steps(model.next_steps, ~inject=x =>
+        {
+          open OptUtil.Syntax;
+          let step_id = List.nth(model.next_steps, x);
+          let+ range =
+            TermData.extreme_measures(
+              step_id,
+              model.editor.editor.syntax.term_data,
+              model.editor.editor.syntax.measured,
+            );
+          Some(step_id) == selected_id
+            ? signal(TakeStep(x)) : inject(Select(PointToPoint(range)));
+        }
+        |> Option.value(~default=Ui_effect.Ignore)
+      )
     @ refl_steps(model.refls, ~inject=x =>
         {
           open OptUtil.Syntax;
@@ -206,13 +202,14 @@ module View = {
         ~inject,
         ~signal: event => 'a,
         ~overlays=[],
-        ~selected: CodeEditable.View.selected,
+        ~selected,
         ~selected_id,
         ~_dynamics: Language.Dynamics.Map.t=Language.Dynamics.Map.empty,
         model: Model.t,
       ) => {
     CodeSelectable.View.view(
       ~dynamics=Language.Dynamics.Map.empty,
+      ~associative_selection=true,
       ~signal=
         fun
         | MakeActive => signal(MakeActive),
@@ -221,8 +218,8 @@ module View = {
           inject,
           escape: _ => Ui_effect.Ignore,
           take_focus: _ => Ui_effect.Ignore,
-          focus: selected == Yes ? Some() : None,
-          highlight: selected == JustHighlight,
+          focus: selected ? Some() : None,
+          highlight: false,
         }),
       ~globals,
       ~overlays=
@@ -230,7 +227,6 @@ module View = {
         @ deco(
             ~syntax=model.editor.editor.syntax,
             ~font_metrics=globals.font_metrics,
-            ~write_out_steps=globals.settings.core.evaluation.write_out_steps,
             ~inject,
             ~selected_id,
             signal,

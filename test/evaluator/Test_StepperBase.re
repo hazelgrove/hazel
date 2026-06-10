@@ -261,6 +261,18 @@ let run_step_chain =
   };
 };
 
+let middle_plus_id_in_four_term_sum = (exp: Exp.t): Id.t =>
+  switch (exp.term) {
+  | BinOp(_, {term: BinOp(_, _, _), _} as middle_plus, _) =>
+    switch (middle_plus.term) {
+    | BinOp(_, _, {term: Atom(Int(i)), _})
+        when Bigint.to_int(i) == Some(3) =>
+      Exp.rep_id(middle_plus)
+    | _ => failwith("Unexpected middle plus shape")
+    }
+  | _ => failwith("Unexpected parse tree for 1 + 2 + 3 + 4")
+  };
+
 let tests = (
   "StepperBase",
   [
@@ -470,6 +482,67 @@ let tests = (
 
         check(dhexp_typ, "reduces to true", parse_exp("true"), final_exp);
         check(option(bool), "chain validity is true", Some(true), validity);
+      },
+    ),
+    test_case(
+      "reparenthesized algebra replace keeps reparenthesize before algebra",
+      `Quick,
+      () => {
+        let exp = parse_exp("1 + 2 + 3 + 4");
+        let selected_ids =
+          AssocSelection.find_reparenthesize_for_id(
+            middle_plus_id_in_four_term_sum(exp),
+            Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), exp)
+            |> fst,
+          );
+        let reparenthesized =
+          switch (Reparenthesize.reparenthesize_selection(~selected_ids, exp)) {
+          | Some(result) => result
+          | None => failwith("Expected reparenthesized selection")
+          };
+        let selected_exp =
+          switch (Reparenthesize.selected_exp(reparenthesized)) {
+          | Some(exp) => exp
+          | None => failwith("Expected selected exp")
+          };
+        let initial_step =
+          mk_test_step(~step_kind=StepKindHelpers.mk_missing_step(), ());
+        let (calculated_step, _, _) = test_calculate(~exp, initial_step);
+        let updated_step =
+          StepperBase.Stepper.update(
+            ~settings=Web.Settings.Model.init,
+            StepperBase.AddReparenthesizedAlgebriteStep(
+              reparenthesized.exp,
+              selected_exp,
+              parse_exp("6 - 1"),
+            ),
+            calculated_step,
+          ).
+            model;
+        let (calculated_updated_step, final_exp, _) =
+          test_calculate(~exp, updated_step);
+        switch (calculated_updated_step.step_kind) {
+        | ReparenthesizeStep(_) => ()
+        | _ => failwith("Expected root step to be reparenthesize")
+        };
+        let algebra_step =
+          switch (calculated_updated_step.next_step) {
+          | Some(step) => step
+          | None => failwith("Expected algebra next step")
+          };
+        switch (algebra_step.step_kind) {
+        | AlgebriteStep(_) => ()
+        | _ => failwith("Expected second step to be algebra")
+        };
+        check(
+          bool,
+          "final expression replaces only selected chunk",
+          true,
+          Equality.ignoring_ascriptions.exp(
+            Calc.get_value(final_exp),
+            parse_exp("1 + (6 - 1) + 4"),
+          ),
+        );
       },
     ),
     // ============================================================

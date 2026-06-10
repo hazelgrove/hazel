@@ -16,14 +16,22 @@ type t = {
   app_args: app_args_t, /* Argument values for function applications */
   step_count: int,
   pending_probe_starts: Id.Map.t(list(int)), /* Stack per probe_id; nested recursive calls push/pop */
-  targets: Sample.targets /* IDs of expressions/patterns to sample */
+  targets: Sample.targets, /* IDs of expressions/patterns to sample */
+  incr_eval: IncrEval.t /* Per-id cache entries and reuse/recalc bookkeeping for the incremental evaluator */
 };
 
 type effect =
   | RecordTest(TestMap.instance_report)
   | RecordExpProbe(Sample.capture_spec)
   | RecordStackFrame(option(string), option(DHExp.t), option(Id.t)) /* (fn_name, arg_value, fn_def_id) */
-  | RecordPatProbes(PatternMatch.sample_closures)
+  /* A pattern was matched against a value during evaluation. Carries the
+   * pat and rhs so the incremental evaluator can decide which body-scoped
+   * names became dirty, and any probe samples produced by the match. */
+  | RecordPatMatch({
+      pat: Pat.t,
+      rhs: DHExp.t,
+      samples: PatternMatch.sample_closures,
+    })
   | RecordTheorem(Id.t, string, Environment.t(Exp.t), Exp.t)
   | RecordPrint(DHExp.t); /* Println for probes study */
 
@@ -35,6 +43,7 @@ let mk = (~targets: Sample.targets): t => {
   pending_probe_starts: Id.Map.empty,
   targets,
   theorems: [],
+  incr_eval: IncrEval.empty,
 };
 
 let init: t = mk(~targets=Sample.no_targets);
@@ -82,6 +91,23 @@ let get_probes = ({probes, _}) => probes;
 let get_theorems = ({theorems, _}) => theorems;
 
 let get_app_args = ({app_args, _}) => app_args;
+
+let get_incr_eval = ({incr_eval, _}: t) => incr_eval;
+
+let add_incr_entry = (state: t, id: Id.t, entry: IncrEval.entry): t => {
+  ...state,
+  incr_eval: IncrEval.add_entry(id, entry, state.incr_eval),
+};
+
+let mark_incr_reused = (state: t, id: Id.t): t => {
+  ...state,
+  incr_eval: IncrEval.mark_reused(id, state.incr_eval),
+};
+
+let mark_incr_recalculated = (state: t, id: Id.t): t => {
+  ...state,
+  incr_eval: IncrEval.mark_recalculated(id, state.incr_eval),
+};
 
 /* Clear transient data that's only needed during evaluation.
  * Call this before sending EvaluatorState over postMessage
@@ -255,7 +281,7 @@ let update =
           );
         let state = clear_probe_start(state, probe_id);
         (call_stack, add_sample(state, sample));
-      | RecordPatProbes(sample_closures) =>
+      | RecordPatMatch({samples: sample_closures, _}) =>
         /* Pattern probes are recorded at the current step, then we
          * increment to ensure patterns don't share step boundaries
          * with subsequent expressions (which would cause incorrect
@@ -300,4 +326,70 @@ let update =
     (call_stack, state),
     side_effects,
   );
+};
+
+/* Capture the delta between `before` and `after` as a StateSlice. */
+let capture_slice = (~before: t, ~after: t): StateSlice.t => {
+  origin: before.step_count,
+  steps: after.step_count - before.step_count,
+  probes: StateSlice.diff_probes(~before=before.probes, ~after=after.probes),
+  tests: StateSlice.diff_tests(~before=before.tests, ~after=after.tests),
+  theorems:
+    StateSlice.diff_theorems(~before=before.theorems, ~after=after.theorems),
+  app_args:
+    StateSlice.diff_app_args(~before=before.app_args, ~after=after.app_args),
+};
+
+/* Replay a slice into `state`: add its sample/test/theorem/app_arg entries,
+ * bump step_count by the slice's step delta. Probe step bounds are shifted
+ * so they sit within the current step_count window. */
+let replay_slice = (slice: StateSlice.t, state: t): t => {
+  let delta = state.step_count - slice.origin;
+  let probes =
+    Id.Map.fold(
+      (id, new_samples, acc) => {
+        let shifted = List.map(StateSlice.shift_sample(delta), new_samples);
+        let existing =
+          switch (Id.Map.find_opt(id, acc)) {
+          | Some(l) => l
+          | None => []
+          };
+        Id.Map.add(id, shifted @ existing, acc);
+      },
+      slice.probes,
+      state.probes,
+    );
+  let tests =
+    List.fold_left(
+      (acc, (id, new_reports)) =>
+        List.fold_left(
+          (acc, report) => TestMap.extend((id, report), acc),
+          acc,
+          new_reports,
+        ),
+      state.tests,
+      slice.tests,
+    );
+  let theorems = state.theorems @ slice.theorems;
+  let app_args =
+    Id.Map.fold(
+      (id, new_entries, acc) => {
+        let existing =
+          switch (Id.Map.find_opt(id, acc)) {
+          | Some(l) => l
+          | None => []
+          };
+        Id.Map.add(id, new_entries @ existing, acc);
+      },
+      slice.app_args,
+      state.app_args,
+    );
+  {
+    ...state,
+    step_count: state.step_count + slice.steps,
+    probes,
+    tests,
+    theorems,
+    app_args,
+  };
 };

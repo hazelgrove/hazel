@@ -21,6 +21,7 @@ module Model = {
     relative_line_numbers: bool,
     cap_undo_stack: bool,
     show_row_lines: bool,
+    show_incremental_deco: bool,
   };
 
   let init = {
@@ -35,6 +36,7 @@ module Model = {
       deep_reassociate: true,
       flip_animations: true,
       display_warnings: true,
+      selection_chunkiness: false,
       evaluation: {
         show_case_clauses: true,
         show_fn_bodies: false,
@@ -49,6 +51,7 @@ module Model = {
         show_hidden_steps: false,
         write_out_steps: false,
         enable_proof: false,
+        project_tables: false,
       },
     },
     async_evaluation: false,
@@ -66,6 +69,7 @@ module Model = {
       show: true,
       problems: {
         collapsed: [],
+        collapsed_editors: [],
         flat: false,
         expanded: [],
       },
@@ -76,6 +80,7 @@ module Model = {
     relative_line_numbers: false,
     cap_undo_stack: false,
     show_row_lines: false,
+    show_incremental_deco: false,
   };
 
   let fix_instructor_mode = settings =>
@@ -130,7 +135,8 @@ module Update = {
     | ShowFilters
     | ShowSettings
     | WriteOutSteps
-    | ShowHiddenSteps;
+    | ShowHiddenSteps
+    | ProjectTables;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
@@ -140,6 +146,7 @@ module Update = {
     | Dynamics
     | ProbeAll
     | DeepReassociate
+    | SelectionChunkiness
     | Assist
     | Elaborate
     | Benchmark
@@ -155,7 +162,8 @@ module Update = {
     | ToggleLineNumbers
     | ToggleRelativeLineNumbers
     | CapUndoStack
-    | ShowRowLines;
+    | ShowRowLines
+    | ShowIncrementalDeco;
 
   let can_undo = (action: t) => {
     switch (action) {
@@ -209,6 +217,13 @@ module Update = {
             deep_reassociate: !settings.core.deep_reassociate,
           },
         }
+      | SelectionChunkiness => {
+          ...settings,
+          core: {
+            ...settings.core,
+            selection_chunkiness: !settings.core.selection_chunkiness,
+          },
+        }
       | Assist => {
           ...settings,
           core: {
@@ -246,6 +261,10 @@ module Update = {
           | EnableProof => {
               ...evaluation,
               enable_proof: !evaluation.enable_proof,
+            }
+          | ProjectTables => {
+              ...evaluation,
+              project_tables: !evaluation.project_tables,
             }
           | ShowCaseClauses => {
               ...evaluation,
@@ -317,13 +336,25 @@ module Update = {
             panel: windowToSwitchTo,
           },
         }
-      | Sidebar(Problems(ToggleCollapsed(cat))) => {
+      | Sidebar(Problems(ToggleCollapsed(label, cat))) => {
           ...settings,
           sidebar: {
             ...settings.sidebar,
             problems:
               SidebarModel.Settings.toggle_collapsed(
+                label,
                 cat,
+                settings.sidebar.problems,
+              ),
+          },
+        }
+      | Sidebar(Problems(ToggleEditorCollapsed(label))) => {
+          ...settings,
+          sidebar: {
+            ...settings.sidebar,
+            problems:
+              SidebarModel.Settings.toggle_editor_collapsed(
+                label,
                 settings.sidebar.problems,
               ),
           },
@@ -418,6 +449,10 @@ module Update = {
       | ShowRowLines => {
           ...settings,
           show_row_lines: !settings.show_row_lines,
+        }
+      | ShowIncrementalDeco => {
+          ...settings,
+          show_incremental_deco: !settings.show_incremental_deco,
         }
       }
     )
