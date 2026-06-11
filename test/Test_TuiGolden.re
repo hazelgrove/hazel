@@ -342,14 +342,19 @@ let tests = (
             Keymap.Perform(Project(SetIndicated(Specific(Statics)))),
           );
         let (frame, _) = App.render(~size=small, m);
+        /* the type must render offside on the code's own line — the
+           status bar also mentions Int, so a whole-frame grep would
+           pass even with offside rendering broken */
+        let first_line =
+          switch (String.split_on_char('\n', Frame.to_plain_text(frame))) {
+          | [l, ..._] => l
+          | [] => ""
+          };
         check(
           bool,
-          "offside type text",
+          "type at the end of the code line",
           true,
-          Util.StringUtil.match(
-            Util.StringUtil.regexp("Int"),
-            Frame.to_plain_text(frame),
-          ),
+          Util.StringUtil.match(Util.StringUtil.regexp("Int$"), first_line),
         );
       },
     ),
@@ -434,6 +439,100 @@ let tests = (
           Util.StringUtil.match(
             Util.StringUtil.regexp("\xe2\x89\xa1 3 \xe2\xab\xbd 4"), /* ≡ 3 ⫽ 4 */
             f,
+          ),
+        );
+      },
+    ),
+    test_case(
+      "probe offside chip lands on the probed line",
+      `Quick,
+      () => {
+        let f = Replay.run(~size=(10, 60), "let x = 2 in\rx + 1\x05");
+        let lines = String.split_on_char('\n', f);
+        let line = i => List.nth_opt(lines, i) |> Option.value(~default="");
+        check(
+          bool,
+          "chip on line 2",
+          true,
+          Util.StringUtil.match(
+            Util.StringUtil.regexp("x \\+ 1  \xe2\x89\xa1 1$"),
+            line(1),
+          ),
+        );
+        check(
+          bool,
+          "no chip on line 1",
+          false,
+          Util.StringUtil.match(
+            Util.StringUtil.regexp("\xe2\x89\xa1"),
+            line(0),
+          ),
+        );
+      },
+    ),
+    test_case(
+      "each line gets its own offside chip",
+      `Quick,
+      () => {
+        let f =
+          Replay.run(~size=(10, 60), "let x = 2 in\rx + 1\x05\x1b[A\x05");
+        let lines = String.split_on_char('\n', f);
+        let line = i => List.nth_opt(lines, i) |> Option.value(~default="");
+        check(
+          bool,
+          "line 1 chip shows 2",
+          true,
+          Util.StringUtil.match(
+            Util.StringUtil.regexp("\xe2\x89\xa1 2$"),
+            line(0),
+          ),
+        );
+        check(
+          bool,
+          "line 2 chip shows 1",
+          true,
+          Util.StringUtil.match(
+            Util.StringUtil.regexp("\xe2\x89\xa1 1$"),
+            line(1),
+          ),
+        );
+      },
+    ),
+    test_case(
+      "selection overlay does not paint offside chips",
+      `Quick,
+      () => {
+        open Haz3lcore;
+        /* probe + eval, then select all: the code gets reverse-video,
+           the offside chip must not (offsides append post-overlay) */
+        let m = Replay.final_model(~size=(10, 60), "1 + 2\x05");
+        let (m, _) =
+          App.apply(~page=8, m, Keymap.Perform(Action.Select(All)));
+        let (frame, _) = App.render(~size=(10, 60), m);
+        let spans = List.concat(frame.rows);
+        let chip_spans =
+          List.filter(
+            ((_, text)) =>
+              Util.StringUtil.match(
+                Util.StringUtil.regexp("\xe2\x89\xa1"),
+                text,
+              ),
+            spans,
+          );
+        check(bool, "chip rendered", true, chip_spans != []);
+        check(
+          bool,
+          "chip not reversed by selection",
+          false,
+          List.exists(((st: Style.t, _)) => st.reverse, chip_spans),
+        );
+        check(
+          bool,
+          "selection did reverse some code",
+          true,
+          List.exists(
+            ((st: Style.t, text)) => st.reverse && String.trim(text) != "",
+            spans,
           ),
         );
       },
