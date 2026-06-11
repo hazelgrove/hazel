@@ -13,16 +13,12 @@ The model below is a `Ledger`: a record with a list of records inside. Large val
 2. When you only need a little more space, **Resize** it: click the sample, then **Shift+←/→** (or drag it wider).
 3. When you need much more: **expand** the probe into the drawer with **Cmd/Ctrl+↓**. The value unfolds across rows; **Cmd/Ctrl+↑** folds it back. Which harvest in the ledger is worth the most?
 4. **Step into** `update` from its sample and switch to *many* mode: note the ledger grows per-action.
-5. Everything here works without the mouse: **Cmd/Ctrl+↩** jumps from the code to that line's probe and **Esc** returns; **←/→** walks samples, **↑/↓** walks probes; **Shift+←/→** resizes; **Cmd/Ctrl+↓/↑** expands.
+5. Resize and expand are now in the Quick Reference in the sidebar, along with keyboard shortcuts for everything here.
 
 @reference
 ### Reading values
 - **Resize a sample**: focus it, then **Shift+←/→**, or drag it wider.
 - **Expand a probe**: **Cmd/Ctrl+↓** for more rows, **Cmd/Ctrl+↑** for fewer (or click the **⌄**).
-
-### Keyboard
-- **Cmd/Ctrl+↩** focus the probe on this line; **Esc** back to the editor
-- **←/→** between samples, **↑/↓** between probes
 
 @code
 type Quality = Bronze + Silver + Gold + Starlight in

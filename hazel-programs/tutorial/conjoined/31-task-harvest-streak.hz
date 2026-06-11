@@ -39,34 +39,9 @@ starfruit/nightshade have highest base value
 duskwheat has lowest base value
 quantity multiplies value
 full harvest day scenario
-Hidden copy: different quality resets streak
-Hidden copy: same quality builds streak
-Hidden copy: streak bonus accumulates
 
 @code
 {{include:hazel-programs/study/tasks-draft/06D-harvest-streak.hz}}
 
 @test
-test
-  let h1 = (crop = Moonmelon, quality = Bronze, quantity = 1) in
-  let h2 = (crop = Starfruit, quality = Gold, quantity = 1) in
-  let ledger = run(initModel, [RecordHarvest(h1), RecordHarvest(h2)]) in
-  ledger.streakBonus == 0
-end;
-test
-  let h1 = (crop = Moonmelon, quality = Gold, quantity = 1) in
-  let h2 = (crop = Starfruit, quality = Gold, quantity = 1) in
-  let ledger = run(initModel, [RecordHarvest(h1), RecordHarvest(h2)]) in
-  ledger.streakBonus == 5
-end;
-test
-  let h1 = (crop = Moonmelon, quality = Silver, quantity = 1) in
-  let h2 = (crop = Starfruit, quality = Silver, quantity = 1) in
-  let h3 = (crop = Nightshade, quality = Silver, quantity = 1) in
-  let ledger = run(initModel, [
-    RecordHarvest(h1),
-    RecordHarvest(h2),
-    RecordHarvest(h3)
-  ]) in
-  ledger.streakBonus == 10
-end
+0

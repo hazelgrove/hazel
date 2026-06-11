@@ -35,26 +35,9 @@ watering does not affect empty cells
 FAILING: multiple waterings progress through stages
 cannot harvest immature crops
 PassDay increments day count
-Hidden copy: multiple waterings progress through stages
-Hidden copy: watering advances planted crops
-Hidden copy: can plant a crop in empty cell
 
 @code
 {{include:hazel-programs/study/tasks-draft/02D-growth-plotter.hz}}
 
 @test
-test
-  let m = run(initModel, [
-    PlantCrop(0, 0),
-    WaterField, WaterField, WaterField, WaterField
-  ]) in
-  getStage(getCell(m.field, 0, 0)) == ReadyToHarvest
-end;
-test
-  let m = run(initModel, [PlantCrop(0, 0), WaterField]) in
-  getStage(getCell(m.field, 0, 0)) == Sprout
-end;
-test
-  let m = update(initModel, PlantCrop(0, 0)) in
-  isPlanted(getCell(m.field, 0, 0))
-end
+0

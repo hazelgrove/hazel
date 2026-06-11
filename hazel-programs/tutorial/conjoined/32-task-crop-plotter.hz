@@ -28,34 +28,9 @@ PlantCol fills column 0
 PlantCol fills column 2
 row then column overlap correctly
 selected seed is used for the column
-Hidden copy: PlantCol fills column 0
-Hidden copy: PlantCol fills column 2
-Hidden copy: row then column overlap
-Hidden copy: selected seed is used
-Hidden copy: PlantRow still works
 
 @code
 {{include:hazel-programs/study/tasks-draft/07W-crop-plotter-extend.hz}}
 
 @test
-test
-  let m = update(init, PlantCol(0)) in
-  m.grove == [["🌱", "", ""], ["🌱", "", ""], ["🌱", "", ""]]
-end;
-test
-  let m = update(init, PlantCol(2)) in
-  m.grove == [["", "", "🌱"], ["", "", "🌱"], ["", "", "🌱"]]
-end;
-test
-  let m = do(init, [PlantRow(0), PlantCol(1)]) in
-  m.grove == [["🌱", "🌱", "🌱"], ["", "🌱", ""], ["", "🌱", ""]]
-end;
-test
-  let m = do(init, [SelectSeed(2), PlantCol(1)]) in
-  m.grove == [["", "🍄", ""], ["", "🍄", ""], ["", "🍄", ""]]
-  && m.currentSeed == "🍄"
-end;
-test
-  let m = update(init, PlantRow(1)) in
-  m.grove == [["", "", ""], ["🌱", "🌱", "🌱"], ["", "", ""]]
-end
+0

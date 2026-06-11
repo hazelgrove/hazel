@@ -7,7 +7,7 @@ version=1 id=b0000026-0026-0026-0026-000000000026
 
 The following are some more substantial tasks, alternating between two types:
 
-- **writing**: build a function to a spec (auto-probe is on for these)
+- **writing**: build a function to a spec (auto-probe is on for most of these)
 - **debugging**: a working program with one failing test; find and fix the bug
 
 Notes:

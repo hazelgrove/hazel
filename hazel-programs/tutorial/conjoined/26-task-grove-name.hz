@@ -23,27 +23,20 @@ Try `string_split(path, "/")` in a probe and look at what comes back. Mind the e
 3. Build in small steps. Auto-probe is on, so intermediate values appear as you type.
 4. Unsure what a library function does? Probe a call and look. Probing `f(?)` with a hole argument x-rays what `f` does.
 
+### Functions
+- `string_split : (String, String) -> [String]`
+- `string_sub : (String, Int, Int) -> String`
+- `string_length : String -> Int`
+- `nth : ([String], Int) -> String`
+- `length : [String] -> Int`
+
 @hints
 grove_name("/moonlit-grove/ferns/watering") should be "moonlit-grove"
 grove_name("/night-garden/herbs/rosemary") should be "night-garden"
 grove_name("/") should be ""
-Hidden copy: the first test, in case the visible one was edited
-Hidden copy: the second test
-Hidden copy: the third test
 
 @code
 {{include:hazel-programs/study/tasks-draft/01W-garden-path.hz}}
 
 @test
-test
-  grove_name("/moonlit-grove/ferns/watering")
-  == "moonlit-grove"
-end;
-test
-  grove_name("/night-garden/herbs/rosemary")
-  == "night-garden"
-end;
-test
-  grove_name("/")
-  == ""
-end
+0

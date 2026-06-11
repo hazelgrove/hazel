@@ -66,8 +66,8 @@ let of_slide = (module_name: string): t =>
       ...none,
       autoprobe: Some(Off),
     }
-  /* 13b multi-probes a definition by hand as its lesson; keep it off. */
-  | "TuGen_13bWatchItBuild" => {
+  /* 14b multi-probes a definition by hand as its lesson; keep it off. */
+  | "TuGen_14bWatchItBuild" => {
       ...none,
       autoprobe: Some(Off),
     }

@@ -62,8 +62,11 @@ let s12 = s11 @ [AutoProbe];
 let s16 = s12 @ [Pin, IconPinHidden];
 let s17 = s16 @ [StepInto];
 let s20 = s17 @ [Console];
+/* Legend shows only on the colors slide: color schemes are otherwise
+ * Simple, so the legend would spend sidebar space explaining colors
+ * that are not in use. */
 let s22 = s20 @ [Legend];
-let s24 = s22 @ [Resize, ExpandProbe];
+let s24 = s20 @ [Resize, ExpandProbe];
 
 let flags_of_slide = (module_name: string): list(feat) =>
   switch (module_name) {
@@ -78,16 +81,16 @@ let flags_of_slide = (module_name: string): list(feat) =>
   | "TuGen_10FunctionsAndManySamples" => s10
   | "TuGen_11AligningSamples" => s11
   | "TuGen_12AutoProbe"
-  | "TuGen_13bWatchItBuild"
   | "TuGen_14Map"
+  | "TuGen_14bWatchItBuild"
   | "TuGen_15Fold" => s12
   | "TuGen_16Pin" => s16
   | "TuGen_17StepInto"
   | "TuGen_19WritingStrings" => s17
   | "TuGen_20Print"
   | "TuGen_21DebuggingWarmup" => s20
-  | "TuGen_22SampleColors"
-  | "TuGen_23GreenhouseArena" => s22
+  | "TuGen_22SampleColors" => s22
+  | "TuGen_23GreenhouseArena" => s20
   | "TuGen_24ModelAndUpdate" => s24
   /* Study task slides (26+): the full kit. */
   | "TuGen_26TaskGroveName"

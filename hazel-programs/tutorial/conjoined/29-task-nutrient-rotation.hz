@@ -39,35 +39,9 @@ season advances counter
 season change causes minor nutrient loss
 nutrients cannot go below 0
 nutrients cannot exceed 100
-Hidden copy: nightshade restores nitrogen significantly
-Hidden copy: duskwheat restores nitrogen
-Hidden copy: compost boosts all nutrients
 
 @code
 {{include:hazel-programs/study/tasks-draft/04D-nutrient-rotation.hz}}
 
 @test
-test
-  let depleted = (
-    soil = (n = 30, p = 60, k = 60),
-    crop = None,
-    season = 1
-  ) in
-  let p = farm(depleted, [Plant(Nightshade), Harvest]) in
-  p.soil.n >= 45
-end;
-test
-  let depleted = (
-    soil = (n = 30, p = 50, k = 50),
-    crop = None,
-    season = 1
-  ) in
-  let p = farm(depleted, [Plant(Duskwheat), Harvest]) in
-  p.soil.n > depleted.soil.n
-end;
-test
-  let p = update(initModel, Compost) in
-  p.soil.n > initModel.soil.n &&
-  p.soil.p > initModel.soil.p &&
-  p.soil.k > initModel.soil.k
-end
+0

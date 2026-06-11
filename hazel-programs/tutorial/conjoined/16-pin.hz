@@ -2,20 +2,13 @@
 show_report version=1 id=b0000014-0014-0014-0014-000000000014
 
 @prompt
-There is a 🐛 in the garden data. Two tests fail because of it, and with ten calls feeding every probe, there are samples everywhere. **Pin** locks every probe to a single call's run.
+There is a 🐛 in the garden data. One test fails because of it, and with ten calls feeding every probe, there are samples everywhere. **Pin** locks every probe to a single call's run.
 
-# Exercise 1: pin from a failing test
+**Try this**
 1. Auto-probe is on, so `make_label` is already probed. Click inside it and try *many* mode (**Space**): ten calls, so ten samples per line.
 2. Find the test marked FAILING. Probe its `make_label` call, right-click the sample, and choose **Pin this call** (or press `P`).
 3. Back inside `make_label`: every probe now shows only that call's run. Can you spot the 🐛 now? Fix the plant data so the test passes.
-4. A **⍟** elsewhere marks samples hidden by your pin; clicking it unpins. Unpin before moving on.
-
-# Exercise 2: pin the enclosing call
-`bed_labels` labels each plant in a bed using `map`. It is called on three beds, so the callback runs 10 times: samples from all three beds, jumbled.
-
-1. Look at `bed_name`: it sits *outside* the map, so it has just 3 samples. Step to **Sun Terrace**.
-2. Right-click that sample and choose **Pin enclosing call** (or press `P`): this pins the enclosing `bed_labels(sun_terrace)` call.
-3. The map callback now shows only Sun Terrace's three plants. If your Exercise 1 fix was right, its FAILING test now passes too.
+4. A **⍟** elsewhere marks samples hidden by your pin; clicking it unpins.
 
 @hint
 The rose's icon in the plant data is not a rose.
@@ -23,7 +16,6 @@ The rose's icon in the plant data is not a rose.
 @reference
 ### Pin
 - **Pin this call**: right-click a call's sample, then *Pin this call* (or press `P`). Every probe filters to that run.
-- **Pin enclosing call**: right-click a sample *inside* a function, then *Pin enclosing call* (or press `P`). Use it to narrow a map to one outer call.
 - **⍟**: samples hidden by a pin. Click to unpin.
 
 @hints
@@ -37,11 +29,6 @@ lily label, 7 days
 lily label, 3 days
 daisy label, 7 days
 FAILING: rose label, 7 days
-shade garden labels
-mixed bed labels
-FAILING: sun terrace labels
-Hidden copy: rose label
-Hidden copy: sun terrace labels
 
 @code
 type Plant = (
@@ -77,62 +64,11 @@ test make_label(lily, 7) == "☘️ Lily: 1400ml/7d" end;
 test make_label(lily, 3) == "☘️ Lily: 600ml/3d" end;
 test make_label(daisy, 7) == "🌱 Daisy: 1120ml/7d" end;
 
-test
-  make_label(rose, 7)
-  == "🌹 Rose: 1330ml/7d" end;
-
-type Bed = (
-  name = String,
-  plants = [Plant]
-) in
-
-let shade_garden: Bed = (
-  name = "Shade Garden",
-  plants = [fern, lily, daisy]
-) in
-
-let sun_terrace: Bed = (
-  name = "Sun Terrace",
-  plants = [orchid, cactus, rose]
-) in
-
-let mixed_bed: Bed = (
-  name = "Mixed Bed",
-  plants = [fern, orchid, lily, cactus]
-) in
-
-let bed_labels: Bed -> [String] =
-  fun bed ->
-  let bed_name = bed.name in
-  map(bed.plants, fun plant ->
-    let label = plant.icon ++ " " ++ plant.name in
-    let info = string_of_int(plant.water) ++ "ml" in
-    label ++ ": " ++ info
-  )
-in
-
-test
-  bed_labels(shade_garden)
-  == ["🌿 Fern: 250ml", "☘️ Lily: 200ml", "🌱 Daisy: 160ml"]
-end;
-test
-  bed_labels(mixed_bed)
-  == ["🌿 Fern: 250ml", "🌸 Orchid: 180ml",
-      "☘️ Lily: 200ml", "🍄 Cactus: 50ml"]
-end;
-
 # vvv This test is FAILING vvv #
 test
-  bed_labels(sun_terrace)
-  == ["🌸 Orchid: 180ml", "🍄 Cactus: 50ml", "🌹 Rose: 190ml"]
-end
+  make_label(rose, 7)
+  == "🌹 Rose: 1330ml/7d" end
 # ^^^ This test is FAILING ^^^ #
 
 @test
-test
-  make_label(rose, 7)
-  == "🌹 Rose: 1330ml/7d" end;
-test
-  bed_labels(sun_terrace)
-  == ["🌸 Orchid: 180ml", "🍄 Cactus: 50ml", "🌹 Rose: 190ml"]
-end
+0

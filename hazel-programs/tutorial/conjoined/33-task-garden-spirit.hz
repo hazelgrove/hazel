@@ -33,44 +33,9 @@ a critically low stat counts as neglect when time passes
 devoted care raises an elder
 heavy neglect wilts the spirit
 FAILING: moderate care with some neglect becomes bloom
-Hidden copy: moderate care with some neglect becomes bloom
-Hidden copy: devoted care raises an elder
-Hidden copy: heavy neglect wilts the spirit
 
 @code
 {{include:hazel-programs/study/tasks-draft/08D-tamagotchi.hz}}
 
 @test
-test
-  let model = (
-    stats = (hunger = 50, happiness = 50, energy = 50, health = 100),
-    evolution = Seedling,
-    personality = Balanced,
-    memory = (timesFed = 3, timesPlayed = 3, timesSlept = 3, timesNeglected = 3),
-    age = 30
-  ) in
-  let result = update(model, TimeTick) in
-  result.evolution == Bloom
-end;
-test
-  let devoted = (
-    stats = (hunger = 50, happiness = 50, energy = 50, health = 100),
-    evolution = Bloom,
-    personality = Balanced,
-    memory = (timesFed = 10, timesPlayed = 10, timesSlept = 10, timesNeglected = 0),
-    age = 30
-  ) in
-  let m = update(devoted, TimeTick) in
-  m.evolution == Elder
-end;
-test
-  let neglected = (
-    stats = (hunger = 50, happiness = 50, energy = 50, health = 100),
-    evolution = Sprout,
-    personality = Balanced,
-    memory = (timesFed = 1, timesPlayed = 1, timesSlept = 1, timesNeglected = 9),
-    age = 30
-  ) in
-  let m = update(neglected, TimeTick) in
-  m.evolution == Wilted
-end
+0
