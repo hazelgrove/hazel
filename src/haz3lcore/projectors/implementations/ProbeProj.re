@@ -1275,7 +1275,7 @@ let sample_context_sections =
       : [
           div(
             ~attrs=[Attr.classes(["context-actions"])],
-            primary @ [dock_toggle()],
+            primary /*@ [dock_toggle()]*/ //TODO(andrew): this is temporarily disabled for the study
           ),
         ]
         @ call_display

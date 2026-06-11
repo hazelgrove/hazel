@@ -2,13 +2,13 @@
 wrapper show_report version=1 id=b0000004-0004-0004-0004-000000000004
 
 @prompt
-A sample shows a value. Right-click a sample and you also see the **variables feeding it** in a dropdown.
+Probes produce **samples**, the green rectangles shown to the right of the code. Right-click a sample and you also see the **variables feeding it** in a dropdown.
 
 # Task
-The weekly watering should come to **1800 ml**, but it is off; perhaps the bonus is set wrong. The total is built from a base amount, the days in a week, and a new-moon bonus. 
+The weekly watering should come to **1800 ml**, but it is off; perhaps the bonus is set wrong. The total is built from a base amount, the days in a week, and a new-moon bonus. Add probes as needed; for example:
 
 1. Put your cursor on the `+` in `base * days + bonus` (the `weekly` definition) and press **Cmd/Ctrl+E** to probe it. Should show `1755`.
-2. **Right-click that sample** (a two-finger tap on a Mac trackpad, or Option-click). The dropdown lists every variable feeding it: `base`, `days`, and `bonus`.
+2. **Right-click that sample** (a two-finger tap on a Mac trackpad, or Option-click). The dropdown lists every external variable the probed expression depends on: `base`, `days`, and `bonus`.
 3. One of them is wrong. Fix it so `weekly` is **1800**.
 
 @hint

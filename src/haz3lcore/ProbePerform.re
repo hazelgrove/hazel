@@ -1372,38 +1372,47 @@ let align_to_indicated_probe =
     };
   };
 
-/* Drop the pinned call stack when an edit retires any of its frame ids
- * (the pinned call site was deleted or rewritten). A dead pin can never
- * match a sample again, and because automatic recovery is gated on
- * auto_focus it would otherwise leave every probe dark (⍟) until the
- * user finds the manual reset. Frame ids are call-site term ids, so
- * liveness = presence in the statics map, EXCEPT for frames from inside
- * builtin implementations (a fold/map applying a user callback): those
- * ids are never in any user statics map, but the frames are permanently
- * live, so they are exempt. Without the exemption, any pin through a
- * builtin (e.g. on an update call inside a fold_left callback) was
- * judged dead and silently dropped by the very recalculate the pin
- * action triggered. */
-let drop_dead_pin =
-    (~is_edited: bool, ~info_map: Statics.Map.t, z: Zipper.t): Zipper.t =>
-  if (!is_edited) {
-    z;
-  } else {
-    SampleFocusPerform.update_pinned_call(z, p =>
-      switch (p) {
-      | Some(stack)
-          when
-            List.exists(
-              (frame: Sample.stack_frame) =>
-                Statics.Map.lookup(frame.id, info_map) == None
-                && !Builtins.is_internal_id(frame.id),
-              stack,
-            ) =>
-        None
-      | x => x
-      }
-    );
-  };
+/* Drop the pinned call stack when it can no longer match any sample
+ * (the pinned call site was deleted, rewritten, or is no longer reached).
+ * A dead pin would leave every probe dark (⍟) until the user finds the
+ * manual reset, because automatic recovery is gated on auto_focus.
+ *
+ * Liveness is checked against the evaluation results, NOT the statics
+ * map: pinned stacks routinely contain frames from inside builtin
+ * implementations (a fold_left applying a user callback), whose ids are
+ * never in user statics; and in the web app those ids are minted by the
+ * evaluation worker, a different process from the UI, so no id set
+ * computed UI-side can recognize them. Samples and pins both originate
+ * from the worker, so comparing them is process-consistent.
+ *
+ * A pin is alive iff some current sample carries the full pinned context
+ * (a sample at or below the pin), or the pinned call site itself still
+ * produced a sample. While results are stale after an edit, old samples
+ * keep the pin alive; the recalculate that delivers fresh results then
+ * drops it if it is truly dead. Skipped entirely when there are no
+ * results at all (e.g. a restored session before its first evaluation),
+ * since nothing can match an empty dynamics map. */
+let drop_dead_pin = (~dynamics: Dynamics.Map.t, z: Zipper.t): Zipper.t =>
+  SampleFocusPerform.update_pinned_call(z, p =>
+    switch (p) {
+    | Some(stack) when !Id.Map.is_empty(dynamics) =>
+      let pinned_ids = Sample.ids_of_stack(stack);
+      let (head_id, tail_ids) =
+        switch (pinned_ids) {
+        | [hd, ...tl] => (Some(hd), tl)
+        | [] => (None, [])
+        };
+      let alive = (s: Sample.t) => {
+        let s_ids = Sample.ids_of_stack(s.call_stack);
+        ListUtil.is_suffix_of(pinned_ids, s_ids)
+        || Some(s.syntax_id) == head_id
+        && s_ids == tail_ids;
+      };
+      Id.Map.exists((_, samples) => List.exists(alive, samples), dynamics)
+        ? Some(stack) : None;
+    | x => x
+    }
+  );
 
 /* Post-calculation probe effects: cleanup, multi-probe regeneration,
  * step-into focus resolution, pending probe cursor resolution, and cursor reset.
@@ -1419,7 +1428,7 @@ let editor_effects =
     : Zipper.t =>
   z
   |> remove_colliding_probes(~syntax)
-  |> drop_dead_pin(~is_edited, ~info_map)
+  |> drop_dead_pin(~dynamics)
   |> add_ids_from_multi_term(~syntax, ~info_map)
   |> align_to_indicated_probe(~is_edited, ~syntax)
   |> resolve_pending_focus(~dynamics)

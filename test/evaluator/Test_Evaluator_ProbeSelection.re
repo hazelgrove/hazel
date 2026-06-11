@@ -891,13 +891,13 @@ run(0, [1, 2, 3])|};
 
 /* --- Repro: drop_dead_pin must not kill pins through builtin frames ---
  *
- * drop_dead_pin treats "frame id absent from the statics map" as a dead
- * pinned call site. Stacks that pass through builtin implementations
- * (fold_left applying a user callback) contain the builtin's internal ap
- * ids, which are NEVER in user statics; those frames are permanently live
- * and must be exempt, or every pin through a fold/map dies on the next
- * recalculate (the original bug: pinning an update call inside a fold
- * callback silently did nothing). */
+ * Stacks that pass through builtin implementations (fold_left applying a
+ * user callback) contain the builtin's internal ap ids, which are never
+ * in user statics, and (in the web app) are minted by the evaluation
+ * worker, a different process from the UI. So pin liveness must be
+ * checked against the samples themselves, not the statics map; the
+ * original statics-based check silently dropped every pin through a
+ * fold/map in the recalculate the pin action itself triggered. */
 
 let dead_pin_tests = [
   test_case(
@@ -907,42 +907,22 @@ let dead_pin_tests = [
       let code = {|let update = fun (m, a) -> ^^probe(m + a) in
 let run = fun (m, xs) -> fold_left(xs, fun (m, a) -> ^^probe(update(m, a)), m) in
 run(0, [1, 2, 3])|};
-      let (_term, elaborated, info_map, targets) =
-        Test_Evaluator_Prelude.parse_with_probes(code);
-      let (_, state) =
-        Evaluator.evaluate(~targets, ~env=Builtins.env_init, elaborated);
-      let samples =
-        EvaluatorState.get_probes(state)
-        |> Haz3lcore.Id.Map.bindings
-        |> List.concat_map(snd);
-      /* Pick a sample whose stack includes builtin-internal frames. */
+      let dynamics = get_probes_map(code);
+      let samples = dynamics |> Id.Map.bindings |> List.concat_map(snd);
+      /* Pick a deep sample: its stack passes through fold_left's internal
+       * frames, which are absent from any user statics map. Pin it the way
+       * pin_call does: prepend the probed ap's syntax id. */
       let sample =
-        List.find(
-          (s: Sample.t) =>
-            List.exists(
-              (f: Sample.stack_frame) => Builtins.is_internal_id(f.id),
-              s.call_stack,
-            ),
+        List.fold_left(
+          (best: Sample.t, s: Sample.t) =>
+            List.length(s.call_stack) > List.length(best.call_stack)
+              ? s : best,
+          List.hd(samples),
           samples,
         );
-      let z =
-        Haz3lcore.SampleFocusPerform.toggle_pin_call(
-          Haz3lcore.Zipper.init(),
-          sample.call_stack,
-        );
-      let z' =
-        Haz3lcore.ProbePerform.drop_dead_pin(~is_edited=true, ~info_map, z);
-      check(
-        bool,
-        "pin through builtin frames survives",
-        true,
-        z'.refractors.sample_focus.pinned_stack != None,
-      );
-      /* Control: a stack containing a fresh id (in neither statics nor the
-       * builtin set) is genuinely dead and must still be dropped. */
-      let dead_stack: Sample.call_stack = [
+      let pin_stack: Sample.call_stack = [
         {
-          id: Haz3lcore.Id.mk(),
+          id: sample.syntax_id,
           name: None,
           fn_def_id: None,
         },
@@ -951,15 +931,54 @@ run(0, [1, 2, 3])|};
       let z =
         Haz3lcore.SampleFocusPerform.toggle_pin_call(
           Haz3lcore.Zipper.init(),
+          pin_stack,
+        );
+      let z' = Haz3lcore.ProbePerform.drop_dead_pin(~dynamics, z);
+      check(
+        bool,
+        "pin through builtin frames survives",
+        true,
+        z'.refractors.sample_focus.pinned_stack != None,
+      );
+      /* Control: a stack rooted at a fresh id matches no sample (the call
+       * site is gone) and must still be dropped. */
+      let dead_stack: Sample.call_stack = [
+        {
+          id: Haz3lcore.Id.mk(),
+          name: None,
+          fn_def_id: None,
+        },
+        {
+          id: Haz3lcore.Id.mk(),
+          name: None,
+          fn_def_id: None,
+        },
+      ];
+      let z =
+        Haz3lcore.SampleFocusPerform.toggle_pin_call(
+          Haz3lcore.Zipper.init(),
+          dead_stack,
+        );
+      let z' = Haz3lcore.ProbePerform.drop_dead_pin(~dynamics, z);
+      check(
+        bool,
+        "pin with a retired call site is dropped",
+        true,
+        z'.refractors.sample_focus.pinned_stack == None,
+      );
+      /* With no results at all, a pin is left alone (restored sessions). */
+      let z =
+        Haz3lcore.SampleFocusPerform.toggle_pin_call(
+          Haz3lcore.Zipper.init(),
           dead_stack,
         );
       let z' =
-        Haz3lcore.ProbePerform.drop_dead_pin(~is_edited=true, ~info_map, z);
+        Haz3lcore.ProbePerform.drop_dead_pin(~dynamics=Id.Map.empty, z);
       check(
         bool,
-        "pin with a retired frame id is dropped",
+        "pin untouched when dynamics is empty",
         true,
-        z'.refractors.sample_focus.pinned_stack == None,
+        z'.refractors.sample_focus.pinned_stack != None,
       );
     },
   ),
