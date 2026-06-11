@@ -95,6 +95,12 @@ let enter = (): unit =>
     refresh_size();
   };
 
+/* Forked children (the eval worker) inherit the at_exit(leave) guard
+   AND the terminal fd — if a child ran leave() it would tcsetattr the
+   shared pty back to cooked mode under the parent's feet. Children
+   must call this right after fork. */
+let disarm = (): unit => entered := false;
+
 /* Restore the user's terminal. Idempotent; must run on every exit path
    (including crashes) or the shell is left in raw/alt-screen mode. */
 let leave = (): unit =>
