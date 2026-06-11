@@ -959,20 +959,11 @@
   padding-left: 0;
 }
 
-/* Tutorial/Exercises: each slide is its own cell (`width: auto`), unlike
- * Scratch/Documentation where one cell fills #main. The stripe's
- * `min-width: var(--main-scroll-width)` is the full *pane* width, which
- * exceeds an individual slide cell — so a narrow-content stripe spilled
- * past the cell's right edge (and pushed #main's horizontal scroll).
- * An earlier fix clipped the cell (`overflow-x: clip`), but that also
- * clipped real drawer CONTENT — many-mode drawers with lots of samples
- * were cut off with no way to scroll. So instead: leave the cell
- * unclipped (drawers extend indefinitely rightward with their content,
- * like Scratch), and shrink the stripe's *minimum* to roughly the cell
- * width — pane scroll width minus #main.Tutorial's 1.5em side paddings —
- * so a narrow drawer's stripe still hugs the cell instead of spilling.
- * `width: max-content` (above) still lets the stripe grow with wide
- * content past this minimum. */
+/* Tutorial/Exercises slide cells are narrower than the pane (#main has
+ * 1.5em side paddings), so the stripe's pane-width minimum would spill
+ * past the cell edge; subtract the paddings. Do NOT cap with overflow-x
+ * on the cell instead: that clips wide drawer content with no way to
+ * scroll. Wide drawers extend rightward via `width: max-content`. */
 #main.Tutorial .below-wrapper,
 #main.Exercises .below-wrapper {
   min-width: calc(var(--main-scroll-width, 100ch) - 3em);
