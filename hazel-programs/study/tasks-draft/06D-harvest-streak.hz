@@ -9,17 +9,17 @@ type Quality =
   + Bronze      # Common harvest, basic value #
   + Silver      # Good quality, moderate bonus #
   + Gold        # Excellent harvest, high value #
-  + Starlight   # Legendary, blessed by the moon #
+  + Starlight   # Legendar, highest value #
 in
 
 # Crops that grow under the night sky #
 # Each crop has a base value determined by cropValue #
 type Crop =
-  + Moonmelon   # Glows faintly, sweet taste #
-  + Starfruit   # Shaped like stars, tangy #
-  + Nightshade  # Purple bloom, magical properties #
-  + Glowpumpkin # Orange and luminescent #
-  + Duskwheat   # Golden stalks, hearty grain #
+  + Moonmelon
+  + Starfruit
+  + Nightshade
+  + Glowpumpkin
+  + Duskwheat
 in
 
 # A single harvest from the garden #

@@ -1,32 +1,3 @@
-# RUNNING SUM TASK                             #
-#                                              #
-# Implement running_sum: compute a list where  #
-# each element is the sum of all elements up   #
-# to and including that position.              #
-#                                              #
-# Examples:                                    #
-#   running_sum([1, 2, 3]) == [1, 3, 6]        #
-#   running_sum([5]) == [5]                    #
-#   running_sum([]) == []                      #
-#                                              #
-# Write it recursively: a function with an     #
-# arrow type annotation can call itself.       #
-# Take a list apart with case:                 #
-#   case nums                                  #
-#   | [] => ...                                #
-#   | x :: rest => ...                         #
-#   end                                        #
-# and build one back up with :: (cons).        #
-#                                              #
-# You will likely want a helper function that  #
-# carries the running total as an extra        #
-# argument.                                    #
-#                                              #
-# Tip: probe inside your function and switch   #
-# to many mode. Each recursive call is its own #
-# sample, so you can watch the recursion       #
-# unfold level by level.                       #
-
 let running_sum : [Int] -> [Int] = fun nums ->
   ¿
 

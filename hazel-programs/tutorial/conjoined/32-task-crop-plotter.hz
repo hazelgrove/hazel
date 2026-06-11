@@ -4,9 +4,13 @@ show_report version=1 id=d0000032-0032-0032-0032-000000000032
 @prompt
 # Task: Plant a column
 
-The crop plotter plants seeds on a grid, one action at a time. It already knows how to fill a row; teach it to fill a **column**. The comments mark the three places to touch, and `PlantRow` is your worked example one shelf up.
+The crop plotter plants seeds on a grid, one action at a time. It already knows how to fill a row; show it to fill a **column**. Comments mark the three places to touch:
 
-The face turns 🤩 when the `PlantCol` tests pass.
+1. Add PlantCol(Col) to the Action type
+2. Add a setCol helper function
+3. Handle PlantCol in the update function
+
+Look at how PlantRow is implemented for guidance. PlantCol is similar but vertical.
 
 @hint
 Mirror `setRow`: map over the rows, and in each row change only the cell at the target column. `mapi` hands the callback an index; probe to see which argument it is.

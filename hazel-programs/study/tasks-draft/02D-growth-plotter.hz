@@ -2,7 +2,8 @@
 # Crops advance through growth stages #
 
 # Growth stages that crops progress through #
-# Each stage represents a phase in the plant's lifecycle #
+# Each stage represents a phase in the plant's lifecycle: #
+# Seed -> Sprout -> Growing -> Mature -> ReadyToHarvest #
 type GrowthStage =
   + Seed           # Just planted, dormant #
   + Sprout         # First leaves emerge #
@@ -13,11 +14,11 @@ in
 
 # Crops that flourish in the night garden #
 type CropKind =
-  + Moonmelon      # Silvery melon that ripens under starlight #
-  + Nightshade     # Purple bloom with magical properties #
-  + Starfruit      # Shaped like stars, tangy #
-  + Glowpumpkin    # Orange and luminescent #
-  + Duskwheat      # Golden stalks, hearty grain #
+  + Moonmelon
+  + Nightshade
+  + Starfruit
+  + Glowpumpkin
+  + Duskwheat
 in
 
 # A cell can be empty or contain a planted crop #

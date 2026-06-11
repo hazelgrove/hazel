@@ -1,22 +1,3 @@
-# CROP PLOTTER EXTENSION TASK                     #
-#                                                 #
-# The crop plotter app lets you plant seeds on    #
-# a grid. It already supports planting rows.      #
-#                                                 #
-# YOUR TASK: Add a PlantCol action that fills     #
-# an entire column with the current seed.         #
-#                                                 #
-# You need to:                                    #
-#   1. Add PlantCol(Col) to the Action type       #
-#   2. Add a setCol helper function               #
-#   3. Handle PlantCol in the update function     #
-#                                                 #
-# Look at how PlantRow is implemented for         #
-# guidance - PlantCol is similar but vertical.    #
-#                                                 #
-# Tip: Use auto-probe to see how the grove        #
-# changes after each action.                      #
-
 type Plant = String in
 type Grove = [[Plant]] in
 type Row = Int in

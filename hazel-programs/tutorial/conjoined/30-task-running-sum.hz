@@ -4,9 +4,7 @@ show_report version=1 id=d0000030-0030-0030-0030-000000000030
 @prompt
 # Task: Running sum
 
-Write `running_sum`, where each element of the result is the sum of everything up to and including that position: `running_sum([1, 2, 3])` is `[1, 3, 6]`.
-
-Write it **recursively**; the comments show how to take a list apart with `case`. Once it runs, probe inside the function and switch to *many* mode: each recursive call is its own sample, and you can watch the recursion unfold level by level.
+Write `running_sum`, where each element of the result is the sum of everything up to and including that position: `running_sum([1, 2, 3])` is `[1, 3, 6]`. Feel free to write it recursively or with a fold. Depending on your approach, a helper might be required.
 
 @hint
 A helper that carries the running total as an extra argument: `go(total + x, rest)`.
