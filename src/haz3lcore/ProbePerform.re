@@ -1377,7 +1377,13 @@ let align_to_indicated_probe =
  * match a sample again, and because automatic recovery is gated on
  * auto_focus it would otherwise leave every probe dark (⍟) until the
  * user finds the manual reset. Frame ids are call-site term ids, so
- * liveness = presence in the statics map. */
+ * liveness = presence in the statics map, EXCEPT for frames from inside
+ * builtin implementations (a fold/map applying a user callback): those
+ * ids are never in any user statics map, but the frames are permanently
+ * live, so they are exempt. Without the exemption, any pin through a
+ * builtin (e.g. on an update call inside a fold_left callback) was
+ * judged dead and silently dropped by the very recalculate the pin
+ * action triggered. */
 let drop_dead_pin =
     (~is_edited: bool, ~info_map: Statics.Map.t, z: Zipper.t): Zipper.t =>
   if (!is_edited) {
@@ -1389,7 +1395,8 @@ let drop_dead_pin =
           when
             List.exists(
               (frame: Sample.stack_frame) =>
-                Statics.Map.lookup(frame.id, info_map) == None,
+                Statics.Map.lookup(frame.id, info_map) == None
+                && !Builtins.is_internal_id(frame.id),
               stack,
             ) =>
         None

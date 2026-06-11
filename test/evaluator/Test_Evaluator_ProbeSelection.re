@@ -817,6 +817,154 @@ in ^^probe(f(42))|};
   ),
 ];
 
+/* --- Repro: pin a call inside an eta-expanded fold callback ---
+ *
+ * The study's debugging tasks all run `fold_left(actions, fun (m, a) ->
+ * update(m, a), init)`. The builtin fold_left is itself a recursive Hazel
+ * function, so samples under the callback carry the builtin's internal ap
+ * frames, repeated once per iteration. Pinning the update call from one
+ * iteration must still narrow other probes to that iteration. */
+
+let fold_pin_repro_tests = [
+  test_case(
+    "Pin on update call inside fold lambda narrows body probe",
+    `Quick,
+    () => {
+      let code = {|let update = fun (m, a) -> ^^probe(m + a) in
+let run = fun (m, xs) -> fold_left(xs, fun (m, a) -> ^^probe(update(m, a)), m) in
+run(0, [1, 2, 3])|};
+      let probes = get_probes_map(code) |> Id.Map.bindings;
+      check(int, "should have 2 probes", 2, List.length(probes));
+      /* The body probe's samples have the deeper stacks (inside update). */
+      let depth = ((_, samples)) =>
+        List.fold_left(
+          (acc, s: Sample.t) => max(acc, List.length(s.call_stack)),
+          0,
+          samples,
+        );
+      let (call_probe, body_probe) =
+        switch (List.sort((a, b) => compare(depth(a), depth(b)), probes)) {
+        | [shallow, deep] => (shallow, deep)
+        | _ => failwith("expected exactly two probes")
+        };
+      let (call_probe_id, call_samples) = call_probe;
+      let (_, body_samples) = body_probe;
+      check(int, "call probe has 3 samples", 3, List.length(call_samples));
+      check(int, "body probe has 3 samples", 3, List.length(body_samples));
+      /* Pin the middle iteration the way ProbeProj.pin_call does:
+       * prepend the probed ap's syntax id to the sample's stack. */
+      let target: Sample.t = List.nth(call_samples, 1);
+      let pin_stack: Sample.call_stack = [
+        {
+          id: call_probe_id,
+          name: None,
+          fn_def_id: None,
+        },
+        ...target.call_stack,
+      ];
+      let filtered =
+        Sample.Selection.filter_by_pin(
+          ~ap_id=None,
+          ~pinned=Some(pin_stack),
+          body_samples,
+        );
+      check(
+        int,
+        "pin narrows body probe to one iteration",
+        1,
+        List.length(filtered),
+      );
+      /* And it is the matching iteration: same value as the pinned call. */
+      switch (filtered) {
+      | [kept] =>
+        check(
+          bool,
+          "kept body sample matches pinned iteration's value",
+          true,
+          DHExp.fast_equal(kept.value, target.value),
+        )
+      | _ => ()
+      };
+    },
+  ),
+];
+
+/* --- Repro: drop_dead_pin must not kill pins through builtin frames ---
+ *
+ * drop_dead_pin treats "frame id absent from the statics map" as a dead
+ * pinned call site. Stacks that pass through builtin implementations
+ * (fold_left applying a user callback) contain the builtin's internal ap
+ * ids, which are NEVER in user statics; those frames are permanently live
+ * and must be exempt, or every pin through a fold/map dies on the next
+ * recalculate (the original bug: pinning an update call inside a fold
+ * callback silently did nothing). */
+
+let dead_pin_tests = [
+  test_case(
+    "drop_dead_pin keeps a pin whose stack passes through builtin frames",
+    `Quick,
+    () => {
+      let code = {|let update = fun (m, a) -> ^^probe(m + a) in
+let run = fun (m, xs) -> fold_left(xs, fun (m, a) -> ^^probe(update(m, a)), m) in
+run(0, [1, 2, 3])|};
+      let (_term, elaborated, info_map, targets) =
+        Test_Evaluator_Prelude.parse_with_probes(code);
+      let (_, state) =
+        Evaluator.evaluate(~targets, ~env=Builtins.env_init, elaborated);
+      let samples =
+        EvaluatorState.get_probes(state)
+        |> Haz3lcore.Id.Map.bindings
+        |> List.concat_map(snd);
+      /* Pick a sample whose stack includes builtin-internal frames. */
+      let sample =
+        List.find(
+          (s: Sample.t) =>
+            List.exists(
+              (f: Sample.stack_frame) => Builtins.is_internal_id(f.id),
+              s.call_stack,
+            ),
+          samples,
+        );
+      let z =
+        Haz3lcore.SampleFocusPerform.toggle_pin_call(
+          Haz3lcore.Zipper.init(),
+          sample.call_stack,
+        );
+      let z' =
+        Haz3lcore.ProbePerform.drop_dead_pin(~is_edited=true, ~info_map, z);
+      check(
+        bool,
+        "pin through builtin frames survives",
+        true,
+        z'.refractors.sample_focus.pinned_stack != None,
+      );
+      /* Control: a stack containing a fresh id (in neither statics nor the
+       * builtin set) is genuinely dead and must still be dropped. */
+      let dead_stack: Sample.call_stack = [
+        {
+          id: Haz3lcore.Id.mk(),
+          name: None,
+          fn_def_id: None,
+        },
+        ...sample.call_stack,
+      ];
+      let z =
+        Haz3lcore.SampleFocusPerform.toggle_pin_call(
+          Haz3lcore.Zipper.init(),
+          dead_stack,
+        );
+      let z' =
+        Haz3lcore.ProbePerform.drop_dead_pin(~is_edited=true, ~info_map, z);
+      check(
+        bool,
+        "pin with a retired frame id is dropped",
+        true,
+        z'.refractors.sample_focus.pinned_stack == None,
+      );
+    },
+  ),
+];
+
 let tests = (
   "Evaluator.ProbeSelection",
   List.concat([
@@ -828,5 +976,7 @@ let tests = (
     intent_preservation_tests,
     call_click_alignment_tests,
     cur_var_ap_tests,
+    fold_pin_repro_tests,
+    dead_pin_tests,
   ]),
 );

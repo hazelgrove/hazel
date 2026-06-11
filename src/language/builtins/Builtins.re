@@ -45,3 +45,33 @@ let env_init: Environment.t(Exp.t) =
   |> List.fold_left(Environment.extend, Environment.empty);
 
 let closure_env: Environment.t(Exp.t) = env_init;
+
+/* Ids minted for builtin implementation terms (e.g. fold_left's internal
+ * recursion and application nodes). When user functions are applied inside
+ * a builtin (a fold/map callback), these ids appear as call-stack frame
+ * ids, even though they are never present in any user program's statics.
+ * Substitution and fix-unrolling copy nodes without re-minting ids, so the
+ * init-time set covers every frame id evaluation can produce from them. */
+let internal_ids: Lazy.t(Id.Set.t) =
+  lazy(
+    Environment.to_list(env_init)
+    |> List.fold_left(
+         (acc, (_, imp)) => {
+           let acc = ref(acc);
+           let _ =
+             Exp.map_term(
+               ~f_exp=
+                 (continue, e) => {
+                   acc := Id.Set.add(Exp.rep_id(e), acc^);
+                   continue(e);
+                 },
+               imp,
+             );
+           acc^;
+         },
+         Id.Set.empty,
+       )
+  );
+
+let is_internal_id = (id: Id.t): bool =>
+  Id.Set.mem(id, Lazy.force(internal_ids));
