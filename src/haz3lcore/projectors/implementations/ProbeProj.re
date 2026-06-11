@@ -1543,6 +1543,10 @@ let move_cursor = (ctx: probe_ctx, offset: int) => {
     let next_idx_maybe = idx - offset;
     if (next_idx_maybe >= 0 && next_idx_maybe < List.length(samples)) {
       let sample = List.nth(samples, next_idx_maybe);
+      /* Anchor (screen-y compensation + horizontal follow) only when the
+       * indication actually moves: an arrow at the ends must be a no-op,
+       * not a re-snap of the viewport to the current sample. */
+      SampleAnchor.capture();
       parent(
         SampleFocus(Capture(Sample.capture_of_sample(sample), ap_id)),
       );
@@ -1786,14 +1790,12 @@ let key_handler =
       };
     Many([effect, Stop_propagation, Prevent_default]);
   | D("ArrowRight") =>
-    /* Stash indicated sample's screen-y BEFORE dispatch so
-     * Main.after_display can compensate any reflow above it. */
-    SampleAnchor.capture();
+    /* move_cursor stashes the SampleAnchor itself, and only when the
+     * indication actually moves. */
     // Prevent_default below stops aggressive horizontal scroll
-    Many([move_cursor(ctx, -1), Stop_propagation, Prevent_default]);
+    Many([move_cursor(ctx, -1), Stop_propagation, Prevent_default])
   | D("ArrowLeft") =>
-    SampleAnchor.capture();
-    Many([move_cursor(ctx, 1), Stop_propagation, Prevent_default]);
+    Many([move_cursor(ctx, 1), Stop_propagation, Prevent_default])
   | D("ArrowDown") when key.meta == Down || key.ctrl == Down =>
     /* Enter drawer mode for this probe. Idempotent if already in
      * drawer mode. Paired with Cmd/Ctrl+ArrowUp below to exit. */

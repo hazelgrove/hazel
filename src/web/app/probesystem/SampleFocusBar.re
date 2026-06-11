@@ -323,13 +323,19 @@ let key_handler =
     /* Move to shallower level (toward top-level) */
     let new_index = max(-1, index - 1);
     /* Stash indicated sample's screen-y BEFORE dispatch so
-     * Main.after_display can compensate any reflow above it. */
-    SampleAnchor.capture();
+     * Main.after_display can compensate any reflow above it; only when
+     * the index actually changes (an arrow at the clamp must not
+     * re-snap the viewport). */
+    if (new_index != index) {
+      SampleAnchor.capture();
+    };
     Many([set_focus_index(~globals, new_index, evt), Stop_propagation]);
   | D("ArrowRight") =>
     /* Move to deeper level (toward innermost call) */
     let new_index = min(max_index, index + 1);
-    SampleAnchor.capture();
+    if (new_index != index) {
+      SampleAnchor.capture();
+    };
     Many([set_focus_index(~globals, new_index, evt), Stop_propagation]);
   | D("Enter") =>
     /* Jump to call site of current entry, then refocus main editor.

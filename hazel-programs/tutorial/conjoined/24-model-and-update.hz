@@ -6,7 +6,7 @@ version=1 id=b0000024-0024-0024-0024-000000000024
 
 The debugging tasks ahead all share one shape, and you have seen its pieces. A **model** is a record holding the program's whole state. An **action** describes one change. An **update** function takes a model and an action and returns the next model, and a fold threads the model through a list of actions.
 
-The model below is a `Ledger`: a record with a list of records inside. Values like that overflow a probe's inline slot, so two controls matter here.
+The model below is a `Ledger`: a record with a list of records inside. Values like that overflow a probe's sample slot, so two controls matter here.
 
 **Try this**
 1. The final `fold_left` is probed (auto-probe is on). Its sample holds the finished `Ledger`, clipped to fit inline.
