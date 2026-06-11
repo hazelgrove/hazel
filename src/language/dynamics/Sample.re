@@ -160,11 +160,19 @@ let mk =
       spec: capture_spec,
     )
     : t => {
-  /* Below hash provides a coarse-grained identification of
-   * samples currently used to keep display-length data between
-   * similar runs. May want to alter this or simply used a fresh
-   * UUID depending on future desiderata */
-  id: Hashtbl.hash((stack, syntax_id)),
+  /* Content-derived id: stable across re-evaluations (same call site,
+   * same stack -> same id), which per-sample display state (resize
+   * widths etc.) relies on to survive edits. NOT a fresh UUID for that
+   * reason. Collision-resistance matters: the indicated-sample marker
+   * and gesture anchors compare by this id, and duplicate ids made the
+   * UI treat distinct samples as one. Hashtbl.hash truncates traversal
+   * after a small node budget, so deep stacks that share a long prefix
+   * (consecutive fold iterations differ only in recursion DEPTH of
+   * identical builtin frames) hashed identically with the stack first
+   * in the tuple. Put the cheap discriminators (stack length, syntax
+   * id) first so they always land inside the budget, and raise the
+   * budget for the stack itself. */
+  id: Hashtbl.hash_param(64, 256, (List.length(stack), syntax_id, stack)),
   syntax_id,
   value,
   env: Env.filter(env, spec.refs),

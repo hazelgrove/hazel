@@ -984,6 +984,37 @@ run(0, [1, 2, 3])|};
   ),
 ];
 
+/* --- Repro: sample ids must be unique across fold iterations ---
+ *
+ * Sample.t.id is a content hash of (stack, syntax_id) for stability
+ * across re-evaluations. Hashtbl.hash truncates traversal after a small
+ * node budget, so consecutive fold iterations (stacks sharing a long
+ * identical prefix of builtin frames, differing only in depth) hashed
+ * identically: the indicated-sample marker and gesture anchors compare
+ * by id, so the UI treated the colliding samples as one. */
+
+let sample_id_tests = [
+  test_case(
+    "Sample ids are pairwise distinct across deep fold iterations",
+    `Quick,
+    () => {
+      let code = {|let update = fun (m, a) -> ^^probe(m + a) in
+let run = fun (m, xs) -> fold_left(xs, fun (m, a) -> ^^probe(update(m, a)), m) in
+run(0, [1, 2, 3, 4, 5, 6, 7, 8])|};
+      let samples = get_all_samples(code);
+      check(int, "16 samples (8 per probe)", 16, List.length(samples));
+      let ids = List.map((s: Sample.t) => s.id, samples);
+      let distinct = List.sort_uniq(compare, ids);
+      check(
+        int,
+        "all sample ids distinct",
+        List.length(ids),
+        List.length(distinct),
+      );
+    },
+  ),
+];
+
 let tests = (
   "Evaluator.ProbeSelection",
   List.concat([
@@ -997,5 +1028,6 @@ let tests = (
     cur_var_ap_tests,
     fold_pin_repro_tests,
     dead_pin_tests,
+    sample_id_tests,
   ]),
 );
