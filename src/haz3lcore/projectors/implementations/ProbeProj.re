@@ -850,18 +850,14 @@ let pin_view = (ctx: probe_ctx, sample: Sample.t) =>
     [];
   };
 
-/* Generate a DOM id that's unique per sample-instance. sample.id is
- * Hashtbl.hash((stack, syntax_id)) and is intentionally coarse — recursive
- * invocations frequently collide on it. Combining with step_start/step_end
- * disambiguates. If Sample.id is ever made truly unique, simplify this back
- * to just sample.id. See issue #2288. */
+/* DOM id for a sample's dropdown. sample.id is now collision-resistant
+ * (Sample.mk hashes stack length + syntax id inside the traversal
+ * budget; recursive invocations used to collide, see issue #2288), so
+ * the step_start/step_end salt this once carried is gone. The bare id
+ * is also STABLE across re-evaluations, unlike step counts, so an open
+ * dropdown keeps its identity when results refresh. */
 let dropdown_id = (sample: Sample.t): string =>
-  Printf.sprintf(
-    "sample-dropdown-%d-%d-%d",
-    sample.id,
-    sample.step_start,
-    sample.step_end,
-  );
+  Printf.sprintf("sample-dropdown-%d", sample.id);
 
 /* Step into handler for sample context menu. Step-into is terminal — it
    moves the cursor to the function body — so close the right-click sample
