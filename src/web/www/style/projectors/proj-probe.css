@@ -962,21 +962,20 @@
 /* Tutorial/Exercises: each slide is its own cell (`width: auto`), unlike
  * Scratch/Documentation where one cell fills #main. The stripe's
  * `min-width: var(--main-scroll-width)` is the full *pane* width, which
- * exceeds an individual slide cell — so the absolutely-positioned stripe
- * spilled past the cell's right edge (and pushed #main's horizontal
- * scroll). Clip it at the cell so it is capped at the cell width.
- *   - `:has(.below-wrapper)` scopes the clip to cells that actually hold
- *     a drawer; inline-mode probe samples render in the same absolutely-
- *     positioned offside layer and may legitimately extend rightward, so
- *     we must not clip cells without a drawer.
- *   - `overflow-x: clip` (not `hidden`) is required: it caps the x-axis
- *     while leaving `overflow-y: visible`. `overflow-x: hidden` would
- *     coerce `overflow-y` to `auto`, turning the cell into a vertical
- *     scroller.
- * Scratch/Documentation are intentionally left to overflow indefinitely. */
-#main.Tutorial .cell:has(.below-wrapper),
-#main.Exercises .cell:has(.below-wrapper) {
-  overflow-x: clip;
+ * exceeds an individual slide cell — so a narrow-content stripe spilled
+ * past the cell's right edge (and pushed #main's horizontal scroll).
+ * An earlier fix clipped the cell (`overflow-x: clip`), but that also
+ * clipped real drawer CONTENT — many-mode drawers with lots of samples
+ * were cut off with no way to scroll. So instead: leave the cell
+ * unclipped (drawers extend indefinitely rightward with their content,
+ * like Scratch), and shrink the stripe's *minimum* to roughly the cell
+ * width — pane scroll width minus #main.Tutorial's 1.5em side paddings —
+ * so a narrow drawer's stripe still hugs the cell instead of spilling.
+ * `width: max-content` (above) still lets the stripe grow with wide
+ * content past this minimum. */
+#main.Tutorial .below-wrapper,
+#main.Exercises .below-wrapper {
+  min-width: calc(var(--main-scroll-width, 100ch) - 3em);
 }
 
 /* Drawer-mode overrides for the shared .live-offside layout.
