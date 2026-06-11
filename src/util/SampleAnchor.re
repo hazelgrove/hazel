@@ -1,42 +1,32 @@
-/* Sample-focus anchor scroll compensation for Left/Right in the
- * sample focus bar.
+/* Gesture-keyed scroll behavior for Left/Right sample navigation:
+ * one-shot anchors captured at keydown and consumed after the next
+ * render (Main.after_display). Two effects per gesture:
  *
- * When the user presses Left/Right in #sample-focus-bar to move the
- * dynamic cursor (Project(SampleFocus(SetIndex(_)))), the displayed
- * sample in each probe can change. In Window=Single mode this can
- * change drawer heights of probes above the indicated probe and
- * reflow the indicated sample on screen.
+ *   - VERTICAL compensation: the action can change drawer heights
+ *     above the anchored sample and reflow it on screen; consume
+ *     scrolls #main vertically by the rect.top delta so the sample
+ *     stays put under the user's eye.
+ *   - HORIZONTAL follow: in many mode the newly indicated sample can
+ *     sit off-screen; consume scrolls #main horizontally to bring it
+ *     into a comfort band (see scroll_horizontally).
  *
- * To keep the indicated sample's screen position stable:
- *
- *   1. `capture`: synchronously in the keydown handler, before the
- *      action dispatches, read the indicated sample element's
- *      `getBoundingClientRect().top` and stash it.
- *   2. `consume` (in Main.after_display, after the next render): read
- *      the new indicated sample element's rect.top and scroll #main
- *      by the delta. Uses float scrollTop to avoid sub-pixel drift
- *      across repeated arrow presses.
- *
- * Anchor element: `.projector.probe.indicated .sample.indicated-sample`.
- * `.indicated` is on the (unique) probe adjacent to the caret;
- * `.indicated-sample` is on each probe's `most_aligned_sample`. The
- * combined selector matches exactly one element when both are present.
- * If the selector matches nothing (no indicated probe, or no aligned
- * sample), capture/consume are no-ops. */
+ * Callers: ProbeProj.move_cursor (probe-level arrows; passes ~scope +
+ * ~sample_id to anchor the exact sample the gesture selected) and the
+ * sample focus bar arrows (default caret-adjacent anchor). Both call
+ * capture() only when the gesture will actually change state, so
+ * anchors never fire on no-op presses or unrelated re-renders. Uses
+ * float scroll positions to avoid sub-pixel drift across repeated
+ * presses. */
 
 open Js_of_ocaml;
 
-/* Default anchor: the caret-adjacent probe's aligned sample — right for
- * the sample focus bar, whose arrows navigate the global focus. Probe-
- * level arrows must NOT use it: the user can arrow through a probe that
- * is not caret-adjacent, and — worse — the `indicated-sample` class is
- * not unique: alignment can TIE (recursive call stacks built from
- * identical builtin frame ids are mutual suffixes), marking several
- * samples at once, and querySelector would anchor whichever comes first
- * in document order. So gesture callers that know exactly which sample
- * they selected pass ~scope (the probe's DOM id) and ~sample_id (the
- * sample's data-sample-id), pinning the anchor to that element
- * unambiguously. */
+/* Default anchor: the caret-adjacent probe's aligned sample
+ * (`.indicated` marks the unique probe adjacent to the caret) — right
+ * for the sample focus bar, whose arrows navigate the global focus.
+ * Probe-level arrows must NOT use it: the user can arrow through a
+ * probe that is not caret-adjacent, so those callers pass ~scope (the
+ * gesture's probe DOM id) and ~sample_id (its data-sample-id),
+ * anchoring the exact element the gesture targeted. */
 let default_selector = ".projector.probe.indicated .sample.indicated-sample";
 
 let selector_for = (~scope: option(string), ~sample_id: option(int)) =>
@@ -125,56 +115,11 @@ let capture =
  * actually moves), so it never runs on unrelated re-renders and cannot
  * hijack manual scrolling. scrollLeft is set directly (instant): smooth
  * scrolling queues badly under repeated key presses. */
-/* TEMP diag: dump every .sample in the matched element's probe with its
- * rect and indication marker, so we can see the real DOM layout. */
-let dump_probe_samples = (el: Js.t(Dom_html.element)): unit => {
-  let probe: Js.Opt.t(Js.t(Dom_html.element)) =
-    Js.Unsafe.meth_call(
-      el,
-      "closest",
-      [|Js.Unsafe.inject(Js.string(".projector.probe"))|],
-    );
-  Js.Opt.iter(
-    probe,
-    probe => {
-      let nodes =
-        Js.Unsafe.meth_call(
-          probe,
-          "querySelectorAll",
-          [|Js.Unsafe.inject(Js.string(".sample"))|],
-        );
-      let n: int = Js.Unsafe.get(nodes, Js.string("length"));
-      let descr = ref([]);
-      for (i in n - 1 downto 0) {
-        let node: Js.t(Dom_html.element) =
-          Js.Unsafe.meth_call(nodes, "item", [|Js.Unsafe.inject(i)|]);
-        let r = node##getBoundingClientRect;
-        let cls = Js.to_string(node##.className);
-        let ind =
-          Core.String.is_substring(cls, ~substring="indicated-sample")
-            ? "*" : "";
-        descr :=
-          [
-            Printf.sprintf("%d%s[%.0f,%.0f]", i, ind, r##.left, r##.right),
-            ...descr^,
-          ];
-      };
-      print_endline(
-        "[HSCROLL-DOM] n="
-        ++ string_of_int(n)
-        ++ " "
-        ++ String.concat(" ", descr^),
-      );
-    },
-  );
-};
-
 let scroll_horizontally = (el: Js.t(Dom_html.element)): unit => {
   let doc = Dom_html.document;
   Js.Opt.iter(
     doc##getElementById(Js.string("main")),
     main => {
-      dump_probe_samples(el); /* TEMP diag. Remove. */
       let el_rect = el##getBoundingClientRect;
       let main_rect = main##getBoundingClientRect;
       let vp_left = main_rect##.left;
@@ -203,24 +148,9 @@ let scroll_horizontally = (el: Js.t(Dom_html.element)): unit => {
           Js.string("scrollLeft"),
           Float.max(0., sl +. delta),
         );
-        let sl_after: float = Js.Unsafe.get(main, Js.string("scrollLeft"));
-        let s_w: int = Js.Unsafe.get(main, Js.string("scrollWidth"));
-        let c_w: int = Js.Unsafe.get(main, Js.string("clientWidth"));
-        /* TEMP diag: el box vs viewport vs scroll extent. Remove. */
-        print_endline(
-          Printf.sprintf(
-            "[HSCROLL] el=[%.0f,%.0f] (w=%.0f) vp=[%.0f,%.0f] m=%.0f dx=%+.0f sl=%.0f->%.0f max=%d",
-            el_rect##.left,
-            el_rect##.right,
-            el_width,
-            vp_left,
-            vp_right,
-            m,
-            delta,
-            sl,
-            sl_after,
-            s_w - c_w,
-          ),
+        ScrollDebug.log(
+          "SA",
+          Printf.sprintf("consume h-SCROLLED dx=%+.1f", delta),
         );
       };
     },
