@@ -4,9 +4,7 @@ version=1 id=b0000023-0023-0023-0023-000000000023
 @prompt
 # The greenhouse
 
-A larger garden. The caretaker tends it by moonlight and records every pour in a ledger no one has read to the end. Nothing is broken; this is a scavenger hunt. Auto-probe is on, and every tool you have met works here.
-
-Find out, in any order, by any means:
+The goal here is to use probes to answer questions about the program. You can use anything we've used so far.
 
 1. How much water does the **shade** bed get in its Waning week?
 2. One arm of `watering_amount` **never runs**. Which one, and how can you tell at a glance?
