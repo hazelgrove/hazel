@@ -24,6 +24,20 @@
  *                    `version=N`, `id=<uuid>` (carried through round-trips)
  *   With NO markers, the entire file is treated as @code.
  *
+ *   SCOPE RULE for @test (see Tutorial.stitch_term): the `wrapper` flag
+ *   decides what the hidden tests can see.
+ *     - WITH `wrapper`: the cell evaluates `let answer = <@code> in <@test>`.
+ *       Tests may reference ONLY `answer` (the whole program's value); every
+ *       binding inside @code is out of scope. Use for slides whose result is
+ *       the final expression (`test answer == 1800 end`).
+ *     - WITHOUT it: tests are appended inside @code's let-chain, so all of
+ *       its bindings (functions, lets) are in scope, but there is NO
+ *       `answer`. Use for slides that test named definitions
+ *       (`test clamp(-5) == 0 end`).
+ *   Mismatching these (a `garden` test on a wrapper slide, an `answer` test
+ *   on a non-wrapper one) makes the test reference an unbound variable: it
+ *   reports as indeterminate forever and the slide can never show 🤩.
+ *
  *   Inside @code and @test, a line that is exactly `{{include:rel/path}}`
  *   (path relative to the repo root) is replaced with that file's contents.
  *   Task slides use this to reference a canonical program (e.g. under
