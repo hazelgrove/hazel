@@ -26,21 +26,32 @@
 
 open Js_of_ocaml;
 
-let selector = ".projector.probe.indicated .sample.indicated-sample";
+/* Default anchor: the caret-adjacent probe's aligned sample — right for
+ * the sample focus bar, whose arrows navigate the global focus. Probe-
+ * level arrows must NOT use it: the user can arrow through a probe that
+ * is not caret-adjacent, and alignment moves other probes' aligned
+ * samples in sympathy, so the default selector tracks (and follows) the
+ * wrong probe's sample. Those callers pass ~scope with the gesture's
+ * probe DOM id, anchoring the sample inside that probe specifically. */
+let default_selector = ".projector.probe.indicated .sample.indicated-sample";
 
-/* Pending anchor: the indicated sample's rect at capture time, plus a
- * frame budget. consume() fires from EVERY after_display, including
- * renders that happen between the keydown and the render that actually
- * applies the action (e.g. a settling reflow from the previous press).
- * Spending the anchor on such an early frame measures the PRE-action
- * DOM: the vertical delta is 0 (harmless) but the horizontal follow
- * then re-anchors the OLD sample and the real render goes unfollowed.
- * So consume only spends the anchor once the measured rect has CHANGED
- * from capture time (capture only fires when the indication will move,
- * so an unchanged rect means the action hasn't rendered yet); the
- * frame budget expires stale anchors so they can't fire on some later
- * unrelated render. */
+let selector_for = (~scope: option(string)) =>
+  switch (scope) {
+  | Some(dom_id) => "#" ++ dom_id ++ " .sample.indicated-sample"
+  | None => default_selector
+  };
+
+/* Pending anchor: the target selector and its rect at capture time,
+ * plus a frame budget. consume() fires from EVERY after_display,
+ * including renders that happen between the keydown and the render that
+ * actually applies the action (e.g. a settling reflow from the previous
+ * press). Spending the anchor on such an early frame measures the
+ * PRE-action DOM, so consume holds the anchor while the measured rect
+ * is unchanged from capture time (capture only fires when the
+ * indication will move); the frame budget expires stale anchors so they
+ * can't fire on some later unrelated render. */
 type anchor = {
+  sel: string,
   top: float,
   left: float,
   right: float,
@@ -49,10 +60,10 @@ type anchor = {
 
 let pending: ref(option(anchor)) = ref(None);
 
-let read_rect = (): option((float, float, float)) => {
+let read_rect = (sel: string): option((float, float, float)) => {
   let doc = Dom_html.document;
   Js.Opt.case(
-    doc##querySelector(Js.string(selector)),
+    doc##querySelector(Js.string(sel)),
     () => None,
     el => {
       let rect = el##getBoundingClientRect;
@@ -61,12 +72,14 @@ let read_rect = (): option((float, float, float)) => {
   );
 };
 
-let capture = (): unit => {
-  switch (read_rect()) {
+let capture = (~scope: option(string)=?, ()): unit => {
+  let sel = selector_for(~scope);
+  switch (read_rect(sel)) {
   | None => pending := None
   | Some((top, left, right)) =>
     pending :=
       Some({
+        sel,
         top,
         left,
         right,
@@ -74,7 +87,7 @@ let capture = (): unit => {
       });
     ScrollDebug.log(
       "SA",
-      Printf.sprintf("capture top=%.1f left=%.1f", top, left),
+      Printf.sprintf("capture top=%.1f left=%.1f sel=%s", top, left, sel),
     );
   };
 };
@@ -97,9 +110,9 @@ let capture = (): unit => {
  * actually moves), so it never runs on unrelated re-renders and cannot
  * hijack manual scrolling. scrollLeft is set directly (instant): smooth
  * scrolling queues badly under repeated key presses. */
-let scroll_horizontally = (): unit => {
+let scroll_horizontally = (sel: string): unit => {
   let doc = Dom_html.document;
-  Js.Opt.iter(doc##querySelector(Js.string(selector)), el =>
+  Js.Opt.iter(doc##querySelector(Js.string(sel)), el =>
     Js.Opt.iter(
       doc##getElementById(Js.string("main")),
       main => {
@@ -161,7 +174,7 @@ let consume = (): unit =>
   switch (pending^) {
   | None => () /* nothing pending: silent (the common case) */
   | Some(a) =>
-    switch (read_rect()) {
+    switch (read_rect(a.sel)) {
     | None => pending := None
     | Some((new_top, new_left, new_right)) =>
       let unchanged =
@@ -198,7 +211,7 @@ let consume = (): unit =>
         };
         /* Horizontal follow runs whenever the gesture fired, even when
          * the vertical delta was zero (the common case in many mode). */
-        scroll_horizontally();
+        scroll_horizontally(a.sel);
       };
     }
   };

@@ -1545,8 +1545,10 @@ let move_cursor = (ctx: probe_ctx, offset: int) => {
       let sample = List.nth(samples, next_idx_maybe);
       /* Anchor (screen-y compensation + horizontal follow) only when the
        * indication actually moves: an arrow at the ends must be a no-op,
-       * not a re-snap of the viewport to the current sample. */
-      SampleAnchor.capture();
+       * not a re-snap of the viewport to the current sample. Scoped to
+       * THIS probe: the default (caret-adjacent) anchor can be a
+       * different probe than the one being navigated. */
+      SampleAnchor.capture(~scope=Id.cls(ctx.id), ());
       parent(
         SampleFocus(Capture(Sample.capture_of_sample(sample), ap_id)),
       );
