@@ -1,24 +1,3 @@
-
-# Some standard library functions that may be useful:                                 #
-#   string_trim: String -> String                      #
-#   string_match: (String, String) -> Bool             #
-#   string_replace: (String, String, String) -> String #
-#                                                      #
-# These functions are tragically underdocumented!      #
-# You will have to figure out what those String        #
-# arguments mean by experimenting with probes.         #
-#                                                      #
-# One of the String arguments is a regex pattern.      #
-# Some useful regex building blocks:                   #
-#   + means "one or more of the preceding"             #
-#   * means "zero or more of the preceding"            #
-#   [abc] matches any one character from the set       #
-#   [0-9] matches any digit                            #
-#   A space in a pattern matches a literal space       #
-#                                                      #
-# Tip: Build one step at a time! After each line,      #
-# check the probe to see what your pattern did.        #
-
 let clean_entry: String -> String = fun entry ->
   ¿
 
