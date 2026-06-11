@@ -28,26 +28,54 @@ open Js_of_ocaml;
 
 let selector = ".projector.probe.indicated .sample.indicated-sample";
 
-let pending: ref(option(float)) = ref(None);
+/* Pending anchor: the indicated sample's rect at capture time, plus a
+ * frame budget. consume() fires from EVERY after_display, including
+ * renders that happen between the keydown and the render that actually
+ * applies the action (e.g. a settling reflow from the previous press).
+ * Spending the anchor on such an early frame measures the PRE-action
+ * DOM: the vertical delta is 0 (harmless) but the horizontal follow
+ * then re-anchors the OLD sample and the real render goes unfollowed.
+ * So consume only spends the anchor once the measured rect has CHANGED
+ * from capture time (capture only fires when the indication will move,
+ * so an unchanged rect means the action hasn't rendered yet); the
+ * frame budget expires stale anchors so they can't fire on some later
+ * unrelated render. */
+type anchor = {
+  top: float,
+  left: float,
+  right: float,
+  mutable frames_left: int,
+};
 
-let read_top = (): option(float) => {
+let pending: ref(option(anchor)) = ref(None);
+
+let read_rect = (): option((float, float, float)) => {
   let doc = Dom_html.document;
   Js.Opt.case(
     doc##querySelector(Js.string(selector)),
     () => None,
     el => {
       let rect = el##getBoundingClientRect;
-      Some(rect##.top);
+      Some((rect##.top, rect##.left, rect##.right));
     },
   );
 };
 
 let capture = (): unit => {
-  let v = read_top();
-  pending := v;
-  switch (v) {
-  | Some(y) => ScrollDebug.log("SA", Printf.sprintf("capture top=%.1f", y))
-  | None => ()
+  switch (read_rect()) {
+  | None => pending := None
+  | Some((top, left, right)) =>
+    pending :=
+      Some({
+        top,
+        left,
+        right,
+        frames_left: 3,
+      });
+    ScrollDebug.log(
+      "SA",
+      Printf.sprintf("capture top=%.1f left=%.1f", top, left),
+    );
   };
 };
 
@@ -104,9 +132,24 @@ let scroll_horizontally = (): unit => {
             Js.string("scrollLeft"),
             Float.max(0., sl +. delta),
           );
-          ScrollDebug.log(
-            "SA",
-            Printf.sprintf("consume h-SCROLLED dx=%+.1f", delta),
+          let sl_after: float = Js.Unsafe.get(main, Js.string("scrollLeft"));
+          let s_w: int = Js.Unsafe.get(main, Js.string("scrollWidth"));
+          let c_w: int = Js.Unsafe.get(main, Js.string("clientWidth"));
+          /* TEMP diag: el box vs viewport vs scroll extent. Remove. */
+          print_endline(
+            Printf.sprintf(
+              "[HSCROLL] el=[%.0f,%.0f] (w=%.0f) vp=[%.0f,%.0f] m=%.0f dx=%+.0f sl=%.0f->%.0f max=%d",
+              el_rect##.left,
+              el_rect##.right,
+              el_width,
+              vp_left,
+              vp_right,
+              m,
+              delta,
+              sl,
+              sl_after,
+              s_w - c_w,
+            ),
           );
         };
       },
@@ -117,34 +160,45 @@ let scroll_horizontally = (): unit => {
 let consume = (): unit =>
   switch (pending^) {
   | None => () /* nothing pending: silent (the common case) */
-  | Some(old_top) =>
-    pending := None;
-    switch (read_top()) {
-    | None => ()
-    | Some(new_top) =>
-      let delta = new_top -. old_top;
-      if (delta != 0.0) {
-        let doc = Dom_html.document;
-        Js.Opt.iter(
-          doc##getElementById(Js.string("main")),
-          main => {
-            let st: float = Js.Unsafe.get(main, Js.string("scrollTop"));
-            Js.Unsafe.set(main, Js.string("scrollTop"), st +. delta);
-          },
-        );
-        ScrollDebug.log(
-          "SA",
-          Printf.sprintf(
-            "consume SCROLLED dy=%+.1f (old=%.1f new=%.1f)",
-            delta,
-            old_top,
-            new_top,
-          ),
-        );
-        ScrollDebug.mark_sT();
+  | Some(a) =>
+    switch (read_rect()) {
+    | None => pending := None
+    | Some((new_top, new_left, new_right)) =>
+      let unchanged =
+        Float.abs(new_top -. a.top) < 0.5
+        && Float.abs(new_left -. a.left) < 0.5
+        && Float.abs(new_right -. a.right) < 0.5;
+      if (unchanged && a.frames_left > 0) {
+        /* The action hasn't rendered yet (this after_display belongs to
+         * an earlier, unrelated render). Hold the anchor. */
+        a.frames_left = a.frames_left - 1;
+        ScrollDebug.log("SA", "consume held (rect unchanged)");
+      } else {
+        pending := None;
+        let delta = new_top -. a.top;
+        if (delta != 0.0) {
+          let doc = Dom_html.document;
+          Js.Opt.iter(
+            doc##getElementById(Js.string("main")),
+            main => {
+              let st: float = Js.Unsafe.get(main, Js.string("scrollTop"));
+              Js.Unsafe.set(main, Js.string("scrollTop"), st +. delta);
+            },
+          );
+          ScrollDebug.log(
+            "SA",
+            Printf.sprintf(
+              "consume SCROLLED dy=%+.1f (old=%.1f new=%.1f)",
+              delta,
+              a.top,
+              new_top,
+            ),
+          );
+          ScrollDebug.mark_sT();
+        };
+        /* Horizontal follow runs whenever the gesture fired, even when
+         * the vertical delta was zero (the common case in many mode). */
+        scroll_horizontally();
       };
-    };
-    /* Horizontal follow runs whenever the gesture fired, even when the
-     * vertical delta was zero (the common case in many mode). */
-    scroll_horizontally();
+    }
   };
