@@ -14,7 +14,7 @@
 if [ -z "$IDB_STUB" ] || [ -z "$TEST_JS" ]; then
   BUILD_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../_build/default/test" && pwd)"
   : "${IDB_STUB:=$BUILD_DIR/idb_stub.js}"
-  : "${TEST_JS:=$BUILD_DIR/haz3ltest.bc.js}"
+  : "${TEST_JS:=$BUILD_DIR/haz3ltest_web.bc.js}"
 fi
 
 exec node --stack-size=8192 --require "$IDB_STUB" "$TEST_JS" "$@"
