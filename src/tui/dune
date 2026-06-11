@@ -3,15 +3,15 @@
 (library
  (name haz3ltui)
  (modules
-  (:standard \ Tui))
+  (:standard \ Tui NottyIO NottyEvents NottyAttr))
  (libraries haz3lcore unix)
  (preprocess
   (pps ppx_deriving.show ppx_yojson_conv ppx_sexp_conv)))
 
 (executable
  (name tui)
- (modules Tui)
- (libraries haz3ltui)
+ (modules Tui NottyIO NottyEvents NottyAttr)
+ (libraries haz3ltui notty notty.unix)
  (modes exe))
 
 (env

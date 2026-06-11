@@ -48,34 +48,3 @@ let undercurl = (n: int, s: t): t => {
   ...s,
   undercurl: Some(n),
 };
-
-/* Full SGR sequence for this style. Leads with a reset so each span is
-   self-contained; spans are coarse enough that this costs nothing. */
-let sgr = (s: t): string => {
-  let attrs =
-    ["0"]
-    @ (s.bold ? ["1"] : [])
-    @ (s.dim ? ["2"] : [])
-    @ (s.reverse ? ["7"] : [])
-    @ (
-      switch (s.fg) {
-      | Default => []
-      | Ansi256(n) => ["38", "5", string_of_int(n)]
-      }
-    )
-    @ (
-      switch (s.bg) {
-      | Default => []
-      | Ansi256(n) => ["48", "5", string_of_int(n)]
-      }
-    )
-    @ (
-      switch (s.undercurl) {
-      | None => []
-      /* colon sub-parameter syntax: 4:3 = curly underline,
-         58:5:n = underline color */
-      | Some(n) => ["4:3", "58:5:" ++ string_of_int(n)]
-      }
-    );
-  "\x1b[" ++ String.concat(";", attrs) ++ "m";
-};

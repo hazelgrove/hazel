@@ -98,14 +98,6 @@ let tests = (
         );
       },
     ),
-    test_case("undercurl SGR emission", `Quick, () =>
-      check(
-        string,
-        "sgr",
-        "\x1b[0;38;5;167;4:3;58:5:167m",
-        Style.sgr(Style.undercurl(167, Style.fg(167))),
-      )
-    ),
     test_case(
       "mouse click places the caret",
       `Quick,

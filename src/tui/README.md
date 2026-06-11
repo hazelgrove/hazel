@@ -13,12 +13,14 @@ machinery from `haz3lcore`, and the same key→action map
 make tui                 # just build
 ```
 
-The TUI is a NATIVE executable (`src/tui/tui.exe`) — no node or JS
-runtime involved. The core stack (util/language/haz3lcore) was de-webbed
-on this branch, so the editor pipeline (parsing, statics, evaluation,
-probes) runs as ordinary OCaml. Terminal control is raw-mode Unix
-termios + ANSI escapes (`TermIO.re`); the `Frame.t` renderer interface
-remains the seam where a notty backend could slot in.
+The TUI is a NATIVE executable (`src/tui/tui.exe`) built on
+[notty](https://github.com/pqwy/notty) — no node or JS runtime
+involved. The core stack (util/language/haz3lcore) was de-webbed on
+this branch, so the editor pipeline (parsing, statics, evaluation,
+probes) runs as ordinary OCaml. Notty owns the terminal lifecycle,
+input parsing, and rendering; the app's views stay backend-agnostic
+behind `Frame.t` (styled rows + cursor), which `NottyIO` interprets as
+notty images.
 
 ## Key bindings
 
@@ -84,11 +86,11 @@ stdin bytes ─ AnsiInput ─ Util.Key.t ─ Keyboard (haz3lcore) / Keymap ─ A
 EditorView (port of web Code.re walk) ─ Frame (styled rows) ─ ANSI ─ stdout
 ```
 
-- `TermIO.re` — native terminal control: termios raw mode, alt screen,
-  select-based input with timer deadlines, SIGWINCH resize, crash-safe
-  terminal restore.
-- `AnsiInput.re` — pure escape-sequence parser (tested in
-  `test/Test_TuiInput.re`).
+- `NottyIO.re` / `NottyEvents.re` — the notty backend: frames render
+  as notty images; notty's parsed key/mouse/paste events translate to
+  the same `AnsiInput.event` type the rest of the app consumes.
+- `AnsiInput.re` — pure escape-sequence parser; drives `--replay` key
+  scripts and the golden tests (tested in `test/Test_TuiInput.re`).
 - `Keymap.re` — TUI bindings layered over the shared `Keyboard` keymap
   (now in haz3lcore, used by both frontends).
 - `App.re` — model/update/render; mirrors `CodeWithStatics.Update.calculate`.
@@ -120,4 +122,6 @@ projector logic/views with the web properly is planned in
 - TyDi assist is off (`settings.assist = false`); no completion buffer.
 - Emoji widths: Hazel's column accounting may disagree with some
   terminals' wcwidth for exotic graphemes; ASCII is exact.
+- Error/warning marks render as colored underlines (notty's attribute
+  model has no undercurl or dim; dim styling is emulated with gray).
 - Single scratch editor only — no slides/exercises/settings yet.

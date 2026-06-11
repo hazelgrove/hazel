@@ -35,9 +35,9 @@ let start = (statics: CachedStatics.t): t => {
        terminal-restore handler inherited from the parent goes to
        /dev/null too). */
     Unix.close(read_end);
-    /* the at_exit terminal-restore guard must NOT run in the child:
-       tcsetattr would flip the shared terminal back to cooked mode */
-    TermIO.disarm();
+    /* NOTE: the parent must never register at_exit terminal-restore
+       handlers — this child would inherit them and tcsetattr the
+       shared pty back to cooked mode on exit (see Tui.mk_term) */
     let devnull = Unix.openfile("/dev/null", [Unix.O_WRONLY], 0);
     Unix.dup2(devnull, Unix.stdout);
     Unix.dup2(devnull, Unix.stderr);
