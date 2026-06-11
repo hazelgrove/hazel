@@ -51,6 +51,58 @@ let capture = (): unit => {
   };
 };
 
+/* Horizontal comfort band: after Left/Right moves the indication, bring
+ * the indicated sample minimally into [left+M, right-M] of #main's
+ * viewport, M = 10% of its width (mirroring the vertical helpers'
+ * margin_ratio). Minimal motion means no scroll at all while samples
+ * are already comfortably visible, and the M margin previews the next
+ * sample in the direction of travel. A sample WIDER than the band
+ * (drawer mode) aligns its left edge to the band's left instead: a wide
+ * value is read from its start, so "nearest edge" could strand the view
+ * on its tail. One-shot and gesture-keyed exactly like the vertical
+ * compensation, so it never runs on unrelated re-renders and cannot
+ * hijack manual scrolling. scrollLeft is set directly (instant): smooth
+ * scrolling queues badly under repeated key presses. */
+let scroll_horizontally = (): unit => {
+  let doc = Dom_html.document;
+  Js.Opt.iter(doc##querySelector(Js.string(selector)), el =>
+    Js.Opt.iter(
+      doc##getElementById(Js.string("main")),
+      main => {
+        let el_rect = el##getBoundingClientRect;
+        let main_rect = main##getBoundingClientRect;
+        let width = Js.Optdef.get(main_rect##.width, _ => 0.);
+        let margin = width *. 0.10;
+        let band_left = main_rect##.left +. margin;
+        let band_right = main_rect##.right -. margin;
+        let el_width = el_rect##.right -. el_rect##.left;
+        let delta =
+          if (el_width > band_right -. band_left || el_rect##.left < band_left) {
+            /* Oversize: align start. Undersize, off to the left: bring
+             * its left edge to the band's left. Same correction. */
+            el_rect##.left -. band_left;
+          } else if (el_rect##.right > band_right) {
+            el_rect##.right -. band_right;
+          } else {
+            0.;
+          };
+        if (delta != 0.0) {
+          let sl: float = Js.Unsafe.get(main, Js.string("scrollLeft"));
+          Js.Unsafe.set(
+            main,
+            Js.string("scrollLeft"),
+            Float.max(0., sl +. delta),
+          );
+          ScrollDebug.log(
+            "SA",
+            Printf.sprintf("consume h-SCROLLED dx=%+.1f", delta),
+          );
+        };
+      },
+    )
+  );
+};
+
 let consume = (): unit =>
   switch (pending^) {
   | None => () /* nothing pending: silent (the common case) */
@@ -81,4 +133,7 @@ let consume = (): unit =>
         ScrollDebug.mark_sT();
       };
     };
+    /* Horizontal follow runs whenever the gesture fired, even when the
+     * vertical delta was zero (the common case in many mode). */
+    scroll_horizontally();
   };
