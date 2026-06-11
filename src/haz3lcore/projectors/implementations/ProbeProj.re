@@ -1421,7 +1421,14 @@ let sample_view =
   let sample_classes =
     ["sample"] @ (is_indicated ? ["indicated-sample"] : []);
   div(
-    ~attrs=[Attr.classes(sample_classes)],
+    /* data-sample-id lets gesture code (SampleAnchor) target the exact
+     * sample it acted on. The indicated-sample class is NOT a reliable
+     * anchor: alignment can tie (recursive stacks with identical frame
+     * ids are mutual suffixes), marking several samples at once. */
+    ~attrs=[
+      Attr.classes(sample_classes),
+      Attr.create("data-sample-id", string_of_int(sample.id)),
+    ],
     [
       value_view(
         ~display,
@@ -1546,9 +1553,10 @@ let move_cursor = (ctx: probe_ctx, offset: int) => {
       /* Anchor (screen-y compensation + horizontal follow) only when the
        * indication actually moves: an arrow at the ends must be a no-op,
        * not a re-snap of the viewport to the current sample. Scoped to
-       * THIS probe: the default (caret-adjacent) anchor can be a
-       * different probe than the one being navigated. */
-      SampleAnchor.capture(~scope=Id.cls(ctx.id), ());
+       * THIS probe and THIS sample: the indicated-sample class can mark
+       * several samples at once (alignment ties on recursive stacks),
+       * so the class is not a reliable anchor. */
+      SampleAnchor.capture(~scope=Id.cls(ctx.id), ~sample_id=sample.id, ());
       parent(
         SampleFocus(Capture(Sample.capture_of_sample(sample), ap_id)),
       );
