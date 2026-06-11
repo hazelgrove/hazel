@@ -1,29 +1,4 @@
-# Moonphase Log Cleaner v2                             #
-#                                                      #
-# Garden keepers record observations in a messy        #
-# log with entry numbers, emoji markers, inconsistent  #
-# dashes, and extra whitespace. Implement clean_entry  #
-# to standardize each log entry.                       #
-#                                                      #
-# Each raw entry has a number marker (a hash sign      #
-# then digits), a moon emoji, a phase name, and        #
-# notes after dashes. See the test cases below         #
-# for examples.                                        #
-#                                                      #
-# Cleaned entries should look like:                    #
-#   "🌕 Full Moon: clear skies, planted moonbloom"     #
-#   "🌑 New Moon: cloudy, harvested starfern"          #
-#                                                      #
-# The moon emojis stay! Only the entry numbers         #
-# should be removed.                                   #
-#                                                      #
-# Steps:                                               #
-#   1. Trim leading/trailing whitespace                #
-#   2. Remove entry numbers (hash followed by digits)  #
-#   3. Normalize " -- " or "--" into ": "              #
-#   4. Collapse multiple spaces into one               #
-#   5. Final trim for any leftover edge spaces         #
-#                                                      #
+
 # Some standard library functions that may be useful:                                 #
 #   string_trim: String -> String                      #
 #   string_match: (String, String) -> Bool             #

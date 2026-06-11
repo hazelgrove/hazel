@@ -4,7 +4,18 @@ show_report version=1 id=d0000028-0028-0028-0028-000000000028
 @prompt
 # Task: The moonphase log
 
-The keepers' log is a mess: entry numbers, stray dashes, runaway spaces. Write `clean_entry` to standardize each line. The comments walk through the steps, and the tests show exactly what clean should look like.
+The garden keepers' log is a mess: entry numbers, stray dashes, runaway spaces. Write `clean_entry` to standardize each line. The tests are the spec here; it suffices to make them pass. But the below is the general cleaning policy:
+
+1. Trim leading/trailing whitespace
+2. Remove entry numbers (hash followed by digits)
+3. Normalize " -- " or "--" into ": "
+4. Collapse multiple spaces into one
+5. Final trim for any leftover edge spaces
+
+Some standard library functions that may be useful:
+- `string_trim: String -> String`
+- `string_match: (String, String) -> Bool`
+- `string_replace: (String, String, String) -> String`
 
 The string functions you need are tragically underdocumented. Build one step at a time and read the probe after each line; that is the documentation.
 

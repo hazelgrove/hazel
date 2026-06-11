@@ -7,7 +7,9 @@ Hazel is a live functional environment. Every edit maintains program structure, 
 Let's check on the evaluation of this program using a **probe**: put your cursor on the `+` and press **Cmd/Ctrl+E** (or right-click, *Add probe*). The program's value appears right there, hole and all: Hazel computed everything around the missing piece.
 
 # Task
-A plant drinks 125 ml twice a day. A week is `2 * 125 * 7`, plus a 50 ml top-up on the new moon. Fill the hole and watch the probe; you are done when it reads **1800**.
+
+These slides are loosely themed as parts of a simulation video game, Night Gardener.
+A nightshade plant drinks 125 ml twice a day, plus a 50 ml weekly top-up. Fill the hole and watch the probe; you are done when it reads **1800**.
 
 @hint
 A week is 7 days.

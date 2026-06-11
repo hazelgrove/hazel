@@ -4,16 +4,16 @@ version=1 id=b0000024-0024-0024-0024-000000000024
 @prompt
 # Models, actions, and bigger values
 
-The debugging tasks ahead all share one shape, and you have seen its pieces. A **model** is a record holding the program's whole state. An **action** describes one change. An **update** function takes a model and an action and returns the next model, and a fold threads the model through a list of actions.
+Some debugging tasks will be structured as the internal part of a Model-View-Update GUI application. A **model** is a record representing the program's state. An **action** describes a state change. An **update** function takes a model and an action and returns the next model. Typically, a fold threads the model through a list of actions.
 
-The model below is a `Ledger`: a record with a list of records inside. Values like that overflow a probe's sample slot, so two controls matter here.
+The model below is a `Ledger`: a record with a list of records inside. Large values can overflow a probe's sample slot, so we have two approaches to giving samples more space.
 
 **Try this**
 1. The final `fold_left` is probed (auto-probe is on). Its sample holds the finished `Ledger`, clipped to fit inline.
-2. **Resize** it: click the sample, then **Shift+←/→** (or drag it wider).
-3. Better: **expand** the probe into the drawer with **Cmd/Ctrl+↓**. The value unfolds across rows; **Cmd/Ctrl+↑** folds it back. Which harvest in the ledger is worth the most?
-4. **Step into** `update` from its sample and switch to *many* mode: the ledger grows action by action.
-5. Everything here works without the mouse: **Cmd/Ctrl+↩** jumps from the code to that line's probe and **Esc** returns; **←/→** walks samples, **↑/↓** walks probes; **Shift+←/→** resizes; **Cmd/Ctrl+↓/↑** expands. Some people live on these; the mouse does it all too.
+2. When you only need a little more space, **Resize** it: click the sample, then **Shift+←/→** (or drag it wider).
+3. When you need much more: **expand** the probe into the drawer with **Cmd/Ctrl+↓**. The value unfolds across rows; **Cmd/Ctrl+↑** folds it back. Which harvest in the ledger is worth the most?
+4. **Step into** `update` from its sample and switch to *many* mode: note the ledger grows per-action.
+5. Everything here works without the mouse: **Cmd/Ctrl+↩** jumps from the code to that line's probe and **Esc** returns; **←/→** walks samples, **↑/↓** walks probes; **Shift+←/→** resizes; **Cmd/Ctrl+↓/↑** expands.
 
 @reference
 ### Reading values

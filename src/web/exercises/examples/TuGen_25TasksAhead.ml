@@ -10,20 +10,23 @@ let exercise : Tutorial.spec =
     module_name = "TuGen_25TasksAhead";
     prompt =
       {x|{{no_editor}}
-# The tasks ahead
+# Tasks ahead
 
-That is the end of the guided part. What follows are real tasks: some **writing** (build a function to a spec), some **debugging** (a working program with one bug and one FAILING test that knows it).
+The following are some more substantial tasks, alternating between two type:
 
-A few things to expect:
+- **writing** (build a function to a spec; these all use autoptobe)
+- **debugging** (a working program with one failing test; use whatever probe tools to locate it)
 
-- **The tests are the goal.** Each task shows a 🤔 face until its tests pass, then 🤩. The tests in the editor are the spec; read them early.
-- **Debugging tasks have a route.** The sidebar suggests one: read the top comments, then the Model type, then the Action type, then find the test marked FAILING. After that, investigate your way.
-- **Probes are a menu, not a script.** Manual probes, auto-probe, many mode, pin, step into, the variable dropdown: use whatever answers the question you actually have. There is no correct combination.
-- **Think out loud.** Say what you expect before you look, and what surprised you after. Wrong guesses are the most useful thing you can give us.
+Notes:
+
+- **The tests are the goal/spec.** Each task shows a 🤔 face until its tests pass, then 🤩.
+- **Debugging tasks have a basic suggested approach.** It's probably not worth reading the entire program in detail; follow the sidebar suggested process to start, then backtrack to reinforce your knowledge if needed.
+- **For debugging tasks use whatever probe functionality feels natural.** Manual probes, auto-probe, many mode, pin, step into, the variable dropdown: use whatever answers the question you actually have.
+- **Think out loud.** Say what you expect before you look, and what surprised you after.
 
 On a few tasks probes will be switched off; you still have `print`, the tests, and your eyes. That contrast is part of what we are studying.
 
-Take your time. Ask anything.|x};
+Take your time. Ask questions.|x};
     display_hint = {x||x};
     task_reference = {x||x};
     your_impl =
@@ -31,7 +34,7 @@ Take your time. Ask anything.|x};
         (Haz3lcore.PersistentZipper.unpersist ~root:Exp
            {
              Haz3lcore.PersistentZipper.zipper =
-               {x|((selection((focus Left)(content())(mode Normal)))(relatives((siblings(((Tile((id 76192293-c304-4c75-94a9-d1a5ddf84299)(label(0))(mold((out Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort Exp))))))(shards(0))(children()))))()))(ancestors())))(caret Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index -1)(pinned_stack())(indicated_call())(time())(seq 0)(step_range())(pending_focus())))(autoprobe_target())(pending_probe_cursor()))))|x};
+               {x|((selection((focus Left)(content())(mode Normal)))(relatives((siblings(((Tile((id c19911fe-d7ac-4a00-bc7b-7d11d6d0564b)(label(0))(mold((out Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort Exp))))))(shards(0))(children()))))()))(ancestors())))(caret Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index -1)(pinned_stack())(indicated_call())(time())(seq 0)(step_range())(pending_focus())))(autoprobe_target())(pending_probe_cursor()))))|x};
              backup_text = {x|0|x};
            });
     hidden_tests =
@@ -40,7 +43,7 @@ Take your time. Ask anything.|x};
           Haz3lcore.PersistentZipper.unpersist ~root:Exp
             {
               Haz3lcore.PersistentZipper.zipper =
-                {x|((selection((focus Left)(content())(mode Normal)))(relatives((siblings(((Tile((id 109e13ad-116a-4569-90c0-ebc9dd93a270)(label(test end))(mold((out Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort Exp))))))(shards(0 1))(children(((Secondary((id 35d301f9-84c6-4346-ba82-dc4830ba59fd)(content(Whitespace" "))))(Tile((id c89e6b17-8b38-4534-beb8-15bd0e7e7837)(label(true))(mold((out Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort Exp))))))(shards(0))(children())))(Secondary((id 10c017d1-a38d-4cba-9571-e9d9779e7af4)(content(Whitespace" "))))))))))()))(ancestors())))(caret Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index -1)(pinned_stack())(indicated_call())(time())(seq 0)(step_range())(pending_focus())))(autoprobe_target())(pending_probe_cursor()))))|x};
+                {x|((selection((focus Left)(content())(mode Normal)))(relatives((siblings(((Tile((id 3e75518f-6772-4d35-bad8-98b99c6fb9a3)(label(test end))(mold((out Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort Exp))))))(shards(0 1))(children(((Secondary((id d965d049-d36d-4624-9054-e5b0df78e4e9)(content(Whitespace" "))))(Tile((id 5ecb04af-aaf8-448c-a3b8-b8383e264d83)(label(true))(mold((out Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort Exp))))))(shards(0))(children())))(Secondary((id d2931593-1491-4d45-9a6c-ad427467a6ab)(content(Whitespace" "))))))))))()))(ancestors())))(caret Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index -1)(pinned_stack())(indicated_call())(time())(seq 0)(step_range())(pending_focus())))(autoprobe_target())(pending_probe_cursor()))))|x};
               backup_text = {x|test true end|x};
             };
         hints = [];

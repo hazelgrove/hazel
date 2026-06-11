@@ -686,8 +686,25 @@ module View = {
     };
     [
       Key.listener(~f=handle_key_event),
+      /* Arm/disarm the text-selection guard (see JsUtil.TextSelect):
+         the blur below must not steal focus into the clipboard shim
+         while the user is starting a selection in selectable prose. */
+      Attr.on_pointerdown(evt => {
+        JsUtil.TextSelect.note_pointerdown(
+          (evt :> Js.t(Js_of_ocaml.Dom_html.event)),
+        );
+        Effect.Ignore;
+      }),
+      Attr.on_pointerup(_ => {
+        JsUtil.TextSelect.maybe_restore(~refocus=() =>
+          JsUtil.focus_clipboard_shim()
+        );
+        Effect.Ignore;
+      }),
       Attr.on_blur(_ => {
-        JsUtil.focus_clipboard_shim();
+        if (!JsUtil.TextSelect.armed()) {
+          JsUtil.focus_clipboard_shim();
+        };
         model.globals.meta_down
           ? Effect.Many([inject(Globals(SetMetaDown(false)))])
           : Effect.Ignore;

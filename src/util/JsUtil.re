@@ -108,6 +108,58 @@ let clipboard_shim_id = "clipboard-shim";
 
 let focus_clipboard_shim = () => get_elem_by_id(clipboard_shim_id)##focus;
 
+/* Text-selection guard for the page's blur handler.
+ *
+ * The page re-grabs focus into the (textarea) clipboard shim whenever it
+ * blurs, so keyboard shortcuts keep working — but focusing a textarea
+ * collapses any in-progress document selection, which made prose in
+ * user-select:text regions (tutorial prompts, sidebar) unselectable:
+ * mousedown on unfocusable text blurs the page, the shim steals focus,
+ * the nascent selection dies.
+ *
+ * pointerdown fires BEFORE the focus change, so we arm a latch when the
+ * pointer goes down on a selectable target; the blur handler skips the
+ * shim-steal while armed. On pointerup, if no selection materialized
+ * (plain click), the caller restores the shim so shortcuts resume; if a
+ * selection exists, focus is left alone (Cmd+C copies the selection
+ * regardless of focus) until the user's next click re-enters the page. */
+module TextSelect = {
+  let armed_at: ref(float) = ref(neg_infinity);
+  let now = (): float => Js.Unsafe.global##.Date##now();
+  let target_selectable = (evt: Js.t(Dom_html.event)): bool =>
+    switch (Js.Opt.to_option(evt##.target)) {
+    | None => false
+    | Some(t) =>
+      let style = Dom_html.window##getComputedStyle(t);
+      Js.to_string(
+        Js.Unsafe.meth_call(
+          style,
+          "getPropertyValue",
+          [|Js.Unsafe.inject(Js.string("user-select"))|],
+        ),
+      )
+      == "text";
+    };
+  let note_pointerdown = (evt: Js.t(Dom_html.event)): unit =>
+    armed_at := target_selectable(evt) ? now() : neg_infinity;
+  /* Armed = the focus change being processed right now came from a
+   * pointerdown on selectable text moments ago. */
+  let armed = (): bool => now() -. armed_at^ < 600.;
+  let selection_collapsed = (): bool => {
+    let sel = Js.Unsafe.meth_call(Dom_html.window, "getSelection", [||]);
+    Js.to_bool(Js.Unsafe.get(sel, Js.string("isCollapsed")));
+  };
+  /* Call on pointerup: if the press was an armed plain click (no
+   * selection resulted), hand focus back via `refocus`. */
+  let maybe_restore = (~refocus: unit => unit): unit =>
+    if (armed()) {
+      armed_at := neg_infinity;
+      if (selection_collapsed()) {
+        refocus();
+      };
+    };
+};
+
 /* Focus the active editor's DOM element so the editor caret becomes
    visible. The caret is gated by CSS on `.code-editor:focus`, so
    focusing the page-level clipboard shim is NOT sufficient — the

@@ -4,11 +4,14 @@ show_report version=1 id=d0000026-0026-0026-0026-000000000026
 @prompt
 # Task: Grove name
 
-Write `grove_name`, which extracts the first section from a garden path: `grove_name("/moonlit-grove/ferns")` is `"moonlit-grove"`.
+Write `grove_name`, which extracts the first section from a garden path. For example, `grove_name("/moonlit-grove/ferns")` is `"moonlit-grove"`. See the tests at the bottom for more examples; the face will turn 🤩 when they all pass.
 
-The comments in the editor spell out the details and list some string functions that may help. Their argument order is not documented anywhere; probe a call to find out what goes where.
-
-The tests at the bottom are the spec. The face turns 🤩 when they all pass.
+Some standard library functions that may be useful (work out the argument order with probes): 
+ - `string_split : (String, String) -> [String]`
+ - `string_sub : (String, Int, Int) -> String`
+ - `string_length : String -> Int`
+ - `nth : ([String], Int) -> String`
+ - `length : [String] -> Int`
 
 @hint
 Try `string_split(path, "/")` in a probe and look at what comes back. Mind the empty pieces.
@@ -18,7 +21,7 @@ Try `string_split(path, "/")` in a probe and look at what comes back. Mind the e
 1. Read the comment block: what should the function do?
 2. Read the tests: they are the spec, with exact expected values.
 3. Build in small steps. Auto-probe is on, so intermediate values appear as you type.
-4. Unsure what a library function does? Probe a call and look. Probing `f(?)` with a hole argument x-rays what `f` does with nothing.
+4. Unsure what a library function does? Probe a call and look. Probing `f(?)` with a hole argument x-rays what `f` does.
 
 @hints
 grove_name("/moonlit-grove/ferns/watering") should be "moonlit-grove"

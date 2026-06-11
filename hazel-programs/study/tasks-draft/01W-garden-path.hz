@@ -1,27 +1,4 @@
-# GARDEN PATH TASK                               #
-#                                                #
-# Implement grove_name: extract the first        #
-# section from a garden path.                    #
-#                                                #
-# Examples:                                      #
-#   grove_name("/moonlit-grove/ferns")           #
-#     == "moonlit-grove"                         #
-#   grove_name("/night-garden/herbs/thyme")      #
-#     == "night-garden"                          #
-#   grove_name("/") == ""                        #
-#                                                #
-# Some standard library functions that may be    #
-# useful (work out the argument order with       #
-# probes):                                       #
-#   string_split : (String, String) -> [String]  #
-#   string_sub : (String, Int, Int) -> String    #
-#   string_length : String -> Int                #
-#   nth : ([String], Int) -> String              #
-#   length : [String] -> Int                     #
-#                                                #
-# Tip: turn on auto-probe to see intermediate    #
-# values as you type.                            #
-
+# Extracts the first section from a garden path. #
 let grove_name = fun path ->
   ¿
 
