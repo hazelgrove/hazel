@@ -1,14 +1,72 @@
 #!/usr/bin/env bash
-# Builds the test JS and runs it, forwarding any CLI arguments.
+# Builds the tests and runs them, forwarding any CLI arguments.
+# Most suites run natively (haz3ltest.exe); the web-dependent suites
+# (HazelWebTests) run under node. Both runners get the same arguments.
+#   --native    run only the native runner
+#   --node      run only the node (web) runner
 # Examples:
-#   ./run_tests                        # Run all tests
-#   ./run_tests test 'Statics.*' -q    # Run Statics tests, quick output
-#   ./run_tests test 'Evaluator' 19    # Run only Evaluator test 19
+#   ./run_tests                             # Run all tests
+#   ./run_tests test 'Statics.*' -q         # Run Statics tests, quick only
+#   ./run_tests test 'Evaluator' 19         # Run only Evaluator test 19
+#   ./run_tests --native test 'Statics.*'   # Native runner only
 
 set -e
+set -o pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-dune build test --profile dev
+run_native=true
+run_node=true
+args=()
+for arg in "$@"; do
+  case "$arg" in
+    --native) run_node=false ;;
+    --node) run_native=false ;;
+    *) args+=("$arg") ;;
+  esac
+done
 
-"$SCRIPT_DIR/test/run_node.sh" "$@"
+if ! $run_native && ! $run_node; then
+  echo "run_tests: --native and --node are mutually exclusive" >&2
+  exit 1
+fi
+
+if $run_native && $run_node; then
+  dune build test --profile dev
+elif $run_native; then
+  dune build test/haz3ltest.exe --profile dev
+else
+  dune build test/haz3ltest_web.bc.js test/idb_stub.js --profile dev
+fi
+
+# When running both, a filter that only matches one runner's suites leaves
+# the other with nothing to do; alcotest treats that as an error, but the
+# combined run should only fail if neither runner matched anything.
+run_lenient() {
+  local log
+  log="$(mktemp)"
+  skipped=false
+  if ! "$@" 2>&1 | tee "$log"; then
+    if grep -q "filter skipped everything" "$log"; then
+      skipped=true
+    else
+      rm -f "$log"
+      return 1
+    fi
+  fi
+  rm -f "$log"
+}
+
+if $run_native && $run_node; then
+  run_lenient "$SCRIPT_DIR/_build/default/test/haz3ltest.exe" "${args[@]}"
+  native_skipped=$skipped
+  run_lenient "$SCRIPT_DIR/test/run_node.sh" "${args[@]}"
+  if $native_skipped && $skipped; then
+    echo "run_tests: filter matched no tests in either runner" >&2
+    exit 1
+  fi
+elif $run_native; then
+  exec "$SCRIPT_DIR/_build/default/test/haz3ltest.exe" "${args[@]}"
+else
+  exec "$SCRIPT_DIR/test/run_node.sh" "${args[@]}"
+fi

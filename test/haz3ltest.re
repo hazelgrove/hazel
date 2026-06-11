@@ -31,8 +31,6 @@ let (suite, _) =
       Test_Equality.tests,
       Test_Substitution.tests,
     ]
-    @ Test_AgentTools.tests
-    @ [Test_AgentUX.tests]
     @ Test_ExpToSegment.all
     @ Test_Typ.tests
     @ Test_Statics.tests
@@ -47,8 +45,6 @@ let (suite, _) =
     @ Test_ProblemCollection.tests
     @ [Test_TermData.tests]
     @ Test_Introduce.tests
-    @ Test_ReparseDocSlides.tests
-    @ Test_TextRoundtrip.tests
     @ Test_MatchExp.tests
     @ Test_RefractorSerialization.tests
     @ [
@@ -61,8 +57,6 @@ let (suite, _) =
     @ [Test_UnusedWarnings.tests]
     @ Test_Indication.tests
     @ [Test_VarHighlight.tests]
-    @ [Test_GradingReport.tests]
-    @ [Test_Derivation.tests]
     @ Test_DerivationCase.tests
     @ [Test_TuiInput.tests]
     @ [Test_TuiGolden.tests],

@@ -1,11 +1,59 @@
 (include_subdirs unqualified)
 
+; Test modules shared between the native and web test runners. Everything
+; except the web-dependent suites lives here so the bulk of the tests can
+; run natively without node.
+
+(library
+ (name haz3ltest_common)
+ (wrapped false)
+ (modules
+  (:standard
+   \
+   Haz3ltest
+   Haz3ltest_web
+   Test_AgentTools
+   Test_AgentUX
+   Test_Derivation
+   Test_GradingReport
+   Test_ReparseDocSlides
+   Test_StepperBase
+   Test_TextRoundtrip))
+ (libraries str haz3ltui menhirParser junit_alcotest bisect_ppx.runtime)
+ (preprocess
+  (pps ppx_deriving.show ppx_sexp_conv)))
+
 (executable
  (name haz3ltest)
- (libraries web haz3ltui menhirParser junit_alcotest bisect_ppx.runtime)
+ (modules Haz3ltest)
+ (libraries haz3ltest_common junit_alcotest bisect_ppx.runtime)
+ (modes exe)
+ (preprocess
+  (pps ppx_deriving.show ppx_sexp_conv)))
+
+; Suites that depend on the web library (still js_of_ocaml-only) run under
+; node, same as before.
+
+(executable
+ (name haz3ltest_web)
+ (modules
+  Haz3ltest_web
+  Test_AgentTools
+  Test_AgentUX
+  Test_Derivation
+  Test_GradingReport
+  Test_ReparseDocSlides
+  Test_StepperBase
+  Test_TextRoundtrip)
+ (libraries haz3ltest_common web junit_alcotest bisect_ppx.runtime)
  (modes js)
  (preprocess
   (pps ppx_deriving.show ppx_sexp_conv)))
+
+(rule
+ (alias runtest)
+ (action
+  (run %{dep:haz3ltest.exe})))
 
 (rule
  (alias runtest)
@@ -15,8 +63,13 @@
    ./%{dep:idb_stub.js}
    (setenv
     TEST_JS
-    %{dep:haz3ltest.bc.js}
+    %{dep:haz3ltest_web.bc.js}
     (run bash %{dep:run_node.sh})))))
+
+(rule
+ (alias test-quick)
+ (action
+  (run %{dep:haz3ltest.exe} -q)))
 
 (rule
  (alias test-quick)
@@ -26,5 +79,5 @@
    ./%{dep:idb_stub.js}
    (setenv
     TEST_JS
-    %{dep:haz3ltest.bc.js}
+    %{dep:haz3ltest_web.bc.js}
     (run bash %{dep:run_node.sh} -q)))))
