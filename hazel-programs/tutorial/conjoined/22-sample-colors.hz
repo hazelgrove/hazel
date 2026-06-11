@@ -4,14 +4,14 @@ version=1 id=b0000022-0022-0022-0022-000000000022
 @prompt
 # Sample colors
 
-When you click a sample, the others take on colors showing how their run relates to it: **green** is the focus's own run, **pink** ran before, **blue** ran after, gray is unrelated. We switched this slide to the full color scheme so they show; the **legend** at the bottom of this panel explains them (and lets you switch schemes). Nothing here needs memorizing.
+When you click a sample, the others take on colors showing how their run relates to it: **green** is the focus's own run, **pink** ran before, **blue** ran after, gray is unrelated. We switched this slide to the full color scheme so they show; the **legend** at the bottom of the Task Reference sidebar explains them (and lets you switch schemes). Nothing here needs memorizing.
 
 One nuance worth having seen once: a call that *contains* the focus started before it (so it shows **pink**), and a call running *inside* the focus finishes after it (so it shows **blue**). Containment reads as before/after.
 
 **Try this**
 1. `first`, `second`, and `third` are probed (auto-probe is on). Click `second`'s sample: `first` is pink (ran before), `third` is blue (ran after).
 2. In the watering section, click a call's sample: its `adj` is green (same run); a call that started before it is pink, after is blue.
-3. The recursion is the show piece. Probe samples line up oldest to newest, so `fact`'s samples *descend* as the recursion unwinds. In *many* mode, click a sample in the middle: everything on the way down is pink, everything on the way back up is blue. Click the base case's sample: why is every other `x` pink?
+3. The recursion example shows this best. Probe samples line up oldest to newest, so `fact`'s samples *descend* as the recursion unwinds. In *many* mode, click a sample in the middle: everything on the way down is pink, everything on the way back up is blue. Click the base case's sample: why is every other `x` pink?
 4. Back in the map section: click a sample inside the map. Samples from the same outer call take colors; a different call's samples are gray.
 
 @reference

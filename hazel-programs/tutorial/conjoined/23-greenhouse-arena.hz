@@ -9,7 +9,7 @@ The goal here is to use probes to answer questions about the program. You can us
 1. How much water does the **shade** bed get in its Waning week?
 2. One arm of `watering_amount` **never runs**. Which one, and how can you tell at a glance?
 3. Step into the sun bed's New week: how much does the **cactus** drink per day that week?
-4. The two `weekly(shade, ...)` calls differ. Pin one, then the other: which moon costs the caretaker more water, and by how much?
+4. The two `weekly(shade, ...)` calls differ. Pin one, then the other: which moon needs more water, and by how much?
 
 Before each answer, say what you expect first; then look.
 

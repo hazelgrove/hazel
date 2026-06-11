@@ -4,12 +4,12 @@ show_report version=1 id=d0000027-0027-0027-0027-000000000027
 @prompt
 # Task: The moonlit field
 
-A field of crops, planted and watered by actions. Something in it has stopped growing; one test, marked **FAILING**, says where the trouble shows. Find the bug and fix it. The face turns 🤩 when every test passes.
+A field of crops, planted and watered by actions. Something has stopped growing: one test, marked **FAILING**, shows it. Find and fix the bug.
 
-Probes are yours to use however you like: place them by hand or turn on auto-probe (Cmd/Ctrl+P). The sidebar has a suggested route through the program.
+Use probes however you like: place them by hand or turn on auto-probe (Cmd/Ctrl+P). The sidebar has a suggested approach.
 
 @hint
-Start from the FAILING test and chase the wrong value backwards: probe the run, pin it, step into update.
+Start from the FAILING test and trace the wrong value backwards: probe the run, pin it, step into update.
 
 @reference
 ### Approach (debugging tasks)
@@ -19,8 +19,8 @@ Start from the FAILING test and chase the wrong value backwards: probe the run, 
 4. Scroll to the test marked **FAILING**. Read what it asserts.
 5. Investigate however you like. Some options:
    - Auto-probe (Cmd/Ctrl+P) and read values near the failing test, or place probes where you suspect trouble.
-   - Probe the failing test's `run` call, **pin** that run (`P`), and follow the wrong value backwards.
-   - **Step into** `update` (Enter on a sample), or right-click a function name to jump to its definition.
+   - Probe the failing test's `run` call and **pin** it (right-click the sample, *Pin this call*), then trace the wrong value backwards.
+   - **Step into** `update`: right-click its sample, then *Step into* (or press Enter). Or right-click a function name in the code to jump to its definition.
    - Switch a probe to *many* mode (Space) to watch the model evolve across actions.
 
 @hints

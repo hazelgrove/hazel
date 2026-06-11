@@ -19,7 +19,7 @@ Some standard library functions that may be useful:
 
 The string functions you need are tragically underdocumented. You will have to figure out what those String arguments mean by experimenting with probes.
 
-See the reference sidebar for a regex primer; it contains sufficient features to complete the task. You don't need to limit yourself to those but not all regex features are supported here.
+The Task Reference sidebar has a small regex primer; its features are enough for this task. (Not every regex feature exists in Hazel.)
 
 @hint
 Get one test's input through one step at a time: trim first, then strip the entry number, then the dashes, then the spaces.

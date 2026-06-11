@@ -9,7 +9,7 @@ type Quality =
   + Bronze      # Common harvest, basic value #
   + Silver      # Good quality, moderate bonus #
   + Gold        # Excellent harvest, high value #
-  + Starlight   # Legendar, highest value #
+  + Starlight   # Legendary, highest value #
 in
 
 # Crops that grow under the night sky #

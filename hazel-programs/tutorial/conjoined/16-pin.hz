@@ -2,11 +2,11 @@
 show_report version=1 id=b0000014-0014-0014-0014-000000000014
 
 @prompt
-A 🐛 has crept into the garden data. Two tests fail because of it, and with ten calls feeding every probe, the samples are a wall of noise. **Pin** cuts through it: lock every probe to one call's run.
+There is a 🐛 in the garden data. Two tests fail because of it, and with ten calls feeding every probe, there are samples everywhere. **Pin** locks every probe to a single call's run.
 
 # Exercise 1: pin from a failing test
-1. Auto-probe is on, so `make_label` is already probed. Click inside it and try *many* mode (**Space**): ten calls, ten samples per line. Chaos.
-2. Find the test marked FAILING. Probe its `make_label` call, right click the sample, and choose **Pin this call** (or press `P`).
+1. Auto-probe is on, so `make_label` is already probed. Click inside it and try *many* mode (**Space**): ten calls, so ten samples per line.
+2. Find the test marked FAILING. Probe its `make_label` call, right-click the sample, and choose **Pin this call** (or press `P`).
 3. Back inside `make_label`: every probe now shows only that call's run. Can you spot the 🐛 now? Fix the plant data so the test passes.
 4. A **⍟** elsewhere marks samples hidden by your pin; clicking it unpins. Unpin before moving on.
 
@@ -14,7 +14,7 @@ A 🐛 has crept into the garden data. Two tests fail because of it, and with te
 `bed_labels` labels each plant in a bed using `map`. It is called on three beds, so the callback runs 10 times: samples from all three beds, jumbled.
 
 1. Look at `bed_name`: it sits *outside* the map, so it has just 3 samples. Step to **Sun Terrace**.
-2. With that sample focused, press `P` (**Pin enclosing call**): you have pinned `bed_labels(sun_terrace)` itself.
+2. Right-click that sample and choose **Pin enclosing call** (or press `P`): this pins the enclosing `bed_labels(sun_terrace)` call.
 3. The map callback now shows only Sun Terrace's three plants. If your Exercise 1 fix was right, its FAILING test now passes too.
 
 @hint
@@ -22,8 +22,8 @@ The rose's icon in the plant data is not a rose.
 
 @reference
 ### Pin
-- **Pin this call**: from a call's sample, press `P` or right-click. Every probe filters to that run.
-- **Pin enclosing call**: from a sample *inside* a function, `P` pins the call it belongs to. Use it to narrow a map to one outer call.
+- **Pin this call**: right-click a call's sample, then *Pin this call* (or press `P`). Every probe filters to that run.
+- **Pin enclosing call**: right-click a sample *inside* a function, then *Pin enclosing call* (or press `P`). Use it to narrow a map to one outer call.
 - **⍟**: samples hidden by a pin. Click to unpin.
 
 @hints

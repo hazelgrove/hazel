@@ -7,7 +7,7 @@ Every debugging task in the study shares one shape: a list of **actions** folded
 A bed starts at water level `100`. `Water(n)` adds `n`; `Drain` should remove `20`. The bed runs through a list of actions with `fold_left`.
 
 # Task
-One test fails. The call to `update` is already probed (auto-probe is on): right click its sample and **step into** it, then fix the bug so the tests pass. (No probe? Add one with **Cmd/Ctrl+E**.)
+One test fails. The call to `update` is already probed (auto-probe is on): right-click its sample and choose **Step into**, then fix the bug so the tests pass. (No probe? Add one with **Cmd/Ctrl+E**.)
 
 @hint
 Walk the levels from 100. Which action changes it in the wrong direction?

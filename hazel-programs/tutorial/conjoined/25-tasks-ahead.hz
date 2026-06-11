@@ -5,19 +5,19 @@ version=1 id=b0000026-0026-0026-0026-000000000026
 {{no_editor}}
 # Tasks ahead
 
-The following are some more substantial tasks, alternating between two type:
+The following are some more substantial tasks, alternating between two types:
 
-- **writing** (build a function to a spec; these all use autoptobe)
-- **debugging** (a working program with one failing test; use whatever probe tools to locate it)
+- **writing**: build a function to a spec (auto-probe is on for these)
+- **debugging**: a working program with one failing test; find and fix the bug
 
 Notes:
 
-- **The tests are the goal/spec.** Each task shows a 🤔 face until its tests pass, then 🤩.
-- **Debugging tasks have a basic suggested approach.** It's probably not worth reading the entire program in detail; follow the sidebar suggested process to start, then backtrack to reinforce your knowledge if needed.
-- **For debugging tasks use whatever probe functionality feels natural.** Manual probes, auto-probe, many mode, pin, step into, the variable dropdown: use whatever answers the question you actually have.
+- **The tests are the spec.** Read them early.
+- **Debugging tasks have a suggested approach** in the Task Reference sidebar. You probably do not need to read the whole program in detail; start with the suggested steps.
+- **Use whatever probe tools feel natural.** Manual probes, auto-probe, many mode, pin, step into, the variable dropdown: whatever answers your current question.
 - **Think out loud.** Say what you expect before you look, and what surprised you after.
 
-On a few tasks probes will be switched off; you still have `print`, the tests, and your eyes. That contrast is part of what we are studying.
+On a few tasks probes will be switched off; you still have `print` and the tests. That contrast is part of what we are studying.
 
 Take your time. Ask questions.
 

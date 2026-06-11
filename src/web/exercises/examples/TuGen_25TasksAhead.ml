@@ -12,19 +12,19 @@ let exercise : Tutorial.spec =
       {x|{{no_editor}}
 # Tasks ahead
 
-The following are some more substantial tasks, alternating between two type:
+The following are some more substantial tasks, alternating between two types:
 
-- **writing** (build a function to a spec; these all use autoptobe)
-- **debugging** (a working program with one failing test; use whatever probe tools to locate it)
+- **writing**: build a function to a spec (auto-probe is on for these)
+- **debugging**: a working program with one failing test; find and fix the bug
 
 Notes:
 
-- **The tests are the goal/spec.** Each task shows a 🤔 face until its tests pass, then 🤩.
-- **Debugging tasks have a basic suggested approach.** It's probably not worth reading the entire program in detail; follow the sidebar suggested process to start, then backtrack to reinforce your knowledge if needed.
-- **For debugging tasks use whatever probe functionality feels natural.** Manual probes, auto-probe, many mode, pin, step into, the variable dropdown: use whatever answers the question you actually have.
+- **The tests are the spec.** Read them early.
+- **Debugging tasks have a suggested approach** in the Task Reference sidebar. You probably do not need to read the whole program in detail; start with the suggested steps.
+- **Use whatever probe tools feel natural.** Manual probes, auto-probe, many mode, pin, step into, the variable dropdown: whatever answers your current question.
 - **Think out loud.** Say what you expect before you look, and what surprised you after.
 
-On a few tasks probes will be switched off; you still have `print`, the tests, and your eyes. That contrast is part of what we are studying.
+On a few tasks probes will be switched off; you still have `print` and the tests. That contrast is part of what we are studying.
 
 Take your time. Ask questions.|x};
     display_hint = {x||x};
@@ -34,7 +34,7 @@ Take your time. Ask questions.|x};
         (Haz3lcore.PersistentZipper.unpersist ~root:Exp
            {
              Haz3lcore.PersistentZipper.zipper =
-               {x|((selection((focus Left)(content())(mode Normal)))(relatives((siblings(((Tile((id 6b961ae6-1504-4d32-b48c-3c42dbb0d671)(label(0))(mold((out Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort Exp))))))(shards(0))(children()))))()))(ancestors())))(caret Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index -1)(pinned_stack())(indicated_call())(time())(seq 0)(step_range())(pending_focus())))(autoprobe_target())(pending_probe_cursor()))))|x};
+               {x|((selection((focus Left)(content())(mode Normal)))(relatives((siblings(((Tile((id fd8b3d8c-fc58-487b-9c72-30d694f999b9)(label(0))(mold((out Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort Exp))))))(shards(0))(children()))))()))(ancestors())))(caret Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index -1)(pinned_stack())(indicated_call())(time())(seq 0)(step_range())(pending_focus())))(autoprobe_target())(pending_probe_cursor()))))|x};
              backup_text = {x|0|x};
            });
     hidden_tests =
@@ -43,7 +43,7 @@ Take your time. Ask questions.|x};
           Haz3lcore.PersistentZipper.unpersist ~root:Exp
             {
               Haz3lcore.PersistentZipper.zipper =
-                {x|((selection((focus Left)(content())(mode Normal)))(relatives((siblings(((Tile((id 451484c5-2d8e-4a9b-9679-690deef4e62b)(label(test end))(mold((out Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort Exp))))))(shards(0 1))(children(((Secondary((id 3f9708b7-a58d-4931-8943-01c74a22abc1)(content(Whitespace" "))))(Tile((id 68bb0c7c-377f-4030-a861-b87f23a8307a)(label(true))(mold((out Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort Exp))))))(shards(0))(children())))(Secondary((id 81a19901-e546-4a68-a5c0-aa3e79b0e576)(content(Whitespace" "))))))))))()))(ancestors())))(caret Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index -1)(pinned_stack())(indicated_call())(time())(seq 0)(step_range())(pending_focus())))(autoprobe_target())(pending_probe_cursor()))))|x};
+                {x|((selection((focus Left)(content())(mode Normal)))(relatives((siblings(((Tile((id 434b44ee-006e-491d-8df2-a28cc4401999)(label(test end))(mold((out Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort Exp))))))(shards(0 1))(children(((Secondary((id 4eb2e89f-793b-4d05-9b76-d4878688033b)(content(Whitespace" "))))(Tile((id 1636c0b0-e775-4556-bb05-1ea27b9799cc)(label(true))(mold((out Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort Exp))))))(shards(0))(children())))(Secondary((id 04259095-0dbb-441e-a939-c6072351e9d5)(content(Whitespace" "))))))))))()))(ancestors())))(caret Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index -1)(pinned_stack())(indicated_call())(time())(seq 0)(step_range())(pending_focus())))(autoprobe_target())(pending_probe_cursor()))))|x};
               backup_text = {x|test true end|x};
             };
         hints = [];

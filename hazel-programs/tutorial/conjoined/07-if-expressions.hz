@@ -15,7 +15,7 @@ else 1
 
 # Task
 
-**See it as you write:** *Before you begin writing*, put your cursor on the `let` token before the `clamp` definition and add a probe the usual way: **Cmd/Ctrl+E**, or right-click then *Add multi probe*. Probes placed on definitions (like `let`) behave differently: they place a probe on *each line*, placed dynamically, so values appear as you type. Add line breaks to see more intermediate values, join lines to see fewer.
+**See it as you write**: before writing, put your cursor on the `let` token of the `clamp` definition and add a probe (**Cmd/Ctrl+E**, or right-click then *Add multi probe*). A probe on a definition is a **multi probe**: one probe per line of the definition, updated as you type. Add line breaks to see more intermediate values; join lines to see fewer.
 
 Over-watering drowns a plant. Complete `clamp` so it holds a watering amount `x` to the range 0 to 100: below 0 gives `0`, above 100 gives `100`, otherwise `x` unchanged.
 

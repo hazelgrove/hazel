@@ -4,9 +4,9 @@ show_report version=1 id=d0000034-0034-0034-0034-000000000034
 @prompt
 # Task: The dew ledger
 
-First debugging task. The ledger tracks dew drops and jars; one action misbehaves, and the test marked **FAILING** says which. Fix it; the face turns 🤩 when all four tests pass.
+First debugging task. The ledger tracks dew drops and jars; one action misbehaves, and the test marked **FAILING** shows it. Find and fix the bug.
 
-This one is small enough to read whole, but try the route in the sidebar anyway: it is the same route you will want on the big ones.
+This program is small enough to read in full, but try the suggested approach in the sidebar anyway: the same approach helps on the bigger tasks.
 
 @hint
 Probe the failing test's update call and compare what changed against what the Action's comment says should change.
@@ -20,7 +20,7 @@ Probe the failing test's update call and compare what changed against what the A
 5. Investigate however you like. Some options:
    - Probe the failing test's `update` call and read the result.
    - Right-click the sample to see the variables feeding it.
-   - **Step into** `update` (Enter on a sample) and read the arm that ran.
+   - **Step into** `update`: right-click its sample, then *Step into* (or press Enter). Read the arm that ran.
 
 @hints
 collecting adds drops

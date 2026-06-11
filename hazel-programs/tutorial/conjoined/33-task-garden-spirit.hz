@@ -4,12 +4,12 @@ show_report version=1 id=d0000033-0033-0033-0033-000000000033
 @prompt
 # Task: The garden spirit
 
-A small spirit tends the garden. It eats, plays, sleeps, remembers how it has been treated, and grows into what its memories make of it. Something in how it evolves is off: a spirit cared for moderately, neglected a little, should bloom, and it does not. One test, marked **FAILING**, holds the case.
+A virtual pet: the garden spirit eats, plays, and sleeps, and it remembers how it has been treated. Its evolution depends on that memory, and the evolution logic has a bug: a spirit cared for moderately and neglected a little should reach Bloom, but it does not. The test marked **FAILING** shows it.
 
-This is the biggest program in the set, with several functions feeding each other. Take it slowly; the sidebar route helps. The face turns 🤩 when every test passes.
+This is the biggest program in the set, with several functions feeding each other. Take it slowly; the sidebar approach helps.
 
 @hint
-The failing test feeds one model through one TimeTick. Probe `calcEvolution`'s inputs for that run and walk its conditions in order; one of them fires too eagerly.
+The failing test feeds one model through one TimeTick. Probe `calcEvolution`'s inputs for that run and check its conditions in order; one of them matches when it should not.
 
 @reference
 ### Approach (debugging tasks)
@@ -19,8 +19,8 @@ The failing test feeds one model through one TimeTick. Probe `calcEvolution`'s i
 4. Scroll to the test marked **FAILING**. Read what it asserts.
 5. Investigate however you like. Some options:
    - Auto-probe (Cmd/Ctrl+P) and read values near the failing test, or place probes where you suspect trouble.
-   - Probe the failing test's `update` call, **pin** that run (`P`), and follow the wrong value backwards.
-   - **Step into** a function (Enter on a sample), or right-click a function name to jump to its definition.
+   - Probe the failing test's `update` call and **pin** it (right-click the sample, *Pin this call*), then trace the wrong value backwards.
+   - **Step into** a function: right-click its sample, then *Step into* (or press Enter). Or right-click a function name in the code to jump to its definition.
    - Big model values clip: focus a sample and resize (Shift+←/→) or expand it into rows (Cmd/Ctrl+↓).
 
 @hints

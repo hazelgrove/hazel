@@ -6,7 +6,7 @@ So far, probes have either had one sample (top level expressions), or zero sampl
 
 `watering_amount` adjusts a base amount by the moon phase. It is called three times below.
 
-A **Samples** toggle just appeared at the top of the Task Reference panel; the controls there grow as new commands show up.
+A **Samples** toggle just appeared at the top of the Task Reference sidebar; the controls there grow as new commands show up.
 
 **Try this**
 1. Probe the function's body: put your cursor on `case` and add a probe.

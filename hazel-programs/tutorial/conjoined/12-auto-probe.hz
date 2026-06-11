@@ -4,7 +4,7 @@ version=1 id=b0000010-0010-0010-0010-000000000010
 @prompt
 So far you have placed probes by hand. **Auto-probe** does it for you. Turn it on and Hazel probes the *whole program* at once, one probe per line, so values appear everywhere without placing them yourself.
 
-Turn it on with **Cmd/Ctrl+P**, or click `All` on the **Auto Probe** toggle at the top of this panel.
+Turn it on with **Cmd/Ctrl+P**, or click `All` on the **Auto Probe** toggle at the top of the Task Reference sidebar.
 
 **Try this**
 1. Turn on auto-probe. Probes appear across the program: every line where a probeable term ends.

@@ -2,10 +2,10 @@
 version=1 id=b0000020-0020-0020-0020-000000000020
 
 @prompt
-Hazel also has classic print-statement debugging. For some tasks we'll ask you to use these instead of probes. Click **Console** at the top of the reference sidebar to switch from the reference to the print console. Now, when you have a `print(value);` in your code, it prints there when you click **Run**.
+Hazel also has classic print-statement debugging. For some tasks we'll ask you to use these instead of probes. Click **Console** at the top of the Task Reference sidebar to switch to the print console. Now, when you have a `print(value);` in your code, it prints there when you click **Run**.
 
 # Task
-The garden waters for a week. Add `print(daily);` inside `weekly_water` to log each daily amount, then watch the print panel fill as the calls below run. There should be three lines in the panel.
+The garden waters for a week. Add `print(daily);` inside `weekly_water` to log each daily amount, then watch the Console fill as the calls below run. There should be three lines.
 
 @hint
 `print(daily);` before the result, inside the function.
@@ -16,7 +16,7 @@ The garden waters for a week. Add `print(daily);` inside `weekly_water` to log e
 print(42);
 "done"
 ```
-`print` writes a value to the sidebar panel and continues. Each entry shows a sequence number and a source line.
+`print` writes a value to the Console and continues. Each entry shows a sequence number and a source line.
 
 @code
 print("test");

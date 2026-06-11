@@ -26,13 +26,13 @@ At the end there will be some more substantial **program-writing and debugging t
     display_hint = {x||x};
     task_reference =
       {x|### Task Reference
-This panel on the right is the **Task Reference**. As the tutorial introduces probe commands, a quick reference and a few controls will appear here for the current slide. Glance over whenever you need a reminder.|x};
+This sidebar is the **Task Reference**. As the tutorial introduces probe commands, a quick reference and a few controls will appear here for the current slide. Glance over whenever you need a reminder.|x};
     your_impl =
       Haz3lcore.Zipper.caret_to_start
         (Haz3lcore.PersistentZipper.unpersist ~root:Exp
            {
              Haz3lcore.PersistentZipper.zipper =
-               {x|((selection((focus Left)(content())(mode Normal)))(relatives((siblings(((Tile((id d72eba5c-11c7-4df6-8c70-d80ae10ed80a)(label(0))(mold((out Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort Exp))))))(shards(0))(children()))))()))(ancestors())))(caret Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index -1)(pinned_stack())(indicated_call())(time())(seq 0)(step_range())(pending_focus())))(autoprobe_target())(pending_probe_cursor()))))|x};
+               {x|((selection((focus Left)(content())(mode Normal)))(relatives((siblings(((Tile((id 672ac1f4-0776-44b0-b3dd-09fc27f777eb)(label(0))(mold((out Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort Exp))))))(shards(0))(children()))))()))(ancestors())))(caret Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index -1)(pinned_stack())(indicated_call())(time())(seq 0)(step_range())(pending_focus())))(autoprobe_target())(pending_probe_cursor()))))|x};
              backup_text = {x|0|x};
            });
     hidden_tests =
@@ -41,7 +41,7 @@ This panel on the right is the **Task Reference**. As the tutorial introduces pr
           Haz3lcore.PersistentZipper.unpersist ~root:Exp
             {
               Haz3lcore.PersistentZipper.zipper =
-                {x|((selection((focus Left)(content())(mode Normal)))(relatives((siblings(((Tile((id 96e7c2a3-3d59-42de-bf8b-1710ee2caf41)(label(test end))(mold((out Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort Exp))))))(shards(0 1))(children(((Secondary((id 3c4a0ec4-24fa-49fd-8f00-00e70f786476)(content(Whitespace" "))))(Tile((id ddcb2a28-fc18-48df-866e-6b1ba8e41206)(label(true))(mold((out Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort Exp))))))(shards(0))(children())))(Secondary((id 397ccbb5-ada7-4a29-b3d9-801c9e6ab3fb)(content(Whitespace" "))))))))))()))(ancestors())))(caret Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index -1)(pinned_stack())(indicated_call())(time())(seq 0)(step_range())(pending_focus())))(autoprobe_target())(pending_probe_cursor()))))|x};
+                {x|((selection((focus Left)(content())(mode Normal)))(relatives((siblings(((Tile((id c391d592-a978-441a-a73b-b8fd4ce11276)(label(test end))(mold((out Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort Exp))))))(shards(0 1))(children(((Secondary((id ef5e5a68-e311-4196-8214-0189abef1181)(content(Whitespace" "))))(Tile((id 8e8a0709-37c8-403a-b387-76a080bd2469)(label(true))(mold((out Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort Exp))))))(shards(0))(children())))(Secondary((id a60d9ea5-7ca3-453a-863a-26e8752cf3b8)(content(Whitespace" "))))))))))()))(ancestors())))(caret Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index -1)(pinned_stack())(indicated_call())(time())(seq 0)(step_range())(pending_focus())))(autoprobe_target())(pending_probe_cursor()))))|x};
               backup_text = {x|test true end|x};
             };
         hints = [];

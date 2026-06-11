@@ -7,17 +7,17 @@ version=1 id=b0000015-0015-0015-0015-000000000015
 
 **Try this**
 1. The two calls below are probed (auto-probe is on): you see `610` and `230`. Just totals.
-2. Click the `total_water(shade)` sample and press **Enter** (or choose *Step into*).
+2. Right-click the `total_water(shade)` sample and choose **Step into** (or click the sample and press **Enter**).
 3. Your cursor jumps inside `total_water`, pinned to that call.
 4. If in single mode, switch to *many* mode (press **Space**, or use the **Samples** toggle above). See how `acc + p.water` grows over the course of three iterations: `250 → 450 → 610`.
 5. The **dynamic focus** bar at the top shows the call stack for the current sample. Click its first entry, `total_water`, to step back out to the call site.
 
 @hint
-Click a call's sample, then press Enter, or right-click and select 'Step into'.
+Right-click a call's sample and choose *Step into*, or click it and press Enter.
 
 @reference
 ### Probes
-- **Step into**: from a call's sample, press Enter (or *Step into*). Equivalent to pinning the call and jumping to the definition.
+- **Step into**: right-click a call's sample, then *Step into* (or press Enter). Equivalent to pinning the call and jumping to the definition.
 - The **dynamic focus** bar shows where you are in the call stack. Click to navigate.
 
 @code

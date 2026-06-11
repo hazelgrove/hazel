@@ -4,9 +4,9 @@ show_report version=1 id=d0000031-0031-0031-0031-000000000031
 @prompt
 # Task: The harvest streak
 
-A ledger rewards streaks of same-quality harvests with a growing bonus. Lately the streak never breaks, which the keepers found generous but wrong. One test, marked **FAILING**, pins it down. Find the bug and fix it. The face turns 🤩 when every test passes.
+A ledger rewards streaks of same-quality harvests with a growing bonus. The bug: the streak never breaks. One test, marked **FAILING**, shows it. Find and fix the bug.
 
-The sidebar has a suggested route through the program.
+The sidebar has a suggested approach.
 
 @hint
 The streak logic compares two qualities. Probe both sides of that comparison across a run; one of them is not what the comments claim.
@@ -19,8 +19,8 @@ The streak logic compares two qualities. Probe both sides of that comparison acr
 4. Scroll to the test marked **FAILING**. Read what it asserts.
 5. Investigate however you like. Some options:
    - Auto-probe (Cmd/Ctrl+P) and read values near the failing test, or place probes where you suspect trouble.
-   - Probe the failing test's `run` call, **pin** that run (`P`), and follow the wrong value backwards.
-   - **Step into** `update` (Enter on a sample), or right-click a function name to jump to its definition.
+   - Probe the failing test's `run` call and **pin** it (right-click the sample, *Pin this call*), then trace the wrong value backwards.
+   - **Step into** `update`: right-click its sample, then *Step into* (or press Enter). Or right-click a function name in the code to jump to its definition.
    - Switch a probe to *many* mode (Space) to watch the model evolve across actions.
 
 @hints
