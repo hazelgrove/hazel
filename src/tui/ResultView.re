@@ -39,10 +39,15 @@ let print = (exp: Language.Exp.t): string =>
     ExpToSegment.exp_to_segment(~settings=exp_to_segment_settings, exp),
   );
 
-/* Evaluate the program, also collecting probe samples for the
-   statics-computed targets. Returns the displayable result plus the
-   sample map (Dynamics.Map.t is Sample.Map.t) for probe displays. */
-let run = (statics: CachedStatics.t): (t, Language.Dynamics.Map.t) =>
+let no_tests: Language.TestResults.t = Language.TestResults.mk_results([]);
+
+/* Evaluate the program, collecting probe samples for the
+   statics-computed targets and `test ... end` results. Returns the
+   displayable result, the sample map (Dynamics.Map.t is Sample.Map.t),
+   and the test results. */
+let run =
+    (statics: CachedStatics.t)
+    : (t, Language.Dynamics.Map.t, Language.TestResults.t) =>
   switch (
     Language.Evaluator.evaluate_and_limit(
       ~step_limit,
@@ -54,21 +59,33 @@ let run = (statics: CachedStatics.t): (t, Language.Dynamics.Map.t) =>
   | exception (Language.EvaluatorError.Exception(reason)) => (
       EvalErr(Language.EvaluatorError.show(reason)),
       Language.Dynamics.Map.empty,
+      no_tests,
     )
   | exception exn => (
       EvalErr(Printexc.to_string(exn)),
       Language.Dynamics.Map.empty,
+      no_tests,
     )
-  | StepLimitExceeded => (TimedOut, Language.Dynamics.Map.empty)
+  | StepLimitExceeded => (TimedOut, Language.Dynamics.Map.empty, no_tests)
   | Completed((result, state)) =>
     let dynamics =
       Language.Dynamics.Map.mk(Language.EvaluatorState.get_probes(state));
+    let tests =
+      switch (
+        Language.TestResults.mk_results(
+          Language.EvaluatorState.get_tests(state),
+        )
+      ) {
+      | tests => tests
+      | exception _ => no_tests
+      };
     switch (print(result)) {
     | exception exn => (
         EvalErr("print failed: " ++ Printexc.to_string(exn)),
         dynamics,
+        tests,
       )
-    | text => (EvalOk(text), dynamics)
+    | text => (EvalOk(text), dynamics, tests)
     };
   };
 

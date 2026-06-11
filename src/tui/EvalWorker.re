@@ -11,16 +11,25 @@ type t = {
   fd: Unix.file_descr,
 };
 
-type payload = (ResultView.t, Language.Dynamics.Map.t);
+type payload = (
+  ResultView.t,
+  Language.Dynamics.Map.t,
+  Language.TestResults.t,
+);
 
-let sexp_of_payload = ((r, d): payload): Sexplib.Sexp.t =>
-  List([ResultView.sexp_of_t(r), Language.Dynamics.Map.sexp_of_t(d)]);
+let sexp_of_payload = ((r, d, t): payload): Sexplib.Sexp.t =>
+  List([
+    ResultView.sexp_of_t(r),
+    Language.Dynamics.Map.sexp_of_t(d),
+    Language.TestResults.sexp_of_t(t),
+  ]);
 
 let payload_of_sexp = (s: Sexplib.Sexp.t): payload =>
   switch (s) {
-  | List([r, d]) => (
+  | List([r, d, t]) => (
       ResultView.t_of_sexp(r),
       Language.Dynamics.Map.t_of_sexp(d),
+      Language.TestResults.t_of_sexp(t),
     )
   | _ => raise(Invalid_argument("EvalWorker.payload_of_sexp"))
   };
@@ -47,6 +56,7 @@ let start = (statics: CachedStatics.t): t => {
       | exception exn => (
           ResultView.EvalErr("eval worker: " ++ Printexc.to_string(exn)),
           Language.Dynamics.Map.empty,
+          ResultView.no_tests,
         )
       };
     let oc = Unix.out_channel_of_descr(write_end);

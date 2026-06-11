@@ -25,6 +25,7 @@ let row =
       ~status_msg: option(string),
       ~caret: Util.Point.t,
       ~statics: CachedStatics.t,
+      ~tests: TestResults.t,
       z: Zipper.t,
     )
     : Frame.row => {
@@ -38,7 +39,16 @@ let row =
   let errors = List.length(statics.error_ids);
   let warnings = List.length(statics.warning_ids);
   let counts =
-    (errors > 0 ? Printf.sprintf(" %d!", errors) : "")
+    (
+      tests.total > 0
+        ? Printf.sprintf(
+            " \xe2\x9c\x93%d/%d", /* ✓ */
+            tests.passing,
+            tests.total,
+          )
+        : ""
+    )
+    ++ (errors > 0 ? Printf.sprintf(" %d!", errors) : "")
     ++ (warnings > 0 ? Printf.sprintf(" %d?", warnings) : "");
   let left = " " ++ name ++ "  " ++ pos ++ "  " ++ middle;
   let right = counts ++ " ";

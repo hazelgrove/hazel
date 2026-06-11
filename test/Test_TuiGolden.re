@@ -610,6 +610,51 @@ let tests = (
       },
     ),
     test_case(
+      "test expressions show pass/fail",
+      `Quick,
+      () => {
+        /* status bar counts */
+        let f =
+          Replay.run(~size=(10, 60), "test 4 == 4 end\rtest 2 == 4 end");
+        check(
+          bool,
+          "pass count in status bar",
+          true,
+          Util.StringUtil.match(
+            Util.StringUtil.regexp("\xe2\x9c\x93" ++ "1/2"), /* ✓1/2 */
+            f,
+          ),
+        );
+        /* tile tints: the failing test's delimiters get the fail
+           background, the passing one the pass background */
+        let bg_of = (keys: string): list(Style.color) => {
+          let m = Replay.final_model(~size=(10, 60), keys);
+          let (frame, _) = App.render(~size=(10, 60), m);
+          frame.rows
+          |> List.concat
+          |> List.filter_map(((st: Style.t, text)) =>
+               Util.StringUtil.match(
+                 Util.StringUtil.regexp("test|end"),
+                 text,
+               )
+                 ? Some(st.bg) : None
+             );
+        };
+        check(
+          bool,
+          "failing test tinted dark red",
+          true,
+          List.mem(Style.Ansi256(52), bg_of("test 2 == 4 end")),
+        );
+        check(
+          bool,
+          "passing test tinted dark green",
+          true,
+          List.mem(Style.Ansi256(22), bg_of("test 4 == 4 end")),
+        );
+      },
+    ),
+    test_case(
       "evaluation error is reported, not fatal",
       `Quick,
       () => {

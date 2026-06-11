@@ -32,6 +32,19 @@ let of_base_cls = (cls: string): Style.t =>
 
 let comment = Style.fg(green);
 let error_underline = (s: Style.t) => Style.undercurl(red, s);
+/* test result tints: dark backgrounds keep token colors readable */
+let test_pass = (s: Style.t): Style.t => {
+  ...s,
+  bg: Ansi256(22),
+}; /* dark green */
+let test_fail = (s: Style.t): Style.t => {
+  ...s,
+  bg: Ansi256(52),
+}; /* dark red */
+let test_indet = (s: Style.t): Style.t => {
+  ...s,
+  bg: Ansi256(58),
+}; /* dark olive */
 let warning_underline = (s: Style.t) => Style.undercurl(yellow, s);
 let grout = Style.dim(Style.default);
 let line_number = Style.dim(Style.default);

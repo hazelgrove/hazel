@@ -74,7 +74,10 @@ re-attaches to the caret on the next keyboard action).
   block typing, and an edit kills the in-flight worker. The 100M-step
   limit only bounds background CPU on doomed programs.
 - Status bar: file + dirty flag, caret position, type at cursor
-  (mini cursor inspector), error/warning counts.
+  (mini cursor inspector), test pass counts (`✓2/3`), error/warning
+  counts.
+- `test ... end` expressions tint green/red/olive by result
+  (pass/fail/indeterminate), like the web's test indicators.
 
 ## Architecture
 

@@ -11,6 +11,7 @@ type model = {
   editor: Editor.Model.t,
   statics: CachedStatics.t,
   dynamics: Language.Dynamics.Map.t,
+  tests: Language.TestResults.t,
   history: TuiHistory.t,
   file: option(string),
   dirty: bool,
@@ -79,6 +80,7 @@ let init = (file: option(string)): model => {
       editor,
       statics: CachedStatics.empty,
       dynamics: Language.Dynamics.Map.empty,
+      tests: ResultView.no_tests,
       history: TuiHistory.empty,
       file,
       dirty: false,
@@ -102,7 +104,11 @@ let init = (file: option(string)): model => {
    sees the new dynamics — statics are unchanged so this is cheap. */
 let apply_eval_result =
     (
-      (result, dynamics): (ResultView.t, Language.Dynamics.Map.t),
+      (result, dynamics, tests): (
+        ResultView.t,
+        Language.Dynamics.Map.t,
+        Language.TestResults.t,
+      ),
       model: model,
     )
     : model =>
@@ -112,6 +118,7 @@ let apply_eval_result =
       ...model,
       result,
       dynamics,
+      tests,
     },
   );
 
@@ -447,6 +454,26 @@ let render = (~size: (int, int), model: model): (Frame.t, model) => {
     col_off,
   };
 
+  /* test pass/fail tints on `test ... end` tiles (like the web) */
+  let buffer_rows =
+    List.fold_left(
+      (rows, (id, reports)) => {
+        let style =
+          switch (Language.TestMap.joint_status(reports)) {
+          | Language.TestStatus.Pass => Theme.test_pass
+          | Fail => Theme.test_fail
+          | Indet => Theme.test_indet
+          };
+        EditorView.apply_ranges(
+          rows,
+          EditorView.id_ranges([id], model.editor),
+          style,
+        );
+      },
+      buffer_rows,
+      model.tests.test_map,
+    );
+
   /* error/warning undercurls (selection reverse-video goes on top) */
   let buffer_rows =
     EditorView.apply_ranges(
@@ -542,6 +569,7 @@ let render = (~size: (int, int), model: model): (Frame.t, model) => {
       ~status_msg=model.status_msg,
       ~caret,
       ~statics=model.statics,
+      ~tests=model.tests,
       model.editor.state.zipper,
     );
 
