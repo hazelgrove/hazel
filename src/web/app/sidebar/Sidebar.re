@@ -200,6 +200,7 @@ let task_reference_view =
     );
   let body_div = div(~attrs=[clss(["task-reference-body"])], section_nodes);
   let flags = TutorialProbeStrip.flags_of_slide(module_name);
+  let new_flags = TutorialProbeStrip.new_flags_of_slide(module_name);
   let console_on = TutorialProbeStrip.console_enabled(flags);
   /* When the print console is enabled (slide 20+), the panel header becomes a
    * Reference / Console switch and Console mode swaps the whole body for the
@@ -215,6 +216,8 @@ let task_reference_view =
             ~globals,
             ~explain_this_inject,
             ~flags,
+            ~new_flags,
+            (),
           )
           @ [body_div];
     div(
@@ -231,7 +234,13 @@ let task_reference_view =
     );
   } else {
     let strip =
-      TutorialProbeStrip.strip_view(~globals, ~explain_this_inject, ~flags);
+      TutorialProbeStrip.strip_view(
+        ~globals,
+        ~explain_this_inject,
+        ~flags,
+        ~new_flags,
+        (),
+      );
     let strip_div =
       strip == []
         ? []

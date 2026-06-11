@@ -726,6 +726,7 @@ let quick_ref_row =
       ~click_shortcut=?,
       ~click_shortcut2=?,
       ~badge_cls=?,
+      ~row_clss: list(string)=[],
       action: string,
       how: list(Node.t),
     ) => {
@@ -749,13 +750,16 @@ let quick_ref_row =
       )
     | _ => []
     };
-  Node.tr([
-    Node.td(~attrs=[clss(["qr-action"])], [text(action)]),
-    Node.td(
-      ~attrs=[clss(["qr-how"])],
-      [span(~attrs=[clss(["qr-how-text"])], how)] @ badge_nodes,
-    ),
-  ]);
+  Node.tr(
+    ~attrs=[clss(row_clss)],
+    [
+      Node.td(~attrs=[clss(["qr-action"])], [text(action)]),
+      Node.td(
+        ~attrs=[clss(["qr-how"])],
+        [span(~attrs=[clss(["qr-how-text"])], how)] @ badge_nodes,
+      ),
+    ],
+  );
 };
 
 let quick_ref_divider =

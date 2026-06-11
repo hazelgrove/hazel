@@ -105,12 +105,32 @@ let flags_of_slide = (module_name: string): list(feat) =>
   | _ => s01
   };
 
+/* The features INTRODUCED by each slide (the delta the accumulated sNN
+ * lists encode): rows/controls in this set render highlighted (qr-new)
+ * on that slide, so the strip draws the eye exactly when the prompt says
+ * "a toggle just appeared". */
+let new_flags_of_slide = (module_name: string): list(feat) =>
+  switch (module_name) {
+  | "TuGen_01ArithmeticAndHoles" => [AddProbe]
+  | "TuGen_04VariablesAndExploring" => [SeeVars]
+  | "TuGen_08CaseAndEmpty" => [IconEmpty]
+  | "TuGen_10FunctionsAndManySamples" => [SamplesToggle, NavSamples]
+  | "TuGen_11AligningSamples" => [FocusProbe, IconOutsideFocus]
+  | "TuGen_12AutoProbe" => [AutoProbe]
+  | "TuGen_16Pin" => [Pin, IconPinHidden]
+  | "TuGen_17StepInto" => [StepInto]
+  | "TuGen_20Print" => [Console]
+  | "TuGen_22SampleColors" => [Legend]
+  | "TuGen_24ModelAndUpdate" => [Resize, ExpandProbe]
+  | _ => []
+  };
+
 /* ------------------------------------------------------------------ */
 /* Toggles, copied from ProbeSidebar.toggle_controls_view so we can show them
  * individually. Both drive global state (autoprobe_mode / ProbeProj window),
  * so they mirror the real probe sidebar's toggles. */
 
-let auto_probe_toggle = (~globals: Globals.t) => {
+let auto_probe_toggle = (~globals: Globals.t, ~is_new: bool) => {
   let mode_now = globals.settings.autoprobe_mode;
   let segment = (label, mode: AutoProbe.t) =>
     div(
@@ -123,7 +143,7 @@ let auto_probe_toggle = (~globals: Globals.t) => {
       [text(label)],
     );
   div(
-    ~attrs=[clss(["toggle-group"])],
+    ~attrs=[clss(["toggle-group"] @ (is_new ? ["qr-new"] : []))],
     [
       div(
         ~attrs=[clss(["toggle-label"])],
@@ -152,7 +172,7 @@ let auto_probe_toggle = (~globals: Globals.t) => {
   );
 };
 
-let samples_toggle = (~explain_this_inject) => {
+let samples_toggle = (~explain_this_inject, ~is_new: bool) => {
   let is_single = ProbeProj.Settings.s^.window == Single;
   let segment = (label, active) =>
     div(
@@ -166,7 +186,7 @@ let samples_toggle = (~explain_this_inject) => {
       [text(label)],
     );
   div(
-    ~attrs=[clss(["toggle-group"])],
+    ~attrs=[clss(["toggle-group"] @ (is_new ? ["qr-new"] : []))],
     [
       div(
         ~attrs=[clss(["toggle-label"])],
@@ -195,11 +215,13 @@ let samples_toggle = (~explain_this_inject) => {
  * sidebar (Actions / Navigation / Focus), dropping empty groups and the
  * dividers that would surround them. */
 
-let qr_row = (~meta, f: feat): option(Node.t) => {
+let qr_row = (~meta, ~new_flags: list(feat), f: feat): option(Node.t) => {
+  let row_clss = mem(new_flags, f) ? ["qr-new"] : [];
   let row =
     switch (f) {
     | AddProbe =>
       ProbeSidebar.quick_ref_row(
+        ~row_clss,
         ~shortcut=meta ++ "E",
         ~badge_cls="qr-cmd-e",
         "Add/remove probe",
@@ -207,6 +229,7 @@ let qr_row = (~meta, f: feat): option(Node.t) => {
       )
     | SeeVars =>
       ProbeSidebar.quick_ref_row(
+        ~row_clss,
         ~click_shortcut="/",
         ~badge_cls="qr-when-focused",
         "See env/args",
@@ -214,6 +237,7 @@ let qr_row = (~meta, f: feat): option(Node.t) => {
       )
     | Pin =>
       ProbeSidebar.quick_ref_row(
+        ~row_clss,
         ~click_shortcut="P",
         ~badge_cls="qr-when-focused",
         "Pin call",
@@ -221,6 +245,7 @@ let qr_row = (~meta, f: feat): option(Node.t) => {
       )
     | StepInto =>
       ProbeSidebar.quick_ref_row(
+        ~row_clss,
         ~click_shortcut={js|↩|js},
         ~badge_cls="qr-when-focused",
         "Step into call",
@@ -228,6 +253,7 @@ let qr_row = (~meta, f: feat): option(Node.t) => {
       )
     | NavSamples =>
       ProbeSidebar.quick_ref_row(
+        ~row_clss,
         ~click_shortcut={js|←|js},
         ~click_shortcut2={js|→|js},
         ~badge_cls="qr-when-focused",
@@ -240,6 +266,7 @@ let qr_row = (~meta, f: feat): option(Node.t) => {
       )
     | NavProbes =>
       ProbeSidebar.quick_ref_row(
+        ~row_clss,
         ~click_shortcut={js|↑|js},
         ~click_shortcut2={js|↓|js},
         ~badge_cls="qr-when-focused",
@@ -248,6 +275,7 @@ let qr_row = (~meta, f: feat): option(Node.t) => {
       )
     | Resize =>
       ProbeSidebar.quick_ref_row(
+        ~row_clss,
         ~click_shortcut={js|⇧←|js},
         ~click_shortcut2={js|⇧→|js},
         ~badge_cls="qr-when-focused",
@@ -256,6 +284,7 @@ let qr_row = (~meta, f: feat): option(Node.t) => {
       )
     | ExpandProbe =>
       ProbeSidebar.quick_ref_row(
+        ~row_clss,
         ~click_shortcut=meta ++ {js|↓|js},
         ~click_shortcut2=meta ++ {js|↑|js},
         ~badge_cls="qr-when-focused",
@@ -264,6 +293,7 @@ let qr_row = (~meta, f: feat): option(Node.t) => {
       )
     | FocusProbe =>
       ProbeSidebar.quick_ref_row(
+        ~row_clss,
         ~shortcut=meta ++ {js|↩|js},
         ~badge_cls="qr-focus-probe",
         "Focus probe",
@@ -271,6 +301,7 @@ let qr_row = (~meta, f: feat): option(Node.t) => {
       )
     | FocusEditor =>
       ProbeSidebar.quick_ref_row(
+        ~row_clss,
         ~click_shortcut=meta ++ {js|↩|js},
         ~click_shortcut2="Esc",
         ~badge_cls="qr-when-focused",
@@ -295,12 +326,13 @@ let qr_row = (~meta, f: feat): option(Node.t) => {
   };
 };
 
-let qr_table_rows = (flags: list(feat)): list(Node.t) => {
+let qr_table_rows =
+    (~new_flags: list(feat), flags: list(feat)): list(Node.t) => {
   let meta = Util.Os.is_mac^ ? {js|⌘|js} : "Ctrl+";
   let group = (feats: list(feat)) =>
     feats
     |> List.filter(f => mem(flags, f))
-    |> List.filter_map(qr_row(~meta));
+    |> List.filter_map(qr_row(~meta, ~new_flags));
   let groups =
     [
       group([AddProbe, SeeVars, Pin, StepInto]),
@@ -316,13 +348,22 @@ let qr_table_rows = (flags: list(feat)): list(Node.t) => {
   };
 };
 
-let quick_ref_panel = (flags: list(feat)): list(Node.t) => {
-  let rows = qr_table_rows(flags);
-  let icon = (on, glyph) => on ? [div([text(glyph)])] : [];
+let quick_ref_panel =
+    (~new_flags: list(feat), flags: list(feat)): list(Node.t) => {
+  let rows = qr_table_rows(~new_flags, flags);
+  let icon = (f, glyph) =>
+    mem(flags, f)
+      ? [
+        div(
+          ~attrs=[clss(mem(new_flags, f) ? ["qr-new"] : [])],
+          [text(glyph)],
+        ),
+      ]
+      : [];
   let icons =
-    icon(mem(flags, IconEmpty), {js|∅ = never evaluated|js})
-    @ icon(mem(flags, IconPinHidden), {js|⍟ = hidden by pin|js})
-    @ icon(mem(flags, IconOutsideFocus), {js|⊖ = outside focus|js});
+    icon(IconEmpty, {js|∅ = never evaluated|js})
+    @ icon(IconPinHidden, {js|⍟ = hidden by pin|js})
+    @ icon(IconOutsideFocus, {js|⊖ = outside focus|js});
   rows == [] && icons == []
     ? []
     : [
@@ -351,13 +392,29 @@ let quick_ref_panel = (flags: list(feat)): list(Node.t) => {
  * Does NOT include the console switch/body (handled separately so the panel
  * can swap its whole content into the print console). */
 let strip_view =
-    (~globals: Globals.t, ~explain_this_inject, ~flags: list(feat))
+    (
+      ~globals: Globals.t,
+      ~explain_this_inject,
+      ~flags: list(feat),
+      ~new_flags: list(feat)=[],
+      (),
+    )
     : list(Node.t) => {
   let toggles =
-    (mem(flags, AutoProbe) ? [auto_probe_toggle(~globals)] : [])
+    (
+      mem(flags, AutoProbe)
+        ? [auto_probe_toggle(~globals, ~is_new=mem(new_flags, AutoProbe))]
+        : []
+    )
     @ (
       mem(flags, SamplesToggle)
-        ? [samples_toggle(~explain_this_inject)] : []
+        ? [
+          samples_toggle(
+            ~explain_this_inject,
+            ~is_new=mem(new_flags, SamplesToggle),
+          ),
+        ]
+        : []
     );
   let toggle_panel =
     toggles == []
@@ -365,7 +422,7 @@ let strip_view =
   let legend =
     mem(flags, Legend)
       ? [ProbeSidebar.legend_view(~globals, ~explain_this_inject)] : [];
-  toggle_panel @ quick_ref_panel(flags) @ legend;
+  toggle_panel @ quick_ref_panel(~new_flags, flags) @ legend;
 };
 
 /* ------------------------------------------------------------------ */
