@@ -613,7 +613,12 @@ module View = {
           ~inject=_ => (),
           hint_placeholder,
         );
+      /* The open/closed state of a native <details> lives in the DOM
+         node, and the vdom diff would reuse that node across slide
+         switches, leaking one slide's expanded hint onto the next.
+         Keying by slide forces a fresh (collapsed) element per slide. */
       details(
+        ~key="hint-" ++ eds.module_name,
         ~attrs=[Attr.class_("hint-cell")],
         [
           summary(~attrs=[Attr.class_("hint-title")], [text("💡 Hint")]),
