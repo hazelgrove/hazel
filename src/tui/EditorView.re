@@ -170,33 +170,94 @@ let rows_with_offside =
     };
   };
 
+  /* Splice a Block-shaped terminal view: the first row continues the
+     current line; the rest are whole rows; the final row must occupy
+     exactly [last_col] cells so following content lines up. */
+  let emit_block = (lines: list(Frame.row), ~rows: int, ~last_col: int) => {
+    let lines = {
+      let n = List.length(lines);
+      n >= rows + 1
+        ? Util.ListUtil.take(rows + 1, lines)
+        : lines @ List.init(rows + 1 - n, _ => []);
+    };
+    List.iteri(
+      (i, line) => {
+        if (i > 0) {
+          Builder.newline(b, ~count=1, ~indent=0);
+        };
+        let line =
+          i == rows
+            ? Frame.clip_row(
+                Frame.pad_row_to(line, last_col),
+                ~col_off=0,
+                ~width=last_col,
+              )
+            : line;
+        List.iter(((st, tx)) => Builder.emit(b, st, tx), line);
+      },
+      lines,
+    );
+  };
+
   let of_projector = (pr: Base.projector): unit => {
     let size = DeferredLinebreaks.of_projector(pr, shape_map);
-    let term_view =
+    let indent = measure_of(Projector(pr)).last.col;
+    let view =
       switch (statics, TermProjector.lookup(pr.kind)) {
-      | (Some(st), Some(tp)) =>
-        /* registered terminal view; view calls must not take down the
-           frame on unexpected syntax */
+      | (Some(st), tp) =>
+        /* view calls must not take down the frame on unexpected syntax */
         switch (TermProjector.mk_info(~statics=st, pr)) {
         | info =>
-          let inline =
-            size.row == 0 && size.col >= 1
-              ? tp.inline_view(~model=pr.model, ~info, ~width=size.col) : None;
-          switch (tp.offside_view(~model=pr.model, ~info)) {
-          | Some(spans) =>
-            let row = List.length(b.rows);
-            offsides := [(row, spans), ...offsides^];
+          switch (tp) {
+          | Some(tp) =>
+            switch (tp.offside_view(~model=pr.model, ~info)) {
+            | Some(spans) =>
+              let row = List.length(b.rows);
+              offsides := [(row, spans), ...offsides^];
+            | None => ()
+            | exception _ => ()
+            }
           | None => ()
-          | exception _ => ()
           };
-          inline;
+          if (size.row == 0 && size.col >= 1) {
+            let inline =
+              switch (tp) {
+              | Some(tp) =>
+                tp.inline_view(~model=pr.model, ~info, ~width=size.col)
+              | None => None
+              };
+            let inline =
+              switch (inline) {
+              | Some(_) => inline
+              /* kinds without a terminal view get the syntax chip */
+              | None => TermProjector.syntax_chip(~info, ~width=size.col)
+              };
+            Option.map(spans => `Inline(spans), inline);
+          } else if (size.row > 0) {
+            switch (tp) {
+            | Some(tp) =>
+              tp.block_view(
+                ~model=pr.model,
+                ~info,
+                ~width=size.col,
+                ~rows=size.row,
+                ~last_col=indent,
+              )
+              |> Option.map(lines => `Block(lines))
+            | None => None
+            };
+          } else {
+            None;
+          };
         | exception _ => None
         }
       | _ => None
       };
-    switch (term_view) {
-    | Some(spans) =>
+    switch (view) {
+    | Some(`Inline(spans)) =>
       List.iter(((st, tx)) => Builder.emit(b, st, tx), spans)
+    | Some(`Block(lines)) =>
+      emit_block(lines, ~rows=size.row, ~last_col=indent)
     | None => of_projector_blank(pr, size)
     };
   };

@@ -439,6 +439,78 @@ let tests = (
       },
     ),
     test_case(
+      "float slider projector renders a bar and sets value on click",
+      `Quick,
+      () => {
+        open Haz3lcore;
+        let m = Replay.final_model(~size=small, "50.0");
+        let (m, _) =
+          App.apply(
+            ~page=8,
+            m,
+            Keymap.Perform(Project(SetIndicated(Specific(SliderF)))),
+          );
+        let (frame, m) = App.render(~size=small, m);
+        check(
+          bool,
+          "renders half-filled bar",
+          true,
+          Util.StringUtil.match(
+            Util.StringUtil.regexp("\\[====----\\]"),
+            Frame.to_plain_text(frame),
+          ),
+        );
+        /* click the rightmost bar cell -> 100 */
+        let (m, _) =
+          App.apply(
+            ~page=8,
+            m,
+            Keymap.Mouse(
+              AnsiInput.Press(
+                {
+                  row: 0,
+                  col: 10,
+                },
+                false,
+              ),
+            ),
+          );
+        check(
+          bool,
+          "value set to 100",
+          true,
+          Util.StringUtil.match(
+            Util.StringUtil.regexp("100"),
+            FileIo.zipper_to_text(m.editor.state.zipper),
+          ),
+        );
+      },
+    ),
+    test_case(
+      "textarea projector shows the string content",
+      `Quick,
+      () => {
+        open Haz3lcore;
+        let m = Replay.final_model(~size=small, "\"hello\"");
+        let (m, _) =
+          App.apply(
+            ~page=8,
+            m,
+            Keymap.Perform(Project(SetIndicated(Specific(TextArea)))),
+          );
+        let (frame, _) = App.render(~size=small, m);
+        check(
+          bool,
+          "content shown",
+          true,
+          Util.StringUtil.match(
+            Util.StringUtil.regexp("hello"),
+            Frame.to_plain_text(frame),
+          ),
+        );
+      },
+    ),
+    test_case(
       "evaluation error is reported, not fatal",
       `Quick,
       () => {

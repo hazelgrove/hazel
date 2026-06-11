@@ -106,19 +106,22 @@ collects samples for it and up to 5 render offside after the line as
 `≡ v1 ⫽ v2 ⫽ ...` (`∅` if never reached). Sample focus, step-into,
 and pinning — the web's full probe UI — are not ported.
 
-Projectors with a terminal view (`TermProjector.re` registry) render
-live content inside their measured cell region and respond to clicks:
-Fold (`⋱`, click to unfold), Checkbox (`✓`/`✗`, click to toggle),
-Slider (`[====----]`, click to set), Statics (type shown offside after
-the line). Other kinds fall back to blank space. The path to sharing
+Projectors render live content inside their measured cell region via
+the `TermProjector.re` registry and respond to clicks: Fold (`⋱`,
+click to unfold), Checkbox (`✓`/`✗`, click to toggle), Slider and
+SliderF (`[====----]`, click to set), Statics (type shown offside),
+TextArea (string content in its block region; read-only until the
+focus protocol exists), Table (box-drawing table of the parsed rows),
+Probe (sample values offside), Card (mini card faces: `A♡`, red/black
+pips on a white face). Kinds without a bespoke view (Livelit, Csv)
+render their underlying syntax as a dim chip. The path to sharing
 projector logic/views with the web properly is planned in
 `docs/projector-backend-split.md`.
 
 ## Known limitations
 
-- Projectors without a terminal view render as blank space of their
-  measured shape; Block-shaped (multi-row) terminal views are not yet
-  supported (inline + offside only).
+- TextArea/Table render read-only; in-place projector editing needs
+  the focus protocol (docs/projector-backend-split.md step 4).
 - TyDi assist is off (`settings.assist = false`); no completion buffer.
 - Emoji widths: Hazel's column accounting may disagree with some
   terminals' wcwidth for exotic graphemes; ASCII is exact.
