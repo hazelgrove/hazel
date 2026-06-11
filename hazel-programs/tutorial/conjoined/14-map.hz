@@ -1,8 +1,8 @@
 @flags
-wrapper show_report version=1 id=b0000012-0012-0012-0012-000000000012
+show_report version=1 id=b0000012-0012-0012-0012-000000000012
 
 @prompt
-A list holds many values of the same type, written `[a, b, c]`, with type `[T]`. `map` applies a function to every element. Write the function inline as a *lambda* with `fun`:
+A list holds many values of the same type, written `[a, b, c]`. `map` applies a function to each element. Write the function inline as a *lambda* with `fun`:
 ```hazelnostatics
 map([1, 2, 3], fun n -> n * 2)
 ```
@@ -41,8 +41,11 @@ Each watering can gains 50: [300, 230, 100, 250]
 
 @code
 let garden: [Int] = ¿ in
-map(garden, ¿)
+let topped = map(garden, 
+¿
+) in
+topped
 
 @test
 test garden == [250, 180, 50, 200] end;
-test answer == [300, 230, 100, 250] end
+test topped == [300, 230, 100, 250] end

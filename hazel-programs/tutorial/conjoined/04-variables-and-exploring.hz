@@ -1,5 +1,5 @@
 @flags
-wrapper show_report version=1 id=b0000004-0004-0004-0004-000000000004
+show_report version=1 id=b0000004-0004-0004-0004-000000000004
 
 @prompt
 Probes produce **samples**, the green rectangles shown to the right of the code. Right-click a sample and you also see the **variables feeding it** in a dropdown.
@@ -27,7 +27,7 @@ let base = 250 in
 let days = 7 in
 let bonus = 5 in
 let weekly = base * days + bonus in
-test weekly == 1800 end
+weekly == 1800
 
 @test
 test weekly == 1800 end

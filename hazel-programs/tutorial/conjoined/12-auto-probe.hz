@@ -7,7 +7,7 @@ So far you have placed probes by hand. **Auto-probe** does it for you. Turn it o
 Turn it on with **Cmd/Ctrl+P**, or click `All` on the **Auto Probe** toggle at the top of this panel.
 
 **Try this**
-1. Turn on auto-probe. Probes appear across the program: every definition, and the body at the bottom.
+1. Turn on auto-probe. Probes appear across the program: every line where a probeable term ends.
 2. The parameters of `watering_amount` share one line, so you get one combined value for them. Insert a line break to put `base` and `phase` on separate lines, and each gets its own value. As before, how you format the code decides how granular the values are.
 3. **Optional:** the toggle also has a `Caret` mode that probes only the definition your cursor is in, following you as you move. Click `Caret`, move your cursor between the two functions, and watch the probes follow. We only use `Caret` if `All` runs too slowly on your machine; normally, leave it on `All`.
 

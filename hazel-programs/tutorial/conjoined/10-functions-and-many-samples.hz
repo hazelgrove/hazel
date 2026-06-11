@@ -1,5 +1,5 @@
 @flags
-show_report version=1 id=b0000008-0008-0008-0008-000000000008
+wrapper show_report version=1 id=b0000008-0008-0008-0008-000000000008
 
 @prompt
 So far, probes have either had one sample (top level expressions), or zero samples (conditional branch not taken). Probes in functions however collect one sample *per call*.

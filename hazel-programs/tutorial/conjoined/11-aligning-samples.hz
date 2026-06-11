@@ -15,14 +15,14 @@ The program disagrees: one call below passes a base that is not on the chart. Re
 
 1. Place a **multi-probe** on the function definition: cursor on `let`, then **Cmd/Ctrl+E**. One probe lands per line.
 2. Click a `base` sample and step through the calls with **←/→**. The other probes follow in green: each stop is one plant's whole run.
-3. Find the run whose `base` does not match its plant's chart row, fix the call, and the total comes to **1070**.
+3. Find the function call whose `base` does not match its plant's chart row, fix the call, and the total comes to **1070**.
 
 @hint
-The function returns `base + adjust`. Then walk the six runs with the arrows, comparing each base to the chart.
+The function returns `base + adjust`. Then walk the six function calls with the arrows, comparing each base to the chart.
 
 @reference
 ### Probes
-- **Focus**: the sample you click; others align to it. Green = same run.
+- **Focus**: the sample you click; others align to it. Green = same call.
 - **⊖**: a sample exists but is not aligned to the focus. Click it to align.
 - **←/→**: step between a probe's samples.
 

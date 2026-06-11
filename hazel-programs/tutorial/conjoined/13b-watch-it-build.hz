@@ -4,7 +4,7 @@ version=1 id=b0000025-0025-0025-0025-000000000025
 @prompt
 A multi-probe shows one value per source row, so how a definition is *formatted* decides how much you see. Pack it onto one line for a single value, or break it across lines to watch the pieces.
 
-This `amounts` function maps each plant to a watering amount: its base, adjusted by the moon. It uses `map` and a helper `adjust`, which you will meet properly soon. Do not worry about the details; the point here is to probe and reformat.
+The function `amounts` tabulates watering amounts for each plant: a base, adjusted by moon phase. It uses `map` and a helper `adjust`, which you will meet properly soon. Do not worry about the details; the point here is to probe and reformat.
 
 **Try this**
 1. Put your cursor on the `amounts` definition and add a probe (**Cmd/Ctrl+E**, or right-click then *Add probe*). The body is one line, so you see one value: the finished list.

@@ -6,7 +6,7 @@ A 🐛 has crept into the garden data. Two tests fail because of it, and with te
 
 # Exercise 1: pin from a failing test
 1. Auto-probe is on, so `make_label` is already probed. Click inside it and try *many* mode (**Space**): ten calls, ten samples per line. Chaos.
-2. Find the test marked FAILING. Probe its `make_label` call, click the sample, and choose **Pin this call** (or press `P`).
+2. Find the test marked FAILING. Probe its `make_label` call, right click the sample, and choose **Pin this call** (or press `P`).
 3. Back inside `make_label`: every probe now shows only that call's run. Can you spot the 🐛 now? Fix the plant data so the test passes.
 4. A **⍟** elsewhere marks samples hidden by your pin; clicking it unpins. Unpin before moving on.
 
@@ -77,11 +77,9 @@ test make_label(lily, 7) == "☘️ Lily: 1400ml/7d" end;
 test make_label(lily, 3) == "☘️ Lily: 600ml/3d" end;
 test make_label(daisy, 7) == "🌱 Daisy: 1120ml/7d" end;
 
-# vvv This test is FAILING vvv #
 test
   make_label(rose, 7)
   == "🌹 Rose: 1330ml/7d" end;
-# ^^^ This test is FAILING ^^^ #
 
 type Bed = (
   name = String,
