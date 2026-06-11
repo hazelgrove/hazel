@@ -2,9 +2,8 @@
 version=1 id=b0000015-0015-0015-0015-000000000015
 
 @prompt
-From the outside, `total_water` is just a number. **Step into** a call to watch the fold build that number up.
 
-Step into is a shortcut combining *pin this call* and *jump to the definition*, intended to help keep debugging context when jumping to a far away definition. You can always do those two separately.
+**Step into** is a shortcut combining *pin this call* and *jump to the definition*, intended to help keep debugging context when jumping to a far away definition.
 
 **Try this**
 1. The two calls below are probed (auto-probe is on): you see `610` and `230`. Just totals.
@@ -14,7 +13,7 @@ Step into is a shortcut combining *pin this call* and *jump to the definition*, 
 5. The **dynamic focus** bar at the top shows the call stack for the current sample. Click its first entry, `total_water`, to step back out to the call site.
 
 @hint
-Click a call's sample, then press Enter.
+Click a call's sample, then press Enter, or right-click and select 'Step into'.
 
 @reference
 ### Probes
