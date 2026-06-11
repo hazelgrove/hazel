@@ -41,7 +41,8 @@ Each watering can gains 50: [300, 230, 100, 250]
 
 @code
 let garden: [Int] = ¿ in
-let topped = map(garden, 
+let topped = map(
+garden, 
 ¿
 ) in
 topped

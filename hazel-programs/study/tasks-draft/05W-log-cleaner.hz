@@ -45,8 +45,7 @@
 # check the probe to see what your pattern did.        #
 
 let clean_entry: String -> String = fun entry ->
-  ?
-
+  ¿
 
 
 in
