@@ -26,16 +26,18 @@ type hazel_fn = {
 };
 
 /* A builtin module: exposed as a single variable bound to a labeled tuple
- * of members (the runtime representation of baby modules). Members are
- * (label, hazel_fn) pairs; the label is the name projected via dot access
- * (e.g. Jq.select), while hazel_fn.name is the internal let-bound name used
- * for member-to-member references, kept distinct from the labels so members
- * don't shadow global builtins within the module's let-chain. Members may
- * only reference members defined earlier in the list. */
+ * of members (the runtime representation of baby modules). Member names are
+ * both the let-bound names within the module's let-chain and the labels
+ * projected via dot access (e.g. Jq.select), so they shadow same-named
+ * global builtins within the chain. Internals are auxiliary bindings
+ * (e.g. aliases for shadowed globals) let-bound before the members but not
+ * exported. Members may only reference internals and members defined
+ * earlier in the list. */
 [@deriving (show({with_path: false}), sexp)]
 type hazel_module = {
   name: string,
-  members: list((string, hazel_fn)),
+  internals: list((string, Exp.t)),
+  members: list(hazel_fn),
 };
 
 [@deriving (show({with_path: false}), sexp)]
@@ -59,9 +61,9 @@ let module_builtin = (x: hazel_module) => HazelModule(x);
 let module_typ = ({members, _}: hazel_module): TermBase.typ_t =>
   Fresh.Typ.prod(
     List.map(
-      ((label, member: hazel_fn)) =>
+      (member: hazel_fn) =>
         Fresh.Typ.tup_label(
-          Fresh.Typ.label(label),
+          Fresh.Typ.label(member.name),
           Fresh.Typ.arrow(Typ.fresh(member.arg), Typ.fresh(member.ret)),
         ),
       members,
@@ -112,26 +114,34 @@ let imp_of_builtin: builtin => (string, TermBase.exp_t) =
   | Const({name, imp, _}) => (name, imp)
   | HazelFn({name, imp, _}) => (name, imp)
   | Fn({name, _}) => (name, Fresh.Exp.builtin_fun(name))
-  | HazelModule({name, members}) => {
+  | HazelModule({name, internals, members}) => {
       /* Mirror the elaborated form of a module literal: a let-chain of the
-       * members ending in a labeled tuple of their values. */
+       * internals then the members, ending in a labeled tuple of the
+       * members' values (internals are not exported). */
       let tuple_exp =
         Fresh.Exp.tuple(
           List.map(
-            ((label, member: hazel_fn)) =>
+            (member: hazel_fn) =>
               Fresh.Exp.tup_label(
-                Fresh.Exp.label(label),
+                Fresh.Exp.label(member.name),
                 Fresh.Exp.var(member.name),
               ),
             members,
           ),
         );
-      let chain =
+      let member_chain =
         List.fold_right(
-          ((_, member: hazel_fn), acc) =>
+          (member: hazel_fn, acc) =>
             Fresh.Exp.let_(Fresh.Pat.var(member.name), member.imp, acc),
           members,
           tuple_exp,
+        );
+      let chain =
+        List.fold_right(
+          ((alias, exp), acc) =>
+            Fresh.Exp.let_(Fresh.Pat.var(alias), exp, acc),
+          internals,
+          member_chain,
         );
       (name, chain);
     };
