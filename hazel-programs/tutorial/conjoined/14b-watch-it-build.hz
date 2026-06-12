@@ -2,15 +2,14 @@
 version=1 id=b0000025-0025-0025-0025-000000000025
 
 @prompt
-A multi-probe shows one value per source row, so how a definition is *formatted* decides how much you see. Pack it onto one line for a single value, or break it across lines to watch the pieces.
+Auto-probe and multi-probes show one value per source row, so how a definition is formatted decides how much you see. Pack it onto one line to show the result, or break it across lines to see the process.
 
-The function `amounts` tabulates watering amounts for each plant: a base, adjusted by moon phase. The point here is to probe and reformat.
+The function `amounts` tabulates watering amounts for each plant: a base, adjusted by moon phase.
 
 **Try this**
-1. Put your cursor on the `amounts` definition and add a probe (**Cmd/Ctrl+E**, or right-click then *Add probe*). The body is one line, so you see one value: the finished list.
-2. Now break the lambda body open. Put a line break after the arrow (`fun p ->`), after the `+`, and after `adjust(p.phase)`.
-3. New rows, new values, one per plant. You can read each piece on its own: the plant record `p`, its base `p.base`, the moon adjustment `adjust(p.phase)`, and the total they add up to. There are three plants, so each row shows three samples.
-4. Now join the rows back together. Fewer rows means fewer, coarser values. You choose how much detail to see.
+1. Put your cursor on the `amounts` definition and add a probe (**Cmd/Ctrl+E**, or right-click then *Add probe*). The body is one line, so you see a single value (the finished list).
+2. Now break the lambda body open. For example, put line breaks after (`fun p ->`), after the `+`, and after `adjust(p.phase)`.
+3. Now you can read each intermediate on its own: the plant record `p`, its base `p.base`, the moon adjustment `adjust(p.phase)`, and the total they add up to. There are three plants, so each row shows three samples.
 
 @hint
 Put the cursor just after `fun p ->` and press Enter; do the same after the `+`. Press Backspace to join lines back.
@@ -25,7 +24,7 @@ type Plant = (base = Int, phase = MoonPhase) in
 let adjust(phase: MoonPhase): Int =
   case phase
   | New => 50
-  | Full => 0 - 30
+  | Full => -30
   | _ => 0
   end
 in
