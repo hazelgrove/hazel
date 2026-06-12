@@ -4,18 +4,18 @@ wrapper show_report version=1 id=b0000007-0007-0007-0007-000000000007
 @prompt
 A *sum type* lists a fixed set of constructors, separated by `+`s:
 ```hazelnostatics
-type MoonPhase = New + Waxing + Full + Waning in "..."
+type MoonPhase = New + Waxing + Full + Waning in …
 ```
 
-A `case` expression matches a value against patterns, top to bottom. A wildcard `_` pattern matches anything.
+A `case` expression tries to match a value against a sequence of patterns. A wildcard `_` pattern matches anything.
 
 # Task
 
-Before you begin, let's **watch each branch** of the case expression: Put a probe on the `+` in the `New` branch, on the `-` in the `Full` branch, on `base` in the last branch, and on the `case` itself. Note that only the matching branch shows a value, and that the `case` itself takes on the value of that branch. The other branches show **∅**, meaning those paths never ran.
+Before you begin put a probe on each branch of the case expression: on the `+` in the `New` branch, on the `-` in the `Full` branch, on `base` in the last branch, and on the `case` itself. Note that only the matching branch shows a value, and that the `case` itself takes on the value of that branch. The other branches show **∅**, meaning those paths never ran.
 
-First, try changing `Full` to `New` in the definition of `phase` and watch a different branch light up. Change it back to `Full` after.
+First, try changing `Full` to `New` in the definition of `phase` and watch a different branch light up. Change it to `Waxing`, and then back to `Full`.
 
-Then: On a full moon the plant wants 30 ml less. Fill the hole so the watering comes to **220**.
+Second: On a full moon, a plant needs 30 ml less. Fill the hole so the watering comes to **220**.
 
 
 @hint

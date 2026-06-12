@@ -2,25 +2,25 @@
 show_report version=1 id=b0000005-0005-0005-0005-000000000005
 
 @prompt
-A *tuple* groups values: `("moonleaf", 250)`. Take it apart by binding a matching pattern:
+A *tuple* groups values: `("moonleaf", 250)`. Access its pieces by binding a destructuring pattern:
 ```hazelnostatics
 let (name, water) = ("moonleaf", 250) in
 name
 ```
-A *labelled tuple* is a kind of *record*: each element gets a label, and you read one back by name with `.`:
+A *labelled tuple* is a kind of *record*: each element gets a label, and you access members by name using the dot (`.`) operator:
 ```hazel
 let plant = (name = "moonleaf", water = 250) in
 plant.water
 ```
 
 # Task
-Two small builds; probe the lines as you go to watch them take shape.
 
-1. Take `plant` apart into `name` and `water`, then build `label` so it reads **moonleaf needs 250ml**. You will need `string_of_int` to convert.
-2. Build the `fern` record: a `Plant` that drinks **200 ml**. The last line reads its `water` back; probe it to check.
+
+1. Destructure `plant` apart into `name` and `water`, then build `label` so it reads **"moonleaf needs 250m"l**. You'll need `string_of_int` to convert.
+2. Build a `"fern"` record: ferms need **200 ml** each watering. The last line reads its `water` back; probe it to confirm.
 
 @hint
-Destructure a pair with `let (a, b) = pair in`. A record is `(field = value, ...)`; read with `.field`.
+Destructure a pair with `let (a, b) = pair in`. A record is `(field = value, ...)`; read with `record_name.field`.
 
 @reference
 ### Tuples

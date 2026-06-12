@@ -4,21 +4,21 @@ wrapper show_report version=1 id=b0000017-0017-0017-0017-000000000017
 @prompt
 Sum type constructors can carry data. You can specify a constructor a payload in its type, and bind that payload in a matching pattern.
 ```hazelnostatics
-type Care = Water(Int) + Trim + Skip in "..."
+type Care = Water(Int) + Trim + Skip in …
 ```
-Matching `Water(amount)` pulls the carried value into `amount`. This is how the garden's actions are modeled.
+Matching `Water(amount)` binds the carried value as `amount`.
 
 # Task
 
-Before beginning, put your cursor on the `let` of the `apply` definition and add a probe. Note how the samples you see are only partially evaluated, due to the hole.
+Before starting, put your cursor on the `let` of the `apply` definition and add a probe. Note how the samples you see are only partially evaluated, due to the hole.
 
-Now, add a `Water(Int)` variant action to the `Care` type definition, and handle it in the `case`. This new case should add `Water`'s payload to the base amount. Then, fill in the call `apply` with `Water(50)` so the result is **300**.
+Now, add a `Water(Int)` constructor to the `Care` type definition on the first line, and then handle it in the `case`. This new case should add `Water`'s payload to the base amount. Then, fill in the call `apply` with `Water(50)` so the result is **300**.
 
 @hint
 Add `Water(Int)` to the type, a `| Water(amount) => base + amount` arm to the case, and build the value `Water(50)`.
 
 @reference
-### Variants with data
+### Constructors with data
 ```hazel
 type Care = Water(Int) + Skip in
 case Water(50)
@@ -28,7 +28,7 @@ end
 ```
 
 ### Option
-`Option` is the built-in variant for "maybe a value": `Some(value)` or `None`.
+`Option` is the built-in constructor for "maybe a value": `Some(value)` or `None`.
 ```hazel
 case Some(7)
 | Some(n) => n

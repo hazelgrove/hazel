@@ -12,7 +12,7 @@ The weekly watering should come to **1800 ml**, but it is off; perhaps the bonus
 3. One of them is wrong. Fix it so `weekly` is **1800**.
 
 @hint
-A week is 7 days and the new-moon bonus is 50. Compare those against the dropdown.
+The new-moon bonus should be 50.
 
 @reference
 ### Probes
