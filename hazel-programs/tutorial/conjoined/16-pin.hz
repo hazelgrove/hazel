@@ -6,7 +6,7 @@ There is a 🐛 in the garden data. One test fails because of it, and with ten c
 
 **Try this**
 1. Auto-probe is on, so `make_label` is already probed. Click inside it and try *many* mode (**Space**): ten calls, so ten samples per line.
-2. Find the test marked FAILING. Probe its `make_label` call, right-click the sample, and choose **Pin this call** (or press `P`).
+2. Find the test marked FAILING. Probe its `make_label` call, right-click the sample, and choose **Pin this call** (or press `P`; now in the Quick Reference).
 3. Back inside `make_label`: every probe now shows only that call's run. Can you spot the 🐛 now? Fix the plant data so the test passes.
 4. A **⍟** elsewhere marks samples hidden by your pin; clicking it unpins.
 

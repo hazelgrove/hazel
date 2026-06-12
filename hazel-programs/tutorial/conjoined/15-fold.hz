@@ -4,7 +4,7 @@ wrapper show_report version=1 id=b0000013-0013-0013-0013-000000000013
 @prompt
 `fold_left` combines a list into a single value, carrying a running value from left to right:
 ```hazelnostatics
-fold_left(list, fun (a, acc) -> ... , start)
+fold_left(list, fun (a, acc) -> "..." , start)
 ```
 The callback's pair holds the running value and the current element. Which is which? Auto-probe is on: probe `a` and `b` on separate lines and watch a few samples; one of them grows.
 

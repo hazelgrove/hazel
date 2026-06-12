@@ -102,7 +102,9 @@ let flags_of_slide = (module_name: string): list(feat) =>
   | "TuGen_31TaskHarvestStreak"
   | "TuGen_32TaskCropPlotter"
   | "TuGen_33TaskGardenSpirit" => s24
-  | _ => s01
+  /* Unlisted slides (the intro, text-only transitions) show no strip:
+   * nothing has been introduced there. */
+  | _ => []
   };
 
 /* The features INTRODUCED by each slide (the delta the accumulated sNN

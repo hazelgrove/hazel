@@ -336,6 +336,12 @@
    an animation: vdom re-renders could restart a transition, and a
    persistent mark keeps the new row discoverable for the whole slide. */
 #probe-sidebar.tutorial-probe-strip .qr-new {
-  background-color: var(--Y0);
-  box-shadow: inset 2.5px 0 0 #ffc107;
+  background-color: #ffc107;
+  border-radius: 6px;
+}
+#probe-sidebar.tutorial-probe-strip tr.qr-new > td:first-child {
+  border-radius: 6px 0 0 6px;
+}
+#probe-sidebar.tutorial-probe-strip tr.qr-new > td:last-child {
+  border-radius: 0 6px 6px 0;
 }

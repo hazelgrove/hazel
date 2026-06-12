@@ -4,7 +4,9 @@ wrapper show_report version=1 id=b0000001-0001-0001-0001-000000000001
 @prompt
 Hazel is a live functional environment. Every edit maintains program structure, and evaluation proceeds *around* holes (the hexagons), so there is always a result to look at, which may be a value or a partially evaluated program.
 
-Let's check on the evaluation of this program using a **probe**: put your cursor on the `+` and press **Cmd/Ctrl+E** (or right-click, *Add probe*). The program's value appears right there, hole and all: Hazel computed everything around the missing piece.
+Let's check on the evaluation of this program using a **probe**: put your cursor on the `+` and press **Cmd/Ctrl+E** (or right-click, *Add probe*). Two things appear: a green underline marking the probed expression (the **probe** itself), and a green box at the end of the line showing its value (a **sample**). Here the sample holds the program's value, hole and all: Hazel computed everything around the missing piece.
+
+Probe commands are listed in the **Quick Reference**, in the sidebar on the right; newly added commands are highlighted.
 
 # Task
 
