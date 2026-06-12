@@ -2,14 +2,17 @@
 version=1 id=b0000010-0010-0010-0010-000000000010
 
 @prompt
-So far you have placed probes by hand. **Auto-probe** does it for you. Turn it on and Hazel probes the *whole program* at once, one probe per line, so values appear everywhere without placing them yourself.
+So far you've placed probes by hand. Who has time for that?? **Auto-probe** mode automatically places probes on each line, generally on expression which ends closet to the end of that line. It uses the same logic as multi-probes from before, just applied to the whole program.
 
 Turn it on with **Cmd/Ctrl+P**, or click `All` on the **Auto Probe** toggle at the top of the Task Reference sidebar.
 
+While autoprobe mode avoids manual placement, it might also cause information overload. We're curious how people feel about manual versus auto! It may also cause performance issues for larger programs.
+
+
 **Try this**
-1. Turn on auto-probe. Probes appear across the program: every line where a probeable term ends.
+1. Turn on auto-probe. Probes should appear across the program.
 2. The parameters of `watering_amount` share one line, so you get one combined value for them. Insert a line break to put `base` and `phase` on separate lines, and each gets its own value. As before, how you format the code decides how granular the values are.
-3. **Optional:** the toggle also has a `Caret` mode that probes only the definition your cursor is in, following you as you move. Click `Caret`, move your cursor between the two functions, and watch the probes follow. We only use `Caret` if `All` runs too slowly on your machine; normally, leave it on `All`.
+3. **Optional:** The sidebar toggle also has a `Caret` mode that probes only the definition your cursor is in, following you as you move. Click `Caret`, move your cursor between the two functions, and watch the probes follow. We'll only use `Caret` if `All` runs too slowly on your machine; normally, leave it on `All`.
 
 @hint
 Press **Cmd/Ctrl+P** (or click `All` on the toggle) to probe the whole program.
