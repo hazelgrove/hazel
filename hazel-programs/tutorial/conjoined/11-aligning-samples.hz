@@ -5,20 +5,20 @@ wrapper show_report version=1 id=b0000009-0009-0009-0009-000000000009
 When you have more than one probe in a function, Hazel keeps each probe's samples *aligned* to one call at a time. The sample you click is called the **focus**. In **Many** mode (of the Samples toggle in the sidebar), aligned samples will be highlighted in green. In **One** mode, the shown sample will be one from the same call as the focus, unless there is no such sample (e.g. a different case branch), in which case a **⊖** mark will be shown instead; click it to realign to that branch instead.
 
 # Task
-First, finish the function: it should return `base + adjust`.
-
-The night ledger says each plant should receive this much water, in ml:
+Each plant is watered according to the moon phase it was *sown* under. The night ledger lists what each plant should receive, in ml:
 
 `fern 220 · orchid 230 · cactus 50 · lily 220 · daisy 210 · rose 140`
 
-That comes to **1070** in total, but the program computes more: one call below passes the wrong moon phase. Some plants receive the same amount, so you cannot tell the samples apart by value alone; you need to know which sample belongs to which plant:
+That totals **1070**, but the program computes **1150**: one call below has the wrong moon phase, so one plant is getting too much water. Which one?
 
-1. Place a **multi-probe** on the function definition: cursor on `let`, then **Cmd/Ctrl+E**. One probe lands per line.
-2. Click a `name` sample and step through the calls with **←/→**. The other probes follow in green: each stop is one plant's whole run, from name to final amount.
-3. Compare each plant's amount to its ledger row, find the one that disagrees, and fix that call's phase. The total comes to **1070**.
+The ledger lists final amounts, but each call shows only a base and a phase; checking a call against the ledger means working out `base + adjust` in your head. Let probes do that instead:
+
+1. Put a **multi-probe** on the function: cursor on `let`, then **Cmd/Ctrl+E**. One probe lands per line; the probe on `base + adjust` shows each call's final amount.
+2. Click a `name` sample and step through the calls with **←/→**. The green (aligned) samples all belong to one call, pairing that plant's name with its `base + adjust`.
+3. Find the plant whose final amount disagrees with its ledger row, and fix its call's phase.
 
 @hint
-The function returns `base + adjust`. Then walk the calls with the arrows: at each stop, the green samples pair a plant's name with its computed amount. One pair disagrees with the ledger.
+Step through the calls with the arrows, reading each plant's name next to its `base + adjust` value. One plant's amount does not match its ledger row; that call's phase is wrong.
 
 @reference
 ### Probes
@@ -27,8 +27,7 @@ The function returns `base + adjust`. Then walk the calls with the arrows: at ea
 - **←/→**: step between a probe's samples.
 
 @hints
-The function should return base + adjust.
-The six watering amounts should total 1070; one call's moon phase is wrong.
+The watering total should come to 1070.
 
 @code
 type MoonPhase = New + Waxing + Full + Waning in
@@ -40,11 +39,11 @@ let watering_amount(
     case phase
     | New => 50
     | Waxing => 20
-    | Full => 0 - 30
+    | Full => -30
     | _ => 0
     end
   in
-  ¿
+  base + adjust
 in
 let fern = watering_amount("fern", 250, Full) in
 let orchid = watering_amount("orchid", 180, New) in
@@ -55,4 +54,5 @@ let rose = watering_amount("rose", 170, New) in
 fern + orchid + cactus + lily + daisy + rose
 
 @test
+hint "the watering total comes to 1070"
 test answer == 1070 end
