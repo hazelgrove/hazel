@@ -10,7 +10,7 @@ version=1 id=b0000015-0015-0015-0015-000000000015
 2. Right-click the `total_water(shade)` sample and choose **Step into** (or click the sample and press **Enter**; now in the Quick Reference).
 3. Your cursor jumps inside `total_water`, pinned to that call.
 4. If in single mode, switch to *many* mode (press **Space**, or use the **Samples** toggle above). See how `acc + p.water` grows over the course of three iterations: `250 → 450 → 610`.
-5. The **stack focus** bar at the top of the editor shows the call stack for the current sample. Click its first entry, `total_water`, to step back out to the call site.
+5. The **stack focus** bar at the top of the editor shows the call stack for the current sample. Click the first stack frame, `total_water`, to step back out to the call site.
 
 @hint
 Right-click a call's sample and choose *Step into*, or click it and press Enter.
