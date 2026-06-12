@@ -7,18 +7,18 @@ When you have more than one probe in a function, Hazel keeps each probe's sample
 # Task
 First, finish the function: it should return `base + adjust`.
 
-The night ledger says these six plants drink **1070 ml** in total, each from its own chart row:
+The night ledger says each plant should receive this much water, in ml:
 
-`fern 250 · orchid 180 · cactus 50 · lily 200 · daisy 160 · rose 190`
+`fern 220 · orchid 230 · cactus 50 · lily 220 · daisy 210 · rose 140`
 
-The program disagrees: one call below passes a base that is not on the chart. Reading six calls is doable; reading sixty would not be, so find it with probes:
+That comes to **1070** in total, but the program computes more: one call below passes the wrong moon phase. Some plants receive the same amount, so you cannot tell the samples apart by value alone; you need to know which sample belongs to which plant:
 
 1. Place a **multi-probe** on the function definition: cursor on `let`, then **Cmd/Ctrl+E**. One probe lands per line.
-2. Click a `base` sample and step through the calls with **←/→**. The other probes follow in green: each stop is one plant's whole run.
-3. Find the function call whose `base` does not match its plant's chart row, fix the call, and the total comes to **1070**.
+2. Click a `name` sample and step through the calls with **←/→**. The other probes follow in green: each stop is one plant's whole run, from name to final amount.
+3. Compare each plant's amount to its ledger row, find the one that disagrees, and fix that call's phase. The total comes to **1070**.
 
 @hint
-The function returns `base + adjust`. Then walk the six function calls with the arrows, comparing each base to the chart.
+The function returns `base + adjust`. Then walk the calls with the arrows: at each stop, the green samples pair a plant's name with its computed amount. One pair disagrees with the ledger.
 
 @reference
 ### Probes
@@ -28,28 +28,30 @@ The function returns `base + adjust`. Then walk the six function calls with the 
 
 @hints
 The function should return base + adjust.
-The six watering totals should sum to 1070.
+The six watering amounts should total 1070; one call's moon phase is wrong.
 
 @code
 type MoonPhase = New + Waxing + Full + Waning in
 let watering_amount(
+  name: String,
   base: Int,
   phase: MoonPhase): Int =
   let adjust =
     case phase
     | New => 50
+    | Waxing => 20
     | Full => 0 - 30
     | _ => 0
     end
   in
   ¿
 in
-let fern = watering_amount(250, Full) in
-let orchid = watering_amount(180, New) in
-let cactus = watering_amount(50, Waning) in
-let lily = watering_amount(200, Waning) in
-let daisy = watering_amount(160, New) in
-let rose = watering_amount(105, Full) in
+let fern = watering_amount("fern", 250, Full) in
+let orchid = watering_amount("orchid", 180, New) in
+let cactus = watering_amount("cactus", 50, Waning) in
+let lily = watering_amount("lily", 200, Waxing) in
+let daisy = watering_amount("daisy", 160, New) in
+let rose = watering_amount("rose", 170, New) in
 fern + orchid + cactus + lily + daisy + rose
 
 @test
