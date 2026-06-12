@@ -44,9 +44,9 @@ let none: t = {
  * slides after, so probes appear without manual placement. Cmd/Ctrl+P toggles
  * All; the Caret follow-the-cursor mode is a performance fallback, set via the
  * toggle and never pre-set here. Overrides:
- *   - 13b multi-probes a definition by hand as its lesson  -> Off
  *   - 20 Print: everything off, the print console is the focus -> Off
- *   - 22 also needs the Hybrid color scheme so colors show  -> All + Hybrid
+ *   - 36 (colors) also needs the Hybrid color scheme so colors show
+ *     -> All + Hybrid
  * Slides not listed inherit the current state (no-op). */
 let of_slide = (module_name: string): t =>
   switch (module_name) {
@@ -57,17 +57,13 @@ let of_slide = (module_name: string): t =>
   | "TuGen_03Probes"
   | "TuGen_04VariablesAndExploring"
   | "TuGen_05TuplesAndRecords"
+  | "TuGen_06BiggerValues"
   | "TuGen_07IfExpressions"
   | "TuGen_08CaseAndEmpty"
   | "TuGen_09VariantsWithData"
   | "TuGen_10FunctionsAndManySamples"
   | "TuGen_11AligningSamples"
   | "TuGen_12AutoProbe" => {
-      ...none,
-      autoprobe: Some(Off),
-    }
-  /* 14b multi-probes a definition by hand as its lesson; keep it off. */
-  | "TuGen_14bWatchItBuild" => {
       ...none,
       autoprobe: Some(Off),
     }
@@ -91,7 +87,7 @@ let of_slide = (module_name: string): t =>
       autoprobe: Some(All),
     }
   /* Colors slide: All, plus the Hybrid scheme so the colors actually show. */
-  | "TuGen_22SampleColors" => {
+  | "TuGen_36SampleColors" => {
       ...none,
       autoprobe: Some(All),
       colors: Some(Hybrid),

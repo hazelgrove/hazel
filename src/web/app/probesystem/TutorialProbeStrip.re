@@ -55,7 +55,8 @@ let console_enabled = (flags: list(feat)) => mem(flags, Console);
 let s01 = [AddProbe];
 let s03 = s01;
 let s04 = s03 @ [SeeVars];
-let s08 = s04 @ [IconEmpty];
+let s06 = s04 @ [Resize, ExpandProbe];
+let s08 = s06 @ [IconEmpty];
 let s10 = s08 @ [SamplesToggle, NavSamples];
 let s11 = s10 @ [FocusProbe, IconOutsideFocus];
 let s12 = s11 @ [AutoProbe];
@@ -65,8 +66,7 @@ let s20 = s17 @ [Console];
 /* Legend shows only on the colors slide: color schemes are otherwise
  * Simple, so the legend would spend sidebar space explaining colors
  * that are not in use. */
-let s22 = s20 @ [Legend];
-let s24 = s20 @ [Resize, ExpandProbe];
+let s36 = s20 @ [Legend];
 
 let flags_of_slide = (module_name: string): list(feat) =>
   switch (module_name) {
@@ -74,24 +74,24 @@ let flags_of_slide = (module_name: string): list(feat) =>
   | "TuGen_02ParserAndBackpack" => s01
   | "TuGen_03Probes" => s03
   | "TuGen_04VariablesAndExploring"
-  | "TuGen_05TuplesAndRecords"
-  | "TuGen_07IfExpressions" => s04
+  | "TuGen_05TuplesAndRecords" => s04
+  | "TuGen_06BiggerValues"
+  | "TuGen_07IfExpressions" => s06
   | "TuGen_08CaseAndEmpty"
   | "TuGen_09VariantsWithData" => s08
   | "TuGen_10FunctionsAndManySamples" => s10
   | "TuGen_11AligningSamples" => s11
   | "TuGen_12AutoProbe"
   | "TuGen_14Map"
-  | "TuGen_14bWatchItBuild"
   | "TuGen_15Fold" => s12
   | "TuGen_16Pin" => s16
   | "TuGen_17StepInto"
   | "TuGen_19WritingStrings" => s17
   | "TuGen_20Print"
   | "TuGen_21DebuggingWarmup" => s20
-  | "TuGen_22SampleColors" => s22
-  | "TuGen_23GreenhouseArena" => s20
-  | "TuGen_24ModelAndUpdate" => s24
+  | "TuGen_23GreenhouseArena"
+  | "TuGen_24ModelAndUpdate" => s20
+  | "TuGen_36SampleColors" => s36
   /* Study task slides (26+): the full kit. */
   | "TuGen_26TaskGroveName"
   | "TuGen_26bTaskDewLedger"
@@ -103,7 +103,7 @@ let flags_of_slide = (module_name: string): list(feat) =>
   | "TuGen_32TaskCropPlotter"
   | "TuGen_33TaskGardenSpirit"
   | "TuGen_34TaskWateringTimer"
-  | "TuGen_35TaskWateringFormula" => s24
+  | "TuGen_35TaskWateringFormula" => s20
   /* Unlisted slides (the intro, text-only transitions) show no strip:
    * nothing has been introduced there. */
   | _ => []
@@ -117,6 +117,7 @@ let new_flags_of_slide = (module_name: string): list(feat) =>
   switch (module_name) {
   | "TuGen_01ArithmeticAndHoles" => [AddProbe]
   | "TuGen_04VariablesAndExploring" => [SeeVars]
+  | "TuGen_06BiggerValues" => [Resize, ExpandProbe]
   | "TuGen_08CaseAndEmpty" => [IconEmpty]
   | "TuGen_10FunctionsAndManySamples" => [SamplesToggle, NavSamples]
   | "TuGen_11AligningSamples" => [FocusProbe, IconOutsideFocus]
@@ -124,8 +125,7 @@ let new_flags_of_slide = (module_name: string): list(feat) =>
   | "TuGen_16Pin" => [Pin, IconPinHidden]
   | "TuGen_17StepInto" => [StepInto]
   | "TuGen_20Print" => [Console]
-  | "TuGen_22SampleColors" => [Legend]
-  | "TuGen_24ModelAndUpdate" => [Resize, ExpandProbe]
+  | "TuGen_36SampleColors" => [Legend]
   | _ => []
   };
 

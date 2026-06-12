@@ -9,6 +9,7 @@ let all : Tutorial.spec list =
     TuGen_03Probes.exercise;
     TuGen_04VariablesAndExploring.exercise;
     TuGen_05TuplesAndRecords.exercise;
+    TuGen_06BiggerValues.exercise;
     TuGen_07IfExpressions.exercise;
     TuGen_08CaseAndEmpty.exercise;
     TuGen_09VariantsWithData.exercise;
@@ -16,14 +17,12 @@ let all : Tutorial.spec list =
     TuGen_11AligningSamples.exercise;
     TuGen_12AutoProbe.exercise;
     TuGen_14Map.exercise;
-    TuGen_14bWatchItBuild.exercise;
     TuGen_15Fold.exercise;
     TuGen_16Pin.exercise;
     TuGen_17StepInto.exercise;
     TuGen_19WritingStrings.exercise;
     TuGen_20Print.exercise;
     TuGen_21DebuggingWarmup.exercise;
-    TuGen_22SampleColors.exercise;
     TuGen_23GreenhouseArena.exercise;
     TuGen_24ModelAndUpdate.exercise;
     TuGen_25TasksAhead.exercise;
@@ -38,4 +37,5 @@ let all : Tutorial.spec list =
     TuGen_33TaskGardenSpirit.exercise;
     TuGen_34TaskWateringTimer.exercise;
     TuGen_35TaskWateringFormula.exercise;
+    TuGen_36SampleColors.exercise;
   ]

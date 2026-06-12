@@ -4,13 +4,13 @@ show_report version=1 id=b0000021-0021-0021-0021-000000000021
 @prompt
 Every debugging task in the study shares one shape: a list of **actions** folded into a **model**. Here is a tiny one, and it has a bug.
 
-A bed starts at water level `100`. `Water(n)` adds `n`; `Drain` should remove `20`. The bed runs through a list of actions with `fold_left`.
+A bed starts at water level `100`. `Water(n)` adds `n`; `Drain` should remove `20`. `run` feeds a list of actions through `update` with a fold.
 
 # Task
-One test fails. The `update(bed, a)` call inside `run` is already probed (auto-probe is on): right-click its sample and choose **Step into**, then fix the bug so the tests pass. (No probe? Add one with **Cmd/Ctrl+E**.)
+The test expects the bed to end at **160**, but it ends higher. The `update(bed, a)` call inside `run` is probed (auto-probe is on): right-click its sample and choose **Step into**, then switch to *many* mode (**Space**) and walk the level action by action. Find the action that moves it the wrong way, and fix `update` so the test passes.
 
 @hint
-Walk the levels from 100. Which action changes it in the wrong direction?
+From 100, the levels should read 150, 130, 160. Find where they bend upward instead.
 
 @reference
 ### Folding actions into a model
@@ -32,15 +32,14 @@ let update(bed: Bed, action: Action): Bed =
   end
 in
 let run(actions: [Action]): Bed =
-  fold_left(actions, fun (bed, a) -> update(bed, a), (level = 100))
+  fold_left(actions,
+    fun (bed, a) -> update(bed, a),
+    (level = 100))
 in
 test
-  update((level = 100), Drain)
-   == (level=80)
+  run([Water(50), Drain, Water(30)])
+    == (level = 160)
 end
 
 @test
-test
-  update((level = 100), Drain)
-   == (level=80)
-end;
+0

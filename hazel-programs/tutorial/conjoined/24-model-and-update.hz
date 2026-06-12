@@ -4,21 +4,20 @@ version=1 id=b0000024-0024-0024-0024-000000000024
 @prompt
 # Models, actions, and bigger values
 
-Some debugging tasks will be structured as the internal part of a Model-View-Update GUI application. A **model** is a record representing the program's state. An **action** describes a state change. An **update** function takes a model and an action and returns the next model. Typically, a fold threads the model through a list of actions.
+Some debugging tasks are structured as the internal part of a Model-View-Update GUI application. A **model** is a record representing the program's state. An **action** describes a state change. An **update** function takes a model and an action and returns the next model, and a fold threads the model through a list of actions, just like the warmup.
 
-The model below is a `Ledger`: a record with a list of records inside. Large values can overflow a probe's sample slot, so we have two approaches to giving samples more space.
+The model here is a `Ledger`: a record with a list of records inside, growing as actions arrive. It is the biggest value yet, so this is also a slide about giving samples room.
 
 **Try this**
-1. The final `fold_left` is probed (auto-probe is on). Its sample holds the finished `Ledger`, clipped to fit inline.
-2. When you only need a little more space, **Resize** it: click the sample, then **Shift+←/→** (or drag it wider).
-3. When you need much more: **expand** the probe into the drawer with **Cmd/Ctrl+↓**. The value unfolds across rows; **Cmd/Ctrl+↑** folds it back. Which harvest in the ledger is worth the most?
-4. **Step into** `update` from its sample and switch to *many* mode: note the ledger grows per-action.
-5. Resize and expand are now in the Quick Reference in the sidebar, along with keyboard shortcuts for everything here.
+1. The `update(ledger, a)` call in the final fold is probed (auto-probe is on). Right-click its sample and **Step into**, then switch to *many* mode (**Space**): one ledger per action.
+2. In many mode the samples share the row, so each ledger is squeezed small. Press **Space** again for single mode and walk with **←/→** instead: each ledger gets the whole width. Squeezed-but-together versus roomy-but-one-at-a-time; pick per question.
+3. For the whole ledger at once, unfold a sample into the drawer (**Cmd/Ctrl+↓**; **Cmd/Ctrl+↑** folds it back). Watch the harvest list grow action by action. Which harvest is worth the most?
 
 @reference
 ### Reading values
-- **Resize a sample**: focus it, then **Shift+←/→**, or drag it wider.
-- **Expand a probe**: **Cmd/Ctrl+↓** for more rows, **Cmd/Ctrl+↑** for fewer (or click the **⌄**).
+- **Many mode** shows all samples at once, each squeezed; **single mode** (←/→) gives one sample the full width.
+- **Resize a sample**: click it, then **Shift+←/→**, or drag its edge.
+- **Drawer**: **Cmd/Ctrl+↓** unfolds a sample across rows; **Cmd/Ctrl+↑** folds it back.
 
 @code
 type Quality = Bronze + Silver + Gold + Starlight in
@@ -59,4 +58,6 @@ let nightly = [
   Record((crop = "nightshade", quality = Starlight, quantity = 3)),
   CloseDay
 ] in
-fold_left(nightly, fun (ledger, a) -> update(ledger, a), start)
+fold_left(nightly,
+  fun (ledger, a) -> update(ledger, a),
+  start)

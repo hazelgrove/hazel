@@ -6,12 +6,12 @@ There is a 🐛 in the garden data. One test fails because of it, and with ten c
 
 **Try this**
 1. Auto-probe is on, so `make_label` is already probed. Click inside it and try *many* mode (**Space**): ten calls, so ten samples per line.
-2. Find the test marked FAILING. Probe its `make_label` call, right-click the sample, and choose **Pin this call** (or press `P`; now in the Quick Reference).
-3. Back inside `make_label`: every probe now shows only that call's run. Can you spot the 🐛 now? Fix the plant data so the test passes.
-4. A **⍟** elsewhere marks samples hidden by your pin; clicking it unpins.
+2. Find the failing test (the ✗). Probe its `make_label` call, right-click the sample, and choose **Pin this call** (or press `P`; now in the Quick Reference).
+3. Back inside `make_label`, every probe now shows just that call's run. Read the `header` sample.
+4. Fix the plant data so the test passes. A **⍟** elsewhere marks samples hidden by your pin; clicking it unpins.
 
 @hint
-The rose's icon in the plant data is not a rose.
+The failing test expects a 🌹.
 
 @reference
 ### Pin
@@ -28,7 +28,7 @@ cactus label, 14 days
 lily label, 7 days
 lily label, 3 days
 daisy label, 7 days
-FAILING: rose label, 7 days
+rose label, 7 days
 
 @code
 type Plant = (
@@ -63,12 +63,9 @@ test make_label(cactus, 14) == "🍄 Cactus: 700ml/14d" end;
 test make_label(lily, 7) == "☘️ Lily: 1400ml/7d" end;
 test make_label(lily, 3) == "☘️ Lily: 600ml/3d" end;
 test make_label(daisy, 7) == "🌱 Daisy: 1120ml/7d" end;
-
-# vvv This test is FAILING vvv #
 test
   make_label(rose, 7)
   == "🌹 Rose: 1330ml/7d" end
-# ^^^ This test is FAILING ^^^ #
 
 @test
 0

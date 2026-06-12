@@ -2,17 +2,17 @@
 show_report version=1 id=b0000004-0004-0004-0004-000000000004
 
 @prompt
-Probes produce **samples**, the green rectangles to the right of the code. Right-click a sample to see the **variables feeding it**.
+Probes produce **samples**, the green rectangles at the end of the line. Right-click a sample to see the **variables feeding it**.
 
 # Task
-The weekly watering should come to **1800 ml**, but it is off; perhaps the bonus is set wrong. The total is built from a base amount, the days in a week, and a new-moon bonus. Add probes as needed; for example:
+The almanac is clear: a base of **250 ml**, **7** days, and a **50 ml** new-moon bonus, for a weekly total of **1800 ml**.
 
-1. Put your cursor on the `+` in `base * days + bonus` (the `weekly` definition) and press **Cmd/Ctrl+E** to probe it. Should show `1755`.
-2. **Right-click that sample** (a two-finger tap on a Mac trackpad, or Option-click). The dropdown lists every external variable the probed expression depends on: `base`, `days`, and `bonus` (now in the Quick Reference).
-3. One of them is wrong. Fix it so `weekly` is **1800**.
+1. Probe the `weekly` definition: cursor on the `+`, then **Cmd/Ctrl+E**. The sample does not read 1800. Either the formula is wrong, or one of the numbers feeding it is.
+2. Check the inputs first: **right-click the sample** (a two-finger tap on a Mac trackpad, or Option-click). The dropdown lists the value of every variable the probed expression uses (now in the Quick Reference).
+3. Compare those values against the almanac. Fix the binding that is off, and `weekly` comes to **1800**.
 
 @hint
-The new-moon bonus should be 50.
+The dropdown shows `base`, `days`, and `bonus` next to their values. One of them does not match the almanac.
 
 @reference
 ### Probes
@@ -20,12 +20,12 @@ The new-moon bonus should be 50.
 - **See the variables**: right-click a sample (or Option-click) for the values feeding it
 
 @hints
-Bonus should be 50.
+weekly should be 1800
 
 @code
 let base = 250 in
 let days = 7 in
-let bonus = 5 in
+let bonus = base / 50 in
 let weekly = base * days + bonus in
 weekly == 1800
 
