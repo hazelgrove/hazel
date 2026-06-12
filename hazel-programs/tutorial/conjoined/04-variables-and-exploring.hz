@@ -2,13 +2,13 @@
 show_report version=1 id=b0000004-0004-0004-0004-000000000004
 
 @prompt
-Recall the distinction: the **probe** is the green underline marking an expression; its values appear as **samples**, the green rectangles to the right of the code. Right-click a sample and you also see the **variables feeding it** in a dropdown.
+Right-click a **sample** and a dropdown shows the **variables feeding it**.
 
 # Task
 The weekly watering should come to **1800 ml**, but it is off; perhaps the bonus is set wrong. The total is built from a base amount, the days in a week, and a new-moon bonus. Add probes as needed; for example:
 
 1. Put your cursor on the `+` in `base * days + bonus` (the `weekly` definition) and press **Cmd/Ctrl+E** to probe it. Should show `1755`.
-2. **Right-click that sample** (a two-finger tap on a Mac trackpad, or Option-click). The dropdown lists every external variable the probed expression depends on: `base`, `days`, and `bonus`. This command is now in the Quick Reference.
+2. **Right-click that sample** (a two-finger tap on a Mac trackpad, or Option-click). The dropdown lists every external variable the probed expression depends on: `base`, `days`, and `bonus` (now in the Quick Reference).
 3. One of them is wrong. Fix it so `weekly` is **1800**.
 
 @hint
