@@ -619,6 +619,7 @@ svg:has(.child-line) {
   color: var(--menu-item-text);
   cursor: pointer;
   gap: 0.5em;
+  white-space: nowrap;
 }
 .context-menu .group .contents .named-menu-item {
   padding: 0.05em 0.5em 0.05em 0.7em;
