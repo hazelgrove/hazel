@@ -1857,3 +1857,17 @@ let builtins: list(hazel_fn) = [
     },
   },
 ];
+
+/* Exposed labels for the builtin Jq module: drop the jq_ prefix, with
+ * renames where the bare name would collide with a keyword (type) or
+ * stutter (jq/jq1 -> run/run1). */
+let label_of_name = (name: string): string =>
+  switch (name) {
+  | "jq" => "run"
+  | "jq1" => "run1"
+  | "jq_type" => "type_"
+  | _ => String.sub(name, 3, String.length(name) - 3)
+  };
+
+let members: list((string, hazel_fn)) =
+  List.map((f: hazel_fn) => (label_of_name(f.name), f), builtins);

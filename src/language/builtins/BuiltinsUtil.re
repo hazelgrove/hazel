@@ -25,11 +25,25 @@ type hazel_fn = {
   imp: Exp.t,
 };
 
+/* A builtin module: exposed as a single variable bound to a labeled tuple
+ * of members (the runtime representation of baby modules). Members are
+ * (label, hazel_fn) pairs; the label is the name projected via dot access
+ * (e.g. Jq.select), while hazel_fn.name is the internal let-bound name used
+ * for member-to-member references, kept distinct from the labels so members
+ * don't shadow global builtins within the module's let-chain. Members may
+ * only reference members defined earlier in the list. */
+[@deriving (show({with_path: false}), sexp)]
+type hazel_module = {
+  name: string,
+  members: list((string, hazel_fn)),
+};
+
 [@deriving (show({with_path: false}), sexp)]
 type builtin =
   | Const(const)
   | Fn(fn)
-  | HazelFn(hazel_fn);
+  | HazelFn(hazel_fn)
+  | HazelModule(hazel_module);
 
 [@deriving (show({with_path: false}), sexp)]
 type forms = VarMap.t_(DHExp.t => option(DHExp.t));
@@ -39,6 +53,20 @@ module Fresh = IdTagged.FreshGrammar;
 let fn_builtin = x => Fn(x);
 let const_builtin = x => Const(x);
 let hazel_fn_builtin = x => HazelFn(x);
+let module_builtin = (x: hazel_module) => HazelModule(x);
+
+/* The type of a builtin module: a labeled product of its members. */
+let module_typ = ({members, _}: hazel_module): TermBase.typ_t =>
+  Fresh.Typ.prod(
+    List.map(
+      ((label, member: hazel_fn)) =>
+        Fresh.Typ.tup_label(
+          Fresh.Typ.label(label),
+          Fresh.Typ.arrow(Typ.fresh(member.arg), Typ.fresh(member.ret)),
+        ),
+      members,
+    ),
+  );
 
 let ctx_entry_of_builtin: builtin => Ctx.entry =
   fun
@@ -62,6 +90,13 @@ let ctx_entry_of_builtin: builtin => Ctx.entry =
       typ: Fresh.Typ.arrow(Typ.fresh(arg), Typ.fresh(ret)),
       id: Id.invalid,
       custom_statics: None,
+    })
+  | HazelModule({name, _} as m) =>
+    Ctx.VarEntry({
+      name,
+      typ: module_typ(m),
+      id: Id.invalid,
+      custom_statics: None,
     });
 
 let form_of_builtin:
@@ -69,19 +104,44 @@ let form_of_builtin:
   fun
   | Const(_) => None
   | Fn({name, imp, _}) => Some((name, imp))
-  | HazelFn(_) => None;
+  | HazelFn(_) => None
+  | HazelModule(_) => None;
 
 let imp_of_builtin: builtin => (string, TermBase.exp_t) =
   fun
   | Const({name, imp, _}) => (name, imp)
   | HazelFn({name, imp, _}) => (name, imp)
-  | Fn({name, _}) => (name, Fresh.Exp.builtin_fun(name));
+  | Fn({name, _}) => (name, Fresh.Exp.builtin_fun(name))
+  | HazelModule({name, members}) => {
+      /* Mirror the elaborated form of a module literal: a let-chain of the
+       * members ending in a labeled tuple of their values. */
+      let tuple_exp =
+        Fresh.Exp.tuple(
+          List.map(
+            ((label, member: hazel_fn)) =>
+              Fresh.Exp.tup_label(
+                Fresh.Exp.label(label),
+                Fresh.Exp.var(member.name),
+              ),
+            members,
+          ),
+        );
+      let chain =
+        List.fold_right(
+          ((_, member: hazel_fn), acc) =>
+            Fresh.Exp.let_(Fresh.Pat.var(member.name), member.imp, acc),
+          members,
+          tuple_exp,
+        );
+      (name, chain);
+    };
 
 let name_of_builtin: builtin => string =
   fun
   | Const({name, _})
   | Fn({name, _})
-  | HazelFn({name, _}) => name;
+  | HazelFn({name, _})
+  | HazelModule({name, _}) => name;
 
 exception BuiltinAlreadyDefined(Var.t);
 
