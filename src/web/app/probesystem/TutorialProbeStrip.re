@@ -55,12 +55,12 @@ let console_enabled = (flags: list(feat)) => mem(flags, Console);
 let s01 = [AddProbe];
 let s03 = s01;
 let s04 = s03 @ [SeeVars];
-let s06 = s04 @ [Resize, ExpandProbe];
-let s08 = s06 @ [IconEmpty];
+let s08 = s04 @ [IconEmpty];
 let s10 = s08 @ [SamplesToggle, NavSamples];
 let s11 = s10 @ [FocusProbe, IconOutsideFocus];
 let s12 = s11 @ [AutoProbe];
-let s16 = s12 @ [Pin, IconPinHidden];
+let s13 = s12 @ [Resize, ExpandProbe];
+let s16 = s13 @ [Pin, IconPinHidden];
 let s17 = s16 @ [StepInto];
 let s20 = s17 @ [Console];
 /* Legend shows only on the colors slide: color schemes are otherwise
@@ -74,16 +74,16 @@ let flags_of_slide = (module_name: string): list(feat) =>
   | "TuGen_02ParserAndBackpack" => s01
   | "TuGen_03Probes" => s03
   | "TuGen_04VariablesAndExploring"
-  | "TuGen_05TuplesAndRecords" => s04
-  | "TuGen_06BiggerValues"
-  | "TuGen_07IfExpressions" => s06
+  | "TuGen_05TuplesAndRecords"
+  | "TuGen_07IfExpressions" => s04
   | "TuGen_08CaseAndEmpty"
   | "TuGen_09VariantsWithData" => s08
   | "TuGen_10FunctionsAndManySamples" => s10
   | "TuGen_11AligningSamples" => s11
-  | "TuGen_12AutoProbe"
+  | "TuGen_12AutoProbe" => s12
+  | "TuGen_13BiggerValues"
   | "TuGen_14Map"
-  | "TuGen_15Fold" => s12
+  | "TuGen_15Fold" => s13
   | "TuGen_16Pin" => s16
   | "TuGen_17StepInto"
   | "TuGen_19WritingStrings" => s17
@@ -117,7 +117,7 @@ let new_flags_of_slide = (module_name: string): list(feat) =>
   switch (module_name) {
   | "TuGen_01ArithmeticAndHoles" => [AddProbe]
   | "TuGen_04VariablesAndExploring" => [SeeVars]
-  | "TuGen_06BiggerValues" => [Resize, ExpandProbe]
+  | "TuGen_13BiggerValues" => [Resize, ExpandProbe]
   | "TuGen_08CaseAndEmpty" => [IconEmpty]
   | "TuGen_10FunctionsAndManySamples" => [SamplesToggle, NavSamples]
   | "TuGen_11AligningSamples" => [FocusProbe, IconOutsideFocus]

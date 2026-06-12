@@ -57,7 +57,6 @@ let of_slide = (module_name: string): t =>
   | "TuGen_03Probes"
   | "TuGen_04VariablesAndExploring"
   | "TuGen_05TuplesAndRecords"
-  | "TuGen_06BiggerValues"
   | "TuGen_07IfExpressions"
   | "TuGen_08CaseAndEmpty"
   | "TuGen_09VariantsWithData"
@@ -66,6 +65,13 @@ let of_slide = (module_name: string): t =>
   | "TuGen_12AutoProbe" => {
       ...none,
       autoprobe: Some(Off),
+    }
+  /* Bigger values: one hand-placed probe with three calls, starting in
+   * many mode so the squeeze (and the three remedies) is the lesson. */
+  | "TuGen_13BiggerValues" => {
+      ...none,
+      autoprobe: Some(Off),
+      samples: Some(Many),
     }
   /* Print: everything off so the print console is the focus. */
   | "TuGen_20Print" => {

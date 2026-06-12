@@ -9,13 +9,13 @@ let all : Tutorial.spec list =
     TuGen_03Probes.exercise;
     TuGen_04VariablesAndExploring.exercise;
     TuGen_05TuplesAndRecords.exercise;
-    TuGen_06BiggerValues.exercise;
     TuGen_07IfExpressions.exercise;
     TuGen_08CaseAndEmpty.exercise;
     TuGen_09VariantsWithData.exercise;
     TuGen_10FunctionsAndManySamples.exercise;
     TuGen_11AligningSamples.exercise;
     TuGen_12AutoProbe.exercise;
+    TuGen_13BiggerValues.exercise;
     TuGen_14Map.exercise;
     TuGen_15Fold.exercise;
     TuGen_16Pin.exercise;
