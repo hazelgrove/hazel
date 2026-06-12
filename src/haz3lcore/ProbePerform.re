@@ -9,7 +9,8 @@ open Language;
  * FocusEffect.* (Main.re's after_display hook, etc.). */
 module FocusEffect = FocusEffect;
 
-let rec target_subterm_ids = (id: Id.t, info_map: Statics.Map.t) =>
+let rec target_subterm_ids =
+        (~drill_let=true, id: Id.t, info_map: Statics.Map.t) =>
   switch (Statics.Map.lookup(id, info_map)) {
   /* If we're trying to probe a function literal,
      put probes on parameters and body instead */
@@ -17,11 +18,18 @@ let rec target_subterm_ids = (id: Id.t, info_map: Statics.Map.t) =>
       IdTagged.rep_id(body),
       IdTagged.rep_id(pat),
     ]
-  | Some(InfoExp({user_term: {term: Let(pat, def, _), _} as let_term, _})) =>
+  | Some(InfoExp({user_term: {term: Let(pat, def, _), _} as let_term, _}))
+      when drill_let =>
     /* If trying to probe a let, probe the definition instead.
        Exception: if the let is the body of a test, probe the let itself
        (so we see the test result, not just the definition value).
-       Recurse so that if def is a fun literal, the above case will get it */
+       Recurse so that if def is a fun literal, the above case will get it.
+       The recursion disables let-drilling: narrowing exists so a probe on
+       `let x = def in <scope>` doesn't cover the whole scope, but a def
+       that is itself a let chain (e.g. a function body
+       `let adjust = ... in base + adjust`) is self-contained and must be
+       anchored whole, or the chain's header and tail rows lose their
+       multi-probes. */
     let is_test_body =
       switch (
         Statics.Map.parent_term_of(info_map, IdTagged.rep_id(let_term))
@@ -32,7 +40,8 @@ let rec target_subterm_ids = (id: Id.t, info_map: Statics.Map.t) =>
     if (is_test_body) {
       [IdTagged.rep_id(let_term)];
     } else {
-      let def_targets = target_subterm_ids(IdTagged.rep_id(def), info_map);
+      let def_targets =
+        target_subterm_ids(~drill_let=false, IdTagged.rep_id(def), info_map);
       /* Function-definition sugar (`let f(args) = body`) keeps the
          parameters in the surface binder `Ap(Var(f), args)`, which lives
          on the header line(s) outside the def body's row range. Anchor the

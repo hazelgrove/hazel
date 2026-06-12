@@ -569,6 +569,24 @@ in f(1, 2)         # no probe #|},
   x + 1            # x + 1 #
 in f(1)            # no probe #|},
   ),
+  /* Repro: slide-11 shape — sugar definition whose body is a
+   * multi-line let chain ending in a binop tail. The tail line
+   * (base + adjust) must get a probe. */
+  test_probe_placement(
+    ~name="Sugar with let-chain body - probe chain tail",
+    ~code=
+      {|let f(             # no probe #
+  base: Int,       # base: Int #
+  phase: Bool): Int =  # phase: Bool #
+  let adjust =     # adjust #
+    case phase     # phase #
+    | true => 50   # 50 #
+    | false => 0   # 0 #
+    end            # case phase | true => 50 | false => 0 end #
+  in
+  base + adjust    # base + adjust #
+in f(1, true)      # no probe #|},
+  ),
 ];
 
 let tests = [
