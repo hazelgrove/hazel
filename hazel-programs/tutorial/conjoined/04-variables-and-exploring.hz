@@ -2,7 +2,7 @@
 show_report version=1 id=b0000004-0004-0004-0004-000000000004
 
 @prompt
-Right-click a **sample** and a dropdown shows the **variables feeding it**.
+Probes produce **samples**, the green rectangles to the right of the code. Right-click a sample to see the **variables feeding it**.
 
 # Task
 The weekly watering should come to **1800 ml**, but it is off; perhaps the bonus is set wrong. The total is built from a base amount, the days in a week, and a new-moon bonus. Add probes as needed; for example:

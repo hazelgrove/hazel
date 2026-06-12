@@ -4,8 +4,8 @@ version=1 id=b0000003-0003-0003-0003-000000000003
 @prompt
 
 **Try this**
-1. Probe `weekly` on the first line (**Cmd/Ctrl+E**). A sample with the subtotal `1750` appears.
-2. There is at most **one probe per line**. On the first line, try probing `250`, then `250 * 7`. The new probe replaces the old.
+1. Probe `weekly` on the first line (**Cmd/Ctrl+E**). A **sample** appears at the end of the line with the subtotal `1750`.
+2. There is at most **one probe per line**. On the first line, try probing `250`, then `250 * 7`. The new probe replaces the old; the green underline shows which expression is probed.
 3. Probe `weekly + 50` on the second line too. Since it is a different line, both probes show at once.
 4. Remove a probe the same way you add one: put the cursor on its expression and press **Cmd/Ctrl+E** again (or use the context menu). Clicking the sample and pressing the same shortcut also works.
 
