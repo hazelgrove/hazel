@@ -2,7 +2,7 @@
 version=1 id=b0000010-0010-0010-0010-000000000010
 
 @prompt
-So far you've placed probes by hand. Who has time for that?? **Auto-probe** mode automatically places probes on each line, generally on expression which ends closet to the end of that line. It uses the same logic as multi-probes from before, just applied to the whole program.
+So far you've placed probes by hand. Who has time for that?? **Auto-probe** mode automatically places probes on each line, generally on the expression which ends closest to the end of that line. It uses the same logic as multi-probes from before, just applied to the whole program.
 
 Turn it on with **Cmd/Ctrl+P**, or click `All` on the **Auto Probe** toggle at the top of the Task Reference sidebar.
 
