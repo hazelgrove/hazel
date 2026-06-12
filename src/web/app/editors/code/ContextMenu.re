@@ -17,7 +17,7 @@ open Node;
 module Model = Menu;
 
 /* Menu dimensions for viewport calculations */
-let menu_height_estimate = 200.0; /* px */
+let menu_height_estimate = 260.0; /* px */
 let menu_width_estimate = 180.0; /* px - based on min-width: 160px + padding */
 
 /* CSS class for the editor menu's open direction. The column menu has its
@@ -70,10 +70,13 @@ module Shortcuts = {
   let livelit = () => Os.is_mac^ ? "⌥L" : "Alt+L";
   let introduce = () => Os.is_mac^ ? "⌘I" : "Ctrl+I";
   let select_current_term = () => Os.is_mac^ ? "⌘D" : "Ctrl+D";
+  let cut = () => Os.is_mac^ ? "⌘X" : "Ctrl+X";
+  let copy = () => Os.is_mac^ ? "⌘C" : "Ctrl+C";
+  let paste = () => Os.is_mac^ ? "⌘V" : "Ctrl+V";
 };
 
-let action_item = (~shortcut=?, ~tooltip=?, label, action) =>
-  Menu.action_item(~decoration=?shortcut, ~tooltip?, label, action);
+let action_item = (~shortcut=?, ~tooltip=?, ~enabled=true, label, action) =>
+  Menu.action_item(~decoration=?shortcut, ~tooltip?, ~enabled, label, action);
 
 let probe_data =
     (
@@ -191,6 +194,29 @@ let introduce_data =
     ]
   | _ => []
   };
+
+/* Cut/Copy/Paste rows. Dispatch goes through CodeEditable's
+ * clipboard-aware inject: Copy/Cut write the system clipboard before
+ * the action is performed, and Paste's empty payload is a placeholder
+ * replaced via an async system-clipboard read at dispatch time. */
+let clipboard_data = (z: Zipper.t): list(Menu.item(Action.t)) => {
+  let has_selection = !Selection.is_empty(z.selection);
+  [
+    action_item(
+      ~shortcut=Shortcuts.cut(),
+      ~enabled=has_selection,
+      "Cut",
+      Action.Cut,
+    ),
+    action_item(
+      ~shortcut=Shortcuts.copy(),
+      ~enabled=has_selection,
+      "Copy",
+      Action.Copy,
+    ),
+    action_item(~shortcut=Shortcuts.paste(), "Paste", Action.Paste("")),
+  ];
+};
 
 let select_current_term_data = (): list(Menu.item(Action.t)) => [
   action_item(
@@ -375,11 +401,13 @@ let get_sections =
   [
     /* Section 1: Navigation & Selection */
     jump_to_binding_data(ci) @ select_current_term_data(),
-    /* Section 2: Refactoring */
+    /* Section 2: Clipboard */
+    clipboard_data(z),
+    /* Section 3: Refactoring */
     introduce_data(ci),
-    /* Section 3: Probes/Statics (refractors) */
+    /* Section 4: Probes/Statics (refractors) */
     refractor_actions_data(~ci, info_map, z),
-    /* Section 4: Projectors (fold, livelits) */
+    /* Section 5: Projectors (fold, livelits) */
     Projectors.actions_data(z, info_map, ~elaborated),
   ]
   |> List.filter(section => section != []);
