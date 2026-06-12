@@ -1,5 +1,5 @@
 @flags
-show_report version=1 id=b0000004-0004-0004-0004-000000000004
+show_report version=1 id=e0000004-0004-0004-0004-000000000004
 
 @prompt
 Probes produce **samples**, the green rectangles at the end of the line. Right-click a sample to see the **variables feeding it**.
