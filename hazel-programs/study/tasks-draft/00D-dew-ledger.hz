@@ -15,7 +15,7 @@ type Action =
   + Spill         # an accident: half the loose drops are lost #
 in
 
-# Read the types above, then find the test marked FAILING below. #
+# Read the types above, then find the failing test (✗) below. #
 
 let init : Model = (dew = 0, jars = 0) in
 
@@ -55,11 +55,9 @@ test
   m.dew == 2 && m.jars == 2
 end;
 
-# vvv This test is FAILING vvv #
 hint "a spill loses half the loose drops"
 test
   let morning = (dew = 8, jars = 2) in
   let m = update(morning, Spill) in
   m.dew == 4 && m.jars == 2
 end
-# ^^^ This test is FAILING ^^^ #

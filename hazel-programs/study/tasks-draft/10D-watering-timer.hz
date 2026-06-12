@@ -3,7 +3,7 @@
 # Under an hour: "45m". An hour or more: "1h 30m", with    #
 # the minutes always two digits.                           #
 
-# Find the test marked FAILING below. #
+# Find the failing test (✗) below. #
 
 # Two-digit minutes: 5 becomes "05" #
 let pad : Int -> String = fun n ->
@@ -53,9 +53,7 @@ test
   schedule([15, 90]) == ["15m", "1h 30m"]
 end;
 
-# vvv This test is FAILING vvv #
 hint "the morning schedule"
 test
   schedule([20, 60, 100]) == ["20m", "1h 00m", "1h 40m"]
 end
-# ^^^ This test is FAILING ^^^ #

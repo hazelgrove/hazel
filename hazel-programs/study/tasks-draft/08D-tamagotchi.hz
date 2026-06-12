@@ -288,7 +288,6 @@ test
   m.evolution == Wilted
 end;
 
-# vvv This test is FAILING vvv #
 hint "moderate care with some neglect becomes bloom"
 test
   let model = (
@@ -301,4 +300,3 @@ test
   let result = update(model, TimeTick) in
   result.evolution == Bloom
 end
-# ^^^ This test is FAILING ^^^ #

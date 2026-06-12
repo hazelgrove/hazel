@@ -228,7 +228,6 @@ test
   ledger.streakBonus == 10
 end;
 
-# vvv This test is FAILING vvv #
 hint "different quality resets streak"
 test
   let h1 = (crop = Moonmelon, quality = Bronze, quantity = 1) in
@@ -236,7 +235,6 @@ test
   let ledger = run(initModel, [RecordHarvest(h1), RecordHarvest(h2)]) in
   ledger.streakBonus == 0
 end;
-# ^^^ This test is FAILING ^^^ #
 
 # Claim bonus tests #
 hint "claiming bonus adds to total"

@@ -51,7 +51,7 @@ type Action =
 in
 
 # Read the types and comments above to get a feel for the program, #
-# then scroll down to the tests and find the one marked FAILING. #
+# then scroll down to the tests and find the failing one (✗). #
 
 let isPlanted : Cell -> Bool =
   fun cell ->
@@ -280,7 +280,6 @@ test
   !isPlanted(cell)
 end;
 
-# vvv This test is FAILING vvv #
 hint "multiple waterings progress through stages"
 test
   let m = run(initModel, [
@@ -290,7 +289,6 @@ test
   let cell = getCell(m.field, 0, 0) in
   getStage(cell) == ReadyToHarvest
 end;
-# ^^^ This test is FAILING ^^^ #
 
 hint "cannot harvest immature crops"
 test

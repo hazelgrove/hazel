@@ -4,19 +4,19 @@ show_report version=1 id=d0000027-0027-0027-0027-000000000027
 @prompt
 # Task: The moonlit field
 
-This program models a field of crops on a grid: actions plant, water, and harvest them. One test, marked **FAILING**, does not pass. Find and fix the bug.
+This program models a field of crops on a grid: actions plant, water, and harvest them. One test does not pass. Find and fix the bug.
 
 Use probes however you like: place them by hand or turn on auto-probe (Cmd/Ctrl+P). The sidebar has a suggested approach.
 
 @hint
-Start from the FAILING test and trace the wrong value backwards: probe the run, pin it, step into update.
+Start from the failing test and trace the wrong value backwards: probe the run, pin it, step into update.
 
 @reference
 ### Approach (debugging tasks)
 1. Read the comment block at the top: what does this program do?
 2. Find the **Model** type and read it. Follow any type aliases it mentions.
 3. Read the **Action** type: the operations the program supports.
-4. Scroll to the test marked **FAILING**. Read what it asserts.
+4. Scroll to the failing test (the ✗). Read what it asserts.
 5. Investigate however you like. Some options:
    - Auto-probe (Cmd/Ctrl+P) and read values near the failing test, or place probes where you suspect trouble.
    - Probe the failing test's `run` call and **pin** it (right-click the sample, *Pin this call*), then trace the wrong value backwards.
@@ -32,7 +32,7 @@ can plant multiple crops
 watering advances planted crops
 watering advances all crops simultaneously
 watering does not affect empty cells
-FAILING: multiple waterings progress through stages
+multiple waterings progress through stages
 cannot harvest immature crops
 PassDay increments day count
 

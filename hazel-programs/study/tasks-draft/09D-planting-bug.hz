@@ -22,7 +22,7 @@ type Action =
   + PlantRow(Row)        # Fill a whole row with currentSeed #
 in
 
-# Read the types above, then find the test marked FAILING below. #
+# Read the types above, then find the failing test (✗) below. #
 
 let init: Model = (
   grove = [
@@ -162,7 +162,6 @@ test
   ]
 end;
 
-# vvv This test is FAILING vvv #
 hint "plant in a specific cell"
 test
   let m = do(init, [SelectSeed(4), PlantSeed(1, 2)]) in
@@ -172,7 +171,6 @@ test
     ["", "", ""]
   ]
 end;
-# ^^^ This test is FAILING ^^^ #
 
 hint "complex sequence"
 test

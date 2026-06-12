@@ -217,7 +217,6 @@ test
   p.soil.n > depleted.soil.n
 end;
 
-# vvv This test is FAILING vvv #
 hint "nightshade restores nitrogen significantly"
 test
   let depleted = (
@@ -228,7 +227,6 @@ test
   let p = farm(depleted, [Plant(Nightshade), Harvest]) in
   p.soil.n >= 45
 end;
-# ^^^ This test is FAILING ^^^ #
 
 hint "starfruit depletes all nutrients moderately"
 test
