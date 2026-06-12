@@ -31,9 +31,11 @@ let all : Tutorial.spec list =
     TuGen_26bTaskDewLedger.exercise;
     TuGen_27TaskGrowthPlotter.exercise;
     TuGen_28TaskLogCleaner.exercise;
-    TuGen_29TaskNutrientRotation.exercise;
+    TuGen_29TaskPlantingBug.exercise;
     TuGen_30TaskRunningSum.exercise;
     TuGen_31TaskHarvestStreak.exercise;
     TuGen_32TaskCropPlotter.exercise;
     TuGen_33TaskGardenSpirit.exercise;
+    TuGen_34TaskWateringTimer.exercise;
+    TuGen_35TaskWateringFormula.exercise;
   ]

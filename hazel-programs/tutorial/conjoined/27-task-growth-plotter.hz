@@ -4,7 +4,7 @@ show_report version=1 id=d0000027-0027-0027-0027-000000000027
 @prompt
 # Task: The moonlit field
 
-A field of crops, planted and watered by actions. Something has stopped growing: one test, marked **FAILING**, shows it. Find and fix the bug.
+This program models a field of crops on a grid: actions plant, water, and harvest them. One test, marked **FAILING**, does not pass. Find and fix the bug.
 
 Use probes however you like: place them by hand or turn on auto-probe (Cmd/Ctrl+P). The sidebar has a suggested approach.
 

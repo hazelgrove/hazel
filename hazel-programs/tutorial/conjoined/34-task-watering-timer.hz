@@ -1,0 +1,34 @@
+@flags
+show_report version=1 id=d0000036-0036-0036-0036-000000000036
+
+@prompt
+# Task: The watering timer
+
+A small text formatter: durations in minutes become text like `45m` or `1h 30m`. One test, marked **FAILING**, does not pass. Find and fix the bug.
+
+The failing test formats a whole schedule, and only one entry comes out wrong. Probes can show you which: probe inside `schedule` or `format` and switch to *many* mode to compare every entry side by side.
+
+@hint
+In many mode, find the schedule entry whose output looks wrong, then check how format decides between its two branches for that input.
+
+@reference
+### Approach (debugging tasks)
+1. Read the comment block at the top: what should the output look like?
+2. Scroll to the test marked **FAILING**. Read what it asserts.
+3. Probe inside `format` and switch to *many* mode (Space): one sample per formatted duration. Which input goes wrong?
+4. Trace that input through the function: which branch does it take, and which should it take?
+
+@hints
+short durations show minutes only
+very short durations work too
+an hour and a half
+minutes are padded to two digits
+exact hours show zero minutes
+a schedule formats every entry
+FAILING: the morning schedule
+
+@code
+{{include:hazel-programs/study/tasks-draft/10D-watering-timer.hz}}
+
+@test
+0

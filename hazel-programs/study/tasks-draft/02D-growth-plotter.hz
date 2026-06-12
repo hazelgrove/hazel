@@ -192,18 +192,6 @@ let run : (Model, [Action]) -> Model =
     fold_left(actions, fun (m, a) -> update(m, a), model)
 in
 
-# Count cells at a specific stage #
-let countAtStage : (Field, GrowthStage) -> Int =
-  fun (field, targetStage) ->
-    fold_left(field, fun (acc, row) ->
-      acc + fold_left(row, fun (acc2, cell) ->
-        if isPlanted(cell) && getStage(cell) == targetStage
-        then acc2 + 1
-        else acc2
-      , 0)
-    , 0)
-in
-
 # Count all planted crops #
 let countPlanted : Field -> Int =
   fun field ->
@@ -212,10 +200,6 @@ let countPlanted : Field -> Int =
         if isPlanted(cell) then acc2 + 1 else acc2
       , 0)
     , 0)
-in
-
-let countHarvestable : Field -> Int =
-  fun field -> countAtStage(field, ReadyToHarvest)
 in
 
 let getCropKind : Cell -> CropKind =

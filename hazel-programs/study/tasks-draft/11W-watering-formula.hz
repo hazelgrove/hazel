@@ -1,0 +1,35 @@
+# Watering Formula #
+# The greenhouse computes each plant's daily water from a   #
+# formula, but the two constants were lost. The tests below #
+# are measurements from healthy plants: recover the          #
+# constants so every measurement matches.                    #
+
+type Plant = (leaves = Int, fullSun = Bool) in
+
+# The lost constants #
+let base : Int = ¿ in
+let perLeaf : Int = ¿ in
+
+# water = base, plus extra per leaf, doubled in full sun #
+let water : Plant -> Int = fun p ->
+  let amount = base + perLeaf * p.leaves in
+  if p.fullSun then amount * 2 else amount
+in
+
+# ===== MEASUREMENTS ===== #
+
+test
+  water((leaves = 0, fullSun = false)) == 12
+end;
+
+test
+  water((leaves = 3, fullSun = false)) == 33
+end;
+
+test
+  water((leaves = 2, fullSun = true)) == 52
+end;
+
+test
+  water((leaves = 5, fullSun = true)) == 94
+end

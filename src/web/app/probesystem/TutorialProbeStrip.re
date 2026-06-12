@@ -97,11 +97,13 @@ let flags_of_slide = (module_name: string): list(feat) =>
   | "TuGen_26bTaskDewLedger"
   | "TuGen_27TaskGrowthPlotter"
   | "TuGen_28TaskLogCleaner"
-  | "TuGen_29TaskNutrientRotation"
+  | "TuGen_29TaskPlantingBug"
   | "TuGen_30TaskRunningSum"
   | "TuGen_31TaskHarvestStreak"
   | "TuGen_32TaskCropPlotter"
-  | "TuGen_33TaskGardenSpirit" => s24
+  | "TuGen_33TaskGardenSpirit"
+  | "TuGen_34TaskWateringTimer"
+  | "TuGen_35TaskWateringFormula" => s24
   /* Unlisted slides (the intro, text-only transitions) show no strip:
    * nothing has been introduced there. */
   | _ => []

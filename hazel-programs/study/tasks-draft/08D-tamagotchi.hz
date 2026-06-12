@@ -219,13 +219,6 @@ let do : (Model, [Action]) -> Model =
     fold_left(actions, fun (m, a) -> update(m, a), model)
 in
 
-# Generate n TimeTicks (range is inclusive, so use n-1) #
-let timePasses : Int -> [Action] =
-  fun n ->
-    if n <= 0 then []
-    else map(range(1, n), fun _ -> TimeTick)
-in
-
 hint "feeding fills the belly"
 test
   let m = update(init, Feed) in

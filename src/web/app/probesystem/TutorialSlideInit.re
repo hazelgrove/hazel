@@ -102,15 +102,17 @@ let of_slide = (module_name: string): t =>
   | "TuGen_26TaskGroveName"
   | "TuGen_28TaskLogCleaner"
   | "TuGen_30TaskRunningSum"
-  | "TuGen_32TaskCropPlotter" => {
+  | "TuGen_32TaskCropPlotter"
+  | "TuGen_35TaskWateringFormula" => {
       ...none,
       autoprobe: Some(All),
     }
   | "TuGen_26bTaskDewLedger"
   | "TuGen_27TaskGrowthPlotter"
-  | "TuGen_29TaskNutrientRotation"
+  | "TuGen_29TaskPlantingBug"
   | "TuGen_31TaskHarvestStreak"
-  | "TuGen_33TaskGardenSpirit" => {
+  | "TuGen_33TaskGardenSpirit"
+  | "TuGen_34TaskWateringTimer" => {
       ...none,
       autoprobe: Some(Off),
     }
