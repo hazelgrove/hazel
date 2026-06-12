@@ -2,15 +2,20 @@
 show_report version=1 id=b0000021-0021-0021-0021-000000000021
 
 @prompt
-Every debugging task in the study shares one shape: a list of **actions** folded into a **model**. Here is a tiny one, and it has a bug.
+Some debugging tasks in the study are structured as a model-view-update GUI application: a list of **actions** folded into a **model**. Here is a tiny one, and it has a bug.
 
 A bed starts at water level `100`. `Water(n)` adds `n`; `Drain` should remove `20`. `run` feeds a list of actions through `update` with a fold.
 
 # Task
-The test expects the bed to end at **160**, but it ends higher. The `update(bed, a)` call inside `run` is probed (auto-probe is on): right-click its sample and choose **Step into**, then switch to *many* mode (**Space**) and walk the level action by action. Find the action that moves it the wrong way, and fix `update` so the test passes.
+
+1. The test expects the bed to end at **level = 160**, but it ends higher. Let's begin our bug hunt mechanically, working up from the test.
+2. Since the return value of the `run` call in the test is wrong, we know the issue is somewhere upstream of that call. Step into the `run` call via its sample.
+3. Your cursor should now be on the `run` definition. Notice that the only substantial thing this function does is call `update`. However, from the number next to the update probe, you can see it calls it 3 times. Let's zero in on the problematic call. To do this, put a line break after the `->`, so that the lambda's inputs `(bed, a)` get a probe of their own alongside the one on `update(bed, a)`. Now, either switch to *many* mode, or use the arrows to navigate through the three `update` calls. From their inputs and return values, can you guess which one is wrong? If not, check the hint. If so, step into that call.
+4. Now your cursor should be in the `update` definition, with only one set of sample values, due to your pin. Take a look at these values and try to find and correct the bug.
 
 @hint
-From 100, the levels should read 150, 130, 160. Find where they bend upward instead.
+From 100, the levels should read 150, 130, 160. Find where they go up instead.
+The Drain call is wrong; check what it does against the description.
 
 @reference
 ### Folding actions into a model

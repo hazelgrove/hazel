@@ -4,12 +4,12 @@ version=1 id=b0000023-0023-0023-0023-000000000023
 @prompt
 # The greenhouse
 
-Use probes to answer these questions about tonight's watering. Before each answer, say what you expect; then look.
+Use probes to answer these questions about tonight's watering. Before each answer, say what you expect; then look. No trick questions here, just practice using probe affordances to see what's going on in the program.
 
-1. One arm of `watering_amount` never runs tonight. Which one? Then predict: if you raise its bonus from `+ 5` to `+ 25`, what changes in the night report? Edit it and watch.
+1. One arm of `watering_amount` never runs tonight. Which one?
 2. In *many* mode, the case arms show every watering at once. What is the single largest amount any plant gets tonight?
-3. The `label` samples are long, so many mode squeezes them down to `…`. Click one and walk with **←/→** in single mode instead, where each gets the full width. The lily is watered on two nights: how much does she drink on each?
-4. Probe `night_report` on the last line and unfold it into the drawer (**Cmd/Ctrl+↓**): the whole night, grouped by moon. Check your last two answers against it.
+3. The `label` samples are long, so many mode squeezes them down to `…`. Click one and switch to single mode, then walk with **←/→**: each gets the full width. The lily is watered on two nights: how much does it get on each?
+4. Probe `night_report` on the last line and unfold it into the drawer (**Cmd/Ctrl+↓**): the whole night, grouped by moon. Cross-check your last two answers against it.
 
 @reference
 ### Everything so far
