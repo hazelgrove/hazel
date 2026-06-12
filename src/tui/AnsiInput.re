@@ -20,7 +20,8 @@ type tui_key =
   | PageUp
   | PageDown
   | ToggleResultPane /* Ctrl+R */
-  | ToggleInspector; /* Ctrl+T */
+  | ToggleInspector /* Ctrl+T */
+  | ProjectorPanel; /* Ctrl+P */
 
 /* SGR mouse events; points are 0-based screen coordinates */
 [@deriving show({with_path: false})]
@@ -82,6 +83,7 @@ let ctrl_event = (code: int): list(event) =>
   | 0x19 /* Ctrl+Y */ => [Tui(Redo)]
   | 0x12 /* Ctrl+R */ => [Tui(ToggleResultPane)]
   | 0x14 /* Ctrl+T */ => [Tui(ToggleInspector)]
+  | 0x10 /* Ctrl+P */ => [Tui(ProjectorPanel)]
   | 0x08 /* Ctrl+H / BS */ => [Editor(mk("Backspace"))]
   | _ when code >= 0x01 && code <= 0x1a => [
       Editor(mk(~ctrl=true, String.make(1, Char.chr(code + 0x60)))),
@@ -288,6 +290,12 @@ let rec go = (s: string, i: int, acc: list(event)): (list(event), string) => {
           } else {
             go(s, i + 3, List.rev_append(ss3(s.[i + 2]), acc));
           }
+        | '\027' =>
+          /* ESC ESC reads as one bare Escape keypress: mid-stream a
+             lone ESC byte is indistinguishable from a split sequence
+             (only the idle flush can resolve it), so replay scripts
+             write Escape as \e\e */
+          go(s, i + 2, [Editor(mk("Escape")), ...acc])
         | c =>
           /* ESC + char: Alt+char (terminal "meta sends escape") */
           let n = utf8_len(c);

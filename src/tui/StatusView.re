@@ -31,11 +31,6 @@ let row =
     : Frame.row => {
   let name = Option.value(file, ~default="[scratch]") ++ (dirty ? " *" : "");
   let pos = Printf.sprintf("%d:%d", caret.row + 1, caret.col + 1);
-  let middle =
-    switch (status_msg) {
-    | Some(msg) => msg
-    | None => cursor_text(z, statics)
-    };
   let errors = List.length(statics.error_ids);
   let warnings = List.length(statics.warning_ids);
   let counts =
@@ -50,7 +45,13 @@ let row =
     )
     ++ (errors > 0 ? Printf.sprintf(" %d!", errors) : "")
     ++ (warnings > 0 ? Printf.sprintf(" %d?", warnings) : "");
-  let left = " " ++ name ++ "  " ++ pos ++ "  " ++ middle;
+  /* a transient message takes the whole left side: hints and notices
+     must survive narrow (80-col) terminals unclipped */
+  let left =
+    switch (status_msg) {
+    | Some(msg) => " " ++ msg
+    | None => " " ++ name ++ "  " ++ pos ++ "  " ++ cursor_text(z, statics)
+    };
   let right = counts ++ " ";
   let left_cols = Util.Unicode.Width.columns_of_string(left);
   let right_cols = Util.Unicode.Width.columns_of_string(right);

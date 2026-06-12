@@ -171,9 +171,12 @@ let rows_with_offside =
   };
 
   /* Splice a Block-shaped terminal view: the first row continues the
-     current line; the rest are whole rows; the final row must occupy
-     exactly [last_col] cells so following content lines up. */
-  let emit_block = (lines: list(Frame.row), ~rows: int, ~last_col: int) => {
+     current line at the projector's origin column; the rest are
+     indented to that same column so the block is internally aligned;
+     the final row must end at exactly [last_col] so following content
+     lines up. */
+  let emit_block =
+      (lines: list(Frame.row), ~rows: int, ~origin_col: int, ~last_col: int) => {
     let lines = {
       let n = List.length(lines);
       n >= rows + 1
@@ -183,14 +186,14 @@ let rows_with_offside =
     List.iteri(
       (i, line) => {
         if (i > 0) {
-          Builder.newline(b, ~count=1, ~indent=0);
+          Builder.newline(b, ~count=1, ~indent=origin_col);
         };
         let line =
           i == rows
             ? Frame.clip_row(
-                Frame.pad_row_to(line, last_col),
+                Frame.pad_row_to(line, last_col - origin_col),
                 ~col_off=0,
-                ~width=last_col,
+                ~width=last_col - origin_col,
               )
             : line;
         List.iter(((st, tx)) => Builder.emit(b, st, tx), line);
@@ -201,7 +204,8 @@ let rows_with_offside =
 
   let of_projector = (pr: Base.projector): unit => {
     let size = DeferredLinebreaks.of_projector(pr, shape_map);
-    let indent = measure_of(Projector(pr)).last.col;
+    let measure = measure_of(Projector(pr));
+    let indent = measure.last.col;
     let view =
       switch (statics, TermProjector.lookup(pr.kind)) {
       | (Some(st), tp) =>
@@ -257,7 +261,12 @@ let rows_with_offside =
     | Some(`Inline(spans)) =>
       List.iter(((st, tx)) => Builder.emit(b, st, tx), spans)
     | Some(`Block(lines)) =>
-      emit_block(lines, ~rows=size.row, ~last_col=indent)
+      emit_block(
+        lines,
+        ~rows=size.row,
+        ~origin_col=measure.origin.col,
+        ~last_col=indent,
+      )
     | None => of_projector_blank(pr, size)
     };
   };

@@ -50,10 +50,22 @@ let format_value = (~max_length: int=50, value: Exp.t): string => {
   let seg =
     ExpToSegment.exp_to_segment(
       ~settings={
-        ...ExpToSegment.Settings.of_core(~inline=true, CoreSettings.off),
+        /* this output is plain text, so a projector piece would print as
+         * its ^^fold(...)/^^table(...) trigger: never wrap fn bodies in
+         * a Fold (~fold_fn_bodies default) or re-project table values */
+
+        ...
+          ExpToSegment.Settings.of_core(
+            ~inline=true,
+            ~fold_fn_bodies=`NoFold,
+            CoreSettings.off,
+          ),
         show_unknown_as_hole: false,
+        project_tables: false,
       },
-      value |> DHExp.strip_ascriptions,
+      /* residual Projector nodes (e.g. in unevaluated closure bodies)
+       * would likewise print as triggers — strip those too */
+      value |> DHExp.strip_ascriptions |> Exp.strip_projectors,
     );
   let str =
     Printer.of_segment(~holes="?", ~indent="", ~is_single_line=true, seg);

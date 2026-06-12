@@ -73,6 +73,90 @@ let tests = (
       )
     ),
     test_case(
+      "table result renders as a grid; probe values strip projectors",
+      `Quick,
+      () => {
+        /* Ctrl+E probes the indicated `t`; the probe chip must print the
+           plain value (no ^^table trigger), the result pane the grid */
+        let f =
+          Replay.run(
+            ~size=(24, 60),
+            "\x1b[200~let t = ^^table([(a=1, b=10)]) in t\x1b[201~\x1b[D\x05",
+          );
+        check(
+          bool,
+          "probe chip shows plain value",
+          true,
+          Util.StringUtil.match(
+            Util.StringUtil.regexp("\xe2\x89\xa1 \\[\\(a=1, b=10\\)\\]"), /* ≡ [(a=1, b=10)] */
+            f,
+          ),
+        );
+        check(
+          int,
+          "two grids: the editor table and the result pane table",
+          3,
+          List.length(Util.StringUtil.plain_split(f, "\xe2\x95\xad")) /* ╭ */
+        );
+        check(
+          bool,
+          "no ^^table text anywhere",
+          false,
+          Util.StringUtil.match(Util.StringUtil.regexp("\\^\\^table"), f),
+        );
+      },
+    ),
+    test_case(
+      "unevaluated closure bodies print without projector triggers",
+      `Quick,
+      () => {
+        /* the closure value retains the table's residual Projector AST
+           node and would otherwise print as ^^table(...); the probe
+           formatter must also not re-wrap fn bodies as ^^fold(...) */
+        let f =
+          Replay.run(
+            ~size=(24, 80),
+            "\x1b[200~let f = fun () -> ^^table([(a=1, b=10)]) in f\x1b[201~\x1b[D\x05",
+          );
+        check(
+          bool,
+          "probe chip shows the plain closure",
+          true,
+          Util.StringUtil.match(
+            Util.StringUtil.regexp(
+              "\xe2\x89\xa1 fun \\(\\) -> \\[\\(a=1, b=10\\)\\]" /* ≡ fun () -> [(a=1, b=10)] */
+            ),
+            f,
+          ),
+        );
+        check(
+          bool,
+          "no projector triggers anywhere",
+          false,
+          Util.StringUtil.match(Util.StringUtil.regexp("\\^\\^"), f),
+        );
+      },
+    ),
+    test_case(
+      "mid-line table projector is bordered and aligned at its origin",
+      `Quick,
+      () =>
+      check_frame(
+        "frame",
+        "1 let t = \xe2\x95\xad\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\xac\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x95\xae\n"
+        ++ "2         \xe2\x94\x82 a \xe2\x94\x82 b  \xe2\x94\x82\n"
+        ++ "3         \xe2\x94\x9c\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\xbc\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\xa4\n"
+        ++ "4         \xe2\x94\x82 1 \xe2\x94\x82 10 \xe2\x94\x82\n"
+        ++ "5         \xe2\x94\x82 2 \xe2\x94\x82 20 \xe2\x94\x82\n"
+        ++ "6         \xe2\x95\xb0\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\xb4\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x95\xaf in t\n"
+        ++ "\n"
+        ++ "\xe2\x94\x80\xe2\x94\x80 result \xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\n"
+        ++ "[(a=1, b=10), (a=2, b=20)]\n"
+        ++ " [scratch] *  6:24  Variable reference : [(a=Int, b=Int)]",
+        "\x1b[200~let t = ^^table([(a=1, b=10), (a=2, b=20)]) in t\x1b[201~",
+      )
+    ),
+    test_case(
       "type error underlines the inconsistent term's shards",
       `Quick,
       () => {
@@ -668,5 +752,63 @@ let tests = (
         );
       },
     ),
+    test_case(
+      "ctrl+p menu projects a checkbox and focuses it; space toggles",
+      `Quick,
+      () => {
+        let has = (re, f) =>
+          Util.StringUtil.match(Util.StringUtil.regexp(re), f);
+        /* Ctrl+P opens the chooser in the status bar */
+        check(
+          bool,
+          "menu hint shown",
+          true,
+          has("project:", frame("true\x10")),
+        );
+        /* c projects a checkbox; operable kinds focus immediately */
+        let f = frame("true\x10c");
+        check(bool, "checked glyph", true, has("\xe2\x9c\x93", f)); /* ✓ */
+        check(bool, "focus hint shown", true, has("space: toggle", f));
+        /* space toggles the focused checkbox */
+        check_buffer("toggled to false", "^^check(false)", "true\x10c ");
+      },
+    ),
+    test_case("ctrl+p menu projects a slider; arrows adjust it", `Quick, () => {
+      /* right arrow = +1, shift+right = +10 */
+      check_buffer(
+        "value stepped to 61",
+        "^^slider(61)",
+        "50\x10s\x1b[C\x1b[1;2C",
+      )
+    }),
+    test_case(
+      "escape leaves projector focus; enter refocuses",
+      `Quick,
+      () => {
+        let has = (re, f) =>
+          Util.StringUtil.match(Util.StringUtil.regexp(re), f);
+        /* ESC ESC is the replay encoding of one bare Escape press */
+        let f = frame("true\x10c\x1b\x1b");
+        check(bool, "focus hint gone", false, has("space: toggle", f));
+        let f = frame("true\x10c\x1b\x1b\r");
+        check(bool, "enter refocuses", true, has("space: toggle", f));
+        /* the focused projector's cells get the focus tint */
+        let m = Replay.final_model(~size=small, "true\x10c\x1b\x1b\r");
+        let (fr, _) = App.render(~size=small, m);
+        check(
+          bool,
+          "focus tint on the projector cell",
+          true,
+          List.exists(
+            ((st: Style.t, text)) =>
+              st.bg == Style.Ansi256(24) && String.trim(text) != "",
+            List.concat(fr.rows),
+          ),
+        );
+      },
+    ),
+    test_case("ctrl+p x removes the projector under the caret", `Quick, () => {
+      check_buffer("syntax restored", "true", "true\x10c\x1b\x1b\x10x")
+    }),
   ],
 );

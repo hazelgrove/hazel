@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Builds the native Hazel TUI and runs it, forwarding any arguments.
+# Runs the native Hazel TUI, forwarding any arguments.
+# Build it first with: dune build --profile release ./src/tui/tui.exe
 # All paths are resolved relative to this script's location.
 
 set -e
@@ -9,6 +10,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 TARGET="$SCRIPT_DIR/_build/default/src/tui/tui.exe"
 
-(cd "$SCRIPT_DIR" && dune build --profile release ./src/tui/tui.exe)
+if [[ ! -x "$TARGET" ]]; then
+  echo "error: $TARGET not found — build it with: dune build --profile release ./src/tui/tui.exe" >&2
+  exit 1
+fi
 
 exec "$TARGET" "$@"

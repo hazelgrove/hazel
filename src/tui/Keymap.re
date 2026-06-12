@@ -9,6 +9,7 @@ open Haz3lcore;
 type t =
   | Perform(Action.t)
   | Tab /* context-dependent; resolved against the zipper in Update */
+  | EnterKey /* context-dependent: focus an operable projector / linebreak */
   | Save
   | Quit
   | Undo
@@ -17,10 +18,16 @@ type t =
   | PageDown
   | ToggleResult
   | ToggleInspector
+  | ProjectorMenu /* Ctrl+P: status-bar projector chooser */
+  /* a key routed to the active projector menu/focus mode in App */
+  | ModeKey(Util.Key.t)
   /* screen coordinates; App translates to buffer coordinates */
   | Mouse(AnsiInput.mouse);
 
-let handle = (ev: AnsiInput.event): option(t) =>
+/* [capture] routes editor keys to the App-level projector mode
+   (chooser / focused projector) instead of the editor keymap; TUI
+   chords (save/quit/...) and the mouse keep their meaning. */
+let handle = (~capture: bool, ev: AnsiInput.event): option(t) =>
   switch (ev) {
   | Tui(Quit) => Some(Quit)
   | Tui(Save) => Some(Save)
@@ -32,10 +39,17 @@ let handle = (ev: AnsiInput.event): option(t) =>
   | Tui(PageDown) => Some(PageDown)
   | Tui(ToggleResultPane) => Some(ToggleResult)
   | Tui(ToggleInspector) => Some(ToggleInspector)
+  | Tui(ProjectorPanel) => Some(ProjectorMenu)
   | PasteText(s) => Some(Perform(Paste(s)))
   | Mouse(m) => Some(Mouse(m))
+  | Editor(k) when capture => Some(ModeKey(k))
   | Editor(k) =>
     switch (k) {
+    /* plain Enter is context-dependent (focus an operable projector
+       under the caret, else linebreak); Shift+Enter still reaches the
+       editor keymap as an unconditional linebreak */
+    | {key: D("Enter"), shift: Up, ctrl: Up, alt: Up, meta: Up, _} =>
+      Some(EnterKey)
     /* Web maps Ctrl+S to PrettyPrint; the TUI reserves Ctrl+S for Save,
        so PrettyPrint moves to Alt+P. */
     | {key: D("p"), alt: Down, ctrl: Up, meta: Up, shift: Up, _} =>

@@ -17,4 +17,10 @@ let exp_to_segment_settings: ExpToSegment.Settings.t = {
 let segmentize =
   ExpToSegment.exp_to_segment(~settings=exp_to_segment_settings, _);
 
-let print = exp => Printer.of_segment(~holes="?", segmentize(exp));
+/* Residual Projector nodes (e.g. in unevaluated closure bodies) would
+   print as their ^^table(...)-style triggers in this text output */
+let print = exp =>
+  Printer.of_segment(
+    ~holes="?",
+    segmentize(Language.Exp.strip_projectors(exp)),
+  );

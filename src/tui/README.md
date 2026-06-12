@@ -48,9 +48,17 @@ TUI-level bindings (handled before the editor keymap):
 | Ctrl+Z / Ctrl+Y | undo / redo (terminals can't see Ctrl+Shift+Z) |
 | Ctrl+R | toggle result pane |
 | Ctrl+T | toggle cursor inspector pane |
+| Ctrl+P | projector chooser (status bar: `f`old `c`heckbox `s`lider `F`slider `t`ype `a`rea `T`able, `x` remove, Esc cancel) |
+| Enter | focus the indicated projector when it's keyboard-operable; linebreak otherwise |
 | PgUp / PgDn | page caret up/down |
 | Ctrl+Q / Ctrl+C | quit (asks to confirm if unsaved) |
 | Alt+P | pretty-print |
+
+While a projector holds focus (tinted blue, hint in the status bar),
+keys drive it instead of the editor: Space toggles a checkbox or
+unfolds a fold; ←/→ adjust a slider (Shift: ±10, Home/End: min/max);
+Escape hands control back to the editor. Operable kinds focus
+immediately when created through the chooser.
 
 macOS note: Alt chords (Alt+F fold, Alt+P pretty-print) work either
 way — with "Option as Meta" enabled in your terminal (Terminal.app:
@@ -110,7 +118,8 @@ collects samples for it and up to 5 render offside after the line as
 and pinning — the web's full probe UI — are not ported.
 
 Projectors render live content inside their measured cell region via
-the `TermProjector.re` registry and respond to clicks: Fold (`⋱`,
+the `TermProjector.re` registry and respond to clicks and to keys
+when focused (see the bindings above): Fold (`⋱`,
 click to unfold), Checkbox (`✓`/`✗`, click to toggle), Slider and
 SliderF (`[====----]`, click to set), Statics (type shown offside),
 TextArea (string content in its block region; read-only until the

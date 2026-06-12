@@ -38,6 +38,7 @@ let reserved_ctrl = (c: char): option(AnsiInput.event) =>
   | 'y' => Some(Tui(Redo))
   | 'r' => Some(Tui(ToggleResultPane))
   | 't' => Some(Tui(ToggleInspector))
+  | 'p' => Some(Tui(ProjectorPanel))
   | _ => None
   };
 

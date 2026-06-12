@@ -64,7 +64,7 @@ let keys_debug = () => {
       List.iter(
         ev => {
           let mapped =
-            switch (Keymap.handle(ev)) {
+            switch (Keymap.handle(~capture=false, ev)) {
             | Some(Quit) =>
               quit := true;
               "Quit";
@@ -113,7 +113,7 @@ let run = (file: option(string)) => {
     let quit = ref(false);
     List.iter(
       ev =>
-        switch (Keymap.handle(ev)) {
+        switch (Keymap.handle(~capture=App.capturing(model^), ev)) {
         | None => ()
         | Some(action) =>
           let (cols, rows) = Term.size(term);

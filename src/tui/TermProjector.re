@@ -34,6 +34,14 @@ type t = {
   on_click:
     (~model: string, ~info: ProjectorBase.info, ~rel_col: int, ~width: int) =>
     option(reaction),
+  /* A key pressed while the projector holds focus (App's Focused mode;
+     entered with Enter on the indicated projector, left with Escape) */
+  on_key:
+    (~model: string, ~info: ProjectorBase.info, ~key: Util.Key.t) =>
+    option(reaction),
+  /* Status-bar hint for the focused mode; None marks the kind as not
+     keyboard-operable (Enter won't focus it) */
+  key_hint: option(string),
   /* Fill a Block-shaped region: [rows] extra rows below the origin
      row, [width] cells wide, with following editor content resuming at
      column [last_col] of the final row. Must return rows+1 rows (the
@@ -52,6 +60,7 @@ type t = {
 let no_inline = (~model as _, ~info as _, ~width as _) => None;
 let no_offside = (~model as _, ~info as _) => None;
 let no_click = (~model as _, ~info as _, ~rel_col as _, ~width as _) => None;
+let no_key = (~model as _, ~info as _, ~key as _) => None;
 let no_block =
     (~model as _, ~info as _, ~width as _, ~rows as _, ~last_col as _) =>
   None;
@@ -98,6 +107,17 @@ let checkbox: t = {
     | seg => Some(SetSyntax(seg))
     | exception _ => None
     },
+  on_key: (~model as _, ~info, ~key) =>
+    switch (key.key) {
+    | D(" ")
+    | D("Enter") =>
+      switch (CheckboxProj.toggle(info)) {
+      | seg => Some(SetSyntax(seg))
+      | exception _ => None
+      }
+    | _ => None
+    },
+  key_hint: Some("space: toggle"),
   block_view: no_block,
 };
 
@@ -107,6 +127,16 @@ let slider_value = (info: ProjectorBase.info): option(int) =>
   | v => int_of_string_opt(Util.Bigint.to_string(v))
   | exception _ => None
   };
+
+/* Arrow-key steps shared by the slider kinds: ±1, ±10 with shift */
+let slider_step = (key: Util.Key.t): option(int) =>
+  switch (key.key) {
+  | D("ArrowLeft") => Some(key.shift == Util.Key.Down ? (-10) : (-1))
+  | D("ArrowRight") => Some(key.shift == Util.Key.Down ? 10 : 1)
+  | _ => None
+  };
+
+let slider_hint = "\xe2\x86\x90/\xe2\x86\x92: adjust \xc2\xb7 shift: \xc2\xb110 \xc2\xb7 home/end"; /* ←/→ · ±10 · */
 
 let slider: t = {
   inline_view: (~model as _, ~info, ~width) =>
@@ -138,6 +168,20 @@ let slider: t = {
     | exception _ => None
     };
   },
+  on_key: (~model as _, ~info, ~key) => {
+    let set = v =>
+      switch (SliderProj.put(info, string_of_int(max(0, min(100, v))))) {
+      | seg => Some(SetSyntax(seg))
+      | exception _ => None
+      };
+    switch (key.key, slider_value(info)) {
+    | (D("Home"), _) => set(0)
+    | (D("End"), _) => set(100)
+    | (_, Some(v)) => Option.bind(slider_step(key), d => set(v + d))
+    | (_, None) => None
+    };
+  },
+  key_hint: Some(slider_hint),
   block_view: no_block,
 };
 
@@ -161,6 +205,8 @@ let type_display: t = {
     ]);
   },
   on_click: no_click,
+  on_key: no_key,
+  key_hint: None,
   block_view: no_block,
 };
 
@@ -177,6 +223,13 @@ let fold: t = {
   offside_view: no_offside,
   on_click: (~model as _, ~info as _, ~rel_col as _, ~width as _) =>
     Some(Remove),
+  on_key: (~model as _, ~info as _, ~key) =>
+    switch (key.key) {
+    | D(" ")
+    | D("Enter") => Some(Remove)
+    | _ => None
+    },
+  key_hint: Some("space: unfold"),
   block_view: no_block,
 };
 
@@ -211,6 +264,28 @@ let sliderf: t = {
     | exception _ => None
     };
   },
+  on_key: (~model as _, ~info, ~key) => {
+    let set = v => {
+      let v = max(0., min(100., v));
+      switch (SliderFProj.put(info, Printf.sprintf("%g", v))) {
+      | seg => Some(SetSyntax(seg))
+      | exception _ => None
+      };
+    };
+    let v =
+      switch (SliderFProj.get(info)) {
+      | v => Some(v)
+      | exception _ => None
+      };
+    switch (key.key, v) {
+    | (D("Home"), _) => set(0.)
+    | (D("End"), _) => set(100.)
+    | (_, Some(v)) =>
+      Option.bind(slider_step(key), d => set(v +. float_of_int(d)))
+    | (_, None) => None
+    };
+  },
+  key_hint: Some(slider_hint),
   block_view: no_block,
 };
 
@@ -226,6 +301,8 @@ let textarea: t = {
     },
   offside_view: no_offside,
   on_click: no_click,
+  on_key: no_key,
+  key_hint: None,
   block_view: (~model as _, ~info, ~width, ~rows, ~last_col as _) =>
     switch (TextAreaProj.get(info)) {
     | s =>
@@ -239,71 +316,91 @@ let textarea: t = {
 };
 
 /* === Table: box-drawing render of the parsed table === */
+
+/* Also installed as TableProj.sizing's TextGrid renderer (App.init),
+   so the placeholder reserves space measured on these exact strings */
+let table_cell_text = (exp: Language.Exp.t): string =>
+  ProbeText.format_value(~max_length=TableCore.max_column_length, exp);
+
 let table_cell = (exp: Language.Exp.t): string =>
-  switch (
-    ProbeText.format_value(~max_length=TableCore.max_column_length, exp)
-  ) {
+  switch (table_cell_text(exp)) {
   | s => s
   | exception _ => "?"
   };
+
+/* Bordered box-drawing grid: top border, bold header row, header rule,
+   at most [max_data] data rows (overflow collapses into a final ⋯ row),
+   and a bottom border. Shared by the Table projector's block view and
+   the result pane's table display (ResultView). */
+let table_rows =
+    (~max_data: int, headers: list(string), cells: list(list(string)))
+    : list(Frame.row) => {
+  let n_cols = List.length(headers);
+  let col_w = i =>
+    List.fold_left(
+      (acc, row) =>
+        switch (List.nth_opt(row, i)) {
+        | Some(c) => max(acc, Frame.row_cols([(Style.default, c)]))
+        | None => acc
+        },
+      Frame.row_cols([(Style.default, List.nth(headers, i))]),
+      cells,
+    );
+  let widths = List.init(n_cols, col_w);
+  let cells =
+    List.length(cells) <= max_data
+      ? cells
+      : Util.ListUtil.take(max_data - 1, cells)
+        @ [List.map(_ => "⋯", widths)]; /* ⋯ */
+  let pad_cell = (w, s) =>
+    s ++ String.make(max(0, w - Frame.row_cols([(Style.default, s)])), ' ');
+  let bar = (Theme.grout, "\xe2\x94\x82"); /* │ */
+  let line = (style, cs) =>
+    List.concat(
+      List.map2(
+        (w, c) => [bar, (style, " " ++ pad_cell(w, c) ++ " ")],
+        widths,
+        cs,
+      ),
+    )
+    @ [bar];
+  let rule = (l, m, r) => [
+    (
+      Theme.grout,
+      l
+      ++ String.concat(
+           m,
+           widths
+           |> List.map(w => List.init(w + 2, _ => "─") |> String.concat("")) /* ─ */
+         )
+      ++ r,
+    ),
+  ];
+  [
+    rule("\xe2\x95\xad", "\xe2\x94\xac", "\xe2\x95\xae"), /* ╭┬╮ */
+    line(Style.bold(Style.default), headers),
+    rule("\xe2\x94\x9c", "\xe2\x94\xbc", "\xe2\x94\xa4") /* ├┼┤ */
+  ]
+  @ List.map(line(Style.default), cells)
+  @ [rule("\xe2\x95\xb0", "\xe2\x94\xb4", "\xe2\x95\xaf")]; /* ╰┴╯ */
+};
 
 let table: t = {
   inline_view: no_inline,
   offside_view: no_offside,
   on_click: no_click,
-  block_view: (~model as _, ~info, ~width, ~rows as _, ~last_col as _) =>
+  on_key: no_key,
+  key_hint: None,
+  block_view: (~model as _, ~info, ~width, ~rows, ~last_col as _) =>
     switch (TableProj.get(info)) {
     | None => None
     | Some((headers, data)) =>
       let cells = List.map(List.map(table_cell), data);
-      let n_cols = List.length(headers);
-      let col_w = i =>
-        List.fold_left(
-          (acc, row) =>
-            switch (List.nth_opt(row, i)) {
-            | Some(c) => max(acc, Frame.row_cols([(Style.default, c)]))
-            | None => acc
-            },
-          Frame.row_cols([(Style.default, List.nth(headers, i))]),
-          cells,
-        );
-      let widths = List.init(n_cols, col_w);
-      let pad_cell = (w, s) =>
-        s
-        ++ String.make(
-             max(0, w - Frame.row_cols([(Style.default, s)])),
-             ' ',
-           );
-      let line = (style, cs) => [
-        (
-          style,
-          " "
-          ++ String.concat(
-               " \xe2\x94\x82 ", /* │ */
-               List.map2(pad_cell, widths, cs),
-             )
-          ++ " ",
-        ),
-      ];
-      let sep = [
-        (
-          Theme.grout,
-          widths
-          |> List.map(w => List.init(w + 2, _ => "─") |> String.concat(""))  /* ─ */
-          |> String.concat("\xe2\x94\xbc") /* ┼ */
-        ),
-      ];
+      /* Rows past the reserved space (top/bottom border, header, and
+         header rule take 4 of the rows+1 lines) collapse into one ⋯ row */
       Some(
-        [
-          line(Style.bold(Style.default), headers)
-          |> Frame.clip_row(_, ~col_off=0, ~width),
-          sep |> Frame.clip_row(_, ~col_off=0, ~width),
-        ]
-        @ List.map(
-            r =>
-              line(Style.default, r) |> Frame.clip_row(_, ~col_off=0, ~width),
-            cells,
-          ),
+        table_rows(~max_data=max(1, rows - 3), headers, cells)
+        |> List.map(Frame.clip_row(_, ~col_off=0, ~width)),
       );
     | exception _ => None
     },
@@ -326,6 +423,8 @@ let probe: t = {
     | _ => None
     },
   on_click: no_click,
+  on_key: no_key,
+  key_hint: None,
   block_view: no_block,
 };
 
@@ -396,6 +495,8 @@ let card: t = {
     },
   offside_view: no_offside,
   on_click: no_click,
+  on_key: no_key,
+  key_hint: None,
   block_view: no_block,
 };
 
@@ -427,3 +528,10 @@ let lookup: ProjectorCore.Kind.t => option(t) =
   | Card => Some(card)
   | Livelit
   | Csv => None; /* covered by the syntax_chip fallback */
+
+/* Kinds the focused mode can drive from the keyboard */
+let operable = (kind: ProjectorCore.Kind.t): bool =>
+  switch (lookup(kind)) {
+  | Some(tp) => tp.key_hint != None
+  | None => false
+  };

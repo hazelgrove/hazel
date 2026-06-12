@@ -7,6 +7,14 @@ open Util;
    debounce/worker machinery: perform action -> recompute statics if the
    action edited -> Editor.Update.calculate (syntax/measured). */
 
+/* Keyboard projector modes: Menu is the Ctrl+P status-bar chooser;
+   Focused routes keys into the projector with the given id (entered
+   with Enter on an indicated operable projector, left with Escape) */
+type proj_mode =
+  | Idle
+  | Menu
+  | Focused(Id.t);
+
 type model = {
   editor: Editor.Model.t,
   statics: CachedStatics.t,
@@ -22,6 +30,7 @@ type model = {
   col_off: int,
   status_msg: option(string),
   quit_armed: bool,
+  proj_mode,
   /* wheel scrolling detaches the viewport from the caret until the
      next non-wheel action */
   free_scroll: bool,
@@ -67,6 +76,9 @@ let calculate = (~is_edited: bool, model: model): model => {
 };
 
 let init = (file: option(string)): model => {
+  /* Reserve exact box-drawing-grid space for tables (the default
+     approximates the web's CSS overlay instead) */
+  TableProj.sizing := TableProj.TextGrid(TermProjector.table_cell_text);
   let zipper =
     switch (Option.map(FileIo.load, file)) {
     | Some(Some(z)) => z
@@ -91,6 +103,7 @@ let init = (file: option(string)): model => {
       col_off: 0,
       status_msg: None,
       quit_armed: false,
+      proj_mode: Idle,
       free_scroll: false,
       dragging: false,
       last_click: ((-1.0), Util.Point.zero),
@@ -257,6 +270,126 @@ let dispatch_reaction =
     perform(Project(RemoveIndicated), model);
   };
 
+/* === keyboard projector modes === */
+
+let capturing = (model: model): bool => model.proj_mode != Idle;
+
+/* The projector whose piece the caret indicates, if any */
+let indicated_projector = (model: model): option(Base.projector) => {
+  open Util.OptUtil.Syntax;
+  let* id = Indicated.index(model.editor.state.zipper);
+  Id.Map.find_opt(id, model.editor.syntax.projectors);
+};
+
+let menu_choice = (k: Util.Key.t): option(ProjectorCore.Kind.t) =>
+  switch (k.key) {
+  | D("f") => Some(Fold)
+  | D("c") => Some(Checkbox)
+  | D("s") => Some(Slider)
+  | D("F") => Some(SliderF)
+  | D("t") => Some(Statics)
+  | D("a") => Some(TextArea)
+  | D("T") => Some(Table)
+  | _ => None
+  };
+
+/* fits an 80-col status bar; esc cancels (as the focused-mode hint says) */
+let menu_hint = "project: f)old c)heckbox s)lider F)slider t)ype a)rea T)able x)remove";
+
+/* Route a key to the focused projector's terminal view */
+let focused_key = (model: model, id: Id.t, k: Util.Key.t): model => {
+  let reaction = {
+    open Util.OptUtil.Syntax;
+    let* pr = Id.Map.find_opt(id, model.editor.syntax.projectors);
+    let* m = Id.Map.find_opt(id, model.editor.syntax.measured.projectors);
+    let* tp = TermProjector.lookup(pr.kind);
+    let+ r =
+      switch (TermProjector.mk_info(~statics=model.statics, pr)) {
+      | info => tp.on_key(~model=pr.model, ~info, ~key=k)
+      | exception _ => None
+      };
+    (pr, m, r);
+  };
+  switch (reaction) {
+  | Some((pr, m, r)) =>
+    let model = dispatch_reaction(model, pr, m, r);
+    switch (r) {
+    | Remove => {
+        ...model,
+        proj_mode: Idle,
+      }
+    | SetSyntax(_) => model
+    };
+  | None =>
+    /* unhandled key; drop focus if the projector vanished from under us */
+    Id.Map.mem(id, model.editor.syntax.projectors)
+      ? model
+      : {
+        ...model,
+        proj_mode: Idle,
+      }
+  };
+};
+
+let mode_key = (model: model, k: Util.Key.t): model =>
+  switch (model.proj_mode) {
+  | Idle => model /* not capturing: unreachable */
+  | Menu =>
+    let model = {
+      ...model,
+      proj_mode: Idle,
+    };
+    switch (k.key) {
+    | D("x")
+    | D("Delete")
+    | D("Backspace") => perform(Project(RemoveIndicated), model)
+    | _ =>
+      switch (menu_choice(k)) {
+      | None => model /* escape or unrecognized: cancel */
+      | Some(kind) =>
+        let model = perform(Project(SetIndicated(Specific(kind))), model);
+        /* focus operable kinds right away so keys work immediately */
+        switch (indicated_projector(model)) {
+        | Some(pr) when pr.kind == kind && TermProjector.operable(kind) => {
+            ...model,
+            proj_mode: Focused(pr.id),
+          }
+        | _ => model
+        };
+      }
+    };
+  | Focused(id) =>
+    switch (k.key) {
+    | D("Escape") => {
+        ...model,
+        proj_mode: Idle,
+      }
+    | _ => focused_key(model, id, k)
+    }
+  };
+
+/* Persistent status-bar hint while a projector mode is active */
+let mode_hint = (model: model): option(string) =>
+  switch (model.proj_mode) {
+  | Idle => None
+  | Menu => Some(menu_hint)
+  | Focused(id) =>
+    open Util.OptUtil.Syntax;
+    let* pr = Id.Map.find_opt(id, model.editor.syntax.projectors);
+    let* tp = TermProjector.lookup(pr.kind);
+    let+ hint = tp.key_hint;
+    "projector: " ++ hint ++ " \xc2\xb7 esc: done"; /* · */
+  };
+
+let with_mode_hint = (model: model): model =>
+  switch (model.status_msg, mode_hint(model)) {
+  | (None, Some(hint)) => {
+      ...model,
+      status_msg: Some(hint),
+    }
+  | _ => model
+  };
+
 /* A click landing inside a projector's region goes to its terminal
    view (if registered and it claims the click) instead of the caret */
 let projector_click = (model: model, pt: Util.Point.t): option(model) => {
@@ -345,55 +478,87 @@ let apply =
     status_msg: None,
     free_scroll: false /* wheel re-sets it below */
   };
+  /* anything that isn't a key routed to the active projector mode
+     leaves the mode (a click, save, undo, ... all read as "done") */
+  let model =
+    switch (action) {
+    | ModeKey(_) => model
+    | _ => {
+        ...model,
+        proj_mode: Idle,
+      }
+    };
   let repeat = (n, a: Action.t, model) =>
     List.fold_left((m, _) => perform(a, m), model, List.init(n, Fun.id));
-  switch (action) {
-  | Mouse(m) => (on_mouse(~now, ~page, model, m), false)
-  | Perform(a) => (perform(a, model), false)
-  | Tab => (perform(tab_action(model.editor.state.zipper), model), false)
-  | Save => (save(model), false)
-  | Undo => (
-      restore(TuiHistory.undo(model.editor, model.history), model),
-      false,
-    )
-  | Redo => (
-      restore(TuiHistory.redo(model.editor, model.history), model),
-      false,
-    )
-  | PageUp => (
-      repeat(max(1, page), Move(Vertical(Up, ByChar)), model),
-      false,
-    )
-  | PageDown => (
-      repeat(max(1, page), Move(Vertical(Down, ByChar)), model),
-      false,
-    )
-  | ToggleResult => (
-      {
-        ...model,
-        show_result: !model.show_result,
-      },
-      false,
-    )
-  | ToggleInspector => (
-      {
-        ...model,
-        show_inspector: !model.show_inspector,
-      },
-      false,
-    )
-  | Quit =>
-    model.dirty && !model.quit_armed
-      ? (
+  let (model, quit) =
+    switch (action) {
+    | Mouse(m) => (on_mouse(~now, ~page, model, m), false)
+    | Perform(a) => (perform(a, model), false)
+    | Tab => (perform(tab_action(model.editor.state.zipper), model), false)
+    | EnterKey =>
+      switch (indicated_projector(model)) {
+      | Some(pr) when TermProjector.operable(pr.kind) => (
+          {
+            ...model,
+            proj_mode: Focused(pr.id),
+          },
+          false,
+        )
+      | _ => (perform(Insert(Token.linebreak), model), false)
+      }
+    | ProjectorMenu => (
         {
           ...model,
-          quit_armed: true,
-          status_msg: Some("unsaved changes! Ctrl+Q or Ctrl+C again to quit"),
+          proj_mode: Menu,
         },
         false,
       )
-      : (model, true)
-  };
+    | ModeKey(k) => (mode_key(model, k), false)
+    | Save => (save(model), false)
+    | Undo => (
+        restore(TuiHistory.undo(model.editor, model.history), model),
+        false,
+      )
+    | Redo => (
+        restore(TuiHistory.redo(model.editor, model.history), model),
+        false,
+      )
+    | PageUp => (
+        repeat(max(1, page), Move(Vertical(Up, ByChar)), model),
+        false,
+      )
+    | PageDown => (
+        repeat(max(1, page), Move(Vertical(Down, ByChar)), model),
+        false,
+      )
+    | ToggleResult => (
+        {
+          ...model,
+          show_result: !model.show_result,
+        },
+        false,
+      )
+    | ToggleInspector => (
+        {
+          ...model,
+          show_inspector: !model.show_inspector,
+        },
+        false,
+      )
+    | Quit =>
+      model.dirty && !model.quit_armed
+        ? (
+          {
+            ...model,
+            quit_armed: true,
+            status_msg:
+              Some("unsaved changes! Ctrl+Q or Ctrl+C again to quit"),
+          },
+          false,
+        )
+        : (model, true)
+    };
+  (with_mode_hint(model), quit);
 };
 
 /* Reset the quit confirmation when any non-quit action intervenes */
@@ -409,8 +574,7 @@ let disarm = (model: model, action: Keymap.t): model =>
 /* === layout === */
 
 let result_pane_height = (~rows: int, model: model): int =>
-  model.show_result
-    ? min(ResultView.wanted_height(model.result), rows / 3) : 0;
+  model.show_result ? ResultView.wanted_height(~rows, model.result) : 0;
 
 let editor_height = (~size: (int, int), model: model): int => {
   let (rows, _) = size;
@@ -494,6 +658,19 @@ let render = (~size: (int, int), model: model): (Frame.t, model) => {
     | Some((from, to_)) =>
       EditorView.apply_selection(buffer_rows, ~from, ~to_)
     | None => buffer_rows
+    };
+
+  /* focused-projector tint (keyboard-operate mode) */
+  let buffer_rows =
+    switch (model.proj_mode) {
+    | Focused(id) =>
+      EditorView.apply_ranges(
+        buffer_rows,
+        EditorView.id_ranges([id], model.editor),
+        Theme.proj_focus,
+      )
+    | Idle
+    | Menu => buffer_rows
     };
 
   /* projector offside views + probe sample values, appended after line

@@ -66,7 +66,7 @@ let final_model =
   let clock = ref(0.0);
   List.iter(
     ev =>
-      switch (Keymap.handle(ev)) {
+      switch (Keymap.handle(~capture=App.capturing(model^), ev)) {
       | None => ()
       | Some(action) =>
         clock := clock^ +. 1.0;

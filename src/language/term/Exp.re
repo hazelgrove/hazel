@@ -86,6 +86,18 @@ let strip_projectors =
         | Projector(_, e) => continue(e)
         | _ => continue(exp)
         },
+    ~f_pat=
+      (continue, pat) =>
+        switch (IdTagged.term_of(pat)) {
+        | Projector(_, p) => continue(p)
+        | _ => continue(pat)
+        },
+    ~f_typ=
+      (continue, typ) =>
+        switch (IdTagged.term_of(typ)) {
+        | Projector(_, ty) => continue(ty)
+        | _ => continue(typ)
+        },
     _,
   );
 

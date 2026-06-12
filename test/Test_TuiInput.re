@@ -93,9 +93,17 @@ let tests = (
           Tui(Undo),
           Tui(Redo),
           Tui(ToggleResultPane),
+          Tui(ProjectorPanel),
           Tui(Quit),
         ],
-        "\x03\x13\x1a\x19\x12\x11",
+        "\x03\x13\x1a\x19\x12\x10\x11",
+      )
+    ),
+    test_case("esc esc is one bare escape keypress", `Quick, () =>
+      check_events(
+        "escape between chars",
+        [Editor(mk("a")), Editor(mk("Escape")), Editor(mk("b"))],
+        "a\x1b\x1bb",
       )
     ),
     test_case(
@@ -247,7 +255,8 @@ let tests = (
       `Quick,
       () => {
         Util.Os.is_mac := false;
-        let key = (ev: event): option(Keymap.t) => Keymap.handle(ev);
+        let key = (ev: event): option(Keymap.t) =>
+          Keymap.handle(~capture=false, ev);
         check(
           string,
           "ctrl+a is select all",

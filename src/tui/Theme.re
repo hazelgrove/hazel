@@ -46,6 +46,11 @@ let test_indet = (s: Style.t): Style.t => {
   bg: Ansi256(58),
 }; /* dark olive */
 let warning_underline = (s: Style.t) => Style.undercurl(yellow, s);
+/* focused-projector tint (App's keyboard-operate mode) */
+let proj_focus = (s: Style.t): Style.t => {
+  ...s,
+  bg: Ansi256(24),
+}; /* deep blue */
 let grout = Style.dim(Style.default);
 let line_number = Style.dim(Style.default);
 let status_bar = Style.reverse(Style.default);
