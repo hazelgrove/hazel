@@ -6,10 +6,10 @@ version=1 id=b0000015-0015-0015-0015-000000000015
 **Step into** is a shortcut combining *pin this call* and *jump to the definition*, intended to help keep debugging context when jumping to a far away definition.
 
 **Try this**
-1. The two calls below are probed (auto-probe is on): you see `610` and `230`. Just totals.
+1. The two calls to `total_water` at the very bottom of the program are probed (auto-probe is on): you should see samples `610` and `230`.
 2. Right-click the `total_water(shade)` sample and choose **Step into** (or click the sample and press **Enter**; now in the Quick Reference).
-3. Your cursor jumps inside `total_water`, pinned to that call.
-4. The fold sits on one line, so all you see is its finished value. Break it open: put a line break after the `->`, and another after `p.water`. Now `acc + p.water` has a probe of its own.
+3. Your cursor jumps inside `total_water`, pinned to that call. Note that the sample is kind of long; let's switch to drawer mode, either by clicking the down arrow to the left of the sample, or by clicking the sample and pressing Cmd/Ctrl-Down.
+4. The fold call below is all on one line, so all you see is its finished value. Break it open: put a line break after the `->`, and another after `p.water`. Now `acc + p.water` has a probe of its own.
 5. If in single mode, switch to *many* mode (press **Space**, or use the **Samples** toggle above). See how `acc + p.water` grows over the course of three iterations: `250 → 450 → 610`.
 6. The **stack focus** bar at the top of the editor shows the call stack for the current sample. Click the first stack frame, `total_water`, to step back out to the call site.
 

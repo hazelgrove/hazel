@@ -5,13 +5,14 @@ show_report version=1 id=b0000014-0014-0014-0014-000000000014
 There is a 🐛 in the garden data. One test fails because of it, and with ten calls feeding every probe, there are samples everywhere. **Pin** locks every probe to a single call's run.
 
 **Try this**
-1. Auto-probe is on, so `make_label` is already probed. Click inside it and try *many* mode (**Space**): ten calls, so ten samples per line.
-2. Find the failing test (the ✗). Probe its `make_label` call, right-click the sample, and choose **Pin this call** (or press `P`; now in the Quick Reference).
+1. Auto-probe is on, so the `make_label` function is already probed. Click on a sample inside it, for example `"fern"` on the `let header` line, and try *many* mode (**Space** or sidebar toggle): ten calls, so ten samples per line. Kind of a lot!
+2. Find the failing test near the end (look for the red ✗). Probe its `make_label` call, right-click the sample, and choose **Pin this call** (or press `P`; now in the Quick Reference).
 3. Back inside `make_label`, every probe now shows just that call's run. Read the `header` sample.
-4. Fix the plant data so the test passes. A **⍟** elsewhere marks samples hidden by your pin; clicking it unpins.
+4. Fix the plant data so the test passes.
+5. Finally, note the **⍟** symbol on some of the other probes. This is used to show that samples from that probe are hidden by your pin; clicking it removes the pin. Try this now.
 
 @hint
-The failing test expects a 🌹.
+Rose should have icon 🌹.
 
 @reference
 ### Pin
