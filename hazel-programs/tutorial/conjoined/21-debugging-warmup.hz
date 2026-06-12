@@ -14,7 +14,7 @@ Walk the levels from 100. Which action changes it in the wrong direction?
 
 @reference
 ### Folding actions into a model
-```hazel
+```hazelnostatics
 fold_left(actions, fun (m, a) -> update(m, a), start)
 ```
 `update(model, action)` returns the next model, and the fold carries it forward. This is the pattern behind the study's debugging tasks; the little lambda gives `update` a real call site you can probe, pin, and step into.

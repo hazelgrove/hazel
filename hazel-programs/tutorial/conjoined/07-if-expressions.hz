@@ -29,7 +29,7 @@ Start with `if x < 0 then 0 else ...` and nest another `if` for the upper bound.
 if 3 < 0 then 0 else 3
 ```
 Nested:
-```hazel
+```hazelnostatics
 if x < 0 then -1
 else if x == 0 then 0
 else 1
