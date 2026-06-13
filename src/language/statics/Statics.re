@@ -323,7 +323,12 @@ and uexp_to_info_map =
     (List.split(pairs), m);
   };
   let go_pat =
-    upat_to_info_map(~ctx, ~ancestors=ancestors_inclusive, ~probe_ids);
+    upat_to_info_map(
+      ~dynamics,
+      ~ctx,
+      ~ancestors=ancestors_inclusive,
+      ~probe_ids,
+    );
   let go_typ = utyp_to_info_map(~ctx, ~ancestors=ancestors_inclusive);
   /* Analyze an expression in label position. Adds info for the label
      directly (like TupLabel does for its children) and returns
@@ -2760,6 +2765,7 @@ and uexp_to_info_map =
 }
 and upat_to_info_map =
     (
+      ~dynamics: LiveTyping.Map.t=LiveTyping.Map.empty,
       ~is_synswitch,
       ~ctx,
       // the co-ctx of the pattern's scope
@@ -2773,6 +2779,17 @@ and upat_to_info_map =
       m: Map.t,
     )
     : (Info.pat, Pat.t, Map.t) => {
+  let calculate_dynamic_type = (uexp: Exp.t) => {
+    let (ie, _, _) =
+      uexp_to_info_map(
+        ~dynamics=LiveTyping.Map.empty,
+        ~ctx,
+        ~ancestors,
+        uexp,
+        StaticsBase.Map.empty,
+      );
+    Some(ie.ty);
+  };
   let ids = IdTagged.ids(upat);
   let (term, rewrap) = Pat.unwrap(upat);
   let ancestors_inclusive = [Pat.rep_id(upat)] @ ancestors;
@@ -2795,6 +2812,14 @@ and upat_to_info_map =
         m: Id.Map.t(Info.t),
       )
       : (Info.pat, Pat.t, Map.t) => {
+    let elab_syn_ty =
+      LiveTyping.refine_typ_with_dynamics(
+        ~dynamics,
+        ~calculate_dynamic_type,
+        ~ctx,
+        ~term_id=Pat.rep_id(user_term),
+        elab_syn_ty,
+      );
     let marks =
       if (marks != []) {
         marks;
@@ -2871,6 +2896,7 @@ and upat_to_info_map =
         m: Map.t,
       ) => {
     upat_to_info_map(
+      ~dynamics,
       ~is_synswitch,
       ~ctx,
       ~co_ctx,
@@ -2890,6 +2916,7 @@ and upat_to_info_map =
       ~analyze_original=
         (~ana, pat, m) =>
           upat_to_info_map(
+            ~dynamics,
             ~ctx,
             ~co_ctx,
             ~is_synswitch,
@@ -2902,6 +2929,7 @@ and upat_to_info_map =
       ~analyze_elaborated=
         (~ana, pat, m) =>
           upat_to_info_map(
+            ~dynamics,
             ~ctx,
             ~co_ctx,
             ~is_synswitch,
@@ -3133,7 +3161,18 @@ and upat_to_info_map =
       /* NOTE: The self type assigned to pattern variables (Unknown)
          may be SynSwitch, but SynSwitch is never added to the context;
          Unknown(Internal) is used in this case */
-      let ctx_typ = fixed_typ(ctx, ana, Unknown(Internal) |> Typ.temp);
+      let ctx_typ =
+        fixed_typ(
+          ctx,
+          ana,
+          LiveTyping.refine_typ_with_dynamics(
+            ~dynamics,
+            ~calculate_dynamic_type,
+            ~ctx,
+            ~term_id=Pat.rep_id(upat),
+            Unknown(Internal) |> Typ.temp,
+          ),
+        );
       let entry =
         Ctx.VarEntry({
           name,

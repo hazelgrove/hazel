@@ -469,6 +469,103 @@ in
       },
     ),
     test_case(
+      "Pattern variable gets live type from application",
+      `Quick,
+      () => {
+        let exp = parse_exp({|(fun x -> x)(1)|});
+        let ctx = Builtins.ctx_init(Some(Int));
+        let (static_map, elaborated) = Statics.mk(CoreSettings.on, ctx, exp);
+        let targets =
+          Haz3lcore.CachedStatics.compute_targets(
+            ~settings=CoreSettings.on,
+            ~info_map=static_map,
+            ~probe_ids=Id.Map.empty,
+          );
+        let (_, state) =
+          Evaluator.evaluate(~targets, ~env=Builtins.env_init, elaborated);
+        let dynamics =
+          mk_live_typing(
+            EvaluatorState.get_probes(state),
+            EvaluatorState.get_type_insts(state),
+          );
+        let (live_map, _) = Statics.mk(~dynamics, CoreSettings.on, ctx, exp);
+        let pat_var_ty = (name, map) =>
+          Id.Map.fold(
+            (_, info, acc) =>
+              switch (info) {
+              | Info.InfoPat({user_term, ty, _})
+                  when Pat.get_var(user_term) == Some(name) =>
+                Some(ty)
+              | _ => acc
+              },
+            map,
+            None,
+          );
+        check(
+          Alcotest.option(Test_Statics_Prelude.testable_typ),
+          "x has static type ?",
+          Some(Test_Statics_Prelude.FTemp.Typ.unknown(Internal)),
+          pat_var_ty("x", static_map),
+        );
+        check(
+          Alcotest.option(Test_Statics_Prelude.testable_typ),
+          "x has live type Int",
+          Some(Test_Statics_Prelude.FTemp.Typ.int()),
+          pat_var_ty("x", live_map),
+        );
+      },
+    ),
+    test_case(
+      "Let-bound pattern variable gets live type",
+      `Quick,
+      () => {
+        let exp = parse_exp({|let x = map([1,2,3], fun _ -> "") in x|});
+        let ctx = Builtins.ctx_init(Some(Int));
+        let (static_map, elaborated) = Statics.mk(CoreSettings.on, ctx, exp);
+        let targets =
+          Haz3lcore.CachedStatics.compute_targets(
+            ~settings=CoreSettings.on,
+            ~info_map=static_map,
+            ~probe_ids=Id.Map.empty,
+          );
+        let (_, state) =
+          Evaluator.evaluate(~targets, ~env=Builtins.env_init, elaborated);
+        let dynamics =
+          mk_live_typing(
+            EvaluatorState.get_probes(state),
+            EvaluatorState.get_type_insts(state),
+          );
+        let (live_map, _) = Statics.mk(~dynamics, CoreSettings.on, ctx, exp);
+        /* The let-bound pattern `x`: its synthesized type is the binder type
+           that drives both the inspector display and the context entry seen
+           by uses. Statically `[?]`, at runtime `[String]`. */
+        let pat_syn = (name, map) =>
+          Id.Map.fold(
+            (_, info, acc) =>
+              switch (info) {
+              | Info.InfoPat({user_term, elab_syn_ty, _})
+                  when Pat.get_var(user_term) == Some(name) =>
+                Some(elab_syn_ty)
+              | _ => acc
+              },
+            map,
+            None,
+          );
+        check(
+          Alcotest.option(Test_Statics_Prelude.testable_typ),
+          "x binder synthesizes ? statically",
+          Some(Test_Statics_Prelude.FTemp.Typ.unknown(Internal)),
+          pat_syn("x", static_map),
+        );
+        check(
+          Alcotest.option(Test_Statics_Prelude.testable_typ),
+          "x binder is live [String]",
+          Some(Test_Statics_Prelude.FTemp.Typ.(list(string()))),
+          pat_syn("x", live_map),
+        );
+      },
+    ),
+    test_case(
       "Unannotated lambda called with inconsistent types gives no feedback",
       `Quick,
       () => {
