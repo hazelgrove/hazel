@@ -1858,12 +1858,23 @@ let builtins: list(hazel_fn) = [
   },
 ];
 
-/* Aliases for global builtins whose names are shadowed by members of the
- * Jq module (the member let-chain binds map, length, and string_sub).
- * These are let-bound at the top of the module chain for internal use by
- * member implementations, but not exported. */
-let internals: list((string, Exp.t)) = [
-  ("list_map", Fresh.Exp.var("map")),
-  ("list_length", Fresh.Exp.var("length")),
-  ("str_sub", Fresh.Exp.var("string_sub")),
-];
+/* The full member list for the Jq module: a few private aliases for
+ * globals whose names are shadowed by later members (map, length,
+ * string_sub), followed by the exported combinators. Members may only
+ * reference members defined earlier in the list. */
+let private_alias = (name: string, target: string): (builtin, access) => (
+  const_builtin({
+    name,
+    typ: Unknown(Internal),
+    imp: Fresh.Exp.var(target),
+  }),
+  Private,
+);
+
+let members: list((builtin, access)) =
+  [
+    private_alias("list_map", "map"),
+    private_alias("list_length", "length"),
+    private_alias("str_sub", "string_sub"),
+  ]
+  @ List.map(b => public(hazel_fn_builtin(b)), builtins);

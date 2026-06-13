@@ -15,8 +15,7 @@ let builtins =
   @ [
     module_builtin({
       name: "Jq",
-      internals: BuiltinsJq.internals,
-      members: BuiltinsJq.builtins,
+      members: BuiltinsJq.members,
     }),
   ]
   @ List.map(fn_builtin, BuiltinsBase.numeric_fns)

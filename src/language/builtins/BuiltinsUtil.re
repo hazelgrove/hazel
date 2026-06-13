@@ -25,27 +25,29 @@ type hazel_fn = {
   imp: Exp.t,
 };
 
-/* A builtin module: exposed as a single variable bound to a labeled tuple
- * of members (the runtime representation of baby modules). Member names are
- * both the let-bound names within the module's let-chain and the labels
- * projected via dot access (e.g. Jq.select), so they shadow same-named
- * global builtins within the chain. Internals are auxiliary bindings
- * (e.g. aliases for shadowed globals) let-bound before the members but not
- * exported. Members may only reference internals and members defined
- * earlier in the list. */
 [@deriving (show({with_path: false}), sexp)]
-type hazel_module = {
-  name: string,
-  internals: list((string, Exp.t)),
-  members: list(hazel_fn),
-};
+type access =
+  | Public
+  | Private;
 
+/* A builtin module: exposed as a single variable bound to a labeled tuple
+ * of its public members (the runtime representation of baby modules).
+ * Member names are both the let-bound names within the module's let-chain
+ * and the labels projected via dot access (e.g. Jq.select), so they shadow
+ * same-named globals within the chain. Private members participate in the
+ * let-chain (typically to alias globals shadowed by other members) but are
+ * not exported. Members may only reference members defined earlier in the
+ * list. */
 [@deriving (show({with_path: false}), sexp)]
 type builtin =
   | Const(const)
   | Fn(fn)
   | HazelFn(hazel_fn)
-  | HazelModule(hazel_module);
+  | HazelModule(hazel_module)
+and hazel_module = {
+  name: string,
+  members: list((builtin, access)),
+};
 
 [@deriving (show({with_path: false}), sexp)]
 type forms = VarMap.t_(DHExp.t => option(DHExp.t));
@@ -57,49 +59,53 @@ let const_builtin = x => Const(x);
 let hazel_fn_builtin = x => HazelFn(x);
 let module_builtin = (x: hazel_module) => HazelModule(x);
 
-/* The type of a builtin module: a labeled product of its members. */
-let module_typ = ({members, _}: hazel_module): TermBase.typ_t =>
+/* Module-member constructor: defaults access to Public. */
+let public = (b: builtin): (builtin, access) => (b, Public);
+
+let name_of_builtin: builtin => string =
+  fun
+  | Const({name, _})
+  | Fn({name, _})
+  | HazelFn({name, _})
+  | HazelModule({name, _}) => name;
+
+/* The type of a builtin: an arrow for fn-shaped builtins, the const's typ
+ * for Const, and the labeled product of public members for HazelModule. */
+let rec typ_of_builtin: builtin => TermBase.typ_t =
+  fun
+  | Const({typ, _}) => typ |> Typ.fresh
+  | Fn({arg, ret, _})
+  | HazelFn({arg, ret, _}) =>
+    Fresh.Typ.arrow(Typ.fresh(arg), Typ.fresh(ret))
+  | HazelModule(m) => module_typ(m)
+and module_typ = ({members, _}: hazel_module): TermBase.typ_t =>
   Fresh.Typ.prod(
-    List.map(
-      (member: hazel_fn) =>
-        Fresh.Typ.tup_label(
-          Fresh.Typ.label(member.name),
-          Fresh.Typ.arrow(Typ.fresh(member.arg), Typ.fresh(member.ret)),
-        ),
-      members,
-    ),
+    members
+    |> List.filter_map(((b, access)) =>
+         switch (access) {
+         | Public =>
+           Some(
+             Fresh.Typ.tup_label(
+               Fresh.Typ.label(name_of_builtin(b)),
+               typ_of_builtin(b),
+             ),
+           )
+         | Private => None
+         }
+       ),
   );
 
-let ctx_entry_of_builtin: builtin => Ctx.entry =
-  fun
-  | Const({name, typ, _}) =>
-    Ctx.VarEntry({
-      name,
-      typ: typ |> Typ.fresh,
-      id: Id.invalid,
-      custom_statics: None,
-    })
-  | Fn({name, arg, ret, custom_statics, _}) =>
-    Ctx.VarEntry({
-      name,
-      typ: Fresh.Typ.arrow(Typ.fresh(arg), Typ.fresh(ret)),
-      id: Id.invalid,
-      custom_statics,
-    })
-  | HazelFn({name, arg, ret, _}) =>
-    Ctx.VarEntry({
-      name,
-      typ: Fresh.Typ.arrow(Typ.fresh(arg), Typ.fresh(ret)),
-      id: Id.invalid,
-      custom_statics: None,
-    })
-  | HazelModule({name, _} as m) =>
-    Ctx.VarEntry({
-      name,
-      typ: module_typ(m),
-      id: Id.invalid,
-      custom_statics: None,
-    });
+let ctx_entry_of_builtin = (b: builtin): Ctx.entry =>
+  Ctx.VarEntry({
+    name: name_of_builtin(b),
+    typ: typ_of_builtin(b),
+    id: Id.invalid,
+    custom_statics:
+      switch (b) {
+      | Fn({custom_statics, _}) => custom_statics
+      | _ => None
+      },
+  });
 
 let form_of_builtin:
   builtin => option((string, TermBase.exp_t => option(TermBase.exp_t))) =
@@ -109,49 +115,44 @@ let form_of_builtin:
   | HazelFn(_) => None
   | HazelModule(_) => None;
 
-let imp_of_builtin: builtin => (string, TermBase.exp_t) =
+/* The imp of a builtin: for HazelModule, mirror the elaborated form of a
+ * module literal — a let-chain of all members (in order) ending in a
+ * labeled tuple of the public members' values. Recursive so nested
+ * modules elaborate the same way. */
+let rec imp_of_builtin: builtin => (string, TermBase.exp_t) =
   fun
   | Const({name, imp, _}) => (name, imp)
   | HazelFn({name, imp, _}) => (name, imp)
   | Fn({name, _}) => (name, Fresh.Exp.builtin_fun(name))
-  | HazelModule({name, internals, members}) => {
-      /* Mirror the elaborated form of a module literal: a let-chain of the
-       * internals then the members, ending in a labeled tuple of the
-       * members' values (internals are not exported). */
+  | HazelModule({name, members}) => {
       let tuple_exp =
         Fresh.Exp.tuple(
-          List.map(
-            (member: hazel_fn) =>
-              Fresh.Exp.tup_label(
-                Fresh.Exp.label(member.name),
-                Fresh.Exp.var(member.name),
-              ),
-            members,
-          ),
-        );
-      let member_chain =
-        List.fold_right(
-          (member: hazel_fn, acc) =>
-            Fresh.Exp.let_(Fresh.Pat.var(member.name), member.imp, acc),
-          members,
-          tuple_exp,
+          members
+          |> List.filter_map(((b, access)) =>
+               switch (access) {
+               | Public =>
+                 let n = name_of_builtin(b);
+                 Some(
+                   Fresh.Exp.tup_label(
+                     Fresh.Exp.label(n),
+                     Fresh.Exp.var(n),
+                   ),
+                 );
+               | Private => None
+               }
+             ),
         );
       let chain =
         List.fold_right(
-          ((alias, exp), acc) =>
-            Fresh.Exp.let_(Fresh.Pat.var(alias), exp, acc),
-          internals,
-          member_chain,
+          ((b, _access), acc) => {
+            let (n, imp) = imp_of_builtin(b);
+            Fresh.Exp.let_(Fresh.Pat.var(n), imp, acc);
+          },
+          members,
+          tuple_exp,
         );
       (name, chain);
     };
-
-let name_of_builtin: builtin => string =
-  fun
-  | Const({name, _})
-  | Fn({name, _})
-  | HazelFn({name, _})
-  | HazelModule({name, _}) => name;
 
 exception BuiltinAlreadyDefined(Var.t);
 
