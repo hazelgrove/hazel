@@ -13,7 +13,7 @@ That totals **1070**, but the program computes **1150**: one call below has the 
 
 The ledger lists final amounts, but each call shows only a base and a phase; checking a call against the ledger means working out `base + adjust` in your head. Let probes do that instead:
 
-1. Put a **multi-probe** on the function: cursor on `let`, then **Cmd/Ctrl+E**. The probe on `base + adjust` shows each call's final amount.
+1. Put the caret on the `let` token in front of `watering_amount` and press **Cmd/Ctrl+E** to probe the function definition. The probe on `base + adjust` shows each call's final amount.
 2. Click a `name` sample and step through the calls with **←/→**. The green (aligned) samples all belong to one call, pairing that plant's name with its `base + adjust`.
 3. Find the plant whose final amount disagrees with its ledger row, and fix its call's phase.
 

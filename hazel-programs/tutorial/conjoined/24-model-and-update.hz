@@ -9,14 +9,14 @@ Some debugging tasks are structured as the internal part of a Model-View-Update 
 The model here is a `Ledger`: a record with a list of records inside, growing as actions arrive. It is the biggest value yet, so this is also a slide about giving samples room.
 
 **Try this**
-1. The `update(ledger, a)` call in the final fold is probed (auto-probe is on). Right-click its sample and **Step into**, then switch to *many* mode (**Space**): one ledger per action.
+1. The `update(ledger, a)` call in the final fold is probed. Right-click its sample and **Step into**, then switch to *many* mode (**Space**): one ledger per action.
 2. In many mode the samples share the row, so each ledger is squeezed small. Press **Space** again for single mode and walk with **←/→** instead: each ledger gets the whole width. Squeezed-but-together versus roomy-but-one-at-a-time; pick per question.
 3. For the whole ledger at once, unfold a sample into the drawer (**Cmd/Ctrl+↓**; **Cmd/Ctrl+↑** folds it back). Watch the harvest list grow action by action. Which harvest is worth the most?
 
 @reference
 ### Reading values
 - **Many mode** shows all samples at once, each squeezed; **single mode** (←/→) gives one sample the full width.
-- **Resize a sample**: click it, then **Shift+←/→**, or drag its edge.
+- **Resize a sample**: click it, then **Shift+←/→**, or shift-drag its edge.
 - **Drawer**: **Cmd/Ctrl+↓** unfolds a sample across rows; **Cmd/Ctrl+↑** folds it back.
 
 @code

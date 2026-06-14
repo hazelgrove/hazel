@@ -2,17 +2,17 @@
 wrapper show_report version=1 id=b0000008-0008-0008-0008-000000000008
 
 @prompt
-So far, probes have either had one sample (top level expressions), or zero samples (conditional branch not taken). Probes in functions however collect one sample *per call*.
+Probes inside function calls collect one sample *per call*.
 
 The function `watering_amount` below adjusts a base amount by the moon phase. It is called three times at the bottom of the program.
 
 Note that a **Samples** toggle has appeared at the top of the Task Reference sidebar; new controls will be added as they are introduced
 
 **Try this**
-1. Probe the function's body: put your cursor on `case` and add a probe.
+1. Put the caret on the `case` token and add a probe to probe the case expression.
 2. Notice that the sample shown, `220`, now has arrows to the left (1). You can click on the right arrow to cycle through the 2 other samples, and the left arrow to go back. Alternatively, click on the sample itself, and use **←/→** on your keyboard to step between them.
 3. Now, press **Space** (or flip the **Samples** toggle at the top of the sidebar) for *many* mode to see all three at once. Space again to go back.
-4. Now, finish the third call (`watering_amount(50, Waning)`) so all three run to completion.
+4. Now, finish the third call at the bottom of the editor (`watering_amount(50, Waning)`) so all three run to completion.
 
 @hint
 Finish the third call: `watering_amount(50, Waning)`. Then probe the `case` and use ←/→.

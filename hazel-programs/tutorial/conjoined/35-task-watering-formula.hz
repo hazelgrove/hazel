@@ -6,7 +6,7 @@ show_report version=1 id=d0000037-0037-0037-0037-000000000037
 
 The greenhouse computes each plant's daily water from a formula, but its two constants were lost. The tests are measurements from healthy plants: fill in `base` and `perLeaf` so every measurement matches.
 
-Auto-probe is on, so each measurement's computed value updates live as you type a guess. The first measurement uses a plant with zero leaves; start there.
+Each measurement's computed value updates live as you type a guess. The first measurement uses a plant with zero leaves; start there.
 
 @hint
 With zero leaves and no sun bonus, water is just base. Once base is right, the second measurement pins down perLeaf.

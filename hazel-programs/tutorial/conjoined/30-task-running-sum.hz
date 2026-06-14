@@ -13,7 +13,7 @@ Carry the running total along: as an extra argument to a helper function, or as 
 ### Approach (writing tasks)
 1. Read the comment block: what should the function do?
 2. Read the tests: they are the spec, with exact expected values.
-3. Build in small steps. Auto-probe is on, so intermediate values appear as you type.
+3. Build in small steps; intermediate values appear as you type.
 4. Probe inside your function: each recursive call (or fold step) is a separate sample.
 
 ### Recursion

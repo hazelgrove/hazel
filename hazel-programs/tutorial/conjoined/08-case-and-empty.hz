@@ -4,7 +4,7 @@ wrapper show_report version=1 id=b0000007-0007-0007-0007-000000000007
 @prompt
 A *sum type* lists a fixed set of constructors, separated by `+`s:
 ```hazelnostatics
-type MoonPhase = New + Waxing + Full + Waning in …
+type MoonPhase = New + Waxing + Full + Waning in "…"
 ```
 
 A `case` expression tries to match a value against a sequence of patterns. A wildcard `_` pattern matches anything.
@@ -13,7 +13,7 @@ A `case` expression tries to match a value against a sequence of patterns. A wil
 
 Before you begin put a probe on each branch of the case expression: on the `+` in the `New` branch, on the `-` in the `Full` branch, on `base` in the last branch, and on the `case` itself. Note that only the matching branch shows a value, and that the `case` itself takes on the value of that branch. The other branches show **∅**, meaning those paths never ran.
 
-First, try changing `Full` to `New` in the definition of `phase` and watch a different branch light up. Change it to `Waxing`, and then back to `Full`.
+First, try changing `Full` to `New` in the definition of `current_phase` and watch a different branch light up. Change it to `Waxing`, and then back to `Full`.
 
 Second: On a full moon, a plant needs 30 ml less. Fill the hole so the watering comes to **220**.
 
@@ -41,9 +41,9 @@ With the full-moon adjustment the result should be 220.
 @code
 type MoonPhase = New + Waxing + Full + Waning in
 let base = 250 in
-let phase: MoonPhase = Full in
+let current_phase: MoonPhase = Full in
 
-case phase
+case current_phase
 | New => base + 50
 | Full => base - ¿
 | _ => base

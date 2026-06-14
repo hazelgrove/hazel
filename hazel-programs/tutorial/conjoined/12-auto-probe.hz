@@ -12,7 +12,7 @@ While autoprobe mode avoids manual placement, it might also cause information ov
 **Try this**
 1. Turn on auto-probe. Probes should appear across the program.
 2. The parameters of `watering_amount` share one line, so you get one combined value for them. Insert a line break to put `base` and `phase` on separate lines, and each gets its own value. As before, how you format the code decides how granular the values are.
-3. **Optional:** The sidebar toggle also has a `Caret` mode that probes only the definition your cursor is in, following you as you move. Click `Caret`, move your cursor between the two functions, and watch the probes follow. We'll only use `Caret` if `All` runs too slowly on your machine; normally, leave it on `All`.
+3. **Optional:** The sidebar toggle also has a `Caret` mode: only the definition the caret is in gets probed, following you as you move. Click `Caret`, move your caret between the two functions, and watch the probes follow. We'll only use `Caret` if `All` runs too slowly on your machine; normally, leave it on `All`.
 
 @hint
 Press **Cmd/Ctrl+P** (or click `All` on the toggle) to probe the whole program.
@@ -20,7 +20,7 @@ Press **Cmd/Ctrl+P** (or click `All` on the toggle) to probe the whole program.
 @reference
 ### Probes
 - **Auto-probe**: Cmd/Ctrl+P, or click `All`. Probes the whole program, one per line.
-- `Caret` mode follows the cursor's definition; use it only if `All` is too slow.
+- `Caret` mode probes only the definition the caret is in; use it only if `All` is too slow.
 - More line breaks show more intermediate values.
 
 @code

@@ -16,7 +16,7 @@ plant.water
 # Task
 
 
-1. Destructure `plant` apart into `name` and `water`, then build `label` so it reads **"moonleaf needs 250m"l**. You'll need `string_of_int` to convert.
+1. Destructure `plant` apart into `name` and `water`, then build `caption` so it reads **"moonleaf needs 250ml"**. You'll need `string_of_int` to convert.
 2. Build a `"fern"` record: ferms need **200 ml** each watering. The last line reads its `water` back; probe it to confirm.
 
 @hint
@@ -41,19 +41,19 @@ The type is written `(name = String, water = Int)`.
 - `string_of_int(250)` is `"250"`
 
 @hints
-label should be "moonleaf needs 250ml"
+caption should be "moonleaf needs 250ml"
 fern should be a Plant record with water 200
 
 @code
 let plant: (String, Int) = ("moonleaf", 250) in
 let ¿ = plant in
-let label = name ++ " needs " ++ ¿ ++ "ml" in
+let caption = name ++ " needs " ++ ¿ ++ "ml" in
 
 type Plant = (name = String, water = Int) in
 let fern: Plant = ¿ in
 
-(label, fern.water)
+(caption, fern.water)
 
 @test
-test label == "moonleaf needs 250ml" end;
+test caption == "moonleaf needs 250ml" end;
 test fern.water == 200 end

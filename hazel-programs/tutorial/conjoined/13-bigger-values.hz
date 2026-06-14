@@ -4,10 +4,10 @@ show_report version=1 id=b0000106-0106-0106-0106-000000000106
 @prompt
 Values can outgrow their samples, especially in *many* mode, where all of a probe's samples share one row.
 
-**Try this**: probe `card` on the last line of `plant_card` (cursor on it, then **Cmd/Ctrl+E**). Three calls means three samples, and each is squeezed down to a few characters. Three ways to get a sample some room (all now in the Quick Reference):
+**Try this**: probe `card` on the last line of `plant_card` (caret on the `card` token, then **Cmd/Ctrl+E**). Three calls means three samples, and each is squeezed down to a few characters. Three ways to get a sample some room (all now in the Quick Reference):
 
-- **Resize** the sample you care about: click it, then **Shift+←/→**, or drag its edge.
 - **Switch to single mode** (**Space**): one sample at a time, with the whole width to itself. Walk between the calls with **←/→**.
+- **Resize** the sample you care about: click it, then **Shift+←/→**, or shift-drag its edge.
 - **Open the drawer**: press **Cmd/Ctrl+↓** and the sample unfolds across several rows; **Cmd/Ctrl+↑** folds it back up. If a sample ever sprouts extra rows unexpectedly, that is what happened; **Cmd/Ctrl+↑** undoes it.
 
 # Task
@@ -18,7 +18,7 @@ The moonbloom's card holds the answer in `care`. Unfold its sample with **Cmd/Ct
 
 @reference
 ### Reading values
-- **Resize a sample**: click it, then **Shift+←/→**, or drag its edge.
+- **Resize a sample**: click it, then **Shift+←/→**, or shift-drag its edge.
 - **Drawer**: **Cmd/Ctrl+↓** unfolds a sample across rows; **Cmd/Ctrl+↑** folds it back.
 
 ### Probes

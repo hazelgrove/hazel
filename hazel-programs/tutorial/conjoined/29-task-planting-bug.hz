@@ -6,7 +6,7 @@ show_report version=1 id=d0000035-0035-0035-0035-000000000035
 
 The crop plotter plants seeds on a 3x3 grid. Some plantings land in the wrong place: one failing test shows it. Find and fix the bug.
 
-The sidebar has a suggested approach. Tip: when a function runs once per grid cell, its probes collect many samples; **pin** the failing test's run to cut them down.
+The sidebar has a suggested approach: when a function runs once per grid cell, its probes collect many samples; **pin** the failing test's run to cut them down.
 
 @hint
 Compare where the failing test plants against where the plant actually lands. Probe inside setCell and check what each index is being compared to.

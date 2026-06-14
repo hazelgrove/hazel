@@ -7,7 +7,7 @@ Probes produce **samples**, the green rectangles at the end of the line. Right-c
 # Task
 The almanac is clear: a base of **250 ml**, **7** days, and a **50 ml** new-moon bonus, for a weekly total of **1800 ml**.
 
-1. Probe the `weekly` definition: cursor on the `+`, then **Cmd/Ctrl+E**. The sample does not read 1800. Either the formula is wrong, or one of the numbers feeding it is.
+1. Probe the `weekly` definition: caret on the `+`, then **Cmd/Ctrl+E**. The sample does not read 1800. Either the formula is wrong, or one of the numbers feeding it is.
 2. Check the inputs first: **right-click the sample** (the `1755`) (a two-finger tap on a Mac trackpad, or Option-click). The dropdown lists the value of every variable the probed expression uses (now in the Quick Reference). Here, you can just see those values immediately above in the code, but this may not always be the case!
 3. Compare those values against the almanac. Fix the binding that is off, and `weekly` comes to **1800**.
 

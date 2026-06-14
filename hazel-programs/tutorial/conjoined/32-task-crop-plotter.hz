@@ -19,7 +19,7 @@ Mirror `setRow`: map over the rows, and in each row change only the cell at the 
 ### Approach (extension tasks)
 1. Read the comment block: what should the new action do?
 2. Find the existing feature it mirrors (`PlantRow`) and read its three parts: the Action variant, the helper, the update arm.
-3. Build the column versions of each. Auto-probe is on; probe `setCol` calls to watch the grid change.
+3. Build the column versions of each; watch the `setCol` calls' samples to see the grid change.
 4. Unsure about `mapi`? Probe its callback and see which argument is the index.
 
 @hints

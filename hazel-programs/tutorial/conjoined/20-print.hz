@@ -2,10 +2,10 @@
 version=1 id=b0000020-0020-0020-0020-000000000020
 
 @prompt
-Hazel also has classic print-statement debugging. For some tasks we'll ask you to use these instead of probes. Click **Console** at the top of the Task Reference sidebar to switch to the print console. Now, when you have a `print(value);` in your code, it prints there when you click **Run**.
+Hazel also has classic print-statement debugging. For some tasks we'll ask you to use these instead of probes. Click **Console** at the top of the Task Reference sidebar to switch to the print console. Now, when you have a `print(value);` in your code, it prints there when you click **Run**. Prints don't need strings, they can print any Hazel type polymophically.
 
 # Task
-The garden waters for a week. Add `print(daily);` inside `weekly_water` to log each daily amount, then watch the Console fill as the calls below run. There should be three lines.
+Add `print(daily);` inside `weekly_water` to log each daily watering amount, then watch the Console fill as the calls below run. There should be three new lines.
 
 @hint
 `print(daily);` before the result, inside the function.

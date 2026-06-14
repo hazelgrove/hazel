@@ -20,7 +20,7 @@ Try `string_split(path, "/")` in a probe and look at what comes back. Mind the e
 ### Approach (writing tasks)
 1. Read the comment block: what should the function do?
 2. Read the tests: they are the spec, with exact expected values.
-3. Build in small steps. Auto-probe is on, so intermediate values appear as you type.
+3. Build in small steps; intermediate values appear as you type.
 4. Unsure what a library function does? Probe a call and look. Probing `f(?)` with a hole argument x-rays what `f` does.
 
 ### Functions
