@@ -43,15 +43,27 @@ let none: t = {
  * until 12, where the user turns it on), then ON (All, whole program) for the
  * slides after, so probes appear without manual placement. Cmd/Ctrl+P toggles
  * All; the Caret follow-the-cursor mode is a performance fallback, set via the
- * toggle and never pre-set here. Overrides:
+ * toggle and never pre-set here.
+ *
+ * SAMPLES WINDOW: every slide also starts in a deliberate window mode.
+ * `samples` is always applied (default Single, see `apply`), so the mode
+ * never silently carries over from a prior slide. Most slides start Single
+ * (the calm, one-sample-at-a-time view); a slide opts into Many only when
+ * its lesson needs several samples visible at once (alignment colors, a
+ * growing accumulator column, "ten samples is a lot" motivating pin, etc.).
+ * Study tasks (26+) always start Single: the participant switches if they
+ * want to. Slide 10 stays Single on purpose -- that is where Many is first
+ * introduced via Space, so toggling is the lesson.
+ *
+ * Overrides:
  *   - 20 Print: everything off, the print console is the focus -> Off
  *   - 36 (colors) also needs the Hybrid color scheme so colors show
- *     -> All + Hybrid
- * Slides not listed inherit the current state (no-op). */
+ *     -> All + Hybrid + Many
+ * Slides not listed inherit auto-probe but start Single. */
 let of_slide = (module_name: string): t =>
   switch (module_name) {
-  /* Slides 01-12: auto-probe off (not introduced until 12, where the user
-   * turns it on, so it starts off there too). */
+  /* Slides 01-10, 12: auto-probe off (not introduced until 12, where the
+   * user turns it on, so it starts off there too); single window. */
   | "TuGen_01ArithmeticAndHoles"
   | "TuGen_02ParserAndBackpack"
   | "TuGen_03Probes"
@@ -61,10 +73,15 @@ let of_slide = (module_name: string): t =>
   | "TuGen_08CaseAndEmpty"
   | "TuGen_09VariantsWithData"
   | "TuGen_10FunctionsAndManySamples"
-  | "TuGen_11AligningSamples"
   | "TuGen_12AutoProbe" => {
       ...none,
       autoprobe: Some(Off),
+    }
+  /* Aligning: many window so aligned samples show their green highlight. */
+  | "TuGen_11AligningSamples" => {
+      ...none,
+      autoprobe: Some(Off),
+      samples: Some(Many),
     }
   /* Bigger values: one hand-placed probe with three calls, starting in
    * many mode so the squeeze (and the three remedies) is the lesson. */
@@ -78,29 +95,37 @@ let of_slide = (module_name: string): t =>
       ...none,
       autoprobe: Some(Off),
     }
-  /* Everything after auto-probe is introduced: All (whole program).
-   * Cmd/Ctrl+P toggles All; Caret is a performance fallback set via the
-   * toggle, never pre-set here. */
+  /* Auto-probe introduced: All (whole program), single window. */
   | "TuGen_14Map"
+  | "TuGen_19WritingStrings" => {
+      ...none,
+      autoprobe: Some(All),
+    }
+  /* All + many window: each needs several samples visible at once --
+   * 15 the growing accumulator column, 16 the ten-samples-is-a-lot that
+   * motivates pin, 17 the per-iteration growth, 21 the three update calls
+   * to compare, 23/24 the many-vs-single contrast that is their lesson. */
   | "TuGen_15Fold"
   | "TuGen_16Pin"
   | "TuGen_17StepInto"
-  | "TuGen_19WritingStrings"
   | "TuGen_21DebuggingWarmup"
   | "TuGen_23GreenhouseArena"
   | "TuGen_24ModelAndUpdate" => {
       ...none,
       autoprobe: Some(All),
+      samples: Some(Many),
     }
-  /* Colors slide: All, plus the Hybrid scheme so the colors actually show. */
+  /* Colors slide: All + Hybrid scheme + many so the before/after color
+   * relationships between sibling samples are visible. */
   | "TuGen_36SampleColors" => {
-      ...none,
       autoprobe: Some(All),
       colors: Some(Hybrid),
+      samples: Some(Many),
     }
   /* Study tasks: writing tasks start with auto-probe All (ambient feedback
    * while building); debugging tasks start Off so the probing strategy is
-   * the participant's own choice. */
+   * the participant's own choice. All tasks start in the single window;
+   * the participant switches to many if they want it. */
   | "TuGen_26TaskGroveName"
   | "TuGen_28TaskLogCleaner"
   | "TuGen_30TaskRunningSum"
@@ -123,14 +148,17 @@ let of_slide = (module_name: string): t =>
 
 /* Apply a slide's initial settings. Samples/colors are global ProbeProj
  * refs (direct side effects); autoprobe is Settings state, so the caller
- * supplies a dispatcher. Autoprobe/samples apply only when specified (Some).
- * Colors ALWAYS apply: a slide that does not pick a scheme knocks the user
- * back to the Simple two-color default, so the full scheme forced on the
- * colors slide (or opted into by the user) does not silently follow them
- * through the rest of the tutorial. */
+ * supplies a dispatcher. Autoprobe applies only when specified (Some).
+ * Samples and colors ALWAYS apply with a default: a slide that does not
+ * pick one is knocked back to the calm baseline (Single window, Simple
+ * two-color scheme), so a mode/scheme a slide forced -- or the user picked
+ * mid-slide -- does not silently follow them onto the next slide. This is
+ * what keeps each slide's starting window mode deterministic. */
 let apply = (~set_autoprobe: AutoProbe.t => unit, init: t): unit => {
   Option.iter(set_autoprobe, init.autoprobe);
-  Option.iter(w => ProbeProj.Settings.go(SetWindow(w)), init.samples);
+  let window =
+    Option.value(init.samples, ~default=Language.Sample.Window.Single);
+  ProbeProj.Settings.go(SetWindow(window));
   let colors = Option.value(init.colors, ~default=ProbeProj.Settings.Simple);
   ProbeProj.Settings.go(SetSampleBase(colors));
 };
