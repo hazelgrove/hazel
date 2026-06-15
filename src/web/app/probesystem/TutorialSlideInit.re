@@ -67,12 +67,12 @@ let of_slide = (module_name: string): t =>
   | "TuGen_01ArithmeticAndHoles"
   | "TuGen_02ParserAndBackpack"
   | "TuGen_03AddingAndRemovingProbes"
-  | "TuGen_04VariablesAndExploring"
+  | "TuGen_04EnvironmentExplorer"
   | "TuGen_05TuplesAndRecords"
   | "TuGen_07IfExpressions"
-  | "TuGen_08CaseAndEmpty"
-  | "TuGen_09VariantsWithData"
-  | "TuGen_10FunctionsAndManySamples"
+  | "TuGen_08CaseExpressions"
+  | "TuGen_09ConstructorsWithData"
+  | "TuGen_10SamplesPerCall"
   | "TuGen_12AutoProbe" => {
       ...none,
       autoprobe: Some(Off),
@@ -85,7 +85,7 @@ let of_slide = (module_name: string): t =>
     }
   /* Bigger values: one hand-placed probe with three calls, starting in
    * many mode so the squeeze (and the three remedies) is the lesson. */
-  | "TuGen_13BiggerValues" => {
+  | "TuGen_13ReadingBiggerValues" => {
       ...none,
       autoprobe: Some(Off),
       samples: Some(Many),
@@ -108,7 +108,7 @@ let of_slide = (module_name: string): t =>
   | "TuGen_15Fold"
   | "TuGen_16Pin"
   | "TuGen_17StepInto"
-  | "TuGen_21DebuggingWarmup"
+  | "TuGen_21ADebuggingWarmup"
   | "TuGen_23GreenhouseArena"
   | "TuGen_24ModelAndUpdate" => {
       ...none,

@@ -73,22 +73,22 @@ let flags_of_slide = (module_name: string): list(feat) =>
   | "TuGen_01ArithmeticAndHoles"
   | "TuGen_02ParserAndBackpack" => s01
   | "TuGen_03AddingAndRemovingProbes" => s03
-  | "TuGen_04VariablesAndExploring"
+  | "TuGen_04EnvironmentExplorer"
   | "TuGen_05TuplesAndRecords"
   | "TuGen_07IfExpressions" => s04
-  | "TuGen_08CaseAndEmpty"
-  | "TuGen_09VariantsWithData" => s08
-  | "TuGen_10FunctionsAndManySamples" => s10
+  | "TuGen_08CaseExpressions"
+  | "TuGen_09ConstructorsWithData" => s08
+  | "TuGen_10SamplesPerCall" => s10
   | "TuGen_11AligningSamples" => s11
   | "TuGen_12AutoProbe" => s12
-  | "TuGen_13BiggerValues"
+  | "TuGen_13ReadingBiggerValues"
   | "TuGen_14Map"
   | "TuGen_15Fold" => s13
   | "TuGen_16Pin" => s16
   | "TuGen_17StepInto"
   | "TuGen_19WritingStrings" => s17
   | "TuGen_20Print"
-  | "TuGen_21DebuggingWarmup" => s20
+  | "TuGen_21ADebuggingWarmup" => s20
   | "TuGen_23GreenhouseArena"
   | "TuGen_24ModelAndUpdate" => s20
   | "TuGen_36SampleColors" => s36
@@ -116,10 +116,10 @@ let flags_of_slide = (module_name: string): list(feat) =>
 let new_flags_of_slide = (module_name: string): list(feat) =>
   switch (module_name) {
   | "TuGen_01ArithmeticAndHoles" => [AddProbe]
-  | "TuGen_04VariablesAndExploring" => [SeeVars]
-  | "TuGen_13BiggerValues" => [Resize, ExpandProbe]
-  | "TuGen_08CaseAndEmpty" => [IconEmpty]
-  | "TuGen_10FunctionsAndManySamples" => [SamplesToggle, NavSamples]
+  | "TuGen_04EnvironmentExplorer" => [SeeVars]
+  | "TuGen_13ReadingBiggerValues" => [Resize, ExpandProbe]
+  | "TuGen_08CaseExpressions" => [IconEmpty]
+  | "TuGen_10SamplesPerCall" => [SamplesToggle, NavSamples]
   | "TuGen_11AligningSamples" => [FocusProbe, IconOutsideFocus]
   | "TuGen_12AutoProbe" => [AutoProbe]
   | "TuGen_16Pin" => [Pin, IconPinHidden]
