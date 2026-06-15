@@ -346,3 +346,8 @@
 #probe-sidebar.tutorial-probe-strip tr.qr-new > td:last-child {
   border-radius: 0 6px 6px 0;
 }
+
+.prompt-content .code {
+  background: var(--Y0);
+  border-radius: 3px;
+}
