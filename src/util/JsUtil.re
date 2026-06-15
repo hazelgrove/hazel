@@ -241,6 +241,20 @@ let find_ancestor_with_class =
   loop(element_to_node(el));
 };
 
+let add_cls = (el: Js.Unsafe.any, cls: string): unit =>
+  Js.Unsafe.meth_call(
+    Js.Unsafe.get(el, "classList"),
+    "add",
+    [|Js.Unsafe.inject(Js.string(cls))|],
+  );
+
+let rm_cls = (el: Js.Unsafe.any, cls: string): unit =>
+  Js.Unsafe.meth_call(
+    Js.Unsafe.get(el, "classList"),
+    "remove",
+    [|Js.Unsafe.inject(Js.string(cls))|],
+  );
+
 let adjust_scroll = (container: Js.t(Dom_html.element), delta: float) =>
   if (delta != 0.) {
     let current = float_of_int(container##.scrollTop);

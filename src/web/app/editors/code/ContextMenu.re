@@ -281,6 +281,8 @@ module Projectors = {
     | Table => "Table"
     | Livelit => "Livelit"
     | Probe => "Probe" /* shouldn't appear in menu */
+    | Automerge => "Automerge"
+    | AutomergeWriteBack => "Automerge (Write-back)"
     };
 
   let applicable_kinds =
