@@ -36,10 +36,6 @@ else 1
 ### Comparisons
 `==  <  >  <=  >=`
 
-### Probes
-- **Add / remove a probe**: Cmd/Ctrl+E, or right-click then *Add probe*
-- **On a definition**: the same control lands a probe per line. Add or remove line breaks to control how much you see.
-
 @hints
 clamp(-5) should be 0
 clamp(50) should be 50

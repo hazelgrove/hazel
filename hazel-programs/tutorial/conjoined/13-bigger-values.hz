@@ -15,14 +15,6 @@ Values can outgrow their samples, especially in *many* mode, where all of a prob
 @hint
 Probe `care`. Expand its sample with **Cmd/Ctrl+↓**, or read it in single mode.
 
-@reference
-### Reading values
-- **Resize a sample**: click it, then **Shift+←/→**, or shift-drag its edge.
-- **Drawer**: **Cmd/Ctrl+↓** unfolds a sample across rows; **Cmd/Ctrl+↑** folds it back.
-
-### Probes
-- **Add / remove a probe**: Cmd/Ctrl+E, or right-click then *Add probe*
-
 @hints
 The moonbloom drinks 1260 ml a week.
 

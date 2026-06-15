@@ -24,9 +24,6 @@ Hexagons are holes. Hazel evaluates around them. Fill one by typing a value.
 ### Integer operations
 `(+ - * /)`
 
-### Probes
-- **Add / remove a probe**: Cmd/Ctrl+E, or right-click then *Add probe*
-
 @hints
 Fill the hole appropriately.
 

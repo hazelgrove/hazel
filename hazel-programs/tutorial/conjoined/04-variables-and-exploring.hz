@@ -14,11 +14,6 @@ The almanac is clear: a base of **250 ml**, **7** days, and a **50 ml** new-moon
 @hint
 The dropdown shows `base`, `days`, and `bonus` next to their values. One of them does not match the almanac.
 
-@reference
-### Probes
-- **Add / remove a probe**: Cmd/Ctrl+E, or right-click then *Add probe*
-- **See the variables**: right-click a sample (or Option-click) for the values feeding it
-
 @hints
 weekly should be 1800
 

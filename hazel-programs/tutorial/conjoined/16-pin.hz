@@ -16,11 +16,6 @@ There is a 🐛 (bug) in the garden data. A `make_label` unit test fails because
 @hint
 Rose should have icon 🌹.
 
-@reference
-### Pin
-- **Pin this call**: right-click a call's sample, then *Pin this call* (or press `P`). Every probe filters to that run.
-- **⍟**: samples hidden by a pin. Click to unpin.
-
 @hints
 fern label, 7 days
 fern label, 14 days

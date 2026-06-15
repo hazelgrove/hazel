@@ -17,11 +17,6 @@ The function `watering_amount` below adjusts a base amount by the moon phase. It
 @hint
 Finish the third call: `watering_amount(50, Waning)`. Then probe the `case` and use ←/→.
 
-@reference
-### Probes
-- **Add / remove a probe**: Cmd/Ctrl+E, or right-click then *Add probe*
-- **Many calls**: one sample per call. ←/→ to step, **Space** for all at once.
-
 @code
 type MoonPhase = New + Waxing + Full + Waning in
 let watering_amount(base: Int, phase: MoonPhase): Int =

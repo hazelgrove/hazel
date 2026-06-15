@@ -12,12 +12,6 @@ So far you've placed probes by hand; **auto-probe** does it for you, putting a p
 @hint
 Press **Cmd/Ctrl+P** (or click `All` on the toggle) to probe the whole program.
 
-@reference
-### Probes
-- **Auto-probe**: Cmd/Ctrl+P, or click `All`. Probes the whole program, one per line.
-- `Caret` mode probes only the definition the caret is in; use it only if `All` is too slow.
-- More line breaks show more intermediate values.
-
 @code
 type MoonPhase = New + Waxing + Full + Waning in
 let watering_amount(base: Int, phase: MoonPhase): Int =

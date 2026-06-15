@@ -23,9 +23,7 @@ Step through the calls with the arrows, reading each plant's name next to its `b
 
 @reference
 ### Probes
-- **Focus**: the sample you click; others align to it. Green = same call.
 - **⊖**: a sample exists but is not aligned to the focus. Click it to align.
-- **←/→**: step between a probe's samples.
 
 @hints
 The watering total should come to 1070.

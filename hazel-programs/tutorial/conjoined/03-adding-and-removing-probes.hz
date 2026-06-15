@@ -11,11 +11,6 @@ Each line holds at most one probe: adding a probe to a line removes any probe al
 @hint
 Caret on an expression, then Cmd/Ctrl+E. The same key removes a probe you already placed.
 
-@reference
-### Probes
-- **Add / remove a probe**: Cmd/Ctrl+E, or right-click then *Add probe*
-- At most one probe per line. A new one replaces the old.
-
 @code
 let weekly = 2 * 125 * 7 in
 weekly + 50

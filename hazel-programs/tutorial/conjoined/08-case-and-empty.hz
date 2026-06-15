@@ -31,10 +31,6 @@ case Red
 end
 ```
 
-### Probes
-- **Add / remove a probe**: Cmd/Ctrl+E, or right-click then *Add probe*
-- **∅** means a branch was never evaluated
-
 @hints
 With the full-moon adjustment the result should be 220.
 

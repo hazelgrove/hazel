@@ -15,11 +15,6 @@ version=1 id=b0000015-0015-0015-0015-000000000015
 @hint
 Right-click a call's sample and choose *Step into*, or click it and press Enter.
 
-@reference
-### Probes
-- **Step into**: right-click a call's sample, then *Step into* (or press Enter). Equivalent to pinning the call and jumping to the definition.
-- The **stack focus** bar at the top of the editor shows where you are in the call stack. Click to navigate.
-
 @code
 type Plant = (name = String, water = Int) in
 let total_water(plants: [Plant]): Int =

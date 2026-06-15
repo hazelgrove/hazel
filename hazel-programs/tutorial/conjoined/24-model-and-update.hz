@@ -9,12 +9,6 @@ Some debugging tasks are the internal part of a Model-View-Update app. A **model
 2. The samples share the row, so each is squeezed. Press **Space** for single mode and walk with **←/→** instead: each ledger gets the full width.
 3. For the whole thing at once, unfold a sample into the drawer (**Cmd/Ctrl+↓**; **Cmd/Ctrl+↑** folds back). Watch the harvest list grow action by action. Which harvest is worth the most?
 
-@reference
-### Reading values
-- **Many mode** shows all samples at once, each squeezed; **single mode** (←/→) gives one sample the full width.
-- **Resize a sample**: click it, then **Shift+←/→**, or shift-drag its edge.
-- **Drawer**: **Cmd/Ctrl+↓** unfolds a sample across rows; **Cmd/Ctrl+↑** folds it back.
-
 @code
 type Quality = Bronze + Silver + Gold + Starlight in
 type Harvest = (crop = String, quality = Quality, quantity = Int) in
