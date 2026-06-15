@@ -108,16 +108,16 @@ let of_slide = (module_name: string): t =>
   | "TuGen_15Fold"
   | "TuGen_16Pin"
   | "TuGen_17StepInto"
-  | "TuGen_21ADebuggingWarmup"
-  | "TuGen_23GreenhouseArena"
-  | "TuGen_24ModelAndUpdate" => {
+  | "TuGen_36ExtraDebuggingWarmup"
+  | "TuGen_37ExtraGreenhouseArena"
+  | "TuGen_38ExtraModelAndUpdate" => {
       ...none,
       autoprobe: Some(All),
       samples: Some(Many),
     }
   /* Colors slide: All + Hybrid scheme + many so the before/after color
    * relationships between sibling samples are visible. */
-  | "TuGen_36SampleColors" => {
+  | "TuGen_39ExtraSampleColors" => {
       autoprobe: Some(All),
       colors: Some(Hybrid),
       samples: Some(Many),

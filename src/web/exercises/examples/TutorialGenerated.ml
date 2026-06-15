@@ -22,9 +22,6 @@ let all : Tutorial.spec list =
     TuGen_17StepInto.exercise;
     TuGen_19WritingStrings.exercise;
     TuGen_20Print.exercise;
-    TuGen_21ADebuggingWarmup.exercise;
-    TuGen_23GreenhouseArena.exercise;
-    TuGen_24ModelAndUpdate.exercise;
     TuGen_25TasksAhead.exercise;
     TuGen_26TaskGroveName.exercise;
     TuGen_26bTaskDewLedger.exercise;
@@ -37,5 +34,8 @@ let all : Tutorial.spec list =
     TuGen_33TaskGardenSpirit.exercise;
     TuGen_34TaskWateringTimer.exercise;
     TuGen_35TaskWateringFormula.exercise;
-    TuGen_36SampleColors.exercise;
+    TuGen_36ExtraDebuggingWarmup.exercise;
+    TuGen_37ExtraGreenhouseArena.exercise;
+    TuGen_38ExtraModelAndUpdate.exercise;
+    TuGen_39ExtraSampleColors.exercise;
   ]

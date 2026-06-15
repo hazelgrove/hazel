@@ -88,10 +88,10 @@ let flags_of_slide = (module_name: string): list(feat) =>
   | "TuGen_17StepInto"
   | "TuGen_19WritingStrings" => s17
   | "TuGen_20Print"
-  | "TuGen_21ADebuggingWarmup" => s20
-  | "TuGen_23GreenhouseArena"
-  | "TuGen_24ModelAndUpdate" => s20
-  | "TuGen_36SampleColors" => s36
+  | "TuGen_36ExtraDebuggingWarmup" => s20
+  | "TuGen_37ExtraGreenhouseArena"
+  | "TuGen_38ExtraModelAndUpdate" => s20
+  | "TuGen_39ExtraSampleColors" => s36
   /* Study task slides (26+): the full kit. */
   | "TuGen_26TaskGroveName"
   | "TuGen_26bTaskDewLedger"
@@ -125,7 +125,7 @@ let new_flags_of_slide = (module_name: string): list(feat) =>
   | "TuGen_16Pin" => [Pin, IconPinHidden]
   | "TuGen_17StepInto" => [StepInto]
   | "TuGen_20Print" => [Console]
-  | "TuGen_36SampleColors" => [Legend]
+  | "TuGen_39ExtraSampleColors" => [Legend]
   | _ => []
   };
 

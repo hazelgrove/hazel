@@ -260,7 +260,16 @@ let starts_with_digit = (s: string): bool =>
   };
 
 /* "basics/01-holes" -> "Basics / 01 - Holes"; a leading numeric token in the
-   filename is separated from the title words by " - ". */
+   filename is separated from the title words by " - ". A category token
+   ("task"/"extra") right after the number gets its own " - " too, so
+   "26-task-grove-name" -> "26 - Task - Grove Name" and
+   "36-extra-sample-colors" -> "36 - Extra - Sample Colors". */
+let is_category = (s: string): bool => s == "task" || s == "extra";
+let cap_join = (words: list(string)): string =>
+  words
+  |> List.filter(w => w != "")
+  |> List.map(String.capitalize_ascii)
+  |> String.concat(" ");
 let title_of = (rel: string): string => {
   let segs = String.split_on_char('/', Filename.chop_suffix(rel, ".hz"));
   switch (List.rev(segs)) {
@@ -268,16 +277,19 @@ let title_of = (rel: string): string => {
   | [last, ...rev_dirs] =>
     let file_title =
       switch (String.split_on_char('-', last)) {
-      | [num, ...rest]
-          when starts_with_digit(num) && List.exists(w => w != "", rest) =>
+      | [num, cat, ...rest]
+          when
+            starts_with_digit(num)
+            && is_category(cat)
+            && List.exists(w => w != "", rest) =>
         num
         ++ " - "
-        ++ (
-          rest
-          |> List.filter(w => w != "")
-          |> List.map(String.capitalize_ascii)
-          |> String.concat(" ")
-        )
+        ++ String.capitalize_ascii(cat)
+        ++ " - "
+        ++ cap_join(rest)
+      | [num, ...rest]
+          when starts_with_digit(num) && List.exists(w => w != "", rest) =>
+        num ++ " - " ++ cap_join(rest)
       | _ => cap_words(last)
       };
     let prefix =
