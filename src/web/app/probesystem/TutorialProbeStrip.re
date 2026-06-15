@@ -93,17 +93,17 @@ let flags_of_slide = (module_name: string): list(feat) =>
   | "TuGen_38ExtraModelAndUpdate" => s20
   | "TuGen_39ExtraSampleColors" => s36
   /* Study task slides (26+): the full kit. */
-  | "TuGen_26TaskGroveName"
-  | "TuGen_26bTaskDewLedger"
-  | "TuGen_27TaskGrowthPlotter"
-  | "TuGen_28TaskLogCleaner"
-  | "TuGen_29TaskPlantingBug"
-  | "TuGen_30TaskRunningSum"
-  | "TuGen_31TaskHarvestStreak"
-  | "TuGen_32TaskCropPlotter"
-  | "TuGen_33TaskGardenSpirit"
-  | "TuGen_34TaskWateringTimer"
-  | "TuGen_35TaskWateringFormula" => s20
+  | "TuGen_27TaskGroveName"
+  | "TuGen_26TaskDewLedger"
+  | "TuGen_34TaskGrowthPlotter"
+  | "TuGen_31TaskLogCleaner"
+  | "TuGen_30TaskPlantingBug"
+  | "TuGen_29TaskRunningSum"
+  | "TuGen_32TaskHarvestStreak"
+  | "TuGen_33TaskCropPlotter"
+  | "TuGen_41ExtraGardenSpirit"
+  | "TuGen_28TaskWateringTimer"
+  | "TuGen_40ExtraWateringFormula" => s20
   /* Unlisted slides (the intro, text-only transitions) show no strip:
    * nothing has been introduced there. */
   | _ => []

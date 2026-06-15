@@ -126,20 +126,20 @@ let of_slide = (module_name: string): t =>
    * while building); debugging tasks start Off so the probing strategy is
    * the participant's own choice. All tasks start in the single window;
    * the participant switches to many if they want it. */
-  | "TuGen_26TaskGroveName"
-  | "TuGen_28TaskLogCleaner"
-  | "TuGen_30TaskRunningSum"
-  | "TuGen_32TaskCropPlotter"
-  | "TuGen_35TaskWateringFormula" => {
+  | "TuGen_27TaskGroveName"
+  | "TuGen_31TaskLogCleaner"
+  | "TuGen_29TaskRunningSum"
+  | "TuGen_33TaskCropPlotter"
+  | "TuGen_40ExtraWateringFormula" => {
       ...none,
       autoprobe: Some(All),
     }
-  | "TuGen_26bTaskDewLedger"
-  | "TuGen_27TaskGrowthPlotter"
-  | "TuGen_29TaskPlantingBug"
-  | "TuGen_31TaskHarvestStreak"
-  | "TuGen_33TaskGardenSpirit"
-  | "TuGen_34TaskWateringTimer" => {
+  | "TuGen_26TaskDewLedger"
+  | "TuGen_34TaskGrowthPlotter"
+  | "TuGen_30TaskPlantingBug"
+  | "TuGen_32TaskHarvestStreak"
+  | "TuGen_41ExtraGardenSpirit"
+  | "TuGen_28TaskWateringTimer" => {
       ...none,
       autoprobe: Some(Off),
     }
