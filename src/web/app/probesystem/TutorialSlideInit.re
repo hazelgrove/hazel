@@ -66,7 +66,7 @@ let of_slide = (module_name: string): t =>
    * user turns it on, so it starts off there too); single window. */
   | "TuGen_01ArithmeticAndHoles"
   | "TuGen_02ParserAndBackpack"
-  | "TuGen_03Probes"
+  | "TuGen_03AddingAndRemovingProbes"
   | "TuGen_04VariablesAndExploring"
   | "TuGen_05TuplesAndRecords"
   | "TuGen_07IfExpressions"

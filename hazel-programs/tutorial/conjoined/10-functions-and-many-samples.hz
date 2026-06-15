@@ -6,13 +6,13 @@ Probes inside function calls collect one sample *per call*.
 
 The function `watering_amount` below adjusts a base amount by the moon phase. It is called three times at the bottom of the program.
 
-Note that a **Samples** toggle has appeared at the top of the Task Reference sidebar; new controls will be added as they are introduced
+(A **Samples** toggle has appeared in the sidebar; more controls arrive as we go.)
 
-**Try this**
-1. Put the caret on the `case` token and add a probe to probe the case expression.
-2. Notice that the sample shown, `220`, now has arrows to the left (1). You can click on the right arrow to cycle through the 2 other samples, and the left arrow to go back. Alternatively, click on the sample itself, and use **←/→** on your keyboard to step between them.
-3. Now, press **Space** (or flip the **Samples** toggle at the top of the sidebar) for *many* mode to see all three at once. Space again to go back.
-4. Now, finish the third call at the bottom of the editor (`watering_amount(50, Waning)`) so all three run to completion.
+# Tasks
+1. Probe the case expression: caret on the `case` token, **Cmd/Ctrl+E**.
+2. The sample reads `220`, with a count and arrows. Step through the three calls with the arrows, or click the sample and use **←/→**.
+3. Press **Space** for *many* mode to see all three at once; **Space** again to go back.
+4. Finish the third call at the bottom (`watering_amount(50, Waning)`) so all three run.
 
 @hint
 Finish the third call: `watering_amount(50, Waning)`. Then probe the `case` and use ←/→.

@@ -10,11 +10,11 @@ let x = expr in
 body
 ```
 
-**Try this**
-1. Fill the definition expression (after the `=`) with `250 * 7`.
-2. Type `in`, and watch it leave the backpack. Backspace it, then press `Tab` to drop it from the backpack instead. Either way works.
-3. Finish the body so the whole program reads `let weekly = 250 * 7 in weekly`.
-4. Probe `weekly` on the last line (**Cmd/Ctrl+E**): it should read **1750**.
+# Task
+1. After the `=`, fill the definition with `250 * 7`.
+2. Type `in` and watch it leave the backpack (or press `Tab` to drop it without typing).
+3. Finish the body so the program reads `let weekly = 250 * 7 in weekly`.
+4. Probe `weekly` on the last line (**Cmd/Ctrl+E**); it should read **1750**.
 
 @reference
 ### Let

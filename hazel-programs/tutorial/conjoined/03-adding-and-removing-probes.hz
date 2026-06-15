@@ -1,0 +1,21 @@
+@flags
+version=1 id=b0000003-0003-0003-0003-000000000003
+
+@prompt
+Each line holds at most one probe: adding a probe to a line removes any probe already on it. (Different lines keep their own.) You remove a probe the same way you add it.
+
+# Tasks
+1. On the first line, probe `weekly`, then `125`, then the first `*`, then the second `*` (caret on each, **Cmd/Ctrl+E**). Each new probe replaces the one before; the green underline marks the probed expression.
+2. You now have a probe on the second `*`. Remove it the same way: caret on it and **Cmd/Ctrl+E** again (or click its sample and press the same keys).
+
+@hint
+Caret on an expression, then Cmd/Ctrl+E. The same key removes a probe you already placed.
+
+@reference
+### Probes
+- **Add / remove a probe**: Cmd/Ctrl+E, or right-click then *Add probe*
+- At most one probe per line. A new one replaces the old.
+
+@code
+let weekly = 2 * 125 * 7 in
+weekly + 50

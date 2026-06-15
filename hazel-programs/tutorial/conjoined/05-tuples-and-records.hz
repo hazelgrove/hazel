@@ -17,7 +17,7 @@ plant.water
 
 
 1. Destructure `plant` apart into `name` and `water`, then build `caption` so it reads **"moonleaf needs 250ml"**. You'll need `string_of_int` to convert.
-2. Build a `"fern"` record: ferms need **200 ml** each watering. The last line reads its `water` back; probe it to confirm.
+2. Build a `"fern"` record: ferns need **200 ml** each watering. The last line reads its `water` back; probe it to confirm.
 
 @hint
 Destructure a pair with `let (a, b) = pair in`. A record is `(field = value, ...)`; read with `record_name.field`.

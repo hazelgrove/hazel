@@ -2,16 +2,12 @@
 version=1 id=b0000010-0010-0010-0010-000000000010
 
 @prompt
-So far you've placed probes by hand. Who has time for that?? **Auto-probe** mode automatically places probes on each line, generally on the expression which ends closest to the end of that line. It uses the same logic as multi-probes from before, just applied to the whole program.
+So far you've placed probes by hand; **auto-probe** does it for you, putting a probe on each line (the expression ending closest to the line's end, the same logic as multi-probes). It saves the placement effort, though it can be a lot to take in, and may slow on large programs. We're curious how it feels next to placing probes yourself.
 
-Turn it on with **Cmd/Ctrl+P**, or click `All` on the **Auto Probe** toggle at the top of the Task Reference sidebar.
-
-While autoprobe mode avoids manual placement, it might also cause information overload. We're curious how people feel about manual versus auto! It may also cause performance issues for larger programs.
-
-
-**Try this**
-1. Turn on auto-probe. Probes should appear across the program.
-2. The parameters of `watering_amount` share one line, so you get one combined value for them. Insert a line break to put `base` and `phase` on separate lines, and each gets its own value. As before, how you format the code decides how granular the values are.
+# Tasks
+1. Turn it on with **Cmd/Ctrl+P** (or click `All` on the **Auto Probe** toggle in the sidebar). Probes appear across the program.
+2. The parameters of `watering_amount` share a line, so they share one value. Add a line break to split `base` and `phase`, and each gets its own.
+3. In `weekly_water`, add a line break after the call to `watering_amount` (before the `* 7`) to see that call's own result, before the weekly multiply. Formatting decides how granular the values are.
 
 @hint
 Press **Cmd/Ctrl+P** (or click `All` on the toggle) to probe the whole program.

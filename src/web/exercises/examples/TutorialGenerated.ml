@@ -6,7 +6,7 @@ let all : Tutorial.spec list =
     TuGen_00Intro.exercise;
     TuGen_01ArithmeticAndHoles.exercise;
     TuGen_02ParserAndBackpack.exercise;
-    TuGen_03Probes.exercise;
+    TuGen_03AddingAndRemovingProbes.exercise;
     TuGen_04VariablesAndExploring.exercise;
     TuGen_05TuplesAndRecords.exercise;
     TuGen_07IfExpressions.exercise;

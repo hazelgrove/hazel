@@ -72,7 +72,7 @@ let flags_of_slide = (module_name: string): list(feat) =>
   switch (module_name) {
   | "TuGen_01ArithmeticAndHoles"
   | "TuGen_02ParserAndBackpack" => s01
-  | "TuGen_03Probes" => s03
+  | "TuGen_03AddingAndRemovingProbes" => s03
   | "TuGen_04VariablesAndExploring"
   | "TuGen_05TuplesAndRecords"
   | "TuGen_07IfExpressions" => s04
