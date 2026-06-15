@@ -7,7 +7,7 @@ type GrowthStage =
   + Sprout         # First leaves emerge #
   + Growing        # Building strength #
   + Mature         # Fully developed #
-  + ReadyToHarvest # Glowing with lunar energy, ready to pick #
+  + ReadyToHarvest # Ready to pick #
 in
 
 # Crops that flourish in the night garden #
