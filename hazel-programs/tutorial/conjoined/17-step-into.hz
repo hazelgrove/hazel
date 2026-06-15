@@ -3,15 +3,14 @@ version=1 id=b0000015-0015-0015-0015-000000000015
 
 @prompt
 
-**Step into** is a shortcut combining *pin this call* and *jump to the definition*, intended to help keep debugging context when jumping to a far away definition.
+**Step into** combines *pin this call* and *jump to the definition* in one move: you land inside a function with that call's run already pinned. Handy when the definition is far from the call.
 
-**Try this**
-1. The two calls to `total_water` at the very bottom of the program are probed: you should see samples `610` and `230`.
-2. Right-click the sample for `total_water(shade)` and choose **Step into** (or click the sample and press **Enter**; now in the Quick Reference).
-3. Your caret jumps inside `total_water`, pinned to that call. Note that the sample is kind of long; let's switch to drawer mode, either by clicking the down arrow to the left of the sample, or by clicking the sample and pressing **Cmd/Ctrl+↓**.
-4. The fold call below is all on one line, so all you see is its finished value. Break it open: put a line break after the `->`, and another after `p.water`. Now `acc + p.water` has a probe of its own.
-5. You are in *many* mode, so you can watch `acc + p.water` grow over the three iterations: `250 → 450 → 610`.
-6. The **stack focus** bar at the top of the editor shows the call stack for the current sample. Click the first stack frame, `total_water`, to step back out to the call site. The stack focus bar isn't vital to use in this study, but it provides a quick way to backtrack along the call stack when debugging, especially if the function call is far away.
+# Tasks
+1. The two `total_water` calls at the bottom are probed (`610` and `230`). Right-click the `total_water(shade)` sample and choose **Step into** (or click it and press **Enter**).
+2. Your caret jumps inside `total_water`, pinned to that call. The sample is long, so open it in the drawer (**Cmd/Ctrl+↓**, or the ⌄ to its left).
+3. The fold sits on one line. Break it open: a line break after the `->`, another after `p.water`. Now `acc + p.water` has its own probe.
+4. You're in *many* mode, so watch `acc + p.water` grow across the three iterations: `250 → 450 → 610`.
+5. The **stack focus** bar (top of the editor) shows the call stack. Click the first frame, `total_water`, to step back out. (Not essential here, but a quick way to backtrack when a definition is far away.)
 
 @hint
 Right-click a call's sample and choose *Step into*, or click it and press Enter.

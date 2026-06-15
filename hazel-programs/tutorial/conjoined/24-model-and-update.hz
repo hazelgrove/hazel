@@ -2,16 +2,12 @@
 version=1 id=b0000024-0024-0024-0024-000000000024
 
 @prompt
-# Models, actions, and bigger values
+Some debugging tasks are the internal part of a Model-View-Update app. A **model** is a record holding the program's state; an **action** describes a change; an **update** takes a model and an action and returns the next model, and a fold threads it through a list of actions, just like the warmup. The model here is a `Ledger` (a record with a list of records inside), the biggest value yet, so this is also about giving samples room.
 
-Some debugging tasks are structured as the internal part of a Model-View-Update GUI application. A **model** is a record representing the program's state. An **action** describes a state change. An **update** function takes a model and an action and returns the next model, and a fold threads the model through a list of actions, just like the warmup.
-
-The model here is a `Ledger`: a record with a list of records inside, growing as actions arrive. It is the biggest value yet, so this is also a slide about giving samples room.
-
-**Try this**
+# Tasks
 1. The `update(ledger, a)` call in the final fold is probed. Right-click its sample and **Step into**. You start in *many* mode: one ledger per action.
-2. In many mode the samples share the row, so each ledger is squeezed small. Press **Space** for single mode and walk with **←/→** instead: each ledger gets the whole width. Squeezed-but-together versus roomy-but-one-at-a-time; pick per question.
-3. For the whole ledger at once, unfold a sample into the drawer (**Cmd/Ctrl+↓**; **Cmd/Ctrl+↑** folds it back). Watch the harvest list grow action by action. Which harvest is worth the most?
+2. The samples share the row, so each is squeezed. Press **Space** for single mode and walk with **←/→** instead: each ledger gets the full width.
+3. For the whole thing at once, unfold a sample into the drawer (**Cmd/Ctrl+↓**; **Cmd/Ctrl+↑** folds back). Watch the harvest list grow action by action. Which harvest is worth the most?
 
 @reference
 ### Reading values

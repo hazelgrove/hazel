@@ -7,14 +7,15 @@ When you have more than one probe in a function, Hazel keeps each probe's sample
 # Task
 Each plant is watered according to the moon phase it was *sown* under. The night ledger lists what each plant should receive, in ml:
 
-`fern 220 · orchid 230 · cactus 50 · lily 220 · daisy 210 · rose 140`
+`fern 220 · orchid 230 · cactus 50`
+`lily 220 · daisy 210 · rose 140`
 
 That totals **1070**, but the program computes **1150**: one call below has the wrong moon phase, so one plant is getting too much water. Which one?
 
 The ledger lists final amounts, but each call shows only a base and a phase; checking a call against the ledger means working out `base + adjust` in your head. Let probes do that instead:
 
 1. Put the caret on the `let` token in front of `watering_amount` and press **Cmd/Ctrl+E** to probe the function definition. The probe on `base + adjust` shows each call's final amount.
-2. Click a `name` sample and step through the calls with **←/→**. The green (aligned) samples all belong to one call, pairing that plant's name with its `base + adjust`.
+2. Click the sample showing a plant's name (e.g. `fern`) and step through the calls with **←/→**. The green (aligned) samples all belong to one call, pairing that plant's name with its `base + adjust`.
 3. Find the plant whose final amount disagrees with its ledger row, and fix its call's phase.
 
 @hint

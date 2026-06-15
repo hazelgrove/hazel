@@ -5,7 +5,7 @@ wrapper show_report version=1 id=b0000019-0019-0019-0019-000000000019
 The garden keeps a log. Text comes apart with string functions, and `string_match` checks a pattern against a string (a small regex).
 
 # Task
-Keep only the log entries that mention a bloom. Fill the anonymous function so `filter` keeps the entries containing `"bloom"`.
+1. Keep only the log entries mentioning a bloom: fill the anonymous function so `filter` keeps the entries containing `"bloom"`.
 
 @hint
 Use `string_match("bloom", e)` to test each entry.
