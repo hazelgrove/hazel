@@ -33,6 +33,11 @@
   box-sizing: border-box;
 }
 
+#page,
+#page * {
+  overscroll-behavior-x: contain;
+}
+
 svg {
   overflow: visible;
   box-sizing: content-box;
