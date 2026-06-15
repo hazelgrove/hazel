@@ -8,7 +8,7 @@ fold_left(list, fun (a, b) -> "..." , start)
 ```
 Each step, the callback receives two things: the running value so far, and the next element from the list. Which parameter is which, `a` or `b`? We have forgotten. Rather than guess, let a probe settle it.
 
-# Task
+# Tasks
 Total the garden's watering cans, starting from 0.
 
 1. Put `a` and `b` on their own lines, so a probe lands on each, and watch across a few samples: one grows as the cans are consumed (that running value is the **accumulator**); the other just visits each can.

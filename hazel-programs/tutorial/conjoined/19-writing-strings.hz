@@ -2,13 +2,13 @@
 wrapper show_report version=1 id=b0000019-0019-0019-0019-000000000019
 
 @prompt
-The garden keeps a log. Text comes apart with string functions, and `string_match` checks a pattern against a string (a small regex). The Task Reference sidebar has a brief regex guide.
+The garden keeps a log. Text comes apart with string functions, and `string_match` checks a pattern against a string (a small regex).
 
 # Task
 Keep only the log entries that mention a bloom. Fill the anonymous function so `filter` keeps the entries containing `"bloom"`.
 
 @hint
-Use `string_match(pattern, e)` to test each entry.
+Use `string_match("bloom", e)` to test each entry.
 
 @reference
 ### Strings

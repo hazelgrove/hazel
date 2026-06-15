@@ -2,7 +2,7 @@
 show_report version=1 id=b0000012-0012-0012-0012-000000000012
 
 @prompt
-A list holds many values of the same type, written `[a, b, c]`. `map` applies a function to each element. Write the function inline as an *anonymous function* with `fun`:
+A list holds many values of the same type, written `[a, b, c]`. The `map` built-in applies a function to each element. Write the function inline as an *anonymous function* with `fun`:
 ```hazelnostatics
 map([1, 2, 3], fun n -> n * 2)
 ```

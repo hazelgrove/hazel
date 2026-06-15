@@ -2,14 +2,16 @@
 show_report version=1 id=b0000014-0014-0014-0014-000000000014
 
 @prompt
-There is a 🐛 in the garden data. One test fails because of it, and with ten calls feeding every probe, there are samples everywhere. **Pin** locks every probe to a single call's run.
+There is a 🐛 (bug) in the garden data. A `make_label` unit test fails because of it, and with ten calls feeding every probe in that function, there are many irrelevant samples. 1. The `make_label` function is already probed, and this slide starts in *many* mode: ten calls, so ten samples per line. Kind of a lot!
 
-**Try this**
-1. The `make_label` function is already probed, and you start in *many* mode: ten calls, so ten samples per line. Kind of a lot! Click a sample inside it, for example `"fern"` on the `let header` line.
-2. Find the failing test near the end (look for the red ✗). Probe its `make_label` call, right-click the sample, and choose **Pin this call** (or press `P`; now in the Quick Reference).
-3. Back inside `make_label`, every probe now shows just that call's run. Read the `header` sample.
-4. Fix the plant data so the test passes.
-5. Finally, note the **⍟** symbol on some of the other probes. This is used to show that samples from that probe are hidden by your pin; clicking it removes the pin. Try this now.
+ **Pin** helps cut through the noise by locking every probe to a single call.
+
+# Tasks
+
+1. Find the failing test near the end (look for the red ✗). Probe its `make_label` call, right-click the sample, and choose **Pin this call** (or press **P**; now in the Quick Reference).
+2. Back inside `make_label`, every probe now shows just that call's run. Read the `header` sample.
+3. Fix the plant data so the test passes.
+4. Finally, note the **⍟** symbol on some of the other probes. This is used to show that samples are collected by that probe, but are hidden by your pin; clicking it removes the pin. This is handy if you've forgotten there's a pin somewhere. Try this now.
 
 @hint
 Rose should have icon 🌹.

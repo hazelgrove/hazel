@@ -2,7 +2,7 @@
 wrapper show_report version=1 id=b0000009-0009-0009-0009-000000000009
 
 @prompt
-When you have more than one probe in a function, Hazel keeps each probe's samples *aligned* to one call at a time. The sample you click is called the **focus**. In **Many** mode (of the Samples toggle in the sidebar), aligned samples will be highlighted in green. In **One** mode, the shown sample will be one from the same call as the focus, unless there is no such sample (e.g. a different case branch), in which case a **⊖** mark will be shown instead; click it to realign to that branch instead.
+When you have more than one probe in a function, Hazel keeps each probe's samples *aligned* to one call at a time. The sample you click is called the **focus**. In **Many** mode (of the Samples toggle in the sidebar), aligned samples will be highlighted in green. In **One** mode, the shown sample will be one from the same call as the focus.
 
 # Task
 Each plant is watered according to the moon phase it was *sown* under. The night ledger lists what each plant should receive, in ml:

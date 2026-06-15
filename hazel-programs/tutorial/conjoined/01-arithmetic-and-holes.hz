@@ -10,7 +10,9 @@ Probe commands are listed in the **Quick Reference** in the sidebar; new ones ar
 
 # Task
 
-A nightshade plant drinks 125 ml twice a day, plus a 50 ml weekly top-up. Fill the hole and watch the probe; you are done when it reads **1800**.
+A nightshade plant drinks 125 ml twice a day, plus a 50 ml weekly top-up. 
+
+1. Fill the hole with the number of days in a week. Watch the probe; it should read **1800**.
 
 @hint
 A week is 7 days.

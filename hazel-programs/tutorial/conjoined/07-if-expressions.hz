@@ -15,11 +15,11 @@ else 1
 
 # Task
 
-See it as you write: before starting, put your caret on the `let` token of the `clamp` definition and add a probe (**Cmd/Ctrl+E**, or right-click then *Add multi probe*). A probe on a definition becomes a **multi probe**: hazel automatically adds one probe per line of the definition, updated as you type. Add line breaks to see more intermediate values; join lines to see fewer.
+See it as you write: before starting, put your caret on the `let` token of the `clamp` definition and add a probe (**Cmd/Ctrl+E**, or right-click then *Add multi probe*). A probe on a definition becomes a **multi probe**: hazel automatically adds one probe per line of the definition, updated as you type.
 
 Over-watering drowns a plant. Complete `clamp` so it holds a watering amount `x` to the range 0 to 100: below 0 gives `0`, above 100 gives `100`, otherwise `x` unchanged.
 
-When you've finished, try adding a couple linebreaks in different places in your program to see different intermediate values.
+Also try: If you've written the function mostly on a line, try adding some line breaks to see more intermediate values; for example after the condition, or after the first branch expression.
 
 @hint
 Start with `if x < 0 then 0 else …` and nest another `if` for the upper bound.

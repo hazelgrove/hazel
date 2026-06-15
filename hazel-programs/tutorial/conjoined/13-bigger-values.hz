@@ -4,17 +4,16 @@ show_report version=1 id=b0000106-0106-0106-0106-000000000106
 @prompt
 Values can outgrow their samples, especially in *many* mode, where all of a probe's samples share one row.
 
-**Try this**: probe `card` on the last line of `plant_card` (caret on the `card` token, then **Cmd/Ctrl+E**). Three calls means three samples, and each is squeezed down to a few characters. Three ways to get a sample some room (all now in the Quick Reference):
-
-- **Switch to single mode** (**Space**): one sample at a time, with the whole width to itself. Walk between the calls with **←/→**.
-- **Resize** the sample you care about: click it, then **Shift+←/→**, or shift-drag its edge.
-- **Open the drawer**: press **Cmd/Ctrl+↓** and the sample unfolds across several rows; **Cmd/Ctrl+↑** folds it back up. If a sample ever sprouts extra rows unexpectedly, that is what happened; **Cmd/Ctrl+↑** undoes it.
-
 # Task
-How much does the moonbloom drink in a week? Read it off a card and fill the hole at the bottom.
+
+1. probe `card` on the last line of `plant_card` (caret on the `card` token, then **Cmd/Ctrl+E**). Three calls means three samples, and each is squeezed down to a few characters. Three ways to get a sample some room (all now in the Quick Reference):
+2.  **Switch to single mode** (**Space**): one sample at a time, with the whole width to itself. Walk between the calls with **←/→** keys when sample is focussed.
+3. **Resize** the sample you care about: click it, then **Shift+←/→**, or shift-drag its edge.
+4. **Open the drawer**: press **Cmd/Ctrl+↓** and the sample unfolds across several rows; **Cmd/Ctrl+↑** folds it back up. If a sample ever sprouts extra rows unexpectedly, that is what happened; **Cmd/Ctrl+↑** undoes it.
+5. Given these tools, try to find out how much the moonbloom drinks in a week. Use that value to fill the hole at the bottom.
 
 @hint
-The moonbloom's card holds the answer in `care`. Unfold its sample with **Cmd/Ctrl+↓**, or read it in single mode.
+Probe `care`. Expand its sample with **Cmd/Ctrl+↓**, or read it in single mode.
 
 @reference
 ### Reading values
