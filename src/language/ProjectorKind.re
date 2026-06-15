@@ -57,8 +57,8 @@ let name = (p: t): string =>
   | TextArea => "text"
   | Table => "table"
   | Csv => "csv"
-  | Automerge => "automerge"
-  | AutomergeWriteBack => "automerge-writeback"
+  | Automerge => "Automerge"
+  | AutomergeWriteBack => "AutomergeWriteBack"
   };
 
 /* This must be updated and kept 1-to-1 with the above
@@ -77,8 +77,8 @@ let of_name = (p: string): t =>
   | "card" => Card
   | "table" => Table
   | "csv" => Csv
-  | "automerge" => Automerge
-  | "automerge-writeback" => AutomergeWriteBack
+  | "Automerge" => Automerge
+  | "AutomergeWriteBack" => AutomergeWriteBack
   | _ => failwith("Unknown projector kind")
   };
 
