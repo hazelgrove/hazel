@@ -1,0 +1,135 @@
+/* PROJECTOR: AUTOMERGE */
+
+/* Turn off caret when automerge projector is focused */
+.code-deco:has(~ .projectors .projector.Automerge *:focus) #caret .caret-path {
+  fill: #0000;
+}
+
+.projector.Automerge {
+  cursor: default;
+}
+
+.projector.Automerge > svg {
+  stroke-width: 0.5px;
+  stroke: var(--BR2);
+}
+
+.projector.Automerge .wrapper {
+  position: relative;
+  height: 100%;
+  width: 100%;
+  border-radius: 0.1em;
+}
+
+.projector.Automerge .cols {
+  height: 100%;
+  margin-left: 2px;
+  margin-right: 2px;
+  display: flex;
+  align-items: center;
+  color: var(--SAND);
+}
+
+.projector.Automerge.indicated .cols,
+.projector.Automerge:has(input:focus) .cols {
+  color: var(--R1);
+}
+
+.projector.Automerge.indicated > svg {
+  fill: var(--textarea-indicated);
+}
+
+.projector.Automerge.selected > svg {
+  filter: drop-shadow(1px 1px 0 var(--R0));
+}
+
+.projector.Automerge input {
+  outline: none;
+  caret-color: var(--caret-color);
+  padding: 0;
+  margin: 0;
+  line-height: var(--line-height);
+  font-family: var(--code-font);
+  font-size: inherit;
+  border: none;
+  color: var(--textarea-text);
+  background: none;
+  overflow: hidden;
+}
+
+.projector.Automerge input::placeholder {
+  opacity: 0.5;
+}
+
+.projector.Automerge input::selection {
+  color: var(--BLACK);
+  background-color: var(--shard-selected);
+}
+
+.projector.Automerge .hot-reload-toggle {
+  flex-shrink: 0;
+  margin-left: 4px;
+  font-size: 0.7em;
+}
+
+.projector.Automerge .hot-reload-toggle.disabled {
+  opacity: 0.35;
+  cursor: default;
+  pointer-events: none;
+}
+
+.projector.Automerge .manual-reload-btn {
+  flex-shrink: 0;
+  cursor: pointer;
+  font-size: 0.8em;
+  margin-left: 4px;
+  user-select: none;
+  color: var(--GB1);
+  /* align vertically with hot-reload toggle */
+  position: relative;
+  top: 1px;
+}
+
+.projector.Automerge .manual-reload-btn.disabled {
+  opacity: 0.35;
+  cursor: default;
+  pointer-events: none;
+}
+
+.projector.Automerge .manual-reload-btn:hover {
+  animation: wobble 0.6s ease 0s 1 normal forwards;
+  filter: brightness(1.2);
+}
+
+@keyframes spin360 {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(-360deg); }
+}
+
+.projector.Automerge .manual-reload-btn.spinning {
+  animation: spin360 0.4s ease-in-out;
+}
+
+/* Last-load status superscript (mirrors inline test result styling) */
+.projector.Automerge .wrapper::after {
+  position: absolute;
+  top: -0.15em;
+  right: -1em;
+  font-size: 64%;
+  z-index: var(--projector-overlay-z);
+}
+
+.projector.Automerge .wrapper.load-succeeded::after {
+  content: "\2714";
+  color: var(--test-pass);
+}
+
+.projector.Automerge .wrapper.load-failed::after {
+  content: "\2718";
+  color: var(--test-fail);
+}
+
+.projector.Automerge .wrapper.load-none::after {
+  content: "?";
+  color: var(--test-indet);
+}

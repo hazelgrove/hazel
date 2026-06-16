@@ -6,10 +6,11 @@
 
 (rule
  (targets bundled.js)
- (deps prebundle.js)
+ (deps
+  prebundle.js
+  build-prebundle.mjs
+  (source_tree %{workspace_root}/node_modules))
  (action
-  (run
-   %{project_root}/node_modules/esbuild/bin/esbuild
-   prebundle.js
-   --bundle
-   --outfile=bundled.js)))
+  (chdir
+   %{workspace_root}
+   (run node %{dep:build-prebundle.mjs}))))

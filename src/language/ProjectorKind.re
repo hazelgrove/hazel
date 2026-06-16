@@ -17,7 +17,9 @@ type t =
   | Livelit
   | TextArea
   | Table
-  | Csv;
+  | Csv
+  | Automerge
+  | AutomergeWriteBack;
 
 let livelit_projectors: list(t) = [
   Csv, /* Competes with Card for empty list */
@@ -32,7 +34,8 @@ let livelit_projectors: list(t) = [
 ];
 
 /* Note: Probe intentionally excluded - probes use separate action path */
-let projectors: list(t) = livelit_projectors @ [Fold];
+let projectors: list(t) =
+  livelit_projectors @ [Fold, Automerge, AutomergeWriteBack];
 
 /* Refractors are like probes - additive decorations, not syntax-replacing */
 let refractors: list(t) = [Probe, Statics];
@@ -54,6 +57,8 @@ let name = (p: t): string =>
   | TextArea => "text"
   | Table => "table"
   | Csv => "csv"
+  | Automerge => "Automerge"
+  | AutomergeWriteBack => "AutomergeWriteBack"
   };
 
 /* This must be updated and kept 1-to-1 with the above
@@ -72,6 +77,8 @@ let of_name = (p: string): t =>
   | "card" => Card
   | "table" => Table
   | "csv" => Csv
+  | "Automerge" => Automerge
+  | "AutomergeWriteBack" => AutomergeWriteBack
   | _ => failwith("Unknown projector kind")
   };
 
