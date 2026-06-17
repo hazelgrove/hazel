@@ -49,8 +49,8 @@ let none: t = {
  * `samples` is always applied (default Single, see `apply`), so the mode
  * never silently carries over from a prior slide. Most slides start Single
  * (the calm, one-sample-at-a-time view); a slide opts into Many only when
- * its lesson needs several samples visible at once (alignment colors, a
- * growing accumulator column, "ten samples is a lot" motivating pin, etc.).
+ * its lesson needs several samples visible at once (a growing accumulator
+ * column, "ten samples is a lot" motivating pin, before/after colors, etc.).
  * Study tasks (26+) always start Single: the participant switches if they
  * want to. Slide 10 stays Single on purpose -- that is where Many is first
  * introduced via Space, so toggling is the lesson.
@@ -73,15 +73,10 @@ let of_slide = (module_name: string): t =>
   | "TuGen_08CaseExpressions"
   | "TuGen_09ConstructorsWithData"
   | "TuGen_10SamplesPerCall"
+  | "TuGen_11AligningSamples"
   | "TuGen_12AutoProbe" => {
       ...none,
       autoprobe: Some(Off),
-    }
-  /* Aligning: many window so aligned samples show their green highlight. */
-  | "TuGen_11AligningSamples" => {
-      ...none,
-      autoprobe: Some(Off),
-      samples: Some(Many),
     }
   /* Bigger values: one hand-placed probe with three calls, starting in
    * many mode so the squeeze (and the three remedies) is the lesson. */
@@ -96,8 +91,7 @@ let of_slide = (module_name: string): t =>
       autoprobe: Some(Off),
     }
   /* Auto-probe introduced: All (whole program), single window. */
-  | "TuGen_14Map"
-  | "TuGen_19WritingStrings" => {
+  | "TuGen_14Map" => {
       ...none,
       autoprobe: Some(All),
     }

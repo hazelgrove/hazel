@@ -7,10 +7,8 @@ version=1 id=b0000015-0015-0015-0015-000000000015
 
 # Tasks
 1. The two `total_water` calls at the bottom are probed (`610` and `230`). Right-click the `total_water(shade)` sample and choose **Step into** (or click it and press **Enter**).
-2. Your caret jumps inside `total_water`, pinned to that call. The sample is long, so open it in the drawer (**Cmd/Ctrl+↓**, or the ⌄ to its left).
-3. The fold sits on one line. Break it open: a line break after the `->`, another after `p.water`. Now `acc + p.water` has its own probe.
-4. You're in *many* mode, so watch `acc + p.water` grow across the three iterations: `250 → 450 → 610`.
-5. The **stack focus** bar (top of the editor) shows the call stack. Click the first frame, `total_water`, to step back out. (Not essential here, but a quick way to backtrack when a definition is far away.)
+2. Your caret jumps inside `total_water`, pinned to that call's run.
+3. `total_water` scans through the list of plants, adding each one's water to a running total. Can you find the intermediate totals along the way? Break the fold open across lines so `acc + p.water` gets its own probe, then read them off in *many* mode.
 
 @hint
 Right-click a call's sample and choose *Step into*, or click it and press Enter.

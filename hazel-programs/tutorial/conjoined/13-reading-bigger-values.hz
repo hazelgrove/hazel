@@ -8,7 +8,7 @@ Values can outgrow their samples, especially in *many* mode, where all of a prob
 
 1. probe `card` on the last line of `plant_card` (caret on the `card` token, then **Cmd/Ctrl+E**). Three calls means three samples, and each is squeezed down to a few characters. Three ways to get a sample some room (all now in the Quick Reference):
 2.  **Switch to single mode** (**Space**): one sample at a time, with the whole width to itself. Walk between the calls with **←/→** keys when sample is focussed.
-3. **Resize** the sample you care about: click it, then **Shift+←/→**, or shift-drag its edge.
+3. Switch back to *many* mode (**Space**), then **resize** the first sample to give it room: click it, then **Shift+←/→**, or shift-drag its edge. (In single mode you already see the whole value, so there is nothing to resize.)
 4. **Open the drawer**: press **Cmd/Ctrl+↓** and the sample unfolds across several rows; **Cmd/Ctrl+↑** folds it back up. If a sample ever sprouts extra rows unexpectedly, that is what happened; **Cmd/Ctrl+↑** undoes it.
 5. Given these tools, try to find out how much the moonbloom drinks in a week. Use that value to fill the hole at the bottom.
 

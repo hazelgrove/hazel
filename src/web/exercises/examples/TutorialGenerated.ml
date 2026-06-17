@@ -20,7 +20,6 @@ let all : Tutorial.spec list =
     TuGen_15Fold.exercise;
     TuGen_16Pin.exercise;
     TuGen_17StepInto.exercise;
-    TuGen_19WritingStrings.exercise;
     TuGen_20Print.exercise;
     TuGen_25TasksAhead.exercise;
     TuGen_26TaskDewLedger.exercise;

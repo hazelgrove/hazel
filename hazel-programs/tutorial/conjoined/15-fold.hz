@@ -11,18 +11,19 @@ Each step, the callback receives two things: the running value so far, and the n
 # Tasks
 Total the garden's watering cans, starting from 0.
 
-1. Put `a` and `b` on their own lines, so a probe lands on each, and watch across a few samples: one grows as the cans are consumed (that running value is the **accumulator**); the other just visits each can.
-2. Rename the accumulator to `acc`, then add the current can to it. The cans total **680**.
+1. Put `a` and `b` on their own lines, so a probe lands on each.
+2. One of these is an element of the list, the other is the **accumulator** (the running total). Can you tell which? The one stepping through the cans' own values (`250`, `180`, ...) is the element; rename the other one to `acc`.
+3. Finish the function: add the current can to `acc`. The cans total **680**.
 
 @hint
-Break the callback across lines and read the probes: the one that grows is the running total. Add the element to it.
+Break the callback across lines and read the probes: the one stepping through the cans is the element; the other is the accumulator. Add the element to the accumulator.
 
 @reference
 ### Fold
 ```hazel
 fold_left(
   [1, 2, 3],
-  fun (a, b) -> ¿,
+  fun (a, b) -> ?,
   0
 )
 ```

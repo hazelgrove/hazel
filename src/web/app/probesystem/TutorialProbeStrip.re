@@ -85,8 +85,7 @@ let flags_of_slide = (module_name: string): list(feat) =>
   | "TuGen_14Map"
   | "TuGen_15Fold" => s13
   | "TuGen_16Pin" => s16
-  | "TuGen_17StepInto"
-  | "TuGen_19WritingStrings" => s17
+  | "TuGen_17StepInto" => s17
   | "TuGen_20Print"
   | "TuGen_36ExtraDebuggingWarmup" => s20
   | "TuGen_37ExtraGreenhouseArena"
