@@ -279,6 +279,7 @@ module Projectors = {
     | TextArea => "Text"
     | Csv => "CSV"
     | Table => "Table"
+    | Chart => "Chart"
     | Livelit => "Livelit"
     | Probe => "Probe" /* shouldn't appear in menu */
     };

@@ -16,6 +16,7 @@ let to_module = (kind: ProjectorCore.Kind.t): (module Cooked) =>
   | Livelit => (module Cook(LivelitProj.M))
   | Card => (module Cook(CardProj.M))
   | Table => (module Cook(TableProj.M))
+  | Chart => (module Cook(ChartProj.M))
   | Csv => (module Cook(CSVProjector.M))
   };
 

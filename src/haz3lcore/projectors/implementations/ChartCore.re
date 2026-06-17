@@ -76,8 +76,7 @@ let is_string_column = (cells: list(Exp.t)): bool =>
 /* Categorical data: one string "label" column plus one or more numeric value
  * columns. Each numeric column becomes a series (one for plain bars, several
  * for grouped bars). */
-let parse_categorical =
-    (arg: Exp.t): option((list(string), list(series))) =>
+let parse_categorical = (arg: Exp.t): option((list(string), list(series))) =>
   switch (strip(arg).term) {
   | ListLit([]) => Some(([], []))
   | _ =>
@@ -87,7 +86,9 @@ let parse_categorical =
       let cols = columns(headers, rows);
       let indexed = List.mapi((i, c) => (i, c), cols);
       let label_idx =
-        switch (List.find_opt(((_, (h, _))) => h == Some("label"), indexed)) {
+        switch (
+          List.find_opt(((_, (h, _))) => h == Some("label"), indexed)
+        ) {
         | Some((i, _)) => Some(i)
         | None =>
           List.fold_left(
@@ -136,7 +137,8 @@ let parse_points = (arg: Exp.t): option(list(point)) =>
     | None => None
     | Some((headers, rows)) =>
       let cols = columns(headers, rows);
-      let numeric = List.filter(((_, cells)) => is_numeric_column(cells), cols);
+      let numeric =
+        List.filter(((_, cells)) => is_numeric_column(cells), cols);
       let pick = (name, fallback_idx) =>
         switch (List.find_opt(((h, _)) => h == Some(name), cols)) {
         | Some((_, cells)) => Some(cells)
@@ -149,14 +151,24 @@ let parse_points = (arg: Exp.t): option(list(point)) =>
         let yf = List.filter_map(as_float, ys);
         let n = List.length(rows);
         List.length(xf) == n && List.length(yf) == n
-          ? Some(List.map2((x, y) => {x, y}, xf, yf)) : None;
+          ? Some(
+              List.map2(
+                (x, y) =>
+                  {
+                    x,
+                    y,
+                  },
+                xf,
+                yf,
+              ),
+            )
+          : None;
       | _ => None
       };
     }
   };
 
-let rec combine_truncating =
-        (xs: list('a), ys: list('b)): list(('a, 'b)) =>
+let rec combine_truncating = (xs: list('a), ys: list('b)): list(('a, 'b)) =>
   switch (xs, ys) {
   | ([x, ...xs], [y, ...ys]) => [(x, y), ...combine_truncating(xs, ys)]
   | _ => []
@@ -171,7 +183,12 @@ let parse_chart = (exp: Exp.t): option(chart_spec) => {
     switch (fn.term) {
     | Constructor("BarChart", _) =>
       parse_categorical(arg)
-      |> Option.map(((categories, series)) => Bar({categories, series}))
+      |> Option.map(((categories, series)) =>
+           Bar({
+             categories,
+             series,
+           })
+         )
     | Constructor("PieChart", _) =>
       parse_categorical(arg)
       |> Option.map(((categories, series)) => {

@@ -150,41 +150,94 @@ let tests = (
       | _ => Alcotest.fail("expected empty Bar")
       }
     }),
-    test_case("grouped bar: multiple numeric columns (hand-built)", `Quick, () => {
-      let exp =
-        bar_ap([
-          row([("label", E.string("A")), ("q1", E.float(1.0)), ("q2", E.float(2.0))]),
-          row([("label", E.string("B")), ("q1", E.float(3.0)), ("q2", E.float(4.0))]),
-        ]);
-      switch (ChartCore.parse_chart(exp)) {
-      | Some(Bar({categories, series})) =>
-        check(list(string), "categories", ["A", "B"], categories);
-        check(int, "series count", 2, List.length(series));
-        let names = List.map((s: ChartCore.series) => s.name, series);
-        check(list(string), "series names", ["q1", "q2"], names);
-      | _ => Alcotest.fail("expected grouped Bar with 2 series")
-      };
-    }),
-    test_case("non-finite value rejected (hand-built)", `Quick, () => {
-      let exp =
-        bar_ap([row([("label", E.string("A")), ("value", E.float(Float.nan))])]);
-      check(bool, "None", true, Option.is_none(ChartCore.parse_chart(exp)));
-    }),
-    test_case("ragged rows rejected (hand-built)", `Quick, () => {
-      let exp =
-        bar_ap([
-          row([("label", E.string("A")), ("value", E.float(1.0))]),
-          row([("label", E.string("B"))]),
-        ]);
-      check(bool, "None", true, Option.is_none(ChartCore.parse_chart(exp)));
-    }),
-    test_case("non-chart constructor rejected", `Quick, () => {
-      let exp = E.ap(fwd, E.constructor("Some", None), E.int(3));
-      check(bool, "None", true, Option.is_none(ChartCore.parse_chart(exp)));
-    }),
-    test_case("plain list is not a chart", `Quick, () => {
-      let exp = E.list_lit([E.int(1), E.int(2)]);
-      check(bool, "None", true, Option.is_none(ChartCore.parse_chart(exp)));
-    }),
+    test_case(
+      "grouped bar: multiple numeric columns (hand-built)",
+      `Quick,
+      () => {
+        let exp =
+          bar_ap([
+            row([
+              ("label", E.string("A")),
+              ("q1", E.float(1.0)),
+              ("q2", E.float(2.0)),
+            ]),
+            row([
+              ("label", E.string("B")),
+              ("q1", E.float(3.0)),
+              ("q2", E.float(4.0)),
+            ]),
+          ]);
+        switch (ChartCore.parse_chart(exp)) {
+        | Some(Bar({categories, series})) =>
+          check(list(string), "categories", ["A", "B"], categories);
+          check(int, "series count", 2, List.length(series));
+          let names = List.map((s: ChartCore.series) => s.name, series);
+          check(list(string), "series names", ["q1", "q2"], names);
+        | _ => Alcotest.fail("expected grouped Bar with 2 series")
+        };
+      },
+    ),
+    test_case(
+      "non-finite value rejected (hand-built)",
+      `Quick,
+      () => {
+        let exp =
+          bar_ap([
+            row([
+              ("label", E.string("A")),
+              ("value", E.float(Float.nan)),
+            ]),
+          ]);
+        check(
+          bool,
+          "None",
+          true,
+          Option.is_none(ChartCore.parse_chart(exp)),
+        );
+      },
+    ),
+    test_case(
+      "ragged rows rejected (hand-built)",
+      `Quick,
+      () => {
+        let exp =
+          bar_ap([
+            row([("label", E.string("A")), ("value", E.float(1.0))]),
+            row([("label", E.string("B"))]),
+          ]);
+        check(
+          bool,
+          "None",
+          true,
+          Option.is_none(ChartCore.parse_chart(exp)),
+        );
+      },
+    ),
+    test_case(
+      "non-chart constructor rejected",
+      `Quick,
+      () => {
+        let exp = E.ap(fwd, E.constructor("Some", None), E.int(3));
+        check(
+          bool,
+          "None",
+          true,
+          Option.is_none(ChartCore.parse_chart(exp)),
+        );
+      },
+    ),
+    test_case(
+      "plain list is not a chart",
+      `Quick,
+      () => {
+        let exp = E.list_lit([E.int(1), E.int(2)]);
+        check(
+          bool,
+          "None",
+          true,
+          Option.is_none(ChartCore.parse_chart(exp)),
+        );
+      },
+    ),
   ],
 );
