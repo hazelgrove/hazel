@@ -16,11 +16,105 @@ let parse_program = (s: string) =>
   | None => failwith("Failed to parse expression: " ++ s)
   };
 
-let run_hazel = path => {
+/* Build a consent callback for CSV access. By default the CLI prompts before
+   reading each referenced file and lets the user substitute a different local
+   path; `--yes` auto-allows the declared paths for non-interactive use. When
+   the program itself was read from stdin we cannot also prompt on stdin, so
+   consent must be pre-granted with `--yes`. */
+let make_authorizer =
+    (~assume_yes: bool, ~from_stdin: bool, ~base_dir: string)
+    : (string => Csv.decision) =>
+  if (assume_yes) {
+    path => Csv.Allow(path);
+  } else if (from_stdin) {
+    _path => {
+      prerr_endline(
+        "Refusing to read a CSV without consent: the program was read from "
+        ++ "stdin, so no interactive prompt is available. Re-run with --yes to "
+        ++ "authorize, or pass the program as a file.",
+      );
+      Csv.Deny;
+    };
+  } else {
+    path => {
+      let resolved = Csv.resolve(~base_dir, path);
+      prerr_string(
+        "Hazel wants to read CSV file:\n  "
+        ++ resolved
+        ++ "\n  [Enter] allow  ·  type another path to use instead  ·  [n] deny: ",
+      );
+      flush(stderr);
+      switch (
+        try(Some(input_line(stdin))) {
+        | End_of_file => None
+        }
+      ) {
+      | Some("")
+      | Some("y")
+      | Some("Y") => Csv.Allow(path)
+      | None
+      | Some("n")
+      | Some("N") => Csv.Deny
+      | Some(other) => Csv.Allow(String.trim(other))
+      };
+    };
+  };
+
+/* Read a .hz file and build the (base_dir, consent callback) for CSV access. */
+let setup_csv =
+    (~assume_yes: bool, ~data_dir: option(string), path: string)
+    : (string, string, string => Csv.decision) => {
   let program = read_input(path);
-  let parsed = parse_program(program);
-  let evaluated = Run.evaluate(parsed);
+  let base_dir =
+    switch (data_dir) {
+    | Some(d) => d
+    | None => Filename.dirname(path)
+    };
+  let authorize =
+    make_authorizer(~assume_yes, ~from_stdin=path == "-", ~base_dir);
+  (program, base_dir, authorize);
+};
+
+/* Text expansion (used by `expand`): inline `^^csv(...)` into `^^table([...])`.
+   Materializes a portable .hz; the inlined table is large and slow to re-parse. */
+let read_and_expand =
+    (~assume_yes: bool, ~data_dir: option(string), path: string): string => {
+  let (program, base_dir, authorize) = setup_csv(~assume_yes, ~data_dir, path);
+  Csv.expand(~base_dir, ~authorize, program);
+};
+
+/* Run a thunk that may touch the filesystem for CSV access, reporting a denied
+   or unreadable file as a clean error + non-zero exit (not a stack trace). */
+let die_on_csv_error = (f: unit => 'a): 'a =>
+  try(f()) {
+  | Failure(msg)
+  | Sys_error(msg) =>
+    prerr_endline("hazel: " ++ msg);
+    exit(1);
+  };
+
+let run_hazel = (assume_yes, data_dir, path) => {
+  let (program, base_dir, authorize) =
+    setup_csv(~assume_yes, ~data_dir, path);
+  /* Splice CSV tables as AST so the (large) table is never re-parsed. */
+  let spliced =
+    die_on_csv_error(() =>
+      Csv.splice_tables(~base_dir, ~authorize, ~parse=parse_program, program)
+    );
+  let evaluated = Run.evaluate(spliced);
   print_endline(Print.print(evaluated));
+};
+
+let expand_hazel = (assume_yes, data_dir, output, path) => {
+  let expanded =
+    die_on_csv_error(() => read_and_expand(~assume_yes, ~data_dir, path));
+  switch (output) {
+  | None => print_string(expanded)
+  | Some(out) =>
+    let oc = open_out(out);
+    output_string(oc, expanded);
+    close_out(oc);
+  };
 };
 
 let strip_leading_whitespace = (s: string): string => {
@@ -59,14 +153,18 @@ let parse_to_zipper = (s: string): option(Haz3lcore.Zipper.t) =>
   Haz3lcore.Parser.to_zipper(~root=Exp, s);
 
 let analyze_hazel =
-    (show_warnings: bool, path: string)
+    (show_warnings: bool, assume_yes: bool, data_dir: option(string), path: string)
     : [>
         | `Error(bool, string)
         | `Ok(unit)
       ] => {
-  let program = read_input(path);
+  let (program, base_dir, authorize) =
+    setup_csv(~assume_yes, ~data_dir, path);
+  /* Splice CSV tables as AST: parse only the skeleton, then bind the tables.
+     Diagnostics map against the skeleton (the table has no source positions). */
+  let (skeleton, refs) = Csv.extract_refs(program);
   /* Parse to zipper to preserve structure for measurement */
-  switch (parse_to_zipper(program)) {
+  switch (parse_to_zipper(skeleton)) {
   | None =>
     prerr_endline("Failed to parse program");
     `Error((false, "Parse error"));
@@ -76,7 +174,15 @@ let analyze_hazel =
     /* Get segment and term */
     let segment =
       Haz3lcore.Zipper.unselect_and_zip(~erase_buffer=true, zipper);
-    let term = Haz3lcore.MakeTerm.from_zip_for_sem(zipper, ~root=Exp).term;
+    let term =
+      die_on_csv_error(() =>
+        Csv.wrap_lets(
+          ~base_dir,
+          ~authorize,
+          refs,
+          Haz3lcore.MakeTerm.from_zip_for_sem(zipper, ~root=Exp).term,
+        )
+      );
 
     /* Compute measured positions */
     let measured =
@@ -96,7 +202,7 @@ let analyze_hazel =
         (_id, info, acc) =>
           switch (
             Diagnostic.format_error_with_location(
-              ~source=program,
+              ~source=skeleton,
               ~path,
               measured,
               info,
@@ -116,7 +222,7 @@ let analyze_hazel =
           (_id, info, acc) =>
             switch (
               Diagnostic.format_warning_with_location(
-                ~source=program,
+                ~source=skeleton,
                 ~path,
                 measured,
                 info,
@@ -550,10 +656,32 @@ let input_arg = {
   );
 };
 
+/* Resolve relative `^^csv("...")` paths against this directory (default: the
+   input file's directory). */
+let data_dir_arg = {
+  let doc =
+    "Directory that relative `^^csv(\"...\")` paths resolve against "
+    ++ "(default: the input file's directory).";
+  Arg.(
+    value & opt(some(string), None) & info(["data-dir"], ~docv="DIR", ~doc)
+  );
+};
+
+/* Pre-authorize CSV reads so no interactive prompt is shown. */
+let assume_yes_arg = {
+  let doc =
+    "Authorize reading every `^^csv(\"...\")` file without prompting "
+    ++ "(required for non-interactive use).";
+  Arg.(value & flag & info(["yes", "y"], ~doc));
+};
+
 let run_cmd = {
   let doc = "Run a Hazel program.";
   let info = Cmd.info("run", ~doc);
-  Cmd.v(info, Term.(const(run_hazel) $ input_arg));
+  Cmd.v(
+    info,
+    Term.(const(run_hazel) $ assume_yes_arg $ data_dir_arg $ input_arg),
+  );
 };
 
 let implicit_hole_arg = {
@@ -595,7 +723,15 @@ let analyze_cmd = {
   let info = Cmd.info("analyze", ~doc);
   Cmd.v(
     info,
-    Term.ret(Term.(const(analyze_hazel) $ warnings_arg $ input_arg)),
+    Term.ret(
+      Term.(
+        const(analyze_hazel)
+        $ warnings_arg
+        $ assume_yes_arg
+        $ data_dir_arg
+        $ input_arg
+      ),
+    ),
   );
 };
 
@@ -626,6 +762,24 @@ let test_cmd = {
 let output_arg = {
   let doc = "Path to write output to. If omitted, output is written to stdout.";
   Arg.(value & opt(some(string), None) & info(["output", "o"], ~doc));
+};
+
+let expand_cmd = {
+  let doc =
+    "Expand `^^csv(\"...\")` references into inline `^^table([...])` literals, "
+    ++ "producing a self-contained Hazel program that needs no further file "
+    ++ "access. Writes to --output or stdout.";
+  let info = Cmd.info("expand", ~doc);
+  Cmd.v(
+    info,
+    Term.(
+      const(expand_hazel)
+      $ assume_yes_arg
+      $ data_dir_arg
+      $ output_arg
+      $ input_arg
+    ),
+  );
 };
 
 let submission_arg = {
@@ -798,6 +952,7 @@ let default_cmd = {
     info,
     [
       run_cmd,
+      expand_cmd,
       format_cmd,
       analyze_cmd,
       probe_cmd,
