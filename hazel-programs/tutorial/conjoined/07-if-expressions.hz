@@ -15,7 +15,7 @@ else 1
 
 # Task
 1. Before you start, put your caret on the `let` token of `clamp` and add a probe (**Cmd/Ctrl+E**). On a definition this becomes a **multi probe**: one probe per line, updated as you type.
-2. Over-watering drowns a plant. Complete `clamp` so it holds `x` to the range 0 to 100: below 0 gives `0`, above 100 gives `100`, otherwise `x` unchanged.
+2. Over-watering drowns a plant. Complete `clamp` so it holds `x` to the range 0 to 100: below 0 gives `0`, above 100 gives `100`, otherwise `x` unchanged. Take your time, and watch the values appear alongside each line as you type.
 3. Once it works, add a line break or two (after the condition, say, or after a branch) to reveal more intermediate values.
 
 @hint
@@ -50,7 +50,7 @@ let clamp(x: Int): Int =
 in
 clamp(150);
 clamp(-45);
-clamp(92)
+clamp(92) 
 
 @test
 test clamp(-5) == 0 end;

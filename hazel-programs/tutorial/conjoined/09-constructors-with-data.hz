@@ -9,10 +9,11 @@ type Care = Water(Int) + Trim + Skip in "…"
 Matching `Water(amount)` binds the carried value as `amount`.
 
 # Task
-1. Put your caret on the `let` token of `apply` and add a multi-probe. The samples are only partially evaluated, because of the hole.
-2. Add a `Water(Int)` constructor to the `Care` type on the first line.
-3. Handle `Water` in the `case`: its arm adds the payload to the base amount.
-4. Fill the call to `apply` with `Water(50)`. The result should be **300**.
+1. Probe the program's result: caret on the `apply` call on the last line, then **Cmd/Ctrl+E**. As you build the pieces below, watch this sample.
+2. Put your caret on the `let` token of `apply` and add a multi-probe. The samples are only partially evaluated, because of the hole.
+3. On the first line, in the `type Care` definition, add a `Water(Int)` constructor.
+4. Fill the call to `apply` with `Water(50)`. The result stays partial for now: the `case` does not handle `Water` yet.
+5. Inside `apply`, in the `case` expression, handle the `Water` case: its arm adds the payload to the base amount. The result sample reaches **300**.
 
 @hint
 Add `Water(Int)` to the type, a `| Water(amount) => base + amount` arm to the case, and build the value `Water(50)`.
