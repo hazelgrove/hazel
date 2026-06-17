@@ -40,17 +40,14 @@ type chart_spec =
 
 let strip = HazelJson.JsonADT.strip_wrappers;
 
-/* Extract a finite float from a value expression, leniently accepting integer
- * literals (which the ADT's Float fields rule out statically, but which can
- * still appear when statics are disabled) and negated literals. */
+/* Extract a finite float from a value expression. Only Float literals are
+ * accepted — no implicit Int/Nat/SInt coercion. Chart data must be Float in
+ * the surface language (use float_of_int etc. to convert explicitly), matching
+ * the ADT's Float payload types. */
 let rec as_float = (e: Exp.t): option(float) =>
   switch (strip(e).term) {
   | Atom(Float(f)) => Float.is_finite(f) ? Some(f) : None
-  | Atom(Int(i))
-  | Atom(Nat(i)) => Some(Bigint.to_float(i))
-  | Atom(SInt(i)) => Some(float_of_int(i))
-  | UnOp(Int(Minus) | Float(Minus) | SInt(Minus) | Nat(Minus), inner) =>
-    as_float(inner) |> Option.map(f => -. f)
+  | UnOp(Float(Minus), inner) => as_float(inner) |> Option.map(f => -. f)
   | _ => None
   };
 
@@ -130,6 +127,58 @@ let parse_categorical = (arg: Exp.t): option((list(string), list(series))) =>
     }
   };
 
+/* Multi-series bar data: a list of named series, each carrying its own
+ * (label, value) list. Produces one chart series per named entry, with
+ * categories taken from the first series. */
+let parse_grouped = (arg: Exp.t): option((list(string), list(series))) =>
+  switch (strip(arg).term) {
+  | ListLit([]) => Some(([], []))
+  | _ =>
+    switch (TableCore.parse_table(arg)) {
+    | None => None
+    | Some((headers, rows)) =>
+      let cols = columns(headers, rows);
+      let col = name =>
+        List.find_opt(((h, _)) => h == Some(name), cols)
+        |> Option.map(snd);
+      switch (col("name"), col("data")) {
+      | (Some(name_cells), Some(data_cells)) =>
+        let names = List.filter_map(as_string, name_cells);
+        let inner = List.map(parse_categorical, data_cells);
+        switch (OptUtil.sequence(inner)) {
+        | Some(parsed)
+            when
+              List.length(names) == List.length(name_cells)
+              && List.length(names) == List.length(parsed) =>
+          let categories =
+            switch (parsed) {
+            | [(cats, _), ..._] => cats
+            | [] => []
+            };
+          let series =
+            List.map2(
+              (name, (_cats, slist)) =>
+                switch (slist) {
+                | [s, ..._] => {
+                    name,
+                    values: s.values,
+                  }
+                | [] => {
+                    name,
+                    values: [],
+                  }
+                },
+              names,
+              parsed,
+            );
+          Some((categories, series));
+        | _ => None
+        };
+      | _ => None
+      };
+    }
+  };
+
 /* (x, y) point data: prefer columns labeled x / y, else fall back to the
  * first two numeric columns positionally. */
 let parse_points = (arg: Exp.t): option(list(point)) =>
@@ -186,6 +235,14 @@ let parse_chart = (exp: Exp.t): option(chart_spec) => {
     switch (fn.term) {
     | Constructor("BarChart", _) =>
       parse_categorical(arg)
+      |> Option.map(((categories, series)) =>
+           Bar({
+             categories,
+             series,
+           })
+         )
+    | Constructor("GroupedBarChart", _) =>
+      parse_grouped(arg)
       |> Option.map(((categories, series)) =>
            Bar({
              categories,

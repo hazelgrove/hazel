@@ -51,6 +51,22 @@ function emptyChart(svg) {
     .attr("class", "chart-empty").text("no data");
 }
 
+// Horizontal legend centered along the bottom edge (for multi-series bars).
+function legendRow(svg, items) {
+  const sw = 7, gap = 10, ly = CHART.H - 5;
+  const widths = items.map(it => sw + 3 + it.name.length * 5.4 + gap);
+  const total = widths.reduce((a, b) => a + b, 0) - gap;
+  let lx = Math.max(2, (CHART.W - total) / 2);
+  const g = svg.append("g");
+  items.forEach((it, i) => {
+    g.append("rect").attr("x", lx).attr("y", ly - 7)
+      .attr("width", sw).attr("height", sw).attr("rx", 1.5).attr("fill", it.c);
+    g.append("text").attr("x", lx + sw + 3).attr("y", ly)
+      .attr("class", "chart-legend").text(it.name);
+    lx += widths[i];
+  });
+}
+
 function renderBar(svg, spec) {
   const cats = spec.categories || [], series = spec.series || [];
   if (!cats.length || !series.length) return emptyChart(svg);
@@ -69,7 +85,10 @@ function renderBar(svg, spec) {
   svg.append("g").attr("class", "d3-axis")
     .attr("transform", `translate(0,${CHART.M.top + IH})`)
     .call(d3.axisBottom(x).tickFormat((_, i) => cats[i]).tickSize(0));
-  const showLabels = cats.length * series.length <= 12; // else too cramped
+  const multi = series.length > 1;
+  // Single series: color per category (decorative — the category is already
+  // the x-axis). Multiple series: color per series, identified by a legend.
+  const showLabels = !multi && cats.length <= 12; // else too cramped
   series.forEach((s, si) => {
     const g = svg.append("g");
     g.selectAll("rect").data(s.values).enter().append("rect")
@@ -79,10 +98,9 @@ function renderBar(svg, spec) {
       .attr("width", sub.bandwidth())
       .attr("height", d => Math.abs(y(d) - y0))
       .attr("rx", 1.5)
-      .attr("fill", color(si))
+      .attr("fill", (_, i) => color(multi ? si : i))
       .append("title")
-      .text((d, i) =>
-        (series.length > 1 ? `${s.name} · ` : "") + `${cats[i]}: ${fmt(d)}`);
+      .text((d, i) => (multi ? `${s.name} · ` : "") + `${cats[i]}: ${fmt(d)}`);
     if (showLabels) {
       g.selectAll("text").data(s.values).enter().append("text")
         .attr("class", "chart-value")
@@ -91,6 +109,9 @@ function renderBar(svg, spec) {
         .text(d => fmt(d));
     }
   });
+  if (multi) {
+    legendRow(svg, series.map((s, i) => ({ name: s.name, c: color(i) })));
+  }
 }
 
 function renderXY(svg, spec, connect) {
@@ -134,8 +155,12 @@ function renderPie(svg, spec) {
     .text(d =>
       `${d.data.label}: ${fmt(d.data.value)} `
       + `(${Math.round(d.data.value / total * 100)}%)`);
-  // Legend (the only place slice labels/values appear, since a pie has no axis)
+  // Legend (the only place slice labels/values appear, since a pie has no
+  // axis). Long entries are truncated to stay within the viewBox width.
   const lx = cx + r + 12, rowH = 14;
+  const maxChars = Math.max(4, Math.floor((CHART.W - lx - 14) / 5.4));
+  const truncate = str =>
+    str.length > maxChars ? str.slice(0, maxChars - 1) + "…" : str;
   const y0 = cy - rowH * slices.length / 2 + rowH / 2;
   const legend = svg.append("g");
   slices.forEach((s, i) => {
@@ -143,7 +168,9 @@ function renderPie(svg, spec) {
     legend.append("rect").attr("x", lx).attr("y", ly - 6)
       .attr("width", 8).attr("height", 8).attr("rx", 1.5).attr("fill", color(i));
     legend.append("text").attr("x", lx + 12).attr("y", ly + 2)
-      .attr("class", "chart-legend").text(`${s.label}: ${fmt(s.value)}`);
+      .attr("class", "chart-legend")
+      .text(truncate(`${s.label}: ${fmt(s.value)}`))
+      .append("title").text(`${s.label}: ${fmt(s.value)}`);
   });
 }
 

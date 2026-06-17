@@ -8,8 +8,9 @@
  * would return None.
  *
  * Edge cases that the ADT's types make unreachable through real programs
- * (grouped/multi-series bars, ragged rows, non-finite values) are exercised on
- * hand-built expressions, since parse_chart pattern-matches raw syntax. */
+ * (wide-format multi-numeric-column bars, ragged rows, Int/non-finite values)
+ * are exercised on hand-built expressions, since parse_chart pattern-matches
+ * raw syntax. */
 
 open Alcotest;
 open Haz3lcore;
@@ -38,7 +39,13 @@ let find_chart = (exp: Language.Exp.t): option(Language.Exp.t) => {
   module M = {
     exception Found(Language.Exp.t);
   };
-  let names = ["BarChart", "LineChart", "ScatterChart", "PieChart"];
+  let names = [
+    "BarChart",
+    "GroupedBarChart",
+    "LineChart",
+    "ScatterChart",
+    "PieChart",
+  ];
   let rec lstrip = (e: Language.Exp.t): Language.Exp.t =>
     switch (e.term) {
     | Parens(i)
@@ -115,6 +122,38 @@ let tests = (
       | _ => Alcotest.fail("expected single-series Bar")
       }
     }),
+    test_case("GroupedBarChart: multiple named series", `Quick, () => {
+      switch (
+        chart_of_program(
+          {|GroupedBarChart([
+              (name="Midterm", data=[(label="A", value=85.0), (label="B", value=78.0)]),
+              (name="Final", data=[(label="A", value=90.0), (label="B", value=82.0)])
+            ])|},
+        )
+      ) {
+      | Bar({categories, series}) =>
+        check(list(string), "categories", ["A", "B"], categories);
+        check(int, "series count", 2, List.length(series));
+        let names = List.map((s: ChartCore.series) => s.name, series);
+        check(list(string), "series names", ["Midterm", "Final"], names);
+      | _ => Alcotest.fail("expected grouped Bar with 2 series")
+      }
+    }),
+    test_case(
+      "Int values are rejected (explicit conversion required)",
+      `Quick,
+      () => {
+        /* No implicit Int -> Float coercion: an Int-valued bar is not a chart. */
+        let exp =
+          bar_ap([row([("label", E.string("A")), ("value", E.int(3))])]);
+        check(
+          bool,
+          "None",
+          true,
+          Option.is_none(ChartCore.parse_chart(exp)),
+        );
+      },
+    ),
     test_case("LineChart", `Quick, () => {
       switch (
         chart_of_program({|LineChart([(x=0.0, y=1.0), (x=1.0, y=4.0)])|})

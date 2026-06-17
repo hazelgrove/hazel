@@ -247,8 +247,19 @@ module Chart = {
       ]),
     );
 
+  /* A list of named series, each with its own categorical data — for
+     multi-series (grouped) bar charts. */
+  let grouped: Typ.t =
+    list(
+      prod([
+        tup_label(label("name"), string()),
+        tup_label(label("data"), categorical),
+      ]),
+    );
+
   /* type Chart =
      + BarChart([(label=String, value=Float)])
+     + GroupedBarChart([(name=String, data=[(label=String, value=Float)])])
      + LineChart([(x=Float, y=Float)])
      + ScatterChart([(x=Float, y=Float)])
      + PieChart([(label=String, value=Float)])
@@ -259,6 +270,7 @@ module Chart = {
   let t: Typ.t =
     sum_type([
       ("BarChart", Some(categorical)),
+      ("GroupedBarChart", Some(grouped)),
       ("LineChart", Some(points)),
       ("ScatterChart", Some(points)),
       ("PieChart", Some(categorical)),
