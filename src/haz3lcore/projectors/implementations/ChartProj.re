@@ -291,9 +291,11 @@ let pie_view = (slices: list((string, float))): list(Node.t) => {
   if (total <= 0.0) {
     no_data;
   } else {
-    let cx = m_left +. inner_w /. 2.0;
+    /* Pie on the left, legend (label: value) on the right — a pie has no
+     * axis, so the legend is the only place the categories/values appear. */
+    let r = min(inner_h /. 2.0 -. 2.0, 74.0);
+    let cx = 8.0 +. r;
     let cy = m_top +. inner_h /. 2.0;
-    let r = min(inner_w, inner_h) /. 2.0 -. 2.0;
     let tau = 2.0 *. Float.pi;
     let (_, wedges) =
       List.fold_left(
@@ -330,7 +332,35 @@ let pie_view = (slices: list((string, float))): list(Node.t) => {
         (0.0, []),
         List.mapi((i, s) => (s, i), slices),
       );
-    List.rev(wedges);
+    let legend_x = cx +. r +. 12.0;
+    let row_h = 14.0;
+    let n = List.length(slices);
+    let legend_y0 = cy -. row_h *. float_of_int(n) /. 2.0 +. row_h /. 2.0;
+    let legend =
+      List.concat(
+        List.mapi(
+          (i, (label, v)) => {
+            let ly = legend_y0 +. row_h *. float_of_int(i);
+            [
+              rect_el(
+                ~x=legend_x,
+                ~y=ly -. 6.0,
+                ~w=8.0,
+                ~h=8.0,
+                ~fill=color(i),
+              ),
+              text_el(
+                ~x=legend_x +. 12.0,
+                ~y=ly +. 2.0,
+                ~cls=["chart-legend"],
+                label ++ ": " ++ fmt_tick(v),
+              ),
+            ];
+          },
+          slices,
+        ),
+      );
+    List.rev(wedges) @ legend;
   };
 };
 

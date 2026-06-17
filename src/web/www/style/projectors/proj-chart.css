@@ -65,6 +65,13 @@
   text-anchor: middle;
 }
 
+.chart-svg .chart-legend {
+  fill: var(--BR4);
+  font-family: var(--code-font);
+  font-size: 9px;
+  text-anchor: start;
+}
+
 .chart-svg .chart-empty {
   fill: var(--BR2);
   font-family: var(--code-font);
