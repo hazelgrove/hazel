@@ -44,9 +44,12 @@ let setRow: (Grove, Row, Plant) -> Grove =
       else row)
 in
 
-# TODO: Add setCol helper here #
-# Hint: You need to modify each row, changing #
-# only the cell at the target column.         #
+# TODO: Complete setCol helper here, AFTER calling it in update below #
+let setCol: (Grove, Col, Plant) -> Grove =
+¿
+
+
+in
 
 let setAll: (Grove, Plant) -> Grove =
   fun (grove, plant) ->

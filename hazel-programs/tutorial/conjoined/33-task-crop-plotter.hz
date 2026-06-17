@@ -6,9 +6,9 @@ show_report version=1 id=d0000032-0032-0032-0032-000000000032
 
 The crop plotter plants seeds on a grid, one action at a time. It already supports filling a row; add support for filling a **column**. Comments mark the three places to touch:
 
-1. Add `PlantCol(Col)` to the `Action` type
-2. Add a `setCol` helper function
-3. Handle `PlantCol` in the `update` function
+1. Add `PlantCol(Col)` to the `Action` type.
+2. In the `update` function, handle the `PlantCol` action with a case that calls `setCol`. The helper is stubbed just above but still empty; call it anyway.
+3. Now finish the `setCol` helper (scroll up to its stub). Because the `update` case already calls it, the tests fill with live values as you write it; let them guide you.
 
 Look at how `PlantRow` is implemented for guidance. `PlantCol` is similar but vertical.
 
