@@ -1,0 +1,83 @@
+/* PROJECTOR: Charts (D3-backed SVG) */
+
+.projector.chart {
+  height: 100%;
+  width: 100%;
+  overflow: visible;
+  box-sizing: content-box;
+
+  display: flex;
+  flex-direction: initial;
+  justify-content: initial;
+  align-items: initial;
+  gap: initial;
+}
+
+.projector.chart > .chart-inner {
+  width: 100%;
+  height: 100%;
+  padding: 0 5px;
+  box-sizing: border-box;
+}
+
+/* The chart itself. Nested under .chart-inner (not a direct child of
+ * .projector) so the shard-background svg rules in proj-base.css don't
+ * apply to it. viewBox + preserveAspectRatio keep the aspect ratio while
+ * fitting the reserved box. */
+.chart-svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background-color: var(--df-bg);
+}
+
+.chart-svg .chart-axis {
+  stroke: var(--BR2);
+  stroke-width: 1px;
+  vector-effect: non-scaling-stroke;
+}
+
+.chart-svg .chart-grid {
+  stroke: var(--BR2);
+  stroke-width: 1px;
+  opacity: 0.18;
+  vector-effect: non-scaling-stroke;
+}
+
+.chart-svg .chart-line {
+  stroke-width: 1.5px;
+  fill: none;
+  vector-effect: non-scaling-stroke;
+}
+
+.chart-svg .chart-tick {
+  fill: var(--BR4);
+  font-family: var(--code-font);
+  font-size: 9px;
+}
+
+.chart-svg .y-tick {
+  text-anchor: end;
+}
+
+.chart-svg .x-tick,
+.chart-svg .x-label {
+  text-anchor: middle;
+}
+
+.chart-svg .chart-empty {
+  fill: var(--BR2);
+  font-family: var(--code-font);
+  font-size: 11px;
+  text-anchor: middle;
+}
+
+.projector.chart > .chart-inner > .chart-error-banner {
+  color: var(--R1);
+  font-size: calc(var(--base-font-size) * 0.95);
+  line-height: 1.2;
+  padding: 0.35em 0.5em 0.25em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

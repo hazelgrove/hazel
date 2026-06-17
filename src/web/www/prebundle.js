@@ -5,6 +5,12 @@ import hotkeys from 'hotkeys-js'
 import Algebrite from 'algebrite';
 window.Algebrite = Algebrite;
 
+// D3 is used by the Chart projector purely as a math library (scales, ticks).
+// Expose just the scale/array modules on window.d3 (see D3.re).
+import * as d3Scale from 'd3-scale';
+import * as d3Array from 'd3-array';
+window.d3 = Object.assign({}, d3Scale, d3Array);
+
 // This is the default behavior for the hotkeys module but I'm overriding it for the
 // clipboard-shim and the ninja-keys command palette (which lives inside a shadow DOM).
 hotkeys.filter = event => {
