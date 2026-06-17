@@ -33,7 +33,7 @@
   display: block;
   width: 100%;
   height: 100%;
-  background-color: var(--df-bg);
+  background-color: var(--chart-bg);
 }
 
 .chart-svg .chart-line {
@@ -42,15 +42,34 @@
   vector-effect: non-scaling-stroke;
 }
 
+/* Interactive marks (bars, points, pie slices): gentle hover feedback. Each
+ * carries a <title> for a native tooltip. */
+.chart-svg .chart-mark {
+  transition: opacity 0.12s ease;
+}
+
+.chart-svg .chart-mark:hover {
+  opacity: 0.78;
+  cursor: default;
+}
+
+/* Value labels above bars (shown only when the chart isn't too dense). */
+.chart-svg .chart-value {
+  fill: var(--chart-label-text);
+  font-family: var(--code-font);
+  font-size: 8px;
+  text-anchor: middle;
+}
+
 .chart-svg .chart-empty {
-  fill: var(--BR2);
+  fill: var(--chart-grid);
   font-family: var(--code-font);
   font-size: 11px;
   text-anchor: middle;
 }
 
 .chart-svg .chart-legend {
-  fill: var(--BR4);
+  fill: var(--chart-axis-text);
   font-family: var(--code-font);
   font-size: 9px;
   text-anchor: start;
@@ -59,14 +78,19 @@
 /* Axes d3 renders: <g class="d3-axis"> with a .domain path and .tick g's
  * (each a <line> + <text>). .d3-grid axes use full-width tick lines. */
 .chart-svg .d3-axis text {
-  fill: var(--BR4);
+  fill: var(--chart-axis-text);
   font-family: var(--code-font);
   font-size: 9px;
 }
 
-.chart-svg .d3-axis path.domain,
 .chart-svg .d3-axis .tick line {
-  stroke: var(--BR2);
+  stroke: var(--chart-grid);
+  vector-effect: non-scaling-stroke;
+}
+
+.chart-svg .d3-axis path.domain {
+  stroke: var(--chart-grid);
+  opacity: 0.45;
   vector-effect: non-scaling-stroke;
 }
 

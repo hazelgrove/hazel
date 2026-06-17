@@ -262,6 +262,22 @@
   --df-zebra-bg: var(--T2);
   --df-hover-bg: hsl(120, 40%, 85%);
 
+  /* CHART PROJECTOR */
+  --chart-bg: var(--df-bg);
+  --chart-grid: var(--BR2);
+  --chart-axis-text: var(--BR4);
+  --chart-label-text: var(--BR3);
+  /* Categorical series palette: a coherent OKLCH family in Hazel's idiom
+   * (consistent lightness/chroma, hues spread around the wheel). */
+  --chart-1: oklch(62% 0.15 250); /* blue */
+  --chart-2: oklch(66% 0.16 150); /* green */
+  --chart-3: oklch(72% 0.15 90); /* gold (Hazel base hue) */
+  --chart-4: oklch(60% 0.17 300); /* purple */
+  --chart-5: oklch(64% 0.13 195); /* teal */
+  --chart-6: oklch(62% 0.19 30); /* red */
+  --chart-7: oklch(66% 0.15 340); /* magenta */
+  --chart-8: oklch(70% 0.15 120); /* yellow-green */
+
   /* AT CODE LEVEL */
   --code-text-z: 10;
   --projector-z: 10;
