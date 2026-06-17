@@ -97,8 +97,6 @@ let frozen_ids = (incr: t): list(Id.t) => {
   acc^;
 };
 
-let empty_reuse_map: reuse_map = VarMap.empty;
-
 let equal_provenance = (a: provenance, b: provenance): bool =>
   Id.equal(a.source, b.source) && a.path == b.path && a.flag == b.flag;
 
@@ -152,6 +150,21 @@ let reuse_map_for_co_ctx =
     VarMap.to_list(co_ctx),
     Some([]),
   );
+
+// For builtins
+let clean_reuse_map_of_env = (env: Environment.t(Exp.t)): reuse_map =>
+  env
+  |> Environment.to_list
+  |> List.map(((name, _)) =>
+       (
+         name,
+         {
+           source: Id.invalid,
+           path: [],
+           flag: Clean,
+         },
+       )
+     );
 
 let remove_pat_bindings = (pat: Pat.t, reuse_map: reuse_map): reuse_map => {
   let bound = Pat.bound_vars(pat);

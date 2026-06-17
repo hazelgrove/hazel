@@ -1278,6 +1278,72 @@ let test_reuse_provenance_distinguishes_pattern_shapes = () => {
   );
 };
 
+/* Regression test: builtins must participate in reuse.
+ *
+ * A subexpression that references a builtin (e.g. `string_length`) has that
+ * builtin's name in its co_ctx. The builtin is bound in `Builtins.env_init`,
+ * never via a let/pattern, so its name has no provenance entry unless the
+ * reuse_map is seeded from the environment. Before that seeding,
+ * `reuse_map_for_co_ctx` returned None for any co_ctx containing a builtin,
+ * so the subexpression could NEVER be reused — and neither could anything
+ * downstream of it.
+ *
+ *   Run 1: n = string_length("hello"), _ = 55, n   -> 5
+ *   Run 2: edit the unrelated `_ = 55` literal to 77.
+ *
+ * The `string_length("hello")` Ap is unrelated to the edited binding, so it
+ * must be reused on run 2. */
+let test_builtin_call_reuses_after_unrelated_edit = () => {
+  let src = {|let n = string_length("hello") in
+let _ = 55 in
+n|};
+  let exp1 = parse_exp(src);
+  let exp2 = replace_int_lit(~from=55, ~to_=77, exp1);
+  check(
+    bool,
+    "replace_int_lit actually changed the expression",
+    true,
+    !Exp.fast_equal(exp1, exp2),
+  );
+  /* Locate the `string_length("hello")` Ap by its string-literal argument. */
+  let builtin_ap_id = {
+    let found = ref(None);
+    let f_exp = (continue, e: Exp.t): Exp.t => {
+      switch (e.term) {
+      | Ap(_, _, arg) =>
+        switch (arg.term) {
+        | Atom(String("hello")) => found := Some(Exp.rep_id(e))
+        | _ => ()
+        }
+      | _ => ()
+      };
+      continue(e);
+    };
+    let _ = TermBase.Exp.map_term(~f_exp, exp1);
+    switch (found^) {
+    | Some(id) => id
+    | None => failwith("could not locate `string_length(\"hello\")` Ap node")
+    };
+  };
+  let (r1, _, incr1) = eval_incr(exp1);
+  let (r2, _, incr2) = eval_incr(~prev=incr1, exp2);
+  check(
+    dhexp_typ,
+    "Run 1: string_length(\"hello\") = 5",
+    parse_exp("5"),
+    r1,
+  );
+  check(dhexp_typ, "Run 2: result unchanged = 5", parse_exp("5"), r2);
+  /* The bug we're pinning: without seeding the reuse_map from env, the
+   * builtin name in the Ap's co_ctx forces a permanent cache miss here. */
+  check(
+    bool,
+    "string_length(\"hello\") Ap is reused on run 2",
+    true,
+    List.mem(builtin_ap_id, incr2.reused),
+  );
+};
+
 let tests = (
   "Evaluator.Incremental",
   [
@@ -1435,6 +1501,11 @@ let tests = (
       "Reuse provenance distinguishes pattern projection shapes",
       `Quick,
       test_reuse_provenance_distinguishes_pattern_shapes,
+    ),
+    test_case(
+      "BUILTIN: string_length(\"hello\") reuses after unrelated _=55 edit",
+      `Quick,
+      test_builtin_call_reuses_after_unrelated_edit,
     ),
   ],
 );
