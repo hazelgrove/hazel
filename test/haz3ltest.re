@@ -27,6 +27,7 @@ let (suite, _) =
       Test_Menhir.tests,
       Test_StringUtil.tests,
       Test_TaskReferenceSplit.tests,
+      Test_HazelJson_JsonADT.tests,
       Test_PatternMatch.tests,
       Test_Equality.tests,
       Test_Substitution.tests,
