@@ -1,15 +1,18 @@
 open Language;
 
+[@deriving sexp]
 type point = {
   x: float,
   y: float,
 };
 
+[@deriving sexp]
 type series = {
   name: string,
   values: list(float),
 };
 
+[@deriving sexp]
 type chart_spec =
   | Bar({
       categories: list(string),

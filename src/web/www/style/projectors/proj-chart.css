@@ -1,4 +1,4 @@
-/* PROJECTOR: Charts (D3-backed SVG) */
+/* PROJECTOR: Charts (rendered by d3 — see prebundle.js / ChartProj.re) */
 
 .projector.chart {
   height: 100%;
@@ -20,28 +20,20 @@
   box-sizing: border-box;
 }
 
-/* The chart itself. Nested under .chart-inner (not a direct child of
- * .projector) so the shard-background svg rules in proj-base.css don't
- * apply to it. viewBox + preserveAspectRatio keep the aspect ratio while
- * fitting the reserved box. */
+/* Container that d3 renders the <svg> into. */
+.chart-d3 {
+  width: 100%;
+  height: 100%;
+}
+
+/* The d3-created svg. Nested under .chart-inner (not a direct child of
+ * .projector) so the shard-background svg rules in proj-base.css don't apply.
+ * viewBox + preserveAspectRatio keep the aspect ratio while filling the box. */
 .chart-svg {
   display: block;
   width: 100%;
   height: 100%;
   background-color: var(--df-bg);
-}
-
-.chart-svg .chart-axis {
-  stroke: var(--BR2);
-  stroke-width: 1px;
-  vector-effect: non-scaling-stroke;
-}
-
-.chart-svg .chart-grid {
-  stroke: var(--BR2);
-  stroke-width: 1px;
-  opacity: 0.18;
-  vector-effect: non-scaling-stroke;
 }
 
 .chart-svg .chart-line {
@@ -50,18 +42,10 @@
   vector-effect: non-scaling-stroke;
 }
 
-.chart-svg .chart-tick {
-  fill: var(--BR4);
+.chart-svg .chart-empty {
+  fill: var(--BR2);
   font-family: var(--code-font);
-  font-size: 9px;
-}
-
-.chart-svg .y-tick {
-  text-anchor: end;
-}
-
-.chart-svg .x-tick,
-.chart-svg .x-label {
+  font-size: 11px;
   text-anchor: middle;
 }
 
@@ -72,11 +56,22 @@
   text-anchor: start;
 }
 
-.chart-svg .chart-empty {
-  fill: var(--BR2);
+/* Axes d3 renders: <g class="d3-axis"> with a .domain path and .tick g's
+ * (each a <line> + <text>). .d3-grid axes use full-width tick lines. */
+.chart-svg .d3-axis text {
+  fill: var(--BR4);
   font-family: var(--code-font);
-  font-size: 11px;
-  text-anchor: middle;
+  font-size: 9px;
+}
+
+.chart-svg .d3-axis path.domain,
+.chart-svg .d3-axis .tick line {
+  stroke: var(--BR2);
+  vector-effect: non-scaling-stroke;
+}
+
+.chart-svg .d3-grid .tick line {
+  opacity: 0.18;
 }
 
 .projector.chart > .chart-inner > .chart-error-banner {

@@ -13,6 +13,7 @@ open Language;
  * projector recognizes, so extraction reuses TableCore.parse_table to pull out
  * (headers, rows), then interprets the columns per chart kind. */
 
+[@deriving sexp]
 type point = {
   x: float,
   y: float,
@@ -21,11 +22,13 @@ type point = {
 /* A named numeric column. Bar charts carry one series per numeric column,
  * which lets a single recognizer produce both single-series and grouped
  * (multi-numeric-column) bar charts. */
+[@deriving sexp]
 type series = {
   name: string,
   values: list(float),
 };
 
+[@deriving sexp]
 type chart_spec =
   | Bar({
       categories: list(string),

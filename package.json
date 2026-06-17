@@ -13,7 +13,10 @@
     "@esbuild-plugins/node-resolve": "^0.2.2",
     "algebrite": "^1.4.0",
     "d3-array": "^3.2.4",
+    "d3-axis": "^3.0.0",
     "d3-scale": "^4.0.2",
+    "d3-selection": "^3.0.0",
+    "d3-shape": "^3.2.0",
     "hotkeys-js": "^3.8.7",
     "ninja-keys": "^1.2.2"
   },
