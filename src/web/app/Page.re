@@ -797,8 +797,16 @@ module View = {
     let task_reference: option(string) =
       switch (editors) {
       | Tutorial(t) =>
-        let s = TutorialsMode.Model.get_current(t).editors.task_reference;
-        s == "" ? None : Some(s);
+        let cur = TutorialsMode.Model.get_current(t).editors;
+        /* Show the Task Reference panel for a tutorial slide whenever it has
+           reference text OR a probe strip (Quick Reference + toggles). Slides
+           whose @reference we trimmed to nothing still need the panel, since
+           the strip lives inside it; gating only on the markdown made it (and
+           the strip) vanish, falling back to the ExplainThis sidebar. */
+        let has_strip =
+          TutorialProbeStrip.flags_of_slide(cur.module_name) != [];
+        cur.task_reference == "" && !has_strip
+          ? None : Some(cur.task_reference);
       | _ => None
       };
     let tutorial_module: option(string) =
