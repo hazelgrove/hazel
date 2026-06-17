@@ -120,6 +120,15 @@ let numeric_fns: list(BuiltinsUtil.fn) = [
     custom_statics: None,
   },
   {
+    /* Nearest integer, ties away from zero (matches OCaml's Float.round).
+       Round to N decimals by composing: round(x *. 100.0) /. 100.0 */
+    name: "round",
+    arg: Atom(Float),
+    ret: Atom(Float),
+    imp: float_op(Float.round),
+    custom_statics: None,
+  },
+  {
     name: "exp",
     arg: Atom(Float),
     ret: Atom(Float),
