@@ -50,7 +50,7 @@ let clamp(x: Int): Int =
 in
 clamp(150);
 clamp(-45);
-clamp(92);
+clamp(92)
 
 @test
 test clamp(-5) == 0 end;
