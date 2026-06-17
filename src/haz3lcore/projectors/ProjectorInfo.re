@@ -14,6 +14,7 @@ let utility: ProjectorBase.utility = {
         show_unknown_as_hole: false,
         fold_fn_bodies: `NoFold,
         project_tables: false,
+        project_charts: false,
       },
       any,
     );

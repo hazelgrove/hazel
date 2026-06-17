@@ -52,6 +52,7 @@ module Model = {
         show_hidden_steps: false,
         enable_proof: false,
         project_tables: false,
+        project_charts: false,
       },
     },
     async_evaluation: false,
@@ -144,7 +145,8 @@ module Update = {
     | ShowFilters
     | ShowSettings
     | ShowHiddenSteps
-    | ProjectTables;
+    | ProjectTables
+    | ProjectCharts;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
@@ -274,6 +276,10 @@ module Update = {
           | ProjectTables => {
               ...evaluation,
               project_tables: !evaluation.project_tables,
+            }
+          | ProjectCharts => {
+              ...evaluation,
+              project_charts: !evaluation.project_charts,
             }
           | ShowCaseClauses => {
               ...evaluation,

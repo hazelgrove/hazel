@@ -41,6 +41,7 @@ module Settings = {
       | `NoFold
     ],
     project_tables: bool,
+    project_charts: bool,
     hide_fixpoints: bool,
     show_filters: bool,
     show_ascriptions: bool,
@@ -55,6 +56,7 @@ module Settings = {
     show_ascriptions: settings.evaluation.show_ascriptions,
     fold_case_clauses: !settings.evaluation.show_case_clauses,
     project_tables: settings.evaluation.project_tables,
+    project_charts: settings.evaluation.project_charts,
     fold_fn_bodies:
       fold_fn_bodies
       |> Option.value(
@@ -73,6 +75,7 @@ module Settings = {
       inline,
       fold_case_clauses: false,
       project_tables: false,
+      project_charts: false,
       fold_fn_bodies: `NoFold,
       show_ascriptions: true,
       hide_fixpoints: false,
@@ -1204,6 +1207,47 @@ let project_table_if = (should_project, pieces) =>
     [pieces];
   };
 
+/* Cheap structural test: is this expression an application of a Chart ADT
+ * constructor? Used to gate project_chart_if so we don't re-parse every
+ * function application. Constructor names must stay in sync with
+ * BuiltinsADT.Chart / ChartCore.parse_chart. */
+let is_chart_ctr_ap = (exp: Exp.t): bool => {
+  let rec ctr_name = (e: Exp.t): option(string) =>
+    switch (e.term) {
+    | Parens(inner) => ctr_name(inner)
+    | Constructor(name, _) => Some(name)
+    | _ => None
+    };
+  switch (exp.term) {
+  | Ap(_, fn, _) =>
+    switch (ctr_name(fn)) {
+    | Some("BarChart" | "LineChart" | "ScatterChart" | "PieChart") => true
+    | _ => false
+    }
+  | _ => false
+  };
+};
+
+/* Wrap an already-printed chart-constructor application (a multi-piece
+ * segment) in a Chart projector. Unlike project_table_if, the underlying
+ * syntax is multiple pieces, so we wrap it in parens (as fold_if does) to get
+ * a single piece to project. If projection fails we return the original
+ * pieces unchanged (no stray parens). */
+let project_chart_if = (should_project, id, pieces: Segment.t): Segment.t =>
+  if (should_project) {
+    let syntax = mk_form(~secondary=AutoFormat, ParensExp, id, [pieces]);
+    switch (MakeTerm.for_projection([syntax])) {
+    | None => pieces
+    | Some(any) =>
+      switch (ProjectorInit.init(Chart, syntax, any)) {
+      | Some(projected) => [projected]
+      | None => pieces
+      }
+    };
+  } else {
+    pieces;
+  };
+
 let rec drv_exp_to_pretty =
         (~settings: Settings.t, syntax: Drv.Exp.t, ~sort: DrvSort.t): pretty => {
   let mk_form = mk_form(~secondary=settings.secondary);
@@ -2096,7 +2140,15 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     let id = exp |> Exp.rep_id;
     let+ e1 = go(e1)
     and+ e2 = go(e2);
-    wrap(exp, e1 @ [mk_form(ApExp, id, [e2])]);
+    let pieces = e1 @ [mk_form(ApExp, id, [e2])];
+    wrap(
+      exp,
+      project_chart_if(
+        settings.project_charts && is_chart_ctr_ap(exp),
+        Id.mk(),
+        pieces,
+      ),
+    );
   | Ap(Reverse, e1, e2) =>
     // TODO: Add optional newlines
     let id = exp |> Exp.rep_id;

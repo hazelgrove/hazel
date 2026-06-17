@@ -111,6 +111,7 @@ let code_view_settings: Haz3lcore.ExpToSegment.Settings.t = {
   show_filters: false,
   show_unknown_as_hole: true,
   project_tables: false,
+  project_charts: false,
 };
 
 let view_any = (~globals, any: Any.t) =>

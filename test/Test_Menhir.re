@@ -180,6 +180,7 @@ let qcheck_menhir_serialized_equivalent_test =
             show_filters: true,
             show_unknown_as_hole: true,
             project_tables: false,
+            project_charts: false,
           },
           core_exp,
         );

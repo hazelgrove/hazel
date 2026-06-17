@@ -13,6 +13,7 @@ let exp_to_segment_settings: ExpToSegment.Settings.t = {
   show_filters: true,
   show_unknown_as_hole: true,
   project_tables: false,
+  project_charts: false,
 };
 
 let segmentize =

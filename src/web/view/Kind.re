@@ -22,6 +22,7 @@ let view = (~globals, kind: Language.Ctx.kind): Node.t =>
             show_filters: false,
             show_unknown_as_hole: true,
             project_tables: false,
+            project_charts: false,
           },
           ty,
         ),
