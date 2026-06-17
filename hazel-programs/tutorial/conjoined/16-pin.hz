@@ -63,7 +63,8 @@ test make_label(lily, 3) == "☘️ Lily: 600ml/3d" end;
 test make_label(daisy, 7) == "🌱 Daisy: 1120ml/7d" end;
 test
   make_label(rose, 7)
-  == "🌹 Rose: 1330ml/7d" end
+  == "🌹 Rose: 1330ml/7d"
+end
 
 @test
 0

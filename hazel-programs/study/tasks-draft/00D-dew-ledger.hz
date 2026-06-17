@@ -1,6 +1,6 @@
 # The Dew Ledger #
-# Before dawn, the keepers collect dew and bottle it in jars. #
-# This program tracks the ledger.                             #
+# The dew keepers collect dew and bottle it in jars. #
+# This program tracks the ledger. #
 
 # What the ledger tracks #
 type Model = (
@@ -57,7 +57,7 @@ end;
 
 hint "a spill loses half the loose drops"
 test
-  let morning = (dew = 8, jars = 2) in
+  let morning: Model = (dew = 8, jars = 2) in
   let m = update(morning, Spill) in
   m.dew == 4 && m.jars == 2
 end
