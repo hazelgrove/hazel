@@ -285,6 +285,43 @@ let solve_tests =
         | None => fail("ap analyze returned None (parse?)")
         }
       ),
+      test_case("tuple let-binding is decomposed", `Quick, () =>
+        switch (
+          analyze_lit("let (a, b) = (x, 5) in if a > b then 1 else 2", 1)
+        ) {
+        | Some(r) =>
+          switch (outcome_of(r)) {
+          | Sat(_) => check(bool, "sat", true, true)
+          | other => fail("expected Sat, got " ++ TG.show_outcome(other))
+          }
+        | None => fail("tuple-let analyze returned None (parse?)")
+        }
+      ),
+      test_case("tuple match pattern matches component-wise", `Quick, () =>
+        switch (analyze_lit("case (n, m) | (0, 5) => 1 | _ => 2 end", 1)) {
+        | Some(r) =>
+          switch (outcome_of(r)) {
+          | Sat(_) => check(bool, "sat", true, true)
+          | other => fail("expected Sat, got " ++ TG.show_outcome(other))
+          }
+        | None => fail("tuple-match analyze returned None (parse?)")
+        }
+      ),
+      test_case("tuple-parameter function is inlined", `Quick, () =>
+        switch (
+          analyze_lit(
+            "let f = fun (a, b) -> a > b in if f(x, 5) then 1 else 2",
+            1,
+          )
+        ) {
+        | Some(r) =>
+          switch (outcome_of(r)) {
+          | Sat(_) => check(bool, "sat", true, true)
+          | other => fail("expected Sat, got " ++ TG.show_outcome(other))
+          }
+        | None => fail("tuple-param analyze returned None (parse?)")
+        }
+      ),
     ];
   };
 

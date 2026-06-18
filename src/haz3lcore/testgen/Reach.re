@@ -46,10 +46,31 @@ type t = {
 let contains = (id: Id.t, e: Exp.t): bool =>
   Option.is_some(Exp.find_by_id(id, e));
 
-let rec simple_binder = (p: Pat.t): option(string) =>
-  switch (p.term) {
-  | Var(x) => Some(x)
-  | Parens(inner) => simple_binder(inner)
+/* Bindings introduced by a pattern matched against a value. A variable binds
+ * the whole value; a tuple pattern against a tuple expression binds each
+ * component. None for anything we can't decompose (e.g. a tuple pattern bound
+ * to a non-tuple expression). Used for `let`, function parameters, and
+ * function inlining. */
+let rec bind_pattern =
+        (pat: Pat.t, value: Exp.t): option(list((string, Exp.t))) =>
+  switch (pat.term) {
+  | Var(x) => Some([(x, value)])
+  | Parens(inner) => bind_pattern(inner, value)
+  | Tuple(pats) =>
+    switch (ConstraintGen.tuple_elems(value)) {
+    | Some(vals) when List.length(vals) == List.length(pats) =>
+      List.fold_left2(
+        (acc, p, v) =>
+          switch (acc, bind_pattern(p, v)) {
+          | (Some(a), Some(b)) => Some(a @ b)
+          | _ => None
+          },
+        Some([]),
+        pats,
+        vals,
+      )
+    | _ => None
+    }
   | _ => None
   };
 
@@ -63,12 +84,50 @@ type pmatch =
   | PCond(Exp.t) /* literal: matches iff scrut == lit */
   | PUnknown; /* pattern we can't express (constructor/tuple/var-binding) */
 
+let is_unknown = (m: pmatch): bool =>
+  switch (m) {
+  | PUnknown => true
+  | _ => false
+  };
+
+let cond_of = (m: pmatch): option(Exp.t) =>
+  switch (m) {
+  | PCond(c) => Some(c)
+  | _ => None
+  };
+
+let conjoin = (cs: list(Exp.t)): Exp.t =>
+  switch (cs) {
+  | [] => Exp.fresh(Atom(Bool(true)))
+  | [c, ...rest] =>
+    List.fold_left(
+      (acc, c) => Exp.fresh(BinOp(Bool(And), acc, c)),
+      c,
+      rest,
+    )
+  };
+
 let rec pat_matches = (scrut: Exp.t, p: Pat.t): pmatch =>
   switch (p.term) {
   | Wild => PAlways
   | Atom(a) =>
     PCond(Exp.fresh(BinOp(Poly(Equals), scrut, Exp.fresh(Atom(a)))))
   | Parens(inner) => pat_matches(scrut, inner)
+  | Tuple(pats) =>
+    /* Match component-wise against a tuple scrutinee. */
+    switch (ConstraintGen.tuple_elems(scrut)) {
+    | Some(scruts) when List.length(scruts) == List.length(pats) =>
+      let subs = List.map2(pat_matches, scruts, pats);
+      if (List.exists(is_unknown, subs)) {
+        PUnknown;
+      } else {
+        switch (List.filter_map(cond_of, subs)) {
+        | [] => PAlways
+        | conds => PCond(conjoin(conds))
+        };
+      };
+    | _ => PUnknown
+    }
   | _ => PUnknown
   };
 
@@ -102,8 +161,8 @@ let step =
         );
       }
     | Let(p, def, body) when contains(child_id, body) =>
-      switch (simple_binder(p)) {
-      | Some(v) => (guards, lets @ [(v, def)], complete)
+      switch (bind_pattern(p, def)) {
+      | Some(binds) => (guards, lets @ binds, complete)
       | None => (guards, lets, false)
       }
     | Let(_) => (guards, lets, complete) /* child is in the definition */
@@ -337,13 +396,6 @@ let rec subst = (name: string, repl: Exp.t, e: Exp.t): Exp.t => {
   };
 };
 
-let rec single_param = (p: Pat.t): option(string) =>
-  switch (p.term) {
-  | Var(x) => Some(x)
-  | Parens(q) => single_param(q)
-  | _ => None
-  };
-
 let rec fn_name = (e: Exp.t): option(string) =>
   switch (e.term) {
   | Var(f) => Some(f)
@@ -382,9 +434,11 @@ let rec inline_aps = (env: list((string, Exp.t)), e: Exp.t): Exp.t => {
         };
       switch (def.term) {
       | Fun(pat, body, _, _) =>
-        switch (single_param(pat)) {
-        | Some(p) =>
-          inline_aps(List.remove_assoc(f, env), subst(p, arg, body))
+        switch (bind_pattern(pat, arg)) {
+        | Some(binds) =>
+          let reduced =
+            List.fold_left((b, (p, a)) => subst(p, a, b), body, binds);
+          inline_aps(List.remove_assoc(f, env), reduced);
         | None => {
             ...e,
             term: Ap(Forward, fn, arg),

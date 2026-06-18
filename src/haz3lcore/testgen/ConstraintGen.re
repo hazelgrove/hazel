@@ -100,6 +100,14 @@ let smt_float_op = (op: Operators.op_bin_float): string =>
 let app = (f: string, args: list(string)): string =>
   "(" ++ f ++ " " ++ String.concat(" ", args) ++ ")";
 
+/* The element expressions of a tuple (looking through parens), if `e` is one. */
+let rec tuple_elems = (e: Exp.t): option(list(Exp.t)) =>
+  switch (e.term) {
+  | Tuple(es) => Some(es)
+  | Parens(inner) => tuple_elems(inner)
+  | _ => None
+  };
+
 /* SMT condition for a value `s` matching a pattern. Only literal and wildcard
  * patterns are supported (constructor/tuple/list/var-binding patterns would
  * need SMT datatypes or scope handling). */
@@ -119,6 +127,9 @@ let rec smt_of_exp = (e: Exp.t): string =>
   | UnOp(Bool(Not), e) => app("not", [smt_of_exp(e)])
   | UnOp(Int(Minus) | Nat(Minus) | SInt(Minus) | Float(Minus), e) =>
     app("-", [smt_of_exp(e)])
+  /* Equality is component-wise on tuples: (a, b) == (c, d) ⇒ a == c ∧ b == d. */
+  | BinOp(Poly(Equals), l, r) => eq_smt(l, r)
+  | BinOp(Poly(NotEquals), l, r) => app("not", [eq_smt(l, r)])
   | BinOp(op, l, r) =>
     let l = smt_of_exp(l);
     let r = smt_of_exp(r);
@@ -163,4 +174,16 @@ let rec smt_of_exp = (e: Exp.t): string =>
     ++ ")"
   | Let(_) => unsupported("let with non-variable pattern")
   | _ => unsupported(Exp.show_cls(Exp.cls_of_term(e.term)))
+  }
+/* Component-wise equality of two expressions, recursing through tuples. */
+and eq_smt = (l: Exp.t, r: Exp.t): string =>
+  switch (tuple_elems(l), tuple_elems(r)) {
+  | (Some(ls), Some(rs)) when List.length(ls) == List.length(rs) =>
+    switch (List.map2(eq_smt, ls, rs)) {
+    | [] => "true"
+    | conds => app("and", conds)
+    }
+  | (Some(_), _)
+  | (_, Some(_)) => unsupported("tuple equality with mismatched shape")
+  | (None, None) => app("=", [smt_of_exp(l), smt_of_exp(r)])
   };

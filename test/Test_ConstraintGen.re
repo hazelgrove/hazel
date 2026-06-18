@@ -60,6 +60,15 @@ let tests = (
       "(+ 1 2)",
     ),
     case(
+      "tuple equality is component-wise",
+      E.bin_op(
+        Operators.Poly(Equals),
+        E.tuple([x, E.var("y")]),
+        E.tuple([E.int(1), E.int(2)]),
+      ),
+      "(and (= x 1) (= y 2))",
+    ),
+    case(
       "match desugars to nested ite",
       E.match(
         E.var("n"),
