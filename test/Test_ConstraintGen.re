@@ -69,6 +69,15 @@ let tests = (
       "(and (= x 1) (= y 2))",
     ),
     case(
+      "int_mod builtin maps to SMT mod",
+      E.ap(
+        Operators.Forward,
+        E.var("int_mod"),
+        E.tuple([E.var("a"), E.var("b")]),
+      ),
+      "(mod a b)",
+    ),
+    case(
       "match desugars to nested ite",
       E.match(
         E.var("n"),

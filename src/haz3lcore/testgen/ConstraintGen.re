@@ -108,6 +108,16 @@ let rec tuple_elems = (e: Exp.t): option(list(Exp.t)) =>
   | _ => None
   };
 
+/* The name of an applied function, if it's a (possibly parenthesized) variable
+ * or builtin reference. */
+let rec callee_name = (e: Exp.t): option(string) =>
+  switch (e.term) {
+  | Var(x)
+  | BuiltinFun(x) => Some(x)
+  | Parens(inner) => callee_name(inner)
+  | _ => None
+  };
+
 /* SMT condition for a value `s` matching a pattern. Only literal and wildcard
  * patterns are supported (constructor/tuple/list/var-binding patterns would
  * need SMT datatypes or scope handling). */
@@ -172,6 +182,14 @@ let rec smt_of_exp = (e: Exp.t): string =>
     ++ ")) "
     ++ smt_of_exp(body)
     ++ ")"
+  | Ap(Forward, fn, arg) =>
+    /* A handful of arithmetic builtins map directly to SMT operators. The
+     * integer modulo family takes a pair `(a, b)`. */
+    switch (callee_name(fn), tuple_elems(arg)) {
+    | (Some("int_mod" | "sint_mod" | "nat_mod"), Some([a, b])) =>
+      app("mod", [smt_of_exp(a), smt_of_exp(b)])
+    | _ => unsupported("unsupported function application")
+    }
   | Let(_) => unsupported("let with non-variable pattern")
   | _ => unsupported(Exp.show_cls(Exp.cls_of_term(e.term)))
   }

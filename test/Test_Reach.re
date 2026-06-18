@@ -322,6 +322,16 @@ let solve_tests =
         | None => fail("tuple-param analyze returned None (parse?)")
         }
       ),
+      test_case("int_mod is reachable", `Quick, () =>
+        switch (analyze_lit("if int_mod(x, 7) == 0 then 1 else 2", 1)) {
+        | Some(r) =>
+          switch (outcome_of(r)) {
+          | Sat(_) => check(bool, "sat", true, true)
+          | other => fail("expected Sat, got " ++ TG.show_outcome(other))
+          }
+        | None => fail("int_mod analyze returned None (parse?)")
+        }
+      ),
     ];
   };
 
