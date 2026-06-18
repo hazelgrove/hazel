@@ -1,0 +1,3 @@
+# DA-Bench id 174: Fare skewness (pandas .skew()), titanic.csv #
+let data = ^^csv("titanic.csv") in
+round2(skew(num(data.`Fare`)))

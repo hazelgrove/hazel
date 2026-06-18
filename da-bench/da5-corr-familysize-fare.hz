@@ -1,0 +1,4 @@
+# DA-Bench id 5: r(FamilySize=SibSp+Parch, Fare) over test_ave.csv #
+let data = ^^csv("test_ave.csv") in
+let famsize = map(zip(num(data.`SibSp`), num(data.`Parch`)), fun (s, p) -> s +. p) in
+round2(pearson(famsize, num(data.`Fare`)))

@@ -1,0 +1,49 @@
+# DA-Bench shared prelude. Concatenated in front of each solution (run.sh), #
+# so the solution expression becomes the body of these let-bindings. #
+let sum = fun (xs: [Float]) -> fold_left(xs, fun (acc, x) -> acc +. x, 0.0) in
+let mean = fun (xs: [Float]) -> sum(xs) /. float_of_int(length(xs)) in
+let pop_std = fun (xs: [Float]) ->
+  let m = mean(xs) in sqrt(mean(map(xs, fun x -> (x -. m) *. (x -. m))))
+in
+let sample_std = fun (xs: [Float]) ->
+  let m = mean(xs) in
+  let n = float_of_int(length(xs)) in
+  sqrt(sum(map(xs, fun x -> (x -. m) *. (x -. m))) /. (n -. 1.0))
+in
+let cmp = fun (a, b) -> if a <. b then Lt else if a >. b then Gt else Eq in
+let median = fun (xs: [Float]) ->
+  let s = sort(cmp, xs) in
+  let n = length(xs) in
+  let h = n / 2 in
+  if int_mod(n, 2) == 1 then nth(s, h) else (nth(s, h - 1) +. nth(s, h)) /. 2.0
+in
+# linear-interpolated quantile (numpy/pandas default); xs must be sorted #
+let quantile = fun (xs: [Float], q: Float) ->
+  let n = length(xs) in
+  let pos = q *. float_of_int(n - 1) in
+  let lo = int_of_float(floor(pos)) in
+  let frac = pos -. floor(pos) in
+  if lo + 1 < n then nth(xs, lo) +. frac *. (nth(xs, lo + 1) -. nth(xs, lo))
+  else nth(xs, lo)
+in
+let pearson = fun (xs: [Float], ys: [Float]) ->
+  let mx = mean(xs) in
+  let my = mean(ys) in
+  let pp = sum(map(zip(xs, ys), fun (x, y) -> (x -. mx) *. (y -. my))) in
+  let sx = sum(map(xs, fun x -> (x -. mx) *. (x -. mx))) in
+  let sy = sum(map(ys, fun y -> (y -. my) *. (y -. my))) in
+  pp /. sqrt(sx *. sy)
+in
+# pandas .skew(): adjusted Fisher-Pearson standardized 3rd moment #
+let skew = fun (xs: [Float]) ->
+  let n = float_of_int(length(xs)) in
+  let m = mean(xs) in
+  let s = sample_std(xs) in
+  let acc = sum(map(xs, fun x -> let c = (x -. m) /. s in c *. c *. c)) in
+  n /. ((n -. 1.0) *. (n -. 2.0)) *. acc
+in
+let round2 = fun (x: Float) -> round(x *. 100.0) /. 100.0 in
+let round4 = fun (x: Float) -> round(x *. 10000.0) /. 10000.0 in
+let num = fun (col: [String]) ->
+  col |> map(_, string_trim) |> filter(_, fun s -> s != "") |> map(_, float_of_string)
+in

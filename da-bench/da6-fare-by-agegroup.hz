@@ -1,0 +1,15 @@
+# DA-Bench id 6: mean fare by AgeGroup, test_ave.csv #
+let data = ^^csv("test_ave.csv") in
+# (age, fare) for rows with both present #
+let pairs =
+  zip(data.`Age`, data.`Fare`)
+  |> filter(_, fun (a, f) -> a != "" && f != "")
+  |> map(_, fun (a, f) -> (float_of_string(string_trim(a)), float_of_string(string_trim(f))))
+in
+let grp = fun (lo: Float, hi: Float) ->
+  pairs |> filter(_, fun (a, _f) -> a >=. lo && a <. hi) |> map(_, fun (_a, f) -> f) |> mean
+in
+(mean_fare_child = round2(grp(0.0, 13.0)),
+ mean_fare_teenager = round2(grp(13.0, 20.0)),
+ mean_fare_adult = round2(grp(20.0, 60.0)),
+ mean_fare_elderly = round2(grp(60.0, 1000.0)))

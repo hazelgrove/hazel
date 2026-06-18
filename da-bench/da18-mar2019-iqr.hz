@@ -1,0 +1,11 @@
+# DA-Bench id 18: mean & sd of Mar.2019 after IQR pruning, unemployement_industry.csv #
+let data = ^^csv("unemployement_industry.csv") in
+let xs = num(data.`Mar.2019`) in
+let s = sort(cmp, xs) in
+let q1 = quantile(s, 0.25) in
+let q3 = quantile(s, 0.75) in
+let iqr = q3 -. q1 in
+let lo = q1 -. 1.5 *. iqr in
+let hi = q3 +. 1.5 *. iqr in
+let kept = filter(xs, fun x -> x >=. lo && x <=. hi) in
+(mean_mar_2019 = round2(mean(kept)), sd_mar_2019 = round2(sample_std(kept)))

@@ -1,0 +1,13 @@
+# DA-Bench id 27: IQR (1.5) outliers of charges, insurance.csv #
+let data = ^^csv("insurance.csv") in
+let xs = num(data.`charges`) in
+let s = sort(cmp, xs) in
+let q1 = quantile(s, 0.25) in
+let q3 = quantile(s, 0.75) in
+let iqr = q3 -. q1 in
+let lo = q1 -. 1.5 *. iqr in
+let hi = q3 +. 1.5 *. iqr in
+let outliers = filter(xs, fun x -> x <. lo || x >. hi) in
+(total_outliers = length(outliers),
+ mean_charges_outliers = round2(mean(outliers)),
+ median_charges_outliers = round2(median(outliers)))

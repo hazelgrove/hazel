@@ -1,0 +1,8 @@
+# DA-Bench id 58: missing % of two columns, estimated_numbers.csv #
+let data = ^^csv("estimated_numbers.csv") in
+let pct_missing = fun (col: [String]) ->
+  let miss = length(filter(col, fun s -> string_trim(s) == "")) in
+  round2(float_of_int(miss) /. float_of_int(length(col)) *. 100.0)
+in
+(percentage_cases_min = pct_missing(data.`No. of cases_min`),
+ percentage_deaths_max = pct_missing(data.`No. of deaths_max`))

@@ -1,0 +1,3 @@
+# DA-Bench id 9: mean Close Price over GODREJIND.csv #
+let data = ^^csv("GODREJIND.csv") in
+round2(mean(num(data.`Close Price`)))

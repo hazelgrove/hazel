@@ -1,0 +1,18 @@
+# DA-Bench id 56: country and year of max No. of deaths, estimated_numbers.csv #
+# Column mixes plain ints and bracketed point-estimates; take the leading number before the bracket #
+let data = ^^csv("estimated_numbers.csv") in
+let lead = fun (s: String) -> string_trim(nth(string_split("[", s), 0)) in
+let rows =
+  zip(data.`No. of deaths`, zip(data.`Country`, data.`Year`))
+  |> filter(_, fun (d, _cy) -> string_trim(d) != "")
+  |> map(_, fun (d, (c, y)) -> (float_of_string(lead(d)), c, y))
+in
+let best =
+  fold_left(
+    tail(rows),
+    fun ((bd, bc, by), (d, c, y)) -> if d >. bd then (d, c, y) else (bd, bc, by),
+    head(rows)
+  )
+in
+let (_d, country, year) = best in
+(max_deaths_country = string_trim(country), max_deaths_year = string_trim(year))

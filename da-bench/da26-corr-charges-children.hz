@@ -1,0 +1,3 @@
+# DA-Bench id 26: Pearson r(charges, children) over insurance.csv #
+let data = ^^csv("insurance.csv") in
+round2(pearson(num(data.`charges`), num(data.`children`)))

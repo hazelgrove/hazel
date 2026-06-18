@@ -1,0 +1,6 @@
+# DA-Bench id 14: Price Range (High-Low) mean/median/std, GODREJIND.csv #
+let data = ^^csv("GODREJIND.csv") in
+let ranges = map(zip(num(data.`High Price`), num(data.`Low Price`)), fun (h, l) -> h -. l) in
+(price_range_mean = round2(mean(ranges)),
+ price_range_median = round2(median(ranges)),
+ price_range_std_dev = round2(sample_std(ranges)))
