@@ -140,8 +140,28 @@ let analyze = (target_id: Id.t, map: Statics.Map.t): option(t) =>
       | [a_id, child_id, ..._] =>
         walk(List.tl(nodes), step(~map, a_id, child_id, acc))
       };
-    let (guards, lets, complete) = walk(path, ([], [], true));
-    /* Resolve sorts for every variable referenced in guards and let-defs. */
+    let (guards, all_lets, complete) = walk(path, ([], [], true));
+    /* Keep only the lets actually needed: start from the guards' variables and
+       close over let-definitions, dropping in-scope lets irrelevant to this
+       reach point (otherwise they'd be declared/asserted, and an unreferenced
+       one would be dropped at solve time and spuriously mark incompleteness). */
+    let names = (es: list(Exp.t)): list(string) =>
+      List.concat_map(vars_of, es)
+      |> List.map(fst)
+      |> List.sort_uniq(compare);
+    let rec close = (needed: list(string)): list(string) => {
+      let next =
+        List.fold_left(
+          (acc, (v, def)) => List.mem(v, acc) ? acc @ names([def]) : acc,
+          needed,
+          all_lets,
+        )
+        |> List.sort_uniq(compare);
+      List.length(next) == List.length(needed) ? needed : close(next);
+    };
+    let needed = close(names(guards));
+    let lets = List.filter(((v, _)) => List.mem(v, needed), all_lets);
+    /* Resolve sorts for every variable referenced in guards and kept let-defs. */
     let referenced =
       List.concat_map(vars_of, guards)
       @ List.concat_map(((_, def)) => vars_of(def), lets);

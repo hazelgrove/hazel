@@ -89,7 +89,46 @@ let pure_tests = [
     | None => fail("analyze returned None")
     }
   ),
+  test_case("irrelevant let is pruned (stays complete)", `Quick, () =>
+    switch (analyze_lit("let z = 100 in if x > 5 then 1 else 0", 1)) {
+    | Some(r) =>
+      check(bool, "z pruned", false, List.mem_assoc("z", r.lets));
+      let (_, complete) = Reach.smtlib2(r);
+      check(bool, "complete", true, complete);
+    | None => fail("analyze returned None")
+    }
+  ),
+  test_case("function params become inputs (call site ignored)", `Quick, () =>
+    switch (
+      analyze_lit(
+        "let f = fun (a, b) -> if a > b then 1 else 2 in f(3, 4)",
+        1,
+      )
+    ) {
+    | Some(r) => check(bool, "a is an input", true, List.mem("a", r.inputs))
+    | None => fail("analyze returned None")
+    }
+  ),
 ];
+
+/* A larger program used both as a demo and to exercise nested if/let, a
+   tuple-pattern function parameter, and a genuinely dead branch. */
+let demo_program = {|
+let price = fun (qty, vip) ->
+  let base = qty * 10 in
+  let discount =
+    if vip then
+      if qty > 100 then
+        if qty < 50 then 99 else 30
+      else 10
+    else
+      if qty > 50 then 5 else 0
+  in
+  let shipping = if base > 500 then 0 else 25 in
+  base - discount + shipping
+in
+price(7, true)
+|};
 
 /* === end-to-end solve (needs z3) === */
 
@@ -157,6 +196,26 @@ let solve_tests =
           | other => fail("expected Sat, got " ++ TG.show_outcome(other))
           }
         | None => fail("analyze_two returned None")
+        }
+      ),
+      test_case("demo program: contradictory branch is dead", `Quick, () =>
+        switch (analyze_lit(demo_program, 99)) {
+        | Some(r) =>
+          switch (outcome_of(r)) {
+          | Unsat => check(bool, "dead", true, true)
+          | other => fail("expected Unsat, got " ++ TG.show_outcome(other))
+          }
+        | None => fail("demo analyze returned None (parse?)")
+        }
+      ),
+      test_case("demo program: deep branch is reachable", `Quick, () =>
+        switch (analyze_lit(demo_program, 30)) {
+        | Some(r) =>
+          switch (outcome_of(r)) {
+          | Sat(_) => check(bool, "reachable", true, true)
+          | other => fail("expected Sat, got " ++ TG.show_outcome(other))
+          }
+        | None => fail("demo analyze returned None (parse?)")
         }
       ),
     ];
