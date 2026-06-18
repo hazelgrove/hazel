@@ -1451,7 +1451,7 @@ and Stepper: {
               next_step,
               hidden,
               proof_validity,
-              editor_info_map: info_map,
+              editor_info_map: _info_map,
               export_warning,
               coq_check_status,
             }: step_model,
