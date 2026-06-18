@@ -263,6 +263,37 @@ module Utils = {
     };
   };
 
+  /** OpenRouter messages for the main agent with the advancing prompt-cache
+      breakpoint applied: [cache_anchor] is set on the last history message — the
+      one immediately before the volatile context snapshot (or the final message
+      when no snapshot is appended). The snapshot, when present, is always last
+      (it converts to a [Some] system message), so anchoring index [n - 2] lands
+      on the message just before it. Combined with the static dev-notes anchor in
+      [[Message.Utils.mk_developer_notes_message]], this caches the growing
+      history prefix every request while leaving the snapshot unmarked. The marker
+      is rendered by [[OpenRouter.Message.Utils.json_of_message]] (and stripped for
+      non-Anthropic models in [[OpenRouter.Payload.Utils.json_of_payload]]). */
+  let api_messages_for_openrouter =
+      (chat: Model.t): list(OpenRouter.Message.Model.t) => {
+    let msgs = api_messages_of_messages(messages_for_openrouter(chat));
+    let n = List.length(msgs);
+    let anchor_idx = Option.is_some(chat.context) ? n - 2 : n - 1;
+    if (anchor_idx < 0) {
+      msgs;
+    } else {
+      List.mapi(
+        (i, m: OpenRouter.Message.Model.t) =>
+          i == anchor_idx
+            ? {
+              ...m,
+              cache_anchor: true,
+            }
+            : m,
+        msgs,
+      );
+    };
+  };
+
   /** Value for the context meter: **only** the provider-reported [[prompt_tokens]] from the last
       assistant message in the transcript when that message is still “current” for the bar:
       - No compaction on the branch → last agent message’s usage (if any).

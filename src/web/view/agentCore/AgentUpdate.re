@@ -422,6 +422,7 @@ let send_compaction_request =
       ~model_id=llm_id,
       ~messages,
       ~tools=[],
+      ~session_id=Some(Id.to_string(chat_id)),
       (),
     );
   let acc = OpenRouter.Utils.StreamAccumulator.create();
@@ -793,11 +794,10 @@ let send_message =
           OpenRouter.Payload.Utils.mk_default(
             ~model_id=llm_id,
             ~messages=
-              Chat.Utils.api_messages_of_messages(
-                Chat.Utils.messages_for_openrouter(
-                  ChatSystem.Utils.find_chat(chat_id, chat_system),
-                ),
+              Chat.Utils.api_messages_for_openrouter(
+                ChatSystem.Utils.find_chat(chat_id, chat_system),
               ),
+            ~session_id=Some(Id.to_string(chat_id)),
             ~tools=enabled_tools(~mode=session_mode, model.prompting),
             ~reasoning=?
               Option.map(
@@ -895,11 +895,10 @@ let dispatch_follow_up_llm =
           OpenRouter.Payload.Utils.mk_default(
             ~model_id=llm_id,
             ~messages=
-              Chat.Utils.api_messages_of_messages(
-                Chat.Utils.messages_for_openrouter(
-                  ChatSystem.Utils.find_chat(chat_id, model.chat_system),
-                ),
+              Chat.Utils.api_messages_for_openrouter(
+                ChatSystem.Utils.find_chat(chat_id, model.chat_system),
               ),
+            ~session_id=Some(Id.to_string(chat_id)),
             ~tools=
               enabled_tools(
                 ~mode=settings.agent_globals.session_mode,
@@ -2004,11 +2003,10 @@ let update =
             OpenRouter.Payload.Utils.mk_default(
               ~model_id=llm_id,
               ~messages=
-                Chat.Utils.api_messages_of_messages(
-                  Chat.Utils.messages_for_openrouter(
-                    ChatSystem.Utils.find_chat(chat_id, chat_system),
-                  ),
+                Chat.Utils.api_messages_for_openrouter(
+                  ChatSystem.Utils.find_chat(chat_id, chat_system),
                 ),
+              ~session_id=Some(Id.to_string(chat_id)),
               ~tools=
                 enabled_tools(
                   ~mode=settings.agent_globals.session_mode,
@@ -2109,11 +2107,10 @@ let update =
             OpenRouter.Payload.Utils.mk_default(
               ~model_id=llm_id,
               ~messages=
-                Chat.Utils.api_messages_of_messages(
-                  Chat.Utils.messages_for_openrouter(
-                    ChatSystem.Utils.find_chat(chat_id, model.chat_system),
-                  ),
+                Chat.Utils.api_messages_for_openrouter(
+                  ChatSystem.Utils.find_chat(chat_id, model.chat_system),
                 ),
+              ~session_id=Some(Id.to_string(chat_id)),
               ~tools=
                 enabled_tools(
                   ~mode=settings.agent_globals.session_mode,

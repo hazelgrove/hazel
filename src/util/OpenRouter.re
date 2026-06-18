@@ -82,26 +82,38 @@ module Message = {
         ),
       ]);
 
-    let json_of_message =
-        (~cache_breakpoint: bool=false, message: Model.t): Json.t =>
-      switch (message.role) {
-      | System
-      | Developer when cache_breakpoint || message.cache_anchor =>
-        `Assoc([
-          ("role", `String(string_of_role(message.role))),
-          (
-            "content",
-            `List([
-              `Assoc([
-                ("type", `String("text")),
-                ("text", `String(message.content)),
+    /* A prompt-cache breakpoint is requested when [cache_anchor] is set —
+       either the static dev-notes floor (Phase 1) or the per-request advancing
+       anchor on the last history message before the volatile snapshot (Phase 2,
+       set in [Chat.Utils.api_messages_for_openrouter]). [cache_control] must
+       ride the *last* content block, so we render content as a single-element
+       multipart [text] array to give it a home. Anthropic rejects empty text
+       blocks, and an empty block can't carry a marker anyway, so skip the marker
+       when content is blank — the floor anchor plus the 20-block lookback window
+       absorb the rare gap. Thinking blocks are never sent back upstream here, so
+       there is nothing to avoid marking. */
+    let json_of_message = (message: Model.t): Json.t => {
+      let cache = message.cache_anchor && String.trim(message.content) != "";
+      let text_part = (text: string): Json.t => {
+        let base = [("type", `String("text")), ("text", `String(text))];
+        `Assoc(
+          cache
+            ? base
+              @ [
                 (
                   "cache_control",
                   `Assoc([("type", `String("ephemeral"))]),
                 ),
-              ]),
-            ]),
-          ),
+              ]
+            : base,
+        );
+      };
+      switch (message.role) {
+      | Tool(tool_call) when cache =>
+        `Assoc([
+          ("role", `String(string_of_role(message.role))),
+          ("content", `List([text_part(message.content)])),
+          ("tool_call_id", `String(tool_call.id)),
         ])
       | Tool(tool_call) =>
         `Assoc([
@@ -110,6 +122,9 @@ module Message = {
           ("tool_call_id", `String(tool_call.id)),
         ])
       | Assistant when message.tool_calls != [] =>
+        /* Assistant-with-tool-calls is structurally never the message directly
+           before the snapshot (a tool result always follows it), so it carries
+           no advancing breakpoint; keep the plain OpenAI shape. */
         `Assoc([
           ("role", `String("assistant")),
           ("content", `String(message.content)),
@@ -118,12 +133,19 @@ module Message = {
             `List(List.map(json_of_tool_call, message.tool_calls)),
           ),
         ])
+      | _ when cache =>
+        /* System, Developer, User, or plain Assistant carrying a breakpoint. */
+        `Assoc([
+          ("role", `String(string_of_role(message.role))),
+          ("content", `List([text_part(message.content)])),
+        ])
       | _ =>
         `Assoc([
           ("role", `String(string_of_role(message.role))),
           ("content", `String(message.content)),
         ])
       };
+    };
 
     let mk_assistant_msg =
         (~tool_calls: list(Reply.Model.tool_call)=[], content: string)
@@ -184,6 +206,12 @@ module Payload = {
       tools: list(Json.t),
       stream: bool,
       messages: list(Message.Model.t),
+      /* Per-conversation id sent as a top-level [session_id] body field. Pins
+         OpenRouter sticky routing to one provider from the first request so the
+         growing prompt cache (which does not transfer between Anthropic, Bedrock,
+         and Vertex) keeps hitting. Defaulted so older payloads still deserialize. */
+      [@yojson.default None] [@sexp.default None]
+      session_id: option(string),
     };
   };
   module Utils = {
@@ -199,6 +227,7 @@ module Payload = {
           ~messages: list(Message.Model.t),
           ~tools: list(Json.t),
           ~reasoning: option(Model.reasoning)=?,
+          ~session_id: option(string)=None,
           (),
         )
         : Model.t => {
@@ -209,6 +238,7 @@ module Payload = {
       tools,
       stream: false,
       messages,
+      session_id,
     };
 
     let mk_reasoning = (reasoning: Model.reasoning): Json.t =>
@@ -219,24 +249,35 @@ module Payload = {
       | Exclude(exclude) => `Assoc([("exclude", `Bool(exclude))])
       };
 
-    /* Cache-control markers are only honored by Anthropic models on
-       OpenRouter; non-Anthropic providers either ignore them or 400 on
-       the multipart shape. Gate strictly on the model id prefix. */
-    let supports_cache_control = (model_id: string): bool => {
-      let prefix = "anthropic/";
-      let len = String.length(prefix);
-      String.length(model_id) >= len
-      && String.sub(model_id, 0, len) == prefix;
-    };
+    /* Explicit per-block cache_control breakpoints are honored on OpenRouter by
+       the providers that support manual caching with the same Anthropic syntax:
+       Anthropic (Claude), Google (Gemini), and Alibaba (Qwen). For these, the
+       multipart content-block shape is the *required* form, not an error trigger.
+       Auto-caching providers (OpenAI, DeepSeek, Grok) ignore the field, and
+       OpenRouter strips it rather than erroring — but we still allowlist by
+       provider prefix to avoid sending the multipart shape to a provider that
+       might reject it. Add a prefix here when OpenRouter adds explicit-caching
+       support for another provider family. */
+    let cache_control_provider_prefixes = ["anthropic/", "google/", "qwen/"];
+    let supports_cache_control = (model_id: string): bool =>
+      List.exists(
+        prefix => {
+          let len = String.length(prefix);
+          String.length(model_id) >= len
+          && String.sub(model_id, 0, len) == prefix;
+        },
+        cache_control_provider_prefixes,
+      );
 
     let json_of_payload = (~payload: Model.t): Json.t => {
       let cache_enabled = supports_cache_control(payload.model_id);
-      /* Cache breakpoints are carried per-message via `cache_anchor`, set where
-         the message role is known (the stable system-prompt + dev-notes prefix).
-         We deliberately never anchor the volatile context snapshot, which is
-         regenerated every turn — caching it would pay the write premium for a
-         hit we never get. Strip anchors for non-Anthropic models, which don't
-         honor cache_control and may 400 on the multipart content shape. */
+      /* Cache breakpoints are carried per-message via `cache_anchor`: the static
+         dev-notes floor and the per-request advancing anchor on the last history
+         message before the snapshot (set in Chat.Utils.api_messages_for_openrouter).
+         The volatile context snapshot itself is always last and never anchored —
+         caching it would pay the write premium for a hit we never get. Strip all
+         anchors for non-Anthropic models, which don't honor cache_control and may
+         400 on the multipart content shape. */
       let messages_json =
         List.map(
           (m: Message.Model.t) => {
@@ -259,6 +300,11 @@ module Payload = {
         ("stream", `Bool(payload.stream)),
         ("messages", `List(messages_json)),
       ];
+      let base_fields =
+        switch (payload.session_id) {
+        | Some(id) => [("session_id", `String(id)), ...base_fields]
+        | None => base_fields
+        };
       let fields =
         switch (payload.reasoning) {
         | Some(reasoning) => [

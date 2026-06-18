@@ -507,6 +507,232 @@ let handle_chat_reply_content = (json: API.Json.t): string =>
   | Some(OpenRouter.Model.Reply(r)) => r.content
   };
 
+/* -------------------------------------------------------------------------- */
+/* Prompt caching: cache_control placement + advancing history breakpoint */
+
+let count_substring = (needle: string, hay: string): int => {
+  let nlen = String.length(needle);
+  let hlen = String.length(hay);
+  let rec go = (i, acc) =>
+    if (nlen == 0 || i > hlen - nlen) {
+      acc;
+    } else if (String.sub(hay, i, nlen) == needle) {
+      go(i + nlen, acc + 1);
+    } else {
+      go(i + 1, acc);
+    };
+  go(0, 0);
+};
+
+let or_msg_json = (m: OpenRouter.Message.Model.t): string =>
+  OpenRouter.Message.Utils.json_of_message(m) |> Yojson.Safe.to_string;
+
+let anchored = (m: OpenRouter.Message.Model.t): OpenRouter.Message.Model.t => {
+  ...m,
+  cache_anchor: true,
+};
+
+let prompt_caching_tests = [
+  test_case(
+    "json_of_message: anchored user message renders cache_control on a text block",
+    `Quick,
+    () => {
+      let s =
+        or_msg_json(anchored(OpenRouter.Message.Utils.mk_user_msg("hi")));
+      check_int("one cache_control", 1, count_substring("cache_control", s));
+      check_bool(
+        "ephemeral type",
+        true,
+        count_substring("ephemeral", s) == 1,
+      );
+    },
+  ),
+  test_case(
+    "json_of_message: anchored tool result keeps tool_call_id and carries cache_control",
+    `Quick,
+    () => {
+      let tc: OpenRouter.Reply.Model.tool_call = {
+        id: "call_42",
+        name: "edit",
+        args: `Null,
+      };
+      let s =
+        or_msg_json(
+          anchored(OpenRouter.Message.Utils.mk_tool_msg("result body", tc)),
+        );
+      check_int("one cache_control", 1, count_substring("cache_control", s));
+      check_bool(
+        "retains tool_call_id",
+        true,
+        count_substring("call_42", s) == 1,
+      );
+    },
+  ),
+  test_case(
+    "json_of_message: unanchored message has no cache_control (plain string content)",
+    `Quick,
+    () => {
+      let s = or_msg_json(OpenRouter.Message.Utils.mk_user_msg("hi"));
+      check_int("no cache_control", 0, count_substring("cache_control", s));
+    },
+  ),
+  test_case(
+    "json_of_message: anchored but blank content emits no cache_control marker",
+    `Quick,
+    () => {
+      let s =
+        or_msg_json(anchored(OpenRouter.Message.Utils.mk_user_msg("   ")));
+      check_int(
+        "no marker on blank",
+        0,
+        count_substring("cache_control", s),
+      );
+    },
+  ),
+  test_case(
+    "api_messages_for_openrouter: anchors dev-notes floor + history message before snapshot",
+    `Quick,
+    () => {
+      let chat = Chat.Utils.init(~system_prompt="sp", ~dev_notes="dn");
+      let chat =
+        Chat.Utils.append(Message.Utils.mk_user_message("hello"), chat);
+      let chat = {
+        ...chat,
+        context: Some(Message.Utils.mk_user_message("SNAPSHOT_BODY")),
+      };
+      let msgs = Chat.Utils.api_messages_for_openrouter(chat);
+      check_int("prompt+dev+user+snapshot", 4, List.length(msgs));
+      /* Dev-notes (index 1) keeps its floor anchor; the user message (index 2,
+         just before the snapshot) gets the advancing anchor; the snapshot
+         (index 3) stays unmarked. */
+      let anchored_count =
+        List.length(
+          List.filter(
+            (m: OpenRouter.Message.Model.t) => m.cache_anchor,
+            msgs,
+          ),
+        );
+      check_int("two anchors", 2, anchored_count);
+      let snapshot = List.nth(msgs, 3);
+      check_bool("snapshot unanchored", false, snapshot.cache_anchor);
+      let history = List.nth(msgs, 2);
+      check_bool("history message anchored", true, history.cache_anchor);
+    },
+  ),
+  test_case(
+    "json_of_payload: Anthropic model emits two breakpoints + session_id; snapshot unmarked",
+    `Quick,
+    () => {
+      let chat = Chat.Utils.init(~system_prompt="sp", ~dev_notes="dn");
+      let chat =
+        Chat.Utils.append(Message.Utils.mk_user_message("hello"), chat);
+      let chat = {
+        ...chat,
+        context: Some(Message.Utils.mk_user_message("SNAPSHOT_BODY")),
+      };
+      let payload =
+        OpenRouter.Payload.Utils.mk_default(
+          ~model_id="anthropic/claude-opus-4.6",
+          ~messages=Chat.Utils.api_messages_for_openrouter(chat),
+          ~tools=[],
+          ~session_id=Some("chat-xyz"),
+          (),
+        );
+      let s =
+        OpenRouter.Payload.Utils.json_of_payload(~payload)
+        |> Yojson.Safe.to_string;
+      check_int(
+        "two cache breakpoints",
+        2,
+        count_substring("cache_control", s),
+      );
+      check_bool(
+        "session_id present",
+        true,
+        count_substring("chat-xyz", s) == 1,
+      );
+    },
+  ),
+  test_case(
+    "json_of_payload: auto-caching provider strips cache_control but keeps session_id",
+    `Quick,
+    () => {
+      let chat = Chat.Utils.init(~system_prompt="sp", ~dev_notes="dn");
+      let chat =
+        Chat.Utils.append(Message.Utils.mk_user_message("hello"), chat);
+      let chat = {
+        ...chat,
+        context: Some(Message.Utils.mk_user_message("SNAPSHOT_BODY")),
+      };
+      let payload =
+        OpenRouter.Payload.Utils.mk_default(
+          ~model_id="openai/gpt-4o",
+          ~messages=Chat.Utils.api_messages_for_openrouter(chat),
+          ~tools=[],
+          ~session_id=Some("chat-xyz"),
+          (),
+        );
+      let s =
+        OpenRouter.Payload.Utils.json_of_payload(~payload)
+        |> Yojson.Safe.to_string;
+      check_int("no cache_control", 0, count_substring("cache_control", s));
+      check_bool(
+        "session_id still sent",
+        true,
+        count_substring("chat-xyz", s) == 1,
+      );
+    },
+  ),
+  test_case(
+    "json_of_payload: Gemini and Qwen keep explicit breakpoints (same syntax)",
+    `Quick,
+    () => {
+      let chat = Chat.Utils.init(~system_prompt="sp", ~dev_notes="dn");
+      let chat =
+        Chat.Utils.append(Message.Utils.mk_user_message("hello"), chat);
+      let chat = {
+        ...chat,
+        context: Some(Message.Utils.mk_user_message("SNAPSHOT_BODY")),
+      };
+      let breakpoints = (model_id: string): int => {
+        let payload =
+          OpenRouter.Payload.Utils.mk_default(
+            ~model_id,
+            ~messages=Chat.Utils.api_messages_for_openrouter(chat),
+            ~tools=[],
+            (),
+          );
+        OpenRouter.Payload.Utils.json_of_payload(~payload)
+        |> Yojson.Safe.to_string
+        |> count_substring("cache_control");
+      };
+      check_int(
+        "gemini keeps 2",
+        2,
+        breakpoints("google/gemini-3-flash-preview"),
+      );
+      check_int("qwen keeps 2", 2, breakpoints("qwen/qwen3-max"));
+    },
+  ),
+  test_case(
+    "json_of_payload: omits session_id when None",
+    `Quick,
+    () => {
+      let payload =
+        OpenRouter.Payload.Utils.mk_default(
+          ~model_id="anthropic/claude-opus-4.6",
+          ~messages=[OpenRouter.Message.Utils.mk_user_msg("hi")],
+          ~tools=[],
+          (),
+        );
+      let s =
+        OpenRouter.Payload.Utils.json_of_payload(~payload)
+        |> Yojson.Safe.to_string;
+      check_int("no session_id field", 0, count_substring("session_id", s));
+    },
+  ),
+];
+
 let openrouter_tests = [
   test_case(
     "handle_chat: string content",
@@ -1324,6 +1550,7 @@ let tests = (
   @ chat_messages_for_openrouter_tests
   @ agent_workbench_tests
   @ compaction_prompt_tests
+  @ prompt_caching_tests
   @ openrouter_tests
   @ context_meter_tests
   @ toolcall_handler_tests
