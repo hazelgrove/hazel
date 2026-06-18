@@ -33,6 +33,7 @@ let (suite, _) =
       Test_ConstraintGen.tests,
       Test_TestGen.tests,
       Test_TestGenSolve.tests,
+      Test_Reach.tests,
     ]
     @ Test_ExpToSegment.all
     @ Test_Typ.tests

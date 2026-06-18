@@ -18,6 +18,7 @@ let to_module = (kind: ProjectorCore.Kind.t): (module Cooked) =>
   | Table => (module Cook(TableProj.M))
   | Csv => (module Cook(CSVProjector.M))
   | TestGen => (module Cook(TestGenProj.M))
+  | Reach => (module Cook(ReachProj.M))
   };
 
 let init =

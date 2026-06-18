@@ -107,6 +107,10 @@ type info = {
    * Available when statics/elaboration is enabled. The elaborated
    * form has labels inserted/rearranged by the elaborator. */
   elaborated: option(Language.Exp.t),
+  /* Reachability analysis for this node, computed (only for the Reach
+   * refractor) in ProjectorInfo.mk_info from the whole-program statics map.
+   * None for every other projector kind. */
+  reach: option(Reach.t),
   /* Syntax utility functions/values for projector use,
    * provided here to resolve cyclic dependency issues */
   utility,

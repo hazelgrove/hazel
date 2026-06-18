@@ -18,7 +18,8 @@ type t =
   | TextArea
   | Table
   | Csv
-  | TestGen;
+  | TestGen
+  | Reach;
 
 let livelit_projectors: list(t) = [
   Csv, /* Competes with Card for empty list */
@@ -36,9 +37,9 @@ let livelit_projectors: list(t) = [
 let projectors: list(t) = livelit_projectors @ [Fold];
 
 /* Refractors are like probes - additive decorations, not syntax-replacing.
- * TestGen is a refractor so the underlying boolean expression stays visible
- * and editable while generated inputs are shown alongside it. */
-let refractors: list(t) = [Probe, Statics, TestGen];
+ * TestGen / Reach are refractors so the underlying expression stays visible
+ * and editable while generated inputs / reachability are shown alongside it. */
+let refractors: list(t) = [Probe, Statics, TestGen, Reach];
 let is_refractor = (kind: t) => List.mem(kind, refractors);
 
 /* A friendly name for each projector. This is used
@@ -58,6 +59,7 @@ let name = (p: t): string =>
   | Table => "table"
   | Csv => "csv"
   | TestGen => "testgen"
+  | Reach => "reach"
   };
 
 /* This must be updated and kept 1-to-1 with the above
@@ -77,6 +79,7 @@ let of_name = (p: string): t =>
   | "table" => Table
   | "csv" => Csv
   | "testgen" => TestGen
+  | "reach" => Reach
   | _ => failwith("Unknown projector kind")
   };
 

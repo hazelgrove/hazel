@@ -281,6 +281,7 @@ module Projectors = {
     | Table => "Table"
     | Livelit => "Livelit"
     | TestGen => "Test Inputs"
+    | Reach => "Reaching Inputs"
     | Probe => "Probe" /* shouldn't appear in menu */
     };
 
@@ -346,7 +347,7 @@ module Projectors = {
 let testgen_data =
     (~ci: option(Language.Info.t), z: Zipper.t): list(Menu.item(Action.t)) => {
   let id = Indicated.index(z) |> Option.value(~default=Id.invalid);
-  let present = ProbePerform.has_testgen(id, z);
+  let present = ProbePerform.has_refractor_kind(TestGen, id, z);
   let applicable =
     switch (ci) {
     | Some(InfoExp(e)) => Haz3lcore.TestGen.applicable(e)
@@ -357,6 +358,27 @@ let testgen_data =
       action_item(
         (present ? "Remove" : "Generate") ++ " test inputs",
         Action.Probe(ToggleTestGen),
+      ),
+    ]
+    : [];
+};
+
+/* Reach refractor: offered on any expression (it asks "what inputs reach
+   here / is this dead code"). Toggles a Reach manual refractor. */
+let reach_data =
+    (~ci: option(Language.Info.t), z: Zipper.t): list(Menu.item(Action.t)) => {
+  let id = Indicated.index(z) |> Option.value(~default=Id.invalid);
+  let present = ProbePerform.has_refractor_kind(Reach, id, z);
+  let applicable =
+    switch (ci) {
+    | Some(InfoExp(_)) => true
+    | _ => false
+    };
+  applicable || present
+    ? [
+      action_item(
+        present ? "Remove reaching inputs" : "Find reaching inputs",
+        Action.Probe(ToggleReach),
       ),
     ]
     : [];
@@ -376,7 +398,8 @@ let refractor_actions_data =
   let is_def = ProbePerform.is_definition_form(id, info_map);
   probe_data(~can_probe, ~is_def, probe_status, ci)
   @ type_annotation_data(~can_type=can_statics, probe_status, ci)
-  @ testgen_data(~ci, z);
+  @ testgen_data(~ci, z)
+  @ reach_data(~ci, z);
 };
 
 /* ============================================================

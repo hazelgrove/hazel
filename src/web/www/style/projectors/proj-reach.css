@@ -1,0 +1,101 @@
+/* PROJECTOR: REACHABILITY (refractor) */
+
+:root {
+  --reach-accent: hsl(255, 60%, 52%);
+  --reach-accent-soft: hsl(255, 60%, 95%);
+  --reach-dead: hsl(2, 62%, 46%);
+  --reach-dead-bg: hsl(2, 75%, 96%);
+  --reach-muted: hsl(0, 0%, 45%);
+  --reach-muted-bg: hsl(0, 0%, 95%);
+}
+
+/* Refractor: the underlying syntax stays visible; only the offside reacts. */
+.refractors .base .projector.reach > svg {
+  display: none;
+}
+.refractors .base .projector.reach {
+  pointer-events: none;
+}
+.refractors .base .projector.reach .offside {
+  pointer-events: all;
+}
+
+.projector.reach .offside {
+  display: flex;
+  align-items: center;
+  gap: 0.4em;
+  font-family: var(--code-font);
+  font-size: var(--base-font-size);
+  line-height: initial;
+}
+
+/* Solve button (target) */
+.projector.reach .reach-generate {
+  cursor: pointer;
+  user-select: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5em;
+  height: 1.5em;
+  border-radius: 0.3em;
+  background-color: var(--reach-accent);
+  flex: none;
+}
+.projector.reach .reach-generate:hover {
+  filter: brightness(1.12);
+}
+.projector.reach .reach-generate:active {
+  filter: brightness(0.95);
+}
+
+/* Symbolic path condition (muted) */
+.projector.reach .reach-path {
+  padding: 0.1em 0.45em;
+  border-radius: 0.4em;
+  background-color: var(--reach-accent-soft);
+  color: var(--reach-accent);
+  white-space: nowrap;
+  max-width: 28em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Result pill */
+.projector.reach .reach-result {
+  padding: 0.1em 0.55em;
+  border-radius: 0.4em;
+  white-space: nowrap;
+  border: 1px solid transparent;
+  max-width: 40em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.projector.reach .reach-result.reachable {
+  background-color: var(--reach-accent-soft);
+  color: var(--reach-accent);
+  border-color: var(--reach-accent);
+  font-weight: 600;
+}
+
+.projector.reach .reach-result.dead {
+  background-color: var(--reach-dead-bg);
+  color: var(--reach-dead);
+  border-color: hsl(2, 60%, 82%);
+  font-weight: 600;
+}
+
+.projector.reach .reach-result.unknown {
+  background-color: var(--reach-muted-bg);
+  color: var(--reach-muted);
+  border-color: hsl(0, 0%, 82%);
+  font-style: italic;
+}
+
+.projector.reach .reach-result.error {
+  background-color: var(--reach-dead-bg);
+  color: var(--reach-dead);
+  border-color: hsl(2, 60%, 82%);
+  white-space: normal;
+}

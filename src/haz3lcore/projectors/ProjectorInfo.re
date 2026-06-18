@@ -85,6 +85,11 @@ let mk_info =
       None;
     };
   },
+  reach:
+    switch (p.kind) {
+    | Reach => Reach.analyze(p.id, statics)
+    | _ => None
+    },
   utility,
 };
 

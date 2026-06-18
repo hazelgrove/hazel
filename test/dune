@@ -19,16 +19,18 @@
    Test_ReparseDocSlides
    Test_StepperBase
    Test_TextRoundtrip
-   ; Test_TestGenSolve links the native testgenZ3 backend (system z3 binary),
-   ; so it lives only in the native haz3ltest exe, never in the jsoo web exe.
-   Test_TestGenSolve))
+   ; Test_TestGenSolve and Test_Reach link the native testgenZ3 backend (system
+   ; z3 binary), so they live only in the native haz3ltest exe, never in the
+   ; jsoo web exe.
+   Test_TestGenSolve
+   Test_Reach))
  (libraries str haz3ltui menhirParser junit_alcotest bisect_ppx.runtime)
  (preprocess
   (pps ppx_deriving.show ppx_sexp_conv)))
 
 (executable
  (name haz3ltest)
- (modules Haz3ltest Test_TestGenSolve)
+ (modules Haz3ltest Test_TestGenSolve Test_Reach)
  (libraries haz3ltest_common testgenZ3 junit_alcotest bisect_ppx.runtime)
  (modes exe)
  (preprocess

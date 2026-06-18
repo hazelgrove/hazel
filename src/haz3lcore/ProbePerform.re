@@ -604,25 +604,27 @@ let toggle_multi =
     }
   };
 
-/* Test input generation is a plain single-term refractor (unlike probes, it
-   needs none of the multi/target-id machinery): toggle a TestGen entry in the
-   manual refractor list for the indicated term. */
-let has_testgen = (id: Id.t, z: Zipper.t): bool =>
+/* TestGen / Reach are plain single-term refractors (unlike probes, they need
+   none of the multi/target-id machinery): toggle a manual refractor of the
+   given kind on the indicated term. */
+let has_refractor_kind =
+    (kind: ProjectorCore.Kind.t, id: Id.t, z: Zipper.t): bool =>
   List.exists(
-    ((mid, e: Refractors.entry)) => mid == id && e.kind == TestGen,
+    ((mid, e: Refractors.entry)) => mid == id && e.kind == kind,
     z.refractors.manuals,
   );
 
-let toggle_testgen = (id: Id.t, z: Zipper.t): Zipper.t =>
-  if (has_testgen(id, z)) {
+let toggle_refractor_kind =
+    (kind: ProjectorCore.Kind.t, id: Id.t, z: Zipper.t): Zipper.t =>
+  if (has_refractor_kind(kind, id, z)) {
     Zipper.update_manuals(
       List.filter(((mid, e: Refractors.entry)) =>
-        !(mid == id && e.kind == TestGen)
+        !(mid == id && e.kind == kind)
       ),
       z,
     );
   } else {
-    Zipper.add_manual(id, TestGen, z);
+    Zipper.add_manual(id, kind, z);
   };
 
 /* Check if the indicated term is a definition form (Let or Test/HintedTest).
@@ -922,7 +924,12 @@ let go =
     }
   | ToggleTestGen =>
     switch (Indicated.index(z)) {
-    | Some(id) => toggle_testgen(id, z)
+    | Some(id) => toggle_refractor_kind(TestGen, id, z)
+    | None => z
+    }
+  | ToggleReach =>
+    switch (Indicated.index(z)) {
+    | Some(id) => toggle_refractor_kind(Reach, id, z)
     | None => z
     }
   | StepInto(call_stack, ap_id) =>
