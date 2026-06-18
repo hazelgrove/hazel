@@ -38,11 +38,21 @@ let read_file = (path: string): string => {
 
 /* ---- Emitting a `^^table([...])` literal from parsed CSV rows ---- */
 
+/* Strip a leading UTF-8 byte-order mark (EF BB BF). Files exported from some
+   tools prefix it to the first header; left in place it becomes part of that
+   column's label, so `data.`name`` projection silently fails to match. */
+let strip_bom = (s: string): string =>
+  String.length(s) >= 3
+  && Char.code(s.[0]) == 0xEF
+  && Char.code(s.[1]) == 0xBB
+  && Char.code(s.[2]) == 0xBF
+    ? String.sub(s, 3, String.length(s) - 3) : s;
+
 /* A Hazel label, backtick-quoted so capitalized / spaced / punctuated CSV
    headers (e.g. `Fare`, `No. of cases`) are all legal. The unnamed index
    column pandas writes (empty header) becomes `col<i>`. */
 let label_literal = (~index: int, header: string): string => {
-  let h = StringUtil.sanitize_for_label(header);
+  let h = StringUtil.sanitize_for_label(strip_bom(header));
   let h = h == "" ? "col" ++ string_of_int(index) : h;
   "`" ++ h ++ "`";
 };
@@ -217,7 +227,7 @@ let row_ast = (row: list((string, string))): Language.Exp.t =>
   FE.tuple(
     List.mapi(
       (i, (header, value)) => {
-        let h = StringUtil.sanitize_for_label(header);
+        let h = StringUtil.sanitize_for_label(strip_bom(header));
         let h = h == "" ? "col" ++ string_of_int(i) : h;
         FE.tup_label(FE.label(h), FE.string(value));
       },
