@@ -261,20 +261,30 @@ let set_dot_labels_exp =
   | _ => m
   };
 
-let map_m = (f, xs, m: Map.t) =>
-  List.fold_left(
-    ((xs, m), x) => f(x, m) |> (((x, m)) => (xs @ [x], m)),
-    ([], m),
-    xs,
-  );
+/* Accumulate the result list reversed and reverse once at the end: keeps this
+   tail-recursive and O(n) (the previous `xs @ [x]` was O(n^2) and recursed one
+   frame per element, overflowing the stack on large nodes like a spliced CSV
+   table). */
+let map_m = (f, xs, m: Map.t) => {
+  let (xs, m) =
+    List.fold_left(
+      ((xs, m), x) => f(x, m) |> (((x, m)) => ([x, ...xs], m)),
+      ([], m),
+      xs,
+    );
+  (List.rev(xs), m);
+};
 
-let map_m2 = (f, xs, ys, m: Map.t) =>
-  List.fold_left2(
-    ((zs, m), x, y) => f(x, y, m) |> (((z, m)) => (zs @ [z], m)),
-    ([], m),
-    xs,
-    ys,
-  );
+let map_m2 = (f, xs, ys, m: Map.t) => {
+  let (zs, m) =
+    List.fold_left2(
+      ((zs, m), x, y) => f(x, y, m) |> (((z, m)) => ([z, ...zs], m)),
+      ([], m),
+      xs,
+      ys,
+    );
+  (List.rev(zs), m);
+};
 
 let syn = Unknown(SynSwitch) |> Typ.temp;
 

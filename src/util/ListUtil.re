@@ -389,6 +389,32 @@ let rec rev_concat: (list('a), list('a)) => list('a) =
     };
   };
 
+/* Tail-recursive, order-preserving replacements for the Stdlib `List`
+   functions that are NOT tail-recursive (`map`, `map2`, `split`/`unzip`,
+   `concat`). These matter when a list is proportional to user data (e.g. a
+   spliced CSV table of thousands of rows): the Stdlib versions recurse one
+   frame per element and overflow the (small) js_of_ocaml/node stack. */
+let map = (f, xs) => List.rev(List.rev_map(f, xs));
+
+let map2 = (f, xs, ys) => List.rev(List.rev_map2(f, xs, ys));
+
+/* Tail-recursive `List.split` (Stdlib's is not). Named `unzip` to avoid
+   colliding with the existing split-by-predicate `split` above. */
+let unzip = (xs: list(('a, 'b))): (list('a), list('b)) => {
+  let (as_, bs) =
+    List.fold_left(
+      ((as_, bs), (a, b)) => ([a, ...as_], [b, ...bs]),
+      ([], []),
+      xs,
+    );
+  (List.rev(as_), List.rev(bs));
+};
+
+let concat = (xss: list(list('a))): list('a) =>
+  List.rev(List.fold_left((acc, xs) => rev_concat(xs, acc), [], xss));
+
+let flatten = concat;
+
 let rec unzip3 =
         (lst: list(('a, 'b, 'c))): (list('a), list('b), list('c)) => {
   switch (lst) {

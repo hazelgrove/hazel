@@ -298,7 +298,7 @@ and uexp_to_info_map =
         es,
         m,
       );
-    (List.split(pairs), m);
+    (ListUtil.unzip(pairs), m);
   };
   let go_pat =
     upat_to_info_map(~ctx, ~ancestors=ancestors_inclusive, ~probe_ids);
@@ -508,7 +508,7 @@ and uexp_to_info_map =
         m,
       );
     | ListLit(es) =>
-      let ids = List.map(Exp.rep_id, es);
+      let ids = ListUtil.map(Exp.rep_id, es);
       let inner_ana_ty = MatchedTyp.list_tolerant(ctx, ana);
       let anas = List.init(List.length(es), _ => inner_ana_ty);
       let ((es, es_elabs), m) = map_m_go(m, anas, es);
@@ -516,11 +516,11 @@ and uexp_to_info_map =
          the per-element ascription decision. Using `e.ty` (ana-coerced)
          would disagree with the syn-based meet and cause spurious Asc
          wrappings on elements that already syn to the meet type. */
-      let syn_tys = List.map((e: Info.exp) => e.elab_syn_ty, es);
+      let syn_tys = ListUtil.map((e: Info.exp) => e.elab_syn_ty, es);
       let meet_ty =
         Typ.meet_all(~empty=Unknown(Internal) |> Typ.temp, ctx, syn_tys);
       let ds =
-        List.map2(
+        ListUtil.map2(
           (d, t) => fresh_ascription(ctx, d, t, meet_ty),
           es_elabs,
           syn_tys,
@@ -534,10 +534,10 @@ and uexp_to_info_map =
           ~marks=
             should_emit_nomeet_mark(ctx, ana, syn_no_meet)
               ? [NoMeet(List, Typ.add_source(ids, syn_tys))] : [],
-          ~co_ctx=CoCtx.union(List.map(Info.exp_co_ctx, es)),
+          ~co_ctx=CoCtx.union(ListUtil.map(Info.exp_co_ctx, es)),
           ~probe_targets=
             SubexpProbeTargets.union_all(
-              List.map(Info.exp_probe_targets, es),
+              ListUtil.map(Info.exp_probe_targets, es),
             ),
           m,
         );
@@ -546,10 +546,10 @@ and uexp_to_info_map =
           ~elab_term=ListLit(ds) |> rewrap,
           ~elab_syn_ty=List(ty) |> Typ.temp,
           ~marks=[],
-          ~co_ctx=CoCtx.union(List.map(Info.exp_co_ctx, es)),
+          ~co_ctx=CoCtx.union(ListUtil.map(Info.exp_co_ctx, es)),
           ~probe_targets=
             SubexpProbeTargets.union_all(
-              List.map(Info.exp_probe_targets, es),
+              ListUtil.map(Info.exp_probe_targets, es),
             ),
           m,
         )

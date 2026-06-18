@@ -24,12 +24,22 @@ module ValueCheckerEVMode: {
     };
 
   let req_final = (vc, _, d) => (d, vc(d));
-  let req_all_final = (vc, _, ds) =>
-    List.fold_right(
-      ((v1, r1), (v2, r2)) => ([v1, ...v2], combine(r1, r2)),
-      List.map(req_final(vc, x => x), ds),
-      ([], Value),
-    );
+  /* Tail-recursive: fold once, accumulating the value list reversed (the
+     previous `List.map` + `List.fold_right` were both non-tail and overflowed
+     the stack when checking large list/tuple values, e.g. a spliced CSV
+     table). */
+  let req_all_final = (vc, _, ds) => {
+    let (vs, r) =
+      List.fold_left(
+        ((vs, r), d) => {
+          let (v, rd) = req_final(vc, x => x, d);
+          ([v, ...vs], combine(r, rd));
+        },
+        ([], Value),
+        ds,
+      );
+    (List.rev(vs), r);
+  };
 
   let otherwise = (_, _) => ((), Value);
 
