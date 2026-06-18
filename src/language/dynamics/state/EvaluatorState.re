@@ -1,18 +1,10 @@
 open Util;
 
-/* Argument values for function applications, keyed by app_id.
- * Each entry is (call_stack_before_entering, elided_arg_value, call_frame).
- * The call_stack is the stack BEFORE entering the function, so we can match
- * samples taken inside the function with their calling arguments. The
- * call_frame is the stack_frame for this application (id + fn_name +
- * dynamically-resolved fn_def_id); it rides alongside the arg because it has
- * the same call-entry/call-exit lifetime and lets the call sample remember
- * which function it actually invoked (for step-into). */
+/* Per-application arg/frame records (see StateSlice.app_args_t for the entry
+ * shape and rationale). Defined there because slices carry them across the
+ * incremental-eval boundary. */
 [@deriving (show({with_path: false}), sexp, yojson)]
-type app_args_t =
-  Id.Map.t(
-    list((Sample.call_stack, Sample.Env.elided_value, Sample.stack_frame)),
-  );
+type app_args_t = StateSlice.app_args_t;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
@@ -156,38 +148,22 @@ let add_app_arg =
   };
 };
 
-/* Look up argument value for an application at a specific call_stack.
- * Used when creating samples for probes on Ap expressions. */
-let lookup_app_arg =
+/* Look up the arg value and call frame recorded for an application at a
+ * specific call_stack. They're stored together (same lifetime), so they come
+ * back as a pair. Used when creating a sample for a probe on an Ap. The frame
+ * carries the dynamically-resolved fn_def_id of the invoked function (for
+ * step-into). */
+let lookup_app =
     (state: t, app_id: Id.t, call_stack: Sample.call_stack)
-    : option(Sample.Env.elided_value) => {
+    : option((Sample.Env.elided_value, Sample.stack_frame)) => {
   let call_stack_ids = Sample.ids_of_stack(call_stack);
   switch (Id.Map.find_opt(app_id, state.app_args)) {
   | None => None
   | Some(entries) =>
     List.find_map(
-      ((stored_stack, arg, _)) =>
+      ((stored_stack, arg, frame)) =>
         Sample.ids_of_stack(stored_stack) == call_stack_ids
-          ? Some(arg) : None,
-      entries,
-    )
-  };
-};
-
-/* Look up the call frame for an application at a specific call_stack.
- * Carries the dynamically-resolved fn_def_id of the invoked function, so a
- * call sample can remember which function it called (for step-into). */
-let lookup_app_frame =
-    (state: t, app_id: Id.t, call_stack: Sample.call_stack)
-    : option(Sample.stack_frame) => {
-  let call_stack_ids = Sample.ids_of_stack(call_stack);
-  switch (Id.Map.find_opt(app_id, state.app_args)) {
-  | None => None
-  | Some(entries) =>
-    List.find_map(
-      ((stored_stack, _, frame)) =>
-        Sample.ids_of_stack(stored_stack) == call_stack_ids
-          ? Some(frame) : None,
+          ? Some((arg, frame)) : None,
       entries,
     )
   };
@@ -292,8 +268,9 @@ let update =
           get_probe_start(state, probe_id) |> Option.value(~default=0);
         let step_end = state.step_count - 1;
         /* Look up arg and call frame if this probe is on an Ap expression */
-        let args = lookup_app_arg(state, probe_id, call_stack);
-        let frame = lookup_app_frame(state, probe_id, call_stack);
+        let app = lookup_app(state, probe_id, call_stack);
+        let args = Option.map(fst, app);
+        let frame = Option.map(snd, app);
         let sample =
           Sample.mk(
             ~args,

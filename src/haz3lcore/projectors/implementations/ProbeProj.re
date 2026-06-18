@@ -886,16 +886,21 @@ let step_into_sample =
  * function actually applied came from user code. Tier 2 is what enables
  * step-into for higher-order and partial-application calls. */
 let can_step_into = (statics: Language.Statics.Info.t, sample: Sample.t): bool => {
-  let static_ok =
+  /* Name of the function in call position, when it's a plain variable. */
+  let fn_var_name =
     switch (statics) {
-    | InfoExp({user_term: {term: Ap(_, fn_exp, _), _}, _}) =>
-      switch (fn_exp.term) {
-      | Var(name) => Environment.lookup(Builtins.env_init, name) == None
-      | _ => false
-      }
-    | _ => false
+    | InfoExp({user_term: {term: Ap(_, {term: Var(name), _}, _), _}, _}) =>
+      Some(name)
+    | _ => None
     };
-  /* The call site references a builtin/library function directly (e.g.
+  let is_builtin = name =>
+    Environment.lookup(Builtins.env_init, name) != None;
+  let static_ok =
+    switch (fn_var_name) {
+    | Some(name) => !is_builtin(name)
+    | None => false
+    };
+  /* A call site that references a builtin/library function directly (e.g.
      map(...)). These are Hazel Funs in env_init, so they DO carry an
      fn_def_id, but it points to library code outside the user's editor —
      nowhere to step. They only reach a call site as a direct builtin
@@ -905,13 +910,9 @@ let can_step_into = (statics: Language.Statics.Info.t, sample: Sample.t): bool =
      (Mirrors the focus bar's builtin exclusion; more robust than checking the
      frame's fn_name, since library Funs carry no name in their Fun node.) */
   let static_fn_is_builtin =
-    switch (statics) {
-    | InfoExp({user_term: {term: Ap(_, fn_exp, _), _}, _}) =>
-      switch (fn_exp.term) {
-      | Var(name) => Environment.lookup(Builtins.env_init, name) != None
-      | _ => false
-      }
-    | _ => false
+    switch (fn_var_name) {
+    | Some(name) => is_builtin(name)
+    | None => false
     };
   let dynamic_ok =
     !static_fn_is_builtin
