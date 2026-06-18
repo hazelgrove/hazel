@@ -1,0 +1,3 @@
+# DA-Bench id 278: count of |z|>3 outliers in Agri, veracruz 2016.csv #
+let data = ^^csv("veracruz 2016.csv") in
+count_z_out(num(data.`Agri`), 3.0)

@@ -1,0 +1,5 @@
+# DA-Bench id 466: Pearson r Count vs Age strength, arrest_expungibility.csv #
+let data = ^^csv("arrest_expungibility.csv") in
+let r = corr_cols(data.`Count`, data.`Age`) in
+if abs_float(r) >. 0.6 then "strong"
+else if abs_float(r) >. 0.3 then "moderate" else "weak"

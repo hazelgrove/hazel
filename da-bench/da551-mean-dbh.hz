@@ -1,6 +1,5 @@
-# DA-Bench id 551: mean DBH_CM, tree.csv #
-# Expressible, but EXCLUDED from test.sh: tree.csv has 9796 rows and the #
-# evaluator stack-overflows on lists this large. This is an interpreter #
-# recursion-depth limit, not a language-expressiveness limit. #
+# DA-Bench id 551: mean DBH_CM, tree.csv (9796 rows) #
+# Runs since the tail-recursive statics/value-check fix removed the #
+# row-count-proportional stack growth that used to overflow here. #
 let data = ^^csv("tree.csv") in
 round2(mean(num(data.`DBH_CM`)))

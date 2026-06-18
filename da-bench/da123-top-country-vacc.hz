@@ -1,0 +1,15 @@
+# DA-Bench id 123: country with highest average daily_vaccinations_per_million #
+let data = ^^csv("country_vaccinations.csv") in
+let cs = map(data, fun r -> r.`country`) in
+let vs = map(data, fun r -> r.`daily_vaccinations_per_million`) in
+let countries = distinct_strings(cs) in
+let avg_for = fun (c: String) ->
+  let xs = num(col_where(cs, vs, c)) in
+  if length(xs) == 0 then (0.0 -. 1000000.0) else mean(xs)
+in
+let scored = map(countries, fun c -> (c, avg_for(c))) in
+let best =
+  fold_left(scored,
+    fun ((bc, bv), (c, v)) -> if v >. bv then (c, v) else (bc, bv),
+    ("", 0.0 -. 1000000.0)) in
+fst(best)

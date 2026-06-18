@@ -1,0 +1,6 @@
+# DA-Bench id 555: count unique SPP_SYMBOL values with >=5 observations, tree.csv (9796 rows) #
+# Uses distinct_strings (sorted insertion dedup) so the distinct set stays small. #
+let data = ^^csv("tree.csv") in
+let syms = map(data, fun r -> r.`SPP_SYMBOL`) in
+let uniq = distinct_strings(syms) in
+length(filter(uniq, fun s -> count_eq(syms, s) >= 5))

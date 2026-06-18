@@ -1,0 +1,4 @@
+# DA-Bench id 282: Pearson r Agri vs Residential + |z|>3 outlier count, veracruz 2016.csv #
+let data = ^^csv("veracruz 2016.csv") in
+(correlation_coefficient = round2(corr_cols(data.`Agri`, data.`Residential`)),
+ number_of_outliers = count_z_out(num(data.`Agri`), 3.0))

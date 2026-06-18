@@ -1,0 +1,4 @@
+# DA-Bench id 759: median + range of TMAX_F where obs_type=TMAX, weather_data_1864.csv #
+let data = ^^csv("weather_data_1864.csv") in
+let v = num(col_where(map(data, fun r -> r.`obs_type`), map(data, fun r -> r.`TMAX_F`), "TMAX")) in
+(median_tmax = round2(median(v)), range_tmax = round2(fmax(v) -. fmin(v)))

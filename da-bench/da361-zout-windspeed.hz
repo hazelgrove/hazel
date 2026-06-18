@@ -1,0 +1,6 @@
+# DA-Bench id 361: |z|>3 outliers in wind speed, weather_train.csv (16683 rows). #
+# Computation gives 97 (pandas/numpy agree). EXCLUDED from test.sh: the label is #
+# 0, i.e. outliers *remaining* in the new dataframe after removal, not the count #
+# removed. The 97 here is the correct "how many outliers" answer. #
+let data = ^^csv("weather_train.csv") in
+count_z_out(num(data.`wind speed`), 3.0)

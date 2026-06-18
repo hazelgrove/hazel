@@ -1,3 +1,7 @@
-# DA-Bench id 659: corr High vs Low, YAHOO-BTC_USD_D.csv #
+# DA-Bench id: Pearson r High vs Low (drop null row), YAHOO-BTC_USD_D.csv #
 let data = ^^csv("YAHOO-BTC_USD_D.csv") in
-round2(corr_cols(data.`High`, data.`Low`))
+let pairs =
+  filter(zip(map(data, fun r -> r.`High`), map(data, fun r -> r.`Low`)),
+         fun (x, y) -> string_match("^[0-9]", string_trim(x)) && string_match("^[0-9]", string_trim(y))) in
+round2(pearson(map(pairs, fun (x, _y) -> float_of_string(string_trim(x))),
+               map(pairs, fun (_x, y) -> float_of_string(string_trim(y)))))

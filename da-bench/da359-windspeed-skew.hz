@@ -1,0 +1,5 @@
+# DA-Bench id 359: skewness of wind speed (moment-based) + type, weather_train.csv #
+let data = ^^csv("weather_train.csv") in
+let s = skew_pop(num(data.`wind speed`)) in
+(skewness_value = round2(s),
+ skewness_type = if s >. 0.0 then "positive" else if s <. 0.0 then "negative" else "symmetric")

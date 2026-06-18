@@ -31,8 +31,6 @@ CASES=(
   "da349-mean-age.hz"
   "da320-mean-eventmsgtype.hz"
   "da542-mean-length.hz"
-  # da551-mean-dbh.hz omitted: tree.csv (9796 rows) stack-overflows the
-  # evaluator — interpreter recursion-depth limit, not an expressiveness limit.
   "da490-mean-engineering.hz"
   "da719-mpg-mean-median.hz"
   "da71-volume-mean-std.hz"
@@ -153,6 +151,29 @@ CASES=(
   "da593-waiting-ratio-skew.hz"
   "da426-max-cat-wind.hz"
   "da514-city-review-extremes.hz"
+  # Large-table tasks unblocked by the tail-recursive statics/value-check fix
+  # (previously class E: evaluator stack-overflow on lists of thousands of rows).
+  "da551-mean-dbh.hz"
+  "da446-windspeed-mean.hz"
+  "da755-tmax-mean.hz"
+  "da277-corr-medind-larind.hz"
+  "da278-zout-agri.hz"
+  "da282-corr-zout.hz"
+  "da359-windspeed-skew.hz"
+  "da360-corr-temp-humidity.hz"
+  "da447-iqr-baro.hz"
+  "da465-age-skew.hz"
+  "da466-corr-count-age.hz"
+  "da552-corr-ht-ba.hz"
+  "da553-iqr-tph.hz"
+  "da657-close-stats.hz"
+  "da659-corr-high-low.hz"
+  "da663-corr-high-low.hz"
+  "da757-iqr-obsvalue.hz"
+  "da759-tmax-median-range.hz"
+  # Need the sorted-insertion distinct_strings helper (low-cardinality dedup)
+  "da555-unique-species.hz"
+  "da123-top-country-vacc.hz"
 )
 
 # Strip trailing zeros from every decimal so 34.650000 == 34.65, 0.141000 == 0.141,

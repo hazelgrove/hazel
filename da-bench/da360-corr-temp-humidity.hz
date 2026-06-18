@@ -1,0 +1,7 @@
+# DA-Bench id 360: Pearson r temperature vs humidity, weather_train.csv (16683 rows) #
+let data = ^^csv("weather_train.csv") in
+let r = corr_cols(data.`temperature`, data.`humidity`) in
+(correlation_coefficient = round2(r),
+ correlation_strength =
+   if abs_float(r) >=. 0.7 then "strong"
+   else if abs_float(r) >=. 0.3 then "moderate" else "weak")

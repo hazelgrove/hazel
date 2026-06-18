@@ -25,15 +25,23 @@ data-cleaning wrinkle):
   seconds (587, 593) IS expressible via string_split; only calendar-aware date math is not.
 - **(D) non-value answers** — the graded answer is a **file path** or an emitted CSV
   artifact (id 743 income_normalization path, 220 cleaned_dataset). No value to compute.
-- **(E) evaluator stack-overflow (runtime, NOT expressiveness)** — the interpreter
-  recurses over list values, so large columns overflow the native stack.
-  - Single-fold ops (mean/sum) tolerate ~4000+ rows (abalone 4177 ✓).
-  - Sort / median / quantile / multi-pass correlation overflow around ~2000 rows
-    (titanic 891 ✓, YAHOO 2175 ✗).
-  - Affected files: weather_train (16683), tree (9796), veracruz (8760),
-    baro_2015 (8736), arrest_expungibility (8638), weather_data_1864 (5686),
-    Zip_MedianSoldPricePerSqft (5124), well_2_complete (4117), country_vaccinations (3396),
-    tr_eikon (2216), YAHOO-BTC (2175). The PROGRAM is correct; the runtime can't fold the list.
+- **(E) evaluator stack-overflow — FIXED.** Large columns used to overflow because
+  three traversals on the run path grew the (small, ~1 MB) js_of_ocaml/node stack one
+  frame per row: `StaticsBase.map_m`/`map_m2` (which also did `xs @ [x]`, O(n²)),
+  `Statics`' `ListLit` case, and `ValueChecker.req_all_final`. These are now
+  tail-recursive (see `src/util/ListUtil.re` helpers + the three modules), so
+  sort/median/quantile/correlation run on the full tables: tree (9796), weather_train
+  (16683), baro_2015 (8736), veracruz (8760), arrest (8638), weather_data_1864 (5686),
+  YAHOO-BTC (2175), tr_eikon (2216) all evaluate without overflow. 20 of the former
+  class-E tasks are now solved (folded into the verified count) — including 123 and 555,
+  which need distinct-value dedup: the O(n²) list-membership `distinct` was too slow even
+  once it stopped overflowing, so `prelude.hz` adds `distinct_strings` (a recursive
+  `insert_sorted_uniq` insertion sort over `string_compare`, keeping the accumulator at
+  distinct-count size). Two tasks have correct computations but disagree with their labels
+  (361: 97 outliers vs label 0, which counts outliers *remaining* after removal; 662:
+  median 1.30099→1.30 per statistics.median vs label 1.31). The rest are unsolved for
+  non-overflow reasons: Python-dict answer formatting (450, 451), ambiguous/degenerate
+  specs (468, 554, 760), and multi-step tasks left as future work (453, 572, 574, 665).
 - **(F) CSV ingestion gaps** — e.g. a UTF-8 **BOM** on the first column header makes
   that column's label `﻿<name>`, so `data.`name`` projection fails. Affects the
   first column of `beauty and the labor market.csv` (wage) and `gapminder_cleaned.csv`
@@ -42,9 +50,9 @@ data-cleaning wrinkle):
   empty filtered set); id 741 grades the literal column name `"ratio"`. Not a
   computation in the usual sense.
 
-## Tally (257 dev tasks) — 135 solved, 122 accounted for
+## Tally (257 dev tasks) — 155 solved, 102 accounted for
 
-- **Solved & verified — 135** (in `test.sh`, every output matches the InfiAgent label):
+- **Solved & verified — 155** (in `test.sh`, every output matches the InfiAgent label):
   mean/median/std (sample & population)/min/max/range, Pearson correlation,
   skewness (pandas-adjusted AND scipy-biased), kurtosis, IQR & Z-score outlier
   detection/removal, group-by aggregation, feature engineering (ratios, sums,
@@ -52,16 +60,20 @@ data-cleaning wrinkle):
   counts/percentages, argmax (numeric and over columns), filtered medians, title/string
   extraction, comma-separated-name list answers, HH:MM:SS→seconds time parsing,
   multi-step preprocessing (id 28, 271), and conditional/banded correlations.
+  Includes 20 large-table tasks unblocked by the tail-recursion fix (class E above):
+  277, 278, 282, 359, 360, 446, 447, 465, 466, 551, 552, 553, 657, 659, 663, 755, 757, 759,
+  plus 123 and 555 via a new sorted-insertion `distinct_strings` (low-cardinality dedup that
+  the O(n²) `distinct` could not finish — uses `string_compare` + a recursive `insert_sorted_uniq`).
 - **Inexpressible — scipy p-value / hypothesis tests (class A): 58.** Shapiro, KS,
   normaltest, t-test, ANOVA, chi-square, Mann-Whitney, etc. A coefficient is fine; the
   test statistic's p-value is not (no distribution CDFs / special functions).
 - **Inexpressible — sklearn / ML models (class B): 20.** Fitted regression/classification,
   clustering, `train_test_split(random_state=…)` (needs numpy RNG).
-- **Runtime-limited (class E — expressible, evaluator overflows): 31.** ids 123, 277,
-  278, 282, 359, 360, 361, 446, 447, 450, 451, 453, 465, 466, 468, 551, 552, 553, 554,
-  555, 572, 574, 657, 659, 662, 663, 665, 755, 757, 759, 760 — all on files >~2000 rows
-  where the task needs sort/median/quantile/multi-pass. The Hazel program is correct; the
-  native evaluator stack-overflows folding the list. (da551 is kept as a runnable example.)
+- **Former class E (stack-overflow, NOW FIXED): 31 → 20 solved + 11 other.** The 20
+  listed above now pass (incl. 123 and 555 via `distinct_strings`). The remaining 11:
+  **2 label-discrepancy** (361, 662 — correct computation, wrong/degenerate label),
+  **2 Python-dict output** (450, 451), **2 degenerate spec** (554 nan, 760 all-zero),
+  **1 ambiguous** (468), and **4 multi-step left as future work** (453, 572, 574, 665).
 - **Class H — number→string formatting gap: 3.** ids 77, 178, 219 pack several computed
   numbers into ONE answer field (e.g. `"314, 577"`, `"1, 2018, 88.32"`); there is no
   number→string builtin to assemble that string, so the graded value can't be produced.
@@ -76,7 +88,8 @@ data-cleaning wrinkle):
   cleaning (321), brand-filter argmax (510), and a timestamp row that isn't present as
   written (589). No language barrier — just tedious/under-specified; not attempted.
 
-135 + 58 + 20 + 31 + 3 + 2 + 1 + 1 + 1 + 5 = 257. Every task is accounted for.
+155 + 58 + 20 + 11 + 3 + 2 + 1 + 1 + 1 + 5 = 257. Every task is accounted for.
+(The 11 is the former-class-E remainder; its 20 solved tasks are inside the 155.)
 
 ## Builtins / tooling changes made for this effort
 

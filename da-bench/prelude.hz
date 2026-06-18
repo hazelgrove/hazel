@@ -88,6 +88,24 @@ in
 let distinct = fun (xs: [String]) ->
   fold_left(xs, fun (acc, x) -> if fold_left(acc, fun (f, a) -> f || (a == x), false) then acc else acc @ [x], [])
 in
+# insert s into an ascending-sorted, distinct list, dropping it if already present #
+let insert_sorted_uniq = fun (acc: [String], s: String) ->
+  case acc
+  | [] => [s]
+  | (y :: rest) =>
+    case string_compare(s, y)
+    | Lt => s :: y :: rest
+    | Eq => acc
+    | Gt => y :: insert_sorted_uniq(rest, s)
+    end
+  end
+in
+# distinct strings, returned in ascending sorted order (insertion sort, no dups). #
+# Accumulator only grows to the distinct count, so this is practical for the #
+# low-cardinality columns where the O(n^2) `distinct` above is too slow. #
+let distinct_strings = fun (xs: [String]) ->
+  fold_left(xs, fun (acc, x) -> insert_sorted_uniq(acc, x), [])
+in
 let count_eq = fun (xs: [String], v: String) -> length(filter(xs, fun s -> s == v)) in
 # Pearson r over two String columns, dropping rows where either cell is blank #
 let corr_cols = fun (a: [String], b: [String]) ->

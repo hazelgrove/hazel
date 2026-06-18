@@ -1,0 +1,5 @@
+# DA-Bench id 552: Pearson r HT_M vs BA_M2, tree.csv (9796 rows) #
+let data = ^^csv("tree.csv") in
+let r = corr_cols(data.`HT_M`, data.`BA_M2`) in
+(correlation_coefficient = round3(r),
+ relationship_type = if abs_float(r) >=. 0.5 then "linear" else "non-linear")
