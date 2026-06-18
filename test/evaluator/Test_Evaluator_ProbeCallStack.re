@@ -329,6 +329,82 @@ let single_sample = (label, code): Sample.t => {
 
 let step_into_frame_tests = [
   test_case(
+    "Deferred call (incl. through a type-annotated HOF / cast) resolves fn_def_id to a Fun",
+    `Quick,
+    () => {
+      let term_kind = (info_map, id): string =>
+        switch (Statics.Map.lookup(id, info_map)) {
+        | None => "NOT_IN_MAP"
+        | Some(Info.InfoExp({user_term: {term, _}, _})) =>
+          switch (term) {
+          | Fun(_) => "Fun"
+          | TypFun(_) => "TypFun"
+          | Parens(_) => "Parens"
+          | Var(_) => "Var"
+          | Ap(_) => "Ap"
+          | DeferredAp(_) => "DeferredAp"
+          | _ => "OtherExp"
+          }
+        | Some(_) => "NonExpInfo"
+        };
+      let check_resolves = (label, code) => {
+        let (_term, elaborated, info_map, targets) = parse_with_probes(code);
+        let (_, state) =
+          Evaluator.evaluate(~targets, ~env=Builtins.env_init, elaborated);
+        let samples =
+          EvaluatorState.get_probes(state)
+          |> Id.Map.bindings
+          |> List.concat_map(snd);
+        let dump =
+          List.map(
+            (s: Sample.t) =>
+              switch (frame_fn_def_id(s)) {
+              | None => "noFnDef"
+              | Some(id) => term_kind(info_map, id)
+              },
+            samples,
+          )
+          |> String.concat(",");
+        let resolves = (s: Sample.t) =>
+          switch (frame_fn_def_id(s)) {
+          | None => false
+          | Some(id) =>
+            switch (Statics.Map.lookup(id, info_map)) {
+            | Some(Info.InfoExp({user_term: {term: Fun(_), _}, _})) => true
+            | _ => false
+            }
+          };
+        let total = List.length(samples);
+        let ok = List.length(List.filter(resolves, samples));
+        check(int, label ++ ": resolved [" ++ dump ++ "]", total, ok);
+      };
+      /* annotated let-bound fn (like crop-plotter's setCell) via deferred */
+      check_resolves(
+        "annotated-deferred",
+        {|let setCell: (Int, Int) -> Int = fun (g, x) -> g + x in
+let updateGrove = fun (m, f) -> ^^probe(f(m)) in
+updateGrove(10, setCell(_, 5))|},
+      );
+      /* the user's shape: a deferred branch in a case, alongside a lambda
+         branch, both reaching the same updateGrove probe */
+      check_resolves(
+        "case-mixed-deferred",
+        {|type Action = +Lit + Def in
+let setCell: (Int, Int) -> Int = fun (g, x) -> g + x in
+let setAll: Int -> Int = fun g -> g * 2 in
+let updateGrove: (Int, Int -> Int) -> Int =
+  fun (m, f) -> ^^probe(f(m)) in
+let update: (Int, Action) -> Int =
+  fun (m, action) ->
+    case action
+    | Lit => updateGrove(m, fun g -> setAll(g))
+    | Def => updateGrove(m, setCell(_, 5))
+    end in
+(update(10, Lit), update(10, Def))|},
+      );
+    },
+  ),
+  test_case(
     "HOF call with a function literal records a navigable fn_def_id",
     `Quick,
     () => {

@@ -674,8 +674,15 @@ module Transition = (EV: EV_MODE) => {
       switch (d1'.term) {
       | Asc(d1'', {term: Arrow(t1, t2), _}) =>
         Step({
+          /* Distribute the function cast into arg/result casts. The inner
+             application reuses this redex's id (rewrap, not fresh) so it keeps
+             the original call-site identity: a probe on the call still finds
+             its recorded stack frame, and step-into works through the cast
+             that a type-annotated function parameter introduces (e.g. a
+             partially-applied function passed where Grove -> Grove is
+             expected). The fresh ids stay on the arg/result cast wrappers. */
           expr:
-            Asc(Ap(Forward, d1'', Asc(d2', t1) |> fresh) |> fresh, t2)
+            Asc(Ap(Forward, d1'', Asc(d2', t1) |> fresh) |> rewrap, t2)
             |> fresh,
           side_effects: [],
           kind: Ascription,
