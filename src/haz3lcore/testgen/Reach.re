@@ -55,6 +55,23 @@ let rec simple_binder = (p: Pat.t): option(string) =>
 
 let negate = (c: Exp.t): Exp.t => Exp.fresh(UnOp(Bool(Not), c));
 
+let false_exp = (): Exp.t => Exp.fresh(Atom(Bool(false)));
+
+/* How a scrutinee relates to a (literal/wildcard) match pattern. */
+type pmatch =
+  | PAlways /* wildcard: matches anything */
+  | PCond(Exp.t) /* literal: matches iff scrut == lit */
+  | PUnknown; /* pattern we can't express (constructor/tuple/var-binding) */
+
+let rec pat_matches = (scrut: Exp.t, p: Pat.t): pmatch =>
+  switch (p.term) {
+  | Wild => PAlways
+  | Atom(a) =>
+    PCond(Exp.fresh(BinOp(Poly(Equals), scrut, Exp.fresh(Atom(a)))))
+  | Parens(inner) => pat_matches(scrut, inner)
+  | _ => PUnknown
+  };
+
 /* Process one (ancestor, child-on-path) step, threading the accumulator. */
 let step =
     (
@@ -90,6 +107,43 @@ let step =
       | None => (guards, lets, false)
       }
     | Let(_) => (guards, lets, complete) /* child is in the definition */
+    | Match(scrut, rules) when !contains(child_id, scrut) =>
+      /* The reach point is in some arm i: it's reached when scrut didn't match
+       * arms 0..i-1 and does match arm i. An earlier wildcard makes arm i dead
+       * (false guard); a pattern we can't express drops its guard (incomplete,
+       * but UNSAT stays sound). */
+      let rec find = (i, rs) =>
+        switch (rs) {
+        | [] => None
+        | [(_p, body), ...rest] =>
+          contains(child_id, body) ? Some(i) : find(i + 1, rest)
+        };
+      switch (find(0, rules)) {
+      | None => (guards, lets, complete)
+      | Some(target_i) =>
+        List.fold_left(
+          ((gs, comp), (j, (p, _body))) =>
+            if (j > target_i) {
+              (gs, comp);
+            } else if (j == target_i) {
+              switch (pat_matches(scrut, p)) {
+              | PAlways => (gs, comp)
+              | PCond(c) => (gs @ [c], comp)
+              | PUnknown => (gs, false)
+              };
+            } else {
+              switch (pat_matches(scrut, p)) {
+              | PAlways => (gs @ [false_exp()], comp)
+              | PCond(c) => (gs @ [negate(c)], comp)
+              | PUnknown => (gs, false)
+              };
+            },
+          (guards, complete),
+          List.mapi((j, r) => (j, r), rules),
+        )
+        |> (((gs, comp)) => (gs, lets, comp))
+      };
+    | Match(_) => (guards, lets, complete) /* child is in the scrutinee */
     | Parens(_)
     | BinOp(_)
     | UnOp(_)
@@ -97,7 +151,7 @@ let step =
     | Fun(_)
     | Seq(_)
     | Tuple(_) => (guards, lets, complete) /* no guard contributed */
-    | _ => (guards, lets, false) /* unmodeled control flow (e.g. Match) */
+    | _ => (guards, lets, false) /* unmodeled control flow */
     }
   };
 

@@ -100,6 +100,17 @@ let smt_float_op = (op: Operators.op_bin_float): string =>
 let app = (f: string, args: list(string)): string =>
   "(" ++ f ++ " " ++ String.concat(" ", args) ++ ")";
 
+/* SMT condition for a value `s` matching a pattern. Only literal and wildcard
+ * patterns are supported (constructor/tuple/list/var-binding patterns would
+ * need SMT datatypes or scope handling). */
+let rec pat_match_cond = (s: string, p: Pat.t): string =>
+  switch (p.term) {
+  | Atom(a) => app("=", [s, smt_atom(a)])
+  | Wild => "true"
+  | Parens(inner) => pat_match_cond(s, inner)
+  | _ => unsupported("unsupported match pattern")
+  };
+
 let rec smt_of_exp = (e: Exp.t): string =>
   switch (e.term) {
   | Parens(inner) => smt_of_exp(inner)
@@ -125,6 +136,18 @@ let rec smt_of_exp = (e: Exp.t): string =>
     };
   | If(c, t, f) =>
     app("ite", [smt_of_exp(c), smt_of_exp(t), smt_of_exp(f)])
+  | Match(scrut, rules) =>
+    /* Desugar to nested ite. The last arm is the fallthrough (its pattern is
+     * treated as a catch-all — fine for the common `_`/total-match case). */
+    let s = smt_of_exp(scrut);
+    let rec build = (
+      fun
+      | [] => unsupported("empty match")
+      | [(_p, body)] => smt_of_exp(body)
+      | [(p, body), ...rest] =>
+        app("ite", [pat_match_cond(s, p), smt_of_exp(body), build(rest)])
+    );
+    build(rules);
   | Let(
       {term: Var(x), _} | {term: Parens({term: Var(x), _}), _},
       def,

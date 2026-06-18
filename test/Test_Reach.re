@@ -218,6 +218,28 @@ let solve_tests =
         | None => fail("demo analyze returned None (parse?)")
         }
       ),
+      test_case("match: a literal arm is reachable", `Quick, () =>
+        switch (analyze_lit("case n | 0 => 1 | 1 => 2 | _ => 3 end", 2)) {
+        | Some(r) =>
+          switch (outcome_of(r)) {
+          | Sat(_) => check(bool, "sat", true, true)
+          | other => fail("expected Sat, got " ++ TG.show_outcome(other))
+          }
+        | None => fail("match analyze returned None (parse?)")
+        }
+      ),
+      test_case("match arm under a contradictory guard is dead", `Quick, () =>
+        switch (
+          analyze_lit("if n > 10 then case n | 0 => 1 | _ => 2 end else 3", 1)
+        ) {
+        | Some(r) =>
+          switch (outcome_of(r)) {
+          | Unsat => check(bool, "dead", true, true)
+          | other => fail("expected Unsat, got " ++ TG.show_outcome(other))
+          }
+        | None => fail("match analyze returned None (parse?)")
+        }
+      ),
     ];
   };
 

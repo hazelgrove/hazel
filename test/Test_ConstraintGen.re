@@ -6,6 +6,7 @@ open Language;
  * natively and under node. */
 
 module E = IdTagged.FreshGrammar.Exp;
+module P = IdTagged.FreshGrammar.Pat;
 
 let smt = Haz3lcore.ConstraintGen.smt_of_exp;
 
@@ -57,6 +58,17 @@ let tests = (
       "parens are transparent",
       E.parens(E.bin_op(Operators.Int(Plus), E.int(1), E.int(2))),
       "(+ 1 2)",
+    ),
+    case(
+      "match desugars to nested ite",
+      E.match(
+        E.var("n"),
+        [
+          (P.basic(Atom.Int(Bigint.of_int(0))), E.bool(true)),
+          (P.wild(), E.bool(false)),
+        ],
+      ),
+      "(ite (= n 0) true false)",
     ),
   ],
 );
