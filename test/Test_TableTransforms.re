@@ -473,6 +473,7 @@ let mk_info = (elaborated: option(Exp.t)): ProjectorBase.info => {
   dynamics: None,
   elaborated,
   reach: None,
+  reach_group_count: 0,
   utility: ProjectorInfo.utility,
 };
 

@@ -15,7 +15,8 @@ open ProjectorBase;
 
 /* `group` controls merging: 0 = solo (per-point reachability/dead-code),
  * N≥1 = conjoined with every other group-N reach point ("one input reaching
- * all of them"). Cycled via the group chip in the view. */
+ * all of them"). Group ids are arbitrary positive ints (the view assigns and
+ * colors them dynamically); the set in use drives the chip's cycle range. */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
   [@default 0]
@@ -28,9 +29,6 @@ let init_model: t = {
   result: None,
 };
 
-/* Number of merge groups offered by the chip (plus solo = 0). */
-let num_groups = 5;
-
 let t_of_sexp = (sexp: Sexplib.Sexp.t): t =>
   switch (t_of_sexp(sexp)) {
   | model => model
@@ -40,7 +38,7 @@ let t_of_sexp = (sexp: Sexplib.Sexp.t): t =>
 [@deriving (show({with_path: false}), sexp, yojson)]
 type reach_action =
   | SetResult(TestGen.outcome)
-  | CycleGroup
+  | SetGroup(int)
   | Clear;
 
 module M: Projector with type model = t and type action = reach_action = {
@@ -67,9 +65,10 @@ module M: Projector with type model = t and type action = reach_action = {
         ...model,
         result: Some(outcome),
       }
-    /* Cycling group changes the constraint set, so the old result is stale. */
-    | CycleGroup => {
-        group: (model.group + 1) mod (num_groups + 1),
+    /* Changing group changes the constraint set, so the old result is stale.
+       The view computes the next group from the set currently in use. */
+    | SetGroup(group) => {
+        group,
         result: None,
       }
     | Clear => {

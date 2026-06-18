@@ -48,12 +48,30 @@ let result_view = (~grouped: bool, outcome: TestGen.outcome): Node.t =>
     span(~attrs=[Attr.classes(["reach-result", "error"])], [text(msg)])
   };
 
-let group_chip = (local, group: int): Node.t =>
+/* Dynamic, palette-free color per group: a distinct hue via the golden angle.
+ * Solo (0) is a neutral gray. */
+let group_color = (group: int): string =>
+  group == 0
+    ? "hsl(0, 0%, 72%)"
+    : Printf.sprintf("hsl(%d, 62%%, 50%%)", group * 137 mod 360);
+
+/* The chip cycles through solo, the groups currently in use, and one fresh
+ * group — so it doesn't walk a fixed palette when only a few groups exist.
+ * group_count = distinct groups in use; the next id wraps at group_count + 2
+ * (solo + the in-use groups + one new), which stays bounded as groups are
+ * relabeled. */
+let next_group = (~group_count: int, group: int): int =>
+  (group + 1) mod (group_count + 2);
+
+let group_chip = (local, ~group_count: int, group: int): Node.t =>
   span(
     ~attrs=[
-      Attr.classes(["reach-group", "g" ++ string_of_int(group)]),
+      Attr.classes(["reach-group"]),
+      Attr.create("style", "background-color: " ++ group_color(group)),
       Attr.title("Merge group — click to cycle (• = solo)"),
-      Attr.on_click(_ => local(ReachProj.CycleGroup)),
+      Attr.on_click(_ =>
+        local(ReachProj.SetGroup(next_group(~group_count, group)))
+      ),
     ],
     [text(group == 0 ? {js|•|js} : string_of_int(group))],
   );
@@ -122,7 +140,14 @@ module V: ProjectorView = {
               Attr.tabindex(0),
               Attr.classes(["offside", "reach-offside"]),
             ],
-            [group_chip(local, model.group), generate_btn]
+            [
+              group_chip(
+                local,
+                ~group_count=info.reach_group_count,
+                model.group,
+              ),
+              generate_btn,
+            ]
             @ (
               switch (info.reach) {
               | Some(r) => path_view(info.utility, r)

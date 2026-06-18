@@ -202,6 +202,7 @@ module Model = {
             ~elaborated,
             /* Syntax-replacing projectors are never Reach refractors. */
             ~reach_map=Id.Map.empty,
+            ~reach_group_count=0,
           );
         {
           p,

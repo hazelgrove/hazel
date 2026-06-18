@@ -61,6 +61,9 @@ let mk_info =
        * refractor set is available. Empty elsewhere; solo points fall back to
        * computing their own condition. */
       ~reach_map: Id.Map.t(Reach.t),
+      /* Distinct merge groups in use across all Reach refractors (0 elsewhere);
+       * drives the group chip's cycle range. */
+      ~reach_group_count: int,
     )
     : ProjectorBase.info => {
   id: p.id,
@@ -99,19 +102,36 @@ let mk_info =
       }
     | _ => None
     },
+  reach_group_count,
   utility,
 };
+
+let reach_group_of = (entry: Refractors.entry): int =>
+  switch (ReachProj.t_of_sexp(Sexplib.Sexp.of_string(entry.model))) {
+  | {group, _} => group
+  | exception _ => 0
+  };
+
+/* Distinct merge groups (≥1) currently assigned across all Reach refractors. */
+let reach_group_count = (refractors: Refractors.Map.t): int =>
+  Id.Map.bindings(refractors)
+  |> List.filter_map(((_, entry: Refractors.entry)) =>
+       switch (entry.kind) {
+       | Reach =>
+         let g = reach_group_of(entry);
+         g == 0 ? None : Some(g);
+       | _ => None
+       }
+     )
+  |> List.sort_uniq(compare)
+  |> List.length;
 
 /* Resolve the reach condition for every Reach refractor, honoring groups:
  * group 0 points use their own path condition; group N≥1 points all share the
  * conjunction of the group's members ("one input reaching all"). */
 let resolve_reach =
     (refractors: Refractors.Map.t, statics: Statics.Map.t): Id.Map.t(Reach.t) => {
-  let group_of = (entry: Refractors.entry): int =>
-    switch (ReachProj.t_of_sexp(Sexplib.Sexp.of_string(entry.model))) {
-    | {group, _} => group
-    | exception _ => 0
-    };
+  let group_of = reach_group_of;
   /* (id, group, path condition) for each analyzable Reach refractor */
   let points =
     Id.Map.bindings(refractors)
@@ -161,6 +181,7 @@ module ShapeMapSemantics = {
         ~dynamics,
         ~elaborated,
         ~reach_map=Id.Map.empty,
+        ~reach_group_count=0,
       );
     (P.placeholder(p.model, info), P.error(p.model, info));
   };

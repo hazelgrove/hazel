@@ -111,6 +111,10 @@ type info = {
    * refractor) in ProjectorInfo.mk_info from the whole-program statics map.
    * None for every other projector kind. */
   reach: option(Reach.t),
+  /* Number of distinct merge groups currently in use across all Reach
+   * refractors. Lets the group chip's cycle range scale with usage instead
+   * of a fixed palette. 0 elsewhere. */
+  reach_group_count: int,
   /* Syntax utility functions/values for projector use,
    * provided here to resolve cyclic dependency issues */
   utility,
