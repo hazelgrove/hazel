@@ -29,10 +29,59 @@
         font: 16px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       }
 
-      main {
-        width: min(1120px, calc(100vw - 40px));
+      html {
+        scroll-behavior: smooth;
+      }
+
+      .page-shell {
+        display: grid;
+        grid-template-columns: 260px minmax(0, 1120px);
+        gap: 24px;
+        width: min(1460px, calc(100vw - 40px));
         margin: 0 auto;
+        align-items: start;
+      }
+
+      main {
+        width: 100%;
         padding: 40px 0 64px;
+      }
+
+      .toc {
+        position: sticky;
+        top: 20px;
+        max-height: calc(100vh - 40px);
+        overflow: auto;
+        margin-top: 40px;
+        padding: 16px;
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+      }
+
+      .toc-title {
+        font-weight: 750;
+        color: var(--accent);
+        margin-bottom: 10px;
+      }
+
+      .toc a {
+        display: block;
+        color: var(--ink);
+        text-decoration: none;
+        padding: 5px 0;
+        font-size: 0.92rem;
+      }
+
+      .toc a:hover {
+        color: var(--accent-2);
+        text-decoration: underline;
+      }
+
+      .toc .toc-sub {
+        padding-left: 12px;
+        color: var(--muted);
+        font-size: 0.86rem;
       }
 
       header {
@@ -130,6 +179,7 @@
       section {
         padding: 22px;
         margin-top: 18px;
+        scroll-margin-top: 20px;
       }
 
       .lead {
@@ -283,9 +333,19 @@
       }
 
       @media (max-width: 820px) {
-        main {
+        .page-shell {
+          display: block;
           width: min(100vw - 24px, 1120px);
+        }
+
+        main {
           padding-top: 24px;
+        }
+
+        .toc {
+          position: static;
+          max-height: none;
+          margin-top: 18px;
         }
 
         .summary,
@@ -309,6 +369,32 @@
     </style>
   </head>
   <body>
+    <div class="page-shell">
+      <aside class="toc" aria-label="Page outline">
+        <div class="toc-title">Outline</div>
+        <nav>
+          <a href="#what-is-new">What Is New</a>
+          <a href="#old-written-step-check">Old Written-Step Check</a>
+          <a href="#new-written-step-check">New Written-Step Check</a>
+          <a href="#arithmetic-normalization">Arithmetic Normalization</a>
+          <a href="#affine-checker">Hazel-Native Affine Checker</a>
+          <a href="#selected-range-auto-eval">Selected-Range Auto Eval</a>
+          <a href="#automation-matrix">Automation Matrix</a>
+          <a class="toc-sub" href="#algebra-todos">Algebra WIP TODOs</a>
+          <a href="#complex-test-cases">Complex Test Cases</a>
+          <a href="#evaluation-normalization">Evaluation Normalization</a>
+          <a href="#how-evaluation-fits">How Evaluation Fits In</a>
+          <a href="#key-files">Key Files</a>
+          <a href="#extension-points">Extension Points</a>
+          <a href="#current-limitations">Current Limitations</a>
+          <a href="#todos">Todos</a>
+          <a href="#thesis-roadmap">Thesis Proposal Roadmap</a>
+          <a href="#theorem-prover-trace-plan">Theorem Prover Trace Plan</a>
+          <a class="toc-sub" href="#current-search-export-flow">Search And Export Flow</a>
+          <a class="toc-sub" href="#current-coq-demo-cases">Current Coq Demo Cases</a>
+          <a href="#unified-planner-plan">Unified Planner Plan</a>
+        </nav>
+      </aside>
     <main>
       <header>
         <h1>Write Steps Branch Summary</h1>
@@ -335,7 +421,7 @@
         </div>
       </header>
 
-      <section>
+      <section id="what-is-new">
         <h2>What Is New</h2>
         <ul>
           <li>
@@ -365,7 +451,7 @@
         </ul>
       </section>
 
-      <section>
+      <section id="old-written-step-check">
         <h2>Old Written-Step Check</h2>
         <p>
           Previously, the written-step checker took the selected expression
@@ -384,7 +470,7 @@
         </p>
       </section>
 
-      <section>
+      <section id="new-written-step-check">
         <h2>New Written-Step Check</h2>
         <p>
           The current checker treats validation as a small pipeline: choose a
@@ -425,7 +511,7 @@ type checker = {
 };</code></pre>
       </section>
 
-      <section>
+      <section id="arithmetic-normalization">
         <h2>Arithmetic Normalization</h2>
         <p>
           The first checker is now <code>affine_checker</code>. It is
@@ -465,7 +551,7 @@ x + 3 - x  ==  3</code></pre>
         </div>
       </section>
 
-      <section>
+      <section id="affine-checker">
         <h2>Third Step: Hazel-Native Affine Checker</h2>
         <p>
           The latest implementation replaces the Algebrite-backed arithmetic
@@ -511,7 +597,7 @@ x + 3 - x  ==  3</code></pre>
         </p>
       </section>
 
-      <section>
+      <section id="selected-range-auto-eval">
         <h2>Selected-Range Auto Eval</h2>
         <p>
           The newest code path adds an <code>Auto Eval</code> action to the
@@ -559,7 +645,7 @@ x + 3 - x  ==  3</code></pre>
         </p>
       </section>
 
-      <section>
+      <section id="automation-matrix">
         <h2>Automation Matrix Mockup</h2>
         <p>
           The next UI should make two independent choices visible: the
@@ -802,10 +888,11 @@ check_rewrite_at_level(~level, ...)
 check_rewrite_result_at_level(~level, ...)</code></pre>
         <p>
           These functions use <code>allowed_groups(level)</code> to choose which
-          rewrite groups are available. Because <code>arithmetic</code> is the
-          only implemented group right now, every enabled checker path still
-          ultimately uses the affine arithmetic normalizer plus the bounded
-          evaluation fallback.
+          rewrite groups are available. The rule catalog now has
+          <code>arithmetic</code> and <code>algebra</code> groups, arithmetic has
+          executable affine checking, and Algebra now has a deliberately small
+          distribution/factoring checker. Algebra is enabled as WIP for testing,
+          but it is still not a full polynomial normalizer.
         </p>
         <table>
           <thead>
@@ -823,15 +910,16 @@ check_rewrite_result_at_level(~level, ...)</code></pre>
             </tr>
             <tr>
               <td><code>Algebra</code></td>
-              <td><code>arithmetic</code></td>
+              <td><code>arithmetic + algebra</code></td>
               <td>
-                Would include arithmetic, but this level is currently disabled
-                in the UI until algebra rules exist.
+                Accepts direct distribution and reverse distribution/factoring
+                such as <code>x * (y + z) == x * y + x * z</code>. Still
+                narrow and WIP.
               </td>
             </tr>
             <tr>
               <td><code>Functions/lists</code></td>
-              <td><code>arithmetic</code></td>
+              <td><code>arithmetic + algebra</code></td>
               <td>
                 Future level only; no function/list rewrite group is implemented
                 yet.
@@ -839,7 +927,7 @@ check_rewrite_result_at_level(~level, ...)</code></pre>
             </tr>
             <tr>
               <td><code>Calculus</code></td>
-              <td><code>arithmetic</code></td>
+              <td><code>arithmetic + algebra</code></td>
               <td>
                 Future level only; no calculus rewrite group is implemented yet.
               </td>
@@ -852,8 +940,56 @@ check_rewrite_result_at_level(~level, ...)</code></pre>
           <code>2 * x + 3 == x + x + 3</code>, and
           <code>x + 3 - x == 3</code>. It rejects non-affine symbolic forms such
           as <code>x * x</code>, <code>(x + 1) * (x + 2)</code>, and unknown
-          programming forms such as <code>f(x) + 3</code>.
+          programming forms such as <code>f(x) + 3</code>. The current Algebra
+          checker now uses a small polynomial normal form for
+          <code>Check result</code>: it expands products over sums, multiplies
+          monomials, folds coefficients, collects like terms, and supports small
+          integer powers such as <code>x ** 2</code>. Examples such as
+          <code>(x + 1) * (x + 2) == x * x + 3 * x + 2</code> are accepted at
+          Algebra level but still rejected at Arithmetic level.
         </p>
+        <p>
+          Manual <code>One Step</code> now has two paths. It first checks for a
+          strict exportable arithmetic rewrite: one adjacent swap in a flattened
+          addition chain, recorded as <code>arith.add_comm</code>, or one
+          adjacent constant fold in a flattened addition chain, recorded as
+          <code>arith.const_fold</code>. This intentionally abstracts over
+          association for examples such as
+          <code>1 + 2 + 3 + 4 -> 1 + 5 + 4</code> and
+          <code>1 + 2 + 3 + 4 -> 1 + 2 + 7</code>, while still rejecting changes
+          that require multiple visible arithmetic operations. If no strict rule
+          matches, it falls back to the original write-steps evaluator-step
+          checker and records that result as non-exportable until evaluator
+          transitions are mapped to trusted rule ids.
+        </p>
+
+        <h3 id="algebra-todos">Algebra WIP TODOs</h3>
+        <ul>
+          <li>
+            Decide whether Algebra means named rules only, ring normalization
+            with replayable traces, or a staged combination of both.
+          </li>
+          <li>
+            Single-step Algebra now accepts one distribution move and one
+            factoring move, each backed by an <code>Axioms.re</code> rule id.
+            It also accepts additive cancellation with
+            <code>alg.cancel_common_add</code>.
+          </li>
+          <li>
+            Generalize beyond the current two-product distribution/factoring
+            shapes: nested distribution, multi-term sums, coefficients, repeated
+            common factors, and canonical ordering. First passes are now done
+            for <code>Check result</code> via polynomial normal forms and for
+            <code>One Step</code> via guarded distribution, FOIL/polynomial
+            expansion, factoring, and additive cancellation. Broader replayable
+            hidden traces are still needed.
+          </li>
+          <li>
+            Decide which associativity and commutativity moves can stay hidden
+            in One Step and which must become explicit proof trace entries for
+            theorem-prover export.
+          </li>
+        </ul>
 
         <h3>Open level-design question</h3>
         <p>
@@ -912,7 +1048,7 @@ check_rewrite_result_at_level(~level, ...)</code></pre>
         </div>
       </section>
 
-      <section>
+      <section id="complex-test-cases">
         <h2>Complex Test Cases</h2>
         <h3>Arithmetic grouping</h3>
         <table>
@@ -1057,7 +1193,7 @@ check_rewrite_result_at_level(~level, ...)</code></pre>
         </table>
       </section>
 
-      <section>
+      <section id="evaluation-normalization">
         <h2>Evaluation Normalization</h2>
         <p>
           The fallback checker is <code>evaluation_checker</code>. It evaluates
@@ -1077,7 +1213,7 @@ check_rewrite_result_at_level(~level, ...)</code></pre>
         </p>
       </section>
 
-      <section>
+      <section id="how-evaluation-fits">
         <h2>How Evaluation Fits In</h2>
         <p>
           Hazel has two related evaluation mechanisms here:
@@ -1102,7 +1238,7 @@ check_rewrite_result_at_level(~level, ...)</code></pre>
         </p>
       </section>
 
-      <section>
+      <section id="key-files">
         <h2>Key Files</h2>
         <ul class="file-list">
           <li><code>src/web/app/editors/stepper/RewriteChecker.re</code></li>
@@ -1119,7 +1255,7 @@ check_rewrite_result_at_level(~level, ...)</code></pre>
         </ul>
       </section>
 
-      <section>
+      <section id="extension-points">
         <h2>Extension Points</h2>
         <p>
           To add a richer proof domain later, add another <code>checker</code>
@@ -1139,7 +1275,7 @@ check_rewrite_result_at_level(~level, ...)</code></pre>
         </div>
       </section>
 
-      <section>
+      <section id="current-limitations">
         <h2>Current Limitations</h2>
         <ul>
           <li>
@@ -1170,7 +1306,7 @@ check_rewrite_result_at_level(~level, ...)</code></pre>
         </ul>
       </section>
 
-      <section>
+      <section id="todos">
         <h2>Todos</h2>
         <ul>
           <li>
@@ -1213,7 +1349,7 @@ check_rewrite_result_at_level(~level, ...)</code></pre>
         </ul>
       </section>
 
-      <section>
+      <section id="thesis-roadmap">
         <h2>Thesis Proposal Roadmap</h2>
         <p>
           Canonical standalone roadmap:
@@ -1500,7 +1636,7 @@ check_rewrite_result_at_level(~level, ...)</code></pre>
         </ul>
       </section>
 
-      <section>
+      <section id="theorem-prover-trace-plan">
         <h2>Theorem Prover Trace Plan</h2>
         <p>
           The current arithmetic normalizer is good enough to decide whether two
@@ -1518,7 +1654,7 @@ check_rewrite_result_at_level(~level, ...)</code></pre>
   after: Exp.t,
   rule: Axioms.rewrite_rule,
   focus: option(Id.t),
-  prover_hint: option(Axioms.prover_hint),
+  backend_hints: list(Axioms.prover_hint),
 };
 
 type normalization_proof = {
@@ -1560,52 +1696,383 @@ type normalization_proof = {
         <div class="callout">
           <code>Axioms.re</code> should remain the source of truth for rewrite
           rule names, groups, and prover hints. <code>RewriteChecker.re</code>
-          should perform normalization and return the trace. The stepper should
-          store the trace. <code>CoqExport.re</code> or a future
-          <code>LeanExport.re</code> should translate each proof step into prover
-          syntax.
+          should perform normalization and return a prover-agnostic Hazel trace.
+          The stepper should store that trace. <code>CoqExport.re</code>,
+          <code>RocqExport.re</code>, and a future <code>LeanExport.re</code>
+          should be backend renderers over the same proof steps, not separate
+          checker implementations.
         </div>
+
+        <h3 id="current-search-export-flow">Current Search And Export Flow</h3>
+        <p>
+          The standalone <strong>Proof Search</strong> target calls
+          <code>AxiomSearch.search</code>. The search takes a source expression,
+          target expression, rewrite level, max depth, and allowed rule ids. It
+          tries bounded local rewrites from <code>Axioms.re</code>, walking the
+          AST and recording each successful rewrite as a
+          <code>prover_step</code> with the rule id, full before/after
+          expression, local redex before/after expression, occurrence, and
+          detail string.
+        </p>
+        <p>
+          Search currently supports small arithmetic and algebra examples such
+          as constant folding, addition associativity/commutativity,
+          distribution, and factoring. Small addition-chain permutations use a
+          target-guided macro rule, <code>arith.reorder_add_terms</code>, rather
+          than brute-forcing every <code>add_assoc</code>/<code>add_comm</code>
+          path. That macro should eventually lower to primitive prover rewrites.
+        </p>
+        <p>
+          The UI path is debounced live: after the user stops editing the target
+          for roughly 500ms, Hazel runs proof search once. Search is skipped for
+          holes, and the manual <strong>Run Proof Search</strong> button remains
+          available while waiting or after an invalid result. Once search is
+          valid, the box shows <strong>Replace</strong>.
+        </p>
+        <pre><code>Proof Search target
+  -> AxiomSearch.search
+  -> AxiomSearch.trace_summary
+  -> WrittenStep stored in the stepper trace
+  -> StepperBase.export_coq
+  -> CoqProofExport assertion replay
+  -> coq-export-YYYYMMDD-HHMMSS.v</code></pre>
+        <p>
+          <code>window.HazelJSCoq</code> exists as a lazy browser-side JSCoq
+          bridge, but it is not the active checker yet. Today the trusted check
+          is still external <code>coqc</code> on the downloaded file. The next
+          JSCoq step is to send the generated Coq text to that bridge and report
+          success/failure in Hazel.
+        </p>
 
         <h3>Exporter Policy</h3>
         <p>
           Large tactics such as <code>ring</code>, <code>ring_nf</code>, and
-          <code>norm_num</code> are useful as debugging fallbacks, but they are
-          too coarse to be the trusted export format. The primary export should
-          prefer small named rewrites, using prover metadata attached to
+          <code>norm_num</code> are too coarse to be the trusted export format.
+          They can be useful for local debugging or comparison, but exported
+          proofs should prefer small named rewrites, using prover metadata
+          attached to
           <code>Axioms.re</code> rules such as <code>arith.add_assoc</code>,
           <code>arith.add_comm</code>, <code>arith.const_fold</code>, and
           <code>arith.collect_like_terms</code>.
         </p>
+        <p>
+          The current Coq/Rocq demo emits named prover assertions for each
+          recorded Hazel prover step, then rewrites with those assertions. The
+          tiny arithmetic cases still use <code>cbn</code> inside the local
+          assertion proof when the obligation is closed arithmetic, but the
+          surrounding proof now has the right shape: one named fact per Hazel
+          breadcrumb, followed by a replay step that uses those facts.
+          Symbolic affine arithmetic currently uses an explicit temporary
+          <code>lia</code> fallback while the normalizer grows finer local
+          breadcrumbs. Simple algebraic distributivity does not use
+          <code>ring</code>; it exports the local redex, an additive occurrence
+          index, and a small rewrite script over distributivity.
+        </p>
+        <p>
+          Downloaded Coq files now use compact Coq-safe names such as
+          <code>coq-export-20260615-103245.v</code>, avoiding browser duplicate
+          filenames like <code>stepper_coq_export (2).v</code> that Coq refuses
+          as module names.
+        </p>
 
-        <h3>Implementation Steps</h3>
+        <h3 id="current-coq-demo-cases">Current Coq Demo Cases</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>Case</th>
+              <th>Hazel Steps To Type</th>
+              <th>Automated Fixture</th>
+              <th>Coq Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>1. One-step constant fold</td>
+              <td>
+                Start with <code>1 + 2 + 3 + 4</code>. In arithmetic one-step
+                mode, replace it with <code>1 + 5 + 4</code>.
+              </td>
+              <td>
+                <code>/tmp/hazel_stepper_tiny_one_step.v</code>, generated by
+                <code>sample_one_step_constant_export_chain</code>.
+              </td>
+              <td><code>coqc</code> passes.</td>
+            </tr>
+            <tr>
+              <td>2. Check-result constant fold</td>
+              <td>
+                Start with <code>1 + 2 + 3 + 4</code>. In arithmetic check mode,
+                replace it with <code>10</code>.
+              </td>
+              <td>
+                <code>/tmp/hazel_stepper_tiny_check_result.v</code>, generated
+                by <code>sample_check_result_constant_export_chain</code>.
+              </td>
+              <td><code>coqc</code> passes.</td>
+            </tr>
+            <tr>
+              <td>3. Reordered constant sum</td>
+              <td>
+                Start with <code>1 + 2 + 3 + 4</code>. In arithmetic check mode,
+                replace it with <code>4 + 3 + 2 + 1</code>.
+              </td>
+              <td>
+                <code>/tmp/hazel_stepper_reverse_constants.v</code>, generated
+                by <code>sample_reverse_constant_export_chain</code>.
+              </td>
+              <td><code>coqc</code> passes.</td>
+            </tr>
+            <tr>
+              <td>4. Symbolic affine collection</td>
+              <td>
+                Start with <code>1 + 2 + x + 3 + x + 4</code>. In arithmetic
+                check mode, replace it with <code>2 * x + 10</code>.
+              </td>
+              <td>
+                <code>/tmp/hazel_stepper_affine_variables.v</code>, generated
+                by <code>sample_reparenthesized_affine_variable_export_chain</code>.
+              </td>
+              <td>
+                <code>coqc</code> passes using the documented temporary
+                <code>lia</code> fallback.
+              </td>
+            </tr>
+            <tr>
+              <td>5. Local algebra distribution</td>
+              <td>
+                Start with <code>1 + x * (y + z)</code>. In algebra one-step
+                mode, replace it with <code>1 + (x * y + x * z)</code>.
+              </td>
+              <td>
+                <code>/tmp/hazel_stepper_algebra_distribution.v</code>,
+                generated by <code>sample_algebra_distribution_export_chain</code>.
+              </td>
+              <td>
+                <code>coqc</code> passes. The trace records
+                <code>alg.distribute_mul_add</code>, local before/after terms,
+                and occurrence <code>2</code>.
+              </td>
+            </tr>
+            <tr>
+              <td>6. Bounded axiom search</td>
+              <td>
+                Search from <code>x * (y + z)</code> to
+                <code>x * y + x * z</code> using only
+                <code>alg.distribute_mul_add</code> at depth <code>1</code>.
+              </td>
+              <td>
+                <code>/tmp/hazel_stepper_axiom_search_distribution.v</code>,
+                generated by <code>sample_axiom_search_distribution_export_chain</code>.
+              </td>
+              <td>
+                <code>coqc</code> passes. The trace is produced by
+                <code>AxiomSearch.re</code>, then exported through the same
+                Coq replay path as write-steps.
+              </td>
+            </tr>
+            <tr>
+              <td>7. Proof-search reorder</td>
+              <td>
+                Search from <code>1 + 2 + 3 + 4</code> to
+                <code>4 + 3 + 2 + 1</code>.
+              </td>
+              <td>
+                Covered by <code>axiom search reorders a four-term arithmetic
+                chain</code>.
+              </td>
+              <td>
+                Hazel search passes using <code>arith.reorder_add_terms</code>
+                as a target-guided macro step. Coq lowering should later expand
+                this macro into primitive associativity/commutativity rewrites.
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h3>Current Status And Next Steps</h3>
         <ol>
           <li>
-            Done: extend <code>RewriteChecker.normalized</code> with a normal
-            expression and rule ids for the normalization pass.
+            Done: <code>RewriteChecker</code> stores trace summaries with
+            normal expressions, rule ids, prover steps, and exportability.
           </li>
           <li>
-            Done: change <code>check_result</code> so it carries each side's
-            normal expression, side-specific rule traces, a combined trace, and
-            exportability metadata.
+            Done: <code>CoqProofExport.re</code> renders recorded
+            <code>prover_step</code> breadcrumbs, keeping proof rendering out of
+            <code>StepperBase.re</code>.
           </li>
           <li>
-            Done: change <code>WrittenStep</code> to persist an exportable
-            summary of the accepted trace.
+            Done: small Coq/Rocq fixture exports pass for constant folding,
+            arithmetic check-result, algebraic distribution, and bounded axiom
+            search.
           </li>
           <li>
-            Done: add helper functions that resolve each side of a persisted
-            trace summary back to <code>Axioms.re</code> rules and prover hints.
+            Prototype: <code>AxiomSearch.re</code> performs bounded rewrite
+            search over <code>Axioms.re</code> rules, logs the trace to the
+            browser console, and feeds the same export path as write-steps.
           </li>
           <li>
-            Add an exporter that emits one lemma per hidden normalization phase,
-            then later tighten each phase into smaller primitive rewrite steps.
+            Prototype: <code>arith.reorder_add_terms</code> is a macro for
+            small addition-chain permutations. Keep it as a planner step, then
+            lower it into explicit <code>add_assoc</code>/<code>add_comm</code>
+            prover rewrites.
           </li>
           <li>
-            Keep the current affine normalizer as the equivalence oracle while
-            the proof trace becomes increasingly precise.
+            Next: replace the symbolic affine <code>lia</code> fallback with
+            explicit local breadcrumbs for reassociation, commutation, constant
+            folding, coefficient scaling, and like-term collection.
+          </li>
+          <li>
+            Next: generalize AC reorder macros by operator, starting with
+            addition and then multiplication once coefficient collection and
+            distribution interactions are clearer.
+          </li>
+          <li>
+            Next: extend algebra traces beyond single local distribution to
+            factoring, cancellation, FOIL, and polynomial collection, preserving
+            a redex path or occurrence for every rule.
+          </li>
+          <li>
+            Next: wire <code>window.HazelJSCoq</code> to generated exports so
+            Hazel can check Coq text in-browser instead of requiring a manual
+            <code>coqc</code> command.
           </li>
         </ol>
       </section>
+
+      <section id="unified-planner-plan">
+        <h2>Unified Planner Plan</h2>
+        <p>
+          This plan unifies proof search, normalization, and math levels around
+          one invariant: every accepted automated step must either carry
+          replayable proof breadcrumbs or be explicitly marked as a macro step
+          that can be lowered into primitive prover rewrites. Normalization
+          becomes a proof planner, not a black-box equivalence oracle.
+        </p>
+
+        <h3>Shared Proof Planning Model</h3>
+        <ul>
+          <li>
+            Introduce one internal proof-planning result used by normalization,
+            proof search, check-result, and auto-simplify.
+          </li>
+          <li>
+            The result should include source expression, target expression,
+            accepted math level, visible or macro rule ids, primitive
+            <code>prover_step</code> breadcrumbs when available, and export
+            status.
+          </li>
+          <li>
+            Export status should distinguish primitive replayable steps,
+            macro steps that need lowering, and explicitly non-exportable
+            fallback paths.
+          </li>
+          <li>
+            Keep <code>Axioms.re</code> as the source of truth for math
+            level/group membership, rule ids, labels, prover hints, and whether
+            a rule is primitive or macro/lowered.
+          </li>
+        </ul>
+
+        <h3>Normalization As Exportable Planning</h3>
+        <ul>
+          <li>
+            Replace "normalize both sides and compare" with:
+            <code>source -> normal</code>, <code>target -> normal</code>, then
+            compare normal forms and export by replaying both traces.
+          </li>
+          <li>
+            Arithmetic normalization should record steps for
+            flatten/reassociate addition, AC reordering, constant folding,
+            like-term collection, and coefficient scaling.
+          </li>
+          <li>
+            Algebra normalization should build on arithmetic and add
+            distribution, factoring, cancellation, polynomial expansion, and
+            polynomial collection.
+          </li>
+          <li>
+            Do not use a normalizer result as exportable unless it emits
+            primitive steps or emits a macro with a known lowering plan.
+          </li>
+        </ul>
+
+        <h3>Proof Search Role</h3>
+        <ul>
+          <li>
+            Keep bounded proof search for local transformations and examples
+            where the rewrite path is short.
+          </li>
+          <li>
+            Do not use raw search for large AC rearrangements; use
+            target-guided normalization or macros instead.
+          </li>
+          <li>
+            Generalize <code>arith.reorder_add_terms</code> into an AC reorder
+            macro family that records operator, source term order, target term
+            order, and basis rules.
+          </li>
+          <li>
+            Enable multiplication reorder only after coefficient collection and
+            distribution interactions are handled deliberately.
+          </li>
+        </ul>
+
+        <h3>Math Level Integration</h3>
+        <ul>
+          <li>
+            Levels stay cumulative: Algebra includes Arithmetic, and future
+            levels include all lower levels.
+          </li>
+          <li>
+            Each level exposes the same stages: One Step, Check Result, and
+            Auto Simplify.
+          </li>
+          <li>
+            One Step should allow one visible primitive step or an approved
+            macro step. Check Result should compare proof-planned normal forms.
+            Auto Simplify should apply the level's default normalization plan.
+          </li>
+          <li>
+            Proof Search remains a prototype target for now, but it should call
+            the same planner/search backend used by future automation stages.
+          </li>
+        </ul>
+
+        <h3>Test Plan</h3>
+        <ul>
+          <li>
+            Unit tests should cover arithmetic AC reorder, arithmetic
+            check-result trace status, algebra distribution occurrence, macro
+            export status, and non-exportable fallback paths.
+          </li>
+          <li>
+            Coq tests should keep the existing fixture checks and add AC reorder
+            once its macro lowering is implemented.
+          </li>
+          <li>
+            UI smoke tests should cover debounced Proof Search, hole-skipping,
+            valid Replace behavior, and the sidebar outline links.
+          </li>
+        </ul>
+
+        <h3>Assumptions</h3>
+        <ul>
+          <li>
+            Exportability is a hard design constraint: normalization must not
+            silently accept steps that cannot eventually be justified by
+            recorded rules.
+          </li>
+          <li>
+            Macro proof steps are acceptable for v1 only when explicitly labeled
+            and paired with a planned primitive lowering.
+          </li>
+          <li>
+            JSCoq remains scaffolded only; <code>coqc</code> is the trusted
+            checker until browser checking is wired into the export flow.
+          </li>
+        </ul>
+      </section>
     </main>
+    </div>
   </body>
 </html>

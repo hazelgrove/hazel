@@ -1,16 +1,215 @@
-On arithmetic and one-step mode:
-- we don't have any axioms written yet to use in "assumptions" (that's the correct place right?)
-- We should disable the rewrite checker button because that lets us take steps that are too large using algebrite, right? 
-- But maybe a single eval step fill-in-box is fine if it only permits operations that take a single exportable rule. That is, rewrite 1+2+3+4 to 1+2+4+3 BUT NOT 2+1 + 4+3 because that's two commutations, you see? 
+Math automation mode notes
+==========================
 
-Arithmetic and Check result mode:
-- this is good as-is I think, but let's make sure our exportable rules and axioms and all work when we go to do theorem prover export to Lean later. 
+Use this as a running scratchpad while testing the tool. Keep new impressions in
+the "Open impressions" lists. When an item is handled, keep it in place and add
+a dated "Handled" line explaining what changed.
 
-Arithmetic and Auto eval:
-- Make sure our simplificaiton procedure also follows good process so we build a tree of those exportable rules for the proof-for-export at the end of this 
+Last processed by Codex: 2026-06-17 12:08 EDT.
 
-After merging/rebasing reparenthesization:
+Current ordered TODO queue
+--------------------------
+
+Open impressions, easiest to hardest:
+- Hide the `Check Result` and `Rewrite` UI entries because `Proof Search` is
+  becoming the shared checking/automation path. Keep the underlying code for
+  now.
+  Handled 2026-06-17 12:08 EDT: the buttons are hidden in the step UI while the
+  underlying checker/rewrite code remains in place.
+- Fix generated Coq that contains `ERROR`, and use symbolic `PI`/`pi` rather
+  than approximate floats during export.
+  Handled 2026-06-17 12:08 EDT: real-domain Coq export now prints trig
+  applications, symbolic `PI`, real operators, and fails on unsupported real
+  terms instead of emitting `ERROR`.
+- Make basic trigonometry proof-search steps exportable to Coq/Rocq, starting
+  with direct sum/difference identities and simple commutativity around them.
+  Handled 2026-06-17 12:08 EDT for the first direct path: `trig.sin_sum`
+  exports over `R` and the generated fixture proves with `coqc`.
+- Make JSCoq report useful failures after the generated Coq is sane. The
+  current worker exception is not actionable enough.
+  Partially handled 2026-06-17 12:08 EDT: browser JSCoq now loads `coq-reals`
+  and rewrites `Stdlib` imports to JSCoq's `Coq` prefix before checking. The
+  next pass should smoke test the browser result and improve worker exception
+  formatting if it still fails.
+- Then continue the broader arithmetic/algebra/normalization roadmap TODOs
+  below, especially replayable traces for normal forms and stricter One Step
+  semantics.
+
+
+Arithmetic and one-step mode
+----------------------------
+
+Open impressions:
+- We do not have any axioms written yet to use in "Assumptions". Is that the
+  correct place for user-visible manual arithmetic rules?
+- We should disable or narrow the legacy rewrite checker button because it can
+  still let users take steps that are too large using Algebrite-style checking.
+- A single eval-step fill-in box is probably fine if it permits only one
+  exportable rule. Example: allow `1 + 2 + 3 + 4` to `1 + 2 + 4 + 3` as one
+  commutation, but not `2 + 1 + 4 + 3`, because that requires two commutations.
+
+Implementation interpretation:
+- "One step" should mean exactly one trusted rewrite/evaluator rule with an
+  export target.
+- The UI can still let the user type the result, but the checker for this mode
+  should reject changes that require multiple rewrite records.
+- The rule source should move toward `Axioms.re` records with prover metadata,
+  not opaque CAS simplification.
+- Export architecture should stay prover-agnostic: Hazel records ordered
+  rewrite steps once, then Coq/Rocq and Lean backends render those same steps.
+- If the current "Rewrite" button remains available in one-step mode, it should
+  use the same one-rule checker rather than broad equivalence.
+
+Handled:
+- 2026-06-10 00:20 EDT: Reparenthesized selected ranges now work for checked
+  written steps by inserting `ReparenthesizeStep -> WrittenStep`. This does not
+  solve the one-rule policy yet; it only makes non-node selected ranges usable.
+- 2026-06-10 00:22 EDT: Hid the broad `Rewrite` action outside Check result
+  mode. One-step mode no longer exposes that normal-form rewrite checker; it
+  still needs a dedicated one-rule typed-step checker if we want typed manual
+  rewrites like one commutation.
+- 2026-06-10 12:48 EDT: Added a typed `One Step` path in Manual mode that
+  reuses the original write-steps evaluator-step checker. It accepts one visible
+  Hazel evaluator transition, records it as non-exportable, and keeps it
+  separate from Check result's normal-form equivalence. This is a baseline, not
+  the final strict arithmetic/algebra rule checker.
+- 2026-06-10 13:01 EDT: Added the first strict exportable arithmetic one-step
+  checker: one adjacent swap in a flattened addition chain is accepted as
+  `arith.add_comm`. For example, `1 + 2 + 3 + 4` to `1 + 2 + 4 + 3` is accepted,
+  while `2 + 1 + 4 + 3` is rejected as more than one commutation.
+- 2026-06-10 13:18 EDT: Extended the strict one-step arithmetic checker to
+  allow one adjacent constant fold in a flattened addition chain, recorded as
+  `arith.const_fold`. This accepts `1 + 2 + 3 + 4` to `1 + 5 + 4` and
+  `1 + 2 + 7`, while still treating broader rewrites as more than one visible
+  operation.
+
+
+Arithmetic and Check result mode
+--------------------------------
+
+Open impressions:
+- This mode is good as-is for exploration, but before theorem-prover export we
+  need to make sure exportable rules and axioms line up with the accepted normal
+  form equality.
+
+Implementation interpretation:
+- Check result can continue to compare normal forms and accept multi-step
+  equivalence.
+- The accepted equivalence must return a trace summary that can later be
+  expanded into replayable trusted rewrite records.
+- This mode should be labeled clearly as "compare normal forms", not as a
+  single proof step.
+- For theorem-prover export, the trace summary is not enough by itself. It must
+  eventually become a replay tree or sequence whose leaves are trusted rules.
+- Current no-`ring` Coq/Rocq export is a demo of primitive rewrite replay plus
+  bounded search. It should become an ordered Hazel trace that can also render
+  to Lean.
+
+Handled:
+- 2026-06-10 00:20 EDT: The written-step checker already stores a trace summary
+  for accepted arithmetic/check-result steps. This is a useful placeholder, but
+  it is not yet a replayable proof export.
+- 2026-06-10 12:48 EDT: Added an `algebra` rewrite group with placeholder
+  distribution, factoring, and additive-cancellation rule metadata. Algebra
+  remains disabled in the UI until these rules are backed by real checkers.
+- 2026-06-10 12:48 EDT: Added the first executable algebra checker for
+  distribution and reverse distribution/factoring at `Algebra` level. It accepts
+  `x * (y + z) = x * y + x * z` and the reverse direction, but it does not yet
+  handle commuted terms, nested polynomial normalization, cancellation, or
+  equation solving.
+- 2026-06-10 13:01 EDT: Extended the algebra distribution/factoring checker to
+  tolerate common factors on either side of multiplication and swapped addends
+  for the two-product case. Examples now include `y * x + z * x = x * (y + z)`,
+  `x * y + z * x = x * (y + z)`, and `x * z + x * y = x * (y + z)`.
+- 2026-06-10 13:18 EDT: Enabled Algebra as a WIP selectable level without
+  changing the UI label copy. It currently means Arithmetic plus the narrow
+  distribution/factoring checker above.
+
+
+Algebra WIP TODOs
+-----------------
+
+Open impressions:
+- Keep Algebra enabled for testing, but do not present it as complete.
+- Decide whether Algebra means named rules only, ring normalization with a
+  replayable trace, or a staged combination of both.
+- Add single-step Algebra rules for one distribution, one factoring move, and
+  one cancellation move. Each accepted step needs a rule id from `Axioms.re`.
+- Generalize beyond two-product sums: nested distribution, multi-term sums,
+  repeated common factors, coefficient handling, and canonical term ordering.
+  Handled 2026-06-10 13:35 EDT for a first polynomial-normal-form pass:
+  Algebra / Check result now expands products over sums, combines monomial
+  coefficients, supports repeated multiplication such as `x * x`, and supports
+  small integer powers such as `x ** 2`.
+- Decide how much associativity and commutativity should be abstracted away in
+  One Step versus exposed as hidden proof trace.
+- Make the trace replayable for prover export before treating Algebra Auto eval
+  as trusted.
+
+Handled:
+- 2026-06-10 13:18 EDT: Added WIP Algebra scaffolding with exportable rule
+  metadata and a first checker for direct distribution/factoring shapes.
+- 2026-06-10 13:35 EDT: Replaced the Algebra Check result comparison with a
+  polynomial normal form. FOIL examples like `(x + 1) * (x + 2) = x * x + 3 * x
+  + 2` now check as Algebra, while Arithmetic still rejects them. The trace uses
+  `alg.expand_polynomial`, `alg.distribute_mul_add`, and
+  `alg.collect_like_terms`; it is still a summary rather than a replay tree.
+
+
+Arithmetic and Auto eval
+------------------------
+
+Open impressions:
+- Make sure the simplification procedure follows a good process and builds a
+  tree of exportable rules for the proof export at the end.
+
+Implementation interpretation:
+- Auto eval should be normal-form driven, but the hidden work cannot stay as one
+  opaque "simplify" step.
+- The simplifier should produce both the final expression and a derivation:
+  before/after nodes, applied rule ids, source spans or selected subterms, and
+  theorem-prover hints.
+- The UI can hide this trace by default, but "show hidden steps" or prover
+  export should be able to reveal it.
+- The derivation format should be shared with Check result so both modes export
+  through the same trusted path.
+
+Handled:
+- 2026-06-10 00:20 EDT: Auto eval currently reifies the affine normal form and
+  inserts an `AutoSimplifyStep`. It does not yet persist the hidden rewrite tree
+  needed for theorem-prover export.
+
+
+After merging/rebasing reparenthesization
+-----------------------------------------
+
+Open impressions:
 - Come back to these mode notes before implementing algebra. In particular,
   decide exactly what "one step" means for exportable arithmetic axioms, and
-  disable or narrow any legacy rewrite checker path that can still accept
-  overly large Algebrite-style steps.
+  disable or narrow any legacy rewrite checker path that can still accept overly
+  large Algebrite-style steps.
+
+Handled:
+- 2026-06-10 00:20 EDT: The branch was merged with `stepper-reparenthesization`
+  earlier, and checked written steps now participate in that reparenthesized
+  selection path. The remaining item is policy: make one-step mode reject
+  multi-rule rewrites.
+- 2026-06-10 12:48 EDT: Manual typed one-step now rejects broad normal-form
+  rewrites by construction because it uses the evaluator-step checker. It still
+  does not support non-evaluator algebraic one-rule steps such as a single
+  commutation; that needs a trusted math-rule matcher.
+
+
+UI TODOs from testing
+---------------------
+
+Open impressions:
+- Obscure left-associativity artifacts entirely in the proof UI. A
+  reparenthesized selected range should feel like one natural selection: no
+  separate green evaluator-step highlight, no user-facing distinction between
+  "Step" and "Step Here", and no extra displayed parentheses such as `(4 + x)`
+  when the source range was written as `4 + x`.
+
+Handled:
+- 2026-06-10 00:20 EDT: Recorded this TODO in
+  `analysis/write-steps-summary.html`; no UI code change yet.
