@@ -1,0 +1,4 @@
+# DA-Bench id 716: mean/std of numeric Wins (JAMES LOGAN column), Current_Logan.csv #
+let data = ^^csv("Current_Logan.csv") in
+let v = num_loose(data.`JAMES LOGAN`) in
+(mean_wins = round2(mean(v)), stddev_wins = round2(sample_std(v)))

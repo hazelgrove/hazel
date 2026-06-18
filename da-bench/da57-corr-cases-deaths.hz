@@ -1,0 +1,3 @@
+# DA-Bench id 57: corr No. of cases vs No. of deaths (messy), estimated_numbers.csv #
+let data = ^^csv("estimated_numbers.csv") in
+round2(corr_clean(data.`No. of cases`, data.`No. of deaths`))

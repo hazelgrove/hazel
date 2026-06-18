@@ -1,0 +1,4 @@
+# DA-Bench id 465: distribution of Age via scipy.stats.skew, arrest_expungibility.csv #
+let data = ^^csv("arrest_expungibility.csv") in
+let sk = skew_pop(num(data.`Age`)) in
+if sk >. 0.5 then "skewed_right" else if sk <. (0. -. 0.5) then "skewed_left" else "symmetric"

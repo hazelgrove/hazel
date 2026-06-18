@@ -1,0 +1,5 @@
+# DA-Bench id 337: skewness of median sold price/sqft + type, Zip_MedianSoldPricePerSqft #
+let data = ^^csv("Zip_MedianSoldPricePerSqft_AllHomes.csv") in
+let sk = round2(skew(num(data.`MedianSoldPricePerSqft`))) in
+let typ = if sk >. 0.0 then "Positive Skewness" else if sk <. 0.0 then "Negative Skewness" else "No Skewness" in
+(skewness_coefficient = sk, skewness_type = typ)

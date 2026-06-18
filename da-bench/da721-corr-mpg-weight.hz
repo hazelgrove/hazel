@@ -1,0 +1,3 @@
+# DA-Bench id 721: corr mpg vs weight, auto-mpg.csv #
+let data = ^^csv("auto-mpg.csv") in
+round2(corr_cols(data.`mpg`, data.`weight`))

@@ -1,0 +1,3 @@
+# DA-Bench id 655: corr XY and XZ, DES=+2006261.csv #
+let data = ^^csv("DES=+2006261.csv") in
+(correlation_XY = round2(corr_cols(data.`X`, data.`Y`)), correlation_XZ = round2(corr_cols(data.`X`, data.`Z`)))

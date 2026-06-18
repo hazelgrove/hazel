@@ -1,0 +1,7 @@
+# DA-Bench id 656: Z(3) outliers in X (none) + new mean/std, DES=+2006261.csv #
+let data = ^^csv("DES=+2006261.csv") in
+let v = num(data.`X`) in
+let m = mean(v) in
+let s = pop_std(v) in
+let kept = filter(v, fun x -> abs_float((x -. m) /. s) <=. 3.0) in
+(number_of_outliers = length(v) - length(kept), new_mean = round2(mean(kept)), new_standard_deviation = round2(sample_std(kept)))

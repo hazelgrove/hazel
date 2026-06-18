@@ -1,0 +1,4 @@
+# DA-Bench id 719: mean and median mpg, auto-mpg.csv #
+let data = ^^csv("auto-mpg.csv") in
+let mpg = num(data.`mpg`) in
+(mean_mpg = round2(mean(mpg)), median_mpg = round2(median(mpg)))

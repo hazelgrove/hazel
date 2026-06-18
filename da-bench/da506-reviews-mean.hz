@@ -1,0 +1,3 @@
+# DA-Bench id 506: mean reviews per hotel, hotel_data.csv #
+let data = ^^csv("hotel_data.csv") in
+round2(mean(num(data.`review_count`)))

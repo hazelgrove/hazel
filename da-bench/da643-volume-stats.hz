@@ -1,0 +1,4 @@
+# DA-Bench id 643: mean/std/min/max Volume, random_stock_data.csv #
+let data = ^^csv("random_stock_data.csv") in
+let v = num(data.`Volume`) in
+(mean_volume = round2(mean(v)), std_volume = round2(sample_std(v)), min_volume = round2(fmin(v)), max_volume = round2(fmax(v)))

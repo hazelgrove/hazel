@@ -1,0 +1,3 @@
+# DA-Bench id 273: corr MEANGAM/MEANGBT + count MEANGAM Z outliers, 3901.csv #
+let data = ^^csv("3901.csv") in
+(correlation_coefficient = round3(corr_cols(data.`MEANGAM`, data.`MEANGBT`)), outlier_count = count_z_out(num(data.`MEANGAM`), 3.0))

@@ -1,0 +1,9 @@
+# DA-Bench id 669: remove IQR outliers in MedInc, then mean/std, my_test_01.csv #
+let data = ^^csv("my_test_01.csv") in
+let v = num(data.`MedInc`) in
+let s = sort(cmp, v) in
+let q1 = quantile(s, 0.25) in
+let q3 = quantile(s, 0.75) in
+let iqr = q3 -. q1 in
+let kept = filter(v, fun x -> (x >=. q1 -. 1.5 *. iqr) && (x <=. q3 +. 1.5 *. iqr)) in
+(mean = round2(mean(kept)), standard_deviation = round2(sample_std(kept)))

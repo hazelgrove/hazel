@@ -1,0 +1,3 @@
+# DA-Bench id 427: count null min_p, cost_data_with_errors.csv #
+let data = ^^csv("cost_data_with_errors.csv") in
+length(filter(data.`min_p`, fun s -> string_trim(s) == ""))

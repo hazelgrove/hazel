@@ -1,0 +1,3 @@
+# DA-Bench id 372: mean of Trips-24h column, 2014_q4.csv #
+let data = ^^csv("2014_q4.csv") in
+round2(mean(num(data.`Trips over the past 24-hours (midnight to 11:59pm)`)))

@@ -1,0 +1,3 @@
+# DA-Bench id 507: count hotels with star_rating == 5, hotel_data.csv #
+let data = ^^csv("hotel_data.csv") in
+length(filter(data.`star_rating`, fun s -> string_trim(s) == "5.0"))

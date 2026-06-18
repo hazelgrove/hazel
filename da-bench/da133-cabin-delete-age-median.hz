@@ -1,0 +1,9 @@
+# DA-Bench id 133: rows with cabin present + median age used for imputation, titanic.csv #
+let data = ^^csv("titanic.csv") in
+let kept_ages =
+  zip(data.`Cabin`, data.`Age`)
+  |> filter(_, fun (c, _a) -> string_trim(c) != "")
+in
+let row_count = length(kept_ages) in
+let ages = kept_ages |> filter(_, fun (_c, a) -> string_trim(a) != "") |> map(_, fun (_c, a) -> float_of_string(string_trim(a))) in
+(row_count = row_count, median_age = round1(median(ages)))

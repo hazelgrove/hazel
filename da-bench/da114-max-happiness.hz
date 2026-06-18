@@ -1,0 +1,16 @@
+# DA-Bench id 114: country with highest Happiness Score, 2015.csv #
+let data = ^^csv("2015.csv") in
+let rows =
+  zip(data.`Happiness Score`, data.`Country`)
+  |> filter(_, fun (v, _c) -> string_trim(v) != "")
+  |> map(_, fun (v, c) -> (float_of_string(string_trim(v)), string_trim(c)))
+in
+let best =
+  fold_left(
+    tail(rows),
+    fun ((bv, bc), (v, c)) -> if v >. bv then (v, c) else (bv, bc),
+    head(rows)
+  )
+in
+let (_v, country) = best in
+country

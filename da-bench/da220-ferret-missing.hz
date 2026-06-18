@@ -1,0 +1,5 @@
+# DA-Bench id 220: missing-value handling report, ferret site diffsel #
+let data = ^^csv("ferret-Pitt-2-preinf-lib2-100_sitediffsel.csv") in
+let anymiss = fun (col: [String]) -> length(filter(col, fun s -> string_trim(s) == "")) > 0 in
+if anymiss(data.`site`) || anymiss(data.`abs_diffsel`) || anymiss(data.`positive_diffsel`) || anymiss(data.`negative_diffsel`) || anymiss(data.`max_diffsel`) || anymiss(data.`min_diffsel`)
+then "Missing values were found." else "No missing values were found."

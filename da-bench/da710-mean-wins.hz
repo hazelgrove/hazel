@@ -1,0 +1,3 @@
+# DA-Bench id 710: mean of numeric JAMES LOGAN column, Current_Logan.csv #
+let data = ^^csv("Current_Logan.csv") in
+round1(mean(num_loose(data.`JAMES LOGAN`)))

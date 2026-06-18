@@ -75,11 +75,22 @@ expression becomes the body — **do not redefine these in solutions**, just use
 them:
 
 - `sum`, `mean`
-- `pop_std` (ddof=0), `sample_std` (ddof=1 — pandas default)
-- `median` (+ `cmp`)
-- `pearson(xs, ys)`
-- `round2`, `round4`
-- `num(col)` — `string_trim` + drop blanks + `float_of_string` over a `[String]`
+- `pop_std` (ddof=0), `sample_std` (ddof=1 — pandas `.std()` default)
+- `median` (+ `cmp`), `quantile(sorted_xs, q)` (linear interpolation = numpy default)
+- `pearson(xs, ys)`; `corr_cols(a, b)` / `corr_clean(a, b)` — Pearson r over two String
+  columns, dropping rows where either cell is blank (pairwise dropna). `corr_clean`
+  also strips brackets/commas. Use these for almost every correlation task.
+- `skew(xs)` — pandas adjusted Fisher-Pearson; `skew_pop(xs)` — scipy.stats.skew (biased);
+  `kurtosis(xs)` — scipy Fisher excess (biased); `pearson_skew(xs)` — 3·(mean−median)/std
+- `round0`/`round1`/`round2`/`round3`/`round4`; `fmin`/`fmax`
+- `count_z_out(xs, thresh)` — count of |z|>thresh using population std (scipy zscore);
+  `count_iqr_out(xs)` — count outside Q1−1.5·IQR … Q3+1.5·IQR
+- `distinct(xs)`, `count_eq(xs, v)`, `col_where(keys, vals, k)` (values where key==k —
+  for group-by), `join_with(sep, xs)` (comma-list answers)
+- `num(col)` — trim + drop blanks + `float_of_string`. Variants:
+  `num_commas` (tolerates `5,350,380` thousands separators),
+  `num_loose` (drops non-numeric cells via `string_match`, e.g. a stray header leak),
+  `num_clean` (takes the leading number before a `[` bracket, e.g. `298[110-510]`).
 
 So a typical solution is just:
 
@@ -121,6 +132,16 @@ ignores them). To add a broadly-useful helper, put it in `prelude.hz`.
     a new comment → garbage output `0  mean fare`.
   (Other characters — quotes, brackets, apostrophes — are fine inside comments;
   only `#` is special.)
+- **NEVER write a two-line comment.** Because `#` both opens AND closes, a comment like
+  `# line one\n# line two #` is parsed as: comment `# line one #` (closed by line two's
+  leading `#`), then `line two` as CODE. In `prelude.hz` this silently breaks the whole
+  `let … in` chain — every downstream `mean`/`num` then prints *unreduced* with no error.
+  Keep each comment on ONE line. (This cost a full debugging cycle.)
+- **`#` cannot appear in a column name you project.** A header like `#photo` (traj-Osak)
+  becomes label `` `#photo` ``, but `data.`#photo`` fails to parse — the `#` starts a
+  comment even inside backticks. Such columns are currently unreachable.
+- **A UTF-8 BOM on the first header** is stripped at ingestion (fixed in `src/CLI/Csv.re`),
+  so `data.`wage`` works for BOM-prefixed files (beauty, gapminder_cleaned, Current_Logan).
 - **No trailing commas.** `f(a, b, c,)` parses as a tuple with an extra empty
   slot (a hole), so the call gets the wrong arity and silently gets *stuck*
   (the result prints as an unreduced expression, not an error). Drop the comma.
@@ -176,3 +197,12 @@ only), "Feature Engineering", "Outlier Detection (IQR/Z-score)", and
 The editor parser is slow on large literals. The AST-splice `run`/`analyze` path
 avoids this (parses only the skeleton). Don't hand-inline thousands of rows or
 `expand`-then-`run`; reference the CSV with `^^csv(...)` and `run`.
+
+**Row-count ceiling (evaluator stack).** Even via AST splice, the evaluator
+recurses over list values, so very large columns overflow the stack
+(`Stack overflow`). ~900 rows (titanic) is fine; tree.csv at 9796 rows blows up.
+This is an interpreter recursion-depth limit, *not* a language-expressiveness
+limit — the program is correct, the runtime just can't fold a list that long.
+`da551-mean-dbh.hz` is kept as an example but excluded from `test.sh` for this
+reason. If a task's dataset is that large, note it as a runtime limit, not a
+"can't express it" result.

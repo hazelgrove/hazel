@@ -1,0 +1,3 @@
+# DA-Bench id 739: corr Limit vs Balance, Credit.csv #
+let data = ^^csv("Credit.csv") in
+round2(corr_cols(data.`Limit`, data.`Balance`))

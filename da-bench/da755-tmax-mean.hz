@@ -1,0 +1,3 @@
+# DA-Bench id 755: mean TMAX_F, weather_data_1864.csv #
+let data = ^^csv("weather_data_1864.csv") in
+round2(mean(num(data.`TMAX_F`)))

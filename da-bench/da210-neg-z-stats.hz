@@ -1,0 +1,7 @@
+# DA-Bench id 210: remove Z(3) outliers in neg, recompute mean/std, fb_articles... #
+let data = ^^csv("fb_articles_20180822_20180829_df.csv") in
+let v = num(data.`neg`) in
+let m = mean(v) in
+let s = pop_std(v) in
+let kept = filter(v, fun x -> abs_float((x -. m) /. s) <=. 3.0) in
+(mean_neg = round2(mean(kept)), std_dev_neg = round2(sample_std(kept)))

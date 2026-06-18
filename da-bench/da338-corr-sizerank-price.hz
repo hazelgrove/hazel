@@ -1,0 +1,5 @@
+# DA-Bench id 338: corr SizeRank vs MedianSoldPricePerSqft + type, Zip... #
+let data = ^^csv("Zip_MedianSoldPricePerSqft_AllHomes.csv") in
+let r = round3(corr_cols(data.`SizeRank`, data.`MedianSoldPricePerSqft`)) in
+let typ = if r >. 0.0 then "Positive Correlation" else if r <. 0.0 then "Negative Correlation" else "No Correlation" in
+(correlation_coefficient = r, correlation_type = typ)

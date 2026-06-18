@@ -1,0 +1,3 @@
+# DA-Bench id 473: IQR outliers in Value (none), oecd_education_spending.csv #
+let data = ^^csv("oecd_education_spending.csv") in
+count_iqr_out(num(data.`Value`))

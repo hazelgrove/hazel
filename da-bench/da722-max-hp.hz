@@ -1,0 +1,14 @@
+# DA-Bench id 722: vehicle with highest horsepower -> its model year, + same-year avg/pop-std hp #
+# auto-mpg.csv #
+let data = ^^csv("auto-mpg.csv") in
+let rows =
+  zip(data.`horsepower`, data.`modelyear`)
+  |> filter(_, fun (h, _y) -> (string_trim(h) != "") && (string_trim(h) != "?"))
+  |> map(_, fun (h, y) -> (float_of_string(string_trim(h)), string_trim(y)))
+in
+let best = fold_left(tail(rows), fun ((bh, by), (h, y)) -> if h >. bh then (h, y) else (bh, by), head(rows)) in
+let (_bh, byear) = best in
+let sameyear = rows |> filter(_, fun (_h, y) -> y == byear) |> map(_, fun (h, _y) -> h) in
+(highest_horsepower_vehicle = 1900 + int_of_float(float_of_string(byear)),
+ average_horsepower = round2(mean(sameyear)),
+ standard_deviation = round2(pop_std(sameyear)))

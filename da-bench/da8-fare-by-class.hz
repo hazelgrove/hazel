@@ -1,0 +1,9 @@
+# DA-Bench id 8: fare mean/median/std by Pclass, test_ave.csv #
+# NOTE: prompt says "population std" but the reference labels match pandas SAMPLE std #
+let data = ^^csv("test_ave.csv") in
+let pc = data.`Pclass` in
+let fare = data.`Fare` in
+let f = fun (c: String) -> num(col_where(pc, fare, c)) in
+(mean_fare_class1 = round2(mean(f("1"))), median_fare_class1 = round2(median(f("1"))), std_dev_fare_class1 = round2(sample_std(f("1"))),
+ mean_fare_class2 = round2(mean(f("2"))), median_fare_class2 = round2(median(f("2"))), std_dev_fare_class2 = round2(sample_std(f("2"))),
+ mean_fare_class3 = round2(mean(f("3"))), median_fare_class3 = round2(median(f("3"))), std_dev_fare_class3 = round2(sample_std(f("3"))))

@@ -1,0 +1,5 @@
+# DA-Bench id 75: Daily Return = pct change of Close vs previous row, microsoft.csv #
+let data = ^^csv("microsoft.csv") in
+let c = num(data.`Close`) in
+let ret = map(zip(c, tail(c)), fun (prev, cur) -> (cur -. prev) /. prev *. 100.0) in
+(daily_return_mean = round2(mean(ret)), daily_return_std = round2(sample_std(ret)))

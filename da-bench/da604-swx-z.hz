@@ -1,0 +1,7 @@
+# DA-Bench id 604: remove Z(3) outliers in SWX, count + mean/std (3dp), well_2_complete.csv #
+let data = ^^csv("well_2_complete.csv") in
+let v = num(data.`SWX`) in
+let m = mean(v) in
+let s = pop_std(v) in
+let kept = filter(v, fun x -> abs_float((x -. m) /. s) <=. 3.0) in
+(outlier_count = length(v) - length(kept), mean_after_removal = round3(mean(kept)), std_dev_after_removal = round3(sample_std(kept)))

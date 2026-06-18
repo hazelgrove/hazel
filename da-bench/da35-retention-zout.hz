@@ -1,0 +1,3 @@
+# DA-Bench id 35: count Z-score (>3) outliers in row retention time, imp.score... #
+let data = ^^csv("imp.score.ldlr.metabolome.csv") in
+count_z_out(num(data.`row retention time`), 3.0)

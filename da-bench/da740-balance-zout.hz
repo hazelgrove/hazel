@@ -1,0 +1,3 @@
+# DA-Bench id 740: count Z-score (>3) outliers in Balance, Credit.csv #
+let data = ^^csv("Credit.csv") in
+count_z_out(num(data.`Balance`), 3.0)

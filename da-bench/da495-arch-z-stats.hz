@@ -1,0 +1,7 @@
+# DA-Bench id 495: remove Z(3) outliers in Architecture, mean/std of rest, percent-bachelors... #
+let data = ^^csv("percent-bachelors-degrees-women-usa.csv") in
+let v = num(data.`Architecture`) in
+let m = mean(v) in
+let s = pop_std(v) in
+let kept = filter(v, fun x -> abs_float((x -. m) /. s) <=. 3.0) in
+(mean_without_outliers = round2(mean(kept)), std_without_outliers = round2(sample_std(kept)))

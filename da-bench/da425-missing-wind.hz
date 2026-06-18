@@ -1,0 +1,3 @@
+# DA-Bench id 425: count missing max_sust_wind, cost_data_with_errors.csv #
+let data = ^^csv("cost_data_with_errors.csv") in
+length(filter(data.`max_sust_wind`, fun s -> string_trim(s) == ""))

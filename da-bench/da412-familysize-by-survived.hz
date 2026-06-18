@@ -1,0 +1,10 @@
+# DA-Bench id 412: mean FamilySize (SibSp+Parch) by survival, titanic_train.csv #
+let data = ^^csv("titanic_train.csv") in
+let rows = zip(data.`Survived`, zip(data.`SibSp`, data.`Parch`)) in
+let fs = fun (sv: String) ->
+  rows
+  |> filter(_, fun (s, _sp) -> string_trim(s) == sv)
+  |> map(_, fun (_s, (sib, par)) -> float_of_string(string_trim(sib)) +. float_of_string(string_trim(par)))
+  |> mean
+in
+(mean_familysize_survived = round2(fs("1")), mean_familysize_did_not_survive = round2(fs("0")))

@@ -1,0 +1,6 @@
+# DA-Bench id 423: Volatility=(High-Low)/Open, corr with Volume(commas), bitconnect_price.csv #
+let data = ^^csv("bitconnect_price.csv") in
+let vol = map(zip(data.`High`, zip(data.`Low`, data.`Open`)),
+              fun (h, (l, o)) -> (float_of_string(string_trim(h)) -. float_of_string(string_trim(l))) /. float_of_string(string_trim(o))) in
+let volume = num_commas(data.`Volume`) in
+round2(pearson(vol, volume))

@@ -1,0 +1,12 @@
+# DA-Bench id 496: STEM = CS+Eng+Math+Physical, mean and range for years >= 2000 #
+# percent-bachelors-degrees-women-usa.csv #
+let data = ^^csv("percent-bachelors-degrees-women-usa.csv") in
+let rows = zip(data.`Year`, zip(data.`Computer Science`, zip(data.`Engineering`, zip(data.`Math and Statistics`, data.`Physical Sciences`)))) in
+let stem =
+  rows
+  |> filter(_, fun (y, _r) -> float_of_string(string_trim(y)) >=. 2000.0)
+  |> map(_, fun (_y, (cs, (en, (ma, ph)))) ->
+       float_of_string(string_trim(cs)) +. float_of_string(string_trim(en))
+       +. float_of_string(string_trim(ma)) +. float_of_string(string_trim(ph)))
+in
+(mean_STEM = round2(mean(stem)), range_STEM = round2(fmax(stem) -. fmin(stem)))

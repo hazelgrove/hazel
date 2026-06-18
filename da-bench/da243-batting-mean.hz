@@ -1,0 +1,3 @@
+# DA-Bench id 243: mean batting_average (drop missing), baseball_data.csv #
+let data = ^^csv("baseball_data.csv") in
+round3(mean(num(data.`batting_average`)))

@@ -1,0 +1,14 @@
+# DA-Bench id 207: object-type columns containing missing values, fb_articles... #
+let data = ^^csv("fb_articles_20180822_20180829_df.csv") in
+let miss = fun (col: [String]) -> length(filter(col, fun s -> string_trim(s) == "")) > 0 in
+let cols = [
+  ("author", miss(data.`author`)),
+  ("description", miss(data.`description`)),
+  ("publishedAt", miss(data.`publishedAt`)),
+  ("source", miss(data.`source`)),
+  ("text", miss(data.`text`)),
+  ("title", miss(data.`title`)),
+  ("url", miss(data.`url`)),
+  ("urlToImage", miss(data.`urlToImage`))
+] in
+join_with(", ", map(filter(cols, fun (_n, m) -> m), fun (n, _m) -> n))

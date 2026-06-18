@@ -1,0 +1,5 @@
+# DA-Bench id 71: mean and std Volume, microsoft.csv #
+# pandas .std() defaults to sample std (ddof=1) #
+let data = ^^csv("microsoft.csv") in
+let vol = num(data.`Volume`) in
+(mean_volume = round2(mean(vol)), std_dev_volume = round2(sample_std(vol)))

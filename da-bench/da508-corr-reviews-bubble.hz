@@ -1,0 +1,3 @@
+# DA-Bench id 508: corr review_count vs bubble_score, hotel_data.csv #
+let data = ^^csv("hotel_data.csv") in
+round3(corr_cols(data.`review_count`, data.`bubble_score`))

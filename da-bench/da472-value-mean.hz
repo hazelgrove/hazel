@@ -1,0 +1,3 @@
+# DA-Bench id 472: mean Value, oecd_education_spending.csv #
+let data = ^^csv("oecd_education_spending.csv") in
+round2(mean(num(data.`Value`)))

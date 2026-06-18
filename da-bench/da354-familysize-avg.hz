@@ -1,0 +1,3 @@
+# DA-Bench id 354: FamilySize = IsAlone + 2, average, test_x.csv #
+let data = ^^csv("test_x.csv") in
+round1(mean(map(num(data.`IsAlone`), fun x -> x +. 2.0)))

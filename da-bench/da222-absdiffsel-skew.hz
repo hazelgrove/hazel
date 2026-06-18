@@ -1,0 +1,3 @@
+# DA-Bench id 222: skewness abs_diffsel via scipy.stats.skew (biased), ferret #
+let data = ^^csv("ferret-Pitt-2-preinf-lib2-100_sitediffsel.csv") in
+(skewness_value = round2(skew_pop(num(data.`abs_diffsel`))))

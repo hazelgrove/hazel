@@ -1,0 +1,3 @@
+# DA-Bench id 55: mean No. of cases (messy object column), estimated_numbers.csv #
+let data = ^^csv("estimated_numbers.csv") in
+round0(mean(num_clean(data.`No. of cases`)))

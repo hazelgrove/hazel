@@ -1,0 +1,12 @@
+# DA-Bench id 28: preprocess insurance, report mean of each column after encode/normalize #
+# sex/smoker -> binary; age/bmi/children/charges -> min-max normalized; insurance.csv #
+let data = ^^csv("insurance.csv") in
+let mm = fun (col: [String]) -> let v = num(col) in (mean(v) -. fmin(v)) /. (fmax(v) -. fmin(v)) in
+let frac = fun (col: [String], yes: String) -> float_of_int(count_eq(map(col, string_trim), yes)) /. float_of_int(length(col)) in
+let r4 = fun (x: Float) -> round4(x) in
+(mean_sex = r4(frac(data.`sex`, "male")),
+ mean_smoker = r4(frac(data.`smoker`, "yes")),
+ mean_age = r4(mm(data.`age`)),
+ mean_bmi = r4(mm(data.`bmi`)),
+ mean_children = r4(mm(data.`children`)),
+ mean_charges = r4(mm(data.`charges`)))

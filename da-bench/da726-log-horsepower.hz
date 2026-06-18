@@ -1,0 +1,8 @@
+# DA-Bench id 726: natural-log of horsepower (missing imputed with mean) mean/std, auto-mpg.csv #
+let data = ^^csv("auto-mpg.csv") in
+let raw = data.`horsepower` in
+let present = num(filter(raw, fun s -> string_trim(s) != "?")) in
+let hpmean = mean(present) in
+let filled = map(raw, fun s -> if (string_trim(s) == "?") || (string_trim(s) == "") then hpmean else float_of_string(string_trim(s))) in
+let lg = map(filled, fun x -> log(x)) in
+(mean_transformed_horsepower = round2(mean(lg)), stddev_transformed_horsepower = round2(sample_std(lg)))

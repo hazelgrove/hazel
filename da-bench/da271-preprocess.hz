@@ -1,0 +1,8 @@
+# DA-Bench id 271: 3901.csv preprocessing graded values #
+# clean_entries 1153 (no dup rows), log10(first MEANJZH+1e-10) -2.543, minmax first TOTUSJZ 0.107 #
+let data = ^^csv("3901.csv") in
+let meanjzh = num(data.`MEANJZH`) in
+let totusjz = num(data.`TOTUSJZ`) in
+(clean_entries = length(data),
+ log_MEANJZH = round3(log(nth(meanjzh, 0) +. 0.0000000001) /. log(10.0)),
+ norm_TOTUSJZ = round3((nth(totusjz, 0) -. fmin(totusjz)) /. (fmax(totusjz) -. fmin(totusjz))))

@@ -1,0 +1,4 @@
+# DA-Bench id 586: total abandoned calls (sum), 20170413_..._group_statistics.csv #
+# header has a trailing space, trimmed by the label sanitizer -> `num. calls abandoned` #
+let data = ^^csv("20170413_000000_group_statistics.csv") in
+round0(sum(num(data.`num. calls abandoned`)))

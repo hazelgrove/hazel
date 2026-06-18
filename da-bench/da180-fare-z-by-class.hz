@@ -1,0 +1,7 @@
+# DA-Bench id 180: count Z outliers (>3) in fare per class, titanic.csv #
+let data = ^^csv("titanic.csv") in
+let pc = data.`Pclass` in
+let fare = data.`Fare` in
+(class1_outliers = count_z_out(num(col_where(pc, fare, "1")), 3.0),
+ class2_outliers = count_z_out(num(col_where(pc, fare, "2")), 3.0),
+ class3_outliers = count_z_out(num(col_where(pc, fare, "3")), 3.0))

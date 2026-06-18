@@ -1,0 +1,4 @@
+# DA-Bench id 216: mean and std abs_diffsel, ferret site diffsel #
+let data = ^^csv("ferret-Pitt-2-preinf-lib2-100_sitediffsel.csv") in
+let v = num(data.`abs_diffsel`) in
+(mean = round2(mean(v)), std_dev = round2(sample_std(v)))

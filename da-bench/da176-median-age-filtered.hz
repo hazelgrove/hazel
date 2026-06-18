@@ -1,0 +1,13 @@
+# DA-Bench id 176: median age of male survivors with fare > avg fare, titanic.csv #
+let data = ^^csv("titanic.csv") in
+let avgfare = mean(num(data.`Fare`)) in
+let rows = zip(data.`Sex`, zip(data.`Survived`, zip(data.`Fare`, data.`Age`))) in
+let ages =
+  rows
+  |> filter(_, fun (sx, (sv, (fr, ag))) ->
+       (string_trim(sx) == "male") && (string_trim(sv) == "1")
+       && (string_trim(fr) != "") && (float_of_string(string_trim(fr)) >. avgfare)
+       && (string_trim(ag) != ""))
+  |> map(_, fun (_sx, (_sv, (_fr, ag))) -> float_of_string(string_trim(ag)))
+in
+round2(median(ages))

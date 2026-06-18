@@ -1,0 +1,9 @@
+# DA-Bench id 514: cities whose avg review_count is > 2x or < 0.5x the overall avg, hotel_data.csv #
+let data = ^^csv("hotel_data.csv") in
+let cities = map(data.`city_name`, string_trim) in
+let rc = data.`review_count` in
+let overall = mean(num(rc)) in
+let uniq = distinct(cities) in
+let cityavg = map(uniq, fun c -> mean(num(col_where(cities, rc, c)))) in
+(higher_city_count = length(filter(cityavg, fun a -> a >. 2.0 *. overall)),
+ lower_city_count = length(filter(cityavg, fun a -> a <. 0.5 *. overall)))

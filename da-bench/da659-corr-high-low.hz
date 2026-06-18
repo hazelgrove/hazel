@@ -1,0 +1,3 @@
+# DA-Bench id 659: corr High vs Low, YAHOO-BTC_USD_D.csv #
+let data = ^^csv("YAHOO-BTC_USD_D.csv") in
+round2(corr_cols(data.`High`, data.`Low`))

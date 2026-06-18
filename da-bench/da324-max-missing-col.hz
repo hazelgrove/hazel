@@ -1,0 +1,13 @@
+# DA-Bench id 324: column with most missing among 5, 0020200722.csv #
+let data = ^^csv("0020200722.csv") in
+let miss = fun (col: [String]) -> length(filter(col, fun s -> string_trim(s) == "")) in
+let cols = [
+  ("HOMEDESCRIPTION", miss(data.`HOMEDESCRIPTION`)),
+  ("NEUTRALDESCRIPTION", miss(data.`NEUTRALDESCRIPTION`)),
+  ("VISITORDESCRIPTION", miss(data.`VISITORDESCRIPTION`)),
+  ("SCORE", miss(data.`SCORE`)),
+  ("SCOREMARGIN", miss(data.`SCOREMARGIN`))
+] in
+let best = fold_left(tail(cols), fun ((bn, bc), (n, c)) -> if c > bc then (n, c) else (bn, bc), head(cols)) in
+let (name, _c) = best in
+name

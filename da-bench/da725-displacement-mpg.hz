@@ -1,0 +1,9 @@
+# DA-Bench id 725: mean/median mpg for the most-frequent displacement value, auto-mpg.csv #
+let data = ^^csv("auto-mpg.csv") in
+let disp = map(data.`displacement`, string_trim) in
+let vals = distinct(disp) in
+let counts = map(vals, fun v -> (v, count_eq(disp, v))) in
+let top = fold_left(tail(counts), fun ((bn, bc), (n, c)) -> if c > bc then (n, c) else (bn, bc), head(counts)) in
+let (topdisp, _c) = top in
+let mpg = map(filter(zip(disp, data.`mpg`), fun (d, _m) -> d == topdisp), fun (_d, m) -> float_of_string(string_trim(m))) in
+(mean1 = round2(mean(mpg)), median1 = round2(median(mpg)))

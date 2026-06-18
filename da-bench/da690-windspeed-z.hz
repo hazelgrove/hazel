@@ -1,0 +1,7 @@
+# DA-Bench id 690: Z outliers in wind_speed (none) + mean/std, ravenna_250715.csv #
+let data = ^^csv("ravenna_250715.csv") in
+let v = num(data.`wind_speed`) in
+let m = mean(v) in
+let s = pop_std(v) in
+let kept = filter(v, fun x -> abs_float((x -. m) /. s) <=. 3.0) in
+(number_of_outliers = length(v) - length(kept), mean_wind_speed = round2(mean(kept)), std_deviation_wind_speed = round2(sample_std(kept)))

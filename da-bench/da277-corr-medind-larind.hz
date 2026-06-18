@@ -1,0 +1,3 @@
+# DA-Bench id 277: corr MedInd vs LarInd, veracruz 2016.csv #
+let data = ^^csv("veracruz 2016.csv") in
+round4(corr_cols(data.`MedInd`, data.`LarInd`))

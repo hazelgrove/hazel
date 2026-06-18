@@ -1,0 +1,12 @@
+# DA-Bench id 310: strongest correlation among age,fare,SibSp,Parch pairs, titanic.csv #
+let data = ^^csv("titanic.csv") in
+let pairs = [
+  corr_cols(data.`Age`, data.`Fare`),
+  corr_cols(data.`Age`, data.`SibSp`),
+  corr_cols(data.`Age`, data.`Parch`),
+  corr_cols(data.`Fare`, data.`SibSp`),
+  corr_cols(data.`Fare`, data.`Parch`),
+  corr_cols(data.`SibSp`, data.`Parch`)
+] in
+let best = fold_left(tail(pairs), fun (b, r) -> if abs_float(r) >. abs_float(b) then r else b, head(pairs)) in
+(strongest_correlation_coefficient = round2(best))

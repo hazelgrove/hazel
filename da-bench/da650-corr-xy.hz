@@ -1,0 +1,3 @@
+# DA-Bench id 650: corr X vs Y, DES=+2006261.csv #
+let data = ^^csv("DES=+2006261.csv") in
+round3(corr_cols(data.`X`, data.`Y`))

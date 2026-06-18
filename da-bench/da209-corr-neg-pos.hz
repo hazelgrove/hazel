@@ -1,0 +1,3 @@
+# DA-Bench id 209: corr neg vs pos, fb_articles... #
+let data = ^^csv("fb_articles_20180822_20180829_df.csv") in
+round2(corr_cols(data.`neg`, data.`pos`))

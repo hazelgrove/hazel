@@ -1,0 +1,6 @@
+# DA-Bench id 247: avg runs by free-agency eligibility, baseball_data.csv #
+let data = ^^csv("baseball_data.csv") in
+let fa = data.`indicator_of_free_agency_eligibility` in
+let runs = data.`number_of_runs` in
+(average_runs_by_eligible_for_free_agency = round2(mean(num(col_where(fa, runs, "1.0")))),
+ average_runs_by_not_eligible_for_free_agency = round2(mean(num(col_where(fa, runs, "0.0")))))

@@ -1,0 +1,9 @@
+# DA-Bench id 411: IQR outliers in fare, titanic_train.csv #
+let data = ^^csv("titanic_train.csv") in
+let v = num(data.`Fare`) in
+let s = sort(cmp, v) in
+let q1 = quantile(s, 0.25) in
+let q3 = quantile(s, 0.75) in
+let iqr = q3 -. q1 in
+let outs = filter(v, fun x -> (x <. q1 -. 1.5 *. iqr) || (x >. q3 +. 1.5 *. iqr)) in
+(outlier_count = length(outs), outlier_range_high = round2(fmax(outs)))

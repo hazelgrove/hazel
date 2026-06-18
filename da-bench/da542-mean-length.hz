@@ -1,0 +1,3 @@
+# DA-Bench id 542: mean Length, abalone.csv #
+let data = ^^csv("abalone.csv") in
+round2(mean(num(data.`Length`)))

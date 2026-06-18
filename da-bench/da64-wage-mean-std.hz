@@ -1,0 +1,4 @@
+# DA-Bench id 64: mean and std wage, beauty and the labor market.csv #
+let data = ^^csv("beauty and the labor market.csv") in
+let v = num(data.`wage`) in
+(mean_wage = round2(mean(v)), std_wage = round2(sample_std(v)))

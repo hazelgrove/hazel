@@ -1,0 +1,9 @@
+# DA-Bench id 69: corr(exper*looks, wage), beauty and the labor market.csv #
+let data = ^^csv("beauty and the labor market.csv") in
+let rows =
+  zip(data.`exper`, zip(data.`looks`, data.`wage`))
+  |> filter(_, fun (e, (l, w)) -> (string_trim(e) != "") && (string_trim(l) != "") && (string_trim(w) != ""))
+in
+let es = map(rows, fun (e, (l, _w)) -> float_of_string(string_trim(e)) *. float_of_string(string_trim(l))) in
+let wage = map(rows, fun (_e, (_l, w)) -> float_of_string(string_trim(w))) in
+round3(pearson(es, wage))

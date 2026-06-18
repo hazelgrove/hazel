@@ -1,0 +1,4 @@
+# DA-Bench id 657: mean/median/std Close, YAHOO-BTC_USD_D.csv #
+let data = ^^csv("YAHOO-BTC_USD_D.csv") in
+let v = num(data.`Close`) in
+(mean_close = round2(mean(v)), median_close = round2(median(v)), std_close = round2(sample_std(v)))

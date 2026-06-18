@@ -1,0 +1,10 @@
+# DA-Bench id 214: corr of neg/neu/pos vs text non-space length for ABC News, fb_articles... #
+let data = ^^csv("fb_articles_20180822_20180829_df.csv") in
+let nonspace = fun (s: String) -> string_length(join_with("", string_split(" ", s))) in
+let rows = zip(data.`source`, zip(data.`text`, zip(data.`neg`, zip(data.`neu`, data.`pos`)))) in
+let abc = filter(rows, fun (src, _r) -> string_trim(src) == "abc-news") in
+let len = map(abc, fun (_s, (t, _r)) -> float_of_int(nonspace(t))) in
+let neg = map(abc, fun (_s, (_t, (ng, _r))) -> float_of_string(string_trim(ng))) in
+let neu = map(abc, fun (_s, (_t, (_ng, (nu, _p)))) -> float_of_string(string_trim(nu))) in
+let pos = map(abc, fun (_s, (_t, (_ng, (_nu, p)))) -> float_of_string(string_trim(p))) in
+(neg_length_corr = round2(pearson(neg, len)), neu_length_corr = round2(pearson(neu, len)), pos_length_corr = round2(pearson(pos, len)))

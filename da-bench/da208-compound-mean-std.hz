@@ -1,0 +1,4 @@
+# DA-Bench id 208: mean and std compound, fb_articles... #
+let data = ^^csv("fb_articles_20180822_20180829_df.csv") in
+let v = num(data.`compound`) in
+(compound_mean = round3(mean(v)), compound_std = round3(sample_std(v)))

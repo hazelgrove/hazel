@@ -1,0 +1,6 @@
+# DA-Bench id 376: Trips per Membership = trips / memberships, median + trips/day mean, 2014_q4.csv #
+let data = ^^csv("2014_q4.csv") in
+let trips = num(data.`Trips over the past 24-hours (midnight to 11:59pm)`) in
+let tpm = map(zip(data.`Trips over the past 24-hours (midnight to 11:59pm)`, data.`Total Annual Memberships Sold`),
+              fun (t, m) -> let mm = float_of_string(string_trim(m)) in if mm == 0.0 then 0.0 else float_of_string(string_trim(t)) /. mm) in
+(trips_per_membership_mean = round2(mean(tpm)), trips_per_membership_median = round2(median(tpm)), trips_per_day_mean = round2(mean(trips)))

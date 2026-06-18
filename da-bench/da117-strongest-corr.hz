@@ -1,0 +1,17 @@
+# DA-Bench id 117: variable most correlated with Happiness Score + sign, 2015.csv #
+let data = ^^csv("2015.csv") in
+let hs = data.`Happiness Score` in
+let vars = [
+  ("Happiness Rank", corr_cols(hs, data.`Happiness Rank`)),
+  ("Standard Error", corr_cols(hs, data.`Standard Error`)),
+  ("Economy (GDP per Capita)", corr_cols(hs, data.`Economy (GDP per Capita)`)),
+  ("Family", corr_cols(hs, data.`Family`)),
+  ("Health (Life Expectancy)", corr_cols(hs, data.`Health (Life Expectancy)`)),
+  ("Freedom", corr_cols(hs, data.`Freedom`)),
+  ("Trust (Government Corruption)", corr_cols(hs, data.`Trust (Government Corruption)`)),
+  ("Generosity", corr_cols(hs, data.`Generosity`)),
+  ("Dystopia Residual", corr_cols(hs, data.`Dystopia Residual`))
+] in
+let best = fold_left(tail(vars), fun ((bn, br), (n, r)) -> if abs_float(r) >. abs_float(br) then (n, r) else (bn, br), head(vars)) in
+let (name, r) = best in
+(strongest_correlation_variable = name, correlation_type = if r >. 0.0 then "positive" else "negative")

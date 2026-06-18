@@ -1,0 +1,6 @@
+# DA-Bench id 250: (batting_average - on_base_percentage) mean/std, baseball_data.csv #
+let data = ^^csv("baseball_data.csv") in
+let d = zip(data.`batting_average`, data.`on_base_percentage`)
+  |> filter(_, fun (a, b) -> (string_trim(a) != "") && (string_trim(b) != ""))
+  |> map(_, fun (a, b) -> float_of_string(string_trim(a)) -. float_of_string(string_trim(b))) in
+(mean = round2(mean(d)), std_dev = round2(sample_std(d)))

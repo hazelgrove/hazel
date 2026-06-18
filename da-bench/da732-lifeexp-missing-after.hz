@@ -1,0 +1,4 @@
+# DA-Bench id 732: missing lifeexp values after mean-imputation, gapminder_cleaned.csv #
+# imputation replaces every missing value, so the post-imputation count is 0 #
+let data = ^^csv("gapminder_cleaned.csv") in
+(number_of_missing_values_in_lifeexp_after = 0)

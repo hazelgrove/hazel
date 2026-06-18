@@ -1,0 +1,6 @@
+# DA-Bench id 518: entries left after removing fare with Z>3, titanic.csv #
+let data = ^^csv("titanic.csv") in
+let v = num(data.`Fare`) in
+let m = mean(v) in
+let s = pop_std(v) in
+length(filter(v, fun x -> (x -. m) /. s <=. 3.0))

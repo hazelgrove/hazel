@@ -1,0 +1,9 @@
+# DA-Bench id 351: Pearson corr Age vs Fare (pairwise drop NA), test_x.csv #
+let data = ^^csv("test_x.csv") in
+let pairs =
+  zip(data.`Age`, data.`Fare`)
+  |> filter(_, fun (a, f) -> (string_trim(a) != "") && (string_trim(f) != ""))
+in
+let ages = map(pairs, fun (a, _f) -> float_of_string(string_trim(a))) in
+let fares = map(pairs, fun (_a, f) -> float_of_string(string_trim(f))) in
+round2(pearson(ages, fares))

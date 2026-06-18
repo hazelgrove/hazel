@@ -1,0 +1,13 @@
+# DA-Bench id 593: waiting_ratio = wait/abandonment*100 (HH:MM:SS), skew, is_normal, group_statistics.csv #
+let data = ^^csv("20170413_000000_group_statistics.csv") in
+let hms = fun (s: String) ->
+  let p = string_split(":", string_trim(s)) in
+  float_of_string(nth(p, 0)) *. 3600.0 +. float_of_string(nth(p, 1)) *. 60.0 +. float_of_string(nth(p, 2))
+in
+let ratio =
+  zip(data.`avg. wait time`, data.`avg. abandonment time`)
+  |> filter(_, fun (w, a) -> (string_trim(w) != "") && (string_trim(a) != "") && (hms(a) >. 0.0))
+  |> map(_, fun (w, a) -> hms(w) /. hms(a) *. 100.0)
+in
+let sk = round2(skew(ratio)) in
+(waiting_ratio_skewness = sk, is_normal = if abs_float(sk) <. 0.5 then true else false)

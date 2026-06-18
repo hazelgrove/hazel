@@ -1,0 +1,13 @@
+# DA-Bench id 59: Americas country with highest avg No. of cases, estimated_numbers.csv #
+let data = ^^csv("estimated_numbers.csv") in
+let rows =
+  zip(data.`WHO Region`, zip(data.`Country`, data.`No. of cases`))
+  |> filter(_, fun (r, (_c, v)) -> (string_trim(r) == "Americas") && (string_trim(v) != ""))
+  |> map(_, fun (_r, (c, v)) -> (string_trim(c), clean_num1(v)))
+in
+let countries = distinct(map(rows, fun (c, _v) -> c)) in
+let avg = fun (k: String) -> mean(map(filter(rows, fun (c, _v) -> c == k), fun (_c, v) -> v)) in
+let stats = map(countries, fun c -> (c, avg(c))) in
+let best = fold_left(tail(stats), fun ((bn, bv), (n, v)) -> if v >. bv then (n, v) else (bn, bv), head(stats)) in
+let (name, _v) = best in
+name

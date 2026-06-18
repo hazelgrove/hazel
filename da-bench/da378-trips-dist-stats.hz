@@ -1,0 +1,7 @@
+# DA-Bench id 378: distribution of Trips-24h (imputation of other cols doesn't change it), 2014_q4.csv #
+let data = ^^csv("2014_q4.csv") in
+let v = num(data.`Trips over the past 24-hours (midnight to 11:59pm)`) in
+(pre_mean = round2(mean(v)), pre_median = round2(median(v)), pre_sd = round2(sample_std(v)),
+ pre_skewness = round2(skew_pop(v)), pre_kurtosis = round2(kurtosis(v)),
+ post_mean = round2(mean(v)), post_sd = round2(sample_std(v)),
+ post_skewness = round2(skew_pop(v)), post_kurtosis = round2(kurtosis(v)))

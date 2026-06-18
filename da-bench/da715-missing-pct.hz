@@ -1,0 +1,4 @@
+# DA-Bench id 715: percentage missing in Unnamed: 8 column (empty header -> col8), Current_Logan.csv #
+let data = ^^csv("Current_Logan.csv") in
+let col = data.`col8` in
+round2(100.0 *. float_of_int(length(filter(col, fun s -> string_trim(s) == ""))) /. float_of_int(length(col)))

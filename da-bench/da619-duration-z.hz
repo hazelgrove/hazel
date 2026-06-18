@@ -1,0 +1,7 @@
+# DA-Bench id 619: remove Z(2.5) outliers in trajectory duration, mean/std, traj-Osak.csv #
+let data = ^^csv("traj-Osak.csv") in
+let v = num(data.`poiDuration`) in
+let m = mean(v) in
+let s = pop_std(v) in
+let kept = filter(v, fun x -> abs_float((x -. m) /. s) <=. 2.5) in
+(mean_new = round2(mean(kept)), std_dev_new = round2(sample_std(kept)))

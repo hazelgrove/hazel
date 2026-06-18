@@ -1,0 +1,3 @@
+# DA-Bench id 349: mean Age, test_x.csv #
+let data = ^^csv("test_x.csv") in
+round2(mean(num(data.`Age`)))

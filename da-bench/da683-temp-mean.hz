@@ -1,0 +1,3 @@
+# DA-Bench id 683: mean temp, ravenna_250715.csv #
+let data = ^^csv("ravenna_250715.csv") in
+round2(mean(num(data.`temp`)))

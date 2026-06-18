@@ -1,0 +1,3 @@
+# DA-Bench id 516: skewness of fare (Pearson moment coefficient = pandas adjusted), titanic.csv #
+let data = ^^csv("titanic.csv") in
+(skewness_fare = round2(skew(num(data.`Fare`))))

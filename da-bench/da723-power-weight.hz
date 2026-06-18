@@ -1,0 +1,6 @@
+# DA-Bench id 723: power-to-weight = horsepower/weight, mean/std (population), auto-mpg.csv #
+let data = ^^csv("auto-mpg.csv") in
+let r = zip(data.`horsepower`, data.`weight`)
+  |> filter(_, fun (h, _w) -> (string_trim(h) != "") && (string_trim(h) != "?"))
+  |> map(_, fun (h, w) -> float_of_string(string_trim(h)) /. float_of_string(string_trim(w))) in
+(mean_ratio = round2(mean(r)), std_ratio = round2(pop_std(r)))

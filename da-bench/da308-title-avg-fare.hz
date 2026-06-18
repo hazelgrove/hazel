@@ -1,0 +1,11 @@
+# DA-Bench id 308: avg fare by extracted Name title, titanic.csv #
+let data = ^^csv("titanic.csv") in
+let title = fun (name: String) -> nth(string_split(" ", string_trim(nth(string_split(",", name), 1))), 0) in
+let rows = map(zip(data.`Name`, data.`Fare`), fun (n, f) -> (title(n), float_of_string(string_trim(f)))) in
+let avg = fun (t: String) ->
+  rows |> filter(_, fun (tt, _f) -> tt == t) |> map(_, fun (_t, f) -> f) |> mean
+in
+(average_fare_Mr = round2(avg("Mr.")),
+ average_fare_Mrs = round2(avg("Mrs.")),
+ average_fare_Miss = round2(avg("Miss.")),
+ average_fare_Master = round2(avg("Master.")))

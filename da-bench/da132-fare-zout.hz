@@ -1,0 +1,3 @@
+# DA-Bench id 132: count Z-score (>3) outliers in fare, titanic.csv #
+let data = ^^csv("titanic.csv") in
+count_z_out(num(data.`Fare`), 3.0)

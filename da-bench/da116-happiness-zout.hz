@@ -1,0 +1,3 @@
+# DA-Bench id 116: Z-score (>3, pop std) outlier countries in happiness (none), 2015.csv #
+let data = ^^csv("2015.csv") in
+count_z_out(num(data.`Happiness Score`), 3.0)

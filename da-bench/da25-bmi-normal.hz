@@ -1,0 +1,4 @@
+# DA-Bench id 25: is BMI normal (|skew|<0.5)? insurance.csv #
+let data = ^^csv("insurance.csv") in
+let sk = skew(num(data.`bmi`)) in
+if abs_float(sk) <. 0.5 then "normal" else "not_normal"

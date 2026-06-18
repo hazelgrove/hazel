@@ -1,0 +1,15 @@
+# DA-Bench id 527: avg age by sex and class, titanic_test.csv #
+let data = ^^csv("titanic_test.csv") in
+let rows = zip(data.`Sex`, zip(data.`Pclass`, data.`Age`)) in
+let avg = fun (sx: String, cl: String) ->
+  rows
+  |> filter(_, fun (s, (c, a)) -> (string_trim(s) == sx) && (string_trim(c) == cl) && (string_trim(a) != ""))
+  |> map(_, fun (_s, (_c, a)) -> float_of_string(string_trim(a)))
+  |> mean
+in
+(average_age_male_class1 = round2(avg("male", "1")),
+ average_age_male_class2 = round2(avg("male", "2")),
+ average_age_male_class3 = round2(avg("male", "3")),
+ average_age_female_class1 = round2(avg("female", "1")),
+ average_age_female_class2 = round2(avg("female", "2")),
+ average_age_female_class3 = round2(avg("female", "3")))

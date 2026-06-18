@@ -1,0 +1,4 @@
+# DA-Bench id 19: is Mar.2020 normal (skew in [-0.5,0.5])? unemployement_industry.csv #
+let data = ^^csv("unemployement_industry.csv") in
+let sk = skew(num(data.`Mar.2020`)) in
+if (sk >. (0. -. 0.5)) && (sk <. 0.5) then "Yes" else "No"

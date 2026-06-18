@@ -1,0 +1,8 @@
+# DA-Bench id 588: count Z-score (>3) outliers in avg wait time (seconds), group_statistics.csv #
+let data = ^^csv("20170413_000000_group_statistics.csv") in
+let hms = fun (s: String) ->
+  let p = string_split(":", string_trim(s)) in
+  float_of_string(nth(p, 0)) *. 3600.0 +. float_of_string(nth(p, 1)) *. 60.0 +. float_of_string(nth(p, 2))
+in
+let waits = data.`avg. wait time` |> filter(_, fun s -> string_trim(s) != "") |> map(_, hms) in
+count_z_out(waits, 3.0)

@@ -1,0 +1,6 @@
+# DA-Bench id 520: corr(FamilySize=SibSp+Parch, Survived), titanic.csv #
+let data = ^^csv("titanic.csv") in
+let fs = map(zip(data.`SibSp`, data.`Parch`),
+             fun (a, b) -> float_of_string(string_trim(a)) +. float_of_string(string_trim(b))) in
+let sv = num(data.`Survived`) in
+round2(pearson(fs, sv))

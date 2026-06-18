@@ -1,0 +1,4 @@
+# DA-Bench id 666: mean and std MedianHouseValue, my_test_01.csv #
+let data = ^^csv("my_test_01.csv") in
+let v = num(data.`MedianHouseValue`) in
+(mean_value = round4(mean(v)), std_dev = round4(sample_std(v)))

@@ -1,0 +1,12 @@
+# DA-Bench id 179: corr age vs fare for survived first-class, titanic.csv #
+let data = ^^csv("titanic.csv") in
+let rows = zip(data.`Survived`, zip(data.`Pclass`, zip(data.`Age`, data.`Fare`))) in
+let kept =
+  rows
+  |> filter(_, fun (sv, (pc, (ag, fr))) ->
+       (string_trim(sv) == "1") && (string_trim(pc) == "1")
+       && (string_trim(ag) != "") && (string_trim(fr) != ""))
+in
+let ages = map(kept, fun (_sv, (_pc, (ag, _fr))) -> float_of_string(string_trim(ag))) in
+let fares = map(kept, fun (_sv, (_pc, (_ag, fr))) -> float_of_string(string_trim(fr))) in
+round3(pearson(ages, fares))

@@ -1,0 +1,11 @@
+# DA-Bench id 426: max sustained wind of the storm with the highest max_storm_cat, cost_data_with_errors.csv #
+# first storm if tie on category #
+let data = ^^csv("cost_data_with_errors.csv") in
+let rows =
+  zip(data.`max_storm_cat`, data.`max_sust_wind`)
+  |> filter(_, fun (c, w) -> (string_trim(c) != "") && (string_trim(w) != ""))
+  |> map(_, fun (c, w) -> (float_of_string(string_trim(c)), float_of_string(string_trim(w))))
+in
+let best = fold_left(tail(rows), fun ((bc, bw), (c, w)) -> if c >. bc then (c, w) else (bc, bw), head(rows)) in
+let (_c, wind) = best in
+(max_wind_speed = round2(wind))

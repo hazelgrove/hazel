@@ -1,0 +1,3 @@
+# DA-Bench id 578: mean Volume, e5_aapl.csv #
+let data = ^^csv("e5_aapl.csv") in
+round2(mean(num(data.`Volume`)))

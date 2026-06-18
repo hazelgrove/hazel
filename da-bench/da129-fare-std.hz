@@ -1,0 +1,3 @@
+# DA-Bench id 129: population std of Fare, titanic.csv #
+let data = ^^csv("titanic.csv") in
+(std_dev_fare = round2(pop_std(num(data.`Fare`))))

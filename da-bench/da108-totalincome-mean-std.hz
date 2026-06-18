@@ -1,0 +1,5 @@
+# DA-Bench id 108: TotalIncome=ApplicantIncome+CoapplicantIncome mean/std, test_Y... #
+let data = ^^csv("test_Y3wMUE5_7gLdaTN.csv") in
+let ti = map(zip(data.`ApplicantIncome`, data.`CoapplicantIncome`),
+             fun (a, c) -> float_of_string(string_trim(a)) +. float_of_string(string_trim(c))) in
+(mean_total_income = round2(mean(ti)), std_dev_total_income = round2(sample_std(ti)))

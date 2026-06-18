@@ -1,0 +1,3 @@
+# DA-Bench id 105: corr ApplicantIncome vs LoanAmount, test_Y3wMUE5_7gLdaTN.csv #
+let data = ^^csv("test_Y3wMUE5_7gLdaTN.csv") in
+round2(corr_cols(data.`ApplicantIncome`, data.`LoanAmount`))

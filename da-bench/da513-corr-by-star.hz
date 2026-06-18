@@ -1,0 +1,11 @@
+# DA-Bench id 513: corr(review_count, bubble_score) by star-rating band, hotel_data.csv #
+let data = ^^csv("hotel_data.csv") in
+let rows = zip(data.`star_rating`, zip(data.`review_count`, data.`bubble_score`)) in
+let corr_band = fun (lo: Float, hi: Float) ->
+  let sel = filter(rows, fun (sr, (r, b)) -> let v = string_trim(sr) in (v != "") && (string_trim(r) != "") && (string_trim(b) != "") && (float_of_string(v) >=. lo) && (float_of_string(v) <. hi)) in
+  pearson(map(sel, fun (_s, (r, _b)) -> float_of_string(string_trim(r))),
+          map(sel, fun (_s, (_r, b)) -> float_of_string(string_trim(b))))
+in
+(below3_correlation = round2(corr_band(0.0, 3.0)),
+ between3and4_correlation = round2(corr_band(3.0, 4.5)),
+ above4_correlation = round2(corr_band(4.5, 100.0)))

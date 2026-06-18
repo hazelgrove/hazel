@@ -1,0 +1,3 @@
+# DA-Bench id 446: mean WINDSPEED, baro_2015.csv #
+let data = ^^csv("baro_2015.csv") in
+round3(mean(num(data.`WINDSPEED`)))

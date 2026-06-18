@@ -1,0 +1,3 @@
+# DA-Bench id 517: corr Pclass vs Fare, titanic.csv #
+let data = ^^csv("titanic.csv") in
+(correlation_pclass_fare = round2(corr_cols(data.`Pclass`, data.`Fare`)))

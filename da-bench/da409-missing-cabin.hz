@@ -1,0 +1,3 @@
+# DA-Bench id 409: count missing Cabin values, titanic_train.csv #
+let data = ^^csv("titanic_train.csv") in
+length(filter(data.`Cabin`, fun s -> string_trim(s) == ""))

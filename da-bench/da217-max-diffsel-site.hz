@@ -1,0 +1,16 @@
+# DA-Bench id 217: site with highest positive_diffsel, ferret site diffsel #
+let data = ^^csv("ferret-Pitt-2-preinf-lib2-100_sitediffsel.csv") in
+let rows =
+  zip(data.`positive_diffsel`, data.`site`)
+  |> filter(_, fun (v, _s) -> string_trim(v) != "")
+  |> map(_, fun (v, s) -> (float_of_string(string_trim(v)), string_trim(s)))
+in
+let best =
+  fold_left(
+    tail(rows),
+    fun ((bv, bs), (v, s)) -> if v >. bv then (v, s) else (bv, bs),
+    head(rows)
+  )
+in
+let (_v, site) = best in
+site

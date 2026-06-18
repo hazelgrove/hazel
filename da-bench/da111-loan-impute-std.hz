@@ -1,0 +1,6 @@
+# DA-Bench id 111: fill missing LoanAmount with median, then std, test_Y... #
+let data = ^^csv("test_Y3wMUE5_7gLdaTN.csv") in
+let raw = data.`LoanAmount` in
+let med = median(num(raw)) in
+let filled = map(raw, fun s -> if string_trim(s) == "" then med else float_of_string(string_trim(s))) in
+(std_dev_loan = round2(sample_std(filled)))

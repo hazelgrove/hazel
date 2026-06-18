@@ -1,0 +1,25 @@
+# DA-Bench id 492: field with highest pct in 2010 (last row), percent-bachelors... #
+let data = ^^csv("percent-bachelors-degrees-women-usa.csv") in
+let last = fun (col: [String]) -> let v = num(col) in nth(v, length(v) - 1) in
+let fields = [
+  ("Agriculture", last(data.`Agriculture`)),
+  ("Architecture", last(data.`Architecture`)),
+  ("Art and Performance", last(data.`Art and Performance`)),
+  ("Biology", last(data.`Biology`)),
+  ("Business", last(data.`Business`)),
+  ("Communications and Journalism", last(data.`Communications and Journalism`)),
+  ("Computer Science", last(data.`Computer Science`)),
+  ("Education", last(data.`Education`)),
+  ("Engineering", last(data.`Engineering`)),
+  ("English", last(data.`English`)),
+  ("Foreign Languages", last(data.`Foreign Languages`)),
+  ("Health Professions", last(data.`Health Professions`)),
+  ("Math and Statistics", last(data.`Math and Statistics`)),
+  ("Physical Sciences", last(data.`Physical Sciences`)),
+  ("Psychology", last(data.`Psychology`)),
+  ("Public Administration", last(data.`Public Administration`)),
+  ("Social Sciences and History", last(data.`Social Sciences and History`))
+] in
+let best = fold_left(tail(fields), fun ((bn, bv), (n, v)) -> if v >. bv then (n, v) else (bn, bv), head(fields)) in
+let (name, _v) = best in
+name

@@ -1,0 +1,4 @@
+# DA-Bench id 733: log10(gdppercap) mean/std + has_nan, gapminder_cleaned.csv #
+let data = ^^csv("gapminder_cleaned.csv") in
+let lg = map(num(data.`gdppercap`), fun x -> log(x) /. log(10.0)) in
+(has_nan_values_in_new_feature = false, new_feature_mean = round2(mean(lg)), new_feature_std = round2(sample_std(lg)))

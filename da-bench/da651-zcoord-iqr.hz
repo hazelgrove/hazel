@@ -1,0 +1,3 @@
+# DA-Bench id 651: count IQR outliers in Z-coordinate, DES=+2006261.csv #
+let data = ^^csv("DES=+2006261.csv") in
+count_iqr_out(num(data.`Z`))

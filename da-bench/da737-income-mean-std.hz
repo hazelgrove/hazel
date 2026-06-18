@@ -1,0 +1,4 @@
+# DA-Bench id 737: mean and std Income, Credit.csv #
+let data = ^^csv("Credit.csv") in
+let inc = num(data.`Income`) in
+(mean_income = round2(mean(inc)), std_dev_income = round2(sample_std(inc)))

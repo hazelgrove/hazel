@@ -1,0 +1,10 @@
+# DA-Bench id 309: scipy skew/kurtosis of age & fare + counts within 1 std, titanic.csv #
+let data = ^^csv("titanic.csv") in
+let age = num(data.`Age`) in
+let fare = num(data.`Fare`) in
+let within = fun (xs: [Float]) ->
+  let m = mean(xs) in let s = pop_std(xs) in
+  length(filter(xs, fun x -> (x >=. m -. s) && (x <=. m +. s)))
+in
+(age_skewness = round2(skew_pop(age)), age_kurtosis = round2(kurtosis(age)), age_values_within_one_stdev = within(age),
+ fare_skewness = round2(skew_pop(fare)), fare_kurtosis = round2(kurtosis(fare)), fare_values_within_one_stdev = within(fare))

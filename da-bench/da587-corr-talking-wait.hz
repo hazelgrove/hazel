@@ -1,0 +1,14 @@
+# DA-Bench id 587: corr(avg agents talking, avg wait time in seconds), group_statistics.csv #
+# wait time is HH:MM:SS -> seconds via string_split #
+let data = ^^csv("20170413_000000_group_statistics.csv") in
+let hms = fun (s: String) ->
+  let p = string_split(":", string_trim(s)) in
+  float_of_string(nth(p, 0)) *. 3600.0 +. float_of_string(nth(p, 1)) *. 60.0 +. float_of_string(nth(p, 2))
+in
+let rows =
+  zip(data.`avg. num. agents talking`, data.`avg. wait time`)
+  |> filter(_, fun (t, w) -> (string_trim(t) != "") && (string_trim(w) != ""))
+in
+let talking = map(rows, fun (t, _w) -> float_of_string(string_trim(t))) in
+let waits = map(rows, fun (_t, w) -> hms(w)) in
+round3(pearson(talking, waits))

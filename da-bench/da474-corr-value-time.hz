@@ -1,0 +1,3 @@
+# DA-Bench id 474: corr Value vs TIME, oecd_education_spending.csv #
+let data = ^^csv("oecd_education_spending.csv") in
+round2(corr_cols(data.`Value`, data.`TIME`))

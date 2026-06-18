@@ -1,0 +1,3 @@
+# DA-Bench id 352: Z-score (>3) outliers in Fare (none), test_x.csv #
+let data = ^^csv("test_x.csv") in
+count_z_out(num(data.`Fare`), 3.0)

@@ -1,0 +1,4 @@
+# DA-Bench id 649: mean and std X-coordinate, DES=+2006261.csv #
+let data = ^^csv("DES=+2006261.csv") in
+let v = num(data.`X`) in
+(mean_x = round3(mean(v)), std_dev_x = round3(sample_std(v)))

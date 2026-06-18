@@ -42,8 +42,88 @@ let skew = fun (xs: [Float]) ->
   let acc = sum(map(xs, fun x -> let c = (x -. m) /. s in c *. c *. c)) in
   n /. ((n -. 1.0) *. (n -. 2.0)) *. acc
 in
+# scipy.stats.kurtosis default: Fisher (excess), biased (population) g2 #
+let kurtosis = fun (xs: [Float]) ->
+  let n = float_of_int(length(xs)) in
+  let m = mean(xs) in
+  let m2 = sum(map(xs, fun x -> let d = x -. m in d *. d)) /. n in
+  let m4 = sum(map(xs, fun x -> let d = x -. m in d *. d *. d *. d)) /. n in
+  m4 /. (m2 *. m2) -. 3.0
+in
+# scipy.stats.skew default: biased (population) Fisher-Pearson g1 = m3 / m2^1.5 #
+let skew_pop = fun (xs: [Float]) ->
+  let m = mean(xs) in
+  let m2 = mean(map(xs, fun x -> let d = x -. m in d *. d)) in
+  let m3 = mean(map(xs, fun x -> let d = x -. m in d *. d *. d)) in
+  m3 /. (m2 *. sqrt(m2))
+in
+# Pearson's second/median skewness coefficient: 3(mean - median)/std (sample) #
+let pearson_skew = fun (xs: [Float]) ->
+  3.0 *. (mean(xs) -. median(xs)) /. sample_std(xs)
+in
+let round0 = fun (x: Float) -> round(x) in
+let round1 = fun (x: Float) -> round(x *. 10.0) /. 10.0 in
 let round2 = fun (x: Float) -> round(x *. 100.0) /. 100.0 in
+let round3 = fun (x: Float) -> round(x *. 1000.0) /. 1000.0 in
 let round4 = fun (x: Float) -> round(x *. 10000.0) /. 10000.0 in
+let fmax = fun (xs: [Float]) -> fold_left(tail(xs), fun (a, x) -> if x >. a then x else a, head(xs)) in
+let fmin = fun (xs: [Float]) -> fold_left(tail(xs), fun (a, x) -> if x <. a then x else a, head(xs)) in
+# count of values whose population z-score exceeds threshold in magnitude #
+let count_z_out = fun (xs: [Float], thresh: Float) ->
+  let m = mean(xs) in
+  let s = pop_std(xs) in
+  length(filter(xs, fun x -> abs_float((x -. m) /. s) >. thresh))
+in
+# count of IQR (1.5) outliers; uses linear-interpolated Q1/Q3 #
+let count_iqr_out = fun (xs: [Float]) ->
+  let s = sort(cmp, xs) in
+  let q1 = quantile(s, 0.25) in
+  let q3 = quantile(s, 0.75) in
+  let iqr = q3 -. q1 in
+  let lo = q1 -. 1.5 *. iqr in
+  let hi = q3 +. 1.5 *. iqr in
+  length(filter(xs, fun x -> (x <. lo) || (x >. hi)))
+in
+# distinct string values, preserving first-seen order #
+let distinct = fun (xs: [String]) ->
+  fold_left(xs, fun (acc, x) -> if fold_left(acc, fun (f, a) -> f || (a == x), false) then acc else acc @ [x], [])
+in
+let count_eq = fun (xs: [String], v: String) -> length(filter(xs, fun s -> s == v)) in
+# Pearson r over two String columns, dropping rows where either cell is blank #
+let corr_cols = fun (a: [String], b: [String]) ->
+  let pairs = filter(zip(a, b), fun (x, y) -> (string_trim(x) != "") && (string_trim(y) != "")) in
+  pearson(map(pairs, fun (x, _y) -> float_of_string(string_trim(x))),
+          map(pairs, fun (_x, y) -> float_of_string(string_trim(y))))
+in
 let num = fun (col: [String]) ->
   col |> map(_, string_trim) |> filter(_, fun s -> s != "") |> map(_, float_of_string)
+in
+# remove thousands-separator commas from a string (e.g. "5,350,380" -> "5350380") #
+let strip_commas = fun (s: String) -> fold_left(string_split(",", s), fun (a, p) -> a ++ p, "") in
+# like num, but tolerant of comma thousands separators #
+let num_commas = fun (col: [String]) ->
+  col |> map(_, string_trim) |> filter(_, fun s -> s != "") |> map(_, fun s -> float_of_string(strip_commas(s)))
+in
+# value cells (as strings) from `vals` for rows where `keys` cell trims to k #
+let col_where = fun (keys: [String], vals: [String], k: String) ->
+  filter(zip(keys, vals), fun (a, _b) -> string_trim(a) == k) |> map(_, fun (_a, b) -> b)
+in
+# like num, but also drops cells that are not numeric (e.g. a stray label) #
+let num_loose = fun (col: [String]) ->
+  col |> map(_, string_trim) |> filter(_, fun s -> string_match("^[0-9]", s)) |> map(_, float_of_string)
+in
+# messy numeric cell: leading number before any bracket, commas dropped #
+let clean_num1 = fun (s: String) -> float_of_string(strip_commas(string_trim(nth(string_split("[", s), 0)))) in
+let num_clean = fun (col: [String]) ->
+  col |> map(_, string_trim) |> filter(_, fun s -> s != "") |> map(_, clean_num1)
+in
+# Pearson r over two messy-numeric String columns, dropping blank-paired rows #
+let corr_clean = fun (a: [String], b: [String]) ->
+  let pairs = filter(zip(a, b), fun (x, y) -> (string_trim(x) != "") && (string_trim(y) != "")) in
+  pearson(map(pairs, fun (x, _y) -> clean_num1(x)), map(pairs, fun (_x, y) -> clean_num1(y)))
+in
+# join a list of strings with a separator #
+let join_with = fun (sep: String, xs: [String]) ->
+  if length(xs) == 0 then ""
+  else fold_left(tail(xs), fun (a, p) -> a ++ sep ++ p, head(xs))
 in

@@ -1,0 +1,3 @@
+# DA-Bench id 218: Pearson corr positive_diffsel vs negative_diffsel, ferret site diffsel #
+let data = ^^csv("ferret-Pitt-2-preinf-lib2-100_sitediffsel.csv") in
+round2(pearson(num(data.`positive_diffsel`), num(data.`negative_diffsel`)))

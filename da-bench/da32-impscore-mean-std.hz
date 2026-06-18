@@ -1,0 +1,4 @@
+# DA-Bench id 32: mean and std importance.score, imp.score.ldlr.metabolome.csv #
+let data = ^^csv("imp.score.ldlr.metabolome.csv") in
+let v = num(data.`importance.score`) in
+(importance_score_mean = round2(mean(v)), importance_score_std = round2(sample_std(v)))

@@ -1,0 +1,5 @@
+# DA-Bench id 272: TOTUSJZ/TOTUSJH ratio (+1e-10 denom) mean/std, 3901.csv #
+let data = ^^csv("3901.csv") in
+let r = map(zip(data.`TOTUSJZ`, data.`TOTUSJH`),
+            fun (z, h) -> float_of_string(string_trim(z)) /. (float_of_string(string_trim(h)) +. 0.0000000001)) in
+(mean_ratio = round2(mean(r)), stddev_ratio = round2(sample_std(r)))

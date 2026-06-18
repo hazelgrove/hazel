@@ -1,0 +1,7 @@
+# DA-Bench id 724: remove Z outliers in acceleration, mean/std (population), auto-mpg.csv #
+let data = ^^csv("auto-mpg.csv") in
+let v = num(data.`acceleration`) in
+let m = mean(v) in
+let s = pop_std(v) in
+let kept = filter(v, fun x -> abs_float((x -. m) /. s) <=. 3.0) in
+(mean_acceleration = round2(mean(kept)), std_acceleration = round2(pop_std(kept)))

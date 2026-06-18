@@ -1,0 +1,3 @@
+# DA-Bench id 73: Pearson corr High vs Low, microsoft.csv #
+let data = ^^csv("microsoft.csv") in
+round2(pearson(num(data.`High`), num(data.`Low`)))

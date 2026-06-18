@@ -1,0 +1,15 @@
+# DA-Bench id 254: IQR outlier countries for gdpPercap_1982, gapminder_gdp_asia.csv #
+let data = ^^csv("gapminder_gdp_asia.csv") in
+let vals = num(data.`gdpPercap_1982`) in
+let s = sort(cmp, vals) in
+let q1 = quantile(s, 0.25) in
+let q3 = quantile(s, 0.75) in
+let iqr = q3 -. q1 in
+let lo = q1 -. 1.5 *. iqr in
+let hi = q3 +. 1.5 *. iqr in
+let names =
+  zip(data.`country`, data.`gdpPercap_1982`)
+  |> filter(_, fun (_c, v) -> let x = float_of_string(string_trim(v)) in (x <. lo) || (x >. hi))
+  |> map(_, fun (c, _v) -> string_trim(c))
+in
+join_with(", ", names)

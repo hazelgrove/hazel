@@ -1,0 +1,5 @@
+# DA-Bench id 480: std of (Value - mean(Value)) = std of Value, oecd_education_spending.csv #
+let data = ^^csv("oecd_education_spending.csv") in
+let v = num(data.`Value`) in
+let m = mean(v) in
+(standard_deviation = round2(sample_std(map(v, fun x -> x -. m))))

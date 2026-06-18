@@ -1,0 +1,7 @@
+# DA-Bench id 414: avg age by Pclass, titanic_train.csv #
+let data = ^^csv("titanic_train.csv") in
+let pc = data.`Pclass` in
+let age = data.`Age` in
+(first_class_average_age = round2(mean(num(col_where(pc, age, "1")))),
+ second_class_average_age = round2(mean(num(col_where(pc, age, "2")))),
+ third_class_average_age = round2(mean(num(col_where(pc, age, "3")))))

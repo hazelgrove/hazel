@@ -1,0 +1,4 @@
+# DA-Bench id 255: mean and std gdpPercap_2007, gapminder_gdp_asia.csv #
+let data = ^^csv("gapminder_gdp_asia.csv") in
+let g = num(data.`gdpPercap_2007`) in
+(mean_gdp2007 = round2(mean(g)), standard_deviation_gdp2007 = round2(sample_std(g)))
