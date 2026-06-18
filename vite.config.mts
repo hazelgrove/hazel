@@ -34,6 +34,7 @@ export default defineConfig({
           dest: "",
         },
         { src: "../../../_build/default/src/web/www/hazel.js", dest: "" },
+        { src: "../../../node_modules/jscoq", dest: "" },
       ],
     }),
     watchExternalPlugin("./_build/default/src/web/www/worker.js"),

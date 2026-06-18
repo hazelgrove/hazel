@@ -305,6 +305,7 @@ module View = {
       ~take_focus=f => signal(MakeActive(f)),
       ~hide_stepper=signal(HideStepper),
       ~inject=u => inject(StepperAction(u)),
+      ~rewrite_level=model.rewrite_level,
       ~automation_stage=model.automation_stage,
       ~is_toplevel,
       ~focus=selected,

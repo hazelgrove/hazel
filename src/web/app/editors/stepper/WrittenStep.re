@@ -143,7 +143,12 @@ module F =
       let rule_count = List.length(summary.rule_ids);
       let suffix =
         summary.exportable
-          ? Printf.sprintf(" (%d exportable rules)", rule_count) : "";
+          ? Printf.sprintf(
+              " (%d exportable %s)",
+              rule_count,
+              rule_count == 1 ? "rule" : "rules",
+            )
+          : "";
       WebUtil.Node.text(
         RewriteChecker.trace_summary_label(summary) ++ suffix,
       );

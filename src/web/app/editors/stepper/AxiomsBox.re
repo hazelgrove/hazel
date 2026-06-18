@@ -123,11 +123,95 @@ module View = {
         ~take_focus: Selection.t => Ui_effect.t(unit),
         ~add_axiom_step:
            (string, int, Exp.t, Direction.t, string) => Ui_effect.t(unit),
+        ~add_written_step:
+           (RewriteChecker.trace_summary, int, Exp.t, Exp.t) =>
+           Ui_effect.t(unit),
+        ~rewrite_level: Axioms.rewrite_level,
         model: Model.t,
       ) => {
     let unpacked_rewrites =
       model.filtered_rewrites
       |> Calc.get_saved_exc(~print="view_step_rewrites");
+    let filter = model.filter |> Calc.get_value;
+    let allowed_trig_rule_ids =
+      Axioms.allowed_groups(rewrite_level)
+      |> List.concat_map((group: Axioms.rewrite_group) => group.rules)
+      |> List.map((rule: Axioms.rewrite_rule) => rule.id)
+      |> List.filter(TrigRewrite.is_trig_rule_id);
+    let trig_actions =
+      TrigRewrite.applicable_at_root(selected_exp)
+      |> List.filter((rewrite: TrigRewrite.rewrite) =>
+           List.mem(rewrite.rule_id, allowed_trig_rule_ids)
+         )
+      |> (
+        filter == ""
+          ? x => x
+          : List.filter((rewrite: TrigRewrite.rewrite) =>
+              StringUtil.subseq_search(rewrite.label, filter)
+              || StringUtil.subseq_search(rewrite.rule_id, filter)
+            )
+      );
+    let selected_exp_idx =
+      try(ProofHacks.exp_idx(selected_exp, full_exp)) {
+      | _ => 0
+      };
+    let trace_summary_for_trig = (rewrite: TrigRewrite.rewrite) =>
+      RewriteChecker.{
+        justification: "trigonometry one step",
+        group_name: Some("trigonometry"),
+        from_normal_exp: selected_exp,
+        to_normal_exp: rewrite.after_exp,
+        from_rule_ids: [rewrite.rule_id],
+        to_rule_ids: [],
+        rule_ids: [rewrite.rule_id],
+        prover_steps: [
+          prover_step(
+            ~origin=ManualRewrite,
+            ~rule_id=rewrite.rule_id,
+            ~before_full_exp=selected_exp,
+            ~after_full_exp=rewrite.after_exp,
+            ~before_exp=rewrite.before_exp,
+            ~after_exp=rewrite.after_exp,
+            ~detail="selected trig identity",
+          ),
+        ],
+        exportable: false,
+      };
+    let trig_action_view = (rewrite: TrigRewrite.rewrite) =>
+      div_c(
+        "assumption-box",
+        [
+          Widgets.button_d(
+            Node.text("==>"),
+            add_written_step(
+              trace_summary_for_trig(rewrite),
+              selected_exp_idx,
+              selected_exp,
+              rewrite.after_exp,
+            ),
+            ~disabled=false,
+          ),
+          Node.text(" " ++ rewrite.label ++ ": "),
+          CodeViewable.view_any(
+            ~globals,
+            ~settings=
+              Haz3lcore.ExpToSegment.Settings.of_core(
+                ~inline=true,
+                ~fold_fn_bodies=`Text,
+                globals.settings.core,
+              ),
+            Exp(rewrite.after_exp),
+          ),
+        ],
+      );
+    let trig_section =
+      switch (trig_actions) {
+      | [] => []
+      | actions => [
+          div_c("assumption-box", [Node.text("Trig identities")]),
+          ...List.map(trig_action_view, actions),
+        ]
+      };
     [
       Node.input(
         ~attrs=[
@@ -139,6 +223,7 @@ module View = {
         (),
       ),
     ]
+    @ trig_section
     @ List.map(
         (am: AssumptionBox.Model.t) =>
           AssumptionBox.View.view(

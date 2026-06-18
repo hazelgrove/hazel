@@ -49,6 +49,24 @@
   color: var(--warning-hole-stroke);
 }
 
+.stepper-coq-check-status {
+  max-width: min(48rem, 70vw);
+  color: var(--BR4);
+  white-space: pre-wrap;
+}
+
+.stepper-coq-check-status.running {
+  color: var(--BR4);
+}
+
+.stepper-coq-check-status.passed {
+  color: var(--G0);
+}
+
+.stepper-coq-check-status.failed {
+  color: var(--R2);
+}
+
 .induction-scrut {
   display: flex;
   flex-direction: row;

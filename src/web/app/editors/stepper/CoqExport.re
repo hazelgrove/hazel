@@ -3,14 +3,49 @@
  */
 open Util;
 
+type domain =
+  | Integers
+  | Reals;
+
+let is_float_pi = value => abs_float(value -. Float.pi) < 0.000001;
+
+let real_float_op_to_string = op =>
+  switch (op) {
+  | Language.Operators.Plus => "+"
+  | Minus => "-"
+  | Times => "*"
+  | Power => "^"
+  | Divide => "/"
+  | LessThan => "<"
+  | LessThanOrEqual => "<="
+  | GreaterThan => ">"
+  | GreaterThanOrEqual => ">="
+  | Equals => "="
+  | NotEquals => "<>"
+  };
+
+let string_of_op = (~domain, op) =>
+  switch (domain, op) {
+  | (Integers, Language.Operators.Int(op) | Nat(op) | SInt(op))
+  | (Reals, Language.Operators.Int(op) | Nat(op) | SInt(op)) =>
+    Language.Operators.int_op_to_string(op)
+  | (Reals, Language.Operators.Float(op)) => real_float_op_to_string(op)
+  | (_, Language.Operators.Float(op)) =>
+    Language.Operators.float_op_to_string(op)
+  | _ => Language.Operators.bin_op_to_string(op)
+  };
+
 let rec unique_vars_in_ast_helper =
         (d: Language.DHExp.t, unique_vars: Hashtbl.t(string, unit)) => {
   switch (Language.Exp.term_of(d)) {
-  | BinOp(Int(_), arg1, arg2) =>
+  | Parens(exp) => unique_vars_in_ast_helper(exp, unique_vars)
+  | BinOp(_, arg1, arg2) =>
     unique_vars_in_ast_helper(arg1, unique_vars);
     unique_vars_in_ast_helper(arg2, unique_vars);
+  | UnOp(_, exp)
+  | Ap(_, _, exp) => unique_vars_in_ast_helper(exp, unique_vars)
   | Var(x) =>
-    if (!Hashtbl.mem(unique_vars, x)) {
+    if (x != "pi" && !Hashtbl.mem(unique_vars, x)) {
       Hashtbl.add(unique_vars, x, ());
     } else {
       ();
@@ -30,7 +65,8 @@ let rec index_of_like_terms_helper_dhexp =
         (d: Language.DHExp.t, v: Language.DHExp.t) => {
   switch (Language.Exp.term_of(d)) {
   | _ when Language.DHExp.fast_equal(d, v) => 1
-  | BinOp(Int(_), argL, argR) =>
+  | Parens(exp) => index_of_like_terms_helper_dhexp(exp, v)
+  | BinOp(Int(_) | Nat(_) | SInt(_), argL, argR) =>
     index_of_like_terms_helper_dhexp(argL, v)
     + index_of_like_terms_helper_dhexp(argR, v)
   | _ => 0
@@ -46,6 +82,7 @@ let rec index_of_like_terms_helper_ctx =
   | Mark => 1
   | Term({term, _}) =>
     switch (term) {
+    | Parens(arg) => index_of_like_terms_helper_ctx(arg, v)
     // When the left argument is a context (contains the mark) and the right one doesn't
     | BinOp1(_, argL, _) => index_of_like_terms_helper_ctx(argL, v)
     // vice versa
@@ -63,18 +100,21 @@ let index_of_like_terms = (d: Language.EvalCtx.t, v: Language.DHExp.t) => {
   index_of_like_terms_helper_ctx(d, v);
 };
 
-let rec string_of_d = (d: Language.DHExp.t) => {
-  "("
-  ++ (
+let string_of_d = (d: Language.DHExp.t) => {
+  let rec loop = d =>
     switch (Language.Exp.term_of(d)) {
-    | BinOp(Int(op), arg1, arg2) =>
-      string_of_d(arg1)
+    | Parens(exp) => loop(exp)
+    | BinOp(Int(op) | Nat(op) | SInt(op), arg1, arg2) =>
+      "("
+      ++ loop(arg1)
       ++ ""
       ++ Language.Operators.int_op_to_string(op)
       ++ ""
-      ++ string_of_d(arg2)
+      ++ loop(arg2)
+      ++ ")"
     | Atom(Int(n))
     | Atom(Nat(n)) => Bigint.to_string(n)
+    | Atom(SInt(n)) => string_of_int(n)
     | Var(x) => x
     | _ =>
       print_endline(
@@ -84,10 +124,58 @@ let rec string_of_d = (d: Language.DHExp.t) => {
            ),
       );
       "ERROR";
-    }
-  )
-  ++ ")" /*   }*/;
+    };
+
+  loop(d);
 };
+
+let string_of_d_reals = (d: Language.DHExp.t) => {
+  let rec loop = d =>
+    switch (Language.Exp.term_of(d)) {
+    | Parens(exp) => loop(exp)
+    | Asc(exp, _) => loop(exp)
+    | BinOp(op, arg1, arg2) =>
+      "("
+      ++ loop(arg1)
+      ++ " "
+      ++ string_of_op(~domain=Reals, op)
+      ++ " "
+      ++ loop(arg2)
+      ++ ")"
+    | UnOp(Int(Minus) | SInt(Minus) | Float(Minus), exp) =>
+      "(-" ++ loop(exp) ++ ")"
+    | Atom(Int(n))
+    | Atom(Nat(n)) => Bigint.to_string(n)
+    | Atom(SInt(n)) => string_of_int(n)
+    | Atom(Float(value)) when is_float_pi(value) => "PI"
+    | Atom(Float(value)) when value == Float.round(value) =>
+      string_of_int(int_of_float(value))
+    | Atom(Float(value)) =>
+      failwith(
+        "unsupported non-symbolic float in Coq real export: "
+        ++ string_of_float(value),
+      )
+    | Var("pi") => "PI"
+    | Var(x) => x
+    | BuiltinFun(name) => name
+    | Ap(Language.Operators.Forward, fn, arg) =>
+      loop(fn) ++ " " ++ loop(arg)
+    | _ =>
+      failwith(
+        "unsupported Coq real export term: "
+        ++ Language.Exp.show_cls(
+             Language.Exp.cls_of_term(Language.Exp.term_of(d)),
+           ),
+      )
+    };
+  loop(d);
+};
+
+let string_of_d_for_domain = (~domain, d) =>
+  switch (domain) {
+  | Integers => string_of_d(d)
+  | Reals => string_of_d_reals(d)
+  };
 // Takes a single step
 // let single_step_export = (ind, step, forall_str) => {
 //   let {expr, next_step, state, editor, step_kind, hidden} = step;
