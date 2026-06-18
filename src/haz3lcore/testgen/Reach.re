@@ -177,9 +177,264 @@ let vars_of = (e: Exp.t): list((string, Id.t)) => {
 let sort_of_var =
     (~ctx: Ctx.t, ~map: Statics.Map.t, id: Id.t): option(Atom.cls) =>
   switch (Statics.Map.lookup_exp(id, map)) {
-  | Some({ty, _}) => Typ.is_ana_atom(Typ.weak_head_normalize(ctx, ty))
+  | Some({ty, ana, _}) =>
+    /* Prefer the synthesized type; for a free/unbound variable that is Unknown,
+       fall back to the type expected at the use site (e.g. an operand of `>`
+       or a function argument). */
+    switch (Typ.is_ana_atom(Typ.weak_head_normalize(ctx, ty))) {
+    | Some(_) as s => s
+    | None => Typ.is_ana_atom(Typ.weak_head_normalize(ctx, ana))
+    }
   | None => None
   };
+
+/* Infer a variable's base type from how it's used. After inlining, an
+ * argument's statics type can be Unknown (e.g. an unannotated function
+ * parameter), so we read the sort off the operators it flows into:
+ * `a * 0` ⇒ a is Int, `b && c` ⇒ Bool, `n == 0` ⇒ n matches the literal, etc. */
+let rec is_var = (name: string, e: Exp.t): bool =>
+  switch (e.term) {
+  | Var(x) => x == name
+  | Parens(inner) => is_var(name, inner)
+  | _ => false
+  };
+
+let rec lit_sort = (e: Exp.t): option(Atom.cls) =>
+  switch (e.term) {
+  | Atom(a) => Some(Atom.cls_of_t(a))
+  | Parens(inner) => lit_sort(inner)
+  | _ => None
+  };
+
+let binop_operand_sort = (op: Operators.op_bin): option(Atom.cls) =>
+  switch (op) {
+  | Int(_) => Some(Int)
+  | SInt(_) => Some(SInt)
+  | Nat(_) => Some(Nat)
+  | Float(_) => Some(Float)
+  | Bool(_) => Some(Bool)
+  | String(_) => Some(String)
+  | Poly(_) => None
+  };
+
+let unop_operand_sort = (op: Operators.op_un): option(Atom.cls) =>
+  switch (op) {
+  | Int(_) => Some(Int)
+  | SInt(_) => Some(SInt)
+  | Nat(_) => Some(Nat)
+  | Float(_) => Some(Float)
+  | Bool(_) => Some(Bool)
+  };
+
+let infer_sort = (name: string, exps: list(Exp.t)): option(Atom.cls) => {
+  let orElse = (a, b) =>
+    switch (a) {
+    | Some(_) => a
+    | None => b()
+    };
+  let rec scan = (e: Exp.t): option(Atom.cls) =>
+    switch (e.term) {
+    | BinOp(op, l, r) =>
+      let direct =
+        if (is_var(name, l) || is_var(name, r)) {
+          switch (binop_operand_sort(op)) {
+          | Some(_) as s => s
+          | None => is_var(name, l) ? lit_sort(r) : lit_sort(l) /* Poly(=) */
+          };
+        } else {
+          None;
+        };
+      orElse(direct, () => orElse(scan(l), () => scan(r)));
+    | UnOp(op, x) => is_var(name, x) ? unop_operand_sort(op) : scan(x)
+    | If(c, t, f) => orElse(scan(c), () => orElse(scan(t), () => scan(f)))
+    | Parens(x) => scan(x)
+    | Ap(_, f, a) => orElse(scan(f), () => scan(a))
+    | Seq(a, b) => orElse(scan(a), () => scan(b))
+    | Tuple(es) => List.find_map(scan, es)
+    | Let(_, def, body) => orElse(scan(def), () => scan(body))
+    | Match(s, rules) =>
+      orElse(scan(s), () => List.find_map(((_, b)) => scan(b), rules))
+    | _ => None
+    };
+  List.find_map(scan, exps);
+};
+
+/* ===================== function inlining (Ap support) ===================== */
+
+/* Variable names a pattern binds (so substitution stops at shadowing). */
+let rec pat_vars = (p: Pat.t): list(string) =>
+  switch (p.term) {
+  | Var(x) => [x]
+  | Parens(q) => pat_vars(q)
+  | Tuple(ps)
+  | ListLit(ps) => List.concat_map(pat_vars, ps)
+  | Cons(a, b) => pat_vars(a) @ pat_vars(b)
+  | TupLabel(_, q) => pat_vars(q)
+  | Ap(_, q) => pat_vars(q)
+  | _ => []
+  };
+
+/* Capture-avoiding substitution of `repl` for free `Var(name)` in `e`, over
+ * the fragment we analyze (other constructs are left intact — they'd be
+ * rejected by ConstraintGen anyway). */
+let rec subst = (name: string, repl: Exp.t, e: Exp.t): Exp.t => {
+  let go = subst(name, repl);
+  switch (e.term) {
+  | Var(x) => x == name ? repl : e
+  | Atom(_) => e
+  | Parens(x) => {
+      ...e,
+      term: Parens(go(x)),
+    }
+  | UnOp(op, x) => {
+      ...e,
+      term: UnOp(op, go(x)),
+    }
+  | BinOp(op, l, r) => {
+      ...e,
+      term: BinOp(op, go(l), go(r)),
+    }
+  | If(c, t, f) => {
+      ...e,
+      term: If(go(c), go(t), go(f)),
+    }
+  | Seq(a, b) => {
+      ...e,
+      term: Seq(go(a), go(b)),
+    }
+  | Tuple(es) => {
+      ...e,
+      term: Tuple(List.map(go, es)),
+    }
+  | Ap(d, fn, a) => {
+      ...e,
+      term: Ap(d, go(fn), go(a)),
+    }
+  | Let(pat, def, body) =>
+    let body' = List.mem(name, pat_vars(pat)) ? body : go(body);
+    {
+      ...e,
+      term: Let(pat, go(def), body'),
+    };
+  | Fun(pat, body, t, n) =>
+    let body' = List.mem(name, pat_vars(pat)) ? body : go(body);
+    {
+      ...e,
+      term: Fun(pat, body', t, n),
+    };
+  | Match(s, rules) => {
+      ...e,
+      term:
+        Match(
+          go(s),
+          List.map(
+            ((p, b)) => (p, List.mem(name, pat_vars(p)) ? b : go(b)),
+            rules,
+          ),
+        ),
+    }
+  | _ => e
+  };
+};
+
+let rec single_param = (p: Pat.t): option(string) =>
+  switch (p.term) {
+  | Var(x) => Some(x)
+  | Parens(q) => single_param(q)
+  | _ => None
+  };
+
+let rec fn_name = (e: Exp.t): option(string) =>
+  switch (e.term) {
+  | Var(f) => Some(f)
+  | Parens(inner) => fn_name(inner)
+  | _ => None
+  };
+
+let is_fun = (e: Exp.t): bool =>
+  switch (e.term) {
+  | Fun(_) => true
+  | Parens(inner) =>
+    switch (inner.term) {
+    | Fun(_) => true
+    | _ => false
+    }
+  | _ => false
+  };
+
+/* Beta-reduce applications of let-bound functions in `env` (name → Fun def):
+ * `f(arg)` with `f = fun p -> body` becomes `body[p := arg]`. Single-variable
+ * parameters only; the applied function is removed from `env` while inlining
+ * its body, so recursive calls are left as-is (and later rejected, marking the
+ * result incomplete). */
+let rec inline_aps = (env: list((string, Exp.t)), e: Exp.t): Exp.t => {
+  let go = inline_aps(env);
+  switch (e.term) {
+  | Ap(Forward, fn, arg) =>
+    let arg = go(arg);
+    switch (fn_name(fn)) {
+    | Some(f) when List.mem_assoc(f, env) =>
+      let def = List.assoc(f, env);
+      let def =
+        switch (def.term) {
+        | Parens(inner) => inner
+        | _ => def
+        };
+      switch (def.term) {
+      | Fun(pat, body, _, _) =>
+        switch (single_param(pat)) {
+        | Some(p) =>
+          inline_aps(List.remove_assoc(f, env), subst(p, arg, body))
+        | None => {
+            ...e,
+            term: Ap(Forward, fn, arg),
+          }
+        }
+      | _ => {
+          ...e,
+          term: Ap(Forward, fn, arg),
+        }
+      };
+    | _ => {
+        ...e,
+        term: Ap(Forward, go(fn), arg),
+      }
+    };
+  | Parens(x) => {
+      ...e,
+      term: Parens(go(x)),
+    }
+  | UnOp(op, x) => {
+      ...e,
+      term: UnOp(op, go(x)),
+    }
+  | BinOp(op, l, r) => {
+      ...e,
+      term: BinOp(op, go(l), go(r)),
+    }
+  | If(c, t, f) => {
+      ...e,
+      term: If(go(c), go(t), go(f)),
+    }
+  | Seq(a, b) => {
+      ...e,
+      term: Seq(go(a), go(b)),
+    }
+  | Tuple(es) => {
+      ...e,
+      term: Tuple(List.map(go, es)),
+    }
+  | Let(pat, def, body) => {
+      ...e,
+      term: Let(pat, go(def), go(body)),
+    }
+  | Match(s, rules) => {
+      ...e,
+      term: Match(go(s), List.map(((p, b)) => (p, go(b)), rules)),
+    }
+  | _ => e
+  };
+};
 
 let analyze = (target_id: Id.t, map: Statics.Map.t): option(t) =>
   switch (Statics.Map.lookup_exp(target_id, map)) {
@@ -194,7 +449,15 @@ let analyze = (target_id: Id.t, map: Statics.Map.t): option(t) =>
       | [a_id, child_id, ..._] =>
         walk(List.tl(nodes), step(~map, a_id, child_id, acc))
       };
-    let (guards, all_lets, complete) = walk(path, ([], [], true));
+    let (guards, walked_lets, complete) = walk(path, ([], [], true));
+    /* Inline applications of in-scope let-bound functions into the guards (and
+       remaining value-let definitions), then set those function bindings
+       aside — what's left are value bindings the path condition refers to. */
+    let (fn_lets, value_lets) =
+      List.partition(((_, def)) => is_fun(def), walked_lets);
+    let inline = inline_aps(fn_lets);
+    let guards = List.map(inline, guards);
+    let all_lets = List.map(((v, def)) => (v, inline(def)), value_lets);
     /* Keep only the lets actually needed: start from the guards' variables and
        close over let-definitions, dropping in-scope lets irrelevant to this
        reach point (otherwise they'd be declared/asserted, and an unreferenced
@@ -215,21 +478,28 @@ let analyze = (target_id: Id.t, map: Statics.Map.t): option(t) =>
     };
     let needed = close(names(guards));
     let lets = List.filter(((v, _)) => List.mem(v, needed), all_lets);
-    /* Resolve sorts for every variable referenced in guards and kept let-defs. */
+    /* Resolve sorts for every variable referenced in guards and kept let-defs:
+       prefer the statics type, then infer from operator usage in those exprs. */
+    let exprs = guards @ List.map(snd, lets);
     let referenced =
       List.concat_map(vars_of, guards)
       @ List.concat_map(((_, def)) => vars_of(def), lets);
     let var_sorts =
       List.fold_left(
         (acc, (name, id)) =>
-          List.mem_assoc(name, acc)
-            ? acc
-            : (
+          if (List.mem_assoc(name, acc)) {
+            acc;
+          } else {
+            let cls =
               switch (sort_of_var(~ctx=target.ctx, ~map, id)) {
-              | Some(cls) => acc @ [(name, cls)]
-              | None => acc
-              }
-            ),
+              | Some(_) as s => s
+              | None => infer_sort(name, exprs)
+              };
+            switch (cls) {
+            | Some(cls) => acc @ [(name, cls)]
+            | None => acc
+            };
+          },
         [],
         referenced,
       );

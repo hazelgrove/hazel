@@ -240,6 +240,51 @@ let solve_tests =
         | None => fail("match analyze returned None (parse?)")
         }
       ),
+      test_case("application of a let-bound function is inlined", `Quick, () =>
+        switch (
+          analyze_lit(
+            "let double = fun x -> x * 2 in if double(a) > 10 then 1 else 2",
+            1,
+          )
+        ) {
+        | Some(r) =>
+          switch (outcome_of(r)) {
+          | Sat(_) => check(bool, "sat", true, true)
+          | other => fail("expected Sat, got " ++ TG.show_outcome(other))
+          }
+        | None => fail("ap analyze returned None (parse?)")
+        }
+      ),
+      test_case("inlined function yields a dead branch", `Quick, () =>
+        switch (
+          analyze_lit(
+            "let zero = fun x -> x * 0 in if zero(a) > 5 then 1 else 2",
+            1,
+          )
+        ) {
+        | Some(r) =>
+          switch (outcome_of(r)) {
+          | Unsat => check(bool, "dead", true, true)
+          | other => fail("expected Unsat, got " ++ TG.show_outcome(other))
+          }
+        | None => fail("ap analyze returned None (parse?)")
+        }
+      ),
+      test_case("inlining keeps a captured value binding", `Quick, () =>
+        switch (
+          analyze_lit(
+            "let c = 100 in let f = fun x -> x + c in if f(a) > 150 then 1 else 2",
+            1,
+          )
+        ) {
+        | Some(r) =>
+          switch (outcome_of(r)) {
+          | Sat(_) => check(bool, "sat", true, true)
+          | other => fail("expected Sat, got " ++ TG.show_outcome(other))
+          }
+        | None => fail("ap analyze returned None (parse?)")
+        }
+      ),
     ];
   };
 
