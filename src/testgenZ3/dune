@@ -1,0 +1,12 @@
+(include_subdirs unqualified)
+
+; Native-only Z3 backend: shells out to the system `z3` binary over the
+; SMT-LIB2 produced by haz3lcore's TestGen. Native (not js_of_ocaml), so it
+; is linked only by native executables (e.g. the native test runner), never
+; by the web build.
+
+(library
+ (name testgenZ3)
+ (libraries haz3lcore language unix)
+ (preprocess
+  (pps ppx_sexp_conv ppx_deriving.show)))

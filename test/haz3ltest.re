@@ -30,6 +30,9 @@ let (suite, _) =
       Test_PatternMatch.tests,
       Test_Equality.tests,
       Test_Substitution.tests,
+      Test_ConstraintGen.tests,
+      Test_TestGen.tests,
+      Test_TestGenSolve.tests,
     ]
     @ Test_ExpToSegment.all
     @ Test_Typ.tests
