@@ -385,6 +385,16 @@ let step_into_frame_tests = [
 let updateGrove = fun (m, f) -> ^^probe(f(m)) in
 updateGrove(10, setCell(_, 5))|},
       );
+      /* cast from a RETURN-type annotation (a function factory) rather than a
+         parameter annotation: mk(1) is a deferred cast to Int -> Int, then
+         applied through a HOF. Exercises the same cast path from another site. */
+      check_resolves(
+        "returned-cast-deferred",
+        {|let add = fun (a, b) -> a + b in
+let mk: Int -> (Int -> Int) = fun a -> add(a, _) in
+let apply = fun (f, x) -> ^^probe(f(x)) in
+apply(mk(1), 5)|},
+      );
       /* the user's shape: a deferred branch in a case, alongside a lambda
          branch, both reaching the same updateGrove probe */
       check_resolves(

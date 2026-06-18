@@ -1278,9 +1278,54 @@ let test_reuse_provenance_distinguishes_pattern_shapes = () => {
   );
 };
 
+/* Top-level application of a partially-applied (hence cast) function. The
+ * cast-distribution fix makes the inner application reuse the call site's id;
+ * at top level (call_stack==[], id in info_map) that id reaches IncrEval's
+ * cache, where before it was a fresh (uncached) id. These guard against
+ * re-entrant same-id caching corrupting the result or dirty propagation. */
+let test_toplevel_cast_reuse = () => {
+  let exp =
+    parse_exp(
+      "let add = fun (a, b) -> a + b in let g: Int -> Int = add(_, 1) in g(5)",
+    );
+  let (r1, _, incr1) = eval_incr(exp);
+  let (r2, _, incr2) = eval_incr(~prev=incr1, exp);
+  check(dhexp_typ, "cast call: reuse preserves result", r1, r2);
+  check(bool, "cast call: reuse actually fired", true, incr2.reused != []);
+};
+
+let test_toplevel_cast_edit = () => {
+  let exp1 =
+    parse_exp(
+      "let add = fun (a, b) -> a + b in let g: Int -> Int = add(_, 1) in g(5)",
+    );
+  let (_, _, incr1) = eval_incr(exp1);
+  let exp2 = replace_int_lit(~from=1, ~to_=2, exp1);
+  /* g(5) = add(5, 2) = 7 after the edit; stale reuse of the cast call's id
+     would wrongly keep 6 */
+  let (expected, _, _) = eval_incr(exp2);
+  let (r2, _, _) = eval_incr(~prev=incr1, exp2);
+  check(
+    dhexp_typ,
+    "cast call: edit propagates (no stale reuse)",
+    expected,
+    r2,
+  );
+};
+
 let tests = (
   "Evaluator.Incremental",
   [
+    test_case(
+      "Top-level cast call: incremental reuse preserves result",
+      `Quick,
+      test_toplevel_cast_reuse,
+    ),
+    test_case(
+      "Top-level cast call: edit propagates (no stale reuse)",
+      `Quick,
+      test_toplevel_cast_edit,
+    ),
     test_case(
       "DIAG module in unchanged rhs tuple lands in frozen",
       `Quick,
