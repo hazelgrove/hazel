@@ -882,9 +882,9 @@ let step_into_sample =
 
 /* Check if step-into is possible for this probe's function call.
  * Tier 1 (static): Ap of a named variable that isn't a built-in.
- * Tier 2 (dynamic): this sample's call recorded a navigable fn_def_id,
- * i.e. the function actually applied came from user code (builtins record
- * no fn_def_id). Tier 2 is what enables step-into for higher-order calls. */
+ * Tier 2 (dynamic): this sample's call recorded a navigable fn_def_id — the
+ * function actually applied came from user code. Tier 2 is what enables
+ * step-into for higher-order and partial-application calls. */
 let can_step_into = (statics: Language.Statics.Info.t, sample: Sample.t): bool => {
   let static_ok =
     switch (statics) {
@@ -895,11 +895,32 @@ let can_step_into = (statics: Language.Statics.Info.t, sample: Sample.t): bool =
       }
     | _ => false
     };
-  let dynamic_ok =
-    switch (sample.frame) {
-    | Some(f) => Option.is_some(f.fn_def_id)
-    | None => false
+  /* The call site references a builtin/library function directly (e.g.
+     map(...)). These are Hazel Funs in env_init, so they DO carry an
+     fn_def_id, but it points to library code outside the user's editor —
+     nowhere to step. They only reach a call site as a direct builtin
+     reference (higher-order and partial-application calls go through a
+     parameter, which is never a builtin name), so suppressing the dynamic
+     offer for builtin call sites keeps the menu item from appearing-but-no-op.
+     (Mirrors the focus bar's builtin exclusion; more robust than checking the
+     frame's fn_name, since library Funs carry no name in their Fun node.) */
+  let static_fn_is_builtin =
+    switch (statics) {
+    | InfoExp({user_term: {term: Ap(_, fn_exp, _), _}, _}) =>
+      switch (fn_exp.term) {
+      | Var(name) => Environment.lookup(Builtins.env_init, name) != None
+      | _ => false
+      }
+    | _ => false
     };
+  let dynamic_ok =
+    !static_fn_is_builtin
+    && (
+      switch (sample.frame) {
+      | Some(f) => Option.is_some(f.fn_def_id)
+      | None => false
+      }
+    );
   static_ok || dynamic_ok;
 };
 

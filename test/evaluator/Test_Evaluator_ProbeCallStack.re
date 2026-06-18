@@ -307,6 +307,107 @@ in m.f(1); m.f(2)|},
   ),
 ];
 
+/* The dynamic fn_def_id carried on a call sample's frame is what drives
+ * step-into for higher-order and partial-application calls (where the static
+ * binding site is only a parameter). These tests pin down which calls record
+ * a navigable fn_def_id. */
+let frame_fn_def_id = (s: Sample.t): option(Id.t) =>
+  Option.bind(s.frame, (f: Sample.stack_frame) => f.fn_def_id);
+
+let single_sample = (label, code): Sample.t => {
+  let samples = get_all_samples(code);
+  switch (samples) {
+  | [s] => s
+  | _ =>
+    fail(
+      label
+      ++ ": expected exactly 1 sample, got "
+      ++ string_of_int(List.length(samples)),
+    )
+  };
+};
+
+let step_into_frame_tests = [
+  test_case(
+    "HOF call with a function literal records a navigable fn_def_id",
+    `Quick,
+    () => {
+      let s =
+        single_sample(
+          "hof-literal",
+          {|let apply = fun (f, x) -> ^^probe(f(x))
+in apply(fun n -> n + 1, 5)|},
+        );
+      check(
+        bool,
+        "call frame carries Some fn_def_id (the passed lambda)",
+        true,
+        Option.is_some(frame_fn_def_id(s)),
+      );
+    },
+  ),
+  test_case(
+    "HOF call with a named function records a navigable fn_def_id",
+    `Quick,
+    () => {
+      let s =
+        single_sample(
+          "hof-named",
+          {|let inc = fun n -> n + 1 in
+let apply = fun (f, x) -> ^^probe(f(x))
+in apply(inc, 5)|},
+        );
+      check(
+        bool,
+        "call frame carries Some fn_def_id (inc)",
+        true,
+        Option.is_some(frame_fn_def_id(s)),
+      );
+    },
+  ),
+  test_case(
+    "Partial-application call resolves fn_def_id to the underlying function",
+    `Quick,
+    () => {
+      let s =
+        single_sample(
+          "partial-app",
+          {|let add = fun (a, b) -> a + b in
+let apply = fun (f, x) -> ^^probe(f(x))
+in apply(add(_, 10), 5)|},
+        );
+      check(
+        bool,
+        "deferred call frame carries Some fn_def_id (add)",
+        true,
+        Option.is_some(frame_fn_def_id(s)),
+      );
+    },
+  ),
+  test_case(
+    "Library call (map) DOES carry an fn_def_id (predicate must exclude by call site)",
+    `Quick,
+    () => {
+      /* map/fold_left/... are Hazel Funs in env_init, so their frame carries
+         a (non-navigable) fn_def_id pointing at library code. This is why the
+         step-into predicate can't rely on fn_def_id alone and must suppress
+         builtin call sites separately. */
+      let samples =
+        get_all_samples({|^^probe(map([1, 2, 3], fun n -> n + 1))|});
+      switch (samples) {
+      | [s, ..._] =>
+        check(
+          bool,
+          "library call frame carries an fn_def_id",
+          true,
+          Option.is_some(frame_fn_def_id(s)),
+        )
+      | [] => fail("Expected at least 1 sample")
+      };
+    },
+  ),
+];
+
 let tests = (
   "Evaluator.ProbeCallStack",
   List.concat([
@@ -314,5 +415,6 @@ let tests = (
     inside_function_tests,
     app_vs_body_tests,
     module_function_tests,
+    step_into_frame_tests,
   ]),
 );

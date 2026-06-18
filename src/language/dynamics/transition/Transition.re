@@ -208,25 +208,32 @@ module Transition = (EV: EV_MODE) => {
 
   /* Extract function name from a function expression (including closures).
      Used to record the name in the call stack for better debugging. */
-  let get_fn_name_from_expr = (d: DHExp.t): option(string) =>
+  let rec get_fn_name_from_expr = (d: DHExp.t): option(string) =>
     switch (d.term) {
-    | Closure(_, e) => Exp.get_fn_name(e)
+    | Closure(_, e) => get_fn_name_from_expr(e)
     | Fun(_, _, _, name) => name
     | TypFun(_, _, name) => name
+    /* Partial application: report the underlying function being deferred,
+       so a deferred call (e.g. setCell(_, ...)) names/jumps to setCell. */
+    | DeferredAp(d3, _) => get_fn_name_from_expr(d3)
     | BuiltinFun(name) => Some(name)
-    | _ => None
+    | _ => Exp.get_fn_name(d)
     };
 
   /* Extract the definition-site ID from a function expression (including closures).
      Used to enable jump-to-definition from the closure cursor bar even when the
      app_id comes from built-in internal code (not in user's info_map). */
-  let get_fn_def_id_from_expr = (d: DHExp.t): option(Id.t) =>
+  let rec get_fn_def_id_from_expr = (d: DHExp.t): option(Id.t) =>
     switch (d.term) {
-    | Closure(_, e) => Exp.get_fn_def_id(e)
+    | Closure(_, e) => get_fn_def_id_from_expr(e)
     | Fun(_)
     | TypFun(_) => Some(DHExp.rep_id(d))
+    /* Partial application: resolve to the def-site of the underlying function
+       being deferred (the runtime shape is Closure(_, DeferredAp(fn_closure,
+       args))), so step-into on a deferred call lands in that function. */
+    | DeferredAp(d3, _) => get_fn_def_id_from_expr(d3)
     | BuiltinFun(_) => None
-    | _ => None
+    | _ => Exp.get_fn_def_id(d)
     };
 
   /* Transition for derivation terms is much narrower than for Hazel
@@ -804,7 +811,13 @@ module Transition = (EV: EV_MODE) => {
                 | _ => tuple(new_args)
                 },
               ),
-            side_effects: [],
+            /* Record a call frame for the deferred application at this call
+               site, carrying the underlying function's fn_def_id (resolved
+               above through the DeferredAp). Without this, a probe on a call
+               to a partially-applied function (f bound to setCell(_, ...))
+               would record no frame: no arg display, no step-into, no
+               jump-to-definition. */
+            side_effects: [RecordStackFrame(fn_name, Some(d2'), fn_def_id)],
             kind: DeferredAp,
             is_value: false,
           });
