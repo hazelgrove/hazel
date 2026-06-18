@@ -17,7 +17,8 @@ type t =
   | Livelit
   | TextArea
   | Table
-  | Csv;
+  | Csv
+  | TestGen;
 
 let livelit_projectors: list(t) = [
   Csv, /* Competes with Card for empty list */
@@ -34,8 +35,10 @@ let livelit_projectors: list(t) = [
 /* Note: Probe intentionally excluded - probes use separate action path */
 let projectors: list(t) = livelit_projectors @ [Fold];
 
-/* Refractors are like probes - additive decorations, not syntax-replacing */
-let refractors: list(t) = [Probe, Statics];
+/* Refractors are like probes - additive decorations, not syntax-replacing.
+ * TestGen is a refractor so the underlying boolean expression stays visible
+ * and editable while generated inputs are shown alongside it. */
+let refractors: list(t) = [Probe, Statics, TestGen];
 let is_refractor = (kind: t) => List.mem(kind, refractors);
 
 /* A friendly name for each projector. This is used
@@ -54,6 +57,7 @@ let name = (p: t): string =>
   | TextArea => "text"
   | Table => "table"
   | Csv => "csv"
+  | TestGen => "testgen"
   };
 
 /* This must be updated and kept 1-to-1 with the above
@@ -72,6 +76,7 @@ let of_name = (p: string): t =>
   | "card" => Card
   | "table" => Table
   | "csv" => Csv
+  | "testgen" => TestGen
   | _ => failwith("Unknown projector kind")
   };
 

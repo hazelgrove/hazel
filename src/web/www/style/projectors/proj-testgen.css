@@ -1,0 +1,87 @@
+/* PROJECTOR: TEST INPUT GENERATION (refractor) */
+
+:root {
+  --testgen-accent: hsl(170, 75%, 34%);
+  --testgen-accent-soft: hsl(170, 55%, 92%);
+  --testgen-muted: hsl(0, 0%, 45%);
+  --testgen-muted-bg: hsl(0, 0%, 95%);
+  --testgen-error: hsl(2, 62%, 46%);
+  --testgen-error-bg: hsl(2, 75%, 96%);
+}
+
+/* When used as a refractor the underlying syntax stays visible, so hide the
+   projector backing and only let the offside take pointer events. */
+.refractors .base .projector.testgen > svg {
+  display: none;
+}
+.refractors .base .projector.testgen {
+  pointer-events: none;
+}
+.refractors .base .projector.testgen .offside {
+  pointer-events: all;
+}
+
+/* OFFSIDE VIEW */
+
+.projector.testgen .offside {
+  display: flex;
+  align-items: center;
+  gap: 0.4em;
+  font-family: var(--code-font);
+  font-size: var(--base-font-size);
+  line-height: initial;
+}
+
+/* Generate button (flask) */
+.projector.testgen .testgen-generate {
+  cursor: pointer;
+  user-select: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5em;
+  height: 1.5em;
+  border-radius: 0.3em;
+  background-color: var(--testgen-accent);
+  color: white;
+  flex: none;
+}
+.projector.testgen .testgen-generate:hover {
+  filter: brightness(1.12);
+}
+.projector.testgen .testgen-generate:active {
+  filter: brightness(0.95);
+}
+
+/* Result pill */
+.projector.testgen .testgen-result {
+  padding: 0.1em 0.55em;
+  border-radius: 0.4em;
+  white-space: nowrap;
+  border: 1px solid transparent;
+  max-width: 40em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.projector.testgen .testgen-result.sat {
+  background-color: var(--testgen-accent-soft);
+  color: var(--testgen-accent);
+  border-color: var(--testgen-accent);
+  font-weight: 600;
+}
+
+.projector.testgen .testgen-result.unsat,
+.projector.testgen .testgen-result.unknown {
+  background-color: var(--testgen-muted-bg);
+  color: var(--testgen-muted);
+  border-color: hsl(0, 0%, 82%);
+  font-style: italic;
+}
+
+.projector.testgen .testgen-result.error {
+  background-color: var(--testgen-error-bg);
+  color: var(--testgen-error);
+  border-color: hsl(2, 60%, 82%);
+  white-space: normal;
+}

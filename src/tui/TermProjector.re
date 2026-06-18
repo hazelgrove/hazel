@@ -527,6 +527,7 @@ let lookup: ProjectorCore.Kind.t => option(t) =
   | Probe => Some(probe)
   | Card => Some(card)
   | Livelit
+  | TestGen /* web-only projector; falls back to the syntax chip in the TUI */
   | Csv => None; /* covered by the syntax_chip fallback */
 
 /* Kinds the focused mode can drive from the keyboard */

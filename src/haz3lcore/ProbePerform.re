@@ -604,6 +604,27 @@ let toggle_multi =
     }
   };
 
+/* Test input generation is a plain single-term refractor (unlike probes, it
+   needs none of the multi/target-id machinery): toggle a TestGen entry in the
+   manual refractor list for the indicated term. */
+let has_testgen = (id: Id.t, z: Zipper.t): bool =>
+  List.exists(
+    ((mid, e: Refractors.entry)) => mid == id && e.kind == TestGen,
+    z.refractors.manuals,
+  );
+
+let toggle_testgen = (id: Id.t, z: Zipper.t): Zipper.t =>
+  if (has_testgen(id, z)) {
+    Zipper.update_manuals(
+      List.filter(((mid, e: Refractors.entry)) =>
+        !(mid == id && e.kind == TestGen)
+      ),
+      z,
+    );
+  } else {
+    Zipper.add_manual(id, TestGen, z);
+  };
+
 /* Check if the indicated term is a definition form (Let or Test/HintedTest).
    When true, the unified probe action adds a multi probe instead of manual.
    This is because definition bodies benefit from multi probe's per-line
@@ -897,6 +918,11 @@ let go =
   | ToggleStatics =>
     switch (Indicated.index(z)) {
     | Some(id) => toggle_statics(~syntax, id, info_map, z)
+    | None => z
+    }
+  | ToggleTestGen =>
+    switch (Indicated.index(z)) {
+    | Some(id) => toggle_testgen(id, z)
     | None => z
     }
   | StepInto(call_stack, ap_id) =>

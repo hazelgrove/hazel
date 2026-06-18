@@ -18,6 +18,7 @@ let to_module = (kind: ProjectorCore.Kind.t): (module CookedView) =>
   | Card => (module CookView(CardProjView.V))
   | Table => (module CookView(TableProjView.V))
   | Csv => (module CookView(CSVProjectorView.V))
+  | TestGen => (module CookView(TestGenProjView.V))
   };
 
 /* Install web focus behavior into the core registry (consulted by

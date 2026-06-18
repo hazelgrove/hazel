@@ -12,4 +12,25 @@
    %{project_root}/node_modules/esbuild/bin/esbuild
    prebundle.js
    --bundle
+   ; z3-solver's bundled code references Node's `global`; map it to
+   ; `globalThis` so the bundle runs in the browser.
+   --define:global=globalThis
    --outfile=bundled.js)))
+
+; Z3 WebAssembly assets for test input generation. z3-solver's emscripten
+; loader fetches these relative to the page at runtime, so copy them into the
+; www build dir alongside bundled.js. This makes them available however the
+; built site is served (esbuild output dir, static server, etc.) without
+; depending on vite.
+
+(rule
+ (target z3-built.wasm)
+ (action
+  (copy
+   %{project_root}/node_modules/z3-solver/build/z3-built.wasm
+   z3-built.wasm)))
+
+(rule
+ (target z3-built.js)
+ (action
+  (copy %{project_root}/node_modules/z3-solver/build/z3-built.js z3-built.js)))

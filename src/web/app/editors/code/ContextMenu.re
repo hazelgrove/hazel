@@ -280,6 +280,7 @@ module Projectors = {
     | Csv => "CSV"
     | Table => "Table"
     | Livelit => "Livelit"
+    | TestGen => "Test Inputs"
     | Probe => "Probe" /* shouldn't appear in menu */
     };
 
@@ -340,6 +341,27 @@ module Projectors = {
   };
 };
 
+/* Test input generation refractor: offered on boolean expressions (or to
+   remove it where already present). Toggles a TestGen manual refractor. */
+let testgen_data =
+    (~ci: option(Language.Info.t), z: Zipper.t): list(Menu.item(Action.t)) => {
+  let id = Indicated.index(z) |> Option.value(~default=Id.invalid);
+  let present = ProbePerform.has_testgen(id, z);
+  let applicable =
+    switch (ci) {
+    | Some(InfoExp(e)) => Haz3lcore.TestGen.applicable(e)
+    | _ => false
+    };
+  applicable || present
+    ? [
+      action_item(
+        (present ? "Remove" : "Generate") ++ " test inputs",
+        Action.Probe(ToggleTestGen),
+      ),
+    ]
+    : [];
+};
+
 let refractor_actions_data =
     (
       ~ci: option(Language.Info.t),
@@ -353,7 +375,8 @@ let refractor_actions_data =
   let can_statics = ProbePerform.can_statics(id, info_map);
   let is_def = ProbePerform.is_definition_form(id, info_map);
   probe_data(~can_probe, ~is_def, probe_status, ci)
-  @ type_annotation_data(~can_type=can_statics, probe_status, ci);
+  @ type_annotation_data(~can_type=can_statics, probe_status, ci)
+  @ testgen_data(~ci, z);
 };
 
 /* ============================================================
