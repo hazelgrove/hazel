@@ -16,16 +16,24 @@ open ProjectorBase;
 /* `group` controls merging: 0 = solo (per-point reachability/dead-code),
  * N≥1 = conjoined with every other group-N reach point ("one input reaching
  * all of them"). Group ids are arbitrary positive ints (the view assigns and
- * colors them dynamically); the set in use drives the chip's cycle range. */
+ * colors them dynamically); the set in use drives the chip's cycle range.
+ *
+ * `enabled` toggles the point like a breakpoint: a disabled point stays listed
+ * but is dropped from its group's merge and is not solved (see
+ * ProjectorInfo.resolve_reach). Defaulted so models serialized before this
+ * field deserialize as enabled. */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
   [@default 0]
   group: int,
+  [@default true]
+  enabled: bool,
   result: option(TestGen.outcome),
 };
 
 let init_model: t = {
   group: 0,
+  enabled: true,
   result: None,
 };
 
@@ -39,6 +47,7 @@ let t_of_sexp = (sexp: Sexplib.Sexp.t): t =>
 type reach_action =
   | SetResult(TestGen.outcome)
   | SetGroup(int)
+  | SetEnabled(bool)
   | Clear;
 
 module M: Projector with type model = t and type action = reach_action = {
@@ -68,7 +77,15 @@ module M: Projector with type model = t and type action = reach_action = {
     /* Changing group changes the constraint set, so the old result is stale.
        The view computes the next group from the set currently in use. */
     | SetGroup(group) => {
+        ...model,
         group,
+        result: None,
+      }
+    /* Enabling/disabling changes which points are merged, so any result is
+       stale (the merged condition may differ). */
+    | SetEnabled(enabled) => {
+        ...model,
+        enabled,
         result: None,
       }
     | Clear => {

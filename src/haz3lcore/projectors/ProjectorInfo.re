@@ -112,6 +112,12 @@ let reach_group_of = (entry: Refractors.entry): int =>
   | exception _ => 0
   };
 
+let reach_enabled_of = (entry: Refractors.entry): bool =>
+  switch (ReachProj.t_of_sexp(Sexplib.Sexp.of_string(entry.model))) {
+  | {enabled, _} => enabled
+  | exception _ => true
+  };
+
 /* Distinct merge groups (≥1) currently assigned across all Reach refractors. */
 let reach_group_count = (refractors: Refractors.Map.t): int =>
   Id.Map.bindings(refractors)
@@ -128,32 +134,41 @@ let reach_group_count = (refractors: Refractors.Map.t): int =>
 
 /* Resolve the reach condition for every Reach refractor, honoring groups:
  * group 0 points use their own path condition; group N≥1 points all share the
- * conjunction of the group's members ("one input reaching all"). */
+ * conjunction of the group's members ("one input reaching all"). Disabled
+ * points stay in the map (so they're still listed) but are dropped from their
+ * group's merge, so an enabled member's merged condition never includes a
+ * disabled sibling. */
 let resolve_reach =
     (refractors: Refractors.Map.t, statics: Statics.Map.t): Id.Map.t(Reach.t) => {
   let group_of = reach_group_of;
-  /* (id, group, path condition) for each analyzable Reach refractor */
+  /* (id, group, enabled, path condition) for each analyzable Reach refractor */
   let points =
     Id.Map.bindings(refractors)
     |> List.filter_map(((id, entry: Refractors.entry)) =>
          switch (entry.kind) {
          | Reach =>
            Reach.analyze(id, statics)
-           |> Option.map(r => (id, group_of(entry), r))
+           |> Option.map(r =>
+                (id, group_of(entry), reach_enabled_of(entry), r)
+              )
          | _ => None
          }
        );
   let groups =
     points
-    |> List.filter_map(((_, g, _)) => g == 0 ? None : Some(g))
+    |> List.filter_map(((_, g, _, _)) => g == 0 ? None : Some(g))
     |> List.sort_uniq(compare);
+  /* Merge only the enabled members of the group. */
   let merged_of_group = (g: int): Reach.t =>
     Reach.merge(
-      List.filter_map(((_, gg, r)) => gg == g ? Some(r) : None, points),
+      List.filter_map(
+        ((_, gg, en, r)) => gg == g && en ? Some(r) : None,
+        points,
+      ),
     );
   let group_reach = List.map(g => (g, merged_of_group(g)), groups);
   List.fold_left(
-    (acc, (id, g, r)) =>
+    (acc, (id, g, _en, r)) =>
       Id.Map.add(id, g == 0 ? r : List.assoc(g, group_reach), acc),
     Id.Map.empty,
     points,

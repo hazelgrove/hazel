@@ -15,13 +15,47 @@ open ProjectorViewBase;
 let assignment_str = (a: TestGen.assignment): string =>
   a.name ++ " = " ++ a.value;
 
-let result_view = (~grouped: bool, outcome: TestGen.outcome): Node.t =>
+/* `multiline` renders the assignments as an aligned `var = value` table — used
+ * by the Reach sidebar, which has vertical room and scrolls; the offside keeps
+ * the compact single-line pill (multiline=false). */
+let result_view =
+    (~grouped: bool, ~multiline=false, outcome: TestGen.outcome): Node.t =>
   switch (outcome) {
   | Sat([]) =>
     span(
       ~attrs=[Attr.classes(["reach-result", "reachable"])],
       [
         text(grouped ? "all reachable (any input)" : "reachable (any input)"),
+      ],
+    )
+  | Sat(assignments) when multiline =>
+    div(
+      ~attrs=[
+        Attr.classes(["reach-result", "reachable", "reach-result-list"]),
+      ],
+      [
+        span(
+          ~attrs=[Attr.classes(["reach-result-label"])],
+          [text(grouped ? "all reached when" : "reached when")],
+        ),
+        Node.table(
+          ~attrs=[Attr.classes(["reach-assignments"])],
+          List.map(
+            (a: TestGen.assignment) =>
+              Node.tr([
+                Node.td(
+                  ~attrs=[Attr.classes(["reach-var"])],
+                  [text(a.name)],
+                ),
+                Node.td(~attrs=[Attr.classes(["reach-eq"])], [text("=")]),
+                Node.td(
+                  ~attrs=[Attr.classes(["reach-val"])],
+                  [text(a.value)],
+                ),
+              ]),
+            assignments,
+          ),
+        ),
       ],
     )
   | Sat(assignments) =>
@@ -98,29 +132,35 @@ module V: ProjectorView = {
 
   let view = ({model, info, local, _}: View.args(L.model, L.action)) => {
     let on_generate = _ =>
-      switch (info.reach) {
-      | None =>
-        local(
-          ReachProj.SetResult(
-            TestGen.Error("Enable statics to analyze reachability."),
-          ),
-        )
-      | Some(r) =>
-        let (script, complete) = Reach.smtlib2(r);
-        Z3Wasm.solve(
-          ~k=
-            outcome =>
-              Bonsai.Effect.Expert.handle(
-                local(
-                  ReachProj.SetResult(
-                    Reach.interpret(~complete, ~inputs=r.inputs, outcome),
-                  ),
-                ),
+      /* Disabled points are excluded from solving (and from group merges); the
+         enable toggle lives in the Reach sidebar. */
+      !model.enabled
+        ? Effect.Ignore
+        : (
+          switch (info.reach) {
+          | None =>
+            local(
+              ReachProj.SetResult(
+                TestGen.Error("Enable statics to analyze reachability."),
               ),
-          script,
+            )
+          | Some(r) =>
+            let (script, complete) = Reach.smtlib2(r);
+            Z3Wasm.solve(
+              ~k=
+                outcome =>
+                  Bonsai.Effect.Expert.handle(
+                    local(
+                      ReachProj.SetResult(
+                        Reach.interpret(~complete, ~inputs=r.inputs, outcome),
+                      ),
+                    ),
+                  ),
+              script,
+            );
+            Effect.Ignore;
+          }
         );
-        Effect.Ignore;
-      };
     let generate_btn =
       span(
         ~attrs=[
@@ -138,7 +178,10 @@ module V: ProjectorView = {
             ~attrs=[
               Attr.id(Id.cls(info.id)),
               Attr.tabindex(0),
-              Attr.classes(["offside", "reach-offside"]),
+              Attr.classes(
+                ["offside", "reach-offside"]
+                @ (model.enabled ? [] : ["disabled"]),
+              ),
             ],
             [
               group_chip(

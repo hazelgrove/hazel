@@ -74,6 +74,11 @@ module Model = {
         flat: false,
         expanded: [],
       },
+      reach: {
+        flat: false,
+        group_names: [],
+        collapsed_groups: [],
+      },
       debug_show_raw: false,
       debug_collapsed: [],
     },
@@ -376,6 +381,39 @@ module Update = {
               SidebarModel.Settings.toggle_expanded(
                 id,
                 settings.sidebar.problems,
+              ),
+          },
+        }
+      | Sidebar(Reach(ToggleReachView)) => {
+          ...settings,
+          sidebar: {
+            ...settings.sidebar,
+            reach: {
+              ...settings.sidebar.reach,
+              flat: !settings.sidebar.reach.flat,
+            },
+          },
+        }
+      | Sidebar(Reach(ToggleGroupCollapsed(g))) => {
+          ...settings,
+          sidebar: {
+            ...settings.sidebar,
+            reach:
+              SidebarModel.Settings.toggle_reach_group_collapsed(
+                g,
+                settings.sidebar.reach,
+              ),
+          },
+        }
+      | Sidebar(Reach(SetGroupName(g, name))) => {
+          ...settings,
+          sidebar: {
+            ...settings.sidebar,
+            reach:
+              SidebarModel.Settings.set_reach_group_name(
+                g,
+                name,
+                settings.sidebar.reach,
               ),
           },
         }

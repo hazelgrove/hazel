@@ -157,6 +157,15 @@ let problems_tab =
     ~globals,
   );
 
+let reach_tab = (~globals: Globals.t): Node.t =>
+  tab_of(
+    ~panel=Reach,
+    ~cls=["reach-button"],
+    ~icon=Icons.solid_circle,
+    ~tooltip="Switch to Reach Points",
+    ~globals,
+  );
+
 let collapse_tab = (~globals: Globals.t): Node.t => {
   let tooltip =
     globals.settings.sidebar.show ? "Collapse Sidebar" : "Expand Sidebar";
@@ -182,6 +191,7 @@ let persistent_view =
           assistant_tab(~globals),
           probes_tab(~globals),
           problems_tab(~globals, ~counts),
+          reach_tab(~globals),
         ]
         @ (
           globals.settings.show_log_panel ? [log_control_tab(~globals)] : []
@@ -358,6 +368,7 @@ let view =
                 ~cursor,
                 ~collection=problem_collection,
               )
+            | Reach => ReachSidebar.view(~globals, ~cursor, ~editor)
             | DebugInfo => DebugSidebar.view(~globals, ~cursor)
             },
           ],

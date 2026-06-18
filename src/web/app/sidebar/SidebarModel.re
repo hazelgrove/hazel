@@ -8,6 +8,7 @@ module Settings = {
     | Probes
     | LogControl
     | Problems
+    | Reach
     | DebugInfo;
 
   [@deriving (show({with_path: false}), sexp, yojson, enumerate)]
@@ -149,11 +150,61 @@ module Settings = {
     | ToggleFlat
     | ToggleExpanded(Id.t);
 
+  /* Reach sidebar (breakpoint-manager-style panel) state. Presentational, so
+     it lives in web settings rather than on the program: `flat` picks the
+     order view over the default group view; `group_names` names merge groups
+     (keyed by the group int used on each ReachProj model); `collapsed_groups`
+     records which group sections are showing only their merged total (members
+     hidden). Enable/disable and group membership live on the refractor model,
+     so they travel with the program. */
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type reach_settings = {
+    flat: bool,
+    group_names: list((int, string)),
+    collapsed_groups: list(int),
+  };
+
+  let reach_group_name = (g: int, settings: reach_settings): string =>
+    switch (List.assoc_opt(g, settings.group_names)) {
+    | Some(name) when String.trim(name) != "" => name
+    | _ => "Group " ++ string_of_int(g)
+    };
+
+  let set_reach_group_name =
+      (g: int, name: string, settings: reach_settings): reach_settings => {
+    ...settings,
+    group_names: [(g, name), ...List.remove_assoc(g, settings.group_names)],
+  };
+
+  let is_reach_group_collapsed = (g: int, settings: reach_settings): bool =>
+    List.mem(g, settings.collapsed_groups);
+
+  let toggle_reach_group_collapsed =
+      (g: int, settings: reach_settings): reach_settings =>
+    if (is_reach_group_collapsed(g, settings)) {
+      {
+        ...settings,
+        collapsed_groups: List.filter(x => x != g, settings.collapsed_groups),
+      };
+    } else {
+      {
+        ...settings,
+        collapsed_groups: [g, ...settings.collapsed_groups],
+      };
+    };
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type reach_action =
+    | ToggleReachView /* group view <-> order view */
+    | ToggleGroupCollapsed(int)
+    | SetGroupName(int, string);
+
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
     show: bool,
     panel,
     problems: problems_settings,
+    reach: reach_settings,
     debug_show_raw: bool,
     /* Collapsed debug sidebar sections/fields, keyed by section title or
        field label. Persists across cursor moves so collapsing e.g. "ctx"
@@ -182,6 +233,7 @@ module Settings = {
     | ToggleShow
     | SwitchPanel(panel)
     | Problems(problems_action)
+    | Reach(reach_action)
     | ToggleDebugRaw
     | ToggleDebugCollapsed(string);
 };

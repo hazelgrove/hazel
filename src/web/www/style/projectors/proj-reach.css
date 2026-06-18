@@ -120,3 +120,329 @@
   border-color: hsl(2, 60%, 82%);
   white-space: normal;
 }
+
+/* ============================================================
+   REACH SIDEBAR (breakpoint-manager-style control panel)
+   Reuses the --reach-* palette above. Offside result/path rules
+   are scoped to .projector.reach, so the sidebar restyles its
+   own copies of .reach-result / constraints below.
+   ============================================================ */
+
+#reach-sidebar {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow-y: auto;
+  padding: 0.5em 0.4em 1em;
+  font-size: var(--base-font-size);
+  box-sizing: border-box;
+}
+
+/* Header: title + view toggle + solve-all */
+#reach-sidebar .reach-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5em;
+  padding: 0.2em 0.3em 0.6em;
+  position: sticky;
+  top: 0;
+  background: inherit;
+  z-index: 1;
+}
+#reach-sidebar .main-title {
+  font-weight: 700;
+  font-size: 1.05em;
+}
+#reach-sidebar .reach-view-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.3em;
+}
+#reach-sidebar .toggle-option {
+  cursor: pointer;
+  user-select: none;
+  padding: 0.12em 0.55em;
+  border-radius: 0.4em;
+  color: var(--reach-muted);
+  background: var(--reach-muted-bg);
+  font-size: 0.9em;
+}
+#reach-sidebar .toggle-option.active {
+  color: white;
+  background: var(--reach-accent);
+  font-weight: 600;
+}
+#reach-sidebar .reach-solve-all {
+  cursor: pointer;
+  user-select: none;
+  margin-left: 0.4em;
+  padding: 0.12em 0.6em;
+  border-radius: 0.4em;
+  color: white;
+  background: var(--reach-accent);
+  font-weight: 600;
+  font-size: 0.9em;
+}
+#reach-sidebar .reach-solve-all:hover {
+  filter: brightness(1.1);
+}
+
+/* Section label (Solo) + group sections */
+#reach-sidebar .reach-section-label {
+  font-size: 0.78em;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--reach-muted);
+  padding: 0.5em 0.3em 0.2em;
+}
+#reach-sidebar .reach-group {
+  border: 1px solid hsl(0, 0%, 88%);
+  border-radius: 0.5em;
+  margin: 0.45em 0.1em;
+  overflow: hidden;
+}
+#reach-sidebar .reach-group-header {
+  display: flex;
+  align-items: center;
+  gap: 0.4em;
+  padding: 0.35em 0.45em;
+  background: hsl(0, 0%, 97%);
+}
+#reach-sidebar .reach-group-chevron {
+  cursor: pointer;
+  user-select: none;
+  color: var(--reach-muted);
+  width: 1em;
+  flex: none;
+}
+#reach-sidebar .reach-group-name {
+  flex: 1 1 auto;
+  min-width: 3em;
+  border: 1px solid transparent;
+  background: transparent;
+  border-radius: 0.3em;
+  padding: 0.1em 0.3em;
+  font-weight: 600;
+  font-size: 0.95em;
+}
+#reach-sidebar .reach-group-name:hover {
+  border-color: hsl(0, 0%, 85%);
+}
+#reach-sidebar .reach-group-name:focus {
+  border-color: var(--reach-accent);
+  background: white;
+  outline: none;
+}
+#reach-sidebar .reach-count {
+  color: var(--reach-muted);
+  font-size: 0.85em;
+  flex: none;
+}
+
+/* Group color swatch */
+#reach-sidebar .reach-swatch {
+  display: inline-block;
+  width: 0.85em;
+  height: 0.85em;
+  border-radius: 50%;
+  flex: none;
+}
+
+/* A point row: a horizontal controls line, with the result on its own
+   full-width line below. */
+#reach-sidebar .reach-row {
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid hsl(0, 0%, 93%);
+}
+#reach-sidebar .reach-row-main {
+  display: flex;
+  align-items: center;
+  gap: 0.4em;
+  padding: 0.28em 0.45em;
+  cursor: pointer;
+}
+#reach-sidebar .reach-list .reach-row,
+#reach-sidebar .reach-solo .reach-row {
+  border: none;
+  margin: 0.1em 0.1em;
+}
+#reach-sidebar .reach-row-main:hover {
+  background: var(--reach-accent-soft);
+  border-radius: 0.4em;
+}
+#reach-sidebar .reach-row.disabled {
+  opacity: 0.5;
+}
+
+/* Enable toggle — breakpoint dot */
+#reach-sidebar .reach-enable {
+  cursor: pointer;
+  user-select: none;
+  flex: none;
+  width: 1.2em;
+  text-align: center;
+  font-size: 0.9em;
+}
+#reach-sidebar .reach-enable.on {
+  color: var(--reach-dead);
+}
+#reach-sidebar .reach-enable.off {
+  color: var(--reach-muted);
+}
+
+#reach-sidebar .reach-line {
+  flex: none;
+  color: var(--reach-muted);
+  font-family: var(--code-font);
+  font-size: 0.82em;
+  min-width: 2.2em;
+}
+
+/* Path condition text */
+#reach-sidebar .reach-constraint {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-family: var(--code-font);
+  font-size: 0.85em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--reach-accent);
+}
+#reach-sidebar .reach-group > .reach-constraint {
+  padding: 0.25em 0.6em;
+  background: var(--reach-accent-soft);
+  border-bottom: 1px solid hsl(0, 0%, 93%);
+}
+#reach-sidebar .reach-constraint .reach-path {
+  background: none;
+  padding: 0;
+}
+#reach-sidebar .reach-constraint-trivial,
+#reach-sidebar .reach-constraint.na {
+  color: var(--reach-muted);
+  font-style: italic;
+}
+#reach-sidebar .reach-approx {
+  color: var(--reach-muted);
+  font-weight: 700;
+}
+
+/* Group dropdown */
+#reach-sidebar .reach-group-select {
+  flex: none;
+  max-width: 8em;
+  font-size: 0.8em;
+  border-radius: 0.3em;
+}
+
+/* Solve button (target) */
+#reach-sidebar .reach-generate {
+  cursor: pointer;
+  user-select: none;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5em;
+  height: 1.5em;
+  border-radius: 0.3em;
+  background: var(--reach-accent);
+}
+#reach-sidebar .reach-generate:hover {
+  filter: brightness(1.1);
+}
+
+/* Result — its own full-width line; wraps freely (the sidebar scrolls). */
+#reach-sidebar .reach-result {
+  align-self: flex-start;
+  margin: 0.1em 0.5em 0.35em 1.9em;
+  padding: 0.15em 0.55em;
+  border-radius: 0.4em;
+  white-space: normal;
+  border: 1px solid transparent;
+  font-size: 0.82em;
+  max-width: calc(100% - 2.6em);
+}
+/* The merged group result lines up with the group's merged constraint. */
+#reach-sidebar .reach-group > .reach-result {
+  margin-left: 0.6em;
+}
+
+/* Solved assignments, as an aligned `var = value` table. */
+#reach-sidebar .reach-result-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2em;
+}
+#reach-sidebar .reach-result-label {
+  font-size: 0.82em;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  opacity: 0.7;
+}
+#reach-sidebar .reach-assignments {
+  border-collapse: collapse;
+  font-family: var(--code-font);
+}
+#reach-sidebar .reach-assignments td {
+  padding: 0.06em 0;
+  vertical-align: baseline;
+  line-height: 1.3;
+}
+/* Right-align names so the `=` column lines up down the list. */
+#reach-sidebar .reach-var {
+  text-align: right;
+  color: var(--reach-accent);
+  font-weight: 600;
+  white-space: nowrap;
+}
+#reach-sidebar .reach-eq {
+  text-align: center;
+  padding: 0 0.45em;
+  color: var(--reach-muted);
+}
+#reach-sidebar .reach-val {
+  text-align: left;
+  color: hsl(0, 0%, 13%);
+  font-weight: 600;
+  white-space: nowrap;
+}
+#reach-sidebar .reach-result.reachable {
+  background: var(--reach-accent-soft);
+  color: var(--reach-accent);
+  border-color: var(--reach-accent);
+  font-weight: 600;
+}
+#reach-sidebar .reach-result.dead {
+  background: var(--reach-dead-bg);
+  color: var(--reach-dead);
+  border-color: hsl(2, 60%, 82%);
+  font-weight: 600;
+}
+#reach-sidebar .reach-result.unknown {
+  background: var(--reach-muted-bg);
+  color: var(--reach-muted);
+  border-color: hsl(0, 0%, 82%);
+  font-style: italic;
+}
+#reach-sidebar .reach-result.error {
+  background: var(--reach-dead-bg);
+  color: var(--reach-dead);
+  border-color: hsl(2, 60%, 82%);
+  white-space: normal;
+}
+
+/* Empty state */
+#reach-sidebar .reach-empty {
+  padding: 1.5em 1em;
+  text-align: center;
+  color: var(--reach-muted);
+}
+#reach-sidebar .reach-empty-hint {
+  margin-top: 0.5em;
+  font-size: 0.85em;
+}
