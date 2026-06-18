@@ -15,19 +15,21 @@ open ProjectorViewBase;
 let assignment_str = (a: TestGen.assignment): string =>
   a.name ++ " = " ++ a.value;
 
-let result_view = (outcome: TestGen.outcome): Node.t =>
+let result_view = (~grouped: bool, outcome: TestGen.outcome): Node.t =>
   switch (outcome) {
   | Sat([]) =>
     span(
       ~attrs=[Attr.classes(["reach-result", "reachable"])],
-      [text("reachable (any input)")],
+      [
+        text(grouped ? "all reachable (any input)" : "reachable (any input)"),
+      ],
     )
   | Sat(assignments) =>
     span(
       ~attrs=[Attr.classes(["reach-result", "reachable"])],
       [
         text(
-          "reached when "
+          (grouped ? "all reached when " : "reached when ")
           ++ String.concat(", ", List.map(assignment_str, assignments)),
         ),
       ],
@@ -35,7 +37,7 @@ let result_view = (outcome: TestGen.outcome): Node.t =>
   | Unsat =>
     span(
       ~attrs=[Attr.classes(["reach-result", "dead"])],
-      [text("unreachable — dead code")],
+      [text(grouped ? "incompatible" : "unreachable — dead code")],
     )
   | Unknown =>
     span(
@@ -45,6 +47,16 @@ let result_view = (outcome: TestGen.outcome): Node.t =>
   | Error(msg) =>
     span(~attrs=[Attr.classes(["reach-result", "error"])], [text(msg)])
   };
+
+let group_chip = (local, group: int): Node.t =>
+  span(
+    ~attrs=[
+      Attr.classes(["reach-group", "g" ++ string_of_int(group)]),
+      Attr.title("Merge group — click to cycle (• = solo)"),
+      Attr.on_click(_ => local(ReachProj.CycleGroup)),
+    ],
+    [text(group == 0 ? {js|•|js} : string_of_int(group))],
+  );
 
 /* Render the symbolic path condition (the conjoined guards) as Hazel text. */
 let path_view = (utility: ProjectorBase.utility, r: Reach.t): list(Node.t) => {
@@ -110,7 +122,7 @@ module V: ProjectorView = {
               Attr.tabindex(0),
               Attr.classes(["offside", "reach-offside"]),
             ],
-            [generate_btn]
+            [group_chip(local, model.group), generate_btn]
             @ (
               switch (info.reach) {
               | Some(r) => path_view(info.utility, r)
@@ -120,7 +132,7 @@ module V: ProjectorView = {
             @ (
               switch (model.result) {
               | None => []
-              | Some(o) => [result_view(o)]
+              | Some(o) => [result_view(~grouped=model.group != 0, o)]
               }
             ),
           ),

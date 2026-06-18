@@ -47,6 +47,25 @@ let outcome_of = (r: Reach.t): TG.outcome => {
   TestgenZ3.Z3Native.solve(script);
 };
 
+/* Two reach points from the same parse (so variable names line up). */
+let analyze_two =
+    (src: string, n1: int, n2: int): option((Reach.t, Reach.t)) =>
+  switch (Haz3lcore.Parser.to_zipper(~root=Exp, src)) {
+  | None => None
+  | Some(zipper) =>
+    let term = Haz3lcore.MakeTerm.from_zip_for_sem(zipper, ~root=Exp).term;
+    let (map, _) =
+      Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
+    switch (find_int_lit(n1, map), find_int_lit(n2, map)) {
+    | (Some(i1), Some(i2)) =>
+      switch (Reach.analyze(i1, map), Reach.analyze(i2, map)) {
+      | (Some(r1), Some(r2)) => Some((r1, r2))
+      | _ => None
+      }
+    | _ => None
+    };
+  };
+
 /* === pure: path-condition shape (no solver) === */
 
 let pure_tests = [
@@ -111,6 +130,33 @@ let solve_tests =
           | other => fail("expected Sat, got " ++ TG.show_outcome(other))
           }
         | None => fail("analyze returned None")
+        }
+      ),
+      test_case(
+        "merge of mutually-exclusive branches is incompatible", `Quick, () =>
+        switch (analyze_two("if x > 0 then 1 else 2", 1, 2)) {
+        | Some((r1, r2)) =>
+          switch (outcome_of(Reach.merge([r1, r2]))) {
+          | Unsat => check(bool, "incompatible", true, true)
+          | other => fail("expected Unsat, got " ++ TG.show_outcome(other))
+          }
+        | None => fail("analyze_two returned None")
+        }
+      ),
+      test_case("merge of compatible branches is satisfiable", `Quick, () =>
+        switch (
+          analyze_two(
+            "(if x > 0 then 1 else 9, if x > 5 then 2 else 8)",
+            1,
+            2,
+          )
+        ) {
+        | Some((r1, r2)) =>
+          switch (outcome_of(Reach.merge([r1, r2]))) {
+          | Sat(_) => check(bool, "sat", true, true)
+          | other => fail("expected Sat, got " ++ TG.show_outcome(other))
+          }
+        | None => fail("analyze_two returned None")
         }
       ),
     ];

@@ -76,6 +76,8 @@ let mk_info =
     ~statics=statics.info_map,
     ~dynamics=Language.Dynamics.Map.empty,
     ~elaborated=Some(statics.elaborated),
+    /* The TUI doesn't render the Reach refractor (Reach => None). */
+    ~reach_map=Util.Id.Map.empty,
   );
 
 let pad_to = (width: int, spans: Frame.row): Frame.row => {

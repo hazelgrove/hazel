@@ -174,6 +174,27 @@ let analyze = (target_id: Id.t, map: Statics.Map.t): option(t) =>
     });
   };
 
+/* Merge several reach conditions into one (their conjunction): "find one
+ * input reaching all of them in a single execution". Used for group/merge.
+ * Variable declarations are deduped by name (a repeated declare-const is a z3
+ * error); let-bindings likewise. NOTE: variables are merged by NAME, so reach
+ * points in different scopes that share a local/parameter name are conflated —
+ * fine within one scope (the common case), approximate across scopes. */
+let dedup_assoc = (xs: list((string, 'a))): list((string, 'a)) =>
+  List.fold_left(
+    (acc, (k, v)) => List.mem_assoc(k, acc) ? acc : acc @ [(k, v)],
+    [],
+    xs,
+  );
+
+let merge = (rs: list(t)): t => {
+  guards: List.concat_map(r => r.guards, rs),
+  lets: dedup_assoc(List.concat_map(r => r.lets, rs)),
+  var_sorts: dedup_assoc(List.concat_map(r => r.var_sorts, rs)),
+  inputs: List.concat_map(r => r.inputs, rs) |> List.sort_uniq(compare),
+  complete: List.for_all(r => r.complete, rs),
+};
+
 /* ===================== SMT-LIB2 assembly ===================== */
 
 /* Returns (script, complete): complete is false if any guard or let-definition

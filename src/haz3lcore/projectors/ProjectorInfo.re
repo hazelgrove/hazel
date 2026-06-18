@@ -56,6 +56,11 @@ let mk_info =
       ~statics: Statics.Map.t,
       ~dynamics: Dynamics.Map.t,
       ~elaborated: option(Exp.t),
+      /* Reach refractors only: the (possibly group-merged) path condition for
+       * each reach point, precomputed by `resolve_reach` where the whole
+       * refractor set is available. Empty elsewhere; solo points fall back to
+       * computing their own condition. */
+      ~reach_map: Id.Map.t(Reach.t),
     )
     : ProjectorBase.info => {
   id: p.id,
@@ -87,10 +92,52 @@ let mk_info =
   },
   reach:
     switch (p.kind) {
-    | Reach => Reach.analyze(p.id, statics)
+    | Reach =>
+      switch (Id.Map.find_opt(p.id, reach_map)) {
+      | Some(_) as r => r
+      | None => Reach.analyze(p.id, statics) /* solo fallback */
+      }
     | _ => None
     },
   utility,
+};
+
+/* Resolve the reach condition for every Reach refractor, honoring groups:
+ * group 0 points use their own path condition; group N≥1 points all share the
+ * conjunction of the group's members ("one input reaching all"). */
+let resolve_reach =
+    (refractors: Refractors.Map.t, statics: Statics.Map.t): Id.Map.t(Reach.t) => {
+  let group_of = (entry: Refractors.entry): int =>
+    switch (ReachProj.t_of_sexp(Sexplib.Sexp.of_string(entry.model))) {
+    | {group, _} => group
+    | exception _ => 0
+    };
+  /* (id, group, path condition) for each analyzable Reach refractor */
+  let points =
+    Id.Map.bindings(refractors)
+    |> List.filter_map(((id, entry: Refractors.entry)) =>
+         switch (entry.kind) {
+         | Reach =>
+           Reach.analyze(id, statics)
+           |> Option.map(r => (id, group_of(entry), r))
+         | _ => None
+         }
+       );
+  let groups =
+    points
+    |> List.filter_map(((_, g, _)) => g == 0 ? None : Some(g))
+    |> List.sort_uniq(compare);
+  let merged_of_group = (g: int): Reach.t =>
+    Reach.merge(
+      List.filter_map(((_, gg, r)) => gg == g ? Some(r) : None, points),
+    );
+  let group_reach = List.map(g => (g, merged_of_group(g)), groups);
+  List.fold_left(
+    (acc, (id, g, r)) =>
+      Id.Map.add(id, g == 0 ? r : List.assoc(g, group_reach), acc),
+    Id.Map.empty,
+    points,
+  );
 };
 
 module ShapeMapSemantics = {
@@ -104,7 +151,17 @@ module ShapeMapSemantics = {
       )
       : (ProjectorCore.Shape.t, option(ProjectorBase.error)) => {
     let (module P) = ProjectorInit.to_module(p.kind);
-    let info = mk_info(p, ~sample_focus, ~statics, ~dynamics, ~elaborated);
+    /* The shape path handles syntax-replacing projectors, never Reach
+     * refractors, so no reach map is needed here. */
+    let info =
+      mk_info(
+        p,
+        ~sample_focus,
+        ~statics,
+        ~dynamics,
+        ~elaborated,
+        ~reach_map=Id.Map.empty,
+      );
     (P.placeholder(p.model, info), P.error(p.model, info));
   };
 

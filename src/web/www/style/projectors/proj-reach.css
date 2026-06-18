@@ -29,6 +29,43 @@
   line-height: initial;
 }
 
+/* Merge-group chip (click to cycle; • = solo). Same color = same group. */
+.projector.reach .reach-group {
+  cursor: pointer;
+  user-select: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.4em;
+  height: 1.4em;
+  border-radius: 50%;
+  font-size: 0.85em;
+  font-weight: 700;
+  color: white;
+  flex: none;
+}
+.projector.reach .reach-group:hover {
+  filter: brightness(1.12);
+}
+.projector.reach .reach-group.g0 {
+  background-color: hsl(0, 0%, 72%);
+}
+.projector.reach .reach-group.g1 {
+  background-color: hsl(255, 60%, 55%);
+}
+.projector.reach .reach-group.g2 {
+  background-color: hsl(22, 75%, 52%);
+}
+.projector.reach .reach-group.g3 {
+  background-color: hsl(150, 55%, 40%);
+}
+.projector.reach .reach-group.g4 {
+  background-color: hsl(330, 60%, 52%);
+}
+.projector.reach .reach-group.g5 {
+  background-color: hsl(200, 70%, 45%);
+}
+
 /* Solve button (target) */
 .projector.reach .reach-generate {
   cursor: pointer;
