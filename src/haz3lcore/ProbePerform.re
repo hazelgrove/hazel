@@ -836,25 +836,39 @@ let step_into_call_stack =
     (
       ~syntax: CachedSyntax.t,
       ~call_stack: Sample.call_stack,
-      ~ap_id: Id.t,
+      ~frame: Sample.stack_frame,
       info_map: Statics.Map.t,
       z: Zipper.t,
     )
     : option(Zipper.t) => {
-  /* Look up the function being called from the application */
-  let* ci_ap = Statics.Map.lookup(ap_id, info_map);
-  let* binding_id =
-    switch (ci_ap) {
-    | InfoExp({
-        user_term: {term: Ap(_, {term: Var(_), _} as fun_expr, _), _},
-        _,
-      }) =>
-      let* ci_var = Statics.Map.lookup(IdTagged.rep_id(fun_expr), info_map);
-      Info.get_binding_site(ci_var);
-    | _ => None
-    };
-  let* body_id =
+  let ap_id = frame.id;
+  /* Tier 1 (static): resolve the function via its name's let-binding.
+     Works when the function position is a let-bound variable. */
+  let static_body_id = {
+    let* ci_ap = Statics.Map.lookup(ap_id, info_map);
+    let* binding_id =
+      switch (ci_ap) {
+      | InfoExp({
+          user_term: {term: Ap(_, {term: Var(_), _} as fun_expr, _), _},
+          _,
+        }) =>
+        let* ci_var =
+          Statics.Map.lookup(IdTagged.rep_id(fun_expr), info_map);
+        Info.get_binding_site(ci_var);
+      | _ => None
+      };
     Statics.Map.enclosing_let_of_binding(~statics=info_map, ~binding_id);
+  };
+  /* Tier 2 (dynamic): fall back to the fn_def_id of the function actually
+     applied at this call (recorded in the sample's frame). Covers
+     higher-order calls where the static binding site is only a parameter —
+     e.g. `fun (m, f) -> f(m.grove)`, where stepping into f(...) should land
+     in whichever function value was passed for f at this specific call. */
+  let* body_id =
+    switch (static_body_id) {
+    | Some(id) => Some(id)
+    | None => frame.fn_def_id
+    };
   let* ci_body = Statics.Map.lookup(body_id, info_map);
 
   /* Ensure a manual probe on the source expression (ap_id) before jumping.
@@ -899,15 +913,10 @@ let step_into_call_stack =
       }
     };
 
-  /* Set pin and dyn cursor using the call_stack */
-  let new_stack: Sample.call_stack = [
-    {
-      id: ap_id,
-      name: None,
-      fn_def_id: None,
-    },
-    ...call_stack,
-  ];
+  /* Set pin and dyn cursor using the call_stack. Use the real captured
+     frame (with name + dynamic fn_def_id) rather than a synthesized
+     id-only frame, so the resulting pin/focus is precise. */
+  let new_stack: Sample.call_stack = [frame, ...call_stack];
 
   /* Determine where to jump and where to look for samples.
    * - jump_target = parameters (cursor goes to params for UX)
@@ -1030,8 +1039,8 @@ let go =
     | Some(id) => toggle_statics(~syntax, id, info_map, z)
     | None => z
     }
-  | StepInto(call_stack, ap_id) =>
-    switch (step_into_call_stack(~syntax, ~call_stack, ~ap_id, info_map, z)) {
+  | StepInto(call_stack, frame) =>
+    switch (step_into_call_stack(~syntax, ~call_stack, ~frame, info_map, z)) {
     | Some(z) => z
     | None => z
     }

@@ -864,23 +864,44 @@ let dropdown_id = (sample: Sample.t): string =>
    dropdown (via the same SetDropdown(None) the Escape/click-outside paths
    use) before dispatching the StepInto to the parent editor. */
 let step_into_sample =
-    (~parent, ~local, ~sample: Sample.t, ~ap_id: Id.t): Ui_effect.t(unit) =>
+    (~parent, ~local, ~sample: Sample.t, ~ap_id: Id.t): Ui_effect.t(unit) => {
+  /* Build the frame to step into: ap_id is the authoritative call-site id
+     (from statics), enriched with the dynamically-captured fn_name and
+     fn_def_id from this sample's recorded frame when available. */
+  let dyn = sample.frame;
+  let frame: Sample.stack_frame = {
+    id: ap_id,
+    name: Option.bind(dyn, (f: Sample.stack_frame) => f.name),
+    fn_def_id: Option.bind(dyn, (f: Sample.stack_frame) => f.fn_def_id),
+  };
   Effect.Many([
     local(SetDropdown(None)),
-    parent(Probe(StepInto(sample.call_stack, ap_id))),
+    parent(Probe(StepInto(sample.call_stack, frame))),
   ]);
+};
 
 /* Check if step-into is possible for this probe's function call.
- * Requires: Ap of a named variable that isn't a built-in. */
-let can_step_into = (statics: Language.Statics.Info.t): bool =>
-  switch (statics) {
-  | InfoExp({user_term: {term: Ap(_, fn_exp, _), _}, _}) =>
-    switch (fn_exp.term) {
-    | Var(name) => Environment.lookup(Builtins.env_init, name) == None
+ * Tier 1 (static): Ap of a named variable that isn't a built-in.
+ * Tier 2 (dynamic): this sample's call recorded a navigable fn_def_id,
+ * i.e. the function actually applied came from user code (builtins record
+ * no fn_def_id). Tier 2 is what enables step-into for higher-order calls. */
+let can_step_into = (statics: Language.Statics.Info.t, sample: Sample.t): bool => {
+  let static_ok =
+    switch (statics) {
+    | InfoExp({user_term: {term: Ap(_, fn_exp, _), _}, _}) =>
+      switch (fn_exp.term) {
+      | Var(name) => Environment.lookup(Builtins.env_init, name) == None
+      | _ => false
+      }
     | _ => false
-    }
-  | _ => false
-  };
+    };
+  let dynamic_ok =
+    switch (sample.frame) {
+    | Some(f) => Option.is_some(f.fn_def_id)
+    | None => false
+    };
+  static_ok || dynamic_ok;
+};
 
 let pin_action = (ctx: probe_ctx, sample: Sample.t) => {
   let is_pinned = show_pin(ctx, sample);
@@ -1255,7 +1276,7 @@ let sample_context_sections =
   let primary =
     sample_primary_actions(
       ctx,
-      ~can_step_into=can_step_into(ctx.statics),
+      ~can_step_into=can_step_into(ctx.statics, sample),
       ~include_rich,
       sample,
     );

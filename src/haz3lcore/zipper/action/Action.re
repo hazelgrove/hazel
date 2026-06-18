@@ -121,7 +121,7 @@ type probe =
   | ToggleManual
   | ToggleAuto
   | ToggleStatics
-  | StepInto(Language.Sample.call_stack, Id.t)
+  | StepInto(Language.Sample.call_stack, Language.Sample.stack_frame)
   | Pin(Language.Sample.call_stack, Id.t)
   | RemoveAll;
 

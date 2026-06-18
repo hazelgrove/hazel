@@ -138,6 +138,11 @@ type t = {
   env: Env.t, /* (Filtered) Environment Values  */
   call_stack, /* Call stacks as ap ids */
   args: option(Env.elided_value), /* Argument value if probe is on an Ap */
+  frame: option(stack_frame), /* The call frame this sample is the result of,
+    if the probe is on an Ap. Carries the dynamically-resolved fn_def_id of the
+    function actually applied here, enabling step-into for higher-order calls
+    (where the static binding site is only a parameter). Same capture lifetime
+    as `args`. */
   time: float, /* Time of evaluation */
   seq: int, /* Sequence number: a count index of each sample taken */
   origin, /* Is this sample from a probe or a print statement */
@@ -151,6 +156,7 @@ let mk =
     (
       ~origin: origin=Probe,
       ~args: option(Env.elided_value)=None,
+      ~frame: option(stack_frame)=None,
       ~step_start: int,
       ~step_end: int,
       syntax_id: Id.t,
@@ -178,6 +184,7 @@ let mk =
   env: Env.filter(env, spec.refs),
   call_stack: stack,
   args,
+  frame,
   time: JsUtil.precise_timestamp(),
   seq: {
     seq_counter := seq_counter^ + 1;

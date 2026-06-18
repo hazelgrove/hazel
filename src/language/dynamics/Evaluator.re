@@ -301,9 +301,16 @@ let rec evaluate =
               expr_id,
               original_call_stack,
             );
+          let frame =
+            EvaluatorState.lookup_app_frame(
+              state^,
+              expr_id,
+              original_call_stack,
+            );
           let sample =
             Sample.mk(
               ~args,
+              ~frame,
               ~step_start,
               ~step_end,
               expr_id,

@@ -74,6 +74,7 @@ let legend_sample =
     env: Sample.Env.empty,
     call_stack: sample_stack,
     args: None,
+    frame: None,
     time: 0.0,
     seq: 0,
     origin: Sample.Probe,
