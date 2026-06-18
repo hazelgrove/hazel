@@ -542,6 +542,104 @@ let bench_parse = (iterations: int, paths: list(string)): unit => {
   Printf.printf("\n");
 };
 
+/* Solve an SMT-LIB2 script by shelling out to the system `z3` binary via
+   node's child_process. The CLI runs under node (js_of_ocaml), where the
+   native opam z3 bindings and the WASM backend are both awkward; invoking the
+   `z3` binary is simplest and reuses the shared TestGen.parse_model so model
+   parsing matches every other backend. */
+let solve_smt = (script: string): Haz3lcore.TestGen.outcome =>
+  try({
+    let cp = Js_of_ocaml.Js.Unsafe.js_expr("require('child_process')");
+    let opts =
+      Js_of_ocaml.Js.Unsafe.obj([|
+        (
+          "input",
+          Js_of_ocaml.Js.Unsafe.inject(Js_of_ocaml.Js.string(script)),
+        ),
+        (
+          "encoding",
+          Js_of_ocaml.Js.Unsafe.inject(Js_of_ocaml.Js.string("utf8")),
+        ),
+      |]);
+    let result_js =
+      Js_of_ocaml.Js.Unsafe.meth_call(
+        cp,
+        "execSync",
+        [|
+          Js_of_ocaml.Js.Unsafe.inject(Js_of_ocaml.Js.string("z3 -in")),
+          Js_of_ocaml.Js.Unsafe.inject(opts),
+        |],
+      );
+    Haz3lcore.TestGen.parse_model(Js_of_ocaml.Js.to_string(result_js));
+  }) {
+  | _ =>
+    Haz3lcore.TestGen.Error(
+      "Failed to invoke the `z3` solver; ensure the z3 binary is installed and on PATH.",
+    )
+  };
+
+/* Generate test inputs for a Hazel boolean expression. The whole program is
+   treated as a predicate over its free variables; a satisfying assignment is
+   a test input that makes it true (the "predicate-local" semantics). */
+let testgen_hazel =
+    (path: string)
+    : [>
+        | `Error(bool, string)
+        | `Ok(unit)
+      ] => {
+  let program = read_input(path);
+  switch (parse_to_zipper(program)) {
+  | None =>
+    prerr_endline("Failed to parse program");
+    `Error((false, "Parse error"));
+  | Some(zipper) =>
+    open Language;
+    let segment =
+      Haz3lcore.Zipper.unselect_and_zip(~erase_buffer=true, zipper);
+    let term = Haz3lcore.MakeTerm.from_zip_for_sem(zipper, ~root=Exp).term;
+    let (info_map, _) =
+      Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
+    let root_id =
+      Haz3lcore.Segment.root_id(Haz3lcore.Segment.skel(segment), segment);
+    switch (Statics.Map.lookup(root_id, info_map)) {
+    | Some(InfoExp(e)) =>
+      switch (Haz3lcore.TestGen.build(e)) {
+      | Error(msg) =>
+        prerr_endline(msg);
+        `Error((false, msg));
+      | Ok(script) =>
+        Haz3lcore.TestGen.(
+          switch (solve_smt(script)) {
+          | Sat([]) =>
+            print_endline("sat: the expression holds with no free inputs");
+            `Ok();
+          | Sat(assignments) =>
+            print_endline("Test inputs that satisfy the expression:");
+            List.iter(
+              (a: assignment) =>
+                print_endline("  " ++ a.name ++ " = " ++ a.value),
+              assignments,
+            );
+            `Ok();
+          | Unsat =>
+            print_endline("unsat: no inputs make the expression true");
+            `Ok();
+          | Unknown =>
+            print_endline("unknown: the solver could not decide");
+            `Ok();
+          | Error(msg) =>
+            prerr_endline(msg);
+            `Error((false, msg));
+          }
+        )
+      }
+    | _ =>
+      prerr_endline("testgen: target must be a boolean expression");
+      `Error((false, "Not a boolean expression"));
+    };
+  };
+};
+
 /* Common arg: path or "-" for stdin */
 let input_arg = {
   let doc = "Path to Hazel source file, or '-' to read from stdin.";
@@ -597,6 +695,15 @@ let analyze_cmd = {
     info,
     Term.ret(Term.(const(analyze_hazel) $ warnings_arg $ input_arg)),
   );
+};
+
+let testgen_cmd = {
+  let doc =
+    "Generate test inputs for a Hazel boolean expression. The program is read "
+    ++ "as a predicate over its free variables and solved with z3; a "
+    ++ "satisfying assignment of the free variables is printed.";
+  let info = Cmd.info("testgen", ~doc);
+  Cmd.v(info, Term.ret(Term.(const(testgen_hazel) $ input_arg)));
 };
 
 let probe_cmd = {
@@ -801,6 +908,7 @@ let default_cmd = {
       format_cmd,
       analyze_cmd,
       probe_cmd,
+      testgen_cmd,
       test_cmd,
       grade_json_cmd,
       grade_report_cmd,
