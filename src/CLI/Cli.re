@@ -79,7 +79,8 @@ let setup_csv =
    Materializes a portable .hz; the inlined table is large and slow to re-parse. */
 let read_and_expand =
     (~assume_yes: bool, ~data_dir: option(string), path: string): string => {
-  let (program, base_dir, authorize) = setup_csv(~assume_yes, ~data_dir, path);
+  let (program, base_dir, authorize) =
+    setup_csv(~assume_yes, ~data_dir, path);
   Csv.expand(~base_dir, ~authorize, program);
 };
 
@@ -153,7 +154,12 @@ let parse_to_zipper = (s: string): option(Haz3lcore.Zipper.t) =>
   Haz3lcore.Parser.to_zipper(~root=Exp, s);
 
 let analyze_hazel =
-    (show_warnings: bool, assume_yes: bool, data_dir: option(string), path: string)
+    (
+      show_warnings: bool,
+      assume_yes: bool,
+      data_dir: option(string),
+      path: string,
+    )
     : [>
         | `Error(bool, string)
         | `Ok(unit)

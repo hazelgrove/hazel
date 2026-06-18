@@ -82,9 +82,12 @@ let to_table_literal = (csv: string): string => {
 /* ---- Scanning a source for `^^csv("path")` references ---- */
 
 let is_ident_char = (c: char): bool =>
-  (c >= 'a' && c <= 'z')
-  || (c >= 'A' && c <= 'Z')
-  || (c >= '0' && c <= '9')
+  c >= 'a'
+  && c <= 'z'
+  || c >= 'A'
+  && c <= 'Z'
+  || c >= '0'
+  && c <= '9'
   || c == '_';
 
 let is_ws = (c: char): bool =>
@@ -132,7 +135,8 @@ let marker = "^^csv";
 let match_csv_call = (s: string, i: int): option((string, int)) => {
   let n = String.length(s);
   let mlen = String.length(marker);
-  if (i + mlen <= n
+  if (i
+      + mlen <= n
       && String.sub(s, i, mlen) == marker
       && (i + mlen >= n || !is_ident_char(s.[i + mlen]))) {
     let p1 = skip_ws(s, i + mlen);
