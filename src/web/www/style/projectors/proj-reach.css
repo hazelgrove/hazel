@@ -1,13 +1,9 @@
-/* PROJECTOR: REACHABILITY (refractor) */
-
-:root {
-  --reach-accent: hsl(255, 60%, 52%);
-  --reach-accent-soft: hsl(255, 60%, 95%);
-  --reach-dead: hsl(2, 62%, 46%);
-  --reach-dead-bg: hsl(2, 75%, 96%);
-  --reach-muted: hsl(0, 0%, 45%);
-  --reach-muted-bg: hsl(0, 0%, 95%);
-}
+/* PROJECTOR: REACHABILITY (refractor)
+ *
+ * Colors come from the shared theme palette (variables.css) so the offside
+ * matches the Reach sidebar and the rest of the app: neutral controls, green
+ * for a reachable witness, amber for dead/incompatible, red for errors. Group
+ * chip hues come from ReachProjView.group_color (inline). */
 
 /* Refractor: the underlying syntax stays visible; only the offside reacts. */
 .refractors .base .projector.reach > svg {
@@ -27,6 +23,8 @@
   font-family: var(--code-font);
   font-size: var(--base-font-size);
   line-height: initial;
+  /* Neutral default; the path/result take their group color inline. */
+  color: var(--STONE);
 }
 
 /* Merge-group chip (click to cycle; • = solo). Same color = same group. */
@@ -50,7 +48,7 @@
 /* Color is assigned per group id at render time (inline style); see
    ReachProjView.group_color. */
 
-/* Solve button (target) */
+/* Solve button (target) — a neutral themed button */
 .projector.reach .reach-generate {
   cursor: pointer;
   user-select: none;
@@ -60,146 +58,121 @@
   width: 1.5em;
   height: 1.5em;
   border-radius: 0.3em;
-  background-color: var(--reach-accent);
+  border: 1px solid var(--BR1);
+  background-color: var(--T2);
   flex: none;
 }
 .projector.reach .reach-generate:hover {
-  filter: brightness(1.12);
+  background-color: var(--Y0);
 }
 .projector.reach .reach-generate:active {
-  filter: brightness(0.95);
+  background-color: var(--Y1);
 }
 
-/* Symbolic path condition (muted) */
+/* Symbolic path condition — a tinted pill in the group's color (inherits the
+   inline color set on its wrapper; background derived from currentColor, so it
+   is neutral for solo). */
 .projector.reach .reach-path {
   padding: 0.1em 0.45em;
   border-radius: 0.4em;
-  background-color: var(--reach-accent-soft);
-  color: var(--reach-accent);
+  color: inherit;
+  background-color: color-mix(in srgb, currentColor 14%, transparent);
   white-space: nowrap;
   max-width: 28em;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-/* Result pill */
+/* Result pill — tinted fill + border in the group's color, both derived from
+   the (inline) text color via currentColor; neutral for solo, red for error. */
 .projector.reach .reach-result {
   padding: 0.1em 0.55em;
   border-radius: 0.4em;
   white-space: nowrap;
-  border: 1px solid transparent;
+  color: var(--STONE);
+  border: 1px solid color-mix(in srgb, currentColor 55%, transparent);
+  background-color: color-mix(in srgb, currentColor 14%, transparent);
   max-width: 40em;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-
-.projector.reach .reach-result.reachable {
-  background-color: var(--reach-accent-soft);
-  color: var(--reach-accent);
-  border-color: var(--reach-accent);
-  font-weight: 600;
-}
-
+.projector.reach .reach-result.reachable,
 .projector.reach .reach-result.dead {
-  background-color: var(--reach-dead-bg);
-  color: var(--reach-dead);
-  border-color: hsl(2, 60%, 82%);
   font-weight: 600;
 }
-
 .projector.reach .reach-result.unknown {
-  background-color: var(--reach-muted-bg);
-  color: var(--reach-muted);
-  border-color: hsl(0, 0%, 82%);
   font-style: italic;
 }
-
 .projector.reach .reach-result.error {
-  background-color: var(--reach-dead-bg);
-  color: var(--reach-dead);
-  border-color: hsl(2, 60%, 82%);
+  color: var(--R2);
   white-space: normal;
 }
 
 /* ============================================================
    REACH SIDEBAR (breakpoint-manager-style control panel)
-   Reuses the --reach-* palette above. Offside result/path rules
-   are scoped to .projector.reach, so the sidebar restyles its
-   own copies of .reach-result / constraints below.
+   Styled with the shared theme palette (variables.css) to match the
+   Problems/Probes sidebars. The offside (.projector.reach) keeps its own
+   look above; sidebar rules are scoped to #reach-sidebar.
    ============================================================ */
 
 #reach-sidebar {
   display: flex;
+  flex: 1;
   flex-direction: column;
-  height: 100%;
+  padding: 0.5em;
   overflow-y: auto;
-  padding: 0.5em 0.4em 1em;
-  font-size: var(--base-font-size);
+  overflow-x: hidden;
+  color: var(--BR3);
   box-sizing: border-box;
 }
 
-/* Header: title + view toggle + solve-all */
+/* Header: title row above a full-width toggle row (mirrors the Problems
+   panel's .problem-view-toggle). */
 #reach-sidebar .reach-header {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5em;
-  padding: 0.2em 0.3em 0.6em;
-  position: sticky;
-  top: 0;
-  background: inherit;
-  z-index: 1;
+  flex-direction: column;
+  gap: 0.4em;
+  padding: 0.3em 0.2em 0.5em;
+  border-bottom: 1px solid var(--BR1);
 }
 #reach-sidebar .main-title {
-  font-weight: 700;
-  font-size: 1.05em;
+  text-transform: uppercase;
+  font-weight: bold;
+  color: var(--ui-header-text);
 }
 #reach-sidebar .reach-view-toggle {
   display: flex;
   align-items: center;
-  gap: 0.3em;
 }
-#reach-sidebar .toggle-option {
-  cursor: pointer;
-  user-select: none;
-  padding: 0.12em 0.55em;
-  border-radius: 0.4em;
-  color: var(--reach-muted);
-  background: var(--reach-muted-bg);
-  font-size: 0.9em;
-}
-#reach-sidebar .toggle-option.active {
-  color: white;
-  background: var(--reach-accent);
-  font-weight: 600;
-}
+/* .toggle-option / .toggle-option.active come from the shared sidebar.css */
 #reach-sidebar .reach-solve-all {
   cursor: pointer;
   user-select: none;
-  margin-left: 0.4em;
-  padding: 0.12em 0.6em;
-  border-radius: 0.4em;
-  color: white;
-  background: var(--reach-accent);
-  font-weight: 600;
-  font-size: 0.9em;
+  margin-left: auto;
+  padding: 0.2em 0.6em;
+  border: 1px solid var(--BR1);
+  border-radius: 3px;
+  background-color: var(--Y0);
+  color: var(--BR3);
+  font-size: 0.85em;
 }
 #reach-sidebar .reach-solve-all:hover {
-  filter: brightness(1.1);
+  background-color: var(--Y1);
+  color: var(--BR4);
 }
 
 /* Section label (Solo) + group sections */
 #reach-sidebar .reach-section-label {
-  font-size: 0.78em;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--reach-muted);
-  padding: 0.5em 0.3em 0.2em;
+  font-weight: bold;
+  font-size: 0.9em;
+  color: var(--BR3);
+  user-select: none;
+  padding: 0.5em 0.5em 0.25em;
 }
 #reach-sidebar .reach-group {
-  border: 1px solid hsl(0, 0%, 88%);
-  border-radius: 0.5em;
-  margin: 0.45em 0.1em;
+  border: 1px solid var(--BR2);
+  border-radius: 4px;
+  margin: 0.4em 0;
   overflow: hidden;
 }
 #reach-sidebar .reach-group-header {
@@ -207,76 +180,87 @@
   align-items: center;
   gap: 0.4em;
   padding: 0.35em 0.45em;
-  background: hsl(0, 0%, 97%);
+  background-color: var(--T2);
 }
 #reach-sidebar .reach-group-chevron {
   cursor: pointer;
   user-select: none;
-  color: var(--reach-muted);
-  width: 1em;
+  color: var(--BR3);
+  font-size: 0.7em;
+  opacity: 0.5;
   flex: none;
+}
+#reach-sidebar .reach-group-chevron:hover {
+  opacity: 0.8;
 }
 #reach-sidebar .reach-group-name {
   flex: 1 1 auto;
   min-width: 3em;
   border: 1px solid transparent;
   background: transparent;
-  border-radius: 0.3em;
+  border-radius: 3px;
   padding: 0.1em 0.3em;
-  font-weight: 600;
-  font-size: 0.95em;
+  font-weight: bold;
+  font-size: 0.9em;
+  color: var(--BR3);
 }
 #reach-sidebar .reach-group-name:hover {
-  border-color: hsl(0, 0%, 85%);
+  border-color: var(--BR1);
 }
 #reach-sidebar .reach-group-name:focus {
-  border-color: var(--reach-accent);
-  background: white;
+  border-color: var(--BR3);
+  background-color: var(--SAND);
   outline: none;
 }
 #reach-sidebar .reach-count {
-  color: var(--reach-muted);
+  color: var(--BR2);
   font-size: 0.85em;
   flex: none;
 }
 
-/* Group color swatch */
-#reach-sidebar .reach-swatch {
-  display: inline-block;
-  width: 0.85em;
-  height: 0.85em;
+/* Group chip — identical to the offside chip (.projector.reach .reach-group):
+   a colored circle (ReachProjView.group_color) with the group number / •, so a
+   group reads the same in both views. */
+#reach-sidebar .reach-group-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.4em;
+  height: 1.4em;
   border-radius: 50%;
+  font-size: 0.8em;
+  font-weight: 700;
+  color: white;
   flex: none;
 }
 
 /* A point row: a horizontal controls line, with the result on its own
-   full-width line below. */
+   full-width line below (mirrors .problem-row metrics). */
 #reach-sidebar .reach-row {
   display: flex;
   flex-direction: column;
-  border-top: 1px solid hsl(0, 0%, 93%);
+  border-bottom: 1px solid var(--BR1);
 }
 #reach-sidebar .reach-row-main {
   display: flex;
   align-items: center;
-  gap: 0.4em;
-  padding: 0.28em 0.45em;
+  gap: 0.5em;
+  padding: 0.4em 0.5em;
   cursor: pointer;
-}
-#reach-sidebar .reach-list .reach-row,
-#reach-sidebar .reach-solo .reach-row {
-  border: none;
-  margin: 0.1em 0.1em;
+  transition: background-color 0.15s ease;
 }
 #reach-sidebar .reach-row-main:hover {
-  background: var(--reach-accent-soft);
-  border-radius: 0.4em;
+  background-color: var(--T2);
+}
+#reach-sidebar .reach-list .reach-row:last-child,
+#reach-sidebar .reach-solo .reach-row:last-child {
+  border-bottom: none;
 }
 #reach-sidebar .reach-row.disabled {
   opacity: 0.5;
 }
 
-/* Enable toggle — breakpoint dot */
+/* Enable toggle — breakpoint dot (filled green = active, hollow = disabled) */
 #reach-sidebar .reach-enable {
   cursor: pointer;
   user-select: none;
@@ -286,18 +270,18 @@
   font-size: 0.9em;
 }
 #reach-sidebar .reach-enable.on {
-  color: var(--reach-dead);
+  color: var(--primary-accent);
 }
 #reach-sidebar .reach-enable.off {
-  color: var(--reach-muted);
+  color: var(--BR1);
 }
 
 #reach-sidebar .reach-line {
   flex: none;
-  color: var(--reach-muted);
+  color: var(--BR2);
   font-family: var(--code-font);
-  font-size: 0.82em;
-  min-width: 2.2em;
+  font-size: 0.85em;
+  min-width: 2.5em;
 }
 
 /* Path condition text */
@@ -309,33 +293,40 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  color: var(--reach-accent);
+  color: var(--STONE);
 }
 #reach-sidebar .reach-group > .reach-constraint {
-  padding: 0.25em 0.6em;
-  background: var(--reach-accent-soft);
-  border-bottom: 1px solid hsl(0, 0%, 93%);
+  padding: 0.3em 0.6em;
+  border-bottom: 1px solid var(--BR1);
 }
+/* A tinted pill in the group color: text inherits the inline color set on
+   .reach-constraint, the fill derives from it via currentColor (neutral for
+   solo). */
 #reach-sidebar .reach-constraint .reach-path {
-  background: none;
-  padding: 0;
+  color: inherit;
+  background-color: color-mix(in srgb, currentColor 14%, transparent);
+  padding: 0.05em 0.4em;
+  border-radius: 0.4em;
 }
 #reach-sidebar .reach-constraint-trivial,
 #reach-sidebar .reach-constraint.na {
-  color: var(--reach-muted);
+  color: var(--BR2);
   font-style: italic;
 }
 #reach-sidebar .reach-approx {
-  color: var(--reach-muted);
-  font-weight: 700;
+  color: var(--warning-hole-stroke);
+  font-weight: bold;
 }
 
 /* Group dropdown */
 #reach-sidebar .reach-group-select {
   flex: none;
   max-width: 8em;
-  font-size: 0.8em;
-  border-radius: 0.3em;
+  font-size: 0.78em;
+  border: 1px solid var(--BR1);
+  border-radius: 3px;
+  background-color: var(--SAND);
+  color: var(--STONE);
 }
 
 /* Solve button (target) */
@@ -346,27 +337,32 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 1.5em;
-  height: 1.5em;
-  border-radius: 0.3em;
-  background: var(--reach-accent);
+  width: 1.6em;
+  height: 1.6em;
+  border: 1px solid var(--BR1);
+  border-radius: 3px;
+  background-color: var(--T2);
 }
 #reach-sidebar .reach-generate:hover {
-  filter: brightness(1.1);
+  background-color: var(--Y0);
 }
 
-/* Result — its own full-width line; wraps freely (the sidebar scrolls). */
+/* Result — its own full-width line; wraps freely (the sidebar scrolls). Tinted
+   fill + border in the group color, both derived from the (inline) text color
+   via currentColor; neutral for solo. */
 #reach-sidebar .reach-result {
   align-self: flex-start;
-  margin: 0.1em 0.5em 0.35em 1.9em;
-  padding: 0.15em 0.55em;
-  border-radius: 0.4em;
+  margin: 0.2em 0.5em 0.45em 2em;
+  padding: 0.25em 0.55em;
+  border-radius: 4px;
+  border: 1px solid color-mix(in srgb, currentColor 55%, transparent);
+  background-color: color-mix(in srgb, currentColor 14%, transparent);
   white-space: normal;
-  border: 1px solid transparent;
-  font-size: 0.82em;
+  font-size: 0.85em;
+  color: var(--STONE);
   max-width: calc(100% - 2.6em);
 }
-/* The merged group result lines up with the group's merged constraint. */
+/* The merged group result lines up under the group's merged constraint. */
 #reach-sidebar .reach-group > .reach-result {
   margin-left: 0.6em;
 }
@@ -378,11 +374,12 @@
   gap: 0.2em;
 }
 #reach-sidebar .reach-result-label {
-  font-size: 0.82em;
-  font-weight: 600;
+  font-size: 0.8em;
+  font-weight: bold;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  opacity: 0.7;
+  color: var(--BR3);
+  opacity: 0.8;
 }
 #reach-sidebar .reach-assignments {
   border-collapse: collapse;
@@ -396,51 +393,41 @@
 /* Right-align names so the `=` column lines up down the list. */
 #reach-sidebar .reach-var {
   text-align: right;
-  color: var(--reach-accent);
+  color: var(--BR4);
   font-weight: 600;
   white-space: nowrap;
 }
 #reach-sidebar .reach-eq {
   text-align: center;
   padding: 0 0.45em;
-  color: var(--reach-muted);
+  color: var(--BR2);
 }
 #reach-sidebar .reach-val {
   text-align: left;
-  color: hsl(0, 0%, 13%);
+  color: var(--STONE);
   font-weight: 600;
   white-space: nowrap;
 }
-#reach-sidebar .reach-result.reachable {
-  background: var(--reach-accent-soft);
-  color: var(--reach-accent);
-  border-color: var(--reach-accent);
-  font-weight: 600;
-}
+
+/* Color comes from the group accent (inline); here, only typographic cues and
+   the always-red error state. */
+#reach-sidebar .reach-result.reachable,
 #reach-sidebar .reach-result.dead {
-  background: var(--reach-dead-bg);
-  color: var(--reach-dead);
-  border-color: hsl(2, 60%, 82%);
   font-weight: 600;
 }
 #reach-sidebar .reach-result.unknown {
-  background: var(--reach-muted-bg);
-  color: var(--reach-muted);
-  border-color: hsl(0, 0%, 82%);
   font-style: italic;
 }
 #reach-sidebar .reach-result.error {
-  background: var(--reach-dead-bg);
-  color: var(--reach-dead);
-  border-color: hsl(2, 60%, 82%);
+  color: var(--R2);
   white-space: normal;
 }
 
-/* Empty state */
+/* Empty state (mirrors .no-problems-message) */
 #reach-sidebar .reach-empty {
   padding: 1.5em 1em;
   text-align: center;
-  color: var(--reach-muted);
+  color: var(--BR2);
 }
 #reach-sidebar .reach-empty-hint {
   margin-top: 0.5em;

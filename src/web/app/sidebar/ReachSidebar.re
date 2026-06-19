@@ -116,10 +116,11 @@ let group_points = (points: list(point)): list((int, list(point))) => {
 
 let stop = evt => Js_of_ocaml.Dom_html.stopPropagation(evt);
 
-/* Render a reach condition as Hazel text (reusing the offside's renderer), with
-   a trivial-condition placeholder and an "approximate" marker when the
-   translation dropped an unsupported construct. */
-let constraint_view = (r: Reach.t): Node.t => {
+/* Render a reach condition as Hazel text (reusing the offside's renderer),
+   colored by its merge group (neutral if solo), with a trivial-condition
+   placeholder and an "approximate" marker when the translation dropped an
+   unsupported construct. */
+let constraint_view = (~group: int, r: Reach.t): Node.t => {
   let nodes = ReachProjView.path_view(ProjectorInfo.utility, r);
   let body =
     switch (nodes) {
@@ -145,7 +146,13 @@ let constraint_view = (r: Reach.t): Node.t => {
           [text({js| ≈|js})],
         ),
       ];
-  div(~attrs=[clss(["reach-constraint"])], body @ approx);
+  div(
+    ~attrs=[
+      clss(["reach-constraint"]),
+      ...ReachProjView.group_text_attrs(group),
+    ],
+    body @ approx,
+  );
 };
 
 let view =
@@ -282,16 +289,20 @@ let view =
       ],
     );
 
-  let group_swatch = (g: int) =>
+  /* The same chip the offside uses: a colored circle (ReachProjView.group_color)
+     with the group number (• = solo), so a group reads identically in both
+     views. */
+  let group_chip = (g: int) =>
     span(
       ~attrs=[
-        clss(["reach-swatch"]),
+        clss(["reach-group-chip"]),
         Attr.create(
           "style",
           "background-color: " ++ ReachProjView.group_color(g),
         ),
+        Attr.title(g == 0 ? "Solo" : "Group " ++ string_of_int(g)),
       ],
-      [],
+      [text(g == 0 ? {js|•|js} : string_of_int(g))],
     );
 
   let group_dropdown = (p: point) => {
@@ -322,9 +333,9 @@ let view =
 
   /* The solved result, listed one variable per line (the sidebar has vertical
      room and scrolls), on its own full-width line. */
-  let result_block = (~grouped: bool, result: option(TestGen.outcome)) =>
+  let result_block = (~group: int, result: option(TestGen.outcome)) =>
     switch (result) {
-    | Some(o) => [ReachProjView.result_view(~grouped, ~multiline=true, o)]
+    | Some(o) => [ReachProjView.result_view(~group, ~multiline=true, o)]
     | None => []
     };
 
@@ -334,7 +345,7 @@ let view =
   let point_row = (~show_result: bool, p: point) => {
     let condition =
       switch (p.individual) {
-      | Some(r) => constraint_view(r)
+      | Some(r) => constraint_view(~group=p.model.group, r)
       | None =>
         div(
           ~attrs=[clss(["reach-constraint", "na"])],
@@ -351,7 +362,7 @@ let view =
           enable_toggle(p),
           line_num(p),
           condition,
-          group_swatch(p.model.group),
+          group_chip(p.model.group),
           group_dropdown(p),
           solve_btn(() => solve_point(p)),
         ],
@@ -360,8 +371,7 @@ let view =
       ~attrs=[clss(["reach-row"] @ (p.model.enabled ? [] : ["disabled"]))],
       [main]
       @ (
-        show_result
-          ? result_block(~grouped=p.model.group != 0, p.model.result) : []
+        show_result ? result_block(~group=p.model.group, p.model.result) : []
       ),
     );
   };
@@ -387,7 +397,7 @@ let view =
                 ),
             collapsed ? {js|▸|js} : {js|▾|js},
           ),
-          group_swatch(g),
+          group_chip(g),
           Node.input(
             ~attrs=[
               clss(["reach-group-name"]),
@@ -416,14 +426,22 @@ let view =
       );
     let merged_view =
       switch (merged) {
-      | Some(r) => [constraint_view(r)]
+      | Some(r) => [constraint_view(~group=g, r)]
       | None => []
       };
     div(
-      ~attrs=[clss(["reach-group"])],
+      ~attrs=[
+        clss(["reach-group"]),
+        /* Carry the group's color onto the whole section, matching the offside
+           chip. */
+        Attr.create(
+          "style",
+          "border-left: 4px solid " ++ ReachProjView.group_color(g),
+        ),
+      ],
       [header]
       @ merged_view
-      @ result_block(~grouped=true, group_result)
+      @ result_block(~group=g, group_result)
       @ (collapsed ? [] : List.map(point_row(~show_result=false), members)),
     );
   };

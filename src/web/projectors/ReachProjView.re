@@ -15,15 +15,39 @@ open ProjectorViewBase;
 let assignment_str = (a: TestGen.assignment): string =>
   a.name ++ " = " ++ a.value;
 
+/* Dynamic, palette-free color per group: a distinct hue via the golden angle.
+ * Solo (0) is a neutral gray. */
+let group_color = (group: int): string =>
+  group == 0
+    ? "hsl(0, 0%, 72%)"
+    : Printf.sprintf("hsl(%d, 62%%, 50%%)", group * 137 mod 360);
+
+/* The chip cycles through solo, the groups currently in use, and one fresh
+ * group — so it doesn't walk a fixed palette when only a few groups exist.
+ * group_count = distinct groups in use; the next id wraps at group_count + 2
+ * (solo + the in-use groups + one new), which stays bounded as groups are
+ * relabeled. */
+let next_group = (~group_count: int, group: int): int =>
+  (group + 1) mod (group_count + 2);
+
+/* Tie a node to its merge group by setting its text color; the path/result
+ * pills derive their tinted background and border from this via `currentColor`
+ * in CSS. Solo (0) → no inline color, i.e. neutral theme defaults. */
+let group_text_attrs = (g: int): list(Attr.t) =>
+  g == 0 ? [] : [Attr.create("style", "color: " ++ group_color(g))];
+
 /* `multiline` renders the assignments as an aligned `var = value` table — used
  * by the Reach sidebar, which has vertical room and scrolls; the offside keeps
- * the compact single-line pill (multiline=false). */
+ * the compact single-line pill (multiline=false). Color follows the merge
+ * group (`group`); solo (0) stays neutral. Errors are always red. */
 let result_view =
-    (~grouped: bool, ~multiline=false, outcome: TestGen.outcome): Node.t =>
+    (~group: int, ~multiline=false, outcome: TestGen.outcome): Node.t => {
+  let grouped = group != 0;
+  let accent = group_text_attrs(group);
   switch (outcome) {
   | Sat([]) =>
     span(
-      ~attrs=[Attr.classes(["reach-result", "reachable"])],
+      ~attrs=[Attr.classes(["reach-result", "reachable"]), ...accent],
       [
         text(grouped ? "all reachable (any input)" : "reachable (any input)"),
       ],
@@ -32,6 +56,7 @@ let result_view =
     div(
       ~attrs=[
         Attr.classes(["reach-result", "reachable", "reach-result-list"]),
+        ...accent,
       ],
       [
         span(
@@ -60,7 +85,7 @@ let result_view =
     )
   | Sat(assignments) =>
     span(
-      ~attrs=[Attr.classes(["reach-result", "reachable"])],
+      ~attrs=[Attr.classes(["reach-result", "reachable"]), ...accent],
       [
         text(
           (grouped ? "all reached when " : "reached when ")
@@ -70,32 +95,18 @@ let result_view =
     )
   | Unsat =>
     span(
-      ~attrs=[Attr.classes(["reach-result", "dead"])],
+      ~attrs=[Attr.classes(["reach-result", "dead"]), ...accent],
       [text(grouped ? "incompatible" : "unreachable — dead code")],
     )
   | Unknown =>
     span(
-      ~attrs=[Attr.classes(["reach-result", "unknown"])],
+      ~attrs=[Attr.classes(["reach-result", "unknown"]), ...accent],
       [text("unknown")],
     )
   | Error(msg) =>
     span(~attrs=[Attr.classes(["reach-result", "error"])], [text(msg)])
   };
-
-/* Dynamic, palette-free color per group: a distinct hue via the golden angle.
- * Solo (0) is a neutral gray. */
-let group_color = (group: int): string =>
-  group == 0
-    ? "hsl(0, 0%, 72%)"
-    : Printf.sprintf("hsl(%d, 62%%, 50%%)", group * 137 mod 360);
-
-/* The chip cycles through solo, the groups currently in use, and one fresh
- * group — so it doesn't walk a fixed palette when only a few groups exist.
- * group_count = distinct groups in use; the next id wraps at group_count + 2
- * (solo + the in-use groups + one new), which stays bounded as groups are
- * relabeled. */
-let next_group = (~group_count: int, group: int): int =>
-  (group + 1) mod (group_count + 2);
+};
 
 let group_chip = (local, ~group_count: int, group: int): Node.t =>
   span(
@@ -193,14 +204,20 @@ module V: ProjectorView = {
             ]
             @ (
               switch (info.reach) {
-              | Some(r) => path_view(info.utility, r)
+              /* Color the path condition by the merge group (neutral if solo). */
+              | Some(r) => [
+                  span(
+                    ~attrs=group_text_attrs(model.group),
+                    path_view(info.utility, r),
+                  ),
+                ]
               | None => []
               }
             )
             @ (
               switch (model.result) {
               | None => []
-              | Some(o) => [result_view(~grouped=model.group != 0, o)]
+              | Some(o) => [result_view(~group=model.group, o)]
               }
             ),
           ),
