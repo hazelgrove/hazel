@@ -63,8 +63,17 @@ async function ensureZ3() {
 // A FRESH context per solve: eval_smtlib2_string mutates the context's
 // internal solver — set-logic, declarations, and assertions all persist — so
 // reusing one context leaks the previous program's state into the next solve.
-window.hazelZ3Solve = function (smt, onResult) {
-  ensureZ3()
+//
+// Solves are SERIALIZED through a promise queue. The z3-solver WASM is a single
+// module instance; overlapping eval_smtlib2_string calls interleave their
+// strings in the shared WASM heap and corrupt each other (the solver then
+// reports "unexpected character" parse errors). Callers legitimately fire
+// several solves at once (e.g. a point plus all its groups), so we run them one
+// at a time. onResult is invoked exactly once per call, and the queue always
+// advances even if a solve or callback throws.
+let z3Queue = Promise.resolve();
+function runOneZ3Solve(smt, onResult) {
+  return ensureZ3()
     .then(async Z3 => {
       const cfg = Z3.mk_config();
       const ctx = Z3.mk_context(cfg);
@@ -79,10 +88,25 @@ window.hazelZ3Solve = function (smt, onResult) {
         }
       }
     })
-    .then(output => onResult(output))
-    .catch(err =>
-      onResult('error\n' + (err && err.message ? err.message : String(err)))
+    .then(
+      output => {
+        try {
+          onResult(output);
+        } catch (_) {
+          /* don't let a callback failure stall the queue */
+        }
+      },
+      err => {
+        try {
+          onResult('error\n' + (err && err.message ? err.message : String(err)));
+        } catch (_) {
+          /* ditto */
+        }
+      }
     );
+}
+window.hazelZ3Solve = function (smt, onResult) {
+  z3Queue = z3Queue.then(() => runOneZ3Solve(smt, onResult));
 };
 
 // This is the default behavior for the hotkeys module but I'm overriding it for the

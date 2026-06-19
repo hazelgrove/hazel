@@ -77,6 +77,7 @@ let mk_info =
     ~dynamics=Language.Dynamics.Map.empty,
     ~elaborated=Some(statics.elaborated),
     ~reach_groups=[],
+    ~reach_group_conds=[],
   );
 
 let pad_to = (width: int, spans: Frame.row): Frame.row => {

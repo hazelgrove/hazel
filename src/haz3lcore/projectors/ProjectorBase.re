@@ -114,6 +114,11 @@ type info = {
   /* All merge groups in use across every Reach refractor (empty elsewhere);
    * lets the offside offer the whole set to toggle membership. */
   reach_groups: list(int),
+  /* For each group this Reach point is in: the group's merged condition (the
+   * conjunction of its enabled members' conditions). Lets the offside solve
+   * not just the point on its own but every group it participates in. Empty
+   * elsewhere. */
+  reach_group_conds: list((int, Reach.t)),
   /* Syntax utility functions/values for projector use,
    * provided here to resolve cyclic dependency issues */
   utility,

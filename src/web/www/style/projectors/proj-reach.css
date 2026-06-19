@@ -384,14 +384,6 @@
   flex-direction: column;
   gap: 0.2em;
 }
-#reach-sidebar .reach-result-label {
-  font-size: 0.8em;
-  font-weight: bold;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--BR3);
-  opacity: 0.8;
-}
 #reach-sidebar .reach-assignments {
   border-collapse: collapse;
   font-family: var(--code-font);

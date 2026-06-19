@@ -474,6 +474,7 @@ let mk_info = (elaborated: option(Exp.t)): ProjectorBase.info => {
   elaborated,
   reach: None,
   reach_groups: [],
+  reach_group_conds: [],
   utility: ProjectorInfo.utility,
 };
 

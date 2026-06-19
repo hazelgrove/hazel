@@ -59,6 +59,9 @@ let mk_info =
       /* All merge groups in use across every Reach refractor (empty for the
        * non-refractor paths). Lets the offside offer the whole set to toggle. */
       ~reach_groups: list(int),
+      /* This Reach point's groups' merged conditions (empty elsewhere). Lets the
+       * offside solve every group the point is in. */
+      ~reach_group_conds: list((int, Reach.t)),
     )
     : ProjectorBase.info => {
   id: p.id,
@@ -96,6 +99,7 @@ let mk_info =
     | _ => None
     },
   reach_groups,
+  reach_group_conds,
   utility,
 };
 
@@ -104,6 +108,12 @@ let reach_groups_of = (entry: Refractors.entry): list(int) =>
   switch (ReachProj.t_of_sexp(Sexplib.Sexp.of_string(entry.model))) {
   | {groups, _} => groups
   | exception _ => []
+  };
+
+let reach_enabled_of = (entry: Refractors.entry): bool =>
+  switch (ReachProj.t_of_sexp(Sexplib.Sexp.of_string(entry.model))) {
+  | {enabled, _} => enabled
+  | exception _ => true
   };
 
 /* All distinct merge groups in use across every Reach refractor. */
@@ -116,6 +126,35 @@ let reach_groups = (refractors: Refractors.Map.t): list(int) =>
        }
      )
   |> List.sort_uniq(compare);
+
+/* For every group in use: its merged condition (the conjunction of its enabled
+ * members' solo conditions). The whole-program view, so the offside can solve
+ * any group a point belongs to. */
+let reach_group_conds =
+    (refractors: Refractors.Map.t, statics: Statics.Map.t)
+    : list((int, Reach.t)) => {
+  let pts =
+    Id.Map.bindings(refractors)
+    |> List.filter_map(((id, entry: Refractors.entry)) =>
+         switch (entry.kind) {
+         | Reach =>
+           Reach.analyze(id, statics)
+           |> Option.map(r =>
+                (reach_groups_of(entry), reach_enabled_of(entry), r)
+              )
+         | _ => None
+         }
+       );
+  reach_groups(refractors)
+  |> List.filter_map(g => {
+       let rs =
+         List.filter_map(
+           ((gs, en, r)) => en && List.mem(g, gs) ? Some(r) : None,
+           pts,
+         );
+       rs == [] ? None : Some((g, Reach.merge(rs)));
+     });
+};
 
 module ShapeMapSemantics = {
   let from_semantics =
@@ -136,6 +175,7 @@ module ShapeMapSemantics = {
         ~dynamics,
         ~elaborated,
         ~reach_groups=[],
+        ~reach_group_conds=[],
       );
     (P.placeholder(p.model, info), P.error(p.model, info));
   };

@@ -59,10 +59,6 @@ let result_view =
         ...accent,
       ],
       [
-        span(
-          ~attrs=[Attr.classes(["reach-result-label"])],
-          [text(grouped ? "all reached when" : "reached when")],
-        ),
         Node.table(
           ~attrs=[Attr.classes(["reach-assignments"])],
           List.map(
@@ -86,12 +82,7 @@ let result_view =
   | Sat(assignments) =>
     span(
       ~attrs=[Attr.classes(["reach-result", "reachable"]), ...accent],
-      [
-        text(
-          (grouped ? "all reached when " : "reached when ")
-          ++ String.concat(", ", List.map(assignment_str, assignments)),
-        ),
-      ],
+      [text(String.concat(", ", List.map(assignment_str, assignments)))],
     )
   | Unsat =>
     span(
@@ -129,38 +120,61 @@ module V: ProjectorView = {
   let focusable = Focusable.non;
 
   let view = ({model, info, local, _}: View.args(L.model, L.action)) => {
-    /* The offside solves the point on its own (solo, group 0); group merges
-       live in the Reach sidebar, which can see every point. */
+    /* Solving a reach point solves it on its own (group 0) AND every group it
+       belongs to (info.reach_group_conds carries each group's merged
+       condition). All the outcomes are gathered and stored in one SetResults so
+       concurrent solves can't clobber each other; they then show in the sidebar
+       in each group's color. */
     let on_generate = _ =>
       !model.enabled
         ? Effect.Ignore
-        : (
-          switch (info.reach) {
-          | None =>
+        : {
+          let jobs =
+            (
+              switch (info.reach) {
+              | Some(r) => [(0, r)]
+              | None => []
+              }
+            )
+            @ info.reach_group_conds;
+          switch (jobs) {
+          | [] =>
             local(
               ReachProj.SetResult(
                 0,
                 TestGen.Error("Enable statics to analyze reachability."),
               ),
             )
-          | Some(r) =>
-            let (script, complete) = Reach.smtlib2(r);
-            Z3Wasm.solve(
-              ~k=
-                outcome =>
-                  Bonsai.Effect.Expert.handle(
-                    local(
-                      ReachProj.SetResult(
-                        0,
-                        Reach.interpret(~complete, ~inputs=r.inputs, outcome),
-                      ),
-                    ),
-                  ),
-              script,
+          | _ =>
+            let total = List.length(jobs);
+            let outs = ref([]);
+            let done_ = ref(0);
+            List.iter(
+              ((g, cond: Reach.t)) =>
+                Z3Wasm.solve(
+                  ~k=
+                    outcome => {
+                      let o =
+                        Reach.interpret(
+                          ~complete=cond.complete,
+                          ~inputs=cond.inputs,
+                          outcome,
+                        );
+                      outs := [(g, o), ...outs^];
+                      incr(done_);
+                      if (done_^ >= total) {
+                        Bonsai.Effect.Expert.handle(
+                          local(ReachProj.SetResults(outs^)),
+                        );
+                      };
+                    },
+                  Reach.smtlib2(cond) |> fst,
+                ),
+              jobs,
             );
             Effect.Ignore;
-          }
-        );
+          };
+        };
     let generate_btn =
       span(
         ~attrs=[
@@ -234,10 +248,14 @@ module V: ProjectorView = {
               }
             )
             @ (
-              switch (List.assoc_opt(0, model.results)) {
-              | None => []
-              | Some(o) => [result_view(~group=0, o)]
-              }
+              /* Each group's solution colored by its group, then the neutral
+                 solo (no-group, key 0) solution last. */
+              model.results
+              |> List.sort(((a, _), (b, _)) => {
+                   let key = g => g == 0 ? max_int : g;
+                   compare(key(a), key(b));
+                 })
+              |> List.map(((g, o)) => result_view(~group=g, o))
             ),
           ),
         ),

@@ -39,9 +39,11 @@ let mk_data =
     : list(ProjectorView.Model.projector_data) => {
   open Util.OptUtil.Syntax;
   let {measured, term_data, selection_ids, _}: CachedSyntax.t = syntax;
-  /* All merge groups in use, so each Reach refractor's offside can offer the
-     whole set to toggle. */
+  /* All merge groups in use (so each offside can offer the whole set to toggle)
+     and each group's merged condition (so the offside can solve them). */
   let reach_groups = ProjectorInfo.reach_groups(refractors);
+  let reach_group_conds =
+    ProjectorInfo.reach_group_conds(refractors, statics);
   List.filter_map(
     ((id, entry)) => {
       /* Construct full Base.projector on demand for rendering,
@@ -62,6 +64,8 @@ let mk_data =
         );
       let p = Refractors.to_projector(syntax_piece, id, entry);
       let+ measurement = measurement_of_term(id, term_data, measured);
+      /* This point's groups' merged conditions. */
+      let pt_groups = ProjectorInfo.reach_groups_of(entry);
       let info =
         ProjectorInfo.mk_info(
           p,
@@ -70,6 +74,11 @@ let mk_data =
           ~dynamics,
           ~elaborated=None,
           ~reach_groups,
+          ~reach_group_conds=
+            List.filter(
+              ((g, _)) => List.mem(g, pt_groups),
+              reach_group_conds,
+            ),
         );
       ProjectorView.Model.{
         p,

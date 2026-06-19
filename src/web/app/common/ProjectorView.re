@@ -26,11 +26,6 @@ module ViewCache = {
     settings_version: int,
     status: View.status,
     model: string,
-    /* Reach refractors depend on the whole-program group set (info.reach_groups),
-       which isn't captured by this node's model/statics; key on it so a group
-       created elsewhere invalidates this node's cached offside. Empty (and so
-       inert) for every other projector. */
-    reach_groups: list(int),
     view: View.t,
   };
   let cache: Hashtbl.t(Id.t, entry) = Hashtbl.create(64);
@@ -45,7 +40,6 @@ module ViewCache = {
         ~core_settings,
         ~status,
         ~model,
-        ~reach_groups,
       )
       : option(View.t) =>
     switch (Hashtbl.find_opt(cache, id)) {
@@ -58,8 +52,7 @@ module ViewCache = {
           && e.core_settings == core_settings
           && e.settings_version == ProbeProj.Settings.version^
           && e.status == status
-          && e.model == model
-          && e.reach_groups == reach_groups =>
+          && e.model == model =>
       Some(e.view)
     | _ => None
     };
@@ -74,7 +67,6 @@ module ViewCache = {
         ~core_settings,
         ~status,
         ~model,
-        ~reach_groups,
         ~view,
       ) =>
     Hashtbl.replace(
@@ -89,7 +81,6 @@ module ViewCache = {
         settings_version: ProbeProj.Settings.version^,
         status,
         model,
-        reach_groups,
         view,
       },
     );
@@ -210,6 +201,7 @@ module Model = {
             ~dynamics,
             ~elaborated,
             ~reach_groups=[],
+            ~reach_group_conds=[],
           );
         {
           p,
@@ -436,20 +428,27 @@ let mk_view =
       }: Model.projector_data,
       projector_list: list(Id.t),
     )
-    : View.t =>
-  switch (
-    ViewCache.lookup(
-      p.id,
-      ~statics_map,
-      ~dynamics_map,
-      ~sample_focus,
-      ~elaborated,
-      ~core_settings,
-      ~status,
-      ~model=p.model,
-      ~reach_groups=info.reach_groups,
-    )
-  ) {
+    : View.t => {
+  /* Reach refractors render fresh every frame: their offside depends on the
+     whole-program group set and per-group merged conditions (info.reach_groups
+     / info.reach_group_conds), which this node's own model/statics don't
+     capture. They're few, so skipping the cache is cheap. */
+  let cached: option(View.t) =
+    switch (p.kind) {
+    | Reach => None
+    | _ =>
+      ViewCache.lookup(
+        p.id,
+        ~statics_map,
+        ~dynamics_map,
+        ~sample_focus,
+        ~elaborated,
+        ~core_settings,
+        ~status,
+        ~model=p.model,
+      )
+    };
+  switch (cached) {
   | Some(view) =>
     ViewCache.hits := ViewCache.hits^ + 1;
     view;
@@ -490,20 +489,22 @@ let mk_view =
         status,
         core_settings,
       });
-    ViewCache.store(
-      p.id,
-      ~statics_map,
-      ~dynamics_map,
-      ~sample_focus,
-      ~elaborated,
-      ~core_settings,
-      ~status,
-      ~model=p.model,
-      ~reach_groups=info.reach_groups,
-      ~view,
-    );
+    if (p.kind != Reach) {
+      ViewCache.store(
+        p.id,
+        ~statics_map,
+        ~dynamics_map,
+        ~sample_focus,
+        ~elaborated,
+        ~core_settings,
+        ~status,
+        ~model=p.model,
+        ~view,
+      );
+    };
     view;
   };
+};
 
 /* Extract and collate different layers of the resulting view
  * in order to stratify z-levels across all projectors */
