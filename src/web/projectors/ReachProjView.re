@@ -170,40 +170,49 @@ module V: ProjectorView = {
         ],
         [text({js|🎯|js})],
       );
-    /* Edit group membership right on the point: one chip per group (click to
-       leave it), then a "+" chip to add it to the next group. Naming/solving
-       groups happens in the Reach sidebar. */
-    let chip = (~title, ~on_click, ~color, label) =>
+    /* Edit group membership right on the point. The point's groups show as
+       solid chips; hovering the area expands it (briefly animated) to reveal
+       every other group as a dimmed chip you can toggle on. The "+" chip always
+       shows and creates a brand-new group. Naming/solving is in the sidebar. */
+    let chip = (~classes, ~title, ~on_click, ~color, label) =>
       span(
         ~attrs=[
-          Attr.classes(["reach-group-chip"]),
+          Attr.classes(["reach-group-chip", ...classes]),
           Attr.create("style", "background-color: " ++ color),
           Attr.title(title),
           Attr.on_click(on_click),
         ],
         [text(label)],
       );
-    let group_chips =
-      List.map(
-        g =>
-          chip(
-            ~title="In group " ++ string_of_int(g) ++ " — click to remove",
-            ~on_click=_ => local(ReachProj.ToggleGroup(g)),
-            ~color=group_color(g),
-            string_of_int(g),
-          ),
-        model.groups,
-      )
-      @ [
-        chip(
-          ~title="Add to a group",
-          ~on_click=
-            _ =>
-              local(ReachProj.ToggleGroup(next_free_group(model.groups))),
-          ~color="var(--BR1)",
-          {js|+|js},
-        ),
-      ];
+    let all_groups =
+      List.sort_uniq(compare, model.groups @ info.reach_groups);
+    let toggle_chip = g => {
+      let selected = List.mem(g, model.groups);
+      chip(
+        ~classes=[selected ? "selected" : "unselected"],
+        ~title=
+          (selected ? "In group " : "Add to group ")
+          ++ string_of_int(g)
+          ++ (selected ? " — click to remove" : ""),
+        ~on_click=_ => local(ReachProj.ToggleGroup(g)),
+        ~color=group_color(g),
+        string_of_int(g),
+      );
+    };
+    let new_chip =
+      chip(
+        ~classes=["reach-group-new"],
+        ~title="Create a new group",
+        ~on_click=
+          _ => local(ReachProj.ToggleGroup(next_free_group(all_groups))),
+        ~color="var(--BR1)",
+        {js|+|js},
+      );
+    let groups_edit =
+      span(
+        ~attrs=[Attr.classes(["reach-groups-edit"])],
+        List.map(toggle_chip, all_groups) @ [new_chip],
+      );
     View.{
       inline: div([]),
       offside:
@@ -217,8 +226,7 @@ module V: ProjectorView = {
                 @ (model.enabled ? [] : ["disabled"]),
               ),
             ],
-            group_chips
-            @ [generate_btn]
+            [groups_edit, generate_btn]
             @ (
               switch (info.reach) {
               | Some(r) => path_view(info.utility, r)

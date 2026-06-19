@@ -111,6 +111,9 @@ type info = {
    * Reach refractor) in ProjectorInfo.mk_info. None for every other projector
    * kind. Group merges are assembled in the Reach sidebar. */
   reach: option(Reach.t),
+  /* All merge groups in use across every Reach refractor (empty elsewhere);
+   * lets the offside offer the whole set to toggle membership. */
+  reach_groups: list(int),
   /* Syntax utility functions/values for projector use,
    * provided here to resolve cyclic dependency issues */
   utility,

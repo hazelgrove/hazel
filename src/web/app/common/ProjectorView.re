@@ -26,6 +26,11 @@ module ViewCache = {
     settings_version: int,
     status: View.status,
     model: string,
+    /* Reach refractors depend on the whole-program group set (info.reach_groups),
+       which isn't captured by this node's model/statics; key on it so a group
+       created elsewhere invalidates this node's cached offside. Empty (and so
+       inert) for every other projector. */
+    reach_groups: list(int),
     view: View.t,
   };
   let cache: Hashtbl.t(Id.t, entry) = Hashtbl.create(64);
@@ -40,6 +45,7 @@ module ViewCache = {
         ~core_settings,
         ~status,
         ~model,
+        ~reach_groups,
       )
       : option(View.t) =>
     switch (Hashtbl.find_opt(cache, id)) {
@@ -52,7 +58,8 @@ module ViewCache = {
           && e.core_settings == core_settings
           && e.settings_version == ProbeProj.Settings.version^
           && e.status == status
-          && e.model == model =>
+          && e.model == model
+          && e.reach_groups == reach_groups =>
       Some(e.view)
     | _ => None
     };
@@ -67,6 +74,7 @@ module ViewCache = {
         ~core_settings,
         ~status,
         ~model,
+        ~reach_groups,
         ~view,
       ) =>
     Hashtbl.replace(
@@ -81,6 +89,7 @@ module ViewCache = {
         settings_version: ProbeProj.Settings.version^,
         status,
         model,
+        reach_groups,
         view,
       },
     );
@@ -200,6 +209,7 @@ module Model = {
             ~statics,
             ~dynamics,
             ~elaborated,
+            ~reach_groups=[],
           );
         {
           p,
@@ -437,6 +447,7 @@ let mk_view =
       ~core_settings,
       ~status,
       ~model=p.model,
+      ~reach_groups=info.reach_groups,
     )
   ) {
   | Some(view) =>
@@ -488,6 +499,7 @@ let mk_view =
       ~core_settings,
       ~status,
       ~model=p.model,
+      ~reach_groups=info.reach_groups,
       ~view,
     );
     view;

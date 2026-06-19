@@ -46,14 +46,44 @@
   align-items: center;
   gap: 2px;
 }
-/* On the offside the chips edit membership: click a group chip to leave it, or
-   the neutral "+" chip to join the next group. */
+/* On the offside the chips edit membership. The point's groups (and the "+"
+   chip) always show; hovering the area expands it (briefly animated) to reveal
+   every other group as a dimmed chip you can toggle on. */
+.reach-groups-edit {
+  display: inline-flex;
+  align-items: center;
+}
 .projector.reach .reach-group-chip {
   cursor: pointer;
   user-select: none;
+  margin-left: 2px;
+  transition:
+    max-width 0.15s ease,
+    opacity 0.15s ease,
+    margin 0.15s ease;
+}
+.reach-groups-edit .reach-group-chip:first-child {
+  margin-left: 0;
 }
 .projector.reach .reach-group-chip:hover {
   filter: brightness(1.12);
+}
+/* Unselected groups are collapsed (zero footprint) until the area is hovered. */
+.reach-groups-edit .reach-group-chip.unselected {
+  max-width: 0;
+  margin-left: 0;
+  opacity: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.reach-groups-edit:hover .reach-group-chip.unselected {
+  max-width: 1.4em;
+  margin-left: 2px;
+  opacity: 0.45;
+  pointer-events: auto;
+}
+.reach-groups-edit:hover .reach-group-chip.unselected:hover {
+  opacity: 0.8;
 }
 
 /* Solve button (target) — a neutral themed button */

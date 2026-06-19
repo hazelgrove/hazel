@@ -56,6 +56,9 @@ let mk_info =
       ~statics: Statics.Map.t,
       ~dynamics: Dynamics.Map.t,
       ~elaborated: option(Exp.t),
+      /* All merge groups in use across every Reach refractor (empty for the
+       * non-refractor paths). Lets the offside offer the whole set to toggle. */
+      ~reach_groups: list(int),
     )
     : ProjectorBase.info => {
   id: p.id,
@@ -92,8 +95,27 @@ let mk_info =
     | Reach => Reach.analyze(p.id, statics)
     | _ => None
     },
+  reach_groups,
   utility,
 };
+
+/* The merge groups a single Reach refractor's model is in. */
+let reach_groups_of = (entry: Refractors.entry): list(int) =>
+  switch (ReachProj.t_of_sexp(Sexplib.Sexp.of_string(entry.model))) {
+  | {groups, _} => groups
+  | exception _ => []
+  };
+
+/* All distinct merge groups in use across every Reach refractor. */
+let reach_groups = (refractors: Refractors.Map.t): list(int) =>
+  Id.Map.bindings(refractors)
+  |> List.concat_map(((_, entry: Refractors.entry)) =>
+       switch (entry.kind) {
+       | Reach => reach_groups_of(entry)
+       | _ => []
+       }
+     )
+  |> List.sort_uniq(compare);
 
 module ShapeMapSemantics = {
   let from_semantics =
@@ -106,7 +128,15 @@ module ShapeMapSemantics = {
       )
       : (ProjectorCore.Shape.t, option(ProjectorBase.error)) => {
     let (module P) = ProjectorInit.to_module(p.kind);
-    let info = mk_info(p, ~sample_focus, ~statics, ~dynamics, ~elaborated);
+    let info =
+      mk_info(
+        p,
+        ~sample_focus,
+        ~statics,
+        ~dynamics,
+        ~elaborated,
+        ~reach_groups=[],
+      );
     (P.placeholder(p.model, info), P.error(p.model, info));
   };
 
