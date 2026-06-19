@@ -27,26 +27,34 @@
   color: var(--STONE);
 }
 
-/* Merge-group chip (click to cycle; • = solo). Same color = same group. */
-.projector.reach .reach-group {
-  cursor: pointer;
-  user-select: none;
+/* Merge-group chip (number, colored by group_color). Shared by the offside and
+   the sidebar; color is set inline per group. */
+.reach-group-chip {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   width: 1.4em;
   height: 1.4em;
   border-radius: 50%;
-  font-size: 0.85em;
+  font-size: 0.8em;
   font-weight: 700;
   color: white;
   flex: none;
 }
-.projector.reach .reach-group:hover {
+.reach-group-chips {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+/* On the offside the chips edit membership: click a group chip to leave it, or
+   the neutral "+" chip to join the next group. */
+.projector.reach .reach-group-chip {
+  cursor: pointer;
+  user-select: none;
+}
+.projector.reach .reach-group-chip:hover {
   filter: brightness(1.12);
 }
-/* Color is assigned per group id at render time (inline style); see
-   ReachProjView.group_color. */
 
 /* Solve button (target) — a neutral themed button */
 .projector.reach .reach-generate {
@@ -218,22 +226,6 @@
   flex: none;
 }
 
-/* Group chip — identical to the offside chip (.projector.reach .reach-group):
-   a colored circle (ReachProjView.group_color) with the group number / •, so a
-   group reads the same in both views. */
-#reach-sidebar .reach-group-chip {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 1.4em;
-  height: 1.4em;
-  border-radius: 50%;
-  font-size: 0.8em;
-  font-weight: 700;
-  color: white;
-  flex: none;
-}
-
 /* A point row: a horizontal controls line, with the result on its own
    full-width line below (mirrors .problem-row metrics). */
 #reach-sidebar .reach-row {
@@ -316,17 +308,6 @@
 #reach-sidebar .reach-approx {
   color: var(--warning-hole-stroke);
   font-weight: bold;
-}
-
-/* Group dropdown */
-#reach-sidebar .reach-group-select {
-  flex: none;
-  max-width: 8em;
-  font-size: 0.78em;
-  border: 1px solid var(--BR1);
-  border-radius: 3px;
-  background-color: var(--SAND);
-  color: var(--STONE);
 }
 
 /* Solve button (target) */

@@ -5,32 +5,29 @@ open Haz3lcore;
 
 /* Reach sidebar — a breakpoint-manager-style control panel for reach points.
  *
- * It lists every Reach refractor in the active editor, lets you switch between
- * a group view (default) and an order view, see each point's individual path
- * condition and each group's merged (total) condition, solve points/groups on
- * demand, enable/disable points like breakpoints, reassign a point's group via
- * a dropdown, and name groups.
+ * Group view (default): a Solo section plus one collapsible, named section per
+ * merge group, each showing the group's merged (total) condition, a solve
+ * button, and the merged solution. A reach point can belong to several groups
+ * at once, so it appears under each of its groups' sections. Order view: a flat
+ * list of every point with its own condition and per-group solutions.
  *
- * All the analysis is reused: per-point/merged conditions come from
- * RefractorView.mk_data / Reach.analyze, solving goes through
- * Reach.smtlib2 → Z3Wasm.solve → Reach.interpret (exactly as the offside
- * ReachProjView does), and model changes are dispatched as Project(SetModel(…))
- * — the same path the projector's own `local` uses. */
+ * Group membership is edited on the reach point itself in the editor (the
+ * offside chips); this panel reads/solves/names groups. Group merges are
+ * assembled here (the sidebar sees every point) by conjoining members' solo
+ * conditions via Reach.merge; solving runs Reach.smtlib2 → Z3Wasm.solve →
+ * Reach.interpret and writes the outcomes back via Project(SetModel(…)). */
 
 /* One reach point, resolved for display + dispatch. */
 type point = {
   id: Id.t,
   /* index in the refractor list (= projector_list order), for SetModel */
   idx: int,
-  /* serialized model decoded to {group, enabled, result} */
+  /* serialized model decoded to {groups, enabled, results} */
   model: ReachProj.t,
-  /* carries the group-resolved reach condition + utility, and is the `info`
-     the cooked update expects (ReachProj.update ignores it) */
+  /* the `info` the cooked update expects (ReachProj.update ignores it) */
   info: ProjectorBase.info,
-  /* this node's own (solo) path condition, independent of grouping */
+  /* this node's own (solo) path condition */
   individual: option(Reach.t),
-  /* group-resolved condition (merged for grouped points) == info.reach */
-  reach: option(Reach.t),
   /* 1-based line number, when measured */
   row: option(int),
 };
@@ -42,7 +39,7 @@ let collect = (~editor: CodeEditable.Model.t): list(point) => {
   let statics = editor.statics.info_map;
   let measured = editor.editor.syntax.measured;
   /* The flat refractor list, in the same order used as projector_list for
-     SetModel indexing (CodeEditable.re). */
+     SetModel indexing (CodeEditable.re / Perform.re). */
   let refractor_list =
     List.map(fst, z.refractors.manuals)
     @ List.map(fst, Id.Map.to_list(z.refractors.multis.ephemerals));
@@ -83,7 +80,6 @@ let collect = (~editor: CodeEditable.Model.t): list(point) => {
             model,
             info: d.info,
             individual: Reach.analyze(d.p.id, statics),
-            reach: d.info.reach,
             row,
           });
         }
@@ -93,31 +89,13 @@ let collect = (~editor: CodeEditable.Model.t): list(point) => {
   );
 };
 
-/* Group points by their (non-zero) merge group, sorted by group id, members
-   sorted by source position. */
-let group_points = (points: list(point)): list((int, list(point))) => {
-  let cmp_pos = (a: point, b: point) =>
-    compare((a.row, a.idx), (b.row, b.idx));
-  let grouped = List.filter(p => p.model.group != 0, points);
-  List.fold_left(
-    (acc, p: point) => {
-      let g = p.model.group;
-      switch (List.assoc_opt(g, acc)) {
-      | Some(ms) => [(g, [p, ...ms]), ...List.remove_assoc(g, acc)]
-      | None => [(g, [p]), ...acc]
-      };
-    },
-    [],
-    grouped,
-  )
-  |> List.map(((g, ms)) => (g, List.sort(cmp_pos, ms)))
-  |> List.sort(((g1, _), (g2, _)) => compare(g1, g2));
-};
+let cmp_pos = (a: point, b: point) =>
+  compare((a.row, a.idx), (b.row, b.idx));
 
 let stop = evt => Js_of_ocaml.Dom_html.stopPropagation(evt);
 
 /* Render a reach condition as Hazel text (reusing the offside's renderer),
-   colored by its merge group (neutral if solo), with a trivial-condition
+   colored by a merge group (neutral if group 0), with a trivial-condition
    placeholder and an "approximate" marker when the translation dropped an
    unsupported construct. */
 let constraint_view = (~group: int, r: Reach.t): Node.t => {
@@ -155,6 +133,25 @@ let constraint_view = (~group: int, r: Reach.t): Node.t => {
   );
 };
 
+/* A colored numbered chip (matches the offside), one per group. */
+let group_chip = (g: int) =>
+  span(
+    ~attrs=[
+      clss(["reach-group-chip"]),
+      Attr.create(
+        "style",
+        "background-color: " ++ ReachProjView.group_color(g),
+      ),
+      Attr.title(g == 0 ? "Solo" : "Group " ++ string_of_int(g)),
+    ],
+    [text(g == 0 ? {js|•|js} : string_of_int(g))],
+  );
+
+/* Every group a point belongs to, as chips (so a point "includes all the
+   colors of its groups"). Empty for an ungrouped point. */
+let group_chips = (groups: list(int)) =>
+  span(~attrs=[clss(["reach-group-chips"])], List.map(group_chip, groups));
+
 let view =
     (
       ~globals: Globals.t,
@@ -164,15 +161,18 @@ let view =
     : Node.t => {
   let settings = globals.settings.sidebar.reach;
   let points = collect(~editor);
-  let solo = List.filter((p: point) => p.model.group == 0, points);
-  let groups = group_points(points);
-  let groups_in_use = List.map(fst, groups);
-  let fresh_group =
-    groups_in_use == [] ? 1 : List.fold_left(max, 0, groups_in_use) + 1;
+  let solo = List.filter((p: point) => p.model.groups == [], points);
+  let all_groups =
+    points
+    |> List.concat_map((p: point) => p.model.groups)
+    |> List.sort_uniq(compare);
+  /* All points in group g (any enabled state), sorted by position. */
+  let members = (g: int): list(point) =>
+    points
+    |> List.filter((p: point) => List.mem(g, p.model.groups))
+    |> List.sort(cmp_pos);
 
-  /* Dispatch a model change to a specific reach refractor, exactly as the
-     projector's own `local` does: update its model and re-serialize, then
-     Project(SetModel(idx, Reach, …)). */
+  /* Dispatch a membership/enable change to a refractor. */
   let set_model = (p: point, action: ReachProj.reach_action) => {
     let new_model =
       ReachProj.M.update(p.model, p.info, action)
@@ -183,60 +183,116 @@ let view =
     );
   };
 
-  /* Solve a condition asynchronously and feed the interpreted outcome to
-     dispatch_result (which builds the effect that stores it). */
-  let solve = (r: Reach.t, dispatch_result) =>
-    Z3Wasm.solve(
-      ~k=
-        outcome =>
-          Bonsai.Effect.Expert.handle(
-            dispatch_result(
-              Reach.interpret(
-                ~complete=r.complete,
-                ~inputs=r.inputs,
-                outcome,
-              ),
-            ),
+  /* A solve "job": (group, condition-to-solve, refractors-to-store-on). */
+  let group_job = (g: int): option((int, Reach.t, list(point))) => {
+    let ms = List.filter((p: point) => p.model.enabled, members(g));
+    switch (List.filter_map((m: point) => m.individual, ms)) {
+    | [] => None
+    | rs => Some((g, Reach.merge(rs), ms))
+    };
+  };
+  let solo_job = (p: point): option((int, Reach.t, list(point))) =>
+    p.model.enabled ? Option.map(r => (0, r, [p]), p.individual) : None;
+
+  /* When every job's outcome is known, write them all back — each refractor
+     dispatched exactly once, with all of its (group, outcome) pairs folded into
+     one model, so concurrent jobs touching the same point can't clobber each
+     other (SetModel replaces the whole model). */
+  let dispatch_all =
+      (outs: list((int, list(point), TestGen.outcome))): Ui_effect.t(unit) => {
+    let per_ref =
+      List.fold_left(
+        (acc, (g, ms, o)) =>
+          List.fold_left(
+            (acc, m: point) => {
+              let prev =
+                switch (Id.Map.find_opt(m.id, acc)) {
+                | Some((_, rs)) => rs
+                | None => []
+                };
+              Id.Map.add(m.id, (m, [(g, o), ...prev]), acc);
+            },
+            acc,
+            ms,
           ),
-      Reach.smtlib2(r) |> fst,
+        Id.Map.empty,
+        outs,
+      );
+    Effect.Many(
+      Id.Map.bindings(per_ref)
+      |> List.map(((_, (m: point, results))) => {
+           let new_model =
+             List.fold_left(
+               (mdl, (g, o)) =>
+                 ReachProj.M.update(mdl, m.info, SetResult(g, o)),
+               m.model,
+               results,
+             );
+           globals.inject_global(
+             ActiveEditor(
+               Project(
+                 SetModel(
+                   m.idx,
+                   Reach,
+                   ReachProj.M.sexp_of_model(new_model)
+                   |> Sexplib.Sexp.to_string,
+                 ),
+               ),
+             ),
+           );
+         }),
+    );
+  };
+
+  let solve_jobs = (jobs: list((int, Reach.t, list(point)))) =>
+    switch (jobs) {
+    | [] => ()
+    | _ =>
+      let total = List.length(jobs);
+      let outs = ref([]);
+      let done_ = ref(0);
+      List.iter(
+        ((g, cond: Reach.t, ms)) =>
+          Z3Wasm.solve(
+            ~k=
+              outcome => {
+                let o =
+                  Reach.interpret(
+                    ~complete=cond.complete,
+                    ~inputs=cond.inputs,
+                    outcome,
+                  );
+                outs := [(g, ms, o), ...outs^];
+                incr(done_);
+                if (done_^ >= total) {
+                  Bonsai.Effect.Expert.handle(dispatch_all(outs^));
+                };
+              },
+            Reach.smtlib2(cond) |> fst,
+          ),
+        jobs,
+      );
+    };
+
+  let solve_group = (g: int) =>
+    solve_jobs(List.filter_map(Fun.id, [group_job(g)]));
+  let solve_point = (p: point) =>
+    solve_jobs(
+      List.filter_map(
+        Fun.id,
+        [solo_job(p)] @ List.map(group_job, p.model.groups),
+      ),
+    );
+  let solve_all = () =>
+    solve_jobs(
+      List.filter_map(
+        Fun.id,
+        List.map(solo_job, points) @ List.map(group_job, all_groups),
+      ),
     );
 
-  /* Solve one point (its solo or group-resolved condition) and store the
-     result on that point. Skips disabled points. */
-  let solve_point = (p: point) =>
-    if (p.model.enabled) {
-      switch (p.reach) {
-      | Some(r) => solve(r, o => set_model(p, SetResult(o)))
-      | None => ()
-      };
-    };
-
-  /* Solve a whole group once (all members share the merged condition) and store
-     the verdict on every enabled member, so the group header and all members
-     agree — consistent with the offside. */
-  let solve_group = (members: list(point)) => {
-    let enabled = List.filter((m: point) => m.model.enabled, members);
-    switch (enabled) {
-    | [] => ()
-    | [rep, ..._] =>
-      switch (rep.reach) {
-      | Some(r) =>
-        solve(r, o =>
-          Effect.Many(List.map(m => set_model(m, SetResult(o)), enabled))
-        )
-      | None => ()
-      }
-    };
-  };
-
-  let solve_all = () => {
-    List.iter(solve_point, solo);
-    List.iter(((_, members)) => solve_group(members), groups);
-  };
-
-  /* A small clickable control that stops the row's jump-on-click and runs the
-     effect returned by on_activate. Returning the effect (rather than building
-     and discarding it) is what actually dispatches it. */
+  /* A clickable control that stops the row's jump-on-click and runs the effect
+     returned by on_activate. */
   let control = (~cls, ~tooltip, ~on_activate, label) =>
     span(
       ~attrs=[
@@ -262,8 +318,8 @@ let view =
       p.model.enabled ? {js|●|js} : {js|○|js},
     );
 
-  /* Solving is fire-and-forget (it schedules its own dispatch in the async
-     solver callback), so the button itself returns no effect. */
+  /* Solving is fire-and-forget (it schedules its own dispatch), so the button
+     returns no effect. */
   let solve_btn = (~tooltip="Find reaching inputs", do_solve) =>
     control(
       ~cls=["reach-generate"],
@@ -289,100 +345,93 @@ let view =
       ],
     );
 
-  /* The same chip the offside uses: a colored circle (ReachProjView.group_color)
-     with the group number (• = solo), so a group reads identically in both
-     views. */
-  let group_chip = (g: int) =>
-    span(
-      ~attrs=[
-        clss(["reach-group-chip"]),
-        Attr.create(
-          "style",
-          "background-color: " ++ ReachProjView.group_color(g),
-        ),
-        Attr.title(g == 0 ? "Solo" : "Group " ++ string_of_int(g)),
-      ],
-      [text(g == 0 ? {js|•|js} : string_of_int(g))],
-    );
-
-  let group_dropdown = (p: point) => {
-    let opt = (g: int, label: string) =>
-      Node.option(
-        ~attrs=
-          [Attr.value(string_of_int(g))]
-          @ (g == p.model.group ? [Attr.create("selected", "selected")] : []),
-        [text(label)],
-      );
-    Node.select(
-      ~attrs=[
-        clss(["reach-group-select"]),
-        Attr.on_pointerdown(evt => {
-          stop(evt);
-          Effect.Ignore;
-        }),
-        Attr.on_change((_, v) => set_model(p, SetGroup(int_of_string(v)))),
-      ],
-      [opt(0, {js|• Solo|js})]
-      @ List.map(
-          g => opt(g, SidebarModel.Settings.reach_group_name(g, settings)),
-          groups_in_use,
-        )
-      @ [opt(fresh_group, "+ New group")],
-    );
-  };
-
-  /* The solved result, listed one variable per line (the sidebar has vertical
-     room and scrolls), on its own full-width line. */
   let result_block = (~group: int, result: option(TestGen.outcome)) =>
     switch (result) {
     | Some(o) => [ReachProjView.result_view(~group, ~multiline=true, o)]
     | None => []
     };
 
-  /* One point row. In group view, members defer their result to the group's
-     own result line (show_result=false); solo points and the order view show
-     their result below the controls. */
-  let point_row = (~show_result: bool, p: point) => {
+  /* A member row inside group g's section: the point's own condition (colored
+     by g); the group's solution is shown once in the section header. */
+  let member_row = (~group: int, p: point) => {
     let condition =
       switch (p.individual) {
-      | Some(r) => constraint_view(~group=p.model.group, r)
+      | Some(r) => constraint_view(~group, r)
       | None =>
         div(
           ~attrs=[clss(["reach-constraint", "na"])],
           [text({js|—|js})],
         )
       };
-    let main =
-      div(
-        ~attrs=[
-          clss(["reach-row-main"]),
-          Attr.on_pointerdown(_ => globals.inject_global(JumpToTile(p.id))),
-        ],
-        [
-          enable_toggle(p),
-          line_num(p),
-          condition,
-          group_chip(p.model.group),
-          group_dropdown(p),
-          solve_btn(() => solve_point(p)),
-        ],
-      );
     div(
       ~attrs=[clss(["reach-row"] @ (p.model.enabled ? [] : ["disabled"]))],
-      [main]
-      @ (
-        show_result ? result_block(~group=p.model.group, p.model.result) : []
-      ),
+      [
+        div(
+          ~attrs=[
+            clss(["reach-row-main"]),
+            Attr.on_pointerdown(_ =>
+              globals.inject_global(JumpToTile(p.id))
+            ),
+          ],
+          [enable_toggle(p), line_num(p), condition],
+        ),
+      ],
     );
   };
 
-  let group_section = ((g, members): (int, list(point))) => {
+  /* A flat row (Solo section + Order view): the point's own condition (neutral),
+     chips for every group it is in, a solve button, and one solution pill per
+     solved group below. */
+  let flat_row = (p: point) => {
+    let condition =
+      switch (p.individual) {
+      | Some(r) => constraint_view(~group=0, r)
+      | None =>
+        div(
+          ~attrs=[clss(["reach-constraint", "na"])],
+          [text({js|—|js})],
+        )
+      };
+    let results =
+      p.model.results
+      |> List.sort(((a, _), (b, _)) => compare(a, b))
+      |> List.concat_map(((g, o)) => result_block(~group=g, Some(o)));
+    div(
+      ~attrs=[clss(["reach-row"] @ (p.model.enabled ? [] : ["disabled"]))],
+      [
+        div(
+          ~attrs=[
+            clss(["reach-row-main"]),
+            Attr.on_pointerdown(_ =>
+              globals.inject_global(JumpToTile(p.id))
+            ),
+          ],
+          [
+            enable_toggle(p),
+            line_num(p),
+            condition,
+            group_chips(p.model.groups),
+            solve_btn(() => solve_point(p)),
+          ],
+        ),
+      ]
+      @ results,
+    );
+  };
+
+  let group_section = (g: int) => {
+    let ms = members(g);
     let collapsed =
       SidebarModel.Settings.is_reach_group_collapsed(g, settings);
     let name = SidebarModel.Settings.reach_group_name(g, settings);
-    let enabled = List.filter((m: point) => m.model.enabled, members);
-    let merged = List.find_map((m: point) => m.reach, enabled);
-    let group_result = List.find_map((m: point) => m.model.result, enabled);
+    let enabled = List.filter((m: point) => m.model.enabled, ms);
+    let merged: option(Reach.t) =
+      switch (List.filter_map((m: point) => m.individual, enabled)) {
+      | [] => None
+      | rs => Some(Reach.merge(rs))
+      };
+    let group_result =
+      List.find_map((m: point) => List.assoc_opt(g, m.model.results), ms);
     let header =
       div(
         ~attrs=[clss(["reach-group-header"])],
@@ -417,10 +466,10 @@ let view =
           ),
           span(
             ~attrs=[clss(["reach-count"])],
-            [text("(" ++ string_of_int(List.length(members)) ++ ")")],
+            [text("(" ++ string_of_int(List.length(ms)) ++ ")")],
           ),
           solve_btn(~tooltip="Find one input reaching all enabled members", () =>
-            solve_group(members)
+            solve_group(g)
           ),
         ],
       );
@@ -432,8 +481,6 @@ let view =
     div(
       ~attrs=[
         clss(["reach-group"]),
-        /* Carry the group's color onto the whole section, matching the offside
-           chip. */
         Attr.create(
           "style",
           "border-left: 4px solid " ++ ReachProjView.group_color(g),
@@ -442,7 +489,7 @@ let view =
       [header]
       @ merged_view
       @ result_block(~group=g, group_result)
-      @ (collapsed ? [] : List.map(point_row(~show_result=false), members)),
+      @ (collapsed ? [] : List.map(member_row(~group=g), ms)),
     );
   };
 
@@ -506,15 +553,10 @@ let view =
         ),
       ];
     } else if (settings.flat) {
-      let sorted =
-        List.sort(
-          (a: point, b) => compare((a.row, a.idx), (b.row, b.idx)),
-          points,
-        );
       [
         div(
           ~attrs=[clss(["reach-list"])],
-          List.map(point_row(~show_result=true), sorted),
+          List.map(flat_row, List.sort(cmp_pos, points)),
         ),
       ];
     } else {
@@ -530,17 +572,10 @@ let view =
                   [text("Solo")],
                 ),
               ]
-              @ List.map(
-                  point_row(~show_result=true),
-                  List.sort(
-                    (a: point, b) =>
-                      compare((a.row, a.idx), (b.row, b.idx)),
-                    solo,
-                  ),
-                ),
+              @ List.map(flat_row, List.sort(cmp_pos, solo)),
             ),
           ];
-      solo_section @ List.map(group_section, groups);
+      solo_section @ List.map(group_section, all_groups);
     };
 
   div(~attrs=[Attr.id("reach-sidebar")], [header] @ body);

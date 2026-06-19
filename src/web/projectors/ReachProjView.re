@@ -22,13 +22,13 @@ let group_color = (group: int): string =>
     ? "hsl(0, 0%, 72%)"
     : Printf.sprintf("hsl(%d, 62%%, 50%%)", group * 137 mod 360);
 
-/* The chip cycles through solo, the groups currently in use, and one fresh
- * group — so it doesn't walk a fixed palette when only a few groups exist.
- * group_count = distinct groups in use; the next id wraps at group_count + 2
- * (solo + the in-use groups + one new), which stays bounded as groups are
- * relabeled. */
-let next_group = (~group_count: int, group: int): int =>
-  (group + 1) mod (group_count + 2);
+/* Smallest positive group id not already in `groups` — the group the offside
+ * "+" chip adds (so repeated "+" builds up 1, 2, 3, …, and different points
+ * land in the same low-numbered groups, ready to be merged). */
+let next_free_group = (groups: list(int)): int => {
+  let rec find = n => List.mem(n, groups) ? find(n + 1) : n;
+  find(1);
+};
 
 /* Tie a node to its merge group by setting its text color; the path/result
  * pills derive their tinted background and border from this via `currentColor`
@@ -108,19 +108,6 @@ let result_view =
   };
 };
 
-let group_chip = (local, ~group_count: int, group: int): Node.t =>
-  span(
-    ~attrs=[
-      Attr.classes(["reach-group"]),
-      Attr.create("style", "background-color: " ++ group_color(group)),
-      Attr.title("Merge group — click to cycle (• = solo)"),
-      Attr.on_click(_ =>
-        local(ReachProj.SetGroup(next_group(~group_count, group)))
-      ),
-    ],
-    [text(group == 0 ? {js|•|js} : string_of_int(group))],
-  );
-
 /* Render the symbolic path condition (the conjoined guards) as Hazel text. */
 let path_view = (utility: ProjectorBase.utility, r: Reach.t): list(Node.t) => {
   let render = (g: Language.Exp.t): string =>
@@ -142,9 +129,9 @@ module V: ProjectorView = {
   let focusable = Focusable.non;
 
   let view = ({model, info, local, _}: View.args(L.model, L.action)) => {
+    /* The offside solves the point on its own (solo, group 0); group merges
+       live in the Reach sidebar, which can see every point. */
     let on_generate = _ =>
-      /* Disabled points are excluded from solving (and from group merges); the
-         enable toggle lives in the Reach sidebar. */
       !model.enabled
         ? Effect.Ignore
         : (
@@ -152,6 +139,7 @@ module V: ProjectorView = {
           | None =>
             local(
               ReachProj.SetResult(
+                0,
                 TestGen.Error("Enable statics to analyze reachability."),
               ),
             )
@@ -163,6 +151,7 @@ module V: ProjectorView = {
                   Bonsai.Effect.Expert.handle(
                     local(
                       ReachProj.SetResult(
+                        0,
                         Reach.interpret(~complete, ~inputs=r.inputs, outcome),
                       ),
                     ),
@@ -181,6 +170,40 @@ module V: ProjectorView = {
         ],
         [text({js|🎯|js})],
       );
+    /* Edit group membership right on the point: one chip per group (click to
+       leave it), then a "+" chip to add it to the next group. Naming/solving
+       groups happens in the Reach sidebar. */
+    let chip = (~title, ~on_click, ~color, label) =>
+      span(
+        ~attrs=[
+          Attr.classes(["reach-group-chip"]),
+          Attr.create("style", "background-color: " ++ color),
+          Attr.title(title),
+          Attr.on_click(on_click),
+        ],
+        [text(label)],
+      );
+    let group_chips =
+      List.map(
+        g =>
+          chip(
+            ~title="In group " ++ string_of_int(g) ++ " — click to remove",
+            ~on_click=_ => local(ReachProj.ToggleGroup(g)),
+            ~color=group_color(g),
+            string_of_int(g),
+          ),
+        model.groups,
+      )
+      @ [
+        chip(
+          ~title="Add to a group",
+          ~on_click=
+            _ =>
+              local(ReachProj.ToggleGroup(next_free_group(model.groups))),
+          ~color="var(--BR1)",
+          {js|+|js},
+        ),
+      ];
     View.{
       inline: div([]),
       offside:
@@ -194,30 +217,18 @@ module V: ProjectorView = {
                 @ (model.enabled ? [] : ["disabled"]),
               ),
             ],
-            [
-              group_chip(
-                local,
-                ~group_count=info.reach_group_count,
-                model.group,
-              ),
-              generate_btn,
-            ]
+            group_chips
+            @ [generate_btn]
             @ (
               switch (info.reach) {
-              /* Color the path condition by the merge group (neutral if solo). */
-              | Some(r) => [
-                  span(
-                    ~attrs=group_text_attrs(model.group),
-                    path_view(info.utility, r),
-                  ),
-                ]
+              | Some(r) => path_view(info.utility, r)
               | None => []
               }
             )
             @ (
-              switch (model.result) {
+              switch (List.assoc_opt(0, model.results)) {
               | None => []
-              | Some(o) => [result_view(~group=model.group, o)]
+              | Some(o) => [result_view(~group=0, o)]
               }
             ),
           ),

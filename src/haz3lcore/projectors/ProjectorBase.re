@@ -107,14 +107,10 @@ type info = {
    * Available when statics/elaboration is enabled. The elaborated
    * form has labels inserted/rearranged by the elaborator. */
   elaborated: option(Language.Exp.t),
-  /* Reachability analysis for this node, computed (only for the Reach
-   * refractor) in ProjectorInfo.mk_info from the whole-program statics map.
-   * None for every other projector kind. */
+  /* The node's own (solo) reachability path condition, computed (only for the
+   * Reach refractor) in ProjectorInfo.mk_info. None for every other projector
+   * kind. Group merges are assembled in the Reach sidebar. */
   reach: option(Reach.t),
-  /* Number of distinct merge groups currently in use across all Reach
-   * refractors. Lets the group chip's cycle range scale with usage instead
-   * of a fixed palette. 0 elsewhere. */
-  reach_group_count: int,
   /* Syntax utility functions/values for projector use,
    * provided here to resolve cyclic dependency issues */
   utility,

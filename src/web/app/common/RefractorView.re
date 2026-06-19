@@ -39,9 +39,6 @@ let mk_data =
     : list(ProjectorView.Model.projector_data) => {
   open Util.OptUtil.Syntax;
   let {measured, term_data, selection_ids, _}: CachedSyntax.t = syntax;
-  /* Resolve Reach refractors' path conditions once, honoring merge groups. */
-  let reach_map = ProjectorInfo.resolve_reach(refractors, statics);
-  let reach_group_count = ProjectorInfo.reach_group_count(refractors);
   List.filter_map(
     ((id, entry)) => {
       /* Construct full Base.projector on demand for rendering,
@@ -69,8 +66,6 @@ let mk_data =
           ~statics,
           ~dynamics,
           ~elaborated=None,
-          ~reach_map,
-          ~reach_group_count,
         );
       ProjectorView.Model.{
         p,
