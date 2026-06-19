@@ -18,22 +18,39 @@ open Haz3lcore;
 let is_available = (): bool =>
   Js.Optdef.test(Js.Unsafe.global##.hazelZ3Solve);
 
+/* SMT-LIB2 scripts solve deterministically, so a script's outcome never
+ * changes: cache script -> outcome and skip the solver (and the serialization
+ * queue) on a hit. This makes re-solving after edits cheap — only conditions
+ * that actually changed hit Z3 — and lets every member of a merge group reuse
+ * one group solve. Errors are not cached (they may be transient, e.g. the
+ * solver not yet loaded). */
+let cache: Hashtbl.t(string, TestGen.outcome) = Hashtbl.create(256);
+
 let solve = (~k: TestGen.outcome => unit, script: string): unit =>
-  if (!is_available()) {
-    k(
-      TestGen.Error(
-        "Z3 solver unavailable (z3-solver WASM not loaded). Run `npm install` and rebuild.",
-      ),
-    );
-  } else {
-    let cb =
-      Js.wrap_callback((result: Js.t(Js.js_string)) =>
-        k(TestGen.parse_model(Js.to_string(result)))
+  switch (Hashtbl.find_opt(cache, script)) {
+  | Some(outcome) => k(outcome)
+  | None =>
+    if (!is_available()) {
+      k(
+        TestGen.Error(
+          "Z3 solver unavailable (z3-solver WASM not loaded). Run `npm install` and rebuild.",
+        ),
       );
-    ignore(
-      Js.Unsafe.fun_call(
-        Js.Unsafe.global##.hazelZ3Solve,
-        [|Js.Unsafe.inject(Js.string(script)), Js.Unsafe.inject(cb)|],
-      ),
-    );
+    } else {
+      let cb =
+        Js.wrap_callback((result: Js.t(Js.js_string)) => {
+          let outcome = TestGen.parse_model(Js.to_string(result));
+          switch (outcome) {
+          | TestGen.Error(_) => ()
+          | _ => Hashtbl.replace(cache, script, outcome)
+          };
+          k(outcome);
+        });
+      ignore(
+        Js.Unsafe.fun_call(
+          Js.Unsafe.global##.hazelZ3Solve,
+          [|Js.Unsafe.inject(Js.string(script)), Js.Unsafe.inject(cb)|],
+        ),
+      );
+    }
   };

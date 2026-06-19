@@ -228,10 +228,11 @@ let view =
                m.model,
                results,
              );
+           /* Results are derived; store them off the undo history. */
            globals.inject_global(
              ActiveEditor(
                Project(
-                 SetModel(
+                 SetModelTransient(
                    m.idx,
                    Reach,
                    ReachProj.M.sexp_of_model(new_model)

@@ -266,7 +266,10 @@ let go =
         ),
       );
     };
-  | SetModel(idx, kind, new_model) =>
+  /* SetModelTransient sets the model identically; it differs only in that
+     Action.is_historic excludes it from undo (used for derived solver results). */
+  | SetModel(idx, kind, new_model)
+  | SetModelTransient(idx, kind, new_model) =>
     let id = idx_to_id(kind, idx);
     Ok(
       if (ProjectorCore.Kind.is_refractor(kind)) {

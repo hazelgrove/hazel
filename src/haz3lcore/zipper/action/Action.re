@@ -75,6 +75,7 @@ type project =
   | RemoveIndicated /* Remove projector at caret */
   | SetSyntax(int, ProjectorCore.Kind.t, Base.segment) /* Set underlying syntax */
   | SetModel(int, ProjectorCore.Kind.t, string) /* Set serialized model (projector or refractor) */
+  | SetModelTransient(int, ProjectorCore.Kind.t, string) /* Like SetModel, but derived/non-undoable (e.g. solver results) */
   | Focus(int, ProjectorCore.Kind.t, option(Util.Direction.t)) /* Pass control to projector */
   | Escape(int, Direction.t) /* Pass control to parent editor */
   | EscapeToLineEnd(int, ProjectorCore.Kind.t); /* Pass control to parent editor, move to end of line */
@@ -203,7 +204,8 @@ let is_edit: t => bool =
   | Unselect(_) => false
   | Project(p) =>
     switch (p) {
-    | SetModel(_) => false
+    | SetModel(_)
+    | SetModelTransient(_) => false
     | SetSyntax(_)
     | SetIndicated(_)
     | RemoveIndicated => true
@@ -239,6 +241,8 @@ let is_historic: t => bool =
     | SetModel(_)
     | SetIndicated(_)
     | RemoveIndicated => true
+    /* Derived (solver results); never recorded in undo history. */
+    | SetModelTransient(_)
     | Focus(_)
     | SampleFocus(_)
     | Escape(_)
@@ -268,6 +272,7 @@ let prevent_in_read_only_editor = (a: t) =>
     switch (p) {
     | SetSyntax(_) => true
     | SetModel(_)
+    | SetModelTransient(_)
     | SetIndicated(_)
     | RemoveIndicated
     | Focus(_)
@@ -316,5 +321,6 @@ let should_animate: t => bool =
     | Focus(_)
     | SampleFocus(_)
     | Escape(_) => true
+    | SetModelTransient(_)
     | EscapeToLineEnd(_) => false
     };

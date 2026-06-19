@@ -465,6 +465,12 @@ let mk_view =
           let new_model = L.update(p.model, info, a);
           inject(Project(SetModel(idx, p.kind, new_model)));
         },
+        /* Same write, but non-historic (kept out of undo) — for derived data
+           like solver results. */
+        local_transient: a => {
+          let new_model = L.update(p.model, info, a);
+          inject(Project(SetModelTransient(idx, p.kind, new_model)));
+        },
         parent: a =>
           switch (a) {
           | FocusById(id) =>

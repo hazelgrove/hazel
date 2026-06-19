@@ -52,6 +52,9 @@ module View = {
     info,
     /* A callback for the projector's own actions */
     local: 'action => Ui_effect.t(unit),
+    /* Like `local`, but the model change is derived/non-undoable (excluded from
+     * undo history). Used for solver results that should not pollute undo. */
+    local_transient: 'action => Ui_effect.t(unit),
     /* A callback for parent editor actions */
     parent: external_action => Ui_effect.t(unit),
     /* Creates a non-interactive embedded syntax view,
@@ -94,6 +97,10 @@ module CookView = (V: ProjectorView) : CookedView => {
       info: args.info,
       local: a =>
         args.local(a |> V.L.sexp_of_action |> Sexplib.Sexp.to_string),
+      local_transient: a =>
+        args.local_transient(
+          a |> V.L.sexp_of_action |> Sexplib.Sexp.to_string,
+        ),
       parent: args.parent,
       view_seg: args.view_seg,
       status: args.status,
