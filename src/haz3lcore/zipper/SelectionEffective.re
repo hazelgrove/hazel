@@ -55,24 +55,10 @@ let binop_id = (~info_map: Language.Statics.Map.t, ids: list(Id.t)) =>
        }
      );
 
-let app_operand_segment =
-    (~info_map: Language.Statics.Map.t, ~term_data: TermData.t, id: Id.t)
-    : option(Segment.t) => {
-  open OptUtil.Syntax;
-  let* info = Language.Statics.Map.lookup(id, info_map);
-  let* parent_id = Language.Info.parent_id_of(info);
-  let* parent_info = Language.Statics.Map.lookup(parent_id, info_map);
-  switch (parent_info) {
-  | InfoExp({user_term: {term: Ap(Forward, _, arg), _}, _})
-      when Language.Exp.rep_id(arg) == id =>
-    TermData.segment(parent_id, term_data)
-  | _ => None
-  };
-};
-
 let associative_segment =
     (~info_map: Language.Statics.Map.t, ~term_data: TermData.t, z: Zipper.t)
     : Segment.t => {
+  ignore(term_data);
   switch (z.selection.content) {
   | [] => []
   | selection =>
@@ -88,15 +74,6 @@ let associative_segment =
       let current_level = current_level_segment(z);
       switch (contiguous_range(~ids, current_level)) {
       | [] => selection
-      | segment when segment == current_level =>
-        switch (binop_id(~info_map, ids)) {
-        | None => segment
-        | Some(id) =>
-          switch (app_operand_segment(~info_map, ~term_data, id)) {
-          | None => segment
-          | Some(parent_segment) => parent_segment
-          }
-        }
       | segment => segment
       };
     };

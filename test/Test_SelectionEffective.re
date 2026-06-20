@@ -49,10 +49,20 @@ let tests = (
       ~expected={|^^fold(rev(rev(xs))) == xs|},
     ),
     test(
-      ~name=
-        "associative selection inside function argument snaps over application",
+      ~name="associative selection inside function argument stays in argument",
       ~input={|sin(§x+y¦)|},
-      ~expected={|sin(x+y)|},
+      ~expected={|x+y|},
+    ),
+    test(
+      ~name=
+        "function name selection with associative argument stays on function",
+      ~input={|§sin¦(x+y)|},
+      ~expected={|sin|},
+    ),
+    test(
+      ~name="function name selection with simple argument stays on function",
+      ~input={|§f¦(x)|},
+      ~expected={|f|},
     ),
   ],
 );
