@@ -518,31 +518,47 @@ let selection =
       ~measured: Measured.t,
       ~shape_map: ProjectorCore.Shape.Map.t,
       ~font_metrics: FontMetrics.t,
+      ~term_data: TermData.t,
       ~statics: CachedStatics.t,
       z: Zipper.t,
     ) => {
   let effective_segment =
     associative
-      ? SelectionEffective.associative_segment(~info_map=statics.info_map, z)
+      ? SelectionEffective.associative_segment(
+          ~info_map=statics.info_map,
+          ~term_data,
+          z,
+        )
       : z.selection.content;
-  let rows =
+  let selection_svg = (clss, rows) =>
+    rows
+    |> group_consecutive
+    |> List.filter_map(svg_of_group(~font_metrics, ~clss));
+  let rows_of = seg =>
     rows_of_segment(
       ~measured,
       ~shape_map,
       ~shape_init=Some(fst(Siblings.shapes(z.relatives.siblings))),
-      effective_segment,
+      seg,
     )
     |> List.map(((m, tips)) => row_data_of(m, tips));
-  /* Clip partial-token boundaries for char-level selections. Snapped
-   * associative selections draw whole pieces from the effective segment. */
-  let rows =
-    effective_segment == z.selection.content
-      ? clip_char_selection(~measured, z, rows) : rows;
-  let clss = ["selected", Selection.buffer_cls(z.selection)];
-  let groups = group_consecutive(rows);
+  let raw_clss = ["selected", Selection.buffer_cls(z.selection)];
+  let expanded_clss = [
+    "selected-expanded",
+    Selection.buffer_cls(z.selection),
+  ];
   div_c(
     "selects",
-    List.filter_map(svg_of_group(~font_metrics, ~clss), groups),
+    effective_segment == z.selection.content
+      ? selection_svg(
+          raw_clss,
+          rows_of(z.selection.content) |> clip_char_selection(~measured, z),
+        )
+      : selection_svg(expanded_clss, rows_of(effective_segment))
+        @ selection_svg(
+            raw_clss,
+            rows_of(z.selection.content) |> clip_char_selection(~measured, z),
+          ),
   );
 };
 

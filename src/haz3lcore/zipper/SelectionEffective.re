@@ -34,8 +34,45 @@ let contiguous_range = (~ids: list(Id.t), segment: Segment.t): Segment.t => {
   };
 };
 
+let binop_id = (~info_map: Language.Statics.Map.t, ids: list(Id.t)) =>
+  ids
+  |> List.filter(id =>
+       switch (Language.Statics.Map.lookup(id, info_map)) {
+       | Some(InfoExp({user_term: {term: BinOp(_, _, _), _}, _})) => true
+       | _ => false
+       }
+     )
+  |> List.find_opt(id =>
+       switch (Language.Statics.Map.lookup(id, info_map)) {
+       | Some(info) =>
+         let ancestors = Language.Info.ancestors_of(info);
+         !
+           List.exists(
+             other_id => other_id != id && List.mem(other_id, ancestors),
+             ids,
+           );
+       | None => false
+       }
+     );
+
+let app_operand_segment =
+    (~info_map: Language.Statics.Map.t, ~term_data: TermData.t, id: Id.t)
+    : option(Segment.t) => {
+  open OptUtil.Syntax;
+  let* info = Language.Statics.Map.lookup(id, info_map);
+  let* parent_id = Language.Info.parent_id_of(info);
+  let* parent_info = Language.Statics.Map.lookup(parent_id, info_map);
+  switch (parent_info) {
+  | InfoExp({user_term: {term: Ap(Forward, _, arg), _}, _})
+      when Language.Exp.rep_id(arg) == id =>
+    TermData.segment(parent_id, term_data)
+  | _ => None
+  };
+};
+
 let associative_segment =
-    (~info_map: Language.Statics.Map.t, z: Zipper.t): Segment.t => {
+    (~info_map: Language.Statics.Map.t, ~term_data: TermData.t, z: Zipper.t)
+    : Segment.t => {
   switch (z.selection.content) {
   | [] => []
   | selection =>
@@ -48,10 +85,20 @@ let associative_segment =
     switch (snapped_ids) {
     | [] => selection
     | ids =>
-      switch (contiguous_range(~ids, current_level_segment(z))) {
+      let current_level = current_level_segment(z);
+      switch (contiguous_range(~ids, current_level)) {
       | [] => selection
+      | segment when segment == current_level =>
+        switch (binop_id(~info_map, ids)) {
+        | None => segment
+        | Some(id) =>
+          switch (app_operand_segment(~info_map, ~term_data, id)) {
+          | None => segment
+          | Some(parent_segment) => parent_segment
+          }
+        }
       | segment => segment
-      }
+      };
     };
   };
 };
@@ -84,7 +131,7 @@ let segment =
     : Segment.t =>
   switch (mode) {
   | Raw => z.selection.content
-  | Associative => associative_segment(~info_map, z)
+  | Associative => associative_segment(~info_map, ~term_data, z)
   | Expanded => expanded_segment(~measured, ~term_data, z)
   };
 

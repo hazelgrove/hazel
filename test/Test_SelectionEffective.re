@@ -10,7 +10,13 @@ let effective_segment_string = (input: string): string => {
       ~is_dynamic_term=true,
       term,
     );
-  SelectionEffective.associative_segment(~info_map=statics.info_map, z)
+  let syntax =
+    CachedSyntax.mk(z, ~info_map=statics.info_map, ~dyn_map=Id.Map.empty);
+  SelectionEffective.associative_segment(
+    ~info_map=statics.info_map,
+    ~term_data=syntax.term_data,
+    z,
+  )
   |> Printer.of_segment(~holes="?", ~concave_holes="~", ~indent=" ");
 };
 
@@ -41,6 +47,12 @@ let tests = (
       ~name="equality selection snaps over projected left operand",
       ~input={|^^fold(rev(rev(xs))) §== xs¦|},
       ~expected={|^^fold(rev(rev(xs))) == xs|},
+    ),
+    test(
+      ~name=
+        "associative selection inside function argument snaps over application",
+      ~input={|sin(§x+y¦)|},
+      ~expected={|sin(x+y)|},
     ),
   ],
 );

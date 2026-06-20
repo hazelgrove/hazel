@@ -512,6 +512,7 @@ module View = {
           ~measured=syntax.measured,
           ~shape_map=syntax.shape_map,
           ~font_metrics=globals.font_metrics,
+          ~term_data=syntax.term_data,
           ~statics,
           z,
         ),
