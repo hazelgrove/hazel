@@ -62,6 +62,15 @@ let rec flatten_plus = exp => {
   };
 };
 
+let rec flatten_times = exp => {
+  let exp = strip(exp);
+  switch (exp.term) {
+  | BinOp(op, left, right) when RewriteChecker.is_times_op(op) =>
+    flatten_times(left) @ flatten_times(right)
+  | _ => [exp]
+  };
+};
+
 let rec choices = items =>
   switch (items) {
   | [] => []
@@ -93,6 +102,16 @@ let build_left_assoc_plus = terms =>
     Some(rest |> List.fold_left((acc, term) => plus_exp(acc, term), first))
   };
 
+let build_left_assoc_times = terms =>
+  switch (terms) {
+  | [] => None
+  | [term] => Some(term)
+  | [first, ...rest] =>
+    Some(
+      rest |> List.fold_left((acc, term) => times_exp(acc, term), first),
+    )
+  };
+
 let small_addition_permutations = exp => {
   let terms = flatten_plus(exp);
   let length = List.length(terms);
@@ -108,6 +127,24 @@ let small_addition_permutations = exp => {
              )
          )
       |> List.filter_map(build_left_assoc_plus)
+    : [];
+};
+
+let small_multiplication_permutations = exp => {
+  let factors = flatten_times(exp);
+  let length = List.length(factors);
+  length > 1 && length <= 4
+    ? factors
+      |> permutations
+      |> List.filter(permutation =>
+           !
+             List.for_all2(
+               (left, right) => exp_same(left, right),
+               factors,
+               permutation,
+             )
+         )
+      |> List.filter_map(build_left_assoc_times)
     : [];
 };
 
@@ -163,6 +200,9 @@ let apply_rule_at_root = (rule_id, exp: Exp.t): list(Exp.t) => {
     | (Some(left), Some(right)) => [int_exp(Bigint.( * )(left, right))]
     | _ => []
     }
+  | ("arith.reorder_add_terms", _) => small_addition_permutations(exp)
+  | ("arith.reorder_mul_factors", _) =>
+    small_multiplication_permutations(exp)
   | (
       "alg.distribute_mul_add",
       BinOp(op, left, {term: BinOp(plus_op, add_left, add_right), _}),
@@ -322,16 +362,30 @@ let application_to_prover_step = (app: application) =>
     ~detail="bounded axiom search",
   );
 
-let targeted_addition_reorder = (source, target): option(result) =>
-  switch (rule_by_id("arith.reorder_add_terms")) {
+let targeted_reorder =
+    (~rule_id, ~candidates, source, target): option(result) =>
+  switch (rule_by_id(rule_id)) {
   | None => None
   | Some(rule) =>
     let source = strip(source);
     let target = strip(target);
-    let target_is_small_permutation =
-      small_addition_permutations(source)
+    let root_target_is_small_permutation =
+      candidates(source)
       |> List.exists(candidate => exp_same(candidate, target));
-    if (target_is_small_permutation) {
+    let matching_app =
+      apply_rule_everywhere(rule, source)
+      |> List.find_opt((app: application) =>
+           exp_same(app.after_full_exp, target)
+         );
+    switch (matching_app) {
+    | Some(app) =>
+      Some({
+        source,
+        target,
+        steps: [application_to_prover_step(app)],
+        applications: [app],
+      })
+    | None when root_target_is_small_permutation =>
       let app = {
         rule,
         before_full_exp: source,
@@ -346,10 +400,25 @@ let targeted_addition_reorder = (source, target): option(result) =>
         steps: [application_to_prover_step(app)],
         applications: [app],
       });
-    } else {
-      None;
+    | None => None
     };
   };
+
+let targeted_addition_reorder = (source, target): option(result) =>
+  targeted_reorder(
+    ~rule_id="arith.reorder_add_terms",
+    ~candidates=small_addition_permutations,
+    source,
+    target,
+  );
+
+let targeted_multiplication_reorder = (source, target): option(result) =>
+  targeted_reorder(
+    ~rule_id="arith.reorder_mul_factors",
+    ~candidates=small_multiplication_permutations,
+    source,
+    target,
+  );
 
 let string_starts_with = (prefix, value) => {
   let prefix_len = String.length(prefix);
@@ -490,6 +559,138 @@ let log_search_result =
   };
 };
 
+type construct_requirement = {
+  construct: string,
+  required_level: Axioms.rewrite_level,
+  exp_id: Id.t,
+};
+
+let required_level_allows = (~current_level, required_level) =>
+  Axioms.rewrite_level_rank(required_level)
+  <= Axioms.rewrite_level_rank(current_level);
+
+let is_float_pi = value => abs_float(value -. Float.pi) < 0.000001;
+
+let is_trig_builtin = name =>
+  switch (name) {
+  | "sin"
+  | "cos"
+  | "tan" => true
+  | _ => false
+  };
+
+let require = (construct, required_level, exp) => {
+  construct,
+  required_level,
+  exp_id: Exp.rep_id(exp),
+};
+
+let requirement_at_exp = (requirement, exp) => {
+  ...requirement,
+  exp_id: Exp.rep_id(exp),
+};
+
+let rec construct_requirements = exp => {
+  let exp = strip(exp);
+  switch (exp.term) {
+  | Var("pi") => [require("pi", Axioms.Trigonometry, exp)]
+  | Var(_) => [require("variables", Axioms.Algebra, exp)]
+  | BuiltinFun(name) when is_trig_builtin(name) => [
+      require(name, Axioms.Trigonometry, exp),
+    ]
+  | BuiltinFun(name) => [require(name, Axioms.FunctionsAndLists, exp)]
+  | Atom(Float(value)) when is_float_pi(value) => [
+      require("pi", Axioms.Trigonometry, exp),
+    ]
+  | BinOp(_, left, right) =>
+    construct_requirements(left) @ construct_requirements(right)
+  | UnOp(_, inner)
+  | Parens(inner)
+  | Asc(inner, _) => construct_requirements(inner)
+  | Ap(_, fn, arg) =>
+    let requirements =
+      construct_requirements(fn) @ construct_requirements(arg);
+    let call_requirements =
+      requirements
+      |> List.filter(requirement =>
+           requirement.required_level == Axioms.Trigonometry
+           || requirement.required_level == Axioms.FunctionsAndLists
+         )
+      |> List.map(requirement => requirement_at_exp(requirement, exp));
+    call_requirements @ requirements;
+  | _ => []
+  };
+};
+
+let dedup_requirements = requirements =>
+  requirements
+  |> List.fold_left(
+       (acc, requirement) =>
+         acc
+         |> List.exists(existing =>
+              existing.construct == requirement.construct
+              && existing.required_level == requirement.required_level
+            )
+           ? acc : [requirement, ...acc],
+       [],
+     )
+  |> List.rev;
+
+let unsupported_constructs = (~level, exps) =>
+  exps
+  |> List.concat_map(construct_requirements)
+  |> List.filter(requirement =>
+       !
+         required_level_allows(
+           ~current_level=level,
+           requirement.required_level,
+         )
+     )
+  |> dedup_requirements;
+
+let unsupported_construct_ids = (~level, exps) =>
+  exps
+  |> List.concat_map(construct_requirements)
+  |> List.filter(requirement =>
+       !
+         required_level_allows(
+           ~current_level=level,
+           requirement.required_level,
+         )
+     )
+  |> List.fold_left(
+       (acc, requirement) =>
+         List.mem(requirement.exp_id, acc)
+           ? acc : [requirement.exp_id, ...acc],
+       [],
+     )
+  |> List.rev;
+
+let unsupported_constructs_message = (~level, exps) => {
+  let requirements = unsupported_constructs(~level, exps);
+  let max_requirement =
+    requirements
+    |> List.fold_left(
+         (highest, requirement) =>
+           switch (highest) {
+           | None => Some(requirement)
+           | Some(highest) =>
+             Axioms.rewrite_level_rank(requirement.required_level)
+             > Axioms.rewrite_level_rank(highest.required_level)
+               ? Some(requirement) : Some(highest)
+           },
+         None,
+       );
+  switch (requirements) {
+  | [] => None
+  | _ =>
+    max_requirement
+    |> Option.map(requirement =>
+         "Needs " ++ Axioms.rewrite_level_label(requirement.required_level)
+       )
+  };
+};
+
 let search =
     (
       ~level=Axioms.Arithmetic,
@@ -506,13 +707,40 @@ let search =
          rule.id != "arith.reorder_add_terms"
        )
     |> List.filter((rule: Axioms.rewrite_rule) =>
+         rule.id != "arith.reorder_mul_factors"
+       )
+    |> List.filter((rule: Axioms.rewrite_rule) =>
          allowed_rule_ids == [] || List.mem(rule.id, allowed_rule_ids)
        );
+  let has_targeted_rule = rule_id =>
+    allowed_rules(level)
+    |> List.exists((rule: Axioms.rewrite_rule) =>
+         rule.id == rule_id
+         && (allowed_rule_ids == [] || List.mem(rule.id, allowed_rule_ids))
+       );
   let target = strip(target);
-  if (has_hole(source) || has_hole(target)) {
+  if (has_hole(source)
+      || has_hole(target)
+      || unsupported_constructs(~level, [source, target]) != []) {
     None;
   } else {
-    switch (targeted_addition_reorder(source, target)) {
+    let targeted_reorder_from = exp =>
+      switch (
+        has_targeted_rule("arith.reorder_add_terms"),
+        has_targeted_rule("arith.reorder_mul_factors"),
+      ) {
+      | (true, _) =>
+        switch (targeted_addition_reorder(exp, target)) {
+        | Some(result) => Some(result)
+        | None when has_targeted_rule("arith.reorder_mul_factors") =>
+          targeted_multiplication_reorder(exp, target)
+        | None => None
+        }
+      | (false, true) => targeted_multiplication_reorder(exp, target)
+      | (false, false) => None
+      };
+    let targeted_result = targeted_reorder_from(source);
+    switch (targeted_result) {
     | Some(result) =>
       if (log) {
         log_search_result(
@@ -539,17 +767,31 @@ let search =
         if (depth > max_depth) {
           None;
         } else {
+          let finish_state = ((exp, steps, applications)) =>
+            if (exp_same(exp, target)) {
+              Some({
+                source: strip(source),
+                target: exp,
+                steps: List.rev(steps),
+                applications: List.rev(applications),
+              });
+            } else {
+              switch (targeted_reorder_from(exp)) {
+              | Some(reorder_result) =>
+                Some({
+                  source: strip(source),
+                  target,
+                  steps: List.rev(reorder_result.steps @ steps),
+                  applications:
+                    List.rev(reorder_result.applications @ applications),
+                })
+              | None => None
+              };
+            };
           switch (
-            frontier
-            |> List.find_opt(((exp, _, _)) => exp_same(exp, target))
+            frontier |> List.filter_map(finish_state) |> ListUtil.hd_opt
           ) {
-          | Some((exp, steps, applications)) =>
-            Some({
-              source: strip(source),
-              target: exp,
-              steps: List.rev(steps),
-              applications: List.rev(applications),
-            })
+          | Some(result) => Some(result)
           | None =>
             generated_this_depth := 0;
             let next =

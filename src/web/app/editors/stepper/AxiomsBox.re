@@ -155,6 +155,18 @@ module View = {
       try(ProofHacks.exp_idx(selected_exp, full_exp)) {
       | _ => 0
       };
+    let mode_warning =
+      switch (
+        AxiomSearch.unsupported_constructs_message(
+          ~level=rewrite_level,
+          [selected_exp],
+        )
+      ) {
+      | Some(message) => [
+          div_c("proof-mode-warning", [Node.text(message)]),
+        ]
+      | None => []
+      };
     let trace_summary_for_trig = (rewrite: TrigRewrite.rewrite) =>
       RewriteChecker.{
         justification: "trigonometry one step",
@@ -223,6 +235,7 @@ module View = {
         (),
       ),
     ]
+    @ mode_warning
     @ trig_section
     @ List.map(
         (am: AssumptionBox.Model.t) =>

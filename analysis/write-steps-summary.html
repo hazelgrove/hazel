@@ -2036,6 +2036,22 @@ type normalization_proof = {
             Proof Search remains a prototype target for now, but it should call
             the same planner/search backend used by future automation stages.
           </li>
+          <li>
+            Longer term, a "math level" should be a user-selectable automation
+            profile rather than a fixed enum. A profile should declare the
+            mathematical structures in scope, such as integers, floats, real
+            variables, trigonometric functions, AST terms, or program values,
+            plus the rewrite families that are allowed, such as associativity,
+            commutativity, distribution, differentiation, beta-reduction, or
+            trig identities.
+          </li>
+          <li>
+            Associativity and commutativity must remain profile-controlled
+            capabilities. Arithmetic and trigonometry profiles can opt into
+            AC-normalization macros such as <code>arith.reorder_mul_factors</code>,
+            while a programming-language/AST profile can omit those macros so
+            left-associative syntax remains explicit and user-visible.
+          </li>
         </ul>
 
         <h3>Test Plan</h3>

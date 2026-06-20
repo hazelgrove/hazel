@@ -686,6 +686,48 @@ let tests = (
         );
       },
     ),
+    test_case(
+      "proof search reports variables below algebra mode",
+      `Quick,
+      () => {
+        let message =
+          Web.AxiomSearch.unsupported_constructs_message(
+            ~level=Arithmetic,
+            [plus(Exp.var("x"), Exp.int(1))],
+          );
+        check(
+          option(string),
+          "variable gate message",
+          Some("Needs Algebra"),
+          message,
+        );
+      },
+    ),
+    test_case(
+      "proof search reports trig below trigonometry mode",
+      `Quick,
+      () => {
+        let exp = builtin_sin(Exp.var("x"));
+        let message =
+          Web.AxiomSearch.unsupported_constructs_message(
+            ~level=Algebra,
+            [exp],
+          );
+        check(
+          option(string),
+          "trig gate message",
+          Some("Needs Trigonometry"),
+          message,
+        );
+        check(
+          bool,
+          "trig gate decorates function application",
+          true,
+          Web.AxiomSearch.unsupported_construct_ids(~level=Algebra, [exp])
+          |> List.mem(Language.Exp.rep_id(exp)),
+        );
+      },
+    ),
     test_case("affine commutes variable addition", `Quick, () =>
       check_written(
         "3 + x = x + 3",
@@ -1476,6 +1518,52 @@ let tests = (
       },
     ),
     test_case(
+      "axiom search accepts sine sum with nested reordered product under all rules",
+      `Quick,
+      () => {
+        let x = Exp.var("x");
+        let y = Exp.var("y");
+        let from_ = builtin_sin(plus(x, y));
+        let to_ =
+          plus(
+            times(builtin_sin(x), builtin_cos(y)),
+            times(builtin_sin(y), builtin_cos(x)),
+          );
+        let result =
+          Web.AxiomSearch.search(
+            ~level=Trigonometry,
+            ~max_depth=4,
+            ~max_states=80,
+            ~log=false,
+            from_,
+            to_,
+          );
+        switch (result) {
+        | Some(result) =>
+          check(
+            bool,
+            "trace includes sine sum",
+            true,
+            result.steps
+            |> List.exists((step: Web.RewriteChecker.prover_step) =>
+                 step.rule_id == "trig.sin_sum"
+               ),
+          );
+          check(
+            bool,
+            "trace includes multiplication reorder",
+            true,
+            result.steps
+            |> List.exists((step: Web.RewriteChecker.prover_step) =>
+                 step.rule_id == "arith.reorder_mul_factors"
+               ),
+          );
+        | None =>
+          fail("expected all-rules sine sum plus nested product reorder")
+        };
+      },
+    ),
+    test_case(
       "axiom search accepts builtin trig sum and difference identities",
       `Quick,
       () => {
@@ -1628,6 +1716,90 @@ let tests = (
                rewrite.rule_id == "trig.cos_double_square"
              ),
         );
+      },
+    ),
+    test_case(
+      "axiom search accepts sine double-angle with reordered factors",
+      `Quick,
+      () => {
+        let x = Exp.var("x");
+        let from_ = builtin_sin(times(Exp.int(2), x));
+        let to_ =
+          times(times(Exp.int(2), builtin_cos(x)), builtin_sin(x));
+        let result =
+          Web.AxiomSearch.search(
+            ~level=Trigonometry,
+            ~max_depth=2,
+            ~allowed_rule_ids=[
+              "trig.sin_double",
+              "arith.reorder_mul_factors",
+            ],
+            ~log=false,
+            from_,
+            to_,
+          );
+        switch (result) {
+        | Some(result) =>
+          check(int, "two search steps", 2, result.steps |> List.length);
+          check(
+            string,
+            "first rule",
+            "trig.sin_double",
+            List.nth(result.steps, 0).rule_id,
+          );
+          check(
+            string,
+            "second rule",
+            "arith.reorder_mul_factors",
+            List.nth(result.steps, 1).rule_id,
+          );
+        | None =>
+          fail("expected sine double-angle plus multiplication reorder")
+        };
+      },
+    ),
+    test_case(
+      "axiom search accepts sine double-angle with all trigonometry rules",
+      `Quick,
+      () => {
+        let x = Exp.var("x");
+        let from_ = builtin_sin(times(Exp.int(2), x));
+        let to_ =
+          times(times(Exp.int(2), builtin_cos(x)), builtin_sin(x));
+        let result =
+          Web.AxiomSearch.search(
+            ~level=Trigonometry,
+            ~max_depth=4,
+            ~max_states=80,
+            ~log=false,
+            from_,
+            to_,
+          );
+        switch (result) {
+        | Some(result) =>
+          check(
+            bool,
+            "trace includes sine double-angle",
+            true,
+            result.steps
+            |> List.exists((step: Web.RewriteChecker.prover_step) =>
+                 step.rule_id == "trig.sin_double"
+               ),
+          );
+          check(
+            bool,
+            "trace includes multiplication reorder",
+            true,
+            result.steps
+            |> List.exists((step: Web.RewriteChecker.prover_step) =>
+                 step.rule_id == "arith.reorder_mul_factors"
+               ),
+          );
+        | None =>
+          fail(
+            "expected all-rules sine double-angle plus multiplication reorder",
+          )
+        };
       },
     ),
     test_case(
@@ -2590,8 +2762,14 @@ let tests = (
         write_text_file("/tmp/hazel_stepper_trig_sin_sum.v", export);
         check(
           bool,
-          "imports Reals",
+          "imports narrow trig prelude",
           true,
+          string_contains("Require Import Rbase Rtrigo1 Cos_plus", export),
+        );
+        check(
+          bool,
+          "does not import Reals umbrella",
+          false,
           string_contains("Require Import Reals", export),
         );
         check(

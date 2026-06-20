@@ -313,6 +313,11 @@
   min-width: 25em;
 }
 
+.proof-mode-warning {
+  color: var(--R2);
+  font-weight: 600;
+}
+
 /* STEPPER (OLD) */
 
 .stepper-justification {

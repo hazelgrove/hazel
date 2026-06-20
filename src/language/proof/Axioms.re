@@ -141,6 +141,11 @@ let arithmetic_rewrite_group = {
       label: "reorder addition terms",
       prover_hints: [lean("ac_rfl")],
     },
+    {
+      id: "arith.reorder_mul_factors",
+      label: "reorder multiplication factors",
+      prover_hints: [lean("ac_rfl")],
+    },
   ],
 };
 

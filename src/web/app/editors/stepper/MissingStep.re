@@ -13,7 +13,12 @@ module Model = {
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type open_box =
-    | AxiomsOpen(AxiomsBox.Model.t)
+    | AxiomsOpen({
+        axioms_model: AxiomsBox.Model.t,
+        rewrite_selected_exp: option(Exp.t),
+        rewrite_reparenthesized_exp: option(Exp.t),
+        source_full_visible_exp: option(Exp.t),
+      })
     | RewritesOpen({
         editor: CodeEditable.Model.t,
         rewrite_selected_exp: option(Exp.t),
@@ -82,26 +87,32 @@ module Update = {
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
-    | ToggleAxioms
+    | ToggleAxioms(option(Exp.t), option(Exp.t))
     | ProposeRewrite(option(Exp.t), option(Exp.t))
     | ProposeWrittenStep(
         Model.written_step_check_mode,
         option(Exp.t),
         option(Exp.t),
       )
-    | RunProofSearch(int, int)
+    | RunProofSearch(int, int, option(Exp.t), option(Exp.t))
     | RewriteEditorAction(CodeEditable.Update.t)
     | WriteStepEditorAction(CodeEditable.Update.t)
     | AxiomBoxAction(AxiomsBox.Update.t);
 
   let update = (~settings, action, model: Model.t): Updated.t(Model.t) => {
     switch (action, model.open_box) {
-    | (ToggleAxioms, _) =>
+    | (ToggleAxioms(rewrite_selected_exp, rewrite_reparenthesized_exp), _) =>
       let open_box =
         switch (model.open_box) {
         | NoneOpen
-        | RewritesOpen(_) => Model.AxiomsOpen(AxiomsBox.Model.init)
-        | WrittenStepOpen(_) => Model.AxiomsOpen(AxiomsBox.Model.init)
+        | RewritesOpen(_)
+        | WrittenStepOpen(_) =>
+          Model.AxiomsOpen({
+            axioms_model: AxiomsBox.Model.init,
+            rewrite_selected_exp,
+            rewrite_reparenthesized_exp,
+            source_full_visible_exp: None,
+          })
         | AxiomsOpen(_) => Model.NoneOpen
         };
       Model.{
@@ -180,16 +191,12 @@ module Update = {
       };
     | (RewriteEditorAction(_), _) => model |> Updated.return_quiet
     | (
-        RunProofSearch(_, _),
-        WrittenStepOpen({
-          check_mode: ProofSearch,
-          cached_result: Calc.Calculated(Some(_)),
-          _,
-        }),
-      ) =>
-      model |> Updated.return_quiet
-    | (
-        RunProofSearch(max_depth, max_states),
+        RunProofSearch(
+          max_depth,
+          max_states,
+          rewrite_selected_exp,
+          rewrite_reparenthesized_exp,
+        ),
         WrittenStepOpen({check_mode: ProofSearch, _} as r),
       ) =>
       Model.{
@@ -197,6 +204,8 @@ module Update = {
         open_box:
           Model.WrittenStepOpen({
             ...r,
+            rewrite_selected_exp,
+            rewrite_reparenthesized_exp,
             proof_search_requested: true,
             proof_search_max_depth: max_depth,
             proof_search_max_states: max_states,
@@ -204,7 +213,7 @@ module Update = {
           }),
       }
       |> Updated.return_quiet(~recalculate=true, ~logged=true)
-    | (RunProofSearch(_, _), _) => model |> Updated.return_quiet
+    | (RunProofSearch(_, _, _, _), _) => model |> Updated.return_quiet
     | (WriteStepEditorAction(action), WrittenStepOpen({editor, _} as r)) =>
       let* new_editor = CodeEditable.Update.update(~settings, action, editor);
       let target_changed =
@@ -219,17 +228,31 @@ module Update = {
             proof_search_requested: false,
             cached_result:
               switch (r.check_mode) {
-              | ProofSearch when target_changed => Calc.Calculated(None)
+              | ProofSearch when target_changed => Calc.Pending
               | _ => r.cached_result
               },
           }),
       };
     | (WriteStepEditorAction(_), _) => model |> Updated.return_quiet
-    | (AxiomBoxAction(action), AxiomsOpen(m)) =>
-      let* updated = AxiomsBox.Update.update(~settings, action, m);
+    | (
+        AxiomBoxAction(action),
+        AxiomsOpen({
+          axioms_model,
+          rewrite_selected_exp,
+          rewrite_reparenthesized_exp,
+          source_full_visible_exp,
+        }),
+      ) =>
+      let* updated = AxiomsBox.Update.update(~settings, action, axioms_model);
       Model.{
         ...model,
-        open_box: Model.AxiomsOpen(updated),
+        open_box:
+          Model.AxiomsOpen({
+            axioms_model: updated,
+            rewrite_selected_exp,
+            rewrite_reparenthesized_exp,
+            source_full_visible_exp,
+          }),
       };
     | (AxiomBoxAction(_), _) => model |> Updated.raise_invalid_action
     };
@@ -237,10 +260,10 @@ module Update = {
 
   let can_undo = (action: t): bool => {
     switch (action) {
-    | ToggleAxioms
+    | ToggleAxioms(_, _)
     | ProposeRewrite(_, _)
     | ProposeWrittenStep(_, _, _)
-    | RunProofSearch(_, _)
+    | RunProofSearch(_, _, _, _)
     | RewriteEditorAction(_)
     | WriteStepEditorAction(_)
     | AxiomBoxAction(_) => false
@@ -573,10 +596,29 @@ module Update = {
           cached_exp: cached_exp |> Calc.save,
           cached_result,
         });
-      | AxiomsOpen(m) =>
-        AxiomsOpen(
-          AxiomsBox.Update.calculate(~info_map, ~ctx, ~selected_exp, m),
-        )
+      | AxiomsOpen({
+          axioms_model,
+          rewrite_selected_exp,
+          rewrite_reparenthesized_exp,
+          source_full_visible_exp: _,
+        }) =>
+        let selected_exp_for_axioms =
+          switch (rewrite_selected_exp) {
+          | Some(_) => Calc.NewValue(rewrite_selected_exp)
+          | None => selected_exp
+          };
+        AxiomsOpen({
+          axioms_model:
+            AxiomsBox.Update.calculate(
+              ~info_map,
+              ~ctx,
+              ~selected_exp=selected_exp_for_axioms,
+              axioms_model,
+            ),
+          rewrite_selected_exp,
+          rewrite_reparenthesized_exp,
+          source_full_visible_exp: Some(current_full_visible_exp),
+        });
       | NoneOpen
           when
             !settings.evaluation.enable_proof
@@ -648,72 +690,10 @@ module Selection = {
         );
       Update.WriteStepEditorAction(ci);
     | (WriteStepEditor(_), _) => empty
-    | (AxiomBoxSelection(selection), AxiomsOpen(m)) =>
-      let+ ci = AxiomsBox.Selection.get_cursor_info(~selection, m);
+    | (AxiomBoxSelection(selection), AxiomsOpen({axioms_model, _})) =>
+      let+ ci = AxiomsBox.Selection.get_cursor_info(~selection, axioms_model);
       Update.AxiomBoxAction(ci);
     | (AxiomBoxSelection(_), _) => empty
-    };
-  };
-};
-
-module ProofSearchDebounce = {
-  let quick_debounce_ms = 650.0;
-  let deep_debounce_ms = 1800.0;
-  let quick_timer_id: ref(option(Js_of_ocaml.Dom_html.timeout_id)) =
-    ref(None);
-  let deep_timer_id: ref(option(Js_of_ocaml.Dom_html.timeout_id)) =
-    ref(None);
-  let generation = ref(0);
-  let last_scheduled_key: ref(option(string)) = ref(None);
-
-  let clear_timer = timer_ref =>
-    switch (timer_ref^) {
-    | Some(id) => Js_of_ocaml.Dom_html.window##clearTimeout(id)
-    | None => ()
-    };
-
-  let set_timer =
-      (~timer_ref, ~delay_ms, ~generation_id, ~max_depth, ~max_states, inject) =>
-    timer_ref :=
-      Some(
-        Js_of_ocaml.Dom_html.window##setTimeout(
-          Js_of_ocaml.Js.wrap_callback(() => {
-            timer_ref := None;
-            if (generation_id == generation^) {
-              Ui_effect.Expert.handle(
-                inject(Update.RunProofSearch(max_depth, max_states)),
-              );
-            };
-          }),
-          delay_ms,
-        ),
-      );
-
-  let schedule = (~key, inject: Update.t => Ui_effect.t(unit)): unit => {
-    switch (last_scheduled_key^) {
-    | Some(last_key) when last_key == key => ()
-    | _ =>
-      last_scheduled_key := Some(key);
-      generation := generation^ + 1;
-      let current_generation = generation^;
-      clear_timer(quick_timer_id);
-      clear_timer(deep_timer_id);
-      set_timer(
-        ~timer_ref=quick_timer_id,
-        ~delay_ms=quick_debounce_ms,
-        ~generation_id=current_generation,
-        ~max_depth=1,
-        ~max_states=20,
-        inject,
-      );
-      set_timer(
-        ~timer_ref=deep_timer_id,
-        ~delay_ms=deep_debounce_ms,
-        ~generation_id=current_generation,
-        ~max_depth=4,
-        ~max_states=80,
-        inject,
-      );
     };
   };
 };
@@ -978,7 +958,7 @@ module View = {
 
       let view_written_step_box =
           (
-            editor,
+            editor: CodeEditable.Model.t,
             check_mode,
             rewrite_selected_exp,
             rewrite_reparenthesized_exp,
@@ -1044,8 +1024,45 @@ module View = {
             Node.text("Run Proof Search"),
             ~tooltip="run bounded proof search",
             _ =>
-            inject(RunProofSearch(4, 80))
+            inject(
+              RunProofSearch(
+                4,
+                80,
+                rewrite_selected_exp,
+                rewrite_reparenthesized_exp,
+              ),
+            )
           );
+        let mode_issue =
+          AxiomSearch.unsupported_constructs_message(
+            ~level=rewrite_level,
+            [unboxed_selected_exp, unboxed_cached_exp],
+          );
+        let mode_issue_view = message =>
+          div_c("proof-mode-warning", [Node.text(message)]);
+        let mode_issue_overlay = (editor: CodeWithStatics.Model.t, exps) =>
+          switch (
+            AxiomSearch.unsupported_construct_ids(~level=rewrite_level, exps)
+          ) {
+          | [] => []
+          | unsupported_ids => [
+              Arms.Errors.of_ids(
+                ~font_metrics=globals.font_metrics,
+                ~syntax=editor.editor.syntax,
+                unsupported_ids,
+              ),
+            ]
+          };
+        let source_editor =
+          CodeWithStatics.Model.mk_from_exp(
+            ~settings=globals.settings.core,
+            ~root=Exp,
+            unboxed_selected_exp,
+          );
+        let source_mode_issue_overlay =
+          mode_issue_overlay(source_editor, [unboxed_selected_exp]);
+        let target_mode_issue_overlay =
+          mode_issue_overlay(editor, [unboxed_cached_exp]);
         [
           // one element list with a div
           // with a list containing two elements
@@ -1055,15 +1072,10 @@ module View = {
             "rewrite-box",
             [
               Node.text("From: "),
-              CodeViewable.view_any(
+              CodeWithStatics.View.view(
                 ~globals,
-                ~settings=
-                  ExpToSegment.Settings.of_core(
-                    ~inline=false,
-                    ~fold_fn_bodies=`Text,
-                    globals.settings.core,
-                  ),
-                Exp(unboxed_selected_exp),
+                ~overlays=source_mode_issue_overlay,
+                source_editor,
               ),
               Node.text("Take a step to: "),
               div_c(
@@ -1071,35 +1083,13 @@ module View = {
                 [
                   CodeEditable.View.view(
                     ~globals,
+                    ~overlays=target_mode_issue_overlay,
                     ~signal=
                       fun
                       | MakeActive => signal(MakeActive(WriteStepEditor())),
                     ~edit_mode=
                       EditMode.Editable({
                         inject: x => {
-                          let proof_search_key =
-                            Axioms.rewrite_level_label(rewrite_level)
-                            ++ "|"
-                            ++ AxiomSearch.exp_string(unboxed_selected_exp)
-                            ++ "|"
-                            ++ AxiomSearch.exp_string(unboxed_cached_exp);
-                          let should_schedule_proof_search =
-                            switch (check_mode, cached_result) {
-                            | (Model.ProofSearch, Some(Some(_))) => false
-                            | (Model.ProofSearch, _)
-                                when
-                                  AxiomSearch.has_hole(unboxed_selected_exp)
-                                  || AxiomSearch.has_hole(unboxed_cached_exp) =>
-                              false
-                            | (Model.ProofSearch, _) => true
-                            | _ => false
-                            };
-                          if (should_schedule_proof_search) {
-                            ProofSearchDebounce.schedule(
-                              ~key=proof_search_key,
-                              inject,
-                            );
-                          };
                           inject(WriteStepEditorAction(x));
                         },
                         escape: _ => Ui_effect.Ignore,
@@ -1118,25 +1108,29 @@ module View = {
               ),
             ]
             @ {
-              switch (check_mode, cached_result) {
-              | (Model.ProofSearch, None) =>
-                proof_search_requested
-                  ? [Node.text("Waiting...")]
-                  : [Node.text("Ready"), run_proof_search_button]
-              | (Model.ProofSearch, Some(Some(trace_summary))) => [
-                  Node.text("Valid"),
-                  replace_button(trace_summary),
-                ]
-              | (Model.ProofSearch, Some(None)) => [
-                  Node.text("Invalid"),
-                  run_proof_search_button,
-                ]
-              | (_, Some(Some(trace_summary))) => [
-                  Node.text("Valid"),
-                  replace_button(trace_summary),
-                ]
-              | (_, Some(None)) => [Node.text("Invalid")]
-              | (_, None) => [Node.text("...")]
+              switch (mode_issue) {
+              | Some(message) => [mode_issue_view(message)]
+              | None =>
+                switch (check_mode, cached_result) {
+                | (Model.ProofSearch, None) =>
+                  proof_search_requested
+                    ? [Node.text("Checking...")]
+                    : [Node.text("Ready"), run_proof_search_button]
+                | (Model.ProofSearch, Some(Some(trace_summary))) => [
+                    Node.text("Valid"),
+                    replace_button(trace_summary),
+                  ]
+                | (Model.ProofSearch, Some(None)) => [
+                    Node.text("Invalid"),
+                    run_proof_search_button,
+                  ]
+                | (_, Some(Some(trace_summary))) => [
+                    Node.text("Valid"),
+                    replace_button(trace_summary),
+                  ]
+                | (_, Some(None)) => [Node.text("Invalid")]
+                | (_, None) => [Node.text("...")]
+                }
               };
             },
           ),
@@ -1473,7 +1467,16 @@ module View = {
 
       let general_proof_buttons = [
         proof_button(
-          ~callback=inject(ToggleAxioms),
+          ~callback=
+            inject(
+              ToggleAxioms(
+                selected_exp_for_rewrite,
+                switch (reparenthesize_result_for_rewrite) {
+                | Some(result) => Some(result.exp)
+                | None => None
+                },
+              ),
+            ),
           "Assumptions "
           ++ text_arrow(
                switch (model.open_box) {
@@ -1544,7 +1547,30 @@ module View = {
               @ {
                 switch (model.open_box) {
                 | NoneOpen => []
-                | AxiomsOpen(m) => [
+                | AxiomsOpen({
+                    axioms_model: m,
+                    rewrite_selected_exp,
+                    rewrite_reparenthesized_exp,
+                    source_full_visible_exp: _,
+                  }) =>
+                  let selected_exp_for_axioms =
+                    switch (rewrite_selected_exp) {
+                    | Some(exp) => exp
+                    | None =>
+                      model.selected_exp
+                      |> Calc.get_saved_exc(~print="Selected Exp")
+                      |> Option.value(~default=EmptyHole |> Exp.fresh, _)
+                    };
+                  let full_exp_for_axioms =
+                    switch (rewrite_reparenthesized_exp) {
+                    | Some(exp) => exp
+                    | None =>
+                      model.full_visible_exp
+                      |> Calc.get_saved_exc(
+                           ~print="full_visible_exp not cached",
+                         )
+                    };
+                  [
                     div_c(
                       "axiom-box",
                       AxiomsBox.View.view(
@@ -1566,19 +1592,12 @@ module View = {
                           (a, b, c, d) =>
                             signal(AddWrittenStep(a, b, c, d)),
                         ~rewrite_level,
-                        ~full_exp=
-                          model.full_visible_exp
-                          |> Calc.get_saved_exc(
-                               ~print="full_visible_exp not cached",
-                             ),
-                        ~selected_exp=
-                          model.selected_exp
-                          |> Calc.get_saved_exc(~print="Selected Exp")
-                          |> Option.value(~default=EmptyHole |> Exp.fresh, _),
+                        ~full_exp=full_exp_for_axioms,
+                        ~selected_exp=selected_exp_for_axioms,
                         m,
                       ),
                     ),
-                  ]
+                  ];
                 | RewritesOpen({
                     editor,
                     rewrite_selected_exp,
@@ -1606,15 +1625,39 @@ module View = {
                     cached_exp,
                     cached_result,
                   }) =>
+                  let live_rewrite_reparenthesized_exp =
+                    switch (reparenthesize_result_for_rewrite) {
+                    | Some(result) => Some(result.exp)
+                    | None => None
+                    };
+                  let option_exp_equal = (a, b) =>
+                    switch (a, b) {
+                    | (None, None) => true
+                    | (Some(a), Some(b)) =>
+                      Equality.ignoring_ascriptions.exp(a, b)
+                    | _ => false
+                    };
+                  let source_selection_changed =
+                    !
+                      option_exp_equal(
+                        rewrite_selected_exp,
+                        selected_exp_for_rewrite,
+                      )
+                    || !
+                         option_exp_equal(
+                           rewrite_reparenthesized_exp,
+                           live_rewrite_reparenthesized_exp,
+                         );
                   view_written_step_box(
                     editor,
                     check_mode,
-                    rewrite_selected_exp,
-                    rewrite_reparenthesized_exp,
-                    proof_search_requested,
+                    selected_exp_for_rewrite,
+                    live_rewrite_reparenthesized_exp,
+                    source_selection_changed ? false : proof_search_requested,
                     cached_exp,
-                    cached_result |> Calc.saved_to_option,
-                  )
+                    source_selection_changed
+                      ? None : cached_result |> Calc.saved_to_option,
+                  );
                 };
               },
             ),
