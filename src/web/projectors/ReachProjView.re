@@ -262,14 +262,16 @@ module V: ProjectorView = {
        solid chips; hovering the area expands it (briefly animated) to reveal
        every other group as a dimmed chip you can toggle on. The "+" chip always
        shows and creates a brand-new group. Naming/solving is in the sidebar. */
-    let chip = (~classes, ~title, ~on_click, ~color, label) =>
+    let chip = (~classes, ~title, ~on_click, ~color, ~extra=[], label) =>
       span(
-        ~attrs=[
-          Attr.classes(["reach-group-chip", ...classes]),
-          Attr.create("style", "background-color: " ++ color),
-          Attr.title(title),
-          Attr.on_click(on_click),
-        ],
+        ~attrs=
+          [
+            Attr.classes(["reach-group-chip", ...classes]),
+            Attr.create("style", "background-color: " ++ color),
+            Attr.title(title),
+            Attr.on_click(on_click),
+          ]
+          @ extra,
         [text(label)],
       );
     let all_groups =
@@ -284,6 +286,18 @@ module V: ProjectorView = {
           ++ (selected ? " — click to remove" : ""),
         ~on_click=_ => local(ReachProj.ToggleGroup(g)),
         ~color=group_color(g),
+        /* Hovering a chip lights up that group's connecting line in the editor
+           (imperative — no re-render; see ReachHover). */
+        ~extra=[
+          Attr.on_mouseenter(_ => {
+            ReachHover.set(Some(g));
+            Effect.Ignore;
+          }),
+          Attr.on_mouseleave(_ => {
+            ReachHover.set(None);
+            Effect.Ignore;
+          }),
+        ],
         string_of_int(g),
       );
     };
@@ -296,6 +310,11 @@ module V: ProjectorView = {
         ~color="var(--BR1)",
         {js|+|js},
       );
+    /* Chips in ascending group order (all_groups is sorted), then "+" last.
+       Collapsed, only the selected chips show (unselected are width-0), so the
+       common view is the point's groups in order; on hover the others slot into
+       their numeric positions. Hover no longer re-renders (see ReachHover), so
+       the expand can't loop. */
     let groups_edit =
       span(
         ~attrs=[Attr.classes(["reach-groups-edit"])],

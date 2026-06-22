@@ -239,6 +239,16 @@ module View = {
         ~syntax=model.editor.syntax,
         warning_ids,
       );
+    /* Connecting lines through each merge group's reach points (one per group,
+       hidden until that group is hovered in the editor or sidebar — see
+       ReachHover). */
+    let reach_connector =
+      ReachConnector.view(
+        ~font_metrics=globals.font_metrics,
+        ~measured,
+        ~term_data,
+        z,
+      );
     let container_classes =
       ["code-container"]
       @ (globals.meta_down ? ["meta-down"] : [])
@@ -246,7 +256,9 @@ module View = {
     Node.div(
       ~attrs=[Attr.classes(container_classes)],
       // errors after warnings to prioritize errors over warnings
-      [code_text_view, warning_decos, error_decos] @ overlays,
+      [code_text_view, warning_decos, error_decos]
+      @ reach_connector
+      @ overlays,
     );
   };
 };

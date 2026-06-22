@@ -86,6 +86,16 @@
   opacity: 0.8;
 }
 
+/* Group connecting line in the editor: one SVG per group, rendered always but
+   hidden; ReachHover toggles `active` on hover (no re-render). */
+.reach-connector {
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+.reach-connector.active {
+  opacity: 1;
+}
+
 /* Solve button (target) — a neutral themed button */
 .projector.reach .reach-generate {
   cursor: pointer;

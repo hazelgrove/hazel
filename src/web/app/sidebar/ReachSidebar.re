@@ -486,6 +486,16 @@ let view =
           "style",
           "border-left: 4px solid " ++ ReachProjView.group_color(g),
         ),
+        /* Hovering a group highlights its reach points with a connecting line
+           in the editor (imperative — no re-render; see ReachHover). */
+        Attr.on_mouseenter(_ => {
+          ReachHover.set(Some(g));
+          Effect.Ignore;
+        }),
+        Attr.on_mouseleave(_ => {
+          ReachHover.set(None);
+          Effect.Ignore;
+        }),
       ],
       [header]
       @ merged_view
