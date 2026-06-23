@@ -50,9 +50,9 @@ data-cleaning wrinkle):
   empty filtered set); id 741 grades the literal column name `"ratio"`. Not a
   computation in the usual sense.
 
-## Tally (257 dev tasks) — 155 solved, 102 accounted for
+## Tally (257 dev tasks) — 166 solved, 91 accounted for
 
-- **Solved & verified — 155** (in `test.sh`, every output matches the InfiAgent label):
+- **Solved & verified — 166** (in `test.sh`, every output matches the InfiAgent label):
   mean/median/std (sample & population)/min/max/range, Pearson correlation,
   skewness (pandas-adjusted AND scipy-biased), kurtosis, IQR & Z-score outlier
   detection/removal, group-by aggregation, feature engineering (ratios, sums,
@@ -64,35 +64,39 @@ data-cleaning wrinkle):
   277, 278, 282, 359, 360, 446, 447, 465, 466, 551, 552, 553, 657, 659, 663, 755, 757, 759,
   plus 123 and 555 via a new sorted-insertion `distinct_strings` (low-cardinality dedup that
   the O(n²) `distinct` could not finish — uses `string_compare` + a recursive `insert_sorted_uniq`).
+  Plus 11 PLAN.md Phase-1 tasks (write-only, no new infra): 62, 77, 178, 219, 321, 453, 510,
+  572, 574, 589, 665 — multi-step preprocessing, IQR/argmax over groups, and multi-number
+  string answers assembled with `string_of_int`/`string_of_float` + `join_with`.
 - **Inexpressible — scipy p-value / hypothesis tests (class A): 58.** Shapiro, KS,
   normaltest, t-test, ANOVA, chi-square, Mann-Whitney, etc. A coefficient is fine; the
   test statistic's p-value is not (no distribution CDFs / special functions).
 - **Inexpressible — sklearn / ML models (class B): 20.** Fitted regression/classification,
   clustering, `train_test_split(random_state=…)` (needs numpy RNG).
-- **Former class E (stack-overflow, NOW FIXED): 31 → 20 solved + 11 other.** The 20
-  listed above now pass (incl. 123 and 555 via `distinct_strings`). The remaining 11:
-  **2 label-discrepancy** (361, 662 — correct computation, wrong/degenerate label),
-  **2 Python-dict answers** (450, 451 — expressible via `string_of_float`, just need the
-  exact `{'k': v}` text; unwritten), **2 degenerate spec** (554 nan, 760 all-zero),
-  **1 ambiguous** (468), and **4 multi-step left as future work** (453, 572, 574, 665).
-- **Class H — multi-number string answers: 3 (expressible, just unwritten).** ids 77,
-  178, 219 pack several computed numbers into ONE answer field (e.g. `"314, 577"`,
-  `"1, 2018, 88.32"`). `string_of_int`/`string_of_float` + `join_with` DO exist, so these
-  can be assembled (compute → stringify → join). Not yet written; only fiddle is matching
-  the exact textual repr (`string_of_float` prints integer-valued floats as `594.`).
+- **Former class E (stack-overflow, NOW FIXED): 31 → 24 solved + 7 other.** The fix +
+  Phase 1 now cover 24 (incl. 123/555 via `distinct_strings` and 453/572/574/665 from
+  Phase 1). The remaining 7: **2 label-discrepancy** (361, 662 — correct computation,
+  wrong/degenerate label), **2 Python-dict answers** (450, 451 — expressible via
+  `string_of_float`, just need the exact `{'k': v}` text; Phase 2), **2 degenerate spec**
+  (554 nan, 760 all-zero), and **1 ambiguous** (468).
+- **Class H — multi-number string answers: 3, NOW SOLVED** (77, 178, 219; folded into
+  the 166). Assembled with `string_of_int`/`string_of_float` + `join_with`; integer-valued
+  floats (`string_of_float` → `594.`) handled via `int_of_float` or a trailing-dot fixup.
 - **Class C — calendar arithmetic: 2.** id 234 (days between two calendar dates),
   id 688 (epoch→hour-of-day bucketing). Substring/`HH:MM:SS`→sec IS fine; calendar math isn't.
 - **Class D — non-value answer: 1.** id 743 (graded value is a written-out file path).
 - **Class G — degenerate grading: 1.** id 741 (graded value is the literal column name "ratio").
 - **Parser limitation: 1.** id 618 (`#photo` column — `#` collides with comment syntax,
   so the backtick label is unparseable and the column is unreachable).
-- **Expressible but left as future work — 5.** ids 62, 252, 321, 510, 589: multi-step
-  per-group IQR (62), ambiguous single-value skewness (252), `SCOREMARGIN` sign/`TIE`
-  cleaning (321), brand-filter argmax (510), and a timestamp row that isn't present as
-  written (589). No language barrier — just tedious/under-specified; not attempted.
+- **Label defect — 1.** id 252 ("highest-skewness country"): skewness across each
+  country's year series peaks at Myanmar (Afghanistan ranks ~24/33); the label
+  `Afghanistan` is the degenerate case where skewness of the single 1992 value is NaN
+  and `idxmax` returns the first row. `da252-gapminder-skew.hz` emits the honest answer
+  (Myanmar) and is excluded from `test.sh`, like 361/662.
+  (The other former "future work" — 62, 321, 510, 589 — were solved in Phase 1.)
 
-155 + 58 + 20 + 11 + 3 + 2 + 1 + 1 + 1 + 5 = 257. Every task is accounted for.
-(The 11 is the former-class-E remainder; its 20 solved tasks are inside the 155.)
+166 + 58 + 20 + 7 + 2 + 1 + 1 + 1 + 1 = 257. Every task is accounted for.
+(The 7 is the former-class-E remainder; the 24 solved former-E tasks are inside the 166.
+The trailing 1 is the id-252 label defect.)
 
 ## Builtins / tooling changes made for this effort
 

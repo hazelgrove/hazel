@@ -1,0 +1,15 @@
+# DA-Bench id 665: fill null Close with mean, then High/Med/Low by 25th/75th percentile, YAHOO-BTC_USD_D.csv #
+let data = ^^csv("YAHOO-BTC_USD_D.csv") in
+let cells = map(data, fun r -> string_trim(r.`Close`)) in
+let m = mean(num_loose(data.`Close`)) in
+let vals = map(cells, fun c -> if string_match("^[0-9]", c) then float_of_string(c) else m) in
+let s = sort(cmp, vals) in
+let q1 = quantile(s, 0.25) in
+let q3 = quantile(s, 0.75) in
+let hi = length(filter(vals, fun x -> x >=. q3)) in
+let lo = length(filter(vals, fun x -> x <=. q1)) in
+let med = length(filter(vals, fun x -> (x >. q1) && (x <. q3))) in
+let n = float_of_int(length(vals)) in
+(high_count = hi, high_proportion = round2(float_of_int(hi) /. n),
+ medium_count = med, medium_proportion = round2(float_of_int(med) /. n),
+ low_count = lo, low_proportion = round2(float_of_int(lo) /. n))

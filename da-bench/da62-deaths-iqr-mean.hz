@@ -1,0 +1,12 @@
+# DA-Bench id 62: mean of No. of deaths_max with/without IQR outliers, estimated_numbers.csv #
+let data = ^^csv("estimated_numbers.csv") in
+let xs = num(data.`No. of deaths_max`) in
+let s = sort(cmp, xs) in
+let q1 = quantile(s, 0.25) in
+let q3 = quantile(s, 0.75) in
+let iqr = q3 -. q1 in
+let lo = q1 -. 1.5 *. iqr in
+let hi = q3 +. 1.5 *. iqr in
+let kept = filter(xs, fun x -> (x >=. lo) && (x <=. hi)) in
+(mean_no_of_deaths_with_outliers = round2(mean(xs)),
+ mean_no_of_deaths_without_outliers = round2(mean(kept)))

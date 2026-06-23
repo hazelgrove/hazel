@@ -26,26 +26,35 @@ certain to match labels bit-for-bit.
 
 ---
 
-## Phase 1 — Write-only solutions (no new infrastructure)
+## Phase 1 — Write-only solutions (no new infrastructure) — DONE (11 solved, 1 defect)
 
-These are already expressible with the current prelude + `string_of_int`/
-`string_of_float` + `join_with`; they just haven't been written. Best first work:
-pure payoff, zero risk to shared code.
+Already expressible with the current prelude + `string_of_int`/`string_of_float` +
+`join_with`. All written, verified against labels, and added to `test.sh`:
 
-- **Multi-step preprocessing** (expressible, just multi-step): **453** (z-replace
-  WINDSPEED + mean-fill AT, then means), **574** (dropna + min-max normalize MSFT/
-  SPY/VIX, then correlation matrix), **665** (fill-mean + percentile-band counts/
-  proportions on Close), **572** (max-`.SPX` date + previous-day AAPL pct-change —
-  date is a substring, not calendar math).
-- **Other "future work"**: **62** (per-group IQR), **252** (single-value skewness),
-  **321** (`SCOREMARGIN` sign/`TIE` cleaning), **510** (brand-filter argmax), **589**
-  (a specific timestamp row).
-- **Multi-number string answers** (assemble with `string_of_int`/`string_of_float`
-  + `join_with`): **77**, **178** (`"314, 577"`), **219** (`"1, 2018, 88.32"`).
+- **Multi-step preprocessing** ✅: **453** (z-replace WINDSPEED + mean-fill AT),
+  **574** (3-col dropna + correlation matrix; min-max scaling is correlation-
+  invariant), **665** (fill-mean + percentile bands), **572** (max-`.SPX` date +
+  previous-row AAPL pct-change — used a flat 5-tuple fold accumulator; a nested-tuple
+  accumulator left the result indeterminate).
+- **Other "future work"** ✅: **62** (IQR-trimmed mean), **321** (`SCOREMARGIN`
+  TIE→0 / signed parse → IQR count), **510** (brand-filter argmax over `distinct_strings`),
+  **589** (timestamp stored as `Apr 13  2017 8:00:00 AM`, not `20170413_080000` — found
+  by the human-readable form).
+- **Multi-number string answers** ✅: **77** (`"1, 2018, 88.32"` — month-name parse
+  on `DD-Mon-YY`), **178** (`"314, 577"` / `"0, 1, 0.0629"`), **219** (`"9.03,9.0"`).
 
-**Effort:** ~1 solution each. **Risk:** binning/rounding/convention mismatches
-(half-open intervals, sample vs population std); a couple may need a second pass to
-match the label. Verify each against its label and add to `test.sh`.
+**Caveat — 252 is a label defect, not a Phase-1 win** (reason found during
+implementation, like 361/662): "highest-skewness country" — skewness across each
+country's year series peaks at **Myanmar** (adjusted and biased agree; Afghanistan
+ranks ~24/33). The label `Afghanistan` is the degenerate case where skewness of the
+*single* 1992 value is `NaN` for every country and pandas `idxmax` returns the first
+row. `da252-gapminder-skew.hz` emits the honest answer and documents this; it is
+**excluded from `test.sh`**, not counted as solved.
+
+Formatting note: `string_of_float` prints integer-valued floats as `594.`; where an
+answer needs `0`/`1` (e.g. 178's scaled min/max) use `int_of_float`, and for a value
+like `9.0` (219) a tiny local helper appends a `0` after a trailing dot. No shared
+infra was added.
 
 ## Phase 2 — Python-repr formatting helper → dict answers
 
@@ -165,8 +174,8 @@ some of these 20 may remain unmatched.
 
 ## Suggested execution order & realistic outcome
 
-1. **Phase 1** (~13) — immediate, no risk. Push solved count toward ~168.
-2. **Phase 2** (~4) + **Phase 4/688** (1) — small helpers, quick wins (~173).
+1. **Phase 1** — DONE: 11 solved (155 → **166**), 252 documented as a label defect.
+2. **Phase 2** (~4) + **Phase 4/688** (1) — small helpers, quick wins (~171).
 3. **Phase 3** (~5) — decide per task; close out or document (~176, minus the
    label-wrong ones we choose to leave).
 4. **Phase 4/234** (1) — date helper.

@@ -1,0 +1,15 @@
+# DA-Bench id 178: Sex label-encode counts + Fare min-max scaling stats, titanic.csv #
+# Answers are strings: "<female>, <male>" and "<min>, <max>, <mean>" (min/max are 0/1). #
+let data = ^^csv("titanic.csv") in
+let sex = map(data, fun r -> r.`Sex`) in
+let n0 = count_eq(sex, "female") in
+let n1 = count_eq(sex, "male") in
+let fares = num(data.`Fare`) in
+let mn = fmin(fares) in
+let mx = fmax(fares) in
+let scaled = map(fares, fun f -> (f -. mn) /. (mx -. mn)) in
+(sex_encoded_count = string_of_int(n0) ++ ", " ++ string_of_int(n1),
+ fare_after_scaling =
+   string_of_int(int_of_float(fmin(scaled))) ++ ", "
+   ++ string_of_int(int_of_float(fmax(scaled))) ++ ", "
+   ++ string_of_float(round4(mean(scaled))))

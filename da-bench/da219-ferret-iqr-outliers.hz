@@ -1,0 +1,21 @@
+# DA-Bench id 219: abs_diffsel IQR outliers -> site ids + values (2dp), ferret sitediffsel.csv #
+let data = ^^csv("ferret-Pitt-2-preinf-lib2-100_sitediffsel.csv") in
+let sites = map(data, fun r -> r.`site`) in
+let vstr = map(data, fun r -> r.`abs_diffsel`) in
+let xs = num(vstr) in
+let s = sort(cmp, xs) in
+let q1 = quantile(s, 0.25) in
+let q3 = quantile(s, 0.75) in
+let iqr = q3 -. q1 in
+let lo = q1 -. 1.5 *. iqr in
+let hi = q3 +. 1.5 *. iqr in
+let outs =
+  filter(zip(sites, vstr),
+    fun (_st, v) -> let x = float_of_string(string_trim(v)) in (x <. lo) || (x >. hi)) in
+let show2 = fun (x: Float) ->
+  let str = string_of_float(round2(x)) in
+  let n = string_length(str) in
+  if string_sub(str, n - 1, 1) == "." then str ++ "0" else str
+in
+(site_identifiers = join_with(",", map(outs, fun (st, _v) -> st)),
+ outlier_values = join_with(",", map(outs, fun (_st, v) -> show2(float_of_string(string_trim(v))))))

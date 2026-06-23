@@ -1,0 +1,20 @@
+# DA-Bench id 77: month+year with highest average Close, microsoft.csv (dates DD-Mon-YY). #
+# Answer is the string "month, year, avg_close" (e.g. "1, 2018, 88.32"). #
+let data = ^^csv("microsoft.csv") in
+let monthnum = fun (m: String) ->
+  if m == "Jan" then 1 else if m == "Feb" then 2 else if m == "Mar" then 3
+  else if m == "Apr" then 4 else if m == "May" then 5 else if m == "Jun" then 6
+  else if m == "Jul" then 7 else if m == "Aug" then 8 else if m == "Sep" then 9
+  else if m == "Oct" then 10 else if m == "Nov" then 11 else 12 in
+let dates = map(data, fun r -> r.`Date`) in
+let closes = map(data, fun r -> r.`Close`) in
+let keys = map(dates, fun d -> nth(string_split("-", d), 1) ++ "-" ++ nth(string_split("-", d), 2)) in
+let scored = map(distinct_strings(keys), fun k -> (k, mean(num(col_where(keys, closes, k))))) in
+let best =
+  fold_left(scored, fun ((bk, bv), (k, v)) -> if v >. bv then (k, v) else (bk, bv),
+            ("", 0.0 -. 1000000000.0)) in
+let (bk, bv) = best in
+let parts = string_split("-", bk) in
+string_of_int(monthnum(nth(parts, 0))) ++ ", "
+  ++ string_of_int(2000 + int_of_string(nth(parts, 1))) ++ ", "
+  ++ string_of_float(round2(bv))

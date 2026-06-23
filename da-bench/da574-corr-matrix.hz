@@ -1,0 +1,15 @@
+# DA-Bench id 574: Pearson corr matrix MSFT/SPY/VIX after 3-col dropna, tr_eikon_eod_data.csv #
+# Min-max normalization is scale/shift-invariant, so it does not change Pearson r. #
+let data = ^^csv("tr_eikon_eod_data.csv") in
+let m = map(data, fun r -> r.`MSFT.O`) in
+let sp = map(data, fun r -> r.`SPY`) in
+let vx = map(data, fun r -> r.`.VIX`) in
+let triples =
+  filter(zip(m, zip(sp, vx)),
+    fun (a, (b, c)) -> (string_trim(a) != "") && (string_trim(b) != "") && (string_trim(c) != "")) in
+let mm = map(triples, fun (a, (_b, _c)) -> float_of_string(string_trim(a))) in
+let ss = map(triples, fun (_a, (b, _c)) -> float_of_string(string_trim(b))) in
+let vv = map(triples, fun (_a, (_b, c)) -> float_of_string(string_trim(c))) in
+(MSFT_SPY_correlation = round2(pearson(mm, ss)),
+ MSFT_VIX_correlation = round2(pearson(mm, vv)),
+ SPY_VIX_correlation = round2(pearson(ss, vv)))

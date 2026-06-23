@@ -174,6 +174,18 @@ CASES=(
   # Need the sorted-insertion distinct_strings helper (low-cardinality dedup)
   "da555-unique-species.hz"
   "da123-top-country-vacc.hz"
+  # PLAN.md Phase 1: write-only solutions (no new infrastructure)
+  "da62-deaths-iqr-mean.hz"
+  "da574-corr-matrix.hz"
+  "da453-baro-preprocess.hz"
+  "da219-ferret-iqr-outliers.hz"
+  "da178-titanic-preprocess.hz"
+  "da321-scoremargin-iqr.hz"
+  "da589-abandonment-rate.hz"
+  "da572-spx-aapl-pct.hz"
+  "da665-price-category.hz"
+  "da77-microsoft-monthly-close.hz"
+  "da510-hotel-brand-star.hz"
 )
 
 # Strip trailing zeros from every decimal so 34.650000 == 34.65, 0.141000 == 0.141,

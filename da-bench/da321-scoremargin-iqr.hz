@@ -1,0 +1,5 @@
+# DA-Bench id 321: IQR outlier count in SCOREMARGIN (clean: TIE->0, parse signed), 0020200722.csv #
+let data = ^^csv("0020200722.csv") in
+let raw = filter(map(data, fun r -> string_trim(r.`SCOREMARGIN`)), fun s -> s != "") in
+let xs = map(raw, fun s -> if s == "TIE" then 0.0 else float_of_string(s)) in
+count_iqr_out(xs)

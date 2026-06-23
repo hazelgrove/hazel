@@ -1,0 +1,16 @@
+# DA-Bench id 572: date of max .SPX close + AAPL pct change vs previous row, tr_eikon_eod_data.csv #
+# Data is in ascending date order; "previous day" = the row immediately before the max-.SPX row. #
+# Accumulator (flat 5-tuple): prev row's AAPL, then best (spx, date, aapl, prev_aapl). #
+let data = ^^csv("tr_eikon_eod_data.csv") in
+let rows = map(data, fun r -> (r.`Date`, r.`.SPX`, r.`AAPL.O`)) in
+let init = ("", 0.0 -. 1000000000.0, "", "", "") in
+let best =
+  fold_left(rows,
+    fun ((prev_aapl, bspx, bdate, baapl, bprev), (d, spx_s, aapl_s)) ->
+      if (string_trim(spx_s) != "") && (float_of_string(string_trim(spx_s)) >. bspx)
+      then (aapl_s, float_of_string(string_trim(spx_s)), d, aapl_s, prev_aapl)
+      else (aapl_s, bspx, bdate, baapl, bprev),
+    init) in
+let (_p, _bspx, bdate, baapl, bprev) = best in
+let pct = (float_of_string(string_trim(baapl)) /. float_of_string(string_trim(bprev)) -. 1.0) *. 100.0 in
+(max_SPX_date = bdate, AAPL_price_percentage_change = round2(pct))

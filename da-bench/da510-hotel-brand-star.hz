@@ -1,0 +1,24 @@
+# DA-Bench id 510: brand with highest avg star_rating among hotels with >=100 reviews, hotel_data.csv. #
+# Only brands with >=10 hotels in the dataset; exclude hotels without brand or star; tie -> most hotels. #
+let data = ^^csv("hotel_data.csv") in
+let brands_all = filter(map(data, fun r -> string_trim(r.`brand_name`)), fun b -> b != "") in
+let valid =
+  filter(data, fun r ->
+    (string_trim(r.`brand_name`) != "")
+    && (string_trim(r.`star_rating`) != "")
+    && (string_trim(r.`review_count`) != "")
+    && (float_of_string(string_trim(r.`review_count`)) >=. 100.0)) in
+let vbrands = map(valid, fun r -> r.`brand_name`) in
+let vstars = map(valid, fun r -> r.`star_rating`) in
+let cand = filter(distinct_strings(brands_all), fun b -> count_eq(brands_all, b) >= 10) in
+let scored =
+  map(cand, fun b ->
+    let stars = num(col_where(vbrands, vstars, b)) in
+    (b, if length(stars) == 0 then (0.0 -. 1.0) else mean(stars), count_eq(brands_all, b))) in
+let best =
+  fold_left(scored,
+    fun ((bb, bv, bn), (c, v, n)) ->
+      if (v >. bv) || ((v == bv) && (n > bn)) then (c, v, n) else (bb, bv, bn),
+    ("", 0.0 -. 1000000000.0, 0)) in
+let (bb, _bv, _bn) = best in
+bb

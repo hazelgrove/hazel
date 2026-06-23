@@ -1,0 +1,8 @@
+# DA-Bench id 589: call abandonment rate at "Apr 13  2017 8:00:00 AM" = abandoned/(answered+abandoned)*100. #
+# The timestamp is stored human-readable (not "20170413_080000"), with a double space and no leading zero. #
+let data = ^^csv("20170413_000000_group_statistics.csv") in
+let ts = map(data, fun r -> r.`timestamp`) in
+let key = "Apr 13  2017 8:00:00 AM" in
+let answered = float_of_string(string_trim(nth(col_where(ts, map(data, fun r -> r.`num. calls answered`), key), 0))) in
+let abandoned = float_of_string(string_trim(nth(col_where(ts, map(data, fun r -> r.`num. calls abandoned`), key), 0))) in
+round2(abandoned /. (answered +. abandoned) *. 100.0)

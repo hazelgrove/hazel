@@ -10,7 +10,7 @@ express the computation and produce the correct answer? Solutions are plaintext
 `.hz` files; data is loaded at edit-time via the `^^csv("file.csv")` hook (no
 runtime side effects — the language stays pure).
 
-**Status: 155 / 257 dev tasks solved & verified.** The authoritative ledger of
+**Status: 166 / 257 dev tasks solved & verified.** The authoritative ledger of
 what passes / what's left and why is [`RESULTS.md`](./RESULTS.md); the
 authoritative list of passing cases is the `CASES` array in `test.sh` (every
 entry is checked against the InfiAgent label).
@@ -244,24 +244,21 @@ Two parts:
   so our split equals theirs. Purity is solved by the design; replicating numpy's
   exact stream is the work.
 
-### 3. Multi-number string answers — ~6 tasks ("the formatting issue")
+### 3. Multi-number / data-structure string answers ("the formatting issue")
 
 Some answers aren't a single number but a **string assembled from several numbers**
 or a **Python data-structure repr**:
 
-- id 178's answer is the literal string `"314, 577"`; ids 77 / 219 pack several
-  values into one field like `"1, 2018, 88.32"`.
-- id 450's answer is a Python dict `{'month_1': 7.17, 'month_2': 6.53, …}`;
-  id 451 is `{'WINDSPEED': 594, 'AT': 590, …}`.
-
-These are **expressible — just unwritten.** Hazel has `string_of_int` /
-`string_of_float` and `++` / `join_with`, so the comma-list answers (77/178/219)
-can be assembled directly (compute the numbers → stringify → join with `", "`).
-The Python-dict answers (450/451) can be built the same way, with the extra
-fiddle of emitting Python's exact `{'k': v}` text (braces, single-quotes, spacing)
-and float repr (`string_of_float` prints integer-valued floats as `594.`, where
-Python wants `594.0` / `594`) to satisfy the string-equality grader. Pure
-serialization work, **no language limit** — just not yet done.
+- **Comma-list answers — SOLVED** (Phase 1): id 178 (`"314, 577"`), id 77
+  (`"1, 2018, 88.32"`), id 219 (`"9.03,9.0"`). Assembled with `string_of_int` /
+  `string_of_float` + `++` / `join_with`; integer-valued floats (which
+  `string_of_float` renders as `594.`) handled with `int_of_float` or a trailing-dot
+  fixup.
+- **Python-dict answers — still open (Phase 2):** id 450 `{'month_1': 7.17, …}`,
+  id 451 `{'WINDSPEED': 594, …}`. Buildable the same way, but need Python's exact
+  `{'k': v}` text (braces, single-quotes, spacing) and float repr to satisfy the
+  string-equality grader. Pure serialization work, **no language limit** — just not
+  yet done.
 
 ## Not Hazel's problem — benchmark artifacts (~6 tasks, "the degenerate issue")
 
@@ -292,6 +289,11 @@ buggy ground truth:
     **1.30099 → 1.30** (`statistics.median` and `numpy` agree); the std **284.61**
     matches. The label's **1.31** comes from a quirk we couldn't reproduce (likely
     different `null`-handling or a different median index). Hazel is *more* correct.
+  - **252** (highest-skewness country; see `da252-gapminder-skew.hz`): skewness across
+    each country's year series peaks at **Myanmar** (adjusted and biased agree);
+    Afghanistan ranks ~24/33. The label `Afghanistan` is the degenerate case — the
+    skewness of the *single* 1992 value is `NaN` for every country, so pandas `idxmax`
+    returns the first row. We emit the honest answer (Myanmar).
 
 These are listed for completeness in `RESULTS.md` but not pursued: fixing them would
 mean emulating a defect, not improving the language.

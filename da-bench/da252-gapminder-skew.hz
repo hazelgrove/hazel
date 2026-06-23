@@ -1,0 +1,17 @@
+# DA-Bench id 252: highest-skewness country, gapminder_gdp_asia.csv. #
+# NOT in test.sh: the label "Afghanistan" is unreproducible. Skewness of each #
+# country across its year columns has its max at Myanmar (adjusted and biased agree); #
+# Afghanistan ranks ~24th of 33. The label is the degenerate case -- skewness of the #
+# SINGLE 1992 value is NaN for every country, so pandas idxmax returns the first row #
+# (Afghanistan). A label defect like 361/662; we emit the honest answer (Myanmar) #
+# rather than a tautological "first country". #
+let data = ^^csv("gapminder_gdp_asia.csv") in
+let years = fun r ->
+  num([r.`gdpPercap_1952`, r.`gdpPercap_1957`, r.`gdpPercap_1962`, r.`gdpPercap_1967`,
+       r.`gdpPercap_1972`, r.`gdpPercap_1977`, r.`gdpPercap_1982`, r.`gdpPercap_1987`,
+       r.`gdpPercap_1992`, r.`gdpPercap_1997`, r.`gdpPercap_2002`, r.`gdpPercap_2007`]) in
+let scored = map(data, fun r -> (r.`country`, skew(years(r)))) in
+let best =
+  fold_left(scored, fun ((bc, bv), (c, v)) -> if v >. bv then (c, v) else (bc, bv),
+            ("", 0.0 -. 1.0e9)) in
+fst(best)

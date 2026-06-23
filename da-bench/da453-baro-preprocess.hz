@@ -1,0 +1,11 @@
+# DA-Bench id 453: baro_2015.csv preprocess; mean wind pre/post (z>3 -> mean), mean AT pre/post #
+let data = ^^csv("baro_2015.csv") in
+let w = num(data.`WINDSPEED`) in
+let mw = mean(w) in
+let sw = sample_std(w) in
+let w2 = map(w, fun x -> if abs_float((x -. mw) /. sw) >. 3.0 then mw else x) in
+let mat = mean(num(data.`AT`)) in
+(mean_wind_pre = round2(mw),
+ mean_atmos_temp_pre = round2(mat),
+ mean_wind_post = round2(mean(w2)),
+ mean_atmos_temp_post = round2(mat))
