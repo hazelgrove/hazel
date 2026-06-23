@@ -10,7 +10,7 @@ express the computation and produce the correct answer? Solutions are plaintext
 `.hz` files; data is loaded at edit-time via the `^^csv("file.csv")` hook (no
 runtime side effects — the language stays pure).
 
-**Status: 168 / 257 dev tasks solved & verified.** The authoritative ledger of
+**Status: 171 / 257 dev tasks solved & verified.** The authoritative ledger of
 what passes / what's left and why is [`RESULTS.md`](./RESULTS.md); the
 authoritative list of passing cases is the `CASES` array in `test.sh` (every
 entry is checked against the InfiAgent label).
@@ -263,22 +263,27 @@ or a **Python data-structure repr**:
   (from a labeled tuple via `to_lvs`), and `py_float` (Python float repr) — which emit
   the exact `{'k': v}` text the string-equality grader wants.
 
-## Not Hazel's problem — benchmark artifacts (~6 tasks, "the degenerate issue")
+## Not Hazel's problem — benchmark artifacts ("the degenerate issue")
 
-Here the **reference label itself** is a non-answer, so even perfect expressiveness
-has nothing meaningful to match — you'd only be reverse-engineering a trivial or
-buggy ground truth:
+Here the **reference label itself** is a non-answer or arguably wrong, so matching it
+means reverse-engineering a trivial or buggy ground truth. Phase 3 sorted these into
+the ones with a defensible computation (now solved) and the genuine defects (documented):
 
-- **Empty-result `nan` (id 554):** "median HT_M where CON=1 and PLTID=5" — the
-  filter matches **zero rows**, so pandas returns `NaN` and the label is literally
-  `nan`. "Solving" it means detecting the empty filter and printing the word "nan".
-- **All-zero / arbitrary tie (id 760):** "which station has the most missing
-  obs_value?" — **no** station has any missing values, so every count is 0; the
-  label `("AGE00135039", 0)` is just whichever station pandas' `idxmax` returned
-  first on an all-zero series. Matching it = reproducing an arbitrary tie-break.
+Solved as legitimate edge cases (Phase 3):
+- **Empty-result `nan` (id 554):** CON=1 & PLTID=5 matches **zero rows**, so the median
+  is undefined — emitting `nan` is the *correct* pandas result, not a defect. SOLVED.
+- **All-zero tie (id 760):** no station has missing values, so the "most missing" is
+  pandas `idxmax`'s deterministic tie-break = the alphabetically-first station
+  (`AGE00135039`). Reproduced via a sorted argmax. SOLVED.
+- **'Assault' subset (id 468):** a real IQR-outlier computation over `Offense`-contains-
+  "Assault" rows → 0. SOLVED.
+
+Genuine defects (documented, not in `test.sh`):
 - **Answer is a column name (id 741):** the graded value is the literal string
-  `"ratio"` (a column name), not a computed result.
-- **Ambiguous spec (id 468):** "'Assault' category" doesn't map cleanly to a column.
+  `"ratio"`, not a computed result. `da741` builds the honest Balance/Limit feature.
+- **File-path answer (id 743):** the graded answer includes a written-out
+  `/mnt/data/...csv` path; Hazel is pure and can't write files. `da743` computes the
+  honest Income min/max.
 - **Wrong / quirky label — ids 361 and 662** (see the per-task notes at the top of
   `da361-zout-windspeed.hz` and `da662-pricechange-stats.hz`). In both, our
   computation is correct and the *label* is the outlier:

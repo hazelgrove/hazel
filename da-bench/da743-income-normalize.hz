@@ -1,0 +1,8 @@
+# DA-Bench id 743: preprocessing that writes a normalized CSV, Credit.csv. #
+# NOT in test.sh (Class D, non-value answer): the graded answer includes a written-out #
+# file path (/mnt/data/Credit_Income_Normalized.csv). Hazel is pure and cannot write #
+# files, and the path is environment-specific. The computable part is the Income #
+# min/max used for the normalization, shown here (matches the label's 10.35, 186.63). #
+let data = ^^csv("Credit.csv") in
+let inc = num(data.`Income`) in
+(income_min = round2(fmin(inc)), income_max = round2(fmax(inc)))

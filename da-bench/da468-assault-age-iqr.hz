@@ -1,0 +1,5 @@
+# DA-Bench id 468: IQR outlier count of Age in the 'Assault' category, arrest_expungibility.csv. #
+# 'Assault' = Offense containing "Assault" (681 rows; there is no Category named "Assault"). #
+let data = ^^csv("arrest_expungibility.csv") in
+let ages = filter(data, fun r -> string_match("Assault", r.`Offense`)) |> map(_, fun r -> r.`Age`) |> num in
+count_iqr_out(ages)

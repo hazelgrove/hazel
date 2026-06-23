@@ -50,9 +50,9 @@ data-cleaning wrinkle):
   empty filtered set); id 741 grades the literal column name `"ratio"`. Not a
   computation in the usual sense.
 
-## Tally (257 dev tasks) — 168 solved, 89 accounted for
+## Tally (257 dev tasks) — 171 solved, 86 accounted for
 
-- **Solved & verified — 168** (in `test.sh`, every output matches the InfiAgent label):
+- **Solved & verified — 171** (in `test.sh`, every output matches the InfiAgent label):
   mean/median/std (sample & population)/min/max/range, Pearson correlation,
   skewness (pandas-adjusted AND scipy-biased), kurtosis, IQR & Z-score outlier
   detection/removal, group-by aggregation, feature engineering (ratios, sums,
@@ -69,23 +69,29 @@ data-cleaning wrinkle):
   string answers assembled with `string_of_int`/`string_of_float` + `join_with`.
   Plus 2 PLAN.md Phase-2 tasks (450, 451) — Python-dict answers via new `py_dict` /
   `dict_of_tuple` / `py_float` prelude helpers.
+  Plus 3 PLAN.md Phase-3 tasks (468 IQR over an 'Assault'-filtered subset, 554
+  median-of-empty → "nan", 760 most-missing-station via sorted argmax) — the
+  legitimately-computable edge cases.
 - **Inexpressible — scipy p-value / hypothesis tests (class A): 58.** Shapiro, KS,
   normaltest, t-test, ANOVA, chi-square, Mann-Whitney, etc. A coefficient is fine; the
   test statistic's p-value is not (no distribution CDFs / special functions).
 - **Inexpressible — sklearn / ML models (class B): 20.** Fitted regression/classification,
   clustering, `train_test_split(random_state=…)` (needs numpy RNG).
-- **Former class E (stack-overflow, NOW FIXED): 31 → 26 solved + 5 other.** The fix +
-  Phases 1–2 now cover 26 (incl. 123/555 via `distinct_strings`, 453/572/574/665 from
-  Phase 1, and 450/451 via the dict helpers). The remaining 5: **2 label-discrepancy**
-  (361, 662 — correct computation, wrong/degenerate label), **2 degenerate spec**
-  (554 nan, 760 all-zero), and **1 ambiguous** (468).
+- **Former class E (stack-overflow, NOW FIXED): 31 → 29 solved + 2 other.** The fix +
+  Phases 1–3 now cover 29 (incl. 123/555 via `distinct_strings`, 453/572/574/665,
+  450/451, and 468/554/760 from Phase 3). The remaining 2 are **label-discrepancy**
+  (361, 662 — correct computation, wrong/degenerate label).
 - **Class H — multi-number string answers: 3, NOW SOLVED** (77, 178, 219; folded into
   the 166). Assembled with `string_of_int`/`string_of_float` + `join_with`; integer-valued
   floats (`string_of_float` → `594.`) handled via `int_of_float` or a trailing-dot fixup.
 - **Class C — calendar arithmetic: 2.** id 234 (days between two calendar dates),
   id 688 (epoch→hour-of-day bucketing). Substring/`HH:MM:SS`→sec IS fine; calendar math isn't.
-- **Class D — non-value answer: 1.** id 743 (graded value is a written-out file path).
-- **Class G — degenerate grading: 1.** id 741 (graded value is the literal column name "ratio").
+- **Class D — non-value answer: 1.** id 743 (graded value is a written-out file path;
+  Hazel is pure and can't write files). `da743-income-normalize.hz` computes the
+  honest part (Income min/max) and is documented/excluded.
+- **Class G — degenerate grading: 1.** id 741 (graded value is the literal column name
+  "ratio", not a value). `da741-balance-limit-ratio.hz` builds the honest feature
+  (Balance/Limit) and is documented/excluded.
 - **Parser limitation: 1.** id 618 (`#photo` column — `#` collides with comment syntax,
   so the backtick label is unparseable and the column is unreachable).
 - **Label defect — 1.** id 252 ("highest-skewness country"): skewness across each
@@ -95,8 +101,8 @@ data-cleaning wrinkle):
   (Myanmar) and is excluded from `test.sh`, like 361/662.
   (The other former "future work" — 62, 321, 510, 589 — were solved in Phase 1.)
 
-168 + 58 + 20 + 5 + 2 + 1 + 1 + 1 + 1 = 257. Every task is accounted for.
-(The 5 is the former-class-E remainder; the 26 solved former-E tasks are inside the 168.
+171 + 58 + 20 + 2 + 2 + 1 + 1 + 1 + 1 = 257. Every task is accounted for.
+(The 2 is the former-class-E remainder; the 29 solved former-E tasks are inside the 171.
 The trailing 1 is the id-252 label defect.)
 
 ## Builtins / tooling changes made for this effort

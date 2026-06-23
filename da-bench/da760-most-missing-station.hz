@@ -1,0 +1,15 @@
+# DA-Bench id 760: station with the most missing obs_value (and the count), weather_data_1864.csv. #
+# No station has missing values, so all counts are 0; the answer is pandas idxmax's deterministic #
+# tie-break = the alphabetically-first station (groupby sorts keys). distinct_strings is sorted and #
+# the strict-greater argmax keeps the first station achieving the max. #
+let data = ^^csv("weather_data_1864.csv") in
+let stations = map(data, fun r -> r.`station`) in
+let obs = map(data, fun r -> r.`obs_value`) in
+let miss = fun (s: String) ->
+  length(filter(zip(stations, obs), fun (st, v) -> (st == s) && (string_trim(v) == ""))) in
+let scored = map(distinct_strings(stations), fun s -> (s, float_of_int(miss(s)))) in
+let best =
+  fold_left(scored, fun ((bs, bc), (s, c)) -> if c >. bc then (s, c) else (bs, bc),
+            ("", 0.0 -. 1.0)) in
+let (bs, _bc) = best in
+(most_missing_station_name = bs, most_missing_station_count = miss(bs))

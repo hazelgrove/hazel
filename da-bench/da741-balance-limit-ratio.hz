@@ -1,0 +1,14 @@
+# DA-Bench id 741: create a Balance/Limit ratio feature, Credit.csv. #
+# NOT in test.sh (Class G, degenerate grading): the graded label is literally the #
+# column NAME "ratio", not a computed value -- matching it would just mean emitting #
+# the string "ratio". We build the honest feature (Balance/Limit, 0 when Limit=0) and #
+# report its mean, which is the actual computation the task describes. #
+let data = ^^csv("Credit.csv") in
+let pairs =
+  filter(zip(map(data, fun r -> r.`Balance`), map(data, fun r -> r.`Limit`)),
+    fun (b, l) -> (string_trim(b) != "") && (string_trim(l) != "")) in
+let ratios =
+  map(pairs, fun (b, l) ->
+    let lim = float_of_string(string_trim(l)) in
+    if lim ==. 0.0 then 0.0 else float_of_string(string_trim(b)) /. lim) in
+round4(mean(ratios))

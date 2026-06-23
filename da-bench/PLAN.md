@@ -71,27 +71,27 @@ Solved ✅: **450** (avg WINDSPEED per month → `{'month_1': 7.17, ...}`; `DATE
 MM/DD/YYYY, month = field 0), **451** (missing-count per column → `{'DATE TIME': 0,
 'WINDSPEED': 594, ...}`). Both verified against the labels and in `test.sh`.
 
-## Phase 3 — Edge-case / quirk labels
+## Phase 3 — Edge-case / quirk labels — DONE (3 solved, 4 documented defects)
 
-The label here is degenerate or arguably wrong, so "solving" means reproducing an
-edge case rather than computing something meaningful. Low value, low effort —
-worth a short pass to close them out, with a note in each file.
+On inspection these split into legitimately-computable edge cases and genuine
+defects. Solved the former; documented the latter (file with a note, not in `test.sh`).
 
-- **554** — filter yields empty set → pandas `median` is `NaN`; detect empty and
-  print `nan`.
-- **760** — no missing values anywhere → "station with most missing" is pandas
-  `idxmax` on an all-zero series (first label wins); reproduce that tie-break, count 0.
-- **741** — answer is the literal column name `"ratio"`; just emit the string.
-- **743** — answer is a written-out **file path** string; emit the expected path.
-- **468** — ambiguous "'Assault' category"; pick the interpretation that yields 0.
-- **361, 662** — *label is wrong* (our computation matches pandas: 97 z-outliers;
-  median 1.30099). To "pass," emulate the reference's quirk (361: count outliers
-  *remaining after removal* = 0 — trivial; 662: reverse-engineer their median index
-  — uncertain). **Recommend leaving these documented-but-unsolved** rather than
-  shipping a deliberately-wrong computation.
+Solved ✅:
+- **468** — IQR outliers of Age in the 'Assault' category: a real computation; the
+  filter is `Offense` containing "Assault" (681 rows; there is no Category "Assault") → 0.
+- **554** — median HT_M where CON=1 & PLTID=5: the filter is empty, and median-of-empty
+  = `nan` is the *correct* result, not a defect. Emit `"nan"`.
+- **760** — most-missing station: all counts are 0, so the answer is pandas `idxmax`'s
+  deterministic tie-break = the alphabetically-first station; reproduced via a sorted
+  argmax over `distinct_strings` (`AGE00135039`, 0).
 
-**Effort:** low. **Risk:** high that it's not worth it (matching defects); decide
-per task whether to pursue or just document.
+Documented defects (not solved — emulating them adds nothing):
+- **741** — graded value is the literal column name `"ratio"`, not a computed value
+  (Class G). `da741` builds the honest Balance/Limit feature.
+- **743** — graded answer includes a written-out file path; Hazel is pure and can't
+  write files (Class D). `da743` computes the honest Income min/max.
+- **361, 662** — *label is wrong* (our computation matches pandas: 97 z-outliers; median
+  1.30099). Left documented rather than shipping a deliberately-wrong computation.
 
 ## Phase 4 — Calendar / date arithmetic
 
@@ -174,7 +174,8 @@ some of these 20 may remain unmatched.
 
 1. **Phase 1** — DONE: 11 solved (155 → **166**), 252 documented as a label defect.
 2. **Phase 2** — DONE: 2 solved (450, 451 → **168**) via the dict helpers.
-   Next quick win: **Phase 4/688** (epoch→hour, trivial integer math).
+3. **Phase 3** — DONE: 3 solved (468, 554, 760 → **171**); 741/743/361/662 documented
+   as defects. Next quick win: **Phase 4/688** (epoch→hour, trivial integer math).
 3. **Phase 3** (~5) — decide per task; close out or document (~176, minus the
    label-wrong ones we choose to leave).
 4. **Phase 4/234** (1) — date helper.

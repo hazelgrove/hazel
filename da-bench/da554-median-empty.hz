@@ -1,0 +1,5 @@
+# DA-Bench id 554: median HT_M where CON=1 and PLTID=5, tree.csv. #
+# The filter matches zero rows, so the median is undefined -> "nan" (pandas behaviour). #
+let data = ^^csv("tree.csv") in
+let vals = filter(data, fun r -> (r.`CON` == "1") && (r.`PLTID` == "5")) |> map(_, fun r -> r.`HT_M`) |> num in
+if length(vals) == 0 then "nan" else string_of_float(round2(median(vals)))
