@@ -2,6 +2,10 @@
 
 /* DYNAMICS */
 
+:root {
+  --eval-recalc-visual-delay: 180ms;
+}
+
 .cell-result {
   display: flex;
   flex-direction: row;
@@ -48,11 +52,12 @@
 
 .cell-result .status.pending .spinner {
   opacity: 0.5;
-  transition: all 0.2s linear;
+  transition: opacity 0.2s linear var(--eval-recalc-visual-delay);
 }
 
 .cell-result .status.pending-attention .spinner {
-  animation: eval-spinner-spin 1.6s linear infinite reverse;
+  animation: eval-spinner-spin 1.6s linear var(--eval-recalc-visual-delay)
+    infinite reverse;
 }
 
 .cell-result .status.pending-evaluating .spinner {
@@ -67,7 +72,8 @@
 
 .cell-result .status.pending .eq {
   opacity: 0;
-  transition: opacity 0.6s cubic-bezier(0.65, 0, 0.35, 1);
+  transition: opacity 0.2s cubic-bezier(0.65, 0, 0.35, 1)
+    var(--eval-recalc-visual-delay);
 }
 
 @keyframes eval-spinner-spin {
@@ -85,7 +91,8 @@
 
 .cell-result .result.pending {
   opacity: 0.3;
-  transition: opacity 0.6s cubic-bezier(0.65, 0, 0.35, 1);
+  transition: opacity 0.2s cubic-bezier(0.65, 0, 0.35, 1)
+    var(--eval-recalc-visual-delay);
 }
 
 .cell-result .result .exception {
@@ -181,6 +188,13 @@ svg.shard.incremental-frozen {
   filter: drop-shadow(0 0 1px rgba(160, 210, 255, 0.75));
 }
 
+svg.shard.incremental-pending,
+svg.shard.incremental-active {
+  animation: incremental-pending-reveal 80ms linear
+    var(--eval-recalc-visual-delay) forwards;
+  opacity: 0;
+}
+
 svg.shard.incremental-pending > path {
   fill: var(--incremental-pending, oklch(52% 0.03 220 / 11%));
   stroke: var(--incremental-pending-edge, oklch(52% 0.03 220 / 16%));
@@ -197,7 +211,13 @@ svg.shard.incremental-active .incremental-sweep {
   transform-box: fill-box;
   transform-origin: center;
   animation: incremental-active-sweep 1.35s cubic-bezier(0.4, 0, 0.2, 1)
-    infinite;
+    var(--eval-recalc-visual-delay) infinite;
+}
+
+@keyframes incremental-pending-reveal {
+  to {
+    opacity: 1;
+  }
 }
 
 @keyframes incremental-active-sweep {
