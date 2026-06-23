@@ -1776,6 +1776,18 @@ let key_handler =
   let {ap_id, parent, _} = ctx;
   open Effect;
   let key = Key.mk(KeyDown, evt);
+  /* Leave this probe and hand keyboard focus back to the editor. The
+     three calls always travel together: blur() drops DOM focus to
+     <body> (nothing else would pick it up); schedule_editor restores it
+     to .code-editor after render (the path step-into uses); expect_blur
+     keeps the focus keeper from re-grabbing the probe in between. Every
+     key that blurs a sample routes through here so the editor always
+     regains focus — keep it that way. */
+  let blur_to_editor = () => {
+    FocusEffect.expect_blur();
+    JsUtil.get_elem_by_id(Id.cls(id))##blur;
+    FocusEffect.schedule_editor();
+  };
   switch (key.key) {
   | D("E" | "e") when key.meta == Down || key.ctrl == Down => parent(Remove)
   | D("Escape") when Settings.open_dropdown^ != None =>
@@ -1783,24 +1795,17 @@ let key_handler =
      * focused); subsequent Escapes fall through to the cases below. */
     Many([local(SetDropdown(None)), Stop_propagation, Prevent_default])
   | D("Escape") when key.shift == Down =>
-    FocusEffect.expect_blur();
-    JsUtil.get_elem_by_id(Id.cls(id))##blur;
+    blur_to_editor();
     Many([local(ResetSettings), parent(SampleFocus(Reset))]);
   | D("Escape") when drawer_mode_active =>
     /* Two-stage Esc: first Esc collapses the drawer (stays focused),
      * second Esc blurs (handled by the rule below). */
     Many([local(SetDrawerMode(false)), Stop_propagation, Prevent_default])
   | D("Escape") =>
-    FocusEffect.expect_blur();
-    JsUtil.get_elem_by_id(Id.cls(id))##blur;
+    blur_to_editor();
     Many([Stop_propagation, Prevent_default]);
   | D("Enter") when key.meta == Down || key.ctrl == Down =>
-    /* Blurring the probe drops DOM focus to <body>; schedule_editor
-       restores it to the .code-editor after render (same path step-into
-       uses), otherwise the caret stays hidden and keys miss the editor. */
-    FocusEffect.expect_blur();
-    JsUtil.get_elem_by_id(Id.cls(id))##blur;
-    FocusEffect.schedule_editor();
+    blur_to_editor();
     Many([
       parent(EscapeToLineEnd(Probe)),
       Stop_propagation,
@@ -1808,17 +1813,14 @@ let key_handler =
     ]);
   /* Cmd+Left (Mac) / Home (PC): bounce back to editor */
   | D("ArrowLeft") when key.meta == Down || key.ctrl == Down =>
-    FocusEffect.expect_blur();
-    JsUtil.get_elem_by_id(Id.cls(id))##blur;
-    FocusEffect.schedule_editor();
+    blur_to_editor();
     Many([
       parent(EscapeToLineEnd(Probe)),
       Stop_propagation,
       Prevent_default,
     ]);
   | D("Home") =>
-    FocusEffect.expect_blur();
-    JsUtil.get_elem_by_id(Id.cls(id))##blur;
+    blur_to_editor();
     Many([Stop_propagation, Prevent_default]);
   | D("ArrowRight") when key.shift == Down =>
     let effect =
