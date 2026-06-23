@@ -1,0 +1,6 @@
+# DA-Bench id 428: one-way ANOVA of damage_USD across years 2000-2010, cost_data_with_errors.csv. #
+let data = ^^csv("cost_data_with_errors.csv") in
+let years = ["2000", "2001", "2002", "2003", "2004", "2005", "2006", "2007", "2008", "2009", "2010"] in
+let groups = map(years, fun y -> num(map(filter(data, fun r -> string_trim(r.`year`) == y), fun r -> r.`damage_USD`))) in
+let p = anova_p(groups) in
+(p_value = round4(p), difference_type = if p <. 0.05 then "significant" else "none")

@@ -211,6 +211,9 @@ CASES=(
   "da419-weekday-weekend-ttest.hz"
   "da652-xcoord-normaltest.hz"
   "da729-gdp-normaltest.hz"
+  # Phase 5 ANOVA (F-test via betainc) and chi-square (incomplete gamma)
+  "da428-storm-damage-anova.hz"
+  "da522-title-pclass-chi2.hz"
 )
 
 # Strip trailing zeros from every decimal so 34.650000 == 34.65, 0.141000 == 0.141,

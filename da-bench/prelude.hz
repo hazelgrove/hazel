@@ -298,3 +298,52 @@ let monthnum = fun (m: String) ->
   else if m == "Jul" then 7 else if m == "Aug" then 8 else if m == "Sep" then 9
   else if m == "Oct" then 10 else if m == "Nov" then 11 else 12
 in
+# sum of squared deviations from the mean (named helper so the inner map type-checks; #
+# an inline `map(g, fun x -> ...)` inside a fold over a list-of-lists fails to infer g's #
+# element type, leaving the result indeterminate). #
+let ss_dev = fun (g: [Float]) ->
+  let m = mean(g) in sum(map(g, fun x -> (x -. m) *. (x -. m)))
+in
+# one-way ANOVA p-value (scipy.stats.f_oneway): F = MSbetween/MSwithin, p via F-survival. #
+# Reduce each group to a (n, mean, ss) triple via a typed map first, then fold over the #
+# triples — folding over the raw list-of-lists leaves `g`'s element type un-inferred. #
+let anova_p = fun (groups: [[Float]]) ->
+  let st = map(groups, fun (g: [Float]) -> (float_of_int(length(g)), mean(g), ss_dev(g))) in
+  let nf = fold_left(st, fun (acc, (n, _m, _s)) -> acc +. n, 0.0) in
+  let total = fold_left(st, fun (acc, (n, m, _s)) -> acc +. n *. m, 0.0) in
+  let grand = total /. nf in
+  let ssb = fold_left(st, fun (acc, (n, m, _s)) -> acc +. n *. (m -. grand) *. (m -. grand), 0.0) in
+  let ssw = fold_left(st, fun (acc, (_n, _m, s)) -> acc +. s, 0.0) in
+  let k = float_of_int(length(groups)) in
+  let dfb = k -. 1.0 in
+  let dfw = nf -. k in
+  let f = ssb /. dfb /. (ssw /. dfw) in
+  betainc(dfw /. 2.0, dfb /. 2.0, dfw /. (dfw +. dfb *. f))
+in
+# regularized upper incomplete gamma Q(a, x) (Numerical Recipes gammq), fixed iterations #
+let gammq = fun (a: Float, x: Float) ->
+  let gln = lgamma(a) in
+  if x <. a +. 1.0 then
+    let go = fun (ap: Float, del: Float, s: Float, n: Int) ->
+      if n > 300 then s
+      else let ap2 = ap +. 1.0 in let del2 = del *. x /. ap2 in go(ap2, del2, s +. del2, n + 1)
+    in
+    let s = go(a, 1.0 /. a, 1.0 /. a, 0) in
+    1.0 -. s *. exp(0.0 -. x +. a *. log(x) -. gln)
+  else
+    let go = fun (i: Int, b: Float, c: Float, d: Float, h: Float) ->
+      if i > 300 then h
+      else
+        let fi = float_of_int(i) in
+        let an = (0.0 -. fi) *. (fi -. a) in
+        let b2 = b +. 2.0 in
+        let d2 = 1.0 /. (an *. d +. b2) in
+        let c2 = b2 +. an /. c in
+        go(i + 1, b2, c2, d2, h *. (d2 *. c2))
+    in
+    let b0 = x +. 1.0 -. a in
+    let d0 = 1.0 /. b0 in
+    exp(0.0 -. x +. a *. log(x) -. gln) *. go(1, b0, 1000000000.0 *. 1000000000.0 *. 1000000000.0, d0, d0)
+in
+# chi-square survival function P(X > x) for df degrees of freedom #
+let chi2_sf = fun (x: Float, df: Float) -> gammq(df /. 2.0, x /. 2.0) in

@@ -1,0 +1,21 @@
+# DA-Bench id 522: chi-square independence of Title (from Name) vs Pclass, titanic.csv. #
+let data = ^^csv("titanic.csv") in
+let title_of = fun (name: String) ->
+  let before = nth(string_split(".", name), 0) in
+  let toks = string_split(" ", before) in
+  let raw = nth(toks, length(toks) - 1) in
+  if (raw == "Mr") || (raw == "Mrs") || (raw == "Miss") then raw else "Other"
+in
+let titles_l = map(data, fun r -> title_of(r.`Name`)) in
+let pcs_l = map(data, fun r -> string_trim(r.`Pclass`)) in
+let keys = map(data, fun r -> title_of(r.`Name`) ++ "|" ++ string_trim(r.`Pclass`)) in
+let titles = ["Mr", "Mrs", "Miss", "Other"] in
+let pcs = ["1", "2", "3"] in
+let n = float_of_int(length(data)) in
+let chi2 =
+  fold_left(titles, (fun (acc, t) ->
+    acc +. fold_left(pcs, (fun (a2, c) ->
+      let e = float_of_int(count_eq(titles_l, t)) *. float_of_int(count_eq(pcs_l, c)) /. n in
+      let o = float_of_int(count_eq(keys, t ++ "|" ++ c)) in
+      a2 +. (o -. e) *. (o -. e) /. e), 0.0)), 0.0) in
+(chi_square_statistic = round2(chi2), p_value = round4(chi2_sf(chi2, 6.0)))
