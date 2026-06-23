@@ -3171,6 +3171,60 @@ else 2¦|})
   ),
 ];
 
+/* Regression: an incomplete list literal `[1,2` whose closing `]` is still
+ * pending in the backpack, ending a line just before `in`, must mold as a
+ * ListLit — not silently degrade to a Tuple.
+ *
+ * The semantic term is built via MakeTerm.from_zip_for_sem, which runs the
+ * backpack dump (Dump.to_zipper) to put the `]` down before evaluating. The
+ * dump scans rightward putting shards down "as far as they go"; when the
+ * caret crosses `in`, the `]` exits the `[`'s segment and can_put_down goes
+ * false, so it should drop at the prior position (before `in`). A precedence
+ * bug let move_until_cant_put_down's linebreak branch fire even after
+ * can_put_down went false — overshooting past the end-of-line linebreak into
+ * the let body, where the `]` couldn't reconnect and was dropped. The def
+ * then molded as `(1, 2)` instead of `[1, 2]`, which is what an on-`[1,2`
+ * probe displayed. See Dump.re move_until_cant_put_down. */
+let def_kind = (src: string): string => {
+  let z = mk(src) |> perform(Zipper.init());
+  let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
+  switch (Language.IdTagged.term_of(term)) {
+  | Let(_, def, _) =>
+    switch (Language.IdTagged.term_of(def)) {
+    | ListLit(_) => "ListLit"
+    | Tuple(_) => "Tuple"
+    | _ => "other"
+    }
+  | _ => "not-a-let"
+  };
+};
+
+let incomplete_list_dump_tests = [
+  test_case(
+    "Incomplete list before `in`+linebreak molds ListLit not Tuple", `Quick, () =>
+    check(string, "def kind", "ListLit", def_kind({|let a = [1,2¦ in
+b|}))
+  ),
+  test_case(
+    "Type-annotated incomplete list molds ListLit (as in reported program)",
+    `Quick,
+    () =>
+    check(
+      string,
+      "def kind",
+      "ListLit",
+      def_kind({|let a:[Int] = [1,2¦   in
+a|}),
+    )
+  ),
+  test_case(
+    "Already-multiline incomplete list still closes before `in`", `Quick, () =>
+    check(string, "def kind", "ListLit", def_kind({|let a = [1,
+2¦ in
+b|}))
+  ),
+];
+
 /* Test that wrapping a selection across a tile boundary doesn't cause
  * stack overflow. Scenario: (§1)¦ + Insert("(") produces orphan shards
  * from the original (...) tile at different nesting levels. Without the
@@ -3267,5 +3321,6 @@ let tests = [
   ("Editing.CommentRemold", comment_remold_tests),
   ("Editing.CommentToggleExtra", comment_toggle_extra_tests),
   ("Editing.AncestorSort", ancestor_sort_tests),
+  ("Editing.IncompleteListDump", incomplete_list_dump_tests),
   ("Editing.CrossBoundaryPaste", cross_boundary_paste_tests),
 ];
