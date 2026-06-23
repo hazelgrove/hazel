@@ -123,17 +123,6 @@
   filter: drop-shadow(var(--off-x) var(--off-y) var(--blur) var(--G0));
 }
 
-.refractors .overlays .projector.probe .num-samples {
-  right: -0.85em;
-  top: 1.05em;
-  transform-origin: top right;
-  scale: 0.6;
-  font-size: 0.8em;
-  padding: 0.1em;
-  min-width: 1.2em;
-  pointer-events: none;
-}
-
 .refractors .projector.probe .sample .code {
   line-height: 1.41;
 }
@@ -145,23 +134,6 @@
 .refractors .child-line {
   /* To make it align to shard shadows */
   translate: 0 0.02px;
-}
-
-.refractors path.child-line.dashed {
-  stroke-dasharray: 0.5 2.5;
-  opacity: 0.4;
-}
-.refractors svg:has(.refractor-indicated) + svg path.child-line.dashed {
-  stroke: var(--G0) !important;
-  opacity: 1;
-}
-.refractors svg:has(.refractor-indicated) + svg path.child-line.statics.dashed {
-  stroke: #bd92cf !important;
-  opacity: 1;
-}
-
-.refractors .overlays .projector.probe.indicated.Right .num-samples {
-  background-color: var(--exp-indicated) !important;
 }
 
 .indication-refractored svg.shard.indicated > path {
@@ -225,68 +197,50 @@
   filter: invert(1);
 }
 
-/* OVERLAY VIEW */
-
-.overlays .projector.probe .num-samples {
+/* SAMPLE-COUNT CIRCLE
+ *
+ * Previously an overlay over the syntax (where it could cover commas).
+ * Now it renders in-flow as the first item of the samples row: a small
+ * circle at the very start of the samples (just after the nav-bar
+ * controls, separated by the .live-offside gap), vertically centered on
+ * the sample line, with a couple px between it and the first sample. It
+ * claims only as much horizontal room as its content needs.
+ *
+ * Tweak knobs:
+ *   --count-gap   space between the circle and the first sample. The
+ *                 .sample-groups flex `gap` (5px) also sits here, so this
+ *                 margin is ADDED on top (negative tightens; the default
+ *                 nets ~2px).
+ *   height / min-width / font-size  control the circle's size. */
+.live-offside .num-samples {
   pointer-events: auto;
-  position: absolute;
-  right: -0.55em;
-  top: -0.3em;
-  transform-origin: top right;
-  scale: 0.6;
-  color: oklch(1 0 0);
-  font-family: var(--ui-font);
+  align-self: center;
+  box-sizing: border-box;
   display: flex;
+  align-items: center;
   justify-content: center;
-  border-radius: 2em;
-  font-size: 0.7em;
-  padding: 0.3em;
-  min-width: 1.2em;
-  --original-bg: inherit;
-  background-color: var(--original-bg);
-}
-.overlays .projector.probe.Exp .num-samples {
-  --original-bg: var(--exp-base);
+  height: 1.35em;
+  min-width: 1.35em;
+  padding: 0 0.3em;
+  border-radius: 1em;
+  font-family: var(--ui-font);
+  font-size: 0.5em;
+  line-height: 1;
+  background-color: var(--exp-base);
   color: var(--exp-shadow);
 }
-.overlays .projector.probe.Pat .num-samples {
-  --original-bg: var(--pat-base);
-  color: var(--PAT);
-}
-.overlays .projector.probe.indicated.Exp .num-samples {
-  --original-bg: var(--exp-indicated);
+
+.projector.probe.indicated .live-offside .num-samples {
+  background-color: var(--R1);
   color: var(--SAND);
 }
-.overlays .projector.probe.indicated.Pat .num-samples {
-  --original-bg: var(--pat-indicated);
-  color: var(--SAND);
-}
-/* .overlays .projector.probe.error:not(.selected) .num-samples {
-  --original-bg: var(--R1);
-} */
-.overlays .projector.probe.selected .num-samples {
-  --original-bg: var(--num-samples);
-  color: black;
-}
 
-@keyframes blink-probe-caret {
-  from,
-  to {
-    background-color: var(--R1);
-  }
-
-  50% {
-    background-color: var(--original-bg);
-  }
-}
-.overlays .projector.probe.indicated.Right .num-samples {
-  /* Commented out for now due to desync problem */
-  /* animation: 1s blink-probe-caret step-end infinite; */
-  background-color: var(--num-samples-indicated) !important;
-}
-
-.overlays .projector.probe.selected:not(.indicated) .num-samples {
-  color: var(--STONE);
+.below-wrapper .live-offside .num-samples {
+  position: absolute;
+  top: 6px;
+  left: 2px;
+  align-self: auto;
+  margin: 0;
 }
 
 .live-offside .pin {
@@ -639,7 +593,7 @@
   }
 }
 .projector.probe:not(.indicated) .sample:hover .value {
-  border-bottom: 1px double var(--R1);
+  outline: 1px dotted var(--R1);
   animation: flash-border 1s infinite;
 }
 

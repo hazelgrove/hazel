@@ -564,7 +564,6 @@ module View = {
             Arms.Refractors.all(
               ~font_metrics=globals.font_metrics,
               ~syntax=model.editor.syntax,
-              ~dynamics,
               model.editor.state.zipper,
             ),
           ]

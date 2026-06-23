@@ -593,11 +593,6 @@ module Debug = {
     ++ Printf.sprintf("%.0f", sample.time);
 };
 
-/* Find first compatible renderer for an expression */
-let find_compatible_renderer =
-    (sort: Sort.t, exp: Exp.t): option(RichProbe.packed_renderer) =>
-  List.find_opt(r => r.can_handle(sort, exp), renderers);
-
 let pin_call = (ctx: probe_ctx) =>
   switch (ctx.ap_id, Dynamics.Info.is_in(ctx.dynamics)) {
   | (Some(ap_id), Some(sample)) =>
@@ -1715,23 +1710,21 @@ let nav_bar_view = (ctx: probe_ctx, ~num_total, ~show_arrows: bool) => {
   );
 };
 
-let num_samples_view = (~ap_id: option(Id.t), dynamics: Dynamics.Info.t) => {
-  let num_samples =
-    Sample.Selection.filter_by_pin(
-      ~ap_id,
-      ~pinned=dynamics.sample_focus.pinned_stack,
-      dynamics.samples,
-    )
-    |> List.length;
-  let description = num_samples < 1000 ? string_of_int(num_samples) : "1k+";
+let num_samples_view = (~count: int) => {
+  let description = count < 1000 ? string_of_int(count) : "1k+";
+  let tooltip = string_of_int(count) ++ (count == 1 ? " sample" : " samples");
   div(
-    ~attrs=[
-      Attr.title(string_of_int(num_samples)),
-      Attr.classes(["num-samples"]),
-    ],
+    ~attrs=[Attr.title(tooltip), Attr.classes(["num-samples"])],
     [text(description)],
   );
 };
+
+/* The sample-count circle, or nothing. Hidden when there's only a single
+ * sample; change the guard to `count >= 1` to always show it. It sits at
+ * the start of the samples row (see live_offside_view); in drawer mode CSS
+ * pins it in the left gutter near the top. */
+let count_badge_nodes = (~count: int) =>
+  count > 1 ? [num_samples_view(~count)] : [];
 
 let round_up = (ctx: probe_ctx, sample): int => {
   let (_, cur) =
@@ -2139,10 +2132,19 @@ let live_offside_view =
             ),
           groups,
         );
+      /* Sample-count circle, in-flow at the start of the samples row. In
+       * drawer mode CSS pins it in the left gutter near the top instead
+       * (see `.below-wrapper .live-offside .num-samples`). */
+      let count_badge = count_badge_nodes(~count=num_total);
       let samples_part =
         group_views == []
           ? []
-          : [div(~attrs=[Attr.classes(["sample-groups"])], group_views)];
+          : [
+            div(
+              ~attrs=[Attr.classes(["sample-groups"])],
+              count_badge @ group_views,
+            ),
+          ];
       let has_overflow = num_shown > 0 && num_shown < num_total;
       let nav_bar_part =
         include_nav_bar
@@ -2168,28 +2170,6 @@ let get_current = (~settings, info: info) => {
   | _ => None
   };
 };
-
-let overlay_view = (~settings, ~sort, info: info): Node.t =>
-  switch (info.dynamics, info.statics) {
-  | (Some(dynamics), Some(statics)) =>
-    let ap_id = Sample.Focus.cur_var_ap(statics);
-    let has_renderer =
-      switch (get_current(~settings, info)) {
-      | Some(exp) => Option.is_some(find_compatible_renderer(sort, exp))
-      | None => false
-      };
-    div(
-      ~attrs=[
-        Attr.classes(
-          ["overlay"]
-          @ (Option.is_some(ap_id) ? ["ap"] : [])
-          @ (has_renderer ? ["has-renderer"] : []),
-        ),
-      ],
-      [num_samples_view(~ap_id, dynamics)],
-    );
-  | _ => Node.div([])
-  };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type a = action;
@@ -2439,7 +2419,7 @@ module M: Projector = {
       };
     View.{
       inline: Node.div([]),
-      overlay: Some(overlay_view(~settings, ~sort, info)),
+      overlay: None,
       offside: Some(offside_node),
       below:
         switch (data_opt, drawer) {
