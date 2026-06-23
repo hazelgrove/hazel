@@ -56,22 +56,20 @@ answer needs `0`/`1` (e.g. 178's scaled min/max) use `int_of_float`, and for a v
 like `9.0` (219) a tiny local helper appends a `0` after a trailing dot. No shared
 infra was added.
 
-## Phase 2 — Python-repr formatting helper → dict answers
+## Phase 2 — Python-repr formatting helper → dict answers — DONE (2 solved)
 
-Some answers are a Python dict literal. Build one reusable prelude helper, then
-solve the dict tasks.
+Built three reusable `prelude.hz` helpers and solved the dict tasks:
 
-- **Build:** `py_dict(keys: [String], vals: [String]) -> String` emitting
-  `{'k1': v1, 'k2': v2, ...}` (single-quoted keys, `: `, `, ` separators), plus a
-  `py_num` formatter that matches Python's repr — the catch is `string_of_float`
-  prints integer-valued floats as `594.` where Python wants `594.0` (or bare `594`
-  for an int count). Encapsulate that fix once.
-- **Unblocks:** **450** (avg WINDSPEED per month → `{'month_1': 7.17, ...}`; month is
-  a substring of the date, so no calendar math), **451** (missing-count per column →
-  `{'WINDSPEED': 594, ...}`). Reusable for any future dict/list-of-number answer.
+- **`py_dict(keys, vals)`** — parallel key/value-string lists → `{'k1': v1, ...}`
+  (single-quoted keys, `: `, `, ` separators). Best when keys are dynamic.
+- **`dict_of_tuple(show_val, t)`** — a labeled tuple → dict via `to_lvs`, with a
+  per-value formatter (e.g. `dict_of_tuple(string_of_int, (a=1, b=2))` = `{'a': 1, 'b': 2}`).
+- **`py_float(x)`** — Python-repr float: appends `0` after a bare trailing dot, since
+  `string_of_float(6.0)` is `6.` where Python wants `6.0`.
 
-**Effort:** low (one helper + 2 solutions). **Risk:** medium — must match Python's
-exact text (brace/quote/spacing and int-vs-float repr) for string equality.
+Solved ✅: **450** (avg WINDSPEED per month → `{'month_1': 7.17, ...}`; `DATE TIME` is
+MM/DD/YYYY, month = field 0), **451** (missing-count per column → `{'DATE TIME': 0,
+'WINDSPEED': 594, ...}`). Both verified against the labels and in `test.sh`.
 
 ## Phase 3 — Edge-case / quirk labels
 
@@ -175,7 +173,8 @@ some of these 20 may remain unmatched.
 ## Suggested execution order & realistic outcome
 
 1. **Phase 1** — DONE: 11 solved (155 → **166**), 252 documented as a label defect.
-2. **Phase 2** (~4) + **Phase 4/688** (1) — small helpers, quick wins (~171).
+2. **Phase 2** — DONE: 2 solved (450, 451 → **168**) via the dict helpers.
+   Next quick win: **Phase 4/688** (epoch→hour, trivial integer math).
 3. **Phase 3** (~5) — decide per task; close out or document (~176, minus the
    label-wrong ones we choose to leave).
 4. **Phase 4/234** (1) — date helper.

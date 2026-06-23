@@ -145,3 +145,21 @@ let join_with = fun (sep: String, xs: [String]) ->
   if length(xs) == 0 then ""
   else fold_left(tail(xs), fun (a, p) -> a ++ sep ++ p, head(xs))
 in
+# Python-style float repr: string_of_float renders integer-valued floats as "6.", #
+# so append a "0" after a trailing dot to get "6.0" (matches Python's repr). #
+let py_float = fun (x: Float) ->
+  let s = string_of_float(x) in
+  let n = string_length(s) in
+  if string_sub(s, n - 1, 1) == "." then s ++ "0" else s
+in
+# format parallel key/value-string lists as a Python dict literal: {'k': v, ...} #
+let py_dict = fun (keys: [String], vals: [String]) ->
+  "{" ++ join_with(", ", map(zip(keys, vals), fun (k, v) -> "'" ++ k ++ "': " ++ v)) ++ "}"
+in
+# format a labeled tuple as a Python dict literal; show_val stringifies each value, #
+# e.g. dict_of_tuple(string_of_int, (a=1, b=2)) = "{'a': 1, 'b': 2}". #
+let dict_of_tuple = fun (show_val, t) ->
+  "{"
+  ++ join_with(", ", map(to_lvs(t), fun lv -> "'" ++ lv.label ++ "': " ++ show_val(lv.value)))
+  ++ "}"
+in

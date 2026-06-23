@@ -1,0 +1,9 @@
+# DA-Bench id 451: count of missing (blank) values per column as a Python dict, baro_2015.csv. #
+let data = ^^csv("baro_2015.csv") in
+let cb = fun (col) -> length(filter(map(data, col), fun s -> string_trim(s) == "")) in
+let keys = ["DATE TIME", "WINDSPEED", "DIR", "GUSTS", "AT", "BARO", "RELHUM", "VIS"] in
+let counts =
+  [cb(fun r -> r.`DATE TIME`), cb(fun r -> r.`WINDSPEED`), cb(fun r -> r.`DIR`),
+   cb(fun r -> r.`GUSTS`), cb(fun r -> r.`AT`), cb(fun r -> r.`BARO`),
+   cb(fun r -> r.`RELHUM`), cb(fun r -> r.`VIS`)] in
+py_dict(keys, map(counts, string_of_int))

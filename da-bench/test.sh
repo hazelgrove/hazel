@@ -186,6 +186,9 @@ CASES=(
   "da665-price-category.hz"
   "da77-microsoft-monthly-close.hz"
   "da510-hotel-brand-star.hz"
+  # PLAN.md Phase 2: Python-dict answers via py_dict / dict_of_tuple prelude helpers
+  "da450-monthly-windspeed.hz"
+  "da451-missing-per-column.hz"
 )
 
 # Strip trailing zeros from every decimal so 34.650000 == 34.65, 0.141000 == 0.141,

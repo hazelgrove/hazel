@@ -10,7 +10,7 @@ express the computation and produce the correct answer? Solutions are plaintext
 `.hz` files; data is loaded at edit-time via the `^^csv("file.csv")` hook (no
 runtime side effects — the language stays pure).
 
-**Status: 166 / 257 dev tasks solved & verified.** The authoritative ledger of
+**Status: 168 / 257 dev tasks solved & verified.** The authoritative ledger of
 what passes / what's left and why is [`RESULTS.md`](./RESULTS.md); the
 authoritative list of passing cases is the `CASES` array in `test.sh` (every
 entry is checked against the InfiAgent label).
@@ -113,6 +113,9 @@ becomes the body — **don't redefine these in solutions, just use them:**
   (tolerates `5,350,380` thousands separators), `num_loose` (drops non-numeric cells
   via `string_match`, e.g. a `null` sentinel or a stray header leak), `num_clean`
   (leading number before a `[` bracket, e.g. `298[110-510]`).
+- Python-dict answers (the grader expects `{'k': v, ...}` text): `py_dict(keys, vals)`
+  from parallel string lists, `dict_of_tuple(show_val, t)` from a labeled tuple (via
+  `to_lvs`), and `py_float(x)` for Python float repr (`6.0`, not `string_of_float`'s `6.`).
 
 A typical solution is just:
 
@@ -254,11 +257,11 @@ or a **Python data-structure repr**:
   `string_of_float` + `++` / `join_with`; integer-valued floats (which
   `string_of_float` renders as `594.`) handled with `int_of_float` or a trailing-dot
   fixup.
-- **Python-dict answers — still open (Phase 2):** id 450 `{'month_1': 7.17, …}`,
-  id 451 `{'WINDSPEED': 594, …}`. Buildable the same way, but need Python's exact
-  `{'k': v}` text (braces, single-quotes, spacing) and float repr to satisfy the
-  string-equality grader. Pure serialization work, **no language limit** — just not
-  yet done.
+- **Python-dict answers — SOLVED** (Phase 2): id 450 `{'month_1': 7.17, …}`, id 451
+  `{'DATE TIME': 0, 'WINDSPEED': 594, …}`. Built three reusable prelude helpers —
+  `py_dict(keys, vals)` (from parallel string lists), `dict_of_tuple(show_val, t)`
+  (from a labeled tuple via `to_lvs`), and `py_float` (Python float repr) — which emit
+  the exact `{'k': v}` text the string-equality grader wants.
 
 ## Not Hazel's problem — benchmark artifacts (~6 tasks, "the degenerate issue")
 

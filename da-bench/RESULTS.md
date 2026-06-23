@@ -50,9 +50,9 @@ data-cleaning wrinkle):
   empty filtered set); id 741 grades the literal column name `"ratio"`. Not a
   computation in the usual sense.
 
-## Tally (257 dev tasks) — 166 solved, 91 accounted for
+## Tally (257 dev tasks) — 168 solved, 89 accounted for
 
-- **Solved & verified — 166** (in `test.sh`, every output matches the InfiAgent label):
+- **Solved & verified — 168** (in `test.sh`, every output matches the InfiAgent label):
   mean/median/std (sample & population)/min/max/range, Pearson correlation,
   skewness (pandas-adjusted AND scipy-biased), kurtosis, IQR & Z-score outlier
   detection/removal, group-by aggregation, feature engineering (ratios, sums,
@@ -67,16 +67,17 @@ data-cleaning wrinkle):
   Plus 11 PLAN.md Phase-1 tasks (write-only, no new infra): 62, 77, 178, 219, 321, 453, 510,
   572, 574, 589, 665 — multi-step preprocessing, IQR/argmax over groups, and multi-number
   string answers assembled with `string_of_int`/`string_of_float` + `join_with`.
+  Plus 2 PLAN.md Phase-2 tasks (450, 451) — Python-dict answers via new `py_dict` /
+  `dict_of_tuple` / `py_float` prelude helpers.
 - **Inexpressible — scipy p-value / hypothesis tests (class A): 58.** Shapiro, KS,
   normaltest, t-test, ANOVA, chi-square, Mann-Whitney, etc. A coefficient is fine; the
   test statistic's p-value is not (no distribution CDFs / special functions).
 - **Inexpressible — sklearn / ML models (class B): 20.** Fitted regression/classification,
   clustering, `train_test_split(random_state=…)` (needs numpy RNG).
-- **Former class E (stack-overflow, NOW FIXED): 31 → 24 solved + 7 other.** The fix +
-  Phase 1 now cover 24 (incl. 123/555 via `distinct_strings` and 453/572/574/665 from
-  Phase 1). The remaining 7: **2 label-discrepancy** (361, 662 — correct computation,
-  wrong/degenerate label), **2 Python-dict answers** (450, 451 — expressible via
-  `string_of_float`, just need the exact `{'k': v}` text; Phase 2), **2 degenerate spec**
+- **Former class E (stack-overflow, NOW FIXED): 31 → 26 solved + 5 other.** The fix +
+  Phases 1–2 now cover 26 (incl. 123/555 via `distinct_strings`, 453/572/574/665 from
+  Phase 1, and 450/451 via the dict helpers). The remaining 5: **2 label-discrepancy**
+  (361, 662 — correct computation, wrong/degenerate label), **2 degenerate spec**
   (554 nan, 760 all-zero), and **1 ambiguous** (468).
 - **Class H — multi-number string answers: 3, NOW SOLVED** (77, 178, 219; folded into
   the 166). Assembled with `string_of_int`/`string_of_float` + `join_with`; integer-valued
@@ -94,8 +95,8 @@ data-cleaning wrinkle):
   (Myanmar) and is excluded from `test.sh`, like 361/662.
   (The other former "future work" — 62, 321, 510, 589 — were solved in Phase 1.)
 
-166 + 58 + 20 + 7 + 2 + 1 + 1 + 1 + 1 = 257. Every task is accounted for.
-(The 7 is the former-class-E remainder; the 24 solved former-E tasks are inside the 166.
+168 + 58 + 20 + 5 + 2 + 1 + 1 + 1 + 1 = 257. Every task is accounted for.
+(The 5 is the former-class-E remainder; the 26 solved former-E tasks are inside the 168.
 The trailing 1 is the id-252 label defect.)
 
 ## Builtins / tooling changes made for this effort

@@ -1,0 +1,9 @@
+# DA-Bench id 450: average WINDSPEED per month as a Python dict, baro_2015.csv. #
+# DATE TIME is MM/DD/YYYY (month = field 0), despite the prompt saying YYYY-MM-DD. #
+let data = ^^csv("baro_2015.csv") in
+let mon = map(data, fun r -> nth(string_split("/", string_trim(r.`DATE TIME`)), 0)) in
+let ws = map(data, fun r -> r.`WINDSPEED`) in
+let months = ["01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12"] in
+let keys = map(months, fun m -> "month_" ++ string_of_int(int_of_string(m))) in
+let vals = map(months, fun m -> py_float(round2(mean(num(col_where(mon, ws, m)))))) in
+py_dict(keys, vals)
