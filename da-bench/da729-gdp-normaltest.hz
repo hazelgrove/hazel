@@ -1,0 +1,4 @@
+# DA-Bench id 729: D'Agostino normaltest on gdppercap, gapminder_cleaned.csv. #
+let data = ^^csv("gapminder_cleaned.csv") in
+let p = normaltest_p(num(data.`gdppercap`)) in
+if p >. 0.05 then "normal" else "not normal"

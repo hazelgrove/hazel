@@ -200,6 +200,17 @@ CASES=(
   "da408-fare-age-corr.hz"
   "da34-retention-importance-corr.hz"
   "da668-houseage-value-corr.hz"
+  "da11-high-low-corr.hz"
+  "da66-wage-exper-corr.hz"
+  "da140-votes-corr.hz"
+  "da452-wind-baro-dir180.hz"
+  "da326-eventhour-corr.hz"
+  # Phase 5 t-tests (pooled + Welch) and D'Agostino normaltest
+  "da109-loan-by-education.hz"
+  "da415-male-fare-survival-ttest.hz"
+  "da419-weekday-weekend-ttest.hz"
+  "da652-xcoord-normaltest.hz"
+  "da729-gdp-normaltest.hz"
 )
 
 # Strip trailing zeros from every decimal so 34.650000 == 34.65, 0.141000 == 0.141,

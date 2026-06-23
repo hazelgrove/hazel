@@ -1,0 +1,4 @@
+# DA-Bench id 652: D'Agostino normaltest on the X column, DES=+2006261.csv. #
+let data = ^^csv("DES=+2006261.csv") in
+let p = normaltest_p(num(data.`X`)) in
+(normality_test_p_value = round4(p), normal_distribution = if p >. 0.05 then "True" else "False")

@@ -225,3 +225,72 @@ let pearson_p = fun (r: Float, n: Int) ->
   let df = float_of_int(n - 2) in
   t_sf2(r *. sqrt(df /. (1.0 -. r *. r)), df)
 in
+# independent two-sample t-test, pooled variance (scipy.stats.ttest_ind), two-sided p #
+let ttest_ind_p = fun (xs: [Float], ys: [Float]) ->
+  let n1 = float_of_int(length(xs)) in
+  let n2 = float_of_int(length(ys)) in
+  let m1 = mean(xs) in
+  let m2 = mean(ys) in
+  let v1 = sum(map(xs, fun x -> (x -. m1) *. (x -. m1))) /. (n1 -. 1.0) in
+  let v2 = sum(map(ys, fun y -> (y -. m2) *. (y -. m2))) /. (n2 -. 1.0) in
+  let sp2 = ((n1 -. 1.0) *. v1 +. (n2 -. 1.0) *. v2) /. (n1 +. n2 -. 2.0) in
+  t_sf2((m1 -. m2) /. sqrt(sp2 *. (1.0 /. n1 +. 1.0 /. n2)), n1 +. n2 -. 2.0)
+in
+# Welch two-sample t-test (scipy.stats.ttest_ind with equal_var=False), two-sided p #
+let ttest_welch_p = fun (xs: [Float], ys: [Float]) ->
+  let n1 = float_of_int(length(xs)) in
+  let n2 = float_of_int(length(ys)) in
+  let m1 = mean(xs) in
+  let m2 = mean(ys) in
+  let v1 = sum(map(xs, fun x -> (x -. m1) *. (x -. m1))) /. (n1 -. 1.0) in
+  let v2 = sum(map(ys, fun y -> (y -. m2) *. (y -. m2))) /. (n2 -. 1.0) in
+  let se2 = v1 /. n1 +. v2 /. n2 in
+  let df = se2 *. se2 /. ((v1 /. n1) *. (v1 /. n1) /. (n1 -. 1.0) +. (v2 /. n2) *. (v2 /. n2) /. (n2 -. 1.0)) in
+  t_sf2((m1 -. m2) /. sqrt(se2), df)
+in
+# D'Agostino-Pearson normality test p-value (scipy.stats.normaltest); K2 ~ chi2(2), p = exp(-K2/2) #
+let normaltest_p = fun (xs: [Float]) ->
+  let n = float_of_int(length(xs)) in
+  let m = mean(xs) in
+  let m2 = sum(map(xs, fun x -> let d = x -. m in d *. d)) /. n in
+  let m3 = sum(map(xs, fun x -> let d = x -. m in d *. d *. d)) /. n in
+  let m4 = sum(map(xs, fun x -> let d = x -. m in d *. d *. d *. d)) /. n in
+  let b1 = m3 /. (m2 *. sqrt(m2)) in
+  let b2 = m4 /. (m2 *. m2) in
+  let y = b1 *. sqrt((n +. 1.0) *. (n +. 3.0) /. (6.0 *. (n -. 2.0))) in
+  let beta2 = 3.0 *. (n *. n +. 27.0 *. n -. 70.0) *. (n +. 1.0) *. (n +. 3.0) /. ((n -. 2.0) *. (n +. 5.0) *. (n +. 7.0) *. (n +. 9.0)) in
+  let w2 = (0.0 -. 1.0) +. sqrt(2.0 *. (beta2 -. 1.0)) in
+  let delta = 1.0 /. sqrt(0.5 *. log(w2)) in
+  let alpha = sqrt(2.0 /. (w2 -. 1.0)) in
+  let ya = y /. alpha in
+  let zs = delta *. log(ya +. sqrt(ya *. ya +. 1.0)) in
+  let e = 3.0 *. (n -. 1.0) /. (n +. 1.0) in
+  let varb2 = 24.0 *. n *. (n -. 2.0) *. (n -. 3.0) /. ((n +. 1.0) *. (n +. 1.0) *. (n +. 3.0) *. (n +. 5.0)) in
+  let xx = (b2 -. e) /. sqrt(varb2) in
+  let sb1 = 6.0 *. (n *. n -. 5.0 *. n +. 2.0) /. ((n +. 7.0) *. (n +. 9.0)) *. sqrt(6.0 *. (n +. 3.0) *. (n +. 5.0) /. (n *. (n -. 2.0) *. (n -. 3.0))) in
+  let aa = 6.0 +. 8.0 /. sb1 *. (2.0 /. sb1 +. sqrt(1.0 +. 4.0 /. (sb1 *. sb1))) in
+  let term1 = 1.0 -. 2.0 /. (9.0 *. aa) in
+  let denom = 1.0 +. xx *. sqrt(2.0 /. (aa -. 4.0)) in
+  let cr = exp(log((1.0 -. 2.0 /. aa) /. abs_float(denom)) /. 3.0) in
+  let term2 = if denom <. 0.0 then 0.0 -. cr else cr in
+  let zk = (term1 -. term2) /. sqrt(2.0 /. (9.0 *. aa)) in
+  let k2 = zs *. zs +. zk *. zk in
+  exp(0.0 -. k2 /. 2.0)
+in
+# Gregorian days since 1970-01-01 (Howard Hinnant's days_from_civil); pure integer math #
+let days_civil = fun (y0: Int, mo: Int, d: Int) ->
+  let y = if mo <= 2 then y0 - 1 else y0 in
+  let era = (if y >= 0 then y else y - 399) / 400 in
+  let yoe = y - era * 400 in
+  let mp = if mo > 2 then mo - 3 else mo + 9 in
+  let doy = (153 * mp + 2) / 5 + d - 1 in
+  let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy in
+  era * 146097 + doe - 719468
+in
+# 3-letter English month abbreviation -> 1..12 #
+let monthnum = fun (m: String) ->
+  if m == "Jan" then 1 else if m == "Feb" then 2 else if m == "Mar" then 3
+  else if m == "Apr" then 4 else if m == "May" then 5 else if m == "Jun" then 6
+  else if m == "Jul" then 7 else if m == "Aug" then 8 else if m == "Sep" then 9
+  else if m == "Oct" then 10 else if m == "Nov" then 11 else 12
+in

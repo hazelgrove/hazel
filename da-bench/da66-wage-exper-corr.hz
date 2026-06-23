@@ -1,0 +1,11 @@
+# DA-Bench id 66: Pearson r of wage vs exper + significance class, beauty and the labor market.csv. #
+let data = ^^csv("beauty and the labor market.csv") in
+let pairs =
+  filter(zip(map(data, fun r -> r.`wage`), map(data, fun r -> r.`exper`)),
+    fun (a, b) -> (string_trim(a) != "") && (string_trim(b) != "")) in
+let xs = map(pairs, fun (a, _b) -> float_of_string(string_trim(a))) in
+let ys = map(pairs, fun (_a, b) -> float_of_string(string_trim(b))) in
+let r = pearson(xs, ys) in
+let p = pearson_p(r, length(pairs)) in
+(correlation_coefficient = round2(r),
+ relationship_type = if p <. 0.05 then (if abs_float(r) >=. 0.5 then "linear" else "nonlinear") else "none")

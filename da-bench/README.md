@@ -10,7 +10,7 @@ express the computation and produce the correct answer? Solutions are plaintext
 `.hz` files; data is loaded at edit-time via the `^^csv("file.csv")` hook (no
 runtime side effects — the language stays pure).
 
-**Status: 176 / 257 dev tasks solved & verified.** The authoritative ledger of
+**Status: 186 / 257 dev tasks solved & verified.** The authoritative ledger of
 what passes / what's left and why is [`RESULTS.md`](./RESULTS.md); the
 authoritative list of passing cases is the `CASES` array in `test.sh` (every
 entry is checked against the InfiAgent label).
@@ -117,7 +117,9 @@ becomes the body — **don't redefine these in solutions, just use them:**
   from parallel string lists, `dict_of_tuple(show_val, t)` from a labeled tuple (via
   `to_lvs`), and `py_float(x)` for Python float repr (`6.0`, not `string_of_float`'s `6.`).
 - Hypothesis-test p-values (Phase 5): `erf`, `normal_cdf`, `lgamma`, `betacf`/`betainc`,
-  `t_sf2` (two-sided Student-t), `pearson_p(r, n)` (Pearson-r p-value, = scipy.stats.pearsonr).
+  `t_sf2` (two-sided Student-t), `pearson_p(r, n)` (= scipy.stats.pearsonr), `ttest_ind_p`
+  (pooled) / `ttest_welch_p` (unequal-var) two-sample t-tests, `normaltest_p` (D'Agostino),
+  and `days_civil`/`monthnum` for date parsing.
 
 A typical solution is just:
 
@@ -225,11 +227,12 @@ Hypothesis-test tasks (Shapiro-Wilk, Kolmogorov-Smirnov, t-test, ANOVA,
 chi-square, Mann-Whitney) want a **p-value** or an accept/reject decision. We
 already compute the *test statistic*; the missing piece was the **distribution
 CDF / special functions**. These are ordinary pure numerics, now **being built in
-the prelude**: `erf`/`normal_cdf`, `lgamma`, `betacf`/`betainc`, `t_sf2`, and
-`pearson_p` are done and verified against scipy/known values, so the Pearson-r
-p-value tasks now pass exactly (34, 408, 668). Still to add: `gammainc` (χ²) and an
-F helper; then the t-test, ANOVA, χ², KS, and Shapiro-Wilk waves. **Effort, not
-impossibility** — confirmed now that the numerics match.
+the prelude**: `erf`/`normal_cdf`, `lgamma`, `betacf`/`betainc`, `t_sf2`, `pearson_p`,
+`ttest_ind_p`/`ttest_welch_p`, and `normaltest_p` are done and verified against
+scipy/known values, so the Pearson-r p-value, two-sample t-test, and D'Agostino
+normaltest tasks now pass exactly (13 so far: 11/34/66/140/326/408/452/668, 109/415/419,
+652/729). Still to add: `gammainc` (χ²) and an F helper; then the ANOVA, χ², KS, and
+Shapiro-Wilk waves. **Effort, not impossibility** — confirmed now that the numerics match.
 
 ### 2. ML models + reproducible RNG — ~20 tasks
 

@@ -1,0 +1,18 @@
+# DA-Bench id 326: Pearson r of event_hour (from WCTIMESTRING 12h clock) vs EVENTMSGTYPE, 0020200722.csv. #
+let data = ^^csv("0020200722.csv") in
+let hour_of = fun (s: String) ->
+  let parts = string_split(" ", string_trim(s)) in
+  let hh = int_of_string(nth(string_split(":", nth(parts, 0)), 0)) in
+  let ap = nth(parts, 1) in
+  if (ap == "PM") && (hh != 12) then hh + 12
+  else if (ap == "AM") && (hh == 12) then 0
+  else hh
+in
+let rows = filter(data, fun r -> (string_trim(r.`WCTIMESTRING`) != "") && (string_trim(r.`EVENTMSGTYPE`) != "")) in
+let xs = map(rows, fun r -> float_of_int(hour_of(r.`WCTIMESTRING`))) in
+let ys = map(rows, fun r -> float_of_string(string_trim(r.`EVENTMSGTYPE`))) in
+let r = pearson(xs, ys) in
+let p = pearson_p(r, length(rows)) in
+(correlation_coefficient = round2(r),
+ p_value = round4(p),
+ relationship = if p <. 0.05 then (if abs_float(r) >=. 0.5 then "linear" else "nonlinear") else "none")

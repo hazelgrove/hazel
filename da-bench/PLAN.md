@@ -109,14 +109,17 @@ then needs a **distribution CDF** for the p-value/decision. The CDFs are pure nu
 built once in `prelude.hz`.
 
 **Library — BUILT & verified against scipy/known values:** `erf`, `normal_cdf`,
-`lgamma` (Lanczos), `betacf`/`betainc` (incomplete beta, Lentz continued fraction),
-`t_sf2` (two-sided Student-t), `pearson_p` (Pearson-r p-value). Still to add for later
-waves: `gammainc` (→ χ²) and an F-distribution helper (both fall out of betainc/gammainc).
+`lgamma` (Lanczos), `betacf`/`betainc` (incomplete beta, Lentz), `t_sf2` (two-sided
+Student-t), `pearson_p`, `ttest_ind_p` (pooled), `ttest_welch_p` (unequal-var),
+`normaltest_p` (D'Agostino-Pearson), plus `days_civil`/`monthnum` for date parsing.
+Still to add: `gammainc` (→ χ²) and an F-distribution helper.
 
-**Done so far:** the Pearson-r p-value wave — **34, 408, 668** (correlation_coefficient
-+ p_value + relationship/significance), all exact. Note the `relationship_type`
-classification itself depends on p<0.05, so `pearson_p` also unlocks the corr tasks
-whose label omits the p-value.
+**Done so far (13):** Pearson-r p-value / relationship — **11, 34, 66, 140, 326, 408,
+452, 668**; two-sample t-tests — **109, 415** (pooled), **419** (Welch — its label used
+`equal_var=False`); D'Agostino normaltest — **652, 729**. All exact. Note the
+`relationship_type`/significance classification keys off p<0.05, so `pearson_p` also
+unlocks corr tasks whose label omits the p-value. (id 297 deferred: a pandas
+CSV-parsing discrepancy on the Newick `tree_table.csv`, not a p-value issue.)
 
 **Remaining build, in dependency order:**
 1. (done) `erf` / normal CDF — Abramowitz-Stegun.
@@ -183,10 +186,9 @@ some of these 20 may remain unmatched.
 2. **Phase 2** — DONE: 2 solved (450, 451 → **168**) via the dict helpers.
 3. **Phase 3** — DONE: 3 solved (468, 554, 760 → **171**); 741/743/361/662 documented.
 4. **Phase 4** — DONE: 2 solved (234, 688 → **173**); Class C calendar cleared.
-5. **Phase 5** — IN PROGRESS: special-function library built & verified; Pearson-r
-   p-value wave done (34, 408, 668 → **176**). Remaining waves: more corr p-values
-   (326, 452, 11, 66, 140), D'Agostino normaltest, t-tests, ANOVA, χ², KS, and the big
-   Shapiro-Wilk bucket (~20, hardest).
+5. **Phase 5** — IN PROGRESS: library built & verified; corr p-values, t-tests (pooled
+   & Welch), and D'Agostino normaltest done (13 tasks → **186**). Remaining: χ² + ANOVA
+   (need `gammainc`/F), KS, Mann-Whitney, and the big Shapiro-Wilk bucket (~20, hardest).
 6. **Phase 6** (~20) — last; build RNG + linalg infra, accept that exact sklearn/
    numpy matching may cap how many actually pass.
 

@@ -1,0 +1,15 @@
+# DA-Bench id 419: mean Open price weekday vs weekend + two-sample t-test, bitconnect_price.csv. #
+# Date is "Mon DD, YYYY"; weekday via days_civil; dow 0=Mon..6=Sun, weekend = Sat/Sun. #
+let data = ^^csv("bitconnect_price.csv") in
+let dow = fun (s: String) ->
+  let parts = string_split(" ", string_trim(s)) in
+  let mo = monthnum(nth(parts, 0)) in
+  let d = int_of_string(nth(string_split(",", nth(parts, 1)), 0)) in
+  let y = int_of_string(nth(parts, 2)) in
+  int_mod(days_civil(y, mo, d) + 3, 7)
+in
+let wk = map(filter(data, fun r -> dow(r.`Date`) <= 4), fun r -> float_of_string(string_trim(r.`Open`))) in
+let we = map(filter(data, fun r -> dow(r.`Date`) >= 5), fun r -> float_of_string(string_trim(r.`Open`))) in
+let p = ttest_welch_p(wk, we) in
+(weekday_mean_price = round2(mean(wk)), weekend_mean_price = round2(mean(we)),
+ p_value = round4(p), significance = if p <. 0.05 then "Yes" else "No")

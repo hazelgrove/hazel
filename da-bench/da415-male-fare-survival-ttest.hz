@@ -1,0 +1,9 @@
+# DA-Bench id 415: male passenger Fare survived vs not + t-test significance, titanic_train.csv. #
+let data = ^^csv("titanic_train.csv") in
+let males = filter(data, fun r -> string_trim(r.`Sex`) == "male") in
+let surv = num(map(filter(males, fun r -> string_trim(r.`Survived`) == "1"), fun r -> r.`Fare`)) in
+let died = num(map(filter(males, fun r -> string_trim(r.`Survived`) == "0"), fun r -> r.`Fare`)) in
+let p = ttest_ind_p(surv, died) in
+(survived_fare_mean = round2(mean(surv)), survived_fare_std = round2(sample_std(surv)),
+ not_survived_fare_mean = round2(mean(died)), not_survived_fare_std = round2(sample_std(died)),
+ fare_difference_significance = if p <. 0.05 then "significant" else "not significant")

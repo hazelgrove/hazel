@@ -1,0 +1,7 @@
+# DA-Bench id 109: mean LoanAmount Graduate vs Not Graduate + t-test significance, test_Y3wMUE5_7gLdaTN.csv. #
+let data = ^^csv("test_Y3wMUE5_7gLdaTN.csv") in
+let g = num(map(filter(data, fun r -> string_trim(r.`Education`) == "Graduate"), fun r -> r.`LoanAmount`)) in
+let ng = num(map(filter(data, fun r -> string_trim(r.`Education`) == "Not Graduate"), fun r -> r.`LoanAmount`)) in
+let p = ttest_ind_p(g, ng) in
+(graduate_mean_loan = round2(mean(g)), not_graduate_mean_loan = round2(mean(ng)),
+ significance = if p <. 0.05 then "significant" else "not significant")

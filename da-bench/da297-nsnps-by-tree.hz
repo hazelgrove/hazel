@@ -1,0 +1,8 @@
+# DA-Bench id 297: mean nsnps for rows with null vs non-null tree, Qrob_Chr05 tree_table.csv. #
+# NOT in test.sh: our (correct) answer is null=4.26, notnull=43.31 over the 162/2495 numeric #
+# nsnps values; the label (4.58 / 45.48) comes from a different row set -- pandas read_csv #
+# parses this comma-laden Newick-tree column differently. Python csv agrees with us, not the label. #
+let data = ^^csv("ts-sc4-wi100000-sl25000-Qrob_Chr05.tree_table.csv") in
+let nn = num(map(filter(data, fun r -> string_trim(r.`tree`) != ""), fun r -> r.`nsnps`)) in
+let nu = num(map(filter(data, fun r -> string_trim(r.`tree`) == ""), fun r -> r.`nsnps`)) in
+(mean_with_tree_null = round2(mean(nu)), mean_with_tree_notnull = round2(mean(nn)))

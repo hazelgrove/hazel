@@ -1,0 +1,13 @@
+# DA-Bench id 452: Pearson r of WINDSPEED vs BARO for rows with DIR=180 + p-value, baro_2015.csv. #
+let data = ^^csv("baro_2015.csv") in
+let sel = filter(data, fun r -> string_trim(r.`DIR`) == "180") in
+let pairs =
+  filter(zip(map(sel, fun r -> r.`WINDSPEED`), map(sel, fun r -> r.`BARO`)),
+    fun (a, b) -> (string_trim(a) != "") && (string_trim(b) != "")) in
+let xs = map(pairs, fun (a, _b) -> float_of_string(string_trim(a))) in
+let ys = map(pairs, fun (_a, b) -> float_of_string(string_trim(b))) in
+let r = pearson(xs, ys) in
+let p = pearson_p(r, length(pairs)) in
+(correlation_coefficient = round2(r),
+ p_value = round4(p),
+ relationship_type = if p <. 0.05 then (if abs_float(r) >=. 0.5 then "linear" else "nonlinear") else "none")
