@@ -102,7 +102,7 @@ Documented defects (not solved — emulating them adds nothing):
   average → 364. The date helper is local to `da234` (only task that needs it; promote
   to the prelude if a future task wants date math).
 
-## Phase 5 — Statistics special-function library → p-values (~58, IN PROGRESS)
+## Phase 5 — Statistics special-function library → p-values — DONE (38 solved)
 
 The largest bucket. Every task computes a **test statistic we can already get** and
 then needs a **distribution CDF** for the p-value/decision. The CDFs are pure numerics,
@@ -111,10 +111,11 @@ built once in `prelude.hz`.
 **Library — BUILT & verified against scipy/known values:** `erf`, `normal_cdf`,
 `lgamma` (Lanczos), `betacf`/`betainc` (incomplete beta, Lentz), `t_sf2` (two-sided
 Student-t), `pearson_p`, `ttest_ind_p` (pooled), `ttest_welch_p` (unequal-var),
-`normaltest_p` (D'Agostino-Pearson), plus `days_civil`/`monthnum` for date parsing.
-Still to add: `gammainc` (→ χ²) and an F-distribution helper.
+`normaltest_p` (D'Agostino-Pearson), `gammq`/`chi2_sf` (incomplete gamma → χ²), `anova_p`
+(F via betainc), `kolmogorov_sf`/`ks_norm_p`/`ks_2samp_p`, `mannwhitney_p`, and `probit`
+(Acklam) + `shapiro_w`/`shapiro_p` (Royston AS R94). All verified vs scipy.
 
-**Done so far (13):** Pearson-r p-value / relationship — **11, 34, 66, 140, 326, 408,
+**All solved (38):** the waves below are complete. Originally: Pearson-r p-value / relationship — **11, 34, 66, 140, 326, 408,
 452, 668**; two-sample t-tests — **109, 415** (pooled), **419** (Welch — its label used
 `equal_var=False`); D'Agostino normaltest — **652, 729**. All exact. Note the
 `relationship_type`/significance classification keys off p<0.05, so `pearson_p` also
@@ -187,9 +188,10 @@ some of these 20 may remain unmatched.
 2. **Phase 2** — DONE: 2 solved (450, 451 → **168**) via the dict helpers.
 3. **Phase 3** — DONE: 3 solved (468, 554, 760 → **171**); 741/743/361/662 documented.
 4. **Phase 4** — DONE: 2 solved (234, 688 → **173**); Class C calendar cleared.
-5. **Phase 5** — IN PROGRESS: library built & verified; corr p-values, t-tests (pooled
-   & Welch), and D'Agostino normaltest done (13 tasks → **186**). Remaining: χ² + ANOVA
-   (need `gammainc`/F), KS, Mann-Whitney, and the big Shapiro-Wilk bucket (~20, hardest).
+5. **Phase 5** — DONE: full special-function library (erf, lgamma, betainc, gammainc,
+   probit, Kolmogorov, + Royston Shapiro-Wilk), all verified vs scipy. 38 hypothesis-test
+   tasks solved (192 → **211**). Remaining class-A (20) are regression-significance (Phase 6)
+   + the 297/298 erroneous-label discrepancies.
 6. **Phase 6** (~20) — last; build RNG + linalg infra, accept that exact sklearn/
    numpy matching may cap how many actually pass.
 

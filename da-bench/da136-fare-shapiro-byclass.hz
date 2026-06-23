@@ -1,0 +1,6 @@
+# DA-Bench id 136: Shapiro-Wilk p-value of Fare for each Pclass, titanic.csv. #
+let data = ^^csv("titanic.csv") in
+let fare_c = fun (c: String) -> num(map(filter(data, fun r -> string_trim(r.`Pclass`) == c), fun r -> r.`Fare`)) in
+(p_value_class_1 = round4(shapiro_p(fare_c("1"))),
+ p_value_class_2 = round4(shapiro_p(fare_c("2"))),
+ p_value_class_3 = round4(shapiro_p(fare_c("3"))))

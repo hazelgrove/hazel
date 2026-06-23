@@ -406,3 +406,68 @@ let mannwhitney_p = fun (a: [Float], b: [Float]) ->
   let sg = sqrt(n1 *. n2 *. (n1 +. n2 +. 1.0) /. 12.0) in
   2.0 *. normal_cdf(0.0 -. abs_float((u1 -. mu) /. sg))
 in
+# inverse standard-normal CDF (probit / quantile), Acklam's rational approximation #
+let probit = fun (p: Float) ->
+  let a1 = 0.0 -. 39.69683028665376 in let a2 = 220.9460984245205 in
+  let a3 = 0.0 -. 275.9285104469687 in let a4 = 138.3577518672690 in
+  let a5 = 0.0 -. 30.66479806614716 in let a6 = 2.506628277459239 in
+  let b1 = 0.0 -. 54.47609879822406 in let b2 = 161.5858368580409 in
+  let b3 = 0.0 -. 155.6989798598866 in let b4 = 66.80131188771972 in
+  let b5 = 0.0 -. 13.28068155288572 in
+  let c1 = 0.0 -. 0.007784894002430293 in let c2 = 0.0 -. 0.3223964580411365 in
+  let c3 = 0.0 -. 2.400758277161838 in let c4 = 0.0 -. 2.549732539343734 in
+  let c5 = 4.374664141464968 in let c6 = 2.938163982698783 in
+  let d1 = 0.007784695709041462 in let d2 = 0.3224671290700398 in
+  let d3 = 2.445134137142996 in let d4 = 3.754408661907416 in
+  if (p >. 0.02425) && (p <. 0.97575) then
+    let q = p -. 0.5 in let r = q *. q in
+    let nn = (((((a1 *. r +. a2) *. r +. a3) *. r +. a4) *. r +. a5) *. r +. a6) *. q in
+    let dd = (((((b1 *. r +. b2) *. r +. b3) *. r +. b4) *. r +. b5) *. r +. 1.0) in
+    nn /. dd
+  else if p <=. 0.02425 then
+    let q = sqrt(0.0 -. 2.0 *. log(p)) in
+    (((((c1 *. q +. c2) *. q +. c3) *. q +. c4) *. q +. c5) *. q +. c6)
+      /. ((((d1 *. q +. d2) *. q +. d3) *. q +. d4) *. q +. 1.0)
+  else
+    let q = sqrt(0.0 -. 2.0 *. log(1.0 -. p)) in
+    0.0 -. (((((c1 *. q +. c2) *. q +. c3) *. q +. c4) *. q +. c5) *. q +. c6)
+      /. ((((d1 *. q +. d2) *. q +. d3) *. q +. d4) *. q +. 1.0)
+in
+# [1, 2, ..., n] #
+let range1 = fun (n: Int) ->
+  let go = fun (i: Int, acc: [Int]) -> if i < 1 then acc else go(i - 1, i :: acc) in
+  go(n, [])
+in
+# Shapiro-Wilk W statistic (Royston AS R94 half-sample weights; verified vs scipy.stats.shapiro) #
+let shapiro_w = fun (xs: [Float]) ->
+  let s = sort(cmp, xs) in
+  let n = length(xs) in
+  let nf = float_of_int(n) in
+  let nn2 = n / 2 in
+  let ms = map(range1(nn2), fun i -> probit((float_of_int(i) -. 0.375) /. (nf +. 0.25))) in
+  let summ2 = 2.0 *. sum(map(ms, fun mi -> mi *. mi)) in
+  let rsn = 1.0 /. sqrt(nf) in
+  let m1 = nth(ms, 0) in
+  let m2 = nth(ms, 1) in
+  let pc1 = (((((0.0 -. 2.706056) *. rsn +. 4.434685) *. rsn -. 2.071190) *. rsn -. 0.147981) *. rsn +. 0.221157) *. rsn in
+  let pc2 = (((((0.0 -. 3.582633) *. rsn +. 5.682633) *. rsn -. 1.752461) *. rsn -. 0.293762) *. rsn +. 0.042981) *. rsn in
+  let a1 = pc1 -. m1 /. sqrt(summ2) in
+  let a2 = pc2 -. m2 /. sqrt(summ2) in
+  let fac = sqrt((summ2 -. 2.0 *. m1 *. m1 -. 2.0 *. m2 *. m2) /. (1.0 -. 2.0 *. a1 *. a1 -. 2.0 *. a2 *. a2)) in
+  # weights a[i] aligned with i; pairs (i-th smallest, i-th largest) via zip(s, reverse(s)). #
+  # Built with zip/map (O(n)) rather than nth in a fold (which would be O(n^2)). #
+  let weights = map(zip(range1(nn2), ms),
+    (fun (i, mi) -> if i == 1 then a1 else if i == 2 then a2 else 0.0 -. mi /. fac)) in
+  let pairs = take(zip(s, reverse(s)), nn2) in
+  let b = sum(map(zip(weights, pairs), (fun (w, (lo, hi)) -> w *. (hi -. lo)))) in
+  let mx = mean(xs) in
+  b *. b /. sum(map(xs, fun x -> (x -. mx) *. (x -. mx)))
+in
+# Shapiro-Wilk p-value, Royston's n>=12 normalizing transform (verified vs scipy.stats.shapiro) #
+let shapiro_p = fun (xs: [Float]) ->
+  let w = shapiro_w(xs) in
+  let g = log(float_of_int(length(xs))) in
+  let mu = (((0.0038915 *. g -. 0.083751) *. g -. 0.31082) *. g -. 1.5861) in
+  let ls = ((0.0030302 *. g -. 0.082676) *. g -. 0.4803) in
+  1.0 -. normal_cdf((log(1.0 -. w) -. mu) /. exp(ls))
+in

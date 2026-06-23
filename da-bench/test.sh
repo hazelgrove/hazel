@@ -219,6 +219,26 @@ CASES=(
   "da658-volume-ks-normality.hz"
   "da410-age-ks-2samp.hz"
   "da177-age-class-mannwhitney.hz"
+  # Phase 5 Shapiro-Wilk (Royston AS R94 W + n>=12 p-transform, probit via Acklam)
+  "da10-tradedqty-shapiro.hz"
+  "da39-impscore-shapiro.hz"
+  "da72-close-shapiro.hz"
+  "da130-age-shapiro.hz"
+  "da136-fare-shapiro-byclass.hz"
+  "da139-perdem-shapiro.hz"
+  "da244-homeruns-shapiro.hz"
+  "da268-meanpot-shapiro.hz"
+  "da304-fare-shapiro.hz"
+  "da350-fare-shapiro.hz"
+  "da375-trips-distribution.hz"
+  "da449-windspeed-shapiro.hz"
+  "da602-rhoold-shapiro.hz"
+  "da644-close-shapiro.hz"
+  "da647-pricerange-shapiro.hz"
+  "da667-medinc-shapiro.hz"
+  "da684-humidity-shapiro.hz"
+  "da736-popgdp-shapiro.hz"
+  "da738-age-shapiro.hz"
 )
 
 # Strip trailing zeros from every decimal so 34.650000 == 34.65, 0.141000 == 0.141,

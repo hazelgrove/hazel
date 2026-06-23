@@ -10,7 +10,7 @@ express the computation and produce the correct answer? Solutions are plaintext
 `.hz` files; data is loaded at edit-time via the `^^csv("file.csv")` hook (no
 runtime side effects — the language stays pure).
 
-**Status: 192 / 257 dev tasks solved & verified.** The authoritative ledger of
+**Status: 211 / 257 dev tasks solved & verified.** The authoritative ledger of
 what passes / what's left and why is [`RESULTS.md`](./RESULTS.md); the
 authoritative list of passing cases is the `CASES` array in `test.sh` (every
 entry is checked against the InfiAgent label).
@@ -221,7 +221,7 @@ backticks). **Affects id 618.** This is the only true hard blocker.
 
 Unsolved today, but Hazel *can* express them. These are work items, not blockers.
 
-### 1. Statistical distribution functions / p-values — ~58 tasks (Phase 5, in progress)
+### 1. Statistical distribution functions / p-values — Phase 5 (DONE for all named tests)
 
 Hypothesis-test tasks (Shapiro-Wilk, Kolmogorov-Smirnov, t-test, ANOVA,
 chi-square, Mann-Whitney) want a **p-value** or an accept/reject decision. We

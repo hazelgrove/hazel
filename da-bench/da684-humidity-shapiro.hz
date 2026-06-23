@@ -1,0 +1,4 @@
+# DA-Bench id 684: Shapiro-Wilk normality of humidity, ravenna_250715.csv. #
+let data = ^^csv("ravenna_250715.csv") in
+let p = shapiro_p(num(data.`humidity`)) in
+(distribution_type = if p >. 0.05 then "normal" else "not normal", shapiro_p_value = round4(p))

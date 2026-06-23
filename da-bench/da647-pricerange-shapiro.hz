@@ -1,0 +1,6 @@
+# DA-Bench id 647: Price Range (High-Low) stats + Shapiro-Wilk normality, random_stock_data.csv. #
+let data = ^^csv("random_stock_data.csv") in
+let pr = map(data, fun r -> float_of_string(string_trim(r.`High`)) -. float_of_string(string_trim(r.`Low`))) in
+(price_range_mean = round2(mean(pr)),
+ is_normal = if shapiro_p(pr) <. 0.05 then "no" else "yes",
+ price_range_stddev = round2(sample_std(pr)))

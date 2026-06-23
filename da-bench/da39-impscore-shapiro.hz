@@ -1,0 +1,3 @@
+# DA-Bench id 39: Shapiro-Wilk p-value of importance.score (reported as is_normal), imp.score.ldlr.metabolome.csv. #
+let data = ^^csv("imp.score.ldlr.metabolome.csv") in
+round4(shapiro_p(num(data.`importance.score`)))

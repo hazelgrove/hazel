@@ -1,0 +1,6 @@
+# DA-Bench id 298: Shapiro-Wilk normality of nsamplecov, Qrob_Chr05 tree_table.csv. #
+# NOT in test.sh: scipy.stats.shapiro gives W=0.64, p~2e-59 -> NOT normal (nsamplecov is a #
+# bounded integer coverage count), but the label says is_normal "yes". Same tree_table.csv as #
+# id 297, whose label was also unreproducible. We emit the honest result. #
+let data = ^^csv("ts-sc4-wi100000-sl25000-Qrob_Chr05.tree_table.csv") in
+if shapiro_p(num(data.`nsamplecov`)) >. 0.05 then "yes" else "no"

@@ -1,0 +1,3 @@
+# DA-Bench id 602: Shapiro-Wilk normality of RHO_OLD, well_2_complete.csv. #
+let data = ^^csv("well_2_complete.csv") in
+if shapiro_p(num(data.`RHO_OLD`)) <. 0.05 then "Not Normal" else "Normal"

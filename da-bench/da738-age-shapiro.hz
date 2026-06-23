@@ -1,0 +1,3 @@
+# DA-Bench id 738: Shapiro-Wilk normality of Age, Credit.csv. #
+let data = ^^csv("Credit.csv") in
+if shapiro_p(num(data.`Age`)) <. 0.05 then "Not Normal" else "Normal"

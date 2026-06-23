@@ -1,0 +1,5 @@
+# DA-Bench id 736: Shapiro-Wilk normality of normalized pop*gdppercap, gapminder_cleaned.csv. #
+# Min-max scaling is monotone-affine, so it does not change the Shapiro-Wilk statistic. #
+let data = ^^csv("gapminder_cleaned.csv") in
+let f = map(zip(num(data.`pop`), num(data.`gdppercap`)), (fun (p, g) -> p *. g)) in
+if shapiro_p(f) <. 0.05 then "no" else "yes"

@@ -1,0 +1,3 @@
+# DA-Bench id 644: Shapiro-Wilk normality of Close, random_stock_data.csv. #
+let data = ^^csv("random_stock_data.csv") in
+if shapiro_p(num(data.`Close`)) <. 0.05 then "Not a normal distribution" else "Normal distribution"

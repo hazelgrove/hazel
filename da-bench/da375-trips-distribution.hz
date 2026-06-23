@@ -1,0 +1,5 @@
+# DA-Bench id 375: skewness, kurtosis, Shapiro-Wilk W and p of the Trips column, 2014_q4.csv. #
+let data = ^^csv("2014_q4.csv") in
+let v = num(data.`Trips over the past 24-hours (midnight to 11:59pm)`) in
+(skewness = round4(skew_pop(v)), kurtosis = round4(kurtosis(v)),
+ shapiro_w = round4(shapiro_w(v)), p_value = round4(shapiro_p(v)))

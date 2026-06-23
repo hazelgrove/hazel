@@ -1,0 +1,3 @@
+# DA-Bench id 139: Shapiro-Wilk normality of per_dem, election2016.csv. #
+let data = ^^csv("election2016.csv") in
+if shapiro_p(num(data.`per_dem`)) <. 0.05 then "not normal" else "normal"

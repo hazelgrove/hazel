@@ -1,0 +1,3 @@
+# DA-Bench id 268: Shapiro-Wilk normality of MEANPOT, 3901.csv. #
+let data = ^^csv("3901.csv") in
+if shapiro_p(num(data.`MEANPOT`)) <. 0.05 then "Not Normal" else "Normal"

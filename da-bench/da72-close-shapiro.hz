@@ -1,0 +1,3 @@
+# DA-Bench id 72: Shapiro-Wilk normality of Close, microsoft.csv. #
+let data = ^^csv("microsoft.csv") in
+if shapiro_p(num(data.`Close`)) <. 0.05 then "Non-normal" else "Normal"

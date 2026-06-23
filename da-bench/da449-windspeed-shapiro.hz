@@ -1,0 +1,3 @@
+# DA-Bench id 449: Shapiro-Wilk normality of WINDSPEED, baro_2015.csv. #
+let data = ^^csv("baro_2015.csv") in
+if shapiro_p(num(data.`WINDSPEED`)) <. 0.05 then "no" else "yes"

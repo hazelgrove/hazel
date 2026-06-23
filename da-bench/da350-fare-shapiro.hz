@@ -1,0 +1,3 @@
+# DA-Bench id 350: Shapiro-Wilk normality of Fare, test_x.csv. #
+let data = ^^csv("test_x.csv") in
+if shapiro_p(num(data.`Fare`)) <. 0.05 then "False" else "True"
