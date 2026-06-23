@@ -85,46 +85,51 @@ module Message = {
     /* A prompt-cache breakpoint is requested when [cache_anchor] is set —
        either the static dev-notes floor (Phase 1) or the per-request advancing
        anchor on the last history message before the volatile snapshot (Phase 2,
-       set in [Chat.Utils.api_messages_for_openrouter]). [cache_control] must
-       ride the *last* content block, so we render content as a single-element
-       multipart [text] array to give it a home. Anthropic rejects empty text
-       blocks, and an empty block can't carry a marker anyway, so skip the marker
-       when content is blank — the floor anchor plus the 20-block lookback window
-       absorb the rare gap. Thinking blocks are never sent back upstream here, so
-       there is nothing to avoid marking. */
+       set in [Chat.Utils.api_messages_for_openrouter]).
+
+       CRITICAL for the advancing breakpoint: the marker *moves* each request, so
+       a message that was the anchor last request is no longer the anchor this
+       request — yet its bytes must stay identical or the cached prefix written
+       last request can't be read back this request (the prefix match fails and
+       cache_read collapses to the floor). cache_control must ride a content
+       *block*, which means array-shaped content. If we only array-shaped the
+       currently-anchored message and left every other message as a plain string,
+       the just-anchored message would flip array -> string the moment the anchor
+       moved past it, changing its bytes and breaking the read. So we keep all
+       non-blank content array-shaped *always*, and toggle only the cache_control
+       key — exactly how the always-array dev-notes floor already behaves. Blank
+       content stays a plain string: Anthropic rejects empty text blocks, and a
+       blank message is consistently blank so its shape never flips. Thinking
+       blocks are never sent back upstream here, so there is nothing to skip. */
     let json_of_message = (message: Model.t): Json.t => {
-      let cache = message.cache_anchor && String.trim(message.content) != "";
-      let text_part = (text: string): Json.t => {
-        let base = [("type", `String("text")), ("text", `String(text))];
-        `Assoc(
-          cache
-            ? base
-              @ [
-                (
-                  "cache_control",
-                  `Assoc([("type", `String("ephemeral"))]),
-                ),
-              ]
-            : base,
-        );
-      };
+      let nonblank = String.trim(message.content) != "";
+      let cache = message.cache_anchor && nonblank;
+      /* Stable array shape for non-blank content; plain string only when blank. */
+      let content_json: Json.t =
+        if (nonblank) {
+          let base = [
+            ("type", `String("text")),
+            ("text", `String(message.content)),
+          ];
+          let fields =
+            cache
+              ? base
+                @ [
+                  (
+                    "cache_control",
+                    `Assoc([("type", `String("ephemeral"))]),
+                  ),
+                ]
+              : base;
+          `List([`Assoc(fields)]);
+        } else {
+          `String(message.content);
+        };
       switch (message.role) {
-      | Tool(tool_call) when cache =>
-        `Assoc([
-          ("role", `String(string_of_role(message.role))),
-          ("content", `List([text_part(message.content)])),
-          ("tool_call_id", `String(tool_call.id)),
-        ])
-      | Tool(tool_call) =>
-        `Assoc([
-          ("role", `String(string_of_role(message.role))),
-          ("content", `String(message.content)),
-          ("tool_call_id", `String(tool_call.id)),
-        ])
       | Assistant when message.tool_calls != [] =>
-        /* Assistant-with-tool-calls is structurally never the message directly
-           before the snapshot (a tool result always follows it), so it carries
-           no advancing breakpoint; keep the plain OpenAI shape. */
+        /* Assistant-with-tool-calls is never the message before the snapshot (a
+           tool result always follows it), so it never carries a breakpoint; keep
+           the plain OpenAI shape, which is itself byte-stable across requests. */
         `Assoc([
           ("role", `String("assistant")),
           ("content", `String(message.content)),
@@ -133,16 +138,16 @@ module Message = {
             `List(List.map(json_of_tool_call, message.tool_calls)),
           ),
         ])
-      | _ when cache =>
-        /* System, Developer, User, or plain Assistant carrying a breakpoint. */
+      | Tool(tool_call) =>
         `Assoc([
           ("role", `String(string_of_role(message.role))),
-          ("content", `List([text_part(message.content)])),
+          ("content", content_json),
+          ("tool_call_id", `String(tool_call.id)),
         ])
       | _ =>
         `Assoc([
           ("role", `String(string_of_role(message.role))),
-          ("content", `String(message.content)),
+          ("content", content_json),
         ])
       };
     };
