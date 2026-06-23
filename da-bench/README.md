@@ -231,8 +231,11 @@ the prelude**: `erf`/`normal_cdf`, `lgamma`, `betacf`/`betainc`, `t_sf2`, `pears
 `ttest_ind_p`/`ttest_welch_p`, and `normaltest_p` are done and verified against
 scipy/known values, so the Pearson-r p-value, two-sample t-test, and D'Agostino
 normaltest tasks now pass exactly (13 so far: 11/34/66/140/326/408/452/668, 109/415/419,
-652/729). Still to add: `gammainc` (χ²) and an F helper; then the ANOVA, χ², KS, and
-Shapiro-Wilk waves. **Effort, not impossibility** — confirmed now that the numerics match.
+652/729). These were cross-checked against **real scipy 1.18.0 / pandas 3.0.3** (in a
+venv), not just hand-derived constants — e.g. `pearson_p` == `scipy.stats.pearsonr`,
+`ttest_welch_p` == `ttest_ind(equal_var=False)`, `normaltest_p` == `scipy.stats.normaltest`.
+Still to add: `gammainc` (χ²) and an F helper; then the ANOVA, χ², KS, and Shapiro-Wilk
+waves. **Effort, not impossibility** — confirmed now that the numerics match scipy.
 
 ### 2. ML models + reproducible RNG — ~20 tasks
 
