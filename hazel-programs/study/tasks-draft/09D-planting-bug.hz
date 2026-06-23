@@ -35,54 +35,57 @@ let init: Model = (
 ) in
 
 # Replace the cell at (row, col) with the given plant #
-let setCell: (Grove, Row, Col, Plant) -> Grove =
-  fun grove, row, col, plant ->
-    mapi(grove, fun (i, r) ->
-      if i == row
-      then mapi(r, fun (j, c) ->
-        if j == row
-        then plant
-        else c)
-      else r)
+let setCell(grove: Grove, row: Row, _col: Col, plant: Plant): Grove =
+  mapi(grove, fun (i, r) ->
+    if i == row
+    then mapi(r, fun (j, c) ->
+      if j == row
+      then plant
+      else c)
+    else r)
 in
 
 # Fill a whole row with the given plant #
-let setRow: (Grove, Row, Plant) -> Grove =
-  fun grove, targetRow, plant ->
-    mapi(grove, fun (i, row) ->
-      if i == targetRow
-      then map(row, fun _ -> plant)
-      else row)
+let setRow(grove: Grove, targetRow: Row, plant: Plant): Grove =
+  mapi(grove, fun (i, row) ->
+    if i == targetRow
+    then map(row, fun _ -> plant)
+    else row)
 in
 
-let setAll: (Grove, Plant) -> Grove =
-  fun (grove, plant) ->
-    map(grove, fun row -> map(row, fun _ -> plant))
+let setAll(grove: Grove, plant: Plant): Grove =
+  map(grove, fun row -> map(row, fun _ -> plant))
 in
 
-let updateGrove: (Model, Grove -> Grove) -> Model =
-  fun (m, f) -> (f(m.grove), m.currentSeed, m.seedInventory)
+let updateGrove(m: Model, f: Grove -> Grove): Model =
+  (
+    grove = f(m.grove),
+    currentSeed = m.currentSeed,
+    seedInventory = m.seedInventory
+  )
 in
 
-let update: (Model, Action) -> Model =
-  fun m, action ->
-    case action
-    | SelectSeed(idx) =>
-        (m.grove, nth(m.seedInventory, idx), m.seedInventory)
-    | PlantSeed(row, col) =>
-        updateGrove(m, fun g -> setCell(g, row, col, m.currentSeed))
-    | Uproot(row, col) =>
-        updateGrove(m, fun g -> setCell(g, row, col, ""))
-    | ClearGrove =>
-        updateGrove(m, fun g -> setAll(g, ""))
-    | PlantRow(row) =>
-        updateGrove(m, fun g -> setRow(g, row, m.currentSeed))
-    end
+let update(m: Model, action: Action): Model =
+  case action
+  | SelectSeed(idx) =>
+      (
+        grove = m.grove,
+        currentSeed = nth(m.seedInventory, idx),
+        seedInventory = m.seedInventory
+      )
+  | PlantSeed(row, col) =>
+      updateGrove(m, fun g -> setCell(g, row, col, m.currentSeed))
+  | Uproot(row, col) =>
+      updateGrove(m, fun g -> setCell(g, row, col, ""))
+  | ClearGrove =>
+      updateGrove(m, fun g -> setAll(g, ""))
+  | PlantRow(row) =>
+      updateGrove(m, fun g -> setRow(g, row, m.currentSeed))
+  end
 in
 
-let do: (Model, [Action]) -> Model =
-  fun (init: Model, actions: [Action]) ->
-    fold_left(actions, fun (m, a) -> update(m, a), init)
+let run(init: Model, actions: [Action]): Model =
+  fold_left(actions, fun (m, a) -> update(m, a), init)
 in
 
 # ===== TESTS ===== #
@@ -119,7 +122,7 @@ end;
 
 hint "select a different seed, then plant"
 test
-  let m = do(init, [SelectSeed(1), PlantSeed(2, 2)]) in
+  let m = run(init, [SelectSeed(1), PlantSeed(2, 2)]) in
   m.grove == [
     ["", "", ""],
     ["", "", ""],
@@ -130,7 +133,7 @@ end;
 
 hint "plant a row, then uproot its middle"
 test
-  let m = do(init, [PlantRow(1), Uproot(1, 1)]) in
+  let m = run(init, [PlantRow(1), Uproot(1, 1)]) in
   m.grove == [
     ["", "", ""],
     ["🌱", "", "🌱"],
@@ -140,7 +143,7 @@ end;
 
 hint "clear the grove"
 test
-  let m = do(init, [PlantSeed(1, 1), ClearGrove]) in
+  let m = run(init, [PlantSeed(1, 1), ClearGrove]) in
   m.grove == [
     ["", "", ""],
     ["", "", ""],
@@ -150,7 +153,7 @@ end;
 
 hint "mixed planting pattern"
 test
-  let m = do(init, [
+  let m = run(init, [
     PlantRow(0),
     SelectSeed(2),
     PlantSeed(1, 1)
@@ -164,7 +167,7 @@ end;
 
 hint "plant in a specific cell"
 test
-  let m = do(init, [SelectSeed(4), PlantSeed(1, 2)]) in
+  let m = run(init, [SelectSeed(4), PlantSeed(1, 2)]) in
   m.grove == [
     ["", "", ""],
     ["", "", "🌸"],
@@ -174,7 +177,7 @@ end;
 
 hint "complex sequence"
 test
-  let m = do(init, [
+  let m = run(init, [
     PlantSeed(0, 0),
     PlantRow(2),
     SelectSeed(3),

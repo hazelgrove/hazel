@@ -6,8 +6,6 @@ show_report version=1 id=d0000027-0027-0027-0027-000000000027
 
 This program models a field of crops, featuring actions to plant, water, and harvest them. One test does not pass. Find and fix the bug.
 
-Use probes however you like: place them by hand or turn on auto-probe (Cmd/Ctrl+P). The sidebar has a suggested approach.
-
 @hint
 Start from the failing test and trace the wrong value backwards: probe the run, pin it, step into update.
 
@@ -17,11 +15,7 @@ Start from the failing test and trace the wrong value backwards: probe the run, 
 2. Find the **Model** type and read it. Follow any type aliases it mentions.
 3. Read the **Action** type: the operations the program supports.
 4. Scroll to the failing test (the ✗). Read what it asserts.
-5. Investigate however you like. Some options:
-   - Auto-probe (Cmd/Ctrl+P) and read values near the failing test, or place probes where you suspect trouble.
-   - Probe the failing test's `run` call and **pin** it (right-click the sample, *Pin this call*), then trace the wrong value backwards.
-   - **Step into** `update`: right-click its sample, then *Step into* (or press Enter). Or right-click a function name in the code to jump to its definition.
-   - Switch a probe to *many* mode (Space) to watch the model evolve across actions.
+5. Investigate however you like. You can consult the quick reference for a reminder of available probe features.
 
 @hints
 can plant a crop in empty cell

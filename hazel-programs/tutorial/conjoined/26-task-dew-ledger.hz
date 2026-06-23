@@ -4,9 +4,7 @@ show_report version=1 id=d0000034-0034-0034-0034-000000000034
 @prompt
 # Task: The dew ledger
 
-First debugging task. The ledger tracks dew drops and jars; one action misbehaves, and the failing test shows it. Find and fix the bug.
-
-This program is small enough to read in full, but try the suggested approach in the sidebar anyway: the same approach helps on the bigger tasks.
+First debugging task. The ledger tracks dew drops and jars; one action is misbehaving, as revealed by the failing test. Find and fix the bug. This program is small enough to read in full, but try the suggested approach in the sidebar anyway: the same approach helps on the bigger tasks.
 
 @hint
 Probe the failing test's update call and compare what changed against what the Action's comment says should change.
@@ -17,10 +15,7 @@ Probe the failing test's update call and compare what changed against what the A
 2. Find the **Model** type and read it.
 3. Read the **Action** type: the operations the program supports.
 4. Scroll to the failing test (the ✗). Read what it asserts.
-5. Investigate however you like. Some options:
-   - Probe the failing test's `update` call and read the result.
-   - Right-click the sample to see the variables feeding it.
-   - **Step into** `update`: right-click its sample, then *Step into* (or press Enter). Read the arm that ran.
+5. Investigate however you like. You can consult the quick reference for a reminder of available probe features.
 
 @hints
 collecting adds drops

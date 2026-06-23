@@ -1,4 +1,4 @@
-let clean_entry: String -> String = fun entry ->
+let clean_entry(entry: String): String =
   ¿
 
 

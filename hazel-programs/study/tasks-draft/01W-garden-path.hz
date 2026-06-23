@@ -1,5 +1,5 @@
 # Extracts the first section from a garden path. #
-let grove_name = fun path ->
+let grove_name(path: String): String =
   ¿
 
 

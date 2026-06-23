@@ -4,9 +4,7 @@ show_report version=1 id=d0000035-0035-0035-0035-000000000035
 @prompt
 # Task: Misplanted seeds
 
-The crop plotter plants seeds on a 3x3 grid. Some plantings land in the wrong place: one failing test shows it. Find and fix the bug.
-
-The sidebar has a suggested approach: when a function runs once per grid cell, its probes collect many samples; **pin** the failing test's run to cut them down.
+The crop plotter plants seeds on a 3x3 grid. Some plantings land in the wrong place: one failing test reveals it. Find and fix the bug.
 
 @hint
 Compare where the failing test plants against where the plant actually lands. Probe inside setCell and check what each index is being compared to.
@@ -17,11 +15,8 @@ Compare where the failing test plants against where the plant actually lands. Pr
 2. Find the **Model** type and read it. Follow any type aliases it mentions.
 3. Read the **Action** type: the operations the program supports.
 4. Scroll to the failing test (the ✗). Read what it asserts.
-5. Investigate however you like. Some options:
-   - Auto-probe (Cmd/Ctrl+P) and read values near the failing test, or place probes where you suspect trouble.
-   - Probe the failing test's `do` call and **pin** it (right-click the sample, *Pin this call*), then trace the wrong value backwards.
-   - **Step into** `update`: right-click its sample, then *Step into* (or press Enter). Or right-click a function name in the code to jump to its definition.
-   - Switch a probe to *many* mode (Space) to compare a probe's samples across grid cells.
+5. Investigate however you like. You can consult the quick reference for a reminder of available probe features.
+
 
 @hints
 plant a single seed

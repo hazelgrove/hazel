@@ -1,4 +1,4 @@
-let running_sum : [Int] -> [Int] = fun nums ->
+let running_sum(nums: [Int]): [Int] =
   ¿
 
 

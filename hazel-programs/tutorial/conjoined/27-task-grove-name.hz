@@ -6,7 +6,7 @@ show_report version=1 id=d0000026-0026-0026-0026-000000000026
 
 Write `grove_name`, which extracts the first section from a garden path. For example, `grove_name("/moonlit-grove/ferns")` is `"moonlit-grove"`. See the tests at the bottom for more examples.
 
-Some standard library functions that may be useful (work out the argument order with probes): 
+Some standard library functions that may be useful (you may have to work out the argument order with probes): 
  - `string_split : (String, String) -> [String]`
  - `string_sub : (String, Int, Int) -> String`
  - `string_length : String -> Int`

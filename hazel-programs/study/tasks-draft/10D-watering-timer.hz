@@ -6,18 +6,18 @@
 # Find the failing test (✗) below. #
 
 # Two-digit minutes: 5 becomes "05" #
-let pad : Int -> String = fun n ->
+let pad(n: Int): String =
   if n < 10 then "0" ++ string_of_int(n) else string_of_int(n)
 in
 
-let format : Int -> String = fun minutes ->
+let format(minutes: Int): String =
   if minutes > 60
   then string_of_int(minutes / 60) ++ "h " ++ pad(int_mod(minutes, 60)) ++ "m"
   else string_of_int(minutes) ++ "m"
 in
 
 # Format a whole watering schedule #
-let schedule : [Int] -> [String] = fun times ->
+let schedule(times: [Int]): [String] =
   map(times, fun t -> format(t))
 in
 

@@ -4,7 +4,7 @@ show_report version=1 id=d0000030-0030-0030-0030-000000000030
 @prompt
 # Task: Running sum
 
-Write `running_sum`, where each element of the result is the sum of everything up to and including that position: `running_sum([1, 2, 3])` is `[1, 3, 6]`. Feel free to write it recursively or with a fold. Depending on your approach, a helper might be required.
+Write `running_sum`, where each element of the result is the sum of everything up to and including that position: `running_sum([1, 2, 3])` is `[1, 3, 6]`. Make sure to read the tests carefully; this task may be slightly more complex than it appears. Feel free to write it recursively or with a fold.
 
 @hint
 Carry the running total along: as an extra argument to a helper function, or as part of the fold's accumulator.

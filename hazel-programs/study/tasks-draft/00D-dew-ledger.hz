@@ -20,8 +20,7 @@ in
 let init : Model = (dew = 0, jars = 0) in
 
 # Apply one action to the ledger #
-let update : (Model, Action) -> Model =
-  fun (m, action) ->
+let update(m: Model, action: Action): Model =
     case action
     | Collect(n) =>
         (dew = m.dew + n, jars = m.jars)
@@ -38,19 +37,19 @@ in
 
 hint "collecting adds drops"
 test
-  let m = update(init, Collect(7)) in
+  let m: Model = update(init, Collect(7)) in
   m.dew == 7
 end;
 
 hint "bottling needs ten drops"
 test
-  let short = (dew = 4, jars = 0) in
+  let short: Model = (dew = 4, jars = 0) in
   update(short, Bottle) == short
 end;
 
 hint "bottling fills a jar"
 test
-  let full = (dew = 12, jars = 1) in
+  let full: Model = (dew = 12, jars = 1) in
   let m = update(full, Bottle) in
   m.dew == 2 && m.jars == 2
 end;
