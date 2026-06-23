@@ -1,0 +1,12 @@
+# DA-Bench id 668: Pearson r of HouseAge vs MedianHouseValue + p-value + significance, my_test_01.csv. #
+let data = ^^csv("my_test_01.csv") in
+let pairs =
+  filter(zip(map(data, fun r -> r.`HouseAge`), map(data, fun r -> r.`MedianHouseValue`)),
+    fun (a, b) -> (string_trim(a) != "") && (string_trim(b) != "")) in
+let xs = map(pairs, fun (a, _b) -> float_of_string(string_trim(a))) in
+let ys = map(pairs, fun (_a, b) -> float_of_string(string_trim(b))) in
+let r = pearson(xs, ys) in
+let p = pearson_p(r, length(pairs)) in
+(correlation_coefficient = round2(r),
+ p_value = round4(p),
+ significant_correlation = if p <. 0.05 then "true" else "false")

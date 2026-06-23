@@ -196,6 +196,10 @@ CASES=(
   # PLAN.md Phase 4: calendar / date arithmetic
   "da234-budget-year-duration.hz"
   "da688-time-of-day.hz"
+  # PLAN.md Phase 5: hypothesis-test p-values via special-function prelude (erf/lgamma/betainc)
+  "da408-fare-age-corr.hz"
+  "da34-retention-importance-corr.hz"
+  "da668-houseage-value-corr.hz"
 )
 
 # Strip trailing zeros from every decimal so 34.650000 == 34.65, 0.141000 == 0.141,

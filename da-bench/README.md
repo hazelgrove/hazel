@@ -10,7 +10,7 @@ express the computation and produce the correct answer? Solutions are plaintext
 `.hz` files; data is loaded at edit-time via the `^^csv("file.csv")` hook (no
 runtime side effects — the language stays pure).
 
-**Status: 173 / 257 dev tasks solved & verified.** The authoritative ledger of
+**Status: 176 / 257 dev tasks solved & verified.** The authoritative ledger of
 what passes / what's left and why is [`RESULTS.md`](./RESULTS.md); the
 authoritative list of passing cases is the `CASES` array in `test.sh` (every
 entry is checked against the InfiAgent label).
@@ -116,6 +116,8 @@ becomes the body — **don't redefine these in solutions, just use them:**
 - Python-dict answers (the grader expects `{'k': v, ...}` text): `py_dict(keys, vals)`
   from parallel string lists, `dict_of_tuple(show_val, t)` from a labeled tuple (via
   `to_lvs`), and `py_float(x)` for Python float repr (`6.0`, not `string_of_float`'s `6.`).
+- Hypothesis-test p-values (Phase 5): `erf`, `normal_cdf`, `lgamma`, `betacf`/`betainc`,
+  `t_sf2` (two-sided Student-t), `pearson_p(r, n)` (Pearson-r p-value, = scipy.stats.pearsonr).
 
 A typical solution is just:
 
@@ -217,15 +219,17 @@ backticks). **Affects id 618.** This is the only true hard blocker.
 
 Unsolved today, but Hazel *can* express them. These are work items, not blockers.
 
-### 1. Statistical distribution functions / p-values — ~58 tasks (the biggest bucket)
+### 1. Statistical distribution functions / p-values — ~58 tasks (Phase 5, in progress)
 
 Hypothesis-test tasks (Shapiro-Wilk, Kolmogorov-Smirnov, t-test, ANOVA,
 chi-square, Mann-Whitney) want a **p-value** or an accept/reject decision. We
-already compute the *test statistic* (Pearson r, skewness, the t-value); what's
-missing is the **distribution CDF / special functions** — error function,
-incomplete gamma, incomplete beta — that turn a statistic into a p-value. Those
-are ordinary pure numeric routines: they can be written in Hazel (a prelude of
-`erf`, `gammainc`, `betainc`, …) or added as builtins. **Effort, not impossibility.**
+already compute the *test statistic*; the missing piece was the **distribution
+CDF / special functions**. These are ordinary pure numerics, now **being built in
+the prelude**: `erf`/`normal_cdf`, `lgamma`, `betacf`/`betainc`, `t_sf2`, and
+`pearson_p` are done and verified against scipy/known values, so the Pearson-r
+p-value tasks now pass exactly (34, 408, 668). Still to add: `gammainc` (χ²) and an
+F helper; then the t-test, ANOVA, χ², KS, and Shapiro-Wilk waves. **Effort, not
+impossibility** — confirmed now that the numerics match.
 
 ### 2. ML models + reproducible RNG — ~20 tasks
 

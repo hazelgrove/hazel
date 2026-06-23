@@ -1,0 +1,14 @@
+# DA-Bench id 408: Pearson r of Fare vs Age + 2-sided p-value + relationship, titanic_train.csv. #
+# relationship: significant (p<0.05) and |r|>=0.5 -> linear; significant and |r|<0.5 -> nonlinear; #
+# not significant -> none. #
+let data = ^^csv("titanic_train.csv") in
+let pairs =
+  filter(zip(map(data, fun r -> r.`Fare`), map(data, fun r -> r.`Age`)),
+    fun (f, a) -> (string_trim(f) != "") && (string_trim(a) != "")) in
+let fares = map(pairs, fun (f, _a) -> float_of_string(string_trim(f))) in
+let ages = map(pairs, fun (_f, a) -> float_of_string(string_trim(a))) in
+let r = pearson(fares, ages) in
+let p = pearson_p(r, length(pairs)) in
+(correlation_coefficient = round2(r),
+ p_value = round4(p),
+ relationship_type = if p <. 0.05 then (if abs_float(r) >=. 0.5 then "linear" else "nonlinear") else "none")

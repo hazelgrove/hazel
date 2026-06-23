@@ -50,9 +50,9 @@ data-cleaning wrinkle):
   empty filtered set); id 741 grades the literal column name `"ratio"`. Not a
   computation in the usual sense.
 
-## Tally (257 dev tasks) — 173 solved, 84 accounted for
+## Tally (257 dev tasks) — 176 solved, 81 accounted for
 
-- **Solved & verified — 173** (in `test.sh`, every output matches the InfiAgent label):
+- **Solved & verified — 176** (in `test.sh`, every output matches the InfiAgent label):
   mean/median/std (sample & population)/min/max/range, Pearson correlation,
   skewness (pandas-adjusted AND scipy-biased), kurtosis, IQR & Z-score outlier
   detection/removal, group-by aggregation, feature engineering (ratios, sums,
@@ -74,9 +74,14 @@ data-cleaning wrinkle):
   legitimately-computable edge cases.
   Plus 2 PLAN.md Phase-4 tasks (234 mean budget-year duration via a Gregorian
   days-from-civil helper, 688 epoch→time-of-day buckets via `(dt/3600) mod 24`).
-- **Inexpressible — scipy p-value / hypothesis tests (class A): 58.** Shapiro, KS,
-  normaltest, t-test, ANOVA, chi-square, Mann-Whitney, etc. A coefficient is fine; the
-  test statistic's p-value is not (no distribution CDFs / special functions).
+  Plus PLAN.md Phase-5 (in progress) Pearson-r p-value tasks (34, 408, 668) via a new
+  pure special-function prelude — `erf`/`normal_cdf`, `lgamma`, `betacf`/`betainc`,
+  `t_sf2`, `pearson_p` — all verified against scipy/known reference values.
+- **scipy p-value / hypothesis tests (class A): 58 → 55 (Phase 5 in progress).** The
+  special-function prelude now computes Pearson-r p-values exactly (34/408/668 solved);
+  the rest (Shapiro-Wilk ~20, t-tests, ANOVA, chi-square, KS, Mann-Whitney) are the
+  remaining Phase-5 waves. NB many were never blocked on the p-value — their labels grade
+  only the coefficient/means + a threshold decision, and were already solved earlier.
 - **Inexpressible — sklearn / ML models (class B): 20.** Fitted regression/classification,
   clustering, `train_test_split(random_state=…)` (needs numpy RNG).
 - **Former class E (stack-overflow, NOW FIXED): 31 → 29 solved + 2 other.** The fix +
@@ -103,9 +108,9 @@ data-cleaning wrinkle):
   (Myanmar) and is excluded from `test.sh`, like 361/662.
   (The other former "future work" — 62, 321, 510, 589 — were solved in Phase 1.)
 
-173 + 58 + 20 + 2 + 0 + 1 + 1 + 1 + 1 = 257. Every task is accounted for.
-(The 2 is the former-class-E remainder; the 29 solved former-E tasks are inside the 173.
-Class C calendar is now 0. The trailing 1 is the id-252 label defect.)
+176 + 55 + 20 + 2 + 1 + 1 + 1 + 1 = 257. Every task is accounted for.
+(55 = class-A p-value remainder; 2 = former-class-E remainder; the four trailing 1s are
+D-743, G-741, parser-618, and the id-252 label defect. Class C calendar is now 0.)
 
 ## Builtins / tooling changes made for this effort
 

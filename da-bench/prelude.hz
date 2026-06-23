@@ -163,3 +163,65 @@ let dict_of_tuple = fun (show_val, t) ->
   ++ join_with(", ", map(to_lvs(t), fun lv -> "'" ++ lv.label ++ "': " ++ show_val(lv.value)))
   ++ "}"
 in
+# ---- Phase 5: special functions for hypothesis-test p-values (pure numerics) ---- #
+# error function (Abramowitz and Stegun 7.1.26), |err| < 1.5e-7 #
+let erf = fun (x: Float) ->
+  let z = abs_float(x) in
+  let t = 1.0 /. (1.0 +. 0.3275911 *. z) in
+  let poly = t *. (0.254829592 +. t *. ((0.0 -. 0.284496736) +. t *. (1.421413741 +. t *. ((0.0 -. 1.453152027) +. t *. 1.061405429)))) in
+  let y = 1.0 -. poly *. exp(0.0 -. z *. z) in
+  if x <. 0.0 then 0.0 -. y else y
+in
+# standard normal CDF #
+let normal_cdf = fun (z: Float) -> 0.5 *. (1.0 +. erf(z /. sqrt(2.0))) in
+# log-gamma via Lanczos (g=7) #
+let lgamma = fun (x0: Float) ->
+  let x = x0 -. 1.0 in
+  let a = 0.99999999999980993
+    +. 676.5203681218851 /. (x +. 1.0)
+    +. (0.0 -. 1259.1392167224028) /. (x +. 2.0)
+    +. 771.32342877765313 /. (x +. 3.0)
+    +. (0.0 -. 176.61502916214059) /. (x +. 4.0)
+    +. 12.507343278686905 /. (x +. 5.0)
+    +. (0.0 -. 0.13857109526572012) /. (x +. 6.0)
+    +. 0.0000099843695780195716 /. (x +. 7.0)
+    +. 0.00000015056327351493116 /. (x +. 8.0) in
+  let t = x +. 7.5 in
+  0.5 *. log(2.0 *. 3.14159265358979323846) +. (x +. 0.5) *. log(t) -. t +. log(a)
+in
+# incomplete-beta continued fraction (Lentz), fixed 200 iterations #
+let betacf = fun (a: Float, b: Float, x: Float) ->
+  let qab = a +. b in let qap = a +. 1.0 in let qam = a -. 1.0 in
+  let go = fun (m: Int, c: Float, d: Float, h: Float) ->
+    if m > 200 then h
+    else
+      let m2 = float_of_int(2 * m) in
+      let fm = float_of_int(m) in
+      let aa1 = fm *. (b -. fm) *. x /. ((qam +. m2) *. (a +. m2)) in
+      let d1 = 1.0 /. (1.0 +. aa1 *. d) in
+      let c1 = 1.0 +. aa1 /. c in
+      let h1 = h *. d1 *. c1 in
+      let aa2 = (0.0 -. (a +. fm)) *. (qab +. fm) *. x /. ((a +. m2) *. (qap +. m2)) in
+      let d2 = 1.0 /. (1.0 +. aa2 *. d1) in
+      let c2 = 1.0 +. aa2 /. c1 in
+      go(m + 1, c2, d2, h1 *. (d2 *. c2))
+  in
+  let d0 = 1.0 /. (1.0 -. qab *. x /. qap) in
+  go(1, 1.0, d0, d0)
+in
+# regularized incomplete beta I_x(a, b) #
+let betainc = fun (a: Float, b: Float, x: Float) ->
+  if x <=. 0.0 then 0.0 else if x >=. 1.0 then 1.0
+  else
+    let bt = exp(lgamma(a +. b) -. lgamma(a) -. lgamma(b) +. a *. log(x) +. b *. log(1.0 -. x)) in
+    if x <. (a +. 1.0) /. (a +. b +. 2.0)
+    then bt *. betacf(a, b, x) /. a
+    else 1.0 -. bt *. betacf(b, a, 1.0 -. x) /. b
+in
+# Student-t two-sided p-value for a t statistic with df degrees of freedom #
+let t_sf2 = fun (t: Float, df: Float) -> betainc(df /. 2.0, 0.5, df /. (df +. t *. t)) in
+# two-sided p-value for a Pearson r over n paired observations (scipy.stats.pearsonr) #
+let pearson_p = fun (r: Float, n: Int) ->
+  let df = float_of_int(n - 2) in
+  t_sf2(r *. sqrt(df /. (1.0 -. r *. r)), df)
+in

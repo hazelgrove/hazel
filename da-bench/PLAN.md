@@ -102,16 +102,25 @@ Documented defects (not solved — emulating them adds nothing):
   average → 364. The date helper is local to `da234` (only task that needs it; promote
   to the prelude if a future task wants date math).
 
-## Phase 5 — Statistics special-function library → p-values (~58, the big prize)
+## Phase 5 — Statistics special-function library → p-values (~58, IN PROGRESS)
 
-The largest bucket. Every task here computes a **test statistic we can already get**
-and then needs a **distribution CDF** to produce a p-value or accept/reject. The CDFs
-are pure numeric routines — build them once in a `stats_prelude`, then the tasks
-fall in waves ordered by which function they need.
+The largest bucket. Every task computes a **test statistic we can already get** and
+then needs a **distribution CDF** for the p-value/decision. The CDFs are pure numerics,
+built once in `prelude.hz`.
 
-**Build (a numeric prelude), in dependency order:**
-1. `erf` / normal CDF — Abramowitz-Stegun rational approximation.
-2. `betainc` (regularized incomplete beta, continued fraction) → **t** and **F** CDFs.
+**Library — BUILT & verified against scipy/known values:** `erf`, `normal_cdf`,
+`lgamma` (Lanczos), `betacf`/`betainc` (incomplete beta, Lentz continued fraction),
+`t_sf2` (two-sided Student-t), `pearson_p` (Pearson-r p-value). Still to add for later
+waves: `gammainc` (→ χ²) and an F-distribution helper (both fall out of betainc/gammainc).
+
+**Done so far:** the Pearson-r p-value wave — **34, 408, 668** (correlation_coefficient
++ p_value + relationship/significance), all exact. Note the `relationship_type`
+classification itself depends on p<0.05, so `pearson_p` also unlocks the corr tasks
+whose label omits the p-value.
+
+**Remaining build, in dependency order:**
+1. (done) `erf` / normal CDF — Abramowitz-Stegun.
+2. (done) `betainc` → **t** and **F** CDFs.
 3. `gammainc` (regularized incomplete gamma, series + continued fraction) → **χ²** CDF.
 
 **Then solve in waves (easiest CDF first):**
@@ -174,8 +183,10 @@ some of these 20 may remain unmatched.
 2. **Phase 2** — DONE: 2 solved (450, 451 → **168**) via the dict helpers.
 3. **Phase 3** — DONE: 3 solved (468, 554, 760 → **171**); 741/743/361/662 documented.
 4. **Phase 4** — DONE: 2 solved (234, 688 → **173**); Class C calendar cleared.
-5. **Phase 5** (~58) — the major project; ship CDF waves 5a→5d for the bulk, treat
-   5e–5g as stretch. Realistically this is where most of the remaining points are.
+5. **Phase 5** — IN PROGRESS: special-function library built & verified; Pearson-r
+   p-value wave done (34, 408, 668 → **176**). Remaining waves: more corr p-values
+   (326, 452, 11, 66, 140), D'Agostino normaltest, t-tests, ANOVA, χ², KS, and the big
+   Shapiro-Wilk bucket (~20, hardest).
 6. **Phase 6** (~20) — last; build RNG + linalg infra, accept that exact sklearn/
    numpy matching may cap how many actually pass.
 
