@@ -84,8 +84,9 @@ data-cleaning wrinkle):
   special-function prelude now does Pearson-r p-values, pooled & Welch t-tests, and
   D'Agostino normaltest exactly (13 solved). Remaining: Shapiro-Wilk (~20, hardest),
   chi-square + ANOVA (need `gammainc` / F), KS, Mann-Whitney, and a few more corr/t-tests.
-  One of the 45 is id 297 — a documented parsing discrepancy (pandas parses the Newick
-  `tree_table.csv` into a different row set), not a p-value issue.
+  One of the 45 is id 297 — an erroneous label (verified with pandas 3.0.3: `pd.read_csv`
+  parses `tree_table.csv` cleanly to (2822, 6) and gives our exact 43.31/4.26; the label
+  45.48/4.58 is not reproducible by any standard pandas operation), not a p-value issue.
 - **Inexpressible — sklearn / ML models (class B): 20.** Fitted regression/classification,
   clustering, `train_test_split(random_state=…)` (needs numpy RNG).
 - **Former class E (stack-overflow, NOW FIXED): 31 → 29 solved + 2 other.** The fix +

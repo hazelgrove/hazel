@@ -118,8 +118,9 @@ Still to add: `gammainc` (→ χ²) and an F-distribution helper.
 452, 668**; two-sample t-tests — **109, 415** (pooled), **419** (Welch — its label used
 `equal_var=False`); D'Agostino normaltest — **652, 729**. All exact. Note the
 `relationship_type`/significance classification keys off p<0.05, so `pearson_p` also
-unlocks corr tasks whose label omits the p-value. (id 297 deferred: a pandas
-CSV-parsing discrepancy on the Newick `tree_table.csv`, not a p-value issue.)
+unlocks corr tasks whose label omits the p-value. (id 297 deferred: erroneous
+label — pandas 3.0.3 itself gives our 43.31/4.26 on `tree_table.csv`; the label 45.48/4.58
+is not reproducible by any standard pandas op.)
 
 **Remaining build, in dependency order:**
 1. (done) `erf` / normal CDF — Abramowitz-Stegun.
