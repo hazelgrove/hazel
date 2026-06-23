@@ -1795,8 +1795,12 @@ let key_handler =
     JsUtil.get_elem_by_id(Id.cls(id))##blur;
     Many([Stop_propagation, Prevent_default]);
   | D("Enter") when key.meta == Down || key.ctrl == Down =>
+    /* Blurring the probe drops DOM focus to <body>; schedule_editor
+       restores it to the .code-editor after render (same path step-into
+       uses), otherwise the caret stays hidden and keys miss the editor. */
     FocusEffect.expect_blur();
     JsUtil.get_elem_by_id(Id.cls(id))##blur;
+    FocusEffect.schedule_editor();
     Many([
       parent(EscapeToLineEnd(Probe)),
       Stop_propagation,
@@ -1806,6 +1810,7 @@ let key_handler =
   | D("ArrowLeft") when key.meta == Down || key.ctrl == Down =>
     FocusEffect.expect_blur();
     JsUtil.get_elem_by_id(Id.cls(id))##blur;
+    FocusEffect.schedule_editor();
     Many([
       parent(EscapeToLineEnd(Probe)),
       Stop_propagation,
