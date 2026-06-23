@@ -72,11 +72,14 @@ data-cleaning wrinkle):
 - **Former class E (stack-overflow, NOW FIXED): 31 → 20 solved + 11 other.** The 20
   listed above now pass (incl. 123 and 555 via `distinct_strings`). The remaining 11:
   **2 label-discrepancy** (361, 662 — correct computation, wrong/degenerate label),
-  **2 Python-dict output** (450, 451), **2 degenerate spec** (554 nan, 760 all-zero),
+  **2 Python-dict answers** (450, 451 — expressible via `string_of_float`, just need the
+  exact `{'k': v}` text; unwritten), **2 degenerate spec** (554 nan, 760 all-zero),
   **1 ambiguous** (468), and **4 multi-step left as future work** (453, 572, 574, 665).
-- **Class H — number→string formatting gap: 3.** ids 77, 178, 219 pack several computed
-  numbers into ONE answer field (e.g. `"314, 577"`, `"1, 2018, 88.32"`); there is no
-  number→string builtin to assemble that string, so the graded value can't be produced.
+- **Class H — multi-number string answers: 3 (expressible, just unwritten).** ids 77,
+  178, 219 pack several computed numbers into ONE answer field (e.g. `"314, 577"`,
+  `"1, 2018, 88.32"`). `string_of_int`/`string_of_float` + `join_with` DO exist, so these
+  can be assembled (compute → stringify → join). Not yet written; only fiddle is matching
+  the exact textual repr (`string_of_float` prints integer-valued floats as `594.`).
 - **Class C — calendar arithmetic: 2.** id 234 (days between two calendar dates),
   id 688 (epoch→hour-of-day bucketing). Substring/`HH:MM:SS`→sec IS fine; calendar math isn't.
 - **Class D — non-value answer: 1.** id 743 (graded value is a written-out file path).
