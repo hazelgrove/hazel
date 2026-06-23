@@ -50,9 +50,9 @@ data-cleaning wrinkle):
   empty filtered set); id 741 grades the literal column name `"ratio"`. Not a
   computation in the usual sense.
 
-## Tally (257 dev tasks) — 188 solved, 69 accounted for
+## Tally (257 dev tasks) — 192 solved, 65 accounted for
 
-- **Solved & verified — 188** (in `test.sh`, every output matches the InfiAgent label):
+- **Solved & verified — 192** (in `test.sh`, every output matches the InfiAgent label):
   mean/median/std (sample & population)/min/max/range, Pearson correlation,
   skewness (pandas-adjusted AND scipy-biased), kurtosis, IQR & Z-score outlier
   detection/removal, group-by aggregation, feature engineering (ratios, sums,
@@ -80,11 +80,12 @@ data-cleaning wrinkle):
   Pearson-r p-value / relationship (11, 34, 66, 140, 326, 408, 452, 668), two-sample
   t-tests (109, 415 pooled; 419 Welch — its label used equal_var=False), and D'Agostino
   normaltest (652, 729).
-- **scipy p-value / hypothesis tests (class A): 58 → 43 (Phase 5 in progress).** The
+- **scipy p-value / hypothesis tests (class A): 58 → 39 (Phase 5 in progress).** The
   special-function prelude now does Pearson-r p-values, pooled & Welch t-tests, and
   D'Agostino normaltest, one-way ANOVA (F via betainc), and chi-square (incomplete
-  gamma) exactly (15 solved). Remaining: Shapiro-Wilk (~20, hardest), KS, Mann-Whitney.
-  One of the 43 is id 297 — an erroneous label (verified with pandas 3.0.3: `pd.read_csv`
+  gamma), one/two-sample Kolmogorov-Smirnov, and Mann-Whitney U exactly (19 solved).
+  Remaining: Shapiro-Wilk (~20, the hardest — Royston's W).
+  One of the 39 is id 297 — an erroneous label (verified with pandas 3.0.3: `pd.read_csv`
   parses `tree_table.csv` cleanly to (2822, 6) and gives our exact 43.31/4.26; the label
   45.48/4.58 is not reproducible by any standard pandas operation), not a p-value issue.
 - **Inexpressible — sklearn / ML models (class B): 20.** Fitted regression/classification,
@@ -113,8 +114,8 @@ data-cleaning wrinkle):
   (Myanmar) and is excluded from `test.sh`, like 361/662.
   (The other former "future work" — 62, 321, 510, 589 — were solved in Phase 1.)
 
-188 + 43 + 20 + 2 + 1 + 1 + 1 + 1 = 257. Every task is accounted for.
-(43 = class-A p-value remainder; 2 = former-class-E remainder; the four trailing 1s are
+192 + 39 + 20 + 2 + 1 + 1 + 1 + 1 = 257. Every task is accounted for.
+(39 = class-A p-value remainder; 2 = former-class-E remainder; the four trailing 1s are
 D-743, G-741, parser-618, and the id-252 label defect. Class C calendar is now 0.)
 
 ## Builtins / tooling changes made for this effort

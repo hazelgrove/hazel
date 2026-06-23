@@ -10,7 +10,7 @@ express the computation and produce the correct answer? Solutions are plaintext
 `.hz` files; data is loaded at edit-time via the `^^csv("file.csv")` hook (no
 runtime side effects — the language stays pure).
 
-**Status: 188 / 257 dev tasks solved & verified.** The authoritative ledger of
+**Status: 192 / 257 dev tasks solved & verified.** The authoritative ledger of
 what passes / what's left and why is [`RESULTS.md`](./RESULTS.md); the
 authoritative list of passing cases is the `CASES` array in `test.sh` (every
 entry is checked against the InfiAgent label).

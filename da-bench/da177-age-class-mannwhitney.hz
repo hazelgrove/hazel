@@ -1,0 +1,6 @@
+# DA-Bench id 177: Mann-Whitney U of 1st-class vs 3rd-class ages, titanic.csv. #
+let data = ^^csv("titanic.csv") in
+let a1 = num(map(filter(data, fun r -> string_trim(r.`Pclass`) == "1"), fun r -> r.`Age`)) in
+let a3 = num(map(filter(data, fun r -> string_trim(r.`Pclass`) == "3"), fun r -> r.`Age`)) in
+let p = mannwhitney_p(a1, a3) in
+(significance = if p <. 0.05 then "Yes" else "No")

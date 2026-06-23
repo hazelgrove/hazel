@@ -1,0 +1,4 @@
+# DA-Bench id 658: one-sample KS normality of Volume, YAHOO-BTC_USD_D.csv. #
+let data = ^^csv("YAHOO-BTC_USD_D.csv") in
+let p = ks_norm_p(num_loose(data.`Volume`)) in
+if p <. 0.05 then "not_normal" else "normal"

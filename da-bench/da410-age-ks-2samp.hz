@@ -1,0 +1,6 @@
+# DA-Bench id 410: two-sample KS of male-not-survived vs female-not-survived ages, titanic_train.csv. #
+let data = ^^csv("titanic_train.csv") in
+let males = num(map(filter(data, fun r -> (string_trim(r.`Sex`) == "male") && (string_trim(r.`Survived`) == "0")), fun r -> r.`Age`)) in
+let females = num(map(filter(data, fun r -> (string_trim(r.`Sex`) == "female") && (string_trim(r.`Survived`) == "0")), fun r -> r.`Age`)) in
+let p = ks_2samp_p(males, females) in
+(is_significantly_different = if p <. 0.05 then "True" else "False")

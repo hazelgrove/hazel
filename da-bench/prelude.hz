@@ -347,3 +347,62 @@ let gammq = fun (a: Float, x: Float) ->
 in
 # chi-square survival function P(X > x) for df degrees of freedom #
 let chi2_sf = fun (x: Float, df: Float) -> gammq(df /. 2.0, x /. 2.0) in
+# Kolmogorov distribution survival Q(lam) = 2*sum_{k>=1} (-1)^(k-1) exp(-2 k^2 lam^2) #
+let kolmogorov_sf = fun (lam: Float) ->
+  let go = fun (k: Int, acc: Float) ->
+    if k > 100 then acc
+    else
+      let kf = float_of_int(k) in
+      let term = exp(0.0 -. 2.0 *. kf *. kf *. lam *. lam) in
+      go(k + 1, acc +. (if int_mod(k, 2) == 1 then term else 0.0 -. term))
+  in
+  let s = 2.0 *. go(1, 0.0) in
+  if s <. 0.0 then 0.0 else if s >. 1.0 then 1.0 else s
+in
+# max KS deviation between the standardized sample's ECDF and N(0,1) #
+let ks_d_norm = fun (xs: [Float]) ->
+  let m = mean(xs) in
+  let sd = sample_std(xs) in
+  let z = sort(cmp, map(xs, fun x -> (x -. m) /. sd)) in
+  let nf = float_of_int(length(z)) in
+  let acc =
+    fold_left(z, (fun (st, zi) ->
+      let (i, mx) = st in
+      let phi = normal_cdf(zi) in
+      let fi = float_of_int(i) in
+      let d1 = fi /. nf -. phi in
+      let d2 = phi -. (fi -. 1.0) /. nf in
+      let mx2 = if d1 >. mx then d1 else mx in
+      (i + 1, if d2 >. mx2 then d2 else mx2)), (1, 0.0)) in
+  let (_i, d) = acc in d
+in
+# one-sample Kolmogorov-Smirnov normality p-value (scipy kstest on standardized data) #
+let ks_norm_p = fun (xs: [Float]) ->
+  let nf = float_of_int(length(xs)) in
+  kolmogorov_sf(sqrt(nf) *. ks_d_norm(xs))
+in
+# two-sample Kolmogorov-Smirnov p-value (scipy.stats.ks_2samp, asymptotic) #
+let ks_2samp_p = fun (a: [Float], b: [Float]) ->
+  let n1 = float_of_int(length(a)) in
+  let n2 = float_of_int(length(b)) in
+  let d =
+    fold_left(a @ b, (fun (mx, v) ->
+      let f1 = float_of_int(length(filter(a, fun x -> x <=. v))) /. n1 in
+      let f2 = float_of_int(length(filter(b, fun x -> x <=. v))) /. n2 in
+      let g = abs_float(f1 -. f2) in
+      if g >. mx then g else mx), 0.0) in
+  kolmogorov_sf(sqrt(n1 *. n2 /. (n1 +. n2)) *. d)
+in
+# Mann-Whitney U two-sided p-value, normal approximation (U via pair counts, no ranking) #
+let mannwhitney_p = fun (a: [Float], b: [Float]) ->
+  let n1 = float_of_int(length(a)) in
+  let n2 = float_of_int(length(b)) in
+  let u1 =
+    fold_left(a, (fun (acc, x) ->
+      let lt = float_of_int(length(filter(b, fun y -> y <. x))) in
+      let eq = float_of_int(length(filter(b, fun y -> (! (y <. x)) && (! (x <. y))))) in
+      acc +. lt +. 0.5 *. eq), 0.0) in
+  let mu = n1 *. n2 /. 2.0 in
+  let sg = sqrt(n1 *. n2 *. (n1 +. n2 +. 1.0) /. 12.0) in
+  2.0 *. normal_cdf(0.0 -. abs_float((u1 -. mu) /. sg))
+in

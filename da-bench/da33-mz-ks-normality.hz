@@ -1,0 +1,4 @@
+# DA-Bench id 33: one-sample KS normality of row m/z, imp.score.ldlr.metabolome.csv. #
+let data = ^^csv("imp.score.ldlr.metabolome.csv") in
+let p = ks_norm_p(num(data.`row m/z`)) in
+if p >=. 0.05 then "normally distributed" else "not normally distributed"
