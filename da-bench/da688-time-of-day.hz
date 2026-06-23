@@ -1,0 +1,6 @@
+# DA-Bench id 688: bucket the epoch "dt" column into time-of-day, ravenna_250715.csv. #
+# hour = (dt / 3600) mod 24; morning 6-11, afternoon 12-17, evening 18-23, night 0-5. #
+let data = ^^csv("ravenna_250715.csv") in
+let hours = map(data, fun r -> int_mod(int_of_string(string_trim(r.`dt`)) / 3600, 24)) in
+let cnt = fun (lo: Int, hi: Int) -> length(filter(hours, fun h -> (h >= lo) && (h <= hi))) in
+(morning = cnt(6, 11), afternoon = cnt(12, 17), evening = cnt(18, 23), night = cnt(0, 5))

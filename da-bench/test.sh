@@ -193,6 +193,9 @@ CASES=(
   "da468-assault-age-iqr.hz"
   "da554-median-empty.hz"
   "da760-most-missing-station.hz"
+  # PLAN.md Phase 4: calendar / date arithmetic
+  "da234-budget-year-duration.hz"
+  "da688-time-of-day.hz"
 )
 
 # Strip trailing zeros from every decimal so 34.650000 == 34.65, 0.141000 == 0.141,

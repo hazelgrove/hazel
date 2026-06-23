@@ -1,0 +1,22 @@
+# DA-Bench id 234: mean budget-year duration in days, city_departments_in_current_budget.csv. #
+# Dates are M/D/YYYY; convert each to days-since-epoch (Howard Hinnant's days_from_civil, #
+# pure integer arithmetic), subtract end-start, average, round to a whole number. #
+let data = ^^csv("city_departments_in_current_budget.csv") in
+let days_civil = fun (y0: Int, m: Int, d: Int) ->
+  let y = if m <= 2 then y0 - 1 else y0 in
+  let era = (if y >= 0 then y else y - 399) / 400 in
+  let yoe = y - era * 400 in
+  let mp = if m > 2 then m - 3 else m + 9 in
+  let doy = (153 * mp + 2) / 5 + d - 1 in
+  let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy in
+  era * 146097 + doe - 719468
+in
+let to_days = fun (s: String) ->
+  let p = string_split("/", string_trim(s)) in
+  days_civil(int_of_string(nth(p, 2)), int_of_string(nth(p, 0)), int_of_string(nth(p, 1)))
+in
+let durs =
+  filter(data, fun r ->
+    (string_trim(r.`budget_year_start`) != "") && (string_trim(r.`budget_year_end`) != ""))
+  |> map(_, fun r -> to_days(r.`budget_year_end`) - to_days(r.`budget_year_start`)) in
+round0(mean(map(durs, float_of_int)))

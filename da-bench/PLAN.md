@@ -93,16 +93,14 @@ Documented defects (not solved — emulating them adds nothing):
 - **361, 662** — *label is wrong* (our computation matches pandas: 97 z-outliers; median
   1.30099). Left documented rather than shipping a deliberately-wrong computation.
 
-## Phase 4 — Calendar / date arithmetic
+## Phase 4 — Calendar / date arithmetic — DONE (2 solved)
 
-- **688** — epoch → hour-of-day bucket: integer math on a Unix timestamp
-  (`(t / 3600) mod 24`, mind timezone). Easy; could even be Phase 1.
-- **234** — days between two calendar dates: needs a real date→ordinal (Gregorian
-  days-since-epoch with leap-year rule). Build a small `days_from_civil(y, m, d)`
-  prelude helper (Howard Hinnant's algorithm — pure integer arithmetic), then
-  subtract.
-
-**Effort:** medium (one date helper). **Risk:** low once the helper is correct.
+- **688** ✅ — epoch → time-of-day buckets via `(dt / 3600) mod 24` (UTC and local
+  agree on this data; counts 6/6/6/6).
+- **234** ✅ — mean budget-year duration: M/D/YYYY dates → days-since-epoch via an
+  inline Howard-Hinnant `days_civil(y, m, d)` (pure integer arithmetic), subtract,
+  average → 364. The date helper is local to `da234` (only task that needs it; promote
+  to the prelude if a future task wants date math).
 
 ## Phase 5 — Statistics special-function library → p-values (~58, the big prize)
 
@@ -174,15 +172,15 @@ some of these 20 may remain unmatched.
 
 1. **Phase 1** — DONE: 11 solved (155 → **166**), 252 documented as a label defect.
 2. **Phase 2** — DONE: 2 solved (450, 451 → **168**) via the dict helpers.
-3. **Phase 3** — DONE: 3 solved (468, 554, 760 → **171**); 741/743/361/662 documented
-   as defects. Next quick win: **Phase 4/688** (epoch→hour, trivial integer math).
-3. **Phase 3** (~5) — decide per task; close out or document (~176, minus the
-   label-wrong ones we choose to leave).
-4. **Phase 4/234** (1) — date helper.
+3. **Phase 3** — DONE: 3 solved (468, 554, 760 → **171**); 741/743/361/662 documented.
+4. **Phase 4** — DONE: 2 solved (234, 688 → **173**); Class C calendar cleared.
 5. **Phase 5** (~58) — the major project; ship CDF waves 5a→5d for the bulk, treat
    5e–5g as stretch. Realistically this is where most of the remaining points are.
 6. **Phase 6** (~20) — last; build RNG + linalg infra, accept that exact sklearn/
    numpy matching may cap how many actually pass.
+
+**Phases 1–4 are complete (155 → 173).** What remains is the two hard library
+efforts (Phase 5 p-values, Phase 6 ML+RNG) plus the documented defects/parser blocker.
 
 **Honest ceiling:** Phases 1–4 (~24 tasks) are high-confidence. Phase 5 is a large
 but tractable numeric-library effort (the single biggest gain). Phase 6 is the most

@@ -50,9 +50,9 @@ data-cleaning wrinkle):
   empty filtered set); id 741 grades the literal column name `"ratio"`. Not a
   computation in the usual sense.
 
-## Tally (257 dev tasks) — 171 solved, 86 accounted for
+## Tally (257 dev tasks) — 173 solved, 84 accounted for
 
-- **Solved & verified — 171** (in `test.sh`, every output matches the InfiAgent label):
+- **Solved & verified — 173** (in `test.sh`, every output matches the InfiAgent label):
   mean/median/std (sample & population)/min/max/range, Pearson correlation,
   skewness (pandas-adjusted AND scipy-biased), kurtosis, IQR & Z-score outlier
   detection/removal, group-by aggregation, feature engineering (ratios, sums,
@@ -72,6 +72,8 @@ data-cleaning wrinkle):
   Plus 3 PLAN.md Phase-3 tasks (468 IQR over an 'Assault'-filtered subset, 554
   median-of-empty → "nan", 760 most-missing-station via sorted argmax) — the
   legitimately-computable edge cases.
+  Plus 2 PLAN.md Phase-4 tasks (234 mean budget-year duration via a Gregorian
+  days-from-civil helper, 688 epoch→time-of-day buckets via `(dt/3600) mod 24`).
 - **Inexpressible — scipy p-value / hypothesis tests (class A): 58.** Shapiro, KS,
   normaltest, t-test, ANOVA, chi-square, Mann-Whitney, etc. A coefficient is fine; the
   test statistic's p-value is not (no distribution CDFs / special functions).
@@ -84,8 +86,8 @@ data-cleaning wrinkle):
 - **Class H — multi-number string answers: 3, NOW SOLVED** (77, 178, 219; folded into
   the 166). Assembled with `string_of_int`/`string_of_float` + `join_with`; integer-valued
   floats (`string_of_float` → `594.`) handled via `int_of_float` or a trailing-dot fixup.
-- **Class C — calendar arithmetic: 2.** id 234 (days between two calendar dates),
-  id 688 (epoch→hour-of-day bucketing). Substring/`HH:MM:SS`→sec IS fine; calendar math isn't.
+- **Class C — calendar arithmetic: 0 (NOW SOLVED).** 234 (date subtraction via a
+  Gregorian days-from-civil helper) and 688 (epoch→hour) are folded into the 173.
 - **Class D — non-value answer: 1.** id 743 (graded value is a written-out file path;
   Hazel is pure and can't write files). `da743-income-normalize.hz` computes the
   honest part (Income min/max) and is documented/excluded.
@@ -101,9 +103,9 @@ data-cleaning wrinkle):
   (Myanmar) and is excluded from `test.sh`, like 361/662.
   (The other former "future work" — 62, 321, 510, 589 — were solved in Phase 1.)
 
-171 + 58 + 20 + 2 + 2 + 1 + 1 + 1 + 1 = 257. Every task is accounted for.
-(The 2 is the former-class-E remainder; the 29 solved former-E tasks are inside the 171.
-The trailing 1 is the id-252 label defect.)
+173 + 58 + 20 + 2 + 0 + 1 + 1 + 1 + 1 = 257. Every task is accounted for.
+(The 2 is the former-class-E remainder; the 29 solved former-E tasks are inside the 173.
+Class C calendar is now 0. The trailing 1 is the id-252 label defect.)
 
 ## Builtins / tooling changes made for this effort
 
