@@ -279,10 +279,19 @@ buggy ground truth:
 - **Answer is a column name (id 741):** the graded value is the literal string
   `"ratio"` (a column name), not a computed result.
 - **Ambiguous spec (id 468):** "'Assault' category" doesn't map cleanly to a column.
-- **Wrong / quirky label (ids 361, 662):** our computation matches pandas (97
-  z-outliers; median `1.30099` per `statistics.median`) but the labels say `0` and
-  `1.31` — the reference computed a *different* thing (outliers *remaining after
-  removal* = 0; a different median index). Here Hazel is *more* correct than the label.
+- **Wrong / quirky label — ids 361 and 662** (see the per-task notes at the top of
+  `da361-zout-windspeed.hz` and `da662-pricechange-stats.hz`). In both, our
+  computation is correct and the *label* is the outlier:
+  - **361** (wind-speed Z-outliers): we report "how many outliers are there" =
+    **97** (pandas and numpy agree). The prompt also says "remove the outliers and
+    create a new dataframe", and the reference reported the outlier count *of that
+    cleaned dataframe* — which is **0** by construction. So the label measures
+    outliers-remaining-after-removal; emitting 0 would be tautological.
+  - **662** (median of Close−Open): the prompt says to use Python's `statistics`
+    module. With n=2175 (odd) the median is the single middle value =
+    **1.30099 → 1.30** (`statistics.median` and `numpy` agree); the std **284.61**
+    matches. The label's **1.31** comes from a quirk we couldn't reproduce (likely
+    different `null`-handling or a different median index). Hazel is *more* correct.
 
 These are listed for completeness in `RESULTS.md` but not pursued: fixing them would
 mean emulating a defect, not improving the language.

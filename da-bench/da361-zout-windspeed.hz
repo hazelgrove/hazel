@@ -1,6 +1,10 @@
-# DA-Bench id 361: |z|>3 outliers in wind speed, weather_train.csv (16683 rows). #
-# Computation gives 97 (pandas/numpy agree). EXCLUDED from test.sh: the label is #
-# 0, i.e. outliers *remaining* in the new dataframe after removal, not the count #
-# removed. The 97 here is the correct "how many outliers" answer. #
+# DA-Bench id 361: count |z|>3 outliers in wind speed, weather_train.csv (16683 rows). #
+# NOT in test.sh: label says 0, our (correct) answer is 97 -- a label discrepancy. #
+# We compute "how many outliers are there" = values with |z|>3 = 97 (pandas and #
+# numpy agree, with both sample and population std). The prompt also says "remove #
+# the outliers and create a new dataframe", and the reference apparently reported #
+# the outlier count OF THAT cleaned dataframe, which is 0 by construction (you just #
+# removed them). So the label measures outliers-remaining-after-removal, not the #
+# count of outliers. Emitting 0 would be tautological, so we keep the honest 97. #
 let data = ^^csv("weather_train.csv") in
 count_z_out(num(data.`wind speed`), 3.0)
