@@ -52,7 +52,7 @@ let strip_bom = (s: string): string =>
    headers (e.g. `Fare`, `No. of cases`) are all legal. The unnamed index
    column pandas writes (empty header) becomes `col<i>`. */
 let label_literal = (~index: int, header: string): string => {
-  let h = StringUtil.sanitize_for_label(strip_bom(header));
+  let h = StringUtil.sanitize_for_label(String.trim(strip_bom(header)));
   let h = h == "" ? "col" ++ string_of_int(index) : h;
   "`" ++ h ++ "`";
 };
@@ -231,7 +231,8 @@ let row_ast = (row: list((string, string))): Language.Exp.t =>
   FE.tuple(
     List.mapi(
       (i, (header, value)) => {
-        let h = StringUtil.sanitize_for_label(strip_bom(header));
+        let h =
+          StringUtil.sanitize_for_label(String.trim(strip_bom(header)));
         let h = h == "" ? "col" ++ string_of_int(i) : h;
         FE.tup_label(FE.label(h), FE.string(value));
       },
