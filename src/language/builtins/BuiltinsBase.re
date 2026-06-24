@@ -57,7 +57,103 @@ let misc_fns: list(BuiltinsUtil.fn) = [
   },
 ];
 
+/* numpy-compatible MT19937 (legacy RandomState), implemented natively for speed.
+   Reproduces np.random.RandomState(seed) exactly. 32-bit words held in OCaml's
+   63-bit ints, masked with `land 0xFFFFFFFF`. */
+let mk_mt19937 = (seed: int): (unit => int) => {
+  let mt = Array.make(624, 0);
+  mt[0] = seed land 0xFFFFFFFF;
+  for (i in 1 to 623) {
+    mt[i] =
+      (1812433253 * (mt[i - 1] lxor mt[i - 1] lsr 30) + i) land 0xFFFFFFFF;
+  };
+  let mti = ref(624);
+  let mag = y => y land 1 == 1 ? 0x9908B0DF : 0;
+  () => {
+    if (mti^ >= 624) {
+      for (kk in 0 to 226) {
+        let y = mt[kk] land 0x80000000 lor (mt[kk + 1] land 0x7FFFFFFF);
+        mt[kk] = mt[kk + 397] lxor y lsr 1 lxor mag(y);
+      };
+      for (kk in 227 to 622) {
+        let y = mt[kk] land 0x80000000 lor (mt[kk + 1] land 0x7FFFFFFF);
+        mt[kk] = mt[kk - 227] lxor y lsr 1 lxor mag(y);
+      };
+      let y = mt[623] land 0x80000000 lor (mt[0] land 0x7FFFFFFF);
+      mt[623] = mt[396] lxor y lsr 1 lxor mag(y);
+      mti := 0;
+    };
+    let y = ref(mt[mti^]);
+    mti := mti^ + 1;
+    y := y^ lxor y^ lsr 11;
+    y := y^ lxor (y^ lsl 7 land 0x9D2C5680);
+    y := y^ lxor (y^ lsl 15 land 0xEFC60000);
+    y := y^ lxor y^ lsr 18;
+    y^ land 0xFFFFFFFF;
+  };
+};
+
+/* numpy RandomState(seed).permutation(n): Fisher-Yates with masked-rejection
+   bounded draws (rk_interval), 32-bit path. */
+let mt19937_permutation = (seed: int, n: int): list(int) => {
+  let gen = mk_mt19937(seed);
+  let rk_interval = maxv =>
+    if (maxv == 0) {
+      0;
+    } else {
+      let mask = ref(maxv);
+      mask := mask^ lor mask^ lsr 1;
+      mask := mask^ lor mask^ lsr 2;
+      mask := mask^ lor mask^ lsr 4;
+      mask := mask^ lor mask^ lsr 8;
+      mask := mask^ lor mask^ lsr 16;
+      let v = ref(gen() land mask^);
+      while (v^ > maxv) {
+        v := gen() land mask^;
+      };
+      v^;
+    };
+  let arr = Array.init(n, i => i);
+  for (i in n - 1 downto 1) {
+    let j = rk_interval(i);
+    let t = arr[i];
+    arr[i] = arr[j];
+    arr[j] = t;
+  };
+  Array.to_list(arr);
+};
+
 let numeric_fns: list(BuiltinsUtil.fn) = [
+  {
+    /* np_permutation((seed, n)) == np.random.RandomState(seed).permutation(n).
+       Native MT19937 + Fisher-Yates for performance (the pure-Hazel version is
+       correct but slow). Used for reproducible train_test_split in da-bench. */
+    name: "np_permutation",
+    arg: Prod([int(), int()]),
+    ret: List(int()),
+    imp:
+      [@warning "-8"]
+      (
+        d => {
+          let-unbox [ds, dn] = (Tuple(2), d);
+          let-unbox sb = (Atom(Int), ds);
+          let-unbox nb = (Atom(Int), dn);
+          switch (Bigint.to_int(sb), Bigint.to_int(nb)) {
+          | (Some(seed), Some(n)) =>
+            Some(
+              Fresh.Exp.list_lit(
+                List.map(
+                  i => Fresh.Exp.int(i),
+                  mt19937_permutation(seed, n),
+                ),
+              ),
+            )
+          | _ => None
+          };
+        }
+      ),
+    custom_statics: None,
+  },
   {
     name: "is_finite",
     arg: Atom(Float),
