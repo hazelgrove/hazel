@@ -60,18 +60,60 @@ let make_authorizer =
     };
   };
 
-/* Read a .hz file and build the (base_dir, consent callback) for CSV access. */
+/* Choose the seed for each `^^seed(N)` reference. Under `--yes` (or stdin, where we
+   can't prompt) we keep the source default N for reproducible non-interactive runs.
+   Otherwise we prompt, letting the caller keep N, type a different integer, or draw a
+   fresh OS-random seed ("r") — entropy a pure program can't produce on its own. */
+let make_seed_chooser = (~assume_yes: bool, ~from_stdin: bool): (int => int) =>
+  if (assume_yes || from_stdin) {
+    default => default;
+  } else {
+    default => {
+      prerr_string(
+        "Hazel will use seed: "
+        ++ string_of_int(default)
+        ++ "\n  [Enter] keep  ·  type an integer to use instead  ·  [r] fresh random: ",
+      );
+      flush(stderr);
+      switch (
+        try(Some(input_line(stdin))) {
+        | End_of_file => None
+        }
+      ) {
+      | None
+      | Some("")
+      | Some("y")
+      | Some("Y") => default
+      | Some("r")
+      | Some("R") =>
+        Random.self_init();
+        Random.int(1000000000); /* any seed in [0, 1e9); Random.int bound must be < 2^30 */
+      | Some(other) =>
+        switch (int_of_string_opt(String.trim(other))) {
+        | Some(v) => v
+        | None => default
+        }
+      };
+    };
+  };
+
+/* Read a .hz file, resolve `^^seed(...)` references to integer literals, and build
+   the (base_dir, consent callback) for CSV access. */
 let setup_csv =
     (~assume_yes: bool, ~data_dir: option(string), path: string)
     : (string, string, string => Csv.decision) => {
-  let program = read_input(path);
+  let from_stdin = path == "-";
+  let program =
+    Seed.splice(
+      ~choose=make_seed_chooser(~assume_yes, ~from_stdin),
+      read_input(path),
+    );
   let base_dir =
     switch (data_dir) {
     | Some(d) => d
     | None => Filename.dirname(path)
     };
-  let authorize =
-    make_authorizer(~assume_yes, ~from_stdin=path == "-", ~base_dir);
+  let authorize = make_authorizer(~assume_yes, ~from_stdin, ~base_dir);
   (program, base_dir, authorize);
 };
 
