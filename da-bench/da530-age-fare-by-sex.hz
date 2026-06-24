@@ -1,0 +1,22 @@
+# DA-Bench id 530: Pearson r of Age vs Fare split by Sex + p (4dp) + relationship, titanic_test.csv. #
+let data = ^^csv("titanic_test.csv") in
+let corrsig = fun (sex: String) ->
+  let g = filter(data, fun r -> string_trim(r.`Sex`) == sex) in
+  let pairs =
+    filter(zip(map(g, fun r -> r.`Age`), map(g, fun r -> r.`Fare`)),
+      fun (a, b) -> (string_trim(a) != "") && (string_trim(b) != "")) in
+  let xs = map(pairs, fun (a, _b) -> float_of_string(string_trim(a))) in
+  let ys = map(pairs, fun (_a, b) -> float_of_string(string_trim(b))) in
+  let r = pearson(xs, ys) in
+  (r, pearson_p(r, length(pairs)))
+in
+let rel = fun (r: Float, p: Float) ->
+  if p <. 0.05 then (if abs_float(r) >=. 0.5 then "linear" else "nonlinear") else "none" in
+let m = corrsig("male") in
+let f = corrsig("female") in
+(correlation_coefficient_male = round2(fst(m)),
+ p_value_male = round4(snd(m)),
+ relationship_type_male = rel(fst(m), snd(m)),
+ correlation_coefficient_female = round2(fst(f)),
+ p_value_female = round4(snd(f)),
+ relationship_type_female = rel(fst(f), snd(f)))

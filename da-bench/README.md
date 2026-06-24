@@ -10,7 +10,7 @@ express the computation and produce the correct answer? Solutions are plaintext
 `.hz` files; data is loaded at edit-time via the `^^csv("file.csv")` hook (no
 runtime side effects — the language stays pure).
 
-**Status: 211 / 257 dev tasks solved & verified.** The authoritative ledger of
+**Status: 242 / 257 dev tasks solved & verified.** The authoritative ledger of
 what passes / what's left and why is [`RESULTS.md`](./RESULTS.md); the
 authoritative list of passing cases is the `CASES` array in `test.sh` (every
 entry is checked against the InfiAgent label).
@@ -237,25 +237,46 @@ venv), not just hand-derived constants — e.g. `pearson_p` == `scipy.stats.pear
 Still to add: `gammainc` (χ²) and an F helper; then the ANOVA, χ², KS, and Shapiro-Wilk
 waves. **Effort, not impossibility** — confirmed now that the numerics match scipy.
 
-### 2. ML models + reproducible RNG — ~20 tasks
+### 2. ML models + reproducible RNG — mostly DONE
 
-Two parts:
-
-- **The model fit** (linear/logistic regression, etc.) is often expressible via
-  closed-form normal equations — just unwritten.
-- **Reproducible randomness** (`train_test_split(random_state=42)`, sampling,
-  shuffling). Hazel is pure, so there's no ambient RNG — but that's not a dead
-  end. **Planned approach:** inject the **seed at edit-time from the CLI**, exactly
-  like `^^csv` injects data — e.g. a `^^seed(42)` hook (or a `--seed N` flag) that
-  splices the literal seed into the program. Then provide **pure** functions that
-  derive a deterministic pseudo-random stream from that seed (a PRNG written in
-  Hazel: `seed -> (value, next_seed)` split/advance functions). Because the seed
-  is a compile-time literal and the generator is a pure function, the language
-  stays effect-free while randomness becomes reproducible across runs. The
-  *remaining* hard part is **bit-exact compatibility**: matching numpy's specific
-  generator (Mersenne Twister / PCG64) and `train_test_split`'s exact shuffle order
-  so our split equals theirs. Purity is solved by the design; replicating numpy's
-  exact stream is the work.
+- **The model fit.** Closed-form OLS is now in `prelude.hz`: `ols1` (simple), `ols2`
+  (two-predictor, mean-centered — coefficients + slope p-values + R², == statsmodels),
+  and `olsk` (general k-predictor via `gauss`, mean-centered normal equations). These
+  solve the full-data and split regressions (118, 125, 355, 23, 30, 70, 549, 671, 727).
+- **Reproducible randomness — SOLVED, and it actually runs.** A **pure-Hazel,
+  numpy-exact MT19937 + Fisher-Yates `train_test_split`** lives in the prelude and was
+  verified **bit-identical** to `np.random.RandomState(42).permutation(n)`. Design notes:
+  - The MT state is a **list** (genrand consumes it in order), so the 624-word twist is
+    an O(n) XOR pass; a **recursive-ADT perfect-tree "functional array"** (O(log n)
+    get/set) does the Fisher-Yates swaps, and a `Float` tree `ArrF` gathers data columns
+    by permuted index. (A list-based shuffle would be O(n²) and too slow to *run* — and
+    running, not just expressing, is the bar.)
+  - Gotchas that cost real debugging: integer seeds use `init_genrand` (not
+    `init_by_array`); the native `++` overflows the stack on long lists (use a
+    tail-recursive `tapp`); `take`/`drop` also overflow past ~1-2k depth (use `ttake`/
+    `tdrop`); and the **last twist word** uses the *already-updated* `key[0]` — a bug that
+    only shows for n>624 (multiple twists). All verified against numpy before/while porting.
+  - **Performance:** the pure-Hazel RNG was correct but slow (XOR-by-decomposition + tree
+    shuffle), so the train/test split now calls a **native `np_permutation` builtin** (numpy-exact
+    MT19937 + Fisher-Yates in OCaml; `src/language/builtins/BuiltinsBase.re`). `perm_list` in the
+    prelude delegates to it; the pure-Hazel version is kept as a verified reference. With the native
+    builtin the split is instant, so even **weather_train (16,684 rows, id 363)** runs — it just
+    needs the raised node heap (`--max-old-space-size=8192` in `run.sh`) for the gather trees.
+  - **`^^seed(N)` CLI hook (implemented, `src/CLI/Seed.re`):** mirrors `^^csv` — `^^seed(N)` supplies a
+    default seed that the CLI splices in as an integer literal *before* parsing (so the language stays
+    pure). With `--yes` (or stdin) it keeps the source default `N` (reproducible — how `test.sh` runs);
+    interactively it prompts: `[Enter]` keep, type an integer to override, or **`r` for a fresh
+    OS-random seed** — genuine entropy a pure program can't produce itself, which is the whole point of
+    injecting it at edit-time. All seven split solutions use `^^seed(42)` (e.g. `perm_list(n, ^^seed(42))`).
+- **Logistic regression** is implemented (prelude `logreg` = unregularized IRLS / Newton, plus
+  `logreg_l2(…, lam)` for an L2 penalty with `lam = 1/C`). It solves **521** (the gap there was
+  preprocessing — *impute* missing Age with the mean, not drop) and **224** (the class is defined *as*
+  `> mean`, so the feature perfectly separates the data — the label 0.98 needs `liblinear`'s intercept-
+  penalized L2, matched with `logreg_l2(…, lam=1)`; unregularized / lbfgs give 1.0). **Linear regression
+  as a classifier** (one-hot Sex+Embarked, threshold 0.5 via `olsk`) solves **7** (0.78). Remaining
+  iterative models are documented in `RESULTS.md`: 137 (label 0.61 not reproduced by sklearn either —
+  unweighted 0.59 / balanced 0.64), 424 (random forest), 674 (decision tree), 523 (KNN imputation),
+  432 (80/20-split MSE with no stated `random_state` — unreproducible).
 
 ### 3. Multi-number / data-structure string answers ("the formatting issue")
 

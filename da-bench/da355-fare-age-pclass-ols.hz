@@ -1,0 +1,14 @@
+# DA-Bench id 355: OLS Fare ~ Age + Pclass (statsmodels-style), test_x.csv. Report each coefficient #
+# (2dp) and its significance (two-sided p < 0.05). Age p~0.30 -> not significant; Pclass p~0 -> significant. #
+let data = ^^csv("test_x.csv") in
+let rows =
+  filter(map(data, fun r -> (r.`Age`, r.`Pclass`, r.`Fare`)),
+    fun (a, p, f) -> (string_trim(a) != "") && (string_trim(p) != "") && (string_trim(f) != "")) in
+let age = map(rows, fun (a, _p, _f) -> float_of_string(string_trim(a))) in
+let pcl = map(rows, fun (_a, p, _f) -> float_of_string(string_trim(p))) in
+let fare = map(rows, fun (_a, _p, f) -> float_of_string(string_trim(f))) in
+let (_b0, bage, bpcl, page, ppcl, _r2) = ols2(age, pcl, fare) in
+(coef_age = round2(bage),
+ coef_pclass = round2(bpcl),
+ relationship_age = if page <. 0.05 then "significant" else "not significant",
+ relationship_pclass = if ppcl <. 0.05 then "significant" else "not significant")

@@ -1,0 +1,21 @@
+# DA-Bench id 727: predict mpg from weight + acceleration, auto-mpg.csv. 80/20 train_test_split #
+# (random_state=42) via the prelude's numpy-compatible MT19937 + Fisher-Yates, LinearRegression on #
+# the training split (ols2), MSE on the test split #
+let data = ^^csv("auto-mpg.csv") in
+let w = num(map(data, fun r -> r.`weight`)) in
+let acc = num(map(data, fun r -> r.`acceleration`)) in
+let mpg = num(map(data, fun r -> r.`mpg`)) in
+let n = length(mpg) in
+let perm = perm_list(n, ^^seed(42)) in
+let nt = tts_n_test(0.2, n) in
+let tr_idx = drop(perm, nt) in
+let te_idx = take(perm, nt) in
+let wt = abuildf(w, n) in
+let at = abuildf(acc, n) in
+let mt = abuildf(mpg, n) in
+let (b0, b1, b2, _p1, _p2, _r2) = ols2(gather_f(wt, tr_idx, n), gather_f(at, tr_idx, n), gather_f(mt, tr_idx, n)) in
+let tew = gather_f(wt, te_idx, n) in
+let tea = gather_f(at, te_idx, n) in
+let tem = gather_f(mt, te_idx, n) in
+let yhat = map(zip(tew, tea), (fun (ww, aa) -> b0 +. b1 *. ww +. b2 *. aa)) in
+(test_mse = round2(mean(map(zip(tem, yhat), (fun (yi, yh) -> (yi -. yh) *. (yi -. yh))))))

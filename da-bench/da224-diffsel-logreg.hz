@@ -1,0 +1,30 @@
+# DA-Bench id 224: classify ferret sites as high (positive_diffsel > mean) vs low, then a logistic #
+# regression on positive_diffsel, 80:20 train_test_split(random_state=42). The class is defined AS #
+# >mean, so the feature perfectly separates the data; the label 0.98 comes from sklearn liblinear's #
+# intercept-penalized L2 (C=1) shrinking the otherwise-infinite coefficients (unregularized -> 1.0), #
+# so we use logreg_l2 with lam = 1/C = 1 #
+let data = ^^csv("ferret-Pitt-2-preinf-lib2-100_sitediffsel.csv") in
+let vals = num(map(data, fun r -> r.`positive_diffsel`)) in
+let m = mean(vals) in
+let y = map(vals, (fun (v) -> if v >. m then 1.0 else 0.0)) in
+let n = length(vals) in
+let perm = perm_list(n, ^^seed(42)) in
+let nt = tts_n_test(0.2, n) in
+let tr = tdrop(perm, nt) in
+let te = ttake(perm, nt) in
+let vT = abuildf(vals, n) in
+let yT = abuildf(y, n) in
+let g = fun (t, idxs) -> gather_f(t, idxs, n) in
+let tr_v = g(vT, tr) in
+let tr_ones = map(tr_v, (fun (_a) -> 1.0)) in
+let beta = logreg_l2([tr_ones, tr_v], g(yT, tr), 1.0, 50) in
+let te_v = g(vT, te) in
+let te_ones = map(te_v, (fun (_a) -> 1.0)) in
+let te_y = g(yT, te) in
+let eta =
+  fold_left(zip(beta, [te_ones, te_v]),
+    (fun (acc, (b, f)) -> map(zip(acc, f), (fun (a, v) -> a +. b *. v))),
+    map(te_y, (fun (_z) -> 0.0))) in
+let correct =
+  length(filter(zip(eta, te_y), (fun (e, yi) -> (if e >=. 0.0 then 1.0 else 0.0) ==. yi))) in
+(accuracy_score = round2(float_of_int(correct) /. float_of_int(length(te_y))))

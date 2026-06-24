@@ -1,0 +1,12 @@
+# DA-Bench id 685: Pearson r of pressure vs wind_speed + p (4dp) + significance (alpha=0.05), ravenna_250715.csv. #
+let data = ^^csv("ravenna_250715.csv") in
+let pairs =
+  filter(zip(map(data, fun r -> r.`pressure`), map(data, fun r -> r.`wind_speed`)),
+    fun (a, b) -> (string_trim(a) != "") && (string_trim(b) != "")) in
+let xs = map(pairs, fun (a, _b) -> float_of_string(string_trim(a))) in
+let ys = map(pairs, fun (_a, b) -> float_of_string(string_trim(b))) in
+let r = pearson(xs, ys) in
+let p = pearson_p(r, length(pairs)) in
+(correlation_coefficient = round2(r),
+ p_value = round4(p),
+ relationship_significance = if p <. 0.05 then "significant" else "not significant")

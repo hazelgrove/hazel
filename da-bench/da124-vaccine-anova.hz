@@ -1,0 +1,23 @@
+# DA-Bench id 124: one-way ANOVA of per-country final total_vaccinations_per_hundred across the four #
+# named single-vaccine groups, country_vaccinations.csv. Vaccination counts are cumulative, so each #
+# country's max is its final value; among the four exact groups only Pfizer/BioNTech (25 countries) #
+# and Oxford/AstraZeneca (10) are present. ANOVA p=0.1989 >= 0.05 -> not significant ("no"). #
+let data = ^^csv("country_vaccinations.csv") in
+let isv = fun (s: String) ->
+  (s == "Pfizer/BioNTech") || (s == "Moderna")
+  || (s == "Oxford/AstraZeneca") || (s == "Johnson&Johnson/Janssen") in
+let valid =
+  filter(data, fun r ->
+    (string_trim(r.`total_vaccinations_per_hundred`) != "") && isv(string_trim(r.`vaccines`))) in
+let maxl = fun (xs: [Float]) -> fold_left(xs, fun (a, x) -> if x >. a then x else a, 0.0 -. 1000000000.0) in
+let pervax = fun (vax: String) ->
+  let rowsv = filter(valid, fun r -> string_trim(r.`vaccines`) == vax) in
+  let countries = distinct_strings(map(rowsv, fun r -> string_trim(r.`country`))) in
+  map(countries, fun c ->
+    maxl(num(map(filter(rowsv, fun r -> string_trim(r.`country`) == c),
+                 fun r -> r.`total_vaccinations_per_hundred`)))) in
+let vsets = ["Pfizer/BioNTech", "Moderna", "Oxford/AstraZeneca", "Johnson&Johnson/Janssen"] in
+let groups = filter(map(vsets, pervax), fun (g: [Float]) -> length(g) > 0) in
+let p = anova_p(groups) in
+(significance_of_difference = if p <. 0.05 then "yes" else "no",
+ p_value = round4(p))

@@ -1,0 +1,15 @@
+# DA-Bench id 125: multiple OLS, people_fully_vaccinated_per_hundred ~ total_vaccinations + #
+# people_vaccinated_per_hundred, country_vaccinations.csv (rows non-null in all three). Report each #
+# predictor's significance (p<0.05) and R^2. Both predictors significant -> "yes,yes"; R^2=0.6059. #
+let data = ^^csv("country_vaccinations.csv") in
+let rows =
+  filter(map(data, fun r ->
+           (r.`total_vaccinations`, r.`people_vaccinated_per_hundred`, r.`people_fully_vaccinated_per_hundred`)),
+    fun (tv, pv, fv) -> (string_trim(tv) != "") && (string_trim(pv) != "") && (string_trim(fv) != "")) in
+let x1 = map(rows, fun (tv, _pv, _fv) -> float_of_string(string_trim(tv))) in
+let x2 = map(rows, fun (_tv, pv, _fv) -> float_of_string(string_trim(pv))) in
+let y = map(rows, fun (_tv, _pv, fv) -> float_of_string(string_trim(fv))) in
+let (_b0, _b1, _b2, p1, p2, r2) = ols2(x1, x2, y) in
+let sig = fun (p: Float) -> if p <. 0.05 then "yes" else "no" in
+(significant_predictor = sig(p1) ++ "," ++ sig(p2),
+ r_squared = round4(r2))

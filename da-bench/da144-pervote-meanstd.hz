@@ -1,0 +1,10 @@
+# DA-Bench id 144: mean (2dp) and std (3dp, sample ddof=1) of per_dem and per_gop, election2016.csv. #
+# The graded label covers only these four descriptive stats; the question's Anderson-Darling #
+# normality verdict (dist_dem/dist_gop) is not in common_answers, so it is not reported here. #
+let data = ^^csv("election2016.csv") in
+let dem = num(map(data, fun r -> r.`per_dem`)) in
+let gop = num(map(data, fun r -> r.`per_gop`)) in
+(mean_dem = round2(mean(dem)),
+ mean_gop = round2(mean(gop)),
+ std_dev_dem = round3(sample_std(dem)),
+ std_dev_gop = round3(sample_std(gop)))

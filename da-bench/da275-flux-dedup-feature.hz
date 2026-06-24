@@ -1,0 +1,17 @@
+# DA-Bench id 275: 3901.csv preprocessing. Graded outputs are (1) the number of duplicate rows #
+# removed and (3) the mean of the new feature MEANGAM_MEANGBZ_DIFF = MEANGAM - MEANGBZ. (The Random #
+# Forest regression step in part 4 is not in the graded label.) Duplicate count via sort + adjacent- #
+# equal over a full-row key (O(n log n)); there are no duplicate rows, so it is 0. #
+let data = ^^csv("3901.csv") in
+let key = fun r ->
+  join_with("|", [
+    r.`TRUE_TIME`, r.`TIME`, r.`USFLUX`, r.`MEANGAM`, r.`MEANGBT`, r.`MEANGBZ`, r.`MEANGBH`,
+    r.`MEANJZD`, r.`TOTUSJZ`, r.`MEANJZH`, r.`TOTUSJH`, r.`ABSNJZH`, r.`SAVNCPP`, r.`MEANPOT`,
+    r.`TOTPOT`, r.`MEANSHR`, r.`SHRGT45`, r.`R_VALUE`, r.`AREA_ACR`]) in
+let sorted = sort(string_compare, map(data, key)) in
+let dup = length(filter(zip(sorted, tail(sorted)), fun (a, b) -> a == b)) in
+let diff =
+  map(zip(map(data, fun r -> r.`MEANGAM`), map(data, fun r -> r.`MEANGBZ`)),
+    fun (a, b) -> float_of_string(string_trim(a)) -. float_of_string(string_trim(b))) in
+(duplicate_count = dup,
+ new_feature_mean = round2(mean(diff)))

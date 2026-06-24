@@ -1,0 +1,36 @@
+# DA-Bench id 521: logistic regression predicting Survived from Age, gender, Fare, titanic.csv. #
+# 70/30 train_test_split(random_state=42); missing Age is IMPUTED with the column mean (this is what #
+# reproduces the label: impute -> 0.78, dropping the rows -> 0.76). Unregularized IRLS logistic #
+# regression on the training split; accuracy on the test split #
+let data = ^^csv("titanic.csv") in
+let agecells = map(data, fun r -> r.`Age`) in
+let agemean = mean(num(agecells)) in
+let age =
+  map(agecells, (fun (a) -> if string_trim(a) == "" then agemean else float_of_string(string_trim(a)))) in
+let sex = map(data, fun r -> if string_trim(r.`Sex`) == "male" then 1.0 else 0.0) in
+let fare = map(data, fun r -> float_of_string(string_trim(r.`Fare`))) in
+let surv = map(data, fun r -> float_of_string(string_trim(r.`Survived`))) in
+let n = length(surv) in
+let perm = perm_list(n, ^^seed(42)) in
+let nt = tts_n_test(0.3, n) in
+let tr = tdrop(perm, nt) in
+let te = ttake(perm, nt) in
+let ageT = abuildf(age, n) in
+let sexT = abuildf(sex, n) in
+let fareT = abuildf(fare, n) in
+let yT = abuildf(surv, n) in
+let g = fun (t, idxs) -> gather_f(t, idxs, n) in
+let tr_age = g(ageT, tr) in
+let tr_ones = map(tr_age, (fun (_a) -> 1.0)) in
+let beta = logreg([tr_ones, tr_age, g(sexT, tr), g(fareT, tr)], g(yT, tr), 25) in
+let te_age = g(ageT, te) in
+let te_ones = map(te_age, (fun (_a) -> 1.0)) in
+let te_feats = [te_ones, te_age, g(sexT, te), g(fareT, te)] in
+let te_y = g(yT, te) in
+let eta =
+  fold_left(zip(beta, te_feats),
+    (fun (acc, (b, f)) -> map(zip(acc, f), (fun (a, v) -> a +. b *. v))),
+    map(te_y, (fun (_z) -> 0.0))) in
+let correct =
+  length(filter(zip(eta, te_y), (fun (e, yi) -> (if e >=. 0.0 then 1.0 else 0.0) ==. yi))) in
+(classifier_accuracy = round2(float_of_int(correct) /. float_of_int(length(te_y))))

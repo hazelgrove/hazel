@@ -1,0 +1,22 @@
+# DA-Bench id 30: predict charges from age + bmi, insurance.csv. 80/20 train_test_split #
+# (random_state=42) via the prelude's numpy-compatible MT19937, LinearRegression on train, RMSE on #
+# the test split #
+let data = ^^csv("insurance.csv") in
+let age = num(map(data, fun r -> r.`age`)) in
+let bmi = num(map(data, fun r -> r.`bmi`)) in
+let chg = num(map(data, fun r -> r.`charges`)) in
+let n = length(chg) in
+let perm = perm_list(n, ^^seed(42)) in
+let nt = tts_n_test(0.2, n) in
+let tr = drop(perm, nt) in
+let te = take(perm, nt) in
+let aT = abuildf(age, n) in
+let bT = abuildf(bmi, n) in
+let cT = abuildf(chg, n) in
+let (b0, b1, b2, _p1, _p2, _r2) = ols2(gather_f(aT, tr, n), gather_f(bT, tr, n), gather_f(cT, tr, n)) in
+let tea = gather_f(aT, te, n) in
+let teb = gather_f(bT, te, n) in
+let tec = gather_f(cT, te, n) in
+let yhat = map(zip(tea, teb), (fun (xa, xb) -> b0 +. b1 *. xa +. b2 *. xb)) in
+let mse = mean(map(zip(tec, yhat), (fun (yi, yh) -> (yi -. yh) *. (yi -. yh)))) in
+(model_rmse = round2(sqrt(mse)))

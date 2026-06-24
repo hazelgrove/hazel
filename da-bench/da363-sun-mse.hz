@@ -1,0 +1,27 @@
+# DA-Bench id 363: predict sun from temperature + humidity + wind speed, weather_train.csv. 70/30 #
+# train_test_split(random_state=42, the de-facto default that matches the label) via the native #
+# np_permutation, multiple OLS (olsk) on the training split, MSE on test #
+# n~16602 after dropping blank rows — feasible only because the MT19937 + Fisher-Yates is a native builtin. #
+let data = ^^csv("weather_train.csv") in
+let rows =
+  filter(map(data, fun r -> (r.`temperature`, r.`humidity`, r.`wind speed`, r.`sun`)),
+    fun (t, h, w, s) ->
+      (string_trim(t) != "") && (string_trim(h) != "") && (string_trim(w) != "") && (string_trim(s) != "")) in
+let f1 = map(rows, fun (t, _h, _w, _s) -> float_of_string(string_trim(t))) in
+let f2 = map(rows, fun (_t, h, _w, _s) -> float_of_string(string_trim(h))) in
+let f3 = map(rows, fun (_t, _h, w, _s) -> float_of_string(string_trim(w))) in
+let y = map(rows, fun (_t, _h, _w, s) -> float_of_string(string_trim(s))) in
+let n = length(y) in
+let perm = perm_list(n, ^^seed(42)) in
+let nt = tts_n_test(0.3, n) in
+let tr = tdrop(perm, nt) in
+let te = ttake(perm, nt) in
+let trees = map([f1, f2, f3], (fun (c) -> abuildf(c, n))) in
+let trcols = map(trees, (fun (t) -> gather_f(t, tr, n))) in
+let tecols = map(trees, (fun (t) -> gather_f(t, te, n))) in
+let yT = abuildf(y, n) in
+let tr_y = gather_f(yT, tr, n) in
+let te_y = gather_f(yT, te, n) in
+let (b0, beta) = olsk(trcols, tr_y) in
+let yhat = predict(b0, beta, tecols) in
+(mean_squared_error = round2(mean(map(zip(te_y, yhat), (fun (yi, yh) -> (yi -. yh) *. (yi -. yh))))))

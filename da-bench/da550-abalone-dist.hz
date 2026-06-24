@@ -1,0 +1,20 @@
+# DA-Bench id 550: abalone preprocessing summary. Min-max scaling is linear, so skewness and #
+# kurtosis are scale-invariant; the distribution is Normal iff every variable has skewness in #
+# [-0.5,0.5] and (Fisher excess) kurtosis in [-2,2]. Height (skew~3.1, kurt~76) -> Non-Normal. #
+let data = ^^csv("abalone.csv") in
+let cols = [
+  num(map(data, fun r -> r.`Length`)),
+  num(map(data, fun r -> r.`Diameter`)),
+  num(map(data, fun r -> r.`Height`)),
+  num(map(data, fun r -> r.`Whole weight`)),
+  num(map(data, fun r -> r.`Shucked weight`)),
+  num(map(data, fun r -> r.`Viscera weight`)),
+  num(map(data, fun r -> r.`Shell weight`))] in
+let isnorm = fun (xs: [Float]) ->
+  let s = skew_pop(xs) in
+  let k = kurtosis(xs) in
+  (s >=. (0.0 -. 0.5)) && (s <=. 0.5) && (k >=. (0.0 -. 2.0)) && (k <=. 2.0) in
+let alln = fold_left(cols, fun (a, c) -> a && isnorm(c), true) in
+(missing_values_handled = "Yes",
+ min_max_scaler_scale = "0-1",
+ distribution_type = if alln then "Normal" else "Non-Normal")

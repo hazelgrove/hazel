@@ -1,0 +1,11 @@
+# DA-Bench id 249: Pearson r of number_of_doubles vs salary + p (4dp), baseball_data.csv. #
+let data = ^^csv("baseball_data.csv") in
+let pairs =
+  filter(zip(map(data, fun r -> r.`number_of_doubles`), map(data, fun r -> r.`salary_in_thousands_of_dollars`)),
+    fun (a, b) -> (string_trim(a) != "") && (string_trim(b) != "")) in
+let xs = map(pairs, fun (a, _b) -> float_of_string(string_trim(a))) in
+let ys = map(pairs, fun (_a, b) -> float_of_string(string_trim(b))) in
+let r = pearson(xs, ys) in
+let p = pearson_p(r, length(pairs)) in
+(correlation_coefficient = round2(r),
+ p_value = round4(p))

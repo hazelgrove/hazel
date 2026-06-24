@@ -1,0 +1,14 @@
+# DA-Bench id 429: Pearson r of max_storm_cat vs damage_USD + p (4dp) + relationship, cost_data_with_errors.csv. #
+# damage_USD has area-name errors (" Venezuela", " Belize", ...); a leading-digit test on each cell #
+# drops exactly the non-numeric ones (verified equal to pandas to_numeric: 818 valid rows). #
+let data = ^^csv("cost_data_with_errors.csv") in
+let pairs =
+  filter(zip(map(data, fun r -> r.`max_storm_cat`), map(data, fun r -> r.`damage_USD`)),
+    fun (c, d) -> string_match("^[0-9]", string_trim(c)) && string_match("^[0-9]", string_trim(d))) in
+let xs = map(pairs, fun (c, _d) -> float_of_string(string_trim(c))) in
+let ys = map(pairs, fun (_c, d) -> float_of_string(string_trim(d))) in
+let r = pearson(xs, ys) in
+let p = pearson_p(r, length(pairs)) in
+(correlation_coefficient = round2(r),
+ p_value = round4(p),
+ relationship_type = if p <. 0.05 then (if abs_float(r) >=. 0.5 then "linear" else "nonlinear") else "none")

@@ -1,0 +1,12 @@
+# DA-Bench id 118: simple linear regression of GDP-per-capita -> life-expectancy, 2015.csv. #
+# For simple (one-predictor) regression R^2 = r^2; R^2 < 0.7 -> "poor fit". #
+let data = ^^csv("2015.csv") in
+let pairs =
+  filter(zip(map(data, fun r -> r.`Economy (GDP per Capita)`), map(data, fun r -> r.`Health (Life Expectancy)`)),
+    fun (a, b) -> (string_trim(a) != "") && (string_trim(b) != "")) in
+let xs = map(pairs, fun (a, _b) -> float_of_string(string_trim(a))) in
+let ys = map(pairs, fun (_a, b) -> float_of_string(string_trim(b))) in
+let r = pearson(xs, ys) in
+let r2 = r *. r in
+(coefficient_determination = round2(r2),
+ model_fit = if r2 >=. 0.7 then "good fit" else "poor fit")

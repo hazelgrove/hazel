@@ -1,0 +1,12 @@
+# DA-Bench id 529: Pearson r of SibSp vs Parch + p (4dp) + relationship (|r|>=0.5 linear), titanic_test.csv. #
+let data = ^^csv("titanic_test.csv") in
+let pairs =
+  filter(zip(map(data, fun r -> r.`SibSp`), map(data, fun r -> r.`Parch`)),
+    fun (a, b) -> (string_trim(a) != "") && (string_trim(b) != "")) in
+let xs = map(pairs, fun (a, _b) -> float_of_string(string_trim(a))) in
+let ys = map(pairs, fun (_a, b) -> float_of_string(string_trim(b))) in
+let r = pearson(xs, ys) in
+let p = pearson_p(r, length(pairs)) in
+(correlation_coefficient = round2(r),
+ p_value = round4(p),
+ relationship_type = if p <. 0.05 then (if abs_float(r) >=. 0.5 then "linear" else "nonlinear") else "none")

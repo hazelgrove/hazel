@@ -1,0 +1,17 @@
+# DA-Bench id 300: Pearson r of nsnps vs nsamplecov, ts-sc4-...tree_table.csv. #
+# DISCREPANCY (excluded from test.sh): our Pearson r is 0.5262 -> 0.53 (pandas df.corr agrees, n=2657 #
+# after pairwise dropna), but the InfiAgent label is 0.54, which no standard Pearson preprocessing #
+# reproduces (fillna(0) gives 0.56, both>0 gives 0.52). This is the SAME tree_table.csv file whose #
+# labels are unreproducible for ids 297 and 298. The significance verdict ("correlated", p<0.05) #
+# matches; only the coefficient differs by 0.01. This emits the honest 0.53. #
+let data = ^^csv("ts-sc4-wi100000-sl25000-Qrob_Chr05.tree_table.csv") in
+let pairs =
+  filter(zip(map(data, fun r -> r.`nsnps`), map(data, fun r -> r.`nsamplecov`)),
+    fun (a, b) -> (string_trim(a) != "") && (string_trim(b) != "")) in
+let xs = map(pairs, fun (a, _b) -> float_of_string(string_trim(a))) in
+let ys = map(pairs, fun (_a, b) -> float_of_string(string_trim(b))) in
+let r = pearson(xs, ys) in
+let p = pearson_p(r, length(pairs)) in
+(correlation_coefficient = round2(r),
+ p_value = round4(p),
+ correlation = if p <. 0.05 then "correlated" else "not correlated")

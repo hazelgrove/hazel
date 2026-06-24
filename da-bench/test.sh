@@ -239,6 +239,45 @@ CASES=(
   "da684-humidity-shapiro.hz"
   "da736-popgdp-shapiro.hz"
   "da738-age-shapiro.hz"
+  # Phase 6A — write-only sweep (existing prelude: pearson_p / anova_p / corr; no new infra)
+  "da142-votes-ppd-corr.hz"
+  "da269-totusjh-totusjz-corr.hz"
+  "da413-pclass-fare-cherbourg.hz"
+  "da529-sibsp-parch-corr.hz"
+  "da530-age-fare-by-sex.hz"
+  "da575-techavg-spx-corr.hz"
+  "da685-pressure-wind-corr.hz"
+  "da730-pop-gdp-corr.hz"
+  "da144-pervote-meanstd.hz"
+  "da249-doubles-salary-corr.hz"
+  "da429-stormcat-damage-corr.hz"
+  "da550-abalone-dist.hz"
+  "da673-mhv-roomsperperson.hz"
+  "da124-vaccine-anova.hz"
+  "da734-continent-lifeexp-gdp.hz"
+  "da756-tmax-obs-corr.hz"
+  # Phase 6B — OLS regression: simple R^2=r^2 (118), and 2-predictor OLS via mean-centered normal
+  # equations (new `ols2`: coefficients, slope p-values via t_sf2, and R^2 = statsmodels OLS)
+  "da118-gdp-lifeexp-r2.hz"
+  "da355-fare-age-pclass-ols.hz"
+  "da125-vaccine-multiols.hz"
+  # Phase 6D (RNG-free): feature engineering / duplicate count (no model, no split needed)
+  "da275-flux-dedup-feature.hz"
+  "da590-predict-agents.hz"
+  # Phase 6C: numpy-compatible MT19937 + train_test_split (random_state=42) + OLS on the split.
+  # Pure-Hazel RNG: list-MT (O(n) twist) + recursive-ADT tree Fisher-Yates; matches np.RandomState(42).
+  "da727-mpg-split-mse.hz"
+  "da23-unemployment-mse.hz"
+  "da671-medhouseval-mse.hz"
+  "da30-insurance-rmse.hz"
+  "da70-wage-rmse.hz"
+  "da549-abalone-volume-rmse.hz"
+  "da363-sun-mse.hz"
+  # Phase 6D: logistic regression via IRLS (prelude `logreg`); impute missing Age with the mean
+  "da521-survival-logreg.hz"
+  "da224-diffsel-logreg.hz"
+  # Phase 6D: linear-regression classifier (one-hot Sex+Embarked, threshold 0.5 via olsk)
+  "da7-survival-linreg-onehot.hz"
 )
 
 # Strip trailing zeros from every decimal so 34.650000 == 34.65, 0.141000 == 0.141,

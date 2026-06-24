@@ -50,9 +50,9 @@ data-cleaning wrinkle):
   empty filtered set); id 741 grades the literal column name `"ratio"`. Not a
   computation in the usual sense.
 
-## Tally (257 dev tasks) — 211 solved, 46 accounted for
+## Tally (257 dev tasks) — 242 solved, 15 accounted for
 
-- **Solved & verified — 211** (in `test.sh`, every output matches the InfiAgent label):
+- **Solved & verified — 242** (in `test.sh`, every output matches the InfiAgent label):
   mean/median/std (sample & population)/min/max/range, Pearson correlation,
   skewness (pandas-adjusted AND scipy-biased), kurtosis, IQR & Z-score outlier
   detection/removal, group-by aggregation, feature engineering (ratios, sums,
@@ -83,6 +83,30 @@ data-cleaning wrinkle):
   and the full Shapiro-Wilk bucket (19 tasks: 10, 39, 72, 130, 136, 139, 244, 268, 304, 350,
   375, 449, 602, 644, 647, 667, 684, 736, 738) via new `probit` (Acklam) + `shapiro_w`/
   `shapiro_p` (Royston AS R94), verified exact vs scipy.stats.shapiro.
+  Plus PLAN.md **Phase 6A** (16 tasks) — write-only with the *existing* prelude (no new infra):
+  Pearson-r p-value / relationship / significance (142, 269, 413, 429, 529, 530, 575, 685, 730,
+  249, 756), per-continent correlation (734), one-way ANOVA per-country (124, vaccine groups),
+  and descriptive/preprocessing answers (144 mean/std of per-vote, 550 abalone distribution-type
+  via skew/kurtosis, 673 RoomsPerPerson correlation + mean). All cross-checked against real
+  scipy/pandas before trusting the label. (These were always expressible with the Phase-5
+  `pearson_p`/`anova_p` library — they were simply never written; PLAN.md mis-scoped "Phase 6"
+  as ~20 ML+RNG when ~16 of the 38 remaining needed no new code at all.)
+  Plus PLAN.md **Phase 6B** (3 tasks) — OLS regression: 118 (simple regression R^2 = r^2, "poor fit"),
+  and via a new `ols2` prelude helper (two-predictor OLS through the mean-centered normal equations —
+  coefficients, slope p-values via `t_sf2`, and R^2, all matching statsmodels OLS exactly): 355
+  (Fare ~ Age + Pclass coefficients + significance) and 125 (vaccine multiple regression R^2 + both
+  predictors significant). id 590 SOLVED after a `String.trim` on CSV headers in `Csv.re` made its
+  trailing-space column "avg. num. agents staffed " reachable (the target is constant 4 -> predict 4);
+  id 432 moved to 6C (needs a train/test split).
+  Plus PLAN.md **Phase 6C** (train_test_split + regression): a **pure-Hazel, numpy-exact MT19937 +
+  Fisher-Yates `train_test_split`** was built in `prelude.hz` and verified bit-identical to
+  `np.random.RandomState(42).permutation(n)` (the MT state is a list so the twist is an O(n) XOR pass;
+  a recursive-ADT perfect-tree "functional array" does the O(log n) shuffle swaps; a `Float` tree
+  `ArrF` gathers columns by permuted index). With it, OLS-on-the-split solves **727** (mpg, test
+  MSE=17.66), **23** (employment, simple regression MSE=11439.6 via `ols1`), **30** (insurance,
+  RMSE=11464.74 via `ols2`), **671** (5-feature MSE=0.653 via general `olsk`), **70** (12-feature
+  RMSE=3.63), **549** (abalone correlation + original vs original+volume RMSE — all three). Plus
+  Phase **6D RNG-free 275** (duplicate count + engineered-feature mean; the RF step isn't graded).
 - **scipy p-value / hypothesis tests (class A): 58 → 20 (Phase 5 DONE for all named tests).**
   The special-function prelude now does Pearson-r p, pooled/Welch t-tests, D'Agostino
   normaltest, ANOVA (F via betainc), chi-square (gammainc), Kolmogorov-Smirnov, Mann-Whitney,
@@ -93,8 +117,49 @@ data-cleaning wrinkle):
   Note id 297 — an erroneous label (verified with pandas 3.0.3: `pd.read_csv`
   parses `tree_table.csv` cleanly to (2822, 6) and gives our exact 43.31/4.26; the label
   45.48/4.58 is not reproducible by any standard pandas operation), not a p-value issue.
-- **Inexpressible — sklearn / ML models (class B): 20.** Fitted regression/classification,
-  clustering, `train_test_split(random_state=…)` (needs numpy RNG).
+- **ML / regression (Phase 6B/6C/6D): 20 → 15 solved, 5 documented.** SOLVED: full-data/coefficient
+  OLS 118, 125, 355; RNG-free feature-eng 275; the seeded-split regressions 23, 30, 70, 363, 549,
+  671, 727 (the train/test split uses a **native `np_permutation` builtin** — numpy-exact MT19937 +
+  Fisher-Yates in OCaml, `src/language/builtins/BuiltinsBase.re` — plus `ols1`/`ols2`/`olsk`; the
+  pure-Hazel MT19937 in `prelude.hz` is kept as a verified reference); **521** logistic regression
+  via a new IRLS `logreg` helper (the gap was preprocessing: the reference *imputes* missing Age with
+  the mean -> 0.78; dropping those rows gives 0.76 — unregularized IRLS converges to the same optimum
+  sklearn reaches); **224** logistic on `positive_diffsel` (the class is defined *as* `> mean`, so the
+  feature perfectly separates the data; the label 0.98 comes from `liblinear`'s intercept-penalized L2
+  shrinking the otherwise-infinite coefficients — matched with a regularized `logreg_l2(…, lam=1/C=1)`
+  IRLS helper; unregularized / lbfgs give 1.0); and **7** linreg-as-classifier over one-hot
+  Sex/Embarked (drop the 1-row redundant `Sex='0'` dummy for full rank, `olsk`, 0.5 threshold -> 0.78).
+  363 (n=16,684) needs the raised node heap (`--max-old-space-size` in `run.sh`).
+  DOCUMENTED (not matched):
+  - **137** — logistic with `class_weight='balanced'` on the `IsAlone` feature. The label 0.61 is not
+    reproduced by sklearn either: unweighted = 0.59, balanced = 0.64 (neither is 0.61). A benchmark quirk.
+  - **674** (decision-tree regression, pearson/MAE) — a from-scratch CART (best-SSE split, midpoint
+    thresholds, `max_depth=5`) reproduces sklearn's root and ~96% of the tree, but diverges at a
+    5-sample node where **two features tie on the split proxy bit-for-bit** (Latitude and Longitude
+    both = 104.4915, each isolating the lone `3.629` sample). sklearn breaks that tie with its
+    *internal* tree-builder RNG (`our_rand_r` feature-shuffle, seeded from `random_state` — a different
+    RNG from numpy's MT19937), picking Longitude; a first-feature tie-break gives 0.6553, last-feature
+    0.6324, neither the label 0.6419. Matchable only by porting sklearn's internal C RNG + exact
+    feature-visitation order (brittle across versions); not done.
+  - **424** (random forest feature-importance) — strictly harder than 674: needs the seeded ensemble
+    (bootstrap resampling + per-split feature subsampling × 100 trees) *and* each tree's internal RNG.
+  - **523** (KNN Age-imputation): child_count=72 not reproducible even in sklearn (got 91/69), so the
+    exact tie-breaking/scaling is unclear; not matched.
+  - **432** — its 80/20 split metric (MSE 263.19) is not reproducible by any seed/split tried (the task
+    states no `random_state`).
+  (590 is now SOLVED — a `String.trim` on CSV headers in `Csv.re` makes its trailing-space column
+  "avg. num. agents staffed " reachable; the target is constant 4, so the predicted value is 4.)
+- **Phase 6A discrepancies (documented, excluded from `test.sh`): 2.**
+  - **300** (nsnps~nsamplecov on `…tree_table.csv`): our Pearson r is **0.53** (pandas `df.corr`
+    agrees, n=2657 pairwise-dropna), but the label is **0.54**, unreproducible by any standard
+    Pearson preprocessing. Same `tree_table.csv` file whose labels are wrong for **297/298**.
+    The "correlated" verdict (p<0.05) matches; only the coefficient is off by 0.01.
+    `da300-…hz` emits the honest 0.53.
+  - **431** (max_storm_cat~duration, high-damage split, `cost_data_with_errors.csv`): the
+    duration must be parsed from en-dash + non-breaking-space month ranges ("July 30 – August 1"),
+    impractical in Hazel's ASCII string ops. A pandas calendar-correct duration gives high-damage
+    r=**0.57** vs label **0.56** anyway (relationship_type "linear" and p=0.0000 *do* match) — a
+    duration-parse convention difference. Not implemented.
 - **Former class E (stack-overflow, NOW FIXED): 31 → 29 solved + 2 other.** The fix +
   Phases 1–3 now cover 29 (incl. 123/555 via `distinct_strings`, 453/572/574/665,
   450/451, and 468/554/760 from Phase 3). The remaining 2 are **label-discrepancy**
@@ -119,9 +184,12 @@ data-cleaning wrinkle):
   (Myanmar) and is excluded from `test.sh`, like 361/662.
   (The other former "future work" — 62, 321, 510, 589 — were solved in Phase 1.)
 
-211 + 20 + 20 + 2 + 1 + 1 + 1 + 1 = 257. Every task is accounted for.
-(20 = class-A p-value remainder; 2 = former-class-E remainder; the four trailing 1s are
-D-743, G-741, parser-618, and the id-252 label defect. Class C calendar is now 0.)
+242 + 5 + 10 = 257. Every task is accounted for.
+(242 solved incl. Phases 6A/6B/6C/6D-275 + the native-RNG splits 23/30/70/363/549/671/727 + 590 + the
+521/224 logistic regressions + the 7 one-hot linreg classifier; 5 ML/regression documented-not-matched
+— 137 (label 0.61 not reproduced by sklearn either), 424 (random forest), 674 (decision tree), 523
+(KNN imputation), 432 (unreproducible split, no stated random_state); 10 = documented defects/
+discrepancies + the parser blocker: 252, 297, 298, 300, 361, 431, 618, 662, 741, 743.)
 
 ## Builtins / tooling changes made for this effort
 

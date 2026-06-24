@@ -1,0 +1,20 @@
+# DA-Bench id 734: Pearson r of lifeexp vs gdppercap per continent, gapminder_cleaned.csv. #
+# significance: p<0.05 AND |r|>=0.5 -> "significant", else "non-significant". One result per continent. #
+let data = ^^csv("gapminder_cleaned.csv") in
+let conts = ["africa", "americas", "asia", "europe", "oceania"] in
+let percont = fun (cont: String) ->
+  let g = filter(data, fun r -> string_trim(r.`continent`) == cont) in
+  let pairs =
+    filter(zip(map(g, fun r -> r.`lifeexp`), map(g, fun r -> r.`gdppercap`)),
+      fun (a, b) -> (string_trim(a) != "") && (string_trim(b) != "")) in
+  let xs = map(pairs, fun (a, _b) -> float_of_string(string_trim(a))) in
+  let ys = map(pairs, fun (_a, b) -> float_of_string(string_trim(b))) in
+  let r = pearson(xs, ys) in
+  let p = pearson_p(r, length(pairs)) in
+  (continent_name = cont,
+   correlation_coefficient = round2(r),
+   p_value = round4(p),
+   correlation_significance =
+     if (p <. 0.05) && (abs_float(r) >=. 0.5) then "significant" else "non-significant")
+in
+map(conts, percont)

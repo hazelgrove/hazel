@@ -1,0 +1,14 @@
+# DA-Bench id 575: Pearson r of avg(AAPL.O, MSFT.O, AMZN.O) vs .SPX + p (4dp) + relationship, tr_eikon_eod_data.csv. #
+let data = ^^csv("tr_eikon_eod_data.csv") in
+let rows =
+  filter(map(data, fun r -> (r.`AAPL.O`, r.`MSFT.O`, r.`AMZN.O`, r.`.SPX`)),
+    fun (a, m, z, s) ->
+      (string_trim(a) != "") && (string_trim(m) != "") && (string_trim(z) != "") && (string_trim(s) != "")) in
+let xs = map(rows, fun (a, m, z, _s) ->
+  (float_of_string(string_trim(a)) +. float_of_string(string_trim(m)) +. float_of_string(string_trim(z))) /. 3.0) in
+let ys = map(rows, fun (_a, _m, _z, s) -> float_of_string(string_trim(s))) in
+let r = pearson(xs, ys) in
+let p = pearson_p(r, length(rows)) in
+(correlation_coefficient_corr = round2(r),
+ p_value_pval = round4(p),
+ relationship_type_relation = if p <. 0.05 then (if abs_float(r) >=. 0.5 then "linear" else "nonlinear") else "none")

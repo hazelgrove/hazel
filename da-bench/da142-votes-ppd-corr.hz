@@ -1,0 +1,13 @@
+# DA-Bench id 142: Pearson r of the precomputed `diff` (comma-stripped vote margin) vs #
+# `per_point_diff` (percent-stripped), election2016.csv; relationship by p<0.05 and |r|>=0.5. #
+let data = ^^csv("election2016.csv") in
+let pairs =
+  filter(zip(map(data, fun r -> r.`diff`), map(data, fun r -> r.`per_point_diff`)),
+    fun (d, p) -> (string_trim(d) != "") && (string_trim(p) != "")) in
+let xs = map(pairs, fun (d, _p) -> float_of_string(strip_commas(string_trim(d)))) in
+let ys = map(pairs, fun (_d, p) -> float_of_string(string_trim(nth(string_split("%", p), 0)))) in
+let r = pearson(xs, ys) in
+let p = pearson_p(r, length(pairs)) in
+(correlation_coefficient = round2(r),
+ p_value = round4(p),
+ relationship_type = if p <. 0.05 then (if abs_float(r) >=. 0.5 then "linear" else "nonlinear") else "none")

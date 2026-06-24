@@ -148,9 +148,36 @@ is not reproducible by any standard pandas op.)
 gap. **Risk:** med–high — `betainc`/`gammainc` must be accurate enough that the
 p-value rounds to the label; KS/Shapiro are the most likely to miss.
 
-## Phase 6 — ML + RNG (~20, hardest)
+## Phase 6 — ML + RNG (hardest) — DONE: 211 → 242 solved
 
-Two independent hard problems; both must be solved for most of these.
+**OUTCOME (242/257):** all feasible Phase-6 tasks solved. The train/test-split tasks use a native
+**`np_permutation` builtin** (numpy-exact MT19937 + Fisher-Yates in OCaml, `BuiltinsBase.re`) that
+`perm_list` delegates to — the pure-Hazel MT19937 (verified bit-exact vs numpy) is kept in `prelude.hz`
+as a reference. A `Csv.re` header-trim unblocked 590; `run.sh` raised the node heap for big tasks (363).
+Logistic regression (`logreg` unregularized + `logreg_l2(…, lam=1/C)`) solves 521 (impute Age) and 224
+(L2 on perfectly-separable data → 0.98); linreg-as-classifier via `olsk` (one-hot Sex/Embarked, drop the
+redundant 1-row `Sex='0'` dummy, threshold 0.5) solves 7 (0.78). Not matched (documented in RESULTS.md):
+137 (label 0.61 unreproducible by sklearn), 424 (RF), 674 (tree), 523 (KNN), 432 (no stated
+`random_state`). The **`^^seed(N)` CLI hook is built**
+(`src/CLI/Seed.re` + `Cli.re`): it splices the default seed as an integer literal before parsing
+(pure); `--yes` keeps `N` (reproducible), interactively `[Enter]`=keep / type-integer=override /
+`r`=fresh OS-random seed (entropy). All seven split solutions use `^^seed(42)`.
+
+**Re-scoped after a full census of the 38 remaining tasks** (see the approved plan): ~16 of them
+needed *no new infrastructure* — they were Pearson-p / ANOVA / descriptive tasks the Phase-5
+library already covered but were never written. Sub-phases, by difficulty:
+
+- **6A — write-only sweep — DONE (16 solved → 227).** ids 124, 142, 144, 249, 269, 413, 429, 529,
+  530, 550, 575, 673, 685, 730, 734, 756, using existing `pearson_p`/`anova_p`/`corr`. ids 300 and
+  431 documented as discrepancies (see RESULTS.md); id 523 reclassified to 6D (needs KNN imputation).
+- **6B — OLS via normal equations** (full-data regression: 118, 125, 432, 590) — linalg prelude.
+- **6F-355 — OLS coefficient significance** (355 + 125's significant_predictor), reusing `t_sf2`.
+- **6C — `^^seed` CLI hook + numpy MT19937 + train_test_split** (23, 30, 70, 363, 549, 671, 727); plus
+  **7** (linreg-as-classifier over the seeded split, one-hot Sex/Embarked via `olsk`) — DONE.
+- **6D — iterative ML** (logistic 224/521 DONE via `logreg`/`logreg_l2`; 137 documented; tree 674,
+  forest 424, KNN-impute 523 documented; 275 RNG-free feature-eng DONE).
+
+The two independent hard problems (RNG + models) below remain for 6C/6D:
 
 **6a — Reproducible randomness (the purity story).** Inject the seed at **edit-time**
 from the CLI, mirroring `^^csv`:

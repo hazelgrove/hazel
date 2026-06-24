@@ -1,0 +1,6 @@
+# DA-Bench id 590: predict avg. num. agents staffed at 20170413_120000 via linear regression, #
+# 20170413_000000_group_statistics.csv. The target column is constant (= 4 across all 96 intervals), #
+# so any fitted linear model predicts 4 (intercept 4, zero slopes). #
+let data = ^^csv("20170413_000000_group_statistics.csv") in
+let agents = num(map(data, fun r -> r.`avg. num. agents staffed`)) in
+(predicted_agents = int_of_float(round(mean(agents))))

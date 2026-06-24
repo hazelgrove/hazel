@@ -1,0 +1,15 @@
+# DA-Bench id 269: Pearson r of TOTUSJH vs TOTUSJZ + 2-sided p (3dp) + correlation_type, 3901.csv. #
+let data = ^^csv("3901.csv") in
+let pairs =
+  filter(zip(map(data, fun r -> r.`TOTUSJH`), map(data, fun r -> r.`TOTUSJZ`)),
+    fun (a, b) -> (string_trim(a) != "") && (string_trim(b) != "")) in
+let xs = map(pairs, fun (a, _b) -> float_of_string(string_trim(a))) in
+let ys = map(pairs, fun (_a, b) -> float_of_string(string_trim(b))) in
+let r = pearson(xs, ys) in
+let p = pearson_p(r, length(pairs)) in
+(correlation_type =
+   if p >=. 0.05 then "No Significant Correlation"
+   else if r >. 0.0 then "Positive Correlation"
+   else if r <. 0.0 then "Negative Correlation" else "No Correlation",
+ correlation_coefficient = round2(r),
+ p_value = round3(p))

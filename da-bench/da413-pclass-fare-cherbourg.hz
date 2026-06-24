@@ -1,0 +1,13 @@
+# DA-Bench id 413: Pearson r of Pclass vs Fare for Embarked='C' + p (4dp) + significance (alpha=0.01), titanic_train.csv. #
+let data = ^^csv("titanic_train.csv") in
+let c = filter(data, fun r -> string_trim(r.`Embarked`) == "C") in
+let pairs =
+  filter(zip(map(c, fun r -> r.`Pclass`), map(c, fun r -> r.`Fare`)),
+    fun (a, b) -> (string_trim(a) != "") && (string_trim(b) != "")) in
+let xs = map(pairs, fun (a, _b) -> float_of_string(string_trim(a))) in
+let ys = map(pairs, fun (_a, b) -> float_of_string(string_trim(b))) in
+let r = pearson(xs, ys) in
+let p = pearson_p(r, length(pairs)) in
+(correlation_coefficient = round2(r),
+ p_value = round4(p),
+ relationship_significance = if p <. 0.01 then "significant" else "not significant")

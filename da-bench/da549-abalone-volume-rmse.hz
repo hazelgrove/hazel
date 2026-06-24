@@ -1,0 +1,31 @@
+# DA-Bench id 549: abalone.csv. Pearson r of Length vs Whole weight (full data); then does a "volume" #
+# feature (Length*Diameter*Height) improve a linear regression predicting Rings? Train both models on #
+# the SAME 70/30 split (random_state=42) via the prelude RNG; report test RMSE of each. #
+let data = ^^csv("abalone.csv") in
+let cl = num(map(data, fun r -> r.`Length`)) in
+let cd = num(map(data, fun r -> r.`Diameter`)) in
+let ch = num(map(data, fun r -> r.`Height`)) in
+let cww = num(map(data, fun r -> r.`Whole weight`)) in
+let csw = num(map(data, fun r -> r.`Shucked weight`)) in
+let cvw = num(map(data, fun r -> r.`Viscera weight`)) in
+let cshw = num(map(data, fun r -> r.`Shell weight`)) in
+let rings = num(map(data, fun r -> r.`Rings`)) in
+let vol = map(zip(zip(cl, cd), ch), (fun (ld, h) -> fst(ld) *. snd(ld) *. h)) in
+let n = length(rings) in
+let perm = perm_list(n, ^^seed(42)) in
+let nt = tts_n_test(0.3, n) in
+let tr = tdrop(perm, nt) in
+let te = ttake(perm, nt) in
+let yT = abuildf(rings, n) in
+let tr_y = gather_f(yT, tr, n) in
+let te_y = gather_f(yT, te, n) in
+let rmse = fun (cols) ->
+  let trees = map(cols, (fun (c) -> abuildf(c, n))) in
+  let trcols = map(trees, (fun (t) -> gather_f(t, tr, n))) in
+  let tecols = map(trees, (fun (t) -> gather_f(t, te, n))) in
+  let (b0, beta) = olsk(trcols, tr_y) in
+  let yhat = predict(b0, beta, tecols) in
+  sqrt(mean(map(zip(te_y, yhat), (fun (yi, yh) -> (yi -. yh) *. (yi -. yh))))) in
+(correlation_coefficient = round4(pearson(cl, cww)),
+ original_model_rmse = round4(rmse([cl, cd, ch, cww, csw, cvw, cshw])),
+ volume_feature_model_rmse = round4(rmse([cl, cd, ch, cww, csw, cvw, cshw, vol])))

@@ -1,0 +1,13 @@
+# DA-Bench id 756: Pearson r of TMAX_F vs obs_value + p (4dp), weather_data_1864.csv (significant at alpha=0.05). #
+let data = ^^csv("weather_data_1864.csv") in
+let pairs =
+  filter(zip(map(data, fun r -> r.`TMAX_F`), map(data, fun r -> r.`obs_value`)),
+    fun (a, b) -> (string_trim(a) != "") && (string_trim(b) != "")) in
+let xs = map(pairs, fun (a, _b) -> float_of_string(string_trim(a))) in
+let ys = map(pairs, fun (_a, b) -> float_of_string(string_trim(b))) in
+let r = pearson(xs, ys) in
+# obs_value is Celsius and TMAX_F = 9/5*obs+32, so r is exactly 1 (perfect linear relation); #
+# scipy.stats.pearsonr returns p=0 there, but pearson_p's 1-r^2 denominator is 0 -> nan, so guard it. #
+let p = if abs_float(r) >=. 0.999999 then 0.0 else pearson_p(r, length(pairs)) in
+(correlation_coefficient = round2(r),
+ p_value = round4(p))

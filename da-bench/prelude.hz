@@ -471,3 +471,189 @@ let shapiro_p = fun (xs: [Float]) ->
   let ls = ((0.0030302 *. g -. 0.082676) *. g -. 0.4803) in
   1.0 -. normal_cdf((log(1.0 -. w) -. mu) /. exp(ls))
 in
+# Two-predictor OLS (intercept + x1 + x2) via the mean-centered normal equations: solving the #
+# 2x2 centered system for the slopes (then intercept = ybar - b1*x1bar - b2*x2bar) keeps XtX #
+# well-conditioned even when predictors differ in scale, and gives the same coefficients as #
+# statsmodels OLS / sklearn LinearRegression. Returns (b0, b1, b2, p1, p2, r2): intercept, the two #
+# slopes, their two-sided p-values (t = b/SE, SE^2 = sigma2 * inv(centered XtX), sigma2 = RSS/(n-3), #
+# df = n-3, via t_sf2), and R^2 = 1 - RSS/TSS. Slope variances equal the full-model ones (Frisch-Waugh). #
+let ols2 = fun (x1: [Float], x2: [Float], y: [Float]) ->
+  let nf = float_of_int(length(y)) in
+  let mx1 = mean(x1) in
+  let mx2 = mean(x2) in
+  let my = mean(y) in
+  let cx1 = map(x1, fun v -> v -. mx1) in
+  let cx2 = map(x2, fun v -> v -. mx2) in
+  let cy = map(y, fun v -> v -. my) in
+  let s11 = sum(map(cx1, fun v -> v *. v)) in
+  let s22 = sum(map(cx2, fun v -> v *. v)) in
+  let s12 = sum(map(zip(cx1, cx2), fun (a, b) -> a *. b)) in
+  let t1 = sum(map(zip(cx1, cy), fun (a, b) -> a *. b)) in
+  let t2 = sum(map(zip(cx2, cy), fun (a, b) -> a *. b)) in
+  let det = s11 *. s22 -. s12 *. s12 in
+  let b1 = (t1 *. s22 -. t2 *. s12) /. det in
+  let b2 = (s11 *. t2 -. s12 *. t1) /. det in
+  let b0 = my -. b1 *. mx1 -. b2 *. mx2 in
+  let yhat = map(zip(x1, x2), fun (a, b) -> b0 +. b1 *. a +. b2 *. b) in
+  let rss = sum(map(zip(y, yhat), fun (yi, yh) -> (yi -. yh) *. (yi -. yh))) in
+  let tss = sum(map(cy, fun e -> e *. e)) in
+  let sigma2 = rss /. (nf -. 3.0) in
+  let se1 = sqrt(sigma2 *. s22 /. det) in
+  let se2 = sqrt(sigma2 *. s11 /. det) in
+  let p1 = t_sf2(abs_float(b1 /. se1), nf -. 3.0) in
+  let p2 = t_sf2(abs_float(b2 /. se2), nf -. 3.0) in
+  (b0, b1, b2, p1, p2, 1.0 -. rss /. tss)
+in
+# Simple (one-predictor) OLS: returns (intercept, slope), matching sklearn LinearRegression. #
+let ols1 = fun (x: [Float], y: [Float]) ->
+  let mx = mean(x) in
+  let my = mean(y) in
+  let sxx = sum(map(x, fun v -> (v -. mx) *. (v -. mx))) in
+  let sxy = sum(map(zip(x, y), fun (xi, yi) -> (xi -. mx) *. (yi -. my))) in
+  let b1 = sxy /. sxx in
+  (my -. b1 *. mx, b1) in
+# ---- helpers (tapp/mkrange/ttake/tdrop, used by olsk/gauss/abuildf below) + a pure-Hazel MT19937 ---- #
+# REFERENCE: the xor32/and32/hword/init_list/twist/temper/genrand/mask_for/rk_interval + Int-tree #
+# functions below are a VERIFIED pure-Hazel numpy-MT19937 (reproduces np.random.RandomState(seed) #
+# bit-for-bit). They are kept as the expressiveness artifact but are NOT on the active path: perm_list #
+# now delegates to the native `np_permutation` builtin (much faster). Notes preserved: MT state is a #
+# list so the 624-word twist is an O(n) XOR pass; the shuffle used a recursive-ADT perfect-tree array; #
+# native `++` overflows on long lists, hence the tail-recursive `tapp`/`ttake`/`tdrop`. #
+let p32 = 4294967296 in
+let xor32 = fun (a: Int, b: Int) ->
+  let go = fun (x, y, pw, acc) ->
+    if pw >= p32 then acc else go(x / 2, y / 2, pw * 2, acc + int_mod(int_mod(x, 2) + int_mod(y, 2), 2) * pw)
+  in go(a, b, 1, 0) in
+let and32 = fun (a: Int, b: Int) ->
+  let go = fun (x, y, pw, acc) ->
+    if pw >= p32 then acc else go(x / 2, y / 2, pw * 2, acc + int_mod(x, 2) * int_mod(y, 2) * pw)
+  in go(a, b, 1, 0) in
+let tapp = fun (xs, ys) -> fold_left(reverse(xs), (fun (acc, x) -> x :: acc), ys) in
+let mkrange = fun (n: Int) -> let g = fun (i, acc) -> if i < 0 then acc else g(i - 1, i :: acc) in g(n - 1, []) in
+# tail-recursive take/drop (the builtins recurse on the native stack and overflow past ~1-2k depth, #
+# which `abuild` hits when splitting a several-thousand-element list). #
+let tdrop = fun (xs, k) -> let go = fun (ys, i) -> if i <= 0 then ys else go(tail(ys), i - 1) in go(xs, k) in
+let ttake = fun (xs, k) ->
+  let go = fun (ys, i, acc) -> if i <= 0 then reverse(acc) else go(tail(ys), i - 1, head(ys) :: acc) in
+  go(xs, k, []) in
+let hword = fun (a: Int, b: Int) ->
+  let y = (a / 2147483648) * 2147483648 + int_mod(b, 2147483648) in
+  xor32(y / 2, if int_mod(y, 2) == 1 then 2567483615 else 0) in
+let init_list = fun (seed: Int) ->
+  let go = fun (i, prev, acc) ->
+    if i >= 624 then reverse(acc)
+    else let cur = int_mod(1812433253 * xor32(prev, prev / 1073741824) + i, p32) in go(i + 1, cur, cur :: acc)
+  in go(1, seed, [seed]) in
+let twist = fun (old) ->
+  let rot1 = tapp(tail(old), [head(old)]) in
+  let h = map(zip(old, rot1), (fun (a, b) -> hword(a, b))) in
+  let p1 = map(zip(drop(old, 397), take(h, 227)), (fun (c, hk) -> xor32(c, hk))) in
+  let chunkA = map(zip(p1, take(drop(h, 227), 227)), (fun (nj, hk) -> xor32(nj, hk))) in
+  let chunkB0 = map(zip(take(chunkA, 169), take(drop(h, 454), 169)), (fun (nj, hk) -> xor32(nj, hk))) in
+  # last element kk=623: numpy's y uses the ALREADY-updated key[0] (=new[0]=head(p1)) for its LOWER #
+  # bits, not old[0]; so recompute h[623] with new[0] and set new[623] = new[396] XOR that. #
+  let last = xor32(nth(chunkA, 169), hword(nth(old, 623), head(p1))) in
+  tapp(p1, tapp(chunkA, tapp(chunkB0, [last]))) in
+let temper = fun (y0: Int) ->
+  let y1 = xor32(y0, y0 / 2048) in
+  let y2 = xor32(y1, and32(int_mod(y1 * 128, p32), 2636928640)) in
+  let y3 = xor32(y2, and32(int_mod(y2 * 32768, p32), 4022730752)) in
+  xor32(y3, y3 / 262144) in
+let genrand = fun (st) ->
+  let (full, rem) = st in
+  case rem
+  | [] => let t = twist(full) in (temper(head(t)), (t, tail(t)))
+  | (w :: rest) => (temper(w), (full, rest))
+  end in
+let mask_for = fun (mx: Int) -> let go = fun (m) -> if m >= mx then m else go(m * 2 + 1) in go(1) in
+let rk_interval = fun (mx: Int, st) ->
+  if mx == 0 then (0, st)
+  else
+    let mask = mask_for(mx) in
+    let go = fun (s) -> let (w, s2) = genrand(s) in let v = int_mod(w, mask + 1) in if v <= mx then (v, s2) else go(s2)
+    in go(st) in
+type Arr =
+  + Lf(Int)
+  + Br(Arr, Arr) in
+let abuild : ([Int], Int) -> Arr = fun (xs, size) ->
+  if size == 1 then Lf(head(xs)) else let h = size / 2 in Br(abuild(ttake(xs, h), h), abuild(tdrop(xs, h), size - h)) in
+let aget : (Arr, Int, Int) -> Int = fun (t, i, size) ->
+  case t | Lf(v) => v | Br(l, r) => let h = size / 2 in if i < h then aget(l, i, h) else aget(r, i - h, size - h) end in
+let aset : (Arr, Int, Int, Int) -> Arr = fun (t, i, v, size) ->
+  case t | Lf(_) => Lf(v) | Br(l, r) => let h = size / 2 in if i < h then Br(aset(l, i, v, h), r) else Br(l, aset(r, i - h, v, size - h)) end in
+type ArrF =
+  + LfF(Float)
+  + BrF(ArrF, ArrF) in
+let abuildf : ([Float], Int) -> ArrF = fun (xs, size) ->
+  if size == 1 then LfF(head(xs)) else let h = size / 2 in BrF(abuildf(ttake(xs, h), h), abuildf(tdrop(xs, h), size - h)) in
+let agetf : (ArrF, Int, Int) -> Float = fun (t, i, size) ->
+  case t | LfF(v) => v | BrF(l, r) => let h = size / 2 in if i < h then agetf(l, i, h) else agetf(r, i - h, size - h) end in
+# permutation of 0..n-1 as a list, == np.random.RandomState(seed).permutation(n). #
+# Delegates to the native `np_permutation` builtin (fast numpy-exact MT19937 + Fisher-Yates); #
+# the pure-Hazel implementation below is kept as a verified reference but is no longer on the path. #
+let perm_list = fun (n: Int, seed: Int) -> np_permutation(seed, n) in
+# n_test = ceil(test_size * n), matching sklearn _validate_shuffle_split #
+let tts_n_test = fun (ts: Float, n: Int) -> int_of_float(ceil(ts *. float_of_int(n))) in
+# gather a float column (as a tree) at the given permuted indices #
+let gather_f = fun (tree: ArrF, idxs: [Int], n: Int) -> map(idxs, (fun (idx) -> agetf(tree, idx, n))) in
+let dot = fun (u: [Float], v: [Float]) -> sum(map(zip(u, v), (fun (a, b) -> a *. b))) in
+# Gaussian elimination (no pivoting; centered OLS systems are well-conditioned). aug: n rows each #
+# of length n+1 (A | b). Returns the solution vector [Float] of length n. #
+let gauss = fun (aug, n) ->
+  let fwd = fold_left(mkrange(n), (fun (rows, p) ->
+      let piv = nth(rows, p) in
+      let pv = nth(piv, p) in
+      map(zip(rows, mkrange(n)), (fun (r, ri) ->
+        if ri <= p then r else let f = nth(r, p) /. pv in map(zip(r, piv), (fun (a, b) -> a -. f *. b))))), aug) in
+  fold_left(reverse(mkrange(n)), (fun (xs, p) ->
+      let row = nth(fwd, p) in
+      let known = sum(map(zip(take(drop(row, p + 1), n - p - 1), xs), (fun (a, x) -> a *. x))) in
+      ((nth(row, n) -. known) /. nth(row, p)) :: xs), []) in
+# Multiple-predictor OLS via the mean-centered normal equations (cols = k feature columns); #
+# returns (intercept, [slopes]) matching sklearn LinearRegression. #
+let olsk = fun (cols: [[Float]], y: [Float]) ->
+  let k = length(cols) in
+  let means = map(cols, (fun (c) -> mean(c))) in
+  let my = mean(y) in
+  let ccols = map(zip(cols, means), (fun (c, m) -> map(c, (fun (v) -> v -. m)))) in
+  let cy = map(y, (fun (v) -> v -. my)) in
+  let sc = map(ccols, (fun (ci) -> map(ccols, (fun (cj) -> dot(ci, cj))))) in
+  let tc = map(ccols, (fun (ci) -> dot(ci, cy))) in
+  let beta = gauss(map(zip(sc, tc), (fun (row, t) -> tapp(row, [t]))), k) in
+  (my -. sum(map(zip(beta, means), (fun (b, m) -> b *. m))), beta) in
+# predict for a list of test feature columns: yhat_i = b0 + sum_j beta_j * tecols[j][i] #
+let predict = fun (b0: Float, beta: [Float], tecols: [[Float]]) ->
+  fold_left(zip(beta, tecols), (fun (acc, (b, col)) -> map(zip(acc, col), (fun (a, v) -> a +. b *. v))),
+    map(head(tecols), (fun (_w) -> b0))) in
+let sigmoid = fun (z: Float) -> 1.0 /. (1.0 +. exp(0.0 -. z)) in
+# Unregularized logistic regression via IRLS / Newton-Raphson. `feats` is the design as a list of #
+# columns INCLUDING a leading all-ones column (the intercept); `y` is 0/1 labels; `iters` Newton steps #
+# from beta=0. Returns the coefficient vector (intercept first). Each step solves (X^T W X) d = X^T(y-p) #
+# via `gauss`; at convergence this is the same optimum sklearn's LogisticRegression reaches. #
+# L2-regularized logistic regression via IRLS/Newton. `lam` penalizes ALL coefficients (including #
+# the intercept, matching sklearn's `liblinear` with intercept_scaling=1; lam = 1/C). lam=0 is the #
+# plain MLE. step solves (X^T W X + lam*I) d = X^T(y-p) - lam*beta via `gauss`. #
+let logreg_l2 = fun (feats: [[Float]], y: [Float], lam: Float, iters: Int) ->
+  let p = length(feats) in
+  let idx = mkrange(p) in
+  let zero_n = map(head(feats), (fun (_w) -> 0.0)) in
+  let step = fun (beta: [Float]) ->
+    let eta =
+      fold_left(zip(beta, feats),
+        (fun (acc, (b, f)) -> map(zip(acc, f), (fun (a, v) -> a +. b *. v))), zero_n) in
+    let pr = map(eta, (fun (e) -> sigmoid(e))) in
+    let w = map(pr, (fun (q) -> q *. (1.0 -. q))) in
+    let resid = map(zip(y, pr), (fun (yi, qi) -> yi -. qi)) in
+    let g = map(zip(feats, beta), (fun (fa, ba) -> dot(fa, resid) -. lam *. ba)) in
+    let hess =
+      map(zip(feats, idx), (fun (fa, ia) ->
+            let wfa = map(zip(w, fa), (fun (wi, fai) -> wi *. fai)) in
+            map(zip(feats, idx),
+              (fun (fb, ib) -> dot(wfa, fb) +. (if ia == ib then lam else 0.0))))) in
+    let delta = gauss(map(zip(hess, g), (fun (hrow, gi) -> tapp(hrow, [gi]))), p) in
+    map(zip(beta, delta), (fun (b, d) -> b +. d))
+  in
+  fold_left(mkrange(iters), (fun (beta, _i) -> step(beta)), map(feats, (fun (_f) -> 0.0)))
+in
+# plain (unregularized) logistic regression #
+let logreg = fun (feats: [[Float]], y: [Float], iters: Int) -> logreg_l2(feats, y, 0.0, iters) in

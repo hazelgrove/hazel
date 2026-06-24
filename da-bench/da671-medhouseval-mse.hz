@@ -1,0 +1,30 @@
+# DA-Bench id 671: predict MedianHouseValue from MedInc, AveRooms, Population, Latitude, Longitude, #
+# my_test_01.csv. 70/30 train_test_split (random_state=42, the de-facto default that matches the #
+# label) via the prelude RNG; multiple linear regression (olsk) on train; MSE on test #
+let data = ^^csv("my_test_01.csv") in
+let rows =
+  filter(map(data, fun r ->
+           (r.`MedInc`, r.`AveRooms`, r.`Population`, r.`Latitude`, r.`Longitude`, r.`MedianHouseValue`)),
+    fun (a, b, c, d, e, f) ->
+      (string_trim(a) != "") && (string_trim(b) != "") && (string_trim(c) != "")
+      && (string_trim(d) != "") && (string_trim(e) != "") && (string_trim(f) != "")) in
+let f1 = map(rows, fun (a, _b, _c, _d, _e, _f) -> float_of_string(string_trim(a))) in
+let f2 = map(rows, fun (_a, b, _c, _d, _e, _f) -> float_of_string(string_trim(b))) in
+let f3 = map(rows, fun (_a, _b, c, _d, _e, _f) -> float_of_string(string_trim(c))) in
+let f4 = map(rows, fun (_a, _b, _c, d, _e, _f) -> float_of_string(string_trim(d))) in
+let f5 = map(rows, fun (_a, _b, _c, _d, e, _f) -> float_of_string(string_trim(e))) in
+let y = map(rows, fun (_a, _b, _c, _d, _e, f) -> float_of_string(string_trim(f))) in
+let n = length(y) in
+let perm = perm_list(n, ^^seed(42)) in
+let nt = tts_n_test(0.3, n) in
+let tr = drop(perm, nt) in
+let te = take(perm, nt) in
+let trees = map([f1, f2, f3, f4, f5], (fun (c) -> abuildf(c, n))) in
+let trcols = map(trees, (fun (t) -> gather_f(t, tr, n))) in
+let tecols = map(trees, (fun (t) -> gather_f(t, te, n))) in
+let yT = abuildf(y, n) in
+let tr_y = gather_f(yT, tr, n) in
+let te_y = gather_f(yT, te, n) in
+let (b0, beta) = olsk(trcols, tr_y) in
+let yhat = predict(b0, beta, tecols) in
+(mse = round3(mean(map(zip(te_y, yhat), (fun (yi, yh) -> (yi -. yh) *. (yi -. yh))))))

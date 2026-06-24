@@ -1,0 +1,13 @@
+# DA-Bench id 673: mean (4dp) & std of MedianHouseValue + Pearson(MedianHouseValue, AveRooms/Population), my_test_01.csv. #
+# Steps 1-2 (mean-fill MedInc, z-score AveOccup) do not affect the graded outputs, so they are omitted. #
+let data = ^^csv("my_test_01.csv") in
+let mhvcol = num(map(data, fun r -> r.`MedianHouseValue`)) in
+let rows =
+  filter(map(data, fun r -> (r.`MedianHouseValue`, r.`AveRooms`, r.`Population`)),
+    fun (v, ar, p) -> (string_trim(v) != "") && (string_trim(ar) != "") && (string_trim(p) != "")) in
+let xs = map(rows, fun (v, _ar, _p) -> float_of_string(string_trim(v))) in
+let ys = map(rows, fun (_v, ar, p) -> float_of_string(string_trim(ar)) /. float_of_string(string_trim(p))) in
+let r = pearson(xs, ys) in
+(mean_value = round4(mean(mhvcol)),
+ standard_deviation = round4(pop_std(mhvcol)),
+ pearson_coefficient = round4(r))

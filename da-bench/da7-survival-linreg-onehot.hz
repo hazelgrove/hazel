@@ -1,0 +1,35 @@
+# DA-Bench id 7: linear-regression classifier predicting Survived from Pclass, Sex, Age, SibSp, Parch, #
+# Fare, Embarked (one-hot Sex & Embarked), test_ave.csv. 80:20 train_test_split(random_state=42); fit #
+# with linear regression, threshold predictions at 0.5, accuracy. Keep all rows (Embarked blanks -> #
+# all-zero dummies, as get_dummies does). The redundant Sex='0' dummy (1 row) is dropped so the design #
+# is full rank for olsk; predictions are unchanged (same column space) #
+let data = ^^csv("test_ave.csv") in
+let pclass = map(data, fun r -> float_of_string(string_trim(r.`Pclass`))) in
+let age = map(data, fun r -> float_of_string(string_trim(r.`Age`))) in
+let sibsp = map(data, fun r -> float_of_string(string_trim(r.`SibSp`))) in
+let parch = map(data, fun r -> float_of_string(string_trim(r.`Parch`))) in
+let fare = map(data, fun r -> float_of_string(string_trim(r.`Fare`))) in
+let sexm = map(data, fun r -> if string_trim(r.`Sex`) == "male" then 1.0 else 0.0) in
+let sexf = map(data, fun r -> if string_trim(r.`Sex`) == "female" then 1.0 else 0.0) in
+let embC = map(data, fun r -> if string_trim(r.`Embarked`) == "C" then 1.0 else 0.0) in
+let embQ = map(data, fun r -> if string_trim(r.`Embarked`) == "Q" then 1.0 else 0.0) in
+let embS = map(data, fun r -> if string_trim(r.`Embarked`) == "S" then 1.0 else 0.0) in
+let emb0 = map(data, fun r -> if string_trim(r.`Embarked`) == "0" then 1.0 else 0.0) in
+let y = map(data, fun r -> float_of_string(string_trim(r.`Survived`))) in
+let n = length(y) in
+let perm = perm_list(n, ^^seed(42)) in
+let nt = tts_n_test(0.2, n) in
+let tr = tdrop(perm, nt) in
+let te = ttake(perm, nt) in
+let cols = [pclass, age, sibsp, parch, fare, sexm, sexf, embC, embQ, embS, emb0] in
+let trees = map(cols, (fun (c) -> abuildf(c, n))) in
+let trcols = map(trees, (fun (t) -> gather_f(t, tr, n))) in
+let tecols = map(trees, (fun (t) -> gather_f(t, te, n))) in
+let yT = abuildf(y, n) in
+let tr_y = gather_f(yT, tr, n) in
+let te_y = gather_f(yT, te, n) in
+let (b0, beta) = olsk(trcols, tr_y) in
+let yhat = predict(b0, beta, tecols) in
+let correct =
+  length(filter(zip(yhat, te_y), (fun (e, yi) -> (if e >=. 0.5 then 1.0 else 0.0) ==. yi))) in
+(prediction_accuracy = round2(float_of_int(correct) /. float_of_int(length(te_y))))
