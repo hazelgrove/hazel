@@ -1622,10 +1622,28 @@ let move_cursor = (ctx: probe_ctx, offset: int) => {
  * drawer toggle always renders so it's reachable on any indicated
  * probe. */
 let nav_bar_view = (ctx: probe_ctx, ~num_total, ~show_arrows: bool) => {
-  let disable_left =
-    num_total < Sample.Window.max_samples(ctx.settings.window);
-  let disable_right =
-    num_total < Sample.Window.max_samples(ctx.settings.window);
+  /* Dim each arrow when its move would be a no-op: the left arrow once the
+   * indicated sample is the first in the list, the right arrow at the last.
+   * Mirrors move_cursor's bounds (next_idx = idx - offset, valid in
+   * [0, num_total)) so the dimmed arrow is exactly the inert one. */
+  let (disable_left, disable_right) = {
+    let samples =
+      Sample.Selection.filter_by_pin(
+        ~ap_id=ctx.ap_id,
+        ~pinned=ctx.dynamics.sample_focus.pinned_stack,
+        ctx.dynamics.samples,
+      );
+    switch (
+      Sample.Selection.most_aligned_index(
+        ~ap_id=ctx.ap_id,
+        ctx.dynamics.sample_focus,
+        samples,
+      )
+    ) {
+    | Some(idx) => (idx <= 0, idx >= num_total - 1)
+    | None => (true, true)
+    };
+  };
   let svg_attr = (k, v) => Attr.create(k, v);
   let polygon = points =>
     Node.create_svg(
@@ -1650,19 +1668,27 @@ let nav_bar_view = (ctx: probe_ctx, ~num_total, ~show_arrows: bool) => {
   /* Mac shows the Cmd glyph as `⌘X`; PC/Linux shows `Ctrl+X`. Matches
    * the convention used in ProbeSidebar's quick reference. */
   let meta = Util.Os.is_mac^ ? {js|⌘|js} : "Ctrl+";
-  let arrow_group = (~side, ~disabled: bool, ~offset: int, ~hit_x: string) =>
+  let arrow_group = (~side, ~disabled: bool, ~offset: int, ~hit_x: string) => {
+    /* A boundary arrow stays clickable but inert: it swallows pointerdown so
+     * the event never reaches the editor underneath, whose own pointerdown
+     * handler (move_or_select) would move the caret and steal focus. Without
+     * this the dimmed arrow falls through to the background editor. */
+    let event_attrs =
+      disabled
+        ? [Attr.on_pointerdown(_ => Effect.Stop_propagation)]
+        : [Attr.on_click(_ => move_cursor(ctx, offset))];
     Node.create_svg(
       "g",
-      ~attrs=[
-        Attr.classes(["nav-" ++ side] @ (disabled ? ["disabled"] : [])),
-        Attr.on_click(_ => move_cursor(ctx, offset)),
-      ],
+      ~attrs=
+        [Attr.classes(["nav-" ++ side] @ (disabled ? ["disabled"] : []))]
+        @ event_attrs,
       [
         title(side == "left" ? "Previous sample (←)" : "Next sample (→)"),
         polygon(side == "left" ? "-7,-2 -1,-8 -1,4" : "1,-8 7,-2 1,4"),
         hit_rect(~x=hit_x, ~y="-10", ~w="9", ~h="11"),
       ],
     );
+  };
   let toggle_group =
     Node.create_svg(
       "g",

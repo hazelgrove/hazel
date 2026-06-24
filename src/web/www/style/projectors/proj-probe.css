@@ -344,14 +344,16 @@
   fill: var(--R1);
 }
 
-/* Disabled arrow: dim and ignore clicks. */
+/* Disabled arrow: dim, and inert on click. It stays clickable (keeps
+ * pointer-events) so it captures the click and blocks fallthrough to the
+ * editor underneath; the pointerdown-swallowing handler in nav_bar_view
+ * makes the click itself do nothing. */
 .live-offside .nav-bar .nav-left.disabled .visual,
 .live-offside .nav-bar .nav-right.disabled .visual {
-  opacity: 0.15;
+  opacity: 0.4;
 }
 .live-offside .nav-bar .nav-left.disabled .hit,
 .live-offside .nav-bar .nav-right.disabled .hit {
-  pointer-events: none;
   cursor: default;
 }
 
