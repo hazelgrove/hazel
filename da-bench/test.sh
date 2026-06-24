@@ -1,20 +1,22 @@
 #!/usr/bin/env bash
 # Regression test for the DA-Bench solutions.
 #
-# Runs every solution through run.sh (prelude + solution) and compares the
-# output to the InfiAgent reference answer, after normalizing every decimal
-# number to 2 places (Hazel prints floats as %f / 6 decimals). Catches silent
-# breakage from changes to prelude.hz, the CLI, or a solution.
+# Runs every solution through run.sh (prelude + solution) and grades the output
+# against the InfiAgent reference answer via check_label.py, which reads the
+# external da-dev-labels.jsonl (so the gold answers are never restated here).
+# Catches silent breakage from changes to prelude.hz, the CLI, or a solution.
 #
 # Usage:  da-bench/test.sh            # run all
 #         da-bench/test.sh da0-mean-fare.hz   # run one
 #         TABLES=/path da-bench/test.sh       # override data dir
+#         LABELS=/path/da-dev-labels.jsonl da-bench/test.sh   # override labels file
 # Exits non-zero if any case fails.
 set -uo pipefail
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+LABELS="${LABELS:-$HOME/Projects/InfiAgent/examples/DA-Agent/data/da-dev-labels.jsonl}"
 
-# "<solution> | <expected>"  — floats given to 2 dp; ints/strings verbatim.
-# Expected values are the InfiAgent da-dev-labels.jsonl reference answers.
+# Solution files to grade. The expected answer for each is looked up by task id
+# (parsed from the daN-... filename) in the external da-dev-labels.jsonl.
 CASES=(
   "da0-mean-fare.hz"
   "da5-corr-familysize-fare.hz"
@@ -280,29 +282,29 @@ CASES=(
   "da7-survival-linreg-onehot.hz"
 )
 
-# Strip trailing zeros from every decimal so 34.650000 == 34.65, 0.141000 == 0.141,
-# 1.000000 == 1.0 == 1, and precision (2/3/4 dp) is preserved (no forced rounding).
-# Applied to BOTH the result and the expected value, so the label's own precision matches.
-normalize() {
-  python3 -c 'import sys,re; t=sys.stdin.read().strip(); print(re.sub(r"\d+\.\d+", lambda m: m.group().rstrip("0").rstrip("."), t))'
-}
+if [ ! -f "$LABELS" ]; then
+  echo "labels file not found: $LABELS" >&2
+  echo "set LABELS=/path/to/da-dev-labels.jsonl (from the InfiAgent clone)" >&2
+  exit 2
+fi
 
+# Run a solution and return its last output line, raw: check_label.py handles
+# float precision itself, and normalizing here would corrupt string answers.
 run_one() {
-  "$DIR/run.sh" "$1" 2>&1 | grep -vE 'joo_global_object|deprecat|Terminated' | tail -1 | normalize
+  "$DIR/run.sh" "$1" 2>&1 | grep -vE 'joo_global_object|deprecat|Terminated' | tail -1
 }
-norm_want() { printf '%s' "$1" | normalize; }
 
 only="${1:-}"
 pass=0; fail=0
 for c in "${CASES[@]}"; do
-  file="${c%%|*}"; want="${c#*|}"
+  file="${c%%|*}"                       # tolerate legacy "file|expected" entries
   [ -n "$only" ] && [ "$only" != "$file" ] && continue
+  id="${file#da}"; id="${id%%-*}"       # da7-survival-...hz -> 7
   got="$(run_one "$file")"
-  want="$(norm_want "$want")"
-  if [ "$got" = "$want" ]; then
-    printf 'PASS  %-30s %s\n' "$file" "$got"; pass=$((pass+1))
+  if python3 "$DIR/check_label.py" "$id" "$got" "$LABELS"; then
+    printf 'PASS  %-34s %s\n' "$file" "$got"; pass=$((pass+1))
   else
-    printf 'FAIL  %-30s\n        got  [%s]\n        want [%s]\n' "$file" "$got" "$want"; fail=$((fail+1))
+    printf 'FAIL  %-34s\n        got [%s]\n' "$file" "$got"; fail=$((fail+1))
   fi
 done
 echo "----"
