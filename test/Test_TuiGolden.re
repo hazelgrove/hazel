@@ -309,7 +309,6 @@ let tests = (
       "checkbox projector renders and toggles on click",
       `Quick,
       () => {
-        open Haz3lcore;
         let m = Replay.final_model(~size=small, "true");
         let (m, _) =
           App.apply(
@@ -369,7 +368,6 @@ let tests = (
       "slider projector renders a bar and sets value on click",
       `Quick,
       () => {
-        open Haz3lcore;
         let m = Replay.final_model(~size=small, "50");
         let (m, _) =
           App.apply(
@@ -417,7 +415,6 @@ let tests = (
       "statics projector shows the type offside",
       `Quick,
       () => {
-        open Haz3lcore;
         let m = Replay.final_model(~size=small, "1 + 2");
         let (m, _) =
           App.apply(
@@ -625,7 +622,6 @@ let tests = (
       "float slider projector renders a bar and sets value on click",
       `Quick,
       () => {
-        open Haz3lcore;
         let m = Replay.final_model(~size=small, "50.0");
         let (m, _) =
           App.apply(
@@ -673,7 +669,6 @@ let tests = (
       "textarea projector shows the string content",
       `Quick,
       () => {
-        open Haz3lcore;
         let m = Replay.final_model(~size=small, "\"hello\"");
         let (m, _) =
           App.apply(
