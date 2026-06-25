@@ -68,6 +68,32 @@ module Update = {
         ...model,
         editor,
       };
+    | ResultAction(PromoteExplore(id, code, name, goal, stepper)) =>
+      let updated_editor =
+        CodeEditable.Update.update(
+          ~settings,
+          Perform(ReplaceTermWithSource(id, code)),
+          model.editor,
+        );
+      let updated_result =
+        EvalResult.Update.update(
+          ~settings={
+            ...settings,
+            core: {
+              ...settings.core,
+              assist: false,
+            },
+          },
+          PromoteExplore(id, code, name, goal, stepper),
+          model.result,
+        );
+      {
+        ...updated_editor,
+        model: {
+          editor: updated_editor.model,
+          result: updated_result.model,
+        },
+      };
     | ResultAction(action) =>
       let updated =
         EvalResult.Update.update(

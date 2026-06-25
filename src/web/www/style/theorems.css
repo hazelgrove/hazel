@@ -17,7 +17,24 @@
 .theorem-header {
     display: flex;
     flex-direction: row;
+    align-items: center;
     gap: 0.4em;
+}
+
+.theorem-promote-button {
+  border: 1px solid var(--BR4);
+  border-radius: 4px;
+  background-color: var(--test-panel-bkg);
+  color: var(--BR4);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.8em;
+  padding: 0.15em 0.55em;
+}
+
+.theorem-promote-button:hover {
+  background-color: var(--BR4);
+  color: var(--test-panel-bkg);
 }
 
 .theorem-status {

@@ -73,6 +73,7 @@ module Update = {
              | Select(_)
              | Destruct(_)
              | Insert(_)
+             | ReplaceTermWithSource(_, _)
              | Put_down
              | Buffer(Set(_) | Accept | Clear)
              | Paste(_)

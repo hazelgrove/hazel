@@ -134,7 +134,14 @@ module Update = {
     | UpdateResult(ProgramResult.t(ProgramResult.inner))
     | UpdateStreamingEval(IncrEval.outbox(EvaluatorState.t))
     | MergeStreamingEval(IncrEval.outbox(EvaluatorState.t))
-    | TheoremsAction(Theorems.Update.t);
+    | TheoremsAction(Theorems.Update.t)
+    | PromoteExplore(
+        Id.t,
+        string,
+        string,
+        Exp.t,
+        StepperView.Model.persistent,
+      );
 
   let can_undo = (action: t) => {
     switch (action) {
@@ -145,6 +152,7 @@ module Update = {
     | UpdateStreamingEval(_)
     | MergeStreamingEval(_) => false
     | TheoremsAction(action) => Theorems.Update.can_undo(action)
+    | PromoteExplore(_, _, _, _, _) => true
     };
   };
 
@@ -183,6 +191,17 @@ module Update = {
     | (TheoremsAction(action), _) =>
       let* theorems =
         Theorems.Update.update(~settings, action, model.theorems);
+      {
+        ...model,
+        theorems,
+      };
+    | (PromoteExplore(id, code, name, goal, stepper), _) =>
+      let* theorems =
+        Theorems.Update.update(
+          ~settings,
+          Theorems.Update.PromoteExplore(id, code, name, goal, stepper),
+          model.theorems,
+        );
       {
         ...model,
         theorems,
@@ -763,7 +782,17 @@ module View = {
           : Theorems.View.view(
               ~globals,
               ~take_focus=f => signal(MakeActive(Theorems(f))),
-              ~inject=a => inject(TheoremsAction(a)),
+              ~inject=
+                fun
+                | Theorems.Update.PromoteExplore(
+                    id,
+                    code,
+                    name,
+                    goal,
+                    stepper,
+                  ) =>
+                  inject(PromoteExplore(id, code, name, goal, stepper))
+                | action => inject(TheoremsAction(action)),
               ~selected=
                 switch (selected) {
                 | Some(Theorems(f)) => Some(f)

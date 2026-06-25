@@ -147,6 +147,7 @@ type t =
   | Unselect(option(Direction.t))
   | Destruct(Direction.t)
   | Insert(string)
+  | ReplaceTermWithSource(Id.t, string)
   | Put_down
   | Introduce
   | Probe(probe)
@@ -187,6 +188,7 @@ let is_edit: t => bool =
   | Cut
   | Reparse
   | Insert(_)
+  | ReplaceTermWithSource(_, _)
   | Destruct(_)
   | Put_down
   | Introduce
@@ -224,6 +226,7 @@ let is_historic: t => bool =
   | Paste(_)
   | Reparse
   | Insert(_)
+  | ReplaceTermWithSource(_, _)
   | Destruct(_)
   | Put_down
   | Introduce
@@ -256,6 +259,7 @@ let prevent_in_read_only_editor = (a: t) =>
   | Reparse
   | Destruct(_)
   | Insert(_)
+  | ReplaceTermWithSource(_, _)
   | Put_down
   | Introduce
   | PrettyPrint
@@ -294,6 +298,7 @@ let should_animate: t => bool =
   | Cut
   | Reparse
   | Insert(_)
+  | ReplaceTermWithSource(_, _)
   | Introduce
   | Destruct(_)
   | Put_down

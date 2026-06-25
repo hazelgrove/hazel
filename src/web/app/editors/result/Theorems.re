@@ -19,6 +19,161 @@ let env_with_symbolic_ctx_vars =
        env,
      );
 
+let exp_to_code = (~settings: CoreSettings.t, exp: Exp.t): string =>
+  exp
+  |> Haz3lcore.ExpToSegment.exp_to_segment(
+       ~settings=
+         Haz3lcore.ExpToSegment.Settings.of_core(~inline=true, settings),
+     )
+  |> Haz3lcore.Printer.of_segment(~holes="?", ~indent="")
+  |> StringUtil.trim_trailing_whitespace;
+
+let metadata_prefix = "hazel-explore-stepper:";
+
+let encode_stepper_metadata = (stepper: StepperView.Model.persistent): string =>
+  stepper
+  |> StepperView.Model.yojson_of_persistent
+  |> Yojson.Safe.to_string
+  |> StringUtil.compress;
+
+let decode_stepper_metadata =
+    (comment: string): option(StepperView.Model.persistent) => {
+  let comment = String.trim(comment);
+  let len = String.length(comment);
+  let comment =
+    if (len >= 2
+        && String.sub(comment, 0, 1) == "#"
+        && String.sub(comment, len - 1, 1) == "#") {
+      String.sub(comment, 1, len - 2);
+    } else {
+      comment;
+    };
+  let prefix_len = String.length(metadata_prefix);
+  if (String.length(comment) > prefix_len
+      && String.sub(comment, 0, prefix_len) == metadata_prefix) {
+    let encoded =
+      String.sub(comment, prefix_len, String.length(comment) - prefix_len);
+    try(
+      encoded
+      |> StringUtil.decompress
+      |> Yojson.Safe.from_string
+      |> StepperView.Model.persistent_of_yojson
+      |> Option.some
+    ) {
+    | _ => None
+    };
+  } else {
+    None;
+  };
+};
+
+let stepper_metadata_comment = (stepper: StepperView.Model.persistent): string =>
+  "#" ++ metadata_prefix ++ encode_stepper_metadata(stepper) ++ "#";
+
+let stepper_metadata_of_exp =
+    (exp: Exp.t): option(StepperView.Model.persistent) => {
+  let comments = ref([]);
+  let collect_secondary = (secondary: Secondary.t) =>
+    switch (secondary.content) {
+    | Comment(text) => comments := [text, ...comments^]
+    | Whitespace(_) => ()
+    };
+  let collect_annotation = (exp: Exp.t) => {
+    let (before, after) = exp.annotation.secondary;
+    List.iter(collect_secondary, before);
+    List.iter(collect_secondary, after);
+  };
+  let f_exp = (continue, exp: Exp.t) => {
+    collect_annotation(exp);
+    continue(exp);
+  };
+  let _ = TermBase.Exp.map_term(~f_exp, exp);
+  comments^ |> List.find_map(decode_stepper_metadata);
+};
+
+let promote_explore_code =
+    (
+      ~settings: CoreSettings.t,
+      ~name: string,
+      ~original: Exp.t,
+      ~landed: Exp.t,
+      ~stepper: StepperView.Model.persistent,
+    )
+    : string => {
+  let original_code = exp_to_code(~settings, original);
+  let landed_code = exp_to_code(~settings, landed);
+  "theorem "
+  ++ name
+  ++ " = "
+  ++ original_code
+  ++ " == "
+  ++ landed_code
+  ++ " in "
+  ++ stepper_metadata_comment(stepper);
+};
+
+let promote_explore_code_with_metadata =
+    (
+      ~settings: CoreSettings.t,
+      ~name: string,
+      ~original: Exp.t,
+      ~landed: Exp.t,
+      ~stepper: StepperView.Model.persistent,
+    )
+    : string =>
+  promote_explore_code(~settings, ~name, ~original, ~landed, ~stepper);
+
+let promote_explore_goal = (~original: Exp.t, ~landed: Exp.t): Exp.t =>
+  Exp.fresh(BinOp(Poly(Equals), original, landed));
+
+let reflexivity_step_for = (exp: Exp.t): StepperBase.persistent_step =>
+  StepperBase.{
+    step_kind:
+      AxiomStep({
+        name: "Reflexive(==)",
+        at_idx: 0,
+        at_exp: exp,
+        direction: Direction.Right,
+        equality: "Reflexive(==)",
+      }),
+    next_step: None,
+  };
+
+let rec replace_terminal_missing_step =
+        (
+          replacement: StepperBase.persistent_step,
+          step: StepperBase.persistent_step,
+        )
+        : StepperBase.persistent_step => {
+  switch (step.next_step) {
+  | Some(next_step) => {
+      ...step,
+      next_step: Some(replace_terminal_missing_step(replacement, next_step)),
+    }
+  | None =>
+    switch (step.step_kind) {
+    | MissingStep(_) => replacement
+    | _ => {
+        ...step,
+        next_step: Some(replacement),
+      }
+    }
+  };
+};
+
+let stepper_with_final_reflexivity =
+    (~landed: Exp.t, stepper: StepperView.Model.persistent)
+    : StepperView.Model.persistent => {
+  let reflexive_goal = Exp.fresh(BinOp(Poly(Equals), landed, landed));
+  {
+    root:
+      replace_terminal_missing_step(
+        reflexivity_step_for(reflexive_goal),
+        stepper.root,
+      ),
+  };
+};
+
 module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type theorem = {
@@ -32,6 +187,13 @@ module Model = {
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type persistent_theorem = {stepper_view: StepperView.Model.persistent};
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type promoted_explore_stepper = {
+    name: string,
+    goal: Exp.t,
+    stepper: StepperView.Model.persistent,
+  };
 
   let theorem_init = name => {
     name,
@@ -48,6 +210,7 @@ module Model = {
     thms: Calc.saved(list(Id.t)),
     explore_map: Id.Map.t(theorem),
     explores: Calc.saved(list(Id.t)),
+    promoted_explore_steppers: list(promoted_explore_stepper),
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -58,6 +221,7 @@ module Model = {
     thms: Calc.Pending,
     explore_map: Id.Map.empty,
     explores: Calc.Pending,
+    promoted_explore_steppers: [],
   };
 
   let persist = (model: t): persistent => {
@@ -86,6 +250,7 @@ module Model = {
     thms: Calc.Pending,
     explore_map: Id.Map.empty,
     explores: Calc.Pending,
+    promoted_explore_steppers: [],
   };
 
   let get_score = (model: t): option((float, float)) => {
@@ -117,12 +282,20 @@ module Update = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     | TheoremUpdate(int, StepperView.Update.t)
-    | ExploreUpdate(int, StepperView.Update.t);
+    | ExploreUpdate(int, StepperView.Update.t)
+    | PromoteExplore(
+        Id.t,
+        string,
+        string,
+        Exp.t,
+        StepperView.Model.persistent,
+      );
 
   let can_undo = (action: t) => {
     switch (action) {
     | TheoremUpdate(_, action) => StepperView.Update.can_undo(action)
     | ExploreUpdate(_, action) => StepperView.Update.can_undo(action)
+    | PromoteExplore(_, _, _, _, _) => true
     };
   };
 
@@ -204,6 +377,19 @@ module Update = {
         };
       | None => model |> Updated.raise_invalid_action
       };
+    | PromoteExplore(_, _, name, goal, stepper) =>
+      Model.{
+        ...model,
+        promoted_explore_steppers: [
+          {
+            name,
+            goal,
+            stepper,
+          },
+          ...model.promoted_explore_steppers,
+        ],
+      }
+      |> Updated.return_quiet
     };
   };
 
@@ -212,7 +398,7 @@ module Update = {
         ~settings: Calc.t(CoreSettings.t),
         ~statics: Calc.t(Haz3lcore.CachedStatics.t),
         ~dynamics: Calc.t(option(Dynamics.t)),
-        {thm_map, thms, explore_map, explores}: Model.t,
+        {thm_map, thms, explore_map, explores, promoted_explore_steppers}: Model.t,
       ) => {
     let theorem_settings' = {
       ...Calc.get_value(settings),
@@ -261,6 +447,7 @@ module Update = {
       }
       |> Calc.old_if_same'(thms);
     let thm_ids = Calc.get_value(thms);
+    let previous_thm_map = thm_map;
     let thm_map = Id.Map.filter((id, _) => List.mem(id, thm_ids), thm_map);
 
     // Calculate visible steppers
@@ -284,6 +471,53 @@ module Update = {
              Id.Map.update(
                id,
                (opt: option(Model.theorem)) => {
+                 let conclusion_exp = rule |> ProofRule.conclusion_exp;
+                 let transient_stepper =
+                   List.find_opt(
+                     (seed: Model.promoted_explore_stepper) =>
+                       Equality.ignoring_ascriptions.exp(
+                         seed.goal,
+                         conclusion_exp,
+                       )
+                       || seed.name == name,
+                     promoted_explore_steppers,
+                   )
+                   |> Option.map((seed: Model.promoted_explore_stepper) =>
+                        seed.stepper
+                      );
+                 let carried_stepper =
+                   Id.Map.fold(
+                     (_, thm: Model.theorem, acc) =>
+                       switch (acc, thm.goal_exp |> Calc.get_saved_opt) {
+                       | (Some(_), _) => acc
+                       | (None, Some(goal_exp))
+                           when
+                             thm.name == name
+                             && Equality.ignoring_ascriptions.exp(
+                                  goal_exp,
+                                  conclusion_exp,
+                                ) =>
+                         Some(StepperView.Model.persist(thm.stepper_view))
+                       | _ => None
+                       },
+                     previous_thm_map,
+                     None,
+                   );
+                 let source_stepper =
+                   switch (
+                     Statics.Map.lookup_exp(
+                       id,
+                       Calc.get_value(statics).info_map,
+                     )
+                   ) {
+                   | Some(info) => stepper_metadata_of_exp(info.user_term)
+                   | None => None
+                   };
+                 let seeded_theorem = stepper =>
+                   Model.{
+                     ...theorem_init("?"),
+                     stepper_view: StepperView.Model.unpersist(stepper),
+                   };
                  let Model.{
                    name: _,
                    ctx,
@@ -292,14 +526,30 @@ module Update = {
                    goal_exp,
                    stepper_view,
                  } =
-                   Option.value(~default=Model.theorem_init("?"), opt);
+                   switch (opt) {
+                   | Some(thm) =>
+                     switch (transient_stepper) {
+                     | Some(stepper) => seeded_theorem(stepper)
+                     | None => thm
+                     }
+                   | None =>
+                     let stepper =
+                       switch (transient_stepper) {
+                       | Some(_) as stepper => stepper
+                       | None =>
+                         switch (carried_stepper) {
+                         | Some(_) as stepper => stepper
+                         | None => source_stepper
+                         }
+                       };
+                     switch (stepper) {
+                     | Some(stepper) => seeded_theorem(stepper)
+                     | None => Model.theorem_init("?")
+                     };
+                   };
 
                  let goal_exp =
-                   Calc.set(
-                     ~eq=Exp.fast_equal,
-                     rule |> ProofRule.conclusion_exp,
-                     goal_exp,
-                   );
+                   Calc.set(~eq=Exp.fast_equal, conclusion_exp, goal_exp);
 
                  let ctx =
                    ctx
@@ -433,11 +683,46 @@ module Update = {
            explore_map,
          );
 
+    let promoted_explore_steppers =
+      switch (Calc.get_value(dynamics)) {
+      | None => promoted_explore_steppers
+      | Some(_) =>
+        let theorem_goals =
+          dynamics
+          |> Calc.get_value
+          |> (
+            fun
+            | None => []
+            | Some(x) => x.theorems
+          )
+          |> List.map(((_, theorem_name, _, goal)) =>
+               (
+                 theorem_name,
+                 goal
+                 |> Substitution.in_exp(Environment.empty)
+                 |> ProofRule.exp_to_rule
+                 |> ProofRule.conclusion_exp,
+               )
+             );
+        List.filter(
+          (seed: Model.promoted_explore_stepper) =>
+            !
+              List.exists(
+                ((theorem_name, theorem_goal)) =>
+                  Equality.ignoring_ascriptions.exp(seed.goal, theorem_goal)
+                  || seed.name == theorem_name,
+                theorem_goals,
+              ),
+          promoted_explore_steppers,
+        );
+      };
+
     Model.{
       thm_map,
       thms: thms |> Calc.save,
       explore_map,
       explores: explores |> Calc.save,
+      promoted_explore_steppers,
     };
   };
 };
@@ -582,10 +867,61 @@ module View = {
         (idx, id) => {
           let explore: Model.theorem = Id.Map.find(id, model.explore_map);
           let stepper_view = explore.stepper_view;
+          let promote_button =
+            switch (
+              explore.goal_exp |> Calc.get_saved_opt,
+              StepperView.Model.get_landed_exp(stepper_view),
+            ) {
+            | (Some(original), Some(landed)) =>
+              let default_name =
+                "th_"
+                ++ string_of_int(
+                     List.length(model.thms |> Calc.get_saved([])) + 1,
+                   );
+              [
+                Node.button(
+                  ~attrs=[
+                    Attr.create("type", "button"),
+                    Attr.class_("theorem-promote-button"),
+                    Attr.title("Rewrite this explore as a theorem"),
+                    Attr.on_click(_ => {
+                      let name =
+                        switch (JsUtil.prompt("Theorem name", default_name)) {
+                        | Some(name) =>
+                          let name = String.trim(name);
+                          name == "" ? default_name : name;
+                        | None => default_name
+                        };
+                      let stepper =
+                        stepper_view
+                        |> StepperView.Model.persist
+                        |> stepper_with_final_reflexivity(~landed);
+                      let code =
+                        promote_explore_code(
+                          ~settings=globals.settings.core,
+                          ~name,
+                          ~original,
+                          ~landed,
+                          ~stepper,
+                        );
+                      let goal = promote_explore_goal(~original, ~landed);
+                      inject(
+                        Update.PromoteExplore(id, code, name, goal, stepper),
+                      );
+                    }),
+                  ],
+                  [Node.text("make theorem")],
+                ),
+              ];
+            | _ => []
+            };
           let header =
             WebUtil.div_c(
               "theorem-header",
-              [Node.strong([Node.text("Explore expression")])],
+              [
+                Node.strong([Node.text("Explore expression")]),
+                ...promote_button,
+              ],
             );
           let stepper =
             StepperView.View.view(

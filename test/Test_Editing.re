@@ -4965,6 +4965,60 @@ let explore_editing_tests = [
       check(testable(Fmt.string, String.equal), "ok", "ok", "ok");
     },
   ),
+  test_case(
+    "Theorem promotion code may leave the theorem body implicit",
+    `Quick,
+    () => {
+      let z =
+        mk({|theorem th_1 = 1 == 15 in #hazel-explore-stepper:x#¦|})
+        |> perform(Zipper.init());
+      let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
+      switch (Language.Exp.term_of(term)) {
+      | Language.Grammar.Theorem(_, _, body) =>
+        switch (Language.Exp.term_of(body)) {
+        | Language.Grammar.EmptyHole => ()
+        | _ =>
+          Alcotest.fail(
+            "Expected theorem body hole, got " ++ Language.Exp.show(body),
+          )
+        }
+      | _ =>
+        Alcotest.fail(
+          "Expected Theorem term, got " ++ Language.Exp.show(term),
+        )
+      };
+    },
+  ),
+  test_case(
+    "Replacing explore with theorem succeeds even when the id changes",
+    `Quick,
+    () => {
+      let z = mk({|explore 1 + 2 end¦|}) |> perform(Zipper.init());
+      let explore_term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
+      let explore_id = Language.Exp.rep_id(explore_term);
+      let z =
+        perform(
+          z,
+          [
+            ReplaceTermWithSource(explore_id, "theorem th_1 = 1 + 2 == 3 in"),
+          ],
+        );
+      let theorem_term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
+      switch (Language.Exp.term_of(theorem_term)) {
+      | Language.Grammar.Theorem(_, _, _) =>
+        check(
+          bool,
+          "promoted theorem gets a fresh outer id",
+          true,
+          Language.Exp.rep_id(theorem_term) != explore_id,
+        )
+      | _ =>
+        Alcotest.fail(
+          "Expected Theorem term, got " ++ Language.Exp.show(theorem_term),
+        )
+      };
+    },
+  ),
 ];
 
 let tests = [

@@ -30,6 +30,15 @@ module Model = {
   };
 
   let get_validity = (m: t) => StepperBase.Stepper.get_validity(m.root);
+
+  let get_landed_exp = (m: t): option(Exp.t) => {
+    let rec go = (step: StepperBase.step_model) =>
+      switch (step.next_step) {
+      | Some(next_step) => go(next_step)
+      | None => step.expr |> Calc.get_saved_opt
+      };
+    go(m.root);
+  };
 };
 
 module Update = {
