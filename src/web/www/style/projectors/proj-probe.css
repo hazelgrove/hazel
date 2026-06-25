@@ -428,14 +428,15 @@
 
 /* Indet styling only applies to focus-aligned samples; for off-context
  * samples (blue/pink), the call-context color is more informative than
- * the indet indicator, so we let it show through. */
-.live-offside .sample:has(.value.indet.focus) {
+ * the indet indicator, so we let it show through. ACTUALLY this can
+ * get confusing, let's just not shout indet status at all for now */
+/* .live-offside .sample:has(.value.indet.focus) {
   --depth-shadow: oklch(0.46 0 0);
   --bottom-border-clr: oklch(0.4 0 0);
 }
 .live-offside .sample:has(.value.indet.focus) .value {
   background-color: var(--T2) !important;
-}
+} */
 /* .live-offside .sample:has(.value.cursor-callee) {
   --below-shadow: var(--exp-ap-indicated);
 }
