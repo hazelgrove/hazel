@@ -9,13 +9,13 @@ let exercise : Tutorial.spec =
     version = 1;
     module_name = "TuGen_02ParserAndBackpack";
     prompt =
-      {x|Hazel's parser helps you complete incomplete syntax. When you start a multi-token form like `let … = … in`, the tokens you still owe wait in the *backpack*, shown in yellow above the caret.
-
-`let` expressions bind names for use in the rest of the program:
+      {x|Hazel uses `let` expressions to bind names for use in the rest of the program:
 ```hazelnostatics
 let x = expr in
 body
 ```
+
+Hazel's editor helps scaffold incomplete syntax. When you start a multi-token form like `let … = … in`, the tokens you still owe show in the *backpack*, shown as a yellow box above the caret.
 
 # Task
 1. After the `=`, fill the definition with `250 * 7`.
@@ -38,7 +38,7 @@ a
         (Haz3lcore.PersistentZipper.unpersist ~root:Exp
            {
              Haz3lcore.PersistentZipper.zipper =
-               {x|((selection((focus Left)(content())(mode Normal)))(relatives((siblings(((Tile((id 4c12b69d-6d64-4c07-95bd-c7da2bb4c16d)(label(let = in))(mold((out Exp)(in_(Pat Exp))(nibs(((shape Convex)(sort Exp))((shape(Concave 45))(sort Exp))))))(shards(0 1))(children(((Secondary((id 532b59e0-e9c3-4e2a-9652-7fbafc310972)(content(Whitespace" "))))(Tile((id 94a2cedb-21fd-4657-8d89-9aa017b1b151)(label(weekly))(mold((out Pat)(in_())(nibs(((shape Convex)(sort Pat))((shape Convex)(sort Pat))))))(shards(0))(children())))(Secondary((id e90b8568-3a7d-4933-a980-6f19a31c3baa)(content(Whitespace" ")))))))))(Secondary((id d4a81fc2-dedc-420a-8488-09784a9e1f84)(content(Whitespace" ")))))((Grout((id 1042061a-b7cb-4547-8cfb-9906e8aa2d10)(shape Convex))))))(ancestors())))(caret Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index -1)(pinned_stack())(indicated_call())(time())(seq 0)(step_range())(pending_focus())))(autoprobe_target())(pending_probe_cursor()))))|x};
+               {x|((selection((focus Left)(content())(mode Normal)))(relatives((siblings(((Tile((id aec023b4-bbda-4c80-af9d-5d555940b2df)(label(let = in))(mold((out Exp)(in_(Pat Exp))(nibs(((shape Convex)(sort Exp))((shape(Concave 45))(sort Exp))))))(shards(0 1))(children(((Secondary((id da4078dc-6aa3-49eb-ae94-76877dca417c)(content(Whitespace" "))))(Tile((id 877b758e-0934-4fba-aa54-5625caba7691)(label(weekly))(mold((out Pat)(in_())(nibs(((shape Convex)(sort Pat))((shape Convex)(sort Pat))))))(shards(0))(children())))(Secondary((id e2aeb202-4eaa-4890-aaee-34ce91f049b6)(content(Whitespace" ")))))))))(Secondary((id b4800bc3-4c2f-43c1-b007-0f1654e83893)(content(Whitespace" ")))))((Grout((id f57bf0a5-7576-46f2-8671-fd0810c4515f)(shape Convex))))))(ancestors())))(caret Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index -1)(pinned_stack())(indicated_call())(time())(seq 0)(step_range())(pending_focus())))(autoprobe_target())(pending_probe_cursor()))))|x};
              backup_text = {x|let weekly = |x};
            });
     hidden_tests =
@@ -47,7 +47,7 @@ a
           Haz3lcore.PersistentZipper.unpersist ~root:Exp
             {
               Haz3lcore.PersistentZipper.zipper =
-                {x|((selection((focus Left)(content())(mode Normal)))(relatives((siblings(((Tile((id 33d0884f-25ef-4e14-b559-20aef1e894fe)(label(test end))(mold((out Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort Exp))))))(shards(0 1))(children(((Secondary((id d93db3fe-dec5-42b4-a7c5-55619cb89958)(content(Whitespace" "))))(Tile((id ec5aad2b-7a2f-4ec0-8eba-aae779cbed40)(label(answer))(mold((out Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort Exp))))))(shards(0))(children())))(Secondary((id 3d75b330-be9b-4a52-84c4-9d61b4b64f68)(content(Whitespace" "))))(Tile((id a3633db1-2155-459c-8a82-fd4817bc8cf6)(label(==))(mold((out Exp)(in_())(nibs(((shape(Concave 31))(sort Exp))((shape(Concave 31))(sort Exp))))))(shards(0))(children())))(Secondary((id 3fed8125-0280-4532-90fb-cf0684789ad7)(content(Whitespace" "))))(Tile((id 96843744-8319-4375-a45e-8068c3485fad)(label(1750))(mold((out Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort Exp))))))(shards(0))(children())))(Secondary((id 3850538e-1569-4628-beb8-3fe1386c19f2)(content(Whitespace" ")))))))))(Tile((id 631184a3-d253-4b48-9fb9-a956ca3043a0)(label(";"))(mold((out Exp)(in_())(nibs(((shape(Concave 35))(sort Exp))((shape(Concave 35))(sort Exp))))))(shards(0))(children())))(Secondary((id 6eec7d27-fbdb-4b4e-bd47-e961b71afa85)(content(Whitespace"\n")))))((Grout((id d927b46c-4baa-44fe-a02a-2a5422ec1c79)(shape Convex))))))(ancestors())))(caret Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index -1)(pinned_stack())(indicated_call())(time())(seq 0)(step_range())(pending_focus())))(autoprobe_target())(pending_probe_cursor()))))|x};
+                {x|((selection((focus Left)(content())(mode Normal)))(relatives((siblings(((Tile((id 6f7e3e60-956f-4c94-837f-924ac52cc11a)(label(test end))(mold((out Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort Exp))))))(shards(0 1))(children(((Secondary((id 94753a32-9a7c-4e47-ad24-fdf3bbc3bb7e)(content(Whitespace" "))))(Tile((id 833ca26d-5350-43a9-ad4a-5f925a86fdc0)(label(answer))(mold((out Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort Exp))))))(shards(0))(children())))(Secondary((id 6943fad4-b210-45e3-bc17-94fd9e0fcd67)(content(Whitespace" "))))(Tile((id 8a3f216c-cde6-4006-a639-7e503f506e35)(label(==))(mold((out Exp)(in_())(nibs(((shape(Concave 31))(sort Exp))((shape(Concave 31))(sort Exp))))))(shards(0))(children())))(Secondary((id afa8185a-80d7-4974-97c0-8d74ae109a23)(content(Whitespace" "))))(Tile((id 5bd87b09-707a-45ca-aa98-21332ba10240)(label(1750))(mold((out Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort Exp))))))(shards(0))(children())))(Secondary((id 0e06362d-3142-43b2-8ddb-8b56f95d6558)(content(Whitespace" ")))))))))(Tile((id b3eee55b-83bb-464b-8c4f-aff5586c2087)(label(";"))(mold((out Exp)(in_())(nibs(((shape(Concave 35))(sort Exp))((shape(Concave 35))(sort Exp))))))(shards(0))(children())))(Secondary((id 4afb8827-7b2b-4e21-a131-f83ba481c2a1)(content(Whitespace"\n")))))((Grout((id 489c4bfd-498d-42d3-9936-9b408b835be2)(shape Convex))))))(ancestors())))(caret Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index -1)(pinned_stack())(indicated_call())(time())(seq 0)(step_range())(pending_focus())))(autoprobe_target())(pending_probe_cursor()))))|x};
               backup_text = {x|test answer == 1750 end;
 |x};
             };

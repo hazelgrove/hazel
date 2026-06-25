@@ -2,17 +2,17 @@
 wrapper show_report version=1 id=b0000001-0001-0001-0001-000000000001
 
 @prompt
-Hazel is a live functional environment. Every edit maintains program structure, and evaluation proceeds *around* holes (the hexagons), so there is always a result to look at, which may be a value or a partially evaluated program.
+Hazel is a live environment. Every edit maintains program structure, and type checking and evaluation proceeds *around* holes (the little hexagons). This means every expression typically has results to look at, which may be value or partially evaluated expressions.
 
-Check on this program's evaluation with a **probe**: put your caret on the `+` token and press **Cmd/Ctrl+E** (or right-click, *Add probe*). The program's value appears at the end of the line: Hazel computed everything around the missing piece.
-
-Probe commands are listed in the **Quick Reference** in the sidebar; new ones are highlighted.
+Below we'll learn how to add probes to see these results; as we go, new probe commands will be listed in the **Quick Reference** at the top of the sidebar to the right; new ones are circled in green.
 
 # Task
 
 A nightshade plant drinks 125 ml twice a day, plus a 50 ml weekly top-up. 
 
-1. Fill the hole with the number of days in a week. Watch the probe; it should read **1800**.
+1. Check on the below program's evaluation with a **probe**: put your caret on the `+` token and press **Cmd/Ctrl+E** (or right-click, *Add probe*). A sample value appears at the end of the line.
+
+2. Fill the hole with the number of days in a week. You don't have to select it; just type into it. Watch the probe; it should read **1800**.
 
 @hint
 A week is 7 days.
