@@ -111,6 +111,7 @@ let append = (base: t, ext: t): t => {
     probes,
     tests,
     theorems: ext.theorems @ base.theorems,
+    explores: ext.explores @ base.explores,
   };
 };
 

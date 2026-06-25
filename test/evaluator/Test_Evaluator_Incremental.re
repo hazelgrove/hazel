@@ -58,6 +58,103 @@ let eval_incr =
   (result, state, state.incr_eval);
 };
 
+let eval_worker =
+    (~prev: IncrEval.t=IncrEval.empty, exp: Exp.t)
+    : WorkerServer.Response.value => {
+  let (info_map, elab) = statics_and_elab(exp);
+  let eval_info_map =
+    EvalInfoMap.of_info_map(~probe_all=CoreSettings.on.probe_all, info_map);
+  WorkerServer.work({
+    expr: elab,
+    targets: Sample.no_targets,
+    eval_info_map,
+    prev,
+  });
+};
+
+let test_worker_empty_hole_does_not_crash = () => {
+  switch (eval_worker(parse_exp("?"))) {
+  | Ok((result, _state)) =>
+    check(
+      dhexp_typ,
+      "Empty hole evaluates to an empty hole",
+      parse_exp("?"),
+      result,
+    )
+  | Error(err) =>
+    Alcotest.fail(
+      "Worker failed on an empty hole: " ++ ProgramResult.show_error(err),
+    )
+  };
+};
+
+let test_worker_empty_hole_with_prev_does_not_crash = () => {
+  let previous = parse_exp("explore 1 + 2 end");
+  let (_, _state1, incr1) = eval_incr(previous);
+  switch (eval_worker(~prev=incr1, parse_exp("?"))) {
+  | Ok((result, _state)) =>
+    check(
+      dhexp_typ,
+      "Empty hole evaluates to an empty hole after prior eval",
+      parse_exp("?"),
+      result,
+    )
+  | Error(err) =>
+    Alcotest.fail(
+      "Worker failed on an empty hole after prior eval: "
+      ++ ProgramResult.show_error(err),
+    )
+  };
+};
+
+let test_incremental_replays_explores = () => {
+  let exp = parse_exp("explore 1 + 2 end");
+  let (_, state1, incr1) = eval_incr(exp);
+  check(
+    int,
+    "Fresh run records one explore",
+    1,
+    EvaluatorState.get_explores(state1) |> List.length,
+  );
+  let (_, state2, incr2) = eval_incr(~prev=incr1, exp);
+  check(bool, "Second run actually reused entries", true, incr2.reused != []);
+  check(
+    int,
+    "Reused run replays one explore",
+    1,
+    EvaluatorState.get_explores(state2) |> List.length,
+  );
+};
+
+let append_trailing_hole_seq = (exp: Exp.t): Exp.t =>
+  Exp.fresh(Seq(exp, Exp.fresh(EmptyHole)));
+
+let test_explore_replayed_after_trailing_semicolon = () => {
+  let exp1 = parse_exp("explore 1 + 2 + 3 + 4 + 5 end");
+  let (_, state1, incr1) = eval_incr(exp1);
+  check(
+    int,
+    "fresh run records one explore",
+    1,
+    EvaluatorState.get_explores(state1) |> List.length,
+  );
+
+  let exp2 = append_trailing_hole_seq(exp1);
+  let (_, state2, incr2) = eval_incr(~prev=incr1, exp2);
+  check(
+    bool,
+    "second run reused the unchanged explore subtree",
+    true,
+    incr2.reused != [],
+  );
+  check(
+    int,
+    "replayed incremental state keeps the explore result",
+    1,
+    EvaluatorState.get_explores(state2) |> List.length,
+  );
+};
+
 /* Replace Atom(Int(from)) with Atom(Int(to_)) everywhere in `exp`,
  * preserving the IdTagged annotation on every node (including on the
  * edited leaf itself — only the payload integer changes, the id stays).
@@ -1664,6 +1761,26 @@ n|};
 let tests = (
   "Evaluator.Incremental",
   [
+    test_case(
+      "Worker does not crash on empty hole",
+      `Quick,
+      test_worker_empty_hole_does_not_crash,
+    ),
+    test_case(
+      "Worker does not crash on empty hole with previous cache",
+      `Quick,
+      test_worker_empty_hole_with_prev_does_not_crash,
+    ),
+    test_case(
+      "Incremental reuse replays explore records",
+      `Quick,
+      test_incremental_replays_explores,
+    ),
+    test_case(
+      "Replays explore slice on reuse after trailing semicolon",
+      `Quick,
+      test_explore_replayed_after_trailing_semicolon,
+    ),
     test_case(
       "DIAG module in unchanged rhs tuple lands in frozen",
       `Quick,
