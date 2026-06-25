@@ -6,6 +6,25 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
     <!-- The above 3 meta tags *must* come first in the head; any other head content must come *after* these tags -->
 
+    <!--
+      Cross-origin isolation for test input generation's Z3 (SharedArrayBuffer).
+      On hosts that can set COOP/COEP headers (make serve / vite) this is a no-op.
+      On GitHub Pages, which can't set headers, the COOP/COEP service worker
+      below re-adds them client-side so SharedArrayBuffer becomes available.
+      `credentialless` (vs require-corp) keeps cross-origin resources such as
+      Google Fonts loading. Must be a CLASSIC script (uses document.currentScript).
+    -->
+    <script>
+      window.coi = {
+        // Only register when the page isn't already isolated, so a
+        // headers-providing host (local dev) avoids an extra worker + reload.
+        shouldRegister: () => !window.crossOriginIsolated,
+        coepCredentialless: () => true,
+        coepDegrade: () => false,
+      };
+    </script>
+    <script src="coi-serviceworker.js"></script>
+
     <title>hazel</title>
     <link rel="stylesheet" href="style.css">
     <link rel="icon" type="image/svg" href = "img/hazelnut.svg">
