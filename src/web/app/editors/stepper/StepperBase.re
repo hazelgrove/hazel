@@ -56,6 +56,12 @@ type persistent_step_kind =
   | AxiomStep(AxiomStep.persistent'(persistent_step))
   | AlgebriteStep(AlgebriteStep.persistent'(persistent_step))
   | ReparenthesizeStep(Exp.t, Exp.t) /* original_exp, reparenthesized_exp */
+  | ReparenthesizeStepWithSelection({
+      original_exp: Exp.t,
+      reparenthesized_exp: Exp.t,
+      selected_id: option(Id.t),
+      evaluate_after_parenthesize: bool,
+    })
 
 and persistent_step = {
   step_kind: persistent_step_kind,
@@ -81,7 +87,9 @@ and step_action =
   | AddInduction(option(Exp.t))
   | AddForall
   | AddAxiomStep(string, int, Exp.t, Direction.t, string)
-  | AddAlgebriteStep(int, Exp.t, Exp.t);
+  | AddAlgebriteStep(int, Exp.t, Exp.t)
+  | AddReparenthesizeStep(Exp.t)
+  | AddReparenthesizedAlgebriteStep(Exp.t, Exp.t, Exp.t);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type step_kind_focus =
@@ -134,8 +142,19 @@ module rec StepKind: {
     | MissingStep(m) => MissingStep(MissingStep.Model.persist(m))
     | AxiomStep(m) => AxiomStep(AxiomStep.persist(m))
     | AlgebriteStep(m) => AlgebriteStep(AlgebriteStep.persist(m))
-    | ReparenthesizeStep({original_exp, reparenthesized_exp, _}) =>
-      ReparenthesizeStep(original_exp, reparenthesized_exp)
+    | ReparenthesizeStep({
+        original_exp,
+        reparenthesized_exp,
+        selected_id,
+        evaluate_after_parenthesize,
+        _,
+      }) =>
+      ReparenthesizeStepWithSelection({
+        original_exp,
+        reparenthesized_exp,
+        selected_id,
+        evaluate_after_parenthesize,
+      })
     };
   };
 
@@ -153,6 +172,19 @@ module rec StepKind: {
         reparenthesized_exp,
         selected_id: None,
         evaluate_after_parenthesize: false,
+        next_exp: Calc.Pending,
+      })
+    | ReparenthesizeStepWithSelection({
+        original_exp,
+        reparenthesized_exp,
+        selected_id,
+        evaluate_after_parenthesize,
+      }) =>
+      ReparenthesizeStep({
+        original_exp,
+        reparenthesized_exp,
+        selected_id,
+        evaluate_after_parenthesize,
         next_exp: Calc.Pending,
       })
     };
@@ -839,6 +871,62 @@ and Stepper: {
         }
         |> return
       | (AddAlgebriteStep(_, _, _), _, _) => model |> raise_invalid_action
+      | (AddReparenthesizeStep(new_exp), MissingStep(_), _) =>
+        let exp =
+          model.expr |> Calc.get_saved_exc(~print="AddReparenthesizeStep");
+        {
+          ...model,
+          step_kind:
+            ReparenthesizeStep({
+              original_exp: exp,
+              reparenthesized_exp: new_exp,
+              selected_id: None,
+              evaluate_after_parenthesize: false,
+              next_exp: Calc.Pending,
+            }),
+        }
+        |> return;
+      | (AddReparenthesizeStep(_), _, _) => model |> raise_invalid_action
+      | (
+          AddReparenthesizedAlgebriteStep(
+            reparenthesized_exp,
+            at_exp,
+            with_exp,
+          ),
+          MissingStep(_),
+          _,
+        ) =>
+        let exp =
+          model.expr
+          |> Calc.get_saved_exc(~print="AddReparenthesizedAlgebriteStep");
+        {
+          ...model,
+          step_kind:
+            ReparenthesizeStep({
+              original_exp: exp,
+              reparenthesized_exp,
+              selected_id: None,
+              evaluate_after_parenthesize: false,
+              next_exp: Calc.Pending,
+            }),
+          next_step:
+            Some({
+              ...init,
+              step_kind:
+                AlgebriteStep({
+                  at_idx:
+                    try(ProofHacks.exp_idx(at_exp, reparenthesized_exp)) {
+                    | _ => 0
+                    },
+                  at_exp,
+                  with_exp,
+                  next_exp: Calc.Pending,
+                }),
+            }),
+        }
+        |> return;
+      | (AddReparenthesizedAlgebriteStep(_, _, _), _, _) =>
+        model |> raise_invalid_action
       | (StepKindAction(sk_action), _, _) =>
         let* new_step_kind =
           StepKind.update(~settings, sk_action, model.step_kind);
@@ -861,6 +949,8 @@ and Stepper: {
     | AddForall => true
     | AddAxiomStep(_) => true
     | AddAlgebriteStep(_) => true
+    | AddReparenthesizeStep(_) => true
+    | AddReparenthesizedAlgebriteStep(_) => true
     | StepKindAction(action) => StepKind.can_undo(action)
     };
   };
@@ -1147,6 +1237,10 @@ and Stepper: {
                       inject(AddAxiomStep(name, idx, e1, dir, eq))
                     | AddAlgebriteStep(idx, e1, e2) =>
                       inject(AddAlgebriteStep(idx, e1, e2))
+                    | AddReparenthesizeStep(e) =>
+                      inject(AddReparenthesizeStep(e))
+                    | AddReparenthesizedAlgebriteStep(e1, e2, e3) =>
+                      inject(AddReparenthesizedAlgebriteStep(e1, e2, e3))
                     | TakeStep(i) => inject(StepForward(i))
                     | StepHere(ids, evaluate_after_parenthesize) =>
                       inject(

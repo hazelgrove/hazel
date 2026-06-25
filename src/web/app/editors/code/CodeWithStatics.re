@@ -43,7 +43,7 @@ module Model = {
         ~settings: Language.CoreSettings.t,
         ~inline=false,
         ~root: Sort.t,
-        ~parenthesization=ExpToSegment.Settings.Structural,
+        ~parenthesization=ExpToSegment.Settings.Defensive,
         term: Language.Exp.t,
       ) => {
     let seg =
