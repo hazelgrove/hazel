@@ -114,42 +114,15 @@ let path_view = (utility: ProjectorBase.utility, r: Reach.t): list(Node.t) => {
   };
 };
 
-/* Debounced auto-solve: each reach point re-renders fresh every frame (Reach
- * bypasses the projector view cache), so the offside can watch its own
- * condition signature and re-solve a short while after it last changed. State
- * is keyed by reach-point id. Because identical SMT scripts are cached
- * (Z3Wasm), every member of a merge group reuses one group solve, so a group's
- * solution lands on all of its members. */
-module ReachAuto = {
-  let debounce_ms = 400.0;
-  let timers: Hashtbl.t(Id.t, Js_of_ocaml.Dom_html.timeout_id) =
-    Hashtbl.create(64);
-  let last_sigs: Hashtbl.t(Id.t, string) = Hashtbl.create(64);
-
-  /* Re-run `run` ~debounce_ms after this point's condition signature settles. */
-  let tick = (~id: Id.t, ~sig_: string, ~run: unit => unit): unit =>
-    if (Hashtbl.find_opt(last_sigs, id) != Some(sig_)) {
-      Hashtbl.replace(last_sigs, id, sig_);
-      switch (Hashtbl.find_opt(timers, id)) {
-      | Some(t) => Js_of_ocaml.Dom_html.window##clearTimeout(t)
-      | None => ()
-      };
-      let t =
-        Js_of_ocaml.Dom_html.window##setTimeout(
-          Js_of_ocaml.Js.wrap_callback(() => {
-            Hashtbl.remove(timers, id);
-            run();
-          }),
-          debounce_ms,
-        );
-      Hashtbl.replace(timers, id, t);
-    };
-};
-
 module V: ProjectorView = {
   module L = ReachProj.M;
 
   let focusable = Focusable.non;
+
+  /* One debouncer for all reach points (keyed by id inside). Identical SMT
+     scripts are cached (Z3Wasm), so every member of a merge group reuses one
+     group solve and a group's solution lands on all of its members. */
+  let debounce = SolveDebounce.make();
 
   let view =
       (
@@ -171,11 +144,10 @@ module V: ProjectorView = {
           )
           @ info.reach_group_conds
         : [];
-    /* Fire-and-forget: solve every job, then store all outcomes at once. The
-       automatic path drops Error outcomes so a transient failure (e.g. the
-       solver not yet loaded) never auto-fills error pills; the manual button
-       reports everything. */
-    let run_solve = (~auto: bool) => {
+    /* Fire-and-forget: solve every job, then store all outcomes at once. Error
+       outcomes are dropped so a transient failure (e.g. the solver not yet
+       loaded) never fills in error pills; a later edit re-solves. */
+    let run_solve = () => {
       let total = List.length(jobs);
       let outs = ref([]);
       let done_ = ref(0);
@@ -194,16 +166,14 @@ module V: ProjectorView = {
                 incr(done_);
                 if (done_^ >= total) {
                   let results =
-                    auto
-                      ? List.filter(
-                          ((_, o)) =>
-                            switch (o) {
-                            | TestGen.Error(_) => false
-                            | _ => true
-                            },
-                          outs^,
-                        )
-                      : outs^;
+                    List.filter(
+                      ((_, o)) =>
+                        switch (o) {
+                        | TestGen.Error(_) => false
+                        | _ => true
+                        },
+                      outs^,
+                    );
                   switch (results) {
                   | [] => ()
                   | _ =>
@@ -221,7 +191,8 @@ module V: ProjectorView = {
     /* Re-solve automatically (debounced) whenever the conditions change. The
        signature is built from the conditions only — never the results — so
        storing results doesn't retrigger it. */
-    ReachAuto.tick(
+    SolveDebounce.tick(
+      debounce,
       ~id=info.id,
       ~sig_=
         String.concat(
@@ -232,32 +203,8 @@ module V: ProjectorView = {
             jobs,
           ),
         ),
-      ~run=() =>
-      run_solve(~auto=true)
+      ~run=run_solve,
     );
-    let on_generate = _ =>
-      switch (jobs) {
-      | _ when !model.enabled => Effect.Ignore
-      | [] =>
-        local_transient(
-          ReachProj.SetResult(
-            0,
-            TestGen.Error("Enable statics to analyze reachability."),
-          ),
-        )
-      | _ =>
-        run_solve(~auto=false);
-        Effect.Ignore;
-      };
-    let generate_btn =
-      span(
-        ~attrs=[
-          Attr.classes(["reach-generate"]),
-          Attr.title("Find reaching inputs"),
-          Attr.on_click(on_generate),
-        ],
-        [text({js|🎯|js})],
-      );
     /* Edit group membership right on the point. The point's groups show as
        solid chips; hovering the area expands it (briefly animated) to reveal
        every other group as a dimmed chip you can toggle on. The "+" chip always
@@ -333,7 +280,7 @@ module V: ProjectorView = {
                 @ (model.enabled ? [] : ["disabled"]),
               ),
             ],
-            [groups_edit, generate_btn]
+            [groups_edit]
             @ (
               switch (info.reach) {
               | Some(r) => path_view(info.utility, r)

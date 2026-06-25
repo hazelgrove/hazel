@@ -49,10 +49,9 @@ let t_of_sexp = (sexp: Sexplib.Sexp.t): t =>
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type reach_action =
-  /* (group, outcome); group 0 = the point's own solo outcome */
-  | SetResult(int, TestGen.outcome)
-  /* store several (group, outcome) pairs at once (one solve of the point and
-     all of its groups), so concurrent solves can't clobber each other */
+  /* store one or more (group, outcome) pairs at once — one solve of the point
+     and every group it belongs to — so concurrent solves can't clobber each
+     other; group 0 is the point's own solo outcome */
   | SetResults(list((int, TestGen.outcome)))
   /* add/remove this point from a group */
   | ToggleGroup(int)
@@ -79,15 +78,7 @@ module M: Projector with type model = t and type action = reach_action = {
 
   let update = (model: model, _info: info, action: action): model =>
     switch (action) {
-    /* Store/replace the outcome for one group (0 = solo). */
-    | SetResult(group, outcome) => {
-        ...model,
-        results: [
-          (group, outcome),
-          ...List.remove_assoc(group, model.results),
-        ],
-      }
-    /* Store/replace several outcomes at once. */
+    /* Store/replace several (group, outcome) outcomes at once. */
     | SetResults(pairs) => {
         ...model,
         results:

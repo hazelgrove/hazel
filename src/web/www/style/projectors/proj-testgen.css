@@ -32,27 +32,6 @@
   line-height: initial;
 }
 
-/* Generate button (flask) */
-.projector.testgen .testgen-generate {
-  cursor: pointer;
-  user-select: none;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 1.5em;
-  height: 1.5em;
-  border-radius: 0.3em;
-  background-color: var(--testgen-accent);
-  color: white;
-  flex: none;
-}
-.projector.testgen .testgen-generate:hover {
-  filter: brightness(1.12);
-}
-.projector.testgen .testgen-generate:active {
-  filter: brightness(0.95);
-}
-
 /* Result pill */
 .projector.testgen .testgen-result {
   padding: 0.1em 0.55em;

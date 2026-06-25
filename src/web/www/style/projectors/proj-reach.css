@@ -96,26 +96,6 @@
   opacity: 1;
 }
 
-/* Solve button (target) — a neutral themed button */
-.projector.reach .reach-generate {
-  cursor: pointer;
-  user-select: none;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 1.5em;
-  height: 1.5em;
-  border-radius: 0.3em;
-  border: 1px solid var(--BR1);
-  background-color: var(--T2);
-  flex: none;
-}
-.projector.reach .reach-generate:hover {
-  background-color: var(--Y0);
-}
-.projector.reach .reach-generate:active {
-  background-color: var(--Y1);
-}
 
 /* Symbolic path condition — a tinted pill in the group's color (inherits the
    inline color set on its wrapper; background derived from currentColor, so it
@@ -193,21 +173,6 @@
   align-items: center;
 }
 /* .toggle-option / .toggle-option.active come from the shared sidebar.css */
-#reach-sidebar .reach-solve-all {
-  cursor: pointer;
-  user-select: none;
-  margin-left: auto;
-  padding: 0.2em 0.6em;
-  border: 1px solid var(--BR1);
-  border-radius: 3px;
-  background-color: var(--Y0);
-  color: var(--BR3);
-  font-size: 0.85em;
-}
-#reach-sidebar .reach-solve-all:hover {
-  background-color: var(--Y1);
-  color: var(--BR4);
-}
 
 /* Section label (Solo) + group sections */
 #reach-sidebar .reach-section-label {
@@ -348,24 +313,6 @@
 #reach-sidebar .reach-approx {
   color: var(--warning-hole-stroke);
   font-weight: bold;
-}
-
-/* Solve button (target) */
-#reach-sidebar .reach-generate {
-  cursor: pointer;
-  user-select: none;
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 1.6em;
-  height: 1.6em;
-  border: 1px solid var(--BR1);
-  border-radius: 3px;
-  background-color: var(--T2);
-}
-#reach-sidebar .reach-generate:hover {
-  background-color: var(--Y0);
 }
 
 /* Result — its own full-width line; wraps freely (the sidebar scrolls). Tinted

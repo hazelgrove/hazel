@@ -6,16 +6,18 @@ open Haz3lcore;
 /* Reach sidebar — a breakpoint-manager-style control panel for reach points.
  *
  * Group view (default): a Solo section plus one collapsible, named section per
- * merge group, each showing the group's merged (total) condition, a solve
- * button, and the merged solution. A reach point can belong to several groups
- * at once, so it appears under each of its groups' sections. Order view: a flat
- * list of every point with its own condition and per-group solutions.
+ * merge group, each showing the group's merged (total) condition and solution.
+ * A reach point can belong to several groups at once, so it appears under each
+ * of its groups' sections. Order view: a flat list of every point with its own
+ * condition and per-group solutions.
  *
  * Group membership is edited on the reach point itself in the editor (the
- * offside chips); this panel reads/solves/names groups. Group merges are
+ * offside chips); this panel reads, names, and enables/disables groups and
+ * points. Solving is automatic — debounced in the offside view (ReachProjView)
+ * — and writes outcomes back into each point's model, so this panel just
+ * displays them. The merged (total) condition shown per group is still
  * assembled here (the sidebar sees every point) by conjoining members' solo
- * conditions via Reach.merge; solving runs Reach.smtlib2 → Z3Wasm.solve →
- * Reach.interpret and writes the outcomes back via Project(SetModel(…)). */
+ * conditions via Reach.merge. */
 
 /* One reach point, resolved for display + dispatch. */
 type point = {
@@ -183,115 +185,6 @@ let view =
     );
   };
 
-  /* A solve "job": (group, condition-to-solve, refractors-to-store-on). */
-  let group_job = (g: int): option((int, Reach.t, list(point))) => {
-    let ms = List.filter((p: point) => p.model.enabled, members(g));
-    switch (List.filter_map((m: point) => m.individual, ms)) {
-    | [] => None
-    | rs => Some((g, Reach.merge(rs), ms))
-    };
-  };
-  let solo_job = (p: point): option((int, Reach.t, list(point))) =>
-    p.model.enabled ? Option.map(r => (0, r, [p]), p.individual) : None;
-
-  /* When every job's outcome is known, write them all back — each refractor
-     dispatched exactly once, with all of its (group, outcome) pairs folded into
-     one model, so concurrent jobs touching the same point can't clobber each
-     other (SetModel replaces the whole model). */
-  let dispatch_all =
-      (outs: list((int, list(point), TestGen.outcome))): Ui_effect.t(unit) => {
-    let per_ref =
-      List.fold_left(
-        (acc, (g, ms, o)) =>
-          List.fold_left(
-            (acc, m: point) => {
-              let prev =
-                switch (Id.Map.find_opt(m.id, acc)) {
-                | Some((_, rs)) => rs
-                | None => []
-                };
-              Id.Map.add(m.id, (m, [(g, o), ...prev]), acc);
-            },
-            acc,
-            ms,
-          ),
-        Id.Map.empty,
-        outs,
-      );
-    Effect.Many(
-      Id.Map.bindings(per_ref)
-      |> List.map(((_, (m: point, results))) => {
-           let new_model =
-             List.fold_left(
-               (mdl, (g, o)) =>
-                 ReachProj.M.update(mdl, m.info, SetResult(g, o)),
-               m.model,
-               results,
-             );
-           /* Results are derived; store them off the undo history. */
-           globals.inject_global(
-             ActiveEditor(
-               Project(
-                 SetModelTransient(
-                   m.idx,
-                   Reach,
-                   ReachProj.M.sexp_of_model(new_model)
-                   |> Sexplib.Sexp.to_string,
-                 ),
-               ),
-             ),
-           );
-         }),
-    );
-  };
-
-  let solve_jobs = (jobs: list((int, Reach.t, list(point)))) =>
-    switch (jobs) {
-    | [] => ()
-    | _ =>
-      let total = List.length(jobs);
-      let outs = ref([]);
-      let done_ = ref(0);
-      List.iter(
-        ((g, cond: Reach.t, ms)) =>
-          Z3Wasm.solve(
-            ~k=
-              outcome => {
-                let o =
-                  Reach.interpret(
-                    ~complete=cond.complete,
-                    ~inputs=cond.inputs,
-                    outcome,
-                  );
-                outs := [(g, ms, o), ...outs^];
-                incr(done_);
-                if (done_^ >= total) {
-                  Bonsai.Effect.Expert.handle(dispatch_all(outs^));
-                };
-              },
-            Reach.smtlib2(cond) |> fst,
-          ),
-        jobs,
-      );
-    };
-
-  let solve_group = (g: int) =>
-    solve_jobs(List.filter_map(Fun.id, [group_job(g)]));
-  let solve_point = (p: point) =>
-    solve_jobs(
-      List.filter_map(
-        Fun.id,
-        [solo_job(p)] @ List.map(group_job, p.model.groups),
-      ),
-    );
-  let solve_all = () =>
-    solve_jobs(
-      List.filter_map(
-        Fun.id,
-        List.map(solo_job, points) @ List.map(group_job, all_groups),
-      ),
-    );
-
   /* A clickable control that stops the row's jump-on-click and runs the effect
      returned by on_activate. */
   let control = (~cls, ~tooltip, ~on_activate, label) =>
@@ -317,20 +210,6 @@ let view =
           : "Disabled — click to enable",
       ~on_activate=() => set_model(p, SetEnabled(!p.model.enabled)),
       p.model.enabled ? {js|●|js} : {js|○|js},
-    );
-
-  /* Solving is fire-and-forget (it schedules its own dispatch), so the button
-     returns no effect. */
-  let solve_btn = (~tooltip="Find reaching inputs", do_solve) =>
-    control(
-      ~cls=["reach-generate"],
-      ~tooltip,
-      ~on_activate=
-        () => {
-          do_solve();
-          Effect.Ignore;
-        },
-      {js|🎯|js},
     );
 
   let line_num = (p: point) =>
@@ -412,7 +291,6 @@ let view =
             line_num(p),
             condition,
             group_chips(p.model.groups),
-            solve_btn(() => solve_point(p)),
           ],
         ),
       ]
@@ -469,9 +347,6 @@ let view =
             ~attrs=[clss(["reach-count"])],
             [text("(" ++ string_of_int(List.length(ms)) ++ ")")],
           ),
-          solve_btn(~tooltip="Find one input reaching all enabled members", () =>
-            solve_group(g)
-          ),
         ],
       );
     let merged_view =
@@ -526,19 +401,6 @@ let view =
             ),
             toggle_option("Order", ~is_active=settings.flat, ~on_pick=() =>
               globals.inject_global(Set(Sidebar(Reach(ToggleReachView))))
-            ),
-            span(
-              ~attrs=[
-                clss(["reach-solve-all"]),
-                Attr.title("Solve all reach points and groups"),
-                Attr.on_pointerdown(evt => {
-                  Js_of_ocaml.Dom.preventDefault(evt);
-                  stop(evt);
-                  solve_all();
-                  Effect.Ignore;
-                }),
-              ],
-              [text("Solve all")],
             ),
           ],
         ),
