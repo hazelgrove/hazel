@@ -3,7 +3,11 @@ open Util;
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type chunkiness =
   | ByChar
-  | ByToken;
+  | ByToken
+  /* Smart-rounded selection: char inside the starting token, whole
+   * pieces once the focus has left that token's span. Only meaningful
+   * for Select(Resize(Local | Vertical)) and Point-based selection. */
+  | BySmart;
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type goal =
@@ -23,8 +27,13 @@ type move =
   | End
   | Line(Direction.t)
   | Local(Direction.t, chunkiness)
-  | Vertical(vertical)
-  | Point(Point.t)
+  | Vertical(vertical, chunkiness)
+  /* Point-based move/select. The optional chunkiness overrides the
+   * selection_chunkiness setting for Select(Resize(Point(...))) drag;
+   * `None` falls back to the settings-driven default. Ignored for
+   * Move(Point(...)), which always lands the caret at the closest
+   * grid position. */
+  | Point(Point.t, option(chunkiness))
   | Goal(goal);
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]

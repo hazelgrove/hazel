@@ -11,6 +11,7 @@ module Model = {
     instructor_mode: bool,
     benchmark: bool,
     show_log_panel: bool,
+    show_debug_panel: bool,
     explainThis: ExplainThisModel.Settings.t,
     sidebar: SidebarModel.Settings.t,
     /* Auto probe mode: Off, Caret (follow the cursor's top-level
@@ -40,6 +41,7 @@ module Model = {
       deep_reassociate: true,
       flip_animations: true,
       display_warnings: true,
+      selection_chunkiness: false,
       evaluation: {
         show_case_clauses: true,
         show_fn_bodies: false,
@@ -61,6 +63,7 @@ module Model = {
     instructor_mode: false,
     benchmark: false,
     show_log_panel: false,
+    show_debug_panel: false,
     explainThis: {
       show: true,
       show_feedback: false,
@@ -71,9 +74,12 @@ module Model = {
       show: true,
       problems: {
         collapsed: [],
+        collapsed_editors: [],
         flat: false,
         expanded: [],
       },
+      debug_show_raw: false,
+      debug_collapsed: [],
     },
     autoprobe_mode: Off,
     sample_drawer_in_sidebar: false,
@@ -147,12 +153,14 @@ module Update = {
     | Dynamics
     | ProbeAll
     | DeepReassociate
+    | SelectionChunkiness
     | Assist
     | Elaborate
     | Benchmark
     | ContextInspector
     | InstructorMode
     | ShowLogPanel
+    | ShowDebugPanel
     | Evaluation(evaluation)
     | Sidebar(SidebarModel.Settings.action)
     | ExplainThis(ExplainThisModel.Settings.action)
@@ -218,6 +226,13 @@ module Update = {
           core: {
             ...settings.core,
             deep_reassociate: !settings.core.deep_reassociate,
+          },
+        }
+      | SelectionChunkiness => {
+          ...settings,
+          core: {
+            ...settings.core,
+            selection_chunkiness: !settings.core.selection_chunkiness,
           },
         }
       | Assist => {
@@ -328,13 +343,25 @@ module Update = {
             panel: windowToSwitchTo,
           },
         }
-      | Sidebar(Problems(ToggleCollapsed(cat))) => {
+      | Sidebar(Problems(ToggleCollapsed(label, cat))) => {
           ...settings,
           sidebar: {
             ...settings.sidebar,
             problems:
               SidebarModel.Settings.toggle_collapsed(
+                label,
                 cat,
+                settings.sidebar.problems,
+              ),
+          },
+        }
+      | Sidebar(Problems(ToggleEditorCollapsed(label))) => {
+          ...settings,
+          sidebar: {
+            ...settings.sidebar,
+            problems:
+              SidebarModel.Settings.toggle_editor_collapsed(
+                label,
                 settings.sidebar.problems,
               ),
           },
@@ -359,6 +386,21 @@ module Update = {
                 settings.sidebar.problems,
               ),
           },
+        }
+      | Sidebar(ToggleDebugRaw) => {
+          ...settings,
+          sidebar: {
+            ...settings.sidebar,
+            debug_show_raw: !settings.sidebar.debug_show_raw,
+          },
+        }
+      | Sidebar(ToggleDebugCollapsed(key)) => {
+          ...settings,
+          sidebar:
+            SidebarModel.Settings.toggle_debug_collapsed(
+              key,
+              settings.sidebar,
+            ),
         }
       | ExplainThis(ToggleShowFeedback) => {
           ...settings,
@@ -389,6 +431,10 @@ module Update = {
           ...settings,
           show_log_panel:
             !settings.show_log_panel && ExerciseSettings.show_instructor,
+        }
+      | ShowDebugPanel => {
+          ...settings,
+          show_debug_panel: !settings.show_debug_panel,
         }
       | Benchmark => {
           ...settings,

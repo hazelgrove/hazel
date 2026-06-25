@@ -203,7 +203,7 @@ let eds_of_spec =
   };
 };
 
-let visible_in = (pos, ~instructor_mode) => {
+let is_editable = (pos, ~instructor_mode) => {
   switch (pos) {
   | YourImpl => true
   | HiddenTests => instructor_mode
@@ -482,7 +482,7 @@ type persistent_tutorial_mode = list((pos, PersistentZipper.t));
 
 let unpersist = (~instructor_mode, positioned_zippers, spec: spec): spec => {
   let lookup = (pos, default) =>
-    if (visible_in(pos, ~instructor_mode)) {
+    if (is_editable(pos, ~instructor_mode)) {
       positioned_zippers
       |> List.assoc_opt(pos)
       |> Option.map(PersistentZipper.unpersist(~root=Exp))

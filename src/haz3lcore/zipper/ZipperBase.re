@@ -1,9 +1,9 @@
 open Util;
 
+include CaretBase;
+
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
-type caret =
-  | Outer
-  | Inner(int);
+type caret = CaretBase.t;
 
 /* Refractor state extracted to Refractors.re - see state location docs there */
 module Refractor = Refractors;
