@@ -15,6 +15,7 @@ module StateMonad = StateMonad;
 module StringUtil = StringUtil;
 module Tree = Tree;
 module TimeUtil = TimeUtil;
+module UrlFetch = UrlFetch;
 module TupleUtil = TupleUtil;
 module Menu = Menu;
 module Key = Key;

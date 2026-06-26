@@ -541,6 +541,68 @@ let split_views =
   (line_view, overlay_view);
 };
 
+/* Drives the projectors' post-parse initialization phase (ProjectorBase.
+ * Projector.initialize) on the web. A projector whose model needs async
+ * resolution (e.g. a ^^csv("url") still in its Pending state) reports work
+ * via its bool return; we then start the fetch and, from its async callback,
+ * dispatch SetModel + SetSyntax through [inject] to splice the result in.
+ *
+ * Fired once per projector id: [init_fired] guards the in-flight window where
+ * the model is still Pending. We never clear entries — once resolved the model
+ * leaves Pending and initialize() reports no work anyway, so a stale entry is
+ * harmless and avoids a re-fetch race before the model update is applied.
+ *
+ * Safe to call from render because the fetch is asynchronous: only the fetch
+ * is started here; the inject happens later from the (async) callback. */
+let init_fired: Hashtbl.t(Id.t, unit) = Hashtbl.create(16);
+
+let run_init_phase =
+    (
+      inject: Action.t => Ui_effect.t(unit),
+      projector_data: list(Model.projector_data),
+      projector_list: list(Id.t),
+    )
+    : unit =>
+  List.iter(
+    ({p, info, _}: Model.projector_data) =>
+      if (!Hashtbl.mem(init_fired, p.id)) {
+        let (module L) = ProjectorInit.to_module(p.kind);
+        switch (
+          L.initialize,
+          List.find_index(x => x == p.id, projector_list),
+        ) {
+        | (None, _)
+        | (_, None) => ()
+        | (Some(f), Some(idx)) =>
+          let started =
+            f(p.model, info, ~k=(model_opt, seg_opt) =>
+              Bonsai.Effect.Expert.handle(
+                Effect.Many(
+                  (
+                    model_opt
+                    |> Option.map(m =>
+                         inject(Project(SetModel(idx, p.kind, m)))
+                       )
+                    |> Option.to_list
+                  )
+                  @ (
+                    seg_opt
+                    |> Option.map(seg =>
+                         inject(handle(idx, p.kind, SetSyntax(seg)))
+                       )
+                    |> Option.to_list
+                  ),
+                ),
+              )
+            );
+          if (started) {
+            Hashtbl.replace(init_fired, p.id, ());
+          };
+        };
+      },
+    projector_data,
+  );
+
 let by_measurement = (pd1: Model.projector_data, pd2: Model.projector_data) =>
   compare(pd1.measurement.origin.row, pd2.measurement.origin.row);
 
@@ -556,6 +618,9 @@ let all =
       projector_data: list(Model.projector_data),
       projector_list: list(Id.t),
     ) => {
+  /* Kick off any projector initialization (e.g. CSV url fetch) before the
+   * visibility filter, so off-screen projectors still resolve. */
+  run_init_phase(inject, projector_data, projector_list);
   /* Sorting the projectors by position tends to be a good
    * z-index default; projectors further to the right or
    * further down count as a higher. On its own this could

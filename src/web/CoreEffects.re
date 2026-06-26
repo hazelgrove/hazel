@@ -24,6 +24,9 @@ let install = (): unit => {
   /* Wall-clock for probe sample timestamps */
   TimeUtil.now_ms := JsUtil.precise_timestamp;
 
+  /* Raw-text URL fetch for projector initialization (e.g. ^^csv("url")) */
+  UrlFetch.get := ((~url, ~on_done) => ApiHttp.request_text(~url, on_done));
+
   /* Per-kind projector focus behavior (DOM focus callbacks) */
   ProjectorViews.install();
 };

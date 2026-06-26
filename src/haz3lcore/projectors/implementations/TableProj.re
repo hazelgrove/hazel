@@ -147,4 +147,5 @@ module M: Projector = {
     | Some(_) => None
     | None => Some(ProjectorBase.{message: error_message})
     };
+  let initialize = None;
 };

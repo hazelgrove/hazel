@@ -65,6 +65,80 @@ let request =
   request##send(body |> Json.to_string |> Js.string |> Js.Opt.return);
 };
 
+/* Raw-text GET in the browser. Unlike [request], this returns the response
+   body verbatim (no JSON parsing) and surfaces non-2xx / network failures as
+   Error, which is what UrlFetch.get needs to fetch arbitrary CSV files. */
+let request_text =
+    (~url: string, handler: result(string, string) => unit): unit => {
+  let request = XmlHttpRequest.create();
+  request##.onreadystatechange :=
+    Js.wrap_callback(_ =>
+      if (request##.readyState == XmlHttpRequest.DONE) {
+        let status = request##.status;
+        if (status >= 200 && status < 300) {
+          let text =
+            Js.Opt.case(request##.responseText, () => "", Js.to_string);
+          handler(Ok(text));
+        } else {
+          handler(
+            Error(Printf.sprintf("HTTP %d fetching %s", status, url)),
+          );
+        };
+      }
+    );
+  request##_open(Js.string("GET"), Js.string(url), Js.bool(true));
+  request##send(Js.Opt.empty);
+};
+
+/* Raw-text GET under node (used by the CLI). Picks http/https by url scheme so
+   both `http://localhost:...` dev servers and `https://` work. Mirrors the
+   chunk-accumulation pattern of [node_request] but returns the body raw and
+   reports non-2xx / network errors as Error. */
+let node_request_text =
+    (~url: string, handler: result(string, string) => unit): unit => {
+  let lib = String.starts_with(~prefix="http://", url) ? "http" : "https";
+  let client = Js.Unsafe.js_expr("require('" ++ lib ++ "')");
+  let callback =
+    Js.wrap_callback(res => {
+      let status: int = Js.Unsafe.get(res, "statusCode");
+      let data = ref("");
+      res##on(
+        Js.string("data"),
+        Js.wrap_callback(chunk =>
+          data := data^ ++ Js.to_string(chunk##toString)
+        ),
+      );
+      res##on(
+        Js.string("end"),
+        Js.wrap_callback(_ =>
+          if (status >= 200 && status < 300) {
+            handler(Ok(data^));
+          } else {
+            handler(
+              Error(Printf.sprintf("HTTP %d fetching %s", status, url)),
+            );
+          }
+        ),
+      );
+    });
+  let req = client##get(Js.string(url), callback);
+  ignore(
+    req##on(
+      Js.string("error"),
+      Js.wrap_callback(error =>
+        handler(
+          Error(
+            "network error fetching "
+            ++ url
+            ++ ": "
+            ++ Js.to_string(Js.Unsafe.coerce(error)##toString),
+          ),
+        )
+      ),
+    ),
+  );
+};
+
 /* Parse a single SSE line */
 let parse_sse_line = (line: string): option(Json.t) => {
   let trimmed = String.trim(line);

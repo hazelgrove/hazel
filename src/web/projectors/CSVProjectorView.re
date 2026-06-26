@@ -82,6 +82,21 @@ module V: ProjectorView = {
               }
             }),
           ]
+        | CSVProjector.Pending(url) => [
+            Node.span(
+              ~attrs=[clss(["csv-loading"]), Attr.title("Loading " ++ url)],
+              [Node.text("Loading…")],
+            ),
+          ]
+        | CSVProjector.Failed({url, message}) => [
+            Node.span(
+              ~attrs=[
+                clss(["csv-error"]),
+                Attr.title(message ++ " (" ++ url ++ ")"),
+              ],
+              [Node.text("⚠ CSV")],
+            ),
+          ]
         | CSVProjector.FileLoaded({filename, content, with_headers}) => [
             Node.div(
               ~attrs=[Attr.class_("csv-loaded-container")],

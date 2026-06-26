@@ -10,111 +10,253 @@ let read_input = path => {
   );
 };
 
-let parse_program = (s: string) =>
-  switch (Haz3lcore.Parser.to_term(s, ~root=Exp)) {
-  | Some(e) => e
-  | None => failwith("Failed to parse expression: " ++ s)
-  };
+/* Parse program and return zipper (preserving projectors like ^^csv/probes) */
+let parse_to_zipper = (s: string): option(Haz3lcore.Zipper.t) =>
+  Haz3lcore.Parser.to_zipper(~root=Exp, s);
 
-/* Build a consent callback for CSV access. By default the CLI prompts before
-   reading each referenced file and lets the user substitute a different local
-   path; `--yes` auto-allows the declared paths for non-interactive use. When
-   the program itself was read from stdin we cannot also prompt on stdin, so
-   consent must be pre-granted with `--yes`. */
-let make_authorizer =
-    (~assume_yes: bool, ~from_stdin: bool, ~base_dir: string)
-    : (string => Csv.decision) =>
+/* Set when an asynchronous command (one that fetches CSV urls) still has work
+   in flight, so the top-level doesn't hard-exit before it completes. See the
+   `exit` note at the bottom of this file. */
+let async_pending = ref(false);
+
+/* Consent for fetching one CSV url. By default we prompt and let the user
+   substitute a different url; `--yes` pre-authorizes for non-interactive use.
+   When the program itself was read from stdin we cannot also prompt on stdin,
+   so consent must be pre-granted with `--yes`. */
+let authorize_url =
+    (~assume_yes: bool, ~from_stdin: bool, url: string): Csv.decision =>
   if (assume_yes) {
-    path => Csv.Allow(path);
+    Csv.Allow(url);
   } else if (from_stdin) {
-    _path => {
-      prerr_endline(
-        "Refusing to read a CSV without consent: the program was read from "
-        ++ "stdin, so no interactive prompt is available. Re-run with --yes to "
-        ++ "authorize, or pass the program as a file.",
-      );
-      Csv.Deny;
-    };
+    prerr_endline(
+      "Refusing to fetch a CSV url without consent: the program was read from "
+      ++ "stdin, so no interactive prompt is available. Re-run with --yes to "
+      ++ "authorize, or pass the program as a file.",
+    );
+    Csv.Deny;
   } else {
-    path => {
-      let resolved = Csv.resolve(~base_dir, path);
-      prerr_string(
-        "Hazel wants to read CSV file:\n  "
-        ++ resolved
-        ++ "\n  [Enter] allow  ·  type another path to use instead  ·  [n] deny: ",
-      );
-      flush(stderr);
-      switch (
-        try(Some(input_line(stdin))) {
-        | End_of_file => None
-        }
+    prerr_string(
+      "Hazel wants to fetch CSV from:\n  "
+      ++ url
+      ++ "\n  [Enter] allow  ·  type another url to use instead  ·  [n] deny: ",
+    );
+    flush(stderr);
+    switch (
+      try(Some(input_line(stdin))) {
+      | End_of_file => None
+      }
+    ) {
+    | Some("")
+    | Some("y")
+    | Some("Y") => Csv.Allow(url)
+    | None
+    | Some("n")
+    | Some("N") => Csv.Deny
+    | Some(other) => Csv.Allow(String.trim(other))
+    };
+  };
+
+/* Install the CSV url fetch hook consulted by CSVProjector.initialize: resolve
+   relative refs against base_url, gate on consent, then fetch over node
+   http/https via the web ApiHttp. Errors flow back as Error so the projector
+   records a Failed model (surfaced by init_then below). */
+let install_url_fetch =
+    (~assume_yes: bool, ~base_url: string, ~from_stdin: bool): unit =>
+  Util.UrlFetch.get :=
+    (
+      (~url, ~on_done) => {
+        let resolved = Csv.resolve(~base_url, url);
+        switch (authorize_url(~assume_yes, ~from_stdin, resolved)) {
+        | Csv.Allow(u) => Web.ApiHttp.node_request_text(~url=u, on_done)
+        | Csv.Deny =>
+          on_done(
+            Error("fetching CSV \"" ++ resolved ++ "\" was not authorized"),
+          )
+        };
+      }
+    );
+
+/* Pull a human-readable message out of a serialized CSV Failed model. */
+let csv_failure_message = (model_opt: option(string)): string =>
+  switch (model_opt) {
+  | None => "CSV initialization failed"
+  | Some(m) =>
+    switch (
+      try(
+        Some(
+          Haz3lcore.CSVProjector.model_t_of_sexp(Sexplib.Sexp.of_string(m)),
+        )
       ) {
-      | Some("")
-      | Some("y")
-      | Some("Y") => Csv.Allow(path)
-      | None
-      | Some("n")
-      | Some("N") => Csv.Deny
-      | Some(other) => Csv.Allow(String.trim(other))
-      };
-    };
+      | _ => None
+      }
+    ) {
+    | Some(Haz3lcore.CSVProjector.Failed({message, _})) => message
+    | _ => "CSV initialization failed"
+    }
   };
 
-/* Read a .hz file and build the (base_dir, consent callback) for CSV access. */
-let setup_csv =
-    (~assume_yes: bool, ~data_dir: option(string), path: string)
-    : (string, string, string => Csv.decision) => {
-  let program = read_input(path);
-  let base_dir =
-    switch (data_dir) {
-    | Some(d) => d
-    | None => Filename.dirname(path)
-    };
-  let authorize =
-    make_authorizer(~assume_yes, ~from_stdin=path == "-", ~base_dir);
-  (program, base_dir, authorize);
-};
-
-/* Text expansion (used by `expand`): inline `^^csv(...)` into `^^table([...])`.
-   Materializes a portable .hz; the inlined table is large and slow to re-parse. */
-let read_and_expand =
-    (~assume_yes: bool, ~data_dir: option(string), path: string): string => {
-  let (program, base_dir, authorize) =
-    setup_csv(~assume_yes, ~data_dir, path);
-  Csv.expand(~base_dir, ~authorize, program);
-};
-
-/* Run a thunk that may touch the filesystem for CSV access, reporting a denied
-   or unreadable file as a clean error + non-zero exit (not a stack trace). */
-let die_on_csv_error = (f: unit => 'a): 'a =>
-  try(f()) {
-  | Failure(msg)
-  | Sys_error(msg) =>
-    prerr_endline("hazel: " ++ msg);
-    exit(1);
+/* Splice one resolved projector result into the zipper: replace the projector
+   piece's syntax with the fetched table (mirroring ProjectorPerform's
+   non-refractor SetSyntax) and update its model. */
+let apply_projector_result =
+    (id, model_opt, seg, z: Haz3lcore.Zipper.t): Haz3lcore.Zipper.t => {
+  open Haz3lcore;
+  let piece =
+    seg
+    |> Segment.unparenthesize
+    |> Segment.trim_secondary(Right)
+    |> Segment.trim_secondary(Left)
+    |> Segment.parenthesize;
+  let z =
+    ProjectorPerform.update(
+      p =>
+        {
+          ...p,
+          syntax: piece,
+        },
+      id,
+      z,
+    );
+  switch (model_opt) {
+  | Some(m) =>
+    ProjectorPerform.update(
+      p =>
+        {
+          ...p,
+          model: m,
+        },
+      id,
+      z,
+    )
+  | None => z
   };
+};
+
+/* Run the projector initialization phase over a parsed program: fetch any
+   ^^csv("url") projectors, splice the results into the zipper, then hand the
+   resolved zipper to [finish]. Fetches are asynchronous, so [finish] runs from
+   the completion callback (synchronously when there are no url projectors). A
+   fetch/parse failure aborts with a clean error + non-zero exit. */
+let init_then =
+    (zipper: Haz3lcore.Zipper.t, ~finish: Haz3lcore.Zipper.t => unit): unit => {
+  open Haz3lcore;
+  let proj_map = MakeTerm.from_zip_for_sem(zipper, ~root=Exp).projectors;
+  /* Minimal info: CSV's put only needs utility + syntax; statics/dynamics are
+     unused by projectors that have an initialize phase today. */
+  let mk_info = (p: Base.projector): ProjectorBase.info => {
+    id: p.id,
+    syntax: Piece.unparenthesize(p.syntax),
+    statics: None,
+    dynamics: None,
+    elaborated: None,
+    utility: ProjectorInfo.utility,
+  };
+  let results = ref([]);
+  ProjectorInitPhase.run(
+    ~proj_map,
+    ~mk_info,
+    ~on_result=
+      (id, kind, model_opt, seg_opt) =>
+        results := [(id, kind, model_opt, seg_opt), ...results^],
+    ~on_complete=
+      () => {
+        let failures =
+          List.filter(
+            ((_, _, _, seg_opt)) => Option.is_none(seg_opt),
+            results^,
+          );
+        switch (failures) {
+        | [_, ..._] =>
+          List.iter(
+            ((_, _, model_opt, _)) =>
+              prerr_endline("hazel: " ++ csv_failure_message(model_opt)),
+            failures,
+          );
+          exit(1);
+        | [] =>
+          let z =
+            List.fold_left(
+              (z, (id, _kind, model_opt, seg_opt)) =>
+                switch (seg_opt) {
+                | None => z
+                | Some(seg) => apply_projector_result(id, model_opt, seg, z)
+                },
+              zipper,
+              results^,
+            );
+          finish(z);
+        };
+      },
+  );
+  /* Reached only if on_complete didn't run synchronously (i.e. a fetch is in
+     flight); tells the top-level not to hard-exit before completion. */
+  async_pending := true;
+};
 
 let run_hazel = (assume_yes, data_dir, path) => {
-  let (program, base_dir, authorize) =
-    setup_csv(~assume_yes, ~data_dir, path);
-  /* Splice CSV tables as AST so the (large) table is never re-parsed. */
-  let spliced =
-    die_on_csv_error(() =>
-      Csv.splice_tables(~base_dir, ~authorize, ~parse=parse_program, program)
-    );
-  let evaluated = Run.evaluate(spliced);
-  print_endline(Print.print(evaluated));
+  let program = read_input(path);
+  let base_url = Option.value(~default="", data_dir);
+  install_url_fetch(~assume_yes, ~base_url, ~from_stdin=path == "-");
+  switch (parse_to_zipper(program)) {
+  | None =>
+    prerr_endline("hazel: failed to parse " ++ path);
+    exit(1);
+  | Some(zipper) =>
+    init_then(
+      zipper,
+      ~finish=z => {
+        let term = Haz3lcore.MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
+        let evaluated = Run.evaluate(term);
+        print_endline(Print.print(evaluated));
+        exit(0);
+      },
+    )
+  };
 };
 
 let expand_hazel = (assume_yes, data_dir, output, path) => {
-  let expanded =
-    die_on_csv_error(() => read_and_expand(~assume_yes, ~data_dir, path));
-  switch (output) {
-  | None => print_string(expanded)
-  | Some(out) =>
-    let oc = open_out(out);
-    output_string(oc, expanded);
-    close_out(oc);
+  open Haz3lcore;
+  let program = read_input(path);
+  let base_url = Option.value(~default="", data_dir);
+  install_url_fetch(~assume_yes, ~base_url, ~from_stdin=path == "-");
+  switch (parse_to_zipper(program)) {
+  | None =>
+    prerr_endline("hazel: failed to parse " ++ path);
+    exit(1);
+  | Some(zipper) =>
+    init_then(
+      zipper,
+      ~finish=z => {
+        /* Materialize: strip the projectors so the fetched table is inlined as
+           plain syntax, producing a self-contained program. */
+        let term =
+          MakeTerm.from_zip_for_sem(z, ~root=Exp).term
+          |> Language.Exp.strip_projectors;
+        let seg =
+          ExpToSegment.exp_to_segment(
+            term,
+            ~settings=
+              ExpToSegment.Settings.of_core(
+                ~inline=false,
+                Language.CoreSettings.off,
+              ),
+          );
+        let output_str =
+          Printer.of_segment(
+            ~holes="?",
+            ~indent=" ",
+            PrettySegment.prettify(seg),
+          );
+        switch (output) {
+        | None => print_string(output_str)
+        | Some(out) =>
+          let oc = open_out(out);
+          output_string(oc, output_str);
+          close_out(oc);
+        };
+        exit(0);
+      },
+    )
   };
 };
 
@@ -149,10 +291,6 @@ let format_hazel = (implicit_hole: string, width, path) => {
   };
 };
 
-/* Parse program and return zipper (preserving projectors like probes) */
-let parse_to_zipper = (s: string): option(Haz3lcore.Zipper.t) =>
-  Haz3lcore.Parser.to_zipper(~root=Exp, s);
-
 let analyze_hazel =
     (
       show_warnings: bool,
@@ -160,133 +298,117 @@ let analyze_hazel =
       data_dir: option(string),
       path: string,
     )
-    : [>
-        | `Error(bool, string)
-        | `Ok(unit)
-      ] => {
-  let (program, base_dir, authorize) =
-    setup_csv(~assume_yes, ~data_dir, path);
-  /* Splice CSV tables as AST: parse only the skeleton, then bind the tables.
-     Diagnostics map against the skeleton (the table has no source positions). */
-  let (skeleton, refs) = Csv.extract_refs(program);
-  /* Parse to zipper to preserve structure for measurement */
-  switch (parse_to_zipper(skeleton)) {
+    : unit => {
+  let program = read_input(path);
+  let base_url = Option.value(~default="", data_dir);
+  install_url_fetch(~assume_yes, ~base_url, ~from_stdin=path == "-");
+  switch (parse_to_zipper(program)) {
   | None =>
     prerr_endline("Failed to parse program");
-    `Error((false, "Parse error"));
+    exit(1);
   | Some(zipper) =>
-    open Language;
-    open Util;
-    /* Get segment and term */
-    let segment =
-      Haz3lcore.Zipper.unselect_and_zip(~erase_buffer=true, zipper);
-    let term =
-      die_on_csv_error(() =>
-        Csv.wrap_lets(
-          ~base_dir,
-          ~authorize,
-          refs,
-          Haz3lcore.MakeTerm.from_zip_for_sem(zipper, ~root=Exp).term,
-        )
-      );
+    init_then(
+      zipper,
+      ~finish=z => {
+        open Language;
+        open Util;
+        /* Measure against the original program text (stable source positions
+           for user code), but run statics on the CSV-resolved term. */
+        let segment =
+          Haz3lcore.Zipper.unselect_and_zip(~erase_buffer=true, zipper);
+        let term = Haz3lcore.MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
+        let measured =
+          Haz3lcore.Measured.of_segment(
+            segment,
+            Haz3lcore.ProjectorCore.Shape.Map.empty,
+            Id.Map.empty,
+          );
+        let (static_map, _) =
+          Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
 
-    /* Compute measured positions */
-    let measured =
-      Haz3lcore.Measured.of_segment(
-        segment,
-        Haz3lcore.ProjectorCore.Shape.Map.empty,
-        Id.Map.empty,
-      );
+        let formatted_errors =
+          Id.Map.fold(
+            (_id, info, acc) =>
+              switch (
+                Diagnostic.format_error_with_location(
+                  ~source=program,
+                  ~path,
+                  measured,
+                  info,
+                )
+              ) {
+              | None => acc
+              | Some(err) => [err, ...acc]
+              },
+            static_map,
+            [],
+          )
+          |> List.sort_uniq(compare);
 
-    /* Run static analysis */
-    let (static_map, _) =
-      Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
-
-    /* Get errors with their infos for line numbers */
-    let formatted_errors =
-      Id.Map.fold(
-        (_id, info, acc) =>
-          switch (
-            Diagnostic.format_error_with_location(
-              ~source=skeleton,
-              ~path,
-              measured,
-              info,
+        let formatted_warnings =
+          if (show_warnings) {
+            Id.Map.fold(
+              (_id, info, acc) =>
+                switch (
+                  Diagnostic.format_warning_with_location(
+                    ~source=program,
+                    ~path,
+                    measured,
+                    info,
+                  )
+                ) {
+                | None => acc
+                | Some(w) => [w, ...acc]
+                },
+              static_map,
+              [],
             )
-          ) {
-          | None => acc
-          | Some(err) => [err, ...acc]
-          },
-        static_map,
-        [],
-      )
-      |> List.sort_uniq(compare);
+            |> List.sort_uniq(compare);
+          } else {
+            [];
+          };
 
-    let formatted_warnings =
-      if (show_warnings) {
-        Id.Map.fold(
-          (_id, info, acc) =>
-            switch (
-              Diagnostic.format_warning_with_location(
-                ~source=skeleton,
-                ~path,
-                measured,
-                info,
-              )
-            ) {
-            | None => acc
-            | Some(w) => [w, ...acc]
-            },
-          static_map,
-          [],
-        )
-        |> List.sort_uniq(compare);
-      } else {
-        [];
-      };
-
-    let print_diagnostics = (label, items) =>
-      switch (items) {
-      | [] => ()
-      | _ =>
-        let count = List.length(items);
-        prerr_endline(
-          "Found "
-          ++ string_of_int(count)
-          ++ " "
-          ++ label
-          ++ (count > 1 ? "s" : "")
-          ++ ":",
-        );
-        prerr_endline("");
-        List.iter(
-          item => {
-            prerr_endline(item);
+        let print_diagnostics = (label, items) =>
+          switch (items) {
+          | [] => ()
+          | _ =>
+            let count = List.length(items);
+            prerr_endline(
+              "Found "
+              ++ string_of_int(count)
+              ++ " "
+              ++ label
+              ++ (count > 1 ? "s" : "")
+              ++ ":",
+            );
             prerr_endline("");
-          },
-          items,
-        );
-      };
+            List.iter(
+              item => {
+                prerr_endline(item);
+                prerr_endline("");
+              },
+              items,
+            );
+          };
 
-    switch (formatted_errors, formatted_warnings) {
-    | ([], []) =>
-      let msg =
-        show_warnings
-          ? "No static errors or warnings found." : "No static errors found.";
-      print_endline(msg);
-      `Ok();
-    | (errors, warnings) =>
-      print_diagnostics("static error", errors);
-      print_diagnostics("warning", warnings);
-      /* Warnings alone do not fail the run; only errors set a non-zero exit
-         code. This matches `cargo check` / `gcc -Wall` semantics and keeps
-         `analyze -W` usable in CI without forcing every warning to be fatal. */
-      if (errors == []) {
-        `Ok();
-      } else {
-        `Error((false, "Static errors found"));
-      };
-    };
+        switch (formatted_errors, formatted_warnings) {
+        | ([], []) =>
+          let msg =
+            show_warnings
+              ? "No static errors or warnings found."
+              : "No static errors found.";
+          print_endline(msg);
+          exit(0);
+        | (errors, warnings) =>
+          print_diagnostics("static error", errors);
+          print_diagnostics("warning", warnings);
+          /* Warnings alone do not fail; only errors set a non-zero exit code,
+             matching `cargo check` / `gcc -Wall` so `analyze -W` stays usable
+             in CI without making every warning fatal. */
+          exit(errors == [] ? 0 : 1);
+        };
+      },
+    )
   };
 };
 
@@ -662,21 +784,22 @@ let input_arg = {
   );
 };
 
-/* Resolve relative `^^csv("...")` paths against this directory (default: the
-   input file's directory). */
+/* Base url that relative `^^csv("...")` refs resolve against. */
 let data_dir_arg = {
   let doc =
-    "Directory that relative `^^csv(\"...\")` paths resolve against "
-    ++ "(default: the input file's directory).";
+    "Base url that relative `^^csv(\"...\")` refs resolve against "
+    ++ "(absolute http/https urls are used as-is).";
   Arg.(
-    value & opt(some(string), None) & info(["data-dir"], ~docv="DIR", ~doc)
+    value
+    & opt(some(string), None)
+    & info(["data-dir"], ~docv="BASE_URL", ~doc)
   );
 };
 
-/* Pre-authorize CSV reads so no interactive prompt is shown. */
+/* Pre-authorize CSV url fetches so no interactive prompt is shown. */
 let assume_yes_arg = {
   let doc =
-    "Authorize reading every `^^csv(\"...\")` file without prompting "
+    "Authorize fetching every `^^csv(\"...\")` url without prompting "
     ++ "(required for non-interactive use).";
   Arg.(value & flag & info(["yes", "y"], ~doc));
 };
@@ -729,14 +852,12 @@ let analyze_cmd = {
   let info = Cmd.info("analyze", ~doc);
   Cmd.v(
     info,
-    Term.ret(
-      Term.(
-        const(analyze_hazel)
-        $ warnings_arg
-        $ assume_yes_arg
-        $ data_dir_arg
-        $ input_arg
-      ),
+    Term.(
+      const(analyze_hazel)
+      $ warnings_arg
+      $ assume_yes_arg
+      $ data_dir_arg
+      $ input_arg
     ),
   );
 };
@@ -772,9 +893,9 @@ let output_arg = {
 
 let expand_cmd = {
   let doc =
-    "Expand `^^csv(\"...\")` references into inline `^^table([...])` literals, "
-    ++ "producing a self-contained Hazel program that needs no further file "
-    ++ "access. Writes to --output or stdout.";
+    "Fetch `^^csv(\"...\")` urls and inline the data, producing a "
+    ++ "self-contained Hazel program that needs no further network access. "
+    ++ "Writes to --output or stdout.";
   let info = Cmd.info("expand", ~doc);
   Cmd.v(
     info,
@@ -973,4 +1094,15 @@ let default_cmd = {
   );
 };
 
-let () = exit(Cmd.eval(default_cmd));
+/* Synchronous commands hard-exit with their code, as before. Commands that
+   fetch CSV urls (`run`/`analyze`/`expand`) run asynchronously: they set
+   `async_pending` and resolve their own exit status from the fetch-completion
+   callback, so we must NOT hard-exit here — that would kill node's event loop
+   (and the pending https request) before the data arrives. Leaving node to
+   drain keeps the request alive; the completion callback then exits. */
+let () = {
+  let code = Cmd.eval(default_cmd);
+  if (! async_pending^) {
+    exit(code);
+  };
+};

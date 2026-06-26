@@ -64,4 +64,5 @@ module M: Projector = {
   };
   let update = (model, _, _) => model;
   let error = (_, _): option(ProjectorBase.error) => None;
+  let initialize = None;
 };
