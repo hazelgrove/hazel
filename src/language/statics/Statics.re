@@ -374,6 +374,9 @@ and uexp_to_info_map =
       : (Info.exp, Exp.t, Map.t) => {
     uexp_to_info_map(~ctx, ~ana, ~is_in_filter, ~ancestors, uexp, m);
   };
+  let ( let* ) = (child, k) => StaticsSlice.keep(~parent=uexp, child, k);
+  let (let$) = (child, k) =>
+    StaticsSlice.source_child(~parent=uexp, child, k);
   let map_m_go = (m, anas, es) => {
     let (pairs, m) =
       map_m2(
@@ -959,7 +962,7 @@ and uexp_to_info_map =
           ((es, es_elab, m), ana, (inferred_label, e: Exp.t)) =>
             switch (e.term) {
             | TupLabel({term: ExplicitNonlabel, _}, _) =>
-              let (e_info, elab, m) = go(~ana, e, m);
+              let* (e_info, elab, m) = go(~ana, e, m);
               let (e_info, m) =
                 LabeledTupleStaticsHelpers.apply_inferred_label_exp(
                   ~inferred_label,
@@ -970,7 +973,7 @@ and uexp_to_info_map =
             | TupLabel(label, value) =>
               let (labmode, val_mode) =
                 LabeledTupleStaticsHelpers.decompose_label_mode(ctx, ana);
-              let (value_info, value_elab, m) = go(~ana=val_mode, value, m);
+              let* (value_info, value_elab, m) = go(~ana=val_mode, value, m);
               let (lab_name, label_invalid, m) =
                 switch (label.term) {
                 | Label(name) =>
@@ -1055,7 +1058,7 @@ and uexp_to_info_map =
                 );
               (es @ [e_info], es_elab @ [elab], m);
             | _ =>
-              let (e_info, elab, m) = go(~ana, e, m);
+              let* (e_info, elab, m) = go(~ana, e, m);
               let (e_info, m) =
                 LabeledTupleStaticsHelpers.apply_inferred_label_exp(
                   ~inferred_label,
@@ -1858,7 +1861,7 @@ and uexp_to_info_map =
       let mode_pat = Option.value(~default=mode_pat, typ);
       let (p', _, _) =
         go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty, ~ana=mode_pat, p, m);
-      let (e, e_elab, m) = go(~ctx=p'.ctx, ~ana=mode_body, e, m);
+      let* (e, e_elab, m) = go(~ctx=p'.ctx, ~ana=mode_body, e, m);
       /* Second pass: re-analyze the pattern to attach the body's co_ctx.
          Use `p'.ty` (the ana-meet'd type) rather than `p'.elab_syn_ty`.
          For bare `Var`/`EmptyHole` patterns `elab_syn_ty` is `?`, which
@@ -2042,7 +2045,7 @@ and uexp_to_info_map =
       let is_rec = is_recursive(ctx, p, def, rec_check_ty);
       let (def, def_elab, p_ana_ctx, m, ty_p_ana) =
         if (!is_rec) {
-          let (def, def_elab, m) = go(~ana=p_syn.ty, def, m);
+          let$ (def, def_elab, m) = go(~ana=p_syn.ty, def, m);
           let ty_p_ana = def.ty;
           let (p_ana', _, _) =
             go_pat(
@@ -2084,7 +2087,7 @@ and uexp_to_info_map =
             | ((_, _), _) =>
               ana_ty_fn((def_base.ty, def_base2.ty), p_syn.ty)
             };
-          let (def, def_elab, m) = go(~ctx=def_ctx, ~ana, def, m);
+          let$ (def, def_elab, m) = go(~ctx=def_ctx, ~ana, def, m);
           (def, def_elab, def_ctx, m, ty_p_ana);
         };
       /* Inject module type exports into body context */
@@ -2114,7 +2117,7 @@ and uexp_to_info_map =
           | _ => p_ana_ctx
           }
         };
-      let (body, body_elab, m) = go(~ctx=p_ana_ctx, ~ana, body, m);
+      let* (body, body_elab, m) = go(~ctx=p_ana_ctx, ~ana, body, m);
       /* add co_ctx to pattern */
       let (p_ana, p_elab, m) =
         go_pat(~is_synswitch=false, ~co_ctx=body.co_ctx, ~ana=ty_p_ana, p, m);
@@ -4904,3 +4907,18 @@ let mk =
 
 let mk = (~ana=Typ.temp(Unknown(SynSwitch)), core: CoreSettings.t, ctx, exp) =>
   core.statics ? mk(ana, ctx, exp) : (Id.Map.empty, Exp.fresh(Tuple([])));
+
+module Slice = StaticsSlice;
+let slice =
+    (
+      ~ctx=Ctx.empty_pre_elaboration,
+      ~ana=Typ.temp(Unknown(SynSwitch)),
+      ~focus=None,
+      ~direction=`Syn,
+      exp,
+      query,
+    ) =>
+  StaticsSlice.with_run(() => {
+    let root = uexp_to_info_map(~ana, ~ctx, ~ancestors=[], exp, Id.Map.empty);
+    StaticsSlice.slice(~focus, ~direction, root, query);
+  });
