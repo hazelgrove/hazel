@@ -114,6 +114,17 @@ let values_group = (~globals: Globals.t) => {
         setting: Evaluation(ShowAscriptions),
         tooltip: Some("Show type ascriptions in evaluated results"),
       },
+      {
+        name: "Dim Unchanged",
+        active: globals.settings.probe_dim_unchanged,
+        setting: ProbeDimUnchanged,
+        tooltip:
+          Some(
+            "After an edit, dim probe samples whose value didn't change ("
+            ++ Keyboard.meta()
+            ++ " + Shift + P)",
+          ),
+      },
     ],
   );
 };

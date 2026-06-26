@@ -399,7 +399,19 @@
   padding: 0 0.1em;
   border-bottom-color: var(--bottom-border-clr);
   border-radius: 0.05em 0.05em 0.05em 0.2em;
-  transition: box-shadow 0.1s ease-in-out;
+  transition:
+    box-shadow 0.1s ease-in-out,
+    opacity 0.35s ease-in-out;
+}
+
+/* CHANGE HIGHLIGHTING (ProbeProj.Baseline / "Dim Unchanged" setting).
+ * A sample whose value did not change under the most recent edit burst is
+ * dimmed; changed ones keep full opacity. The opacity is animated (via the
+ * transition on .value above) so flips fade rather than snapping — this is
+ * the flicker mitigation for mid-typing churn. Applied to ALL samples,
+ * compounding with any call-context dimming (off-focus/unrelated). */
+.live-offside .value.unchanged {
+  opacity: 0.4;
 }
 
 /* .live-offside .sample .code {

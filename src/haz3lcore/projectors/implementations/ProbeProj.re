@@ -218,6 +218,91 @@ module Settings = {
 open Settings;
 open Node;
 
+/* CHANGE HIGHLIGHTING
+ *
+ * After an editing burst, probe samples whose value did NOT change are
+ * dimmed; samples whose value DID change stay full-opacity. This lets you
+ * see at a glance which runtime values your edit rippled to.
+ *
+ * Baseline semantics = "before the edit burst": the current eval's values
+ * are diffed against the values as they were just before the user started
+ * the current burst of edits. A burst boundary is detected from the
+ * wall-clock gap between successive evaluation results in `note`: eval
+ * results only arrive in response to edits, so a gap longer than
+ * `burst_gap_ms` means the user paused, and the just-superseded result is
+ * frozen as the new baseline. (This mirrors the idle model behind the
+ * 225ms StaticsDebounce in CodeWithStatics, without needing a timer.)
+ *
+ * Maps are immutable (Sample.Map.t), so `last`/`baseline` are O(1) aliases,
+ * never copies. `last` is the union of every cell's most-recent probe map
+ * (probe ids are globally unique, so the merge namespaces cleanly across
+ * tutorial cells); `baseline` is the frozen pre-burst snapshot we diff
+ * against.
+ *
+ * Cache safety: dimming is a pure function of (current per-probe samples,
+ * baseline). `baseline` only changes inside `note`, which runs once per NEW
+ * eval result (the Calc body in EvalResult.calculate) — i.e. exactly when
+ * the per-projector dynamics_map identity changes. A baseline shift
+ * therefore always coincides with a ViewCache miss (the cache keys on
+ * dynamics_map physical identity), so dimming can never go stale and
+ * `baseline` need not itself be in the cache key. Toggling `enabled` bumps
+ * Settings.version, which is in the cache key. */
+module Baseline = {
+  /* Mirrors web Settings.probe_dim_unchanged. */
+  let enabled = ref(false);
+  /* Union of every cell's most-recent probe map. */
+  let last: ref(Sample.Map.t) = ref(Sample.Map.empty);
+  /* Frozen pre-burst probe map we diff the current values against. */
+  let baseline: ref(Sample.Map.t) = ref(Sample.Map.empty);
+  let last_time = ref(0.0);
+  /* Gap (ms) above which a new eval result is treated as the start of a
+   * fresh editing burst, re-freezing the baseline. Tunable. */
+  let burst_gap_ms = 600.0;
+
+  let set_enabled = (b: bool) =>
+    if (b != enabled^) {
+      enabled := b;
+      Settings.version := Settings.version^ + 1;
+    };
+
+  /* Called once per new evaluation result (from EvalResult.calculate). */
+  let note = (m: Sample.Map.t) => {
+    let now = JsUtil.precise_timestamp();
+    if (now -. last_time^ > burst_gap_ms) {
+      /* First result after a pause: the previous (about-to-be-superseded)
+       * snapshot becomes the pre-burst baseline. */
+      baseline := last^;
+    };
+    /* Merge so `last` retains other cells' latest values (new wins). */
+    last := Id.Map.union((_id, _old, fresh) => Some(fresh), last^, m);
+    last_time := now;
+  };
+
+  /* Some(true) = changed since baseline; Some(false) = unchanged;
+   * None = no baseline counterpart (new sample, or mode off) -> don't dim. */
+  let changed = (~probe_id: Id.t, sample: Sample.t): option(bool) =>
+    if (! enabled^) {
+      None;
+    } else {
+      switch (Dynamics.Map.lookup(probe_id, baseline^)) {
+      | None => None
+      | Some(prev) =>
+        switch (List.find_opt((s: Sample.t) => s.id == sample.id, prev)) {
+        | None => None
+        | Some(p) => Some(!DHExp.fast_equal(p.value, sample.value))
+        }
+      };
+    };
+
+  /* CSS classes contributed to a sample's value div. */
+  let value_clss = (~probe_id: Id.t, sample: Sample.t): list(string) =>
+    switch (changed(~probe_id, sample)) {
+    | Some(false) => ["unchanged"]
+    | Some(true) => ["changed"]
+    | None => []
+    };
+};
+
 /* Shared context for probe view functions. Constructed once in offside_view
  * after unwrapping dynamics and statics, then threaded to all child views. */
 type probe_ctx = {
@@ -739,7 +824,8 @@ let value_view =
             sample,
           )
         @ (Option.is_some(ap_id) ? ["ap"] : [])
-        @ (!ValueChecker.is_value(sample.value) ? ["indet"] : []),
+        @ (!ValueChecker.is_value(sample.value) ? ["indet"] : [])
+        @ Baseline.value_clss(~probe_id=ctx.id, sample),
       ),
       Attr.on_double_click(_ => local(ToggleWindowMode)),
       /* Suppress the native browser menu so our dropdown is the only

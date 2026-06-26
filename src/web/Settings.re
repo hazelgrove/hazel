@@ -20,6 +20,13 @@ module Model = {
     /* When true, the sample context drawer (actions/args/env) is shown
        in the probe sidebar instead of as a hover dropdown on samples. */
     sample_drawer_in_sidebar: bool,
+    /* When true, after an editing burst probe samples whose value didn't
+       change are dimmed; changed ones stay full-opacity. Mirrored into
+       Haz3lcore.ProbeProj.Baseline.enabled. [@default false] keeps older
+       persisted settings (which lack this field) parseable on load instead
+       of resetting all settings to defaults. */
+    [@default false]
+    probe_dim_unchanged: bool,
     agent_globals: AgentGlobals.Model.t,
     line_numbers: bool,
     relative_line_numbers: bool,
@@ -77,6 +84,7 @@ module Model = {
     },
     autoprobe_mode: Off,
     sample_drawer_in_sidebar: false,
+    probe_dim_unchanged: false,
     agent_globals: AgentGlobals.init(),
     line_numbers: false,
     relative_line_numbers: false,
@@ -162,6 +170,7 @@ module Update = {
     | SetAutoprobe(Haz3lcore.AutoProbe.t)
     | SampleDrawerInSidebar
     | SampleStickyInPlace
+    | ProbeDimUnchanged
     | ToggleLineNumbers
     | ToggleRelativeLineNumbers
     | CapUndoStack
@@ -449,6 +458,16 @@ module Update = {
             settings;
           }
         )
+      | ProbeDimUnchanged =>
+        /* Change highlighting — mirrors the persisted `probe_dim_unchanged`
+         * into ProbeProj's Baseline.enabled ref (which bumps the projector
+         * view-cache version so all probes re-render). */
+        let on = !settings.probe_dim_unchanged;
+        Haz3lcore.ProbeProj.Baseline.set_enabled(on);
+        {
+          ...settings,
+          probe_dim_unchanged: on,
+        };
       | ToggleLineNumbers => {
           ...settings,
           line_numbers: !settings.line_numbers,

@@ -255,18 +255,24 @@ module Update = {
         | ProgramResult.ResultPending => dynamics |> Calc.get_saved(None)
         | ProgramResult.ResultFail(_) => dynamics |> Calc.get_saved(None)
         | ProgramResult.ResultOk({state, _}) =>
+          /* finalize: convert the evaluator's newest-first storage to
+             evaluation order once per result, so display-side lookups are
+             allocation-free (see Sample.Map) */
+          let probe_map =
+            state |> EvaluatorState.get_probes |> Sample.Map.finalize;
+          /* Feed this new result to the probe change-highlighting baseline
+             tracker. This branch (a Calc body) runs exactly once per NEW
+             evaluation result, which is precisely the cadence Baseline.note
+             expects for burst detection. */
+          Haz3lcore.ProbeProj.Baseline.note(probe_map);
           Some(
             Dynamics.{
-              /* finalize: convert the evaluator's newest-first storage
-                 to evaluation order once per result, so display-side
-                 lookups are allocation-free (see Sample.Map) */
-              probe_map:
-                state |> EvaluatorState.get_probes |> Sample.Map.finalize,
+              probe_map,
               test_results:
                 state |> EvaluatorState.get_tests |> TestResults.mk_results,
               theorems: state |> EvaluatorState.get_theorems,
             },
-          )
+          );
         };
       };
 

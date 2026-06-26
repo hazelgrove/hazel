@@ -665,6 +665,28 @@ module View = {
             _,
           } =>
           Some(Update.Globals(Set(AutoprobeMode)))
+        /* Cmd+Shift+P (Mac) / Ctrl+Shift+P (PC) toggles probe change
+           highlighting: dim samples whose value didn't change under the
+           most recent edit burst. */
+        | {
+            key: D("P" | "p"),
+            sys: Mac,
+            shift: Down,
+            meta: Down,
+            ctrl: Up,
+            alt: Up,
+            _,
+          }
+        | {
+            key: D("P" | "p"),
+            sys: PC,
+            shift: Down,
+            meta: Up,
+            ctrl: Down,
+            alt: Up,
+            _,
+          } =>
+          Some(Update.Globals(Set(ProbeDimUnchanged)))
         /* Cmd+; (Mac) / Ctrl+; (PC) toggles whether the sample context
            drawer (actions/args/env) renders in the probe sidebar instead
            of as a per-sample hover dropdown. */

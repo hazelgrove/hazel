@@ -133,6 +133,7 @@ module Model = {
     Haz3lcore.ProbeProj.Settings.set_docked(
       settings.sample_drawer_in_sidebar,
     );
+    Haz3lcore.ProbeProj.Baseline.set_enabled(settings.probe_dim_unchanged);
     init(~settings, ());
   };
 
