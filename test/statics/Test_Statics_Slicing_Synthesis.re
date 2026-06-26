@@ -269,7 +269,44 @@ let typaps = [
   ),
 ];
 
+let control = [
+  synthesis_case(
+    ~ctx=ctx_var("c", "Bool"),
+    "if-then-only",
+    "if c then 1 else 2",
+    "Int",
+    "if c then 1 else ?",
+  ),
+  synthesis_case("sequence-result", "1; true", "Bool", "?; true"),
+  synthesis_case(
+    ~ctx=prelude_ctx("type T = A + B in"),
+    "match-one-branch",
+    "case A | A => 1 | B => 2 end",
+    "Int",
+    "case ? | ? => 1 | ? => ? end",
+  ),
+  synthesis_case("use-nat-lit", "use Nat in 1", "Nat", "use Nat in 1"),
+  synthesis_case(
+    "use-nat-plus",
+    "use Nat in 1 + 2",
+    "Nat",
+    "use Nat in ? + ?",
+  ),
+  synthesis_case("op-plus-int", "1 + 2", "Int", "? + ?"),
+  synthesis_case("op-eq-bool", "1 == 2", "Bool", "? == ?"),
+  synthesis_case("op-neg-int", "-1", "Int", "-?"),
+  synthesis_case("test-unit", "test 1 == 1 end", "()", "test ? end"),
+  synthesis_case(
+    "hinted-test-unit",
+    "hint 1 test true end",
+    "()",
+    "hint ? test ? end",
+  ),
+  synthesis_case("filter-hide", "hide 1 in true", "Bool", "hide ? in true"),
+  synthesis_case("filter-eval", "eval 1 in true", "Bool", "eval ? in true"),
+];
+
 let tests = (
   "Statics.Slicing.Synthesis",
-  atoms @ ctors @ wrappers @ products @ functions @ typaps,
+  atoms @ ctors @ wrappers @ products @ functions @ typaps @ control,
 );
