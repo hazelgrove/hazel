@@ -17,7 +17,7 @@ body
 
 Hazel's editor helps scaffold incomplete syntax. When you start a multi-token form like `let … = … in`, the tokens you still owe show in the *backpack*, shown as a yellow box above the caret.
 
-# Task
+# Tasks
 1. After the `=`, fill the definition with `250 * 7`.
 2. Type `in` and watch it leave the backpack (or press `Tab` to drop it without typing).
 3. Finish the body so the program reads `let weekly = 250 * 7 in weekly`.

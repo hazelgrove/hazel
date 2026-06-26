@@ -4,23 +4,23 @@ version=1 id=b0000000-0000-0000-0000-000000000000
 @prompt
 {{no_editor}}
 
-Hi! Click the video below for a quick starter demo:
+Hi! Click the video below for a teaser demo. This is the only video in the tutorial.
 
 {{video:hazel-probes-intro.mp4}}
 
-The tutorial to follow introduces the Hazel language and programming with probes. Read each slide, try what it suggests, and move on when you feel you have gotten what you can from it. Some slides are quite short. Move between slides with the arrows at the bottom, or the slide menu at the top.
+this tutorial will introduce both the Hazel language/editor and programming with probes. It has both self-directed and experimenter-led versions. If trying this self-directed, read the slide preamble, expand the *task* panel on each slide, try what it suggests, and move on when you feel you have gotten what you can from it. If doing the experimenter-led version, read the preamble, and then tell the experimenter that you're done. Move between slides with the arrows at the bottom of each slide, or the tutorial menu above the editor.
 
-These study slides are loosely themed as parts of a fictional farming sim game, **Night Gardener**. Don't worry too much about understanding the domain details of the code samples and tasks... the idea here is that you've been dropped into an unfamiliar codebase, and we want to see how much probes help with completing tasks in the presence of incomplete knowledge!
+These study slides are loosely themed as parts of an imaginary farming sim game, **Night Gardener**. Don't worry too much about understanding the domain details of the code samples and tasks... the idea here is that you've been dropped into an unfamiliar codebase, and we want to see how much probes help with completing tasks in the presence of incomplete knowledge!
 
-- Some slides ask you to complete a task, and the editor checks your work: a **🤔** face shows while your code is incomplete or incorrect, and a **🤩** face once it passes. Other slides just invite you to explore or try something out, with nothing to finish.
+- Some slides ask you to complete a task. A **🤔** face shows at the bottom while your code is incomplete or incorrect, becoming a **🤩** face once it passes. Other slides just invite you to explore or try something out.
 
-- As you go, please **think out loud**: tell us what you are trying, what you expect to happen, and what surprises you. Feel free to **ask questions at any time**, and to poke around and explore on your own.
+- As you go please **think out loud**: tell us what you are trying, what you expect to happen, and what surprises you. Feel free to **ask questions at any time**, and to poke around and explore on your own.
 
-At the end there will be some more substantial program-writing and debugging tasks to exercise what you've learned.
+At the end there will be a few more substantial program-writing and debugging tasks to exercise what you've learned.
 
 @reference
 ### Task Reference
-This sidebar is the **Task Reference**. As the tutorial introduces probe commands, a quick reference and a few controls will appear here for the current slide. Glance over whenever you need a reminder.
+This sidebar is the **Task Reference**. As the tutorial introduces probe commands, a quick reference and a few controls will appear here for the current slide.
 
 @code
 0

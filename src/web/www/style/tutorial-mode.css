@@ -115,6 +115,57 @@
   margin-top: 8px;
 }
 
+/* Tasks collapsible: like the hint, but no fill — just the backdrop with a
+   thin --BR1 outline (so it reads as part of the prompt, not a callout). */
+#main.Tutorial .tasks-cell {
+  background-color: transparent;
+  border: 1px solid var(--BR1);
+  padding: 13px;
+  border-radius: 8px;
+  font-size: 16px;
+  color: #454545;
+  gap: 2em;
+}
+
+#main.Tutorial .tasks-title {
+  font-weight: bold;
+  color: var(--BR4);
+  font-size: 15px;
+  cursor: pointer;
+  user-select: none;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* hide the default disclosure triangle (Firefox + WebKit/Chrome) */
+#main.Tutorial .tasks-title::-webkit-details-marker {
+  display: none;
+}
+
+/* custom disclosure arrow, rotates open/closed */
+#main.Tutorial .tasks-title::after {
+  content: "▸";
+  font-size: 0.9em;
+  margin-left: 8px;
+  transition: transform 0.15s ease;
+}
+
+#main.Tutorial .tasks-cell[open] .tasks-title::after {
+  transform: rotate(90deg);
+}
+
+#main.Tutorial .tasks-content {
+  font-size: 15px;
+  color: #555;
+}
+
+/* breathing room between title and content once expanded */
+#main.Tutorial .tasks-cell[open] .tasks-content {
+  margin-top: 8px;
+}
+
 #main.Tutorial .report-icon {
   position: absolute;
   cursor: pointer;

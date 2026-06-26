@@ -11,7 +11,7 @@ let exercise : Tutorial.spec =
     prompt =
       {x|Probes produce **samples**, the green rectangles at the end of the line. You can right-click a sample to see the values of the variables feeding it.
 
-# Task
+# Tasks
 The almanac is clear: a base of **250 ml**, **7** days, and a **50 ml** new-moon bonus, for a weekly total of **1800 ml**.
 
 1. Probe the program's result on the last line: caret on `weekly == 1800`, then **Cmd/Ctrl+E**. It reads `false` for now; you'll watch it flip to `true` once the watering is right.

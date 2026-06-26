@@ -14,7 +14,7 @@ let exercise : Tutorial.spec =
 map([1, 2, 3], fun n -> n * 2)
 ```
 
-# Task
+# Tasks
 
 1. Make `garden` the list of the four base waters: `250`, `180`, `50`, `200`. Once it is filled in, notice how the values now appear down the rest of the program.
 2. As you finish this next part, pause to watch the values update: give every plant its 50 ml new-moon top-up by mapping over `garden`, adding 50 to each.|x};

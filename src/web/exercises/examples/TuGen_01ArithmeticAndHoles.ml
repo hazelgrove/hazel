@@ -13,7 +13,7 @@ let exercise : Tutorial.spec =
 
 Below we'll learn how to add probes to see these results; as we go, new probe commands will be listed in the **Quick Reference** at the top of the sidebar to the right; new ones are circled in green.
 
-# Task
+# Tasks
 
 A nightshade plant drinks 125 ml twice a day, plus a 50 ml weekly top-up. 
 

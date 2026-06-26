@@ -20,7 +20,7 @@ let plant = (name = "moonleaf", water = 250) in
 plant.water
 ```
 
-# Task
+# Tasks
 1. Probe the program's result on the last line: caret on `(caption, fern.water)`, then **Cmd/Ctrl+E**. As you fill the holes below, this sample updates live, so you can watch your work take shape.
 2. Destructure `plant` apart into `name` and `water`, then build `caption` so it reads **"moonleaf needs 250ml"**. If you drop `water` straight into the caption it turns red; the error bar at the bottom of the screen says why (here, type `Int` is inconsistent with the expected type `String`). You'll need `string_of_int` to convert.
 3. Build a `"fern"` record: ferns need **200 ml** each watering. The result sample now shows its `water` too.|x};

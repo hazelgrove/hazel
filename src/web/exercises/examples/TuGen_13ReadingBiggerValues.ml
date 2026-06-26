@@ -11,7 +11,7 @@ let exercise : Tutorial.spec =
     prompt =
       {x|Values can outgrow their samples, especially in *many* mode, where all of a probe's samples share one row.
 
-# Task
+# Tasks
 
 1. probe `card` on the last line of `plant_card` (caret on the `card` token, then **Cmd/Ctrl+E**). Three calls means three samples, and each is squeezed down to a few characters. Three ways to get a sample some room (all now in the Quick Reference):
 2.  **Switch to single mode** (**Space**): one sample at a time, with the whole width to itself. Walk between the calls with **←/→** keys when sample is focussed.

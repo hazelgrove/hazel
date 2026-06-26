@@ -11,13 +11,14 @@ let exercise : Tutorial.spec =
     prompt =
       {x|When you have more than one probe in a function, Hazel keeps each probe's samples *aligned* to one call at a time. The sample you click is called the **focus**. In **Many** mode (of the Samples toggle in the sidebar), aligned samples will be highlighted in green. In **One** mode, the shown sample will be one from the same call as the focus.
 
-# Task
 Each plant is watered according to the moon phase it was *sown* under. The night ledger lists what each plant should receive, in ml:
 
 `fern 220 · orchid 230 · cactus 50`
 `lily 220 · daisy 210 · rose 140`
 
-That totals **1070**, but the program computes **1150**: one call below has the wrong moon phase, so one plant is getting too much water. Which one?
+That totals **1070**, but the program computes **1150**: one call below has the wrong moon phase, so one plant is getting too much water. Let's figure out which.
+
+# Tasks
 
 The ledger lists final amounts, but each call shows only a base and a phase; checking a call against the ledger means working out `base + adjust` in your head. Let probes do that instead:
 

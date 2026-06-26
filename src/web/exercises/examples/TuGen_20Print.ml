@@ -11,7 +11,7 @@ let exercise : Tutorial.spec =
     prompt =
       {x|Hazel also has classic print-statement debugging; for some tasks we'll ask you to use it instead of probes. `print(value);` writes a value to the Console and carries on, and it prints any Hazel value, not just strings.
 
-# Task
+# Tasks
 1. Click **Console** at the top of the sidebar to switch to the print console.
 2. Add `print(daily);` inside `weekly_water`, before the result.
 3. Click **Run** and watch the Console fill as the calls below run — three new lines.|x};

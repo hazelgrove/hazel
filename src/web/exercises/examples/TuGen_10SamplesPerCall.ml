@@ -9,11 +9,9 @@ let exercise : Tutorial.spec =
     version = 1;
     module_name = "TuGen_10SamplesPerCall";
     prompt =
-      {x|Probes inside function calls collect one sample *per call*.
+      {x|Probes inside function calls collect one sample *per call*. The function defined below, `watering_amount`, calculates the amount of water a plant should receive, which depends on the phase of the moon. This function is called three times, at the bottom of the program.
 
-The function `watering_amount` below adjusts a base amount by the moon phase. It is called three times at the bottom of the program.
-
-(A **Samples** toggle has appeared in the sidebar; more controls arrive as we go.)
+Note that a **Samples** toggle has appeared in the sidebar, the first thing circled in green.
 
 # Tasks
 1. Probe the case expression: caret on the `case` token, **Cmd/Ctrl+E**. Notice the small green circle on the probe: it shows **3**, the number of samples this probe collected (one per call).

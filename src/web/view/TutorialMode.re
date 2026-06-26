@@ -490,6 +490,37 @@ module View = {
       [],
     );
 
+  /* A markdown header line whose text is exactly "Tasks" (any level,
+     case-insensitive). Used to split the prompt into preamble + tasks. */
+  let is_tasks_header = (line: string): bool => {
+    let t = String.trim(line);
+    let rec count_hashes = i =>
+      i < String.length(t) && t.[i] == '#' ? count_hashes(i + 1) : i;
+    let h = count_hashes(0);
+    h > 0
+    && String.lowercase_ascii(
+         String.trim(String.sub(t, h, String.length(t) - h)),
+       )
+    == "tasks";
+  };
+
+  /* Split a prompt into (preamble, optional tasks body) at the first
+     "Tasks" header. The preamble (everything before that header) stays
+     inline; the tasks body (everything after the header line, the header
+     itself dropped) is shown in a collapsible. No header => no tasks. */
+  let split_tasks = (prompt: string) => {
+    let rec go = (pre, rest) =>
+      switch (rest) {
+      | [] => (prompt, Option.None)
+      | [line, ...more] when is_tasks_header(line) => (
+          String.trim(String.concat("\n", List.rev(pre))),
+          Option.Some(String.concat("\n", more)),
+        )
+      | [line, ...more] => go([line, ...pre], more)
+      };
+    go([], String.split_on_char('\n', prompt));
+  };
+
   let view =
       (
         ~globals: Globals.t,
@@ -557,9 +588,7 @@ module View = {
     //   CellCommon.narrative_cell(
     //     div(~attrs=[Attr.class_("cell-prompt")], [eds.prompt]),
     //   );
-    let prompt_view = {
-      let prompt_placeholder = eds.prompt == "" ? "Empty Prompt" : eds.prompt;
-      let prompt_clean = remove_all(prompt_placeholder, no_editor_marker);
+    let render_markdown = (s: string) => {
       let render_seg =
         fun
         | Text(t) => {
@@ -572,12 +601,21 @@ module View = {
             msg;
           }
         | Video(file) => [video_node(file)];
-      let nodes = List.concat_map(render_seg, split_video(prompt_clean));
+      List.concat_map(render_seg, split_video(s));
+    };
+    let prompt_placeholder = eds.prompt == "" ? "Empty Prompt" : eds.prompt;
+    let prompt_clean = remove_all(prompt_placeholder, no_editor_marker);
+    let (prompt_preamble, prompt_tasks) = split_tasks(prompt_clean);
+    let prompt_view =
       div(
         ~attrs=[Attr.class_("cell-prompt")],
-        [div(~attrs=[Attr.class_("prompt-content")], nodes)],
+        [
+          div(
+            ~attrs=[Attr.class_("prompt-content")],
+            render_markdown(prompt_preamble),
+          ),
+        ],
       );
-    };
 
     let prev_button_view =
       if (!is_first) {
@@ -603,6 +641,24 @@ module View = {
     let hidden_tests_view =
       InstructorOnly(
         () => editor_view(HiddenTests, hidden_tests, ~caption="Hidden Tests"),
+      );
+    let tasks_view = (body: string) =>
+      /* Like the hint, a native <details> whose open/closed state lives in
+         the DOM; key by slide so it resets (collapsed) on slide switch
+         rather than leaking one slide's expanded state onto the next. */
+      details(
+        ~key="tasks-" ++ eds.module_name,
+        ~attrs=[Attr.class_("tasks-cell")],
+        [
+          summary(
+            ~attrs=[Attr.class_("tasks-title")],
+            [text("📋 Tasks")],
+          ),
+          div(
+            ~attrs=[Attr.class_("tasks-content")],
+            render_markdown(body),
+          ),
+        ],
       );
     let hint_view = {
       let hint_placeholder =
@@ -713,6 +769,12 @@ module View = {
         );
       };
     [title_view, prompt_view]
+    @ (
+      switch (prompt_tasks) {
+      | Some(body) => [tasks_view(body)]
+      | None => []
+      }
+    )
     @ (eds.display_hint == "" ? [] : [hint_view])
     @ render_cells(
         globals.settings,

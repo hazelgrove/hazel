@@ -8,7 +8,7 @@ type Care = Water(Int) + Trim + Skip in "…"
 ```
 Matching `Water(amount)` binds the carried value as `amount`.
 
-# Task
+# Tasks
 1. Probe the program's result: caret on the `apply` call on the last line, then **Cmd/Ctrl+E**. As you build the pieces below, watch this sample.
 2. Put your caret on the `let` token of `apply` and add a multi-probe. The samples are only partially evaluated, because of the hole.
 3. On the first line, in the `type Care` definition, add a `Water(Int)` constructor.
