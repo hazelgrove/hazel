@@ -19,7 +19,7 @@
    Test_ReparseDocSlides
    Test_StepperBase
    Test_TextRoundtrip))
- (libraries str haz3lcore menhirParser junit_alcotest bisect_ppx.runtime)
+ (libraries str haz3ltui menhirParser junit_alcotest bisect_ppx.runtime)
  (preprocess
   (pps ppx_deriving.show ppx_sexp_conv)))
 
