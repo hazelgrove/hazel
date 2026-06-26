@@ -93,25 +93,31 @@ let reset_syntax = (info: info): Base.segment => {
   put(info, CsvUtil.WithoutHeaders([]));
 };
 
-/* Max columns of the file/url name shown in the loaded projector. Keeps both
-   the inline badge and the editor space reserved for it compact even for long
-   urls. */
+/* Max columns of the filename shown in the loaded projector, a safety net for
+   pathologically long filenames; normal filenames render in full. */
 let display_max = 28;
 
-let strip_scheme = (s: string): string =>
-  if (String.starts_with(~prefix="https://", s)) {
-    String.sub(s, 8, String.length(s) - 8);
-  } else if (String.starts_with(~prefix="http://", s)) {
-    String.sub(s, 7, String.length(s) - 7);
-  } else {
-    s;
+/* The trailing filename of a file path or url: everything after the last '/',
+   with any query string / fragment dropped. Local picker filenames (no '/')
+   are returned as-is. */
+let basename = (s: string): string => {
+  let cut = (c, s) =>
+    switch (String.index_opt(s, c)) {
+    | Some(i) => String.sub(s, 0, i)
+    | None => s
+    };
+  let s = s |> cut('?') |> cut('#');
+  switch (String.rindex_opt(s, '/')) {
+  | Some(i) when i + 1 < String.length(s) =>
+    String.sub(s, i + 1, String.length(s) - i - 1)
+  | _ => s
   };
+};
 
-/* Human-readable label for a loaded file/url: drop the scheme and, if still too
-   long, middle-truncate with an ellipsis so both the host and the trailing
-   filename stay visible. Used by the web view for the badge text. */
+/* Label shown in the loaded projector: just the filename, middle-truncated with
+   an ellipsis only if it somehow exceeds display_max. */
 let display_name = (s: string): string => {
-  let s = strip_scheme(s);
+  let s = basename(s);
   if (String.length(s) <= display_max) {
     s;
   } else {
@@ -126,9 +132,9 @@ let display_name = (s: string): string => {
 
 /* Column width display_name occupies. The ellipsis is one column but three
    bytes, so we can't String.length the truncated result; instead bound the
-   scheme-stripped byte length (urls are ascii) by display_max. */
+   filename byte length (filenames are ascii) by display_max. */
 let display_cols = (s: string): int =>
-  min(String.length(strip_scheme(s)), display_max);
+  min(String.length(basename(s)), display_max);
 
 module M: Projector with type model = model_t and type action = action_t = {
   [@deriving (show({with_path: false}), sexp, yojson)]
