@@ -61,4 +61,47 @@ let ctors = [
   ),
 ];
 
-let tests = ("Statics.Slicing.Synthesis", atoms @ ctors);
+let wrappers = [
+  synthesis_case("ascription-int", "(1 : Int)", "Int", "(? : Int)"),
+  synthesis_case("label-full", "(l=1)", "(l=Int)", "(l=1)"),
+  synthesis_case("label-gradual", "(l=1)", "(l=?)", "(l=?)"),
+  synthesis_case("explicit-nonlabel", "(~1)", "(~Int)", "(~1)"),
+];
+
+let products = [
+  synthesis_case("tuple-full", "(1, true)", "(Int, Bool)", "(1, true)"),
+  synthesis_case("tuple-left", "(1, true)", "(Int, ?)", "(1, ?)"),
+  synthesis_case("tuple-right", "(1, true)", "(?, Bool)", "(?, true)"),
+  synthesis_case("tuple-shape-only", "(1, true)", "(?, ?)", "(?, ?)"),
+  synthesis_case(
+    "tuple-nested",
+    "(1, (true, \"s\"))",
+    "(?, (Bool, ?))",
+    "(?, (true, ?))",
+  ),
+  synthesis_case("dot-left", "(a=1, b=true).a", "Int", "(a=1, ?).a"),
+  synthesis_case(
+    "tuple-extension-left",
+    "(a=1) ... (b=true)",
+    "(a=Int, b=?)",
+    "(a=1) ... (b=?)",
+  ),
+  synthesis_case(
+    "tuple-extension-right",
+    "(a=1) ... (b=true)",
+    "(a=?, b=Bool)",
+    "(a=?) ... (b=true)",
+  ),
+  synthesis_case("list-single-full", "[1]", "[Int]", "[1]"),
+  synthesis_case("list-single-gradual", "[1]", "[?]", "[?]"),
+  synthesis_case("list-empty-gradual", "[]", "[?]", "[]"),
+  synthesis_case("list-cons-full", "1 :: []", "[Int]", "1 :: ?"),
+  synthesis_case("list-cons-gradual", "1 :: []", "[?]", "? :: ?"),
+  synthesis_case("list-concat-full", "[1] @ []", "[Int]", "[1] @ ?"),
+  synthesis_case("list-concat-gradual", "[1] @ []", "[?]", "? @ ?"),
+];
+
+let tests = (
+  "Statics.Slicing.Synthesis",
+  atoms @ ctors @ wrappers @ products,
+);
