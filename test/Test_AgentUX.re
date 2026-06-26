@@ -3,7 +3,6 @@
     (Tool-call editing tests live in [[Test_AgentTools]].) */
 open Alcotest;
 open Util;
-open Haz3lcore;
 open Web;
 
 let check_string = (name: string, expected: string, actual: string) =>
