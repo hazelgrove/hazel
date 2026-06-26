@@ -101,7 +101,175 @@ let products = [
   synthesis_case("list-concat-gradual", "[1] @ []", "[?]", "? @ ?"),
 ];
 
+let functions = [
+  synthesis_case(
+    "fun-full",
+    "fun (x : Int) -> x",
+    "Int -> Int",
+    "fun (x : Int) -> x",
+  ),
+  synthesis_case(
+    "fun-body-demand",
+    "fun (x : Int) -> x",
+    "? -> Int",
+    "fun (x : Int) -> x",
+  ),
+  synthesis_case(
+    "fun-domain-only",
+    "fun (x : Int) -> 1",
+    "Int -> ?",
+    "fun (x : Int) -> ?",
+  ),
+  synthesis_case(
+    "fun-shape-only",
+    "fun (x : Int) -> 1",
+    "? -> ?",
+    "fun ? -> ?",
+  ),
+  synthesis_case(
+    "fun-unannotated-shape",
+    "fun x -> x",
+    "? -> ?",
+    "fun ? -> ?",
+  ),
+  synthesis_case(
+    "fun-nested-arrow-left",
+    "fun (f : Int -> Bool) -> f",
+    "(Int -> ?) -> (Int -> ?)",
+    "fun (f : Int -> ?) -> f",
+  ),
+  synthesis_case(
+    "fun-nested-arrow-cross",
+    "fun (f : Int -> Bool) -> f",
+    "(Int -> ?) -> (? -> Bool)",
+    "fun (f : Int -> Bool) -> f",
+  ),
+  synthesis_case(
+    ~ctx=ctx_var("f", "Int -> Bool"),
+    ~assumptions=[("f", "? -> Bool")],
+    "app-free-fn",
+    "f(1)",
+    "Bool",
+    "f(?)",
+  ),
+  synthesis_case(
+    ~ctx=ctx_var("f", "Int -> Bool"),
+    ~focus=e => exp_var(e, "f"),
+    ~assumptions=[("f", "Int -> Bool")],
+    "app-function-focus",
+    "f(1)",
+    "Int -> Bool",
+    "f(?)",
+  ),
+  synthesis_case(
+    "app-inline-id",
+    "(fun (x : Int) -> x)(1)",
+    "Int",
+    "(fun (x : Int) -> x)(?)",
+  ),
+  synthesis_case(
+    "app-inline-const",
+    "(fun (x : Int) -> true)(1)",
+    "Bool",
+    "(fun ? -> true)(?)",
+  ),
+  synthesis_case(
+    ~ctx=ctx_var("add", "(Int, Int) -> Int"),
+    ~assumptions=[("add", "(Int, ?) -> Int")],
+    "deferred-app",
+    "add(_, 1)",
+    "Int -> Int",
+    "add(_, ?)",
+  ),
+  synthesis_case(
+    ~assumptions=[("string_length", "? -> Int")],
+    "builtin-string-length",
+    "string_length(\"s\")",
+    "Int",
+    "string_length(?)",
+  ),
+  synthesis_case(
+    "typabs-value",
+    "abs A -> fun (x : A) -> x",
+    "poly A -> A -> A",
+    "abs A -> fun (x : A) -> x",
+  ),
+];
+
+let typaps = [
+  synthesis_case(
+    ~ctx=ctx_var("id", "poly A -> A -> A"),
+    ~assumptions=[("id", "poly A -> A -> A")],
+    "typap-single-call",
+    "id@<Int>(1)",
+    "Int",
+    "id@<Int>(?)",
+  ),
+  synthesis_case(
+    ~ctx=ctx_var("pair", "poly A, B -> A -> B -> (A, B)"),
+    ~assumptions=[("pair", "poly A, B -> A -> B -> (A, B)")],
+    "typap-multi-call",
+    "pair@<Int, Bool>(1)(true)",
+    "(Int, Bool)",
+    "pair@<Int, Bool>(?)(?)",
+  ),
+  synthesis_case(
+    ~ctx=ctx_var("const", "poly A, B -> A -> B -> A"),
+    ~assumptions=[("const", "poly A, ? -> A -> ? -> A")],
+    "typap-shaped-query",
+    "const@<Int, Bool>",
+    "Int -> ? -> Int",
+    "const@<Int,?>",
+  ),
+  synthesis_case(
+    ~ctx=prelude_ctx("type Option = typfun A -> None + Some(A) in"),
+    ~aliases=[("Option", "typfun A -> ? + Some(A)")],
+    "param-option-explicit",
+    "Some@<Int>(1)",
+    "Option(Int)",
+    "Some@<Int>(?)",
+  ),
+  synthesis_case(
+    ~ctx=
+      prelude_ctx(
+        "type Either = typfun A -> typfun B -> Left(A) + Right(B) in",
+      ),
+    ~aliases=[("Either", "typfun A -> typfun B -> ? + Right(B)")],
+    "param-either-explicit",
+    "Right@<Int, Bool>(true)",
+    "Either(?, Bool)",
+    "Right@<?, Bool>(?)",
+  ),
+  synthesis_case(
+    ~ctx=prelude_ctx("type List = typfun A -> Nil + Cons(A, List(A)) in"),
+    ~aliases=[("List", "typfun A -> ? + Cons(?)")],
+    "param-list-recursive",
+    "Cons@<Int>(1, Nil)",
+    "List(Int)",
+    "Cons@<Int>(?)",
+  ),
+  synthesis_case(
+    ~ctx=prelude_ctx("type Option = typfun A -> None + Some(A) in"),
+    ~aliases=[("Option", "typfun A -> ? + Some(A)")],
+    "param-option-annotation",
+    "(Some(1) : Option(Int))",
+    "Option(Int)",
+    "(Some(?) : Option(Int))",
+  ),
+  synthesis_case(
+    ~ctx=
+      prelude_ctx(
+        "type Either = typfun A -> typfun B -> Left(A) + Right(B) in",
+      ),
+    ~aliases=[("Either", "typfun A -> typfun B -> ? + Right(B)")],
+    "param-either-annotation",
+    "(Right(true) : Either(Int, Bool))",
+    "Either(?, Bool)",
+    "(Right(?) : Either(?, Bool))",
+  ),
+];
+
 let tests = (
   "Statics.Slicing.Synthesis",
-  atoms @ ctors @ wrappers @ products,
+  atoms @ ctors @ wrappers @ products @ functions @ typaps,
 );
