@@ -24,6 +24,7 @@ depends: [
   "ptmap"
   "uuidm" {= "0.9.8"}
   "unionFind"
+  "notty"
   "ocamlformat"
   "junit_alcotest" {>= "2.2.0" & with-test}
   "ocaml-lsp-server"

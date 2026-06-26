@@ -45,6 +45,7 @@
   (uuidm
    (= 0.9.8)) ; 0.9.9 has breaking deprecated changes
   unionFind
+  notty
   ocamlformat
   (junit_alcotest
    (and

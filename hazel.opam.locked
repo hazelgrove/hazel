@@ -116,6 +116,7 @@ depends: [
   "menhirSdk" {= "20260209"}
   "merlin-extend" {= "0.6.2"}
   "merlin-lib" {= "5.3-502"}
+  "notty" {= "0.2.3"}
   "num" {= "1.6"}
   "ocaml" {= "5.2.0"}
   "ocaml-base-compiler" {= "5.2.0"}
