@@ -93,6 +93,43 @@ let reset_syntax = (info: info): Base.segment => {
   put(info, CsvUtil.WithoutHeaders([]));
 };
 
+/* Max columns of the file/url name shown in the loaded projector. Keeps both
+   the inline badge and the editor space reserved for it compact even for long
+   urls. */
+let display_max = 28;
+
+let strip_scheme = (s: string): string =>
+  if (String.starts_with(~prefix="https://", s)) {
+    String.sub(s, 8, String.length(s) - 8);
+  } else if (String.starts_with(~prefix="http://", s)) {
+    String.sub(s, 7, String.length(s) - 7);
+  } else {
+    s;
+  };
+
+/* Human-readable label for a loaded file/url: drop the scheme and, if still too
+   long, middle-truncate with an ellipsis so both the host and the trailing
+   filename stay visible. Used by the web view for the badge text. */
+let display_name = (s: string): string => {
+  let s = strip_scheme(s);
+  if (String.length(s) <= display_max) {
+    s;
+  } else {
+    let keep = display_max - 1; /* room for the ellipsis */
+    let head = keep / 2;
+    let tail = keep - head;
+    String.sub(s, 0, head)
+    ++ "…"
+    ++ String.sub(s, String.length(s) - tail, tail);
+  };
+};
+
+/* Column width display_name occupies. The ellipsis is one column but three
+   bytes, so we can't String.length the truncated result; instead bound the
+   scheme-stripped byte length (urls are ascii) by display_max. */
+let display_cols = (s: string): int =>
+  min(String.length(strip_scheme(s)), display_max);
+
 module M: Projector with type model = model_t and type action = action_t = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type model = model_t;
@@ -113,7 +150,7 @@ module M: Projector with type model = model_t and type action = action_t = {
   let placeholder = (m, _) =>
     switch (m) {
     | FileLoaded({filename, _}) =>
-      ProjectorCore.Shape.inline(String.length(filename) + 6) // Account for reset button and toggle
+      ProjectorCore.Shape.inline(display_cols(filename) + 6) // Account for reset button and toggle
     | Pending(_) => ProjectorCore.Shape.inline(11) // "Loading … "
     | Failed(_) => ProjectorCore.Shape.inline(13)
     | NoFile => ProjectorCore.Shape.inline(13)

@@ -115,8 +115,11 @@ module V: ProjectorView = {
                   [Node.text("⟲")],
                 ),
                 Node.span(
-                  ~attrs=[Attr.class_("csv-loaded-filename")],
-                  [Node.text(filename)],
+                  ~attrs=[
+                    Attr.class_("csv-loaded-filename"),
+                    Attr.title(filename),
+                  ],
+                  [Node.text(CSVProjector.display_name(filename))],
                 ),
                 Node.div(
                   ~attrs=[
