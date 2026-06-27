@@ -1640,6 +1640,25 @@ let annotation_omissions_for_path =
               exp_annotation_query(path, focus, e, ty, focus_query),
             ),
           )
+        | Let(pat, def, _)
+        | Theorem(pat, def, _)
+            when
+              pat_annotation(pat) != None
+              && (
+                exp_contains_focus(focus, def)
+                || on_path(path, Exp.rep_id(def))
+              ) =>
+          switch (pat_annotation(pat)) {
+          | Some(ty) =>
+            Id.Set.union(
+              acc,
+              typ_omissions(
+                ty,
+                exp_annotation_query(path, focus, def, ty, focus_query),
+              ),
+            )
+          | None => acc
+          }
         | _ => acc
         }
       | Info.InfoPat({user_term, _}) =>
@@ -1743,7 +1762,21 @@ let analysis_overlay =
     };
     let omitted_path_ancestors =
       Id.Set.remove(focus_id, Id.Set.inter(result.omitted, path));
-    if (Id.Set.is_empty(omitted_path_ancestors)) {
+    let focus_in_binding_def =
+      Id.Map.exists(
+        (_, info) =>
+          switch (info) {
+          | Info.InfoExp({user_term, _}) =>
+            switch (Exp.term_of(user_term)) {
+            | Let(_, def, _)
+            | Theorem(_, def, _) => on_path(path, Exp.rep_id(def))
+            | _ => false
+            }
+          | _ => false
+          },
+        m,
+      );
+    if (Id.Set.is_empty(omitted_path_ancestors) && !focus_in_binding_def) {
       with_analysis_adjustments(result);
     } else {
       let omitted = Id.Set.diff(result.omitted, path);
