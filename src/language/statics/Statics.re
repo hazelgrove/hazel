@@ -2706,7 +2706,7 @@ and uexp_to_info_map =
           | Some(sm) => Ctx.add_ctrs_with_params(ctx_body, name, params, sm)
           | None => ctx_body
           };
-        let ({co_ctx, elab_syn_ty: ty_body, _}: Info.exp, body_elab, m) =
+        let* ({co_ctx, elab_syn_ty: ty_body, _}: Info.exp, body_elab, m) =
           go(~ctx=ctx_body, ~ana, body, m);
         let ty_escape = Typ.subst(ty_def, Var(name) |> TPat.temp, ty_body);
         let m =
@@ -2779,7 +2779,7 @@ and uexp_to_info_map =
             }
           | _ => ctx_body
           };
-        let ({co_ctx, elab_syn_ty: ty_body, _}: Info.exp, body_elab, m) =
+        let* ({co_ctx, elab_syn_ty: ty_body, _}: Info.exp, body_elab, m) =
           go(~ctx=ctx_body, ~ana, body, m);
         let ty_escape = Typ.subst(ty_def, typat, ty_body);
         let m =
@@ -2811,7 +2811,7 @@ and uexp_to_info_map =
       | Invalid(_)
       | EmptyHole
       | MultiHole(_) =>
-        let ({co_ctx, elab_syn_ty: ty_body, _}: Info.exp, body_elab, m) =
+        let* ({co_ctx, elab_syn_ty: ty_body, _}: Info.exp, body_elab, m) =
           go(~ctx, ~ana, body, m);
         let m =
           utyp_to_info_map(
