@@ -43,6 +43,7 @@ exception Focus_not_found(Id.t);
 exception Wrong_focus_sort;
 exception Incompatible_query(Typ.t);
 exception Contains_focus;
+exception Self_slice_edge(Id.t);
 
 let gap: Typ.t = Typ.temp(Unknown(Hole(EmptyHole)));
 let unknown: Typ.t = Typ.temp(Unknown(Internal));
@@ -937,6 +938,10 @@ let record_child =
     : exp_result => {
   let parent_id = Exp.rep_id(parent);
   let child_id = Exp.rep_id(info.user_term);
+  if (Id.equal(parent_id, child_id)) {
+    /* can cause infinite loop otherwise */
+    raise(Self_slice_edge(parent_id));
+  };
   let child_edge: Info.slice_child = {
     mode: to_info_mode(mode),
     child: child_id,
