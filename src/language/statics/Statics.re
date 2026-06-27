@@ -340,6 +340,8 @@ and uexp_to_info_map =
       );
     let cls = Cls.Exp(Exp.cls_of_term(uexp.term));
     let ty = fixed_typ(ctx, ana, elab_syn_ty);
+    let (slice_children, m) =
+      StaticsSlice.take_children(~parent=user_term, m);
     let info: Info.exp = {
       cls,
       elab_syn_ty,
@@ -357,6 +359,7 @@ and uexp_to_info_map =
       inferred_label,
       label_sort,
       dot_labels,
+      slice_children,
     };
     (info, elab_term, add_info(IdTagged.ids(user_term), InfoExp(info), m));
   };
@@ -375,13 +378,16 @@ and uexp_to_info_map =
     uexp_to_info_map(~ctx, ~ana, ~is_in_filter, ~ancestors, uexp, m);
   };
   let ( let* ) = (child, k) => StaticsSlice.keep(~parent=uexp, child, k);
+  let (let&) = (child, k) => StaticsSlice.omit(~parent=uexp, child, k);
   let (let$) = (child, k) =>
     StaticsSlice.source_child(~parent=uexp, child, k);
   let map_m_go = (m, anas, es) => {
     let (pairs, m) =
       map_m2(
-        (ana, e, m) =>
-          go(~ana, e, m) |> (((e, elab, m)) => ((e, elab), m)),
+        (ana, e, m) => {
+          let* (e, elab, m) = go(~ana, e, m);
+          ((e, elab), m);
+        },
         anas,
         es,
         m,
@@ -463,7 +469,7 @@ and uexp_to_info_map =
     switch (term) {
     | Closure(env, e) =>
       // TODO: implement closure type checking properly - see how dynamic type assignment does it
-      let (e, e_elab, m) = go(~ana, e, m);
+      let* (e, e_elab, m) = go(~ana, e, m);
       add(
         ~elab_term=Closure(env, e_elab) |> rewrap,
         ~elab_syn_ty=e.elab_syn_ty,
@@ -472,8 +478,8 @@ and uexp_to_info_map =
         m,
       );
     | MultiHole([Exp(e1), Exp(e2)]) =>
-      let (e1, e1_elab, m) = go(~ana=syn, e1, m);
-      let (e2, e2_elab, m) = go(~ana=syn, e2, m);
+      let& (e1, e1_elab, m) = go(~ana=syn, e1, m);
+      let* (e2, e2_elab, m) = go(~ana=syn, e2, m);
       add(
         ~elab_term=Seq(e1_elab, e2_elab) |> rewrap,
         ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
@@ -495,7 +501,7 @@ and uexp_to_info_map =
       let (t, m) = go_typ(t2, ~expects=TypExpectation.TypeExpected, m);
       /* Desugar any Sig types in the annotation without full normalization */
       let t_ty = Typ.desugar_sig(ctx, t.user_term);
-      let (e, e_elab, m) = go(~ana=t_ty, ~ctx=t.ctx, e, m);
+      let* (e, e_elab, m) = go(~ana=t_ty, ~ctx=t.ctx, e, m);
       let typ_refs =
         ModuleHelpers.collect_module_refs_in_typ(ctx, Typ.rep_id(t2), t2);
       add(
@@ -631,9 +637,9 @@ and uexp_to_info_map =
       };
     | Cons(hd, tl) =>
       let head_ana_ty = MatchedTyp.list_tolerant(ctx, ana);
-      let (hd, hd_elab, m) = go(~ana=head_ana_ty, hd, m);
+      let* (hd, hd_elab, m) = go(~ana=head_ana_ty, hd, m);
       let tail_ana_ty = Typ.match_synswitch(ana, List(hd.ty) |> Typ.temp);
-      let (tl, tl_elab, m) = go(~ana=tail_ana_ty, tl, m);
+      let& (tl, tl_elab, m) = go(~ana=tail_ana_ty, tl, m);
       /* `hd` was analyzed against `head_ana_ty` (the element-level ana),
          so `hd.ty` already incorporates ana info at the element level.
          Using it directly as the element type means fresh re-synthesis of
@@ -669,8 +675,8 @@ and uexp_to_info_map =
       let inner_ana_ty =
         List(MatchedTyp.list_tolerant(ctx, ana)) |> Typ.temp;
       let ids = List.map(Exp.rep_id, [e1, e2]);
-      let (e1, e1_elab, m) = go(~ana=inner_ana_ty, e1, m);
-      let (e2, e2_elab, m) = go(~ana=inner_ana_ty, e2, m);
+      let* (e1, e1_elab, m) = go(~ana=inner_ana_ty, e1, m);
+      let& (e2, e2_elab, m) = go(~ana=inner_ana_ty, e2, m);
       /* Project each argument's synthesized type to its list element type.
          `list_tolerant` returns `?` when the arg's syn isn't a list, which
          is the correct behaviour for e.g. `A @ A` (where each `A` syns to
@@ -736,7 +742,7 @@ and uexp_to_info_map =
         m,
       );
     | DynamicErrorHole(e, err) =>
-      let (e, e_elab, m) = go(~ana, e, m);
+      let* (e, e_elab, m) = go(~ana, e, m);
       add(
         ~elab_term=DynamicErrorHole(e_elab, err) |> rewrap,
         ~elab_syn_ty=e.elab_syn_ty,
@@ -745,7 +751,7 @@ and uexp_to_info_map =
         m,
       );
     | Parens(e) =>
-      let (e, e_elab, m) = go(~ana, e, m);
+      let* (e, e_elab, m) = go(~ana, e, m);
       add(
         ~elab_term=Parens(e_elab) |> rewrap,
         ~elab_syn_ty=e.elab_syn_ty,
@@ -754,7 +760,7 @@ and uexp_to_info_map =
         m,
       );
     | Projector(data, e) =>
-      let (e, e_elab, m) = go(~ana, e, m);
+      let* (e, e_elab, m) = go(~ana, e, m);
       add(
         ~elab_term=Projector(data, e_elab) |> rewrap,
         ~elab_syn_ty=e.elab_syn_ty,
@@ -767,7 +773,7 @@ and uexp_to_info_map =
       let op_semantics = Operators.semantics_of_un_op(op);
       switch (op_semantics) {
       | Undefined(msg) =>
-        let (e, e_elab, m) = go(~ana=syn, e, m);
+        let& (e, e_elab, m) = go(~ana=syn, e, m);
         add(
           ~elab_term=UnOp(op, e_elab) |> rewrap,
           ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
@@ -778,7 +784,7 @@ and uexp_to_info_map =
       | Defined(ty_in, ty_out, _) =>
         let ty_in = Atom(Atom.cls_of_kind(ty_in)) |> Typ.temp;
         let ty_out = Atom(Atom.cls_of_kind(ty_out)) |> Typ.temp;
-        let (e, e_elab, m) = go(~ana=ty_in, e, m);
+        let& (e, e_elab, m) = go(~ana=ty_in, e, m);
         add(
           ~elab_term=UnOp(op, e_elab) |> rewrap,
           ~elab_syn_ty=ty_out,
@@ -792,8 +798,8 @@ and uexp_to_info_map =
       let op_semantics = Operators.semantics_of_bin_op(op);
       switch (op_semantics) {
       | Undefined(msg) =>
-        let (e1, e1_elab, m) = go(~ana=syn, e1, m);
-        let (e2, e2_elab, m) = go(~ana=syn, e2, m);
+        let& (e1, e1_elab, m) = go(~ana=syn, e1, m);
+        let& (e2, e2_elab, m) = go(~ana=syn, e2, m);
         add(
           ~elab_term=BinOp(op, e1_elab, e2_elab) |> rewrap,
           ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
@@ -843,8 +849,8 @@ and uexp_to_info_map =
         let ty1 = Atom(Atom.cls_of_kind(ty1)) |> Typ.temp;
         let ty2 = Atom(Atom.cls_of_kind(ty2)) |> Typ.temp;
         let ty_out = Atom(Atom.cls_of_kind(ty_out)) |> Typ.temp;
-        let (e1, e1_elab, m) = go(~ana=ty1, e1, m);
-        let (e2, e2_elab, m) = go(~ana=ty2, e2, m);
+        let& (e1, e1_elab, m) = go(~ana=ty1, e1, m);
+        let& (e2, e2_elab, m) = go(~ana=ty2, e2, m);
         add(
           ~elab_term=BinOp(op, e1_elab, e2_elab) |> rewrap,
           ~elab_syn_ty=ty_out,
@@ -854,14 +860,14 @@ and uexp_to_info_map =
         );
       };
     | TupleExtension(e1, e2) =>
-      let (t1, e1_elab, m) = go(e1, m);
+      let* (t1, e1_elab, m) = go(e1, m);
       let m =
         switch (Typ.normalize(ctx, t1.ty).term) {
         | Prod(_)
         | Unknown(_) => m
         | _ => append_mark_exp(m, e1, [TupleExtensionRequiresTuples])
         };
-      let (t2, e2_elab, m) = go(e2, m);
+      let* (t2, e2_elab, m) = go(e2, m);
       let m =
         switch (Typ.normalize(ctx, t2.ty).term) {
         | Prod(_)
@@ -973,7 +979,11 @@ and uexp_to_info_map =
             | TupLabel(label, value) =>
               let (labmode, val_mode) =
                 LabeledTupleStaticsHelpers.decompose_label_mode(ctx, ana);
-              let* (value_info, value_elab, m) = go(~ana=val_mode, value, m);
+              let (value_info, value_elab, m) = go(~ana=val_mode, value, m);
+              let (value_info, value_elab, m) =
+                StaticsSlice.keep(~parent=e, (value_info, value_elab, m), x =>
+                  x
+                );
               let (lab_name, label_invalid, m) =
                 switch (label.term) {
                 | Label(name) =>
@@ -1056,6 +1066,8 @@ and uexp_to_info_map =
                   ~warnings=[],
                   m,
                 );
+              let (e_info, elab, m) =
+                StaticsSlice.keep(~parent=uexp, (e_info, elab, m), x => x);
               (es @ [e_info], es_elab @ [elab], m);
             | _ =>
               let* (e_info, elab, m) = go(~ana, e, m);
@@ -1123,7 +1135,7 @@ and uexp_to_info_map =
         m,
       );
     | TupLabel({term: ExplicitNonlabel, _} as label, e) =>
-      let (e, elab_inner, m) = go(~ana, e, m);
+      let* (e, elab_inner, m) = go(~ana, e, m);
       /* Add info for the ExplicitNonlabel directly */
       let (_, elab_label, m) =
         add(
@@ -1153,7 +1165,7 @@ and uexp_to_info_map =
     | TupLabel(label, e) =>
       let (labmode, val_mode) =
         LabeledTupleStaticsHelpers.decompose_label_mode(ctx, ana);
-      let (e, elab_child, m) = go(~ana=val_mode, e, m);
+      let* (e, elab_child, m) = go(~ana=val_mode, e, m);
       let (lab_name, m) =
         switch (label.term) {
         | Label(name) =>
@@ -1248,7 +1260,7 @@ and uexp_to_info_map =
       );
 
     | Dot(e1, e2) =>
-      let (info_e1, e1_elab, m) = go(~ana=syn, e1, m);
+      let* (info_e1, e1_elab, m) = go(~ana=syn, e1, m);
       let available_labels = {
         let ty = Typ.normalize(ctx, info_e1.ty);
         switch (ty.term) {
@@ -1285,7 +1297,7 @@ and uexp_to_info_map =
           )
         | _ =>
           /* Malformed label — analyze via go to cover sub-expression IDs */
-          let (info_e2, elab_e2, m) = go(~ana=syn, e2, m);
+          let& (info_e2, elab_e2, m) = go(~ana=syn, e2, m);
           (
             info_e2,
             elab_e2,
@@ -1433,7 +1445,7 @@ and uexp_to_info_map =
         )
       };
     | Test(e) =>
-      let (e, e_elab, m) = go(~ana=Atom(Bool) |> Typ.temp, e, m);
+      let& (e, e_elab, m) = go(~ana=Atom(Bool) |> Typ.temp, e, m);
       add(
         ~elab_term=Test(e_elab) |> rewrap,
         ~elab_syn_ty=Prod([]) |> Typ.temp,
@@ -1442,8 +1454,9 @@ and uexp_to_info_map =
         m,
       );
     | HintedTest(e, hint) =>
-      let (e, e_elab, m) = go(~ana=Atom(Bool) |> Typ.temp, e, m);
-      let (hint, hint_elab, m) = go(~ana=Atom(String) |> Typ.temp, hint, m);
+      let& (e, e_elab, m) = go(~ana=Atom(Bool) |> Typ.temp, e, m);
+      let& (hint, hint_elab, m) =
+        go(~ana=Atom(String) |> Typ.temp, hint, m);
       add(
         ~elab_term=HintedTest(e_elab, hint_elab) |> rewrap,
         ~elab_syn_ty=Prod([]) |> Typ.temp,
@@ -1452,8 +1465,8 @@ and uexp_to_info_map =
         m,
       );
     | Filter(Filter({pat: cond, act}), body) =>
-      let (cond, cond_elab, m) = go(~ana=syn, cond, m, ~is_in_filter=true);
-      let (body, body_elab, m) = go(~ana, body, m);
+      let& (cond, cond_elab, m) = go(~ana=syn, cond, m, ~is_in_filter=true);
+      let* (body, body_elab, m) = go(~ana, body, m);
       add(
         ~elab_term=
           Filter(
@@ -1470,7 +1483,7 @@ and uexp_to_info_map =
         m,
       );
     | Filter(Residue(i, act), body) =>
-      let (body, body_elab, m) = go(~ana, body, m);
+      let* (body, body_elab, m) = go(~ana, body, m);
       add(
         ~elab_term=Filter(Residue(i, act), body_elab) |> rewrap,
         ~elab_syn_ty=body.elab_syn_ty,
@@ -1479,8 +1492,8 @@ and uexp_to_info_map =
         m,
       );
     | Seq(e1, e2) =>
-      let (e1, e1_elab, m) = go(~ana=syn, e1, m);
-      let (e2, e2_elab, m) = go(~ana, e2, m);
+      let& (e1, e1_elab, m) = go(~ana=syn, e1, m);
+      let* (e2, e2_elab, m) = go(~ana, e2, m);
       add(
         ~elab_term=Seq(e1_elab, e2_elab) |> rewrap,
         ~elab_syn_ty=e2.elab_syn_ty,
@@ -1613,8 +1626,8 @@ and uexp_to_info_map =
         // refer to livelit context to find types
         switch (Ctx.lookup_livelit(ctx, s)) {
         | Some({expansion_t, model_t, expand, _}) =>
-          let (fn, fn_elab, m) = go(~ana=expansion_t, fn, m);
-          let (arg, arg_elab, m) = go(~ana=model_t, arg, m);
+          let* (fn, fn_elab, m) = go(~ana=expansion_t, fn, m);
+          let& (arg, arg_elab, m) = go(~ana=model_t, arg, m);
 
           // try to expand
           switch (expand(arg.user_term)) {
@@ -1645,9 +1658,9 @@ and uexp_to_info_map =
           };
 
         | None =>
-          let (fn, fn_elab, m) =
+          let* (fn, fn_elab, m) =
             go(~ana=Unknown(Internal) |> Typ.temp, fn, m);
-          let (arg, arg_elab, m) =
+          let& (arg, arg_elab, m) =
             go(~ana=Unknown(Internal) |> Typ.temp, arg, m);
           add(
             ~elab_term=Ap(dir, fn_elab, arg_elab) |> rewrap,
@@ -1682,7 +1695,7 @@ and uexp_to_info_map =
             }
           | None => Arrow(syn, syn) |> Typ.temp
           };
-        let (fn, fn_elab, m) = go(~ana=fn_ana, fn, m);
+        let* (fn, fn_elab, m) = go(~ana=fn_ana, fn, m);
         switch (custom_statics) {
         | Some(kind) =>
           CustomStatics.custom_statics_ap(
@@ -1702,7 +1715,7 @@ and uexp_to_info_map =
           )
         | None =>
           let (ty_in, ty_out) = MatchedTyp.arrow_tolerant(ctx, fn.ty);
-          let (arg, arg_elab, m) = go(~ana=ty_in, arg, m);
+          let& (arg, arg_elab, m) = go(~ana=ty_in, arg, m);
           let elab_term = Ap(dir, fn_elab, arg_elab) |> rewrap;
           let co_ap = CoCtx.union([fn.co_ctx, arg.co_ctx]);
           Id.is_nullary_ap_flag(IdTagged.ids(arg.user_term))
@@ -1725,7 +1738,7 @@ and uexp_to_info_map =
       }
     | TypAp(fn, utyp) =>
       let typfn_ana = Poly(EmptyHole |> TPat.fresh, syn) |> Typ.temp;
-      let (fn, fn_elab, m) = go(~ana=typfn_ana, fn, m);
+      let* (fn, fn_elab, m) = go(~ana=typfn_ana, fn, m);
       let (_, m) =
         utyp_to_info_map(~ctx, ~ancestors=ancestors_inclusive, utyp, m);
       let elab_term = TypAp(fn_elab, Typ.normalize(ctx, utyp)) |> rewrap;
@@ -1790,7 +1803,7 @@ and uexp_to_info_map =
           }
         | None => Arrow(syn, syn) |> Typ.temp
         };
-      let (fn, fn_elab, m) = go(~ana=fn_ana, fn, m);
+      let* (fn, fn_elab, m) = go(~ana=fn_ana, fn, m);
 
       switch (custom_statics) {
       | Some(kind) =>
@@ -2249,9 +2262,9 @@ and uexp_to_info_map =
       );
     | If(e0, e1, e2) =>
       let branch_ids = List.map(Exp.rep_id, [e1, e2]);
-      let (cond, cond_elab, m) = go(~ana=Atom(Bool) |> Typ.temp, e0, m);
-      let (cons, cons_elab, m) = go(~ana, e1, m);
-      let (alt, alt_elab, m) = go(~ana, e2, m);
+      let* (cond, cond_elab, m) = go(~ana=Atom(Bool) |> Typ.temp, e0, m);
+      let* (cons, cons_elab, m) = go(~ana, e1, m);
+      let& (alt, alt_elab, m) = go(~ana, e2, m);
       let (syn_if, cms_if) =
         ConstructorStaticsHelpers.syn_marks_match(
           ctx,
@@ -2301,7 +2314,7 @@ and uexp_to_info_map =
         m,
       );
     | Match(scrut, rules) =>
-      let (scrut, scrut_elab, m) = go(~ana=syn, scrut, m);
+      let& (scrut, scrut_elab, m) = go(~ana=syn, scrut, m);
       let (ps, es) = List.split(rules);
       let branch_ids = List.map(Exp.rep_id, es);
       let (ps', _) =
@@ -2322,12 +2335,17 @@ and uexp_to_info_map =
         );
 
       let p_ctxs = List.map(Info.pat_ctx, ps');
-      let (es, es_elabs, m) =
+      let (es, es_elabs, m, _) =
         List.fold_left2(
-          ((es, elabs, m), e, ctx) =>
-            go(~ctx, ~ana, e, m)
-            |> (((e, elab, m)) => (es @ [e], elabs @ [elab], m)),
-          ([], [], m),
+          ((es, elabs, m, index), e, ctx) => {
+            let child = go(~ctx, ~ana, e, m);
+            let (e, elab, m) =
+              index == 0
+                ? StaticsSlice.keep(~parent=uexp, child, x => x)
+                : StaticsSlice.omit(~parent=uexp, child, x => x);
+            (es @ [e], elabs @ [elab], m, index + 1);
+          },
+          ([], [], m, 0),
           es,
           p_ctxs,
         );
@@ -2834,7 +2852,7 @@ and uexp_to_info_map =
         | Some(mode) => Ctx.set_use_mode(ctx, Some(mode))
         | None => ctx
         };
-      let (body, body_elab, m) = go(~ctx=ctx', ~ana, body, m);
+      let* (body, body_elab, m) = go(~ctx=ctx', ~ana, body, m);
       switch (use_mode) {
       | Some(_) =>
         add(

@@ -880,6 +880,7 @@ let get_doc =
     sig_type_message(tp, t)
   | Some(InfoSig(_)) => simple("Signature item")
   | Some(InfoMPat(_)) => simple("Module name")
+  | Some(InfoSliceScratch(_)) => default
   | Some(
       InfoExp({cls: Mod(ModLet), user_term: {term: Let(p, e, _), _}, _}),
     ) =>

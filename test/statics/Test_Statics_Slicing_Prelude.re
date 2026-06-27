@@ -240,21 +240,20 @@ let prelude_ctx = (prelude_src: string): Ctx.t => {
   };
 };
 
-let run =
-    (~ctx=?, ~focus, ~direction, src: string, query_src: string): S.result => {
+let run_exp =
+    (~ctx=?, ~focus, ~direction, e: Exp.t, query_src: string): S.result => {
   let ctx =
     switch (ctx) {
     | Some(c) => c
     | None => base_ctx()
     };
-  let e = parse_exp(src);
   let query = parse_typ(query_src);
   Statics.slice(~ctx, ~focus=Some(focus(e)), ~direction, e, query);
 };
 
 let check_reconstruct =
-    (~result: S.result, ~src: string, ~expected: string): unit => {
-  let recon = reconstruct(result.omitted, parse_exp(src));
+    (~result: S.result, ~src: Exp.t, ~expected: string): unit => {
+  let recon = reconstruct(result.omitted, src);
   check(
     testable_exp,
     "reconstructed slice = " ++ expected,
@@ -326,7 +325,8 @@ let slicing_case =
     name,
     `Quick,
     _ => {
-      let result = run(~ctx?, ~focus, ~direction, src, query_src);
+      let src = parse_exp(src);
+      let result = run_exp(~ctx?, ~focus, ~direction, src, query_src);
       check_reconstruct(~result, ~src, ~expected);
       check_assumptions(~result, assumptions);
       check_context(~result, ~aliases, ~constructors);

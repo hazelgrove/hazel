@@ -48,14 +48,16 @@ let cases = [
     fun
     | S.Incompatible_query(_) => true
     | _ => false,
-    () =>
-    Statics.slice(
-      ~ctx=base_ctx(),
-      ~focus=Some(whole(parse_exp("1"))),
-      ~direction=`Syn,
-      parse_exp("1"),
-      parse_typ("Int -> Bool"),
-    )
+    () => {
+      let e = parse_exp("1");
+      Statics.slice(
+        ~ctx=base_ctx(),
+        ~focus=Some(whole(e)),
+        ~direction=`Syn,
+        e,
+        parse_typ("Int -> Bool"),
+      );
+    },
   ),
 ];
 

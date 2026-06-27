@@ -66,6 +66,7 @@ let problem_status_view = (~globals, ci: Language.Info.t): Node.t =>
   | InfoMod(_)
   | InfoSig(_)
   | InfoMPat(_)
+  | InfoSliceScratch(_)
   | InfoDrv(_) => div([])
   };
 
