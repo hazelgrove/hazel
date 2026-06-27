@@ -1538,6 +1538,8 @@ let rec exp_annotation_query =
   switch (Exp.term_of(exp), Typ.term_of(annotation)) {
   | (Parens(inner), _) =>
     exp_annotation_query(path, focus, inner, annotation, focus_query)
+  | (_, Parens(inner)) =>
+    exp_annotation_query(path, focus, exp, inner, focus_query)
   | (Tuple(es), Prod(ts)) when List.length(es) == List.length(ts) =>
     Prod(
       List.map2(
@@ -1580,6 +1582,8 @@ and pat_annotation_query =
   switch (Pat.term_of(pat), Typ.term_of(annotation)) {
   | (Parens(inner), _) =>
     pat_annotation_query(path, focus, inner, annotation, focus_query)
+  | (_, Parens(inner)) =>
+    pat_annotation_query(path, focus, pat, inner, focus_query)
   | (Tuple(ps), Prod(ts)) when List.length(ps) == List.length(ts) =>
     Prod(
       List.map2(
