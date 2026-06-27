@@ -1464,17 +1464,32 @@ let pat_child_ids = (pat: Pat.t): list(Id.t) =>
   | MultiHole(_) => []
   };
 
+let rec pat_side_omit = (pat: Pat.t): Id.Set.t =>
+  switch (Pat.term_of(pat)) {
+  | Parens(p)
+  | Asc(p, _) => pat_side_omit(p)
+  | _ => ids_set(IdTagged.ids(pat))
+  };
+
+let child_omit = (m: Id.Map.t(Info.t), child_id: Id.t): Id.Set.t =>
+  switch (Id.Map.find_opt(child_id, m)) {
+  | Some(Info.InfoPat({user_term, _})) => pat_side_omit(user_term)
+  | _ => Id.Set.singleton(child_id)
+  };
+
 let child_side_ids =
     (path: Id.Set.t, m: Id.Map.t(Info.t), id: Id.t): Id.Set.t =>
   switch (Id.Map.find_opt(id, m)) {
   | Some(Info.InfoExp({user_term, _})) =>
     exp_child_ids(user_term)
     |> List.filter(child_id => !on_path(path, child_id))
-    |> ids_set
+    |> List.map(child_omit(m))
+    |> List.fold_left(Id.Set.union, Id.Set.empty)
   | Some(Info.InfoPat({user_term, _})) =>
     pat_child_ids(user_term)
     |> List.filter(child_id => !on_path(path, child_id))
-    |> ids_set
+    |> List.map(child_omit(m))
+    |> List.fold_left(Id.Set.union, Id.Set.empty)
   | _ => Id.Set.empty
   };
 
