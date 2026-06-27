@@ -1904,7 +1904,7 @@ and uexp_to_info_map =
     | Forall(p, e) =>
       let (p, p_elab, m) =
         go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty, p, m);
-      let (e, e_elab, m) =
+      let& (e, e_elab, m) =
         go(~ctx=p.ctx, ~ana=Atom(Bool) |> Typ.temp, e, m);
       add(
         ~elab_term=Forall(p_elab, e_elab) |> rewrap,
@@ -2187,7 +2187,7 @@ and uexp_to_info_map =
       );
     | Theorem({term: Var(_), _} as p, e1, e2) =>
       let pat_typ_refs = ModuleHelpers.collect_pat_type_refs(ctx, p);
-      let (e1', e1_elab, m) = go(~ctx, ~ana=Atom(Bool) |> Typ.temp, e1, m);
+      let& (e1', e1_elab, m) = go(~ctx, ~ana=Atom(Bool) |> Typ.temp, e1, m);
       let (p', _, _) =
         go_pat(
           ~is_synswitch=false,
@@ -2196,7 +2196,7 @@ and uexp_to_info_map =
           p,
           m,
         );
-      let (e2, e2_elab, m) = go(~ctx=p'.ctx, ~ana, e2, m);
+      let* (e2, e2_elab, m) = go(~ctx=p'.ctx, ~ana, e2, m);
       /* add co_ctx to pattern */
       let (p, p_elab, m) =
         go_pat(~is_synswitch=false, ~co_ctx=e2.co_ctx, ~ana=syn, p, m);
@@ -2215,10 +2215,10 @@ and uexp_to_info_map =
       );
     | Theorem(p, e1, e2) =>
       let pat_typ_refs = ModuleHelpers.collect_pat_type_refs(ctx, p);
-      let (_, e1_elab, m) = go(~ctx, ~ana=Atom(Bool) |> Typ.temp, e1, m);
+      let& (_, e1_elab, m) = go(~ctx, ~ana=Atom(Bool) |> Typ.temp, e1, m);
       let (p', _, _) =
         go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty, ~ana=syn, p, m);
-      let (e2, e2_elab, m) = go(~ctx=p'.ctx, ~ana, e2, m);
+      let* (e2, e2_elab, m) = go(~ctx=p'.ctx, ~ana, e2, m);
       /* add co_ctx to pattern */
       let (p, p_elab, m) =
         go_pat(~is_synswitch=false, ~co_ctx=e2.co_ctx, ~ana=syn, p, m);

@@ -984,7 +984,8 @@ let binding_pat = (term: Exp.term): option(Pat.t) =>
   switch (term) {
   | Let(p, _, _)
   | Fun(p, _, _, _)
-  | Theorem(p, _, _) => Some(p)
+  | Theorem(p, _, _)
+  | Forall(p, _) => Some(p)
   | _ => None
   };
 
@@ -1210,6 +1211,20 @@ let rec node_of_exp_info = (m: Id.Map.t(Info.t), info: Info.exp): node => {
                 },
                 domain_slice,
               );
+            },
+            finalize: () => empty_result,
+          }
+        | (_, [_, ..._], []) => {
+            shape: info.ty,
+            dispatch: query => {
+              let deps =
+                sources |> List.map(s => s.dispatch(gap)) |> results_join;
+              {
+                ...queried_result(query),
+                omitted: deps.omitted,
+                gamma: deps.gamma,
+                context: deps.context,
+              };
             },
             finalize: () => empty_result,
           }
