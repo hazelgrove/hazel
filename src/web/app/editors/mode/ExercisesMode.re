@@ -50,7 +50,7 @@ module Model = {
     | Theorem(e: TheoremExerciseMode.Model.t) => e.id
     };
 
-  let get_spec_id = (spec: exercise_spec): Haz3lcore.Id.t =>
+  let id_of_spec = (spec: exercise_spec): Haz3lcore.Id.t =>
     switch (spec) {
     | Code(s) => s.id
     | Derivation(s) => s.id
@@ -113,8 +113,7 @@ module Model = {
       );
     let current =
       ListUtil.findi_opt(
-        (spec: exercise_spec) =>
-          get_spec_id(spec) == persistent.cur_exercise,
+        (spec: exercise_spec) => id_of_spec(spec) == persistent.cur_exercise,
         ExerciseSettings.exercises,
       )
       |> Option.map(fst)
@@ -135,13 +134,6 @@ module Model = {
         DerivationExerciseMode.Model.of_spec(~settings, ~instructor_mode, s),
       )
     | Theorem(s) => Theorem(TheoremExerciseMode.Model.of_spec(s))
-    };
-
-  let id_of_spec = (spec: exercise_spec): Haz3lcore.Id.t =>
-    switch (spec) {
-    | Code(s) => s.id
-    | Derivation(s) => s.id
-    | Theorem(s) => s.id
     };
 
   let get_current = (m: t) => List.nth(m.exercises, m.current);
@@ -219,6 +211,22 @@ module Model = {
     switch (model) {
     | Derivation(e) => DerivationExerciseMode.Model.get_derivation_info(e)
     | _ => None
+    };
+  };
+
+  /* Editors whose problems should appear in the Problems sidebar, each
+     paired with a display label shown as a section header when multiple
+     groups are present. */
+  let get_problem_editors =
+      (~instructor_mode: bool, model: t)
+      : list((option(string), list(CodeEditable.Model.t))) => {
+    let current = List.nth(model.exercises, model.current);
+    switch (current) {
+    | Code(e) =>
+      CodeExerciseMode.Model.get_problem_editors(~instructor_mode, e)
+    | Derivation(e) =>
+      DerivationExerciseMode.Model.get_problem_editors(~scratch_mode=false, e)
+    | Theorem(e) => TheoremExerciseMode.Model.get_problem_editors(e)
     };
   };
 };

@@ -21,6 +21,7 @@ open Util;
 
 type target =
   | Editor
+  | Cell
   | Probe(Id.t);
 
 let scheduled: ref(option(target)) = ref(None);
@@ -33,6 +34,13 @@ let schedule_editor = (): unit => {
   scheduled := Some(Editor);
 };
 
+/* Schedule DOM focus on the active code-editor cell (called after a
+   sidebar jump, which moves the model selection to a different cell
+   without moving DOM focus). */
+let schedule_cell = (): unit => {
+  scheduled := Some(Cell);
+};
+
 let execute = (): bool =>
   switch (scheduled^) {
   | Some(Editor) =>
@@ -42,6 +50,9 @@ let execute = (): bool =>
        it does not satisfy the `.code-editor:focus` caret CSS. */
     JsUtil.focus_active_editor();
     true;
+  | Some(Cell) =>
+    scheduled := None;
+    JsUtil.focus_active_cell();
   | Some(Probe(probe_id)) =>
     scheduled := None;
     let elem_id = Id.cls(probe_id);

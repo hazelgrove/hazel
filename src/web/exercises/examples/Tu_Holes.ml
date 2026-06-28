@@ -26,7 +26,7 @@ let exercise : Tutorial.spec =
        ```";
     your_impl =
       {
-        selection = { focus = Left; content = []; mode = Normal };
+        selection = { focus = Left; content = []; mode = Normal; anchor_caret = Outer; smart_rounded = false };
         relatives =
           {
             siblings =
@@ -359,7 +359,7 @@ let exercise : Tutorial.spec =
       {
         tests =
           {
-            selection = { focus = Left; content = []; mode = Normal };
+            selection = { focus = Left; content = []; mode = Normal; anchor_caret = Outer; smart_rounded = false };
             relatives =
               {
                 siblings =

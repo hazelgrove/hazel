@@ -14,7 +14,14 @@ let exercise : Exercise.t =
         { test_validation = 1; mutation_testing = 1; impl_grading = 2 };
       prelude =
         {
-          selection = { focus = Left; content = []; mode = Normal };
+          selection =
+            {
+              focus = Left;
+              content = [];
+              mode = Normal;
+              anchor_caret = Outer;
+              smart_rounded = false;
+            };
           relatives =
             {
               siblings =
@@ -437,7 +444,14 @@ let exercise : Exercise.t =
         };
       correct_impl =
         {
-          selection = { focus = Left; content = []; mode = Normal };
+          selection =
+            {
+              focus = Left;
+              content = [];
+              mode = Normal;
+              anchor_caret = Outer;
+              smart_rounded = false;
+            };
           relatives =
             {
               siblings =
@@ -1262,7 +1276,14 @@ let exercise : Exercise.t =
         {
           tests =
             {
-              selection = { focus = Right; content = []; mode = Normal };
+              selection =
+                {
+                  focus = Right;
+                  content = [];
+                  mode = Normal;
+                  anchor_caret = Outer;
+                  smart_rounded = false;
+                };
               relatives =
                 {
                   siblings =
@@ -1629,7 +1650,14 @@ let exercise : Exercise.t =
         };
       your_impl =
         {
-          selection = { focus = Left; content = []; mode = Normal };
+          selection =
+            {
+              focus = Left;
+              content = [];
+              mode = Normal;
+              anchor_caret = Outer;
+              smart_rounded = false;
+            };
           relatives =
             {
               siblings =
@@ -1941,7 +1969,14 @@ let exercise : Exercise.t =
           {
             impl =
               {
-                selection = { focus = Left; content = []; mode = Normal };
+                selection =
+                  {
+                    focus = Left;
+                    content = [];
+                    mode = Normal;
+                    anchor_caret = Outer;
+                    smart_rounded = false;
+                  };
                 relatives =
                   {
                     siblings =
@@ -2279,7 +2314,14 @@ let exercise : Exercise.t =
           {
             impl =
               {
-                selection = { focus = Left; content = []; mode = Normal };
+                selection =
+                  {
+                    focus = Left;
+                    content = [];
+                    mode = Normal;
+                    anchor_caret = Outer;
+                    smart_rounded = false;
+                  };
                 relatives =
                   {
                     siblings =
@@ -2617,7 +2659,14 @@ let exercise : Exercise.t =
           {
             impl =
               {
-                selection = { focus = Left; content = []; mode = Normal };
+                selection =
+                  {
+                    focus = Left;
+                    content = [];
+                    mode = Normal;
+                    anchor_caret = Outer;
+                    smart_rounded = false;
+                  };
                 relatives =
                   {
                     siblings =
@@ -3704,7 +3753,14 @@ let exercise : Exercise.t =
         {
           tests =
             {
-              selection = { focus = Left; content = []; mode = Normal };
+              selection =
+                {
+                  focus = Left;
+                  content = [];
+                  mode = Normal;
+                  anchor_caret = Outer;
+                  smart_rounded = false;
+                };
               relatives =
                 {
                   siblings =

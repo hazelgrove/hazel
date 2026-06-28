@@ -666,7 +666,7 @@ else r)|},
     `Quick,
     () => {
       let sel_l = (n: int): list(Action.t) =>
-        List.init(n, _ => Action.Select(Resize(Local(Left, ByChar))));
+        List.init(n, _ => Action.Select(Resize(Local(Left, ByToken))));
       let z =
         Test_Editing.mk(
           "if a then if b then if c then 1¦ else 2 else 3 else 4",
@@ -697,7 +697,7 @@ else r)|},
     `Quick,
     () => {
       let sel_l = (n: int): list(Action.t) =>
-        List.init(n, _ => Action.Select(Resize(Local(Left, ByChar))));
+        List.init(n, _ => Action.Select(Resize(Local(Left, ByToken))));
       let z =
         Test_Editing.mk("if true then let x = 1 in x¦ else 0")
         |> Test_Editing.perform(
@@ -726,7 +726,7 @@ else r)|},
     `Quick,
     () => {
       let sel_l = (n: int): list(Action.t) =>
-        List.init(n, _ => Action.Select(Resize(Local(Left, ByChar))));
+        List.init(n, _ => Action.Select(Resize(Local(Left, ByToken))));
       let z =
         Test_Editing.mk("fun x -> if true then let y = 1 in y¦ else 0")
         |> Test_Editing.perform(
@@ -809,7 +809,7 @@ let wrap_reassociate_tests = [
        * The inserted ( should pair with existing ),
        * and inserted ) should pair with existing (. */
       let sel_l = (n: int): list(Action.t) =>
-        List.init(n, _ => Action.Select(Resize(Local(Left, ByChar))));
+        List.init(n, _ => Action.Select(Resize(Local(Left, ByToken))));
       let z =
         Test_Editing.mk("(1, 2, 3)¦")
         |> Test_Editing.perform(
@@ -842,7 +842,7 @@ let wrap_reassociate_tests = [
     () => {
       /* [1, 2, §3]¦] — select "3]" and wrap in brackets. */
       let sel_l = (n: int): list(Action.t) =>
-        List.init(n, _ => Action.Select(Resize(Local(Left, ByChar))));
+        List.init(n, _ => Action.Select(Resize(Local(Left, ByToken))));
       let z =
         Test_Editing.mk("[1, 2, 3]¦")
         |> Test_Editing.perform(
