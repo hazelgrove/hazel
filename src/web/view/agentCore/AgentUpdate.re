@@ -349,7 +349,7 @@ let enabled_tools =
 // Exponential backoff
 let backoff_ms = (attempt: int): float => 1000.0 *. 2.0 ** float(attempt);
 
-let chat_naming_model_id = "google/gemini-2.0-flash-lite-001";
+let chat_naming_model_id = "google/gemini-3-flash-preview";
 
 let request_chat_name =
     (
