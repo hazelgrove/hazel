@@ -281,7 +281,7 @@ module Utils = {
       message) is the only honored breakpoint, and it already caches ~93% of the
       payload. This code is kept correct-and-ready: under native-Anthropic routing
       (which honors per-block `cache_control` on all roles) it would immediately
-      cache the full history. See `docs/prompt-caching-findings.md`.
+      cache the full history. See `agent-docs/prompt-caching-findings.md`.
 
       Rendered by [[OpenRouter.Message.Utils.json_of_message]] (stripped for
       non-allowlisted models in [[OpenRouter.Payload.Utils.json_of_payload]]). */
