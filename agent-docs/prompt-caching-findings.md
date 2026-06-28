@@ -55,6 +55,29 @@ root cause, and open next steps._
 
 ---
 
+## 0.5 Plain-English version (for anyone)
+
+Why Claude's chat history won't cache through OpenRouter today, and the fix:
+
+- Now: we talk to Claude in "OpenAI language."
+- Claude's caching ignores history written in that language.
+- Only the system prompt gets cached.
+- Other endpoint: talk in Claude's "native language."
+- Same OpenRouter, different door + different phrasing.
+- In native language, caching listens to everything.
+- So the whole chat history caches.
+- Cost: we write a second translator for Claude.
+- Worth it mainly for long conversations.
+
+And how the other providers behave:
+
+- Gemini, OpenAI, DeepSeek, Grok: cache **automatically** — no markers from us.
+- They decide what to cache; we saw Gemini do it **inconsistently** but free.
+- Only **Claude** needs us to place markers by hand.
+- That manual marking is the part OpenRouter's default door breaks.
+
+---
+
 ## 1. Background: how prompt caching works
 
 Caching is a **strict prefix match** over the fully-rendered request. The render order is:
@@ -326,7 +349,19 @@ unrealized upside is smaller than the intuition "cache more = cheaper" suggests.
 
 ---
 
-## 6. Cross-provider caching matrix (OpenRouter)
+## 6. Which models have caching (and how)
+
+**Quick answer — who caches on OpenRouter:**
+
+- ✅ **Automatic, no work from us** (caches on its own): **OpenAI**, **Google Gemini**, **DeepSeek**,
+  **Grok (xAI)**, **Moonshot**, **Groq (Kimi)**. We just send the request; the provider caches
+  repeated prefixes itself. (Gemini was inconsistent in our tests, but free.)
+- ✍️ **Explicit — we must place `cache_control` markers**: **Anthropic (Claude)**, **Alibaba Qwen**,
+  **Google Gemini (standard / non-2.5)**. This is the manual path, and the one OpenRouter's
+  OpenAI-compat door breaks for non-`system` messages (the whole subject of this doc).
+- ❌ **No caching**: any provider/model that offers none — you pay full input price every request.
+
+**Pricing detail:**
 
 | Provider | Mechanism | Min size | Write | Read |
 |---|---|---|---|---|
@@ -337,7 +372,8 @@ unrealized upside is smaller than the intuition "cache more = cheaper" suggests.
 | **DeepSeek / Grok / Moonshot / Groq** | automatic / implicit | — | free | discounted |
 
 Auto-caching providers ignore (don't error on) the `cache_control` field; OpenRouter strips it for
-non-allowlisted providers in our code regardless.
+non-allowlisted providers in our code regardless. **Takeaway:** most models "just cache" for free;
+**Claude is the one that needs manual markers** — which is exactly why it's the hard case here.
 
 ---
 
