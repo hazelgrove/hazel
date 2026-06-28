@@ -9,6 +9,35 @@ type domain =
 
 let is_float_pi = value => abs_float(value -. Float.pi) < 0.000001;
 
+let is_real_builtin = name => name == "sin" || name == "cos" || name == "tan";
+
+let rec requires_reals = (d: Language.DHExp.t) =>
+  switch (Language.Exp.term_of(d |> Language.DHExp.strip_ascriptions)) {
+  | Parens(exp)
+  | Asc(exp, _) => requires_reals(exp)
+  | Atom(Float(_)) => true
+  | Var("pi") => true
+  | BuiltinFun(name) => is_real_builtin(name)
+  | BinOp(Language.Operators.Float(_), _, _) => true
+  | BinOp(_, arg1, arg2) => requires_reals(arg1) || requires_reals(arg2)
+  | UnOp(Language.Operators.Float(_), _) => true
+  | UnOp(_, exp) => requires_reals(exp)
+  | Ap(_, fn, arg) => requires_reals(fn) || requires_reals(arg)
+  | _ => false
+  };
+
+let rec real_nat_exponent = (d: Language.DHExp.t) =>
+  switch (Language.Exp.term_of(d |> Language.DHExp.strip_ascriptions)) {
+  | Parens(exp)
+  | Asc(exp, _) => real_nat_exponent(exp)
+  | Atom(Int(n))
+  | Atom(Nat(n)) => Bigint.to_int(n)
+  | Atom(SInt(n)) when n >= 0 => Some(n)
+  | Atom(Float(value)) when value >= 0.0 && value == Float.round(value) =>
+    Some(int_of_float(value))
+  | _ => None
+  };
+
 let real_float_op_to_string = op =>
   switch (op) {
   | Language.Operators.Plus => "+"
@@ -134,6 +163,17 @@ let string_of_d_reals = (d: Language.DHExp.t) => {
     switch (Language.Exp.term_of(d)) {
     | Parens(exp) => loop(exp)
     | Asc(exp, _) => loop(exp)
+    | BinOp(
+        Int(Power) | Nat(Power) | SInt(Power) | Float(Power),
+        arg1,
+        arg2,
+      ) =>
+      switch (real_nat_exponent(arg2)) {
+      | Some(2) => "Rsqr (" ++ loop(arg1) ++ ")"
+      | Some(n) => "(" ++ loop(arg1) ++ " ^ " ++ string_of_int(n) ++ ")"
+      | None =>
+        failwith("unsupported non-literal real exponent in Coq real export")
+      }
     | BinOp(op, arg1, arg2) =>
       "("
       ++ loop(arg1)

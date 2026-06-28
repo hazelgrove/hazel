@@ -28,6 +28,9 @@ let int_exp = RewriteChecker.int_exp;
 let plus_exp = RewriteChecker.plus_exp;
 let times_exp = RewriteChecker.times_exp;
 
+let power_exp_with_op = (op, base, exponent) =>
+  Exp.fresh(BinOp(op, base, exponent));
+
 let rule_by_id = rule_id =>
   Axioms.rewrite_groups
   |> List.filter_map(group => Axioms.rewrite_rule_by_id(group, rule_id))
@@ -41,6 +44,14 @@ let allowed_rule_ids = level =>
   allowed_rules(level) |> List.map((rule: Axioms.rewrite_rule) => rule.id);
 
 let int_constant = exp => RewriteChecker.int_constant(strip(exp));
+
+let is_power_op =
+  fun
+  | Operators.Int(Operators.Power)
+  | Nat(Power)
+  | SInt(Power)
+  | Float(Power) => true
+  | _ => false;
 
 let rec has_hole = exp =>
   switch (strip(exp).term) {
@@ -148,6 +159,48 @@ let small_multiplication_permutations = exp => {
     : [];
 };
 
+let positive_literal_splits = exponent =>
+  switch (int_constant(exponent)) {
+  | Some(value) =>
+    switch (Bigint.to_int(value)) {
+    | Some(value) when value > 1 =>
+      List.init(
+        value - 1,
+        index => {
+          let left = index + 1;
+          let right = value - left;
+          (int_exp(Bigint.of_int(left)), int_exp(Bigint.of_int(right)));
+        },
+      )
+    | _ => []
+    }
+  | _ => []
+  };
+
+let positive_literal_factor_splits = exponent =>
+  switch (int_constant(exponent)) {
+  | Some(value) =>
+    switch (Bigint.to_int(value)) {
+    | Some(value) when value > 1 =>
+      List.init(value - 2, index => index + 2)
+      |> List.filter_map(left =>
+           value mod left == 0
+             ? {
+               let right = value / left;
+               right > 1
+                 ? Some((
+                     int_exp(Bigint.of_int(left)),
+                     int_exp(Bigint.of_int(right)),
+                   ))
+                 : None;
+             }
+             : None
+         )
+    | _ => []
+    }
+  | _ => []
+  };
+
 let apply_rule_at_root = (rule_id, exp: Exp.t): list(Exp.t) => {
   let exp = strip(exp);
   switch (rule_id, exp.term) {
@@ -174,6 +227,26 @@ let apply_rule_at_root = (rule_id, exp: Exp.t): list(Exp.t) => {
       RewriteChecker.plus_exp_with_op(
         op,
         RewriteChecker.plus_exp_with_op(op, a, b),
+        c,
+      ),
+    ]
+  | ("arith.mul_assoc", BinOp(op, {term: BinOp(inner_op, a, b), _}, c))
+      when
+        RewriteChecker.is_times_op(op)
+        && RewriteChecker.is_times_op(inner_op) => [
+      RewriteChecker.times_exp_with_op(
+        op,
+        a,
+        RewriteChecker.times_exp_with_op(op, b, c),
+      ),
+    ]
+  | ("arith.mul_assoc", BinOp(op, a, {term: BinOp(inner_op, b, c), _}))
+      when
+        RewriteChecker.is_times_op(op)
+        && RewriteChecker.is_times_op(inner_op) => [
+      RewriteChecker.times_exp_with_op(
+        op,
+        RewriteChecker.times_exp_with_op(op, a, b),
         c,
       ),
     ]
@@ -251,6 +324,34 @@ let apply_rule_at_root = (rule_id, exp: Exp.t): list(Exp.t) => {
       ]
     | _ => []
     }
+  | ("alg.power_add", BinOp(power_op, base, exponent))
+      when is_power_op(power_op) =>
+    let syntactic_splits =
+      switch (strip(exponent).term) {
+      | BinOp(plus_op, left_exp, right_exp)
+          when RewriteChecker.is_plus_op(plus_op) => [
+          (strip(left_exp), strip(right_exp)),
+        ]
+      | _ => []
+      };
+    syntactic_splits
+    @ positive_literal_splits(exponent)
+    |> List.map(((left_exp, right_exp)) =>
+         times_exp(
+           power_exp_with_op(power_op, base, left_exp),
+           power_exp_with_op(power_op, base, right_exp),
+         )
+       );
+  | ("alg.power_mul", BinOp(power_op, base, exponent))
+      when is_power_op(power_op) =>
+    positive_literal_factor_splits(exponent)
+    |> List.map(((left_exp, right_exp)) =>
+         power_exp_with_op(
+           power_op,
+           power_exp_with_op(power_op, base, left_exp),
+           right_exp,
+         )
+       )
   | _ =>
     TrigRewrite.apply_rule_at_root(rule_id, exp)
     |> List.map((rewrite: TrigRewrite.rewrite) => rewrite.after_exp)

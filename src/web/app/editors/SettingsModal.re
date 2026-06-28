@@ -94,6 +94,12 @@ let view =
           settings.show_hidden_steps,
           Evaluation(ShowHiddenSteps),
         ),
+        setting(
+          "↝",
+          "suggest rewrites",
+          settings.suggest_rewrites,
+          Evaluation(SuggestRewrites),
+        ),
       ]
       @ extra,
     ),

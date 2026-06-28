@@ -127,6 +127,7 @@ module View = {
            (RewriteChecker.trace_summary, int, Exp.t, Exp.t) =>
            Ui_effect.t(unit),
         ~rewrite_level: Axioms.rewrite_level,
+        ~show_mode_warning: bool,
         model: Model.t,
       ) => {
     let unpacked_rewrites =
@@ -235,7 +236,7 @@ module View = {
         (),
       ),
     ]
-    @ mode_warning
+    @ (show_mode_warning ? mode_warning : [])
     @ trig_section
     @ List.map(
         (am: AssumptionBox.Model.t) =>

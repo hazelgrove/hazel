@@ -112,6 +112,11 @@ let arithmetic_rewrite_group = {
       prover_hints: [lean("rw [add_assoc]")],
     },
     {
+      id: "arith.mul_assoc",
+      label: "associate multiplication",
+      prover_hints: [lean("rw [mul_assoc]")],
+    },
+    {
       id: "arith.add_zero",
       label: "remove additive identity",
       prover_hints: [lean("rw [add_zero, zero_add]")],
@@ -169,6 +174,16 @@ let algebra_rewrite_group = {
       id: "alg.expand_polynomial",
       label: "expand polynomial product",
       prover_hints: [lean("rw [mul_add, add_mul]")],
+    },
+    {
+      id: "alg.power_add",
+      label: "split power over exponent addition",
+      prover_hints: [lean("rw [pow_add]")],
+    },
+    {
+      id: "alg.power_mul",
+      label: "split power over exponent multiplication",
+      prover_hints: [lean("rw [pow_mul]")],
     },
     {
       id: "alg.collect_like_terms",

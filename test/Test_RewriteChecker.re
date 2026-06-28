@@ -529,6 +529,28 @@ let sample_axiom_search_distribution_export_chain = () => {
   sample_written_step_export_chain(~source, ~target, ~trace);
 };
 
+let sample_axiom_search_add_reorder_export_chain = () => {
+  let source =
+    plus(plus(plus(Exp.int(1), Exp.int(2)), Exp.int(3)), Exp.int(4));
+  let target =
+    plus(plus(plus(Exp.int(4), Exp.int(3)), Exp.int(2)), Exp.int(1));
+  let result =
+    switch (
+      Web.AxiomSearch.search(
+        ~level=Axioms.Arithmetic,
+        ~max_depth=4,
+        ~log=false,
+        source,
+        target,
+      )
+    ) {
+    | Some(result) => result
+    | None => fail("expected axiom search addition reorder proof")
+    };
+  let trace = Web.AxiomSearch.trace_summary(result);
+  sample_written_step_export_chain(~source, ~target, ~trace);
+};
+
 let sample_trig_sin_sum_export_chain = () => {
   let x = Exp.var("x");
   let y = Exp.var("y");
@@ -551,6 +573,98 @@ let sample_trig_sin_sum_export_chain = () => {
     ) {
     | Some(result) => result
     | None => fail("expected trig sin-sum export proof")
+    };
+  let trace = Web.AxiomSearch.trace_summary(result);
+  sample_written_step_export_chain(~source, ~target, ~trace);
+};
+
+let sample_trig_sin_double_export_chain = () => {
+  let x = Exp.var("x");
+  let source = builtin_sin(times(Exp.int(2), x));
+  let target = times(times(Exp.int(2), builtin_cos(x)), builtin_sin(x));
+  let result =
+    switch (
+      Web.AxiomSearch.search(
+        ~level=Axioms.Trigonometry,
+        ~max_depth=2,
+        ~allowed_rule_ids=["trig.sin_double", "arith.reorder_mul_factors"],
+        ~log=false,
+        source,
+        target,
+      )
+    ) {
+    | Some(result) => result
+    | None => fail("expected trig sine double-angle export proof")
+    };
+  let trace = Web.AxiomSearch.trace_summary(result);
+  sample_written_step_export_chain(~source, ~target, ~trace);
+};
+
+let sample_trig_power_split_export_chain = () => {
+  let x = Exp.var("x");
+  let sin_x = builtin_sin(x);
+  let sin_x2 = power(sin_x, Exp.int(2));
+  let source =
+    plus(Exp.int(1), times(Exp.int(2), power(sin_x, Exp.int(4))));
+  let target = plus(Exp.int(1), times(times(Exp.int(2), sin_x2), sin_x2));
+  let result =
+    switch (
+      Web.AxiomSearch.search(
+        ~level=Axioms.Trigonometry,
+        ~max_depth=2,
+        ~allowed_rule_ids=["alg.power_add", "arith.mul_assoc"],
+        ~log=false,
+        source,
+        target,
+      )
+    ) {
+    | Some(result) => result
+    | None => fail("expected trig power split export proof")
+    };
+  let trace = Web.AxiomSearch.trace_summary(result);
+  sample_written_step_export_chain(~source, ~target, ~trace);
+};
+
+let sample_trig_power_nested_export_chain = () => {
+  let x = Exp.var("x");
+  let sin_x = builtin_sin(x);
+  let sin_x2 = power(sin_x, Exp.int(2));
+  let source =
+    plus(Exp.int(1), times(Exp.int(2), power(sin_x, Exp.int(4))));
+  let target =
+    plus(Exp.int(1), times(Exp.int(2), power(sin_x2, Exp.int(2))));
+  let result =
+    switch (
+      Web.AxiomSearch.search(
+        ~level=Axioms.Trigonometry,
+        ~max_depth=1,
+        ~allowed_rule_ids=["alg.power_mul"],
+        ~log=false,
+        source,
+        target,
+      )
+    ) {
+    | Some(result) => result
+    | None => fail("expected trig nested power export proof")
+    };
+  let trace = Web.AxiomSearch.trace_summary(result);
+  sample_written_step_export_chain(~source, ~target, ~trace);
+};
+
+let sample_trig_rule_export_chain = (~rule_id, ~source, ~target) => {
+  let result =
+    switch (
+      Web.AxiomSearch.search(
+        ~level=Axioms.Trigonometry,
+        ~max_depth=1,
+        ~allowed_rule_ids=[rule_id],
+        ~log=false,
+        source,
+        target,
+      )
+    ) {
+    | Some(result) => result
+    | None => fail("expected trig export proof for " ++ rule_id)
     };
   let trace = Web.AxiomSearch.trace_summary(result);
   sample_written_step_export_chain(~source, ~target, ~trace);
@@ -1339,6 +1453,229 @@ let tests = (
           | _ => fail("expected one search step")
           };
         | None => fail("expected algebra axiom search proof")
+        };
+      },
+    ),
+    test_case(
+      "axiom search splits exponent addition for any base expression",
+      `Quick,
+      () => {
+        let base = plus(Exp.var("x"), Exp.int(1));
+        let from_ = power(base, plus(Exp.int(2), Exp.int(3)));
+        let to_ = times(power(base, Exp.int(2)), power(base, Exp.int(3)));
+        let result =
+          Web.AxiomSearch.search(
+            ~level=Algebra,
+            ~max_depth=1,
+            ~allowed_rule_ids=["alg.power_add"],
+            ~log=false,
+            from_,
+            to_,
+          );
+        switch (result) {
+        | Some(result) =>
+          check(int, "one search step", 1, result.steps |> List.length);
+          switch (result.steps) {
+          | [step] =>
+            check(string, "rule", "alg.power_add", step.rule_id);
+            check_exp_equal("local before", from_, step.before_exp);
+            check_exp_equal("local after", to_, step.after_exp);
+          | _ => fail("expected one power-add search step")
+          };
+        | None => fail("expected exponent addition split proof")
+        };
+      },
+    ),
+    test_case(
+      "axiom search splits literal powers for trig bases",
+      `Quick,
+      () => {
+        let x = Exp.var("x");
+        let base = builtin_sin(x);
+        let from_ =
+          plus(Exp.int(1), times(Exp.int(2), power(base, Exp.int(4))));
+        let to_ =
+          plus(
+            Exp.int(1),
+            times(
+              Exp.int(2),
+              times(power(base, Exp.int(2)), power(base, Exp.int(2))),
+            ),
+          );
+        let result =
+          Web.AxiomSearch.search(
+            ~level=Trigonometry,
+            ~max_depth=1,
+            ~allowed_rule_ids=["alg.power_add"],
+            ~log=false,
+            from_,
+            to_,
+          );
+        switch (result) {
+        | Some(result) =>
+          check(int, "one search step", 1, result.steps |> List.length);
+          switch (result.steps) {
+          | [step] =>
+            check(string, "rule", "alg.power_add", step.rule_id);
+            check_exp_equal(
+              "local before",
+              power(base, Exp.int(4)),
+              step.before_exp,
+            );
+            check_exp_equal(
+              "local after",
+              times(power(base, Exp.int(2)), power(base, Exp.int(2))),
+              step.after_exp,
+            );
+          | _ => fail("expected one literal power split step")
+          };
+        | None => fail("expected literal exponent split proof")
+        };
+      },
+    ),
+    test_case(
+      "axiom search splits literal powers at arbitrary additive exponent split",
+      `Quick,
+      () => {
+        let base = Exp.var("x");
+        let from_ = power(base, Exp.int(4));
+        let to_ = times(power(base, Exp.int(1)), power(base, Exp.int(3)));
+        let result =
+          Web.AxiomSearch.search(
+            ~level=Algebra,
+            ~max_depth=1,
+            ~allowed_rule_ids=["alg.power_add"],
+            ~log=false,
+            from_,
+            to_,
+          );
+        switch (result) {
+        | Some(result) =>
+          check(int, "one search step", 1, result.steps |> List.length);
+          switch (result.steps) {
+          | [step] =>
+            check(string, "rule", "alg.power_add", step.rule_id);
+            check_exp_equal("local before", from_, step.before_exp);
+            check_exp_equal("local after", to_, step.after_exp);
+          | _ => fail("expected one additive literal power split step")
+          };
+        | None => fail("expected additive literal exponent split proof")
+        };
+      },
+    ),
+    test_case(
+      "axiom search splits literal powers into nested powers",
+      `Quick,
+      () => {
+        let base = Exp.var("x");
+        let from_ = power(base, Exp.int(4));
+        let to_ = power(power(base, Exp.int(2)), Exp.int(2));
+        let result =
+          Web.AxiomSearch.search(
+            ~level=Algebra,
+            ~max_depth=1,
+            ~allowed_rule_ids=["alg.power_mul"],
+            ~log=false,
+            from_,
+            to_,
+          );
+        switch (result) {
+        | Some(result) =>
+          check(int, "one search step", 1, result.steps |> List.length);
+          switch (result.steps) {
+          | [step] =>
+            check(string, "rule", "alg.power_mul", step.rule_id);
+            check_exp_equal("local before", from_, step.before_exp);
+            check_exp_equal("local after", to_, step.after_exp);
+          | _ => fail("expected one multiplicative literal power split step")
+          };
+        | None => fail("expected nested literal exponent split proof")
+        };
+      },
+    ),
+    test_case(
+      "axiom search splits trig literal powers into nested powers in context",
+      `Quick,
+      () => {
+        let x = Exp.var("x");
+        let base = builtin_sin(x);
+        let from_ =
+          plus(Exp.int(1), times(Exp.int(2), power(base, Exp.int(4))));
+        let to_ =
+          plus(
+            Exp.int(1),
+            times(
+              Exp.int(2),
+              power(power(base, Exp.int(2)), Exp.int(2)),
+            ),
+          );
+        let result =
+          Web.AxiomSearch.search(
+            ~level=Trigonometry,
+            ~max_depth=1,
+            ~allowed_rule_ids=["alg.power_mul"],
+            ~log=false,
+            from_,
+            to_,
+          );
+        switch (result) {
+        | Some(result) =>
+          check(int, "one search step", 1, result.steps |> List.length);
+          switch (result.steps) {
+          | [step] =>
+            check(string, "rule", "alg.power_mul", step.rule_id);
+            check_exp_equal(
+              "local before",
+              power(base, Exp.int(4)),
+              step.before_exp,
+            );
+            check_exp_equal(
+              "local after",
+              power(power(base, Exp.int(2)), Exp.int(2)),
+              step.after_exp,
+            );
+          | _ => fail("expected one nested trig power split step")
+          };
+        | None => fail("expected nested trig literal exponent split proof")
+        };
+      },
+    ),
+    test_case(
+      "axiom search splits literal powers with UI multiplication association",
+      `Quick,
+      () => {
+        let x = Exp.var("x");
+        let base = builtin_sin(x);
+        let squared = power(base, Exp.int(2));
+        let from_ =
+          plus(Exp.int(1), times(Exp.int(2), power(base, Exp.int(4))));
+        let to_ =
+          plus(Exp.int(1), times(times(Exp.int(2), squared), squared));
+        let result =
+          Web.AxiomSearch.search(
+            ~level=Trigonometry,
+            ~max_depth=2,
+            ~allowed_rule_ids=["alg.power_add", "arith.mul_assoc"],
+            ~log=false,
+            from_,
+            to_,
+          );
+        switch (result) {
+        | Some(result) =>
+          check(int, "two search steps", 2, result.steps |> List.length);
+          check(
+            string,
+            "first rule",
+            "alg.power_add",
+            List.nth(result.steps, 0).rule_id,
+          );
+          check(
+            string,
+            "second rule",
+            "arith.mul_assoc",
+            List.nth(result.steps, 1).rule_id,
+          );
+        | None => fail("expected literal exponent split plus reassociation")
         };
       },
     ),
@@ -2747,6 +3084,49 @@ let tests = (
       },
     ),
     test_case(
+      "stepper coq export dumps axiom search addition reorder proof",
+      `Quick,
+      () => {
+        let export =
+          switch (
+            Web.StepperBase.Stepper.export_coq(
+              sample_axiom_search_add_reorder_export_chain(),
+            )
+          ) {
+          | Some(export) => export
+          | None => fail("expected axiom search addition reorder export")
+          };
+        write_text_file(
+          "/tmp/hazel_stepper_axiom_search_add_reorder.v",
+          export,
+        );
+        check(
+          bool,
+          "exports search label",
+          true,
+          string_contains("Hazel written step: bounded axiom search", export),
+        );
+        check(
+          bool,
+          "exports addition reorder rule",
+          true,
+          string_contains("arith.reorder_add_terms", export),
+        );
+        check(
+          bool,
+          "exports no ring tactic",
+          false,
+          string_contains("ring.", export),
+        );
+        check(
+          bool,
+          "prints without ERROR",
+          false,
+          string_contains("ERROR", export),
+        );
+      },
+    ),
+    test_case(
       "stepper coq export dumps trig proof over reals",
       `Quick,
       () => {
@@ -2764,7 +3144,10 @@ let tests = (
           bool,
           "imports narrow trig prelude",
           true,
-          string_contains("Require Import Rbase Rtrigo1 Cos_plus", export),
+          string_contains(
+            "Require Import Rbase Rfunctions Rtrigo1 Cos_plus",
+            export,
+          ),
         );
         check(
           bool,
@@ -2791,6 +3174,301 @@ let tests = (
           false,
           string_contains("ERROR", export),
         );
+      },
+    ),
+    test_case(
+      "stepper coq export dumps trig double-angle proof over reals",
+      `Quick,
+      () => {
+        let export =
+          switch (
+            Web.StepperBase.Stepper.export_coq(
+              sample_trig_sin_double_export_chain(),
+            )
+          ) {
+          | Some(export) => export
+          | None => fail("expected trig double-angle export")
+          };
+        write_text_file("/tmp/hazel_stepper_trig_sin_double.v", export);
+        check(
+          bool,
+          "imports narrow trig prelude",
+          true,
+          string_contains(
+            "Require Import Rbase Rfunctions Rtrigo1 Cos_plus",
+            export,
+          ),
+        );
+        check(
+          bool,
+          "exports sine double-angle breadcrumb",
+          true,
+          string_contains("trig.sin_double", export),
+        );
+        check(
+          bool,
+          "exports multiplication reorder breadcrumb",
+          true,
+          string_contains("arith.reorder_mul_factors", export),
+        );
+        check(
+          bool,
+          "uses Coq sine double-angle lemma",
+          true,
+          string_contains("sin_2a", export),
+        );
+        check(
+          bool,
+          "prints without ERROR",
+          false,
+          string_contains("ERROR", export),
+        );
+      },
+    ),
+    test_case(
+      "stepper coq export dumps trig power split proof over reals",
+      `Quick,
+      () => {
+        let export =
+          switch (
+            Web.StepperBase.Stepper.export_coq(
+              sample_trig_power_split_export_chain(),
+            )
+          ) {
+          | Some(export) => export
+          | None => fail("expected trig power split export")
+          };
+        write_text_file("/tmp/hazel_stepper_trig_power_split.v", export);
+        check(
+          bool,
+          "exports power split breadcrumb",
+          true,
+          string_contains("alg.power_add", export),
+        );
+        check(
+          bool,
+          "exports multiplication association breadcrumb",
+          true,
+          string_contains("arith.mul_assoc", export),
+        );
+        check(
+          bool,
+          "prints without ERROR",
+          false,
+          string_contains("ERROR", export),
+        );
+      },
+    ),
+    test_case(
+      "stepper coq export dumps trig nested power proof over reals",
+      `Quick,
+      () => {
+        let export =
+          switch (
+            Web.StepperBase.Stepper.export_coq(
+              sample_trig_power_nested_export_chain(),
+            )
+          ) {
+          | Some(export) => export
+          | None => fail("expected trig nested power split export")
+          };
+        write_text_file("/tmp/hazel_stepper_trig_power_nested.v", export);
+        check(
+          bool,
+          "exports nested power split breadcrumb",
+          true,
+          string_contains("alg.power_mul", export),
+        );
+        check(
+          bool,
+          "prints without ERROR",
+          false,
+          string_contains("ERROR", export),
+        );
+      },
+    ),
+    test_case(
+      "stepper coq export dumps core trig identity fixtures over reals",
+      `Quick,
+      () => {
+        let x = Exp.var("x");
+        let y = Exp.var("y");
+        let two = Exp.int(2);
+        let sin_x = builtin_sin(x);
+        let cos_x = builtin_cos(x);
+        let sin_y = builtin_sin(y);
+        let cos_y = builtin_cos(y);
+        let tan_x = tan(x);
+        let sin_x2 = power(sin_x, two);
+        let cos_x2 = power(cos_x, two);
+        let pi = Exp.var("pi");
+        let pi_over_two = divide(pi, two);
+        [
+          (
+            "pythagorean",
+            "trig.pythagorean_sin_cos",
+            plus(sin_x2, cos_x2),
+            Exp.int(1),
+            "sin2_cos2",
+            "/tmp/hazel_stepper_trig_pythagorean.v",
+          ),
+          (
+            "pythagorean swapped",
+            "trig.pythagorean_cos_sin",
+            plus(cos_x2, sin_x2),
+            Exp.int(1),
+            "sin2_cos2",
+            "/tmp/hazel_stepper_trig_pythagorean_swapped.v",
+          ),
+          (
+            "cos squared",
+            "trig.cos_squared_pythagorean",
+            cos_x2,
+            minus(Exp.int(1), sin_x2),
+            "cos2",
+            "/tmp/hazel_stepper_trig_cos_squared.v",
+          ),
+          (
+            "sin squared",
+            "trig.sin_squared_pythagorean",
+            sin_x2,
+            minus(Exp.int(1), cos_x2),
+            "sin2",
+            "/tmp/hazel_stepper_trig_sin_squared.v",
+          ),
+          (
+            "sin difference",
+            "trig.sin_diff",
+            builtin_sin(minus(x, y)),
+            minus(times(sin_x, cos_y), times(cos_x, sin_y)),
+            "sin_minus",
+            "/tmp/hazel_stepper_trig_sin_diff.v",
+          ),
+          (
+            "cos sum",
+            "trig.cos_sum",
+            builtin_cos(plus(x, y)),
+            minus(times(cos_x, cos_y), times(sin_x, sin_y)),
+            "cos_plus",
+            "/tmp/hazel_stepper_trig_cos_sum.v",
+          ),
+          (
+            "cos difference",
+            "trig.cos_diff",
+            builtin_cos(minus(x, y)),
+            plus(times(cos_x, cos_y), times(sin_x, sin_y)),
+            "cos_minus",
+            "/tmp/hazel_stepper_trig_cos_diff.v",
+          ),
+          (
+            "cos double square",
+            "trig.cos_double_square",
+            builtin_cos(times(two, x)),
+            minus(cos_x2, sin_x2),
+            "cos_2a",
+            "/tmp/hazel_stepper_trig_cos_double_square.v",
+          ),
+          (
+            "cos double cos",
+            "trig.cos_double_cos",
+            builtin_cos(times(two, x)),
+            minus(times(two, cos_x2), Exp.int(1)),
+            "cos_2a_cos",
+            "/tmp/hazel_stepper_trig_cos_double_cos.v",
+          ),
+          (
+            "cos double sin",
+            "trig.cos_double_sin",
+            builtin_cos(times(two, x)),
+            minus(Exp.int(1), times(two, sin_x2)),
+            "cos_2a_sin",
+            "/tmp/hazel_stepper_trig_cos_double_sin.v",
+          ),
+          (
+            "sin cofunction",
+            "trig.sin_cofunction",
+            builtin_sin(minus(pi_over_two, x)),
+            cos_x,
+            "sin_shift",
+            "/tmp/hazel_stepper_trig_sin_cofunction.v",
+          ),
+          (
+            "cos cofunction",
+            "trig.cos_cofunction",
+            builtin_cos(minus(pi_over_two, x)),
+            sin_x,
+            "cos_shift",
+            "/tmp/hazel_stepper_trig_cos_cofunction.v",
+          ),
+          (
+            "sin reflection",
+            "trig.sin_pi_sub",
+            builtin_sin(minus(pi, x)),
+            sin_x,
+            "sin_PI_x",
+            "/tmp/hazel_stepper_trig_sin_pi_sub.v",
+          ),
+          (
+            "sin negative",
+            "trig.sin_neg",
+            builtin_sin(negate(x)),
+            negate(sin_x),
+            "sin_neg",
+            "/tmp/hazel_stepper_trig_sin_neg.v",
+          ),
+          (
+            "cos negative",
+            "trig.cos_neg",
+            builtin_cos(negate(x)),
+            cos_x,
+            "cos_neg",
+            "/tmp/hazel_stepper_trig_cos_neg.v",
+          ),
+          (
+            "tan negative",
+            "trig.tan_neg",
+            tan(negate(x)),
+            negate(tan_x),
+            "tan_neg",
+            "/tmp/hazel_stepper_trig_tan_neg.v",
+          ),
+        ]
+        |> List.iter(((name, rule_id, source, target, lemma_name, path)) => {
+             let export =
+               switch (
+                 Web.StepperBase.Stepper.export_coq(
+                   sample_trig_rule_export_chain(~rule_id, ~source, ~target),
+                 )
+               ) {
+               | Some(export) => export
+               | None => fail("expected trig fixture export for " ++ name)
+               };
+             write_text_file(path, export);
+             check(
+               bool,
+               name ++ " exports rule id",
+               true,
+               string_contains(rule_id, export),
+             );
+             check(
+               bool,
+               name ++ " exports Coq lemma",
+               true,
+               string_contains(lemma_name, export),
+             );
+             check(
+               bool,
+               name ++ " does not print Hazel power syntax",
+               false,
+               string_contains("**", export),
+             );
+             check(
+               bool,
+               name ++ " prints without ERROR",
+               false,
+               string_contains("ERROR", export),
+             );
+           });
       },
     ),
   ],

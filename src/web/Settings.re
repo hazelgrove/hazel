@@ -51,6 +51,7 @@ module Model = {
         show_hidden_steps: true,
         write_out_steps: false,
         enable_proof: true,
+        suggest_rewrites: true,
         project_tables: false,
       },
     },
@@ -135,6 +136,7 @@ module Update = {
     | ShowFilters
     | ShowSettings
     | WriteOutSteps
+    | SuggestRewrites
     | ShowHiddenSteps
     | ProjectTables;
 
@@ -309,6 +311,10 @@ module Update = {
           | WriteOutSteps => {
               ...evaluation,
               write_out_steps: !evaluation.write_out_steps,
+            }
+          | SuggestRewrites => {
+              ...evaluation,
+              suggest_rewrites: !evaluation.suggest_rewrites,
             }
           };
         {

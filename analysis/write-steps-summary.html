@@ -393,6 +393,7 @@
           <a class="toc-sub" href="#current-search-export-flow">Search And Export Flow</a>
           <a class="toc-sub" href="#current-coq-demo-cases">Current Coq Demo Cases</a>
           <a href="#unified-planner-plan">Unified Planner Plan</a>
+          <a class="toc-sub" href="#proof-rule-metadata">Proof Rule Metadata</a>
         </nav>
       </aside>
     <main>
@@ -817,8 +818,15 @@ x + 3 - x  ==  3</code></pre>
               <td>Use arithmetic while distributing, factoring, or cancelling.</td>
             </tr>
             <tr>
+              <td><code>Trigonometry</code></td>
+              <td><code>arithmetic + algebra + trigonometry</code></td>
+              <td>
+                Use arithmetic and algebra around sin/cos/tan identity rewrites.
+              </td>
+            </tr>
+            <tr>
               <td><code>Functions/lists</code></td>
-              <td><code>arithmetic + algebra + functions/lists</code></td>
+              <td><code>all earlier groups + functions/lists</code></td>
               <td>
                 Use numeric simplification inside unfold, beta, map, and fold
                 rewrites.
@@ -841,7 +849,7 @@ x + 3 - x  ==  3</code></pre>
           on. The UI should still expose this as two controls rather than one
           long list:
         </p>
-        <pre><code>Math level:  Arithmetic | Algebra | Functions/lists | Calculus
+        <pre><code>Math level:  Arithmetic | Algebra | Trigonometry | Functions/lists | Calculus
 Automation:  Manual | Check result | Auto eval</code></pre>
         <p>
           Implementation work should move in this order:
@@ -880,8 +888,8 @@ Automation:  Manual | Check result | Auto eval</code></pre>
 
         <h3>Current checker behavior</h3>
         <p>
-          The checker now has level-aware entry points, but only arithmetic has
-          real rewrite rules today. The active APIs are:
+          The checker now has level-aware entry points for arithmetic, algebra,
+          and trigonometry. The active APIs are:
         </p>
         <pre><code>check_written_step_at_level(~level, ...)
 check_rewrite_at_level(~level, ...)
@@ -889,10 +897,11 @@ check_rewrite_result_at_level(~level, ...)</code></pre>
         <p>
           These functions use <code>allowed_groups(level)</code> to choose which
           rewrite groups are available. The rule catalog now has
-          <code>arithmetic</code> and <code>algebra</code> groups, arithmetic has
-          executable affine checking, and Algebra now has a deliberately small
-          distribution/factoring checker. Algebra is enabled as WIP for testing,
-          but it is still not a full polynomial normalizer.
+          <code>arithmetic</code>, <code>algebra</code>, and
+          <code>trigonometry</code> groups. Arithmetic has executable affine
+          checking, Algebra has polynomial-normal-form checking plus guarded
+          local rewrites, and Trigonometry has a bounded identity-search path
+          for selected sin/cos/tan identities.
         </p>
         <table>
           <thead>
@@ -918,8 +927,17 @@ check_rewrite_result_at_level(~level, ...)</code></pre>
               </td>
             </tr>
             <tr>
+              <td><code>Trigonometry</code></td>
+              <td><code>arithmetic + algebra + trigonometry</code></td>
+              <td>
+                Accepts bounded proof-search steps for sum/difference,
+                double-angle, Pythagorean, cofunction, reflection, and negative
+                angle identities that have export mappings.
+              </td>
+            </tr>
+            <tr>
               <td><code>Functions/lists</code></td>
-              <td><code>arithmetic + algebra</code></td>
+              <td><code>arithmetic + algebra + trigonometry</code></td>
               <td>
                 Future level only; no function/list rewrite group is implemented
                 yet.
@@ -927,7 +945,7 @@ check_rewrite_result_at_level(~level, ...)</code></pre>
             </tr>
             <tr>
               <td><code>Calculus</code></td>
-              <td><code>arithmetic + algebra</code></td>
+              <td><code>arithmetic + algebra + trigonometry</code></td>
               <td>
                 Future level only; no calculus rewrite group is implemented yet.
               </td>
@@ -1242,9 +1260,14 @@ check_rewrite_result_at_level(~level, ...)</code></pre>
         <h2>Key Files</h2>
         <ul class="file-list">
           <li><code>src/web/app/editors/stepper/RewriteChecker.re</code></li>
+          <li><code>src/web/app/editors/stepper/AxiomSearch.re</code></li>
+          <li><code>src/web/app/editors/stepper/TrigRewrite.re</code></li>
+          <li><code>src/web/app/editors/stepper/CoqExport.re</code></li>
+          <li><code>src/web/app/editors/stepper/CoqProofExport.re</code></li>
           <li><code>src/web/app/editors/stepper/MissingStep.re</code></li>
           <li><code>src/web/app/editors/stepper/WrittenStep.re</code></li>
           <li><code>src/web/app/editors/stepper/StepperBase.re</code></li>
+          <li><code>src/language/proof/Axioms.re</code></li>
           <li><code>src/language/term/Reparenthesize.re</code></li>
           <li><code>src/language/dynamics/stepper/EvaluatorStep.re</code></li>
           <li><code>src/language/dynamics/Evaluator.re</code></li>
@@ -1279,8 +1302,9 @@ check_rewrite_result_at_level(~level, ...)</code></pre>
         <h2>Current Limitations</h2>
         <ul>
           <li>
-            The Hazel-native arithmetic checker is currently affine, so it does
-            not accept nonlinear symbolic expressions such as <code>x * x</code>.
+            The Hazel-native arithmetic checker is intentionally affine. Full
+            polynomial expressions such as <code>x * x</code> belong to Algebra,
+            not Arithmetic.
           </li>
           <li>
             The fallback evaluator compares final values, so it is useful for
@@ -1300,8 +1324,8 @@ check_rewrite_result_at_level(~level, ...)</code></pre>
           </li>
           <li>
             <code>Auto Eval</code> currently reifies a canonical affine result,
-            but it does not yet expose or persist the hidden rewrite sequence
-            needed for a theorem prover.
+            but broader auto-simplification still needs the same exportable
+            proof-plan trace as Proof Search.
           </li>
         </ul>
       </section>
@@ -1735,13 +1759,13 @@ type normalization_proof = {
   -> WrittenStep stored in the stepper trace
   -> StepperBase.export_coq
   -> CoqProofExport assertion replay
-  -> coq-export-YYYYMMDD-HHMMSS.v</code></pre>
+  -> coq_export_YYYYMMDD_HHMMSS.v</code></pre>
         <p>
           <code>window.HazelJSCoq</code> exists as a lazy browser-side JSCoq
-          bridge, but it is not the active checker yet. Today the trusted check
-          is still external <code>coqc</code> on the downloaded file. The next
-          JSCoq step is to send the generated Coq text to that bridge and report
-          success/failure in Hazel.
+          bridge and the UI can send generated Coq text to it. Local
+          <code>coqc</code> remains the trusted regression check, but browser
+          JSCoq is now useful as a fast smoke test when its assets are served
+          from <code>/jscoq</code>.
         </p>
 
         <h3>Exporter Policy</h3>
@@ -1770,7 +1794,7 @@ type normalization_proof = {
         </p>
         <p>
           Downloaded Coq files now use compact Coq-safe names such as
-          <code>coq-export-20260615-103245.v</code>, avoiding browser duplicate
+          <code>coq_export_20260624_155633.v</code>, avoiding browser duplicate
           filenames like <code>stepper_coq_export (2).v</code> that Coq refuses
           as module names.
         </p>
@@ -1886,6 +1910,26 @@ type normalization_proof = {
                 this macro into primitive associativity/commutativity rewrites.
               </td>
             </tr>
+            <tr>
+              <td>8. Trig identity export</td>
+              <td>
+                Examples include <code>sin(x + y)</code> to
+                <code>sin(x) * cos(y) + sin(y) * cos(x)</code> and
+                <code>sin(x) ** 2 + cos(x) ** 2</code> to <code>1</code>.
+              </td>
+              <td>
+                Generated fixtures include
+                <code>/tmp/hazel_stepper_trig_sin_sum.v</code>,
+                <code>/tmp/hazel_stepper_trig_sin_double.v</code>, and the core
+                trig identity fixture set from
+                <code>stepper coq export dumps core trig identity fixtures over reals</code>.
+              </td>
+              <td>
+                <code>coqc</code> passes for the generated trig fixtures.
+                Browser JSCoq has also passed smoke checks after serving
+                <code>/jscoq</code> assets from the built web root.
+              </td>
+            </tr>
           </tbody>
         </table>
 
@@ -1903,12 +1947,13 @@ type normalization_proof = {
           <li>
             Done: small Coq/Rocq fixture exports pass for constant folding,
             arithmetic check-result, algebraic distribution, and bounded axiom
-            search.
+            search, including the current core trig identity fixture set.
           </li>
           <li>
             Prototype: <code>AxiomSearch.re</code> performs bounded rewrite
-            search over <code>Axioms.re</code> rules, logs the trace to the
-            browser console, and feeds the same export path as write-steps.
+            search over <code>Axioms.re</code> rules and
+            <code>TrigRewrite.re</code> patterns, logs the trace to the browser
+            console, and feeds the same export path as write-steps.
           </li>
           <li>
             Prototype: <code>arith.reorder_add_terms</code> is a macro for
@@ -1932,9 +1977,15 @@ type normalization_proof = {
             a redex path or occurrence for every rule.
           </li>
           <li>
-            Next: wire <code>window.HazelJSCoq</code> to generated exports so
-            Hazel can check Coq text in-browser instead of requiring a manual
-            <code>coqc</code> command.
+            Done/prototype: <code>window.HazelJSCoq</code> can check generated
+            Coq text in-browser when the JSCoq assets are served. Keep local
+            <code>coqc</code> as the regression oracle and treat mismatches as
+            bugs.
+          </li>
+          <li>
+            Next: move Coq tactic mappings out of the exporter switch and into
+            rule/profile metadata beside the existing Lean hints in
+            <code>Axioms.re</code>.
           </li>
         </ol>
       </section>
@@ -1970,6 +2021,57 @@ type normalization_proof = {
             Keep <code>Axioms.re</code> as the source of truth for math
             level/group membership, rule ids, labels, prover hints, and whether
             a rule is primitive or macro/lowered.
+          </li>
+        </ul>
+
+        <h3 id="proof-rule-metadata">Primitive And Macro Rule Metadata</h3>
+        <p>
+          Each Hazel rewrite should eventually carry its theorem-prover
+          obligations with the rule definition. Today the branch is halfway
+          there: <code>Axioms.re</code> names rules and stores Lean hints, while
+          <code>CoqProofExport.re</code> maps the same rule ids to Coq tactics.
+          The next cleanup is to make rule/profile metadata the single source
+          of truth for every prover backend.
+        </p>
+        <pre><code>type proof_kind =
+  | Primitive({
+      prover_hints: list(prover_hint),
+    })
+  | Macro({
+      basis_rules: list(string),
+      prover_hints: list(prover_hint),
+      expansion_status: expansion_status,
+    })
+  | NonExportable(string);
+
+type expansion_status =
+  | FullyExpanded
+  | CoarseTrustedTactic
+  | PlannedOnly;</code></pre>
+        <ul>
+          <li>
+            Primitive rules correspond directly to one prover rewrite or tactic,
+            such as <code>trig.pythagorean_sin_cos</code> mapping to Coq
+            <code>rewrite sin2_cos2</code> and Lean
+            <code>rw [Real.sin_sq_add_cos_sq]</code>.
+          </li>
+          <li>
+            Macro rules represent larger visible steps such as AC reordering,
+            FOIL, polynomial collection, or auto-simplification. They must name
+            their basis rules and record whether they are fully expanded,
+            temporarily discharged by a coarse tactic, or only planned.
+          </li>
+          <li>
+            A macro proof-step instance should record the actual local path it
+            used: source, target, occurrence, macro id, and any primitive
+            substeps available. Export should prefer primitive substeps, fall
+            back only to labeled coarse tactics, and mark missing mappings as
+            non-exportable.
+          </li>
+          <li>
+            This keeps UI-level steps ergonomic while preserving a path to Coq,
+            Rocq, Lean, or another prover backend without duplicating rule
+            semantics in every exporter.
           </li>
         </ul>
 
@@ -2014,6 +2116,61 @@ type normalization_proof = {
           <li>
             Enable multiplication reorder only after coefficient collection and
             distribution interactions are handled deliberately.
+          </li>
+        </ul>
+
+        <h3>Configurable Capability Specs</h3>
+        <ul>
+          <li>
+            Treat current math levels as presets that lower to a resolved
+            capability spec before search begins.
+          </li>
+          <li>
+            The spec should name supported structures such as integers, floats,
+            variables, polynomial terms, trigonometric functions, derivative
+            forms, and AST-sensitive programming-language terms.
+          </li>
+          <li>
+            The spec should separately toggle operation families such as
+            associativity, commutativity, identity elimination, constant
+            folding, distribution, factoring, polynomial collection,
+            differentiation rules, and trig identity families.
+          </li>
+          <li>
+            Proof search, check-result normalization, and auto-simplify should
+            consume this resolved spec instead of branching directly on
+            hard-coded levels.
+          </li>
+          <li>
+            AC normalization should be a configurable primitive owned by the
+            active spec. It may use flattened and sorted internal forms for
+            planning, but accepted steps must record macro and/or primitive
+            prover breadcrumbs rather than acting as a hidden fast path.
+          </li>
+        </ul>
+
+        <h3>Item 4 Implementation Slice</h3>
+        <ul>
+          <li>
+            Add a profile resolver near <code>Axioms.re</code> that turns the
+            selected level plus future UI toggles into supported structures,
+            enabled rewrite-family ids, normalization primitives, and
+            prover-export mappings.
+          </li>
+          <li>
+            Make <code>AxiomSearch</code> and rewrite dropdowns consume that
+            resolved profile for applicability checks instead of filtering only
+            by <code>rewrite_level</code>.
+          </li>
+          <li>
+            Have normalizers return planned steps tagged with profile id,
+            rewrite-family id, primitive or macro status, occurrence, and local
+            before/after expressions.
+          </li>
+          <li>
+            Require export to resolve every recorded rule or macro through the
+            same profile metadata; missing mappings should make the step
+            non-exportable rather than falling back to an unnamed simplification.
           </li>
         </ul>
 
@@ -2071,6 +2228,41 @@ type normalization_proof = {
           </li>
         </ul>
 
+        <h3>Current TODOs</h3>
+        <ul>
+          <li>
+            Lower coarse exponent and AC-normalization macro steps into smaller
+            local rewrite breadcrumbs when possible, so export can replay
+            <code>alg.power_add</code>, <code>alg.power_mul</code>, and
+            reorder steps without relying on broad simplification.
+          </li>
+          <li>
+            Keep the current Hazel-local search as the regression backend, then
+            start a separate JSCoq/Rocq branch with a
+            <code>ProofSearchBackend</code> seam and a tactic-group backend.
+          </li>
+          <li>
+            Define tactic groups per math profile: arithmetic, algebra,
+            trigonometry, and later calculus/programming-language profiles.
+            Each group should declare allowed structures, rewrite families, and
+            prover mappings.
+          </li>
+          <li>
+            Make JSCoq/Rocq results return either primitive traces, labeled
+            collapsed macros, or rejection. Do not accept a bare "proved" result
+            without an export policy.
+          </li>
+          <li>
+            Improve trig planning with goal-directed choices such as expand,
+            reduce degree, split powers, or apply reflection identities, rather
+            than relying on raw BFS over every identity.
+          </li>
+          <li>
+            Add repeatable browser JSCoq regression coverage once the browser
+            checker is stable enough to run without manual UI smoke testing.
+          </li>
+        </ul>
+
         <h3>Assumptions</h3>
         <ul>
           <li>
@@ -2083,8 +2275,9 @@ type normalization_proof = {
             and paired with a planned primitive lowering.
           </li>
           <li>
-            JSCoq remains scaffolded only; <code>coqc</code> is the trusted
-            checker until browser checking is wired into the export flow.
+            JSCoq is available as a browser smoke checker, but local
+            <code>coqc</code> remains the trusted regression oracle until the
+            browser path is covered by repeatable tests.
           </li>
         </ul>
       </section>

@@ -241,7 +241,7 @@
           </div>
           <div class="metric">
             <strong>Near Term</strong>
-            Proof-traced arithmetic/algebra normalization in the stepper.
+            Coq-checked proof search for arithmetic, algebra, and trigonometry.
           </div>
         </div>
       </header>
@@ -254,7 +254,8 @@
           intended workflow is not a CAS transcript and not raw theorem-prover
           scripting. It is a Hazel-native, selection-driven derivation interface
           where users take meaningful symbolic steps, the checker validates
-          those steps, and completed traces can be exported to Lean or Rocq.
+          those steps, and completed traces can be exported to Coq/Rocq now,
+          with Lean kept as the next prover backend target.
         </p>
         <div class="callout">
           The implementation standard is skeptical certification: Hazel may use
@@ -322,64 +323,45 @@
             </tr>
           </tbody>
         </table>
-        <h3>After Manual Testing</h3>
+        <h3>Current Branch Status And Next Pass</h3>
         <p>
-          Resume implementation here after the current arithmetic UI is smoke
-          tested. The goal is to keep the interface simple while moving the
-          checker toward real algebra.
+          The current branch has moved past the original arithmetic smoke-test
+          stage. Arithmetic, Algebra, and Trigonometry are registered as
+          cumulative math levels; bounded proof search can produce exportable
+          traces; generated Coq files and core trig fixtures pass
+          <code>coqc</code>; and the browser JSCoq path is available as a smoke
+          checker when its assets are served.
         </p>
         <ol>
           <li>
             Keep the current setting shape: one exercise-level math automation
-            control with <code>Arithmetic</code> and <code>Algebra</code> as the
-            important near-term levels, and <code>One step</code>,
-            <code>Check result</code>, and <code>Auto simplify</code> as the
-            visible modes.
+            control with cumulative levels and explicit automation modes.
           </li>
           <li>
-            Smoke-test arithmetic before adding algebra:
-            <code>3 + x -> x + 3</code>,
-            <code>1 + 2 + x -> x + 3</code>,
-            <code>2 * x + 3 -> x + x + 3</code>,
-            <code>x + 3 - x -> 3</code>, and rejection of
-            <code>x * x -> x + x</code>.
+            Move Coq/Rocq tactic mappings into rule/profile metadata beside
+            the existing Lean hints in <code>Axioms.re</code>.
           </li>
           <li>
-            Confirm selected-subterm auto simplify still changes only the
-            selected expression, for example simplifying <code>1 + 2 + x</code>
-            inside <code>1 + 2 + x + x + 4</code>.
+            Distinguish primitive rules, macro rules, and non-exportable
+            experimental behavior in the rule catalog.
           </li>
           <li>
-            Add a real <code>algebra</code> rewrite group in
-            <code>Axioms.re</code>. It should be cumulative: algebra includes
-            all arithmetic rules automatically.
+            Expand checked fixtures for every supported trig identity and keep
+            both local <code>coqc</code> and browser JSCoq smoke checks in the
+            workflow.
           </li>
           <li>
-            Add a polynomial normalizer separate from the affine normalizer.
-            Start with sums, products, constants, variables, and small powers.
+            Replace coarse arithmetic/algebra macro steps with primitive
+            breadcrumbs where practical, starting with AC reordering and
+            polynomial collection.
           </li>
           <li>
-            Wire <code>Algebra / Check result</code> to polynomial
-            normalization. Initial accepts should include
-            <code>(x + 1) + (x + 2) -> 2 * x + 3</code>,
-            <code>2 * (x + 3) -> 2 * x + 6</code>,
-            <code>(x + 1) * (x + 2) -> x^2 + 3 * x + 2</code>,
-            <code>x * x -> x^2</code>, and
-            <code>x^2 + x + x -> x^2 + 2 * x</code>.
+            Keep side-condition-sensitive operations out of the trusted path
+            until the checker can record and export their obligations.
           </li>
           <li>
-            Keep side-condition-sensitive operations out of the first algebra
-            pass. In particular, <code>x / x -> 1</code> should reject until the
-            checker can record and export <code>x != 0</code>.
-          </li>
-          <li>
-            Wire <code>Algebra / Auto simplify</code> to selected-subterm
-            polynomial canonicalization and persist the same side-specific trace
-            summary shape used by arithmetic.
-          </li>
-          <li>
-            Only after arithmetic and algebra share the checker/trace path,
-            upgrade rule-id summaries into replayable before/after proof steps.
+            Continue using arithmetic and algebra examples as regression tests
+            while building toward the trig and calculus case studies.
           </li>
         </ol>
       </section>
@@ -389,7 +371,8 @@
         <p>
           The stepper should become the common shell for user-directed proof
           construction, automated checking, and proof-producing operations.
-          Current write-step work is the arithmetic pilot of this architecture.
+          Current write-step work is now the arithmetic/algebra/trigonometry
+          pilot of this architecture.
         </p>
         <table>
           <thead>
@@ -431,7 +414,10 @@
                 Extend <code>Axioms.re</code> with rule groups, matchers or
                 precondition descriptors, and prover-side lemma/tactic hints.
               </td>
-              <td><code>Axioms.re</code>, future matcher modules</td>
+              <td>
+                <code>Axioms.re</code>, <code>AxiomSearch.re</code>,
+                <code>TrigRewrite.re</code>, future matcher modules
+              </td>
             </tr>
             <tr>
               <td>Contextual menus</td>
@@ -464,8 +450,8 @@
                 obligation and the export records that decision.
               </td>
               <td>
-                <code>CoqExport.re</code>, future <code>LeanExport.re</code>,
-                <code>Axioms.re</code>
+                <code>CoqExport.re</code>, <code>CoqProofExport.re</code>,
+                future <code>LeanExport.re</code>, <code>Axioms.re</code>
               </td>
             </tr>
           </tbody>
@@ -522,15 +508,18 @@
             <tr>
               <td>Trigonometric identities</td>
               <td>
-                Pythagorean identities, double-angle formulas, and curated
-                bidirectional identities.
+                Pythagorean identities, sum/difference formulas, double-angle
+                formulas, cofunction/reflection identities, negative-angle
+                identities, and curated bidirectional identities.
               </td>
               <td>
-                Rule database filtered by syntactic match and explicit
-                preconditions.
+                Rule database filtered by syntactic match, active math level,
+                explicit preconditions, and export availability.
               </td>
               <td>
-                Identity lemma references in Lean/Rocq, preserving chosen path.
+                Identity lemma references in Coq/Rocq now, with Lean mappings
+                retained in rule metadata and every accepted trig fixture
+                checked by generated proof scripts.
               </td>
             </tr>
             <tr>
@@ -665,15 +654,18 @@
               </td>
               <td>
                 Pythagorean identities, double-angle identities, angle-sum
+                identities, cofunction/reflection identities, negative-angle
                 identities, and curated bidirectional substitutions.
               </td>
               <td>
                 Identity menu filtered by selected expression; optional
-                direction choice when a rule can rewrite both ways.
+                direction choice when a rule can rewrite both ways; bounded
+                proof search for the supported identity families.
               </td>
               <td>
                 Prefer explicit identity lemma references. Do not hide the
-                choice of identity inside a generic simplify tactic.
+                choice of identity inside a generic simplify tactic. Current
+                generated Coq fixtures cover the core supported trig identities.
               </td>
             </tr>
             <tr>
@@ -904,10 +896,11 @@
             </tr>
             <tr>
               <td>Later</td>
-              <td>Trig, calculus, programming forms, linear algebra</td>
+              <td>Calculus, programming forms, linear algebra</td>
               <td>
-                Leave as design targets and type/API extension points. Do not
-                spend implementation time on their rule databases yet.
+                Leave as design targets and type/API extension points. Trig is
+                no longer purely future work; calculus and later groups should
+                reuse the trig proof-search/export shape.
               </td>
               <td>
                 Ensure group registration, automation settings, trace records,

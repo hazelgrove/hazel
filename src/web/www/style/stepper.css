@@ -313,6 +313,30 @@
   min-width: 25em;
 }
 
+.proof-search-suggestions {
+  border-top: 1px solid var(--menu-outline);
+  margin-top: 0.4em;
+  padding-top: 0.6em;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.proof-search-suggestions input {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.proof-search-suggestions .assumption-box {
+  margin-left: 0;
+}
+
+.proof-search-status {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
 .proof-mode-warning {
   color: var(--R2);
   font-weight: 600;
