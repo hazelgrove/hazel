@@ -1148,6 +1148,53 @@ let binding_source = (m: Id.Map.t(Info.t), info: Info.exp): list(child) =>
   | None => []
   };
 
+let used_constructors = (ctx: Ctx.t): list(string) =>
+  List.filter_map(
+    fun
+    | Ctx.ConstructorEntry({name, _}) => Some(name)
+    | _ => None,
+    ctx.entries,
+  );
+
+/* Ids of the sum variants of an alias body whose constructors are not used by
+   the slice (so they reconstruct as holes: `None + Some(A)` -> `? + Some(A)`). */
+let rec unused_variant_ids = (used: list(string), ty: Typ.t): Id.Set.t =>
+  switch (Typ.term_of(ty)) {
+  | Parens(t)
+  | Rec(_, t)
+  | TypFun(_, t)
+  | Poly(_, t) => unused_variant_ids(used, t)
+  | Sum(variants) =>
+    List.fold_left(
+      (acc, variant) =>
+        switch (variant) {
+        | ConstructorMap.Variant(name, ann, _) when !List.mem(name, used) =>
+          Id.Set.union(acc, ids_set(ann.ids))
+        | _ => acc
+        },
+      Id.Set.empty,
+      variants,
+    )
+  | _ => Id.Set.empty
+  };
+
+let ty_alias = (~shape: Typ.t, ~term: Exp.term, body: sty): sty => {
+  shape,
+  dispatch: query => {
+    let slice = body.dispatch(query);
+    switch (term) {
+    | TyAlias(_, utyp, _) =>
+      let omit = unused_variant_ids(used_constructors(slice.context), utyp);
+      {
+        ...slice,
+        omitted: Id.Set.union(slice.omitted, omit),
+      };
+    | _ => slice
+    };
+  },
+  finalize: () => empty_result,
+};
+
 let rec node_of_exp_info = (m: Id.Map.t(Info.t), info: Info.exp): node => {
   let id = Exp.rep_id(info.user_term);
   let children =
@@ -1336,6 +1383,13 @@ let rec node_of_exp_info = (m: Id.Map.t(Info.t), info: Info.exp): node => {
               | _ => false
               } =>
           asc(~shape=info.ty, ~term, only)
+        | (_, [], [only])
+            when
+              switch (term) {
+              | TyAlias(_, _, _) => true
+              | _ => false
+              } =>
+          ty_alias(~shape=info.ty, ~term, only)
         | (_, [], [only]) => only
         | (_, [], [_, ..._] as kept) => prod(kept)
         | _ => source(~id, info.ty)
