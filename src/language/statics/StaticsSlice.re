@@ -1489,6 +1489,13 @@ let child_omit =
   switch (Id.Map.find_opt(child_id, m)) {
   | Some(Info.InfoPat({user_term, _})) =>
     pat_side_omit(~keep_head, user_term)
+  | Some(Info.InfoExp({user_term, _})) when keep_head =>
+    switch (Exp.term_of(user_term)) {
+    | Constructor(_, _)
+    | Label(_)
+    | ExplicitNonlabel => Id.Set.empty
+    | _ => Id.Set.singleton(child_id)
+    }
   | _ => Id.Set.singleton(child_id)
   };
 
@@ -1496,10 +1503,15 @@ let child_side_ids =
     (path: Id.Set.t, m: Id.Map.t(Info.t), id: Id.t): Id.Set.t =>
   switch (Id.Map.find_opt(id, m)) {
   | Some(Info.InfoExp({user_term, _})) =>
+    let keep_head =
+      switch (Exp.term_of(user_term)) {
+      | Ap(_, _, _) => true
+      | _ => false
+      };
     exp_child_ids(user_term)
     |> List.filter(child_id => !on_path(path, child_id))
-    |> List.map(child_omit(~keep_head=false, m))
-    |> List.fold_left(Id.Set.union, Id.Set.empty)
+    |> List.map(child_omit(~keep_head, m))
+    |> List.fold_left(Id.Set.union, Id.Set.empty);
   | Some(Info.InfoPat({user_term, _})) =>
     pat_child_ids(user_term)
     |> List.filter(child_id => !on_path(path, child_id))
@@ -1663,7 +1675,7 @@ let annotation_omissions_for_path =
   Id.Map.fold(
     (_, info, acc) =>
       switch (info) {
-      | Info.InfoExp({user_term, _}) =>
+      | Info.InfoExp({user_term, ctx, _}) =>
         switch (Exp.term_of(user_term)) {
         | Asc(e, ty)
             when
@@ -1685,13 +1697,20 @@ let annotation_omissions_for_path =
               ) =>
           switch (pat_annotation(pat)) {
           | Some(ty) =>
+            let redundant =
+              switch (exp_constructor_head(def)) {
+              | Some(name) => constructor_alias_count(ctx, name) <= 1
+              | None => false
+              };
             Id.Set.union(
               acc,
-              typ_omissions(
-                ty,
-                exp_annotation_query(path, focus, def, ty, focus_query),
-              ),
-            )
+              redundant
+                ? typ_omissions(ty, gap)
+                : typ_omissions(
+                    ty,
+                    exp_annotation_query(path, focus, def, ty, focus_query),
+                  ),
+            );
           | None => acc
           }
         | _ => acc
