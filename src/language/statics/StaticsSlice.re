@@ -880,30 +880,6 @@ let if_ = (~shape: Typ.t, children: list(sty)): sty => {
   finalize: () => empty_result,
 };
 
-let match_ = (~shape: Typ.t, ~term: Exp.term, children: list(sty)): sty => {
-  shape,
-  dispatch: query => {
-    let branch_slice =
-      switch (children) {
-      | [branch] => branch.dispatch(query)
-      | _ => empty_result
-      };
-    let pattern_ids =
-      switch (term) {
-      | Match(_, rules) =>
-        rules
-        |> List.map(((p, _)) => ids_set(IdTagged.ids(p)))
-        |> List.fold_left(Id.Set.union, Id.Set.empty)
-      | _ => Id.Set.empty
-      };
-    {
-      ...branch_slice,
-      omitted: Id.Set.union(branch_slice.omitted, pattern_ids),
-    };
-  },
-  finalize: () => empty_result,
-};
-
 let node_of = (~id, ~ids, ty): node => {
   id,
   ids,
@@ -1195,6 +1171,49 @@ let ty_alias = (~shape: Typ.t, ~term: Exp.term, body: sty): sty => {
   finalize: () => empty_result,
 };
 
+let match_ = (~shape: Typ.t, ~term: Exp.term, children: list(sty)): sty => {
+  shape,
+  dispatch: query => {
+    let (scrut, branch_slice) =
+      switch (children) {
+      | [scrut, branch] => (Some(scrut), branch.dispatch(query))
+      | [branch] => (None, branch.dispatch(query))
+      | _ => (None, empty_result)
+      };
+    switch (term) {
+    | Match(_, [(pat, _), ...rest]) =>
+      let names = Pat.bound_vars(pat);
+      let demand = {
+        let d = pattern_demand(pat, branch_slice.gamma);
+        demand_is_gap(d) ? gap : d;
+      };
+      let scrut_slice =
+        switch (scrut) {
+        | Some(s) => s.dispatch(demand)
+        | None => empty_result
+        };
+      let other_pattern_ids =
+        rest
+        |> List.map(((p, _)) => ids_set(IdTagged.ids(p)))
+        |> List.fold_left(Id.Set.union, Id.Set.empty);
+      let combined = results_join([scrut_slice, branch_slice]);
+      {
+        omitted:
+          Id.Set.union(
+            Id.Set.union(combined.omitted, pattern_omissions(pat, demand)),
+            other_pattern_ids,
+          ),
+        gamma: gamma_discharge(combined.gamma, names),
+        context: combined.context,
+        psi: branch_slice.psi,
+        ana: branch_slice.ana,
+      };
+    | _ => branch_slice
+    };
+  },
+  finalize: () => empty_result,
+};
+
 let rec node_of_exp_info = (m: Id.Map.t(Info.t), info: Info.exp): node => {
   let id = Exp.rep_id(info.user_term);
   let children =
@@ -1312,7 +1331,7 @@ let rec node_of_exp_info = (m: Id.Map.t(Info.t), info: Info.exp): node => {
               | _ => false
               } =>
           if_(~shape=info.ty, kept)
-        | (_, [], [_] as kept)
+        | (_, [], [_, ..._] as kept)
             when
               switch (term) {
               | Match(_, _) => true

@@ -52,6 +52,18 @@ let binding_synthesis = [
     "type T = A(Int) + ? in case A(?) | A(x) => x | ? => ? end",
   ),
   synthesis_case(
+    "match-reverse-tuple-pat",
+    "case (1, 2) | (x, y) => x end",
+    "Int",
+    "case (1, ?) | (x, ?) => x end",
+  ),
+  synthesis_case(
+    "match-reverse-var-pat",
+    "case (1, 2) | x => x end",
+    "(Int, ?)",
+    "case (1, ?) | x => x end",
+  ),
+  synthesis_case(
     "bind-recursive-value",
     "let loop(n : Int) : Int = loop(n) in loop",
     "Int -> Int",

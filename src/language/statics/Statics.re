@@ -2314,7 +2314,7 @@ and uexp_to_info_map =
         m,
       );
     | Match(scrut, rules) =>
-      let& (scrut, scrut_elab, m) = go(~ana=syn, scrut, m);
+      let* (scrut, scrut_elab, m) = go(~ana=syn, scrut, m);
       let (ps, es) = List.split(rules);
       let branch_ids = List.map(Exp.rep_id, es);
       let (ps', _) =
