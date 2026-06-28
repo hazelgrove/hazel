@@ -264,23 +264,38 @@ module Utils = {
   };
 
   /** OpenRouter messages for the main agent with the advancing prompt-cache
-      breakpoint applied: [cache_anchor] is set on the last history message — the
-      one immediately before the volatile context snapshot (or the final message
-      when no snapshot is appended). The snapshot, when present, is always last
-      (it converts to a [Some] system message), so anchoring index [n - 2] lands
-      on the message just before it. Combined with the static dev-notes anchor in
-      [[Message.Utils.mk_developer_notes_message]], this caches the growing
-      history prefix every request while leaving the snapshot unmarked. The marker
-      is rendered by [[OpenRouter.Message.Utils.json_of_message]] (and stripped for
-      non-Anthropic models in [[OpenRouter.Payload.Utils.json_of_payload]]). */
+      breakpoint applied.
+
+      The breakpoint must sit on a message role OpenRouter honors for Anthropic
+      `cache_control`: per OpenRouter's docs that is **system** or **user** only.
+      We empirically confirmed (via [[OpenRouter.CacheDiag]]) that a marker on a
+      `tool` result message is silently dropped — so anchoring on "the last
+      history message before the snapshot" (usually a tool result in an agentic
+      loop) never produced a cache write. We therefore anchor on the **last user
+      message** instead. This caches everything up to the latest user turn and
+      grows across turns; tool-loop results that accumulate *after* the last user
+      message within a single turn stay uncached pending a deeper fix (delivering
+      tool results as user messages, or native-Anthropic routing). Combined with
+      the static dev-notes floor in [[Message.Utils.mk_developer_notes_message]].
+      Rendered by [[OpenRouter.Message.Utils.json_of_message]] (stripped for
+      non-allowlisted models in [[OpenRouter.Payload.Utils.json_of_payload]]). */
   let api_messages_for_openrouter =
       (chat: Model.t): list(OpenRouter.Message.Model.t) => {
     let msgs = api_messages_of_messages(messages_for_openrouter(chat));
-    let n = List.length(msgs);
-    let anchor_idx = Option.is_some(chat.context) ? n - 2 : n - 1;
-    if (anchor_idx < 0) {
-      msgs;
-    } else {
+    let is_user = (m: OpenRouter.Message.Model.t) =>
+      switch (m.role) {
+      | OpenRouter.Message.Model.User => true
+      | _ => false
+      };
+    let (_, last_user_idx) =
+      List.fold_left(
+        ((i, acc), m) => (i + 1, is_user(m) ? Some(i) : acc),
+        (0, None),
+        msgs,
+      );
+    switch (last_user_idx) {
+    | None => msgs
+    | Some(anchor_idx) =>
       List.mapi(
         (i, m: OpenRouter.Message.Model.t) =>
           i == anchor_idx
@@ -290,7 +305,7 @@ module Utils = {
             }
             : m,
         msgs,
-      );
+      )
     };
   };
 

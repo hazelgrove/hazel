@@ -598,7 +598,16 @@ let prompt_caching_tests = [
         Chat.Utils.append(Message.Utils.mk_user_message("hello"), chat);
       let chat = {
         ...chat,
-        context: Some(Message.Utils.mk_user_message("SNAPSHOT_BODY")),
+        context:
+          Some(
+            Message.Utils.mk_context_message(
+              ~session_mode=AgentGlobals.Model.Converse,
+              "SNAPSHOT_BODY",
+              "",
+              "",
+              "",
+            ),
+          ),
       };
       let msgs = Chat.Utils.api_messages_for_openrouter(chat);
       check_int("prompt+dev+user+snapshot", 4, List.length(msgs));
@@ -628,7 +637,16 @@ let prompt_caching_tests = [
         Chat.Utils.append(Message.Utils.mk_user_message("hello"), chat);
       let chat = {
         ...chat,
-        context: Some(Message.Utils.mk_user_message("SNAPSHOT_BODY")),
+        context:
+          Some(
+            Message.Utils.mk_context_message(
+              ~session_mode=AgentGlobals.Model.Converse,
+              "SNAPSHOT_BODY",
+              "",
+              "",
+              "",
+            ),
+          ),
       };
       let payload =
         OpenRouter.Payload.Utils.mk_default(
@@ -662,7 +680,16 @@ let prompt_caching_tests = [
         Chat.Utils.append(Message.Utils.mk_user_message("hello"), chat);
       let chat = {
         ...chat,
-        context: Some(Message.Utils.mk_user_message("SNAPSHOT_BODY")),
+        context:
+          Some(
+            Message.Utils.mk_context_message(
+              ~session_mode=AgentGlobals.Model.Converse,
+              "SNAPSHOT_BODY",
+              "",
+              "",
+              "",
+            ),
+          ),
       };
       let payload =
         OpenRouter.Payload.Utils.mk_default(
@@ -692,7 +719,16 @@ let prompt_caching_tests = [
         Chat.Utils.append(Message.Utils.mk_user_message("hello"), chat);
       let chat = {
         ...chat,
-        context: Some(Message.Utils.mk_user_message("SNAPSHOT_BODY")),
+        context:
+          Some(
+            Message.Utils.mk_context_message(
+              ~session_mode=AgentGlobals.Model.Converse,
+              "SNAPSHOT_BODY",
+              "",
+              "",
+              "",
+            ),
+          ),
       };
       let breakpoints = (model_id: string): int => {
         let payload =
