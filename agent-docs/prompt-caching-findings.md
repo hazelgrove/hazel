@@ -71,8 +71,10 @@ Why Claude's chat history won't cache through OpenRouter today, and the fix:
 
 And how the other providers behave:
 
-- Gemini, OpenAI, DeepSeek, Grok: cache **automatically** — no markers from us.
-- They decide what to cache; we saw Gemini do it **inconsistently** but free.
+- Gemini, OpenAI, DeepSeek, Grok: cache **automatically**, no markers from us.
+- And it's prefix-based, so it covers the whole history (not just the system prompt).
+- So the history caching we fought for on Claude is basically **free** on OpenAI.
+- (OpenAI: confirmed/reliable. Gemini: works but flaky. Others: probably, unverified.)
 - Only **Claude** needs us to place markers by hand.
 - That manual marking is the part OpenRouter's default door breaks.
 
@@ -353,27 +355,47 @@ unrealized upside is smaller than the intuition "cache more = cheaper" suggests.
 
 **Quick answer — who caches on OpenRouter:**
 
-- ✅ **Automatic, no work from us** (caches on its own): **OpenAI**, **Google Gemini**, **DeepSeek**,
-  **Grok (xAI)**, **Moonshot**, **Groq (Kimi)**. We just send the request; the provider caches
-  repeated prefixes itself. (Gemini was inconsistent in our tests, but free.)
+- ✅ **Automatic, no work from us** (caches on its own): **OpenAI**, **Google Gemini (2.5)**,
+  **DeepSeek**, **Grok (xAI)**, **Moonshot**, **Groq (Kimi)**. We just send the request; the provider
+  caches repeated prefixes itself.
 - ✍️ **Explicit — we must place `cache_control` markers**: **Anthropic (Claude)**, **Alibaba Qwen**,
   **Google Gemini (standard / non-2.5)**. This is the manual path, and the one OpenRouter's
   OpenAI-compat door breaks for non-`system` messages (the whole subject of this doc).
-- ❌ **No caching**: any provider/model that offers none — you pay full input price every request.
+- ❌ **No caching**: open-weight models (**Llama**, **Mistral**) have none of their own — whether
+  their prompts cache depends entirely on the serving host (Groq, Together, Fireworks, …), so it
+  varies by provider, not by model.
+
+**Important: automatic caching is *prefix-based*, so it covers conversation history — not just the
+system prompt.** This is the key thing to understand: the auto-cachers match the *longest repeated
+prefix* of the request, and your growing chat history *is* part of that prefix (as long as the
+volatile content sits at the end). So **the full-history caching we could not get for Claude through
+OpenRouter is automatic and free on these providers.** Reliability, calibrated:
+
+- **OpenAI — confirmed & reliable.** Their docs explicitly cover "long multi-turn conversation
+  history" via longest-prefix matching (1,024+ tokens), and their own guidance is "static content
+  first, variable content last" — exactly our layout (volatile snapshot last).
+  ([OpenAI prompt caching docs](https://developers.openai.com/api/docs/guides/prompt-caching))
+- **Gemini (2.5 implicit) — real but flaky.** Same prefix idea, but best-effort; in our own harness
+  `cache_read` went `0 → 15,364 → 0` on consecutive requests. Not guaranteed.
+- **DeepSeek / Grok / Moonshot / Groq — prefix-based automatic, almost certainly similar to OpenAI**,
+  but we did **not** individually verify each; treat as "probably yes, unverified."
+- **One catch for all of them (same as Claude):** strict prefix match — any mid-history edit
+  (compaction, re-rendering) breaks it. Append-only history (what we do) is fine.
 
 **Pricing detail:**
 
 | Provider | Mechanism | Min size | Write | Read |
 |---|---|---|---|---|
 | **Anthropic** | explicit `cache_control` (what we use) | 1,024–4,096 tok by model | 1.25× (5-min) / 2× (1-hr) | 0.1× |
-| **Google Gemini** | explicit (Gemini standard) / implicit (2.5) | model-specific | input + storage | discounted |
+| **OpenAI** | automatic / implicit, prefix-based (covers history) | 1,024 tok | **free** | 0.25×–0.5× |
+| **Google Gemini** | explicit (standard) / implicit prefix (2.5) | model-specific | input + storage | discounted |
 | **Alibaba Qwen** | explicit `cache_control` | — | charged multiplier | discounted |
-| **OpenAI** | automatic / implicit | 1,024 tok | **free** | 0.25×–0.5× |
-| **DeepSeek / Grok / Moonshot / Groq** | automatic / implicit | — | free | discounted |
+| **DeepSeek / Grok / Moonshot / Groq** | automatic / implicit, prefix-based | — | free | discounted |
 
 Auto-caching providers ignore (don't error on) the `cache_control` field; OpenRouter strips it for
-non-allowlisted providers in our code regardless. **Takeaway:** most models "just cache" for free;
-**Claude is the one that needs manual markers** — which is exactly why it's the hard case here.
+non-allowlisted providers in our code regardless. **Takeaway:** most models cache history for free,
+automatically. **Claude is the outlier that needs manual markers — and OpenRouter's default door
+breaks those markers — which is the entire reason history caching is hard *only* for Claude.**
 
 ---
 
@@ -456,7 +478,8 @@ Ranked by effort/realism:
 - [4] [OpenRouter — Prompt Caching (best practices)](https://openrouter.ai/docs/guides/best-practices/prompt-caching) — shows `cache_control` examples on system + user (user does **not** hold in practice — §4)
 - [5] [OpenRouter — Anthropic Skin / Claude Code setup](https://openrouter.ai/blog/tutorials/claude-code-openrouter/) — the Anthropic Messages-API-compatible endpoint (`ANTHROPIC_BASE_URL=https://openrouter.ai/api`) that "passes advanced features through untouched"; the §8 remedy
 - [6] [OpenRouter — Anthropic models](https://openrouter.ai/anthropic)
-- [7] [PromptHub — provider caching comparison](https://www.prompthub.us/blog/prompt-caching-with-openai-anthropic-and-google-models)
+- [7] [OpenAI — Prompt Caching docs](https://developers.openai.com/api/docs/guides/prompt-caching) — automatic, longest-prefix, explicitly covers multi-turn conversation history
+- [7b] [PromptHub — provider caching comparison](https://www.prompthub.us/blog/prompt-caching-with-openai-anthropic-and-google-models)
 - [8] [DigitalApplied — Prompt Caching in 2026](https://www.digitalapplied.com/blog/prompt-caching-2026-cut-llm-costs-engineering-guide) (practitioner guide)
 - [9] [OpenRouter Gemini caching announcement](https://x.com/OpenRouterAI/status/1914699401127157933)
 - [10] [litellm #15345 — "move cache_control to content blocks for claude/gemini"](https://github.com/BerriAI/litellm/pull/15345)
