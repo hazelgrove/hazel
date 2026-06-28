@@ -1,2 +1,84 @@
 // Analysis slicing tests
-let tests = ("Statics.Slicing.Analysis", []);
+open Test_Statics_Slicing_Prelude;
+
+let examples = [
+  analysis_case(
+    ~focus=e => pat_var(e, "x"),
+    "ana-fun-param-ann",
+    "fun (x : Int) -> 1",
+    "Int",
+    "fun (? : Int) -> ?",
+  ),
+  analysis_case(
+    ~ctx=ctx_var("f", "Int -> Bool"),
+    ~focus=first_int,
+    ~assumptions=[("f", "Int -> ?")],
+    "ana-app-arg",
+    "f(1)",
+    "Int",
+    "f(?)",
+  ),
+  analysis_case(
+    ~ctx=ctx_var("f", "Int -> Bool"),
+    ~focus=e => exp_var(e, "f"),
+    ~assumptions=[("f", "? -> Bool")],
+    "ana-app-function",
+    "(f(1) : Bool)",
+    "Bool",
+    "(f(?) : Bool)",
+  ),
+  analysis_case(
+    ~focus=first_int,
+    "ana-ascription-inner",
+    "(1 : Int)",
+    "Int",
+    "(? : Int)",
+  ),
+  analysis_case(
+    ~focus=first_int,
+    "ana-tuple-element",
+    "((1, true) : (Int, Bool))",
+    "Int",
+    "((?, ?) : (Int, ?))",
+  ),
+  analysis_case(
+    ~focus=first_int,
+    "ana-list-element",
+    "([1] : [Int])",
+    "Int",
+    "([?] : [Int])",
+  ),
+  analysis_case(
+    ~ctx=ctx_var("c", "Bool"),
+    ~focus=first_int,
+    "ana-if-branch",
+    "(if c then 1 else 2) : Int",
+    "Int",
+    "(if ? then ? else ?) : Int",
+  ),
+  analysis_case(
+    ~ctx=prelude_ctx("type T = A + B in"),
+    ~focus=first_int,
+    "ana-match-branch",
+    "(case A | A => 1 | B => 2 end) : Int",
+    "Int",
+    "(case ? | ? => ? | ? => ? end) : Int",
+  ),
+  analysis_case(~focus=first_int, "ana-op-operand", "1 + 2", "Int", "? + ?"),
+  analysis_case(
+    ~focus=first_binop,
+    "ana-test-body",
+    "test 1 == 1 end",
+    "Bool",
+    "test ? end",
+  ),
+  analysis_case(
+    ~focus=first_bool,
+    "ana-filter-body",
+    "(hide 1 in true) : Bool",
+    "Bool",
+    "(hide ? in ?) : Bool",
+  ),
+];
+
+let tests = ("Statics.Slicing.Analysis", examples);
