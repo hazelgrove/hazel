@@ -9,8 +9,10 @@ root cause, and open next steps._
 - **2026-06-18** — Phase 2 (advancing history breakpoint) implemented.
 - **2026-06-23/28** — Built a diagnostic harness; **proved Phase 2 is blocked by OpenRouter's
   OpenAI-compat path** for the message role our breakpoint landed on (tool results).
-- **2026-06-28** — Correction: OpenRouter docs *do* support `cache_control` on **user** messages;
-  experiment in progress to re-anchor on user messages.
+- **2026-06-28** — Tested re-anchoring on **user** messages (OpenRouter docs show user-message
+  support). **Failed** — OpenRouter drops `cache_control` on `user` too. **Definitive: only
+  `system` breakpoints are honored on OpenRouter+Anthropic; cumulative history caching needs
+  native-Anthropic routing.**
 
 ---
 
@@ -30,8 +32,12 @@ root cause, and open next steps._
   In that translation, `cache_control` is honored on **system** and **user** messages but **dropped
   on `tool` (tool-result) messages** — which is exactly where our advancing breakpoint landed in an
   agentic tool loop.
-- **Status:** experiment in progress to move the advancing breakpoint onto the **last user message**
-  (a role OpenRouter documents as supported). If it works, we recover cross-turn history caching.
+- **Status (resolved):** we tested moving the advancing breakpoint onto the **last user message**
+  (a role OpenRouter documents as supported). **It also failed** — OpenRouter drops `cache_control`
+  on `user` messages too. **Definitive conclusion: only `system` breakpoints work on
+  OpenRouter+Anthropic.** Cumulative history caching requires **native-Anthropic routing**; until
+  then, the floor (Phase 1, ~93%) is the achievable ceiling and the advancing breakpoint is a
+  correct-but-dormant no-op.
 
 ---
 
@@ -242,33 +248,40 @@ fails.
 
 ---
 
-## 4. Current experiment (in progress)
+## 4. Experiment: user-message anchor — **FAILED** (2026-06-28)
 
-**Hypothesis:** anchoring the advancing breakpoint on the **last user message** (a documented,
-supported role) instead of the tool result will let cumulative history cache.
+**Hypothesis:** OpenRouter's docs show `cache_control` examples on **user** messages, so anchoring
+the advancing breakpoint on the **last user message** (instead of the tool result) might let
+cumulative history cache.
 
-**Change:** `Chat.api_messages_for_openrouter` now sets `cache_anchor` on the **last user message**
-in the request rather than the last message before the snapshot.
+**Change:** `Chat.api_messages_for_openrouter` was temporarily switched to set `cache_anchor` on the
+last **user** message, then a **multi-turn** conversation was run on `anthropic/claude-sonnet-4.6`
+with the harness on.
 
-**Expected behavior:**
-- ✅ Caches everything up to the latest user turn; **grows across user turns** (the main
-  long-conversation win).
-- ⚠️ Tool-loop results that accumulate *after* the last user message within a single turn stay
-  uncached — because they're `tool` messages. So a **single-turn, tool-heavy** run (like the fib
-  test) will *not* show growth; you must test **multi-turn** (send a message, let it finish, send
-  another) and watch `cache_read` climb across turns.
+**Result — it did not work.** Harness output (multi-turn, advancing user-message anchor):
+```
+breakpoints=[1,2]   common_prefix=0ch      cache_read=22293  cache_creation=null
+breakpoints=[1,6]   common_prefix=43988ch  cache_read=22293  cache_creation=null
+breakpoints=[1,12]  common_prefix=44782ch  cache_read=22293  cache_creation=null
+```
+The advancing breakpoint advanced across turns onto **user** messages (index 2 → 6 → 12), the common
+prefix grew append-only, yet **`cache_read` stayed pinned at the system floor (22,293) and
+`cache_creation` was null** — no write, no incremental read. **So OpenRouter drops `cache_control` on
+`user` messages too**, despite the user-message example in its own documentation.
 
-**How to verify:** set `CacheDiag.log := true` (currently on for this experiment), run a **multi-turn**
-conversation on `anthropic/claude-sonnet-4.6` with DevTools console open, and read the `CACHE_DIAG`
-lines:
-- `cache_read` climbing above the floor across turns → **user-anchor works**, recover cross-turn caching.
-- `cache_read` still flat → user-anchor also dropped; fall back to floor-only.
+**Conclusion (definitive).** On OpenRouter + Anthropic, **only `system`-message breakpoints are
+honored** — empirically confirmed for `tool` (§3.6) *and* `user` (here). **Cumulative history caching
+is not achievable through OpenRouter's OpenAI-compat path with any non-system breakpoint.** The
+documented user-message support does not hold in this routing path. We reverted to the canonical spec
+design (advancing breakpoint on the last history message), which is a **no-op on OpenRouter** but
+correct and ready to activate under native-Anthropic routing.
 
-**If it works**, the deeper fix for the *intra-turn tool loop* (the dominant cost pattern in this
-app) is to deliver **tool results as `user` messages** containing `tool_result` content blocks
-(Anthropic's native shape) instead of `role: "tool"` — so the accumulating tool history sits on a
-supported role. That is a larger, riskier protocol change and is deferred until the user-anchor
-result is in.
+**Only remaining path to cumulative history caching: native-Anthropic routing** (§8.4) — bypass
+OpenRouter's OpenAI-compat translation so per-block `cache_control` on all roles is honored.
+
+**Side finding (separate bug):** the chat-title generator hard-codes
+`google/gemini-2.0-flash-lite-001`, which now 404s on OpenRouter (`"No endpoints found"`). Harmless to
+the chat (it's a side request) but the auto-naming is broken; swap it for a live model.
 
 ---
 
@@ -319,14 +332,17 @@ non-allowlisted providers in our code regardless.
 
 ## 8. Open questions / next steps
 
-1. **(Active) Does user-message anchoring cache cross-turn history on OpenRouter+Anthropic?** —
-   verify via the harness on a multi-turn run.
-2. **Do `assistant` messages honor `cache_control` on OpenRouter?** — undocumented; testable with the
-   harness if needed.
-3. **Tool-result-as-user-message** — deliver tool results in Anthropic's native `user` + `tool_result`
-   shape so the intra-turn tool loop caches. Larger change; gated on (1).
-4. **Native-Anthropic routing** — bypass OpenRouter's OpenAI-compat path entirely (separate
-   endpoint/key) so per-block `cache_control` on all roles is honored. Most reliable, most work.
+1. ~~Does user-message anchoring cache cross-turn history on OpenRouter?~~ **Answered: no (§4).**
+   OpenRouter drops `cache_control` on `user` (and `tool`); only `system` is honored.
+2. **Native-Anthropic routing** — the only known path to cumulative history caching: bypass
+   OpenRouter's OpenAI-compat path entirely (separate endpoint/key) so per-block `cache_control` on
+   all roles is honored. The advancing-breakpoint code is already correct and would activate
+   immediately. Most reliable, most work.
+3. **(Long-shot) System-boundary marker** — insert a stable `system` message at the history/snapshot
+   boundary carrying the breakpoint (system is the only honored role). Likely also dropped — Anthropic
+   traditionally only allows top-level system, and mid-conversation system is a newer beta — but
+   cheap to test with the harness.
+4. **Fix the chat-title generator** — `google/gemini-2.0-flash-lite-001` 404s; swap for a live model.
 5. **1-hour TTL** for >5-min think-gaps; confirm OpenRouter's real read rate on an invoice.
 
 ---

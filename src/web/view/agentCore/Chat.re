@@ -264,38 +264,35 @@ module Utils = {
   };
 
   /** OpenRouter messages for the main agent with the advancing prompt-cache
-      breakpoint applied.
+      breakpoint applied: [cache_anchor] is set on the last history message —
+      the one immediately before the volatile context snapshot (or the final
+      message when no snapshot is appended). Combined with the static dev-notes
+      floor in [[Message.Utils.mk_developer_notes_message]], this is the canonical
+      spec design for caching the growing history prefix.
 
-      The breakpoint must sit on a message role OpenRouter honors for Anthropic
-      `cache_control`: per OpenRouter's docs that is **system** or **user** only.
-      We empirically confirmed (via [[OpenRouter.CacheDiag]]) that a marker on a
-      `tool` result message is silently dropped — so anchoring on "the last
-      history message before the snapshot" (usually a tool result in an agentic
-      loop) never produced a cache write. We therefore anchor on the **last user
-      message** instead. This caches everything up to the latest user turn and
-      grows across turns; tool-loop results that accumulate *after* the last user
-      message within a single turn stay uncached pending a deeper fix (delivering
-      tool results as user messages, or native-Anthropic routing). Combined with
-      the static dev-notes floor in [[Message.Utils.mk_developer_notes_message]].
+      KNOWN LIMITATION (OpenRouter): this advancing breakpoint is currently a
+      **no-op on OpenRouter+Anthropic**. We empirically confirmed via
+      [[OpenRouter.CacheDiag]] that OpenRouter's OpenAI-compat translation honors
+      `cache_control` *only on `system` messages*; markers on `tool` (the usual
+      last-history role in an agentic loop) AND on `user` messages are silently
+      dropped — verified with `breakpoints=[1,N]` on the wire, an append-only
+      growing common prefix, yet `cache_read` pinned at the system floor and
+      `cache_creation` null on every request. The floor (a system/dev-notes
+      message) is the only honored breakpoint, and it already caches ~93% of the
+      payload. This code is kept correct-and-ready: under native-Anthropic routing
+      (which honors per-block `cache_control` on all roles) it would immediately
+      cache the full history. See `docs/prompt-caching-findings.md`.
+
       Rendered by [[OpenRouter.Message.Utils.json_of_message]] (stripped for
       non-allowlisted models in [[OpenRouter.Payload.Utils.json_of_payload]]). */
   let api_messages_for_openrouter =
       (chat: Model.t): list(OpenRouter.Message.Model.t) => {
     let msgs = api_messages_of_messages(messages_for_openrouter(chat));
-    let is_user = (m: OpenRouter.Message.Model.t) =>
-      switch (m.role) {
-      | OpenRouter.Message.Model.User => true
-      | _ => false
-      };
-    let (_, last_user_idx) =
-      List.fold_left(
-        ((i, acc), m) => (i + 1, is_user(m) ? Some(i) : acc),
-        (0, None),
-        msgs,
-      );
-    switch (last_user_idx) {
-    | None => msgs
-    | Some(anchor_idx) =>
+    let n = List.length(msgs);
+    let anchor_idx = Option.is_some(chat.context) ? n - 2 : n - 1;
+    if (anchor_idx < 0) {
+      msgs;
+    } else {
       List.mapi(
         (i, m: OpenRouter.Message.Model.t) =>
           i == anchor_idx
@@ -305,7 +302,7 @@ module Utils = {
             }
             : m,
         msgs,
-      )
+      );
     };
   };
 
