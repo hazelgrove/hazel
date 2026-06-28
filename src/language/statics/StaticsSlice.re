@@ -1887,6 +1887,18 @@ let slice =
     | None => result
     };
   let result =
+    direction == `Syn && is_gap(query)
+      ? {
+        ...result,
+        omitted:
+          Id.Map.fold(
+            (id, _, acc) => Id.Set.add(id, acc),
+            m,
+            result.omitted,
+          ),
+      }
+      : result;
+  let result =
     direction == `Ana ? analysis_overlay(~focus, m, query, result) : result;
   direction == `Ana
     ? {
