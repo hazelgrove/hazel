@@ -220,13 +220,7 @@ let test_copy = (~name, ~z: Zipper.t, ~expected: string): test_case(_) =>
     name,
     `Quick,
     () => {
-      let full =
-        Printer.of_segment(
-          ~holes=convex_char,
-          ~indent="",
-          z.selection.content,
-        );
-      let actual = Zipper.trim_selected_text(z, full);
+      let actual = Printer.selected_text(~holes=convex_char, ~indent="", z);
       check(testable(Fmt.string, String.equal), name, expected, actual);
     },
   );
@@ -3713,6 +3707,26 @@ let char_selection_tests = [
     ~name="Copy whole token selection (anchor=Outer, caret=Outer)",
     ~z=mk_zipper({|§apple¦|}),
     ~expected="apple",
+  ),
+  test_copy(
+    ~name="Copy middle of string literal: ll from \"hello\"",
+    ~z=mk_zipper({|"he§ll¦o"|}),
+    ~expected="ll",
+  ),
+  test_copy(
+    ~name="Copy inside int literal: 45 from 123456",
+    ~z=mk_zipper({|123§45¦6|}),
+    ~expected="45",
+  ),
+  test_copy(
+    ~name="Copy cross-token, both ends inside: t x = tr",
+    ~z=mk_zipper({|le§t x = tr¦ue|}),
+    ~expected="t x = tr",
+  ),
+  test_copy(
+    ~name="Copy cross-token ending inside string: x ++ \"wo",
+    ~z=mk_zipper({|§x ++ "wo¦rld"|}),
+    ~expected={|x ++ "wo|},
   ),
   /* P. Cut and paste with char-level selections */
   test_case(

@@ -67,13 +67,7 @@ module Model = {
       Some(
         () => {
           let z = model.editor.state.zipper;
-          let full =
-            Printer.of_segment(
-              ~indent=" ",
-              ~refractors=z.refractors.manuals,
-              z.selection.content,
-            );
-          Zipper.trim_selected_text(z, full);
+          Printer.selected_text(~indent=" ", ~refractors=z.refractors.manuals, z);
         },
       ),
     selection: Some(model.editor.state.zipper.selection.content),

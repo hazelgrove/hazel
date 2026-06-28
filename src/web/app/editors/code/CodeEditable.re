@@ -875,13 +875,17 @@ module View = {
           };
         let copy_selection = () => {
           let segment = z.selection.content;
-          let str =
+          let full =
             Printer.of_segment(
               ~indent=" ",
               ~refractors=z.refractors.manuals,
               segment,
             );
-          if (!selection_has_refractors(z.refractors, segment)) {
+          let str = Zipper.trim_selected_text(z, full);
+          /* Cache for paste reuse only when nothing was trimmed: a trimmed
+             sub-token string must re-parse on paste, not round-trip to the
+             full segment. */
+          if (str == full && !selection_has_refractors(z.refractors, segment)) {
             Haz3lcore.Parser.set_segment_cache(Some(segment), str);
           };
           JsUtil.write_clipboard(str);
