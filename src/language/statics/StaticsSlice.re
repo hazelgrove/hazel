@@ -1627,26 +1627,6 @@ and pat_annotation_query =
   | _ => focus_query
   };
 
-let rec pat_ctor_head = (pat: Pat.t): option(string) =>
-  switch (Pat.term_of(pat)) {
-  | Parens(p)
-  | Asc(p, _) => pat_ctor_head(p)
-  | Constructor(name, _) => Some(name)
-  | Ap(f, _) => pat_ctor_head(f)
-  | _ => None
-  };
-
-let constructor_alias_count = (ctx: Ctx.t, name: string): int =>
-  List.length(
-    List.filter(
-      fun
-      | Ctx.TVarEntry({kind: Ctx.Singleton(shape), _}) =>
-        constructor_schema_from_sum(name, gap, shape) != None
-      | _ => false,
-      ctx.entries,
-    ),
-  );
-
 let annotation_omissions_for_path =
     (path: Id.Set.t, focus: Id.t, m: Id.Map.t(Info.t), focus_query: Typ.t)
     : Id.Set.t =>
@@ -1686,18 +1666,8 @@ let annotation_omissions_for_path =
           }
         | _ => acc
         }
-      | Info.InfoPat({user_term, ctx, _}) =>
+      | Info.InfoPat({user_term, _}) =>
         switch (Pat.term_of(user_term)) {
-        | Asc(p, ty)
-            when
-              (pat_contains_focus(focus, p) || on_path(path, Pat.rep_id(p)))
-              && (
-                switch (pat_ctor_head(p)) {
-                | Some(name) => constructor_alias_count(ctx, name) <= 1
-                | None => false
-                }
-              ) =>
-          Id.Set.union(acc, typ_omissions(ty, gap))
         | Asc(p, ty)
             when
               pat_contains_focus(focus, p) || on_path(path, Pat.rep_id(p)) =>
