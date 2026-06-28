@@ -188,6 +188,84 @@ module Message = {
   };
 };
 
+/** Prompt-cache diagnostics. For each request we measure the byte-stable common
+    prefix of message *content* (role + content + tool-call ids, deliberately
+    ignoring the moving [cache_control] marker) against the previous request, and
+    pair it with the provider-reported [cache_read]/[cache_creation] from the
+    response. The prefix should grow append-only every request; if it grows but
+    [cache_read] stays flat (or [cache_creation] is null), our bytes are fine and
+    the provider is dropping the breakpoint — vs a falling/jumpy prefix, which is
+    a client-side serialization instability. Off by default; set [log := true] to
+    re-enable per-request console logging when diagnosing a cache regression. */
+module CacheDiag = {
+  let log = ref(false);
+  let prev_norm: ref(list(string)) = ref([]);
+  let pending: ref(string) = ref("");
+
+  let norm = (m: Message.Model.t): string =>
+    Message.Utils.string_of_role(m.role)
+    ++ "|"
+    ++ m.content
+    ++ "|"
+    ++ String.concat(
+         ",",
+         List.map((tc: Reply.Model.tool_call) => tc.id, m.tool_calls),
+       );
+
+  let total_chars = List.fold_left((a, s) => a + String.length(s), 0);
+
+  let common_prefix_chars = (a: list(string), b: list(string)): int => {
+    let rec go = (a, b, acc) =>
+      switch (a, b) {
+      | ([x, ...xs], [y, ...ys]) when x == y =>
+        go(xs, ys, acc + String.length(x))
+      | _ => acc
+      };
+    go(a, b, 0);
+  };
+
+  let note_request =
+      (
+        ~model_id: string,
+        ~cache_enabled: bool,
+        ~breakpoints: list(string),
+        messages: list(Message.Model.t),
+      )
+      : unit =>
+    if (log^) {
+      let normed = List.map(norm, messages);
+      let prefix = common_prefix_chars(prev_norm^, normed);
+      let total = total_chars(normed);
+      prev_norm := normed;
+      pending :=
+        Printf.sprintf(
+          "model=%s enabled=%b breakpoints=[%s] common_prefix=%dch payload=%dch",
+          model_id,
+          cache_enabled,
+          String.concat(",", breakpoints),
+          prefix,
+          total,
+        );
+    };
+
+  let note_response =
+      (~cache_read: option(int), ~cache_creation: option(int)): unit =>
+    if (log^) {
+      let show =
+        fun
+        | Some(n) => string_of_int(n)
+        | None => "null";
+      print_endline(
+        Printf.sprintf(
+          "CACHE_DIAG %s | cache_read=%s cache_creation=%s",
+          pending^,
+          show(cache_read),
+          show(cache_creation),
+        ),
+      );
+    };
+};
+
 module Payload = {
   module Model = {
     [@deriving (show({with_path: false}), sexp, yojson)]
@@ -318,6 +396,29 @@ module Payload = {
           ]
         | None => base_fields
         };
+      /* Record which message indices carry a cache_control breakpoint on the
+         wire, then stash the request-side metrics; the matching cache_read /
+         cache_creation are logged together when the response usage is parsed. */
+      let has_cc = (mj: Json.t): bool => {
+        let s = Yojson.Safe.to_string(mj);
+        let needle = "cache_control";
+        let nlen = String.length(needle);
+        let hlen = String.length(s);
+        let rec go = i =>
+          i > hlen - nlen
+            ? false : String.sub(s, i, nlen) == needle ? true : go(i + 1);
+        nlen <= hlen && go(0);
+      };
+      let breakpoints =
+        List.mapi((i, mj) => (i, has_cc(mj)), messages_json)
+        |> List.filter(((_, hit)) => hit)
+        |> List.map(((i, _)) => string_of_int(i));
+      CacheDiag.note_request(
+        ~model_id=payload.model_id,
+        ~cache_enabled,
+        ~breakpoints,
+        payload.messages,
+      );
       `Assoc(fields);
     };
   };
@@ -381,6 +482,10 @@ module Utils = {
       };
     let cache_creation_input_tokens =
       API.Json.Parsers.int_field(choices, "cache_creation_input_tokens");
+    CacheDiag.note_response(
+      ~cache_read=cache_read_input_tokens,
+      ~cache_creation=cache_creation_input_tokens,
+    );
     (
       {
         prompt_tokens,

@@ -1,6 +1,7 @@
 # Prompt Caching — Fix Report
 
 _2026-06-09 · Phase 1 shipped & verified live: ~95% cache reads on `anthropic/claude-sonnet-4.6`._
+_2026-06-28 · Phase 2 (advancing history breakpoint) implemented; proven **blocked by OpenRouter** — see Phase 2 section below._
 
 ## The bug
 Our one cache breakpoint sat on the **context snapshot** — appended last, regenerated every
@@ -62,9 +63,69 @@ price on what repeats; cache refreshes free on each hit (5-min sliding TTL). [1]
 - **Anthropic-only** mechanism (explicit `cache_control`); other providers auto-cache. Stay on
   Anthropic models for cost control. [1][5]
 
+## Phase 2 — Advancing history breakpoint (2026-06-28: implemented, blocked by OpenRouter)
+
+**Goal.** Cache the *growing* conversation, not just the static floor: add a 2nd `cache_control`
+breakpoint on the last history message each request — it advances forward every turn — so prior
+history reads at 0.1× instead of full price. Keep the Phase 1 dev-notes anchor as a floor.
+
+**Implementation.** `Chat.api_messages_for_openrouter` sets an advancing `cache_anchor` on the
+message just before the snapshot. `OpenRouter.json_of_message` renders non-blank content as a
+stable single-element `[text]` array (so a message serializes identically whether or not it
+currently holds the marker) and toggles only the `cache_control` key. A per-conversation
+`session_id` pins OpenRouter sticky routing. Provider gate widened to `anthropic/`, `google/`,
+`qwen/`.
+
+**Result: it does not work through OpenRouter — and the harness proves exactly why.** Added a
+diagnostic (`OpenRouter.CacheDiag`, off by default — flip `log` to re-enable) that logs per
+request: breakpoint indices on the wire, the byte-stable common prefix vs. the previous request,
+and the response's `cache_read`/`cache_creation`. On `anthropic/claude-sonnet-4.6`:
+
+```
+breakpoints=[1,4]   common_prefix=0ch      cache_read=22293  cache_creation=null
+breakpoints=[1,6]   common_prefix=43436ch  cache_read=22293  cache_creation=null
+breakpoints=[1,8]   common_prefix=43708ch  cache_read=23081  cache_creation=null
+breakpoints=[1,10]  common_prefix=43935ch  cache_read=22293  cache_creation=null
+breakpoints=[1,12]  common_prefix=44241ch  cache_read=22293  cache_creation=null
+breakpoints=[1,14]  common_prefix=44505ch  cache_read=22293  cache_creation=null
+```
+
+Reading it:
+- `breakpoints=[1,N]` → **both** markers are on the wire; we *do* send the advancing breakpoint.
+- `common_prefix` climbs append-only (43,436 → 44,505 ch) → our serialization is **byte-stable
+  and correct** — not a client-side bug.
+- `cache_read` stays pinned at the floor (~22,293) and `cache_creation` is always `null` → the
+  provider never caches the growing history.
+
+**Root cause (gateway, not us).** OpenRouter routes Anthropic models through an
+**OpenAI-compatible wire format** (`chat_completions`). In that translation Anthropic honors
+`cache_control` **only on top-level `system` content**; markers on `user`/`assistant`/`tool`
+messages are silently dropped. Our floor sits on a system (dev-notes) message → honored. Our
+advancing breakpoint lands on a tool-result message → dropped. Corroborated by
+[Zed #52576](https://github.com/zed-industries/zed/issues/52576),
+[OpenRouter ai-sdk-provider #35](https://github.com/OpenRouterTeam/ai-sdk-provider/issues/35),
+[opencode #1245](https://github.com/anomalyco/opencode/issues/1245). **Not** an Anthropic
+limit — native Anthropic supports cumulative multi-turn caching.
+
+**Net.** The floor already caches ~93% of a typical payload (≈22.3k of ~24k). The advancing
+breakpoint is a **no-op on OpenRouter** — correct, harmless, and would activate immediately on a
+path that honors non-system markers. The growing-history portion is unrecoverable through
+OpenRouter's OpenAI path.
+
+**To recover cumulative history caching (future):**
+1. Route Anthropic via its **native wire format** (bypass OpenRouter's OpenAI-compat path) —
+   reliable, more work.
+2. Anchor the advancing breakpoint on a **system** message at the history/snapshot boundary —
+   only system markers are honored, so a mid-conversation system boundary *might* work (or be
+   dropped too). The `CacheDiag` harness settles it in one run.
+
+**Gemini note.** On `google/gemini-3-flash-preview` the same harness showed erratic `cache_read`
+(0 → 15,364 → 0) with `cache_creation` null — Gemini's *implicit* automatic caching, not driven
+by our markers and outside our control.
+
 ## Left to do (optional)
-- **Phase 2** — cache accruing history (2nd breakpoint before the snapshot; needs
-  `cache_control` on user/tool messages → wants a live smoke-test). Marginal: our history is light.
+- **Cumulative history caching** — blocked by OpenRouter (above); revisit via native Anthropic
+  routing or the system-boundary experiment if long-conversation cost becomes material.
 - 1-hr TTL for >5-min think-gaps. Confirm OpenRouter's read rate on a real invoice.
 
 ## Sources
