@@ -13,6 +13,12 @@ root cause, and open next steps._
   support). **Failed** — OpenRouter drops `cache_control` on `user` too. **Definitive: only
   `system` breakpoints are honored on OpenRouter+Anthropic; cumulative history caching needs
   native-Anthropic routing.**
+- **2026-06-28 (review)** — Found a concrete remedy: OpenRouter's **Anthropic-native endpoint**
+  ("Anthropic Skin", `/api/v1/messages`) speaks Anthropic's native wire format and should honor
+  per-block `cache_control` on all roles while keeping OpenRouter (§8). Also surfaced supporting
+  research ([arXiv 2601.06007](https://arxiv.org/abs/2601.06007)) indicating system-prompt-only
+  caching is empirically near-optimal for agentic workloads — so floor-only is a defensible
+  resting point.
 
 ---
 
@@ -28,16 +34,24 @@ root cause, and open next steps._
   conversation history**. On OpenRouter+Anthropic this **does not work** — but **not because our
   code is wrong**. We proved with a diagnostic harness that our serialization is byte-correct and
   the breakpoint is on the wire; OpenRouter's gateway drops it.
-- **Root cause:** OpenRouter routes Anthropic models through an **OpenAI-compatible wire format**.
-  In that translation, `cache_control` is honored on **system** and **user** messages but **dropped
-  on `tool` (tool-result) messages** — which is exactly where our advancing breakpoint landed in an
-  agentic tool loop.
-- **Status (resolved):** we tested moving the advancing breakpoint onto the **last user message**
-  (a role OpenRouter documents as supported). **It also failed** — OpenRouter drops `cache_control`
-  on `user` messages too. **Definitive conclusion: only `system` breakpoints work on
-  OpenRouter+Anthropic.** Cumulative history caching requires **native-Anthropic routing**; until
-  then, the floor (Phase 1, ~93%) is the achievable ceiling and the advancing breakpoint is a
-  correct-but-dormant no-op.
+- **Root cause:** OpenRouter routes Anthropic models through an **OpenAI-compatible wire format**
+  (`/api/v1/chat/completions`). In that translation, Anthropic only honors `cache_control` on
+  **`system`** content; markers on **`user`** and **`tool`** messages are silently dropped — and the
+  agentic-loop history we wanted to cache lives entirely on `user`/`tool`/`assistant` messages.
+- **Status (resolved):** we tested anchoring on the last `tool` message (§3.6) *and* the last `user`
+  message (§4); **both dropped**. **Definitive: only `system` breakpoints work on
+  OpenRouter+Anthropic.** The floor (Phase 1, ~93%) is the achievable ceiling on OpenRouter; the
+  advancing breakpoint is a correct-but-dormant no-op.
+- **Can we still get it?** Yes, two real options (§8): **(a)** switch Claude traffic to OpenRouter's
+  **Anthropic-native endpoint** ("Anthropic Skin", `https://openrouter.ai/api/v1/messages`), which
+  speaks Anthropic's native wire format and passes per-block features through untouched — keeps
+  OpenRouter; **(b)** route to Anthropic directly. Both honor `cache_control` on all roles.
+- **But should we?** Recent research ([Don't Break the Cache, arXiv 2601.06007](https://arxiv.org/abs/2601.06007))
+  found that for long-horizon agentic tasks, **caching only the system prompt and keeping dynamic
+  tool results *out* of the cached prefix is the most consistent strategy (41–80% savings)** —
+  naively caching everything (incl. tool results) can even *raise* latency. So our forced floor-only
+  outcome is **close to the empirically-recommended strategy**, and Phase 2's marginal upside is
+  smaller than it first appears.
 
 ---
 
@@ -241,10 +255,12 @@ After the diagnosis we re-read OpenRouter's **official** prompt-caching docs. Th
 ```
 
 So the documented support is **system + user** (assistant: not shown; **tool/tool_result: not shown
-anywhere**). Our failure is therefore specific to the breakpoint landing on a **tool** message — the
-one undocumented role — **not** a blanket "non-system" wall. The earlier "only system works" framing
-came from third-party GitHub issues and over-generalized; our own data only *proves* the tool case
-fails.
+anywhere**). At this point we hypothesized our failure was specific to the breakpoint landing on a
+**tool** message — the one undocumented role — **not** a blanket "non-system" wall, and that
+re-anchoring on a `user` message might work. **§4 tested that hypothesis and disproved it:** the
+user-message marker is dropped too, so the documented user support does *not* hold through
+OpenRouter's OpenAI-compat path. The "only system works" conclusion stands — it just needed our own
+data, not the third-party reports, to confirm.
 
 ---
 
@@ -276,12 +292,13 @@ documented user-message support does not hold in this routing path. We reverted 
 design (advancing breakpoint on the last history message), which is a **no-op on OpenRouter** but
 correct and ready to activate under native-Anthropic routing.
 
-**Only remaining path to cumulative history caching: native-Anthropic routing** (§8.4) — bypass
-OpenRouter's OpenAI-compat translation so per-block `cache_control` on all roles is honored.
+**Path to cumulative history caching: reach Anthropic in its native wire format** — either
+OpenRouter's own Anthropic-native "Anthropic Skin" endpoint (keeps OpenRouter) or the direct
+Anthropic API. Both honor per-block `cache_control` on all roles. See §8 for the ranked remedies.
 
-**Side finding (separate bug):** the chat-title generator hard-codes
-`google/gemini-2.0-flash-lite-001`, which now 404s on OpenRouter (`"No endpoints found"`). Harmless to
-the chat (it's a side request) but the auto-naming is broken; swap it for a live model.
+**Side finding (fixed):** the chat-title generator hard-coded `google/gemini-2.0-flash-lite-001`,
+which now 404s on OpenRouter (`"No endpoints found"`) — harmless to the chat (a side request) but it
+silently broke auto-naming. Swapped for `google/gemini-3.1-flash-lite` (verified live).
 
 ---
 
@@ -290,13 +307,22 @@ the chat (it's a side request) but the auto-naming is broken; swap it for a live
 | Scenario | Floor (Phase 1) | Advancing history (Phase 2) |
 |---|---|---|
 | Static prefix (tools + system + dev-notes) | ✅ cached ~22.3k | n/a |
-| Multi-turn chat (prior user/assistant turns) | floor only | ✅ *if* user-anchor works (§4) |
+| Multi-turn chat (prior user/assistant turns) | floor only | ❌ dropped on OpenRouter (§4); ✅ only via native routing (§8) |
 | Single-turn agentic tool loop (accumulating tool results) | floor only | ❌ tool messages dropped by OpenRouter |
 | Volatile per-turn snapshot (last message) | never cached (by design) | never cached (by design) |
 
 **Practical takeaway:** Phase 1 already controls the bulk of cost (~93% of payload). Phase 2's
 marginal value is large only for **long multi-turn** conversations; for short or single-turn-tool-
 heavy sessions it adds little even in the best case.
+
+**Research validation.** [*Don't Break the Cache* (arXiv 2601.06007)](https://arxiv.org/abs/2601.06007),
+an empirical study across OpenAI/Anthropic/Google on a multi-turn agentic benchmark, found that
+**caching only the system prompt and deliberately keeping dynamic tool results *out* of the cached
+prefix gave the most consistent savings (41–80%)** — and that naively caching *everything* (including
+tool results) sometimes *increased* time-to-first-token. Our Phase 1 floor (cache the static prefix,
+leave the volatile snapshot and tool churn uncached) is essentially that recommended strategy. So the
+OpenRouter limitation forces us into a configuration the literature already favors, and Phase 2's
+unrealized upside is smaller than the intuition "cache more = cheaper" suggests.
 
 ---
 
@@ -323,27 +349,50 @@ non-allowlisted providers in our code regardless.
   breaks caching. We serialize args once and reuse them.
 - **Don't mark thinking blocks** — they can't carry `cache_control`; cached implicitly with
   surrounding content. (We never send thinking blocks upstream anyway.)
-- **OpenRouter role limitation** — `cache_control` honored on **system + user** (documented), not on
-  **tool** (empirically dropped). This is the crux of Phase 2.
+- **OpenRouter role limitation** — through OpenRouter's OpenAI-compat path, `cache_control` is
+  honored **only on `system`** for Anthropic; `user` and `tool` markers are empirically dropped (the
+  OpenRouter docs *claim* user support, but it does not hold in practice — §4). This is the crux of
+  Phase 2 and is bypassed by OpenRouter's Anthropic-native endpoint (§8).
 - **Sticky routing** — caches don't transfer between Anthropic/Bedrock/Vertex; `session_id` pins one
   provider.
 
 ---
 
-## 8. Open questions / next steps
+## 8. Remedies & next steps
 
-1. ~~Does user-message anchoring cache cross-turn history on OpenRouter?~~ **Answered: no (§4).**
-   OpenRouter drops `cache_control` on `user` (and `tool`); only `system` is honored.
-2. **Native-Anthropic routing** — the only known path to cumulative history caching: bypass
-   OpenRouter's OpenAI-compat path entirely (separate endpoint/key) so per-block `cache_control` on
-   all roles is honored. The advancing-breakpoint code is already correct and would activate
-   immediately. Most reliable, most work.
-3. **(Long-shot) System-boundary marker** — insert a stable `system` message at the history/snapshot
-   boundary carrying the breakpoint (system is the only honored role). Likely also dropped — Anthropic
-   traditionally only allows top-level system, and mid-conversation system is a newer beta — but
-   cheap to test with the harness.
-4. **Fix the chat-title generator** — `google/gemini-2.0-flash-lite-001` 404s; swap for a live model.
-5. **1-hour TTL** for >5-min think-gaps; confirm OpenRouter's real read rate on an invoice.
+To get cumulative history caching, the breakpoint must reach Anthropic in its **native wire format**
+(where `cache_control` on all roles is honored), instead of OpenRouter's OpenAI-compat translation.
+Ranked by effort/realism:
+
+1. **★ OpenRouter "Anthropic Skin" (native endpoint) — keeps OpenRouter, most promising.**
+   OpenRouter exposes an **Anthropic Messages API-compatible endpoint** at base
+   `https://openrouter.ai/api` (i.e. `POST /api/v1/messages`), which it calls the *Anthropic Skin*:
+   *"Claude Code speaks its native protocol straight to OpenRouter, and the Skin handles model
+   mapping and passes advanced features through untouched"* — explicitly listing native tool use,
+   thinking blocks, streaming, and multi-turn context. Because it's the **native** format, per-block
+   `cache_control` on `user`/`tool`/`assistant` content blocks should be honored (the exact thing
+   OpenRouter's OpenAI path drops). **Cost to us:** build the Claude request in Anthropic's Messages
+   shape for this path (top-level `system`, `tool_result` blocks inside `user` messages, content as
+   block arrays) — a separate serializer for Claude, but no new vendor relationship or key. **Verify
+   first** with the `CacheDiag` harness pointed at `/api/v1/messages`; the docs don't *explicitly*
+   promise caching passthrough, so confirm before committing. *(Highest value; do this next.)*
+2. **Direct Anthropic API** — same native format, straight to `api.anthropic.com`. Fully reliable,
+   but adds a separate key/endpoint/billing and loses OpenRouter's one-key multi-provider routing for
+   Claude. Fallback if (1)'s passthrough doesn't include caching.
+3. **(Long-shot, OpenRouter OpenAI-path) System-boundary marker** — insert a stable `system` message
+   at the history/snapshot boundary to carry the breakpoint (system is the only honored role on that
+   path). Likely also dropped (mid-conversation `system` is a newer Anthropic beta and OpenRouter may
+   not forward it), but cheap to test with the harness.
+4. **Do nothing (defensible).** Per §5's research validation, system-prompt-only caching is
+   near-optimal for agentic workloads; the floor already captures ~93%. Only pursue (1)/(2) if
+   long-conversation cost is materially painful.
+
+**Also:**
+- ~~Fix the chat-title generator (`google/gemini-2.0-flash-lite-001` 404s)~~ — **done**: swapped to
+  `google/gemini-3.1-flash-lite` (verified live).
+- **Shrink the volatile snapshot** — it's re-sent at full price every turn regardless of caching;
+  trimming/diffing it is an in-our-control lever orthogonal to all of the above.
+- **1-hour TTL** for >5-min think-gaps; confirm OpenRouter's real read rate on an invoice.
 
 ---
 
@@ -367,12 +416,17 @@ non-allowlisted providers in our code regardless.
 
 - [1] [Anthropic — Prompt Caching](https://platform.claude.com/docs/en/build-with-claude/prompt-caching)
 - [2] [Claude Code — Prompt Caching](https://code.claude.com/docs/en/prompt-caching)
-- [3] [arXiv — "Don't Break the Cache"](https://arxiv.org/abs/2601.06007)
-- [4] [OpenRouter — Prompt Caching (best practices)](https://openrouter.ai/docs/guides/best-practices/prompt-caching) — documents `cache_control` on **system + user** messages
-- [5] [PromptHub — provider caching comparison](https://www.prompthub.us/blog/prompt-caching-with-openai-anthropic-and-google-models)
-- [6] [OpenRouter Gemini caching announcement](https://x.com/OpenRouterAI/status/1914699401127157933)
-- [7] [litellm #15345 — "move cache_control to content blocks for claude/gemini"](https://github.com/BerriAI/litellm/pull/15345)
+- [3] [arXiv 2601.06007 — *Don't Break the Cache: An Evaluation of Prompt Caching for Long-Horizon Agentic Tasks*](https://arxiv.org/abs/2601.06007) — empirical study; system-prompt-only caching (excluding dynamic tool results) gives the most consistent savings (41–80%)
+- [4] [OpenRouter — Prompt Caching (best practices)](https://openrouter.ai/docs/guides/best-practices/prompt-caching) — shows `cache_control` examples on system + user (user does **not** hold in practice — §4)
+- [5] [OpenRouter — Anthropic Skin / Claude Code setup](https://openrouter.ai/blog/tutorials/claude-code-openrouter/) — the Anthropic Messages-API-compatible endpoint (`ANTHROPIC_BASE_URL=https://openrouter.ai/api`) that "passes advanced features through untouched"; the §8 remedy
+- [6] [OpenRouter — Anthropic models](https://openrouter.ai/anthropic)
+- [7] [PromptHub — provider caching comparison](https://www.prompthub.us/blog/prompt-caching-with-openai-anthropic-and-google-models)
+- [8] [DigitalApplied — Prompt Caching in 2026](https://www.digitalapplied.com/blog/prompt-caching-2026-cut-llm-costs-engineering-guide) (practitioner guide)
+- [9] [OpenRouter Gemini caching announcement](https://x.com/OpenRouterAI/status/1914699401127157933)
+- [10] [litellm #15345 — "move cache_control to content blocks for claude/gemini"](https://github.com/BerriAI/litellm/pull/15345)
 - Third-party reports of OpenRouter+Anthropic non-system `cache_control` being dropped:
   [Zed #52576](https://github.com/zed-industries/zed/issues/52576) ·
   [OpenRouter ai-sdk-provider #35](https://github.com/OpenRouterTeam/ai-sdk-provider/issues/35) ·
-  [opencode #1245](https://github.com/anomalyco/opencode/issues/1245)
+  [opencode #1245](https://github.com/anomalyco/opencode/issues/1245) ·
+  [microsoft/vscode #312939](https://github.com/microsoft/vscode/issues/312939) (BYOK Claude no caching) ·
+  [hermes-agent #20957](https://github.com/NousResearch/hermes-agent/issues/20957) (chat_completions api_mode)
