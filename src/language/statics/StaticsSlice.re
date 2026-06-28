@@ -1469,16 +1469,26 @@ let pat_child_ids = (pat: Pat.t): list(Id.t) =>
   | MultiHole(_) => []
   };
 
-let rec pat_side_omit = (pat: Pat.t): Id.Set.t =>
+/* `keep_head` is set when omitting structural siblings within the focused
+   pattern's own application (the constructor `A` of `A(x)`, label `a` of
+   `(a=x)`), where the head must be retained; it is unset for wholesale-omitted
+   patterns (a match-branch pattern, a let-pattern sibling). Annotations are
+   retained either way. */
+let rec pat_side_omit = (~keep_head: bool, pat: Pat.t): Id.Set.t =>
   switch (Pat.term_of(pat)) {
   | Parens(p)
-  | Asc(p, _) => pat_side_omit(p)
+  | Asc(p, _) => pat_side_omit(~keep_head, p)
+  | Constructor(_, _)
+  | Label(_)
+  | ExplicitNonlabel when keep_head => Id.Set.empty
   | _ => ids_set(IdTagged.ids(pat))
   };
 
-let child_omit = (m: Id.Map.t(Info.t), child_id: Id.t): Id.Set.t =>
+let child_omit =
+    (~keep_head: bool, m: Id.Map.t(Info.t), child_id: Id.t): Id.Set.t =>
   switch (Id.Map.find_opt(child_id, m)) {
-  | Some(Info.InfoPat({user_term, _})) => pat_side_omit(user_term)
+  | Some(Info.InfoPat({user_term, _})) =>
+    pat_side_omit(~keep_head, user_term)
   | _ => Id.Set.singleton(child_id)
   };
 
@@ -1488,12 +1498,12 @@ let child_side_ids =
   | Some(Info.InfoExp({user_term, _})) =>
     exp_child_ids(user_term)
     |> List.filter(child_id => !on_path(path, child_id))
-    |> List.map(child_omit(m))
+    |> List.map(child_omit(~keep_head=false, m))
     |> List.fold_left(Id.Set.union, Id.Set.empty)
   | Some(Info.InfoPat({user_term, _})) =>
     pat_child_ids(user_term)
     |> List.filter(child_id => !on_path(path, child_id))
-    |> List.map(child_omit(m))
+    |> List.map(child_omit(~keep_head=true, m))
     |> List.fold_left(Id.Set.union, Id.Set.empty)
   | _ => Id.Set.empty
   };
@@ -1627,6 +1637,26 @@ and pat_annotation_query =
   | _ => focus_query
   };
 
+let rec pat_ctor_head = (pat: Pat.t): option(string) =>
+  switch (Pat.term_of(pat)) {
+  | Parens(p)
+  | Asc(p, _) => pat_ctor_head(p)
+  | Constructor(name, _) => Some(name)
+  | Ap(f, _) => pat_ctor_head(f)
+  | _ => None
+  };
+
+let constructor_alias_count = (ctx: Ctx.t, name: string): int =>
+  List.length(
+    List.filter(
+      fun
+      | Ctx.TVarEntry({kind: Ctx.Singleton(shape), _}) =>
+        constructor_schema_from_sum(name, gap, shape) != None
+      | _ => false,
+      ctx.entries,
+    ),
+  );
+
 let annotation_omissions_for_path =
     (path: Id.Set.t, focus: Id.t, m: Id.Map.t(Info.t), focus_query: Typ.t)
     : Id.Set.t =>
@@ -1666,8 +1696,19 @@ let annotation_omissions_for_path =
           }
         | _ => acc
         }
-      | Info.InfoPat({user_term, _}) =>
+      | Info.InfoPat({user_term, ctx, _}) =>
         switch (Pat.term_of(user_term)) {
+        | Asc(p, ty)
+            when
+              (pat_contains_focus(focus, p) || on_path(path, Pat.rep_id(p)))
+              && (
+                switch (pat_ctor_head(p)) {
+                | Some(name) => constructor_alias_count(ctx, name) <= 1
+                | None => false
+                }
+              ) =>
+          /* Redundant constructor-pattern annotation: omit it entirely. */
+          Id.Set.union(acc, typ_omissions(ty, gap))
         | Asc(p, ty)
             when
               pat_contains_focus(focus, p) || on_path(path, Pat.rep_id(p)) =>
