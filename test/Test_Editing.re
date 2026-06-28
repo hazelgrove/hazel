@@ -3630,6 +3630,16 @@ let char_selection_tests = [
     ~z=mk_zipper({|§x ++ "wo¦rld"|}),
     ~expected={|x ++ "wo|},
   ),
+  test_copy(
+    ~name="Copy emoji inside string literal (multi-codepoint char)",
+    ~z=mk_zipper({|"§😀¦"|}),
+    ~expected={|😀|},
+  ),
+  test_copy(
+    ~name="Copy ascii char before emoji in string",
+    ~z=mk_zipper({|"§a¦😀"|}),
+    ~expected="a",
+  ),
   /* P. Cut and paste with char-level selections */
   test_case(
     "Cut and paste partial keyword (via Cut)",
