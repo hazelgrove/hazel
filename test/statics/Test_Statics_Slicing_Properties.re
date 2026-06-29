@@ -40,14 +40,14 @@ let safe_slice = (~focus, ~direction, e: Exp.t, query: Typ.t) =>
     is_known_statics_failure(f) ? None : raise(ex)
   };
 
-let arb_exp = QCheck_Util.arb_exp(~minimal_idents=true, 20);
+let arb_exp = QCheck_Util.arb_exp(~minimal_idents=true, 50);
 let arb_typ = QCheck_Util.arb_typ(~minimal_idents=true, 10);
 
 // synthesis slice synthesises more or equally precise type
 let random_synthesis_validity =
   QCheck.Test.make(
     ~name="random synthesis slicing is valid",
-    ~count=500,
+    ~count=3000,
     QCheck.triple(arb_exp, QCheck.small_nat, arb_typ),
     ((e, k, query)) => {
       ignore(safe_slice(~focus=focus_at(e, k), ~direction=`Syn, e, query));
@@ -59,7 +59,7 @@ let random_synthesis_validity =
 let random_analysis_validity =
   QCheck.Test.make(
     ~name="random analysis slicing is valid",
-    ~count=500,
+    ~count=3000,
     QCheck.triple(arb_exp, QCheck.small_nat, arb_typ),
     ((e, k, query)) => {
       ignore(safe_slice(~focus=focus_at(e, k), ~direction=`Ana, e, query));
@@ -163,7 +163,7 @@ let short_ids = (ids: Id.Set.t): string =>
 let monotonicity =
   QCheck.Test.make(
     ~name="omissions grow monotonically down a query chain",
-    ~count=500,
+    ~count=3000,
     arb_exp,
     e =>
     switch (synth_type(e)) {

@@ -91,6 +91,14 @@ let omitted_node = (id: Id.t): result => {
   ana: gap,
 };
 
+let omitted_nodes = (ids: Id.Set.t): result => {
+  omitted: ids,
+  gamma: VarMap.empty,
+  psi: gap,
+  context: Ctx.empty,
+  ana: gap,
+};
+
 let gamma_add = (gamma: gamma, name: string, ty: Typ.t): gamma =>
   if (is_gap(ty)) {
     gamma;
@@ -165,6 +173,13 @@ let with_omitted = (omitted: Id.Set.t, ty: sty): sty => {
 let with_self_gap = (~id: Id.t, ty: sty): sty => {
   shape: ty.shape,
   dispatch: query => is_gap(query) ? omitted_node(id) : ty.dispatch(query),
+  finalize: ty.finalize,
+};
+
+let with_self_gap_ids = (~ids: Id.Set.t, ty: sty): sty => {
+  shape: ty.shape,
+  dispatch: query =>
+    is_gap(query) ? omitted_nodes(ids) : ty.dispatch(query),
   finalize: ty.finalize,
 };
 
@@ -1582,9 +1597,94 @@ let match_ = (~shape: Typ.t, ~term: Exp.term, children: list(sty)): sty => {
   finalize: () => empty_result,
 };
 
+let source_ids = (e: Exp.t): Id.Set.t => {
+  let acc = ref(Id.Set.empty);
+  let collect = ids =>
+    acc := List.fold_left((s, id) => Id.Set.add(id, s), acc^, ids);
+  let rec collect_mpat_roots = (mp: MPat.t): unit => {
+    collect(IdTagged.ids(mp));
+    switch (mp.term) {
+    | Asc(inner, _) => collect_mpat_roots(inner)
+    | EmptyHole
+    | Invalid(_)
+    | MultiHole(_)
+    | Var(_) => ()
+    };
+  };
+  let collect_mod_roots = (m: Mod.t): unit => {
+    collect(IdTagged.ids(m));
+    switch (m.term) {
+    | ModuleMod(mp, _) => collect_mpat_roots(mp)
+    | EmptyHole
+    | Invalid(_)
+    | ModExp(_)
+    | ModLet(_, _)
+    | ModType(_, _)
+    | MultiHole(_) => ()
+    };
+  };
+  let collect_sig_roots = (s: Sig.t): unit => collect(IdTagged.ids(s));
+  let collect_term:
+    'a.
+    (IdTagged.t('a) => IdTagged.t('a), IdTagged.t('a)) => IdTagged.t('a)
+   =
+    (continue, term) => {
+      collect(IdTagged.ids(term));
+      continue(term);
+    };
+  let collect_exp: (Exp.t => Exp.t, Exp.t) => Exp.t =
+    (continue, exp) => {
+      collect(IdTagged.ids(exp));
+      switch (Exp.term_of(exp)) {
+      | Module(items) => List.iter(collect_mod_roots, items)
+      | ModuleExp(mp, _, _) => collect_mpat_roots(mp)
+      | _ => ()
+      };
+      continue(exp);
+    };
+  let collect_typ: (Typ.t => Typ.t, Typ.t) => Typ.t =
+    (continue, typ) => {
+      collect(IdTagged.ids(typ));
+      switch (Typ.term_of(typ)) {
+      | Sig(items) => List.iter(collect_sig_roots, items)
+      | _ => ()
+      };
+      continue(typ);
+    };
+  let collect_any: (Any.t => Any.t, Any.t) => Any.t =
+    (continue, any) => {
+      switch (any) {
+      | Mod(m) => collect_mod_roots(m)
+      | Sig(s) => collect_sig_roots(s)
+      | MPat(mp) => collect_mpat_roots(mp)
+      | Exp(_)
+      | Pat(_)
+      | Typ(_)
+      | TPat(_)
+      | Rul(_)
+      | Drv(_)
+      | Any () => ()
+      };
+      continue(any);
+    };
+  ignore(
+    Exp.map_term(
+      ~f_exp=collect_exp,
+      ~f_pat=collect_term,
+      ~f_typ=collect_typ,
+      ~f_tpat=collect_term,
+      ~f_rul=collect_term,
+      ~f_any=collect_any,
+      e,
+    ),
+  );
+  acc^;
+};
+
 let rec node_of_exp_info =
         (~seen=Id.Set.empty, m: Id.Map.t(Info.t), info: Info.exp): node => {
   let id = Exp.rep_id(info.user_term);
+  let ids = source_ids(info.user_term);
   let seen = Id.Set.add(id, seen);
   let children =
     info.slice_children
@@ -1803,9 +1903,9 @@ let rec node_of_exp_info =
         | (_, [], [_, ..._] as kept) => prod(kept)
         | _ => source(~id, info.ty)
         };
-      with_self_gap(~id, with_omitted(omitted, base));
+      with_self_gap_ids(~ids, with_omitted(omitted, base));
     };
-  node_of(~id, ~ids=ids_set(IdTagged.ids(info.user_term)), ty);
+  node_of(~id, ~ids, ty);
 };
 
 let node_of_exp_result = ((info, _, m): exp_result): node =>
@@ -2478,48 +2578,6 @@ let validate_focus =
   };
 
 let with_run = (f: unit => 'a): 'a => f();
-
-let source_ids = (e: Exp.t): Id.Set.t => {
-  let acc = ref(Id.Set.empty);
-  let collect = ids =>
-    acc := List.fold_left((s, i) => Id.Set.add(i, s), acc^, ids);
-  ignore(
-    Exp.map_term(
-      ~f_exp=
-        (continue, e) => {
-          collect(IdTagged.ids(e));
-          switch (Exp.term_of(e)) {
-          | Module(items) =>
-            List.iter(item => collect(IdTagged.ids(item)), items)
-          | _ => ()
-          };
-          continue(e);
-        },
-      ~f_pat=
-        (continue, p) => {
-          collect(IdTagged.ids(p));
-          continue(p);
-        },
-      ~f_typ=
-        (continue, t) => {
-          collect(IdTagged.ids(t));
-          switch (Typ.term_of(t)) {
-          | Sig(items) =>
-            List.iter(item => collect(IdTagged.ids(item)), items)
-          | _ => ()
-          };
-          continue(t);
-        },
-      ~f_tpat=
-        (continue, tp) => {
-          collect(IdTagged.ids(tp));
-          continue(tp);
-        },
-      e,
-    ),
-  );
-  acc^;
-};
 
 let slice =
     (
