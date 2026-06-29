@@ -2096,6 +2096,22 @@ let module_focus_adjustments =
     (Id.Set.empty, Id.Set.empty),
   );
 
+let focus_container_path = (focus: Id.t, m: Id.Map.t(Info.t)): Id.Set.t =>
+  Id.Map.fold(
+    (id, info, acc) =>
+      switch (info) {
+      | Info.InfoExp({user_term, _})
+          when exp_contains_focus(focus, user_term) =>
+        Id.Set.add(id, acc)
+      | Info.InfoPat({user_term, _})
+          when pat_contains_focus(focus, user_term) =>
+        Id.Set.add(id, acc)
+      | _ => acc
+      },
+    m,
+    Id.Set.empty,
+  );
+
 let rec exp_annotation_query =
         (
           path: Id.Set.t,
@@ -2357,7 +2373,11 @@ let analysis_overlay =
   switch (focus) {
   | None => result
   | Some(focus_id) =>
-    let path = focus_path(m, focus_id);
+    let path =
+      Id.Set.union(
+        focus_path(m, focus_id),
+        focus_container_path(focus_id, m),
+      );
     let module_adjustment = module_focus_adjustments(focus_id, m);
     let with_analysis_adjustments = result => {
       let edge_gamma = analysis_edge_gamma(path, m, query);
