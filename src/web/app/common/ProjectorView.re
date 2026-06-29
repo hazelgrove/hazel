@@ -541,19 +541,21 @@ let split_views =
   (line_view, overlay_view);
 };
 
-/* Drives the projectors' post-parse initialization phase (ProjectorBase.
- * Projector.initialize) on the web. A projector whose model needs async
- * resolution (e.g. a ^^csv("url") still in its Pending state) reports work
- * via its bool return; we then start the fetch and, from its async callback,
- * dispatch SetModel + SetSyntax through [inject] to splice the result in.
+/* Drives projector resolution (ProjectorBase: effect / update / expand) on the
+ * web. For a projector whose model declares an effect (e.g. a ^^csv("url") still
+ * Pending), we run the requested IO via the shared ProjectorInitPhase.run_io and,
+ * from its async callback, fold the result through `update` and dispatch the new
+ * model (SetModel) plus its expansion lifted to a segment (SetSyntax).
  *
- * Fired once per projector id: [init_fired] guards the in-flight window where
- * the model is still Pending. We never clear entries — once resolved the model
- * leaves Pending and initialize() reports no work anyway, so a stale entry is
- * harmless and avoids a re-fetch race before the model update is applied.
+ * Fired once per projector id: [init_fired] guards the in-flight window. We
+ * don't clear entries — once resolved the model leaves Pending and `effect`
+ * reports nothing anyway, so a stale entry is harmless and avoids a re-fetch
+ * race. (A future Reload would re-enter an effectful state; re-firing it will
+ * need per-generation tracking here.) This runs one resolution round per fire,
+ * which settles today's single-round projectors (CSV / Seed).
  *
- * Safe to call from render because the fetch is asynchronous: only the fetch
- * is started here; the inject happens later from the (async) callback. */
+ * Safe to call from render because the IO is asynchronous: only the request is
+ * started here; the inject happens later from the (async) callback. */
 let init_fired: Hashtbl.t(Id.t, unit) = Hashtbl.create(16);
 
 let run_init_phase =
@@ -568,48 +570,42 @@ let run_init_phase =
       if (!Hashtbl.mem(init_fired, p.id)) {
         let (module L) = ProjectorInit.to_module(p.kind);
         switch (
-          L.initialize,
+          L.effect(p.model),
           List.find_index(x => x == p.id, projector_list),
         ) {
         | (None, _)
         | (_, None) => ()
-        | (Some(f), Some(idx)) =>
-          let started =
-            f(p.model, info, ~k=(model_opt, exp_opt) =>
+        | (Some(Await(req, fold)), Some(idx)) =>
+          Hashtbl.replace(init_fired, p.id, ());
+          ProjectorInitPhase.run_io(
+            req,
+            ~k=result => {
+              let model' = L.update(p.model, info, fold(result));
+              /* Lift the new model's expansion into syntax for the editor (the CLI
+                 substitutes the Exp directly instead — see Cli.resolve_program). */
+              let syntax_effects =
+                switch (L.expand(model', info)) {
+                | None => []
+                | Some(exp) =>
+                  let seg =
+                    ExpToSegment.exp_to_segment(
+                      exp,
+                      ~settings=
+                        ExpToSegment.Settings.of_core(
+                          ~inline=true,
+                          Language.CoreSettings.off,
+                        ),
+                    );
+                  [inject(handle(idx, p.kind, SetSyntax(seg)))];
+                };
               Bonsai.Effect.Expert.handle(
-                Effect.Many(
-                  (
-                    model_opt
-                    |> Option.map(m =>
-                         inject(Project(SetModel(idx, p.kind, m)))
-                       )
-                    |> Option.to_list
-                  )
-                  @ (
-                    /* The projector resolved to an Exp; for the editor we lift it
-                       into syntax and splice it in (the CLI substitutes the Exp
-                       directly instead — see Cli.resolve_program). */
-                    exp_opt
-                    |> Option.map(exp => {
-                         let seg =
-                           ExpToSegment.exp_to_segment(
-                             exp,
-                             ~settings=
-                               ExpToSegment.Settings.of_core(
-                                 ~inline=true,
-                                 Language.CoreSettings.off,
-                               ),
-                           );
-                         inject(handle(idx, p.kind, SetSyntax(seg)));
-                       })
-                    |> Option.to_list
-                  ),
-                ),
-              )
-            );
-          if (started) {
-            Hashtbl.replace(init_fired, p.id, ());
-          };
+                Effect.Many([
+                  inject(Project(SetModel(idx, p.kind, model'))),
+                  ...syntax_effects,
+                ]),
+              );
+            },
+          );
         };
       },
     projector_data,

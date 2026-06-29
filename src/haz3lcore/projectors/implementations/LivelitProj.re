@@ -75,5 +75,6 @@ module M: Projector = {
   let dynamics = false;
   let elaborate_syntax = false;
   let error = (_, _): option(ProjectorBase.error) => None;
-  let initialize = None;
+  let effect = _ => None;
+  let expand = (_, _) => None;
 };

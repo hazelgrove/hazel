@@ -56,5 +56,6 @@ module M: Projector = {
   let placeholder = (_, _) => shape;
   let update = (model, _, _) => model;
   let error = (_, _): option(ProjectorBase.error) => None;
-  let initialize = None;
+  let effect = _ => None;
+  let expand = (_, _) => None;
 };

@@ -27,7 +27,10 @@ type action_t =
       content: string,
     }) // web file-picker selected a local file
   | ToggleHeaders
-  | Reset;
+  | Reset
+  | Loaded(string) // a Pending(url) fetch returned this body
+  | LoadFailed(string) // a Pending(url) fetch failed with this message
+  | Reload; // re-fetch a url-loaded table (FileLoaded/Failed -> Pending)
 
 /* Strip a leading UTF-8 byte-order mark (EF BB BF). Some tools prefix it to the
    first header; left in place it becomes part of that column's label, so a
@@ -187,80 +190,78 @@ module M: Projector with type model = model_t and type action = action_t = {
       | _ => m
       }
     | Reset => NoFile
+    // A pending fetch finished: load it, or record the failure. Results for a
+    // model that's moved on (no longer Pending) are stale and ignored.
+    | Loaded(content) =>
+      switch (m) {
+      | Pending(url) =>
+        FileLoaded({
+          filename: url,
+          content,
+          with_headers: true,
+        })
+      | _ => m
+      }
+    | LoadFailed(message) =>
+      switch (m) {
+      | Pending(url) =>
+        Failed({
+          url,
+          message,
+        })
+      | _ => m
+      }
+    // Re-enter Pending so `effect` re-fetches (manual reload / hot reload).
+    | Reload =>
+      switch (m) {
+      | FileLoaded({filename, _}) => Pending(filename)
+      | Failed({url, _}) => Pending(url)
+      | _ => m
+      }
     };
   };
 
   let error = (_, _): option(ProjectorBase.error) => None;
 
-  /* Initialization phase: when the underlying syntax was a url string,
-   * `init` left us in `Pending(url)`. Fetch the url via the injected
-   * UrlFetch hook and, on success, hand back the parsed CSV as the resolved
-   * expansion Exp (`to_exp`) — the CLI substitutes it directly, the web lifts
-   * it into syntax. Already-resolved models (NoFile / FileLoaded / Failed) need
-   * no work. */
-  let initialize =
-    Some(
-      (
-        model: model,
-        _info,
-        ~k: (option(model), option(Language.Exp.t)) => unit,
-      ) =>
-        switch (model) {
-        | Pending(url) =>
-          UrlFetch.get^(~url, ~on_done=res =>
-            switch (res) {
-            | Ok(content) =>
-              let exp =
-                try(
-                  Some(
-                    to_exp(
-                      CsvUtil.WithHeaders(
-                        CsvUtil.parse_csv_with_headers(content),
-                      ),
-                    ),
-                  )
-                ) {
-                | _ => None
-                };
-              switch (exp) {
-              | Some(exp) =>
-                k(
-                  Some(
-                    FileLoaded({
-                      filename: url,
-                      content,
-                      with_headers: true,
-                    }),
-                  ),
-                  Some(exp),
-                )
-              | None =>
-                k(
-                  Some(
-                    Failed({
-                      url,
-                      message: "could not parse CSV from " ++ url,
-                    }),
-                  ),
-                  None,
-                )
-              };
-            | Error(message) =>
-              k(
-                Some(
-                  Failed({
-                    url,
-                    message,
-                  }),
-                ),
-                None,
-              )
-            }
-          );
-          true;
-        | NoFile
-        | Failed(_)
-        | FileLoaded(_) => false
-        },
-    );
+  /* What this model needs resolved: a Pending(url) declares a url fetch. The
+   * driver runs it (ProjectorInitPhase.run_io, via the installed UrlFetch hook,
+   * which handles consent / base-url resolution / local files) and folds the
+   * result back as a Resolved action. Settled models declare no IO. */
+  let effect = (m: model): option(effect_of(action)) =>
+    switch (m) {
+    | Pending(url) =>
+      Some(
+        Await(
+          FetchUrl(url),
+          (
+            fun
+            | Ok(content) => Loaded(content)
+            | Error(message) => LoadFailed(message)
+          ),
+        ),
+      )
+    | NoFile
+    | Failed(_)
+    | FileLoaded(_) => None
+    };
+
+  /* This projector's contribution to the program: the loaded table built
+   * directly as an Exp (never a segment). Unresolved / empty models contribute
+   * nothing, so the driver leaves their underlying syntax in place. */
+  let expand = (m: model, _info): option(Language.Exp.t) =>
+    switch (m) {
+    | FileLoaded({content, with_headers, _}) =>
+      let rows =
+        with_headers
+          ? CsvUtil.WithHeaders(CsvUtil.parse_csv_with_headers(content))
+          : CsvUtil.WithoutHeaders(
+              CsvUtil.parse_csv_without_headers(content),
+            );
+      try(Some(to_exp(rows))) {
+      | _ => None
+      };
+    | NoFile
+    | Pending(_)
+    | Failed(_) => None
+    };
 };

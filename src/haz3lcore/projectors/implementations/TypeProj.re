@@ -77,5 +77,6 @@ module M: Projector with type model = display and type action = type_action = {
 
   let placeholder = (_, _) => ProjectorCore.Shape.default;
   let error = (_, _): option(ProjectorBase.error) => None;
-  let initialize = None;
+  let effect = _ => None;
+  let expand = (_, _) => None;
 };

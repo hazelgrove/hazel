@@ -1,68 +1,73 @@
 open Util;
 
-/* Runs the optional post-parse `initialize` phase of every projector in a
- * program (see ProjectorBase.Projector.initialize). Each frontend calls this
- * once after parse + statics: the web from its calculate cycle, the CLI from
- * its run/analyze/expand entry points. Projectors that need asynchronous
- * resolution (e.g. CSV fetching a url) report it via their bool return, and
- * the driver invokes [on_complete] only after every such projector has called
- * back. With no async work [on_complete] fires synchronously (the CLI fast
- * path when there are no url projectors).
+/* Resolves every projector in a program to a settled model and its expansion —
+ * the second half of instantiating a projector, after `init` left a placeholder
+ * at parse time (see ProjectorBase: init / effect / update / expand). For each
+ * projector, while `effect(model)` is Some it runs the requested IO (run_io) and
+ * folds the result back through `update`, looping until the model settles
+ * (effect = None), then reports the final model and `expand(model)`.
  *
- * [on_result] receives, per resolved projector, an optional new serialized
- * model (apply like a SetModel) and the resolved expansion (Some exp on
- * success, None on failure). A frontend either substitutes the exp into the
- * program term in place (see [substitute] / the CLI) or lifts it into editor
- * syntax (the web). */
-let run =
+ * Frontends share the projector methods + run_io and differ only in *driving*:
+ * the CLI calls [resolve] once after parse (this fixpoint loop), the web fires
+ * per calculate cycle (ProjectorView.run_init_phase). [on_complete] fires once
+ * every projector has settled (synchronously when no async IO is pending — the
+ * CLI fast path for local files / seeds). */
+
+/* Interpret an io_request against the frontend-installed hooks. GADT-typed, so
+ * each request hands back exactly its own result type (no stringly plumbing): a
+ * url fetch -> result(string, string), a seed choice -> int. The actual IO
+ * (network, prompt, entropy) lives in the installed UrlFetch / SeedChoose hooks,
+ * not here. */
+let run_io = (type r, req: ProjectorBase.io_request(r), ~k: r => unit): unit =>
+  switch (req) {
+  | FetchUrl(url) => UrlFetch.get^(~url, ~on_done=k)
+  | ChooseSeed(default) => k(SeedChoose.choose^(~default))
+  };
+
+let resolve =
     (
       ~proj_map: Id.Map.t(Base.projector),
       ~mk_info: Base.projector => ProjectorBase.info,
       ~on_result:
-         (
-           Id.t,
-           ProjectorCore.Kind.t,
-           option(string),
-           option(Language.Exp.t)
-         ) =>
-         unit,
+         (Id.t, ProjectorCore.Kind.t, string, option(Language.Exp.t)) => unit,
       ~on_complete: unit => unit,
     )
     : unit => {
-  /* Optimistically count each projector as pending before calling its
-   * initializer, so a synchronous callback can't drive the counter negative;
-   * undo the count for projectors that report no async work. [on_complete] is
-   * gated on [dispatched] so it can only fire after the whole map has been
-   * walked, even when some callbacks ran synchronously. */
+  /* Count each in-flight effect; [on_complete] is gated on [dispatched] so it
+   * can only fire after every projector's first effect has been dispatched, even
+   * when some IO completed synchronously. */
   let remaining = ref(0);
   let dispatched = ref(false);
   let finish = () =>
     if (dispatched^ && remaining^ == 0) {
       on_complete();
     };
-  List.iter(
-    ((id, p: Base.projector)) => {
-      let (module P) = ProjectorInit.to_module(p.kind);
-      switch (P.initialize) {
-      | None => ()
-      | Some(f) =>
-        let info = mk_info(p);
-        incr(remaining);
-        let started =
-          f(
-            p.model,
-            info,
-            ~k=(model_opt, exp_opt) => {
-              on_result(id, p.kind, model_opt, exp_opt);
-              decr(remaining);
-              finish();
-            },
-          );
-        if (!started) {
+  /* Drive one projector from a (serialized) model to settled, then report it. */
+  let rec drive =
+          (
+            id: Id.t,
+            p: Base.projector,
+            info: ProjectorBase.info,
+            model: string,
+          ) => {
+    let (module P) = ProjectorInit.to_module(p.kind);
+    switch (P.effect(model)) {
+    | None => on_result(id, p.kind, model, P.expand(model, info))
+    | Some(Await(req, fold)) =>
+      incr(remaining);
+      run_io(
+        req,
+        ~k=result => {
+          let model' = P.update(model, info, fold(result));
           decr(remaining);
-        };
-      };
-    },
+          drive(id, p, info, model');
+          finish();
+        },
+      );
+    };
+  };
+  List.iter(
+    ((id, p: Base.projector)) => drive(id, p, mk_info(p), p.model),
     Id.Map.bindings(proj_map),
   );
   dispatched := true;

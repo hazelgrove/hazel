@@ -126,37 +126,36 @@ let install_seed_chooser = (~assume_yes: bool, ~from_stdin: bool): unit =>
         }
     );
 
-/* Pull a human-readable message out of a serialized CSV Failed model, for the
-   abort path when a `^^csv` ref can't be fetched/read. */
-let csv_failure_message = (model_opt: option(string)): string =>
-  switch (model_opt) {
-  | None => "CSV initialization failed"
-  | Some(m) =>
-    switch (
-      try(
-        Some(
-          Haz3lcore.CSVProjector.model_t_of_sexp(Sexplib.Sexp.of_string(m)),
-        )
-      ) {
-      | _ => None
-      }
+/* If a settled CSV model is in its Failed state, the message to abort with;
+   None for any other (NoFile / FileLoaded) or non-CSV model. */
+let csv_failure = (model: string): option(string) =>
+  switch (
+    try(
+      Some(
+        Haz3lcore.CSVProjector.model_t_of_sexp(
+          Sexplib.Sexp.of_string(model),
+        ),
+      )
     ) {
-    | Some(Haz3lcore.CSVProjector.Failed({message, _})) => message
-    | _ => "CSV initialization failed"
+    | _ => None
     }
+  ) {
+  | Some(Haz3lcore.CSVProjector.Failed({message, _})) => Some(message)
+  | _ => None
   };
 
 /* Resolve a parsed program's `^^csv` / `^^seed` projectors into an evaluable
    term. We MakeTerm the (small) program — each projector's body is just its
-   `"url"` string / default int, no payload yet — run every projector's
-   `initialize` (which fetches via UrlFetch / chooses a seed and hands back its
-   expansion as an Exp), then substitute each expansion at its own projector node
-   in place (ProjectorInitPhase.substitute). The table is built straight as an
-   Exp and never becomes a segment or passes through MakeTerm, so 10^4–10^5-row
-   datasets stay fast. `finish` receives the resolved term; CSV fetches may be
-   async, so it can run from a completion callback (synchronously when every ref
-   is local / there are no CSV refs). A fetch/read failure aborts with a clean
-   error + non-zero exit. */
+   `"url"` string / default int, no payload yet — then `resolve` drives each
+   projector to a settled model (running its declared IO via UrlFetch / SeedChoose
+   and folding the result through `update`) and reports `expand(model)`. We
+   substitute each expansion at its own projector node in place
+   (ProjectorInitPhase.substitute). The table is built straight as an Exp and
+   never becomes a segment or passes through MakeTerm, so 10^4–10^5-row datasets
+   stay fast. `finish` receives the resolved term; fetches may be async, so it can
+   run from a completion callback (synchronously when every ref is local / a seed
+   / there are no CSV refs). A failed fetch aborts with a clean error + non-zero
+   exit. */
 let resolve_program =
     (zipper: Haz3lcore.Zipper.t, ~finish: Language.Exp.t => unit): unit => {
   open Haz3lcore;
@@ -171,23 +170,22 @@ let resolve_program =
   };
   let exps = ref(Id.Map.empty);
   let failed = ref(false);
-  ProjectorInitPhase.run(
+  ProjectorInitPhase.resolve(
     ~proj_map=parsed.projectors,
     ~mk_info,
     ~on_result=
-      (id, kind, model_opt, exp_opt) =>
-        switch (exp_opt) {
-        | Some(exp) => exps := Id.Map.add(id, exp, exps^)
-        | None =>
+      (id, kind, model, expansion) =>
+        switch (kind, csv_failure(model)) {
+        | (ProjectorCore.Kind.Csv, Some(msg)) =>
           if (! failed^) {
             failed := true;
-            let msg =
-              switch (kind) {
-              | ProjectorCore.Kind.Csv => csv_failure_message(model_opt)
-              | _ => "projector initialization failed"
-              };
             prerr_endline("hazel: " ++ msg);
             exit(1);
+          }
+        | _ =>
+          switch (expansion) {
+          | Some(exp) => exps := Id.Map.add(id, exp, exps^)
+          | None => () // no expansion (e.g. NoFile / a probe) — leave syntax as-is
           }
         },
     ~on_complete=

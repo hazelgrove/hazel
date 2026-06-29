@@ -48,5 +48,6 @@ module M: Projector with type model = t and type action = fold_action = {
     expanded: !m.expanded,
   };
   let error = (_, _): option(ProjectorBase.error) => None;
-  let initialize = None;
+  let effect = _ => None;
+  let expand = (_, _) => None;
 };

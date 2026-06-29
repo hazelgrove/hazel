@@ -115,6 +115,23 @@ type info = {
 /* A projector-reported error, e.g. "can't render as table" */
 type error = {message: string};
 
+/* The asynchronous IO a projector needs to resolve its model, expressed as data
+ * for a frontend driver to interpret (see ProjectorInitPhase.run_io). Indexed by
+ * the type of result the driver hands back, so each request stays precisely
+ * typed — no stringly-typed plumbing: a url fetch yields result(string, string)
+ * (the response body, or an error message — the genuine type of a text fetch);
+ * choosing a seed yields an int. */
+type io_request('result) =
+  | FetchUrl(string): io_request(result(string, string))
+  | ChooseSeed(int): io_request(int);
+
+/* A projector's pending IO: a request paired with how to fold its (typed) result
+ * into one of the projector's own actions. The result type ['result] is
+ * existentially hidden so that `effect` has a single type across request kinds;
+ * within an [Await], the request and the fold agree on it. */
+type effect_of('action) =
+  | Await(io_request('result), 'result => 'action): effect_of('action);
+
 /* To add a new projector:
  * 1. Create a new module implementing Projector (e.g. FoldProj)
  * 2. Add an entry for it in ProjectorCore.Kind.t
@@ -188,30 +205,30 @@ module type Projector = {
   let update: (model, info, action) => model;
   /* Report an error if the projector can't render properly */
   let error: (model, info) => option(error);
-  /* Optional post-parse initialization phase, run once per projector by each
-   * frontend's init driver after parse (and statics, so `info`/`utility`
-   * exist). This is where a projector resolves an external resource into an
-   * expression — e.g. fetching a URL and parsing it into a Hazel value.
+  /* The asynchronous IO this projector's current model needs in order to
+   * resolve. Pure — it declares the work as data (an [Await]) and performs none.
+   * `init` (above) runs synchronously at parse/trigger time and leaves a
+   * placeholder model (e.g. CSV's Pending(url)); `effect` then reports what that
+   * placeholder needs (e.g. fetch the url), the frontend driver runs it
+   * (ProjectorInitPhase.run_io) and feeds the folded result back through
+   * `update`. It does NOT depend on statics.
    *
-   * Resolution yields an [Exp.t] (the projector's *expansion*), NOT a segment:
-   * a frontend then either substitutes it directly into the program term (the
-   * CLI — see Cli.resolve_program, which never re-parses it) or converts it to
-   * a segment for display (the web). Producing an Exp keeps large payloads out
-   * of the editor segment / MakeTerm parse path.
+   * - None             => the model is settled; no IO pending.
+   * - Some(Await(req, fold)) => run `req`; then `update(model, fold(result))`.
    *
-   * - None  => this kind never needs initialization.
-   * - Some  => called with the current model + info. If asynchronous resolution
-   *   is needed (e.g. a network fetch), start it and invoke [k] on completion
-   *   with an optional replacement model (applied like a SetModel) and the
-   *   expansion (Some exp on success, None if resolution failed). Return true so
-   *   a batch driver (the CLI) knows to wait for [k]. An already-resolved model
-   *   should do nothing, return false, and never call [k]. The bool return
-   *   therefore doubles as the per-projector idempotency guard. */
-  let initialize:
-    option(
-      (model, info, ~k: (option(model), option(Language.Exp.t)) => unit) =>
-      bool,
-    );
+   * Re-entering an effectful state via an ordinary action (e.g. a Reload action
+   * that maps FileLoaded -> Pending) makes the driver run the effect again, so
+   * refresh / hot-reload need no special path. */
+  let effect: model => option(effect_of(action));
+  /* This projector's contribution to the program term, as a pure function of
+   * its (resolved) model.
+   *
+   * - Some(exp) => the term substitutes `exp` at the projector's node (the CLI)
+   *   or lifts it to a segment for display (the web), keeping large payloads out
+   *   of the editor segment / MakeTerm parse path.
+   * - None => fall back to the projector's underlying syntax segment. This is
+   *   the default for projectors that don't expand to a different expression. */
+  let expand: (model, info) => option(Language.Exp.t);
 };
 
 /* A cooked projector is the same as the base module
@@ -228,6 +245,7 @@ module Cook = (C: Projector) : Cooked => {
   type action = string;
   let serialize_m = m => m |> C.sexp_of_model |> Sexplib.Sexp.to_string;
   let deserialize_m = s => s |> Sexplib.Sexp.of_string |> C.model_of_sexp;
+  let serialize_a = a => a |> C.sexp_of_action |> Sexplib.Sexp.to_string;
   let init = any => C.init(any) |> Option.map(serialize_m);
   let dynamics = C.dynamics;
   let elaborate_syntax = C.elaborate_syntax;
@@ -241,11 +259,13 @@ module Cook = (C: Projector) : Cooked => {
     )
     |> serialize_m;
   let error = (m, i) => C.error(m |> deserialize_m, i);
-  let initialize =
-    C.initialize
-    |> Option.map((f, m, i, ~k) =>
-         f(deserialize_m(m), i, ~k=(m_opt, exp) =>
-           k(Option.map(serialize_m, m_opt), exp)
-         )
-       );
+  /* Keep the request as-is; only the fold's *output* (the projector's action) is
+     serialized, so the driver gets back a string-action it can feed to update. */
+  let effect = m =>
+    switch (C.effect(deserialize_m(m))) {
+    | None => None
+    | Some(Await(req, fold)) =>
+      Some(Await(req, r => serialize_a(fold(r))))
+    };
+  let expand = (m, i) => C.expand(deserialize_m(m), i);
 };
