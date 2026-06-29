@@ -2026,6 +2026,76 @@ let pat_contains_focus = (focus: Id.t, pat: Pat.t): bool =>
   | _ => false
   };
 
+let mod_contains_focus = (focus: Id.t, item: Mod.t): bool =>
+  switch (item.term) {
+  | ModLet(p, e) =>
+    pat_contains_focus(focus, p) || exp_contains_focus(focus, e)
+  | ModExp(e)
+  | ModuleMod(_, e) => exp_contains_focus(focus, e)
+  | ModType(_)
+  | EmptyHole
+  | Invalid(_)
+  | MultiHole(_) => false
+  };
+
+let module_label_has_focus =
+    (focus: Id.t, name: string, items: list(Mod.t)): bool =>
+  List.exists(
+    item =>
+      List.mem(name, module_binding_names(item))
+      && mod_contains_focus(focus, item),
+    items,
+  );
+
+let combine_omission_adjustment =
+    (
+      (add_a, remove_a): (Id.Set.t, Id.Set.t),
+      (add_b, remove_b): (Id.Set.t, Id.Set.t),
+    )
+    : (Id.Set.t, Id.Set.t) => (
+  Id.Set.union(add_a, add_b),
+  Id.Set.union(remove_a, remove_b),
+);
+
+let module_focus_adjustment =
+    (focus: Id.t, items: list(Mod.t)): (Id.Set.t, Id.Set.t) =>
+  List.fold_left(
+    ((add, remove), item) =>
+      if (mod_contains_focus(focus, item)) {
+        switch (item.term) {
+        | ModLet(p, _) => (
+            add,
+            Id.Set.union(remove, ids_set(pat_all_ids(p))),
+          )
+        | _ => (add, remove)
+        };
+      } else {
+        switch (module_binding_names(item)) {
+        | [] => (add, remove)
+        | _ => (Id.Set.add(Mod.rep_id(item), add), remove)
+        };
+      },
+    (Id.Set.empty, Id.Set.empty),
+    items,
+  );
+
+let module_focus_adjustments =
+    (focus: Id.t, m: Id.Map.t(Info.t)): (Id.Set.t, Id.Set.t) =>
+  Id.Map.fold(
+    (_, info, acc) =>
+      switch (info) {
+      | Info.InfoExp({user_term: {term: Module(items), _}, _})
+          when List.exists(mod_contains_focus(focus), items) =>
+        combine_omission_adjustment(
+          acc,
+          module_focus_adjustment(focus, items),
+        )
+      | _ => acc
+      },
+    m,
+    (Id.Set.empty, Id.Set.empty),
+  );
+
 let rec exp_annotation_query =
         (
           path: Id.Set.t,
@@ -2056,6 +2126,21 @@ let rec exp_annotation_query =
       label,
       exp_contains_focus(focus, e) || on_path(path, Exp.rep_id(e))
         ? exp_annotation_query(path, focus, e, ty, focus_query) : gap,
+    )
+    |> Typ.temp
+  | (Module(items), Prod(fields)) =>
+    Prod(
+      List.map(
+        field =>
+          switch (Typ.term_of(field)) {
+          | TupLabel({term: Label(name), _} as label, _)
+              when module_label_has_focus(focus, name, items) =>
+            TupLabel(label, focus_query) |> Typ.temp
+          | TupLabel(label, _) => TupLabel(label, gap) |> Typ.temp
+          | _ => gap
+          },
+        fields,
+      ),
     )
     |> Typ.temp
   | (ListLit(_), List(_))
@@ -2273,6 +2358,7 @@ let analysis_overlay =
   | None => result
   | Some(focus_id) =>
     let path = focus_path(m, focus_id);
+    let module_adjustment = module_focus_adjustments(focus_id, m);
     let with_analysis_adjustments = result => {
       let edge_gamma = analysis_edge_gamma(path, m, query);
       let annotation_omissions =
@@ -2281,7 +2367,8 @@ let analysis_overlay =
         ...result,
         omitted: Id.Set.union(result.omitted, annotation_omissions),
         gamma: VarMap.is_empty(edge_gamma) ? result.gamma : edge_gamma,
-      };
+      }
+      |> apply_omission_adjustment(_, module_adjustment);
     };
     let omitted_path_ancestors =
       Id.Set.remove(focus_id, Id.Set.inter(result.omitted, path));
