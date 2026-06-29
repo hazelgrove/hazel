@@ -1302,6 +1302,45 @@ let ty_alias = (~shape: Typ.t, ~term: Exp.term, body: sty): sty => {
   finalize: () => empty_result,
 };
 
+let alias_shadowed =
+    (m: Id.Map.t(Info.t), alias_id: Id.t, names: list(string)): bool =>
+  names != []
+  && List.for_all(
+       name =>
+         Id.Map.exists(
+           (_, info) =>
+             switch (info) {
+             | Info.InfoExp({user_term, ancestors, _}) =>
+               switch (Exp.term_of(user_term)) {
+               | TyAlias(_, utyp2, _) =>
+                 List.mem(name, alias_constructors(utyp2))
+                 && List.mem(alias_id, ancestors)
+               | _ => false
+               }
+             | _ => false
+             },
+           m,
+         ),
+       names,
+     );
+
+let alias_name_referenced =
+    (m: Id.Map.t(Info.t), omitted: Id.Set.t, name: string): bool =>
+  Id.Map.exists(
+    (id, info) =>
+      switch (info) {
+      | Info.InfoTyp({user_term, ancestors, _}) =>
+        switch (Typ.term_of(user_term)) {
+        | Var(n) =>
+          n == name
+          && !List.exists(a => Id.Set.mem(a, omitted), [id, ...ancestors])
+        | _ => false
+        }
+      | _ => false
+      },
+    m,
+  );
+
 let omit_unused_aliases = (m: Id.Map.t(Info.t), omitted: Id.Set.t): Id.Set.t =>
   Id.Map.fold(
     (_, info, acc) =>
@@ -1310,7 +1349,16 @@ let omit_unused_aliases = (m: Id.Map.t(Info.t), omitted: Id.Set.t): Id.Set.t =>
         switch (Exp.term_of(user_term)) {
         | TyAlias(typat, utyp, _) =>
           let names = alias_constructors(utyp);
-          names != [] && !alias_used_in_term(m, acc, names)
+          let alias_id = Exp.rep_id(user_term);
+          let ctor_alive =
+            alias_used_in_term(m, acc, names)
+            && !alias_shadowed(m, alias_id, names);
+          let name_referenced =
+            switch (TPat.tyvar_of_utpat(typat)) {
+            | Some(n) => alias_name_referenced(m, acc, n)
+            | None => false
+            };
+          names != [] && !ctor_alive && !name_referenced
             ? Id.Set.union(
                 acc,
                 ids_set(IdTagged.ids(typat) @ IdTagged.ids(utyp)),
