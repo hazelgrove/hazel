@@ -14,21 +14,39 @@ open RichProbeRegistry;
  * These use mutable refs for simplicity since they're UI-only state. */
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type probe_model = {active_renderer: option(packed_model)};
+type probe_model = {
+  active_renderer: option(packed_model),
+  drawer_mode: bool,
+  /* Bumped on every dropdown open/close. The dropdown's visibility is
+   * read from the global Settings.open_dropdown ref, but a projector
+   * SetModel only repaints when the model changes structurally
+   * (SetModel is deliberately not an edit — see Action.is_edit). With
+   * an unchanged model the toggle would set the global ref but never
+   * re-render, so the dropdown would never actually appear/disappear.
+   * Mutating this int forces that repaint. */
+  dropdown_redraw: int,
+};
 
-/* Any deserialization failure resets to closed-modal — the record is
+let init_probe_model: probe_model = {
+  active_renderer: None,
+  drawer_mode: false,
+  dropdown_redraw: 0,
+};
+
+/* Any deserialization failure resets to defaults — the record is
  * pure transient UI state. Known failure modes are logged for
- * debuggability; unknown ones still degrade gracefully. */
+ * debuggability; unknown ones still degrade gracefully.
+ * Tolerates older serialized models (without drawer_mode) via fallback. */
 let probe_model_of_sexp = sexp =>
   switch (probe_model_of_sexp(sexp)) {
   | model => model
   | exception (RichProbeRegistry.Unknown_renderer(rid)) =>
     print_endline("probe_model_of_sexp: unknown renderer " ++ rid);
-    {active_renderer: None};
+    init_probe_model;
   | exception (Failure(msg)) =>
     print_endline("probe_model_of_sexp: malformed payload: " ++ msg);
-    {active_renderer: None};
-  | exception _ => {active_renderer: None}
+    init_probe_model;
+  | exception _ => init_probe_model
   };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -37,15 +55,39 @@ type action =
   | ToggleModal(option(packed_model))
   | RendererAction(packed_action)
   | ToggleWindowMode
-  | ToggleShowEnv
+  | ToggleDrawerMode
+  | SetDrawerMode(bool)
+  | ToggleDropdown(string)
+  | SetDropdown(option(string))
   | ResetSettings;
+
+/* How a sample's value should be rendered inside the offside view.
+ * Inline is the existing single-line, Abbreviate-budgeted display
+ * (one row in the editor, horizontal budget set by SampleLength).
+ * Block is the multi-line drawer display, pretty-printed to wrap at
+ * a per-sample width pulled from SampleLength in `value_view`, with
+ * `settings.drawer.width` as the default when none is set. */
+type sample_display =
+  | Inline
+  | Block;
 
 module Settings = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type sample_base =
     | Calls
     | Hybrid
-    | StepRange;
+    | StepRange
+    /* Simplest scheme: two colors only. Green for samples at the
+       cursor's call-stack level (the Calls-mode `is_call_cursor`
+       set, including sibling top-level samples), subdued green for
+       everything else. No before/after pink/blue, no step-range. */
+    | Simple;
+
+  /* Per-drawer display configuration. Currently only the line-wrap
+   * target width; will grow over time (height cap, indent-respect,
+   * etc.) so we keep it as a nested record from the start. */
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type drawer_settings = {width: int};
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type settings = {
@@ -55,23 +97,28 @@ module Settings = {
     after_cutoff: option(int),
     caller_cutoff: option(int),
     callee_cutoff: option(int),
+    drawer: drawer_settings,
   };
 
   type set_action =
     | ToggleWindow
+    | SetWindow(Sample.Window.mode)
     | SetSampleBase(sample_base)
     | ToggleBeforeCutoff
     | ToggleAfterCutoff
     | ToggleCallerCutoff
     | ToggleCalleeCutoff;
 
+  let init_drawer: drawer_settings = {width: 80};
+
   let init: settings = {
     window: Single,
-    sample_base: Hybrid,
+    sample_base: Simple,
     before_cutoff: None,
     after_cutoff: None,
     caller_cutoff: None,
     callee_cutoff: None,
+    drawer: init_drawer,
   };
 
   /* When true, ArrowUp/Down skip probes that have no samples
@@ -83,6 +130,10 @@ module Settings = {
     | ToggleWindow => {
         ...settings,
         window: settings.window == Sample.Window.Single ? Many : Single,
+      }
+    | SetWindow(window) => {
+        ...settings,
+        window,
       }
     | SetSampleBase(base) => {
         ...settings,
@@ -111,15 +162,39 @@ module Settings = {
   let s = ref(init);
   let version = ref(0);
 
-  /* When true, the context menu dropdown is shown for the indicated sample
-   * without hovering. Toggled by '/' key. Persists across probe navigation. */
-  let show_env = ref(false);
+  /* `sticky` is the '/' keyboard mode, orthogonal to `open_dropdown` (the
+   * per-sample right-click dropdown): the focused sample's in-place dropdown
+   * stays open and follows arrow-nav. Transient (resets on reload);
+   * visibility is CSS-driven off the focused offside.
+   * Writers bump version so the projector view cache invalidates. */
+  let sticky = ref(false);
+
+  /* Callback invoked by the '/' affordance inside the projector view (which
+   * can only dispatch external_actions, not global Settings updates). Set by
+   * Page.view each render so it captures the current `inject`. */
+  let on_sticky_toggle: ref(unit => Virtual_dom.Vdom.Effect.t(unit)) =
+    ref(_ => Virtual_dom.Vdom.Effect.Ignore);
+
+  let set_sticky = (b: bool) => {
+    sticky := b;
+    version := version^ + 1;
+  };
+
+  /* DOM id of the single sample dropdown opened by right-click (None =
+   * closed). Independent of sticky/docked. Transient; bumps version. */
+  let open_dropdown: ref(option(string)) = ref(None);
+  let set_open_dropdown = (o: option(string)) => {
+    open_dropdown := o;
+    version := version^ + 1;
+  };
 
   let reset_mode = () => {
     Hashtbl.clear(offset);
     s := init;
+    open_dropdown := None;
+    /* Clear the transient sticky bit; preserve the persisted dock pref. */
+    sticky := false;
     version := version^ + 1;
-    show_env := false;
   };
 
   let go = (a: set_action): unit => {
@@ -134,12 +209,17 @@ open Node;
 /* Shared context for probe view functions. Constructed once in offside_view
  * after unwrapping dynamics and statics, then threaded to all child views. */
 type probe_ctx = {
+  /* This projector's term id (info.id), used to focus the projector
+     via parent(FocusById(id)) — the framework's Focus action that a
+     normal left-click triggers but a right-click does not. */
+  id: Id.t,
   ap_id: option(Id.t),
   statics: Language.Statics.Info.t,
   settings,
   dynamics: Dynamics.Info.t,
   utility: ProjectorBase.utility,
   parent: external_action => Ui_effect.t(unit),
+  local: action => Ui_effect.t(unit),
   sort: Sort.t,
   /* Id of the currently-open rich-probe renderer, if any. Drives the
    * "View as <id>" / "Hide <id>" toggle label in the sample menu. */
@@ -243,21 +323,97 @@ let select_samples =
 let seg_of_exp = ProbeUtil.seg_of_exp;
 let abbreviated_seg_of = ProbeUtil.abbreviated_seg_of;
 
-let pos_rel_to_target = (e: Js.t(Dom_html.mouseEvent)): Point.t => {
+/* Pretty-print a value to a multi-line segment at the given width.
+ * Skips Abbreviate since drawer mode is the use case where samples
+ * are allowed to span as many lines as they need. */
+let pretty_seg_of_value =
+    (utility: utility, ~width: int, exp: Exp.t): Segment.t => {
+  /* Pretty-print to a multi-line drawer: ask term_to_seg for the
+   * non-inline (block) form so PrettySegment has real linebreaks
+   * to fold rather than a single squashed line. */
+  let seg =
+    utility.term_to_seg(~inline=false, Exp(exp |> DHExp.strip_ascriptions));
+  PrettySegment.prettify(~width, seg);
+};
+
+/* Rows reserved for a probe's drawer-mode Tab(n) placeholder.
+ * Pretty-prints each visible sample at the drawer's wrap width,
+ * counts rows via Measured, returns the max. With no samples
+ * available (no focus-aligned samples, no samples yet) falls back
+ * to 1 row — just enough for the empty-status icon. Refractor
+ * drawer height transitions are smoothed out by the caret-shift
+ * compensation in `CachedSyntax.calculate` rather than a cache
+ * here. */
+module DrawerHeight = {
+  /* Max rows the drawer can reserve via Tab(n); content taller than
+   * this scrolls inside `.below-wrapper` (see overflow-y: auto in
+   * proj-probe.css). Prevents a single deeply-nested sample from
+   * pushing code arbitrarily far down. */
+  let max_rows = 15;
+
+  /* Row count via Measured. PrettySegment.format_segment ends with
+   * Segment.reassemble, which folds the formatter's flat output back
+   * into nested tile structure, so naively scanning top-level pieces
+   * for Secondary linebreaks undercounts. Measured.of_segment runs the
+   * canonical layout walk (handling indentation, deferred linebreaks,
+   * etc.) and `total_rows` reads off its row tally directly. */
+  let row_count = (seg: Segment.t): int =>
+    Measured.of_segment(seg, ProjectorCore.Shape.Map.empty, Id.Map.empty)
+    |> Measured.total_rows;
+
+  let sample_rows = (utility: utility, ~width: int, sample: Sample.t): int =>
+    row_count(pretty_seg_of_value(utility, ~width, sample.value));
+
+  let compute = (info: info): int =>
+    switch (info.dynamics, info.statics) {
+    | (Some(dynamics), Some(statics)) =>
+      let settings = Settings.s^;
+      let ap_id = Sample.Focus.cur_var_ap(statics);
+      let samples = select_samples(~settings, ~id=info.id, ~ap_id, dynamics);
+      switch (samples) {
+      | [] => 1
+      | _ =>
+        /* Per-sample width: matches value_view's Block branch so the
+         * reserved row count (Tab(n)) aligns with the rendered drawer
+         * heights. Falls back to settings.drawer.width if no explicit
+         * width set. */
+        let heights =
+          List.map(
+            (sample: Sample.t) =>
+              sample_rows(
+                info.utility,
+                ~width=
+                  Hashtbl.find_opt(SampleLength.lengths, sample.id)
+                  |> Option.value(~default=settings.drawer.width),
+                sample,
+              ),
+            samples,
+          );
+        min(max_rows, List.fold_left(max, 1, heights));
+      };
+    | _ => 1
+    };
+};
+
+let pos_rel_to_target = (e: Js.t(Dom_html.mouseEvent)): option(Point.t) => {
   open Float;
   let (col_width, row_height) = JsUtil.font_metrics_from_specimen();
   let text_box =
     e##.currentTarget
-    |> Js.Opt.get(_, _ => failwith(""))
-    |> JsUtil.get_child_with_class(_, "code")
-    |> Option.get;
-  let x_rel = of_int(e##.clientX) -. text_box##getBoundingClientRect##.left;
-  let y_rel = of_int(e##.clientY) -. text_box##getBoundingClientRect##.top;
-  let row = to_int(y_rel /. row_height);
-  let col = to_int(round(x_rel /. col_width));
-  {
-    row,
-    col,
+    |> Js.Opt.to_option
+    |> Option.map(JsUtil.get_child_with_class(_, "code"))
+    |> Option.join;
+  switch (text_box) {
+  | None => None
+  | Some(text_box) =>
+    let x_rel = of_int(e##.clientX) -. text_box##getBoundingClientRect##.left;
+    let y_rel = of_int(e##.clientY) -. text_box##getBoundingClientRect##.top;
+    let row = to_int(y_rel /. row_height);
+    let col = to_int(round(x_rel /. col_width));
+    Some({
+      row,
+      col,
+    });
   };
 };
 
@@ -377,6 +533,19 @@ let color_clss =
         step_range_clss(); /* Everything else: step range coloring */
       };
     }
+  | Simple =>
+    /* Two-color collapse of Calls: same call-stack level as the
+       cursor => focus green; everything else => one subdued green.
+       Unlike Hybrid, top-level samples are not special-cased, so
+       sibling top-level samples turn green like in Calls mode. */
+    let relation =
+      Sample.Focus.relation(
+        ~trimmed=true,
+        ~ap_id,
+        dynamics.sample_focus,
+        sample,
+      );
+    relation.is_call_cursor ? ["focus"] : ["off-focus"];
   };
 };
 
@@ -411,11 +580,6 @@ module Debug = {
     ++ "\ntime: "
     ++ Printf.sprintf("%.0f", sample.time);
 };
-
-/* Find first compatible renderer for an expression */
-let find_compatible_renderer =
-    (sort: Sort.t, exp: Exp.t): option(RichProbe.packed_renderer) =>
-  List.find_opt(r => r.can_handle(sort, exp), renderers);
 
 let pin_call = (ctx: probe_ctx) =>
   switch (ctx.ap_id, Dynamics.Info.is_in(ctx.dynamics)) {
@@ -468,7 +632,19 @@ module ValueState = {
 };
 
 let value_view =
-    (ctx: probe_ctx, ~num_total, view_seg, local, sample: Sample.t) => {
+    (
+      ~display: sample_display,
+      /* Thunk, NOT a prebuilt effect: `local(action)` runs P.update
+         eagerly when called, so passing `local(ToggleDropdown(did))`
+         directly would toggle open_dropdown on every render. Deferring
+         it behind `unit =>` means the toggle only runs on click. */
+      ~alt_toggle: unit => Ui_effect.t(unit),
+      ctx: probe_ctx,
+      ~num_total,
+      view_seg,
+      local,
+      sample: Sample.t,
+    ) => {
   let {settings, ap_id, utility, _} = ctx;
   let val_pointerdown = (e: Js.t(Dom_html.pointerEvent)) => {
     if (Js.to_bool(e##.shiftKey)) {
@@ -493,30 +669,57 @@ let value_view =
   };
 
   let val_mousemove = (e: Js.t(Dom_html.mouseEvent)) => {
-    switch (ValueState.mousedown^) {
-    | Some(_) when Js.to_bool(e##.shiftKey) =>
-      let goal = pos_rel_to_target(e);
+    /* `buttons > 0` guards against a stale drag flag: if pointer capture
+       is lost without a pointerup landing on this element (subtree
+       replaced mid-drag, pointercancel), the flag would otherwise make
+       shift-hover resize samples with no button held. */
+    let buttons: int = Js.Unsafe.get(e, "buttons");
+    switch (
+      ValueState.mousedown^,
+      Js.to_bool(e##.shiftKey) && buttons > 0 ? pos_rel_to_target(e) : None,
+    ) {
+    | (Some(_), Some(goal)) =>
       let target_width = max(1, goal.col);
-      let width_at = (b: int): int =>
-        abbreviated_seg_of(utility, b, sample.value) |> snd;
-      let budget = find_best_budget(width_at, target_width);
+      /* Inline: rendered width isn't a linear function of budget
+       * (Abbreviate makes discrete decisions), so bisect for the budget
+       * whose output fits target_width. Block: pretty-print wrap width
+       * IS target_width directly. Both update SampleLength.lengths via
+       * ChangeLength; value_view's Block branch reads the same map. */
+      let budget =
+        switch (display) {
+        | Inline =>
+          let width_at = (b: int): int =>
+            abbreviated_seg_of(utility, b, sample.value) |> snd;
+          find_best_budget(width_at, target_width);
+        | Block => target_width
+        };
       local(ChangeLength(sample.id, budget));
     | _ => Effect.Ignore
     };
   };
 
-  let length =
-    if (!SampleLength.is_explicit(sample) && num_total == 1) {
-      150;
-    } else {
-      SampleLength.get(settings.window, sample);
+  let (seg, length_class) =
+    switch (display) {
+    | Inline =>
+      let length =
+        if (!SampleLength.is_explicit(sample) && num_total == 1) {
+          150;
+        } else {
+          SampleLength.get(settings.window, sample);
+        };
+      let (seg, length) = abbreviated_seg_of(utility, length, sample.value);
+      (seg, [length_cls(length)]);
+    | Block =>
+      let width =
+        Hashtbl.find_opt(SampleLength.lengths, sample.id)
+        |> Option.value(~default=settings.drawer.width);
+      (pretty_seg_of_value(utility, ~width, sample.value), []);
     };
-  let (seg, length) = abbreviated_seg_of(utility, length, sample.value);
 
   div(
     ~attrs=[
       Attr.classes(
-        ["value", length_cls(length)]
+        ["value", ...length_class]
         @ cursor_clss(
             ~settings=ctx.settings,
             ~ap_id=ctx.ap_id,
@@ -527,11 +730,51 @@ let value_view =
         @ (!ValueChecker.is_value(sample.value) ? ["indet"] : []),
       ),
       Attr.on_double_click(_ => local(ToggleWindowMode)),
-      Attr.on_pointerdown(evt =>
-        Key.meta_held(evt)
-          ? Option.is_some(ctx.ap_id) ? pin_call(ctx) : focus_call(ctx)
-          : val_pointerdown(evt)
+      /* Suppress the native browser menu so our dropdown is the only
+         context menu over a sample — unless Ctrl is held, which (as on
+         the editor) is the escape hatch to the native menu. */
+      Attr.on_contextmenu(evt =>
+        Key.ctrl_held(evt)
+          ? Effect.Ignore
+          : Effect.Many([Effect.Stop_propagation, Effect.Prevent_default])
       ),
+      Attr.on_pointerdown(evt => {
+        let button: int = Js.Unsafe.coerce(evt)##.button;
+        let alt = Js.to_bool(Js.Unsafe.coerce(evt)##.altKey);
+        let ctrl = Key.ctrl_held(evt);
+        button == 2 && ctrl
+          /* Ctrl + right-click defers to the native browser menu (same
+             escape hatch the editor's context menu offers). */
+          ? Effect.Ignore
+          : button == 2 || alt
+              /* Right-click (or alt-click) opens the sample's context
+                 dropdown and stops the event before it reaches the code
+                 editor's pointerdown handler, which would otherwise open
+                 the editor's own context menu.
+                 - parent(FocusById id): the projector Focus a normal
+                   left-click triggers via the framework wrapper (which
+                   ignores right-clicks); needed for correct z-index.
+                 - val_pointerdown: the sample-focus (SampleFocus Capture)
+                   a normal click also does. */
+              ? Effect.Many([
+                  ctx.parent(FocusById(ctx.id)),
+                  val_pointerdown(evt),
+                  alt_toggle(),
+                  Effect.Stop_propagation,
+                  Effect.Prevent_default,
+                ])
+              : Key.meta_held(evt)
+                  /* Stop propagation: Pin may promote a multi probe to
+                     manual, reordering the refractor list and
+                     invalidating the wrapper's render-time Focus idx
+                     (same hazard as the pin context-menu items). */
+                  ? Effect.Many([
+                      Effect.Stop_propagation,
+                      Option.is_some(ctx.ap_id)
+                        ? pin_call(ctx) : focus_call(ctx),
+                    ])
+                  : val_pointerdown(evt);
+      }),
       Attr.on_pointerup(val_pointerup),
       Attr.on_mousemove(val_mousemove),
     ],
@@ -539,7 +782,15 @@ let value_view =
   );
 };
 
-let env_val = (ctx: probe_ctx, view_seg, sample, en: Sample.Env.entry): Node.t => {
+/* Shared hard cap for code rendered inside the sample dropdown — used for
+ * both env binding values and call-display arguments. A wide sample
+ * otherwise made these uselessly long. Abbreviate treats the budget as a
+ * hard cap, so shorter values still render short. Both sites reference this
+ * one constant so they can't diverge. */
+let dropdown_value_width = 50;
+
+let env_val =
+    (ctx: probe_ctx, view_seg, _sample, en: Sample.Env.entry): Node.t => {
   Node.div(
     ~attrs=[Attr.classes(["live-env-entry"])],
     [
@@ -548,11 +799,7 @@ let env_val = (ctx: probe_ctx, view_seg, sample, en: Sample.Env.entry): Node.t =
       | Opaque => Node.text("Opaque")
       | Val(d) =>
         let (seg, _) =
-          abbreviated_seg_of(
-            ctx.utility,
-            SampleLength.get(ctx.settings.window, sample),
-            d,
-          );
+          abbreviated_seg_of(ctx.utility, dropdown_value_width, d);
         view_seg(~text_only=false, seg);
       },
     ],
@@ -586,35 +833,80 @@ let pin_view = (ctx: probe_ctx, sample: Sample.t) =>
     [];
   };
 
-/* Generate a DOM id that's unique per sample-instance. sample.id is
- * Hashtbl.hash((stack, syntax_id)) and is intentionally coarse — recursive
- * invocations frequently collide on it. Combining with step_start/step_end
- * disambiguates. If Sample.id is ever made truly unique, simplify this back
- * to just sample.id. See issue #2288. */
+/* DOM id for a sample's dropdown. sample.id is now collision-resistant
+ * (Sample.mk hashes stack length + syntax id inside the traversal
+ * budget; recursive invocations used to collide, see issue #2288), so
+ * the step_start/step_end salt this once carried is gone. The bare id
+ * is also STABLE across re-evaluations, unlike step counts, so an open
+ * dropdown keeps its identity when results refresh. */
 let dropdown_id = (sample: Sample.t): string =>
-  Printf.sprintf(
-    "sample-dropdown-%d-%d-%d",
-    sample.id,
-    sample.step_start,
-    sample.step_end,
-  );
+  Printf.sprintf("sample-dropdown-%d", sample.id);
 
-/* Step into handler for sample context menu */
+/* Step into handler for sample context menu. Step-into is terminal — it
+   moves the cursor to the function body — so close the right-click sample
+   dropdown (via the same SetDropdown(None) the Escape/click-outside paths
+   use) before dispatching the StepInto to the parent editor. */
 let step_into_sample =
-    (~parent, ~sample: Sample.t, ~ap_id: Id.t): Ui_effect.t(unit) =>
-  parent(Probe(StepInto(sample.call_stack, ap_id)));
+    (~parent, ~local, ~sample: Sample.t, ~ap_id: Id.t): Ui_effect.t(unit) => {
+  /* Build the frame to step into: ap_id is the authoritative call-site id
+     (from statics), enriched with the dynamically-captured fn_name and
+     fn_def_id from this sample's recorded frame when available. */
+  let dyn = sample.frame;
+  let frame: Sample.stack_frame = {
+    id: ap_id,
+    name: Option.bind(dyn, (f: Sample.stack_frame) => f.name),
+    fn_def_id: Option.bind(dyn, (f: Sample.stack_frame) => f.fn_def_id),
+  };
+  Effect.Many([
+    local(SetDropdown(None)),
+    parent(Probe(StepInto(sample.call_stack, frame))),
+  ]);
+};
 
 /* Check if step-into is possible for this probe's function call.
- * Requires: Ap of a named variable that isn't a built-in. */
-let can_step_into = (statics: Language.Statics.Info.t): bool =>
-  switch (statics) {
-  | InfoExp({user_term: {term: Ap(_, fn_exp, _), _}, _}) =>
-    switch (fn_exp.term) {
-    | Var(name) => Environment.lookup(Builtins.env_init, name) == None
-    | _ => false
-    }
-  | _ => false
-  };
+ * Tier 1 (static): Ap of a named variable that isn't a built-in.
+ * Tier 2 (dynamic): this sample's call recorded a navigable fn_def_id — the
+ * function actually applied came from user code. Tier 2 is what enables
+ * step-into for higher-order and partial-application calls. */
+let can_step_into = (statics: Language.Statics.Info.t, sample: Sample.t): bool => {
+  /* Name of the function in call position, when it's a plain variable. */
+  let fn_var_name =
+    switch (statics) {
+    | InfoExp({user_term: {term: Ap(_, {term: Var(name), _}, _), _}, _}) =>
+      Some(name)
+    | _ => None
+    };
+  let is_builtin = name =>
+    Environment.lookup(Builtins.env_init, name) != None;
+  let static_ok =
+    switch (fn_var_name) {
+    | Some(name) => !is_builtin(name)
+    | None => false
+    };
+  /* A call site that references a builtin/library function directly (e.g.
+     map(...)). These are Hazel Funs in env_init, so they DO carry an
+     fn_def_id, but it points to library code outside the user's editor —
+     nowhere to step. They only reach a call site as a direct builtin
+     reference (higher-order and partial-application calls go through a
+     parameter, which is never a builtin name), so suppressing the dynamic
+     offer for builtin call sites keeps the menu item from appearing-but-no-op.
+     (Mirrors the focus bar's builtin exclusion; more robust than checking the
+     frame's fn_name, since library Funs carry no name in their Fun node.) */
+  let static_fn_is_builtin =
+    switch (fn_var_name) {
+    | Some(name) => is_builtin(name)
+    | None => false
+    };
+  let dynamic_ok =
+    !static_fn_is_builtin
+    && (
+      switch (sample.frame) {
+      | Some(f) => Option.is_some(f.fn_def_id)
+      | None => false
+      }
+    );
+  static_ok || dynamic_ok;
+};
 
 let pin_action = (ctx: probe_ctx, sample: Sample.t) => {
   let is_pinned = show_pin(ctx, sample);
@@ -623,10 +915,14 @@ let pin_action = (ctx: probe_ctx, sample: Sample.t) => {
       Attr.classes(
         ["action-item", "pin-action"] @ (is_pinned ? ["pinned"] : []),
       ),
-      Attr.on_pointerdown(_ => pin_call(ctx)),
+      Attr.on_pointerdown(_
+        /* Stop propagation to prevent parent wrapper's Focus action:
+           Pin may promote a multi probe to manual, reordering the
+           refractor list and invalidating the wrapper's render-time idx */
+        => Effect.Many([Effect.Stop_propagation, pin_call(ctx)])),
     ],
     [
-      div(~attrs=[Attr.classes(["pin-icon"])], []),
+      // div(~attrs=[Attr.classes(["pin-icon"])], []),
       text(is_pinned ? "Unpin this call" : "Pin this call"),
       span(~attrs=[Attr.classes(["shortcut"])], [text("P")]),
     ],
@@ -640,10 +936,12 @@ let focus_action = (ctx: probe_ctx, sample: Sample.t) => {
       Attr.classes(
         ["action-item", "pin-action"] @ (is_focused ? ["pinned"] : []),
       ),
-      Attr.on_pointerdown(_ => focus_call(ctx)),
+      Attr.on_pointerdown(_
+        /* Stop propagation: see pin_action above */
+        => Effect.Many([Effect.Stop_propagation, focus_call(ctx)])),
     ],
     [
-      div(~attrs=[Attr.classes(["pin-icon"])], []),
+      // div(~attrs=[Attr.classes(["pin-icon"])], []),
       text(is_focused ? "Unpin enclosing call" : "Pin enclosing call"),
       span(~attrs=[Attr.classes(["shortcut"])], [text("P")]),
     ],
@@ -661,12 +959,17 @@ let step_into_action = (ctx: probe_ctx, sample: Sample.t, ap_id: Id.t) =>
         =>
           Effect.Many([
             Effect.Stop_propagation,
-            step_into_sample(~parent=ctx.parent, ~sample, ~ap_id),
+            step_into_sample(
+              ~parent=ctx.parent,
+              ~local=ctx.local,
+              ~sample,
+              ~ap_id,
+            ),
           ])
         ),
     ],
     [
-      div(~attrs=[Attr.classes(["step-into-icon"])], []),
+      // div(~attrs=[Attr.classes(["step-into-icon"])], []),
       text("Step into"),
       span(~attrs=[Attr.classes(["shortcut"])], [text("Enter")]),
     ],
@@ -677,56 +980,64 @@ let step_into_action = (ctx: probe_ctx, sample: Sample.t, ap_id: Id.t) =>
    Label flips to "Hide <id>" when this renderer's modal is already open,
    since dispatching ToggleModal again closes it. */
 let rich_probe_action =
-    (ctx: probe_ctx, local, sample: Sample.t, r: packed_renderer): Node.t => {
+    (ctx: probe_ctx, sample: Sample.t, r: packed_renderer): Node.t => {
   let is_active = ctx.active_renderer_id == Some(r.id);
   let label = (is_active ? "Hide " : "View as ") ++ r.id;
   div(
     ~attrs=[
       Attr.classes(["action-item", "rich-probe-action"]),
-      Attr.on_pointerdown(_ =>
-        local(ToggleModal(r.init_model(ctx.sort, sample.value)))
-      ),
+      Attr.on_pointerdown(_
+        /* Stop propagation so the wrapper's Focus doesn't also fire
+           (caret jump as a side effect of opening a modal) */
+        =>
+          Effect.Many([
+            Effect.Stop_propagation,
+            ctx.local(ToggleModal(r.init_model(ctx.sort, sample.value))),
+          ])
+        ),
     ],
     [r.badge, text(label)],
   );
 };
 
-let rich_probe_items =
-    (ctx: probe_ctx, local, _sample: Sample.t): list(Node.t) =>
+let rich_probe_items = (ctx: probe_ctx, _sample: Sample.t): list(Node.t) =>
   switch (Dynamics.Info.most_aligned_sample(ctx.ap_id, ctx.dynamics)) {
   | None => []
   | Some(indicated) =>
     renderers
     |> List.filter_map(r =>
          r.can_handle(ctx.sort, indicated.value)
-           ? Some(rich_probe_action(ctx, local, indicated, r)) : None
+           ? Some(rich_probe_action(ctx, indicated, r)) : None
        )
   };
 
-/* Context actions for a sample (Pin/Unpin, Step Into, rich-probe views, etc.) */
-let sample_context_actions =
-    (ctx: probe_ctx, local, ~can_step_into: bool, sample: Sample.t)
+/* Drawer-mode toggle: flips this probe between inline-offside display
+ * and below-line full-width pretty-printed drawer. Per-probe state
+ * (ProbeProj.M.model.drawer_mode), so dispatched via local. Now drawn
+ * as the chevron portion of the consolidated SVG nav-bar (see
+ * `nav_bar_view`), not a standalone div. */
+
+/* Primary actions for a sample (Pin/Unpin, Step Into, Focus, rich-probe
+ * views). Empty when there's nothing actionable. The caller wraps these
+ * in the context-actions row (with the dock toggle appended at the row's
+ * far right) — but only when the menu has content worth showing. */
+let sample_primary_actions =
+    (
+      ctx: probe_ctx,
+      ~can_step_into: bool,
+      ~include_rich: bool=true,
+      sample: Sample.t,
+    )
     : list(Node.t) => {
-  let rich_items = rich_probe_items(ctx, local, sample);
+  let rich_items = include_rich ? rich_probe_items(ctx, sample) : [];
   switch (ctx.ap_id) {
-  | Some(ap_id) => [
-      div(
-        ~attrs=[Attr.classes(["context-actions"])],
-        [pin_action(ctx, sample)]
-        @ (can_step_into ? [step_into_action(ctx, sample, ap_id)] : [])
-        @ rich_items,
-      ),
-    ]
-  | None when sample.call_stack != [] => [
-      div(
-        ~attrs=[Attr.classes(["context-actions"])],
-        [focus_action(ctx, sample)] @ rich_items,
-      ),
-    ]
-  | None when rich_items != [] => [
-      div(~attrs=[Attr.classes(["context-actions"])], rich_items),
-    ]
-  | None => []
+  | Some(ap_id) =>
+    [pin_action(ctx, sample)]
+    @ (can_step_into ? [step_into_action(ctx, sample, ap_id)] : [])
+    @ rich_items
+  | None when sample.call_stack != [] =>
+    [focus_action(ctx, sample)] @ rich_items
+  | None => rich_items
   };
 };
 
@@ -808,7 +1119,9 @@ let sample_call_display =
     (ctx: probe_ctx, view_seg, sample: Sample.t): list(Node.t) =>
   switch (sample.args, get_fn_name_from_statics(ctx.statics)) {
   | (Some(arg_val), Some(fn_name)) =>
-    let length = SampleLength.get(ctx.settings.window, sample);
+    /* Same hard cap as env values (dropdown_value_width) so arguments and
+     * bindings trim identically and can't drift apart. */
+    let length = dropdown_value_width;
     let arg_var_info = get_arg_var_info(ctx.statics);
     let render_exp = (exp: Exp.t) => {
       let (seg, _) = abbreviated_seg_of(ctx.utility, length, exp);
@@ -922,35 +1235,6 @@ let sample_environment =
     ];
 };
 
-/* Sample context menu (dropdown) combining actions and environment */
-let sample_context_menu =
-    (~show_env, ctx: probe_ctx, local, view_seg, sample: Sample.t): Node.t => {
-  /* Get variable names shown in call display to filter from environment */
-  let filter_vars = List.filter_map(Fun.id, get_arg_var_info(ctx.statics));
-  let env_elems = filtered_env_entries(~filter_vars, sample);
-  let has_env = env_elems != [];
-  let has_call = Option.is_some(sample.args);
-  div(
-    ~attrs=
-      [
-        Attr.classes(
-          ["sample-context-menu"]
-          @ (has_env || has_call ? [] : ["no-env"])
-          @ (show_env ? ["dropdown-active"] : []),
-        ),
-      ]
-      @ SafeTriangle.CSSDropdown.menu_attrs(dropdown_id(sample)),
-    sample_context_actions(
-      ctx,
-      local,
-      ~can_step_into=can_step_into(ctx.statics),
-      sample,
-    )
-    @ sample_call_display(ctx, view_seg, sample)
-    @ sample_environment(ctx, ~filter_vars, view_seg, sample),
-  );
-};
-
 /* Don't redundantly show an env for variable references, patterns */
 let hide_env = (statics: Language.Statics.Info.t): bool =>
   switch (statics) {
@@ -959,8 +1243,96 @@ let hide_env = (statics: Language.Statics.Info.t): bool =>
   | _ => false
   };
 
+/* Inner sections of the sample context menu: actions, call display, env.
+ * Used by the hover dropdown (sample_context_menu). Also returns
+ * has_env/has_call flags so the dropdown can adjust its chrome. */
+let sample_context_sections =
+    (ctx: probe_ctx, ~include_rich: bool=true, view_seg, sample: Sample.t)
+    : (bool, bool, list(Node.t)) => {
+  /* Get variable names shown in call display to filter from environment */
+  let filter_vars = List.filter_map(Fun.id, get_arg_var_info(ctx.statics));
+  let env_elems = filtered_env_entries(~filter_vars, sample);
+  let has_env = env_elems != [];
+  let has_call = Option.is_some(sample.args);
+  let primary =
+    sample_primary_actions(
+      ctx,
+      ~can_step_into=can_step_into(ctx.statics, sample),
+      ~include_rich,
+      sample,
+    );
+  let call_display = sample_call_display(ctx, view_seg, sample);
+  let env = sample_environment(ctx, ~filter_vars, view_seg, sample);
+  /* With no actions, no call display and no environment, the only
+   * thing the menu could show is the lone dock toggle — not worth a
+   * menu. Emit no nodes so the callers suppress the whole menu rather
+   * than rendering an empty one. */
+  let nodes =
+    primary == [] && call_display == [] && env == []
+      ? []
+      : [div(~attrs=[Attr.classes(["context-actions"])], primary)]
+        @ call_display
+        @ env;
+  (has_env, has_call, nodes);
+};
+
+/* Sample context menu (dropdown) combining actions and environment */
+let sample_context_menu =
+    (~show_env, ~drawer, ctx: probe_ctx, view_seg, sample: Sample.t)
+    : list(Node.t) => {
+  let (has_env, has_call, nodes) =
+    sample_context_sections(ctx, view_seg, sample);
+  /* In drawer mode the menu lives inside `.below-wrapper`, whose overflow
+   * clip (the line-cap scroll) would occlude a normally-positioned
+   * dropdown. Promote the *open* menu to a FloatingElement: position:fixed,
+   * repositioned each render/scroll just below its `.sample` anchor's
+   * bottom edge (see Util.FloatingElement, driven from Main.after_display).
+   * This escapes the clip while still tracking the sample. At most one
+   * dropdown is open at a time, so at most one element floats. Inline mode
+   * renders in the unclipped offside layer and needs none of this. */
+  let floating = drawer && show_env;
+  let float_attrs =
+    floating
+      ? [
+        Attr.create("data-float-anchor-class", "sample"),
+        Attr.create("data-float-anchor-edge", "bottom"),
+        Attr.create("data-float-local-top", "0"),
+        Attr.create("data-float-local-left", "3"),
+        /* update_all() overwrites top/left and flips visibility:visible
+         * after measuring; start hidden to avoid a flash at (0,0). */
+        Attr.create(
+          "style",
+          "position: fixed; visibility: hidden; top: 0; left: 0;",
+        ),
+      ]
+      : [];
+  switch (nodes) {
+  /* Nothing to show: no menu, and so no lone dock icon. */
+  | [] => []
+  | _ => [
+      div(
+        ~attrs=
+          [
+            Attr.classes(
+              ["sample-context-menu"]
+              @ (floating ? ["floating-fixed"] : [])
+              @ (has_env || has_call ? [] : ["no-env"])
+              @ (show_env ? ["dropdown-active"] : []),
+            ),
+            /* id only — visibility is driven by the dropdown-active class
+             * (set via show_env); no SafeTriangle hover handlers. */
+            Attr.id(dropdown_id(sample)),
+          ]
+          @ float_attrs,
+        nodes,
+      ),
+    ]
+  };
+};
+
 let sample_view =
     (
+      ~display: sample_display,
       ctx: probe_ctx,
       ~indicated_sample_id,
       ~num_total,
@@ -968,28 +1340,80 @@ let sample_view =
       local,
       sample: Sample.t,
     ) => {
-  let hide_env = hide_env(ctx.statics);
-  let has_rich =
-    switch (Dynamics.Info.most_aligned_sample(ctx.ap_id, ctx.dynamics)) {
-    | Some(indicated) =>
-      List.exists(r => r.can_handle(ctx.sort, indicated.value), renderers)
-    | None => false
+  let is_indicated = indicated_sample_id == Some(sample.id);
+  let did = dropdown_id(sample);
+  /* The right-click dropdown's visibility. Sticky-mode visibility is
+   * handled in CSS (the focused offside's focal sample), so it isn't an
+   * OCaml concern here. */
+  let show_env = Settings.open_dropdown^ == Some(did);
+  /* Only construct the dropdown when something can actually reveal it:
+   * the dropdown-active class (this sample's menu is open) or sticky
+   * mode (CSS shows the focused offside's focal sample). At most one
+   * menu is ever open, but previously the full menu — call display and
+   * env entries each running the abbreviate/measure/code-view pipeline —
+   * was built for every rendered sample on every cache miss, which
+   * dominated per-probe render cost in auto-probe All mode. Both
+   * open_dropdown and sticky writers bump Settings.version, so flipping
+   * them invalidates the view cache and the menu (re)builds on the next
+   * render. */
+  let render_dropdown =
+    show_env
+    || Settings.sticky^
+    && {
+      let hide_env = hide_env(ctx.statics);
+      let has_rich =
+        switch (Dynamics.Info.most_aligned_sample(ctx.ap_id, ctx.dynamics)) {
+        | Some(indicated) =>
+          List.exists(
+            r => r.can_handle(ctx.sort, indicated.value),
+            renderers,
+          )
+        | None => false
+        };
+      !(hide_env && ctx.ap_id == None) || sample.call_stack != [] || has_rich;
     };
-  let has_dropdown =
-    !(hide_env && ctx.ap_id == None) || sample.call_stack != [] || has_rich;
-  let show_env = Settings.show_env^ && indicated_sample_id == Some(sample.id);
+  /* The `indicated-sample` class marks this probe's most-aligned sample.
+   * Combined with `.projector.probe.indicated` (set on the unique probe
+   * adjacent to the caret), this gives a single DOM anchor element used
+   * by `SampleAnchor` to compensate scroll on Left/Right SetIndex.
+   * NB: samples are intentionally NOT tagged `menu-trigger` — that class
+   * exempts an element from SampleMenuListener's click-outside dismissal,
+   * and tagging every sample made clicking another sample fail to close an
+   * open dropdown. The opening click is protected instead by the listener's
+   * capture-phase ordering (no menu is open yet) plus its grace window. */
+  let sample_classes =
+    ["sample"] @ (is_indicated ? ["indicated-sample"] : []);
   div(
-    ~attrs=
-      [Attr.classes(["sample"])]
-      @ (
-        has_dropdown
-          ? SafeTriangle.CSSDropdown.trigger_attrs(dropdown_id(sample)) : []
+    /* data-sample-id lets gesture code (SampleAnchor) target the exact
+     * sample it acted on. The indicated-sample class is NOT a reliable
+     * anchor: alignment can tie (recursive stacks with identical frame
+     * ids are mutual suffixes), marking several samples at once. */
+    ~attrs=[
+      Attr.classes(sample_classes),
+      Attr.create("data-sample-id", string_of_int(sample.id)),
+    ],
+    [
+      value_view(
+        ~display,
+        ~alt_toggle=() => local(ToggleDropdown(did)),
+        ctx,
+        ~num_total,
+        view_seg,
+        local,
+        sample,
       ),
-    [value_view(ctx, ~num_total, view_seg, local, sample)]
+    ]
     @ pin_view(ctx, sample)
     @ (
-      has_dropdown
-        ? [sample_context_menu(~show_env, ctx, local, view_seg, sample)] : []
+      render_dropdown
+        ? sample_context_menu(
+            ~show_env,
+            ~drawer=display == Block,
+            ctx,
+            view_seg,
+            sample,
+          )
+        : []
     ),
   );
 };
@@ -1089,6 +1513,13 @@ let move_cursor = (ctx: probe_ctx, offset: int) => {
     let next_idx_maybe = idx - offset;
     if (next_idx_maybe >= 0 && next_idx_maybe < List.length(samples)) {
       let sample = List.nth(samples, next_idx_maybe);
+      /* Anchor (screen-y compensation + horizontal follow) only when the
+       * indication actually moves: an arrow at the ends must be a no-op,
+       * not a re-snap of the viewport to the current sample. Scoped to
+       * THIS probe and THIS sample: the indicated-sample class can mark
+       * several samples at once (alignment ties on recursive stacks),
+       * so the class is not a reliable anchor. */
+      SampleAnchor.capture(~scope=Id.cls(ctx.id), ~sample_id=sample.id, ());
       parent(
         SampleFocus(Capture(Sample.capture_of_sample(sample), ap_id)),
       );
@@ -1099,40 +1530,156 @@ let move_cursor = (ctx: probe_ctx, offset: int) => {
   };
 };
 
-let nav_bar_view = (ctx: probe_ctx, ~num_total) => {
-  let nav_arrow = (cond: bool, offset: int): Node.t =>
-    Node.div(
+/* Row-level controls for a probe sample row, drawn as a single SVG
+ * containing three independently-clickable regions:
+ *   - left arrow (previous sample)   — left half of rotated square
+ *   - right arrow (next sample)      — right half of rotated square
+ *   - drawer-mode toggle             — chevron below the arrows
+ * Each region is a <g> with a visual <polygon> plus an invisible
+ * <rect> hit-target; CSS `:hover` on the group flips the polygon
+ * fill to red. The chevron's hit-rect is drawn LAST so it's on top
+ * in z-order, meaning the diamond's bottom corners (which fall inside
+ * the chevron's hit area) dispatch to the toggle rather than to an
+ * arrow.
+ *
+ * Geometry (in viewBox units, free parameters s/√2 = 7 and gap g = 2):
+ *   Diamond center at (0, -2), chevron outer at (0, +2). Whole shape
+ *   is centered at (0, 0) so CSS `scaleY(-1)` flips it in drawer mode
+ *   around the actual bounding-box center.
+ *
+ * Arrows only render when show_arrows is true (overflow exists). The
+ * drawer toggle always renders so it's reachable on any indicated
+ * probe. */
+let nav_bar_view = (ctx: probe_ctx, ~num_total, ~show_arrows: bool) => {
+  /* Dim each arrow when its move would be a no-op: the left arrow once the
+   * indicated sample is the first in the list, the right arrow at the last.
+   * Mirrors move_cursor's bounds (next_idx = idx - offset, valid in
+   * [0, num_total)) so the dimmed arrow is exactly the inert one. */
+  let (disable_left, disable_right) = {
+    let samples =
+      Sample.Selection.filter_by_pin(
+        ~ap_id=ctx.ap_id,
+        ~pinned=ctx.dynamics.sample_focus.pinned_stack,
+        ctx.dynamics.samples,
+      );
+    switch (
+      Sample.Selection.most_aligned_index(
+        ~ap_id=ctx.ap_id,
+        ctx.dynamics.sample_focus,
+        samples,
+      )
+    ) {
+    | Some(idx) => (idx <= 0, idx >= num_total - 1)
+    | None => (true, true)
+    };
+  };
+  let svg_attr = (k, v) => Attr.create(k, v);
+  let polygon = points =>
+    Node.create_svg(
+      "polygon",
+      ~attrs=[Attr.classes(["visual"]), svg_attr("points", points)],
+      [],
+    );
+  let hit_rect = (~x, ~y, ~w, ~h) =>
+    Node.create_svg(
+      "rect",
       ~attrs=[
-        Attr.classes(["nav-arrow"] @ (cond ? ["disabled"] : [])),
-        Attr.on_click(_ => move_cursor(ctx, offset)),
+        Attr.classes(["hit"]),
+        svg_attr("x", x),
+        svg_attr("y", y),
+        svg_attr("width", w),
+        svg_attr("height", h),
       ],
       [],
     );
-  let show_left = num_total < Sample.Window.max_samples(ctx.settings.window);
-  let show_right = num_total < Sample.Window.max_samples(ctx.settings.window);
-  div(
-    ~attrs=[Attr.classes(["nav-bar"])],
-    [nav_arrow(show_left, 1), nav_arrow(show_right, -1)],
+  let title = (label: string) =>
+    Node.create_svg("title", [Node.text(label)]);
+  /* Mac shows the Cmd glyph as `⌘X`; PC/Linux shows `Ctrl+X`. Matches
+   * the convention used in ProbeSidebar's quick reference. */
+  let meta = Util.Os.is_mac^ ? {js|⌘|js} : "Ctrl+";
+  let arrow_group = (~side, ~disabled: bool, ~offset: int, ~hit_x: string) => {
+    /* A boundary arrow stays clickable but inert: it swallows pointerdown so
+     * the event never reaches the editor underneath, whose own pointerdown
+     * handler (move_or_select) would move the caret and steal focus. Without
+     * this the dimmed arrow falls through to the background editor. */
+    let event_attrs =
+      disabled
+        ? [Attr.on_pointerdown(_ => Effect.Stop_propagation)]
+        : [Attr.on_click(_ => move_cursor(ctx, offset))];
+    Node.create_svg(
+      "g",
+      ~attrs=
+        [Attr.classes(["nav-" ++ side] @ (disabled ? ["disabled"] : []))]
+        @ event_attrs,
+      [
+        title(side == "left" ? "Previous sample (←)" : "Next sample (→)"),
+        polygon(side == "left" ? "-7,-2 -1,-8 -1,4" : "1,-8 7,-2 1,4"),
+        hit_rect(~x=hit_x, ~y="-10", ~w="9", ~h="11"),
+      ],
+    );
+  };
+  let toggle_group =
+    Node.create_svg(
+      "g",
+      ~attrs=[
+        Attr.classes(["drawer-mode-toggle"]),
+        Attr.on_pointerdown(_ =>
+          Effect.Many([Effect.Stop_propagation, ctx.local(ToggleDrawerMode)])
+        ),
+      ],
+      [
+        title(
+          "Toggle drawer ("
+          ++ meta
+          ++ {js|↓|js}
+          ++ " / "
+          ++ meta
+          ++ {js|↑|js}
+          ++ ")",
+        ),
+        polygon("-6,1 -7,2 0,9 7,2 6,1 0,7"),
+        hit_rect(~x="-9", ~y="1", ~w="18", ~h="9"),
+      ],
+    );
+  let arrow_groups =
+    show_arrows
+      ? [
+        arrow_group(
+          ~side="left",
+          ~disabled=disable_left,
+          ~offset=1,
+          ~hit_x="-9",
+        ),
+        arrow_group(
+          ~side="right",
+          ~disabled=disable_right,
+          ~offset=-1,
+          ~hit_x="0",
+        ),
+      ]
+      : [];
+  Node.create_svg(
+    "svg",
+    ~attrs=[Attr.classes(["nav-bar"]), svg_attr("viewBox", "-9 -10 18 20")],
+    arrow_groups @ [toggle_group],
   );
 };
 
-let num_samples_view = (~ap_id: option(Id.t), dynamics: Dynamics.Info.t) => {
-  let num_samples =
-    Sample.Selection.filter_by_pin(
-      ~ap_id,
-      ~pinned=dynamics.sample_focus.pinned_stack,
-      dynamics.samples,
-    )
-    |> List.length;
-  let description = num_samples < 1000 ? string_of_int(num_samples) : "1k+";
+let num_samples_view = (~count: int) => {
+  let description = count < 1000 ? string_of_int(count) : "1k+";
+  let tooltip = string_of_int(count) ++ (count == 1 ? " sample" : " samples");
   div(
-    ~attrs=[
-      Attr.title(string_of_int(num_samples)),
-      Attr.classes(["num-samples"]),
-    ],
+    ~attrs=[Attr.title(tooltip), Attr.classes(["num-samples"])],
     [text(description)],
   );
 };
+
+/* The sample-count circle, or nothing. Hidden when there's only a single
+ * sample; change the guard to `count >= 1` to always show it. It sits at
+ * the start of the samples row (see live_offside_view); in drawer mode CSS
+ * pins it in the left gutter near the top. */
+let count_badge_nodes = (~count: int) =>
+  count > 1 ? [num_samples_view(~count)] : [];
 
 let round_up = (ctx: probe_ctx, sample): int => {
   let (_, cur) =
@@ -1179,20 +1726,41 @@ let round_down = (ctx: probe_ctx, sample: Sample.t): int => {
 let indicated_sample = (ctx: probe_ctx): option(Sample.t) =>
   Dynamics.Info.most_aligned_sample(ctx.ap_id, ctx.dynamics);
 
-let key_handler = (ctx: probe_ctx, ~id: Id.t, local, evt) => {
+let key_handler =
+    (ctx: probe_ctx, ~id: Id.t, ~drawer_mode_active: bool, local, evt) => {
   let {ap_id, parent, _} = ctx;
   open Effect;
   let key = Key.mk(KeyDown, evt);
+  /* Leave this probe and hand keyboard focus back to the editor. The
+     three calls always travel together: blur() drops DOM focus to
+     <body> (nothing else would pick it up); schedule_editor restores it
+     to .code-editor after render (the path step-into uses); expect_blur
+     keeps the focus keeper from re-grabbing the probe in between. Every
+     key that blurs a sample routes through here so the editor always
+     regains focus — keep it that way. */
+  let blur_to_editor = () => {
+    FocusEffect.expect_blur();
+    JsUtil.get_elem_by_id(Id.cls(id))##blur;
+    FocusEffect.schedule_editor();
+  };
   switch (key.key) {
   | D("E" | "e") when key.meta == Down || key.ctrl == Down => parent(Remove)
+  | D("Escape") when Settings.open_dropdown^ != None =>
+    /* First Escape closes an alt-click-opened sample dropdown (stays
+     * focused); subsequent Escapes fall through to the cases below. */
+    Many([local(SetDropdown(None)), Stop_propagation, Prevent_default])
   | D("Escape") when key.shift == Down =>
-    JsUtil.get_elem_by_id(Id.cls(id))##blur;
+    blur_to_editor();
     Many([local(ResetSettings), parent(SampleFocus(Reset))]);
+  | D("Escape") when drawer_mode_active =>
+    /* Two-stage Esc: first Esc collapses the drawer (stays focused),
+     * second Esc blurs (handled by the rule below). */
+    Many([local(SetDrawerMode(false)), Stop_propagation, Prevent_default])
   | D("Escape") =>
-    JsUtil.get_elem_by_id(Id.cls(id))##blur;
+    blur_to_editor();
     Many([Stop_propagation, Prevent_default]);
   | D("Enter") when key.meta == Down || key.ctrl == Down =>
-    JsUtil.get_elem_by_id(Id.cls(id))##blur;
+    blur_to_editor();
     Many([
       parent(EscapeToLineEnd(Probe)),
       Stop_propagation,
@@ -1200,14 +1768,14 @@ let key_handler = (ctx: probe_ctx, ~id: Id.t, local, evt) => {
     ]);
   /* Cmd+Left (Mac) / Home (PC): bounce back to editor */
   | D("ArrowLeft") when key.meta == Down || key.ctrl == Down =>
-    JsUtil.get_elem_by_id(Id.cls(id))##blur;
+    blur_to_editor();
     Many([
       parent(EscapeToLineEnd(Probe)),
       Stop_propagation,
       Prevent_default,
     ]);
   | D("Home") =>
-    JsUtil.get_elem_by_id(Id.cls(id))##blur;
+    blur_to_editor();
     Many([Stop_propagation, Prevent_default]);
   | D("ArrowRight") when key.shift == Down =>
     let effect =
@@ -1226,10 +1794,19 @@ let key_handler = (ctx: probe_ctx, ~id: Id.t, local, evt) => {
       };
     Many([effect, Stop_propagation, Prevent_default]);
   | D("ArrowRight") =>
+    /* move_cursor stashes the SampleAnchor itself, and only when the
+     * indication actually moves. */
     // Prevent_default below stops aggressive horizontal scroll
     Many([move_cursor(ctx, -1), Stop_propagation, Prevent_default])
   | D("ArrowLeft") =>
     Many([move_cursor(ctx, 1), Stop_propagation, Prevent_default])
+  | D("ArrowDown") when key.meta == Down || key.ctrl == Down =>
+    /* Enter drawer mode for this probe. Idempotent if already in
+     * drawer mode. Paired with Cmd/Ctrl+ArrowUp below to exit. */
+    Many([local(SetDrawerMode(true)), Stop_propagation, Prevent_default])
+  | D("ArrowUp") when key.meta == Down || key.ctrl == Down =>
+    /* Exit drawer mode. Idempotent if not in drawer mode. */
+    Many([local(SetDrawerMode(false)), Stop_propagation, Prevent_default])
   | D("ArrowDown") =>
     let skip = Settings.skip_unaligned_nav;
     let effect =
@@ -1267,11 +1844,17 @@ let key_handler = (ctx: probe_ctx, ~id: Id.t, local, evt) => {
       Many([
         Stop_propagation,
         Prevent_default,
-        step_into_sample(~parent, ~sample, ~ap_id),
+        step_into_sample(~parent, ~local, ~sample, ~ap_id),
       ])
     | _ => Many([Stop_propagation, Prevent_default])
     }
-  | D("/") => Many([local(ToggleShowEnv), Stop_propagation, Prevent_default])
+  | D("/") =>
+    /* Toggle sticky mode (independent of docking); web/Settings owns it. */
+    Many([Settings.on_sticky_toggle^(), Stop_propagation, Prevent_default])
+  | D("\\") =>
+    /* Per-probe drawer-mode toggle: pretty-printed multi-line samples
+     * displayed below the line, full editor-pane width. */
+    Many([local(ToggleDrawerMode), Stop_propagation, Prevent_default])
   | D("c" | "C") when Key.meta_held(evt) || Key.ctrl_held(evt) =>
     switch (indicated_sample(ctx)) {
     | Some(sample) =>
@@ -1308,7 +1891,20 @@ let empty_view = (~id: Id.t, ~settings: settings) =>
     ],
   );
 
-let offside_view =
+/* Pre-computed data shared by every offside-view renderer (full
+ * live-offside, nav-only wrapper, drawer below). Built once per
+ * render so we don't redo selection/filter work for both slots. */
+type offside_data = {
+  ctx: probe_ctx,
+  id: Id.t,
+  num_total: int,
+  num_shown: int,
+  groups: list(list(Sample.t)),
+  is_cursor_aligned: bool,
+  empty_status: option(Sample.Selection.empty_status),
+};
+
+let prepare_offside =
     (
       info: info,
       local,
@@ -1316,8 +1912,8 @@ let offside_view =
       ~settings: settings,
       ~sort: Sort.t,
       ~model: probe_model,
-      view_seg: View.seg,
-    ) =>
+    )
+    : option(offside_data) =>
   switch (info.dynamics, info.statics) {
   | (Some(dynamics), Some(statics)) =>
     let id = info.id;
@@ -1325,16 +1921,17 @@ let offside_view =
     let active_renderer_id =
       Option.map(RichProbe.renderer_id_of_model, model.active_renderer);
     let ctx = {
+      id,
       ap_id,
       statics,
       settings,
       dynamics,
       utility: info.utility,
       parent,
+      local,
       sort,
       active_renderer_id,
     };
-    /* Filter samples once and reuse for both num_total and selection */
     let filtered_samples =
       Sample.Selection.filter_by_pin(
         ~ap_id,
@@ -1358,15 +1955,11 @@ let offside_view =
         dynamics,
       );
     let (num_shown, groups) = Sample.Selection.collate(samples);
-
-    /* Check if this probe is the target of a pending step-into focus */
     let is_evaluating =
       switch (dynamics.sample_focus.pending_focus) {
       | Some({probe_id, _}) => probe_id == id
       | None => false
       };
-
-    /* Determine what to show when no samples are displayed */
     let empty_status =
       Sample.Selection.get_empty_status(
         ~num_total,
@@ -1374,65 +1967,154 @@ let offside_view =
         ~is_evaluating,
         (),
       );
-    Node.div(
-      ~attrs=[
-        Attr.id(Id.cls(id)),
-        Attr.create("data-probe-id", Id.to_string(id)),
-        Attr.create(
-          "data-cursor-aligned",
-          is_cursor_aligned ? "true" : "false",
-        ),
-        Attr.tabindex(0),
-        Attr.on_keydown(key_handler(ctx, ~id, local)),
-        Attr.classes([
-          "live-offside",
-          settings.window |> Sample.Window.show_mode,
-        ]),
-      ],
-      switch (empty_status) {
-      | Some(status) => [empty_status_view(ctx, ~status, local)]
-      | None =>
-        /* Overflow indicator: shown when samples ARE displayed but more exist */
-        let overflow_view =
-          num_shown > 0 && num_shown < num_total
-            ? [nav_bar_view(ctx, ~num_total), ellipsis_view(local)] : [];
-        let view_seg_line = (~text_only, segment) =>
-          view_seg(
-            ~single_line=true,
-            ~background=false,
-            ~text_only,
-            Sort.Exp,
-            segment,
-          );
-        let indicated_sample_id =
-          indicated_sample(ctx) |> Option.map((s: Sample.t) => s.id);
-        let sample_view =
-          sample_view(
-            ctx,
-            ~indicated_sample_id,
-            ~num_total,
-            view_seg_line,
-            local,
-          );
-        let group_views =
-          List.map(
-            samples =>
-              Node.div(
-                ~attrs=[Attr.classes(["sample-group"])],
-                List.map(sample_view, samples),
-              ),
-            groups,
-          );
-        (
-          group_views == []
-            ? []
-            : [div(~attrs=[Attr.classes(["sample-groups"])], group_views)]
-        )
-        @ overflow_view;
-      },
-    );
-  | _ => empty_view(~id=info.id, ~settings)
+    Some({
+      ctx,
+      id,
+      num_total,
+      num_shown,
+      groups,
+      is_cursor_aligned,
+      empty_status,
+    });
+  | _ => None
   };
+
+/* Minimal wrapper used in the inline (offside) slot when drawer mode
+ * is active: just the nav-bar, sitting where it would in inline mode,
+ * so the controls don't visually jump when toggling drawer-mode.
+ *
+ * NO id / focus / key-handlers — the focusable .live-offside lives in
+ * the `below` slot with the samples (see `live_offside_view`).
+ * `.drawer-mode` class drives the up-arrow rotation on the toggle. */
+let nav_bar_wrapper_view = (data: offside_data, ~settings: settings): Node.t => {
+  let has_overflow = data.num_shown > 0 && data.num_shown < data.num_total;
+  Node.div(
+    ~attrs=[
+      Attr.classes([
+        "live-offside",
+        "nav-only",
+        "drawer-mode",
+        settings.window |> Sample.Window.show_mode,
+      ]),
+    ],
+    [
+      nav_bar_view(
+        data.ctx,
+        ~num_total=data.num_total,
+        ~show_arrows=has_overflow,
+      ),
+    ],
+  );
+};
+
+/* Focusable .live-offside with the canonical id, key-handlers, and
+ * cursor-alignment data attribute. Optionally includes the nav-bar
+ * inline (true in inline mode; false in drawer mode, where the nav-
+ * bar lives in the offside slot's `nav_bar_wrapper_view` instead). */
+let live_offside_view =
+    (
+      ~display: sample_display,
+      ~include_nav_bar: bool,
+      ~drawer_mode_active: bool,
+      data: offside_data,
+      local,
+      view_seg: View.seg,
+      ~settings: settings,
+    )
+    : Node.t => {
+  let {ctx, id, num_total, num_shown, groups, is_cursor_aligned, empty_status} = data;
+  let base_classes =
+    ["live-offside", settings.window |> Sample.Window.show_mode]
+    /* Sticky ('/') mode: CSS shows the focused offside's focal-sample
+       dropdown off this hook (see proj-probe.css). */
+    @ (Settings.sticky^ ? ["sticky"] : []);
+  /* Context-menu-style dismissal for the alt-click sample dropdown:
+   * click-outside / window-blur closes it. Re-synced every render so the
+   * close effect captures the current `local`. Idempotent across probes. */
+  SampleMenuListener.sync(
+    ~menu_open=Settings.open_dropdown^ != None,
+    /* Thunk: `local(action)` runs the projector update eagerly when called,
+       so passing `local(SetDropdown(None))` directly would reset
+       open_dropdown on EVERY render — instantly cancelling any dropdown a
+       click just opened. The listener calls this only when it actually
+       fires the close. */
+    ~on_close=() => local(SetDropdown(None)),
+    (),
+  );
+  Node.div(
+    ~attrs=[
+      Attr.id(Id.cls(id)),
+      Attr.create("data-probe-id", Id.to_string(id)),
+      Attr.create(
+        "data-cursor-aligned",
+        is_cursor_aligned ? "true" : "false",
+      ),
+      Attr.tabindex(0),
+      Attr.on_keydown(key_handler(ctx, ~id, ~drawer_mode_active, local)),
+      Attr.classes(
+        base_classes @ (drawer_mode_active ? ["drawer-mode"] : []),
+      ),
+    ],
+    switch (empty_status) {
+    | Some(status) => [empty_status_view(ctx, ~status, local)]
+    | None =>
+      /* Block-display segments carry real linebreaks, so the layout
+       * hint `single_line` must follow the display mode. */
+      let single_line =
+        switch (display) {
+        | Inline => true
+        | Block => false
+        };
+      let view_seg_line = (~text_only, segment) =>
+        view_seg(
+          ~single_line,
+          ~background=false,
+          ~text_only,
+          Sort.Exp,
+          segment,
+        );
+      let indicated_sample_id =
+        indicated_sample(ctx) |> Option.map((s: Sample.t) => s.id);
+      let sample_view =
+        sample_view(
+          ~display,
+          ctx,
+          ~indicated_sample_id,
+          ~num_total,
+          view_seg_line,
+          local,
+        );
+      let group_views =
+        List.map(
+          samples =>
+            Node.div(
+              ~attrs=[Attr.classes(["sample-group"])],
+              List.map(sample_view, samples),
+            ),
+          groups,
+        );
+      /* Sample-count circle, in-flow at the start of the samples row. In
+       * drawer mode CSS pins it in the left gutter near the top instead
+       * (see `.below-wrapper .live-offside .num-samples`). */
+      let count_badge = count_badge_nodes(~count=num_total);
+      let samples_part =
+        group_views == []
+          ? []
+          : [
+            div(
+              ~attrs=[Attr.classes(["sample-groups"])],
+              count_badge @ group_views,
+            ),
+          ];
+      let has_overflow = num_shown > 0 && num_shown < num_total;
+      let nav_bar_part =
+        include_nav_bar
+          ? [nav_bar_view(ctx, ~num_total, ~show_arrows=has_overflow)] : [];
+      let overflow_indicator = has_overflow ? [ellipsis_view(local)] : [];
+      nav_bar_part @ samples_part @ overflow_indicator;
+    },
+  );
+};
 
 let get_current = (~settings, info: info) => {
   switch (info.dynamics, info.statics) {
@@ -1450,42 +2132,27 @@ let get_current = (~settings, info: info) => {
   };
 };
 
-let overlay_view = (~settings, ~sort, info: info): Node.t =>
-  switch (info.dynamics, info.statics) {
-  | (Some(dynamics), Some(statics)) =>
-    let ap_id = Sample.Focus.cur_var_ap(statics);
-    let has_renderer =
-      switch (get_current(~settings, info)) {
-      | Some(exp) => Option.is_some(find_compatible_renderer(sort, exp))
-      | None => false
-      };
-    div(
-      ~attrs=[
-        Attr.classes(
-          ["overlay"]
-          @ (Option.is_some(ap_id) ? ["ap"] : [])
-          @ (has_renderer ? ["has-renderer"] : []),
-        ),
-      ],
-      [num_samples_view(~ap_id, dynamics)],
-    );
-  | _ => Node.div([])
-  };
-
 [@deriving (show({with_path: false}), sexp, yojson)]
 type a = action;
 
 module M: Projector = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type model = probe_model;
+  let init_model: model = init_probe_model;
+  /* Tolerate old serialized models that don't match the current shape
+   * by falling back to defaults whenever sexp parsing fails. */
+  let model_of_sexp = sexp =>
+    try(model_of_sexp(sexp)) {
+    | _ => init_model
+    };
   [@deriving (show({with_path: false}), sexp, yojson)]
   type action = a;
 
   let init = (any: Any.t) => {
     switch (any) {
     | Exp(_)
-    | Pat(_) => Some({active_renderer: None})
-    | Any(_) => Some({active_renderer: None}) /* Grout don't have sorts */
+    | Pat(_) => Some(init_model)
+    | Any(_) => Some(init_model) /* Grout don't have sorts */
     | _ => None
     };
   };
@@ -1495,14 +2162,31 @@ module M: Projector = {
 
   let focusable =
     Focusable.{
-      pointer: Some(id => {JsUtil.get_elem_by_id(Id.cls(id))##focus}),
+      pointer:
+        Some(
+          id =>
+            /* A stale Focus idx can resolve to a probe with no rendered
+               DOM element; a missed focus beats a crashed update */
+            switch (JsUtil.get_elem_by_id_opt(Id.cls(id))) {
+            | Some(elem) => elem##focus
+            | None => ()
+            },
+        ),
       keyboard: None,
     };
 
-  let placeholder = (_, _) => ProjectorCore.Shape.default;
+  let placeholder = (model: model, info) =>
+    if (model.drawer_mode) {
+      ProjectorCore.Shape.{
+        horizontal: 0,
+        vertical: Tab(DrawerHeight.compute(info)),
+      };
+    } else {
+      ProjectorCore.Shape.default;
+    };
 
-  let update = (model: probe_model, _info: info, action: action): probe_model => {
-    switch (action) {
+  let update = (model: model, info: info, a: action): model => {
+    switch (a) {
     | ChangeLength(id, len) =>
       SampleLength.set(id, len);
       Settings.version := Settings.version^ + 1;
@@ -1510,18 +2194,54 @@ module M: Projector = {
     | ToggleWindowMode =>
       Settings.go(ToggleWindow);
       model;
-    | ToggleShowEnv =>
-      Settings.show_env := ! Settings.show_env^;
+    | ToggleDrawerMode =>
       Settings.version := Settings.version^ + 1;
-      model;
+      /* Toggling drawer mode moves the focusable .live-offside DOM node
+       * between the offside slot (inline mode) and the below slot
+       * (drawer mode). Browsers drop focus on the unmounted element, so
+       * schedule a focus restoration via the after_display hook — the
+       * new .live-offside is in the DOM by then and `elem.focus()`
+       * sticks. Keeps the probe keyboard-active across toggles. */
+      FocusEffect.schedule(info.id);
+      {
+        ...model,
+        drawer_mode: !model.drawer_mode,
+      };
+    | SetDrawerMode(b) =>
+      Settings.version := Settings.version^ + 1;
+      FocusEffect.schedule(info.id);
+      {
+        ...model,
+        drawer_mode: b,
+      };
+    | ToggleDropdown(did) =>
+      Settings.set_open_dropdown(
+        Settings.open_dropdown^ == Some(did) ? None : Some(did),
+      );
+      {
+        ...model,
+        dropdown_redraw: model.dropdown_redraw + 1,
+      };
+    | SetDropdown(o) =>
+      Settings.set_open_dropdown(o);
+      {
+        ...model,
+        dropdown_redraw: model.dropdown_redraw + 1,
+      };
     | ResetSettings =>
       Settings.reset_mode();
       SampleLength.reset();
       model;
     | ToggleModal(pm) =>
       switch (model.active_renderer) {
-      | None => {active_renderer: pm}
-      | Some(_) => {active_renderer: None}
+      | None => {
+          ...model,
+          active_renderer: pm,
+        }
+      | Some(_) => {
+          ...model,
+          active_renderer: None,
+        }
       }
     | RendererAction(pa) =>
       /* Dispatch through the action's renderer. update_model's internal
@@ -1532,6 +2252,7 @@ module M: Projector = {
         find(RichProbe.renderer_id_of_action(pa)),
       ) {
       | (Some(pm), Some(r)) => {
+          ...model,
           active_renderer: Some(r.update_model(pm, pa)),
         }
       | _ => model
@@ -1600,7 +2321,9 @@ module M: Projector = {
     | _ => []
     };
   };
+
   let error = (_, _): option(ProjectorBase.error) => None;
+
   let view =
       (
         {info, local, parent, view_seg, model, status, _}:
@@ -1608,34 +2331,73 @@ module M: Projector = {
       ) => {
     let settings = Settings.s^;
     let sort = status.sort;
+    /* Two compositional pieces (nav-bar component + samples-bearing
+     * .live-offside) get routed to the projector's slots differently
+     * per mode:
+     *   Inline mode  — offside = .live-offside w/ nav-bar + samples
+     *                  below   = none
+     *   Drawer mode  — offside = nav-bar wrapper (controls stay put at
+     *                            end-of-line, no samples)
+     *                  below   = .live-offside w/ samples only
+     * The focusable .live-offside (id, key-handlers, tabindex) always
+     * goes wherever the samples live, so probe-navigation/cursor logic
+     * stays attached to the same DOM element regardless of mode. */
+    let data_opt =
+      prepare_offside(info, local, parent, ~settings, ~sort, ~model);
+    let drawer = model.drawer_mode;
+    let offside_main =
+      switch (data_opt, drawer) {
+      | (None, _) => empty_view(~id=info.id, ~settings)
+      | (Some(data), false) =>
+        live_offside_view(
+          ~display=Inline,
+          ~include_nav_bar=true,
+          ~drawer_mode_active=false,
+          data,
+          local,
+          view_seg,
+          ~settings,
+        )
+      | (Some(data), true) => nav_bar_wrapper_view(data, ~settings)
+      };
+    let modal_nodes =
+      modal_overlay(
+        ~settings,
+        model,
+        info,
+        ~local,
+        ~parent,
+        ~view_seg,
+        ~sort,
+      );
+    /* Wrap offside content + modal nodes in a containerless div only when
+     * the modal is open; otherwise return offside_main directly so we don't
+     * add an extra DOM level around the (positioned) .live-offside. */
+    let offside_node =
+      switch (modal_nodes) {
+      | [] => offside_main
+      | _ => div([offside_main] @ modal_nodes)
+      };
     View.{
       inline: Node.div([]),
-      overlay: Some(overlay_view(~settings, ~sort, info)),
-      offside:
-        Some(
-          div(
-            [
-              offside_view(
-                info,
-                local,
-                parent,
-                ~settings,
-                ~sort,
-                ~model,
-                view_seg,
-              ),
-            ]
-            @ modal_overlay(
-                ~settings,
-                model,
-                info,
-                ~local,
-                ~parent,
-                ~view_seg,
-                ~sort,
-              ),
-          ),
-        ),
+      overlay: None,
+      offside: Some(offside_node),
+      below:
+        switch (data_opt, drawer) {
+        | (Some(data), true) =>
+          Some(
+            live_offside_view(
+              ~display=Block,
+              ~include_nav_bar=false,
+              ~drawer_mode_active=true,
+              data,
+              local,
+              view_seg,
+              ~settings,
+            ),
+          )
+        | _ => None
+        },
       error: false,
     };
   };

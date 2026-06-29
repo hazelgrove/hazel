@@ -282,7 +282,7 @@ module Update = {
     };
   };
   let calculate =
-      (~settings, ~is_edited, ~schedule_action, model: Model.t): Model.t => {
+      (~settings, ~autoprobe_mode as _, ~is_edited, ~schedule_action, model: Model.t): Model.t => {
     let exercise =
       TutorialMode.Update.calculate(
         ~settings,

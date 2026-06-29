@@ -322,14 +322,26 @@ let key_handler =
   | D("ArrowLeft") =>
     /* Move to shallower level (toward top-level) */
     let new_index = max(-1, index - 1);
+    /* Stash indicated sample's screen-y BEFORE dispatch so
+     * Main.after_display can compensate any reflow above it; only when
+     * the index actually changes (an arrow at the clamp must not
+     * re-snap the viewport). */
+    if (new_index != index) {
+      SampleAnchor.capture();
+    };
     Many([set_focus_index(~globals, new_index, evt), Stop_propagation]);
   | D("ArrowRight") =>
     /* Move to deeper level (toward innermost call) */
     let new_index = min(max_index, index + 1);
+    if (new_index != index) {
+      SampleAnchor.capture();
+    };
     Many([set_focus_index(~globals, new_index, evt), Stop_propagation]);
   | D("Enter") =>
-    /* Jump to call site of current entry, then refocus main editor. */
-    JsUtil.focus_clipboard_shim();
+    /* Jump to call site of current entry, then refocus main editor.
+       schedule_editor defers the focus to after_display so it lands
+       after the jump re-renders the editor. */
+    FocusEffect.schedule_editor();
     if (index >= 0 && index < List.length(call_stack)) {
       let target = get_call_site_target(~info_map, ~call_stack, ~index);
       switch (target) {
@@ -355,7 +367,7 @@ let view =
     : Node.t =>
   /* Hide when call stack is empty, unless auto-probe mode keeps bar visible */
   if (refractors.sample_focus.call_stack == []
-      && !globals.settings.autoprobe_mode) {
+      && globals.settings.autoprobe_mode == AutoProbe.Off) {
     div(~attrs=[Attr.id("sample-focus-bar"), Attr.class_("hidden")], []);
   } else {
     let sample_focus = refractors.sample_focus;
@@ -420,7 +432,10 @@ let view =
         @ (is_unknown ? ["unknown"] : [])
         @ (position_class != "" ? [position_class] : []);
 
-      let on_entry_click = evt =>
+      let on_entry_click = evt => {
+        /* Clicking moves DOM focus onto the (focusable) bar; restore it
+           to the editor after the jump so the caret stays visible. */
+        FocusEffect.schedule_editor();
         switch (call_site_target) {
         | Some(target_id) =>
           Effect.Many([
@@ -429,6 +444,7 @@ let view =
           ])
         | None => set_focus_index(~globals, i, evt)
         };
+      };
 
       let is_pinned = Some(app_id) == pinned_head_id;
       let pin_icon =
@@ -546,7 +562,11 @@ let view =
           };
         switch (def_target) {
         | Some(target_id) =>
-          let on_body_click = evt => jump_to(~globals, target_id, evt);
+          let on_body_click = evt => {
+            /* Restore editor focus after the jump (see on_entry_click). */
+            FocusEffect.schedule_editor();
+            jump_to(~globals, target_id, evt);
+          };
           let body_sep_ghost = max_index > index;
           let body_sep_classes =
             ["breadcrumb-separator"] @ (body_sep_ghost ? ["ghost"] : []);
@@ -574,9 +594,16 @@ let view =
         ~attrs=[
           Attr.classes(["clear-all"]),
           Attr.title("Remove all probes"),
-          Attr.on_pointerdown(_ =>
-            globals.inject_global(ActiveEditor(Probe(RemoveAll)))
-          ),
+          Attr.on_pointerdown(_
+            /* Also switch auto-probe off: with the mode left on, the
+               auto system repopulates the probes that were just cleared,
+               so "remove all" must mean both. */
+            =>
+              Effect.Many([
+                globals.inject_global(Set(SetAutoprobe(AutoProbe.Off))),
+                globals.inject_global(ActiveEditor(Probe(RemoveAll))),
+              ])
+            ),
         ],
         [text("Clear all")],
       );
@@ -595,7 +622,7 @@ let view =
             Attr.class_("title"),
             Attr.title("Call stack of the focused probe sample"),
           ],
-          [text("probe focus")],
+          [text("stack focus")],
         ),
         div(~attrs=[Attr.class_("breadcrumbs")], entries @ body_icon),
         clear_all_button,

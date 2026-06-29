@@ -293,7 +293,14 @@ module Update = {
   };
 
   let calculate =
-      (~settings, ~is_edited, ~schedule_action, model: Model.t): Model.t => {
+      (
+        ~settings,
+        ~autoprobe_mode,
+        ~is_edited,
+        ~schedule_action,
+        model: Model.t,
+      )
+      : Model.t => {
     let statics_mode =
       CodeWithStatics.StaticsDebounce.consume(~is_edited, ~schedule_refresh=() =>
         schedule_action(RefreshStatics)
@@ -345,6 +352,7 @@ module Update = {
           model.cells.prelude
           |> CellEditor.Update.calculate(
                ~settings,
+               ~autoprobe_mode,
                ~is_edited,
                ~statics_mode,
                ~queue_worker=Some(queue_worker("prelude")),
@@ -355,6 +363,7 @@ module Update = {
           model.cells.lemmas
           |> CellEditor.Update.calculate(
                ~settings,
+               ~autoprobe_mode,
                ~is_edited,
                ~statics_mode,
                ~queue_worker=Some(queue_worker("lemmas")),
@@ -365,6 +374,7 @@ module Update = {
           model.cells.theorem
           |> CellEditor.Update.calculate(
                ~settings,
+               ~autoprobe_mode,
                ~is_edited,
                ~statics_mode,
                ~queue_worker=Some(queue_worker("theorem")),

@@ -893,14 +893,23 @@ let vertical =
       d: Action.vertical,
       ~col_target: int,
       ~measured: Measured.t,
+      ~refractor_shape_map: Id.Map.t(int),
       ~chunkiness: Action.chunkiness=ByChar,
       z: t,
     )
     : option(t) => {
+  let dir = d == Down ? 1 : (-1);
+  let from_row = Zipper.Caret.point(measured, z).row;
   let goal =
     Point.{
       col: col_target,
-      row: Zipper.Caret.point(measured, z).row + (d == Down ? 1 : (-1)),
+      row:
+        Move.skip_refractor_dead_rows(
+          ~refractor_shape_map,
+          ~measured,
+          ~dir,
+          from_row + dir,
+        ),
     };
   let step =
     switch (chunkiness) {

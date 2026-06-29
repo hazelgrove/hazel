@@ -67,10 +67,13 @@ type t = {
   manuals: RefractorList.t,
   multis: multi_state,
   sample_focus: Language.Sample.Focus.t,
-  /* For auto probe: the body ID of the top-level definition currently
+  /* For auto probe: the anchor IDs of the top-level definition currently
      being probed (if any). When the cursor moves to a different top-level
-     def, a multi probe is placed on its body. */
-  autoprobe_target: option(Id.t),
+     def, a multi probe is placed on its body. Usually a single id (the
+     def body), but for function-definition sugar (`let f(args) = body`)
+     it also includes the parameter pattern, anchored separately so the
+     parameters get probed on the header line(s). */
+  autoprobe_target: list(Id.t),
   /* When a probe is added, this stores the target IDs (in lexical order)
      so that when evaluation results return, we can set the sample focus
      to the first sample of the first probe that has samples. */
@@ -81,7 +84,7 @@ let init = {
   manuals: [],
   multis: empty_multi_state,
   sample_focus: Language.Sample.Focus.init,
-  autoprobe_target: None,
+  autoprobe_target: [],
   pending_probe_cursor: None,
 };
 

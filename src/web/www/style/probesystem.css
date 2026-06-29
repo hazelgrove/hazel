@@ -77,6 +77,22 @@
   justify-items: stretch; /* or center if you prefer tighter layout */
 }
 
+/* Simple scheme has only two swatches (Focused / Unfocused). Lay them out
+ * spread across the row rather than the 3-col grid's left+middle: flex with
+ * space-between puts Focused at the left and Unfocused at the right, with the
+ * title/divider/scheme-toggle still on their own full-width lines. */
+#probe-sidebar .legend.simple {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+#probe-sidebar .legend.simple > .title,
+#probe-sidebar .legend.simple > .legend-divider,
+#probe-sidebar .legend.simple > .segmented-control {
+  flex-basis: 100%;
+}
+
 #probe-sidebar .panel {
   padding: 0.5em;
   outline: 1px solid var(--BR1);
@@ -97,14 +113,15 @@
 }
 
 #probe-sidebar .sketch .sketch-toggle-image {
-  width: 160px;
-  height: 160px;
+  width: 200px;
+  height: 200px;
   transition: all 0.2s ease-in-out;
-  background-image: url("../img/probe-lenses.webp");
+  background-image: url(/img/probe-lenses.webp);
   background-size: contain;
   background-repeat: no-repeat;
   background-position: center;
   display: inline-block;
+  filter: contrast(0.7) brightness(1.2);
 }
 
 #probe-sidebar .sketch[open] .sketch-toggle-image {
@@ -173,6 +190,31 @@
 
 #probe-sidebar .quick-ref .qr-how-text {
   flex: 1;
+}
+
+/* Inline arrow icons used in the .qr-how text (e.g. "Click [↓]"). Same
+ * SVG as the probe nav-bar arrows, recolored via `mask` + currentColor
+ * so they inherit the surrounding text color. Sized in em so they
+ * scale with the quick-ref's font-size and don't push line-height. */
+#probe-sidebar .quick-ref .arrow-icon {
+  display: inline-block;
+  width: 0.7em;
+  height: 0.9em;
+  vertical-align: -0.15em;
+  background-color: currentColor;
+  -webkit-mask: url(/img/noun-arrow-3130579.svg) no-repeat center / contain;
+  mask: url(/img/noun-arrow-3130579.svg) no-repeat center / contain;
+}
+
+/* Default arrow points LEFT; rotate for the other three directions. */
+#probe-sidebar .quick-ref .arrow-icon.down {
+  transform: rotate(-90deg);
+}
+#probe-sidebar .quick-ref .arrow-icon.up {
+  transform: rotate(90deg);
+}
+#probe-sidebar .quick-ref .arrow-icon.right {
+  transform: rotate(180deg);
 }
 
 #probe-sidebar .quick-ref .qr-divider {
@@ -795,4 +837,11 @@ body:not(:has(.live-offside:focus))
   font-size: 0.85em;
   color: var(--text-primary);
   font-family: monospace;
+}
+
+/* Section separators between context-actions / call-display / env in the
+ * sample-context hover dropdown. */
+.context-actions + .environment-section .live-env,
+.call-display + .environment-section .live-env {
+  border-top: 1px solid var(--BR1);
 }

@@ -1,12 +1,10 @@
 open Util;
 
-/* Argument values for function applications, keyed by app_id.
- * Each entry is a list of (call_stack_before_entering, elided_arg_value).
- * The call_stack is the stack BEFORE entering the function, so we can match
- * samples taken inside the function with their calling arguments. */
+/* Per-application arg/frame records (see StateSlice.app_args_t for the entry
+ * shape and rationale). Defined there because slices carry them across the
+ * incremental-eval boundary. */
 [@deriving (show({with_path: false}), sexp, yojson)]
-type app_args_t =
-  Id.Map.t(list((Sample.call_stack, Sample.Env.elided_value)));
+type app_args_t = StateSlice.app_args_t;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
@@ -127,13 +125,14 @@ let elide_arg =
     (env: Environment.t(Exp.t), d: DHExp.t): Sample.Env.elided_value =>
   Sample.Env.elide(env, d);
 
-/* Add an argument value for an application */
+/* Add an argument value (and its call frame) for an application */
 let add_app_arg =
     (
       state: t,
       app_id: Id.t,
       call_stack: Sample.call_stack,
       arg: Sample.Env.elided_value,
+      frame: Sample.stack_frame,
     )
     : t => {
   let existing =
@@ -141,23 +140,30 @@ let add_app_arg =
   {
     ...state,
     app_args:
-      Id.Map.add(app_id, [(call_stack, arg), ...existing], state.app_args),
+      Id.Map.add(
+        app_id,
+        [(call_stack, arg, frame), ...existing],
+        state.app_args,
+      ),
   };
 };
 
-/* Look up argument value for an application at a specific call_stack.
- * Used when creating samples for probes on Ap expressions. */
-let lookup_app_arg =
+/* Look up the arg value and call frame recorded for an application at a
+ * specific call_stack. They're stored together (same lifetime), so they come
+ * back as a pair. Used when creating a sample for a probe on an Ap. The frame
+ * carries the dynamically-resolved fn_def_id of the invoked function (for
+ * step-into). */
+let lookup_app =
     (state: t, app_id: Id.t, call_stack: Sample.call_stack)
-    : option(Sample.Env.elided_value) => {
+    : option((Sample.Env.elided_value, Sample.stack_frame)) => {
   let call_stack_ids = Sample.ids_of_stack(call_stack);
   switch (Id.Map.find_opt(app_id, state.app_args)) {
   | None => None
   | Some(entries) =>
     List.find_map(
-      ((stored_stack, arg)) =>
+      ((stored_stack, arg, frame)) =>
         Sample.ids_of_stack(stored_stack) == call_stack_ids
-          ? Some(arg) : None,
+          ? Some((arg, frame)) : None,
       entries,
     )
   };
@@ -233,28 +239,23 @@ let update =
       switch (effect) {
       | RecordStackFrame(fn_name, arg_opt, fn_def_id) =>
         let app_id = DHExp.rep_id(init);
-        /* Only store argument value if this app_id is a probe target.
-         * This avoids accumulating massive app_args data for programs
+        let frame: Sample.stack_frame = {
+          id: app_id,
+          name: fn_name,
+          fn_def_id,
+        };
+        /* Only store argument value (and frame) if this app_id is a probe
+         * target. This avoids accumulating massive app_args data for programs
          * with many function calls but no probes on those calls. */
         let state =
           switch (arg_opt) {
           | Some(arg) when Id.Map.mem(app_id, state.targets) =>
             let elided_arg = elide_arg(env, arg);
-            add_app_arg(state, app_id, call_stack, elided_arg);
+            add_app_arg(state, app_id, call_stack, elided_arg, frame);
           | Some(_)
           | None => state
           };
-        (
-          [
-            {
-              id: app_id,
-              name: fn_name,
-              fn_def_id,
-            },
-            ...call_stack,
-          ],
-          state,
-        );
+        ([frame, ...call_stack], state);
       | RecordTest(instance_report) => (
           call_stack,
           add_test(state, instance_report),
@@ -266,11 +267,14 @@ let update =
         let step_start =
           get_probe_start(state, probe_id) |> Option.value(~default=0);
         let step_end = state.step_count - 1;
-        /* Look up arg if this probe is on an Ap expression */
-        let args = lookup_app_arg(state, probe_id, call_stack);
+        /* Look up arg and call frame if this probe is on an Ap expression */
+        let app = lookup_app(state, probe_id, call_stack);
+        let args = Option.map(fst, app);
+        let frame = Option.map(snd, app);
         let sample =
           Sample.mk(
             ~args,
+            ~frame,
             ~step_start,
             ~step_end,
             probe_id,

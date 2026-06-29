@@ -22,6 +22,17 @@ module Model = {
     | Tutorial(_) => "Tutorial"
     | Exercises(_) => "Exercises";
 
+  /* Whether viewport culling of probe views is supported in this mode.
+     True for the single-active-code-editor modes (the visible-row range is
+     computed for one editor); Exercises has multiple editors and is left
+     unculled for now. Callers additionally gate on auto-probe mode. */
+  let supports_viewport_culling: t => bool =
+    fun
+    | Scratch(_)
+    | Documentation(_)
+    | Tutorial(_) => true
+    | Exercises(_) => false;
+
   /* Auxiliary classes on the main div, so CSS can target derivation-kind
      scratchpads inside the unified Scratch/Documentation modes. */
   let extra_main_classes = (model: t): list(string) => {
@@ -58,7 +69,7 @@ module StoreMode = {
   type t = Model.mode;
   let key = Store.Mode;
   let key_string = Store.key_to_string(Store.Mode);
-  let default = (): Model.mode => Scratch;
+  let default = (): Model.mode => Tutorial;
 
   let serialize = (data: t) => data |> sexp_of_t |> Sexplib.Sexp.to_string;
 
@@ -323,6 +334,7 @@ module Update = {
         TutorialsMode.Update.calculate(
           ~schedule_action=a => schedule_action(Tutorial(a)),
           ~settings,
+          ~autoprobe_mode,
           ~is_edited,
           m,
         ),
@@ -332,6 +344,7 @@ module Update = {
         ExercisesMode.Update.calculate(
           ~schedule_action=a => schedule_action(Exercises(a)),
           ~settings,
+          ~autoprobe_mode,
           ~is_edited,
           m,
         ),

@@ -429,7 +429,7 @@ let probe_hazel = (auto: bool, many: bool, path: string): unit => {
     let output =
       Haz3lcore.ProbeText.of_segment(
         ~window,
-        ~probe_map=sample_map,
+        ~probe_map=Sample.Map.finalize(sample_map),
         ~refractors,
         segment,
       );

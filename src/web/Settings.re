@@ -14,9 +14,10 @@ module Model = {
     show_debug_panel: bool,
     explainThis: ExplainThisModel.Settings.t,
     sidebar: SidebarModel.Settings.t,
-    /* Auto probe: automatically place a multi probe on the body of
-       whichever top-level definition the cursor is currently inside */
-    autoprobe_mode: bool,
+    /* Auto probe mode: Off, Caret (follow the cursor's top-level
+       definition), or All (probe the whole program, one probe per row).
+       See Haz3lcore.AutoProbe. */
+    autoprobe_mode: Haz3lcore.AutoProbe.t,
     agent_globals: AgentGlobals.Model.t,
     line_numbers: bool,
     relative_line_numbers: bool,
@@ -77,7 +78,7 @@ module Model = {
       debug_show_raw: false,
       debug_collapsed: [],
     },
-    autoprobe_mode: false,
+    autoprobe_mode: Off,
     agent_globals: AgentGlobals.init(),
     line_numbers: false,
     relative_line_numbers: false,
@@ -162,6 +163,8 @@ module Update = {
     | DisplayWarnings
     | FlipAnimations
     | AutoprobeMode
+    | SetAutoprobe(Haz3lcore.AutoProbe.t)
+    | SampleStickyInPlace
     | ToggleLineNumbers
     | ToggleRelativeLineNumbers
     | CapUndoStack
@@ -448,10 +451,32 @@ module Update = {
           ...settings, //TODO[Matt]: Make sure instructor mode actually makes prelude read-only
           instructor_mode: !settings.instructor_mode,
         }
-      | AutoprobeMode => {
+      | AutoprobeMode =>
+        /* Keyboard/indicator toggle cycles Off <-> All only; Caret is
+           reachable via the segmented control's SetAutoprobe action. */
+        {
           ...settings,
-          autoprobe_mode: !settings.autoprobe_mode,
+          autoprobe_mode:
+            Haz3lcore.AutoProbe.(
+              switch (settings.autoprobe_mode) {
+              | Off => All
+              | Caret
+              | All => Off
+              }
+            ),
         }
+      | SetAutoprobe(mode) => {
+          ...settings,
+          autoprobe_mode: mode,
+        }
+      | SampleStickyInPlace =>
+        /* '/' key — toggles sticky only; independent of docking. */
+        Haz3lcore.ProbeProj.Settings.(
+          {
+            set_sticky(! sticky^);
+            settings;
+          }
+        )
       | ToggleLineNumbers => {
           ...settings,
           line_numbers: !settings.line_numbers,

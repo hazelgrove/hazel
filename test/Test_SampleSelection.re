@@ -51,6 +51,7 @@ let mk_sample =
   env: Sample.Env.empty,
   call_stack: stack,
   args: None,
+  frame: None,
   time: 0.0,
   seq,
   origin: Probe,

@@ -307,6 +307,193 @@ in m.f(1); m.f(2)|},
   ),
 ];
 
+/* The dynamic fn_def_id carried on a call sample's frame is what drives
+ * step-into for higher-order and partial-application calls (where the static
+ * binding site is only a parameter). These tests pin down which calls record
+ * a navigable fn_def_id. */
+let frame_fn_def_id = (s: Sample.t): option(Id.t) =>
+  Option.bind(s.frame, (f: Sample.stack_frame) => f.fn_def_id);
+
+let single_sample = (label, code): Sample.t => {
+  let samples = get_all_samples(code);
+  switch (samples) {
+  | [s] => s
+  | _ =>
+    fail(
+      label
+      ++ ": expected exactly 1 sample, got "
+      ++ string_of_int(List.length(samples)),
+    )
+  };
+};
+
+let step_into_frame_tests = [
+  test_case(
+    "Deferred call (incl. through a type-annotated HOF / cast) resolves fn_def_id to a Fun",
+    `Quick,
+    () => {
+      let term_kind = (info_map, id): string =>
+        switch (Statics.Map.lookup(id, info_map)) {
+        | None => "NOT_IN_MAP"
+        | Some(Info.InfoExp({user_term: {term, _}, _})) =>
+          switch (term) {
+          | Fun(_) => "Fun"
+          | TypFun(_) => "TypFun"
+          | Parens(_) => "Parens"
+          | Var(_) => "Var"
+          | Ap(_) => "Ap"
+          | DeferredAp(_) => "DeferredAp"
+          | _ => "OtherExp"
+          }
+        | Some(_) => "NonExpInfo"
+        };
+      let check_resolves = (label, code) => {
+        let (_term, elaborated, info_map, targets) = parse_with_probes(code);
+        let (_, state) =
+          Evaluator.evaluate(~targets, ~env=Builtins.env_init, elaborated);
+        let samples =
+          EvaluatorState.get_probes(state)
+          |> Id.Map.bindings
+          |> List.concat_map(snd);
+        let dump =
+          List.map(
+            (s: Sample.t) =>
+              switch (frame_fn_def_id(s)) {
+              | None => "noFnDef"
+              | Some(id) => term_kind(info_map, id)
+              },
+            samples,
+          )
+          |> String.concat(",");
+        let resolves = (s: Sample.t) =>
+          switch (frame_fn_def_id(s)) {
+          | None => false
+          | Some(id) =>
+            switch (Statics.Map.lookup(id, info_map)) {
+            | Some(Info.InfoExp({user_term: {term: Fun(_), _}, _})) => true
+            | _ => false
+            }
+          };
+        let total = List.length(samples);
+        let ok = List.length(List.filter(resolves, samples));
+        check(int, label ++ ": resolved [" ++ dump ++ "]", total, ok);
+      };
+      /* annotated let-bound fn (like crop-plotter's setCell) via deferred */
+      check_resolves(
+        "annotated-deferred",
+        {|let setCell: (Int, Int) -> Int = fun (g, x) -> g + x in
+let updateGrove = fun (m, f) -> ^^probe(f(m)) in
+updateGrove(10, setCell(_, 5))|},
+      );
+      /* cast from a RETURN-type annotation (a function factory) rather than a
+         parameter annotation: mk(1) is a deferred cast to Int -> Int, then
+         applied through a HOF. Exercises the same cast path from another site. */
+      check_resolves(
+        "returned-cast-deferred",
+        {|let add = fun (a, b) -> a + b in
+let mk: Int -> (Int -> Int) = fun a -> add(a, _) in
+let apply = fun (f, x) -> ^^probe(f(x)) in
+apply(mk(1), 5)|},
+      );
+      /* the user's shape: a deferred branch in a case, alongside a lambda
+         branch, both reaching the same updateGrove probe */
+      check_resolves(
+        "case-mixed-deferred",
+        {|type Action = +Lit + Def in
+let setCell: (Int, Int) -> Int = fun (g, x) -> g + x in
+let setAll: Int -> Int = fun g -> g * 2 in
+let updateGrove: (Int, Int -> Int) -> Int =
+  fun (m, f) -> ^^probe(f(m)) in
+let update: (Int, Action) -> Int =
+  fun (m, action) ->
+    case action
+    | Lit => updateGrove(m, fun g -> setAll(g))
+    | Def => updateGrove(m, setCell(_, 5))
+    end in
+(update(10, Lit), update(10, Def))|},
+      );
+    },
+  ),
+  test_case(
+    "HOF call with a function literal records a navigable fn_def_id",
+    `Quick,
+    () => {
+      let s =
+        single_sample(
+          "hof-literal",
+          {|let apply = fun (f, x) -> ^^probe(f(x))
+in apply(fun n -> n + 1, 5)|},
+        );
+      check(
+        bool,
+        "call frame carries Some fn_def_id (the passed lambda)",
+        true,
+        Option.is_some(frame_fn_def_id(s)),
+      );
+    },
+  ),
+  test_case(
+    "HOF call with a named function records a navigable fn_def_id",
+    `Quick,
+    () => {
+      let s =
+        single_sample(
+          "hof-named",
+          {|let inc = fun n -> n + 1 in
+let apply = fun (f, x) -> ^^probe(f(x))
+in apply(inc, 5)|},
+        );
+      check(
+        bool,
+        "call frame carries Some fn_def_id (inc)",
+        true,
+        Option.is_some(frame_fn_def_id(s)),
+      );
+    },
+  ),
+  test_case(
+    "Partial-application call resolves fn_def_id to the underlying function",
+    `Quick,
+    () => {
+      let s =
+        single_sample(
+          "partial-app",
+          {|let add = fun (a, b) -> a + b in
+let apply = fun (f, x) -> ^^probe(f(x))
+in apply(add(_, 10), 5)|},
+        );
+      check(
+        bool,
+        "deferred call frame carries Some fn_def_id (add)",
+        true,
+        Option.is_some(frame_fn_def_id(s)),
+      );
+    },
+  ),
+  test_case(
+    "Library call (map) DOES carry an fn_def_id (predicate must exclude by call site)",
+    `Quick,
+    () => {
+      /* map/fold_left/... are Hazel Funs in env_init, so their frame carries
+         a (non-navigable) fn_def_id pointing at library code. This is why the
+         step-into predicate can't rely on fn_def_id alone and must suppress
+         builtin call sites separately. */
+      let samples =
+        get_all_samples({|^^probe(map([1, 2, 3], fun n -> n + 1))|});
+      switch (samples) {
+      | [s, ..._] =>
+        check(
+          bool,
+          "library call frame carries an fn_def_id",
+          true,
+          Option.is_some(frame_fn_def_id(s)),
+        )
+      | [] => fail("Expected at least 1 sample")
+      };
+    },
+  ),
+];
+
 let tests = (
   "Evaluator.ProbeCallStack",
   List.concat([
@@ -314,5 +501,6 @@ let tests = (
     inside_function_tests,
     app_vs_body_tests,
     module_function_tests,
+    step_into_frame_tests,
   ]),
 );

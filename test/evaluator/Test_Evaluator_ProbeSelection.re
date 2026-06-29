@@ -817,6 +817,204 @@ in ^^probe(f(42))|};
   ),
 ];
 
+/* --- Repro: pin a call inside an eta-expanded fold callback ---
+ *
+ * The study's debugging tasks all run `fold_left(actions, fun (m, a) ->
+ * update(m, a), init)`. The builtin fold_left is itself a recursive Hazel
+ * function, so samples under the callback carry the builtin's internal ap
+ * frames, repeated once per iteration. Pinning the update call from one
+ * iteration must still narrow other probes to that iteration. */
+
+let fold_pin_repro_tests = [
+  test_case(
+    "Pin on update call inside fold lambda narrows body probe",
+    `Quick,
+    () => {
+      let code = {|let update = fun (m, a) -> ^^probe(m + a) in
+let run = fun (m, xs) -> fold_left(xs, fun (m, a) -> ^^probe(update(m, a)), m) in
+run(0, [1, 2, 3])|};
+      let probes = get_probes_map(code) |> Id.Map.bindings;
+      check(int, "should have 2 probes", 2, List.length(probes));
+      /* The body probe's samples have the deeper stacks (inside update). */
+      let depth = ((_, samples)) =>
+        List.fold_left(
+          (acc, s: Sample.t) => max(acc, List.length(s.call_stack)),
+          0,
+          samples,
+        );
+      let (call_probe, body_probe) =
+        switch (List.sort((a, b) => compare(depth(a), depth(b)), probes)) {
+        | [shallow, deep] => (shallow, deep)
+        | _ => failwith("expected exactly two probes")
+        };
+      let (call_probe_id, call_samples) = call_probe;
+      let (_, body_samples) = body_probe;
+      check(int, "call probe has 3 samples", 3, List.length(call_samples));
+      check(int, "body probe has 3 samples", 3, List.length(body_samples));
+      /* Pin the middle iteration the way ProbeProj.pin_call does:
+       * prepend the probed ap's syntax id to the sample's stack. */
+      let target: Sample.t = List.nth(call_samples, 1);
+      let pin_stack: Sample.call_stack = [
+        {
+          id: call_probe_id,
+          name: None,
+          fn_def_id: None,
+        },
+        ...target.call_stack,
+      ];
+      let filtered =
+        Sample.Selection.filter_by_pin(
+          ~ap_id=None,
+          ~pinned=Some(pin_stack),
+          body_samples,
+        );
+      check(
+        int,
+        "pin narrows body probe to one iteration",
+        1,
+        List.length(filtered),
+      );
+      /* And it is the matching iteration: same value as the pinned call. */
+      switch (filtered) {
+      | [kept] =>
+        check(
+          bool,
+          "kept body sample matches pinned iteration's value",
+          true,
+          DHExp.fast_equal(kept.value, target.value),
+        )
+      | _ => ()
+      };
+    },
+  ),
+];
+
+/* --- Repro: drop_dead_pin must not kill pins through builtin frames ---
+ *
+ * Stacks that pass through builtin implementations (fold_left applying a
+ * user callback) contain the builtin's internal ap ids, which are never
+ * in user statics, and (in the web app) are minted by the evaluation
+ * worker, a different process from the UI. So pin liveness must be
+ * checked against the samples themselves, not the statics map; the
+ * original statics-based check silently dropped every pin through a
+ * fold/map in the recalculate the pin action itself triggered. */
+
+let dead_pin_tests = [
+  test_case(
+    "drop_dead_pin keeps a pin whose stack passes through builtin frames",
+    `Quick,
+    () => {
+      let code = {|let update = fun (m, a) -> ^^probe(m + a) in
+let run = fun (m, xs) -> fold_left(xs, fun (m, a) -> ^^probe(update(m, a)), m) in
+run(0, [1, 2, 3])|};
+      let dynamics = get_probes_map(code);
+      let samples = dynamics |> Id.Map.bindings |> List.concat_map(snd);
+      /* Pick a deep sample: its stack passes through fold_left's internal
+       * frames, which are absent from any user statics map. Pin it the way
+       * pin_call does: prepend the probed ap's syntax id. */
+      let sample =
+        List.fold_left(
+          (best: Sample.t, s: Sample.t) =>
+            List.length(s.call_stack) > List.length(best.call_stack)
+              ? s : best,
+          List.hd(samples),
+          samples,
+        );
+      let pin_stack: Sample.call_stack = [
+        {
+          id: sample.syntax_id,
+          name: None,
+          fn_def_id: None,
+        },
+        ...sample.call_stack,
+      ];
+      let z =
+        Haz3lcore.SampleFocusPerform.toggle_pin_call(
+          Haz3lcore.Zipper.init(),
+          pin_stack,
+        );
+      let z' = Haz3lcore.ProbePerform.drop_dead_pin(~dynamics, z);
+      check(
+        bool,
+        "pin through builtin frames survives",
+        true,
+        z'.refractors.sample_focus.pinned_stack != None,
+      );
+      /* Control: a stack rooted at a fresh id matches no sample (the call
+       * site is gone) and must still be dropped. */
+      let dead_stack: Sample.call_stack = [
+        {
+          id: Haz3lcore.Id.mk(),
+          name: None,
+          fn_def_id: None,
+        },
+        {
+          id: Haz3lcore.Id.mk(),
+          name: None,
+          fn_def_id: None,
+        },
+      ];
+      let z =
+        Haz3lcore.SampleFocusPerform.toggle_pin_call(
+          Haz3lcore.Zipper.init(),
+          dead_stack,
+        );
+      let z' = Haz3lcore.ProbePerform.drop_dead_pin(~dynamics, z);
+      check(
+        bool,
+        "pin with a retired call site is dropped",
+        true,
+        z'.refractors.sample_focus.pinned_stack == None,
+      );
+      /* With no results at all, a pin is left alone (restored sessions). */
+      let z =
+        Haz3lcore.SampleFocusPerform.toggle_pin_call(
+          Haz3lcore.Zipper.init(),
+          dead_stack,
+        );
+      let z' =
+        Haz3lcore.ProbePerform.drop_dead_pin(~dynamics=Id.Map.empty, z);
+      check(
+        bool,
+        "pin untouched when dynamics is empty",
+        true,
+        z'.refractors.sample_focus.pinned_stack != None,
+      );
+    },
+  ),
+];
+
+/* --- Repro: sample ids must be unique across fold iterations ---
+ *
+ * Sample.t.id is a content hash of (stack, syntax_id) for stability
+ * across re-evaluations. Hashtbl.hash truncates traversal after a small
+ * node budget, so consecutive fold iterations (stacks sharing a long
+ * identical prefix of builtin frames, differing only in depth) hashed
+ * identically: the indicated-sample marker and gesture anchors compare
+ * by id, so the UI treated the colliding samples as one. */
+
+let sample_id_tests = [
+  test_case(
+    "Sample ids are pairwise distinct across deep fold iterations",
+    `Quick,
+    () => {
+      let code = {|let update = fun (m, a) -> ^^probe(m + a) in
+let run = fun (m, xs) -> fold_left(xs, fun (m, a) -> ^^probe(update(m, a)), m) in
+run(0, [1, 2, 3, 4, 5, 6, 7, 8])|};
+      let samples = get_all_samples(code);
+      check(int, "16 samples (8 per probe)", 16, List.length(samples));
+      let ids = List.map((s: Sample.t) => s.id, samples);
+      let distinct = List.sort_uniq(compare, ids);
+      check(
+        int,
+        "all sample ids distinct",
+        List.length(ids),
+        List.length(distinct),
+      );
+    },
+  ),
+];
+
 let tests = (
   "Evaluator.ProbeSelection",
   List.concat([
@@ -828,5 +1026,8 @@ let tests = (
     intent_preservation_tests,
     call_click_alignment_tests,
     cur_var_ap_tests,
+    fold_pin_repro_tests,
+    dead_pin_tests,
+    sample_id_tests,
   ]),
 );

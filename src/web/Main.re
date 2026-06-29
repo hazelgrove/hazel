@@ -17,6 +17,39 @@ let restart_caret_animation = () =>
   | _ => ()
   };
 
+/* Seed the viewport-culling row range the first frame it's needed (auto-probe
+   on, single-code-editor mode), so culling activates on load rather than only
+   after the first scroll. Reads the DOM only while visible_rows is None, so it
+   adds no per-frame forced layout; ongoing updates come from Page.on_scroll.
+   Measured against the active editor's local code container — see
+   JsUtil.code_viewport_geometry. */
+let seed_visible_rows =
+    (model: CrashHandling.Model.t, ~dispatch: Page.Update.t => unit): unit => {
+  let page = model.model.current.current;
+  let needed =
+    Editors.Model.supports_viewport_culling(page.editors)
+    && page.globals.settings.autoprobe_mode != Haz3lcore.AutoProbe.Off
+    && Option.is_none(page.globals.visible_rows);
+  if (needed) {
+    switch (JsUtil.code_viewport_geometry()) {
+    | None => ()
+    | Some((scroll_top, client_height)) =>
+      dispatch(
+        Page.Update.Globals(
+          UpdateVisibleRows(
+            Globals.VisibleRows.compute(
+              ~scroll_top,
+              ~client_height,
+              ~row_height=page.globals.font_metrics.row_height,
+              (),
+            ),
+          ),
+        ),
+      )
+    };
+  };
+};
+
 let apply =
     (
       model: CrashHandling.Model.t,
@@ -190,9 +223,23 @@ let start = default_model => {
 
   // Triggers after every update
   let after_display = {
-    let%map model = app_model;
+    let%map model = app_model
+    and app_inject = app_inject;
     Bonsai.Effect.of_sync_fun(
       () => {
+        ScrollDebug.next_frame();
+        /* Drift detection only during EdgeScroll-active periods (drag at
+         * edge); otherwise wheel-scroll would flood the log. */
+        ScrollDebug.check_drift(~in_drag=EdgeScroll.is_active(), ());
+        if (scroll_to_caret.contents) {
+          ScrollDebug.log(
+            "AF",
+            Printf.sprintf(
+              "frame_start sT=%.1f scroll_to_caret=t",
+              ScrollDebug.main_scroll_top(),
+            ),
+          );
+        };
         if (scroll_to_caret.contents) {
           scroll_to_caret := false;
           JsUtil.scroll_cursor_into_view_if_needed();
@@ -201,10 +248,48 @@ let start = default_model => {
         };
         /* Handle scheduled probe focus from step-into (see ProbePerform.FocusEffect) */
         let _ = Haz3lcore.ProbePerform.FocusEffect.execute();
+        /* Restore probe keyboard focus dropped by vdom reorder moves
+           (see FocusEffect keeper notes) */
+        Haz3lcore.ProbePerform.FocusEffect.keep_focus();
         /* Scroll-compensate when focus bar appears/disappears */
         JsUtil.setup_focus_bar_scroll_compensation();
         /* Update floating elements (backpack) to viewport coordinates */
         FloatingElement.update_all();
+        let editor =
+          Page.Update.get_editor(model.model.current.current).editor;
+        let zipper = editor.state.zipper;
+        let measured = editor.syntax.measured;
+        let font_metrics = model.model.current.current.globals.font_metrics;
+        /* Publish #main's effective scroll width so .cell can stretch
+         * its background across probe overlays / drawers. Cause-driven:
+         * see ScrollWidth for the inputs it gates on. */
+        ScrollWidth.update(
+          ~measured,
+          ~refractor_shape_map=editor.syntax.refractor_shape_map,
+          ~sample_focus=zipper.refractors.sample_focus,
+          ~font_metrics,
+          ~visible_rows=model.model.current.current.globals.visible_rows,
+        );
+        /* Cause-driven refractor-shift compensation: when a drawer
+         * above the caret changes height, scroll #main by the exact
+         * pixel delta so the caret row stays put. Compensation is
+         * gated by `refractor_shape_map` reference identity, so idle
+         * frames and refractor-irrelevant edits do zero work. */
+        RefractorShift.update(
+          ~font_metrics,
+          ~refractor_shape_map=editor.syntax.refractor_shape_map,
+          ~measured,
+          zipper,
+        );
+        ScrollDebug.mark_sT();
+        /* Sample-focus anchor compensation: if Left/Right in the sample
+         * focus bar captured the indicated sample's screen-y before
+         * dispatch, restore it now so the user's eye stays on it. */
+        SampleAnchor.consume();
+        ScrollDebug.mark_sT();
+        seed_visible_rows(model, ~dispatch=a =>
+          app_inject(a) |> Bonsai.Effect.Expert.handle
+        );
         model.model.current.current.globals.settings.core.statics
           ? Animation.go() : ();
       },

@@ -126,7 +126,26 @@ module Map = {
         switch (ci) {
         | InfoExp({user_term: {term: Let(pat, def, _), _}, _}) =>
           let binds = Pat.bindings(pat);
-          List.exists((b: Binding.t) => b.id == binding_id, binds)
+          /* Function-definition sugar (`let f(args) = ...`) has binder
+             `Ap(Var(f), args)`, optionally wrapped `Asc(_, ret_ty)`.
+             Pat.bindings returns the params (args) and drops the function
+             name f, so also match f's own binding here — otherwise the
+             enclosing let of a sugar-defined function is never found.
+             (Can't call FunctionSugar.detect: it depends on StaticsBase.) */
+          let fn_name_binds =
+            switch (IdTagged.term_of(pat)) {
+            | Asc(inner, _) =>
+              switch (IdTagged.term_of(inner)) {
+              | Ap(fn, _) => Pat.bindings(fn)
+              | _ => []
+              }
+            | Ap(fn, _) => Pat.bindings(fn)
+            | _ => []
+            };
+          List.exists(
+            (b: Binding.t) => b.id == binding_id,
+            binds @ fn_name_binds,
+          )
             ? Some(IdTagged.rep_id(def)) : climb(rest);
         | InfoExp(_) => None
         | _ => climb(rest)

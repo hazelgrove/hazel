@@ -554,7 +554,7 @@ module View = {
      * window-level handler doesn't see them while the menu is open. */
     ContextMenuListener.sync(
       ~menu_open=selected && Model.context_menu_is_open(model),
-      ~on_close=inject(ContextMenu(ContextMenu.Model.Close)),
+      ~on_close=() => inject(ContextMenu(ContextMenu.Model.Close)),
       ~handle_key=
         key_str =>
           ContextMenu.WithContext.handle_listener_key(
@@ -581,7 +581,6 @@ module View = {
             Arms.Refractors.all(
               ~font_metrics=globals.font_metrics,
               ~syntax=model.editor.syntax,
-              ~dynamics,
               model.editor.state.zipper,
             ),
           ]
@@ -616,6 +615,13 @@ module View = {
         : [];
     // let t0 = JsUtil.precise_timestamp();
     let zipper = model.editor.state.zipper;
+    /* Use visible row range from model (updated by scroll handler / initial
+       seed). Only cull during auto-probe mode — otherwise a stale range
+       could hide manual probes. The range is only ever *set* for
+       single-editor modes (Scratch/Tutorial), so other modes stay None. */
+    let visible =
+      globals.settings.autoprobe_mode == Haz3lcore.AutoProbe.Off
+        ? None : globals.visible_rows;
     let refractor_data =
       RefractorView.mk_data(
         ~refractors=
@@ -630,10 +636,11 @@ module View = {
         ~dynamics,
         ~sample_focus=zipper.refractors.sample_focus,
         ~editor_active=selected,
+        ~visible?,
+        ~refractor_shape_map=model.editor.syntax.refractor_shape_map,
+        (),
       );
     // let t1 = JsUtil.precise_timestamp();
-    /* Use visible row range from model (updated by scroll handler) */
-    let visible = globals.visible_rows;
     let refractors_model =
       RefractorView.all(
         x => inject(Perform(x)),
@@ -641,6 +648,7 @@ module View = {
         globals.font_metrics,
         ~core_settings=globals.settings.core,
         ~visible?,
+        ~refractor_shape_map=model.editor.syntax.refractor_shape_map,
         refractor_data,
         List.map(fst, zipper.refractors.manuals)
         @ List.map(fst, Id.Map.to_list(zipper.refractors.multis.ephemerals)),
@@ -840,12 +848,10 @@ module View = {
 
     let key_handler_attr =
       if (!selected) {
-        /* Always focusable so first click gives DOM focus.
-         * Key events are ignored when not selected — they bubble
-         * to Page.re which handles page-level shortcuts. */
-        Attr.tabindex(
-          0,
-        );
+        /* Key events are ignored when not selected — they bubble
+         * to Page.re which handles page-level shortcuts. The editor
+         * is kept focusable via the unconditional tabindex below. */
+        Attr.empty;
       } else {
         let z = model.editor.state.zipper;
         /* Editor-level clipboard helpers. Bypass the page-level
@@ -869,13 +875,17 @@ module View = {
           };
         let copy_selection = () => {
           let segment = z.selection.content;
-          let str =
+          let full =
             Printer.of_segment(
               ~indent=" ",
               ~refractors=z.refractors.manuals,
               segment,
             );
-          if (!selection_has_refractors(z.refractors, segment)) {
+          let str = Zipper.trim_selected_text(z, full);
+          /* Cache for paste reuse only when nothing was trimmed: a trimmed
+             sub-token string must re-parse on paste, not round-trip to the
+             full segment. */
+          if (str == full && !selection_has_refractors(z.refractors, segment)) {
             Haz3lcore.Parser.set_segment_cache(Some(segment), str);
           };
           JsUtil.write_clipboard(str);
@@ -886,7 +896,10 @@ module View = {
               Haz3lcore.Action.Paste(Util.StringUtil.trim_leading(text));
             Bonsai.Effect.Expert.handle(inject(Perform(action)));
           });
-        Key.handler(~f=key => {
+        /* Key.listener, not Key.handler: the handler variant adds its own
+           tabindex(0), duplicating the unconditional tabindex on this div
+           (vdom warns "not combining attributes" on every render). */
+        Key.listener(~f=key => {
           /* 1. Check for arrow key escape at boundaries FIRST.
            *    Keyboard.handle_key_event always returns Some for arrows,
            *    so boundary escape must be checked before delegation. */
@@ -1006,6 +1019,9 @@ module View = {
           @ (selected ? ["selected"] : [])
           @ (display_line_numbers ? ["has-line-numbers"] : []),
         ),
+        /* Always focusable so a click always gives DOM focus — the caret
+         * and the active-cell accent are gated on `.code-editor:focus`. */
+        Attr.tabindex(0),
         /* Tag the active cell so a sidebar jump can move DOM focus to it
            (see JsUtil.active_cell_id / ProbePerform.FocusEffect). */
         selected ? Attr.id(JsUtil.active_cell_id) : Attr.empty,

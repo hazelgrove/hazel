@@ -89,8 +89,9 @@ let format_probe_values =
     )
     : string => {
   let format_one = (probe_id: Id.t): option(string) => {
+    /* probe_map must be FINALIZED (evaluation order; Sample.Map.finalize) */
     let samples =
-      Sample.Map.lookup(probe_id, probe_map) |> Option.value(~default=[]);
+      Dynamics.Map.lookup(probe_id, probe_map) |> Option.value(~default=[]);
 
     switch (get_empty_status(~window, samples)) {
     | Some(NoSamplesExist) => Some(no_samples_indicator)

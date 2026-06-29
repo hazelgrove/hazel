@@ -507,10 +507,12 @@ module Indicated = {
 };
 
 module Refractors = {
+  /* The arm under the refractored term. The dashed path that used to
+   * continue from here out to the offside samples was removed as visual
+   * noise. */
   let paths =
       (
         hx: float,
-        ~dashed: bool,
         sort: Sort.t,
         font_metrics: FontMetrics.t,
         rows: Rows.t,
@@ -521,28 +523,13 @@ module Refractors = {
     let min_col = min_col(~first, ~last, ~rows);
     let (orig, path) =
       l_path(~flip=true, ~hx, ~min_col, ~first, ~last) |> Option.get;
-    let dashed_length =
-      IntMap.find(last.row, rows).max_col
-      - last.col
-      + ProjectorView.offside_offset;
     [
       svg(
         ~font_metrics,
         ~path_cls=["child-line", cls, Sort.to_string(sort)],
         (orig, path @ [hook(hx, 1, -1)]),
       ),
-    ]
-    @ (
-      dashed
-        ? [
-          svg(
-            ~font_metrics,
-            ~path_cls=["child-line", cls, Sort.to_string(sort), "dashed"],
-            (last, [m(~x=0, ~y=1), h(~x=dashed_length)]),
-          ),
-        ]
-        : []
-    );
+    ];
   };
 
   let refractor_arms =
@@ -552,7 +539,6 @@ module Refractors = {
         ~syntax: CachedSyntax.t,
         ~font_metrics: FontMetrics.t,
         ~cls: string,
-        ~dynamics: Language.Dynamics.Map.t,
       ) =>
     switch (Id.Map.find_opt(id, syntax.term_data)) {
     | Some(t) =>
@@ -563,7 +549,6 @@ module Refractors = {
         let kind_cls = ProjectorCore.Kind.name(kind);
         paths(
           hx,
-          ~dashed=Id.Map.mem(id, dynamics),
           ~cls=cls ++ " " ++ kind_cls,
           sort,
           font_metrics,
@@ -576,12 +561,7 @@ module Refractors = {
     };
 
   let of_zipper =
-      (
-        ~font_metrics: FontMetrics.t,
-        ~syntax: CachedSyntax.t,
-        ~dynamics: Language.Dynamics.Map.t,
-        z: Zipper.t,
-      )
+      (~font_metrics: FontMetrics.t, ~syntax: CachedSyntax.t, z: Zipper.t)
       : list(Node.t) =>
     (
       z.refractors.manuals
@@ -592,7 +572,6 @@ module Refractors = {
              ~syntax,
              ~font_metrics,
              ~cls="manual",
-             ~dynamics,
            )
          )
     )
@@ -608,7 +587,6 @@ module Refractors = {
              ~cls=
                Haz3lcore.Indicated.index(z) == Some(id)
                  ? "repl-indicated" : "repl",
-             ~dynamics,
            )
            @ (
              Haz3lcore.Indicated.index(z) == Some(id)
@@ -628,11 +606,6 @@ module Refractors = {
     );
 
   let all =
-      (
-        ~font_metrics: FontMetrics.t,
-        ~syntax: CachedSyntax.t,
-        ~dynamics: Language.Dynamics.Map.t,
-        z: Zipper.t,
-      ) =>
-    div_c("refractors", of_zipper(~font_metrics, ~syntax, ~dynamics, z));
+      (~font_metrics: FontMetrics.t, ~syntax: CachedSyntax.t, z: Zipper.t) =>
+    div_c("refractors", of_zipper(~font_metrics, ~syntax, z));
 };

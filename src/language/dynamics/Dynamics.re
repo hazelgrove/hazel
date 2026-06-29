@@ -40,12 +40,15 @@ module Info = {
 };
 
 module Map = {
-  /* Just a wrapping around the Probe map (for now) */
+  /* Just a wrapping around the Probe map (for now).
+   * Holds FINALIZED maps (sample lists already in evaluation order —
+   * see Sample.Map.finalize), so lookup is a plain find with no
+   * per-call list reversal/allocation. */
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = Sample.Map.t;
   let empty: t = Sample.Map.empty;
   let mk: t => t = Fun.id;
-  let lookup = Sample.Map.lookup;
+  let lookup = (id, map: t) => Id.Map.find_opt(id, map);
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]

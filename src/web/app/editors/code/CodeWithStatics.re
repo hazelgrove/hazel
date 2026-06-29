@@ -67,13 +67,11 @@ module Model = {
       Some(
         () => {
           let z = model.editor.state.zipper;
-          let full =
-            Printer.of_segment(
-              ~indent=" ",
-              ~refractors=z.refractors.manuals,
-              z.selection.content,
-            );
-          Zipper.trim_selected_text(z, full);
+          Printer.selected_text(
+            ~indent=" ",
+            ~refractors=z.refractors.manuals,
+            z,
+          );
         },
       ),
     selection: Some(model.editor.state.zipper.selection.content),
@@ -143,7 +141,7 @@ module Update = {
   let calculate =
       (
         ~settings,
-        ~autoprobe_mode=false,
+        ~autoprobe_mode=Haz3lcore.AutoProbe.Off,
         ~is_edited,
         ~statics_mode=StaticsNormal,
         ~ctx=?,
@@ -155,20 +153,43 @@ module Update = {
       )
       : Model.t => {
     /* Throttle gate: decide whether to do a full statics recompute this
-     * frame. When we reuse, `statics` keeps its ref — CachedSyntax.calculate
-     * then skips the shape pass via phys-eq on info_map/elaborated. */
-    let statics =
-      statics_mode == StaticsForce || is_edited && statics_mode != StaticsDefer
-        ? CachedStatics.init(
-            ~settings,
-            ~stitch,
-            ~ctx?,
-            ~ana?,
-            ~is_dynamic_term,
-            ~root=editor.root,
-            editor.state.zipper,
-          )
-        : statics;
+     * frame. When we reuse, `statics` keeps its ref so CachedSyntax.calculate
+     * skips the shape pass via phys-eq on info_map/elaborated.
+     *
+     * Bypass the debounce when probe ids changed. Otherwise `with_targets`
+     * updates `statics.targets` from the new refractors but leaves
+     * `info_map`'s per-id `probe_targets` stale, so IncrEval's reuse_check
+     * sees equal probe_targets and reuses the old `state.probes`, making a
+     * newly placed probe show empty until the next force-refresh. */
+    let probes_differ = z =>
+      !
+        Language.Id.Map.equal(
+          (==),
+          CachedStatics.probe_ids_of_zipper(z),
+          Language.Id.Map.map(_ => (), statics.targets),
+        );
+    /* `editor` is taken as a parameter so the post-Editor.calculate call
+     * sees the *new* zipper (with the autoprobe placement). A captured
+     * closure would always read the pre-Editor zipper and produce an
+     * info_map whose `probe_targets` still lacks the new probe id, which
+     * lets IncrEval.reuse_check incorrectly reuse the cached `state.probes`
+     * and leaves the new probe showing ∅ until the next edit. */
+    let do_init = (editor: Editor.t) =>
+      CachedStatics.init(
+        ~settings,
+        ~stitch,
+        ~ctx?,
+        ~ana?,
+        ~is_dynamic_term,
+        ~root=editor.root,
+        editor.state.zipper,
+      );
+    let needs_refresh =
+      statics_mode == StaticsForce
+      || probes_differ(editor.state.zipper)
+      || is_edited
+      && statics_mode != StaticsDefer;
+    let statics = needs_refresh ? do_init(editor) : statics;
 
     let editor =
       Editor.Update.calculate(
@@ -179,6 +200,12 @@ module Update = {
         dynamics,
         editor,
       );
+
+    /* Editor.calculate may have placed/removed probes (autoprobe target
+     * regeneration, collision cleanup). If so, statics needs to reflect
+     * the new probe_ids so eval_info_map's probe_targets are correct. */
+    let statics =
+      probes_differ(editor.state.zipper) ? do_init(editor) : statics;
 
     /* Refresh `statics.targets` against the post-probe-effects refractors.
      * Cheap O(|probe_ids|) fold; only this field depends on refractors, so
@@ -202,7 +229,16 @@ module View = {
     let {
       editor:
         {
-          syntax: {measured, selection_ids, segment, shape_map, term_data, _},
+          syntax:
+            {
+              measured,
+              selection_ids,
+              segment,
+              shape_map,
+              refractor_shape_map,
+              term_data,
+              _,
+            },
           state: {zipper: z, _},
           _,
         },
@@ -218,7 +254,7 @@ module View = {
         ~term_data,
         ~buffer_ids=Selection.is_buffer(z.selection) ? selection_ids : [],
         ~shape_map,
-        ~refractor_shape_map=Id.Map.empty, //Id.Map.map(_ => 2, z.refractors.map),
+        ~refractor_shape_map,
         ~refine_sort,
         segment,
       );

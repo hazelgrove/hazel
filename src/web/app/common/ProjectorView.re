@@ -258,7 +258,16 @@ let projector_clss =
 
 /* Wraps the view function for a projector, absolutely positioning
  * relative to the syntax, adding a default backing decoration, and
- * adding fallthrough handlers where appropriate*/
+ * adding fallthrough handlers where appropriate.
+ *
+ * Keyed by the projector id: with viewport culling, a scroll step can
+ * add/remove probes at the edges of the rendered set. Unkeyed, the vdom
+ * differ matches the container's children positionally, so every node
+ * after the change gets repatched to host a DIFFERENT probe — and if
+ * the user's keyboard focus is on one of them (focused .live-offside,
+ * red-outlined sample), focus visibly jumps off their probe and arrow
+ * keys stop working. Keys make the differ insert/remove only the probes
+ * that actually entered/left, leaving the focused element untouched. */
 let view_wrapper =
     (
       ~inject: Action.t => Ui_effect.t(unit),
@@ -269,9 +278,11 @@ let view_wrapper =
       ~view_error: bool=false,
       ~idx: int,
       ~kind: ProjectorCore.Kind.t,
+      ~id: Id.t,
       views: list(Node.t),
     ) =>
   div(
+    ~key="proj-" ++ Id.to_string(id),
     ~attrs=[
       Attr.classes(projector_clss(~view_error, status)),
       /* Stopping propagation here stops the base editor's
@@ -315,6 +326,27 @@ let offside_wrapper =
         Printf.sprintf(
           "position: absolute; left: %fpx;",
           font_metrics.col_width *. float_of_int(offside_base),
+        ),
+      ),
+    ],
+    [v],
+  );
+
+/* Wrap a below view: position starting on the next line at the editor
+ * pane's left edge. The view_wrapper around us is already absolutely
+ * positioned at the projector's (row, col); shift back by origin.col
+ * to reach col 0 of the pane, and down by one row_height. Use Tab(n)
+ * placeholder so the framework reserves the additional rows. */
+let below_wrapper = (font_metrics: FontMetrics.t, origin_col: int, v: Node.t) =>
+  div(
+    ~attrs=[
+      Attr.classes(["below-wrapper"]),
+      Attr.create(
+        "style",
+        Printf.sprintf(
+          "position: absolute; top: %fpx; left: %fpx;",
+          font_metrics.row_height,
+          -. (font_metrics.col_width *. float_of_int(origin_col)),
         ),
       ),
     ],
@@ -523,16 +555,22 @@ let split_views =
       ~view_error=views.error,
       ~idx,
       ~kind=p.kind,
+      ~id=p.id,
     );
   let line_view = {
     let offside_view =
       views.offside
       |> Option.map(offside_wrapper(font_metrics, offside_base))
       |> Option.to_list;
+    let below_view =
+      views.below
+      |> Option.map(below_wrapper(font_metrics, measurement.origin.col))
+      |> Option.to_list;
     wrapper(
       (skip_inline ? [] : [views.inline])
       @ [backing_deco(~font_metrics, ~measurement, p)]
-      @ offside_view,
+      @ offside_view
+      @ below_view,
     );
   };
   let overlay_view = Option.map(v => wrapper([v]), views.overlay);

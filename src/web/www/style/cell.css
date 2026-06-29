@@ -22,37 +22,50 @@
   outline: none;
 }
 
-#main .code-editor.has-line-numbers{
+#main .code-editor.has-line-numbers {
   padding-left: 0;
 }
-
 
 #main.Scratch,
 #main.Documentation {
   background-color: var(--ui-bkg);
 }
 
-:is(#main.Scratch,
-#main.Documentation):not(.Derivations) > * > .code-editor {
+:is(#main.Scratch, #main.Documentation):not(.Derivations) > * > .code-editor {
   background-color: var(--cell-active);
 }
 
-:is(#main.Scratch,
-#main.Documentation):not(.Derivations) .cell {
+:is(#main.Scratch, #main.Documentation):not(.Derivations) .cell {
   flex-grow: 1;
+  /* Stretch the cell's background to cover everything #main's scroll
+   * extent contains, including absolutely-positioned descendants like
+   * probe drawers/overlays that don't contribute to CSS intrinsic
+   * sizing. `--main-scroll-width` is published by JS in after_display
+   * (Main.re). Fallback is `max-content` so the cell still grows with
+   * in-flow content if JS hasn't run yet. min-width: 100% from the
+   * general .cell rule still applies for narrow-content cases. */
+  width: var(--main-scroll-width, max-content);
 }
 
 #main.Tutorial,
 #main.Exercises,
 #main.Derivations {
   padding: 1.5em;
-  padding-top: 3.5em;
   display: flex;
   flex-direction: column;
   justify-content: flex-start;
   gap: 1.2em;
-  background-color: var(--ui-bkg);
   scrollbar-color: var(--main-scroll-thumb) var(--NONE);
+}
+
+#main.Exercises,
+#main.Derivations {
+  padding-top: 3.5em;
+  background-color: var(--ui-bkg);
+}
+
+#main.Tutorial {
+  background-color: var(--SAND);
 }
 
 /* Derivation slides inside the unified Scratch/Documentation modes
@@ -266,6 +279,14 @@
   font-size: 1rem;
 }
 
+/* Allow selecting the prompt prose (overrides #page { user-select: none }).
+   Selecting prompt text also moves DOM focus off the editor, which
+   correctly drops the active-cell accent back to its idle pale state. */
+.prompt-content,
+.prompt-content * {
+  user-select: text;
+}
+
 /* Markdown paragraphs inside a prompt. Each blank line in the source
    produces its own <p>; we space them modestly and trim the outer
    margins so the prompt cell doesn't pick up extra padding. */
@@ -281,16 +302,76 @@
   margin-bottom: 0;
 }
 
-#main.Tutorial .cell:has(.code-editor.selected),
+/* Match the heading colors used elsewhere in Hazel (e.g. .slide h1,
+   .hsod-body h1) instead of the browser-default near-black/gray.
+   Sizes are scaled below the .title-cell .title-text (1.5rem) so the
+   tutorial title stays the largest text on the page. */
+.prompt-content h1,
+.prompt-content h2,
+.prompt-content h3,
+.prompt-content h4,
+.prompt-content h5,
+.prompt-content h6,
+.task-reference-panel h1,
+.task-reference-panel h2,
+.task-reference-panel h3,
+.task-reference-panel h4,
+.task-reference-panel h5,
+.task-reference-panel h6 {
+  color: var(--BR4);
+  font-family: var(--ui-font);
+}
+
+.prompt-content h1,
+.task-reference-panel h1 {
+  font-size: 1.3rem;
+}
+.prompt-content h2,
+.task-reference-panel h2 {
+  font-size: 1.15rem;
+}
+.prompt-content h3,
+.task-reference-panel h3 {
+  font-size: 1.05rem;
+}
+.prompt-content h4,
+.prompt-content h5,
+.prompt-content h6,
+.task-reference-panel h4,
+.task-reference-panel h5,
+.task-reference-panel h6 {
+  font-size: 1rem;
+}
+
+/* Exercises/Derivations: the active-cell accent tracks the first-class
+   model selection (which of several cells is active), independent of DOM
+   focus — focus may legitimately rest in the sidebar or elsewhere. */
 #main.Exercises .cell:has(.code-editor.selected),
 #main.Derivations .cell:has(.code-editor.selected) {
   background-color: var(--cell-active);
 }
 
-#main.Tutorial .cell.unlocked:has(.code-editor.selected),
 #main.Exercises .cell.unlocked:has(.code-editor.selected),
 #main.Derivations .cell.unlocked:has(.code-editor.selected) {
   border-left: 1px solid var(--cell-selected-accent);
+  background-color: var(--cell-active);
+}
+
+/* Tutorial: a single cell is always the model selection, so the accent
+   instead tracks real DOM focus. The red line reads as a spine descending
+   from the UI root: it lights whenever focus lives anywhere below the
+   editor — the editor proper OR an inline projector/probe within it —
+   hence :focus-within rather than :focus. Idle shows a pale line. */
+#main.Tutorial .cell.unlocked:has(.code-editor) {
+  border-left: 1px solid var(--cell-idle-accent);
+}
+
+#main.Tutorial .cell:has(.code-editor:focus-within) {
+  background-color: var(--cell-active);
+}
+
+#main.Tutorial .cell.unlocked:has(.code-editor:focus-within) {
+  border-left-color: var(--cell-selected-accent);
   background-color: var(--cell-active);
 }
 

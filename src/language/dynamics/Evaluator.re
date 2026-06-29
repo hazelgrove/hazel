@@ -295,15 +295,14 @@ let rec evaluate =
             EvaluatorState.get_probe_start(state^, expr_id)
             |> Option.value(~default=0);
           let step_end = state^.step_count - 1;
-          let args =
-            EvaluatorState.lookup_app_arg(
-              state^,
-              expr_id,
-              original_call_stack,
-            );
+          let app =
+            EvaluatorState.lookup_app(state^, expr_id, original_call_stack);
+          let args = Option.map(fst, app);
+          let frame = Option.map(snd, app);
           let sample =
             Sample.mk(
               ~args,
+              ~frame,
               ~step_start,
               ~step_end,
               expr_id,

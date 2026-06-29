@@ -74,6 +74,7 @@ let legend_sample =
     env: Sample.Env.empty,
     call_stack: sample_stack,
     args: None,
+    frame: None,
     time: 0.0,
     seq: 0,
     origin: Sample.Probe,
@@ -129,6 +130,28 @@ let legend_item = (~tooltip: string, sample_view: Node.t) =>
 let kbd = (shortcut: string) =>
   span(~attrs=[clss(["kbd-badge"])], [text(shortcut)]);
 
+/* Inline arrow glyph for use inside `qr_how` text, sharing the
+ * probe nav-bar's arrow SVG (recolored to currentColor via a CSS
+ * mask). Direction picks one of the four rotation variants. */
+let arrow_icon =
+    (
+      direction: [
+        | `Left
+        | `Right
+        | `Up
+        | `Down
+      ],
+    ) => {
+  let dir_cls =
+    switch (direction) {
+    | `Left => "left"
+    | `Right => "right"
+    | `Up => "up"
+    | `Down => "down"
+    };
+  span(~attrs=[clss(["arrow-icon", dir_cls])], []);
+};
+
 /* A joined pill: pointer icon (outline) + kbd badge (filled).
  * Reads as "click, then press key". */
 let _click_kbd = (shortcut: string) =>
@@ -151,139 +174,181 @@ let legend_view = (~globals as _: Globals.t, ~explain_this_inject) => {
     fn_def_id: None,
   };
   let legend_sample = legend_sample(~mode);
-  /* Labels vary by color scheme */
+  /* Labels vary by color scheme (unused in Simple, which collapses
+     all non-focal samples to a single subdued color). */
   let (before_label, after_label, contains_label, inside_label) =
     switch (color_scheme) {
     | Calls => ("Above", "Below", "Caller", "Callee")
     | Hybrid
-    | StepRange => ("Before", "After", "Contains", "Inside")
+    | StepRange
+    | Simple => ("Before", "After", "Contains", "Inside")
     };
+  let focused_item =
+    legend_item(
+      ~tooltip=
+        "This sample is at the current focal position in the call stack.",
+      legend_sample(
+        ~indicated=true,
+        ~ap_id=None,
+        ~indicated_call=None,
+        ~cursor_stack=[f],
+        ~sample_stack=[f],
+        ~step_range=(10, 20),
+        ~focus_step_range=Some((10, 20)),
+        ~caption="Focused",
+      ),
+    );
+  /* Simple uses two colors only, so its legend is just the focal
+     swatch plus one "everything else" swatch. */
+  let simple_items = [
+    focused_item,
+    legend_item(
+      ~tooltip=
+        "Every sample outside the focal call is shown in the same subdued green.",
+      legend_sample(
+        ~indicated=false,
+        ~ap_id=None,
+        ~indicated_call=None,
+        ~cursor_stack=[f],
+        ~sample_stack=[
+          {
+            ...f,
+            id: Id.mk(),
+          },
+        ],
+        ~step_range=(0, 0),
+        ~focus_step_range=None,
+        ~caption="Unfocused",
+      ),
+    ),
+  ];
+  let standard_items = [
+    legend_item(
+      ~tooltip=
+        switch (color_scheme) {
+        | Calls => "This sample is from a shallower call stack depth than the focus."
+        | Hybrid
+        | StepRange
+        | Simple => "This sample's step range ends before the focus starts."
+        },
+      legend_sample(
+        ~indicated=false,
+        ~ap_id=None,
+        ~indicated_call=None,
+        ~cursor_stack=[f, f],
+        ~sample_stack=[f],
+        ~step_range=(0, 5),
+        ~focus_step_range=focus,
+        ~caption=before_label,
+      ),
+    ),
+    focused_item,
+    legend_item(
+      ~tooltip=
+        switch (color_scheme) {
+        | Calls => "This sample is from a deeper call stack depth than the focus."
+        | Hybrid
+        | StepRange
+        | Simple => "This sample's step range starts after the focus ends."
+        },
+      legend_sample(
+        ~indicated=false,
+        ~ap_id=None,
+        ~indicated_call=None,
+        ~cursor_stack=[f],
+        ~sample_stack=[f, f],
+        ~step_range=(25, 30),
+        ~focus_step_range=focus,
+        ~caption=after_label,
+      ),
+    ),
+    legend_item(
+      ~tooltip=
+        switch (color_scheme) {
+        | Calls => "This sample is from a call site on the focus's call chain (a direct caller)."
+        | Hybrid
+        | StepRange
+        | Simple => "This sample's step range strictly contains the focal range."
+        },
+      legend_sample(
+        ~indicated=false,
+        ~indicated_call=None,
+        ~ap_id=Some(Id.invalid),
+        ~cursor_stack=[f, f],
+        ~sample_stack=[f],
+        ~step_range=(5, 25),
+        ~focus_step_range=focus,
+        ~caption=contains_label,
+      ),
+    ),
+    switch (mode) {
+    | Single =>
+      legend_item(
+        ~tooltip=
+          "Samples not shown as they are not within the probe focus; click to realign the focus and show them.",
+        div(~attrs=[clss(["legend-not-aligned"])], [text({js|⊖|js})]),
+      )
+    | Many =>
+      legend_item(
+        ~tooltip=
+          "This sample is from a different branch of the call stack than the focus.",
+        legend_sample(
+          ~indicated=false,
+          ~ap_id=None,
+          ~indicated_call=None,
+          ~cursor_stack=[
+            {
+              ...f,
+              id: Id.mk(),
+            },
+          ],
+          ~sample_stack=[f],
+          ~step_range=(0, 0),
+          ~focus_step_range=None,
+          ~caption="Unfocused",
+        ),
+      )
+    },
+    legend_item(
+      ~tooltip=
+        switch (color_scheme) {
+        | Calls => "This sample is from a function called from the focal sample (a direct callee)."
+        | Hybrid
+        | StepRange
+        | Simple => "This sample's step range is strictly inside the focus."
+        },
+      legend_sample(
+        ~indicated=false,
+        ~indicated_call=Some(Id.invalid),
+        ~ap_id=None,
+        ~cursor_stack=[f],
+        ~sample_stack=[f, f],
+        ~step_range=(12, 18),
+        ~focus_step_range=focus,
+        ~caption=inside_label,
+      ),
+    ),
+  ];
   div(
-    ~attrs=[clss(["legend", "panel"])],
-    [
-      div(~attrs=[clss(["title"])], [text("Sample Focus Legend")]),
-      legend_item(
-        ~tooltip=
-          switch (color_scheme) {
-          | Calls => "This sample is from a shallower call stack depth than the focus."
-          | Hybrid
-          | StepRange => "This sample's step range ends before the focus starts."
-          },
-        legend_sample(
-          ~indicated=false,
-          ~ap_id=None,
-          ~indicated_call=None,
-          ~cursor_stack=[f, f],
-          ~sample_stack=[f],
-          ~step_range=(0, 5),
-          ~focus_step_range=focus,
-          ~caption=before_label,
-        ),
+    /* `simple` lets the sidebar spread the two-swatch Simple legend across
+       the row instead of leaving them in the 3-col grid's left+middle. */
+    ~attrs=[
+      clss(
+        ["legend", "panel"] @ (color_scheme == Simple ? ["simple"] : []),
       ),
-      legend_item(
-        ~tooltip=
-          "This sample is at the current focal position in the call stack.",
-        legend_sample(
-          ~indicated=true,
-          ~ap_id=None,
-          ~indicated_call=None,
-          ~cursor_stack=[f],
-          ~sample_stack=[f],
-          ~step_range=(10, 20),
-          ~focus_step_range=Some((10, 20)),
-          ~caption="Focused",
-        ),
-      ),
-      legend_item(
-        ~tooltip=
-          switch (color_scheme) {
-          | Calls => "This sample is from a deeper call stack depth than the focus."
-          | Hybrid
-          | StepRange => "This sample's step range starts after the focus ends."
-          },
-        legend_sample(
-          ~indicated=false,
-          ~ap_id=None,
-          ~indicated_call=None,
-          ~cursor_stack=[f],
-          ~sample_stack=[f, f],
-          ~step_range=(25, 30),
-          ~focus_step_range=focus,
-          ~caption=after_label,
-        ),
-      ),
-      legend_item(
-        ~tooltip=
-          switch (color_scheme) {
-          | Calls => "This sample is from a call site on the focus's call chain (a direct caller)."
-          | Hybrid
-          | StepRange => "This sample's step range strictly contains the focal range."
-          },
-        legend_sample(
-          ~indicated=false,
-          ~indicated_call=None,
-          ~ap_id=Some(Id.invalid),
-          ~cursor_stack=[f, f],
-          ~sample_stack=[f],
-          ~step_range=(5, 25),
-          ~focus_step_range=focus,
-          ~caption=contains_label,
-        ),
-      ),
-      switch (mode) {
-      | Single =>
-        legend_item(
-          ~tooltip=
-            "Samples not shown as they are not within the probe focus; click to realign the focus and show them.",
-          div(~attrs=[clss(["legend-not-aligned"])], [text({js|⊖|js})]),
-        )
-      | Many =>
-        legend_item(
-          ~tooltip=
-            "This sample is from a different branch of the call stack than the focus.",
-          legend_sample(
-            ~indicated=false,
-            ~ap_id=None,
-            ~indicated_call=None,
-            ~cursor_stack=[
-              {
-                ...f,
-                id: Id.mk(),
-              },
-            ],
-            ~sample_stack=[f],
-            ~step_range=(0, 0),
-            ~focus_step_range=None,
-            ~caption="Unfocused",
-          ),
-        )
-      },
-      legend_item(
-        ~tooltip=
-          switch (color_scheme) {
-          | Calls => "This sample is from a function called from the focal sample (a direct callee)."
-          | Hybrid
-          | StepRange => "This sample's step range is strictly inside the focus."
-          },
-        legend_sample(
-          ~indicated=false,
-          ~indicated_call=Some(Id.invalid),
-          ~ap_id=None,
-          ~cursor_stack=[f],
-          ~sample_stack=[f, f],
-          ~step_range=(12, 18),
-          ~focus_step_range=focus,
-          ~caption=inside_label,
-        ),
-      ),
+    ],
+    [div(~attrs=[clss(["title"])], [text("Sample Focus Legend")])]
+    @ (color_scheme == Simple ? simple_items : standard_items)
+    @ [
       div(~attrs=[clss(["legend-divider"])], []),
       div(~attrs=[clss(["title"])], [text("Sample Color Scheme")]),
       {
         let next_mode: ProbeProj.Settings.sample_base =
           switch (color_scheme) {
+          | Simple => Calls
           | Calls => Hybrid
           | Hybrid => StepRange
-          | StepRange => Calls
+          | StepRange => Simple
           };
         let segment = (label, tooltip, mode) =>
           div(
@@ -303,6 +368,11 @@ let legend_view = (~globals as _: Globals.t, ~explain_this_inject) => {
         div(
           ~attrs=[clss(["segmented-control"])],
           [
+            segment(
+              "Simple",
+              "Two colors only: green for the focal call's call-stack level, subdued green for everything else.",
+              Simple,
+            ),
             segment(
               "Calls",
               "Color by call stack relations: relative call depth, callers, callees.",
@@ -333,13 +403,13 @@ let toggle_controls_view = (~globals: Globals.t, ~explain_this_inject) => {
       {
         /* Auto Probe toggle */
 
-        let is_on = globals.settings.autoprobe_mode;
-        let segment = (label, active) =>
+        let mode_now = globals.settings.autoprobe_mode;
+        let segment = (label, mode: AutoProbe.t) =>
           div(
             ~attrs=[
-              clss(["segment"] @ (active ? ["active"] : [])),
+              clss(["segment"] @ (mode == mode_now ? ["active"] : [])),
               Attr.on_pointerdown(_ =>
-                globals.inject_global(Set(AutoprobeMode))
+                globals.inject_global(Set(SetAutoprobe(mode)))
               ),
             ],
             [text(label)],
@@ -356,13 +426,17 @@ let toggle_controls_view = (~globals: Globals.t, ~explain_this_inject) => {
             ),
             div(
               ~attrs=[clss(["segmented-control"])],
-              [segment("Off", !is_on), segment("On", is_on)],
+              [
+                segment("Off", Off),
+                segment("Caret", Caret),
+                segment("All", All),
+              ],
             ),
             div(
               ~attrs=[clss(["legend-tooltip"])],
               [
                 text(
-                  "Automatically probe the definition at the cursor, following as you navigate.",
+                  "Off, follow the cursor's definition (Caret), or probe the whole program (All).",
                 ),
               ],
             ),
@@ -653,8 +727,9 @@ let quick_ref_row =
       ~click_shortcut=?,
       ~click_shortcut2=?,
       ~badge_cls=?,
+      ~row_clss: list(string)=[],
       action: string,
-      how: string,
+      how: list(Node.t),
     ) => {
   let wrap_cls = (nodes: list(Node.t)) =>
     switch (badge_cls) {
@@ -676,13 +751,16 @@ let quick_ref_row =
       )
     | _ => []
     };
-  Node.tr([
-    Node.td(~attrs=[clss(["qr-action"])], [text(action)]),
-    Node.td(
-      ~attrs=[clss(["qr-how"])],
-      [span(~attrs=[clss(["qr-how-text"])], [text(how)])] @ badge_nodes,
-    ),
-  ]);
+  Node.tr(
+    ~attrs=[clss(row_clss)],
+    [
+      Node.td(~attrs=[clss(["qr-action"])], [text(action)]),
+      Node.td(
+        ~attrs=[clss(["qr-how"])],
+        [span(~attrs=[clss(["qr-how-text"])], how)] @ badge_nodes,
+      ),
+    ],
+  );
 };
 
 let quick_ref_divider =
@@ -719,25 +797,25 @@ let quick_ref_view =
             ~shortcut=meta ++ "E",
             ~badge_cls="qr-cmd-e",
             "Add/remove probe",
-            "Right-click term",
+            [text("Right-click term")],
           ),
           quick_ref_row(
             ~click_shortcut="/",
             ~badge_cls="qr-when-focused",
             "See env/args",
-            "Hover over sample",
+            [text("Alt-click sample")],
           ),
           quick_ref_row(
             ~click_shortcut="P",
             ~badge_cls="qr-when-focused",
             "Pin call",
-            {js|Click sample › Pin|js},
+            [text({js|Right-click sample › Pin|js})],
           ),
           quick_ref_row(
             ~click_shortcut={js|↩|js},
             ~badge_cls="qr-when-focused",
             "Step into call",
-            {js|Click sample › Step|js},
+            [text({js|Right-click sample › Step|js})],
           ),
           /* Group 2: Navigation */
           quick_ref_divider,
@@ -746,36 +824,43 @@ let quick_ref_view =
             ~click_shortcut2={js|→|js},
             ~badge_cls="qr-when-focused",
             "Navigate samples",
-            {js|Click ◀▶ sample|js},
+            [text("Click "), arrow_icon(`Left), arrow_icon(`Right)],
           ),
           quick_ref_row(
             ~click_shortcut={js|↑|js},
             ~click_shortcut2={js|↓|js},
             ~badge_cls="qr-when-focused",
             "Navigate probes",
-            "Click sample",
+            [text("Click sample")],
           ),
           quick_ref_row(
             ~click_shortcut={js|⇧←|js},
             ~click_shortcut2={js|⇧→|js},
             ~badge_cls="qr-when-focused",
             "Resize sample",
-            "Drag sample",
+            [text("Drag sample")],
           ),
           /* Group 3: Focus */
           quick_ref_divider,
           quick_ref_row(
+            ~click_shortcut=meta ++ {js|↓|js},
+            ~click_shortcut2=meta ++ {js|↑|js},
+            ~badge_cls="qr-when-focused",
+            "Expand probe",
+            [text("Click "), arrow_icon(`Down)],
+          ),
+          quick_ref_row(
             ~shortcut=meta ++ {js|↩|js},
             ~badge_cls="qr-focus-probe",
             "Focus probe",
-            "Click sample",
+            [text("Click sample")],
           ),
           quick_ref_row(
             ~click_shortcut=meta ++ {js|↩|js},
             ~click_shortcut2="Esc",
             ~badge_cls="qr-when-focused",
             "Focus editor",
-            "Click editor",
+            [text("Click editor")],
           ),
         ],
       ),
@@ -816,8 +901,8 @@ let probearium =
       }
     | None => false
     };
-  [
-    div(~attrs=[clss(["header"])], [mode_title(~explain_this_inject)]),
+  [div(~attrs=[clss(["header"])], [mode_title(~explain_this_inject)])]
+  @ [
     toggle_controls_view(~globals, ~explain_this_inject),
     quick_ref_view(
       ~indicated_can_probe,
@@ -825,7 +910,7 @@ let probearium =
       ~indicated_has_manual,
     ),
     legend_view(~globals, ~explain_this_inject),
-    sketch_view(~globals, ~explain_this_inject),
+    //sketch_view(~globals, ~explain_this_inject),
   ];
 };
 
