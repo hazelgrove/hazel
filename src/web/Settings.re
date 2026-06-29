@@ -18,8 +18,9 @@ module Model = {
        definition), or All (probe the whole program, one probe per row).
        See Haz3lcore.AutoProbe. */
     autoprobe_mode: Haz3lcore.AutoProbe.t,
-    /* When true, the sample context drawer (actions/args/env) is shown
-       in the probe sidebar instead of as a hover dropdown on samples. */
+    /* VESTIGIAL: the sample-context sidebar docking was removed (right-click
+       replaced it). Field retained so persisted settings still deserialize
+       during the study; drop at dev-extraction (will reset saved settings). */
     sample_drawer_in_sidebar: bool,
     agent_globals: AgentGlobals.Model.t,
     line_numbers: bool,
@@ -168,7 +169,6 @@ module Update = {
     | FlipAnimations
     | AutoprobeMode
     | SetAutoprobe(Haz3lcore.AutoProbe.t)
-    | SampleDrawerInSidebar
     | SampleStickyInPlace
     | ToggleLineNumbers
     | ToggleRelativeLineNumbers
@@ -474,19 +474,6 @@ module Update = {
           ...settings,
           autoprobe_mode: mode,
         }
-      | SampleDrawerInSidebar =>
-        /* Dock toggle — independent of sticky. Mirrors the persisted
-         * `sample_drawer_in_sidebar` into ProbeProj's `docked` ref. */
-        Haz3lcore.ProbeProj.Settings.(
-          {
-            let new_docked = !settings.sample_drawer_in_sidebar;
-            set_docked(new_docked);
-            {
-              ...settings,
-              sample_drawer_in_sidebar: new_docked,
-            };
-          }
-        )
       | SampleStickyInPlace =>
         /* '/' key — toggles sticky only; independent of docking. */
         Haz3lcore.ProbeProj.Settings.(

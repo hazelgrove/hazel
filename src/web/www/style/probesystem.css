@@ -839,65 +839,9 @@ body:not(:has(.live-offside:focus))
   font-family: monospace;
 }
 
-/* Sample-context drawer — same inner content as the hover dropdown
- * (styled by proj-probe.css), but mounted in the sidebar.
- *
- * Sidebar-specific overrides go below: those tweak how the shared inner
- * content looks in this context without touching the dropdown's styling. */
-
-#probe-sidebar .sample-drawer-slot {
-  padding: 0;
-}
-
-#probe-sidebar .sample-context-drawer {
-  background-color: var(--BR1);
-  border-radius: 0.3em;
-  box-sizing: border-box;
-}
-
-/* In the sidebar, env/call sections blend with the panel background
- * instead of using the dropdown's contrasting --live-env-bkg. */
-#probe-sidebar .sample-context-drawer .live-env,
-#probe-sidebar .sample-context-drawer .call-display {
-  background-color: transparent;
-}
-
-/* Action shortcut badges in the sidebar drawer always render in the
- * "active" style (matching .kbd-badge) — the drawer is only shown
- * when a sample is focused, so the shortcuts are always reachable
- * and the dropdown's dimmed default doesn't fit here. */
-#probe-sidebar .sample-context-drawer .action-item .shortcut {
-  background: var(--BR1);
-  color: var(--BR3);
-  opacity: 1;
-}
-
-#probe-sidebar .sample-context-drawer {
-  background-color: transparent;
-  font-size: 0.85em;
-}
-
-#probe-sidebar .sample-context-drawer .context-actions {
-  padding: 0.2em;
-}
-
-#probe-sidebar .sample-context-drawer .context-actions .action-item {
-  color: var(--BR2);
-  padding: inherit;
-}
-
-#probe-sidebar .sample-context-drawer .context-actions .action-item:hover {
-  background-color: var(--SAND);
-  color: var(--BR4) !important;
-}
-
-#probe-sidebar .sample-context-drawer .context-actions + .call-display,
+/* Section separators between context-actions / call-display / env in the
+ * sample-context hover dropdown. */
 .context-actions + .environment-section .live-env,
 .call-display + .environment-section .live-env {
   border-top: 1px solid var(--BR1);
-}
-
-#probe-sidebar .sample-context-drawer .call-display,
-#probe-sidebar .sample-context-drawer .live-env .live-env-entry {
-  color: inherit;
 }

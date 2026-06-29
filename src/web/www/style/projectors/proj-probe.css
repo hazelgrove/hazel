@@ -824,17 +824,6 @@
   scale: 0.75;
 }
 
-/* Dock toggle (rightmost icon in the context-actions row). Swaps the
- * sample drawer between hover dropdown and sidebar; the bar-arrow glyph
- * points toward the destination. */
-.action-item.dock-toggle {
-  margin-left: auto;
-  padding: 0 0.35em;
-  font-size: 0.85em;
-  line-height: 1;
-  color: var(--BR3);
-}
-
 /* Rich-probe renderer badge inside the sample context menu (the round
  * label-colored chip that holds the renderer's SVG icon). */
 .sample-context-menu .action-item.rich-probe-action .table-badge {

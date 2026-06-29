@@ -130,9 +130,6 @@ module Model = {
 
   let load = () => {
     let settings = Settings.Store.load();
-    Haz3lcore.ProbeProj.Settings.set_docked(
-      settings.sample_drawer_in_sidebar,
-    );
     init(~settings, ());
   };
 

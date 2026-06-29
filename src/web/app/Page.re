@@ -714,12 +714,6 @@ module View = {
             _,
           } =>
           Some(Update.Globals(Set(AutoprobeMode)))
-        /* Cmd+; (Mac) / Ctrl+; (PC) toggles whether the sample context
-           drawer (actions/args/env) renders in the probe sidebar instead
-           of as a per-sample hover dropdown. */
-        | {key: D(";"), sys: Mac, shift: Up, meta: Down, ctrl: Up, alt: Up, _}
-        | {key: D(";"), sys: PC, shift: Up, meta: Up, ctrl: Down, alt: Up, _} =>
-          Some(Update.Globals(Set(SampleDrawerInSidebar)))
         | _ => None
         };
       Effect.(
@@ -970,8 +964,6 @@ module View = {
     /* Bind the projector-side callbacks. The projector view can only
      * dispatch external_actions, so toggles that need to update global
      * Settings (and persist) call out to these refs. */
-    Haz3lcore.ProbeProj.Settings.on_drawer_toggle :=
-      (() => inject(Globals(Set(SampleDrawerInSidebar))));
     Haz3lcore.ProbeProj.Settings.on_sticky_toggle :=
       (() => inject(Globals(Set(SampleStickyInPlace))));
     let cursor =

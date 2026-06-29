@@ -162,33 +162,21 @@ module Settings = {
   let s = ref(init);
   let version = ref(0);
 
-  /* Two independent axes for showing a sample's context (actions/args/env),
-   * orthogonal to `open_dropdown` (the per-sample right-click dropdown):
-   *   sticky: '/' keyboard mode — the focused sample's in-place dropdown
-   *           stays open and follows arrow-nav. Transient (resets on
-   *           reload); visibility is CSS-driven off the focused offside.
-   *   docked: dock-to-sidebar — the sidebar additionally shows the focused
-   *           sample's context. Persisted (mirrors
-   *           web/Settings.sample_drawer_in_sidebar); toggled by Cmd/Ctrl+;
-   *           or the dock icon.
+  /* `sticky` is the '/' keyboard mode, orthogonal to `open_dropdown` (the
+   * per-sample right-click dropdown): the focused sample's in-place dropdown
+   * stays open and follows arrow-nav. Transient (resets on reload);
+   * visibility is CSS-driven off the focused offside.
    * Writers bump version so the projector view cache invalidates. */
   let sticky = ref(false);
-  let docked = ref(false);
 
-  /* Callbacks invoked by UI affordances inside the projector view (which can
-   * only dispatch external_actions, not global Settings updates). Set by
-   * Page.view each render so they capture the current `inject`. */
-  let on_drawer_toggle: ref(unit => Virtual_dom.Vdom.Effect.t(unit)) =
-    ref(_ => Virtual_dom.Vdom.Effect.Ignore);
+  /* Callback invoked by the '/' affordance inside the projector view (which
+   * can only dispatch external_actions, not global Settings updates). Set by
+   * Page.view each render so it captures the current `inject`. */
   let on_sticky_toggle: ref(unit => Virtual_dom.Vdom.Effect.t(unit)) =
     ref(_ => Virtual_dom.Vdom.Effect.Ignore);
 
   let set_sticky = (b: bool) => {
     sticky := b;
-    version := version^ + 1;
-  };
-  let set_docked = (b: bool) => {
-    docked := b;
     version := version^ + 1;
   };
 
@@ -987,29 +975,6 @@ let step_into_action = (ctx: probe_ctx, sample: Sample.t, ap_id: Id.t) =>
     ],
   );
 
-/* Dock toggle: swaps the sample drawer between hover dropdown
- * (in the editor offside view) and the probe sidebar. The bar-arrow
- * glyph points toward the destination: → bar (sidebar) when currently
- * a hover dropdown; bar ← when currently docked in the sidebar. */
-let dock_toggle = (): Node.t => {
-  let docked = Settings.docked^;
-  let icon = docked ? {js|⇤|js} : {js|⇥|js};
-  let tooltip =
-    docked
-      ? "Undock sample drawer (Cmd+;)"
-      : "Dock sample drawer in sidebar (Cmd+;)";
-  div(
-    ~attrs=[
-      Attr.classes(["action-item", "dock-toggle"]),
-      Attr.title(tooltip),
-      Attr.on_pointerdown(_ =>
-        Effect.Many([Effect.Stop_propagation, Settings.on_drawer_toggle^()])
-      ),
-    ],
-    [text(icon)],
-  );
-};
-
 /* Rich probe action: open a domain-specific visualization via ToggleModal.
    One menu item per compatible renderer; r.badge supplies the icon.
    Label flips to "Hide <id>" when this renderer's modal is already open,
@@ -1301,17 +1266,12 @@ let sample_context_sections =
   let env = sample_environment(ctx, ~filter_vars, view_seg, sample);
   /* With no actions, no call display and no environment, the only
    * thing the menu could show is the lone dock toggle — not worth a
-   * menu. Emit no nodes so the callers suppress the whole menu (and
-   * therefore the dock icon) rather than docking an empty drawer. */
+   * menu. Emit no nodes so the callers suppress the whole menu rather
+   * than rendering an empty one. */
   let nodes =
     primary == [] && call_display == [] && env == []
       ? []
-      : [
-          div(
-            ~attrs=[Attr.classes(["context-actions"])],
-            primary /*@ [dock_toggle()]*/ //TODO(andrew): this is temporarily disabled for the study
-          ),
-        ]
+      : [div(~attrs=[Attr.classes(["context-actions"])], primary)]
         @ call_display
         @ env;
   (has_env, has_call, nodes);
@@ -1919,7 +1879,6 @@ let key_handler =
       ])
     | _ => Many([Stop_propagation, Prevent_default])
     }
-  | D(";") when key.meta == Down || key.ctrl == Down => Ignore /* Defer to page-level handler: toggle sidebar drawer mode */
   | D("/") =>
     /* Toggle sticky mode (independent of docking); web/Settings owns it. */
     Many([Settings.on_sticky_toggle^(), Stop_propagation, Prevent_default])
