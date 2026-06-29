@@ -126,9 +126,15 @@ let descending_chain = (t: Typ.t): list(Typ.t) => {
 };
 
 let synth_type = (e: Exp.t): option(Typ.t) =>
-  switch (safe_slice(~focus=whole(e), ~direction=`Syn, e, S.gap)) {
-  | Some(r) => Some(r.psi)
-  | None => None
+  switch (Statics.mk(CoreSettings.on, base_ctx(), e)) {
+  | (m, _) =>
+    switch (Statics.Map.lookup_exp(whole(e), m)) {
+    | Some({ty, _}) => Some(ty)
+    | None => None
+    }
+  | exception Stack_overflow => None
+  | exception (Failure(f) as ex) =>
+    is_known_statics_failure(f) ? None : raise(ex)
   };
 
 // Omitting a node omits its whole subtree, so coverage includes every id that
@@ -140,7 +146,18 @@ let omitted_cover = (omitted: Id.Set.t, e: Exp.t): Id.Set.t => {
 };
 
 let subtree_subset = (a: Id.Set.t, b: Id.Set.t, e: Exp.t): bool =>
-  Id.Set.subset(a, omitted_cover(b, e));
+  Id.Set.subset(omitted_cover(a, e), omitted_cover(b, e));
+
+let id_set_size = (ids: Id.Set.t): int => List.length(Id.Set.elements(ids));
+
+let short_ids = (ids: Id.Set.t): string =>
+  ids
+  |> Id.Set.elements
+  |> List.map(id => {
+       let s = Id.to_string(id);
+       String.length(s) > 8 ? String.sub(s, 0, 8) : s;
+     })
+  |> String.concat(",");
 
 // Down a descending query chain (maximal type to gap), omissions monotonically grow
 let monotonicity =
@@ -154,38 +171,50 @@ let monotonicity =
     | Some(tau) =>
       let step = q =>
         switch (safe_slice(~focus=whole(e), ~direction=`Syn, e, q)) {
-        | Some(r) => Some((q, r.omitted))
+        | Some(r) => Some((q, r.omitted, omitted_cover(r.omitted, e)))
         | None => None
         };
       let steps = List.filter_map(step, descending_chain(tau));
       let rec find_violation = prev => (
         fun
         | [] => None
-        | [(q, omit), ...rest] =>
+        | [(q, omit, cover), ...rest] =>
           switch (prev) {
-          | Some((_, pomit)) when !subtree_subset(pomit, omit, e) =>
-            Some((prev, q, omit))
-          | _ => find_violation(Some((q, omit)), rest)
+          | Some((_, _, pcover)) when !Id.Set.subset(pcover, cover) =>
+            Some((prev, q, omit, cover))
+          | _ => find_violation(Some((q, omit, cover)), rest)
           }
       );
       switch (find_violation(None, steps)) {
       | None => true
-      | Some((prev, q, _)) =>
+      | Some((prev, q, _, cover)) =>
         let pq =
           switch (prev) {
-          | Some((pq, _)) => pq
+          | Some((pq, _, _)) => pq
           | None => tau
           };
-        let line = ((q, omit)) =>
+        let missing =
+          switch (prev) {
+          | Some((_, _, pcover)) => Id.Set.diff(pcover, cover)
+          | None => Id.Set.empty
+          };
+        let line = ((q, omit, cover)) =>
           Printf.sprintf(
-            "  %-24s |> %s",
+            "  query %-24s raw=%-3d cover=%-3d raw_ids=[%s] cover_ids=[%s]\n      %s",
             render_any(Typ(q)),
+            id_set_size(omit),
+            id_set_size(cover),
+            short_ids(omit),
+            short_ids(cover),
             show_exp_src(reconstruct(omit, e)),
           );
         QCheck.Test.fail_reportf(
-          "omissions not monotone: query %s omits fewer subterms than the more precise %s\nchain (query |> sliced term):\n%s",
-          render_any(Typ(q)),
+          "omissions not monotone from precise query %s to less precise query %s\nprogram: %s\ninferred type: %s\nmissing covered ids at failing step: [%s]\nchain:\n%s",
           render_any(Typ(pq)),
+          render_any(Typ(q)),
+          show_exp_src(e),
+          render_any(Typ(tau)),
+          short_ids(missing),
           String.concat("\n", List.map(line, steps)),
         );
       };

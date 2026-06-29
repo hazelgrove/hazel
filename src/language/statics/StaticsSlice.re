@@ -556,6 +556,34 @@ let dot = (~shape: Typ.t, ~term: Exp.term, receiver: sty): sty => {
   finalize: () => empty_result,
 };
 
+let rec strip_typ_parens = (ty: Typ.t): Typ.t =>
+  switch (Typ.term_of(ty)) {
+  | Parens(inner) => strip_typ_parens(inner)
+  | _ => ty
+  };
+
+let module_field_query = (name: string, query: Typ.t): option(Typ.t) =>
+  switch (Typ.term_of(strip_typ_parens(query))) {
+  | Prod(fields) =>
+    List.find_map(
+      field =>
+        switch (Typ.term_of(field)) {
+        | TupLabel({term: Label(label), _}, payload) when label == name =>
+          Some(payload)
+        | _ => None
+        },
+      fields,
+    )
+  | _ => None
+  };
+
+let rec pat_annotation = (pat: Pat.t): option(Typ.t) =>
+  switch (Pat.term_of(pat)) {
+  | Parens(inner) => pat_annotation(inner)
+  | Asc(_, ty) => Some(ty)
+  | _ => None
+  };
+
 let rec typ_omissions = (actual: Typ.t, query: Typ.t): Id.Set.t =>
   if (is_gap(query)) {
     ids_set(IdTagged.ids(actual));
@@ -581,6 +609,46 @@ let rec typ_omissions = (actual: Typ.t, query: Typ.t): Id.Set.t =>
         typ_omissions(actual_fn, query_fn),
         typ_omissions(actual_arg, query_arg),
       )
+    | (Sig(items), Prod(queries))
+        when List.length(items) == List.length(queries) =>
+      List.map2(sig_item_omissions, items, queries)
+      |> List.fold_left(Id.Set.union, Id.Set.empty)
+    | (Sig(items), Sig(query_items))
+        when List.length(items) == List.length(query_items) =>
+      List.map2(
+        (item: Sig.t, query_item: Sig.t) =>
+          switch (item.term, query_item.term) {
+          | (SigLet(_), SigLet(qp)) =>
+            switch (pat_annotation(qp)) {
+            | Some(qty) => sig_item_omissions(item, qty)
+            | None => Id.Set.empty
+            }
+          | (SigType(_, t), SigType(_, qt)) => typ_omissions(t, qt)
+          | _ => Id.Set.empty
+          },
+        items,
+        query_items,
+      )
+      |> List.fold_left(Id.Set.union, Id.Set.empty)
+    | _ => Id.Set.empty
+    };
+  }
+and sig_item_omissions = (item: Sig.t, query: Typ.t): Id.Set.t =>
+  if (is_gap(query)) {
+    ids_set(IdTagged.ids(item));
+  } else {
+    switch (item.term, Typ.term_of(query)) {
+    | (SigLet(p), TupLabel(_, payload)) =>
+      switch (pat_annotation(p)) {
+      | Some(actual) => typ_omissions(actual, payload)
+      | None => Id.Set.empty
+      }
+    | (SigLet(p), _) =>
+      switch (pat_annotation(p)) {
+      | Some(actual) => typ_omissions(actual, query)
+      | None => Id.Set.empty
+      }
+    | (SigType(_, t), _) => typ_omissions(t, query)
     | _ => Id.Set.empty
     };
   };
@@ -968,6 +1036,7 @@ let binding_pat = (term: Exp.term): option(Pat.t) =>
   | Fun(p, _, _, _)
   | Theorem(p, _, _)
   | Forall(p, _) => Some(p)
+  | ModuleExp(mp, _, _) => Some(ExpandModule.mpat_to_pat(mp))
   | _ => None
   };
 
@@ -975,13 +1044,6 @@ let binding_names = (term: Exp.term): list(Var.t) =>
   switch (binding_pat(term)) {
   | Some(p) => Pat.bound_vars(p)
   | None => []
-  };
-
-let rec pat_annotation = (pat: Pat.t): option(Typ.t) =>
-  switch (Pat.term_of(pat)) {
-  | Parens(inner) => pat_annotation(inner)
-  | Asc(_, ty) => Some(ty)
-  | _ => None
   };
 
 let rec pat_all_ids = (pat: Pat.t): list(Id.t) =>
@@ -999,6 +1061,58 @@ let rec pat_all_ids = (pat: Pat.t): list(Id.t) =>
     | _ => []
     }
   );
+
+let module_binding_names = (item: Mod.t): list(string) =>
+  switch (item.term) {
+  | ModLet(p, _) => Pat.bound_vars(p)
+  | ModuleMod(mp, _) => ExpandModule.mpat_names(mp)
+  | _ => []
+  };
+
+let module_item_adjustment =
+    (items: list(Mod.t), query: Typ.t): (Id.Set.t, Id.Set.t) =>
+  List.fold_left(
+    ((add, remove), item) => {
+      let mentioned =
+        List.exists(
+          name => module_field_query(name, query) != None,
+          module_binding_names(item),
+        );
+      if (mentioned) {
+        switch (item.term) {
+        | ModLet(p, _) => (
+            add,
+            Id.Set.union(remove, ids_set(pat_all_ids(p))),
+          )
+        | _ => (add, remove)
+        };
+      } else {
+        switch (module_binding_names(item)) {
+        | [] => (add, remove)
+        | _ => (Id.Set.add(Mod.rep_id(item), add), remove)
+        };
+      };
+    },
+    (Id.Set.empty, Id.Set.empty),
+    items,
+  );
+
+let module_ = (~shape: Typ.t, ~term: Exp.term, child: sty): sty => {
+  shape,
+  dispatch: query => {
+    let slice = child.dispatch(query);
+    switch (term) {
+    | Module(items) =>
+      let (add, remove) = module_item_adjustment(items, query);
+      {
+        ...slice,
+        omitted: Id.Set.union(Id.Set.diff(slice.omitted, remove), add),
+      };
+    | _ => slice
+    };
+  },
+  finalize: () => empty_result,
+};
 
 /* The body's demand on the bound variables, shaped like the binding pattern:
    each variable leaf carries its required type (from the body's gamma), and
@@ -1610,6 +1724,13 @@ let rec node_of_exp_info = (m: Id.Map.t(Info.t), info: Info.exp): node => {
               | _ => false
               } =>
           ty_alias(~shape=info.ty, ~term, only)
+        | (_, [], [only])
+            when
+              switch (term) {
+              | Module(_) => true
+              | _ => false
+              } =>
+          module_(~shape=info.ty, ~term, only)
         | (_, [], [only]) => only
         | (_, [], [_, ..._] as kept) => prod(kept)
         | _ => source(~id, info.ty)
@@ -2192,6 +2313,11 @@ let source_ids = (e: Exp.t): Id.Set.t => {
       ~f_exp=
         (continue, e) => {
           collect(IdTagged.ids(e));
+          switch (Exp.term_of(e)) {
+          | Module(items) =>
+            List.iter(item => collect(IdTagged.ids(item)), items)
+          | _ => ()
+          };
           continue(e);
         },
       ~f_pat=
@@ -2202,6 +2328,11 @@ let source_ids = (e: Exp.t): Id.Set.t => {
       ~f_typ=
         (continue, t) => {
           collect(IdTagged.ids(t));
+          switch (Typ.term_of(t)) {
+          | Sig(items) =>
+            List.iter(item => collect(IdTagged.ids(item)), items)
+          | _ => ()
+          };
           continue(t);
         },
       ~f_tpat=
