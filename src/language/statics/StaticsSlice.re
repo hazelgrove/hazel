@@ -43,7 +43,6 @@ exception Focus_not_found(Id.t);
 exception Wrong_focus_sort;
 exception Incompatible_query(Typ.t);
 exception Contains_focus;
-exception Self_slice_edge(Id.t);
 
 let gap: Typ.t = Typ.temp(Unknown(Hole(EmptyHole)));
 let unknown: Typ.t = Typ.temp(Unknown(Internal));
@@ -984,26 +983,26 @@ let record_child =
   let parent_id = Exp.rep_id(parent);
   let child_id = Exp.rep_id(info.user_term);
   if (Id.equal(parent_id, child_id)) {
-    /* can cause infinite loop otherwise */
-    raise(Self_slice_edge(parent_id));
+    (info, elab, m);
+  } else {
+    let child_edge: Info.slice_child = {
+      mode: to_info_mode(mode),
+      child: child_id,
+    };
+    let prior =
+      (
+        switch (Id.Map.find_opt(parent_id, m)) {
+        | Some(Info.InfoSliceScratch(children)) => children
+        | _ => []
+        }
+      )
+      |> List.filter((child: Info.slice_child) =>
+           !Id.equal(child.child, child_id)
+         );
+    let m =
+      Id.Map.add(parent_id, Info.InfoSliceScratch(prior @ [child_edge]), m);
+    (info, elab, m);
   };
-  let child_edge: Info.slice_child = {
-    mode: to_info_mode(mode),
-    child: child_id,
-  };
-  let prior =
-    (
-      switch (Id.Map.find_opt(parent_id, m)) {
-      | Some(Info.InfoSliceScratch(children)) => children
-      | _ => []
-      }
-    )
-    |> List.filter((child: Info.slice_child) =>
-         !Id.equal(child.child, child_id)
-       );
-  let m =
-    Id.Map.add(parent_id, Info.InfoSliceScratch(prior @ [child_edge]), m);
-  (info, elab, m);
 };
 
 let keep = (~parent: Exp.t, child: exp_result, k: exp_result => 'a): 'a =>
@@ -1583,18 +1582,24 @@ let match_ = (~shape: Typ.t, ~term: Exp.term, children: list(sty)): sty => {
   finalize: () => empty_result,
 };
 
-let rec node_of_exp_info = (m: Id.Map.t(Info.t), info: Info.exp): node => {
+let rec node_of_exp_info =
+        (~seen=Id.Set.empty, m: Id.Map.t(Info.t), info: Info.exp): node => {
   let id = Exp.rep_id(info.user_term);
+  let seen = Id.Set.add(id, seen);
   let children =
     info.slice_children
     |> List.filter_map((child_edge: Info.slice_child) =>
-         switch (Id.Map.find_opt(child_edge.child, m)) {
-         | Some(Info.InfoExp(child_info)) =>
-           Some({
-             mode: of_info_mode(child_edge.mode),
-             node: node_of_exp_info(m, child_info),
-           })
-         | _ => None
+         if (Id.Set.mem(child_edge.child, seen)) {
+           None;
+         } else {
+           switch (Id.Map.find_opt(child_edge.child, m)) {
+           | Some(Info.InfoExp(child_info)) =>
+             Some({
+               mode: of_info_mode(child_edge.mode),
+               node: node_of_exp_info(~seen, m, child_info),
+             })
+           | _ => None
+           };
          }
        );
   let ty =
