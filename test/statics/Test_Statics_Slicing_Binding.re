@@ -135,8 +135,8 @@ let modules = [
   synthesis_case(
     "signature-type-member",
     "let m : { type T = Int; let x : T } = { type T = Int; let x = (1 : T) } in m.x",
-    "Int",
-    "let m : {type T = Int; let x : T} = ? in m.x",
+    "T",
+    "let m : { type T = Int; let x : T } = { type T = Int; let x = (? : T) } in m.x",
   ),
 ];
 
