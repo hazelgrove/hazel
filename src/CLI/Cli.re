@@ -56,10 +56,11 @@ let authorize_url =
     };
   };
 
-/* Install the CSV url fetch hook consulted by CSVProjector.initialize: resolve
-   relative refs against base_url, gate on consent, then fetch over node
-   http/https via the web ApiHttp. Errors flow back as Error so the projector
-   records a Failed model (surfaced by init_then below). */
+/* Install the CSV fetch hook consulted when resolving `^^csv` refs (the CLI's
+   resolve_program below, and CSVProjector.initialize in the web): resolve
+   relative refs against base_url, gate on consent, then either fetch over node
+   http/https (via the web ApiHttp) or, when the resolved ref has no scheme, read
+   it as a local file. Errors flow back as Error and abort the run. */
 let install_url_fetch =
     (~assume_yes: bool, ~base_url: string, ~from_stdin: bool): unit =>
   Util.UrlFetch.get :=
@@ -67,16 +68,66 @@ let install_url_fetch =
       (~url, ~on_done) => {
         let resolved = Csv.resolve(~base_url, url);
         switch (authorize_url(~assume_yes, ~from_stdin, resolved)) {
-        | Csv.Allow(u) => Web.ApiHttp.node_request_text(~url=u, on_done)
+        | Csv.Allow(u) when Csv.has_scheme(u) =>
+          Web.ApiHttp.node_request_text(~url=u, on_done)
+        | Csv.Allow(u) =>
+          /* No http/https scheme: a local filesystem path (resolved against
+             --data-dir). Lets the CLI evaluate local datasets, which the
+             url-only web path can't reach. */
+          switch (Csv.read_file(u)) {
+          | content => on_done(Ok(content))
+          | exception (Sys_error(msg)) => on_done(Error(msg))
+          }
         | Csv.Deny =>
           on_done(
-            Error("fetching CSV \"" ++ resolved ++ "\" was not authorized"),
+            Error("reading CSV \"" ++ resolved ++ "\" was not authorized"),
           )
         };
       }
     );
 
-/* Pull a human-readable message out of a serialized CSV Failed model. */
+/* Install the seed chooser consulted by Seed projectors (Cli.resolve_program and
+   the web init phase). Under --yes (or stdin, where we can't prompt) we keep the
+   source default for reproducible non-interactive runs; otherwise we prompt,
+   letting the caller keep the default, type another integer, or draw a fresh
+   OS-random seed ("r") — entropy a pure program can't produce on its own. */
+let install_seed_chooser = (~assume_yes: bool, ~from_stdin: bool): unit =>
+  Util.SeedChoose.choose :=
+    (
+      (~default) =>
+        if (assume_yes || from_stdin) {
+          default;
+        } else {
+          prerr_string(
+            "Hazel will use seed: "
+            ++ string_of_int(default)
+            ++ "\n  [Enter] keep  ·  type an integer to use instead  ·  [r] fresh random: ",
+          );
+          flush(stderr);
+          switch (
+            try(Some(input_line(stdin))) {
+            | End_of_file => None
+            }
+          ) {
+          | None
+          | Some("")
+          | Some("y")
+          | Some("Y") => default
+          | Some("r")
+          | Some("R") =>
+            Random.self_init();
+            Random.int(1000000000); /* seed in [0, 1e9); bound must be < 2^30 */
+          | Some(other) =>
+            switch (int_of_string_opt(String.trim(other))) {
+            | Some(v) => v
+            | None => default
+            }
+          };
+        }
+    );
+
+/* Pull a human-readable message out of a serialized CSV Failed model, for the
+   abort path when a `^^csv` ref can't be fetched/read. */
 let csv_failure_message = (model_opt: option(string)): string =>
   switch (model_opt) {
   | None => "CSV initialization failed"
@@ -95,54 +146,21 @@ let csv_failure_message = (model_opt: option(string)): string =>
     }
   };
 
-/* Splice one resolved projector result into the zipper: replace the projector
-   piece's syntax with the fetched table (mirroring ProjectorPerform's
-   non-refractor SetSyntax) and update its model. */
-let apply_projector_result =
-    (id, model_opt, seg, z: Haz3lcore.Zipper.t): Haz3lcore.Zipper.t => {
+/* Resolve a parsed program's `^^csv` / `^^seed` projectors into an evaluable
+   term. We MakeTerm the (small) program — each projector's body is just its
+   `"url"` string / default int, no payload yet — run every projector's
+   `initialize` (which fetches via UrlFetch / chooses a seed and hands back its
+   expansion as an Exp), then substitute each expansion at its own projector node
+   in place (ProjectorInitPhase.substitute). The table is built straight as an
+   Exp and never becomes a segment or passes through MakeTerm, so 10^4–10^5-row
+   datasets stay fast. `finish` receives the resolved term; CSV fetches may be
+   async, so it can run from a completion callback (synchronously when every ref
+   is local / there are no CSV refs). A fetch/read failure aborts with a clean
+   error + non-zero exit. */
+let resolve_program =
+    (zipper: Haz3lcore.Zipper.t, ~finish: Language.Exp.t => unit): unit => {
   open Haz3lcore;
-  let piece =
-    seg
-    |> Segment.unparenthesize
-    |> Segment.trim_secondary(Right)
-    |> Segment.trim_secondary(Left)
-    |> Segment.parenthesize;
-  let z =
-    ProjectorPerform.update(
-      p =>
-        {
-          ...p,
-          syntax: piece,
-        },
-      id,
-      z,
-    );
-  switch (model_opt) {
-  | Some(m) =>
-    ProjectorPerform.update(
-      p =>
-        {
-          ...p,
-          model: m,
-        },
-      id,
-      z,
-    )
-  | None => z
-  };
-};
-
-/* Run the projector initialization phase over a parsed program: fetch any
-   ^^csv("url") projectors, splice the results into the zipper, then hand the
-   resolved zipper to [finish]. Fetches are asynchronous, so [finish] runs from
-   the completion callback (synchronously when there are no url projectors). A
-   fetch/parse failure aborts with a clean error + non-zero exit. */
-let init_then =
-    (zipper: Haz3lcore.Zipper.t, ~finish: Haz3lcore.Zipper.t => unit): unit => {
-  open Haz3lcore;
-  let proj_map = MakeTerm.from_zip_for_sem(zipper, ~root=Exp).projectors;
-  /* Minimal info: CSV's put only needs utility + syntax; statics/dynamics are
-     unused by projectors that have an initialize phase today. */
+  let parsed = MakeTerm.from_zip_for_sem(zipper, ~root=Exp);
   let mk_info = (p: Base.projector): ProjectorBase.info => {
     id: p.id,
     syntax: Piece.unparenthesize(p.syntax),
@@ -151,61 +169,58 @@ let init_then =
     elaborated: None,
     utility: ProjectorInfo.utility,
   };
-  let results = ref([]);
+  let exps = ref(Id.Map.empty);
+  let failed = ref(false);
   ProjectorInitPhase.run(
-    ~proj_map,
+    ~proj_map=parsed.projectors,
     ~mk_info,
     ~on_result=
-      (id, kind, model_opt, seg_opt) =>
-        results := [(id, kind, model_opt, seg_opt), ...results^],
+      (id, kind, model_opt, exp_opt) =>
+        switch (exp_opt) {
+        | Some(exp) => exps := Id.Map.add(id, exp, exps^)
+        | None =>
+          if (! failed^) {
+            failed := true;
+            let msg =
+              switch (kind) {
+              | ProjectorCore.Kind.Csv => csv_failure_message(model_opt)
+              | _ => "projector initialization failed"
+              };
+            prerr_endline("hazel: " ++ msg);
+            exit(1);
+          }
+        },
     ~on_complete=
-      () => {
-        let failures =
-          List.filter(
-            ((_, _, _, seg_opt)) => Option.is_none(seg_opt),
-            results^,
-          );
-        switch (failures) {
-        | [_, ..._] =>
-          List.iter(
-            ((_, _, model_opt, _)) =>
-              prerr_endline("hazel: " ++ csv_failure_message(model_opt)),
-            failures,
-          );
-          exit(1);
-        | [] =>
-          let z =
-            List.fold_left(
-              (z, (id, _kind, model_opt, seg_opt)) =>
-                switch (seg_opt) {
-                | None => z
-                | Some(seg) => apply_projector_result(id, model_opt, seg, z)
-                },
-              zipper,
-              results^,
-            );
-          finish(z);
-        };
-      },
+      () => finish(ProjectorInitPhase.substitute(exps^, parsed.term)),
   );
-  /* Reached only if on_complete didn't run synchronously (i.e. a fetch is in
-     flight); tells the top-level not to hard-exit before completion. */
+  /* Reached only if a fetch is still in flight (async url); tells the top-level
+     not to hard-exit before completion. */
   async_pending := true;
 };
 
+/* Base for resolving relative `^^csv("...")` refs: --data-dir if given, else
+   the directory of the program file, so a `.hz` can reference a sibling CSV
+   with no flag. For stdin (no file dir) fall back to the cwd. */
+let csv_base = (data_dir: option(string), path: string): string =>
+  switch (data_dir) {
+  | Some(d) => d
+  | None => path == "-" ? "." : Filename.dirname(path)
+  };
+
 let run_hazel = (assume_yes, data_dir, path) => {
   let program = read_input(path);
-  let base_url = Option.value(~default="", data_dir);
-  install_url_fetch(~assume_yes, ~base_url, ~from_stdin=path == "-");
+  let base_url = csv_base(data_dir, path);
+  let from_stdin = path == "-";
+  install_url_fetch(~assume_yes, ~base_url, ~from_stdin);
+  install_seed_chooser(~assume_yes, ~from_stdin);
   switch (parse_to_zipper(program)) {
   | None =>
     prerr_endline("hazel: failed to parse " ++ path);
     exit(1);
   | Some(zipper) =>
-    init_then(
+    resolve_program(
       zipper,
-      ~finish=z => {
-        let term = Haz3lcore.MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
+      ~finish=term => {
         let evaluated = Run.evaluate(term);
         print_endline(Print.print(evaluated));
         exit(0);
@@ -217,21 +232,22 @@ let run_hazel = (assume_yes, data_dir, path) => {
 let expand_hazel = (assume_yes, data_dir, output, path) => {
   open Haz3lcore;
   let program = read_input(path);
-  let base_url = Option.value(~default="", data_dir);
-  install_url_fetch(~assume_yes, ~base_url, ~from_stdin=path == "-");
+  let base_url = csv_base(data_dir, path);
+  let from_stdin = path == "-";
+  install_url_fetch(~assume_yes, ~base_url, ~from_stdin);
+  install_seed_chooser(~assume_yes, ~from_stdin);
   switch (parse_to_zipper(program)) {
   | None =>
     prerr_endline("hazel: failed to parse " ++ path);
     exit(1);
   | Some(zipper) =>
-    init_then(
+    resolve_program(
       zipper,
-      ~finish=z => {
-        /* Materialize: strip the projectors so the fetched table is inlined as
-           plain syntax, producing a self-contained program. */
-        let term =
-          MakeTerm.from_zip_for_sem(z, ~root=Exp).term
-          |> Language.Exp.strip_projectors;
+      ~finish=term => {
+        /* resolve_program already inlined CSV tables as let-bound AST and the
+           chosen seeds as int literals. Strip any remaining projectors (probes
+           etc.) so the output is a self-contained program, then print it. */
+        let term = Language.Exp.strip_projectors(term);
         let seg =
           ExpToSegment.exp_to_segment(
             term,
@@ -300,23 +316,24 @@ let analyze_hazel =
     )
     : unit => {
   let program = read_input(path);
-  let base_url = Option.value(~default="", data_dir);
-  install_url_fetch(~assume_yes, ~base_url, ~from_stdin=path == "-");
+  let base_url = csv_base(data_dir, path);
+  let from_stdin = path == "-";
+  install_url_fetch(~assume_yes, ~base_url, ~from_stdin);
+  install_seed_chooser(~assume_yes, ~from_stdin);
   switch (parse_to_zipper(program)) {
   | None =>
     prerr_endline("Failed to parse program");
     exit(1);
   | Some(zipper) =>
-    init_then(
+    resolve_program(
       zipper,
-      ~finish=z => {
+      ~finish=term => {
         open Language;
         open Util;
         /* Measure against the original program text (stable source positions
            for user code), but run statics on the CSV-resolved term. */
         let segment =
           Haz3lcore.Zipper.unselect_and_zip(~erase_buffer=true, zipper);
-        let term = Haz3lcore.MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
         let measured =
           Haz3lcore.Measured.of_segment(
             segment,
@@ -784,15 +801,17 @@ let input_arg = {
   );
 };
 
-/* Base url that relative `^^csv("...")` refs resolve against. */
+/* Base (http url or local directory) that relative `^^csv("...")` refs resolve
+   against. */
 let data_dir_arg = {
   let doc =
-    "Base url that relative `^^csv(\"...\")` refs resolve against "
-    ++ "(absolute http/https urls are used as-is).";
+    "Base that relative `^^csv(\"...\")` refs resolve against: an http base url "
+    ++ "or a local directory. Refs that resolve to an http/https url are "
+    ++ "fetched; otherwise they are read from the local filesystem.";
   Arg.(
     value
     & opt(some(string), None)
-    & info(["data-dir"], ~docv="BASE_URL", ~doc)
+    & info(["data-dir"], ~docv="BASE", ~doc)
   );
 };
 

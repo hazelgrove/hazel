@@ -10,8 +10,10 @@ open Util;
  * path when there are no url projectors).
  *
  * [on_result] receives, per resolved projector, an optional new serialized
- * model (apply like a SetModel) and an optional replacement syntax (apply
- * like a SetSyntax). */
+ * model (apply like a SetModel) and the resolved expansion (Some exp on
+ * success, None on failure). A frontend either substitutes the exp into the
+ * program term in place (see [substitute] / the CLI) or lifts it into editor
+ * syntax (the web). */
 let run =
     (
       ~proj_map: Id.Map.t(Base.projector),
@@ -21,7 +23,7 @@ let run =
            Id.t,
            ProjectorCore.Kind.t,
            option(string),
-           option(Base.segment)
+           option(Language.Exp.t)
          ) =>
          unit,
       ~on_complete: unit => unit,
@@ -50,8 +52,8 @@ let run =
           f(
             p.model,
             info,
-            ~k=(model_opt, seg_opt) => {
-              on_result(id, p.kind, model_opt, seg_opt);
+            ~k=(model_opt, exp_opt) => {
+              on_result(id, p.kind, model_opt, exp_opt);
               decr(remaining);
               finish();
             },
@@ -66,3 +68,26 @@ let run =
   dispatched := true;
   finish();
 };
+
+/* Substitute resolved expansions into a program term, in place: each projector
+ * node whose id is in [exps] is replaced by its resolved Exp, exactly where the
+ * projector sat — dropping the projector wrapper, since the expansion *is* the
+ * meaning for evaluation (an Exp the elaborator/evaluator treats as ordinary
+ * syntax). No synthetic bindings, no segment, no re-parse — the payload was
+ * built straight as an Exp. Projector ids absent from [exps] (no initialize, or
+ * resolution failed) are left untouched for the evaluator to handle as before. */
+let substitute =
+    (exps: Id.Map.t(Language.Exp.t), term: Language.Exp.t): Language.Exp.t =>
+  Language.Exp.map_term(
+    ~f_exp=
+      (continue, e) =>
+        switch (Language.Exp.term_of(e)) {
+        | Projector(_) =>
+          switch (Id.Map.find_opt(Language.Exp.rep_id(e), exps)) {
+          | Some(exp) => exp
+          | None => continue(e)
+          }
+        | _ => continue(e)
+        },
+    term,
+  );

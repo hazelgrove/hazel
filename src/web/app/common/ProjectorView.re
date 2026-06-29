@@ -575,7 +575,7 @@ let run_init_phase =
         | (_, None) => ()
         | (Some(f), Some(idx)) =>
           let started =
-            f(p.model, info, ~k=(model_opt, seg_opt) =>
+            f(p.model, info, ~k=(model_opt, exp_opt) =>
               Bonsai.Effect.Expert.handle(
                 Effect.Many(
                   (
@@ -586,10 +586,22 @@ let run_init_phase =
                     |> Option.to_list
                   )
                   @ (
-                    seg_opt
-                    |> Option.map(seg =>
-                         inject(handle(idx, p.kind, SetSyntax(seg)))
-                       )
+                    /* The projector resolved to an Exp; for the editor we lift it
+                       into syntax and splice it in (the CLI substitutes the Exp
+                       directly instead — see Cli.resolve_program). */
+                    exp_opt
+                    |> Option.map(exp => {
+                         let seg =
+                           ExpToSegment.exp_to_segment(
+                             exp,
+                             ~settings=
+                               ExpToSegment.Settings.of_core(
+                                 ~inline=true,
+                                 Language.CoreSettings.off,
+                               ),
+                           );
+                         inject(handle(idx, p.kind, SetSyntax(seg)));
+                       })
                     |> Option.to_list
                   ),
                 ),

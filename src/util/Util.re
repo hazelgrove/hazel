@@ -12,6 +12,7 @@ module PairUtil = PairUtil;
 module CsvUtil = CsvUtil;
 module Result = Result;
 module StateMonad = StateMonad;
+module SeedChoose = SeedChoose;
 module StringUtil = StringUtil;
 module Tree = Tree;
 module TimeUtil = TimeUtil;

@@ -190,21 +190,26 @@ module type Projector = {
   let error: (model, info) => option(error);
   /* Optional post-parse initialization phase, run once per projector by each
    * frontend's init driver after parse (and statics, so `info`/`utility`
-   * exist). This is where a projector resolves an external resource into its
-   * syntax — e.g. fetching a URL.
+   * exist). This is where a projector resolves an external resource into an
+   * expression — e.g. fetching a URL and parsing it into a Hazel value.
+   *
+   * Resolution yields an [Exp.t] (the projector's *expansion*), NOT a segment:
+   * a frontend then either substitutes it directly into the program term (the
+   * CLI — see Cli.resolve_program, which never re-parses it) or converts it to
+   * a segment for display (the web). Producing an Exp keeps large payloads out
+   * of the editor segment / MakeTerm parse path.
    *
    * - None  => this kind never needs initialization.
-   * - Some  => called with the current model + info. If asynchronous
-   *   resolution is needed (e.g. a network fetch), start it and invoke [k]
-   *   on completion with an optional replacement model (applied like a
-   *   SetModel) and an optional replacement syntax (applied like a
-   *   SetSyntax). Return true so a batch driver (the CLI) knows to wait for
-   *   [k]. An already-resolved model should do nothing, return false, and
-   *   never call [k]. The bool return therefore doubles as the per-projector
-   *   idempotency guard. */
+   * - Some  => called with the current model + info. If asynchronous resolution
+   *   is needed (e.g. a network fetch), start it and invoke [k] on completion
+   *   with an optional replacement model (applied like a SetModel) and the
+   *   expansion (Some exp on success, None if resolution failed). Return true so
+   *   a batch driver (the CLI) knows to wait for [k]. An already-resolved model
+   *   should do nothing, return false, and never call [k]. The bool return
+   *   therefore doubles as the per-projector idempotency guard. */
   let initialize:
     option(
-      (model, info, ~k: (option(model), option(Base.segment)) => unit) =>
+      (model, info, ~k: (option(model), option(Language.Exp.t)) => unit) =>
       bool,
     );
 };
@@ -239,8 +244,8 @@ module Cook = (C: Projector) : Cooked => {
   let initialize =
     C.initialize
     |> Option.map((f, m, i, ~k) =>
-         f(deserialize_m(m), i, ~k=(m_opt, seg) =>
-           k(Option.map(serialize_m, m_opt), seg)
+         f(deserialize_m(m), i, ~k=(m_opt, exp) =>
+           k(Option.map(serialize_m, m_opt), exp)
          )
        );
 };

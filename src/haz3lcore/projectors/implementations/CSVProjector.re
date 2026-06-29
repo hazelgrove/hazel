@@ -29,48 +29,56 @@ type action_t =
   | ToggleHeaders
   | Reset;
 
-let put = (info, rows: CsvUtil.csv_data): Base.segment => {
-  let exp: Language.Exp.term =
-    switch (rows) {
-    | CsvUtil.WithHeaders(rows) =>
-      ListLit(
-        List.map(
-          (row: list((string, string))) =>
-            Language.IdTagged.FreshGrammar.Exp.(
-              tuple(
-                List.map(
-                  ((header: string, value: string)) =>
-                    tup_label(
-                      label(StringUtil.sanitize_for_label(header)),
-                      string(
-                        StringUtil.sanitize_for_string_expression(value),
-                      ),
-                    ),
-                  row,
-                ),
-              )
-            ),
-          rows,
-        ),
-      )
-    | CsvUtil.WithoutHeaders(rows) =>
-      ListLit(
-        List.map(
-          (row: list(string)) =>
-            Language.IdTagged.FreshGrammar.Exp.(
-              tuple(
-                List.map(
-                  (value: string) =>
-                    string(StringUtil.sanitize_for_string_expression(value)),
-                  row,
-                ),
-              )
-            ),
-          rows,
-        ),
-      )
-    };
+/* Strip a leading UTF-8 byte-order mark (EF BB BF). Some tools prefix it to the
+   first header; left in place it becomes part of that column's label, so a
+   `data.`name`` projection silently fails to match. */
+let strip_bom = (s: string): string =>
+  String.length(s) >= 3
+  && Char.code(s.[0]) == 0xEF
+  && Char.code(s.[1]) == 0xBB
+  && Char.code(s.[2]) == 0xBF
+    ? String.sub(s, 3, String.length(s) - 3) : s;
 
+/* Parsed CSV -> the table as a list-literal Exp: each row a labeled (or plain)
+   tuple. Headers are sanitized into labels and the unnamed index column becomes
+   `col<i>`; values are kept verbatim (string escaping happens at print time, not
+   in the AST). This is the projector's canonical expansion — `initialize` hands
+   it back as the resolved Exp, and `put` lifts it into editor syntax. */
+let to_exp = (rows: CsvUtil.csv_data): Language.Exp.t => {
+  module FE = Language.IdTagged.FreshGrammar.Exp;
+  switch (rows) {
+  | CsvUtil.WithHeaders(rows) =>
+    FE.list_lit(
+      List.map(
+        (row: list((string, string))) =>
+          FE.tuple(
+            List.mapi(
+              (i, (header: string, value: string)) => {
+                let h =
+                  StringUtil.sanitize_for_label(
+                    String.trim(strip_bom(header)),
+                  );
+                let h = h == "" ? "col" ++ string_of_int(i) : h;
+                FE.tup_label(FE.label(h), FE.string(value));
+              },
+              row,
+            ),
+          ),
+        rows,
+      ),
+    )
+  | CsvUtil.WithoutHeaders(rows) =>
+    FE.list_lit(
+      List.map(
+        (row: list(string)) =>
+          FE.tuple(List.map((value: string) => FE.string(value), row)),
+        rows,
+      ),
+    )
+  };
+};
+
+let put = (info, rows: CsvUtil.csv_data): Base.segment =>
   switch (
     info.utility.lift_syntax(
       ~inline=true,
@@ -78,7 +86,7 @@ let put = (info, rows: CsvUtil.csv_data): Base.segment => {
       | Exp(any) =>
         Exp({
           ...any,
-          term: exp,
+          term: Language.Exp.term_of(to_exp(rows)),
         })
       | _any => failwith("csv: put: not string literal"),
       info.syntax,
@@ -87,7 +95,6 @@ let put = (info, rows: CsvUtil.csv_data): Base.segment => {
   | Some(s) => s
   | None => failwith("csv: put: lift failed")
   };
-};
 
 let reset_syntax = (info: info): Base.segment => {
   put(info, CsvUtil.WithoutHeaders([]));
@@ -187,26 +194,26 @@ module M: Projector with type model = model_t and type action = action_t = {
 
   /* Initialization phase: when the underlying syntax was a url string,
    * `init` left us in `Pending(url)`. Fetch the url via the injected
-   * UrlFetch hook and, on success, splice the parsed CSV in as the
-   * projector's syntax (reusing `put`, exactly as the web file-picker does).
-   * Already-resolved models (NoFile / FileLoaded / Failed) need no work. */
+   * UrlFetch hook and, on success, hand back the parsed CSV as the resolved
+   * expansion Exp (`to_exp`) — the CLI substitutes it directly, the web lifts
+   * it into syntax. Already-resolved models (NoFile / FileLoaded / Failed) need
+   * no work. */
   let initialize =
     Some(
       (
         model: model,
-        info,
-        ~k: (option(model), option(Base.segment)) => unit,
+        _info,
+        ~k: (option(model), option(Language.Exp.t)) => unit,
       ) =>
         switch (model) {
         | Pending(url) =>
           UrlFetch.get^(~url, ~on_done=res =>
             switch (res) {
             | Ok(content) =>
-              let seg =
+              let exp =
                 try(
                   Some(
-                    put(
-                      info,
+                    to_exp(
                       CsvUtil.WithHeaders(
                         CsvUtil.parse_csv_with_headers(content),
                       ),
@@ -215,8 +222,8 @@ module M: Projector with type model = model_t and type action = action_t = {
                 ) {
                 | _ => None
                 };
-              switch (seg) {
-              | Some(seg) =>
+              switch (exp) {
+              | Some(exp) =>
                 k(
                   Some(
                     FileLoaded({
@@ -225,7 +232,7 @@ module M: Projector with type model = model_t and type action = action_t = {
                       with_headers: true,
                     }),
                   ),
-                  Some(seg),
+                  Some(exp),
                 )
               | None =>
                 k(

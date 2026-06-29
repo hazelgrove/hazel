@@ -278,6 +278,7 @@ module Projectors = {
     | Card => "Card"
     | TextArea => "Text"
     | Csv => "CSV"
+    | Seed => "Seed" /* invoked via ^^seed(N), not the menu */
     | Table => "Table"
     | Livelit => "Livelit"
     | Probe => "Probe" /* shouldn't appear in menu */
