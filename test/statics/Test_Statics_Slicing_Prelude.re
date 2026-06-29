@@ -270,24 +270,54 @@ let run_exp =
   Statics.slice(~ctx, ~focus=Some(focus(e)), ~direction, e, query);
 };
 
+let failures: ref(list(string)) = ref([]);
+
+let soft_check = (testable, label, expected, actual): unit =>
+  if (!Alcotest.equal(testable, expected, actual)) {
+    failures :=
+      failures^
+      @ [
+        Format.asprintf(
+          "%s\n    expected: %a\n    actual:   %a",
+          label,
+          Alcotest.pp(testable),
+          expected,
+          Alcotest.pp(testable),
+          actual,
+        ),
+      ];
+  };
+
+let label = (~src_str: string, ~query_src: string, what: string): string =>
+  Printf.sprintf("[slice %s @ %s] %s", src_str, query_src, what);
+
 let check_reconstruct =
-    (~result: S.result, ~src: Exp.t, ~expected: string): unit => {
-  let recon = reconstruct(result.omitted, src);
-  check(
+    (
+      ~result: S.result,
+      ~src: Exp.t,
+      ~lab: string => string,
+      ~expected: string,
+    )
+    : unit =>
+  soft_check(
     testable_exp,
-    "reconstructed slice = " ++ expected,
+    lab("reconstructed slice = " ++ expected),
     parse_exp(expected),
-    recon,
+    reconstruct(result.omitted, src),
   );
-};
 
 let check_assumptions =
-    (~result: S.result, expected: list((string, string))): unit =>
+    (
+      ~result: S.result,
+      ~lab: string => string,
+      expected: list((string, string)),
+    )
+    : unit =>
   List.iter(
     ((name, ty_src)) =>
-      check(
+      soft_check(
         option(testable_typ),
-        "minimal assumption " ++ name,
+        lab("minimal assumption " ++ name),
         Some(parse_typ(ty_src)),
         VarMap.lookup(result.gamma, name),
       ),
@@ -297,15 +327,16 @@ let check_assumptions =
 let check_context =
     (
       ~result: S.result,
+      ~lab: string => string,
       ~aliases: list((string, string)),
       ~constructors: list((string, string)),
     )
     : unit => {
   List.iter(
     ((name, ty_src)) =>
-      check(
+      soft_check(
         option(testable_typ),
-        "minimal alias " ++ name,
+        lab("minimal alias " ++ name),
         Some(parse_typ(ty_src)),
         Ctx.lookup_alias(result.context, name),
       ),
@@ -313,9 +344,9 @@ let check_context =
   );
   List.iter(
     ((name, ty_src)) =>
-      check(
+      soft_check(
         option(testable_typ),
-        "minimal constructor " ++ name,
+        lab("minimal constructor " ++ name),
         Some(parse_typ(ty_src)),
         Option.map(
           (v: Ctx.var_entry) => v.typ,
@@ -344,11 +375,20 @@ let slicing_case =
     name,
     `Quick,
     _ => {
-      let src = parse_exp(src);
-      let result = run_exp(~ctx?, ~focus, ~direction, src, query_src);
-      check_reconstruct(~result, ~src, ~expected);
-      check_assumptions(~result, assumptions);
-      check_context(~result, ~aliases, ~constructors);
+      failures := [];
+      let lab = label(~src_str=src, ~query_src);
+      let src_exp = parse_exp(src);
+      let result = run_exp(~ctx?, ~focus, ~direction, src_exp, query_src);
+      check_reconstruct(~result, ~src=src_exp, ~lab, ~expected);
+      check_assumptions(~result, ~lab, assumptions);
+      check_context(~result, ~lab, ~aliases, ~constructors);
+      if (failures^ != []) {
+        Alcotest.failf(
+          "%d slice check(s) failed:\n%s",
+          List.length(failures^),
+          String.concat("\n", failures^),
+        );
+      };
     },
   );
 
