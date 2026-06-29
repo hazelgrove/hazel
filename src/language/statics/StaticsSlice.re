@@ -905,6 +905,7 @@ let take_children = (~parent: Exp.t, m: Id.Map.t(Info.t)) => {
       children,
       Id.Map.remove(parent_id, m),
     )
+  | Some(Info.InfoExp({slice_children, _})) => (slice_children, m)
   | _ => ([], m)
   };
 };
@@ -1026,8 +1027,26 @@ let rec pattern_demand = (pat: Pat.t, gamma: gamma): Typ.t =>
       ),
     )
     |> Typ.temp
-  | Ap(_, payload) => pattern_demand(payload, gamma)
+  | Ap(f, payload) =>
+    switch (Pat.term_of(f)) {
+    /* Function-definition pattern `f(x)`: the bound name is the function `f`;
+       the parameter is demanded by the definition, not the body. */
+    | Var(name) =>
+      switch (VarMap.lookup(gamma, name)) {
+      | Some(ty) => ty
+      | None => gap
+      }
+    | _ => pattern_demand(payload, gamma)
+    }
   | _ => gap
+  };
+
+/* Omit a pattern's variable binders, retaining type annotations. */
+let rec pat_omit_keeping_ann = (pat: Pat.t): Id.Set.t =>
+  switch (Pat.term_of(pat)) {
+  | Parens(p)
+  | Asc(p, _) => pat_omit_keeping_ann(p)
+  | _ => ids_set(IdTagged.ids(pat))
   };
 
 let rec demand_is_gap = (ty: Typ.t): bool =>
@@ -1063,7 +1082,11 @@ let rec pattern_omissions = (pat: Pat.t, demand: Typ.t): Id.Set.t =>
     | (ListLit(ps), List(d)) =>
       List.map(p => pattern_omissions(p, d), ps)
       |> List.fold_left(Id.Set.union, Id.Set.empty)
-    | (Ap(_, payload), _) => pattern_omissions(payload, demand)
+    | (Ap(f, payload), _) =>
+      switch (Pat.term_of(f)) {
+      | Var(_) => pat_omit_keeping_ann(payload)
+      | _ => pattern_omissions(payload, demand)
+      }
     | _ => Id.Set.empty
     };
   };
@@ -1154,13 +1177,76 @@ let rec unused_variant_ids = (used: list(string), ty: Typ.t): Id.Set.t =>
   | _ => Id.Set.empty
   };
 
+let rec typ_free_vars = (ty: Typ.t): list(string) =>
+  switch (Typ.term_of(ty)) {
+  | Var(name) => [name]
+  | Parens(t)
+  | List(t)
+  | TupLabel(_, t)
+  | TypFun(_, t)
+  | Poly(_, t)
+  | Rec(_, t) => typ_free_vars(t)
+  | Arrow(a, b)
+  | TypParamAp(a, b) => typ_free_vars(a) @ typ_free_vars(b)
+  | Prod(ts)
+  | TypTuple(ts) => List.concat_map(typ_free_vars, ts)
+  | Sum(variants) =>
+    List.concat_map(
+      fun
+      | ConstructorMap.Variant(_, _, Some(p)) => typ_free_vars(p)
+      | _ => [],
+      variants,
+    )
+  | _ => []
+  };
+
+/* Type variables referenced by the still-used (kept) sum variants. */
+let rec kept_variant_tyvars = (used: list(string), ty: Typ.t): list(string) =>
+  switch (Typ.term_of(ty)) {
+  | Parens(t)
+  | Rec(_, t)
+  | TypFun(_, t)
+  | Poly(_, t) => kept_variant_tyvars(used, t)
+  | Sum(variants) =>
+    List.concat_map(
+      fun
+      | ConstructorMap.Variant(name, _, Some(p)) when List.mem(name, used) =>
+        typ_free_vars(p)
+      | _ => [],
+      variants,
+    )
+  | _ => []
+  };
+
+/* `typfun` binders that no kept variant references are omitted (`typfun ? -> …`,
+   holeable now that reconstruct handles TPat). */
+let rec unused_binder_ids = (used: list(string), ty: Typ.t): Id.Set.t =>
+  switch (Typ.term_of(ty)) {
+  | Parens(t)
+  | Rec(_, t)
+  | Poly(_, t) => unused_binder_ids(used, t)
+  | TypFun(binder, body) =>
+    let rest = unused_binder_ids(used, body);
+    switch (TPat.tyvar_of_utpat(binder)) {
+    | Some(name) when !List.mem(name, kept_variant_tyvars(used, ty)) =>
+      Id.Set.union(ids_set(IdTagged.ids(binder)), rest)
+    | _ => rest
+    };
+  | _ => Id.Set.empty
+  };
+
 let ty_alias = (~shape: Typ.t, ~term: Exp.term, body: sty): sty => {
   shape,
   dispatch: query => {
     let slice = body.dispatch(query);
     switch (term) {
     | TyAlias(_, utyp, _) =>
-      let omit = unused_variant_ids(used_constructors(slice.context), utyp);
+      let used = used_constructors(slice.context);
+      let omit =
+        Id.Set.union(
+          unused_variant_ids(used, utyp),
+          unused_binder_ids(used, utyp),
+        );
       {
         ...slice,
         omitted: Id.Set.union(slice.omitted, omit),
