@@ -89,20 +89,106 @@ let pure_analysis_is_bottom =
     }
   );
 
-// Any more precise query gives a more (or equally) precise slice
+let omit_at = (id: Id.t, t: Typ.t): Typ.t =>
+  Typ.map_term(
+    ~f_typ=(continue, t) => Typ.rep_id(t) == id ? S.gap : continue(t),
+    t,
+  );
+
+let typ_node_ids = (t: Typ.t): list(Id.t) => {
+  let acc = ref([]);
+  let _ =
+    Typ.map_term(
+      ~f_typ=
+        (continue, t) => {
+          if (!S.is_gap(t)) {
+            acc := [Typ.rep_id(t), ...acc^];
+          };
+          continue(t);
+        },
+      t,
+    );
+  acc^;
+};
+
+// A descending chain of queries
+let descending_chain = (t: Typ.t): list(Typ.t) => {
+  let (rev_chain, _) =
+    List.fold_left(
+      ((acc, cur), id) => {
+        let next = omit_at(id, cur);
+        ([next, ...acc], next);
+      },
+      ([t], t),
+      typ_node_ids(t),
+    );
+  List.rev(rev_chain);
+};
+
+let synth_type = (e: Exp.t): option(Typ.t) =>
+  switch (safe_slice(~focus=whole(e), ~direction=`Syn, e, S.gap)) {
+  | Some(r) => Some(r.psi)
+  | None => None
+  };
+
+// Omitting a node omits its whole subtree, so coverage includes every id that
+// vanishes from the reconstruction (an omitted root subsumes its descendants)
+let omitted_cover = (omitted: Id.Set.t, e: Exp.t): Id.Set.t => {
+  let all = Id.Set.of_list(all_term_ids(e));
+  let present = Id.Set.of_list(all_term_ids(reconstruct(omitted, e)));
+  Id.Set.union(omitted, Id.Set.diff(all, present));
+};
+
+let subtree_subset = (a: Id.Set.t, b: Id.Set.t, e: Exp.t): bool =>
+  Id.Set.subset(a, omitted_cover(b, e));
+
+// Down a descending query chain (maximal type to gap), omissions monotonically grow
 let monotonicity =
   QCheck.Test.make(
-    ~name="precise query omits no more than the gap query",
+    ~name="omissions grow monotonically down a query chain",
     ~count=500,
-    QCheck.pair(arb_exp, arb_typ),
-    ((e, query)) =>
-    switch (
-      safe_slice(~focus=whole(e), ~direction=`Syn, e, query),
-      safe_slice(~focus=whole(e), ~direction=`Syn, e, S.gap),
-    ) {
-    | (Some(precise), Some(loose)) =>
-      Id.Set.subset(precise.omitted, loose.omitted)
-    | _ => true
+    arb_exp,
+    e =>
+    switch (synth_type(e)) {
+    | None => true
+    | Some(tau) =>
+      let step = q =>
+        switch (safe_slice(~focus=whole(e), ~direction=`Syn, e, q)) {
+        | Some(r) => Some((q, r.omitted))
+        | None => None
+        };
+      let steps = List.filter_map(step, descending_chain(tau));
+      let rec find_violation = prev => (
+        fun
+        | [] => None
+        | [(q, omit), ...rest] =>
+          switch (prev) {
+          | Some((_, pomit)) when !subtree_subset(pomit, omit, e) =>
+            Some((prev, q, omit))
+          | _ => find_violation(Some((q, omit)), rest)
+          }
+      );
+      switch (find_violation(None, steps)) {
+      | None => true
+      | Some((prev, q, _)) =>
+        let pq =
+          switch (prev) {
+          | Some((pq, _)) => pq
+          | None => tau
+          };
+        let line = ((q, omit)) =>
+          Printf.sprintf(
+            "  %-24s |> %s",
+            render_any(Typ(q)),
+            show_exp_src(reconstruct(omit, e)),
+          );
+        QCheck.Test.fail_reportf(
+          "omissions not monotone: query %s omits fewer subterms than the more precise %s\nchain (query |> sliced term):\n%s",
+          render_any(Typ(q)),
+          render_any(Typ(pq)),
+          String.concat("\n", List.map(line, steps)),
+        );
+      };
     }
   );
 

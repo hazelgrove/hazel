@@ -100,6 +100,79 @@ let first = (what: string, ids: list(Id.t)): Id.t =>
 
 let whole = (e: Exp.t): Id.t => Exp.rep_id(e);
 
+let render_any = (a: Any.t): string =>
+  a
+  |> Haz3lcore.ExpToSegment.any_to_segment(
+       ~settings=Haz3lcore.ExpToSegment.Settings.editable(~inline=true),
+       _,
+     )
+  |> Haz3lcore.Printer.of_segment(~holes="?", _);
+
+// The subterm (any sort) carrying rep_id `id`, if present.
+let find_any = (id: Id.t, e: Exp.t): option(Any.t) => {
+  let found = ref(None);
+  let note = (a: Any.t) =>
+    if (found^ == None && Any.rep_id(a) == id) {
+      found := Some(a);
+    };
+  let _ =
+    Exp.map_term(
+      ~f_exp=
+        (continue, e) => {
+          note(Exp(e));
+          continue(e);
+        },
+      ~f_pat=
+        (continue, p) => {
+          note(Pat(p));
+          continue(p);
+        },
+      ~f_typ=
+        (continue, t) => {
+          note(Typ(t));
+          continue(t);
+        },
+      ~f_tpat=
+        (continue, tp) => {
+          note(TPat(tp));
+          continue(tp);
+        },
+      e,
+    );
+  found^;
+};
+
+// Ids of every exp/pat/typ/tpat node in a term.
+let all_term_ids = (e: Exp.t): list(Id.t) => {
+  let acc = ref([]);
+  let note = (id: Id.t) => acc := [id, ...acc^];
+  let _ =
+    Exp.map_term(
+      ~f_exp=
+        (continue, e) => {
+          note(Exp.rep_id(e));
+          continue(e);
+        },
+      ~f_pat=
+        (continue, p) => {
+          note(Pat.rep_id(p));
+          continue(p);
+        },
+      ~f_typ=
+        (continue, t) => {
+          note(Typ.rep_id(t));
+          continue(t);
+        },
+      ~f_tpat=
+        (continue, tp) => {
+          note(TPat.rep_id(tp));
+          continue(tp);
+        },
+      e,
+    );
+  acc^;
+};
+
 let exp_var = (e: Exp.t, name: string): Id.t =>
   first(
     "exp var " ++ name,
@@ -288,8 +361,22 @@ let soft_check = (testable, label, expected, actual): unit =>
       ];
   };
 
-let label = (~src_str: string, ~query_src: string, what: string): string =>
-  Printf.sprintf("[slice %s @ %s] %s", src_str, query_src, what);
+let label =
+    (~src_str: string, ~query_src: string, ~focus: option(string)=None, what)
+    : string => {
+  let focus_str =
+    switch (focus) {
+    | None
+    | Some("") => ""
+    | Some(s) => Printf.sprintf(" focus %s", s)
+    };
+  Printf.sprintf("[slice %s @ %s%s] %s", src_str, query_src, focus_str, what);
+};
+
+// Source of the focused subterm, unless the focus is the whole term.
+let focus_str = (e: Exp.t, focus_id: Id.t): option(string) =>
+  Exp.rep_id(e) == focus_id
+    ? None : Option.map(render_any, find_any(focus_id, e));
 
 let check_reconstruct =
     (
@@ -376,8 +463,13 @@ let slicing_case =
     `Quick,
     _ => {
       failures := [];
-      let lab = label(~src_str=src, ~query_src);
       let src_exp = parse_exp(src);
+      let lab =
+        label(
+          ~src_str=src,
+          ~query_src,
+          ~focus=focus_str(src_exp, focus(src_exp)),
+        );
       let result = run_exp(~ctx?, ~focus, ~direction, src_exp, query_src);
       check_reconstruct(~result, ~src=src_exp, ~lab, ~expected);
       check_assumptions(~result, ~lab, assumptions);
