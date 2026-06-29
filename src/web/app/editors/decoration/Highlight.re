@@ -120,6 +120,12 @@ let rows_of_segment =
     let children_shards =
       t.children |> List.mapi(index => of_segment(shape_at(index)));
     if (List.length(tile_shards) != List.length(children_shards) + 1) {
+      /* DIAGNOSTIC (study crash hunt): tile_shards counts measured shard
+         entries at indices in t.shards. For a 1-shard tile (e.g. `::`) the
+         only way this exceeds children+1 is two measured entries for one id
+         => two physical tiles sharing an id (their differing origins below
+         confirm it) OR a stale measured/term map. The raw find_shards dump
+         distinguishes these. Kept fatal so revert-to-previous-state fires. */
       failwith(
         "Highlight.of_tile: shard mismatch:"
         ++ "tile: "
@@ -127,7 +133,11 @@ let rows_of_segment =
         ++ "tile_Shards:"
         ++ string_of_int(List.length(tile_shards))
         ++ ", children_Shards:"
-        ++ string_of_int(List.length(children_shards)),
+        ++ string_of_int(List.length(children_shards))
+        ++ ", find_shards(t.id="
+        ++ Id.to_string(t.id)
+        ++ ")="
+        ++ Measured.Shards.show(shards),
       );
     };
     ListUtil.interleave(tile_shards, children_shards) |> List.flatten;

@@ -1,0 +1,42 @@
+@flags
+show_report version=1 id=d0000026-0026-0026-0026-000000000026
+
+@prompt
+# Task: Grove name
+
+Write `grove_name`, which extracts the first section from a garden path. For example, `grove_name("/moonlit-grove/ferns")` is `"moonlit-grove"`. See the tests at the bottom for more examples.
+
+Some standard library functions that may be useful (you may have to work out the argument order with probes): 
+ - `string_split : (String, String) -> [String]`
+ - `string_sub : (String, Int, Int) -> String`
+ - `string_length : String -> Int`
+ - `nth : ([String], Int) -> String`
+ - `length : [String] -> Int`
+
+@hint
+Try `string_split(path, "/")` in a probe and look at what comes back. Mind the empty pieces.
+
+@reference
+### Approach (writing tasks)
+1. Read the comment block: what should the function do?
+2. Read the tests: they are the spec, with exact expected values.
+3. Build in small steps; intermediate values appear as you type.
+4. Unsure what a library function does? Probe a call and look. Probing `f(?)` with a hole argument x-rays what `f` does.
+
+### Functions
+- `string_split : (String, String) -> [String]`
+- `string_sub : (String, Int, Int) -> String`
+- `string_length : String -> Int`
+- `nth : ([String], Int) -> String`
+- `length : [String] -> Int`
+
+@hints
+grove_name("/moonlit-grove/ferns/watering") should be "moonlit-grove"
+grove_name("/night-garden/herbs/rosemary") should be "night-garden"
+grove_name("/") should be ""
+
+@code
+{{include:hazel-programs/study/tasks-draft/01W-garden-path.hz}}
+
+@test
+0

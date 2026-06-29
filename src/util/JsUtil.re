@@ -387,6 +387,17 @@ let scroll_cursor_into_view_if_needed = () =>
     ScrollDebug.log("SI", "scroll_into_view assert-failure")
   };
 
+/* Set the main editor container's vertical scroll position. Used by tutorial
+ * mode's per-slide scroll memory to restore where the user left a slide (0 =
+ * top, for slides that have never been scrolled). */
+let set_main_scroll_top = (top: float) =>
+  try({
+    let main = get_elem_by_id("main");
+    main##.scrollTop := int_of_float(top);
+  }) {
+  | Assert_failure(_) => ()
+  };
+
 module Fragment = {
   let set_current = frag => {
     let frag =

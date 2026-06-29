@@ -1,0 +1,25 @@
+let running_sum(nums: [Int]): [Int] =
+  ¿
+
+
+in
+
+test
+  running_sum([1, 2, 3])
+  == [1, 3, 6]
+end;
+
+test
+  running_sum([5])
+  == [5]
+end;
+
+test
+  running_sum([])
+  == []
+end;
+
+test
+  running_sum([1, 1, 1, 1])
+  == [1, 2, 3, 4]
+end

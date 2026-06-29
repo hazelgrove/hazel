@@ -1,0 +1,31 @@
+@flags
+version=1 id=b0000015-0015-0015-0015-000000000015
+
+@prompt
+
+**Step into** combines *pin this call* and *jump to the definition* in one move: you land inside a function with that call's run already pinned. Handy when the definition is far from the call.
+
+# Tasks
+1. The two `total_water` calls at the bottom are probed (`610` and `230`). Right-click the `total_water(shade)` sample and choose **Step into** (or click it and press **Enter**).
+2. Your caret jumps inside `total_water`, pinned to that call's run.
+3. `total_water` scans through the list of plants, adding each one's water to a running total. Can you find the intermediate totals along the way? Break the fold open across lines so `acc + p.water` gets its own probe, then read them off in *many* mode.
+
+@hint
+Right-click a call's sample and choose *Step into*, or click it and press Enter.
+
+@code
+type Plant = (name = String, water = Int) in
+let total_water(plants: [Plant]): Int =
+  fold_left(plants, fun (acc, p) -> acc + p.water, 0)
+in
+let shade = [
+  (name = "fern", water = 250),
+  (name = "lily", water = 200),
+  (name = "daisy", water = 160)
+] in
+let sun = [
+  (name = "orchid", water = 180),
+  (name = "cactus", water = 50)
+] in
+total_water(shade);
+total_water(sun)

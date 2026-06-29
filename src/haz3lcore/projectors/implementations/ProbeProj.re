@@ -1243,9 +1243,10 @@ let hide_env = (statics: Language.Statics.Info.t): bool =>
   | _ => false
   };
 
-/* Inner sections of the sample context menu: actions, call display, env.
- * Used by the hover dropdown (sample_context_menu). Also returns
- * has_env/has_call flags so the dropdown can adjust its chrome. */
+/* Inner sections of the sample context drawer: actions, call display, env.
+ * Used by both the hover dropdown (sample_context_menu) and the sidebar
+ * drawer (sample_context_drawer). Also returns has_env/has_call flags so
+ * the dropdown can adjust its chrome. */
 let sample_context_sections =
     (ctx: probe_ctx, ~include_rich: bool=true, view_seg, sample: Sample.t)
     : (bool, bool, list(Node.t)) => {
@@ -1327,6 +1328,36 @@ let sample_context_menu =
         nodes,
       ),
     ]
+  };
+};
+
+/* Sidebar drawer rendering: same content as the dropdown, without
+ * SafeTriangle hover chrome. Returns None when there's nothing to show. */
+let sample_context_drawer =
+    (ctx: probe_ctx, ~include_rich: bool=true, view_seg, sample: Sample.t)
+    : option(Node.t) => {
+  let (has_env, has_call, nodes) =
+    sample_context_sections(ctx, ~include_rich, view_seg, sample);
+  /* Mirror sample_view's has_dropdown gate: a non-Ap term that's a Var or
+   * Pat with no enclosing call has nothing useful to show. */
+  let hide_env = hide_env(ctx.statics);
+  let has_dropdown =
+    !(hide_env && ctx.ap_id == None) || sample.call_stack != [];
+  /* nodes == [] is the precise "empty menu" signal from
+   * sample_context_sections; the has_dropdown heuristic is the older,
+   * coarser gate kept for its non-empty cases. */
+  if (nodes == [] || !has_dropdown && !has_env && !has_call) {
+    None;
+  } else {
+    /* Inner content rules (.context-actions, .live-env, .call-display, ...)
+     * are unscoped in proj-probe.css, so the drawer styles itself via
+     * those inner classes. Sidebar-specific tweaks live under
+     * `#probe-sidebar .sample-context-drawer` in probesystem.css.
+     * `.no-env` toggles the vertical action layout when there's
+     * nothing else to show. */
+    let classes =
+      ["sample-context-drawer"] @ (has_env || has_call ? [] : ["no-env"]);
+    Some(div(~attrs=[Attr.classes(classes)], nodes));
   };
 };
 

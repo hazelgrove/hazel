@@ -1,0 +1,27 @@
+type GradebookEntry = (name=String, age=Int, quiz1=Int, quiz2=Int, midterm=Int, quiz3=Int, quiz4=Int, final=Int) in
+let gradebook : [GradebookEntry] = ^^fold([
+("Bob",   12, 8, 9, 77, 7, 9, 87),
+("Alice", 17, 6, 8, 88, 8, 7, 85),
+("Eve",   13, 7, 9, 84, 8, 8, 77)
+]) in                                   
+
+# Version with String Columns matching API #
+let get_value = fun (r, c) -> find(to_lvs(r), fun e -> e.label == c).value in  
+let dot_product =
+fun (t1, c1 : String, c2 : String) ->  
+fold_left(map(t1, fun r -> (get_value(r,c1) * get_value(r, c2))),int_plus, 0)
+in
+^^probe(dot_product(gradebook, "quiz1", "quiz2"));
+
+# Version using function for column access #
+let dot_product =
+typfun R ->    
+fun (t1:[R], c1 : R -> Int, c2 : R -> Int) ->  
+fold_left(map(t1, fun r -> (c1(r) * c2(r))), int_plus, 0) : Int
+in
+let result = 
+dot_product@<(name=String, age=Int, quiz1=Int, quiz2=Int, midterm=Int, quiz3=Int, quiz4=Int, final=Int)>(
+gradebook,
+fun e ->e.quiz1,
+fun e ->e.quiz2)
+in ^^probe(result)

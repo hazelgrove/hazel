@@ -1,0 +1,31 @@
+@flags
+show_report version=1 id=d0000036-0036-0036-0036-000000000036
+
+@prompt
+# Task: The watering timer
+
+A small text formatter: durations in minutes become text like `45m` or `1h 30m`. One test does not pass. Find and fix the bug.
+
+@hint
+In many mode, find the schedule entry whose output looks wrong, then check how format decides between its two branches for that input.
+
+@reference
+### Approach (debugging tasks)
+1. Read the comment block at the top: what should the output look like?
+2. Scroll to the failing test (the ✗). Read what it asserts.
+3. Investigate however you like. You can consult the quick reference for a reminder of available probe features.
+
+@hints
+short durations show minutes only
+very short durations work too
+an hour and a half
+minutes are padded to two digits
+exact hours show zero minutes
+a schedule formats every entry
+the morning schedule
+
+@code
+{{include:hazel-programs/study/tasks-draft/10D-watering-timer.hz}}
+
+@test
+0

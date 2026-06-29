@@ -5,6 +5,19 @@ open Bonsai.Let_syntax;
 
 let scroll_to_caret = ref(true);
 
+/* Per-slide scroll memory for tutorial mode. Each slide remembers where the
+   user last left it; revisiting a slide restores that scroll position, while
+   a slide that's never been scrolled opens at the top. */
+let slide_scrolls: ref(list((int, float))) = ref([]);
+let pending_scroll_restore: ref(option(float)) = ref(None);
+
+/* The current tutorial slide index, if the app is in tutorial mode. */
+let tutorial_slide = (m: CrashHandling.Model.t): option(int) =>
+  switch (m.model.current.current.editors) {
+  | Editors.Model.Tutorial(tm) => Some(tm.current)
+  | _ => None
+  };
+
 let restart_caret_animation = () =>
   // necessary to trigger reflow
   // <https://css-tricks.com/restart-css-animation/>
@@ -97,6 +110,24 @@ let apply =
   };
   if (updated.scroll_active) {
     scroll_to_caret := true;
+  };
+  /* When the tutorial slide changes, stash the outgoing slide's scroll
+     position and queue a restore of the incoming slide's saved position
+     (the top, for slides that have never been scrolled). The restore takes
+     precedence over scroll-to-caret so a fresh slide opens at its prompt. */
+  switch (tutorial_slide(model), tutorial_slide(updated.model)) {
+  | (Some(prev), Some(next)) when prev != next =>
+    slide_scrolls :=
+      [
+        (prev, ScrollDebug.main_scroll_top()),
+        ...List.remove_assoc(prev, slide_scrolls^),
+      ];
+    pending_scroll_restore :=
+      Some(
+        List.assoc_opt(next, slide_scrolls^) |> Option.value(~default=0.),
+      );
+    scroll_to_caret := false;
+  | _ => ()
   };
   model';
 };
@@ -245,6 +276,15 @@ let start = default_model => {
           JsUtil.scroll_cursor_into_view_if_needed();
         } else {
           ();
+        };
+        /* Tutorial slide switch: restore the incoming slide's remembered
+         * scroll position (top for never-scrolled slides). Runs after
+         * scroll_to_caret so the restore wins if both somehow fire. */
+        switch (pending_scroll_restore^) {
+        | Some(target) =>
+          pending_scroll_restore := None;
+          JsUtil.set_main_scroll_top(target);
+        | None => ()
         };
         /* Handle scheduled probe focus from step-into (see ProbePerform.FocusEffect) */
         let _ = Haz3lcore.ProbePerform.FocusEffect.execute();

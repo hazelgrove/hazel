@@ -1,0 +1,51 @@
+@flags
+show_report version=1 id=b0000012-0012-0012-0012-000000000012
+
+@prompt
+A list holds many values of the same type, written `[a, b, c]`. The `map` built-in applies a function to each element. Write the function inline as an *anonymous function* with `fun`:
+```hazelnostatics
+map([1, 2, 3], fun n -> n * 2)
+```
+
+# Tasks
+
+1. Make `garden` the list of the four base waters: `250`, `180`, `50`, `200`. Once it is filled in, notice how the values now appear down the rest of the program.
+2. As you finish this next part, pause to watch the values update: give every plant its 50 ml new-moon top-up by mapping over `garden`, adding 50 to each.
+
+@hint
+A list is `[a, b, c, d]`. Then an anonymous function `fun w -> ...` that adds 50.
+
+@reference
+### Lists
+```hazel
+[1, 2, 3]
+```
+A list of integers has type `[Int]`.
+
+### Map and anonymous functions
+```hazel
+map([1, 2, 3], fun n -> n + 1)
+```
+`fun n -> ...` is a function with no name.
+
+### More list functions
+- `length(xs)` how many elements
+- `nth(xs, 0)` the element at an index
+- `filter(xs, fun x -> x > 100)` keeps the elements that pass
+- `mapi(xs, ...)` is map, but the callback's pair also carries the index. Which slot? Probe it and see.
+
+@hints
+garden should be [250, 180, 50, 200]
+Each watering can gains 50: [300, 230, 100, 250]
+
+@code
+let garden: [Int] = ¿ in
+let topped = map(
+garden, 
+¿
+) in
+topped
+
+@test
+test garden == [250, 180, 50, 200] end;
+test topped == [300, 230, 100, 250] end

@@ -1,0 +1,66 @@
+# PART 5 VARIANT: STEP INTO WITH MAP + FOLD #
+
+# This function has a two-stage pipeline: map transforms #
+# the data, then fold aggregates it. From outside you see #
+# one number. Step Into reveals the whole pipeline. #
+
+# ============================================================ #
+
+type Plant = (
+  name = String,
+  icon = String,
+  water = Int
+) in
+
+let fern: Plant = (name = "Fern", icon = "🌿", water = 250) in
+let orchid: Plant = (name = "Orchid", icon = "🌸", water = 180) in
+let cactus: Plant = (name = "Cactus", icon = "🍄", water = 50) in
+let lily: Plant = (name = "Lily", icon = "☘️", water = 200) in
+let daisy: Plant = (name = "Daisy", icon = "🌱", water = 160) in
+
+# weekly_total computes the total weekly water for a garden. #
+# First it maps each plant's daily water to weekly (x7), #
+# then folds to sum everything up. #
+
+let weekly_total: [Plant] -> Int =
+  fun plants ->
+  let weekly_amounts = map(plants, fun plant ->
+    let daily = plant.water in
+    daily * 7
+  ) in
+  let sum = fun (acc, w) ->
+    let running = acc in
+    running + w
+  in
+  let total = fold_left(weekly_amounts, sum, 0) in
+  total
+in
+
+# EXERCISE 1: Step into the map #
+# 1. Add a probe to `weekly_total(shade)` below. #
+#    It returns 4270. How does it get there? #
+# 2. Click the sample and Step Into (Enter). #
+# 3. Turn on auto-probe inside `weekly_total`. #
+# 4. The map callback shows each plant's `daily` water #
+#    and the `daily * 7` result. In Many mode you see #
+#    all 3 transformations side by side: #
+#    daily: [250, 200, 160] and daily*7: [1750, 1400, 1120] #
+
+# EXERCISE 2: Now look at the fold #
+# 5. Still inside `weekly_total`, look at the fold #
+#    callback's samples. In Many mode, `running` shows #
+#    the accumulator: [0, 1750, 3150] and `running + w` #
+#    shows it growing: [1750, 3150, 4270]. #
+# 6. Use the dynamic cursor bar at the top to navigate #
+#    back out. Try stepping into `weekly_total(all)` — #
+#    now there are 5 iterations each. #
+
+let shade = [fern, lily, daisy] in
+let sun = [orchid, cactus] in
+let all = [fern, orchid, cactus, lily, daisy] in
+
+weekly_total(shade);
+weekly_total(sun);
+weekly_total(all)
+
+# END #

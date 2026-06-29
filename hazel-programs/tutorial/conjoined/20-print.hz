@@ -1,0 +1,31 @@
+@flags
+version=1 id=b0000020-0020-0020-0020-000000000020
+
+@prompt
+Hazel also has classic print-statement debugging; for some tasks we'll ask you to use it instead of probes. `print(value);` writes a value to the Console and carries on, and it prints any Hazel value, not just strings.
+
+# Tasks
+1. Click **Console** at the top of the sidebar to switch to the print console.
+2. Add `print(daily);` inside `weekly_water`, before the result.
+3. Click **Run** and watch the Console fill as the calls below run — three new lines.
+
+@hint
+`print(daily);` before the result, inside the function.
+
+@reference
+### Print
+```hazel
+print(42);
+"done"
+```
+`print` writes a value to the Console and continues. Each entry shows a sequence number and a source line.
+
+@code
+print("test");
+print(2 + 2);
+let weekly_water(daily: Int): Int =
+  daily * 7
+in
+weekly_water(250);
+weekly_water(180);
+weekly_water(50)

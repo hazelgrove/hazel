@@ -1,0 +1,43 @@
+@flags
+show_report version=1 id=d0000030-0030-0030-0030-000000000030
+
+@prompt
+# Task: Running sum
+
+Write `running_sum`, where each element of the result is the sum of everything up to and including that position: `running_sum([1, 2, 3])` is `[1, 3, 6]`. Make sure to read the tests carefully; this task may be slightly more complex than it appears. Feel free to write it recursively or with a fold.
+
+@hint
+Carry the running total along: as an extra argument to a helper function, or as part of the fold's accumulator.
+
+@reference
+### Approach (writing tasks)
+1. Read the comment block: what should the function do?
+2. Read the tests: they are the spec, with exact expected values.
+3. Build in small steps; intermediate values appear as you type.
+4. Probe inside your function: each recursive call (or fold step) is a separate sample.
+
+### Recursion
+A function with an arrow type annotation can call itself. Take a list apart with `case`:
+```hazel
+let len : [Int] -> Int = fun xs ->
+  case xs
+  | [] => 0
+  | x :: rest => 1 + len(rest)
+  end
+in len([7, 8, 9])
+```
+
+### Fold
+`fold_left(list, fun (a, b) -> ..., start)` threads a running value through the callback. Probe `a` and `b` to see which is which.
+
+@hints
+running_sum([1, 2, 3]) should be [1, 3, 6]
+running_sum([5]) should be [5]
+running_sum([]) should be []
+running_sum([1, 1, 1, 1]) should be [1, 2, 3, 4]
+
+@code
+{{include:hazel-programs/study/tasks-draft/03W-running-sum.hz}}
+
+@test
+0

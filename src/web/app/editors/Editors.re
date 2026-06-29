@@ -576,7 +576,15 @@ module View = {
                 fun
                 | "Scratch" => inject(Update.SwitchMode(Scratch))
                 | "Documentation" => inject(Update.SwitchMode(Documentation))
-                | "Tutorial" => inject(Update.SwitchMode(Tutorial))
+                | "Tutorial" =>
+                  // Default the sidebar to the task reference panel so
+                  // tutorial users see the reference material on entry.
+                  Ui_effect.Many([
+                    inject(Update.SwitchMode(Tutorial)),
+                    globals.inject_global(
+                      Set(Sidebar(SwitchPanel(TaskReference))),
+                    ),
+                  ])
                 | "Exercises" => inject(Update.SwitchMode(Exercises))
                 | _ => failwith("Invalid mode")
               ),

@@ -1,0 +1,70 @@
+type Student = (name=String, age=Int, favorite_color=String) in
+let students : [Student]  = ^^fold([
+("Bob", 12, "blue"),
+("Alice", 17, "green"),
+("Eve", 13, "red")
+]) in
+type Jelly = (get_acne=Bool, red=Bool, black=Bool) in
+let petiteJelly : [Jelly] = ^^fold([(true, false, false), (true, false, true)]) in
+
+
+# V1: This version is more idiomatic and requires the caller to provide tuple extension via a higher order function. Therefore more constraints are ensured #
+let v1 =
+let requires = [
+(enforced=^^check(false), "concat(header(t1), header(t2)) has no duplicates")
+] in
+let ensures = [
+(enforced=^^check(true), "schema(t3) is equal to concat(schema(t1), schema(t2))"), # Assuming the higher order function provided is tuple extension #
+(enforced=^^check(false), "nrows(t3) is equal to nrows(t1) * nrows(t2)")
+] in
+let cross_join = typfun r1 -> typfun r2 -> typfun r3 -> 
+fun (t1 : [r1], t2 : [r2], combine: ((r1,r2) -> r3)) ->
+flat_map(t1, fun r1 -> map(t2, fun r2 -> combine(r1, r2))) : [r3] in 
+
+# Examples #
+test 
+cross_join
+@<Student>
+@<Jelly>
+@<^^fold((name=String, age=Int, favorite_color=String, get_acne=Bool, red=Bool, black=Bool))>
+(students, petiteJelly, fun (s, j) -> s ... j) ==
+([
+("Bob", 12, "blue", true, false, false),
+("Bob", 12, "blue", true, false, true),
+("Alice", 17, "green", true, false, false),
+("Alice", 17, "green", true, false, true),
+("Eve", 13, "red", true, false, false),
+("Eve", 13, "red", true, false, true)
+] : ^^fold([(name=String, age=Int, favorite_color=String, get_acne=Bool, red=Bool, black=Bool)]))
+end
+in
+# V2: This version more closely matches the TableAPI. Given the lack of row polymorphism no constraints are ensured #
+let v2 =
+let requires = [
+(enforced=^^check(false), "concat(header(t1), header(t2)) has no duplicates")
+] in
+let ensures = [
+(enforced=^^check(false), "schema(t3) is equal to concat(schema(t1), schema(t2))"),
+(enforced=^^check(false), "nrows(t3) is equal to nrows(t1) * nrows(t2)")
+] in
+
+# V1 is the more idiomatic version #  
+let cross_join = fun (t1 : [?], t2 : [?]) ->
+flat_map(t1, fun r1 -> map(t2, fun r2 -> r1 ... r2)) in
+
+
+# Examples #
+test 
+cross_join
+(students, petiteJelly) ==
+([
+("Bob", 12, "blue", true, false, false),
+("Bob", 12, "blue", true, false, true),
+("Alice", 17, "green", true, false, false),
+("Alice", 17, "green", true, false, true),
+("Eve", 13, "red", true, false, false),
+("Eve", 13, "red", true, false, true)
+] : ^^fold([(name=String, age=Int, favorite_color=String, get_acne=Bool, red=Bool, black=Bool)]))
+end
+
+in ?

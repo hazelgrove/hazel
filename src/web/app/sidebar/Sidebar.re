@@ -157,6 +157,133 @@ let problems_tab =
     ~globals,
   );
 
+let task_reference_tab = (~globals: Globals.t): Node.t =>
+  tab_of(
+    ~panel=TaskReference,
+    ~cls=["task-reference-button"],
+    ~icon=Icons.info,
+    ~tooltip="Switch to Task Reference",
+    ~globals,
+  );
+
+let split_task_reference_sections = TaskReferenceSplit.split;
+
+let task_reference_view =
+    (
+      ~globals: Globals.t,
+      ~explain_this_inject,
+      ~editor: CodeWithStatics.Model.t,
+      ~module_name: string,
+      body: string,
+    ) => {
+  let render_md = blocks => {
+    let (nodes, _) =
+      ExplainThis.mk_translation_doc(~globals, ~inject=_ => (), blocks);
+    nodes;
+  };
+  let sections = split_task_reference_sections(Omd.of_string(body));
+  let section_nodes =
+    List.map(
+      ((heading, content)) =>
+        switch (heading) {
+        | Option.None =>
+          div(
+            ~attrs=[clss(["task-reference-preamble"])],
+            render_md(content),
+          )
+        | Option.Some(h) =>
+          Node.details(
+            ~attrs=[
+              clss(["task-reference-section"]),
+              Attr.create("open", ""),
+            ],
+            [
+              Node.summary(
+                ~attrs=[clss(["task-reference-section-title"])],
+                [text(h)],
+              ),
+              div(
+                ~attrs=[clss(["task-reference-section-body"])],
+                render_md(content),
+              ),
+            ],
+          )
+        },
+      sections,
+    );
+  let body_div = div(~attrs=[clss(["task-reference-body"])], section_nodes);
+  let flags = TutorialProbeStrip.flags_of_slide(module_name);
+  let new_flags = TutorialProbeStrip.new_flags_of_slide(module_name);
+  let console_on = TutorialProbeStrip.console_enabled(flags);
+  /* When the print console is enabled (slide 20+), the panel header becomes a
+   * Reference / Console switch and Console mode swaps the whole body for the
+   * print console. Otherwise the strip (when nonempty) sits between the
+   * "Task Reference" header and the markdown body. The strip and console live
+   * inside a #probe-sidebar wrapper so they inherit the probe panel's styling;
+   * .task-reference-panel remains the ancestor so markdown stays styled. */
+  if (console_on) {
+    let inner =
+      TutorialProbeStrip.console_mode^
+        ? TutorialProbeStrip.console_body(~explain_this_inject, ~editor)
+        : TutorialProbeStrip.strip_view(
+            ~globals,
+            ~explain_this_inject,
+            ~flags,
+            ~new_flags,
+            (),
+          )
+          @ [body_div];
+    div(
+      ~attrs=[clss(["task-reference-panel"])],
+      [
+        div(
+          ~attrs=[Attr.id("probe-sidebar"), clss(["tutorial-probe-strip"])],
+          [
+            TutorialProbeStrip.console_header(~explain_this_inject),
+            ...inner,
+          ],
+        ),
+      ],
+    );
+  } else {
+    let strip =
+      TutorialProbeStrip.strip_view(
+        ~globals,
+        ~explain_this_inject,
+        ~flags,
+        ~new_flags,
+        (),
+      );
+    let strip_div =
+      strip == []
+        ? []
+        : [
+          div(
+            ~attrs=[
+              Attr.id("probe-sidebar"),
+              clss(["tutorial-probe-strip"]),
+            ],
+            strip,
+          ),
+        ];
+    div(
+      ~attrs=[clss(["task-reference-panel"])],
+      [
+        div(
+          ~attrs=[clss(["task-reference-header"])],
+          [
+            div(
+              ~attrs=[clss(["task-reference-title"])],
+              [text("Task Reference")],
+            ),
+          ],
+        ),
+        ...strip_div @ [body_div],
+      ],
+    );
+  };
+};
+
 let collapse_tab = (~globals: Globals.t): Node.t => {
   let tooltip =
     globals.settings.sidebar.show ? "Collapse Sidebar" : "Expand Sidebar";
@@ -171,13 +298,18 @@ let persistent_view =
     (
       ~globals: Globals.t,
       ~counts: list((SidebarModel.Settings.problem_category, int)),
+      ~task_reference: option(string),
     ) =>
   div(
     ~attrs=[Attr.id("persistent")],
     [
       div(
         ~attrs=[clss(["tabs"])],
-        [
+        (
+          Option.is_some(task_reference)
+            ? [task_reference_tab(~globals)] : []
+        )
+        @ [
           explain_this_tab(~globals),
           assistant_tab(~globals),
           probes_tab(~globals),
@@ -294,6 +426,8 @@ let view =
       ~problem_editors:
          list((option(string), list(CodeWithStatics.Model.t))),
       ~signal,
+      ~task_reference: option(string),
+      ~tutorial_module: option(string),
     ) => {
   let problem_collection =
     Haz3lcore.ProblemCollection.make(
@@ -320,13 +454,21 @@ let view =
      doesn't show up as "in a derivation" via the stale model.pos. */
   let derivation_info =
     Editors.Selection.get_derivation_info(~selection, editors);
+  /* If the user left tutorial mode while the TaskReference panel was
+     active, fall back to LanguageDocumentation so they don't stare at
+     an empty panel for a tab that no longer exists. */
+  let active_panel: SidebarModel.Settings.panel =
+    switch (globals.settings.sidebar.panel, task_reference) {
+    | (TaskReference, None) => LanguageDocumentation
+    | (p, _) => p
+    };
   let sub =
     globals.settings.sidebar.show
       ? div(
           ~attrs=[Attr.id("side-bar"), Attr.tabindex(1)],
           [
             resize_handle(),
-            switch (globals.settings.sidebar.panel) {
+            switch (active_panel) {
             | LanguageDocumentation =>
               ExplainThis.view(
                 ~globals,
@@ -358,6 +500,18 @@ let view =
                 ~cursor,
                 ~collection=problem_collection,
               )
+            | TaskReference =>
+              switch (task_reference) {
+              | Some(text) =>
+                task_reference_view(
+                  ~globals,
+                  ~explain_this_inject,
+                  ~editor,
+                  ~module_name=Option.value(tutorial_module, ~default=""),
+                  text,
+                )
+              | None => div([text("No task reference available.")])
+              }
             | DebugInfo => DebugSidebar.view(~globals, ~cursor)
             },
           ],
@@ -368,6 +522,6 @@ let view =
       };
   div(
     ~attrs=[Attr.id("sidebars")],
-    [sub, persistent_view(~globals, ~counts)],
+    [sub, persistent_view(~globals, ~counts, ~task_reference)],
   );
 };

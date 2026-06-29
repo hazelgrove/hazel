@@ -1,0 +1,41 @@
+@flags
+show_report version=1 id=d0000033-0033-0033-0033-000000000033
+
+@prompt
+# Task: The garden spirit
+
+A virtual pet: the garden spirit eats, plays, and sleeps, and it remembers how it has been treated. Its evolution depends on that memory, and the evolution logic has a bug: a spirit cared for moderately and neglected a little should reach Bloom, but it does not. The failing test shows it.
+
+This is the biggest program in the set, with several functions feeding each other. Take it slowly; the sidebar approach helps.
+
+@hint
+The failing test feeds one model through one TimeTick. Probe `calcEvolution`'s inputs for that run and check its conditions in order; one of them matches when it should not.
+
+@reference
+### Approach (debugging tasks)
+1. Read the comment block at the top: what does this program do?
+2. Find the **Model** type and read it. Follow any type aliases it mentions (Stats, Memory, Evolution).
+3. Read the **Action** type: the operations the program supports.
+4. Scroll to the failing test (the ✗). Read what it asserts.
+5. Investigate however you like. Some options:
+   - Auto-probe (Cmd/Ctrl+P) and read values near the failing test, or place probes where you suspect trouble.
+   - Probe the failing test's `update` call and **pin** it (right-click the sample, *Pin this call*), then trace the wrong value backwards.
+   - **Step into** a function: right-click its sample, then *Step into* (or press Enter). Or right-click a function name in the code to jump to its definition.
+   - Big model values clip: focus a sample and resize (Shift+←/→) or expand it into rows (Cmd/Ctrl+↓).
+
+@hints
+feeding fills the belly
+play lifts the mood but costs energy
+sleep restores energy
+time passing decays stats
+young spirits stay seedlings
+a critically low stat counts as neglect when time passes
+devoted care raises an elder
+heavy neglect wilts the spirit
+moderate care with some neglect becomes bloom
+
+@code
+{{include:hazel-programs/study/tasks-draft/08D-tamagotchi.hz}}
+
+@test
+0

@@ -1,0 +1,89 @@
+# Sample: Quiz scores from multiple students #
+type GradebookEntry = (
+name=String, 
+age=Int, 
+quiz1=Int, 
+quiz2=Int, 
+quiz3=Int, 
+quiz4=Int, 
+final=Int
+) in
+
+let gradebook : [GradebookEntry] = [
+("Alice", 12, 8, 9, 7, 8, 87),
+("Bob", 17,  6, 8, 8, 7, 85),
+("Alice", 13, 9, 10, 8, 8, 90),
+("Charlie", 14, 7, 9, 9, 6, 77),
+("Bob", 18, 10, 6, 6, 6, 93)
+] in
+
+# Projection over Lists of Labeled Tuples #
+# Pull out all final exam scores using projection over the table #
+^^probe(gradebook.final);
+
+# The to_lvs operation on labeled tuples converts them to a list of (label, value) entries. #
+# We can map this over a table to do things like extracting all quiz scores and compute an average. #
+let average = ^^fold(fun (ns: [Int]) -> float_of_int(fold_left(ns, int_plus, 0))  /. float_of_int(length(ns))) in
+let gradebook_with_average = 
+map(gradebook,
+fun e: GradebookEntry ->
+let ^^type(with_average) = 
+e ... (quiz_average=
+to_lvs(omit_labels(e, `name`))
+|> filter(_, fun (label, score):^^fold((label=String, value=Int)) -> string_match("quiz.*", label))
+|> map(_, fun e -> e.value)
+|> average)
+in ^^probe(with_average))
+in
+^^probe(gradebook_with_average.quiz_average);
+
+# `group_by_label`: Group records by a label's value and pivot into a tuple of lists #
+# Example: Game leaderboard entries grouped by level #
+let leaderboard = [
+(level="forest", player="Aria", score=1200),
+(level="desert", player="Ben", score=900),
+(level="forest", player="Cleo", score=1500),
+(level="cave", player="Dana", score=700),
+(level="desert", player="Eli", score=1300)
+] in
+
+let ^^probe(by_level) = group_by_label(leaderboard, `level`) in
+^^probe(by_level.forest);
+^^probe(by_level.cave);
+^^probe(by_level.desert).score;
+
+# Example: Wildlife Tracking Grid of Species Sightings #
+# Each row represents presence/absence of species seen by a camera on a given day #
+type DailySighting = (day=Int, fox=Bool, deer=Bool, rabbit=Bool, bear=Bool, owl=Bool, raccoon=Bool, wolf=Bool, moose=Bool) in
+let sightings : [DailySighting] = [
+(1, ^^check(true), ^^check(false), ^^check(true), ^^check(false), ^^check(false), ^^check(true), ^^check(false), ^^check(false)),
+(2, ^^check(false), ^^check(true), ^^check(true), ^^check(false), ^^check(true), ^^check(false), ^^check(false), ^^check(false)),
+(3, ^^check(true), ^^check(false), ^^check(false), ^^check(false), ^^check(true), ^^check(false), ^^check(false), ^^check(false)),
+(4, ^^check(false), ^^check(false), ^^check(true), ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(false)),
+(5, ^^check(true), ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(true), ^^check(false), ^^check(false)),
+(6, ^^check(false), ^^check(true), ^^check(false), ^^check(true), ^^check(false), ^^check(false), ^^check(false), ^^check(true)),
+(7, ^^check(false), ^^check(false), ^^check(true), ^^check(false), ^^check(false), ^^check(false), ^^check(true), ^^check(false)),
+(8, ^^check(true), ^^check(false), ^^check(true), ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(false)),
+(9, ^^check(false), ^^check(true), ^^check(false), ^^check(false), ^^check(true), ^^check(false), ^^check(false), ^^check(false))
+] in
+# to_lvs the grid into a long format table for analysis #
+let lvs : [(label=String, value=Bool)] = flat_map(sightings, fun sighting:^^fold((day=Int, fox=Bool, deer=Bool, rabbit=Bool, bear=Bool, owl=Bool, raccoon=Bool, wolf=Bool, moose=Bool)) -> to_lvs(omit_labels(sighting, `day`))) in
+let counts : [String] -> [(String, Int)] = ^^fold(fun elems -> case elems
+| [] => []
+| (hd :: tl) => 
+let rest = counts(tl) in
+case rest
+| [] => [(hd, 1)]
+| ((prev, count)::tl) => 
+if string_eq(
+prev,
+hd) 
+then (prev,count+1) :: tl else (hd, 1) :: rest 
+end 
+end) in                  
+# Show counts for each species#
+let sighting_counts =   
+filter(lvs, fun (label=l, value=v) -> v).label
+|> sort(fun (a,b) -> string_compare(a,b), _)
+|> counts 
+in ^^probe(sighting_counts)

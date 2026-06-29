@@ -1,0 +1,79 @@
+# Garden Survey Notes                                  #
+#                                                      #
+# After each moonlit garden walk, visitors fill out    #
+# a short survey. Entries look like:                   #
+#   "Q1: yes -- the moonbloom beds were stunning"      #
+#   "Q2: no -- too many weeds near the starfern"       #
+#                                                      #
+# Extract just the notes from positive responses.      #
+# For the data below, the result should be:            #
+#   ["the moonbloom beds were stunning",               #
+#    "loved the new duskrose pathway",                 #
+#    "the nightshade corner was magical"]              #
+#                                                      #
+# Steps:                                               #
+#   1. is_positive: check if a response is "yes"       #
+#   2. extract_note: get the text after the --         #
+#   3. positive_notes: filter then extract             #
+#                                                      #
+# Available functions:                                 #
+#   string_match: (String, String) -> Bool             #
+#   string_split: (String, String) -> [String]         #
+#   string_trim: String -> String                      #
+#   nth: ([?], Int) -> ?                               #
+#   filter: ([?], ? -> Bool) -> [?]                    #
+#   map: ([?], ? -> ?) -> [?]                          #
+#                                                      #
+# string_match checks whether a regex pattern          #
+# appears anywhere in the string. Anywhere!            #
+#                                                      #
+# Tip: Probe each function with the test data          #
+# before combining them. Regex substring matching      #
+# can be surprising -- check carefully!                #
+
+let entries = [
+  "Q1: yes -- the moonbloom beds were stunning",
+  "Q2: no -- too many weeds near the starfern",
+  "Q3: yes -- loved the new duskrose pathway",
+  "Q4: no -- yesterday's rain left puddles",
+  "Q5: yes -- the nightshade corner was magical"
+] in
+
+# Does this survey entry have a positive response? #
+let is_positive: String -> Bool = fun entry ->
+  ?
+
+
+
+in
+
+# Extract the note text from a survey entry #
+let extract_note: String -> String = fun entry ->
+  ?
+
+
+
+in
+
+# Get only the notes from positive responses #
+let positive_notes: [String] -> [String] = fun entries ->
+  ?
+
+
+
+in
+
+test positive_notes(entries) == [
+  "the moonbloom beds were stunning",
+  "loved the new duskrose pathway",
+  "the nightshade corner was magical"
+] end;
+
+test is_positive("Q1: yes -- moonblooms lovely") == true end;
+
+test is_positive("Q2: no -- needs more starfern") == false end;
+
+test is_positive("Q4: no -- yesterday was rainy") == false end;
+
+test extract_note("Q3: yes -- duskrose pathway")
+  == "duskrose pathway" end

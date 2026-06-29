@@ -1,0 +1,49 @@
+@flags
+wrapper show_report version=1 id=b0000007-0007-0007-0007-000000000007
+
+@prompt
+A *sum type* lists a fixed set of constructors, separated by `+`s:
+```hazelnostatics
+type MoonPhase = New + Waxing + Full + Waning in "…"
+```
+
+A `case` expression tries to match a value against a sequence of patterns. A wildcard `_` pattern matches anything.
+
+# Tasks
+
+1. To begin put a probe on each branch of the case expression: on the `+` in the `New` branch, on the `-` in the `Full` branch, on `base` in the last branch, and on the `case` itself. (Note that only the matching branch shows a value, and that the `case` itself takes on the value of that branch. The other branches show **∅**, meaning those paths never ran.)
+
+2. Try changing `Full` to `New` in the definition of `current_phase` and watch a different branch light up. Change it to `Waxing`, and then back to `Full`.
+
+3. On a full moon, a plant needs 30 ml less. Fill the hole so the watering comes to **220**.
+
+
+@hint
+Only the matching `Full` branch runs (the rest show ∅). Fill its subtraction so watering comes to 220.
+
+@reference
+### Sum types and case
+```hazel
+type Light = Red + Green in
+case Red
+| Red => "stop"
+| _ => "go"
+end
+```
+
+@hints
+With the full-moon adjustment the result should be 220.
+
+@code
+type MoonPhase = New + Waxing + Full + Waning in
+let base = 250 in
+let current_phase: MoonPhase = Full in
+
+case current_phase
+| New => base + 50
+| Full => base - ¿
+| _ => base
+end
+
+@test
+test answer == 220 end

@@ -1,14 +1,8 @@
 let filename = "haz3l-demo";
 let log_key = filename;
-let lessons: list(Tutorial.spec) = [
-  Tu_ExpressiveProgramming.exercise,
-  Tu_ComposingArithmetic_and_Scope.exercise,
-  Tu_ComputingEquationally_Shadow.exercise,
-  Tu_Variables_and_Compositionality.exercise,
-  Tu_Variables_and_Compositionality.comp_exercise,
-  Tu_ComposingArithmetic_and_Scope.scope_exercise,
-  Tu_ComputingEquationally_Shadow.shadow_exercise,
-  Tu_More.bools_ex,
-  Tu_More.cond_ex,
-  Tu_More.func_ex,
-];
+
+/* The tutorial sequence is now generated from text files in
+   hazel-programs/tutorial/ (basics/ then probes/) via `./hazel gen-tutorial`.
+   The hand-written Tu_*.ml lessons remain in examples/ for reference but are
+   no longer wired in. To restore one, add it back to this list. */
+let lessons: list(Tutorial.spec) = TutorialGenerated.all;

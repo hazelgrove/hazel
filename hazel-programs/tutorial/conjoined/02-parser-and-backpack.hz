@@ -1,0 +1,40 @@
+@flags
+wrapper show_report version=1 id=b0000002-0002-0002-0002-000000000002
+
+@prompt
+
+Hazel uses `let` expressions to bind names for use in the rest of the program:
+```hazelnostatics
+let x = expr in
+body
+```
+
+Hazel's editor helps scaffold incomplete syntax. When you start a multi-token form like `let … = … in`, the tokens you still owe show in the *backpack*, shown as a yellow box above the caret.
+
+# Tasks
+
+1. After the `=`, fill the definition with `250 * 7`.
+2. Type `in` and watch it leave the backpack (or press `Tab` to drop it without typing).
+3. Finish the body so the program reads `let weekly = 250 * 7 in weekly`.
+4. Probe `weekly` on the last line (**Cmd/Ctrl+E**); it should read **1750**.
+
+@reference
+### Let
+```hazel
+let a = 1 in
+a
+```
+
+### Backpack
+- `Tab` drops the next token
+- typing it (e.g. `in`) also works
+
+@hints
+Build `let weekly = 250 * 7 in weekly`.
+
+@code
+let weekly = ¿
+
+@test
+test answer == 1750 end;
+¿

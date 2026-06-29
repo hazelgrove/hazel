@@ -1,0 +1,274 @@
+# Night Garden Nutrient Tracker #
+# Soil management for the night garden #
+
+# ========================================= #
+# TYPES                                     #
+# ========================================= #
+
+# Soil nutrients are measured 0-100 #
+# N = Nitrogen, P = Phosphorus, K = Potassium #
+type Soil = (
+  n = Int,  # Nitrogen: essential for leafy growth #
+  p = Int,  # Phosphorus: helps root development #
+  k = Int   # Potassium: overall plant health #
+) in
+
+# The mystical crops of the night garden #
+# Each crop has different effects on soil nutrients #
+type Crop =
+  + Duskwheat      # Nitrogen fixer - restores N when harvested #
+  + Moonmelon        # Heavy feeder - depletes N significantly #
+  + Starfruit    # Balanced - moderate use of all nutrients #
+  + Nightshade  # Cover crop - restores N when turned under #
+in
+
+# A garden plot has soil state, optionally a growing crop, and season #
+type Model = (
+  soil = Soil,
+  crop = +None +Some(Crop),
+  season = Int
+) in
+
+# Actions that can be performed on a plot #
+type Action =
+  + Plant(Crop)     # Plant a new crop (fails if plot occupied) #
+  + Harvest         # Harvest current crop, apply nutrient effects #
+  + Compost         # Add organic matter, boosts all nutrients #
+  + SeasonChange    # Time passes, nutrients settle #
+in
+
+# ========================================= #
+# HELPER FUNCTIONS                          #
+# ========================================= #
+
+# Clamp value between 0 and 100 #
+let clamp(x: Int): Int =
+  if x < 0 then 0
+  else if x > 100 then 100
+  else x
+in
+
+# ========================================= #
+# INITIAL STATE                             #
+# ========================================= #
+
+let balancedSoil : Soil = (n = 60, p = 60, k = 60) in
+
+let init : Model = (
+  soil = balancedSoil,
+  crop = None,
+  season = 1
+) in
+
+# ========================================= #
+# NUTRIENT CALCULATIONS                     #
+# ========================================= #
+
+# Calculate small nutrient cost when planting #
+# Different crops need different amounts to establish #
+let plantingCost(s: Soil, crop: Crop): Soil =
+  case crop
+  | Duskwheat =>
+      # Duskwheat establishes easily, minimal cost #
+      (n = s.n, p = clamp(s.p - 5), k = clamp(s.k - 5))
+  | Moonmelon =>
+      # Moonmelon needs resources to start #
+      (n = clamp(s.n - 5), p = clamp(s.p - 5), k = clamp(s.k - 5))
+  | Starfruit =>
+      # Starfruit is standard #
+      (n = clamp(s.n - 5), p = clamp(s.p - 5), k = clamp(s.k - 5))
+  | Nightshade =>
+      # Nightshade is easy to establish #
+      (n = s.n, p = clamp(s.p - 3), k = clamp(s.k - 3))
+  end
+in
+
+# Calculate how harvesting each crop affects soil nutrients #
+# This is the main nutrient exchange in the system #
+let harvestEffect(s: Soil, crop: Crop): Soil =
+  case crop
+  | Duskwheat =>
+      # Nitrogen fixer: restores N, uses some P and K #
+      (n = clamp(s.n + 15), p = clamp(s.p - 10), k = clamp(s.k - 10))
+  | Moonmelon =>
+      # Heavy N feeder: depletes nitrogen significantly #
+      (n = clamp(s.n - 30), p = clamp(s.p - 10), k = clamp(s.k - 15))
+  | Starfruit =>
+      # Balanced consumer: moderate depletion across all #
+      (n = clamp(s.n - 15), p = clamp(s.p - 15), k = clamp(s.k - 15))
+  | Nightshade =>
+      # Cover crop turned under should restore nitrogen #
+      (n = s.n, p = clamp(s.p + 20), k = clamp(s.k - 5))
+  end
+in
+
+let applyCompost(s: Soil): Soil =
+  (n = clamp(s.n + 10), p = clamp(s.p + 10), k = clamp(s.k + 10))
+in
+
+let seasonSettle(s: Soil): Soil =
+  (n = clamp(s.n - 3), p = clamp(s.p - 2), k = clamp(s.k - 2))
+in
+
+# ========================================= #
+# MAIN UPDATE FUNCTION                      #
+# ========================================= #
+
+# Process a single action on a plot #
+let update(p: Model, action: Action): Model =
+  case action
+  | Plant(crop) =>
+      # Only plant if plot is empty #
+      case p.crop
+      | Some(_) => p
+      | None =>
+          (
+            soil = plantingCost(p.soil, crop),
+            crop = Some(crop),
+            season = p.season
+          )
+      end
+  | Harvest =>
+      # Harvest applies the crop's effect to soil #
+      case p.crop
+      | None => p
+      | Some(crop) =>
+          (
+            soil = harvestEffect(p.soil, crop),
+            crop = None,
+            season = p.season
+          )
+      end
+  | Compost =>
+      (
+        soil = applyCompost(p.soil),
+        crop = p.crop,
+        season = p.season
+      )
+  | SeasonChange =>
+      (
+        soil = seasonSettle(p.soil),
+        crop = p.crop,
+        season = p.season + 1
+      )
+  end
+in
+
+# Process a sequence of actions #
+let run(plot: Model, actions: [Action]): Model =
+  fold_left(actions, fun (p, a) -> update(p, a), plot)
+in
+
+# ========================================= #
+# TESTS                                     #
+# ========================================= #
+
+hint "planting sets the current crop"
+test
+  let p = update(init, Plant(Moonmelon)) in
+  p.crop == Some(Moonmelon)
+end;
+
+hint "cannot plant when crop already growing"
+test
+  let p = run(init, [Plant(Moonmelon), Plant(Starfruit)]) in
+  p.crop == Some(Moonmelon)
+end;
+
+hint "planting has small nutrient cost"
+test
+  let p = update(init, Plant(Starfruit)) in
+  p.soil.n < init.soil.n
+end;
+
+hint "harvesting clears the crop"
+test
+  let p = run(init, [Plant(Moonmelon), Harvest]) in
+  p.crop == None
+end;
+
+hint "harvesting nothing changes nothing"
+test
+  let p = update(init, Harvest) in
+  p == init
+end;
+
+hint "moonmelon depletes nitrogen heavily"
+test
+  let p = run(init, [Plant(Moonmelon), Harvest]) in
+  p.soil.n < init.soil.n - 20
+end;
+
+hint "duskwheat restores nitrogen"
+test
+  let depleted: Model = (
+    soil = (n = 30, p = 50, k = 50),
+    crop = None,
+    season = 1
+  ) in
+  let p = run(depleted, [Plant(Duskwheat), Harvest]) in
+  p.soil.n > depleted.soil.n
+end;
+
+hint "nightshade restores nitrogen significantly"
+test
+  let depleted: Model = (
+    soil = (n = 30, p = 60, k = 60),
+    crop = None,
+    season = 1
+  ) in
+  let p = run(depleted, [Plant(Nightshade), Harvest]) in
+  p.soil.n >= 45
+end;
+
+hint "starfruit depletes all nutrients moderately"
+test
+  let p = run(init, [Plant(Starfruit), Harvest]) in
+  p.soil.n < init.soil.n &&
+  p.soil.p < init.soil.p &&
+  p.soil.k < init.soil.k
+end;
+
+hint "compost boosts all nutrients"
+test
+  let p = update(init, Compost) in
+  p.soil.n > init.soil.n &&
+  p.soil.p > init.soil.p &&
+  p.soil.k > init.soil.k
+end;
+
+hint "compost respects maximum (100)"
+test
+  let rich: Model =
+    (soil = (n = 95, p = 95, k = 95), crop = None, season = 1) in
+  let p = update(rich, Compost) in
+  p.soil.n == 100 && p.soil.p == 100 && p.soil.k == 100
+end;
+
+hint "season advances counter"
+test
+  let p = update(init, SeasonChange) in
+  p.season == 2
+end;
+
+hint "season change causes minor nutrient loss"
+test
+  let p = update(init, SeasonChange) in
+  p.soil.n < init.soil.n
+end;
+
+hint "nutrients cannot go below 0"
+test
+  let poor: Model =
+    (soil = (n = 10, p = 10, k = 10), crop = None, season = 1) in
+  let p = run(poor, [Plant(Moonmelon), Harvest]) in
+  p.soil.n >= 0 && p.soil.p >= 0 && p.soil.k >= 0
+end;
+
+hint "nutrients cannot exceed 100"
+test
+  let rich: Model =
+    (soil = (n = 90, p = 90, k = 90), crop = None, season = 1) in
+  let p = run(rich, [Compost, Compost, Compost]) in
+  p.soil.n <= 100 && p.soil.p <= 100 && p.soil.k <= 100
+end

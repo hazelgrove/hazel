@@ -1,0 +1,65 @@
+# NIGHT BLOOM FILTER TASK                        #
+#                                                #
+# A plant catalog has entries like:              #
+#   "Moonbloom [night] 200ml"                    #
+#   "Duskrose [day] 150ml"                        #
+#                                                #
+# Filter to night-blooming plants and extract    #
+# just their names: ["Moonbloom", "Starfern"]    #
+#                                                #
+# Steps:                                         #
+#   1. is_night: check if entry contains "night" #
+#   2. extract_name: get the first word          #
+#   3. Combine with filter and map               #
+#                                                #
+# Available functions:                           #
+#   string_match(pattern, str) -> Bool           #
+#   string_split(separator, str) -> [String]     #
+#   nth(list, index) -> element                  #
+#   filter(list, predicate) -> list              #
+#   map(list, fn) -> list                        #
+#                                                #
+# Note: string_match uses regex patterns.        #
+# The pattern "[abc]" matches any of a, b, c.   #
+#                                                #
+# Tip: Use probes to see what your pattern       #
+# actually matches -- regex can be surprising!   #
+
+let entries = [
+  "Moonbloom [night] 200ml",
+  "Duskrose [day] 150ml",
+  "Starfern [night] 175ml",
+  "Ghostvine [day] 100ml"
+] in
+
+# Check if entry is a night-blooming plant #
+let is_night: String -> Bool = fun entry ->
+  ?
+
+
+
+in
+
+# Extract just the plant name from an entry #
+let extract_name: String -> String = fun entry ->
+  ?
+
+
+
+in
+
+# Combine: filter night entries, then extract names #
+let night_names =
+  ?
+
+
+
+in
+
+test night_names == ["Moonbloom", "Starfern"] end;
+
+test is_night("Moonbloom [night] 200ml") == true end;
+
+test is_night("Duskrose [day] 150ml") == false end;
+
+test extract_name("Starfern [night] 175ml") == "Starfern" end

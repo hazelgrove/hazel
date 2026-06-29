@@ -1,0 +1,35 @@
+# LAST ELEMENT - SOLUTION #
+
+# Each step of the fold replaces the accumulator   #
+# with the current element. The final result is    #
+# the last element seen. For empty list, returns   #
+# the initial value (default).                     #
+
+let last = fun (xs, default) ->
+  fold_left(xs, fun (acc, x) -> x, default)
+in
+
+test
+  last([1, 2, 3], 0)
+  == 3
+end;
+
+test
+  last([42], 0)
+  == 42
+end;
+
+test
+  last([1], 0)
+  == 1
+end;
+
+test
+  last([], 99)
+  == 99
+end;
+
+test
+  last([], 0)
+  == 0
+end

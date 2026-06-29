@@ -1,0 +1,66 @@
+# PROBES TUTORIAL - PART 4: PINNING                               #
+
+# A bug has snuck into the garden data and left... a bug!         # 
+# One test below is failing, but with 10 calls generating         #
+# a wall of samples, it's hard to see what's going on.            #
+# PINNING lets you cut through the noise and focus on one call.   #
+
+# Scroll to the bottom for instructions.                          #
+# =============================================================== #
+
+type Plant = (
+  name = String,
+  icon = String,
+  water = Int
+) in
+
+let fern: Plant = (name = "Fern", icon = "🌿", water = 250) in
+let orchid: Plant = (name = "Orchid", icon = "🌸", water = 180) in
+let cactus: Plant = (name = "Cactus", icon = "🍄", water = 50) in
+let rose: Plant = (name = "Rose", icon = "🐛", water = 190) in
+let lily: Plant = (name = "Lily", icon = "☘️", water = 200) in
+let daisy: Plant = (name = "Daisy", icon = "🌱", water = 160) in
+
+let make_label: (Plant, Int) -> String =
+  fun (plant, days) ->
+    let header = plant.icon ++ " " ++ plant.name in
+    let total = plant.water * days in
+    let amount =
+      string_of_int(total) ++ "ml/"
+      ++ string_of_int(days) ++ "d" in
+    header ++ ": " ++ amount
+in
+
+# These tests all pass #
+test make_label(fern, 7) == "🌿 Fern: 1750ml/7d" end;
+test make_label(fern, 14) == "🌿 Fern: 3500ml/14d" end;
+test make_label(orchid, 5) == "🌸 Orchid: 900ml/5d" end;
+test make_label(orchid, 10) == "🌸 Orchid: 1800ml/10d" end;
+test make_label(cactus, 7) == "🍄 Cactus: 350ml/7d" end;
+test make_label(cactus, 14) == "🍄 Cactus: 700ml/14d" end;
+test make_label(lily, 7) == "☘️ Lily: 1400ml/7d" end;
+test make_label(lily, 3) == "☘️ Lily: 600ml/3d" end;
+test make_label(daisy, 7) == "🌱 Daisy: 1120ml/7d" end;
+
+# The failing test is coming up below. Here's what to do:        #
+# 1. Turn on auto-probe (Sidebar toggle or cmd/ctrl-P).          #
+# 2. Click inside the function `make_label` above to             #
+# 3. There are 10 calls, so each expression has 10 values.       #
+#    Try Many mode (double-click a sample) to see the chaos!     #
+# 4. Now add a probe within the failing test: Put your caret on  #
+#    the `(` after the `make_label` call in the test below, add  #
+#    a probe, and then click its sample and hit "Pin this call". #
+# 5. Go back to `make_label`. Even in `Many` mode, only the      #
+#    pinned call's sample remain. Can you spot the 🐛 now?       # 
+
+# Note: If you click around the rest of the program when you     #
+# have a pin you may see a new kind of icon: ⍟ means samples are #
+# "hidden by pin". Clicking the icon removes the pin remotely.   #
+
+# You can also pin from INSIDE a function body: click a          #
+# sample and choose "Pin enclosing call" in the dropdown.        #
+
+# This test is FAILING! #
+test make_label(rose, 7) == "🌹 Rose: 1330ml/7d" end
+
+# END OF PART 4 - Select the next slide from the top menu     #

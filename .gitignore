@@ -71,3 +71,11 @@ plans/
 # Cursor IDE (local)
 .cursor/
 AGENTS.md
+
+# Deploy build output (regenerated; never commit — not tracked on dev)
+/_serve/
+
+# Stray local artifacts (screen recordings, browser perf profiles)
+/*.mov
+/Firefox*.json
+/Firefox*.json.gz

@@ -1,0 +1,221 @@
+# Crop Plotter #
+
+type Plant = String in
+type Grove = [[Plant]] in
+type Row = Int in
+type Col = Int in
+
+type Model = (
+  grove = Grove,
+  currentSeed = Plant,
+  seedInventory = [Plant]
+) in
+
+type Action =
+  + SelectSeed(Int)
+  + PlantSeed(Row, Col)
+  + Uproot(Row, Col)
+  + ClearGrove
+  + PlantRow(Row)
+in
+
+let init: Model = (
+  grove = [
+    ["", "", ""],
+    ["", "", ""],
+    ["", "", ""]
+  ],
+  currentSeed = "🌱",
+  seedInventory = ["🌱", "🌿", "🍄", "☘️", "🌸"]
+) in
+
+let setCell: (Grove, Row, Col, Plant) -> Grove =
+  fun grove, row, col, plant ->
+    mapi(grove, fun (i, r) ->
+      if i == row
+      then mapi(r, fun (j, c) ->
+        if i == col
+        then plant
+        else c)
+      else r)
+in
+
+let setRow: (Grove, Row, Plant) -> Grove =
+  fun grove, targetRow, plant ->
+    mapi(grove, fun (i, row) ->
+      if i == targetRow
+      then map(row, fun _ -> plant)
+      else row)
+in
+
+let setAll: (Grove, Plant) -> Grove =
+  fun (grove, plant) ->
+    map(grove, fun row -> map(row, fun _ -> plant))
+in
+
+let updateGrove: (Model, Grove -> Grove) -> Model =
+  fun (m, f) -> (f(m.grove), m.currentSeed, m.seedInventory)
+in
+
+let update: (Model, Action) -> Model =
+  fun m, action ->
+    case action
+    | SelectSeed(idx) =>
+        (m.grove, nth(m.seedInventory, idx), m.seedInventory)
+    | PlantSeed(row, col) =>
+        updateGrove(m, fun g -> setCell(g, row, col, m.currentSeed))
+    | Uproot(row, col) =>
+        updateGrove(m, fun g -> setCell(g, row, col, ""))
+    | ClearGrove =>
+        updateGrove(m, fun g -> setAll(g, ""))
+    | PlantRow(row) =>
+        updateGrove(m, fun g -> setRow(g, row, m.currentSeed))
+    end
+in
+
+let do: (Model, [Action]) -> Model =
+  fun (init: Model, actions: [Action]) ->
+    fold_left(actions, update, init)
+in
+
+# Tests #
+
+hint "plant single seed"
+test
+  let m = update(init, PlantSeed(0, 0)) in
+  m.grove == [
+    ["🌱", "", ""],
+    ["", "", ""],
+    ["", "", ""]
+  ]
+end;
+
+hint "plant in middle"
+test
+  let m = update(init, PlantSeed(1, 1)) in
+  m.grove == [
+    ["", "", ""],
+    ["", "🌱", ""],
+    ["", "", ""]
+  ]
+end;
+
+hint "plant in corner"
+test
+  let m = update(init, PlantSeed(2, 2)) in
+  m.grove == [
+    ["", "", ""],
+    ["", "", ""],
+    ["", "", "🌱"]
+  ]
+end;
+
+hint "plant entire row"
+test
+  let m = update(init, PlantRow(1)) in
+  m.grove == [
+    ["", "", ""],
+    ["🌱", "🌱", "🌱"],
+    ["", "", ""]
+  ]
+end;
+
+hint "select different seed and plant"
+test
+  let m = do(init, [SelectSeed(1), PlantSeed(2, 2)]) in
+  m.grove == [
+    ["", "", ""],
+    ["", "", ""],
+    ["", "", "🌿"]
+  ]
+  && m.currentSeed == "🌿"
+end;
+
+hint "plant row then uproot one"
+test
+  let m = do(init, [PlantRow(0), Uproot(0, 1)]) in
+  m.grove == [
+    ["🌱", "", "🌱"],
+    ["", "", ""],
+    ["", "", ""]
+  ]
+end;
+
+hint "clear entire grove"
+test
+  let model = update(init, PlantSeed(1, 1)) in
+  let (grid, _, _) = update(model, ClearGrove) in
+  grid == [
+    ["", "", ""],
+    ["", "", ""],
+    ["", "", ""]
+  ]
+end;
+
+hint "plant orchids in specific cell"
+test
+  let m = do(init, [SelectSeed(4), PlantSeed(1, 2)]) in
+  m.grove == [
+    ["", "", ""],
+    ["", "", "🌸"],
+    ["", "", ""]
+  ]
+end;
+
+hint "plant row then uproot first"
+test
+  let m = do(init, [PlantRow(2), Uproot(2, 0)]) in
+  m.grove == [
+    ["", "", ""],
+    ["", "", ""],
+    ["", "🌱", "🌱"]
+  ]
+end;
+
+hint "multiple actions then clear"
+test
+  let m = do(init, [
+    PlantSeed(0, 0),
+    PlantSeed(1, 1),
+    PlantSeed(2, 2),
+    ClearGrove
+  ]) in
+  m.grove == [
+    ["", "", ""],
+    ["", "", ""],
+    ["", "", ""]
+  ]
+end;
+
+hint "mixed planting pattern"
+test
+  let m = do(init, [
+    PlantRow(0),
+    SelectSeed(2),
+    PlantSeed(1, 1)
+  ]) in
+  m.grove == [
+    ["🌱", "🌱", "🌱"],
+    ["", "🍄", ""],
+    ["", "", ""]
+  ]
+end;
+
+hint "complex sequence"
+test
+  let m = do(init, [
+    PlantSeed(0, 0),
+    PlantRow(2),
+    SelectSeed(3),
+    PlantSeed(1, 1),
+    Uproot(2, 2)
+  ]) in
+  m.grove == [
+    ["🌱", "", ""],
+    ["", "☘️", ""],
+    ["🌱", "🌱", ""]
+  ]
+  && m.currentSeed == "☘️"
+end;
+
+do(init, [SelectSeed(1), PlantSeed(2, 2)])

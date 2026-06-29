@@ -1,0 +1,10 @@
+let requires = [] in
+let ensures = [
+(enforced=^^check(true), "schema(t) is equal to []"),
+(enforced=^^check(false), "nrows(t) is equal to 0")
+] in
+# Hazel tables are lists; the empty table is the empty list of unit rows #
+let empty_table : [()] = [] in
+
+test empty_table == [] end;
+test  length(empty_table) == 0 end

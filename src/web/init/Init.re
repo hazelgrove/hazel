@@ -31,7 +31,20 @@ let startup: PersistentData.t = {
   ),
   documentation: (
     0,
-    documentation_slides
+    [
+      // BasicReference.out,
+      // Projectors.out,
+      ADTs.out,
+      // Tuples.out,
+      // Modules.out,
+      // Tables.out,
+      // Polymorphism.out,
+      // Cards.out,
+      Probes.out,
+      // Livelits.out,
+    ]
+    //@ B2t2.Slides.all_slides
+    @ Study.AllStudy.all
     |> List.map(((name, content: PersistentSegment.t)) =>
          (
            name,

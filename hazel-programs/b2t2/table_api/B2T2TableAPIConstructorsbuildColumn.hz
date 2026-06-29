@@ -1,0 +1,58 @@
+type Student = (name=String, age=Int, favorite_color=String) in
+let students : [Student] = ^^fold([
+("Bob", 12, "blue"),
+("Alice", 17, "green"),
+("Eve", 13, "red")
+]) in
+
+# V1: This version is a higher order function that takes a function for constructing the resulting row offering more type safety #
+let v1 =
+let requires = [(enforced=^^check(false), "c is not in header(t1)")]in
+let ensures = [
+(enforced=^^check(true), "schema(r) is equal to schema(t1)"),
+(enforced=^^check(true), "header(t2) is equal to concat(header(t1), [c])"), # Assuming user passes tuple extension #
+(enforced=^^check(true), "for all c' in header(t1), schema(t2)[c'] is equal to schema(t1)[c']"), # Assuming user passes tuple extension #
+(enforced=^^check(true), "schema(t2)[c] is equal to the sort of v"), # Assuming user passes tuple extension #
+(enforced=^^check(false), "nrows(t2) is equal to nrows(t1)")
+] in
+
+let build_column = typfun r -> typfun v -> typfun r' -> fun (t : [r], c : ((r, v) -> r'), f: (r -> v)) ->
+map(t, fun r -> c(r, f(r))) : [r']
+in
+
+# Examples #
+test 
+build_column
+@<Student>
+@<Bool>
+@<^^fold((name=String,age=Int,favorite_color=String,`is-teenager`=Bool))>
+(students, fun (s, b) -> s ...(`is-teenager`=b), fun student -> student.age > 12 && student.age < 20) == 
+([
+("Bob", 12, "blue", false),
+("Alice", 17, "green", true),
+("Eve", 13, "red", true)
+] : ^^fold([(name=String, age=Int, favorite_color=String, `is-teenager`=Bool)]))
+end
+in
+
+# V2: This version more closely matches the TableAPI and takes a string column. Given the lack of row polymorphism no constraints are ensured #
+let v2 =
+let requires = [(enforced=^^check(false), "c is not in header(t1)")]in
+let ensures = [
+(enforced=^^check(false), "schema(r) is equal to schema(t1)"),
+(enforced=^^check(false), "header(t2) is equal to concat(header(t1), [c])"),
+(enforced=^^check(false), "for all c' in header(t1), schema(t2)[c'] is equal to schema(t1)[c']"),
+(enforced=^^check(false), "schema(t2)[c] is equal to the sort of v"),
+(enforced=^^check(false), "nrows(t2) is equal to nrows(t1)")
+] in
+#Lack of first class labels requires writing this with from_lvs and to_lvs. With a known column v1 should be used#
+let build_column = fun (t :[?], c :String, f : ? -> ?) ->
+map(t,fun (r) ->from_lvs(to_lvs(r) @[(c,f(r))])) in
+
+# Examples #
+test build_column(students, "is-teenager", fun student -> student.age > 12 && student.age < 20) == ([
+("Bob", 12, "blue", false),
+("Alice", 17, "green", true),
+("Eve", 13, "red", true)
+] : ^^fold([(name=String, age=Int, favorite_color=String, `is-teenager`=Bool)]))end
+in 

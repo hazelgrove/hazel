@@ -1,0 +1,193 @@
+# Crop Plotter #
+# Plant seeds on a grid, one action at a time. #
+
+type Plant = String in
+type Grove = [[Plant]] in
+type Row = Int in
+type Col = Int in
+
+# The grid of planted cells, plus the seed currently selected #
+type Model = (
+  grove = Grove,
+  currentSeed = Plant,
+  seedInventory = [Plant]
+) in
+
+# Actions the gardener can take #
+type Action =
+  + SelectSeed(Int)      # Pick a seed from the inventory #
+  + PlantSeed(Row, Col)  # Plant currentSeed at a position #
+  + Uproot(Row, Col)     # Clear one cell #
+  + ClearGrove           # Clear every cell #
+  + PlantRow(Row)        # Fill a whole row with currentSeed #
+in
+
+# Read the types above, then find the failing test (✗) below. #
+
+let init: Model = (
+  grove = [
+    ["", "", ""],
+    ["", "", ""],
+    ["", "", ""]
+  ],
+  currentSeed = "🌱",
+  seedInventory = ["🌱", "🌿", "🍄", "☘️", "🌸"]
+) in
+
+# Replace the cell at (row, col) with the given plant #
+let setCell(grove: Grove, row: Row, _col: Col, plant: Plant): Grove =
+  mapi(grove, fun (i, r) ->
+    if i == row
+    then mapi(r, fun (j, c) ->
+      if j == row
+      then plant
+      else c)
+    else r)
+in
+
+# Fill a whole row with the given plant #
+let setRow(grove: Grove, targetRow: Row, plant: Plant): Grove =
+  mapi(grove, fun (i, row) ->
+    if i == targetRow
+    then map(row, fun _ -> plant)
+    else row)
+in
+
+let setAll(grove: Grove, plant: Plant): Grove =
+  map(grove, fun row -> map(row, fun _ -> plant))
+in
+
+let updateGrove(m: Model, f: Grove -> Grove): Model =
+  (
+    grove = f(m.grove),
+    currentSeed = m.currentSeed,
+    seedInventory = m.seedInventory
+  )
+in
+
+let update(m: Model, action: Action): Model =
+  case action
+  | SelectSeed(idx) =>
+      (
+        grove = m.grove,
+        currentSeed = nth(m.seedInventory, idx),
+        seedInventory = m.seedInventory
+      )
+  | PlantSeed(row, col) =>
+      updateGrove(m, fun g -> setCell(g, row, col, m.currentSeed))
+  | Uproot(row, col) =>
+      updateGrove(m, fun g -> setCell(g, row, col, ""))
+  | ClearGrove =>
+      updateGrove(m, fun g -> setAll(g, ""))
+  | PlantRow(row) =>
+      updateGrove(m, fun g -> setRow(g, row, m.currentSeed))
+  end
+in
+
+let run(init: Model, actions: [Action]): Model =
+  fold_left(actions, fun (m, a) -> update(m, a), init)
+in
+
+# ===== TESTS ===== #
+
+hint "plant a single seed"
+test
+  let m = update(init, PlantSeed(0, 0)) in
+  m.grove == [
+    ["🌱", "", ""],
+    ["", "", ""],
+    ["", "", ""]
+  ]
+end;
+
+hint "plant in the middle"
+test
+  let m = update(init, PlantSeed(1, 1)) in
+  m.grove == [
+    ["", "", ""],
+    ["", "🌱", ""],
+    ["", "", ""]
+  ]
+end;
+
+hint "plant a whole row"
+test
+  let m = update(init, PlantRow(1)) in
+  m.grove == [
+    ["", "", ""],
+    ["🌱", "🌱", "🌱"],
+    ["", "", ""]
+  ]
+end;
+
+hint "select a different seed, then plant"
+test
+  let m = run(init, [SelectSeed(1), PlantSeed(2, 2)]) in
+  m.grove == [
+    ["", "", ""],
+    ["", "", ""],
+    ["", "", "🌿"]
+  ]
+  && m.currentSeed == "🌿"
+end;
+
+hint "plant a row, then uproot its middle"
+test
+  let m = run(init, [PlantRow(1), Uproot(1, 1)]) in
+  m.grove == [
+    ["", "", ""],
+    ["🌱", "", "🌱"],
+    ["", "", ""]
+  ]
+end;
+
+hint "clear the grove"
+test
+  let m = run(init, [PlantSeed(1, 1), ClearGrove]) in
+  m.grove == [
+    ["", "", ""],
+    ["", "", ""],
+    ["", "", ""]
+  ]
+end;
+
+hint "mixed planting pattern"
+test
+  let m = run(init, [
+    PlantRow(0),
+    SelectSeed(2),
+    PlantSeed(1, 1)
+  ]) in
+  m.grove == [
+    ["🌱", "🌱", "🌱"],
+    ["", "🍄", ""],
+    ["", "", ""]
+  ]
+end;
+
+hint "plant in a specific cell"
+test
+  let m = run(init, [SelectSeed(4), PlantSeed(1, 2)]) in
+  m.grove == [
+    ["", "", ""],
+    ["", "", "🌸"],
+    ["", "", ""]
+  ]
+end;
+
+hint "complex sequence"
+test
+  let m = run(init, [
+    PlantSeed(0, 0),
+    PlantRow(2),
+    SelectSeed(3),
+    PlantSeed(1, 1),
+    Uproot(2, 2)
+  ]) in
+  m.grove == [
+    ["🌱", "", ""],
+    ["", "☘️", ""],
+    ["🌱", "🌱", ""]
+  ]
+  && m.currentSeed == "☘️"
+end

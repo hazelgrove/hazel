@@ -1,0 +1,69 @@
+# _____  _____    _____      _  _____  _____  ______ #
+#|     ||   _ |  |     |    | ||     ||     ||      |#
+#|  _  ||  | ||  |  _  |    | ||  ___||     ||_    _|#
+#| |_| ||  |_||_ | | | |    | || |___ |     |  |  |  #
+#|  ___||   __  || |_| | ___| ||  ___||    _|  |  |  #
+#| |    |  |  | ||     ||     || |___ |   |_   |  |  #
+#|_|    |__|  |_||_____||_____||_____||_____|  |__|  #
+
+# Some kinds of syntax have dedicated GUIs.          #
+# The menu at the bottom left shows which GUIs       #
+# (if any) are applicable to the current term        #
+# indicated by the caret.                            #
+
+# A. A fold projector collapse a term, replacing     #
+#    it with `...` until it is expanded again.       #
+#    Terms can be projected using alt/option-f.      #
+#    Clicking a fold toggles a hover term display.   #
+
+let fold = ^^fold((
+("Well",
+("hello",
+("there!",
+["Please close me when you're done"]
+)
+)
+)
+)) in
+
+# B. A type probe shows a term's type to the side.   #
+#    Type probes can be applied using alt/option-t.  #
+#    Doubleclick toggles inferred/synthesized types. #
+
+let typ: (Int -> Bool) = ^^type()   in
+
+# C. Projectors applying to specific data literals.  #
+#    These can be applied using alt/option-l.        #
+#    Three base types literals use inline views:     #
+
+let guard: Bool = ^^check(true) in
+let phase: Int = ^^slider(44) in
+let float: Float = ^^sliderf(79.00) in
+
+#    One ADT uses a tab-style two-line view.         #
+#    See the `Cards` slide for more information.     #
+let card: (+Spades, +Jack) = ^^card((Spades, Jack)) in
+
+# Inline error decorations (same as for tokens)      #
+
+let (a:Int, f: Bool) = ^^check(true), ^^slider(28) in
+
+# The String base type get a multiline view:         #
+
+let _ = ^^text("") in
+let __ = ^^text("\n") in
+let ___ = ^^text("a") in
+let ____ =^^text("shift\n")in
+let _____ =^^text("\nmalicious") in
+let ______ = ^^text("a\n shift\n   malicious")in
+
+# Multiline error decorations #
+
+let box: Int = ^^text("\nmalicious") in
+
+# The bottom toggle or backspace removes projectors. #
+# Projectors are preserved on in-editor copy/paste   #
+# and are persisted as ^^projector_name(data) when   #
+# pasted externally; pasting this here projects it.  #
+
+^^fold("Put it back")

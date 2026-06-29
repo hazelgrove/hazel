@@ -1,0 +1,27 @@
+@flags
+version=1 id=b0000010-0010-0010-0010-000000000010
+
+@prompt
+So far you've placed probes manually; **auto-probe** mode instead puts a probe on each line of the entire program, using the same logic as multi-probes. It saves the placement effort, but it can be visually noise. We're curious how it feels compared to manual placement.
+
+# Tasks
+1. Turn Auto-probe on with **Cmd/Ctrl+P** (or click `All` on the **Auto Probe** toggle in the sidebar). Probes appear across the program.
+2. The parameters of `watering_amount` share a line, so they share one sample display. Add a line break to split `base` and `phase` onto separate lines and observe the resulting display change.
+3. In `weekly_water`, add a line break after the call to `watering_amount` (before the `* 7`) to see that call's result, before the mutiplication. Again, linebreaks can be used to determine feedback granularity.
+
+@hint
+Press **Cmd/Ctrl+P** (or click `All` on the toggle) to probe the whole program.
+
+@code
+type MoonPhase = New + Waxing + Full + Waning in
+let watering_amount(base: Int, phase: MoonPhase): Int =
+  case phase
+  | New => base + 50
+  | Full => base - 30
+  | _ => base
+  end
+in
+let weekly_water(base: Int, phase: MoonPhase): Int =
+  watering_amount(base, phase) * 7
+in
+weekly_water(250, Full)

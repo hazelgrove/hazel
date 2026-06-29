@@ -1,0 +1,37 @@
+let nrows = 
+let requires = [] in
+let ensures = [(enforced=^^check(false), "n is equal to nrows(t)")] in
+# Tables are just lists so nrows is just list length #
+let nrows = length in
+
+test nrows([]) == 0 end
+in
+
+let ncols = 
+let requires = [] in
+let ensures = [(enforced=^^check(false), "n is equal to ncols(t)")] in
+# Only works for non-empty tables since we don't keep a schema #
+let ncols = fun (t: [?]) -> case t 
+| (x::xs) => to_lvs(x) |> length
+| _ => 0
+end in
+
+# Examples #
+test ncols([()]) == 0 end;
+test ncols([(a=1, b=2)]) == 2 end
+in
+
+let header = 
+let requires = [] in
+let ensures = [(enforced=^^check(false), "cs is equal to header(t)")] in
+# Only works for non-empty tables since we don't keep a schema #
+let header = fun (t:[?]) -> case t 
+| (x::xs) => to_lvs(x) |> map(_, fun x -> x.label)
+| _ => []
+end in
+
+# Examples #
+test header([()]) == [] end;
+test header([(a=1, b=2)]) == ["a", "b"] end
+in
+?

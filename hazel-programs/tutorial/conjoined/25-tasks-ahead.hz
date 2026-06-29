@@ -1,0 +1,25 @@
+@flags
+version=1 id=b0000026-0026-0026-0026-000000000026
+
+@prompt
+{{no_editor}}
+# Tasks ahead
+
+The following are some more substantial tasks, alternating between two types:
+
+- **writing**: build a function to a spec (auto-probe is on for most of these)
+- **debugging**: a working program with one failing test; find and fix the bug
+
+Notes:
+
+- **The tests are the spec.** Read them early.
+- **Debugging tasks have a suggested approach** in the Task Reference sidebar. You probably do not need to read the whole program in detail; start with the suggested steps.
+- **Use whatever probe tools feel natural.** Manual probes, auto-probe, many mode, pin, step into, the variable dropdown: whatever answers your current question.
+- **Think out loud.** Say what you expect before you look, and what surprised you after.
+
+On a few tasks probes will be switched off; you still have `print` and the tests. That contrast is part of what we are studying.
+
+Take your time. Ask questions.
+
+@code
+0

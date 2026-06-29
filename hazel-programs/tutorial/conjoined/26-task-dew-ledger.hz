@@ -1,0 +1,30 @@
+@flags
+show_report version=1 id=d0000034-0034-0034-0034-000000000034
+
+@prompt
+# Task: The dew ledger
+
+First debugging task. The ledger tracks dew drops and jars; one action is misbehaving, as revealed by the failing test. Find and fix the bug. This program is small enough to read in full, but try the suggested approach in the sidebar anyway: the same approach helps on the bigger tasks.
+
+@hint
+Probe the failing test's update call and compare what changed against what the Action's comment says should change.
+
+@reference
+### Approach (debugging tasks)
+1. Read the comment block at the top: what does this program do?
+2. Find the **Model** type and read it.
+3. Read the **Action** type: the operations the program supports.
+4. Scroll to the failing test (the ✗). Read what it asserts.
+5. Investigate however you like. You can consult the quick reference for a reminder of available probe features.
+
+@hints
+collecting adds drops
+bottling needs ten drops
+bottling fills a jar
+a spill loses half the loose drops
+
+@code
+{{include:hazel-programs/study/tasks-draft/00D-dew-ledger.hz}}
+
+@test
+0

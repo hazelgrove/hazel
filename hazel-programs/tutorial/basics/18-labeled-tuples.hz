@@ -1,0 +1,41 @@
+@flags
+show_report version=1 id=32aa8e06-b0d4-4459-8879-13575a45768b
+
+@prompt
+Hazel supports labeled tuples, which let you associate labels with tuple elements — giving an ordered version of records. They also support projection by label:
+
+```hazel
+let pet = (name="Fido", age=4, species="dog") in
+pet.name
+```
+
+# Task
+
+Complete the labeled tuple below so that the x-coordinate equals the y-coordinate.
+
+@hint
+Pick any x and y as long as they're the same
+
+@reference
+### Labeled Tuple Projection
+Access a field of a labeled tuple with `.`:
+```hazel
+let pet =
+(name="Fido", 
+age=4, 
+species="dog") in
+pet.name
+```
+
+
+@hints
+Make sure they're the same and both floats
+
+@code
+type Point = (x=Float, y=Float) in
+
+let p : Point = ¿ in
+p
+
+@test
+test p.x == p.y end

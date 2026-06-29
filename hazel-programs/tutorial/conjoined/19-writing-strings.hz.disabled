@@ -1,0 +1,29 @@
+@flags
+wrapper show_report version=1 id=b0000019-0019-0019-0019-000000000019
+
+@prompt
+The garden keeps a log. Text comes apart with string functions, and `string_match` checks a pattern against a string (a small regex).
+
+# Tasks
+1. Keep only the log entries mentioning a bloom: fill the anonymous function so `filter` keeps the entries containing `"bloom"`.
+
+@hint
+Use `string_match("bloom", e)` to test each entry.
+
+@reference
+### Strings
+- `string_match(pattern, s)` is `true` if the pattern occurs in `s`. Patterns are regexes, e.g. `"bloom"` or `"#[0-9]+"`.
+- `string_split(" ", s)` breaks `s` into pieces
+- `string_length(s)`, `string_sub(s, start, len)`
+
+@hints
+Keep "moonbloom ok" and "starbloom ok".
+
+@code
+let entries = ["moonbloom ok", "cactus dry", "starbloom ok"] in
+filter(entries, fun e ->
+¿
+)
+
+@test
+test answer == ["moonbloom ok", "starbloom ok"] end

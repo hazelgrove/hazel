@@ -1,0 +1,58 @@
+type Student = (name=String, age=Int, favorite_color=String) in
+let students : [Student] = ^^fold([
+("Bob", 12, "blue"),
+("Alice", 17, "green"),
+("Eve", 13, "red")
+]) in
+
+let requires = [
+(enforced=^^check(false), "c is in header(t1)"),
+(enforced=^^check(false), "schema(t1)[c] is a categorical sort")
+] in
+let ensures = [
+(enforced=^^check(false), "header(t2) == [key, groups]"),
+(enforced=^^check(false), "schema(t2)[key] == schema(t1)[c]"),
+(enforced=^^check(false), "schema(t2)[groups] == Table"),
+(enforced=^^check(false), "getColumn(t2, key) has no duplicates"),
+(enforced=^^check(false), "for all t in getColumn(t2, groups), header(t) == removeAll(header(t1), [c])"),
+(enforced=^^check(false), "for all t in getColumn(t2, groups), schema(t) is a subsequence of schema(t1)"),
+(enforced=^^check(false), "nrows(t2) == length(removeDuplicates(getColumn(t1, c)))")
+] in
+
+let group_by_subtractive =
+let get_value = ^^fold(fun (r:?, label:String) ->
+find_opt(to_lvs(r), fun e -> e.label == label) |> option_map(_, fun e -> e.value)) in
+let remove_duplicates = fun (xs:[?]) ->
+fold_left(xs,
+fun (seen, x) ->
+if mem(seen, x) then seen else seen @ [x],
+[]) : [?] in
+fun (t1:[?], c:String) ->
+let get_key =fun (r:?) ->get_value(r,c) in
+
+let keys =
+map(t1,get_key)
+|>filter_map(_,fun opt ->opt)
+|>remove_duplicates 
+in
+
+map(keys,fun k ->
+let rows =
+filter(t1,fun r ->
+case get_key(r)
+|Some(k') =>k' ==k
+|None =>false 
+end)
+|>map(_,fun r ->
+to_lvs(r)
+|>filter(_,fun e ->e.label!=c)
+|>from_lvs) 
+in
+(key=k) ...(groups=rows)) in
+let expected = ^^fold([
+(key="blue", groups=[(name="Bob", age=12)]),
+(key="green", groups=[(name="Alice", age=17)]),
+(key="red", groups=[(name="Eve", age=13)])
+]) in
+
+test group_by_subtractive(students, "favorite_color") == expected end

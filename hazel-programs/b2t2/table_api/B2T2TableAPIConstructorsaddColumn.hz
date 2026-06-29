@@ -1,0 +1,68 @@
+type Student = (name=String, age=Int, favorite_color=String) in
+let students : [Student] = ^^fold([
+("Bob", 12, "blue"),
+("Alice", 17, "green"),
+("Eve", 13, "red")
+]) in
+# V1: This version is more idiomatic but requires the caller to pass a function combining the rows explicitly thereby getting more type safety. #
+let v1 = 
+let requires = [
+(enforced=^^check(false), "c is not in header(t1)"),
+(enforced=^^check(false), "length(vs) is equal to nrows(t1)")
+] in
+let ensures = [
+(enforced=^^check(true), "header(t2) is equal to concat(header(t1), [c])"), # Assuming the higher order function provided is extension with the new column #
+(enforced=^^check(true), "for all c' in header(t1), schema(t2)[c'] is equal to schema(t1)[c']"),  # Assuming the higher order function provided is extension with the new column #
+(enforced=^^check(true), "schema(t2)[c] is the sort of elements of vs"),  # Assuming the higher order function provided is extension with the new column #
+(enforced=^^check(false), "nrows(t2) is equal to nrows(t1)")
+] in
+let add_column = typfun r -> typfun v -> typfun r' -> fun (t : [r], c : ((r, v) -> r'), vs: [v]) ->
+(zip(t, vs)
+|> map(_, c)) : [r']  in
+
+test 
+let hair_color = ["brown", "red", "blonde"] in 
+add_column
+@<Student>
+@<String>
+@<^^fold((name=String,age=Int,favorite_color=String,`hair-color`=String))>(students, fun (s, v) -> s ... (`hair-color`=v), hair_color)
+==
+([
+("Bob", 12, "blue", "brown"),
+("Alice", 17, "green", "red"),
+("Eve", 13, "red", "blonde")
+] : [^^fold((name=String, age=Int, favorite_color=String, `hair-color`=String))])
+end
+in
+# V2: This version more closely matches the TableAPI and takes a string column. Given the lack of row polymorphism no constraints are ensured #
+let v2 = 
+let requires=[
+(enforced=^^check(false), "c is not in header(t1)"),
+(enforced=^^check(false), "length(vs) is equal to nrows(t1)")
+] in
+let ensures=[
+(enforced=^^check(false), "header(t2) is equal to concat(header(t1), [c])"), 
+(enforced=^^check(false), "for all c' in header(t1), schema(t2)[c'] is equal to schema(t1)[c']"), 
+(enforced=^^check(false), "schema(t2)[c] is the sort of elements of vs"), 
+(enforced=^^check(false), "nrows(t2) is equal to nrows(t1)")
+] in
+let add_column = fun (t : [?], c : String, vs: [?]) ->
+zip(t, vs)
+|> map(_, fun (r, v) -> from_lvs(to_lvs(r) @ [(c, v)])) in
+let notes = [
+^^text("Polymorphic type limitation stops most ensured constraints"),
+^^text("Lack of first class labels requires writing this with from_lvs.\nIf doing this with concrete data you can do a transformation like v1"); 
+]
+in
+test 
+let hair_color = ["brown", "red", "blonde"] in 
+add_column(students, "hair-color", hair_color)
+==
+([
+("Bob", 12, "blue", "brown"),
+("Alice", 17, "green", "red"),
+("Eve", 13, "red", "blonde")
+] : [^^fold((name=String, age=Int, favorite_color=String, `hair-color`=String))])
+end
+
+in 

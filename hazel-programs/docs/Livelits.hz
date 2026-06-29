@@ -1,0 +1,30 @@
+# LIVELITS #
+# A livelit is a live GUI widget which can be inserted into expressions. #
+# It elaborates to a value of some given type. #
+
+# Invocation: #
+# To invoke a livelit, insert the name of the livelit (always prefixed with ^) then space. #
+# The context inspector shows which livelits are available and their elaboration type. #
+
+# Each livelit maintains an internal model, which is not generally something the #
+# programmer should need to look at. You can see the internal model by toggling #
+# the livelit projector off (bottom right corner of Hazel). #
+
+# Built-in Livelits: #
+# Currently, all livelits are built in: #
+
+# 1. ^slider #
+# Elaboration Type: Int                                                     #
+# Elaboration: The current value of the slider, which is between 0 and 100. #
+# Internal Model: Int                                                       #
+let slider_val = ^^livelit(^slider(85)) in
+
+# 2. ^emotion #
+# Elaboration Type: String                                      #
+# Elaboration: Returns a String representing an emotion,        #
+#              determined as follows based on the slider value: #
+#                if value < 40 then "sad"                       #
+#                if value > 70 then "happy"                     #
+#                otherwise "neutral"                            #
+# Internal Model: Int                                           #
+let current_mood = ^^livelit(^emotion(0)) in

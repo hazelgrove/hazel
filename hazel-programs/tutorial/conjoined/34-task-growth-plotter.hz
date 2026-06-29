@@ -1,0 +1,37 @@
+@flags
+show_report version=1 id=d0000027-0027-0027-0027-000000000027
+
+@prompt
+# Task: The moonlit field
+
+This program models a field of crops, featuring actions to plant, water, and harvest them. One test does not pass. Find and fix the bug.
+
+@hint
+Start from the failing test and trace the wrong value backwards: probe the run, pin it, step into update.
+
+@reference
+### Approach (debugging tasks)
+1. Read the comment block at the top: what does this program do?
+2. Find the **Model** type and read it. Follow any type aliases it mentions.
+3. Read the **Action** type: the operations the program supports.
+4. Scroll to the failing test (the ✗). Read what it asserts.
+5. Investigate however you like. You can consult the quick reference for a reminder of available probe features.
+
+@hints
+can plant a crop in empty cell
+planted crop starts at Seed stage
+cannot plant on occupied cell
+can select different seed types
+can plant multiple crops
+watering advances planted crops
+watering advances all crops simultaneously
+watering does not affect empty cells
+multiple waterings progress through stages
+cannot harvest immature crops
+PassDay increments day count
+
+@code
+{{include:hazel-programs/study/tasks-draft/02D-growth-plotter.hz}}
+
+@test
+0
