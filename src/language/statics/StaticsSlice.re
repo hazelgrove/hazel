@@ -1114,6 +1114,60 @@ let module_ = (~shape: Typ.t, ~term: Exp.term, child: sty): sty => {
   finalize: () => empty_result,
 };
 
+let rec projected_module_field =
+        (module_names: list(string), body: Exp.t): option(string) =>
+  switch (Exp.term_of(body)) {
+  | Parens(inner) => projected_module_field(module_names, inner)
+  | Dot(
+      {term: Var(module_name) | Constructor(module_name, None), _},
+      {term: Label(field), _},
+    )
+      when List.mem(module_name, module_names) =>
+    Some(field)
+  | _ => None
+  };
+
+let module_items_query =
+    (items: list(Mod.t), field: string, query: Typ.t): Typ.t => {
+  let fields =
+    items
+    |> List.concat_map(item =>
+         module_binding_names(item)
+         |> List.map(name =>
+              name == field
+                ? TupLabel(Label(name) |> Typ.temp, query) |> Typ.temp : gap
+            )
+       );
+  switch (fields) {
+  | [] => gap
+  | _ => Prod(fields) |> Typ.temp
+  };
+};
+
+let module_exp_demand = (term: Exp.term, query: Typ.t, fallback: Typ.t): Typ.t =>
+  switch (term) {
+  | ModuleExp(mp, {term: Module(items), _}, body) =>
+    switch (projected_module_field(ExpandModule.mpat_names(mp), body)) {
+    | Some(field) => module_items_query(items, field, query)
+    | None => fallback
+    }
+  | _ => fallback
+  };
+
+let module_exp_item_adjustment =
+    (term: Exp.term, query: Typ.t): (Id.Set.t, Id.Set.t) =>
+  switch (term) {
+  | ModuleExp(_, {term: Module(items), _}, _) =>
+    module_item_adjustment(items, query)
+  | _ => (Id.Set.empty, Id.Set.empty)
+  };
+
+let apply_omission_adjustment =
+    (result: result, (add, remove): (Id.Set.t, Id.Set.t)): result => {
+  ...result,
+  omitted: Id.Set.union(Id.Set.diff(result.omitted, remove), add),
+};
+
 /* The body's demand on the bound variables, shaped like the binding pattern:
    each variable leaf carries its required type (from the body's gamma), and
    composite patterns rebuild the matching product/list structure. The result
@@ -1618,7 +1672,12 @@ let rec node_of_exp_info = (m: Id.Map.t(Info.t), info: Info.exp): node => {
             shape: info.ty,
             dispatch: query => {
               let kept_slice = only.dispatch(query);
-              let demand = binding_demand(term, kept_slice.gamma);
+              let demand =
+                module_exp_demand(
+                  term,
+                  query,
+                  binding_demand(term, kept_slice.gamma),
+                );
               let deps =
                 sources |> List.map(s => s.dispatch(demand)) |> results_join;
               with_deps(
@@ -1628,7 +1687,11 @@ let rec node_of_exp_info = (m: Id.Map.t(Info.t), info: Info.exp): node => {
                     gamma_discharge(kept_slice.gamma, binding_names(term)),
                 },
                 deps,
-              );
+              )
+              |> apply_omission_adjustment(
+                   _,
+                   module_exp_item_adjustment(term, demand),
+                 );
             },
             finalize: () => empty_result,
           }
