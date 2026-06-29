@@ -6,7 +6,18 @@ open Util;
 module S = Statics.Slice;
 
 let testable_typ = testable(Fmt.using(Typ.show, Fmt.string), Typ.fast_equal);
-let testable_exp = testable(Fmt.using(Exp.show, Fmt.string), Exp.fast_equal);
+
+/* Render an expression back to Hazel source so failing reconstruction checks
+   read as `let x = 1 in x` rather than an sexp */
+let show_exp_src = (e: Exp.t): string =>
+  e
+  |> Haz3lcore.ExpToSegment.exp_to_segment(
+       ~settings=Haz3lcore.ExpToSegment.Settings.editable(~inline=true),
+       _,
+     )
+  |> Haz3lcore.Printer.of_segment(~holes="?", _);
+let testable_exp =
+  testable(Fmt.using(show_exp_src, Fmt.string), Exp.fast_equal);
 
 let parse_exp = (s: string): Exp.t =>
   switch (Haz3lcore.Parser.to_term(s, ~root=Exp)) {
