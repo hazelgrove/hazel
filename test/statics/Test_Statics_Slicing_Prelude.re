@@ -185,6 +185,10 @@ let typ_hole = (t: Typ.t): Typ.t => {
   ...t,
   term: Unknown(Hole(EmptyHole)),
 };
+let tpat_hole = (tp: TPat.t): TPat.t => {
+  ...tp,
+  term: EmptyHole,
+};
 
 let reconstruct = (omitted: Id.Set.t, e: Exp.t): Exp.t =>
   Exp.map_term(
@@ -197,6 +201,10 @@ let reconstruct = (omitted: Id.Set.t, e: Exp.t): Exp.t =>
     ~f_typ=
       (continue, t) =>
         Id.Set.mem(Typ.rep_id(t), omitted) ? typ_hole(t) : continue(t),
+    ~f_tpat=
+      (continue, tp) =>
+        Id.Set.mem(TPat.rep_id(tp), omitted)
+          ? tpat_hole(tp) : continue(tp),
     e,
   );
 
