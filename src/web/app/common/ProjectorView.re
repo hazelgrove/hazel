@@ -570,42 +570,39 @@ let run_init_phase =
       if (!Hashtbl.mem(init_fired, p.id)) {
         let (module L) = ProjectorInit.to_module(p.kind);
         switch (
-          L.effect(p.model),
+          L.resolve(p.model),
           List.find_index(x => x == p.id, projector_list),
         ) {
         | (None, _)
         | (_, None) => ()
-        | (Some(Await(req, fold)), Some(idx)) =>
+        | (Some(perform), Some(idx)) =>
           Hashtbl.replace(init_fired, p.id, ());
-          ProjectorInitPhase.run_io(
-            req,
-            ~k=result => {
-              let model' = L.update(p.model, info, fold(result));
-              /* Lift the new model's expansion into syntax for the editor (the CLI
-                 substitutes the Exp directly instead — see Cli.resolve_program). */
-              let syntax_effects =
-                switch (L.expand(model', info)) {
-                | None => []
-                | Some(exp) =>
-                  let seg =
-                    ExpToSegment.exp_to_segment(
-                      exp,
-                      ~settings=
-                        ExpToSegment.Settings.of_core(
-                          ~inline=true,
-                          Language.CoreSettings.off,
-                        ),
-                    );
-                  [inject(handle(idx, p.kind, SetSyntax(seg)))];
-                };
-              Bonsai.Effect.Expert.handle(
-                Effect.Many([
-                  inject(Project(SetModel(idx, p.kind, model'))),
-                  ...syntax_effects,
-                ]),
-              );
-            },
-          );
+          perform(action => {
+            let model' = L.update(p.model, info, action);
+            /* Lift the new model's expansion into syntax for the editor (the CLI
+               substitutes the Exp directly instead — see Cli.resolve_program). */
+            let syntax_effects =
+              switch (L.expand(model', info)) {
+              | None => []
+              | Some(exp) =>
+                let seg =
+                  ExpToSegment.exp_to_segment(
+                    exp,
+                    ~settings=
+                      ExpToSegment.Settings.of_core(
+                        ~inline=true,
+                        Language.CoreSettings.off,
+                      ),
+                  );
+                [inject(handle(idx, p.kind, SetSyntax(seg)))];
+              };
+            Bonsai.Effect.Expert.handle(
+              Effect.Many([
+                inject(Project(SetModel(idx, p.kind, model'))),
+                ...syntax_effects,
+              ]),
+            );
+          });
         };
       },
     projector_data,

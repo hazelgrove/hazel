@@ -170,7 +170,7 @@ let resolve_program =
   };
   let exps = ref(Id.Map.empty);
   let failed = ref(false);
-  ProjectorInitPhase.resolve(
+  ProjectorInitPhase.run(
     ~proj_map=parsed.projectors,
     ~mk_info,
     ~on_result=

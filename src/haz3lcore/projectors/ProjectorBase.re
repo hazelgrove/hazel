@@ -115,22 +115,12 @@ type info = {
 /* A projector-reported error, e.g. "can't render as table" */
 type error = {message: string};
 
-/* The asynchronous IO a projector needs to resolve its model, expressed as data
- * for a frontend driver to interpret (see ProjectorInitPhase.run_io). Indexed by
- * the type of result the driver hands back, so each request stays precisely
- * typed — no stringly-typed plumbing: a url fetch yields result(string, string)
- * (the response body, or an error message — the genuine type of a text fetch);
- * choosing a seed yields an int. */
-type io_request('result) =
-  | FetchUrl(string): io_request(result(string, string))
-  | ChooseSeed(int): io_request(int);
-
-/* A projector's pending IO: a request paired with how to fold its (typed) result
- * into one of the projector's own actions. The result type ['result] is
- * existentially hidden so that `effect` has a single type across request kinds;
- * within an [Await], the request and the fold agree on it. */
-type effect_of('action) =
-  | Await(io_request('result), 'result => 'action): effect_of('action);
+/* A projector's pending asynchronous resolution: a deferred computation that
+ * performs the projector's own side effect (e.g. fetch a url through the injected
+ * UrlFetch hook) and, on completion, hands back one of the projector's actions.
+ * The driver just runs it and feeds that action to `update` — it neither knows
+ * nor enumerates what IO happens, so there is no central effect vocabulary. */
+type resolution('action) = ('action => unit) => unit;
 
 /* To add a new projector:
  * 1. Create a new module implementing Projector (e.g. FoldProj)
@@ -205,21 +195,22 @@ module type Projector = {
   let update: (model, info, action) => model;
   /* Report an error if the projector can't render properly */
   let error: (model, info) => option(error);
-  /* The asynchronous IO this projector's current model needs in order to
-   * resolve. Pure — it declares the work as data (an [Await]) and performs none.
-   * `init` (above) runs synchronously at parse/trigger time and leaves a
-   * placeholder model (e.g. CSV's Pending(url)); `effect` then reports what that
-   * placeholder needs (e.g. fetch the url), the frontend driver runs it
-   * (ProjectorInitPhase.run_io) and feeds the folded result back through
-   * `update`. It does NOT depend on statics.
+  /* The asynchronous resolution this projector's current model needs, run once
+   * after the projector is created. Returns a deferred computation (see
+   * [resolution]) that performs the side effect and yields one of the projector's
+   * actions; the driver runs it once and folds the result through `update`.
+   * `init` (above) runs synchronously at parse time and leaves a placeholder
+   * model (e.g. CSV's Pending(url)); `resolve` reports what that placeholder still
+   * needs. It does NOT depend on statics.
    *
-   * - None             => the model is settled; no IO pending.
-   * - Some(Await(req, fold)) => run `req`; then `update(model, fold(result))`.
+   * Keyed on the model (rather than returned by `init`) because the driver runs
+   * after parse with only the persisted model in hand — `init`'s result, and any
+   * closure it built, are gone by then. None => already resolved, nothing to do.
    *
-   * Re-entering an effectful state via an ordinary action (e.g. a Reload action
-   * that maps FileLoaded -> Pending) makes the driver run the effect again, so
-   * refresh / hot-reload need no special path. */
-  let effect: model => option(effect_of(action));
+   * Resolution is one-shot per projector. Re-resolving (e.g. a Reload that maps
+   * FileLoaded -> Pending) is an explicit re-invocation by the frontend, not an
+   * automatic re-run. */
+  let resolve: model => option(resolution(action));
   /* This projector's contribution to the program term, as a pure function of
    * its (resolved) model.
    *
@@ -259,13 +250,12 @@ module Cook = (C: Projector) : Cooked => {
     )
     |> serialize_m;
   let error = (m, i) => C.error(m |> deserialize_m, i);
-  /* Keep the request as-is; only the fold's *output* (the projector's action) is
-     serialized, so the driver gets back a string-action it can feed to update. */
-  let effect = m =>
-    switch (C.effect(deserialize_m(m))) {
+  /* Serialize whatever action the resolution yields, so the driver gets back a
+     string-action it can feed to update. */
+  let resolve = m =>
+    switch (C.resolve(deserialize_m(m))) {
     | None => None
-    | Some(Await(req, fold)) =>
-      Some(Await(req, r => serialize_a(fold(r))))
+    | Some(perform) => Some(k => perform(a => k(serialize_a(a))))
     };
   let expand = (m, i) => C.expand(deserialize_m(m), i);
 };

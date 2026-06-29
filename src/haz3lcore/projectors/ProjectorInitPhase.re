@@ -1,30 +1,19 @@
 open Util;
 
-/* Resolves every projector in a program to a settled model and its expansion —
- * the second half of instantiating a projector, after `init` left a placeholder
- * at parse time (see ProjectorBase: init / effect / update / expand). For each
- * projector, while `effect(model)` is Some it runs the requested IO (run_io) and
- * folds the result back through `update`, looping until the model settles
- * (effect = None), then reports the final model and `expand(model)`.
+/* Resolves every projector in a program once, reporting each one's settled model
+ * and its `expand`. After `init` left a placeholder at parse time (see
+ * ProjectorBase: init / resolve / update / expand), this runs each projector's
+ * `resolve` at most once: if it yields a resolution, run it (it performs the
+ * projector's IO), fold the resulting action through `update`, and report the
+ * updated model; otherwise report the model as-is.
  *
- * Frontends share the projector methods + run_io and differ only in *driving*:
- * the CLI calls [resolve] once after parse (this fixpoint loop), the web fires
- * per calculate cycle (ProjectorView.run_init_phase). [on_complete] fires once
- * every projector has settled (synchronously when no async IO is pending — the
- * CLI fast path for local files / seeds). */
-
-/* Interpret an io_request against the frontend-installed hooks. GADT-typed, so
- * each request hands back exactly its own result type (no stringly plumbing): a
- * url fetch -> result(string, string), a seed choice -> int. The actual IO
- * (network, prompt, entropy) lives in the installed UrlFetch / SeedChoose hooks,
- * not here. */
-let run_io = (type r, req: ProjectorBase.io_request(r), ~k: r => unit): unit =>
-  switch (req) {
-  | FetchUrl(url) => UrlFetch.get^(~url, ~on_done=k)
-  | ChooseSeed(default) => k(SeedChoose.choose^(~default))
-  };
-
-let resolve =
+ * Frontends share the projector methods and differ only in *driving*: the CLI
+ * calls [run] once after parse, the web fires per newly-created projector
+ * (ProjectorView.run_init_phase). [on_complete] fires once every projector's
+ * resolution has finished (synchronously when no async IO is pending — the CLI
+ * fast path for local files / seeds). Resolution is one-shot; a projector that
+ * wanted another round would need to be re-driven explicitly. */
+let run =
     (
       ~proj_map: Id.Map.t(Base.projector),
       ~mk_info: Base.projector => ProjectorBase.info,
@@ -33,41 +22,34 @@ let resolve =
       ~on_complete: unit => unit,
     )
     : unit => {
-  /* Count each in-flight effect; [on_complete] is gated on [dispatched] so it
-   * can only fire after every projector's first effect has been dispatched, even
-   * when some IO completed synchronously. */
+  /* Count each in-flight resolution; [on_complete] is gated on [dispatched] so it
+   * can only fire after every projector has been dispatched, even when some IO
+   * completed synchronously. */
   let remaining = ref(0);
   let dispatched = ref(false);
   let finish = () =>
     if (dispatched^ && remaining^ == 0) {
       on_complete();
     };
-  /* Drive one projector from a (serialized) model to settled, then report it. */
-  let rec drive =
-          (
-            id: Id.t,
-            p: Base.projector,
-            info: ProjectorBase.info,
-            model: string,
-          ) => {
+  /* Resolve one projector once, then report its settled model + expansion. */
+  let one = (id: Id.t, p: Base.projector) => {
+    let info = mk_info(p);
     let (module P) = ProjectorInit.to_module(p.kind);
-    switch (P.effect(model)) {
-    | None => on_result(id, p.kind, model, P.expand(model, info))
-    | Some(Await(req, fold)) =>
+    let report = model =>
+      on_result(id, p.kind, model, P.expand(model, info));
+    switch (P.resolve(p.model)) {
+    | None => report(p.model)
+    | Some(perform) =>
       incr(remaining);
-      run_io(
-        req,
-        ~k=result => {
-          let model' = P.update(model, info, fold(result));
-          decr(remaining);
-          drive(id, p, info, model');
-          finish();
-        },
-      );
+      perform(action => {
+        report(P.update(p.model, info, action));
+        decr(remaining);
+        finish();
+      });
     };
   };
   List.iter(
-    ((id, p: Base.projector)) => drive(id, p, mk_info(p), p.model),
+    ((id, p: Base.projector)) => one(id, p),
     Id.Map.bindings(proj_map),
   );
   dispatched := true;

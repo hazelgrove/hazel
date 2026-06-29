@@ -570,6 +570,6 @@ module M: Projector with type model = probe_model and type action = a = {
   };
 
   let error = (_, _): option(ProjectorBase.error) => None;
-  let effect = _ => None;
+  let resolve = _ => None;
   let expand = (_, _) => None;
 };

@@ -57,13 +57,13 @@ module M: Projector with type model = model_t and type action = action_t = {
     };
   let error = (_, _): option(ProjectorBase.error) => None;
 
-  /* A Pending(default) asks the frontend to choose a seed (the CLI prompts /
-   * draws entropy; the web keeps the default); the driver folds the chosen int
-   * back as a Resolved action. Chosen models declare no IO. */
-  let effect = (m: model): option(effect_of(action)) =>
+  /* A Pending(default) asks the injected SeedChoose hook to choose a seed (the
+   * CLI prompts / draws entropy; the web keeps the default) and folds it back as
+   * a Resolved action. Chosen models need no resolution. */
+  let resolve = (m: model): option(resolution(action)) =>
     switch (m) {
     | Pending(default) =>
-      Some(Await(ChooseSeed(default), n => Resolved(n)))
+      Some(k => k(Resolved(SeedChoose.choose^(~default))))
     | Chosen(_) => None
     };
 

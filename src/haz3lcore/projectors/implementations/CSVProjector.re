@@ -211,7 +211,9 @@ module M: Projector with type model = model_t and type action = action_t = {
         })
       | _ => m
       }
-    // Re-enter Pending so `effect` re-fetches (manual reload / hot reload).
+    // Re-enter Pending so a frontend can re-invoke `resolve` to re-fetch
+    // (manual reload). Resolution is one-shot, so this transition alone doesn't
+    // re-fetch — the reload trigger must re-run resolution.
     | Reload =>
       switch (m) {
       | FileLoaded({filename, _}) => Pending(filename)
@@ -223,22 +225,23 @@ module M: Projector with type model = model_t and type action = action_t = {
 
   let error = (_, _): option(ProjectorBase.error) => None;
 
-  /* What this model needs resolved: a Pending(url) declares a url fetch. The
-   * driver runs it (ProjectorInitPhase.run_io, via the installed UrlFetch hook,
-   * which handles consent / base-url resolution / local files) and folds the
-   * result back as a Resolved action. Settled models declare no IO. */
-  let effect = (m: model): option(effect_of(action)) =>
+  /* What this model needs resolved: a Pending(url) fetches the url via the
+   * injected UrlFetch hook (which handles consent / base-url resolution / local
+   * files) and folds the outcome back as a Loaded / LoadFailed action. Settled
+   * models need no resolution. */
+  let resolve = (m: model): option(resolution(action)) =>
     switch (m) {
     | Pending(url) =>
       Some(
-        Await(
-          FetchUrl(url),
-          (
-            fun
-            | Ok(content) => Loaded(content)
-            | Error(message) => LoadFailed(message)
+        k =>
+          UrlFetch.get^(~url, ~on_done=res =>
+            k(
+              switch (res) {
+              | Ok(content) => Loaded(content)
+              | Error(message) => LoadFailed(message)
+              },
+            )
           ),
-        ),
       )
     | NoFile
     | Failed(_)
