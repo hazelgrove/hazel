@@ -2183,6 +2183,38 @@ let validate_focus =
 
 let with_run = (f: unit => 'a): 'a => f();
 
+let source_ids = (e: Exp.t): Id.Set.t => {
+  let acc = ref(Id.Set.empty);
+  let collect = ids =>
+    acc := List.fold_left((s, i) => Id.Set.add(i, s), acc^, ids);
+  ignore(
+    Exp.map_term(
+      ~f_exp=
+        (continue, e) => {
+          collect(IdTagged.ids(e));
+          continue(e);
+        },
+      ~f_pat=
+        (continue, p) => {
+          collect(IdTagged.ids(p));
+          continue(p);
+        },
+      ~f_typ=
+        (continue, t) => {
+          collect(IdTagged.ids(t));
+          continue(t);
+        },
+      ~f_tpat=
+        (continue, tp) => {
+          collect(IdTagged.ids(tp));
+          continue(tp);
+        },
+      e,
+    ),
+  );
+  acc^;
+};
+
 let slice =
     (
       ~focus: option(Id.t)=None,
@@ -2191,7 +2223,8 @@ let slice =
       query: Typ.t,
     )
     : result => {
-  let (_, _, m) = root;
+  let (root_info, _, m) = root;
+  let src_ids = source_ids(root_info.user_term);
   validate_focus(~focus, ~direction, m, query);
   let result = dispatch(root, query);
   let result =
@@ -2224,12 +2257,7 @@ let slice =
     direction == `Syn && is_gap(query)
       ? {
         ...result,
-        omitted:
-          Id.Map.fold(
-            (id, _, acc) => Id.Set.add(id, acc),
-            m,
-            result.omitted,
-          ),
+        omitted: src_ids,
       }
       : result;
   let result =
@@ -2237,6 +2265,10 @@ let slice =
   let result = {
     ...result,
     omitted: omit_unused_aliases(m, result.omitted),
+  };
+  let result = {
+    ...result,
+    omitted: Id.Set.inter(result.omitted, src_ids),
   };
   direction == `Ana
     ? {
