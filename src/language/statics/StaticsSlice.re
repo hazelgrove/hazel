@@ -1235,6 +1235,51 @@ let rec unused_binder_ids = (used: list(string), ty: Typ.t): Id.Set.t =>
   | _ => Id.Set.empty
   };
 
+let rec alias_constructors = (ty: Typ.t): list(string) =>
+  switch (Typ.term_of(ty)) {
+  | Parens(t)
+  | Rec(_, t)
+  | TypFun(_, t)
+  | Poly(_, t) => alias_constructors(t)
+  | Sum(variants) =>
+    List.filter_map(
+      fun
+      | ConstructorMap.Variant(name, _, _) => Some(name)
+      | ConstructorMap.BadEntry(_) => None,
+      variants,
+    )
+  | TypParamAp({term: Var(name), _}, _) => [name]
+  | _ => []
+  };
+
+let alias_used_in_term =
+    (m: Id.Map.t(Info.t), omitted: Id.Set.t, names: list(string)): bool =>
+  Id.Map.exists(
+    (id, info) => {
+      let (is_ctor, ancestors) =
+        switch (info) {
+        | Info.InfoExp({user_term, ancestors, _}) => (
+            switch (Exp.term_of(user_term)) {
+            | Constructor(n, _) => List.mem(n, names)
+            | _ => false
+            },
+            ancestors,
+          )
+        | Info.InfoPat({user_term, ancestors, _}) => (
+            switch (Pat.term_of(user_term)) {
+            | Constructor(n, _) => List.mem(n, names)
+            | _ => false
+            },
+            ancestors,
+          )
+        | _ => (false, [])
+        };
+      is_ctor
+      && !List.exists(a => Id.Set.mem(a, omitted), [id, ...ancestors]);
+    },
+    m,
+  );
+
 let ty_alias = (~shape: Typ.t, ~term: Exp.term, body: sty): sty => {
   shape,
   dispatch: query => {
@@ -1256,6 +1301,28 @@ let ty_alias = (~shape: Typ.t, ~term: Exp.term, body: sty): sty => {
   },
   finalize: () => empty_result,
 };
+
+let omit_unused_aliases = (m: Id.Map.t(Info.t), omitted: Id.Set.t): Id.Set.t =>
+  Id.Map.fold(
+    (_, info, acc) =>
+      switch (info) {
+      | Info.InfoExp({user_term, _}) =>
+        switch (Exp.term_of(user_term)) {
+        | TyAlias(typat, utyp, _) =>
+          let names = alias_constructors(utyp);
+          names != [] && !alias_used_in_term(m, acc, names)
+            ? Id.Set.union(
+                acc,
+                ids_set(IdTagged.ids(typat) @ IdTagged.ids(utyp)),
+              )
+            : acc;
+        | _ => acc
+        }
+      | _ => acc
+      },
+    m,
+    omitted,
+  );
 
 let match_ = (~shape: Typ.t, ~term: Exp.term, children: list(sty)): sty => {
   shape,
@@ -2119,6 +2186,10 @@ let slice =
       : result;
   let result =
     direction == `Ana ? analysis_overlay(~focus, m, query, result) : result;
+  let result = {
+    ...result,
+    omitted: omit_unused_aliases(m, result.omitted),
+  };
   direction == `Ana
     ? {
       ...result,
