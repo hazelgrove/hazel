@@ -151,11 +151,16 @@ let type_menu_showing: ContextMenu.parts = {
   projectors: true,
 };
 
-let type_editor_of_type = (typ: Typ.t): CodeEditable.Model.t =>
-  ExpToSegment.typ_to_segment(~settings=code_view_settings, typ)
-  |> Zipper.unzip
-  |> Editor.Model.mk(~root=Sort.Typ)
-  |> CodeWithStatics.Model.mk;
+let type_editor_of_type = (typ: Typ.t): (Id.t, CodeEditable.Model.t) => {
+  let typ = Typ.replace_temp(typ);
+  (
+    Typ.rep_id(typ),
+    ExpToSegment.typ_to_segment(~settings=code_view_settings, typ)
+    |> Zipper.unzip
+    |> Editor.Model.mk(~root=Sort.Typ)
+    |> CodeWithStatics.Model.mk,
+  );
+};
 
 let explain_type_tooltip = "Explain this type by folding parts of it into a slicing query.";
 
@@ -240,20 +245,27 @@ module Model = {
     | None => empty_row
     | Some(typ) =>
       let cursor_id = Info.id_of(ci);
-      let typ_id = Typ.rep_id(typ);
+      let source_typ_id = Typ.rep_id(typ);
       switch (row.cursor_id, row.typ_id, row.editor) {
       | (
           OptionalId.SomeId(old_cursor),
           OptionalId.SomeId(old_typ),
           EditorSlot.SomeEditor(_),
         )
-          when Id.equal(old_cursor, cursor_id) && Id.equal(old_typ, typ_id) => row
-      | _ => {
+          when
+            Id.equal(old_cursor, cursor_id)
+            && (
+              Id.equal(source_typ_id, Id.invalid)
+              || Id.equal(old_typ, source_typ_id)
+            ) => row
+      | _ =>
+        let (typ_id, editor) = type_editor_of_type(typ);
+        {
           ...row,
           cursor_id: OptionalId.SomeId(cursor_id),
           typ_id: OptionalId.SomeId(typ_id),
-          editor: EditorSlot.SomeEditor(type_editor_of_type(typ)),
-        }
+          editor: EditorSlot.SomeEditor(editor),
+        };
       };
     };
 
