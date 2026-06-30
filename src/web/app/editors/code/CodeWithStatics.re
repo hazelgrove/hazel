@@ -152,15 +152,9 @@ module Update = {
         {editor, statics, context_menu, _}: Model.t,
       )
       : Model.t => {
-    /* Throttle gate: decide whether to do a full statics recompute this
-     * frame. When we reuse, `statics` keeps its ref so CachedSyntax.calculate
-     * skips the shape pass via phys-eq on info_map/elaborated.
-     *
-     * Bypass the debounce when probe ids changed. Otherwise `with_targets`
-     * updates `statics.targets` from the new refractors but leaves
-     * `info_map`'s per-id `probe_targets` stale, so IncrEval's reuse_check
-     * sees equal probe_targets and reuses the old `state.probes`, making a
-     * newly placed probe show empty until the next force-refresh. */
+    /* Throttle gate for full statics recompute. Bypass the debounce when probe
+     * ids change, else stale info_map probe_targets let IncrEval.reuse_check
+     * reuse old probes and a new probe shows ∅ until the next refresh. */
     let probes_differ = z =>
       !
         Language.Id.Map.equal(
@@ -168,12 +162,8 @@ module Update = {
           CachedStatics.probe_ids_of_zipper(z),
           Language.Id.Map.map(_ => (), statics.targets),
         );
-    /* `editor` is taken as a parameter so the post-Editor.calculate call
-     * sees the *new* zipper (with the autoprobe placement). A captured
-     * closure would always read the pre-Editor zipper and produce an
-     * info_map whose `probe_targets` still lacks the new probe id, which
-     * lets IncrEval.reuse_check incorrectly reuse the cached `state.probes`
-     * and leaves the new probe showing ∅ until the next edit. */
+    /* editor passed as a param so this reads the *new* (post-autoprobe) zipper,
+     * not a stale captured one */
     let do_init = (editor: Editor.t) =>
       CachedStatics.init(
         ~settings,
@@ -201,15 +191,13 @@ module Update = {
         editor,
       );
 
-    /* Editor.calculate may have placed/removed probes (autoprobe target
-     * regeneration, collision cleanup). If so, statics needs to reflect
-     * the new probe_ids so eval_info_map's probe_targets are correct. */
+    /* Editor.calculate may add/remove probes (autoprobe); re-init statics so
+     * probe_targets match */
     let statics =
       probes_differ(editor.state.zipper) ? do_init(editor) : statics;
 
-    /* Refresh `statics.targets` against the post-probe-effects refractors.
-     * Cheap O(|probe_ids|) fold; only this field depends on refractors, so
-     * the rest of statics stays valid. */
+    /* refresh only statics.targets against the new refractors (cheap; rest of
+     * statics stays valid) */
     let statics =
       CachedStatics.with_targets(~settings, editor.state.zipper, statics);
     {

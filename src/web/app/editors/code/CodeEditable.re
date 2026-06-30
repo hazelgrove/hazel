@@ -613,12 +613,8 @@ module View = {
             }
           )
         : [];
-    // let t0 = JsUtil.precise_timestamp();
     let zipper = model.editor.state.zipper;
-    /* Use visible row range from model (updated by scroll handler / initial
-       seed). Only cull during auto-probe mode — otherwise a stale range
-       could hide manual probes. The range is only ever *set* for
-       single-editor modes (Scratch/Tutorial), so other modes stay None. */
+    /* cull only in auto-probe mode, else a stale range could hide manual probes */
     let visible =
       globals.settings.autoprobe_mode == Haz3lcore.AutoProbe.Off
         ? None : globals.visible_rows;
@@ -640,7 +636,6 @@ module View = {
         ~refractor_shape_map=model.editor.syntax.refractor_shape_map,
         (),
       );
-    // let t1 = JsUtil.precise_timestamp();
     let refractors_model =
       RefractorView.all(
         x => inject(Perform(x)),
@@ -653,7 +648,6 @@ module View = {
         List.map(fst, zipper.refractors.manuals)
         @ List.map(fst, Id.Map.to_list(zipper.refractors.multis.ephemerals)),
       );
-    // let t2 = JsUtil.precise_timestamp();
     let projectors =
       ProjectorView.all(
         x => inject(Perform(x)),
@@ -848,9 +842,7 @@ module View = {
 
     let key_handler_attr =
       if (!selected) {
-        /* Key events are ignored when not selected — they bubble
-         * to Page.re which handles page-level shortcuts. The editor
-         * is kept focusable via the unconditional tabindex below. */
+        /* not selected: ignore keys (they bubble to Page); focusable via the tabindex below */
         Attr.empty;
       } else {
         let z = model.editor.state.zipper;
@@ -882,9 +874,8 @@ module View = {
               segment,
             );
           let str = Zipper.trim_selected_text(z, full);
-          /* Cache for paste reuse only when nothing was trimmed: a trimmed
-             sub-token string must re-parse on paste, not round-trip to the
-             full segment. */
+          /* cache for paste reuse only when untrimmed: a trimmed sub-token
+             string must re-parse on paste, not round-trip to the full segment */
           if (str == full && !selection_has_refractors(z.refractors, segment)) {
             Haz3lcore.Parser.set_segment_cache(Some(segment), str);
           };
@@ -896,9 +887,8 @@ module View = {
               Haz3lcore.Action.Paste(Util.StringUtil.trim_leading(text));
             Bonsai.Effect.Expert.handle(inject(Perform(action)));
           });
-        /* Key.listener, not Key.handler: the handler variant adds its own
-           tabindex(0), duplicating the unconditional tabindex on this div
-           (vdom warns "not combining attributes" on every render). */
+        /* Key.listener (not Key.handler): handler adds its own tabindex(0),
+           duplicating this div's tabindex — vdom warns every render */
         Key.listener(~f=key => {
           /* 1. Check for arrow key escape at boundaries FIRST.
            *    Keyboard.handle_key_event always returns Some for arrows,
@@ -1019,11 +1009,9 @@ module View = {
           @ (selected ? ["selected"] : [])
           @ (display_line_numbers ? ["has-line-numbers"] : []),
         ),
-        /* Always focusable so a click always gives DOM focus — the caret
-         * and the active-cell accent are gated on `.code-editor:focus`. */
+        /* always focusable so a click gives DOM focus (caret/accent gated on :focus) */
         Attr.tabindex(0),
-        /* Tag the active cell so a sidebar jump can move DOM focus to it
-           (see JsUtil.active_cell_id / ProbePerform.FocusEffect). */
+        /* tag the active cell so a sidebar jump can move DOM focus to it */
         selected ? Attr.id(JsUtil.active_cell_id) : Attr.empty,
         key_handler_attr,
         Attr.on_contextmenu(evt =>

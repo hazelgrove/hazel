@@ -865,13 +865,9 @@ module View = {
         ~indicated_id,
       );
 
-    /* Scroll handler for viewport culling. Enabled only during auto-probe
-     * mode (where there can be hundreds of probe views), and only for the
-     * single-code-editor modes (Scratch/Documentation/Tutorial). Exercises
-     * has multiple editors and is intentionally left unculled for now.
-     * The range is measured against the editor's OWN code container (not
-     * raw #main scroll), so it's correct whether the editor fills #main
-     * (Scratch) or is nested below prompt cells (Tutorial). */
+    /* Cull only in auto-probe mode (hundreds of probe views) and only for
+     * single-code-editor modes. Measured against the editor's own container so
+     * it's correct whether the editor fills #main or sits below prompt cells. */
     let on_scroll = (_evt: Js.t(Dom_html.event)) => {
       let culling_enabled =
         Editors.Model.supports_viewport_culling(editors)
@@ -924,9 +920,8 @@ module View = {
         ~inject: Update.t => Ui_effect.t(unit),
         model: Model.t,
       ) => {
-    /* Bind the projector-side callbacks. The projector view can only
-     * dispatch external_actions, so toggles that need to update global
-     * Settings (and persist) call out to these refs. */
+    /* projector views can only dispatch external_actions, so toggles that
+     * update global Settings call out through these refs */
     Haz3lcore.ProbeProj.Settings.on_sticky_toggle :=
       (() => inject(Globals(Set(SampleStickyInPlace))));
     let cursor =

@@ -22,10 +22,7 @@ module Model = {
     | Tutorial(_) => "Tutorial"
     | Exercises(_) => "Exercises";
 
-  /* Whether viewport culling of probe views is supported in this mode.
-     True for the single-active-code-editor modes (the visible-row range is
-     computed for one editor); Exercises has multiple editors and is left
-     unculled for now. Callers additionally gate on auto-probe mode. */
+  /* true only for single-active-editor modes; Exercises (multi-editor) is unculled */
   let supports_viewport_culling: t => bool =
     fun
     | Scratch(_)

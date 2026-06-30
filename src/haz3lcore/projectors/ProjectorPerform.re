@@ -228,8 +228,7 @@ let go =
           List.assoc_opt(id, z.refractors.manuals)
           |> Option.map((pr: Refractors.entry) => pr.model);
         let is_ephemeral = Id.Map.mem(id, z.refractors.multis.ephemerals);
-        /* Select the term range and replace with new syntax.
-         * Don't unselect/remold here — the normal update cycle handles that. */
+        /* don't unselect/remold here — the normal update cycle handles that */
         let do_replace = () => {
           let* (l, r) = TermData.extremes_shards(id, term_data);
           let+ z = Select.shard_range(l, r, z);
@@ -314,18 +313,14 @@ let go =
     | Some(id) =>
       switch (d) {
       | None =>
-        /* Focus by pointer click or probe-to-probe navigation */
         let (module P) = ProjectorInit.to_module(kind);
         switch (P.focusable.pointer) {
         | Some(focus) => focus(id)
         | None => ()
         };
         let z = Option.value(~default=z, Move.jump_to_id_indicated(z, id));
-        /* Set pending_probe_cursor so the sample focus adapts to the
-           newly focused probe. For pointer clicks on a specific sample,
-           the subsequent Capture action will override with more specific
-           data; for probe-to-probe navigation, most_aligned_sample picks
-           the best match. */
+        /* pending_probe_cursor so sample focus follows the newly focused probe
+           (a click's later Capture overrides with the specific sample) */
         let z =
           Zipper.update_refractors(z, r =>
             {
@@ -335,7 +330,6 @@ let go =
           );
         Ok(z);
       | Some(Right) =>
-        /* Focus by arrow key hand-off */
         let (module P) = ProjectorInit.to_module(kind);
         switch (P.focusable.keyboard) {
         | Some(focus) => focus(id, Right)
@@ -343,7 +337,6 @@ let go =
         };
         Ok(z);
       | Some(Left) =>
-        /* Focus by arrow key hand-off */
         let (module P) = ProjectorInit.to_module(kind);
         switch (P.focusable.keyboard) {
         | Some(focus) => focus(id, Left)

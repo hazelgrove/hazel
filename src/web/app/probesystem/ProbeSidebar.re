@@ -130,9 +130,6 @@ let legend_item = (~tooltip: string, sample_view: Node.t) =>
 let kbd = (shortcut: string) =>
   span(~attrs=[clss(["kbd-badge"])], [text(shortcut)]);
 
-/* Inline arrow glyph for use inside `qr_how` text, sharing the
- * probe nav-bar's arrow SVG (recolored to currentColor via a CSS
- * mask). Direction picks one of the four rotation variants. */
 let arrow_icon =
     (
       direction: [
@@ -174,8 +171,6 @@ let legend_view = (~globals as _: Globals.t, ~explain_this_inject) => {
     fn_def_id: None,
   };
   let legend_sample = legend_sample(~mode);
-  /* Labels vary by color scheme (unused in Simple, which collapses
-     all non-focal samples to a single subdued color). */
   let (before_label, after_label, contains_label, inside_label) =
     switch (color_scheme) {
     | Calls => ("Above", "Below", "Caller", "Callee")
@@ -198,8 +193,6 @@ let legend_view = (~globals as _: Globals.t, ~explain_this_inject) => {
         ~caption="Focused",
       ),
     );
-  /* Simple uses two colors only, so its legend is just the focal
-     swatch plus one "everything else" swatch. */
   let simple_items = [
     focused_item,
     legend_item(
@@ -330,8 +323,6 @@ let legend_view = (~globals as _: Globals.t, ~explain_this_inject) => {
     ),
   ];
   div(
-    /* `simple` lets the sidebar spread the two-swatch Simple legend across
-       the row instead of leaving them in the 3-col grid's left+middle. */
     ~attrs=[
       clss(
         ["legend", "panel"] @ (color_scheme == Simple ? ["simple"] : []),
@@ -910,7 +901,6 @@ let probearium =
       ~indicated_has_manual,
     ),
     legend_view(~globals, ~explain_this_inject),
-    //sketch_view(~globals, ~explain_this_inject),
   ];
 };
 

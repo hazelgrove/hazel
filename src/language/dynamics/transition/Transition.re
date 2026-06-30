@@ -213,7 +213,6 @@ module Transition = (EV: EV_MODE) => {
     | Closure(_, e) => get_fn_name_from_expr(e)
     | Fun(_, _, _, name) => name
     | TypFun(_, _, name) => name
-    /* Partial application: report the underlying deferred function. */
     | DeferredAp(d3, _) => get_fn_name_from_expr(d3)
     | BuiltinFun(name) => Some(name)
     | _ => Exp.get_fn_name(d)
@@ -227,8 +226,6 @@ module Transition = (EV: EV_MODE) => {
     | Closure(_, e) => get_fn_def_id_from_expr(e)
     | Fun(_)
     | TypFun(_) => Some(DHExp.rep_id(d))
-    /* Partial application: resolve to the deferred function's def-site so
-       step-into lands in it. */
     | DeferredAp(d3, _) => get_fn_def_id_from_expr(d3)
     | BuiltinFun(_) => None
     | _ => Exp.get_fn_def_id(d)
@@ -672,9 +669,8 @@ module Transition = (EV: EV_MODE) => {
       switch (d1'.term) {
       | Asc(d1'', {term: Arrow(t1, t2), _}) =>
         Step({
-          /* The inner Ap reuses this redex's id (rewrap, not fresh) so the
-             call keeps its identity: a probe still finds its stack frame and
-             step-into works through the cast. Fresh ids stay on the wrappers. */
+          /* inner Ap reuses this redex's id (rewrap, not fresh) so the call
+             keeps identity through the cast — probes/step-into still resolve */
           expr:
             Asc(Ap(Forward, d1'', Asc(d2', t1) |> fresh) |> rewrap, t2)
             |> fresh,
@@ -812,9 +808,8 @@ module Transition = (EV: EV_MODE) => {
                 | _ => tuple(new_args)
                 },
               ),
-            /* Record a call frame for the deferred application, carrying the
-               underlying fn_def_id — else a probe on a partial-app call gets
-               no arg display / step-into / jump-to-def. */
+            /* record a call frame (carries fn_def_id) so a probe on a
+               partial-app call still gets args/step-into/jump-to-def */
             side_effects: [RecordStackFrame(fn_name, Some(d2'), fn_def_id)],
             kind: DeferredAp,
             is_value: false,

@@ -1,22 +1,8 @@
-/* Cause-driven publishing of #main's effective scroll width.
- *
- * The cell's background must stretch across everything the page has
- * been pushed to by absolutely-positioned probe overlays / drawers,
- * which CSS intrinsic sizing can't see — so we measure scrollWidth and
- * publish it as the `--main-scroll-width` CSS variable (see
- * JsUtil.update_main_scroll_width). The measurement is a write-read-
- * write on a :root variable, forcing two whole-document layouts whose
- * cost scales with probe count, so it must NOT run every frame.
- *
- * Like RefractorShift, this runs from Main.after_display and gates on
- * its actual inputs, re-measuring only when one changed:
- *   - measured / refractor_shape_map (by reference): code layout and
- *     drawer heights; both are rebuilt by CachedSyntax exactly when an
- *     edit or a worker result could move things.
- *   - ProbeProj.Settings.version: probe display state (sample lengths,
- *     window mode, dropdowns, sticky/dock) — every writer bumps it.
- *   - sample_focus: changes which samples render (windowing).
- *   - font metrics and viewport width: px scaling of everything. */
+/* Publishes #main's effective scrollWidth as the `--main-scroll-width` CSS var
+ * (see JsUtil.update_main_scroll_width) so the cell background stretches under
+ * absolutely-positioned probe overlays/drawers, which CSS intrinsic sizing
+ * can't see. The measure forces two whole-document layouts (cost scales with
+ * probe count), so we gate on `key` and re-measure only when an input changes. */
 
 open Js_of_ocaml;
 open Haz3lcore;

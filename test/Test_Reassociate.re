@@ -879,7 +879,6 @@ let complete_count = (label, z: Zipper.t): int =>
   |> List.filter(Tile.is_complete)
   |> List.length;
 
-/* Cut the current selection (Destruct), then paste the same text back. */
 let cut_and_paste = (z: Zipper.t): Zipper.t => {
   let sel_text =
     Printer.of_segment(~holes="?", ~indent=" ", z.selection.content);
@@ -897,12 +896,9 @@ let cut_and_paste = (z: Zipper.t): Zipper.t => {
 };
 
 let reassociate_regression_tests = [
-  /* Typing `(Foo(5` then inserting a closing `)` before the existing one
-   * should reassociate so the new `)` closes the inner application paren and
-   * the existing `)` closes the outer paren, yielding `(Foo(5))` with two
-   * complete parens. The PASSING test "Parens wrap via out-of-order ( then )"
-   * differs only in that its caret is to the RIGHT of the existing `)` (pure
-   * nesting, no reassociation); here the caret is to the LEFT. */
+  /* Inserting `)` before an existing `)` should reassociate to `(Foo(5))`.
+   * Unlike the passing RIGHT-of-`)` case (pure nesting), the caret here is
+   * LEFT, which forces reassociation. */
   test_case(
     "Insert ) before existing ) reassociates parens",
     `Quick,

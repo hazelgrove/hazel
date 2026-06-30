@@ -138,8 +138,7 @@ type t = {
   env: Env.t, /* (Filtered) Environment Values  */
   call_stack, /* Call stacks as ap ids */
   args: option(Env.elided_value), /* Argument value if probe is on an Ap */
-  frame: option(stack_frame), /* call frame if probe is on an Ap; carries the
-    dynamically-resolved fn_def_id for step-into of higher-order calls */
+  frame: option(stack_frame),
   time: float, /* Time of evaluation */
   seq: int, /* Sequence number: a count index of each sample taken */
   origin, /* Is this sample from a probe or a print statement */
@@ -163,9 +162,8 @@ let mk =
       spec: capture_spec,
     )
     : t => {
-  /* Content-derived (not a UUID) so per-sample display state survives edits.
-   * Cheap discriminators (stack length, syntax id) go first so hash_param's
-   * bounded traversal can't collide deep stacks sharing a long prefix. */
+  /* content-derived id; cheap discriminators first so hash_param's bounded
+   * traversal can't collide deep stacks sharing a prefix */
   id: Hashtbl.hash_param(64, 256, (List.length(stack), syntax_id, stack)),
   syntax_id,
   value,
@@ -186,21 +184,17 @@ let mk =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type sample = t;
 
-/* Samples recorded during evaluation, indexed by syntax id. Two orderings:
- * RAW (newest-first, as built by `extend`; `lookup`/`fold` reverse on read)
- * and FINALIZED (converted once by `finalize` for display, read with plain
- * Dynamics.Map.lookup — no per-render reversal). */
+/* Two orderings: RAW (newest-first; `extend` builds, `lookup`/`fold` reverse
+ * on read) and FINALIZED (`finalize` converts once for display). */
 module Map = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = Id.Map.t(list(sample));
 
   let empty = Id.Map.empty;
 
-  /* RAW maps only: reverse newest-first storage to evaluation order */
   let lookup = (id, map) =>
     Id.Map.find_opt(id, map) |> Option.map(List.rev);
 
-  /* RAW maps only: fold, reversing each sample list to evaluation order */
   let fold = (f, map: t, init) =>
     Id.Map.fold(
       (id, samples, acc) => f(id, List.rev(samples), acc),
@@ -208,7 +202,6 @@ module Map = {
       init,
     );
 
-  /* Prepend for O(1) insertion - produces a RAW map */
   let extend = (id, report, map: t) =>
     Id.Map.update(
       id,
@@ -220,7 +213,6 @@ module Map = {
       map,
     );
 
-  /* One-time RAW -> FINALIZED conversion; call once per evaluation result. */
   let finalize = (map: t): t => Id.Map.map(List.rev, map);
 };
 

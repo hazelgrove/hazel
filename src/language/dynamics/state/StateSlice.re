@@ -2,12 +2,9 @@ open Util;
 
 /* Captures the additive side-effects that a subtree's evaluation contributes to an EvaluatorState */
 
-/* Per-application records keyed by app_id. Each entry is
- * (call_stack_before_entering, elided_arg_value, call_frame): the call_stack
- * matches samples taken inside the function to their caller; the call_frame
- * carries the dynamically-resolved fn_def_id of the invoked function. Both
- * arg and frame share the same call-entry/exit lifetime, so they travel
- * together. Shared with EvaluatorState (which produces these). */
+/* per app_id: list of (call_stack_before, elided_arg, call_frame). call_stack
+ * ties inner samples to their caller; frame carries the invoked fn's resolved
+ * fn_def_id. Shared with EvaluatorState. */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type app_data_t =
   Id.Map.t(

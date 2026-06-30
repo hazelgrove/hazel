@@ -172,9 +172,8 @@ let view =
     List.concat_map(
       fun
       | Piece.Tile(t) => {
-          /* fold_left (not Aba.join, which folds right-to-left) so the
-           * DeferredLinebreaks side effects fire in document order, matching
-           * Measured.of_segment; fold before the counter update below. */
+          /* fold_left (not Aba.join, which folds right-to-left) so DeferredLinebreaks
+           * side effects fire in document order, matching Measured.of_segment */
           let nodes =
             Aba.fold_left(
               i => [of_delim(t, i)],

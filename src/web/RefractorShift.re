@@ -1,33 +1,8 @@
-/* Cause-driven compensation for refractor (probe drawer) height changes
- * above the user's locus.
- *
- * Replaces the symptom-driven CaretAnchor. Instead of observing the
- * caret's screen-y every frame and trying to undo unexplained shifts
- * (which conflates drawer-height changes with selection edge motion,
- * natural caret moves, and any other layout-y thing), this module
- * detects the actual cause and computes the exact compensation:
- *
- *   delta_rows = Σ over (id ∈ refractor_shape_map, id is above caret)
- *                  of (new_height − old_height)
- *
- *   if delta_rows ≠ 0:  #main.scrollTop += delta_rows * row_height
- *
- * `refractor_shape_map` is the single source of truth for how many
- * extra rows each refractor reserves; it's recomputed by
- * `CachedSyntax.refresh_shapes` exactly when something could shift
- * drawer heights (statics/dynamics/elaborated/refractor model). On
- * frames where the map's reference is unchanged we do zero work.
- *
- * Limitations / scope:
- *   - Only sums ids present in BOTH old and new map. Add/remove events
- *     (which only happen across full `mk` calls i.e. edits that alter
- *     the segment) aren't compensated; scroll-into-view handles caret
- *     positioning post-edit independently.
- *   - "Above caret" uses caret row. The focus-bar Left/Right case is
- *     still handled by the existing narrow `SampleAnchor` mechanism.
- *   - Skipped while `EdgeScroll`'s timer is active: during edge-scroll
- *     the viewport motion is the user's intent; drawer shifts during
- *     that window are dropped and the baseline resyncs at drag end. */
+/* Cause-driven compensation for refractor (probe-drawer) height changes above
+ * the caret: when a drawer above the locus grows/shrinks, scroll #main by the
+ * exact row delta so the caret stays put. Gated on refractor_shape_map ref
+ * identity (zero work on unrelated frames). Replaces the old symptom-driven
+ * CaretAnchor, which conflated drawer shifts with unrelated caret motion. */
 
 open Js_of_ocaml;
 open Haz3lcore;
@@ -43,10 +18,6 @@ let scroll_main_by = (dy: float): unit =>
     },
   );
 
-/* Sum (new_h - old_h) over ids present in both maps where the id's
- * row in `measured` is strictly above `caret_row`. Ids present only
- * in the new map (additions) and ids that have no `Measured` entry
- * (not yet placed) are skipped. */
 let above_locus_delta_rows =
     (
       ~prev: Id.Map.t(int),

@@ -108,12 +108,9 @@ let clipboard_shim_id = "clipboard-shim";
 
 let focus_clipboard_shim = () => get_elem_by_id(clipboard_shim_id)##focus;
 
-/* Focus the active editor's DOM element so the editor caret becomes
-   visible. The caret is gated by CSS on `.code-editor:focus`, so
-   focusing the page-level clipboard shim is NOT sufficient — the
-   `.code-editor` element itself must hold DOM focus. Falls back to the
-   shim if no active editor is mounted (e.g. before first render).
-   `preventScroll` avoids competing with an in-progress jump/scroll. */
+/* The caret is CSS-gated on `.code-editor:focus`, so the .code-editor element
+   itself must hold DOM focus (not the clipboard shim). preventScroll: don't
+   fight an in-progress jump/scroll. */
 let focus_active_editor = () =>
   switch (
     Js.Opt.to_option(
@@ -240,20 +237,10 @@ let find_scroll_container =
     (element: Js.t(Dom_html.element)): option(Js.t(Dom_html.element)) =>
   find_scroll_container_node(element_to_node(element));
 
-/* Viewport-culling geometry for the active code editor.
- *
- * Returns (scroll_top, client_height) where scroll_top is the editor's
- * scroll offset relative to its OWN top — i.e. how far editor-local row 0
- * has scrolled above the viewport top — and client_height is the scroll
- * container's height. Computed from getBoundingClientRect of the
- * `.code-container` and its nearest scrollable ancestor, so it's correct
- * regardless of how the editor is nested (Scratch fills #main; Tutorial
- * stacks it below prompt cells). Feed scroll_top into VisibleRows.compute,
- * which expects an offset measured from the editor's row 0.
- *
- * None when the elements aren't present, or when there is no scrollable
- * container yet. Assumes a single active code editor (Scratch/Tutorial);
- * multi-editor modes (Exercises, Drv slides) are not culled. */
+/* Viewport-culling geometry for the active code editor: (scroll_top,
+ * client_height), scroll_top measured from the editor's OWN row 0 (feed into
+ * VisibleRows.compute) so it's correct however the editor is nested. None if
+ * not mounted / no scroll container. Single active code editor only. */
 let code_viewport_geometry = (): option((float, float)) => {
   let rect_prop = (el, prop): float =>
     Js.Unsafe.get(
@@ -330,16 +317,10 @@ let scroll_vertically_into_view =
   };
 };
 
-/* Scroll EVERY vertical-scroll ancestor of `el`, innermost first, so
- * that `el` ends up visible. Vertical-only (never touches scrollLeft),
- * so it avoids the horizontal jumps that motivated dropping native
- * scrollIntoView. Unlike a single `find_scroll_container` call, this
- * also scrolls the outer page container (#main) when `el` is nested
- * inside an inner scroll box — e.g. a drawer-mode `.live-offside`
- * lives inside `.below-wrapper` (overflow-y: auto), which would
- * otherwise swallow the scroll and leave the page unmoved. Walking
- * all the way out also makes this correct regardless of how the
- * element is nested, so we don't have to pick "the" right container. */
+/* Scroll every vertical-scroll ancestor of `el`, not just the nearest: a
+ * drawer-mode `.live-offside` sits inside `.below-wrapper` (overflow-y:auto),
+ * which would otherwise swallow the scroll and leave #main unmoved. Vertical-
+ * only, to avoid the horizontal jumps that motivated dropping scrollIntoView. */
 let scroll_vertically_into_view_ancestors =
     (el: Js.t(Dom_html.element)): unit => {
   let rec go = (node: Js.t(Dom.node)): unit =>
@@ -347,9 +328,6 @@ let scroll_vertically_into_view_ancestors =
     | None => ()
     | Some(container) =>
       scroll_vertically_into_view(container, el);
-      /* Continue from the container so outer scroll boxes (#main) are
-       * scrolled too; find_scroll_container_node always moves up, so
-       * this terminates at the document root. */
       go(element_to_node(container));
     };
   go(element_to_node(el));
@@ -434,14 +412,9 @@ let delay = (delay: float, callback: unit => unit) => {
   ();
 };
 
-/* Measure the horizontal extent of #main's content (including
- * absolutely-positioned descendants like probe overlays / drawers
- * that would otherwise not contribute to any ancestor's intrinsic
- * width) and publish it as a CSS variable. The cell's width rule
- * reads `--main-scroll-width` to stretch the cell background across
- * everything the page has been pushed to. Two passes: reset the
- * variable first so the cell's own previously-set width doesn't
- * inflate the measurement, force a layout, then read scrollWidth. */
+/* Publish #main's content width as `--main-scroll-width` (read by the cell
+ * width rule). Two passes: reset the var first so the cell's own prior width
+ * doesn't inflate the measurement, force layout, then read scrollWidth. */
 let update_main_scroll_width = () =>
   Js.Opt.iter(
     Dom_html.document##getElementById(Js.string("main")),
@@ -732,11 +705,7 @@ let navigate_probes =
     el##focus(
       Js.Unsafe.obj([|("preventScroll", Js.Unsafe.inject(Js._true))|]),
     );
-    /* Scroll all scroll-ancestors (incl. #main), not just the nearest
-     * one: a drawer-mode target lives inside `.below-wrapper`'s own
-     * scroll box, which would otherwise absorb the scroll. */
     scroll_vertically_into_view_ancestors(Js.Unsafe.coerce(el));
-    /* Extract the full probe Id from data-probe-id attribute */
     let probe_id_str =
       el##getAttribute(Js.string("data-probe-id")) |> Js.Opt.to_option;
     switch (probe_id_str) {

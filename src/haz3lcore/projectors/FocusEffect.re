@@ -1,8 +1,6 @@
-/* Deferred DOM focus restoration for probe elements. The DOM update lands
- * AFTER a frame's action processing, so focusing during action handling
- * targets an about-to-be-unmounted node. `schedule` stashes a target in a
- * ref (not model state, which would loop); Main.after_display calls
- * `execute` once the new DOM is in place. */
+/* Deferred DOM focus for probe elements: the new DOM lands after action
+ * processing, so focus is stashed in a ref (not model state, which would
+ * loop) and applied from Main.after_display once the DOM is in place. */
 open Util;
 
 type target =
@@ -20,9 +18,7 @@ let schedule_editor = (): unit => {
   scheduled := Some(Editor);
 };
 
-/* Schedule DOM focus on the active code-editor cell (called after a
-   sidebar jump, which moves the model selection to a different cell
-   without moving DOM focus). */
+/* a sidebar jump moves the model selection but not DOM focus; this restores it */
 let schedule_cell = (): unit => {
   scheduled := Some(Cell);
 };
@@ -31,9 +27,8 @@ let execute = (): bool =>
   switch (scheduled^) {
   | Some(Editor) =>
     scheduled := None;
-    /* Focus the editor element itself (not the page-level clipboard
-       shim) so the caret is restored — the shim only captures keys,
-       it does not satisfy the `.code-editor:focus` caret CSS. */
+    /* focus the editor itself, not the clipboard shim: the caret CSS
+       is gated on `.code-editor:focus` */
     JsUtil.focus_active_editor();
     true;
   | Some(Cell) =>
@@ -51,13 +46,11 @@ let execute = (): bool =>
   | None => false
   };
 
-/* Focus keeper. vdom's keyed reorder (removeChild + reinsert) silently
- * drops DOM focus from a moved element under viewport-culling churn, so a
- * keyboard-focused probe goes dark on scroll. Run each frame from
- * after_display: remember a focused .live-offside's id, and if focus has
- * since fallen to nothing (body/#page/clipboard-shim) while that element
- * still exists, re-focus it (preventScroll). Deliberate blurs call
- * `expect_blur` first so the keeper doesn't fight them. */
+/* Focus keeper: vdom's keyed reorder drops DOM focus from a moved element
+ * under culling churn, so a focused probe goes dark on scroll. Each frame,
+ * if focus has fallen to nothing but the remembered .live-offside still
+ * exists, re-focus it. Deliberate blurs call `expect_blur` so this doesn't
+ * fight them. */
 
 open Js_of_ocaml;
 

@@ -14,9 +14,6 @@ module Model = {
     show_debug_panel: bool,
     explainThis: ExplainThisModel.Settings.t,
     sidebar: SidebarModel.Settings.t,
-    /* Auto probe mode: Off, Caret (follow the cursor's top-level
-       definition), or All (probe the whole program, one probe per row).
-       See Haz3lcore.AutoProbe. */
     autoprobe_mode: Haz3lcore.AutoProbe.t,
     agent_globals: AgentGlobals.Model.t,
     line_numbers: bool,
@@ -452,8 +449,7 @@ module Update = {
           instructor_mode: !settings.instructor_mode,
         }
       | AutoprobeMode =>
-        /* Keyboard/indicator toggle cycles Off <-> All only; Caret is
-           reachable via the segmented control's SetAutoprobe action. */
+        /* keyboard toggle cycles Off<->All only; Caret is set via the segmented control */
         {
           ...settings,
           autoprobe_mode:
@@ -470,7 +466,7 @@ module Update = {
           autoprobe_mode: mode,
         }
       | SampleStickyInPlace =>
-        /* '/' key — toggles sticky only; independent of docking. */
+        /* '/' toggles sticky */
         Haz3lcore.ProbeProj.Settings.(
           {
             set_sticky(! sticky^);

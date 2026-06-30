@@ -645,8 +645,7 @@ module View = {
       ];
       (result, (_ => []));
 
-    // No result footer, but keep the pass/fail sigils on test forms
-    // (used by tutorial mode, where probes replace the bottom result):
+    // test forms keep pass/fail sigils but no result footer (tutorial mode)
     | `TestSigilsOnly when globals.settings.core.dynamics =>
       let test_overlay = (editor: Haz3lcore.Editor.t) =>
         switch (Model.test_results(model)) {

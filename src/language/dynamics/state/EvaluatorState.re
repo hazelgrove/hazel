@@ -1,8 +1,6 @@
 open Util;
 
-/* Per-application arg/frame records (see StateSlice.app_data_t for the entry
- * shape and rationale). Defined there because slices carry them across the
- * incremental-eval boundary. */
+/* arg/frame records; type lives in StateSlice (carried across incr-eval) */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type app_data_t = StateSlice.app_data_t;
 
@@ -11,7 +9,7 @@ type t = {
   theorems: list((Id.t, string, Environment.t(Exp.t), Exp.t)),
   tests: TestMap.t,
   probes: Sample.Map.t,
-  app_data: app_data_t, /* Argument values for function applications */
+  app_data: app_data_t,
   step_count: int,
   pending_probe_starts: Id.Map.t(list(int)), /* Stack per probe_id; nested recursive calls push/pop */
   targets: Sample.targets, /* IDs of expressions/patterns to sample */
@@ -120,12 +118,10 @@ let clear_transient = (state: t): t => {
   targets: Id.Map.empty,
 };
 
-/* Elide arg value for storage (handles closures, etc.) */
 let elide_arg =
     (env: Environment.t(Exp.t), d: DHExp.t): Sample.Env.elided_value =>
   Sample.Env.elide(env, d);
 
-/* Add an argument value (and its call frame) for an application */
 let add_app_data =
     (
       state: t,
@@ -148,11 +144,6 @@ let add_app_data =
   };
 };
 
-/* Look up the arg value and call frame recorded for an application at a
- * specific call_stack. They're stored together (same lifetime), so they come
- * back as a pair. Used when creating a sample for a probe on an Ap. The frame
- * carries the dynamically-resolved fn_def_id of the invoked function (for
- * step-into). */
 let lookup_app =
     (state: t, app_id: Id.t, call_stack: Sample.call_stack)
     : option((Sample.Env.elided_value, Sample.stack_frame)) => {

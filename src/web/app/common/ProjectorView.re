@@ -256,15 +256,9 @@ let projector_clss =
     }
   );
 
-/* Wraps the view function for a projector, absolutely positioning
- * relative to the syntax, adding a default backing decoration, and
- * adding fallthrough handlers where appropriate.
- *
- * Keyed by projector id: under viewport culling a scroll step adds/removes
- * probes at the edges. Unkeyed, the vdom differ matches positionally and
- * repatches every node after the change onto a different probe, jumping
- * keyboard focus off the user's probe. Keys limit churn to what actually
- * entered/left. */
+/* Keyed by projector id: under culling a scroll step adds/removes probes at
+ * the edges; unkeyed, the vdom differ matches positionally and repatches onto
+ * a different probe, jumping keyboard focus off the user's probe. */
 let view_wrapper =
     (
       ~inject: Action.t => Ui_effect.t(unit),
@@ -329,8 +323,7 @@ let offside_wrapper =
     [v],
   );
 
-/* Position a below view at col 0 of the pane (shift back by origin.col, the
- * wrapper is already at the projector's col) on the next row. */
+/* below view at pane col 0: shift back by origin.col (wrapper sits at the projector's col) */
 let below_wrapper = (font_metrics: FontMetrics.t, origin_col: int, v: Node.t) =>
   div(
     ~attrs=[

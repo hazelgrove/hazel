@@ -116,10 +116,8 @@ let update_one = (el: Js.t(Dom_html.element)): unit => {
       let rect = anchor##getBoundingClientRect;
       let local_top = get_data_float(el, "local-top");
       let local_left = get_data_float(el, "local-left");
-      /* `anchor-edge: bottom` measures from the anchor's bottom edge
-       * instead of its top, so a dropdown can open just below a
-       * variable-height anchor (e.g. a multi-line drawer sample) without
-       * the caller having to know the anchor's height at vdom-build time. */
+      /* `anchor-edge: bottom`: open below a variable-height anchor (e.g. a
+       * multi-line drawer sample) without knowing its height at build time. */
       let base_top =
         switch (get_data_string(el, "anchor-edge")) {
         | Some("bottom") => rect##.bottom
