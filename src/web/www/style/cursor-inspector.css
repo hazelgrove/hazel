@@ -384,6 +384,10 @@
   fill: currentColor;
 }
 
+#cursor-inspector .explain-toggle:hover svg {
+  animation: jello 0.6s ease 0s 1 normal forwards;
+}
+
 #cursor-inspector .explain-toggle.active {
   color: var(--light-page-color);
   background-color: var(--BR3);
