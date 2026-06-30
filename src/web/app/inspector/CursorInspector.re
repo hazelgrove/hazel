@@ -348,6 +348,270 @@ module Model = {
       }
     | _ => init
     };
+
+  let has_active = model => model.syn.active || model.ana.active;
+};
+
+module TypeSlicing = {
+  let id_set_of_list = (ids: list(Id.t)): Id.Set.t =>
+    List.fold_left((acc, id) => Id.Set.add(id, acc), Id.Set.empty, ids);
+
+  let typ_of_editor = (editor: FoldOnlySelectable.Model.t): option(Typ.t) =>
+    switch (
+      editor.editor.state.zipper
+      |> Zipper.unselect_and_zip
+      |> MakeTerm.for_projection
+    ) {
+    | Some(Typ(typ)) => Some(typ)
+    | _ => None
+    };
+
+  let query_of_typ = (typ: Typ.t): (Typ.t, Id.Set.t) => {
+    let folded_ids = ref(Id.Set.empty);
+    let f_typ = (continue, {term, _} as typ: Typ.t) =>
+      switch (term) {
+      | Projector({kind, _}, inner) when kind == ProjectorCore.Kind.Fold =>
+        folded_ids :=
+          Id.Set.union(folded_ids^, id_set_of_list(IdTagged.ids(inner)));
+        Statics.Slice.gap;
+      | _ => continue(typ)
+      };
+    (Typ.map_term(~f_typ, typ), folded_ids^);
+  };
+
+  let query_of_row = (row: Model.row): option(Typ.t) =>
+    switch (row.editor) {
+    | Model.EditorSlot.NoEditor => None
+    | Model.EditorSlot.SomeEditor(editor) =>
+      switch (typ_of_editor(editor)) {
+      | None => None
+      | Some(typ) =>
+        let (query, folded_ids) = query_of_typ(typ);
+        Id.Set.is_empty(folded_ids) ? None : Some(query);
+      }
+    };
+
+  let slice_for_target =
+      (~root_exp: Exp.t, ~ci: Info.t, target: TypeTarget.t, row: Model.row)
+      : option(Id.Set.t) =>
+    if (!row.active) {
+      None;
+    } else {
+      switch (query_of_row(row)) {
+      | None => Some(Id.Set.empty)
+      | Some(query) =>
+        let direction =
+          switch (target) {
+          | Synthesizing => `Syn
+          | Analyzing => `Ana
+          };
+        try(
+          Some(
+            Statics.slice(
+              ~ctx=Info.ctx_of(ci),
+              ~focus=Some(Info.id_of(ci)),
+              ~direction,
+              root_exp,
+              query,
+            ).
+              omitted,
+          )
+        ) {
+        | _ => Some(Id.Set.empty)
+        };
+      };
+    };
+
+  let omitted_ids = (~root_exp: Exp.t, ~ci: Info.t, model: Model.t) => {
+    let syn = slice_for_target(~root_exp, ~ci, Synthesizing, model.syn);
+    let ana = slice_for_target(~root_exp, ~ci, Analyzing, model.ana);
+    switch (syn, ana) {
+    | (Some(syn), Some(ana)) => Id.Set.inter(syn, ana)
+    | (Some(ids), None)
+    | (None, Some(ids)) => ids
+    | (None, None) => Id.Set.empty
+    };
+  };
+
+  let row_info =
+      (
+        ~info_map: Statics.Map.t,
+        ~fallback_ci: option(Info.t),
+        row: Model.row,
+      )
+      : option(Info.t) =>
+    switch (row.cursor_id) {
+    | Model.OptionalId.SomeId(id) =>
+      switch (Statics.Map.lookup(id, info_map)) {
+      | Some(_) as ci => ci
+      | None => fallback_ci
+      }
+    | Model.OptionalId.NoId => fallback_ci
+    };
+
+  let slice_for_model_row =
+      (
+        ~root_exp: Exp.t,
+        ~info_map: Statics.Map.t,
+        ~fallback_ci: option(Info.t),
+        target: TypeTarget.t,
+        row: Model.row,
+      )
+      : option(Id.Set.t) =>
+    switch (row_info(~info_map, ~fallback_ci, row)) {
+    | Some(ci) => slice_for_target(~root_exp, ~ci, target, row)
+    | None => None
+    };
+
+  let omitted_ids_for_model =
+      (
+        ~root_exp: Exp.t,
+        ~info_map: Statics.Map.t,
+        ~fallback_ci: option(Info.t),
+        model: Model.t,
+      )
+      : Id.Set.t => {
+    let syn =
+      slice_for_model_row(
+        ~root_exp,
+        ~info_map,
+        ~fallback_ci,
+        Synthesizing,
+        model.syn,
+      );
+    let ana =
+      slice_for_model_row(
+        ~root_exp,
+        ~info_map,
+        ~fallback_ci,
+        Analyzing,
+        model.ana,
+      );
+    switch (syn, ana) {
+    | (Some(syn), Some(ana)) => Id.Set.inter(syn, ana)
+    | (Some(ids), None)
+    | (None, Some(ids)) => ids
+    | (None, None) => Id.Set.empty
+    };
+  };
+};
+
+module ProgramFolds = {
+  type result = {
+    model: CodeEditable.Model.t,
+    changed: bool,
+  };
+
+  let with_zipper = (zipper: Zipper.t, model: CodeEditable.Model.t) => {
+    ...model,
+    editor: Editor.Model.mk(zipper, ~root=model.editor.root),
+    context_menu: None,
+  };
+
+  let remove_all = (model: CodeEditable.Model.t): result => {
+    let changed = ref(false);
+    let remove_piece = (piece: Piece.t): Segment.t =>
+      switch (piece) {
+      | Piece.Projector({kind, syntax, _})
+          when kind == ProjectorCore.Kind.Fold =>
+        changed := true;
+        Piece.unparenthesize(syntax);
+      | _ => [piece]
+      };
+    {
+      model:
+        model
+        |> with_zipper(
+             ZipperBase.MapPiece.go(remove_piece, model.editor.state.zipper),
+             _,
+           ),
+      changed: changed^,
+    };
+  };
+
+  let apply_folds = (~omitted: Id.Set.t, model: CodeEditable.Model.t): result =>
+    if (Id.Set.is_empty(omitted)) {
+      {
+        model,
+        changed: false,
+      };
+    } else {
+      let generated = ref([]);
+      let add_piece = (piece: Piece.t): Segment.t =>
+        if (Id.Set.mem(Piece.id(piece), omitted)) {
+          let seg = [piece];
+          switch (MakeTerm.for_projection(seg)) {
+          | None => [piece]
+          | Some(any) =>
+            switch (
+              ProjectorInit.init(
+                ProjectorCore.Kind.Fold,
+                Segment.parenthesize(seg),
+                any,
+              )
+            ) {
+            | Some(Piece.Projector(pr) as projected) =>
+              generated := [pr.id, ...generated^];
+              [projected];
+            | Some(projected) => [projected]
+            | None => [piece]
+            }
+          };
+        } else {
+          [piece];
+        };
+      let model =
+        model
+        |> with_zipper(
+             ZipperBase.MapPiece.go(add_piece, model.editor.state.zipper),
+             _,
+           );
+      {
+        model,
+        changed: generated^ != [],
+      };
+    };
+
+  let root_exp = (model: CodeEditable.Model.t): option(Exp.t) =>
+    switch (
+      model.editor.state.zipper
+      |> Zipper.unselect_and_zip
+      |> MakeTerm.for_projection
+    ) {
+    | Some(Exp(exp)) => Some(exp)
+    | _ => None
+    };
+
+  let apply_type_slice =
+      (
+        ~info_map: Statics.Map.t,
+        ~fallback_ci: option(Info.t),
+        ~cursor_inspector: Model.t,
+        model: CodeEditable.Model.t,
+      )
+      : result =>
+    if (!Model.has_active(cursor_inspector)) {
+      {
+        model,
+        changed: false,
+      };
+    } else {
+      switch (root_exp(model)) {
+      | Some(root_exp) =>
+        let ids =
+          TypeSlicing.omitted_ids_for_model(
+            ~root_exp,
+            ~info_map,
+            ~fallback_ci,
+            cursor_inspector,
+          );
+        apply_folds(~omitted=ids, model);
+      | None => {
+          model,
+          changed: false,
+        }
+      };
+    };
 };
 
 module Update = {
