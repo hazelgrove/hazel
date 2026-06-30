@@ -543,6 +543,21 @@ module Update = {
 
   let can_undo = (_: t) => false;
 
+  let move_editor_to_root = (~settings: Settings.t, row: Model.row): Model.row =>
+    switch (row.typ_id, row.editor) {
+    | (Model.OptionalId.SomeId(id), Model.EditorSlot.SomeEditor(editor)) =>
+      switch (CodeEditable.Selection.jump_to_tile(id, editor)) {
+      | Some(action) =>
+        let updated = CodeEditable.Update.update(~settings, action, editor);
+        {
+          ...row,
+          editor: Model.EditorSlot.SomeEditor(updated.model),
+        };
+      | None => row
+      }
+    | _ => row
+    };
+
   let update =
       (
         ~settings: Settings.t,
@@ -558,10 +573,11 @@ module Update = {
       switch (action) {
       | Toggle(target) =>
         let row = Model.row(target, model);
-        {
+        let row = {
           ...row,
           active: !row.active,
-        }
+        };
+        (row.active ? move_editor_to_root(~settings, row) : row)
         |> Model.put_row(target, _, model)
         |> Updated.return_quiet;
       | TypeEditor(target, editor_action) =>
