@@ -126,127 +126,30 @@ module TypeTarget = {
     | Analyzing => "ana";
 };
 
-module FoldOnlySelectable = {
-  module Model = CodeEditable.Model;
-
-  module OptionalDirection = {
-    [@deriving (show({with_path: false}), sexp, yojson)]
-    type t =
-      | NoDirection
-      | SomeDirection(Direction.t);
-
-    let of_option = (dir: option(Direction.t)): t =>
-      switch (dir) {
-      | None => NoDirection
-      | Some(dir) => SomeDirection(dir)
-      };
-
-    let to_option = (dir: t): option(Direction.t) =>
-      switch (dir) {
-      | NoDirection => None
-      | SomeDirection(dir) => Some(dir)
-      };
+let fold_editor_permits = (action: CodeEditable.Update.t): bool =>
+  switch (action) {
+  | Perform(Move(_) | Select(_) | Unselect(_) | Copy | Project(_))
+  | ContextMenu(_) => true
+  | Perform(
+      Destruct(_) | Insert(_) | Put_down | Paste(_) | Reparse | Cut | Buffer(_) |
+      Structural(_) |
+      Probe(_) |
+      PrettyPrint |
+      Dump |
+      Introduce |
+      ToggleLineComment,
+    )
+  | DebugConsole(_)
+  | TAB => false
   };
-
-  module Update = {
-    [@deriving (show({with_path: false}), sexp, yojson)]
-    type t =
-      | MoveAction(Action.move)
-      | SelectAction(Action.select)
-      | UnselectAction(OptionalDirection.t)
-      | CopyAction
-      | AddFold;
-
-    let can_undo = (action: t) =>
-      switch (action) {
-      | MoveAction(move) => Action.is_historic(Move(move))
-      | SelectAction(select) => Action.is_historic(Select(select))
-      | UnselectAction(dir) =>
-        Action.is_historic(Unselect(OptionalDirection.to_option(dir)))
-      | CopyAction
-      | AddFold => false
-      };
-
-    let fold_action =
-      CodeEditable.Update.Perform(
-        Project(SetIndicated(Specific(ProjectorCore.Kind.Fold))),
-      );
-
-    let update = (~settings, action: t, model: Model.t): Updated.t(Model.t) => {
-      let action': CodeEditable.Update.t =
-        switch (action) {
-        | MoveAction(move) => Perform(Move(move))
-        | SelectAction(select) => Perform(Select(select))
-        | UnselectAction(dir) =>
-          Perform(Unselect(OptionalDirection.to_option(dir)))
-        | CopyAction => Perform(Copy)
-        | AddFold => fold_action
-        };
-      CodeEditable.Update.update(~settings, action', model);
-    };
-
-    let convert_action: CodeEditable.Update.t => option(t) =
-      fun
-      | Perform(Move(move)) => Some(MoveAction(move))
-      | Perform(Select(select)) => Some(SelectAction(select))
-      | Perform(Unselect(dir)) =>
-        Some(UnselectAction(OptionalDirection.of_option(dir)))
-      | Perform(Copy) => Some(CopyAction)
-      | Perform(Project(SetIndicated(Specific(ProjectorCore.Kind.Fold)))) =>
-        Some(AddFold)
-      | Perform(
-          Destruct(_) | Insert(_) | Put_down | Paste(_) | Reparse | Cut |
-          Buffer(_) |
-          Project(_) |
-          Structural(_) |
-          Probe(_) |
-          PrettyPrint |
-          Dump |
-          Introduce |
-          ToggleLineComment,
-        )
-      | DebugConsole(_)
-      | ContextMenu(_)
-      | TAB => None;
-  };
-
-  module View = {
-    type event = CodeEditable.View.event;
-
-    let wrap_edit_mode =
-        (edit_mode: EditMode.t(Update.t, unit))
-        : EditMode.t(CodeEditable.Update.t, unit) =>
-      switch (edit_mode) {
-      | EditMode.ReadOnly => EditMode.ReadOnly
-      | EditMode.Editable({inject, escape, take_focus, focus}) =>
-        EditMode.Editable({
-          inject: a =>
-            switch (Update.convert_action(a)) {
-            | Some(action) => inject(action)
-            | None => Ui_effect.Ignore
-            },
-          escape,
-          take_focus,
-          focus,
-        })
-      };
-
-    let view = (~globals, ~signal, ~edit_mode, model: Model.t) =>
-      CodeEditable.View.view(
-        ~globals,
-        ~signal,
-        ~edit_mode=wrap_edit_mode(edit_mode),
-        ~dynamics=model.dynamics,
-        model,
-      );
-  };
-};
 
 let type_editor_of_type = (typ: Typ.t): CodeEditable.Model.t =>
   ExpToSegment.typ_to_segment(~settings=code_view_settings, typ)
   |> Zipper.unzip
   |> Editor.Model.mk(~root=Sort.Typ)
   |> CodeWithStatics.Model.mk;
+
+let explain_type_tooltip = "Explain this type by folding parts of it into a slicing query.";
 
 let typ_for_target = (target: TypeTarget.t, ci: Info.t): option(Typ.t) =>
   switch (ci, target) {
@@ -270,7 +173,7 @@ module Model = {
     [@deriving (show({with_path: false}), sexp, yojson)]
     type t =
       | NoEditor
-      | SomeEditor(FoldOnlySelectable.Model.t);
+      | SomeEditor(CodeEditable.Model.t);
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -356,7 +259,7 @@ module TypeSlicing = {
   let id_set_of_list = (ids: list(Id.t)): Id.Set.t =>
     List.fold_left((acc, id) => Id.Set.add(id, acc), Id.Set.empty, ids);
 
-  let typ_of_editor = (editor: FoldOnlySelectable.Model.t): option(Typ.t) =>
+  let typ_of_editor = (editor: CodeEditable.Model.t): option(Typ.t) =>
     switch (
       editor.editor.state.zipper
       |> Zipper.unselect_and_zip
@@ -618,7 +521,7 @@ module Update = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     | Toggle(TypeTarget.t)
-    | TypeEditor(TypeTarget.t, FoldOnlySelectable.Update.t);
+    | TypeEditor(TypeTarget.t, CodeEditable.Update.t);
 
   let can_undo = (_: t) => false;
 
@@ -646,13 +549,10 @@ module Update = {
       | TypeEditor(target, editor_action) =>
         let row = Model.row(target, model);
         switch (row.active, row.editor) {
-        | (true, Model.EditorSlot.SomeEditor(editor)) =>
+        | (true, Model.EditorSlot.SomeEditor(editor))
+            when fold_editor_permits(editor_action) =>
           let updated =
-            FoldOnlySelectable.Update.update(
-              ~settings,
-              editor_action,
-              editor,
-            );
+            CodeEditable.Update.update(~settings, editor_action, editor);
           {
             ...row,
             editor: Model.EditorSlot.SomeEditor(updated.model),
@@ -675,94 +575,58 @@ let view_type = (~globals, typ: Typ.t) =>
   |> CodeViewable.view_typ(~globals, ~settings=code_view_settings)
   |> code_box_container;
 
-let type_summary_view =
+/* Inline type in a message: static, or a fold editor when toggled. */
+let type_slot =
     (
       ~globals,
       ~model: Model.t,
       ~inject: Update.t => Ui_effect.t(unit),
-      ~ctx: Ctx.t,
-      ~syn: Typ.t,
-      ~ana: Typ.t,
+      target: TypeTarget.t,
+      typ: Typ.t,
     )
     : Node.t => {
-  let ana = Statics.ana_skip_explicit_nonlabel(ana);
-  let consistency =
-    if (Equality.semantic.typ(syn, ana)) {
-      "syn and ana types are equal";
-    } else {
-      switch (Typ.meet(ctx, ana, syn)) {
-      | Some(_) => "syn and ana types are consistent"
-      | None => "syn type is inconsistent with ana type"
-      };
-    };
-  let row = (target: TypeTarget.t, typ, row_model: Model.row) => {
-    let editor =
-      switch (row_model.editor) {
-      | Model.EditorSlot.NoEditor => type_editor_of_type(typ)
-      | Model.EditorSlot.SomeEditor(editor) => editor
-      };
-    let edit_mode =
-      row_model.active
-        ? EditMode.Editable({
-            inject: action => inject(Update.TypeEditor(target, action)),
-            escape: _ => Ui_effect.Ignore,
-            take_focus: _ => Ui_effect.Ignore,
-            focus: Some(),
-          })
-        : EditMode.ReadOnly;
-    let toggle =
+  let row_model = Model.row(target, model);
+  let toggle =
+    div(
+      ~attrs=[
+        clss(["explain-toggle"] @ (row_model.active ? ["active"] : [])),
+        Attr.title(explain_type_tooltip),
+        Attr.on_pointerdown(_ =>
+          Effect.Many([
+            Effect.Stop_propagation,
+            inject(Update.Toggle(target)),
+          ])
+        ),
+      ],
+      [Icons.explain_this],
+    );
+  let body =
+    switch (row_model.active, row_model.editor) {
+    | (true, Model.EditorSlot.SomeEditor(editor)) =>
+      let edit_mode =
+        EditMode.Editable({
+          inject: action =>
+            fold_editor_permits(action)
+              ? inject(Update.TypeEditor(target, action)) : Ui_effect.Ignore,
+          escape: _ => Ui_effect.Ignore,
+          take_focus: _ => Ui_effect.Ignore,
+          focus: Some(),
+        });
       div(
-        ~attrs=[
-          clss(["explain-toggle"] @ (row_model.active ? ["active"] : [])),
-          Attr.title("Explain this type"),
-          Attr.on_pointerdown(_ =>
-            Effect.Many([
-              Effect.Stop_propagation,
-              inject(Update.Toggle(target)),
-            ])
-          ),
-        ],
-        [Icons.explain_this],
-      );
-    let editor_view =
-      div(
-        ~attrs=[
-          clss(
-            ["type-summary-editor"] @ (row_model.active ? ["active"] : []),
-          ),
-        ],
+        ~attrs=[clss(["type-summary-editor", "active"])],
         [
-          FoldOnlySelectable.View.view(
+          CodeEditable.View.view(
             ~globals,
             ~signal=_ => Ui_effect.Ignore,
             ~edit_mode,
+            ~dynamics=editor.dynamics,
             editor,
           ),
         ],
       );
-    div(
-      ~attrs=[clss(["type-summary-row"])],
-      [
-        div(
-          ~attrs=[clss(["type-summary-label"])],
-          [text(TypeTarget.label(target))],
-        ),
-        editor_view,
-        toggle,
-      ],
-    );
-  };
-  div(
-    ~attrs=[clss(["type-summary"])],
-    [
-      row(Synthesizing, syn, model.syn),
-      row(Analyzing, ana, model.ana),
-      div(
-        ~attrs=[clss(["type-summary-consistency"])],
-        [text(consistency)],
-      ),
-    ],
-  );
+    | _ => view_type(~globals, typ)
+    };
+  div(~attrs=[clss(["type-slot"])], [body, toggle]);
 };
 
 let core_mark_err_view =
@@ -951,10 +815,14 @@ let common_ok_view =
       ~lifted_ty: option(Typ.t),
       ~inferred_label: option(LabeledTuple.label),
       ~label_sort: bool,
+      ~syn_view: option(Typ.t => Node.t)=?,
+      ~ana_view: option(Typ.t => Node.t)=?,
       cls: Cls.t,
       ok: Message.ok_common,
     ) => {
   let view_type = view_type(~globals);
+  let syn_view = Option.value(syn_view, ~default=view_type);
+  let ana_view = Option.value(ana_view, ~default=view_type);
   (
     switch (cls, ok) {
     | (Pat(EmptyHole), _) when label_sort => []
@@ -972,29 +840,29 @@ let common_ok_view =
     | (Pat(EmptyHole), Syn(_)) => [text("Fillable by any pattern")]
     | (Exp(EmptyHole), Ana(Consistent({ana, _}))) => [
         text("Fillable by any expression of type"),
-        view_type(ana),
+        ana_view(ana),
       ]
     | (Pat(EmptyHole), Ana(Consistent({ana, _}))) => [
         text("Fillable by any pattern of type"),
-        view_type(ana),
+        ana_view(ana),
       ]
     | (_, Syn(syn)) =>
       switch (syn.term) {
       | Label(l) => [label_view(l)]
-      | _ => colon_prefix(show_type_colon) @ [view_type(syn)]
+      | _ => colon_prefix(show_type_colon) @ [syn_view(syn)]
       }
     | (Pat(Var) | Pat(Wild) | Pat(ApFunc), Ana(Consistent({ana, _}))) =>
       /* Pat(ApFunc) is only produced by the `let f(args) = ...` function
          sugar (see FunctionSugar.re), where it denotes the function binder
          as a whole. Render it the same way as a plain variable binder. */
-      colon_prefix(show_type_colon) @ [view_type(ana)]
+      colon_prefix(show_type_colon) @ [ana_view(ana)]
     | (_, Ana(Consistent({ana, syn, _})))
         when Equality.semantic.typ(ana, syn) =>
       switch (syn.term) {
       | Label(l) => [label_view(l), text(" is a valid label")]
       | _ =>
         colon_prefix(show_type_colon)
-        @ [view_type(syn)]
+        @ [syn_view(syn)]
         @ [text("equals expected type")]
         @ (
           switch (lifted_ty) {
@@ -1028,10 +896,10 @@ let common_ok_view =
         | Label(l) => [code(l), text(" is a valid label")]
         | _ =>
           colon_prefix(show_type_colon)
-          @ [view_type(syn), text("consistent with expected type")]
+          @ [syn_view(syn), text("consistent with expected type")]
         }
       )
-      @ [view_type(ana)]
+      @ [ana_view(ana)]
       @ (
         switch (lifted_ty) {
         | None => []
@@ -1062,7 +930,7 @@ let common_ok_view =
         text(elements_noun(cls) ++ " have inconsistent types:"),
         ...ListUtil.join(text(","), List.map(view_type, tys)),
       ]
-      @ [text("but consistent with expected"), view_type(ana)]
+      @ [text("but consistent with expected"), ana_view(ana)]
     }
   )
   @ (
@@ -1452,10 +1320,22 @@ let exp_view =
     (
       ~globals,
       ~show_type_colon=true,
+      ~slicing: option((Model.t, Update.t => Ui_effect.t(unit)))=?,
       cls: Cls.t,
       message: Message.t,
       info: Info.exp,
     ) => {
+  let (syn_view, ana_view): (
+    option(Typ.t => Node.t),
+    option(Typ.t => Node.t),
+  ) =
+    switch (slicing) {
+    | None => (None, None)
+    | Some((model, inject)) => (
+        Some(type_slot(~globals, ~model, ~inject, Synthesizing)),
+        Some(type_slot(~globals, ~model, ~inject, Analyzing)),
+      )
+    };
   let introduced_labels =
     switch (info.label_inference) {
     | Some(MultiLabelInference({introduced_labels, _})) => introduced_labels
@@ -1488,12 +1368,15 @@ let exp_view =
           ~introduced_labels,
           ~inferred_label,
           ~label_sort=info.label_sort,
+          ~syn_view?,
+          ~ana_view?,
           cls,
           Message.Syn(info.elab_syn_ty),
         ),
       )
     | Exp(AnaDeferralConsistent(ana)) =>
-      div_ok([text("Expecting type"), view_type(~globals, ana)])
+      let render = Option.value(ana_view, ~default=view_type(~globals));
+      div_ok([text("Expecting type"), render(ana)]);
     | Exp(Common(ok)) =>
       div_ok(
         common_ok_view(
@@ -1504,6 +1387,8 @@ let exp_view =
           ~introduced_labels,
           ~inferred_label,
           ~label_sort=info.label_sort,
+          ~syn_view?,
+          ~ana_view?,
           cls,
           ok,
         ),
@@ -1598,10 +1483,22 @@ let pat_view =
     (
       ~globals,
       ~show_type_colon=true,
+      ~slicing: option((Model.t, Update.t => Ui_effect.t(unit)))=?,
       cls: Cls.t,
       message: Message.t,
       info: Info.pat,
     ) => {
+  let (syn_view, ana_view): (
+    option(Typ.t => Node.t),
+    option(Typ.t => Node.t),
+  ) =
+    switch (slicing) {
+    | None => (None, None)
+    | Some((model, inject)) => (
+        Some(type_slot(~globals, ~model, ~inject, Synthesizing)),
+        Some(type_slot(~globals, ~model, ~inject, Analyzing)),
+      )
+    };
   let lifted_ty =
     switch (info.label_inference) {
     | Some(SingletonLabelInference(_)) => Some(info.ty)
@@ -1642,6 +1539,8 @@ let pat_view =
           ~introduced_labels,
           ~inferred_label,
           ~label_sort=info.label_sort,
+          ~syn_view?,
+          ~ana_view?,
           cls,
           ok,
         );
@@ -1750,30 +1649,10 @@ let view_of_info = (~globals, ~model, ~inject, ci): list(Node.t) => {
   | InfoMod({cls, _}) => wrapper(div_ok([text(cls |> Cls.show)]))
   | InfoSig({cls, _}) => wrapper(div_ok([text(cls |> Cls.show)]))
   | InfoMPat({cls, _}) => wrapper(div_ok([text(cls |> Cls.show)]))
-  | InfoExp({cls, message, ctx, elab_syn_ty, ana, _} as ie) => [
-      term_view(~globals, ci),
-      type_summary_view(
-        ~globals,
-        ~model,
-        ~inject,
-        ~ctx,
-        ~syn=elab_syn_ty,
-        ~ana,
-      ),
-      exp_view(~globals, cls, message, ie),
-    ]
-  | InfoPat({cls, message, ctx, elab_syn_ty, ana, _} as ip) => [
-      term_view(~globals, ci),
-      type_summary_view(
-        ~globals,
-        ~model,
-        ~inject,
-        ~ctx,
-        ~syn=elab_syn_ty,
-        ~ana,
-      ),
-      pat_view(~globals, cls, message, ip),
-    ]
+  | InfoExp({cls, message, _} as ie) =>
+    wrapper(exp_view(~globals, ~slicing=(model, inject), cls, message, ie))
+  | InfoPat({cls, message, _} as ip) =>
+    wrapper(pat_view(~globals, ~slicing=(model, inject), cls, message, ip))
   | InfoTyp({cls, marks, message, _}) =>
     wrapper(typ_view(~globals, cls, ~marks, ~message))
   | InfoTPat({cls, marks, message, _}) =>

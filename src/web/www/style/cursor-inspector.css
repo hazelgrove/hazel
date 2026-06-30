@@ -333,30 +333,14 @@
   color: var(--ci-status-text);
 }
 
-#cursor-inspector .type-summary {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  column-gap: 0.9em;
-  row-gap: 0.12em;
-  min-width: 0;
-}
-
-#cursor-inspector .type-summary-row {
+#cursor-inspector .type-slot {
   display: inline-flex;
   align-items: center;
-  gap: 0.35em;
+  gap: 0.25em;
   min-width: 0;
 }
 
-#cursor-inspector .type-summary-label {
-  font-size: 0.76em;
-  font-weight: 700;
-  text-transform: uppercase;
-  color: var(--BR3);
-}
-
-#cursor-inspector .type-summary .code-box-container {
+#cursor-inspector .type-slot .code-box-container {
   min-width: 0;
 }
 
@@ -384,8 +368,8 @@
 
 #cursor-inspector .explain-toggle {
   display: inline-flex;
-  width: 1.4em;
-  height: 1.4em;
+  width: 1.1em;
+  height: 1.1em;
   align-items: center;
   justify-content: center;
   border-radius: 50%;
@@ -395,20 +379,14 @@
 }
 
 #cursor-inspector .explain-toggle svg {
-  width: 0.85em;
-  height: 0.85em;
+  width: 0.7em;
+  height: 0.7em;
   fill: currentColor;
 }
 
 #cursor-inspector .explain-toggle.active {
   color: var(--light-page-color);
   background-color: var(--BR3);
-}
-
-#cursor-inspector .type-summary-consistency {
-  font-size: 0.78em;
-  color: var(--BR3);
-  white-space: nowrap;
 }
 
 #cursor-inspector .status.error {
