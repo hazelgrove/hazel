@@ -128,8 +128,7 @@ module TypeTarget = {
 
 let fold_editor_permits = (action: CodeEditable.Update.t): bool =>
   switch (action) {
-  | Perform(Move(_) | Select(_) | Unselect(_) | Copy | Project(_))
-  | ContextMenu(_) => true
+  | Perform(Move(_) | Select(_) | Unselect(_) | Copy | Project(_)) => true
   | Perform(
       Destruct(_) | Insert(_) | Put_down | Paste(_) | Reparse | Cut | Buffer(_) |
       Structural(_) |
@@ -139,9 +138,18 @@ let fold_editor_permits = (action: CodeEditable.Update.t): bool =>
       Introduce |
       ToggleLineComment,
     )
+  | ContextMenu(_)
   | DebugConsole(_)
   | TAB => false
   };
+
+let type_menu_showing: ContextMenu.parts = {
+  jump_to_binding: false,
+  select_term: true,
+  introduce: false,
+  refractors: false,
+  projectors: true,
+};
 
 let type_editor_of_type = (typ: Typ.t): CodeEditable.Model.t =>
   ExpToSegment.typ_to_segment(~settings=code_view_settings, typ)
@@ -185,9 +193,15 @@ module Model = {
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
+  type menu_state =
+    | NoMenu
+    | Menu(TypeTarget.t, float, float);
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
     syn: row,
     ana: row,
+    menu: menu_state,
   };
 
   let empty_row = {
@@ -200,6 +214,7 @@ module Model = {
   let init = {
     syn: empty_row,
     ana: empty_row,
+    menu: NoMenu,
   };
 
   let row = (target: TypeTarget.t, model: t): row =>
@@ -246,6 +261,7 @@ module Model = {
     switch (ci) {
     | InfoExp(_)
     | InfoPat(_) => {
+        ...model,
         syn: refresh_row(Synthesizing, ci, model.syn),
         ana: refresh_row(Analyzing, ci, model.ana),
       }
@@ -521,7 +537,9 @@ module Update = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     | Toggle(TypeTarget.t)
-    | TypeEditor(TypeTarget.t, CodeEditable.Update.t);
+    | TypeEditor(TypeTarget.t, CodeEditable.Update.t)
+    | OpenMenu(TypeTarget.t, float, float)
+    | CloseMenu;
 
   let can_undo = (_: t) => false;
 
@@ -561,6 +579,18 @@ module Update = {
           |> Updated.return_quiet;
         | _ => model |> Updated.return_quiet
         };
+      | OpenMenu(target, x, y) =>
+        {
+          ...model,
+          menu: Model.Menu(target, x, y),
+        }
+        |> Updated.return_quiet
+      | CloseMenu =>
+        {
+          ...model,
+          menu: Model.NoMenu,
+        }
+        |> Updated.return_quiet
       };
     };
 };
@@ -613,7 +643,22 @@ let type_slot =
           focus: Some(),
         });
       div(
-        ~attrs=[clss(["type-summary-editor", "active"])],
+        ~attrs=[
+          clss(["type-summary-editor", "active"]),
+          Attr.on_pointerdown(evt => {
+            let button: int = Js_of_ocaml.Js.Unsafe.get(evt, "button");
+            if (button == 2) {
+              let x: float = Js_of_ocaml.Js.Unsafe.get(evt, "clientX");
+              let y: float = Js_of_ocaml.Js.Unsafe.get(evt, "clientY");
+              Effect.Many([
+                Effect.Prevent_default,
+                inject(Update.OpenMenu(target, x, y)),
+              ]);
+            } else {
+              Effect.Ignore;
+            };
+          }),
+        ],
         [
           CodeEditable.View.view(
             ~globals,
@@ -626,7 +671,53 @@ let type_slot =
       );
     | _ => view_type(~globals, typ)
     };
-  div(~attrs=[clss(["type-slot"])], [body, toggle]);
+  let menu =
+    switch (model.menu, row_model.editor) {
+    | (Model.Menu(mt, x, y), Model.EditorSlot.SomeEditor(editor))
+        when mt == target && row_model.active =>
+      let menu_inject = (action: Action.t) =>
+        Effect.Many([
+          inject(Update.TypeEditor(target, Perform(action))),
+          inject(Update.CloseMenu),
+        ]);
+      let items =
+        ContextMenu.get_sections(
+          ~showing=type_menu_showing,
+          ~info_map=editor.statics.info_map,
+          editor.editor.state.zipper,
+        )
+        |> List.map(
+             List.map(
+               ContextMenu.menu_item_view(
+                 ~inject=menu_inject,
+                 ~is_selected=false,
+               ),
+             ),
+           )
+        |> ListUtil.join([ContextMenu.divider])
+        |> List.concat;
+      [
+        div(
+          ~attrs=[
+            clss(["context-menu-backdrop"]),
+            Attr.on_pointerdown(_ => inject(Update.CloseMenu)),
+          ],
+          [],
+        ),
+        div(
+          ~attrs=[
+            clss(["context-menu", "open-down-right", "type-slice-menu"]),
+            Attr.create(
+              "style",
+              Printf.sprintf("left: %fpx; top: %fpx;", x, y),
+            ),
+          ],
+          [ContextMenu.context_menu(items)],
+        ),
+      ];
+    | _ => []
+    };
+  div(~attrs=[clss(["type-slot"])], [body, toggle] @ menu);
 };
 
 let core_mark_err_view =

@@ -389,6 +389,10 @@
   background-color: var(--BR3);
 }
 
+#cursor-inspector .type-slice-menu {
+  position: fixed;
+}
+
 #cursor-inspector .status.error {
   color: var(--ci-status-error-text);
 }
