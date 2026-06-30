@@ -2,22 +2,9 @@ open Alcotest;
 open Language;
 open Test_Evaluator_Prelude;
 
-/**
- * Integration tests for probe sample selection.
- *
- * These evaluate real programs, get real samples from the evaluator,
- * then simulate cursor/pin states and verify that Selection.select
- * returns the expected results. This tests the full pipeline:
- *   parse -> evaluate -> get samples -> filter_by_pin -> select
- *
- * Complements Test_SampleSelection.re (unit tests with hand-crafted data)
- * by using real evaluation output, catching mismatches between what the
- * evaluator produces and what the selection logic expects.
- */
+/* Probe sample-selection over real evaluator output (vs Test_SampleSelection's
+ * hand-crafted unit data) — catches evaluator/selection mismatches. */
 
-/* --- Helpers --- */
-
-/* Get probes map (keyed by probe id) from evaluated code */
 let get_probes_map = (code: string): Id.Map.t(list(Sample.t)) => {
   let (_term, elaborated, _info_map, targets) = parse_with_probes(code);
   let (_, state) =
@@ -25,16 +12,13 @@ let get_probes_map = (code: string): Id.Map.t(list(Sample.t)) => {
   EvaluatorState.get_probes(state);
 };
 
-/* Get all samples flat from evaluated code */
 let get_all_samples = (code: string): list(Sample.t) =>
   get_probes_map(code) |> Id.Map.bindings |> List.concat_map(snd);
 
-/* Partition samples into top-level (empty stack) and inner (non-empty stack) */
 let partition_by_depth =
     (samples: list(Sample.t)): (list(Sample.t), list(Sample.t)) =>
   List.partition((s: Sample.t) => List.length(s.call_stack) == 0, samples);
 
-/* Make a cursor at a given stack, with optional pin */
 let mk_cursor =
     (~pinned=None, ~indicated_call=None, stack: Sample.call_stack)
     : Sample.Focus.t => {
@@ -48,7 +32,6 @@ let mk_cursor =
   pending_focus: None,
 };
 
-/* Run Selection.select and return (count, total_before_filter) */
 let run_select =
     (
       ~mode=Sample.Window.Single,
@@ -69,7 +52,6 @@ let run_select =
   (selected, List.length(samples));
 };
 
-/* --- Tests: top-level cursor sees top-level samples --- */
 
 let top_level_tests = [
   test_case(
@@ -110,7 +92,6 @@ in ^^probe(f(1)); ^^probe(f(2)); ^^probe(f(3))|},
   ),
 ];
 
-/* --- Tests: step-into simulation --- */
 
 let step_into_tests = [
   test_case(
@@ -125,7 +106,6 @@ let step_into_tests = [
       let code = {|let f = fun x -> ^^probe(x)
 in f(5)|};
       let samples = get_all_samples(code);
-      /* All samples should be inside the function (non-empty call stack) */
       switch (samples) {
       | [s] =>
         check(
@@ -238,7 +218,6 @@ in f(5)|};
   ),
 ];
 
-/* --- Tests: pin interaction with multiple probes --- */
 
 let pin_integration_tests = [
   test_case(
@@ -264,7 +243,6 @@ in f(1); f(2)|};
           s1.call_stack,
         );
       let cursor = mk_cursor(~pinned=Some(pin_stack), pin_stack);
-      /* filter_by_pin should keep s1 and drop s2 */
       let filtered =
         Sample.Selection.filter_by_pin(
           ~ap_id=None,
@@ -286,7 +264,6 @@ in f(1); f(2)|};
         false,
         Sample.equal_call_stack(kept.call_stack, s2.call_stack),
       );
-      /* Full select should also return 1 */
       let (selected, _) = run_select(~cursor, samples);
       check(int, "select returns 1", 1, List.length(selected));
     },
@@ -306,7 +283,6 @@ in f(1); f(2); f(3)|};
   ),
 ];
 
-/* --- Tests: cursor relation with real samples --- */
 
 let relation_integration_tests = [
   test_case(
@@ -401,7 +377,6 @@ in f(5)|};
   ),
 ];
 
-/* --- Tests: Single vs Many mode with real data --- */
 
 let mode_tests = [
   test_case(
@@ -437,9 +412,6 @@ in ^^probe(f(1)); ^^probe(f(2)); ^^probe(f(3))|};
   ),
 ];
 
-/* --- Tests: intent preservation with nested function calls --- */
-
-/* Helper: mk_cursor with explicit index for intent preservation testing */
 let mk_cursor_at_index =
     (
       ~pinned=None,
@@ -537,10 +509,8 @@ in [f(10), f(20), f(30)]|};
   ),
 ];
 
-/* --- Tests: call-click alignment with real evaluation --- */
-/* Scenario: f called 3 times, probe inside f, probes on each call.
- * Clicking on a call probe should align the inner probe to that call's sample.
- * This tests whether indicated_call (set from ap_id) correctly discriminates. */
+/* Clicking a call probe aligns the inner probe to that call's sample, via
+ * indicated_call (set from ap_id). */
 
 let call_click_alignment_tests = [
   test_case(
@@ -679,12 +649,8 @@ in ^^probe(f(1))
   ),
 ];
 
-/* --- Tests: cur_var_ap diagnostic ---
- * Verifies that the probe's statics info has the right structure
- * for cur_var_ap to return Some(ap_id) when the probe wraps an
- * application like f(2). This is the critical link: if cur_var_ap
- * returns None, then indicated_call won't be set on click, and
- * the inner probe won't align. */
+/* cur_var_ap must return Some(ap_id) when a probe wraps an application —
+ * else indicated_call isn't set on click and the inner probe won't align. */
 
 let cur_var_ap_tests = [
   test_case(
@@ -694,7 +660,6 @@ let cur_var_ap_tests = [
       let code = {|let f : (Int -> Int) = fun x -> x + 1
 in ^^probe(f(2))|};
       let (_term, _elaborated, info_map, targets) = parse_with_probes(code);
-      /* There should be exactly one probe */
       let probe_ids = Id.Map.bindings(targets) |> List.map(fst);
       check(int, "should have 1 probe", 1, List.length(probe_ids));
       let probe_id = List.hd(probe_ids);
@@ -744,7 +709,6 @@ in f(2)|};
       let code = {|let f : (Int -> Int) = fun x -> ^^probe(x)
 in ^^probe(f(42))|};
       let (term, _elaborated, info_map, targets) = parse_with_probes(code);
-      /* Get probe IDs */
       let probe_ids = Id.Map.bindings(targets) |> List.map(fst);
       check(int, "should have 2 probes", 2, List.length(probe_ids));
       /* Evaluate to get samples */
@@ -786,7 +750,6 @@ in ^^probe(f(42))|};
         Option.is_some(ap_id),
       );
       let ap_id = Option.get(ap_id);
-      /* Get inner probe's samples */
       let inner_samples =
         switch (Id.Map.find_opt(inner_probe_id, probes_map)) {
         | Some(samples) => samples
@@ -817,13 +780,9 @@ in ^^probe(f(42))|};
   ),
 ];
 
-/* --- Repro: pin a call inside an eta-expanded fold callback ---
- *
- * The study's debugging tasks all run `fold_left(actions, fun (m, a) ->
- * update(m, a), init)`. The builtin fold_left is itself a recursive Hazel
- * function, so samples under the callback carry the builtin's internal ap
- * frames, repeated once per iteration. Pinning the update call from one
- * iteration must still narrow other probes to that iteration. */
+/* Repro: pinning one fold iteration must still narrow other probes to that
+ * iteration, even though builtin fold_left's internal ap frames repeat per
+ * iteration. */
 
 let fold_pin_repro_tests = [
   test_case(
@@ -889,15 +848,9 @@ run(0, [1, 2, 3])|};
   ),
 ];
 
-/* --- Repro: drop_dead_pin must not kill pins through builtin frames ---
- *
- * Stacks that pass through builtin implementations (fold_left applying a
- * user callback) contain the builtin's internal ap ids, which are never
- * in user statics, and (in the web app) are minted by the evaluation
- * worker, a different process from the UI. So pin liveness must be
- * checked against the samples themselves, not the statics map; the
- * original statics-based check silently dropped every pin through a
- * fold/map in the recalculate the pin action itself triggered. */
+/* Repro: pin liveness must be checked against the samples, not the statics
+ * map — stacks through builtin frames (fold_left) carry ap ids absent from
+ * user statics (and worker-minted), so the old statics check dropped them. */
 
 let dead_pin_tests = [
   test_case(
@@ -984,14 +937,9 @@ run(0, [1, 2, 3])|};
   ),
 ];
 
-/* --- Repro: sample ids must be unique across fold iterations ---
- *
- * Sample.t.id is a content hash of (stack, syntax_id) for stability
- * across re-evaluations. Hashtbl.hash truncates traversal after a small
- * node budget, so consecutive fold iterations (stacks sharing a long
- * identical prefix of builtin frames, differing only in depth) hashed
- * identically: the indicated-sample marker and gesture anchors compare
- * by id, so the UI treated the colliding samples as one. */
+/* Repro: sample ids must differ across fold iterations. Hashtbl.hash
+ * truncates, so iterations sharing a long builtin-frame prefix once collided,
+ * and the UI (which compares samples by id) merged them. */
 
 let sample_id_tests = [
   test_case(

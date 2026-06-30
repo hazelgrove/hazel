@@ -256,18 +256,9 @@ let projector_clss =
     }
   );
 
-/* Wraps the view function for a projector, absolutely positioning
- * relative to the syntax, adding a default backing decoration, and
- * adding fallthrough handlers where appropriate.
- *
- * Keyed by the projector id: with viewport culling, a scroll step can
- * add/remove probes at the edges of the rendered set. Unkeyed, the vdom
- * differ matches the container's children positionally, so every node
- * after the change gets repatched to host a DIFFERENT probe — and if
- * the user's keyboard focus is on one of them (focused .live-offside,
- * red-outlined sample), focus visibly jumps off their probe and arrow
- * keys stop working. Keys make the differ insert/remove only the probes
- * that actually entered/left, leaving the focused element untouched. */
+/* Keyed by projector id: under culling a scroll step adds/removes probes at
+ * the edges; unkeyed, the vdom differ matches positionally and repatches onto
+ * a different probe, jumping keyboard focus off the user's probe. */
 let view_wrapper =
     (
       ~inject: Action.t => Ui_effect.t(unit),
@@ -332,11 +323,7 @@ let offside_wrapper =
     [v],
   );
 
-/* Wrap a below view: position starting on the next line at the editor
- * pane's left edge. The view_wrapper around us is already absolutely
- * positioned at the projector's (row, col); shift back by origin.col
- * to reach col 0 of the pane, and down by one row_height. Use Tab(n)
- * placeholder so the framework reserves the additional rows. */
+/* below view at pane col 0: shift back by origin.col (wrapper sits at the projector's col) */
 let below_wrapper = (font_metrics: FontMetrics.t, origin_col: int, v: Node.t) =>
   div(
     ~attrs=[

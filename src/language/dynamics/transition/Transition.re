@@ -213,8 +213,6 @@ module Transition = (EV: EV_MODE) => {
     | Closure(_, e) => get_fn_name_from_expr(e)
     | Fun(_, _, _, name) => name
     | TypFun(_, _, name) => name
-    /* Partial application: report the underlying function being deferred,
-       so a deferred call (e.g. setCell(_, ...)) names/jumps to setCell. */
     | DeferredAp(d3, _) => get_fn_name_from_expr(d3)
     | BuiltinFun(name) => Some(name)
     | _ => Exp.get_fn_name(d)
@@ -228,9 +226,6 @@ module Transition = (EV: EV_MODE) => {
     | Closure(_, e) => get_fn_def_id_from_expr(e)
     | Fun(_)
     | TypFun(_) => Some(DHExp.rep_id(d))
-    /* Partial application: resolve to the def-site of the underlying function
-       being deferred (the runtime shape is Closure(_, DeferredAp(fn_closure,
-       args))), so step-into on a deferred call lands in that function. */
     | DeferredAp(d3, _) => get_fn_def_id_from_expr(d3)
     | BuiltinFun(_) => None
     | _ => Exp.get_fn_def_id(d)
@@ -674,13 +669,8 @@ module Transition = (EV: EV_MODE) => {
       switch (d1'.term) {
       | Asc(d1'', {term: Arrow(t1, t2), _}) =>
         Step({
-          /* Distribute the function cast into arg/result casts. The inner
-             application reuses this redex's id (rewrap, not fresh) so it keeps
-             the original call-site identity: a probe on the call still finds
-             its recorded stack frame, and step-into works through the cast
-             that a type-annotated function parameter introduces (e.g. a
-             partially-applied function passed where Grove -> Grove is
-             expected). The fresh ids stay on the arg/result cast wrappers. */
+          /* inner Ap reuses this redex's id (rewrap, not fresh) so the call
+             keeps identity through the cast — probes/step-into still resolve */
           expr:
             Asc(Ap(Forward, d1'', Asc(d2', t1) |> fresh) |> rewrap, t2)
             |> fresh,
@@ -818,12 +808,8 @@ module Transition = (EV: EV_MODE) => {
                 | _ => tuple(new_args)
                 },
               ),
-            /* Record a call frame for the deferred application at this call
-               site, carrying the underlying function's fn_def_id (resolved
-               above through the DeferredAp). Without this, a probe on a call
-               to a partially-applied function (f bound to setCell(_, ...))
-               would record no frame: no arg display, no step-into, no
-               jump-to-definition. */
+            /* record a call frame (carries fn_def_id) so a probe on a
+               partial-app call still gets args/step-into/jump-to-def */
             side_effects: [RecordStackFrame(fn_name, Some(d2'), fn_def_id)],
             kind: DeferredAp,
             is_value: false,

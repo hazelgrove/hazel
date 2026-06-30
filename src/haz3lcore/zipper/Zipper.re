@@ -45,11 +45,8 @@ let unzip = (~direction: Direction.t=Right, seg: Segment.t): t => {
   refractors: Refractor.init,
 };
 
-/* Cheap caret-to-start: zip to a segment then unzip with the caret at the
-   leftmost edge, preserving projectors (refractors, which unzip otherwise
-   resets). Unlike Move.to_start — which walks the caret token-by-token via
-   do_to_extreme and is far too slow to run eagerly for many editors at once —
-   this is a single structural rebuild. */
+/* caret-to-start via a single structural rebuild: preserves refractors and
+   avoids Move.to_start's slow per-token walk (too slow for many editors). */
 let caret_to_start = (z: t): t => {
   ...unzip(~direction=Left, zip(z)),
   refractors: z.refractors,
@@ -997,10 +994,8 @@ module Caret = {
   let inner_offset_for_token = (idx: int, token: Token.t): int =>
     Token.is_string(token) ? string_offset(token, idx) : idx + 1;
 
-  /* Like inner_offset_for_token but counts GRAPHEMES, not display columns: a
-     wide char (e.g. an emoji) in a string literal is one grapheme but two
-     columns. Used for clipboard text slicing, where the column count would
-     over-trim and leave a trailing quote. */
+  /* counts GRAPHEMES not columns: a wide char (emoji) in a string is 1 grapheme
+     but 2 columns; column counts would over-trim clipboard text (trailing quote). */
   let inner_grapheme_offset = (idx: int): int => idx + 1;
 
   /* Grid position of the caret */

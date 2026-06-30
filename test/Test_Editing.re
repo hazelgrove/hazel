@@ -3314,22 +3314,17 @@ let cross_boundary_paste_tests = [
     "Cut-paste spanning = delimiter in let: structural integrity",
     `Quick,
     () => {
-      /* Build zipper with caret after `let ` */
       let z =
         mk({|let ¦comparison = (0 == 0) in comparison|})
         |> perform(Zipper.init());
-      /* Select right by token: comparison, ws, =, ws, (, 0 */
       let z = perform(z, sel_r_token(6));
-      /* Get clipboard text */
       let clipboard =
         Printer.of_segment(
           ~holes=convex_char,
           ~indent="",
           z.selection.content,
         );
-      /* Cut then paste */
       let z = perform(z, [Cut, Paste(clipboard)]);
-      /* Check structural integrity: no incomplete tiles */
       let seg = Zipper.unselect_and_zip(z);
       let inc = Segment.incomplete_tiles(seg);
       check(

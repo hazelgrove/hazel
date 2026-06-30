@@ -89,7 +89,6 @@ let format_probe_values =
     )
     : string => {
   let format_one = (probe_id: Id.t): option(string) => {
-    /* probe_map must be FINALIZED (evaluation order; Sample.Map.finalize) */
     let samples =
       Dynamics.Map.lookup(probe_id, probe_map) |> Option.value(~default=[]);
 

@@ -234,9 +234,7 @@ module Update = {
         zipper,
       );
 
-    /* 4. Handle auto probe. Caret mode follows the cursor to the current
-       def; All mode anchors on the whole program (one probe per row);
-       Off clears any existing auto probe. */
+    /* 4. Handle auto probe (Off/Caret/All — see AutoProbe.t). */
     let zipper =
       switch (autoprobe_mode) {
       | Off =>

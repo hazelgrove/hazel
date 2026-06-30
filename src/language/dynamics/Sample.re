@@ -138,11 +138,7 @@ type t = {
   env: Env.t, /* (Filtered) Environment Values  */
   call_stack, /* Call stacks as ap ids */
   args: option(Env.elided_value), /* Argument value if probe is on an Ap */
-  frame: option(stack_frame), /* The call frame this sample is the result of,
-    if the probe is on an Ap. Carries the dynamically-resolved fn_def_id of the
-    function actually applied here, enabling step-into for higher-order calls
-    (where the static binding site is only a parameter). Same capture lifetime
-    as `args`. */
+  frame: option(stack_frame),
   time: float, /* Time of evaluation */
   seq: int, /* Sequence number: a count index of each sample taken */
   origin, /* Is this sample from a probe or a print statement */
@@ -166,18 +162,8 @@ let mk =
       spec: capture_spec,
     )
     : t => {
-  /* Content-derived id: stable across re-evaluations (same call site,
-   * same stack -> same id), which per-sample display state (resize
-   * widths etc.) relies on to survive edits. NOT a fresh UUID for that
-   * reason. Collision-resistance matters: the indicated-sample marker
-   * and gesture anchors compare by this id, and duplicate ids made the
-   * UI treat distinct samples as one. Hashtbl.hash truncates traversal
-   * after a small node budget, so deep stacks that share a long prefix
-   * (consecutive fold iterations differ only in recursion DEPTH of
-   * identical builtin frames) hashed identically with the stack first
-   * in the tuple. Put the cheap discriminators (stack length, syntax
-   * id) first so they always land inside the budget, and raise the
-   * budget for the stack itself. */
+  /* content-derived id; cheap discriminators first so hash_param's bounded
+   * traversal can't collide deep stacks sharing a prefix */
   id: Hashtbl.hash_param(64, 256, (List.length(stack), syntax_id, stack)),
   syntax_id,
   value,
@@ -198,29 +184,17 @@ let mk =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type sample = t;
 
-/* Samples recorded during evaluation, indexed by the
- * syntax ids of their initial expressions.
- *
- * Two orderings exist over the same type:
- *   RAW: as built by the evaluator via `extend` — newest-first
- *        (prepend for O(1) insert). `lookup`/`fold` reverse on read.
- *   FINALIZED: converted once via `finalize` when an evaluator-state
- *        map is installed for display (EvalResult, CLI, debug). Lists
- *        are in evaluation order; consumers read with plain
- *        `Dynamics.Map.lookup` (no per-call reversal/allocation —
- *        it used to copy every probe's sample list on every render
- *        frame). */
+/* Two orderings: RAW (newest-first; `extend` builds, `lookup`/`fold` reverse
+ * on read) and FINALIZED (`finalize` converts once for display). */
 module Map = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = Id.Map.t(list(sample));
 
   let empty = Id.Map.empty;
 
-  /* RAW maps only: reverse newest-first storage to evaluation order */
   let lookup = (id, map) =>
     Id.Map.find_opt(id, map) |> Option.map(List.rev);
 
-  /* RAW maps only: fold, reversing each sample list to evaluation order */
   let fold = (f, map: t, init) =>
     Id.Map.fold(
       (id, samples, acc) => f(id, List.rev(samples), acc),
@@ -228,7 +202,6 @@ module Map = {
       init,
     );
 
-  /* Prepend for O(1) insertion - produces a RAW map */
   let extend = (id, report, map: t) =>
     Id.Map.update(
       id,
@@ -240,8 +213,6 @@ module Map = {
       map,
     );
 
-  /* One-time RAW -> FINALIZED conversion (each list reversed to
-   * evaluation order). Call exactly once per evaluation result. */
   let finalize = (map: t): t => Id.Map.map(List.rev, map);
 };
 

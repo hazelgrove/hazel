@@ -1,24 +1,6 @@
-/**
- * Tests for auto-probe target selection (ProbePerform.current_toplevel_def).
- *
- * Each test specifies an input program containing a `¦` caret marker and
- * the expected text of the probed expression (or "<none>" if no probe
- * should be placed).
- *
- * Probe-selection rule (see ProbePerform.toplevel_def_body_id):
- *   Walk the cursor's ancestor chain outermost-to-innermost:
- *     - Let(p, def, body): cursor in body → continue; otherwise probe def.
- *     - Seq(e1, e2): cursor in e1 or e2 → continue; cursor on `;` → probe e1.
- *     - TyAlias(p, ty, body): cursor in body → continue; otherwise no probe.
- *     - non-chain ancestor → probe it (the enclosing bare expression).
- *   If the walk falls through, apply the same rules to the cursor's piece.
- *   Test/HintedTest bodies are unwrapped at the end (probe the condition,
- *   not the unit result).
- *
- * Caret targeting: tries `Indicated.index` first, then walks left through
- * secondaries to find a meaningful piece, then falls back to the cursor's
- * containing zipper ancestor.
- */
+/* Auto-probe target selection (ProbePerform.toplevel_def_body_id). Input
+ * carries a `¦` caret marker; each test checks the probed expression's text
+ * ("<none>" if no probe is placed). */
 open Alcotest;
 open Haz3lcore;
 open Language;
@@ -57,8 +39,6 @@ let perform = (zip: Zipper.t, actions: list(Action.t)): Zipper.t => {
   );
 };
 
-/* Split input at the caret marker, build the program then move the caret
- * back to the marker position. Mirrors Test_Indication. */
 let mk = (init: string): list(Action.t) => {
   let rec split =
           (before: list(string), rest: list(string))
@@ -74,7 +54,6 @@ let mk = (init: string): list(Action.t) => {
   string_to_ltr_actions(s) @ mv_l(List.length(after));
 };
 
-/* Convert a probed id to its source text via TermData + Printer. */
 let probed_str = (z: Zipper.t): string => {
   let root_segment = Zipper.unselect_and_zip(z);
   let MakeTerm.{term, _} = MakeTerm.go(root_segment);
@@ -107,9 +86,6 @@ let auto = (~name, ~input, ~probed) =>
     },
   );
 
-/* Render the function-sugar parameter anchor (if any) that auto-probe
- * adds alongside the def body. "<none>" when the enclosing definition is
- * not function-definition sugar. */
 let param_anchor_str = (z: Zipper.t): string => {
   let root_segment = Zipper.unselect_and_zip(z);
   let MakeTerm.{term, _} = MakeTerm.go(root_segment);
@@ -145,10 +121,6 @@ let param = (~name, ~input, ~param) =>
       );
     },
   );
-
-/* ==================================================================
- * TEST SUITES
- * ================================================================== */
 
 let basic_let_tests = [
   auto(
@@ -222,12 +194,9 @@ let bare_expression_tests = [
   ),
 ];
 
-/* Function-definition sugar: `let f(args) = body` desugars (in statics) to
- * `let f = fun args -> body` while reusing the surface Let's id. That reuse
- * duplicates the Let in the cursor's ancestor chain, which used to make
- * auto-probe target the function body even when the cursor was in the let
- * body. Guards the dedup_adjacent workaround in
- * ProbePerform.toplevel_def_body_id. */
+/* fn-def sugar reuses the surface Let's id, duplicating it in the ancestor
+ * chain — used to mis-target the fn body. Guards the dedup_adjacent workaround
+ * in ProbePerform.toplevel_def_body_id. */
 let function_sugar_tests = [
   auto(
     ~name="sugar: cursor in let body probes let body (not the function body)",
@@ -269,10 +238,8 @@ let tyalias_tests = [
   ),
 ];
 
-/* Auto-probe parameter anchoring: for function-definition sugar, the def
- * body is anchored as before, AND the parameter pattern is anchored
- * separately so params are probed on the header line(s). These check the
- * second anchor that update_autoprobe adds (function_sugar_param_anchor). */
+/* fn-def sugar anchors the param pattern separately
+ * (function_sugar_param_anchor) so params probe on the header line. */
 let param_anchor_tests = [
   param(
     ~name="sugar one-line: param anchor is the param tuple",
@@ -301,10 +268,7 @@ let param_anchor_tests = [
   ),
 ];
 
-/* Step-into resolution: mirror what step_into_call_stack computes — from a
-   call `fn(...)`, resolve fn's binding, then the enclosing-let def body
-   (enclosing_let_of_binding) and, for sugar, the parameter anchor. Returns
-   (body_text, param_text). Before the fix, sugar definitions resolved to
+/* Mirrors step_into_call_stack. Regression: sugar defs resolved to
    "<no body>" because Pat.bindings dropped the function name. */
 let step_into_resolution = (~fn: string, program: string): (string, string) => {
   let zipper =
@@ -323,7 +287,6 @@ let step_into_resolution = (~fn: string, program: string): (string, string) => {
       Printer.of_segment(~holes=" ", ~indent="", ~is_single_line=true, seg)
     | None => "<not-in-syntax>"
     };
-  /* Find the call `fn(...)` and resolve fn's binding site, as step-into does. */
   let binding_id =
     Id.Map.fold(
       (_id, info, acc) =>
@@ -403,12 +366,9 @@ let step_into_tests = [
   ),
 ];
 
-/* "All" mode: a single multi probe anchored on the program root expands
- * (via MultiProbe.ids_to_multiprobe, ~drill=false) to one probe per source
- * row across the whole program. This mirrors what update_autoprobe(~mode=All)
- * places and what `hazel probe --auto` renders. Distinct from the
- * Test_MultiProbe harness, which narrows the root via target_subterm_ids
- * (so for a let-chain it only covers the first definition). */
+/* "All" mode: one root multiprobe expands to a probe per source row across
+ * the whole program. Unlike Test_MultiProbe, which narrows via
+ * target_subterm_ids (covering only the first definition). */
 let all_probed_strs = (program: string): list(string) => {
   let zipper =
     switch (Parser.to_zipper(~root=Exp, program)) {
@@ -463,9 +423,6 @@ let all_mode_tests = [
     ~probed=["1 + 2"],
   ),
   all(
-    /* Def value pushed to its own row: the header row carries only the
-       pattern `n`, so All mode probes the binder there (like the
-       function-sugar param anchor), then the def value, then the body. */
     ~name="multi-line def: header pattern, def value, final body",
     ~input="let n =\n  1 + 2 in\nn",
     ~probed=["n", "1 + 2", "n"],

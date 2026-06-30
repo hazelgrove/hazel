@@ -2,14 +2,11 @@ open Util;
 
 /* Captures the additive side-effects that a subtree's evaluation contributes to an EvaluatorState */
 
-/* Per-application records keyed by app_id. Each entry is
- * (call_stack_before_entering, elided_arg_value, call_frame): the call_stack
- * matches samples taken inside the function to their caller; the call_frame
- * carries the dynamically-resolved fn_def_id of the invoked function. Both
- * arg and frame share the same call-entry/exit lifetime, so they travel
- * together. Shared with EvaluatorState (which produces these). */
+/* per app_id: list of (call_stack_before, elided_arg, call_frame). call_stack
+ * ties inner samples to their caller; frame carries the invoked fn's resolved
+ * fn_def_id. Shared with EvaluatorState. */
 [@deriving (show({with_path: false}), sexp, yojson)]
-type app_args_t =
+type app_data_t =
   Id.Map.t(
     list((Sample.call_stack, Sample.Env.elided_value, Sample.stack_frame)),
   );
@@ -23,7 +20,7 @@ type t = {
   probes: Sample.Map.t,
   tests: list((Id.t, list(TestMap.instance_report))),
   theorems: list((Id.t, string, Environment.t(Exp.t), Exp.t)),
-  app_args: app_args_t,
+  app_data: app_data_t,
 };
 
 let empty: t = {
@@ -32,7 +29,7 @@ let empty: t = {
   probes: Sample.Map.empty,
   tests: [],
   theorems: [],
-  app_args: Id.Map.empty,
+  app_data: Id.Map.empty,
 };
 
 let diff_probes = (~before: Sample.Map.t, ~after: Sample.Map.t): Sample.Map.t =>
@@ -97,7 +94,7 @@ let diff_theorems =
   };
 };
 
-let diff_app_args = (~before: app_args_t, ~after: app_args_t): app_args_t =>
+let diff_app_data = (~before: app_data_t, ~after: app_data_t): app_data_t =>
   Id.Map.fold(
     (id, after_entries, acc) => {
       let before_count =

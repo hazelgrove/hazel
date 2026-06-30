@@ -914,12 +914,9 @@ let labeled_tuple_tests = [
     ~expected="(a = 1)",
     (),
   ),
-  /* Regression: when the first element of a tuple is itself a parens-
-   * wrapped tuple of labels, both elements should get the is_label_eq
-   * spacing consistently. Previously the comma case treated the first
-   * piece as opaque (piece_doc) so it bypassed build_infix_chain_doc
-   * and its TupLabel `=`s came out unspaced, while the second element
-   * (recursively processed) got spaces. */
+  /* Regression: a parens-wrapped first tuple element used to be treated as
+   * opaque (piece_doc), bypassing build_infix_chain_doc, so its TupLabel `=`s
+   * came out unspaced while the second element got spaces. */
   test_format(
     ~name="Tuple of labeled tuples: symmetric spacing around =",
     ~input="((x=1, y=2), (a=3, b=4))",
@@ -928,13 +925,9 @@ let labeled_tuple_tests = [
   ),
 ];
 
-/* Regression: parens-wrapped elements should decompose for layout, not
- * be emitted as opaque pieces. Previously, the first element of a
- * comma-separated segment was wrapped via `piece_doc` (opaque), so a
- * complex parens-wrapped element couldn't sub-break even when its
- * width exceeded the layout target. The asymmetric symptom: the first
- * element rendered on one (possibly overflowing) line while the second
- * element broke internally. */
+/* Regression: a parens-wrapped first element used to be emitted opaque
+ * (piece_doc), so it couldn't sub-break when over-width — it rendered on one
+ * overflowing line while the second element broke internally. */
 let nested_paren_break_tests = [
   test_format(
     ~name="Nested parens-wrapped tuples break symmetrically",

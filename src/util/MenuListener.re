@@ -29,10 +29,8 @@ module type Config = {
    * (falling back to the menu container) after every sync where the menu
    * is open. */
   let scroll_into_view: bool;
-  /* When true, dismiss the menu on `#main` scroll. Used by menus that are
-   * position:fixed (the probe drawer dropdown) and would otherwise lag the
-   * content they're anchored to; menus that scroll together with their
-   * anchor leave this off. */
+  /* Dismiss on `#main` scroll — for position:fixed menus (the probe drawer
+   * dropdown) that would otherwise lag the content they're anchored to. */
   let close_on_scroll: bool;
 };
 
@@ -56,10 +54,8 @@ let has_ancestor_with_class =
 };
 
 module Make = (C: Config) => {
-  /* Thunk, not a prebuilt effect: callers build on_close via `local(action)`,
-   * which runs the projector update eagerly when called. Storing/calling it
-   * as a thunk defers that to the moment the menu actually closes, rather
-   * than on every sync (= every render). */
+  /* Thunk, not a prebuilt effect: `local(action)` runs the update eagerly, so
+   * defer it to when the menu actually closes, not every sync. */
   let close_effect: ref(option(unit => Effect.t(unit))) = ref(None);
   let on_key: ref(option(string => option(Effect.t(unit)))) = ref(None);
   let is_active: ref(bool) = ref(false);
@@ -188,11 +184,9 @@ module Make = (C: Config) => {
           let main_coerced = Js.Unsafe.coerce(main);
           let scroll_handler =
             Js.wrap_callback((_: Js.t(Dom_html.event)) => execute_close());
-          /* Listen for `wheel`, not `scroll`: wheel fires at the start of
-           * the scroll input (before the browser scrolls and repaints), so
-           * the menu closes immediately — matching the editor context
-           * menu's backdrop on_wheel. `scroll` fires only after the paint,
-           * which is the lag that was visible here. */
+          /* `wheel`, not `scroll`: wheel fires before the browser scrolls/
+           * repaints so the menu closes immediately; `scroll` fires after the
+           * paint — the lag we saw here. */
           let _ = main_coerced##addEventListener("wheel", scroll_handler);
           ();
         };

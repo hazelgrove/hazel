@@ -280,10 +280,8 @@ module Cook = (C: Projector) : Cooked => {
       status: args.status,
       core_settings: args.core_settings,
     });
-  /* placeholder is called per refractor on every shape refresh (each
-   * keystroke and each worker-result frame), and most model strings are
-   * unchanged between calls — memoize the sexp parse by exact string.
-   * Bounded: cleared wholesale if model-string churn ever grows it. */
+  /* Memoize the per-refractor sexp parse by exact model string (called on
+   * every shape refresh, mostly with unchanged strings). Bounded cache. */
   let placeholder_models: Hashtbl.t(string, C.model) = Hashtbl.create(32);
   let parse_model_memo = (s: string): C.model =>
     switch (Hashtbl.find_opt(placeholder_models, s)) {

@@ -28,20 +28,11 @@ type t = {
    * underlying editor. In principle calculating this can involve
    * both static and dynamic information, so we cache this for perf */
   shape_map: ProjectorCore.Shape.Map.t,
-  /* Per-refractor extra-row reservations. Refractors overlay the
-   * underlying syntax rather than replacing it, so only the vertical
-   * count is meaningful here. Built in mk by running each refractor's
-   * placeholder and reducing the resulting Shape.vertical to an int.
-   * Both Measured.of_segment and Code.view consume this; if either
-   * side disagrees with the other, decorations drift out of sync with
-   * caret/text positions. */
+  /* extra rows reserved per refractor; Measured.of_segment and Code.view
+   * must agree on these or decorations drift from caret/text. */
   refractor_shape_map: Id.Map.t(int),
-  /* References to the refractor stores this cache was built from.
-   * Compared by physical equality in `calculate` to detect refractor
-   * model mutations (e.g. probe drawer-mode toggle). The Zipper is
-   * functional, so any SetModel touching a refractor produces a fresh
-   * map reference; if these match the new zipper's, the shape map is
-   * still valid and we skip the rebuild. */
+  /* compared by physical eq in `calculate`: unchanged refractor refs
+   * mean the shape map is still valid and we skip the rebuild. */
   cached_manuals: Refractors.RefractorList.t,
   cached_ephemerals: Refractors.Map.t,
   /* Errors reported by projectors (e.g. "can't render as table") */
@@ -61,15 +52,8 @@ let t_of_sexp = _ => failwith("Editor.Meta.t_of_sexp");
 let yojson_of_t = _ => failwith("Editor.Meta.yojson_of_t");
 let t_of_yojson = _ => failwith("Editor.Meta.t_of_yojson");
 
-/* Build refractor shape map by running each refractor's placeholder
- * and extracting the deferred-linebreak count. Refractors overlay
- * existing syntax, so only the vertical row count is meaningful;
- * the int stored is "extra rows to reserve after the refractor's
- * underlying tile". Probe drawer-mode is the current consumer. */
-/* The same trim-and-parenthesize pipeline RefractorView uses to derive
- * the projector's underlying syntax piece from term_data. Falls back to
- * an empty Secondary when the id has no resolvable segment yet (initial
- * frames before MakeTerm has populated term_data). */
+/* fallback Secondary covers ids with no resolvable segment yet
+ * (early frames before MakeTerm has populated term_data). */
 let refractor_syntax_piece = (id: Id.t, term_data: TermData.t): Base.piece =>
   Option.value(
     TermData.segment(id, term_data)
@@ -171,12 +155,8 @@ let mark_old: t => t =
     old: true,
   };
 
-/* Recompute only the statics-derived fields (shape_map, projector_errors,
- * refractor_shape_map, measured) while reusing the segment/term_data from a
- * prior `mk` pass. Used on refresh-only frames: statics or refractor model
- * changed but the segment did not, so a full `mk` would be wasteful but
- * shapes/measured need the new elaborated expression (e.g. TableProj
- * placeholder size) or new refractor state (e.g. probe drawer-mode). */
+/* statics or refractor model changed but the segment didn't: reuse
+ * segment/term_data, recompute only the shape-derived fields. */
 let refresh_shapes =
     (z: Zipper.t, info_map, dyn_map, ~elaborated=None, old: t) => {
   let (shape_map, projector_errors) =
@@ -205,10 +185,8 @@ let refresh_shapes =
   };
 };
 
-/* Physical equality on option(Exp.t): `None === None` holds (shared
- * immediate), but `Some(x) === Some(y)` is always false (new box). Hit the
- * cache when the underlying Exp.t ref matches — same stability guarantee
- * as info_map/dyn_map, which are persistent Id.Maps compared by ref. */
+/* phys-eq on option(Exp.t): None===None holds but Some(x)===Some(y) is
+ * always false (new box), so compare the inner Exp ref. */
 let elaborated_phys_eq =
     (a: option(Language.Exp.t), b: option(Language.Exp.t)): bool =>
   switch (a, b) {
@@ -217,11 +195,6 @@ let elaborated_phys_eq =
   | _ => false
   };
 
-/* Decide how much work to do based on what changed:
- *   - `old.old` flag (segment changed from an edit/buffer clear) → full `mk`
- *   - statics-input refs changed (info_map / dyn_map / elaborated)
- *     OR refractor model refs changed (manuals / ephemerals) → refresh shapes
- *   - otherwise just update selection_ids (cheap cursor-only path) */
 let calculate = (z: Zipper.t, info_map, dyn_map, ~elaborated=None, old: t) => {
   let refractor_inputs_changed =
     z.refractors.manuals !== old.cached_manuals

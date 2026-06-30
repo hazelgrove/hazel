@@ -297,9 +297,6 @@ let mk_translation =
     (~globals, ~inject, text: string): (list(Node.t), ColorSteps.t) =>
   mk_translation_doc(~globals, ~inject, Omd.of_string(text));
 
-/* Flatten an Omd inline to plain text. Used by callers that need a
-   bare string for places like a <summary> label, where rich markup
-   isn't desired. */
 let rec inline_to_string = (inline: Omd.inline(_)): string =>
   switch (inline) {
   | Omd.Concat(_, items) =>

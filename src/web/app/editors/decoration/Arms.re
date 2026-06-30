@@ -507,9 +507,6 @@ module Indicated = {
 };
 
 module Refractors = {
-  /* The arm under the refractored term. The dashed path that used to
-   * continue from here out to the offside samples was removed as visual
-   * noise. */
   let paths =
       (
         hx: float,

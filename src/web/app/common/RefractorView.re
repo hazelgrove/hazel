@@ -26,10 +26,8 @@ let measurement_of_term =
 /* Build refractor data from editor state.
  * This is analogous to ProjectorView.Model.mk but specialized for refractors.
  */
-/* Visible row range of a refractor, for culling: the anchor point's rows
- * extended downward by the drawer height (`Tab(n)` rows recorded in
- * `refractor_shape_map`) so a drawer that is still partially on screen
- * isn't disappeared early when its anchor row scrolls past the top. */
+/* visible rows of a refractor: anchor rows extended down by drawer height
+ * (Tab(n) in refractor_shape_map), so a partially-visible drawer isn't culled early */
 let row_range =
     (
       ~refractor_shape_map: Id.Map.t(int),
@@ -57,11 +55,8 @@ let mk_data =
     )
     : list(ProjectorView.Model.projector_data) => {
   let {measured, term_data, selection_ids, _}: CachedSyntax.t = syntax;
-  /* Measure (cheap) and cull BEFORE the per-refractor segment extraction /
-   * info construction below: in auto-probe All mode there are hundreds of
-   * refractors and typically a small fraction on screen, so building the
-   * full data for all of them only to discard most in `all` dominated
-   * per-frame cost. */
+  /* measure + cull BEFORE building per-refractor data: in All mode there are
+   * hundreds of refractors but few on screen, so building all then discarding dominated cost */
   Id.Map.bindings(refractors)
   |> List.filter_map(((id, entry)) =>
        measurement_of_term(id, term_data, measured)
@@ -71,9 +66,6 @@ let mk_data =
        row_range(~refractor_shape_map, id, measurement)
      )
   |> List.map(((id, entry, measurement)) => {
-       /* Construct full Base.projector on demand for rendering,
-        * passing the actual syntax so projectors can access the
-        * underlying term for syntax rewriting. */
        let syntax_piece =
          Option.value(
            TermData.segment(id, term_data)
@@ -138,8 +130,7 @@ let all =
       refractor_data: list(ProjectorView.Model.projector_data),
       refractor_list: list(Id.t),
     ) => {
-  /* Culling here is usually a no-op — mk_data already culls — but kept
-   * for callers that build data without visibility info. */
+  /* usually a no-op (mk_data already culls); kept for callers without visibility info */
   let get_row_range = (d: ProjectorView.Model.projector_data) =>
     row_range(~refractor_shape_map, d.p.id, d.measurement);
   let (base_views, overlay_views) =
