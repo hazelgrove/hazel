@@ -333,6 +333,38 @@
   color: var(--ci-status-text);
 }
 
+#cursor-inspector .type-summary {
+  display: grid;
+  grid-template-columns: auto minmax(0, max-content);
+  grid-auto-rows: minmax(1.4em, auto);
+  align-items: center;
+  column-gap: 0.45em;
+  row-gap: 0.12em;
+  min-width: 0;
+}
+
+#cursor-inspector .type-summary-row {
+  display: contents;
+}
+
+#cursor-inspector .type-summary-label {
+  font-size: 0.76em;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--BR3);
+}
+
+#cursor-inspector .type-summary .code-box-container {
+  min-width: 0;
+}
+
+#cursor-inspector .type-summary-consistency {
+  grid-column: 1 / -1;
+  font-size: 0.78em;
+  color: var(--BR3);
+  white-space: nowrap;
+}
+
 #cursor-inspector .status.error {
   color: var(--ci-status-error-text);
 }

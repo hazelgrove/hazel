@@ -123,6 +123,39 @@ let view_type = (~globals, typ: Typ.t) =>
   |> CodeViewable.view_typ(~globals, ~settings=code_view_settings)
   |> code_box_container;
 
+let type_summary_view =
+    (~globals, ~ctx: Ctx.t, ~syn: Typ.t, ~ana: Typ.t): Node.t => {
+  let ana = Statics.ana_skip_explicit_nonlabel(ana);
+  let consistency =
+    if (Equality.semantic.typ(syn, ana)) {
+      "syn and ana types are equal";
+    } else {
+      switch (Typ.meet(ctx, ana, syn)) {
+      | Some(_) => "syn and ana types are consistent"
+      | None => "syn type is inconsistent with ana type"
+      };
+    };
+  let row = (name, typ) =>
+    div(
+      ~attrs=[clss(["type-summary-row"])],
+      [
+        div(~attrs=[clss(["type-summary-label"])], [text(name)]),
+        view_type(~globals, typ),
+      ],
+    );
+  div(
+    ~attrs=[clss(["type-summary"])],
+    [
+      row("syn", syn),
+      row("ana", ana),
+      div(
+        ~attrs=[clss(["type-summary-consistency"])],
+        [text(consistency)],
+      ),
+    ],
+  );
+};
+
 let core_mark_err_view =
     (
       ~globals,
@@ -1107,10 +1140,16 @@ let view_of_info = (~globals, ci): list(Node.t) => {
   | InfoMod({cls, _}) => wrapper(div_ok([text(cls |> Cls.show)]))
   | InfoSig({cls, _}) => wrapper(div_ok([text(cls |> Cls.show)]))
   | InfoMPat({cls, _}) => wrapper(div_ok([text(cls |> Cls.show)]))
-  | InfoExp({cls, message, _} as ie) =>
-    wrapper(exp_view(~globals, cls, message, ie))
-  | InfoPat({cls, message, _} as ip) =>
-    wrapper(pat_view(~globals, cls, message, ip))
+  | InfoExp({cls, message, ctx, elab_syn_ty, ana, _} as ie) => [
+      term_view(~globals, ci),
+      type_summary_view(~globals, ~ctx, ~syn=elab_syn_ty, ~ana),
+      exp_view(~globals, cls, message, ie),
+    ]
+  | InfoPat({cls, message, ctx, elab_syn_ty, ana, _} as ip) => [
+      term_view(~globals, ci),
+      type_summary_view(~globals, ~ctx, ~syn=elab_syn_ty, ~ana),
+      pat_view(~globals, cls, message, ip),
+    ]
   | InfoTyp({cls, marks, message, _}) =>
     wrapper(typ_view(~globals, cls, ~marks, ~message))
   | InfoTPat({cls, marks, message, _}) =>
