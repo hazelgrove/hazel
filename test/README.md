@@ -47,7 +47,7 @@ group or number:
 ## Architecture
 
 - **`test/dune`** defines the test executable and two dune aliases (`@runtest` for all tests, `@test-quick` for quick tests). The `Makefile` targets invoke these aliases.
-- **`test/run_node.sh`** is a shared wrapper that runs the compiled JS with the correct Node.js flags (`--stack-size=8192` for deeply recursive tests, `--require idb_stub.js` for IndexedDB globals). Both dune rules and `run_tests` use this script so the flags are defined in one place.
+- **`test/run_node.sh`** is a shared wrapper that runs the compiled JS with the correct Node.js flags (`--stack-size=32768` for deeply recursive tests, `--require idb_stub.js` for IndexedDB globals). Both dune rules and `run_tests` use this script so the flags are defined in one place.
 - **`run_tests`** builds with dune, then calls `run_node.sh` directly, which allows it to forward arbitrary CLI arguments to the test runner.
 
 ## Test File Structure
