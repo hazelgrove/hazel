@@ -59,7 +59,9 @@ let mk_info =
     )
     : ProjectorBase.info => {
   id: p.id,
-  syntax: Piece.unparenthesize(p.syntax),
+  /* Regenerate the segment from the stored term, reproducing the original
+   * whitespace/comments from the term's stored secondary. */
+  syntax: ExpToSegment.regen_proj_syntax(p.syntax),
   statics: Statics.Map.lookup(p.id, statics),
   dynamics:
     switch (Dynamics.Map.lookup(p.id, dynamics)) {
@@ -73,14 +75,9 @@ let mk_info =
   elaborated: {
     let (module P) = ProjectorInit.to_module(p.kind);
     if (P.elaborate_syntax) {
-      let seg = Piece.unparenthesize(p.syntax);
-      let inner_id =
-        try(Some(Segment.root_id(Segment.skel(seg), seg))) {
-        | _ => None
-        };
-      Option.bind(inner_id, id =>
-        Option.bind(elaborated, Exp.find_by_id(id))
-      );
+      /* The stored term's representative id is the inner expression's id. */
+      let inner_id = Any.rep_id(p.syntax);
+      Option.bind(elaborated, Exp.find_by_id(inner_id));
     } else {
       None;
     };

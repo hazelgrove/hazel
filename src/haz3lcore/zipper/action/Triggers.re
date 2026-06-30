@@ -98,10 +98,13 @@ let refractor_to_invoke_text =
   };
 
 let projector_to_invoke = (pr: Base.projector): Segment.t =>
-  refractor_to_invoke(pr.kind, Piece.unparenthesize(pr.syntax));
+  refractor_to_invoke(pr.kind, ExpToSegment.regen_proj_syntax(pr.syntax));
 
 let projector_to_invoke_text = (pr: Base.projector): Segment.t =>
-  refractor_to_invoke_text(pr.kind, Piece.unparenthesize(pr.syntax));
+  refractor_to_invoke_text(
+    pr.kind,
+    ExpToSegment.regen_proj_syntax(pr.syntax),
+  );
 
 let expand_livelit = (~ctx, z: t): option(t) =>
   switch (z.relatives.siblings |> fst |> List.rev) {
@@ -150,10 +153,12 @@ let destruct = (z: t): option(t) =>
   switch (z.relatives.siblings |> fst |> ListUtil.last_opt) {
   | Some(Projector({syntax, kind, _})) =>
     let (l, _) = ListUtil.split_last(fst(z.relatives.siblings));
+    let restored = ExpToSegment.regen_proj_syntax(syntax);
     let last =
-      switch (kind, syntax) {
-      | (Livelit, Tile({children: [[name, ..._]], _})) => [name]
-      | _ => Piece.unparenthesize(syntax)
+      switch (kind, restored) {
+      /* For livelits, keep just the leading name token. */
+      | (Livelit, [name, ..._]) => [name]
+      | _ => restored
       };
     Some(Zipper.update_siblings(((_, r)) => (l @ last, r), z));
   | _ => None

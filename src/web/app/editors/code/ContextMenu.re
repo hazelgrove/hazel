@@ -205,14 +205,12 @@ module Projectors = {
     switch (z.selection.content) {
     | [] =>
       switch (Indicated.for_index(z)) {
-      | Some({piece: Projector({syntax, _}), _}) =>
-        MakeTerm.for_projection(Piece.unparenthesize(syntax))
+      | Some({piece: Projector({syntax, _}), _}) => Some(syntax)
       | _ =>
         let* info = Indicated.ci_of(z, info_map);
         Language.Info.any_of(info);
       }
-    | [Projector({syntax, _})] =>
-      MakeTerm.for_projection(Piece.unparenthesize(syntax))
+    | [Projector({syntax, _})] => Some(syntax)
     | seg => MakeTerm.for_projection(seg)
     };
 

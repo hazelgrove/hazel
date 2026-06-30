@@ -1422,9 +1422,9 @@ and unsorted = (sort: Sort.t, skel: Skel.t, seg: Segment.t): unsorted => {
     | Grout(_) => []
     | Projector({id, kind, model, syntax, _} as pr) =>
       let _ = log_projector(pr);
-      let sort = Piece.sort(syntax) |> fst;
-      let seg = Piece.unparenthesize(syntax);
-      let inner = go_s(sort, Segment.skel(seg), seg);
+      /* The projector already stores its underlying syntax as a term, so we
+       * use it directly rather than re-parsing a segment. */
+      let inner = syntax;
       /* Construct Projector term with proper annotation, preserving
        * projector metadata (kind, model) in the term for round-tripping */
       let projector_data: Grammar.projector_data = {
@@ -1575,6 +1575,10 @@ let for_projection =
     } else if (Segment.is_padded(seg)) {
       None; /* Returns None if the segment has secondary around it */
     } else {
+      /* Populate the secondary map for this segment so the resulting term
+       * carries its whitespace/comments (used when the term is stored as a
+       * projector's syntax and later regenerated). */
+      secondary_map := Segment.SecondaryCollection.collect(seg);
       switch (Segment.skel(seg)) {
       | exception _ => None /* Returns None if any subsegment is non-convex */
       | skel =>

@@ -3108,7 +3108,8 @@ and tile_sorts_of_piece = (p: Piece.t): list((string, Sort.t)) =>
     let label_sorts = List.map(tok => (tok, t.mold.out), t.label);
     let child_sorts = List.concat_map(tile_sorts_of_seg, t.children);
     label_sorts @ child_sorts;
-  | Projector({syntax, _}) => tile_sorts_of_piece(syntax)
+  | Projector({syntax, _}) =>
+    tile_sorts_of_seg(ExpToSegment.regen_proj_syntax(syntax))
   | Grout(_)
   | Secondary(_) => []
   };

@@ -1,5 +1,7 @@
 open Util;
 
+module Any = Language.Any;
+
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type segment = list(piece)
 and piece =
@@ -20,7 +22,11 @@ and tile = {
   shards: list(int),
   children: list(segment),
 }
-and projector = ProjectorCore.t(piece);
+/* Projectors store their underlying syntax as a term (Any.t) rather than a
+ * segment piece. The segment representation (with whitespace/comments) is
+ * regenerated on demand from the term's stored secondary; see
+ * ExpToSegment.regen_proj_syntax. */
+and projector = ProjectorCore.t(Any.t);
 
 let rec map_piece = (~f_piece, x: piece) => {
   let rec_call = (piece: piece) => {

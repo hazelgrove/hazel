@@ -20,7 +20,7 @@ and equal_piece = (a: piece, b: piece) => {
   | (Projector(p1), Projector(p2)) =>
     p1.kind == p2.kind
     && p1.model == p2.model
-    && equal_piece(p1.syntax, p2.syntax)
+    && Any.fast_equal(p1.syntax, p2.syntax)
   | _ => false
   };
 };

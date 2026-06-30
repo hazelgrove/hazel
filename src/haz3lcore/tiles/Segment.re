@@ -1293,13 +1293,13 @@ module IDs = {
         id,
       })
     | Projector(p) =>
-      /* Need to keep projector and contained piece id in-sync */
-      let id = Id.mk();
-      let syntax = replace_piece(~id, p.syntax);
+      /* Refresh all ids in the stored term, then keep the projector id in
+       * sync with the term's representative id. */
+      let syntax = Language.Any.refresh_ids(p.syntax);
       Projector({
         ...p,
         syntax,
-        id,
+        id: Language.Any.rep_id(syntax),
       });
     };
   };
@@ -1312,7 +1312,7 @@ module IDs = {
     | Tile(t) => [id, ...List.concat_map(all, t.children)]
     | Grout(_)
     | Secondary(_) => [id]
-    | Projector(p) => [id, ...all_piece(p.syntax)]
+    | Projector(p) => [id, ...Language.Any.ids(p.syntax)]
     };
   };
 };
@@ -1395,11 +1395,11 @@ module SecondaryCollection = {
             acc,
             children,
           );
-        | Piece.Projector({id, syntax, _}) =>
-          /* Add secondary for projector and recurse into its content */
-          let acc = Id.Map.add(id, (before, after), acc);
-          let inner_seg = Piece.unparenthesize(syntax);
-          collect_from_seg(inner_seg, acc);
+        | Piece.Projector({id, _}) =>
+          /* Record the projector's surrounding secondary. Its inner content is
+           * a term that already carries its own secondary, so there is no
+           * segment to recurse into. */
+          Id.Map.add(id, (before, after), acc)
         | Piece.Grout({id, _}) => Id.Map.add(id, (before, after), acc)
         | _ => acc
         };
@@ -1476,11 +1476,8 @@ module SecondaryCollection = {
               acc,
               children,
             )
-          | Some(Piece.Projector({syntax, _})) =>
-            /* Projectors wrap their content in parentheses. Extract the inner
-               segment and recursively collect secondary from it. */
-            let inner_seg = Piece.unparenthesize(syntax);
-            collect_from_seg(inner_seg, acc);
+          /* Projector content is a term carrying its own secondary, so there
+             is no child segment to recurse into. */
           | _ => acc
           },
         acc,

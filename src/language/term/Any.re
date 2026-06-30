@@ -3,6 +3,25 @@ include TermBase.Any;
 let fast_equal = Equality.syntactic.any;
 let equal = fast_equal;
 
+/* Assign fresh ids to every node in the term, preserving secondary
+ * (whitespace/comments). Mirrors Exp.replace_all_ids but keeps secondary,
+ * which matters when refreshing ids of syntax stored under a projector. */
+let refresh_ids = (any: t): t => {
+  let f:
+    'a.
+    (IdTagged.t('a) => IdTagged.t('a), IdTagged.t('a)) => IdTagged.t('a)
+   =
+    (continue, x) => IdTagged.new_ids(continue(x));
+  TermBase.Any.map_term(
+    ~f_exp=f,
+    ~f_pat=f,
+    ~f_typ=f,
+    ~f_tpat=f,
+    ~f_rul=f,
+    any,
+  );
+};
+
 let is_exp: t => option(TermBase.Exp.t) =
   fun
   | Exp(e) => Some(e)

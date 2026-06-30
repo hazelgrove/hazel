@@ -2187,11 +2187,12 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     wrap(exp, [mk_form(ParensExp, id, [e])]);
   | Projector({kind, model}, e) =>
     let id = exp |> Exp.rep_id;
-    let+ inner_seg = go(e);
-    let syntax = Segment.parenthesize(inner_seg);
+    /* Store the inner term directly; the segment is regenerated on demand. */
     wrap(
       exp,
-      [Piece.Projector(ProjectorCore.mk(~id, kind, syntax, model))],
+      [
+        Piece.Projector(ProjectorCore.mk(~id, kind, Grammar.Exp(e), model)),
+      ],
     );
   | Cons(e1, e2) =>
     // TODO: Add optional newlines
@@ -2524,11 +2525,12 @@ and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
     wrap(pat, [mk_form(ParensPat, id, [p])]);
   | Projector({kind, model}, p) =>
     let id = pat |> Pat.rep_id;
-    let+ inner_seg = go(p);
-    let syntax = Segment.parenthesize(inner_seg);
+    /* Store the inner term directly; the segment is regenerated on demand. */
     wrap(
       pat,
-      [Piece.Projector(ProjectorCore.mk(~id, kind, syntax, model))],
+      [
+        Piece.Projector(ProjectorCore.mk(~id, kind, Grammar.Pat(p), model)),
+      ],
     );
   | MultiHole(es) =>
     let+ es = es |> List.map(any_to_pretty(~settings: Settings.t)) |> all;
@@ -2776,11 +2778,12 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
     wrap(typ, [mk_form(ParensTyp, id, [t])]);
   | Projector({kind, model}, t) =>
     let id = typ |> Typ.rep_id;
-    let+ inner_seg = go(t);
-    let syntax = Segment.parenthesize(inner_seg);
+    /* Store the inner term directly; the segment is regenerated on demand. */
     wrap(
       typ,
-      [Piece.Projector(ProjectorCore.mk(~id, kind, syntax, model))],
+      [
+        Piece.Projector(ProjectorCore.mk(~id, kind, Grammar.Typ(t), model)),
+      ],
     );
   | Rec(tp, t) =>
     let id = typ |> Typ.rep_id;
@@ -3095,3 +3098,20 @@ let any_to_segment =
   let p = any_to_pretty(~settings, any);
   p |> PrettySegment.select;
 };
+
+/* Regenerate the segment representation of a projector's stored term.
+ * Projectors hold their underlying syntax as a term (Any.t); wherever a
+ * segment is needed (rendering info.syntax, stringification, restoring on
+ * unproject) we rebuild it here, using the term's stored secondary
+ * (IdTagged.IdTag.secondary) to reproduce the original whitespace/comments. */
+let regen_proj_syntax = (~inline=true, any: Any.t): Segment.t =>
+  any_to_segment(
+    ~settings={
+      ...Settings.of_core(~inline, Language.CoreSettings.off),
+      secondary: PreserveExact,
+      show_unknown_as_hole: false,
+      fold_fn_bodies: `NoFold,
+      project_tables: false,
+    },
+    any,
+  );

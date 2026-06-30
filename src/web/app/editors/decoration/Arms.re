@@ -453,7 +453,7 @@ module Indicated = {
               tips: p |> ProjectorCore.shapes |> ShardDec.tips_of_shapes,
             },
             [
-              p.syntax |> Piece.sort |> fst |> Sort.to_string,
+              TermData.sort(p.id, syntax.term_data) |> Sort.to_string,
               "caret",
               "indicated",
             ],

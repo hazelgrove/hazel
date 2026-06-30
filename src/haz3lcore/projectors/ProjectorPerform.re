@@ -41,18 +41,20 @@ let init =
     )
     : option(syntax) => {
   let (module P) = ProjectorInit.to_module(kind);
-  let orig_piece = Segment.parenthesize(seg);
   let any = MakeTerm.for_projection(seg);
 
   /* Try raw syntax first; for elaborate_syntax projectors, fall back to the
-     elaborated form keyed by the term's id. */
-  switch (Option.bind(any, ProjectorInit.init(kind, orig_piece, _)), any) {
+     elaborated form keyed by the term's id. In the fallback case we still
+     store the original (un-elaborated) term as the projector's syntax. */
+  switch (Option.bind(any, ProjectorInit.init(kind)), any) {
   | (Some(_) as result, _) => result
   | (None, Some(Exp(exp))) when P.elaborate_syntax =>
     let* elab_exp =
       Language.Exp.find_by_id(Language.Exp.rep_id(exp), elaborated);
     let+ model_str = P.init(Exp(elab_exp));
-    Base.Projector(ProjectorCore.mk(kind, orig_piece, model_str));
+    Base.Projector(
+      ProjectorCore.mk(kind, Language.Grammar.Exp(exp), model_str),
+    );
   | (None, _) => None
   };
 };
@@ -76,14 +78,12 @@ let replace_selection_and_unselect =
   |> Zipper.replace_selection(focus, [piece])
   |> Zipper.directional_unselect(focus);
 
-let remove = (piece: Base.piece, focus: Direction.t, z: Zipper.t): Zipper.t => {
-  let seg = Piece.unparenthesize(piece);
+let remove = (seg: Base.segment, focus: Direction.t, z: Zipper.t): Zipper.t =>
   /* If it's a convex tile, unselect; otherwise, leave selection to guarantee you can toggle */
   switch (seg) {
   | [piece] => replace_selection_and_unselect(piece, Right, z)
   | _ => Zipper.replace_selection(focus, seg, z)
   };
-};
 
 let update_piece =
     (f: Base.projector => Base.projector, id: Id.t, piece: Base.piece)
@@ -139,18 +139,18 @@ let go =
     let* (focus, z) = setup_selection(z);
     switch (z.selection.content) {
     | [Projector(pr)] when pr.kind == kind =>
-      /* Remove projector: restore original syntax */
-      let restore_syntax = pr.syntax;
-      let underlying_seg = Piece.unparenthesize(restore_syntax);
+      /* Remove projector: restore original syntax from the stored term */
+      let underlying_seg = ExpToSegment.regen_proj_syntax(pr.syntax);
       let z =
         switch (seg_root_id(underlying_seg)) {
         | Some(term_id) => migrate_refractor(pr.id, term_id, z)
         | None => z
         };
-      Some(remove(restore_syntax, focus, z));
+      Some(remove(underlying_seg, focus, z));
     | [Projector(pr)] =>
       /* Switch projector kind: migrate refractor to new projector */
-      let+ piece = init(kind, Piece.unparenthesize(pr.syntax), ~elaborated);
+      let+ piece =
+        init(kind, ExpToSegment.regen_proj_syntax(pr.syntax), ~elaborated);
       let z =
         switch (piece) {
         | Projector(new_pr) => migrate_refractor(pr.id, new_pr.id, z)
@@ -174,14 +174,13 @@ let go =
     let* (focus, z) = setup_selection(z);
     switch (z.selection.content) {
     | [Projector(pr)] =>
-      let restore_syntax = pr.syntax;
-      let underlying_seg = Piece.unparenthesize(restore_syntax);
+      let underlying_seg = ExpToSegment.regen_proj_syntax(pr.syntax);
       let z =
         switch (seg_root_id(underlying_seg)) {
         | Some(term_id) => migrate_refractor(pr.id, term_id, z)
         | None => z
         };
-      Some(remove(restore_syntax, focus, z));
+      Some(remove(underlying_seg, focus, z));
     | _ => None
     };
   };
@@ -254,17 +253,22 @@ let go =
         };
       };
     } else {
-      Ok(
-        update(
-          p =>
-            {
-              ...p,
-              syntax: parenthesized_piece,
-            },
-          id,
-          z,
-        ),
-      );
+      /* Projectors store a term; parse the new segment into one. */
+      switch (MakeTerm.for_projection(trimmed_seg)) {
+      | Some(any) =>
+        Ok(
+          update(
+            p =>
+              {
+                ...p,
+                syntax: any,
+              },
+            id,
+            z,
+          ),
+        )
+      | None => Error(Cant_project)
+      };
     };
   | SetModel(idx, kind, new_model) =>
     let id = idx_to_id(kind, idx);
