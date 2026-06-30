@@ -289,6 +289,7 @@ module Update = {
 
   let sync_explain_folds =
       (
+        ~reslice: bool,
         ~cursor_info: option(Language.Info.t),
         ~previous_cursor_inspector: CursorInspector.Model.t,
         model: Model.t,
@@ -300,7 +301,8 @@ module Update = {
         CursorInspector.Model.refresh_for_info(ci, model.cursor_inspector)
       | None => CursorInspector.Model.init
       };
-    if (!CursorInspector.Model.has_active(previous_cursor_inspector)
+    if (!reslice
+        || !CursorInspector.Model.has_active(previous_cursor_inspector)
         && !CursorInspector.Model.has_active(cursor_inspector)) {
       (
         {
@@ -565,6 +567,7 @@ module Update = {
         );
       let (model, folds_changed) =
         sync_explain_folds(
+          ~reslice=false,
           ~cursor_info=cursor_info.info,
           ~previous_cursor_inspector=model.cursor_inspector,
           updated.model,
@@ -605,6 +608,7 @@ module Update = {
         );
       let (model, folds_changed) =
         sync_explain_folds(
+          ~reslice=false,
           ~cursor_info=cursor_info.info,
           ~previous_cursor_inspector=model.cursor_inspector,
           model,
@@ -642,6 +646,7 @@ module Update = {
       };
       let (model, folds_changed) =
         sync_explain_folds(
+          ~reslice=true,
           ~cursor_info=cursor_info.info,
           ~previous_cursor_inspector,
           model,
