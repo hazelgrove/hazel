@@ -334,17 +334,19 @@
 }
 
 #cursor-inspector .type-summary {
-  display: grid;
-  grid-template-columns: auto minmax(0, max-content);
-  grid-auto-rows: minmax(1.4em, auto);
+  display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  column-gap: 0.45em;
+  column-gap: 0.9em;
   row-gap: 0.12em;
   min-width: 0;
 }
 
 #cursor-inspector .type-summary-row {
-  display: contents;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35em;
+  min-width: 0;
 }
 
 #cursor-inspector .type-summary-label {
@@ -358,8 +360,52 @@
   min-width: 0;
 }
 
+#cursor-inspector .type-summary-editor {
+  min-width: 0;
+}
+
+#cursor-inspector .type-summary-editor .cell-item.code-editor {
+  display: inline-flex;
+  min-width: 0;
+  width: auto;
+  padding: 0;
+  margin: 0;
+  outline: none;
+  background: transparent;
+}
+
+#cursor-inspector .type-summary-editor .code-container {
+  min-width: 0;
+}
+
+#cursor-inspector .type-summary-editor.active .cell-item.code-editor {
+  outline: 1px solid var(--BR2);
+}
+
+#cursor-inspector .explain-toggle {
+  display: inline-flex;
+  width: 1.4em;
+  height: 1.4em;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  cursor: pointer;
+  color: var(--BR3);
+  background-color: var(--shard-exp);
+}
+
+#cursor-inspector .explain-toggle svg {
+  width: 0.85em;
+  height: 0.85em;
+  fill: currentColor;
+}
+
+#cursor-inspector .explain-toggle.active {
+  color: var(--light-page-color);
+  background-color: var(--BR3);
+}
+
 #cursor-inspector .type-summary-consistency {
-  grid-column: 1 / -1;
   font-size: 0.78em;
   color: var(--BR3);
   white-space: nowrap;

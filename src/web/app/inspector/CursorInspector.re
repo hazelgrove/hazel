@@ -2,6 +2,7 @@ open Virtual_dom.Vdom;
 open Node;
 open Util.WebUtil;
 open Util;
+open Haz3lcore;
 open Language;
 
 let errc = "error";
@@ -113,6 +114,293 @@ let code_view_settings: Haz3lcore.ExpToSegment.Settings.t = {
   show_unknown_as_hole: true,
 };
 
+module TypeTarget = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t =
+    | Synthesizing
+    | Analyzing;
+
+  let label =
+    fun
+    | Synthesizing => "syn"
+    | Analyzing => "ana";
+};
+
+module FoldOnlySelectable = {
+  module Model = CodeEditable.Model;
+
+  module OptionalDirection = {
+    [@deriving (show({with_path: false}), sexp, yojson)]
+    type t =
+      | NoDirection
+      | SomeDirection(Direction.t);
+
+    let of_option = (dir: option(Direction.t)): t =>
+      switch (dir) {
+      | None => NoDirection
+      | Some(dir) => SomeDirection(dir)
+      };
+
+    let to_option = (dir: t): option(Direction.t) =>
+      switch (dir) {
+      | NoDirection => None
+      | SomeDirection(dir) => Some(dir)
+      };
+  };
+
+  module Update = {
+    [@deriving (show({with_path: false}), sexp, yojson)]
+    type t =
+      | MoveAction(Action.move)
+      | SelectAction(Action.select)
+      | UnselectAction(OptionalDirection.t)
+      | CopyAction
+      | AddFold;
+
+    let can_undo = (action: t) =>
+      switch (action) {
+      | MoveAction(move) => Action.is_historic(Move(move))
+      | SelectAction(select) => Action.is_historic(Select(select))
+      | UnselectAction(dir) =>
+        Action.is_historic(Unselect(OptionalDirection.to_option(dir)))
+      | CopyAction
+      | AddFold => false
+      };
+
+    let fold_action =
+      CodeEditable.Update.Perform(
+        Project(SetIndicated(Specific(ProjectorCore.Kind.Fold))),
+      );
+
+    let update = (~settings, action: t, model: Model.t): Updated.t(Model.t) => {
+      let action': CodeEditable.Update.t =
+        switch (action) {
+        | MoveAction(move) => Perform(Move(move))
+        | SelectAction(select) => Perform(Select(select))
+        | UnselectAction(dir) =>
+          Perform(Unselect(OptionalDirection.to_option(dir)))
+        | CopyAction => Perform(Copy)
+        | AddFold => fold_action
+        };
+      CodeEditable.Update.update(~settings, action', model);
+    };
+
+    let convert_action: CodeEditable.Update.t => option(t) =
+      fun
+      | Perform(Move(move)) => Some(MoveAction(move))
+      | Perform(Select(select)) => Some(SelectAction(select))
+      | Perform(Unselect(dir)) =>
+        Some(UnselectAction(OptionalDirection.of_option(dir)))
+      | Perform(Copy) => Some(CopyAction)
+      | Perform(Project(SetIndicated(Specific(ProjectorCore.Kind.Fold)))) =>
+        Some(AddFold)
+      | Perform(
+          Destruct(_) | Insert(_) | Put_down | Paste(_) | Reparse | Cut |
+          Buffer(_) |
+          Project(_) |
+          Structural(_) |
+          Probe(_) |
+          PrettyPrint |
+          Dump |
+          Introduce |
+          ToggleLineComment,
+        )
+      | DebugConsole(_)
+      | ContextMenu(_)
+      | TAB => None;
+  };
+
+  module View = {
+    type event = CodeEditable.View.event;
+
+    let wrap_edit_mode =
+        (edit_mode: EditMode.t(Update.t, unit))
+        : EditMode.t(CodeEditable.Update.t, unit) =>
+      switch (edit_mode) {
+      | EditMode.ReadOnly => EditMode.ReadOnly
+      | EditMode.Editable({inject, escape, take_focus, focus}) =>
+        EditMode.Editable({
+          inject: a =>
+            switch (Update.convert_action(a)) {
+            | Some(action) => inject(action)
+            | None => Ui_effect.Ignore
+            },
+          escape,
+          take_focus,
+          focus,
+        })
+      };
+
+    let view = (~globals, ~signal, ~edit_mode, model: Model.t) =>
+      CodeEditable.View.view(
+        ~globals,
+        ~signal,
+        ~edit_mode=wrap_edit_mode(edit_mode),
+        ~dynamics=model.dynamics,
+        model,
+      );
+  };
+};
+
+let type_editor_of_type = (typ: Typ.t): CodeEditable.Model.t =>
+  ExpToSegment.typ_to_segment(~settings=code_view_settings, typ)
+  |> Zipper.unzip
+  |> Editor.Model.mk(~root=Sort.Typ)
+  |> CodeWithStatics.Model.mk;
+
+let typ_for_target = (target: TypeTarget.t, ci: Info.t): option(Typ.t) =>
+  switch (ci, target) {
+  | (InfoExp({elab_syn_ty, _}), Synthesizing)
+  | (InfoPat({elab_syn_ty, _}), Synthesizing) => Some(elab_syn_ty)
+  | (InfoExp({ana, _}), Analyzing)
+  | (InfoPat({ana, _}), Analyzing) =>
+    Some(Statics.ana_skip_explicit_nonlabel(ana))
+  | _ => None
+  };
+
+module Model = {
+  module OptionalId = {
+    [@deriving (show({with_path: false}), sexp, yojson)]
+    type t =
+      | NoId
+      | SomeId(Id.t);
+  };
+
+  module EditorSlot = {
+    [@deriving (show({with_path: false}), sexp, yojson)]
+    type t =
+      | NoEditor
+      | SomeEditor(FoldOnlySelectable.Model.t);
+  };
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type row = {
+    active: bool,
+    cursor_id: OptionalId.t,
+    typ_id: OptionalId.t,
+    editor: EditorSlot.t,
+  };
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t = {
+    syn: row,
+    ana: row,
+  };
+
+  let empty_row = {
+    active: false,
+    cursor_id: OptionalId.NoId,
+    typ_id: OptionalId.NoId,
+    editor: EditorSlot.NoEditor,
+  };
+
+  let init = {
+    syn: empty_row,
+    ana: empty_row,
+  };
+
+  let row = (target: TypeTarget.t, model: t): row =>
+    switch (target) {
+    | Synthesizing => model.syn
+    | Analyzing => model.ana
+    };
+
+  let put_row = (target: TypeTarget.t, row: row, model: t): t =>
+    switch (target) {
+    | Synthesizing => {
+        ...model,
+        syn: row,
+      }
+    | Analyzing => {
+        ...model,
+        ana: row,
+      }
+    };
+
+  let refresh_row = (target: TypeTarget.t, ci: Info.t, row: row): row =>
+    switch (typ_for_target(target, ci)) {
+    | None => empty_row
+    | Some(typ) =>
+      let cursor_id = Info.id_of(ci);
+      let typ_id = Typ.rep_id(typ);
+      switch (row.cursor_id, row.typ_id, row.editor) {
+      | (
+          OptionalId.SomeId(old_cursor),
+          OptionalId.SomeId(old_typ),
+          EditorSlot.SomeEditor(_),
+        )
+          when Id.equal(old_cursor, cursor_id) && Id.equal(old_typ, typ_id) => row
+      | _ => {
+          ...row,
+          cursor_id: OptionalId.SomeId(cursor_id),
+          typ_id: OptionalId.SomeId(typ_id),
+          editor: EditorSlot.SomeEditor(type_editor_of_type(typ)),
+        }
+      };
+    };
+
+  let refresh_for_info = (ci: Info.t, model: t): t =>
+    switch (ci) {
+    | InfoExp(_)
+    | InfoPat(_) => {
+        syn: refresh_row(Synthesizing, ci, model.syn),
+        ana: refresh_row(Analyzing, ci, model.ana),
+      }
+    | _ => init
+    };
+};
+
+module Update = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t =
+    | Toggle(TypeTarget.t)
+    | TypeEditor(TypeTarget.t, FoldOnlySelectable.Update.t);
+
+  let can_undo = (_: t) => false;
+
+  let update =
+      (
+        ~settings: Settings.t,
+        ~cursor_info: option(Info.t),
+        action: t,
+        model: Model.t,
+      )
+      : Updated.t(Model.t) =>
+    switch (cursor_info) {
+    | None => model |> Updated.return_quiet
+    | Some(ci) =>
+      let model = Model.refresh_for_info(ci, model);
+      switch (action) {
+      | Toggle(target) =>
+        let row = Model.row(target, model);
+        {
+          ...row,
+          active: !row.active,
+        }
+        |> Model.put_row(target, _, model)
+        |> Updated.return_quiet;
+      | TypeEditor(target, editor_action) =>
+        let row = Model.row(target, model);
+        switch (row.active, row.editor) {
+        | (true, Model.EditorSlot.SomeEditor(editor)) =>
+          let updated =
+            FoldOnlySelectable.Update.update(
+              ~settings,
+              editor_action,
+              editor,
+            );
+          {
+            ...row,
+            editor: Model.EditorSlot.SomeEditor(updated.model),
+          }
+          |> Model.put_row(target, _, model)
+          |> Updated.return_quiet;
+        | _ => model |> Updated.return_quiet
+        };
+      };
+    };
+};
+
 let view_any = (~globals, any: Any.t) =>
   any
   |> CodeViewable.view_any(~globals, ~settings=code_view_settings)
@@ -124,7 +412,15 @@ let view_type = (~globals, typ: Typ.t) =>
   |> code_box_container;
 
 let type_summary_view =
-    (~globals, ~ctx: Ctx.t, ~syn: Typ.t, ~ana: Typ.t): Node.t => {
+    (
+      ~globals,
+      ~model: Model.t,
+      ~inject: Update.t => Ui_effect.t(unit),
+      ~ctx: Ctx.t,
+      ~syn: Typ.t,
+      ~ana: Typ.t,
+    )
+    : Node.t => {
   let ana = Statics.ana_skip_explicit_nonlabel(ana);
   let consistency =
     if (Equality.semantic.typ(syn, ana)) {
@@ -135,19 +431,68 @@ let type_summary_view =
       | None => "syn type is inconsistent with ana type"
       };
     };
-  let row = (name, typ) =>
+  let row = (target: TypeTarget.t, typ, row_model: Model.row) => {
+    let editor =
+      switch (row_model.editor) {
+      | Model.EditorSlot.NoEditor => type_editor_of_type(typ)
+      | Model.EditorSlot.SomeEditor(editor) => editor
+      };
+    let edit_mode =
+      row_model.active
+        ? EditMode.Editable({
+            inject: action => inject(Update.TypeEditor(target, action)),
+            escape: _ => Ui_effect.Ignore,
+            take_focus: _ => Ui_effect.Ignore,
+            focus: Some(),
+          })
+        : EditMode.ReadOnly;
+    let toggle =
+      div(
+        ~attrs=[
+          clss(["explain-toggle"] @ (row_model.active ? ["active"] : [])),
+          Attr.title("Explain this type"),
+          Attr.on_pointerdown(_ =>
+            Effect.Many([
+              Effect.Stop_propagation,
+              inject(Update.Toggle(target)),
+            ])
+          ),
+        ],
+        [Icons.explain_this],
+      );
+    let editor_view =
+      div(
+        ~attrs=[
+          clss(
+            ["type-summary-editor"] @ (row_model.active ? ["active"] : []),
+          ),
+        ],
+        [
+          FoldOnlySelectable.View.view(
+            ~globals,
+            ~signal=_ => Ui_effect.Ignore,
+            ~edit_mode,
+            editor,
+          ),
+        ],
+      );
     div(
       ~attrs=[clss(["type-summary-row"])],
       [
-        div(~attrs=[clss(["type-summary-label"])], [text(name)]),
-        view_type(~globals, typ),
+        div(
+          ~attrs=[clss(["type-summary-label"])],
+          [text(TypeTarget.label(target))],
+        ),
+        editor_view,
+        toggle,
       ],
     );
+  };
   div(
     ~attrs=[clss(["type-summary"])],
     [
-      row("syn", syn),
-      row("ana", ana),
+      row(Synthesizing, syn, model.syn),
+      row(Analyzing, ana, model.ana),
       div(
         ~attrs=[clss(["type-summary-consistency"])],
         [text(consistency)],
@@ -1132,7 +1477,8 @@ let tpat_view =
 
 let secondary_view = (cls: Cls.t) => div_ok([text(cls |> Cls.show)]);
 
-let view_of_info = (~globals, ci): list(Node.t) => {
+let view_of_info = (~globals, ~model, ~inject, ci): list(Node.t) => {
+  let model = Model.refresh_for_info(ci, model);
   let wrapper = status_view => [term_view(~globals, ci), status_view];
   switch (ci) {
   | Secondary(_) => wrapper(div([]))
@@ -1142,12 +1488,26 @@ let view_of_info = (~globals, ci): list(Node.t) => {
   | InfoMPat({cls, _}) => wrapper(div_ok([text(cls |> Cls.show)]))
   | InfoExp({cls, message, ctx, elab_syn_ty, ana, _} as ie) => [
       term_view(~globals, ci),
-      type_summary_view(~globals, ~ctx, ~syn=elab_syn_ty, ~ana),
+      type_summary_view(
+        ~globals,
+        ~model,
+        ~inject,
+        ~ctx,
+        ~syn=elab_syn_ty,
+        ~ana,
+      ),
       exp_view(~globals, cls, message, ie),
     ]
   | InfoPat({cls, message, ctx, elab_syn_ty, ana, _} as ip) => [
       term_view(~globals, ci),
-      type_summary_view(~globals, ~ctx, ~syn=elab_syn_ty, ~ana),
+      type_summary_view(
+        ~globals,
+        ~model,
+        ~inject,
+        ~ctx,
+        ~syn=elab_syn_ty,
+        ~ana,
+      ),
       pat_view(~globals, cls, message, ip),
     ]
   | InfoTyp({cls, marks, message, _}) =>
@@ -1158,7 +1518,7 @@ let view_of_info = (~globals, ci): list(Node.t) => {
   };
 };
 
-let inspector_view = (~globals: Globals.t, ci): Node.t =>
+let inspector_view = (~globals: Globals.t, ~model, ~inject, ci): Node.t =>
   div(
     ~attrs=[
       Attr.id("cursor-inspector"),
@@ -1169,10 +1529,16 @@ let inspector_view = (~globals: Globals.t, ci): Node.t =>
               ? warnc : okc,
       ]),
     ],
-    view_of_info(~globals, ci),
+    view_of_info(~globals, ~model, ~inject, ci),
   );
 
-let view = (~globals: Globals.t, cursor: Cursor.cursor(Editors.Update.t)) => {
+let view =
+    (
+      ~globals: Globals.t,
+      ~model: Model.t,
+      ~inject: Update.t => Ui_effect.t(unit),
+      cursor: Cursor.cursor(Editors.Update.t),
+    ) => {
   let bar_view = div(~attrs=[Attr.id("bottom-bar")]);
   let err_view = err =>
     bar_view([
@@ -1184,6 +1550,6 @@ let view = (~globals: Globals.t, cursor: Cursor.cursor(Editors.Update.t)) => {
   switch (cursor.info) {
   | _ when !globals.settings.core.statics => div_empty
   | None => err_view("Whitespace or Comment")
-  | Some(ci) => bar_view([inspector_view(~globals, ci)])
+  | Some(ci) => bar_view([inspector_view(~globals, ~model, ~inject, ci)])
   };
 };

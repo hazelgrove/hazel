@@ -16,6 +16,7 @@ module Model = {
     globals: Globals.Model.t,
     editors: Editors.Model.t,
     explain_this: ExplainThisModel.t,
+    cursor_inspector: CursorInspector.Model.t,
     selection,
   };
 
@@ -31,6 +32,7 @@ module Model = {
       globals,
       editors,
       explain_this: ExplainThisModel.init,
+      cursor_inspector: CursorInspector.Model.init,
       selection: Editors.Selection.default_selection(editors),
     };
   };
@@ -49,6 +51,7 @@ module Store = {
       editors,
       globals,
       explain_this,
+      cursor_inspector: CursorInspector.Model.init,
       selection: Editors.Selection.default_selection(editors),
     };
   };
@@ -95,6 +98,7 @@ module Update = {
     | Globals(Globals.Update.t)
     | Editors(Editors.Update.t)
     | ExplainThis(ExplainThisUpdate.update)
+    | CursorInspector(CursorInspector.Update.t)
     | MakeActive(selection)
     | Benchmark(benchmark_action)
     | Refresh
@@ -331,6 +335,24 @@ module Update = {
         ...model,
         explain_this,
       };
+    | CursorInspector(action) =>
+      let cursor_info =
+        Editors.Selection.get_cursor_info(
+          ~inject=_ => Ui_effect.Ignore,
+          ~selection=model.selection,
+          model.editors,
+        );
+      let* cursor_inspector =
+        CursorInspector.Update.update(
+          ~settings=model.globals.settings,
+          ~cursor_info=cursor_info.info,
+          action,
+          model.cursor_inspector,
+        );
+      {
+        ...model,
+        cursor_inspector,
+      };
     | MakeActive(selection) =>
       {
         ...model,
@@ -359,6 +381,7 @@ module Update = {
     | Globals(action) => Globals.Update.can_undo(action)
     | Editors(action) => Editors.Update.can_undo(action)
     | ExplainThis(action) => ExplainThisUpdate.can_undo(action)
+    | CursorInspector(action) => CursorInspector.Update.can_undo(action)
     | MakeActive(_)
     | Benchmark(_) => false
     | Refresh => false
@@ -853,7 +876,13 @@ module View = {
         ~log_model,
         ~inject: Update.t => Ui_effect.t(unit),
         ~cursor: Cursor.cursor(Editors.Update.t),
-        {globals, editors, explain_this: explainThisModel, selection} as model: Model.t,
+        {
+          globals,
+          editors,
+          explain_this: explainThisModel,
+          cursor_inspector,
+          selection,
+        } as model: Model.t,
       ) => {
     let log_count = LogCount.get();
     let globals = {
@@ -864,7 +893,13 @@ module View = {
         failwith("get_log_count is deprecated, use Log.get_count_sync"),
       export_all: Export.export_all,
     };
-    let bottom_bar = CursorInspector.view(~globals, cursor);
+    let bottom_bar =
+      CursorInspector.view(
+        ~globals,
+        ~model=cursor_inspector,
+        ~inject=a => inject(CursorInspector(a)),
+        cursor,
+      );
     let sidebar =
       Sidebar.view(
         ~globals,
