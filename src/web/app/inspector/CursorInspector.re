@@ -346,7 +346,7 @@ module TypeSlicing = {
     };
 
   let protected_ids = (ci: Info.t): Id.Set.t =>
-    id_set_of_list([Info.id_of(ci), ...Info.ancestors_of(ci)]);
+    id_set_of_list(Info.ancestors_of(ci));
 
   let slice_for_target =
       (~root_exp: Exp.t, ~ci: Info.t, target: TypeTarget.t, row: Model.row)
@@ -502,29 +502,53 @@ module ProgramFolds = {
         changed: false,
       };
     } else {
-      let generated = ref([]);
+      let syntax = model.editor.syntax;
+      let target_candidates =
+        Id.Set.fold(
+          (id, targets) =>
+            switch (TermData.segment(id, syntax.term_data)) {
+            | Some(seg) =>
+              switch (Id.Map.find_opt(id, syntax.term_data)) {
+              | Some(TermData.{root_piece, _}) => [
+                  (Piece.id(root_piece), seg, List.length(seg)),
+                  ...targets,
+                ]
+              | None => targets
+              }
+            | None => targets
+            },
+          omitted,
+          [],
+        )
+        |> List.sort(((_, _, a), (_, _, b)) => compare(b, a));
+      let (fold_targets, covered) =
+        List.fold_left(
+          ((targets, covered), (root_id, seg, _)) =>
+            if (Id.Set.mem(root_id, covered)) {
+              (targets, covered);
+            } else {
+              let covered =
+                List.fold_left(
+                  (covered, piece) => Id.Set.add(Piece.id(piece), covered),
+                  covered,
+                  seg,
+                );
+              (Id.Map.add(root_id, seg, targets), covered);
+            },
+          (Id.Map.empty, Id.Set.empty),
+          target_candidates,
+        );
+      let changed = ref(false);
       let add_piece = (piece: Piece.t): Segment.t =>
-        if (Id.Set.mem(Piece.id(piece), omitted)) {
-          let seg = [piece];
-          switch (MakeTerm.for_projection(seg)) {
+        switch (Id.Map.find_opt(Piece.id(piece), fold_targets)) {
+        | Some(seg) =>
+          switch (ProjectorPerform.init(ProjectorCore.Kind.Fold, seg)) {
+          | Some(projected) =>
+            changed := true;
+            [projected];
           | None => [piece]
-          | Some(any) =>
-            switch (
-              ProjectorInit.init(
-                ProjectorCore.Kind.Fold,
-                Segment.parenthesize(seg),
-                any,
-              )
-            ) {
-            | Some(Piece.Projector(pr) as projected) =>
-              generated := [pr.id, ...generated^];
-              [projected];
-            | Some(projected) => [projected]
-            | None => [piece]
-            }
-          };
-        } else {
-          [piece];
+          }
+        | None => Id.Set.mem(Piece.id(piece), covered) ? [] : [piece]
         };
       let model =
         model
@@ -534,7 +558,7 @@ module ProgramFolds = {
            );
       {
         model,
-        changed: generated^ != [],
+        changed: changed^,
       };
     };
 

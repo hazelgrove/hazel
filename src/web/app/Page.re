@@ -565,7 +565,7 @@ module Update = {
           ~selection=updated.model.selection,
           updated.model.editors,
         );
-      let (model, folds_changed) =
+      let (model, _folds_changed) =
         sync_explain_folds(
           ~reslice=false,
           ~cursor_info=cursor_info.info,
@@ -575,7 +575,7 @@ module Update = {
       {
         ...updated,
         model,
-        recalculate: updated.recalculate || folds_changed,
+        recalculate: updated.recalculate,
       };
     | Editors(action) =>
       let updated_editors =
@@ -606,7 +606,7 @@ module Update = {
           ~selection=model.selection,
           model.editors,
         );
-      let (model, folds_changed) =
+      let (model, _folds_changed) =
         sync_explain_folds(
           ~reslice=false,
           ~cursor_info=cursor_info.info,
@@ -616,7 +616,7 @@ module Update = {
       {
         ...updated_editors,
         model,
-        recalculate: updated_editors.recalculate || folds_changed,
+        recalculate: updated_editors.recalculate,
       };
     | ExplainThis(action) =>
       let* explain_this =
@@ -644,7 +644,7 @@ module Update = {
         ...model,
         cursor_inspector: updated_cursor_inspector.model,
       };
-      let (model, folds_changed) =
+      let (model, _folds_changed) =
         sync_explain_folds(
           ~reslice=true,
           ~cursor_info=cursor_info.info,
@@ -654,7 +654,7 @@ module Update = {
       {
         ...updated_cursor_inspector,
         model,
-        recalculate: updated_cursor_inspector.recalculate || folds_changed,
+        recalculate: updated_cursor_inspector.recalculate,
       };
     | MakeActive(selection) =>
       {
