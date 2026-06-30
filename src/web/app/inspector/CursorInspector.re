@@ -329,30 +329,24 @@ module TypeSlicing = {
     | _ => None
     };
 
-  let query_of_typ = (typ: Typ.t): (Typ.t, Id.Set.t) => {
-    let folded_ids = ref(Id.Set.empty);
+  let query_of_typ = (typ: Typ.t): Typ.t => {
     let f_typ = (continue, {term, _} as typ: Typ.t) =>
       switch (term) {
-      | Projector({kind, _}, inner) when kind == ProjectorCore.Kind.Fold =>
-        folded_ids :=
-          Id.Set.union(folded_ids^, id_set_of_list(IdTagged.ids(inner)));
-        Statics.Slice.gap;
+      | Projector({kind, _}, _) when kind == ProjectorCore.Kind.Fold => Statics.Slice.gap
       | _ => continue(typ)
       };
-    (Typ.map_term(~f_typ, typ), folded_ids^);
+    Typ.map_term(~f_typ, typ);
   };
 
   let query_of_row = (row: Model.row): option(Typ.t) =>
     switch (row.editor) {
     | Model.EditorSlot.NoEditor => None
     | Model.EditorSlot.SomeEditor(editor) =>
-      switch (typ_of_editor(editor)) {
-      | None => None
-      | Some(typ) =>
-        let (query, folded_ids) = query_of_typ(typ);
-        Id.Set.is_empty(folded_ids) ? None : Some(query);
-      }
+      Option.map(query_of_typ, typ_of_editor(editor))
     };
+
+  let protected_ids = (ci: Info.t): Id.Set.t =>
+    id_set_of_list([Info.id_of(ci), ...Info.ancestors_of(ci)]);
 
   let slice_for_target =
       (~root_exp: Exp.t, ~ci: Info.t, target: TypeTarget.t, row: Model.row)
@@ -370,14 +364,17 @@ module TypeSlicing = {
           };
         try(
           Some(
-            Statics.slice(
-              ~ctx=Info.ctx_of(ci),
-              ~focus=Some(Info.id_of(ci)),
-              ~direction,
-              root_exp,
-              query,
-            ).
-              omitted,
+            Id.Set.diff(
+              Statics.slice(
+                ~ctx=Info.ctx_of(ci),
+                ~focus=Some(Info.id_of(ci)),
+                ~direction,
+                root_exp,
+                query,
+              ).
+                omitted,
+              protected_ids(ci),
+            ),
           )
         ) {
         | _ => Some(Id.Set.empty)
@@ -466,9 +463,15 @@ module ProgramFolds = {
   };
 
   let with_zipper = (zipper: Zipper.t, model: CodeEditable.Model.t) => {
-    ...model,
-    editor: Editor.Model.mk(zipper, ~root=model.editor.root),
-    context_menu: None,
+    let editor = Editor.Model.mk(zipper, ~root=model.editor.root);
+    {
+      ...model,
+      editor: {
+        ...editor,
+        syntax: CachedSyntax.mark_old(editor.syntax),
+      },
+      context_menu: None,
+    };
   };
 
   let remove_all = (model: CodeEditable.Model.t): result => {
@@ -598,6 +601,21 @@ module Update = {
     | _ => ()
     };
 
+  let calculate_type_editor =
+      (~settings: Settings.t, model: CodeEditable.Model.t)
+      : CodeEditable.Model.t => {
+    ...model,
+    editor:
+      Editor.Update.calculate(
+        ~settings=settings.core,
+        ~autoprobe_mode=false,
+        ~is_edited=true,
+        model.statics,
+        model.dynamics,
+        model.editor,
+      ),
+  };
+
   let move_editor_to_root = (~settings: Settings.t, row: Model.row): Model.row =>
     switch (row.typ_id, row.editor) {
     | (Model.OptionalId.SomeId(id), Model.EditorSlot.SomeEditor(editor)) =>
@@ -607,7 +625,10 @@ module Update = {
         let updated = CodeEditable.Update.update(~settings, action, editor);
         {
           ...row,
-          editor: Model.EditorSlot.SomeEditor(updated.model),
+          editor:
+            Model.EditorSlot.SomeEditor(
+              calculate_type_editor(~settings, updated.model),
+            ),
         };
       | None => row
       }
@@ -646,7 +667,10 @@ module Update = {
             CodeEditable.Update.update(~settings, editor_action, editor);
           {
             ...row,
-            editor: Model.EditorSlot.SomeEditor(updated.model),
+            editor:
+              Model.EditorSlot.SomeEditor(
+                calculate_type_editor(~settings, updated.model),
+              ),
           }
           |> Model.put_row(target, _, model)
           |> Updated.return_quiet;
