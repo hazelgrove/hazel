@@ -244,7 +244,13 @@ module Update = {
   };
 
   let calculate =
-      (~settings, ~autoprobe_mode, ~is_edited, ~schedule_action, model: Model.t)
+      (
+        ~settings,
+        ~autoprobe_mode,
+        ~is_edited,
+        ~schedule_action,
+        model: Model.t,
+      )
       : Model.t => {
     let statics_mode =
       CodeWithStatics.StaticsDebounce.consume(~is_edited, ~schedule_refresh=() =>

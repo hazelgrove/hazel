@@ -86,7 +86,10 @@ let probe_status =
         manual_entries,
       );
     all_statics ? Statics(target_ids) : Manual(target_ids);
-  } else if (List.exists(id => Id.Map.mem(id, refractors.multis.ids), target_ids)) {
+  } else if (List.exists(
+               id => Id.Map.mem(id, refractors.multis.ids),
+               target_ids,
+             )) {
     Multi;
   } else {
     let ephemeral_ids =
@@ -1031,8 +1034,7 @@ let resolve_pending_probe_cursor =
           }
         )
       };
-    | None =>
-      if (is_pending) {z} else {z}
+    | None => if (is_pending) {z} else {z}
     };
   };
 };
