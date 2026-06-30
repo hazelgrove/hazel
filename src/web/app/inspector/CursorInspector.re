@@ -283,6 +283,38 @@ module Model = {
   let has_active = model => model.syn.active || model.ana.active;
 };
 
+let type_slicing_focus_of_row =
+    (target: TypeTarget.t, row: Model.row): option((string, Ctx.t, Typ.t)) =>
+  switch (row.active, row.editor) {
+  | (true, Model.EditorSlot.SomeEditor(editor)) =>
+    switch (
+      Indicated.ci_of(editor.editor.state.zipper, editor.statics.info_map)
+    ) {
+    | Some(InfoTyp({user_term, ctx, _})) =>
+      Some((
+        "Type Slicing ("
+        ++ (
+          switch (target) {
+          | Synthesizing => "Synthesis"
+          | Analyzing => "Analysis"
+          }
+        )
+        ++ ")",
+        ctx,
+        user_term,
+      ))
+    | _ => None
+    }
+  | _ => None
+  };
+
+let type_slicing_focuses = (model: Model.t): list((string, Ctx.t, Typ.t)) =>
+  [
+    type_slicing_focus_of_row(Synthesizing, model.syn),
+    type_slicing_focus_of_row(Analyzing, model.ana),
+  ]
+  |> List.filter_map(focus => focus);
+
 module TypeSlicing = {
   let id_set_of_list = (ids: list(Id.t)): Id.Set.t =>
     List.fold_left((acc, id) => Id.Set.add(id, acc), Id.Set.empty, ids);
@@ -555,11 +587,23 @@ module Update = {
 
   let can_undo = (_: t) => false;
 
+  let type_editor_caret_selector = "#cursor-inspector .type-summary-editor.active .caret";
+
+  let animate_type_editor_caret =
+      (~settings: Settings.t, action: CodeEditable.Update.t) =>
+    switch (action) {
+    | Perform(action)
+        when settings.core.flip_animations && Action.should_animate(action) =>
+      Animation.request([Animation.Actions.move(type_editor_caret_selector)])
+    | _ => ()
+    };
+
   let move_editor_to_root = (~settings: Settings.t, row: Model.row): Model.row =>
     switch (row.typ_id, row.editor) {
     | (Model.OptionalId.SomeId(id), Model.EditorSlot.SomeEditor(editor)) =>
       switch (CodeEditable.Selection.jump_to_tile(id, editor)) {
       | Some(action) =>
+        animate_type_editor_caret(~settings, action);
         let updated = CodeEditable.Update.update(~settings, action, editor);
         {
           ...row,
@@ -597,6 +641,7 @@ module Update = {
         switch (row.active, row.editor) {
         | (true, Model.EditorSlot.SomeEditor(editor))
             when fold_editor_permits(editor_action) =>
+          animate_type_editor_caret(~settings, editor_action);
           let updated =
             CodeEditable.Update.update(~settings, editor_action, editor);
           {
@@ -734,7 +779,7 @@ let type_slot =
         ),
         div(
           ~attrs=[
-            clss(["context-menu", "open-down-right", "type-slice-menu"]),
+            clss(["context-menu", "open-up-right", "type-slice-menu"]),
             Attr.create(
               "style",
               Printf.sprintf("left: %fpx; top: %fpx;", x, y),

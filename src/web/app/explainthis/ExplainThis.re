@@ -3810,14 +3810,6 @@ module TypeSlicing = {
     [2, 1] |> List.filter_map(depth => fold_first_at_depth(~depth, typ));
 };
 
-let slicing_typs = (info: Info.t): option((Ctx.t, Typ.t, Typ.t)) =>
-  switch (info) {
-  | InfoExp({elab_syn_ty, ana, ctx, _})
-  | InfoPat({elab_syn_ty, ana, ctx, _}) =>
-    Some((ctx, elab_syn_ty, Statics.ana_skip_explicit_nonlabel(ana)))
-  | _ => None
-  };
-
 let type_info_of = (~ctx: Ctx.t, typ: Typ.t): Info.t =>
   InfoTyp({
     user_term: typ,
@@ -3920,6 +3912,7 @@ let view =
       ~globals: Globals.t,
       ~inject,
       ~explainThisModel: ExplainThisModel.t,
+      ~type_slicing_focuses: list((string, Ctx.t, Typ.t)),
       info: info,
     ) => {
   // This gets the info from the infomap before singleton autolabelling
@@ -3939,27 +3932,22 @@ let view =
       MessageContent(inject, globals),
     );
   let slicing_sections =
-    switch (Option.bind(info_cursor, slicing_typs)) {
-    | Some((ctx, syn_ty, ana_ty)) => [
-        type_slicing_section(
-          ~globals,
-          ~inject,
-          ~docs=explainThisModel,
-          ~title="Type Slicing (Synthesis)",
-          ~ctx,
-          ~typ=syn_ty,
-        ),
-        type_slicing_section(
-          ~globals,
-          ~inject,
-          ~docs=explainThisModel,
-          ~title="Type Slicing (Analysis)",
-          ~ctx,
-          ~typ=ana_ty,
-        ),
-        div(~attrs=[clss(["hline"])], []),
-      ]
-    | None => []
+    switch (type_slicing_focuses) {
+    | [] => []
+    | focuses =>
+      List.map(
+        ((title, ctx, typ)) =>
+          type_slicing_section(
+            ~globals,
+            ~inject,
+            ~docs=explainThisModel,
+            ~title,
+            ~ctx,
+            ~typ,
+          ),
+        focuses,
+      )
+      @ [div(~attrs=[clss(["hline"])], [])]
     };
   div(
     ~attrs=[Attr.id("explain-this")],

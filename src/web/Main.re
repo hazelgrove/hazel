@@ -8,21 +8,27 @@ let scroll_to_caret = ref(true);
 let restart_caret_animation = () =>
   // necessary to trigger reflow
   // <https://css-tricks.com/restart-css-animation/>
-  try(
-    switch (
-      Dom_html.document##querySelector(
-        Js.string(".code-editor:focus .caret.blink"),
-      )
-      |> Js.Opt.to_option
-    ) {
-    | Some(caret_elem) =>
-      let caret_elem: Js.t(Dom_html.element) = Js.Unsafe.coerce(caret_elem);
-      caret_elem##.classList##remove(Js.string("blink"));
-      let _ = caret_elem##getBoundingClientRect;
-      caret_elem##.classList##add(Js.string("blink"));
-    | None => ()
-    }
-  ) {
+  try({
+    let carets =
+      Dom_html.document##querySelectorAll(
+        Js.string(
+          ".code-editor:focus .caret.blink, "
+          ++ "#cursor-inspector .type-summary-editor.active .caret.blink",
+        ),
+      );
+    let len = carets##.length;
+    for (i in 0 to len - 1) {
+      switch (carets##item(i) |> Js.Opt.to_option) {
+      | Some(caret_elem) =>
+        let caret_elem: Js.t(Dom_html.element) =
+          Js.Unsafe.coerce(caret_elem);
+        caret_elem##.classList##remove(Js.string("blink"));
+        let _ = caret_elem##getBoundingClientRect;
+        caret_elem##.classList##add(Js.string("blink"));
+      | None => ()
+      };
+    };
+  }) {
   | _ => ()
   };
 

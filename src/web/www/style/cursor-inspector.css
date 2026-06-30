@@ -366,6 +366,10 @@
   outline: 1px solid var(--BR2);
 }
 
+#cursor-inspector .type-summary-editor.active .caret {
+  visibility: visible;
+}
+
 #cursor-inspector .explain-toggle {
   display: inline-flex;
   width: 1.1em;

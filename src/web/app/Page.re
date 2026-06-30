@@ -1209,6 +1209,8 @@ module View = {
         ~explain_this_inject=
           (action: ExplainThisUpdate.update) => inject(ExplainThis(action)),
         ~explainThisModel,
+        ~type_slicing_focuses=
+          CursorInspector.type_slicing_focuses(cursor_inspector),
         ~editors_inject=(a: Editors.Update.t) => inject(Editors(a)),
         ~editors,
         ~selection=model.selection,
