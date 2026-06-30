@@ -52,7 +52,6 @@ let run_select =
   (selected, List.length(samples));
 };
 
-
 let top_level_tests = [
   test_case(
     "Top-level cursor selects top-level sample",
@@ -91,7 +90,6 @@ in ^^probe(f(1)); ^^probe(f(2)); ^^probe(f(3))|},
     },
   ),
 ];
-
 
 let step_into_tests = [
   test_case(
@@ -218,7 +216,6 @@ in f(5)|};
   ),
 ];
 
-
 let pin_integration_tests = [
   test_case(
     "Pin at call A hides samples from call B",
@@ -282,7 +279,6 @@ in f(1); f(2); f(3)|};
     },
   ),
 ];
-
 
 let relation_integration_tests = [
   test_case(
@@ -376,7 +372,6 @@ in f(5)|};
     },
   ),
 ];
-
 
 let mode_tests = [
   test_case(

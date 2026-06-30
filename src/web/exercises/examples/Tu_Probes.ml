@@ -63,7 +63,14 @@ Probing `x + 1` shows probe samples: `11`, `21`|md};
       {
         tests =
           {
-            selection = { focus = Left; content = []; mode = Normal; anchor_caret = Outer; smart_rounded = false };
+            selection =
+              {
+                focus = Left;
+                content = [];
+                mode = Normal;
+                anchor_caret = Outer;
+                smart_rounded = false;
+              };
             relatives =
               {
                 siblings =
