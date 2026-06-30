@@ -130,9 +130,6 @@ let add_empty_piece_rows = map => {
 let rec add_n_empty_piece_rows = (n: int, map) =>
   n <= 0 ? map : add_n_empty_piece_rows(n - 1, add_empty_piece_rows(map));
 
-/* Total rendered row count for a measured segment.
- * `piece_rows` accumulates one sublist per visual row during of_segment;
- * its length is the row count. */
 let total_rows = (map: t): int => List.length(map.piece_rows);
 
 let find_shards = (~msg="", t: Tile.t, map) =>
@@ -385,18 +382,9 @@ let of_segment_inner =
     | Grout(g) => add_grout(acc, g)
     | Projector(p) => add_projector(acc, p)
     | Tile(t) =>
-      /* Walk the tile's shards and children first, THEN update the
-       * deferred-linebreak counter for refractors on this tile. The
-       * `DeferredLinebreaks` counter is consumed by the next secondary
-       * linebreak in the walk; updating before the fold would let
-       * linebreaks INSIDE the tile (e.g. a newline inserted between
-       * the `(` and `)` of a function-application probed by a drawer-
-       * mode refractor) eat the deferred rows in the wrong place. The
-       * drawer is positioned at the refractor's rightmost point — the
-       * last shard — so the Tab(n) rows should be reserved at the
-       * linebreak AFTER that last shard, not before any internal
-       * linebreak. Single-line tiles are unaffected: no internal
-       * linebreak to wrongly consume the count. */
+      /* Fold before updating the counter: a refractor's deferred rows
+       * belong at the linebreak after the tile's last shard, not at any
+       * linebreak inside the tile. */
       let acc =
         Aba.fold_left(
           add_shard(acc, t),
@@ -405,8 +393,6 @@ let of_segment_inner =
         );
       switch (Id.Map.find_opt(t.id, refractor_shape_map)) {
       | Some(n) =>
-        /* Per-refractor row count from CachedSyntax.mk's refractor
-         * shape map (e.g. probe drawer-mode Tab(n)). */
         DeferredLinebreaks.update(n) |> ignore;
         ();
       | None => ()

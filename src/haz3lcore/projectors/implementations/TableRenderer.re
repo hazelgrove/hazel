@@ -472,8 +472,6 @@ let render =
     };
   ColumnMenuListener.sync(
     ~menu_open=model.menu_state != None,
-    /* Thunk: local(action) runs the projector update eagerly, so a bare
-       local(CloseMenu) would fire on every render. Defer to actual close. */
     ~on_close=() => local(CloseMenu),
     ~handle_key,
     (),

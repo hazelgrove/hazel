@@ -109,12 +109,9 @@ let go =
       ~root,
     )
     : result(ZipperBase.t, Action.Failure.t) => {
-  /* Indices arrive baked into view closures at render time, so they can
-   * be stale by the time the action is processed (e.g. an earlier action
-   * in the same event batch changed the projector/refractor set, or a
-   * cached menu-close thunk fired after a slide switch). Resolve totally:
-   * an out-of-range index drops the action as Cant_project instead of
-   * raising mid-update. */
+  /* Indices are baked into view closures at render time and can be stale
+   * by the time the action runs, so resolve via nth_opt: an out-of-range
+   * index drops the action (Cant_project) rather than raising mid-update. */
   let projector_idx_to_id = (idx: int): option(Id.t) =>
     List.nth_opt(projector_list, idx);
   let refractor_idx_to_id = (idx: int): option(Id.t) =>

@@ -227,30 +227,16 @@ let start = default_model => {
     and app_inject = app_inject;
     Bonsai.Effect.of_sync_fun(
       () => {
-        ScrollDebug.next_frame();
-        /* Drift detection only during EdgeScroll-active periods (drag at
-         * edge); otherwise wheel-scroll would flood the log. */
-        ScrollDebug.check_drift(~in_drag=EdgeScroll.is_active(), ());
-        if (scroll_to_caret.contents) {
-          ScrollDebug.log(
-            "AF",
-            Printf.sprintf(
-              "frame_start sT=%.1f scroll_to_caret=t",
-              ScrollDebug.main_scroll_top(),
-            ),
-          );
-        };
         if (scroll_to_caret.contents) {
           scroll_to_caret := false;
           JsUtil.scroll_cursor_into_view_if_needed();
         } else {
           ();
         };
-        /* Handle scheduled probe focus from step-into (see ProbePerform.FocusEffect) */
-        let _ = Haz3lcore.ProbePerform.FocusEffect.execute();
-        /* Restore probe keyboard focus dropped by vdom reorder moves
-           (see FocusEffect keeper notes) */
-        Haz3lcore.ProbePerform.FocusEffect.keep_focus();
+        /* scheduled probe focus from step-into */
+        let _ = Haz3lcore.FocusEffect.execute();
+        /* restore probe focus dropped by vdom reorder moves */
+        Haz3lcore.FocusEffect.keep_focus();
         /* Scroll-compensate when focus bar appears/disappears */
         JsUtil.setup_focus_bar_scroll_compensation();
         /* Update floating elements (backpack) to viewport coordinates */
@@ -281,12 +267,10 @@ let start = default_model => {
           ~measured,
           zipper,
         );
-        ScrollDebug.mark_sT();
         /* Sample-focus anchor compensation: if Left/Right in the sample
          * focus bar captured the indicated sample's screen-y before
          * dispatch, restore it now so the user's eye stays on it. */
         SampleAnchor.consume();
-        ScrollDebug.mark_sT();
         seed_visible_rows(model, ~dispatch=a =>
           app_inject(a) |> Bonsai.Effect.Expert.handle
         );

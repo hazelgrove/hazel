@@ -201,7 +201,7 @@ module Update = {
            focus (which stays on the clicked sidebar row). Schedule a focus
            of the now-active cell after render so the editor receives
            keystrokes and the caret (gated on :focus) shows there. */
-        Haz3lcore.ProbePerform.FocusEffect.schedule_cell();
+        Haz3lcore.FocusEffect.schedule_cell();
         {
           ...model,
           editors,

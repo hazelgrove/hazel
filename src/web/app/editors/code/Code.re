@@ -172,26 +172,9 @@ let view =
     List.concat_map(
       fun
       | Piece.Tile(t) => {
-          /* Mirrors Measured.of_piece's refractor branch: walk the
-           * tile's shards and children first, THEN update the deferred
-           * linebreak counter. If we updated before the walk, any
-           * linebreak inside the tile (e.g. inserted between `(` and
-           * `)` of a function-application probed in drawer mode) would
-           * wrongly consume the deferred rows. The drawer is positioned
-           * at the refractor's rightmost point; the Tab(n) rows should
-           * land at the linebreak AFTER the last shard, not before any
-           * internal linebreak. */
-          /* Walk shards/children strictly left-to-right so the
-           * DeferredLinebreaks side effects (refractor Tab(n) update and
-           * secondary-linebreak consume) fire in document order, matching
-           * Measured.of_segment's `Aba.fold_left`. `Aba.join` uses
-           * `List.fold_right2` (right-to-left evaluation), which reverses
-           * those effects across a tile's sibling children: e.g. a
-           * drawer-mode probe on a `let`'s pattern child would have its
-           * deferred rows set AFTER the linebreak in the definition child
-           * had already consumed the (still-zero) counter — so the code
-           * text wouldn't reserve the drawer's rows while the decorations
-           * (Measured) did. */
+          /* fold_left (not Aba.join, which folds right-to-left) so the
+           * DeferredLinebreaks side effects fire in document order, matching
+           * Measured.of_segment; fold before the counter update below. */
           let nodes =
             Aba.fold_left(
               i => [of_delim(t, i)],

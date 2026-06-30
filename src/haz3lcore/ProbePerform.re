@@ -2,34 +2,19 @@ open Util;
 open OptUtil.Syntax;
 open Language;
 
-/* FocusEffect lives in its own module (haz3lcore/projectors/
- * FocusEffect.re) so ProbeProj can schedule focus restorations
- * without creating a dep cycle through the projector machinery.
- * Re-exported here for callers that already use ProbePerform.
- * FocusEffect.* (Main.re's after_display hook, etc.). */
-module FocusEffect = FocusEffect;
-
 let rec target_subterm_ids =
         (~drill_let=true, id: Id.t, info_map: Statics.Map.t) =>
   switch (Statics.Map.lookup(id, info_map)) {
-  /* If we're trying to probe a function literal,
-     put probes on parameters and body instead */
+  /* Function literal: probe parameters and body instead. */
   | Some(InfoExp({user_term: {term: Fun(pat, body, _, _), _}, _})) => [
       IdTagged.rep_id(body),
       IdTagged.rep_id(pat),
     ]
   | Some(InfoExp({user_term: {term: Let(pat, def, _), _} as let_term, _}))
       when drill_let =>
-    /* If trying to probe a let, probe the definition instead.
-       Exception: if the let is the body of a test, probe the let itself
-       (so we see the test result, not just the definition value).
-       Recurse so that if def is a fun literal, the above case will get it.
-       The recursion disables let-drilling: narrowing exists so a probe on
-       `let x = def in <scope>` doesn't cover the whole scope, but a def
-       that is itself a let chain (e.g. a function body
-       `let adjust = ... in base + adjust`) is self-contained and must be
-       anchored whole, or the chain's header and tail rows lose their
-       multi-probes. */
+    /* Let: probe the definition instead (recurse, but with let-drilling off so
+       a nested let chain is anchored whole). Exception: a let that is a test
+       body probes the let itself, to show the test result. */
     let is_test_body =
       switch (
         Statics.Map.parent_term_of(info_map, IdTagged.rep_id(let_term))
@@ -42,35 +27,25 @@ let rec target_subterm_ids =
     } else {
       let def_targets =
         target_subterm_ids(~drill_let=false, IdTagged.rep_id(def), info_map);
-      /* Function-definition sugar (`let f(args) = body`) keeps the
-         parameters in the surface binder `Ap(Var(f), args)`, which lives
-         on the header line(s) outside the def body's row range. Anchor the
-         args pattern too so the parameters get probed, mirroring the
-         Fun-literal case above which returns [body, pat]. The args pattern
-         is multi-probed, so the existing container logic shows the whole
-         tuple on one line or each parameter when split across lines. */
+      /* Function-def sugar (`let f(args) = ...`) keeps params in the surface
+         binder, so anchor the args pattern too (mirrors the Fun-literal case). */
       switch (FunctionSugar.detect(pat)) {
       | Some((_f_name, args, _ret_ty)) => def_targets @ [Pat.rep_id(args)]
       | None => def_targets
       };
     };
   | Some(InfoExp({user_term: {term: ModuleExp(_, def, _), _}, _})) =>
-    /* If trying to probe a module expression, probe the definition.
-       Recurse so fun literals get drilled into. */
+    /* Module expression: probe the definition (recurse). */
     target_subterm_ids(IdTagged.rep_id(def), info_map)
 
   | Some(InfoExp({user_term: {term: Var(_), _} as v, _})) =>
-    /* If we're trying to probe variable in function position for an
-       application, probe the whole application instead */
+    /* Variable in function position: probe the whole application. */
     switch (Statics.Map.parent_term_of(info_map, IdTagged.rep_id(v))) {
     | Some(Exp({term: Ap(_, f_expr, _), _} as ap)) when f_expr == v => [
         IdTagged.rep_id(ap),
       ]
     | Some(Exp({term: DeferredAp(f_expr, _), _} as dap)) when f_expr == v =>
-      /* If we're trying to probe a variable in function position in a partially
-         applied function, itself in function position of an application,
-         in particular but not limited to a reverse application chain,
-         probe the whole application instead */
+      /* Same, through a partial application (e.g. reverse application chain). */
       switch (Statics.Map.parent_term_of(info_map, IdTagged.rep_id(dap))) {
       | Some(Exp({term: Ap(_, f_expr, _), _} as ap)) when f_expr == dap => [
           IdTagged.rep_id(ap),
@@ -80,9 +55,7 @@ let rec target_subterm_ids =
     | _ => [id]
     }
   | Some(InfoExp({user_term: {term: DeferredAp(_), _} as v, _})) =>
-    /* If we're trying to probe a partially applied function in function
-       position of an application, in particular but not limited to a reverse
-       application chain, probe the whole application instead */
+    /* Partially applied function in function position: probe the application. */
     switch (Statics.Map.parent_term_of(info_map, IdTagged.rep_id(v))) {
     | Some(Exp({term: Ap(_, f_expr, _), _} as ap)) when f_expr == v => [
         IdTagged.rep_id(ap),
@@ -91,9 +64,8 @@ let rec target_subterm_ids =
     }
   /* Filter out terms that can't meaningfully be probed */
   | info when !Info.is_typable_term(info) => []
-  /* Default: use rep_id for expressions and patterns to handle multi-tile forms
-     (tuples, list literals, case expressions) where non-representative tile IDs
-     would otherwise cause probe_map/evaluator ID mismatch */
+  /* Default: rep_id, so multi-tile forms (tuples, lists, case) don't mismatch
+     between probe_map and the evaluator. */
   | Some(InfoExp({user_term, _})) => [IdTagged.rep_id(user_term)]
   | Some(InfoPat({user_term, _})) => [Pat.rep_id(user_term)]
   | _ => [id]
@@ -156,22 +128,11 @@ let probe_status =
   };
 };
 
-/* Memoization for the per-row multi-probe expansion.
- *
- * `MultiProbe.ids_to_multiprobe` is an O(program) per-row analysis. It is a
- * pure function of the syntax snapshots (term_data, terms, measured) +
- * info_map + the anchor id. Those snapshots are immutable and rebuilt
- * by-reference on change (CachedSyntax / CachedStatics), reused by reference
- * otherwise — so we key on PHYSICAL identity of the four refs (===, O(1)
- * pointer compares, never a structural walk) plus the small Id.t anchor.
- * When any ref changes we drop the per-anchor result table; within a
- * stable-syntax run (e.g. pure caret moves) every anchor is served from it.
- *
- * Soundness: these structures are never mutated in place, so same-ref
- * implies same-content (no stale results); a spurious ref change only costs
- * a recompute. The cache is a single global entry — multiple editors with
- * distinct syntaxes invalidate each other (correct, just less reuse); the
- * hot path (one main editor in auto-probe All) keeps it warm. */
+/* Memoize the O(program) per-row multi-probe expansion. It's a pure function
+ * of the immutable syntax/statics snapshots + anchor id, so we key on physical
+ * identity of those refs (O(1)) and drop the table when any ref changes — a
+ * stable-syntax run (pure caret moves) serves every anchor from cache. Single
+ * global entry, so multiple editors invalidate each other (correct). */
 let expansion_inputs:
   ref(option((TermData.t, TermMap.t, Measured.t, Statics.Map.t))) =
   ref(None);
@@ -249,42 +210,13 @@ let set_pending_probe = (ids: list(Id.t), z: Zipper.t): Zipper.t => {
   );
 };
 
-/* ─────────────────────────────────────────────────────────────────────
- * Dynamic focus: auto vs manual mode
- *
- * The "dynamic focus" is the selected sample whose call stack determines
- * which samples light up across all probes. It changes via two kinds
- * of paths:
- *
- *   USER-DRIVEN (always honored):
- *     - click a sample                (ProbeProj)
- *     - toggle pin                    (ProbeProj)
- *     - step into                     (ProbeProj)
- *     - breadcrumb bar (← →, click)   (SampleFocusBar)
- *     - reset                         (SampleFocusBar)
- *
- *   AUTOMATIC (only honored in auto mode — gated on `auto_focus`):
- *     - capture on new ephemeral probe    (add_ids_from_multi_term)
- *     - spatial alignment after edit      (align_to_indicated_probe)
- *     - stale-cursor fallback             (resolve_pending_probe_cursor;
- *         after an edit invalidates the focus's call_stack frame IDs,
- *         try to find a replacement sample at the "most aligned" position.
- *         Internal recovery mechanism, invisible to the user when working.)
- *
- * Pinning a sample switches the focus into MANUAL mode: the user has
- * said "I care about this execution context, don't move me." In manual
- * mode, automatic realignment is suppressed; the focus only changes in
- * response to explicit user actions.
- *
- * Note on auto-probe cursor following: when `update_autoprobe` moves
- * auto-probe targets to track the cursor across top-level definitions,
- * its set_pending_cursor flag is also gated on auto_focus. So pinning a
- * sample in `f` and navigating to `g` will NOT jump focus to g's newly
- * added probes — consistent with the "stay here" semantics of manual mode.
- *
- * If you add a new path that can change the dynamic focus automatically,
- * gate it on `auto_focus(z)` and add it to the list above.
- * ───────────────────────────────────────────────────────────────────── */
+/* Dynamic focus = the selected sample whose call stack lights up samples
+ * across probes. It changes via USER-DRIVEN paths (click/pin/step-into in
+ * ProbeProj, breadcrumb/reset in SampleFocusBar), always honored; and
+ * AUTOMATIC paths (ephemeral-probe capture, post-edit spatial alignment,
+ * stale-cursor fallback), honored only in auto mode. Pinning switches to
+ * MANUAL mode, suppressing automatic realignment until an explicit user
+ * action. New automatic paths MUST gate on `auto_focus(z)`. */
 let auto_focus = (z: Zipper.t): bool =>
   z.refractors.sample_focus.pinned_stack == None;
 
@@ -564,11 +496,8 @@ let add_ids_from_multi_term =
       ids,
     );
   let old_ephemerals = z.refractors.multis.ephemerals;
-  /* Preserve existing ephemeral entries (and their persisted models)
-   * for ids that survive across rebuilds. A fresh `mk_entry(Probe)`
-   * was previously used for every id, which silently wiped per-probe
-   * model state on every edit — e.g. `drawer_mode=true` set via the
-   * drawer-mode toggle would revert to the default within one cycle. */
+  /* Preserve surviving ephemeral entries (and their models) across rebuilds;
+   * a fresh mk_entry per id would wipe per-probe state (e.g. drawer_mode). */
   let new_ephemeral_map =
     List.fold_left(
       (map, id) =>
@@ -579,12 +508,9 @@ let add_ids_from_multi_term =
       Id.Map.empty,
       ids,
     );
-  /* Preserve the previous ephemerals ref when the resulting set is identical,
-   * rather than installing a fresh map every frame. A new ref would make
-   * CachedSyntax.calculate take the refresh_shapes path and rebuild Measured
-   * (O(program)) every frame — even on pure caret moves — because it gates on
-   * `multis.ephemerals !==`. Keeping the ref stable lets the cheap
-   * selection-only path run. (O(probes) compare, only over the probe set.) */
+  /* Keep the previous ephemerals ref when the set is unchanged: a fresh map
+   * would make CachedSyntax rebuild Measured (O(program)) every frame, since
+   * it gates on `multis.ephemerals !==`. */
   let z =
     if (Id.Map.equal(
           Refractors.equal_entry,
@@ -770,64 +696,13 @@ let function_sugar_param_anchor =
   climb(Info.ancestors_of(ci));
 };
 
-/* STEP-INTO: Sample-Level Navigation Through Execution Traces
- *
- * Step-into operates at the SAMPLE level, not the syntax level. When f(x) is
- * called 5 times during evaluation, stepping into from a specific sample takes
- * you to the function body while maintaining your position in that particular
- * execution trace - you see the body's evaluation for THAT invocation, not all
- * invocations blended together.
- *
- * This is why step-into lives in the sample context menu (environment dropdown)
- * rather than the syntax context menu - being in that dropdown means you've
- * already selected a specific sample, so step-into uses that sample's exact
- * call_stack to maintain execution context.
- *
- * WHY THIS IS COMPLEX:
- *
- * 1. CALL STACK SEMANTICS: When stepping into ap_id from a sample with
- *    call_stack=[a,b,c], the new stack is [ap_id,a,b,c]. This matches what
- *    samples inside the function body will have (the evaluator adds ap_id
- *    when RecordStackFrame is processed).
- *
- * 2. TIMING: Even when samples are available (probe_all on), the projector
- *    DOM element won't exist until after a view cycle. Both probe_all on/off
- *    cases need deferred focus - the difference is just whether we're also
- *    waiting for the worker to return samples.
- *
- * 3. TWO-PASS CALCULATION: In CellEditor.calculate, Editor.calculate runs
- *    BEFORE EvalResult.calculate. The second pass (when pending_focus is set)
- *    ensures resolve_pending_focus sees fresh dynamics after worker results.
- *
- * 4. SAMPLE ID VS JUMP TARGET: For function literals, we distinguish between:
- *    - jump_target (pattern ID): where cursor goes for UX
- *    - sample_probe_id (inner body ID): where samples are stored in dynamics
- *    target_subterm_ids(Fun) returns [inner_body, pattern], and samples are
- *    stored under inner_body. pending_focus uses sample_probe_id for lookup.
- *
- * STEP-INTO FLOW:
- * 1. User clicks "Step Into" on a sample in ProbeProj context menu
- * 2. ProbeProj dispatches Probe(StepInto(sample, ap_id))
- * 3. step_into_sample (below) sets pending_focus with probe_id and target_stack
- * 4. If probe_all enabled, an ephemeral probe is added at target, triggering eval
- * 5. CellEditor.calculate runs:
- *    a. First pass: Editor.calculate → resolve_pending_focus (may have stale dynamics)
- *    b. EvalResult.calculate processes worker results, updating dynamics
- *    c. Second pass (if pending_focus still set): resolve_pending_focus with fresh dynamics
- * 6. When resolve_pending_focus finds a matching sample:
- *    a. SampleFocusPerform.resolve_pending_focus updates sample_focus, clears pending_focus
- *    b. FocusEffect.schedule(probe_id) schedules DOM focus
- * 7. Main.re's after_display hook calls FocusEffect.execute()
- * 8. execute() calls elem##focus, triggering CSS :focus styles on the probe
- *
- * KEY FILES:
- * - ProbeProj.re: UI, step_into_sample action dispatch
- * - ProbePerform.re: step_into_sample, resolve_pending_focus, FocusEffect
- * - SampleFocusPerform.re: cursor update operations (sample matching)
- * - CellEditor.re: Two-pass calculation for timing
- * - Sample.re: pending_focus type in Cursor.t
- * - Main.re: after_display calls FocusEffect.execute()
- */
+/* Step-into navigates at the SAMPLE level: from a chosen sample with
+ * call_stack [a,b,c], the body gets stack [ap_id,a,b,c], preserving that one
+ * invocation's context. step_into_sample sets pending_focus; CellEditor runs
+ * a second calculate pass once worker dynamics land so resolve_pending_focus
+ * can match a sample and FocusEffect.schedule the DOM focus (run in
+ * Main.after_display). For function-sugar the cursor jumps to the params but
+ * samples are looked up under the body id. */
 
 /* Step into from a specific sample, using the sample's call_stack
    instead of the current sample_focus's effective_stack. This ensures
@@ -918,12 +793,8 @@ let step_into_call_stack =
      id-only frame, so the resulting pin/focus is precise. */
   let new_stack: Sample.call_stack = [frame, ...call_stack];
 
-  /* Determine where to jump and where to look for samples.
-   * - jump_target = parameters (cursor goes to params for UX)
-   * - sample_probe_id = body (where samples are stored in dynamics)
-   * For function literals the params are the Fun's pattern; for
-   * function-definition sugar they're the surface binder's args
-   * (function_sugar_param_anchor), and the body is body_id itself. */
+  /* jump_target = params (cursor goes there for UX); samples live under the
+   * body id. */
   let (jump_target, _sample_probe_id) =
     switch (param_anchor, ci_body) {
     | (Some(args_id), _) => (args_id, body_id)
@@ -937,14 +808,6 @@ let step_into_call_stack =
     | (None, _) => (body_id, body_id)
     };
 
-  // NOTE(andrew): disabling this for now as it doesn't work right
-  /* Set pending_focus using sample_probe_id (inner body), since that's where
-   * the samples are stored in the dynamics map. */
-  // let pending_focus: Sample.Focus.pending_focus = {
-  //   probe_id: sample_probe_id,
-  //   target_stack: new_stack,
-  // };
-
   let z =
     SampleFocusPerform.update(z, _ => {
       {
@@ -952,7 +815,7 @@ let step_into_call_stack =
         call_stack: new_stack,
         index: List.length(call_stack),
         pinned_stack: Some(new_stack),
-        pending_focus: None //Some(pending_focus),
+        pending_focus: None,
       }
     });
 
@@ -1138,14 +1001,9 @@ let cursor_is_aligned_uncached =
   };
 };
 
-/* The scan above is O(probes x samples) and runs inside every
- * Editor.calculate (via resolve_pending_probe_cursor), including pure
- * caret moves. Its inputs are stable across most frames: the dynamics
- * map (by ref; rebuilt only when a worker result lands), the probe
- * stores (by ref; ephemerals are ref-preserved when unchanged, see
- * add_ids_from_multi_term), and the sample focus (small record,
- * compared structurally). Memoize the verdict on those — same single-
- * entry physical-identity pattern as the `ids_from_term` memo above. */
+/* The O(probes x samples) scan above runs in every Editor.calculate (incl.
+ * pure caret moves) but its inputs are mostly ref-stable, so memoize the
+ * verdict on physical identity — same pattern as the ids_from_term memo. */
 let cia_key:
   ref(
     option(
@@ -1202,23 +1060,11 @@ let caret_nearest_ephemeral =
   };
 };
 
-/* Ensure the sample focus is aligned with current dynamics.
- *
- * Handles two cases uniformly:
- * 1. pending_probe_cursor is set (probe set changed via add_ids_from_multi_term
- *    or align_to_indicated_probe): resolve by finding the first pending ID
- *    with samples and capturing from it.
- * 2. pending is None but cursor is stale (structural edit changed application
- *    site tile IDs, so the cursor's call_stack frame IDs no longer match any
- *    sample in the new dynamics): detect via cursor_is_aligned, then build
- *    a target list from all probes.
- *
- * In both cases, the caret-nearest probe is prioritized to avoid capturing
- * from a probe in a different case branch or distant expression.
- *
- * When a pin is active, skip the stale-cursor fallback (case 2) so that
- * the pinned context is preserved. Explicit pending cursors (case 1)
- * still resolve, since those represent intentional navigation. */
+/* Align the sample focus with current dynamics, for two cases: (1) a pending
+ * cursor (probe set changed) resolves to the first pending id with samples;
+ * (2) no pending but the cursor went stale after a structural edit, detected
+ * via cursor_is_aligned. The caret-nearest probe is preferred. A pin skips
+ * case 2 (preserve pinned context) but still resolves case 1. */
 let resolve_pending_probe_cursor =
     (
       ~dynamics: Dynamics.Map.t,

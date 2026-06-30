@@ -197,21 +197,8 @@
   filter: invert(1);
 }
 
-/* SAMPLE-COUNT CIRCLE
- *
- * Previously an overlay over the syntax (where it could cover commas).
- * Now it renders in-flow as the first item of the samples row: a small
- * circle at the very start of the samples (just after the nav-bar
- * controls, separated by the .live-offside gap), vertically centered on
- * the sample line, with a couple px between it and the first sample. It
- * claims only as much horizontal room as its content needs.
- *
- * Tweak knobs:
- *   --count-gap   space between the circle and the first sample. The
- *                 .sample-groups flex `gap` (5px) also sits here, so this
- *                 margin is ADDED on top (negative tightens; the default
- *                 nets ~2px).
- *   height / min-width / font-size  control the circle's size. */
+/* Sample-count circle: in-flow first item of the samples row.
+ * --count-gap is ADDED on top of the .sample-groups flex gap (5px). */
 .live-offside .num-samples {
   pointer-events: auto;
   align-self: center;
@@ -288,20 +275,9 @@
   display: none;
 }
 
-/* Row-level controls: one SVG containing three independent-clickable
- * regions (left arrow / right arrow / down-chevron drawer-toggle).
- * Absolute-positioned in the gutter to the left of .live-offside so
- * samples always start at the live-offside left edge (column 0) —
- * other UI (highlights, decorations) depends on that contract. Code-
- * ↔-offside spacing is controlled by `ProjectorView.offside_offset`,
- * not CSS margin.
- *
- * Sized at line-height + ~30% so the control is comparable to a
- * one-line sample's vertical extent. Vertical centering: extra
- * height (height − 1em line-height) is split between top and bottom.
- *
- * The control looks identical in inline and drawer modes — no flip,
- * no per-mode variation. The chevron always points down. */
+/* Row-level controls: one SVG with three clickable regions (left/right
+ * arrow, drawer-toggle chevron). Absolute-positioned in the gutter so
+ * samples start at column 0 (highlights/decorations depend on that). */
 .live-offside .nav-bar {
   position: absolute;
   left: -1.85em;
@@ -436,14 +412,6 @@
 }
 .live-offside .sample:has(.value.indet.focus) .value {
   background-color: var(--T2) !important;
-} */
-/* .live-offside .sample:has(.value.cursor-callee) {
-  --below-shadow: var(--exp-ap-indicated);
-}
-.live-offside .sample:has(.value.cursor-caller) {
-  --caller-accent: var(--exp-ap-indicated);
-  --bottom-border-clr: var(--caller-accent);
-  --bkg: var(--exp-ap-indicated);
 } */
 
 .live-offside .sample:has(.value.unrelated.depth-same) {
@@ -620,18 +588,9 @@
   outline: 1.5px solid var(--G0);
 }
 
-/* In drawer mode, render the sample-focus outline inset (entirely inside
- * the value's box) instead of the default outside placement. The outline
- * itself is on `.value` (the `outline: 1.5px solid var(--R1)` rule above),
- * and `outline-offset` does NOT inherit, so the offset must target `.value`
- * too — putting it on `.sample` (as before) was a silent no-op, leaving the
- * outline at offset 0 (outside the box) where it got clipped. Inset keeps
- * the stroke clear of both clippers: `.below-wrapper`'s `overflow: hidden
- * auto` (top/bottom, at the 15-line scroll edge) and the Tutorial/Exercises
- * cell's `overflow-x: clip` (left/right). `-1.5px` matches the 1.5px
- * outline-width, so the outer edge is flush with the border edge — same
- * visual placement as outside-default, flipped inward. Outlines don't
- * affect layout, so nothing shifts. */
+/* Drawer mode: inset the sample-focus outline (on `.value`, since
+ * outline-offset doesn't inherit) so it clears the .below-wrapper and cell
+ * clippers. -1.5px matches the outline width. */
 .below-wrapper .live-offside .sample:has(.value.focus) .value {
   outline-offset: -1.5px;
 }
@@ -738,17 +697,9 @@
   color: white;
 } */
 
-/* SAMPLE CONTEXT — inner content shared by hover dropdown and sidebar drawer.
- *
- * Inner classes (.context-actions, .action-item, .call-display, .live-env,
- * .live-env-entry, .environment-section) are styled directly without a
- * parent scope so they look the same in both contexts. Outer chrome
- * (positioning, visibility) is split into:
- *   - dropdown chrome: .live-offside .sample-context-menu
- *   - drawer chrome:   #probe-sidebar .sample-context-drawer (in probesystem.css)
- *
- * Per-context overrides go on the outer-class selector
- * (e.g. `.sample-context-drawer .live-env { ... }`). */
+/* Sample context: inner content (.context-actions, .call-display, .live-env,
+ * ...) styled directly; outer chrome (positioning/visibility) lives on
+ * .live-offside .sample-context-menu. */
 
 /* --- Inner: context actions section --- */
 
@@ -858,22 +809,10 @@
 
 /* === Below-line drawer === */
 
-/* Framework wrapper for projector `below` views. Drawer-mode probes
- * mount the regular .live-offside content here, so this wrapper acts
- * as the "value zone" stripe behind the samples: a subtly darker band
- * across the editor pane indicating you're not in normal code-text
- * anymore. The samples themselves render with their usual .sample
- * chrome on top.
- *
- * The stripe tracks `--main-scroll-width`, the same variable that
- * sizes the cell background (published by JS in after_display). With
- * `margin-left: -1em` to extend past the `.code-editor` padding-left,
- * `padding-left: 1em` to keep inner content at code col 0, and
- * `padding-right: 1em`, the stripe's outer edges land flush against
- * the cell's outer edges. `width: max-content` lets the stripe still
- * grow further right when sample cells are wider; that growth will
- * feed back into `--main-scroll-width` on the next render so the
- * cell catches up. */
+/* Framework wrapper for projector `below` views (drawer-mode probes): a
+ * darker "value zone" stripe behind the samples, tracking --main-scroll-width
+ * (the cell-background var). Negative margin + padding align it flush with the
+ * cell edges; width: max-content lets it grow with wide samples. */
 .below-wrapper {
   pointer-events: auto;
   background-color: var(--T2);
@@ -915,18 +854,8 @@
   min-width: calc(var(--main-scroll-width, 100ch) - 3em);
 }
 
-/* Drawer-mode overrides for the shared .live-offside layout.
- *
- * The default inline-offside layout (above) baseline- and center-aligns
- * cells so a row of single-line samples sits nicely on one row of
- * code. In drawer mode the cells can be many rows tall, so we
- * top-align everything: every sample's first row lines up with the
- * first reserved row beneath the probe's line, instead of cells
- * being baseline/center-aligned against each other.
- *
- * Gaps are bumped to ~2x the inline values so tall cells have a
- * little more breathing room. Per-sample padding stays at the inline
- * value. */
+/* Drawer-mode overrides for .live-offside: cells can be many rows tall, so
+ * top-align everything (vs the inline baseline/center) and bump gaps ~2x. */
 .below-wrapper .live-offside,
 .below-wrapper .live-offside .sample-group {
   align-items: flex-start;
@@ -951,15 +880,9 @@
  * scale(1,-1) transform on a wrapping <g> (see nav_bar_view), not by
  * CSS — so no override is needed here. */
 
-/* The depth-stacking effect on off-context samples in Many mode (the
- * stacked-card visual for .depth-above / .depth-below) sets a
- * one-row hardcoded height on .sample. That's correct for inline
- * cells (always one row) but clamps multi-row drawer cells to one
- * row's worth of background, so values overflow visually without
- * their colored backing and the .below-wrapper stripe collapses to
- * one row of height. Release the height and the vertical translate
- * inside drawer mode; the box-shadow depth effect on the cell's edge
- * still renders. */
+/* Many-mode depth-stacking hardcodes a one-row .sample height (right for
+ * inline cells); release it + the translate in drawer mode so multi-row
+ * cells aren't clamped. */
 .below-wrapper .live-offside.Many .sample:has(.value.depth-above),
 .below-wrapper .live-offside.Many .sample:has(.value.depth-below) {
   height: auto;

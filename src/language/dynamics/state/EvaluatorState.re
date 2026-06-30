@@ -1,17 +1,17 @@
 open Util;
 
-/* Per-application arg/frame records (see StateSlice.app_args_t for the entry
+/* Per-application arg/frame records (see StateSlice.app_data_t for the entry
  * shape and rationale). Defined there because slices carry them across the
  * incremental-eval boundary. */
 [@deriving (show({with_path: false}), sexp, yojson)]
-type app_args_t = StateSlice.app_args_t;
+type app_data_t = StateSlice.app_data_t;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
   theorems: list((Id.t, string, Environment.t(Exp.t), Exp.t)),
   tests: TestMap.t,
   probes: Sample.Map.t,
-  app_args: app_args_t, /* Argument values for function applications */
+  app_data: app_data_t, /* Argument values for function applications */
   step_count: int,
   pending_probe_starts: Id.Map.t(list(int)), /* Stack per probe_id; nested recursive calls push/pop */
   targets: Sample.targets, /* IDs of expressions/patterns to sample */
@@ -36,7 +36,7 @@ type effect =
 let mk = (~targets: Sample.targets): t => {
   tests: TestMap.empty,
   probes: Sample.Map.empty,
-  app_args: Id.Map.empty,
+  app_data: Id.Map.empty,
   step_count: 0,
   pending_probe_starts: Id.Map.empty,
   targets,
@@ -88,7 +88,7 @@ let get_probes = ({probes, _}) => probes;
 
 let get_theorems = ({theorems, _}) => theorems;
 
-let get_app_args = ({app_args, _}) => app_args;
+let get_app_data = ({app_data, _}) => app_data;
 
 let get_incr_eval = ({incr_eval, _}: t) => incr_eval;
 
@@ -110,12 +110,12 @@ let mark_incr_recalculated = (state: t, id: Id.t): t => {
 /* Clear transient data that's only needed during evaluation.
  * Call this before sending EvaluatorState over postMessage
  * to avoid serializing massive amounts of unnecessary data.
- * - app_args: only needed to look up args during sample creation
+ * - app_data: only needed to look up args during sample creation
  * - pending_probe_starts: only needed during evaluation
  * - targets: only needed during evaluation */
 let clear_transient = (state: t): t => {
   ...state,
-  app_args: Id.Map.empty,
+  app_data: Id.Map.empty,
   pending_probe_starts: Id.Map.empty,
   targets: Id.Map.empty,
 };
@@ -126,7 +126,7 @@ let elide_arg =
   Sample.Env.elide(env, d);
 
 /* Add an argument value (and its call frame) for an application */
-let add_app_arg =
+let add_app_data =
     (
       state: t,
       app_id: Id.t,
@@ -136,14 +136,14 @@ let add_app_arg =
     )
     : t => {
   let existing =
-    Id.Map.find_opt(app_id, state.app_args) |> Option.value(~default=[]);
+    Id.Map.find_opt(app_id, state.app_data) |> Option.value(~default=[]);
   {
     ...state,
-    app_args:
+    app_data:
       Id.Map.add(
         app_id,
         [(call_stack, arg, frame), ...existing],
-        state.app_args,
+        state.app_data,
       ),
   };
 };
@@ -157,7 +157,7 @@ let lookup_app =
     (state: t, app_id: Id.t, call_stack: Sample.call_stack)
     : option((Sample.Env.elided_value, Sample.stack_frame)) => {
   let call_stack_ids = Sample.ids_of_stack(call_stack);
-  switch (Id.Map.find_opt(app_id, state.app_args)) {
+  switch (Id.Map.find_opt(app_id, state.app_data)) {
   | None => None
   | Some(entries) =>
     List.find_map(
@@ -244,14 +244,13 @@ let update =
           name: fn_name,
           fn_def_id,
         };
-        /* Only store argument value (and frame) if this app_id is a probe
-         * target. This avoids accumulating massive app_args data for programs
-         * with many function calls but no probes on those calls. */
+        /* Only store data for probe-target app_ids, else app_data balloons
+         * for programs with many calls but no probes on them. */
         let state =
           switch (arg_opt) {
           | Some(arg) when Id.Map.mem(app_id, state.targets) =>
             let elided_arg = elide_arg(env, arg);
-            add_app_arg(state, app_id, call_stack, elided_arg, frame);
+            add_app_data(state, app_id, call_stack, elided_arg, frame);
           | Some(_)
           | None => state
           };
@@ -340,8 +339,8 @@ let capture_slice = (~before: t, ~after: t): StateSlice.t => {
   tests: StateSlice.diff_tests(~before=before.tests, ~after=after.tests),
   theorems:
     StateSlice.diff_theorems(~before=before.theorems, ~after=after.theorems),
-  app_args:
-    StateSlice.diff_app_args(~before=before.app_args, ~after=after.app_args),
+  app_data:
+    StateSlice.diff_app_data(~before=before.app_data, ~after=after.app_data),
 };
 
 /* Replay a slice into `state`: add its sample/test/theorem/app_arg entries,
@@ -375,7 +374,7 @@ let replay_slice = (slice: StateSlice.t, state: t): t => {
       slice.tests,
     );
   let theorems = state.theorems @ slice.theorems;
-  let app_args =
+  let app_data =
     Id.Map.fold(
       (id, new_entries, acc) => {
         let existing =
@@ -385,8 +384,8 @@ let replay_slice = (slice: StateSlice.t, state: t): t => {
           };
         Id.Map.add(id, new_entries @ existing, acc);
       },
-      slice.app_args,
-      state.app_args,
+      slice.app_data,
+      state.app_data,
     );
   {
     ...state,
@@ -394,6 +393,6 @@ let replay_slice = (slice: StateSlice.t, state: t): t => {
     probes,
     tests,
     theorems,
-    app_args,
+    app_data,
   };
 };

@@ -205,12 +205,9 @@ let is_edit: t => bool =
     | SetIndicated(_)
     | RemoveIndicated => true
     | SetModel(_)
-    /* SetModel is not classified as an edit at the action layer.
-     * CachedSyntax detects shape-affecting projector/refractor model
-     * changes via reference equality of the maps it depends on
-     * (see CachedSyntax.calculate). This keeps the edit pipeline —
-     * including the statics recompute — out of every slider drag
-     * and similar continuous projector actions. */
+    /* SetModel isn't an edit: CachedSyntax detects shape-affecting model
+     * changes via map reference equality, keeping the statics recompute
+     * out of continuous actions like slider drags. */
     | Focus(_)
     | SampleFocus(_)
     | Escape(_)

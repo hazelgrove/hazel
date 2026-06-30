@@ -1,22 +1,8 @@
-/* Deferred DOM focus restoration for probe elements.
- *
- * The DOM update from a virtual-dom render happens AFTER all the
- * synchronous action processing for a frame. So if an action mutates
- * state that causes a focused DOM node to be unmounted (e.g. drawer-
- * mode toggle moves the focusable .live-offside between the offside
- * and `below` slots), calling `elem.focus()` during action handling
- * targets the about-to-be-removed element and the focus is lost when
- * the render finishes.
- *
- * `schedule` stashes a target in a ref; Main.re's `after_display`
- * hook calls `execute` once the new DOM is in place. We use a ref
- * (not model state) because dispatching actions from after_display
- * would loop.
- *
- * Extracted from ProbePerform so ProbeProj (which needs it for the
- * drawer-mode toggle) can call it without creating a dependency
- * cycle through the projector machinery.
- */
+/* Deferred DOM focus restoration for probe elements. The DOM update lands
+ * AFTER a frame's action processing, so focusing during action handling
+ * targets an about-to-be-unmounted node. `schedule` stashes a target in a
+ * ref (not model state, which would loop); Main.after_display calls
+ * `execute` once the new DOM is in place. */
 open Util;
 
 type target =
@@ -65,25 +51,12 @@ let execute = (): bool =>
   | None => false
   };
 
-/* ── Focus keeper ───────────────────────────────────────────────────
- *
- * virtual-dom's keyed child reorder (ORDER patches) implements moves as
- * removeChild + reinsert. The reorder is non-minimal: when one patch
- * both inserts and removes siblings — exactly what viewport-culling
- * churn produces on scroll — it relocates "stable" keyed children too.
- * A moved element silently loses DOM focus in every browser (Firefox
- * fires no focus events at all for it), so a keyboard-focused probe
- * (.live-offside, red sample outline) went dark on a two-line scroll.
- *
- * Keeper protocol, run from Main.after_display each frame:
- *   - while a .live-offside holds focus, remember its DOM id;
- *   - if focus has fallen to a non-target (body / #page / the clipboard
- *     shim — i.e. nothing meaningfully took it) while an element with
- *     that id still exists, re-focus it (preventScroll: the element may
- *     sit in the culling buffer just outside the viewport);
- *   - if focus moved to anything meaningful, or the probe element is
- *     gone (culled/deleted), stand down.
- * Deliberate blurs (the Escape paths in ProbeProj's key handler) call
+/* Focus keeper. vdom's keyed reorder (removeChild + reinsert) silently
+ * drops DOM focus from a moved element under viewport-culling churn, so a
+ * keyboard-focused probe goes dark on scroll. Run each frame from
+ * after_display: remember a focused .live-offside's id, and if focus has
+ * since fallen to nothing (body/#page/clipboard-shim) while that element
+ * still exists, re-focus it (preventScroll). Deliberate blurs call
  * `expect_blur` first so the keeper doesn't fight them. */
 
 open Js_of_ocaml;

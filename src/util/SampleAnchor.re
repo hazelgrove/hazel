@@ -90,10 +90,6 @@ let capture =
         left,
         right,
       });
-    ScrollDebug.log(
-      "SA",
-      Printf.sprintf("capture top=%.1f left=%.1f sel=%s", top, left, primary),
-    );
   };
 };
 
@@ -148,10 +144,6 @@ let scroll_horizontally = (el: Js.t(Dom_html.element)): unit => {
           Js.string("scrollLeft"),
           Float.max(0., sl +. delta),
         );
-        ScrollDebug.log(
-          "SA",
-          Printf.sprintf("consume h-SCROLLED dx=%+.1f", delta),
-        );
       };
     },
   );
@@ -176,16 +168,6 @@ let consume = (): unit =>
             Js.Unsafe.set(main, Js.string("scrollTop"), st +. delta);
           },
         );
-        ScrollDebug.log(
-          "SA",
-          Printf.sprintf(
-            "consume SCROLLED dy=%+.1f (old=%.1f new=%.1f)",
-            delta,
-            a.top,
-            new_top,
-          ),
-        );
-        ScrollDebug.mark_sT();
       };
       /* Horizontal follow runs whenever the gesture fired, even when
        * the vertical delta was zero (the common case in many mode). */

@@ -31,7 +31,6 @@
 
 open Js_of_ocaml;
 open Haz3lcore;
-module ScrollDebug = Util.ScrollDebug;
 
 let prev_shape_map: ref(option(Id.Map.t(int))) = ref(None);
 
@@ -92,32 +91,10 @@ let update =
         ~measured,
         ~caret_row,
       );
-    if (delta_rows != 0) {
-      if (EdgeScroll.is_active()) {
-        /* Drop the shift on the floor — the user is asking the viewport
-         * to move via EdgeScroll; we don't want to fight that. The
-         * baseline resyncs to the new map below. */
-        ScrollDebug.log(
-          "RS",
-          Printf.sprintf(
-            "skip (EdgeScroll active) delta_rows=%d",
-            delta_rows,
-          ),
-        );
-      } else {
-        let delta_px = float_of_int(delta_rows) *. font_metrics.row_height;
-        scroll_main_by(delta_px);
-        ScrollDebug.log(
-          "RS",
-          Printf.sprintf(
-            "compensate delta_rows=%d delta_px=%+.1f caret_row=%d",
-            delta_rows,
-            delta_px,
-            caret_row,
-          ),
-        );
-        ScrollDebug.mark_sT();
-      };
+    /* skip while EdgeScroll is driving the viewport, to avoid fighting it */
+    if (delta_rows != 0 && !EdgeScroll.is_active()) {
+      let delta_px = float_of_int(delta_rows) *. font_metrics.row_height;
+      scroll_main_by(delta_px);
     };
     prev_shape_map := Some(refractor_shape_map);
   };

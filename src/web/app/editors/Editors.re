@@ -69,7 +69,7 @@ module StoreMode = {
   type t = Model.mode;
   let key = Store.Mode;
   let key_string = Store.key_to_string(Store.Mode);
-  let default = (): Model.mode => Tutorial;
+  let default = (): Model.mode => Scratch;
 
   let serialize = (data: t) => data |> sexp_of_t |> Sexplib.Sexp.to_string;
 

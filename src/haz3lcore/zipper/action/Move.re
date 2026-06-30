@@ -175,11 +175,8 @@ let to_next_grout: (Direction.t, t) => option(t) =
     }
   );
 
-/* Refractors (probe drawers etc.) reserve N empty rows below the last
- * shard of the probed tile. Those rows hold no caret positions, so
- * vertical movement should pretend they aren't there: if `candidate`
- * falls in some refractor's reserved range [last.row+1, last.row+N],
- * jump past it in direction `dir`. */
+/* Refractors reserve empty rows below the probed tile that hold no caret
+ * positions; vertical movement skips past a reserved range in dir. */
 let skip_refractor_dead_rows =
     (
       ~refractor_shape_map: Id.Map.t(int),
