@@ -28,7 +28,7 @@ let main =
     ~font_metrics,
     ~origin,
     ~id="caret",
-    ~base_cls=["blink"],
+    ~base_cls=["caret", "blink"],
     ~path_cls=["caret-path"],
     /* A smaller scale causes scroll-to-caret issues */
     ~scale=1.0,

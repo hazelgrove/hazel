@@ -416,17 +416,17 @@ svg.shard.selected.buffer-parsed > path {
 
 /* CARET DECO */
 
-#caret {
+.caret {
   z-index: var(--caret-z);
   pointer-events: none;
   visibility: hidden;
 }
 
-.code-editor:focus > * > * > #caret {
+.code-editor:focus > * > * > .caret {
   visibility: visible;
 }
 
-#caret.blink {
+.caret.blink {
   animation: 1s blink step-end infinite;
 }
 

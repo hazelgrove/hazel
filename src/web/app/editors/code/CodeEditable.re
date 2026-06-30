@@ -94,7 +94,10 @@ module Update = {
     switch (action) {
     | Perform(action) =>
       settings.core.flip_animations && Action.should_animate(action)
-        ? Animation.request([Animation.Actions.move("caret")]) : ();
+        ? Animation.request([
+            Animation.Actions.move(".code-editor:focus .caret"),
+          ])
+        : ();
 
       perform(action, model);
     | DebugConsole(key) =>

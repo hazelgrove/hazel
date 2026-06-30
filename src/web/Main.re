@@ -8,12 +8,21 @@ let scroll_to_caret = ref(true);
 let restart_caret_animation = () =>
   // necessary to trigger reflow
   // <https://css-tricks.com/restart-css-animation/>
-  try({
-    let caret_elem = JsUtil.get_elem_by_id("caret");
-    caret_elem##.classList##remove(Js.string("blink"));
-    let _ = caret_elem##getBoundingClientRect;
-    caret_elem##.classList##add(Js.string("blink"));
-  }) {
+  try(
+    switch (
+      Dom_html.document##querySelector(
+        Js.string(".code-editor:focus .caret.blink"),
+      )
+      |> Js.Opt.to_option
+    ) {
+    | Some(caret_elem) =>
+      let caret_elem: Js.t(Dom_html.element) = Js.Unsafe.coerce(caret_elem);
+      caret_elem##.classList##remove(Js.string("blink"));
+      let _ = caret_elem##getBoundingClientRect;
+      caret_elem##.classList##add(Js.string("blink"));
+    | None => ()
+    }
+  ) {
   | _ => ()
   };
 
