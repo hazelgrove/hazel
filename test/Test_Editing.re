@@ -3260,49 +3260,6 @@ else 2¦|})
   ),
 ];
 
-/* An incomplete `[1,2` (closing `]` still in the backpack) ending a line before
-   `in` must mold as a ListLit, not degrade to a Tuple — the dump must not drop
-   the `]` across the end-of-line linebreak. */
-let def_kind = (src: string): string => {
-  let z = mk(src) |> perform(Zipper.init());
-  let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
-  switch (Language.IdTagged.term_of(term)) {
-  | Let(_, def, _) =>
-    switch (Language.IdTagged.term_of(def)) {
-    | ListLit(_) => "ListLit"
-    | Tuple(_) => "Tuple"
-    | _ => "other"
-    }
-  | _ => "not-a-let"
-  };
-};
-
-let incomplete_list_dump_tests = [
-  test_case(
-    "Incomplete list before `in`+linebreak molds ListLit not Tuple", `Quick, () =>
-    check(string, "def kind", "ListLit", def_kind({|let a = [1,2¦ in
-b|}))
-  ),
-  test_case(
-    "Type-annotated incomplete list molds ListLit (as in reported program)",
-    `Quick,
-    () =>
-    check(
-      string,
-      "def kind",
-      "ListLit",
-      def_kind({|let a:[Int] = [1,2¦   in
-a|}),
-    )
-  ),
-  test_case(
-    "Already-multiline incomplete list still closes before `in`", `Quick, () =>
-    check(string, "def kind", "ListLit", def_kind({|let a = [1,
-2¦ in
-b|}))
-  ),
-];
-
 let sel_r_token = (n: int): list(Action.t) =>
   List.init(n, _ => Action.Select(Resize(Local(Right, ByToken))));
 
@@ -4776,6 +4733,49 @@ let drag_to_zero_width_tests = [
       @ [resize_point(~row=0, ~col=16, ~chunk=Some(ByChar), ())]
       @ [resize_point(~row=0, ~col=22, ~chunk=Some(BySmart), ())],
     ~goal="§let aardvark = apple in¦ aardvark",
+  ),
+];
+
+/* An incomplete `[1,2` (closing `]` still in the backpack) ending a line before
+   `in` must mold as a ListLit, not degrade to a Tuple — the dump must not drop
+   the `]` across the end-of-line linebreak. */
+let def_kind = (src: string): string => {
+  let z = mk(src) |> perform(Zipper.init());
+  let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
+  switch (Language.IdTagged.term_of(term)) {
+  | Let(_, def, _) =>
+    switch (Language.IdTagged.term_of(def)) {
+    | ListLit(_) => "ListLit"
+    | Tuple(_) => "Tuple"
+    | _ => "other"
+    }
+  | _ => "not-a-let"
+  };
+};
+
+let incomplete_list_dump_tests = [
+  test_case(
+    "Incomplete list before `in`+linebreak molds ListLit not Tuple", `Quick, () =>
+    check(string, "def kind", "ListLit", def_kind({|let a = [1,2¦ in
+b|}))
+  ),
+  test_case(
+    "Type-annotated incomplete list molds ListLit (as in reported program)",
+    `Quick,
+    () =>
+    check(
+      string,
+      "def kind",
+      "ListLit",
+      def_kind({|let a:[Int] = [1,2¦   in
+a|}),
+    )
+  ),
+  test_case(
+    "Already-multiline incomplete list still closes before `in`", `Quick, () =>
+    check(string, "def kind", "ListLit", def_kind({|let a = [1,
+2¦ in
+b|}))
   ),
 ];
 

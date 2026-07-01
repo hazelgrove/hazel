@@ -994,8 +994,10 @@ module Caret = {
   let inner_offset_for_token = (idx: int, token: Token.t): int =>
     Token.is_string(token) ? string_offset(token, idx) : idx + 1;
 
-  /* counts GRAPHEMES not columns: a wide char (emoji) in a string is 1 grapheme
-     but 2 columns; column counts would over-trim clipboard text (trailing quote). */
+  /* Like inner_offset_for_token but counts GRAPHEMES, not display columns: a
+     wide char (e.g. an emoji) in a string literal is one grapheme but two
+     columns. Used for clipboard text slicing, where the column count would
+     over-trim and leave a trailing quote. */
   let inner_grapheme_offset = (idx: int): int => idx + 1;
 
   /* Grid position of the caret */
