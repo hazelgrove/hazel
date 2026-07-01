@@ -186,5 +186,18 @@ let tests = (
         ),
       )
     }),
+    test_case("anchor pins slice in a fun body", `Quick, () => {
+      check(
+        string,
+        "fun ? -> ? + ?",
+        "fun ? -> ? + ?",
+        fold_after_refresh(
+          ~from_focus=first_binop_id,
+          ~to_focus=int_id(1),
+          ~query="Int",
+          "fun x : String -> 1 + 2",
+        ),
+      )
+    }),
   ],
 );
