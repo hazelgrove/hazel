@@ -287,6 +287,15 @@
   text-transform: uppercase;
 }
 
+.cursor-inspector .slicing-tag {
+  font-weight: bolder;
+  text-transform: uppercase;
+  color: var(--caret-color-secondary);
+  padding: 0em 0.4em;
+  display: flex;
+  align-items: center;
+}
+
 .cursor-inspector .divider {
   color: var(--BR2);
 }

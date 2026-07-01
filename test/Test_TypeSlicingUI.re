@@ -59,6 +59,7 @@ let slicing_model = (focus: Id.t, query: string): CI.Model.t => {
   ana: CI.Model.empty_row,
   menu: CI.Model.NoMenu,
   anchor: CI.Model.OptionalId.SomeId(focus),
+  focus_target: CI.Model.Main,
 };
 
 let render_folded = (model: Web.CodeEditable.Model.t): string =>

@@ -202,12 +202,19 @@ module Model = {
     | NoMenu
     | Menu(TypeTarget.t, float, float);
 
+  /* Which editor the live (blue) secondary cursor is in. */
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type focus_target =
+    | Main
+    | Fold(TypeTarget.t);
+
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
     syn: row,
     ana: row,
     menu: menu_state,
     anchor: OptionalId.t,
+    focus_target,
   };
 
   let empty_row = {
@@ -222,7 +229,17 @@ module Model = {
     ana: empty_row,
     menu: NoMenu,
     anchor: OptionalId.NoId,
+    focus_target: Main,
   };
+
+  let set_focus_main = (model: t): t =>
+    switch (model.focus_target) {
+    | Main => model
+    | Fold(_) => {
+        ...model,
+        focus_target: Main,
+      }
+    };
 
   let row = (target: TypeTarget.t, model: t): row =>
     switch (target) {
@@ -762,14 +779,19 @@ module Update = {
           animate_type_editor_caret(~settings, editor_action);
           let updated =
             CodeEditable.Update.update(~settings, editor_action, editor);
+          let model =
+            {
+              ...row,
+              editor:
+                Model.EditorSlot.SomeEditor(
+                  calculate_type_editor(~settings, updated.model),
+                ),
+            }
+            |> Model.put_row(target, _, model);
           {
-            ...row,
-            editor:
-              Model.EditorSlot.SomeEditor(
-                calculate_type_editor(~settings, updated.model),
-              ),
+            ...model,
+            focus_target: Model.Fold(target),
           }
-          |> Model.put_row(target, _, model)
           |> Updated.return_quiet;
         | _ => model |> Updated.return_quiet
         };
@@ -823,6 +845,7 @@ module Update = {
         {
           ...model,
           anchor,
+          focus_target: Model.Main,
         }
         |> Updated.return_quiet;
       | TypeEditor(target, editor_action) =>
@@ -833,14 +856,19 @@ module Update = {
           animate_type_editor_caret(~settings, editor_action);
           let updated =
             CodeEditable.Update.update(~settings, editor_action, editor);
+          let model =
+            {
+              ...row,
+              editor:
+                Model.EditorSlot.SomeEditor(
+                  calculate_type_editor(~settings, updated.model),
+                ),
+            }
+            |> Model.put_row(target, _, model);
           {
-            ...row,
-            editor:
-              Model.EditorSlot.SomeEditor(
-                calculate_type_editor(~settings, updated.model),
-              ),
+            ...model,
+            focus_target: Model.Fold(target),
           }
-          |> Model.put_row(target, _, model)
           |> Updated.return_quiet;
         | _ => model |> Updated.return_quiet
         };
@@ -2045,8 +2073,46 @@ let bar_of_info =
     view_of_info(~globals, ~slicing?, ci),
   );
 
-/* The slicing bar is pinned to the frozen anchor; the plain secondary bar
-   (shown above it while slicing) follows the live cursor with no slicing UI. */
+let slicing_tag =
+  div(~attrs=[clss(["term-tag", "slicing-tag"])], [text("slicing")]);
+
+let fold_bar_of_info = (~globals: Globals.t, ci): Node.t => {
+  let body =
+    switch (Info.projector_kind_of(ci)) {
+    | Some(ProjectorKind.Fold) => [div_ok([text("ignored typing info")])]
+    | _ => view_of_info(~globals, ci)
+    };
+  div(
+    ~attrs=[
+      clss([
+        "cursor-inspector",
+        status_class(~globals, ci),
+        "secondary",
+        "fold-source",
+      ]),
+    ],
+    [slicing_tag, ...body],
+  );
+};
+
+let secondary_bar =
+    (~globals: Globals.t, ~model: Model.t, ~fallback: Info.t): Node.t =>
+  switch (model.focus_target) {
+  | Model.Fold(target) =>
+    switch (Model.row(target, model).editor) {
+    | Model.EditorSlot.SomeEditor(editor) =>
+      switch (
+        Indicated.ci_of(editor.editor.state.zipper, editor.statics.info_map)
+      ) {
+      | Some(fold_ci) => fold_bar_of_info(~globals, fold_ci)
+      | None => bar_of_info(~globals, ~extra_cls=["secondary"], fallback)
+      }
+    | Model.EditorSlot.NoEditor =>
+      bar_of_info(~globals, ~extra_cls=["secondary"], fallback)
+    }
+  | Model.Main => bar_of_info(~globals, ~extra_cls=["secondary"], fallback)
+  };
+
 let view =
     (
       ~globals: Globals.t,
@@ -2079,7 +2145,7 @@ let view =
         ~extra_cls=["slicing-active"],
         anchor_ci,
       );
-    let plain_bar = bar_of_info(~globals, ~extra_cls=["secondary"], ci);
+    let plain_bar = secondary_bar(~globals, ~model, ~fallback=ci);
     bar_view([plain_bar, slicing_bar]);
   | Some(ci) =>
     bar_view([

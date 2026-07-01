@@ -618,6 +618,11 @@ module Update = {
           ~previous_cursor_inspector=model.cursor_inspector,
           model,
         );
+      let model = {
+        ...model,
+        cursor_inspector:
+          CursorInspector.Model.set_focus_main(model.cursor_inspector),
+      };
       {
         ...updated_editors,
         model,
