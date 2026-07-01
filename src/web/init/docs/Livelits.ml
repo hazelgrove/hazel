@@ -3,150 +3,130 @@ let out : string * Haz3lcore.PersistentSegment.t =
     {
       segment =
         "((Secondary((id \
-         6544a561-7cfc-425a-8563-22c6f3274ef7)(content(Comment\"# LIVELITS \
+         cebfac6c-b687-41f4-a0a2-9db408761ac8)(content(Comment\"# LIVELITS \
          #\"))))(Secondary((id \
-         110c250a-d146-4a14-a076-83845a751f01)(content(Whitespace\"\\n\"))))(Secondary((id \
-         f26ed6f4-ddcd-4bf6-8f59-cb47b3ad612b)(content(Comment\"# A livelit is \
+         b89569da-d157-4e94-8098-c7fc9e229f51)(content(Whitespace\"\\n\"))))(Secondary((id \
+         c1ec4b61-4ef4-446a-b975-b669563d991e)(content(Comment\"# A livelit is \
          a live GUI widget which can be inserted into expressions. \
          #\"))))(Secondary((id \
-         66bfa5b9-9f48-4464-b116-ebe31a90031a)(content(Whitespace\"\\n\"))))(Secondary((id \
-         e9280917-09bc-404c-a81f-166d46e6159f)(content(Comment\"# It \
+         db3b24e1-3cf0-4bb0-b037-531385c1284c)(content(Whitespace\"\\n\"))))(Secondary((id \
+         1491e462-9b7b-4c26-a519-df29c2c35216)(content(Comment\"# It \
          elaborates to a value of some given type. #\"))))(Secondary((id \
-         4b55c78b-07f3-4527-aae4-007004a3dfb6)(content(Whitespace\"\\n\"))))(Secondary((id \
-         103a0fbb-0457-492e-a176-d2931a567e03)(content(Whitespace\"\\n\"))))(Secondary((id \
-         7dd28731-edd8-41d0-bbb1-c37db7e0779d)(content(Comment\"# Invocation: \
+         aea180b5-e3ba-4318-a1b2-f13f6ee9fb42)(content(Whitespace\"\\n\"))))(Secondary((id \
+         ad4010b8-8e26-4a24-99bc-60df8545b445)(content(Whitespace\"\\n\"))))(Secondary((id \
+         ed4d571c-b68d-44e1-9cf4-da3b9aafae6d)(content(Comment\"# Invocation: \
          #\"))))(Secondary((id \
-         7f223f43-2327-49f2-a60b-9ef1ae80585d)(content(Whitespace\"\\n\"))))(Secondary((id \
-         07d4de86-9142-4f00-8a71-03136c62e938)(content(Comment\"# To invoke a \
+         247760ba-71da-4e63-b768-8bb9c4ab76ff)(content(Whitespace\"\\n\"))))(Secondary((id \
+         1f473891-73a1-496c-8154-c5fab3923b3d)(content(Comment\"# To invoke a \
          livelit, insert the name of the livelit (always prefixed with ^) then \
          space. #\"))))(Secondary((id \
-         2b13e88c-a767-465e-9c99-01011ad458bb)(content(Whitespace\"\\n\"))))(Secondary((id \
-         d51c76d0-88a1-429f-8c4b-cf19c512a3bd)(content(Comment\"# The context \
+         41e0b353-7410-44c3-a27e-7dd4dc954237)(content(Whitespace\"\\n\"))))(Secondary((id \
+         5e4a81a6-f8f4-49e7-be25-c4bf04c5e7c9)(content(Comment\"# The context \
          inspector shows which livelits are available and their elaboration \
          type. #\"))))(Secondary((id \
-         4f956332-c019-4f9b-9943-f0e09b9d65e9)(content(Whitespace\"\\n\"))))(Secondary((id \
-         e6818b18-7e26-4d07-8239-5108ea0671fb)(content(Whitespace\"\\n\"))))(Secondary((id \
-         75326974-0bcf-49bc-a8b0-bbb27636d72c)(content(Comment\"# Each livelit \
+         68271038-1686-4bdb-a049-f9826f312c6f)(content(Whitespace\"\\n\"))))(Secondary((id \
+         de5033cc-1778-4aea-bdbb-54e131090123)(content(Whitespace\"\\n\"))))(Secondary((id \
+         54238b43-9714-4355-a789-d7399786a240)(content(Comment\"# Each livelit \
          maintains an internal model, which is not generally something the \
          #\"))))(Secondary((id \
-         e2c9ab09-dd90-46aa-811a-e278e08677d1)(content(Whitespace\"\\n\"))))(Secondary((id \
-         6b1d911c-c8c7-4460-9946-569f095eac04)(content(Comment\"# programmer \
+         5ffdb892-d049-4a1b-a35b-92125ca54483)(content(Whitespace\"\\n\"))))(Secondary((id \
+         d09b4987-7a28-46c4-a8f0-0b22ec749e71)(content(Comment\"# programmer \
          should need to look at. You can see the internal model by toggling \
          #\"))))(Secondary((id \
-         42f5023a-d68e-4e9c-8794-8026e3c9f9b2)(content(Whitespace\"\\n\"))))(Secondary((id \
-         63373fe4-0963-4387-8cbf-05b815c9d184)(content(Comment\"# the livelit \
+         a668e482-44e5-42a7-8c5b-f97c9c837671)(content(Whitespace\"\\n\"))))(Secondary((id \
+         2f950a28-2208-49a3-8e00-420360b768cc)(content(Comment\"# the livelit \
          projector off (bottom right corner of Hazel). #\"))))(Secondary((id \
-         c034136c-2b94-4d13-8189-313bf8961cc1)(content(Whitespace\"\\n\"))))(Secondary((id \
-         14798745-5f33-4ab7-9e72-db7461ac73d8)(content(Whitespace\"\\n\"))))(Secondary((id \
-         8edd8d86-53a2-4e04-8a8a-ea90bb9ee9ab)(content(Comment\"# Built-in \
+         816cbe18-f500-4059-a400-6c79011aeab4)(content(Whitespace\"\\n\"))))(Secondary((id \
+         47863b00-9a11-4264-a46f-8a44f7b2fa0b)(content(Whitespace\"\\n\"))))(Secondary((id \
+         a0d6764f-ea06-42da-9941-ec4232503a45)(content(Comment\"# Built-in \
          Livelits: #\"))))(Secondary((id \
-         0544296c-a833-42fa-b652-d47a1b7a536d)(content(Whitespace\"\\n\"))))(Secondary((id \
-         f2d5f6d7-42de-4ccc-81af-701b8bd2bb0f)(content(Comment\"# Currently, \
+         0c3c7815-dbb2-40a0-82c4-5fc269fb85f8)(content(Whitespace\"\\n\"))))(Secondary((id \
+         30063aed-fb67-4949-a04f-22baf7c82bc7)(content(Comment\"# Currently, \
          all livelits are built in: #\"))))(Secondary((id \
-         6b12bb77-30e7-41a4-b6e6-190f645a7889)(content(Whitespace\"\\n\"))))(Secondary((id \
-         b1bb74c6-9583-4fd6-89fd-f5a8001dfab8)(content(Whitespace\"\\n\"))))(Secondary((id \
-         b5425822-bf52-4e78-bcec-8195e6a2e5a8)(content(Comment\"# 1. ^slider \
+         e7e6a32d-15e5-45da-8e59-1f5dfcc65318)(content(Whitespace\"\\n\"))))(Secondary((id \
+         155843ee-37ce-401b-857d-f376fe68b767)(content(Whitespace\"\\n\"))))(Secondary((id \
+         0088b5da-8c06-4275-9ad6-0ae0a871b82b)(content(Comment\"# 1. ^slider \
          #\"))))(Secondary((id \
-         0ed0de54-6180-4ae2-8ee2-9df139e3bd10)(content(Whitespace\"\\n\"))))(Secondary((id \
-         25e171c3-83c6-4eb8-b193-668458ed33d6)(content(Comment\"# Elaboration \
+         6db0ecc7-04aa-4849-b0d6-1491fd87dbcc)(content(Whitespace\"\\n\"))))(Secondary((id \
+         6d202b95-d300-4f35-912a-183ec07290e9)(content(Comment\"# Elaboration \
          Type: Int                                                     \
          #\"))))(Secondary((id \
-         9f590566-e8a7-4f08-9965-c485a447151e)(content(Whitespace\"\\n\"))))(Secondary((id \
-         e6e60d63-7f69-4e54-9773-ec2213cc9b36)(content(Comment\"# Elaboration: \
+         8a4783a7-7f5d-4072-9446-0e066a777546)(content(Whitespace\"\\n\"))))(Secondary((id \
+         942d9a37-b2f9-4b12-98d7-ce5adb843925)(content(Comment\"# Elaboration: \
          The current value of the slider, which is between 0 and 100. \
          #\"))))(Secondary((id \
-         2fa27185-d801-41df-b2e0-388839c17769)(content(Whitespace\"\\n\"))))(Secondary((id \
-         10256c94-dc8f-4f60-a992-16aa01a2da54)(content(Comment\"# Internal \
+         d1e43a02-f45d-48b5-b8db-c1d74a2c0981)(content(Whitespace\"\\n\"))))(Secondary((id \
+         0f661e72-ece3-48c5-b2f9-69c5d9266fd3)(content(Comment\"# Internal \
          Model: Int                                                       \
          #\"))))(Secondary((id \
-         67cad6f3-3182-4c51-936a-5713290b6715)(content(Whitespace\"\\n\"))))(Tile((id \
-         bced7663-c364-461f-92be-556807c30e67)(label(let = in))(mold((out \
+         5cc15482-8ca9-45dd-aaeb-486ca0f0a2c3)(content(Whitespace\"\\n\"))))(Tile((id \
+         887ed128-0d40-4647-b304-cf5064c0faba)(label(let = in))(mold((out \
          Exp)(in_(Pat Exp))(nibs(((shape Convex)(sort Exp))((shape(Concave \
          45))(sort Exp))))))(shards(0 1 2))(children(((Secondary((id \
-         e356c518-34ab-417c-a3d0-e0d9029c0c9f)(content(Whitespace\" \
+         6e0acb3c-2dda-4971-8329-d567e76662cd)(content(Whitespace\" \
          \"))))(Tile((id \
-         790b89d0-8245-4c1a-8bc0-33af849b5e52)(label(slider_val))(mold((out \
+         06a767e3-5bf2-4031-887f-f708201a6d2a)(label(slider_val))(mold((out \
          Pat)(in_())(nibs(((shape Convex)(sort Pat))((shape Convex)(sort \
          Pat))))))(shards(0))(children())))(Secondary((id \
-         1a5f3b6e-5830-4978-835d-278dd3a986ed)(content(Whitespace\" \
+         ee2932b9-f5b8-4dd1-b9dc-7c42e6f929d3)(content(Whitespace\" \
          \")))))((Secondary((id \
-         590149d2-0ae2-433b-b659-7d73a79e4fb7)(content(Whitespace\" \
-         \"))))(Projector((id f655fccf-8ab3-49bb-a073-c6637696129f)(kind \
-         Livelit)(syntax(Tile((id \
-         91ad023b-df20-4a59-8a6d-4b63826c6e44)(label(\"(\"\")\"))(mold((out \
-         Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
-         Exp))))))(shards(0 1))(children(((Tile((id \
-         2f301349-f2c1-4eb9-bd82-3c5d7b025962)(label(^slider))(mold((out \
-         Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
-         Exp))))))(shards(0))(children())))(Tile((id \
-         b9416645-a97a-4f76-a174-5163e3b73cb4)(label(\"(\"\")\"))(mold((out \
-         Exp)(in_(Exp))(nibs(((shape(Concave 23))(sort Exp))((shape \
-         Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
-         33b8cb2c-ac91-486f-83aa-b0651f004bd8)(label(85))(mold((out \
-         Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
-         Exp))))))(shards(0))(children()))))))))))))))(model\"()\")))(Secondary((id \
-         2ba5684e-fcb5-4c5e-b949-a15324e0e541)(content(Whitespace\" \
+         3dbc90e0-cf73-4b58-8c03-d4c56227c327)(content(Whitespace\" \
+         \"))))(Projector((id e5ffa981-7049-4676-a334-90c13f4852d2)(kind \
+         Livelit)(syntax(Exp((term(Ap Forward((term(LivelitName \
+         slider))(annotation((ids(bf3672af-049c-42f4-b50c-9b39cc0ba646))(secondary(()())))))((term(Atom(Int \
+         85)))(annotation((ids(ffe716e6-0893-43c4-bbfb-224fc8724a74))(secondary(()())))))))(annotation((ids(cfe83640-a571-4bea-93b8-b3a344a83d66))(secondary(()())))))))(model\"()\")))(Secondary((id \
+         84313cf5-10c4-4021-ac50-c6bd068a50a6)(content(Whitespace\" \
          \")))))))))(Secondary((id \
-         7df76a49-c053-48ef-ae8a-a5b176b17913)(content(Whitespace\"\\n\"))))(Secondary((id \
-         78c92707-d5dc-4c02-b5c0-dd3a9d861e79)(content(Whitespace\"\\n\"))))(Secondary((id \
-         e4333e9a-4cc7-4566-8938-631599724082)(content(Comment\"# 2. ^emotion \
+         734cc9dc-e675-4096-a457-bd7a4c8a9b75)(content(Whitespace\"\\n\"))))(Secondary((id \
+         d6122f31-f627-495b-9d7b-84ffed55328a)(content(Whitespace\"\\n\"))))(Secondary((id \
+         0a72c1e1-7930-426b-9785-428bccd2be4f)(content(Comment\"# 2. ^emotion \
          #\"))))(Secondary((id \
-         5514a38a-f7b1-455b-ac86-5626b8c0b662)(content(Whitespace\"\\n\"))))(Secondary((id \
-         70d7a21c-a3f1-4525-9b99-f0d78cc73725)(content(Comment\"# Elaboration \
+         1dde6aa5-0c88-4af9-a980-4870b7c1f8b0)(content(Whitespace\"\\n\"))))(Secondary((id \
+         f1b95711-6f5f-4953-a866-432b1cec57ec)(content(Comment\"# Elaboration \
          Type: String                                      \
          #\"))))(Secondary((id \
-         3f052a1a-28f6-4bfe-9c1d-1091847ebe2c)(content(Whitespace\"\\n\"))))(Secondary((id \
-         a53a11aa-78ca-46a1-be75-5debec050929)(content(Comment\"# Elaboration: \
+         ca505795-5c41-4445-a376-73811f21783f)(content(Whitespace\"\\n\"))))(Secondary((id \
+         e6f03478-0ffa-409a-987b-b4e09e44866b)(content(Comment\"# Elaboration: \
          Returns a String representing an emotion,        \
          #\"))))(Secondary((id \
-         7e5f09f6-f999-42e8-943c-2af2225c4f79)(content(Whitespace\"\\n\"))))(Secondary((id \
-         788f357c-5929-4109-b20c-dd230cd00483)(content(Comment\"#              \
+         6a9df222-fed7-4027-913b-1710c52f18a0)(content(Whitespace\"\\n\"))))(Secondary((id \
+         192b7ae1-32af-4357-bdce-b198cc8c1e7b)(content(Comment\"#              \
          determined as follows based on the slider value: \
          #\"))))(Secondary((id \
-         d361b015-da8c-4767-853f-66506f97a540)(content(Whitespace\"\\n\"))))(Secondary((id \
-         1257c15c-2045-45da-958d-75d348ff492c)(content(Comment\"#                \
+         eb980b87-52fe-4409-8191-73c82091684b)(content(Whitespace\"\\n\"))))(Secondary((id \
+         45911e1d-8d9e-4f89-b766-064bf63f2898)(content(Comment\"#                \
          if value < 40 then \\\"sad\\\"                       \
          #\"))))(Secondary((id \
-         138349af-2cc0-4f91-be70-56623d0c3083)(content(Whitespace\"\\n\"))))(Secondary((id \
-         6ba0c5b3-28a7-4537-a2d8-b8acd36375ed)(content(Comment\"#                \
+         97716e51-7f74-4677-a450-4d126bd8a325)(content(Whitespace\"\\n\"))))(Secondary((id \
+         f7e30b5f-4d4a-4c4b-a1b0-02c653deca10)(content(Comment\"#                \
          if value > 70 then \\\"happy\\\"                     \
          #\"))))(Secondary((id \
-         91c808fd-915f-485d-aed0-b556da9b9ae8)(content(Whitespace\"\\n\"))))(Secondary((id \
-         27451202-ca9d-4f19-853c-143299eb26a8)(content(Comment\"#                \
+         8844b9ed-96d1-4a96-a8f7-aedfe90612e0)(content(Whitespace\"\\n\"))))(Secondary((id \
+         88c11290-4172-4dd7-8104-d9b05b92118c)(content(Comment\"#                \
          otherwise \\\"neutral\\\"                            \
          #\"))))(Secondary((id \
-         f5a4c1c7-bb91-4bcf-b259-e6cf988dbd1b)(content(Whitespace\"\\n\"))))(Secondary((id \
-         6655ede7-ee63-4805-86da-fabdee5d28bf)(content(Comment\"# Internal \
+         b7cd6715-f407-4305-98d9-2886b318ddf1)(content(Whitespace\"\\n\"))))(Secondary((id \
+         c7c65534-a83c-4b9e-9101-5d40b5426c01)(content(Comment\"# Internal \
          Model: Int                                           \
          #\"))))(Secondary((id \
-         527857a1-0e1f-43ea-98bb-f3029a418350)(content(Whitespace\"\\n\"))))(Tile((id \
-         80ef36f0-8ee8-4731-ba68-6c908f95f274)(label(let = in))(mold((out \
+         e26c1f66-5c28-4e11-b9e8-e9cf2aa90b6c)(content(Whitespace\"\\n\"))))(Tile((id \
+         9c650120-2be1-4bb7-97f0-4f5079c05d71)(label(let = in))(mold((out \
          Exp)(in_(Pat Exp))(nibs(((shape Convex)(sort Exp))((shape(Concave \
          45))(sort Exp))))))(shards(0 1 2))(children(((Secondary((id \
-         a6b2ff5f-61a5-4bf4-a521-33daae25f285)(content(Whitespace\" \
+         0700606e-66b6-4ed7-9edc-1c9cb29f1da9)(content(Whitespace\" \
          \"))))(Tile((id \
-         6910ee05-ecc5-4dfb-9b1f-b3a11b75e515)(label(current_mood))(mold((out \
+         9c0f9682-aab3-4bfc-ac1b-fd166b883aa8)(label(current_mood))(mold((out \
          Pat)(in_())(nibs(((shape Convex)(sort Pat))((shape Convex)(sort \
          Pat))))))(shards(0))(children())))(Secondary((id \
-         df7f8e3b-6297-4cbf-92c8-cfe33ada4290)(content(Whitespace\" \
+         75413e58-8622-4b72-8b60-382016947161)(content(Whitespace\" \
          \")))))((Secondary((id \
-         62ece9e0-5091-4f6e-a745-dc375df3b5b2)(content(Whitespace\" \
-         \"))))(Projector((id caf8fa3b-bda6-404c-a447-e8e05746b5ed)(kind \
-         Livelit)(syntax(Tile((id \
-         186b81bc-b170-4c3f-89e3-e1f782cedae3)(label(\"(\"\")\"))(mold((out \
-         Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
-         Exp))))))(shards(0 1))(children(((Tile((id \
-         379a5546-5bc4-4d32-a39b-1eb62dda9a5b)(label(^emotion))(mold((out \
-         Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
-         Exp))))))(shards(0))(children())))(Tile((id \
-         aaff3195-c5e2-49ae-bb52-32ffa9c46dfc)(label(\"(\"\")\"))(mold((out \
-         Exp)(in_(Exp))(nibs(((shape(Concave 23))(sort Exp))((shape \
-         Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
-         e4c64ce7-5885-43f0-8a4c-2c8bc4003982)(label(0))(mold((out \
-         Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
-         Exp))))))(shards(0))(children()))))))))))))))(model\"()\")))(Secondary((id \
-         38361cff-c89f-4d36-a143-d4c9d88d4ae4)(content(Whitespace\" \
-         \")))))))))(Grout((id 6ffd5f7f-c1bc-4636-b92f-1527d7ff5e24)(shape \
+         852bee23-f72a-4a2b-8e34-7a8ad7a4dc56)(content(Whitespace\" \
+         \"))))(Projector((id 77c39c78-6fe2-4c73-b5b4-48b9252a90d4)(kind \
+         Livelit)(syntax(Exp((term(Ap Forward((term(LivelitName \
+         emotion))(annotation((ids(771abfd7-0a2d-4dae-bfff-e14de2fa533b))(secondary(()())))))((term(Atom(Int \
+         0)))(annotation((ids(e524ffa7-b02f-4924-a97f-1d12e4076b20))(secondary(()())))))))(annotation((ids(e1d2116a-61e8-4fe5-9a6b-ffea7712d700))(secondary(()())))))))(model\"()\")))(Secondary((id \
+         9ab131db-1ed2-4280-be01-7798317c8d75)(content(Whitespace\" \
+         \")))))))))(Grout((id 3bdf24d3-79d6-47d3-a4f5-a1d1308729b1)(shape \
          Convex))))";
       backup_text =
         "# LIVELITS #\n\

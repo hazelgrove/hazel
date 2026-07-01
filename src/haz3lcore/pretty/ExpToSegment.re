@@ -3102,16 +3102,23 @@ let any_to_segment =
 /* Regenerate the segment representation of a projector's stored term.
  * Projectors hold their underlying syntax as a term (Any.t); wherever a
  * segment is needed (rendering info.syntax, stringification, restoring on
- * unproject) we rebuild it here, using the term's stored secondary
- * (IdTagged.IdTag.secondary) to reproduce the original whitespace/comments. */
+ * unproject) we rebuild it here. We use the editor's `editable` settings so
+ * the underlying syntax renders faithfully (ascriptions, filters, etc.
+ * preserved, no result-only folding), overriding only `secondary` to
+ * PreserveExact so the term's stored secondary (IdTagged.IdTag.secondary)
+ * reproduces the original whitespace/comments. */
 let regen_proj_syntax = (~inline=true, any: Any.t): Segment.t =>
   any_to_segment(
     ~settings={
-      ...Settings.of_core(~inline, Language.CoreSettings.off),
+      ...Settings.editable(~inline),
+      /* Round-trip pairing: emit only the parens present in the term and rely
+       * on the term's stored secondary for whitespace, rather than adding
+       * defensive parens or heuristic spacing. */
       secondary: PreserveExact,
+      parenthesization: Structural,
+      /* Render Unknown types as `?` rather than an (invisible) empty hole, so
+       * type annotations like `r : ?` survive. */
       show_unknown_as_hole: false,
-      fold_fn_bodies: `NoFold,
-      project_tables: false,
     },
     any,
   );
