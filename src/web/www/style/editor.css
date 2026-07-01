@@ -436,6 +436,9 @@ svg.shard.selected.buffer-parsed > path {
 
 .caret.secondary .caret-path {
   fill: var(--caret-color-secondary);
+  stroke: oklch(35% 0.18 250);
+  stroke-width: 0.5px;
+  vector-effect: non-scaling-stroke;
 }
 
 .caret.blink {
