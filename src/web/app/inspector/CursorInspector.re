@@ -2186,7 +2186,7 @@ let view =
         anchor_ci,
       );
     let plain_bar = secondary_bar(~globals, ~model, ~fallback=ci);
-    bar_view([slicing_bar, plain_bar]);
+    bar_view([plain_bar, slicing_bar]);
   | Some(ci) =>
     bar_view([
       bar_of_info(
