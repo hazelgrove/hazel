@@ -4,6 +4,14 @@ open Test_Statics_Slicing_Prelude;
 let atoms = [
   synthesis_case("int-lit", "1", "Int", "1"),
   synthesis_case("whole-gap", "1 + 2", "?", "?"),
+  synthesis_case(~focus=first_int, "focused-gap", "1 + 2", "?", "? + 2"),
+  synthesis_case(
+    ~focus=e => nth_int(e, 1),
+    "focused-gap-middle",
+    "1 + 2 + 3",
+    "?",
+    "? + 2 + ?",
+  ),
   synthesis_case("bool-lit", "true", "Bool", "true"),
   synthesis_case("string-lit", "\"s\"", "String", "\"s\""),
   synthesis_case("float-lit", "1.0", "Float", "1.0"),
@@ -126,6 +134,13 @@ let functions = [
     "fun x : String -> 1 + 2",
     "String -> ?",
     "fun x : String -> ?",
+  ),
+  synthesis_case(
+    ~focus=first_binop,
+    "fun-sugar-focused-body-gap",
+    "fun x : String -> 1 + 2",
+    "?",
+    "fun ? -> ? + ?",
   ),
   synthesis_case(
     "fun-sugar-body-only",

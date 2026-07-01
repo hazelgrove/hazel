@@ -2617,8 +2617,23 @@ let slice =
       };
     | None => result
     };
+  let whole_focus =
+    switch (focus) {
+    | None => true
+    | Some(id) => Id.equal(id, Exp.rep_id(root_info.user_term))
+    };
   let result =
-    direction == `Syn && is_gap(query)
+    switch (focus) {
+    | Some(focus_id) when direction == `Syn && is_gap(query) && !whole_focus =>
+      let path = focus_path(m, focus_id);
+      {
+        ...result,
+        omitted: Id.Set.diff(result.omitted, path),
+      };
+    | _ => result
+    };
+  let result =
+    direction == `Syn && is_gap(query) && whole_focus
       ? {
         ...result,
         omitted: src_ids,
