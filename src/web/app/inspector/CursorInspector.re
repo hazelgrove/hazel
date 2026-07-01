@@ -2095,6 +2095,23 @@ let fold_bar_of_info = (~globals: Globals.t, ci): Node.t => {
   );
 };
 
+let secondary_info =
+    (~model: Model.t, fallback: option(Info.t)): option(Info.t) =>
+  switch (model.focus_target) {
+  | Model.Main => fallback
+  | Model.Fold(target) =>
+    switch (Model.row(target, model).editor) {
+    | Model.EditorSlot.SomeEditor(editor) =>
+      switch (
+        Indicated.ci_of(editor.editor.state.zipper, editor.statics.info_map)
+      ) {
+      | Some(_) as ci => ci
+      | None => fallback
+      }
+    | Model.EditorSlot.NoEditor => fallback
+    }
+  };
+
 let secondary_bar =
     (~globals: Globals.t, ~model: Model.t, ~fallback: Info.t): Node.t =>
   switch (model.focus_target) {

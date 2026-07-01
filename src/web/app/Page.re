@@ -1208,6 +1208,11 @@ module View = {
       export_all: Export.export_all,
       slice_anchor: CursorInspector.Model.anchor_id(cursor_inspector),
     };
+    let cursor = {
+      ...cursor,
+      info:
+        CursorInspector.secondary_info(~model=cursor_inspector, cursor.info),
+    };
     let anchor_info =
       switch (CursorInspector.Model.anchor_id(cursor_inspector)) {
       | Some(id) =>
