@@ -225,6 +225,17 @@ let index = (z: ZipperBase.t): option(Id.t) =>
   | Some({piece, _}) => Some(Piece.id(piece))
   };
 
+let info_of_piece = (piece: Piece.t, info_map: Language.Statics.Map.t) =>
+  switch (piece) {
+  | Projector({kind, syntax, _}) when kind == ProjectorCore.Kind.Fold =>
+    let seg = Piece.unparenthesize(syntax);
+    switch (Segment.root_id(Segment.skel(seg), seg)) {
+    | id => Id.Map.find_opt(id, info_map)
+    | exception _ => None
+    };
+  | _ => Id.Map.find_opt(Piece.id(piece), info_map)
+  };
+
 let ci_of =
     (z: ZipperBase.t, info_map: Language.Statics.Map.t)
     : option(Language.Statics.Info.t) =>
@@ -233,7 +244,7 @@ let ci_of =
    * create a 'virtual' info map entry for the secondary notation,
    * borrowing semantic context from a nearby 'proxy' term. */
   switch (for_decoration(z)) {
-  | Some({piece, _}) => Id.Map.find_opt(Piece.id(piece), info_map)
+  | Some({piece, _}) => info_of_piece(piece, info_map)
   | None =>
     let sibs = ZipperBase.sibs_with_sel(z);
     let* cls =
@@ -249,18 +260,19 @@ let ci_of =
       | (Some(Secondary(s)), _) => Some(Language.Secondary.cls_of(s))
       | _ => None
       };
-    let* proxy_id =
+    let+ (proxy_id, proxy_ci) =
       switch (Siblings.neighbors(Siblings.trim_secondary(sibs))) {
       | (_, Some(p))
-      | (Some(p), _) => Some(Piece.id(p))
+      | (Some(p), _) =>
+        let+ ci = info_of_piece(p, info_map);
+        (Piece.id(p), ci);
       | _ => None
       };
-    let+ ci = Id.Map.find_opt(proxy_id, info_map);
     Language.Statics.Info.Secondary({
       id: proxy_id,
       cls: Secondary(cls),
-      sort: Language.Statics.Info.sort_of(ci),
-      ctx: Language.Statics.Info.ctx_of(ci),
+      sort: Language.Statics.Info.sort_of(proxy_ci),
+      ctx: Language.Statics.Info.ctx_of(proxy_ci),
     });
   };
 

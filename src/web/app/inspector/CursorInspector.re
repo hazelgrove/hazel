@@ -520,7 +520,7 @@ module ProgramFolds = {
             | Some(seg) =>
               switch (Id.Map.find_opt(id, syntax.term_data)) {
               | Some(TermData.{root_piece, _}) => [
-                  (Piece.id(root_piece), seg, List.length(seg)),
+                  (id, Piece.id(root_piece), seg, List.length(seg)),
                   ...targets,
                 ]
               | None => targets
@@ -530,10 +530,10 @@ module ProgramFolds = {
           omitted,
           [],
         )
-        |> List.sort(((_, _, a), (_, _, b)) => compare(b, a));
-      let (fold_targets, covered) =
+        |> List.sort(((_, _, _, a), (_, _, _, b)) => compare(b, a));
+      let (target_entries, covered) =
         List.fold_left(
-          ((targets, covered), (root_id, seg, _)) =>
+          ((targets, covered), (term_id, root_id, seg, _)) =>
             if (Id.Set.mem(root_id, covered)) {
               (targets, covered);
             } else {
@@ -543,11 +543,75 @@ module ProgramFolds = {
                   covered,
                   seg,
                 );
-              (Id.Map.add(root_id, seg, targets), covered);
+              ([(term_id, root_id, seg), ...targets], covered);
             },
-          (Id.Map.empty, Id.Set.empty),
+          ([], Id.Set.empty),
           target_candidates,
         );
+      let fold_targets =
+        List.fold_left(
+          (targets, (_, root_id, seg)) => Id.Map.add(root_id, seg, targets),
+          Id.Map.empty,
+          target_entries,
+        );
+      let zipper_contains = (seg: Segment.t, z: Zipper.t): bool => {
+        let target_ids =
+          List.fold_left(
+            (ids, id) => Id.Set.add(id, ids),
+            Id.Set.empty,
+            Segment.ids(seg),
+          );
+        let has_target_id = ids =>
+          List.exists(id => Id.Set.mem(id, target_ids), ids);
+        let (left, right) = z.relatives.siblings;
+        has_target_id(Segment.ids(z.selection.content))
+        || has_target_id(Segment.ids(left))
+        && has_target_id(Segment.ids(right))
+        || (
+          switch (Indicated.index(z)) {
+          | Some(id) => Id.Set.mem(id, target_ids)
+          | None => false
+          }
+        )
+        || List.exists(
+             ((ancestor, _)) =>
+               Id.Set.mem(ancestor.Ancestor.id, target_ids),
+             z.relatives.ancestors,
+           );
+      };
+      let fold_cursor_target = (z: Zipper.t): option(Zipper.t) => {
+        switch (
+          target_entries
+          |> List.find_opt(((_, _, seg)) => zipper_contains(seg, z))
+        ) {
+        | None => None
+        | Some((term_id, _, _)) =>
+          switch (
+            Select.term(
+              ~defs_exclude_bodies=false,
+              ~case_rules=false,
+              syntax.term_data,
+              term_id,
+              z,
+            )
+          ) {
+          | None => None
+          | Some(selected) =>
+            switch (
+              ProjectorPerform.go(
+                syntax.term_data,
+                Action.SetIndicated(Specific(ProjectorCore.Kind.Fold)),
+                selected,
+                syntax.projector_list,
+                [],
+              )
+            ) {
+            | Ok(z) => Some(z)
+            | Error(_) => None
+            }
+          }
+        };
+      };
       let changed = ref(false);
       let add_piece = (piece: Piece.t): Segment.t =>
         switch (Id.Map.find_opt(Piece.id(piece), fold_targets)) {
@@ -560,12 +624,15 @@ module ProgramFolds = {
           }
         | None => Id.Set.mem(Piece.id(piece), covered) ? [] : [piece]
         };
+      let zipper =
+        switch (fold_cursor_target(model.editor.state.zipper)) {
+        | Some(z) =>
+          changed := true;
+          z;
+        | None => model.editor.state.zipper
+        };
       let model =
-        model
-        |> with_zipper(
-             ZipperBase.MapPiece.go(add_piece, model.editor.state.zipper),
-             _,
-           );
+        model |> with_zipper(ZipperBase.MapPiece.go(add_piece, zipper), _);
       {
         model,
         changed: changed^,
