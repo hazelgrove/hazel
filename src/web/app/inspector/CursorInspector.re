@@ -329,6 +329,13 @@ module TypeSlicing = {
     | _ => None
     };
 
+  let whole_fold_query = (editor: CodeEditable.Model.t): option(Typ.t) =>
+    switch (editor.editor.state.zipper |> Zipper.unselect_and_zip) {
+    | [Piece.Projector({kind, _})] when kind == ProjectorCore.Kind.Fold =>
+      Some(Statics.Slice.gap)
+    | _ => None
+    };
+
   let query_of_typ = (typ: Typ.t): Typ.t => {
     let f_typ = (continue, {term, _} as typ: Typ.t) =>
       switch (term) {
@@ -342,7 +349,10 @@ module TypeSlicing = {
     switch (row.editor) {
     | Model.EditorSlot.NoEditor => None
     | Model.EditorSlot.SomeEditor(editor) =>
-      Option.map(query_of_typ, typ_of_editor(editor))
+      switch (whole_fold_query(editor)) {
+      | Some(_) as query => query
+      | None => Option.map(query_of_typ, typ_of_editor(editor))
+      }
     };
 
   let protected_ids = (ci: Info.t): Id.Set.t =>
@@ -667,9 +677,44 @@ module Update = {
         model: Model.t,
       )
       : Updated.t(Model.t) =>
-    switch (cursor_info) {
-    | None => model |> Updated.return_quiet
-    | Some(ci) =>
+    switch (action, cursor_info) {
+    | (TypeEditor(_, _) | OpenMenu(_, _, _) | CloseMenu, _) =>
+      switch (action) {
+      | TypeEditor(target, editor_action) =>
+        let row = Model.row(target, model);
+        switch (row.active, row.editor) {
+        | (true, Model.EditorSlot.SomeEditor(editor))
+            when fold_editor_permits(editor_action) =>
+          animate_type_editor_caret(~settings, editor_action);
+          let updated =
+            CodeEditable.Update.update(~settings, editor_action, editor);
+          {
+            ...row,
+            editor:
+              Model.EditorSlot.SomeEditor(
+                calculate_type_editor(~settings, updated.model),
+              ),
+          }
+          |> Model.put_row(target, _, model)
+          |> Updated.return_quiet;
+        | _ => model |> Updated.return_quiet
+        };
+      | OpenMenu(target, x, y) =>
+        {
+          ...model,
+          menu: Model.Menu(target, x, y),
+        }
+        |> Updated.return_quiet
+      | CloseMenu =>
+        {
+          ...model,
+          menu: Model.NoMenu,
+        }
+        |> Updated.return_quiet
+      | Toggle(_) => model |> Updated.return_quiet
+      }
+    | (_, None) => model |> Updated.return_quiet
+    | (_, Some(ci)) =>
       let model = Model.refresh_for_info(ci, model);
       switch (action) {
       | Toggle(target) =>
