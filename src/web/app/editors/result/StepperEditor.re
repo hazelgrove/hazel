@@ -134,7 +134,7 @@ module View = {
             TermData.extreme_measures(
               List.nth(model.next_steps, x),
               model.editor.editor.syntax.term_data,
-              model.editor.editor.syntax.measured,
+              CachedSyntax.measured(model.editor.editor.syntax),
             );
           Some(List.nth(model.next_steps, x)) == selected_id
             ? signal(TakeStep(x)) : inject(Select(PointToPoint(range)));
@@ -148,7 +148,7 @@ module View = {
             TermData.extreme_measures(
               List.nth(model.refls, x),
               model.editor.editor.syntax.term_data,
-              model.editor.editor.syntax.measured,
+              CachedSyntax.measured(model.editor.editor.syntax),
             );
           Some(List.nth(model.refls, x)) == selected_id
             ? signal(Refl(x))

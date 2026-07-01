@@ -194,8 +194,10 @@ let mk_zipper = (~settings=default_settings, init: string): Zipper.t => {
     let z_a = mk(version_a) |> perform(~settings, Zipper.init());
     let z_b = mk(version_b) |> perform(~settings, Zipper.init());
     /* Get caret Points from each */
-    let measured_a = CachedSyntax.init(z_a).measured;
-    let measured_b = CachedSyntax.init(z_b).measured;
+    let measured_a =
+      Haz3lcore.CachedSyntax.measured(Haz3lcore.CachedSyntax.init(z_a));
+    let measured_b =
+      Haz3lcore.CachedSyntax.measured(Haz3lcore.CachedSyntax.init(z_b));
     let anchor_pt = Zipper.Caret.point(measured_a, z_a);
     let focus_pt = Zipper.Caret.point(measured_b, z_b);
     /* Apply PointToPoint: moves to anchor, selects to focus */

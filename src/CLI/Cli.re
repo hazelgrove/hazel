@@ -372,7 +372,7 @@ let probe_hazel = (auto: bool, many: bool, path: string): unit => {
             root_id,
             syntax.term_data,
             syntax.terms,
-            syntax.measured,
+            Haz3lcore.CachedSyntax.measured(syntax),
             info_map,
           )
         ) {
