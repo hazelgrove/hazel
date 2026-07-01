@@ -167,7 +167,8 @@ module Update = {
       );
 
     /* 2. Record target column if moving up/down */
-    let state = update_col_target(~measured=syntax.measured, a, state);
+    let state =
+      update_col_target(~measured=CachedSyntax.measured(syntax), a, state);
 
     /* 3. Update the zipper */
     let+ zipper =
