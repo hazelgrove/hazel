@@ -333,10 +333,31 @@ module Model = {
 };
 
 let caret_anchor = (z: Zipper.t): Model.anchor_caret =>
-  switch (Zipper.generalized_neighbors(z)) {
-  | (Some(l), _) => Model.Caret(Piece.id(l), Direction.Right)
-  | (_, Some(r)) => Model.Caret(Piece.id(r), Direction.Left)
-  | (None, None) => Model.NoCaret
+  switch (z.selection.content) {
+  | [_, ..._] as content =>
+    switch (z.selection.focus) {
+    | Direction.Left =>
+      Model.Caret(Piece.id(List.hd(content)), Direction.Left)
+    | Direction.Right =>
+      Model.Caret(Piece.id(ListUtil.last(content)), Direction.Right)
+    }
+  | [] =>
+    switch (Zipper.generalized_neighbors(z)) {
+    | (Some(l), _) => Model.Caret(Piece.id(l), Direction.Right)
+    | (_, Some(r)) => Model.Caret(Piece.id(r), Direction.Left)
+    | (None, None) => Model.NoCaret
+    }
+  };
+
+let selection_root_info =
+    (~info_map: Statics.Map.t, z: Zipper.t): option(Info.t) =>
+  switch (z.selection.content) {
+  | [] => None
+  | content =>
+    switch (Segment.root_id(Segment.skel(content), content)) {
+    | id => Statics.Map.lookup(id, info_map)
+    | exception _ => None
+    }
   };
 
 let type_slicing_focus_of_row =

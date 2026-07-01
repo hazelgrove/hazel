@@ -643,10 +643,21 @@ module Update = {
           ~selection=model.selection,
           model.editors,
         );
+      let editor = get_editor(model);
+      let toggle_info =
+        switch (
+          CursorInspector.selection_root_info(
+            ~info_map=editor.statics.info_map,
+            editor.editor.state.zipper,
+          )
+        ) {
+        | Some(_) as ci => ci
+        | None => cursor_info.info
+        };
       let updated_cursor_inspector =
         CursorInspector.Update.update(
           ~settings=model.globals.settings,
-          ~cursor_info=cursor_info.info,
+          ~cursor_info=toggle_info,
           action,
           model.cursor_inspector,
         );
@@ -657,9 +668,7 @@ module Update = {
         ...updated_cursor_inspector.model,
         anchor_caret:
           just_activated
-            ? CursorInspector.caret_anchor(
-                get_editor(model).editor.state.zipper,
-              )
+            ? CursorInspector.caret_anchor(editor.editor.state.zipper)
             : updated_cursor_inspector.model.anchor_caret,
       };
       let model = {
@@ -670,7 +679,7 @@ module Update = {
         sync_explain_folds(
           ~refresh_cursor_inspector=false,
           ~reslice=true,
-          ~cursor_info=cursor_info.info,
+          ~cursor_info=toggle_info,
           ~previous_cursor_inspector,
           model,
         );
