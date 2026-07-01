@@ -2624,7 +2624,7 @@ let slice =
     };
   let result =
     switch (focus) {
-    | Some(focus_id) when direction == `Syn && is_gap(query) && !whole_focus =>
+    | Some(focus_id) when direction == `Syn && !whole_focus =>
       let path = focus_path(m, focus_id);
       {
         ...result,

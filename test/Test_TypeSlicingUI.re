@@ -157,9 +157,101 @@ let case = (~name, ~src, ~focus, ~query, ~expected) =>
     check(string, expected, expected, fold_slice(~focus, ~query, src))
   });
 
+let select_term = (id: Id.t, code: Web.CodeEditable.Model.t): Zipper.t =>
+  switch (
+    Select.term(
+      ~defs_exclude_bodies=false,
+      ~case_rules=false,
+      code.editor.syntax.term_data,
+      id,
+      code.editor.state.zipper,
+    )
+  ) {
+  | Some(z) => z
+  | None => fail("could not select term")
+  };
+
 let tests = (
   "TypeSlicing.UI",
   [
+    test_case(
+      "selection root anchors the selected term",
+      `Quick,
+      () => {
+        let code = code_model("fun x : String -> 1 + 2");
+        let binop = first_binop_id(code);
+        let z = select_term(binop, code);
+        let anchor =
+          switch (
+            Web.CursorInspector.selection_root_info(
+              ~info_map=code.statics.info_map,
+              z,
+            )
+          ) {
+          | Some(ci) => Info.id_of(ci)
+          | None => fail("selection_root_info returned None")
+          };
+        check(bool, "anchor is binop", true, Id.equal(anchor, binop));
+        let code = {
+          ...code,
+          editor: Editor.Model.mk(z, ~root=Exp),
+        };
+        let unfolded_query_row = {
+          let typ = parse_typ("Int");
+          let (_, editor) = CI.type_editor_of_type(typ);
+          CI.Model.{
+            active: true,
+            cursor_id: CI.Model.OptionalId.SomeId(anchor),
+            typ_id: CI.Model.OptionalId.SomeId(Typ.rep_id(typ)),
+            editor: CI.Model.EditorSlot.SomeEditor(editor),
+          };
+        };
+        let toggle_inspector = {
+          ...slicing_model(anchor, "Int"),
+          syn: unfolded_query_row,
+        };
+        let first =
+          CI.ProgramFolds.apply_type_slice(
+            ~info_map=code.statics.info_map,
+            ~fallback_ci=None,
+            ~cursor_inspector=toggle_inspector,
+            code,
+          );
+        check(
+          string,
+          "toggle keeps selected binop shape",
+          "fun ? -> ? + ?",
+          render_folded(first.model),
+        );
+        let folded_statics =
+          CachedStatics.init(
+            ~settings=CoreSettings.on,
+            ~stitch=x => x,
+            ~is_dynamic_term=false,
+            ~root=Exp,
+            first.model.editor.state.zipper,
+          );
+        let folded_code = {
+          ...first.model,
+          statics: folded_statics,
+        };
+        let gap_inspector = slicing_model(anchor, "Int");
+        let unfolded = CI.ProgramFolds.remove_all(folded_code);
+        let second =
+          CI.ProgramFolds.apply_type_slice(
+            ~info_map=unfolded.model.statics.info_map,
+            ~fallback_ci=None,
+            ~cursor_inspector=gap_inspector,
+            unfolded.model,
+          );
+        check(
+          string,
+          "gap reslice keeps selected binop shape",
+          "fun ? -> ? + ?",
+          render_folded(second.model),
+        );
+      },
+    ),
     case(
       ~name="focused gap keeps focused literal",
       ~src="1 + 2 + 3",
