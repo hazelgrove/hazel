@@ -1203,11 +1203,21 @@ module View = {
       export_all: Export.export_all,
       slice_anchor: CursorInspector.Model.anchor_id(cursor_inspector),
     };
+    let anchor_info =
+      switch (CursorInspector.Model.anchor_id(cursor_inspector)) {
+      | Some(id) =>
+        Language.Statics.Map.lookup(
+          id,
+          Update.get_editor(model).statics.info_map,
+        )
+      | None => None
+      };
     let bottom_bar =
       CursorInspector.view(
         ~globals,
         ~model=cursor_inspector,
         ~inject=a => inject(CursorInspector(a)),
+        ~anchor_info,
         cursor,
       );
     let sidebar =

@@ -1996,8 +1996,13 @@ let tpat_view =
 
 let secondary_view = (cls: Cls.t) => div_ok([text(cls |> Cls.show)]);
 
-let view_of_info = (~globals, ~model, ~inject, ci): list(Node.t) => {
-  let model = Model.refresh_for_info(ci, model);
+let view_of_info =
+    (
+      ~globals,
+      ~slicing: option((Model.t, Update.t => Ui_effect.t(unit)))=?,
+      ci,
+    )
+    : list(Node.t) => {
   let wrapper = status_view => [term_view(~globals, ci), status_view];
   switch (ci) {
   | Secondary(_) => wrapper(div([]))
@@ -2006,9 +2011,9 @@ let view_of_info = (~globals, ~model, ~inject, ci): list(Node.t) => {
   | InfoSig({cls, _}) => wrapper(div_ok([text(cls |> Cls.show)]))
   | InfoMPat({cls, _}) => wrapper(div_ok([text(cls |> Cls.show)]))
   | InfoExp({cls, message, _} as ie) =>
-    wrapper(exp_view(~globals, ~slicing=(model, inject), cls, message, ie))
+    wrapper(exp_view(~globals, ~slicing?, cls, message, ie))
   | InfoPat({cls, message, _} as ip) =>
-    wrapper(pat_view(~globals, ~slicing=(model, inject), cls, message, ip))
+    wrapper(pat_view(~globals, ~slicing?, cls, message, ip))
   | InfoTyp({cls, marks, message, _}) =>
     wrapper(typ_view(~globals, cls, ~marks, ~message))
   | InfoTPat({cls, marks, message, _}) =>
@@ -2017,41 +2022,73 @@ let view_of_info = (~globals, ~model, ~inject, ci): list(Node.t) => {
   };
 };
 
-let inspector_view = (~globals: Globals.t, ~model, ~inject, ci): Node.t =>
+let status_class = (~globals: Globals.t, ci): string =>
+  Info.is_error(ci)
+    ? errc
+    : Info.is_warning(ci) && globals.settings.core.display_warnings
+        ? warnc : okc;
+
+let bar_of_info =
+    (~globals: Globals.t, ~slicing=?, ~id=?, ~extra_cls: list(string)=[], ci)
+    : Node.t =>
   div(
-    ~attrs=[
-      Attr.id("cursor-inspector"),
-      clss(
-        [
-          Info.is_error(ci)
-            ? errc
-            : Info.is_warning(ci) && globals.settings.core.display_warnings
-                ? warnc : okc,
-        ]
-        @ (Model.has_active(model) ? ["slicing-active"] : []),
-      ),
-    ],
-    view_of_info(~globals, ~model, ~inject, ci),
+    ~attrs=
+      (
+        switch (id) {
+        | Some(id) => [Attr.id(id)]
+        | None => []
+        }
+      )
+      @ [
+        clss(["cursor-inspector", status_class(~globals, ci)] @ extra_cls),
+      ],
+    view_of_info(~globals, ~slicing?, ci),
   );
 
+/* The slicing bar is pinned to the frozen anchor; the plain secondary bar
+   (shown above it while slicing) follows the live cursor with no slicing UI. */
 let view =
     (
       ~globals: Globals.t,
       ~model: Model.t,
       ~inject: Update.t => Ui_effect.t(unit),
+      ~anchor_info: option(Info.t)=None,
       cursor: Cursor.cursor(Editors.Update.t),
     ) => {
   let bar_view = div(~attrs=[Attr.id("bottom-bar")]);
   let err_view = err =>
     bar_view([
       div(
-        ~attrs=[Attr.id("cursor-inspector"), clss(["no-info"])],
+        ~attrs=[
+          Attr.id("cursor-inspector"),
+          clss(["cursor-inspector", "no-info"]),
+        ],
         [div(~attrs=[clss(["icon"])], [Icons.magnify]), text(err)],
       ),
     ]);
   switch (cursor.info) {
   | _ when !globals.settings.core.statics => div_empty
   | None => err_view("Whitespace or Comment")
-  | Some(ci) => bar_view([inspector_view(~globals, ~model, ~inject, ci)])
+  | Some(ci) when Model.has_active(model) =>
+    let anchor_ci = Option.value(anchor_info, ~default=ci);
+    let slicing_bar =
+      bar_of_info(
+        ~globals,
+        ~slicing=(model, inject),
+        ~id="cursor-inspector",
+        ~extra_cls=["slicing-active"],
+        anchor_ci,
+      );
+    let plain_bar = bar_of_info(~globals, ~extra_cls=["secondary"], ci);
+    bar_view([plain_bar, slicing_bar]);
+  | Some(ci) =>
+    bar_view([
+      bar_of_info(
+        ~globals,
+        ~slicing=(Model.refresh_for_info(ci, model), inject),
+        ~id="cursor-inspector",
+        ci,
+      ),
+    ])
   };
 };
