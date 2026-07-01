@@ -58,6 +58,7 @@ let slicing_model = (focus: Id.t, query: string): CI.Model.t => {
   syn: query_row(focus, query),
   ana: CI.Model.empty_row,
   menu: CI.Model.NoMenu,
+  anchor: CI.Model.OptionalId.SomeId(focus),
 };
 
 let render_folded = (model: Web.CodeEditable.Model.t): string =>
@@ -171,11 +172,11 @@ let tests = (
       ~query="Int",
       ~expected="fun ? -> ? + ?",
     ),
-    test_case("refresh keeps active query while moving focus", `Quick, () => {
+    test_case("anchor stays fixed while cursor moves", `Quick, () => {
       check(
         string,
-        "? + 2 + ?",
-        "? + 2 + ?",
+        "1 + ? + ?",
+        "1 + ? + ?",
         fold_after_refresh(
           ~from_focus=int_id(1),
           ~to_focus=int_id(2),

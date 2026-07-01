@@ -207,6 +207,7 @@ module Model = {
     syn: row,
     ana: row,
     menu: menu_state,
+    anchor: OptionalId.t,
   };
 
   let empty_row = {
@@ -220,6 +221,7 @@ module Model = {
     syn: empty_row,
     ana: empty_row,
     menu: NoMenu,
+    anchor: OptionalId.NoId,
   };
 
   let row = (target: TypeTarget.t, model: t): row =>
@@ -276,18 +278,22 @@ module Model = {
       };
     };
 
-  let refresh_for_info = (ci: Info.t, model: t): t =>
-    switch (ci) {
-    | InfoExp(_)
-    | InfoPat(_) => {
-        ...model,
-        syn: refresh_row(Synthesizing, ci, model.syn),
-        ana: refresh_row(Analyzing, ci, model.ana),
-      }
-    | _ => init
-    };
-
   let has_active = model => model.syn.active || model.ana.active;
+
+  let refresh_for_info = (ci: Info.t, model: t): t =>
+    if (has_active(model)) {
+      model;
+    } else {
+      switch (ci) {
+      | InfoExp(_)
+      | InfoPat(_) => {
+          ...model,
+          syn: refresh_row(Synthesizing, ci, model.syn),
+          ana: refresh_row(Analyzing, ci, model.ana),
+        }
+      | _ => init
+      };
+    };
 };
 
 let type_slicing_focus_of_row =
@@ -410,14 +416,14 @@ module TypeSlicing = {
     };
   };
 
-  let row_info =
+  let anchor_info =
       (
         ~info_map: Statics.Map.t,
         ~fallback_ci: option(Info.t),
-        row: Model.row,
+        model: Model.t,
       )
       : option(Info.t) =>
-    switch (row.cursor_id) {
+    switch (model.anchor) {
     | Model.OptionalId.SomeId(id) =>
       switch (Statics.Map.lookup(id, info_map)) {
       | Some(_) as ci => ci
@@ -429,13 +435,12 @@ module TypeSlicing = {
   let slice_for_model_row =
       (
         ~root_exp: Exp.t,
-        ~info_map: Statics.Map.t,
-        ~fallback_ci: option(Info.t),
+        ~anchor_ci: option(Info.t),
         target: TypeTarget.t,
         row: Model.row,
       )
       : option(Id.Set.t) =>
-    switch (row_info(~info_map, ~fallback_ci, row)) {
+    switch (anchor_ci) {
     | Some(ci) => slice_for_target(~root_exp, ~ci, target, row)
     | None => None
     };
@@ -448,22 +453,11 @@ module TypeSlicing = {
         model: Model.t,
       )
       : Id.Set.t => {
+    let anchor_ci = anchor_info(~info_map, ~fallback_ci, model);
     let syn =
-      slice_for_model_row(
-        ~root_exp,
-        ~info_map,
-        ~fallback_ci,
-        Synthesizing,
-        model.syn,
-      );
+      slice_for_model_row(~root_exp, ~anchor_ci, Synthesizing, model.syn);
     let ana =
-      slice_for_model_row(
-        ~root_exp,
-        ~info_map,
-        ~fallback_ci,
-        Analyzing,
-        model.ana,
-      );
+      slice_for_model_row(~root_exp, ~anchor_ci, Analyzing, model.ana);
     switch (syn, ana) {
     | (Some(syn), Some(ana)) => Id.Set.inter(syn, ana)
     | (Some(ids), None)
@@ -792,13 +786,38 @@ module Update = {
       let model = Model.refresh_for_info(ci, model);
       switch (action) {
       | Toggle(target) =>
-        let row = Model.row(target, model);
-        let row = {
-          ...row,
-          active: !row.active,
-        };
-        (row.active ? move_editor_to_root(~settings, row) : row)
-        |> Model.put_row(target, _, model)
+        let was_active = Model.has_active(model);
+        let row0 = Model.row(target, model);
+        let now_active = !row0.active;
+        let row =
+          if (now_active) {
+            move_editor_to_root(
+              ~settings,
+              Model.refresh_row(
+                target,
+                ci,
+                {
+                  ...row0,
+                  active: true,
+                },
+              ),
+            );
+          } else {
+            {
+              ...row0,
+              active: false,
+            };
+          };
+        let model = Model.put_row(target, row, model);
+        let anchor =
+          Model.has_active(model)
+            ? was_active
+                ? model.anchor : Model.OptionalId.SomeId(Info.id_of(ci))
+            : Model.OptionalId.NoId;
+        {
+          ...model,
+          anchor,
+        }
         |> Updated.return_quiet;
       | TypeEditor(target, editor_action) =>
         let row = Model.row(target, model);
