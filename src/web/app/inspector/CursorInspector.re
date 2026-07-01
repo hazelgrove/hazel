@@ -247,6 +247,13 @@ module Model = {
       let cursor_id = Info.id_of(ci);
       let source_typ_id = Typ.rep_id(typ);
       switch (row.cursor_id, row.typ_id, row.editor) {
+      | (_, OptionalId.SomeId(_), EditorSlot.SomeEditor(_)) when row.active => {
+          ...row,
+          cursor_id: OptionalId.SomeId(cursor_id),
+          typ_id:
+            Id.equal(source_typ_id, Id.invalid)
+              ? row.typ_id : OptionalId.SomeId(source_typ_id),
+        }
       | (
           OptionalId.SomeId(old_cursor),
           OptionalId.SomeId(old_typ),
