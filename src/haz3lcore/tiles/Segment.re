@@ -1202,6 +1202,20 @@ and ids_of_piece = (p: Piece.t): list(Id.t) =>
   | Projector(_) => [Piece.id(p)]
   };
 
+/* Ids of pieces belonging to this segment's viewport. Recurses into tile
+ * children (their pieces render in the same viewport) but NOT into
+ * projector syntax — those belong to nested viewports (the projector's
+ * own view). The projector piece's own id is included so outer decorations
+ * targeting the projector itself still apply. */
+let rec own_ids = (s: t): list(Id.t) => List.concat_map(own_ids_of_piece, s)
+and own_ids_of_piece = (p: Piece.t): list(Id.t) =>
+  switch (p) {
+  | Tile(t) => [Piece.id(p), ...own_ids(List.concat(t.children))]
+  | Grout(_)
+  | Secondary(_)
+  | Projector(_) => [Piece.id(p)]
+  };
+
 let first_string =
   fun
   | [] => "EMPTY"
