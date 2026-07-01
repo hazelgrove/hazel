@@ -506,6 +506,9 @@ module View = {
     frozen_anchor_caret(~syntax, ~globals, z)
     @ [
       CaretDec.view(
+        ~base_cls=
+          Option.is_some(globals.slice_anchor)
+            ? ["caret", "blink", "secondary"] : ["caret", "blink"],
         ~measured=syntax.measured,
         ~font_metrics=globals.font_metrics,
         z,

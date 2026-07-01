@@ -21,6 +21,12 @@
   border-color: var(--Y1);
 }
 
+#cursor-inspector.slicing-active {
+  outline: 1.5px solid var(--caret-color-secondary);
+  outline-offset: -1px;
+  border-radius: 0 1.1em 0 0;
+}
+
 #cursor-inspector .icon {
   display: flex;
   padding: 0.2em;

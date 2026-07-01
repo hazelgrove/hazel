@@ -2021,12 +2021,15 @@ let inspector_view = (~globals: Globals.t, ~model, ~inject, ci): Node.t =>
   div(
     ~attrs=[
       Attr.id("cursor-inspector"),
-      clss([
-        Info.is_error(ci)
-          ? errc
-          : Info.is_warning(ci) && globals.settings.core.display_warnings
-              ? warnc : okc,
-      ]),
+      clss(
+        [
+          Info.is_error(ci)
+            ? errc
+            : Info.is_warning(ci) && globals.settings.core.display_warnings
+                ? warnc : okc,
+        ]
+        @ (Model.has_active(model) ? ["slicing-active"] : []),
+      ),
     ],
     view_of_info(~globals, ~model, ~inject, ci),
   );
