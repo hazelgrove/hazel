@@ -36,6 +36,37 @@ module Response = {
     Util.StructureShareSexp.structure_share_in(sexp_of_t, t_of_sexp);
 };
 
+/* Marshaled wire forms of the worker payloads.
+ *
+ * post_message structured-clones its argument, and Chrome's clone serializer
+ * is recursive: it overflows on deep (but finite, acyclic) payloads (#2368).
+ * jsoo's Marshal is iterative and yields a flat string that clones without
+ * recursing. The payloads are closure-free (clone rejects closures yet
+ * succeeds here before overflowing), so Marshal without the unsupported
+ * Closures flag is safe.
+ *
+ * The types are abstract so the boundary stays typed Worker.worker(request,
+ * response), not (string, string): only the encode/decode functions can cross
+ * it and the two directions can't be swapped. */
+module Wire: {
+  type request;
+  type response;
+  let encode_request: Request.t => request;
+  let decode_request: request => Request.t;
+  let encode_response: Response.t => response;
+  let decode_response: response => Response.t;
+} = {
+  type request = string;
+  type response = string;
+  let encode_request = (req: Request.t): request =>
+    Marshal.to_string(req, []);
+  let decode_request = (w: request): Request.t => Marshal.from_string(w, 0);
+  let encode_response = (resp: Response.t): response =>
+    Marshal.to_string(resp, []);
+  let decode_response = (w: response): Response.t =>
+    Marshal.from_string(w, 0);
+};
+
 let work = (req_value: Request.value): Response.value => {
   let Request.{expr, targets, eval_info_map, prev} = req_value;
   switch (
@@ -60,9 +91,10 @@ let work = (req_value: Request.value): Response.value => {
   };
 };
 
-let on_request = (req: Request.t): unit => {
-  let resp: Response.t = req |> List.map(((k, v)) => (k, work(v)));
-  Js_of_ocaml.Worker.post_message(resp);
+let on_request = (req: Wire.request): unit => {
+  let resp: Response.t =
+    Wire.decode_request(req) |> List.map(((k, v)) => (k, work(v)));
+  Js_of_ocaml.Worker.post_message(Wire.encode_response(resp));
 };
 
 let start = () => Js_of_ocaml.Worker.set_onmessage(on_request);

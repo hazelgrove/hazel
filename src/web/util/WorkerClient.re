@@ -4,10 +4,13 @@ open WorkerServer;
 let name = "worker.js"; // Worker file name
 let timeoutDuration = 20000; // Worker timeout in ms
 
-let initWorker: unit => Js.t(Worker.worker(Request.t, Response.t)) =
+/* Worker exchanges marshaled Wire payloads, not live values, to dodge the
+ * structured-clone stack overflow on deep results (#2368; see WorkerServer.Wire).
+ * Callers still deal in Request.t/Response.t. */
+let initWorker: unit => Js.t(Worker.worker(Wire.request, Wire.response)) =
   () => Worker.create(name);
 
-let workerRef: ref(Js.t(Worker.worker(Request.t, Response.t))) =
+let workerRef: ref(Js.t(Worker.worker(Wire.request, Wire.response))) =
   ref(initWorker());
 
 let timeoutId = ref(None);
@@ -32,7 +35,7 @@ let request =
         | None => ()
         };
         timeoutId.contents = None; /* Clear timeout after response */
-        evt##.data |> handler;
+        Wire.decode_response(evt##.data) |> handler;
         Js._true;
       });
   };
@@ -47,7 +50,7 @@ let request =
 
   setupWorkerMessageHandler(workerRef.contents);
 
-  workerRef.contents##postMessage(req);
+  workerRef.contents##postMessage(Wire.encode_request(req));
 
   let onTimeout = (): unit => {
     restart_worker();
