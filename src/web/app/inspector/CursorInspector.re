@@ -2099,7 +2099,10 @@ let slicing_tag =
 let fold_bar_of_info = (~globals: Globals.t, ci): Node.t => {
   let body =
     switch (Info.projector_kind_of(ci)) {
-    | Some(ProjectorKind.Fold) => [div_ok([text("ignored typing info")])]
+    | Some(ProjectorKind.Fold) => [
+        term_view(~globals, ci),
+        div_ok([text("ignored typing info")]),
+      ]
     | _ => view_of_info(~globals, ci)
     };
   div(
@@ -2183,12 +2186,7 @@ let view =
         anchor_ci,
       );
     let plain_bar = secondary_bar(~globals, ~model, ~fallback=ci);
-    bar_view([
-      div(
-        ~attrs=[clss(["cursor-inspector-stack"])],
-        [plain_bar, slicing_bar],
-      ),
-    ]);
+    bar_view([slicing_bar, plain_bar]);
   | Some(ci) =>
     bar_view([
       bar_of_info(

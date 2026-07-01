@@ -356,6 +356,7 @@ select {
   align-items: stretch;
   background-color: var(--ui-bkg);
   outline: 0.6px solid var(--BR2);
+  position: relative;
 }
 
 ninja-keys {

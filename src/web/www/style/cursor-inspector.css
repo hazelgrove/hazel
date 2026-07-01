@@ -27,17 +27,15 @@
   border-radius: 0 1.1em 0 0;
 }
 
-.cursor-inspector-stack {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 0.25em;
-  width: 100%;
-  min-width: 0;
-}
-
-.cursor-inspector-stack > .cursor-inspector {
+.cursor-inspector.secondary {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 0.2em);
   max-width: 100%;
+  z-index: var(--bottom-bar-z);
+  background-color: var(--ui-bkg);
+  outline: 0.6px solid var(--caret-color-secondary);
+  border-radius: 0 1.1em 0 0;
 }
 
 .cursor-inspector .icon {
