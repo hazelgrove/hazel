@@ -497,6 +497,22 @@ module View = {
     | None => []
     };
 
+  let anchor_term_arms =
+      (~syntax: CachedSyntax.t, ~globals: Globals.t): list(Node.t) =>
+    switch (globals.slice_anchor_term) {
+    | Some(id) =>
+      switch (TermData.root_tile(id, syntax.term_data)) {
+      | Some(tile) => [
+          Node.div(
+            ~attrs=[Attr.classes(["indication", "slicing-anchor"])],
+            Arms.term(~syntax, ~font_metrics=globals.font_metrics, tile),
+          ),
+        ]
+      | None => []
+      }
+    | None => []
+    };
+
   let deco =
       (
         ~expand_selection=false,
@@ -506,6 +522,7 @@ module View = {
         z: Zipper.t,
       ) =>
     frozen_anchor_caret(~syntax, ~globals)
+    @ anchor_term_arms(~syntax, ~globals)
     @ [
       CaretDec.view(
         ~base_cls=

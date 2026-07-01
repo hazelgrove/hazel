@@ -1228,6 +1228,9 @@ module View = {
         failwith("get_log_count is deprecated, use Log.get_count_sync"),
       export_all: Export.export_all,
       slice_anchor: CursorInspector.Model.slice_anchor(cursor_inspector),
+      slice_anchor_term:
+        CursorInspector.Model.has_active(cursor_inspector)
+          ? CursorInspector.Model.anchor_id(cursor_inspector) : None,
     };
     let cursor = {
       ...cursor,

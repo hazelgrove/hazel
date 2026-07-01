@@ -496,6 +496,17 @@ svg:has(.child-line) {
   stroke: var(--token-mpat);
 }
 
+.indication.slicing-anchor .child-line {
+  stroke: var(--caret-color-secondary);
+}
+
+.indication.slicing-anchor svg.shard > path {
+  fill: oklch(58% 0.2 250 / 25%);
+  stroke: var(--caret-color-secondary);
+  stroke-width: 0.5px;
+  vector-effect: non-scaling-stroke;
+}
+
 /* BACKPACK DECO */
 
 .backpack {
