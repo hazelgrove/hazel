@@ -153,12 +153,22 @@ let type_menu_showing: ContextMenu.parts = {
 
 let type_editor_of_type = (typ: Typ.t): (Id.t, CodeEditable.Model.t) => {
   let typ = Typ.replace_temp(typ);
+  let zipper =
+    ExpToSegment.typ_to_segment(~settings=code_view_settings, typ)
+    |> Zipper.unzip;
+  let statics =
+    CachedStatics.init(
+      ~settings=CoreSettings.on,
+      ~stitch=x => x,
+      ~is_dynamic_term=false,
+      ~root=Sort.Typ,
+      zipper,
+    );
   (
     Typ.rep_id(typ),
-    ExpToSegment.typ_to_segment(~settings=code_view_settings, typ)
-    |> Zipper.unzip
+    zipper
     |> Editor.Model.mk(~root=Sort.Typ)
-    |> CodeWithStatics.Model.mk,
+    |> CodeWithStatics.Model.mk(~statics),
   );
 };
 
@@ -769,18 +779,15 @@ module Update = {
 
   let calculate_type_editor =
       (~settings: Settings.t, model: CodeEditable.Model.t)
-      : CodeEditable.Model.t => {
-    ...model,
-    editor:
-      Editor.Update.calculate(
-        ~settings=settings.core,
-        ~autoprobe_mode=false,
-        ~is_edited=true,
-        model.statics,
-        model.dynamics,
-        model.editor,
-      ),
-  };
+      : CodeEditable.Model.t =>
+    CodeWithStatics.Update.calculate(
+      ~settings=settings.core,
+      ~is_edited=true,
+      ~stitch=x => x,
+      ~dynamics=model.dynamics,
+      ~is_dynamic_term=false,
+      model,
+    );
 
   let move_editor_to_root = (~settings: Settings.t, row: Model.row): Model.row =>
     switch (row.typ_id, row.editor) {
