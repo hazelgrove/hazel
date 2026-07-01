@@ -229,10 +229,13 @@ let info_of_piece = (piece: Piece.t, info_map: Language.Statics.Map.t) =>
   switch (piece) {
   | Projector({kind, syntax, _}) when kind == ProjectorCore.Kind.Fold =>
     let seg = Piece.unparenthesize(syntax);
-    switch (Segment.root_id(Segment.skel(seg), seg)) {
-    | id => Id.Map.find_opt(id, info_map)
-    | exception _ => None
-    };
+    [Sort.Exp, Sort.Pat, Sort.Typ, Sort.Mod, Sort.Sig]
+    |> List.find_map(sort =>
+         switch (Segment.root_id(Segment.skel(~sort, seg), seg)) {
+         | id => Id.Map.find_opt(id, info_map)
+         | exception _ => None
+         }
+       );
   | _ => Id.Map.find_opt(Piece.id(piece), info_map)
   };
 

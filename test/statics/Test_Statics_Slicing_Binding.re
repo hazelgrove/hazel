@@ -156,6 +156,20 @@ let binding_analysis = [
     "let ? : Int = ? in ?",
   ),
   analysis_case(
+    ~focus=first_fun,
+    "bind-ana-let-ann-fun-def",
+    "let f : Int -> Int = fun x : ? -> x in f",
+    "Int -> Int",
+    "let ? : Int -> Int = ? in ?",
+  ),
+  analysis_case(
+    ~focus=first_fun,
+    "bind-ana-let-ann-unused-fun-def",
+    "let f : Int -> Int = fun x : ? -> x in ?",
+    "Int -> Int",
+    "let ? : Int -> Int = ? in ?",
+  ),
+  analysis_case(
     ~focus=first_int,
     "bind-ana-tuple-ann-def",
     "let p : (Int, Bool) = (1, true) in p",

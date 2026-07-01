@@ -25,8 +25,16 @@
   outline: 1.5px solid var(--caret-color-secondary);
   outline-offset: -1px;
   border-radius: 0 1.1em 0 0;
+  background-color: oklch(from var(--caret-color-secondary) 95% 0.025 h);
 }
 
+.cursor-inspector.secondary.fold-source {
+  background-color: oklch(from var(--caret-color-secondary) 96% 0.018 h);
+}
+
+.cursor-inspector.secondary.fold-source .ci-header {
+  outline-color: var(--caret-color-secondary);
+}
 
 .cursor-inspector .icon {
   display: flex;

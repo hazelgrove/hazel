@@ -56,7 +56,10 @@ let ctx_toggle = (~globals: Globals.t): Node.t =>
     //[text("Γ")],
   );
 
-let term_view = (~globals: Globals.t, ci) => {
+let slicing_tag =
+  div(~attrs=[clss(["term-tag", "slicing-tag"])], [text("slicing")]);
+
+let term_view = (~globals: Globals.t, ~slice_header=false, ci) => {
   /* Drv(_) sorts have verbose type-level names like "DrvJdmt"/"DrvProp"
      via Sort.to_string (needed for pretty-printing `DrvQuoteTy`). For the
      inspector header we prefer the terse form ("Jdmt", "Prop", ...),
@@ -88,6 +91,7 @@ let term_view = (~globals: Globals.t, ci) => {
       div(~attrs=[clss(["term-tag"])], [text(sort_text)]),
       div(~attrs=[clss(["divider"])], [text("/")]),
       cls_view(ci),
+      ...slice_header ? [slicing_tag] : [],
     ],
   );
 };
@@ -410,7 +414,7 @@ module TypeSlicing = {
     switch (
       editor.editor.state.zipper
       |> Zipper.unselect_and_zip
-      |> MakeTerm.for_projection
+      |> MakeTerm.for_projection_as(~sort=Sort.Typ)
     ) {
     | Some(Typ(typ)) => Some(typ)
     | _ => None
@@ -594,8 +598,8 @@ module ProgramFolds = {
             switch (TermData.segment(id, syntax.term_data)) {
             | Some(seg) =>
               switch (Id.Map.find_opt(id, syntax.term_data)) {
-              | Some(TermData.{root_piece, _}) => [
-                  (id, Piece.id(root_piece), seg, List.length(seg)),
+              | Some(TermData.{root_piece, sort, _}) => [
+                  (id, Piece.id(root_piece), sort, seg, List.length(seg)),
                   ...targets,
                 ]
               | None => targets
@@ -605,10 +609,10 @@ module ProgramFolds = {
           omitted,
           [],
         )
-        |> List.sort(((_, _, _, a), (_, _, _, b)) => compare(b, a));
+        |> List.sort(((_, _, _, _, a), (_, _, _, _, b)) => compare(b, a));
       let (target_entries, covered) =
         List.fold_left(
-          ((targets, covered), (term_id, root_id, seg, _)) =>
+          ((targets, covered), (term_id, root_id, sort, seg, _)) =>
             if (Id.Set.mem(root_id, covered)) {
               (targets, covered);
             } else {
@@ -618,14 +622,15 @@ module ProgramFolds = {
                   covered,
                   seg,
                 );
-              ([(term_id, root_id, seg), ...targets], covered);
+              ([(term_id, root_id, sort, seg), ...targets], covered);
             },
           ([], Id.Set.empty),
           target_candidates,
         );
       let fold_targets =
         List.fold_left(
-          (targets, (_, root_id, seg)) => Id.Map.add(root_id, seg, targets),
+          (targets, (_, root_id, sort, seg)) =>
+            Id.Map.add(root_id, (sort, seg), targets),
           Id.Map.empty,
           target_entries,
         );
@@ -657,10 +662,10 @@ module ProgramFolds = {
       let fold_cursor_target = (z: Zipper.t): option(Zipper.t) => {
         switch (
           target_entries
-          |> List.find_opt(((_, _, seg)) => zipper_contains(seg, z))
+          |> List.find_opt(((_, _, _, seg)) => zipper_contains(seg, z))
         ) {
         | None => None
-        | Some((term_id, _, _)) =>
+        | Some((term_id, _, _, _)) =>
           switch (
             Select.term(
               ~defs_exclude_bodies=false,
@@ -690,8 +695,10 @@ module ProgramFolds = {
       let changed = ref(false);
       let add_piece = (piece: Piece.t): Segment.t =>
         switch (Id.Map.find_opt(Piece.id(piece), fold_targets)) {
-        | Some(seg) =>
-          switch (ProjectorPerform.init(ProjectorCore.Kind.Fold, seg)) {
+        | Some((sort, seg)) =>
+          switch (
+            ProjectorPerform.init_as(~sort, ProjectorCore.Kind.Fold, seg)
+          ) {
           | Some(projected) =>
             changed := true;
             [projected];
@@ -762,6 +769,7 @@ module Update = {
     | Toggle(TypeTarget.t)
     | TypeEditor(TypeTarget.t, CodeEditable.Update.t)
     | OpenMenu(TypeTarget.t, float, float)
+    | Focus(TypeTarget.t)
     | CloseMenu;
 
   let can_undo = (_: t) => false;
@@ -817,8 +825,14 @@ module Update = {
       )
       : Updated.t(Model.t) =>
     switch (action, cursor_info) {
-    | (TypeEditor(_, _) | OpenMenu(_, _, _) | CloseMenu, _) =>
+    | (TypeEditor(_, _) | OpenMenu(_, _, _) | Focus(_) | CloseMenu, _) =>
       switch (action) {
+      | Focus(target) =>
+        {
+          ...model,
+          focus_target: Model.Fold(target),
+        }
+        |> Updated.return_quiet
       | TypeEditor(target, editor_action) =>
         let row = Model.row(target, model);
         switch (row.active, row.editor) {
@@ -926,6 +940,12 @@ module Update = {
           menu: Model.Menu(target, x, y),
         }
         |> Updated.return_quiet
+      | Focus(target) =>
+        {
+          ...model,
+          focus_target: Model.Fold(target),
+        }
+        |> Updated.return_quiet
       | CloseMenu =>
         {
           ...model,
@@ -996,7 +1016,7 @@ let type_slot =
                 inject(Update.OpenMenu(target, x, y)),
               ]);
             } else {
-              Effect.Ignore;
+              inject(Update.Focus(target));
             };
           }),
         ],
@@ -2075,11 +2095,15 @@ let secondary_view = (cls: Cls.t) => div_ok([text(cls |> Cls.show)]);
 let view_of_info =
     (
       ~globals,
+      ~slice_header=false,
       ~slicing: option((Model.t, Update.t => Ui_effect.t(unit)))=?,
       ci,
     )
     : list(Node.t) => {
-  let wrapper = status_view => [term_view(~globals, ci), status_view];
+  let wrapper = status_view => [
+    term_view(~globals, ~slice_header, ci),
+    status_view,
+  ];
   switch (ci) {
   | Secondary(_) => wrapper(div([]))
   | InfoSliceScratch(_) => wrapper(div([]))
@@ -2121,17 +2145,14 @@ let bar_of_info =
     view_of_info(~globals, ~slicing?, ci),
   );
 
-let slicing_tag =
-  div(~attrs=[clss(["term-tag", "slicing-tag"])], [text("slicing")]);
-
 let fold_bar_of_info = (~globals: Globals.t, ci): Node.t => {
   let body =
     switch (Info.projector_kind_of(ci)) {
     | Some(ProjectorKind.Fold) => [
-        term_view(~globals, ci),
+        term_view(~globals, ~slice_header=true, ci),
         div_ok([text("ignored typing info")]),
       ]
-    | _ => view_of_info(~globals, ci)
+    | _ => view_of_info(~globals, ~slice_header=true, ci)
     };
   div(
     ~attrs=[
@@ -2142,7 +2163,7 @@ let fold_bar_of_info = (~globals: Globals.t, ci): Node.t => {
         "fold-source",
       ]),
     ],
-    [slicing_tag, ...body],
+    body,
   );
 };
 

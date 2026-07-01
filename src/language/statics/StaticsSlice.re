@@ -2226,55 +2226,61 @@ let rec exp_annotation_query =
           focus_query: Typ.t,
         )
         : Typ.t =>
-  switch (Exp.term_of(exp), Typ.term_of(annotation)) {
-  | (Parens(inner), _) =>
-    exp_annotation_query(path, focus, inner, annotation, focus_query)
-  | (_, Parens(inner)) =>
-    exp_annotation_query(path, focus, exp, inner, focus_query)
-  | (Tuple(es), Prod(ts)) when List.length(es) == List.length(ts) =>
-    Prod(
-      List.map2(
-        (e, ty) =>
-          exp_contains_focus(focus, e) || on_path(path, Exp.rep_id(e))
-            ? exp_annotation_query(path, focus, e, ty, focus_query) : gap,
-        es,
-        ts,
-      ),
-    )
-    |> Typ.temp
-  | (TupLabel(_, e), TupLabel(label, ty)) =>
-    TupLabel(
-      label,
-      exp_contains_focus(focus, e) || on_path(path, Exp.rep_id(e))
-        ? exp_annotation_query(path, focus, e, ty, focus_query) : gap,
-    )
-    |> Typ.temp
-  | (Module(items), Prod(fields)) =>
-    Prod(
-      List.map(
-        field =>
-          switch (Typ.term_of(field)) {
-          | TupLabel({term: Label(name), _} as label, _)
-              when module_label_has_focus(focus, name, items) =>
-            TupLabel(label, focus_query) |> Typ.temp
-          | TupLabel(label, _) => TupLabel(label, gap) |> Typ.temp
-          | _ => gap
-          },
-        fields,
-      ),
-    )
-    |> Typ.temp
-  | (ListLit(_), List(_))
-  | (Cons(_, _), List(_)) => List(focus_query) |> Typ.temp
-  | (Fun(p, body, _, _), Arrow(dom, cod)) =>
-    Arrow(
-      pat_contains_focus(focus, p) || on_path(path, Pat.rep_id(p))
-        ? pat_annotation_query(path, focus, p, dom, focus_query) : gap,
-      exp_contains_focus(focus, body) || on_path(path, Exp.rep_id(body))
-        ? exp_annotation_query(path, focus, body, cod, focus_query) : gap,
-    )
-    |> Typ.temp
-  | _ => focus_query
+  if (Id.equal(Exp.rep_id(exp), focus)) {
+    focus_query;
+  } else {
+    switch (Exp.term_of(exp), Typ.term_of(annotation)) {
+    | (Parens(inner), _) =>
+      exp_annotation_query(path, focus, inner, annotation, focus_query)
+    | (Asc(inner, _), _) =>
+      exp_annotation_query(path, focus, inner, annotation, focus_query)
+    | (_, Parens(inner)) =>
+      exp_annotation_query(path, focus, exp, inner, focus_query)
+    | (Tuple(es), Prod(ts)) when List.length(es) == List.length(ts) =>
+      Prod(
+        List.map2(
+          (e, ty) =>
+            exp_contains_focus(focus, e) || on_path(path, Exp.rep_id(e))
+              ? exp_annotation_query(path, focus, e, ty, focus_query) : gap,
+          es,
+          ts,
+        ),
+      )
+      |> Typ.temp
+    | (TupLabel(_, e), TupLabel(label, ty)) =>
+      TupLabel(
+        label,
+        exp_contains_focus(focus, e) || on_path(path, Exp.rep_id(e))
+          ? exp_annotation_query(path, focus, e, ty, focus_query) : gap,
+      )
+      |> Typ.temp
+    | (Module(items), Prod(fields)) =>
+      Prod(
+        List.map(
+          field =>
+            switch (Typ.term_of(field)) {
+            | TupLabel({term: Label(name), _} as label, _)
+                when module_label_has_focus(focus, name, items) =>
+              TupLabel(label, focus_query) |> Typ.temp
+            | TupLabel(label, _) => TupLabel(label, gap) |> Typ.temp
+            | _ => gap
+            },
+          fields,
+        ),
+      )
+      |> Typ.temp
+    | (ListLit(_), List(_))
+    | (Cons(_, _), List(_)) => List(focus_query) |> Typ.temp
+    | (Fun(p, body, _, _), Arrow(dom, cod)) =>
+      Arrow(
+        pat_contains_focus(focus, p) || on_path(path, Pat.rep_id(p))
+          ? pat_annotation_query(path, focus, p, dom, focus_query) : gap,
+        exp_contains_focus(focus, body) || on_path(path, Exp.rep_id(body))
+          ? exp_annotation_query(path, focus, body, cod, focus_query) : gap,
+      )
+      |> Typ.temp
+    | _ => focus_query
+    };
   }
 and pat_annotation_query =
     (
@@ -2285,32 +2291,38 @@ and pat_annotation_query =
       focus_query: Typ.t,
     )
     : Typ.t =>
-  switch (Pat.term_of(pat), Typ.term_of(annotation)) {
-  | (Parens(inner), _) =>
-    pat_annotation_query(path, focus, inner, annotation, focus_query)
-  | (_, Parens(inner)) =>
-    pat_annotation_query(path, focus, pat, inner, focus_query)
-  | (Tuple(ps), Prod(ts)) when List.length(ps) == List.length(ts) =>
-    Prod(
-      List.map2(
-        (p, ty) =>
-          pat_contains_focus(focus, p) || on_path(path, Pat.rep_id(p))
-            ? pat_annotation_query(path, focus, p, ty, focus_query) : gap,
-        ps,
-        ts,
-      ),
-    )
-    |> Typ.temp
-  | (TupLabel(_, p), TupLabel(label, ty)) =>
-    TupLabel(
-      label,
-      pat_contains_focus(focus, p) || on_path(path, Pat.rep_id(p))
-        ? pat_annotation_query(path, focus, p, ty, focus_query) : gap,
-    )
-    |> Typ.temp
-  | (ListLit(_), List(_))
-  | (Cons(_, _), List(_)) => List(focus_query) |> Typ.temp
-  | _ => focus_query
+  if (Id.equal(Pat.rep_id(pat), focus)) {
+    focus_query;
+  } else {
+    switch (Pat.term_of(pat), Typ.term_of(annotation)) {
+    | (Parens(inner), _) =>
+      pat_annotation_query(path, focus, inner, annotation, focus_query)
+    | (Asc(inner, _), _) =>
+      pat_annotation_query(path, focus, inner, annotation, focus_query)
+    | (_, Parens(inner)) =>
+      pat_annotation_query(path, focus, pat, inner, focus_query)
+    | (Tuple(ps), Prod(ts)) when List.length(ps) == List.length(ts) =>
+      Prod(
+        List.map2(
+          (p, ty) =>
+            pat_contains_focus(focus, p) || on_path(path, Pat.rep_id(p))
+              ? pat_annotation_query(path, focus, p, ty, focus_query) : gap,
+          ps,
+          ts,
+        ),
+      )
+      |> Typ.temp
+    | (TupLabel(_, p), TupLabel(label, ty)) =>
+      TupLabel(
+        label,
+        pat_contains_focus(focus, p) || on_path(path, Pat.rep_id(p))
+          ? pat_annotation_query(path, focus, p, ty, focus_query) : gap,
+      )
+      |> Typ.temp
+    | (ListLit(_), List(_))
+    | (Cons(_, _), List(_)) => List(focus_query) |> Typ.temp
+    | _ => focus_query
+    };
   };
 
 let rec pat_ctor_head = (pat: Pat.t): option(string) =>
@@ -2333,9 +2345,22 @@ let constructor_alias_count = (ctx: Ctx.t, name: string): int =>
     ),
   );
 
-let annotation_omissions_for_path =
+let annotation_adjustment = (ty: Typ.t, query: Typ.t): (Id.Set.t, Id.Set.t) => {
+  let add = typ_omissions(ty, query);
+  let remove = Id.Set.diff(ids_set(IdTagged.ids(ty)), add);
+  (add, remove);
+};
+
+let rec pat_annotation_shell_ids = (pat: Pat.t): Id.Set.t =>
+  switch (Pat.term_of(pat)) {
+  | Parens(p)
+  | Asc(p, _) => Id.Set.add(Pat.rep_id(pat), pat_annotation_shell_ids(p))
+  | _ => Id.Set.empty
+  };
+
+let annotation_adjustments_for_path =
     (path: Id.Set.t, focus: Id.t, m: Id.Map.t(Info.t), focus_query: Typ.t)
-    : Id.Set.t =>
+    : (Id.Set.t, Id.Set.t) =>
   Id.Map.fold(
     (_, info, acc) =>
       switch (info) {
@@ -2344,9 +2369,9 @@ let annotation_omissions_for_path =
         | Asc(e, ty)
             when
               exp_contains_focus(focus, e) || on_path(path, Exp.rep_id(e)) =>
-          Id.Set.union(
+          combine_omission_adjustment(
             acc,
-            typ_omissions(
+            annotation_adjustment(
               ty,
               exp_annotation_query(path, focus, e, ty, focus_query),
             ),
@@ -2366,14 +2391,19 @@ let annotation_omissions_for_path =
               | Some(name) => constructor_alias_count(ctx, name) <= 1
               | None => false
               };
-            Id.Set.union(
-              acc,
+            let adjustment =
               redundant
-                ? typ_omissions(ty, gap)
-                : typ_omissions(
+                ? annotation_adjustment(ty, gap)
+                : annotation_adjustment(
                     ty,
                     exp_annotation_query(path, focus, def, ty, focus_query),
-                  ),
+                  );
+            combine_omission_adjustment(
+              acc,
+              combine_omission_adjustment(
+                adjustment,
+                (Id.Set.empty, pat_annotation_shell_ids(pat)),
+              ),
             );
           | None => acc
           }
@@ -2391,13 +2421,13 @@ let annotation_omissions_for_path =
                 }
               ) =>
           /* Redundant constructor-pattern annotation: omit it entirely. */
-          Id.Set.union(acc, typ_omissions(ty, gap))
+          combine_omission_adjustment(acc, annotation_adjustment(ty, gap))
         | Asc(p, ty)
             when
               pat_contains_focus(focus, p) || on_path(path, Pat.rep_id(p)) =>
-          Id.Set.union(
+          combine_omission_adjustment(
             acc,
-            typ_omissions(
+            annotation_adjustment(
               ty,
               pat_annotation_query(path, focus, p, ty, focus_query),
             ),
@@ -2407,7 +2437,7 @@ let annotation_omissions_for_path =
       | _ => acc
       },
     m,
-    Id.Set.empty,
+    (Id.Set.empty, Id.Set.empty),
   );
 
 let focus_should_omit = (m: Id.Map.t(Info.t), focus: Id.t): bool =>
@@ -2486,13 +2516,13 @@ let analysis_overlay =
     let module_adjustment = module_focus_adjustments(focus_id, m);
     let with_analysis_adjustments = result => {
       let edge_gamma = analysis_edge_gamma(path, m, query);
-      let annotation_omissions =
-        annotation_omissions_for_path(path, focus_id, m, query);
+      let annotation_adjustment =
+        annotation_adjustments_for_path(path, focus_id, m, query);
       {
         ...result,
-        omitted: Id.Set.union(result.omitted, annotation_omissions),
         gamma: VarMap.is_empty(edge_gamma) ? result.gamma : edge_gamma,
       }
+      |> apply_omission_adjustment(_, annotation_adjustment)
       |> apply_omission_adjustment(_, module_adjustment);
     };
     let omitted_path_ancestors =

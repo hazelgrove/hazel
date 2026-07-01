@@ -257,6 +257,19 @@ let first_binop = (e: Exp.t): Id.t =>
     ),
   );
 
+let first_fun = (e: Exp.t): Id.t =>
+  first(
+    "function",
+    collect_exp_ids(
+      x =>
+        switch (Exp.term_of(x)) {
+        | Fun(_, _, _, _) => true
+        | _ => false
+        },
+      e,
+    ),
+  );
+
 let exp_hole = (e: Exp.t): Exp.t => {
   ...e,
   term: EmptyHole,

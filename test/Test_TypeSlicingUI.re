@@ -99,6 +99,35 @@ let first_binop_id = (model: Web.CodeEditable.Model.t): Id.t =>
     }
   );
 
+let first_tuple_id = (model: Web.CodeEditable.Model.t): Id.t =>
+  info_exp_id(model, e =>
+    switch (Exp.term_of(e)) {
+    | Tuple(_) => true
+    | _ => false
+    }
+  );
+
+let rec is_product_type = (typ: Typ.t): bool =>
+  switch (Typ.term_of(typ)) {
+  | Prod(_) => true
+  | Parens(typ) => is_product_type(typ)
+  | _ => false
+  };
+
+let info_typ_id = (model: Web.CodeEditable.Model.t, pred): Id.t =>
+  model.statics.info_map
+  |> Id.Map.bindings
+  |> List.find_map(((id, info)) =>
+       switch (info) {
+       | Info.InfoTyp({user_term, _}) when pred(user_term) => Some(id)
+       | _ => None
+       }
+     )
+  |> Option.get;
+
+let first_product_type_id = (model: Web.CodeEditable.Model.t): Id.t =>
+  info_typ_id(model, is_product_type);
+
 let fold_slice = (~focus, ~query, src: string): string => {
   let code = code_model(src);
   let focus = focus(code);
@@ -265,6 +294,156 @@ let tests = (
       ~focus=first_binop_id,
       ~query="Int",
       ~expected="fun ? -> ? + ?",
+    ),
+    case(
+      ~name="product query folds tuple binding",
+      ~src="let x : (Int, Int) = (1, 2) in ?",
+      ~focus=first_tuple_id,
+      ~query="(Int, Int)",
+      ~expected="let ? = (?, ?) in ?",
+    ),
+    test_case(
+      "product query folds selected tuple binding",
+      `Quick,
+      () => {
+        let code = code_model("let x : (Int, Int) = (1, 2) in ?");
+        let tuple = first_tuple_id(code);
+        let code = {
+          ...code,
+          editor: Editor.Model.mk(select_term(tuple, code), ~root=Exp),
+        };
+        let cursor_inspector = slicing_model(tuple, "(Int, Int)");
+        let result =
+          CI.ProgramFolds.apply_type_slice(
+            ~info_map=code.statics.info_map,
+            ~fallback_ci=None,
+            ~cursor_inspector,
+            code,
+          );
+        check(
+          string,
+          "selected tuple binding slice",
+          "let ? = (?, ?) in ?",
+          render_folded(result.model),
+        );
+      },
+    ),
+    test_case(
+      "folding product type editor is stable",
+      `Quick,
+      () => {
+        let (_, product_editor) =
+          CI.type_editor_of_type(parse_typ("(Int, Int)"));
+        switch (CI.TypeSlicing.typ_of_editor(product_editor)) {
+        | Some(typ) when is_product_type(typ) => ()
+        | _ => fail("product query editor did not parse as a type product")
+        };
+        let code = code_model("let x : (Int, Int) = (1, 2) in ?");
+        let tuple = first_tuple_id(code);
+        let ci =
+          switch (Id.Map.find_opt(tuple, code.statics.info_map)) {
+          | Some(ci) => ci
+          | None => fail("tuple info missing")
+          };
+        let settings = {
+          ...Web.Settings.Model.init,
+          core: {
+            ...Web.Settings.Model.init.core,
+            flip_animations: false,
+          },
+        };
+        let model =
+          CI.Update.update(
+            ~settings,
+            ~cursor_info=Some(ci),
+            Toggle(Synthesizing),
+            CI.Model.init,
+          ).
+            model;
+        let model =
+          CI.Update.update(
+            ~settings,
+            ~cursor_info=Some(ci),
+            TypeEditor(
+              Synthesizing,
+              Web.CodeEditable.Update.Perform(
+                Action.Project(
+                  Action.SetIndicated(Specific(ProjectorCore.Kind.Fold)),
+                ),
+              ),
+            ),
+            model,
+          ).
+            model;
+        switch (CI.TypeSlicing.query_of_row(model.syn)) {
+        | Some(_) => ()
+        | None => fail("folded product query missing")
+        };
+        switch (model.syn.editor) {
+        | CI.Model.EditorSlot.SomeEditor(editor) =>
+          switch (
+            Indicated.ci_of(
+              editor.editor.state.zipper,
+              editor.statics.info_map,
+            )
+          ) {
+          | Some(InfoTyp(_)) => ()
+          | _ => fail("folded product query info is not a type")
+          }
+        | CI.Model.EditorSlot.NoEditor =>
+          fail("folded product editor missing")
+        };
+        let result =
+          CI.ProgramFolds.apply_type_slice(
+            ~info_map=code.statics.info_map,
+            ~fallback_ci=None,
+            ~cursor_inspector=model,
+            code,
+          );
+        let _statics =
+          CachedStatics.init(
+            ~settings=CoreSettings.on,
+            ~stitch=x => x,
+            ~is_dynamic_term=false,
+            ~root=Exp,
+            result.model.editor.state.zipper,
+          );
+        check(
+          string,
+          "folded product type query slice",
+          "let ? = (?, ?) in ?",
+          render_folded(result.model),
+        );
+      },
+    ),
+    test_case(
+      "folding product annotation is stable",
+      `Quick,
+      () => {
+        let code = code_model("let x : (Int, Int) = (1, 2) in ?");
+        let product_type = first_product_type_id(code);
+        let result =
+          CI.ProgramFolds.apply_folds(
+            ~omitted=Id.Set.add(product_type, Id.Set.empty),
+            code,
+          );
+        let _statics =
+          CachedStatics.init(
+            ~settings=CoreSettings.on,
+            ~stitch=x => x,
+            ~is_dynamic_term=false,
+            ~root=Exp,
+            result.model.editor.state.zipper,
+          );
+        let folded = render_folded(result.model);
+        check(
+          bool,
+          "folded product annotation",
+          true,
+          folded == "let x : ? = (1, 2) in ?"
+          || folded == "let x : (?) = (1, 2) in ?",
+        );
+      },
     ),
     test_case("anchor stays fixed while cursor moves", `Quick, () => {
       check(
