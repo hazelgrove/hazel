@@ -164,11 +164,10 @@ let replace_shard_inplace =
   };
 };
 
-/* When prepending a char to a right-hand monotile, keep the caret inside
- * the merged token (Inner 0) rather than letting adj_pos move it — its
- * move(Left) would escape any enclosing tile/form. Only exception: a bare
- * segment edge (no left neighbor, no ancestor), where orphaned shards may
- * need the reassemble/rescan that insert_or_append's path provides. */
+/* True unless the caret is at a bare segment edge (no left neighbor, no
+ * ancestor). At a bare edge, a token-merge may need the reassemble/rescan
+ * that the general insert path provides; everywhere else the merged token
+ * has an enclosing tile/form the caret must not escape. */
 let keep_caret_inside_on_append = (z: t): bool =>
   Siblings.neighbor(Left, z.relatives.siblings) != None
   || z.relatives.ancestors != [];
@@ -354,28 +353,49 @@ let adjust_caret_pos = (~z_final: t, ~z_init: t): t => {
   };
 };
 
-/* If char can be appended to either sibling token, do it,
- * otherwise insert a new `char` token */
-let insert_or_append = (char: string, z: t, ~root): option(t) => {
-  let+ z_init =
-    switch (sibling_appendability(char, z)) {
-    | None =>
-      let (id, z) = preserve_grout_id(char, z);
-      let z =
-        switch (Grout.redeem_space(id)) {
-        | Some(w) => Zipper.put_down_seg(Left, [Secondary(w)], z)
-        | None => z
-        };
-      Some(insert_shard(~id, ~d=Left, char, z, ~root));
-    | Some((d, t)) => replace_shard(d, t, z, ~root)
-    };
-  let z_final =
-    z_init
-    |> move_into_string_or_comment(char)
-    |> remold_regrout(Left, ~root)
-    |> merge_or_noop(~root);
-  adjust_caret_pos(~z_final, ~z_init);
-};
+/* Append char to a neighboring token if possible (biasing left, see
+ * sibling_appendability), else insert it as a new token. */
+let insert_or_append = (char: string, z: t, ~root): option(t) =>
+  switch (sibling_appendability(char, z)) {
+  | Some((Right, t))
+      when
+        Zipper.adjacent_monotile_id(Right, z) != None
+        && keep_caret_inside_on_append(z) =>
+    /* Prepend to a right monotile, keeping the caret Inner(0) inside the
+     * merged token. The in-place insert skips adj_pos, whose move(Left)
+     * would escape the enclosing tile/form (e.g. length(¦oo) + f). */
+    Caret.set(Inner(0), z)
+    |> replace_shard_inplace(Right, t, ~root)
+    |> Option.map(remold_regrout(Right, ~root))
+  | appendability =>
+    let z =
+      Caret.set(
+        switch (appendability) {
+        | Some((Right, _)) => Inner(0)
+        | None
+        | Some((Left, _)) => Outer
+        },
+        z,
+      );
+    let+ z_init =
+      switch (appendability) {
+      | None =>
+        let (id, z) = preserve_grout_id(char, z);
+        let z =
+          switch (Grout.redeem_space(id)) {
+          | Some(w) => Zipper.put_down_seg(Left, [Secondary(w)], z)
+          | None => z
+          };
+        Some(insert_shard(~id, ~d=Left, char, z, ~root));
+      | Some((d, t)) => replace_shard(d, t, z, ~root)
+      };
+    let z_final =
+      z_init
+      |> move_into_string_or_comment(char)
+      |> remold_regrout(Left, ~root)
+      |> merge_or_noop(~root);
+    adjust_caret_pos(~z_final, ~z_init);
+  };
 
 /* === SELECTION WRAPPING ===
  * When the user types an opening delimiter with an active selection,
@@ -546,30 +566,7 @@ let go = (~deep_reassociate=false, char: string, z: t, ~root): option(t) => {
              )
         : split(z, char, idx, t, ~root);
     | (Inner(_), (_, None)) => None
-    | (Outer, _) =>
-      switch (sibling_appendability(char, z)) {
-      | Some((Right, t))
-          when
-            Zipper.adjacent_monotile_id(Right, z) != None
-            && keep_caret_inside_on_append(z) =>
-        /* Prepend to a right monotile, keeping the caret inside (Inner 0)
-         * so adj_pos can't escape the enclosing tile/form (e.g. length(¦oo)
-         * or let x = 1 in ¦oo). */
-        Caret.set(Inner(0), z)
-        |> replace_shard_inplace(Right, t, ~root)
-        |> Option.map(remold_regrout(Right, ~root))
-      | appendability =>
-        let z =
-          Caret.set(
-            switch (appendability) {
-            | Some((Right, _)) => Inner(0)
-            | None
-            | Some((Left, _)) => Outer
-            },
-            z,
-          );
-        insert_or_append(char, z, ~root);
-      }
+    | (Outer, _) => insert_or_append(char, z, ~root)
     };
   };
 };
