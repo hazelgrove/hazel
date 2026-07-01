@@ -476,18 +476,20 @@ module View = {
   module MouseState = Pointer.MkState();
 
   let frozen_anchor_caret =
-      (~syntax: CachedSyntax.t, ~globals: Globals.t, z: Zipper.t)
-      : list(Node.t) =>
+      (~syntax: CachedSyntax.t, ~globals: Globals.t): list(Node.t) =>
     switch (globals.slice_anchor) {
-    | Some(id) =>
-      switch (Move.jump_to_id_indicated(z, id)) {
-      | Some(fz) => [
-          CaretDec.view(
+    | Some((id, side)) =>
+      switch (Measured.find_by_id(id, syntax.measured)) {
+      | Some(m) => [
+          CaretDec.main(
             ~id="frozen-caret",
             ~base_cls=["caret", "frozen"],
-            ~measured=syntax.measured,
             ~font_metrics=globals.font_metrics,
-            fz,
+            ~profile={
+              CaretDec.Profile.side,
+              origin: side == Direction.Left ? m.origin : m.last,
+              shape: None,
+            },
           ),
         ]
       | None => []
@@ -503,7 +505,7 @@ module View = {
         ~globals: Globals.t,
         z: Zipper.t,
       ) =>
-    frozen_anchor_caret(~syntax, ~globals, z)
+    frozen_anchor_caret(~syntax, ~globals)
     @ [
       CaretDec.view(
         ~base_cls=

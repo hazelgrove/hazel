@@ -209,11 +209,17 @@ module Model = {
     | Fold(TypeTarget.t);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
+  type anchor_caret =
+    | NoCaret
+    | Caret(Id.t, Direction.t);
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
     syn: row,
     ana: row,
     menu: menu_state,
     anchor: OptionalId.t,
+    anchor_caret,
     focus_target,
   };
 
@@ -229,6 +235,7 @@ module Model = {
     ana: empty_row,
     menu: NoMenu,
     anchor: OptionalId.NoId,
+    anchor_caret: NoCaret,
     focus_target: Main,
   };
 
@@ -303,6 +310,12 @@ module Model = {
     | OptionalId.NoId => None
     };
 
+  let slice_anchor = (model: t): option((Id.t, Direction.t)) =>
+    switch (has_active(model), model.anchor_caret) {
+    | (true, Caret(id, side)) => Some((id, side))
+    | _ => None
+    };
+
   let refresh_for_info = (ci: Info.t, model: t): t =>
     if (has_active(model)) {
       model;
@@ -318,6 +331,13 @@ module Model = {
       };
     };
 };
+
+let caret_anchor = (z: Zipper.t): Model.anchor_caret =>
+  switch (Zipper.generalized_neighbors(z)) {
+  | (Some(l), _) => Model.Caret(Piece.id(l), Direction.Right)
+  | (_, Some(r)) => Model.Caret(Piece.id(r), Direction.Left)
+  | (None, None) => Model.NoCaret
+  };
 
 let type_slicing_focus_of_row =
     (target: TypeTarget.t, row: Model.row): option((string, Ctx.t, Typ.t)) =>
@@ -2163,7 +2183,12 @@ let view =
         anchor_ci,
       );
     let plain_bar = secondary_bar(~globals, ~model, ~fallback=ci);
-    bar_view([plain_bar, slicing_bar]);
+    bar_view([
+      div(
+        ~attrs=[clss(["cursor-inspector-stack"])],
+        [plain_bar, slicing_bar],
+      ),
+    ]);
   | Some(ci) =>
     bar_view([
       bar_of_info(

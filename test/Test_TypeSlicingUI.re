@@ -59,6 +59,7 @@ let slicing_model = (focus: Id.t, query: string): CI.Model.t => {
   ana: CI.Model.empty_row,
   menu: CI.Model.NoMenu,
   anchor: CI.Model.OptionalId.SomeId(focus),
+  anchor_caret: CI.Model.NoCaret,
   focus_target: CI.Model.Main,
 };
 

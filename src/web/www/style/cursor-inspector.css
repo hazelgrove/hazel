@@ -27,6 +27,19 @@
   border-radius: 0 1.1em 0 0;
 }
 
+.cursor-inspector-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.25em;
+  width: 100%;
+  min-width: 0;
+}
+
+.cursor-inspector-stack > .cursor-inspector {
+  max-width: 100%;
+}
+
 .cursor-inspector .icon {
   display: flex;
   padding: 0.2em;

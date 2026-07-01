@@ -85,7 +85,7 @@ module Model = {
     // Calculated:
     color_highlights: option(ColorSteps.colorMap),
     // Frozen type-slicing anchor, rendered as a locked caret in the main editor:
-    slice_anchor: option(Util.Id.t),
+    slice_anchor: option((Util.Id.t, Util.Direction.t)),
     // Other:
     inject_global: Action.t => Ui_effect.t(unit),
     /* inject_global is not really part of the model, but added here for

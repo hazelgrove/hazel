@@ -650,9 +650,21 @@ module Update = {
           action,
           model.cursor_inspector,
         );
+      let just_activated =
+        !CursorInspector.Model.has_active(previous_cursor_inspector)
+        && CursorInspector.Model.has_active(updated_cursor_inspector.model);
+      let cursor_inspector = {
+        ...updated_cursor_inspector.model,
+        anchor_caret:
+          just_activated
+            ? CursorInspector.caret_anchor(
+                get_editor(model).editor.state.zipper,
+              )
+            : updated_cursor_inspector.model.anchor_caret,
+      };
       let model = {
         ...model,
-        cursor_inspector: updated_cursor_inspector.model,
+        cursor_inspector,
       };
       let (model, _folds_changed) =
         sync_explain_folds(
@@ -1206,7 +1218,7 @@ module View = {
       get_log_count: _ =>
         failwith("get_log_count is deprecated, use Log.get_count_sync"),
       export_all: Export.export_all,
-      slice_anchor: CursorInspector.Model.anchor_id(cursor_inspector),
+      slice_anchor: CursorInspector.Model.slice_anchor(cursor_inspector),
     };
     let cursor = {
       ...cursor,
