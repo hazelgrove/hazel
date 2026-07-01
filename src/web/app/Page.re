@@ -1201,6 +1201,7 @@ module View = {
       get_log_count: _ =>
         failwith("get_log_count is deprecated, use Log.get_count_sync"),
       export_all: Export.export_all,
+      slice_anchor: CursorInspector.Model.anchor_id(cursor_inspector),
     };
     let bottom_bar =
       CursorInspector.view(

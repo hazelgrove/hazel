@@ -280,6 +280,12 @@ module Model = {
 
   let has_active = model => model.syn.active || model.ana.active;
 
+  let anchor_id = (model: t): option(Id.t) =>
+    switch (model.anchor) {
+    | OptionalId.SomeId(id) => Some(id)
+    | OptionalId.NoId => None
+    };
+
   let refresh_for_info = (ci: Info.t, model: t): t =>
     if (has_active(model)) {
       model;

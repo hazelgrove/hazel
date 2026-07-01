@@ -475,6 +475,26 @@ module View = {
 
   module MouseState = Pointer.MkState();
 
+  let frozen_anchor_caret =
+      (~syntax: CachedSyntax.t, ~globals: Globals.t, z: Zipper.t)
+      : list(Node.t) =>
+    switch (globals.slice_anchor) {
+    | Some(id) =>
+      switch (Move.jump_to_id_indicated(z, id)) {
+      | Some(fz) => [
+          CaretDec.view(
+            ~id="frozen-caret",
+            ~base_cls=["caret", "frozen"],
+            ~measured=syntax.measured,
+            ~font_metrics=globals.font_metrics,
+            fz,
+          ),
+        ]
+      | None => []
+      }
+    | None => []
+    };
+
   let deco =
       (
         ~expand_selection=false,
@@ -482,48 +502,50 @@ module View = {
         ~info_map: Language.Statics.Map.t,
         ~globals: Globals.t,
         z: Zipper.t,
-      ) => [
-    CaretDec.view(
-      ~measured=syntax.measured,
-      ~font_metrics=globals.font_metrics,
-      z,
-    ),
-    Arms.Indicated.term(
-      ~refine_sort=
-        (id, mold_out) =>
-          Language.Info.refine_sort_from_mold(~info_map, ~id, mold_out),
-      ~font_metrics=globals.font_metrics,
-      ~syntax,
-      z,
-    ),
-    (
-      expand_selection
-        ? Highlight.selection_expanded(~term_data=syntax.term_data)
-        : Highlight.selection
-    )(
-      ~measured=syntax.measured,
-      ~shape_map=syntax.shape_map,
-      ~font_metrics=globals.font_metrics,
-      z,
-    ),
-    Backpack.view(
-      ~font_metrics=globals.font_metrics,
-      ~measured=syntax.measured,
-      ~cached_backpack=syntax.cached_backpack,
-      z,
-    ),
-    Highlight.colors(
-      ~font_metrics=globals.font_metrics,
-      ~syntax,
-      globals.color_highlights,
-    ),
-    VarHighlight.view(
-      ~measured=syntax.measured,
-      ~font_metrics=globals.font_metrics,
-      ~info_map,
-      z,
-    ),
-  ];
+      ) =>
+    frozen_anchor_caret(~syntax, ~globals, z)
+    @ [
+      CaretDec.view(
+        ~measured=syntax.measured,
+        ~font_metrics=globals.font_metrics,
+        z,
+      ),
+      Arms.Indicated.term(
+        ~refine_sort=
+          (id, mold_out) =>
+            Language.Info.refine_sort_from_mold(~info_map, ~id, mold_out),
+        ~font_metrics=globals.font_metrics,
+        ~syntax,
+        z,
+      ),
+      (
+        expand_selection
+          ? Highlight.selection_expanded(~term_data=syntax.term_data)
+          : Highlight.selection
+      )(
+        ~measured=syntax.measured,
+        ~shape_map=syntax.shape_map,
+        ~font_metrics=globals.font_metrics,
+        z,
+      ),
+      Backpack.view(
+        ~font_metrics=globals.font_metrics,
+        ~measured=syntax.measured,
+        ~cached_backpack=syntax.cached_backpack,
+        z,
+      ),
+      Highlight.colors(
+        ~font_metrics=globals.font_metrics,
+        ~syntax,
+        globals.color_highlights,
+      ),
+      VarHighlight.view(
+        ~measured=syntax.measured,
+        ~font_metrics=globals.font_metrics,
+        ~info_map,
+        z,
+      ),
+    ];
 
   let view =
       (

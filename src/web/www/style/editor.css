@@ -426,6 +426,14 @@ svg.shard.selected.buffer-parsed > path {
   visibility: visible;
 }
 
+.caret.frozen {
+  visibility: visible;
+}
+
+.caret.frozen .caret-path {
+  fill: var(--R1);
+}
+
 .caret.blink {
   animation: 1s blink step-end infinite;
 }
