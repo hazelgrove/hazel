@@ -357,7 +357,7 @@ let term =
     ~refine_sort,
     ~term_data=syntax.term_data,
     ~terms=syntax.terms,
-    ~measured=syntax.measured,
+    ~measured=CachedSyntax.measured(syntax),
     ~font_metrics,
   );
 
@@ -368,7 +368,11 @@ let term_range = (~syntax: CachedSyntax.t, p: Piece.t) => {
   | Projector(_)
   | Tile(_) =>
     let id = Language.Any.rep_id(Id.Map.find(Piece.id(p), syntax.terms));
-    TermData.extreme_measures(id, syntax.term_data, syntax.measured);
+    TermData.extreme_measures(
+      id,
+      syntax.term_data,
+      CachedSyntax.measured(syntax),
+    );
   };
 };
 
@@ -388,7 +392,9 @@ module Errors = {
       switch (Id.Map.find_opt(id, syntax.projectors)) {
       | Some(p) =>
         /* Special case for projectors as they are not in tile map */
-        switch (Id.Map.find_opt(id, syntax.measured.projectors)) {
+        switch (
+          Id.Map.find_opt(id, CachedSyntax.measured(syntax).projectors)
+        ) {
         | Some(measurement) => [
             ShardDec.simple(
               {
@@ -444,7 +450,7 @@ module Indicated = {
     | Grout(_)
     | Secondary(_) => []
     | Projector(p) =>
-      switch (Measured.find_pr_opt(p, syntax.measured)) {
+      switch (Measured.find_pr_opt(p, CachedSyntax.measured(syntax))) {
       | Some(measurement) => [
           ShardDec.simple(
             {
@@ -567,7 +573,7 @@ module Refractors = {
           ~cls=cls ++ " " ++ kind_cls,
           sort,
           font_metrics,
-          syntax.measured.rows,
+          CachedSyntax.measured(syntax).rows,
           range,
         );
       | _ => []
@@ -614,7 +620,7 @@ module Refractors = {
              Haz3lcore.Indicated.index(z) == Some(id)
                ? [
                  Highlight.indicated_refractor(
-                   ~measured=syntax.measured,
+                   ~measured=CachedSyntax.measured(syntax),
                    ~shape_map=syntax.shape_map,
                    ~font_metrics,
                    ~kind=entry.kind,

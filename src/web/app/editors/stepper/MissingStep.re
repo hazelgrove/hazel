@@ -173,7 +173,7 @@ module Update = {
               TermData.get_root_id_using_ranges(
                 zipper.selection.content,
                 editor.editor.syntax.term_data,
-                editor.editor.syntax.measured,
+                CachedSyntax.measured(editor.editor.syntax),
               );
             Some(id);
           }
@@ -389,7 +389,7 @@ module View = {
     {
       let+ (left, right, top, bottom) =
         get_segment_bounds(
-          ~measured=editor.editor.syntax.measured,
+          ~measured=CachedSyntax.measured(editor.editor.syntax),
           editor.editor.state.zipper.selection.content,
         );
 

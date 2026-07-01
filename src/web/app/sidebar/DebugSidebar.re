@@ -653,7 +653,10 @@ let editor_fields = (editor: Haz3lcore.Editor.t): list(Node.t) => {
   [
     field_str("root sort", sort_str(editor.root)),
     field_str("syntax stale", string_of_bool(syntax.old)),
-    field_str("segment pieces", string_of_int(List.length(syntax.segment))),
+    field_str(
+      "segment pieces",
+      string_of_int(List.length(Haz3lcore.CachedSyntax.segment(syntax))),
+    ),
     field_str(
       "projectors",
       string_of_int(List.length(syntax.projector_list)),
@@ -685,7 +688,10 @@ let syntax_view = (~globals, ~cursor: Cursor.cursor(_)): list(Node.t) => {
         | None => []
         | Some(p) =>
           section(~globals, "Measured", () =>
-            measured_fields(p, editor.syntax.measured)
+            measured_fields(
+              p,
+              Haz3lcore.CachedSyntax.measured(editor.syntax),
+            )
           )
         };
       let editor_sec =
