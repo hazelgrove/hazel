@@ -991,6 +991,11 @@ let type_slot =
       ],
       [Icons.explain_this],
     );
+  let editor_focused =
+    switch (model.focus_target) {
+    | Model.Fold(focused) => focused == target
+    | Model.Main => false
+    };
   let body =
     switch (row_model.active, row_model.editor) {
     | (true, Model.EditorSlot.SomeEditor(editor)) =>
@@ -1001,7 +1006,7 @@ let type_slot =
               ? inject(Update.TypeEditor(target, action)) : Ui_effect.Ignore,
           escape: _ => Ui_effect.Ignore,
           take_focus: _ => Ui_effect.Ignore,
-          focus: Some(),
+          focus: editor_focused ? Some() : None,
         });
       div(
         ~attrs=[
