@@ -100,6 +100,50 @@ let wrap_with_secondary =
   | AutoFormat => content
   };
 
+/* Lexeme validation: annotations may carry the surface spelling of
+   single-token terms (IdTag.lexeme). Use it verbatim only when it still
+   denotes the term\'s value — terms rebuilt with stale annotations must
+   never misprint. */
+let hole_lexeme = (ann: IdTagged.IdTag.t): option(string) =>
+  switch (ann.lexeme) {
+  | Some(l)
+      when
+        Token.is_explicit_hole(l)
+        || Token.is_llm_hole(l)
+        || Token.is_implicit_hole_marker(l) =>
+    Some(l)
+  | _ => None
+  };
+
+let atom_lexeme = (ann: IdTagged.IdTag.t, c: Atom.t): string => {
+  let canonical = Atom.to_literal(c);
+  switch (ann.lexeme) {
+  | Some(l) =>
+    let valid =
+      switch (c) {
+      | Int(i) =>
+        Token.is_int(l)
+        && (
+          switch (Bigint.of_string_opt(l)) {
+          | Some(v) => Bigint.to_string(v) == Bigint.to_string(i)
+          | None => false
+          }
+        )
+      | Float(f) =>
+        Token.is_float(l)
+        && (
+          switch (float_of_string_opt(l)) {
+          | Some(v) => v == f
+          | None => false
+          }
+        )
+      | _ => false
+      };
+    valid ? l : canonical;
+  | None => canonical
+  };
+};
+
 // Use Precedence.re to work out where your construct goes here.
 let rec external_precedence = (exp: Exp.t): Precedence.t => {
   switch (Exp.term_of(exp)) {
@@ -1741,21 +1785,28 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
   | Invalid(x) => wrap(exp, text_to_pretty(exp |> Exp.rep_id, Sort.Exp, x))
   | EmptyHole =>
     let id = exp |> Exp.rep_id;
-    wrap(
-      exp,
-      p_just([
-        Grout({
-          id,
-          shape: Convex,
-        }),
-      ]),
-    );
+    let seg =
+      switch (hole_lexeme(exp.annotation)) {
+      | Some(tok) => text_to_pretty(id, Sort.Exp, tok)
+      | None =>
+        p_just([
+          Grout({
+            id,
+            shape: Convex,
+          }),
+        ])
+      };
+    wrap(exp, seg);
   | Undefined =>
     wrap(exp, text_to_pretty(exp |> Exp.rep_id, Sort.Exp, "undefined"))
   | Atom(c) =>
     wrap(
       exp,
-      text_to_pretty(exp |> Exp.rep_id, Sort.Exp, Atom.to_literal(c)),
+      text_to_pretty(
+        exp |> Exp.rep_id,
+        Sort.Exp,
+        atom_lexeme(exp.annotation, c),
+      ),
     )
   | DrvQuote(d, sort) =>
     let+ d = drv_to_pretty(~settings, d, ~sort);
@@ -2422,15 +2473,18 @@ and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
   | Invalid(t) => wrap(pat, text_to_pretty(pat |> Pat.rep_id, Sort.Pat, t))
   | EmptyHole =>
     let id = pat |> Pat.rep_id;
-    wrap(
-      pat,
-      p_just([
-        Grout({
-          id,
-          shape: Convex,
-        }),
-      ]),
-    );
+    let seg =
+      switch (hole_lexeme(pat.annotation)) {
+      | Some(tok) => text_to_pretty(id, Sort.Pat, tok)
+      | None =>
+        p_just([
+          Grout({
+            id,
+            shape: Convex,
+          }),
+        ])
+      };
+    wrap(pat, seg);
   | Wild => wrap(pat, text_to_pretty(pat |> Pat.rep_id, Sort.Pat, "_"))
   | ExplicitNonlabel =>
     wrap(pat, text_to_pretty(pat |> Pat.rep_id, Sort.Pat, "_"))
@@ -2438,7 +2492,11 @@ and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
   | Atom(c) =>
     wrap(
       pat,
-      text_to_pretty(pat |> Pat.rep_id, Sort.Pat, Atom.to_literal(c)),
+      text_to_pretty(
+        pat |> Pat.rep_id,
+        Sort.Pat,
+        atom_lexeme(pat.annotation, c),
+      ),
     )
   | Constructor(c, _) =>
     wrap(pat, text_to_pretty(pat |> Pat.rep_id, Sort.Pat, c))
@@ -2650,16 +2708,20 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
   | Unknown(Hole(EmptyHole)) =>
     wrap(
       typ,
-      if (settings.show_unknown_as_hole) {
-        let id = typ |> Typ.rep_id;
-        p_just([
-          Grout({
-            id,
-            shape: Convex,
-          }),
-        ]);
-      } else {
-        text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "?");
+      switch (hole_lexeme(typ.annotation)) {
+      | Some(tok) => text_to_pretty(typ |> Typ.rep_id, Sort.Typ, tok)
+      | None =>
+        if (settings.show_unknown_as_hole) {
+          let id = typ |> Typ.rep_id;
+          p_just([
+            Grout({
+              id,
+              shape: Convex,
+            }),
+          ]);
+        } else {
+          text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "?");
+        }
       },
     )
   | Unknown(Hole(MultiHole(es))) =>
@@ -2922,15 +2984,18 @@ and tpat_to_pretty = (~settings: Settings.t, tpat: TPat.t): pretty => {
     wrap(tpat, text_to_pretty(tpat |> TPat.rep_id, Sort.TPat, t))
   | EmptyHole =>
     let id = tpat |> TPat.rep_id;
-    wrap(
-      tpat,
-      p_just([
-        Grout({
-          id,
-          shape: Convex,
-        }),
-      ]),
-    );
+    let seg =
+      switch (hole_lexeme(tpat.annotation)) {
+      | Some(tok) => text_to_pretty(id, Sort.TPat, tok)
+      | None =>
+        p_just([
+          Grout({
+            id,
+            shape: Convex,
+          }),
+        ])
+      };
+    wrap(tpat, seg);
   | MultiHole(xs) =>
     let+ xs = xs |> List.map(any_to_pretty(~settings: Settings.t)) |> all;
     /* Use IDs from the term for grout pieces, like Tuple uses for commas.

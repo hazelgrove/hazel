@@ -22,6 +22,11 @@ module IdTag = {
     ids: list(Id.t),
     secondary: secondary_runs,
     incomplete: incomplete_tiles,
+    /* Surface spelling of single-token terms whose canonical print
+       differs (int/float spellings, quoted labels, explicit/LLM hole
+       tokens). Printing uses it verbatim after validating it still
+       matches the term's value; None for rebuilt/internal terms. */
+    lexeme: option(string),
   };
 
   /* Constructors for IdTag.t */
@@ -31,6 +36,7 @@ module IdTag = {
     ids: [Id.mk()],
     secondary: empty_secondary,
     incomplete: [],
+    lexeme: None,
   };
 
   /* Create annotation with invalid id and empty secondary (for temporary terms) */
@@ -39,6 +45,7 @@ module IdTag = {
     ids: [Id.invalid],
     secondary: empty_secondary,
     incomplete: [],
+    lexeme: None,
   };
 
   /* Create annotation with specific ids and empty secondary.
@@ -47,14 +54,23 @@ module IdTag = {
     ids,
     secondary: empty_secondary,
     incomplete: [],
+    lexeme: None,
   };
 
   /* Create annotation with specific ids and secondary.
      Use for terms from surface syntax where formatting should be preserved. */
-  let mk = (~incomplete: incomplete_tiles=[], ids: list(Id.t), secondary): t => {
+  let mk =
+      (
+        ~incomplete: incomplete_tiles=[],
+        ~lexeme: option(string)=None,
+        ids: list(Id.t),
+        secondary,
+      )
+      : t => {
     ids,
     secondary,
     incomplete,
+    lexeme,
   };
 };
 
@@ -92,13 +108,14 @@ let mk_internal = (ids: list(Id.t), term: 'a): t('a) => {
 let mk =
     (
       ~incomplete: IdTag.incomplete_tiles=[],
+      ~lexeme: option(string)=None,
       ids: list(Id.t),
       secondary: IdTag.secondary_runs,
       term: 'a,
     )
     : t('a) => {
   term,
-  annotation: IdTag.mk(~incomplete, ids, secondary),
+  annotation: IdTag.mk(~incomplete, ~lexeme, ids, secondary),
 };
 
 let term_of = (x: Annotated.t('a, 'b)) => x.term;
@@ -125,6 +142,7 @@ let fast_copy = (id, {term, _}: t('a)): t('a) => {
     ids: [id],
     secondary: IdTag.empty_secondary,
     incomplete: [],
+    lexeme: None,
   },
 };
 
@@ -136,6 +154,7 @@ let new_ids = ({term, annotation: {ids: _, secondary, _}}: t('a)): t('a) => {
     ids: [Id.mk()],
     secondary,
     incomplete: [],
+    lexeme: None,
   },
 };
 
@@ -143,12 +162,14 @@ let ids = ({annotation: {ids, _}, _}: t('a)) => ids;
 
 /* Replace invalid temp ids with fresh ids, preserving secondary */
 let replace_temp =
-    ({term, annotation: {ids, secondary, incomplete}}: t('a)): t('a) => {
+    ({term, annotation: {ids, secondary, incomplete, lexeme}}: t('a))
+    : t('a) => {
   term,
   annotation: {
     ids: ids == [Id.invalid] ? [Id.mk()] : ids,
     secondary,
     incomplete,
+    lexeme,
   },
 };
 

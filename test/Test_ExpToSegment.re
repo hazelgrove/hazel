@@ -57,6 +57,7 @@ module TempGrammar =
         ids: [Id.invalid],
         secondary: IdTagged.IdTag.empty_secondary,
         incomplete: [],
+        lexeme: None,
       };
   });
 let tests = (
@@ -631,6 +632,16 @@ let roundtrip_tests = (
   [
     /* Simple atoms */
     roundtrip_test({|Integer literal|}, {|42|}),
+    /* Lexeme preservation: non-canonical spellings and hole tokens
+       survive via IdTag.lexeme (audit classes B and A4) */
+    roundtrip_test({|Int: leading zeros|}, {|007|}),
+    roundtrip_test({|Float: short|}, {|3.14|}),
+    roundtrip_test({|Float: exponent|}, {|1e3|}),
+    roundtrip_test({|Float: trailing dot|}, {|2.|}),
+    roundtrip_test({|Explicit hole|}, {|?|}),
+    roundtrip_test({|Explicit hole operand|}, {|1 + ?|}),
+    roundtrip_test({|LLM hole|}, {|1 + ??|}),
+    roundtrip_test({|Float pattern|}, {|fun 3.14 -> 1|}),
     roundtrip_test({|Negative int|}, {|-42|}),
     roundtrip_test({|Variable|}, {|x|}),
     roundtrip_test({|String literal|}, {|"hello"|}),
@@ -1455,7 +1466,7 @@ let arb_segment_fixpoint =
         let term = MakeTerm.go(seg).term;
         let seg2 = exp_to_segment_roundtrip(term);
         print_seg(seg) == print_seg(seg2)
-        && (String.contains(text, '?') || tile_ids(seg) == tile_ids(seg2));
+        && tile_ids(seg) == tile_ids(seg2);
       };
     },
   );
@@ -1518,7 +1529,7 @@ let arb_perturbed_fixpoint =
         let term = MakeTerm.go(seg).term;
         let seg2 = exp_to_segment_roundtrip(term);
         print_seg(seg) == print_seg(seg2)
-        && (String.contains(text, '?') || tile_ids(seg) == tile_ids(seg2));
+        && tile_ids(seg) == tile_ids(seg2);
       };
     },
   );

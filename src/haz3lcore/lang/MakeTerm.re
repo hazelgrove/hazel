@@ -226,6 +226,19 @@ let get_incomplete = (ids: list(Id.t)): IdTagged.IdTag.incomplete_tiles =>
            |> Option.map(shards => (id, shards))
          );
 
+/* Surface spelling of the token a *_term branch just parsed, when its
+ * canonical print differs (int/float spellings, hole tokens). Set only
+ * by non-recursive single-token branches, taken (and cleared) by the
+ * sort wrapper immediately after — so the value can never leak across
+ * terms. */
+let pending_lexeme: ref(option(string)) = ref(None);
+let set_lexeme = (t: Token.t): unit => pending_lexeme := Some(t);
+let take_lexeme = (): option(string) => {
+  let l = pending_lexeme^;
+  pending_lexeme := None;
+  l;
+};
+
 /* Track IDs that are "adopted" from inner terms into outer multi-tile forms.
  *
  * PROBLEM: List literals and case expressions are multi-tile forms where the
@@ -645,6 +658,7 @@ and drv_tpat_term: unsorted => (Drv.TPat.term, list(Id.t)) = {
 
 and exp = unsorted => {
   let (term, inner_ids) = exp_term(unsorted);
+  let lexeme = take_lexeme();
   /* The editor root can change while the expression itself is still sort
      [Exp]; when an [Exp]-sort traversal trips over a Drv child we get a
      [MultiHole([Drv(_), ...])], which we intercept and re-parse at the
@@ -673,6 +687,7 @@ and exp = unsorted => {
         ids,
         IdTagged.mk(
           ~incomplete=get_incomplete(ids),
+          ~lexeme,
           ids,
           get_secondary(ids),
           term,
@@ -704,13 +719,15 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
         ret(Atom(Bool(bool_of_string(t))))
       | ([t], []) when Token.is_undefined(t) => ret(Undefined)
       | ([t], []) when Token.is_int(t) =>
-        ret(Atom(Int(Bigint.of_string(t))))
+        set_lexeme(t);
+        ret(Atom(Int(Bigint.of_string(t))));
       | ([t], []) when Token.is_string(t) =>
         ret(Atom(String(Token.strip_quotes(t))))
       | ([t], []) when Token.is_quoted_label(t) =>
         ret(Label(Token.strip_quotes(~quote=Token.label_delim, t)))
       | ([t], []) when Token.is_float(t) =>
-        ret(Atom(Float(float_of_string(t))))
+        set_lexeme(t);
+        ret(Atom(Float(float_of_string(t))));
       | ([t], []) when Token.is_livelit(t) =>
         ret(LivelitName(Token.parse_livelit(t)))
       | ([t], []) when Token.is_var(t) => ret(Var(t))
@@ -792,7 +809,9 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
         ret(DrvQuote(Pat(p), Pat))
       | (["of_alfa_tpat", "end"], [Drv(TPat(tp))]) =>
         ret(DrvQuote(TPat(tp), TPat))
-      | ([t], []) when is_hole_label(t) => ret(hole(tm))
+      | ([t], []) when is_hole_label(t) =>
+        set_lexeme(t);
+        ret(hole(tm));
       | ([t], []) when t != " " && !Token.is_explicit_hole(t) =>
         ret(Invalid(t))
       | _ => ret(hole(tm))
@@ -1028,6 +1047,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
 }
 and pat = unsorted => {
   let (term, inner_ids) = pat_term(unsorted);
+  let lexeme = take_lexeme();
   let ids = ids(unsorted) @ inner_ids;
 
   let p =
@@ -1036,6 +1056,7 @@ and pat = unsorted => {
       ids,
       IdTagged.mk(
         ~incomplete=get_incomplete(ids),
+        ~lexeme,
         ids,
         get_secondary(ids),
         term,
@@ -1059,9 +1080,11 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
       | ([t], []) when Token.is_bool(t) =>
         ret(Atom(Bool(bool_of_string(t))))
       | ([t], []) when Token.is_float(t) =>
-        ret(Atom(Float(float_of_string(t))))
+        set_lexeme(t);
+        ret(Atom(Float(float_of_string(t))));
       | ([t], []) when Token.is_int(t) =>
-        ret(Atom(Int(Bigint.of_string(t))))
+        set_lexeme(t);
+        ret(Atom(Int(Bigint.of_string(t))));
       | ([t], []) when Token.is_string(t) =>
         ret(Atom(String(Token.strip_quotes(t))))
       | ([t], []) when Token.is_quoted_label(t) =>
@@ -1082,7 +1105,9 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
           (ListLit(ps), ids);
         | term => ret(ListLit([term]))
         }
-      | ([t], []) when is_hole_label(t) => ret(hole(tm))
+      | ([t], []) when is_hole_label(t) =>
+        set_lexeme(t);
+        ret(hole(tm));
       | ([t], []) => ret(Invalid(t))
       | _ => ret(hole(tm))
       }
@@ -1101,6 +1126,7 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
                 ids: [Id.nullary_ap_flag],
                 secondary: ([], []),
                 incomplete: [],
+                lexeme: None,
               },
               term: Tuple([]),
             },
@@ -1174,6 +1200,7 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
 }
 and typ = unsorted => {
   let (term, inner_ids) = typ_term(unsorted);
+  let lexeme = take_lexeme();
   let ids = ids(unsorted) @ inner_ids;
   let t =
     return(
@@ -1181,6 +1208,7 @@ and typ = unsorted => {
       ids,
       IdTagged.mk(
         ~incomplete=get_incomplete(ids),
+        ~lexeme,
         ids,
         get_secondary(ids),
         term,
@@ -1233,7 +1261,9 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
         | (["(", ")"], [Typ(body)]) => Parens(body)
         | (["PROJ_WRAP", "PROJ_WRAP"], [Typ(body)]) => body.term
         | (["[", "]"], [Typ(body)]) => List(body)
-        | ([t], []) when is_hole_label(t) => hole(tm)
+        | ([t], []) when is_hole_label(t) =>
+          set_lexeme(t);
+          hole(tm);
         | ([t], []) => Unknown(Hole(Invalid(t)))
         | _ => hole(tm)
         },
@@ -1325,12 +1355,14 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
 }
 and tpat = unsorted => {
   let term = tpat_term(unsorted);
+  let lexeme = take_lexeme();
   let ids = ids(unsorted);
   return(
     ty => TPat(ty),
     ids,
     IdTagged.mk(
       ~incomplete=get_incomplete(ids),
+      ~lexeme,
       ids,
       get_secondary(ids),
       term,
@@ -1347,7 +1379,9 @@ and tpat_term: unsorted => TPat.term = {
       ret(
         switch (tile) {
         | ([t], []) when Token.is_typ_var(t) => Var(t)
-        | ([t], []) when is_hole_label(t) => hole(tm)
+        | ([t], []) when is_hole_label(t) =>
+          set_lexeme(t);
+          hole(tm);
         | ([t], []) => Invalid(t)
         | (["PROJ_WRAP", "PROJ_WRAP"], [TPat(body)]) => body.term
         | _ => hole(tm)
@@ -1686,6 +1720,7 @@ let go_impl = (~masks: Id.Map.t(list(int))=Id.Map.empty, seg) => {
   adopted_ids := [];
   secondary_map := Segment.SecondaryCollection.collect(seg);
   shard_masks := masks;
+  pending_lexeme := None;
   let term = exp(unsorted(Exp, Segment.skel(seg), seg));
   consolidate_adopted();
   {
