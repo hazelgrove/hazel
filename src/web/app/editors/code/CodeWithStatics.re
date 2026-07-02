@@ -155,7 +155,7 @@ module Update = {
     /* Throttle gate for full statics recompute. Bypass the debounce when probe
      * ids change, else stale info_map probe_targets let IncrEval.reuse_check
      * reuse old probes and a new probe shows ∅ until the next refresh. */
-    let probes_differ = z =>
+    let probes_differ = (z, statics: CachedStatics.t) =>
       !
         Language.Id.Map.equal(
           (==),
@@ -176,7 +176,7 @@ module Update = {
       );
     let needs_refresh =
       statics_mode == StaticsForce
-      || probes_differ(editor.state.zipper)
+      || probes_differ(editor.state.zipper, statics)
       || is_edited
       && statics_mode != StaticsDefer;
     let statics = needs_refresh ? do_init(editor) : statics;
@@ -192,9 +192,11 @@ module Update = {
       );
 
     /* Editor.calculate may add/remove probes (autoprobe); re-init statics so
-     * probe_targets match */
+     * probe_targets match. Compared against the statics computed above, so
+     * this fires only when calculate itself changed the probe set. */
     let statics =
-      probes_differ(editor.state.zipper) ? do_init(editor) : statics;
+      probes_differ(editor.state.zipper, statics)
+        ? do_init(editor) : statics;
 
     /* refresh only statics.targets against the new refractors (cheap; rest of
      * statics stays valid) */
@@ -223,7 +225,7 @@ module View = {
               selection_ids,
               segment,
               shape_map,
-              refractor_shape_map,
+              refractor_rows,
               term_data,
               _,
             },
@@ -242,7 +244,7 @@ module View = {
         ~term_data,
         ~buffer_ids=Selection.is_buffer(z.selection) ? selection_ids : [],
         ~shape_map,
-        ~refractor_shape_map,
+        ~refractor_rows,
         ~refine_sort,
         segment,
       );
