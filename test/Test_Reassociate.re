@@ -605,19 +605,22 @@ let deep_reassociate_tests = [
     () => {
       /* User's exact code with selection from before outer "then"
        * through "plant". Selection crosses: outer if's then-delimiter,
-       * inner mapi(...), inner fun, inner if's then-delimiter. */
+       * inner mapi(...), inner fun, inner if's then-delimiter.
+       * Indentation is written explicitly (user-managed indentation:
+       * indent is ordinary buffer content) and the zipper is built via
+       * parse_zipper so the buffer matches the literal exactly. */
       let z =
-        Test_Editing.mk_zipper(
+        Test_Editing.parse_zipper(
           ~settings=deep_reassociate_settings,
           {|fun (grove, row, col, plant) ->
-mapi(grove, fun (i, r) ->
-if i == row
-§then
-mapi(r, fun (j, c) ->
-if i == col
-then plant¦
-else c)
-else r)|},
+    mapi(grove, fun (i, r) ->
+        if i == row
+        §then
+            mapi(r, fun (j, c) ->
+                if i == col
+                then plant¦
+                else c)
+        else r)|},
         );
       let sel_text =
         Printer.of_segment(~holes="?", ~indent=" ", z.selection.content);

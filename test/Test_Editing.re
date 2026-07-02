@@ -233,6 +233,45 @@ let parse_with_caret = (init: string): Zipper.t => {
   };
 };
 
+/* Like mk_zipper but builds the buffer via Parser (no auto-indent), so it
+ * matches the literal exactly — including explicit indentation. Use for
+ * user-managed-indentation scenarios: mk()/mk_zipper() place carets by
+ * counting the literal's characters, which lands them mid-indentation
+ * once auto-indent has inserted spaces the literal doesn't contain. */
+let parse_zipper = (~settings=default_settings, init: string): Zipper.t => {
+  let chars = Token.to_list(init);
+  let has_anchor = List.exists(c => c == selection_char, chars);
+  if (!has_anchor) {
+    parse_with_caret(init);
+  } else {
+    /* version_a: replace § with ¦, remove original ¦ */
+    let version_a =
+      chars
+      |> List.map(c =>
+           if (c == selection_char) {
+             caret_char;
+           } else if (c == caret_char) {
+             "";
+           } else {
+             c;
+           }
+         )
+      |> List.filter(c => c != "")
+      |> Token.of_list;
+    /* version_b: remove §, keep ¦ */
+    let version_b =
+      chars |> List.filter(c => c != selection_char) |> Token.of_list;
+    let z_a = parse_with_caret(version_a);
+    let z_b = parse_with_caret(version_b);
+    let measured_a = CachedSyntax.init(z_a).measured;
+    let measured_b = CachedSyntax.init(z_b).measured;
+    let anchor_pt = Zipper.Caret.point(measured_a, z_a);
+    let focus_pt = Zipper.Caret.point(measured_b, z_b);
+    [Action.Select(PointToPoint((anchor_pt, focus_pt)))]
+    |> perform(~settings, z_b);
+  };
+};
+
 /* Test variant that parses initial state (no auto-indent) then applies actions */
 let test_from_parse = (~name, ~init, ~acts, ~goal): test_case(_) =>
   test_case(
