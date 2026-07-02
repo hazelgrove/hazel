@@ -5,6 +5,43 @@ exception Empty_segment;
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type t = Base.segment;
 
+/* Structural equivalence for roundtrip properties: the canonical
+   quotient. Tiles (ids, labels, molds, shards, children), secondary
+   (ids + content), and projectors compare strictly; grout is dropped
+   entirely — it is ephemeral by design (regrout re-derives placement
+   and mints fresh ids), and nothing durable anchors to it. */
+let rec equiv_mod_grout = (a: t, b: t): bool => {
+  let strip =
+    List.filter((p: Piece.t) =>
+      switch (p) {
+      | Grout(_) => false
+      | _ => true
+      }
+    );
+  let (a, b) = (strip(a), strip(b));
+  List.length(a) == List.length(b)
+  && List.for_all2(piece_equiv_mod_grout, a, b);
+}
+and piece_equiv_mod_grout = (a: Piece.t, b: Piece.t): bool =>
+  switch (a, b) {
+  | (Tile(ta), Tile(tb)) =>
+    ta.id == tb.id
+    && ta.label == tb.label
+    && ta.mold == tb.mold
+    && ta.shards == tb.shards
+    && List.length(ta.children) == List.length(tb.children)
+    && List.for_all2(equiv_mod_grout, ta.children, tb.children)
+  | (Secondary(wa), Secondary(wb)) =>
+    wa.id == wb.id && wa.content == wb.content
+  | (Projector(pa), Projector(pb)) =>
+    /* projector-internal syntax is regenerated from the term on print
+       and is a declared exclusion of the roundtrip property domain —
+       compare identity only until projector internals are
+       fidelity-tracked */
+    pa.id == pb.id && pa.kind == pb.kind
+  | _ => false
+  };
+
 let empty = [];
 let cons = List.cons;
 let concat = List.concat;

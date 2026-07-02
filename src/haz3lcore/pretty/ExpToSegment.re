@@ -2496,7 +2496,9 @@ and mpat_to_seg = (~settings: Settings.t, mp: MPat.t): Segment.t => {
       inner_seg
       @ [
         Tile({
-          id: Id.mk(),
+          /* the Asc term's rep id IS the colon tile id from parsing;
+             a fresh id here churned identity on every print */
+          id: MPat.rep_id(mp),
           label: [":"],
           mold:
             Mold.mk_bin(
