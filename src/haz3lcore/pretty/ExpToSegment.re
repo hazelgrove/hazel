@@ -126,7 +126,9 @@ let hole_lexeme = (ann: IdTagged.IdTag.t): option(string) =>
 let op_lexeme = (ann: IdTagged.IdTag.t): option(string) =>
   switch (ann.lexeme) {
   | Some(l)
-      when Token.is_potential_operator(l) && !Token.is_potential_operand(l) =>
+      when
+        Token.is_potential_operator(l)
+        || Form.is_infix_delimiter_op_prefix(l) =>
     Some(l)
   | _ => None
   };
@@ -1108,6 +1110,33 @@ let text_to_pretty = (id, sort, str): pretty => {
   ]);
 };
 
+/* Invalid tokens must reprint with the mold the editor leaves on them,
+   not the host sort's op mold, or roundtripped segments diverge from
+   edit-derived ones: sort-matched mold if the token has one, else the
+   token's base mold from insertion (a sort-mismatched literal keeps it,
+   e.g. Exp-molded 1 in type position), else the undefined-token
+   fallback (Any-sorted; bin for operator-shaped). */
+let invalid_to_pretty = (id, sort, str): pretty => {
+  let mold =
+    switch (Form.Molds.get_base([str])) {
+    | [] => Form.Molds.get(sort, [str])
+    | base =>
+      switch (List.filter((m: Mold.t) => m.out == sort, base)) {
+      | [m, ..._] => m
+      | [] => List.hd(base)
+      }
+    };
+  p_just([
+    Tile({
+      id,
+      label: [str],
+      mold,
+      shards: [0],
+      children: [],
+    }),
+  ]);
+};
+
 /* Settings-aware form builder.
    PreserveExact: no heuristic spacing (children already have stored secondary)
    AutoFormat: add spaces based on heuristics */
@@ -1809,7 +1838,8 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     let+ e = go(e);
     wrap(exp, text_to_pretty(exp |> Exp.rep_id, Sort.Exp, "<closure>") @ e);
   // Other cases
-  | Invalid(x) => wrap(exp, text_to_pretty(exp |> Exp.rep_id, Sort.Exp, x))
+  | Invalid(x) =>
+    wrap(exp, invalid_to_pretty(exp |> Exp.rep_id, Sort.Exp, x))
   | EmptyHole =>
     let id = exp |> Exp.rep_id;
     let seg =
@@ -1937,6 +1967,13 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
        same Any-sorted max-precedence bin mold Form gives unknown ops */
     let op = Option.get(op_lexeme(exp.annotation));
     let id = exp |> Exp.rep_id;
+    /* Mirror insertion molding: operand-shaped keyword prefixes get the
+       concave-grout Exp bin mold (Form.get_atomic_form), other unknown
+       ops the Any-sorted max-precedence fallback (Form.Molds.get) */
+    let mold =
+      Form.is_infix_delimiter_op_prefix(op)
+        ? Mold.mk_bin(Precedence.concave_grout, Exp, [])
+        : Mold.mk_bin(Precedence.max, Any, []);
     let+ l = any_to_pretty(~settings, l)
     and+ r = any_to_pretty(~settings, r);
     wrap(
@@ -1946,7 +1983,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
         Tile({
           id,
           label: [op],
-          mold: Mold.mk_bin(Precedence.max, Any, []),
+          mold,
           shards: [0],
           children: [],
         }),
@@ -2066,7 +2103,14 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
       |> fold_fun_if(settings.fold_fn_bodies, name, _, exp),
     );
   | Tuple([]) => wrap(exp, text_to_pretty(exp |> Exp.rep_id, Sort.Exp, "()"))
-  | Tuple([{term: TupLabel(_), _} as le]) => go(le)
+  /* MakeTerm puts the = tile's id on the synthesized singleton Tuple
+     (the inner TupLabel is fresh) -- carry it back onto the TupLabel so
+     the reprinted = tile keeps the parse's id, mirroring MakeTerm's own
+     singleton-unwrap convention for comma children. */
+  | Tuple([{term: TupLabel(_), _} as le]) =>
+    let (le_term, _) = IdTagged.unwrap(le);
+    let (_, rewrap_tup) = IdTagged.unwrap(exp);
+    go(rewrap_tup(le_term));
   | Tuple([x, ...xs]) =>
     // TODO: Add optional newlines
     let+ x = go(x)
@@ -2524,7 +2568,8 @@ and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
   let (@) = concat_segment(~secondary=settings.secondary);
   let mk_form = mk_form(~secondary=settings.secondary);
   switch (pat |> Pat.term_of) {
-  | Invalid(t) => wrap(pat, text_to_pretty(pat |> Pat.rep_id, Sort.Pat, t))
+  | Invalid(t) =>
+    wrap(pat, invalid_to_pretty(pat |> Pat.rep_id, Sort.Pat, t))
   | EmptyHole =>
     let id = pat |> Pat.rep_id;
     let seg =
@@ -2761,7 +2806,7 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
     | BadEntry(x) => go(x);
   switch (typ |> Typ.term_of) {
   | Unknown(Hole(Invalid(s))) =>
-    wrap(typ, text_to_pretty(typ |> Typ.rep_id, Sort.Typ, s))
+    wrap(typ, invalid_to_pretty(typ |> Typ.rep_id, Sort.Typ, s))
   | Unknown(Internal)
   | Unknown(SynSwitch)
   | Unknown(Hole(EmptyHole)) =>
@@ -3063,7 +3108,7 @@ and tpat_to_pretty = (~settings: Settings.t, tpat: TPat.t): pretty => {
   /* Use settings-aware concatenation and form building */
   switch (tpat |> IdTagged.term_of) {
   | Invalid(t) =>
-    wrap(tpat, text_to_pretty(tpat |> TPat.rep_id, Sort.TPat, t))
+    wrap(tpat, invalid_to_pretty(tpat |> TPat.rep_id, Sort.TPat, t))
   | EmptyHole =>
     let id = tpat |> TPat.rep_id;
     let seg =
@@ -3144,7 +3189,9 @@ and mod_to_pretty = (~settings: Settings.t, item: Mod.t): pretty => {
       };
     p_just(wrap_item(item, seg));
   | Invalid(s) =>
-    p_just(wrap_item(item, text_to_pretty(item |> Mod.rep_id, Sort.Mod, s)))
+    p_just(
+      wrap_item(item, invalid_to_pretty(item |> Mod.rep_id, Sort.Mod, s)),
+    )
   | MultiHole(_) =>
     p_just(
       wrap_item(item, text_to_pretty(item |> Mod.rep_id, Sort.Mod, "?")),
@@ -3175,7 +3222,9 @@ and sig_to_pretty = (~settings: Settings.t, item: Sig.t): pretty => {
       };
     p_just(wrap_item(item, seg));
   | Invalid(s) =>
-    p_just(wrap_item(item, text_to_pretty(item |> Sig.rep_id, Sort.Sig, s)))
+    p_just(
+      wrap_item(item, invalid_to_pretty(item |> Sig.rep_id, Sort.Sig, s)),
+    )
   | MultiHole(_) =>
     p_just(
       wrap_item(item, text_to_pretty(item |> Sig.rep_id, Sort.Sig, "?")),
@@ -3213,7 +3262,7 @@ and rul_to_pretty = (~settings: Settings.t, rul: Rul.t): pretty => {
   let rep_id =
     OptUtil.get(() => Id.mk(), ListUtil.hd_opt(IdTagged.ids(rul)));
   switch (rul |> IdTagged.term_of) {
-  | Invalid(t) => wrap(rul, text_to_pretty(rep_id, Sort.Rul, t))
+  | Invalid(t) => wrap(rul, invalid_to_pretty(rep_id, Sort.Rul, t))
   | MultiHole(es) =>
     let+ es = es |> List.map(any_to_pretty(~settings)) |> all;
     let num_grouts = max(0, List.length(es) - 1);
