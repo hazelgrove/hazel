@@ -1460,9 +1460,75 @@ let arb_segment_fixpoint =
     },
   );
 
+/* Deterministically vary whitespace outside string literals: multi-space
+   runs, newlines, and comments in place of single spaces. Strings are
+   skipped (no escapes in Hazel; quote parity tracks in-string state). */
+let perturb_spaces = (seed: int, text: string): string => {
+  let out = ref([]);
+  let emit = piece => out := [piece, ...out^];
+  let in_string = ref(false);
+  let k = ref(seed land 0xffff);
+  let next = () => {
+    k := (k^ * 1103515245 + 12345) land 0x3fffffff;
+    k^ mod 6;
+  };
+  String.iter(
+    c => {
+      if (c == '"') {
+        in_string := ! in_string^;
+      };
+      if (c == ' ' && ! in_string^) {
+        switch (next()) {
+        | 0 => emit("  ")
+        | 1 => emit("\n")
+        | 2 => emit(" \n ")
+        | 3 => emit(" #c# ")
+        | _ => emit(" ")
+        };
+      } else {
+        emit(String.make(1, c));
+      };
+    },
+    text,
+  );
+  String.concat("", List.rev(out^));
+};
+
+let arb_perturbed_fixpoint =
+  QCheck.Test.make(
+    ~name=
+      "ExpToSegment: secondary-perturbed segment fixpoint on generated exps",
+    ~count=50,
+    QCheck.pair(
+      QCheck_Util.arb_exp(~minimal_idents=true, 5),
+      QCheck.small_nat,
+    ),
+    ((exp, seed)) => {
+      let text =
+        exp
+        |> ExpToSegment.exp_to_segment(
+             ~settings=ExpToSegment.Settings.editable(~inline=true),
+             _,
+           )
+        |> Printer.of_segment(~holes="?", ~refractors=[], _);
+      let text = perturb_spaces(seed, text);
+      switch (Parser.to_segment(text, ~root=Exp)) {
+      | None => true
+      | Some(seg) =>
+        let term = MakeTerm.go(seg).term;
+        let seg2 = exp_to_segment_roundtrip(term);
+        print_seg(seg) == print_seg(seg2)
+        && (String.contains(text, '?') || tile_ids(seg) == tile_ids(seg2));
+      };
+    },
+  );
+
 let property_tests = (
   "Round-Trip: Property",
-  [QCheck_alcotest.to_alcotest(~speed_level=`Slow, arb_segment_fixpoint)],
+  [
+    QCheck_alcotest.to_alcotest(~speed_level=`Slow, arb_segment_fixpoint),
+    QCheck_alcotest.to_alcotest(~speed_level=`Slow, arb_perturbed_fixpoint),
+  ],
 );
 
 let all = [
