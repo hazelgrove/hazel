@@ -354,7 +354,7 @@ and drv_exp = unsorted => {
     e => Drv(Exp(e)),
     ids,
     {
-      annotation: IdTagged.IdTag.mk(ids, IdTagged.IdTag.empty_secondary),
+      annotation: IdTagged.IdTag.mk(ids, get_secondary(ids)),
       term,
     },
   );
@@ -490,7 +490,7 @@ and drv_pat = unsorted => {
     p => Drv(Pat(p)),
     ids,
     {
-      annotation: IdTagged.IdTag.mk(ids, IdTagged.IdTag.empty_secondary),
+      annotation: IdTagged.IdTag.mk(ids, get_secondary(ids)),
       term,
     },
   );
@@ -533,7 +533,7 @@ and drv_typ = unsorted => {
     ty => Drv(Typ(ty)),
     ids,
     {
-      annotation: IdTagged.IdTag.mk(ids, IdTagged.IdTag.empty_secondary),
+      annotation: IdTagged.IdTag.mk(ids, get_secondary(ids)),
       term,
     },
   );
@@ -581,7 +581,7 @@ and drv_tpat = unsorted => {
     tpat => Drv(TPat(tpat)),
     ids,
     {
-      annotation: IdTagged.IdTag.mk(ids, IdTagged.IdTag.empty_secondary),
+      annotation: IdTagged.IdTag.mk(ids, get_secondary(ids)),
       term,
     },
   );

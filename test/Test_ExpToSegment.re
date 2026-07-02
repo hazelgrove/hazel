@@ -538,6 +538,20 @@ let exp_to_segment_roundtrip_settings: ExpToSegment.Settings.t = {
 let exp_to_segment_roundtrip =
   ExpToSegment.exp_to_segment(~settings=exp_to_segment_roundtrip_settings);
 
+/* Text-only roundtrip: for forms with known segment-level infidelities
+   (drv printers hardcode child sorts, e.g. Truth printed at Drv Prop where
+   the parser molded it Drv Exp) where secondary preservation is still
+   worth pinning. */
+let roundtrip_text_test = (name: string, input: string) =>
+  test_case(name, `Quick, () => {
+    switch (Parser.to_term(input, ~root=Exp)) {
+    | Some(term) =>
+      let input2 = print_seg(exp_to_segment_roundtrip(term));
+      check(string, {|Round-trip text|}, input, input2);
+    | None => Alcotest.fail({|Failed to parse|})
+    }
+  });
+
 /* Test that a string round-trips through segment → term → segment */
 let roundtrip_test = (name: string, input: string) =>
   test_case(name, `Quick, () => {
@@ -801,6 +815,13 @@ in f(42)|},
     roundtrip_test({|Filter: pause spaced|}, {|pause 1  in  2|}),
     roundtrip_test({|Filter: debug|}, {|debug 1 in 2|}),
     roundtrip_test({|Filter: debug spaced|}, {|debug 1  in  2|}),
+    /* Drv (of_* end) forms: drv builders/printers thread secondary; without
+       this, PreserveExact printed glommed unparseable text (of_propTruthend) */
+    roundtrip_text_test({|Drv: of_prop|}, {|of_prop Truth end|}),
+    roundtrip_text_test(
+      {|Drv: of_alfa_exp spaced|},
+      {|of_alfa_exp 1  +  2 end|},
+    ),
     roundtrip_test(
       {|QuotedLabel: label needing quotes (has dash)|},
       {|(`the-answer`=42)|},
