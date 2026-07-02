@@ -531,6 +531,41 @@ let roundtrip_test = (name: string, input: string) =>
     }
   });
 
+/* Tile ids must survive the roundtrip. The `segment` testable is
+   id-ignoring, so id-fidelity regressions (e.g. the sum ctor-ap id swap)
+   need this explicit check. Grout/secondary ids are excluded: grout is
+   ephemeral by design. */
+let rec tile_ids = (seg: Segment.t): list(string) =>
+  seg
+  |> List.concat_map((p: Piece.t) =>
+       switch (p) {
+       | Tile(t) =>
+         [List.nth(t.label, 0) ++ ":" ++ Id.to_string(t.id)]
+         @ List.concat_map(tile_ids, t.children)
+       | Secondary(_)
+       | Grout(_) => []
+       | Projector(pr) => ["PROJ:" ++ Id.to_string(pr.id)]
+       }
+     );
+
+let roundtrip_ids_test = (name: string, input: string) =>
+  test_case(name, `Quick, () => {
+    switch (
+      Parser.to_term(input, ~root=Exp),
+      Parser.to_segment(input, ~root=Exp),
+    ) {
+    | (Some(term), Some(seg)) =>
+      let seg' = exp_to_segment_roundtrip(term);
+      check(
+        list(string),
+        {|Round-trip tile ids|},
+        tile_ids(seg),
+        tile_ids(seg'),
+      );
+    | _ => Alcotest.fail({|Failed to parse|})
+    }
+  });
+
 let roundtrip_tests = (
   "Secondary Round-Trip",
   [
@@ -700,6 +735,14 @@ in f(42)|},
     roundtrip_test({|Sum type: single constructor|}, {|type T = +A in T|}),
     roundtrip_test({|Sum type: two constructors|}, {|type T = +A + B in T|}),
     roundtrip_test({|Sum type: with args|}, {|type T = +A(Int) + B in T|}),
+    roundtrip_ids_test(
+      {|Sum type: ctor-ap ids stable|},
+      {|type T = +A(Int) + B in T|},
+    ),
+    roundtrip_ids_test(
+      {|Ids stable: let/fun/case|},
+      {|let f = fun x -> case x | A => 1 end in f(2)|},
+    ),
     roundtrip_test({|Sum type: spaced|}, {|type T = + A + B in T|}),
     roundtrip_test({|Sum type: compact|}, {|type T = +A+B in T|}),
     /* Sum type without leading + prefix - KNOWN LIMITATION

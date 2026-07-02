@@ -2595,9 +2595,11 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
         wrap_variant_secondary(ann, seg);
       }
     | Variant(c, ann, Some(x)) => {
+        /* MakeTerm.parse_sum_term builds ids as ids_ctr @ ids_ap:
+           hd is the constructor tile, nth 1 the ap tile */
         let+ constructor =
           text_to_pretty(
-            OptUtil.get(() => Id.mk(), List.nth_opt(ann.ids, 1)),
+            OptUtil.get(() => Id.mk(), ListUtil.hd_opt(ann.ids)),
             Sort.Typ,
             c,
           );
@@ -2607,7 +2609,7 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
           @ [
             mk_form(
               ApTyp,
-              OptUtil.get(() => Id.mk(), ListUtil.hd_opt(ann.ids)),
+              OptUtil.get(() => Id.mk(), List.nth_opt(ann.ids, 1)),
               [go(x)],
             ),
           ],
