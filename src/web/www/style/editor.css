@@ -358,6 +358,49 @@ svg.shard.selected-expanded > path {
   fill: var(--warning-hole-fill);
 }
 
+/* Simplified error/warning arms (Simple Indication mode): match the
+ * indication-arm stroke, only recolored. */
+.errors .errors-piece svg .child-line.simple,
+.warnings .warnings-piece svg .child-line.simple {
+  stroke-width: 1;
+  stroke-dasharray: none;
+  stroke-linecap: round;
+}
+.errors .errors-piece svg .child-line.simple {
+  stroke: var(--error-hole-stroke);
+}
+.warnings .warnings-piece svg .child-line.simple {
+  stroke: var(--warning-hole-stroke);
+}
+
+/* Strokeless term-shaped backing behind simplified error/warning arms —
+ * the red/orange analog of the probe refractor backing (fill at 0.4). */
+.errors .errors-piece svg.shard.simple-backing path,
+.warnings .warnings-piece svg.shard.simple-backing path {
+  stroke: none;
+  stroke-dasharray: none;
+  opacity: 0.4;
+}
+.errors .errors-piece svg.shard.simple-backing path {
+  fill: var(--simple-error-backing);
+}
+.warnings .warnings-piece svg.shard.simple-backing path {
+  fill: var(--simple-warning-backing);
+}
+
+/* Backing sits below all arms; the simplified error/warning arm sits above
+ * the indication arm (z 1, set on generic svg:has(.child-line)) so the two
+ * don't clash when the errored term is indicated. Same interleaving trick
+ * as the refractor arms (z 2 in proj-probe.css). */
+.errors .errors-piece svg.shard.simple-backing,
+.warnings .warnings-piece svg.shard.simple-backing {
+  z-index: 0;
+}
+.errors svg:has(.child-line.simple),
+.warnings svg:has(.child-line.simple) {
+  z-index: 2;
+}
+
 /* Code completion decoration */
 
 svg.shard.selected.buffer-unparsed {

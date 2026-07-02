@@ -159,6 +159,10 @@
 
   --error-hole-fill: var(--ERRHOLE);
 
+  /* Simplified-mode error/warning term backings (fill-only) */
+  --simple-error-backing: oklch(100% 0.2 25);
+  --simple-warning-backing: oklch(100% 0.2 80);
+
   /* WARNING HOLE DECO */
   --warning-hole-stroke: var(--O1);
   --warning-hole-fill: var(--WARNHOLE);
