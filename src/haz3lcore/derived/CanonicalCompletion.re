@@ -353,41 +353,50 @@ let complete_segment =
  * Collects insertions from all levels for visualization. */
 let rec complete_segment_deep =
         (~use_indent_heuristic=true, ~sort, seg: Segment.t): completion_result => {
-  /* Helper: complete all children of a tile, collecting insertions */
+  /* Helper: complete all children of a tile, collecting insertions
+     and shard_records */
   let complete_tile_children =
-      (t: Tile.t): (list(Segment.t), list(insertion)) => {
+      (t: Tile.t): (list(Segment.t), list(insertion), list(shard_record)) => {
     Tile.sorted_children(t)
     |> List.fold_left(
-         ((segs_acc, ins_acc), (child_sort, child)) => {
+         ((segs_acc, ins_acc, rec_acc), (child_sort, child)) => {
            let result =
              complete_segment_deep(
                ~use_indent_heuristic,
                ~sort=child_sort,
                child,
              );
-           (segs_acc @ [result.completed_seg], ins_acc @ result.insertions);
+           (
+             segs_acc @ [result.completed_seg],
+             ins_acc @ result.insertions,
+             rec_acc @ result.shard_records,
+           );
          },
-         ([], []),
+         ([], [], []),
        );
   };
 
-  /* Complete children of all tiles, collecting insertions */
-  let (seg_with_completed_children, child_insertions) =
+  /* Complete children of all tiles, collecting insertions and records */
+  let (seg_with_completed_children, child_insertions, child_records) =
     List.fold_left(
-      ((seg_acc, ins_acc), piece) =>
+      ((seg_acc, ins_acc, rec_acc), piece) =>
         switch (piece) {
         | Piece.Tile(t) =>
-          let (completed_children, tile_insertions) =
+          let (completed_children, tile_insertions, tile_records) =
             complete_tile_children(t);
           let new_tile =
             Piece.Tile({
               ...t,
               children: completed_children,
             });
-          (seg_acc @ [new_tile], ins_acc @ tile_insertions);
-        | p => (seg_acc @ [p], ins_acc)
+          (
+            seg_acc @ [new_tile],
+            ins_acc @ tile_insertions,
+            rec_acc @ tile_records,
+          );
+        | p => (seg_acc @ [p], ins_acc, rec_acc)
         },
-      ([], []),
+      ([], [], []),
       seg,
     );
 
@@ -399,10 +408,11 @@ let rec complete_segment_deep =
       seg_with_completed_children,
     );
 
-  /* Merge child insertions with top-level insertions */
+  /* Merge child insertions and shard_records with top-level ones */
   {
     ...top_result,
     insertions: child_insertions @ top_result.insertions,
+    shard_records: child_records @ top_result.shard_records,
   };
 };
 
