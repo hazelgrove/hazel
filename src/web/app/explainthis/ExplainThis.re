@@ -3810,28 +3810,8 @@ module TypeSlicing = {
     [2, 1] |> List.filter_map(depth => fold_first_at_depth(~depth, typ));
 };
 
-let type_info_of = (~ctx: Ctx.t, typ: Typ.t): Info.t =>
-  InfoTyp({
-    user_term: typ,
-    ancestors: [],
-    ctx,
-    expects: TypExpectation.TypeExpected,
-    cls: Cls.Typ(Typ.cls_of_term(typ.term)),
-    marks: [],
-    message: None,
-    warnings: [],
-  });
-
 let type_slicing_section =
-    (
-      ~globals: Globals.t,
-      ~inject,
-      ~docs: ExplainThisModel.t,
-      ~title: string,
-      ~ctx: Ctx.t,
-      ~typ: Typ.t,
-    )
-    : Node.t => {
+    (~globals: Globals.t, ~title: string, ~typ: Typ.t): Node.t => {
   let view_typ =
     CodeViewable.view_typ(~globals, ~settings=slice_view_settings);
   let query_row = (label, t) =>
@@ -3894,16 +3874,10 @@ let type_slicing_section =
       ],
     ),
   ];
-  let type_doc = {
-    let info = type_info_of(~ctx, typ);
-    let (syn_form, (explanation, _), _) =
-      get_doc(~globals, ~docs, Some(info), MessageContent(inject, globals));
-    [div(~attrs=[clss(["slice-type-doc"])], syn_form @ explanation)];
-  };
   section(
     ~section_clss="type-slicing",
     ~title,
-    blurb @ queries @ assumptions @ type_doc,
+    blurb @ queries @ assumptions,
   );
 };
 
@@ -3936,15 +3910,8 @@ let view =
     | [] => []
     | focuses =>
       List.map(
-        ((title, ctx, typ)) =>
-          type_slicing_section(
-            ~globals,
-            ~inject,
-            ~docs=explainThisModel,
-            ~title,
-            ~ctx,
-            ~typ,
-          ),
+        ((title, _ctx, typ)) =>
+          type_slicing_section(~globals, ~title, ~typ),
         focuses,
       )
       @ [div(~attrs=[clss(["hline"])], [])]
