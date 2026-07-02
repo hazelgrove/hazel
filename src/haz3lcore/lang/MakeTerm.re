@@ -1764,6 +1764,22 @@ let go =
     },
   );
 
+let go_typ =
+  Core.Memo.general(
+    ~cache_size_bound=1000,
+    seg => {
+      map := TermMap.empty;
+      term_data := Id.Map.empty;
+      projectors := Id.Map.empty;
+      projector_list := [];
+      adopted_ids := [];
+      secondary_map := Segment.SecondaryCollection.collect(seg);
+      let term = typ(unsorted(Typ, Segment.skel(~sort=Sort.Typ, seg), seg));
+      consolidate_adopted();
+      term;
+    },
+  );
+
 let for_projection_as =
   Core.Memo.general(
     ~cache_size_bound=1000, ((sort, seg): (Sort.t, Segment.t)) =>
@@ -1829,3 +1845,9 @@ let from_zip_for_sem = (z: Zipper.t, ~root) =>
 
 let from_zip_for_sem =
   Core.Memo.general(~cache_size_bound=1000, from_zip_for_sem);
+
+let from_zip_typ_for_sem = (z: Zipper.t, ~root) =>
+  go_typ(Dump.to_segment(z, ~root));
+
+let from_zip_typ_for_sem =
+  Core.Memo.general(~cache_size_bound=1000, from_zip_typ_for_sem);

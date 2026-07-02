@@ -4926,6 +4926,28 @@ let mk =
 let mk = (~ana=Typ.temp(Unknown(SynSwitch)), core: CoreSettings.t, ctx, exp) =>
   core.statics ? mk(ana, ctx, exp) : (Id.Map.empty, Exp.fresh(Tuple([])));
 
+let mk_typ = (core: CoreSettings.t, ctx, typ: Typ.t): Map.t =>
+  if (core.statics) {
+    let (_, m) = utyp_to_info_map(~ctx, ~ancestors=[], typ, Id.Map.empty);
+    let m_ref = ref(m);
+    let _ =
+      Grammar.map_typ_annotation(
+        ({ids, _}: IdTagged.IdTag.t) => {
+          let info_opt =
+            List.find_map(id => Id.Map.find_opt(id, m_ref^), ids);
+          switch (info_opt) {
+          | Some(info) => m_ref := add_missing_info(ids, info, m_ref^)
+          | None => ()
+          };
+          ();
+        },
+        typ,
+      );
+    m_ref^;
+  } else {
+    Id.Map.empty;
+  };
+
 module Slice = StaticsSlice;
 let slice =
     (

@@ -138,6 +138,18 @@ let init =
   init_from_term(~settings, ~ctx?, ~is_dynamic_term, ~ana?, ~probe_ids, term);
 };
 
+let init_typ = (~settings: CoreSettings.t, ~ctx=?, ~root, z: Zipper.t): t => {
+  let typ = MakeTerm.from_zip_typ_for_sem(z, ~root);
+  let ctx_init = Option.value(~default=Builtins.ctx_init(Some(Int)), ctx);
+  let info_map = Statics.mk_typ(settings, ctx_init, typ);
+  {
+    ...empty,
+    info_map,
+    error_ids: Statics.Map.error_ids(info_map),
+    warning_ids: Statics.Map.warning_ids(info_map),
+  };
+};
+
 let init =
     (
       ~settings: CoreSettings.t,
@@ -148,6 +160,10 @@ let init =
       ~ana=?,
       z: Zipper.t,
     ) =>
-  settings.statics
-    ? init(~settings, ~stitch, ~ctx?, ~is_dynamic_term, ~root, ~ana?, z)
-    : empty;
+  switch (root) {
+  | Sort.Typ => init_typ(~settings, ~ctx?, ~root, z)
+  | _ =>
+    settings.statics
+      ? init(~settings, ~stitch, ~ctx?, ~is_dynamic_term, ~root, ~ana?, z)
+      : empty
+  };

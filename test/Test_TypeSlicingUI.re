@@ -329,6 +329,98 @@ let tests = (
       },
     ),
     test_case(
+      "type editor statics parse as a type",
+      `Quick,
+      () => {
+        let (_, editor) = CI.type_editor_of_type(parse_typ("Int -> Int"));
+        let has_arrow_info =
+          editor.statics.info_map
+          |> Id.Map.bindings
+          |> List.exists(((_, info)) =>
+               switch (info) {
+               | Info.InfoTyp({user_term, _}) =>
+                 switch (Typ.term_of(user_term)) {
+                 | Arrow(_, _) => true
+                 | _ => false
+                 }
+               | _ => false
+               }
+             );
+        check(bool, "arrow type has InfoTyp", true, has_arrow_info);
+        let has_broken_exp =
+          editor.statics.info_map
+          |> Id.Map.bindings
+          |> List.exists(((_, info)) =>
+               switch (info) {
+               | Info.InfoExp({user_term, _}) =>
+                 switch (Exp.term_of(user_term)) {
+                 | MultiHole(_) => true
+                 | _ => false
+                 }
+               | _ => false
+               }
+             );
+        check(bool, "no broken expression info", false, has_broken_exp);
+      },
+    ),
+    test_case(
+      "folding arrow type editor is stable",
+      `Quick,
+      () => {
+        let code = code_model("fun x : Int -> 1");
+        let fn =
+          info_exp_id(code, e =>
+            switch (Exp.term_of(e)) {
+            | Fun(_, _, _, _) => true
+            | _ => false
+            }
+          );
+        let ci =
+          switch (Id.Map.find_opt(fn, code.statics.info_map)) {
+          | Some(ci) => ci
+          | None => fail("fun info missing")
+          };
+        let settings = {
+          ...Web.Settings.Model.init,
+          core: {
+            ...Web.Settings.Model.init.core,
+            flip_animations: false,
+          },
+        };
+        let model =
+          CI.Update.update(
+            ~settings,
+            ~cursor_info=Some(ci),
+            Toggle(Synthesizing),
+            CI.Model.init,
+          ).
+            model;
+        let model =
+          CI.Update.update(
+            ~settings,
+            ~cursor_info=Some(ci),
+            TypeEditor(
+              Synthesizing,
+              Web.CodeEditable.Update.Perform(
+                Action.Project(
+                  Action.SetIndicated(Specific(ProjectorCore.Kind.Fold)),
+                ),
+              ),
+            ),
+            model,
+          ).
+            model;
+        switch (model.syn.editor) {
+        | CI.Model.EditorSlot.SomeEditor(editor) =>
+          switch (CI.TypeSlicing.whole_fold_query(editor)) {
+          | Some(_) => ()
+          | None => fail("arrow type editor did not fold to a projector")
+          }
+        | CI.Model.EditorSlot.NoEditor => fail("folded arrow editor missing")
+        };
+      },
+    ),
+    test_case(
       "folding product type editor is stable",
       `Quick,
       () => {
