@@ -101,6 +101,12 @@ let of_segment =
   |> add_caret(~caret, ~selection_anchor)
   |> String.concat("\n");
 
+let selected_text =
+    (~holes=" ", ~indent="", ~refractors=[], z: Zipper.t): string => {
+  let full = of_segment(~holes, ~indent, ~refractors, z.selection.content);
+  Zipper.trim_selected_text(z, full);
+};
+
 /* Use this to pretty-print zippers. See above comments on holes */
 let of_zipper =
     (

@@ -147,7 +147,8 @@ let inner_right = (idx: int, z: t, ~root): option(t) =>
 let destruct = (d: Direction.t, z: t, ~root): option(t) =>
   switch (z.caret) {
   | _ when z.selection.content != [] =>
-    Some(z |> capture |> destroy_selection)
+    let z = Zipper.normalize_char_selection(z);
+    Some(z |> capture |> destroy_selection);
   | Outer => outer(d, z, ~root)
   | Inner(idx) =>
     switch (d) {
@@ -242,7 +243,9 @@ let go_local =
   | Some(z) => Some(z)
   | None =>
     switch (chunk) {
-    | Action.ByChar =>
+    /* BySmart is only meaningful for selection; destruct treats it as ByChar */
+    | Action.ByChar
+    | Action.BySmart =>
       /* Check for indent-level backspace: if in leading whitespace, delete 2 spaces */
       switch (d, leading_whitespace_context(z)) {
       | (Left, Some(n)) when n > 0 =>

@@ -26,6 +26,7 @@ let (suite, _) =
       Test_MakeTerm.tests,
       Test_Menhir.tests,
       Test_StringUtil.tests,
+      Test_HazelJson_JsonADT.tests,
       Test_PatternMatch.tests,
       Test_Equality.tests,
       Test_Substitution.tests,
@@ -44,13 +45,12 @@ let (suite, _) =
     @ Test_Indentation.tests
     @ Test_CanonicalCompletion.tests
     @ Test_CompletionVisualization.tests
-    @ [
-      Test_Coverage.tests,
-      Test_Unboxing.tests,
-      Test_ProblemCollection.tests,
-    ]
+    @ [Test_Coverage.tests, Test_Unboxing.tests]
+    @ Test_ProblemCollection.tests
+    @ [Test_TermData.tests]
     @ Test_Introduce.tests
     @ Test_ReparseDocSlides.tests
+    @ Test_TextRoundtrip.tests
     //@ Test_DocSlideMigration.tests
     @ Test_MatchExp.tests
     @ Test_RefractorSerialization.tests

@@ -422,7 +422,7 @@ module Selection = {
     };
 
   let jump_to_tile = (id: Id.t, model: Model.t): option(Update.t) => {
-    switch (TermData.root_tile(id, model.editor.syntax.term_data)) {
+    switch (TermData.root_piece(id, model.editor.syntax.term_data)) {
     | Some(_) => Some(Perform(Move(Goal(TileId(id)))))
     | None => None
     };
@@ -459,6 +459,23 @@ module View = {
   };
 
   module MouseState = Pointer.MkState();
+
+  /* Toggle an `is-resizing` class on the editor's code-container
+   * for the duration of a drag gesture. Used by CSS to suppress
+   * caret-tracking decorations (e.g. variable highlights) while the
+   * selection is being actively manipulated — including the
+   * zero-width frame when a drag crosses back through the anchor. */
+  module DragClass = {
+    let name = Js.string("is-resizing");
+    let add = (target: Js.opt(Js.t(Dom_html.element))): unit =>
+      try(container_target(target)##.classList##add(name)) {
+      | _ => ()
+      };
+    let remove = (target: Js.opt(Js.t(Dom_html.element))): unit =>
+      try(container_target(target)##.classList##remove(name)) {
+      | _ => ()
+      };
+  };
 
   let deco =
       (
@@ -703,29 +720,57 @@ module View = {
         e.loc,
       );
 
+    /* Pointer modifier → optional chunkiness override for
+     * Select(Resize(Point(...))). Alt on Mac / Ctrl on PC swaps to the
+     * non-default chunkiness (BySmart ↔ ByChar) per the "Character-level
+     * mouse" setting. None means "use the settings default". */
+    let drag_chunkiness_override =
+        (pointer: Pointer.Event.t): option(Action.chunkiness) => {
+      let modifier_held =
+        switch (pointer.sys) {
+        | Mac => pointer.alt == Down
+        | PC => pointer.ctrl == Down
+        };
+      modifier_held
+        ? Some(Keyboard.mouse_modifier_chunk(globals.settings.core)) : None;
+    };
+
     let move_or_select = (mouse: Pointer.Event.t, pointer_id: int) =>
       switch (mouse) {
       | {button: Left, shift: Down, _} =>
+        /* Shift+click extends (or starts) a selection and arms a
+         * drag-resize. Registered without click-counting so a
+         * following plain click starts a fresh streak. */
+        MouseState.pointerdown_no_count(loc(mouse));
+        PointerCapture.set(mouse.current_target, pointer_id);
+        DragClass.add(mouse.current_target);
         Effect.Many([
           signal(MakeActive),
-          inject(Perform(Select(Resize(Point(loc(mouse)))))),
-        ])
+          inject(
+            Perform(
+              Select(
+                Resize(Point(loc(mouse), drag_chunkiness_override(mouse))),
+              ),
+            ),
+          ),
+        ]);
       | {button: Left, sys: PC, ctrl: Down, _}
       | {button: Left, sys: Mac, meta: Down, _} =>
         Effect.Many([
           signal(MakeActive),
-          inject(Perform(Move(Point(loc(mouse))))),
+          inject(Perform(Move(Point(loc(mouse), None)))),
           inject(Perform(Move(Goal(BindingSiteOfIndicatedVar)))),
         ])
       | {button: Right, ctrl, _} when ctrl != Down =>
         Effect.Many([
           //Effect.Stop_propagation,
           Effect.Prevent_default,
-          inject(Perform(Move(Point(loc(mouse))))),
+          inject(Perform(Move(Point(loc(mouse), None)))),
           inject(ContextMenu(ContextMenu.Model.Toggle)),
         ])
       | {button: Left, _} =>
         MouseState.pointerdown(loc(mouse));
+        DragClass.add(mouse.current_target);
         let click_count = MouseState.count();
         /* Check how many clicks have happened recently
          * and cycle between options on-click */
@@ -735,7 +780,7 @@ module View = {
           PointerCapture.set(mouse.current_target, pointer_id);
           Effect.Many([
             signal(MakeActive),
-            inject(Perform(Move(Point(loc(mouse))))),
+            inject(Perform(Move(Point(loc(mouse), None)))),
           ]);
         | 2 => inject(Perform(Select(Smart(2))))
         | 3 => inject(Perform(Select(Smart(3))))
@@ -747,6 +792,7 @@ module View = {
     let toggle_button = (e: Pointer.Event.t, pointer_id: int) => {
       MouseState.pointerup(loc(e));
       PointerCapture.release(e.current_target, pointer_id);
+      DragClass.remove(e.current_target);
       EdgeScroll.stop();
       Effect.Ignore;
     };
@@ -757,18 +803,34 @@ module View = {
         /* Recover from stuck state: buttons bitmask says left is up
          * but MouseState thinks it's down (missed pointerup) */
         MouseState.reset();
+        DragClass.remove(pointer.current_target);
         EdgeScroll.stop();
         Effect.Ignore;
       } else {
         let current_loc = loc(pointer);
+        if (left_button_held && MouseState.is_button_down()) {
+          MouseState.note_move(current_loc);
+        };
+        /* Suppress Resize while the cursor has never left the
+         * pointerdown column (avoids spurious post-click scroll).
+         * Once the cursor has departed, even mousemoves that return
+         * to the down-loc dispatch Resize — this is required so the
+         * selection can pass through zero-width when dragging back
+         * across the anchor. */
+        let at_down_loc_without_motion =
+          !MouseState.has_left_down_loc()
+          && Point.equals(current_loc, MouseState.get_down_loc());
         switch (pointer) {
         | {button: Left, _}
             when
               left_button_held
               && MouseState.is_button_down()
-              && !Point.equals(current_loc, MouseState.get_down_loc()) =>
+              && !at_down_loc_without_motion =>
           let container = container_target(pointer.current_target);
           let pixel_loc = pointer.loc;
+          /* Snapshot at mousemove time so edge-scroll fires with the
+           * same chunkiness mode the user had selected. */
+          let chunk_override = drag_chunkiness_override(pointer);
           EdgeScroll.update(
             ~client_y=float_of_int(pointer.loc.row),
             ~on_scroll=() => {
@@ -779,11 +841,15 @@ module View = {
                   pixel_loc,
                 );
               Bonsai.Effect.Expert.handle(
-                inject(Perform(Select(Resize(Point(goal))))),
+                inject(
+                  Perform(Select(Resize(Point(goal, chunk_override)))),
+                ),
               );
             },
           );
-          inject(Perform(Select(Resize(Point(current_loc)))));
+          inject(
+            Perform(Select(Resize(Point(current_loc, chunk_override)))),
+          );
         | _ => Effect.Ignore
         };
       };
@@ -801,6 +867,48 @@ module View = {
         );
       } else {
         let z = model.editor.state.zipper;
+        /* Editor-level clipboard helpers. Bypass the page-level
+           on_copy/on_paste path because Firefox refuses to dispatch
+           native clipboard events to non-editable focused elements
+           (the editor div has tabindex(0) but is not contenteditable). */
+        let selection_has_refractors =
+            (refractors: Haz3lcore.Zipper.Refractor.t, selection) =>
+          if (List.is_empty(refractors.manuals)) {
+            false;
+          } else {
+            let ids = Haz3lcore.Segment.ids(selection);
+            List.exists(
+              id =>
+                List.exists(
+                  ((id2, _)) => Id.equal(id, id2),
+                  refractors.manuals,
+                ),
+              ids,
+            );
+          };
+        let copy_selection = () => {
+          let segment = z.selection.content;
+          let full =
+            Printer.of_segment(
+              ~indent=" ",
+              ~refractors=z.refractors.manuals,
+              segment,
+            );
+          let str = Zipper.trim_selected_text(z, full);
+          /* Cache for paste reuse only when nothing was trimmed: a trimmed
+             sub-token string must re-parse on paste, not round-trip to the
+             full segment. */
+          if (str == full && !selection_has_refractors(z.refractors, segment)) {
+            Haz3lcore.Parser.set_segment_cache(Some(segment), str);
+          };
+          JsUtil.write_clipboard(str);
+        };
+        let paste_from_clipboard = () =>
+          JsUtil.read_clipboard(text => {
+            let action =
+              Haz3lcore.Action.Paste(Util.StringUtil.trim_leading(text));
+            Bonsai.Effect.Expert.handle(inject(Perform(action)));
+          });
         Key.handler(~f=key => {
           /* 1. Check for arrow key escape at boundaries FIRST.
            *    Keyboard.handle_key_event always returns Some for arrows,
@@ -832,8 +940,75 @@ module View = {
                 && z.relatives.ancestors == []
                 && snd(Siblings.neighbors(z.relatives.siblings)) == None =>
             Effect.Many([Effect.Prevent_default, escape(Right)])
+          /* 2. Cmd/Ctrl + C/X/V handled here rather than via the page
+             on_copy/on_paste handlers, so they keep working in
+             Firefox when focus is on a non-editable editor div. */
+          | {
+              key: D("c" | "C"),
+              sys: Mac,
+              shift: Up,
+              meta: Down,
+              ctrl: Up,
+              alt: Up,
+              _,
+            }
+          | {
+              key: D("c" | "C"),
+              sys: PC,
+              shift: Up,
+              meta: Up,
+              ctrl: Down,
+              alt: Up,
+              _,
+            } =>
+            copy_selection();
+            Effect.Many([Effect.Prevent_default, Effect.Stop_propagation]);
+          | {
+              key: D("x" | "X"),
+              sys: Mac,
+              shift: Up,
+              meta: Down,
+              ctrl: Up,
+              alt: Up,
+              _,
+            }
+          | {
+              key: D("x" | "X"),
+              sys: PC,
+              shift: Up,
+              meta: Up,
+              ctrl: Down,
+              alt: Up,
+              _,
+            } =>
+            copy_selection();
+            Effect.Many([
+              Effect.Prevent_default,
+              Effect.Stop_propagation,
+              inject(Perform(Destruct(Local(Right, ByChar)))),
+            ]);
+          | {
+              key: D("v" | "V"),
+              sys: Mac,
+              shift: Up,
+              meta: Down,
+              ctrl: Up,
+              alt: Up,
+              _,
+            }
+          | {
+              key: D("v" | "V"),
+              sys: PC,
+              shift: Up,
+              meta: Up,
+              ctrl: Down,
+              alt: Up,
+              _,
+            } =>
+            paste_from_clipboard();
+            Effect.Many([Effect.Prevent_default, Effect.Stop_propagation]);
           | _ =>
-            /* 2. Normal editor key handling:
+            /* 3. Normal editor key handling:
              *    context menu → projector handoff → Keyboard */
             switch (Selection.handle_key_event(~selection=(), model, key)) {
             | Some(action) =>
@@ -854,6 +1029,9 @@ module View = {
           @ (selected ? ["selected"] : [])
           @ (display_line_numbers ? ["has-line-numbers"] : []),
         ),
+        /* Tag the active cell so a sidebar jump can move DOM focus to it
+           (see JsUtil.active_cell_id / ProbePerform.FocusEffect). */
+        selected ? Attr.id(JsUtil.active_cell_id) : Attr.empty,
         key_handler_attr,
         Attr.on_contextmenu(evt =>
           switch (Pointer.Event.mk(evt)) {

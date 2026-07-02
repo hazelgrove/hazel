@@ -90,6 +90,40 @@ let insert_indentation_spaces = (~linebreak_id: Id.t, z: t): t => {
   };
 };
 
+/* Shared core for insert_shard and insert_shard_inplace.
+ * The only difference is the put_down function used.
+ * auto_indent applies only to linebreak insertion; the inplace
+ * variant passes false since indentation insertion reassembles. */
+let insert_shard_core =
+    (
+      ~put_down: (Segment.t, t) => t,
+      ~auto_indent: bool,
+      ~id: Id.t,
+      t: Token.t,
+      z: t,
+      ~root,
+    )
+    : t => {
+  let z = destroy_selection(z);
+  if (Token.is_secondary(t)) {
+    let z = put_down([Piece.mk_secondary(id, t)], z);
+    /* Auto-insert indentation after linebreaks (only when auto_indent=true) */
+    if (auto_indent && t == Token.linebreak) {
+      insert_indentation_spaces(~linebreak_id=id, z);
+    } else {
+      z;
+    };
+  } else {
+    let sort = effective_sort(t, z, ~root);
+    let (label, delim_d) = expansion(sort, t, z);
+    let mold = Form.Molds.get(sort, label);
+    let shard =
+      Tile.split_shards(id, label, mold, List.mapi((i, _) => i, label))
+      |> (delim_d == Right ? ListUtil.last : List.hd);
+    put_down([Tile(shard)], z);
+  };
+};
+
 /* Insert a new shard based on token `t` on the `d`-side of the caret */
 let insert_shard =
     (
@@ -100,29 +134,21 @@ let insert_shard =
       z: t,
       ~root,
     )
-    : t => {
-  let z = destroy_selection(z);
-  if (Token.is_secondary(t)) {
-    let z = Zipper.put_down_seg(d, [Piece.mk_secondary(id, t)], z);
-    /* Auto-insert indentation after linebreaks (only when auto_indent=true) */
-    if (auto_indent && t == Token.linebreak) {
-      insert_indentation_spaces(~linebreak_id=id, z);
-    } else {
-      z;
-    };
-  } else if (Zipper.backpack_find(t, z) != None) {
+    : t =>
+  if (Zipper.backpack_find(t, z) != None) {
+    let z = destroy_selection(z);
     let target = Zipper.backpack_find(t, z) |> Option.get;
     Zipper.put_down_target(d, target, z, ~root);
   } else {
-    let sort = effective_sort(t, z, ~root);
-    let (label, delim_d) = expansion(sort, t, z);
-    let mold = Form.Molds.get(sort, label);
-    let shard =
-      Tile.split_shards(id, label, mold, List.mapi((i, _) => i, label))
-      |> (delim_d == Right ? ListUtil.last : List.hd);
-    Zipper.put_down_seg(d, [Tile(shard)], z);
+    insert_shard_core(
+      ~put_down=Zipper.put_down_seg(d),
+      ~auto_indent,
+      ~id,
+      t,
+      z,
+      ~root,
+    );
   };
-};
 
 /* Replace `d`-neighbor shard with a new one based on token `t` */
 let replace_shard =
@@ -131,6 +157,59 @@ let replace_shard =
   let id = Zipper.adjacent_monotile_or_new_id(d, z);
   let+ z = delete(d, z);
   insert_shard(~auto_indent, ~id, ~d, t, z, ~root);
+};
+
+/* Like insert_shard but uses put_down_no_reassemble (no adj_pos,
+ * no reassembly). For Inner caret edits where adj_pos would flatten
+ * ancestors and reassembly would absorb the token back. */
+let insert_shard_inplace = (~id: Id.t, t: Token.t, z: t, ~root): t =>
+  insert_shard_core(
+    ~put_down=Zipper.put_down_no_reassemble,
+    ~auto_indent=false,
+    ~id,
+    t,
+    z,
+    ~root,
+  );
+
+/* Like replace_shard but without cursor position adjustment.
+ * Used when caret is Inner — the token is replaced in-place
+ * and the caret stays inside the right neighbor.
+ * For secondary pieces (comments, whitespace), directly swaps
+ * the piece in siblings to avoid reassembly introducing grout. */
+let replace_shard_inplace =
+    (d: Direction.t, t: Token.t, z: t, ~root): option(t) => {
+  let neighbor = Siblings.neighbor(d, z.relatives.siblings);
+  switch (neighbor) {
+  | Some(Secondary(w)) when Token.is_secondary(t) =>
+    /* Direct replacement: swap the secondary piece in siblings */
+    let new_piece = Piece.Secondary(Secondary.mk(w.id, t));
+    let (l, r) = z.relatives.siblings;
+    let siblings =
+      switch (d) {
+      | Right =>
+        switch (r) {
+        | [_, ...rest] => (l, [new_piece, ...rest])
+        | _ => (l, r)
+        }
+      | Left =>
+        switch (List.rev(l)) {
+        | [_, ...rest] => (List.rev([new_piece, ...rest]), r)
+        | _ => (l, r)
+        }
+      };
+    Some({
+      ...z,
+      relatives: {
+        ...z.relatives,
+        siblings,
+      },
+    });
+  | _ =>
+    let id = Zipper.adjacent_monotile_or_new_id(d, z);
+    let+ z = delete(d, z);
+    insert_shard_inplace(~id, t, z, ~root);
+  };
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -485,8 +564,10 @@ let go =
   ) {
   | Some(z) => Some(z)
   | None =>
-    /* Normal path: delete selection (if any) before proceeding */
-    let z = z.selection.content != [] ? Zipper.destroy_selection(z) : z;
+    /* Normal path: normalize char selection then delete (if any) */
+    let z =
+      z.selection.content != []
+        ? Zipper.normalize_char_selection(z) |> Zipper.destroy_selection : z;
     switch (z.caret, neighbor_tokens(z)) {
     /* If we try to insert a quote inside an existing string, or a #
      * in a comment, we are instead moved to the righthand side of
@@ -502,8 +583,11 @@ let go =
       let z = Caret.set(Inner(idx), z);
       Token.is_potential_token(new_token)
         ? z
-          |> replace_shard(~auto_indent, Right, new_token, ~root)
-          |> Option.map(remold_regrout(Right, ~root))
+          |> replace_shard_inplace(Right, new_token, ~root)
+          |> Option.map(
+               Token.is_secondary(new_token)
+                 ? Fun.id : remold_regrout(Right, ~root),
+             )
         : split(~auto_indent, z, char, idx, t, ~root);
     | (Inner(_), (_, None)) => None
     | (Outer, _) =>
@@ -538,5 +622,10 @@ let go =
     : option(t) => {
   let+ z = go(~auto_indent, ~deep_reassociate, char, z, ~root);
   let z = Triggers.insert(~ci, z);
-  Zipper.rescan_reassemble(Left, z, ~root);
+  let z =
+    switch (z.caret) {
+    | Inner(_) => z
+    | Outer => Zipper.rescan_reassemble(Left, z, ~root)
+    };
+  z;
 };

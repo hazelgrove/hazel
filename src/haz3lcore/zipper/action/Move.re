@@ -16,9 +16,19 @@ let by_char_right = (z: t): option(t) =>
   switch (z.caret, Caret.nhbr_max_idx(Right, z)) {
   | (Outer, None) => move(Right, z)
   | (Outer, Some(_)) => z |> Caret.set(Inner(0)) |> Option.some
-  | (Inner(char), Some(max_idx)) when char == max_idx =>
+  | (Inner(char), Some(max_idx)) when char >= max_idx =>
     z |> Caret.set(Outer) |> move(Right)
-  | (Inner(char), None | Some(_)) =>
+  | (Inner(_), None) =>
+    /* Inner references the right-side piece. If the right neighbor
+     * isn't a multi-char token (grout, projector, single-char token,
+     * or empty), `Inner(char)` has no valid internal position to step
+     * to — collapse to Outer and pop. Without this, `do_towards_point`
+     * loops when Inner was set by a prior char-level selection and
+     * the post-unselect right neighbor can't accept it: col advances
+     * by 1 per step but row never changes, so `(Under, _)` keeps
+     * recursing. */
+    z |> Caret.set(Outer) |> move(Right)
+  | (Inner(char), Some(_)) =>
     z |> Caret.set(Inner(char + 1)) |> Option.some
   };
 
@@ -43,7 +53,10 @@ let local = (chunkiness: Action.chunkiness, d: Direction.t, z: t): option(t) => 
   let z = unselect(z);
   switch (chunkiness) {
   | ByToken => by_token(d, z)
-  | ByChar => by_char(d, z)
+  /* BySmart is a selection-only granularity; for caret movement it
+   * degrades to ByChar. Never emitted for Move actions in practice. */
+  | ByChar
+  | BySmart => by_char(d, z)
   };
 };
 
@@ -77,6 +90,66 @@ let jump_to_side_of_id = (d: Direction.t, z, id): option(t) => {
   at_piece(Zipper.generalized_neighbors(z))
     ? Some(z) : do_until(local(ByToken, Direction.toggle(d)), at_piece, z);
 };
+
+/* Caret-position invariant for the char-level selection model:
+ *   `Inner(n)` is right-neighbor-relative — the right-generalized
+ *   neighbor must be a Piece P with `piece_max_idx(P) >= n`.
+ * `by_char` / `by_token` movements maintain this via `set + move`.
+ * Selection operations that lift content + reassemble can break it
+ * (reassemble may absorb the named piece into an ancestor or shuffle
+ * adjacent Secondaries across the caret). Such transitions must
+ * re-canonicalize the structural state before setting an Inner caret;
+ * the helpers below do that via `jump_to_shard`. */
+
+/* (tile_id, shard_idx) precisely identifies a single shard of a tile.
+ * Shards of a multi-shard tile share `tile_id` so id alone is
+ * ambiguous; `shard_idx` is the shard's index within the tile's label. */
+let shard_locator = (p: option(Piece.t)): option((Id.t, int)) =>
+  switch (p) {
+  | Some(Tile(t)) =>
+    switch (t.shards) {
+    | [idx] => Some((t.id, idx))
+    | _ => None
+    }
+  | _ => None
+  };
+
+/* Navigate so the right-generalized neighbor is the shard identified
+ * by (tile_id, shard_idx). by_token-based, so the resulting structural
+ * state is canonical. */
+let jump_to_shard = (z: t, tile_id: Id.t, shard_idx: int): option(t) => {
+  let at_target = ((_, r): Zipper.neighbors) =>
+    switch (r) {
+    | Some(Piece.Tile(t)) =>
+      Id.equal(t.id, tile_id)
+      && (
+        switch (t.shards) {
+        | [idx] => idx == shard_idx
+        | _ => false
+        }
+      )
+    | _ => false
+    };
+  let z = do_to_extreme(local(ByToken, Left), z);
+  at_target(Zipper.generalized_neighbors(z))
+    ? Some(z) : do_until(local(ByToken, Right), at_target, z);
+};
+
+/* Post-unselect canonicalization for collapsing a char-level selection
+ * to an Inner caret target. Pre-unselect, capture the boundary piece
+ * via `shard_locator`; pass `target_caret` and `locator` here after
+ * `Zipper.directional_unselect`. No-op for Outer targets or when the
+ * boundary piece isn't a single-shard tile. */
+let canonicalize_inner_unselect =
+    (~locator: option((Id.t, int)), ~target_caret: CaretBase.t, z: t): t =>
+  switch (locator, target_caret) {
+  | (Some((tile_id, shard_idx)), Inner(_)) =>
+    switch (jump_to_shard(z, tile_id, shard_idx)) {
+    | Some(z') => Zipper.Caret.set(target_caret, z')
+    | None => Zipper.Caret.set(target_caret, z)
+    }
+  | _ => z
+  };
 
 /* Moves to the left side of the token with the given id,
  * then checks if it's indicated. If not, move one token
@@ -218,8 +291,8 @@ let move_dispatch =
   | Start => Some(to_start(z))
   | End => Some(to_end(z))
   | Line(d) => to_linebreak(d, z)
-  | Vertical(d) => vertical(~measured, ~col_target, d, z)
-  | Point(goal) => to_point(~measured, ~goal, z)
+  | Vertical(d, _) => vertical(~measured, ~col_target, d, z)
+  | Point(goal, _) => to_point(~measured, ~goal, z)
   | Goal(Hole(d)) => to_next_grout(d, z)
   | Goal(NextProblem(d)) => to_next_problem(~measured, ~problem_ids, d, z)
   | Goal(TileId(id)) => jump_to_id_indicated(z, id)
@@ -233,15 +306,25 @@ let pre_unselect = (a: Action.move, z: t): t => {
   let d =
     switch (a) {
     | Local(d, _) => d
-    | Vertical(Up) => Left
-    | Vertical(Down) => Right
+    | Vertical(Up, _) => Left
+    | Vertical(Down, _) => Right
     | Start
     | End
     | Line(_)
     | Point(_)
     | Goal(_) => z.selection.focus
     };
-  Zipper.directional_unselect(d, z);
+  let landing_at_anchor = d != z.selection.focus;
+  let target_caret: CaretBase.t =
+    landing_at_anchor ? z.selection.anchor_caret : z.caret;
+  let locator =
+    shard_locator(
+      landing_at_anchor
+        ? Selection.anchor_piece(z.selection)
+        : Selection.focus_piece(z.selection),
+    );
+  let z = Zipper.directional_unselect(d, z);
+  canonicalize_inner_unselect(~locator, ~target_caret, z);
 };
 let go =
     (
@@ -258,9 +341,9 @@ let go =
   } else {
     let z = pre_unselect(a, z);
     switch (a) {
-    // By char just unselects
-    | Local(Left, ByChar)
-    | Local(Right, ByChar) => Some(z)
+    // By char or smart just unselects (movement within selection)
+    | Local(Left, ByChar | BySmart)
+    | Local(Right, ByChar | BySmart) => Some(z)
     | _ =>
       switch (
         move_dispatch(~statics, ~problem_ids, ~col_target, ~measured, a, z)
