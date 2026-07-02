@@ -802,6 +802,16 @@ let leading_tests = [
     ~expected="let a = [1,2] in ?",
     ~expected_no_sep="let a = [1,2]in?",
   ),
+  /* Partitioning at the unindented x leaves the juxtaposition's concave
+     grout dangling at the first partition's edge; it must be dropped or
+     the non-convex partition degrades opener placement to line start
+     (and x stays unbound) */
+  test_sep(
+    ~name="opener placement across partition boundary",
+    ~input="let a = 1,2]\na",
+    ~expected="let a = [1,2] in\na",
+    ~expected_no_sep="let a = [1,2]in\na",
+  ),
   test(
     ~name="leading and trailing interplay",
     ~input="(1, 2]",

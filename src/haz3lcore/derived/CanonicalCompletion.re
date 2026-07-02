@@ -584,11 +584,38 @@ let case_wrap_shards = (id: Id.t): (Piece.t, Piece.t) => {
   };
 };
 
+/* A concave grout whose operand fell into the neighboring partition is
+ * dangling: only secondary sits between it and the partition edge. It
+ * makes the subsegment non-convex, so Segment.skel throws and opener
+ * placement / wrap detection silently degrade to their fallbacks
+ * (openers land at partition start — cf. `let x = 1, 2]` + newline +
+ * unindented `x`). Drop it; the final regrout re-derives whatever the
+ * completed boundary needs. */
+let drop_dangling_grout = (subseg: Segment.t): Segment.t => {
+  let drop_edge = ps => {
+    let rec go = (secs, ps) =>
+      switch (ps) {
+      | [Piece.Secondary(_) as w, ...rest] => go([w, ...secs], rest)
+      | [Piece.Grout({shape: Concave, _}), ...rest] =>
+        List.rev_append(secs, rest)
+      | _ => List.rev_append(secs, ps)
+      };
+    go([], ps);
+  };
+  subseg |> drop_edge |> List.rev |> drop_edge |> List.rev;
+};
+
 let complete_segment =
     (~use_indent_heuristic=true, sort: Sort.t, seg: Segment.t)
     : completion_result => {
   /* Single pass: partition AND collect incomplete tiles */
   let partitioned = partition_segment(~use_indent_heuristic, seg);
+  /* boundary sanitation only matters once a split actually happened */
+  let partitioned =
+    List.length(partitioned) <= 1
+      ? partitioned
+      : partitioned
+        |> List.map(((subseg, inc)) => (drop_dangling_grout(subseg), inc));
 
   /* Orphaned rule chains: per-partition case/end wrap spans (Exp/Any
      sort only; drv has its own rule forms) */
