@@ -16,6 +16,18 @@ module IdTag = {
   [@deriving (show({with_path: false}), sexp, yojson, eq)]
   type incomplete_tiles = list((Id.t, list(int)));
 
+  /* Copy semantics: every field must declare what happens under the
+     copy/re-id operations (fast_copy, Exp.replace_all_ids, replace_temp).
+     Two axes decide it:
+     - id-bearing? secondary entries and incomplete masks reference ids,
+       so value copies must DROP them (or remap, which nothing needs yet);
+       naively preserving them would duplicate ids one level down.
+     - source- or value-meaning? lexeme is id-free and carries semantics
+       into values (hole flavor, stuck unknown ops), so copies KEEP it;
+       literal spellings are gated at display instead
+       (ExpToSegment.Settings.use_literal_lexemes).
+     Cache/recompute gates comparing terms must not use annotation-blind
+     equality — see Exp.fast_equal_with_lexemes. */
   [@deriving (show({with_path: false}), sexp, yojson, eq)]
   type t = {
     [@show.opaque]
@@ -136,28 +148,13 @@ let rep_id = ({annotation: {ids, _}, _}: Annotated.t('a, IdTag.t)) =>
    like fast_copy_with_secondary(id, source, term).
    Also discards shard provenance: the new ids no longer reference the
    original tiles. */
-let fast_copy = (id, {term, _}: t('a)): t('a) => {
+let fast_copy = (id, {term, annotation}: t('a)): t('a) => {
   term,
   annotation: {
     ids: [id],
     secondary: IdTag.empty_secondary,
     incomplete: [],
-    lexeme: None,
-  },
-};
-
-/* Generate new ids for term, preserving secondary and lexeme (both are
-   id-independent surface data; results pass through replace_all_ids on
-   the way to display and must keep e.g. hole flavor).
-   Drops shard provenance (tile-id references are invalidated). */
-let new_ids =
-    ({term, annotation: {ids: _, secondary, lexeme, _}}: t('a)): t('a) => {
-  term,
-  annotation: {
-    ids: [Id.mk()],
-    secondary,
-    incomplete: [],
-    lexeme,
+    lexeme: annotation.lexeme,
   },
 };
 

@@ -86,6 +86,13 @@ let lexeme_trace = (e: t): list(option(string)) => {
   acc^;
 };
 
+/* fast_equal plus lexeme comparison. fast_equal ignores annotations, but
+   lexemes carry display and semantics (hole flavor, stuck unknown-op
+   applications), so recompute/caching gates must use this variant or
+   lexeme-only edits serve stale results (cf. IncrEval.reuse_check). */
+let fast_equal_with_lexemes = (a: t, b: t): bool =>
+  fast_equal(a, b) && lexeme_trace(a) == lexeme_trace(b);
+
 let temp: term => t =
   term => {
     term,

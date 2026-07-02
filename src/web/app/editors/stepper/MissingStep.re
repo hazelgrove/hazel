@@ -254,7 +254,7 @@ module Update = {
         // Extract an exp from the editor
         let cached_exp =
           Calc.set(
-            ~eq=Exp.fast_equal,
+            ~eq=Exp.fast_equal_with_lexemes,
             CodeEditable.Model.get_statics(editor).elaborated,
             cached_exp,
           );

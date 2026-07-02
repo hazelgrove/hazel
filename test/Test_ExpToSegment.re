@@ -1348,6 +1348,13 @@ let result_display_test =
       /* hole flavor survives evaluation and re-idding (B8) */
       check(string, "explicit hole", "1 + ?", display(run("1 + ?")));
       check(string, "llm hole", "1 + ??", display(run("1 + ??")));
+      /* hole flavor also survives VarLookup's fast_copy */
+      check(
+        string,
+        "hole via lookup",
+        "??",
+        display(run("let x = ?? in x")),
+      );
       /* unknown ops are stuck, not evaluated-to-last (B9) */
       check(string, "stuck op", "1 @@@ 2", display(run("1 @@@ 2")));
       /* plain juxtaposition (no op lexeme) keeps eval-to-last semantics */
