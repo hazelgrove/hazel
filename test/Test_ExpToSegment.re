@@ -642,6 +642,10 @@ let roundtrip_tests = (
     roundtrip_test({|Explicit hole operand|}, {|1 + ?|}),
     roundtrip_test({|LLM hole|}, {|1 + ??|}),
     roundtrip_test({|Float pattern|}, {|fun 3.14 -> 1|}),
+    roundtrip_test({|Label: unnecessary backticks|}, {|(`a`=1)|}),
+    roundtrip_test({|Label: backticked dot|}, {|x.`a`|}),
+    roundtrip_test({|Label: backticked pat|}, {|fun (`a`=x) -> x|}),
+    roundtrip_test({|Label: backticked typ|}, {|1 : (`a`=Int)|}),
     roundtrip_test({|Negative int|}, {|-42|}),
     roundtrip_test({|Variable|}, {|x|}),
     roundtrip_test({|String literal|}, {|"hello"|}),
@@ -821,24 +825,12 @@ in f(42)|},
     ),
     roundtrip_test({|Sum type: spaced|}, {|type T = + A + B in T|}),
     roundtrip_test({|Sum type: compact|}, {|type T = +A+B in T|}),
-    /* Sum type without leading + prefix - KNOWN LIMITATION
-       Both `A + B` and `+A + B` parse to the same Sum term.
-       ExpToSegment always emits the prefixed form.
-       See plans/secondary-in-terms-v2.md "Sum type leading + prefix" for options. */
-    test_case(
-      "Sum type: no leading prefix (SKIP)",
-      `Quick,
-      () => {
-        let _ = Alcotest.skip();
-        let input = {|type T = A + B in T|};
-        switch (Parser.to_term(input, ~root=Exp)) {
-        | Some(term) =>
-          let seg' = exp_to_segment_roundtrip(term);
-          let output = print_seg(seg');
-          check(string, {|Round-trip text|}, input, output);
-        | None => Alcotest.fail({|Failed to parse|})
-        };
-      },
+    /* Bare sums: the parse's id count distinguishes `A + B` from
+       `+A + B` (n-1 separator ids vs n with the leading + tile) */
+    roundtrip_test({|Sum type: no leading prefix|}, {|type T = A + B in T|}),
+    roundtrip_test(
+      {|Sum type: no leading prefix, args|},
+      {|type T = A(Int) + B in T|},
     ),
     /* Filter expressions (hide/eval/pause/debug ... in) and unquote ($) */
     roundtrip_test({|Filter: hide|}, {|hide 1 in 2|}),

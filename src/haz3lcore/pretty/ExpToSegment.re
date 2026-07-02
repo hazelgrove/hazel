@@ -115,6 +115,15 @@ let hole_lexeme = (ann: IdTagged.IdTag.t): option(string) =>
   | _ => None
   };
 
+let quoted_label_lexeme = (ann: IdTagged.IdTag.t, label: string): string =>
+  switch (ann.lexeme) {
+  | Some(l)
+      when
+        Token.is_quoted_label(l)
+        && Token.strip_quotes(~quote=Token.label_delim, l) == label => l
+  | _ => Token.label_quote(label)
+  };
+
 let atom_lexeme = (ann: IdTagged.IdTag.t, c: Atom.t): string => {
   let canonical = Atom.to_literal(c);
   switch (ann.lexeme) {
@@ -2036,6 +2045,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
       label_to_pretty(
         ~label_format=settings.label_format,
         ~label_only_position=false,
+        ~lexeme=exp.annotation.lexeme,
         Sort.Exp,
         Token.label_quote(l),
         exp |> Exp.rep_id,
@@ -2050,6 +2060,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
           label_to_pretty(
             ~label_format=settings.label_format,
             ~label_only_position=true,
+            ~lexeme=l.annotation.lexeme,
             Sort.Exp,
             l',
             l |> Exp.rep_id,
@@ -2095,6 +2106,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
           label_to_pretty(
             ~label_format=settings.label_format,
             ~label_only_position=true,
+            ~lexeme=l.annotation.lexeme,
             Sort.Exp,
             l',
             l |> Exp.rep_id,
@@ -2375,17 +2387,17 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
              go(e)
            | EmptyHole =>
              let item_id = item |> Mod.rep_id;
-             p_just(
-               wrap_item(
-                 item,
-                 [
+             let seg =
+               switch (hole_lexeme(item.annotation)) {
+               | Some(tok) => text_to_pretty(item_id, Sort.Mod, tok)
+               | None => [
                    Grout({
                      id: item_id,
                      shape: Convex,
                    }),
-                 ],
-               ),
-             );
+                 ]
+               };
+             p_just(wrap_item(item, seg));
            | Invalid(s) =>
              p_just(
                wrap_item(
@@ -2557,6 +2569,7 @@ and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
           label_to_pretty(
             ~label_format=settings.label_format,
             ~label_only_position=true,
+            ~lexeme=l.annotation.lexeme,
             Sort.Pat,
             l',
             l |> Pat.rep_id,
@@ -2594,7 +2607,11 @@ and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
   | Label(l) =>
     wrap(
       pat,
-      text_to_pretty(pat |> Pat.rep_id, Sort.Pat, Token.label_quote(l)),
+      text_to_pretty(
+        pat |> Pat.rep_id,
+        Sort.Pat,
+        quoted_label_lexeme(pat.annotation, l),
+      ),
     )
   | Parens(p) =>
     let id = pat |> Pat.rep_id;
@@ -2792,7 +2809,11 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
   | Label(l) =>
     wrap(
       typ,
-      text_to_pretty(typ |> Typ.rep_id, Sort.Typ, Token.label_quote(l)),
+      text_to_pretty(
+        typ |> Typ.rep_id,
+        Sort.Typ,
+        quoted_label_lexeme(typ.annotation, l),
+      ),
     )
   | TupLabel(l, t) =>
     let+ l =
@@ -2803,6 +2824,7 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
           label_to_pretty(
             ~label_format=settings.label_format,
             ~label_only_position=true,
+            ~lexeme=l.annotation.lexeme,
             Sort.Typ,
             l',
             l |> Typ.rep_id,
@@ -2848,6 +2870,7 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
           label_to_pretty(
             ~label_format=settings.label_format,
             ~label_only_position=true,
+            ~lexeme=t2.annotation.lexeme,
             Sort.Typ,
             l',
             t2 |> Typ.rep_id,
@@ -2897,19 +2920,36 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
     let+ t = go_constructor(t);
     wrap(typ, [mk_form(TypSumSingle, id, [])] @ t);
   | Sum([t, ...ts]) =>
-    let ids = IdTagged.ids(typ) |> pad_ids(List.length(ts) + 1);
-    let id = List.hd(ids);
-    let ids = List.tl(ids);
+    /* A leading-plus parse absorbs the inner sum's separator ids after
+       the leading + tile, yielding n ids for n variants; a bare binary
+       sum (A + B) carries only the n-1 separators. Evaluator-built sums
+       (single id, n >= 2) print bare, which reparses to the same Sum. */
+    let n = List.length(ts) + 1;
+    let has_leading = List.length(IdTagged.ids(typ)) >= n;
     let+ t = go_constructor(t)
     and+ ts = ts |> List.map(go_constructor) |> all;
-    wrap(
-      typ,
-      [mk_form(TypSumSingle, id, [])]
-      @ t
-      @ List.flatten(
-          List.map2((id, t) => [mk_form(TypPlus, id, [])] @ t, ids, ts),
-        ),
-    );
+    if (has_leading) {
+      let ids = IdTagged.ids(typ) |> pad_ids(n);
+      let id = List.hd(ids);
+      let ids = List.tl(ids);
+      wrap(
+        typ,
+        [mk_form(TypSumSingle, id, [])]
+        @ t
+        @ List.flatten(
+            List.map2((id, t) => [mk_form(TypPlus, id, [])] @ t, ids, ts),
+          ),
+      );
+    } else {
+      let ids = IdTagged.ids(typ) |> pad_ids(n - 1);
+      wrap(
+        typ,
+        t
+        @ List.flatten(
+            List.map2((id, t) => [mk_form(TypPlus, id, [])] @ t, ids, ts),
+          ),
+      );
+    };
   | Sig([]) =>
     /* Empty sig: {} */
     wrap(typ, text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "{}"))
@@ -2933,17 +2973,17 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
              );
            | EmptyHole =>
              let item_id = item |> Sig.rep_id;
-             p_just(
-               wrap_item(
-                 item,
-                 [
+             let seg =
+               switch (hole_lexeme(item.annotation)) {
+               | Some(tok) => text_to_pretty(item_id, Sort.Sig, tok)
+               | None => [
                    Grout({
                      id: item_id,
                      shape: Convex,
                    }),
-                 ],
-               ),
-             );
+                 ]
+               };
+             p_just(wrap_item(item, seg));
            | Invalid(s) =>
              p_just(
                wrap_item(
@@ -3050,17 +3090,17 @@ and mod_to_pretty = (~settings: Settings.t, item: Mod.t): pretty => {
       [mk_form(ModuleMod, item |> Mod.rep_id, [mp_seg])] @ e,
     );
   | EmptyHole =>
-    p_just(
-      wrap_item(
-        item,
-        [
+    let seg =
+      switch (hole_lexeme(item.annotation)) {
+      | Some(tok) => text_to_pretty(item |> Mod.rep_id, Sort.Mod, tok)
+      | None => [
           Grout({
             id: item |> Mod.rep_id,
             shape: Convex,
           }),
-        ],
-      ),
-    )
+        ]
+      };
+    p_just(wrap_item(item, seg));
   | Invalid(s) =>
     p_just(wrap_item(item, text_to_pretty(item |> Mod.rep_id, Sort.Mod, s)))
   | MultiHole(_) =>
@@ -3081,17 +3121,17 @@ and sig_to_pretty = (~settings: Settings.t, item: Sig.t): pretty => {
     and+ t = typ_to_pretty(~settings, t);
     wrap_item(item, [mk_form(SigType, item |> Sig.rep_id, [tp])] @ t);
   | EmptyHole =>
-    p_just(
-      wrap_item(
-        item,
-        [
+    let seg =
+      switch (hole_lexeme(item.annotation)) {
+      | Some(tok) => text_to_pretty(item |> Sig.rep_id, Sort.Sig, tok)
+      | None => [
           Grout({
             id: item |> Sig.rep_id,
             shape: Convex,
           }),
-        ],
-      ),
-    )
+        ]
+      };
+    p_just(wrap_item(item, seg));
   | Invalid(s) =>
     p_just(wrap_item(item, text_to_pretty(item |> Sig.rep_id, Sort.Sig, s)))
   | MultiHole(_) =>
@@ -3183,21 +3223,40 @@ and label_to_pretty =
     (
       ~label_format: Settings.label_format,
       ~label_only_position,
+      ~lexeme: option(string)=None,
       sort: Sort.t,
       label: string,
       id: Uuidm.t,
     )
     : pretty => {
+  /* A recorded lexeme (the token as typed, e.g. unnecessarily-backticked
+     `a`) wins when it still denotes this label */
+  let lexeme =
+    switch (lexeme) {
+    | Some(l)
+        when
+          Token.is_quoted_label(l)
+          && (
+            Token.strip_quotes(~quote=Token.label_delim, l) == label
+            || l == label
+          ) =>
+      Some(l)
+    | _ => None
+    };
   text_to_pretty(
     id,
     sort,
-    if (label_only_position) {
-      switch (label_format) {
-      | QuoteWhenNecessary => Token.quote_label_when_necessary(label)
-      | AlwaysQuote => Token.label_quote(label)
-      };
-    } else {
-      label;
+    switch (lexeme) {
+    | Some(l) => l
+    | None =>
+      if (label_only_position) {
+        switch (label_format) {
+        | QuoteWhenNecessary => Token.quote_label_when_necessary(label)
+        | AlwaysQuote => Token.label_quote(label)
+        };
+      } else {
+        label;
+      }
     },
   );
 };

@@ -724,7 +724,8 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
       | ([t], []) when Token.is_string(t) =>
         ret(Atom(String(Token.strip_quotes(t))))
       | ([t], []) when Token.is_quoted_label(t) =>
-        ret(Label(Token.strip_quotes(~quote=Token.label_delim, t)))
+        set_lexeme(t);
+        ret(Label(Token.strip_quotes(~quote=Token.label_delim, t)));
       | ([t], []) when Token.is_float(t) =>
         set_lexeme(t);
         ret(Atom(Float(float_of_string(t))));
@@ -1088,7 +1089,8 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
       | ([t], []) when Token.is_string(t) =>
         ret(Atom(String(Token.strip_quotes(t))))
       | ([t], []) when Token.is_quoted_label(t) =>
-        ret(Label(Token.strip_quotes(~quote=Token.label_delim, t)))
+        set_lexeme(t);
+        ret(Label(Token.strip_quotes(~quote=Token.label_delim, t)));
       | ([t], []) when Token.is_var(t) => ret(Var(t))
       | ([t], []) when Token.is_wild(t) => ret(Wild)
       | ([t], []) when Token.is_ctr(t) => ret(Constructor(t, None))
@@ -1257,7 +1259,8 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
         | (["proof_of", "end"], [Exp(exp)]) => ProofOf(exp)
         | ([t], []) when Token.is_typ_var(t) => Var(t)
         | ([t], []) when Token.is_quoted_label(t) =>
-          Label(Token.sub(t, 1, Token.length(t) - 2))
+          set_lexeme(t);
+          Label(Token.sub(t, 1, Token.length(t) - 2));
         | (["(", ")"], [Typ(body)]) => Parens(body)
         | (["PROJ_WRAP", "PROJ_WRAP"], [Typ(body)]) => body.term
         | (["[", "]"], [Typ(body)]) => List(body)
@@ -1395,12 +1398,14 @@ and tpat_term: unsorted => TPat.term = {
 /* Phase 1.2: Module parsing - placeholder implementation */
 and mod_ = unsorted => {
   let term = mod_term(unsorted);
+  let lexeme = take_lexeme();
   let ids = ids(unsorted);
   return(
     m => Mod(m),
     ids,
     IdTagged.mk(
       ~incomplete=get_incomplete(ids),
+      ~lexeme,
       ids,
       get_secondary(ids),
       term,
@@ -1415,7 +1420,9 @@ and mod_term: unsorted => TermBase.Mod.term = {
     switch (tiles) {
     | ([(_id, tile)], []) =>
       switch (tile) {
-      | ([t], []) when is_hole_label(t) => ret(hole(tm))
+      | ([t], []) when is_hole_label(t) =>
+        set_lexeme(t);
+        ret(hole(tm));
       | _ =>
         /* Try parsing as expression and wrap as ModExp */
         let e = exp(Op(tiles));
@@ -1457,12 +1464,14 @@ and mod_term: unsorted => TermBase.Mod.term = {
 }
 and sig_ = unsorted => {
   let term = sig_term(unsorted);
+  let lexeme = take_lexeme();
   let ids = ids(unsorted);
   return(
     s => Sig(s),
     ids,
     IdTagged.mk(
       ~incomplete=get_incomplete(ids),
+      ~lexeme,
       ids,
       get_secondary(ids),
       term,
@@ -1477,7 +1486,9 @@ and sig_term: unsorted => TermBase.Sig.term = {
     switch (tiles) {
     | ([(_id, tile)], []) =>
       switch (tile) {
-      | ([t], []) when is_hole_label(t) => ret(hole(tm))
+      | ([t], []) when is_hole_label(t) =>
+        set_lexeme(t);
+        ret(hole(tm));
       | ([t], []) => ret(Invalid(t))
       | _ => ret(hole(tm))
       }
@@ -1504,12 +1515,14 @@ and sig_term: unsorted => TermBase.Sig.term = {
 }
 and mpat = unsorted => {
   let term = mpat_term(unsorted);
+  let lexeme = take_lexeme();
   let ids = ids(unsorted);
   return(
     mp => MPat(mp),
     ids,
     IdTagged.mk(
       ~incomplete=get_incomplete(ids),
+      ~lexeme,
       ids,
       get_secondary(ids),
       term,
@@ -1524,7 +1537,9 @@ and mpat_term: unsorted => TermBase.MPat.term = {
     switch (tiles) {
     | ([(_id, ([t], []))], []) when Token.is_var(t) || Token.is_ctr(t) =>
       ret(Var(t))
-    | ([(_id, ([t], []))], []) when is_hole_label(t) => ret(hole(tm))
+    | ([(_id, ([t], []))], []) when is_hole_label(t) =>
+      set_lexeme(t);
+      ret(hole(tm));
     | ([(_id, ([t], []))], []) => ret(Invalid(t))
     | _ => ret(hole(tm))
     }
