@@ -3144,9 +3144,8 @@ and label_to_pretty =
    them back to their original shards, splicing the dropped shards\'
    children into the parent segment, then regrouts. Applies in all print
    modes: the completion is a semantic device, not user-typed syntax.
-   V1 limitations: masks on Mod/Sig/MPat/Drv terms are not collected
-   (Any.map_term has no hooks for them), and projector-internal syntax is
-   left alone. */
+   V1 limitations: masks on Drv terms are not collected (drv has its own
+   traversal machinery), and projector-internal syntax is left alone. */
 
 let collect_shard_masks = (any: Any.t): Id.Map.t(list(int)) => {
   let acc = ref(Id.Map.empty);
@@ -3160,7 +3159,17 @@ let collect_shard_masks = (any: Any.t): Id.Map.t(list(int)) => {
     continue(t);
   };
   let _ =
-    Any.map_term(~f_exp=f, ~f_pat=f, ~f_typ=f, ~f_tpat=f, ~f_rul=f, any);
+    Any.map_term(
+      ~f_exp=f,
+      ~f_pat=f,
+      ~f_typ=f,
+      ~f_tpat=f,
+      ~f_rul=f,
+      ~f_mod=f,
+      ~f_sig=f,
+      ~f_mpat=f,
+      any,
+    );
   acc^;
 };
 

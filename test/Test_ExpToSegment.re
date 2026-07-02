@@ -1322,6 +1322,17 @@ let roundtrip_incomplete_tests = (
       {|Nested incomplete lets|},
       {|let a = 1 in let b = 2 |},
     ),
+    /* Module/Sig items: masks land on Mod/Sig terms, exercised via the
+       f_mod/f_sig map_term hooks */
+    roundtrip_incomplete_test({|Module: incomplete ModLet|}, {|{ type T }|}),
+    roundtrip_incomplete_test(
+      {|Module: incomplete item + brace|},
+      {|{ let x = 1; let y |},
+    ),
+    roundtrip_incomplete_test(
+      {|Sig: incomplete SigType|},
+      {|1 : { type T }|},
+    ),
     roundtrip_incomplete_test({|Complete control|}, {|let x = 1 in x|}),
   ],
 );
