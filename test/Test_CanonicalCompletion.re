@@ -10,10 +10,13 @@ let string_testable = testable(Fmt.string, String.equal);
 
 /* Parse a string to a segment */
 let parse_segment = (s: string): option(Segment.t) => {
-  switch (Parser.to_zipper(~root=Exp, s)) {
+  /* Parser.to_segment (not bare to_zipper): the final rescan_reassemble
+     is what gloms |/=> shards into rule tiles, and Zipper.init's
+     trailing grout is stripped — matching what the editor's sem path
+     actually feeds completion. */
+  switch (Parser.to_segment(~root=Exp, s)) {
   | exception _ => None
-  | None => None
-  | Some(z) => Some(Zipper.unselect_and_zip(~erase_buffer=true, z))
+  | seg => seg
   };
 };
 
@@ -730,36 +733,6 @@ in x|},
   ),
 ];
 
-/* === PHASE 5 TESTS: Leading Delimiters (Future) ===
- *
- * Leading delimiters (`)` without `(`) - design TBD.
- * For now, just verify they don't crash.
- */
-
-let leading_tests = [
-  /* These might stay incomplete or be handled specially */
-  test(
-    ~name="unmatched close paren",
-    ~input="1)",
-    ~expected="1)" /* TBD - might change */
-  ),
-];
-
-/* === PHASE 6 TESTS: Middle Delimiters (Future) ===
- *
- * Missing middle delimiter (e.g., `let x in 1` without `=`).
- * Heuristic: insert before the next present shard.
- */
-
-let middle_tests = [
-  test_sep(
-    ~name="let missing equals",
-    ~input="let x in 1",
-    ~expected="let x = ? in 1",
-    ~expected_no_sep="let x=?in 1",
-  ),
-];
-
 /* === TEST RUNNERS ===
  *
  * For now, we only run baseline tests until completion is implemented.
@@ -806,6 +779,120 @@ let run_completion_tests = (tests: list(completion_test)) =>
        );
      });
 
+/* === Phase 5 golden tests: leading, middle, wraps, interplay ===
+ * These document the completion heuristics:
+ * - leading openers insert at the start of the closer's left-operand
+ *   span in the partition skel (maximal absorption, bounded by
+ *   enclosing structure); same-position ties open later-closers
+ *   outermost.
+ * - middle gaps fill in place: content keeps its opening-shard slot,
+ *   new slots get holes.
+ * - orphaned rule chains wrap in a synthesized case/end. */
+let leading_tests = [
+  test(~name="unopened paren", ~input="1, 2)", ~expected="(1, 2)"),
+  test(~name="unopened bracket", ~input="1, 2]", ~expected="[1, 2]"),
+  test(
+    ~name="two unopened parens: later closer opens outermost",
+    ~input="1) + 2)",
+    ~expected="((1) + 2)",
+  ),
+  test_sep(
+    ~name="opener bounded by enclosing prefix form",
+    ~input="let a = 1,2]",
+    ~expected="let a = [1,2] in ?",
+    ~expected_no_sep="let a = [1,2]in?",
+  ),
+  test(
+    ~name="leading and trailing interplay",
+    ~input="(1, 2]",
+    ~expected="([1, 2])",
+  ),
+];
+
+let middle_tests = [
+  test_sep(
+    ~name="let missing equals",
+    ~input="let x in 2",
+    ~expected="let x = ? in 2",
+    ~expected_no_sep="let x =?in 2",
+  ),
+  test_sep(
+    ~name="if missing then",
+    ~input="if true else 2",
+    ~expected="if true then ? else 2",
+    ~expected_no_sep="if true then?else 2",
+  ),
+];
+
+/* Orphaned rule chains only exist with REAL ["|","=>"] rule tiles,
+ * which typing cannot produce outside a case (sort-driven expansion):
+ * typed bare `1 | A => 2` is standalone |, => token tiles — an
+ * unknown-operator juxtaposition handled by the op-lexeme machinery
+ * (stuck application), NOT wrappable without fusing two tiles into one
+ * (open design: two-id provenance). The wrappable state arises from
+ * edits: cutting case/end off a complete match. Construct it here by
+ * extracting the case tile's child from a complete parse. */
+let orphan_rules_seg = (src: string): Segment.t => {
+  let seg = must_parse(src);
+  switch (
+    seg
+    |> List.find_opt((p: Piece.t) =>
+         switch (p) {
+         | Tile(t) => t.label == ["case", "end"]
+         | _ => false
+         }
+       )
+  ) {
+  | Some(Tile(t)) => List.hd(t.children)
+  | _ => fail("no case tile in: " ++ src)
+  };
+};
+
+let wrap_seg_tests = [
+  (
+    "orphaned rule (edit-derived)",
+    "case 1 | A => 2 end",
+    " case1 | A => 2end ",
+  ),
+  (
+    "orphaned rule chain (edit-derived)",
+    "case 1 | A => 2 | B => 3 end",
+    " case1 | A => 2 | B => 3end ",
+  ),
+];
+
+let run_wrap_seg_tests =
+  wrap_seg_tests
+  |> List.map(((name, src, expected)) =>
+       test_case(
+         name,
+         `Quick,
+         () => {
+           let seg = orphan_rules_seg(src);
+           let result =
+             CanonicalCompletion.complete_segment_deep(~sort=Sort.Exp, seg);
+           let output = print_seg(result.completed_seg);
+           check(string_testable, name, expected, output);
+           check(
+             Alcotest.int,
+             "no incomplete",
+             0,
+             count_incomplete_deep(result.completed_seg),
+           );
+         },
+       )
+     );
+
+/* Typed bare rules: standalone token tiles; completion is a no-op and
+ * the chain lives on as a stuck unknown-op application. Documented. */
+let wrap_tests = [
+  test(
+    ~name="typed bare rules: no wrap",
+    ~input="1 | A => 2",
+    ~expected="1 | A => 2",
+  ),
+];
+
 let tests: list((string, list(Alcotest.test_case(unit)))) = [
   /* Debug test - run first to isolate crash */
   ("CanonicalCompletion: regrout-debug", regrout_debug_tests),
@@ -822,5 +909,9 @@ let tests: list((string, list(Alcotest.test_case(unit)))) = [
     "CanonicalCompletion: multi-incomplete",
     run_completion_tests(multi_incomplete_tests),
   ),
+  ("CanonicalCompletion: leading", run_completion_tests(leading_tests)),
+  ("CanonicalCompletion: middle", run_completion_tests(middle_tests)),
+  ("CanonicalCompletion: wraps", run_completion_tests(wrap_tests)),
+  ("CanonicalCompletion: wraps (edit-derived)", run_wrap_seg_tests),
   ("CanonicalCompletion: linebreaks", run_completion_tests(linebreak_tests)),
 ];

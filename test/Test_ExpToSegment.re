@@ -1405,9 +1405,11 @@ let roundtrip_incomplete_tests = (
       {|Sig: incomplete SigType|},
       {|1 : { type T }|},
     ),
-    /* Orphaned rule chains: rules outside any case get wrapped in a
-       synthesized case/end (fully-synthetic provenance; strip deletes
-       the tile and splices the chain back out) */
+    /* Typed bare rules are standalone |, => token tiles (real rule
+       tiles only form inside a case), so these roundtrip via the
+       unknown-op lexeme machinery, not the case wrap. Edit-derived
+       orphan chains (real rule tiles) are wrapped — see the golden
+       tests in Test_CanonicalCompletion. */
     roundtrip_incomplete_test({|Orphaned rule|}, {|1 | A => 2|}),
     roundtrip_incomplete_test(
       {|Orphaned rules, two clauses|},

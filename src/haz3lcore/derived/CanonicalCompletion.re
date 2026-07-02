@@ -115,12 +115,119 @@ let complete_middle_shards = (t: Tile.t): Tile.t => {
   };
 };
 
-/* Openers for all leading-incomplete tiles of a partition, prepended at
- * partition start. Reversed: the tile whose closer appears later must
- * open earlier (outermost), else nesting crosses — cf. `1) + 2)`
- * completing to ((1) + 2). */
+/* Fallback: all openers at partition start, later-closer outermost. */
 let leading_from_incomplete = (incomplete: list(Tile.t)): list(Piece.t) =>
   List.rev(incomplete) |> List.concat_map(leading_shards);
+
+/* === Opener placement ===
+ * An opener's position is the start of its closer's LEFT-OPERAND SPAN in
+ * the partition skel: the maximal span the completed form absorbs
+ * without crossing enclosing structure (closer shards have permissively
+ * loose concave-left nibs, so skel left kids are maximal chains, but a
+ * containing prefix form like `let a = ...` bounds them — `let a = 1,2]`
+ * must complete to `let a = [1,2] in ?`, not hoist `[` above the let).
+ * All positions are computed against the ORIGINAL skel and materialized
+ * simultaneously; insertion order can never mispair delimiters (shards
+ * pair by tile id at reassembly) — it only decides absorption spans and
+ * nesting. Same-position ties open the later closer outermost
+ * (`1) + 2)` -> ((1) + 2)). */
+let rec skel_leftmost = (sk: Skel.t): int =>
+  switch (sk) {
+  | Op(r)
+  | Pre(r, _) => Aba.first_a(r)
+  | Post(k, _)
+  | Bin(k, _, _) => skel_leftmost(k)
+  };
+
+let rec opener_insertion_index = (sk: Skel.t, idx: int): option(int) => {
+  let in_root = (r: Skel.root) => Aba.get_as(r) |> List.mem(idx);
+  let first_some = opts =>
+    List.fold_left(
+      (acc, o) =>
+        switch (acc) {
+        | Some(_) => acc
+        | None => o
+        },
+      None,
+      opts,
+    );
+  let search_kids = (r: Skel.root) =>
+    Aba.get_bs(r)
+    |> List.map(k => opener_insertion_index(k, idx))
+    |> first_some;
+  switch (sk) {
+  | Op(r) => in_root(r) ? None : search_kids(r)
+  | Pre(r, k) =>
+    in_root(r)
+      ? None  /* prefix shape: no left operand to absorb */
+      : first_some([search_kids(r), opener_insertion_index(k, idx)])
+  | Post(k, r) =>
+    in_root(r)
+      ? Some(skel_leftmost(k))
+      : first_some([opener_insertion_index(k, idx), search_kids(r)])
+  | Bin(l, r, rr) =>
+    in_root(r)
+      ? Some(skel_leftmost(l))
+      : first_some([
+          opener_insertion_index(l, idx),
+          search_kids(r),
+          opener_insertion_index(rr, idx),
+        ])
+  };
+};
+
+/* Splice each leading-incomplete tile's openers at its computed index.
+ * Ties: later tile (later closer) first at the same index = outermost. */
+let insert_openers = (subseg: Segment.t, incomplete: list(Tile.t)): Segment.t => {
+  let leading_incomplete =
+    incomplete |> List.filter((t: Tile.t) => Tile.l_shard(t) > 0);
+  if (leading_incomplete == []) {
+    subseg;
+  } else {
+    switch (Segment.skel(subseg)) {
+    | exception _ => leading_from_incomplete(leading_incomplete) @ subseg
+    | skel =>
+      let index_of = (t: Tile.t) => {
+        let rec go = (i, ps) =>
+          switch (ps) {
+          | [] => None
+          | [Piece.Tile(t'), ..._] when t'.id == t.id => Some(i)
+          | [_, ...rest] => go(i + 1, rest)
+          };
+        go(0, subseg);
+      };
+      let scheduled =
+        leading_incomplete
+        |> List.filter_map(t =>
+             index_of(t)
+             |> Option.map(idx =>
+                  (
+                    opener_insertion_index(skel, idx)
+                    |> Option.value(~default=0),
+                    idx,
+                    leading_shards(t),
+                  )
+                )
+           )
+        /* position asc; ties: later closer first (outermost) */
+        |> List.sort(((a1, i1, _), (a2, i2, _)) =>
+             a1 == a2 ? compare(i2, i1) : compare(a1, a2)
+           );
+      let rec splice = (i, ps, sched) =>
+        switch (sched) {
+        | [] => ps
+        | [(at, _, openers), ...rest] when at == i =>
+          openers @ splice(i, ps, rest)
+        | _ =>
+          switch (ps) {
+          | [] => List.concat_map(((_, _, o)) => o, sched)
+          | [p, ...ptl] => [p, ...splice(i + 1, ptl, sched)]
+          }
+        };
+      splice(0, subseg, scheduled);
+    };
+  };
+};
 
 /* Check if a shard needs a hole after it (has concave right side).
  *
@@ -340,24 +447,76 @@ let last_piece_for_insertion = (seg: Segment.t): option(Piece.t) =>
  * wrapped in v1: wrap detection runs before trailing completion. */
 let rule_label = ["|", "=>"];
 
-let orphan_rules_wrap_id = (~sort: Sort.t, subseg: Segment.t): option(Id.t) =>
-  switch (sort) {
-  | Exp
-  | Any =>
-    switch (Segment.skel(subseg)) {
-    | exception _ => None
-    | skel =>
-      let root_pieces =
-        Skel.root(skel) |> Aba.get_as |> List.map(List.nth(subseg));
-      switch (root_pieces) {
-      | [Piece.Tile(t), ..._]
-          when t.label == rule_label && Tile.is_complete(t) =>
-        Some(Id.next(t.id))
-      | _ => None
-      };
-    }
-  | _ => None
+/* Rule-chain nodes anywhere in the partition skel: nodes whose root
+ * pieces are complete ["|","=>"] rule tiles. Each yields the index span
+ * (leftmost..rightmost, kids included: scrutinee + clauses) to wrap in a
+ * synthesized case/end, plus a deterministic wrap-tile id derived from
+ * the first rule tile. Robust to enclosing junk (leading/trailing grout
+ * or juxtaposed content): the chain need not be the partition root. */
+let rec skel_rightmost = (sk: Skel.t): int =>
+  switch (sk) {
+  | Op(r)
+  | Post(_, r) => Aba.last_a(r)
+  | Pre(_, k)
+  | Bin(_, _, k) => skel_rightmost(k)
   };
+
+let rule_chain_spans =
+    (subseg: Segment.t, sk: Skel.t): list((int, int, Id.t)) => {
+  let root_rule_id = (r: Skel.root): option(Id.t) =>
+    switch (Aba.get_as(r) |> List.map(List.nth(subseg))) {
+    | [] => None
+    | ps =>
+      let all_rules =
+        ps
+        |> List.for_all((p: Piece.t) =>
+             switch (p) {
+             | Tile(t) => t.label == rule_label && Tile.is_complete(t)
+             | _ => false
+             }
+           );
+      all_rules
+        ? switch (List.hd(ps)) {
+          | Piece.Tile(t) => Some(Id.next(t.id))
+          | _ => None
+          }
+        : None;
+    };
+  let rec go = (sk: Skel.t): list((int, int, Id.t)) => {
+    let kids_of_root = r => Aba.get_bs(r) |> List.concat_map(go);
+    let here = r =>
+      root_rule_id(r)
+      |> Option.map(id => [(skel_leftmost(sk), skel_rightmost(sk), id)]);
+    switch (sk) {
+    | Op(r) => here(r) |> Option.value(~default=kids_of_root(r))
+    | Pre(r, k) =>
+      here(r) |> Option.value(~default=kids_of_root(r) @ go(k))
+    | Post(k, r) =>
+      here(r) |> Option.value(~default=go(k) @ kids_of_root(r))
+    | Bin(l, r, rr) =>
+      here(r) |> Option.value(~default=go(l) @ kids_of_root(r) @ go(rr))
+    };
+  };
+  go(sk);
+};
+
+/* Insert pieces before the given indices (computed against the
+ * original segment), materialized in one pass. */
+let splice_at_indices =
+    (seg: Segment.t, inserts: list((int, Piece.t))): Segment.t => {
+  let sorted = List.sort(((a, _), (b, _)) => compare(a, b), inserts);
+  let rec go = (i, ps, sched) =>
+    switch (sched) {
+    | [] => ps
+    | [(at, piece), ...rest] when at == i => [piece, ...go(i, ps, rest)]
+    | _ =>
+      switch (ps) {
+      | [] => List.map(snd, sched)
+      | [p, ...ptl] => [p, ...go(i + 1, ptl, sched)]
+      }
+    };
+  go(0, seg, sorted);
+};
 
 let case_wrap_shards = (id: Id.t): (Piece.t, Piece.t) => {
   let form: Form.t = Form.get(Case);
@@ -373,20 +532,31 @@ let complete_segment =
   /* Single pass: partition AND collect incomplete tiles */
   let partitioned = partition_segment(~use_indent_heuristic, seg);
 
-  /* Orphaned rule chains: per-partition case/end wrap ids */
+  /* Orphaned rule chains: per-partition case/end wrap spans (Exp/Any
+     sort only; drv has its own rule forms) */
+  let wraps_of = subseg =>
+    switch (sort) {
+    | Exp
+    | Any =>
+      switch (Segment.skel(subseg)) {
+      | exception _ => []
+      | skel => rule_chain_spans(subseg, skel)
+      }
+    | _ => []
+    };
   let partitioned =
     partitioned
     |> List.map(((subseg, incomplete)) =>
-         (subseg, incomplete, orphan_rules_wrap_id(~sort, subseg))
+         (subseg, incomplete, wraps_of(subseg))
        );
 
   /* Extract all incomplete tiles for shard_records */
   let all_incomplete = List.concat_map(((_, inc, _)) => inc, partitioned);
   let wrap_records =
     partitioned
-    |> List.filter_map(((_, _, wrap)) =>
-         wrap
-         |> Option.map(id =>
+    |> List.concat_map(((_, _, wraps)) =>
+         wraps
+         |> List.map(((_, _, id)) =>
               {
                 tile_id: id,
                 original_shards: [],
@@ -437,11 +607,19 @@ let complete_segment =
            }
          );
 
-    /* Phase 1: Insert shards at end of each subsegment; wrap orphaned
-       rule chains in a synthesized case/end */
+    /* Phase 1: splice wrap shards (case/end around each rule-chain
+       span) and missing openers at their computed indices, fill interior
+       gaps in place, and append missing closers at the partition end */
     let seg_with_shards =
       partitioned
-      |> List.concat_map(((subseg, incomplete, wrap)) => {
+      |> List.concat_map(((subseg, incomplete, wraps)) => {
+           let wrap_inserts =
+             wraps
+             |> List.concat_map(((l_idx, r_idx, id)) => {
+                  let (l, r) = case_wrap_shards(id);
+                  [(l_idx, l), (r_idx + 1, r)];
+                });
+           let subseg = splice_at_indices(subseg, wrap_inserts);
            /* interior gaps are filled in place before shard insertion */
            let subseg =
              subseg
@@ -452,16 +630,8 @@ let complete_segment =
                   | pc => pc
                   }
                 );
-           let core =
-             leading_from_incomplete(incomplete)
-             @ subseg
-             @ shards_from_incomplete(incomplete);
-           switch (wrap) {
-           | None => core
-           | Some(id) =>
-             let (l, r) = case_wrap_shards(id);
-             [l] @ core @ [r];
-           };
+           insert_openers(subseg, incomplete)
+           @ shards_from_incomplete(incomplete);
          });
 
     /* Phase 2: Regrout to make segment well-formed for reassemble */
