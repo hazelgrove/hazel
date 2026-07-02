@@ -1038,6 +1038,13 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
             }
           | (["|>"], []) => Ap(Reverse, r, l)
           | (["@"], []) => ListConcat(l, r)
+          | ([op], []) =>
+            /* Unknown infix operator: kids survive as a MultiHole; the
+               operator token survives as its lexeme (printed back by
+               ExpToSegment). A first-class UnboundOp node (statics
+               error, custom operators) can supersede this later. */
+            set_lexeme(op);
+            hole(tm);
           | _ => hole(tm)
           },
         )

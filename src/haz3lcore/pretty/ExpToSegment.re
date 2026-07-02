@@ -115,6 +115,14 @@ let hole_lexeme = (ann: IdTagged.IdTag.t): option(string) =>
   | _ => None
   };
 
+let op_lexeme = (ann: IdTagged.IdTag.t): option(string) =>
+  switch (ann.lexeme) {
+  | Some(l)
+      when Token.is_potential_operator(l) && !Token.is_potential_operand(l) =>
+    Some(l)
+  | _ => None
+  };
+
 let quoted_label_lexeme = (ann: IdTagged.IdTag.t, label: string): string =>
   switch (ann.lexeme) {
   | Some(l)
@@ -1907,6 +1915,28 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
           id,
           label: ["..."],
           mold: Mold.mk_bin(Precedence.plus, Sort.Exp, []),
+          shards: [0],
+          children: [],
+        }),
+      ]
+      @ r,
+    );
+  | MultiHole([l, r]) when op_lexeme(exp.annotation) != None =>
+    /* Unknown infix operator (see MakeTerm's exp Bin fallthrough):
+       reconstruct the operator tile from the recorded lexeme, with the
+       same Any-sorted max-precedence bin mold Form gives unknown ops */
+    let op = Option.get(op_lexeme(exp.annotation));
+    let id = exp |> Exp.rep_id;
+    let+ l = any_to_pretty(~settings, l)
+    and+ r = any_to_pretty(~settings, r);
+    wrap(
+      exp,
+      l
+      @ [
+        Tile({
+          id,
+          label: [op],
+          mold: Mold.mk_bin(Precedence.max, Any, []),
           shards: [0],
           children: [],
         }),
