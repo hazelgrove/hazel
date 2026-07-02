@@ -1365,6 +1365,17 @@ let roundtrip_incomplete_tests = (
       {|Orphaned rule inside parens|},
       {|(1 | A => 2) + 3|},
     ),
+    /* Leading-shard loss: closing delimiters without openers; completion
+       prepends the missing openers at partition start (reverse order so
+       the later closer opens outermost).
+       NOTE: a typed lone `end` does NOT expand into a case shard the way
+       `)` expands into a paren shard — inserting it remolds rule tiles
+       apart into standalone token tiles. Keyword-form leading loss
+       (missing case/let) only arises from destructive edits; testing it
+       needs editing actions, not Parser typing. */
+    roundtrip_incomplete_test({|Unopened parens|}, {|1, 2)|}),
+    roundtrip_incomplete_test({|Unopened bracket|}, {|1, 2]|}),
+    roundtrip_incomplete_test({|Two unopened parens|}, {|1) + 2)|}),
     roundtrip_incomplete_test({|Complete control|}, {|let x = 1 in x|}),
     roundtrip_incomplete_test(
       {|Complete case control|},

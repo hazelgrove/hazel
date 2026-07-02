@@ -3335,35 +3335,52 @@ let rec strip_synthesized_shards =
        | Tile(t) =>
          let children =
            List.map(strip_synthesized_shards(masks), t.children);
-         let is_prefix = (orig, shards) =>
-           List.length(orig) <= List.length(shards)
-           && List.for_all2(
-                (==),
-                orig,
-                fst(ListUtil.split_n(List.length(orig), shards)),
-              );
+         let rec is_subsequence = (xs: list(int), ys: list(int)) =>
+           switch (xs, ys) {
+           | ([], _) => true
+           | (_, []) => false
+           | ([x, ...xs'], [y, ...ys']) =>
+             x == y ? is_subsequence(xs', ys') : is_subsequence(xs, ys')
+           };
+         let slice = (lo: int, hi: int, xs: list('a)): list('a) =>
+           xs |> List.filteri((i, _) => i >= lo && i < hi);
          switch (Id.Map.find_opt(t.id, masks)) {
          | Some([]) =>
            /* Fully synthetic tile (e.g. the case/end wrapped around an
               orphaned rule chain): drop it, splice out all children */
            List.concat(children)
-         | Some(orig) when orig != t.shards && is_prefix(orig, t.shards) =>
-           /* Completion only appends trailing shards today, so the
-              original shard list is a prefix: keep those shards and the
-              children between them, splice the rest\'s contents after. */
-           let n_keep = max(0, List.length(orig) - 1);
-           let (kept, dropped) = ListUtil.split_n(n_keep, children);
-           /* plain list append — the file-level @ is AutoFormat concat,
-              which would insert heuristic spaces here */
+         | Some(orig) when orig != t.shards && is_subsequence(orig, t.shards) =>
+           /* General mask (prefix = trailing completion, suffix = leading,
+              subsequence = middle): keep the originally-present shards.
+              The printed tile is complete, so child i sits between shards
+              i and i+1; children between consecutive kept shards merge
+              into the truncated tile's child slots, and children outside
+              the kept span splice out on the matching side. Plain list
+              ops throughout — the file-level @ is AutoFormat concat,
+              which would insert heuristic spaces. */
+           let first = List.hd(orig);
+           let last = List.nth(orig, List.length(orig) - 1);
+           let before = List.concat(slice(0, first, children));
+           let after =
+             List.concat(slice(last, List.length(children), children));
+           let rec kept_slots = m =>
+             switch (m) {
+             | [a, b, ...rest] => [
+                 List.concat(slice(a, b, children)),
+                 ...kept_slots([b, ...rest]),
+               ]
+             | _ => []
+             };
            List.concat([
+             before,
              [
                Piece.Tile({
                  ...t,
                  shards: orig,
-                 children: kept,
+                 children: kept_slots(orig),
                }),
              ],
-             List.concat(dropped),
+             after,
            ]);
          | _ => [
              Piece.Tile({

@@ -60,6 +60,17 @@ let trailing_shards = (t: Tile.t): list(Piece.t) =>
 let shards_from_incomplete = (incomplete: list(Tile.t)): list(Piece.t) =>
   List.rev(incomplete) |> List.concat_map(trailing_shards);
 
+/* Leading missing shard pieces for a tile (openers), natural order */
+let leading_shards = (t: Tile.t): list(Piece.t) =>
+  Tile.left_missing_shards(t) |> List.map(st => Piece.Tile(st));
+
+/* Openers for all leading-incomplete tiles of a partition, prepended at
+ * partition start. Reversed: the tile whose closer appears later must
+ * open earlier (outermost), else nesting crosses — cf. `1) + 2)`
+ * completing to ((1) + 2). */
+let leading_from_incomplete = (incomplete: list(Tile.t)): list(Piece.t) =>
+  List.rev(incomplete) |> List.concat_map(leading_shards);
+
 /* Check if a shard needs a hole after it (has concave right side).
  *
  * Delimiters with concave right expect something after them:
@@ -380,7 +391,10 @@ let complete_segment =
     let seg_with_shards =
       partitioned
       |> List.concat_map(((subseg, incomplete, wrap)) => {
-           let core = subseg @ shards_from_incomplete(incomplete);
+           let core =
+             leading_from_incomplete(incomplete)
+             @ subseg
+             @ shards_from_incomplete(incomplete);
            switch (wrap) {
            | None => core
            | Some(id) =>
