@@ -550,11 +550,11 @@ let rec tile_ids = (seg: Segment.t): list(string) =>
 
 let roundtrip_ids_test = (name: string, input: string) =>
   test_case(name, `Quick, () => {
-    switch (
-      Parser.to_term(input, ~root=Exp),
-      Parser.to_segment(input, ~root=Exp),
-    ) {
-    | (Some(term), Some(seg)) =>
+    /* Term must come from the SAME parse as the reference segment —
+       Parser.to_term would re-parse and mint entirely fresh ids. */
+    switch (Parser.to_segment(input, ~root=Exp)) {
+    | Some(seg) =>
+      let term = MakeTerm.go(seg).term;
       let seg' = exp_to_segment_roundtrip(term);
       check(
         list(string),
@@ -834,6 +834,11 @@ end|}),
     roundtrip_test({|Module: single let|}, {|{ let x = 1 }|}),
     roundtrip_test({|Module: multiple lets|}, {|{ let x = 1; let y = 2 }|}),
     roundtrip_test({|Module: compact spacing|}, {|{let x = 1}|}),
+    /* Bare-expression items: ModExp shares its rep id with the inner exp;
+       these caught a double-emission of the shared secondary. */
+    roundtrip_test({|Module: bare exp item|}, {|{ 1 }|}),
+    roundtrip_test({|Module: bare exp items|}, {|{ 1; 2 }|}),
+    roundtrip_test({|Module: let then bare exp|}, {|{ let x = 1; x }|}),
     roundtrip_test(
       {|Module: with type alias|},
       {|{ type T = Int; let x = 1 }|},

@@ -2300,8 +2300,11 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
                [mk_form(ModType, item |> Mod.rep_id, [tp])] @ t,
              );
            | ModExp(e) =>
-             let+ e = go(e);
-             wrap_item(item, e);
+             /* No wrap_item: a bare-expression item's ModExp wrapper shares
+                its rep id (hence its secondary) with the inner exp, whose own
+                wrap already emits it — wrapping both duplicates the runs,
+                growing whitespace on every roundtrip. */
+             go(e)
            | EmptyHole =>
              let item_id = item |> Mod.rep_id;
              p_just(
@@ -2948,8 +2951,9 @@ and mod_to_pretty = (~settings: Settings.t, item: Mod.t): pretty => {
     and+ t = typ_to_pretty(~settings, t);
     wrap_item(item, [mk_form(ModType, item |> Mod.rep_id, [tp])] @ t);
   | ModExp(e) =>
-    let+ e = exp_to_pretty(~settings, e);
-    wrap_item(item, e);
+    /* No wrap_item: ModExp shares its rep id (hence secondary) with the
+       inner exp; see the Module case in exp_to_pretty. */
+    exp_to_pretty(~settings, e)
   | ModuleMod(mp, e) =>
     let mp_seg = mpat_to_seg(~settings, mp);
     let+ e = exp_to_pretty(~settings, e);
