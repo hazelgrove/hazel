@@ -1350,6 +1350,19 @@ let result_display_test =
       check(string, "llm hole", "1 + ??", display(run("1 + ??")));
       /* unknown ops are stuck, not evaluated-to-last (B9) */
       check(string, "stuck op", "1 @@@ 2", display(run("1 @@@ 2")));
+      /* plain juxtaposition (no op lexeme) keeps eval-to-last semantics */
+      check(
+        string,
+        "juxtaposition evals to last",
+        "2",
+        display(run("1 2")),
+      );
+      check(
+        string,
+        "juxtaposition chain evals to last",
+        "3",
+        display(run("1 2 3")),
+      );
       /* literals canonicalize consistently in result views (B7) */
       check(
         string,

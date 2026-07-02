@@ -1038,11 +1038,19 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
             }
           | (["|>"], []) => Ap(Reverse, r, l)
           | (["@"], []) => ListConcat(l, r)
-          | ([op], []) =>
+          | ([op], [])
+              when
+                Token.is_potential_operator(op)
+                && !Token.is_potential_operand(op) =>
             /* Unknown infix operator: kids survive as a MultiHole; the
                operator token survives as its lexeme (printed back by
-               ExpToSegment). A first-class UnboundOp node (statics
-               error, custom operators) can supersede this later. */
+               ExpToSegment; elaborated as a stuck application). The
+               guard matters: grout arrives here as the pseudo-token " ",
+               and plain juxtaposition must NOT carry a lexeme — the
+               elaborator uses its presence to distinguish stuck
+               applications from transient juxtaposition (which keeps
+               eval-to-last semantics). A first-class UnboundOp node can
+               supersede this later. */
             set_lexeme(op);
             hole(tm);
           | _ => hole(tm)
