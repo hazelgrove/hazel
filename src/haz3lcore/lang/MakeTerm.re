@@ -982,12 +982,16 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
             | Label(_) => TupLabel(l, r)
             | EmptyHole => TupLabel(l, r)
             | _ =>
-              let (e_term, rewrap) = IdTagged.unwrap(l);
-
+              /* Wrapper shares the inner term's ids but no secondary
+                 (the inner term's own wrap emits it); a fresh inner
+                 would churn ids and drop secondary on every roundtrip */
               TupLabel(
-                rewrap(MultiHole([Exp(e_term |> Exp.fresh)]): Exp.term),
+                {
+                  annotation: IdTagged.IdTag.mk_internal(IdTagged.ids(l)),
+                  term: MultiHole([Exp(l)]),
+                },
                 r,
-              );
+              )
             }
           | (["."], []) =>
             switch (r.term) {
@@ -1003,12 +1007,14 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
             | Label(_) => Dot(l, r)
             | EmptyHole => Dot(l, r)
             | _ =>
-              let (e_term, rewrap) = IdTagged.unwrap(r);
-
+              /* See the TupLabel case above */
               Dot(
                 l,
-                rewrap(MultiHole([Exp(e_term |> Exp.fresh)]): Exp.term),
-              );
+                {
+                  annotation: IdTagged.IdTag.mk_internal(IdTagged.ids(r)),
+                  term: MultiHole([Exp(r)]),
+                },
+              )
             }
           | (["|>"], []) => Ap(Reverse, r, l)
           | (["@"], []) => ListConcat(l, r)

@@ -1431,6 +1431,40 @@ let roundtrip_projector_tests = (
   ],
 );
 
+/* P2: segment fixpoint. Render a generated exp to text, parse it to a
+   parser-canonical segment, and check MakeTerm . PreserveExact-print is
+   the identity on it: text always; tile ids only for hole-free renders
+   (explicit-hole tiles print back as grout — audit class A4, hole
+   flavor not yet in terms). */
+let arb_segment_fixpoint =
+  QCheck.Test.make(
+    ~name="ExpToSegment: PreserveExact segment fixpoint on generated exps",
+    ~count=50,
+    QCheck_Util.arb_exp(~minimal_idents=true, 5),
+    exp => {
+      let text =
+        exp
+        |> ExpToSegment.exp_to_segment(
+             ~settings=ExpToSegment.Settings.editable(~inline=true),
+             _,
+           )
+        |> Printer.of_segment(~holes="?", ~refractors=[], _);
+      switch (Parser.to_segment(text, ~root=Exp)) {
+      | None => true /* unparseable render: out of scope for P2 */
+      | Some(seg) =>
+        let term = MakeTerm.go(seg).term;
+        let seg2 = exp_to_segment_roundtrip(term);
+        print_seg(seg) == print_seg(seg2)
+        && (String.contains(text, '?') || tile_ids(seg) == tile_ids(seg2));
+      };
+    },
+  );
+
+let property_tests = (
+  "Round-Trip: Property",
+  [QCheck_alcotest.to_alcotest(~speed_level=`Slow, arb_segment_fixpoint)],
+);
+
 let all = [
   tests,
   roundtrip_tests,
@@ -1439,4 +1473,5 @@ let all = [
   roundtrip_larger_programs,
   roundtrip_grout_string_tests,
   roundtrip_projector_tests,
+  property_tests,
 ];
