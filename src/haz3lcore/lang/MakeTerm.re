@@ -210,6 +210,22 @@ let get_secondary = (ids: list(Id.t)): IdTagged.IdTag.secondary_runs =>
   | [] => IdTagged.IdTag.empty_secondary
   };
 
+/* Shard provenance from canonical completion: tile id -> shard indices
+ * physically present in the visible segment. Empty unless parsing a
+ * canonically completed segment (see go_impl / from_zip_for_sem). */
+let shard_masks: ref(Id.Map.t(list(int))) = ref(Id.Map.empty);
+
+/* The subset of this term's tiles that were completed, with their
+ * originally-present shards, for the annotation. */
+let get_incomplete = (ids: list(Id.t)): IdTagged.IdTag.incomplete_tiles =>
+  Id.Map.is_empty(shard_masks^)
+    ? []
+    : ids
+      |> List.filter_map(id =>
+           Id.Map.find_opt(id, shard_masks^)
+           |> Option.map(shards => (id, shards))
+         );
+
 /* Track IDs that are "adopted" from inner terms into outer multi-tile forms.
  *
  * PROBLEM: List literals and case expressions are multi-tile forms where the
@@ -260,7 +276,7 @@ let to_variant_secondary =
 
 let parse_sum_term: Typ.t => ConstructorMap.variant(Typ.t) =
   fun
-  | {term: Var(ctr), annotation: {ids, secondary}} =>
+  | {term: Var(ctr), annotation: {ids, secondary, _}} =>
     Variant(
       ctr,
       {
@@ -280,13 +296,13 @@ let parse_sum_term: Typ.t => ConstructorMap.variant(Typ.t) =
             MultiHole([
               Typ({
                 term: Var(ctr),
-                annotation: {ids: ids_ctr, secondary: (inner_before, _)},
+                annotation: {ids: ids_ctr, secondary: (inner_before, _), _},
               }),
               Typ(u),
             ]),
           ),
         ),
-      annotation: {ids: ids_ap, secondary: (_, outer_after)},
+      annotation: {ids: ids_ap, secondary: (_, outer_after), _},
     } =>
     /* For constructor applications, use the inner before (constructor's leading space)
        and outer after (trailing space on the whole application) for round-tripping */
@@ -302,7 +318,12 @@ let parse_sum_term: Typ.t => ConstructorMap.variant(Typ.t) =
 
 let mk_bad = (ctr, ids, value) => {
   let t: Typ.t = {
-    annotation: IdTagged.IdTag.mk(ids, get_secondary(ids)),
+    annotation:
+      IdTagged.IdTag.mk(
+        ~incomplete=get_incomplete(ids),
+        ids,
+        get_secondary(ids),
+      ),
     term: Var(ctr),
   };
   switch (value) {
@@ -354,7 +375,12 @@ and drv_exp = unsorted => {
     e => Drv(Exp(e)),
     ids,
     {
-      annotation: IdTagged.IdTag.mk(ids, get_secondary(ids)),
+      annotation:
+        IdTagged.IdTag.mk(
+          ~incomplete=get_incomplete(ids),
+          ids,
+          get_secondary(ids),
+        ),
       term,
     },
   );
@@ -490,7 +516,12 @@ and drv_pat = unsorted => {
     p => Drv(Pat(p)),
     ids,
     {
-      annotation: IdTagged.IdTag.mk(ids, get_secondary(ids)),
+      annotation:
+        IdTagged.IdTag.mk(
+          ~incomplete=get_incomplete(ids),
+          ids,
+          get_secondary(ids),
+        ),
       term,
     },
   );
@@ -533,7 +564,12 @@ and drv_typ = unsorted => {
     ty => Drv(Typ(ty)),
     ids,
     {
-      annotation: IdTagged.IdTag.mk(ids, get_secondary(ids)),
+      annotation:
+        IdTagged.IdTag.mk(
+          ~incomplete=get_incomplete(ids),
+          ids,
+          get_secondary(ids),
+        ),
       term,
     },
   );
@@ -581,7 +617,12 @@ and drv_tpat = unsorted => {
     tpat => Drv(TPat(tpat)),
     ids,
     {
-      annotation: IdTagged.IdTag.mk(ids, get_secondary(ids)),
+      annotation:
+        IdTagged.IdTag.mk(
+          ~incomplete=get_incomplete(ids),
+          ids,
+          get_secondary(ids),
+        ),
       term,
     },
   );
@@ -616,13 +657,27 @@ and exp = unsorted => {
       return(
         e => Drv(Exp(e)),
         ids,
-        IdTagged.mk(ids, get_secondary(ids), term),
+        IdTagged.mk(
+          ~incomplete=get_incomplete(ids),
+          ids,
+          get_secondary(ids),
+          term,
+        ),
       );
     Grammar.DrvQuote(Exp(exp), Jdmt) |> IdTagged.fresh;
   | _ =>
     let ids = ids(unsorted) @ inner_ids;
     let e: TermBase.exp_t =
-      return(e => Exp(e), ids, IdTagged.mk(ids, get_secondary(ids), term));
+      return(
+        e => Exp(e),
+        ids,
+        IdTagged.mk(
+          ~incomplete=get_incomplete(ids),
+          ids,
+          get_secondary(ids),
+          term,
+        ),
+      );
     switch (term) {
     | TupLabel(_) =>
       // The tile id is the id of the tuple not the tuplabel
@@ -970,7 +1025,16 @@ and pat = unsorted => {
   let ids = ids(unsorted) @ inner_ids;
 
   let p =
-    return(p => Pat(p), ids, IdTagged.mk(ids, get_secondary(ids), term));
+    return(
+      p => Pat(p),
+      ids,
+      IdTagged.mk(
+        ~incomplete=get_incomplete(ids),
+        ids,
+        get_secondary(ids),
+        term,
+      ),
+    );
   switch (term) {
   | TupLabel(_) => Tuple([p]) |> Pat.fresh
   | _ => p
@@ -1030,6 +1094,7 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
               annotation: {
                 ids: [Id.nullary_ap_flag],
                 secondary: ([], []),
+                incomplete: [],
               },
               term: Tuple([]),
             },
@@ -1105,7 +1170,16 @@ and typ = unsorted => {
   let (term, inner_ids) = typ_term(unsorted);
   let ids = ids(unsorted) @ inner_ids;
   let t =
-    return(ty => Typ(ty), ids, IdTagged.mk(ids, get_secondary(ids), term));
+    return(
+      ty => Typ(ty),
+      ids,
+      IdTagged.mk(
+        ~incomplete=get_incomplete(ids),
+        ids,
+        get_secondary(ids),
+        term,
+      ),
+    );
   switch (term) {
   | TupLabel(_) => Prod([t]) |> Typ.fresh
   | _ => t
@@ -1246,7 +1320,16 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
 and tpat = unsorted => {
   let term = tpat_term(unsorted);
   let ids = ids(unsorted);
-  return(ty => TPat(ty), ids, IdTagged.mk(ids, get_secondary(ids), term));
+  return(
+    ty => TPat(ty),
+    ids,
+    IdTagged.mk(
+      ~incomplete=get_incomplete(ids),
+      ids,
+      get_secondary(ids),
+      term,
+    ),
+  );
 }
 and tpat_term: unsorted => TPat.term = {
   let ret = (term: TPat.term) => term;
@@ -1273,7 +1356,16 @@ and tpat_term: unsorted => TPat.term = {
 and mod_ = unsorted => {
   let term = mod_term(unsorted);
   let ids = ids(unsorted);
-  return(m => Mod(m), ids, IdTagged.mk(ids, get_secondary(ids), term));
+  return(
+    m => Mod(m),
+    ids,
+    IdTagged.mk(
+      ~incomplete=get_incomplete(ids),
+      ids,
+      get_secondary(ids),
+      term,
+    ),
+  );
 }
 and mod_term: unsorted => TermBase.Mod.term = {
   let ret = (term: TermBase.Mod.term) => term;
@@ -1326,7 +1418,16 @@ and mod_term: unsorted => TermBase.Mod.term = {
 and sig_ = unsorted => {
   let term = sig_term(unsorted);
   let ids = ids(unsorted);
-  return(s => Sig(s), ids, IdTagged.mk(ids, get_secondary(ids), term));
+  return(
+    s => Sig(s),
+    ids,
+    IdTagged.mk(
+      ~incomplete=get_incomplete(ids),
+      ids,
+      get_secondary(ids),
+      term,
+    ),
+  );
 }
 and sig_term: unsorted => TermBase.Sig.term = {
   let ret = (term: TermBase.Sig.term) => term;
@@ -1364,7 +1465,16 @@ and sig_term: unsorted => TermBase.Sig.term = {
 and mpat = unsorted => {
   let term = mpat_term(unsorted);
   let ids = ids(unsorted);
-  return(mp => MPat(mp), ids, IdTagged.mk(ids, get_secondary(ids), term));
+  return(
+    mp => MPat(mp),
+    ids,
+    IdTagged.mk(
+      ~incomplete=get_incomplete(ids),
+      ids,
+      get_secondary(ids),
+      term,
+    ),
+  );
 }
 and mpat_term: unsorted => TermBase.MPat.term = {
   let ret = (term: TermBase.MPat.term) => term;
@@ -1390,7 +1500,12 @@ and rul = (unsorted): Rul.t => {
   let e = exp(unsorted);
   let mk_rules = (scrut: Exp.t, rules, ids): Rul.t => {
     term: Rules(scrut, rules),
-    annotation: IdTagged.IdTag.mk(ids, get_secondary(ids)),
+    annotation:
+      IdTagged.IdTag.mk(
+        ~incomplete=get_incomplete(ids),
+        ids,
+        get_secondary(ids),
+      ),
   };
   switch (e) {
   | {term: MultiHole(_), _} =>
@@ -1434,17 +1549,32 @@ and unsorted = (sort: Sort.t, skel: Skel.t, seg: Segment.t): unsorted => {
         | Grammar.Exp(e) =>
           Grammar.Exp({
             term: Projector(projector_data, e),
-            annotation: IdTagged.IdTag.mk([id], get_secondary([id])),
+            annotation:
+              IdTagged.IdTag.mk(
+                ~incomplete=get_incomplete([id]),
+                [id],
+                get_secondary([id]),
+              ),
           })
         | Grammar.Pat(p) =>
           Grammar.Pat({
             term: Projector(projector_data, p),
-            annotation: IdTagged.IdTag.mk([id], get_secondary([id])),
+            annotation:
+              IdTagged.IdTag.mk(
+                ~incomplete=get_incomplete([id]),
+                [id],
+                get_secondary([id]),
+              ),
           })
         | Grammar.Typ(t) =>
           Grammar.Typ({
             term: Projector(projector_data, t),
-            annotation: IdTagged.IdTag.mk([id], get_secondary([id])),
+            annotation:
+              IdTagged.IdTag.mk(
+                ~incomplete=get_incomplete([id]),
+                [id],
+                get_secondary([id]),
+              ),
           })
         | _ => inner
         };
@@ -1538,27 +1668,31 @@ let consolidate_adopted = (): unit => {
      });
 };
 
+/* Unmemoized parse. ~masks carries shard provenance from canonical
+ * completion (tile id -> originally-present shard indices); it cannot be
+ * folded into a segment-keyed memo because the same completed segment can
+ * arise from different visible segments with different masks. */
+let go_impl = (~masks: Id.Map.t(list(int))=Id.Map.empty, seg) => {
+  map := TermMap.empty;
+  term_data := Id.Map.empty;
+  projectors := Id.Map.empty;
+  projector_list := [];
+  adopted_ids := [];
+  secondary_map := Segment.SecondaryCollection.collect(seg);
+  shard_masks := masks;
+  let term = exp(unsorted(Exp, Segment.skel(seg), seg));
+  consolidate_adopted();
+  {
+    term,
+    term_data: term_data^,
+    terms: map^,
+    projectors: projectors^,
+    projector_list: projector_list^,
+  };
+};
+
 let go =
-  Core.Memo.general(
-    ~cache_size_bound=1000,
-    seg => {
-      map := TermMap.empty;
-      term_data := Id.Map.empty;
-      projectors := Id.Map.empty;
-      projector_list := [];
-      adopted_ids := [];
-      secondary_map := Segment.SecondaryCollection.collect(seg);
-      let term = exp(unsorted(Exp, Segment.skel(seg), seg));
-      consolidate_adopted();
-      {
-        term,
-        term_data: term_data^,
-        terms: map^,
-        projectors: projectors^,
-        projector_list: projector_list^,
-      };
-    },
-  );
+  Core.Memo.general(~cache_size_bound=1000, go_impl(~masks=Id.Map.empty));
 
 let for_projection =
   /* Returns Nul() unless segment represents a well-structured term in isolation.
@@ -1633,7 +1767,14 @@ let from_zip_for_sem = (z: Zipper.t, ~root: Sort.t) => {
     |> Zipper.clear_unparsed_buffer
     |> Zipper.unselect_and_zip(~erase_buffer=true);
   let result = CanonicalCompletion.complete_segment_deep(~sort=Sort.Exp, seg);
-  go(result.completed_seg);
+  let masks =
+    result.shard_records
+    |> List.fold_left(
+         (m, r: CanonicalCompletion.shard_record) =>
+           Id.Map.add(r.tile_id, r.original_shards, m),
+         Id.Map.empty,
+       );
+  go_impl(~masks, result.completed_seg);
 };
 
 let from_zip_for_sem =

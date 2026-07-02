@@ -56,6 +56,7 @@ module TempGrammar =
       () => {
         ids: [Id.invalid],
         secondary: IdTagged.IdTag.empty_secondary,
+        incomplete: [],
       };
   });
 let tests = (
@@ -386,6 +387,28 @@ let tests = (
         check(string, "rule content", "1 | A => 2", print_seg(seg));
       },
     ),
+    test_case("Shard provenance reaches term annotations", `Quick, () => {
+      switch (Parser.to_segment("let x = 1 ", ~root=Exp)) {
+      | None => Alcotest.fail("parse failed")
+      | Some(seg) =>
+        let result =
+          CanonicalCompletion.complete_segment_deep(~sort=Sort.Exp, seg);
+        let masks =
+          result.shard_records
+          |> List.fold_left(
+               (m, r: CanonicalCompletion.shard_record) =>
+                 Id.Map.add(r.tile_id, r.original_shards, m),
+               Id.Map.empty,
+             );
+        let term = MakeTerm.go_impl(~masks, result.completed_seg).term;
+        /* The completed root should be a Let whose annotation records
+           the let tile with originally-present shards [0, 1] */
+        let found =
+          term.annotation.incomplete
+          |> List.exists(((_, shards)) => shards == [0, 1]);
+        check(bool, "let tile provenance recorded", true, found);
+      }
+    }),
     test_case("Unit pattern", `Quick, () => {
       check(
         string,

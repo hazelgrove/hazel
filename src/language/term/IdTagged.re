@@ -9,11 +9,19 @@ module IdTag = {
 
   let empty_secondary: secondary_runs = ([], []);
 
+  /* Shard provenance for canonical completion: for each tile of this term
+     that was completed, the shard indices physically present in the visible
+     segment (missing shards were synthesized). Empty for fully-typed terms.
+     Printing emits only the listed shards; see ExpToSegment. */
+  [@deriving (show({with_path: false}), sexp, yojson, eq)]
+  type incomplete_tiles = list((Id.t, list(int)));
+
   [@deriving (show({with_path: false}), sexp, yojson, eq)]
   type t = {
     [@show.opaque]
     ids: list(Id.t),
     secondary: secondary_runs,
+    incomplete: incomplete_tiles,
   };
 
   /* Constructors for IdTag.t */
@@ -22,6 +30,7 @@ module IdTag = {
   let fresh = (): t => {
     ids: [Id.mk()],
     secondary: empty_secondary,
+    incomplete: [],
   };
 
   /* Create annotation with invalid id and empty secondary (for temporary terms) */
@@ -29,6 +38,7 @@ module IdTag = {
     //TODO(andrew): understand why this is thunked
     ids: [Id.invalid],
     secondary: empty_secondary,
+    incomplete: [],
   };
 
   /* Create annotation with specific ids and empty secondary.
@@ -36,13 +46,15 @@ module IdTag = {
   let mk_internal = (ids: list(Id.t)): t => {
     ids,
     secondary: empty_secondary,
+    incomplete: [],
   };
 
   /* Create annotation with specific ids and secondary.
      Use for terms from surface syntax where formatting should be preserved. */
-  let mk = (ids: list(Id.t), secondary: secondary_runs): t => {
+  let mk = (~incomplete: incomplete_tiles=[], ids: list(Id.t), secondary): t => {
     ids,
     secondary,
+    incomplete,
   };
 };
 
@@ -77,9 +89,16 @@ let mk_internal = (ids: list(Id.t), term: 'a): t('a) => {
 
 /* Create term with specific ids and secondary.
    Use for terms from surface syntax where formatting should be preserved. */
-let mk = (ids: list(Id.t), secondary: IdTag.secondary_runs, term: 'a): t('a) => {
+let mk =
+    (
+      ~incomplete: IdTag.incomplete_tiles=[],
+      ids: list(Id.t),
+      secondary: IdTag.secondary_runs,
+      term: 'a,
+    )
+    : t('a) => {
   term,
-  annotation: IdTag.mk(ids, secondary),
+  annotation: IdTag.mk(~incomplete, ids, secondary),
 };
 
 let term_of = (x: Annotated.t('a, 'b)) => x.term;
@@ -97,32 +116,39 @@ let rep_id = ({annotation: {ids, _}, _}: Annotated.t('a, IdTag.t)) =>
    Note: This discards secondary (formatting) information. If preserving
    formatting through evaluation becomes important, this would need to
    accept a source term and copy its secondary, or we'd need a variant
-   like fast_copy_with_secondary(id, source, term). */
+   like fast_copy_with_secondary(id, source, term).
+   Also discards shard provenance: the new ids no longer reference the
+   original tiles. */
 let fast_copy = (id, {term, _}: t('a)): t('a) => {
   term,
   annotation: {
     ids: [id],
     secondary: IdTag.empty_secondary,
+    incomplete: [],
   },
 };
 
-/* Generate new ids for term, preserving secondary */
-let new_ids = ({term, annotation: {ids: _, secondary}}: t('a)): t('a) => {
+/* Generate new ids for term, preserving secondary.
+   Drops shard provenance (tile-id references are invalidated). */
+let new_ids = ({term, annotation: {ids: _, secondary, _}}: t('a)): t('a) => {
   term,
   annotation: {
     ids: [Id.mk()],
     secondary,
+    incomplete: [],
   },
 };
 
 let ids = ({annotation: {ids, _}, _}: t('a)) => ids;
 
 /* Replace invalid temp ids with fresh ids, preserving secondary */
-let replace_temp = ({term, annotation: {ids, secondary}}: t('a)): t('a) => {
+let replace_temp =
+    ({term, annotation: {ids, secondary, incomplete}}: t('a)): t('a) => {
   term,
   annotation: {
     ids: ids == [Id.invalid] ? [Id.mk()] : ids,
     secondary,
+    incomplete,
   },
 };
 
