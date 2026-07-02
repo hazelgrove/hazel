@@ -64,6 +64,57 @@ let shards_from_incomplete = (incomplete: list(Tile.t)): list(Piece.t) =>
 let leading_shards = (t: Tile.t): list(Piece.t) =>
   Tile.left_missing_shards(t) |> List.map(st => Piece.Tile(st));
 
+/* Middle-missing shards (`let x in 2`, `if true else 2` — targeted
+ * put-down can strand an interior delimiter in the backpack). The
+ * missing shard cannot be appended to the segment like leading/trailing
+ * ones: reassemble requires shard order. Instead the tile is completed
+ * in place — each original child stays in the slot opening at its
+ * original left shard; newly created slots get a convex grout (a hole),
+ * so `let x in 2` completes to `let x = ? in 2`. Grout ids derive
+ * deterministically from the tile id. */
+let complete_middle_shards = (t: Tile.t): Tile.t => {
+  let lo = Tile.l_shard(t);
+  let hi = Tile.r_shard(t);
+  if (List.length(t.shards) == hi - lo + 1) {
+    t; /* no interior gaps */
+  } else {
+    let index_in_shards = (i: int): option(int) => {
+      let rec go = (k, xs) =>
+        switch (xs) {
+        | [] => None
+        | [x, ..._] when x == i => Some(k)
+        | [_, ...rest] => go(k + 1, rest)
+        };
+      go(0, t.shards);
+    };
+    let slot_id = ref(t.id);
+    let children =
+      List.init(
+        hi - lo,
+        j => {
+          let slot_lo = lo + j;
+          switch (index_in_shards(slot_lo)) {
+          | Some(k) when k < List.length(t.children) =>
+            List.nth(t.children, k)
+          | _ =>
+            slot_id := Id.next(slot_id^);
+            [
+              Piece.Grout({
+                id: slot_id^,
+                shape: Convex,
+              }),
+            ];
+          };
+        },
+      );
+    {
+      ...t,
+      shards: List.init(hi - lo + 1, i => lo + i),
+      children,
+    };
+  };
+};
+
 /* Openers for all leading-incomplete tiles of a partition, prepended at
  * partition start. Reversed: the tile whose closer appears later must
  * open earlier (outermost), else nesting crosses — cf. `1) + 2)`
@@ -391,6 +442,16 @@ let complete_segment =
     let seg_with_shards =
       partitioned
       |> List.concat_map(((subseg, incomplete, wrap)) => {
+           /* interior gaps are filled in place before shard insertion */
+           let subseg =
+             subseg
+             |> List.map((pc: Piece.t) =>
+                  switch (pc) {
+                  | Tile(t) when !Tile.is_complete(t) =>
+                    Piece.Tile(complete_middle_shards(t))
+                  | pc => pc
+                  }
+                );
            let core =
              leading_from_incomplete(incomplete)
              @ subseg

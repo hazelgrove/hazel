@@ -1290,38 +1290,35 @@ let roundtrip_grout_text_test = (name: string, input: string) =>
    visible segment -> complete (recording shard provenance) -> term ->
    print (strip pass truncates completed tiles back to original shards).
    Text compared with grout hidden on both sides (regrout normalizes). */
+let check_incomplete_roundtrip = (seg: Segment.t): unit => {
+  let result = CanonicalCompletion.complete_segment_deep(~sort=Sort.Exp, seg);
+  let masks =
+    result.shard_records
+    |> List.fold_left(
+         (m, r: CanonicalCompletion.shard_record) =>
+           Id.Map.add(r.tile_id, r.original_shards, m),
+         Id.Map.empty,
+       );
+  let term = MakeTerm.go_impl(~masks, result.completed_seg).term;
+  let seg2 = exp_to_segment_roundtrip(term);
+  let print_g =
+    Printer.of_segment(~holes="", ~concave_holes="", ~refractors=[]);
+  check(
+    string,
+    "roundtrip text (grout hidden)",
+    print_g(seg),
+    print_g(seg2),
+  );
+  /* id fidelity: the visible tiles keep their ids through completion,
+     parsing, printing, and stripping */
+  check(list(string), "roundtrip tile ids", tile_ids(seg), tile_ids(seg2));
+};
+
 let roundtrip_incomplete_test = (name: string, input: string) =>
   test_case(name, `Quick, () => {
     switch (Parser.to_segment(input, ~root=Exp)) {
     | None => Alcotest.fail("parse failed")
-    | Some(seg) =>
-      let result =
-        CanonicalCompletion.complete_segment_deep(~sort=Sort.Exp, seg);
-      let masks =
-        result.shard_records
-        |> List.fold_left(
-             (m, r: CanonicalCompletion.shard_record) =>
-               Id.Map.add(r.tile_id, r.original_shards, m),
-             Id.Map.empty,
-           );
-      let term = MakeTerm.go_impl(~masks, result.completed_seg).term;
-      let seg2 = exp_to_segment_roundtrip(term);
-      let print_g =
-        Printer.of_segment(~holes="", ~concave_holes="", ~refractors=[]);
-      check(
-        string,
-        "roundtrip text (grout hidden)",
-        print_g(seg),
-        print_g(seg2),
-      );
-      /* id fidelity: the visible tiles keep their ids through
-         completion, parsing, printing, and stripping */
-      check(
-        list(string),
-        "roundtrip tile ids",
-        tile_ids(seg),
-        tile_ids(seg2),
-      );
+    | Some(seg) => check_incomplete_roundtrip(seg)
     }
   });
 
@@ -1376,6 +1373,26 @@ let roundtrip_incomplete_tests = (
     roundtrip_incomplete_test({|Unopened parens|}, {|1, 2)|}),
     roundtrip_incomplete_test({|Unopened bracket|}, {|1, 2]|}),
     roundtrip_incomplete_test({|Two unopened parens|}, {|1) + 2)|}),
+    /* Middle-missing shards: targeted put-down strands the interior
+       delimiter in the backpack, leaving e.g. a let tile with shards
+       [0,2]; completion fills the gap in place with a hole */
+    roundtrip_incomplete_test({|Let missing equals|}, {|let x in 2|}),
+    roundtrip_incomplete_test({|If missing then|}, {|if true else 2|}),
+    /* Keyword-form leading loss is only reachable via destructive edits:
+       select and destruct the case opener, then roundtrip the resulting
+       segment (case tile with shards [1]) */
+    test_case(
+      "Leading loss via edit: deleted case opener",
+      `Quick,
+      () => {
+        let z = Test_Editing.mk_zipper({|§case ¦x | A => 1 end|});
+        let z =
+          [Action.Destruct(Local(Right, ByChar))]
+          |> Test_Editing.perform(z);
+        let seg = Zipper.unselect_and_zip(~erase_buffer=true, z);
+        check_incomplete_roundtrip(seg);
+      },
+    ),
     roundtrip_incomplete_test({|Complete control|}, {|let x = 1 in x|}),
     roundtrip_incomplete_test(
       {|Complete case control|},
