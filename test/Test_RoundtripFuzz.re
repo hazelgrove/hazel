@@ -166,9 +166,9 @@ let type_string = (s: string): Zipper.t =>
      in one Bin's middle; the single lexeme field can't hold them all,
      so all their tokens drop on print. Needs a list-valued lexeme or
      a segment stash (design discussion first).
-   - EQUIV-only drift on lexeme-reconstructed op tiles (`?:? t`,
-     `?=?]`, `?:(?>?`): text roundtrips; ids/secondary/mold details
-     still drift. Diff a repro to pin down which field.
+   - `?=?]` family: `=` plus a stray closer; EQUIV-only drift somewhere
+     in the completion/provenance pipeline (op-mold families all fixed;
+     diff a repro to attribute the field).
    - `[()` + linebreak drops the empty tuple (completion/mask
      interplay across a partition boundary, not op-lexeme related). */
 let fuzz_enabled =
