@@ -133,6 +133,22 @@ let op_lexeme = (ann: IdTagged.IdTag.t): option(string) =>
   | _ => None
   };
 
+/* Reconstruct an unknown-op tile from its lexeme, mirroring insertion
+   molding: operand-shaped keyword prefixes get the concave-grout bin
+   mold of the host sort (Form.get_atomic_form), other unknown ops the
+   Any-sorted max-precedence fallback (Form.Molds.get). */
+let op_tile = (id, sort, op): Piece.t =>
+  Tile({
+    id,
+    label: [op],
+    mold:
+      Form.is_infix_delimiter_op_prefix(op)
+        ? Mold.mk_bin(Precedence.concave_grout, sort, [])
+        : Mold.mk_bin(Precedence.max, Any, []),
+    shards: [0],
+    children: [],
+  });
+
 let quoted_label_lexeme =
     (~settings: Settings.t, ann: IdTagged.IdTag.t, label: string): string =>
   switch (settings.use_literal_lexemes ? ann.lexeme : None) {
@@ -1967,29 +1983,9 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
        same Any-sorted max-precedence bin mold Form gives unknown ops */
     let op = Option.get(op_lexeme(exp.annotation));
     let id = exp |> Exp.rep_id;
-    /* Mirror insertion molding: operand-shaped keyword prefixes get the
-       concave-grout Exp bin mold (Form.get_atomic_form), other unknown
-       ops the Any-sorted max-precedence fallback (Form.Molds.get) */
-    let mold =
-      Form.is_infix_delimiter_op_prefix(op)
-        ? Mold.mk_bin(Precedence.concave_grout, Exp, [])
-        : Mold.mk_bin(Precedence.max, Any, []);
     let+ l = any_to_pretty(~settings, l)
     and+ r = any_to_pretty(~settings, r);
-    wrap(
-      exp,
-      l
-      @ [
-        Tile({
-          id,
-          label: [op],
-          mold,
-          shards: [0],
-          children: [],
-        }),
-      ]
-      @ r,
-    );
+    wrap(exp, l @ [op_tile(id, Sort.Exp, op)] @ r);
   | MultiHole(es) =>
     // TODO: Add optional newlines
     let+ es = es |> List.map(any_to_pretty(~settings)) |> all;
@@ -2712,6 +2708,14 @@ and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
       pat,
       [Piece.Projector(ProjectorCore.mk(~id, kind, syntax, model))],
     );
+  | MultiHole([l, r]) when op_lexeme(pat.annotation) != None =>
+    /* Unknown infix operator in pattern position (see MakeTerm's pat
+       Bin fallthrough) */
+    let op = Option.get(op_lexeme(pat.annotation));
+    let id = pat |> Pat.rep_id;
+    let+ l = any_to_pretty(~settings, l)
+    and+ r = any_to_pretty(~settings, r);
+    wrap(pat, l @ [op_tile(id, Sort.Pat, op)] @ r);
   | MultiHole(es) =>
     let+ es = es |> List.map(any_to_pretty(~settings: Settings.t)) |> all;
     /* Use IDs from the term for grout pieces, like Tuple uses for commas. */
@@ -2828,6 +2832,14 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
         }
       },
     )
+  | Unknown(Hole(MultiHole([l, r]))) when op_lexeme(typ.annotation) != None =>
+    /* Unknown infix operator in type position (see MakeTerm's typ Bin
+       fallthrough) */
+    let op = Option.get(op_lexeme(typ.annotation));
+    let id = typ |> Typ.rep_id;
+    let+ l = any_to_pretty(~settings, l)
+    and+ r = any_to_pretty(~settings, r);
+    wrap(typ, l @ [op_tile(id, Sort.Typ, op)] @ r);
   | Unknown(Hole(MultiHole(es))) =>
     let+ es = es |> List.map(any_to_pretty(~settings: Settings.t)) |> all;
     /* Use IDs from the term for grout pieces, like Tuple uses for commas. */

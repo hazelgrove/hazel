@@ -10,7 +10,14 @@ type t = Base.segment;
    (ids + content), and projectors compare strictly; grout is dropped
    entirely — it is ephemeral by design (regrout re-derives placement
    and mints fresh ids), and nothing durable anchors to it. */
-let rec equiv_mod_grout = (a: t, b: t): bool => {
+/* ~mold_sorts=false additionally quotients mold SORTS (shapes and
+   precedences still compared): completion + reparse re-derive sorts,
+   so an edit-derived tile molded at a transitional sort (a Typ-list
+   closer completed in exp context) legitimately reprints re-sorted.
+   Provisional pending the retain-vs-derive mold discussion — the lean
+   is that sorts are derivable and should be quotiented, molds proper
+   retained. */
+let rec equiv_mod_grout = (~mold_sorts=true, a: t, b: t): bool => {
   let strip =
     List.filter((p: Piece.t) =>
       switch (p) {
@@ -20,17 +27,25 @@ let rec equiv_mod_grout = (a: t, b: t): bool => {
     );
   let (a, b) = (strip(a), strip(b));
   List.length(a) == List.length(b)
-  && List.for_all2(piece_equiv_mod_grout, a, b);
+  && List.for_all2(piece_equiv_mod_grout(~mold_sorts), a, b);
 }
-and piece_equiv_mod_grout = (a: Piece.t, b: Piece.t): bool =>
+and piece_equiv_mod_grout = (~mold_sorts, a: Piece.t, b: Piece.t): bool =>
   switch (a, b) {
   | (Tile(ta), Tile(tb)) =>
+    let mold_eq = (ma: Mold.t, mb: Mold.t) =>
+      mold_sorts
+        ? ma == mb
+        : {
+          let (la, ra) = ma.nibs;
+          let (lb, rb) = mb.nibs;
+          la.shape == lb.shape && ra.shape == rb.shape;
+        };
     ta.id == tb.id
     && ta.label == tb.label
-    && ta.mold == tb.mold
+    && mold_eq(ta.mold, tb.mold)
     && ta.shards == tb.shards
     && List.length(ta.children) == List.length(tb.children)
-    && List.for_all2(equiv_mod_grout, ta.children, tb.children)
+    && List.for_all2(equiv_mod_grout(~mold_sorts), ta.children, tb.children);
   | (Secondary(wa), Secondary(wb)) =>
     wa.id == wb.id && wa.content == wb.content
   | (Projector(pa), Projector(pb)) =>
