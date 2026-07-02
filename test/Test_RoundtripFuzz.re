@@ -166,12 +166,15 @@ let type_string = (s: string): Zipper.t =>
      in one Bin's middle; the single lexeme field can't hold them all,
      so all their tokens drop on print. Needs a list-valued lexeme or
      a segment stash (design discussion first).
-   - secondary/whitespace drift around relocated grout at linebreaks
-     (dominant survivor): `(\n  \n-?` reprints the grout hole beside
-     the opener instead of after the blank line and a space moves or
-     vanishes with it (`?)  s \n a )` loses the second line's leading
-     space). Grout is quotiented, so the failing pieces are Secondary;
-     needs a secondary-id/content diff to attribute.
+   - print-side whitespace drift at linebreaks (dominant survivor):
+     `?)  s \n a )` reprints without the second line's leading space,
+     and grout placement shifts across blank lines (`-[?,l\n\n  )`).
+     Grout is quotiented, so the failing pieces are Secondary — likely
+     the printer's indentation/whitespace reconstruction.
+   - `()` lost inside an INCOMPLETE list: `?)  [()\n=i` -> `?)  []`.
+     Unlike the fixed stray-grout collapse (complete-segment early
+     exit), this goes through completion's structural branch — the ()
+     disappears during completion or masking itself.
    - `[()` + linebreak drops the empty tuple (completion/mask
      interplay across a partition boundary, not op-lexeme related). */
 let fuzz_enabled =

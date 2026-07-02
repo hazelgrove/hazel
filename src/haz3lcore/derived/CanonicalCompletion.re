@@ -661,8 +661,13 @@ let complete_segment =
 
   if (List.length(all_incomplete) == 0 && wrap_records == []) {
     {
-      /* No changes needed */
-      completed_seg: seg,
+      /* No structural changes needed — but still regrout: edit
+         sequences can leave stray grout (glomming ( onto an orphan )
+         forms the atomic () token without regrouting away the
+         preceding convex grout), and Segment.skel silently drops
+         pieces on shape-invalid segments, collapsing the term */
+      completed_seg:
+        Segment.regrout((Nib.Shape.concave(), Nib.Shape.concave()), seg),
       shard_records,
       insertions: [],
     };
