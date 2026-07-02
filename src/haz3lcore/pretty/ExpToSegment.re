@@ -3343,6 +3343,10 @@ let rec strip_synthesized_shards =
                 fst(ListUtil.split_n(List.length(orig), shards)),
               );
          switch (Id.Map.find_opt(t.id, masks)) {
+         | Some([]) =>
+           /* Fully synthetic tile (e.g. the case/end wrapped around an
+              orphaned rule chain): drop it, splice out all children */
+           List.concat(children)
          | Some(orig) when orig != t.shards && is_prefix(orig, t.shards) =>
            /* Completion only appends trailing shards today, so the
               original shard list is a prefix: keep those shards and the

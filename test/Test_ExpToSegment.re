@@ -1348,7 +1348,28 @@ let roundtrip_incomplete_tests = (
       {|Sig: incomplete SigType|},
       {|1 : { type T }|},
     ),
+    /* Orphaned rule chains: rules outside any case get wrapped in a
+       synthesized case/end (fully-synthetic provenance; strip deletes
+       the tile and splices the chain back out) */
+    roundtrip_incomplete_test({|Orphaned rule|}, {|1 | A => 2|}),
+    roundtrip_incomplete_test(
+      {|Orphaned rules, two clauses|},
+      {|1 | A => 2 | B => 3|},
+    ),
+    roundtrip_incomplete_test({|Orphaned rule, no scrutinee|}, {|| A => 1|}),
+    roundtrip_incomplete_test(
+      {|Orphaned rule, compound scrutinee|},
+      {|1 + 2 | A => 3|},
+    ),
+    roundtrip_incomplete_test(
+      {|Orphaned rule inside parens|},
+      {|(1 | A => 2) + 3|},
+    ),
     roundtrip_incomplete_test({|Complete control|}, {|let x = 1 in x|}),
+    roundtrip_incomplete_test(
+      {|Complete case control|},
+      {|case x | A => 1 | B => 2 end|},
+    ),
   ],
 );
 
@@ -1373,13 +1394,11 @@ let roundtrip_grout_string_tests = (
       {|1  2  3|},
     ),
     roundtrip_grout_text_test({|Incomplete: var then int|}, {|x 1|}),
-    /* NOTE: top-level orphaned rules (`1 | A => 2`) do NOT roundtrip:
-       at Exp sort the rule tile goes through MakeTerm's generic hole
-       path, which drops the tile tokens before any printer runs. Fixing
-       that requires completion (wrapping in case/end) or a tile-stub
-       representation — see plans/completion-provenance.md. Rul terms
-       that DO reach the printer keep their content; see
-       "Rul term prints its content" in the ExpToSegment tests. */
+    /* NOTE: top-level orphaned rules (`1 | A => 2`) do not roundtrip
+       through the PLAIN parse path (MakeTerm's generic hole path drops
+       the tile tokens at Exp sort) — but they DO roundtrip through the
+       canonical-completion path, which wraps them in a synthesized
+       case/end; see "Orphaned rule" in roundtrip_incomplete_tests. */
   ],
 );
 

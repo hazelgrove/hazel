@@ -267,14 +267,70 @@ let partition_segment =
 let last_piece_for_insertion = (seg: Segment.t): option(Piece.t) =>
   ListUtil.last_opt(seg);
 
+/* === Orphaned rule chains ===
+ * Complete `| p => e` rule tiles appearing outside any case (Exp/Any
+ * sort context) are wrapped in a synthesized case/end tile so the rules
+ * receive full statics. The wrap is recorded as a shard_record with NO
+ * original shards (fully synthetic); printing deletes the tile and
+ * splices its content back out (see ExpToSegment strip pass). The tile
+ * id derives deterministically from the first rule tile so reparses are
+ * stable across keystrokes. Incomplete rule tiles (missing =>) are not
+ * wrapped in v1: wrap detection runs before trailing completion. */
+let rule_label = ["|", "=>"];
+
+let orphan_rules_wrap_id = (~sort: Sort.t, subseg: Segment.t): option(Id.t) =>
+  switch (sort) {
+  | Exp
+  | Any =>
+    switch (Segment.skel(subseg)) {
+    | exception _ => None
+    | skel =>
+      let root_pieces =
+        Skel.root(skel) |> Aba.get_as |> List.map(List.nth(subseg));
+      switch (root_pieces) {
+      | [Piece.Tile(t), ..._]
+          when t.label == rule_label && Tile.is_complete(t) =>
+        Some(Id.next(t.id))
+      | _ => None
+      };
+    }
+  | _ => None
+  };
+
+let case_wrap_shards = (id: Id.t): (Piece.t, Piece.t) => {
+  let form: Form.t = Form.get(Case);
+  switch (Tile.split_shards(id, form.label, form.mold, [0, 1])) {
+  | [l, r] => (Piece.Tile(l), Piece.Tile(r))
+  | _ => failwith("CanonicalCompletion.case_wrap_shards")
+  };
+};
+
 let complete_segment =
     (~use_indent_heuristic=true, sort: Sort.t, seg: Segment.t)
     : completion_result => {
   /* Single pass: partition AND collect incomplete tiles */
   let partitioned = partition_segment(~use_indent_heuristic, seg);
 
+  /* Orphaned rule chains: per-partition case/end wrap ids */
+  let partitioned =
+    partitioned
+    |> List.map(((subseg, incomplete)) =>
+         (subseg, incomplete, orphan_rules_wrap_id(~sort, subseg))
+       );
+
   /* Extract all incomplete tiles for shard_records */
-  let all_incomplete = List.concat_map(snd, partitioned);
+  let all_incomplete = List.concat_map(((_, inc, _)) => inc, partitioned);
+  let wrap_records =
+    partitioned
+    |> List.filter_map(((_, _, wrap)) =>
+         wrap
+         |> Option.map(id =>
+              {
+                tile_id: id,
+                original_shards: [],
+              }
+            )
+       );
   let shard_records =
     List.map(
       (t: Tile.t) =>
@@ -283,9 +339,10 @@ let complete_segment =
           original_shards: t.shards,
         },
       all_incomplete,
-    );
+    )
+    @ wrap_records;
 
-  if (List.length(all_incomplete) == 0) {
+  if (List.length(all_incomplete) == 0 && wrap_records == []) {
     {
       /* No changes needed */
       completed_seg: seg,
@@ -297,7 +354,7 @@ let complete_segment =
      * record the adjacent piece ID for later position lookup */
     let insertions =
       partitioned
-      |> List.filter_map(((subseg, incomplete)) =>
+      |> List.filter_map(((subseg, incomplete, _)) =>
            if (List.length(incomplete) == 0) {
              None;
            } else {
@@ -318,12 +375,19 @@ let complete_segment =
            }
          );
 
-    /* Phase 1: Insert shards at end of each subsegment */
+    /* Phase 1: Insert shards at end of each subsegment; wrap orphaned
+       rule chains in a synthesized case/end */
     let seg_with_shards =
       partitioned
-      |> List.concat_map(((subseg, incomplete)) =>
-           subseg @ shards_from_incomplete(incomplete)
-         );
+      |> List.concat_map(((subseg, incomplete, wrap)) => {
+           let core = subseg @ shards_from_incomplete(incomplete);
+           switch (wrap) {
+           | None => core
+           | Some(id) =>
+             let (l, r) = case_wrap_shards(id);
+             [l] @ core @ [r];
+           };
+         });
 
     /* Phase 2: Regrout to make segment well-formed for reassemble */
     let regrouted =
