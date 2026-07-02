@@ -61,6 +61,31 @@ let fast_equal =
     exp;
 let equal = fast_equal;
 
+/* In-order trace of annotation lexemes. Paired with fast_equal (which
+   guarantees aligned structure), comparing traces detects lexeme-only
+   differences — e.g. editing an unknown operator @@ -> @@@ changes
+   display and stuck-application semantics but not term structure. */
+let lexeme_trace = (e: t): list(option(string)) => {
+  let acc = ref([]);
+  let f = (continue, t: IdTagged.t(_)) => {
+    acc := [t.annotation.lexeme, ...acc^];
+    continue(t);
+  };
+  let _ =
+    map_term(
+      ~f_exp=f,
+      ~f_pat=f,
+      ~f_typ=f,
+      ~f_tpat=f,
+      ~f_rul=f,
+      ~f_mod=f,
+      ~f_sig=f,
+      ~f_mpat=f,
+      e,
+    );
+  acc^;
+};
+
 let temp: term => t =
   term => {
     term,
