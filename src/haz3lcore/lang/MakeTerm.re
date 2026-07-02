@@ -756,6 +756,13 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
            IMPORTANT: Must align with ExpToSegment.exp_to_pretty ListLit case,
            which expects List.hd = bracket, List.tl = commas. */
         switch (body) {
+        | {term: Tuple([{term: TupLabel(_), _}]), _} =>
+          /* Single labeled element: body IS the synthesized singleton
+             wrapper carrying the = tile's id — keep it whole so the
+             printer's singleton-unwrap restores the id (adopting its
+             ids as comma ids would strand them: a one-element list
+             has no commas) */
+          ret(ListLit([body]))
         | {annotation: {ids, _}, term: Tuple(es)} =>
           adopted_ids := ids @ adopted_ids^;
           // Addresses tup_labels in lists like: [l=32, 1]
