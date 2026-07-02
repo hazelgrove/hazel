@@ -139,25 +139,22 @@ let op_lexeme = (ann: IdTagged.IdTag.t): option(string) =>
    operand-shaped keyword prefixes get the concave-grout bin mold of
    the host sort (Form.get_atomic_form); truly unknown ops the
    Any-sorted max-precedence fallback (Form.Molds.get). */
-let op_tile = (id, sort, op): Piece.t => {
-  /* The editor molds by insertion-time sort context, which the term
-     does not record — approximate with the print-time host sort, then
-     Exp (the dominant insertion context: the : of `? : ? t ?` was
-     inserted at exp and keeps Cast's mold even though it prints inside
-     a typ multihole), then the undefined-token fallbacks (`->` in exp
-     position keeps the Any fallback mold, not Arrow's). Residual
-     sort-only drift is absorbed by equiv_mod_grout(~mold_sorts=false);
-     the retain-vs-derive mold question owns the rest. */
-  let bins = Form.Molds.get_base([op]) |> List.filter(Mold.is_infix_op);
-  let at_sort = srt => List.filter((m: Mold.t) => m.out == srt, bins);
+/* The editor molds by insertion-time sort context, which the term does
+   not record — approximate with the print-time host sort, then Exp
+   (the dominant insertion context: the : of `? : ? t ?` was inserted
+   at exp and keeps Cast's mold even though it prints inside a typ
+   multihole), then a fallback (`->` in exp position keeps the Any
+   fallback mold, not Arrow's). Residual sort-only drift is absorbed by
+   equiv_mod_grout(~mold_sorts=false); the retain-vs-derive mold
+   question owns the rest. */
+let op_tile_with = (~shape_filter, ~fallback, id, sort, op): Piece.t => {
+  let cands = Form.Molds.get_base([op]) |> List.filter(shape_filter);
+  let at_sort = srt => List.filter((m: Mold.t) => m.out == srt, cands);
   let mold =
     switch (at_sort(sort), at_sort(Sort.Exp)) {
     | ([m, ..._], _)
     | ([], [m, ..._]) => m
-    | ([], []) =>
-      Form.is_infix_delimiter_op_prefix(op)
-        ? Mold.mk_bin(Precedence.concave_grout, sort, [])
-        : Mold.mk_bin(Precedence.max, Any, [])
+    | ([], []) => fallback
     };
   Tile({
     id,
@@ -167,6 +164,30 @@ let op_tile = (id, sort, op): Piece.t => {
     children: [],
   });
 };
+
+let op_tile = (id, sort, op): Piece.t =>
+  op_tile_with(
+    ~shape_filter=Mold.is_infix_op,
+    ~fallback=
+      Form.is_infix_delimiter_op_prefix(op)
+        ? Mold.mk_bin(Precedence.concave_grout, sort, [])
+        : Mold.mk_bin(Precedence.max, Any, []),
+    id,
+    sort,
+    op,
+  );
+
+/* A stranded PREFIX op (the unary - of `? : - ?`, exp-molded on the
+   typ side) — only tokens with a defined pre mold reach the skel as
+   Pre, so the fallback is a near-unreachable safety net */
+let pre_op_tile = (id, sort, op): Piece.t =>
+  op_tile_with(
+    ~shape_filter=Mold.is_prefix_op,
+    ~fallback=Mold.mk_pre(Precedence.max, Any, []),
+    id,
+    sort,
+    op,
+  );
 
 let quoted_label_lexeme =
     (~settings: Settings.t, ann: IdTagged.IdTag.t, label: string): string =>
@@ -1996,6 +2017,11 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
       ]
       @ r,
     );
+  | MultiHole([x]) when op_lexeme(exp.annotation) != None =>
+    /* Stranded prefix op (see MakeTerm's Pre captures) */
+    let op = Option.get(op_lexeme(exp.annotation));
+    let+ x = any_to_pretty(~settings, x);
+    wrap(exp, [pre_op_tile(exp |> Exp.rep_id, Sort.Exp, op), ...x]);
   | MultiHole([l, r]) when op_lexeme(exp.annotation) != None =>
     /* Unknown infix operator (see MakeTerm's exp Bin fallthrough):
        reconstruct the operator tile from the recorded lexeme, with the
@@ -2727,6 +2753,11 @@ and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
       pat,
       [Piece.Projector(ProjectorCore.mk(~id, kind, syntax, model))],
     );
+  | MultiHole([x]) when op_lexeme(pat.annotation) != None =>
+    /* Stranded prefix op (see MakeTerm's Pre captures) */
+    let op = Option.get(op_lexeme(pat.annotation));
+    let+ x = any_to_pretty(~settings, x);
+    wrap(pat, [pre_op_tile(pat |> Pat.rep_id, Sort.Pat, op), ...x]);
   | MultiHole([l, r]) when op_lexeme(pat.annotation) != None =>
     /* Unknown infix operator in pattern position (see MakeTerm's pat
        Bin fallthrough) */
@@ -2851,6 +2882,11 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
         }
       },
     )
+  | Unknown(Hole(MultiHole([x]))) when op_lexeme(typ.annotation) != None =>
+    /* Stranded prefix op (see MakeTerm's Pre captures) */
+    let op = Option.get(op_lexeme(typ.annotation));
+    let+ x = any_to_pretty(~settings, x);
+    wrap(typ, [pre_op_tile(typ |> Typ.rep_id, Sort.Typ, op), ...x]);
   | Unknown(Hole(MultiHole([l, r]))) when op_lexeme(typ.annotation) != None =>
     /* Unknown infix operator in type position (see MakeTerm's typ Bin
        fallthrough) */

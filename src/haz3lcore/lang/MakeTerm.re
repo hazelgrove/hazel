@@ -1074,6 +1074,13 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
       set_lexeme(op);
       ret(hole(tm));
     }
+  | Pre(([(_id, ([op], []))], []), _) as tm when op != " " => {
+      /* Stranded prefix op (the unary - of `? : - ?` keeps its exp pre
+         mold on the typ side); printed back by the 1-kid MultiHole op
+         branches */
+      set_lexeme(op);
+      ret(hole(tm));
+    }
   | tm => ret(hole(tm));
 }
 and pat = unsorted => {
@@ -1244,6 +1251,13 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
       set_lexeme(op);
       ret(hole(tm));
     }
+  | Pre(([(_id, ([op], []))], []), _) as tm when op != " " => {
+      /* Stranded prefix op (the unary - of `? : - ?` keeps its exp pre
+         mold on the typ side); printed back by the 1-kid MultiHole op
+         branches */
+      set_lexeme(op);
+      ret(hole(tm));
+    }
   | tm => ret(hole(tm));
 }
 and typ = unsorted => {
@@ -1409,6 +1423,13 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
          `? : ? t ?` parses as Bin(Exp, [:], Typ) in a typ context, so
          the same-sort Bin patterns above cannot match) */
 
+      set_lexeme(op);
+      ret(hole(tm));
+    }
+  | Pre(([(_id, ([op], []))], []), _) as tm when op != " " => {
+      /* Stranded prefix op (the unary - of `? : - ?` keeps its exp pre
+         mold on the typ side); printed back by the 1-kid MultiHole op
+         branches */
       set_lexeme(op);
       ret(hole(tm));
     }

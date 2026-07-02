@@ -166,12 +166,12 @@ let type_string = (s: string): Zipper.t =>
      in one Bin's middle; the single lexeme field can't hold them all,
      so all their tokens drop on print. Needs a list-valued lexeme or
      a segment stash (design discussion first).
-   - prefix unknown-ops: `?:-?` — unary minus on the typ side; the
-     op-lexeme captures cover Bin only, Pre drops the token.
-   - grout/secondary drift across linebreaks: `(\n  \n-?` reprints
-     with the grout hole beside the opener instead of after the blank
-     line, and some whitespace moves with it (EQUIV; text passes only
-     because print_g hides grout-adjacent spacing).
+   - secondary/whitespace drift around relocated grout at linebreaks
+     (dominant survivor): `(\n  \n-?` reprints the grout hole beside
+     the opener instead of after the blank line and a space moves or
+     vanishes with it (`?)  s \n a )` loses the second line's leading
+     space). Grout is quotiented, so the failing pieces are Secondary;
+     needs a secondary-id/content diff to attribute.
    - `[()` + linebreak drops the empty tuple (completion/mask
      interplay across a partition boundary, not op-lexeme related). */
 let fuzz_enabled =
