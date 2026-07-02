@@ -4,7 +4,11 @@ open Util;
 
 /* per app_id: list of (call_stack_before, elided_arg, call_frame). call_stack
  * ties inner samples to their caller; frame carries the invoked fn's resolved
- * fn_def_id. Shared with EvaluatorState. */
+ * fn_def_id, which is only observable at the moment the Ap steps — eval state
+ * is the channel to the probe Sample minted later. Recorded only for probe
+ * targets and wiped by clear_transient before postMessage. Expected to become
+ * an emitted event under evaluator streaming (#2339), removing this field.
+ * Shared with EvaluatorState. */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type app_data_t =
   Id.Map.t(
