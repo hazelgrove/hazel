@@ -1279,6 +1279,53 @@ let roundtrip_grout_text_test = (name: string, input: string) =>
     }
   });
 
+/* Roundtrip for INCOMPLETE inputs via the canonical-completion path:
+   visible segment -> complete (recording shard provenance) -> term ->
+   print (strip pass truncates completed tiles back to original shards).
+   Text compared with grout hidden on both sides (regrout normalizes). */
+let roundtrip_incomplete_test = (name: string, input: string) =>
+  test_case(name, `Quick, () => {
+    switch (Parser.to_segment(input, ~root=Exp)) {
+    | None => Alcotest.fail("parse failed")
+    | Some(seg) =>
+      let result =
+        CanonicalCompletion.complete_segment_deep(~sort=Sort.Exp, seg);
+      let masks =
+        result.shard_records
+        |> List.fold_left(
+             (m, r: CanonicalCompletion.shard_record) =>
+               Id.Map.add(r.tile_id, r.original_shards, m),
+             Id.Map.empty,
+           );
+      let term = MakeTerm.go_impl(~masks, result.completed_seg).term;
+      let seg2 = exp_to_segment_roundtrip(term);
+      let print_g =
+        Printer.of_segment(~holes="", ~concave_holes="", ~refractors=[]);
+      check(
+        string,
+        "roundtrip text (grout hidden)",
+        print_g(seg),
+        print_g(seg2),
+      );
+    }
+  });
+
+let roundtrip_incomplete_tests = (
+  "Round-Trip: Incomplete (completion provenance)",
+  [
+    roundtrip_incomplete_test({|Let missing in|}, {|let x = 1 |}),
+    roundtrip_incomplete_test({|If missing else|}, {|if true then 1 |}),
+    roundtrip_incomplete_test({|Fun missing arrow|}, {|fun x |}),
+    roundtrip_incomplete_test({|Unclosed parens|}, {|(1, 2|}),
+    roundtrip_incomplete_test({|Case missing end|}, {|case x | A => 1 |}),
+    roundtrip_incomplete_test(
+      {|Nested incomplete lets|},
+      {|let a = 1 in let b = 2 |},
+    ),
+    roundtrip_incomplete_test({|Complete control|}, {|let x = 1 in x|}),
+  ],
+);
+
 let roundtrip_grout_string_tests = (
   "Round-Trip: Grout (String)",
   [
@@ -1368,6 +1415,7 @@ let roundtrip_projector_tests = (
 let all = [
   tests,
   roundtrip_tests,
+  roundtrip_incomplete_tests,
   roundtrip_defensive_paren_tests,
   roundtrip_larger_programs,
   roundtrip_grout_string_tests,

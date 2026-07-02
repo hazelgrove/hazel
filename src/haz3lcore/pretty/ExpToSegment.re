@@ -3137,6 +3137,83 @@ and label_to_pretty =
   );
 };
 
+/* === Shard-provenance stripping (canonical-completion roundtrip) ===
+   Terms parsed from canonically completed segments record, per completed
+   tile, the shard indices physically present in the visible segment
+   (IdTag.incomplete). Printing emits complete tiles; this pass truncates
+   them back to their original shards, splicing the dropped shards\'
+   children into the parent segment, then regrouts. Applies in all print
+   modes: the completion is a semantic device, not user-typed syntax.
+   V1 limitations: masks on Mod/Sig/MPat/Drv terms are not collected
+   (Any.map_term has no hooks for them), and projector-internal syntax is
+   left alone. */
+
+let collect_shard_masks = (any: Any.t): Id.Map.t(list(int)) => {
+  let acc = ref(Id.Map.empty);
+  let record = (ann: IdTagged.IdTag.t) =>
+    List.iter(
+      ((id, mask)) => acc := Id.Map.add(id, mask, acc^),
+      ann.incomplete,
+    );
+  let f = (continue, t: IdTagged.t(_)) => {
+    record(t.annotation);
+    continue(t);
+  };
+  let _ =
+    Any.map_term(~f_exp=f, ~f_pat=f, ~f_typ=f, ~f_tpat=f, ~f_rul=f, any);
+  acc^;
+};
+
+let rec strip_synthesized_shards =
+        (masks: Id.Map.t(list(int)), seg: Segment.t): Segment.t =>
+  seg
+  |> List.concat_map((p: Piece.t) =>
+       switch (p) {
+       | Tile(t) =>
+         let children =
+           List.map(strip_synthesized_shards(masks), t.children);
+         let is_prefix = (orig, shards) =>
+           List.length(orig) <= List.length(shards)
+           && List.for_all2(
+                (==),
+                orig,
+                fst(ListUtil.split_n(List.length(orig), shards)),
+              );
+         switch (Id.Map.find_opt(t.id, masks)) {
+         | Some(orig) when orig != t.shards && is_prefix(orig, t.shards) =>
+           /* Completion only appends trailing shards today, so the
+              original shard list is a prefix: keep those shards and the
+              children between them, splice the rest\'s contents after. */
+           let n_keep = max(0, List.length(orig) - 1);
+           let (kept, dropped) = ListUtil.split_n(n_keep, children);
+           /* plain list append — the file-level @ is AutoFormat concat,
+              which would insert heuristic spaces here */
+           List.concat([
+             [
+               Piece.Tile({
+                 ...t,
+                 shards: orig,
+                 children: kept,
+               }),
+             ],
+             List.concat(dropped),
+           ]);
+         | _ => [
+             Piece.Tile({
+               ...t,
+               children,
+             }),
+           ]
+         };
+       | p => [p]
+       }
+     );
+
+let strip_if_incomplete = (any: Any.t, seg: Segment.t): Segment.t => {
+  let masks = collect_shard_masks(any);
+  Id.Map.is_empty(masks) ? seg : seg |> strip_synthesized_shards(masks);
+};
+
 let exp_to_segment =
     (~already_paren=false, ~settings: Settings.t, exp: Exp.t): Segment.t => {
   let exp =
@@ -3148,7 +3225,7 @@ let exp_to_segment =
          ~show_ascriptions=settings.show_ascriptions,
        );
   let p = exp_to_pretty(~settings, exp);
-  p |> PrettySegment.select;
+  p |> PrettySegment.select |> strip_if_incomplete(Exp(exp));
 };
 
 let typ_to_segment = (~settings: Settings.t, typ: Typ.t): Segment.t => {
@@ -3163,7 +3240,7 @@ let typ_to_segment = (~settings: Settings.t, typ: Typ.t): Segment.t => {
          ~show_ascriptions=settings.show_ascriptions,
        );
   let p = typ_to_pretty(~settings, typ);
-  p |> PrettySegment.select;
+  p |> PrettySegment.select |> strip_if_incomplete(Typ(typ));
 };
 
 let any_to_segment =
@@ -3177,5 +3254,5 @@ let any_to_segment =
          ~show_ascriptions=settings.show_ascriptions,
        );
   let p = any_to_pretty(~settings, any);
-  p |> PrettySegment.select;
+  p |> PrettySegment.select |> strip_if_incomplete(any);
 };
