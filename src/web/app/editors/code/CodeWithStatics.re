@@ -251,6 +251,7 @@ module View = {
     let error_decos =
       Arms.Errors.of_ids(
         ~refine_sort,
+        ~simple_indication=globals.settings.simple_indication,
         ~font_metrics=globals.font_metrics,
         ~syntax=model.editor.syntax,
         model.statics.error_ids,
@@ -261,6 +262,7 @@ module View = {
       Arms.Errors.of_ids(
         ~refine_sort,
         ~is_warning=true,
+        ~simple_indication=globals.settings.simple_indication,
         ~font_metrics=globals.font_metrics,
         ~syntax=model.editor.syntax,
         warning_ids,

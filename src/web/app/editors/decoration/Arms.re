@@ -401,6 +401,7 @@ module Errors = {
       (
         ~refine_sort: (Id.t, Sort.t) => Sort.t=(_, sort) => sort,
         ~is_warning=false,
+        ~simple_indication=false,
         ~font_metrics: FontMetrics.t,
         ~syntax: CachedSyntax.t,
         id: Id.t,
@@ -430,6 +431,39 @@ module Errors = {
         }
       | None =>
         switch (TermData.root_tile(id, syntax.term_data)) {
+        /* Simplified style: bare term arm (like indication) in the
+         * error/warning color, over a strokeless term-shaped backing (the
+         * red/orange analog of the probe refractor backing). */
+        | Some(t) when simple_indication =>
+          let backing =
+            switch (TermData.segment(id, syntax.term_data)) {
+            | Some(seg) =>
+              Highlight.of_segment(
+                ~measured=syntax.measured,
+                ~shape_map=syntax.shape_map,
+                ~font_metrics,
+                ~shape_init=Some(Convex),
+                ~clss=["simple-backing", is_warning ? "warning" : "error"],
+                seg,
+              )
+            | None => []
+            };
+          let arm =
+            switch (term_range(~syntax, Piece.Tile(t))) {
+            | Some(range) =>
+              simple_arm(
+                ~font_metrics,
+                ~rows=syntax.measured.rows,
+                ~path_cls=[
+                  "child-line",
+                  "simple",
+                  is_warning ? "warning" : "error",
+                ],
+                range,
+              )
+            | None => []
+            };
+          backing @ arm;
         | Some(t) => term(~refine_sort, ~syntax, ~font_metrics, t)
         | None => []
         }
@@ -440,6 +474,7 @@ module Errors = {
       (
         ~refine_sort: (Id.t, Sort.t) => Sort.t=(_, sort) => sort,
         ~is_warning=false,
+        ~simple_indication=false,
         ~font_metrics: FontMetrics.t,
         ~syntax: CachedSyntax.t,
         error_ids,
@@ -447,7 +482,13 @@ module Errors = {
     div_c(
       is_warning ? "warnings" : "errors",
       List.map(
-        of_id(~refine_sort, ~is_warning, ~font_metrics, ~syntax),
+        of_id(
+          ~refine_sort,
+          ~is_warning,
+          ~simple_indication,
+          ~font_metrics,
+          ~syntax,
+        ),
         error_ids,
       ),
     );
