@@ -3039,8 +3039,8 @@ and any_to_pretty = (~settings: Settings.t, any: Any.t): pretty => {
   | Mod(m) => mod_to_pretty(~settings, m)
   | Sig(s) => sig_to_pretty(~settings, s)
   | MPat(mp) => mpat_to_pretty(~settings, mp)
-  | Any(_)
-  | Rul(_) =>
+  | Rul(r) => rul_to_pretty(~settings, r)
+  | Any(_) =>
     let id = any |> Any.rep_id;
     p_just([
       Grout({
@@ -3048,6 +3048,61 @@ and any_to_pretty = (~settings: Settings.t, any: Any.t): pretty => {
         shape: Convex,
       }),
     ]);
+  };
+}
+and rul_to_pretty = (~settings: Settings.t, rul: Rul.t): pretty => {
+  let wrap = wrap_with_secondary(~secondary=settings.secondary);
+  let (@) = concat_segment(~secondary=settings.secondary);
+  let mk_form = mk_form(~secondary=settings.secondary);
+  let rep_id =
+    OptUtil.get(() => Id.mk(), ListUtil.hd_opt(IdTagged.ids(rul)));
+  switch (rul |> IdTagged.term_of) {
+  | Invalid(t) => wrap(rul, text_to_pretty(rep_id, Sort.Rul, t))
+  | MultiHole(es) =>
+    let+ es = es |> List.map(any_to_pretty(~settings)) |> all;
+    let num_grouts = max(0, List.length(es) - 1);
+    let ids = IdTagged.ids(rul) |> pad_ids(num_grouts);
+    let seg =
+      switch (es) {
+      | [] => []
+      | [first, ...rest] =>
+        first
+        @ List.flatten(
+            List.map2(
+              (id, e) =>
+                [
+                  Grout({
+                    id,
+                    shape: Concave,
+                  }),
+                  ...e,
+                ],
+              ids,
+              rest,
+            ),
+          )
+      };
+    wrap(rul, seg);
+  | Rules(scrut, rules) =>
+    /* A case-less rule chain (scrutinee followed by | p => e clauses),
+       reachable as a MultiHole kid. Previously printed as a single
+       convex grout, destroying the content. */
+    let+ scrut = exp_to_pretty(~settings, scrut)
+    and+ rs =
+      rules
+      |> List.map(((p, e)) =>
+           (pat_to_pretty(~settings, p), exp_to_pretty(~settings, e))
+         )
+      |> all;
+    let ids = IdTagged.ids(rul) |> pad_ids(List.length(rs));
+    wrap(
+      rul,
+      scrut
+      @ (
+        List.map2((id, (p, e)) => [mk_form(Rule, id, [p])] @ e, ids, rs)
+        |> List.flatten
+      ),
+    );
   };
 }
 and label_to_pretty =

@@ -363,6 +363,29 @@ let tests = (
     test_case("Function call", `Quick, () => {
       equivalent_to_make_term("a(1, 2)")
     }),
+    test_case(
+      "Rul term prints its content",
+      `Quick,
+      () => {
+        /* any_to_pretty used to print Rul as a bare convex grout,
+           destroying the rules' content */
+        let rul: Language.Rul.t =
+          IdTagged.FreshGrammar.(
+            IdTagged.fresh(
+              Grammar.Rules(
+                Exp.int(1),
+                [(Pat.constructor("A", None), Exp.int(2))],
+              ),
+            )
+          );
+        let seg =
+          ExpToSegment.any_to_segment(
+            ~settings=exp_to_segment_settings,
+            Rul(rul),
+          );
+        check(string, "rule content", "1 | A => 2", print_seg(seg));
+      },
+    ),
     test_case("Unit pattern", `Quick, () => {
       check(
         string,
@@ -1233,6 +1256,13 @@ let roundtrip_grout_string_tests = (
       {|1  2  3|},
     ),
     roundtrip_grout_text_test({|Incomplete: var then int|}, {|x 1|}),
+    /* NOTE: top-level orphaned rules (`1 | A => 2`) do NOT roundtrip:
+       at Exp sort the rule tile goes through MakeTerm's generic hole
+       path, which drops the tile tokens before any printer runs. Fixing
+       that requires completion (wrapping in case/end) or a tile-stub
+       representation — see plans/completion-provenance.md. Rul terms
+       that DO reach the printer keep their content; see
+       "Rul term prints its content" in the ExpToSegment tests. */
   ],
 );
 
