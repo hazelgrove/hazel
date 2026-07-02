@@ -483,16 +483,21 @@ module TypeSlicing = {
       };
     };
 
-  let omitted_ids = (~root_exp: Exp.t, ~ci: Info.t, model: Model.t) => {
-    let syn = slice_for_target(~root_exp, ~ci, Synthesizing, model.syn);
-    let ana = slice_for_target(~root_exp, ~ci, Analyzing, model.ana);
-    switch (syn, ana) {
-    | (Some(syn), Some(ana)) => Id.Set.inter(syn, ana)
-    | (Some(ids), None)
-    | (None, Some(ids)) => ids
-    | (None, None) => Id.Set.empty
-    };
-  };
+  let expand_omitted = (~term_data: TermData.t, ids: Id.Set.t): Id.Set.t =>
+    Id.Set.fold(
+      (id, acc) =>
+        switch (TermData.segment(id, term_data)) {
+        | Some(seg) =>
+          List.fold_left(
+            (acc, id) => Id.Set.add(id, acc),
+            acc,
+            Segment.ids(seg),
+          )
+        | None => acc
+        },
+      ids,
+      ids,
+    );
 
   let anchor_info =
       (
@@ -526,6 +531,7 @@ module TypeSlicing = {
   let omitted_ids_for_model =
       (
         ~root_exp: Exp.t,
+        ~term_data: TermData.t,
         ~info_map: Statics.Map.t,
         ~fallback_ci: option(Info.t),
         model: Model.t,
@@ -537,7 +543,11 @@ module TypeSlicing = {
     let ana =
       slice_for_model_row(~root_exp, ~anchor_ci, Analyzing, model.ana);
     switch (syn, ana) {
-    | (Some(syn), Some(ana)) => Id.Set.inter(syn, ana)
+    | (Some(syn), Some(ana)) =>
+      Id.Set.inter(
+        expand_omitted(~term_data, syn),
+        expand_omitted(~term_data, ana),
+      )
     | (Some(ids), None)
     | (None, Some(ids)) => ids
     | (None, None) => Id.Set.empty
@@ -750,6 +760,7 @@ module ProgramFolds = {
         let ids =
           TypeSlicing.omitted_ids_for_model(
             ~root_exp,
+            ~term_data=model.editor.syntax.term_data,
             ~info_map,
             ~fallback_ci,
             cursor_inspector,

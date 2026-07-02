@@ -144,6 +144,7 @@ let fold_slice = (~focus, ~query, src: string): string => {
   let omitted =
     CI.TypeSlicing.omitted_ids_for_model(
       ~root_exp,
+      ~term_data=code.editor.syntax.term_data,
       ~info_map=code.statics.info_map,
       ~fallback_ci=None,
       cursor_inspector,
@@ -534,6 +535,124 @@ let tests = (
           true,
           folded == "let x : ? = (1, 2) in ?"
           || folded == "let x : (?) = (1, 2) in ?",
+        );
+      },
+    ),
+    test_case(
+      "ana subpart fold applies with both rows active",
+      `Quick,
+      () => {
+        let code = code_model("let x : (Int, Int) = (1, ?) in ?");
+        let tuple = first_tuple_id(code);
+        let ci =
+          switch (Id.Map.find_opt(tuple, code.statics.info_map)) {
+          | Some(ci) => ci
+          | None => fail("tuple info missing")
+          };
+        let settings = {
+          ...Web.Settings.Model.init,
+          core: {
+            ...Web.Settings.Model.init.core,
+            flip_animations: false,
+          },
+        };
+        let update = (action, model) =>
+          CI.Update.update(~settings, ~cursor_info=Some(ci), action, model).
+            model;
+        let model =
+          CI.Model.init
+          |> update(Toggle(Synthesizing))
+          |> update(Toggle(Analyzing));
+        let ana_editor =
+          switch (model.ana.editor) {
+          | CI.Model.EditorSlot.SomeEditor(editor) => editor
+          | CI.Model.EditorSlot.NoEditor => fail("ana editor missing")
+          };
+        let rec first_int_tile = (seg: Segment.t): option(Id.t) =>
+          List.fold_left(
+            (acc, piece: Piece.t) =>
+              switch (acc, piece) {
+              | (Some(_), _) => acc
+              | (None, Tile({label: ["Int"], id, _})) => Some(id)
+              | (None, Tile({children, _})) =>
+                List.fold_left(
+                  (acc, child) =>
+                    switch (acc) {
+                    | Some(_) => acc
+                    | None => first_int_tile(child)
+                    },
+                  None,
+                  children,
+                )
+              | (None, _) => None
+              },
+            None,
+            seg,
+          );
+        let int_tile =
+          switch (
+            first_int_tile(
+              ana_editor.editor.state.zipper |> Zipper.unselect_and_zip,
+            )
+          ) {
+          | Some(id) => id
+          | None => fail("no Int tile in ana editor")
+          };
+        let jump =
+          switch (
+            Web.CodeEditable.Selection.jump_to_tile(int_tile, ana_editor)
+          ) {
+          | Some(action) => action
+          | None => fail("could not jump to Int tile")
+          };
+        let model = model |> update(TypeEditor(Analyzing, jump));
+        let model =
+          model
+          |> update(
+               TypeEditor(
+                 Analyzing,
+                 Web.CodeEditable.Update.Perform(
+                   Action.Project(
+                     Action.SetIndicated(Specific(ProjectorCore.Kind.Fold)),
+                   ),
+                 ),
+               ),
+             );
+        let ana_query =
+          switch (CI.TypeSlicing.query_of_row(model.ana)) {
+          | Some(q) => q
+          | None => fail("ana query missing")
+          };
+        let rec strip_parens = (typ: Typ.t): Typ.t =>
+          switch (Typ.term_of(typ)) {
+          | Parens(inner) => strip_parens(inner)
+          | _ => typ
+          };
+        let query_shape =
+          switch (Typ.term_of(strip_parens(ana_query))) {
+          | Prod([first, second]) =>
+            Statics.Slice.is_gap(first)
+            && (
+              switch (Typ.term_of(second)) {
+              | Atom(Int) => true
+              | _ => false
+              }
+            )
+          | _ => false
+          };
+        check(bool, "ana query is (?, Int)", true, query_shape);
+        let result =
+          CI.ProgramFolds.apply_type_slice(
+            ~info_map=code.statics.info_map,
+            ~fallback_ci=None,
+            ~cursor_inspector=model,
+            code,
+          );
+        check(
+          string,
+          "combined slice respects ana subpart fold",
+          "let ? : (?, Int) = (1, ?) in ?",
+          render_folded(result.model),
         );
       },
     ),
