@@ -270,6 +270,19 @@ let first_fun = (e: Exp.t): Id.t =>
     ),
   );
 
+let first_tuple = (e: Exp.t): Id.t =>
+  first(
+    "tuple",
+    collect_exp_ids(
+      x =>
+        switch (Exp.term_of(x)) {
+        | Tuple(_) => true
+        | _ => false
+        },
+      e,
+    ),
+  );
+
 let exp_hole = (e: Exp.t): Exp.t => {
   ...e,
   term: EmptyHole,

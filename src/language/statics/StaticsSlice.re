@@ -1922,6 +1922,12 @@ let dispatch_focus =
   | _ => None
   };
 
+let focus_subtree_ids = (m: Id.Map.t(Info.t), id: Id.t): Id.Set.t =>
+  switch (Id.Map.find_opt(id, m)) {
+  | Some(Info.InfoExp({user_term, _})) => source_ids(user_term)
+  | _ => Id.Set.singleton(id)
+  };
+
 let info_ancestors =
     (info: Info.t)
     : option(
@@ -2637,7 +2643,11 @@ let slice =
             ana: focused.ana,
           }
           : {
-            omitted: Id.Set.union(result.omitted, focused.omitted),
+            omitted:
+              Id.Set.union(
+                Id.Set.diff(result.omitted, focus_subtree_ids(m, id)),
+                focused.omitted,
+              ),
             gamma: focused.gamma,
             context: focused.context,
             psi: focused.psi,

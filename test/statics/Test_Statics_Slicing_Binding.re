@@ -94,6 +94,20 @@ let binding_synthesis = [
     "type Option = typfun A -> ? + Some(A) in Some@<Int>(?)",
   ),
   synthesis_case(
+    ~focus=first_tuple,
+    "bind-syn-tuple-ann-def",
+    "let x : (Int, Int) = (1, ?) in ?",
+    "(Int, ?)",
+    "let ? = (1, ?) in ?",
+  ),
+  synthesis_case(
+    ~focus=first_tuple,
+    "bind-syn-tuple-ann-def-full",
+    "let x : (Int, Int) = (1, 2) in ?",
+    "(Int, Int)",
+    "let ? = (1, 2) in ?",
+  ),
+  synthesis_case(
     "bind-typfun-curried",
     "type Result = typfun E -> typfun A -> Error(E) + Ok(A) in Ok@<String, Bool>(true)",
     "Result(?, Bool)",
