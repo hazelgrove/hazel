@@ -344,7 +344,7 @@ let simple_code =
     (~background=false, ~is_single_line=false, font_metrics, _sort, segment)
     : Node.t => {
   let shape_map = ProjectorCore.Shape.Map.empty; /* Assume this doesn't contain projectors */
-  let refractor_shape_map = Id.Map.empty; /* Assume this doesn't contain refractors (probes) */
+  let refractor_rows = Id.Map.empty; /* Assume this doesn't contain refractors (probes) */
   let measured =
     Measured.of_segment(~is_single_line, segment, shape_map, Id.Map.empty);
   let code =
@@ -352,7 +352,7 @@ let simple_code =
       ~measured,
       ~settings=Settings.Model.init,
       ~shape_map,
-      ~refractor_shape_map,
+      ~refractor_rows,
       ~font_metrics,
       ~term_data=Id.Map.empty,
       ~buffer_ids=[],

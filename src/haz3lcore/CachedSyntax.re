@@ -28,11 +28,16 @@ type t = {
    * underlying editor. In principle calculating this can involve
    * both static and dynamic information, so we cache this for perf */
   shape_map: ProjectorCore.Shape.Map.t,
-  /* extra rows reserved per refractor; Measured.of_segment and Code.view
-   * must agree on these or decorations drift from caret/text. */
-  refractor_shape_map: Id.Map.t(int),
-  /* compared by physical eq in `calculate`: unchanged refractor refs
-   * mean the shape map is still valid and we skip the rebuild. */
+  /* Rows reserved below a refractor's tile, e.g. an open probe drawer.
+   * Nonzero entries only, so consumers may treat the map as "open
+   * drawers" and iterate it wholesale (Move, RefractorShift). Measured
+   * and Code.view must agree on these rows or decorations drift from
+   * caret/text; both defer them to the linebreak after the tile.
+   * Rebuilds with unchanged contents reuse the old map, so physical
+   * identity doubles as a did-anything-change signal downstream. */
+  refractor_rows: Id.Map.t(int),
+  /* Refractor inputs last used to compute refractor_rows/shape_map;
+   * compared by physical eq in `calculate` to skip the rebuild. */
   cached_manuals: Refractors.RefractorList.t,
   cached_ephemerals: Refractors.Map.t,
   /* Errors reported by projectors (e.g. "can't render as table") */
@@ -68,7 +73,7 @@ let refractor_syntax_piece = (id: Id.t, term_data: TermData.t): Base.piece =>
       }),
   );
 
-let mk_refractor_shape_map =
+let mk_refractor_rows =
     (
       z: Zipper.t,
       term_data: TermData.t,
@@ -83,7 +88,7 @@ let mk_refractor_shape_map =
       z.refractors.manuals |> Id.Map.of_list,
       z.refractors.multis.ephemerals,
     );
-  Id.Map.mapi(
+  Id.Map.filter_map(
     (id, entry: Refractors.entry) => {
       let syntax_piece = refractor_syntax_piece(id, term_data);
       let p = Refractors.to_projector(syntax_piece, id, entry);
@@ -100,9 +105,9 @@ let mk_refractor_shape_map =
       switch (shape.vertical) {
       | Inline
       | Block(0)
-      | Tab(0) => 0
+      | Tab(0) => None
       | Tab(n)
-      | Block(n) => n
+      | Block(n) => Some(n)
       };
     },
     entries,
@@ -121,10 +126,10 @@ let mk = (~info_map, ~dyn_map, ~elaborated=None, z): t => {
       dyn_map,
       ~elaborated,
     );
-  let refractor_shape_map =
-    mk_refractor_shape_map(z, term_data, info_map, dyn_map, ~elaborated);
+  let refractor_rows =
+    mk_refractor_rows(z, term_data, info_map, dyn_map, ~elaborated);
   let measured =
-    Measured.of_segment(segment, projector_shapes, refractor_shape_map);
+    Measured.of_segment(segment, projector_shapes, refractor_rows);
   {
     old: false,
     segment,
@@ -135,7 +140,7 @@ let mk = (~info_map, ~dyn_map, ~elaborated=None, z): t => {
     projectors,
     projector_list,
     shape_map: projector_shapes,
-    refractor_shape_map,
+    refractor_rows,
     cached_manuals: z.refractors.manuals,
     cached_ephemerals: z.refractors.multis.ephemerals,
     projector_errors,
@@ -167,14 +172,16 @@ let refresh_shapes =
       dyn_map,
       ~elaborated,
     );
-  let refractor_shape_map =
-    mk_refractor_shape_map(z, old.term_data, info_map, dyn_map, ~elaborated);
-  let measured =
-    Measured.of_segment(old.segment, shape_map, refractor_shape_map);
+  let refractor_rows =
+    mk_refractor_rows(z, old.term_data, info_map, dyn_map, ~elaborated);
+  let refractor_rows =
+    Id.Map.equal((==), refractor_rows, old.refractor_rows)
+      ? old.refractor_rows : refractor_rows;
+  let measured = Measured.of_segment(old.segment, shape_map, refractor_rows);
   {
     ...old,
     shape_map,
-    refractor_shape_map,
+    refractor_rows,
     projector_errors,
     measured,
     cached_manuals: z.refractors.manuals,
