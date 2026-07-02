@@ -893,7 +893,7 @@ let vertical =
       d: Action.vertical,
       ~col_target: int,
       ~measured: Measured.t,
-      ~refractor_shape_map: Id.Map.t(int),
+      ~refractor_rows: Id.Map.t(int),
       ~chunkiness: Action.chunkiness=ByChar,
       z: t,
     )
@@ -905,7 +905,7 @@ let vertical =
       col: col_target,
       row:
         Move.skip_refractor_dead_rows(
-          ~refractor_shape_map,
+          ~refractor_rows,
           ~measured,
           ~dir,
           from_row + dir,

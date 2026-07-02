@@ -454,7 +454,8 @@ module Update = {
           instructor_mode: !settings.instructor_mode,
         }
       | AutoprobeMode =>
-        /* keyboard toggle cycles Off<->All only; Caret is set via the segmented control */
+        /* The keyboard toggle deliberately skips Caret, cycling Off<->All
+         * only; Caret mode is opted into via the segmented control. */
         {
           ...settings,
           autoprobe_mode:

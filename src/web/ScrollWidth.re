@@ -22,7 +22,7 @@ let last_key: ref(option(key)) = ref(None);
 let update =
     (
       ~measured: Measured.t,
-      ~refractor_shape_map: Id.Map.t(int),
+      ~refractor_rows: Id.Map.t(int),
       ~sample_focus: Language.Sample.Focus.t,
       ~font_metrics: FontMetrics.t,
       ~visible_rows: option(Globals.VisibleRows.t),
@@ -34,7 +34,7 @@ let update =
     switch (last_key^) {
     | Some((m, rsm, v, sf, fm, w, vr)) =>
       m !== measured
-      || rsm !== refractor_shape_map
+      || rsm !== refractor_rows
       || v != version
       || sf != sample_focus
       || fm != font_metrics
@@ -47,7 +47,7 @@ let update =
     last_key :=
       Some((
         measured,
-        refractor_shape_map,
+        refractor_rows,
         version,
         sample_focus,
         font_metrics,

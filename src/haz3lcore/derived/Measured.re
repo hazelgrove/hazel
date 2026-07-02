@@ -259,7 +259,7 @@ let of_segment_inner =
       is_single_line: bool,
       seg: Segment.t,
       shape_map: Id.Map.t(ProjectorCore.Shape.t),
-      refractor_shape_map: Id.Map.t(int),
+      refractor_rows: Id.Map.t(int),
     )
     : t => {
   module DeferredLinebreaks = MkDeferredLinebreaks();
@@ -391,7 +391,7 @@ let of_segment_inner =
           (acc, seg) => add_shard(go(~top_level=false, acc, seg), t),
           Aba.mk(t.shards, t.children),
         );
-      switch (Id.Map.find_opt(t.id, refractor_shape_map)) {
+      switch (Id.Map.find_opt(t.id, refractor_rows)) {
       | Some(n) =>
         DeferredLinebreaks.update(n) |> ignore;
         ();
@@ -409,7 +409,7 @@ let of_segment =
       ~is_single_line=false,
       seg: Segment.t,
       shape_map: Id.Map.t(ProjectorCore.Shape.t),
-      refractor_shape_map: Id.Map.t(int),
+      refractor_rows: Id.Map.t(int),
     )
     : t =>
   of_segment_inner(
@@ -417,7 +417,7 @@ let of_segment =
     is_single_line,
     seg,
     shape_map,
-    refractor_shape_map,
+    refractor_rows,
   );
 
 /* Width in characters of row at measurement.origin */

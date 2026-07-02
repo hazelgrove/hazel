@@ -478,8 +478,6 @@ let add_ids_from_multi_term =
   };
 };
 
-let autoprobe_updates_cursor = true;
-
 let add_multi =
     (
       id: Id.t,
@@ -1050,43 +1048,9 @@ let align_to_indicated_probe =
       || !auto_focus(z)) {
     z;
   } else {
-    let direct_match =
-      switch (Indicated.index(z)) {
-      | None => None
-      | Some(piece_id) =>
-        if (Id.Map.mem(piece_id, z.refractors.multis.ephemerals)) {
-          Some(piece_id);
-        } else {
-          None;
-        }
-      };
-    let spatial_match = () => {
-      let caret_pt = Zipper.Caret.point(syntax.measured, z);
-      let ephemerals = Id.Map.bindings(z.refractors.multis.ephemerals);
-      List.find_map(
-        ((id, _)) =>
-          switch (
-            TermData.extreme_measures(id, syntax.term_data, syntax.measured)
-          ) {
-          | Some((start_pt, end_pt))
-              when
-                start_pt.row == caret_pt.row
-                && caret_pt.col >= start_pt.col
-                && caret_pt.col <= end_pt.col
-                + 1 =>
-            Some(id)
-          | _ => None
-          },
-        ephemerals,
-      );
-    };
-    switch (direct_match) {
+    switch (caret_nearest_ephemeral(~syntax, z)) {
     | Some(id) => set_pending_probe([id], z)
-    | None =>
-      switch (spatial_match()) {
-      | Some(id) => set_pending_probe([id], z)
-      | None => z
-      }
+    | None => z
     };
   };
 
@@ -1291,18 +1255,8 @@ let current_toplevel_def =
     | [(ancestor, _), ..._] => try_id(ancestor.id)
     };
 
-  switch (from_indicated()) {
-  | Some(_) as r => r
-  | None =>
-    switch (from_right()) {
-    | Some(_) as r => r
-    | None =>
-      switch (from_left()) {
-      | Some(_) as r => r
-      | None => from_ancestor()
-      }
-    }
-  };
+  [from_indicated, from_right, from_left, from_ancestor]
+  |> List.fold_left((acc, f) => acc == None ? f() : acc, None);
 };
 
 /* Program root id: the single `All`-mode anchor (expands to one probe per row).
@@ -1360,7 +1314,7 @@ let update_autoprobe =
               add_multi(
                 root_id,
                 ~drill=false,
-                ~set_pending_cursor=autoprobe_updates_cursor && auto_focus(z),
+                ~set_pending_cursor=auto_focus(z),
                 ~syntax,
                 ~info_map,
                 z,
@@ -1387,7 +1341,7 @@ let update_autoprobe =
             add_multi(
               def_id,
               ~drill=false,
-              ~set_pending_cursor=autoprobe_updates_cursor && auto_focus(z),
+              ~set_pending_cursor=auto_focus(z),
               ~syntax,
               ~info_map,
               z,

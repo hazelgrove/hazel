@@ -179,7 +179,7 @@ let to_next_grout: (Direction.t, t) => option(t) =
  * positions; vertical movement skips past a reserved range in dir. */
 let skip_refractor_dead_rows =
     (
-      ~refractor_shape_map: Id.Map.t(int),
+      ~refractor_rows: Id.Map.t(int),
       ~measured: Measured.t,
       ~dir: int,
       candidate: int,
@@ -193,7 +193,7 @@ let skip_refractor_dead_rows =
         dir > 0 ? last.row + height + 1 : last.row
       | _ => acc
       },
-    refractor_shape_map,
+    refractor_rows,
     candidate,
   );
 
@@ -201,7 +201,7 @@ let vertical =
     (
       ~col_target: int,
       ~measured: Measured.t,
-      ~refractor_shape_map: Id.Map.t(int),
+      ~refractor_rows: Id.Map.t(int),
       d: Action.vertical,
       z: t,
     )
@@ -213,7 +213,7 @@ let vertical =
       col: col_target,
       row:
         skip_refractor_dead_rows(
-          ~refractor_shape_map,
+          ~refractor_rows,
           ~measured,
           ~dir,
           from_row + dir,
@@ -290,7 +290,7 @@ let move_dispatch =
       ~problem_ids: Seq.t(Id.t),
       ~col_target: int,
       ~measured: Measured.t,
-      ~refractor_shape_map: Id.Map.t(int),
+      ~refractor_rows: Id.Map.t(int),
       d: Action.move,
       z: t,
     )
@@ -300,8 +300,7 @@ let move_dispatch =
   | Start => Some(to_start(z))
   | End => Some(to_end(z))
   | Line(d) => to_linebreak(d, z)
-  | Vertical(d, _) =>
-    vertical(~measured, ~refractor_shape_map, ~col_target, d, z)
+  | Vertical(d, _) => vertical(~measured, ~refractor_rows, ~col_target, d, z)
   | Point(goal, _) => to_point(~measured, ~goal, z)
   | Goal(Hole(d)) => to_next_grout(d, z)
   | Goal(NextProblem(d)) => to_next_problem(~measured, ~problem_ids, d, z)
@@ -342,7 +341,7 @@ let go =
       ~problem_ids: Seq.t(Id.t),
       ~col_target: int,
       ~measured: Measured.t,
-      ~refractor_shape_map: Id.Map.t(int),
+      ~refractor_rows: Id.Map.t(int),
       a: Action.move,
       z: t,
     )
@@ -353,7 +352,7 @@ let go =
       ~problem_ids,
       ~col_target,
       ~measured,
-      ~refractor_shape_map,
+      ~refractor_rows,
       a,
       z,
     );
@@ -370,7 +369,7 @@ let go =
           ~problem_ids,
           ~col_target,
           ~measured,
-          ~refractor_shape_map,
+          ~refractor_rows,
           a,
           z,
         )

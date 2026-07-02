@@ -73,7 +73,7 @@ let view =
       ~measured: Measured.t,
       ~settings: Settings.Model.t,
       ~shape_map: ProjectorCore.Shape.Map.t,
-      ~refractor_shape_map: Id.Map.t(_),
+      ~refractor_rows: Id.Map.t(_),
       ~font_metrics: FontMetrics.t,
       ~term_data: TermData.t,
       /* `refine_sort` lets the caller refine a tile's syntactic mold-out sort
@@ -181,7 +181,7 @@ let view =
               Aba.mk(t.shards, t.children),
             );
           let _ =
-            switch (Id.Map.find_opt(t.id, refractor_shape_map)) {
+            switch (Id.Map.find_opt(t.id, refractor_rows)) {
             | Some(n) =>
               DeferredLinebreaks.update(n) |> ignore;
               ();

@@ -633,7 +633,7 @@ module View = {
         ~sample_focus=zipper.refractors.sample_focus,
         ~editor_active=selected,
         ~visible?,
-        ~refractor_shape_map=model.editor.syntax.refractor_shape_map,
+        ~refractor_rows=model.editor.syntax.refractor_rows,
         (),
       );
     let refractors_model =
@@ -643,7 +643,7 @@ module View = {
         globals.font_metrics,
         ~core_settings=globals.settings.core,
         ~visible?,
-        ~refractor_shape_map=model.editor.syntax.refractor_shape_map,
+        ~refractor_rows=model.editor.syntax.refractor_rows,
         refractor_data,
         List.map(fst, zipper.refractors.manuals)
         @ List.map(fst, Id.Map.to_list(zipper.refractors.multis.ephemerals)),
@@ -874,8 +874,9 @@ module View = {
               segment,
             );
           let str = Zipper.trim_selected_text(z, full);
-          /* cache for paste reuse only when untrimmed: a trimmed sub-token
-             string must re-parse on paste, not round-trip to the full segment */
+          /* Cache for paste reuse only when nothing was trimmed: a trimmed
+             sub-token string must re-parse on paste, not round-trip to the
+             full segment. */
           if (str == full && !selection_has_refractors(z.refractors, segment)) {
             Haz3lcore.Parser.set_segment_cache(Some(segment), str);
           };

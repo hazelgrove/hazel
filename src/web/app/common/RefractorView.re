@@ -27,16 +27,16 @@ let measurement_of_term =
  * This is analogous to ProjectorView.Model.mk but specialized for refractors.
  */
 /* visible rows of a refractor: anchor rows extended down by drawer height
- * (Tab(n) in refractor_shape_map), so a partially-visible drawer isn't culled early */
+ * (Tab(n) in refractor_rows), so a partially-visible drawer isn't culled early */
 let row_range =
     (
-      ~refractor_shape_map: Id.Map.t(int),
+      ~refractor_rows: Id.Map.t(int),
       id: Id.t,
       measurement: Measured.measurement,
     )
     : (int, int) => {
   let drawer_rows =
-    Id.Map.find_opt(id, refractor_shape_map) |> Option.value(~default=0);
+    Id.Map.find_opt(id, refractor_rows) |> Option.value(~default=0);
   (measurement.origin.row, measurement.last.row + drawer_rows);
 };
 
@@ -50,7 +50,7 @@ let mk_data =
       ~sample_focus: Language.Sample.Focus.t,
       ~editor_active: bool,
       ~visible: option(Globals.VisibleRows.t)=?,
-      ~refractor_shape_map: Id.Map.t(int)=Id.Map.empty,
+      ~refractor_rows: Id.Map.t(int)=Id.Map.empty,
       (),
     )
     : list(ProjectorView.Model.projector_data) => {
@@ -63,7 +63,7 @@ let mk_data =
        |> Option.map(measurement => (id, entry, measurement))
      )
   |> ProjectorView.filter_by_visibility(visible, _, ((id, _, measurement)) =>
-       row_range(~refractor_shape_map, id, measurement)
+       row_range(~refractor_rows, id, measurement)
      )
   |> List.map(((id, entry, measurement)) => {
        let syntax_piece =
@@ -126,13 +126,13 @@ let all =
       font_metrics: FontMetrics.t,
       ~core_settings: Language.CoreSettings.t,
       ~visible: option(Globals.VisibleRows.t)=?,
-      ~refractor_shape_map: Id.Map.t(int)=Id.Map.empty,
+      ~refractor_rows: Id.Map.t(int)=Id.Map.empty,
       refractor_data: list(ProjectorView.Model.projector_data),
       refractor_list: list(Id.t),
     ) => {
   /* usually a no-op (mk_data already culls); kept for callers without visibility info */
   let get_row_range = (d: ProjectorView.Model.projector_data) =>
-    row_range(~refractor_shape_map, d.p.id, d.measurement);
+    row_range(~refractor_rows, d.p.id, d.measurement);
   let (base_views, overlay_views) =
     refractor_data
     |> ProjectorView.filter_by_visibility(visible, _, get_row_range)

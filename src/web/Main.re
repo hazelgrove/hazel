@@ -282,14 +282,14 @@ let start = default_model => {
         let font_metrics = model.model.current.current.globals.font_metrics;
         ScrollWidth.update(
           ~measured,
-          ~refractor_shape_map=editor.syntax.refractor_shape_map,
+          ~refractor_rows=editor.syntax.refractor_rows,
           ~sample_focus=zipper.refractors.sample_focus,
           ~font_metrics,
           ~visible_rows=model.model.current.current.globals.visible_rows,
         );
         RefractorShift.update(
           ~font_metrics,
-          ~refractor_shape_map=editor.syntax.refractor_shape_map,
+          ~refractor_rows=editor.syntax.refractor_rows,
           ~measured,
           zipper,
         );
