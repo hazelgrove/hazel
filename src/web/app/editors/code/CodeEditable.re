@@ -493,6 +493,7 @@ module View = {
       ~refine_sort=
         (id, mold_out) =>
           Language.Info.refine_sort_from_mold(~info_map, ~id, mold_out),
+      ~simple_indication=globals.settings.simple_indication,
       ~font_metrics=globals.font_metrics,
       ~syntax,
       z,

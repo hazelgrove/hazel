@@ -372,6 +372,28 @@ let term_range = (~syntax: CachedSyntax.t, p: Piece.t) => {
   };
 };
 
+/* Draws a single simplified arm: a left-convex C/L-shaped bracket spanning
+ * the whole term from its first to last point, hooked on both ends, with no
+ * shard backing. Used by the refractor decoration and, when the simplified
+ * indication setting is on, by the regular term indication. */
+let simple_arm =
+    (
+      ~font_metrics: FontMetrics.t,
+      ~rows: Rows.t,
+      ~path_cls: list(string),
+      (first, last): (Point.t, Point.t),
+    )
+    : list(Node.t) => {
+  let hx = abs_float(ShardDec.offset_of(Some(Left))); // always left-convex
+  let min_col = min_col(~first, ~last, ~rows);
+  switch (l_path(~flip=true, ~hx, ~min_col, ~first, ~last)) {
+  | Some((orig, path)) => [
+      svg(~font_metrics, ~path_cls, (orig, path @ [hook(hx, 1, -1)])),
+    ]
+  | None => []
+  };
+};
+
 open Util.WebUtil;
 
 module Errors = {
@@ -485,9 +507,42 @@ module Indicated = {
     | _ => []
     };
 
+  /* Simplified indication: just the bare term arm (no shard backing), in the
+   * same sort-based color as the regular indication arms. */
+  let simple_indicated_arm =
+      (
+        ~refine_sort: (Id.t, Sort.t) => Sort.t=(_, sort) => sort,
+        ~font_metrics: FontMetrics.t,
+        ~syntax: CachedSyntax.t,
+        z: Zipper.t,
+      )
+      : list(Node.t) =>
+    switch (Indicated.for_decoration(z)) {
+    | _ when z.selection.content != [] => []
+    | Some({piece: p, _}) when !Piece.is_infix_delimiter_op_prefix(p) =>
+      let rep_id =
+        Language.Any.rep_id(Id.Map.find(Piece.id(p), syntax.terms));
+      switch (
+        term_range(~syntax, p),
+        TermData.root_piece(rep_id, syntax.term_data),
+      ) {
+      | (Some(range), Some(root)) =>
+        let sort = refine_sort(rep_id, Piece.sort(root) |> fst);
+        simple_arm(
+          ~font_metrics,
+          ~rows=syntax.measured.rows,
+          ~path_cls=["child-line", Sort.class_of(sort)],
+          range,
+        );
+      | _ => []
+      };
+    | _ => []
+    };
+
   let term =
       (
         ~refine_sort: (Id.t, Sort.t) => Sort.t=(_, sort) => sort,
+        ~simple_indication=false,
         ~font_metrics: FontMetrics.t,
         ~syntax: CachedSyntax.t,
         z: Zipper.t,
@@ -502,33 +557,22 @@ module Indicated = {
       |> Option.map(ProjectorCore.Kind.name)
       |> Option.value(~default="");
     let cls = kind_cls == "" ? base_cls : base_cls ++ " " ++ kind_cls;
-    div_c(cls, indicated_piece(~refine_sort, ~font_metrics, ~syntax, z));
+    /* Simplified style suppresses the shard hexagons: regular terms get just
+     * the bare arm; refractor terms get nothing here, leaving only the
+     * simplified arm and backing drawn by Arms.Refractors. */
+    let contents =
+      switch (simple_indication, refractor_kind) {
+      | (false, _) =>
+        indicated_piece(~refine_sort, ~font_metrics, ~syntax, z)
+      | (true, Some(_)) => []
+      | (true, None) =>
+        simple_indicated_arm(~refine_sort, ~font_metrics, ~syntax, z)
+      };
+    div_c(cls, contents);
   };
 };
 
 module Refractors = {
-  let paths =
-      (
-        hx: float,
-        sort: Sort.t,
-        font_metrics: FontMetrics.t,
-        rows: Rows.t,
-        ~cls: string,
-        (first, last): (Point.t, Point.t),
-      )
-      : list(Node.t) => {
-    let min_col = min_col(~first, ~last, ~rows);
-    let (orig, path) =
-      l_path(~flip=true, ~hx, ~min_col, ~first, ~last) |> Option.get;
-    [
-      svg(
-        ~font_metrics,
-        ~path_cls=["child-line", cls, Sort.to_string(sort)],
-        (orig, path @ [hook(hx, 1, -1)]),
-      ),
-    ];
-  };
-
   let refractor_arms =
       (
         ~id: Id.t,
@@ -541,15 +585,16 @@ module Refractors = {
     | Some(t) =>
       switch (term_range(~syntax, t.root_piece)) {
       | Some(range) =>
-        let hx = abs_float(ShardDec.offset_of(Some(Left))); // Always left-convex
         let sort = Piece.sort(t.root_piece) |> fst;
         let kind_cls = ProjectorCore.Kind.name(kind);
-        paths(
-          hx,
-          ~cls=cls ++ " " ++ kind_cls,
-          sort,
-          font_metrics,
-          syntax.measured.rows,
+        simple_arm(
+          ~font_metrics,
+          ~rows=syntax.measured.rows,
+          ~path_cls=[
+            "child-line",
+            cls ++ " " ++ kind_cls,
+            Sort.to_string(sort),
+          ],
           range,
         );
       | _ => []
