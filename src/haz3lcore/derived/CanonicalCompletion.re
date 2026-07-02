@@ -178,55 +178,55 @@ let rec opener_insertion_index = (sk: Skel.t, idx: int): option(int) => {
 
 /* Splice each leading-incomplete tile's openers at its computed index.
  * Ties: later tile (later closer) first at the same index = outermost. */
-let insert_openers = (subseg: Segment.t, incomplete: list(Tile.t)): Segment.t => {
+/* Per leading-incomplete tile: (insertion index, closer index, tile),
+ * position asc, same-position ties later-closer-first (outermost). */
+let opener_schedule =
+    (subseg: Segment.t, incomplete: list(Tile.t)): list((int, int, Tile.t)) => {
   let leading_incomplete =
     incomplete |> List.filter((t: Tile.t) => Tile.l_shard(t) > 0);
   if (leading_incomplete == []) {
-    subseg;
+    [];
   } else {
-    switch (Segment.skel(subseg)) {
-    | exception _ => leading_from_incomplete(leading_incomplete) @ subseg
-    | skel =>
-      let index_of = (t: Tile.t) => {
-        let rec go = (i, ps) =>
-          switch (ps) {
-          | [] => None
-          | [Piece.Tile(t'), ..._] when t'.id == t.id => Some(i)
-          | [_, ...rest] => go(i + 1, rest)
-          };
-        go(0, subseg);
-      };
-      let scheduled =
-        leading_incomplete
-        |> List.filter_map(t =>
-             index_of(t)
-             |> Option.map(idx =>
-                  (
-                    opener_insertion_index(skel, idx)
-                    |> Option.value(~default=0),
-                    idx,
-                    leading_shards(t),
-                  )
-                )
-           )
-        /* position asc; ties: later closer first (outermost) */
-        |> List.sort(((a1, i1, _), (a2, i2, _)) =>
-             a1 == a2 ? compare(i2, i1) : compare(a1, a2)
-           );
-      let rec splice = (i, ps, sched) =>
-        switch (sched) {
-        | [] => ps
-        | [(at, _, openers), ...rest] when at == i =>
-          openers @ splice(i, ps, rest)
-        | _ =>
-          switch (ps) {
-          | [] => List.concat_map(((_, _, o)) => o, sched)
-          | [p, ...ptl] => [p, ...splice(i + 1, ptl, sched)]
-          }
+    let index_of = (t: Tile.t) => {
+      let rec go = (i, ps) =>
+        switch (ps) {
+        | [] => None
+        | [Piece.Tile(t'), ..._] when t'.id == t.id => Some(i)
+        | [_, ...rest] => go(i + 1, rest)
         };
-      splice(0, subseg, scheduled);
+      go(0, subseg);
     };
+    let at_of = (idx: int) =>
+      switch (Segment.skel(subseg)) {
+      | exception _ => 0
+      | skel => opener_insertion_index(skel, idx) |> Option.value(~default=0)
+      };
+    leading_incomplete
+    |> List.filter_map(t =>
+         index_of(t) |> Option.map(idx => (at_of(idx), idx, t))
+       )
+    |> List.sort(((a1, i1, _), (a2, i2, _)) =>
+         a1 == a2 ? compare(i2, i1) : compare(a1, a2)
+       );
   };
+};
+
+let insert_openers = (subseg: Segment.t, incomplete: list(Tile.t)): Segment.t => {
+  let scheduled =
+    opener_schedule(subseg, incomplete)
+    |> List.map(((at, idx, t)) => (at, idx, leading_shards(t)));
+  let rec splice = (i, ps, sched) =>
+    switch (sched) {
+    | [] => ps
+    | [(at, _, openers), ...rest] when at == i =>
+      openers @ splice(i, ps, rest)
+    | _ =>
+      switch (ps) {
+      | [] => List.concat_map(((_, _, o)) => o, sched)
+      | [p, ...ptl] => [p, ...splice(i + 1, ptl, sched)]
+      }
+    };
+  splice(0, subseg, scheduled);
 };
 
 /* Check if a shard needs a hole after it (has concave right side).
@@ -276,6 +276,64 @@ let delimiters_from_incomplete =
             {
               text: List.nth(label, shard_idx),
               needs_hole: shard_needs_hole(t, shard_idx),
+            };
+          });
+     });
+
+/* Viz records for leading openers: anchored Left of the piece at the
+ * computed insertion index. Openers absorb existing content rightward,
+ * so no hole follows. */
+let leading_insertions =
+    (subseg: Segment.t, incomplete: list(Tile.t)): list(insertion) =>
+  opener_schedule(subseg, incomplete)
+  |> List.filter_map(((at, _, t: Tile.t)) =>
+       List.nth_opt(subseg, at)
+       |> Option.map(p =>
+            {
+              adjacent_id: Piece.id(p),
+              side: Direction.Left,
+              delimiters:
+                Tile.left_missing_shards(t)
+                |> List.map((sh: Tile.t) =>
+                     {
+                       text: List.nth(t.label, List.hd(sh.shards)),
+                       needs_hole: false,
+                     }
+                   ),
+            }
+          )
+     );
+
+/* Viz records for interior gaps: each missing shard anchors Right of the
+ * last piece of the child content preceding the gap (`let x in` shows
+ * the pending = after the x). */
+let middle_insertions = (incomplete: list(Tile.t)): list(insertion) =>
+  incomplete
+  |> List.concat_map((t: Tile.t) => {
+       let lo = Tile.l_shard(t);
+       let hi = Tile.r_shard(t);
+       let interior =
+         List.init(hi - lo + 1, i => lo + i)
+         |> List.filter(i => !List.mem(i, t.shards));
+       interior
+       |> List.filter_map(m => {
+            let k = List.length(List.filter(sh => sh < m, t.shards)) - 1;
+            switch (List.nth_opt(t.children, k)) {
+            | Some(child) =>
+              ListUtil.last_opt(child)
+              |> Option.map(p =>
+                   {
+                     adjacent_id: Piece.id(p),
+                     side: Direction.Right,
+                     delimiters: [
+                       {
+                         text: List.nth(t.label, m),
+                         needs_hole: shard_needs_hole(t, m),
+                       },
+                     ],
+                   }
+                 )
+            | None => None
             };
           });
      });
@@ -586,26 +644,62 @@ let complete_segment =
      * record the adjacent piece ID for later position lookup */
     let insertions =
       partitioned
-      |> List.filter_map(((subseg, incomplete, _)) =>
-           if (List.length(incomplete) == 0) {
-             None;
-           } else {
-             /* Find the last piece in the subsegment.
-              * Insertion happens on the RIGHT side of this piece.
-              * For blank-line partitions, this is the trailing linebreak.
-              * For column-0 partitions, this is the last content piece. */
-             switch (last_piece_for_insertion(subseg)) {
-             | None => None
-             | Some(last_p) =>
-               let delimiters = delimiters_from_incomplete(incomplete);
-               Some({
-                 adjacent_id: Piece.id(last_p),
-                 side: Right,
-                 delimiters,
-               });
+      |> List.concat_map(((subseg, incomplete, wraps)) => {
+           /* trailing closers: offside at the partition's last piece.
+              Skip when there are none (a middle-only-missing tile is
+              incomplete but appends nothing — no spurious record). */
+           let trailing =
+             switch (
+               delimiters_from_incomplete(incomplete),
+               last_piece_for_insertion(subseg),
+             ) {
+             | ([], _)
+             | (_, None) => []
+             | (delimiters, Some(last_p)) => [
+                 {
+                   adjacent_id: Piece.id(last_p),
+                   side: Direction.Right,
+                   delimiters,
+                 },
+               ]
              };
-           }
-         );
+           let wrap_ins =
+             wraps
+             |> List.concat_map(((l_idx, r_idx, _)) =>
+                  switch (
+                    List.nth_opt(subseg, l_idx),
+                    List.nth_opt(subseg, r_idx),
+                  ) {
+                  | (Some(lp), Some(rp)) => [
+                      {
+                        adjacent_id: Piece.id(lp),
+                        side: Direction.Left,
+                        delimiters: [
+                          {
+                            text: "case",
+                            needs_hole: false,
+                          },
+                        ],
+                      },
+                      {
+                        adjacent_id: Piece.id(rp),
+                        side: Direction.Right,
+                        delimiters: [
+                          {
+                            text: "end",
+                            needs_hole: false,
+                          },
+                        ],
+                      },
+                    ]
+                  | _ => []
+                  }
+                );
+           trailing
+           @ leading_insertions(subseg, incomplete)
+           @ middle_insertions(incomplete)
+           @ wrap_ins;
+         });
 
     /* Phase 1: splice wrap shards (case/end around each rule-chain
        span) and missing openers at their computed indices, fill interior

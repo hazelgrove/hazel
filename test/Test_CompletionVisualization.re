@@ -65,6 +65,20 @@ let simple_tests = [
     ~expected={|fun x·    // -> ?|},
   ),
   test(~name="open paren", ~input="(1 + 2", ~expected={|(1 + 2·    // )|}),
+  /* Leading openers anchor Left of the absorbed span's first piece */
+  test(~name="unopened paren", ~input="1, 2)", ~expected={|·1, 2)    // (|}),
+  test(
+    ~name="opener bounded by let",
+    ~input="let a = 1,2]",
+    ~expected={|let a = ·1,2]·    // [ in ?|},
+  ),
+  /* Interior gaps anchor Right of the content before the gap;
+     middle-only-missing tiles produce no spurious trailing record */
+  test(
+    ~name="let missing equals",
+    ~input="let x in 2",
+    ~expected={|let x ·in 2    // = ?|},
+  ),
   test(~name="open bracket", ~input="[1, 2", ~expected={|[1, 2·    // ]|}),
   test(
     ~name="if missing else",
