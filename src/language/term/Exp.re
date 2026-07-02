@@ -434,7 +434,14 @@ let (replace_all_ids, replace_all_ids_typ) = {
     (continue, exp) =>
       {
         ...exp,
-        annotation: IdTagged.IdTag.mk_internal([Id.mk()]),
+        annotation: {
+          /* fresh ids; keep the lexeme (hole flavor, unknown-op tokens)
+             so re-idded results still display faithfully. Secondary and
+             shard provenance stay dropped: display of results is
+             AutoFormat and the tile-id references are invalidated. */
+          ...IdTagged.IdTag.mk_internal([Id.mk()]),
+          lexeme: exp.annotation.lexeme,
+        },
       }
       |> continue;
   (

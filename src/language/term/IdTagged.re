@@ -146,15 +146,18 @@ let fast_copy = (id, {term, _}: t('a)): t('a) => {
   },
 };
 
-/* Generate new ids for term, preserving secondary.
+/* Generate new ids for term, preserving secondary and lexeme (both are
+   id-independent surface data; results pass through replace_all_ids on
+   the way to display and must keep e.g. hole flavor).
    Drops shard provenance (tile-id references are invalidated). */
-let new_ids = ({term, annotation: {ids: _, secondary, _}}: t('a)): t('a) => {
+let new_ids =
+    ({term, annotation: {ids: _, secondary, lexeme, _}}: t('a)): t('a) => {
   term,
   annotation: {
     ids: [Id.mk()],
     secondary,
     incomplete: [],
-    lexeme: None,
+    lexeme,
   },
 };
 

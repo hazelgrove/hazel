@@ -41,6 +41,7 @@ let format_sample_value = (value: Exp.t): string => {
       ~settings={
         ...ExpToSegment.Settings.of_core(~inline=true, CoreSettings.off),
         show_unknown_as_hole: false,
+        use_literal_lexemes: true,
       },
       value |> DHExp.strip_ascriptions,
     );

@@ -45,10 +45,17 @@ module Settings = {
     show_filters: bool,
     show_ascriptions: bool,
     show_unknown_as_hole: bool,
+    /* Emit recorded surface spellings of literals/labels (007, 1e3, `a`).
+       On for code display and roundtripping; off for result views, where
+       values print canonically (evaluation copies drop lexemes anyway,
+       so keeping them would render results inconsistently). Hole and
+       unknown-operator lexemes are always emitted. */
+    use_literal_lexemes: bool,
   };
 
   let of_core = (~inline, ~fold_fn_bodies=?, settings: CoreSettings.t) => {
     secondary: AutoFormat,
+    use_literal_lexemes: false,
     parenthesization: Defensive,
     label_format: QuoteWhenNecessary,
     inline,
@@ -68,6 +75,7 @@ module Settings = {
   let editable = (~inline) => {
     {
       secondary: AutoFormat,
+      use_literal_lexemes: true,
       parenthesization: Defensive,
       label_format: QuoteWhenNecessary,
       inline,
@@ -123,8 +131,9 @@ let op_lexeme = (ann: IdTagged.IdTag.t): option(string) =>
   | _ => None
   };
 
-let quoted_label_lexeme = (ann: IdTagged.IdTag.t, label: string): string =>
-  switch (ann.lexeme) {
+let quoted_label_lexeme =
+    (~settings: Settings.t, ann: IdTagged.IdTag.t, label: string): string =>
+  switch (settings.use_literal_lexemes ? ann.lexeme : None) {
   | Some(l)
       when
         Token.is_quoted_label(l)
@@ -132,9 +141,10 @@ let quoted_label_lexeme = (ann: IdTagged.IdTag.t, label: string): string =>
   | _ => Token.label_quote(label)
   };
 
-let atom_lexeme = (ann: IdTagged.IdTag.t, c: Atom.t): string => {
+let atom_lexeme =
+    (~settings: Settings.t, ann: IdTagged.IdTag.t, c: Atom.t): string => {
   let canonical = Atom.to_literal(c);
-  switch (ann.lexeme) {
+  switch (settings.use_literal_lexemes ? ann.lexeme : None) {
   | Some(l) =>
     let valid =
       switch (c) {
@@ -1822,7 +1832,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
       text_to_pretty(
         exp |> Exp.rep_id,
         Sort.Exp,
-        atom_lexeme(exp.annotation, c),
+        atom_lexeme(~settings, exp.annotation, c),
       ),
     )
   | DrvQuote(d, sort) =>
@@ -2075,7 +2085,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
       label_to_pretty(
         ~label_format=settings.label_format,
         ~label_only_position=false,
-        ~lexeme=exp.annotation.lexeme,
+        ~lexeme=settings.use_literal_lexemes ? exp.annotation.lexeme : None,
         Sort.Exp,
         Token.label_quote(l),
         exp |> Exp.rep_id,
@@ -2090,7 +2100,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
           label_to_pretty(
             ~label_format=settings.label_format,
             ~label_only_position=true,
-            ~lexeme=l.annotation.lexeme,
+            ~lexeme=settings.use_literal_lexemes ? l.annotation.lexeme : None,
             Sort.Exp,
             l',
             l |> Exp.rep_id,
@@ -2136,7 +2146,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
           label_to_pretty(
             ~label_format=settings.label_format,
             ~label_only_position=true,
-            ~lexeme=l.annotation.lexeme,
+            ~lexeme=settings.use_literal_lexemes ? l.annotation.lexeme : None,
             Sort.Exp,
             l',
             l |> Exp.rep_id,
@@ -2537,7 +2547,7 @@ and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
       text_to_pretty(
         pat |> Pat.rep_id,
         Sort.Pat,
-        atom_lexeme(pat.annotation, c),
+        atom_lexeme(~settings, pat.annotation, c),
       ),
     )
   | Constructor(c, _) =>
@@ -2599,7 +2609,7 @@ and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
           label_to_pretty(
             ~label_format=settings.label_format,
             ~label_only_position=true,
-            ~lexeme=l.annotation.lexeme,
+            ~lexeme=settings.use_literal_lexemes ? l.annotation.lexeme : None,
             Sort.Pat,
             l',
             l |> Pat.rep_id,
@@ -2640,7 +2650,7 @@ and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
       text_to_pretty(
         pat |> Pat.rep_id,
         Sort.Pat,
-        quoted_label_lexeme(pat.annotation, l),
+        quoted_label_lexeme(~settings, pat.annotation, l),
       ),
     )
   | Parens(p) =>
@@ -2842,7 +2852,7 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
       text_to_pretty(
         typ |> Typ.rep_id,
         Sort.Typ,
-        quoted_label_lexeme(typ.annotation, l),
+        quoted_label_lexeme(~settings, typ.annotation, l),
       ),
     )
   | TupLabel(l, t) =>
@@ -2854,7 +2864,7 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
           label_to_pretty(
             ~label_format=settings.label_format,
             ~label_only_position=true,
-            ~lexeme=l.annotation.lexeme,
+            ~lexeme=settings.use_literal_lexemes ? l.annotation.lexeme : None,
             Sort.Typ,
             l',
             l |> Typ.rep_id,
@@ -2900,7 +2910,7 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
           label_to_pretty(
             ~label_format=settings.label_format,
             ~label_only_position=true,
-            ~lexeme=t2.annotation.lexeme,
+            ~lexeme=settings.use_literal_lexemes ? t2.annotation.lexeme : None,
             Sort.Typ,
             l',
             t2 |> Typ.rep_id,

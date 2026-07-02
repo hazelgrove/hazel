@@ -414,8 +414,17 @@ and uexp_to_info_map =
         | [e] => e
         | [e, ...rest] => Seq(e, nest_seqs(rest)) |> rewrap
         };
+      /* An unknown-infix multihole (operator token recorded as the
+         lexeme, two exp kids) is a stuck application, not transient
+         juxtaposition: elaborate it to a MultiHole, which the dynamics
+         treats as Indet, instead of evaluating to the last kid. */
+      let elab_term =
+        switch (uexp.annotation.lexeme, exp_elabs) {
+        | (Some(_), [e1, e2]) => MultiHole([Exp(e1), Exp(e2)]) |> rewrap
+        | _ => nest_seqs(exp_elabs)
+        };
       add(
-        ~elab_term=nest_seqs(exp_elabs),
+        ~elab_term,
         ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
         ~marks=[IsMulti],
         ~co_ctx=CoCtx.union(exp_co_ctxs),

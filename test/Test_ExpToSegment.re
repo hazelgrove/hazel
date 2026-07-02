@@ -15,6 +15,7 @@ let exp_to_segment_settings: ExpToSegment.Settings.t = {
   show_ascriptions: true,
   show_filters: true,
   show_unknown_as_hole: true,
+  use_literal_lexemes: true,
   project_tables: false,
 };
 
@@ -556,6 +557,7 @@ let exp_to_segment_roundtrip_settings: ExpToSegment.Settings.t = {
   show_ascriptions: true,
   show_filters: true,
   show_unknown_as_hole: true,
+  use_literal_lexemes: true,
   project_tables: false,
 };
 
@@ -1254,6 +1256,7 @@ let grout_structural_settings: ExpToSegment.Settings.t = {
   show_ascriptions: true,
   show_filters: true,
   show_unknown_as_hole: true,
+  use_literal_lexemes: true,
   project_tables: false,
 };
 
@@ -1322,9 +1325,46 @@ let roundtrip_incomplete_test = (name: string, input: string) =>
     }
   });
 
+let result_display_test =
+  test_case(
+    "Result display: hole flavor, canonical literals, stuck ops",
+    `Quick,
+    () => {
+      /* Mirror the browser result pipeline: evaluate, replace_all_ids (as
+         evaluate_and_limit does), print with of_core display settings. */
+      let display = (e: Language.Exp.t) =>
+        print_seg(
+          PrettySegment.prettify(
+            ExpToSegment.exp_to_segment(
+              ~settings=
+                ExpToSegment.Settings.of_core(~inline=false, CoreSettings.on),
+              e,
+            ),
+          ),
+        );
+      let run = src =>
+        Test_Evaluator_Prelude.(evaluate(elaborate(parse_exp(src))))
+        |> Language.Exp.replace_all_ids;
+      /* hole flavor survives evaluation and re-idding (B8) */
+      check(string, "explicit hole", "1 + ?", display(run("1 + ?")));
+      check(string, "llm hole", "1 + ??", display(run("1 + ??")));
+      /* unknown ops are stuck, not evaluated-to-last (B9) */
+      check(string, "stuck op", "1 @@@ 2", display(run("1 @@@ 2")));
+      /* literals canonicalize consistently in result views (B7) */
+      check(
+        string,
+        "literal via let",
+        "7",
+        display(run("let x = 007 in x")),
+      );
+      check(string, "literal direct", "7", display(run("007")));
+    },
+  );
+
 let roundtrip_incomplete_tests = (
   "Round-Trip: Incomplete (completion provenance)",
   [
+    result_display_test,
     roundtrip_incomplete_test({|Let missing in|}, {|let x = 1 |}),
     roundtrip_incomplete_test({|If missing else|}, {|if true then 1 |}),
     roundtrip_incomplete_test({|Fun missing arrow|}, {|fun x |}),
