@@ -2092,6 +2092,14 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     and+ e = go(e);
     let e = settings.inline ? e : [Secondary(mk_newline(Id.mk()))] @ e;
     wrap(exp, [mk_form(Use, id, [t])] @ e);
+  | Ap(Forward, e1, {term: Tuple([]), _} as arg)
+      when Id.is_nullary_ap_flag(IdTagged.ids(arg)) =>
+    /* f() — the flag id marks the empty argument tuple as coming from
+       the single-token nullary-ap form (see MakeTerm.exp_term), not
+       from a literal () argument */
+    let id = exp |> Exp.rep_id;
+    let+ e1 = go(e1);
+    wrap(exp, e1 @ [mk_form(ApExpEmpty, id, [])]);
   | Ap(Forward, e1, e2) =>
     let id = exp |> Exp.rep_id;
     let+ e1 = go(e1)
@@ -2559,6 +2567,12 @@ and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
           )
       };
     wrap(pat, seg);
+  | Ap(p1, {term: Tuple([]), _} as arg)
+      when Id.is_nullary_ap_flag(IdTagged.ids(arg)) =>
+    /* C() in patterns — see the exp Ap case */
+    let id = pat |> Pat.rep_id;
+    let+ p1 = go(p1);
+    wrap(pat, p1 @ [mk_form(ApPatEmpty, id, [])]);
   | Ap(p1, p2) =>
     let id = pat |> Pat.rep_id;
     let+ p1 = go(p1)

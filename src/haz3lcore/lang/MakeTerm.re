@@ -812,11 +812,9 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
             Forward,
             l,
             {
-              annotation:
-                IdTagged.IdTag.mk(
-                  [Id.nullary_ap_flag],
-                  get_secondary([Id.nullary_ap_flag]),
-                ),
+              /* Flag id is a shared sentinel, not a tile id — looking it
+                 up in the secondary map would fetch unrelated runs */
+              annotation: IdTagged.IdTag.mk_internal([Id.nullary_ap_flag]),
               term: Tuple([]),
             },
           ),

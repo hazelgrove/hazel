@@ -702,6 +702,11 @@ else 2|}),
     roundtrip_test({|Nested: deeply nested ops|}, {|((1 + 2) * (3 - 4))|}),
     /* Application */
     roundtrip_test({|Application: standard|}, {|f(x)|}),
+    /* Nullary ap is a distinct single-token postfix form, flagged by
+       Id.nullary_ap_flag on the Tuple([]) arg — must not print as f(()) */
+    roundtrip_test({|Application: nullary|}, {|f()|}),
+    roundtrip_test({|Application: nullary in pattern|}, {|fun C() -> 1|}),
+    roundtrip_test({|Application: literal unit arg|}, {|f(())|}),
     roundtrip_test({|Application: multiple args|}, {|f(x, y, z)|}),
     roundtrip_test({|Deferred Application: standard|}, {|f(_ , y)|}),
     roundtrip_test(
