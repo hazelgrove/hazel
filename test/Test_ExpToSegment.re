@@ -1307,6 +1307,14 @@ let roundtrip_incomplete_test = (name: string, input: string) =>
         print_g(seg),
         print_g(seg2),
       );
+      /* id fidelity: the visible tiles keep their ids through
+         completion, parsing, printing, and stripping */
+      check(
+        list(string),
+        "roundtrip tile ids",
+        tile_ids(seg),
+        tile_ids(seg2),
+      );
     }
   });
 
