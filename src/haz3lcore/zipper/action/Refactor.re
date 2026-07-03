@@ -580,31 +580,56 @@ let extractable = (e: Exp.t): bool =>
   | _ => true
   };
 
+/* Oracle for necessary parenthesization: does the transformed program
+ * survive print -> reparse unchanged? (structural printing adds no
+ * defensive parens, so extent/precedence problems show up as a
+ * different reparse) */
+let reparses_same = (term: Exp.t): bool => {
+  let seg =
+    ExpToSegment.exp_to_segment(~settings=roundtrip_settings, term)
+    |> SpaceNormalize.go;
+  let text = Printer.of_segment(~holes="?", ~refractors=[], seg);
+  switch (Parser.to_segment(text, ~root=Exp)) {
+  | None => false
+  | Some(seg2) => Exp.fast_equal(MakeTerm.go(seg2).term, term)
+  };
+};
+
 let extract_let_impl: impl = {
   label: "Extract to Let",
   tooltip: "Bind this expression to a fresh variable in place",
   prepare: (~info_map as _, ~target, program) => {
     let x = fresh_name(program);
-    let at_root = List.mem(target, IdTagged.ids(program));
-    rewrite_node(
-      ~target,
-      ~rewrite=
-        e =>
-          extractable(e)
-            ? {
-              let def = pad(e |> strip_leading |> strip_trailing);
-              let let_node =
-                fresh(
-                  Let(pad_pat(fresh_pat(Var(x))), def, fresh(Var(x))),
-                );
-              /* anywhere but the top level, the let must not capture
-                 its surroundings when reparsed */
-              let node = at_root ? let_node : fresh(Parens(let_node));
-              Some((node, Exp.rep_id(def)));
-            }
-            : None,
-      program,
-    );
+    let attempt = (~parens: bool) =>
+      rewrite_node(
+        ~target,
+        ~rewrite=
+          e =>
+            extractable(e)
+              ? {
+                let def = pad(e |> strip_leading |> strip_trailing);
+                let let_node =
+                  fresh(
+                    Let(pad_pat(fresh_pat(Var(x))), def, fresh(Var(x))),
+                  );
+                Some((
+                  parens ? fresh(Parens(let_node)) : let_node,
+                  Exp.rep_id(def),
+                ));
+              }
+              : None,
+        program,
+      );
+    /* `let ... in` extends maximally rightward, so a bare let in a
+       tight position can swallow the rest of the enclosing expression
+       on reparse (nothing to do with variable capture — fresh_name
+       avoids collisions). Parenthesize only when the reparse oracle
+       says the bare form changes the program. */
+    switch (attempt(~parens=false)) {
+    | Some((bare, f)) when reparses_same(bare) => Some((bare, f))
+    | Some(_) => attempt(~parens=true)
+    | None => None
+    };
   },
 };
 
@@ -662,22 +687,46 @@ let negate_if_impl: impl = {
         e =>
           switch (IdTagged.term_of(e)) {
           | If(c, t, alt) =>
+            /* arms swap UNTOUCHED so their formatting (incl.
+               multi-line layout) survives; the new last arm sheds its
+               old pre-`else` boundary, and the condition sheds its
+               post-`if` lead (it now sits after `!`) */
             let c = c |> strip_leading |> strip_trailing;
             let c = needs_parens(c) ? fresh(Parens(c)) : c;
-            let pad_l = (e: Exp.t) => {
-              let (b, _) = pad(e).annotation.secondary;
+            let sp: list(Secondary.t) = [
               {
-                ...e,
+                id: Id.mk(),
+                content: Whitespace(" "),
+              },
+            ];
+            let cond = {
+              ...fresh(UnOp(Bool(Not), c)),
+              annotation: {
+                ...IdTagged.IdTag.mk_internal([Id.mk()]),
+                secondary: (sp, []),
+              },
+            };
+            /* the pre-`else` boundary run travels with the SLOT, not
+               the arm: the new then-arm takes over old t's trailing */
+            let t_trail = {
+              let seg =
+                ExpToSegment.exp_to_segment(~settings=roundtrip_settings, t);
+              List.rev(secondary_run_pieces(List.rev(seg)));
+            };
+            let alt' = {
+              let (b, a) = alt.annotation.secondary;
+              {
+                ...alt,
                 annotation: {
-                  ...e.annotation,
-                  secondary: (b, snd(e.annotation.secondary)),
+                  ...alt.annotation,
+                  secondary: (b, a @ t_trail),
                 },
               };
             };
-            let cond = pad(fresh(UnOp(Bool(Not), c)));
-            let t' = pad(alt |> strip_leading |> strip_trailing);
-            let alt' = pad_l(t |> strip_leading |> strip_trailing);
-            Some((fresh(If(cond, t', alt')), Exp.rep_id(c)));
+            Some((
+              fresh(If(cond, alt', strip_trailing(t))),
+              Exp.rep_id(c),
+            ));
           | _ => None
           },
       program,

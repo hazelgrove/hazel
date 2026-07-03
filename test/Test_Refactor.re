@@ -186,12 +186,7 @@ let more_tests = [
     () => {
       let got =
         inline(~kind=ExtractLet, "let x = 1 in x * f¦(x)") |> text_of;
-      check(
-        string,
-        "fresh x1",
-        "let x = 1 in x * (let x1 = f(x) in x1)",
-        got,
-      );
+      check(string, "fresh x1", "let x = 1 in x * let x1 = f(x) in x1", got);
     },
   ),
   test_case(
@@ -212,6 +207,34 @@ let more_tests = [
       let got =
         inline(~kind=NegateIf, "¦if a && b then 1 else 2") |> text_of;
       check(string, "flipped", "if !(a && b) then 2 else 1", got);
+    },
+  ),
+  test_case(
+    "negate preserves arm formatting",
+    `Quick,
+    () => {
+      let got =
+        inline(~kind=NegateIf, "¦if a then\n  1 + 1\nelse\n  2 * 2")
+        |> text_of;
+      check(
+        string,
+        "multiline arms survive",
+        "if !a then\n  2 * 2\nelse\n  1 + 1",
+        got,
+      );
+    },
+  ),
+  test_case(
+    "extract parenthesizes only when reparse differs",
+    `Quick,
+    () => {
+      let got = inline(~kind=ExtractLet, "f¦(2), 3") |> text_of;
+      check(
+        string,
+        "comma follows: parens required",
+        "(let x = f(2) in x), 3",
+        got,
+      );
     },
   ),
 ];
