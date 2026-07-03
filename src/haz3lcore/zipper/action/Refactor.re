@@ -556,6 +556,7 @@ let extract_let_impl: impl = {
   tooltip: "Bind this expression to a fresh variable in place",
   prepare: (~info_map as _, ~target, program) => {
     let x = fresh_name(program);
+    let at_root = List.mem(target, IdTagged.ids(program));
     rewrite_node(
       ~target,
       ~rewrite=
@@ -563,12 +564,14 @@ let extract_let_impl: impl = {
           extractable(e)
             ? {
               let def = pad(e |> strip_leading |> strip_trailing);
-              Some((
+              let let_node =
                 fresh(
                   Let(pad_pat(fresh_pat(Var(x))), def, fresh(Var(x))),
-                ),
-                Exp.rep_id(def),
-              ));
+                );
+              /* anywhere but the top level, the let must not capture
+                 its surroundings when reparsed */
+              let node = at_root ? let_node : fresh(Parens(let_node));
+              Some((node, Exp.rep_id(def)));
             }
             : None,
       program,
