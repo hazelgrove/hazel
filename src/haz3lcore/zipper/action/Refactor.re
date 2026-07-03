@@ -39,23 +39,6 @@ let needs_parens = (e: Exp.t): bool =>
   | _ => true
   };
 
-/* Whitespace attaches to adjacent LEAF nodes: a region's boundary
- * spacing lives on its first leaf's `before` and last leaf's `after`.
- * Strip those when a region moves to a new slot. */
-/* map_term visits constructor args in evaluation order (right to
- * left), so "first visited" tricks are unreliable. Determine a
- * region's boundary whitespace TEXTUALLY, by printing it and taking
- * the leading/trailing Secondary runs, then drop those pieces from
- * the term's annotations by id. */
-let secondary_run_ids = (seg: Segment.t): list(Id.t) => {
-  let rec go = (acc, seg: Segment.t) =>
-    switch (seg) {
-    | [Piece.Secondary(w), ...rest] => go([w.id, ...acc], rest)
-    | _ => acc
-    };
-  go([], seg);
-};
-
 let secondary_run_pieces = (seg: Segment.t): list(Secondary.t) => {
   let rec go = (acc, seg: Segment.t) =>
     switch (seg) {
@@ -94,21 +77,79 @@ let drop_secondary = (ids: list(Id.t), e: Exp.t): Exp.t =>
     e,
   );
 
-let strip_boundaries = (e: Exp.t): Exp.t => {
-  let seg = ExpToSegment.exp_to_segment(~settings=roundtrip_settings, e);
-  let leading = secondary_run_ids(seg);
-  let trailing = secondary_run_ids(List.rev(seg));
-  drop_secondary(leading @ trailing, e);
+/* A node's slot is its textual boundary whitespace: the runs at its
+ * printed edges. Whitespace attaches to adjacent LEAF nodes (a
+ * region's boundary spacing lives on its first leaf's `before` and
+ * last leaf's `after`), and map_term visits constructor args in
+ * evaluation order (right to left), so boundary runs are determined
+ * TEXTUALLY — print the region, take the edge Secondary runs — never
+ * structurally. Refactorings that replace or move a node keep the
+ * slot in place: the new occupant takes it over. */
+module Slot = {
+  type t = {
+    lead: list(Secondary.t),
+    trail: list(Secondary.t),
+  };
+  let of_exp = (e: Exp.t): t => {
+    let seg = ExpToSegment.exp_to_segment(~settings=roundtrip_settings, e);
+    {
+      lead: secondary_run_pieces(seg),
+      trail: List.rev(secondary_run_pieces(List.rev(seg))),
+    };
+  };
+  let lead_of = (e: Exp.t): t => {
+    ...of_exp(e),
+    trail: [],
+  };
+  let trail_of = (e: Exp.t): t => {
+    ...of_exp(e),
+    lead: [],
+  };
+  /* remove the slot's pieces (by id) wherever they occur in a term */
+  let drop = (s: t, e: Exp.t): Exp.t =>
+    drop_secondary(
+      List.map((w: Secondary.t) => w.id, s.lead @ s.trail),
+      e,
+    );
+  /* attach at a node's outer boundary */
+  let give = (s: t, e: Exp.t): Exp.t => {
+    let (b, a) = e.annotation.secondary;
+    {
+      ...e,
+      annotation: {
+        ...e.annotation,
+        secondary: (s.lead @ b, a @ s.trail),
+      },
+    };
+  };
+  /* the replacement takes over the replaced node's slot; parts of the
+   * old node reused inside the replacement shed the boundary pieces
+   * first so they aren't duplicated */
+  let takeover = (~of_: Exp.t, result: Exp.t): Exp.t => {
+    let s = of_exp(of_);
+    give(s, drop(s, result));
+  };
 };
 
-let strip_leading = (e: Exp.t): Exp.t => {
-  let seg = ExpToSegment.exp_to_segment(~settings=roundtrip_settings, e);
-  drop_secondary(secondary_run_ids(seg), e);
-};
+let strip_boundaries = (e: Exp.t): Exp.t => Slot.(drop(of_exp(e), e));
+let strip_leading = (e: Exp.t): Exp.t => Slot.(drop(lead_of(e), e));
+let strip_trailing = (e: Exp.t): Exp.t => Slot.(drop(trail_of(e), e));
 
-let strip_trailing = (e: Exp.t): Exp.t => {
-  let seg = ExpToSegment.exp_to_segment(~settings=roundtrip_settings, e);
-  drop_secondary(secondary_run_ids(List.rev(seg)), e);
+let space = (): list(Secondary.t) => [
+  {
+    id: Id.mk(),
+    content: Whitespace(" "),
+  },
+];
+
+/* single spaces at a synthesized node's edges (can't be globalized:
+ * user-authored tight junctions like `(a=1)` are legitimate) */
+let pad = (e: IdTagged.t('a)): IdTagged.t('a) => {
+  ...e,
+  annotation: {
+    ...e.annotation,
+    secondary: (space(), space()),
+  },
 };
 
 /* The inserted copy takes over the replaced occurrence's stored
@@ -333,14 +374,12 @@ type impl = {
     (~info_map: Statics.Map.t, ~target: Id.t, Exp.t) => option((Exp.t, Id.t)),
 };
 
-/* Replace a Let node (matched by predicate at target) with a rewrite
- * of its parts; shared slot handling: the result takes over the let's
- * whitespace slot */
-let rewrite_let =
+/* Replace a node (matched by ~hit) via ~rewrite; the replacement
+ * takes over the node's whitespace slot */
+let rewrite_node =
     (
-      ~target: Id.t,
-      ~matches: (Pat.t, Exp.t, Exp.t) => bool,
-      ~rewrite: (Pat.t, Exp.t, Exp.t) => (Exp.t, Id.t),
+      ~hit: Exp.t => bool,
+      ~rewrite: Exp.t => option((Exp.t, Id.t)),
       program: Exp.t,
     )
     : option((Exp.t, Id.t)) => {
@@ -349,33 +388,52 @@ let rewrite_let =
     Exp.map_term(
       ~f_exp=
         (cont, e: Exp.t) =>
-          switch (IdTagged.term_of(e)) {
-          | Let(p, def, body)
-              when
-                focus^ == None
-                && (
-                  List.mem(target, IdTagged.ids(e))
-                  || List.mem(target, pat_subtree_ids(p))
-                )
-                && matches(p, def, body) =>
-            let (result, f) = rewrite(p, def, body);
-            focus := Some(f);
-            let result = strip_leading(result);
-            let (let_before, let_after) = e.annotation.secondary;
-            let (b_before, b_after) = result.annotation.secondary;
-            {
-              ...result,
-              annotation: {
-                ...result.annotation,
-                secondary: (let_before @ b_before, b_after @ let_after),
-              },
+          if (focus^ == None && hit(e)) {
+            switch (rewrite(e)) {
+            | Some((result, f)) =>
+              focus := Some(f);
+              Slot.takeover(~of_=e, result);
+            | None => cont(e)
             };
-          | _ => cont(e)
+          } else {
+            cont(e);
           },
       program,
     );
   focus^ |> Option.map(f => (dedupe_ids(program'), f));
 };
+
+let hit_node = (target: Id.t, e: Exp.t): bool =>
+  List.mem(target, IdTagged.ids(e));
+
+/* Replace a Let (targetable at its delimiters or pattern) with a
+ * rewrite of its parts */
+let rewrite_let =
+    (
+      ~target: Id.t,
+      ~matches: (Pat.t, Exp.t, Exp.t) => bool,
+      ~rewrite: (Pat.t, Exp.t, Exp.t) => (Exp.t, Id.t),
+      program: Exp.t,
+    )
+    : option((Exp.t, Id.t)) =>
+  rewrite_node(
+    ~hit=
+      e =>
+        switch (IdTagged.term_of(e)) {
+        | Let(p, _, _) =>
+          hit_node(target, e) || List.mem(target, pat_subtree_ids(p))
+        | _ => false
+        },
+    ~rewrite=
+      e =>
+        switch (IdTagged.term_of(e)) {
+        | Let(p, def, body) when matches(p, def, body) =>
+          let (result, f) = rewrite(p, def, body);
+          Some((strip_leading(result), f));
+        | _ => None
+        },
+    program,
+  );
 
 let inline_let_impl: impl = {
   label: "Inline Let",
@@ -438,51 +496,6 @@ let remove_unused_let_impl: impl = {
     ),
 };
 
-/* Replace an arbitrary node (matched at target); the replacement takes
- * over the node's whitespace slot */
-let rewrite_node =
-    (
-      ~target: Id.t,
-      ~rewrite: Exp.t => option((Exp.t, Id.t)),
-      program: Exp.t,
-    )
-    : option((Exp.t, Id.t)) => {
-  let focus = ref(None);
-  let program' =
-    Exp.map_term(
-      ~f_exp=
-        (cont, e: Exp.t) =>
-          if (focus^ == None && List.mem(target, IdTagged.ids(e))) {
-            switch (rewrite(e)) {
-            | Some((result, f)) =>
-              focus := Some(f);
-              /* the replacement takes over the node's textual slot:
-                 leading/trailing whitespace runs (which live on leaf
-                 annotations) move to the new node's outer secondary */
-              let seg_e =
-                ExpToSegment.exp_to_segment(~settings=roundtrip_settings, e);
-              let lead = secondary_run_pieces(seg_e);
-              let trail = List.rev(secondary_run_pieces(List.rev(seg_e)));
-              let ids = List.map((w: Secondary.t) => w.id, lead @ trail);
-              let result = drop_secondary(ids, result);
-              let (rb, ra) = result.annotation.secondary;
-              {
-                ...result,
-                annotation: {
-                  ...result.annotation,
-                  secondary: (lead @ rb, ra @ trail),
-                },
-              };
-            | None => cont(e)
-            };
-          } else {
-            cont(e);
-          },
-      program,
-    );
-  focus^ |> Option.map(f => (dedupe_ids(program'), f));
-};
-
 let fresh = (term): Exp.t => {
   annotation: IdTagged.IdTag.mk_internal([Id.mk()]),
   term,
@@ -503,7 +516,7 @@ let if_to_case_impl: impl = {
   tooltip: "Rewrite this if/then/else as a case on true and false",
   prepare: (~info_map as _, ~target, program) =>
     rewrite_node(
-      ~target,
+      ~hit=hit_node(target),
       ~rewrite=
         e =>
           switch (IdTagged.term_of(e)) {
@@ -531,7 +544,7 @@ let case_to_if_impl: impl = {
   tooltip: "Rewrite this true/false case as if/then/else",
   prepare: (~info_map as _, ~target, program) =>
     rewrite_node(
-      ~target,
+      ~hit=hit_node(target),
       ~rewrite=
         e =>
           switch (IdTagged.term_of(e)) {
@@ -553,22 +566,6 @@ let case_to_if_impl: impl = {
           },
       program,
     ),
-};
-
-let pad = (e: Exp.t): Exp.t => {
-  let sp = (): list(Secondary.t) => [
-    {
-      id: Id.mk(),
-      content: Whitespace(" "),
-    },
-  ];
-  {
-    ...e,
-    annotation: {
-      ...e.annotation,
-      secondary: (sp(), sp()),
-    },
-  };
 };
 
 /* every var/pat-var name in the program (over-approximates scope) */
@@ -606,22 +603,6 @@ let fresh_name = (program: Exp.t): string => {
   List.mem("x", used) ? pick(1) : "x";
 };
 
-let pad_pat = (p: Pat.t): Pat.t => {
-  let sp = (): list(Secondary.t) => [
-    {
-      id: Id.mk(),
-      content: Whitespace(" "),
-    },
-  ];
-  {
-    ...p,
-    annotation: {
-      ...p.annotation,
-      secondary: (sp(), sp()),
-    },
-  };
-};
-
 let extractable = (e: Exp.t): bool =>
   switch (IdTagged.term_of(e)) {
   | Var(_)
@@ -639,7 +620,7 @@ let extract_let_impl: impl = {
     let x = fresh_name(program);
     let attempt = (~parens: bool) =>
       rewrite_node(
-        ~target,
+        ~hit=hit_node(target),
         ~rewrite=
           e =>
             extractable(e)
@@ -647,7 +628,7 @@ let extract_let_impl: impl = {
                 let def = pad(e |> strip_leading |> strip_trailing);
                 let let_node =
                   fresh(
-                    Let(pad_pat(fresh_pat(Var(x))), def, fresh(Var(x))),
+                    Let(pad(fresh_pat(Var(x))), def, fresh(Var(x))),
                   );
                 Some((
                   parens ? fresh(Parens(let_node)) : let_node,
@@ -693,7 +674,7 @@ let eta_reduce_impl: impl = {
   tooltip: "Simplify `fun x -> f(x)` to `f`",
   prepare: (~info_map as _, ~target, program) =>
     rewrite_node(
-      ~target,
+      ~hit=hit_node(target),
       ~rewrite=
         e =>
           switch (IdTagged.term_of(e)) {
@@ -719,49 +700,30 @@ let negate_if_impl: impl = {
   tooltip: "Flip this if: negate the condition, swap then/else",
   prepare: (~info_map as _, ~target, program) =>
     rewrite_node(
-      ~target,
+      ~hit=hit_node(target),
       ~rewrite=
         e =>
           switch (IdTagged.term_of(e)) {
           | If(c, t, alt) =>
             /* arms swap UNTOUCHED so their formatting (incl.
-               multi-line layout) survives; the new last arm sheds its
-               old pre-`else` boundary, and the condition sheds its
-               post-`if` lead (it now sits after `!`) */
+               multi-line layout) survives; the pre-`else` boundary
+               run belongs to the SLOT, not the arm — the new then-arm
+               takes it over. The condition sheds its post-`if` lead
+               (it now sits after `!`). */
             let c = c |> strip_leading |> strip_trailing;
             let c = needs_parens(c) ? fresh(Parens(c)) : c;
-            let sp: list(Secondary.t) = [
-              {
-                id: Id.mk(),
-                content: Whitespace(" "),
-              },
-            ];
             let cond = {
               ...fresh(UnOp(Bool(Not), c)),
               annotation: {
                 ...IdTagged.IdTag.mk_internal([Id.mk()]),
-                secondary: (sp, []),
+                secondary: (space(), []),
               },
             };
-            /* the pre-`else` boundary run travels with the SLOT, not
-               the arm: the new then-arm takes over old t's trailing */
-            let t_trail = {
-              let seg =
-                ExpToSegment.exp_to_segment(~settings=roundtrip_settings, t);
-              List.rev(secondary_run_pieces(List.rev(seg)));
-            };
-            let alt' = {
-              let (b, a) = alt.annotation.secondary;
-              {
-                ...alt,
-                annotation: {
-                  ...alt.annotation,
-                  secondary: (b, a @ t_trail),
-                },
-              };
-            };
+            let boundary = Slot.trail_of(t);
             Some((
-              fresh(If(cond, alt', strip_trailing(t))),
+              fresh(
+                If(cond, Slot.give(boundary, alt), Slot.drop(boundary, t)),
+              ),
               Exp.rep_id(c),
             ));
           | _ => None
