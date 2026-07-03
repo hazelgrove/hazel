@@ -246,37 +246,7 @@ let replay_regressions = (
   ],
 );
 
-let pp_slide_diag =
-  Alcotest.test_case(
-    "pp-slides",
-    `Slow,
-    () => {
-      let doc_slides = snd(Web.Init.startup.documentation);
-      doc_slides
-      |> List.iter(((name, slide: Web.CellEditor.Model.persistent)) => {
-           let seg =
-             Sexplib.Sexp.of_string(slide.editor.zipper.zipper)
-             |> Zipper.t_of_sexp
-             |> Zipper.unselect_and_zip(~erase_buffer=true);
-           let orig = Printer.of_segment(~holes="?", ~refractors=[], seg);
-           let pretty =
-             Printer.of_segment(
-               ~holes="?",
-               ~refractors=[],
-               PrettySegment.prettify(seg),
-             );
-           print_endline("=====SLIDE " ++ name);
-           print_endline("-----ORIG");
-           print_endline(orig);
-           print_endline("-----PRETTY");
-           print_endline(pretty);
-         });
-      Alcotest.(check(bool))("diag", true, false);
-    },
-  );
-
 let tests = [
-  ("PP Slides Diag", [pp_slide_diag]),
   typed_regressions,
   replay_regressions,
   (
