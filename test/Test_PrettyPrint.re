@@ -414,12 +414,11 @@ f(1, 2, 3)|},
     ~input=
       "let f = fun (canvas, emoji) -> map(canvas, fun row -> map(row, fun x -> emoji)) in 1",
     ~expected=
-      {|let f =
-  fun (canvas, emoji) ->
-    map(
-      canvas,
-      fun row -> map(row, fun x -> emoji)
-    ) in
+      {|let f = fun (canvas, emoji) ->
+  map(
+    canvas,
+    fun row -> map(row, fun x -> emoji)
+  ) in
 1|},
     (),
   ),
@@ -673,10 +672,8 @@ let form_tests = [
     ~name="Test/end with semicolons consistent",
     ~width=40,
     ~input="test 1 + 1 == 2 end; test 3 + 3 == 6 end; 5",
-    ~expected={|test
-  1 + 1 == 2 end;
-test
-  3 + 3 == 6 end;
+    ~expected={|test 1 + 1 == 2 end;
+test 3 + 3 == 6 end;
 5|},
     (),
   ),
@@ -842,14 +839,10 @@ x|},
     ~name="Block breaking",
     ~width=20,
     ~input="let x = { 1 + 2 + 3 + 4 + 5 } in x",
-    ~expected={|let x =
-  {
-    1
-    + 2
-    + 3
-    + 4
-    + 5
-  } in
+    ~expected={|let x = {
+  1 + 2 + 3
+  + 4 + 5
+} in
 x|},
     (),
   ),

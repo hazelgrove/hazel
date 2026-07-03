@@ -39,7 +39,7 @@ type settings = {
 };
 
 let default_settings: settings = {
-  width: 60,
+  width: 80,
   break_fun_params: false,
   hanging_delimiters: true,
 };
@@ -437,6 +437,15 @@ let is_paren_or_bracket = (p: Piece.t): bool =>
   | Tile({label: ["@<", ">"], shards, children, _}) =>
     /* Complete tile (has children) or opening shard (index 0) */
     List.length(children) > 0 || shards == [0]
+  /* nullary application: f() */
+  | Tile({label: ["()"], _}) => true
+  | _ => false
+  };
+
+/* Does the segment start with a prefix-arrow form (fun/typfun/...)? */
+let starts_with_arrow_prefix = (seg: list(Piece.t)): bool =>
+  switch (seg) {
+  | [Tile({label: [_, "->"], _}), ..._] => true
   | _ => false
   };
 
@@ -529,7 +538,24 @@ and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
     | [] => Empty
     /* Single trailing hole body: always break onto its own line */
     | [p] when is_trailing_hole(p) => cats([HardBreak, piece_doc(p)])
-    | _ when is_binding => cats([HardBreak, Group(segment_to_doc(s, rest))])
+    | _ when is_binding =>
+      /* keep trailing comments on the `in` line: `... in # 1 #` */
+      let (comments, rest_after) = absorb_comments(rest);
+      let comment_suffix =
+        List.fold_left(
+          (acc, c) => Cat(acc, cats([Space, piece_doc(c)])),
+          Empty,
+          comments,
+        );
+      switch (rest_after) {
+      | [] => comment_suffix
+      | _ =>
+        cats([
+          comment_suffix,
+          HardBreak,
+          Group(segment_to_doc(s, rest_after)),
+        ])
+      };
     | _ =>
       switch (split_at_comma(rest)) {
       | Some((before, comma, after)) =>
@@ -555,7 +581,11 @@ and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
     | [Tile(dt)]
         when
           s.hanging_delimiters
-          && (dt.label == ["(", ")"] || dt.label == ["[", "]"])
+          && (
+            dt.label == ["(", ")"]
+            || dt.label == ["[", "]"]
+            || dt.label == ["{", "}"]
+          )
           && List.length(dt.children) > 0 =>
       let open_s = Tile.to_piece(Tile.shard_of(dt, 0));
       let close_s =
@@ -611,17 +641,68 @@ and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
          Otherwise:      let x =\n  (...) in */
       let binding_content = strip_whitespace(binding_child);
       let in_suffix = cats([Space, shard(last_shard_idx)]);
+      /* Hanging lambda: keep `= fun ... ->` on the binding line when
+         prefix + fun header fit the width budget (static decision —
+         the greedy fits lookahead cannot express this preference
+         without collapsing the params group). The body then breaks
+         after the arrow; a short whole binding still inlines via the
+         enclosing group. */
+      let hang_header =
+        switch (binding_content) {
+        | [Tile({label: [_, "->"], _} as ft), ...fun_body]
+            when
+              List.length(ft.children) == 1
+              && !s.break_fun_params
+              && Tile.is_complete(ft) =>
+          let prefix_w =
+            2
+            + Token.length(List.nth(t.label, 0))
+            + segment_flat_width(pat_child)
+            + Token.length(List.nth(t.label, 1))
+            + 2;
+          let header_w = piece_width(Tile.to_piece(ft));
+          prefix_w + header_w <= s.width - 12 ? Some((ft, fun_body)) : None;
+        | _ => None
+        };
       let binding_doc =
         switch (try_hanging_delim(binding_content, ~suffix=in_suffix, ())) {
         | Some(hanging) => cats([Space, hanging])
         | None =>
-          cats([
-            Nest(
-              indent_unit,
-              cats([Break, Group(child_doc(s, binding_child))]),
-            ),
-            in_suffix,
-          ])
+          switch (hang_header) {
+          | Some((ft, fun_body)) =>
+            let header =
+              cats([
+                piece_doc(Tile.to_piece(Tile.shard_of(ft, 0))),
+                Space,
+                Group(child_doc(s, List.hd(ft.children))),
+                Space,
+                piece_doc(
+                  Tile.to_piece(
+                    Tile.shard_of(ft, List.length(ft.label) - 1),
+                  ),
+                ),
+              ]);
+            cats([
+              Space,
+              header,
+              Nest(
+                indent_unit,
+                cats([
+                  Break,
+                  Group(segment_to_doc(s, strip_whitespace(fun_body))),
+                ]),
+              ),
+              in_suffix,
+            ]);
+          | None =>
+            cats([
+              Nest(
+                indent_unit,
+                cats([Break, Group(child_doc(s, binding_child))]),
+              ),
+              in_suffix,
+            ])
+          }
         };
       let let_in_doc = Group(cats([prefix, binding_doc]));
       Group(cats([let_in_doc, body_doc(true)]));
@@ -764,22 +845,25 @@ and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
     | _ => fallback()
     }
 
-  /* test/end: always break after "test", "end" trails the last body line */
+  /* test/end: flat when it fits; otherwise break after "test" with
+     "end" trailing the last body line */
   | ["test", "end"] =>
     switch (triples) {
     | [(_, body_child, _)] =>
       let inner = child_doc(s, body_child);
       let tile_doc =
-        cats([
-          shard(0),
-          Nest(
-            indent_unit,
-            cats([
-              HardBreak,
-              Group(cats([inner, Space, shard(last_shard_idx)])),
-            ]),
-          ),
-        ]);
+        Group(
+          cats([
+            shard(0),
+            Nest(
+              indent_unit,
+              cats([
+                Break,
+                Group(cats([inner, Space, shard(last_shard_idx)])),
+              ]),
+            ),
+          ]),
+        );
       tile_with_rest(tile_doc);
     | _ => fallback()
     }
@@ -856,6 +940,39 @@ and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
     | _ => fallback()
     }
 
+  /* Prefix binding forms with no trailing delimiter (module items
+     let/= and type/=): header stays together, body nests after = */
+  | [_, "="] =>
+    switch (triples) {
+    | [(_, pat_child, _)] =>
+      let prefix =
+        cats([
+          shard(0),
+          Space,
+          Group(child_doc(s, pat_child)),
+          Space,
+          shard(1),
+        ]);
+      switch (rest) {
+      | [] => Group(prefix)
+      | _ =>
+        switch (try_hanging_delim(rest, ())) {
+        | Some(hanging) => Group(cats([prefix, Space, hanging]))
+        | None =>
+          Group(
+            cats([
+              prefix,
+              Nest(
+                indent_unit,
+                cats([Break, Group(segment_to_doc(s, rest))]),
+              ),
+            ]),
+          )
+        }
+      };
+    | _ => fallback()
+    }
+
   /* Generic multi-keyword tile: interleave shards and children with Break.
      Children get Nest so multi-line children indent relative to keywords. */
   | _ =>
@@ -880,6 +997,21 @@ and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
   };
 }
 
+/* Split at the first top-level semicolon, but only when the item
+   before it has 2+ pieces (single-piece items keep their specialized
+   handling below) */
+and split_at_semi_multi =
+    (ps: list(Piece.t)): option((list(Piece.t), Piece.t, list(Piece.t))) => {
+  let rec go = (acc, ps: list(Piece.t)) =>
+    switch (ps) {
+    | [] => None
+    | [p, ...rest] when is_semi(p) =>
+      List.length(acc) >= 2 ? Some((List.rev(acc), p, rest)) : None
+    | [p, ...rest] => go([p, ...acc], rest)
+    };
+  go([], ps);
+}
+
 /* Build a doc from a list of content pieces (whitespace already stripped).
    Uses all-or-nothing for infix/comma chains, waterfall for compound forms.
    Tiles with children are decomposed on-demand via build_tile_doc. */
@@ -899,6 +1031,21 @@ and segment_to_doc = (s: settings, pieces: list(Piece.t)): doc =>
   | [Tile(t), semi, ...rest]
       when List.length(t.children) > 0 && is_semi(semi) =>
     build_tile_doc(s, t, [semi, ...rest])
+
+  /* Semicolon sequence with a multi-piece item: the item is an
+     independent layout group, so hard breaks after later semis can't
+     force it to explode. (Without this, the first tile's body-doc
+     swallows the whole remaining item list.) */
+  | _ when Option.is_some(split_at_semi_multi(pieces)) =>
+    let (item, semi, after) = Option.get(split_at_semi_multi(pieces));
+    cats([
+      Group(segment_to_doc(s, item)),
+      piece_doc(semi),
+      switch (after) {
+      | [] => Empty
+      | _ => cats([HardBreak, segment_to_doc(s, after)])
+      },
+    ]);
 
   /* Piece followed by semicolon: keep semi with left operand, hard break */
   | [p, semi, ...rest] when is_semi(semi) =>
@@ -1032,47 +1179,99 @@ and build_infix_chain_doc =
   | [] => Empty
   | [first, ...rest_operands] =>
     let first_doc = Group(segment_to_doc(s, first));
-    let rec join = (acc, ops, operands) =>
-      switch (ops, operands) {
-      | ([], _)
-      | (_, []) => acc
-      | ([op, ...rest_ops], [operand, ...rest_operands]) =>
-        /* Absorb leading comments from the next operand and keep them
-           on the previous line (after the operator/comma). This preserves
-           trailing comment style: `x, # comment #\ny` not `x,\n# comment # y` */
-        let (leading_comments, actual_operand) = absorb_comments(operand);
-        let operand_doc = Group(segment_to_doc(s, actual_operand));
-        let comment_suffix =
-          List.fold_left(
-            (acc, c) => Cat(acc, cats([Space, piece_doc(c)])),
-            Empty,
-            leading_comments,
-          );
-        let next =
-          if (is_comma(op)) {
-            cats([acc, piece_doc(op), comment_suffix, Break, operand_doc]);
-          } else if (is_label_eq(op)) {
-            cats([
-              acc,
-              comment_suffix,
-              Space,
-              piece_doc(op),
-              Break,
-              operand_doc,
-            ]);
-          } else {
-            cats([
-              acc,
-              comment_suffix,
-              Break,
-              piece_doc(op),
-              Space,
-              operand_doc,
-            ]);
-          };
-        join(next, rest_ops, rest_operands);
-      };
-    join(first_doc, operators, rest_operands);
+    /* Fill mode for long non-comma chains (e.g. wide sum types): the
+       all-or-nothing layout below would put one operand per line, so
+       instead pack greedily, hard-breaking between packed lines. Width
+       budget leaves room for indentation (re-derived downstream). */
+    /* Fill only operator chains where breaking mid-chain reads well
+       (sums, arithmetic, arrows); never split label = value, x : T,
+       or comma sequences */
+    let no_fill = (op: Piece.t) =>
+      is_comma(op)
+      || is_label_eq(op)
+      || (
+        switch (op) {
+        | Tile({label: ["="], _})
+        | Tile({label: [":"], _}) => true
+        | _ => false
+        }
+      );
+    let is_comma_chain = List.exists(no_fill, operators);
+    let chain_w =
+      List.fold_left(
+        (acc, seg) => acc + segment_flat_width(seg) + 1,
+        List.fold_left(
+          (acc, op) => acc + piece_width(op) + 1,
+          0,
+          operators,
+        ),
+        operands,
+      );
+    let budget = s.width - 8;
+    if (!is_comma_chain && chain_w > budget) {
+      let steps = List.combine(operators, rest_operands);
+      let (doc, _) =
+        List.fold_left(
+          ((acc, line_w), (op, operand)) => {
+            let step_w = piece_width(op) + segment_flat_width(operand) + 2;
+            let operand_doc = Group(segment_to_doc(s, operand));
+            line_w + step_w > budget
+              ? (
+                cats([acc, HardBreak, piece_doc(op), Space, operand_doc]),
+                step_w,
+              )
+              : (
+                cats([acc, Space, piece_doc(op), Space, operand_doc]),
+                line_w + step_w,
+              );
+          },
+          (first_doc, segment_flat_width(first)),
+          steps,
+        );
+      doc;
+    } else {
+      let rec join = (acc, ops, operands) =>
+        switch (ops, operands) {
+        | ([], _)
+        | (_, []) => acc
+        | ([op, ...rest_ops], [operand, ...rest_operands]) =>
+          /* Absorb leading comments from the next operand and keep them
+             on the previous line (after the operator/comma). This preserves
+             trailing comment style: `x, # comment #\ny` not `x,\n# comment # y` */
+          let (leading_comments, actual_operand) = absorb_comments(operand);
+          let operand_doc = Group(segment_to_doc(s, actual_operand));
+          let comment_suffix =
+            List.fold_left(
+              (acc, c) => Cat(acc, cats([Space, piece_doc(c)])),
+              Empty,
+              leading_comments,
+            );
+          let next =
+            if (is_comma(op)) {
+              cats([acc, piece_doc(op), comment_suffix, Break, operand_doc]);
+            } else if (is_label_eq(op)) {
+              cats([
+                acc,
+                comment_suffix,
+                Space,
+                piece_doc(op),
+                Break,
+                operand_doc,
+              ]);
+            } else {
+              cats([
+                acc,
+                comment_suffix,
+                Break,
+                piece_doc(op),
+                Space,
+                operand_doc,
+              ]);
+            };
+          join(next, rest_ops, rest_operands);
+        };
+      join(first_doc, operators, rest_operands);
+    };
   };
 
 /* === Post-processing: tight function application === */
