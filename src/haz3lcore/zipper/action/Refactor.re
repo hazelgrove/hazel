@@ -56,6 +56,25 @@ let secondary_run_ids = (seg: Segment.t): list(Id.t) => {
   go([], seg);
 };
 
+let secondary_run_pieces = (seg: Segment.t): list(Secondary.t) => {
+  let rec go = (acc, seg: Segment.t) =>
+    switch (seg) {
+    | [Piece.Secondary(w), ...rest] =>
+      go(
+        [
+          {
+            Secondary.id: w.id,
+            content: w.content,
+          },
+          ...acc,
+        ],
+        rest,
+      )
+    | _ => List.rev(acc)
+    };
+  go([], seg);
+};
+
 let drop_secondary = (ids: list(Id.t), e: Exp.t): Exp.t =>
   Exp.map_term(
     ~f_exp=
@@ -385,11 +404,21 @@ let rewrite_node =
             switch (rewrite(e)) {
             | Some((result, f)) =>
               focus := Some(f);
+              /* the replacement takes over the node's textual slot:
+                 leading/trailing whitespace runs (which live on leaf
+                 annotations) move to the new node's outer secondary */
+              let seg_e =
+                ExpToSegment.exp_to_segment(~settings=roundtrip_settings, e);
+              let lead = secondary_run_pieces(seg_e);
+              let trail = List.rev(secondary_run_pieces(List.rev(seg_e)));
+              let ids = List.map((w: Secondary.t) => w.id, lead @ trail);
+              let result = drop_secondary(ids, result);
+              let (rb, ra) = result.annotation.secondary;
               {
                 ...result,
                 annotation: {
                   ...result.annotation,
-                  secondary: e.annotation.secondary,
+                  secondary: (lead @ rb, ra @ trail),
                 },
               };
             | None => cont(e)
