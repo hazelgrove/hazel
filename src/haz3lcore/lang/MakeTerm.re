@@ -763,6 +763,10 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
              ids as comma ids would strand them: a one-element list
              has no commas) */
           ret(ListLit([body]))
+        | {term: Tuple([]), _} =>
+          /* Unit literal body: [()] is a one-element list of unit, not
+             an empty element list (#1792) */
+          ret(ListLit([body]))
         | {annotation: {ids, _}, term: Tuple(es)} =>
           adopted_ids := ids @ adopted_ids^;
           // Addresses tup_labels in lists like: [l=32, 1]
@@ -1139,6 +1143,10 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
            IMPORTANT: Must align with ExpToSegment.pat_to_pretty ListLit case,
            which expects List.hd = bracket, List.tl = commas. */
         switch (body) {
+        | {term: Tuple([]), _} =>
+          /* Unit literal body: [()] is a one-element list of unit, not
+             an empty element list (#1792) */
+          ret(ListLit([body]))
         | {term: Tuple(ps), annotation: {ids, _}} =>
           adopted_ids := ids @ adopted_ids^;
           (ListLit(ps), ids);

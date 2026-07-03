@@ -277,6 +277,7 @@ let rec external_precedence = (exp: Exp.t): Precedence.t => {
   | Fun(_)
   | FixF(_)
   | Forall(_) => Precedence.fun_
+  | Tuple([]) => Precedence.max // the atomic () token (#2296)
   | Tuple(_) => Precedence.comma
   | Seq(_) => Precedence.semi
   | TupleExtension(_, _) => Precedence.plus
@@ -318,6 +319,7 @@ let external_precedence_pat = (dp: Pat.t) =>
   | Cons(_) => Precedence.cons
   | Ap(_) => Precedence.ap
   | Asc(_) => Precedence.asc
+  | Tuple([]) => Precedence.max // the atomic () token (#2296)
   | Tuple(_) => Precedence.comma
 
   // Matt: I think multiholes are min because we don't know the precedence of the `⟩?⟨`s
@@ -346,6 +348,7 @@ let external_precedence_typ = (tp: Typ.t) =>
   | List(_) => Precedence.max
 
   // Other forms
+  | Prod([]) => Precedence.max // the atomic () unit-type token (#2296)
   | Prod(_) => Precedence.comma
   | Arrow(_, _) => Precedence.type_arrow
   | Sum(_) => Precedence.type_plus
