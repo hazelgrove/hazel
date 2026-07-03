@@ -212,6 +212,7 @@ let go =
     |> Option.map(maybe_reassoc)
     |> return(Cant_destruct)
   | Insert(char) =>
+    let before = LocalReformat.snapshot(~enabled=settings.auto_reindent, z);
     z
     |> Insert.go(
          ~deep_reassociate=settings.deep_reassociate,
@@ -220,11 +221,14 @@ let go =
          ~root,
        )
     |> Option.map(maybe_reassoc)
-    |> return(Cant_insert)
+    |> Option.map(LocalReformat.go(~before))
+    |> return(Cant_insert);
   | Put_down =>
+    let before = LocalReformat.snapshot(~enabled=settings.auto_reindent, z);
     Zipper.put_down(z, ~root)
     |> Option.map(maybe_reassoc)
-    |> return(Cant_put_down)
+    |> Option.map(LocalReformat.go(~before))
+    |> return(Cant_put_down);
   | Probe(a) => Ok(ProbePerform.go(~statics, ~syntax, a, z))
   | Format => Ok(AutoFormat.zipper(z))
   | Dump =>

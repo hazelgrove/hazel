@@ -44,6 +44,8 @@ type t = {
   dynamics: bool,
   probe_all: bool,
   deep_reassociate: bool,
+  /* Completion-triggered local re-indentation (experimental) */
+  auto_reindent: bool,
   flip_animations: bool,
   display_warnings: bool,
   /* "Character-level mouse". When false (default), a mouse drag does
@@ -62,6 +64,7 @@ let off: t = {
   dynamics: false,
   probe_all: false,
   deep_reassociate: false,
+  auto_reindent: false,
   flip_animations: false,
   display_warnings: false,
   selection_chunkiness: false,
@@ -75,6 +78,7 @@ let on: t = {
   dynamics: true,
   probe_all: false, /* Off by default even in "on" config - opt-in feature */
   deep_reassociate: false,
+  auto_reindent: false,
   flip_animations: true,
   display_warnings: true,
   selection_chunkiness: false,

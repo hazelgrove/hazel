@@ -194,6 +194,15 @@ let dev_group = (~globals: Globals.t) => {
         tooltip: Some("Enable deep reassociation of syntax"),
       },
       {
+        name: "Auto Re-indent",
+        active: globals.settings.core.auto_reindent,
+        setting: AutoReindent,
+        tooltip:
+          Some(
+            "Re-indent a form's contents when its delimiters complete (experimental)",
+          ),
+      },
+      {
         name: "Character-level mouse",
         active: globals.settings.core.selection_chunkiness,
         setting: SelectionChunkiness,

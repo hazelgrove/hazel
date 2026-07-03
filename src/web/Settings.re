@@ -37,6 +37,7 @@ module Model = {
       dynamics: true,
       probe_all: false,
       deep_reassociate: true,
+      auto_reindent: false,
       flip_animations: true,
       display_warnings: true,
       selection_chunkiness: false,
@@ -152,6 +153,7 @@ module Update = {
     | Dynamics
     | ProbeAll
     | DeepReassociate
+    | AutoReindent
     | SelectionChunkiness
     | Assist
     | Elaborate
@@ -224,6 +226,13 @@ module Update = {
           core: {
             ...settings.core,
             deep_reassociate: !settings.core.deep_reassociate,
+          },
+        }
+      | AutoReindent => {
+          ...settings,
+          core: {
+            ...settings.core,
+            auto_reindent: !settings.core.auto_reindent,
           },
         }
       | SelectionChunkiness => {
