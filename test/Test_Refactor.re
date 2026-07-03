@@ -26,6 +26,27 @@ let inline = (marked: string): Zipper.t => {
   Test_Editing.perform(z, [Action.Refactor(InlineLet)]);
 };
 
+let applicable_at = (marked: string): bool =>
+  Refactor.applicable(Test_Editing.parse_zipper(marked));
+
+let gating_tests = [
+  test_case("caret before let", `Quick, () =>
+    check(bool, "a", true, applicable_at("¦let x = 1 in x"))
+  ),
+  test_case("caret inside let kw", `Quick, () =>
+    check(bool, "b", true, applicable_at("l¦et x = 1 in x"))
+  ),
+  test_case("caret after let kw", `Quick, () =>
+    check(bool, "c", true, applicable_at("let¦ x = 1 in x"))
+  ),
+  test_case("caret at eq", `Quick, () =>
+    check(bool, "d", true, applicable_at("let x =¦ 1 in x"))
+  ),
+  test_case("caret on body var", `Quick, () =>
+    check(bool, "e", false, applicable_at("let x = 1 in ¦x"))
+  ),
+];
+
 let refactor_tests = [
   test_case(
     "single use",
@@ -84,4 +105,4 @@ let refactor_tests = [
   ),
 ];
 
-let tests = [("Refactor", refactor_tests)];
+let tests = [("Refactor", refactor_tests @ gating_tests)];

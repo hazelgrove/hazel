@@ -150,6 +150,17 @@ let jump_to_binding_data =
   | _ => []
   };
 
+let inline_let_data = (z: Zipper.t): list(Menu.item(Action.t)) =>
+  Refactor.applicable(z)
+    ? [
+      action_item(
+        ~tooltip="Replace this let by substituting its definition",
+        "Inline Let",
+        Action.Refactor(InlineLet),
+      ),
+    ]
+    : [];
+
 let introduce_data =
     (ci: option(Language.Info.t)): list(Menu.item(Action.t)) =>
   switch (ci) {
@@ -376,7 +387,7 @@ let get_sections =
     /* Section 1: Navigation & Selection */
     jump_to_binding_data(ci) @ select_current_term_data(),
     /* Section 2: Refactoring */
-    introduce_data(ci),
+    introduce_data(ci) @ inline_let_data(z),
     /* Section 3: Probes/Statics (refractors) */
     refractor_actions_data(~ci, info_map, z),
     /* Section 4: Projectors (fold, livelits) */
