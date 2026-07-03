@@ -54,8 +54,25 @@ let gating_tests = [
   test_case("caret after let kw", `Quick, () =>
     check(bool, "c", true, offers(InlineLet, "let¦ x = 1 in x"))
   ),
-  test_case("caret on body var", `Quick, () =>
-    check(bool, "e", false, offers(InlineLet, "let x = 1 in ¦x"))
+  test_case("occurrence of bound var offers inline", `Quick, () =>
+    check(bool, "e", true, offers(InlineLet, "let x = 1 in ¦x"))
+  ),
+  test_case("caret on pattern var offers inline", `Quick, () =>
+    check(bool, "e2", true, offers(InlineLet, "let ¦x = 1 in x"))
+  ),
+  test_case("caret in def is not a let target", `Quick, () =>
+    check(bool, "e3", false, offers(InlineLet, "let x = ¦1 in x + x"))
+  ),
+  test_case("occurrence resolution respects shadowing", `Quick, () =>
+    check(
+      bool,
+      "e4",
+      false,
+      offers(InlineLet, "let x = 1 in (fun x -> ¦x)(2)"),
+    )
+  ),
+  test_case("caret on pattern offers remove-unused", `Quick, () =>
+    check(bool, "e5", true, offers(RemoveUnusedLet, "let ¦x = 1 in 2"))
   ),
   test_case("unused let offered (statics-gated)", `Quick, () =>
     check(bool, "f", true, offers(RemoveUnusedLet, "¦let x = 1 in 2"))
@@ -121,6 +138,14 @@ let refactor_tests = [
       false,
       offers(InlineLet, "¦let (a, b) = p in a"),
     )
+  ),
+  test_case(
+    "inline from an occurrence",
+    `Quick,
+    () => {
+      let got = inline("let x = 5 in x + ¦x") |> text_of;
+      check(string, "inlined via occurrence", "5 + 5", got);
+    },
   ),
   test_case(
     "later definitions unaffected",

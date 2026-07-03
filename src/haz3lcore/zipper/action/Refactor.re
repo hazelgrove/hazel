@@ -254,40 +254,55 @@ let var_pat_name = (p: Pat.t): option(string) =>
   | _ => None
   };
 
-/* Find the Let bound to `target` (one of its tile ids) with a simple
- * var pattern; replace it with its body, the bound var substituted
- * (capture-avoiding via Substitution). Returns the transformed program
- * and a focus id for the caret. */
-let inline_let = (target: Id.t, program: Exp.t): option((Exp.t, Id.t)) => {
-  let focus = ref(None);
-  let program' =
+/* A let's target zone is its delimiters plus its pattern (not def or
+ * body: those are their own expressions with their own menus) */
+let pat_subtree_ids = (p: Pat.t): list(Id.t) => {
+  let acc = ref([]);
+  let _ =
+    Pat.map_term(
+      ~f_pat=
+        (cont, p: Pat.t) => {
+          acc := IdTagged.ids(p) @ acc^;
+          cont(p);
+        },
+      ~f_typ=
+        (cont, t: Typ.t) => {
+          acc := IdTagged.ids(t) @ acc^;
+          cont(t);
+        },
+      p,
+    );
+  acc^;
+};
+
+/* If target indicates a variable occurrence, the id of its binder
+ * (nearest, shadow-correct via ctx lookup) */
+let binder_of_occurrence =
+    (~info_map: Statics.Map.t, ~target: Id.t, program: Exp.t): option(Id.t) => {
+  let occ = ref(None);
+  let _ =
     Exp.map_term(
       ~f_exp=
-        (cont, e: Exp.t) =>
+        (cont, e: Exp.t) => {
           switch (IdTagged.term_of(e)) {
-          | Let(p, def, body)
-              when
-                focus^ == None
-                && List.mem(target, IdTagged.ids(e))
-                && var_pat_name(p) != None =>
-            let x = Option.get(var_pat_name(p));
-            focus := Some(Exp.rep_id(def));
-            let body' = subst(x, def, body) |> strip_leading;
-            /* the result takes over the let's slot in its context */
-            let (let_before, let_after) = e.annotation.secondary;
-            let (b_before, b_after) = body'.annotation.secondary;
-            {
-              ...body',
-              annotation: {
-                ...body'.annotation,
-                secondary: (let_before @ b_before, b_after @ let_after),
-              },
-            };
-          | _ => cont(e)
-          },
+          | Var(name) when List.mem(target, IdTagged.ids(e)) =>
+            occ := Some((name, Exp.rep_id(e)))
+          | _ => ()
+          };
+          cont(e);
+        },
       program,
     );
-  focus^ |> Option.map(f => (dedupe_ids(program'), f));
+  switch (occ^) {
+  | Some((name, id)) =>
+    switch (Id.Map.find_opt(id, info_map)) {
+    | Some(InfoExp({ctx, _})) =>
+      Ctx.lookup_var(ctx, name)
+      |> Option.map((entry: Ctx.var_entry) => entry.id)
+    | _ => None
+    }
+  | None => None
+  };
 };
 
 /* === Registry ===
@@ -322,7 +337,10 @@ let rewrite_let =
           | Let(p, def, body)
               when
                 focus^ == None
-                && List.mem(target, IdTagged.ids(e))
+                && (
+                  List.mem(target, IdTagged.ids(e))
+                  || List.mem(target, pat_subtree_ids(p))
+                )
                 && matches(p, def, body) =>
             let (result, f) = rewrite(p, def, body);
             focus := Some(f);
@@ -346,17 +364,28 @@ let rewrite_let =
 let inline_let_impl: impl = {
   label: "Inline Let",
   tooltip: "Replace this let by substituting its definition",
-  prepare: (~info_map as _, ~target, program) =>
-    rewrite_let(
-      ~target,
-      ~matches=(p, _, _) => var_pat_name(p) != None,
-      ~rewrite=
-        (p, def, body) => {
-          let x = Option.get(var_pat_name(p));
-          (subst(x, def, body), Exp.rep_id(def));
-        },
-      program,
-    ),
+  /* also offered at occurrences of the bound var */
+  prepare: (~info_map, ~target, program) => {
+    let attempt = target =>
+      rewrite_let(
+        ~target,
+        ~matches=(p, _, _) => var_pat_name(p) != None,
+        ~rewrite=
+          (p, def, body) => {
+            let x = Option.get(var_pat_name(p));
+            (subst(x, def, body), Exp.rep_id(def));
+          },
+        program,
+      );
+    switch (attempt(target)) {
+    | Some(r) => Some(r)
+    | None =>
+      switch (binder_of_occurrence(~info_map, ~target, program)) {
+      | Some(binder) => attempt(binder)
+      | None => None
+      }
+    };
+  },
 };
 
 /* Statics-gated: the binding's pattern var carries an UnusedVar
