@@ -162,10 +162,10 @@ let type_string = (s: string): Zipper.t =>
 
 /* KNOWN OPEN FAMILIES (fuzz-found, not yet fixed) — the property is
    env-gated (FUZZ=1) until they land, so default runs stay green:
-   - multi-tile op runs: `?: ?+=>+f?` — several adjacent op tiles land
-     in one Bin's middle; the single lexeme field can't hold them all,
-     so all their tokens drop on print. Needs a list-valued lexeme or
-     a segment stash (design discussion first).
+   - (multi-tile op runs like `+=>+` turned out to already be covered:
+     regrout separates adjacent ops with hole grout, so each op gets
+     its own Bin/Pre and its own lexeme — kept as edit-derived
+     regression cases below.)
    - print-side whitespace drift at linebreaks (dominant survivor):
      `?)  s \n a )` reprints without the second line's leading space,
      and grout placement shifts across blank lines (`-[?,l\n\n  )`).
@@ -182,12 +182,42 @@ let fuzz_enabled =
   | _ => false
   };
 
+/* Edit-derived regression cases (typed via the action harness, so they
+   exercise editor molding/glomming, not parser-canonical states). These
+   run unconditionally, unlike the gated property. */
+let typed_case = (name, str) =>
+  Alcotest.test_case(
+    name,
+    `Quick,
+    () => {
+      let seg =
+        Zipper.unselect_and_zip(~erase_buffer=true, type_string(str));
+      Alcotest.(check(bool))(name, true, roundtrips(seg));
+    },
+  );
+
+let typed_regressions = (
+  "Round-Trip: Edit-Derived",
+  [
+    typed_case("adjacent op run after ascription", "?: ?+=>+f"),
+    typed_case("adjacent op run infix", "1 +=>+ 2"),
+    typed_case("adjacent op run stars", "1 ***** 2"),
+    typed_case("stranded prefix minus on typ side", ": -"),
+    typed_case("keyword prefix in op position", "?]l"),
+    typed_case("singleton labeled list element", "=]"),
+    typed_case("unit in list", "[()"),
+  ],
+);
+
 let tests =
-  fuzz_enabled
-    ? [
-      (
-        "Round-Trip: Fuzz",
-        [QCheck_alcotest.to_alcotest(~speed_level=`Slow, fuzz_roundtrip)],
-      ),
-    ]
-    : [];
+  [typed_regressions]
+  @ (
+    fuzz_enabled
+      ? [
+        (
+          "Round-Trip: Fuzz",
+          [QCheck_alcotest.to_alcotest(~speed_level=`Slow, fuzz_roundtrip)],
+        ),
+      ]
+      : []
+  );
