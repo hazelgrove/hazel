@@ -580,10 +580,9 @@ let roundtrip_text_test = (name: string, input: string) =>
 
 /* Test that a string round-trips through segment → term → segment */
 /* known_equiv_gap: strict mod-grout equivalence finding not yet fixed —
-   an explicit worklist, not an acceptance. Families as of 2026-07-02:
-   TupleExtension (printed ... mold differs from Form's), DeferredAp,
-   quoted labels (tile mold or id infidelity). Text/segment(id-loose)
-   checks still enforced for these. */
+   an explicit worklist, not an acceptance. Empty as of 2026-07-02: the
+   original families (TupleExtension, DeferredAp comma id, quoted
+   labels) are all fixed. */
 let roundtrip_test = (~known_equiv_gap=false, name: string, input: string) =>
   test_case(name, `Quick, () => {
     switch (Parser.to_segment(input, ~root=Exp)) {
@@ -657,11 +656,7 @@ let roundtrip_tests = (
     roundtrip_test({|Explicit hole operand|}, {|1 + ?|}),
     roundtrip_test({|LLM hole|}, {|1 + ??|}),
     roundtrip_test({|Float pattern|}, {|fun 3.14 -> 1|}),
-    roundtrip_test(
-      ~known_equiv_gap=true,
-      {|Label: unnecessary backticks|},
-      {|(`a`=1)|},
-    ),
+    roundtrip_test({|Label: unnecessary backticks|}, {|(`a`=1)|}),
     roundtrip_test({|Label: backticked dot|}, {|x.`a`|}),
     roundtrip_test({|Label: backticked pat|}, {|fun (`a`=x) -> x|}),
     roundtrip_test({|Label: backticked typ|}, {|1 : (`a`=Int)|}),
@@ -755,16 +750,8 @@ x|}),
     roundtrip_test({|Constructor: with arg|}, {|Some(1)|}),
     roundtrip_test({|Constructor: spaced arg|}, {|Some( 1 )|}),
     /* Tuple extension (...) */
-    roundtrip_test(
-      ~known_equiv_gap=true,
-      {|TupleExtension: simple|},
-      {|(a=1) ... (b=2)|},
-    ),
-    roundtrip_test(
-      ~known_equiv_gap=true,
-      {|TupleExtension: compact|},
-      {|(a=1)...(b=2)|},
-    ),
+    roundtrip_test({|TupleExtension: simple|}, {|(a=1) ... (b=2)|}),
+    roundtrip_test({|TupleExtension: compact|}, {|(a=1)...(b=2)|}),
     /* Functions */
     roundtrip_test({|Function: standard|}, {|fun x -> x|}),
     roundtrip_test({|Function: compact|}, {|fun x->x|}),
@@ -814,13 +801,8 @@ else 2|}),
     roundtrip_test({|Application: nullary in pattern|}, {|fun C() -> 1|}),
     roundtrip_test({|Application: literal unit arg|}, {|f(())|}),
     roundtrip_test({|Application: multiple args|}, {|f(x, y, z)|}),
+    roundtrip_test({|Deferred Application: standard|}, {|f(_ , y)|}),
     roundtrip_test(
-      ~known_equiv_gap=true,
-      {|Deferred Application: standard|},
-      {|f(_ , y)|},
-    ),
-    roundtrip_test(
-      ~known_equiv_gap=true,
       {|Deferred Application: with extra spaces|},
       {|f( _  , y )|},
     ),
@@ -885,20 +867,14 @@ in f(42)|},
       {|of_alfa_exp 1  +  2 end|},
     ),
     roundtrip_test(
-      ~known_equiv_gap=true,
       {|QuotedLabel: label needing quotes (has dash)|},
       {|(`the-answer`=42)|},
     ),
     roundtrip_test(
-      ~known_equiv_gap=true,
       {|QuotedLabel: with spaces works|},
       {|(`hello world`=42)|},
     ),
-    roundtrip_test(
-      ~known_equiv_gap=true,
-      {|QuotedLabel: empty works|},
-      {|(``=1)|},
-    ),
+    roundtrip_test({|QuotedLabel: empty works|}, {|(``=1)|}),
     /* Float power operator (**.) - using normalized float format */
     roundtrip_test({|FPower: standard|}, {|2.000000 **. 3.000000|}),
     roundtrip_test({|FPower: compact|}, {|2.000000**.3.000000|}),

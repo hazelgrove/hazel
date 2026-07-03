@@ -2335,9 +2335,12 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     // TODO: Add optional newlines
     let+ e = go(e)
     and+ es = es |> List.map(go) |> all;
-    let (id, ids) = (
+    /* ids = [ap tile, comma tiles...]: n args have n-1 commas, so pad
+       the tail to n-1 and use it directly (padding to n and dropping
+       the head minted a fresh id for the first comma) */
+    let (id, comma_ids) = (
       IdTagged.ids(exp) |> List.hd,
-      IdTagged.ids(exp) |> List.tl |> pad_ids(List.length(es)),
+      IdTagged.ids(exp) |> List.tl |> pad_ids(List.length(es) - 1),
     );
     wrap(
       exp,
@@ -2351,7 +2354,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
             @ List.flatten(
                 List.map2(
                   (id, e) => [mk_form(CommaExp, id, [])] @ e,
-                  ids |> List.tl,
+                  comma_ids,
                   es |> List.tl,
                 ),
               ),
