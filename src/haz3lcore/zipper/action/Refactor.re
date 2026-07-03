@@ -474,18 +474,202 @@ let case_to_if_impl: impl = {
     ),
 };
 
+let pad = (e: Exp.t): Exp.t => {
+  let sp = (): list(Secondary.t) => [
+    {
+      id: Id.mk(),
+      content: Whitespace(" "),
+    },
+  ];
+  {
+    ...e,
+    annotation: {
+      ...e.annotation,
+      secondary: (sp(), sp()),
+    },
+  };
+};
+
+/* every var/pat-var name in the program (over-approximates scope) */
+let used_names = (program: Exp.t): list(string) => {
+  let names = ref([]);
+  let _ =
+    Exp.map_term(
+      ~f_exp=
+        (cont, e: Exp.t) => {
+          switch (IdTagged.term_of(e)) {
+          | Var(x) => names := [x, ...names^]
+          | _ => ()
+          };
+          cont(e);
+        },
+      ~f_pat=
+        (cont, p: Pat.t) => {
+          switch (IdTagged.term_of(p)) {
+          | Var(x) => names := [x, ...names^]
+          | _ => ()
+          };
+          cont(p);
+        },
+      program,
+    );
+  names^;
+};
+
+let fresh_name = (program: Exp.t): string => {
+  let used = used_names(program);
+  let rec pick = n => {
+    let cand = "x" ++ string_of_int(n);
+    List.mem(cand, used) ? pick(n + 1) : cand;
+  };
+  List.mem("x", used) ? pick(1) : "x";
+};
+
+let pad_pat = (p: Pat.t): Pat.t => {
+  let sp = (): list(Secondary.t) => [
+    {
+      id: Id.mk(),
+      content: Whitespace(" "),
+    },
+  ];
+  {
+    ...p,
+    annotation: {
+      ...p.annotation,
+      secondary: (sp(), sp()),
+    },
+  };
+};
+
+let extractable = (e: Exp.t): bool =>
+  switch (IdTagged.term_of(e)) {
+  | Var(_)
+  | EmptyHole
+  | Let(_)
+  | Seq(_)
+  | Filter(_) => false
+  | _ => true
+  };
+
+let extract_let_impl: impl = {
+  label: "Extract to Let",
+  tooltip: "Bind this expression to a fresh variable in place",
+  prepare: (~info_map as _, ~target, program) => {
+    let x = fresh_name(program);
+    rewrite_node(
+      ~target,
+      ~rewrite=
+        e =>
+          extractable(e)
+            ? {
+              let def = pad(e |> strip_leading |> strip_trailing);
+              Some((
+                fresh(
+                  Let(pad_pat(fresh_pat(Var(x))), def, fresh(Var(x))),
+                ),
+                Exp.rep_id(def),
+              ));
+            }
+            : None,
+      program,
+    );
+  },
+};
+
+/* unshadowed-use check is conservative: any occurrence counts */
+let mentions = (x: string, e: Exp.t): bool => {
+  let found = ref(false);
+  let _ =
+    Exp.map_term(
+      ~f_exp=
+        (cont, e: Exp.t) => {
+          switch (IdTagged.term_of(e)) {
+          | Var(y) when y == x => found := true
+          | _ => ()
+          };
+          cont(e);
+        },
+      e,
+    );
+  found^;
+};
+
+let eta_reduce_impl: impl = {
+  label: "Eta-Reduce",
+  tooltip: "Simplify `fun x -> f(x)` to `f`",
+  prepare: (~info_map as _, ~target, program) =>
+    rewrite_node(
+      ~target,
+      ~rewrite=
+        e =>
+          switch (IdTagged.term_of(e)) {
+          | Fun(p, body, _, _) =>
+            switch (var_pat_name(p), IdTagged.term_of(body)) {
+            | (Some(x), Ap(Forward, f, arg)) =>
+              switch (IdTagged.term_of(arg)) {
+              | Var(y) when y == x && !mentions(x, f) =>
+                let f = f |> strip_leading |> strip_trailing;
+                Some((f, Exp.rep_id(f)));
+              | _ => None
+              }
+            | _ => None
+            }
+          | _ => None
+          },
+      program,
+    ),
+};
+
+let negate_if_impl: impl = {
+  label: "Negate & Swap Branches",
+  tooltip: "Flip this if: negate the condition, swap then/else",
+  prepare: (~info_map as _, ~target, program) =>
+    rewrite_node(
+      ~target,
+      ~rewrite=
+        e =>
+          switch (IdTagged.term_of(e)) {
+          | If(c, t, alt) =>
+            let c = c |> strip_leading |> strip_trailing;
+            let c = needs_parens(c) ? fresh(Parens(c)) : c;
+            let pad_l = (e: Exp.t) => {
+              let (b, _) = pad(e).annotation.secondary;
+              {
+                ...e,
+                annotation: {
+                  ...e.annotation,
+                  secondary: (b, snd(e.annotation.secondary)),
+                },
+              };
+            };
+            let cond = pad(fresh(UnOp(Bool(Not), c)));
+            let t' = pad(alt |> strip_leading |> strip_trailing);
+            let alt' = pad_l(t |> strip_leading |> strip_trailing);
+            Some((fresh(If(cond, t', alt')), Exp.rep_id(c)));
+          | _ => None
+          },
+      program,
+    ),
+};
+
 let impl: Action.refactor => impl =
   fun
   | InlineLet => inline_let_impl
   | RemoveUnusedLet => remove_unused_let_impl
   | IfToCase => if_to_case_impl
-  | CaseToIf => case_to_if_impl;
+  | CaseToIf => case_to_if_impl
+  | ExtractLet => extract_let_impl
+  | EtaReduce => eta_reduce_impl
+  | NegateIf => negate_if_impl;
 
 let all: list(Action.refactor) = [
   InlineLet,
   RemoveUnusedLet,
+  ExtractLet,
+  EtaReduce,
   IfToCase,
   CaseToIf,
+  NegateIf,
 ];
 
 /* Menu support: which refactorings apply at the current indication */

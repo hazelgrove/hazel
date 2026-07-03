@@ -144,7 +144,10 @@ type refactor =
   | InlineLet
   | RemoveUnusedLet
   | IfToCase
-  | CaseToIf;
+  | CaseToIf
+  | ExtractLet
+  | EtaReduce
+  | NegateIf;
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type t =

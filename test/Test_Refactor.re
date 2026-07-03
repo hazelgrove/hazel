@@ -171,4 +171,51 @@ let case_tests = [
   ),
 ];
 
-let tests = [("Refactor", refactor_tests @ gating_tests @ case_tests)];
+let more_tests = [
+  test_case(
+    "extract to let",
+    `Quick,
+    () => {
+      let got = inline(~kind=ExtractLet, "1 ¦+ 2") |> text_of;
+      check(string, "extracted", "let x = 1 + 2 in x", got);
+    },
+  ),
+  test_case(
+    "extract picks fresh name",
+    `Quick,
+    () => {
+      let got =
+        inline(~kind=ExtractLet, "let x = 1 in x * f¦(x)") |> text_of;
+      check(
+        string,
+        "fresh x1",
+        "let x = 1 in x * (let x1 = f(x) in x1)",
+        got,
+      );
+    },
+  ),
+  test_case(
+    "eta reduce",
+    `Quick,
+    () => {
+      let got = inline(~kind=EtaReduce, "¦fun y -> f(y)") |> text_of;
+      check(string, "reduced", "f", got);
+    },
+  ),
+  test_case("eta blocked when var used in fn", `Quick, () =>
+    check(bool, "not offered", false, offers(EtaReduce, "¦fun y -> y(y)"))
+  ),
+  test_case(
+    "negate and swap",
+    `Quick,
+    () => {
+      let got =
+        inline(~kind=NegateIf, "¦if a && b then 1 else 2") |> text_of;
+      check(string, "flipped", "if !(a && b) then 2 else 1", got);
+    },
+  ),
+];
+
+let tests = [
+  ("Refactor", refactor_tests @ gating_tests @ case_tests @ more_tests),
+];
