@@ -160,11 +160,17 @@ let type_string = (s: string): Zipper.t =>
   |> List.map(c => Action.Insert(String.make(1, c)))
   |> List.fold_left(apply, Zipper.init());
 
-/* No known open families: all fuzz-found counterexamples to date are
-   fixed and promoted to the regression groups below, so the property
-   runs un-gated. A failure here is a FINDING, not noise — shrink it
-   (the reported int list decodes via action_of), fix or file it, and
-   promote the shrunk case to a regression below. */
+/* The property runs un-gated; suite runs are seeded (run_node.sh
+   defaults QCHECK_SEED) so only explicit seed sweeps hunt new
+   counterexamples. A failure is a FINDING — shrink it (the reported
+   int list decodes via action_of), fix or file it, promote the shrunk
+   case to a regression below. KNOWN OPEN FAMILIES (rare, from random
+   sweeps 2026-07-03):
+   - adjacent operator tokens where one is `:`-like drop one token
+     (`ce:(?+:u ...)` -> `ce:(? u ...)`): two ops in one Bin middle
+     share a single lexeme slot.
+   - an EQUIV-only case with identical display (`s  s  ld: [l ...`) —
+     piece-level diff needed to attribute. */
 
 /* Edit-derived regression cases (typed via the action harness, so they
    exercise editor molding/glomming, not parser-canonical states). These
@@ -233,10 +239,44 @@ let replay_regressions = (
       "crossed synthesized delimiters",
       [991440, 65530, 6, 750450, 84640],
     ),
+    replay_case(
+      "complete non-ctor post-parens at typ",
+      [850550, 320, 390390],
+    ),
   ],
 );
 
+let pp_slide_diag =
+  Alcotest.test_case(
+    "pp-slides",
+    `Slow,
+    () => {
+      let doc_slides = snd(Web.Init.startup.documentation);
+      doc_slides
+      |> List.iter(((name, slide: Web.CellEditor.Model.persistent)) => {
+           let seg =
+             Sexplib.Sexp.of_string(slide.editor.zipper.zipper)
+             |> Zipper.t_of_sexp
+             |> Zipper.unselect_and_zip(~erase_buffer=true);
+           let orig = Printer.of_segment(~holes="?", ~refractors=[], seg);
+           let pretty =
+             Printer.of_segment(
+               ~holes="?",
+               ~refractors=[],
+               PrettySegment.prettify(seg),
+             );
+           print_endline("=====SLIDE " ++ name);
+           print_endline("-----ORIG");
+           print_endline(orig);
+           print_endline("-----PRETTY");
+           print_endline(pretty);
+         });
+      Alcotest.(check(bool))("diag", true, false);
+    },
+  );
+
 let tests = [
+  ("PP Slides Diag", [pp_slide_diag]),
   typed_regressions,
   replay_regressions,
   (

@@ -351,6 +351,47 @@ let is_hole_label = (t: string) =>
   || Token.is_implicit_hole_marker(t)
   || Token.is_llm_hole(t);
 
+/* A construct whose root tiles are all exp-only forms (if/then/else,
+   case/end, ...) stranded in a non-exp context: no typ/pat pattern can
+   match it, so without rerouting it falls to hole() and the tiles are
+   dropped on print. Labels with a mold at the host sort (parens,
+   lists, ->) are NOT rerouted — the sorted cases handle those. */
+let is_exp_only_label = (~host: Sort.t, label: Label.t): bool =>
+  List.length(label) >= 2
+  && (
+    switch (Form.Molds.get_base(label)) {
+    | [] => false
+    | molds =>
+      List.exists((m: Mold.t) => m.out == Sort.Exp, molds)
+      && List.for_all((m: Mold.t) => m.out != host, molds)
+    }
+  );
+
+let root_labels: unsorted => list(Label.t) =
+  tm => {
+    let of_tiles = (tiles: tiles) =>
+      Aba.get_as(tiles) |> List.map(((_, t)) => Aba.get_as(t));
+    switch (tm) {
+    | Op(tiles)
+    | Pre(tiles, _)
+    | Post(_, tiles)
+    | Bin(_, tiles, _) => of_tiles(tiles)
+    };
+  };
+
+let all_exp_only = (~host: Sort.t, tm: unsorted): bool =>
+  switch (root_labels(tm)) {
+  | [] => false
+  | labels => List.for_all(is_exp_only_label(~host), labels)
+  };
+
+/* Is this kid a constructor-named type variable? (the head of a
+   potential sum-type constructor application) */
+let is_ctr_headed: Any.t => bool =
+  fun
+  | Typ({term: Var(name), _}) => Token.is_ctr(name)
+  | _ => false;
+
 let is_exp_kid: Any.t => bool =
   fun
   | Exp(_) => true
@@ -1141,6 +1182,9 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
   let ret = (term: Pat.term) => (term, []);
   let hole = unsorted => Pat.hole(kids_of_unsorted(unsorted));
   fun
+  | tm when all_exp_only(~host=Sort.Pat, tm) =>
+    /* see typ_term: exp-only forms stranded in pattern context */
+    ret(MultiHole([Exp(exp(tm))]))
   | Op(tiles) as tm =>
     switch (tiles) {
     | ([(_id, tile)], []) =>
@@ -1338,6 +1382,11 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
   let ret = (term: Typ.term) => (term, []);
   let hole = unsorted => Typ.hole(kids_of_unsorted(unsorted));
   fun
+  | tm when all_exp_only(~host=Sort.Typ, tm) =>
+    /* exp-only forms stranded in type context (`? : if ? then ? else
+       ?` mid-edit) parse as exp inside a hole wrapper, keeping their
+       tiles, ids, and shard masks printable */
+    ret(Unknown(Hole(MultiHole([Exp(exp(tm))]))))
   | Op(tiles) as tm =>
     switch (tiles) {
     | ([(_id, (["{", "}"], [Sig(body)]))], []) =>
@@ -1401,11 +1450,13 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
   | Post(l, tiles) as tm =>
     switch (tiles) {
     /* Type aps which would otherwise be parsed here are recognized in sum type parsing above */
-    | ([(id, (["(", ")"], [kid]))], []) when get_incomplete([id]) != [] =>
-      /* Masked parens only: keep the tile as a juxtaposed kid so it
-         reprints (hole() would drop it). Complete post-parens must
-         fall through — sum-type parsing reads the bare MultiHole shape
-         for ctor aps, and a Parens node there prints as A((Int)). */
+    | ([(id, (["(", ")"], [kid]))], [])
+        when get_incomplete([id]) != [] || !is_ctr_headed(l) =>
+      /* Keep the parens tile as a juxtaposed kid so it reprints
+         (hole() would drop it) — except for constructor-headed
+         post-parens (`A(Int)`), which must fall through bare: sum-type
+         parsing reads the MultiHole shape for ctor aps, and a Parens
+         node there prints as A((Int)). */
       let t =
         switch (l) {
         | Typ(t) => t

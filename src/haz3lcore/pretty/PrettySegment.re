@@ -35,13 +35,16 @@
 type settings = {
   width: int,
   break_fun_params: bool, /* break function params onto separate lines */
-  hanging_delimiters: bool /* keep ( and [ on the = line in bindings */
+  hanging_delimiters: bool, /* keep ( and [ on the = line in bindings */
+  soft_semis: bool /* semis break softly (set inside braces); top-level
+                      statement semis always hard-break */
 };
 
 let default_settings: settings = {
   width: 80,
   break_fun_params: false,
   hanging_delimiters: true,
+  soft_semis: false,
 };
 
 /* === Document IR === */
@@ -262,13 +265,40 @@ let is_comment = (p: Piece.t): bool =>
   | _ => false
   };
 
+/* Comments that were on the SAME LINE as preceding content in the
+   original segment (and only those) may be absorbed onto the previous
+   piece's line. Standalone comments/comment blocks keep their own
+   lines (and hence their preceding blank lines). Set per format run. */
+let absorbable_comments: ref(Id.Map.t(unit)) = ref(Id.Map.empty);
+
+let classify_trailing_comments = (seg: Segment.t): Id.Map.t(unit) => {
+  let rec go = (acc, same_line, seg: Segment.t) =>
+    switch (seg) {
+    | [] => acc
+    | [Piece.Secondary(w), ...rest] when Secondary.is_linebreak(w) =>
+      go(acc, false, rest)
+    | [Piece.Secondary(w), ...rest] when Secondary.is_space(w) =>
+      go(acc, same_line, rest)
+    | [Piece.Secondary(w) as pc, ...rest] when Secondary.is_comment(w) =>
+      let acc = same_line ? Id.Map.add(Piece.id(pc), (), acc) : acc;
+      go(acc, true, rest);
+    | [Piece.Tile(t), ...rest] =>
+      let acc =
+        List.fold_left((acc, ch) => go(acc, true, ch), acc, t.children);
+      go(acc, true, rest);
+    | [_, ...rest] => go(acc, true, rest)
+    };
+  go(Id.Map.empty, false, seg);
+};
+
 /* Absorb leading comment pieces from a piece list.
    Returns (comments, remaining) where comments should stay
    on the same line as the preceding code piece. */
 let rec absorb_comments =
         (pieces: list(Piece.t)): (list(Piece.t), list(Piece.t)) =>
   switch (pieces) {
-  | [p, ...rest] when is_comment(p) =>
+  | [p, ...rest]
+      when is_comment(p) && Id.Map.mem(Piece.id(p), absorbable_comments^) =>
     let (more, remaining) = absorb_comments(rest);
     ([p, ...more], remaining);
   | _ => ([], pieces)
@@ -592,15 +622,26 @@ and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
         Tile.to_piece(Tile.shard_of(dt, List.length(dt.label) - 1));
       switch (Tile.contained_children(dt)) {
       | [(_, inner_child, _)] =>
-        let inner = child_doc(s, inner_child);
+        /* soft_semis so short brace bodies can inline; Group so the
+           hanging content goes flat when it fits */
+        let inner =
+          child_doc(
+            {
+              ...s,
+              soft_semis: true,
+            },
+            inner_child,
+          );
         Some(
-          cats([
-            piece_doc(open_s),
-            Nest(indent_unit, cats([SoftBreak, inner])),
-            SoftBreak,
-            piece_doc(close_s),
-            suffix,
-          ]),
+          Group(
+            cats([
+              piece_doc(open_s),
+              Nest(indent_unit, cats([SoftBreak, inner])),
+              SoftBreak,
+              piece_doc(close_s),
+              suffix,
+            ]),
+          ),
         );
       | _ => None
       };
@@ -617,7 +658,8 @@ and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
         piece_doc(semi),
         switch (rest2) {
         | [] => Empty
-        | _ => cats([HardBreak, segment_to_doc(s, rest2)])
+        | _ =>
+          cats([s.soft_semis ? Break : HardBreak, semi_tail_doc(s, rest2)])
         },
       ])
     | [] => tile_doc
@@ -798,7 +840,14 @@ and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
   | ["{", "}"] =>
     switch (triples) {
     | [(_, content_child, _)] =>
-      let inner = child_doc(s, content_child);
+      let inner =
+        child_doc(
+          {
+            ...s,
+            soft_semis: true,
+          },
+          content_child,
+        );
       let delim_doc =
         switch (inner) {
         | Empty => cats([shard(0), shard(last_shard_idx)])
@@ -814,6 +863,9 @@ and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
         };
       switch (rest) {
       | [] => delim_doc
+      | [next, ..._] when is_paren_or_bracket(next) =>
+        /* curried application: (f)(x) stays attached */
+        cats([delim_doc, segment_to_doc(s, rest)])
       | _ => cats([delim_doc, Break, Group(segment_to_doc(s, rest))])
       };
     | _ => fallback()
@@ -827,6 +879,9 @@ and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
       let delim_doc = cats([shard(0), inner, shard(last_shard_idx)]);
       switch (rest) {
       | [] => delim_doc
+      | [next, ..._] when is_paren_or_bracket(next) =>
+        /* application args stay attached: f@<T>(x), f@<T>@<U> */
+        cats([delim_doc, segment_to_doc(s, rest)])
       | _ => cats([delim_doc, Break, Group(segment_to_doc(s, rest))])
       };
     | _ => fallback()
@@ -997,6 +1052,15 @@ and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
   };
 }
 
+/* Group a semi tail only when it is the final (semi-less) item: the
+   trailing item needs its own group (else its infix chains inherit the
+   broken mode), but grouping a tail that still contains semis would
+   let multiple items re-pack onto one line mid-block */
+and semi_tail_doc = (s: settings, after: list(Piece.t)): doc => {
+  let has_semi = List.exists(is_semi, after);
+  has_semi ? segment_to_doc(s, after) : Group(segment_to_doc(s, after));
+}
+
 /* Split at the first top-level semicolon, but only when the item
    before it has 2+ pieces (single-piece items keep their specialized
    handling below) */
@@ -1043,7 +1107,8 @@ and segment_to_doc = (s: settings, pieces: list(Piece.t)): doc =>
       piece_doc(semi),
       switch (after) {
       | [] => Empty
-      | _ => cats([HardBreak, segment_to_doc(s, after)])
+      | _ =>
+        cats([s.soft_semis ? Break : HardBreak, semi_tail_doc(s, after)])
       },
     ]);
 
@@ -1054,13 +1119,13 @@ and segment_to_doc = (s: settings, pieces: list(Piece.t)): doc =>
       piece_doc(semi),
       switch (rest) {
       | [] => Empty
-      | _ => cats([HardBreak, segment_to_doc(s, rest)])
+      | _ => cats([s.soft_semis ? Break : HardBreak, semi_tail_doc(s, rest)])
       },
     ])
 
   /* Semicolon at start: hard break after */
   | [p, ...rest] when is_semi(p) =>
-    cats([piece_doc(p), HardBreak, segment_to_doc(s, rest)])
+    cats([piece_doc(p), HardBreak, Group(segment_to_doc(s, rest))])
 
   /* Piece followed by comma: keep comma with left operand, break after.
      Trailing comments after comma stay on the same line.
@@ -1158,6 +1223,9 @@ and segment_to_doc = (s: settings, pieces: list(Piece.t)): doc =>
       p_doc,
       switch (rest_after) {
       | [] => Empty
+      | _ when is_comment(p) =>
+        /* a standalone comment owns its line */
+        cats([HardBreak, Group(segment_to_doc(s, rest_after))])
       | [next, ..._] when is_case_rule_tile(next) =>
         cats([HardBreak, segment_to_doc(s, rest_after)])
       | [next, ..._] when is_right_convex(p) && is_paren_or_bracket(next) =>
@@ -1246,6 +1314,17 @@ and build_infix_chain_doc =
               Empty,
               leading_comments,
             );
+          /* An operand that is a single delimited tile hangs: keep
+             the operator on the current line and let the delimiters
+             break internally (`module M : {` ... `} = {` ... `}`,
+             `... == {` ... `} end`) */
+          let hangable =
+            switch (actual_operand) {
+            | [Tile({label: ["{", "}"], children, _})]
+                when List.length(children) > 0 =>
+              true
+            | _ => false
+            };
           let next =
             if (is_comma(op)) {
               cats([acc, piece_doc(op), comment_suffix, Break, operand_doc]);
@@ -1256,6 +1335,15 @@ and build_infix_chain_doc =
                 Space,
                 piece_doc(op),
                 Break,
+                operand_doc,
+              ]);
+            } else if (hangable) {
+              cats([
+                acc,
+                comment_suffix,
+                Space,
+                piece_doc(op),
+                Space,
                 operand_doc,
               ]);
             } else {
@@ -1310,6 +1398,7 @@ let rec tighten_applications = (outputs: list(output)): list(output) =>
 let format_segment = (~settings: settings, seg: Segment.t): Segment.t => {
   /* Step 1: Detect blank lines in original segment before stripping */
   let blank_lines = classify_blank_lines(seg);
+  absorbable_comments := classify_trailing_comments(seg);
 
   /* Step 2: Strip whitespace, build doc */
   let content = strip_whitespace(seg);
