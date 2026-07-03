@@ -1138,14 +1138,21 @@ let prettify =
       ~settings=default_settings,
       seg: Segment.t,
     )
-    : Segment.t =>
-  format_segment(
-    ~settings={
-      ...settings,
-      width,
-    },
-    seg,
-  );
+    : Segment.t => {
+  let out =
+    format_segment(
+      ~settings={
+        ...settings,
+        width,
+      },
+      seg,
+    );
+  /* Canonicalize the indentation of the emitted linebreaks via the
+     editor's single indentation authority, so pretty output is a
+     fixpoint of Format (Indentation.level_map) for every caller */
+  let indent_map = Indentation.level_map(out);
+  Indentation.fix_indentation_in_segment(indent_map, out);
+};
 
 /* === Legacy API (used by ExpToSegment.re) === */
 

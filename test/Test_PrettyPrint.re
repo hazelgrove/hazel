@@ -41,7 +41,19 @@ let format_seg =
   switch (Parser.to_segment(input, ~root=Exp)) {
   | Some(segment) =>
     let pretty = PrettySegment.prettify(~width, ~settings, segment);
-    /* No ~indent: PrettySegment now emits real whitespace for indent. */
+    /* Pretty output must be a fixpoint of Format: prettify defers
+       linebreak indentation to Indentation.level_map, the editor's
+       single indentation authority */
+    let refixed = {
+      let map = Indentation.level_map(pretty);
+      Indentation.fix_indentation_in_segment(map, pretty);
+    };
+    check(
+      string,
+      "prettify output is Format-fixpoint",
+      Printer.of_segment(~holes="?", pretty),
+      Printer.of_segment(~holes="?", refixed),
+    );
     Printer.of_segment(~holes="?", pretty)
     |> Util.StringUtil.trim_trailing_whitespace;
   | None => failwith("Failed to parse: " ++ input)
@@ -687,8 +699,8 @@ test
       "let f : poly a -> poly b -> (a, b) -> (a, b) = typfun a -> typfun b -> fun x -> x in f",
     ~expected=
       {|let f
-: poly a ->
-  poly b -> (a, b) -> (a, b) =
+  : poly a ->
+    poly b -> (a, b) -> (a, b) =
   typfun a ->
     typfun b -> fun x -> x in
 f|},

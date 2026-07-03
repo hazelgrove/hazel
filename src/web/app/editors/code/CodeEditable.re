@@ -290,6 +290,13 @@ module Selection = {
            ~action=action(PrettyPrint),
            "Pretty Print",
          ),
+         mk(
+           ~mdIcon="format_indent_increase",
+           ~section="Formatting",
+           ~hotkey="shift+" ++ meta ++ "+s",
+           ~action=action(Format),
+           "Re-indent",
+         ),
        ]);
   };
 

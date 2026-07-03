@@ -89,6 +89,7 @@ let handle_key_event = (k: Key.t): option(Action.t) => {
     }
   | {key: D(key), sys: Mac, shift: Down, meta: Down, ctrl: Up, alt: Up, _} =>
     switch (key) {
+    | "s" => now(Format)
     | "ArrowLeft" => now(Select(Resize(Line(Left))))
     | "ArrowRight" => now(Select(Resize(Line(Right))))
     | "ArrowUp" => now(Select(Resize(Start)))
@@ -97,6 +98,7 @@ let handle_key_event = (k: Key.t): option(Action.t) => {
     }
   | {key: D(key), sys: PC, shift: Down, meta: Up, ctrl: Down, alt: Up, _} =>
     switch (key) {
+    | "s" => now(Format)
     | "ArrowLeft" => now(Select(Resize(Local(Left, modif))))
     | "ArrowRight" => now(Select(Resize(Local(Right, modif))))
     | "ArrowUp" => now(Select(Resize(Vertical(Up, modif))))
@@ -112,7 +114,7 @@ let handle_key_event = (k: Key.t): option(Action.t) => {
     | "d" => now(Select(Term(Current)))
     | "a" => now(Select(All))
     | "e" => now(Probe(ToggleManual))
-    | "s" => now(Format)
+    | "s" => now(PrettyPrint)
     | "/" => Some(Buffer(Set(TyDi)))
     | "Backspace" => now(Destruct(Line(Left)))
     | "ArrowLeft" => now(Move(Line(Left)))
@@ -127,7 +129,7 @@ let handle_key_event = (k: Key.t): option(Action.t) => {
     | "d" => now(Select(Term(Current)))
     | "a" => now(Select(All))
     | "e" => now(Probe(ToggleManual))
-    | "s" => now(Format)
+    | "s" => now(PrettyPrint)
     | "/" => Some(Buffer(Set(TyDi)))
     | "Backspace" => now(Destruct(Local(Left, ByToken)))
     | "Delete" => now(Destruct(Local(Right, ByToken)))
