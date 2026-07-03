@@ -223,7 +223,8 @@ let go =
     |> Option.map(maybe_reassoc)
     |> Option.map(LocalReformat.go(~before))
     |> return(Cant_insert);
-  | Refactor(k) => Refactor.go(k, z) |> return(Cant_refactor)
+  | Refactor(k) =>
+    Refactor.go(~info_map=statics.info_map, k, z) |> return(Cant_refactor)
   | Put_down =>
     let before = LocalReformat.snapshot(~enabled=settings.auto_reindent, z);
     Zipper.put_down(z, ~root)

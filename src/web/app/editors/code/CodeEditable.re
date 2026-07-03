@@ -287,16 +287,18 @@ module Selection = {
            ),
          ]
          @ (
-           Haz3lcore.Refactor.applicable(model.editor.state.zipper)
-             ? [
-               mk(
-                 ~mdIcon="compress",
-                 ~section="Refactoring",
-                 ~action=action(Refactor(InlineLet)),
-                 "Inline Let",
-               ),
-             ]
-             : []
+           Haz3lcore.Refactor.menu_items(
+             ~info_map=model.statics.info_map,
+             model.editor.state.zipper,
+           )
+           |> List.map(((kind, label, _tooltip)) =>
+                mk(
+                  ~mdIcon="compress",
+                  ~section="Refactoring",
+                  ~action=action(Refactor(kind)),
+                  label,
+                )
+              )
          )
          @ [
            mk(

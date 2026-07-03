@@ -141,7 +141,8 @@ type destruct =
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type refactor =
-  | InlineLet;
+  | InlineLet
+  | RemoveUnusedLet;
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type t =

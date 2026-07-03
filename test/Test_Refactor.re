@@ -21,29 +21,56 @@ let collect_tile_ids = (z: Zipper.t): list(Id.t) => {
   go(Zipper.unselect_and_zip(z));
 };
 
-let inline = (marked: string): Zipper.t => {
+let inline = (~kind: Action.refactor=InlineLet, marked: string): Zipper.t => {
   let z = Test_Editing.parse_zipper(marked);
-  Test_Editing.perform(z, [Action.Refactor(InlineLet)]);
+  Test_Editing.perform(z, [Action.Refactor(kind)]);
 };
 
-let applicable_at = (marked: string): bool =>
-  Refactor.applicable(Test_Editing.parse_zipper(marked));
+let info_map_of = (z: Zipper.t) => {
+  let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
+  CachedStatics.init_from_term(
+    ~settings=Test_Editing.default_settings,
+    ~is_dynamic_term=true,
+    term,
+  ).
+    info_map;
+};
+
+let kinds_at = (marked: string): list(Action.refactor) => {
+  let z = Test_Editing.parse_zipper(marked);
+  Refactor.menu_items(~info_map=info_map_of(z), z)
+  |> List.map(((k, _, _)) => k);
+};
+
+let offers = (kind, marked) => List.mem(kind, kinds_at(marked));
 
 let gating_tests = [
   test_case("caret before let", `Quick, () =>
-    check(bool, "a", true, applicable_at("¦let x = 1 in x"))
+    check(bool, "a", true, offers(InlineLet, "¦let x = 1 in x"))
   ),
   test_case("caret inside let kw", `Quick, () =>
-    check(bool, "b", true, applicable_at("l¦et x = 1 in x"))
+    check(bool, "b", true, offers(InlineLet, "l¦et x = 1 in x"))
   ),
   test_case("caret after let kw", `Quick, () =>
-    check(bool, "c", true, applicable_at("let¦ x = 1 in x"))
-  ),
-  test_case("caret at eq", `Quick, () =>
-    check(bool, "d", true, applicable_at("let x =¦ 1 in x"))
+    check(bool, "c", true, offers(InlineLet, "let¦ x = 1 in x"))
   ),
   test_case("caret on body var", `Quick, () =>
-    check(bool, "e", false, applicable_at("let x = 1 in ¦x"))
+    check(bool, "e", false, offers(InlineLet, "let x = 1 in ¦x"))
+  ),
+  test_case("unused let offered (statics-gated)", `Quick, () =>
+    check(bool, "f", true, offers(RemoveUnusedLet, "¦let x = 1 in 2"))
+  ),
+  test_case("used let not offered for removal", `Quick, () =>
+    check(bool, "g", false, offers(RemoveUnusedLet, "¦let x = 1 in x"))
+  ),
+  test_case(
+    "remove unused let",
+    `Quick,
+    () => {
+      let got =
+        inline(~kind=RemoveUnusedLet, "¦let x = 1 in\n2 + 2") |> text_of;
+      check(string, "binding deleted", "2 + 2", got);
+    },
   ),
 ];
 
@@ -87,13 +114,13 @@ let refactor_tests = [
       check(string, "bare literal", "5 + 5", got);
     },
   ),
-  test_case(
-    "non-var pattern is not applicable",
-    `Quick,
-    () => {
-      let z = Test_Editing.parse_zipper("¦let (a, b) = p in a");
-      check(bool, "applicable is false", false, Refactor.applicable(z));
-    },
+  test_case("non-var pattern is not applicable", `Quick, () =>
+    check(
+      bool,
+      "not offered",
+      false,
+      offers(InlineLet, "¦let (a, b) = p in a"),
+    )
   ),
   test_case(
     "later definitions unaffected",

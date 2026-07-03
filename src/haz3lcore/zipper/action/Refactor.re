@@ -266,52 +266,146 @@ let inline_let = (target: Id.t, program: Exp.t): option((Exp.t, Id.t)) => {
   focus^ |> Option.map(f => (dedupe_ids(program'), f));
 };
 
-let applicable = (z: Zipper.t): bool =>
-  switch (Indicated.index(z)) {
-  | None => false
-  | Some(target) =>
-    let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
-    let found = ref(false);
-    let _ =
-      Exp.map_term(
-        ~f_exp=
-          (cont, e: Exp.t) =>
-            switch (IdTagged.term_of(e)) {
-            | Let(p, _, _)
-                when
-                  List.mem(target, IdTagged.ids(e))
-                  && var_pat_name(p) != None =>
-              found := true;
-              e;
-            | _ => cont(e)
-            },
-        term,
-      );
-    found^;
+/* === Registry ===
+ * A refactoring is one record; menus and dispatch iterate the
+ * registry, so adding a transform means adding a kind + an entry. */
+
+type impl = {
+  label: string,
+  tooltip: string,
+  /* Some((program', focus_id)) when applicable at `target` */
+  prepare:
+    (~info_map: Statics.Map.t, ~target: Id.t, Exp.t) => option((Exp.t, Id.t)),
+};
+
+/* Replace a Let node (matched by predicate at target) with a rewrite
+ * of its parts; shared slot handling: the result takes over the let's
+ * whitespace slot */
+let rewrite_let =
+    (
+      ~target: Id.t,
+      ~matches: (Pat.t, Exp.t, Exp.t) => bool,
+      ~rewrite: (Pat.t, Exp.t, Exp.t) => (Exp.t, Id.t),
+      program: Exp.t,
+    )
+    : option((Exp.t, Id.t)) => {
+  let focus = ref(None);
+  let program' =
+    Exp.map_term(
+      ~f_exp=
+        (cont, e: Exp.t) =>
+          switch (IdTagged.term_of(e)) {
+          | Let(p, def, body)
+              when
+                focus^ == None
+                && List.mem(target, IdTagged.ids(e))
+                && matches(p, def, body) =>
+            let (result, f) = rewrite(p, def, body);
+            focus := Some(f);
+            let result = strip_leading(result);
+            let (let_before, let_after) = e.annotation.secondary;
+            let (b_before, b_after) = result.annotation.secondary;
+            {
+              ...result,
+              annotation: {
+                ...result.annotation,
+                secondary: (let_before @ b_before, b_after @ let_after),
+              },
+            };
+          | _ => cont(e)
+          },
+      program,
+    );
+  focus^ |> Option.map(f => (dedupe_ids(program'), f));
+};
+
+let inline_let_impl: impl = {
+  label: "Inline Let",
+  tooltip: "Replace this let by substituting its definition",
+  prepare: (~info_map as _, ~target, program) =>
+    rewrite_let(
+      ~target,
+      ~matches=(p, _, _) => var_pat_name(p) != None,
+      ~rewrite=
+        (p, def, body) => {
+          let x = Option.get(var_pat_name(p));
+          (subst(x, def, body), Exp.rep_id(def));
+        },
+      program,
+    ),
+};
+
+/* Statics-gated: the binding's pattern var carries an UnusedVar
+ * warning (co-ctx says the body never uses it) */
+let pat_unused = (~info_map: Statics.Map.t, p: Pat.t): bool =>
+  switch (Id.Map.find_opt(Pat.rep_id(p), info_map)) {
+  | Some(InfoPat({warnings, _})) =>
+    warnings
+    |> List.exists((w: Warning.list_item) =>
+         switch (w) {
+         | Pat(UnusedVar(_)) => true
+         }
+       )
+  | _ => false
   };
 
-let go = (kind: Action.refactor, z: Zipper.t): option(Zipper.t) =>
-  switch (kind) {
-  | InlineLet =>
-    switch (Indicated.index(z)) {
+let remove_unused_let_impl: impl = {
+  label: "Remove Unused Let",
+  tooltip: "Delete this binding: its variable is never used",
+  prepare: (~info_map, ~target, program) =>
+    rewrite_let(
+      ~target,
+      ~matches=
+        (p, _, _) => var_pat_name(p) != None && pat_unused(~info_map, p),
+      ~rewrite=(_, _, body) => (body, Exp.rep_id(body)),
+      program,
+    ),
+};
+
+let impl: Action.refactor => impl =
+  fun
+  | InlineLet => inline_let_impl
+  | RemoveUnusedLet => remove_unused_let_impl;
+
+let all: list(Action.refactor) = [InlineLet, RemoveUnusedLet];
+
+/* Menu support: which refactorings apply at the current indication */
+let menu_items =
+    (~info_map: Statics.Map.t, z: Zipper.t)
+    : list((Action.refactor, string, string)) =>
+  switch (Indicated.index(z)) {
+  | None => []
+  | Some(target) =>
+    let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
+    all
+    |> List.filter_map(kind => {
+         let i = impl(kind);
+         Option.is_some(i.prepare(~info_map, ~target, term))
+           ? Some((kind, i.label, i.tooltip)) : None;
+       });
+  };
+
+let go =
+    (~info_map: Statics.Map.t, kind: Action.refactor, z: Zipper.t)
+    : option(Zipper.t) =>
+  switch (Indicated.index(z)) {
+  | None => None
+  | Some(target) =>
+    let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
+    switch (impl(kind).prepare(~info_map, ~target, term)) {
     | None => None
-    | Some(target) =>
-      let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
-      switch (inline_let(target, term)) {
-      | None => None
-      | Some((term', focus)) =>
-        let seg =
-          ExpToSegment.exp_to_segment(~settings=roundtrip_settings, term');
-        let z' = {
-          ...Zipper.unzip(seg),
-          refractors: z.refractors,
-        };
-        Some(
-          switch (Move.jump_to_id_indicated(z', focus)) {
-          | Some(z'') => z''
-          | None => z'
-          },
-        );
+    | Some((term', focus)) =>
+      let seg =
+        ExpToSegment.exp_to_segment(~settings=roundtrip_settings, term');
+      let z' = {
+        ...Zipper.unzip(seg),
+        refractors: z.refractors,
       };
-    }
+      Some(
+        switch (Move.jump_to_id_indicated(z', focus)) {
+        | Some(z'') => z''
+        | None => z'
+        },
+      );
+    };
   };
