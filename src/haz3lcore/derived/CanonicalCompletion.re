@@ -201,9 +201,22 @@ let opener_schedule =
       | exception _ => 0
       | skel => opener_insertion_index(skel, idx) |> Option.value(~default=0)
       };
+    /* A synthesized opener must not cross an unmatched opener: tiles
+       still awaiting trailing shards get their closers appended at the
+       partition end, so an opener spanning left of them would nest
+       crosswise (`( ]` must complete to `([?])`, not `[(])`). Clamp
+       each insertion to sit right of the last such tile before it. */
+    let trailing_positions =
+      incomplete
+      |> List.filter((t: Tile.t) => Tile.l_shard(t) == 0)
+      |> List.filter_map(index_of);
+    let clamp = (at, idx) =>
+      trailing_positions
+      |> List.filter(p => p < idx)
+      |> List.fold_left((acc, p) => max(acc, p + 1), at);
     leading_incomplete
     |> List.filter_map(t =>
-         index_of(t) |> Option.map(idx => (at_of(idx), idx, t))
+         index_of(t) |> Option.map(idx => (clamp(at_of(idx), idx), idx, t))
        )
     |> List.sort(((a1, i1, _), (a2, i2, _)) =>
          a1 == a2 ? compare(i2, i1) : compare(a1, a2)
@@ -765,9 +778,26 @@ let complete_segment =
       seg_with_shards
       |> Segment.regrout((Nib.Shape.concave(), Nib.Shape.concave()), _);
 
-    /* Phase 3: Reassemble to combine same-ID shards; remold to get correct molds */
-    let reassembled =
-      Segment.reassemble(regrouted) |> Segment.remold(_, sort);
+    /* Phase 3: Reassemble to combine same-ID shards; remold to get
+       correct molds. Reassembly must recurse: an opener insertion can
+       splice still-unmerged shard pairs into a freshly formed tile's
+       child (orphan ] wrapping a span that holds an incomplete ( and
+       its appended closer), where a single top-level pass never
+       revisits them. */
+    let rec deep_reassemble = (seg: Segment.t): Segment.t =>
+      seg
+      |> Segment.reassemble
+      |> List.map((p: Piece.t) =>
+           switch (p) {
+           | Tile(t) =>
+             Piece.Tile({
+               ...t,
+               children: List.map(deep_reassemble, t.children),
+             })
+           | p => p
+           }
+         );
+    let reassembled = deep_reassemble(regrouted) |> Segment.remold(_, sort);
 
     /* Phase 4: Regrout again based on NEW molds (remold may have changed shapes) */
     let completed_seg =

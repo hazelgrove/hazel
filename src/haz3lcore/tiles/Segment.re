@@ -33,13 +33,34 @@ and piece_equiv_mod_grout = (~mold_sorts, a: Piece.t, b: Piece.t): bool =>
   switch (a, b) {
   | (Tile(ta), Tile(tb)) =>
     let mold_eq = (ma: Mold.t, mb: Mold.t) =>
-      mold_sorts
-        ? ma == mb
-        : {
+      if (mold_sorts) {
+        ma == mb;
+      } else if (!Tile.is_complete(ta)) {
+        true;
+            /* An incomplete tile's mold is edit-transient: completion +
+               reparse re-derive it wholesale. Ids/labels/shards stay
+               strict. */
+      } else {
+        /* Canonical quotient: form identity is derived, spelling is
+           retained. Shared-label forms legitimately swap under
+           completion + reparse (orphan-) Parens reprints as the Ap
+           args tile; a line-initial prefix - reprints binary once the
+           closer lands before it), so any two DEFINED molds of the
+           label are equivalent. Undefined tokens compare by nib shape
+           (sort-quotiented) — the Any fallback is not a defined mold,
+           so e.g. a stranded : reconstructed with the fallback instead
+           of Cast's mold still fails. */
+        let base = Form.Molds.get_base(ta.label);
+        let shape_eq = () => {
           let (la, ra) = ma.nibs;
           let (lb, rb) = mb.nibs;
           la.shape == lb.shape && ra.shape == rb.shape;
         };
+        switch (base) {
+        | [] => shape_eq()
+        | _ => List.mem(ma, base) && List.mem(mb, base) || shape_eq()
+        };
+      };
     ta.id == tb.id
     && ta.label == tb.label
     && mold_eq(ta.mold, tb.mold)

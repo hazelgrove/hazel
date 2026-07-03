@@ -160,27 +160,11 @@ let type_string = (s: string): Zipper.t =>
   |> List.map(c => Action.Insert(String.make(1, c)))
   |> List.fold_left(apply, Zipper.init());
 
-/* KNOWN OPEN FAMILIES (fuzz-found, not yet fixed) — the property is
-   env-gated (FUZZ=1) until they land, so default runs stay green:
-   - (multi-tile op runs like `+=>+` turned out to already be covered:
-     regrout separates adjacent ops with hole grout, so each op gets
-     its own Bin/Pre and its own lexeme — kept as edit-derived
-     regression cases below.)
-   - print-side whitespace drift at linebreaks (dominant survivor):
-     `?)  s \n a )` reprints without the second line's leading space,
-     and grout placement shifts across blank lines (`-[?,l\n\n  )`).
-     Grout is quotiented, so the failing pieces are Secondary — likely
-     the printer's indentation/whitespace reconstruction.
-   - incomplete `(` opener on the typ side drops: `?:?(` -> `?:? `
-     (the exp-side trailing completion covers this; the typ-side
-     incomplete paren is lost in masking or print).
-   - `[()` + linebreak drops the empty tuple (completion/mask
-     interplay across a partition boundary, not op-lexeme related). */
-let fuzz_enabled =
-  switch (Sys.getenv_opt("FUZZ")) {
-  | Some("1") => true
-  | _ => false
-  };
+/* No known open families: all fuzz-found counterexamples to date are
+   fixed and promoted to the regression groups below, so the property
+   runs un-gated. A failure here is a FINDING, not noise — shrink it
+   (the reported int list decodes via action_of), fix or file it, and
+   promote the shrunk case to a regression below. */
 
 /* Edit-derived regression cases (typed via the action harness, so they
    exercise editor molding/glomming, not parser-canonical states). These
@@ -206,18 +190,57 @@ let typed_regressions = (
     typed_case("keyword prefix in op position", "?]l"),
     typed_case("singleton labeled list element", "=]"),
     typed_case("unit in list", "[()"),
+    typed_case("cross-sort list closer at typ", "?:?]"),
+    typed_case("typ-side postfix parens", "?:1("),
+    typed_case("line-initial prefix minus", "(\n\n-?"),
+    typed_case("typ-side incomplete paren", "?:?("),
+    typed_case("orphan closer under incomplete parens", "(?\n(]"),
   ],
 );
 
-let tests =
-  [typed_regressions]
-  @ (
-    fuzz_enabled
-      ? [
-        (
-          "Round-Trip: Fuzz",
-          [QCheck_alcotest.to_alcotest(~speed_level=`Slow, fuzz_roundtrip)],
-        ),
-      ]
-      : []
+/* Replayed action sequences for shrunk counterexamples that pure
+   typing cannot reproduce. */
+let replay_case = (name, ns) =>
+  Alcotest.test_case(
+    name,
+    `Quick,
+    () => {
+      let z =
+        List.fold_left(
+          (z, n) => apply(z, action_of(n)),
+          Zipper.init(),
+          ns,
+        );
+      let seg = Zipper.unselect_and_zip(~erase_buffer=true, z);
+      Alcotest.(check(bool))(name, true, roundtrips(seg));
+    },
   );
+
+let replay_regressions = (
+  "Round-Trip: Edit-Derived Replays",
+  [
+    replay_case("glom () over stray grout", [637940, 260237, 440440, 0]),
+    replay_case("nested orphan closers", [637940, 260237, 440490, 242670]),
+    replay_case(
+      "parens-vs-ap mold drift",
+      [661140, 29276, 402716, 596180, 0],
+    ),
+    replay_case(
+      "orphan ] between : and *",
+      [65520, 12340, 726577, 750450, 84640],
+    ),
+    replay_case(
+      "crossed synthesized delimiters",
+      [991440, 65530, 6, 750450, 84640],
+    ),
+  ],
+);
+
+let tests = [
+  typed_regressions,
+  replay_regressions,
+  (
+    "Round-Trip: Fuzz",
+    [QCheck_alcotest.to_alcotest(~speed_level=`Slow, fuzz_roundtrip)],
+  ),
+];

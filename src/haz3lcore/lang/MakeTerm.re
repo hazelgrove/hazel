@@ -351,6 +351,15 @@ let is_hole_label = (t: string) =>
   || Token.is_implicit_hole_marker(t)
   || Token.is_llm_hole(t);
 
+let is_exp_kid: Any.t => bool =
+  fun
+  | Exp(_) => true
+  | _ => false;
+let is_pat_kid: Any.t => bool =
+  fun
+  | Pat(_) => true
+  | _ => false;
+
 let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): Any.t =>
   switch (s) {
   | Drv(drv) =>
@@ -749,7 +758,29 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
         }
       | (["{", "}"], [Exp(body)])
       | (["(", ")"], [Exp(body)]) => ret(Parens(body))
+      | (["(", ")"], [kid]) =>
+        /* Cross-sort parens: completion can leave a parens tile molded
+           at a different sort than its context (orphan-closer
+           completion), so the kid parses at the tile's sort, not Exp.
+           Keep the tile — falling to hole() would drop it and strand
+           its shard mask on a wrapper that never prints a tile. */
+        ret(
+          Parens({
+            annotation: IdTagged.IdTag.mk_internal([Id.mk()]),
+            term: Exp.hole([kid]),
+          }),
+        )
       | (["PROJ_WRAP", "PROJ_WRAP"], [Exp(body)]) => ret(body.term)
+      | (["[", "]"], [kid]) when !is_exp_kid(kid) =>
+        /* Cross-sort list brackets (see the cross-sort parens case) */
+        ret(
+          ListLit([
+            {
+              annotation: IdTagged.IdTag.mk_internal([Id.mk()]),
+              term: Exp.hole([kid]),
+            },
+          ]),
+        )
       | (["[", "]"], [Exp(body)]) =>
         /* ListLit absorption: inner Tuple's comma IDs become part of ListLit.
            ID order: [bracket_id] @ comma_ids (outer first, then adopted).
@@ -1136,7 +1167,25 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
       | ([t], []) when Token.is_wild(t) => ret(Wild)
       | ([t], []) when Token.is_ctr(t) => ret(Constructor(t, None))
       | (["(", ")"], [Pat(body)]) => ret(Parens(body))
+      | (["(", ")"], [kid]) =>
+        /* Cross-sort parens (see the exp case) */
+        ret(
+          Parens({
+            annotation: IdTagged.IdTag.mk_internal([Id.mk()]),
+            term: Pat.hole([kid]),
+          }),
+        )
       | (["PROJ_WRAP", "PROJ_WRAP"], [Pat(body)]) => ret(body.term)
+      | (["[", "]"], [kid]) when !is_pat_kid(kid) =>
+        /* Cross-sort list brackets (see the cross-sort parens case) */
+        ret(
+          ListLit([
+            {
+              annotation: IdTagged.IdTag.mk_internal([Id.mk()]),
+              term: Pat.hole([kid]),
+            },
+          ]),
+        )
       | (["[", "]"], [Pat(body)]) =>
         /* ListLit pattern absorption: inner Tuple's comma IDs become part of ListLit.
            ID order: [bracket_id] @ comma_ids (outer first, then adopted).
@@ -1330,8 +1379,20 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
           set_lexeme(t);
           Label(Token.sub(t, 1, Token.length(t) - 2));
         | (["(", ")"], [Typ(body)]) => Parens(body)
+        | (["(", ")"], [kid]) =>
+          /* Cross-sort parens (see the exp case) */
+          Parens({
+            annotation: IdTagged.IdTag.mk_internal([Id.mk()]),
+            term: Typ.hole([kid]),
+          })
         | (["PROJ_WRAP", "PROJ_WRAP"], [Typ(body)]) => body.term
         | (["[", "]"], [Typ(body)]) => List(body)
+        | (["[", "]"], [kid]) =>
+          /* Cross-sort list brackets (see the cross-sort parens case) */
+          List({
+            annotation: IdTagged.IdTag.mk_internal([Id.mk()]),
+            term: Typ.hole([kid]),
+          })
         | ([t], []) when is_hole_label(t) =>
           set_lexeme(t);
           hole(tm);
@@ -1341,9 +1402,53 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
       )
     | _ => ret(hole(tm))
     }
-  | Post(Typ(_t), tiles) as tm =>
+  | Post(l, tiles) as tm =>
     switch (tiles) {
     /* Type aps which would otherwise be parsed here are recognized in sum type parsing above */
+    | ([(id, (["(", ")"], [kid]))], []) when get_incomplete([id]) != [] =>
+      /* Masked (completion-synthesized) parens only — complete
+         post-parens must keep falling through: sum-type parsing reads
+         the bare MultiHole shape for constructor aps (`+A(Int)`), and
+         a Parens node there prints as A((Int)). l is any-sorted: a
+         sort-mismatched operand (Exp-molded 1 in type position) must
+         not divert this into the hole() catch-all. */
+      let t =
+        switch (l) {
+        | Typ(t) => t
+        | _ => {
+            annotation: IdTagged.IdTag.mk_internal([Id.mk()]),
+            term: Typ.hole([l]),
+          }
+        };
+      /* No general type-application form: keep the parens tile (its id
+         and shard mask, so incomplete parens reprint) as a juxtaposed
+         kid instead of dropping it via hole(). Secondary stays on the
+         outer node (ret attaches the same ids) to avoid double
+         emission. */
+      let arg =
+        switch (kid) {
+        | Typ(arg) => arg
+        | _ => {
+            annotation: IdTagged.IdTag.mk_internal([Id.mk()]),
+            term: Typ.hole([kid]),
+          }
+        };
+      ret(
+        Unknown(
+          Hole(
+            MultiHole([
+              Typ(t),
+              Typ({
+                annotation: {
+                  ...IdTagged.IdTag.mk_internal([id]),
+                  incomplete: get_incomplete([id]),
+                },
+                term: Parens(arg),
+              }),
+            ]),
+          ),
+        ),
+      );
     | _ => ret(hole(tm))
     }
   /* poly and rec have to be before sum so that they bind tighter.
