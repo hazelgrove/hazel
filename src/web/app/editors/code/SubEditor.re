@@ -421,6 +421,40 @@ let caret_in_splice = (sub: t, z: Zipper.t): bool => {
   };
 };
 
+/* Whether this sub-editor displays a splice wrapper, as opposed to a
+ * region carved out of a host tile. Splices are their own coordinate
+ * frame with their own caret routing (splice context entered/exited by
+ * Move, pointer goals carried as SplicePoint), so the two flavors differ
+ * in who owns the caret and who handles keys. */
+let is_splice_frame = (sub: t): bool =>
+  Target.whole_content_id(sub.target) != None;
+
+/* Reframe an action emitted by this sub-editor's view. Pointer goals
+ * from a sub-editor are container-relative, hence already in the
+ * displayed region's coordinates; for a splice — which is its own
+ * coordinate frame — that means Point goals must travel as SplicePoint
+ * so Perform resolves them against the splice's own measured map instead
+ * of the main editor's. Region sub-editors share the host's frame, so
+ * their goals are translated by `translate_goal` instead. */
+let reframe_action = (sub: t, action: Action.t): Action.t =>
+  switch (Target.whole_content_id(sub.target), action) {
+  | (Some(id), Move(Point(goal, _))) => Move(SplicePoint(id, goal))
+  | (Some(id), Select(Resize(Point(goal, _)))) =>
+    Select(Resize(SplicePoint(id, goal)))
+  | (_, action) => action
+  };
+
+/* Whether this sub-editor's frame owns the caret, i.e. whether it is the
+ * surface that should draw it. For a splice that is the zipper's splice
+ * context — a caret inside a splice is not in the enclosing frame even
+ * though the splice's pieces are. A carved-out region introduces no
+ * frame boundary, so plain membership decides. */
+let owns_caret = (sub: t, z: Zipper.t): bool =>
+  switch (Target.whole_content_id(sub.target)) {
+  | Some(id) => Zipper.splice_context(z) == Some(id)
+  | None => caret_in_splice(sub, z)
+  };
+
 /* Caret point in splice-local coordinates. `Zipper.Caret.point` reads
  * the caret's representative piece (left-preferred), which anywhere in
  * the splice's FIRST piece is the whitespace outside the splice — fall

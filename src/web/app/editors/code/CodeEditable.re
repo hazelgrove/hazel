@@ -556,21 +556,23 @@ module View = {
     ),
   ];
 
-  let view =
-      (
-        ~globals: Globals.t,
-        ~signal: event => Ui_effect.t(unit),
-        ~edit_mode: EditMode.t(Update.t, unit),
-        ~overlays: list(Node.t)=[],
-        ~lines: bool=false,
-        ~dynamics: Language.Dynamics.Map.t,
-        ~predicted_reuse: option(Language.EvaluatorState.incr_eval)=?,
-        ~pending_eval_ids: list(Id.t)=[],
-        ~show_active_eval: bool=false,
-        ~expand_selection=?,
-        ~sub_editor: option(SubEditor.t)=None,
-        model: Model.t,
-      ) => {
+  /* Recursive: a splice inside this editor renders as another instance
+   * of this same view (see `render_splice` below). */
+  let rec view =
+          (
+            ~globals: Globals.t,
+            ~signal: event => Ui_effect.t(unit),
+            ~edit_mode: EditMode.t(Update.t, unit),
+            ~overlays: list(Node.t)=[],
+            ~lines: bool=false,
+            ~dynamics: Language.Dynamics.Map.t,
+            ~predicted_reuse: option(Language.EvaluatorState.incr_eval)=?,
+            ~pending_eval_ids: list(Id.t)=[],
+            ~show_active_eval: bool=false,
+            ~expand_selection=?,
+            ~sub_editor: option(SubEditor.t)=None,
+            model: Model.t,
+          ) => {
     /* Sub-editor mode: render the main editor's model through a splice.
      * The displayed main_splice is overridden to be splice-local so
      * layout starts at a local origin, while the zipper, statics and
@@ -578,6 +580,14 @@ module View = {
      * editor pieces, so edits in either view are edits to the same
      * segment. */
     let is_sub = Option.is_some(sub_editor);
+    /* Splice sub-editors route keys and pointer goals through the main
+     * editor's own handlers (the zipper's splice context frames them);
+     * region sub-editors are the focused surface and handle their own. */
+    let is_splice_sub =
+      switch (sub_editor) {
+      | Some(sub) => SubEditor.is_splice_frame(sub)
+      | None => false
+      };
     let syntax =
       switch (sub_editor) {
       | Some(sub) => {
@@ -595,18 +605,31 @@ module View = {
     };
 
     let selected = EditMode.is_active(edit_mode);
+    /* Caret ownership: the one zipper's caret belongs to exactly one
+     * editor surface — the sub-editor whose region the caret is inside,
+     * or the main editor when it's in no splice. Caret/selection decos
+     * (whose measured lookups only make sense in the owning frame) are
+     * gated on this. */
+    let caret_here =
+      switch (sub_editor) {
+      | Some(sub) => SubEditor.owns_caret(sub, model.editor.state.zipper)
+      | None => Zipper.splice_context(model.editor.state.zipper) == None
+      };
     let inject_raw =
       switch (edit_mode) {
       | ReadOnly => (_ => Ui_effect.Ignore)
       | Editable({inject, _}) => inject
       };
     /* Sub-editor views emit ordinary Perform/TAB actions; rewrite them
-     * here so every pointer/keyboard/clipboard path is confined without
-     * callers remembering to wrap. */
+     * here so every pointer/keyboard/clipboard path is confined — and
+     * lands in the right coordinate frame — without callers remembering
+     * to wrap. */
     let inject = (a: Update.t) =>
       switch (sub_editor, a) {
       | (Some(sub), Perform(action)) =>
-        inject_raw(PerformConfined(sub.target, action))
+        inject_raw(
+          PerformConfined(sub.target, SubEditor.reframe_action(sub, action)),
+        )
       | (Some(_), TAB) => Ui_effect.Ignore
       | (_, a) => inject_raw(a)
       };
@@ -641,12 +664,13 @@ module View = {
     };
     let edit_decos =
       switch (sub_editor) {
-      | Some(sub) =>
-        /* Lean decoration set for sub-editors: caret + selection only,
-         * and only while the main caret is inside the splice — the
-         * splice-local measured map cannot measure outside pieces, and
-         * an unfocused-but-live splice needs no cursor decoration. */
-        selected && SubEditor.caret_in_splice(sub, model.editor.state.zipper)
+      /* Lean decoration set for region sub-editors: caret + selection
+       * only, and only while this frame owns the caret. Their measured
+       * map covers the region alone, so the full set's lookups (which
+       * range over the whole frame) would raise. Splice sub-editors are
+       * complete frames and take the main path below. */
+      | Some(sub) when !SubEditor.is_splice_frame(sub) =>
+        selected && SubEditor.owns_caret(sub, model.editor.state.zipper)
           ? {
             let z = model.editor.state.zipper;
             let syntax = model.editor.syntax;
@@ -686,8 +710,9 @@ module View = {
             };
           }
           : []
+      | Some(_)
       | None =>
-        selected
+        selected && caret_here
           ? deco(
               ~expand_selection?,
               ~syntax=model.editor.syntax,
@@ -775,26 +800,79 @@ module View = {
         );
       };
     // let t2 = JsUtil.precise_timestamp();
-    let projectors =
-      is_sub
-        ? []
-        : ProjectorView.all(
-            x => inject(Perform(x)),
-            signal(MakeActive),
-            globals.font_metrics,
-            ~core_settings=globals.settings.core,
-            ~visible?,
-            ProjectorView.Model.mk(
-              ~syntax=model.editor.syntax,
-              ~indicated=Indicated.for_decoration(zipper),
-              ~statics=model.statics.info_map,
+    /* Render a splice as a full recursive sub-editor over the same model:
+     * the ~sub_editor argument swaps the splice's cached frame into
+     * main_splice.
+     *
+     * A splice wrapper is just the simplest kind of sub-editor target —
+     * `Target.of_splice` locates its whole content — so actions routed
+     * from here go through the same confinement and reframing path as any
+     * other sub-editor (see `inject` above and Update.PerformConfined). */
+    let render_splice =
+        (~projector_idx as _, ~splice_idx as _, splice: Base.splice): Node.t =>
+      switch (
+        SubEditor.mk(
+          model.editor,
+          ~target=SubEditor.Target.of_splice(splice.id),
+        )
+      ) {
+      | None =>
+        ProjectorView.default_render_splice(
+          globals.font_metrics,
+          ~projector_idx=0,
+          ~splice_idx=0,
+          splice,
+        )
+      | Some(sub) =>
+        Node.div(
+          ~attrs=[
+            Attr.classes(["splice-editor", "inline-editor-wrapper"]),
+            /* Contain pointer interactions: without this, splice clicks
+             * bubble to the projector wrapper (stealing focus into the
+             * projector) and drags reach the outer editor's handlers. */
+            Attr.on_pointerdown(_ => Effect.Stop_propagation),
+            Attr.on_mousemove(_ => Effect.Stop_propagation),
+          ],
+          [
+            view(
+              ~globals,
+              ~signal,
+              ~edit_mode,
               ~dynamics,
-              ~sample_focus=zipper.refractors.sample_focus,
-              ~editor_active=selected,
-              ~elaborated=Some(model.statics.elaborated),
+              ~predicted_reuse?,
+              ~pending_eval_ids,
+              ~show_active_eval,
+              ~sub_editor=Some(sub),
+              model,
             ),
-            model.editor.syntax.projector_list,
-          );
+          ],
+        )
+      };
+    let projectors =
+      ProjectorView.all(
+        x => inject(Perform(x)),
+        signal(MakeActive),
+        globals.font_metrics,
+        ~core_settings=globals.settings.core,
+        ~visible=?is_sub ? None : visible,
+        ~render_splice,
+        ProjectorView.Model.mk(
+          ~syntax=model.editor.syntax,
+          /* Render this frame's projectors only; nested ones render in
+           * their host splice's sub-editor. */
+          ~projector_list=model.editor.syntax.main_splice.projector_list,
+          ~indicated=Indicated.for_decoration(zipper),
+          ~statics=model.statics.info_map,
+          ~dynamics,
+          ~sample_focus=zipper.refractors.sample_focus,
+          ~editor_active=selected,
+          ~elaborated=Some(model.statics.elaborated),
+        ),
+        /* Index list: action indices (Focus/SetModel/SetTerm/...) are
+         * resolved by Perform against the global projector list, so
+         * every frame must compute them against the same list. */
+        model.editor.syntax.projector_list,
+      );
     ProjectorView.ViewCache.log_frame();
     /* The nut-menu setting paints ReusePass predictions (frozen tint). Pending
      * evaluation highlights are transient progress feedback, so keep them on
@@ -837,10 +915,13 @@ module View = {
           container_target(e.current_target),
           e.loc,
         );
-      /* Sub-editor pointer goals arrive splice-local; the zipper actions
-       * they feed (Move/Select Point) resolve against the main editor's
-       * measured map, so translate into main-editor coordinates (clamped
-       * to the splice so the caret can't be moused out of it). */
+      /* Sub-editor pointer goals arrive relative to the displayed region.
+       * For a region sub-editor that means translating into the host's
+       * coordinates, since the zipper actions they feed resolve against
+       * the main measured map; either way the goal is clamped to the
+       * region so the caret can't be moused out of it. (A splice's own
+       * frame starts at the origin, so this only clamps there, and
+       * `reframe_action` sends the goal to that frame.) */
       switch (sub_editor) {
       | Some(sub) => SubEditor.translate_goal(sub, raw)
       | None => raw
@@ -1195,12 +1276,18 @@ module View = {
         Attr.classes(
           ["cell-item", "code-editor"]
           @ (selected ? ["selected"] : [])
+          @ (is_sub ? ["sub-editor"] : [])
           @ (display_line_numbers ? ["has-line-numbers"] : []),
         ),
         /* Tag the active cell so a sidebar jump can move DOM focus to it
            (see JsUtil.active_cell_id / ProbePerform.FocusEffect). */
-        selected ? Attr.id(JsUtil.active_cell_id) : Attr.empty,
-        key_handler_attr,
+        selected && !is_splice_sub
+          ? Attr.id(JsUtil.active_cell_id) : Attr.empty,
+        /* Splice sub-editors don't handle keys themselves: key events
+         * route through the main editor (or page) and act on the one
+         * zipper, whose splice context frames them correctly. A key
+         * handler here would double-dispatch. */
+        is_splice_sub ? Attr.empty : key_handler_attr,
         Attr.on_contextmenu(evt =>
           switch (Pointer.Event.mk(evt)) {
           | {button: Right, ctrl: Up, _} =>

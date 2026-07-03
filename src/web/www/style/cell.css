@@ -26,6 +26,11 @@
   padding-left: 0;
 }
 
+/* Splice sub-editors sit inside their projector's frame: no gutter. */
+#main .code-editor.sub-editor {
+  padding-left: 0;
+}
+
 
 #main.Scratch,
 #main.Documentation {

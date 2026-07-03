@@ -180,6 +180,11 @@ module Model = {
   let mk =
       (
         ~syntax: CachedSyntax.t,
+        /* The projectors to render in this frame: top-level projectors
+         * for the main editor, a splice's own projectors for a
+         * sub-editor. Nested projectors are rendered by the sub-editor
+         * of the splice that hosts them, not by the outer frame. */
+        ~projector_list: list(Id.t),
         ~indicated: option(Indicated.piece),
         ~statics: Language.Statics.Map.t,
         ~dynamics: Language.Dynamics.Map.t,
@@ -190,7 +195,7 @@ module Model = {
     let {projectors, term_data, selection_ids, _}: CachedSyntax.t = syntax;
     let measured = CachedSyntax.measured(syntax);
     List.filter_map(
-      ((id, _)) => {
+      id => {
         let* p = Id.Map.find_opt(id, projectors);
         let+ measurement = Measured.find_pr_opt(p, measured);
         let info =
@@ -223,7 +228,7 @@ module Model = {
           elaborated,
         };
       },
-      Id.Map.bindings(projectors),
+      projector_list,
     );
   };
 };
@@ -449,18 +454,36 @@ let mk_view =
       }: Model.projector_data,
       projector_list: list(Id.t),
     )
-    : View.t =>
+    : View.t => {
+  /* Splice-bearing projectors render live sub-editors whose caret and
+   * selection decorations depend on the zipper — which is not part of
+   * the cache key — so their views must be rebuilt every frame. */
+  let rec has_splices = (seg: Base.segment): bool =>
+    List.exists(
+      (piece: Base.piece) =>
+        switch (piece) {
+        | Splice(_) => true
+        | Tile(t) => List.exists(has_splices, t.children)
+        | Projector(_)
+        | Grout(_)
+        | Secondary(_) => false
+        },
+      seg,
+    );
+  let cacheable = !has_splices(p.syntax);
   switch (
-    ViewCache.lookup(
-      p.id,
-      ~statics_map,
-      ~dynamics_map,
-      ~sample_focus,
-      ~elaborated,
-      ~core_settings,
-      ~status,
-      ~model=p.model,
-    )
+    cacheable
+      ? ViewCache.lookup(
+          p.id,
+          ~statics_map,
+          ~dynamics_map,
+          ~sample_focus,
+          ~elaborated,
+          ~core_settings,
+          ~status,
+          ~model=p.model,
+        )
+      : None
   ) {
   | Some(view) =>
     ViewCache.hits := ViewCache.hits^ + 1;
@@ -530,19 +553,22 @@ let mk_view =
         status,
         core_settings,
       });
-    ViewCache.store(
-      p.id,
-      ~statics_map,
-      ~dynamics_map,
-      ~sample_focus,
-      ~elaborated,
-      ~core_settings,
-      ~status,
-      ~model=p.model,
-      ~view,
-    );
+    if (cacheable) {
+      ViewCache.store(
+        p.id,
+        ~statics_map,
+        ~dynamics_map,
+        ~sample_focus,
+        ~elaborated,
+        ~core_settings,
+        ~status,
+        ~model=p.model,
+        ~view,
+      );
+    };
     view;
   };
+};
 
 /* Extract and collate different layers of the resulting view
  * in order to stratify z-levels across all projectors */
