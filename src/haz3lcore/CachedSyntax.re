@@ -9,6 +9,12 @@ type splice = {
 type t = {
   old: bool,
   main_splice: splice,
+  /* Cached sub-editor data for every splice in the segment (including
+   * splices nested inside projector syntax), keyed by splice id. Each
+   * entry's measured is in the splice's own coordinate frame, so a
+   * sub-editor can be handed a `splice` and operate self-sufficiently
+   * (the `main_splice` switcheroo in CodeEditable.View.view). */
+  splices: Id.Map.t(splice),
   selection_ids: list(Id.t),
   /* The term-derived data structured below, may differ
    * from the term used for semantics. These terms are identical when
@@ -50,13 +56,34 @@ let t_of_sexp = _ => failwith("Editor.Meta.t_of_sexp");
 let yojson_of_t = _ => failwith("Editor.Meta.yojson_of_t");
 let t_of_yojson = _ => failwith("Editor.Meta.t_of_yojson");
 
+/* Projectors visible in a splice's own frame: those in its content,
+ * including inside tile children, but not across nested splice or
+ * projector boundaries (those belong to other sub-editors). */
+let splice_projector_list = Segment.frame_projector_ids;
+
+let mk_splice_map =
+    (segment: Segment.t, shape_map: ProjectorCore.Shape.Map.t)
+    : Id.Map.t(splice) =>
+  Segment.splices(segment)
+  |> List.fold_left(
+       (acc, s: Base.splice) =>
+         Id.Map.add(
+           s.id,
+           {
+             segment: s.content,
+             measured:
+               Measured.of_segment(s.content, shape_map, Id.Map.empty),
+             projector_list: splice_projector_list(s.content),
+           },
+           acc,
+         ),
+       Id.Map.empty,
+     );
+
 let mk = (~info_map, ~dyn_map, ~elaborated=None, z): t => {
   let segment = Zipper.unselect_and_zip(z);
   let MakeTerm.{term: _, terms, projectors, projector_list, term_data} =
     MakeTerm.go(segment);
-  let splice_size_map = Measured.splice_sizes(segment);
-  let splice_size = (id: Id.t) =>
-    Measured.splice_size_of(splice_size_map, id);
   let (projector_shapes, projector_errors) =
     ProjectorInfo.ShapeMapSemantics.mk(
       projectors,
@@ -64,7 +91,6 @@ let mk = (~info_map, ~dyn_map, ~elaborated=None, z): t => {
       info_map,
       dyn_map,
       ~elaborated,
-      splice_size,
     );
   let refractor_shape_map = Id.Map.empty; // z.refractors.map |> Id.Map.map(_p => 2);
   let measured =
@@ -74,8 +100,14 @@ let mk = (~info_map, ~dyn_map, ~elaborated=None, z): t => {
     main_splice: {
       segment,
       measured,
-      projector_list,
+      /* Frame-local render list: top-level projectors only. Nested
+       * projectors render in their host splice's sub-editor, and are
+       * listed in that splice's cache entry. The global
+       * [projector_list] below keeps every projector for action-index
+       * resolution. */
+      projector_list: splice_projector_list(segment),
     },
+    splices: mk_splice_map(segment, projector_shapes),
     term_data,
     selection_ids: Selection.selection_ids(z.selection),
     terms,
@@ -106,9 +138,6 @@ let mark_old: t => t =
  * elaborated expression (e.g. TableProj placeholder size). */
 let refresh_shapes =
     (z: Zipper.t, info_map, dyn_map, ~elaborated=None, old: t) => {
-  let splice_size_map = Measured.splice_sizes(old.main_splice.segment);
-  let splice_size = (id: Id.t) =>
-    Measured.splice_size_of(splice_size_map, id);
   let (shape_map, projector_errors) =
     ProjectorInfo.ShapeMapSemantics.mk(
       old.projectors,
@@ -116,7 +145,6 @@ let refresh_shapes =
       info_map,
       dyn_map,
       ~elaborated,
-      splice_size,
     );
   let refractor_shape_map = Id.Map.empty;
   let measured =
@@ -131,6 +159,7 @@ let refresh_shapes =
       ...old.main_splice,
       measured,
     },
+    splices: mk_splice_map(old.main_splice.segment, shape_map),
     shape_map,
     projector_errors,
     shape_info_map: info_map,
@@ -171,3 +200,5 @@ let calculate = (z: Zipper.t, info_map, dyn_map, ~elaborated=None, old: t) =>
 
 let measured = (syntax: t) => syntax.main_splice.measured;
 let segment = (syntax: t) => syntax.main_splice.segment;
+let splice_opt = (id: Id.t, syntax: t): option(splice) =>
+  Id.Map.find_opt(id, syntax.splices);

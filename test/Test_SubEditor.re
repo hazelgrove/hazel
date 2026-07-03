@@ -50,6 +50,17 @@ let space = (): Piece.t =>
 let linebreak = (): Piece.t =>
   Piece.Secondary(Haz3lcore.Secondary.mk_newline(Id.mk()));
 
+let splice = (~id, content: Segment.t): Piece.t =>
+  Piece.Splice({
+    id,
+    content,
+  });
+
+let projector = (~id=Id.mk(), syntax: Segment.t): Piece.t =>
+  Piece.Projector(
+    ProjectorCore.mk(~id, ProjectorCore.Kind.Fold, syntax, ""),
+  );
+
 /* Synthetic host shaped like `case x | A => 1 | B => 2 end`.
  * Rule tiles only contain the pattern child; the body is a sibling
  * (mirrors Form.Rule). A parenthesized nested `| =>` must not affect
@@ -140,6 +151,89 @@ let test_nested_label_ignored = () => {
     "direct first rule pattern",
     "A",
     Target.resolve(pattern_target(host_id, 0), root),
+  );
+};
+
+/* --- Splice wrappers --- */
+
+let test_of_splice_whole_content = () => {
+  let id = Id.mk();
+  let root = [atom("f"), splice(~id, [atom("1"), space(), atom("2")])];
+  check_seg(
+    "splice content",
+    "1 2",
+    Target.resolve(Target.of_splice(id), root),
+  );
+};
+
+let test_of_splice_nested = () => {
+  /* Splices reachable through tile children, projector syntax, and
+   * inside another splice's content all resolve. */
+  let in_child = Id.mk();
+  let in_projector = Id.mk();
+  let inner = Id.mk();
+  let outer = Id.mk();
+  let root = [
+    tile(["(", ")"], [[splice(~id=in_child, [atom("a")])]]),
+    projector([splice(~id=in_projector, [atom("b")])]),
+    splice(~id=outer, [atom("c"), splice(~id=inner, [atom("d")])]),
+  ];
+  check_seg(
+    "splice in tile child",
+    "a",
+    Target.resolve(Target.of_splice(in_child), root),
+  );
+  check_seg(
+    "splice in projector syntax",
+    "b",
+    Target.resolve(Target.of_splice(in_projector), root),
+  );
+  check_seg(
+    "splice in splice content",
+    "d",
+    Target.resolve(Target.of_splice(inner), root),
+  );
+  check_seg(
+    "outer splice keeps nested wrapper",
+    "cd",
+    Target.resolve(Target.of_splice(outer), root),
+  );
+};
+
+let test_of_splice_is_whole_content = () => {
+  let id = Id.mk();
+  check(
+    bool,
+    "of_splice is a whole-content target",
+    true,
+    Target.whole_content_id(Target.of_splice(id)) == Some(id),
+  );
+  check(
+    bool,
+    "narrowed targets are not whole-content",
+    true,
+    Target.whole_content_id(
+      Target.of_splice(id)
+      |> Target.until(Target.Before(Target.nthTile(rule, 0))),
+    )
+    == None,
+  );
+  check(
+    bool,
+    "child targets are not whole-content",
+    true,
+    Target.whole_content_id(Target.child(~anchor=id, 0)) == None,
+  );
+};
+
+let test_tile_anchor_needs_a_step = () => {
+  /* A bare tile anchor has no segment of its own — only splices do. */
+  let (host_id, _, root) = mk_host();
+  check(
+    bool,
+    "of_splice against a tile anchor",
+    true,
+    Target.resolve(Target.of_splice(host_id), root) == None,
   );
 };
 
@@ -436,6 +530,22 @@ let tests = (
       "nested matching labels ignored",
       `Quick,
       test_nested_label_ignored,
+    ),
+    test_case(
+      "resolve whole splice content",
+      `Quick,
+      test_of_splice_whole_content,
+    ),
+    test_case("resolve nested splices", `Quick, test_of_splice_nested),
+    test_case(
+      "of_splice is a whole-content target",
+      `Quick,
+      test_of_splice_is_whole_content,
+    ),
+    test_case(
+      "tile anchors need a child step",
+      `Quick,
+      test_tile_anchor_needs_a_step,
     ),
     test_case(
       "malformed targets return None",

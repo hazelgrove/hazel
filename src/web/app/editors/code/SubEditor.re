@@ -13,48 +13,30 @@ open Haz3lcore;
  * surrounding theorem syntax in place. See `CodeEditable.View.view`'s
  * `~sub_editor` parameter for the rendering / confinement half. */
 
-/* Find the tile with the given piece id anywhere in the segment tree. */
-let rec find_tile = (id: Id.t, seg: Segment.t): option(Base.tile) =>
-  List.fold_left(
-    (found, p: Piece.t) =>
-      switch (found) {
-      | Some(_) => found
-      | None =>
-        switch (p) {
-        | Tile(tile) =>
-          tile.id == id
-            ? Some(tile)
-            : List.fold_left(
-                (found, child) =>
-                  found == None ? find_tile(id, child) : found,
-                None,
-                tile.children,
-              )
-        | _ => None
-        }
-      },
-    None,
-    seg,
-  );
-
 /* Structural locator for a contiguous editable region inside a host
- * tile. Identified STRUCTURALLY — host tile id plus a path of child /
+ * piece. Identified STRUCTURALLY — host piece id plus a path of child /
  * selector steps — rather than by the region's own term rep id: term
  * ids churn as the user types (a grout hole becomes a var, a var
  * becomes the child of a cons, ...) while the render-time view model
  * lags the (debounced) statics, so a term-id key goes stale mid-burst
- * and drops keystrokes. The host tile's PIECE id is stable under any
- * edit inside its slots.
+ * and drops keystrokes. The host PIECE id is stable under any edit
+ * inside its slots.
  *
- * Grammar knowledge lives at the call site, e.g.:
+ * Two flavors of anchor:
  *
- *   let scrut =
- *     Target.child(~anchor=inductionId, 0)
- *     |> Target.until(Before(Target.nthTile(["|", "=>"], 0)));
+ *   - a splice wrapper, whose content IS the region, so no path is
+ *     needed (`of_splice`). This is the projector/language notion of an
+ *     editable region;
+ *   - an arbitrary host tile, where the call site supplies the grammar
+ *     knowledge needed to carve a region out of its children:
  *
- *   let pattern = i =>
- *     Target.child(~anchor=inductionId, 0)
- *     |> Target.descend(Target.nthTile(["|", "=>"], i), ~child=0);
+ *       let scrut =
+ *         Target.child(~anchor=inductionId, 0)
+ *         |> Target.until(Before(Target.nthTile(["|", "=>"], 0)));
+ *
+ *       let pattern = i =>
+ *         Target.child(~anchor=inductionId, 0)
+ *         |> Target.descend(Target.nthTile(["|", "=>"], i), ~child=0);
  */
 module Target = {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -91,6 +73,16 @@ module Target = {
   };
 
   let nthTile = (label: Label.t, n: int): selector => NthTile(label, n);
+
+  /* The whole content of a splice wrapper: a splice already delimits an
+   * editable region, so there is no path to walk and no host syntax
+   * beside the region to protect. */
+  let of_splice = (id: Id.t): t => {
+    anchor: id,
+    steps: [],
+    from: Start,
+    until: End,
+  };
 
   /* Start at the host tile's i-th child, spanning the whole child. */
   let child = (~anchor: Id.t, i: int): t => {
@@ -180,9 +172,52 @@ module Target = {
       ? Some(ListUtil.sublist((start, stop), seg)) : None;
   };
 
+  /* Some(id) when the target denotes a whole wrapper's content, i.e. it
+   * was built by `of_splice`. Lets `mk` reuse the frame the syntax cache
+   * already computed for that splice instead of re-resolving. */
+  let whole_content_id = (t: t): option(Id.t) =>
+    switch (t.steps, t.from, t.until) {
+    | ([], Start, End) => Some(t.anchor)
+    | _ => None
+    };
+
   type cursor =
     | AtTile(Base.tile)
     | AtSegment(Segment.t);
+
+  /* Find the anchor piece anywhere in the segment tree, recursing
+   * through tile children, splice contents and projector syntax. A tile
+   * anchor starts the path AT the tile (so a child step is required to
+   * reach a segment); a splice anchor starts it INSIDE the wrapper's
+   * content, which is what makes a bare `of_splice` target resolve to
+   * the whole splice. */
+  let rec find_anchor = (id: Id.t, seg: Segment.t): option(cursor) =>
+    List.fold_left(
+      (found, p: Piece.t) =>
+        switch (found) {
+        | Some(_) => found
+        | None =>
+          switch (p) {
+          | Tile(tile) =>
+            tile.id == id
+              ? Some(AtTile(tile))
+              : List.fold_left(
+                  (found, child) =>
+                    found == None ? find_anchor(id, child) : found,
+                  None,
+                  tile.children,
+                )
+          | Splice(s) =>
+            s.id == id
+              ? Some(AtSegment(s.content)) : find_anchor(id, s.content)
+          | Projector(pr) => find_anchor(id, pr.syntax)
+          | Grout(_)
+          | Secondary(_) => None
+          }
+        },
+      None,
+      seg,
+    );
 
   let apply_step = (cur: cursor, step: step): option(cursor) => {
     OptUtil.Syntax.(
@@ -205,14 +240,14 @@ module Target = {
    * as a transient mid-rewrite state and degrade to read-only. */
   let resolve = (target: t, root: Segment.t): option(Segment.t) => {
     open OptUtil.Syntax;
-    let* tile = find_tile(target.anchor, root);
+    let* anchor = find_anchor(target.anchor, root);
     let* cur =
       List.fold_left(
         (cur, step) => {
           let* cur = cur;
           apply_step(cur, step);
         },
-        Some(AtTile(tile)),
+        Some(anchor),
         target.steps,
       );
     switch (cur) {
@@ -289,6 +324,16 @@ let trim_separators = (seg: Segment.t): Segment.t => {
   seg |> leading |> List.rev |> trailing_rev |> List.rev;
 };
 
+/* Extent of a splice frame in its own coordinate space. */
+let extent = (splice: CachedSyntax.splice): option((Point.t, Point.t)) => {
+  open OptUtil.Syntax;
+  let* first = ListUtil.hd_opt(splice.segment);
+  let* last_piece = ListUtil.last_opt(splice.segment);
+  let* m_first = Measured.find_by_id(Piece.id(first), splice.measured);
+  let+ m_last = Measured.find_by_id(Piece.id(last_piece), splice.measured);
+  (m_first.origin, m_last.last);
+};
+
 /* Build the splice for `target` in the main editor. None when the
  * target can't be resolved, the region is empty, or its pieces aren't
  * measured — e.g. mid-rewrite states. Callers should degrade to a
@@ -296,28 +341,46 @@ let trim_separators = (seg: Segment.t): Segment.t => {
 let mk = (editor: Editor.t, ~target: Target.t): option(t) => {
   open OptUtil.Syntax;
   let syntax: CachedSyntax.t = editor.syntax;
-  let* segment = Target.resolve(target, CachedSyntax.segment(syntax));
-  let segment = trim_separators(segment);
-  let* first = ListUtil.hd_opt(segment);
-  let* last_piece = ListUtil.last_opt(segment);
-  let* m_first =
-    Measured.find_by_id(Piece.id(first), CachedSyntax.measured(syntax));
-  let* m_last =
-    Measured.find_by_id(
-      Piece.id(last_piece),
-      CachedSyntax.measured(syntax),
-    );
-  let measured = Measured.of_segment(segment, syntax.shape_map, Id.Map.empty);
-  Some({
-    target,
-    splice: {
-      segment,
-      measured,
-      projector_list: [],
-    },
-    origin: m_first.origin,
-    last: m_last.last,
-  });
+  let cached =
+    Target.whole_content_id(target)
+    |> OptUtil.and_then(id => CachedSyntax.splice_opt(id, syntax));
+  switch (cached) {
+  | Some(splice) =>
+    /* Splice wrapper: the syntax cache already measured this content in
+     * the splice's own frame, and there is no host separator beside the
+     * region to trim — the wrapper delimits it exactly. */
+    let+ (origin, last) = extent(splice);
+    {
+      target,
+      splice,
+      origin,
+      last,
+    };
+  | None =>
+    let* segment = Target.resolve(target, CachedSyntax.segment(syntax));
+    let segment = trim_separators(segment);
+    let* first = ListUtil.hd_opt(segment);
+    let* last_piece = ListUtil.last_opt(segment);
+    let* m_first =
+      Measured.find_by_id(Piece.id(first), CachedSyntax.measured(syntax));
+    let* m_last =
+      Measured.find_by_id(
+        Piece.id(last_piece),
+        CachedSyntax.measured(syntax),
+      );
+    let measured =
+      Measured.of_segment(segment, syntax.shape_map, Id.Map.empty);
+    Some({
+      target,
+      splice: {
+        segment,
+        measured,
+        projector_list: CachedSyntax.splice_projector_list(segment),
+      },
+      origin: m_first.origin,
+      last: m_last.last,
+    });
+  };
 };
 
 /* Translate a pointer goal from splice-local coordinates to the main

@@ -1273,6 +1273,47 @@ let rec holes = (segment: t): list(Grout.t) =>
     segment,
   );
 
+/* All splices in the segment, including those nested inside tile
+ * children, projector syntax, and other splices' content. */
+let rec splices = (segment: t): list(Base.splice) =>
+  List.concat_map(
+    fun
+    | Piece.Secondary(_)
+    | Grout(_) => []
+    | Splice(s) => [s, ...splices(s.content)]
+    | Projector(pr) => splices(pr.syntax)
+    | Tile(t) => List.concat_map(splices, t.children),
+    segment,
+  );
+
+/* Splices belonging to this segment's own frame: recurses into tile
+ * children and splice contents, but not across projector boundaries —
+ * splices inside a nested projector's syntax belong to that projector. */
+let rec direct_splices = (segment: t): list(Base.splice) =>
+  List.concat_map(
+    fun
+    | Piece.Secondary(_)
+    | Grout(_)
+    | Projector(_) => []
+    | Splice(s) => [s, ...direct_splices(s.content)]
+    | Tile(t) => List.concat_map(direct_splices, t.children),
+    segment,
+  );
+
+/* Projectors visible in this segment's own frame: those in the segment
+ * or inside tile children, but not across splice or projector
+ * boundaries (those belong to other frames). */
+let rec frame_projector_ids = (segment: t): list(Id.t) =>
+  List.concat_map(
+    fun
+    | Piece.Projector(pr) => [pr.id]
+    | Tile(t) => List.concat_map(frame_projector_ids, t.children)
+    | Splice(_)
+    | Grout(_)
+    | Secondary(_) => [],
+    segment,
+  );
+
 let get_childrens: t => list(t) =
   List.concat_map(
     fun

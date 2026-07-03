@@ -471,14 +471,23 @@ let of_segment_inner =
     let outer = merge_inner(inner, outer);
     add_splice_info(s, {size: last}, outer);
   }
-  /* Scan a projector's syntax for Splice children and measure each. */
+  /* Scan a projector's syntax for Splice children and measure each.
+   * Splices may sit inside tile children (e.g. a list literal whose
+   * items are splices), so recurse through tiles like [splice_sizes]. */
   and measure_splices_in = (syntax: Segment.t, map: t): t =>
     List.fold_left(
       (map, p: Piece.t) =>
         switch (p) {
         | Splice(s) => measure_splice(s, map)
         | Projector(pr) => measure_splices_in(pr.syntax, map)
-        | _ => map
+        | Tile(t) =>
+          List.fold_left(
+            (map, child) => measure_splices_in(child, map),
+            map,
+            t.children,
+          )
+        | Grout(_)
+        | Secondary(_) => map
         },
       map,
       syntax,
@@ -504,6 +513,12 @@ let of_segment =
     refractor_shape_map,
   );
 
+/* Index of the last measured row (0 for empty/single-row content). */
+let last_row = (m: t): int =>
+  m.rows
+  |> Rows.bindings
+  |> List.fold_left((acc, (r, _)) => max(acc, r), 0);
+
 /* Width in characters of row at measurement.origin */
 let start_row_width = (measurement: measurement, measured: t): int =>
   switch (IntMap.find_opt(measurement.origin.row, measured.rows)) {
@@ -514,16 +529,13 @@ let start_row_width = (measurement: measurement, measured: t): int =>
 /* Compute the bounding box of a segment measured from the origin (0,0).
  * Returns a Point.t where row is the number of linebreaks and col is
  * the max column reached on the last row. Useful for computing splice
- * sizes independently of the parent segment's layout. */
-let segment_bbox = (seg: Segment.t): Point.t => {
-  let m =
-    of_segment_inner(
-      Id.Map.empty,
-      false,
-      seg,
-      ProjectorCore.Shape.Map.empty,
-      Id.Map.empty,
-    );
+ * sizes independently of the parent segment's layout.
+ *
+ * [shape_map] supplies placeholder shapes for projectors inside the
+ * segment; without it, nested projectors measure as if inline. */
+let segment_bbox =
+    (~shape_map=ProjectorCore.Shape.Map.empty, seg: Segment.t): Point.t => {
+  let m = of_segment_inner(Id.Map.empty, false, seg, shape_map, Id.Map.empty);
   let rows = m.rows |> Rows.bindings;
   switch (rows) {
   | [] => Point.zero

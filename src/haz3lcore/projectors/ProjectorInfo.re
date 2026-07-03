@@ -109,6 +109,25 @@ module ShapeMapSemantics = {
     (P.placeholder(p.model, info, splice_size), P.error(p.model, info));
   };
 
+  /* All projector ids occurring anywhere within a segment, including
+   * inside tile children, splice contents, and nested projector syntax. */
+  let rec projector_ids_in = (seg: Base.segment): list(Id.t) =>
+    List.concat_map(
+      (p: Base.piece) =>
+        switch (p) {
+        | Projector(pr) => [pr.id, ...projector_ids_in(pr.syntax)]
+        | Splice(s) => projector_ids_in(s.content)
+        | Tile(t) => List.concat_map(projector_ids_in, t.children)
+        | Grout(_)
+        | Secondary(_) => []
+        },
+      seg,
+    );
+
+  /* A projector's placeholder shape depends on its splices' sizes,
+   * which in turn depend on the shapes of projectors nested inside
+   * those splices. Compute shapes innermost-first, measuring each
+   * projector's splices against the shapes computed so far. */
   let mk =
       (
         proj_map: Id.Map.t(Base.projector),
@@ -116,22 +135,61 @@ module ShapeMapSemantics = {
         statics: Statics.Map.t,
         dynamics: Dynamics.Map.t,
         ~elaborated: option(Exp.t),
-        splice_size: ProjectorBase.View.splice_size,
       )
       : (Id.Map.t(ProjectorCore.Shape.t), Id.Map.t(ProjectorBase.error)) => {
-    let both =
+    let contained =
       Id.Map.map(
+        (p: Base.projector) => projector_ids_in(p.syntax),
+        proj_map,
+      );
+    let process_one = (id, p: Base.projector, (shapes, errors)) => {
+      let splice_size = (sid: Id.t): Util.Point.t =>
+        switch (
+          List.find_opt(
+            (s: Base.splice) => Id.equal(s.id, sid),
+            Segment.direct_splices(p.syntax),
+          )
+        ) {
+        | Some(s) => Measured.segment_bbox(~shape_map=shapes, s.content)
+        | None => Util.Point.zero
+        };
+      let (shape, err) =
         from_semantics(
           refractors.sample_focus,
           statics,
           dynamics,
           ~elaborated,
           splice_size,
-        ),
-        proj_map,
+          p,
+        );
+      (
+        Id.Map.add(id, shape, shapes),
+        switch (err) {
+        | Some(err) => Id.Map.add(id, err, errors)
+        | None => errors
+        },
       );
-    let shapes = Id.Map.map(((shape, _)) => shape, both);
-    let errors = Id.Map.filter_map((_, (_, err)) => err, both);
-    (shapes, errors);
+    };
+    let rec process = (remaining, acc) =>
+      if (Id.Map.is_empty(remaining)) {
+        acc;
+      } else {
+        let (ready, blocked) =
+          Id.Map.partition(
+            (id, _) =>
+              List.for_all(
+                cid => !Id.Map.mem(cid, remaining) || Id.equal(cid, id),
+                Id.Map.find(id, contained),
+              ),
+            remaining,
+          );
+        /* Containment is acyclic, so someone is always ready; the
+         * fallback just guarantees termination regardless. */
+        let (ready, blocked) =
+          Id.Map.is_empty(ready)
+            ? (blocked, Id.Map.empty) : (ready, blocked);
+        process(blocked, Id.Map.fold(process_one, ready, acc));
+      };
+    process(proj_map, (Id.Map.empty, Id.Map.empty));
   };
 };
