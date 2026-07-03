@@ -132,4 +132,43 @@ let refactor_tests = [
   ),
 ];
 
-let tests = [("Refactor", refactor_tests @ gating_tests)];
+let case_tests = [
+  test_case(
+    "if to case",
+    `Quick,
+    () => {
+      let got = inline(~kind=IfToCase, "¦if a then 1 else 2") |> text_of;
+      check(string, "converted", "case a | true => 1 | false => 2 end", got);
+    },
+  ),
+  test_case(
+    "case to if",
+    `Quick,
+    () => {
+      let got =
+        inline(~kind=CaseToIf, "¦case a | true => 1 | false => 2 end")
+        |> text_of;
+      check(string, "converted", "if a then 1 else 2", got);
+    },
+  ),
+  test_case(
+    "case to if, flipped arms",
+    `Quick,
+    () => {
+      let got =
+        inline(~kind=CaseToIf, "¦case a | false => 2 | true => 1 end")
+        |> text_of;
+      check(string, "converted", "if a then 1 else 2", got);
+    },
+  ),
+  test_case("non-bool case not offered", `Quick, () =>
+    check(
+      bool,
+      "not offered",
+      false,
+      offers(CaseToIf, "¦case a | 1 => 2 | _ => 3 end"),
+    )
+  ),
+];
+
+let tests = [("Refactor", refactor_tests @ gating_tests @ case_tests)];

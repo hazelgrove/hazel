@@ -87,6 +87,11 @@ let strip_leading = (e: Exp.t): Exp.t => {
   drop_secondary(secondary_run_ids(seg), e);
 };
 
+let strip_trailing = (e: Exp.t): Exp.t => {
+  let seg = ExpToSegment.exp_to_segment(~settings=roundtrip_settings, e);
+  drop_secondary(secondary_run_ids(List.rev(seg)), e);
+};
+
 /* The inserted copy takes over the replaced occurrence's stored
  * whitespace (its slot in the line); the definition keeps its own
  * interior spacing */
@@ -362,12 +367,126 @@ let remove_unused_let_impl: impl = {
     ),
 };
 
+/* Replace an arbitrary node (matched at target); the replacement takes
+ * over the node's whitespace slot */
+let rewrite_node =
+    (
+      ~target: Id.t,
+      ~rewrite: Exp.t => option((Exp.t, Id.t)),
+      program: Exp.t,
+    )
+    : option((Exp.t, Id.t)) => {
+  let focus = ref(None);
+  let program' =
+    Exp.map_term(
+      ~f_exp=
+        (cont, e: Exp.t) =>
+          if (focus^ == None && List.mem(target, IdTagged.ids(e))) {
+            switch (rewrite(e)) {
+            | Some((result, f)) =>
+              focus := Some(f);
+              {
+                ...result,
+                annotation: {
+                  ...result.annotation,
+                  secondary: e.annotation.secondary,
+                },
+              };
+            | None => cont(e)
+            };
+          } else {
+            cont(e);
+          },
+      program,
+    );
+  focus^ |> Option.map(f => (dedupe_ids(program'), f));
+};
+
+let fresh = (term): Exp.t => {
+  annotation: IdTagged.IdTag.mk_internal([Id.mk()]),
+  term,
+};
+let fresh_pat = (term): Pat.t => {
+  annotation: IdTagged.IdTag.mk_internal([Id.mk()]),
+  term,
+};
+
+let bool_pat = (p: Pat.t): option(bool) =>
+  switch (IdTagged.term_of(p)) {
+  | Atom(Bool(b)) => Some(b)
+  | _ => None
+  };
+
+let if_to_case_impl: impl = {
+  label: "Convert to Case",
+  tooltip: "Rewrite this if/then/else as a case on true and false",
+  prepare: (~info_map as _, ~target, program) =>
+    rewrite_node(
+      ~target,
+      ~rewrite=
+        e =>
+          switch (IdTagged.term_of(e)) {
+          | If(c, t, alt) =>
+            Some((
+              fresh(
+                Match(
+                  c,
+                  [
+                    (fresh_pat(Atom(Bool(true))), t),
+                    (fresh_pat(Atom(Bool(false))), alt),
+                  ],
+                ),
+              ),
+              Exp.rep_id(c),
+            ))
+          | _ => None
+          },
+      program,
+    ),
+};
+
+let case_to_if_impl: impl = {
+  label: "Convert to If",
+  tooltip: "Rewrite this true/false case as if/then/else",
+  prepare: (~info_map as _, ~target, program) =>
+    rewrite_node(
+      ~target,
+      ~rewrite=
+        e =>
+          switch (IdTagged.term_of(e)) {
+          | Match(scrut, [(p1, e1), (p2, e2)]) =>
+            switch (bool_pat(p1), bool_pat(p2)) {
+            | (Some(true), Some(false)) =>
+              Some((
+                fresh(If(scrut, e1, strip_trailing(e2))),
+                Exp.rep_id(scrut),
+              ))
+            | (Some(false), Some(true)) =>
+              Some((
+                fresh(If(scrut, e2, strip_trailing(e1))),
+                Exp.rep_id(scrut),
+              ))
+            | _ => None
+            }
+          | _ => None
+          },
+      program,
+    ),
+};
+
 let impl: Action.refactor => impl =
   fun
   | InlineLet => inline_let_impl
-  | RemoveUnusedLet => remove_unused_let_impl;
+  | RemoveUnusedLet => remove_unused_let_impl
+  | IfToCase => if_to_case_impl
+  | CaseToIf => case_to_if_impl;
 
-let all: list(Action.refactor) = [InlineLet, RemoveUnusedLet];
+let all: list(Action.refactor) = [
+  InlineLet,
+  RemoveUnusedLet,
+  IfToCase,
+  CaseToIf,
+];
 
 /* Menu support: which refactorings apply at the current indication */
 let menu_items =
@@ -396,7 +515,8 @@ let go =
     | None => None
     | Some((term', focus)) =>
       let seg =
-        ExpToSegment.exp_to_segment(~settings=roundtrip_settings, term');
+        ExpToSegment.exp_to_segment(~settings=roundtrip_settings, term')
+        |> SpaceNormalize.go;
       let z' = {
         ...Zipper.unzip(seg),
         refractors: z.refractors,
