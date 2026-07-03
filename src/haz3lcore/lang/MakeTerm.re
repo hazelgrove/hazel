@@ -1995,9 +1995,10 @@ let for_projection =
   );
 
 let from_zip_for_sem = (z: Zipper.t, ~root: Sort.t) => {
-  /* Experimental: Use CanonicalCompletion instead of Dump.
-   * The ~root parameter matches the dev signature for compatibility,
-   * but CanonicalCompletion.complete_segment_deep is invoked with Exp. */
+  /* Semantic terms come from the canonical completion of the visible
+   * segment (caret-independent, provenance-recorded), replacing the
+   * old caret-sensitive backpack dump. The ~root parameter matches the
+   * dev signature; completion is invoked at Exp. */
   let _ = root;
   let seg =
     z

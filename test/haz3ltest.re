@@ -52,7 +52,6 @@ let (suite, _) =
     @ Test_ReparseDocSlides.tests
     @ Test_TextRoundtrip.tests
     @ Test_RoundtripFuzz.tests
-    //@ Test_DocSlideMigration.tests
     @ Test_MatchExp.tests
     @ Test_RefractorSerialization.tests
     @ [
