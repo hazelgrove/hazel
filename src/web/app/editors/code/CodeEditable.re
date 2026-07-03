@@ -284,18 +284,18 @@ module Selection = {
            "Introduce",
          ),
          mk(
-           ~mdIcon="format_align_left",
-           ~section="Formatting",
-           ~hotkey=meta ++ "+s",
-           ~action=action(PrettyPrint),
-           "Pretty Print",
-         ),
-         mk(
            ~mdIcon="format_indent_increase",
            ~section="Formatting",
-           ~hotkey="shift+" ++ meta ++ "+s",
+           ~hotkey=meta ++ "+s",
            ~action=action(Format),
            "Re-indent",
+         ),
+         mk(
+           ~mdIcon="format_align_left",
+           ~section="Formatting",
+           ~hotkey="shift+" ++ meta ++ "+s",
+           ~action=action(PrettyPrint),
+           "Pretty Print",
          ),
        ]);
   };
