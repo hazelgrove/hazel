@@ -131,6 +131,22 @@ let refactor_tests = [
       check(string, "bare literal", "5 + 5", got);
     },
   ),
+  test_case(
+    "compound def bare when reparse agrees",
+    `Quick,
+    () => {
+      let got = inline("¦let x = 1 + 2 in x + 3") |> text_of;
+      check(string, "left-assoc: no parens needed", "1 + 2 + 3", got);
+    },
+  ),
+  test_case(
+    "compound def parenthesized when reparse differs",
+    `Quick,
+    () => {
+      let got = inline("¦let x = 1 + 2 in 3 + x") |> text_of;
+      check(string, "right operand: parens", "3 + (1 + 2)", got);
+    },
+  ),
   test_case("non-var pattern is not applicable", `Quick, () =>
     check(
       bool,

@@ -114,10 +114,10 @@ let strip_trailing = (e: Exp.t): Exp.t => {
 /* The inserted copy takes over the replaced occurrence's stored
  * whitespace (its slot in the line); the definition keeps its own
  * interior spacing */
-let inserted = (def: Exp.t, at: Exp.t): Exp.t => {
+let inserted = (~parens: bool, def: Exp.t, at: Exp.t): Exp.t => {
   let secondary = at.annotation.secondary;
   let def = strip_boundaries(def);
-  if (needs_parens(def)) {
+  if (parens) {
     {
       annotation: {
         ...IdTagged.IdTag.mk_internal([Id.mk()]),
@@ -161,11 +161,12 @@ let binds = (x: string, p: Pat.t): bool => {
  * whitespace slot. Does not rename binders: a free variable of def
  * that is rebound between the let and a use site can be captured
  * (matching the editor-wide Substitution limitation). */
-let rec subst = (x: string, def: Exp.t, e: Exp.t): Exp.t => {
-  let go = subst(x, def);
+let rec subst = (~bare: bool, x: string, def: Exp.t, e: Exp.t): Exp.t => {
+  let go = subst(~bare, x, def);
   let (term, rewrap) = Exp.unwrap(e);
   switch (term) {
-  | Var(y) when y == x => inserted(def, e)
+  | Var(y) when y == x =>
+    inserted(~parens=!bare && needs_parens(def), def, e)
   | Let(p, d, body) =>
     rewrap(Let(p, go(d), binds(x, p) ? body : go(body)))
   | Fun(p, body, t, n) when binds(x, p) => rewrap(Fun(p, body, t, n))
@@ -305,6 +306,21 @@ let binder_of_occurrence =
   };
 };
 
+/* Oracle for necessary parenthesization: does the transformed program
+ * survive print -> reparse unchanged? (structural printing adds no
+ * defensive parens, so extent/precedence problems show up as a
+ * different reparse) */
+let reparses_same = (term: Exp.t): bool => {
+  let seg =
+    ExpToSegment.exp_to_segment(~settings=roundtrip_settings, term)
+    |> SpaceNormalize.go;
+  let text = Printer.of_segment(~holes="?", ~refractors=[], seg);
+  switch (Parser.to_segment(text, ~root=Exp)) {
+  | None => false
+  | Some(seg2) => Exp.fast_equal(MakeTerm.go(seg2).term, term)
+  };
+};
+
 /* === Registry ===
  * A refactoring is one record; menus and dispatch iterate the
  * registry, so adding a transform means adding a kind + an entry. */
@@ -366,17 +382,24 @@ let inline_let_impl: impl = {
   tooltip: "Replace this let by substituting its definition",
   /* also offered at occurrences of the bound var */
   prepare: (~info_map, ~target, program) => {
-    let attempt = target =>
+    let attempt_with = (~bare, target) =>
       rewrite_let(
         ~target,
         ~matches=(p, _, _) => var_pat_name(p) != None,
         ~rewrite=
           (p, def, body) => {
             let x = Option.get(var_pat_name(p));
-            (subst(x, def, body), Exp.rep_id(def));
+            (subst(~bare, x, def, body), Exp.rep_id(def));
           },
         program,
       );
+    /* parens only where the reparse oracle proves them necessary */
+    let attempt = target =>
+      switch (attempt_with(~bare=true, target)) {
+      | Some((cand, f)) when reparses_same(cand) => Some((cand, f))
+      | Some(_) => attempt_with(~bare=false, target)
+      | None => None
+      };
     switch (attempt(target)) {
     | Some(r) => Some(r)
     | None =>
@@ -608,21 +631,6 @@ let extractable = (e: Exp.t): bool =>
   | Filter(_) => false
   | _ => true
   };
-
-/* Oracle for necessary parenthesization: does the transformed program
- * survive print -> reparse unchanged? (structural printing adds no
- * defensive parens, so extent/precedence problems show up as a
- * different reparse) */
-let reparses_same = (term: Exp.t): bool => {
-  let seg =
-    ExpToSegment.exp_to_segment(~settings=roundtrip_settings, term)
-    |> SpaceNormalize.go;
-  let text = Printer.of_segment(~holes="?", ~refractors=[], seg);
-  switch (Parser.to_segment(text, ~root=Exp)) {
-  | None => false
-  | Some(seg2) => Exp.fast_equal(MakeTerm.go(seg2).term, term)
-  };
-};
 
 let extract_let_impl: impl = {
   label: "Extract to Let",
