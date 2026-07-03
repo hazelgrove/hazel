@@ -34,6 +34,12 @@ type move =
    * Move(Point(...)), which always lands the caret at the closest
    * grid position. */
   | Point(Point.t, option(chunkiness))
+  /* Point in a splice's own coordinate frame. Moves the caret into the
+   * splice (descending through the containing projector) if it isn't
+   * already there, then resolves the point against the splice's own
+   * measured. Emitted by sub-editor views, whose pointer coordinates
+   * are container-relative and hence already splice-local. */
+  | SplicePoint([@equal (_, _) => true] Id.t, Point.t)
   | Goal(goal);
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]

@@ -4929,7 +4929,292 @@ let grapheme_tests = [
   ),
 ];
 
+/* ---------- Splice sub-editors ----------
+ *
+ * Fixture: a Fold projector whose syntax is a list literal with each
+ * item wrapped in a splice — ^^fold([⟨1⟩, ⟨2⟩, ⟨3⟩]). Fold is used
+ * only as a neutral host; nothing here depends on fold behavior. */
+
+let parse_segment_exn = (s: string): Segment.t =>
+  switch (Parser.to_segment(s, ~root=Exp)) {
+  | Some(seg) => seg
+  | None => Alcotest.fail("Failed to parse segment: " ++ s)
+  };
+
+let mk_splice_projector_zipper =
+    (items: list(string)): (Zipper.t, list(Id.t)) => {
+  let splice_pieces =
+    List.map(item => Piece.mk_splice(parse_segment_exn(item)), items);
+  let splice_ids =
+    List.map(
+      fun
+      | Base.Splice(s) => s.id
+      | _ => Id.invalid,
+      splice_pieces,
+    );
+  let comma = () => Piece.mk_tile(Form.get(CommaExp), []);
+  let rec interleave = (ps: list(Piece.t)) =>
+    switch (ps) {
+    | [] => []
+    | [p] => [p]
+    | [p, ...rest] => [p, comma(), ...interleave(rest)]
+    };
+  let list_piece =
+    Piece.mk_tile(Form.get(ListLitExp), [interleave(splice_pieces)]);
+  let model =
+    FoldProj.sexp_of_t({
+      text: "test",
+      expanded: false,
+      always_render: true,
+    })
+    |> Sexplib.Sexp.to_string;
+  let projector =
+    ProjectorCore.mk(
+      ~id=Id.mk(),
+      ProjectorCore.Kind.Fold,
+      [list_piece],
+      model,
+    );
+  (Zipper.unzip([Piece.Projector(projector)]), splice_ids);
+};
+
+let splices_of = (z: Zipper.t): list(Base.splice) =>
+  Segment.splices(Zipper.unselect_and_zip(z));
+
+let splice_text = (z: Zipper.t, idx: int): string =>
+  switch (List.nth_opt(splices_of(z), idx)) {
+  | Some(s) =>
+    Printer.of_segment(
+      ~holes=convex_char,
+      ~concave_holes=concave_char,
+      s.content,
+    )
+  | None => Alcotest.fail("Missing splice at index " ++ string_of_int(idx))
+  };
+
+let check_in_splice = (~name: string, id: Id.t, z: Zipper.t) =>
+  Alcotest.check(
+    Alcotest.bool,
+    name,
+    true,
+    Zipper.splice_context(z) == Some(id),
+  );
+
+let splice_tests = [
+  test_case(
+    "CachedSyntax caches every splice",
+    `Quick,
+    () => {
+      let (z, splice_ids) = mk_splice_projector_zipper(["1", "22", "333"]);
+      let syntax = CachedSyntax.init(z);
+      List.iteri(
+        (i, id) =>
+          Alcotest.check(
+            Alcotest.bool,
+            "splice " ++ string_of_int(i) ++ " cached",
+            true,
+            CachedSyntax.splice_opt(id, syntax) != None,
+          ),
+        splice_ids,
+      );
+    },
+  ),
+  test_case(
+    "SplicePoint enters a splice from outside",
+    `Quick,
+    () => {
+      let (z, splice_ids) = mk_splice_projector_zipper(["1", "2", "3"]);
+      let id = List.nth(splice_ids, 2);
+      let z =
+        perform(
+          z,
+          [
+            Move(
+              SplicePoint(
+                id,
+                Point.{
+                  row: 0,
+                  col: 1,
+                },
+              ),
+            ),
+          ],
+        );
+      check_in_splice(~name="caret in third splice", id, z);
+    },
+  ),
+  test_case(
+    "SplicePoint 3 -> 33 edit inside splice",
+    `Quick,
+    () => {
+      let (z, splice_ids) = mk_splice_projector_zipper(["1", "2", "3"]);
+      let z =
+        perform(
+          z,
+          [
+            Move(
+              SplicePoint(
+                List.nth(splice_ids, 2),
+                Point.{
+                  row: 0,
+                  col: 1,
+                },
+              ),
+            ),
+            Insert("3"),
+          ],
+        );
+      Alcotest.check(
+        Alcotest.string,
+        "third splice text",
+        "33",
+        splice_text(z, 2),
+      );
+      Alcotest.check(
+        Alcotest.string,
+        "first splice untouched",
+        "1",
+        splice_text(z, 0),
+      );
+      Alcotest.check(
+        Alcotest.bool,
+        "projector survives the edit",
+        true,
+        List.exists(
+          fun
+          | Base.Projector(_) => true
+          | _ => false,
+          Zipper.unselect_and_zip(z),
+        ),
+      );
+    },
+  ),
+  test_case(
+    "SplicePoint moves between splices",
+    `Quick,
+    () => {
+      let (z, splice_ids) = mk_splice_projector_zipper(["1", "2", "3"]);
+      let first = List.nth(splice_ids, 0);
+      let third = List.nth(splice_ids, 2);
+      let z =
+        perform(
+          z,
+          [
+            Move(
+              SplicePoint(
+                first,
+                Point.{
+                  row: 0,
+                  col: 1,
+                },
+              ),
+            ),
+          ],
+        );
+      check_in_splice(~name="caret in first splice", first, z);
+      let z =
+        perform(
+          z,
+          [
+            Move(
+              SplicePoint(
+                third,
+                Point.{
+                  row: 0,
+                  col: 0,
+                },
+              ),
+            ),
+            Insert("4"),
+          ],
+        );
+      check_in_splice(~name="caret in third splice", third, z);
+      Alcotest.check(
+        Alcotest.string,
+        "third splice text",
+        "43",
+        splice_text(z, 2),
+      );
+    },
+  ),
+  test_case(
+    "char movement inside a splice uses the splice frame",
+    `Quick,
+    () => {
+      let (z, splice_ids) = mk_splice_projector_zipper(["123"]);
+      let id = List.nth(splice_ids, 0);
+      let z =
+        perform(
+          z,
+          [
+            Move(
+              SplicePoint(
+                id,
+                Point.{
+                  row: 0,
+                  col: 3,
+                },
+              ),
+            ),
+            Move(Local(Left, ByChar)),
+            Move(Local(Left, ByChar)),
+            Insert("0"),
+          ],
+        );
+      check_in_splice(~name="still in splice", id, z);
+      Alcotest.check(
+        Alcotest.string,
+        "splice text",
+        "1023",
+        splice_text(z, 0),
+      );
+    },
+  ),
+  test_case(
+    "drag resize creates a splice-local selection",
+    `Quick,
+    () => {
+      let (z, splice_ids) = mk_splice_projector_zipper(["123"]);
+      let id = List.nth(splice_ids, 0);
+      let z =
+        perform(
+          z,
+          [
+            Move(
+              SplicePoint(
+                id,
+                Point.{
+                  row: 0,
+                  col: 0,
+                },
+              ),
+            ),
+            Select(
+              Resize(
+                SplicePoint(
+                  id,
+                  Point.{
+                    row: 0,
+                    col: 2,
+                  },
+                ),
+              ),
+            ),
+          ],
+        );
+      Alcotest.check(
+        Alcotest.bool,
+        "selection exists",
+        true,
+        z.selection.content != [],
+      );
+      check_in_splice(~name="still in splice", id, z);
+    },
+  ),
+];
+
 let tests = [
+  ("Editing.Splice", splice_tests),
   ("Editing.DragToZeroWidth", drag_to_zero_width_tests),
   ("Editing.MoveAfterCharSelect", move_after_char_select_tests),
   ("Editing.SmartSelection", smart_selection_tests),

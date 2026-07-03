@@ -165,6 +165,8 @@ let rec find_projector =
     (p: Base.piece) =>
       switch (p) {
       | Projector(pr) when pr.id == id => Some(pr)
+      | Projector(pr) => find_projector(id, pr.syntax)
+      | Splice(s) => find_projector(id, s.content)
       | Tile(t) => List.find_map(find_projector(id), t.children)
       | _ => None
       },

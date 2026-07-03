@@ -153,7 +153,10 @@ let destruct = (z: t): option(t) =>
     let last =
       switch (kind, syntax) {
       | (Livelit, [Tile({children: [[name, ..._]], _}), ..._]) => [name]
-      | _ => syntax
+      /* Dissolve splices back into their contents (as the right-click
+       * remove path does): bare Splice pieces must not leak into the
+       * main editor, where they render zero-width. */
+      | _ => ProjectorPerform.unsplice_segment(syntax)
       };
     Some(Zipper.update_siblings(((_, r)) => (l @ last, r), z));
   | _ => None

@@ -168,16 +168,20 @@ let find_splice_descent =
  * rightmost splice (if moving left). Splices nested arbitrarily deep
  * inside tile children of [pr.syntax] are supported. Returns None if
  * the projector has no splices — in that case the caller should fall
- * back to treating the projector as an ordinary piece. */
+ * back to treating the projector as an ordinary piece.
+ *
+ * [pred] restricts which splice to land in (e.g. entering a specific
+ * splice by id); by default the first splice in direction [d]. */
 let enter_projector =
     (
+      ~pred: Base.splice => bool=_ => true,
       d: Direction.t,
       pr: Base.projector,
       outer_sibs: Siblings.t,
       ancestors: Ancestors.t,
     )
     : option(t) =>
-  switch (find_splice_descent(d, pr.syntax)) {
+  switch (find_splice_descent_when(d, pred, pr.syntax)) {
   | None => None
   | Some((descent_ancs, splice_sibs, _splice, outer_left, outer_right)) =>
     let proj_anc: Ancestor.proj_anc = {

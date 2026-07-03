@@ -117,9 +117,20 @@ module MapPiece = {
   and of_piece = (f: updater, piece: Piece.t): Piece.t => {
     switch (piece) {
     | Tile(t) => Tile(of_tile(f, t))
+    | Projector(pr) =>
+      /* Projector syntax and splice contents are ordinary zipped
+       * pieces: recurse so updates reach projectors/pieces nested
+       * inside other projectors' splices. */
+      Projector({
+        ...pr,
+        syntax: of_segment(f, pr.syntax),
+      })
+    | Splice(s) =>
+      Splice({
+        ...s,
+        content: of_segment(f, s.content),
+      })
     | Grout(_)
-    | Projector(_)
-    | Splice(_)
     | Secondary(_) => piece
     };
   }

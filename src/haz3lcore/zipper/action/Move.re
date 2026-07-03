@@ -2,22 +2,73 @@ open Util;
 open OptUtil.Syntax;
 open Zipper;
 
-let by_char_left = (z: t): option(t) =>
+/* Two flavors of horizontal movement:
+ *
+ * - CONFINED (built on plain [Zipper.move]): never crosses a splice or
+ *   projector boundary. All geometric scans — point resolution
+ *   ([do_towards_point]), extremes, id jumps — must be confined, since
+ *   they hold a single frame's measured and would consult it with a
+ *   caret from another frame after crossing (=> find_p crash).
+ *
+ * - STRUCTURAL: user-facing arrow movement. Additionally enters a
+ *   neighboring projector's first/last splice, and exits the current
+ *   splice at its edges (to the next/previous splice of the same
+ *   projector, or out past it). */
+
+let exit_current_splice = (d: Direction.t, z: t): option(t) => {
+  let+ relatives = Relatives.exit_splice(d, z.relatives);
+  {
+    ...z,
+    relatives: Relatives.reassemble(relatives),
+  };
+};
+
+/* Entering a neighboring projector: moving right lands at the left
+ * edge of its first splice, moving left at the right edge of its last
+ * splice. Projectors without splices are skipped as opaque units. */
+let enter_neighbor_projector = (d: Direction.t, z: t): option(t) =>
+  switch (z.caret) {
+  | Outer =>
+    switch (Relatives.pop(d, z.relatives)) {
+    | Some((Projector(pr), rs)) =>
+      Relatives.enter_projector(d, pr, rs.siblings, rs.ancestors)
+      |> Option.map(relatives =>
+           {
+             ...z,
+             relatives,
+           }
+         )
+    | _ => None
+    }
+  | Inner(_) => None
+  };
+
+let structural_move = (d: Direction.t, z: t): option(t) =>
+  switch (enter_neighbor_projector(d, z)) {
+  | Some(_) as entered => entered
+  | None =>
+    switch (move(d, z)) {
+    | Some(_) as moved => moved
+    | None => exit_current_splice(d, z)
+    }
+  };
+
+let by_char_left_with = (mv, z: t): option(t) =>
   switch (z.caret, Caret.nhbr_max_idx(Left, z)) {
-  | (Outer, None) => move(Left, z)
-  | (Outer, Some(max_idx)) => z |> Caret.set(Inner(max_idx)) |> move(Left)
+  | (Outer, None) => mv(Direction.Left, z)
+  | (Outer, Some(max_idx)) => z |> Caret.set(Inner(max_idx)) |> mv(Left)
   | (Inner(char), None | Some(_)) when char == 0 =>
     z |> Caret.set(Outer) |> Option.some
   | (Inner(char), None | Some(_)) =>
     z |> Caret.set(Inner(char - 1)) |> Option.some
   };
 
-let by_char_right = (z: t): option(t) =>
+let by_char_right_with = (mv, z: t): option(t) =>
   switch (z.caret, Caret.nhbr_max_idx(Right, z)) {
-  | (Outer, None) => move(Right, z)
+  | (Outer, None) => mv(Direction.Right, z)
   | (Outer, Some(_)) => z |> Caret.set(Inner(0)) |> Option.some
   | (Inner(char), Some(max_idx)) when char >= max_idx =>
-    z |> Caret.set(Outer) |> move(Right)
+    z |> Caret.set(Outer) |> mv(Right)
   | (Inner(_), None) =>
     /* Inner references the right-side piece. If the right neighbor
      * isn't a multi-char token (grout, projector, single-char token,
@@ -27,38 +78,47 @@ let by_char_right = (z: t): option(t) =>
      * the post-unselect right neighbor can't accept it: col advances
      * by 1 per step but row never changes, so `(Under, _)` keeps
      * recursing. */
-    z |> Caret.set(Outer) |> move(Right)
+    z |> Caret.set(Outer) |> mv(Right)
   | (Inner(char), Some(_)) =>
     z |> Caret.set(Inner(char + 1)) |> Option.some
   };
 
-let by_char = (d: Direction.t, z: t): option(t) =>
+let by_char_with = (mv, d: Direction.t, z: t): option(t) =>
   switch (d) {
-  | Left => by_char_left(z)
-  | Right => by_char_right(z)
+  | Left => by_char_left_with(mv, z)
+  | Right => by_char_right_with(mv, z)
   };
 
-let by_token = (d: Direction.t, z: t): option(t) =>
+let by_token_with = (mv, d: Direction.t, z: t): option(t) =>
   switch (z.caret) {
-  | Outer => move(d, z)
+  | Outer => mv(d, z)
   | Inner(_) =>
     let z = Caret.set(Outer, z);
     switch (d) {
     | Left => Some(z)
-    | Right => move(Right, z)
+    | Right => mv(Direction.Right, z)
     };
   };
 
-let local = (chunkiness: Action.chunkiness, d: Direction.t, z: t): option(t) => {
+let local_with =
+    (mv, chunkiness: Action.chunkiness, d: Direction.t, z: t): option(t) => {
   let z = unselect(z);
   switch (chunkiness) {
-  | ByToken => by_token(d, z)
+  | ByToken => by_token_with(mv, d, z)
   /* BySmart is a selection-only granularity; for caret movement it
    * degrades to ByChar. Never emitted for Move actions in practice. */
   | ByChar
-  | BySmart => by_char(d, z)
+  | BySmart => by_char_with(mv, d, z)
   };
 };
+
+/* Confined movement: geometric scans, extremes, jumps. */
+let by_char = by_char_with((d, z) => move(d, z));
+let by_token = by_token_with((d, z) => move(d, z));
+let local = local_with((d, z) => move(d, z));
+
+/* Structural movement: user-facing arrow keys. */
+let local_structural = local_with(structural_move);
 
 /* Do move_action until the indicated piece is such that piece_p is true,
    restarting from the beginning/end if not found in forward direction.
@@ -249,6 +309,108 @@ let to_point = (~measured: Measured.t, ~goal: Point.t, z: t): option(t) => {
   };
 };
 
+/* Rebuild the zipper with the caret at the far left of the fully-zipped
+ * segment. Used to normalize out of splice/projector descent before a
+ * token-scan (movement cannot cross splice boundaries, so scans started
+ * inside a splice never see the rest of the document). */
+let to_top = (z: t): t => {
+  let z = Zipper.unselect(z);
+  let seg = Zipper.unselect_and_zip(z);
+  {
+    ...z,
+    caret: Outer,
+    relatives: {
+      siblings: (Segment.empty, seg),
+      ancestors: Ancestors.empty,
+    },
+  };
+};
+
+/* Descend into the splice with the given id, wherever it lives. The
+ * splice's immediate host projector may itself sit inside another
+ * projector's splice, so descent recurses frame by frame: enter the
+ * parent splice first, then scan (with plain moves, which stay within
+ * the current frame and skip over nested projectors) to the host
+ * projector and enter through it to the target splice. The caret lands
+ * at the target splice's left edge. */
+let rec enter_splice_by_id =
+        (~projectors: Id.Map.t(Base.projector), ~splice_id: Id.t, z: t)
+        : option(t) => {
+  let bindings = Id.Map.bindings(projectors);
+  /* Immediate host: the projector owning the splice within its own
+   * frame (not through a nested projector). */
+  let* (pr_id, _) =
+    List.find_opt(
+      ((_, pr: Base.projector)) =>
+        List.exists(
+          (s: Base.splice) => Id.equal(s.id, splice_id),
+          Segment.direct_splices(pr.syntax),
+        ),
+      bindings,
+    );
+  /* The frame hosting that projector: some splice, or the top level. */
+  let parent_splice =
+    bindings
+    |> List.concat_map(((_, pr: Base.projector)) =>
+         Segment.direct_splices(pr.syntax)
+       )
+    |> List.find_opt((s: Base.splice) =>
+         List.exists(
+           Id.equal(pr_id),
+           Segment.frame_projector_ids(s.content),
+         )
+       );
+  let* z =
+    switch (parent_splice) {
+    | Some(s) => enter_splice_by_id(~projectors, ~splice_id=s.id, z)
+    | None => Some(to_top(z))
+    };
+  let at_host = ((_, r): Zipper.neighbors) =>
+    switch (r) {
+    | Some(p) => Id.equal(Piece.id(p), pr_id)
+    | None => false
+    };
+  let* z =
+    at_host(Zipper.generalized_neighbors(z))
+      ? Some(z) : do_until(move(Right), at_host, z);
+  switch (Relatives.pop(Right, z.relatives)) {
+  | Some((Projector(pr), rs)) when Id.equal(pr.id, pr_id) =>
+    let+ relatives =
+      Relatives.enter_projector(
+        ~pred=(s: Base.splice) => Id.equal(s.id, splice_id),
+        Right,
+        pr,
+        rs.siblings,
+        rs.ancestors,
+      );
+    {
+      ...z,
+      caret: Outer,
+      relatives,
+    };
+  | _ => None
+  };
+};
+
+/* Land the caret at [goal] in the coordinate frame of splice [splice_id],
+ * entering the splice first if the caret isn't already inside it.
+ * [measured] must be the splice's own measured (its cached frame). */
+let to_splice_point =
+    (
+      ~measured: Measured.t,
+      ~projectors: Id.Map.t(Base.projector),
+      ~splice_id: Id.t,
+      ~goal: Point.t,
+      z: t,
+    )
+    : option(t) => {
+  let* z =
+    Zipper.splice_context(z) == Some(splice_id)
+      ? Some(Zipper.unselect(z))
+      : enter_splice_by_id(~projectors, ~splice_id, z);
+  to_point(~measured, ~goal, z);
+};
+
 let to_start: t => t = do_to_extreme(local(ByToken, Left));
 
 let to_end: t => t = do_to_extreme(local(ByToken, Right));
@@ -316,12 +478,15 @@ let move_dispatch =
     )
     : option(t) =>
   switch (d) {
-  | Local(d, chunk) => local(chunk, d, z)
+  | Local(d, chunk) => local_structural(chunk, d, z)
   | Start => Some(to_start(z))
   | End => Some(to_end(z))
   | Line(d) => to_linebreak(d, z)
   | Vertical(d, _) => vertical(~measured, ~col_target, d, z)
   | Point(goal, _) => to_point(~measured, ~goal, z)
+  /* SplicePoint needs the target splice's own measured and the projector
+   * map; it is dispatched directly by Perform, not through here. */
+  | SplicePoint(_) => None
   | Goal(Hole(d)) => to_next_grout(d, z)
   | Goal(NextProblem(d)) => to_next_problem(~measured, ~problem_ids, d, z)
   | Goal(TileId(id)) => jump_to_id_indicated(z, id)
@@ -341,6 +506,7 @@ let pre_unselect = (a: Action.move, z: t): t => {
     | End
     | Line(_)
     | Point(_)
+    | SplicePoint(_)
     | Goal(_) => z.selection.focus
     };
   let landing_at_anchor = d != z.selection.focus;
