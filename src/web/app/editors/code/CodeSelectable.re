@@ -51,6 +51,7 @@ module Update = {
         Structural(_) |
         Probe(_) |
         Format |
+        Refactor(_) |
         PrettyPrint |
         Dump |
         Introduce |

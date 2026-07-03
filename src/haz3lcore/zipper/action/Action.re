@@ -140,6 +140,10 @@ type destruct =
   | Line(Direction.t);
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
+type refactor =
+  | InlineLet;
+
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type t =
   | Reparse
   | Buffer(buffer)
@@ -154,6 +158,7 @@ type t =
   | Insert(string)
   | Put_down
   | Introduce
+  | Refactor(refactor)
   | Probe(probe)
   | Format
   | PrettyPrint
@@ -176,6 +181,7 @@ module Failure = {
     | Cant_undo
     | Cant_redo
     | CantIntroduce
+    | Cant_refactor
     | Composition_action_failure(string)
     | Cant_derive_local_AST_information;
 
@@ -196,6 +202,7 @@ let is_edit: t => bool =
   | Destruct(_)
   | Put_down
   | Introduce
+  | Refactor(_)
   | PrettyPrint
   | Buffer(Accept | Clear | Set(_))
   | Format
@@ -234,6 +241,7 @@ let is_historic: t => bool =
   | Destruct(_)
   | Put_down
   | Introduce
+  | Refactor(_)
   | Format
   | PrettyPrint
   | Structural(_)
@@ -266,6 +274,7 @@ let prevent_in_read_only_editor = (a: t) =>
   | Insert(_)
   | Put_down
   | Introduce
+  | Refactor(_)
   | Format
   | PrettyPrint
   | Structural(_)
@@ -311,6 +320,7 @@ let should_animate: t => bool =
   | Move(_)
   | Structural(_)
   | Probe(_)
+  | Refactor(_)
   | Format
   | PrettyPrint
   | Dump

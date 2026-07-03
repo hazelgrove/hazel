@@ -80,6 +80,7 @@ module Update = {
              | Cut
              | Reparse
              | Introduce
+             | Refactor(_)
              | PrettyPrint
              | Probe(StepInto(_))
              | Format
@@ -163,141 +164,157 @@ module Selection = {
         |> map(x => Update.Perform(x)),
       editor_read_only: false,
     }
-    |> Cursor.with_actions([
-         /* Navigation */
-         mk(
-           ~hotkey="F12",
-           ~mdIcon="arrow_forward",
-           ~section="Navigation",
-           ~action=action(Move(Goal(BindingSiteOfIndicatedVar))),
-           "Go to Definition",
-         ),
-         mk(
-           ~hotkey="shift+tab",
-           ~mdIcon="arrow_upward",
-           ~section="Navigation",
-           ~action=action(Move(Goal(NextProblem(Left)))),
-           "Go to Previous Problem",
-         ),
-         mk(
-           ~mdIcon="arrow_downward",
-           ~section="Navigation",
-           ~action=action(Move(Goal(NextProblem(Right)))),
-           "Go to Next Problem",
-         ),
-         /* Selection */
-         mk(
-           ~hotkey=meta ++ "+d",
-           ~mdIcon="select_all",
-           ~section="Selection",
-           ~action=action(Select(Term(Current))),
-           "Select current term",
-         ),
-         mk(
-           ~mdIcon="select_all",
-           ~hotkey=meta ++ "+a",
-           ~section="Selection",
-           ~action=action(Select(All)),
-           "Select All",
-         ),
-         mk(
-           ~mdIcon="flip_horizontal",
-           ~section="Selection",
-           ~action=action(Select(ToggleFocus)),
-           "Toggle Selection Focus",
-         ),
-         mk(
-           ~mdIcon="border_left",
-           ~section="Selection",
-           ~hotkey=meta ++ "+alt+shift+left",
-           ~action=action(Select(SetFocus(Left))),
-           "Set Selection Focus Left",
-         ),
-         mk(
-           ~mdIcon="border_right",
-           ~section="Selection",
-           ~hotkey=meta ++ "+alt+shift+right",
-           ~action=action(Select(SetFocus(Right))),
-           "Set Selection Focus Right",
-         ),
-         mk(
-           ~mdIcon="chevron_left",
-           ~section="Selection",
-           ~hotkey="alt+shift+left",
-           ~action=action(Select(Resize(Local(Left, ByToken)))),
-           "Extend Selection Left by Token",
-         ),
-         mk(
-           ~mdIcon="chevron_right",
-           ~section="Selection",
-           ~hotkey="alt+shift+right",
-           ~action=action(Select(Resize(Local(Right, ByToken)))),
-           "Extend Selection Right by Token",
-         ),
-         /* Projection */
-         mk(
-           ~hotkey="alt+f",
-           ~mdIcon="camera",
-           ~section="Projection",
-           ~action=action(Project(SetIndicated(Specific(Fold)))),
-           "Fold",
-         ),
-         mk(
-           ~hotkey=meta ++ "+e",
-           ~mdIcon="camera",
-           ~section="Projection",
-           ~action=action(Probe(ToggleManual)),
-           "Probe",
-         ),
-         mk(
-           ~hotkey="alt+t",
-           ~mdIcon="camera",
-           ~section="Projection",
-           ~action=action(Probe(ToggleStatics)),
-           "Statics",
-         ),
-         mk(
-           ~hotkey="alt+l",
-           ~mdIcon="camera",
-           ~section="Projection",
-           ~action=action(Project(SetIndicated(ChooseLivelit))),
-           "Livelit",
-         ),
-         /* Editor tools */
-         mk(
-           ~hotkey=meta ++ "+/",
-           ~mdIcon="assistant",
-           ~action=action(Buffer(Set(TyDi))),
-           "TyDi Assistant",
-         ),
-         mk(
-           ~section="Diagnostics",
-           ~mdIcon="refresh",
-           ~action=inject(Perform(Reparse)),
-           "Reparse Current Editor",
-         ),
-         mk(
-           ~mdIcon="bolt",
-           ~section="Refactoring",
-           ~hotkey=meta ++ "+i",
-           ~action=action(Introduce),
-           "Introduce",
-         ),
-         mk(
-           ~mdIcon="format_indent_increase",
-           ~section="Formatting",
-           ~hotkey=meta ++ "+s",
-           ~action=action(Format),
-           "Re-indent",
-         ),
-         mk(
-           ~mdIcon="format_align_left",
-           ~section="Formatting",
-           ~hotkey="shift+" ++ meta ++ "+s",
-           ~action=action(PrettyPrint),
-           "Pretty Print",
-         ),
-       ]);
+    |> Cursor.with_actions(
+         [
+           /* Navigation */
+           mk(
+             ~hotkey="F12",
+             ~mdIcon="arrow_forward",
+             ~section="Navigation",
+             ~action=action(Move(Goal(BindingSiteOfIndicatedVar))),
+             "Go to Definition",
+           ),
+           mk(
+             ~hotkey="shift+tab",
+             ~mdIcon="arrow_upward",
+             ~section="Navigation",
+             ~action=action(Move(Goal(NextProblem(Left)))),
+             "Go to Previous Problem",
+           ),
+           mk(
+             ~mdIcon="arrow_downward",
+             ~section="Navigation",
+             ~action=action(Move(Goal(NextProblem(Right)))),
+             "Go to Next Problem",
+           ),
+           /* Selection */
+           mk(
+             ~hotkey=meta ++ "+d",
+             ~mdIcon="select_all",
+             ~section="Selection",
+             ~action=action(Select(Term(Current))),
+             "Select current term",
+           ),
+           mk(
+             ~mdIcon="select_all",
+             ~hotkey=meta ++ "+a",
+             ~section="Selection",
+             ~action=action(Select(All)),
+             "Select All",
+           ),
+           mk(
+             ~mdIcon="flip_horizontal",
+             ~section="Selection",
+             ~action=action(Select(ToggleFocus)),
+             "Toggle Selection Focus",
+           ),
+           mk(
+             ~mdIcon="border_left",
+             ~section="Selection",
+             ~hotkey=meta ++ "+alt+shift+left",
+             ~action=action(Select(SetFocus(Left))),
+             "Set Selection Focus Left",
+           ),
+           mk(
+             ~mdIcon="border_right",
+             ~section="Selection",
+             ~hotkey=meta ++ "+alt+shift+right",
+             ~action=action(Select(SetFocus(Right))),
+             "Set Selection Focus Right",
+           ),
+           mk(
+             ~mdIcon="chevron_left",
+             ~section="Selection",
+             ~hotkey="alt+shift+left",
+             ~action=action(Select(Resize(Local(Left, ByToken)))),
+             "Extend Selection Left by Token",
+           ),
+           mk(
+             ~mdIcon="chevron_right",
+             ~section="Selection",
+             ~hotkey="alt+shift+right",
+             ~action=action(Select(Resize(Local(Right, ByToken)))),
+             "Extend Selection Right by Token",
+           ),
+           /* Projection */
+           mk(
+             ~hotkey="alt+f",
+             ~mdIcon="camera",
+             ~section="Projection",
+             ~action=action(Project(SetIndicated(Specific(Fold)))),
+             "Fold",
+           ),
+           mk(
+             ~hotkey=meta ++ "+e",
+             ~mdIcon="camera",
+             ~section="Projection",
+             ~action=action(Probe(ToggleManual)),
+             "Probe",
+           ),
+           mk(
+             ~hotkey="alt+t",
+             ~mdIcon="camera",
+             ~section="Projection",
+             ~action=action(Probe(ToggleStatics)),
+             "Statics",
+           ),
+           mk(
+             ~hotkey="alt+l",
+             ~mdIcon="camera",
+             ~section="Projection",
+             ~action=action(Project(SetIndicated(ChooseLivelit))),
+             "Livelit",
+           ),
+           /* Editor tools */
+           mk(
+             ~hotkey=meta ++ "+/",
+             ~mdIcon="assistant",
+             ~action=action(Buffer(Set(TyDi))),
+             "TyDi Assistant",
+           ),
+           mk(
+             ~section="Diagnostics",
+             ~mdIcon="refresh",
+             ~action=inject(Perform(Reparse)),
+             "Reparse Current Editor",
+           ),
+           mk(
+             ~mdIcon="bolt",
+             ~section="Refactoring",
+             ~hotkey=meta ++ "+i",
+             ~action=action(Introduce),
+             "Introduce",
+           ),
+         ]
+         @ (
+           Haz3lcore.Refactor.applicable(model.editor.state.zipper)
+             ? [
+               mk(
+                 ~mdIcon="compress",
+                 ~section="Refactoring",
+                 ~action=action(Refactor(InlineLet)),
+                 "Inline Let",
+               ),
+             ]
+             : []
+         )
+         @ [
+           mk(
+             ~mdIcon="format_indent_increase",
+             ~section="Formatting",
+             ~hotkey=meta ++ "+s",
+             ~action=action(Format),
+             "Re-indent",
+           ),
+           mk(
+             ~mdIcon="format_align_left",
+             ~section="Formatting",
+             ~hotkey="shift+" ++ meta ++ "+s",
+             ~action=action(PrettyPrint),
+             "Pretty Print",
+           ),
+         ],
+       );
   };
 
   /* Focus the indicated probe (if any) */
