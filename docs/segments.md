@@ -74,7 +74,8 @@ A **tile** represents a syntactic form. The key fields are:
 Nibs describe how pieces connect. From `src/haz3lcore/tiles/Nib.re`:
 
 ```reason
-type Shape.t =
+/* Nib.Shape.t */
+type t =
   | Convex                  /* operand-like: can be an argument */
   | Concave(Precedence.t)   /* operator-like: expects operands */
 ```
@@ -234,7 +235,7 @@ Key observations:
 
 ### Example E: Grout (Holes)
 
-**Code**: `1 + _ * 3` (where `_` represents an empty hole)
+**Code**: `1 + · * 3` (where `·` marks a position where nothing was typed)
 
 **Segment structure**:
 
@@ -244,13 +245,19 @@ Key observations:
 
 **Convex grout** fills the position where an operand is expected. If an operator were missing instead:
 
-**Code**: `1 _ 2` (missing operator)
+**Code**: `1 · 2` (missing operator)
 
 ```
 [ Tile("1"), Grout({shape: Concave}), Tile("2") ]
 ```
 
 **Concave grout** fills operator positions.
+
+Note that grout is distinct from the explicit hole token `?`: typing `?`
+produces an ordinary single-token *tile*, while grout is synthesized by
+`Segment.regrout` wherever adjacent nib shapes conflict and is never
+typed. Both display as holes, but only grout is ephemeral (regrout
+freely re-derives, moves, or removes it).
 
 ## Segment vs Term
 
@@ -259,7 +266,7 @@ Key observations:
 | Operators | Flat list | Tree by precedence |
 | Delimiters | Matched into tiles | Implicit in term structure |
 | Holes | Explicit Grout pieces | EmptyHole / MultiHole nodes |
-| Whitespace | Secondary pieces | Discarded (except in annotations) |
+| Whitespace | Secondary pieces | Preserved in annotations (`IdTag.secondary`), restored on print |
 
 ### Conversion Flow
 
@@ -326,3 +333,28 @@ Incomplete tiles arise during editing when:
 - Delimiter matching is in progress
 
 The `Segment.reassemble` function handles merging incomplete tile shards when they can be combined.
+
+Before term construction, incomplete segments are given a *canonical
+completion* (`CanonicalCompletion`, used by `MakeTerm.from_zip_for_sem`):
+missing closers are appended, missing openers spliced at their skeleton
+position, and missing middle delimiters filled in place, so every edit
+state gets a well-formed term with full statics.
+
+## Roundtripping Segments and Terms
+
+Terms record enough provenance to print back the segment they came
+from (`ExpToSegment`, `PreserveExact` settings). Two annotation fields
+carry this (`IdTagged.IdTag.t`):
+
+- `incomplete: list((Id.t, list(int)))` — for each canonically
+  completed tile, which shards the user had actually typed; the
+  printer strips the synthesized shards on the way out, so incomplete
+  tiles survive the trip.
+- `lexeme: option(string)` — surface spellings the term normalizes
+  (`007`, `1e3`, `?` vs `??` hole flavor, quoted labels, unknown
+  operators).
+
+The roundtrip is the identity on text and on the piece sequence
+(tile ids, labels, shards, secondary) modulo grout and re-derived mold
+choices; it is enforced by a corpus plus an editor-action fuzzer in
+`test/Test_ExpToSegment.re` and `test/Test_RoundtripFuzz.re`.
