@@ -78,7 +78,7 @@ let on: t = {
   dynamics: true,
   probe_all: false, /* Off by default even in "on" config - opt-in feature */
   deep_reassociate: false,
-  auto_reindent: false,
+  auto_reindent: true,
   flip_animations: true,
   display_warnings: true,
   selection_chunkiness: false,

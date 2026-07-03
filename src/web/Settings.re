@@ -37,7 +37,7 @@ module Model = {
       dynamics: true,
       probe_all: false,
       deep_reassociate: true,
-      auto_reindent: false,
+      auto_reindent: true,
       flip_animations: true,
       display_warnings: true,
       selection_chunkiness: false,
