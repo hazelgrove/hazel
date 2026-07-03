@@ -201,11 +201,9 @@ let opener_schedule =
       | exception _ => 0
       | skel => opener_insertion_index(skel, idx) |> Option.value(~default=0)
       };
-    /* A synthesized opener must not cross an unmatched opener: tiles
-       still awaiting trailing shards get their closers appended at the
-       partition end, so an opener spanning left of them would nest
-       crosswise (`( ]` must complete to `([?])`, not `[(])`). Clamp
-       each insertion to sit right of the last such tile before it. */
+    /* A synthesized opener must not cross an unmatched opener (whose
+       closer is appended at partition end): `( ]` completes to
+       `([?])`, not the crossed `[(])`. */
     let trailing_positions =
       incomplete
       |> List.filter((t: Tile.t) => Tile.l_shard(t) == 0)
@@ -674,11 +672,9 @@ let complete_segment =
 
   if (List.length(all_incomplete) == 0 && wrap_records == []) {
     {
-      /* No structural changes needed — but still regrout: edit
-         sequences can leave stray grout (glomming ( onto an orphan )
-         forms the atomic () token without regrouting away the
-         preceding convex grout), and Segment.skel silently drops
-         pieces on shape-invalid segments, collapsing the term */
+      /* No structural changes — but still regrout: edits can leave
+         stray grout (glom ( onto an orphan )) and Segment.skel
+         silently drops pieces on shape-invalid segments */
       completed_seg:
         Segment.regrout((Nib.Shape.concave(), Nib.Shape.concave()), seg),
       shard_records,
@@ -779,11 +775,9 @@ let complete_segment =
       |> Segment.regrout((Nib.Shape.concave(), Nib.Shape.concave()), _);
 
     /* Phase 3: Reassemble to combine same-ID shards; remold to get
-       correct molds. Reassembly must recurse: an opener insertion can
-       splice still-unmerged shard pairs into a freshly formed tile's
-       child (orphan ] wrapping a span that holds an incomplete ( and
-       its appended closer), where a single top-level pass never
-       revisits them. */
+       correct molds. Must recurse: an opener splice can capture
+       still-unmerged shard pairs inside a fresh tile's child, which a
+       top-level pass never revisits. */
     let rec deep_reassemble = (seg: Segment.t): Segment.t =>
       seg
       |> Segment.reassemble

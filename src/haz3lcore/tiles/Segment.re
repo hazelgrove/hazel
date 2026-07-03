@@ -10,13 +10,9 @@ type t = Base.segment;
    (ids + content), and projectors compare strictly; grout is dropped
    entirely — it is ephemeral by design (regrout re-derives placement
    and mints fresh ids), and nothing durable anchors to it. */
-/* ~mold_sorts=false additionally quotients mold SORTS (shapes and
-   precedences still compared): completion + reparse re-derive sorts,
-   so an edit-derived tile molded at a transitional sort (a Typ-list
-   closer completed in exp context) legitimately reprints re-sorted.
-   Provisional pending the retain-vs-derive mold discussion — the lean
-   is that sorts are derivable and should be quotiented, molds proper
-   retained. */
+/* ~mold_sorts=false is the canonical quotient (see the sort-quotient
+   decision in plans/completion-provenance.md): form identity is
+   derived, spelling is retained. */
 let rec equiv_mod_grout = (~mold_sorts=true, a: t, b: t): bool => {
   let strip =
     List.filter((p: Piece.t) =>
@@ -37,19 +33,13 @@ and piece_equiv_mod_grout = (~mold_sorts, a: Piece.t, b: Piece.t): bool =>
         ma == mb;
       } else if (!Tile.is_complete(ta)) {
         true;
-            /* An incomplete tile's mold is edit-transient: completion +
-               reparse re-derive it wholesale. Ids/labels/shards stay
-               strict. */
+            /* incomplete-tile molds are edit-transient */
       } else {
-        /* Canonical quotient: form identity is derived, spelling is
-           retained. Shared-label forms legitimately swap under
-           completion + reparse (orphan-) Parens reprints as the Ap
-           args tile; a line-initial prefix - reprints binary once the
-           closer lands before it), so any two DEFINED molds of the
-           label are equivalent. Undefined tokens compare by nib shape
-           (sort-quotiented) — the Any fallback is not a defined mold,
-           so e.g. a stranded : reconstructed with the fallback instead
-           of Cast's mold still fails. */
+        /* Shared-label forms swap under completion + reparse (orphan-)
+           Parens vs the Ap args tile; prefix vs binary -), so any two
+           DEFINED molds of the label are equivalent. Undefined tokens
+           compare by nib shape — the Any fallback is not a defined
+           mold, so a stranded : rebuilt with it still fails. */
         let base = Form.Molds.get_base(ta.label);
         let shape_eq = () => {
           let (la, ra) = ma.nibs;

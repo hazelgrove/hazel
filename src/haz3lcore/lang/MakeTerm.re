@@ -759,11 +759,9 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
       | (["{", "}"], [Exp(body)])
       | (["(", ")"], [Exp(body)]) => ret(Parens(body))
       | (["(", ")"], [kid]) =>
-        /* Cross-sort parens: completion can leave a parens tile molded
-           at a different sort than its context (orphan-closer
-           completion), so the kid parses at the tile's sort, not Exp.
-           Keep the tile — falling to hole() would drop it and strand
-           its shard mask on a wrapper that never prints a tile. */
+        /* Cross-sort parens (orphan-closer completion): the kid parses
+           at the tile's sort, not Exp; hole() would drop the tile and
+           strand its shard mask. */
         ret(
           Parens({
             annotation: IdTagged.IdTag.mk_internal([Id.mk()]),
@@ -1110,8 +1108,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
       ret(hole(tm));
     }
   | Pre(([(_id, ([op], []))], []), _) as tm when op != " " => {
-      /* Stranded prefix op (the unary - of `? : - ?` keeps its exp pre
-         mold on the typ side); printed back by the 1-kid MultiHole op
+      /* Stranded prefix op; printed back by the 1-kid MultiHole op
          branches */
       set_lexeme(op);
       ret(hole(tm));
@@ -1309,8 +1306,7 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
       ret(hole(tm));
     }
   | Pre(([(_id, ([op], []))], []), _) as tm when op != " " => {
-      /* Stranded prefix op (the unary - of `? : - ?` keeps its exp pre
-         mold on the typ side); printed back by the 1-kid MultiHole op
+      /* Stranded prefix op; printed back by the 1-kid MultiHole op
          branches */
       set_lexeme(op);
       ret(hole(tm));
@@ -1406,12 +1402,10 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
     switch (tiles) {
     /* Type aps which would otherwise be parsed here are recognized in sum type parsing above */
     | ([(id, (["(", ")"], [kid]))], []) when get_incomplete([id]) != [] =>
-      /* Masked (completion-synthesized) parens only — complete
-         post-parens must keep falling through: sum-type parsing reads
-         the bare MultiHole shape for constructor aps (`+A(Int)`), and
-         a Parens node there prints as A((Int)). l is any-sorted: a
-         sort-mismatched operand (Exp-molded 1 in type position) must
-         not divert this into the hole() catch-all. */
+      /* Masked parens only: keep the tile as a juxtaposed kid so it
+         reprints (hole() would drop it). Complete post-parens must
+         fall through — sum-type parsing reads the bare MultiHole shape
+         for ctor aps, and a Parens node there prints as A((Int)). */
       let t =
         switch (l) {
         | Typ(t) => t
@@ -1420,11 +1414,7 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
             term: Typ.hole([l]),
           }
         };
-      /* No general type-application form: keep the parens tile (its id
-         and shard mask, so incomplete parens reprint) as a juxtaposed
-         kid instead of dropping it via hole(). Secondary stays on the
-         outer node (ret attaches the same ids) to avoid double
-         emission. */
+
       let arg =
         switch (kid) {
         | Typ(arg) => arg
@@ -1540,8 +1530,7 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
       ret(hole(tm));
     }
   | Pre(([(_id, ([op], []))], []), _) as tm when op != " " => {
-      /* Stranded prefix op (the unary - of `? : - ?` keeps its exp pre
-         mold on the typ side); printed back by the 1-kid MultiHole op
+      /* Stranded prefix op; printed back by the 1-kid MultiHole op
          branches */
       set_lexeme(op);
       ret(hole(tm));

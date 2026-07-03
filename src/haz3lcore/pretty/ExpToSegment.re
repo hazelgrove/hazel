@@ -139,14 +139,9 @@ let op_lexeme = (ann: IdTagged.IdTag.t): option(string) =>
    operand-shaped keyword prefixes get the concave-grout bin mold of
    the host sort (Form.get_atomic_form); truly unknown ops the
    Any-sorted max-precedence fallback (Form.Molds.get). */
-/* The editor molds by insertion-time sort context, which the term does
-   not record — approximate with the print-time host sort, then Exp
-   (the dominant insertion context: the : of `? : ? t ?` was inserted
-   at exp and keeps Cast's mold even though it prints inside a typ
-   multihole), then a fallback (`->` in exp position keeps the Any
-   fallback mold, not Arrow's). Residual sort-only drift is absorbed by
-   equiv_mod_grout(~mold_sorts=false); the retain-vs-derive mold
-   question owns the rest. */
+/* Insertion-time sort context is unrecorded, so approximate: host
+   sort, then Exp, then the undefined-token fallbacks. Residual sort
+   drift is absorbed by equiv_mod_grout(~mold_sorts=false). */
 let op_tile_with = (~shape_filter, ~fallback, id, sort, op): Piece.t => {
   let cands = Form.Molds.get_base([op]) |> List.filter(shape_filter);
   let at_sort = srt => List.filter((m: Mold.t) => m.out == srt, cands);
@@ -177,9 +172,7 @@ let op_tile = (id, sort, op): Piece.t =>
     op,
   );
 
-/* A stranded PREFIX op (the unary - of `? : - ?`, exp-molded on the
-   typ side) — only tokens with a defined pre mold reach the skel as
-   Pre, so the fallback is a near-unreachable safety net */
+/* Stranded prefix op (the unary - of `? : - ?` on the typ side) */
 let pre_op_tile = (id, sort, op): Piece.t =>
   op_tile_with(
     ~shape_filter=Mold.is_prefix_op,
@@ -1169,12 +1162,9 @@ let text_to_pretty = (id, sort, str): pretty => {
   ]);
 };
 
-/* Invalid tokens must reprint with the mold the editor leaves on them,
-   not the host sort's op mold, or roundtripped segments diverge from
-   edit-derived ones: sort-matched mold if the token has one, else the
-   token's base mold from insertion (a sort-mismatched literal keeps it,
-   e.g. Exp-molded 1 in type position), else the undefined-token
-   fallback (Any-sorted; bin for operator-shaped). */
+/* Invalid tokens reprint with the mold the editor leaves on them:
+   sort-matched if defined, else the token's base mold (a wrong-sort
+   literal keeps it), else the undefined-token fallback. */
 let invalid_to_pretty = (id, sort, str): pretty => {
   let mold =
     switch (Form.Molds.get_base([str])) {
