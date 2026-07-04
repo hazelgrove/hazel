@@ -212,6 +212,81 @@ let case_tests = [
   ),
 ];
 
+let case_arm_tests = [
+  test_case(
+    "add missing bool arm",
+    `Quick,
+    () => {
+      let got =
+        inline(~kind=AddCaseArm, "let b : Bool = ? in ¦case b | true => 1 end")
+        |> text_of;
+      check(
+        string,
+        "false arm added",
+        "let b : Bool = ? in case b | true => 1 | false => ? end",
+        got,
+      );
+    },
+  ),
+  test_case(
+    "add missing constructor arm",
+    `Quick,
+    () => {
+      let got =
+        inline(
+          ~kind=AddCaseArm,
+          "type Color = Red + Green in let c : Color = ? in ¦case c | Red => 1 end",
+        )
+        |> text_of;
+      check(
+        string,
+        "Green arm added",
+        "type Color = Red + Green in let c : Color = ? in case c | Red => 1 | Green => ? end",
+        got,
+      );
+    },
+  ),
+  test_case(
+    "int scrutinee gets wildcard arm",
+    `Quick,
+    () => {
+      let got =
+        inline(~kind=AddCaseArm, "let n : Int = ? in ¦case n | 1 => 2 end")
+        |> text_of;
+      check(
+        string,
+        "wildcard added",
+        "let n : Int = ? in case n | 1 => 2 | _ => ? end",
+        got,
+      );
+    },
+  ),
+  test_case(
+    "multiline case keeps layout",
+    `Quick,
+    () => {
+      let got =
+        inline(
+          ~kind=AddCaseArm,
+          "let b : Bool = ? in ¦case b\n| true => 1\nend",
+        )
+        |> text_of;
+      check(
+        string,
+        "arm on own line",
+        "let b : Bool = ? in case b\n| true => 1\n| false => ?\nend",
+        got,
+      );
+    },
+  ),
+  test_case("exhaustive case not offered", `Quick, () =>
+    check(bool, "no arm", false, offers(AddCaseArm, "¦case a | _ => 1 end"))
+  ),
+  test_case("unknown scrutinee not offered", `Quick, () =>
+    check(bool, "no arm", false, offers(AddCaseArm, "¦case a | 1 => 1 end"))
+  ),
+];
+
 let annotation_tests = [
   test_case(
     "add type annotation",
@@ -320,6 +395,11 @@ let more_tests = [
 let tests = [
   (
     "Refactor",
-    refactor_tests @ gating_tests @ case_tests @ annotation_tests @ more_tests,
+    refactor_tests
+    @ gating_tests
+    @ case_tests
+    @ annotation_tests
+    @ case_arm_tests
+    @ more_tests,
   ),
 ];

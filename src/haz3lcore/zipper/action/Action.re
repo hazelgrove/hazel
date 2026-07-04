@@ -144,6 +144,7 @@ type refactor =
   | InlineLet
   | RemoveUnusedLet
   | AddTypeAnnotation
+  | AddCaseArm
   | IfToCase
   | CaseToIf
   | ExtractLet

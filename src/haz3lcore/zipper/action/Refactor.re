@@ -255,31 +255,62 @@ let rec subst = (~bare: bool, x: string, def: Exp.t, e: Exp.t): Exp.t => {
 /* Fresh ids for every node AND secondary piece, keeping whitespace
  * content and lexemes (Exp.replace_all_ids drops secondary, which
  * would strip a duplicated copy's spacing) */
+let refresh_annotation = (a: IdTagged.IdTag.t): IdTagged.IdTag.t => {
+  let refresh_sec = (ws: list(Secondary.t)) =>
+    ws
+    |> List.map((w: Secondary.t) =>
+         {
+           ...w,
+           id: Id.mk(),
+         }
+       );
+  let (before, after) = a.secondary;
+  {
+    ids: [Id.mk()],
+    secondary: (refresh_sec(before), refresh_sec(after)),
+    incomplete: [],
+    lexeme: a.lexeme,
+  };
+};
+
 let refresh_ids = (e: Exp.t): Exp.t =>
   Exp.map_term(
     ~f_exp=
-      (cont, e: Exp.t) => {
-        let refresh_sec = (ws: list(Secondary.t)) =>
-          ws
-          |> List.map((w: Secondary.t) =>
-               {
-                 ...w,
-                 id: Id.mk(),
-               }
-             );
-        let (before, after) = e.annotation.secondary;
-        {
+      (cont, e: Exp.t) =>
+        cont({
           ...e,
-          annotation: {
-            ids: [Id.mk()],
-            secondary: (refresh_sec(before), refresh_sec(after)),
-            incomplete: [],
-            lexeme: e.annotation.lexeme,
-          },
-        }
-        |> cont;
-      },
+          annotation: refresh_annotation(e.annotation),
+        }),
+    ~f_pat=
+      (cont, p: Pat.t) =>
+        cont({
+          ...p,
+          annotation: refresh_annotation(p.annotation),
+        }),
+    ~f_typ=
+      (cont, t: Typ.t) =>
+        cont({
+          ...t,
+          annotation: refresh_annotation(t.annotation),
+        }),
     e,
+  );
+
+let refresh_pat_ids = (p: Pat.t): Pat.t =>
+  Pat.map_term(
+    ~f_pat=
+      (cont, p: Pat.t) =>
+        cont({
+          ...p,
+          annotation: refresh_annotation(p.annotation),
+        }),
+    ~f_typ=
+      (cont, t: Typ.t) =>
+        cont({
+          ...t,
+          annotation: refresh_annotation(t.annotation),
+        }),
+    p,
   );
 
 let dedupe_ids = (e: Exp.t): Exp.t => {
@@ -799,11 +830,102 @@ let negate_if_impl: impl = {
     ),
 };
 
+/* witness for an inexhaustive match, from statics marks */
+let match_witness = (~info_map: Statics.Map.t, e: Exp.t): option(Pat.t) =>
+  switch (Id.Map.find_opt(Exp.rep_id(e), info_map)) {
+  | Some(InfoExp({marks, _})) =>
+    marks
+    |> List.find_map((m: Mark.t) =>
+         switch (m) {
+         | InexhaustiveMatch(_, _, Pat(p)) => Some(p)
+         | _ => None
+         }
+       )
+  | _ => None
+  };
+
+/* coverage witnesses cite literals; an infinite domain (ints, floats,
+ * strings) can't be finished literal-by-literal, so those become _ */
+let wildify = (p: Pat.t): Pat.t =>
+  Pat.map_term(
+    ~f_pat=
+      (cont, p: Pat.t) =>
+        switch (IdTagged.term_of(p)) {
+        | Atom(Int(_) | SInt(_) | Nat(_) | Float(_) | String(_)) => {
+            ...p,
+            term: Wild,
+          }
+        | _ => cont(p)
+        },
+    p,
+  );
+
+let copy_runs = (ws: list(Secondary.t)): list(Secondary.t) =>
+  ws
+  |> List.map((w: Secondary.t) =>
+       {
+         ...w,
+         id: Id.mk(),
+       }
+     );
+
+let pat_needs_parens = (p: Pat.t): bool =>
+  switch (IdTagged.term_of(p)) {
+  | Tuple(_) => true
+  | _ => false
+  };
+
+let add_case_arm_impl: impl = {
+  label: "Add Missing Case Arm",
+  tooltip: "Append an arm for an unhandled pattern",
+  prepare: (~info_map, ~target, program) =>
+    rewrite_node(
+      ~hit=hit_node(target),
+      ~rewrite=
+        e =>
+          switch (IdTagged.term_of(e)) {
+          | Match(scrut, rules) when rules != [] =>
+            switch (match_witness(~info_map, e)) {
+            | Some(w) =>
+              let w = wildify(refresh_pat_ids(w));
+              let w = pat_needs_parens(w) ? fresh_pat(Parens(w)) : w;
+              let (_, last_body) = List.nth(rules, List.length(rules) - 1);
+              /* the last body's trailing run stays put, becoming the
+                 separator before the new |; the new body gets a fresh
+                 copy so end keeps its position style */
+              let sep =
+                switch (Slot.trail_of(last_body).trail) {
+                | [] => space()
+                | runs => copy_runs(runs)
+                };
+              let body = {
+                ...fresh(EmptyHole),
+                annotation: {
+                  ...IdTagged.IdTag.mk_internal([Id.mk()]),
+                  secondary: (space(), sep),
+                },
+              };
+              Some((
+                {
+                  ...e,
+                  term: Match(scrut, rules @ [(pad(w), body)]),
+                },
+                Exp.rep_id(body),
+              ));
+            | None => None
+            }
+          | _ => None
+          },
+      program,
+    ),
+};
+
 let impl: Action.refactor => impl =
   fun
   | InlineLet => inline_let_impl
   | RemoveUnusedLet => remove_unused_let_impl
   | AddTypeAnnotation => add_annotation_impl
+  | AddCaseArm => add_case_arm_impl
   | IfToCase => if_to_case_impl
   | CaseToIf => case_to_if_impl
   | ExtractLet => extract_let_impl
@@ -814,6 +936,7 @@ let all: list(Action.refactor) = [
   InlineLet,
   RemoveUnusedLet,
   AddTypeAnnotation,
+  AddCaseArm,
   ExtractLet,
   EtaReduce,
   IfToCase,
