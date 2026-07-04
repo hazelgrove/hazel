@@ -559,6 +559,89 @@ let param_tests = [
   ),
 ];
 
+let rename_tests = [
+  test_case(
+    "rename free binds occurrences",
+    `Quick,
+    () => {
+      let got =
+        inline(~kind=RenameFree("v"), "¦let vel = 1 in v + v") |> text_of;
+      check(string, "both bound", "let vel = 1 in vel + vel", got);
+    },
+  ),
+  test_case(
+    "rename skips scopes rebinding the new name",
+    `Quick,
+    () => {
+      let got =
+        inline(
+          ~kind=RenameFree("x"),
+          "¦let y = 1 in x + (fun y -> x)(2)",
+        )
+        |> text_of;
+      check(
+        string,
+        "inner x untouched",
+        "let y = 1 in y + (fun y -> x)(2)",
+        got,
+      );
+    },
+  ),
+  test_case(
+    "rename leaves bound occurrences alone",
+    `Quick,
+    () => {
+      let got =
+        inline(
+          ~kind=RenameFree("x"),
+          "¦let y = 1 in x + (let x = 2 in x)",
+        )
+        |> text_of;
+      check(
+        string,
+        "shadowed x kept",
+        "let y = 1 in y + (let x = 2 in x)",
+        got,
+      );
+    },
+  ),
+  test_case(
+    "rename reaches a recursive def",
+    `Quick,
+    () => {
+      let got =
+        inline(~kind=RenameFree("f"), "¦let g = fun n -> f(n) in g(2)")
+        |> text_of;
+      check(string, "rec call bound", "let g = fun n -> g(n) in g(2)", got);
+    },
+  ),
+  test_case("one menu entry per candidate name", `Quick, () => {
+    let kinds = kinds_at("¦let y = 1 in a + b");
+    check(
+      bool,
+      "both offered",
+      true,
+      List.mem(Action.RenameFree("a"), kinds)
+      && List.mem(Action.RenameFree("b"), kinds),
+    );
+  }),
+  test_case("no offer without free vars in scope", `Quick, () => {
+    let kinds = kinds_at("¦let y = 1 in y + 2");
+    check(
+      bool,
+      "none",
+      false,
+      kinds
+      |> List.exists(k =>
+           switch (k) {
+           | Action.RenameFree(_) => true
+           | _ => false
+           }
+         ),
+    );
+  }),
+];
+
 let tests = [
   (
     "Refactor",
@@ -568,6 +651,7 @@ let tests = [
     @ annotation_tests
     @ case_arm_tests
     @ param_tests
+    @ rename_tests
     @ more_tests,
   ),
 ];

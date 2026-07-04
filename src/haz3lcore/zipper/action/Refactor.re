@@ -1225,6 +1225,154 @@ let add_param_impl: impl = {
     ),
 };
 
+/* === RenameFree: repair-style rename ===
+ * The user renames a binder by ordinary editing; the old uses go free
+ * (statics marks them). This binds them to the indicated binder. It
+ * only ever gives meaning to currently-unbound occurrences — never
+ * re-points a bound one — so it needs no knowledge of the old name's
+ * history. Blind spot: uses that silently rebound to an OUTER binder
+ * of the old name are invisible here (no Free marks). */
+
+let free_marked = (~info_map: Statics.Map.t, e: Exp.t): bool =>
+  switch (Id.Map.find_opt(Exp.rep_id(e), info_map)) {
+  | Some(InfoExp({marks, _})) =>
+    marks
+    |> List.exists((m: Mark.t) =>
+         switch (m) {
+         | Free(_) => true
+         | _ => false
+         }
+       )
+  | _ => false
+  };
+
+let free_vars_in = (~info_map: Statics.Map.t, e: Exp.t): list(string) => {
+  let acc = ref([]);
+  let _ =
+    Exp.map_term(
+      ~f_exp=
+        (cont, e': Exp.t) => {
+          switch (IdTagged.term_of(e')) {
+          | Var(x) when free_marked(~info_map, e') => acc := [x, ...acc^]
+          | _ => ()
+          };
+          cont(e');
+        },
+      e,
+    );
+  acc^;
+};
+
+/* candidate names: free within the binder's scope region (body; def
+ * too when it's a fun, matching recursive-let scope), most
+ * occurrences first */
+let rename_candidates =
+    (~info_map: Statics.Map.t, e: Exp.t): list((string, int)) =>
+  switch (IdTagged.term_of(e)) {
+  | Let(_, def, body) =>
+    let in_def =
+      switch (IdTagged.term_of(def)) {
+      | Fun(_) => free_vars_in(~info_map, def)
+      | _ => []
+      };
+    let names = free_vars_in(~info_map, body) @ in_def;
+    names
+    |> List.sort_uniq(compare)
+    |> List.map(x => (x, names |> List.filter(y => y == x) |> List.length))
+    |> List.sort(((_, a), (_, b)) => compare(b, a));
+  | _ => []
+  };
+
+/* rewrite free occurrences of x to y, skipping scopes where y is
+ * rebound (they'd capture to the wrong binder); bound x's are already
+ * excluded by the Free-mark filter */
+let rec rename_free_in =
+        (
+          ~info_map: Statics.Map.t,
+          ~count: ref(int),
+          x: string,
+          y: string,
+          e: Exp.t,
+        )
+        : Exp.t => {
+  let go = rename_free_in(~info_map, ~count, x, y);
+  let (term, rewrap) = Exp.unwrap(e);
+  switch (term) {
+  | Var(z) when z == x && free_marked(~info_map, e) =>
+    count := count^ + 1;
+    {
+      annotation: {
+        ...e.annotation,
+        lexeme: None,
+      },
+      term: Var(y),
+    };
+  | Let(p, _, _) when binds(y, p) => e
+  | Let(p, d, body) => rewrap(Let(p, go(d), go(body)))
+  | Fun(p, body, t, n) when binds(y, p) => rewrap(Fun(p, body, t, n))
+  | FixF(p, body, env) when binds(y, p) => rewrap(FixF(p, body, env))
+  | Match(scrut, rules) =>
+    rewrap(
+      Match(
+        go(scrut),
+        rules
+        |> List.map(((p, body)) => (p, binds(y, p) ? body : go(body))),
+      ),
+    )
+  | _ =>
+    Exp.map_term(
+      ~f_exp={
+        let entered = ref(false);
+        (cont, e': Exp.t) =>
+          if (entered^) {
+            go(e');
+          } else {
+            entered := true;
+            cont(e');
+          };
+      },
+      e,
+    )
+  };
+};
+
+let rename_free_impl = (x: string): impl => {
+  label: "Rename " ++ x,
+  tooltip: "Bind free occurrences of " ++ x ++ " at this binding",
+  prepare: (~info_map, ~target, program) =>
+    rewrite_node(
+      ~hit=hit_let(target),
+      ~rewrite=
+        e =>
+          switch (IdTagged.term_of(e)) {
+          | Let(p, def, body) =>
+            switch (var_pat_name(p)) {
+            | Some(y) when y != x =>
+              let count = ref(0);
+              let ren = rename_free_in(~info_map, ~count, x, y);
+              let def' =
+                switch (IdTagged.term_of(def)) {
+                | Fun(_) => ren(def)
+                | _ => def
+                };
+              let body' = ren(body);
+              count^ > 0
+                ? Some((
+                    {
+                      ...e,
+                      term: Let(p, def', body'),
+                    },
+                    Pat.rep_id(p),
+                  ))
+                : None;
+            | _ => None
+            }
+          | _ => None
+          },
+      program,
+    ),
+};
+
 let impl: Action.refactor => impl =
   fun
   | InlineLet => inline_let_impl
@@ -1232,6 +1380,7 @@ let impl: Action.refactor => impl =
   | AddTypeAnnotation => add_annotation_impl
   | AddCaseArm => add_case_arm_impl
   | AddParameter => add_param_impl
+  | RenameFree(x) => rename_free_impl(x)
   | IfToCase => if_to_case_impl
   | CaseToIf => case_to_if_impl
   | ExtractLet => extract_let_impl
@@ -1329,6 +1478,12 @@ let applies =
     | Some(e) => Option.is_some(add_param_rewrite(~program, e))
     | None => false
     }
+  | RenameFree(x) =>
+    switch (find_hit(~hit=hit_let(target), program)) {
+    | Some(e) =>
+      rename_candidates(~info_map, e) |> List.exists(((n, _)) => n == x)
+    | None => false
+    }
   | AddCaseArm =>
     switch (find_hit(~hit=hit_node(target), program)) {
     | Some(e) =>
@@ -1386,18 +1541,48 @@ let applies =
   };
 
 /* Menu support: which refactorings apply at the current indication */
+/* Payload kinds can't come from filtering the static `all` list: the
+ * entries themselves depend on the program (one per candidate free
+ * name), with labels naming names */
+let rename_items =
+    (~info_map: Statics.Map.t, ~target: Id.t, term: Exp.t)
+    : list((Action.refactor, string, string)) =>
+  switch (find_hit(~hit=hit_let(target), term)) {
+  | Some(e) =>
+    switch (IdTagged.term_of(e)) {
+    | Let(p, _, _) =>
+      switch (var_pat_name(p)) {
+      | Some(y) =>
+        rename_candidates(~info_map, e)
+        |> List.filter(((x, _)) => x != y)
+        |> List.map(((x, _)) =>
+             (
+               Action.RenameFree(x),
+               "Rename " ++ x ++ " to " ++ y,
+               "Bind free occurrences of " ++ x ++ " at this binding",
+             )
+           )
+      | None => []
+      }
+    | _ => []
+    }
+  | None => []
+  };
+
 let menu_items =
     (~info_map: Statics.Map.t, ~term: Exp.t, z: Zipper.t)
     : list((Action.refactor, string, string)) =>
   switch (Indicated.index(z)) {
   | None => []
   | Some(target) =>
-    all
-    |> List.filter_map(kind => {
-         let i = impl(kind);
-         applies(kind, ~info_map, ~target, term)
-           ? Some((kind, i.label, i.tooltip)) : None;
-       })
+    let static =
+      all
+      |> List.filter_map(kind => {
+           let i = impl(kind);
+           applies(kind, ~info_map, ~target, term)
+             ? Some((kind, i.label, i.tooltip)) : None;
+         });
+    static @ rename_items(~info_map, ~target, term);
   };
 
 let go =

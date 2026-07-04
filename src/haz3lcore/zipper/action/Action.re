@@ -146,6 +146,7 @@ type refactor =
   | AddTypeAnnotation
   | AddCaseArm
   | AddParameter
+  | RenameFree(string)
   | IfToCase
   | CaseToIf
   | ExtractLet
