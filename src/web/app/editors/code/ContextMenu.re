@@ -151,9 +151,9 @@ let jump_to_binding_data =
   };
 
 let refactor_data =
-    (~info_map: Language.Statics.Map.t, z: Zipper.t)
+    (~info_map: Language.Statics.Map.t, ~term: Language.Exp.t, z: Zipper.t)
     : list(Menu.item(Action.t)) =>
-  Refactor.menu_items(~info_map, z)
+  Refactor.menu_items(~info_map, ~term, z)
   |> List.map(((kind, label, tooltip)) =>
        action_item(~tooltip, label, Action.Refactor(kind))
      );
@@ -375,6 +375,7 @@ let refractor_actions_data =
 let get_sections =
     (
       ~info_map: Language.Statics.Map.t,
+      ~term: Language.Exp.t,
       ~elaborated: Language.Exp.t,
       z: Zipper.t,
     )
@@ -384,7 +385,7 @@ let get_sections =
     /* Section 1: Navigation & Selection */
     jump_to_binding_data(ci) @ select_current_term_data(),
     /* Section 2: Refactoring */
-    introduce_data(ci) @ refactor_data(~info_map, z),
+    introduce_data(ci) @ refactor_data(~info_map, ~term, z),
     /* Section 3: Probes/Statics (refractors) */
     refractor_actions_data(~ci, info_map, z),
     /* Section 4: Projectors (fold, livelits) */
@@ -411,11 +412,12 @@ let flatten_sections =
 let get_all_items =
     (
       ~info_map: Language.Statics.Map.t,
+      ~term: Language.Exp.t,
       ~elaborated: Language.Exp.t,
       z: Zipper.t,
     )
     : list(Menu.item(Action.t)) =>
-  flatten_sections(get_sections(~info_map, ~elaborated, z));
+  flatten_sections(get_sections(~info_map, ~term, ~elaborated, z));
 
 /* ============================================================
  * Update + keyboard
@@ -440,6 +442,7 @@ module WithContext = {
   let handle_listener_key =
       (
         ~info_map: Language.Statics.Map.t,
+        ~term: Language.Exp.t,
         ~elaborated: Language.Exp.t,
         ~zipper: Zipper.t,
         ~dispatch_menu: Menu.action => Ui_effect.t(unit),
@@ -448,7 +451,7 @@ module WithContext = {
         key_str: string,
       )
       : option(Ui_effect.t(unit)) => {
-    let items = get_all_items(~info_map, ~elaborated, zipper);
+    let items = get_all_items(~info_map, ~term, ~elaborated, zipper);
     Menu.key_dispatcher(
       ~items,
       ~dispatch_menu,
@@ -504,6 +507,7 @@ let view =
       ~inject_menu: Menu.action => Ui_effect.t(unit),
       ~syntax: Haz3lcore.CachedSyntax.t,
       ~info_map: Language.Statics.Map.t,
+      ~term: Language.Exp.t,
       ~elaborated: Language.Exp.t,
       ~font_metrics: FontMetrics.t,
       ~model: Menu.t,
@@ -511,7 +515,7 @@ let view =
     )
     : Node.t => {
   let caret_point = Zipper.Caret.point(syntax.measured, z);
-  let items = get_all_items(~info_map, ~elaborated, z);
+  let items = get_all_items(~info_map, ~term, ~elaborated, z);
   let menu_items =
     Menu.render(
       ~inject_action=inject,

@@ -1098,18 +1098,166 @@ let all: list(Action.refactor) = [
   NegateIf,
 ];
 
+/* Cheap applicability for menu gating: shape/statics checks only.
+ * menu_items runs on EVERY render (the command palette rebuilds with
+ * the cursor), so nothing here may print, parse, or run the reparse
+ * oracle — that work happens in prepare, only on invocation. Keep in
+ * sync with each impl's matching; drift is benign (a stale offer
+ * no-ops via Cant_refactor) but gating is tested via offers(). */
+let find_hit = (~hit: Exp.t => bool, program: Exp.t): option(Exp.t) => {
+  let found = ref(None);
+  let _ =
+    Exp.map_term(
+      ~f_exp=
+        (cont, e: Exp.t) =>
+          if (found^ == None && hit(e)) {
+            found := Some(e);
+            e;
+          } else {
+            cont(e);
+          },
+      program,
+    );
+  found^;
+};
+
+let let_applies =
+    (~pred: (Pat.t, Exp.t, Exp.t) => bool, target: Id.t, program: Exp.t)
+    : bool =>
+  switch (find_hit(~hit=hit_let(target), program)) {
+  | Some(e) =>
+    switch (IdTagged.term_of(e)) {
+    | Let(p, def, body) => pred(p, def, body)
+    | _ => false
+    }
+  | None => false
+  };
+
+let applies =
+    (
+      kind: Action.refactor,
+      ~info_map: Statics.Map.t,
+      ~target: Id.t,
+      program: Exp.t,
+    )
+    : bool =>
+  switch (kind) {
+  | InlineLet =>
+    let at = let_applies(~pred=(p, _, _) => var_pat_name(p) != None);
+    at(target, program)
+    || (
+      switch (binder_of_occurrence(~info_map, ~target, program)) {
+      | Some(binder) => at(binder, program)
+      | None => false
+      }
+    );
+  | RemoveUnusedLet =>
+    let_applies(
+      ~pred=(p, _, _) => var_pat_name(p) != None && pat_unused(~info_map, p),
+      target,
+      program,
+    )
+  | AddTypeAnnotation =>
+    let_applies(
+      ~pred=
+        (p, def, _) =>
+          var_pat_name(p) != None
+          && (
+            switch (exp_ty(~info_map, def)) {
+            | Some(ty) => typ_known(ty)
+            | None => false
+            }
+          ),
+      target,
+      program,
+    )
+  | AddParameter =>
+    let_applies(
+      ~pred=
+        (p, def, body) =>
+          var_pat_name(p) != None
+          && (
+            switch (IdTagged.term_of(def)) {
+            | Fun(fp, fbody, _, _) =>
+              let f = Option.get(var_pat_name(p));
+              let bare_use = ref(false);
+              let _ =
+                binds(f, fp) ? fbody : patch_calls(~bare_use, f, fbody);
+              let _ = patch_calls(~bare_use, f, body);
+              ! bare_use^;
+            | _ => false
+            }
+          ),
+      target,
+      program,
+    )
+  | AddCaseArm =>
+    switch (find_hit(~hit=hit_node(target), program)) {
+    | Some(e) =>
+      switch (IdTagged.term_of(e)) {
+      | Match(_, [_, ..._]) => Option.is_some(match_witness(~info_map, e))
+      | _ => false
+      }
+    | None => false
+    }
+  | ExtractLet =>
+    switch (find_hit(~hit=hit_node(target), program)) {
+    | Some(e) => extractable(e)
+    | None => false
+    }
+  | EtaReduce =>
+    switch (find_hit(~hit=hit_node(target), program)) {
+    | Some(e) =>
+      switch (IdTagged.term_of(e)) {
+      | Fun(p, body, _, _) =>
+        switch (var_pat_name(p), IdTagged.term_of(body)) {
+        | (Some(x), Ap(Forward, f, arg)) =>
+          switch (IdTagged.term_of(arg)) {
+          | Var(y) => y == x && !mentions(x, f)
+          | _ => false
+          }
+        | _ => false
+        }
+      | _ => false
+      }
+    | None => false
+    }
+  | IfToCase
+  | NegateIf =>
+    switch (find_hit(~hit=hit_node(target), program)) {
+    | Some(e) =>
+      switch (IdTagged.term_of(e)) {
+      | If(_) => true
+      | _ => false
+      }
+    | None => false
+    }
+  | CaseToIf =>
+    switch (find_hit(~hit=hit_node(target), program)) {
+    | Some(e) =>
+      switch (IdTagged.term_of(e)) {
+      | Match(_, [(p1, _), (p2, _)]) =>
+        switch (bool_pat(p1), bool_pat(p2)) {
+        | (Some(a), Some(b)) => a != b
+        | _ => false
+        }
+      | _ => false
+      }
+    | None => false
+    }
+  };
+
 /* Menu support: which refactorings apply at the current indication */
 let menu_items =
-    (~info_map: Statics.Map.t, z: Zipper.t)
+    (~info_map: Statics.Map.t, ~term: Exp.t, z: Zipper.t)
     : list((Action.refactor, string, string)) =>
   switch (Indicated.index(z)) {
   | None => []
   | Some(target) =>
-    let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
     all
     |> List.filter_map(kind => {
          let i = impl(kind);
-         Option.is_some(i.prepare(~info_map, ~target, term))
+         applies(kind, ~info_map, ~target, term)
            ? Some((kind, i.label, i.tooltip)) : None;
        });
   };

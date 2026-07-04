@@ -289,6 +289,7 @@ module Selection = {
          @ (
            Haz3lcore.Refactor.menu_items(
              ~info_map=model.statics.info_map,
+             ~term=model.statics.term,
              model.editor.state.zipper,
            )
            |> List.map(((kind, label, _tooltip)) =>
@@ -604,6 +605,7 @@ module View = {
         key_str =>
           ContextMenu.WithContext.handle_listener_key(
             ~info_map=model.statics.info_map,
+            ~term=model.statics.term,
             ~elaborated=model.statics.elaborated,
             ~zipper=model.editor.state.zipper,
             ~dispatch_menu=a => inject(ContextMenu(a)),
@@ -649,6 +651,7 @@ module View = {
                   ~inject_menu=a => inject(ContextMenu(a)),
                   ~syntax=model.editor.syntax,
                   ~info_map=model.statics.info_map,
+                  ~term=model.statics.term,
                   ~elaborated=model.statics.elaborated,
                   ~font_metrics=globals.font_metrics,
                   ~model=model.context_menu,

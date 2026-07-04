@@ -38,7 +38,8 @@ let info_map_of = (z: Zipper.t) => {
 
 let kinds_at = (marked: string): list(Action.refactor) => {
   let z = Test_Editing.parse_zipper(marked);
-  Refactor.menu_items(~info_map=info_map_of(z), z)
+  let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
+  Refactor.menu_items(~info_map=info_map_of(z), ~term, z)
   |> List.map(((k, _, _)) => k);
 };
 
