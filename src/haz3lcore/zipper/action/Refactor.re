@@ -152,6 +152,15 @@ let pad = (e: IdTagged.t('a)): IdTagged.t('a) => {
   },
 };
 
+let fresh = (term): Exp.t => {
+  annotation: IdTagged.IdTag.mk_internal([Id.mk()]),
+  term,
+};
+let fresh_pat = (term): Pat.t => {
+  annotation: IdTagged.IdTag.mk_internal([Id.mk()]),
+  term,
+};
+
 /* The inserted copy takes over the replaced occurrence's stored
  * whitespace (its slot in the line); the definition keeps its own
  * interior spacing */
@@ -406,8 +415,15 @@ let rewrite_node =
 let hit_node = (target: Id.t, e: Exp.t): bool =>
   List.mem(target, IdTagged.ids(e));
 
-/* Replace a Let (targetable at its delimiters or pattern) with a
- * rewrite of its parts */
+/* a let is targetable at its delimiters or its pattern */
+let hit_let = (target: Id.t, e: Exp.t): bool =>
+  switch (IdTagged.term_of(e)) {
+  | Let(p, _, _) =>
+    hit_node(target, e) || List.mem(target, pat_subtree_ids(p))
+  | _ => false
+  };
+
+/* Replace a Let with a rewrite of its parts */
 let rewrite_let =
     (
       ~target: Id.t,
@@ -417,13 +433,7 @@ let rewrite_let =
     )
     : option((Exp.t, Id.t)) =>
   rewrite_node(
-    ~hit=
-      e =>
-        switch (IdTagged.term_of(e)) {
-        | Let(p, _, _) =>
-          hit_node(target, e) || List.mem(target, pat_subtree_ids(p))
-        | _ => false
-        },
+    ~hit=hit_let(target),
     ~rewrite=
       e =>
         switch (IdTagged.term_of(e)) {
@@ -496,13 +506,70 @@ let remove_unused_let_impl: impl = {
     ),
 };
 
-let fresh = (term): Exp.t => {
-  annotation: IdTagged.IdTag.mk_internal([Id.mk()]),
-  term,
+/* fresh ids for a statics-derived type before it enters the buffer */
+let refresh_typ_ids = (t: Typ.t): Typ.t =>
+  Typ.map_term(
+    ~f_typ=
+      (cont, t: Typ.t) =>
+        cont({
+          ...t,
+          annotation: IdTagged.IdTag.mk_internal([Id.mk()]),
+        }),
+    t,
+  );
+
+let typ_known = (t: Typ.t): bool => {
+  let unknown = ref(false);
+  let _ =
+    Typ.map_term(
+      ~f_typ=
+        (cont, t: Typ.t) => {
+          switch (IdTagged.term_of(t)) {
+          | Unknown(_) => unknown := true
+          | _ => ()
+          };
+          cont(t);
+        },
+      t,
+    );
+  !unknown^;
 };
-let fresh_pat = (term): Pat.t => {
-  annotation: IdTagged.IdTag.mk_internal([Id.mk()]),
-  term,
+
+let exp_ty = (~info_map: Statics.Map.t, e: Exp.t): option(Typ.t) =>
+  switch (Id.Map.find_opt(Exp.rep_id(e), info_map)) {
+  | Some(InfoExp({ty, _})) => Some(ty)
+  | _ => None
+  };
+
+let add_annotation_impl: impl = {
+  label: "Add Type Annotation",
+  tooltip: "Annotate this binding with its inferred type",
+  prepare: (~info_map, ~target, program) =>
+    rewrite_node(
+      ~hit=hit_let(target),
+      ~rewrite=
+        e =>
+          switch (IdTagged.term_of(e)) {
+          | Let(p, def, body) when var_pat_name(p) != None =>
+            switch (exp_ty(~info_map, def)) {
+            | Some(ty) when typ_known(ty) =>
+              let ty = pad(refresh_typ_ids(ty));
+              /* p keeps its runs: its old pre-`=` space now sits
+                 before the `:` */
+              let p' = fresh_pat(Asc(p, ty));
+              Some((
+                {
+                  ...e,
+                  term: Let(p', def, body),
+                },
+                Typ.rep_id(ty),
+              ));
+            | _ => None
+            }
+          | _ => None
+          },
+      program,
+    ),
 };
 
 let bool_pat = (p: Pat.t): option(bool) =>
@@ -736,6 +803,7 @@ let impl: Action.refactor => impl =
   fun
   | InlineLet => inline_let_impl
   | RemoveUnusedLet => remove_unused_let_impl
+  | AddTypeAnnotation => add_annotation_impl
   | IfToCase => if_to_case_impl
   | CaseToIf => case_to_if_impl
   | ExtractLet => extract_let_impl
@@ -745,6 +813,7 @@ let impl: Action.refactor => impl =
 let all: list(Action.refactor) = [
   InlineLet,
   RemoveUnusedLet,
+  AddTypeAnnotation,
   ExtractLet,
   EtaReduce,
   IfToCase,

@@ -212,6 +212,43 @@ let case_tests = [
   ),
 ];
 
+let annotation_tests = [
+  test_case(
+    "add type annotation",
+    `Quick,
+    () => {
+      let got =
+        inline(~kind=AddTypeAnnotation, "¦let x = 1 + 2 in x") |> text_of;
+      check(string, "annotated", "let x : Int = 1 + 2 in x", got);
+    },
+  ),
+  test_case("not offered when type has holes", `Quick, () =>
+    check(
+      bool,
+      "unknown ty",
+      false,
+      offers(AddTypeAnnotation, "¦let f = fun y -> y in f"),
+    )
+  ),
+  test_case("not offered when already annotated", `Quick, () =>
+    check(
+      bool,
+      "has annotation",
+      false,
+      offers(AddTypeAnnotation, "¦let x : Int = 1 in x"),
+    )
+  ),
+  test_case(
+    "annotation from pattern caret",
+    `Quick,
+    () => {
+      let got =
+        inline(~kind=AddTypeAnnotation, "let ¦b = 1 < 2 in b") |> text_of;
+      check(string, "bool annotated", "let b : Bool = 1 < 2 in b", got);
+    },
+  ),
+];
+
 let more_tests = [
   test_case(
     "extract to let",
@@ -281,5 +318,8 @@ let more_tests = [
 ];
 
 let tests = [
-  ("Refactor", refactor_tests @ gating_tests @ case_tests @ more_tests),
+  (
+    "Refactor",
+    refactor_tests @ gating_tests @ case_tests @ annotation_tests @ more_tests,
+  ),
 ];

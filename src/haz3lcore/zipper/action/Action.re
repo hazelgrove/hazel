@@ -143,6 +143,7 @@ type destruct =
 type refactor =
   | InlineLet
   | RemoveUnusedLet
+  | AddTypeAnnotation
   | IfToCase
   | CaseToIf
   | ExtractLet
