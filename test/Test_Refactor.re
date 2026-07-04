@@ -219,7 +219,10 @@ let case_arm_tests = [
     `Quick,
     () => {
       let got =
-        inline(~kind=AddCaseArm, "let b : Bool = ? in ¦case b | true => 1 end")
+        inline(
+          ~kind=AddCaseArm,
+          "let b : Bool = ? in ¦case b | true => 1 end",
+        )
         |> text_of;
       check(
         string,
@@ -438,6 +441,22 @@ let param_tests = [
         got,
       );
     },
+  ),
+  test_case("add parameter offered at let", `Quick, () =>
+    check(
+      bool,
+      "offered",
+      true,
+      offers(AddParameter, "¦let f = fun x -> x + 1 in f(2)"),
+    )
+  ),
+  test_case("add parameter offered at binder", `Quick, () =>
+    check(
+      bool,
+      "offered",
+      true,
+      offers(AddParameter, "let ¦f = fun x -> x + 1 in f(2)"),
+    )
   ),
   test_case("add parameter gated on bare use", `Quick, () =>
     check(
