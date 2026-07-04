@@ -292,6 +292,7 @@ let case_arm_tests = [
 ];
 
 let annotation_tests = [
+
   test_case(
     "add type annotation",
     `Quick,
@@ -456,6 +457,78 @@ let param_tests = [
       "offered",
       true,
       offers(AddParameter, "let ¦f = fun x -> x + 1 in f(2)"),
+    )
+  ),
+  test_case(
+    "add parameter: fn-def sugar",
+    `Quick,
+    () => {
+      let got =
+        inline(~kind=AddParameter, "¦let f(x) = x + 1 in f(2)")
+        |> text_of;
+      check(
+        string,
+        "sugar pat + call",
+        "let f(x, x1) = x + 1 in f(2, ?)",
+        got,
+      );
+    },
+  ),
+  test_case(
+    "add parameter: sugar with multiple params",
+    `Quick,
+    () => {
+      let got =
+        inline(~kind=AddParameter, "¦let f(a, b) = a in f(1, 2)")
+        |> text_of;
+      check(string, "third", "let f(a, b, x) = a in f(1, 2, ?)", got);
+    },
+  ),
+  test_case(
+    "add parameter: annotated binding rewrites arrow",
+    `Quick,
+    () => {
+      let got =
+        inline(
+          ~kind=AddParameter,
+          "¦let f : Int -> Int = fun x -> x in f(1)",
+        )
+        |> text_of;
+      check(
+        string,
+        "arrow arg extended",
+        "let f : (Int, ?) -> Int = fun (x, x1) -> x in f(1, ?)",
+        got,
+      );
+    },
+  ),
+  test_case(
+    "add parameter: annotated multi-arg arrow",
+    `Quick,
+    () => {
+      let got =
+        inline(
+          ~kind=AddParameter,
+          "¦let f : (Int, Bool) -> Int = fun (a, b) -> a in f(1, true)",
+        )
+        |> text_of;
+      check(
+        string,
+        "prod extended",
+        "let f : (Int, Bool, ?) -> Int = fun (a, b, x) -> a in f(1, true, ?)",
+        got,
+      );
+    },
+  ),
+  test_case("add parameter gated on alias annotation", `Quick, () =>
+    check(
+      bool,
+      "opaque ann",
+      false,
+      offers(
+        AddParameter,
+        "type F = Int -> Int in ¦let f : F = fun x -> x in f(1)",
+      ),
     )
   ),
   test_case("add parameter gated on bare use", `Quick, () =>

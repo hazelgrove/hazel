@@ -107,10 +107,7 @@ module Slot = {
   };
   /* remove the slot's pieces (by id) wherever they occur in a term */
   let drop = (s: t, e: Exp.t): Exp.t =>
-    drop_secondary(
-      List.map((w: Secondary.t) => w.id, s.lead @ s.trail),
-      e,
-    );
+    drop_secondary(List.map((w: Secondary.t) => w.id, s.lead @ s.trail), e);
   /* attach at a node's outer boundary */
   let give = (s: t, e: Exp.t): Exp.t => {
     let (b, a) = e.annotation.secondary;
@@ -563,7 +560,7 @@ let typ_known = (t: Typ.t): bool => {
         },
       t,
     );
-  !unknown^;
+  ! unknown^;
 };
 
 let exp_ty = (~info_map: Statics.Map.t, e: Exp.t): option(Typ.t) =>
@@ -1030,44 +1027,200 @@ let extended_pat = (p: Pat.t, name: string): (Pat.t, Id.t) => {
   (p', focus);
 };
 
+let fresh_typ = (term): Typ.t => {
+  annotation: IdTagged.IdTag.mk_internal([Id.mk()]),
+  term,
+};
+
+let typ_unknown = (): Typ.t => {
+  annotation: {
+    ...IdTagged.IdTag.mk_internal([Id.mk()]),
+    secondary: (space(), []),
+  },
+  term: Unknown(Hole(EmptyHole)),
+};
+
+let clear_typ = (t: Typ.t): Typ.t => {
+  ...t,
+  annotation: {
+    ...t.annotation,
+    secondary: ([], []),
+  },
+};
+
+/* Extend the argument side of an annotation's arrow with a hole type:
+ * A -> B becomes (A, ?) -> B. None when the annotation isn't
+ * syntactically an arrow (alias, hole) — rewriting it blind would
+ * leave a lying annotation. */
+let extended_arrow = (ann: Typ.t): option(Typ.t) =>
+  switch (IdTagged.term_of(ann)) {
+  | Arrow(a, b) =>
+    let a': Typ.t =
+      switch (IdTagged.term_of(a)) {
+      | Parens(inner) =>
+        switch (IdTagged.term_of(inner)) {
+        | Prod(items) => {
+            ...a,
+            term:
+              Parens({
+                ...inner,
+                term: Prod(items @ [typ_unknown()]),
+              }),
+          }
+        | _ => {
+            ...a,
+            term: Parens(fresh_typ(Prod([clear_typ(inner), typ_unknown()]))),
+          }
+        }
+      | _ =>
+        /* single arg type: the parens wrapper takes over its runs */
+        let (b_, a_) = a.annotation.secondary;
+        {
+          annotation: {
+            ...IdTagged.IdTag.mk_internal([Id.mk()]),
+            secondary: (b_, a_),
+          },
+          term: Parens(fresh_typ(Prod([clear_typ(a), typ_unknown()]))),
+        };
+      };
+    Some({
+      ...ann,
+      term: Arrow(a', b),
+    });
+  | _ => None
+  };
+
+/* Extend f(x)-sugar's argument pattern (possibly under a return-type
+ * ascription) with a fresh var */
+let extended_ap_pat = (p: Pat.t, name: string): option((Pat.t, Id.t)) => {
+  let newvar = {
+    ...fresh_pat(Var(name)),
+    annotation: {
+      ...IdTagged.IdTag.mk_internal([Id.mk()]),
+      secondary: (space(), []),
+    },
+  };
+  let focus = Pat.rep_id(newvar);
+  let extend_arg = (arg: Pat.t): Pat.t =>
+    switch (IdTagged.term_of(arg)) {
+    | Tuple(items) => {
+        ...arg,
+        term: Tuple(items @ [newvar]),
+      }
+    | _ => fresh_pat(Tuple([arg, newvar]))
+    };
+  let rec go = (p: Pat.t): option(Pat.t) =>
+    switch (IdTagged.term_of(p)) {
+    | Ap(fv, arg) =>
+      switch (IdTagged.term_of(fv)) {
+      | Var(_) =>
+        Some({
+          ...p,
+          term: Ap(fv, extend_arg(arg)),
+        })
+      | _ => None
+      }
+    | Asc(inner, ann) =>
+      go(inner)
+      |> Option.map((inner': Pat.t) =>
+           (
+             {
+               ...p,
+               term: Asc(inner', ann),
+             }: Pat.t
+           )
+         )
+    | _ => None
+    };
+  go(p) |> Option.map(p' => (p', focus));
+};
+
+let sugar_fn_name = (p: Pat.t): option(string) => {
+  let rec go = (p: Pat.t) =>
+    switch (IdTagged.term_of(p)) {
+    | Ap(fv, _) => var_pat_name(fv)
+    | Asc(inner, _) => go(inner)
+    | _ => None
+    };
+  go(p);
+};
+
+/* Shared by applies and prepare (no printing/parsing here, so gating
+ * can afford the full build; rewrite_node adds the slot takeover on
+ * invocation only). Shapes: let f = fun ...; let f : A -> B = fun ...
+ * (annotation's arrow rewritten); let f(x) = ... (opt : Ret). */
+let add_param_rewrite =
+    (~program: Exp.t, e: Exp.t): option((Exp.t, Id.t)) =>
+  switch (IdTagged.term_of(e)) {
+  | Let(p, def, body) =>
+    let name = fresh_name(program);
+    let bare_use = ref(false);
+    let patched = (f, x) => patch_calls(~bare_use, f, x);
+    let pieces: option((string, Pat.t, Exp.t, Id.t)) =
+      switch (sugar_fn_name(p)) {
+      | Some(f) =>
+        extended_ap_pat(p, name)
+        |> Option.map(((p', focus)) => (f, p', patched(f, def), focus))
+      | None =>
+        switch (IdTagged.term_of(p), IdTagged.term_of(def)) {
+        | (Var(f), Fun(fp, fbody, fty, nm)) =>
+          let (fp', focus) = extended_pat(fp, name);
+          let fbody' = binds(f, fp) ? fbody : patched(f, fbody);
+          Some((
+            f,
+            p,
+            {
+              ...def,
+              term: Fun(fp', fbody', fty, nm),
+            },
+            focus,
+          ));
+        | (Asc(inner, ann), Fun(fp, fbody, fty, nm)) =>
+          switch (var_pat_name(inner), extended_arrow(ann)) {
+          | (Some(f), Some(ann')) =>
+            let (fp', focus) = extended_pat(fp, name);
+            let fbody' = binds(f, fp) ? fbody : patched(f, fbody);
+            Some((
+              f,
+              {
+                ...p,
+                term: Asc(inner, ann'),
+              },
+              {
+                ...def,
+                term: Fun(fp', fbody', fty, nm),
+              },
+              focus,
+            ));
+          | _ => None
+          }
+        | _ => None
+        }
+      };
+    switch (pieces) {
+    | Some((f, p', def', focus)) =>
+      let body' = patched(f, body);
+      bare_use^
+        ? None
+        : Some((
+            {
+              ...e,
+              term: Let(p', def', body'),
+            },
+            focus,
+          ));
+    | None => None
+    };
+  | _ => None
+  };
+
 let add_param_impl: impl = {
   label: "Add Parameter",
   tooltip: "Extend this function with a parameter; call sites get a hole",
   prepare: (~info_map as _, ~target, program) =>
     rewrite_node(
       ~hit=hit_let(target),
-      ~rewrite=
-        e =>
-          switch (IdTagged.term_of(e)) {
-          | Let(p, def, body) when var_pat_name(p) != None =>
-            switch (IdTagged.term_of(def)) {
-            | Fun(fp, fbody, ty, nm) =>
-              let f = Option.get(var_pat_name(p));
-              let name = fresh_name(program);
-              let bare_use = ref(false);
-              let fbody' =
-                binds(f, fp) ? fbody : patch_calls(~bare_use, f, fbody);
-              let body' = patch_calls(~bare_use, f, body);
-              if (bare_use^) {
-                None;
-              } else {
-                let (fp', focus) = extended_pat(fp, name);
-                let def': Exp.t = {
-                  ...def,
-                  term: Fun(fp', fbody', ty, nm),
-                };
-                Some((
-                  {
-                    ...e,
-                    term: Let(p, def', body'),
-                  },
-                  focus,
-                ));
-              };
-            | _ => None
-            }
-          | _ => None
-          },
+      ~rewrite=add_param_rewrite(~program),
       program,
     ),
 };
@@ -1122,8 +1275,7 @@ let find_hit = (~hit: Exp.t => bool, program: Exp.t): option(Exp.t) => {
 };
 
 let let_applies =
-    (~pred: (Pat.t, Exp.t, Exp.t) => bool, target: Id.t, program: Exp.t)
-    : bool =>
+    (~pred: (Pat.t, Exp.t, Exp.t) => bool, target: Id.t, program: Exp.t): bool =>
   switch (find_hit(~hit=hit_let(target), program)) {
   | Some(e) =>
     switch (IdTagged.term_of(e)) {
@@ -1153,7 +1305,8 @@ let applies =
     );
   | RemoveUnusedLet =>
     let_applies(
-      ~pred=(p, _, _) => var_pat_name(p) != None && pat_unused(~info_map, p),
+      ~pred=
+        (p, _, _) => var_pat_name(p) != None && pat_unused(~info_map, p),
       target,
       program,
     )
@@ -1172,25 +1325,10 @@ let applies =
       program,
     )
   | AddParameter =>
-    let_applies(
-      ~pred=
-        (p, def, body) =>
-          var_pat_name(p) != None
-          && (
-            switch (IdTagged.term_of(def)) {
-            | Fun(fp, fbody, _, _) =>
-              let f = Option.get(var_pat_name(p));
-              let bare_use = ref(false);
-              let _ =
-                binds(f, fp) ? fbody : patch_calls(~bare_use, f, fbody);
-              let _ = patch_calls(~bare_use, f, body);
-              ! bare_use^;
-            | _ => false
-            }
-          ),
-      target,
-      program,
-    )
+    switch (find_hit(~hit=hit_let(target), program)) {
+    | Some(e) => Option.is_some(add_param_rewrite(~program, e))
+    | None => false
+    }
   | AddCaseArm =>
     switch (find_hit(~hit=hit_node(target), program)) {
     | Some(e) =>
@@ -1259,7 +1397,7 @@ let menu_items =
          let i = impl(kind);
          applies(kind, ~info_map, ~target, term)
            ? Some((kind, i.label, i.tooltip)) : None;
-       });
+       })
   };
 
 let go =
