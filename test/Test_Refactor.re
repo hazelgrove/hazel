@@ -392,6 +392,80 @@ let more_tests = [
   ),
 ];
 
+let param_tests = [
+  test_case(
+    "add parameter: def and call site",
+    `Quick,
+    () => {
+      let got =
+        inline(~kind=AddParameter, "¦let f = fun x -> x + 1 in f(2)")
+        |> text_of;
+      check(
+        string,
+        "param + hole arg",
+        "let f = fun (x, x1) -> x + 1 in f(2, ?)",
+        got,
+      );
+    },
+  ),
+  test_case(
+    "add parameter: extends existing tuple",
+    `Quick,
+    () => {
+      let got =
+        inline(~kind=AddParameter, "¦let f = fun (a, b) -> a in f(1, 2)")
+        |> text_of;
+      check(
+        string,
+        "third param",
+        "let f = fun (a, b, x) -> a in f(1, 2, ?)",
+        got,
+      );
+    },
+  ),
+  test_case(
+    "add parameter: recursive calls patched",
+    `Quick,
+    () => {
+      let got =
+        inline(~kind=AddParameter, "¦let f = fun x -> f(x) in f(1)")
+        |> text_of;
+      check(
+        string,
+        "both sites",
+        "let f = fun (x, x1) -> f(x, ?) in f(1, ?)",
+        got,
+      );
+    },
+  ),
+  test_case("add parameter gated on bare use", `Quick, () =>
+    check(
+      bool,
+      "passed as value",
+      false,
+      offers(AddParameter, "¦let f = fun x -> x in g(f)"),
+    )
+  ),
+  test_case(
+    "add parameter: shadowed uses untouched",
+    `Quick,
+    () => {
+      let got =
+        inline(
+          ~kind=AddParameter,
+          "¦let f = fun x -> x in let f = fun y -> y in f(1)",
+        )
+        |> text_of;
+      check(
+        string,
+        "inner f kept",
+        "let f = fun (x, x1) -> x in let f = fun y -> y in f(1)",
+        got,
+      );
+    },
+  ),
+];
+
 let tests = [
   (
     "Refactor",
@@ -400,6 +474,7 @@ let tests = [
     @ case_tests
     @ annotation_tests
     @ case_arm_tests
+    @ param_tests
     @ more_tests,
   ),
 ];

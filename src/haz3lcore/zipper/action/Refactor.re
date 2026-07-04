@@ -920,12 +920,165 @@ let add_case_arm_impl: impl = {
     ),
 };
 
+let is_var_named = (x: string, e: Exp.t): bool =>
+  switch (IdTagged.term_of(e)) {
+  | Var(y) => y == x
+  | _ => false
+  };
+
+/* Patch every unshadowed application of x: f(a) -> f(a, ?). A bare
+ * (non-applied) use sets ~bare_use — arity extension can't fix a
+ * function passed as a value, so callers gate on it. */
+let rec patch_calls = (~bare_use: ref(bool), x: string, e: Exp.t): Exp.t => {
+  let go = patch_calls(~bare_use, x);
+  let (term, rewrap) = Exp.unwrap(e);
+  switch (term) {
+  | Ap(Forward, fn, arg) when is_var_named(x, fn) =>
+    let hole = {
+      ...fresh(EmptyHole),
+      annotation: {
+        ...IdTagged.IdTag.mk_internal([Id.mk()]),
+        secondary: (space(), []),
+      },
+    };
+    let arg': Exp.t =
+      switch (IdTagged.term_of(arg)) {
+      | Tuple(items) => {
+          ...arg,
+          term: Tuple(List.map(go, items) @ [hole]),
+        }
+      | _ => fresh(Tuple([go(arg), hole]))
+      };
+    rewrap(Ap(Forward, fn, arg'));
+  | Var(y) when y == x =>
+    bare_use := true;
+    e;
+  | Let(p, d, body) =>
+    rewrap(Let(p, go(d), binds(x, p) ? body : go(body)))
+  | Fun(p, body, t, n) when binds(x, p) => rewrap(Fun(p, body, t, n))
+  | FixF(p, body, env) when binds(x, p) => rewrap(FixF(p, body, env))
+  | Match(scrut, rules) =>
+    rewrap(
+      Match(
+        go(scrut),
+        rules
+        |> List.map(((p, body)) => (p, binds(x, p) ? body : go(body))),
+      ),
+    )
+  | _ =>
+    Exp.map_term(
+      ~f_exp={
+        let entered = ref(false);
+        (cont, e': Exp.t) =>
+          if (entered^) {
+            go(e');
+          } else {
+            entered := true;
+            cont(e');
+          };
+      },
+      e,
+    )
+  };
+};
+
+/* Extend a fun's parameter (pattern) with a fresh trailing var */
+let extended_pat = (p: Pat.t, name: string): (Pat.t, Id.t) => {
+  let newvar = {
+    ...fresh_pat(Var(name)),
+    annotation: {
+      ...IdTagged.IdTag.mk_internal([Id.mk()]),
+      secondary: (space(), []),
+    },
+  };
+  let focus = Pat.rep_id(newvar);
+  let clear = (p: Pat.t) => {
+    ...p,
+    annotation: {
+      ...p.annotation,
+      secondary: ([], []),
+    },
+  };
+  let p': Pat.t =
+    switch (IdTagged.term_of(p)) {
+    | Parens(inner) =>
+      switch (IdTagged.term_of(inner)) {
+      | Tuple(items) => {
+          ...p,
+          term:
+            Parens({
+              ...inner,
+              term: Tuple(items @ [newvar]),
+            }),
+        }
+      | _ => {
+          ...p,
+          term: Parens(fresh_pat(Tuple([clear(inner), newvar]))),
+        }
+      }
+    | _ =>
+      /* the parens wrapper takes over the old param's outer runs */
+      let (b, a) = p.annotation.secondary;
+      {
+        annotation: {
+          ...IdTagged.IdTag.mk_internal([Id.mk()]),
+          secondary: (b, a),
+        },
+        term: Parens(fresh_pat(Tuple([clear(p), newvar]))),
+      };
+    };
+  (p', focus);
+};
+
+let add_param_impl: impl = {
+  label: "Add Parameter",
+  tooltip: "Extend this function with a parameter; call sites get a hole",
+  prepare: (~info_map as _, ~target, program) =>
+    rewrite_node(
+      ~hit=hit_let(target),
+      ~rewrite=
+        e =>
+          switch (IdTagged.term_of(e)) {
+          | Let(p, def, body) when var_pat_name(p) != None =>
+            switch (IdTagged.term_of(def)) {
+            | Fun(fp, fbody, ty, nm) =>
+              let f = Option.get(var_pat_name(p));
+              let name = fresh_name(program);
+              let bare_use = ref(false);
+              let fbody' =
+                binds(f, fp) ? fbody : patch_calls(~bare_use, f, fbody);
+              let body' = patch_calls(~bare_use, f, body);
+              if (bare_use^) {
+                None;
+              } else {
+                let (fp', focus) = extended_pat(fp, name);
+                let def': Exp.t = {
+                  ...def,
+                  term: Fun(fp', fbody', ty, nm),
+                };
+                Some((
+                  {
+                    ...e,
+                    term: Let(p, def', body'),
+                  },
+                  focus,
+                ));
+              };
+            | _ => None
+            }
+          | _ => None
+          },
+      program,
+    ),
+};
+
 let impl: Action.refactor => impl =
   fun
   | InlineLet => inline_let_impl
   | RemoveUnusedLet => remove_unused_let_impl
   | AddTypeAnnotation => add_annotation_impl
   | AddCaseArm => add_case_arm_impl
+  | AddParameter => add_param_impl
   | IfToCase => if_to_case_impl
   | CaseToIf => case_to_if_impl
   | ExtractLet => extract_let_impl
@@ -937,6 +1090,7 @@ let all: list(Action.refactor) = [
   RemoveUnusedLet,
   AddTypeAnnotation,
   AddCaseArm,
+  AddParameter,
   ExtractLet,
   EtaReduce,
   IfToCase,
