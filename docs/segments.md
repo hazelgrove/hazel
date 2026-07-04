@@ -358,3 +358,32 @@ The roundtrip is the identity on text and on the piece sequence
 (tile ids, labels, shards, secondary) modulo grout and re-derived mold
 choices; it is enforced by a corpus plus an editor-action fuzzer in
 `test/Test_ExpToSegment.re` and `test/Test_RoundtripFuzz.re`.
+
+### Why mold sorts are quotiented
+
+A stored mold sort is the editor's *local* guess at typing time; a
+parse derives sort *globally*. For incomplete tiles orphaned across a
+sort boundary the two can legitimately disagree with no observable
+difference. Minimal case (two keystrokes): type `:` then `]`. The
+editor molds the orphan `]` at Typ — the caret sits on the typ side
+of the `:` — but canonical completion splices the missing `[` at the
+start, reading the state as `[? : ?]` (an Exp list whose *element* is
+the ascription, not `? : [?]`):
+
+```
+term:     ListLit([Asc(EmptyHole, Unknown(Hole(EmptyHole)))])
+stored:   tile "]"  out=Typ, in_=[Typ]
+reprint:  tile "]"  out=Exp, in_=[Exp]
+```
+
+Same token, same convex shape, same visible text (the synthesized
+opener is stripped on print); only the sort component differs, so
+`Segment.equiv_mod_grout(~mold_sorts=false)` forgives sorts while
+staying strict on nib shapes and precedences, which are observable (a
+stranded `:` must reprint at Concave 24, not the Any fallback's
+Concave 0). Wrong-sort *operands* need no forgiveness — `?:1` parses
+to `Asc(EmptyHole, Unknown(Hole(Invalid "1")))` and the printer's
+host-sort→Exp mold fallback reproduces the stored mold exactly.
+Flipping the fuzzer to `~mold_sorts=true` enumerates the remaining
+disagreement states: the work-list for eventually deriving sorts
+instead of storing them.
