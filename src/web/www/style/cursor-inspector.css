@@ -421,6 +421,30 @@
   background-color: var(--BR3);
 }
 
+.cursor-inspector .explain-error-button {
+  display: inline-flex;
+  align-items: center;
+  align-self: center;
+  gap: 0.35em;
+  padding: 0.15em 0.7em;
+  border-radius: 1.1em;
+  cursor: pointer;
+  background-color: var(--R1);
+  color: var(--light-page-color);
+  font-weight: bolder;
+  white-space: nowrap;
+}
+
+.cursor-inspector .explain-error-button svg {
+  width: 0.8em;
+  height: 0.8em;
+  fill: currentColor;
+}
+
+.cursor-inspector .explain-error-button:hover svg {
+  animation: jello 0.6s ease 0s 1 normal forwards;
+}
+
 .cursor-inspector .type-slice-menu {
   position: fixed;
 }

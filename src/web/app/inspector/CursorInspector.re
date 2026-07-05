@@ -188,6 +188,98 @@ let typ_for_target = (target: TypeTarget.t, ci: Info.t): option(Typ.t) =>
   | _ => None
   };
 
+module ErrorSlicing = {
+  let fold_model =
+    FoldProj.sexp_of_t(FoldProj.default) |> Sexplib.Sexp.to_string;
+
+  let fold_data: Grammar.projector_data = {
+    kind: ProjectorCore.Kind.Fold,
+    model: fold_model,
+  };
+
+  let fold = (typ: Typ.t): Typ.t => Typ.fresh(Projector(fold_data, typ));
+
+  let rec strip_parens = (typ: Typ.t): Typ.t =>
+    switch (Typ.term_of(typ)) {
+    | Parens(t) => strip_parens(t)
+    | _ => typ
+    };
+
+  let shell = (typ: Typ.t): Typ.t => {
+    let typ = strip_parens(typ);
+    switch (Typ.term_of(typ)) {
+    | Arrow(a, b) => Typ.fresh(Arrow(fold(a), fold(b)))
+    | Prod(ts) => Typ.fresh(Prod(List.map(fold, ts)))
+    | List(t) => Typ.fresh(List(fold(t)))
+    | _ => typ
+    };
+  };
+
+  let rec queries =
+          (ctx: Ctx.t, syn: Typ.t, ana: Typ.t): option((Typ.t, Typ.t)) =>
+    switch (Typ.meet(ctx, syn, ana)) {
+    | Some(_) => None
+    | exception _ => None
+    | None =>
+      switch (
+        Typ.term_of(strip_parens(syn)),
+        Typ.term_of(strip_parens(ana)),
+      ) {
+      | (Arrow(s1, s2), Arrow(a1, a2)) =>
+        switch (queries(ctx, s1, a1)) {
+        | Some((qs, qa)) =>
+          Some((
+            Typ.fresh(Arrow(qs, fold(s2))),
+            Typ.fresh(Arrow(qa, fold(a2))),
+          ))
+        | None =>
+          switch (queries(ctx, s2, a2)) {
+          | Some((qs, qa)) =>
+            Some((
+              Typ.fresh(Arrow(fold(s1), qs)),
+              Typ.fresh(Arrow(fold(a1), qa)),
+            ))
+          | None => Some((shell(syn), shell(ana)))
+          }
+        }
+      | (Prod(ss), Prod(aas)) when List.length(ss) == List.length(aas) =>
+        let rec first_clash = (i, ss', aas') =>
+          switch (ss', aas') {
+          | ([s, ...srest], [a, ...arest]) =>
+            switch (queries(ctx, s, a)) {
+            | Some(q) => Some((i, q))
+            | None => first_clash(i + 1, srest, arest)
+            }
+          | _ => None
+          };
+        switch (first_clash(0, ss, aas)) {
+        | Some((i, (qs, qa))) =>
+          let wrap = (tys, q) =>
+            Typ.fresh(
+              Prod(List.mapi((j, t) => j == i ? q : fold(t), tys)),
+            );
+          Some((wrap(ss, qs), wrap(aas, qa)));
+        | None => Some((shell(syn), shell(ana)))
+        };
+      | (List(s), List(a)) =>
+        switch (queries(ctx, s, a)) {
+        | Some((qs, qa)) =>
+          Some((Typ.fresh(List(qs)), Typ.fresh(List(qa))))
+        | None => Some((shell(syn), shell(ana)))
+        }
+      | _ => Some((shell(syn), shell(ana)))
+      }
+    };
+
+  let for_info = (ci: Info.t): option((Typ.t, Typ.t)) =>
+    switch (ci) {
+    | InfoExp({elab_syn_ty, ana, ctx, _})
+    | InfoPat({elab_syn_ty, ana, ctx, _}) =>
+      queries(ctx, elab_syn_ty, Statics.ana_skip_explicit_nonlabel(ana))
+    | _ => None
+    };
+};
+
 module Model = {
   module OptionalId = {
     [@deriving (show({with_path: false}), sexp, yojson)]
@@ -428,11 +520,18 @@ module TypeSlicing = {
     };
 
   let query_of_typ = (typ: Typ.t): Typ.t => {
-    let f_typ = (continue, {term, _} as typ: Typ.t) =>
-      switch (term) {
+    let rec strip_parens = (typ: Typ.t): Typ.t =>
+      switch (Typ.term_of(typ)) {
+      | Parens(t) => strip_parens(t)
+      | _ => typ
+      };
+    let f_typ = (continue, typ: Typ.t) => {
+      let typ = strip_parens(typ);
+      switch (typ.term) {
       | Projector({kind, _}, _) when kind == ProjectorCore.Kind.Fold => Statics.Slice.gap
       | _ => continue(typ)
       };
+    };
     Typ.map_term(~f_typ, typ);
   };
 
@@ -800,6 +899,7 @@ module Update = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     | Toggle(TypeTarget.t)
+    | ExplainError
     | TypeEditor(TypeTarget.t, CodeEditable.Update.t)
     | OpenMenu(TypeTarget.t, float, float)
     | Focus(TypeTarget.t)
@@ -902,7 +1002,8 @@ module Update = {
           menu: Model.NoMenu,
         }
         |> Updated.return_quiet
-      | Toggle(_) => model |> Updated.return_quiet
+      | Toggle(_)
+      | ExplainError => model |> Updated.return_quiet
       }
     | (_, None) => model |> Updated.return_quiet
     | (_, Some(ci)) =>
@@ -943,6 +1044,28 @@ module Update = {
           focus_target: Model.Main,
         }
         |> Updated.return_quiet;
+      | ExplainError =>
+        switch (ErrorSlicing.for_info(ci)) {
+        | None => model |> Updated.return_quiet
+        | Some((syn_query, ana_query)) =>
+          let mk_row = typ => {
+            let (typ_id, editor) = type_editor_of_type(typ);
+            Model.{
+              active: true,
+              cursor_id: Model.OptionalId.SomeId(Info.id_of(ci)),
+              typ_id: Model.OptionalId.SomeId(typ_id),
+              editor: Model.EditorSlot.SomeEditor(editor),
+            };
+          };
+          {
+            ...model,
+            syn: mk_row(syn_query),
+            ana: mk_row(ana_query),
+            anchor: Model.OptionalId.SomeId(Info.id_of(ci)),
+            focus_target: Model.Main,
+          }
+          |> Updated.return_quiet;
+        }
       | TypeEditor(target, editor_action) =>
         let row = Model.row(target, model);
         switch (row.active, row.editor) {
@@ -2174,6 +2297,20 @@ let tpat_view =
 
 let secondary_view = (cls: Cls.t) => div_ok([text(cls |> Cls.show)]);
 
+let explain_error_tooltip = "Explain this type error by slicing both types up to their first inconsistency.";
+
+let explain_error_button = (~inject: Update.t => Ui_effect.t(unit)) =>
+  div(
+    ~attrs=[
+      clss(["explain-error-button"]),
+      Attr.title(explain_error_tooltip),
+      Attr.on_pointerdown(_ =>
+        Effect.Many([Effect.Stop_propagation, inject(Update.ExplainError)])
+      ),
+    ],
+    [Icons.explain_this, text("Explain error")],
+  );
+
 let view_of_info =
     (
       ~globals,
@@ -2182,10 +2319,15 @@ let view_of_info =
       ci,
     )
     : list(Node.t) => {
-  let wrapper = status_view => [
-    term_view(~globals, ~slice_header, ci),
-    status_view,
-  ];
+  let error_button =
+    switch (slicing) {
+    | Some((_, inject)) when ErrorSlicing.for_info(ci) != None => [
+        explain_error_button(~inject),
+      ]
+    | _ => []
+    };
+  let wrapper = status_view =>
+    [term_view(~globals, ~slice_header, ci), status_view] @ error_button;
   switch (ci) {
   | Secondary(_) => wrapper(div([]))
   | InfoSliceScratch(_) => wrapper(div([]))

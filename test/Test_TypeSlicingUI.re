@@ -72,6 +72,17 @@ let render_folded = (model: Web.CodeEditable.Model.t): string =>
        _,
      );
 
+let render_typ = (typ: Typ.t): string =>
+  ExpToSegment.typ_to_segment(
+    ~settings=Web.ExplainThis.slice_view_settings,
+    typ,
+  )
+  |> Printer.of_segment(
+       ~holes="?",
+       ~projector_to_segment=_ => [Piece.mk_grout(Convex)],
+       _,
+     );
+
 let info_exp_id = (model: Web.CodeEditable.Model.t, pred): Id.t =>
   model.statics.info_map
   |> Id.Map.bindings
@@ -709,6 +720,100 @@ let tests = (
                ({omitted, query}: Web.ExplainThis.TypeSlicing.example) =>
                (render(omitted), render(query))
              ),
+        );
+      },
+    ),
+    test_case(
+      "explain error queries fold to first inconsistency",
+      `Quick,
+      () => {
+        let ctx = Test_Statics_Slicing_Prelude.base_ctx();
+        let queries = (syn, ana) =>
+          switch (CI.ErrorSlicing.queries(ctx, parse_typ(syn), parse_typ(ana))) {
+          | Some((qs, qa)) => (render_typ(qs), render_typ(qa))
+          | None => fail("expected a type inconsistency")
+          };
+        check(
+          pair(string, string),
+          "head clash folds children",
+          ("? -> ?", "(?, ?)"),
+          queries("Int -> Int", "(Int, Int)"),
+        );
+        check(
+          pair(string, string),
+          "nested clash keeps path, folds rest",
+          ("(?, ?) -> ?", "(? -> ?) -> ?"),
+          queries(
+            "(Int, Int) -> (Int, Int)",
+            "(Int -> Int) -> (Int -> Int)",
+          ),
+        );
+        check(
+          bool,
+          "consistent types yield no queries",
+          true,
+          CI.ErrorSlicing.queries(
+            ctx,
+            parse_typ("Int -> ?"),
+            parse_typ("Int -> Int"),
+          )
+          == None,
+        );
+      },
+    ),
+    test_case(
+      "explain error activates both slicing rows",
+      `Quick,
+      () => {
+        let code = code_model("let x : (Int, Int) = fun y -> y in ?");
+        let fn =
+          info_exp_id(code, e =>
+            switch (Exp.term_of(e)) {
+            | Fun(_, _, _, _) => true
+            | _ => false
+            }
+          );
+        let ci =
+          switch (Id.Map.find_opt(fn, code.statics.info_map)) {
+          | Some(ci) => ci
+          | None => fail("fun info missing")
+          };
+        let settings = {
+          ...Web.Settings.Model.init,
+          core: {
+            ...Web.Settings.Model.init.core,
+            flip_animations: false,
+          },
+        };
+        let model =
+          CI.Update.update(
+            ~settings,
+            ~cursor_info=Some(ci),
+            ExplainError,
+            CI.Model.init,
+          ).
+            model;
+        check(bool, "syn row active", true, model.syn.active);
+        check(bool, "ana row active", true, model.ana.active);
+        let row_query = (row: CI.Model.row) =>
+          switch (CI.TypeSlicing.query_of_row(row)) {
+          | Some(q) => render_typ(q)
+          | None => fail("query missing")
+          };
+        check(string, "syn query", "? -> ?", row_query(model.syn));
+        check(string, "ana query", "(?, ?)", row_query(model.ana));
+        let result =
+          CI.ProgramFolds.apply_type_slice(
+            ~info_map=code.statics.info_map,
+            ~fallback_ci=None,
+            ~cursor_inspector=model,
+            code,
+          );
+        check(
+          string,
+          "explain error slice",
+          "let ? : (?, ?) = fun ? -> ? in ?",
+          render_folded(result.model),
         );
       },
     ),
