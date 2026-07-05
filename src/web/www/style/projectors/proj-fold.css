@@ -15,6 +15,13 @@
   z-index: var(--projector-hover-z);
 }
 
+.projector.fold.inline-fold {
+  position: static;
+  display: inline-flex;
+  cursor: default;
+  z-index: auto;
+}
+
 .result .projector.fold {
   cursor: default;
 }

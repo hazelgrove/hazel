@@ -3771,34 +3771,51 @@ module TypeSlicing = {
 
   let fold = (typ: Typ.t): Typ.t => Typ.fresh(Projector(fold_data, typ));
 
+  let rec can_fold = (typ: Typ.t): bool =>
+    switch (Typ.term_of(typ)) {
+    | Projector(_)
+    | Unknown(_) => false
+    | Parens(t) => can_fold(t)
+    | _ => true
+    };
+
   let fold_first_at_depth = (~depth: int, typ: Typ.t): option(example) => {
     let omitted: ref(option(Typ.t)) = ref(None: option(Typ.t));
     let rec go = (depth, typ: Typ.t) =>
       if (omitted^ != None) {
         typ;
       } else if (depth <= 0) {
-        omitted := Some(typ);
-        fold(typ);
+        if (can_fold(typ)) {
+          omitted := Some(typ);
+          fold(typ);
+        } else {
+          typ;
+        };
       } else {
-        let child_depth =
-          switch (Typ.term_of(typ)) {
-          | Parens(_) => depth
-          | _ => depth - 1
-          };
-        let root = ref(true);
-        Typ.map_term(
-          ~f_typ=
-            (continue, child) =>
-              if (omitted^ != None) {
-                child;
-              } else if (root^) {
-                root := false;
-                continue(child);
-              } else {
-                go(child_depth, child);
-              },
-          typ,
-        );
+        switch (Typ.term_of(typ)) {
+        | Projector(_)
+        | Unknown(_) => typ
+        | term =>
+          let child_depth =
+            switch (term) {
+            | Parens(_) => depth
+            | _ => depth - 1
+            };
+          let root = ref(true);
+          Typ.map_term(
+            ~f_typ=
+              (continue, child) =>
+                if (omitted^ != None) {
+                  child;
+                } else if (root^) {
+                  root := false;
+                  continue(child);
+                } else {
+                  go(child_depth, child);
+                },
+            typ,
+          );
+        };
       };
     let query = go(depth, typ);
     switch (omitted^) {
@@ -3835,23 +3852,23 @@ let type_slicing_section =
       [
         span(
           ~attrs=[clss(["slice-query-label"])],
-          [text("Example " ++ string_of_int(i + 1))],
+          [text("Example " ++ string_of_int(i + 1) ++ ":")],
         ),
         span(
           ~attrs=[clss(["slice-query-description"])],
-          [text("Omitting the first ")],
+          [text("omitting the first")],
         ),
         view_typ(omitted),
         span(
           ~attrs=[clss(["slice-query-description"])],
-          [text(" corresponds to query ")],
+          [text("corresponds to query")],
         ),
         view_typ(query),
       ],
     );
   };
   let queries =
-    [query_row("Full query", typ)]
+    [query_row("Current query", typ)]
     @ List.mapi(example_row, TypeSlicing.examples(typ));
   let blurb = [
     div(
