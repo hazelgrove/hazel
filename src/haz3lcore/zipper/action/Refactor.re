@@ -708,44 +708,6 @@ let extractable = (e: Exp.t): bool =>
   | _ => true
   };
 
-let extract_let_impl: impl = {
-  label: "Extract to Let",
-  tooltip: "Bind this expression to a fresh variable in place",
-  prepare: (~info_map as _, ~target, program) => {
-    let x = fresh_name(program);
-    let attempt = (~parens: bool) =>
-      rewrite_node(
-        ~hit=hit_node(target),
-        ~rewrite=
-          e =>
-            extractable(e)
-              ? {
-                let def = pad(e |> strip_leading |> strip_trailing);
-                let let_node =
-                  fresh(
-                    Let(pad(fresh_pat(Var(x))), def, fresh(Var(x))),
-                  );
-                Some((
-                  parens ? fresh(Parens(let_node)) : let_node,
-                  Exp.rep_id(def),
-                ));
-              }
-              : None,
-        program,
-      );
-    /* `let ... in` extends maximally rightward, so a bare let in a
-       tight position can swallow the rest of the enclosing expression
-       on reparse (nothing to do with variable capture — fresh_name
-       avoids collisions). Parenthesize only when the reparse oracle
-       says the bare form changes the program. */
-    switch (attempt(~parens=false)) {
-    | Some((bare, f)) when reparses_same(bare) => Some((bare, f))
-    | Some(_) => attempt(~parens=true)
-    | None => None
-    };
-  },
-};
-
 /* unshadowed-use check is conservative: any occurrence counts */
 let mentions = (x: string, e: Exp.t): bool => {
   let found = ref(false);
@@ -762,6 +724,226 @@ let mentions = (x: string, e: Exp.t): bool => {
       e,
     );
   found^;
+};
+
+let copy_runs = (ws: list(Secondary.t)): list(Secondary.t) =>
+  ws
+  |> List.map((w: Secondary.t) =>
+       {
+         ...w,
+         id: Id.mk(),
+       }
+     );
+
+let pat_var_names = (p: Pat.t): list(string) => {
+  let acc = ref([]);
+  let _ =
+    Pat.map_term(
+      ~f_pat=
+        (cont, p': Pat.t) => {
+          switch (IdTagged.term_of(p')) {
+          | Var(x) => acc := [x, ...acc^]
+          | _ => ()
+          };
+          cont(p');
+        },
+      p,
+    );
+  acc^;
+};
+
+/* === Lines ===
+ * A node is in LINE position when it occupies a slot in a block: a
+ * let's body, a fun body, a case-arm or if-branch body, or the root.
+ * Extract binds at the nearest enclosing line; every binder-
+ * introducing construct's body is itself a line, so the climb never
+ * escapes a binder (the recursive-let def is the one exception,
+ * checked explicitly). */
+
+let children_of = (e: Exp.t): list(Exp.t) => {
+  let acc = ref([]);
+  let entered = ref(false);
+  let _ =
+    Exp.map_term(
+      ~f_exp=
+        (cont, e': Exp.t) =>
+          if (entered^) {
+            acc := [e', ...acc^];
+            e';
+          } else {
+            entered := true;
+            cont(e');
+          },
+      e,
+    );
+  acc^;
+};
+
+/* root-to-node path to the first node matched by ~hit */
+let rec find_path = (~hit: Exp.t => bool, e: Exp.t): option(list(Exp.t)) =>
+  if (hit(e)) {
+    Some([e]);
+  } else {
+    children_of(e)
+    |> List.find_map(c => find_path(~hit, c))
+    |> Option.map(rest => [e, ...rest]);
+  };
+
+let same_node = (a: Exp.t, b: Exp.t): bool => Exp.rep_id(a) == Exp.rep_id(b);
+
+let line_child = (parent: Exp.t, child: Exp.t): bool =>
+  switch (IdTagged.term_of(parent)) {
+  | Let(_, _, body) => same_node(body, child)
+  | Fun(_, body, _, _) => same_node(body, child)
+  | FixF(_, body, _) => same_node(body, child)
+  | Match(_, rules) => rules |> List.exists(((_, b)) => same_node(b, child))
+  | If(_, t, alt) => same_node(t, child) || same_node(alt, child)
+  | _ => false
+  };
+
+let lowest_line = (path: list(Exp.t)): Exp.t => {
+  let rec go = (line: Exp.t, path: list(Exp.t)): Exp.t =>
+    switch (path) {
+    | [parent, child, ...rest] =>
+      go(line_child(parent, child) ? child : line, [child, ...rest])
+    | _ => line
+    };
+  switch (path) {
+  | [root, ..._] => go(root, path)
+  | [] => failwith("lowest_line: empty path")
+  };
+};
+
+/* names bound over the climb from line down to the target: only the
+ * recursive-let def position introduces one (fun/arm bodies are
+ * themselves lines, so the climb stops before crossing them) */
+let crossed_rec_binders = (line: Exp.t, path: list(Exp.t)): list(string) => {
+  let rec go = (started: bool, path: list(Exp.t)): list(string) =>
+    switch (path) {
+    | [parent, child, ...rest] =>
+      let started = started || same_node(parent, line);
+      let here =
+        if (started) {
+          switch (IdTagged.term_of(parent)) {
+          | Let(p, def, _) when same_node(def, child) =>
+            switch (IdTagged.term_of(def)) {
+            | Fun(_) => pat_var_names(p)
+            | _ => []
+            }
+          | _ => []
+          };
+        } else {
+          [];
+        };
+      here @ go(started, [child, ...rest]);
+    | _ => []
+    };
+  go(false, path);
+};
+
+let replace_node = (~at: Id.t, ~with_: Exp.t, e: Exp.t): Exp.t => {
+  let done_ = ref(false);
+  Exp.map_term(
+    ~f_exp=
+      (cont, e': Exp.t) =>
+        if (! done_^ && Exp.rep_id(e') == at) {
+          done_ := true;
+          with_;
+        } else {
+          cont(e');
+        },
+    e,
+  );
+};
+
+let extract_let_impl: impl = {
+  label: "Extract to Let",
+  tooltip: "Bind this expression to a fresh variable at the enclosing line",
+  prepare: (~info_map as _, ~target, program) => {
+    let x = fresh_name(program);
+    /* oracle chain shared by both placements: `let ... in` extends
+       maximally rightward, so a bare let can swallow what follows on
+       reparse (nothing to do with variable capture — fresh_name
+       avoids collisions). Parenthesize only when the reparse oracle
+       says the bare form changes the program. */
+    let via_oracle = (build: (~parens: bool) => option((Exp.t, Id.t))) =>
+      switch (build(~parens=false)) {
+      | Some((bare, f)) when reparses_same(bare) => Some((bare, f))
+      | Some(_) => build(~parens=true)
+      | None => None
+      };
+    /* fallback, and the degenerate case of extracting a whole line */
+    let in_place = (~parens: bool) =>
+      rewrite_node(
+        ~hit=hit_node(target),
+        ~rewrite=
+          e =>
+            extractable(e)
+              ? {
+                let def = pad(e |> strip_leading |> strip_trailing);
+                let let_node =
+                  fresh(Let(pad(fresh_pat(Var(x))), def, fresh(Var(x))));
+                Some((
+                  parens ? fresh(Parens(let_node)) : let_node,
+                  Exp.rep_id(def),
+                ));
+              }
+              : None,
+        program,
+      );
+    /* the new binding lands at the nearest enclosing line; the use
+       site takes over the extracted node's whitespace slot, and the
+       line keeps its layout via a fresh copy of its leading run */
+    let to_block = (line: Exp.t, t: Exp.t) => {
+      let s = Slot.of_exp(t);
+      let def = pad(Slot.drop(s, t));
+      let use = Slot.give(s, fresh(Var(x)));
+      let sep =
+        switch (Slot.of_exp(line).lead) {
+        | [] => space()
+        | runs => copy_runs(runs)
+        };
+      let build = (~parens: bool) =>
+        rewrite_node(
+          ~hit=same_node(line),
+          ~rewrite=
+            ln => {
+              let body = replace_node(~at=Exp.rep_id(t), ~with_=use, ln);
+              let (b, a) = body.annotation.secondary;
+              let body = {
+                ...body,
+                annotation: {
+                  ...body.annotation,
+                  secondary: (sep @ b, a),
+                },
+              };
+              let let_node =
+                fresh(Let(pad(fresh_pat(Var(x))), def, body));
+              Some((
+                parens ? fresh(Parens(let_node)) : let_node,
+                Exp.rep_id(def),
+              ));
+            },
+          program,
+        );
+      via_oracle(build);
+    };
+    switch (find_path(~hit=hit_node(target), program)) {
+    | None => None
+    | Some(path) =>
+      let t = List.nth(path, List.length(path) - 1);
+      if (extractable(t)) {
+        let line = lowest_line(path);
+        let blocked =
+          crossed_rec_binders(line, path)
+          |> List.exists(n => mentions(n, t));
+        !blocked && !same_node(line, t)
+          ? to_block(line, t) : via_oracle(in_place);
+      } else {
+        None;
+      };
+    };
+  },
 };
 
 let eta_reduce_impl: impl = {
@@ -856,15 +1038,6 @@ let wildify = (p: Pat.t): Pat.t =>
         },
     p,
   );
-
-let copy_runs = (ws: list(Secondary.t)): list(Secondary.t) =>
-  ws
-  |> List.map((w: Secondary.t) =>
-       {
-         ...w,
-         id: Id.mk(),
-       }
-     );
 
 let pat_needs_parens = (p: Pat.t): bool =>
   switch (IdTagged.term_of(p)) {

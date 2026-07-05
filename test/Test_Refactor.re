@@ -344,7 +344,12 @@ let more_tests = [
     () => {
       let got =
         inline(~kind=ExtractLet, "let x = 1 in x * f¦(x)") |> text_of;
-      check(string, "fresh x1", "let x = 1 in x * let x1 = f(x) in x1", got);
+      check(
+        string,
+        "fresh x1, hoisted to chain",
+        "let x = 1 in let x1 = f(x) in x * x1",
+        got,
+      );
     },
   ),
   test_case(
@@ -383,14 +388,85 @@ let more_tests = [
     },
   ),
   test_case(
-    "extract parenthesizes only when reparse differs",
+    "extract at root line stays bare (oracle)",
     `Quick,
     () => {
       let got = inline(~kind=ExtractLet, "f¦(2), 3") |> text_of;
       check(
         string,
-        "comma follows: parens required",
-        "(let x = f(2) in x), 3",
+        "let covers the tuple line",
+        "let x = f(2) in x, 3",
+        got,
+      );
+    },
+  ),
+  test_case(
+    "extract joins a multiline chain",
+    `Quick,
+    () => {
+      let got =
+        inline(~kind=ExtractLet, "let a = 1 in\ng(f¦(2))") |> text_of;
+      check(
+        string,
+        "own line, chain order",
+        "let a = 1 in\nlet x = f(2) in\ng(x)",
+        got,
+      );
+    },
+  ),
+  test_case(
+    "extract from a def hoists above the line",
+    `Quick,
+    () => {
+      let got =
+        inline(~kind=ExtractLet, "let a = g(f¦(2)) in a + 1") |> text_of;
+      check(
+        string,
+        "above the def line",
+        "let x = f(2) in let a = g(x) in a + 1",
+        got,
+      );
+    },
+  ),
+  test_case(
+    "extract stays inside a lambda",
+    `Quick,
+    () => {
+      let got = inline(~kind=ExtractLet, "fun n -> g(f¦(2))") |> text_of;
+      check(
+        string,
+        "fun body is the line",
+        "fun n -> let x = f(2) in g(x)",
+        got,
+      );
+    },
+  ),
+  test_case(
+    "extract stays inside a case arm",
+    `Quick,
+    () => {
+      let got =
+        inline(~kind=ExtractLet, "case a | 1 => g(f¦(2)) | _ => 0 end")
+        |> text_of;
+      check(
+        string,
+        "arm body is the line",
+        "case a | 1 => let x = f(2) in g(x) | _ => 0 end",
+        got,
+      );
+    },
+  ),
+  test_case(
+    "extract from a scrutinee wraps the case",
+    `Quick,
+    () => {
+      let got =
+        inline(~kind=ExtractLet, "let a = 1 in case f¦(2) | _ => 0 end")
+        |> text_of;
+      check(
+        string,
+        "case is the line",
+        "let a = 1 in let x = f(2) in case x | _ => 0 end",
         got,
       );
     },
