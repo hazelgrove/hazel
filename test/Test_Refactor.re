@@ -651,16 +651,37 @@ let rename_tests = [
     `Quick,
     () => {
       let got =
-        inline(~kind=RenameFree("g", "f"), "¦let f(n) = g(n) in g(2)")
+        inline(~kind=RenameFree("g", "f"), "let ¦f(n) = g(n) in g(2)")
         |> text_of;
       check(string, "both regions", "let f(n) = f(n) in f(2)", got);
     },
   ),
   test_case(
-    "let delimiters mean the fn name, not params",
+    "no rename at let delimiters or pattern punctuation",
     `Quick,
     () => {
-      let kinds = kinds_at("¦let f(n) = q + 1 in f(2)");
+      let none = marked =>
+        kinds_at(marked)
+        |> List.exists(k =>
+             switch (k) {
+             | Action.RenameFree(_, _) => true
+             | _ => false
+             }
+           );
+      check(
+        bool,
+        "delims and comma offer nothing",
+        false,
+        none("¦let f(a, b) = q + 1 in f(1, 2)")
+        || none("let f(a¦, b) = q + 1 in f(1, 2)"),
+      );
+    },
+  ),
+  test_case(
+    "caret on the fn name renames via it",
+    `Quick,
+    () => {
+      let kinds = kinds_at("let ¦f(n) = q + 1 in f(2)");
       check(
         bool,
         "q->f only",
@@ -688,7 +709,7 @@ let rename_tests = [
     "sugar param not offered for body frees",
     `Quick,
     () => {
-      let kinds = kinds_at("¦let f(n) = n in q + f(1)");
+      let kinds = kinds_at("let ¦f(n) = n in q + f(1)");
       check(
         bool,
         "q->n absent, q->f present",
@@ -741,7 +762,7 @@ let rename_tests = [
       let got =
         inline(
           ~kind=RenameFree("v", "vel"),
-          "¦let vel : Int = 1 in v + v",
+          "let ¦vel : Int = 1 in v + v",
         )
         |> text_of;
       check(string, "asc head", "let vel : Int = 1 in vel + vel", got);
@@ -752,18 +773,23 @@ let rename_tests = [
     `Quick,
     () => {
       let got =
-        inline(~kind=RenameFree("n", "m"), "¦fun m -> n + n") |> text_of;
+        inline(~kind=RenameFree("n", "m"), "fun ¦m -> n + n") |> text_of;
       check(string, "param bound", "fun m -> m + m", got);
     },
   ),
-  test_case("fun with tuple params offers per binder", `Quick, () => {
+  test_case("fun delimiters offer no renames", `Quick, () => {
     let kinds = kinds_at("¦fun (a, b) -> q + a");
     check(
       bool,
-      "q to a and q to b",
-      true,
-      List.mem(Action.RenameFree("q", "a"), kinds)
-      && List.mem(Action.RenameFree("q", "b"), kinds),
+      "none at fun kw",
+      false,
+      kinds
+      |> List.exists(k =>
+           switch (k) {
+           | Action.RenameFree(_, _) => true
+           | _ => false
+           }
+         ),
     );
   }),
   test_case(
@@ -771,7 +797,7 @@ let rename_tests = [
     `Quick,
     () => {
       let got =
-        inline(~kind=RenameFree("v", "vel"), "¦let vel = 1 in v + v") |> text_of;
+        inline(~kind=RenameFree("v", "vel"), "let ¦vel = 1 in v + v") |> text_of;
       check(string, "both bound", "let vel = 1 in vel + vel", got);
     },
   ),
@@ -782,7 +808,7 @@ let rename_tests = [
       let got =
         inline(
           ~kind=RenameFree("x", "y"),
-          "¦let y = 1 in x + (fun y -> x)(2)",
+          "let ¦y = 1 in x + (fun y -> x)(2)",
         )
         |> text_of;
       check(
@@ -800,7 +826,7 @@ let rename_tests = [
       let got =
         inline(
           ~kind=RenameFree("x", "y"),
-          "¦let y = 1 in x + (let x = 2 in x)",
+          "let ¦y = 1 in x + (let x = 2 in x)",
         )
         |> text_of;
       check(
@@ -816,13 +842,13 @@ let rename_tests = [
     `Quick,
     () => {
       let got =
-        inline(~kind=RenameFree("f", "g"), "¦let g = fun n -> f(n) in g(2)")
+        inline(~kind=RenameFree("f", "g"), "let ¦g = fun n -> f(n) in g(2)")
         |> text_of;
       check(string, "rec call bound", "let g = fun n -> g(n) in g(2)", got);
     },
   ),
   test_case("one menu entry per candidate name", `Quick, () => {
-    let kinds = kinds_at("¦let y = 1 in a + b");
+    let kinds = kinds_at("let ¦y = 1 in a + b");
     check(
       bool,
       "both offered",
@@ -832,7 +858,7 @@ let rename_tests = [
     );
   }),
   test_case("no offer without free vars in scope", `Quick, () => {
-    let kinds = kinds_at("¦let y = 1 in y + 2");
+    let kinds = kinds_at("let ¦y = 1 in y + 2");
     check(
       bool,
       "none",

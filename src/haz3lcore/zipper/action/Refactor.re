@@ -1521,13 +1521,11 @@ let rename_sites_unfiltered =
   | _ => []
   };
 
-/* Targeting precision: a caret on a specific bound var offers only
- * that binder's renames; the construct's delimiters (or the fn name
- * itself) mean the head binder — for sugar defs, the function name,
- * not its params. */
+/* Targeting: the binder-name TOKEN is the only rename affordance —
+ * not the construct's delimiters, not pattern punctuation (a caret on
+ * the comma in `let f(x, y)` means neither f nor x). */
 let rename_sites =
     (~target: Id.t, e: Exp.t): list((string, list(Exp.t))) => {
-  let sites = rename_sites_unfiltered(~target, e);
   let pats =
     switch (IdTagged.term_of(e)) {
     | Let(p, _, _)
@@ -1539,21 +1537,15 @@ let rename_sites =
          )
     | _ => []
     };
-  let var_hit =
+  switch (
     pats
     |> List.concat_map(pat_var_id_sites)
-    |> List.find_opt(((_, ids)) => List.mem(target, ids));
-  switch (var_hit) {
-  | Some((y, _)) => sites |> List.filter(((y', _)) => y' == y)
-  | None =>
-    switch (IdTagged.term_of(e)) {
-    | Let(p, _, _) =>
-      switch (sugar_fn_name(p)) {
-      | Some(f) => sites |> List.filter(((y, _)) => y == f)
-      | None => sites
-      }
-    | _ => sites
-    }
+    |> List.find_opt(((_, ids)) => List.mem(target, ids))
+  ) {
+  | Some((y, _)) =>
+    rename_sites_unfiltered(~target, e)
+    |> List.filter(((y', _)) => y' == y)
+  | None => []
   };
 };
 
