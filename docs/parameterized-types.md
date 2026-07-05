@@ -222,6 +222,22 @@ values that might hide functions.
 Constructors whose schema is not actually polymorphic (e.g. a bare tag from
 `type x = + A`) are never wrapped.
 
+## Implicit value-level polymorphic application
+
+Ordinary value application also accepts a polymorphic callee without an
+explicit `@<...>` instantiation. Statics elaborates the callee by applying
+`?` to each leading `poly` binder before checking the value argument:
+
+```text
+id(1)  ~~>  id<?>(1)
+pair(3)(true)  ~~>  pair<?, ?>(3)(true)
+```
+
+This is gradual instantiation, not type inference from value arguments:
+`id(1)` synthesizes `?`, while `id@<Int>(1)` still synthesizes `Int`.
+That lets precise and gradual uses meet in surrounding expressions, e.g.
+`if true then id@<Int>(1) else id(0)` has type `Int`.
+
 ## Higher-kinded recursive types
 
 A parameterized recursive type like `type List(a) = + Nil + Cons(a, List(a))`
