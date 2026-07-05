@@ -1,0 +1,726 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Hazel Write Steps Implementation Summary</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #f7f8fb;
+        --panel: #ffffff;
+        --ink: #1e252f;
+        --muted: #647084;
+        --line: #d8dee8;
+        --accent: #1f7a70;
+        --accent-2: #3858a8;
+        --warn: #9b5c00;
+        --code-bg: #eef2f6;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html {
+        scroll-behavior: smooth;
+      }
+
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--ink);
+        font: 16px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+
+      .page-shell {
+        display: grid;
+        grid-template-columns: 250px minmax(0, 980px);
+        gap: 24px;
+        width: min(1280px, calc(100vw - 40px));
+        margin: 0 auto;
+        align-items: start;
+      }
+
+      main {
+        width: 100%;
+        padding: 40px 0 64px;
+      }
+
+      .toc {
+        position: sticky;
+        top: 20px;
+        max-height: calc(100vh - 40px);
+        overflow: auto;
+        margin-top: 40px;
+        padding: 16px;
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+      }
+
+      .toc-title {
+        font-weight: 750;
+        color: var(--accent);
+        margin-bottom: 10px;
+      }
+
+      .toc a {
+        display: block;
+        color: var(--ink);
+        text-decoration: none;
+        padding: 5px 0;
+        font-size: 0.92rem;
+      }
+
+      .toc a:hover {
+        color: var(--accent-2);
+        text-decoration: underline;
+      }
+
+      header,
+      section {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+      }
+
+      header {
+        padding: 26px;
+        margin-bottom: 18px;
+      }
+
+      section {
+        padding: 22px;
+        margin-top: 18px;
+        scroll-margin-top: 20px;
+      }
+
+      h1,
+      h2,
+      h3 {
+        line-height: 1.18;
+        margin: 0;
+      }
+
+      h1 {
+        font-size: 2.25rem;
+        letter-spacing: 0;
+      }
+
+      h2 {
+        font-size: 1.35rem;
+      }
+
+      h3 {
+        font-size: 1rem;
+        margin-top: 18px;
+      }
+
+      p {
+        margin: 10px 0 0;
+      }
+
+      ul,
+      ol {
+        margin: 10px 0 0;
+        padding-left: 1.35rem;
+      }
+
+      li + li {
+        margin-top: 6px;
+      }
+
+      code {
+        background: var(--code-bg);
+        border: 1px solid var(--line);
+        border-radius: 4px;
+        padding: 0.08rem 0.28rem;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 0.92em;
+      }
+
+      pre {
+        margin: 12px 0 0;
+        overflow-x: auto;
+        background: #111827;
+        color: #edf2f7;
+        border-radius: 8px;
+        padding: 16px;
+        font-size: 0.9rem;
+      }
+
+      pre code {
+        background: transparent;
+        border: 0;
+        color: inherit;
+        padding: 0;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 14px;
+        font-size: 0.94rem;
+      }
+
+      th,
+      td {
+        border: 1px solid var(--line);
+        padding: 9px 10px;
+        text-align: left;
+        vertical-align: top;
+      }
+
+      th {
+        background: #eef2f6;
+        color: #2d3748;
+        font-weight: 650;
+      }
+
+      tbody tr:nth-child(even) {
+        background: #fbfcff;
+      }
+
+      .lead {
+        color: var(--muted);
+        font-size: 1.05rem;
+        max-width: 820px;
+      }
+
+      .summary {
+        margin-top: 20px;
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 14px;
+      }
+
+      .metric {
+        padding: 14px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #fbfcff;
+      }
+
+      .metric strong {
+        display: block;
+        color: var(--accent);
+        font-size: 1.2rem;
+      }
+
+      .flow {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 10px;
+        margin-top: 14px;
+      }
+
+      .flow div {
+        border: 1px solid var(--line);
+        border-top: 4px solid var(--accent-2);
+        border-radius: 8px;
+        padding: 12px;
+        background: #fbfcff;
+      }
+
+      .flow strong {
+        display: block;
+        margin-bottom: 6px;
+      }
+
+      .callout {
+        border-left: 4px solid var(--accent);
+        background: #eef8f6;
+        padding: 12px 14px;
+        margin-top: 14px;
+      }
+
+      .warning {
+        border-left-color: var(--warn);
+        background: #fff7e8;
+      }
+
+      .file-list {
+        columns: 2;
+      }
+
+      @media (max-width: 820px) {
+        .page-shell {
+          display: block;
+          width: min(100vw - 24px, 980px);
+        }
+
+        main {
+          padding-top: 24px;
+        }
+
+        .toc {
+          position: static;
+          max-height: none;
+          margin-top: 18px;
+        }
+
+        .summary,
+        .flow {
+          grid-template-columns: 1fr;
+        }
+
+        .file-list {
+          columns: 1;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page-shell">
+      <aside class="toc" aria-label="Page outline">
+        <div class="toc-title">Outline</div>
+        <nav>
+          <a href="#current-state">Current State</a>
+          <a href="#checker-pipeline">Checker Pipeline</a>
+          <a href="#math-levels">Math Levels</a>
+          <a href="#capabilities">Capabilities</a>
+          <a href="#algebrite">Algebrite Status</a>
+          <a href="#rocq-export">Coq/Rocq Export</a>
+          <a href="#known-gaps">Known Gaps</a>
+          <a href="#test-cases">Manual Tests</a>
+          <a href="#source-map">Source Map</a>
+        </nav>
+      </aside>
+
+      <main>
+        <header>
+          <h1>Hazel Write Steps Implementation Summary</h1>
+          <p class="lead">
+            This document is the current implementation map for write-steps,
+            math automation, Algebrite suggestions, and Coq/Rocq export. The
+            long historical roadmap was intentionally removed; the standalone
+            thesis roadmap remains in
+            <code>analysis/thesis-proposal-roadmap.html</code>.
+          </p>
+          <div class="summary">
+            <div class="metric">
+              <strong>Typed steps</strong>
+              Users can write the next expression and have Hazel check it.
+            </div>
+            <div class="metric">
+              <strong>Level-gated math</strong>
+              Arithmetic, Algebra, and Trigonometry are active levels.
+            </div>
+            <div class="metric">
+              <strong>Export traces</strong>
+              Accepted steps carry prover-oriented summaries when available.
+            </div>
+          </div>
+        </header>
+
+        <section id="current-state">
+          <h2>Current State</h2>
+          <p>
+            The branch turns the missing-step overlay into a small math workbench:
+            choose a math level, choose an automation stage, write or select a
+            candidate step, then store a proof step with a justification and
+            export metadata.
+          </p>
+          <ul>
+            <li>
+              <code>WrittenStep</code>, rewrite suggestions, auto simplifications,
+              and proof-search candidates all flow through the same stepper
+              replacement path.
+            </li>
+            <li>
+              <code>Axioms.re</code> is the source of truth for math levels,
+              automation stages, rewrite groups, rule ids, and prover hints.
+            </li>
+            <li>
+              <code>RewriteChecker.re</code> owns normalization, equivalence
+              checks, trace summaries, and prover-step breadcrumbs.
+            </li>
+            <li>
+              Coq/Rocq export replays stored prover steps where they exist and
+              falls back to labeled tactic groups for coarser proof-search macros.
+            </li>
+          </ul>
+          <div class="callout">
+            Historical note: the earliest written-step checker only compared
+            against Hazel evaluator next steps. The current checker is level-aware
+            and can accept normal-form equivalence, guarded rewrite targets, or
+            bounded Rocq search results.
+          </div>
+        </section>
+
+        <section id="checker-pipeline">
+          <h2>Checker Pipeline</h2>
+          <p>
+            The stepper separates the math level from the automation stage. The
+            level controls which objects and rules are legal; the stage controls
+            how much help Hazel provides.
+          </p>
+          <div class="flow">
+            <div>
+              <strong>One step</strong>
+              Show explicit rewrite targets and manual actions for a selected
+              expression.
+            </div>
+            <div>
+              <strong>Check result</strong>
+              Compare the written target using the checker for the selected
+              math level.
+            </div>
+            <div>
+              <strong>Auto simplify</strong>
+              Offer local simplification targets that Hazel can justify.
+            </div>
+            <div>
+              <strong>Proof search</strong>
+              Ask bounded JSCoq/Rocq tactic search to validate a candidate
+              target.
+            </div>
+          </div>
+          <pre><code>selected expression + user target
+  -> level gate in Axioms.re
+  -> RewriteChecker normalizer or rewrite target
+  -> trace_summary with rule ids and prover_steps
+  -> StepperBase stores the accepted proof step
+  -> CoqProofExport replays or validates the trace</code></pre>
+        </section>
+
+        <section id="math-levels">
+          <h2>Math Levels</h2>
+          <p>
+            Levels are cumulative by rank. A higher level can use lower-level
+            operations, but export should still pick the smallest tactic group
+            that matches the actual subgoal.
+          </p>
+          <table>
+            <thead>
+              <tr>
+                <th>Level</th>
+                <th>Status</th>
+                <th>Allowed work</th>
+                <th>Default Rocq group</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>Arithmetic</code></td>
+                <td>Active</td>
+                <td>Constants, affine terms, adjacent arithmetic steps.</td>
+                <td><code>hazel_arithmetic</code></td>
+              </tr>
+              <tr>
+                <td><code>Algebra</code></td>
+                <td>Active</td>
+                <td>Distribution, factoring, cancellation, polynomial normal forms.</td>
+                <td><code>hazel_algebra</code></td>
+              </tr>
+              <tr>
+                <td><code>Trigonometry</code></td>
+                <td>Active</td>
+                <td>Sin/cos/tan identities plus arithmetic and algebra around them.</td>
+                <td><code>hazel_trigonometry</code></td>
+              </tr>
+              <tr>
+                <td><code>FunctionsAndLists</code></td>
+                <td>Planned</td>
+                <td>Unfold, beta, map, fold, and induction helpers.</td>
+                <td>Not implemented</td>
+              </tr>
+              <tr>
+                <td><code>Calculus</code></td>
+                <td>Planned</td>
+                <td>Derivative, limit, and domain-specific theorem groups.</td>
+                <td>Not implemented</td>
+              </tr>
+            </tbody>
+          </table>
+          <p>
+            Construct gating rejects expressions that require a higher level,
+            such as trig calls in Arithmetic mode or unknown function calls
+            before the Functions/lists level exists.
+          </p>
+        </section>
+
+        <section id="capabilities">
+          <h2>Capabilities</h2>
+          <h3>Arithmetic</h3>
+          <ul>
+            <li>Affine normal form: constant plus sorted symbolic coefficients.</li>
+            <li>Accepts examples like <code>3 + x == x + 3</code> and <code>2 * x + 3 == x + x + 3</code>.</li>
+            <li>Rejects non-affine symbolic products like <code>x * x</code>.</li>
+            <li>Manual one-step recognizes adjacent addition swaps and constant folds as exportable rules.</li>
+          </ul>
+
+          <h3>Algebra</h3>
+          <ul>
+            <li>Polynomial normal forms cover products over sums, small powers, coefficients, and like-term collection.</li>
+            <li>Rewrite targets cover distribution, reverse distribution/factoring, cancellation, binomial/trinomial expansion, conjugates, and completing simple squares.</li>
+            <li>Current weakness: some associativity/flattening behavior is still presentation-driven rather than a single canonical UI model.</li>
+          </ul>
+
+          <h3>Trigonometry</h3>
+          <ul>
+            <li>Bounded identity search covers selected sin/cos/tan transformations and double-angle style rewrites.</li>
+            <li>Algebra-only subgoals under trig expressions should export through the Algebra tactic group when trig calls are unchanged.</li>
+            <li>Scalar simplifications inside trig arguments, such as <code>cos(2 * (2 * x)) -> cos(4 * x)</code>, are handled as prover-searchable steps.</li>
+          </ul>
+        </section>
+
+        <section id="algebrite">
+          <h2>Algebrite Status</h2>
+          <p>
+            Algebrite is not the trusted written-step arithmetic checker. It is
+            currently used as a suggestion source and retained for legacy step
+            compatibility.
+          </p>
+          <ul>
+            <li>
+              The UI button is labeled <code>simplify with algebrite</code> and
+              seeds the written target editor with one candidate simplification.
+            </li>
+            <li>
+              The candidate is checked by the same Hazel/Rocq path as if the
+              user had typed it manually.
+            </li>
+            <li>
+              Export should depend on the accepted Hazel trace or Rocq tactic
+              summary, not on trusting Algebrite.
+            </li>
+          </ul>
+        </section>
+
+        <section id="rocq-export">
+          <h2>Coq/Rocq Export</h2>
+          <p>
+            There are two related paths. Browser JSCoq validates candidate steps
+            during editing. File export renders a complete Coq/Rocq proof from
+            the stored stepper chain. A mismatch between these paths is a bug.
+          </p>
+          <table>
+            <thead>
+              <tr>
+                <th>Part</th>
+                <th>Role</th>
+                <th>Current policy</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>ProofSearchBackend.re</code></td>
+                <td>Builds bounded tactic-search programs.</td>
+                <td>Chooses the export level from the subgoal, not only from the UI mode.</td>
+              </tr>
+              <tr>
+                <td><code>CoqExport.re</code></td>
+                <td>Renders Hazel expressions into Coq/Rocq terms.</td>
+                <td>Chooses integer or real prelude based on the whole proof context.</td>
+              </tr>
+              <tr>
+                <td><code>CoqProofExport.re</code></td>
+                <td>Replays stored proof steps.</td>
+                <td>Uses local assertions for breadcrumbs and labeled tactic fallbacks for macros.</td>
+              </tr>
+              <tr>
+                <td><code>window.HazelJSCoq</code></td>
+                <td>Browser-side checker.</td>
+                <td>Should reuse managers when possible, but cleanup must not crash JSCoq logging.</td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="callout warning">
+            Export still contains coarse tactic fallbacks for some macro steps.
+            The next quality bar is to lower more accepted UI actions into
+            primitive prover breadcrumbs, especially algebra normalization and
+            hidden associativity/commutativity steps.
+          </div>
+
+          <h3>Rocq tactic groups by math level</h3>
+          <p>
+            Math levels are the policy source of truth, but the exported tactic
+            group is chosen from the actual checked subgoal. This matters when a
+            Trigonometry-mode expression contains an algebra-only rewrite, such
+            as distributing around unchanged <code>cos(...)</code> calls.
+          </p>
+          <table>
+            <thead>
+              <tr>
+                <th>Effective level</th>
+                <th>Macro rule id</th>
+                <th>Rocq tactic group</th>
+                <th>Current scope</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>Arithmetic</code></td>
+                <td><code>rocq.arithmetic_tactic_search</code></td>
+                <td><code>hazel_arithmetic</code></td>
+                <td>Linear arithmetic, constant folds, simple numeric cleanup, and bounded rewrite search.</td>
+              </tr>
+              <tr>
+                <td><code>Algebra</code></td>
+                <td><code>rocq.algebra_tactic_search</code></td>
+                <td><code>hazel_algebra</code></td>
+                <td>Arithmetic plus distribution, factoring, polynomial-style expansion, cancellation, and scalar-product simplification.</td>
+              </tr>
+              <tr>
+                <td><code>Trigonometry</code></td>
+                <td><code>rocq.trigonometry_tactic_search</code></td>
+                <td><code>hazel_trigonometry</code></td>
+                <td>Algebra plus supported sin/cos identities, half-angle rules, double-angle rules, Pythagorean rules, and trig argument algebra.</td>
+              </tr>
+              <tr>
+                <td><code>FunctionsAndLists</code>, <code>Calculus</code></td>
+                <td>Reserved macro ids</td>
+                <td>Not active as user-facing groups</td>
+                <td>These levels are disabled until they have their own rule groups, proof rules, and export tactics.</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <h3>Per-step JSCoq checking and export automation</h3>
+          <p>
+            The intended flow is proof-producing even when the UI shows a single
+            button press or a collapsed automation result.
+          </p>
+          <ol>
+            <li>
+              <code>Axioms.re</code> defines the cumulative math levels,
+              automation stages, rewrite groups, rule ids, and prover hints.
+            </li>
+            <li>
+              <code>ProofSearchBackend.effective_level_for_request</code>
+              lowers a requested level to the smallest sound export group for
+              the subgoal. In particular, Trigonometry and Calculus requests
+              whose trig applications are preserved export as Algebra subgoals.
+            </li>
+            <li>
+              <code>ProofSearchBackend.rocq_search_program</code> renders a
+              one-theorem JSCoq/Rocq check with the inferred integer or real
+              domain and the selected tactic group.
+            </li>
+            <li>
+              If browser JSCoq accepts that theorem, Hazel stores a collapsed
+              <code>trace_summary</code> with the macro rule id and a
+              <code>prover_step</code>. Algebrite suggestions use the same path:
+              Algebrite only proposes the target; Rocq/Hazel still validates it.
+            </li>
+            <li>
+              File export replays stored <code>prover_steps</code> as local
+              Coq/Rocq assertions, then rewrites them into the final theorem.
+              When a step has no fine-grained breadcrumbs, export falls back to
+              the recorded tactic group rather than guessing from the visible UI
+              mode.
+            </li>
+            <li>
+              Generic cleanup steps are domain-aware: integer cleanup uses the
+              bounded integer rewrite fallback, while real cleanup uses
+              <code>hazel_arithmetic</code> so facts like <code>2 * 1 = 2</code>
+              in <code>R</code> do not fail export.
+            </li>
+          </ol>
+          <pre><code>selected source + candidate target
+  -> Axioms level gate
+  -> effective export level from the subgoal
+  -> JSCoq theorem using hazel_arithmetic / hazel_algebra / hazel_trigonometry
+  -> accepted trace_summary with rule ids and prover_steps
+  -> CoqProofExport local assertions or tactic-group macro
+  -> local coqc and browser JSCoq should agree</code></pre>
+        </section>
+
+        <section id="known-gaps">
+          <h2>Known Gaps And Priority TODOs</h2>
+          <ol>
+            <li>
+              Finish the associative flattening design for presentation and
+              selection. Avoid eager unparenthesize behavior that treats a
+              descendant selection as if the parenthesized expression itself was
+              selected.
+            </li>
+            <li>
+              Convert more algebra targets from coarse macro summaries into
+              replayable primitive prover steps.
+            </li>
+            <li>
+              Keep local <code>coqc</code> export checks and browser JSCoq checks
+              aligned. If one passes and the other fails, track it as an export bug.
+            </li>
+            <li>
+              Add repeatable browser regression coverage for JSCoq cleanup,
+              logging, timeouts, and manager reuse.
+            </li>
+            <li>
+              Implement Functions/lists only after the arithmetic and algebra
+              export traces are stable.
+            </li>
+          </ol>
+        </section>
+
+        <section id="test-cases">
+          <h2>Manual Tests</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>Mode</th>
+                <th>Expression</th>
+                <th>Try</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Arithmetic</td>
+                <td><code>1 + 2 + x + x + 4 + x + 3</code></td>
+                <td>Auto simplify or check result to <code>3 * x + 10</code>.</td>
+              </tr>
+              <tr>
+                <td>Algebra</td>
+                <td><code>2 * (2 + cos(2 * x))</code></td>
+                <td>Distribute to <code>2 * 2 + 2 * cos(2 * x)</code>.</td>
+              </tr>
+              <tr>
+                <td>Algebra</td>
+                <td><code>(a + b) * (c + d)</code></td>
+                <td>Expand through guarded algebra targets or proof search.</td>
+              </tr>
+              <tr>
+                <td>Trigonometry</td>
+                <td><code>1 + 2 * sin(x) ** 4</code></td>
+                <td>Use trig rewrites, algebra simplification, and export the proof.</td>
+              </tr>
+              <tr>
+                <td>Algebrite suggestion</td>
+                <td><code>((1 - cos(2 * x)) / 2) ** 2</code></td>
+                <td>Click <code>simplify with algebrite</code>, then validate with Rocq search.</td>
+              </tr>
+            </tbody>
+          </table>
+        </section>
+
+        <section id="source-map">
+          <h2>Source Map</h2>
+          <ul class="file-list">
+            <li><code>src/language/proof/Axioms.re</code></li>
+            <li><code>src/language/proof/Reparenthesize.re</code></li>
+            <li><code>src/web/app/editors/stepper/MissingStep.re</code></li>
+            <li><code>src/web/app/editors/stepper/AxiomsBox.re</code></li>
+            <li><code>src/web/app/editors/stepper/AxiomSearch.re</code></li>
+            <li><code>src/web/app/editors/stepper/RewriteChecker.re</code></li>
+            <li><code>src/web/app/editors/stepper/TrigRewrite.re</code></li>
+            <li><code>src/web/app/editors/stepper/ProofSearchBackend.re</code></li>
+            <li><code>src/web/app/editors/stepper/CoqExport.re</code></li>
+            <li><code>src/web/app/editors/stepper/CoqProofExport.re</code></li>
+            <li><code>src/web/app/editors/stepper/StepperBase.re</code></li>
+            <li><code>test/Test_RewriteChecker.re</code></li>
+          </ul>
+          <p>
+            The next implementation pass should follow
+            <code>analysis/thesis-proposal-roadmap.html</code>, especially the
+            near-term focus on arithmetic validation, cumulative algebra rewrite
+            groups, and polynomial normalization before expanding into
+            trigonometry, calculus, or functions/lists.
+          </p>
+        </section>
+      </main>
+    </div>
+  </body>
+</html>

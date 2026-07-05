@@ -36,6 +36,37 @@
   gap: 0.5em;
 }
 
+.stepper-export-controls {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.5em;
+  padding: 0.5em 0.5em 0.5em 1.2em;
+  border-top: 1px dotted var(--cell-result-border);
+}
+
+.stepper-export-warning {
+  color: var(--warning-hole-stroke);
+}
+
+.stepper-coq-check-status {
+  max-width: min(48rem, 70vw);
+  color: var(--BR4);
+  white-space: pre-wrap;
+}
+
+.stepper-coq-check-status.running {
+  color: var(--BR4);
+}
+
+.stepper-coq-check-status.passed {
+  color: var(--G0);
+}
+
+.stepper-coq-check-status.failed {
+  color: var(--R2);
+}
+
 .induction-scrut {
   display: flex;
   flex-direction: row;
@@ -120,6 +151,10 @@
   border: 1px dotted var(--cell-result-border);
 }
 
+#main .inline-editor-wrapper .code-editor {
+  padding-left: 0;
+}
+
 /* PROVER */
 
 .missing-step-overlay-align {
@@ -140,6 +175,102 @@
   display: flex;
   flex-direction: row;
   gap: 0.5em;
+}
+
+.math-automation-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35em;
+  pointer-events: all;
+}
+
+.math-automation-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35em;
+}
+
+.settings-action {
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 1em;
+  color: var(--BR4);
+}
+
+.settings-action-detail {
+  color: var(--BR4);
+  font-size: 0.78em;
+  line-height: 1.2;
+  opacity: 0.75;
+}
+
+.math-automation-popover {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4em;
+  margin-left: 3.75em;
+  max-width: calc(100% - 4.25em);
+  padding: 0.45em;
+  border: 1px solid var(--menu-outline);
+  border-radius: 0.25em;
+  background-color: var(--T1);
+  box-shadow: 0px 3px 8px var(--menu-shadow);
+}
+
+.math-automation-control {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.35em;
+}
+
+.math-automation-control-label {
+  color: var(--BR4);
+  font-size: 0.8em;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.math-automation-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.35em;
+}
+
+.math-automation-option {
+  cursor: pointer;
+  min-width: 0;
+  padding: 0.25em 0.45em;
+  border: 1px solid var(--menu-outline);
+  border-radius: 0.2em;
+  background-color: var(--menu-bkg);
+  color: var(--BR4);
+  box-shadow: 0px 2px 5px var(--menu-shadow);
+}
+
+.math-automation-option.active {
+  border-color: var(--BR4);
+  background-color: var(--BR4);
+  color: var(--T3);
+}
+
+.math-automation-option.disabled {
+  cursor: default;
+  opacity: 0.68;
+}
+
+.math-automation-option-label {
+  color: inherit;
+  font-weight: 600;
+  line-height: 1.15;
+}
+
+.math-automation-option-detail {
+  color: inherit;
+  font-size: 0.78em;
+  line-height: 1.2;
+  margin-top: 0.1em;
 }
 
 .proof-button {
@@ -179,6 +310,36 @@
   display: flex;
   flex-direction: column;
   gap: 5px;
+  min-width: 25em;
+}
+
+.proof-search-suggestions {
+  border-top: 1px solid var(--menu-outline);
+  margin-top: 0.4em;
+  padding-top: 0.6em;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.proof-search-suggestions input {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.proof-search-suggestions .assumption-box {
+  margin-left: 0;
+}
+
+.proof-search-status {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.proof-mode-warning {
+  color: var(--R2);
+  font-weight: 600;
 }
 
 /* STEPPER (OLD) */

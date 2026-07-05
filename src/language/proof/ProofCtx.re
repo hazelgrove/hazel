@@ -124,3 +124,55 @@ let lookup_rule = (name: string, ctx: t): option(ProofRule.t) =>
   ctx
   |> List.find_opt(e => e.name == name && e.is_captured == false)
   |> Option.map(e => e.rule);
+
+let rec get_empty_bindings = (ctx: list(Ctx.entry)) =>
+  switch (ctx) {
+  | [] => []
+  | [Ctx.VarEntry(var_entry), ...rs] => [
+      (var_entry.name, (var_entry.typ, None)),
+      ...get_empty_bindings(rs),
+    ]
+  | [_, ...rs] => get_empty_bindings(rs)
+  };
+
+let rec get_rewrites = (ctx: t, exp: Exp.t) =>
+  switch (ctx) {
+  | [] => []
+  | [{rule, _}, ...rs] =>
+    let rewrites =
+      switch (
+        ProofRule.can_eq(
+          ~info_map=Statics.Map.empty,
+          ~env=Environment.empty,
+          rule,
+          exp,
+        )
+      ) {
+      | (Some(l), Some(r)) => [l, r]
+      | (Some(l), None) => [l]
+      | (None, Some(r)) => [r]
+      | (None, None) => []
+      };
+    rewrites @ get_rewrites(rs, exp);
+  };
+
+let rec get_rewrites_with_names = (ctx: t, exp: Exp.t) =>
+  switch (ctx) {
+  | [] => []
+  | [{name, rule, _}, ...rs] =>
+    let rewrites =
+      switch (
+        ProofRule.can_eq(
+          ~info_map=Statics.Map.empty,
+          ~env=Environment.empty,
+          rule,
+          exp,
+        )
+      ) {
+      | (Some(l), Some(r)) => [(name, l), (name, r)]
+      | (Some(l), None) => [(name, l)]
+      | (None, Some(r)) => [(name, r)]
+      | (None, None) => []
+      };
+    rewrites @ get_rewrites_with_names(rs, exp);
+  };

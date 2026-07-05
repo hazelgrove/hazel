@@ -9,6 +9,13 @@ open OptUtil.Syntax;
    the future, it'll be easier to please the OCaml compiler. */
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type coq_check_status =
+  | CoqCheckIdle
+  | CoqCheckRunning(int)
+  | CoqCheckPassed(string)
+  | CoqCheckFailed(string);
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type step_kind_model =
   | SingleStep(SingleStep.model'(step_model))
   | InductionStep(InductionStep.model'(step_model))
@@ -16,11 +23,17 @@ type step_kind_model =
   | MissingStep(MissingStep.Model.t)
   | AxiomStep(AxiomStep.model'(step_model))
   | AlgebriteStep(AlgebriteStep.model'(step_model))
+  | WrittenStep(WrittenStep.model'(step_model))
   | ReparenthesizeStep({
       original_exp: Exp.t,
       reparenthesized_exp: Exp.t,
       selected_id: option(Id.t),
       evaluate_after_parenthesize: bool,
+      next_exp: Calc.saved(Exp.t),
+    })
+  | AutoSimplifyStep({
+      original_exp: Exp.t,
+      simplified_exp: Exp.t,
       next_exp: Calc.saved(Exp.t),
     })
 
@@ -35,6 +48,8 @@ and step_model = {
   hidden: Calc.saved(bool),
   proof_validity: Calc.saved(option(bool)),
   editor_info_map: Calc.saved(Statics.Map.t),
+  export_warning: option(string),
+  coq_check_status,
 };
 
 let init_step = {
@@ -45,6 +60,8 @@ let init_step = {
   hidden: Calc.Pending,
   proof_validity: Calc.Pending,
   editor_info_map: Calc.Pending,
+  export_warning: None,
+  coq_check_status: CoqCheckIdle,
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -55,6 +72,7 @@ type persistent_step_kind =
   | MissingStep(MissingStep.Model.persistent)
   | AxiomStep(AxiomStep.persistent'(persistent_step))
   | AlgebriteStep(AlgebriteStep.persistent'(persistent_step))
+  | WrittenStep(WrittenStep.persistent'(persistent_step))
   | ReparenthesizeStep(Exp.t, Exp.t) /* original_exp, reparenthesized_exp */
   | ReparenthesizeStepWithSelection({
       original_exp: Exp.t,
@@ -62,6 +80,7 @@ type persistent_step_kind =
       selected_id: option(Id.t),
       evaluate_after_parenthesize: bool,
     })
+  | AutoSimplifyStep(Exp.t, Exp.t) /* original_exp, simplified_exp */
 
 and persistent_step = {
   step_kind: persistent_step_kind,
@@ -76,6 +95,7 @@ type step_kind_action =
   | MissingStep(MissingStep.Update.t)
   | AxiomStep(AxiomStep.action'(step_action))
   | AlgebriteStep(AlgebriteStep.action'(step_action))
+  | WrittenStep(WrittenStep.action'(step_action))
 
 and step_action =
   | StepKindAction(step_kind_action)
@@ -84,12 +104,24 @@ and step_action =
   | RemoveStep
   | StepForward(int)
   | StepForwardOnSelection(list(Id.t), bool)
+  | AutoSimplifySelection(Exp.t, Exp.t)
   | AddInduction(option(Exp.t))
   | AddForall
   | AddAxiomStep(string, int, Exp.t, Direction.t, string)
   | AddAlgebriteStep(int, Exp.t, Exp.t)
   | AddReparenthesizeStep(Exp.t)
-  | AddReparenthesizedAlgebriteStep(Exp.t, Exp.t, Exp.t);
+  | AddReparenthesizedAlgebriteStep(Exp.t, Exp.t, Exp.t)
+  | AddReparenthesizedWrittenStep(
+      RewriteChecker.trace_summary,
+      Exp.t,
+      Exp.t,
+      Exp.t,
+    )
+  | AddWrittenStep(RewriteChecker.trace_summary, int, Exp.t, Exp.t)
+  | CoqExport
+  | CoqBrowserCheckStarted(int)
+  | CoqBrowserCheckUnavailable(string)
+  | CoqBrowserCheckFinished(int, bool, string);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type step_kind_focus =
@@ -99,6 +131,7 @@ type step_kind_focus =
   | MissingStep(MissingStep.Selection.t)
   | AxiomStep(AxiomStep.focus'(step_focus))
   | AlgebriteStep(AlgebriteStep.focus'(step_focus))
+  | WrittenStep(WrittenStep.focus'(step_focus))
 
 and step_focus =
   | StepKindFocus(step_kind_focus)
@@ -114,6 +147,26 @@ module rec StepKind: {
       type focus = step_kind_focus;
 
   let is_missing_step: step_kind_model => bool;
+  let calculate_with_level:
+    (
+      ~rewrite_level: Axioms.rewrite_level,
+      ~settings: Calc.t(CoreSettings.t),
+      ~hidden: Calc.saved(bool),
+      ~exp: Calc.t(Exp.t),
+      ~ctx: Calc.t(SemanticCtx.t),
+      ~editor: Calc.t(CodeSelectable.Model.t),
+      ~info_map: Calc.t(Statics.Map.t),
+      ~ana: Calc.t(Typ.t),
+      step_kind_model
+    ) =>
+    option(
+      (
+        step_kind_model,
+        Calc.t(bool),
+        option(Calc.t(Exp.t)),
+        Calc.t(option(bool)),
+      ),
+    );
 } = {
   /* The StepKind code here is almost all dispatch to the
      individual step modules. */
@@ -124,6 +177,7 @@ module rec StepKind: {
   module MissingStep = MissingStep; // This could be functorized too.
   module AxiomStep = AxiomStep.F(Stepper);
   module AlgebriteStep = AlgebriteStep.F(Stepper);
+  module WrittenStep = WrittenStep.F(Stepper);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type model = step_kind_model;
@@ -142,6 +196,7 @@ module rec StepKind: {
     | MissingStep(m) => MissingStep(MissingStep.Model.persist(m))
     | AxiomStep(m) => AxiomStep(AxiomStep.persist(m))
     | AlgebriteStep(m) => AlgebriteStep(AlgebriteStep.persist(m))
+    | WrittenStep(m) => WrittenStep(WrittenStep.persist(m))
     | ReparenthesizeStep({
         original_exp,
         reparenthesized_exp,
@@ -155,6 +210,8 @@ module rec StepKind: {
         selected_id,
         evaluate_after_parenthesize,
       })
+    | AutoSimplifyStep({original_exp, simplified_exp, _}) =>
+      AutoSimplifyStep(original_exp, simplified_exp)
     };
   };
 
@@ -166,6 +223,7 @@ module rec StepKind: {
     | MissingStep(m) => MissingStep(MissingStep.Model.unpersist(m))
     | AxiomStep(m) => AxiomStep(AxiomStep.unpersist(m))
     | AlgebriteStep(m) => AlgebriteStep(AlgebriteStep.unpersist(m))
+    | WrittenStep(m) => WrittenStep(WrittenStep.unpersist(m))
     | ReparenthesizeStep(original_exp, reparenthesized_exp) =>
       ReparenthesizeStep({
         original_exp,
@@ -185,6 +243,12 @@ module rec StepKind: {
         reparenthesized_exp,
         selected_id,
         evaluate_after_parenthesize,
+        next_exp: Calc.Pending,
+      })
+    | AutoSimplifyStep(original_exp, simplified_exp) =>
+      AutoSimplifyStep({
+        original_exp,
+        simplified_exp,
         next_exp: Calc.Pending,
       })
     };
@@ -218,10 +282,14 @@ module rec StepKind: {
       | (AlgebriteStep(a), AlgebriteStep(m)) =>
         let* s = AlgebriteStep.update(~settings, a, m);
         (AlgebriteStep(s): model);
+      | (WrittenStep(a), WrittenStep(m)) =>
+        let* s = WrittenStep.update(~settings, a, m);
+        (WrittenStep(s): model);
       | (
           SingleStep(_) | InductionStep(_) | ForallStep(_) | MissingStep(_) |
           AxiomStep(_) |
-          AlgebriteStep(_),
+          AlgebriteStep(_) |
+          WrittenStep(_),
           _,
         ) =>
         model |> Updated.raise_invalid_action
@@ -237,11 +305,13 @@ module rec StepKind: {
     | MissingStep(action) => MissingStep.Update.can_undo(action)
     | AxiomStep(action) => AxiomStep.can_undo(action)
     | AlgebriteStep(action) => AlgebriteStep.can_undo(action)
+    | WrittenStep(action) => WrittenStep.can_undo(action)
     };
   };
 
-  let rec calculate =
+  let rec calculate_with_level =
           (
+            ~rewrite_level: Axioms.rewrite_level,
             ~settings: Calc.t(CoreSettings.t),
             ~hidden: Calc.saved(bool),
             ~exp: Calc.t(Exp.t),
@@ -312,7 +382,8 @@ module rec StepKind: {
         |> Calc.get_value;
       switch (next_step_to_take) {
       | Some(evalobj) =>
-        calculate(
+        calculate_with_level(
+          ~rewrite_level,
           ~settings,
           ~info_map,
           ~exp=exp |> Calc.make_new,
@@ -330,6 +401,7 @@ module rec StepKind: {
         Some((
           MissingStep(
             MissingStep.Update.calculate(
+              ~rewrite_level,
               ~settings=settings |> Calc.get_value,
               exp,
               info_map,
@@ -382,6 +454,19 @@ module rec StepKind: {
           m,
         );
       (AlgebriteStep(m): model, h, e, v);
+    | WrittenStep(m) =>
+      let+ (m, h, e, v) =
+        WrittenStep.calculate(
+          ~settings,
+          ~hidden,
+          ~exp,
+          ~ctx,
+          ~editor,
+          ~info_map,
+          ~ana,
+          m,
+        );
+      (WrittenStep(m): model, h, e, v);
     | ReparenthesizeStep({
         original_exp,
         reparenthesized_exp,
@@ -442,7 +527,37 @@ module rec StepKind: {
           Calc.OldValue(None),
         ));
       };
+    | AutoSimplifyStep({original_exp, simplified_exp, _}) =>
+      let current_exp = exp |> Calc.get_value;
+      if (!DHExp.fast_equal(current_exp, original_exp)) {
+        None;
+      } else {
+        Some((
+          AutoSimplifyStep({
+            original_exp,
+            simplified_exp,
+            next_exp: Calc.Calculated(simplified_exp),
+          }): model,
+          Calc.set(false, hidden),
+          Some(Calc.NewValue(simplified_exp)),
+          Calc.OldValue(None),
+        ));
+      };
     };
+
+  let calculate =
+      (~settings, ~hidden, ~exp, ~ctx, ~editor, ~info_map, ~ana, model) =>
+    calculate_with_level(
+      ~rewrite_level=Axioms.Arithmetic,
+      ~settings,
+      ~hidden,
+      ~exp,
+      ~ctx,
+      ~editor,
+      ~info_map,
+      ~ana,
+      model,
+    );
 
   let get_cursor_info = (~inject, ~focus: focus, model: model) =>
     Cursor.(
@@ -495,10 +610,21 @@ module rec StepKind: {
             model,
           );
         (AlgebriteStep(focus_info): action);
+      | (WrittenStep(focus), WrittenStep(model)) =>
+        let+ focus_info =
+          WrittenStep.get_cursor_info(
+            ~inject=x => inject(WrittenStep(x): action),
+            ~focus,
+            model,
+          );
+        (WrittenStep(focus_info): action);
+      | (_, ReparenthesizeStep(_))
+      | (_, AutoSimplifyStep(_)) => Cursor.empty
       | (
           SingleStep(_) | InductionStep(_) | ForallStep(_) | MissingStep(_) |
           AxiomStep(_) |
-          AlgebriteStep(_),
+          AlgebriteStep(_) |
+          WrittenStep(_),
           _,
         ) => Cursor.empty
       }
@@ -551,7 +677,8 @@ module rec StepKind: {
           m,
         )
       | MissingStep(_)
-      | ReparenthesizeStep(_) => (
+      | ReparenthesizeStep(_)
+      | AutoSimplifyStep(_) => (
           (~globals as _, ~hide_stepper as _, ~undo as _, ~is_toplevel as _) =>
             []
         )
@@ -575,6 +702,17 @@ module rec StepKind: {
             },
           ~inject=x => inject(AlgebriteStep(x)),
           ~take_focus=x => take_focus(AlgebriteStep(x)),
+          m,
+        )
+      | WrittenStep(m) =>
+        WrittenStep.view_content(
+          ~focus=
+            switch (focus) {
+            | Some(WrittenStep(f)) => Some(f)
+            | _ => None
+            },
+          ~inject=x => inject(WrittenStep(x)),
+          ~take_focus=x => take_focus(WrittenStep(x)),
           m,
         )
       };
@@ -649,6 +787,7 @@ module rec StepKind: {
         m,
       )
     | ReparenthesizeStep(_) => WebUtil.Node.text("reparenthesize")
+    | AutoSimplifyStep(_) => WebUtil.Node.text("auto simplify")
     | AxiomStep(m) =>
       AxiomStep.view_justification(
         ~globals,
@@ -681,6 +820,22 @@ module rec StepKind: {
         ~is_toplevel,
         m,
       )
+    | WrittenStep(m) =>
+      WrittenStep.view_justification(
+        ~globals,
+        ~focus=
+          switch (focus) {
+          | Some(WrittenStep(f)) => Some(f)
+          | Some(_)
+          | None => None
+          },
+        ~inject=x => inject(WrittenStep(x)),
+        ~take_focus=x => take_focus(WrittenStep(x)),
+        ~hide_stepper,
+        ~undo,
+        ~is_toplevel,
+        m,
+      )
     };
 }
 
@@ -692,6 +847,30 @@ and Stepper: {
       type action = step_action and
       type focus = step_focus;
   let get_validity: step_model => option(bool);
+  let export_coq: step_model => option(string);
+  let calculate_with_level:
+    (
+      ~rewrite_level: Axioms.rewrite_level,
+      ~settings: Calc.t(CoreSettings.t),
+      ~exp: Calc.t(Exp.t),
+      ~ctx: Calc.t(SemanticCtx.t),
+      ~ana: Calc.t(Typ.t),
+      step_model
+    ) =>
+    (step_model, Calc.t(Exp.t), Calc.t(option(bool)));
+  let view_with_automation:
+    (
+      ~globals: Globals.t,
+      ~take_focus: step_focus => Ui_effect.t(unit),
+      ~inject: step_action => Ui_effect.t(unit),
+      ~hide_stepper: Ui_effect.t(unit),
+      ~focus: option(step_focus),
+      ~rewrite_level: Axioms.rewrite_level,
+      ~automation_stage: Axioms.automation_stage,
+      ~is_toplevel: bool,
+      step_model
+    ) =>
+    list(WebUtil.Node.t);
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type model = step_model;
@@ -710,6 +889,8 @@ and Stepper: {
     hidden: Calc.Pending,
     proof_validity: Calc.Pending,
     editor_info_map: Calc.Pending,
+    export_warning: None,
+    coq_check_status: CoqCheckIdle,
   };
 
   let rec persist = (model: model): persistent => {
@@ -728,6 +909,8 @@ and Stepper: {
       hidden: Calc.Pending,
       proof_validity: Calc.Pending,
       editor_info_map: Calc.Pending,
+      export_warning: None,
+      coq_check_status: CoqCheckIdle,
     };
   };
 
@@ -737,205 +920,570 @@ and Stepper: {
          ~print="get_validity called before calculate on stepper",
        );
 
+  let coq_trace_comment = (step_kind: step_kind_model) =>
+    switch (step_kind) {
+    | WrittenStep({trace_summary: Some(summary), _}) =>
+      CoqProofExport.written_trace_comment(summary)
+    | WrittenStep({justification, _}) =>
+      "(* Hazel written step: " ++ justification ++ " *)\n"
+    | AutoSimplifyStep(_) => "(* Hazel auto simplify step. *)\n"
+    | ReparenthesizeStep(_) => "(* Hazel reparenthesization step. *)\n"
+    | AlgebriteStep(_) => "(* Legacy Algebrite step; retained only as a Coq/Rocq fallback check. *)\n"
+    | AxiomStep({name, _}) => "(* Hazel axiom step: " ++ name ++ " *)\n"
+    | SingleStep(_)
+    | InductionStep(_)
+    | ForallStep(_)
+    | MissingStep(_) => ""
+    };
+
+  let coq_tactic_for_step = (~forall_str, ~domain, step_kind: step_kind_model) =>
+    switch (step_kind) {
+    | WrittenStep({trace_summary: Some(summary), _}) =>
+      CoqProofExport.tactic_for_written_summary(~forall_str, ~domain, summary)
+    | AxiomStep({name, _}) => CoqProofExport.tactic_for_axiom_step(name)
+    | _ => CoqProofExport.default_tactic_for_domain(domain)
+    };
+
+  let coq_domain_for_step = (step: step_model) => {
+    let step_expr_requires_reals =
+      CoqExport.requires_reals(step.expr |> Calc.get_saved_exc)
+      || (
+        switch (step.next_step) {
+        | Some(next) =>
+          CoqExport.requires_reals(next.expr |> Calc.get_saved_exc)
+        | None => false
+        }
+      );
+    let summary_requires_reals =
+      switch (step.step_kind) {
+      | WrittenStep({trace_summary: Some(summary), _}) =>
+        CoqProofExport.domain_for_summary(summary) == CoqExport.Reals
+      | _ => false
+      };
+
+    step_expr_requires_reals || summary_requires_reals
+      ? CoqExport.Reals : CoqExport.Integers;
+  };
+
+  let coq_domain_for_steps = steps =>
+    steps
+    |> List.exists(step =>
+         switch (coq_domain_for_step(step)) {
+         | CoqExport.Reals => true
+         | CoqExport.Integers => false
+         }
+       )
+      ? CoqExport.Reals : CoqExport.Integers;
+
+  let single_step_export = (ind, step: step_model, forall_str, domain) => {
+    switch (step.next_step) {
+    | Some(next) =>
+      let old_expr =
+        CoqExport.string_of_d_for_domain(
+          ~domain,
+          step.expr |> Calc.get_saved_exc,
+        );
+      let new_expr =
+        CoqExport.string_of_d_for_domain(
+          ~domain,
+          next.expr |> Calc.get_saved_exc,
+        );
+      Printf.sprintf(
+        "%sLemma equiv_exp%d:%s%s = %s.\nProof.\nintros.\n%s\nQed.",
+        coq_trace_comment(step.step_kind),
+        ind,
+        forall_str,
+        new_expr,
+        old_expr,
+        coq_tactic_for_step(~forall_str, ~domain, step.step_kind),
+      );
+    | None => ""
+    };
+  };
+
+  let rec coq_export_steps = (step: step_model) =>
+    switch (step.next_step) {
+    | None => []
+    | Some(next_step) =>
+      switch (Calc.get_saved_exc(step.expr) |> Exp.term_of) {
+      | Fun(_, _, _, _) => coq_export_steps(next_step)
+      | _ => [step, ...coq_export_steps(next_step)]
+      }
+    };
+
+  let export_coq = (first_step: step_model): option(string) => {
+    let steps = coq_export_steps(first_step);
+    if (List.length(steps) == 0) {
+      None;
+    } else {
+      let first_exp = Calc.get_saved_exc(List.nth(steps, 0).expr);
+      let unique_vars = CoqExport.unique_vars_in_ast(first_exp);
+      let domain = coq_domain_for_steps(steps);
+      let forall_str =
+        switch (unique_vars) {
+        | [] => ""
+        | vars =>
+          switch (domain) {
+          | CoqExport.Reals =>
+            "forall " ++ String.concat(" ", vars) ++ " : R,"
+          | CoqExport.Integers => "forall " ++ String.concat(" ", vars) ++ ","
+          }
+        };
+      let lemmas_and_invocations =
+        List.mapi(
+          (ind, step) =>
+            (
+              single_step_export(
+                List.length(steps) - ind,
+                step,
+                forall_str,
+                domain,
+              ),
+              CoqProofExport.invocation(List.length(steps) - ind),
+            ),
+          steps,
+        );
+      let (lemmas, invocations) = List.split(lemmas_and_invocations);
+      let first_expr = CoqExport.string_of_d_for_domain(~domain, first_exp);
+      let last_step = List.nth(steps, List.length(steps) - 1);
+      switch (last_step.next_step) {
+      | Some(next) =>
+        let final_expr =
+          CoqExport.string_of_d_for_domain(
+            ~domain,
+            next.expr |> Calc.get_saved_exc,
+          );
+        let prelude =
+          switch (domain) {
+          | CoqExport.Reals => CoqProofExport.real_prelude
+          | CoqExport.Integers => CoqProofExport.prelude
+          };
+        Some(
+          Printf.sprintf(
+            "%s%s\nTheorem equiv_exp:%s%s=%s.\nProof.\nintros.\n%s\nreflexivity.\nQed.",
+            prelude,
+            String.concat("\n", lemmas),
+            forall_str,
+            final_expr,
+            first_expr,
+            String.concat("\n", invocations),
+          ),
+        );
+      | None => None
+      };
+    };
+  };
+
+  let check_coq_in_browser =
+      (~coq_data: string, ~on_result: (bool, string) => unit): unit => {
+    let callback =
+      Js_of_ocaml.Js.wrap_callback((status_js, message_js) => {
+        let status =
+          status_js |> Js_of_ocaml.Js.Unsafe.coerce |> Js_of_ocaml.Js.to_string;
+        let message =
+          message_js
+          |> Js_of_ocaml.Js.Unsafe.coerce
+          |> Js_of_ocaml.Js.to_string;
+        on_result(status == "ok", message);
+      });
+    try(
+      Js_of_ocaml.Js.Unsafe.fun_call(
+        Js_of_ocaml.Js.Unsafe.js_expr("window.HazelJSCoq.checkAndReport"),
+        [|
+          Js_of_ocaml.Js.Unsafe.inject(Js_of_ocaml.Js.string(coq_data)),
+          Js_of_ocaml.Js.Unsafe.inject(callback),
+        |],
+      )
+      |> ignore
+    ) {
+    | _ =>
+      on_result(
+        false,
+        "JSCoq check failed to start. See the browser console for details.",
+      )
+    };
+  };
+
   let rec update =
           (~settings, action: step_action, model: step_model)
           : Updated.t(step_model) => {
-    Updated.(
-      switch (action, model.step_kind, model.next_step) {
-      | (EditorAction(ea), _, _) =>
-        switch (model.editor) {
-        | Calc.Pending => model |> raise_invalid_action
-        | Calc.Calculated(editor) =>
-          let* new_editor =
-            CodeSelectable.Update.update(~settings, ea, editor);
+    let coq_export_error = exn =>
+      "Cannot export Coq proof: " ++ Printexc.to_string(exn);
+    let coq_export_filename = () => {
+      let date = JsUtil.date_now();
+      let pad2 = value =>
+        value < 10 ? "0" ++ string_of_int(value) : string_of_int(value);
+      let year = date##getFullYear;
+      let month = date##getMonth + 1;
+      let day = date##getDate;
+      let hours = date##getHours;
+      let minutes = date##getMinutes;
+      let seconds = date##getSeconds;
+      Printf.sprintf(
+        "coq_export_%04d%s%s_%s%s%s.v",
+        year,
+        pad2(month),
+        pad2(day),
+        pad2(hours),
+        pad2(minutes),
+        pad2(seconds),
+      );
+    };
+    let reset_coq_check_status =
+      switch (action) {
+      | CoqExport
+      | CoqBrowserCheckStarted(_)
+      | CoqBrowserCheckUnavailable(_)
+      | CoqBrowserCheckFinished(_, _, _) => false
+      | _ => true
+      };
+    let updated =
+      Updated.(
+        switch (action, model.step_kind, model.next_step) {
+        | (CoqExport, _, _) =>
+          try(
+            switch (export_coq(model)) {
+            | Some(coq_data) =>
+              JsUtil.download_string_file(
+                ~filename=coq_export_filename(),
+                ~content_type="text/plain",
+                ~contents=coq_data,
+              );
+              {
+                ...model,
+                export_warning: None,
+              }
+              |> return_quiet;
+            | None =>
+              {
+                ...model,
+                export_warning:
+                  Some("Cannot export Coq proof: this proof has no steps."),
+              }
+              |> return_quiet
+            }
+          ) {
+          | exn =>
+            {
+              ...model,
+              export_warning: Some(coq_export_error(exn)),
+            }
+            |> return_quiet
+          }
+        | (CoqBrowserCheckStarted(check_id), _, _) =>
           {
             ...model,
-            editor: Calc.Calculated(new_editor),
+            export_warning: None,
+            coq_check_status: CoqCheckRunning(check_id),
+          }
+          |> return_quiet
+        | (CoqBrowserCheckUnavailable(message), _, _) =>
+          {
+            ...model,
+            coq_check_status: CoqCheckFailed(message),
+          }
+          |> return_quiet
+        | (CoqBrowserCheckFinished(check_id, ok, message), _, _) =>
+          switch (model.coq_check_status) {
+          | CoqCheckRunning(active_check_id) when active_check_id == check_id =>
+            {
+              ...model,
+              coq_check_status:
+                ok ? CoqCheckPassed(message) : CoqCheckFailed(message),
+            }
+            |> return_quiet
+          | _ => model |> return_quiet
+          }
+        | (EditorAction(ea), _, _) =>
+          switch (model.editor) {
+          | Calc.Pending => model |> raise_invalid_action
+          | Calc.Calculated(editor) =>
+            let* new_editor =
+              CodeSelectable.Update.update(~settings, ea, editor);
+            {
+              ...model,
+              editor: Calc.Calculated(new_editor),
+            };
+          }
+        | (NextStep(a), _, Some(ns)) =>
+          let* new_next_step = update(~settings, a, ns);
+          {
+            ...model,
+            next_step: Some(new_next_step),
           };
-        }
-      | (NextStep(a), _, Some(ns)) =>
-        let* new_next_step = update(~settings, a, ns);
-        {
-          ...model,
-          next_step: Some(new_next_step),
-        };
-      | (NextStep(_), _, None) => model |> raise_invalid_action
-      | (RemoveStep, _, _) =>
-        {
-          ...model,
-          step_kind: MissingStep(MissingStep.Model.init),
-        }
-        |> return
-      | (StepForward(idx), MissingStep(ms), _) =>
-        let msns =
-          ms.next_steps
-          |> Calc.get_saved_exc(~print="StepForward")
-          |> (
-            fun
-            | AutoStep(_) => []
-            | AvailableSteps(msns) => msns
-          );
-        switch (List.nth_opt(msns, idx)) {
-        | Some(evalobj) =>
+        | (NextStep(_), _, None) => model |> raise_invalid_action
+        | (RemoveStep, _, _) =>
+          {
+            ...model,
+            step_kind: MissingStep(MissingStep.Model.init),
+          }
+          |> return
+        | (StepForward(idx), MissingStep(ms), _) =>
+          let msns =
+            ms.next_steps
+            |> Calc.get_saved_exc(~print="StepForward")
+            |> (
+              fun
+              | AutoStep(_) => []
+              | AvailableSteps(msns) => msns
+            );
+          switch (List.nth_opt(msns, idx)) {
+          | Some(evalobj) =>
+            {
+              ...model,
+              step_kind:
+                SingleStep({
+                  persistent_evalobj: evalobj |> EvaluatorStep.persist,
+                  evalobj: Calc.Calculated(evalobj),
+                  next_exp: Calc.Pending,
+                }),
+            }
+            |> return
+          | None => model |> raise_invalid_action
+          };
+        | (StepForward(_), _, _) => model |> raise_invalid_action
+        | (
+            StepForwardOnSelection(selected_ids, evaluate_after_parenthesize),
+            MissingStep(_),
+            _,
+          ) =>
+          let exp =
+            model.expr |> Calc.get_saved_exc(~print="StepForwardOnSelection");
+          let visible_exp =
+            (
+              model.editor
+              |> Calc.get_saved_exc(~print="StepForwardOnSelection")
+            ).
+              statics.
+              term;
+          let result =
+            Reparenthesize.reparenthesize_selection(
+              ~selected_ids,
+              visible_exp,
+            )
+            |> Option.map((result: Reparenthesize.result) => {
+                 let new_exp = result.exp;
+                 let selected_id = result.selected_id;
+                 {
+                   ...model,
+                   step_kind:
+                     ReparenthesizeStep({
+                       original_exp: exp,
+                       reparenthesized_exp: new_exp,
+                       selected_id: Some(selected_id),
+                       evaluate_after_parenthesize,
+                       next_exp: Calc.Pending,
+                     }),
+                 };
+               });
+          switch (result) {
+          | Some(m) => m |> return
+          | None => model |> raise_invalid_action
+          };
+        | (StepForwardOnSelection(_, _), _, _) =>
+          model |> raise_invalid_action
+        | (
+            AutoSimplifySelection(original_exp, simplified_exp),
+            MissingStep(_),
+            _,
+          ) =>
           {
             ...model,
             step_kind:
-              SingleStep({
-                persistent_evalobj: evalobj |> EvaluatorStep.persist,
-                evalobj: Calc.Calculated(evalobj),
+              AutoSimplifyStep({
+                original_exp,
+                simplified_exp,
                 next_exp: Calc.Pending,
               }),
           }
           |> return
-        | None => model |> raise_invalid_action
-        };
-      | (StepForward(_), _, _) => model |> raise_invalid_action
-      | (
-          StepForwardOnSelection(selected_ids, evaluate_after_parenthesize),
-          MissingStep(_),
-          _,
-        ) =>
-        let exp =
-          model.expr |> Calc.get_saved_exc(~print="StepForwardOnSelection");
-        let visible_exp =
-          (
-            model.editor |> Calc.get_saved_exc(~print="StepForwardOnSelection")
-          ).
-            statics.
-            term;
-        let result =
-          Reparenthesize.reparenthesize_selection(~selected_ids, visible_exp)
-          |> Option.map((result: Reparenthesize.result) => {
-               let new_exp = result.exp;
-               let selected_id = result.selected_id;
-               {
-                 ...model,
-                 step_kind:
-                   ReparenthesizeStep({
-                     original_exp: exp,
-                     reparenthesized_exp: new_exp,
-                     selected_id: Some(selected_id),
-                     evaluate_after_parenthesize,
-                     next_exp: Calc.Pending,
-                   }),
-               };
-             });
-        switch (result) {
-        | Some(m) => m |> return
-        | None => model |> raise_invalid_action
-        };
-      | (StepForwardOnSelection(_, _), _, _) => model |> raise_invalid_action
-      | (AddInduction(exp), MissingStep(_), _) =>
-        {
-          ...model,
-          step_kind: InductionStep(InductionStep.init(~exp?, ())),
-        }
-        |> return
-      | (AddInduction(_), _, _) => model |> raise_invalid_action
-      | (AddForall, MissingStep(_), _) =>
-        {
-          ...model,
-          step_kind: ForallStep(ForallStep.init(init)),
-        }
-        |> return
-      | (AddForall, _, _) => model |> raise_invalid_action
-      | (
-          AddAxiomStep(name, at_idx, at_exp, direction, equality),
-          MissingStep(_),
-          _,
-        ) =>
-        {
-          ...model,
-          step_kind:
-            AxiomStep({
-              name,
-              at_idx,
-              at_exp,
-              direction,
-              equality,
-              next_exp: Calc.Pending,
-            }),
-        }
-        |> return
-      | (AddAxiomStep(_, _, _, _, _), _, _) => model |> raise_invalid_action
-      | (AddAlgebriteStep(at_idx, at_exp, with_exp), MissingStep(_), _) =>
-        {
-          ...model,
-          step_kind:
-            AlgebriteStep({
-              at_idx,
+        | (AutoSimplifySelection(_, _), _, _) =>
+          model |> raise_invalid_action
+        | (AddInduction(exp), MissingStep(_), _) =>
+          {
+            ...model,
+            step_kind: InductionStep(InductionStep.init(~exp?, ())),
+          }
+          |> return
+        | (AddInduction(_), _, _) => model |> raise_invalid_action
+        | (AddForall, MissingStep(_), _) =>
+          {
+            ...model,
+            step_kind: ForallStep(ForallStep.init(init)),
+          }
+          |> return
+        | (AddForall, _, _) => model |> raise_invalid_action
+        | (
+            AddAxiomStep(name, at_idx, at_exp, direction, equality),
+            MissingStep(_),
+            _,
+          ) =>
+          {
+            ...model,
+            step_kind:
+              AxiomStep({
+                name,
+                at_idx,
+                at_exp,
+                direction,
+                equality,
+                next_exp: Calc.Pending,
+              }),
+          }
+          |> return
+        | (AddAxiomStep(_, _, _, _, _), _, _) =>
+          model |> raise_invalid_action
+        | (AddAlgebriteStep(at_idx, at_exp, with_exp), MissingStep(_), _) =>
+          {
+            ...model,
+            step_kind:
+              AlgebriteStep({
+                at_idx,
+                at_exp,
+                with_exp,
+                next_exp: Calc.Pending,
+              }),
+          }
+          |> return
+        | (AddAlgebriteStep(_, _, _), _, _) => model |> raise_invalid_action
+        | (AddReparenthesizeStep(new_exp), MissingStep(_), _) =>
+          let exp =
+            model.expr |> Calc.get_saved_exc(~print="AddReparenthesizeStep");
+          {
+            ...model,
+            step_kind:
+              ReparenthesizeStep({
+                original_exp: exp,
+                reparenthesized_exp: new_exp,
+                selected_id: None,
+                evaluate_after_parenthesize: false,
+                next_exp: Calc.Pending,
+              }),
+          }
+          |> return;
+        | (AddReparenthesizeStep(_), _, _) => model |> raise_invalid_action
+        | (
+            AddReparenthesizedAlgebriteStep(
+              reparenthesized_exp,
               at_exp,
               with_exp,
-              next_exp: Calc.Pending,
-            }),
-        }
-        |> return
-      | (AddAlgebriteStep(_, _, _), _, _) => model |> raise_invalid_action
-      | (AddReparenthesizeStep(new_exp), MissingStep(_), _) =>
-        let exp =
-          model.expr |> Calc.get_saved_exc(~print="AddReparenthesizeStep");
-        {
-          ...model,
-          step_kind:
-            ReparenthesizeStep({
-              original_exp: exp,
-              reparenthesized_exp: new_exp,
-              selected_id: None,
-              evaluate_after_parenthesize: false,
-              next_exp: Calc.Pending,
-            }),
-        }
-        |> return;
-      | (AddReparenthesizeStep(_), _, _) => model |> raise_invalid_action
-      | (
-          AddReparenthesizedAlgebriteStep(
-            reparenthesized_exp,
-            at_exp,
-            with_exp,
-          ),
-          MissingStep(_),
-          _,
-        ) =>
-        let exp =
-          model.expr
-          |> Calc.get_saved_exc(~print="AddReparenthesizedAlgebriteStep");
-        {
-          ...model,
-          step_kind:
-            ReparenthesizeStep({
-              original_exp: exp,
+            ),
+            MissingStep(_),
+            _,
+          ) =>
+          let exp =
+            model.expr
+            |> Calc.get_saved_exc(~print="AddReparenthesizedAlgebriteStep");
+          {
+            ...model,
+            step_kind:
+              ReparenthesizeStep({
+                original_exp: exp,
+                reparenthesized_exp,
+                selected_id: None,
+                evaluate_after_parenthesize: false,
+                next_exp: Calc.Pending,
+              }),
+            next_step:
+              Some({
+                ...init,
+                step_kind:
+                  AlgebriteStep({
+                    at_idx:
+                      try(ProofHacks.exp_idx(at_exp, reparenthesized_exp)) {
+                      | _ => 0
+                      },
+                    at_exp,
+                    with_exp,
+                    next_exp: Calc.Pending,
+                  }),
+              }),
+          }
+          |> return;
+        | (AddReparenthesizedAlgebriteStep(_, _, _), _, _) =>
+          model |> raise_invalid_action
+        | (
+            AddReparenthesizedWrittenStep(
+              trace_summary,
               reparenthesized_exp,
-              selected_id: None,
-              evaluate_after_parenthesize: false,
-              next_exp: Calc.Pending,
-            }),
-          next_step:
-            Some({
-              ...init,
-              step_kind:
-                AlgebriteStep({
-                  at_idx:
-                    try(ProofHacks.exp_idx(at_exp, reparenthesized_exp)) {
-                    | _ => 0
-                    },
-                  at_exp,
-                  with_exp,
-                  next_exp: Calc.Pending,
-                }),
-            }),
+              at_exp,
+              with_exp,
+            ),
+            MissingStep(_),
+            _,
+          ) =>
+          let exp =
+            model.expr
+            |> Calc.get_saved_exc(~print="AddReparenthesizedWrittenStep");
+          {
+            ...model,
+            step_kind:
+              ReparenthesizeStep({
+                original_exp: exp,
+                reparenthesized_exp,
+                selected_id: None,
+                evaluate_after_parenthesize: false,
+                next_exp: Calc.Pending,
+              }),
+            next_step:
+              Some({
+                ...init,
+                step_kind:
+                  WrittenStep({
+                    at_idx:
+                      try(ProofHacks.exp_idx(at_exp, reparenthesized_exp)) {
+                      | _ => 0
+                      },
+                    at_exp,
+                    with_exp,
+                    justification:
+                      RewriteChecker.trace_summary_label(trace_summary),
+                    trace_summary: Some(trace_summary),
+                    next_exp: Calc.Pending,
+                  }),
+              }),
+          }
+          |> return;
+        | (AddReparenthesizedWrittenStep(_, _, _, _), _, _) =>
+          model |> raise_invalid_action
+        | (
+            AddWrittenStep(trace_summary, at_idx, at_exp, with_exp),
+            MissingStep(_),
+            _,
+          ) =>
+          {
+            ...model,
+            step_kind:
+              WrittenStep({
+                at_idx,
+                at_exp,
+                with_exp,
+                justification:
+                  RewriteChecker.trace_summary_label(trace_summary),
+                trace_summary: Some(trace_summary),
+                next_exp: Calc.Pending,
+              }),
+          }
+          |> return
+        | (AddWrittenStep(_, _, _, _), _, _) => model |> raise_invalid_action
+        | (StepKindAction(sk_action), _, _) =>
+          let* new_step_kind =
+            StepKind.update(~settings, sk_action, model.step_kind);
+          {
+            ...model,
+            step_kind: new_step_kind,
+          };
         }
-        |> return;
-      | (AddReparenthesizedAlgebriteStep(_, _, _), _, _) =>
-        model |> raise_invalid_action
-      | (StepKindAction(sk_action), _, _) =>
-        let* new_step_kind =
-          StepKind.update(~settings, sk_action, model.step_kind);
-        {
-          ...model,
-          step_kind: new_step_kind,
-        };
+      );
+    reset_coq_check_status
+      ? {
+        ...updated,
+        model: {
+          ...updated.model,
+          coq_check_status: CoqCheckIdle,
+        },
       }
-    );
+      : updated;
   };
 
   let rec can_undo = (a: step_action): bool => {
@@ -945,18 +1493,26 @@ and Stepper: {
     | RemoveStep => true
     | StepForward(_) => true
     | StepForwardOnSelection(_, _) => true
+    | AutoSimplifySelection(_, _) => true
     | AddInduction(_) => true
     | AddForall => true
     | AddAxiomStep(_) => true
     | AddAlgebriteStep(_) => true
     | AddReparenthesizeStep(_) => true
     | AddReparenthesizedAlgebriteStep(_) => true
+    | AddReparenthesizedWrittenStep(_) => true
+    | AddWrittenStep(_) => true
+    | CoqExport
+    | CoqBrowserCheckStarted(_)
+    | CoqBrowserCheckUnavailable(_)
+    | CoqBrowserCheckFinished(_, _, _) => false
     | StepKindAction(action) => StepKind.can_undo(action)
     };
   };
 
-  let rec calculate =
+  let rec calculate_with_level =
           (
+            ~rewrite_level: Axioms.rewrite_level,
             ~settings: Calc.t(CoreSettings.t),
             ~exp as expr: Calc.t(Exp.t),
             ~ctx: Calc.t(SemanticCtx.t),
@@ -968,7 +1524,9 @@ and Stepper: {
               next_step,
               hidden,
               proof_validity,
-              editor_info_map: _,
+              editor_info_map: _info_map,
+              export_warning,
+              coq_check_status,
             }: step_model,
           )
           : (step_model, Calc.t(Exp.t), Calc.t(option(bool))) => {
@@ -1011,7 +1569,8 @@ and Stepper: {
     let info_map = Calc.NewValue(editor.statics.info_map);
     let editor = Calc.OldValue(editor);
     let (step_kind, hidden, next_expr, inner_validity) =
-      StepKind.calculate(
+      StepKind.calculate_with_level(
+        ~rewrite_level,
         ~settings,
         ~ctx,
         ~exp=expr,
@@ -1023,7 +1582,8 @@ and Stepper: {
       )
       |> OptUtil.get(() =>
            MissingStep(MissingStep.Model.init)
-           |> StepKind.calculate(
+           |> StepKind.calculate_with_level(
+                ~rewrite_level,
                 ~settings,
                 ~ctx,
                 ~exp=expr,
@@ -1039,7 +1599,14 @@ and Stepper: {
       | Some(next_expr) =>
         let next_step = Option.value(~default=init, next_step);
         let (next_step, last_expr, next_validity) =
-          calculate(~settings, ~exp=next_expr, ~ctx, ~ana, next_step);
+          calculate_with_level(
+            ~rewrite_level,
+            ~settings,
+            ~exp=next_expr,
+            ~ctx,
+            ~ana,
+            next_step,
+          );
         (Some(next_step), last_expr, next_validity);
       | None => (None, expr, inner_validity)
       };
@@ -1066,11 +1633,23 @@ and Stepper: {
         hidden: hidden |> Calc.save,
         proof_validity: proof_validity |> Calc.save,
         editor_info_map: info_map |> Calc.save,
+        export_warning,
+        coq_check_status,
       },
       last_expr,
       proof_validity,
     );
   };
+
+  let calculate = (~settings, ~exp, ~ctx, ~ana, model) =>
+    calculate_with_level(
+      ~rewrite_level=Axioms.Arithmetic,
+      ~settings,
+      ~exp,
+      ~ctx,
+      ~ana,
+      model,
+    );
 
   let rec get_cursor_info =
           (~inject, ~focus: step_focus, model: step_model)
@@ -1113,6 +1692,8 @@ and Stepper: {
             ~inject: step_action => Ui_effect.t(unit),
             ~hide_stepper: Ui_effect.t(unit),
             ~focus: option(step_focus),
+            ~rewrite_level: Axioms.rewrite_level,
+            ~automation_stage: Axioms.automation_stage,
             ~is_toplevel: bool=false,
             ~undo: option(Ui_effect.t(unit)),
             model: step_model,
@@ -1206,15 +1787,17 @@ and Stepper: {
                 },
             ~inject=x => inject(EditorAction(x)),
             ~selected=
-              switch (focus) {
-              | Some(Here(_)) => true
+              switch (focus, model.step_kind) {
+              | (Some(Here(_)), _) => true
               | _ => false
               },
             ~selected_id=selected_exp |> Option.map(Exp.rep_id),
             ~overlays=
               switch (model.step_kind) {
               | MissingStep(m)
-                  when globals.settings.core.evaluation.enable_proof =>
+                  when
+                    globals.settings.core.evaluation.enable_proof
+                    || globals.settings.core.evaluation.write_out_steps =>
                 MissingStep.View.view_overlay(
                   ~globals,
                   ~info_map=
@@ -1226,6 +1809,8 @@ and Stepper: {
                     | Some(StepKindFocus(MissingStep(s))) => Some(s)
                     | _ => None
                     },
+                  ~rewrite_level,
+                  ~automation_stage,
                   ~signal=
                     fun
                     | HideStepper => hide_stepper
@@ -1241,6 +1826,14 @@ and Stepper: {
                       inject(AddReparenthesizeStep(e))
                     | AddReparenthesizedAlgebriteStep(e1, e2, e3) =>
                       inject(AddReparenthesizedAlgebriteStep(e1, e2, e3))
+                    | AddReparenthesizedWrittenStep(just, e1, e2, e3) =>
+                      inject(AddReparenthesizedWrittenStep(just, e1, e2, e3))
+                    | AddWrittenStep(just, idx, e1, e2) =>
+                      inject(AddWrittenStep(just, idx, e1, e2))
+                    | AutoSimplify(original_exp, simplified_exp) =>
+                      inject(
+                        AutoSimplifySelection(original_exp, simplified_exp),
+                      )
                     | TakeStep(i) => inject(StepForward(i))
                     | StepHere(ids, evaluate_after_parenthesize) =>
                       inject(
@@ -1349,6 +1942,8 @@ and Stepper: {
             | Some(Next(s)) => Some(s)
             | _ => None
             },
+          ~rewrite_level,
+          ~automation_stage,
           ~undo=
             if (model.hidden |> Calc.get_saved_exc(~print="hidden")) {
               undo;
@@ -1362,16 +1957,95 @@ and Stepper: {
     current_step @ next_step;
   };
 
-  let view =
+  let view_with_automation =
       (
         ~globals: Globals.t,
         ~take_focus: step_focus => Ui_effect.t(unit),
         ~inject: step_action => Ui_effect.t(unit),
         ~hide_stepper: Ui_effect.t(unit),
         ~focus: option(step_focus),
+        ~rewrite_level: Axioms.rewrite_level,
+        ~automation_stage: Axioms.automation_stage,
         ~is_toplevel: bool,
         root_step,
       ) => {
+    let run_browser_coq_check = _ =>
+      try(
+        switch (export_coq(root_step)) {
+        | Some(coq_data) =>
+          let check_id = JsUtil.date_now()##getTime |> int_of_float;
+          check_coq_in_browser(~coq_data, ~on_result=(ok, message) =>
+            Ui_effect.Expert.handle(
+              inject(CoqBrowserCheckFinished(check_id, ok, message)),
+            )
+          );
+          inject(CoqBrowserCheckStarted(check_id));
+        | None =>
+          inject(
+            CoqBrowserCheckUnavailable(
+              "Cannot check Coq proof: this proof has no steps.",
+            ),
+          )
+        }
+      ) {
+      | exn =>
+        inject(
+          CoqBrowserCheckUnavailable(
+            "Cannot check Coq proof: " ++ Printexc.to_string(exn),
+          ),
+        )
+      };
+    let coq_check_status_view =
+      switch (root_step.coq_check_status) {
+      | CoqCheckIdle => []
+      | CoqCheckRunning(_) => [
+          WebUtil.div_c(
+            "stepper-coq-check-status running",
+            [WebUtil.Node.text("JSCoq checking...")],
+          ),
+        ]
+      | CoqCheckPassed(message) => [
+          WebUtil.div_c(
+            "stepper-coq-check-status passed",
+            [WebUtil.Node.text(message)],
+          ),
+        ]
+      | CoqCheckFailed(message) => [
+          WebUtil.div_c(
+            "stepper-coq-check-status failed",
+            [WebUtil.Node.text(message)],
+          ),
+        ]
+      };
+    let export_controls = [
+      WebUtil.div_c(
+        "stepper-export-controls",
+        [
+          Widgets.button(
+            Icons.export,
+            _ => inject(CoqExport),
+            ~tooltip="Export steps as Coq proof",
+          ),
+          Widgets.button(
+            Icons.confirm,
+            run_browser_coq_check,
+            ~tooltip="Check generated Coq proof in browser",
+          ),
+        ]
+        @ (
+          switch (root_step.export_warning) {
+          | Some(message) => [
+              WebUtil.div_c(
+                "stepper-export-warning",
+                [WebUtil.Node.text(message)],
+              ),
+            ]
+          | None => []
+          }
+        )
+        @ coq_check_status_view,
+      ),
+    ];
     WebUtil.[
       Node.div(
         ~attrs=[Attr.classes(["stepper", "cell-result"])],
@@ -1381,11 +2055,36 @@ and Stepper: {
           ~hide_stepper,
           ~inject,
           ~focus,
+          ~rewrite_level,
+          ~automation_stage,
           ~is_toplevel,
           ~undo=None,
           root_step,
-        ),
+        )
+        @ export_controls,
       ),
     ];
   };
+
+  let view =
+      (
+        ~globals: Globals.t,
+        ~take_focus: step_focus => Ui_effect.t(unit),
+        ~inject: step_action => Ui_effect.t(unit),
+        ~hide_stepper: Ui_effect.t(unit),
+        ~focus: option(step_focus),
+        ~is_toplevel: bool,
+        root_step,
+      ) =>
+    view_with_automation(
+      ~globals,
+      ~take_focus,
+      ~inject,
+      ~hide_stepper,
+      ~focus,
+      ~rewrite_level=Axioms.Arithmetic,
+      ~automation_stage=Axioms.MultiStepCheck,
+      ~is_toplevel,
+      root_step,
+    );
 };

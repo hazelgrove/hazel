@@ -219,6 +219,7 @@ module View = {
           escape: _ => Ui_effect.Ignore,
           take_focus: _ => Ui_effect.Ignore,
           focus: selected ? Some() : None,
+          highlight: false,
         }),
       ~globals,
       ~overlays=

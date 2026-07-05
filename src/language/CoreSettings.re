@@ -16,6 +16,8 @@ module Evaluation = {
     show_settings: bool,
     show_hidden_steps: bool,
     enable_proof: bool,
+    write_out_steps: bool,
+    suggest_rewrites: bool,
     project_tables: bool,
   };
 
@@ -32,6 +34,8 @@ module Evaluation = {
     show_settings: false,
     show_hidden_steps: false,
     enable_proof: false,
+    write_out_steps: false,
+    suggest_rewrites: true,
     project_tables: true,
   };
 };

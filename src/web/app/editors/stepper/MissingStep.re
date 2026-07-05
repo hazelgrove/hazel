@@ -6,14 +6,42 @@ open Haz3lcore;
 
 module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
+  type written_step_check_mode =
+    | SingleEvalStep
+    | CheckResult
+    | ProofSearch;
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type open_box =
-    | AxiomsOpen(AxiomsBox.Model.t)
+    | AxiomsOpen({
+        axioms_model: AxiomsBox.Model.t,
+        rewrite_selected_exp: option(Exp.t),
+        rewrite_reparenthesized_exp: option(Exp.t),
+        source_full_visible_exp: option(Exp.t),
+      })
     | RewritesOpen({
         editor: CodeEditable.Model.t,
         rewrite_selected_exp: option(Exp.t),
         rewrite_reparenthesized_exp: option(Exp.t),
+        source_full_visible_exp: option(Exp.t),
         cached_exp: Calc.saved(Exp.t),
-        cached_result: option(bool),
+        cached_result: Calc.saved(bool),
+      })
+    | WrittenStepOpen({
+        editor: CodeEditable.Model.t,
+        check_mode: written_step_check_mode,
+        axioms_model: AxiomsBox.Model.t,
+        rewrite_selected_exp: option(Exp.t),
+        rewrite_reparenthesized_exp: option(Exp.t),
+        source_full_visible_exp: option(Exp.t),
+        proof_search_requested: bool,
+        proof_search_check_id: option(int),
+        proof_search_message: option(string),
+        proof_search_max_depth: int,
+        proof_search_max_states: int,
+        proof_search_source: option(string),
+        cached_exp: Calc.saved(Exp.t),
+        cached_result: Calc.saved(option(RewriteChecker.trace_summary)),
       })
     | NoneOpen;
 
@@ -63,19 +91,34 @@ module Update = {
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
-    | ToggleAxioms
+    | ToggleAxioms(option(Exp.t), option(Exp.t))
     | ProposeRewrite(option(Exp.t), option(Exp.t))
-    | UpdateResult(bool)
+    | ProposeWrittenStep(
+        Model.written_step_check_mode,
+        option(Exp.t),
+        option(Exp.t),
+      )
+    | RunProofSearch(int, int, int, option(Exp.t), option(Exp.t))
+    | RocqProofSearchFinished(int, bool, string, RewriteChecker.trace_summary)
+    | AlgebriteSuggestionFinished(option(string), string)
     | RewriteEditorAction(CodeEditable.Update.t)
+    | WriteStepEditorAction(CodeEditable.Update.t)
     | AxiomBoxAction(AxiomsBox.Update.t);
 
   let update = (~settings, action, model: Model.t): Updated.t(Model.t) => {
     switch (action, model.open_box) {
-    | (ToggleAxioms, _) =>
+    | (ToggleAxioms(rewrite_selected_exp, rewrite_reparenthesized_exp), _) =>
       let open_box =
         switch (model.open_box) {
         | NoneOpen
-        | RewritesOpen(_) => Model.AxiomsOpen(AxiomsBox.Model.init)
+        | RewritesOpen(_)
+        | WrittenStepOpen(_) =>
+          Model.AxiomsOpen({
+            axioms_model: AxiomsBox.Model.init,
+            rewrite_selected_exp,
+            rewrite_reparenthesized_exp,
+            source_full_visible_exp: None,
+          })
         | AxiomsOpen(_) => Model.NoneOpen
         };
       Model.{
@@ -87,7 +130,8 @@ module Update = {
       let open_box =
         switch (model.open_box) {
         | NoneOpen
-        | AxiomsOpen(_) =>
+        | AxiomsOpen(_)
+        | WrittenStepOpen(_) =>
           Model.RewritesOpen({
             editor:
               CodeEditable.Model.mk(
@@ -95,10 +139,50 @@ module Update = {
               ),
             rewrite_selected_exp,
             rewrite_reparenthesized_exp,
+            source_full_visible_exp: None,
             cached_exp: Calc.Pending,
-            cached_result: None,
+            cached_result: Calc.Pending,
           })
         | RewritesOpen(_) => Model.NoneOpen
+        };
+      Model.{
+        ...model,
+        open_box,
+      }
+      |> Updated.return_quiet(~recalculate=true, ~logged=true);
+    | (
+        ProposeWrittenStep(
+          check_mode,
+          rewrite_selected_exp,
+          rewrite_reparenthesized_exp,
+        ),
+        _,
+      ) =>
+      let open_box =
+        switch (model.open_box) {
+        | NoneOpen
+        | AxiomsOpen(_)
+        | RewritesOpen(_) =>
+          Model.WrittenStepOpen({
+            editor:
+              CodeEditable.Model.mk(
+                Editor.Model.mk(~root=Exp, Zipper.init()),
+              ),
+            check_mode,
+            axioms_model: AxiomsBox.Model.init,
+            rewrite_selected_exp,
+            rewrite_reparenthesized_exp,
+            source_full_visible_exp: None,
+            proof_search_requested: false,
+            proof_search_check_id: None,
+            proof_search_message: None,
+            proof_search_max_depth: 4,
+            proof_search_max_states: 80,
+            proof_search_source: None,
+            cached_exp: Calc.Pending,
+            cached_result: Calc.Pending,
+          })
+        | WrittenStepOpen(_) => Model.NoneOpen
         };
       Model.{
         ...model,
@@ -115,23 +199,177 @@ module Update = {
             editor: new_editor,
           }),
       };
-    | (RewriteEditorAction(_), _) => model |> Updated.raise_invalid_action
-    | (UpdateResult(result), RewritesOpen(r)) =>
+    | (RewriteEditorAction(_), _) => model |> Updated.return_quiet
+    | (
+        RunProofSearch(
+          check_id,
+          max_depth,
+          max_states,
+          rewrite_selected_exp,
+          rewrite_reparenthesized_exp,
+        ),
+        WrittenStepOpen({check_mode: ProofSearch, _} as r),
+      ) =>
       Model.{
         ...model,
         open_box:
-          Model.RewritesOpen({
+          Model.WrittenStepOpen({
             ...r,
-            cached_result: Some(result),
+            rewrite_selected_exp,
+            rewrite_reparenthesized_exp,
+            proof_search_requested: true,
+            proof_search_check_id: Some(check_id),
+            proof_search_message: Some("Rocq checking..."),
+            proof_search_max_depth: max_depth,
+            proof_search_max_states: max_states,
+            cached_result: Calc.Pending,
           }),
       }
-      |> Updated.return_quiet(~logged=true)
-    | (UpdateResult(_), _) => model |> Updated.raise_invalid_action
-    | (AxiomBoxAction(action), AxiomsOpen(m)) =>
-      let* updated = AxiomsBox.Update.update(~settings, action, m);
+      |> Updated.return_quiet(~recalculate=true, ~logged=true)
+    | (RunProofSearch(_, _, _, _, _), _) => model |> Updated.return_quiet
+    | (
+        RocqProofSearchFinished(check_id, ok, message, trace_summary),
+        WrittenStepOpen(
+          {check_mode: ProofSearch, proof_search_check_id, _} as r,
+        ),
+      ) =>
+      let matches =
+        switch (proof_search_check_id) {
+        | Some(active_id) => active_id == check_id
+        | None => false
+        };
+      matches
+        ? Model.{
+            ...model,
+            open_box:
+              Model.WrittenStepOpen({
+                ...r,
+                proof_search_requested: false,
+                proof_search_check_id: None,
+                proof_search_message: Some(message),
+                cached_result:
+                  Calc.Calculated(ok ? Some(trace_summary) : None),
+              }),
+          }
+          |> Updated.return_quiet(~logged=true)
+        : model |> Updated.return_quiet;
+    | (RocqProofSearchFinished(_, _, _, _), _) =>
+      model |> Updated.return_quiet
+    | (
+        AlgebriteSuggestionFinished(candidate, message),
+        WrittenStepOpen({check_mode: ProofSearch, _} as r),
+      ) =>
+      switch (candidate) {
+      | Some(candidate_text) =>
+        switch (
+          AlgebriteSuggestion.editor_of_hazel_text(
+            ~settings=settings.core,
+            candidate_text,
+          )
+        ) {
+        | Some(editor) =>
+          Model.{
+            ...model,
+            open_box:
+              Model.WrittenStepOpen({
+                ...r,
+                editor,
+                proof_search_requested: false,
+                proof_search_check_id: None,
+                proof_search_message: Some(message),
+                proof_search_source: Some("Algebrite simplify candidate"),
+                cached_exp: Calc.Pending,
+                cached_result: Calc.Pending,
+              }),
+          }
+          |> Updated.return_quiet(~recalculate=true, ~logged=true)
+        | None =>
+          Model.{
+            ...model,
+            open_box:
+              Model.WrittenStepOpen({
+                ...r,
+                proof_search_requested: false,
+                proof_search_check_id: None,
+                proof_search_message:
+                  Some(
+                    "Algebrite suggestion could not be parsed: "
+                    ++ candidate_text,
+                  ),
+                proof_search_source: None,
+                cached_result: Calc.Pending,
+              }),
+          }
+          |> Updated.return_quiet(~logged=true)
+        }
+      | None =>
+        Model.{
+          ...model,
+          open_box:
+            Model.WrittenStepOpen({
+              ...r,
+              proof_search_requested: false,
+              proof_search_check_id: None,
+              proof_search_message: Some(message),
+              proof_search_source: None,
+              cached_result: Calc.Pending,
+            }),
+        }
+        |> Updated.return_quiet(~logged=true)
+      }
+    | (AlgebriteSuggestionFinished(_, _), _) => model |> Updated.return_quiet
+    | (WriteStepEditorAction(action), WrittenStepOpen({editor, _} as r)) =>
+      let* new_editor = CodeEditable.Update.update(~settings, action, editor);
+      let target_changed =
+        CodeEditable.Model.to_string(editor)
+        != CodeEditable.Model.to_string(new_editor);
       Model.{
         ...model,
-        open_box: Model.AxiomsOpen(updated),
+        open_box:
+          Model.WrittenStepOpen({
+            ...r,
+            editor: new_editor,
+            proof_search_requested: false,
+            proof_search_check_id: None,
+            proof_search_message: None,
+            proof_search_source: target_changed ? None : r.proof_search_source,
+            cached_result:
+              switch (r.check_mode) {
+              | ProofSearch when target_changed => Calc.Pending
+              | _ => r.cached_result
+              },
+          }),
+      };
+    | (WriteStepEditorAction(_), _) => model |> Updated.return_quiet
+    | (AxiomBoxAction(action), WrittenStepOpen({axioms_model, _} as r)) =>
+      let* updated = AxiomsBox.Update.update(~settings, action, axioms_model);
+      Model.{
+        ...model,
+        open_box:
+          Model.WrittenStepOpen({
+            ...r,
+            axioms_model: updated,
+          }),
+      };
+    | (
+        AxiomBoxAction(action),
+        AxiomsOpen({
+          axioms_model,
+          rewrite_selected_exp,
+          rewrite_reparenthesized_exp,
+          source_full_visible_exp,
+        }),
+      ) =>
+      let* updated = AxiomsBox.Update.update(~settings, action, axioms_model);
+      Model.{
+        ...model,
+        open_box:
+          Model.AxiomsOpen({
+            axioms_model: updated,
+            rewrite_selected_exp,
+            rewrite_reparenthesized_exp,
+            source_full_visible_exp,
+          }),
       };
     | (AxiomBoxAction(_), _) => model |> Updated.raise_invalid_action
     };
@@ -139,17 +377,22 @@ module Update = {
 
   let can_undo = (action: t): bool => {
     switch (action) {
-    | ToggleAxioms
+    | ToggleAxioms(_, _)
     | ProposeRewrite(_, _)
-    | UpdateResult(_)
+    | ProposeWrittenStep(_, _, _)
+    | RunProofSearch(_, _, _, _, _)
+    | RocqProofSearchFinished(_, _, _, _)
+    | AlgebriteSuggestionFinished(_, _)
     | RewriteEditorAction(_)
+    | WriteStepEditorAction(_)
     | AxiomBoxAction(_) => false
     };
   };
 
   let calculate =
       (
-        ~settings,
+        ~rewrite_level: Axioms.rewrite_level,
+        ~settings: CoreSettings.t,
         exp,
         info_map,
         ctx: Calc.t(SemanticCtx.t),
@@ -247,6 +490,22 @@ module Update = {
           |> List.map(ctx_entry => AssumptionBox.Model.{ctx_entry: ctx_entry});
         Some(proof_ctx);
       };
+    let selected_ctx =
+      Calc.Pending
+      |> {
+        let.calc selected_id = selected_id
+        and.calc info_map = info_map
+        and.calc ctx = ctx;
+        let fallback_ctx = ctx |> SemanticCtx.get_ctx;
+        switch (selected_id) {
+        | Some(id) =>
+          switch (Statics.Map.lookup(id, info_map)) {
+          | Some(info) => Info.ctx_of(info)
+          | None => fallback_ctx
+          }
+        | None => fallback_ctx
+        };
+      };
     let refls =
       refls
       |> {
@@ -276,14 +535,28 @@ module Update = {
                       ),
                  next_steps,
                )
+             || settings.evaluation.write_out_steps
            );
       };
-    let open_box =
+    let open_box = {
+      let current_full_visible_exp = editor.statics.term;
+      let source_is_current = source_full_visible_exp =>
+        switch (source_full_visible_exp) {
+        | None => true
+        | Some(source_full_visible_exp) =>
+          Equality.ignoring_ascriptions.exp(
+            source_full_visible_exp,
+            current_full_visible_exp,
+          )
+        };
       switch (open_box) {
+      | RewritesOpen({source_full_visible_exp, _})
+          when !source_is_current(source_full_visible_exp) => Model.NoneOpen
       | RewritesOpen({
           editor,
           rewrite_selected_exp,
           rewrite_reparenthesized_exp,
+          source_full_visible_exp: _,
           cached_exp,
           cached_result,
         }) =>
@@ -295,7 +568,7 @@ module Update = {
             ~is_dynamic_term=true,
             ~dynamics=Dynamics.Map.empty,
             ~stitch=x => x,
-            ~ctx=Calc.get_value(ctx) |> SemanticCtx.get_ctx,
+            ~ctx=Calc.get_value(selected_ctx),
             editor,
           );
         // Extract an exp from the editor
@@ -307,24 +580,214 @@ module Update = {
           );
         // Reset result if editor changes
         let cached_result =
-          Calc.Calculated(cached_result)
+          cached_result
           |> {
-            let.calc _ = cached_exp;
-            None;
+            let.calc sctx = ctx
+            and.calc to_exp = cached_exp
+            and.calc from_exp = selected_exp;
+            let env = SemanticCtx.get_env(sctx);
+            let from_exp =
+              switch (rewrite_selected_exp) {
+              | Some(rewrite_selected_exp) => Some(rewrite_selected_exp)
+              | None => from_exp
+              };
+            let from_exp =
+              Substitution.in_exp(
+                env,
+                from_exp
+                |> Option.value(
+                     ~default=IdTagged.FreshGrammar.Exp.empty_hole(),
+                   ),
+              );
+            let to_exp = Substitution.in_exp(env, to_exp);
+            RewriteChecker.check_rewrite_at_level(
+              ~level=rewrite_level,
+              ~settings,
+              ~env,
+              from_exp,
+              to_exp,
+            );
           };
         Model.RewritesOpen({
           editor,
           rewrite_selected_exp,
           rewrite_reparenthesized_exp,
+          source_full_visible_exp: Some(current_full_visible_exp),
           cached_exp: cached_exp |> Calc.save,
-          cached_result: cached_result |> Calc.get_value,
+          cached_result: cached_result |> Calc.save,
         });
-      | AxiomsOpen(m) =>
-        AxiomsOpen(
-          AxiomsBox.Update.calculate(~info_map, ~ctx, ~selected_exp, m),
-        )
+      | WrittenStepOpen({source_full_visible_exp, _})
+          when !source_is_current(source_full_visible_exp) => Model.NoneOpen
+      | WrittenStepOpen({
+          editor,
+          check_mode,
+          axioms_model,
+          rewrite_selected_exp,
+          rewrite_reparenthesized_exp,
+          source_full_visible_exp: _,
+          proof_search_requested,
+          proof_search_check_id,
+          proof_search_message,
+          proof_search_max_depth,
+          proof_search_max_states,
+          proof_search_source,
+          cached_exp,
+          cached_result,
+        }) =>
+        // Calculate syntax, holes, types, etc for the editor
+        let editor =
+          CodeEditable.Update.calculate(
+            ~settings,
+            ~is_edited=true,
+            ~is_dynamic_term=true,
+            ~dynamics=Dynamics.Map.empty,
+            ~stitch=x => x,
+            ~ctx=Calc.get_value(selected_ctx),
+            editor,
+          );
+        // Extract an exp from the editor
+        let target_exp_changed =
+          switch (
+            check_mode,
+            Calc.saved_to_option(cached_exp),
+            CodeEditable.Model.get_statics(editor).elaborated,
+          ) {
+          | (ProofSearch, Some(old_exp), new_exp) =>
+            !Exp.fast_equal(old_exp, new_exp)
+          | (ProofSearch, None, _) => true
+          | _ => false
+          };
+        let cached_exp =
+          Calc.set(
+            ~eq=Exp.fast_equal,
+            CodeEditable.Model.get_statics(editor).elaborated,
+            cached_exp,
+          );
+        // Reset result if editor changes
+        let cached_result =
+          switch (check_mode) {
+          | ProofSearch => target_exp_changed ? Calc.Pending : cached_result
+          | _ =>
+            cached_result
+            |> {
+              let.calc sctx = ctx
+              and.calc to_exp = cached_exp
+              and.calc from_exp = selected_exp;
+              let env = SemanticCtx.get_env(sctx);
+              let from_exp =
+                switch (rewrite_selected_exp) {
+                | Some(rewrite_selected_exp) => Some(rewrite_selected_exp)
+                | None => from_exp
+                };
+              let from_exp =
+                Substitution.in_exp(
+                  env,
+                  from_exp
+                  |> Option.value(
+                       ~default=IdTagged.FreshGrammar.Exp.empty_hole(),
+                     ),
+                );
+              let to_exp = Substitution.in_exp(env, to_exp);
+              switch (check_mode) {
+              | SingleEvalStep =>
+                RewriteChecker.check_single_step_trace_at_level(
+                  ~level=rewrite_level,
+                  ~settings,
+                  ~env,
+                  from_exp,
+                  to_exp,
+                )
+              | CheckResult =>
+                RewriteChecker.check_written_step_trace_at_level(
+                  ~level=rewrite_level,
+                  ~settings,
+                  ~env,
+                  from_exp,
+                  to_exp,
+                )
+              | ProofSearch => None
+              };
+            }
+            |> Calc.save
+          };
+        let selected_exp_for_axioms =
+          switch (rewrite_selected_exp) {
+          | Some(_) => Calc.NewValue(rewrite_selected_exp)
+          | None => selected_exp
+          };
+        let axioms_model =
+          AxiomsBox.Update.calculate(
+            ~info_map,
+            ~ctx,
+            ~selected_exp=selected_exp_for_axioms,
+            axioms_model,
+          );
+        Model.WrittenStepOpen({
+          editor,
+          check_mode,
+          axioms_model,
+          rewrite_selected_exp,
+          rewrite_reparenthesized_exp,
+          source_full_visible_exp: Some(current_full_visible_exp),
+          proof_search_requested:
+            target_exp_changed ? false : proof_search_requested,
+          proof_search_check_id:
+            target_exp_changed ? None : proof_search_check_id,
+          proof_search_message:
+            target_exp_changed ? None : proof_search_message,
+          proof_search_max_depth,
+          proof_search_max_states,
+          proof_search_source: target_exp_changed ? None : proof_search_source,
+          cached_exp: cached_exp |> Calc.save,
+          cached_result,
+        });
+      | AxiomsOpen({
+          axioms_model,
+          rewrite_selected_exp,
+          rewrite_reparenthesized_exp,
+          source_full_visible_exp: _,
+        }) =>
+        let selected_exp_for_axioms =
+          switch (rewrite_selected_exp) {
+          | Some(_) => Calc.NewValue(rewrite_selected_exp)
+          | None => selected_exp
+          };
+        AxiomsOpen({
+          axioms_model:
+            AxiomsBox.Update.calculate(
+              ~info_map,
+              ~ctx,
+              ~selected_exp=selected_exp_for_axioms,
+              axioms_model,
+            ),
+          rewrite_selected_exp,
+          rewrite_reparenthesized_exp,
+          source_full_visible_exp: Some(current_full_visible_exp),
+        });
+      | NoneOpen
+          when
+            !settings.evaluation.enable_proof
+            && settings.evaluation.write_out_steps =>
+        Model.WrittenStepOpen({
+          editor:
+            CodeEditable.Model.mk(Editor.Model.mk(~root=Exp, Zipper.init())),
+          check_mode: CheckResult,
+          axioms_model: AxiomsBox.Model.init,
+          rewrite_selected_exp: None,
+          rewrite_reparenthesized_exp: None,
+          source_full_visible_exp: Some(current_full_visible_exp),
+          proof_search_requested: false,
+          proof_search_check_id: None,
+          proof_search_message: None,
+          proof_search_max_depth: 4,
+          proof_search_max_states: 80,
+          proof_search_source: None,
+          cached_exp: Calc.Pending,
+          cached_result: Calc.Pending,
+        })
       | NoneOpen => NoneOpen
       };
+    };
     let cached_env =
       cached_env
       |> {
@@ -339,8 +802,8 @@ module Update = {
       full_visible_exp: full_visible_exp |> Calc.save,
       selected_exp: selected_exp |> Calc.save,
       selected_id: selected_id |> Calc.save,
-      cached_env: cached_env |> Calc.save,
       open_box,
+      cached_env: cached_env |> Calc.save,
     };
   };
 };
@@ -352,6 +815,7 @@ module Selection = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     | RewriteEditor(CodeEditable.Selection.t)
+    | WriteStepEditor(CodeEditable.Selection.t)
     | AxiomBoxSelection(AxiomsBox.Selection.t);
 
   let get_cursor_info =
@@ -366,8 +830,20 @@ module Selection = {
         );
       Update.RewriteEditorAction(ci);
     | (RewriteEditor(_), _) => empty
-    | (AxiomBoxSelection(selection), AxiomsOpen(m)) =>
-      let+ ci = AxiomsBox.Selection.get_cursor_info(~selection, m);
+    | (WriteStepEditor(selection), WrittenStepOpen({editor, _})) =>
+      let+ ci =
+        CodeEditable.Selection.get_cursor_info(
+          ~inject=a => inject(Update.WriteStepEditorAction(a)),
+          ~selection,
+          editor,
+        );
+      Update.WriteStepEditorAction(ci);
+    | (WriteStepEditor(_), _) => empty
+    | (AxiomBoxSelection(selection), AxiomsOpen({axioms_model, _})) =>
+      let+ ci = AxiomsBox.Selection.get_cursor_info(~selection, axioms_model);
+      Update.AxiomBoxAction(ci);
+    | (AxiomBoxSelection(selection), WrittenStepOpen({axioms_model, _})) =>
+      let+ ci = AxiomsBox.Selection.get_cursor_info(~selection, axioms_model);
       Update.AxiomBoxAction(ci);
     | (AxiomBoxSelection(_), _) => empty
     };
@@ -376,6 +852,48 @@ module Selection = {
 
 module View = {
   open OptUtil.Syntax;
+
+  let warmup_rocq_search_in_browser = (): unit =>
+    try(
+      Js_of_ocaml.Js.Unsafe.fun_call(
+        Js_of_ocaml.Js.Unsafe.js_expr("window.HazelJSCoq.warmupSearch"),
+        [||],
+      )
+      |> ignore
+    ) {
+    | _ => ()
+    };
+
+  let check_rocq_search_in_browser =
+      (~coq_data: string, ~on_result: (bool, string) => unit): unit => {
+    let callback =
+      Js_of_ocaml.Js.wrap_callback((status_js, message_js) => {
+        let status =
+          status_js |> Js_of_ocaml.Js.Unsafe.coerce |> Js_of_ocaml.Js.to_string;
+        let message =
+          message_js
+          |> Js_of_ocaml.Js.Unsafe.coerce
+          |> Js_of_ocaml.Js.to_string;
+        on_result(status == "ok", message);
+      });
+    try(
+      Js_of_ocaml.Js.Unsafe.fun_call(
+        Js_of_ocaml.Js.Unsafe.js_expr("window.HazelJSCoq.searchAndReport"),
+        [|
+          Js_of_ocaml.Js.Unsafe.inject(Js_of_ocaml.Js.string(coq_data)),
+          Js_of_ocaml.Js.Unsafe.inject(callback),
+        |],
+      )
+      |> ignore
+    ) {
+    | _ =>
+      on_result(
+        false,
+        "JSCoq/Rocq tactic search failed to start. See the browser console.",
+      )
+    };
+  };
+
   type event =
     | AddInduction(option(Exp.t))
     | AddForall
@@ -384,6 +902,14 @@ module View = {
     | AddAlgebriteStep(int, Exp.t, Exp.t)
     | AddReparenthesizeStep(Exp.t)
     | AddReparenthesizedAlgebriteStep(Exp.t, Exp.t, Exp.t)
+    | AddReparenthesizedWrittenStep(
+        RewriteChecker.trace_summary,
+        Exp.t,
+        Exp.t,
+        Exp.t,
+      )
+    | AddWrittenStep(RewriteChecker.trace_summary, int, Exp.t, Exp.t)
+    | AutoSimplify(Exp.t, Exp.t)
     | MakeActive(Selection.t)
     | TakeStep(int)
     | Refl(int)
@@ -436,6 +962,8 @@ module View = {
         ~inject: Update.t => Ui_effect.t(unit),
         ~editor: CodeSelectable.Model.t,
         ~selected: option(Selection.t),
+        ~rewrite_level: Axioms.rewrite_level,
+        ~automation_stage: Axioms.automation_stage,
         ~info_map,
         model: Model.t,
       ) =>
@@ -451,6 +979,8 @@ module View = {
           ~attrs=[
             Attr.classes(["proof-button"]),
             Attr.on_pointerdown(_ => Virtual_dom.Vdom.Effect.Stop_propagation),
+            Attr.on_pointerup(_ => Virtual_dom.Vdom.Effect.Stop_propagation),
+            Attr.on_mousemove(_ => Virtual_dom.Vdom.Effect.Stop_propagation),
             Attr.on_click(_ =>
               Ui_effect.Many([
                 callback,
@@ -466,24 +996,28 @@ module View = {
         model.selected_id |> Calc.get_saved_exc(~print="Selected Id");
 
       let show_step_button =
-        switch (selected_id) {
-        | Some(selected_id) =>
-          let visible_exp = editor.statics.term;
-          List.find_index(
-            step_id => step_id == selected_id,
-            model.next_steps
-            |> Calc.get_saved_exc(~print="next_steps")
-            |> (
-              fun
-              | AutoStep(_) => []
-              | AvailableSteps(steps) => steps
-            )
-            |> List.map(step =>
-                 EvaluatorStep.get_step_id_in(step, visible_exp)
-                 |> Option.value(~default=EvaluatorStep.get_step_id(step))
-               ),
-          );
-        | None => None
+        if (globals.settings.core.evaluation.write_out_steps) {
+          None;
+        } else {
+          switch (selected_id) {
+          | Some(selected_id) =>
+            let visible_exp = editor.statics.term;
+            List.find_index(
+              step_id => step_id == selected_id,
+              model.next_steps
+              |> Calc.get_saved_exc(~print="next_steps")
+              |> (
+                fun
+                | AutoStep(_) => []
+                | AvailableSteps(steps) => steps
+              )
+              |> List.map(step =>
+                   EvaluatorStep.get_step_id_in(step, visible_exp)
+                   |> Option.value(~default=EvaluatorStep.get_step_id(step))
+                 ),
+            );
+          | None => None
+          };
         };
 
       let show_refl_button =
@@ -504,6 +1038,495 @@ module View = {
         Calc.get_saved_exc(model.selected_exp)
         == Some(Calc.get_saved_exc(model.full_visible_exp))
         && Exp.is_fun(Calc.get_saved_exc(model.full_visible_exp));
+      };
+
+      let view_rewrites_box =
+          (
+            editor,
+            rewrite_selected_exp,
+            rewrite_reparenthesized_exp,
+            cached_exp,
+            cached_result,
+          ) => {
+        let unboxed_cached_exp =
+          Calc.get_saved_exc(~print="cached exp not calculated", cached_exp);
+        let unboxed_selected_exp =
+          Option.value(~default=EmptyHole |> Exp.fresh, rewrite_selected_exp);
+        [
+          // one element list with a div
+          // with a list containing two elements
+          // an Editor for user to propose their rewrite
+          // a button to submit the rewrite
+          div_c(
+            "rewrite-box",
+            [
+              Node.text("Replace: "),
+              CodeViewable.view_any(
+                ~globals,
+                ~settings=
+                  ExpToSegment.Settings.of_core(
+                    ~inline=false,
+                    ~fold_fn_bodies=`Text,
+                    globals.settings.core,
+                  ),
+                Exp(unboxed_selected_exp),
+              ),
+              Node.text("With: "),
+              div_c(
+                "inline-editor-wrapper",
+                [
+                  CodeEditable.View.view(
+                    ~globals,
+                    ~signal=
+                      fun
+                      | MakeActive => signal(MakeActive(RewriteEditor())),
+                    ~edit_mode=
+                      EditMode.Editable({
+                        inject: x => inject(RewriteEditorAction(x)),
+                        escape: _ => Ui_effect.Ignore,
+                        take_focus: _ => Ui_effect.Ignore,
+                        focus:
+                          switch (selected) {
+                          | Some(RewriteEditor ()) => Some()
+                          | _ => None
+                          },
+                        highlight: false,
+                      }),
+                    ~dynamics=Dynamics.Map.empty,
+                    editor,
+                  ),
+                ],
+              ),
+            ]
+            @ {
+              switch (cached_result) {
+              | Some(true) => [
+                  Node.text("Valid"),
+                  Widgets.button(
+                    ~clss=["proof-button"],
+                    Node.text("Replace"),
+                    ~tooltip="replace",
+                    _ => {
+                      let substituted_cached_exp =
+                        unboxed_cached_exp
+                        |> Substitution.in_exp(
+                             model.cached_env
+                             |> Calc.get_saved_exc(~print="env not cached"),
+                           );
+                      switch (rewrite_reparenthesized_exp) {
+                      | Some(reparenthesized_exp) =>
+                        signal(
+                          AddReparenthesizedAlgebriteStep(
+                            reparenthesized_exp,
+                            unboxed_selected_exp,
+                            substituted_cached_exp,
+                          ),
+                        )
+                      | None =>
+                        let at_idx =
+                          try(
+                            ProofHacks.exp_idx(
+                              unboxed_selected_exp,
+                              model.full_visible_exp
+                              |> Calc.get_saved_exc(~print="full_visible_exp"),
+                            )
+                          ) {
+                          | _ => 0
+                          };
+                        signal(
+                          AddAlgebriteStep(
+                            at_idx,
+                            unboxed_selected_exp,
+                            substituted_cached_exp,
+                          ),
+                        );
+                      };
+                    },
+                  ),
+                ]
+              | Some(false) => [Node.text("Invalid")]
+              | None => [Node.text("...")]
+              };
+            },
+          ),
+        ];
+      };
+
+      let view_written_step_box =
+          (
+            editor: CodeEditable.Model.t,
+            check_mode,
+            rewrite_selected_exp,
+            rewrite_reparenthesized_exp,
+            proof_search_requested,
+            proof_search_message,
+            proof_search_source,
+            cached_exp,
+            cached_result,
+            suggestions,
+          ) => {
+        let unboxed_cached_exp =
+          Calc.get_saved_exc(~print="cached exp not calculated", cached_exp);
+        let unboxed_selected_exp =
+          switch (rewrite_selected_exp) {
+          | Some(rewrite_selected_exp) => rewrite_selected_exp
+          | None =>
+            Option.value(
+              ~default=EmptyHole |> Exp.fresh,
+              Calc.get_saved_exc(
+                ~print="selected exp not calculated",
+                model.selected_exp,
+              ),
+            )
+          };
+        switch (check_mode) {
+        | Model.ProofSearch => warmup_rocq_search_in_browser()
+        | _ => ()
+        };
+        let proof_summary_matches_current = summary =>
+          switch (summary.RewriteChecker.prover_steps) {
+          | [] => false
+          | [first_step, ...rest_steps] =>
+            let last_step =
+              switch (rest_steps) {
+              | [] => first_step
+              | _ => ListUtil.last(rest_steps)
+              };
+            Equality.ignoring_ascriptions.exp(
+              first_step.before_full_exp,
+              unboxed_selected_exp,
+            )
+            && Equality.ignoring_ascriptions.exp(
+                 last_step.after_full_exp,
+                 unboxed_cached_exp,
+               );
+          };
+        let cached_result =
+          switch (check_mode, cached_result) {
+          | (Model.ProofSearch, Some(Some(summary)))
+              when !proof_summary_matches_current(summary) =>
+            None
+          | _ => cached_result
+          };
+        let replace_button = trace_summary =>
+          Widgets.button(
+            ~clss=["proof-button"],
+            Node.text("Replace"),
+            ~tooltip="replace",
+            _ => {
+              let substituted_cached_exp =
+                unboxed_cached_exp
+                |> Substitution.in_exp(
+                     model.cached_env
+                     |> Calc.get_saved_exc(~print="env not cached"),
+                   );
+              switch (rewrite_reparenthesized_exp) {
+              | Some(reparenthesized_exp) =>
+                signal(
+                  AddReparenthesizedWrittenStep(
+                    trace_summary,
+                    reparenthesized_exp,
+                    unboxed_selected_exp,
+                    substituted_cached_exp,
+                  ),
+                )
+              | None =>
+                let at_idx =
+                  try(
+                    ProofHacks.exp_idx(
+                      unboxed_selected_exp,
+                      model.full_visible_exp
+                      |> Calc.get_saved_exc(~print="full_visible_exp"),
+                    )
+                  ) {
+                  | _ => 0
+                  };
+                signal(
+                  AddWrittenStep(
+                    trace_summary,
+                    at_idx,
+                    unboxed_selected_exp,
+                    substituted_cached_exp,
+                  ),
+                );
+              };
+            },
+          );
+        let run_proof_search_button =
+          Widgets.button(
+            ~clss=["proof-button"],
+            Node.text("Run Rocq Search"),
+            ~tooltip="run JSCoq/Rocq tactic search",
+            _ => {
+              let check_id = JsUtil.date_now()##getTime |> int_of_float;
+              let request =
+                ProofSearchBackend.{
+                  backend: JSCoqTacticSearch,
+                  level: rewrite_level,
+                  max_depth: 4,
+                  max_states: 80,
+                  source: unboxed_selected_exp,
+                  target: unboxed_cached_exp,
+                };
+              let trace_summary =
+                ProofSearchBackend.collapsed_macro_summary(request);
+              let trace_summary =
+                switch (proof_search_source) {
+                | None => trace_summary
+                | Some(source) =>
+                  RewriteChecker.{
+                    ...trace_summary,
+                    justification: "Rocq tactic search: " ++ source,
+                    prover_steps:
+                      trace_summary.prover_steps
+                      |> List.map((step: RewriteChecker.prover_step) =>
+                           {
+                             ...step,
+                             detail:
+                               Some(
+                                 source
+                                 ++ ": "
+                                 ++ (
+                                   step.detail
+                                   |> Option.value(
+                                        ~default="verified candidate",
+                                      )
+                                 ),
+                               ),
+                           }
+                         ),
+                  }
+                };
+              let start_search =
+                inject(
+                  RunProofSearch(
+                    check_id,
+                    4,
+                    80,
+                    rewrite_selected_exp,
+                    rewrite_reparenthesized_exp,
+                  ),
+                );
+              let fail_search = message =>
+                inject(
+                  RocqProofSearchFinished(
+                    check_id,
+                    false,
+                    "Rocq export failed: " ++ message,
+                    trace_summary,
+                  ),
+                );
+              try({
+                let coq_data =
+                  ProofSearchBackend.rocq_search_program(request);
+                check_rocq_search_in_browser(
+                  ~coq_data, ~on_result=(ok, message) =>
+                  Ui_effect.Expert.handle(
+                    inject(
+                      RocqProofSearchFinished(
+                        check_id,
+                        ok,
+                        message,
+                        trace_summary,
+                      ),
+                    ),
+                  )
+                );
+                start_search;
+              }) {
+              | Failure(message) =>
+                Ui_effect.Many([start_search, fail_search(message)])
+              | _ =>
+                Ui_effect.Many([
+                  start_search,
+                  fail_search("unexpected exception while generating Coq"),
+                ])
+              };
+            },
+          );
+        let algebrite_suggestion_button =
+          Widgets.button(
+            ~clss=["proof-button"],
+            Node.text("Simplify with Algebrite"),
+            ~tooltip="Simplify with Algebrite",
+            _ => {
+              let fail = message =>
+                inject(AlgebriteSuggestionFinished(None, message));
+              switch (
+                AlgebriteSuggestion.serialize_for_algebrite(
+                  unboxed_selected_exp,
+                )
+              ) {
+              | None =>
+                fail(
+                  "Algebrite suggestion is unavailable for this expression.",
+                )
+              | Some(input) =>
+                try({
+                  let simplify =
+                    Js_of_ocaml.Js.Unsafe.js_expr(
+                      "(function(input) { if (!window.HazelAlgebrite || !window.HazelAlgebrite.simplifyToString) { throw new Error('Algebrite is not available.'); } return window.HazelAlgebrite.simplifyToString(input); })",
+                    );
+                  let raw_result =
+                    Js_of_ocaml.Js.Unsafe.fun_call(
+                      simplify,
+                      [|
+                        Js_of_ocaml.Js.Unsafe.inject(
+                          Js_of_ocaml.Js.string(input),
+                        ),
+                      |],
+                    );
+                  let candidate =
+                    raw_result
+                    |> Js_of_ocaml.Js.Unsafe.coerce
+                    |> Js_of_ocaml.Js.to_string
+                    |> AlgebriteSuggestion.hazel_syntax_of_algebrite;
+                  candidate == ""
+                    ? fail("Algebrite returned an empty suggestion.")
+                    : inject(
+                        AlgebriteSuggestionFinished(
+                          Some(candidate),
+                          "Algebrite suggested: " ++ candidate,
+                        ),
+                      );
+                }) {
+                | Failure(message) =>
+                  fail("Algebrite suggestion failed: " ++ message)
+                | exn =>
+                  fail(
+                    "Algebrite suggestion failed: " ++ Printexc.to_string(exn),
+                  )
+                }
+              };
+            },
+          );
+        let algebrite_suggestion_controls =
+          switch (check_mode) {
+          | Model.ProofSearch => [algebrite_suggestion_button]
+          | _ => []
+          };
+        let mode_issue =
+          AxiomSearch.unsupported_constructs_message(
+            ~level=rewrite_level,
+            [unboxed_selected_exp, unboxed_cached_exp],
+          );
+        let mode_issue_view = message =>
+          div_c("proof-mode-warning", [Node.text(message)]);
+        let mode_issue_overlay = (editor: CodeWithStatics.Model.t, exps) =>
+          switch (
+            AxiomSearch.unsupported_construct_ids(~level=rewrite_level, exps)
+          ) {
+          | [] => []
+          | unsupported_ids => [
+              Arms.Errors.of_ids(
+                ~font_metrics=globals.font_metrics,
+                ~syntax=editor.editor.syntax,
+                unsupported_ids,
+              ),
+            ]
+          };
+        let source_editor =
+          CodeWithStatics.Model.mk_from_exp(
+            ~settings=globals.settings.core,
+            ~root=Exp,
+            ~parenthesization=Haz3lcore.ExpToSegment.Settings.Defensive,
+            unboxed_selected_exp,
+          );
+        let source_mode_issue_overlay =
+          mode_issue_overlay(source_editor, [unboxed_selected_exp]);
+        let target_mode_issue_overlay =
+          mode_issue_overlay(editor, [unboxed_cached_exp]);
+        [
+          // one element list with a div
+          // with a list containing two elements
+          // an Editor for user to propose their rewrite
+          // a button to submit the rewrite
+          div_c(
+            "rewrite-box",
+            [
+              Node.text("From: "),
+              CodeWithStatics.View.view(
+                ~globals,
+                ~overlays=source_mode_issue_overlay,
+                source_editor,
+              ),
+              Node.text("Take a step to: "),
+            ]
+            @ algebrite_suggestion_controls
+            @ [
+              div_c(
+                "inline-editor-wrapper",
+                [
+                  CodeEditable.View.view(
+                    ~globals,
+                    ~overlays=target_mode_issue_overlay,
+                    ~signal=
+                      fun
+                      | MakeActive => signal(MakeActive(WriteStepEditor())),
+                    ~edit_mode=
+                      EditMode.Editable({
+                        inject: x => {
+                          inject(WriteStepEditorAction(x));
+                        },
+                        escape: _ => Ui_effect.Ignore,
+                        take_focus: _ => Ui_effect.Ignore,
+                        focus:
+                          switch (selected) {
+                          | Some(WriteStepEditor ()) => Some()
+                          | _ => None
+                          },
+                        highlight: false,
+                      }),
+                    ~dynamics=Dynamics.Map.empty,
+                    editor,
+                  ),
+                ],
+              ),
+            ]
+            @ suggestions
+            @ [
+              div_c(
+                "proof-search-status",
+                switch (mode_issue) {
+                | Some(message) => [mode_issue_view(message)]
+                | None =>
+                  switch (check_mode, cached_result) {
+                  | (Model.ProofSearch, None) =>
+                    proof_search_requested
+                      ? [
+                        Node.text(
+                          proof_search_message
+                          |> Option.value(~default="Rocq checking..."),
+                        ),
+                      ]
+                      : [Node.text("Ready"), run_proof_search_button]
+                  | (Model.ProofSearch, Some(Some(trace_summary))) => [
+                      Node.text("Valid"),
+                      replace_button(trace_summary),
+                    ]
+                  | (Model.ProofSearch, Some(None)) =>
+                    [Node.text("Invalid")]
+                    @ (
+                      switch (proof_search_message) {
+                      | Some(message) => [
+                          div_c("proof-search-error", [Node.text(message)]),
+                        ]
+                      | None => []
+                      }
+                    )
+                    @ [run_proof_search_button]
+                  | (_, Some(Some(trace_summary))) => [
+                      Node.text("Valid"),
+                      replace_button(trace_summary),
+                    ]
+                  | (_, Some(None)) => [Node.text("Invalid")]
+                  | (_, None) => [Node.text("...")]
+                  }
+                },
+              ),
+            ],
+          ),
+        ];
       };
 
       let selected_tile_ids =
@@ -601,6 +1624,16 @@ module View = {
           reparenthesize_result,
           reparenthesized_selected_exp,
         ) {
+        | (_, Some(result), Some(reparenthesized_exp))
+            when
+              !
+                Equality.ignoring_ascriptions.exp(
+                  reparenthesized_exp,
+                  editor.statics.term,
+                ) => (
+            Some(reparenthesized_exp),
+            Some(result),
+          )
         | (Some(model_exp), Some(result), Some(reparenthesized_exp))
             when
               Language.Reparenthesize.binop_count(reparenthesized_exp)
@@ -625,82 +1658,228 @@ module View = {
         | _ => (model_selected_exp, None)
         };
       };
+      let auto_simplify = {
+        open OptUtil.Syntax;
+        let full_exp =
+          model.full_exp |> Calc.get_saved_exc(~print="full_exp");
+        let full_visible_exp =
+          model.full_visible_exp
+          |> Calc.get_saved_exc(~print="full_visible_exp");
+        let env =
+          model.cached_env |> Calc.get_saved_exc(~print="env not cached");
+        let* (base_exp, selected_id, selected_exp) =
+          switch (reparenthesize_result) {
+          | Some(result: Language.Reparenthesize.result) =>
+            let* selected_exp =
+              ProofHacks.find_exp_id(result.selected_id, result.exp);
+            Some((result.exp, result.selected_id, selected_exp));
+          | None =>
+            let* selected_exp =
+              model.selected_exp |> Calc.get_saved_exc(~print="Selected Exp");
+            Some((full_visible_exp, Exp.rep_id(selected_exp), selected_exp));
+          };
+        let* simplified_exp =
+          selected_exp
+          |> Substitution.in_exp(env)
+          |> RewriteChecker.simplify_at_level(
+               ~level=rewrite_level,
+               ~settings=globals.settings.core,
+               ~env,
+             );
+        let replaced_exp =
+          try(
+            ProofHacks.replace_exp_id(selected_id, base_exp, simplified_exp)
+          ) {
+          | _ => base_exp
+          };
+        Exp.fast_equal(base_exp, replaced_exp)
+          ? None : Some((full_exp, replaced_exp));
+      };
 
-      // I want to make a bunch of buttons here:
-      // Evaluate [TODO], Rewrite, Axioms, Cases,
-      let buttons =
-        Node.div(
-          ~attrs=[Attr.classes(["proof-selection-buttons"])],
-          (
-            switch (unparenthesize_exp) {
-            | None => []
-            | Some(exp) => [
-                proof_button(
-                  ~callback=signal(AddReparenthesizeStep(exp)),
-                  "Unparenthesize",
-                ),
-              ]
-            }
-          )
-          @ (
-            switch (step_here_button) {
-            | None => []
-            | Some((label, evaluate_after_parenthesize)) => [
-                proof_button(
-                  ~callback=
-                    signal(
-                      StepHere(step_here_ids, evaluate_after_parenthesize),
+      let text_arrow = (b: bool) => if (b) {"▲"} else {"▼"};
+
+      let show_manual_actions = automation_stage == Axioms.Manual;
+      let show_check_actions =
+        false
+        && (
+          automation_stage == Axioms.MultiStepCheck
+          || globals.settings.core.evaluation.write_out_steps
+        );
+      let show_rewrite_actions =
+        false && automation_stage == Axioms.MultiStepCheck;
+      let show_auto_actions = automation_stage == Axioms.AutoEval;
+      let show_proof_search_actions = automation_stage != Axioms.Manual;
+
+      let unparenthesize_action_buttons =
+        switch (unparenthesize_exp) {
+        | None => []
+        | Some(exp) => [
+            proof_button(
+              ~callback=signal(AddReparenthesizeStep(exp)),
+              "Unparenthesize",
+            ),
+          ]
+        };
+
+      let manual_action_buttons =
+        show_manual_actions
+          ? [
+              proof_button(
+                ~callback=
+                  inject(
+                    ProposeWrittenStep(
+                      Model.SingleEvalStep,
+                      selected_exp_for_rewrite,
+                      switch (reparenthesize_result_for_rewrite) {
+                      | Some(result) => Some(result.exp)
+                      | None => None
+                      },
                     ),
-                  label,
+                  ),
+                "One Step "
+                ++ text_arrow(
+                     switch (model.open_box) {
+                     | Model.WrittenStepOpen({
+                         check_mode: Model.SingleEvalStep,
+                         _,
+                       }) =>
+                       true
+                     | _ => false
+                     },
+                   ),
+              ),
+            ]
+            @ (
+              switch (step_here_button) {
+              | None => []
+              | Some((label, evaluate_after_parenthesize)) => [
+                  proof_button(
+                    ~callback=
+                      signal(
+                        StepHere(step_here_ids, evaluate_after_parenthesize),
+                      ),
+                    label,
+                  ),
+                ]
+              }
+            )
+            @ (
+              switch (show_step_button) {
+              | None => []
+              | Some(idx) => [
+                  proof_button(
+                    ~callback=Ui_effect.Many([signal(TakeStep(idx))]),
+                    "Step",
+                  ),
+                ]
+              }
+            )
+            @ (
+              switch (show_refl_button) {
+              | None => []
+              | Some(idx) => [
+                  proof_button(
+                    ~callback=
+                      Ui_effect.Many([
+                        globals.inject_global(
+                          Set(Evaluation(ForceShowRecord)),
+                        ),
+                        signal(Refl(idx)),
+                      ]),
+                    "Reflexivity",
+                  ),
+                ]
+              }
+            )
+            @ (
+              show_function_body_button
+                ? [
+                  proof_button(
+                    ~callback=
+                      Ui_effect.Many([
+                        globals.inject_global(
+                          Set(Evaluation(ForceShowRecord)),
+                        ),
+                        signal(AddForall),
+                      ]),
+                    "Function Body",
+                  ),
+                ]
+                : []
+            )
+          : [];
+
+      let check_action_buttons =
+        show_check_actions
+          ? [
+            proof_button(
+              ~callback=
+                inject(
+                  ProposeWrittenStep(
+                    Model.CheckResult,
+                    selected_exp_for_rewrite,
+                    switch (reparenthesize_result_for_rewrite) {
+                    | Some(result) => Some(result.exp)
+                    | None => None
+                    },
+                  ),
                 ),
-              ]
-            }
-          )
-          @ (
-            switch (show_step_button) {
-            | None => []
-            | Some(idx) => [
-                proof_button(
-                  ~callback=Ui_effect.Many([signal(TakeStep(idx))]),
-                  "Step",
+              "Check Result "
+              ++ text_arrow(
+                   switch (model.open_box) {
+                   | Model.WrittenStepOpen({check_mode: Model.CheckResult, _}) =>
+                     true
+                   | _ => false
+                   },
+                 ),
+            ),
+          ]
+          : [];
+
+      let proof_search_action_buttons =
+        show_proof_search_actions
+          ? [
+            proof_button(
+              ~callback=
+                inject(
+                  ProposeWrittenStep(
+                    Model.ProofSearch,
+                    selected_exp_for_rewrite,
+                    switch (reparenthesize_result_for_rewrite) {
+                    | Some(result) => Some(result.exp)
+                    | None => None
+                    },
+                  ),
                 ),
-              ]
-            }
-          )
-          @ (
-            switch (show_refl_button) {
+              "Search "
+              ++ text_arrow(
+                   switch (model.open_box) {
+                   | Model.WrittenStepOpen({check_mode: Model.ProofSearch, _}) =>
+                     true
+                   | _ => false
+                   },
+                 ),
+            ),
+          ]
+          : [];
+
+      let auto_action_buttons =
+        show_auto_actions
+          ? switch (auto_simplify) {
             | None => []
-            | Some(idx) => [
+            | Some((original_exp, simplified_exp)) => [
                 proof_button(
                   ~callback=
-                    Ui_effect.Many([
-                      globals.inject_global(
-                        Set(Evaluation(ForceShowRecord)),
-                      ),
-                      signal(Refl(idx)),
-                    ]),
-                  "Reflexivity",
+                    signal(AutoSimplify(original_exp, simplified_exp)),
+                  "Auto Eval",
                 ),
               ]
             }
-          )
-          @ (
-            show_function_body_button
-              ? [
-                proof_button(
-                  ~callback=
-                    Ui_effect.Many([
-                      globals.inject_global(
-                        Set(Evaluation(ForceShowRecord)),
-                      ),
-                      signal(AddForall),
-                    ]),
-                  "Function Body",
-                ),
-              ]
-              : []
-          )
-          @ [
+          : [];
+
+      let rewrite_action_buttons =
+        show_rewrite_actions
+          ? [
             proof_button(
               ~callback=
                 inject(
@@ -712,23 +1891,43 @@ module View = {
                     },
                   ),
                 ),
-              "Algebra ▼",
+              "Rewrite "
+              ++ text_arrow(
+                   switch (model.open_box) {
+                   | Model.RewritesOpen(_) => true
+                   | _ => false
+                   },
+                 ),
             ),
-            proof_button(~callback=inject(ToggleAxioms), "Assumptions ▼"),
-            proof_button(
-              ~callback=
-                Ui_effect.Many([
-                  globals.inject_global(Set(Evaluation(ForceShowRecord))),
-                  signal(
-                    AddInduction(
-                      model.selected_exp
-                      |> Calc.get_saved_exc(~print="Selected Exp"),
-                    ),
-                  ),
-                ]),
-              "Cases/Induction",
-            ),
-          ],
+          ]
+          : [];
+
+      let general_proof_buttons = [
+        proof_button(
+          ~callback=
+            Ui_effect.Many([
+              globals.inject_global(Set(Evaluation(ForceShowRecord))),
+              signal(
+                AddInduction(
+                  model.selected_exp
+                  |> Calc.get_saved_exc(~print="Selected Exp"),
+                ),
+              ),
+            ]),
+          "Cases/Induction",
+        ),
+      ];
+
+      let buttons =
+        Node.div(
+          ~attrs=[Attr.classes(["proof-selection-buttons"])],
+          unparenthesize_action_buttons
+          @ manual_action_buttons
+          @ check_action_buttons
+          @ proof_search_action_buttons
+          @ auto_action_buttons
+          @ rewrite_action_buttons
+          @ general_proof_buttons,
         );
 
       [
@@ -752,12 +1951,45 @@ module View = {
                 Attr.on_pointerdown(_ =>
                   Virtual_dom.Vdom.Effect.Stop_propagation
                 ),
+                Attr.on_pointerup(_ =>
+                  Virtual_dom.Vdom.Effect.Stop_propagation
+                ),
+                Attr.on_mousemove(_ =>
+                  Virtual_dom.Vdom.Effect.Stop_propagation
+                ),
               ],
-              [buttons]
+              (
+                !globals.settings.core.evaluation.enable_proof
+                && globals.settings.core.evaluation.write_out_steps
+                  ? [] : [buttons]
+              )
               @ {
                 switch (model.open_box) {
                 | NoneOpen => []
-                | AxiomsOpen(m) => [
+                | AxiomsOpen({
+                    axioms_model: m,
+                    rewrite_selected_exp,
+                    rewrite_reparenthesized_exp,
+                    source_full_visible_exp: _,
+                  }) =>
+                  let selected_exp_for_axioms =
+                    switch (rewrite_selected_exp) {
+                    | Some(exp) => exp
+                    | None =>
+                      model.selected_exp
+                      |> Calc.get_saved_exc(~print="Selected Exp")
+                      |> Option.value(~default=EmptyHole |> Exp.fresh, _)
+                    };
+                  let full_exp_for_axioms =
+                    switch (rewrite_reparenthesized_exp) {
+                    | Some(exp) => exp
+                    | None =>
+                      model.full_visible_exp
+                      |> Calc.get_saved_exc(
+                           ~print="full_visible_exp not cached",
+                         )
+                    };
+                  [
                     div_c(
                       "axiom-box",
                       AxiomsBox.View.view(
@@ -775,166 +2007,176 @@ module View = {
                         ~add_axiom_step=
                           (a, b, c, d, e) =>
                             signal(AddAxiomStep(a, b, c, d, e)),
-                        ~full_exp=
-                          model.full_visible_exp
-                          |> Calc.get_saved_exc(
-                               ~print="full_visible_exp not cached",
-                             ),
-                        ~selected_exp=
-                          model.selected_exp
-                          |> Calc.get_saved_exc(~print="Selected Exp")
-                          |> Option.value(~default=EmptyHole |> Exp.fresh, _),
+                        ~add_written_step=
+                          (summary, at_idx, at_exp, with_exp) =>
+                            switch (rewrite_reparenthesized_exp) {
+                            | Some(reparenthesized_exp) =>
+                              signal(
+                                AddReparenthesizedWrittenStep(
+                                  summary,
+                                  reparenthesized_exp,
+                                  at_exp,
+                                  with_exp,
+                                ),
+                              )
+                            | None =>
+                              signal(
+                                AddWrittenStep(
+                                  summary,
+                                  at_idx,
+                                  at_exp,
+                                  with_exp,
+                                ),
+                              )
+                            },
+                        ~rewrite_level,
+                        ~show_mode_warning=true,
+                        ~full_exp=full_exp_for_axioms,
+                        ~selected_exp=selected_exp_for_axioms,
                         m,
                       ),
                     ),
-                  ]
+                  ];
                 | RewritesOpen({
                     editor,
                     rewrite_selected_exp,
                     rewrite_reparenthesized_exp,
+                    source_full_visible_exp: _,
                     cached_exp,
                     cached_result,
                   }) =>
-                  let unboxed_cached_exp =
-                    Calc.get_saved_exc(
-                      ~print="cached exp not calculated",
-                      cached_exp,
-                    );
-                  let unboxed_selected_exp =
-                    Option.value(
-                      ~default=EmptyHole |> Exp.fresh,
-                      rewrite_selected_exp,
-                    );
-                  [
-                    // one element list with a div
-                    // with a list containing two elements
-                    // an Editor for user to propose their rewrite
-                    // a button to submit the rewrite
-                    div_c(
-                      "rewrite-box",
+                  view_rewrites_box(
+                    editor,
+                    rewrite_selected_exp,
+                    rewrite_reparenthesized_exp,
+                    cached_exp,
+                    cached_result |> Calc.saved_to_option,
+                  )
+                | WrittenStepOpen({
+                    editor,
+                    check_mode,
+                    axioms_model,
+                    rewrite_selected_exp,
+                    rewrite_reparenthesized_exp,
+                    source_full_visible_exp: _,
+                    proof_search_requested,
+                    proof_search_check_id: _,
+                    proof_search_message,
+                    proof_search_max_depth: _,
+                    proof_search_max_states: _,
+                    proof_search_source,
+                    cached_exp,
+                    cached_result,
+                  }) =>
+                  let live_rewrite_reparenthesized_exp =
+                    switch (reparenthesize_result_for_rewrite) {
+                    | Some(result) => Some(result.exp)
+                    | None => None
+                    };
+                  let option_exp_equal = (a, b) =>
+                    switch (a, b) {
+                    | (None, None) => true
+                    | (Some(a), Some(b)) =>
+                      Equality.ignoring_ascriptions.exp(a, b)
+                    | _ => false
+                    };
+                  let source_selection_changed =
+                    !
+                      option_exp_equal(
+                        rewrite_selected_exp,
+                        selected_exp_for_rewrite,
+                      )
+                    || !
+                         option_exp_equal(
+                           rewrite_reparenthesized_exp,
+                           live_rewrite_reparenthesized_exp,
+                         );
+                  let suggestions =
+                    switch (
+                      check_mode,
+                      globals.settings.core.evaluation.suggest_rewrites,
+                    ) {
+                    | (Model.ProofSearch, true) =>
+                      let selected_exp_for_axioms =
+                        switch (selected_exp_for_rewrite) {
+                        | Some(exp) => exp
+                        | None =>
+                          model.selected_exp
+                          |> Calc.get_saved_exc(~print="Selected Exp")
+                          |> Option.value(~default=EmptyHole |> Exp.fresh, _)
+                        };
+                      let full_exp_for_axioms =
+                        switch (live_rewrite_reparenthesized_exp) {
+                        | Some(exp) => exp
+                        | None =>
+                          model.full_visible_exp
+                          |> Calc.get_saved_exc(
+                               ~print="full_visible_exp not cached",
+                             )
+                        };
                       [
-                        Node.text("Replace: "),
-                        CodeViewable.view_any(
-                          ~globals,
-                          ~settings=
-                            ExpToSegment.Settings.of_core(
-                              ~inline=false,
-                              ~fold_fn_bodies=`Text,
-                              globals.settings.core,
-                            ),
-                          Exp(unboxed_selected_exp),
-                        ),
-                        Node.text("With: "),
                         div_c(
-                          "inline-editor-wrapper",
-                          [
-                            CodeEditable.View.view(
-                              ~globals,
-                              ~signal=
-                                fun
-                                | MakeActive =>
-                                  signal(MakeActive(RewriteEditor())),
-                              ~edit_mode=
-                                EditMode.Editable({
-                                  inject: x =>
-                                    inject(RewriteEditorAction(x)),
-                                  escape: _ => Ui_effect.Ignore,
-                                  take_focus: _ => Ui_effect.Ignore,
-                                  focus:
-                                    switch (selected) {
-                                    | Some(RewriteEditor ()) => Some()
-                                    | _ => None
-                                    },
-                                }),
-                              ~dynamics=Dynamics.Map.empty,
-                              editor,
-                            ),
-                          ],
-                        ),
-                      ]
-                      @ {
-                        switch (cached_result) {
-                        | Some(true) => [
-                            Node.text("Valid"),
-                            Widgets.button(
-                              ~clss=["proof-button"],
-                              Node.text("Replace"),
-                              ~tooltip="replace",
-                              _ => {
-                                let substituted_cached_exp =
-                                  unboxed_cached_exp
-                                  |> Substitution.in_exp(
-                                       model.cached_env
-                                       |> Calc.get_saved_exc(
-                                            ~print="env not cached",
-                                          ),
-                                     );
-                                switch (rewrite_reparenthesized_exp) {
+                          "proof-search-suggestions",
+                          AxiomsBox.View.view(
+                            ~globals,
+                            ~info_map,
+                            ~env=
+                              model.cached_env
+                              |> Calc.get_saved_exc(~print="env not cached"),
+                            ~inject=
+                              (a: AxiomsBox.Update.t) =>
+                                inject(AxiomBoxAction(a)),
+                            ~take_focus=
+                              (s: AxiomsBox.Selection.t) =>
+                                signal(MakeActive(AxiomBoxSelection(s))),
+                            ~add_axiom_step=
+                              (a, b, c, d, e) =>
+                                signal(AddAxiomStep(a, b, c, d, e)),
+                            ~add_written_step=
+                              (summary, at_idx, at_exp, with_exp) =>
+                                switch (live_rewrite_reparenthesized_exp) {
                                 | Some(reparenthesized_exp) =>
                                   signal(
-                                    AddReparenthesizedAlgebriteStep(
+                                    AddReparenthesizedWrittenStep(
+                                      summary,
                                       reparenthesized_exp,
-                                      unboxed_selected_exp,
-                                      substituted_cached_exp,
+                                      at_exp,
+                                      with_exp,
                                     ),
                                   )
                                 | None =>
-                                  let at_idx =
-                                    try(
-                                      ProofHacks.exp_idx(
-                                        unboxed_selected_exp,
-                                        model.full_visible_exp
-                                        |> Calc.get_saved_exc(
-                                             ~print="full_visible_exp",
-                                           ),
-                                      )
-                                    ) {
-                                    | _ => 0
-                                    };
                                   signal(
-                                    AddAlgebriteStep(
+                                    AddWrittenStep(
+                                      summary,
                                       at_idx,
-                                      unboxed_selected_exp,
-                                      substituted_cached_exp,
+                                      at_exp,
+                                      with_exp,
                                     ),
-                                  );
-                                };
-                              },
-                            ),
-                          ]
-                        | Some(false) => [Node.text("Invalid")]
-                        | None => [
-                            Widgets.button(
-                              ~clss=["proof-button"],
-                              Node.text("Check"),
-                              _ =>
-                                inject(
-                                  UpdateResult(
-                                    RewriteChecker.check_rewrite(
-                                      unboxed_selected_exp
-                                      |> Substitution.in_exp(
-                                           model.cached_env
-                                           |> Calc.get_saved_exc(
-                                                ~print="env not cached",
-                                              ),
-                                         ),
-                                      unboxed_cached_exp
-                                      |> Substitution.in_exp(
-                                           model.cached_env
-                                           |> Calc.get_saved_exc(
-                                                ~print="env not cached",
-                                              ),
-                                         ),
-                                    ),
-                                  ),
-                                ),
-                              ~tooltip="check",
-                            ),
-                          ]
-                        };
-                      },
-                    ),
-                  ];
+                                  )
+                                },
+                            ~rewrite_level,
+                            ~show_mode_warning=false,
+                            ~full_exp=full_exp_for_axioms,
+                            ~selected_exp=selected_exp_for_axioms,
+                            axioms_model,
+                          ),
+                        ),
+                      ];
+                    | (_, _) => []
+                    };
+                  view_written_step_box(
+                    editor,
+                    check_mode,
+                    selected_exp_for_rewrite,
+                    live_rewrite_reparenthesized_exp,
+                    source_selection_changed ? false : proof_search_requested,
+                    source_selection_changed ? None : proof_search_message,
+                    source_selection_changed ? None : proof_search_source,
+                    cached_exp,
+                    source_selection_changed
+                      ? None : cached_result |> Calc.saved_to_option,
+                    suggestions,
+                  );
                 };
               },
             ),

@@ -39,17 +39,19 @@ module Model = {
       selection_chunkiness: false,
       evaluation: {
         show_case_clauses: true,
-        show_fn_bodies: false,
-        show_fixpoints: false,
-        show_ascription_steps: false,
-        show_ascriptions: false,
-        show_case_steps: false,
+        show_fn_bodies: true,
+        show_fixpoints: true,
+        show_ascription_steps: true,
+        show_ascriptions: true,
+        show_case_steps: true,
         show_lookup_steps: false,
-        show_stepper_filters: false,
-        stepper_history: false,
+        show_stepper_filters: true,
+        stepper_history: true,
         show_settings: false,
-        show_hidden_steps: false,
-        enable_proof: false,
+        show_hidden_steps: true,
+        write_out_steps: false,
+        enable_proof: true,
+        suggest_rewrites: true,
         project_tables: false,
       },
     },
@@ -65,7 +67,7 @@ module Model = {
     },
     sidebar: {
       panel: LanguageDocumentation,
-      show: true,
+      show: false,
       problems: {
         collapsed: [],
         collapsed_editors: [],
@@ -133,6 +135,8 @@ module Update = {
     | ShowLookups
     | ShowFilters
     | ShowSettings
+    | WriteOutSteps
+    | SuggestRewrites
     | ShowHiddenSteps
     | ProjectTables;
 
@@ -303,6 +307,14 @@ module Update = {
           | ShowHiddenSteps => {
               ...evaluation,
               show_hidden_steps: !evaluation.show_hidden_steps,
+            }
+          | WriteOutSteps => {
+              ...evaluation,
+              write_out_steps: !evaluation.write_out_steps,
+            }
+          | SuggestRewrites => {
+              ...evaluation,
+              suggest_rewrites: !evaluation.suggest_rewrites,
             }
           };
         {

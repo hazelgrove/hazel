@@ -4,6 +4,7 @@ open Node;
 let view =
     (
       ~inject: Settings.Update.t => Ui_effect.t(unit),
+      ~extra=[],
       settings: Language.CoreSettings.Evaluation.t,
     ) => {
   let modal = div(~attrs=[Attr.class_("settings-modal")]);
@@ -16,81 +17,92 @@ let view =
       ],
     );
   [
-    modal([
-      div(
-        ~attrs=[Attr.class_("settings-modal-top")],
-        [
-          Widgets.button(Icons.thin_x, _ => inject(Evaluation(ShowSettings))),
-        ],
-      ),
-      setting(
-        "h",
-        "show full step trace",
-        settings.stepper_history,
-        Evaluation(ShowRecord),
-      ),
-      setting(
-        "π",
-        "proof steps (experimental)",
-        settings.enable_proof,
-        Evaluation(EnableProof),
-      ),
-      setting(
-        "|",
-        "show case clauses",
-        settings.show_case_clauses,
-        Evaluation(ShowCaseClauses),
-      ),
-      setting(
-        "⇨",
-        "show case steps",
-        settings.show_case_steps,
-        Evaluation(ShowCaseSteps),
-      ),
-      setting(
-        "λ",
-        "show function bodies",
-        settings.show_fn_bodies,
-        Evaluation(ShowFnBodies),
-      ),
-      setting(
-        "x",
-        "show fixpoints",
-        settings.show_fixpoints,
-        Evaluation(ShowFixpoints),
-      ),
-      setting(
-        ":",
-        "show ascriptions",
-        settings.show_ascriptions,
-        Evaluation(ShowAscriptions),
-      ),
-      setting(
-        "⇨",
-        "show ascription steps",
-        settings.show_ascription_steps,
-        Evaluation(ShowAscriptionSteps),
-      ),
-      // Disabled until we have a way to print closures
-      // setting(
-      //   "🔍",
-      //   "show lookup steps",
-      //   settings.show_lookup_steps,
-      //   Evaluation(ShowLookups),
-      // ),
-      setting(
-        "⏯️",
-        "show stepper filters",
-        settings.show_stepper_filters,
-        Evaluation(ShowFilters),
-      ),
-      setting(
-        "🤫",
-        "show hidden steps",
-        settings.show_hidden_steps,
-        Evaluation(ShowHiddenSteps),
-      ),
-    ]),
+    modal(
+      [
+        div(
+          ~attrs=[Attr.class_("settings-modal-top")],
+          [
+            Widgets.button(Icons.thin_x, _ =>
+              inject(Evaluation(ShowSettings))
+            ),
+          ],
+        ),
+        setting(
+          "h",
+          "show full step trace",
+          settings.stepper_history,
+          Evaluation(ShowRecord),
+        ),
+        setting(
+          "π",
+          "proof steps",
+          settings.enable_proof,
+          Evaluation(EnableProof),
+        ),
+        setting(
+          "|",
+          "show case clauses",
+          settings.show_case_clauses,
+          Evaluation(ShowCaseClauses),
+        ),
+        setting(
+          "⇨",
+          "show case steps",
+          settings.show_case_steps,
+          Evaluation(ShowCaseSteps),
+        ),
+        setting(
+          "λ",
+          "show function bodies",
+          settings.show_fn_bodies,
+          Evaluation(ShowFnBodies),
+        ),
+        setting(
+          "x",
+          "show fixpoints",
+          settings.show_fixpoints,
+          Evaluation(ShowFixpoints),
+        ),
+        setting(
+          ":",
+          "show ascriptions",
+          settings.show_ascriptions,
+          Evaluation(ShowAscriptions),
+        ),
+        setting(
+          "⇨",
+          "show ascription steps",
+          settings.show_ascription_steps,
+          Evaluation(ShowAscriptionSteps),
+        ),
+        // Disabled until we have a way to print closures
+        // setting(
+        //   "🔍",
+        //   "show lookup steps",
+        //   settings.show_lookup_steps,
+        //   Evaluation(ShowLookups),
+        // ),
+        setting(
+          "⏯️",
+          "show stepper filters",
+          settings.show_stepper_filters,
+          Evaluation(ShowFilters),
+        ),
+        setting(
+          "🤫",
+          "show hidden steps",
+          settings.show_hidden_steps,
+          Evaluation(ShowHiddenSteps),
+        ),
+        setting(
+          "↝",
+          "suggest rewrites",
+          settings.suggest_rewrites,
+          Evaluation(SuggestRewrites),
+        ),
+      ]
+      @ extra,
+    ),
     div(
       ~attrs=[
         Attr.class_("modal-back"),

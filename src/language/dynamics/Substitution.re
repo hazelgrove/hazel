@@ -20,18 +20,41 @@
   - Does not handle unbound variables correctly - these could get captured
  */
 
+// Use TermBase modules to avoid circular dependencies
+module Exp = TermBase.Exp;
+module Pat = TermBase.Pat;
+module Typ = TermBase.Typ;
+
+// Import term constructors
+open Grammar;
+
+// Helper to replace all IDs with fresh ones
+let replace_all_ids_exp = (exp: Exp.t): Exp.t => {
+  let f:
+    'a.
+    (IdTagged.t('a) => IdTagged.t('a), IdTagged.t('a)) => IdTagged.t('a)
+   =
+    (continue, e) =>
+      {
+        ...e,
+        annotation: IdTagged.IdTag.mk_internal([Id.mk()]),
+      }
+      |> continue;
+  Exp.map_term(~f_exp=f, ~f_pat=f, ~f_typ=f, ~f_tpat=f, ~f_rul=f, exp);
+};
+
 let rec in_exp = (env: Environment.t(Exp.t), exp: Exp.t) =>
   Exp.map_term(
     ~f_typ=_ => in_typ(env),
     ~f_exp=
       (cont, e) => {
-        let (term, rewrap) = Exp.unwrap(e);
+        let (term, rewrap) = IdTagged.unwrap(e);
         switch (term) {
         // Variables: lookup if bound
         | Var(x) =>
           switch (Environment.lookup(env, x)) {
           | Some({term: Var(y), _}) when y == x => e
-          | Some(e) => e |> Exp.replace_all_ids |> in_exp(Environment.empty)
+          | Some(e) => e |> replace_all_ids_exp |> in_exp(Environment.empty)
           | None => e
           }
 
@@ -122,18 +145,22 @@ and in_pat =
       p: Pat.t,
     )
     : (Environment.t(Exp.t), Pat.t) => {
-  switch (p |> Pat.term_of) {
+  switch (p |> Annotated.term_of) {
   // Variables: special case
   | Var(x) =>
     let x' = Environment.free_name(x, env_acc);
     if (x == x') {
-      (env_acc |> Environment.extend(_, (x', Exp.fresh(Var(x')))), p);
+      (
+        env_acc
+        |> Environment.extend(_, (x', IdTagged.FreshGrammar.Exp.var(x'))),
+        p,
+      );
     } else {
       (
         env_acc
-        |> Environment.extend(_, (x, Exp.fresh(Var(x'))))
-        |> Environment.extend(_, (x', Exp.fresh(Var(x')))),
-        Var(x') |> Pat.fresh,
+        |> Environment.extend(_, (x, IdTagged.FreshGrammar.Exp.var(x')))
+        |> Environment.extend(_, (x', IdTagged.FreshGrammar.Exp.var(x'))),
+        IdTagged.FreshGrammar.Pat.var(x'),
       );
     };
 
@@ -150,10 +177,13 @@ and in_pat =
   // Containers: recurse one at a time
   | Parens(p1) =>
     let (env', p1') = in_pat(env_outer, env_acc, p1);
-    (env', Parens(p1') |> Pat.fresh);
+    (env', IdTagged.fresh(Parens(p1'): pat_term(IdTagged.IdTag.t)));
   | Projector(data, p1) =>
     let (env', p1') = in_pat(env_outer, env_acc, p1);
-    (env', Projector(data, p1') |> Pat.fresh);
+    (
+      env',
+      IdTagged.fresh(Projector(data, p1'): pat_term(IdTagged.IdTag.t)),
+    );
   | Tuple(l) =>
     let (env', l') =
       List.fold_left(
@@ -164,7 +194,7 @@ and in_pat =
         (env_acc, []),
         l,
       );
-    (env', Tuple(l') |> Pat.fresh);
+    (env', IdTagged.fresh(Tuple(l'): pat_term(IdTagged.IdTag.t)));
   | ListLit(l) =>
     let (env', l') =
       List.fold_left(
@@ -175,23 +205,26 @@ and in_pat =
         (env_acc, []),
         l,
       );
-    (env', ListLit(l') |> Pat.fresh);
+    (env', IdTagged.fresh(ListLit(l'): pat_term(IdTagged.IdTag.t)));
   | Cons(p1, p2) =>
     let (env', p1') = in_pat(env_outer, env_acc, p1);
     let (env'', p2') = in_pat(env_outer, env', p2);
-    (env'', Cons(p1', p2') |> Pat.fresh);
+    (env'', IdTagged.fresh(Cons(p1', p2'): pat_term(IdTagged.IdTag.t)));
   | Ap(p1, p2) =>
     let (env', p1') = in_pat(env_outer, env_acc, p1);
     let (env'', p2') = in_pat(env_outer, env', p2);
-    (env'', Ap(p1', p2') |> Pat.fresh);
+    (env'', IdTagged.fresh(Ap(p1', p2'): pat_term(IdTagged.IdTag.t)));
   | TupLabel(p1, p2) =>
     let (env', p1') = in_pat(env_outer, env_acc, p1);
     let (env'', p2') = in_pat(env_outer, env', p2);
-    (env'', TupLabel(p1', p2') |> Pat.fresh);
+    (
+      env'',
+      IdTagged.fresh(TupLabel(p1', p2'): pat_term(IdTagged.IdTag.t)),
+    );
   | Asc(p1, t) =>
     let t' = in_typ(env_outer, t);
     let (env', p1') = in_pat(env_outer, env_acc, p1);
-    (env', Asc(p1', t') |> Pat.fresh);
+    (env', IdTagged.fresh(Asc(p1', t'): pat_term(IdTagged.IdTag.t)));
   };
 }
 
@@ -203,7 +236,7 @@ and in_typ = (env: Environment.t(Exp.t), typ: Typ.t) =>
         failwith("patterns should be handled separately in substitution"),
     ~f_typ=
       (cont, t) => {
-        let (term, _rewrap) = Typ.unwrap(t);
+        let (term, _rewrap) = IdTagged.unwrap(t);
         switch (term) {
         // Cases without patterns: recurse
         | Unknown(_)

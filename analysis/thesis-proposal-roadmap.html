@@ -1,0 +1,1133 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Hazel Thesis Proposal Implementation Roadmap</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #f7f8fb;
+        --panel: #ffffff;
+        --ink: #1e252f;
+        --muted: #647084;
+        --line: #d8dee8;
+        --accent: #1f7a70;
+        --accent-2: #3858a8;
+        --warn: #9b5c00;
+        --code-bg: #eef2f6;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--ink);
+        font: 16px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+
+      main {
+        width: min(1180px, calc(100vw - 40px));
+        margin: 0 auto;
+        padding: 40px 0 64px;
+      }
+
+      header {
+        border-bottom: 1px solid var(--line);
+        padding-bottom: 24px;
+        margin-bottom: 28px;
+      }
+
+      h1,
+      h2,
+      h3 {
+        line-height: 1.18;
+        margin: 0;
+      }
+
+      h1 {
+        font-size: 2.35rem;
+        letter-spacing: 0;
+      }
+
+      h2 {
+        font-size: 1.45rem;
+        margin-top: 34px;
+      }
+
+      h3 {
+        font-size: 1.05rem;
+        margin-top: 22px;
+      }
+
+      p {
+        margin: 10px 0 0;
+      }
+
+      ul,
+      ol {
+        margin: 10px 0 0;
+        padding-left: 1.35rem;
+      }
+
+      li + li {
+        margin-top: 6px;
+      }
+
+      code {
+        background: var(--code-bg);
+        border: 1px solid var(--line);
+        border-radius: 4px;
+        padding: 0.08rem 0.28rem;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 0.92em;
+      }
+
+      pre {
+        margin: 12px 0 0;
+        overflow-x: auto;
+        background: #111827;
+        color: #edf2f7;
+        border-radius: 8px;
+        padding: 16px;
+        font-size: 0.9rem;
+      }
+
+      pre code {
+        background: transparent;
+        border: 0;
+        color: inherit;
+        padding: 0;
+      }
+
+      section,
+      .metric {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+      }
+
+      section {
+        padding: 22px;
+        margin-top: 18px;
+      }
+
+      .lead {
+        color: var(--muted);
+        font-size: 1.05rem;
+        max-width: 900px;
+      }
+
+      .summary {
+        margin-top: 20px;
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 14px;
+      }
+
+      .metric {
+        padding: 16px;
+      }
+
+      .metric strong {
+        display: block;
+        color: var(--accent);
+        font-size: 1.25rem;
+      }
+
+      .callout {
+        border-left: 4px solid var(--accent);
+        background: #eef8f6;
+        padding: 12px 14px;
+        margin-top: 14px;
+      }
+
+      .warning {
+        border-left-color: var(--warn);
+        background: #fff7e8;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 14px;
+        font-size: 0.95rem;
+      }
+
+      th,
+      td {
+        border: 1px solid var(--line);
+        padding: 9px 10px;
+        text-align: left;
+        vertical-align: top;
+      }
+
+      th {
+        background: #eef2f6;
+        color: #2d3748;
+        font-weight: 650;
+      }
+
+      tbody tr:nth-child(even) {
+        background: #fbfcff;
+      }
+
+      .phase-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 12px;
+        margin-top: 14px;
+      }
+
+      .phase {
+        border: 1px solid var(--line);
+        border-top: 4px solid var(--accent-2);
+        border-radius: 8px;
+        padding: 14px;
+        background: #fbfcff;
+      }
+
+      .phase strong {
+        display: block;
+        margin-bottom: 6px;
+      }
+
+      a {
+        color: var(--accent-2);
+      }
+
+      @media (max-width: 840px) {
+        main {
+          width: min(100vw - 24px, 1180px);
+          padding-top: 24px;
+        }
+
+        .summary,
+        .phase-grid {
+          grid-template-columns: 1fr;
+        }
+
+        table {
+          font-size: 0.9rem;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <h1>Hazel Thesis Proposal Implementation Roadmap</h1>
+        <p class="lead">
+          A standalone implementation plan derived from
+          <code>/Users/nishant/Downloads/nishant-thesis-proposal-document.pdf</code>.
+          Use this document across worktrees to align stepper architecture,
+          mathematical capabilities, proof export, and target case studies.
+        </p>
+        <div class="summary">
+          <div class="metric">
+            <strong>Goal</strong>
+            Exploratory engineering math in Hazel with machine-checkable export.
+          </div>
+          <div class="metric">
+            <strong>Users</strong>
+            Engineers and students who know the math but not prover syntax.
+          </div>
+          <div class="metric">
+            <strong>Core Risk</strong>
+            Automation that hides too much or exports untrusted large steps.
+          </div>
+          <div class="metric">
+            <strong>Near Term</strong>
+            Coq-checked proof search for arithmetic, algebra, and trigonometry.
+          </div>
+        </div>
+      </header>
+
+      <section>
+        <h2>Research Target</h2>
+        <p>
+          The proposal extends Hazel Prover from classroom equational and
+          inductive reasoning toward exploratory engineering mathematics. The
+          intended workflow is not a CAS transcript and not raw theorem-prover
+          scripting. It is a Hazel-native, selection-driven derivation interface
+          where users take meaningful symbolic steps, the checker validates
+          those steps, and completed traces can be exported to Coq/Rocq now,
+          with Lean kept as the next prover backend target.
+        </p>
+        <div class="callout">
+          The implementation standard is skeptical certification: Hazel may use
+          automation to propose or validate steps, but the exported artifact
+          should contain enough trace information for an external prover to
+          check the result independently.
+        </div>
+      </section>
+
+      <section>
+        <h2>Design Criteria From The Proposal</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Criterion</th>
+              <th>Implementation Consequence</th>
+              <th>What To Avoid</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Low setup cost</td>
+              <td>
+                Users should solve representative tasks inside Hazel without
+                learning Lean/Rocq syntax first. Prover-specific details belong
+                in export metadata and generated artifacts.
+              </td>
+              <td>UI flows that require users to pick prover lemmas directly.</td>
+            </tr>
+            <tr>
+              <td>Low interaction overhead</td>
+              <td>
+                Common rewrites, substitution, differentiation, and evaluation
+                should be available through contextual stepper controls or
+                projectors.
+              </td>
+              <td>Forcing every associative/commutative microstep by hand.</td>
+            </tr>
+            <tr>
+              <td>Appropriate step granularity</td>
+              <td>
+                Support one-step, checked multi-step, and automatic modes per
+                exercise or stepper invocation. The chosen mode should be clear
+                to the user before they start.
+              </td>
+              <td>
+                Black-box full-expression simplification with no visible trace.
+              </td>
+            </tr>
+            <tr>
+              <td>Mathematical coverage</td>
+              <td>
+                Every new rewrite group or operation should map back to one of
+                the proposal case studies.
+              </td>
+              <td>Building generic symbolic features without a target workflow.</td>
+            </tr>
+            <tr>
+              <td>Trust and verification</td>
+              <td>
+                Accepted steps should store structured justifications, rule ids,
+                selected subterms, and prover hints.
+              </td>
+              <td>Persisting only a display string such as <code>arithmetic</code>.</td>
+            </tr>
+          </tbody>
+        </table>
+        <h3>Current Branch Status And Next Pass</h3>
+        <p>
+          The current branch has moved past the original arithmetic smoke-test
+          stage. Arithmetic, Algebra, and Trigonometry are registered as
+          cumulative math levels; bounded proof search can produce exportable
+          traces; generated Coq files and core trig fixtures pass
+          <code>coqc</code>; and the browser JSCoq path is available as a smoke
+          checker when its assets are served.
+        </p>
+        <ol>
+          <li>
+            Keep the current setting shape: one exercise-level math automation
+            control with cumulative levels and explicit automation modes.
+          </li>
+          <li>
+            Move Coq/Rocq tactic mappings into rule/profile metadata beside
+            the existing Lean hints in <code>Axioms.re</code>.
+          </li>
+          <li>
+            Distinguish primitive rules, macro rules, and non-exportable
+            experimental behavior in the rule catalog.
+          </li>
+          <li>
+            Expand checked fixtures for every supported trig identity and keep
+            both local <code>coqc</code> and browser JSCoq smoke checks in the
+            workflow.
+          </li>
+          <li>
+            Replace coarse arithmetic/algebra macro steps with primitive
+            breadcrumbs where practical, starting with AC reordering and
+            polynomial collection.
+          </li>
+          <li>
+            Keep side-condition-sensitive operations out of the trusted path
+            until the checker can record and export their obligations.
+          </li>
+          <li>
+            Continue using arithmetic and algebra examples as regression tests
+            while building toward the trig and calculus case studies.
+          </li>
+        </ol>
+      </section>
+
+      <section>
+        <h2>Stepper Architecture</h2>
+        <p>
+          The stepper should become the common shell for user-directed proof
+          construction, automated checking, and proof-producing operations.
+          Current write-step work is now the arithmetic/algebra/trigonometry
+          pilot of this architecture.
+        </p>
+        <table>
+          <thead>
+            <tr>
+              <th>Requirement</th>
+              <th>Implementation Direction</th>
+              <th>Likely Files</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Exercise-level automation policy</td>
+              <td>
+                Keep math level and automation stage on the stepper invocation
+                or exercise settings, not per individual step. Levels should be
+                cumulative: Algebra includes Arithmetic; Calculus includes the
+                levels above it when enabled.
+              </td>
+              <td>
+                <code>StepperView.re</code>, <code>StepperBase.re</code>,
+                exercise settings
+              </td>
+            </tr>
+            <tr>
+              <td>Structured accepted-step records</td>
+              <td>
+                Store checker results with normal forms, selected subterm ids,
+                trace steps, and export metadata. Keep display text derived from
+                the structured record.
+              </td>
+              <td>
+                <code>RewriteChecker.re</code>, <code>WrittenStep.re</code>,
+                <code>StepperBase.re</code>
+              </td>
+            </tr>
+            <tr>
+              <td>Rule groups and applicability</td>
+              <td>
+                Extend <code>Axioms.re</code> with rule groups, matchers or
+                precondition descriptors, and prover-side lemma/tactic hints.
+              </td>
+              <td>
+                <code>Axioms.re</code>, <code>AxiomSearch.re</code>,
+                <code>TrigRewrite.re</code>, future matcher modules
+              </td>
+            </tr>
+            <tr>
+              <td>Contextual menus</td>
+              <td>
+                Given a selected subterm, show applicable identities and
+                operations, with enough information for users to choose between
+                multiple valid paths.
+              </td>
+              <td>
+                <code>MissingStep.re</code>, <code>SettingsModal.re</code>,
+                stepper CSS
+              </td>
+            </tr>
+            <tr>
+              <td>Operation projectors</td>
+              <td>
+                Differentiation, Taylor expansion, and matrix operations should
+                use projector-like UI where the operation is not naturally a
+                bidirectional rewrite.
+              </td>
+              <td>
+                projector modules, <code>ProjectorInit.re</code>, stepper bridge
+              </td>
+            </tr>
+            <tr>
+              <td>Proof export</td>
+              <td>
+                Export selected Hazel actions as prover steps. Collapse several
+                Hazel steps only when the target prover can verify the collapsed
+                obligation and the export records that decision.
+              </td>
+              <td>
+                <code>CoqExport.re</code>, <code>CoqProofExport.re</code>,
+                future <code>LeanExport.re</code>, <code>Axioms.re</code>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section>
+        <h2>Mathematical Capability Ladder</h2>
+        <p>
+          Each level should include all previous levels. The UI can expose the
+          selected level, but the implementation should enforce it through
+          allowed rewrite groups and operation availability.
+        </p>
+        <table>
+          <thead>
+            <tr>
+              <th>Level</th>
+              <th>Capabilities</th>
+              <th>Checker/Normalizer Shape</th>
+              <th>Export Shape</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Arithmetic and affine algebra</td>
+              <td>
+                Constants, variables, addition, subtraction, negation, and
+                constant multiplication.
+              </td>
+              <td>
+                Affine normal form with sorted variable coefficients and folded
+                constants.
+              </td>
+              <td>
+                Reassociate, commute, fold constants, scale terms, collect like
+                terms.
+              </td>
+            </tr>
+            <tr>
+              <td>Algebraic distribution</td>
+              <td>
+                Distribution, factoring, simple powers, FOIL, and medium-grain
+                expansion choices.
+              </td>
+              <td>
+                Polynomial normal form or named rewrite search over algebra
+                rules.
+              </td>
+              <td>
+                Small distribution/factor lemmas, with optional ring fallback
+                only for debugging.
+              </td>
+            </tr>
+            <tr>
+              <td>Trigonometric identities</td>
+              <td>
+                Pythagorean identities, sum/difference formulas, double-angle
+                formulas, cofunction/reflection identities, negative-angle
+                identities, and curated bidirectional identities.
+              </td>
+              <td>
+                Rule database filtered by syntactic match, active math level,
+                explicit preconditions, and export availability.
+              </td>
+              <td>
+                Identity lemma references in Coq/Rocq now, with Lean mappings
+                retained in rule metadata and every accepted trig fixture
+                checked by generated proof scripts.
+              </td>
+            </tr>
+            <tr>
+              <td>Functions and calculus</td>
+              <td>
+                Function expressions, symbolic differentiation, product rule,
+                chain rule, integration hooks, and evaluation at a point.
+              </td>
+              <td>
+                Operation-specific proof-producing transformations rather than
+                only equivalence normalizers.
+              </td>
+              <td>
+                Derivative rule lemmas and generated equality obligations.
+              </td>
+            </tr>
+            <tr>
+              <td>Taylor workflows</td>
+              <td>
+                Repeated derivatives, substitution, evaluation, and polynomial
+                assembly.
+              </td>
+              <td>
+                Compound derivation trace built from calculus and evaluation
+                subtraces.
+              </td>
+              <td>
+                Sequence of derivative/evaluation lemmas plus assembly steps.
+              </td>
+            </tr>
+            <tr>
+              <td>Inequalities</td>
+              <td>
+                Bounds, equality/inequality chains, monotonicity, absolute
+                values, and theorem applications such as mean value theorem.
+              </td>
+              <td>
+                New relation-chain representation; equality-only replacement is
+                insufficient.
+              </td>
+              <td>
+                Ordered relation transitivity and named bound lemmas.
+              </td>
+            </tr>
+            <tr>
+              <td>Linear algebra and Jacobians</td>
+              <td>
+                Matrix/vector expressions, elementwise symbolic operations,
+                Jacobian construction, and equilibrium substitution.
+              </td>
+              <td>
+                Matrix entries as Hazel expressions with elementwise operation
+                traces.
+              </td>
+              <td>
+                Matrix extensionality plus exported traces for each cell.
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section>
+        <h2>Math Group Specification Matrix</h2>
+        <p>
+          This table captures the central part of the whiteboard sketch, not
+          every surrounding note. The key design split is that each math group
+          has two commitments: the forms/objects Hazel can recognize, and the
+          operations, rewrites, or tactics Hazel is allowed to apply to those
+          forms. This table should guide future <code>Axioms.re</code> entries,
+          checker normalizers, UI operation menus, and theorem-prover export
+          records.
+        </p>
+        <table>
+          <thead>
+            <tr>
+              <th>Group</th>
+              <th>Forms/Objects</th>
+              <th>Operations/Rewrites</th>
+              <th>Automation/Tactics</th>
+              <th>Export Notes</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Arithmetic</td>
+              <td>
+                Integer, natural, signed-integer, and future float literals;
+                affine terms over variables.
+              </td>
+              <td>
+                Associativity, commutativity, additive identity, additive
+                inverse, constant folding, and constant scaling.
+              </td>
+              <td>
+                Simplify selected arithmetic, compare affine normal forms, and
+                eventually expand each normalization phase into visible hidden
+                steps.
+              </td>
+              <td>
+                Current pilot group. Export should prefer small rewrites and use
+                <code>norm_num</code> or ring-style tactics only as collapsed
+                fallback policy.
+              </td>
+            </tr>
+            <tr>
+              <td>Algebra</td>
+              <td>
+                Free variables, sums, products, powers, polynomials, and later
+                rational expressions.
+              </td>
+              <td>
+                Distribution, factoring, FOIL-style expansion, collection of
+                like terms, cancellation with side conditions, and polynomial
+                normalization.
+              </td>
+              <td>
+                User-selected expand/factor operations, multi-step normal-form
+                checks, and bounded rewrite search over named algebra rules.
+              </td>
+              <td>
+                Should include arithmetic automatically. Avoid accepting broad
+                algebraic equality unless the normalizer can emit an exportable
+                trace.
+              </td>
+            </tr>
+            <tr>
+              <td>Trigonometry</td>
+              <td>
+                <code>sin</code>, <code>cos</code>, <code>tan</code>, powers of
+                trig terms, and angle expressions.
+              </td>
+              <td>
+                Pythagorean identities, double-angle identities, angle-sum
+                identities, cofunction/reflection identities, negative-angle
+                identities, and curated bidirectional substitutions.
+              </td>
+              <td>
+                Identity menu filtered by selected expression; optional
+                direction choice when a rule can rewrite both ways; bounded
+                proof search for the supported identity families.
+              </td>
+              <td>
+                Prefer explicit identity lemma references. Do not hide the
+                choice of identity inside a generic simplify tactic. Current
+                generated Coq fixtures cover the core supported trig identities.
+              </td>
+            </tr>
+            <tr>
+              <td>Calculus</td>
+              <td>
+                Derivatives, integrals, limits, substitutions, function
+                applications, and expressions such as
+                <code>d/dx (sin(x^2))</code>.
+              </td>
+              <td>
+                Derivative rules for constants, variables, polynomials, trig
+                functions, product rule, chain rule, substitution/evaluation at
+                a point, and later integration rules.
+              </td>
+              <td>
+                Auto-differentiate a selected subterm, request one named rule,
+                or produce a compound hidden trace for Taylor-style workflows.
+              </td>
+              <td>
+                This is operation-oriented, not just equality normalization:
+                exported traces must preserve the chosen calculus rule and any
+                generated side obligations.
+              </td>
+            </tr>
+            <tr>
+              <td>Programming-Language Forms</td>
+              <td>
+                Well-typed terms from the Hazel grammar: variables, functions,
+                applications, conditionals, pattern matches, lists, tuples, and
+                typed holes.
+              </td>
+              <td>
+                Beta reduction, unfolding, substitution, case splitting,
+                function-body expansion, list rewrites such as map/fold, and
+                selected evaluator steps.
+              </td>
+              <td>
+                Same three automation modes as math groups: one visible step,
+                checked multi-step result, or auto-evaluation over an allowed
+                operation set.
+              </td>
+              <td>
+                Must respect typing and holes. Export likely needs a language
+                semantics or theorem-prover encoding before broad automation is
+                trustworthy.
+              </td>
+            </tr>
+            <tr>
+              <td>Linear Algebra</td>
+              <td>
+                Vectors, matrices, Jacobians, indexed entries, matrix-vector
+                products, and equilibrium substitutions.
+              </td>
+              <td>
+                Elementwise simplification, matrix extensionality, Jacobian
+                construction, substitution into entries, and linear solve or
+                eigenvalue hooks later.
+              </td>
+              <td>
+                Apply scalar math groups inside cells, build Jacobian rows and
+                columns, and validate matrix equality by entrywise traces.
+              </td>
+              <td>
+                Need explicit non-commutativity policy. Matrix export should
+                reduce to cell-level proof traces plus structural matrix lemmas.
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="callout">
+          The implementation direction is cumulative: selecting a later row
+          includes the rows above it when mathematically valid. For example,
+          calculus automation can use arithmetic, algebra, and trig rules inside
+          a derivative trace, but each hidden step must still name the group and
+          rule that justified it.
+        </div>
+      </section>
+
+      <section>
+        <h2>Automation Modes</h2>
+        <p>
+          These modes should apply at the exercise or stepper invocation level.
+          They are not independent mathematical levels; they control how much
+          assistance is available within the selected level.
+        </p>
+        <div class="phase-grid">
+          <div class="phase">
+            <strong>One Step</strong>
+            User takes one visible Hazel/proof step. Useful for learning,
+            transfer, and exercises that should mirror paper proof structure.
+          </div>
+          <div class="phase">
+            <strong>Check Result</strong>
+            User writes a proposed next expression. Hazel checks whether both
+            sides have the same normal form or proof-producing equivalence.
+          </div>
+          <div class="phase">
+            <strong>Auto Simplify</strong>
+            Hazel applies an allowed operation or rewrite group and inserts the
+            result, preserving the hidden proof trace for inspection/export.
+          </div>
+        </div>
+        <h3>Automation Depth Ladder</h3>
+        <p>
+          The top-right whiteboard sketch also separates automation by depth.
+          This is the operational version of the UI's manual/check/auto choice:
+          it describes how far Hazel is allowed to search or compress hidden
+          steps once a math group is selected.
+        </p>
+        <table>
+          <thead>
+            <tr>
+              <th>Depth</th>
+              <th>Meaning</th>
+              <th>User Experience</th>
+              <th>Trace Requirement</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Auto 0</td>
+              <td>
+                One primitive step. Hazel applies a single evaluator step or a
+                single named rewrite.
+              </td>
+              <td>
+                Closest to manual stepping; useful for teaching the exact next
+                rule and for debugging proof traces.
+              </td>
+              <td>
+                One rule id, one focused before/after expression, one prover
+                hint.
+              </td>
+            </tr>
+            <tr>
+              <td>Auto 1</td>
+              <td>
+                Local simplification. Hazel may combine a small fixed family of
+                primitive rewrites into one visible step.
+              </td>
+              <td>
+                User can select a subterm such as <code>1 + 2 + x</code> and
+                get the obvious local result such as <code>x + 3</code>.
+              </td>
+              <td>
+                Ordered hidden trace, usually within one rewrite group such as
+                arithmetic.
+              </td>
+            </tr>
+            <tr>
+              <td>Auto 2</td>
+              <td>
+                Bounded tactic or proof search over a chosen group. Hazel can
+                try several rewrite paths or normalization phases.
+              </td>
+              <td>
+                User gets help with medium-grain algebra/trig/calculus moves,
+                but the search space is still constrained by the selected group.
+              </td>
+              <td>
+                Search result must be replayable as phase traces; failed search
+                should not change the expression.
+              </td>
+            </tr>
+            <tr>
+              <td>Auto Max</td>
+              <td>
+                Exploratory automation. Hazel may use all allowed groups at the
+                selected math level to propose or complete a larger derivation.
+              </td>
+              <td>
+                Useful for exploration, examples, and checking answers; less
+                appropriate when the exercise goal is practicing each rule.
+              </td>
+              <td>
+                Must be explicitly marked as collapsed or expanded. Export can
+                only trust it if the hidden trace can be replayed or discharged
+                by an approved theorem-prover policy.
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section>
+        <h2>Near-Term Implementation Focus</h2>
+        <p>
+          The immediate engineering target is to get as close as possible to
+          useful arithmetic and algebra support. The later groups should stay in
+          the architecture so the design does not hard-code arithmetic-only
+          assumptions, but they do not need full implementation in this phase.
+        </p>
+        <table>
+          <thead>
+            <tr>
+              <th>Priority</th>
+              <th>Scope</th>
+              <th>Implementation Goal</th>
+              <th>Architectural Requirement</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Now</td>
+              <td>Arithmetic</td>
+              <td>
+                Finish affine arithmetic checks, selected-subterm auto simplify,
+                side-specific traces, and prover-hint resolution.
+              </td>
+              <td>
+                Keep arithmetic expressed as a named group with forms, rules,
+                normalizer, automation depth, and export metadata.
+              </td>
+            </tr>
+            <tr>
+              <td>Next</td>
+              <td>Algebra</td>
+              <td>
+                Add polynomial-oriented forms and operations: distribution,
+                factoring/FOIL, collection of like terms, cancellation where
+                side conditions are explicit, and checked normal-form equality.
+              </td>
+              <td>
+                Algebra should include arithmetic automatically and should plug
+                into the same checker/trace/export interfaces rather than a
+                separate special case.
+              </td>
+            </tr>
+            <tr>
+              <td>Later</td>
+              <td>Calculus, programming forms, linear algebra</td>
+              <td>
+                Leave as design targets and type/API extension points. Trig is
+                no longer purely future work; calculus and later groups should
+                reuse the trig proof-search/export shape.
+              </td>
+              <td>
+                Ensure group registration, automation settings, trace records,
+                and UI labels can represent these future domains without
+                changing the core stepper contract.
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section>
+        <h2>Proof Trace And Export</h2>
+        <p>
+          A completed Hazel derivation is currently structured but informal.
+          The roadmap requires making it machine-checkable by turning each
+          accepted action into a proof trace.
+        </p>
+        <pre><code>type proof_step = {
+  before: Exp.t,
+  after: Exp.t,
+  rule: Axioms.rewrite_rule,
+  focus: option(Id.t),
+  prover_hint: option(Axioms.prover_hint),
+};
+
+type accepted_step = {
+  user_from: Exp.t,
+  user_to: Exp.t,
+  normal_from: Exp.t,
+  normal_to: Exp.t,
+  trace_from: list(proof_step),
+  trace_to: list(proof_step),
+  export_policy: [ `Primitive | `Collapsed(string) | `NotExportable ],
+};</code></pre>
+        <table>
+          <thead>
+            <tr>
+              <th>Current State</th>
+              <th>Needed Change</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>
+                <code>RewriteChecker.re</code> validates affine equivalence and
+                returns normal expressions plus side-specific rule ids.
+              </td>
+              <td>
+                Upgrade side-specific rule ids into replayable derivations from
+                source expression to normal expression.
+              </td>
+            </tr>
+            <tr>
+              <td>
+                <code>WrittenStep.re</code> stores a justification string plus
+                an optional trace summary with normal expressions, rule ids, and
+                exportability metadata. <code>RewriteChecker.re</code> can
+                resolve those rule ids back to <code>Axioms.re</code> prover
+                hints by side.
+              </td>
+              <td>
+                Upgrade the trace summary into full structured accepted-step
+                data with before/after proof steps.
+              </td>
+            </tr>
+            <tr>
+              <td>
+                <code>CoqExport.re</code> can generate coarse proof scripts.
+              </td>
+              <td>
+                Translate proof steps through <code>Axioms.re</code> prover
+                hints, using collapsed tactics only as explicit policy.
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="warning callout">
+          Do not route this through a CAS as the source of truth. CAS-style
+          simplification creates steps that are too large to trust or export
+          cleanly. Use Hazel-native normalizers and proof-producing operations.
+        </div>
+      </section>
+
+      <section>
+        <h2>Target Case Studies</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Case Study</th>
+              <th>Representative Task</th>
+              <th>Acceptance Criteria</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Algebraic distribution</td>
+              <td>
+                Expand <code>(x + 1)^2</code> to
+                <code>x^2 + 2x + 1</code> through selected subexpression
+                rewrites.
+              </td>
+              <td>
+                Users can choose distribution steps, check written results, and
+                export the trace without relying on a single <code>ring</code>
+                proof.
+              </td>
+            </tr>
+            <tr>
+              <td>Trigonometric identities</td>
+              <td>
+                Transform expressions involving <code>sin^2(x)</code>,
+                <code>cos(2x)</code>, and <code>cos(4x)</code>.
+              </td>
+              <td>
+                The UI shows multiple applicable identities for a selected
+                subterm and records the chosen identity in the trace.
+              </td>
+            </tr>
+            <tr>
+              <td>Symbolic differentiation</td>
+              <td>
+                Differentiate <code>x^3 * sin(x)</code> using product and chain
+                rules.
+              </td>
+              <td>
+                A projector supports step-by-step and one-shot modes, and both
+                produce the same exportable derivative trace.
+              </td>
+            </tr>
+            <tr>
+              <td>Taylor series expansion</td>
+              <td>
+                Differentiate repeatedly, evaluate at <code>x0</code>, and
+                assemble an approximation polynomial.
+              </td>
+              <td>
+                Intermediate derivatives and evaluated coefficients are retained
+                as inspectable steps; errors can be localized to an earlier
+                derivative or substitution.
+              </td>
+            </tr>
+            <tr>
+              <td>Inequality bounding</td>
+              <td>
+                Derive <code>|sin(x) - sin(y)| <= |x - y|</code> using mean
+                value theorem and <code>|cos(c)| <= 1</code>.
+              </td>
+              <td>
+                Hazel can represent a mixed equality/inequality chain and reject
+                invalid bound direction changes.
+              </td>
+            </tr>
+            <tr>
+              <td>Jacobian linearization</td>
+              <td>
+                Compute a 2x2 Jacobian matrix for a nonlinear system at an
+                equilibrium.
+              </td>
+              <td>
+                Matrix cells carry independent derivative/substitution traces;
+                the full matrix result can be exported by cell extensionality.
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section>
+        <h2>Implementation Phases</h2>
+        <ol>
+          <li>
+            Stabilize arithmetic: convert affine checking into
+            proof-producing normalization and persist accepted traces.
+          </li>
+          <li>
+            Add algebra rule groups: distribution, factoring, and polynomial
+            normal forms with selectable medium-grain rewrites.
+          </li>
+          <li>
+            Add contextual identity menus: trigonometric rule database,
+            matchers, preconditions, and prover hints.
+          </li>
+          <li>
+            Build proof-producing operation projectors: differentiation first,
+            then evaluate-at and Taylor workflows.
+          </li>
+          <li>
+            Design relation chains for inequalities and bounding rules.
+          </li>
+          <li>
+            Add matrix/vector expression support and Jacobian-specific workflows.
+          </li>
+          <li>
+            Harden export: choose initial target prover, map rules to library
+            lemmas, and add tests that generated proof scripts check.
+          </li>
+        </ol>
+      </section>
+
+      <section>
+        <h2>Reusable Guidance For Agents</h2>
+        <ul>
+          <li>
+            Before implementing a math feature, identify which proposal case
+            study it unlocks or improves.
+          </li>
+          <li>
+            Prefer Hazel-native proof-producing transformations over CAS calls.
+          </li>
+          <li>
+            Keep automation policy explicit in the UI and in serialized stepper
+            state.
+          </li>
+          <li>
+            Treat <code>Axioms.re</code> as the registry for named rewrite
+            groups and prover mappings.
+          </li>
+          <li>
+            When adding accepted-step behavior, store structured proof data
+            first and derive UI labels from it.
+          </li>
+          <li>
+            Run <code>make</code> after every code or documentation edit.
+          </li>
+        </ul>
+      </section>
+    </main>
+  </body>
+</html>

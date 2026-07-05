@@ -394,6 +394,7 @@ module F =
               | Some(_)
               | None => None
               },
+            highlight: false,
           }),
         ~dynamics=Dynamics.Map.empty,
         model.scrut,

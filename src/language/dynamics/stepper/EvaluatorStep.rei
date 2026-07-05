@@ -30,3 +30,5 @@ let get_step_id: step => Id.t;
 let get_step_id_in: (step, Exp.t) => option(Id.t);
 
 let get_step_kind: step => Transition.step_kind;
+
+let get_step_ctx: step => EvalCtx.t;
