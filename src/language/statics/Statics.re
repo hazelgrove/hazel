@@ -464,6 +464,51 @@ and uexp_to_info_map =
       Unknown(Internal) |> Typ.temp,
     );
 
+  let implicit_poly_args = (binder: TPat.t): (Typ.t, list(Typ.t)) => {
+    let binders = TPat.binders_of(binder);
+    let args =
+      List.init(List.length(binders), _ => Unknown(Internal) |> Typ.fresh);
+    let arg =
+      switch (args) {
+      | [arg] => arg
+      | _ => TypTuple(args) |> Typ.fresh
+      };
+    (arg, args);
+  };
+
+  let rec implicit_poly_instantiate =
+          (ty: Typ.t, elab: Exp.t): (Typ.t, Exp.t) =>
+    switch (MatchedTyp.poly_pair(ctx, ty)) {
+    | Some((Some(binder), body)) =>
+      let (arg, args) = implicit_poly_args(binder);
+      let binders = TPat.binders_of(binder);
+      let body = Typ.subst_many(args, binders, body);
+      implicit_poly_instantiate(body, TypAp(elab, arg) |> Exp.fresh);
+    | Some((None, _))
+    | None => (ty, elab)
+    };
+
+  let rec expects_poly_callee = (e: Exp.t): bool =>
+    switch (e.term) {
+    | Var(v) =>
+      Ctx.lookup_var(ctx, v)
+      |> Option.map((entry: Ctx.var_entry) =>
+           MatchedTyp.poly_pair(ctx, entry.typ) != None
+         )
+      |> Option.value(~default=false)
+    | TypAbs(_) => true
+    | Parens(e)
+    | Projector(_, e) => expects_poly_callee(e)
+    | _ => false
+    };
+
+  let constructor_has_poly_schema = name =>
+    Ctx.lookup_ctr(ctx, name)
+    |> Option.map((entry: Ctx.var_entry) =>
+         MatchedTyp.poly_pair(ctx, entry.typ) != None
+       )
+    |> Option.value(~default=false);
+
   // This is the case where we aren't a singleton labeled tuple
   let default_case = () => {
     switch (term) {
@@ -1685,15 +1730,29 @@ and uexp_to_info_map =
         let fn_ana =
           switch (Exp.ctr_name(fn)) {
           | Some(name) =>
-            switch (ConstructorStaticsHelpers.ctr_ana_typ(ctx, ana, name)) {
-            | Some(ty_ana) =>
-              switch (MatchedTyp.arrow(ctx, ty_ana)) {
-              | Some((ty1, ty2)) => Arrow(ty1, ty2) |> Typ.temp
-              | None => Arrow(syn, syn) |> Typ.temp
+            switch (fn.term) {
+            | Constructor(_, Some(Some(ty)))
+                when MatchedTyp.poly_pair(ctx, ty) == None => ty
+            | _ =>
+              switch (ConstructorStaticsHelpers.ctr_ana_typ(ctx, ana, name)) {
+              | Some(ty_ana) =>
+                switch (MatchedTyp.arrow(ctx, ty_ana)) {
+                | Some((ty1, ty2)) => Arrow(ty1, ty2) |> Typ.temp
+                | None =>
+                  MatchedTyp.poly_pair(ctx, ty_ana) != None
+                    ? Poly(EmptyHole |> TPat.fresh, syn) |> Typ.temp
+                    : Arrow(syn, syn) |> Typ.temp
+                }
+              | None =>
+                constructor_has_poly_schema(name)
+                  ? Poly(EmptyHole |> TPat.fresh, syn) |> Typ.temp
+                  : Arrow(syn, syn) |> Typ.temp
               }
-            | None => Arrow(syn, syn) |> Typ.temp
             }
-          | None => Arrow(syn, syn) |> Typ.temp
+          | None =>
+            expects_poly_callee(fn)
+              ? Poly(EmptyHole |> TPat.fresh, syn) |> Typ.temp
+              : Arrow(syn, syn) |> Typ.temp
           };
         let* (fn, fn_elab, m) = go(~ana=fn_ana, fn, m);
         switch (custom_statics) {
@@ -1714,7 +1773,9 @@ and uexp_to_info_map =
             arg,
           )
         | None =>
-          let (ty_in, ty_out) = MatchedTyp.arrow_tolerant(ctx, fn.ty);
+          let (fn_ty, fn_elab) =
+            implicit_poly_instantiate(fn.elab_syn_ty, fn_elab);
+          let (ty_in, ty_out) = MatchedTyp.arrow_tolerant(ctx, fn_ty);
           let& (arg, arg_elab, m) = go(~ana=ty_in, arg, m);
           let elab_term = Ap(dir, fn_elab, arg_elab) |> rewrap;
           let co_ap = CoCtx.union([fn.co_ctx, arg.co_ctx]);
@@ -1793,15 +1854,29 @@ and uexp_to_info_map =
       let fn_ana =
         switch (Exp.ctr_name(fn)) {
         | Some(name) =>
-          switch (ConstructorStaticsHelpers.ctr_ana_typ(ctx, ana, name)) {
-          | Some(ty_ana) =>
-            switch (MatchedTyp.arrow(ctx, ty_ana)) {
-            | Some((ty1, ty2)) => Arrow(ty1, ty2) |> Typ.temp
-            | None => Arrow(syn, syn) |> Typ.temp
+          switch (fn.term) {
+          | Constructor(_, Some(Some(ty)))
+              when MatchedTyp.poly_pair(ctx, ty) == None => ty
+          | _ =>
+            switch (ConstructorStaticsHelpers.ctr_ana_typ(ctx, ana, name)) {
+            | Some(ty_ana) =>
+              switch (MatchedTyp.arrow(ctx, ty_ana)) {
+              | Some((ty1, ty2)) => Arrow(ty1, ty2) |> Typ.temp
+              | None =>
+                MatchedTyp.poly_pair(ctx, ty_ana) != None
+                  ? Poly(EmptyHole |> TPat.fresh, syn) |> Typ.temp
+                  : Arrow(syn, syn) |> Typ.temp
+              }
+            | None =>
+              constructor_has_poly_schema(name)
+                ? Poly(EmptyHole |> TPat.fresh, syn) |> Typ.temp
+                : Arrow(syn, syn) |> Typ.temp
             }
-          | None => Arrow(syn, syn) |> Typ.temp
           }
-        | None => Arrow(syn, syn) |> Typ.temp
+        | None =>
+          expects_poly_callee(fn)
+            ? Poly(EmptyHole |> TPat.fresh, syn) |> Typ.temp
+            : Arrow(syn, syn) |> Typ.temp
         };
       let* (fn, fn_elab, m) = go(~ana=fn_ana, fn, m);
 
@@ -1824,7 +1899,9 @@ and uexp_to_info_map =
           args,
         )
       | None =>
-        let (ty_in, ty_out) = MatchedTyp.arrow_tolerant(ctx, fn.ty);
+        let (fn_ty, fn_elab) =
+          implicit_poly_instantiate(fn.elab_syn_ty, fn_elab);
+        let (ty_in, ty_out) = MatchedTyp.arrow_tolerant(ctx, fn_ty);
         let num_args = List.length(args);
         switch (MatchedTyp.args(ctx, ty_in, num_args)) {
         | L(ty_ins) =>

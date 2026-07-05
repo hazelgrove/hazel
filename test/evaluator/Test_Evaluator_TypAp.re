@@ -43,6 +43,29 @@ let evaluated_is_self_typed_ctr = (src: string, name: string): (bool, Exp.t) => 
   (found^, evaluated);
 };
 
+let restatics_marks_after_eval = (src: string): list(Mark.t) => {
+  let exp = Haz3lcore.Parser.to_term(src, ~root=Exp) |> Option.get;
+  let (_info_map, elab) =
+    Statics.mk(CoreSettings.on, Language.Builtins.ctx_init(Some(Int)), exp);
+  let evaluated =
+    Evaluator.evaluate(~env=Language.Builtins.env_init, elab) |> fst;
+  let (restatics_map, _) =
+    Statics.mk(
+      CoreSettings.on,
+      Language.Builtins.ctx_init(Some(Int)),
+      evaluated,
+    );
+  Id.Map.fold(
+    (_, info, acc) =>
+      switch (info) {
+      | Info.InfoExp({marks, _}) => marks @ acc
+      | _ => acc
+      },
+    restatics_map,
+    [],
+  );
+};
+
 let tests = (
   "Evaluator.TypAp",
   [
@@ -75,6 +98,28 @@ map@<T>@<Int>(fun e -> string_length(e), ["hello","bar"])|},
 pair@<Int, Bool>(3)(true)|},
         )
       ),
+    test_case("Implicit polymorphic id evaluates", `Quick, () =>
+      parse_and_evaluate_test(
+        "1",
+        {|let id : poly a -> a -> a = abs a -> fun x : a -> x in id(1)|},
+      )
+    ),
+    test_case("Implicit multi-binder polymorphic pair evaluates", `Quick, () =>
+      parse_and_evaluate_test(
+        "(3, true)",
+        {|let pair : poly a, b -> a -> b -> (a, b) =
+  abs a, b -> fun x : a -> fun y : b -> (x, y) in
+pair(3)(true)|},
+      )
+    ),
+    test_case("Implicit curried polymorphic const evaluates", `Quick, () =>
+      parse_and_evaluate_test(
+        "3",
+        {|let const : poly a -> poly b -> a -> b -> a =
+  abs a -> abs b -> fun x : a -> fun y : b -> x in
+const(3)(true)|},
+      )
+    ),
     /* Regression: a recursive polymorphic `map` with parenthesized
        multi-binder polymorphism (`poly (a, b) -> …`, internal
        `TPat.Tuple`) and `abs (a, b) -> …` must fully evaluate the
@@ -114,6 +159,28 @@ map@<Int, Int>((fun x -> x + 1), [1, 2, 3])|},
           ok,
         );
       },
+    ),
+    test_case(
+      "Prelude Option: evaluated Some(1) re-statics without marks", `Quick, () =>
+      check(
+        int,
+        "re-statics of evaluated Some(1) produces no marks",
+        0,
+        List.length(restatics_marks_after_eval({|Some(1)|})),
+      )
+    ),
+    test_case(
+      "Mixed explicit and implicit Some evaluates and re-statics", `Quick, () =>
+      check(
+        int,
+        "re-statics of evaluated mixed Some branches produces no marks",
+        0,
+        List.length(
+          restatics_marks_after_eval(
+            {|if true then Some@<Int>(1) else Some(0)|},
+          ),
+        ),
+      )
     ),
     test_case(
       "Prelude Either: R(true) evaluates without explicit type-arg",
