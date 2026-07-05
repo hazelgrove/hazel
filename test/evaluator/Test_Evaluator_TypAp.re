@@ -43,6 +43,29 @@ let evaluated_is_self_typed_ctr = (src: string, name: string): (bool, Exp.t) => 
   (found^, evaluated);
 };
 
+let restatics_marks_after_eval = (src: string): list(Mark.t) => {
+  let exp = Haz3lcore.Parser.to_term(src, ~root=Exp) |> Option.get;
+  let (_info_map, elab) =
+    Statics.mk(CoreSettings.on, Language.Builtins.ctx_init(Some(Int)), exp);
+  let evaluated =
+    Evaluator.evaluate(~env=Language.Builtins.env_init, elab) |> fst;
+  let (restatics_map, _) =
+    Statics.mk(
+      CoreSettings.on,
+      Language.Builtins.ctx_init(Some(Int)),
+      evaluated,
+    );
+  Id.Map.fold(
+    (_, info, acc) =>
+      switch (info) {
+      | Info.InfoExp({marks, _}) => marks @ acc
+      | _ => acc
+      },
+    restatics_map,
+    [],
+  );
+};
+
 let tests = (
   "Evaluator.TypAp",
   [
@@ -136,6 +159,28 @@ map@<Int, Int>((fun x -> x + 1), [1, 2, 3])|},
           ok,
         );
       },
+    ),
+    test_case(
+      "Prelude Option: evaluated Some(1) re-statics without marks", `Quick, () =>
+      check(
+        int,
+        "re-statics of evaluated Some(1) produces no marks",
+        0,
+        List.length(restatics_marks_after_eval({|Some(1)|})),
+      )
+    ),
+    test_case(
+      "Mixed explicit and implicit Some evaluates and re-statics", `Quick, () =>
+      check(
+        int,
+        "re-statics of evaluated mixed Some branches produces no marks",
+        0,
+        List.length(
+          restatics_marks_after_eval(
+            {|if true then Some@<Int>(1) else Some(0)|},
+          ),
+        ),
+      )
     ),
     test_case(
       "Prelude Either: R(true) evaluates without explicit type-arg",

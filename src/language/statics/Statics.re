@@ -1714,19 +1714,24 @@ and uexp_to_info_map =
         let fn_ana =
           switch (Exp.ctr_name(fn)) {
           | Some(name) =>
-            switch (ConstructorStaticsHelpers.ctr_ana_typ(ctx, ana, name)) {
-            | Some(ty_ana) =>
-              switch (MatchedTyp.arrow(ctx, ty_ana)) {
-              | Some((ty1, ty2)) => Arrow(ty1, ty2) |> Typ.temp
+            switch (fn.term) {
+            | Constructor(_, Some(Some(ty)))
+                when MatchedTyp.poly_pair(ctx, ty) == None => ty
+            | _ =>
+              switch (ConstructorStaticsHelpers.ctr_ana_typ(ctx, ana, name)) {
+              | Some(ty_ana) =>
+                switch (MatchedTyp.arrow(ctx, ty_ana)) {
+                | Some((ty1, ty2)) => Arrow(ty1, ty2) |> Typ.temp
+                | None =>
+                  MatchedTyp.poly_pair(ctx, ty_ana) != None
+                    ? Poly(EmptyHole |> TPat.fresh, syn) |> Typ.temp
+                    : Arrow(syn, syn) |> Typ.temp
+                }
               | None =>
-                MatchedTyp.poly_pair(ctx, ty_ana) != None
+                constructor_has_poly_schema(name)
                   ? Poly(EmptyHole |> TPat.fresh, syn) |> Typ.temp
                   : Arrow(syn, syn) |> Typ.temp
               }
-            | None =>
-              constructor_has_poly_schema(name)
-                ? Poly(EmptyHole |> TPat.fresh, syn) |> Typ.temp
-                : Arrow(syn, syn) |> Typ.temp
             }
           | None =>
             expects_poly_callee(fn)
@@ -1833,19 +1838,24 @@ and uexp_to_info_map =
       let fn_ana =
         switch (Exp.ctr_name(fn)) {
         | Some(name) =>
-          switch (ConstructorStaticsHelpers.ctr_ana_typ(ctx, ana, name)) {
-          | Some(ty_ana) =>
-            switch (MatchedTyp.arrow(ctx, ty_ana)) {
-            | Some((ty1, ty2)) => Arrow(ty1, ty2) |> Typ.temp
+          switch (fn.term) {
+          | Constructor(_, Some(Some(ty)))
+              when MatchedTyp.poly_pair(ctx, ty) == None => ty
+          | _ =>
+            switch (ConstructorStaticsHelpers.ctr_ana_typ(ctx, ana, name)) {
+            | Some(ty_ana) =>
+              switch (MatchedTyp.arrow(ctx, ty_ana)) {
+              | Some((ty1, ty2)) => Arrow(ty1, ty2) |> Typ.temp
+              | None =>
+                MatchedTyp.poly_pair(ctx, ty_ana) != None
+                  ? Poly(EmptyHole |> TPat.fresh, syn) |> Typ.temp
+                  : Arrow(syn, syn) |> Typ.temp
+              }
             | None =>
-              MatchedTyp.poly_pair(ctx, ty_ana) != None
+              constructor_has_poly_schema(name)
                 ? Poly(EmptyHole |> TPat.fresh, syn) |> Typ.temp
                 : Arrow(syn, syn) |> Typ.temp
             }
-          | None =>
-            constructor_has_poly_schema(name)
-              ? Poly(EmptyHole |> TPat.fresh, syn) |> Typ.temp
-              : Arrow(syn, syn) |> Typ.temp
           }
         | None =>
           expects_poly_callee(fn)
