@@ -227,6 +227,30 @@ let functions = [
 let typaps = [
   synthesis_case(
     ~ctx=ctx_var("id", "poly A -> A -> A"),
+    ~assumptions=[("id", "poly ? -> ? -> Int")],
+    "implicit-poly-id-call",
+    "id(1)",
+    "Int",
+    "id(?)",
+  ),
+  synthesis_case(
+    ~ctx=ctx_var("pair", "poly A, B -> A -> B -> (A, B)"),
+    ~assumptions=[("pair", "poly ?, ? -> ? -> ? -> (Int, Bool)")],
+    "implicit-poly-pair-call",
+    "pair(1)(true)",
+    "(Int, Bool)",
+    "pair(?)(?)",
+  ),
+  synthesis_case(
+    ~ctx=prelude_ctx("type Option = typfun A -> None + Some(A) in"),
+    ~aliases=[("Option", "typfun A -> ? + Some(A)")],
+    "implicit-param-option",
+    "Some(1)",
+    "Option(Int)",
+    "Some(?)",
+  ),
+  synthesis_case(
+    ~ctx=ctx_var("id", "poly A -> A -> A"),
     ~assumptions=[("id", "poly A -> A -> A")],
     "typap-single-call",
     "id@<Int>(1)",
