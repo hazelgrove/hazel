@@ -991,7 +991,7 @@ let rec desugar_sig = (ctx: Ctx.t, ty: t): t => {
     | _ => Prod(fields) |> rewrap
     };
   | Parens(t) => Parens(desugar_sig(ctx, t)) |> rewrap
-  | Projector(_, t) => desugar_sig(ctx, t)
+  | Projector(data, t) => Projector(data, desugar_sig(ctx, t)) |> rewrap
   | Arrow(t1, t2) =>
     Arrow(desugar_sig(ctx, t1), desugar_sig(ctx, t2)) |> rewrap
   | TypParamAp(t1, t2) =>

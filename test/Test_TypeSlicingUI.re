@@ -656,6 +656,38 @@ let tests = (
         );
       },
     ),
+    test_case(
+      "explainthis slice examples",
+      `Quick,
+      () => {
+        let typ = parse_typ("((Int, Int), Int, Int)");
+        let render = t =>
+          ExpToSegment.typ_to_segment(
+            ~settings=Web.ExplainThis.slice_view_settings,
+            t,
+          )
+          |> Printer.of_segment(
+               ~holes="?",
+               ~projector_to_segment=_ => [Piece.mk_grout(Convex)],
+               _,
+             );
+        check(string, "full query", "((Int, Int), Int, Int)", render(typ));
+        let examples =
+          Web.ExplainThis.TypeSlicing.examples(typ)
+          |> List.map(({omitted, query}: Web.ExplainThis.TypeSlicing.example) =>
+               (render(omitted), render(query))
+             );
+        check(
+          list(pair(string, string)),
+          "examples fold first subterm per depth, folds render as ?",
+          [
+            ("(Int, Int)", "(?, Int, Int)"),
+            ("Int", "((?, Int), Int, Int)"),
+          ],
+          examples,
+        );
+      },
+    ),
     test_case("anchor stays fixed while cursor moves", `Quick, () => {
       check(
         string,

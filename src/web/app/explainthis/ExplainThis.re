@@ -3780,6 +3780,11 @@ module TypeSlicing = {
         omitted := Some(typ);
         fold(typ);
       } else {
+        let child_depth =
+          switch (Typ.term_of(typ)) {
+          | Parens(_) => depth
+          | _ => depth - 1
+          };
         let root = ref(true);
         Typ.map_term(
           ~f_typ=
@@ -3790,7 +3795,7 @@ module TypeSlicing = {
                 root := false;
                 continue(child);
               } else {
-                go(depth - 1, child);
+                go(child_depth, child);
               },
           typ,
         );
@@ -3807,7 +3812,7 @@ module TypeSlicing = {
   };
 
   let examples = (typ: Typ.t): list(example) =>
-    [2, 1] |> List.filter_map(depth => fold_first_at_depth(~depth, typ));
+    [1, 2] |> List.filter_map(depth => fold_first_at_depth(~depth, typ));
 };
 
 let type_slicing_section =
