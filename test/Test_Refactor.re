@@ -1132,6 +1132,57 @@ let move_tests = [
       );
     },
   ),
+  test_case(
+    "sink into a multiline lambda keeps the body line",
+    `Quick,
+    () => {
+      let got =
+        inline(~kind=SinkLet, "¦let x = 2 in\nfun n ->\n  x + n")
+        |> text_of;
+      check(
+        string,
+        "let joins the body line",
+        "fun n ->\n  let x = 2 in x + n",
+        got,
+      );
+    },
+  ),
+  test_case(
+    "sink into a multiline arm keeps the body line",
+    `Quick,
+    () => {
+      let got =
+        inline(
+          ~kind=SinkLet,
+          "¦let x = 2 in\ncase m\n| 1 =>\n  f(x)\n| _ => 0\nend",
+        )
+        |> text_of;
+      check(
+        string,
+        "let joins the arm line",
+        "case m\n| 1 =>\n  let x = 2 in f(x)\n| _ => 0\nend",
+        got,
+      );
+    },
+  ),
+  test_case(
+    "multiline case converts to if",
+    `Quick,
+    () => {
+      let got =
+        inline(
+          ~kind=CaseToIf,
+          "¦case c | true =>\n  1\n| false =>\n  2\nend",
+        )
+        |> text_of;
+      check(
+        string,
+        "arm layout kept",
+        "if c then\n  1\nelse\n  2",
+        got,
+      );
+    },
+  ),
   test_case("sink gated when both arms use it", `Quick, () =>
     check(
       bool,

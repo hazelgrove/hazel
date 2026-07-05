@@ -1946,8 +1946,21 @@ let hoist_step = (path: list(Exp.t)): option((Exp.t, Exp.t, Id.t)) => {
   };
 };
 
-/* one sink step: push the let into its body's head construct */
-let sink_step = (l: Exp.t): option((Exp.t, Id.t)) =>
+/* one sink step: push the let into its body's head construct.
+ * ~fixup: move the target region's TEXTUAL lead (which lives on
+ * leaves) onto the inserted let — prints, so gating passes false and
+ * discards the runs */
+let sink_step = (~fixup: bool, l: Exp.t): option((Exp.t, Id.t)) => {
+  let take_lead = (region: Exp.t): (list(Secondary.t), Exp.t) =>
+    if (fixup) {
+      let s = Slot.lead_of(region);
+      (s.lead, Slot.drop(s, region));
+    } else {
+      (
+        fst(region.annotation.secondary),
+        with_secondary(([], snd(region.annotation.secondary)), region),
+      );
+    };
   switch (IdTagged.term_of(l)) {
   | Let(lp, ldef, lbody) =>
     let l_names = pat_var_names(lp);
@@ -1979,12 +1992,13 @@ let sink_step = (l: Exp.t): option((Exp.t, Id.t)) =>
           disjoint_names(l_names, pat_var_names(fp))
           && !names_mentioned(pat_var_names(fp), ldef) =>
       /* into a lambda: evaluates per call */
+      let (fb_lead, fbody') = take_lead(fbody);
       let l': Exp.t =
         with_secondary(
-          fbody.annotation.secondary,
+          (fb_lead, []),
           {
             ...l,
-            term: Let(lp, ldef, with_secondary(([], []), fbody)),
+            term: Let(lp, ldef, fbody'),
           },
         );
       let fun': Exp.t =
@@ -2007,12 +2021,13 @@ let sink_step = (l: Exp.t): option((Exp.t, Id.t)) =>
           when
             disjoint_names(l_names, pat_var_names(rp))
             && !names_mentioned(pat_var_names(rp), ldef) =>
+        let (rb_lead, rb') = take_lead(rb);
         let l': Exp.t =
           with_secondary(
-            rb.annotation.secondary,
+            (rb_lead, []),
             {
               ...l,
-              term: Let(lp, ldef, with_secondary(([], []), rb)),
+              term: Let(lp, ldef, rb'),
             },
           );
         let rules' =
@@ -2031,12 +2046,13 @@ let sink_step = (l: Exp.t): option((Exp.t, Id.t)) =>
     | If(c, t, alt) when !names_mentioned(l_names, c) =>
       switch (names_mentioned(l_names, t), names_mentioned(l_names, alt)) {
       | (true, false) =>
+        let (t_lead, t') = take_lead(t);
         let l': Exp.t =
           with_secondary(
-            t.annotation.secondary,
+            (t_lead, []),
             {
               ...l,
-              term: Let(lp, ldef, with_secondary(([], []), t)),
+              term: Let(lp, ldef, t'),
             },
           );
         Some((
@@ -2050,12 +2066,13 @@ let sink_step = (l: Exp.t): option((Exp.t, Id.t)) =>
           Exp.rep_id(l),
         ));
       | (false, true) =>
+        let (a_lead, alt') = take_lead(alt);
         let l': Exp.t =
           with_secondary(
-            alt.annotation.secondary,
+            (a_lead, []),
             {
               ...l,
-              term: Let(lp, ldef, with_secondary(([], []), alt)),
+              term: Let(lp, ldef, alt'),
             },
           );
         Some((
@@ -2074,6 +2091,7 @@ let sink_step = (l: Exp.t): option((Exp.t, Id.t)) =>
     };
   | _ => None
   };
+};
 
 let hoist_let_impl: impl = {
   label: "Hoist Let",
@@ -2110,7 +2128,7 @@ let sink_let_impl: impl = {
       |> Option.map(path => List.nth(path, List.length(path) - 1))
     ) {
     | Some(l) =>
-      switch (sink_step(l)) {
+      switch (sink_step(~fixup=true, l)) {
       | Some((result, focus)) =>
         switch (
           rewrite_node(
@@ -2254,7 +2272,7 @@ let applies =
     }
   | SinkLet =>
     switch (find_hit(~hit=hit_let(target), program)) {
-    | Some(l) => Option.is_some(sink_step(l))
+    | Some(l) => Option.is_some(sink_step(~fixup=false, l))
     | None => false
     }
   | AddCaseArm =>
