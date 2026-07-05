@@ -374,6 +374,23 @@ let control = [
     "Int",
     "case ? | ? => ? | ? => ? | ? => 2 end",
   ),
+  synthesis_case(
+    ~ctx=ctx_var("p", "(Int, Bool)"),
+    ~focus=e => int_lit(e, 0),
+    "match-focused-branch-no-demand",
+    "case p | (a, b) => a | (c, d) => 0 end",
+    "Int",
+    "case ? | ? => ? | ? => 0 end",
+  ),
+  synthesis_case(
+    ~ctx=ctx_var("p", "(Int, Bool)"),
+    ~focus=e => exp_var(e, "c"),
+    ~assumptions=[("p", "(Int, ?)")],
+    "match-focused-branch-scrut-demand",
+    "case p | (a, b) => 0 | (c, d) => c end",
+    "Int",
+    "case p | ? => ? | (c, ?) => c end",
+  ),
   synthesis_case("use-nat-lit", "use Nat in 1", "Nat", "use Nat in 1"),
   synthesis_case(
     "use-nat-plus",

@@ -2242,6 +2242,55 @@ let match_sibling_branch_ids = (focus: Id.t, m: Id.Map.t(Info.t)): Id.Set.t =>
     Id.Set.empty,
   );
 
+let match_focus_scrut_result =
+    (focus: Id.t, m: Id.Map.t(Info.t), result: result): result => {
+  let ancestors =
+    switch (Id.Map.find_opt(focus, m) |> Option.bind(_, info_ancestors)) {
+    | Some((ancestors, _)) => ancestors
+    | None => []
+    };
+  List.fold_left(
+    (result, ancestor) =>
+      switch (Id.Map.find_opt(ancestor, m)) {
+      | Some(Info.InfoExp({user_term: {term: Match(scrut, rules), _}, _})) =>
+        switch (List.find_opt(match_rule_contains_focus(focus), rules)) {
+        | Some((p, _)) =>
+          let names = Pat.bound_vars(p);
+          let demand = {
+            let d = pattern_demand(p, result.gamma);
+            demand_is_gap(d) ? gap : d;
+          };
+          let scrut_slice =
+            switch (dispatch_focus(m, Exp.rep_id(scrut), demand)) {
+            | Some(slice) => slice
+            | None => empty_result
+            };
+          let omitted =
+            result.omitted
+            |> Id.Set.diff(_, source_ids(scrut))
+            |> Id.Set.diff(_, ids_set(pat_all_ids(p)))
+            |> Id.Set.union(_, scrut_slice.omitted)
+            |> Id.Set.union(_, pattern_omissions(p, demand));
+          {
+            omitted,
+            gamma:
+              gamma_join(
+                gamma_discharge(result.gamma, names),
+                scrut_slice.gamma,
+              ),
+            context: context_join(result.context, scrut_slice.context),
+            psi: result.psi,
+            ana: result.ana,
+          };
+        | None => result
+        }
+      | _ => result
+      },
+    result,
+    ancestors,
+  );
+};
+
 let mod_contains_focus = (focus: Id.t, item: Mod.t): bool =>
   switch (item.term) {
   | ModLet(p, e) =>
@@ -2783,10 +2832,14 @@ let slice =
           : Id.Set.diff(result.omitted, path);
       let omitted =
         Id.Set.union(omitted, match_sibling_branch_ids(focus_id, m));
-      {
-        ...result,
-        omitted,
-      };
+      match_focus_scrut_result(
+        focus_id,
+        m,
+        {
+          ...result,
+          omitted,
+        },
+      );
     | _ => result
     };
   let result =
