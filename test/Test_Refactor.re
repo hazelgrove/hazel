@@ -820,6 +820,121 @@ let rename_tests = [
   }),
 ];
 
+let move_tests = [
+  test_case(
+    "hoist through a chain",
+    `Quick,
+    () => {
+      let got =
+        inline(~kind=HoistLet, "let a = 1 in ¦let x = 2 in x + a")
+        |> text_of;
+      check(string, "swapped", "let x = 2 in let a = 1 in x + a", got);
+    },
+  ),
+  test_case(
+    "hoist keeps multiline layout",
+    `Quick,
+    () => {
+      let got =
+        inline(~kind=HoistLet, "let a = 1 in\n¦let x = 2 in\nx + a")
+        |> text_of;
+      check(
+        string,
+        "lines swapped",
+        "let x = 2 in\nlet a = 1 in\nx + a",
+        got,
+      );
+    },
+  ),
+  test_case(
+    "hoist out of a lambda",
+    `Quick,
+    () => {
+      let got =
+        inline(~kind=HoistLet, "fun n -> ¦let x = 2 in x + n")
+        |> text_of;
+      check(string, "once, not per call", "let x = 2 in fun n -> x + n", got);
+    },
+  ),
+  test_case("hoist gated on param mention", `Quick, () =>
+    check(
+      bool,
+      "not offered",
+      false,
+      offers(HoistLet, "fun n -> ¦let x = n in x"),
+    )
+  ),
+  test_case("hoist gated on binder dependency", `Quick, () =>
+    check(
+      bool,
+      "not offered",
+      false,
+      offers(HoistLet, "let a = 1 in ¦let x = a in x"),
+    )
+  ),
+  test_case(
+    "hoist out of a def",
+    `Quick,
+    () => {
+      let got =
+        inline(~kind=HoistLet, "let a = (¦let x = 2 in x) in a")
+        |> text_of;
+      check(
+        string,
+        "above the line",
+        "let x = 2 in let a = (x) in a",
+        got,
+      );
+    },
+  ),
+  test_case(
+    "sink through a chain",
+    `Quick,
+    () => {
+      let got =
+        inline(~kind=SinkLet, "¦let x = 2 in let a = 1 in x + a")
+        |> text_of;
+      check(string, "swapped down", "let a = 1 in let x = 2 in x + a", got);
+    },
+  ),
+  test_case(
+    "sink into a lambda",
+    `Quick,
+    () => {
+      let got =
+        inline(~kind=SinkLet, "¦let x = 2 in fun n -> x + n")
+        |> text_of;
+      check(string, "per call", "fun n -> let x = 2 in x + n", got);
+    },
+  ),
+  test_case(
+    "sink into the sole using arm",
+    `Quick,
+    () => {
+      let got =
+        inline(
+          ~kind=SinkLet,
+          "¦let x = 2 in case m | 1 => x | _ => 0 end",
+        )
+        |> text_of;
+      check(
+        string,
+        "conditional now",
+        "case m | 1 => let x = 2 in x | _ => 0 end",
+        got,
+      );
+    },
+  ),
+  test_case("sink gated when both arms use it", `Quick, () =>
+    check(
+      bool,
+      "not offered",
+      false,
+      offers(SinkLet, "¦let x = 2 in case m | 1 => x | _ => x end"),
+    )
+  ),
+];
+
 let tests = [
   (
     "Refactor",
@@ -830,6 +945,7 @@ let tests = [
     @ case_arm_tests
     @ param_tests
     @ rename_tests
+    @ move_tests
     @ more_tests,
   ),
 ];

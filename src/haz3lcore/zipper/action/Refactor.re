@@ -1607,6 +1607,304 @@ let rename_free_impl = (x: string, y: string): impl => {
         ),
 };
 
+/* === Hoist / Sink ===
+ * Move a binding up or down ONE level per invocation. These are the
+ * explicit opt-in to evaluation-count/conditionality changes that
+ * extract deliberately avoids: hoisting out of a fun evaluates once
+ * instead of per call; sinking into an arm evaluates only when the
+ * arm matches. Gates are conservative name checks (mentions), so a
+ * blocked move is simply not offered. */
+
+let names_mentioned = (names: list(string), e: Exp.t): bool =>
+  names |> List.exists(n => mentions(n, e));
+
+let disjoint_names = (a: list(string), b: list(string)): bool =>
+  !(a |> List.exists(n => List.mem(n, b)));
+
+let with_secondary =
+    (secondary: (list(Secondary.t), list(Secondary.t)), e: Exp.t): Exp.t => {
+  ...e,
+  annotation: {
+    ...e.annotation,
+    secondary,
+  },
+};
+
+/* one hoist step for the let at the end of ~path; returns the parent
+ * node to rewrite, its replacement, and a focus id */
+let hoist_step = (path: list(Exp.t)): option((Exp.t, Exp.t, Id.t)) => {
+  let n = List.length(path);
+  if (n < 2) {
+    None;
+  } else {
+    let l = List.nth(path, n - 1);
+    let direct = List.nth(path, n - 2);
+    /* a def-position let is usually parenthesized; treat the parens
+       as packaging */
+    let (p, c) =
+      switch (IdTagged.term_of(direct)) {
+      | Parens(_) when n >= 3 => (List.nth(path, n - 3), direct)
+      | _ => (direct, l)
+      };
+    switch (IdTagged.term_of(l)) {
+    | Let(lp, ldef, lbody) =>
+      let l_names = pat_var_names(lp);
+      switch (IdTagged.term_of(p)) {
+      | Let(mp, mdef, mbody)
+          when
+            same_node(mbody, c)
+            && same_node(c, l)
+            && disjoint_names(l_names, pat_var_names(mp))
+            && !names_mentioned(pat_var_names(mp), ldef)
+            && !names_mentioned(l_names, mdef) =>
+        /* chain swap; the two lets exchange line slots */
+        let m': Exp.t =
+          with_secondary(
+            l.annotation.secondary,
+            {
+              ...p,
+              term: Let(mp, mdef, lbody),
+            },
+          );
+        let l': Exp.t =
+          with_secondary(
+            p.annotation.secondary,
+            {
+              ...l,
+              term: Let(lp, ldef, m'),
+            },
+          );
+        Some((p, l', Exp.rep_id(l)));
+      | Let(mp, mdef, mbody)
+          when
+            same_node(mdef, c)
+            && disjoint_names(l_names, pat_var_names(mp))
+            && !names_mentioned(l_names, mbody) =>
+        /* out of a def: above that line */
+        let c': Exp.t =
+          same_node(c, l)
+            ? with_secondary(l.annotation.secondary, lbody)
+            : {
+              let (_, after) = lbody.annotation.secondary;
+              {
+                ...c,
+                term: Parens(with_secondary(([], after), lbody)),
+              };
+            };
+        let m': Exp.t = {
+          ...p,
+          term: Let(mp, c', mbody),
+        };
+        let l': Exp.t =
+          with_secondary(
+            ([], []),
+            {
+              ...l,
+              term: Let(lp, ldef, m'),
+            },
+          );
+        Some((p, l', Exp.rep_id(l)));
+      | Fun(fp, fbody, ft, fn)
+          when
+            same_node(fbody, c)
+            && same_node(c, l)
+            && disjoint_names(l_names, pat_var_names(fp))
+            && !names_mentioned(pat_var_names(fp), ldef) =>
+        /* out of a lambda: evaluates once instead of per call */
+        let fun': Exp.t =
+          with_secondary(
+            l.annotation.secondary,
+            {
+              ...p,
+              term: Fun(fp, lbody, ft, fn),
+            },
+          );
+        let l': Exp.t =
+          with_secondary(
+            p.annotation.secondary,
+            {
+              ...l,
+              term: Let(lp, ldef, fun'),
+            },
+          );
+        Some((p, l', Exp.rep_id(l)));
+      | _ => None
+      };
+    | _ => None
+    };
+  };
+};
+
+/* one sink step: push the let into its body's head construct */
+let sink_step = (l: Exp.t): option((Exp.t, Id.t)) =>
+  switch (IdTagged.term_of(l)) {
+  | Let(lp, ldef, lbody) =>
+    let l_names = pat_var_names(lp);
+    switch (IdTagged.term_of(lbody)) {
+    | Let(mp, mdef, mbody)
+        when
+          disjoint_names(l_names, pat_var_names(mp))
+          && !names_mentioned(l_names, mdef)
+          && !names_mentioned(pat_var_names(mp), ldef) =>
+      let l': Exp.t =
+        with_secondary(
+          lbody.annotation.secondary,
+          {
+            ...l,
+            term: Let(lp, ldef, mbody),
+          },
+        );
+      let m': Exp.t =
+        with_secondary(
+          l.annotation.secondary,
+          {
+            ...lbody,
+            term: Let(mp, mdef, l'),
+          },
+        );
+      Some((m', Exp.rep_id(l)));
+    | Fun(fp, fbody, ft, fn)
+        when
+          disjoint_names(l_names, pat_var_names(fp))
+          && !names_mentioned(pat_var_names(fp), ldef) =>
+      /* into a lambda: evaluates per call */
+      let l': Exp.t =
+        with_secondary(
+          fbody.annotation.secondary,
+          {
+            ...l,
+            term: Let(lp, ldef, with_secondary(([], []), fbody)),
+          },
+        );
+      let fun': Exp.t =
+        with_secondary(
+          l.annotation.secondary,
+          {
+            ...lbody,
+            term: Fun(fp, l', ft, fn),
+          },
+        );
+      Some((fun', Exp.rep_id(l)));
+    | Match(scrut, rules) when !names_mentioned(l_names, scrut) =>
+      /* into the single arm that uses the binding */
+      switch (
+        rules
+        |> List.mapi((i, r) => (i, r))
+        |> List.filter(((_, (_, b))) => names_mentioned(l_names, b))
+      ) {
+      | [(i, (rp, rb))]
+          when
+            disjoint_names(l_names, pat_var_names(rp))
+            && !names_mentioned(pat_var_names(rp), ldef) =>
+        let l': Exp.t =
+          with_secondary(
+            rb.annotation.secondary,
+            {
+              ...l,
+              term: Let(lp, ldef, with_secondary(([], []), rb)),
+            },
+          );
+        let rules' =
+          rules |> List.mapi((j, r) => j == i ? (rp, l') : r);
+        let match': Exp.t =
+          with_secondary(
+            l.annotation.secondary,
+            {
+              ...lbody,
+              term: Match(scrut, rules'),
+            },
+          );
+        Some((match', Exp.rep_id(l)));
+      | _ => None
+      }
+    | If(c, t, alt) when !names_mentioned(l_names, c) =>
+      switch (names_mentioned(l_names, t), names_mentioned(l_names, alt)) {
+      | (true, false) =>
+        let l': Exp.t =
+          with_secondary(
+            t.annotation.secondary,
+            {
+              ...l,
+              term: Let(lp, ldef, with_secondary(([], []), t)),
+            },
+          );
+        Some((
+          with_secondary(
+            l.annotation.secondary,
+            {
+              ...lbody,
+              term: If(c, l', alt),
+            },
+          ),
+          Exp.rep_id(l),
+        ));
+      | (false, true) =>
+        let l': Exp.t =
+          with_secondary(
+            alt.annotation.secondary,
+            {
+              ...l,
+              term: Let(lp, ldef, with_secondary(([], []), alt)),
+            },
+          );
+        Some((
+          with_secondary(
+            l.annotation.secondary,
+            {
+              ...lbody,
+              term: If(c, t, l'),
+            },
+          ),
+          Exp.rep_id(l),
+        ));
+      | _ => None
+      }
+    | _ => None
+    };
+  | _ => None
+  };
+
+let hoist_let_impl: impl = {
+  label: "Hoist Let",
+  tooltip: "Move this binding up one level",
+  prepare: (~info_map as _, ~target, program) =>
+    switch (find_path(~hit=hit_let(target), program)) {
+    | Some(path) =>
+      switch (hoist_step(path)) {
+      | Some((pnode, result, focus)) =>
+        rewrite_node(
+          ~hit=same_node(pnode),
+          ~rewrite=_ => Some((result, focus)),
+          program,
+        )
+      | None => None
+      }
+    | None => None
+    },
+};
+
+let sink_let_impl: impl = {
+  label: "Sink Let",
+  tooltip: "Move this binding down into the scope that uses it",
+  prepare: (~info_map as _, ~target, program) =>
+    switch (
+      find_path(~hit=hit_let(target), program)
+      |> Option.map(path => List.nth(path, List.length(path) - 1))
+    ) {
+    | Some(l) =>
+      switch (sink_step(l)) {
+      | Some((result, focus)) =>
+        rewrite_node(
+          ~hit=same_node(l),
+          ~rewrite=_ => Some((result, focus)),
+          program,
+        )
+      | None => None
+      }
+    | None => None
+    },
+};
+
 let impl: Action.refactor => impl =
   fun
   | InlineLet => inline_let_impl
@@ -1615,6 +1913,8 @@ let impl: Action.refactor => impl =
   | AddCaseArm => add_case_arm_impl
   | AddParameter => add_param_impl
   | RenameFree(x, y) => rename_free_impl(x, y)
+  | HoistLet => hoist_let_impl
+  | SinkLet => sink_let_impl
   | IfToCase => if_to_case_impl
   | CaseToIf => case_to_if_impl
   | ExtractLet => extract_let_impl
@@ -1627,6 +1927,8 @@ let all: list(Action.refactor) = [
   AddTypeAnnotation,
   AddCaseArm,
   AddParameter,
+  HoistLet,
+  SinkLet,
   ExtractLet,
   EtaReduce,
   IfToCase,
@@ -1716,6 +2018,16 @@ let applies =
     switch (find_hit(~hit=hit_rename(target), program)) {
     | Some(e) =>
       rename_pairs(~info_map, ~target, e) |> List.mem((x, y))
+    | None => false
+    }
+  | HoistLet =>
+    switch (find_path(~hit=hit_let(target), program)) {
+    | Some(path) => Option.is_some(hoist_step(path))
+    | None => false
+    }
+  | SinkLet =>
+    switch (find_hit(~hit=hit_let(target), program)) {
+    | Some(l) => Option.is_some(sink_step(l))
     | None => false
     }
   | AddCaseArm =>
