@@ -1128,11 +1128,21 @@ let core_mark_err_view =
       ~inferred_label: option(LabeledTuple.label),
       ~ctx: Ctx.t,
       ~ana: Typ.t,
+      ~syn_view: option(Typ.t => Node.t)=?,
+      ~ana_view: option(Typ.t => Node.t)=?,
       cls: Cls.t,
       m: Mark.t,
     ) => {
   let view_type = view_type(~globals);
   let view_any = view_any(~globals);
+  let syn_view =
+    Option.value(syn_view, ~default=ty =>
+      view_type(ty) |> code_box_container
+    );
+  let ana_view =
+    Option.value(ana_view, ~default=ty =>
+      view_type(ty) |> code_box_container
+    );
   let ana = Statics.ana_skip_explicit_nonlabel(ana);
   let expectation_view = (~ana: Typ.t, ~syn: Typ.t) =>
     switch (syn.term, ana.term) {
@@ -1144,9 +1154,9 @@ let core_mark_err_view =
     | _ =>
       colon_prefix(show_type_colon)
       @ [
-        view_type(syn) |> code_box_container,
+        syn_view(syn),
         text("inconsistent with expected type"),
-        view_type(ana) |> code_box_container,
+        ana_view(ana),
       ]
       @ (
         switch (lifted_ty) {
@@ -1354,6 +1364,7 @@ let common_ok_view =
         colon_prefix(show_type_colon)
         @ [syn_view(syn)]
         @ [text("equals expected type")]
+        @ [ana_view(ana)]
         @ (
           switch (lifted_ty) {
           | None => []
@@ -1601,7 +1612,15 @@ let rec automatic_inserted_labels_pat =
   };
 
 let exp_mark_err_view =
-    (~globals, ~show_type_colon=true, cls: Cls.t, m: Mark.t, info: Info.exp) => {
+    (
+      ~globals,
+      ~show_type_colon=true,
+      ~syn_view: option(Typ.t => Node.t)=?,
+      ~ana_view: option(Typ.t => Node.t)=?,
+      cls: Cls.t,
+      m: Mark.t,
+      info: Info.exp,
+    ) => {
   let introduced_labels =
     switch (info.label_inference) {
     | Some(MultiLabelInference({introduced_labels, _})) => introduced_labels
@@ -1629,6 +1648,8 @@ let exp_mark_err_view =
         ~inferred_label,
         ~ctx,
         ~ana,
+        ~syn_view?,
+        ~ana_view?,
         cls,
         m,
       ),
@@ -1890,7 +1911,16 @@ let exp_view =
     }
   | true =>
     switch (Mark.highest(marks)) {
-    | Some(m) => exp_mark_err_view(~globals, ~show_type_colon, cls, m, info)
+    | Some(m) =>
+      exp_mark_err_view(
+        ~globals,
+        ~show_type_colon,
+        ~syn_view?,
+        ~ana_view?,
+        cls,
+        m,
+        info,
+      )
     | None =>
       div_err([
         text("(internal) expression marks indicate error but no syn mark"),
@@ -1903,6 +1933,8 @@ let pat_marks_err_view =
     (
       ~globals,
       ~show_type_colon=true,
+      ~syn_view: option(Typ.t => Node.t)=?,
+      ~ana_view: option(Typ.t => Node.t)=?,
       cls: Cls.t,
       marks: list(Mark.t),
       info: Info.pat,
@@ -1939,6 +1971,8 @@ let pat_marks_err_view =
             ~lifted_ty,
             ~ctx,
             ~ana,
+            ~syn_view?,
+            ~ana_view?,
             cls,
             m,
           ),
@@ -1961,6 +1995,8 @@ let pat_marks_err_view =
           ~lifted_ty,
           ~ctx,
           ~ana,
+          ~syn_view?,
+          ~ana_view?,
           cls,
           m,
         ),
@@ -2005,7 +2041,15 @@ let pat_view =
 
   let marks = info.marks;
   marks != []
-    ? pat_marks_err_view(~globals, ~show_type_colon, cls, marks, info)
+    ? pat_marks_err_view(
+        ~globals,
+        ~show_type_colon,
+        ~syn_view?,
+        ~ana_view?,
+        cls,
+        marks,
+        info,
+      )
     : {
       let ok =
         switch (message) {
