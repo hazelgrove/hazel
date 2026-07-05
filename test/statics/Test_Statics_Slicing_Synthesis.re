@@ -250,6 +250,22 @@ let typaps = [
     "Some(?)",
   ),
   synthesis_case(
+    ~ctx=prelude_ctx("type Option = typfun A -> None + Some(A) in"),
+    ~aliases=[("Option", "typfun A -> ? + Some(A)")],
+    "if-explicit-param-option",
+    "if ? then Some@<Int>(1) else Some(0)",
+    "Option(Int)",
+    "if ? then Some@<Int>(?) else ?",
+  ),
+  synthesis_case(
+    ~ctx=prelude_ctx("type Option = typfun A -> None + Some(A) in"),
+    ~aliases=[("Option", "typfun A -> ? + Some(A)")],
+    "if-explicit-param-option-gap",
+    "if ? then Some@<Int>(1) else Some(0)",
+    "Option(?)",
+    "if ? then Some@<?>(?) else ?",
+  ),
+  synthesis_case(
     ~ctx=ctx_var("id", "poly A -> A -> A"),
     ~assumptions=[("id", "poly A -> A -> A")],
     "typap-single-call",
