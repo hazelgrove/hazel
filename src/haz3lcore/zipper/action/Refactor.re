@@ -2313,6 +2313,55 @@ let applies =
     }
   };
 
+/* Program-dependent labels for static kinds (rename already
+ * enumerates its own). A one-pat print is bounded — unlike the
+ * whole-program prints the gating rule bans — keep it that way. */
+let label_override =
+    (
+      kind: Action.refactor,
+      ~info_map: Statics.Map.t,
+      ~target: Id.t,
+      term: Exp.t,
+    )
+    : option(string) =>
+  switch (kind) {
+  | AddCaseArm =>
+    switch (find_hit(~hit=hit_node(target), term)) {
+    | Some(e) =>
+      match_witness(~info_map, e)
+      |> Option.map(w => {
+           let text =
+             Printer.of_segment(
+               ~holes="?",
+               ~refractors=[],
+               ExpToSegment.pat_to_segment(
+                 ~settings=roundtrip_settings,
+                 wildify(w),
+               ),
+             );
+           "Add Arm | " ++ text;
+         })
+    | None => None
+    }
+  | AddParameter =>
+    switch (find_hit(~hit=hit_let(target), term)) {
+    | Some(e) =>
+      switch (IdTagged.term_of(e)) {
+      | Let(p, _, _) =>
+        (
+          switch (sugar_fn_name(p)) {
+          | Some(f) => Some(f)
+          | None => let_head_name(p)
+          }
+        )
+        |> Option.map(f => "Add Parameter to " ++ f)
+      | _ => None
+      }
+    | None => None
+    }
+  | _ => None
+  };
+
 /* Menu support: which refactorings apply at the current indication */
 /* Payload kinds can't come from filtering the static `all` list: the
  * entries themselves depend on the program (one per candidate free
@@ -2343,8 +2392,14 @@ let menu_items =
       all
       |> List.filter_map(kind => {
            let i = impl(kind);
-           applies(kind, ~info_map, ~target, term)
-             ? Some((kind, i.label, i.tooltip)) : None;
+           if (applies(kind, ~info_map, ~target, term)) {
+             let label =
+               label_override(kind, ~info_map, ~target, term)
+               |> Option.value(~default=i.label);
+             Some((kind, label, i.tooltip));
+           } else {
+             None;
+           };
          });
     static @ rename_items(~info_map, ~target, term);
   };

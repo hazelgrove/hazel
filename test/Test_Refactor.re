@@ -45,6 +45,13 @@ let kinds_at = (marked: string): list(Action.refactor) => {
 
 let offers = (kind, marked) => List.mem(kind, kinds_at(marked));
 
+let labels_at = (marked: string): list(string) => {
+  let z = Test_Editing.parse_zipper(marked);
+  let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
+  Refactor.menu_items(~info_map=info_map_of(z), ~term, z)
+  |> List.map(((_, l, _)) => l);
+};
+
 let gating_tests = [
   test_case("caret before let", `Quick, () =>
     check(bool, "a", true, offers(InlineLet, "¦let x = 1 in x"))
@@ -240,6 +247,28 @@ let case_tests = [
 ];
 
 let case_arm_tests = [
+  test_case("case arm label names the witness", `Quick, () =>
+    check(
+      bool,
+      "Add Arm | false",
+      true,
+      List.mem(
+        "Add Arm | false",
+        labels_at("let b : Bool = ? in ¦case b | true => 1 end"),
+      ),
+    )
+  ),
+  test_case("add parameter label names the fn", `Quick, () =>
+    check(
+      bool,
+      "Add Parameter to f",
+      true,
+      List.mem(
+        "Add Parameter to f",
+        labels_at("¦let f = fun x -> x in f(1)"),
+      ),
+    )
+  ),
   test_case(
     "add missing bool arm",
     `Quick,
