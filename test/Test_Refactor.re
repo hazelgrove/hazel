@@ -637,6 +637,89 @@ let param_tests = [
 
 let rename_tests = [
   test_case(
+    "rename at sugar param scopes over the RHS",
+    `Quick,
+    () => {
+      let got =
+        inline(~kind=RenameFree("q", "n"), "¦let f(n) = q + 1 in f(2)")
+        |> text_of;
+      check(string, "param bound", "let f(n) = n + 1 in f(2)", got);
+    },
+  ),
+  test_case(
+    "rename at sugar fn name covers def and body",
+    `Quick,
+    () => {
+      let got =
+        inline(~kind=RenameFree("g", "f"), "¦let f(n) = g(n) in g(2)")
+        |> text_of;
+      check(string, "both regions", "let f(n) = f(n) in f(2)", got);
+    },
+  ),
+  test_case(
+    "sugar param not offered for body frees",
+    `Quick,
+    () => {
+      let kinds = kinds_at("¦let f(n) = n in q + f(1)");
+      check(
+        bool,
+        "q->n absent, q->f present",
+        true,
+        !List.mem(Action.RenameFree("q", "n"), kinds)
+        && List.mem(Action.RenameFree("q", "f"), kinds),
+      );
+    },
+  ),
+  test_case(
+    "rename at a case-arm pattern",
+    `Quick,
+    () => {
+      let got =
+        inline(
+          ~kind=RenameFree("w", "v"),
+          "case m | Some(¦v) => w + 1 | None => 0 end",
+        )
+        |> text_of;
+      check(
+        string,
+        "arm body bound",
+        "case m | Some(v) => v + 1 | None => 0 end",
+        got,
+      );
+    },
+  ),
+  test_case(
+    "arm rename scoped to its own arm",
+    `Quick,
+    () => {
+      let got =
+        inline(
+          ~kind=RenameFree("w", "v"),
+          "case m | Some(¦v) => w | None => w end",
+        )
+        |> text_of;
+      check(
+        string,
+        "other arm untouched",
+        "case m | Some(v) => v | None => w end",
+        got,
+      );
+    },
+  ),
+  test_case(
+    "rename at an annotated let",
+    `Quick,
+    () => {
+      let got =
+        inline(
+          ~kind=RenameFree("v", "vel"),
+          "¦let vel : Int = 1 in v + v",
+        )
+        |> text_of;
+      check(string, "asc head", "let vel : Int = 1 in vel + vel", got);
+    },
+  ),
+  test_case(
     "rename free binds at a fun param",
     `Quick,
     () => {
