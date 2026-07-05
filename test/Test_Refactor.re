@@ -371,6 +371,21 @@ let annotation_tests = [
 
 let more_tests = [
   test_case(
+    "multiline if converts to case, end on its own line",
+    `Quick,
+    () => {
+      let got =
+        inline(~kind=IfToCase, "¦if c then\n  1\nelse\n  2")
+        |> text_of;
+      check(
+        string,
+        "arm layout kept",
+        "case c | true =>\n  1\n| false =>\n  2\nend",
+        got,
+      );
+    },
+  ),
+  test_case(
     "extract to let",
     `Quick,
     () => {
@@ -1051,6 +1066,39 @@ let move_tests = [
         string,
         "conditional now",
         "case m | 1 => let x = 2 in x | _ => 0 end",
+        got,
+      );
+    },
+  ),
+  test_case(
+    "sink keeps multiline chain layout",
+    `Quick,
+    () => {
+      let got =
+        inline(~kind=SinkLet, "¦let x = 2 in\nlet a = 1 in\nx + a")
+        |> text_of;
+      check(
+        string,
+        "lines swapped",
+        "let a = 1 in\nlet x = 2 in\nx + a",
+        got,
+      );
+    },
+  ),
+  test_case(
+    "hoist out of a multiline lambda keeps line structure",
+    `Quick,
+    () => {
+      let got =
+        inline(
+          ~kind=HoistLet,
+          "fun n ->\n  ¦let x = 2 in\n  x + n",
+        )
+        |> text_of;
+      check(
+        string,
+        "own lines",
+        "let x = 2 in\nfun n ->\n  x + n",
         got,
       );
     },

@@ -139,6 +139,23 @@ let space = (): list(Secondary.t) => [
   },
 ];
 
+let newline = (): list(Secondary.t) => [
+  {
+    id: Id.mk(),
+    content: Whitespace("\n"),
+  },
+];
+
+let has_newline = (ws: list(Secondary.t)): bool =>
+  ws
+  |> List.exists((w: Secondary.t) =>
+       switch (w.content) {
+       | Whitespace(s) => String.contains(s, '\n')
+       | _ => false
+       }
+     );
+
+
 /* single spaces at a synthesized node's edges (can't be globalized:
  * user-authored tight junctions like `(a=1)` are legitimate) */
 let pad = (e: IdTagged.t('a)): IdTagged.t('a) => {
@@ -684,6 +701,22 @@ let if_to_case_impl: impl = {
         e =>
           switch (IdTagged.term_of(e)) {
           | If(c, t, alt) =>
+            /* `end` starts a new slot: give it its own line when the
+               arms are multiline */
+            let multiline =
+              has_newline(Slot.trail_of(t).trail)
+              || has_newline(Slot.lead_of(t).lead)
+              || has_newline(Slot.lead_of(alt).lead);
+            let alt =
+              multiline
+                ? Slot.give(
+                    {
+                      Slot.lead: [],
+                      trail: newline(),
+                    },
+                    alt,
+                  )
+                : alt;
             Some((
               fresh(
                 Match(
@@ -695,7 +728,7 @@ let if_to_case_impl: impl = {
                 ),
               ),
               Exp.rep_id(c),
-            ))
+            ));
           | _ => None
           },
       program,
@@ -1761,22 +1794,6 @@ let names_mentioned = (names: list(string), e: Exp.t): bool =>
 let disjoint_names = (a: list(string), b: list(string)): bool =>
   !(a |> List.exists(n => List.mem(n, b)));
 
-let newline = (): list(Secondary.t) => [
-  {
-    id: Id.mk(),
-    content: Whitespace("\n"),
-  },
-];
-
-let has_newline = (ws: list(Secondary.t)): bool =>
-  ws
-  |> List.exists((w: Secondary.t) =>
-       switch (w.content) {
-       | Whitespace(s) => String.contains(s, '\n')
-       | _ => false
-       }
-     );
-
 let with_secondary =
     (secondary: (list(Secondary.t), list(Secondary.t)), e: Exp.t): Exp.t => {
   ...e,
@@ -1891,10 +1908,23 @@ let hoist_step = (path: list(Exp.t)): option((Exp.t, Exp.t, Id.t)) => {
             && same_node(c, l)
             && disjoint_names(l_names, pat_var_names(fp))
             && !names_mentioned(pat_var_names(fp), ldef) =>
-        /* out of a lambda: evaluates once instead of per call */
+        /* out of a lambda: evaluates once instead of per call. The
+           fun starts a NEW line slot; synthesize its lead like the
+           def-exit case */
+        let (p_lead, p_after) = p.annotation.secondary;
+        let (l_lead, _) = l.annotation.secondary;
+        let sep = {
+          let multiline =
+            has_newline(l_lead)
+            || has_newline(fst(lbody.annotation.secondary));
+          switch (p_lead) {
+          | [_, ..._] => copy_runs(p_lead)
+          | [] => multiline ? newline() : []
+          };
+        };
         let fun': Exp.t =
           with_secondary(
-            l.annotation.secondary,
+            (sep, p_after),
             {
               ...p,
               term: Fun(fp, lbody, ft, fn),
@@ -1902,7 +1932,7 @@ let hoist_step = (path: list(Exp.t)): option((Exp.t, Exp.t, Id.t)) => {
           );
         let l': Exp.t =
           with_secondary(
-            p.annotation.secondary,
+            ([], []),
             {
               ...l,
               term: Let(lp, ldef, fun'),
