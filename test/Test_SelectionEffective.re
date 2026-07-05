@@ -58,6 +58,56 @@ let test_drag = (~name, ~input, ~start_col, ~end_col, ~expected) =>
     )
   );
 
+let effective_rewrite_source_string = (input: string): string => {
+  let z = Test_Editing.mk_zipper(input);
+  let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
+  let statics =
+    CachedStatics.init_from_term(
+      ~settings=Test_Editing.default_settings,
+      ~is_dynamic_term=true,
+      term,
+    );
+  let syntax =
+    CachedSyntax.mk(z, ~info_map=statics.info_map, ~dyn_map=Id.Map.empty);
+  let selected_ids =
+    SelectionEffective.ids(
+      ~mode=SelectionEffective.Associative,
+      ~info_map=statics.info_map,
+      ~measured=syntax.measured,
+      ~term_data=syntax.term_data,
+      z,
+    );
+  switch (
+    Language.Reparenthesize.reparenthesize_selection(
+      ~selected_ids,
+      statics.term,
+    )
+  ) {
+  | Some(result) =>
+    switch (Language.Reparenthesize.selected_exp(result)) {
+    | Some(selected_exp) =>
+      selected_exp
+      |> ExpToSegment.exp_to_segment(
+           ~settings=ExpToSegment.Settings.editable(~inline=true),
+           _,
+         )
+      |> Printer.of_segment(~holes="?", ~concave_holes="~", ~indent=" ")
+    | None => "<missing selected expression>"
+    }
+  | None => "<no reparenthesized selection>"
+  };
+};
+
+let test_effective_rewrite_source = (~name, ~input, ~expected) =>
+  test_case(name, `Quick, () =>
+    check(
+      testable(Fmt.string, String.equal),
+      expected,
+      expected,
+      effective_rewrite_source_string(input),
+    )
+  );
+
 let tests = (
   "SelectionEffective",
   [
@@ -91,6 +141,20 @@ let tests = (
       ~name="function name selection with simple argument stays on function",
       ~input={|§f¦(x)|},
       ~expected={|f|},
+    ),
+    test_effective_rewrite_source(
+      ~name=
+        "effective associative source is used for rewrite and proof actions",
+      ~input={|1 + (§1 / 2 - cos(2 * x) + 1 / 2 * y¦)|},
+      ~expected={|1 / 2 - cos(2 * x) + 1 / 2 * y|},
+    ),
+    test_effective_rewrite_source(
+      ~name=
+        "effective associative source keeps a selected product operand whole",
+      ~input=
+        {|1 + §2 * (1 / 2 * (1 / 2 - cos(2 * x)) + 1 / 2 * cos(2 * x) ** 2)¦|},
+      ~expected=
+        {|2 * (1 / 2 * (1 / 2 - cos(2 * x)) + 1 / 2 * cos(2 * x) ** 2)|},
     ),
     test(
       ~name="tuple comma selection snaps over all expressions",

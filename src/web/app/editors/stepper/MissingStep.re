@@ -1529,23 +1529,39 @@ module View = {
         ];
       };
 
-      let selected_tile_ids =
-        editor.editor.state.zipper.selection.content
-        |> List.filter_map(
-             fun
-             | Haz3lcore.Piece.Tile(t) => Some(Haz3lcore.Tile.id(t))
-             | _ => None,
-           );
-      let unparenthesize_ids =
-        switch (selected_id) {
-        | Some(id) => [id, ...selected_tile_ids]
-        | None => selected_tile_ids
+      let selected_tile_ids = {
+        let raw_ids =
+          editor.editor.state.zipper.selection.content
+          |> List.filter_map(
+               fun
+               | Haz3lcore.Piece.Tile(t) => Some(Haz3lcore.Tile.id(t))
+               | _ => None,
+             );
+        let effective_ids =
+          SelectionEffective.ids(
+            ~mode=SelectionEffective.Associative,
+            ~info_map=editor.statics.info_map,
+            ~measured=editor.editor.syntax.measured,
+            ~term_data=editor.editor.syntax.term_data,
+            editor.editor.state.zipper,
+          );
+        switch (effective_ids) {
+        | [] => raw_ids
+        | ids => ids
         };
+      };
       let unparenthesize_exp =
-        Language.Reparenthesize.unparenthesize_any(
-          ~selected_ids=unparenthesize_ids,
-          editor.statics.term,
-        );
+        switch (
+          selected_id,
+          model.selected_exp |> Calc.get_saved_exc(~print="Selected Exp"),
+        ) {
+        | (Some(id), Some({term: Parens(_), _})) =>
+          Language.Reparenthesize.unparenthesize(
+            ~selected_id=id,
+            editor.statics.term,
+          )
+        | _ => None
+        };
       let selected_assoc_ids =
         selected_tile_ids
         |> List.concat_map(id =>
@@ -1576,6 +1592,16 @@ module View = {
           );
         } else {
           None;
+        };
+      let rewrite_reparenthesize_result =
+        switch (
+          Language.Reparenthesize.reparenthesize_selection(
+            ~selected_ids=selected_tile_ids,
+            editor.statics.term,
+          )
+        ) {
+        | Some(_) as result => result
+        | None => reparenthesize_result
         };
       let step_here_button = {
         let can_take_selected_step = (result: Language.Reparenthesize.result) => {
@@ -1615,13 +1641,13 @@ module View = {
             model.selected_exp,
           );
         let reparenthesized_selected_exp =
-          switch (reparenthesize_result) {
+          switch (rewrite_reparenthesize_result) {
           | Some(result) => Language.Reparenthesize.selected_exp(result)
           | None => None
           };
         switch (
           model_selected_exp,
-          reparenthesize_result,
+          rewrite_reparenthesize_result,
           reparenthesized_selected_exp,
         ) {
         | (_, Some(result), Some(reparenthesized_exp))

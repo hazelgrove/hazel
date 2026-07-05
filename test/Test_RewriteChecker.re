@@ -435,6 +435,35 @@ let sample_local_algebra_under_trig_export_chain = () => {
   sample_written_step_export_chain(~source, ~target, ~trace);
 };
 
+let sample_local_algebra_under_mul_context_export_chain = () => {
+  let x = Exp.var("x");
+  let trig_tail =
+    plus(
+      minus(divide(Exp.int(1), Exp.int(2)), cos(times(Exp.int(2), x))),
+      times(
+        divide(Exp.int(1), Exp.int(2)),
+        power(cos(times(Exp.int(2), x)), Exp.int(2)),
+      ),
+    );
+  let local_source =
+    times(times(Exp.int(2), divide(Exp.int(1), Exp.int(2))), trig_tail);
+  let local_target = trig_tail;
+  let trace =
+    Web.ProofSearchBackend.collapsed_macro_summary(
+      Web.ProofSearchBackend.{
+        backend: JSCoqTacticSearch,
+        level: Algebra,
+        max_depth: 4,
+        max_states: 80,
+        source: local_source,
+        target: local_target,
+      },
+    );
+  let source = plus(Exp.int(1), local_source);
+  let target = plus(Exp.int(1), local_target);
+  sample_written_step_export_chain(~source, ~target, ~trace);
+};
+
 let sample_integer_trinomial_square_export_chain = () => {
   let a = Exp.var("a");
   let b = Exp.var("b");
@@ -4002,18 +4031,52 @@ let tests = (
         );
         check(
           bool,
-          "replays local algebra equality as assertion",
-          true,
-          string_contains(
-            "assert (H_hazel_step_1 : (2 * (2 * x)) = (4 * x)).",
-            export,
-          ),
+          "uses whole-step algebra tactic search instead of local assertion replay",
+          false,
+          string_contains("assert (H_hazel_step_1", export),
         );
         check(
           bool,
-          "uses algebra to prove local equality",
+          "uses algebra to prove the step",
           true,
-          string_contains("{ hazel_algebra. }", export),
+          string_contains("\nhazel_algebra.\nQed.", export),
+        );
+      },
+    ),
+    test_case(
+      "coq export proves local algebra under multiplication context without over-rewrite",
+      `Quick,
+      () => {
+        let export =
+          switch (
+            Web.StepperBase.Stepper.export_coq(
+              sample_local_algebra_under_mul_context_export_chain(),
+            )
+          ) {
+          | Some(export) => export
+          | None => fail("expected local algebra under multiplication export")
+          };
+        write_text_file(
+          "/tmp/hazel_stepper_rocq_local_algebra_under_mul.v",
+          export,
+        );
+        check(
+          bool,
+          "uses real prelude from trig context",
+          true,
+          string_contains("Open Scope R_scope.", export),
+        );
+        check(
+          bool,
+          "does not replay a local assertion that can over-rewrite",
+          false,
+          string_contains("assert (H_hazel_step_1", export),
+        );
+        check(
+          bool,
+          "uses algebra to prove the whole step",
+          true,
+          string_contains("\nhazel_algebra.\nQed.", export),
         );
       },
     ),

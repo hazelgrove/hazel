@@ -1074,36 +1074,6 @@ and Stepper: {
     };
   };
 
-  let check_coq_in_browser =
-      (~coq_data: string, ~on_result: (bool, string) => unit): unit => {
-    let callback =
-      Js_of_ocaml.Js.wrap_callback((status_js, message_js) => {
-        let status =
-          status_js |> Js_of_ocaml.Js.Unsafe.coerce |> Js_of_ocaml.Js.to_string;
-        let message =
-          message_js
-          |> Js_of_ocaml.Js.Unsafe.coerce
-          |> Js_of_ocaml.Js.to_string;
-        on_result(status == "ok", message);
-      });
-    try(
-      Js_of_ocaml.Js.Unsafe.fun_call(
-        Js_of_ocaml.Js.Unsafe.js_expr("window.HazelJSCoq.checkAndReport"),
-        [|
-          Js_of_ocaml.Js.Unsafe.inject(Js_of_ocaml.Js.string(coq_data)),
-          Js_of_ocaml.Js.Unsafe.inject(callback),
-        |],
-      )
-      |> ignore
-    ) {
-    | _ =>
-      on_result(
-        false,
-        "JSCoq check failed to start. See the browser console for details.",
-      )
-    };
-  };
-
   let rec update =
           (~settings, action: step_action, model: step_model)
           : Updated.t(step_model) => {
@@ -1969,54 +1939,6 @@ and Stepper: {
         ~is_toplevel: bool,
         root_step,
       ) => {
-    let run_browser_coq_check = _ =>
-      try(
-        switch (export_coq(root_step)) {
-        | Some(coq_data) =>
-          let check_id = JsUtil.date_now()##getTime |> int_of_float;
-          check_coq_in_browser(~coq_data, ~on_result=(ok, message) =>
-            Ui_effect.Expert.handle(
-              inject(CoqBrowserCheckFinished(check_id, ok, message)),
-            )
-          );
-          inject(CoqBrowserCheckStarted(check_id));
-        | None =>
-          inject(
-            CoqBrowserCheckUnavailable(
-              "Cannot check Coq proof: this proof has no steps.",
-            ),
-          )
-        }
-      ) {
-      | exn =>
-        inject(
-          CoqBrowserCheckUnavailable(
-            "Cannot check Coq proof: " ++ Printexc.to_string(exn),
-          ),
-        )
-      };
-    let coq_check_status_view =
-      switch (root_step.coq_check_status) {
-      | CoqCheckIdle => []
-      | CoqCheckRunning(_) => [
-          WebUtil.div_c(
-            "stepper-coq-check-status running",
-            [WebUtil.Node.text("JSCoq checking...")],
-          ),
-        ]
-      | CoqCheckPassed(message) => [
-          WebUtil.div_c(
-            "stepper-coq-check-status passed",
-            [WebUtil.Node.text(message)],
-          ),
-        ]
-      | CoqCheckFailed(message) => [
-          WebUtil.div_c(
-            "stepper-coq-check-status failed",
-            [WebUtil.Node.text(message)],
-          ),
-        ]
-      };
     let export_controls = [
       WebUtil.div_c(
         "stepper-export-controls",
@@ -2025,11 +1947,6 @@ and Stepper: {
             Icons.export,
             _ => inject(CoqExport),
             ~tooltip="Export steps as Coq proof",
-          ),
-          Widgets.button(
-            Icons.confirm,
-            run_browser_coq_check,
-            ~tooltip="Check generated Coq proof in browser",
           ),
         ]
         @ (
@@ -2042,8 +1959,7 @@ and Stepper: {
             ]
           | None => []
           }
-        )
-        @ coq_check_status_view,
+        ),
       ),
     ];
     WebUtil.[

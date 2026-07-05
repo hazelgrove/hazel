@@ -244,6 +244,22 @@ let tactic_group_for_summary = (summary: RewriteChecker.trace_summary) =>
     };
   };
 
+let is_rocq_tactic_search_rule_id =
+  fun
+  | "rocq.arithmetic_tactic_search"
+  | "rocq.algebra_tactic_search"
+  | "rocq.trigonometry_tactic_search"
+  | "rocq.tactic_search" => true
+  | _ => false;
+
+let summary_uses_rocq_tactic_search = (summary: RewriteChecker.trace_summary) =>
+  summary.rule_ids
+  |> List.exists(is_rocq_tactic_search_rule_id)
+  || summary.prover_steps
+  |> List.exists((step: RewriteChecker.prover_step) =>
+       is_rocq_tactic_search_rule_id(step.rule_id)
+     );
+
 let tactics_for_summary = (~domain, summary: RewriteChecker.trace_summary) => {
   let recorded_tactics =
     summary.rule_ids
@@ -271,9 +287,11 @@ let tactic_for_written_summary = (~forall_str, ~domain, summary) => {
   switch (summary.RewriteChecker.prover_steps) {
   | [] => tactics_for_summary(~domain, summary) |> tactic_script
   | _ =>
-    (domain == CoqExport.Reals || forall_str == "") && summary.exportable
-      ? assertion_replay_script(~domain, summary.prover_steps)
-      : tactic_for_symbolic_arithmetic_summary(summary)
+    summary_uses_rocq_tactic_search(summary)
+      ? tactics_for_summary(~domain, summary) |> tactic_script
+      : (domain == CoqExport.Reals || forall_str == "") && summary.exportable
+          ? assertion_replay_script(~domain, summary.prover_steps)
+          : tactic_for_symbolic_arithmetic_summary(summary)
   };
 };
 
