@@ -4922,6 +4922,71 @@ let grapheme_tests = [
 
 let explore_editing_tests = [
   test_case(
+    "Typing incomplete explore does not fail result calculation",
+    `Quick,
+    () => {
+      let z = mk({|explore 1+2+3+4¦|}) |> perform(Zipper.init());
+      let statics =
+        CachedStatics.init(
+          ~settings=Language.CoreSettings.on,
+          ~is_dynamic_term=true,
+          ~stitch=x => x,
+          ~root=Exp,
+          z,
+        );
+      let model =
+        Web.EvalResult.Update.calculate(
+          ~settings=Language.CoreSettings.on,
+          ~queue_worker=None,
+          ~is_edited=true,
+          statics,
+          Web.EvalResult.Model.init,
+        );
+      switch (Calc.get_value(model.result)) {
+      | Language.ProgramResult.ResultFail(err) =>
+        Alcotest.fail(
+          "Expected incomplete explore not to fail result calculation: "
+          ++ Language.ProgramResult.show_error(err),
+        )
+      | ResultOk(_)
+      | ResultPending => ()
+      };
+    },
+  ),
+  test_case(
+    "Typing theorem body with incomplete explore does not fail result calculation",
+    `Quick,
+    () => {
+      let z =
+        mk({|theorem matt = 0 == 0 in explore¦|}) |> perform(Zipper.init());
+      let statics =
+        CachedStatics.init(
+          ~settings=Language.CoreSettings.on,
+          ~is_dynamic_term=true,
+          ~stitch=x => x,
+          ~root=Exp,
+          z,
+        );
+      let model =
+        Web.EvalResult.Update.calculate(
+          ~settings=Language.CoreSettings.on,
+          ~queue_worker=None,
+          ~is_edited=true,
+          statics,
+          Web.EvalResult.Model.init,
+        );
+      switch (Calc.get_value(model.result)) {
+      | Language.ProgramResult.ResultFail(err) =>
+        Alcotest.fail(
+          "Expected theorem with incomplete explore not to fail result calculation: "
+          ++ Language.ProgramResult.show_error(err),
+        )
+      | ResultOk(_)
+      | ResultPending => ()
+      };
+    },
+  ),
+  test_case(
     "Typing explore with infix expression does not crash",
     `Quick,
     () => {
@@ -4966,57 +5031,27 @@ let explore_editing_tests = [
     },
   ),
   test_case(
-    "Theorem promotion code may leave the theorem body implicit",
+    "Typing theorem with explore body does not crash",
     `Quick,
     () => {
       let z =
-        mk({|theorem th_1 = 1 == 15 in #hazel-explore-stepper:x#¦|})
+        mk({|theorem matt = 0 == 0 in explore x end;¦|})
         |> perform(Zipper.init());
       let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
       switch (Language.Exp.term_of(term)) {
-      | Language.Grammar.Theorem(_, _, body) =>
-        switch (Language.Exp.term_of(body)) {
-        | Language.Grammar.EmptyHole => ()
-        | _ =>
-          Alcotest.fail(
-            "Expected theorem body hole, got " ++ Language.Exp.show(body),
-          )
-        }
+      | Language.Grammar.Theorem(_, _, _) => ()
       | _ =>
         Alcotest.fail(
           "Expected Theorem term, got " ++ Language.Exp.show(term),
         )
       };
-    },
-  ),
-  test_case(
-    "Replacing explore with theorem succeeds even when the id changes",
-    `Quick,
-    () => {
-      let z = mk({|explore 1 + 2 end¦|}) |> perform(Zipper.init());
-      let explore_term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
-      let explore_id = Language.Exp.rep_id(explore_term);
-      let z =
-        perform(
-          z,
-          [
-            ReplaceTermWithSource(explore_id, "theorem th_1 = 1 + 2 == 3 in"),
-          ],
+      let _ =
+        CachedStatics.init_from_term(
+          ~settings=default_settings,
+          ~is_dynamic_term=true,
+          term,
         );
-      let theorem_term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
-      switch (Language.Exp.term_of(theorem_term)) {
-      | Language.Grammar.Theorem(_, _, _) =>
-        check(
-          bool,
-          "promoted theorem gets a fresh outer id",
-          true,
-          Language.Exp.rep_id(theorem_term) != explore_id,
-        )
-      | _ =>
-        Alcotest.fail(
-          "Expected Theorem term, got " ++ Language.Exp.show(theorem_term),
-        )
-      };
+      check(testable(Fmt.string, String.equal), "ok", "ok", "ok");
     },
   ),
 ];

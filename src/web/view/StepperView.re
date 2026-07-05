@@ -54,7 +54,7 @@ module Update = {
     };
   };
 
-  let calculate =
+  let calculate_once =
       (
         ~settings: Calc.t(CoreSettings.t),
         ~ctx: Calc.t(SemanticCtx.t),
@@ -83,6 +83,23 @@ module Update = {
       root,
     };
   };
+
+  let calculate =
+      (
+        ~settings: Calc.t(CoreSettings.t),
+        ~ctx: Calc.t(SemanticCtx.t),
+        elab: Calc.t(Exp.t),
+        ~ana=Calc.OldValue(Typ.fresh(Unknown(SynSwitch))),
+        model: Model.t,
+      )
+      : Model.t =>
+    /* Persisted stepper internals can outlive the expression they were built
+       against. Retry from an empty stepper once so stale local stepper state
+       cannot crash result calculation; expression-level failures still escape. */
+    try(calculate_once(~settings, ~ctx, elab, ~ana, model)) {
+    | _ when model != Model.init =>
+      calculate_once(~settings, ~ctx, elab, ~ana, Model.init)
+    };
 
   let can_undo = StepperBase.Stepper.can_undo;
 };

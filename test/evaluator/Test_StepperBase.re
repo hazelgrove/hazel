@@ -417,77 +417,87 @@ let tests = (
       },
     ),
     test_case(
-      "promoted one-step explorer seeds theorem result model",
+      "theorem and explore steppers coexist in result model",
       `Quick,
       () => {
-        let original = parse_exp("1 + 2 + 3 + 4");
-        let stepper_view =
-          calculate_stepper_view(~exp=original, Web.StepperView.Model.init);
-        let stepper_view =
-          Web.StepperView.Update.update(
-            ~settings=Web.Settings.Model.init,
-            StepperBase.StepForward(0),
-            stepper_view,
-          ).
-            model;
-        let stepper_view =
-          calculate_stepper_view(~exp=original, stepper_view);
-        let landed =
-          switch (Web.StepperView.Model.get_landed_exp(stepper_view)) {
-          | Some(landed) => landed
-          | None => failwith("expected landed expression")
-          };
-        let goal = Web.Theorems.promote_explore_goal(~original, ~landed);
-        let stepper =
-          stepper_view
-          |> Web.StepperView.Model.persist
-          |> Web.Theorems.stepper_with_final_reflexivity(~landed);
         let theorem_id = Id.mk();
+        let explore_id = Id.mk();
+        let theorem_goal = parse_exp("0 == 0");
+        let explore_exp = parse_exp("1 + 2");
         let dynamics =
           Dynamics.{
             probe_map: Sample.Map.empty,
             test_results: TestResults.mk_results([]),
-            theorems: [(theorem_id, "th_1", Environment.empty, goal)],
-            explores: [],
+            theorems: [
+              (theorem_id, "matt", Environment.empty, theorem_goal),
+            ],
+            explores: [(explore_id, Environment.empty, explore_exp)],
           };
         let model =
-          Web.Theorems.Update.update(
-            ~settings=Web.Settings.Model.init,
-            Web.Theorems.Update.PromoteExplore(
-              Id.mk(),
-              "",
-              "th_1",
-              goal,
-              stepper,
-            ),
-            Web.Theorems.Model.init,
-          ).
-            model
+          Web.Theorems.Model.init
           |> Web.Theorems.Update.calculate(
                ~settings=Calc.NewValue(CoreSettings.on),
                ~statics=Calc.NewValue(CachedStatics.empty),
                ~dynamics=Calc.NewValue(Some(dynamics)),
              );
-        let theorem =
-          switch (Id.Map.find_opt(theorem_id, model.thm_map)) {
-          | Some(theorem) => theorem
-          | None => failwith("expected promoted theorem model")
-          };
-        let landed =
-          switch (Web.StepperView.Model.get_landed_exp(theorem.stepper_view)) {
-          | Some(landed) => landed
-          | None => failwith("expected theorem landed expression")
-          };
         check(
-          dhexp_typ,
-          "theorem result model closes the promoted step chain",
-          parse_exp("true"),
-          landed,
+          int,
+          "one theorem stepper is visible",
+          1,
+          model.thms |> Calc.get_saved([]) |> List.length,
+        );
+        check(
+          int,
+          "one explore stepper is visible",
+          1,
+          model.explores |> Calc.get_saved([]) |> List.length,
+        );
+        check(
+          bool,
+          "theorem map keeps theorem",
+          true,
+          Id.Map.mem(theorem_id, model.thm_map),
+        );
+        check(
+          bool,
+          "explore map keeps explore",
+          true,
+          Id.Map.mem(explore_id, model.explore_map),
         );
       },
     ),
     test_case(
-      "persisted expression step chain can seed promoted equality theorem",
+      "result calculation tolerates incomplete theorem",
+      `Quick,
+      () => {
+        let exp = parse_exp("theorem matt = 0 == 0");
+        let statics =
+          Haz3lcore.CachedStatics.init_from_term(
+            ~settings=CoreSettings.on,
+            ~is_dynamic_term=true,
+            exp,
+          );
+        let model =
+          Web.EvalResult.Update.calculate(
+            ~settings=CoreSettings.on,
+            ~queue_worker=None,
+            ~is_edited=true,
+            statics,
+            Web.EvalResult.Model.init,
+          );
+        switch (Calc.get_value(model.result)) {
+        | ProgramResult.ResultFail(err) =>
+          Alcotest.fail(
+            "Expected incomplete theorem not to fail result calculation: "
+            ++ ProgramResult.show_error(err),
+          )
+        | ResultOk(_)
+        | ResultPending => ()
+        };
+      },
+    ),
+    test_case(
+      "persisted expression step chain can seed equality theorem",
       `Quick,
       () => {
         let original = parse_exp("1 + 2 + 3");
@@ -525,62 +535,6 @@ let tests = (
           "seeded theorem still awaits final equality step",
           None,
           Calc.get_value(validity),
-        );
-      },
-    ),
-    test_case(
-      "explore promotion code includes stepper metadata",
-      `Quick,
-      () => {
-        let stepper =
-          Web.StepperView.Model.persist(Web.StepperView.Model.init);
-        let code =
-          Web.Theorems.promote_explore_code(
-            ~settings=CoreSettings.on,
-            ~name="th_1",
-            ~original=parse_exp("1 + 2 + 3"),
-            ~landed=parse_exp("6"),
-            ~stepper,
-          );
-        check(
-          bool,
-          "metadata comment is embedded in theorem source",
-          true,
-          String.starts_with(
-            ~prefix="theorem th_1 = 1 + 2 + 3 == 6 in #hazel-explore-stepper:",
-            code,
-          ),
-        );
-      },
-    ),
-    test_case(
-      "explore promotion stepper metadata round-trips through comment text",
-      `Quick,
-      () => {
-        let original = parse_exp("1 + 2 + 3");
-        let explorer_stepper =
-          switch (build_eval_step_chain(~limit=10, original)) {
-          | Some(stepper) => stepper
-          | None => failwith("expected arithmetic step chain")
-          };
-        let stepper_view =
-          Web.StepperView.Model.{
-            cached_elab_subst: Calc.Pending,
-            root: explorer_stepper,
-          };
-        let persistent = Web.StepperView.Model.persist(stepper_view);
-        let comment = Web.Theorems.stepper_metadata_comment(persistent);
-        let decoded =
-          switch (Web.Theorems.decode_stepper_metadata(comment)) {
-          | Some(stepper) => stepper
-          | None => failwith("expected decoded stepper metadata")
-          };
-        let json_of = Web.StepperView.Model.yojson_of_persistent;
-        check(
-          string,
-          "metadata comment preserves persisted stepper JSON",
-          persistent |> json_of |> Yojson.Safe.to_string,
-          decoded |> json_of |> Yojson.Safe.to_string,
         );
       },
     ),

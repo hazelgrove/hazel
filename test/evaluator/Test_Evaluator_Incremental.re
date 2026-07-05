@@ -155,6 +155,29 @@ let test_explore_replayed_after_trailing_semicolon = () => {
   );
 };
 
+let test_theorem_body_records_explore = () => {
+  let exp = parse_exp("theorem matt = 0 == 0 in explore x end;");
+  let (_, state, _) = eval_incr(exp);
+  check(
+    int,
+    "theorem is recorded",
+    1,
+    EvaluatorState.get_theorems(state) |> List.length,
+  );
+  check(
+    int,
+    "explore in theorem body is also recorded",
+    1,
+    EvaluatorState.get_explores(state) |> List.length,
+  );
+};
+
+let test_incomplete_theorem_does_not_throw = () => {
+  let exp = parse_exp("theorem matt = 0 == 0");
+  let (_, _state, _) = eval_incr(exp);
+  check(testable(Fmt.string, String.equal), "ok", "ok", "ok");
+};
+
 /* Replace Atom(Int(from)) with Atom(Int(to_)) everywhere in `exp`,
  * preserving the IdTagged annotation on every node (including on the
  * edited leaf itself — only the payload integer changes, the id stays).
@@ -1780,6 +1803,16 @@ let tests = (
       "Replays explore slice on reuse after trailing semicolon",
       `Quick,
       test_explore_replayed_after_trailing_semicolon,
+    ),
+    test_case(
+      "Theorem body records explore",
+      `Quick,
+      test_theorem_body_records_explore,
+    ),
+    test_case(
+      "Incomplete theorem does not throw",
+      `Quick,
+      test_incomplete_theorem_does_not_throw,
     ),
     test_case(
       "DIAG module in unchanged rhs tuple lands in frozen",

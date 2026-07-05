@@ -147,11 +147,27 @@ let init =
       z: Zipper.t,
     )
     : t => {
+  let segment = Dump.to_segment(z, ~root);
+  let is_complete = Segment.deep_tile_complete(segment);
   let make_term_result = MakeTerm.from_zip_for_sem(z, ~root);
   let term = make_term_result.term |> stitch;
   let probe_ids = probe_ids_of_zipper(z);
 
-  init_from_term(~settings, ~ctx?, ~is_dynamic_term, ~ana?, ~probe_ids, term);
+  let statics =
+    init_from_term(
+      ~settings,
+      ~ctx?,
+      ~is_dynamic_term,
+      ~ana?,
+      ~probe_ids,
+      term,
+    );
+  is_complete
+    ? statics
+    : {
+      ...statics,
+      elaborated: dh_err("Incomplete syntax"),
+    };
 };
 
 let init =

@@ -134,14 +134,7 @@ module Update = {
     | UpdateResult(ProgramResult.t(ProgramResult.inner))
     | UpdateStreamingEval(IncrEval.outbox(EvaluatorState.t))
     | MergeStreamingEval(IncrEval.outbox(EvaluatorState.t))
-    | TheoremsAction(Theorems.Update.t)
-    | PromoteExplore(
-        Id.t,
-        string,
-        string,
-        Exp.t,
-        StepperView.Model.persistent,
-      );
+    | TheoremsAction(Theorems.Update.t);
 
   let can_undo = (action: t) => {
     switch (action) {
@@ -152,7 +145,6 @@ module Update = {
     | UpdateStreamingEval(_)
     | MergeStreamingEval(_) => false
     | TheoremsAction(action) => Theorems.Update.can_undo(action)
-    | PromoteExplore(_, _, _, _, _) => true
     };
   };
 
@@ -191,17 +183,6 @@ module Update = {
     | (TheoremsAction(action), _) =>
       let* theorems =
         Theorems.Update.update(~settings, action, model.theorems);
-      {
-        ...model,
-        theorems,
-      };
-    | (PromoteExplore(id, code, name, goal, stepper), _) =>
-      let* theorems =
-        Theorems.Update.update(
-          ~settings,
-          Theorems.Update.PromoteExplore(id, code, name, goal, stepper),
-          model.theorems,
-        );
       {
         ...model,
         theorems,
@@ -762,8 +743,25 @@ module View = {
     | `EvalResults
     | `NoTheorems
     | `JustTheorems when globals.settings.core.dynamics =>
+      let theorems =
+        result_kind == `NoTheorems
+          ? []
+          : Theorems.View.view(
+              ~globals,
+              ~take_focus=f => signal(MakeActive(Theorems(f))),
+              ~inject=action => inject(TheoremsAction(action)),
+              ~selected=
+                switch (selected) {
+                | Some(Theorems(f)) => Some(f)
+                | _ => None
+                },
+              model.theorems,
+            );
+      let has_theorem_views = List.length(theorems) > 0;
       let result =
         result_kind == `JustTheorems
+        || result_kind == `EvalResults
+        && has_theorem_views
           ? [] : footer(~globals, ~signal, ~inject, ~selected, ~locked, model);
       let test_overlay = (editor: Haz3lcore.Editor.t) =>
         switch (Model.test_results(model)) {
@@ -776,30 +774,6 @@ module View = {
           ]
         | None => []
         };
-      let theorems =
-        result_kind == `NoTheorems
-          ? []
-          : Theorems.View.view(
-              ~globals,
-              ~take_focus=f => signal(MakeActive(Theorems(f))),
-              ~inject=
-                fun
-                | Theorems.Update.PromoteExplore(
-                    id,
-                    code,
-                    name,
-                    goal,
-                    stepper,
-                  ) =>
-                  inject(PromoteExplore(id, code, name, goal, stepper))
-                | action => inject(TheoremsAction(action)),
-              ~selected=
-                switch (selected) {
-                | Some(Theorems(f)) => Some(f)
-                | _ => None
-                },
-              model.theorems,
-            );
       let theorems =
         List.length(theorems) == 0
           ? [] : [WebUtil.div_c("theorems", theorems)];
