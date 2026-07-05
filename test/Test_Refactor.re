@@ -292,7 +292,21 @@ let case_arm_tests = [
 ];
 
 let annotation_tests = [
-
+  test_case(
+    "tuple type annotation gets parens (oracle)",
+    `Quick,
+    () => {
+      let got =
+        inline(~kind=AddTypeAnnotation, "¦let p = (1, true) in p")
+        |> text_of;
+      check(
+        string,
+        "parenthesized prod",
+        "let p : (Int,Bool) = (1, true) in p",
+        got,
+      );
+    },
+  ),
   test_case(
     "add type annotation",
     `Quick,

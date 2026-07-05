@@ -562,6 +562,20 @@ let refresh_typ_ids = (t: Typ.t): Typ.t =>
     t,
   );
 
+let fresh_typ = (term): Typ.t => {
+  annotation: IdTagged.IdTag.mk_internal([Id.mk()]),
+  term,
+};
+
+let with_secondary_typ =
+    (secondary: (list(Secondary.t), list(Secondary.t)), t: Typ.t): Typ.t => {
+  ...t,
+  annotation: {
+    ...t.annotation,
+    secondary,
+  },
+};
+
 let typ_known = (t: Typ.t): bool => {
   let unknown = ref(false);
   let _ =
@@ -588,32 +602,48 @@ let exp_ty = (~info_map: Statics.Map.t, e: Exp.t): option(Typ.t) =>
 let add_annotation_impl: impl = {
   label: "Add Type Annotation",
   tooltip: "Annotate this binding with its inferred type",
-  prepare: (~info_map, ~target, program) =>
-    rewrite_node(
-      ~hit=hit_let(target),
-      ~rewrite=
-        e =>
-          switch (IdTagged.term_of(e)) {
-          | Let(p, def, body) when var_pat_name(p) != None =>
-            switch (exp_ty(~info_map, def)) {
-            | Some(ty) when typ_known(ty) =>
-              let ty = pad(refresh_typ_ids(ty));
-              /* p keeps its runs: its old pre-`=` space now sits
-                 before the `:` */
-              let p' = fresh_pat(Asc(p, ty));
-              Some((
-                {
-                  ...e,
-                  term: Let(p', def, body),
-                },
-                Typ.rep_id(ty),
-              ));
+  prepare: (~info_map, ~target, program) => {
+    /* a bare spliced type can change the reparse (a Prod's comma
+       breaks the let: `let p : Int,Bool = ...`) — oracle-gated parens
+       like inline/extract */
+    let attempt = (~parens: bool) =>
+      rewrite_node(
+        ~hit=hit_let(target),
+        ~rewrite=
+          e =>
+            switch (IdTagged.term_of(e)) {
+            | Let(p, def, body) when var_pat_name(p) != None =>
+              switch (exp_ty(~info_map, def)) {
+              | Some(ty) when typ_known(ty) =>
+                let bare = refresh_typ_ids(ty);
+                let ty =
+                  pad(
+                    parens
+                      ? fresh_typ(Parens(with_secondary_typ(([], []), bare)))
+                      : bare,
+                  );
+                /* p keeps its runs: its old pre-`=` space now sits
+                   before the `:` */
+                let p' = fresh_pat(Asc(p, ty));
+                Some((
+                  {
+                    ...e,
+                    term: Let(p', def, body),
+                  },
+                  Typ.rep_id(ty),
+                ));
+              | _ => None
+              }
             | _ => None
-            }
-          | _ => None
-          },
-      program,
-    ),
+            },
+        program,
+      );
+    switch (attempt(~parens=false)) {
+    | Some((bare, f)) when reparses_same(bare) => Some((bare, f))
+    | Some(_) => attempt(~parens=true)
+    | None => None
+    };
+  },
 };
 
 let bool_pat = (p: Pat.t): option(bool) =>
@@ -1214,11 +1244,6 @@ let extended_pat = (p: Pat.t, name: string): (Pat.t, Id.t) => {
       };
     };
   (p', focus);
-};
-
-let fresh_typ = (term): Typ.t => {
-  annotation: IdTagged.IdTag.mk_internal([Id.mk()]),
-  term,
 };
 
 let typ_unknown = (): Typ.t => {
