@@ -457,7 +457,8 @@ and uexp_to_info_map =
 
   let implicit_poly_args = (binder: TPat.t): (Typ.t, list(Typ.t)) => {
     let binders = TPat.binders_of(binder);
-    let args = List.init(List.length(binders), _ => Unknown(Internal) |> Typ.fresh);
+    let args =
+      List.init(List.length(binders), _ => Unknown(Internal) |> Typ.fresh);
     let arg =
       switch (args) {
       | [arg] => arg
@@ -466,7 +467,8 @@ and uexp_to_info_map =
     (arg, args);
   };
 
-  let rec implicit_poly_instantiate = (ty: Typ.t, elab: Exp.t): (Typ.t, Exp.t) =>
+  let rec implicit_poly_instantiate =
+          (ty: Typ.t, elab: Exp.t): (Typ.t, Exp.t) =>
     switch (MatchedTyp.poly_pair(ctx, ty)) {
     | Some((Some(binder), body)) =>
       let (arg, args) = implicit_poly_args(binder);
