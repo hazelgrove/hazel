@@ -82,6 +82,32 @@ let gating_tests = [
     check(bool, "g", false, offers(RemoveUnusedLet, "¦let x = 1 in x"))
   ),
   test_case(
+    "inline an annotated let",
+    `Quick,
+    () => {
+      let got = inline("¦let x : Int = 5 in x + x") |> text_of;
+      check(string, "annotation dropped", "5 + 5", got);
+    },
+  ),
+  test_case(
+    "remove an unused annotated let",
+    `Quick,
+    () => {
+      let got =
+        inline(~kind=RemoveUnusedLet, "¦let x : Int = 1 in 2") |> text_of;
+      check(string, "removed", "2", got);
+    },
+  ),
+  test_case(
+    "remove an unused sugar fn",
+    `Quick,
+    () => {
+      let got =
+        inline(~kind=RemoveUnusedLet, "¦let f(n) = n + 1 in 2") |> text_of;
+      check(string, "removed", "2", got);
+    },
+  ),
+  test_case(
     "remove unused let",
     `Quick,
     () => {

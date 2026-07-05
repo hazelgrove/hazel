@@ -333,6 +333,24 @@ let var_pat_name = (p: Pat.t): option(string) =>
   | _ => None
   };
 
+/* binder name through an annotation */
+let rec let_head_name = (p: Pat.t): option(string) =>
+  switch (IdTagged.term_of(p)) {
+  | Var(y) => Some(y)
+  | Asc(inner, _) => let_head_name(inner)
+  | _ => None
+  };
+
+/* the head binder var node: through annotations, and through the
+ * f(x)-sugar Ap to the fn name */
+let rec head_var_pat = (p: Pat.t): option(Pat.t) =>
+  switch (IdTagged.term_of(p)) {
+  | Var(_) => Some(p)
+  | Asc(inner, _) => head_var_pat(inner)
+  | Ap(fv, _) => head_var_pat(fv)
+  | _ => None
+  };
+
 /* A let's target zone is its delimiters plus its pattern (not def or
  * body: those are their own expressions with their own menus) */
 let pat_subtree_ids = (p: Pat.t): list(Id.t) => {
@@ -497,10 +515,10 @@ let inline_let_impl: impl = {
     let attempt_with = (~bare, target) =>
       rewrite_let(
         ~target,
-        ~matches=(p, _, _) => var_pat_name(p) != None,
+        ~matches=(p, _, _) => let_head_name(p) != None,
         ~rewrite=
           (p, def, body) => {
-            let x = Option.get(var_pat_name(p));
+            let x = Option.get(let_head_name(p));
             (subst(~bare, x, def, body), Exp.rep_id(def));
           },
         program,
@@ -544,7 +562,11 @@ let remove_unused_let_impl: impl = {
     rewrite_let(
       ~target,
       ~matches=
-        (p, _, _) => var_pat_name(p) != None && pat_unused(~info_map, p),
+        (p, _, _) =>
+          switch (head_var_pat(p)) {
+          | Some(hv) => pat_unused(~info_map, hv)
+          | None => false
+          },
       ~rewrite=(_, _, body) => (body, Exp.rep_id(body)),
       program,
     ),
@@ -1021,38 +1043,52 @@ let eta_reduce_impl: impl = {
 let negate_if_impl: impl = {
   label: "Negate & Swap Branches",
   tooltip: "Flip this if: negate the condition, swap then/else",
-  prepare: (~info_map as _, ~target, program) =>
-    rewrite_node(
-      ~hit=hit_node(target),
-      ~rewrite=
-        e =>
-          switch (IdTagged.term_of(e)) {
-          | If(c, t, alt) =>
-            /* arms swap UNTOUCHED so their formatting (incl.
-               multi-line layout) survives; the pre-`else` boundary
-               run belongs to the SLOT, not the arm — the new then-arm
-               takes it over. The condition sheds its post-`if` lead
-               (it now sits after `!`). */
-            let c = c |> strip_leading |> strip_trailing;
-            let c = needs_parens(c) ? fresh(Parens(c)) : c;
-            let cond = {
-              ...fresh(UnOp(Bool(Not), c)),
-              annotation: {
-                ...IdTagged.IdTag.mk_internal([Id.mk()]),
-                secondary: (space(), []),
-              },
-            };
-            let boundary = Slot.trail_of(t);
-            Some((
-              fresh(
-                If(cond, Slot.give(boundary, alt), Slot.drop(boundary, t)),
-              ),
-              Exp.rep_id(c),
-            ));
-          | _ => None
-          },
-      program,
-    ),
+  prepare: (~info_map as _, ~target, program) => {
+    let attempt = (~parens: bool) =>
+      rewrite_node(
+        ~hit=hit_node(target),
+        ~rewrite=
+          e =>
+            switch (IdTagged.term_of(e)) {
+            | If(c, t, alt) =>
+              /* arms swap UNTOUCHED so their formatting (incl.
+                 multi-line layout) survives; the pre-`else` boundary
+                 run belongs to the SLOT, not the arm — the new
+                 then-arm takes it over. The condition sheds its
+                 post-`if` lead (it now sits after `!`). Parens by
+                 reparse oracle; the If node keeps its id. */
+              let c = c |> strip_leading |> strip_trailing;
+              let c = parens ? fresh(Parens(c)) : c;
+              let cond = {
+                ...fresh(UnOp(Bool(Not), c)),
+                annotation: {
+                  ...IdTagged.IdTag.mk_internal([Id.mk()]),
+                  secondary: (space(), []),
+                },
+              };
+              let boundary = Slot.trail_of(t);
+              Some((
+                {
+                  ...e,
+                  term:
+                    If(
+                      cond,
+                      Slot.give(boundary, alt),
+                      Slot.drop(boundary, t),
+                    ),
+                },
+                Exp.rep_id(c),
+              ));
+            | _ => None
+            },
+        program,
+      );
+    switch (attempt(~parens=false)) {
+    | Some((bare, f)) when reparses_same(bare) => Some((bare, f))
+    | Some(_) => attempt(~parens=true)
+    | None => None
+    };
+  },
 };
 
 /* witness for an inexhaustive match, from statics marks */
@@ -1477,14 +1513,6 @@ let free_vars_in = (~info_map: Statics.Map.t, e: Exp.t): list(string) => {
   acc^;
 };
 
-/* binder name through an annotation */
-let rec let_head_name = (p: Pat.t): option(string) =>
-  switch (IdTagged.term_of(p)) {
-  | Var(y) => Some(y)
-  | Asc(inner, _) => let_head_name(inner)
-  | _ => None
-  };
-
 /* The rename sites a binder node offers: each bound name paired with
  * the regions it scopes over. Sugar params scope over the RHS only;
  * the sugar fn name (recursive) and fun-valued lets scope over def
@@ -1672,7 +1700,31 @@ let rename_free_impl = (x: string, y: string): impl => {
                          ),
                        e,
                      );
-                count^ > 0 ? Some((e', Exp.rep_id(e'))) : None;
+                /* caret stays on the binder token (where the user
+                   was editing in the repair flow) */
+                let focus = {
+                  let pats =
+                    switch (IdTagged.term_of(e')) {
+                    | Let(p, _, _)
+                    | Fun(p, _, _, _) => [p]
+                    | Match(_, rules) =>
+                      rules
+                      |> List.filter_map(((p, _)) =>
+                           List.mem(target, pat_subtree_ids(p))
+                             ? Some(p) : None
+                         )
+                    | _ => []
+                    };
+                  switch (
+                    pats
+                    |> List.concat_map(pat_var_id_sites)
+                    |> List.find_opt(((n, _)) => n == y)
+                  ) {
+                  | Some((_, [id, ..._])) => id
+                  | _ => Exp.rep_id(e')
+                  };
+                };
+                count^ > 0 ? Some((e', focus)) : None;
               | None => None
               },
           program,
@@ -2093,7 +2145,7 @@ let applies =
     : bool =>
   switch (kind) {
   | InlineLet =>
-    let at = let_applies(~pred=(p, _, _) => var_pat_name(p) != None);
+    let at = let_applies(~pred=(p, _, _) => let_head_name(p) != None);
     at(target, program)
     || (
       switch (binder_of_occurrence(~info_map, ~target, program)) {
@@ -2104,7 +2156,11 @@ let applies =
   | RemoveUnusedLet =>
     let_applies(
       ~pred=
-        (p, _, _) => var_pat_name(p) != None && pat_unused(~info_map, p),
+        (p, _, _) =>
+          switch (head_var_pat(p)) {
+          | Some(hv) => pat_unused(~info_map, hv)
+          | None => false
+          },
       target,
       program,
     )
