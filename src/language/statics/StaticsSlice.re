@@ -808,6 +808,15 @@ let rec typ_contains = (needle: Typ.t, haystack: Typ.t): bool =>
       typ_contains(needle, left) || typ_contains(needle, right)
     | Prod(items)
     | TypTuple(items) => List.exists(typ_contains(needle), items)
+    | Sum(variants) =>
+      List.exists(
+        fun
+        | ConstructorMap.Variant(_, _, Some(payload)) =>
+          typ_contains(needle, payload)
+        | ConstructorMap.Variant(_, _, None) => false
+        | ConstructorMap.BadEntry(entry) => typ_contains(needle, entry),
+        variants,
+      )
     | Poly(_, body)
     | TypFun(_, body)
     | Rec(_, body) => typ_contains(needle, body)
@@ -2208,6 +2217,31 @@ let pat_contains_focus = (focus: Id.t, pat: Pat.t): bool =>
   | _ => false
   };
 
+let match_rule_contains_focus = (focus: Id.t, (p, e): (Pat.t, Exp.t)): bool =>
+  pat_contains_focus(focus, p) || exp_contains_focus(focus, e);
+
+let match_sibling_branch_ids = (focus: Id.t, m: Id.Map.t(Info.t)): Id.Set.t =>
+  Id.Map.fold(
+    (_, info, acc) =>
+      switch (info) {
+      | Info.InfoExp({user_term: {term: Match(_, rules), _}, _})
+          when List.exists(match_rule_contains_focus(focus), rules) =>
+        List.fold_left(
+          (acc, (p, e)) =>
+            match_rule_contains_focus(focus, (p, e))
+              ? acc
+              : acc
+                |> Id.Set.union(ids_set(pat_all_ids(p)))
+                |> Id.Set.union(source_ids(e)),
+          acc,
+          rules,
+        )
+      | _ => acc
+      },
+    m,
+    Id.Set.empty,
+  );
+
 let mod_contains_focus = (focus: Id.t, item: Mod.t): bool =>
   switch (item.term) {
   | ModLet(p, e) =>
@@ -2747,6 +2781,8 @@ let slice =
               ),
             )
           : Id.Set.diff(result.omitted, path);
+      let omitted =
+        Id.Set.union(omitted, match_sibling_branch_ids(focus_id, m));
       {
         ...result,
         omitted,

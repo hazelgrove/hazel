@@ -259,6 +259,13 @@ let typaps = [
   ),
   synthesis_case(
     ~ctx=prelude_ctx("type Option = typfun A -> None + Some(A) in"),
+    "if-explicit-param-sum-query",
+    "if ? then Some@<Int>(1) else Some(0)",
+    "None + Some(Int)",
+    "if ? then Some@<Int>(?) else ?",
+  ),
+  synthesis_case(
+    ~ctx=prelude_ctx("type Option = typfun A -> None + Some(A) in"),
     ~aliases=[("Option", "typfun A -> ? + Some(A)")],
     "if-explicit-param-option-gap",
     "if ? then Some@<Int>(1) else Some(0)",
@@ -352,6 +359,20 @@ let control = [
     "case A | A => 1 | B => 2 end",
     "Int",
     "case ? | ? => 1 | ? => ? end",
+  ),
+  synthesis_case(
+    ~focus=e => int_lit(e, 1),
+    "match-focused-middle-branch",
+    "case 0 | 0 => 0 | 1 => 1 | 2 => 2 end",
+    "Int",
+    "case ? | ? => ? | ? => 1 | ? => ? end",
+  ),
+  synthesis_case(
+    ~focus=e => int_lit(e, 2),
+    "match-focused-last-branch",
+    "case 0 | 0 => 0 | 1 => 1 | 2 => 2 end",
+    "Int",
+    "case ? | ? => ? | ? => ? | ? => 2 end",
   ),
   synthesis_case("use-nat-lit", "use Nat in 1", "Nat", "use Nat in 1"),
   synthesis_case(

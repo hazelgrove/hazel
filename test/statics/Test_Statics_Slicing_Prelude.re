@@ -222,6 +222,19 @@ let int_lits = (e: Exp.t): list(Id.t) =>
     e,
   );
 
+let int_lit = (e: Exp.t, n: int): Id.t =>
+  first(
+    "int literal " ++ string_of_int(n),
+    collect_exp_ids(
+      x =>
+        switch (Exp.term_of(x)) {
+        | Atom(Int(v)) => Bigint.to_string(v) == string_of_int(n)
+        | _ => false
+        },
+      e,
+    ),
+  );
+
 let nth_int = (e: Exp.t, k: int): Id.t =>
   switch (List.nth_opt(int_lits(e), k)) {
   | Some(id) => id
