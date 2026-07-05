@@ -1739,8 +1739,24 @@ let rename_free_impl = (x: string, y: string): impl => {
  * arm matches. Gates are conservative name checks (mentions), so a
  * blocked move is simply not offered. */
 
+/* does x occur FREE in e (an occurrence under a rebinding of x
+ * doesn't count)? Movement gates use this rather than raw mentions so
+ * shadowed reuses of a name don't block legal moves. */
+let rec free_in = (x: string, e: Exp.t): bool =>
+  switch (IdTagged.term_of(e)) {
+  | Var(y) => y == x
+  | Let(p, d, body) =>
+    free_in(x, d) || !binds(x, p) && free_in(x, body)
+  | Fun(p, body, _, _)
+  | FixF(p, body, _) => binds(x, p) ? false : free_in(x, body)
+  | Match(scrut, rules) =>
+    free_in(x, scrut)
+    || rules |> List.exists(((p, b)) => !binds(x, p) && free_in(x, b))
+  | _ => children_of(e) |> List.exists(free_in(x))
+  };
+
 let names_mentioned = (names: list(string), e: Exp.t): bool =>
-  names |> List.exists(n => mentions(n, e));
+  names |> List.exists(n => free_in(n, e));
 
 let disjoint_names = (a: list(string), b: list(string)): bool =>
   !(a |> List.exists(n => List.mem(n, b)));
@@ -2037,11 +2053,18 @@ let hoist_let_impl: impl = {
     | Some(path) =>
       switch (hoist_step(path)) {
       | Some((pnode, result, focus)) =>
-        rewrite_node(
-          ~hit=same_node(pnode),
-          ~rewrite=_ => Some((result, focus)),
-          program,
-        )
+        switch (
+          rewrite_node(
+            ~hit=same_node(pnode),
+            ~rewrite=_ => Some((result, focus)),
+            program,
+          )
+        ) {
+        /* movement never parenthesizes: a reparse mismatch means
+           refuse, not repair */
+        | Some((prog, f)) when reparses_same(prog) => Some((prog, f))
+        | _ => None
+        }
       | None => None
       }
     | None => None
@@ -2059,11 +2082,16 @@ let sink_let_impl: impl = {
     | Some(l) =>
       switch (sink_step(l)) {
       | Some((result, focus)) =>
-        rewrite_node(
-          ~hit=same_node(l),
-          ~rewrite=_ => Some((result, focus)),
-          program,
-        )
+        switch (
+          rewrite_node(
+            ~hit=same_node(l),
+            ~rewrite=_ => Some((result, focus)),
+            program,
+          )
+        ) {
+        | Some((prog, f)) when reparses_same(prog) => Some((prog, f))
+        | _ => None
+        }
       | None => None
       }
     | None => None

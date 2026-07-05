@@ -1000,6 +1000,24 @@ let move_tests = [
     },
   ),
   test_case(
+    "hoist allowed when the crossed name is only shadowed",
+    `Quick,
+    () => {
+      let got =
+        inline(
+          ~kind=HoistLet,
+          "let a = 1 in ¦let x = (let a = 2 in a) in x + a",
+        )
+        |> text_of;
+      check(
+        string,
+        "shadowed a doesn't block",
+        "let x = (let a = 2 in a) in let a = 1 in x + a",
+        got,
+      );
+    },
+  ),
+  test_case(
     "sink through a chain",
     `Quick,
     () => {
