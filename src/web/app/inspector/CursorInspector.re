@@ -446,11 +446,20 @@ module TypeSlicing = {
       }
     };
 
-  let protected_ids = (ci: Info.t): Id.Set.t =>
-    id_set_of_list(Info.ancestors_of(ci));
+  let protected_ids = (~info_map: Statics.Map.t, ci: Info.t): Id.Set.t =>
+    Id.Set.diff(
+      id_set_of_list(Info.ancestors_of(ci)),
+      Statics.Slice.focus_shell_ids(info_map, Info.id_of(ci)),
+    );
 
   let slice_for_target =
-      (~root_exp: Exp.t, ~ci: Info.t, target: TypeTarget.t, row: Model.row)
+      (
+        ~root_exp: Exp.t,
+        ~info_map: Statics.Map.t,
+        ~ci: Info.t,
+        target: TypeTarget.t,
+        row: Model.row,
+      )
       : option(Id.Set.t) =>
     if (!row.active) {
       None;
@@ -474,7 +483,7 @@ module TypeSlicing = {
                 query,
               ).
                 omitted,
-              protected_ids(ci),
+              protected_ids(~info_map, ci),
             ),
           )
         ) {
@@ -518,13 +527,14 @@ module TypeSlicing = {
   let slice_for_model_row =
       (
         ~root_exp: Exp.t,
+        ~info_map: Statics.Map.t,
         ~anchor_ci: option(Info.t),
         target: TypeTarget.t,
         row: Model.row,
       )
       : option(Id.Set.t) =>
     switch (anchor_ci) {
-    | Some(ci) => slice_for_target(~root_exp, ~ci, target, row)
+    | Some(ci) => slice_for_target(~root_exp, ~info_map, ~ci, target, row)
     | None => None
     };
 
@@ -539,9 +549,21 @@ module TypeSlicing = {
       : Id.Set.t => {
     let anchor_ci = anchor_info(~info_map, ~fallback_ci, model);
     let syn =
-      slice_for_model_row(~root_exp, ~anchor_ci, Synthesizing, model.syn);
+      slice_for_model_row(
+        ~root_exp,
+        ~info_map,
+        ~anchor_ci,
+        Synthesizing,
+        model.syn,
+      );
     let ana =
-      slice_for_model_row(~root_exp, ~anchor_ci, Analyzing, model.ana);
+      slice_for_model_row(
+        ~root_exp,
+        ~info_map,
+        ~anchor_ci,
+        Analyzing,
+        model.ana,
+      );
     switch (syn, ana) {
     | (Some(syn), Some(ana)) =>
       Id.Set.inter(

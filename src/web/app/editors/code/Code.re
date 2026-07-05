@@ -163,7 +163,12 @@ let view =
         FoldProj.t_of_sexp(Sexplib.Sexp.of_string(pr.model)).text;
       span(
         ~attrs=[
-          Attr.classes(["projector", "fold", "inline-fold", Sort.show(sort)]),
+          Attr.classes([
+            "projector",
+            "fold",
+            "inline-fold",
+            Sort.show(sort),
+          ]),
         ],
         [text(fold_text)],
       );

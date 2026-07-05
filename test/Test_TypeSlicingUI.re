@@ -276,32 +276,32 @@ let tests = (
           );
         check(
           string,
-          "gap reslice keeps selected binop shape",
-          "fun ? -> ? + ?",
+          "gap reslice folds selected binop",
+          "fun ? -> ?",
           render_folded(second.model),
         );
       },
     ),
     case(
-      ~name="focused gap keeps focused literal",
+      ~name="focused gap folds focused literal",
       ~src="1 + 2 + 3",
       ~focus=int_id(2),
       ~query="Int",
-      ~expected="? + 2 + ?",
+      ~expected="? + ? + ?",
     ),
     case(
-      ~name="focused gap keeps focused body shape",
+      ~name="focused gap folds focused body",
       ~src="fun x : String -> 1 + 2",
       ~focus=first_binop_id,
       ~query="Int",
-      ~expected="fun ? -> ? + ?",
+      ~expected="fun ? -> ?",
     ),
     case(
       ~name="product query folds tuple binding",
       ~src="let x : (Int, Int) = (1, 2) in ?",
       ~focus=first_tuple_id,
       ~query="(Int, Int)",
-      ~expected="let ? = (?, ?) in ?",
+      ~expected="let ? = ? in ?",
     ),
     test_case(
       "product query folds selected tuple binding",
@@ -324,7 +324,7 @@ let tests = (
         check(
           string,
           "selected tuple binding slice",
-          "let ? = (?, ?) in ?",
+          "let ? = ? in ?",
           render_folded(result.model),
         );
       },
@@ -504,7 +504,7 @@ let tests = (
         check(
           string,
           "folded product type query slice",
-          "let ? = (?, ?) in ?",
+          "let ? = ? in ?",
           render_folded(result.model),
         );
       },
@@ -707,8 +707,8 @@ let tests = (
     test_case("anchor stays fixed while cursor moves", `Quick, () => {
       check(
         string,
-        "1 + ? + ?",
-        "1 + ? + ?",
+        "? + ? + ?",
+        "? + ? + ?",
         fold_after_refresh(
           ~from_focus=int_id(1),
           ~to_focus=int_id(2),
@@ -720,8 +720,8 @@ let tests = (
     test_case("anchor pins slice in a fun body", `Quick, () => {
       check(
         string,
-        "fun ? -> ? + ?",
-        "fun ? -> ? + ?",
+        "fun ? -> ?",
+        "fun ? -> ?",
         fold_after_refresh(
           ~from_focus=first_binop_id,
           ~to_focus=int_id(1),

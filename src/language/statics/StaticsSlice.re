@@ -1960,6 +1960,28 @@ let focus_path = (m: Id.Map.t(Info.t), focus: Id.t): Id.Set.t =>
 
 let on_path = (path: Id.Set.t, id: Id.t): bool => Id.Set.mem(id, path);
 
+let focus_shell_ids = (m: Id.Map.t(Info.t), focus: Id.t): Id.Set.t => {
+  let rec go = ancestors =>
+    switch (ancestors) {
+    | [id, ...rest] =>
+      switch (Id.Map.find_opt(id, m)) {
+      | Some(Info.InfoExp({user_term, _})) =>
+        switch (Exp.term_of(user_term)) {
+        | Parens(_)
+        | Asc(_, _) =>
+          Id.Set.union(ids_set(IdTagged.ids(user_term)), go(rest))
+        | _ => Id.Set.empty
+        }
+      | _ => Id.Set.empty
+      }
+    | [] => Id.Set.empty
+    };
+  switch (Id.Map.find_opt(focus, m) |> Option.bind(_, info_ancestors)) {
+  | Some((ancestors, _)) => go(ancestors)
+  | None => Id.Set.empty
+  };
+};
+
 let exp_child_ids = (exp: Exp.t): list(Id.t) =>
   switch (Exp.term_of(exp)) {
   | DynamicErrorHole(e, _)
@@ -2666,9 +2688,19 @@ let slice =
     switch (focus) {
     | Some(focus_id) when direction == `Syn && !whole_focus =>
       let path = focus_path(m, focus_id);
+      let omitted =
+        is_gap(query)
+          ? Id.Set.union(
+              Id.Set.diff(result.omitted, Id.Set.remove(focus_id, path)),
+              Id.Set.union(
+                focus_subtree_ids(m, focus_id),
+                focus_shell_ids(m, focus_id),
+              ),
+            )
+          : Id.Set.diff(result.omitted, path);
       {
         ...result,
-        omitted: Id.Set.diff(result.omitted, path),
+        omitted,
       };
     | _ => result
     };

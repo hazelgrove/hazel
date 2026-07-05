@@ -108,6 +108,13 @@ let binding_synthesis = [
     "let ? = (1, 2) in ?",
   ),
   synthesis_case(
+    ~focus=first_tuple,
+    "bind-syn-tuple-gap",
+    "let x : (Int, Int) = (1, ?) in ?",
+    "?",
+    "let ? = ? in ?",
+  ),
+  synthesis_case(
     "bind-typfun-curried",
     "type Result = typfun E -> typfun A -> Error(E) + Ok(A) in Ok@<String, Bool>(true)",
     "Result(?, Bool)",
