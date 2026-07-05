@@ -637,11 +637,30 @@ let param_tests = [
 
 let rename_tests = [
   test_case(
+    "rename free binds at a fun param",
+    `Quick,
+    () => {
+      let got =
+        inline(~kind=RenameFree("n", "m"), "¦fun m -> n + n") |> text_of;
+      check(string, "param bound", "fun m -> m + m", got);
+    },
+  ),
+  test_case("fun with tuple params offers per binder", `Quick, () => {
+    let kinds = kinds_at("¦fun (a, b) -> q + a");
+    check(
+      bool,
+      "q to a and q to b",
+      true,
+      List.mem(Action.RenameFree("q", "a"), kinds)
+      && List.mem(Action.RenameFree("q", "b"), kinds),
+    );
+  }),
+  test_case(
     "rename free binds occurrences",
     `Quick,
     () => {
       let got =
-        inline(~kind=RenameFree("v"), "¦let vel = 1 in v + v") |> text_of;
+        inline(~kind=RenameFree("v", "vel"), "¦let vel = 1 in v + v") |> text_of;
       check(string, "both bound", "let vel = 1 in vel + vel", got);
     },
   ),
@@ -651,7 +670,7 @@ let rename_tests = [
     () => {
       let got =
         inline(
-          ~kind=RenameFree("x"),
+          ~kind=RenameFree("x", "y"),
           "¦let y = 1 in x + (fun y -> x)(2)",
         )
         |> text_of;
@@ -669,7 +688,7 @@ let rename_tests = [
     () => {
       let got =
         inline(
-          ~kind=RenameFree("x"),
+          ~kind=RenameFree("x", "y"),
           "¦let y = 1 in x + (let x = 2 in x)",
         )
         |> text_of;
@@ -686,7 +705,7 @@ let rename_tests = [
     `Quick,
     () => {
       let got =
-        inline(~kind=RenameFree("f"), "¦let g = fun n -> f(n) in g(2)")
+        inline(~kind=RenameFree("f", "g"), "¦let g = fun n -> f(n) in g(2)")
         |> text_of;
       check(string, "rec call bound", "let g = fun n -> g(n) in g(2)", got);
     },
@@ -697,8 +716,8 @@ let rename_tests = [
       bool,
       "both offered",
       true,
-      List.mem(Action.RenameFree("a"), kinds)
-      && List.mem(Action.RenameFree("b"), kinds),
+      List.mem(Action.RenameFree("a", "y"), kinds)
+      && List.mem(Action.RenameFree("b", "y"), kinds),
     );
   }),
   test_case("no offer without free vars in scope", `Quick, () => {
@@ -710,7 +729,7 @@ let rename_tests = [
       kinds
       |> List.exists(k =>
            switch (k) {
-           | Action.RenameFree(_) => true
+           | Action.RenameFree(_, _) => true
            | _ => false
            }
          ),

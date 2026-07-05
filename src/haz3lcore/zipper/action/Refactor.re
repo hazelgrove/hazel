@@ -451,6 +451,13 @@ let hit_let = (target: Id.t, e: Exp.t): bool =>
   | _ => false
   };
 
+let hit_fun = (target: Id.t, e: Exp.t): bool =>
+  switch (IdTagged.term_of(e)) {
+  | Fun(p, _, _, _) =>
+    hit_node(target, e) || List.mem(target, pat_subtree_ids(p))
+  | _ => false
+  };
+
 /* Replace a Let with a rewrite of its parts */
 let rewrite_let =
     (
@@ -1436,23 +1443,38 @@ let free_vars_in = (~info_map: Statics.Map.t, e: Exp.t): list(string) => {
   acc^;
 };
 
-/* candidate names: free within the binder's scope region (body; def
- * too when it's a fun, matching recursive-let scope), most
- * occurrences first */
+/* candidate names: free within the binder's scope region (a let's
+ * body — def too when it's a fun, matching recursive-let scope; a
+ * fun's body), most occurrences first */
 let rename_candidates =
-    (~info_map: Statics.Map.t, e: Exp.t): list((string, int)) =>
+    (~info_map: Statics.Map.t, e: Exp.t): list((string, int)) => {
+  let names =
+    switch (IdTagged.term_of(e)) {
+    | Let(_, def, body) =>
+      let in_def =
+        switch (IdTagged.term_of(def)) {
+        | Fun(_) => free_vars_in(~info_map, def)
+        | _ => []
+        };
+      free_vars_in(~info_map, body) @ in_def;
+    | Fun(_, body, _, _) => free_vars_in(~info_map, body)
+    | _ => []
+    };
+  names
+  |> List.sort_uniq(compare)
+  |> List.map(x => (x, names |> List.filter(y => y == x) |> List.length))
+  |> List.sort(((_, a), (_, b)) => compare(b, a));
+};
+
+/* names a binder node offers as rename targets */
+let binder_names = (e: Exp.t): list(string) =>
   switch (IdTagged.term_of(e)) {
-  | Let(_, def, body) =>
-    let in_def =
-      switch (IdTagged.term_of(def)) {
-      | Fun(_) => free_vars_in(~info_map, def)
-      | _ => []
-      };
-    let names = free_vars_in(~info_map, body) @ in_def;
-    names
-    |> List.sort_uniq(compare)
-    |> List.map(x => (x, names |> List.filter(y => y == x) |> List.length))
-    |> List.sort(((_, a), (_, b)) => compare(b, a));
+  | Let(p, _, _) =>
+    switch (var_pat_name(p)) {
+    | Some(y) => [y]
+    | None => []
+    }
+  | Fun(p, _, _, _) => pat_var_names(p) |> List.sort_uniq(compare)
   | _ => []
   };
 
@@ -1509,41 +1531,43 @@ let rec rename_free_in =
   };
 };
 
-let rename_free_impl = (x: string): impl => {
-  label: "Rename " ++ x,
+let rename_free_impl = (x: string, y: string): impl => {
+  label: "Rename " ++ x ++ " to " ++ y,
   tooltip: "Bind free occurrences of " ++ x ++ " at this binding",
   prepare: (~info_map, ~target, program) =>
-    rewrite_node(
-      ~hit=hit_let(target),
-      ~rewrite=
-        e =>
-          switch (IdTagged.term_of(e)) {
-          | Let(p, def, body) =>
-            switch (var_pat_name(p)) {
-            | Some(y) when y != x =>
-              let count = ref(0);
-              let ren = rename_free_in(~info_map, ~count, x, y);
-              let def' =
-                switch (IdTagged.term_of(def)) {
-                | Fun(_) => ren(def)
-                | _ => def
-                };
-              let body' = ren(body);
-              count^ > 0
-                ? Some((
-                    {
-                      ...e,
-                      term: Let(p, def', body'),
-                    },
-                    Pat.rep_id(p),
-                  ))
-                : None;
-            | _ => None
-            }
-          | _ => None
-          },
-      program,
-    ),
+    x == y
+      ? None
+      : rewrite_node(
+          ~hit=e => hit_let(target, e) || hit_fun(target, e),
+          ~rewrite=
+            e =>
+              List.mem(y, binder_names(e))
+                ? {
+                  let count = ref(0);
+                  let ren = rename_free_in(~info_map, ~count, x, y);
+                  let e': Exp.t =
+                    switch (IdTagged.term_of(e)) {
+                    | Let(p, def, body) =>
+                      let def' =
+                        switch (IdTagged.term_of(def)) {
+                        | Fun(_) => ren(def)
+                        | _ => def
+                        };
+                      {
+                        ...e,
+                        term: Let(p, def', ren(body)),
+                      };
+                    | Fun(p, body, t, n) => {
+                        ...e,
+                        term: Fun(p, ren(body), t, n),
+                      }
+                    | _ => e
+                    };
+                  count^ > 0 ? Some((e', Exp.rep_id(e'))) : None;
+                }
+                : None,
+          program,
+        ),
 };
 
 let impl: Action.refactor => impl =
@@ -1553,7 +1577,7 @@ let impl: Action.refactor => impl =
   | AddTypeAnnotation => add_annotation_impl
   | AddCaseArm => add_case_arm_impl
   | AddParameter => add_param_impl
-  | RenameFree(x) => rename_free_impl(x)
+  | RenameFree(x, y) => rename_free_impl(x, y)
   | IfToCase => if_to_case_impl
   | CaseToIf => case_to_if_impl
   | ExtractLet => extract_let_impl
@@ -1651,10 +1675,14 @@ let applies =
     | Some(e) => Option.is_some(add_param_rewrite(~program, e))
     | None => false
     }
-  | RenameFree(x) =>
-    switch (find_hit(~hit=hit_let(target), program)) {
+  | RenameFree(x, y) =>
+    switch (
+      find_hit(~hit=e => hit_let(target, e) || hit_fun(target, e), program)
+    ) {
     | Some(e) =>
-      rename_candidates(~info_map, e) |> List.exists(((n, _)) => n == x)
+      List.mem(y, binder_names(e))
+      && rename_candidates(~info_map, e)
+         |> List.exists(((n, _)) => n == x)
     | None => false
     }
   | AddCaseArm =>
@@ -1720,25 +1748,23 @@ let applies =
 let rename_items =
     (~info_map: Statics.Map.t, ~target: Id.t, term: Exp.t)
     : list((Action.refactor, string, string)) =>
-  switch (find_hit(~hit=hit_let(target), term)) {
+  switch (
+    find_hit(~hit=e => hit_let(target, e) || hit_fun(target, e), term)
+  ) {
   | Some(e) =>
-    switch (IdTagged.term_of(e)) {
-    | Let(p, _, _) =>
-      switch (var_pat_name(p)) {
-      | Some(y) =>
-        rename_candidates(~info_map, e)
-        |> List.filter(((x, _)) => x != y)
-        |> List.map(((x, _)) =>
-             (
-               Action.RenameFree(x),
-               "Rename " ++ x ++ " to " ++ y,
-               "Bind free occurrences of " ++ x ++ " at this binding",
-             )
-           )
-      | None => []
-      }
-    | _ => []
-    }
+    let ys = binder_names(e);
+    rename_candidates(~info_map, e)
+    |> List.concat_map(((x, _)) =>
+         ys
+         |> List.filter(y => y != x)
+         |> List.map(y =>
+              (
+                Action.RenameFree(x, y),
+                "Rename " ++ x ++ " to " ++ y,
+                "Bind free occurrences of " ++ x ++ " at this binding",
+              )
+            )
+       );
   | None => []
   };
 
