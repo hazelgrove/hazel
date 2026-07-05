@@ -75,6 +75,28 @@ map@<T>@<Int>(fun e -> string_length(e), ["hello","bar"])|},
 pair@<Int, Bool>(3)(true)|},
         )
       ),
+    test_case("Implicit polymorphic id evaluates", `Quick, () =>
+      parse_and_evaluate_test(
+        "1",
+        {|let id : poly a -> a -> a = abs a -> fun x : a -> x in id(1)|},
+      )
+    ),
+    test_case("Implicit multi-binder polymorphic pair evaluates", `Quick, () =>
+      parse_and_evaluate_test(
+        "(3, true)",
+        {|let pair : poly a, b -> a -> b -> (a, b) =
+  abs a, b -> fun x : a -> fun y : b -> (x, y) in
+pair(3)(true)|},
+      )
+    ),
+    test_case("Implicit curried polymorphic const evaluates", `Quick, () =>
+      parse_and_evaluate_test(
+        "3",
+        {|let const : poly a -> poly b -> a -> b -> a =
+  abs a -> abs b -> fun x : a -> fun y : b -> x in
+const(3)(true)|},
+      )
+    ),
     /* Regression: a recursive polymorphic `map` with parenthesized
        multi-binder polymorphism (`poly (a, b) -> …`, internal
        `TPat.Tuple`) and `abs (a, b) -> …` must fully evaluate the

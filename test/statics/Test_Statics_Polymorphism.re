@@ -40,6 +40,31 @@ let tests = (
       {|let x : poly a -> a = in let y : poly b -> b = x in 1|},
       Some(int()),
     ),
+    fully_consistent_typecheck(
+      "Implicit polymorphic function application instantiates with ?",
+      {|let id : poly a -> a -> a = abs a -> fun x : a -> x in id(1)|},
+      Some(unknown(Internal)),
+    ),
+    fully_consistent_typecheck(
+      "Explicit branch meets implicit polymorphic application",
+      {|let id : poly a -> a -> a = abs a -> fun x : a -> x in
+if true then id@<Int>(1) else id(0)|},
+      Some(int()),
+    ),
+    fully_consistent_typecheck(
+      "Implicit multi-binder polymorphic application instantiates all binders",
+      {|let pair : poly a, b -> a -> b -> (a, b) =
+  abs a, b -> fun x : a -> fun y : b -> (x, y) in
+pair(3)(true)|},
+      Some(prod([unknown(Internal), unknown(Internal)])),
+    ),
+    fully_consistent_typecheck(
+      "Implicit curried polymorphic application instantiates leading binders",
+      {|let const : poly a -> poly b -> a -> b -> a =
+  abs a -> abs b -> fun x : a -> fun y : b -> x in
+const(3)(true)|},
+      Some(unknown(Internal)),
+    ),
     inconsistent_typecheck(
       "Polymorphic Equality type inconsistency 1",
       {| 1 == 1. |} |> parse_exp,

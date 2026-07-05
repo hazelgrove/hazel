@@ -345,6 +345,22 @@ let x : Option(Int) = Some(3) in x
         ),
       )
     }),
+    test_case("explicit and implicit Some branches meet", `Quick, () => {
+      let marks =
+        static_errors(
+          {|
+type Option(a) = + None + Some(a) in
+if true then Some@<Int>(1) else Some(0)
+|},
+        );
+
+      Alcotest.check(
+        list(testable_issue),
+        "Static Errors",
+        [],
+        List.map(ms => Marks([ms]), marks),
+      );
+    }),
     test_case("elaboration wraps recursive Cons/Nil in TypAp", `Quick, () => {
       check(
         bool,
