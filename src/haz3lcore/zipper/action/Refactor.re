@@ -1465,7 +1465,26 @@ let rec let_head_name = (p: Pat.t): option(string) =>
  * the sugar fn name (recursive) and fun-valued lets scope over def
  * and body; arm pats scope over their own body (arm chosen by
  * target). */
-let rename_sites =
+/* (name, own ids) for each var bound in a pattern: targeting a
+ * specific binder token narrows the offer to that name */
+let pat_var_id_sites = (p: Pat.t): list((string, list(Id.t))) => {
+  let acc = ref([]);
+  let _ =
+    Pat.map_term(
+      ~f_pat=
+        (cont, p': Pat.t) => {
+          switch (IdTagged.term_of(p')) {
+          | Var(x) => acc := [(x, IdTagged.ids(p')), ...acc^]
+          | _ => ()
+          };
+          cont(p');
+        },
+      p,
+    );
+  acc^;
+};
+
+let rename_sites_unfiltered =
     (~target: Id.t, e: Exp.t): list((string, list(Exp.t))) =>
   switch (IdTagged.term_of(e)) {
   | Let(p, def, body) =>
@@ -1501,6 +1520,42 @@ let rename_sites =
        )
   | _ => []
   };
+
+/* Targeting precision: a caret on a specific bound var offers only
+ * that binder's renames; the construct's delimiters (or the fn name
+ * itself) mean the head binder — for sugar defs, the function name,
+ * not its params. */
+let rename_sites =
+    (~target: Id.t, e: Exp.t): list((string, list(Exp.t))) => {
+  let sites = rename_sites_unfiltered(~target, e);
+  let pats =
+    switch (IdTagged.term_of(e)) {
+    | Let(p, _, _)
+    | Fun(p, _, _, _) => [p]
+    | Match(_, rules) =>
+      rules
+      |> List.filter_map(((p, _)) =>
+           List.mem(target, pat_subtree_ids(p)) ? Some(p) : None
+         )
+    | _ => []
+    };
+  let var_hit =
+    pats
+    |> List.concat_map(pat_var_id_sites)
+    |> List.find_opt(((_, ids)) => List.mem(target, ids));
+  switch (var_hit) {
+  | Some((y, _)) => sites |> List.filter(((y', _)) => y' == y)
+  | None =>
+    switch (IdTagged.term_of(e)) {
+    | Let(p, _, _) =>
+      switch (sugar_fn_name(p)) {
+      | Some(f) => sites |> List.filter(((y, _)) => y == f)
+      | None => sites
+      }
+    | _ => sites
+    }
+  };
+};
 
 let hit_rename = (target: Id.t, e: Exp.t): bool =>
   hit_let(target, e) || hit_fun(target, e) || hit_match_pat(target, e);

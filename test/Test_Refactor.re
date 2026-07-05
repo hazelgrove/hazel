@@ -641,7 +641,7 @@ let rename_tests = [
     `Quick,
     () => {
       let got =
-        inline(~kind=RenameFree("q", "n"), "¦let f(n) = q + 1 in f(2)")
+        inline(~kind=RenameFree("q", "n"), "let f(¦n) = q + 1 in f(2)")
         |> text_of;
       check(string, "param bound", "let f(n) = n + 1 in f(2)", got);
     },
@@ -654,6 +654,34 @@ let rename_tests = [
         inline(~kind=RenameFree("g", "f"), "¦let f(n) = g(n) in g(2)")
         |> text_of;
       check(string, "both regions", "let f(n) = f(n) in f(2)", got);
+    },
+  ),
+  test_case(
+    "let delimiters mean the fn name, not params",
+    `Quick,
+    () => {
+      let kinds = kinds_at("¦let f(n) = q + 1 in f(2)");
+      check(
+        bool,
+        "q->f only",
+        true,
+        List.mem(Action.RenameFree("q", "f"), kinds)
+        && !List.mem(Action.RenameFree("q", "n"), kinds),
+      );
+    },
+  ),
+  test_case(
+    "caret on a param narrows to it",
+    `Quick,
+    () => {
+      let kinds = kinds_at("fun (¦a, b) -> q + 1");
+      check(
+        bool,
+        "q->a only",
+        true,
+        List.mem(Action.RenameFree("q", "a"), kinds)
+        && !List.mem(Action.RenameFree("q", "b"), kinds),
+      );
     },
   ),
   test_case(
