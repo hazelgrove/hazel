@@ -108,6 +108,13 @@ let binding_synthesis = [
     "let ? = (1, 2) in ?",
   ),
   synthesis_case(
+    ~focus=first_fun,
+    "bind-syn-fun-err-def",
+    "let x : (Int, Int) = fun y -> y in ?",
+    "? -> ?",
+    "let ? = fun ? -> ? in ?",
+  ),
+  synthesis_case(
     ~focus=first_tuple,
     "bind-syn-tuple-gap",
     "let x : (Int, Int) = (1, ?) in ?",

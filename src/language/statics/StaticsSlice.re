@@ -1725,7 +1725,12 @@ let rec node_of_exp_info =
       let omitted = omitted_ids(children);
       let base =
         switch (Typ.term_of(info.ty), sources, kept) {
-        | (Arrow(_), [domain], [codomain]) => {
+        | (_, [domain], [codomain])
+            when
+              switch (term) {
+              | Fun(_, _, _, _) => true
+              | _ => false
+              } => {
             shape: Arrow(domain.shape, codomain.shape) |> Typ.temp,
             dispatch: query => {
               let (q_domain, q_codomain) =
@@ -2626,8 +2631,8 @@ let validate_focus =
       | Info.InfoExp({user_term: {term: Atom(_), _}, _})
           when direction == `Syn && is_arrow_query(query) =>
         raise(Incompatible_query(query))
-      | Info.InfoExp({ty, ctx, _}) when direction == `Syn =>
-        if (!is_gap(query) && Typ.meet(ctx, ty, query) == None) {
+      | Info.InfoExp({elab_syn_ty, ctx, _}) when direction == `Syn =>
+        if (!is_gap(query) && Typ.meet(ctx, elab_syn_ty, query) == None) {
           raise(Incompatible_query(query));
         }
       | _ => ()
