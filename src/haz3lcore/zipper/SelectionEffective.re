@@ -34,6 +34,52 @@ let contiguous_range = (~ids: list(Id.t), segment: Segment.t): Segment.t => {
   };
 };
 
+let ids_spanned_at_current_level =
+    (~selected_ids: list(Id.t), ~current_level: Segment.t): list(Id.t) => {
+  let indices =
+    current_level
+    |> List.mapi((i, piece) =>
+         piece_contains_any_id(~ids=selected_ids, piece) ? Some(i) : None
+       )
+    |> List.filter_map(Fun.id);
+  switch (indices) {
+  | [] => []
+  | [first, ...rest] =>
+    let (min_i, max_i) =
+      List.fold_left(
+        ((lo, hi), i) => (min(lo, i), max(hi, i)),
+        (first, first),
+        rest,
+      );
+    ListUtil.sublist((min_i, max_i + 1), current_level) |> Segment.ids;
+  };
+};
+
+let piece_has_label = (label: list(string), piece: Piece.t): bool =>
+  switch (piece) {
+  | Tile(t) => t.label == label
+  | Grout(_)
+  | Secondary(_)
+  | Projector(_) => false
+  };
+let segment_has_label = (label: list(string), segment: Segment.t): bool =>
+  segment |> List.exists(piece_has_label(label));
+
+let segment_label_ids =
+    (label: list(string), segment: Segment.t): list(Id.t) =>
+  segment |> List.filter(piece_has_label(label)) |> List.map(Piece.id);
+
+let intersects = (left: list(Id.t), right: list(Id.t)): bool =>
+  left |> List.exists(id => List.mem(id, right));
+
+let display_comma_separated_segment =
+    (~selection: Segment.t, ~current_level: Segment.t): option(Segment.t) => {
+  let selected_comma_ids = segment_label_ids([","], selection);
+  selected_comma_ids != []
+  && intersects(selected_comma_ids, segment_label_ids([","], current_level))
+    ? Some(current_level) : None;
+};
+
 let binop_id = (~info_map: Language.Statics.Map.t, ids: list(Id.t)) =>
   ids
   |> List.filter(id =>
@@ -62,20 +108,29 @@ let associative_segment =
   switch (z.selection.content) {
   | [] => []
   | selection =>
+    let current_level = current_level_segment(z);
+    let selected_ids =
+      Segment.ids(selection)
+      @ ids_spanned_at_current_level(
+          ~selected_ids=Segment.ids(selection),
+          ~current_level,
+        )
+      |> ListUtil.dedup;
     let snapped_ids =
-      selection
-      |> List.map(Piece.id)
-      |> List.concat_map(id =>
-           Language.AssocSelection.find_assoc_for_id(id, info_map)
-         );
+      Language.AssocSelection.find_assoc_for_ids(selected_ids, info_map);
     switch (snapped_ids) {
-    | [] => selection
+    | [] =>
+      display_comma_separated_segment(~selection, ~current_level)
+      |> Option.value(~default=selection)
     | ids =>
-      let current_level = current_level_segment(z);
       switch (contiguous_range(~ids, current_level)) {
-      | [] => selection
-      | segment => segment
-      };
+      | [] =>
+        display_comma_separated_segment(~selection, ~current_level)
+        |> Option.value(~default=selection)
+      | segment =>
+        display_comma_separated_segment(~selection, ~current_level)
+        |> Option.value(~default=segment)
+      }
     };
   };
 };

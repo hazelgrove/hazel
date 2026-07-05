@@ -1,8 +1,7 @@
 open Alcotest;
 open Haz3lcore;
 
-let effective_segment_string = (input: string): string => {
-  let z = Test_Editing.mk_zipper(input);
+let effective_segment_string_from_zipper = (z: Zipper.t): string => {
   let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
   let statics =
     CachedStatics.init_from_term(
@@ -20,6 +19,11 @@ let effective_segment_string = (input: string): string => {
   |> Printer.of_segment(~holes="?", ~concave_holes="~", ~indent=" ");
 };
 
+let effective_segment_string = (input: string): string => {
+  let z = Test_Editing.mk_zipper(input);
+  effective_segment_string_from_zipper(z);
+};
+
 let test = (~name, ~input, ~expected) =>
   test_case(name, `Quick, () =>
     check(
@@ -27,6 +31,30 @@ let test = (~name, ~input, ~expected) =>
       expected,
       expected,
       effective_segment_string(input),
+    )
+  );
+
+let effective_segment_after_drag =
+    (~input: string, ~start_col: int, ~end_col: int): string => {
+  let z =
+    Test_Editing.perform(
+      Zipper.init(),
+      Test_Editing.mk(input)
+      @ [
+        Test_Editing.move_point(~col=start_col, ()),
+        Test_Editing.resize_point(~col=end_col, ()),
+      ],
+    );
+  effective_segment_string_from_zipper(z);
+};
+
+let test_drag = (~name, ~input, ~start_col, ~end_col, ~expected) =>
+  test_case(name, `Quick, () =>
+    check(
+      testable(Fmt.string, String.equal),
+      expected,
+      expected,
+      effective_segment_after_drag(~input, ~start_col, ~end_col),
     )
   );
 
@@ -63,6 +91,96 @@ let tests = (
       ~name="function name selection with simple argument stays on function",
       ~input={|§f¦(x)|},
       ~expected={|f|},
+    ),
+    test(
+      ~name="tuple comma selection snaps over all expressions",
+      ~input={|(1 §, 2¦, 3)|},
+      ~expected={|1 , 2, 3|},
+    ),
+    test_drag(
+      ~name="tuple drag crossing adjacent comma snaps over all expressions",
+      ~input={|(1, 2, 3, 4, 5)¦|},
+      ~start_col=8,
+      ~end_col=9,
+      ~expected={|1, 2, 3, 4, 5|},
+    ),
+    test(
+      ~name="tuple item-to-comma selection snaps over all expressions",
+      ~input={|(1, 2, §3,¦ 4, 5)|},
+      ~expected={|1, 2, 3, 4, 5|},
+    ),
+    test(
+      ~name=
+        "tuple compound item-to-comma selection snaps over all expressions",
+      ~input={|(1, 2, §3 + 4 + 5,¦ 4, 5)|},
+      ~expected={|1, 2, 3 + 4 + 5, 4, 5|},
+    ),
+    test(
+      ~name=
+        "tuple comma selection snaps over all expressions from later comma",
+      ~input={|(1, 2 §, 3¦)|},
+      ~expected={|1, 2 , 3|},
+    ),
+    test(
+      ~name=
+        "tuple item-to-item selection across comma snaps over all expressions",
+      ~input={|(1, §3, 4¦, 5)|},
+      ~expected={|1, 3, 4, 5|},
+    ),
+    test(
+      ~name="nested tuple comma selection stays inside inner tuple",
+      ~input={|(1, (2 §, 3¦), 4)|},
+      ~expected={|2 , 3|},
+    ),
+    test(
+      ~name="labeled tuple comma selection snaps over all expressions",
+      ~input={|(a = 2, b = §3, 1¦ + 2 + 3)|},
+      ~expected={|a = 2, b = 3, 1 + 2 + 3|},
+    ),
+    test(
+      ~name=
+        "labeled tuple value-to-comma selection snaps over all expressions",
+      ~input={|(a = 2, b = §3,¦ 4, 5)|},
+      ~expected={|a = 2, b = 3, 4, 5|},
+    ),
+    test(
+      ~name=
+        "labeled tuple compound value-to-comma selection snaps over all expressions",
+      ~input={|(a = 2, b = §3 + 4 + 5,¦ 4, 5)|},
+      ~expected={|a = 2, b = 3 + 4 + 5, 4, 5|},
+    ),
+    test(
+      ~name=
+        "labeled tuple assignment-to-comma selection snaps over all expressions",
+      ~input={|(a = 2, §b = 3,¦ 4, 5)|},
+      ~expected={|a = 2, b = 3, 4, 5|},
+    ),
+    test(
+      ~name="list comma selection snaps over all expressions",
+      ~input={|[1 §, 2¦, 3]|},
+      ~expected={|1 , 2, 3|},
+    ),
+    test(
+      ~name="tuple pattern comma selection snaps over all patterns",
+      ~input={|fun (x §, y¦, z) -> x|},
+      ~expected={|x , y, z|},
+    ),
+    test(
+      ~name="tuple type comma selection snaps over all types",
+      ~input={|let x : (Int §, Bool¦, String) = (1, true, "s") in x|},
+      ~expected={|Int , Bool, String|},
+    ),
+    test(
+      ~name="type arrow selection snaps right-associatively",
+      ~input=
+        {|let f : Int §-> Bool¦ -> String = fun x -> fun y -> "s" in f|},
+      ~expected={|Int -> Bool -> String|},
+    ),
+    test(
+      ~name="nested type arrow selection snaps over its adjacent types",
+      ~input=
+        {|let f : Int -> Bool §-> String¦ = fun x -> fun y -> "s" in f|},
+      ~expected={|Bool -> String|},
     ),
   ],
 );
