@@ -916,6 +916,24 @@ let move_tests = [
     },
   ),
   test_case(
+    "hoist out of a multiline def keeps line structure",
+    `Quick,
+    () => {
+      let got =
+        inline(
+          ~kind=HoistLet,
+          "let d =\n  ¦let x = 1 in\n  f(x)\nin\nd",
+        )
+        |> text_of;
+      check(
+        string,
+        "own lines",
+        "let x = 1 in\nlet d =\n  f(x)\nin\nd",
+        got,
+      );
+    },
+  ),
+  test_case(
     "sink through a chain",
     `Quick,
     () => {

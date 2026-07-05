@@ -1676,6 +1676,22 @@ let names_mentioned = (names: list(string), e: Exp.t): bool =>
 let disjoint_names = (a: list(string), b: list(string)): bool =>
   !(a |> List.exists(n => List.mem(n, b)));
 
+let newline = (): list(Secondary.t) => [
+  {
+    id: Id.mk(),
+    content: Whitespace("\n"),
+  },
+];
+
+let has_newline = (ws: list(Secondary.t)): bool =>
+  ws
+  |> List.exists((w: Secondary.t) =>
+       switch (w.content) {
+       | Whitespace(s) => String.contains(s, '\n')
+       | _ => false
+       }
+     );
+
 let with_secondary =
     (secondary: (list(Secondary.t), list(Secondary.t)), e: Exp.t): Exp.t => {
   ...e,
@@ -1738,7 +1754,14 @@ let hoist_step = (path: list(Exp.t)): option((Exp.t, Exp.t, Id.t)) => {
         /* out of a def: above that line */
         let c': Exp.t =
           same_node(c, l)
-            ? with_secondary(l.annotation.secondary, lbody)
+            ? {
+              /* the def slot's occupant is now lbody, which brings its
+                 own lead; l's trailing run (before the outer in) stays
+                 with the def position */
+              let (cb, ca) = lbody.annotation.secondary;
+              let (_, l_after) = l.annotation.secondary;
+              with_secondary((cb, ca @ l_after), lbody);
+            }
             : {
               let (_, after) = lbody.annotation.secondary;
               {
@@ -1746,10 +1769,28 @@ let hoist_step = (path: list(Exp.t)): option((Exp.t, Exp.t, Id.t)) => {
                 term: Parens(with_secondary(([], after), lbody)),
               };
             };
-        let m': Exp.t = {
-          ...p,
-          term: Let(mp, c', mbody),
+        /* the pushed-down let starts a NEW line slot: synthesize its
+           lead from the slot above (P's own lead), else a bare newline
+           when the def was multiline, else stay inline */
+        let (p_lead, p_after) = p.annotation.secondary;
+        let (l_lead, _) = l.annotation.secondary;
+        let sep = {
+          let multiline =
+            has_newline(l_lead)
+            || has_newline(fst(lbody.annotation.secondary));
+          switch (p_lead) {
+          | [_, ..._] => copy_runs(p_lead)
+          | [] => multiline ? newline() : []
+          };
         };
+        let m': Exp.t =
+          with_secondary(
+            (sep, p_after),
+            {
+              ...p,
+              term: Let(mp, c', mbody),
+            },
+          );
         let l': Exp.t =
           with_secondary(
             ([], []),
