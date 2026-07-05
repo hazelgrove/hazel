@@ -674,7 +674,8 @@ let tests = (
         check(string, "full query", "((Int, Int), Int, Int)", render(typ));
         let examples =
           Web.ExplainThis.TypeSlicing.examples(typ)
-          |> List.map(({omitted, query}: Web.ExplainThis.TypeSlicing.example) =>
+          |> List.map(
+               ({omitted, query}: Web.ExplainThis.TypeSlicing.example) =>
                (render(omitted), render(query))
              );
         check(
@@ -687,11 +688,18 @@ let tests = (
           examples,
         );
         let folded_query =
-          switch (Web.ExplainThis.TypeSlicing.examples(parse_typ("(Int, Int)"))) {
+          switch (
+            Web.ExplainThis.TypeSlicing.examples(parse_typ("(Int, Int)"))
+          ) {
           | [{query, _}, ..._] => query
           | [] => fail("no examples for (Int, Int)")
           };
-        check(string, "folded current query", "(?, Int)", render(folded_query));
+        check(
+          string,
+          "folded current query",
+          "(?, Int)",
+          render(folded_query),
+        );
         check(
           list(pair(string, string)),
           "folded query yields one example, skipping the fold",

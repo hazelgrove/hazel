@@ -166,8 +166,7 @@ let exp_focus_at = (e: Exp.t, k: int): Id.t =>
   | ids => List.nth(ids, k mod List.length(ids))
   };
 
-let validity_check =
-    (~direction, ~ty_of: Info.exp => Typ.t, (e, k, j)): bool => {
+let validity_check = (~direction, ~ty_of: Info.exp => Typ.t, (e, k, j)): bool => {
   let focus = exp_focus_at(e, k);
   switch (statics_map(base_ctx(), e)) {
   | None => true
