@@ -376,6 +376,50 @@ let tests = (
       },
     ),
     test_case(
+      "query type editor sees program aliases",
+      `Quick,
+      () => {
+        let code = code_model("type Digit = A + B in (? : Digit)");
+        let asc =
+          info_exp_id(code, e =>
+            switch (Exp.term_of(e)) {
+            | Asc(_, _) => true
+            | _ => false
+            }
+          );
+        let ci =
+          switch (Id.Map.find_opt(asc, code.statics.info_map)) {
+          | Some(ci) => ci
+          | None => fail("ascription info missing")
+          };
+        let row = CI.Model.refresh_row(Synthesizing, ci, CI.Model.empty_row);
+        switch (row.editor) {
+        | CI.Model.EditorSlot.SomeEditor(editor) =>
+          let src = render_folded(editor);
+          let contains = (needle, hay) => {
+            let n = String.length(needle);
+            let h = String.length(hay);
+            let rec go = i =>
+              i + n <= h && (String.sub(hay, i, n) == needle || go(i + 1));
+            go(0);
+          };
+          check(
+            bool,
+            "query editor shows the alias name",
+            true,
+            contains("Digit", src),
+          );
+          check(
+            bool,
+            "alias in query editor is bound",
+            true,
+            editor.statics.error_ids == [],
+          );
+        | CI.Model.EditorSlot.NoEditor => fail("query editor missing")
+        };
+      },
+    ),
+    test_case(
       "folding arrow type editor is stable",
       `Quick,
       () => {
@@ -729,7 +773,9 @@ let tests = (
       () => {
         let ctx = Test_Statics_Slicing_Prelude.base_ctx();
         let queries = (syn, ana) =>
-          switch (CI.ErrorSlicing.queries(ctx, parse_typ(syn), parse_typ(ana))) {
+          switch (
+            CI.ErrorSlicing.queries(ctx, parse_typ(syn), parse_typ(ana))
+          ) {
           | Some((qs, qa)) => (render_typ(qs), render_typ(qa))
           | None => fail("expected a type inconsistency")
           };
@@ -743,10 +789,7 @@ let tests = (
           pair(string, string),
           "nested clash keeps path, folds rest",
           ("(?, ?) -> ?", "(? -> ?) -> ?"),
-          queries(
-            "(Int, Int) -> (Int, Int)",
-            "(Int -> Int) -> (Int -> Int)",
-          ),
+          queries("(Int, Int) -> (Int, Int)", "(Int -> Int) -> (Int -> Int)"),
         );
         check(
           bool,

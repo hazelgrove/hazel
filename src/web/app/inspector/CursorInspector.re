@@ -155,7 +155,7 @@ let type_menu_showing: ContextMenu.parts = {
   projectors: true,
 };
 
-let type_editor_of_type = (typ: Typ.t): (Id.t, CodeEditable.Model.t) => {
+let type_editor_of_type = (~ctx=?, typ: Typ.t): (Id.t, CodeEditable.Model.t) => {
   let typ = Typ.replace_temp(typ);
   let zipper =
     ExpToSegment.typ_to_segment(~settings=code_view_settings, typ)
@@ -164,6 +164,7 @@ let type_editor_of_type = (typ: Typ.t): (Id.t, CodeEditable.Model.t) => {
     CachedStatics.init(
       ~settings=CoreSettings.on,
       ~stitch=x => x,
+      ~ctx?,
       ~is_dynamic_term=false,
       ~root=Sort.Typ,
       zipper,
@@ -398,7 +399,8 @@ module Model = {
               || Id.equal(old_typ, source_typ_id)
             ) => row
       | _ =>
-        let (typ_id, editor) = type_editor_of_type(typ);
+        let (typ_id, editor) =
+          type_editor_of_type(~ctx=Info.ctx_of(ci), typ);
         {
           ...row,
           cursor_id: OptionalId.SomeId(cursor_id),
@@ -919,18 +921,20 @@ module Update = {
     };
 
   let calculate_type_editor =
-      (~settings: Settings.t, model: CodeEditable.Model.t)
+      (~settings: Settings.t, ~ctx=?, model: CodeEditable.Model.t)
       : CodeEditable.Model.t =>
     CodeWithStatics.Update.calculate(
       ~settings=settings.core,
       ~is_edited=true,
+      ~ctx?,
       ~stitch=x => x,
       ~dynamics=model.dynamics,
       ~is_dynamic_term=false,
       model,
     );
 
-  let move_editor_to_root = (~settings: Settings.t, row: Model.row): Model.row =>
+  let move_editor_to_root =
+      (~settings: Settings.t, ~ctx=?, row: Model.row): Model.row =>
     switch (row.typ_id, row.editor) {
     | (Model.OptionalId.SomeId(id), Model.EditorSlot.SomeEditor(editor)) =>
       switch (CodeEditable.Selection.jump_to_tile(id, editor)) {
@@ -941,7 +945,7 @@ module Update = {
           ...row,
           editor:
             Model.EditorSlot.SomeEditor(
-              calculate_type_editor(~settings, updated.model),
+              calculate_type_editor(~settings, ~ctx?, updated.model),
             ),
         };
       | None => row
@@ -974,12 +978,13 @@ module Update = {
           animate_type_editor_caret(~settings, editor_action);
           let updated =
             CodeEditable.Update.update(~settings, editor_action, editor);
+          let ctx = Option.map(Info.ctx_of, cursor_info);
           let model =
             {
               ...row,
               editor:
                 Model.EditorSlot.SomeEditor(
-                  calculate_type_editor(~settings, updated.model),
+                  calculate_type_editor(~settings, ~ctx?, updated.model),
                 ),
             }
             |> Model.put_row(target, _, model);
@@ -1017,6 +1022,7 @@ module Update = {
           if (now_active) {
             move_editor_to_root(
               ~settings,
+              ~ctx=Info.ctx_of(ci),
               Model.refresh_row(
                 target,
                 ci,
@@ -1049,7 +1055,8 @@ module Update = {
         | None => model |> Updated.return_quiet
         | Some((syn_query, ana_query)) =>
           let mk_row = typ => {
-            let (typ_id, editor) = type_editor_of_type(typ);
+            let (typ_id, editor) =
+              type_editor_of_type(~ctx=Info.ctx_of(ci), typ);
             Model.{
               active: true,
               cursor_id: Model.OptionalId.SomeId(Info.id_of(ci)),
@@ -1079,7 +1086,11 @@ module Update = {
               ...row,
               editor:
                 Model.EditorSlot.SomeEditor(
-                  calculate_type_editor(~settings, updated.model),
+                  calculate_type_editor(
+                    ~settings,
+                    ~ctx=Info.ctx_of(ci),
+                    updated.model,
+                  ),
                 ),
             }
             |> Model.put_row(target, _, model);
