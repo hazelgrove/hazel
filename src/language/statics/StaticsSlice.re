@@ -743,9 +743,52 @@ let list_concat = (~shape: Typ.t, left: sty): sty => {
   finalize: () => empty_result,
 };
 
+let rec tpat_gap = (binder: TPat.t): TPat.t =>
+  switch (binder.term) {
+  | Tuple(binders) => {
+      ...binder,
+      term: Tuple(List.map(tpat_gap, binders)),
+    }
+  | Parens(inner) => {
+      ...binder,
+      term: Parens(tpat_gap(inner)),
+    }
+  | _ => {
+      ...binder,
+      term: EmptyHole,
+    }
+  };
+
+let instantiate_poly_body = (binder: TPat.t, body: Typ.t): Typ.t => {
+  let binders = TPat.binders_of(binder);
+  Typ.subst_many(List.map(_ => gap, binders), binders, body);
+};
+
+let rec leading_poly_shape = (shape: Typ.t): (list(TPat.t), Typ.t) =>
+  switch (Typ.term_of(shape)) {
+  | Parens(inner) => leading_poly_shape(inner)
+  | Poly(binder, body) =>
+    let (binders, body) =
+      leading_poly_shape(instantiate_poly_body(binder, body));
+    ([binder, ...binders], body);
+  | _ => ([], shape)
+  };
+
+let wrap_poly_query = (binders: list(TPat.t), query: Typ.t): Typ.t =>
+  List.fold_right(
+    (binder, query) => Poly(tpat_gap(binder), query) |> Typ.temp,
+    binders,
+    query,
+  );
+
+let ap_fn_query = (fn: sty, query: Typ.t): Typ.t => {
+  let (binders, _) = leading_poly_shape(fn.shape);
+  wrap_poly_query(binders, Arrow(gap, query) |> Typ.temp);
+};
+
 let ap = (~shape: Typ.t, fn: sty): sty => {
   shape,
-  dispatch: query => fn.dispatch(Arrow(gap, query) |> Typ.temp),
+  dispatch: query => fn.dispatch(ap_fn_query(fn, query)),
   finalize: () => empty_result,
 };
 
@@ -907,15 +950,16 @@ let rec align_deferred_queries =
 
 let deferred_fn_query =
     (fn: sty, arg_queries: list(Typ.t), query: Typ.t): Typ.t => {
+  let (binders, fn_shape) = leading_poly_shape(fn.shape);
   let out = query_codomain(query);
   let domain =
-    switch (Typ.term_of(fn.shape), arg_queries) {
+    switch (Typ.term_of(fn_shape), arg_queries) {
     | (Arrow({term: Prod(_), _}, _), [_, ..._] as queries) =>
       Prod(queries) |> Typ.temp
     | (Arrow(_, _), [query]) => query
     | _ => gap
     };
-  Arrow(domain, out) |> Typ.temp;
+  wrap_poly_query(binders, Arrow(domain, out) |> Typ.temp);
 };
 
 let deferred_ap = (~shape: Typ.t, ~term: Exp.term, children: list(sty)): sty => {
