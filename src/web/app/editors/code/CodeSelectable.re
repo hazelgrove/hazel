@@ -45,10 +45,7 @@ module Update = {
 
     // These actions are not allowed in a CodeSelectable
     | Perform(
-        Destruct(_) | Insert(_) | ReplaceTermWithSource(_, _) | Put_down |
-        Paste(_) |
-        Reparse |
-        Cut |
+        Destruct(_) | Insert(_) | Put_down | Paste(_) | Reparse | Cut |
         Buffer(_) |
         Project(_) |
         Structural(_) |

@@ -261,7 +261,6 @@ module Update = {
       }
       |> Calc.old_if_same'(thms);
     let thm_ids = Calc.get_value(thms);
-    let previous_thm_map = thm_map;
     let thm_map = Id.Map.filter((id, _) => List.mem(id, thm_ids), thm_map);
 
     // Calculate visible steppers
@@ -286,29 +285,6 @@ module Update = {
                id,
                (opt: option(Model.theorem)) => {
                  let conclusion_exp = rule |> ProofRule.conclusion_exp;
-                 let carried_stepper =
-                   Id.Map.fold(
-                     (_, thm: Model.theorem, acc) =>
-                       switch (acc, thm.goal_exp |> Calc.get_saved_opt) {
-                       | (Some(_), _) => acc
-                       | (None, Some(goal_exp))
-                           when
-                             thm.name == name
-                             && Equality.ignoring_ascriptions.exp(
-                                  goal_exp,
-                                  conclusion_exp,
-                                ) =>
-                         Some(StepperView.Model.persist(thm.stepper_view))
-                       | _ => None
-                       },
-                     previous_thm_map,
-                     None,
-                   );
-                 let seeded_theorem = stepper =>
-                   Model.{
-                     ...theorem_init("?"),
-                     stepper_view: StepperView.Model.unpersist(stepper),
-                   };
                  let Model.{
                    name: _,
                    ctx,
@@ -317,14 +293,7 @@ module Update = {
                    goal_exp,
                    stepper_view,
                  } =
-                   switch (opt) {
-                   | Some(thm) => thm
-                   | None =>
-                     switch (carried_stepper) {
-                     | Some(stepper) => seeded_theorem(stepper)
-                     | None => Model.theorem_init("?")
-                     }
-                   };
+                   Option.value(~default=Model.theorem_init("?"), opt);
 
                  let goal_changed =
                    has_changed_goal(goal_exp, conclusion_exp);

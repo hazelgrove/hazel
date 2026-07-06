@@ -260,40 +260,6 @@ let run_step_chain =
   };
 };
 
-let rec build_eval_step_chain = (~limit: int, exp: Exp.t) =>
-  if (limit <= 0) {
-    None;
-  } else {
-    switch (
-      EvaluatorStep.get_status(
-        ~settings=CoreSettings.on,
-        exp,
-        Environment.empty,
-      )
-    ) {
-    | AvailableSteps([]) => None
-    | AutoStep(step)
-    | AvailableSteps([step, ..._]) =>
-      let next_exp =
-        switch (EvaluatorStep.take_step(step)) {
-        | Some(next_exp) => next_exp
-        | None => failwith("step had no next expression")
-        };
-      Some(
-        mk_test_step(
-          ~step_kind=
-            StepperBase.SingleStep({
-              persistent_evalobj: EvaluatorStep.persist(step),
-              evalobj: Calc.Pending,
-              next_exp: Calc.Pending,
-            }),
-          ~next_step=build_eval_step_chain(~limit=limit - 1, next_exp),
-          (),
-        ),
-      );
-    };
-  };
-
 let calculate_stepper_view = (~exp, model: Web.StepperView.Model.t) =>
   Web.StepperView.Update.calculate(
     ~settings=Calc.NewValue(CoreSettings.on),
@@ -367,52 +333,6 @@ let tests = (
           "first taken step has a persisted next step",
           true,
           persistent.root.next_step != None,
-        );
-      },
-    ),
-    test_case(
-      "persisted one-step explorer seeds promoted equality theorem",
-      `Quick,
-      () => {
-        let original = parse_exp("1 + 2 + 3 + 4");
-        let stepper_view =
-          calculate_stepper_view(~exp=original, Web.StepperView.Model.init);
-        let stepper_view =
-          Web.StepperView.Update.update(
-            ~settings=Web.Settings.Model.init,
-            StepperBase.StepForward(0),
-            stepper_view,
-          ).
-            model;
-        let stepper_view =
-          calculate_stepper_view(~exp=original, stepper_view);
-        let landed =
-          switch (Web.StepperView.Model.get_landed_exp(stepper_view)) {
-          | Some(landed) => landed
-          | None => failwith("expected landed expression")
-          };
-        check(
-          dhexp_typ,
-          "one explicit explorer step lands at frontier",
-          parse_exp("3 + 3 + 4"),
-          landed,
-        );
-        let theorem_goal = Exp.fresh(BinOp(Poly(Equals), original, landed));
-        let seeded_theorem_stepper =
-          stepper_view
-          |> Web.StepperView.Model.persist
-          |> Web.StepperView.Model.unpersist;
-        let (_, final_exp, _) =
-          test_calculate(
-            ~exp=theorem_goal,
-            ~ana=Typ.fresh(Atom(Bool)),
-            seeded_theorem_stepper.root,
-          );
-        check(
-          dhexp_typ,
-          "seeded one-step theorem reaches reflexive equality",
-          parse_exp("3 + 3 + 4 == 3 + 3 + 4"),
-          Calc.get_value(final_exp),
         );
       },
     ),
@@ -494,48 +414,6 @@ let tests = (
         | ResultOk(_)
         | ResultPending => ()
         };
-      },
-    ),
-    test_case(
-      "persisted expression step chain can seed equality theorem",
-      `Quick,
-      () => {
-        let original = parse_exp("1 + 2 + 3");
-        let explorer_stepper =
-          switch (build_eval_step_chain(~limit=10, original)) {
-          | Some(stepper) => stepper
-          | None => failwith("expected arithmetic step chain")
-          };
-        let seeded_theorem_stepper =
-          explorer_stepper
-          |> StepperBase.Stepper.persist
-          |> StepperBase.Stepper.unpersist;
-        let theorem_goal = parse_exp("1 + 2 + 3 == 6");
-        let (model, final_exp, validity) =
-          test_calculate(
-            ~exp=theorem_goal,
-            ~ana=Typ.fresh(Atom(Bool)),
-            seeded_theorem_stepper,
-          );
-
-        check(
-          bool,
-          "seeded theorem keeps at least one copied step",
-          true,
-          model.next_step != None,
-        );
-        check(
-          dhexp_typ,
-          "seeded theorem chain preserves exploration steps into equality",
-          parse_exp("6 == 6"),
-          Calc.get_value(final_exp),
-        );
-        check(
-          option(bool),
-          "seeded theorem still awaits final equality step",
-          None,
-          Calc.get_value(validity),
-        );
       },
     ),
     test_case(

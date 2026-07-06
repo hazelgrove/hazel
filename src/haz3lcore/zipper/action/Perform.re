@@ -217,23 +217,6 @@ let go =
        )
     |> Option.map(maybe_reassoc)
     |> return(Cant_insert)
-  | ReplaceTermWithSource(id, code) =>
-    switch (
-      Select.term(
-        ~defs_exclude_bodies=false,
-        ~case_rules=false,
-        syntax.term_data,
-        id,
-        z,
-      )
-    ) {
-    | Some(z') =>
-      switch (Parser.to_zipper(~root, ~zipper_init=z', code)) {
-      | Some(z'') => Ok(maybe_reassoc(z''))
-      | None => Error(CantPaste)
-      }
-    | None => Error(Cant_select)
-    }
   | Put_down =>
     Zipper.put_down(z, ~root)
     |> Option.map(maybe_reassoc)
