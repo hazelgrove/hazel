@@ -49,6 +49,21 @@ let examples = [
     "([?] : [Int])",
   ),
   analysis_case(
+    "regression-ana-fun-list-param-query",
+    "fun [] -> 1",
+    "[?] -> ?",
+    "fun [] -> ?",
+  ),
+  analysis_case(
+    ~ctx=ctx_var("x", "(A=())"),
+    ~focus=e => exp_var(e, "x"),
+    ~assumptions=[("x", "(A=?)")],
+    "regression-ana-projection-base-query",
+    "x.A",
+    "(A=?)",
+    "x.A",
+  ),
+  analysis_case(
     ~ctx=ctx_var("c", "Bool"),
     ~focus=first_int,
     "ana-if-branch",

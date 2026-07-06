@@ -108,6 +108,12 @@ let products = [
   synthesis_case("list-cons-gradual", "1 :: []", "[?]", "? :: ?"),
   synthesis_case("list-concat-full", "[1] @ []", "[Int]", "[1] @ ?"),
   synthesis_case("list-concat-gradual", "[1] @ []", "[?]", "? @ ?"),
+  synthesis_case(
+    "regression-module-unit-field-query",
+    "{ module B = (()) }",
+    "(B=(()))",
+    "{ module B = (()) }",
+  ),
 ];
 
 let functions = [
@@ -159,6 +165,12 @@ let functions = [
     "fun x -> x",
     "? -> ?",
     "fun ? -> ?",
+  ),
+  synthesis_case(
+    "regression-fun-list-param-query",
+    "fun [] -> 1",
+    "[?] -> ?",
+    "fun [] -> ?",
   ),
   synthesis_case(
     "fun-nested-arrow-left",
