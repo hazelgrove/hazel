@@ -169,10 +169,11 @@ module Update = {
           {
             open OptUtil.Syntax;
             let zipper = editor.editor.state.zipper;
+            let statics = CodeEditable.Model.get_statics(editor);
             let* id =
               SelectionEffective.root_id(
                 ~mode=Associative,
-                ~info_map=info_map |> Calc.get_value,
+                ~info_map=statics.info_map,
                 ~measured=editor.editor.syntax.measured,
                 ~term_data=editor.editor.syntax.term_data,
                 zipper,
