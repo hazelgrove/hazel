@@ -930,15 +930,6 @@ let to_point =
       z: t,
     )
     : option(t) => {
-  let z =
-    switch (z.selection.content) {
-    | [] =>
-      switch (indicated_token(z)) {
-      | Some(z') => z'
-      | None => z
-      }
-    | _ => z
-    };
   let anchor = z |> toggle_focus |> Zipper.Caret.point(measured);
   let step =
     switch (chunkiness) {
