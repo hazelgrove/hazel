@@ -177,5 +177,9 @@ let find_assoc_for_ids =
 
 let find_assoc_root_for_ids =
     (ids: list(Id.t), info_map: Statics.Map.t): option(Id.t) =>
-  ids_with_ancestors(~info_map, ids)
-  |> List.find_map(id => find_assoc_root_for_id(id, info_map));
+  switch (ids |> List.find_map(id => find_assoc_root_for_id(id, info_map))) {
+  | Some(_) as root => root
+  | None =>
+    ids_with_ancestors(~info_map, ids)
+    |> List.find_map(id => find_assoc_root_for_id(id, info_map))
+  };
