@@ -565,10 +565,12 @@ module Update = {
             open OptUtil.Syntax;
             let zipper = editor.editor.state.zipper;
             let* id =
-              TermData.get_root_id_using_ranges(
-                zipper.selection.content,
-                editor.editor.syntax.term_data,
-                editor.editor.syntax.measured,
+              SelectionEffective.root_id(
+                ~mode=Associative,
+                ~info_map=info_map |> Calc.get_value,
+                ~measured=editor.editor.syntax.measured,
+                ~term_data=editor.editor.syntax.term_data,
+                zipper,
               );
             Some(id);
           }
