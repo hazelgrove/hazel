@@ -475,6 +475,76 @@ let wave_tests = [
   ),
 ];
 
+let wave2_tests = [
+  test_case(
+    "inline a sugar fn as a lambda",
+    `Quick,
+    () => {
+      let got = inline("¦let f(x) = x + 1 in f(2)") |> text_of;
+      check(string, "lambda applied", "(fun x -> x + 1)(2)", got);
+    },
+  ),
+  test_case(
+    "inline a multi-param sugar fn",
+    `Quick,
+    () => {
+      let got = inline("¦let f(a, b) = a + b in f(1, 2)") |> text_of;
+      check(string, "tuple param", "(fun (a, b) -> a + b)(1, 2)", got);
+    },
+  ),
+  test_case("recursive sugar fn not inlinable", `Quick, () =>
+    check(
+      bool,
+      "gated",
+      false,
+      offers(InlineLet, "¦let f(n) = f(n) in f(2)"),
+    )
+  ),
+  test_case(
+    "inline avoids capture by renaming the binder",
+    `Quick,
+    () => {
+      let got =
+        inline("¦let x = y + 1 in (fun y -> x + y)(5)") |> text_of;
+      check(
+        string,
+        "y renamed",
+        "(fun y1 -> y + 1 + y1)(5)",
+        got,
+      );
+    },
+  ),
+  test_case(
+    "expand wildcard to unhandled constructors",
+    `Quick,
+    () => {
+      let got =
+        inline(
+          ~kind=ExpandWildcard,
+          "type Color = Red + Green + Blue(Int) in let c : Color = ? in case c | Red => 1 | ¦_ => 0 end",
+        )
+        |> text_of;
+      check(
+        string,
+        "two arms",
+        "type Color = Red + Green + Blue(Int) in let c : Color = ? in case c | Red => 1 | Green => 0 | Blue(_) => 0 end",
+        got,
+      );
+    },
+  ),
+  test_case("expand wildcard gated when all handled", `Quick, () =>
+    check(
+      bool,
+      "gated",
+      false,
+      offers(
+        ExpandWildcard,
+        "type C = A + B in let c : C = ? in case c | A => 1 | B => 2 | ¦_ => 0 end",
+      ),
+    )
+  ),
+];
+
 let more_tests = [
   test_case(
     "multiline if converts to case, end on its own line",
@@ -1248,6 +1318,7 @@ let tests = [
     @ param_tests
     @ rename_tests
     @ wave_tests
+    @ wave2_tests
     @ move_tests
     @ more_tests,
   ),

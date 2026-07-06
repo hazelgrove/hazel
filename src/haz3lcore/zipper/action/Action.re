@@ -148,6 +148,7 @@ type refactor =
   | EtaExpand
   | EvaluateInPlace
   | AddCaseArm
+  | ExpandWildcard
   | AddParameter
   | RenameFree(string, string)
   | HoistLet
