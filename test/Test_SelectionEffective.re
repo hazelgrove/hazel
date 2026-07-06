@@ -105,6 +105,80 @@ let tests = (
       ~expected={|4 * 5 * 6 + "abc"|},
     ),
     test(
+      ~name="middle addition selection stays on selected addends",
+      ~input={|1 + 2 + §3 + 4¦ + 5|},
+      ~expected={|3 + 4|},
+    ),
+    test_root(
+      ~name="middle addition selection expands to containing root",
+      ~input={|1 + 2 + §3 + 4¦ + 5|},
+      ~expected={|1 + 2 + 3 + 4|},
+    ),
+    test(
+      ~name="middle addition prefix snaps to selected addends",
+      ~input={|1 + 2 + §3 +¦ 4 + 5|},
+      ~expected={|3 + 4|},
+    ),
+    test(
+      ~name="middle addition suffix snaps to selected addends",
+      ~input={|1 + 2 + 3 §+ 4¦ + 5|},
+      ~expected={|3 + 4|},
+    ),
+    test_actions(
+      ~name="mouse drag over middle addition stays on selected addends",
+      ~input={|¦1 + 2 + 3 + 4 + 5|},
+      ~actions=[
+        Action.Move(
+          Point(
+            {
+              row: 0,
+              col: 8,
+            },
+            None,
+          ),
+        ),
+        Action.Select(
+          Resize(
+            Point(
+              {
+                row: 0,
+                col: 13,
+              },
+              None,
+            ),
+          ),
+        ),
+      ],
+      ~expected={|3 + 4|},
+    ),
+    test_actions(
+      ~name="mouse drag over middle addition operator snaps to addends",
+      ~input={|¦1 + 2 + 3 + 4 + 5|},
+      ~actions=[
+        Action.Move(
+          Point(
+            {
+              row: 0,
+              col: 10,
+            },
+            None,
+          ),
+        ),
+        Action.Select(
+          Resize(
+            Point(
+              {
+                row: 0,
+                col: 13,
+              },
+              None,
+            ),
+          ),
+        ),
+      ],
+      ~expected={|3 + 4|},
+    ),
+    test(
       ~name="equality selection snaps over application left operand",
       ~input={|rev(rev(xs)) §== xs¦|},
       ~expected={|rev(rev(xs)) == xs|},
