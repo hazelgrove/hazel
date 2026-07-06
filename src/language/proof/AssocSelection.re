@@ -175,6 +175,45 @@ let find_assoc_for_ids =
   snapped_from_ids @ snapped_from_ancestors |> ListUtil.dedup;
 };
 
+let left_reparenthesize_boundary_id = (op, left: Exp.t): Id.t =>
+  switch (Exp.term_of(left)) {
+  | BinOp(left_op, _, left_right) when left_op == op =>
+    Exp.rep_id(left_right)
+  | _ => Exp.rep_id(left)
+  };
+
+let right_reparenthesize_boundary_id = (op, right: Exp.t): Id.t =>
+  switch (Exp.term_of(right)) {
+  | BinOp(right_op, right_left, _) when right_op == op =>
+    Exp.rep_id(right_left)
+  | _ => Exp.rep_id(right)
+  };
+
+let find_reparenthesize_for_id =
+    (id: Id.t, info_map: Statics.Map.t): list(Id.t) => {
+  switch (Statics.Map.lookup(id, info_map)) {
+  | Some(InfoExp({user_term: {term: BinOp(op, left, right), _}, _})) => [
+      left_reparenthesize_boundary_id(op, left),
+      id,
+      right_reparenthesize_boundary_id(op, right),
+    ]
+  | _ => [id]
+  };
+};
+
+/* Returns true if the id points to a BinOp where the visual selection differs
+   from the raw AST grouping — i.e., reparenthesization would change the tree. */
+let needs_reparenthesization = (id: Id.t, info_map: Statics.Map.t): bool =>
+  switch (find_reparenthesize_for_id(id, info_map)) {
+  | [left_id, op_id, right_id] when op_id == id =>
+    switch (Statics.Map.lookup(id, info_map)) {
+    | Some(InfoExp({user_term: {term: BinOp(_, left, right), _}, _})) =>
+      Exp.rep_id(left) != left_id || Exp.rep_id(right) != right_id
+    | _ => false
+    }
+  | _ => false
+  };
+
 let find_assoc_root_for_ids =
     (ids: list(Id.t), info_map: Statics.Map.t): option(Id.t) =>
   switch (ids |> List.find_map(id => find_assoc_root_for_id(id, info_map))) {

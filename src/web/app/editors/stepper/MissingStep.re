@@ -10,6 +10,8 @@ module Model = {
     | AxiomsOpen(AxiomsBox.Model.t)
     | RewritesOpen({
         editor: CodeEditable.Model.t,
+        rewrite_selected_exp: option(Exp.t),
+        rewrite_reparenthesized_exp: option(Exp.t),
         cached_exp: Calc.saved(Exp.t),
         cached_result: option(bool),
       })
@@ -25,6 +27,7 @@ module Model = {
     selected_id: Calc.saved(option(Id.t)),
     selected_exp: Calc.saved(option(Exp.t)),
     full_exp: Calc.saved(Exp.t),
+    full_visible_exp: Calc.saved(Exp.t),
     assumptions: Calc.saved(option(assumptions)),
     open_box,
     cached_env: Calc.saved(Environment.t(Exp.t)) // TODO[Matt]: remove this later, just to get env into view for now.
@@ -36,6 +39,7 @@ module Model = {
     selected_id: Calc.Pending,
     selected_exp: Calc.Pending,
     full_exp: Calc.Pending,
+    full_visible_exp: Calc.Pending,
     assumptions: Calc.Pending,
     open_box: NoneOpen,
     cached_env: Calc.Pending,
@@ -60,7 +64,7 @@ module Update = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     | ToggleAxioms
-    | ProposeRewrite
+    | ProposeRewrite(option(Exp.t), option(Exp.t))
     | UpdateResult(bool)
     | RewriteEditorAction(CodeEditable.Update.t)
     | AxiomBoxAction(AxiomsBox.Update.t);
@@ -79,7 +83,7 @@ module Update = {
         open_box,
       }
       |> Updated.return_quiet(~logged=true);
-    | (ProposeRewrite, _) =>
+    | (ProposeRewrite(rewrite_selected_exp, rewrite_reparenthesized_exp), _) =>
       let open_box =
         switch (model.open_box) {
         | NoneOpen
@@ -89,6 +93,8 @@ module Update = {
               CodeEditable.Model.mk(
                 Editor.Model.mk(Zipper.init(), ~root=Exp),
               ),
+            rewrite_selected_exp,
+            rewrite_reparenthesized_exp,
             cached_exp: Calc.Pending,
             cached_result: None,
           })
@@ -134,7 +140,7 @@ module Update = {
   let can_undo = (action: t): bool => {
     switch (action) {
     | ToggleAxioms
-    | ProposeRewrite
+    | ProposeRewrite(_, _)
     | UpdateResult(_)
     | RewriteEditorAction(_)
     | AxiomBoxAction(_) => false
@@ -154,6 +160,7 @@ module Update = {
           assumptions,
           selected_exp,
           full_exp: _,
+          full_visible_exp: _,
           selected_id,
           open_box,
           cached_env,
@@ -161,10 +168,12 @@ module Update = {
         editor,
       )
       : Model.t => {
+    let editor: CodeSelectable.Model.t = editor |> Calc.get_value;
+    let full_visible_exp = Calc.NewValue(editor.statics.term);
+    let visible_terms = Calc.NewValue(editor.editor.syntax.terms);
     let selected_id =
       // hacky way to get a currently-selected id
-      {
-        let editor: CodeSelectable.Model.t = editor |> Calc.get_value;
+      (
         try(
           {
             open OptUtil.Syntax;
@@ -182,25 +191,48 @@ module Update = {
           }
         ) {
         | _ => None
-        };
-      }
+        }
+      )
       |> Calc.set(_, selected_id);
     let selected_exp =
       selected_exp
       |> {
         let.calc selected_id = selected_id
         and.calc exp = exp
-        and.calc editor = editor;
+        and.calc full_visible_exp = full_visible_exp
+        and.calc visible_terms = visible_terms
+        and.calc info_map = info_map;
         open OptUtil.Syntax;
         let* id = selected_id;
         switch (
           CodeEditable.Model.get_statics(editor).elaborated
           |> ProofHacks.find_exp_id(id)
         ) {
-        | Some(_) as exp => exp
+        | Some(_) as selected => selected
         | None =>
-          let* exp' = ProofHacks.find_exp_id(id, exp);
-          Some(exp');
+          switch (ProofHacks.find_exp_id(id, full_visible_exp)) {
+          | Some(exp') => Some(exp')
+          | None =>
+            switch (Id.Map.find_opt(id, visible_terms)) {
+            | Some(Exp(exp')) => Some(exp')
+            | _ =>
+              switch (ProofHacks.find_exp_id(id, exp)) {
+              | Some(exp') => Some(exp')
+              | None =>
+                switch (Statics.Map.lookup(id, info_map)) {
+                | Some(Info.InfoExp({user_term, _})) => Some(user_term)
+                | _ =>
+                  print_endline(
+                    "[selected-exp-debug] missing id="
+                    ++ Id.str8(id)
+                    ++ " info_map_empty="
+                    ++ (Id.Map.is_empty(info_map) ? "true" : "false"),
+                  );
+                  None;
+                }
+              }
+            }
+          }
         };
       };
     let assumptions =
@@ -243,14 +275,28 @@ module Update = {
         |> List.filter(e =>
              !
                List.exists(
-                 s => e |> Exp.rep_id == EvaluatorStep.get_step_id(s),
+                 s =>
+                   e
+                   |> Exp.rep_id
+                   == (
+                        EvaluatorStep.get_step_id_in(s, exp)
+                        |> Option.value(
+                             ~default=EvaluatorStep.get_step_id(s),
+                           )
+                      ),
                  next_steps,
                )
            );
       };
     let open_box =
       switch (open_box) {
-      | RewritesOpen({editor, cached_exp, cached_result}) =>
+      | RewritesOpen({
+          editor,
+          rewrite_selected_exp,
+          rewrite_reparenthesized_exp,
+          cached_exp,
+          cached_result,
+        }) =>
         // Calculate syntax, holes, types, etc for the editor
         let editor =
           CodeEditable.Update.calculate(
@@ -278,6 +324,8 @@ module Update = {
           };
         Model.RewritesOpen({
           editor,
+          rewrite_selected_exp,
+          rewrite_reparenthesized_exp,
           cached_exp: cached_exp |> Calc.save,
           cached_result: cached_result |> Calc.get_value,
         });
@@ -298,6 +346,7 @@ module Update = {
       refls: refls |> Calc.save,
       assumptions: assumptions |> Calc.save,
       full_exp: exp |> Calc.save,
+      full_visible_exp: full_visible_exp |> Calc.save,
       selected_exp: selected_exp |> Calc.save,
       selected_id: selected_id |> Calc.save,
       cached_env: cached_env |> Calc.save,
@@ -343,9 +392,12 @@ module View = {
     | HideStepper
     | AddAxiomStep(string, int, Exp.t, Direction.t, string)
     | AddAlgebriteStep(int, Exp.t, Exp.t)
+    | AddReparenthesizeStep(Exp.t)
+    | AddReparenthesizedAlgebriteStep(Exp.t, Exp.t, Exp.t)
     | MakeActive(Selection.t)
     | TakeStep(int)
-    | Refl(int);
+    | Refl(int)
+    | StepHere(list(Language.Id.t), bool);
 
   let get_segment_bounds = (~measured: Measured.t, segment: Segment.t) => {
     let* first_piece = ListUtil.hd_opt(segment);
@@ -420,13 +472,15 @@ module View = {
         );
       };
 
+      let selected_id =
+        model.selected_id |> Calc.get_saved_exc(~print="Selected Id");
+
       let show_step_button =
-        switch (
-          model.selected_exp |> Calc.get_saved_exc(~print="Selected Exp")
-        ) {
-        | Some(selected_exp) =>
+        switch (selected_id) {
+        | Some(selected_id) =>
+          let visible_exp = editor.statics.term;
           List.find_index(
-            x => x == (selected_exp |> Exp.rep_id),
+            step_id => step_id == selected_id,
             model.next_steps
             |> Calc.get_saved_exc(~print="next_steps")
             |> (
@@ -434,8 +488,11 @@ module View = {
               | AutoStep(_) => []
               | AvailableSteps(steps) => steps
             )
-            |> List.map(step => step |> EvaluatorStep.get_step_id),
-          )
+            |> List.map(step =>
+                 EvaluatorStep.get_step_id_in(step, visible_exp)
+                 |> Option.value(~default=EvaluatorStep.get_step_id(step))
+               ),
+          );
         | None => None
         };
 
@@ -455,8 +512,128 @@ module View = {
 
       let show_function_body_button = {
         Calc.get_saved_exc(model.selected_exp)
-        == Some(Calc.get_saved_exc(model.full_exp))
-        && Exp.is_fun(Calc.get_saved_exc(model.full_exp));
+        == Some(Calc.get_saved_exc(model.full_visible_exp))
+        && Exp.is_fun(Calc.get_saved_exc(model.full_visible_exp));
+      };
+
+      let selected_tile_ids =
+        editor.editor.state.zipper.selection.content
+        |> List.filter_map(
+             fun
+             | Haz3lcore.Piece.Tile(t) => Some(Haz3lcore.Tile.id(t))
+             | _ => None,
+           );
+      let unparenthesize_ids =
+        switch (selected_id) {
+        | Some(id) => [id, ...selected_tile_ids]
+        | None => selected_tile_ids
+        };
+      let unparenthesize_exp =
+        Language.Reparenthesize.unparenthesize_any(
+          ~selected_ids=unparenthesize_ids,
+          editor.statics.term,
+        );
+      let selected_assoc_ids =
+        selected_tile_ids
+        |> List.concat_map(id =>
+             Language.AssocSelection.find_reparenthesize_for_id(
+               id,
+               editor.statics.info_map,
+             )
+           );
+      let step_here_ids =
+        switch (selected_assoc_ids) {
+        | [] => selected_tile_ids
+        | ids => ids
+        };
+      let show_step_here =
+        List.exists(
+          id =>
+            Language.AssocSelection.needs_reparenthesization(
+              id,
+              editor.statics.info_map,
+            ),
+          selected_tile_ids,
+        );
+      let reparenthesize_result =
+        if (show_step_here) {
+          Language.Reparenthesize.reparenthesize_selection(
+            ~selected_ids=step_here_ids,
+            editor.statics.term,
+          );
+        } else {
+          None;
+        };
+      let step_here_button = {
+        let can_take_selected_step = (result: Language.Reparenthesize.result) => {
+          let env =
+            model.cached_env |> Calc.get_saved_exc(~print="cached env");
+          let steps =
+            switch (
+              EvaluatorStep.get_status(
+                ~settings=globals.settings.core,
+                result.exp,
+                env,
+              )
+            ) {
+            | AutoStep(step) => [step]
+            | AvailableSteps(steps) => steps
+            };
+          steps
+          |> List.exists(step =>
+               switch (EvaluatorStep.get_step_id_in(step, result.exp)) {
+               | Some(id) => id == result.selected_id
+               | None => EvaluatorStep.get_step_id(step) == result.selected_id
+               }
+             );
+        };
+        switch (reparenthesize_result) {
+        | Some({selected_is_single_binop: true, _} as result)
+            when can_take_selected_step(result) =>
+          Some(("Step here", true))
+        | Some(_) => Some(("Parenthesize", false))
+        | None => None
+        };
+      };
+      let (selected_exp_for_rewrite, reparenthesize_result_for_rewrite) = {
+        let model_selected_exp =
+          Calc.get_saved_exc(
+            ~print="selected exp not calculated",
+            model.selected_exp,
+          );
+        let reparenthesized_selected_exp =
+          switch (reparenthesize_result) {
+          | Some(result) => Language.Reparenthesize.selected_exp(result)
+          | None => None
+          };
+        switch (
+          model_selected_exp,
+          reparenthesize_result,
+          reparenthesized_selected_exp,
+        ) {
+        | (Some(model_exp), Some(result), Some(reparenthesized_exp))
+            when
+              Language.Reparenthesize.binop_count(reparenthesized_exp)
+              < Language.Reparenthesize.binop_count(model_exp) => (
+            Some(reparenthesized_exp),
+            Some(result),
+          )
+        | (Some(model_exp), _, _)
+            when
+              !
+                Equality.ignoring_ascriptions.exp(
+                  model_exp,
+                  editor.statics.term,
+                ) => (
+            model_selected_exp,
+            None,
+          )
+        | (_, Some(result), Some(reparenthesized_exp)) => (
+            Some(reparenthesized_exp),
+            Some(result),
+          )
+        | _ => (model_selected_exp, None)
+        };
       };
 
       // I want to make a bunch of buttons here:
@@ -465,6 +642,31 @@ module View = {
         Node.div(
           ~attrs=[Attr.classes(["proof-selection-buttons"])],
           (
+            switch (unparenthesize_exp) {
+            | None => []
+            | Some(exp) => [
+                proof_button(
+                  ~callback=signal(AddReparenthesizeStep(exp)),
+                  "Unparenthesize",
+                ),
+              ]
+            }
+          )
+          @ (
+            switch (step_here_button) {
+            | None => []
+            | Some((label, evaluate_after_parenthesize)) => [
+                proof_button(
+                  ~callback=
+                    signal(
+                      StepHere(step_here_ids, evaluate_after_parenthesize),
+                    ),
+                  label,
+                ),
+              ]
+            }
+          )
+          @ (
             switch (show_step_button) {
             | None => []
             | Some(idx) => [
@@ -509,7 +711,19 @@ module View = {
               : []
           )
           @ [
-            proof_button(~callback=inject(ProposeRewrite), "Algebra ▼"),
+            proof_button(
+              ~callback=
+                inject(
+                  ProposeRewrite(
+                    selected_exp_for_rewrite,
+                    switch (reparenthesize_result_for_rewrite) {
+                    | Some(result) => Some(result.exp)
+                    | None => None
+                    },
+                  ),
+                ),
+              "Algebra ▼",
+            ),
             proof_button(~callback=inject(ToggleAxioms), "Assumptions ▼"),
             proof_button(
               ~callback=
@@ -572,8 +786,10 @@ module View = {
                           (a, b, c, d, e) =>
                             signal(AddAxiomStep(a, b, c, d, e)),
                         ~full_exp=
-                          model.full_exp
-                          |> Calc.get_saved_exc(~print="full_exp not cached"),
+                          model.full_visible_exp
+                          |> Calc.get_saved_exc(
+                               ~print="full_visible_exp not cached",
+                             ),
                         ~selected_exp=
                           model.selected_exp
                           |> Calc.get_saved_exc(~print="Selected Exp")
@@ -582,7 +798,13 @@ module View = {
                       ),
                     ),
                   ]
-                | RewritesOpen({editor, cached_exp, cached_result}) =>
+                | RewritesOpen({
+                    editor,
+                    rewrite_selected_exp,
+                    rewrite_reparenthesized_exp,
+                    cached_exp,
+                    cached_result,
+                  }) =>
                   let unboxed_cached_exp =
                     Calc.get_saved_exc(
                       ~print="cached exp not calculated",
@@ -591,10 +813,7 @@ module View = {
                   let unboxed_selected_exp =
                     Option.value(
                       ~default=EmptyHole |> Exp.fresh,
-                      Calc.get_saved_exc(
-                        ~print="selected exp not calculated",
-                        model.selected_exp,
-                      ),
+                      rewrite_selected_exp,
                     );
                   [
                     // one element list with a div
@@ -651,24 +870,46 @@ module View = {
                               ~clss=["proof-button"],
                               Node.text("Replace"),
                               ~tooltip="replace",
-                              _ =>
-                              signal(
-                                AddAlgebriteStep(
-                                  ProofHacks.exp_idx(
-                                    unboxed_selected_exp,
-                                    model.full_exp
-                                    |> Calc.get_saved_exc(~print="full_exp"),
-                                  ),
-                                  unboxed_selected_exp,
+                              _ => {
+                                let substituted_cached_exp =
                                   unboxed_cached_exp
                                   |> Substitution.in_exp(
                                        model.cached_env
                                        |> Calc.get_saved_exc(
                                             ~print="env not cached",
                                           ),
-                                     ),
-                                ),
-                              )
+                                     );
+                                switch (rewrite_reparenthesized_exp) {
+                                | Some(reparenthesized_exp) =>
+                                  signal(
+                                    AddReparenthesizedAlgebriteStep(
+                                      reparenthesized_exp,
+                                      unboxed_selected_exp,
+                                      substituted_cached_exp,
+                                    ),
+                                  )
+                                | None =>
+                                  let at_idx =
+                                    try(
+                                      ProofHacks.exp_idx(
+                                        unboxed_selected_exp,
+                                        model.full_visible_exp
+                                        |> Calc.get_saved_exc(
+                                             ~print="full_visible_exp",
+                                           ),
+                                      )
+                                    ) {
+                                    | _ => 0
+                                    };
+                                  signal(
+                                    AddAlgebriteStep(
+                                      at_idx,
+                                      unboxed_selected_exp,
+                                      substituted_cached_exp,
+                                    ),
+                                  );
+                                };
+                              },
                             ),
                           ]
                         | Some(false) => [Node.text("Invalid")]

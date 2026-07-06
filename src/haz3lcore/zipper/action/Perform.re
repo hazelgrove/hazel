@@ -180,9 +180,9 @@ let go =
   | Select(Term(Id(id, d))) =>
     switch (
       Select.term(
+        syntax.term_data,
         ~defs_exclude_bodies=false,
         ~case_rules=false,
-        syntax.term_data,
         id,
         z,
       )

@@ -574,8 +574,10 @@ let term_by_extremes = (id: Id.t, term_data: TermData.t, z: t): option(t) =>
   switch (TermData.extreme_ids(id, term_data)) {
   | Some((lid, rid)) when Id.equal(lid, rid) => tile(lid, z)
   | _ =>
-    let* (l, r) = TermData.extremes_shards(id, term_data);
-    shard_range(l, r, z);
+    switch (TermData.extremes_shards(id, term_data)) {
+    | Some((l, r)) => shard_range(l, r, z)
+    | None => None
+    }
   };
 
 /* Select a term by id. Navigates to the term and uses current_term
@@ -591,7 +593,7 @@ let term =
     )
     : option(t) =>
   switch (Move.jump_to_id_indicated(z, id)) {
-  | Some(z) => current_term(term_data, ~defs_exclude_bodies, ~case_rules, z)
+  | Some(z') => current_term(term_data, ~defs_exclude_bodies, ~case_rules, z')
   | None => term_by_extremes(id, term_data, z)
   };
 
@@ -861,6 +863,15 @@ let smart = (term_data, info_map, n, z: t): option(t) => {
   switch (n) {
   | 2 => indicated_token(z)
   | 3 =>
+    let z =
+      switch (z.selection.content) {
+      | [] =>
+        switch (indicated_token(z)) {
+        | Some(z') => z'
+        | None => z
+        }
+      | _ => z
+      };
     /* Use the selected piece from Smart(2) to determine what
      * term to select. This avoids the fragile unselect-then-
      * re-indicate pattern, which fails when reassembly after
@@ -883,7 +894,7 @@ let smart = (term_data, info_map, n, z: t): option(t) => {
       let z = Zipper.unselect(z);
       term(~defs_exclude_bodies=true, ~case_rules=true, term_data, id, z);
     | _ => None
-    }
+    };
   | _ => None
   };
 };

@@ -522,6 +522,8 @@ let selection =
       ~statics: CachedStatics.t,
       z: Zipper.t,
     ) => {
+  let measured_piece = (piece: Piece.t) =>
+    Measured.find_by_id(Piece.id(piece), measured);
   let effective_segment =
     associative
       ? SelectionEffective.associative_segment(
@@ -531,6 +533,8 @@ let selection =
           z,
         )
       : z.selection.content;
+  let effective_segment =
+    effective_segment |> List.filter(piece => measured_piece(piece) != None);
   let selection_svg = (clss, rows) =>
     rows
     |> group_consecutive
