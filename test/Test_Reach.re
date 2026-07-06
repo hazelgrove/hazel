@@ -109,6 +109,167 @@ let pure_tests = [
     | None => fail("analyze returned None")
     }
   ),
+  /* --- shadowing: a param/binder of the same name must not be constrained
+     by an outer binding (a leaked constraint would falsely report dead code) */
+  test_case("fun param shadows outer let of the same name", `Quick, () =>
+    switch (
+      analyze_lit(
+        "let x = 5 in let f = fun (x) -> if x > 3 then 1 else 7 in f(3)",
+        7,
+      )
+    ) {
+    | Some(r) =>
+      check(bool, "param x is an input", true, List.mem("x", r.inputs));
+      check(int, "leaked outer binding pruned", 0, List.length(r.lets));
+      let (_, complete) = Reach.smtlib2(r);
+      check(bool, "complete", true, complete);
+    | None => fail("analyze returned None")
+    }
+  ),
+  test_case("shadowed outer binding kept when still referenced", `Quick, () =>
+    switch (
+      analyze_lit(
+        "let x = 5 in if x > 4 then let f = fun (x) -> if x > 3 then 1 else 7 in f(3) else 0",
+        7,
+      )
+    ) {
+    | Some(r) =>
+      check(
+        bool,
+        "outer x renamed apart and kept",
+        true,
+        List.mem_assoc("x!1", r.lets),
+      );
+      check(bool, "param x is an input", true, List.mem("x", r.inputs));
+      check(
+        bool,
+        "renamed x is not an input",
+        false,
+        List.mem("x!1", r.inputs),
+      );
+    | None => fail("analyze returned None")
+    }
+  ),
+  test_case("nested same-name lets chain via the renamed name", `Quick, () =>
+    switch (
+      analyze_lit("let x = 2 in let x = x + 1 in if x > 5 then 8 else 9", 8)
+    ) {
+    | Some(r) =>
+      check(bool, "inner x kept", true, List.mem_assoc("x", r.lets));
+      check(
+        bool,
+        "outer x kept as x!1",
+        true,
+        List.mem_assoc("x!1", r.lets),
+      );
+      check(int, "both bindings kept", 2, List.length(r.lets));
+      check(int, "no free inputs", 0, List.length(r.inputs));
+    | None => fail("analyze returned None")
+    }
+  ),
+  test_case("match arm pattern var shadows outer let", `Quick, () =>
+    switch (
+      analyze_lit(
+        "let x = 5 in case x | 0 => 6 | x => if x > 9 then 3 else 4 end",
+        3,
+      )
+    ) {
+    | Some(r) =>
+      check(
+        bool,
+        "outer x renamed apart and kept (arm-0 guard uses it)",
+        true,
+        List.mem_assoc("x!1", r.lets),
+      );
+      check(bool, "arm-bound x is an input", true, List.mem("x", r.inputs));
+      check(bool, "var pattern still incomplete", false, r.complete);
+    | None => fail("analyze returned None")
+    }
+  ),
+  test_case("let definition references the outer same-named var", `Quick, () =>
+    switch (analyze_lit("let x = x + 1 in if x > 0 then 4 else 6", 4)) {
+    | Some(r) =>
+      check(bool, "bound x kept", true, List.mem_assoc("x", r.lets));
+      check(
+        bool,
+        "outer free x is a renamed input",
+        true,
+        List.mem("x!1", r.inputs),
+      );
+    | None => fail("analyze returned None")
+    }
+  ),
+  test_case("type-ascribed let binds and shadows", `Quick, () =>
+    switch (
+      analyze_lit(
+        "let x = 2 in let x : Int = x + 1 in if x > 5 then 8 else 9",
+        8,
+      )
+    ) {
+    | Some(r) =>
+      check(bool, "inner x kept", true, List.mem_assoc("x", r.lets));
+      check(
+        bool,
+        "outer x kept as x!1",
+        true,
+        List.mem_assoc("x!1", r.lets),
+      );
+      let (_, complete) = Reach.smtlib2(r);
+      check(bool, "complete", true, complete);
+    | None => fail("analyze returned None")
+    }
+  ),
+  test_case("no shadowing: no synthetic names appear", `Quick, () =>
+    switch (
+      analyze_lit("let a = 5 in let b = a + 10 in if b > 3 then 1 else 2", 1)
+    ) {
+    | Some(r) =>
+      check(
+        bool,
+        "all declared names are source names",
+        true,
+        List.for_all(((n, _)) => !String.contains(n, '!'), r.var_sorts),
+      )
+    | None => fail("analyze returned None")
+    }
+  ),
+  test_case(
+    "merge keeps same-named params of different funs apart", `Quick, () =>
+    switch (
+      analyze_two(
+        "let f = fun (x) -> if x > 3 then 1 else 0 in let g = fun (x) -> if x < 0 then 2 else 9 in f(3) + g(4)",
+        1,
+        2,
+      )
+    ) {
+    | Some((r1, r2)) =>
+      let m = Reach.merge([r1, r2]);
+      check(int, "two distinct variables", 2, List.length(m.var_sorts));
+      check(bool, "f's param kept", true, List.mem("x", m.inputs));
+      check(
+        bool,
+        "g's param renamed apart",
+        true,
+        List.mem("x!1", m.inputs),
+      );
+    | None => fail("analyze_two returned None")
+    }
+  ),
+  test_case("merge shares a param seen by both reach points", `Quick, () =>
+    switch (
+      analyze_two(
+        "let f = fun (x) -> if x > 3 then (if x < 10 then 1 else 2) else 0 in f(5)",
+        1,
+        2,
+      )
+    ) {
+    | Some((r1, r2)) =>
+      let m = Reach.merge([r1, r2]);
+      check(int, "one shared variable", 1, List.length(m.var_sorts));
+      check(bool, "the shared param", true, List.mem("x", m.inputs));
+    | None => fail("analyze_two returned None")
+    }
+  ),
 ];
 
 /* A larger program used both as a demo and to exercise nested if/let, a
@@ -332,6 +493,112 @@ let solve_tests =
         | None => fail("int_mod analyze returned None (parse?)")
         }
       ),
+      /* --- shadowing soundness end-to-end --- */
+      test_case("shadowed param's else-branch is reachable", `Quick, ()
+        /* pre-fix, the leaked `x = 5` made `not(x > 3)` UNSAT: falsely dead */
+        =>
+          switch (
+            analyze_lit(
+              "let x = 5 in let f = fun (x) -> if x > 3 then 1 else 7 in f(3)",
+              7,
+            )
+          ) {
+          | Some(r) =>
+            switch (outcome_of(r)) {
+            | Sat(_) => check(bool, "sat", true, true)
+            | other => fail("expected Sat, got " ++ TG.show_outcome(other))
+            }
+          | None => fail("analyze returned None")
+          }
+        ),
+      test_case("nested same-name lets: else-branch reachable", `Quick, ()
+        /* pre-fix, `x = 2 && x = x + 1` was UNSAT for both branches */
+        =>
+          switch (
+            analyze_lit(
+              "let x = 2 in let x = x + 1 in if x > 5 then 8 else 9",
+              9,
+            )
+          ) {
+          | Some(r) =>
+            switch (outcome_of(r)) {
+            | Sat(_) => check(bool, "sat", true, true)
+            | other => fail("expected Sat, got " ++ TG.show_outcome(other))
+            }
+          | None => fail("analyze returned None")
+          }
+        ),
+      test_case("nested same-name lets: then-branch truly dead", `Quick, ()
+        /* x is determined (2 + 1 = 3), so `x > 5` is genuinely dead — the
+           constraint chain was renamed apart, not dropped */
+        =>
+          switch (
+            analyze_lit(
+              "let x = 2 in let x = x + 1 in if x > 5 then 8 else 9",
+              8,
+            )
+          ) {
+          | Some(r) =>
+            switch (outcome_of(r)) {
+            | Unsat => check(bool, "dead", true, true)
+            | other => fail("expected Unsat, got " ++ TG.show_outcome(other))
+            }
+          | None => fail("analyze returned None")
+          }
+        ),
+      test_case("inlining does not capture the argument", `Quick, ()
+        /* f(5) = 5 + 10 = 15, so the then-branch (15 > 16) is dead and the
+           else-branch reachable; pre-fix the argument `x` was captured by the
+           body's `let x = 10`, computing 20 and flipping both answers */
+        =>
+          switch (
+            analyze_lit(
+              "let f = fun (a) -> let x = 10 in a + x in let x = 5 in if f(x) > 16 then 1 else 2",
+              2,
+            )
+          ) {
+          | Some(r) =>
+            switch (outcome_of(r)) {
+            | Sat(_) => check(bool, "sat", true, true)
+            | other => fail("expected Sat, got " ++ TG.show_outcome(other))
+            }
+          | None => fail("analyze returned None")
+          }
+        ),
+      test_case("inlining capture: then-branch truly dead", `Quick, () =>
+        switch (
+          analyze_lit(
+            "let f = fun (a) -> let x = 10 in a + x in let x = 5 in if f(x) > 16 then 1 else 2",
+            1,
+          )
+        ) {
+        | Some(r) =>
+          switch (outcome_of(r)) {
+          | Unsat => check(bool, "dead", true, true)
+          | other => fail("expected Unsat, got " ++ TG.show_outcome(other))
+          }
+        | None => fail("analyze returned None")
+        }
+      ),
+      test_case(
+        "merged same-named params are independently solvable", `Quick, ()
+        /* pre-fix, both params shared one symbol: `x > 3 && x < 0` UNSAT */
+        =>
+          switch (
+            analyze_two(
+              "let f = fun (x) -> if x > 3 then 1 else 0 in let g = fun (x) -> if x < 0 then 2 else 9 in f(3) + g(4)",
+              1,
+              2,
+            )
+          ) {
+          | Some((r1, r2)) =>
+            switch (outcome_of(Reach.merge([r1, r2]))) {
+            | Sat(_) => check(bool, "sat", true, true)
+            | other => fail("expected Sat, got " ++ TG.show_outcome(other))
+            }
+          | None => fail("analyze_two returned None")
+          }
+        ),
     ];
   };
 

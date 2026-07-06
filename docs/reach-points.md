@@ -69,9 +69,11 @@ witness/test input.
 Each reach point carries a `group: int` (0 = solo). Points with the same group
 `N ≥ 1` are **conjoined**: solving asks for one input reaching all of them in a
 single execution, or reports **incompatible** (e.g. two points in mutually
-exclusive branches). Variables are merged **by name**, so reach points in
-different scopes that share a local/parameter name are conflated — exact within
-one scope (the common case), approximate across scopes.
+exclusive branches). Variables are unified by **binder identity** (`origins`),
+not by name: points that see the same binder share its variable, while
+same-named variables from different scopes are renamed apart (`x!1`, `x!2`, …
+— `!` cannot appear in a Hazel identifier, so the fresh names never collide
+with source names).
 
 ## Architecture & data flow
 
@@ -87,7 +89,7 @@ ProjectorInfo.mk_info (has the whole-program Statics.Map.t)
           walk the node's ANCESTOR chain (from the statics map's user_terms),
           collecting signed if-guards + match-arm conditions + let-scope,
           inlining in-scope let-bound function calls, resolving input sorts
-        → Reach.t { guards; lets; var_sorts; inputs; complete }
+        → Reach.t { guards; lets; var_sorts; inputs; origins; complete }
 
 ReachProjView (web) on 🎯 click:
   Reach.smtlib2(info.reach)  → (SMT-LIB2 string, complete)   [web-free]
@@ -184,7 +186,8 @@ the `complete` flag so a sat result is honestly reported as "unknown".
 
 - Constructor/ADT patterns and lists would need SMT datatypes (not done).
 - Recursive and higher-order function calls aren't inlined → incomplete.
-- Cross-scope group merges conflate same-named variables (no α-renaming).
+- Shadowed variables surface with synthetic `x!k` names in solutions; a real
+  UI design (e.g. hover/link to the binder) is a future follow-up.
 - "Incompatible" groups don't yet pinpoint *which* points conflict (no unsat
   core).
 - `float_mod` and many other builtins are unmapped.
