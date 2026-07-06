@@ -2,32 +2,13 @@ open Util;
 
 type t = ZipperBase.t;
 
-/* Reassociation tries to reconcile two competing notions of intent:
-   textual completion and structural stability.
-
-   Terms used here:
-   - Anchor: an already-complete multi-delimiter form in the affected scope.
-     Anchors are evidence of previously committed user intent and should not
-     be broken casually, because probe placement and intermediate feedback
-     depend on them staying stable through incomplete edit states.
-   - Request: unresolved delimiter obligations induced by the local edit cone.
-     Requests are directional and token-compatible (`end` with `end`, `->`
-     with `->`), but do not preserve historical form identity.
-   - Repair scope: the smallest sibling/ancestor region we choose to crack,
-     rescan, and potentially rewrite after an edit.
-
-   Intended behavior:
-   - If the edited region is still incomplete, preserve anchored complete
-     structure as much as possible.
-   - If the edited region becomes textually delimiter-complete, realize a
-     structurally complete interpretation rather than preserving stale history.
-
-   Current shape:
-   - Scope expansion is driven by ordered requests consumed against the tokens
-     each ancestor generation actually exposes.
-   - Cracking inside that expanded scope is coarse: complete wrappers crack
-     whenever they contain incomplete multi-delimiter descendants.
-   - Acceptance is local and anchor-preserving. */
+/* Reassociation reconciles textual completion with structural stability.
+   Anchors (already-complete multi-delimiter forms) encode committed intent and
+   must stay stable through incomplete edits, since probe placement depends on
+   it; requests are the directional, token-compatible delimiter obligations the
+   local edit induces. While the edit is still incomplete we preserve anchors;
+   once it is delimiter-complete we realize the complete structure rather than
+   stale history. */
 
 module ShardKey = {
   type t = (Id.t, list(int));
@@ -45,30 +26,6 @@ type repair_stats = {
   complete_multitiles: int,
   incomplete_multitiles: int,
   preserved_anchors: int,
-};
-
-type base_summary = {
-  anchors: Id.Map.t(unit),
-  complete_multitiles: int,
-  incomplete_multitiles: int,
-};
-
-let empty_repair_stats = {
-  complete_multitiles: 0,
-  incomplete_multitiles: 0,
-  preserved_anchors: 0,
-};
-
-let empty_base_summary = {
-  anchors: Id.Map.empty,
-  complete_multitiles: 0,
-  incomplete_multitiles: 0,
-};
-
-let add_repair_stats = (a: repair_stats, b: repair_stats): repair_stats => {
-  complete_multitiles: a.complete_multitiles + b.complete_multitiles,
-  incomplete_multitiles: a.incomplete_multitiles + b.incomplete_multitiles,
-  preserved_anchors: a.preserved_anchors + b.preserved_anchors,
 };
 
 let is_multidelimiter_label = (label: Label.t): bool =>
@@ -288,6 +245,24 @@ let freshen_ancestor_shards =
     ([], fresh_map),
   );
 
+/* Flatten one ancestor generation into the sibling scope, freshening the
+   generation's right-side shard ids (see freshen_ancestor_shards). */
+let flatten_generation =
+    (
+      (ancestor, parent_sibs): Ancestors.generation,
+      siblings: Siblings.t,
+      fresh_map: Id.Map.t((Id.t, list(int))),
+    )
+    : (Siblings.t, Id.Map.t((Id.t, list(int)))) => {
+  let (left_dis, right_dis) = Ancestor.disassemble(ancestor);
+  let (right_dis, fresh_map) =
+    freshen_ancestor_shards(ancestor.id, fresh_map, right_dis);
+  (
+    Siblings.concat([siblings, (left_dis, right_dis), parent_sibs]),
+    fresh_map,
+  );
+};
+
 /* Flatten ancestors into siblings until the current request has been
    satisfied. Irrelevant generations may still be traversed to reach an
    outer generation that can discharge the request, but once the request
@@ -308,12 +283,9 @@ let rec expand_scope =
       ancestors,
       fresh_map,
     )
-  | [(ancestor, parent_sibs) as generation, ...rest] =>
-    let (left_dis, right_dis) = Ancestor.disassemble(ancestor);
-    let (right_dis, fresh_map) =
-      freshen_ancestor_shards(ancestor.id, fresh_map, right_dis);
-    let siblings =
-      Siblings.concat([siblings, (left_dis, right_dis), parent_sibs]);
+  | [generation, ...rest] =>
+    let (siblings, fresh_map) =
+      flatten_generation(generation, siblings, fresh_map);
     let request = consume_request_by_generation(request, generation);
     expand_scope(
       request,
@@ -363,82 +335,57 @@ let repair_fresh_ids =
     TupleUtil.map2(repair, siblings);
   };
 
+/* The standard candidate-construction step over a flattened sibling scope:
+   crack complete wrappers that hide incomplete descendants, rescan to
+   re-associate delimiters left-to-right, then restore any freshened ids that
+   rescan did not actually displace. */
+let crack_rescan_repair =
+    (~fresh_map=Id.Map.empty, siblings: Siblings.t): Siblings.t =>
+  crack_siblings(siblings) |> Siblings.rescan |> repair_fresh_ids(fresh_map);
+
 /* Acceptance */
 
-let base_stats_of_summary = (summary: base_summary): repair_stats => {
-  complete_multitiles: summary.complete_multitiles,
-  incomplete_multitiles: summary.incomplete_multitiles,
-  preserved_anchors: summary.complete_multitiles,
-};
-
-let rec collect_base_summary =
-        (summary: base_summary, seg: Segment.t): base_summary =>
+/* Walk a segment (recursing into children) and return the ids of complete
+   multi-delimiter tiles together with the count of incomplete ones. Both the
+   base scope and a candidate are scored from this single pass. */
+let rec collect_multitiles = (seg: Segment.t): (list(Id.t), int) =>
   List.fold_left(
-    (summary, piece) =>
+    ((complete_ids, incomplete), piece) =>
       switch (piece) {
       | Piece.Tile(tile) =>
-        let summary =
-          List.fold_left(collect_base_summary, summary, tile.children);
-        if (!is_multidelimiter_label(tile.label)) {
-          summary;
-        } else if (Tile.is_complete(tile)) {
-          {
-            anchors: Id.Map.add(tile.id, (), summary.anchors),
-            complete_multitiles: summary.complete_multitiles + 1,
-            incomplete_multitiles: summary.incomplete_multitiles,
-          };
-        } else {
-          {
-            ...summary,
-            incomplete_multitiles: summary.incomplete_multitiles + 1,
-          };
-        };
-      | _ => summary
-      },
-    summary,
-    seg,
-  );
-
-let score_multitile =
-    (~anchors: Id.Map.t(unit), ~id: Id.t, ~label: Label.t, ~complete: bool)
-    : repair_stats =>
-  if (!is_multidelimiter_label(label)) {
-    empty_repair_stats;
-  } else {
-    {
-      complete_multitiles: complete ? 1 : 0,
-      incomplete_multitiles: complete ? 0 : 1,
-      preserved_anchors: complete && Id.Map.mem(id, anchors) ? 1 : 0,
-    };
-  };
-
-let rec collect_candidate_stats =
-        (~anchors: Id.Map.t(unit), stats: repair_stats, seg: Segment.t)
-        : repair_stats =>
-  List.fold_left(
-    (stats, piece) =>
-      switch (piece) {
-      | Piece.Tile(tile) =>
-        let stats =
-          add_repair_stats(
-            stats,
-            score_multitile(
-              ~anchors,
-              ~id=tile.id,
-              ~label=tile.label,
-              ~complete=Tile.is_complete(tile),
-            ),
+        let (complete_ids, incomplete) =
+          List.fold_left(
+            ((complete_ids, incomplete), child) => {
+              let (child_ids, child_incomplete) = collect_multitiles(child);
+              (child_ids @ complete_ids, child_incomplete + incomplete);
+            },
+            (complete_ids, incomplete),
+            tile.children,
           );
-        List.fold_left(
-          (stats, child) => collect_candidate_stats(~anchors, stats, child),
-          stats,
-          tile.children,
-        );
-      | _ => stats
+        if (!is_multidelimiter_label(tile.label)) {
+          (complete_ids, incomplete);
+        } else if (Tile.is_complete(tile)) {
+          ([tile.id, ...complete_ids], incomplete);
+        } else {
+          (complete_ids, incomplete + 1);
+        };
+      | _ => (complete_ids, incomplete)
       },
-    stats,
+    ([], 0),
     seg,
   );
+
+/* Score a segment's multi-delimiter tiles, counting how many complete ones are
+   anchors (ids present in `anchors`). */
+let stats_of = (~anchors: Id.Map.t(unit), seg: Segment.t): repair_stats => {
+  let (complete_ids, incomplete_multitiles) = collect_multitiles(seg);
+  {
+    complete_multitiles: List.length(complete_ids),
+    incomplete_multitiles,
+    preserved_anchors:
+      List.length(List.filter(id => Id.Map.mem(id, anchors), complete_ids)),
+  };
+};
 
 let should_accept_repair =
     (base_stats: repair_stats, candidate_stats: repair_stats): bool =>
@@ -455,21 +402,28 @@ let accept_candidate =
       z: t,
     )
     : t => {
-  let base_summary =
-    collect_base_summary(empty_base_summary, Relatives.zip(base_scope));
-  let base_stats = base_stats_of_summary(base_summary);
+  let (base_complete_ids, base_incomplete) =
+    collect_multitiles(Relatives.zip(base_scope));
+  /* The base's complete multi-delimiter tiles are the anchors; all of them are
+     trivially preserved in the base itself. */
+  let anchors =
+    List.fold_left(
+      (m, id) => Id.Map.add(id, (), m),
+      Id.Map.empty,
+      base_complete_ids,
+    );
+  let base_stats = {
+    complete_multitiles: List.length(base_complete_ids),
+    incomplete_multitiles: base_incomplete,
+    preserved_anchors: List.length(base_complete_ids),
+  };
   let local_relatives =
     {
       Relatives.siblings: candidate_siblings,
       ancestors: [],
     }
     |> Relatives.reassemble;
-  let candidate_stats =
-    collect_candidate_stats(
-      ~anchors=base_summary.anchors,
-      empty_repair_stats,
-      Relatives.zip(local_relatives),
-    );
+  let candidate_stats = stats_of(~anchors, Relatives.zip(local_relatives));
   if (should_accept_repair(base_stats, candidate_stats)) {
     {
       ...z,
@@ -488,7 +442,63 @@ let accept_candidate =
 let siblings_have_incomplete = ((pre, suf): Siblings.t): bool =>
   has_incomplete_multi_deep(pre) || has_incomplete_multi_deep(suf);
 
-let go = (z: t): t =>
+/* An incomplete multi-delimiter tile that is missing a LEADING shard, i.e. an
+   orphaned trailing shard (a stray closer like a lone `)`, or a dangling
+   `then`/`else`/`end`/`->`). This is the signature of a cross-scope edit that
+   a left-to-right rescan of the local siblings cannot fix on its own, because
+   the matching opener lives in an outer generation. Crucially it does NOT fire
+   for an ordinary unclosed opener (e.g. `(` awaiting its `)`), whose missing
+   shard is on the right — keeping the common mid-typing state off the
+   spine-flattening path. */
+let rec has_orphaned_trailing_shard = (seg: Segment.t): bool =>
+  List.exists(
+    fun
+    | Piece.Tile(tile) =>
+      !Tile.is_complete(tile)
+      && is_multidelimiter_label(tile.label)
+      && Tile.left_missing_shards(tile) != []
+      || List.exists(has_orphaned_trailing_shard, tile.children)
+    | _ => false,
+    seg,
+  );
+
+let siblings_have_orphaned_trailing_shard = ((pre, suf): Siblings.t): bool =>
+  has_orphaned_trailing_shard(pre) || has_orphaned_trailing_shard(suf);
+
+/* Flatten the first `depth` ancestor generations into one flat sibling scope,
+   freshening right-side ancestor shard ids (see freshen_ancestor_shards).
+   Returns the flattened siblings, the flattened (affected) generations, the
+   remaining (outer, untouched) generations, and the fresh-id map. `~fresh_map`
+   lets a caller continue flattening from an earlier stage's id map. */
+let flatten_to_depth =
+    (
+      ~fresh_map=Id.Map.empty,
+      depth: int,
+      siblings: Siblings.t,
+      ancestors: Ancestors.t,
+    )
+    : (Siblings.t, Ancestors.t, Ancestors.t, Id.Map.t((Id.t, list(int)))) => {
+  let rec go = (i, siblings, affected_rev, ancestors, fresh_map) =>
+    if (i >= depth) {
+      (siblings, List.rev(affected_rev), ancestors, fresh_map);
+    } else {
+      switch (ancestors) {
+      | [] => (siblings, List.rev(affected_rev), [], fresh_map)
+      | [generation, ...rest] =>
+        let (siblings, fresh_map) =
+          flatten_generation(generation, siblings, fresh_map);
+        go(i + 1, siblings, [generation, ...affected_rev], rest, fresh_map);
+      };
+    };
+  go(0, siblings, [], ancestors, fresh_map);
+};
+
+/* Fast path: caret-local, request-driven reassociation. Handles the common
+   out-of-order completion cases (typing/pasting a delimiter that should match
+   an incomplete tile reachable through a bounded number of ancestor
+   generations) cheaply. Returns z UNCHANGED (physically) when it finds no
+   local request to act on or when no candidate improves on the base. */
+let go_request = (z: t): t =>
   switch (request_of_relatives(z.relatives)) {
   | None => z
   | Some(request) =>
@@ -501,37 +511,21 @@ let go = (z: t): t =>
           z.relatives.ancestors,
           Id.Map.empty,
         );
-      let siblings =
-        crack_siblings(siblings)
-        |> Siblings.rescan
-        |> repair_fresh_ids(fresh_map);
+      let siblings = crack_rescan_repair(~fresh_map, siblings);
       /* If the result still has incomplete multi-delimiter tiles and
          there are unflattened outer ancestors, flatten them all and
          retry. This handles cascading reassociation where completing
          one layer reveals that an outer ancestor also needs work. */
       let (siblings, affected_ancestors, outer_ancestors) =
         if (siblings_have_incomplete(siblings) && outer_ancestors != []) {
-          let rec flatten_all = (siblings, affected_rev, ancestors, fm) =>
-            switch (ancestors) {
-            | [] => (siblings, List.rev(affected_rev), [], fm)
-            | [(ancestor, parent_sibs) as gen, ...rest] =>
-              let (left_dis, right_dis) = Ancestor.disassemble(ancestor);
-              let (right_dis, fm) =
-                freshen_ancestor_shards(ancestor.id, fm, right_dis);
-              let siblings =
-                Siblings.concat([
-                  siblings,
-                  (left_dis, right_dis),
-                  parent_sibs,
-                ]);
-              flatten_all(siblings, [gen, ...affected_rev], rest, fm);
-            };
           let (siblings, more_affected, outer, more_fresh) =
-            flatten_all(siblings, [], outer_ancestors, fresh_map);
-          let siblings =
-            crack_siblings(siblings)
-            |> Siblings.rescan
-            |> repair_fresh_ids(more_fresh);
+            flatten_to_depth(
+              ~fresh_map,
+              List.length(outer_ancestors),
+              siblings,
+              outer_ancestors,
+            );
+          let siblings = crack_rescan_repair(~fresh_map=more_fresh, siblings);
           (siblings, affected_ancestors @ more_affected, outer);
         } else {
           (siblings, affected_ancestors, outer_ancestors);
@@ -565,3 +559,78 @@ let go = (z: t): t =>
       };
     }
   };
+
+/* A generous bound on how many ancestor generations the fallback will flatten
+   looking for an orphan's match. Real orphaned closers find their opener
+   within a few generations; the cap only stops a degenerate, never-matching
+   orphan (e.g. a lone `)` with no opener) from re-scanning the whole spine. */
+let max_repair_depth = 32;
+
+/* Fallback for edits the request-driven fast path leaves untouched: an
+   incomplete delimiter form sits OUTSIDE the caret-local cone (a stray closer
+   in the prefix whose opener is an outer generation; a pasted leading keyword
+   whose trailing shards are across an enclosing form).
+
+   We ascend a generation at a time rather than flattening straight to the
+   root: at each depth we flatten that many generations, crack, rescan, and ask
+   should_accept_repair whether the candidate strictly improves completeness
+   without sacrificing anchors. The FIRST accepted depth wins, so the cost of a
+   typical fire is proportional to the local nesting context that actually held
+   the match — not the whole document. A non-matching orphan rejects at every
+   depth and falls through (capped at max_repair_depth), leaving z unchanged. */
+let flatten_and_repair = (z: t): t => {
+  let limit = min(List.length(z.relatives.ancestors), max_repair_depth);
+  let rec ascend = (depth: int): t =>
+    if (depth > limit) {
+      z;
+    } else {
+      let (flattened, affected_ancestors, outer_ancestors, fresh_map) =
+        flatten_to_depth(depth, z.relatives.siblings, z.relatives.ancestors);
+      let candidate_siblings = crack_rescan_repair(~fresh_map, flattened);
+      let result =
+        accept_candidate(
+          ~base_scope={
+            Relatives.siblings: z.relatives.siblings,
+            ancestors: affected_ancestors,
+          },
+          ~candidate_siblings,
+          ~outer_ancestors,
+          z,
+        );
+      result !== z ? result : ascend(depth + 1);
+    };
+  ascend(1);
+};
+
+/* Entry point. Run the cheap request-driven path first; only if it makes no
+   change consider the spine-flattening fallback, and only when something
+   actually warrants repair.
+
+   The guard keeps the hot per-keystroke path O(local): for a single-character
+   Insert/Destruct we flatten only when the caret's immediate siblings hold an
+   orphaned TRAILING shard (a stray closer whose opener is an outer
+   generation) — the bug-1 signature. An ordinary unclosed opener does NOT
+   match, so mid-typing inside `(`/`let`/`if` never pays the flatten.
+
+   `~thorough` (Paste, a rare deliberate bulk edit) admits a broader scan,
+   since a pasted leading keyword presents as an ordinary right-missing tile
+   indistinguishable from a normal unclosed opener; should_accept_repair still
+   rejects any flatten that would not strictly improve completeness. */
+let go_with = (~thorough: bool, z: t): t => {
+  let repaired = go_request(z);
+  if (repaired !== z) {
+    repaired;
+  } else {
+    let needs_repair =
+      thorough
+        ? has_incomplete_multi_deep(Relatives.zip(z.relatives))
+        : siblings_have_orphaned_trailing_shard(z.relatives.siblings);
+    needs_repair ? flatten_and_repair(z) : z;
+  };
+};
+
+let go = (z: t): t => go_with(~thorough=false, z);
+
+/* Thorough variant for Paste (a rare bulk edit): admits a full-relatives scan
+   for incomplete forms left anywhere in the pasted region. */
+let go_thorough = (z: t): t => go_with(~thorough=true, z);
