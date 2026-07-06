@@ -155,7 +155,6 @@ let has_newline = (ws: list(Secondary.t)): bool =>
        }
      );
 
-
 /* single spaces at a synthesized node's edges (can't be globalized:
  * user-authored tight junctions like `(a=1)` are legitimate) */
 let pad = (e: IdTagged.t('a)): IdTagged.t('a) => {
@@ -658,7 +657,9 @@ let add_annotation_impl: impl = {
                 let ty =
                   pad(
                     parens
-                      ? fresh_typ(Parens(with_secondary_typ(([], []), bare)))
+                      ? fresh_typ(
+                          Parens(with_secondary_typ(([], []), bare)),
+                        )
                       : bare,
                   );
                 /* p keeps its runs: its old pre-`=` space now sits
@@ -890,14 +891,16 @@ let rec find_path = (~hit: Exp.t => bool, e: Exp.t): option(list(Exp.t)) =>
     |> Option.map(rest => [e, ...rest]);
   };
 
-let same_node = (a: Exp.t, b: Exp.t): bool => Exp.rep_id(a) == Exp.rep_id(b);
+let same_node = (a: Exp.t, b: Exp.t): bool =>
+  Exp.rep_id(a) == Exp.rep_id(b);
 
 let line_child = (parent: Exp.t, child: Exp.t): bool =>
   switch (IdTagged.term_of(parent)) {
   | Let(_, _, body) => same_node(body, child)
   | Fun(_, body, _, _) => same_node(body, child)
   | FixF(_, body, _) => same_node(body, child)
-  | Match(_, rules) => rules |> List.exists(((_, b)) => same_node(b, child))
+  | Match(_, rules) =>
+    rules |> List.exists(((_, b)) => same_node(b, child))
   | If(_, t, alt) => same_node(t, child) || same_node(alt, child)
   | _ => false
   };
@@ -983,7 +986,9 @@ let extract_let_impl: impl = {
               ? {
                 let def = pad(e |> strip_leading |> strip_trailing);
                 let let_node =
-                  fresh(Let(pad(fresh_pat(Var(x))), def, fresh(Var(x))));
+                  fresh(
+                    Let(pad(fresh_pat(Var(x))), def, fresh(Var(x))),
+                  );
                 Some((
                   parens ? fresh(Parens(let_node)) : let_node,
                   Exp.rep_id(def),
@@ -1036,8 +1041,7 @@ let extract_let_impl: impl = {
       if (extractable(t)) {
         let line = lowest_line(path);
         let blocked =
-          crossed_rec_binders(line, path)
-          |> List.exists(n => mentions(n, t));
+          crossed_rec_binders(line, path) |> List.exists(n => mentions(n, t));
         !blocked && !same_node(line, t)
           ? to_block(line, t) : via_oracle(in_place);
       } else {
@@ -1352,7 +1356,8 @@ let extended_arrow = (ann: Typ.t): option(Typ.t) =>
           }
         | _ => {
             ...a,
-            term: Parens(fresh_typ(Prod([clear_typ(inner), typ_unknown()]))),
+            term:
+              Parens(fresh_typ(Prod([clear_typ(inner), typ_unknown()]))),
           }
         }
       | _ =>
@@ -1405,13 +1410,11 @@ let extended_ap_pat = (p: Pat.t, name: string): option((Pat.t, Id.t)) => {
       }
     | Asc(inner, ann) =>
       go(inner)
-      |> Option.map((inner': Pat.t) =>
-           (
-             {
-               ...p,
-               term: Asc(inner', ann),
-             }: Pat.t
-           )
+      |> Option.map((inner': Pat.t): Pat.t =>
+           {
+             ...p,
+             term: Asc(inner', ann),
+           }
          )
     | _ => None
     };
@@ -1432,8 +1435,7 @@ let sugar_fn_name = (p: Pat.t): option(string) => {
  * can afford the full build; rewrite_node adds the slot takeover on
  * invocation only). Shapes: let f = fun ...; let f : A -> B = fun ...
  * (annotation's arrow rewritten); let f(x) = ... (opt : Ret). */
-let add_param_rewrite =
-    (~program: Exp.t, e: Exp.t): option((Exp.t, Id.t)) =>
+let add_param_rewrite = (~program: Exp.t, e: Exp.t): option((Exp.t, Id.t)) =>
   switch (IdTagged.term_of(e)) {
   | Let(p, def, body) =>
     let name = fresh_name(program);
@@ -1594,7 +1596,9 @@ let rename_sites_unfiltered =
       }
     }
   | Fun(p, body, _, _) =>
-    pat_var_names(p) |> List.sort_uniq(compare) |> List.map(y => (y, [body]))
+    pat_var_names(p)
+    |> List.sort_uniq(compare)
+    |> List.map(y => (y, [body]))
   | Match(_, rules) =>
     rules
     |> List.concat_map(((p, body)) =>
@@ -1610,8 +1614,7 @@ let rename_sites_unfiltered =
 /* Targeting: the binder-name TOKEN is the only rename affordance —
  * not the construct's delimiters, not pattern punctuation (a caret on
  * the comma in `let f(x, y)` means neither f nor x). */
-let rename_sites =
-    (~target: Id.t, e: Exp.t): list((string, list(Exp.t))) => {
+let rename_sites = (~target: Id.t, e: Exp.t): list((string, list(Exp.t))) => {
   let pats =
     switch (IdTagged.term_of(e)) {
     | Let(p, _, _)
@@ -1629,8 +1632,7 @@ let rename_sites =
     |> List.find_opt(((_, ids)) => List.mem(target, ids))
   ) {
   | Some((y, _)) =>
-    rename_sites_unfiltered(~target, e)
-    |> List.filter(((y', _)) => y' == y)
+    rename_sites_unfiltered(~target, e) |> List.filter(((y', _)) => y' == y)
   | None => []
   };
 };
@@ -1726,11 +1728,7 @@ let rename_free_impl = (x: string, y: string): impl => {
                   regions
                   |> List.fold_left(
                        (e, r: Exp.t) =>
-                         replace_node(
-                           ~at=Exp.rep_id(r),
-                           ~with_=ren(r),
-                           e,
-                         ),
+                         replace_node(~at=Exp.rep_id(r), ~with_=ren(r), e),
                        e,
                      );
                 /* caret stays on the binder token (where the user
@@ -1778,13 +1776,13 @@ let rename_free_impl = (x: string, y: string): impl => {
 let rec free_in = (x: string, e: Exp.t): bool =>
   switch (IdTagged.term_of(e)) {
   | Var(y) => y == x
-  | Let(p, d, body) =>
-    free_in(x, d) || !binds(x, p) && free_in(x, body)
+  | Let(p, d, body) => free_in(x, d) || !binds(x, p) && free_in(x, body)
   | Fun(p, body, _, _)
   | FixF(p, body, _) => binds(x, p) ? false : free_in(x, body)
   | Match(scrut, rules) =>
     free_in(x, scrut)
-    || rules |> List.exists(((p, b)) => !binds(x, p) && free_in(x, b))
+    || rules
+    |> List.exists(((p, b)) => !binds(x, p) && free_in(x, b))
   | _ => children_of(e) |> List.exists(free_in(x))
   };
 
@@ -1856,10 +1854,10 @@ let hoist_step = (path: list(Exp.t)): option((Exp.t, Exp.t, Id.t)) => {
         /* out of a def: above that line */
         let c': Exp.t =
           same_node(c, l)
+            /* the def slot's occupant is now lbody, which brings its
+               own lead; l's trailing run (before the outer in) stays
+               with the def position */
             ? {
-              /* the def slot's occupant is now lbody, which brings its
-                 own lead; l's trailing run (before the outer in) stays
-                 with the def position */
               let (cb, ca) = lbody.annotation.secondary;
               let (_, l_after) = l.annotation.secondary;
               with_secondary((cb, ca @ l_after), lbody);
@@ -2030,8 +2028,7 @@ let sink_step = (~fixup: bool, l: Exp.t): option((Exp.t, Id.t)) => {
               term: Let(lp, ldef, rb'),
             },
           );
-        let rules' =
-          rules |> List.mapi((j, r) => j == i ? (rp, l') : r);
+        let rules' = rules |> List.mapi((j, r) => j == i ? (rp, l') : r);
         let match': Exp.t =
           with_secondary(
             l.annotation.secondary,
@@ -2261,8 +2258,7 @@ let applies =
     }
   | RenameFree(x, y) =>
     switch (find_hit(~hit=hit_rename(target), program)) {
-    | Some(e) =>
-      rename_pairs(~info_map, ~target, e) |> List.mem((x, y))
+    | Some(e) => rename_pairs(~info_map, ~target, e) |> List.mem((x, y))
     | None => false
     }
   | HoistLet =>

@@ -352,8 +352,7 @@ let annotation_tests = [
     `Quick,
     () => {
       let got =
-        inline(~kind=AddTypeAnnotation, "¦let p = (1, true) in p")
-        |> text_of;
+        inline(~kind=AddTypeAnnotation, "¦let p = (1, true) in p") |> text_of;
       check(
         string,
         "parenthesized prod",
@@ -404,8 +403,7 @@ let more_tests = [
     `Quick,
     () => {
       let got =
-        inline(~kind=IfToCase, "¦if c then\n  1\nelse\n  2")
-        |> text_of;
+        inline(~kind=IfToCase, "¦if c then\n  1\nelse\n  2") |> text_of;
       check(
         string,
         "arm layout kept",
@@ -476,12 +474,7 @@ let more_tests = [
     `Quick,
     () => {
       let got = inline(~kind=ExtractLet, "f¦(2), 3") |> text_of;
-      check(
-        string,
-        "let covers the tuple line",
-        "let x = f(2) in x, 3",
-        got,
-      );
+      check(string, "let covers the tuple line", "let x = f(2) in x, 3", got);
     },
   ),
   test_case(
@@ -624,8 +617,7 @@ let param_tests = [
     `Quick,
     () => {
       let got =
-        inline(~kind=AddParameter, "¦let f(x) = x + 1 in f(2)")
-        |> text_of;
+        inline(~kind=AddParameter, "¦let f(x) = x + 1 in f(2)") |> text_of;
       check(
         string,
         "sugar pat + call",
@@ -639,8 +631,7 @@ let param_tests = [
     `Quick,
     () => {
       let got =
-        inline(~kind=AddParameter, "¦let f(a, b) = a in f(1, 2)")
-        |> text_of;
+        inline(~kind=AddParameter, "¦let f(a, b) = a in f(1, 2)") |> text_of;
       check(string, "third", "let f(a, b, x) = a in f(1, 2, ?)", got);
     },
   ),
@@ -844,10 +835,7 @@ let rename_tests = [
     `Quick,
     () => {
       let got =
-        inline(
-          ~kind=RenameFree("v", "vel"),
-          "let ¦vel : Int = 1 in v + v",
-        )
+        inline(~kind=RenameFree("v", "vel"), "let ¦vel : Int = 1 in v + v")
         |> text_of;
       check(string, "asc head", "let vel : Int = 1 in vel + vel", got);
     },
@@ -861,27 +849,32 @@ let rename_tests = [
       check(string, "param bound", "fun m -> m + m", got);
     },
   ),
-  test_case("fun delimiters offer no renames", `Quick, () => {
-    let kinds = kinds_at("¦fun (a, b) -> q + a");
-    check(
-      bool,
-      "none at fun kw",
-      false,
-      kinds
-      |> List.exists(k =>
-           switch (k) {
-           | Action.RenameFree(_, _) => true
-           | _ => false
-           }
-         ),
-    );
-  }),
+  test_case(
+    "fun delimiters offer no renames",
+    `Quick,
+    () => {
+      let kinds = kinds_at("¦fun (a, b) -> q + a");
+      check(
+        bool,
+        "none at fun kw",
+        false,
+        kinds
+        |> List.exists(k =>
+             switch (k) {
+             | Action.RenameFree(_, _) => true
+             | _ => false
+             }
+           ),
+      );
+    },
+  ),
   test_case(
     "rename free binds occurrences",
     `Quick,
     () => {
       let got =
-        inline(~kind=RenameFree("v", "vel"), "let ¦vel = 1 in v + v") |> text_of;
+        inline(~kind=RenameFree("v", "vel"), "let ¦vel = 1 in v + v")
+        |> text_of;
       check(string, "both bound", "let vel = 1 in vel + vel", got);
     },
   ),
@@ -931,31 +924,39 @@ let rename_tests = [
       check(string, "rec call bound", "let g = fun n -> g(n) in g(2)", got);
     },
   ),
-  test_case("one menu entry per candidate name", `Quick, () => {
-    let kinds = kinds_at("let ¦y = 1 in a + b");
-    check(
-      bool,
-      "both offered",
-      true,
-      List.mem(Action.RenameFree("a", "y"), kinds)
-      && List.mem(Action.RenameFree("b", "y"), kinds),
-    );
-  }),
-  test_case("no offer without free vars in scope", `Quick, () => {
-    let kinds = kinds_at("let ¦y = 1 in y + 2");
-    check(
-      bool,
-      "none",
-      false,
-      kinds
-      |> List.exists(k =>
-           switch (k) {
-           | Action.RenameFree(_, _) => true
-           | _ => false
-           }
-         ),
-    );
-  }),
+  test_case(
+    "one menu entry per candidate name",
+    `Quick,
+    () => {
+      let kinds = kinds_at("let ¦y = 1 in a + b");
+      check(
+        bool,
+        "both offered",
+        true,
+        List.mem(Action.RenameFree("a", "y"), kinds)
+        && List.mem(Action.RenameFree("b", "y"), kinds),
+      );
+    },
+  ),
+  test_case(
+    "no offer without free vars in scope",
+    `Quick,
+    () => {
+      let kinds = kinds_at("let ¦y = 1 in y + 2");
+      check(
+        bool,
+        "none",
+        false,
+        kinds
+        |> List.exists(k =>
+             switch (k) {
+             | Action.RenameFree(_, _) => true
+             | _ => false
+             }
+           ),
+      );
+    },
+  ),
 ];
 
 let move_tests = [
@@ -964,8 +965,7 @@ let move_tests = [
     `Quick,
     () => {
       let got =
-        inline(~kind=HoistLet, "let a = 1 in ¦let x = 2 in x + a")
-        |> text_of;
+        inline(~kind=HoistLet, "let a = 1 in ¦let x = 2 in x + a") |> text_of;
       check(string, "swapped", "let x = 2 in let a = 1 in x + a", got);
     },
   ),
@@ -989,8 +989,7 @@ let move_tests = [
     `Quick,
     () => {
       let got =
-        inline(~kind=HoistLet, "fun n -> ¦let x = 2 in x + n")
-        |> text_of;
+        inline(~kind=HoistLet, "fun n -> ¦let x = 2 in x + n") |> text_of;
       check(string, "once, not per call", "let x = 2 in fun n -> x + n", got);
     },
   ),
@@ -1015,14 +1014,8 @@ let move_tests = [
     `Quick,
     () => {
       let got =
-        inline(~kind=HoistLet, "let a = (¦let x = 2 in x) in a")
-        |> text_of;
-      check(
-        string,
-        "above the line",
-        "let x = 2 in let a = (x) in a",
-        got,
-      );
+        inline(~kind=HoistLet, "let a = (¦let x = 2 in x) in a") |> text_of;
+      check(string, "above the line", "let x = 2 in let a = (x) in a", got);
     },
   ),
   test_case(
@@ -1030,17 +1023,9 @@ let move_tests = [
     `Quick,
     () => {
       let got =
-        inline(
-          ~kind=HoistLet,
-          "let d =\n  ¦let x = 1 in\n  f(x)\nin\nd",
-        )
+        inline(~kind=HoistLet, "let d =\n  ¦let x = 1 in\n  f(x)\nin\nd")
         |> text_of;
-      check(
-        string,
-        "own lines",
-        "let x = 1 in\nlet d =\n  f(x)\nin\nd",
-        got,
-      );
+      check(string, "own lines", "let x = 1 in\nlet d =\n  f(x)\nin\nd", got);
     },
   ),
   test_case(
@@ -1066,8 +1051,7 @@ let move_tests = [
     `Quick,
     () => {
       let got =
-        inline(~kind=SinkLet, "¦let x = 2 in let a = 1 in x + a")
-        |> text_of;
+        inline(~kind=SinkLet, "¦let x = 2 in let a = 1 in x + a") |> text_of;
       check(string, "swapped down", "let a = 1 in let x = 2 in x + a", got);
     },
   ),
@@ -1076,8 +1060,7 @@ let move_tests = [
     `Quick,
     () => {
       let got =
-        inline(~kind=SinkLet, "¦let x = 2 in fun n -> x + n")
-        |> text_of;
+        inline(~kind=SinkLet, "¦let x = 2 in fun n -> x + n") |> text_of;
       check(string, "per call", "fun n -> let x = 2 in x + n", got);
     },
   ),
@@ -1086,10 +1069,7 @@ let move_tests = [
     `Quick,
     () => {
       let got =
-        inline(
-          ~kind=SinkLet,
-          "¦let x = 2 in case m | 1 => x | _ => 0 end",
-        )
+        inline(~kind=SinkLet, "¦let x = 2 in case m | 1 => x | _ => 0 end")
         |> text_of;
       check(
         string,
@@ -1119,17 +1099,9 @@ let move_tests = [
     `Quick,
     () => {
       let got =
-        inline(
-          ~kind=HoistLet,
-          "fun n ->\n  ¦let x = 2 in\n  x + n",
-        )
+        inline(~kind=HoistLet, "fun n ->\n  ¦let x = 2 in\n  x + n")
         |> text_of;
-      check(
-        string,
-        "own lines",
-        "let x = 2 in\nfun n ->\n  x + n",
-        got,
-      );
+      check(string, "own lines", "let x = 2 in\nfun n ->\n  x + n", got);
     },
   ),
   test_case(
@@ -1137,8 +1109,7 @@ let move_tests = [
     `Quick,
     () => {
       let got =
-        inline(~kind=SinkLet, "¦let x = 2 in\nfun n ->\n  x + n")
-        |> text_of;
+        inline(~kind=SinkLet, "¦let x = 2 in\nfun n ->\n  x + n") |> text_of;
       check(
         string,
         "let joins the body line",
@@ -1175,12 +1146,7 @@ let move_tests = [
           "¦case c | true =>\n  1\n| false =>\n  2\nend",
         )
         |> text_of;
-      check(
-        string,
-        "arm layout kept",
-        "if c then\n  1\nelse\n  2",
-        got,
-      );
+      check(string, "arm layout kept", "if c then\n  1\nelse\n  2", got);
     },
   ),
   test_case("sink gated when both arms use it", `Quick, () =>
