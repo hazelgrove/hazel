@@ -225,7 +225,6 @@ let rec head_var_pat = (p: Pat.t): option(Pat.t) =>
   | _ => None
   };
 
-
 let pat_var_names = (p: Pat.t): list(string) => {
   let acc = ref([]);
   let _ =
@@ -280,7 +279,6 @@ let children_of = (e: Exp.t): list(Exp.t) => {
     );
   acc^;
 };
-
 
 /* does x occur FREE in e (an occurrence under a rebinding of x
  * doesn't count)? Movement gates use this rather than raw mentions so
@@ -367,7 +365,8 @@ let rec rename_syntactic = (y: string, y': string, e: Exp.t): Exp.t => {
       ...e,
       term: Var(y'),
     }
-  | Let(p, d, body) => rewrap(Let(p, go(d), binds(y, p) ? body : go(body)))
+  | Let(p, d, body) =>
+    rewrap(Let(p, go(d), binds(y, p) ? body : go(body)))
   | Fun(p, body, t, n) when binds(y, p) => rewrap(Fun(p, body, t, n))
   | FixF(p, body, env) when binds(y, p) => rewrap(FixF(p, body, env))
   | Match(scrut, rules) =>
@@ -410,8 +409,7 @@ let rec subst =
         : Exp.t => {
   let go = subst(~bare, ~avoid, ~used, x, def);
   /* rename p's avoid-colliding binders in p + the given scopes */
-  let freshen =
-      (p: Pat.t, scopes: list(Exp.t)): (Pat.t, list(Exp.t)) =>
+  let freshen = (p: Pat.t, scopes: list(Exp.t)): (Pat.t, list(Exp.t)) =>
     pat_var_names(p)
     |> List.sort_uniq(compare)
     |> List.filter(y => List.mem(y, avoid))
@@ -442,7 +440,9 @@ let rec subst =
       };
     if (binds(x, p)) {
       /* x shadowed in body; also in a recursive def */
-      rewrap(Let(p, recursive ? d : go(d), body));
+      rewrap(
+        Let(p, recursive ? d : go(d), body),
+      );
     } else {
       switch (freshen(p, recursive ? [d, body] : [body])) {
       | (p', [d', body']) => rewrap(Let(p', go(d'), go(body')))
@@ -596,7 +596,6 @@ let dedupe_ids = (e: Exp.t): Exp.t => {
     e,
   );
 };
-
 
 /* A let's target zone is its delimiters plus its pattern (not def or
  * body: those are their own expressions with their own menus) */
@@ -1610,7 +1609,6 @@ let extended_ap_pat = (p: Pat.t, name: string): option((Pat.t, Id.t)) => {
   go(p) |> Option.map(p' => (p', focus));
 };
 
-
 /* Shared by applies and prepare (no printing/parsing here, so gating
  * can afford the full build; rewrite_node adds the slot takeover on
  * invocation only). Shapes: let f = fun ...; let f : A -> B = fun ...
@@ -1975,8 +1973,21 @@ let with_secondary =
 };
 
 /* one hoist step for the let at the end of ~path; returns the parent
- * node to rewrite, its replacement, and a focus id */
-let hoist_step = (path: list(Exp.t)): option((Exp.t, Exp.t, Id.t)) => {
+ * node to rewrite, its replacement, and a focus id. ~fixup as in
+ * sink_step: invocation moves the released body's textual lead into
+ * the vacated slot (prints; gating passes false). */
+let hoist_step =
+    (~fixup: bool, path: list(Exp.t)): option((Exp.t, Exp.t, Id.t)) => {
+  let occupy =
+      (slot: (list(Secondary.t), list(Secondary.t)), region: Exp.t) =>
+    if (fixup) {
+      let s = Slot.lead_of(region);
+      let region = Slot.drop(s, region);
+      let (b, a) = region.annotation.secondary;
+      with_secondary((fst(slot) @ b, a @ snd(slot)), region);
+    } else {
+      region;
+    };
   let n = List.length(path);
   if (n < 2) {
     None;
@@ -2073,6 +2084,80 @@ let hoist_step = (path: list(Exp.t)): option((Exp.t, Exp.t, Id.t)) => {
             },
           );
         Some((p, l', Exp.rep_id(l)));
+      | Match(scrut, rules)
+          when
+            same_node(c, l)
+            && rules
+            |> List.exists(((rp, rb)) =>
+                 same_node(rb, c)
+                 && disjoint_names(l_names, pat_var_names(rp))
+                 && !names_mentioned(pat_var_names(rp), ldef)
+               )
+            && !(
+                 l_names
+                 |> List.exists(x =>
+                      free_in(
+                        x,
+                        replace_node(
+                          ~at=Exp.rep_id(l),
+                          ~with_=fresh(EmptyHole),
+                          p,
+                        ),
+                      )
+                    )
+               ) =>
+        /* out of an arm: evaluates unconditionally now */
+        let rules' =
+          rules
+          |> List.map(((rp, rb)) =>
+               same_node(rb, c)
+                 ? (rp, occupy(l.annotation.secondary, lbody)) : (rp, rb)
+             );
+        let match': Exp.t = {
+          ...p,
+          term: Match(scrut, rules'),
+        };
+        let l': Exp.t =
+          with_secondary(
+            p.annotation.secondary,
+            {
+              ...l,
+              term: Let(lp, ldef, match'),
+            },
+          );
+        Some((p, l', Exp.rep_id(l)));
+      | If(cond_, t_, alt_)
+          when
+            same_node(c, l)
+            && (same_node(t_, c) || same_node(alt_, c))
+            && !(
+                 l_names
+                 |> List.exists(x =>
+                      free_in(
+                        x,
+                        replace_node(
+                          ~at=Exp.rep_id(l),
+                          ~with_=fresh(EmptyHole),
+                          p,
+                        ),
+                      )
+                    )
+               ) =>
+        let sub = occupy(l.annotation.secondary, lbody);
+        let if': Exp.t = {
+          ...p,
+          term:
+            same_node(t_, c) ? If(cond_, sub, alt_) : If(cond_, t_, sub),
+        };
+        let l': Exp.t =
+          with_secondary(
+            p.annotation.secondary,
+            {
+              ...l,
+              term: Let(lp, ldef, if'),
+            },
+          );
+        Some((p, l', Exp.rep_id(l)));
       | Fun(fp, fbody, ft, fn)
           when
             same_node(fbody, c)
@@ -2110,7 +2195,44 @@ let hoist_step = (path: list(Exp.t)): option((Exp.t, Exp.t, Id.t)) => {
             },
           );
         Some((p, l', Exp.rep_id(l)));
-      | _ => None
+      | Let(_)
+      | Fun(_) => None
+      | _ =>
+        /* generic tight position: g(let x = e in b) -> let x = e in
+           g(b). No binder is crossed (binder-introducing bodies are
+           handled above); gate on capture via free_in with l cut out */
+        same_node(c, l)
+        && !(
+             l_names
+             |> List.exists(x =>
+                  free_in(
+                    x,
+                    replace_node(
+                      ~at=Exp.rep_id(l),
+                      ~with_=fresh(EmptyHole),
+                      p,
+                    ),
+                  )
+                )
+           )
+          ? {
+            let p' =
+              replace_node(
+                ~at=Exp.rep_id(l),
+                ~with_=occupy(l.annotation.secondary, lbody),
+                p,
+              );
+            let l': Exp.t =
+              with_secondary(
+                ([], []),
+                {
+                  ...l,
+                  term: Let(lp, ldef, p'),
+                },
+              );
+            Some((p, l', Exp.rep_id(l)));
+          }
+          : None
       };
     | _ => None
     };
@@ -2269,7 +2391,7 @@ let hoist_let_impl: impl = {
   prepare: (~info_map as _, ~target, program) =>
     switch (find_path(~hit=hit_let(target), program)) {
     | Some(path) =>
-      switch (hoist_step(path)) {
+      switch (hoist_step(~fixup=true, path)) {
       | Some((pnode, result, focus)) =>
         switch (
           rewrite_node(
@@ -2399,8 +2521,7 @@ let eta_expand_impl: impl = {
                 switch (IdTagged.term_of(ty)) {
                 | Arrow(a, _) =>
                   let names = fresh_names(arrow_arity(a), program);
-                  let sep_lead = i =>
-                    i == 0 ? ([], []) : (space(), []);
+                  let sep_lead = i => i == 0 ? ([], []) : (space(), []);
                   let var_pats =
                     names
                     |> List.mapi((i, n) =>
@@ -2642,8 +2763,7 @@ let expand_wildcard_impl: impl = {
               let (wild_pat, wild_body) = List.nth(rules, i);
               let ctor_pat = ((name, has_arg)) => {
                 let c: Pat.t = fresh_pat(Constructor(name, None));
-                has_arg
-                  ? fresh_pat(Ap(c, fresh_pat(Wild))) : c;
+                has_arg ? fresh_pat(Ap(c, fresh_pat(Wild))) : c;
               };
               let new_rules =
                 missing
@@ -2655,8 +2775,7 @@ let expand_wildcard_impl: impl = {
                              ctor_pat(m),
                            )
                          : pad(ctor_pat(m));
-                     let b =
-                       k == 0 ? wild_body : refresh_ids(wild_body);
+                     let b = k == 0 ? wild_body : refresh_ids(wild_body);
                      (p, b);
                    });
               let rules' =
@@ -2678,6 +2797,345 @@ let expand_wildcard_impl: impl = {
     ),
 };
 
+/* === Swap Parameters ===
+ * Swap adjacent params i, i+1 at the definition and in every call
+ * site's argument tuple. Runs stay with POSITIONS (slot principle):
+ * swapped elements exchange leads. ~fixup as in hoist/sink. */
+
+let swap_exp_items = (~fixup: bool, i: int, items: list(Exp.t)): list(Exp.t) => {
+  let a = List.nth(items, i);
+  let b = List.nth(items, i + 1);
+  let (a', b') =
+    if (fixup) {
+      let sa = Slot.lead_of(a);
+      let sb = Slot.lead_of(b);
+      let a0 = Slot.drop(sa, a);
+      let b0 = Slot.drop(sb, b);
+      (Slot.give(sa, b0), Slot.give(sb, a0));
+    } else {
+      (
+        with_secondary(a.annotation.secondary, b),
+        with_secondary(b.annotation.secondary, a),
+      );
+    };
+  items
+  |> List.mapi((j, x) =>
+       if (j == i) {
+         a';
+       } else if (j == i + 1) {
+         b';
+       } else {
+         x;
+       }
+     );
+};
+
+let swap_pat_items = (i: int, items: list(Pat.t)): list(Pat.t) => {
+  let a = List.nth(items, i);
+  let b = List.nth(items, i + 1);
+  let a' = with_secondary_pat(a.annotation.secondary, b);
+  let b' = with_secondary_pat(b.annotation.secondary, a);
+  items
+  |> List.mapi((j, x) =>
+       if (j == i) {
+         a';
+       } else if (j == i + 1) {
+         b';
+       } else {
+         x;
+       }
+     );
+};
+
+let swap_typ_items = (i: int, items: list(Typ.t)): list(Typ.t) => {
+  let a = List.nth(items, i);
+  let b = List.nth(items, i + 1);
+  let a' = with_secondary_typ(a.annotation.secondary, b);
+  let b' = with_secondary_typ(b.annotation.secondary, a);
+  items
+  |> List.mapi((j, x) =>
+       if (j == i) {
+         a';
+       } else if (j == i + 1) {
+         b';
+       } else {
+         x;
+       }
+     );
+};
+
+/* swap args at every unshadowed call of x; a bare use or a call whose
+ * arg isn't a wide-enough tuple defeats the transform */
+let rec swap_call_args =
+        (
+          ~fixup: bool,
+          ~bare_use: ref(bool),
+          ~ok: ref(bool),
+          i: int,
+          x: string,
+          e: Exp.t,
+        )
+        : Exp.t => {
+  let go = swap_call_args(~fixup, ~bare_use, ~ok, i, x);
+  let (term, rewrap) = Exp.unwrap(e);
+  switch (term) {
+  | Ap(Forward, fn, arg) when is_var_named(x, fn) =>
+    switch (IdTagged.term_of(arg)) {
+    | Tuple(items) when List.length(items) > i + 1 =>
+      let items = items |> List.map(go);
+      let arg': Exp.t = {
+        ...arg,
+        term: Tuple(swap_exp_items(~fixup, i, items)),
+      };
+      rewrap(Ap(Forward, fn, arg'));
+    | _ =>
+      ok := false;
+      e;
+    }
+  | Var(y) when y == x =>
+    bare_use := true;
+    e;
+  | Let(p, d, body) =>
+    rewrap(Let(p, go(d), binds(x, p) ? body : go(body)))
+  | Fun(p, body, t, n) when binds(x, p) => rewrap(Fun(p, body, t, n))
+  | FixF(p, body, env) when binds(x, p) => rewrap(FixF(p, body, env))
+  | Match(scrut, rules) =>
+    rewrap(
+      Match(
+        go(scrut),
+        rules
+        |> List.map(((p, body)) => (p, binds(x, p) ? body : go(body))),
+      ),
+    )
+  | _ =>
+    Exp.map_term(
+      ~f_exp={
+        let entered = ref(false);
+        (cont, e': Exp.t) =>
+          if (entered^) {
+            go(e');
+          } else {
+            entered := true;
+            cont(e');
+          };
+      },
+      e,
+    )
+  };
+};
+
+let swap_fun_pat = (i: int, fp: Pat.t): option(Pat.t) =>
+  switch (IdTagged.term_of(fp)) {
+  | Parens(inner) =>
+    switch (IdTagged.term_of(inner)) {
+    | Tuple(items) when List.length(items) > i + 1 =>
+      Some({
+        ...fp,
+        term:
+          Parens({
+            ...inner,
+            term: Tuple(swap_pat_items(i, items)),
+          }),
+      })
+    | _ => None
+    }
+  | Tuple(items) when List.length(items) > i + 1 =>
+    Some({
+      ...fp,
+      term: Tuple(swap_pat_items(i, items)),
+    })
+  | _ => None
+  };
+
+let swap_arrow_ann = (i: int, ann: Typ.t): option(Typ.t) =>
+  switch (IdTagged.term_of(ann)) {
+  | Arrow(a, b) =>
+    let swap_in = (a: Typ.t): option(Typ.t) =>
+      switch (IdTagged.term_of(a)) {
+      | Parens(inner) =>
+        switch (IdTagged.term_of(inner)) {
+        | Prod(items) when List.length(items) > i + 1 =>
+          Some({
+            ...a,
+            term:
+              Parens({
+                ...inner,
+                term: Prod(swap_typ_items(i, items)),
+              }),
+          })
+        | _ => None
+        }
+      | Prod(items) when List.length(items) > i + 1 =>
+        Some({
+          ...a,
+          term: Prod(swap_typ_items(i, items)),
+        })
+      | _ => None
+      };
+    swap_in(a)
+    |> Option.map((a': Typ.t): Typ.t =>
+         {
+           ...ann,
+           term: Arrow(a', b),
+         }
+       );
+  | _ => None
+  };
+
+let swap_params_rewrite =
+    (~fixup: bool, i: int, e: Exp.t): option((Exp.t, Id.t)) =>
+  switch (IdTagged.term_of(e)) {
+  | Let(p, def, body) =>
+    let bare_use = ref(false);
+    let ok = ref(true);
+    let pieces: option((string, Pat.t, Exp.t)) =
+      switch (sugar_fn_name(p)) {
+      | Some(f) =>
+        let rec swap_in_pat = (p: Pat.t): option(Pat.t) =>
+          switch (IdTagged.term_of(p)) {
+          | Ap(fv, argp) =>
+            switch (IdTagged.term_of(argp)) {
+            | Tuple(items) when List.length(items) > i + 1 =>
+              Some({
+                ...p,
+                term:
+                  Ap(
+                    fv,
+                    {
+                      ...argp,
+                      term: Tuple(swap_pat_items(i, items)),
+                    },
+                  ),
+              })
+            | _ => None
+            }
+          | Asc(inner, ann) =>
+            swap_in_pat(inner)
+            |> Option.map((inner': Pat.t): Pat.t =>
+                 {
+                   ...p,
+                   term: Asc(inner', ann),
+                 }
+               )
+          | _ => None
+          };
+        swap_in_pat(p)
+        |> Option.map(p' =>
+             (f, p', swap_call_args(~fixup, ~bare_use, ~ok, i, f, def))
+           );
+      | None =>
+        switch (let_head_name(p), IdTagged.term_of(def)) {
+        | (Some(f), Fun(fp, fbody, ft, fn)) =>
+          let p': option(Pat.t) =
+            switch (IdTagged.term_of(p)) {
+            | Var(_) => Some(p)
+            | Asc(inner, ann) =>
+              swap_arrow_ann(i, ann)
+              |> Option.map((ann': Typ.t): Pat.t =>
+                   {
+                     ...p,
+                     term: Asc(inner, ann'),
+                   }
+                 )
+            | _ => None
+            };
+          switch (p', swap_fun_pat(i, fp)) {
+          | (Some(p'), Some(fp')) =>
+            let fbody' =
+              binds(f, fp)
+                ? fbody : swap_call_args(~fixup, ~bare_use, ~ok, i, f, fbody);
+            Some((
+              f,
+              p',
+              {
+                ...def,
+                term: Fun(fp', fbody', ft, fn),
+              },
+            ));
+          | _ => None
+          };
+        | _ => None
+        }
+      };
+    switch (pieces) {
+    | Some((f, p', def')) =>
+      let body' = swap_call_args(~fixup, ~bare_use, ~ok, i, f, body);
+      ok^ && ! bare_use^
+        ? Some((
+            {
+              ...e,
+              term: Let(p', def', body'),
+            },
+            Exp.rep_id(e),
+          ))
+        : None;
+    | None => None
+    };
+  | _ => None
+  };
+
+let swap_param_names = (e: Exp.t): list(string) => {
+  let items_of = (p: Pat.t): list(Pat.t) => {
+    let rec go = (p: Pat.t) =>
+      switch (IdTagged.term_of(p)) {
+      | Parens(inner) => go(inner)
+      | Tuple(items) => items
+      | _ => []
+      };
+    go(p);
+  };
+  switch (IdTagged.term_of(e)) {
+  | Let(p, def, _) =>
+    let rec sugar_items = (p: Pat.t) =>
+      switch (IdTagged.term_of(p)) {
+      | Ap(_, argp) => items_of(argp)
+      | Asc(inner, _) => sugar_items(inner)
+      | _ => []
+      };
+    let items =
+      switch (sugar_items(p), IdTagged.term_of(def)) {
+      | ([_, ..._] as xs, _) => xs
+      | ([], Fun(fp, _, _, _)) => items_of(fp)
+      | _ => []
+      };
+    items
+    |> List.mapi((k, it) =>
+         switch (var_pat_name(it)) {
+         | Some(n) => n
+         | None => "#" ++ string_of_int(k + 1)
+         }
+       );
+  | _ => []
+  };
+};
+
+let swap_params_impl = (i: int): impl => {
+  label: "Swap Params",
+  tooltip: "Swap these adjacent parameters at the definition and all call sites",
+  prepare: (~info_map as _, ~target, program) =>
+    switch (
+      find_path(~hit=hit_let(target), program)
+      |> Option.map(path => List.nth(path, List.length(path) - 1))
+    ) {
+    | Some(l) =>
+      switch (swap_params_rewrite(~fixup=true, i, l)) {
+      | Some((result, focus)) =>
+        switch (
+          rewrite_node(
+            ~hit=same_node(l),
+            ~rewrite=_ => Some((result, focus)),
+            program,
+          )
+        ) {
+        | Some((prog, f)) when reparses_same(prog) => Some((prog, f))
+        | _ => None
+        }
+      | None => None
+      }
+    | None => None
+    },
+};
+
 let impl: Action.refactor => impl =
   fun
   | InlineLet => inline_let_impl
@@ -2690,6 +3148,7 @@ let impl: Action.refactor => impl =
   | ExpandWildcard => expand_wildcard_impl
   | AddParameter => add_param_impl
   | RenameFree(x, y) => rename_free_impl(x, y)
+  | SwapParams(i) => swap_params_impl(i)
   | HoistLet => hoist_let_impl
   | SinkLet => sink_let_impl
   | IfToCase => if_to_case_impl
@@ -2762,16 +3221,14 @@ let applies =
   switch (kind) {
   | InlineLet =>
     let at =
-      let_applies(
-        ~pred=
-          (p, def, _) =>
-            let_head_name(p) != None
-            || (
-              switch (sugar_fn_name(p)) {
-              | Some(f) => !free_in(f, def)
-              | None => false
-              }
-            ),
+      let_applies(~pred=(p, def, _) =>
+        let_head_name(p) != None
+        || (
+          switch (sugar_fn_name(p)) {
+          | Some(f) => !free_in(f, def)
+          | None => false
+          }
+        )
       );
     at(target, program)
     || (
@@ -2815,9 +3272,14 @@ let applies =
     | Some(e) => rename_pairs(~info_map, ~target, e) |> List.mem((x, y))
     | None => false
     }
+  | SwapParams(i) =>
+    switch (find_hit(~hit=hit_let(target), program)) {
+    | Some(l) => Option.is_some(swap_params_rewrite(~fixup=false, i, l))
+    | None => false
+    }
   | HoistLet =>
     switch (find_path(~hit=hit_let(target), program)) {
-    | Some(path) => Option.is_some(hoist_step(path))
+    | Some(path) => Option.is_some(hoist_step(~fixup=false, path))
     | None => false
     }
   | SinkLet =>
@@ -2880,8 +3342,7 @@ let applies =
     }
   | ExpandWildcard =>
     switch (find_hit(~hit=hit_match_pat(target), program)) {
-    | Some(e) =>
-      Option.is_some(wildcard_expansion(~info_map, ~target, e))
+    | Some(e) => Option.is_some(wildcard_expansion(~info_map, ~target, e))
     | None => false
     }
   | ExtractLet =>
@@ -3019,7 +3480,27 @@ let menu_items =
              None;
            };
          });
-    static @ rename_items(~info_map, ~target, term);
+    let swaps =
+      switch (find_hit(~hit=hit_let(target), term)) {
+      | Some(l) =>
+        let names = swap_param_names(l);
+        List.init(max(List.length(names) - 1, 0), i => i)
+        |> List.filter(i =>
+             Option.is_some(swap_params_rewrite(~fixup=false, i, l))
+           )
+        |> List.map(i =>
+             (
+               Action.SwapParams(i),
+               "Swap "
+               ++ List.nth(names, i)
+               ++ " and "
+               ++ List.nth(names, i + 1),
+               "Swap these parameters at the definition and all call sites",
+             )
+           );
+      | None => []
+      };
+    static @ rename_items(~info_map, ~target, term) @ swaps;
   };
 
 let go =

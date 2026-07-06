@@ -449,12 +449,7 @@ let wave_tests = [
     `Quick,
     () => {
       let got = inline(~kind=EvaluateInPlace, "let x = 2 ¦* 3 in x + 1");
-      check(
-        string,
-        "value spliced",
-        "let x = 6 in x + 1",
-        got |> text_of,
-      );
+      check(string, "value spliced", "let x = 6 in x + 1", got |> text_of);
     },
   ),
   test_case(
@@ -504,14 +499,8 @@ let wave2_tests = [
     "inline avoids capture by renaming the binder",
     `Quick,
     () => {
-      let got =
-        inline("¦let x = y + 1 in (fun y -> x + y)(5)") |> text_of;
-      check(
-        string,
-        "y renamed",
-        "(fun y1 -> y + 1 + y1)(5)",
-        got,
-      );
+      let got = inline("¦let x = y + 1 in (fun y -> x + y)(5)") |> text_of;
+      check(string, "y renamed", "(fun y1 -> y + 1 + y1)(5)", got);
     },
   ),
   test_case(
@@ -540,6 +529,74 @@ let wave2_tests = [
       offers(
         ExpandWildcard,
         "type C = A + B in let c : C = ? in case c | A => 1 | B => 2 | ¦_ => 0 end",
+      ),
+    )
+  ),
+];
+
+let swap_tests = [
+  test_case(
+    "swap params: def and call sites",
+    `Quick,
+    () => {
+      let got =
+        inline(
+          ~kind=SwapParams(0),
+          "¦let f = fun (a, b) -> a - b in f(1, 2) + f(3, 4)",
+        )
+        |> text_of;
+      check(
+        string,
+        "swapped everywhere",
+        "let f = fun (b, a) -> a - b in f(2, 1) + f(4, 3)",
+        got,
+      );
+    },
+  ),
+  test_case(
+    "swap params on sugar def",
+    `Quick,
+    () => {
+      let got =
+        inline(~kind=SwapParams(0), "¦let f(a, b) = a - b in f(1, 2)")
+        |> text_of;
+      check(string, "sugar", "let f(b, a) = a - b in f(2, 1)", got);
+    },
+  ),
+  test_case(
+    "swap params rewrites the annotation arrow",
+    `Quick,
+    () => {
+      let got =
+        inline(
+          ~kind=SwapParams(0),
+          "¦let f : (Int, Bool) -> Int = fun (a, b) -> a in f(1, true)",
+        )
+        |> text_of;
+      check(
+        string,
+        "prod swapped",
+        "let f : (Bool, Int) -> Int = fun (b, a) -> a in f(true, 1)",
+        got,
+      );
+    },
+  ),
+  test_case("swap gated on non-tuple call", `Quick, () =>
+    check(
+      bool,
+      "gated",
+      false,
+      offers(SwapParams(0), "¦let f = fun (a, b) -> a in f(p)"),
+    )
+  ),
+  test_case("swap menu names params", `Quick, () =>
+    check(
+      bool,
+      "Swap a and b",
+      true,
+      List.mem(
+        "Swap a and b",
+        labels_at("¦let f = fun (a, b) -> a in f(1, 2)"),
       ),
     )
   ),
@@ -1195,6 +1252,41 @@ let move_tests = [
     },
   ),
   test_case(
+    "hoist out of a case arm",
+    `Quick,
+    () => {
+      let got =
+        inline(
+          ~kind=HoistLet,
+          "case m | 1 => ¦let x = 2 in x + 1 | _ => 0 end",
+        )
+        |> text_of;
+      check(
+        string,
+        "unconditional now",
+        "let x = 2 in case m | 1 => x + 1 | _ => 0 end",
+        got,
+      );
+    },
+  ),
+  test_case("arm hoist gated on capture", `Quick, () =>
+    check(
+      bool,
+      "x used in other arm",
+      false,
+      offers(HoistLet, "case m | 1 => ¦let x = 2 in x | _ => x end"),
+    )
+  ),
+  test_case(
+    "hoist out of a tight position",
+    `Quick,
+    () => {
+      let got =
+        inline(~kind=HoistLet, "g(¦let x = f(2) in x + 1)") |> text_of;
+      check(string, "let above the call", "let x = f(2) in g(x + 1)", got);
+    },
+  ),
+  test_case(
     "sink through a chain",
     `Quick,
     () => {
@@ -1319,6 +1411,7 @@ let tests = [
     @ rename_tests
     @ wave_tests
     @ wave2_tests
+    @ swap_tests
     @ move_tests
     @ more_tests,
   ),

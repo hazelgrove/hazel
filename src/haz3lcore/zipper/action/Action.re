@@ -151,6 +151,7 @@ type refactor =
   | ExpandWildcard
   | AddParameter
   | RenameFree(string, string)
+  | SwapParams(int)
   | HoistLet
   | SinkLet
   | IfToCase
