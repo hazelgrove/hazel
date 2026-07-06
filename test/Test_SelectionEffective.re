@@ -93,6 +93,11 @@ let tests = (
       ~expected={|f|},
     ),
     test(
+      ~name="if delimiter selection snaps over full conditional",
+      ~input={|let conditional = §if !true then 1 else¦ 2 in conditional|},
+      ~expected={|if !true then 1 else 2|},
+    ),
+    test(
       ~name="tuple comma selection snaps over all expressions",
       ~input={|(1 §, 2¦, 3)|},
       ~expected={|1 , 2, 3|},
