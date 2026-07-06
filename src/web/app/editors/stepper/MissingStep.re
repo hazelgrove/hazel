@@ -170,10 +170,12 @@ module Update = {
             open OptUtil.Syntax;
             let zipper = editor.editor.state.zipper;
             let* id =
-              TermData.get_root_id_using_ranges(
-                zipper.selection.content,
-                editor.editor.syntax.term_data,
-                editor.editor.syntax.measured,
+              SelectionEffective.root_id(
+                ~mode=Associative,
+                ~info_map=info_map |> Calc.get_value,
+                ~measured=editor.editor.syntax.measured,
+                ~term_data=editor.editor.syntax.term_data,
+                zipper,
               );
             Some(id);
           }
@@ -186,11 +188,19 @@ module Update = {
       selected_exp
       |> {
         let.calc selected_id = selected_id
-        and.calc exp = exp;
+        and.calc exp = exp
+        and.calc editor = editor;
         open OptUtil.Syntax;
         let* id = selected_id;
-        let* exp' = ProofHacks.find_exp_id(id, exp);
-        Some(exp');
+        switch (
+          CodeEditable.Model.get_statics(editor).elaborated
+          |> ProofHacks.find_exp_id(id)
+        ) {
+        | Some(_) as exp => exp
+        | None =>
+          let* exp' = ProofHacks.find_exp_id(id, exp);
+          Some(exp');
+        };
       };
     let assumptions =
       assumptions
