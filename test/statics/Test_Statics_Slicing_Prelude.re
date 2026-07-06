@@ -186,6 +186,19 @@ let exp_var = (e: Exp.t, name: string): Id.t =>
     ),
   );
 
+let exp_ctor = (e: Exp.t, name: string): Id.t =>
+  first(
+    "constructor " ++ name,
+    collect_exp_ids(
+      x =>
+        switch (Exp.term_of(x)) {
+        | Constructor(v, _) => v == name
+        | _ => false
+        },
+      e,
+    ),
+  );
+
 let pat_var = (e: Exp.t, name: string): Id.t =>
   first(
     "pat var " ++ name,
@@ -274,6 +287,32 @@ let first_bool = (e: Exp.t): Id.t =>
     ),
   );
 
+let first_empty_list = (e: Exp.t): Id.t =>
+  first(
+    "empty list literal",
+    collect_exp_ids(
+      x =>
+        switch (Exp.term_of(x)) {
+        | ListLit([]) => true
+        | _ => false
+        },
+      e,
+    ),
+  );
+
+let first_exp_hole = (e: Exp.t): Id.t =>
+  first(
+    "expression hole",
+    collect_exp_ids(
+      x =>
+        switch (Exp.term_of(x)) {
+        | EmptyHole => true
+        | _ => false
+        },
+      e,
+    ),
+  );
+
 let first_binop = (e: Exp.t): Id.t =>
   first(
     "binary operator",
@@ -294,6 +333,19 @@ let first_fun = (e: Exp.t): Id.t =>
       x =>
         switch (Exp.term_of(x)) {
         | Fun(_, _, _, _) => true
+        | _ => false
+        },
+      e,
+    ),
+  );
+
+let first_typabs = (e: Exp.t): Id.t =>
+  first(
+    "type abstraction",
+    collect_exp_ids(
+      x =>
+        switch (Exp.term_of(x)) {
+        | TypAbs(_, _, _) => true
         | _ => false
         },
       e,

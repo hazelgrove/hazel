@@ -132,6 +132,18 @@ let products = [
     "(B=(()))",
     "{ module B = (()) }",
   ),
+  synthesis_case(
+    "regression-duplicate-label-query",
+    "(h=?, h=Z)",
+    "(h=?)",
+    "(h=?, h=?)",
+  ),
+  synthesis_case(
+    "regression-list-duplicate-label-query",
+    "[(x=?, x=a)]",
+    "[(x=?)]",
+    "[(x=?, x=?)]",
+  ),
 ];
 
 let functions = [
@@ -189,6 +201,18 @@ let functions = [
     "fun [] -> 1",
     "[?] -> ?",
     "fun [] -> ?",
+  ),
+  synthesis_case(
+    "regression-fun-unit-param-query",
+    "fun (()) -> 0",
+    "(()) -> Int",
+    "fun (()) -> 0",
+  ),
+  synthesis_case(
+    "regression-app-chain-function-query",
+    "(())(_)(_)",
+    "? -> ?",
+    "(())(_)(_)",
   ),
   synthesis_case(
     "fun-nested-arrow-left",
