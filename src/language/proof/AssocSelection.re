@@ -43,22 +43,29 @@ let rec right_edge_pat = (pat: Pat.t): Id.t =>
   | _ => Pat.rep_id(pat)
   };
 
-let rec left_edge_typ = (typ: Typ.t): Id.t =>
-  switch (Typ.term_of(typ)) {
-  | Arrow(left, _)
-  | TupLabel(left, _)
-  | ProdProjection(left, _)
-  | ProdExtension(left, _) => left_edge_typ(left)
-  | Prod([first, ..._]) => left_edge_typ(first)
-  | _ => Typ.rep_id(typ)
-  };
-
 let rec right_edge_typ = (typ: Typ.t): Id.t =>
   switch (Typ.term_of(typ)) {
   | Arrow(_, right)
   | TupLabel(_, right)
   | ProdProjection(_, right)
   | ProdExtension(_, right) => right_edge_typ(right)
+  | Rec(_, typ)
+  | Poly(_, typ)
+  | Parens(typ)
+  | List(typ) => right_edge_typ(typ)
+  | Sum(variants) =>
+    switch (List.rev(variants)) {
+    | [ConstructorMap.Variant(_, ann, Some(typ)), ..._] =>
+      ignore(ann);
+      right_edge_typ(typ);
+    | [ConstructorMap.Variant(_, ann, None), ..._] =>
+      switch (ann.ids |> List.rev) {
+      | [id, ..._] => id
+      | [] => Typ.rep_id(typ)
+      }
+    | [ConstructorMap.BadEntry(typ), ..._] => right_edge_typ(typ)
+    | [] => Typ.rep_id(typ)
+    }
   | Prod(typs) =>
     switch (List.rev(typs)) {
     | [last, ..._] => right_edge_typ(last)
@@ -81,147 +88,11 @@ let right_boundary_id = (op, right: Exp.t): Id.t =>
   | _ => right_edge_id(right)
   };
 
-let comma_spanned_exp_ids =
-    (~id: Id.t, ~delimiter_ids: list(Id.t), exps: list(Exp.t))
-    : option(list(Id.t)) =>
-  if (!List.mem(id, delimiter_ids)) {
-    None;
-  } else {
-    switch (exps, List.rev(exps)) {
-    | ([first, ..._], [last, ..._]) =>
-      Some([left_edge_id(first)] @ delimiter_ids @ [right_edge_id(last)])
-    | _ => None
-    };
-  };
-
-let comma_spanned_pat_ids =
-    (~id: Id.t, ~delimiter_ids: list(Id.t), pats: list(Pat.t))
-    : option(list(Id.t)) =>
-  if (!List.mem(id, delimiter_ids)) {
-    None;
-  } else {
-    switch (pats, List.rev(pats)) {
-    | ([first, ..._], [last, ..._]) =>
-      Some(
-        [left_edge_pat(first)] @ delimiter_ids @ [right_edge_pat(last)],
-      )
-    | _ => None
-    };
-  };
-
-let comma_spanned_typ_ids =
-    (~id: Id.t, ~delimiter_ids: list(Id.t), typs: list(Typ.t))
-    : option(list(Id.t)) =>
-  if (!List.mem(id, delimiter_ids)) {
-    None;
-  } else {
-    switch (typs, List.rev(typs)) {
-    | ([first, ..._], [last, ..._]) =>
-      Some(
-        [left_edge_typ(first)] @ delimiter_ids @ [right_edge_typ(last)],
-      )
-    | _ => None
-    };
-  };
-
-let comma_ids_for_enclosed = (ids: list(Id.t)): list(Id.t) =>
-  switch (ids) {
-  | [_outer_delimiter, ...comma_ids] => comma_ids
-  | [] => []
-  };
-
-let comma_ids_for_items = (~item_count: int, ids: list(Id.t)): list(Id.t) =>
-  ListUtil.take(max(0, item_count - 1), ids);
-
-let comma_ids_for_enclosed_items =
-    (~item_count: int, ids: list(Id.t)): list(Id.t) =>
-  ids |> comma_ids_for_enclosed |> comma_ids_for_items(~item_count);
-
-let intersects = (left: list(Id.t), right: list(Id.t)): bool =>
-  left |> List.exists(id => List.mem(id, right));
-
-let selected_item_count =
-    (~selected_ids: list(Id.t), item_ids: list(list(Id.t))): int =>
-  item_ids |> List.filter(ids => intersects(selected_ids, ids)) |> List.length;
-
-let selected_crosses_comma_separated =
-    (
-      ~selected_ids: list(Id.t),
-      ~delimiter_ids: list(Id.t),
-      item_ids: list(list(Id.t)),
-    )
-    : bool =>
-  intersects(selected_ids, delimiter_ids)
-  || selected_item_count(~selected_ids, item_ids) >= 2;
-
-let comma_spanned_exp_ids_for_selection =
-    (
-      ~selected_ids: list(Id.t),
-      ~delimiter_ids: list(Id.t),
-      exps: list(Exp.t),
-    )
-    : option(list(Id.t)) =>
-  if (!
-        selected_crosses_comma_separated(
-          ~selected_ids,
-          ~delimiter_ids,
-          exps |> List.map(IdTagged.ids),
-        )) {
-    None;
-  } else {
-    switch (exps, List.rev(exps)) {
-    | ([first, ..._], [last, ..._]) =>
-      Some([left_edge_id(first)] @ delimiter_ids @ [right_edge_id(last)])
-    | _ => None
-    };
-  };
-
-let comma_spanned_pat_ids_for_selection =
-    (
-      ~selected_ids: list(Id.t),
-      ~delimiter_ids: list(Id.t),
-      pats: list(Pat.t),
-    )
-    : option(list(Id.t)) =>
-  if (!
-        selected_crosses_comma_separated(
-          ~selected_ids,
-          ~delimiter_ids,
-          pats |> List.map(IdTagged.ids),
-        )) {
-    None;
-  } else {
-    switch (pats, List.rev(pats)) {
-    | ([first, ..._], [last, ..._]) =>
-      Some(
-        [left_edge_pat(first)] @ delimiter_ids @ [right_edge_pat(last)],
-      )
-    | _ => None
-    };
-  };
-
-let comma_spanned_typ_ids_for_selection =
-    (
-      ~selected_ids: list(Id.t),
-      ~delimiter_ids: list(Id.t),
-      typs: list(Typ.t),
-    )
-    : option(list(Id.t)) =>
-  if (!
-        selected_crosses_comma_separated(
-          ~selected_ids,
-          ~delimiter_ids,
-          typs |> List.map(IdTagged.ids),
-        )) {
-    None;
-  } else {
-    switch (typs, List.rev(typs)) {
-    | ([first, ..._], [last, ..._]) =>
-      Some(
-        [left_edge_typ(first)] @ delimiter_ids @ [right_edge_typ(last)],
-      )
-    | _ => None
-    };
+let rec right_cons_tail_edge_id = (exp: Exp.t): Id.t =>
+  switch (Exp.term_of(exp)) {
+  | Cons(_, right) => right_cons_tail_edge_id(right)
+  | Asc(_, typ) => right_edge_typ(typ)
+  | _ => right_edge_id(exp)
   };
 
 let ids_with_ancestors =
@@ -235,137 +106,53 @@ let ids_with_ancestors =
      )
   |> ListUtil.dedup;
 
-/* Given a BinOp tile ID and a statics map, returns boundary ids that define
-   the "snapped" visual selection. Same-op chains snap one level inward (e.g.
-   for `(1+2)+3`, the outer `+` snaps to cover `2+3`). Mixed-precedence
-   operands use their visible outer edges, so `4*5*6 + x` starts at `4`, not
-   at the inner `*` tile. Returns [id] for non-BinOp expressions. */
-let find_assoc_for_id = (id: Id.t, info_map: Statics.Map.t): list(Id.t) => {
-  let statics_opt = Statics.Map.lookup(id, info_map);
-  switch (statics_opt) {
-  | Some(InfoExp({user_term, _} as exp)) =>
-    let annotation_ids = IdTagged.ids(user_term);
-    switch (exp.user_term.term) {
+/* Return only branch-local effective-selection snaps. Standard term
+ * selection stays in Select.re, which matches dev. */
+let find_assoc_for_id = (id: Id.t, info_map: Statics.Map.t): list(Id.t) =>
+  switch (Statics.Map.lookup(id, info_map)) {
+  | Some(InfoExp({user_term, _})) =>
+    switch (user_term.term) {
     | BinOp(op, left, right) => [
         left_boundary_id(op, left),
         id,
         right_boundary_id(op, right),
       ]
-    | Tuple(exps) =>
-      switch (
-        comma_spanned_exp_ids(
-          ~id,
-          ~delimiter_ids=
-            comma_ids_for_items(
-              ~item_count=List.length(exps),
-              annotation_ids,
-            ),
-          exps,
-        )
-      ) {
-      | Some(ids) => ids
-      | None => [id]
-      }
-    | ListLit(exps) =>
-      switch (
-        comma_spanned_exp_ids(
-          ~id,
-          ~delimiter_ids=
-            comma_ids_for_enclosed_items(
-              ~item_count=List.length(exps),
-              annotation_ids,
-            ),
-          exps,
-        )
-      ) {
-      | Some(ids) => ids
-      | None => [id]
-      }
-    | Cons(left, right) => [left_edge_id(left), id, right_edge_id(right)]
-    | Seq(left, right) => [left_edge_id(left), id, right_edge_id(right)]
-    | ListConcat(left, right)
-    | TupleExtension(left, right)
-    | Dot(left, right)
-    | TupLabel(left, right)
-    | Ap(_, left, right) => [left_edge_id(left), id, right_edge_id(right)]
-    | Asc(left, right) => [left_edge_id(left), id, right_edge_typ(right)]
-    | TypAp(left, right) => [left_edge_id(left), id, right_edge_typ(right)]
-    | _ => [id]
-    };
-  | Some(InfoPat({user_term, _} as pat)) =>
-    let annotation_ids = IdTagged.ids(user_term);
-    switch (pat.user_term.term) {
-    | Tuple(pats) =>
-      switch (
-        comma_spanned_pat_ids(
-          ~id,
-          ~delimiter_ids=
-            comma_ids_for_items(
-              ~item_count=List.length(pats),
-              annotation_ids,
-            ),
-          pats,
-        )
-      ) {
-      | Some(ids) => ids
-      | None => [id]
-      }
-    | ListLit(pats) =>
-      switch (
-        comma_spanned_pat_ids(
-          ~id,
-          ~delimiter_ids=
-            comma_ids_for_enclosed_items(
-              ~item_count=List.length(pats),
-              annotation_ids,
-            ),
-          pats,
-        )
-      ) {
-      | Some(ids) => ids
-      | None => [id]
-      }
+    | Cons(left, right) => [
+        left_edge_id(left),
+        id,
+        right_cons_tail_edge_id(right),
+      ]
+    | UnOp(_, exp) => [id, right_edge_id(exp)]
+    | If(cond, _, alt) => [left_edge_id(cond), id, right_edge_id(alt)]
+    | _ => []
+    }
+  | Some(InfoPat({user_term, _})) =>
+    switch (user_term.term) {
     | Cons(left, right) => [left_edge_pat(left), id, right_edge_pat(right)]
-    | TupLabel(left, right)
-    | Ap(left, right) => [left_edge_pat(left), id, right_edge_pat(right)]
-    | Asc(left, right) => [left_edge_pat(left), id, right_edge_typ(right)]
-    | _ => [id]
-    };
-  | Some(InfoTyp({user_term, _} as typ)) =>
-    let annotation_ids = IdTagged.ids(user_term);
-    switch (typ.user_term.term) {
-    | Prod(typs) =>
-      switch (
-        comma_spanned_typ_ids(
-          ~id,
-          ~delimiter_ids=
-            comma_ids_for_items(
-              ~item_count=List.length(typs),
-              annotation_ids,
-            ),
-          typs,
-        )
-      ) {
-      | Some(ids) => ids
-      | None => [id]
-      }
-    | Arrow(left, right) => [
-        left_edge_typ(left),
-        id,
-        right_edge_typ(right),
-      ]
-    | ProdExtension(left, right)
-    | ProdProjection(left, right)
-    | TupLabel(left, right) => [
-        left_edge_typ(left),
-        id,
-        right_edge_typ(right),
-      ]
-    | _ => [id]
-    };
-  | _ => [id]
+    | _ => []
+    }
+  | Some(InfoTyp({user_term, _})) =>
+    switch (user_term.term) {
+    | Arrow(left, right) => [Typ.rep_id(left), id, right_edge_typ(right)]
+    | _ => []
+    }
+  | _ => []
   };
-};
+
+let find_assoc_root_for_id =
+    (id: Id.t, info_map: Statics.Map.t): option(Id.t) =>
+  switch (Statics.Map.lookup(id, info_map)) {
+  | Some(InfoExp({user_term, _})) =>
+    find_assoc_for_id(id, info_map) == []
+      ? None : Some(Exp.rep_id(user_term))
+  | Some(InfoPat({user_term, _})) =>
+    find_assoc_for_id(id, info_map) == []
+      ? None : Some(Pat.rep_id(user_term))
+  | Some(InfoTyp({user_term, _})) =>
+    find_assoc_for_id(id, info_map) == []
+      ? None : Some(Typ.rep_id(user_term))
+  | _ => None
+  };
 
 let find_assoc_for_ids =
     (ids: list(Id.t), info_map: Statics.Map.t): list(Id.t) => {
@@ -376,75 +163,12 @@ let find_assoc_for_ids =
     |> List.concat_map(id =>
          switch (Statics.Map.lookup(id, info_map)) {
          | Some(InfoExp({user_term, _})) =>
-           let annotation_ids = IdTagged.ids(user_term);
            switch (user_term.term) {
-           | Tuple(exps) =>
-             comma_spanned_exp_ids_for_selection(
-               ~selected_ids=ids,
-               ~delimiter_ids=
-                 comma_ids_for_items(
-                   ~item_count=List.length(exps),
-                   annotation_ids,
-                 ),
-               exps,
-             )
-             |> Option.value(~default=[])
-           | ListLit(exps) =>
-             comma_spanned_exp_ids_for_selection(
-               ~selected_ids=ids,
-               ~delimiter_ids=
-                 comma_ids_for_enclosed_items(
-                   ~item_count=List.length(exps),
-                   annotation_ids,
-                 ),
-               exps,
-             )
-             |> Option.value(~default=[])
+           | UnOp(_, exp) =>
+             List.mem(Exp.rep_id(exp), ids)
+               ? [Exp.rep_id(user_term), right_edge_id(exp)] : []
            | _ => []
-           };
-         | Some(InfoPat({user_term, _})) =>
-           let annotation_ids = IdTagged.ids(user_term);
-           switch (user_term.term) {
-           | Tuple(pats) =>
-             comma_spanned_pat_ids_for_selection(
-               ~selected_ids=ids,
-               ~delimiter_ids=
-                 comma_ids_for_items(
-                   ~item_count=List.length(pats),
-                   annotation_ids,
-                 ),
-               pats,
-             )
-             |> Option.value(~default=[])
-           | ListLit(pats) =>
-             comma_spanned_pat_ids_for_selection(
-               ~selected_ids=ids,
-               ~delimiter_ids=
-                 comma_ids_for_enclosed_items(
-                   ~item_count=List.length(pats),
-                   annotation_ids,
-                 ),
-               pats,
-             )
-             |> Option.value(~default=[])
-           | _ => []
-           };
-         | Some(InfoTyp({user_term, _})) =>
-           let annotation_ids = IdTagged.ids(user_term);
-           switch (user_term.term) {
-           | Prod(typs) =>
-             comma_spanned_typ_ids_for_selection(
-               ~selected_ids=ids,
-               ~delimiter_ids=
-                 comma_ids_for_items(
-                   ~item_count=List.length(typs),
-                   annotation_ids,
-                 ),
-               typs,
-             )
-             |> Option.value(~default=[])
-           | _ => []
-           };
+           }
          | _ => []
          }
        );
@@ -489,3 +213,8 @@ let needs_reparenthesization = (id: Id.t, info_map: Statics.Map.t): bool =>
     }
   | _ => false
   };
+
+let find_assoc_root_for_ids =
+    (ids: list(Id.t), info_map: Statics.Map.t): option(Id.t) =>
+  ids_with_ancestors(~info_map, ids)
+  |> List.find_map(id => find_assoc_root_for_id(id, info_map));

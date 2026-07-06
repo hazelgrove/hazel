@@ -178,11 +178,14 @@ module Update = {
           {
             open OptUtil.Syntax;
             let zipper = editor.editor.state.zipper;
+            let statics = CodeEditable.Model.get_statics(editor);
             let* id =
-              TermData.get_root_id_using_ranges(
-                zipper.selection.content,
-                editor.editor.syntax.term_data,
-                editor.editor.syntax.measured,
+              SelectionEffective.root_id(
+                ~mode=Associative,
+                ~info_map=statics.info_map,
+                ~measured=editor.editor.syntax.measured,
+                ~term_data=editor.editor.syntax.term_data,
+                zipper,
               );
             Some(id);
           }
@@ -201,25 +204,32 @@ module Update = {
         and.calc info_map = info_map;
         open OptUtil.Syntax;
         let* id = selected_id;
-        switch (ProofHacks.find_exp_id(id, full_visible_exp)) {
-        | Some(exp') => Some(exp')
+        switch (
+          CodeEditable.Model.get_statics(editor).elaborated
+          |> ProofHacks.find_exp_id(id)
+        ) {
+        | Some(_) as selected => selected
         | None =>
-          switch (Id.Map.find_opt(id, visible_terms)) {
-          | Some(Exp(exp')) => Some(exp')
-          | _ =>
-            switch (ProofHacks.find_exp_id(id, exp)) {
-            | Some(exp') => Some(exp')
-            | None =>
-              switch (Statics.Map.lookup(id, info_map)) {
-              | Some(Info.InfoExp({user_term, _})) => Some(user_term)
-              | _ =>
-                print_endline(
-                  "[selected-exp-debug] missing id="
-                  ++ Id.str8(id)
-                  ++ " info_map_empty="
-                  ++ (Id.Map.is_empty(info_map) ? "true" : "false"),
-                );
-                None;
+          switch (ProofHacks.find_exp_id(id, full_visible_exp)) {
+          | Some(exp') => Some(exp')
+          | None =>
+            switch (Id.Map.find_opt(id, visible_terms)) {
+            | Some(Exp(exp')) => Some(exp')
+            | _ =>
+              switch (ProofHacks.find_exp_id(id, exp)) {
+              | Some(exp') => Some(exp')
+              | None =>
+                switch (Statics.Map.lookup(id, info_map)) {
+                | Some(Info.InfoExp({user_term, _})) => Some(user_term)
+                | _ =>
+                  print_endline(
+                    "[selected-exp-debug] missing id="
+                    ++ Id.str8(id)
+                    ++ " info_map_empty="
+                    ++ (Id.Map.is_empty(info_map) ? "true" : "false"),
+                  );
+                  None;
+                }
               }
             }
           }
