@@ -251,6 +251,7 @@ let find_assoc_for_id = (id: Id.t, info_map: Statics.Map.t): list(Id.t) => {
         id,
         right_boundary_id(op, right),
       ]
+    | UnOp(_, exp) => [id, right_edge_id(exp)]
     | If(cond, _, alt) => [left_edge_id(cond), id, right_edge_id(alt)]
     | Tuple(exps) =>
       switch (
@@ -379,6 +380,9 @@ let find_assoc_for_ids =
          | Some(InfoExp({user_term, _})) =>
            let annotation_ids = IdTagged.ids(user_term);
            switch (user_term.term) {
+           | UnOp(_, exp) =>
+             List.mem(Exp.rep_id(exp), ids)
+               ? [Exp.rep_id(user_term), right_edge_id(exp)] : []
            | Tuple(exps) =>
              comma_spanned_exp_ids_for_selection(
                ~selected_ids=ids,

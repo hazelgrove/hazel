@@ -218,6 +218,16 @@ let tests = (
       ~expected={|if !true then 1 else 2|},
     ),
     test(
+      ~name="unary minus operand selection snaps over negation",
+      ~input={|let num = 1 in let arithmetic = -§num¦ * 1 in arithmetic|},
+      ~expected={|-num|},
+    ),
+    test(
+      ~name="unary minus token selection snaps over negation",
+      ~input={|let arithmetic = §-¦42 in arithmetic|},
+      ~expected={|-42|},
+    ),
+    test(
       ~name="tuple comma selection snaps over all expressions",
       ~input={|(1 §, 2¦, 3)|},
       ~expected={|1 , 2, 3|},
