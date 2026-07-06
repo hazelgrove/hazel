@@ -335,8 +335,15 @@ let root_id =
     switch (result.root_id) {
     | Some(_) as root_id => root_id
     | None =>
-      result.segment
-      |> TermData.get_root_id_using_ranges(_, term_data, measured)
+      let segment_ids = result.segment |> Segment.ids |> ListUtil.dedup;
+      switch (
+        Language.AssocSelection.find_assoc_root_for_ids(segment_ids, info_map)
+      ) {
+      | Some(_) as root_id => root_id
+      | None =>
+        result.segment
+        |> TermData.get_root_id_using_ranges(_, term_data, measured)
+      };
     };
   | Raw
   | Expanded =>

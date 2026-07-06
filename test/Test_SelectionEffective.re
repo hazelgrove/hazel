@@ -271,6 +271,11 @@ let tests = (
       ~expected={|- 1|},
     ),
     test_root(
+      ~name="unary minus operator selection root is negation",
+      ~input={|let num = 1 in §-¦1 * num|},
+      ~expected={|- 1|},
+    ),
+    test_root(
       ~name="unary minus variable selection root is negation",
       ~input={|let num = 1 in -§num¦ * 1|},
       ~expected={|- num|},
@@ -286,6 +291,11 @@ let tests = (
       ~expected={|1 , 2, 3|},
     ),
     test(
+      ~name="tuple comma token selection snaps over all expressions",
+      ~input={|(1 §,¦ 2, 3)|},
+      ~expected={|1 , 2, 3|},
+    ),
+    test(
       ~name="tuple comparison comma selection snaps over all expressions",
       ~input=
         {|let comparison = (0 == 0, 0 §< 1, 1 <=¦ 1, 2 > 1, 1 >= 1) in comparison|},
@@ -295,6 +305,16 @@ let tests = (
       ~name="cons selection snaps over right-associated tail",
       ~input={|let xs : ([Int]) = 1 :: §2 ::¦ 3 :: [] : [Int] in xs|},
       ~expected={|2 :: 3 :: [] : [Int]|},
+    ),
+    test(
+      ~name="cons operator token selection snaps over right-associated list",
+      ~input={|let xs : ([Int]) = 1 §::¦ 2 :: 3 :: [] : [Int] in xs|},
+      ~expected={|1 :: 2 :: 3 :: [] : [Int]|},
+    ),
+    test_root(
+      ~name="cons operator token selection root is full list",
+      ~input={|let xs : ([Int]) = 1 §::¦ 2 :: 3 :: [] : [Int] in xs|},
+      ~expected={|1:: 2:: 3:: []:[Int]|},
     ),
     test(
       ~name="case keyword selection snaps over full case",
@@ -308,6 +328,11 @@ let tests = (
         {|§let¦ list_length : (poly a -> [a] -> Int) = typfun a -> fun l : ([a]) -> case l | [] => 0 | _hd::tl => 1 + list_length'@<a>(tl) end in list_length|},
       ~expected=
         {|let list_length : (poly a -> [a] -> Int) = typfun a -> fun l : ([a]) -> case l | [] => 0 | _hd::tl => 1 + list_length'@<a>(tl) end in list_length|},
+    ),
+    test(
+      ~name="let in token selection snaps through body",
+      ~input={|let num = 1 : Int §in¦ num + 1|},
+      ~expected={|let num = 1 : Int in num + 1|},
     ),
     test(
       ~name="case keyword selection snaps over list-length case",
@@ -326,6 +351,12 @@ let tests = (
       ~input=
         {|let list_length : (poly a -> [a] -> Int) = typfun a -> fun l : ([a]) -> case l | [] §=>¦ 0 | _hd::tl => 1 + list_length'@<a>(tl) end in list_length|},
       ~expected={|case l | [] => 0 | _hd::tl => 1 + list_length'@<a>(tl) end|},
+    ),
+    test(
+      ~name="case pattern cons selection snaps over cons pattern",
+      ~input=
+        {|let length = fun xs : ([Int]) -> case xs | [] => 0 | _hd§::¦tl => 1 end in length|},
+      ~expected={|_hd::tl|},
     ),
     test_actions(
       ~name="case keyword uses standard current-term selection",
