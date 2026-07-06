@@ -60,6 +60,13 @@ let segment_contains_all_ids = (~ids: list(Id.t), segment: Segment.t): bool => {
   ids |> List.for_all(id => List.mem(id, segment_ids));
 };
 
+let exact_segment_root_id =
+    (~segment: Segment.t, ~term_data: TermData.t, id: Id.t): bool =>
+  switch (TermData.segment(id, term_data)) {
+  | Some(root_segment) => root_segment == segment
+  | None => false
+  };
+
 let piece_has_label = (label: list(string), piece: Piece.t): bool =>
   switch (piece) {
   | Tile(t) => t.label == label
@@ -257,7 +264,7 @@ let associative_result =
             root_id: None,
           }
         | segment =>
-          if (segment_contains_all_ids(~ids=Segment.ids(selection), segment)) {
+          if (segment_contains_all_ids(~ids, segment)) {
             {
               segment,
               root_id:
@@ -265,6 +272,32 @@ let associative_result =
                   selected_ids,
                   info_map,
                 ),
+            };
+          } else if (segment_contains_all_ids(
+                       ~ids=Segment.ids(selection),
+                       segment,
+                     )) {
+            switch (
+              Language.AssocSelection.find_assoc_root_for_ids(
+                selected_ids,
+                info_map,
+              )
+            ) {
+            | Some(root_id) =>
+              let root_segment =
+                TermData.segment(root_id, term_data)
+                |> Option.value(~default=[]);
+              let root_range = contiguous_range(~ids, root_segment);
+              {
+                segment:
+                  segment_contains_all_ids(~ids, root_range)
+                    ? root_range : selection,
+                root_id: Some(root_id),
+              };
+            | None => {
+                segment: selection,
+                root_id: None,
+              }
             };
           } else {
             {
@@ -339,10 +372,19 @@ let root_id =
       switch (
         Language.AssocSelection.find_assoc_root_for_ids(segment_ids, info_map)
       ) {
-      | Some(_) as root_id => root_id
+      | Some(id) =>
+        exact_segment_root_id(~segment=result.segment, ~term_data, id)
+          ? Some(id) : None
       | None =>
-        result.segment
-        |> TermData.get_root_id_using_ranges(_, term_data, measured)
+        switch (
+          result.segment
+          |> TermData.get_root_id_using_ranges(_, term_data, measured)
+        ) {
+        | Some(id) =>
+          exact_segment_root_id(~segment=result.segment, ~term_data, id)
+            ? Some(id) : None
+        | None => None
+        }
       };
     };
   | Raw
