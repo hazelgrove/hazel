@@ -43,9 +43,10 @@ let folded_query_editor = (typ: Typ.t): Web.CodeEditable.Model.t => {
   };
 };
 
-let query_row = (focus: Id.t, query: string): CI.Model.row => {
+let query_row = (~typed=false, focus: Id.t, query: string): CI.Model.row => {
   let typ = parse_typ(query);
-  let editor = folded_query_editor(typ);
+  let editor =
+    typed ? snd(CI.type_editor_of_type(typ)) : folded_query_editor(typ);
   {
     active: true,
     cursor_id: CI.Model.OptionalId.SomeId(focus),
@@ -54,8 +55,8 @@ let query_row = (focus: Id.t, query: string): CI.Model.row => {
   };
 };
 
-let slicing_model = (focus: Id.t, query: string): CI.Model.t => {
-  syn: query_row(focus, query),
+let slicing_model = (~typed=false, focus: Id.t, query: string): CI.Model.t => {
+  syn: query_row(~typed, focus, query),
   ana: CI.Model.empty_row,
   menu: CI.Model.NoMenu,
   anchor: CI.Model.OptionalId.SomeId(focus),
@@ -110,6 +111,18 @@ let first_binop_id = (model: Web.CodeEditable.Model.t): Id.t =>
     }
   );
 
+let ctor_arg_ap_id = (name: string, model: Web.CodeEditable.Model.t): Id.t =>
+  info_exp_id(model, e =>
+    switch (Exp.term_of(e)) {
+    | Ap(_, fn, arg) =>
+      switch (Exp.term_of(fn), Exp.term_of(arg)) {
+      | (Constructor(_, _), Constructor(ctor, _)) => ctor == name
+      | _ => false
+      }
+    | _ => false
+    }
+  );
+
 let first_tuple_id = (model: Web.CodeEditable.Model.t): Id.t =>
   info_exp_id(model, e =>
     switch (Exp.term_of(e)) {
@@ -139,10 +152,10 @@ let info_typ_id = (model: Web.CodeEditable.Model.t, pred): Id.t =>
 let first_product_type_id = (model: Web.CodeEditable.Model.t): Id.t =>
   info_typ_id(model, is_product_type);
 
-let fold_slice = (~focus, ~query, src: string): string => {
+let fold_slice = (~typed=false, ~focus, ~query, src: string): string => {
   let code = code_model(src);
   let focus = focus(code);
-  let cursor_inspector = slicing_model(focus, query);
+  let cursor_inspector = slicing_model(~typed, focus, query);
   switch (CI.TypeSlicing.query_of_row(cursor_inspector.syn)) {
   | Some(_) => ()
   | None => fail("query_of_row failed")
@@ -196,6 +209,16 @@ let fold_after_refresh = (~from_focus, ~to_focus, ~query, src: string): string =
 let case = (~name, ~src, ~focus, ~query, ~expected) =>
   test_case(name, `Quick, () => {
     check(string, expected, expected, fold_slice(~focus, ~query, src))
+  });
+
+let typed_case = (~name, ~src, ~focus, ~query, ~expected) =>
+  test_case(name, `Quick, () => {
+    check(
+      string,
+      expected,
+      expected,
+      fold_slice(~typed=true, ~focus, ~query, src),
+    )
   });
 
 let select_term = (id: Id.t, code: Web.CodeEditable.Model.t): Zipper.t =>
@@ -306,6 +329,24 @@ let tests = (
       ~focus=first_binop_id,
       ~query="Int",
       ~expected="fun ? -> ?",
+    ),
+    typed_case(
+      ~name="typed query on focused branch keeps context",
+      ~src=
+        "type Option = typfun A -> None + Some(A) in type Digit = Zero + One in let parse_digit = fun s : String -> case s | \"0\" => Some(Zero) | \"1\" => Some(One) | _ => None end in parse_digit(\"5\")",
+      ~focus=ctor_arg_ap_id("One"),
+      ~query="None + Some(Digit)",
+      ~expected=
+        "type Option = typfun A -> ? + Some(A) in type ? = ? in let parse_digit = fun ? -> case ? | ? => ? | ? => Some(?) | ? => ? end in parse_digit(?)",
+    ),
+    case(
+      ~name="gap query on focused branch keeps context",
+      ~src=
+        "type Option = typfun A -> None + Some(A) in type Digit = Zero + One in let parse_digit = fun s : String -> case s | \"0\" => Some(Zero) | \"1\" => Some(One) | _ => None end in parse_digit(\"5\")",
+      ~focus=ctor_arg_ap_id("One"),
+      ~query="None + Some(Digit)",
+      ~expected=
+        "type ? = ? in type ? = ? in let ? = fun ? -> case ? | ? => ? | ? => ? | ? => ? end in ?",
     ),
     case(
       ~name="product query folds tuple binding",

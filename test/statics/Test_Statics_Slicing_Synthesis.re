@@ -391,6 +391,13 @@ let control = [
     "Int",
     "case p | ? => ? | (c, ?) => c end",
   ),
+  synthesis_case(
+    ~focus=ctor_arg_ap("One"),
+    "match-focused-in-let-def",
+    "type Option = typfun A -> None + Some(A) in type Digit = Zero + One in let parse_digit = fun s : String -> case s | \"0\" => Some(Zero) | \"1\" => Some(One) | _ => None end in parse_digit(\"5\")",
+    "Option(Digit)",
+    "type Option = typfun A -> ? + Some(A) in type ? = ? in let parse_digit = fun ? -> case ? | ? => ? | ? => Some(?) | ? => ? end in parse_digit(?)",
+  ),
   synthesis_case("use-nat-lit", "use Nat in 1", "Nat", "use Nat in 1"),
   synthesis_case(
     "use-nat-plus",

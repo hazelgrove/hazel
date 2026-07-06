@@ -2016,6 +2016,21 @@ let focus_path = (m: Id.Map.t(Info.t), focus: Id.t): Id.Set.t =>
   | None => Id.Set.singleton(focus)
   };
 
+let term_token_ids = (m: Id.Map.t(Info.t), id: Id.t): Id.Set.t =>
+  switch (Id.Map.find_opt(id, m)) {
+  | Some(Info.InfoExp({user_term, _})) => ids_set(IdTagged.ids(user_term))
+  | Some(Info.InfoPat({user_term, _})) => ids_set(IdTagged.ids(user_term))
+  | Some(Info.InfoTyp({user_term, _})) => ids_set(IdTagged.ids(user_term))
+  | _ => Id.Set.singleton(id)
+  };
+
+let path_token_ids = (m: Id.Map.t(Info.t), path: Id.Set.t): Id.Set.t =>
+  Id.Set.fold(
+    (id, acc) => Id.Set.union(acc, term_token_ids(m, id)),
+    path,
+    path,
+  );
+
 let on_path = (path: Id.Set.t, id: Id.t): bool => Id.Set.mem(id, path);
 
 let focus_shell_ids = (m: Id.Map.t(Info.t), focus: Id.t): Id.Set.t => {
@@ -2704,7 +2719,7 @@ let analysis_overlay =
     if (Id.Set.is_empty(omitted_path_ancestors) && !focus_in_binding_def) {
       with_analysis_adjustments(result);
     } else {
-      let omitted = Id.Set.diff(result.omitted, path);
+      let omitted = Id.Set.diff(result.omitted, path_token_ids(m, path));
       let omitted =
         Id.Set.union(omitted, side_ids_for_revealed_path(path, m));
       let omitted =
@@ -2823,13 +2838,16 @@ let slice =
       let omitted =
         is_gap(query)
           ? Id.Set.union(
-              Id.Set.diff(result.omitted, Id.Set.remove(focus_id, path)),
+              Id.Set.diff(
+                result.omitted,
+                path_token_ids(m, Id.Set.remove(focus_id, path)),
+              ),
               Id.Set.union(
                 focus_subtree_ids(m, focus_id),
                 focus_shell_ids(m, focus_id),
               ),
             )
-          : Id.Set.diff(result.omitted, path);
+          : Id.Set.diff(result.omitted, path_token_ids(m, path));
       let omitted =
         Id.Set.union(omitted, match_sibling_branch_ids(focus_id, m));
       match_focus_scrut_result(

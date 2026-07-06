@@ -235,6 +235,23 @@ let int_lit = (e: Exp.t, n: int): Id.t =>
     ),
   );
 
+let ctor_arg_ap = (name: string, e: Exp.t): Id.t =>
+  first(
+    "constructor application with argument " ++ name,
+    collect_exp_ids(
+      x =>
+        switch (Exp.term_of(x)) {
+        | Ap(_, fn, arg) =>
+          switch (Exp.term_of(fn), Exp.term_of(arg)) {
+          | (Constructor(_, _), Constructor(ctor, _)) => ctor == name
+          | _ => false
+          }
+        | _ => false
+        },
+      e,
+    ),
+  );
+
 let nth_int = (e: Exp.t, k: int): Id.t =>
   switch (List.nth_opt(int_lits(e), k)) {
   | Some(id) => id
