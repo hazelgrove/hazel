@@ -2050,7 +2050,7 @@ and uexp_to_info_map =
       let m =
         utpat_to_info_map(~ctx, ~ancestors=ancestors_inclusive, utpat, m)
         |> snd;
-      let (body, body_elab, m) = go(~ctx=ctx_body, ~ana=mode_body, body, m);
+      let* (body, body_elab, m) = go(~ctx=ctx_body, ~ana=mode_body, body, m);
       add(
         ~elab_term=TypAbs(utpat, body_elab, tfname) |> rewrap,
         ~elab_syn_ty=Poly(utpat, body.elab_syn_ty) |> Typ.temp,
@@ -2341,7 +2341,7 @@ and uexp_to_info_map =
       let branch_ids = List.map(Exp.rep_id, [e1, e2]);
       let* (cond, cond_elab, m) = go(~ana=Atom(Bool) |> Typ.temp, e0, m);
       let* (cons, cons_elab, m) = go(~ana, e1, m);
-      let& (alt, alt_elab, m) = go(~ana, e2, m);
+      let* (alt, alt_elab, m) = go(~ana, e2, m);
       let (syn_if, cms_if) =
         ConstructorStaticsHelpers.syn_marks_match(
           ctx,
@@ -2412,17 +2412,14 @@ and uexp_to_info_map =
         );
 
       let p_ctxs = List.map(Info.pat_ctx, ps');
-      let (es, es_elabs, m, _) =
+      let (es, es_elabs, m) =
         List.fold_left2(
-          ((es, elabs, m, index), e, ctx) => {
+          ((es, elabs, m), e, ctx) => {
             let child = go(~ctx, ~ana, e, m);
-            let (e, elab, m) =
-              index == 0
-                ? StaticsSlice.keep(~parent=uexp, child, x => x)
-                : StaticsSlice.omit(~parent=uexp, child, x => x);
-            (es @ [e], elabs @ [elab], m, index + 1);
+            let (e, elab, m) = StaticsSlice.keep(~parent=uexp, child, x => x);
+            (es @ [e], elabs @ [elab], m);
           },
-          ([], [], m, 0),
+          ([], [], m),
           es,
           p_ctxs,
         );

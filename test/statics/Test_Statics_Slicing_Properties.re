@@ -204,6 +204,167 @@ let validity_check = (~direction, ~ty_of: Info.exp => Typ.t, (e, k, j)): bool =>
   };
 };
 
+let validity_failure =
+    (~direction, ~ty_of: Info.exp => Typ.t, (e, k, j)): option(string) => {
+  let focus = exp_focus_at(e, k);
+  switch (statics_map(base_ctx(), e)) {
+  | None => None
+  | Some(m) =>
+    switch (Statics.Map.lookup_exp(focus, m)) {
+    | None => None
+    | Some(info) =>
+      let chain = descending_chain(ty_of(info));
+      let query = List.nth(chain, j mod List.length(chain));
+      switch (safe_slice(~focus, ~direction, e, query)) {
+      | None => None
+      | Some(result) =>
+        let sliced = reconstruct(result.omitted, e);
+        let ctx = slice_ctx(result);
+        switch (statics_map(ctx, sliced)) {
+        | None => None
+        | Some(sliced_m) =>
+          switch (Statics.Map.lookup_exp(focus, sliced_m)) {
+          | None => None
+          | Some(sliced_info) =>
+            precision_geq(ctx, ty_of(sliced_info), query)
+              ? None
+              : Some(
+                  Printf.sprintf(
+                    "program: %s\nfocus: %s\nfocus type: %s\nquery: %s\nsliced: %s\nsliced focus type: %s",
+                    show_exp_src(e),
+                    switch (find_any(focus, e)) {
+                    | Some(a) => render_any(a)
+                    | None => "<missing>"
+                    },
+                    render_any(Typ(ty_of(info))),
+                    render_any(Typ(query)),
+                    show_exp_src(sliced),
+                    render_any(Typ(ty_of(sliced_info))),
+                  ),
+                )
+          }
+        };
+      };
+    }
+  };
+};
+
+let shrink_failing_case =
+    (
+      pred: ((Exp.t, int, int)) => bool,
+      shrink: QCheck.Shrink.t((Exp.t, int, int)),
+      case: (Exp.t, int, int),
+    )
+    : (Exp.t, int, int) => {
+  let max_iterations = 500;
+  let current = ref(case);
+  let iterations = ref(0);
+  let progress = ref(true);
+  while (progress^ && iterations^ < max_iterations) {
+    progress := false;
+    let found = ref(None);
+    try(
+      shrink(current^, candidate =>
+        switch (found^) {
+        | Some(_) => ()
+        | None =>
+          incr(iterations);
+          if (iterations^ >= max_iterations) {
+            raise(Exit);
+          };
+          if (pred(candidate)) {
+            found := Some(candidate);
+            raise(Exit);
+          };
+        }
+      )
+    ) {
+    | Exit => ()
+    };
+    switch (found^) {
+    | Some(smaller) =>
+      current := smaller;
+      progress := true;
+    | None => ()
+    };
+  };
+  current^;
+};
+
+let collect_validity_failures =
+    (
+      ~name: string,
+      ~direction,
+      ~ty_of: Info.exp => Typ.t,
+      ~seed: int,
+      ~path: string,
+    ) => {
+  let count = 100000;
+  let arb_case = QCheck.triple(arb_exp, QCheck.small_nat, QCheck.small_nat);
+  let gen = arb_case.QCheck.gen;
+  let shrink =
+    switch (arb_case.QCheck.shrink) {
+    | Some(s) => s
+    | None => ((_, _) => ())
+    };
+  let rand = Random.State.make([|seed|]);
+  let failures = ref(0);
+  let out = open_out(path);
+  output_string(
+    out,
+    Printf.sprintf("collector: %s\nseed: %d\n", name, seed),
+  );
+  for (i in 1 to count) {
+    let case = QCheck.Gen.generate1(~rand, gen);
+    switch (validity_failure(~direction, ~ty_of, case)) {
+    | None => ()
+    | Some(raw_report) =>
+      incr(failures);
+      let minimized =
+        shrink_failing_case(
+          c => validity_failure(~direction, ~ty_of, c) != None,
+          shrink,
+          case,
+        );
+      let min_report =
+        switch (validity_failure(~direction, ~ty_of, minimized)) {
+        | Some(r) => r
+        | None => "<minimization lost failure>"
+        };
+      let (raw_e, raw_k, raw_j) = case;
+      let (min_e, min_k, min_j) = minimized;
+      output_string(
+        out,
+        Printf.sprintf(
+          "\n=== failure %d at generated case %d ===\nraw tuple: k=%d j=%d\n%s\nraw source only: %s\n\nminimal tuple: k=%d j=%d\n%s\nminimal source only: %s\n",
+          failures^,
+          i,
+          raw_k,
+          raw_j,
+          raw_report,
+          show_exp_src(raw_e),
+          min_k,
+          min_j,
+          min_report,
+          show_exp_src(min_e),
+        ),
+      );
+      flush(out);
+    };
+  };
+  output_string(
+    out,
+    Printf.sprintf("\nsummary: %d failures in %d cases\n", failures^, count),
+  );
+  close_out(out);
+  Printf.printf(
+    "%s: wrote %d minimized failures to %s\n",
+    name,
+    failures^,
+    path,
+  );
+};
+
 // Slicing the focus at a query drawn from its own type keeps enough of the
 // program that the reconstruction still carries a type at least as precise
 let random_synthesis_validity =
@@ -293,6 +454,26 @@ let skip_until_slicer_passes =
 let tests = (
   "Statics.Slicing.Properties",
   [
+    Alcotest.test_case(
+      "collect minimized synthesis validity failures", `Quick, () =>
+      collect_validity_failures(
+        ~name="synthesis",
+        ~direction=`Syn,
+        ~ty_of=info => info.elab_syn_ty,
+        ~seed=0x51574,
+        ~path="/tmp/hazel-slicing-synthesis-validity-minimized.txt",
+      )
+    ),
+    Alcotest.test_case(
+      "collect minimized analysis validity failures", `Quick, () =>
+      collect_validity_failures(
+        ~name="analysis",
+        ~direction=`Ana,
+        ~ty_of=info => info.ana,
+        ~seed=0xA4A,
+        ~path="/tmp/hazel-slicing-analysis-validity-minimized.txt",
+      )
+    ),
     skip_until_slicer_passes(
       "random synthesis slicing is valid",
       random_synthesis_validity,

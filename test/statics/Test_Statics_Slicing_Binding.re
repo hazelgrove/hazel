@@ -94,6 +94,20 @@ let binding_synthesis = [
     "type Option = typfun A -> ? + Some(A) in Some@<Int>(?)",
   ),
   synthesis_case(
+    ~focus=e => exp_var(e, "x"),
+    "bind-var-focus-full",
+    "let x : Int -> Int = ? in x",
+    "Int -> Int",
+    "let x : Int -> Int = ? in x",
+  ),
+  synthesis_case(
+    ~focus=e => exp_var(e, "x"),
+    "bind-var-focus-refined",
+    "let x : Int -> Int = ? in x",
+    "Int -> ?",
+    "let x : Int -> ? = ? in x",
+  ),
+  synthesis_case(
     ~focus=first_tuple,
     "bind-syn-tuple-ann-def",
     "let x : (Int, Int) = (1, ?) in ?",

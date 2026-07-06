@@ -19,5 +19,6 @@ let tests =
     Test_Statics_Slicing_Analysis.tests,
     Test_Statics_Slicing_Binding.tests,
     Test_Statics_Slicing_InvalidQuery.tests,
+    Test_Statics_Slicing_ExtendedExamples.tests,
     Test_Statics_Slicing_Properties.tests,
   ];

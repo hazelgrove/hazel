@@ -23,6 +23,24 @@ let atoms = [
     "Int",
     "x",
   ),
+  synthesis_case(
+    ~ctx=ctx_var("x", "Int -> Int"),
+    ~focus=e => exp_var(e, "x"),
+    ~assumptions=[("x", "Int -> Int")],
+    "var-assumption-full",
+    "x",
+    "Int -> Int",
+    "x",
+  ),
+  synthesis_case(
+    ~ctx=ctx_var("x", "Int -> Int"),
+    ~focus=e => exp_var(e, "x"),
+    ~assumptions=[("x", "Int -> ?")],
+    "var-assumption-refined",
+    "x",
+    "Int -> ?",
+    "x",
+  ),
 ];
 
 let ctors = [
