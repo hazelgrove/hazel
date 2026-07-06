@@ -23,7 +23,8 @@ let to_zipper = (z: Zipper.t, ~root) =>
         | None => z
         | Some(z_new) => move_until_cant_put_down(z, z_new)
         };
-      } else if (Zipper.is_linebreak_to_right_of_caret(z)) {
+      } else if (Zipper.can_put_down(z)
+                 && Zipper.is_linebreak_to_right_of_caret(z)) {
         switch (Zipper.move(Right, z)) {
         | None => z
         | Some(z_new) => z_new
