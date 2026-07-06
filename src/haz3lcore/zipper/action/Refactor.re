@@ -2143,11 +2143,265 @@ let sink_let_impl: impl = {
     },
 };
 
+let remove_annotation_impl: impl = {
+  label: "Remove Type Annotation",
+  tooltip: "Drop this binding's type annotation",
+  prepare: (~info_map as _, ~target, program) =>
+    rewrite_node(
+      ~hit=hit_let(target),
+      ~rewrite=
+        e =>
+          switch (IdTagged.term_of(e)) {
+          | Let(p, def, body) =>
+            switch (IdTagged.term_of(p)) {
+            | Asc(inner, _) =>
+              /* inner takes over the Asc node's outer runs */
+              let (ab, aa) = p.annotation.secondary;
+              let (ib, ia) = inner.annotation.secondary;
+              let p': Pat.t = {
+                ...inner,
+                annotation: {
+                  ...inner.annotation,
+                  secondary: (ab @ ib, ia @ aa),
+                },
+              };
+              Some((
+                {
+                  ...e,
+                  term: Let(p', def, body),
+                },
+                Pat.rep_id(p'),
+              ));
+            | _ => None
+            }
+          | _ => None
+          },
+      program,
+    ),
+};
+
+let fresh_names = (k: int, program: Exp.t): list(string) => {
+  let used = ref(used_names(program));
+  List.init(
+    k,
+    _ => {
+      let rec pick = n => {
+        let c = n == 0 ? "x" : "x" ++ string_of_int(n);
+        List.mem(c, used^) ? pick(n + 1) : c;
+      };
+      let c = pick(0);
+      used := [c, ...used^];
+      c;
+    },
+  );
+};
+
+/* arity of an arrow's argument side, syntactically */
+let arrow_arity = (a: Typ.t): int =>
+  switch (IdTagged.term_of(a)) {
+  | Prod(items) => List.length(items)
+  | Parens(inner) =>
+    switch (IdTagged.term_of(inner)) {
+    | Prod(items) => List.length(items)
+    | _ => 1
+    }
+  | _ => 1
+  };
+
+let eta_expand_impl: impl = {
+  label: "Eta-Expand",
+  tooltip: "Wrap this function value as fun x -> f(x)",
+  prepare: (~info_map, ~target, program) => {
+    let attempt = (~parens: bool) =>
+      rewrite_node(
+        ~hit=hit_node(target),
+        ~rewrite=
+          e =>
+            switch (IdTagged.term_of(e)) {
+            | Fun(_)
+            | Parens(_) => None
+            | _ =>
+              switch (exp_ty(~info_map, e)) {
+              | Some(ty) =>
+                switch (IdTagged.term_of(ty)) {
+                | Arrow(a, _) =>
+                  let names = fresh_names(arrow_arity(a), program);
+                  let sep_lead = i =>
+                    i == 0 ? ([], []) : (space(), []);
+                  let var_pats =
+                    names
+                    |> List.mapi((i, n) =>
+                         {
+                           ...fresh_pat(Var(n)),
+                           annotation: {
+                             ...IdTagged.IdTag.mk_internal([Id.mk()]),
+                             secondary: sep_lead(i),
+                           },
+                         }
+                       );
+                  let param: Pat.t =
+                    switch (var_pats) {
+                    | [v] => pad(v)
+                    | vs => pad(fresh_pat(Parens(fresh_pat(Tuple(vs)))))
+                    };
+                  let args: Exp.t =
+                    switch (names) {
+                    | [n] => fresh(Var(n))
+                    | ns =>
+                      fresh(
+                        Tuple(
+                          ns
+                          |> List.mapi((i, n) =>
+                               {
+                                 ...fresh(Var(n)),
+                                 annotation: {
+                                   ...IdTagged.IdTag.mk_internal([Id.mk()]),
+                                   secondary: sep_lead(i),
+                                 },
+                               }
+                             ),
+                        ),
+                      )
+                    };
+                  let fn = strip_boundaries(e);
+                  let fn = needs_parens(fn) ? fresh(Parens(fn)) : fn;
+                  let body = {
+                    ...fresh(Ap(Forward, fn, args)),
+                    annotation: {
+                      ...IdTagged.IdTag.mk_internal([Id.mk()]),
+                      secondary: (space(), []),
+                    },
+                  };
+                  let lam = fresh(Fun(param, body, None, None));
+                  Some((
+                    parens ? fresh(Parens(lam)) : lam,
+                    Pat.rep_id(List.hd(var_pats)),
+                  ));
+                | _ => None
+                }
+              | None => None
+              }
+            },
+        program,
+      );
+    switch (attempt(~parens=false)) {
+    | Some((bare, f)) when reparses_same(bare) => Some((bare, f))
+    | Some(_) => attempt(~parens=true)
+    | None => None
+    };
+  },
+};
+
+/* is this term already literal-value syntax? (also the gate for what
+ * evaluation results are spliceable) */
+let rec is_value_literal = (e: Exp.t): bool =>
+  switch (IdTagged.term_of(e)) {
+  | Atom(_)
+  | Constructor(_, _) => true
+  | ListLit(xs)
+  | Tuple(xs) => xs |> List.for_all(is_value_literal)
+  | Parens(x) => is_value_literal(x)
+  | Ap(Forward, f, arg) =>
+    switch (IdTagged.term_of(f)) {
+    | Constructor(_, _) => is_value_literal(arg)
+    | _ => false
+    }
+  | _ => false
+  };
+
+/* evaluator-built values carry no secondary; SpaceNormalize can't
+ * space commas (self-delimiting), so do it here */
+let space_commas = (e: Exp.t): Exp.t =>
+  Exp.map_term(
+    ~f_exp=
+      (cont, e: Exp.t) => {
+        let spaced = xs =>
+          xs
+          |> List.mapi((i, x: Exp.t) =>
+               i == 0
+                 ? x
+                 : {
+                   ...x,
+                   annotation: {
+                     ...x.annotation,
+                     secondary: (
+                       space() @ fst(x.annotation.secondary),
+                       snd(x.annotation.secondary),
+                     ),
+                   },
+                 }
+             );
+        let e: Exp.t =
+          switch (IdTagged.term_of(e)) {
+          | ListLit(xs) => {
+              ...e,
+              term: ListLit(spaced(xs)),
+            }
+          | Tuple(xs) => {
+              ...e,
+              term: Tuple(spaced(xs)),
+            }
+          | _ => e
+          };
+        cont(e);
+      },
+    e,
+  );
+
+let evaluate_in_place_impl: impl = {
+  label: "Evaluate in Place",
+  tooltip: "Replace this expression with its value",
+  prepare: (~info_map as _, ~target, program) => {
+    let attempt = (~parens: bool) =>
+      rewrite_node(
+        ~hit=hit_node(target),
+        ~rewrite=
+          e =>
+            if (is_value_literal(e)) {
+              None;
+            } else {
+              /* elaborate the subterm standalone: free vars elaborate
+                 to holes, evaluate to indet, and fail the value gate —
+                 so closedness needs no separate check here */
+              let elab =
+                CachedStatics.init_from_term(
+                  ~settings=CoreSettings.on,
+                  ~is_dynamic_term=false,
+                  e,
+                ).
+                  elaborated;
+              switch (
+                Evaluator.evaluate_and_limit(
+                  ~step_limit=10000,
+                  ~env=Builtins.env_init,
+                  elab,
+                )
+              ) {
+              | Completed((v, _)) when is_value_literal(v) =>
+                let v = space_commas(v);
+                let v = parens ? fresh(Parens(v)) : v;
+                Some((v, Exp.rep_id(v)));
+              | _ => None
+              };
+            },
+        program,
+      );
+    switch (attempt(~parens=false)) {
+    | Some((bare, f)) when reparses_same(bare) => Some((bare, f))
+    | Some(_) => attempt(~parens=true)
+    | None => None
+    };
+  },
+};
+
 let impl: Action.refactor => impl =
   fun
   | InlineLet => inline_let_impl
   | RemoveUnusedLet => remove_unused_let_impl
   | AddTypeAnnotation => add_annotation_impl
+  | RemoveTypeAnnotation => remove_annotation_impl
+  | EtaExpand => eta_expand_impl
+  | EvaluateInPlace => evaluate_in_place_impl
   | AddCaseArm => add_case_arm_impl
   | AddParameter => add_param_impl
   | RenameFree(x, y) => rename_free_impl(x, y)
@@ -2163,6 +2417,9 @@ let all: list(Action.refactor) = [
   InlineLet,
   RemoveUnusedLet,
   AddTypeAnnotation,
+  RemoveTypeAnnotation,
+  EtaExpand,
+  EvaluateInPlace,
   AddCaseArm,
   AddParameter,
   HoistLet,
@@ -2269,6 +2526,50 @@ let applies =
   | SinkLet =>
     switch (find_hit(~hit=hit_let(target), program)) {
     | Some(l) => Option.is_some(sink_step(~fixup=false, l))
+    | None => false
+    }
+  | RemoveTypeAnnotation =>
+    let_applies(
+      ~pred=
+        (p, _, _) =>
+          switch (IdTagged.term_of(p)) {
+          | Asc(_) => true
+          | _ => false
+          },
+      target,
+      program,
+    )
+  | EtaExpand =>
+    switch (find_hit(~hit=hit_node(target), program)) {
+    | Some(e) =>
+      switch (IdTagged.term_of(e)) {
+      | Fun(_)
+      | Parens(_) => false
+      | _ =>
+        switch (exp_ty(~info_map, e)) {
+        | Some(ty) =>
+          switch (IdTagged.term_of(ty)) {
+          | Arrow(_) => true
+          | _ => false
+          }
+        | None => false
+        }
+      }
+    | None => false
+    }
+  | EvaluateInPlace =>
+    /* cheap gate only: closed (empty co-ctx) and not already a value;
+       divergence/stuckness discovered at invocation (stale offer
+       no-ops) */
+    switch (find_hit(~hit=hit_node(target), program)) {
+    | Some(e) =>
+      !is_value_literal(e)
+      && (
+        switch (Id.Map.find_opt(Exp.rep_id(e), info_map)) {
+        | Some(InfoExp({co_ctx, _})) => co_ctx == []
+        | _ => false
+        }
+      )
     | None => false
     }
   | AddCaseArm =>

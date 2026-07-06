@@ -144,6 +144,9 @@ type refactor =
   | InlineLet
   | RemoveUnusedLet
   | AddTypeAnnotation
+  | RemoveTypeAnnotation
+  | EtaExpand
+  | EvaluateInPlace
   | AddCaseArm
   | AddParameter
   | RenameFree(string, string)

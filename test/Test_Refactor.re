@@ -397,6 +397,84 @@ let annotation_tests = [
   ),
 ];
 
+let wave_tests = [
+  test_case(
+    "remove type annotation",
+    `Quick,
+    () => {
+      let got =
+        inline(~kind=RemoveTypeAnnotation, "¦let x : Int = 1 in x")
+        |> text_of;
+      check(string, "annotation dropped", "let x = 1 in x", got);
+    },
+  ),
+  test_case(
+    "eta expand a unary fn",
+    `Quick,
+    () => {
+      let got =
+        inline(~kind=EtaExpand, "let f : Int -> Int = fun y -> y in ¦f")
+        |> text_of;
+      check(
+        string,
+        "expanded",
+        "let f : Int -> Int = fun y -> y in fun x -> f(x)",
+        got,
+      );
+    },
+  ),
+  test_case(
+    "eta expand matches arity",
+    `Quick,
+    () => {
+      let got =
+        inline(
+          ~kind=EtaExpand,
+          "let f : (Int, Bool) -> Int = fun (a, b) -> a in ¦f",
+        )
+        |> text_of;
+      check(
+        string,
+        "two params",
+        "let f : (Int, Bool) -> Int = fun (a, b) -> a in fun (x, x1) -> f(x, x1)",
+        got,
+      );
+    },
+  ),
+  test_case("eta expand not offered on non-arrows", `Quick, () =>
+    check(bool, "no", false, offers(EtaExpand, "let x = 1 in ¦x"))
+  ),
+  test_case(
+    "evaluate in place",
+    `Quick,
+    () => {
+      let got = inline(~kind=EvaluateInPlace, "let x = 2 ¦* 3 in x + 1");
+      check(
+        string,
+        "value spliced",
+        "let x = 6 in x + 1",
+        got |> text_of,
+      );
+    },
+  ),
+  test_case(
+    "evaluate in place: structured value",
+    `Quick,
+    () => {
+      let got =
+        inline(~kind=EvaluateInPlace, "let l = 1 ¦:: [2 + 3] in l")
+        |> text_of;
+      check(string, "list value", "let l = [1, 5] in l", got);
+    },
+  ),
+  test_case("evaluate gated on open terms", `Quick, () =>
+    check(bool, "no", false, offers(EvaluateInPlace, "fun y -> ¦y + 1"))
+  ),
+  test_case("evaluate gated on values", `Quick, () =>
+    check(bool, "no", false, offers(EvaluateInPlace, "let x = ¦6 in x"))
+  ),
+];
+
 let more_tests = [
   test_case(
     "multiline if converts to case, end on its own line",
@@ -1169,6 +1247,7 @@ let tests = [
     @ case_arm_tests
     @ param_tests
     @ rename_tests
+    @ wave_tests
     @ move_tests
     @ more_tests,
   ),
