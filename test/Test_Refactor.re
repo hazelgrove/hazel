@@ -105,13 +105,13 @@ let gating_tests = [
       check(string, "ascribed", "((fun y -> y) : Int -> Int)(1)", got);
     },
   ),
-  test_case("ret-annotated sugar doesn't inline", `Quick, () =>
-    check(
-      bool,
-      "gated",
-      false,
-      offers(InlineLet, "¦let f(x) : Int = x + 1 in f(2)"),
-    )
+  test_case(
+    "ret-annotated sugar inlines with a hole-arrow ascription",
+    `Quick,
+    () => {
+      let got = inline("¦let f(x) : Int = x + 1 in f(2)") |> text_of;
+      check(string, "? -> Int", "((fun x -> x + 1) : ? -> Int)(2)", got);
+    },
   ),
   test_case(
     "remove an unused annotated let",

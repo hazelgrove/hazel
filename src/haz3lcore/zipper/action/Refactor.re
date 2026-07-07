@@ -895,12 +895,9 @@ let inline_let_impl: impl = {
           (p, def, _) =>
             let_head_name(p) != None
             || (
-              switch (sugar_fn_name(p), IdTagged.term_of(p)) {
-              /* ret-annotated sugar can't inline faithfully (the
-                 lambda's arrow type isn't reconstructible) */
-              | (Some(_), Asc(_)) => false
-              | (Some(f), _) => !free_in(f, def)
-              | (None, _) => false
+              switch (sugar_fn_name(p)) {
+              | Some(f) => !free_in(f, def)
+              | None => false
               }
             ),
         ~rewrite=
@@ -970,7 +967,27 @@ let inline_let_impl: impl = {
                   | Tuple(_) => pad(fresh_pat(Parens(argp)))
                   | _ => pad(argp)
                   };
-                (f, fresh(Fun(param, def, None, None)));
+                let lam = fresh(Fun(param, def, None, None));
+                /* a ret annotation makes the binder ? -> Ret exactly:
+                   the param side was always unknown (andrew) */
+                switch (IdTagged.term_of(p)) {
+                | Asc(_, ret) =>
+                  let arrow =
+                    fresh_typ(
+                      Arrow(
+                        with_secondary_typ(
+                          ([], space()),
+                          fresh_typ(Unknown(Hole(EmptyHole))),
+                        ),
+                        with_secondary_typ(
+                          (space(), []),
+                          strip_typ_boundaries(refresh_typ_ids(ret)),
+                        ),
+                      ),
+                    );
+                  (f, asc_def(arrow, lam));
+                | _ => (f, lam)
+                };
               };
             let avoid = vars_of(def) |> List.filter(v => free_in(v, def));
             let used = ref(used_names(program));
@@ -3621,10 +3638,9 @@ let applies =
       let_applies(~pred=(p, def, _) =>
         let_head_name(p) != None
         || (
-          switch (sugar_fn_name(p), IdTagged.term_of(p)) {
-          | (Some(_), Asc(_)) => false
-          | (Some(f), _) => !free_in(f, def)
-          | (None, _) => false
+          switch (sugar_fn_name(p)) {
+          | Some(f) => !free_in(f, def)
+          | None => false
           }
         )
       );
