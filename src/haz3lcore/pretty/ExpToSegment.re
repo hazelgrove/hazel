@@ -1240,13 +1240,36 @@ let mk_form =
 
    To prevent that, pad_ids now also ensures the returned list has:
    1. no duplicates within itself;
-   2. no id equal to any id in [~forbidden]. */
+   2. no id equal to any id in [~forbidden].
+
+   Padding and replacement ids are DERIVED (hash of ~base + counter),
+   not minted: printing must be a pure function of the term. Fresh ids
+   here made double-prints of the same term differ. ~base defaults to
+   the first id; pass it explicitly where ids can be empty. */
 let pad_ids =
-    (~forbidden: list(Id.t)=[], n: int, ids: list(Id.t)): list(Id.t) => {
+    (
+      ~forbidden: list(Id.t)=[],
+      ~base: option(Id.t)=?,
+      n: int,
+      ids: list(Id.t),
+    )
+    : list(Id.t) => {
+  let base =
+    switch (base, ids) {
+    | (Some(b), _) => b
+    | (None, [id, ..._]) => id
+    | (None, []) => Id.invalid
+    };
+  let counter = ref(0);
   let forbidden_set = ref(Id.Set.of_list(forbidden));
+  let rec derived = () => {
+    incr(counter);
+    let cand = Id.derive(~salt="pad" ++ string_of_int(counter^), base);
+    Id.Set.mem(cand, forbidden_set^) ? derived() : cand;
+  };
   let replace = id =>
     if (Id.Set.mem(id, forbidden_set^)) {
-      let fresh = Id.mk();
+      let fresh = derived();
       forbidden_set := Id.Set.add(fresh, forbidden_set^);
       fresh;
     } else {
@@ -1255,7 +1278,7 @@ let pad_ids =
     };
   let truncated =
     if (List.length(ids) < n) {
-      ids @ List.init(n - List.length(ids), _ => Id.mk());
+      ids @ List.init(n - List.length(ids), _ => derived());
     } else {
       ListUtil.split_n(n, ids) |> fst;
     };
@@ -1408,7 +1431,10 @@ let rec drv_exp_to_pretty =
       let* x = go(x, ~sort=Prop)
       and* xs = xs |> List.map(go(~sort=Prop)) |> all;
       let ids =
-        syntax |> IdTagged.ids |> List.tl |> pad_ids(List.length(xs));
+        syntax
+        |> IdTagged.ids
+        |> List.tl
+        |> pad_ids(~base=id, List.length(xs));
       let map2_safe = (f, l1, l2) =>
         List.length(l1) == List.length(l2)
           ? List.map2(f, l1, l2) : raise(Invalid_argument("map2_safe"));
