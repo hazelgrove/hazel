@@ -183,11 +183,11 @@ let refactor_tests = [
     },
   ),
   test_case(
-    "compound def bare when reparse agrees",
+    "compound def at top level takes parens (static policy)",
     `Quick,
     () => {
       let got = inline("¦let x = 1 + 2 in x + 3") |> text_of;
-      check(string, "left-assoc: no parens needed", "1 + 2 + 3", got);
+      check(string, "parens: unbounded region", "(1 + 2) + 3", got);
     },
   ),
   test_case(
@@ -443,7 +443,7 @@ let wave_tests = [
       check(
         string,
         "expanded",
-        "let f : Int -> Int = fun y -> y in fun x -> f(x)",
+        "let f : Int -> Int = fun y -> y in (fun x -> f(x))",
         got,
       );
     },
@@ -461,7 +461,7 @@ let wave_tests = [
       check(
         string,
         "two params",
-        "let f : (Int, Bool) -> Int = fun (a, b) -> a in fun (x, x1) -> f(x, x1)",
+        "let f : (Int, Bool) -> Int = fun (a, b) -> a in (fun (x, x1) -> f(x, x1))",
         got,
       );
     },
@@ -1628,6 +1628,33 @@ let reparse_safety_tests = {
       "let f(a, ¦b) = a in f(1, 2)",
     ),
     case("swap arms", SwapArms(0), "case c\n| 1 => 11\n| ¦2 => 22\nend"),
+    case("extract at root chain", ExtractLet, "let y = f(1 ¦+ 2) in y"),
+    case("extract in fun body", ExtractLet, "fun n -> n * (1 ¦+ 2)"),
+    case(
+      "extract in arm body",
+      ExtractLet,
+      "case m | 1 => f(2 ¦+ 3) | _ => 0 end",
+    ),
+    case("extract in if branch", ExtractLet, "if b then f(2 ¦+ 3) else 0"),
+    case("extract tuple element", ExtractLet, "(f(¦2), 3)"),
+    case("extract whole line", ExtractLet, "¦1 + 2"),
+    case(
+      "inline top-level compound def",
+      InlineLet,
+      "¦let x = 1 + 2 in 3 + x",
+    ),
+    case(
+      "inline into test region",
+      InlineLet,
+      "let x1 = f(9) in\ntest g(2) == ¦x1 end",
+    ),
+    case("annotate simple", AddTypeAnnotation, "¦let x = 1 in x"),
+    case(
+      "annotate tuple type",
+      AddTypeAnnotation,
+      "¦let p = (1, true) in p",
+    ),
+    case("negate compound cond", NegateIf, "¦if a && b then 1 else 2"),
   ];
 };
 
@@ -1666,6 +1693,11 @@ let movement_reparse_fuzz = {
         Action.SwapArms(0),
         Action.SwapArms(1),
         Action.RemoveParameter,
+        Action.ExtractLet,
+        Action.InlineLet,
+        Action.NegateIf,
+        Action.IfToCase,
+        Action.CaseToIf,
       ];
       all_ids(term)
       |> List.for_all(target =>
@@ -1679,13 +1711,112 @@ let movement_reparse_fuzz = {
                   )
                 ) {
                 | None => true
-                | Some((term', _)) => Refactor.reparses_same(term')
+                | Some((term', _)) =>
+                  Refactor.reparses_same(term')
+                  || {
+                    Printf.printf(
+                      "\nFUZZ TERM %s\n",
+                      Language.Exp.show(term),
+                    );
+                    Printf.printf(
+                      "\nFUZZ FAIL %s: %s\n",
+                      Action.show_refactor(kind),
+                      Printer.of_segment(
+                        ~holes="?",
+                        ~refractors=[],
+                        ExpToSegment.exp_to_segment(
+                          ~settings=Refactor.roundtrip_settings,
+                          term',
+                        ),
+                      ),
+                    );
+                    false;
+                  }
                 }
               )
          );
     }
   );
 };
+
+/* Caret-placement assertions (Printer renders the caret into text) */
+let caret_text = (z: Zipper.t): string =>
+  Printer.of_zipper(~holes="?", ~caret="¦", z);
+
+let has_sub = (hay: string, needle: string): bool => {
+  let n = String.length(needle);
+  let rec go = i =>
+    i
+    + n <= String.length(hay)
+    && (String.sub(hay, i, n) == needle || go(i + 1));
+  go(0);
+};
+
+let caret_tests = [
+  test_case(
+    "extract focuses the fresh binder",
+    `Quick,
+    () => {
+      let z = inline(~kind=ExtractLet, "let y = f(1 ¦+ 2) in y");
+      check(
+        bool,
+        "caret at binder: " ++ caret_text(z),
+        true,
+        has_sub(caret_text(z), "let ¦x = 1 + 2"),
+      );
+    },
+  ),
+  test_case(
+    "inline from occurrence focuses the substituted copy",
+    `Quick,
+    () => {
+      let z = inline("let x1 = f(9) in\ntest g(2) == ¦x1 end");
+      check(
+        bool,
+        "caret at copy: " ++ caret_text(z),
+        true,
+        has_sub(caret_text(z), "f¦(9)")
+        || has_sub(caret_text(z), "¦f(9)"),
+      );
+    },
+  ),
+  test_case(
+    "inline at the let focuses the first substituted copy",
+    `Quick,
+    () => {
+      let z = inline("¦let x1 = f(9) in test g(2) == x1 end");
+      check(
+        bool,
+        "caret at copy: " ++ caret_text(z),
+        true,
+        has_sub(caret_text(z), "f¦(9)")
+        || has_sub(caret_text(z), "¦f(9)"),
+      );
+    },
+  ),
+];
+
+let binding_tests = [
+  test_case("arm hoist gated on pattern-bound var in def", `Quick, () =>
+    check(
+      bool,
+      "not offered",
+      false,
+      offers(
+        HoistLet,
+        "case m | Var(name) => ¦let y = name in y | _ => 0 end",
+      ),
+    )
+  ),
+  test_case("arm hoist offered when def ignores pattern vars", `Quick, () =>
+    check(
+      bool,
+      "offered",
+      true,
+      offers(HoistLet, "case m | Var(name) => ¦let y = 1 in y | _ => 0 end"),
+    )
+  ),
+];
 
 /* === Swap Arms + gestures === */
 
@@ -1846,6 +1977,8 @@ let tests = [
     @ more_tests
     @ arm_tests
     @ gesture_tests
+    @ caret_tests
+    @ binding_tests
     @ reparse_safety_tests,
   ),
   (

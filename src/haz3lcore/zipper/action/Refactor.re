@@ -315,13 +315,16 @@ let strip_typ_boundaries = (t: Typ.t): Typ.t => {
 /* The inserted copy takes over the replaced occurrence's stored
  * whitespace (its slot in the line); the definition keeps its own
  * interior spacing */
+/* The copy's root adopts the replaced occurrence's ids: the
+ * occurrence id stays valid post-substitution (unique — the original
+ * node is gone), giving inline a stable focus target */
 let inserted = (~parens: bool, def: Exp.t, at: Exp.t): Exp.t => {
   let secondary = at.annotation.secondary;
   let def = strip_boundaries(def);
   if (parens) {
     {
       annotation: {
-        ...IdTagged.IdTag.mk_internal([Id.mk()]),
+        ...IdTagged.IdTag.mk_internal(at.annotation.ids),
         secondary,
       },
       term: Parens(def),
@@ -333,6 +336,7 @@ let inserted = (~parens: bool, def: Exp.t, at: Exp.t): Exp.t => {
       ...def,
       annotation: {
         ...def.annotation,
+        ids: at.annotation.ids,
         secondary: (def_before @ before, def_after @ after),
       },
     };
@@ -1143,22 +1147,40 @@ let inline_let_impl: impl = {
                 ? occurrences_of(x, body)
                   |> List.filter_map(occ => {
                        let region = bounded_region(Exp.rep_id(occ), program);
-                       let candidate =
-                         replace_node(
-                           ~at=Exp.rep_id(occ),
-                           ~with_=inserted(~parens=false, def, occ),
-                           region,
-                         );
-                       reparses_region(candidate)
-                         ? Some(Exp.rep_id(occ)) : None;
+                       /* an unbounded (whole-program) region would
+                          mean a whole-program reparse: just take
+                          parens there */
+                       if (same_node(region, program)) {
+                         None;
+                       } else {
+                         let candidate =
+                           replace_node(
+                             ~at=Exp.rep_id(occ),
+                             ~with_=inserted(~parens=false, def, occ),
+                             region,
+                           );
+                         reparses_region(candidate)
+                           ? Some(Exp.rep_id(occ)) : None;
+                       };
                      })
                 : occurrences_of(x, body) |> List.map(Exp.rep_id);
             let parens_for = occ =>
               needs_parens(def) && !List.mem(Exp.rep_id(occ), bare_ids);
             let body' = subst(~parens_for, ~avoid, ~used, x, def, body);
-            /* caret stays at the edit site (the vacated line) rather
-               than jumping to whichever copy kept the original ids */
-            (body', Exp.rep_id(body'));
+            /* caret follows the substituted copy: the one at the
+               invoking occurrence, else the first occurrence (copy
+               roots adopt occurrence ids — see `inserted`) */
+            let occs = occurrences_of(x, body) |> List.map(Exp.rep_id);
+            let focus =
+              if (List.mem(target, occs)) {
+                target;
+              } else {
+                switch (occs) {
+                | [first, ..._] => first
+                | [] => Exp.rep_id(body')
+                };
+              };
+            (body', focus);
           },
         program,
       );
@@ -1251,11 +1273,28 @@ let add_annotation_impl: impl = {
             },
         program,
       );
-    switch (attempt(~parens=false)) {
-    | Some((bare, f)) when reparses_same(bare) => Some((bare, f))
-    | Some(_) => attempt(~parens=true)
-    | None => None
-    };
+    /* static: single-token types go bare; anything wider (Prod's
+       comma especially breaks the let) takes parens */
+    let simple =
+      switch (find_hit(~hit=hit_let(target), program)) {
+      | Some(e) =>
+        switch (IdTagged.term_of(e)) {
+        | Let(_, def, _) =>
+          switch (exp_ty(~info_map, def)) {
+          | Some(ty) =>
+            switch (IdTagged.term_of(ty)) {
+            | Unknown(_)
+            | Atom(_)
+            | Var(_) => true
+            | _ => false
+            }
+          | None => false
+          }
+        | _ => false
+        }
+      | None => false
+      };
+    attempt(~parens=!simple);
   },
 };
 
@@ -1345,6 +1384,10 @@ let extractable = (e: Exp.t): bool =>
   | Let(_)
   | Seq(_)
   | Filter(_) => false
+  /* extracting a parens node is redundant with extracting its child,
+     and the bare use-var can be load-bearing where the parens were
+     (e.g. a Dot's lhs) */
+  | Parens(_) => false
   | _ => true
   };
 
@@ -1439,17 +1482,15 @@ let extract_let_impl: impl = {
   tooltip: "Bind this expression to a fresh variable at the enclosing line",
   prepare: (~info_map as _, ~target, program) => {
     let x = fresh_name(program);
-    /* oracle chain shared by both placements: `let ... in` extends
-       maximally rightward, so a bare let can swallow what follows on
-       reparse (nothing to do with variable capture — fresh_name
-       avoids collisions). Parenthesize only when the reparse oracle
-       says the bare form changes the program. */
-    let via_oracle = (build: (~parens: bool) => option((Exp.t, Id.t))) =>
-      switch (build(~parens=false)) {
-      | Some((bare, f)) when reparses_same(bare) => Some((bare, f))
-      | Some(_) => build(~parens=true)
-      | None => None
-      };
+    /* STATIC parens policy (the whole-program reparse oracle cost
+       ~0.5s/invocation; reparse-safety is covered by tests instead):
+       to_block always goes bare — lowest_line only yields line slots
+       (chain slots, fun/arm/branch bodies, root), where a bare
+       `let..in`'s rightward extent is exactly the intended body and
+       arm/branch slots are delimiter-bounded. in_place goes bare only
+       when extracting a whole line; the rec-blocked fallback sits at
+       an arbitrary (possibly comma/operand) position, so it takes
+       parens. */
     /* fallback, and the degenerate case of extracting a whole line */
     let in_place = (~parens: bool) =>
       rewrite_node(
@@ -1503,18 +1544,31 @@ let extract_let_impl: impl = {
             },
           program,
         );
-      via_oracle(build);
+      build(~parens=false);
     };
     switch (find_path(~hit=hit_node(target), program)) {
     | None => None
     | Some(path) =>
       let t = List.nth(path, List.length(path) - 1);
-      if (extractable(t)) {
+      /* no extraction from under a Dot (access-path components: a
+         bare use-var in rhs position reparses as a projection label)
+         or a MultiHole (invalid-syntax region) */
+      let blocked_ancestor =
+        path
+        |> List.filteri((i, _) => i < List.length(path) - 1)
+        |> List.exists((a: Exp.t) =>
+             switch (IdTagged.term_of(a)) {
+             | Dot(_)
+             | MultiHole(_) => true
+             | _ => false
+             }
+           );
+      if (extractable(t) && !blocked_ancestor) {
         let line = lowest_line(path);
         let blocked =
           crossed_rec_binders(line, path) |> List.exists(n => mentions(n, t));
         !blocked && !same_node(line, t)
-          ? to_block(line, t) : via_oracle(in_place);
+          ? to_block(line, t) : in_place(~parens=!same_node(line, t));
       } else {
         None;
       };
@@ -1598,11 +1652,18 @@ let negate_if_impl: impl = {
             },
         program,
       );
-    switch (attempt(~parens=false)) {
-    | Some((bare, f)) when reparses_same(bare) => Some((bare, f))
-    | Some(_) => attempt(~parens=true)
-    | None => None
-    };
+    /* static: !cond needs parens exactly when cond isn't
+       self-delimited */
+    let parens =
+      switch (find_hit(~hit=hit_node(target), program)) {
+      | Some(e) =>
+        switch (IdTagged.term_of(e)) {
+        | If(c, _, _) => needs_parens(strip_boundaries(c))
+        | _ => true
+        }
+      | None => true
+      };
+    attempt(~parens);
   },
 };
 
@@ -2428,7 +2489,14 @@ let hoist_step =
           );
         Some((p, l', Exp.rep_id(l)));
       | Let(_)
-      | Fun(_) => None
+      | Fun(_)
+      | FixF(_) => None
+      /* an arm body whose exit was gated above (pattern binders used
+         in the def) must NOT fall into the generic case below — that
+         path knows nothing about the crossed binders */
+      | Match(_, rules)
+          when rules |> List.exists(((_, rb)) => same_node(rb, c)) =>
+        None
       | _ =>
         /* generic tight position: g(let x = e in b) -> let x = e in
            g(b). No binder is crossed (binder-introducing bodies are
@@ -2791,11 +2859,15 @@ let eta_expand_impl: impl = {
             },
         program,
       );
-    switch (attempt(~parens=false)) {
-    | Some((bare, f)) when reparses_same(bare) => Some((bare, f))
-    | Some(_) => attempt(~parens=true)
-    | None => None
-    };
+    /* static: bare iff the node sits in a delimiter-bounded slot
+       (the lambda can't leak past its region); otherwise parens */
+    let bounded =
+      switch (find_hit(~hit=hit_node(target), program)) {
+      | Some(e) =>
+        !same_node(bounded_region(Exp.rep_id(e), program), program)
+      | None => false
+      };
+    attempt(~parens=!bounded);
   },
 };
 
@@ -2893,11 +2965,14 @@ let evaluate_in_place_impl: impl = {
             },
         program,
       );
-    switch (attempt(~parens=false)) {
-    | Some((bare, f)) when reparses_same(bare) => Some((bare, f))
-    | Some(_) => attempt(~parens=true)
-    | None => None
-    };
+    /* static: bare iff delimiter-bounded (see eta-expand) */
+    let bounded =
+      switch (find_hit(~hit=hit_node(target), program)) {
+      | Some(e) =>
+        !same_node(bounded_region(Exp.rep_id(e), program), program)
+      | None => false
+      };
+    attempt(~parens=!bounded);
   },
 };
 
