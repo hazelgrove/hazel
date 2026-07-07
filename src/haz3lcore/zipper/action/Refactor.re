@@ -3679,14 +3679,19 @@ let swap_params_impl = (i: int): impl => {
   tooltip: "Swap these adjacent parameters at the definition and all call sites",
   prepare: (~info_map, ~target, program) =>
     switch (swap_site(~info_map, ~target, program)) {
-    | Some((l, _)) =>
+    | Some((l, at_item)) =>
       switch (swap_params_rewrite(~fixup=true, i, l)) {
       | Some((result, focus)) =>
+        /* invoked from a param or call-site argument: the caret
+           follows it (item nodes keep their ids through the swap;
+           repeat presses keep pushing it). From the let zone: the
+           let. */
+        let focus = at_item == None ? focus : target;
         rewrite_node(
           ~hit=same_node(l),
           ~rewrite=_ => Some((result, focus)),
           program,
-        )
+        );
       | None => None
       }
     | None => None

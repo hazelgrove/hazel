@@ -1836,6 +1836,45 @@ let caret_tests = [
   ),
 ];
 
+let caret_at = (~kind: Action.refactor, marked: string, expected_sub: string) =>
+  test_case(
+    Action.show_refactor(kind) ++ " caret: " ++ expected_sub,
+    `Quick,
+    () => {
+      let z = inline(~kind, marked);
+      check(
+        bool,
+        "caret at '" ++ expected_sub ++ "' in: " ++ caret_text(z),
+        true,
+        has_sub(caret_text(z), expected_sub),
+      );
+    },
+  );
+
+let caret_audit_tests = [
+  caret_at(
+    ~kind=SwapParams(1),
+    "let f = fun (a, ¦b, c) -> a in f(1, 2, 3)",
+    "c, ¦b",
+  ),
+  caret_at(
+    ~kind=SwapParams(0),
+    "let f = fun (a, b) -> a in f(¦1, 2)",
+    "f(2, ¦1)",
+  ),
+  caret_at(~kind=NegateIf, "¦if a && b then 1 else 2", "if ¦!"),
+  caret_at(~kind=IfToCase, "¦if a then 1 else 2", "case ¦a"),
+  caret_at(~kind=CaseToIf, "¦case a | true => 1 | false => 2 end", "if ¦a"),
+  caret_at(~kind=AddTypeAnnotation, "¦let x = 1 in x", ": ¦Int"),
+  caret_at(
+    ~kind=AddCaseArm,
+    "let b : Bool = true in ¦case b | true => 1 end",
+    "=> ¦?",
+  ),
+  caret_at(~kind=EtaReduce, "¦fun x -> f(x)", "¦f"),
+  caret_at(~kind=AddParameter, "¦let f = fun (a) -> a in f(1)", ", ¦"),
+];
+
 let binding_tests = [
   test_case("arm hoist gated on pattern-bound var in def", `Quick, () =>
     check(
@@ -2126,6 +2165,7 @@ let tests = [
     @ arm_travel_tests
     @ gesture_tests
     @ caret_tests
+    @ caret_audit_tests
     @ binding_tests
     @ reparse_safety_tests,
   ),
