@@ -714,6 +714,24 @@ module View = {
           Some(Update.Globals(Set(AutoprobeMode)))
         | _ => None
         };
+      let open_palette =
+        switch (key) {
+        | {key: D("K" | "k"), sys: Mac, meta: Down, ctrl: Up, alt: Up, _}
+        | {key: D("K" | "k"), sys: PC, meta: Up, ctrl: Down, alt: Up, _} =>
+          true
+        | _ => false
+        };
+      if (open_palette) {
+        let cursor =
+          Selection.get_cursor_info(
+            ~inject,
+            ~selection=model.selection,
+            model,
+          );
+        NinjaKeys.open_with(
+          cursor.contextual_actions @ cursor.contextual_actions_lazy(),
+        );
+      };
       Effect.(
         switch (page_action) {
         | None => meta_effects == [] ? Ignore : Many(meta_effects)
@@ -744,6 +762,7 @@ module View = {
       (
         ~globals: Globals.t,
         ~inject: Editors.Update.t => 'a,
+        ~cursor,
         ~editors: Editors.Model.t,
       ) => {
     NutMenu.(
@@ -764,7 +783,12 @@ module View = {
             button(
               Icons.command_palette_terminal,
               _ => {
-                NinjaKeys.open_command_palette();
+                NinjaKeys.open_with(
+                  Cursor.(
+                    cursor.contextual_actions
+                    @ cursor.contextual_actions_lazy()
+                  ),
+                );
                 Effect.Ignore;
               },
               ~tooltip="Command Palette (" ++ Keyboard.meta() ++ " + k)",
@@ -791,7 +815,8 @@ module View = {
     ),
   ];
 
-  let top_bar = (~globals, ~inject: Update.t => Ui_effect.t(unit), ~editors) =>
+  let top_bar =
+      (~globals, ~inject: Update.t => Ui_effect.t(unit), ~cursor, ~editors) =>
     div(
       ~attrs=[Attr.id("top-bar")],
       [
@@ -799,7 +824,12 @@ module View = {
           ~attrs=[Attr.class_("wrap")],
           [a(~attrs=[Attr.class_("nut-icon")], [Icons.hazelnut])],
         ),
-        nut_menu(~globals, ~inject=a => inject(Editors(a)), ~editors),
+        nut_menu(
+          ~globals,
+          ~inject=a => inject(Editors(a)),
+          ~cursor,
+          ~editors,
+        ),
         div(
           ~attrs=[Attr.class_("wrap")],
           [div(~attrs=[Attr.id("title")], [text("hazel")])],
@@ -912,7 +942,7 @@ module View = {
     };
 
     [
-      top_bar(~globals, ~inject, ~editors),
+      top_bar(~globals, ~inject, ~cursor, ~editors),
       closure_cursor_bar,
       div(
         ~attrs=[

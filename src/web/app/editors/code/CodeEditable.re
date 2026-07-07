@@ -164,6 +164,21 @@ module Selection = {
         |> map(x => Update.Perform(x)),
       editor_read_only: false,
     }
+    |> Cursor.with_lazy_actions(() =>
+         Haz3lcore.Refactor.menu_items(
+           ~info_map=model.statics.info_map,
+           ~term=model.statics.term,
+           model.editor.state.zipper,
+         )
+         |> List.map(((kind, label, _tooltip)) =>
+              ContextualAction.mk(
+                ~mdIcon="compress",
+                ~section="Refactoring",
+                ~action=inject(Perform(Refactor(kind))),
+                label,
+              )
+            )
+       )
     |> Cursor.with_actions(
          [
            /* Navigation */
@@ -286,21 +301,6 @@ module Selection = {
              "Introduce",
            ),
          ]
-         @ (
-           Haz3lcore.Refactor.menu_items(
-             ~info_map=model.statics.info_map,
-             ~term=model.statics.term,
-             model.editor.state.zipper,
-           )
-           |> List.map(((kind, label, _tooltip)) =>
-                mk(
-                  ~mdIcon="compress",
-                  ~section="Refactoring",
-                  ~action=action(Refactor(kind)),
-                  label,
-                )
-              )
-         )
          @ [
            mk(
              ~mdIcon="format_indent_increase",

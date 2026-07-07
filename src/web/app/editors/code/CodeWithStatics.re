@@ -82,6 +82,7 @@ module Model = {
     redo_action: None,
     error_ids: model.statics.error_ids,
     contextual_actions: [],
+    contextual_actions_lazy: () => [],
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
