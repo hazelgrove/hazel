@@ -205,6 +205,85 @@ let fresh_pat = (term): Pat.t => {
   term,
 };
 
+/* fresh ids for a statics-derived type before it enters the buffer */
+let refresh_annotation = (a: IdTagged.IdTag.t): IdTagged.IdTag.t => {
+  let refresh_sec = (ws: list(Secondary.t)) =>
+    ws
+    |> List.map((w: Secondary.t) =>
+         {
+           ...w,
+           id: Id.mk(),
+         }
+       );
+  let (before, after) = a.secondary;
+  {
+    ids: [Id.mk()],
+    secondary: (refresh_sec(before), refresh_sec(after)),
+    incomplete: [],
+    lexeme: a.lexeme,
+  };
+};
+
+let refresh_typ_ids = (t: Typ.t): Typ.t =>
+  Typ.map_term(
+    ~f_typ=
+      (cont, t: Typ.t) =>
+        cont({
+          ...t,
+          annotation: refresh_annotation(t.annotation),
+        }),
+    t,
+  );
+
+let fresh_typ = (term): Typ.t => {
+  annotation: IdTagged.IdTag.mk_internal([Id.mk()]),
+  term,
+};
+
+let typ_known = (t: Typ.t): bool => {
+  let unknown = ref(false);
+  let _ =
+    Typ.map_term(
+      ~f_typ=
+        (cont, t: Typ.t) => {
+          switch (IdTagged.term_of(t)) {
+          | Unknown(_) => unknown := true
+          | _ => ()
+          };
+          cont(t);
+        },
+      t,
+    );
+  ! unknown^;
+};
+
+let drop_secondary_typ = (ids: list(Id.t), t: Typ.t): Typ.t =>
+  Typ.map_term(
+    ~f_typ=
+      (cont, t: Typ.t) => {
+        let keep = (ws: list(Secondary.t)) =>
+          ws |> List.filter((w: Secondary.t) => !List.mem(w.id, ids));
+        let (before, after) = t.annotation.secondary;
+        {
+          ...t,
+          annotation: {
+            ...t.annotation,
+            secondary: (keep(before), keep(after)),
+          },
+        }
+        |> cont;
+      },
+    t,
+  );
+
+let strip_typ_boundaries = (t: Typ.t): Typ.t => {
+  let seg = ExpToSegment.typ_to_segment(~settings=roundtrip_settings, t);
+  let ids = ws => ws |> List.map((w: Secondary.t) => w.id);
+  let lead = secondary_run_pieces(seg) |> ids;
+  let trail = secondary_run_pieces(List.rev(seg)) |> ids;
+  drop_secondary_typ(lead @ trail, t);
+};
+
 /* The inserted copy takes over the replaced occurrence's stored
  * whitespace (its slot in the line); the definition keeps its own
  * interior spacing */
@@ -590,23 +669,6 @@ let vars_of = (e: Exp.t): list(string) => {
 /* Fresh ids for every node AND secondary piece, keeping whitespace
  * content and lexemes (Exp.replace_all_ids drops secondary, which
  * would strip a duplicated copy's spacing) */
-let refresh_annotation = (a: IdTagged.IdTag.t): IdTagged.IdTag.t => {
-  let refresh_sec = (ws: list(Secondary.t)) =>
-    ws
-    |> List.map((w: Secondary.t) =>
-         {
-           ...w,
-           id: Id.mk(),
-         }
-       );
-  let (before, after) = a.secondary;
-  {
-    ids: [Id.mk()],
-    secondary: (refresh_sec(before), refresh_sec(after)),
-    incomplete: [],
-    lexeme: a.lexeme,
-  };
-};
 
 let refresh_ids = (e: Exp.t): Exp.t =>
   Exp.map_term(
@@ -833,17 +895,67 @@ let inline_let_impl: impl = {
           (p, def, _) =>
             let_head_name(p) != None
             || (
-              switch (sugar_fn_name(p)) {
-              | Some(f) => !free_in(f, def)
-              | None => false
+              switch (sugar_fn_name(p), IdTagged.term_of(p)) {
+              /* ret-annotated sugar can't inline faithfully (the
+                 lambda's arrow type isn't reconstructible) */
+              | (Some(_), Asc(_)) => false
+              | (Some(f), _) => !free_in(f, def)
+              | (None, _) => false
               }
             ),
         ~rewrite=
           (p, def, body) => {
+            /* An annotated head's type is analysis context, not
+               decoration (a bare lambda re-synthesizes ? -> ?), so
+               substitution keeps it as an ascription — unless the
+               def synthesizes the same hole-free type on its own. */
+            let asc_def = (ann: Typ.t, def: Exp.t): Exp.t => {
+              let base = strip_boundaries(def);
+              let base = needs_parens(base) ? fresh(Parens(base)) : base;
+              fresh(
+                Asc(
+                  with_secondary(([], space()), base),
+                  with_secondary_typ(
+                    (space(), []),
+                    strip_typ_boundaries(refresh_typ_ids(ann)),
+                  ),
+                ),
+              );
+            };
+            let redundant = (ann: Typ.t, def: Exp.t): bool => {
+              let st =
+                CachedStatics.init_from_term(
+                  ~settings=CoreSettings.on,
+                  ~is_dynamic_term=false,
+                  def,
+                );
+              switch (Id.Map.find_opt(Exp.rep_id(def), st.info_map)) {
+              | Some(InfoExp({ty, _})) =>
+                typ_known(ty)
+                && (
+                  switch (Id.Map.find_opt(Exp.rep_id(def), info_map)) {
+                  | Some(InfoExp({ctx, _})) =>
+                    Typ.equal(
+                      Typ.normalize(ctx, ann),
+                      Typ.normalize(ctx, ty),
+                    )
+                  | _ => false
+                  }
+                )
+              | _ => false
+              };
+            };
             /* f(x)-sugar inlines as a lambda (gated non-recursive) */
             let (x, def) =
               switch (let_head_name(p)) {
-              | Some(x) => (x, def)
+              | Some(x) =>
+                switch (IdTagged.term_of(p)) {
+                | Asc(_, ann) when !redundant(ann, def) => (
+                    x,
+                    asc_def(ann, def),
+                  )
+                | _ => (x, def)
+                }
               | None =>
                 let f = Option.get(sugar_fn_name(p));
                 let rec arg_of = (p: Pat.t) =>
@@ -913,40 +1025,6 @@ let remove_unused_let_impl: impl = {
       ~rewrite=(_, _, body) => (body, Exp.rep_id(body)),
       program,
     ),
-};
-
-/* fresh ids for a statics-derived type before it enters the buffer */
-let refresh_typ_ids = (t: Typ.t): Typ.t =>
-  Typ.map_term(
-    ~f_typ=
-      (cont, t: Typ.t) =>
-        cont({
-          ...t,
-          annotation: IdTagged.IdTag.mk_internal([Id.mk()]),
-        }),
-    t,
-  );
-
-let fresh_typ = (term): Typ.t => {
-  annotation: IdTagged.IdTag.mk_internal([Id.mk()]),
-  term,
-};
-
-let typ_known = (t: Typ.t): bool => {
-  let unknown = ref(false);
-  let _ =
-    Typ.map_term(
-      ~f_typ=
-        (cont, t: Typ.t) => {
-          switch (IdTagged.term_of(t)) {
-          | Unknown(_) => unknown := true
-          | _ => ()
-          };
-          cont(t);
-        },
-      t,
-    );
-  ! unknown^;
 };
 
 let exp_ty = (~info_map: Statics.Map.t, e: Exp.t): option(Typ.t) =>
@@ -3543,9 +3621,10 @@ let applies =
       let_applies(~pred=(p, def, _) =>
         let_head_name(p) != None
         || (
-          switch (sugar_fn_name(p)) {
-          | Some(f) => !free_in(f, def)
-          | None => false
+          switch (sugar_fn_name(p), IdTagged.term_of(p)) {
+          | (Some(_), Asc(_)) => false
+          | (Some(f), _) => !free_in(f, def)
+          | (None, _) => false
           }
         )
       );

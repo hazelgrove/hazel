@@ -89,12 +89,29 @@ let gating_tests = [
     check(bool, "g", false, offers(RemoveUnusedLet, "¦let x = 1 in x"))
   ),
   test_case(
-    "inline an annotated let",
+    "inline an annotated let (redundant annotation drops)",
     `Quick,
     () => {
       let got = inline("¦let x : Int = 5 in x + x") |> text_of;
       check(string, "annotation dropped", "5 + 5", got);
     },
+  ),
+  test_case(
+    "inline keeps a load-bearing annotation as ascription",
+    `Quick,
+    () => {
+      let got =
+        inline("¦let f : Int -> Int = fun y -> y in f(1)") |> text_of;
+      check(string, "ascribed", "((fun y -> y) : Int -> Int)(1)", got);
+    },
+  ),
+  test_case("ret-annotated sugar doesn't inline", `Quick, () =>
+    check(
+      bool,
+      "gated",
+      false,
+      offers(InlineLet, "¦let f(x) : Int = x + 1 in f(2)"),
+    )
   ),
   test_case(
     "remove an unused annotated let",
