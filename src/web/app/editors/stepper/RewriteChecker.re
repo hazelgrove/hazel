@@ -1737,7 +1737,10 @@ let check_single_distribution_or_expansion = (group, from_, to_) =>
         || has_single_distributed_additive_term(from_, to_)
       )
       && exp_has_sum(to_)
-      && polynomial_equivalent_exps(from_, to_)) {
+      && (
+        has_single_distributed_additive_term(from_, to_)
+        || polynomial_equivalent_exps(from_, to_)
+      )) {
     let rule_ids =
       product_factors(from_) |> List.filter(exp_has_sum) |> List.length > 1
         ? ["alg.expand_polynomial", "alg.distribute_mul_add"]
@@ -1747,14 +1750,20 @@ let check_single_distribution_or_expansion = (group, from_, to_) =>
     None;
   };
 
-let check_single_factor_common = (group, from_, to_) =>
+let check_single_factor_common = (group, from_, to_) => {
+  let syntactic_factor =
+    switch (normalize_common_factor_sum(from_)) {
+    | Some(factored) => exp_same(factored, to_)
+    | None => false
+    };
   if (has_common_factor_sum(from_)
       && product_has_sum_factor(to_)
-      && polynomial_equivalent_exps(from_, to_)) {
+      && (syntactic_factor || polynomial_equivalent_exps(from_, to_))) {
     Some(single_algebra_result(group, ["alg.factor_common"], from_, to_));
   } else {
     None;
   };
+};
 
 let normalize_by_evaluation =
     (~settings as _: CoreSettings.t, ~env, exp: Exp.t): option(normalized) => {

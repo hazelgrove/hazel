@@ -30,15 +30,23 @@ let local_axiom_search = request =>
   |> Option.map(summary => PrimitiveTrace(summary))
   |> Option.value(~default=Rejected("local axiom search found no proof"));
 
-let domain_for_request = request =>
-  switch (request.level) {
-  | Axioms.Trigonometry
-  | Calculus => CoqExport.Reals
-  | _ =>
+let effective_profile_for_request = request =>
+  Axioms.effective_profile_for_rewrite(
+    ~requested_level=request.level,
+    request.source,
+    request.target,
+  );
+
+let domain_for_request = request => {
+  let profile = effective_profile_for_request(request);
+  switch (profile.rocq_domain_policy) {
+  | Axioms.RealsByDefault => CoqExport.Reals
+  | IntegersByDefault =>
     CoqExport.requires_reals(request.source)
     || CoqExport.requires_reals(request.target)
       ? CoqExport.Reals : CoqExport.Integers
   };
+};
 
 let vars_for_request = request =>
   CoqExport.unique_vars_in_ast(request.source)
@@ -57,35 +65,15 @@ let forall_string = (~domain, vars) =>
     "forall " ++ String.concat(" ", vars) ++ " : " ++ typ ++ ",";
   };
 
-let tactic_for_level =
-  fun
-  | Axioms.Arithmetic => "hazel_arithmetic"
-  | Algebra => "hazel_algebra"
-  | Trigonometry => "hazel_trigonometry"
-  | FunctionsAndLists
-  | Calculus => "hazel_trigonometry";
-
-let macro_rule_id_for_level =
-  fun
-  | Axioms.Arithmetic => "rocq.arithmetic_tactic_search"
-  | Algebra => "rocq.algebra_tactic_search"
-  | Trigonometry => "rocq.trigonometry_tactic_search"
-  | FunctionsAndLists => "rocq.functions_tactic_search"
-  | Calculus => "rocq.calculus_tactic_search";
-
-let macro_detail_for_level = level =>
-  "JSCoq/Rocq tactic-search macro: " ++ tactic_for_level(level);
+let macro_detail_for_profile = profile =>
+  "JSCoq/Rocq tactic-search macro: " ++ profile.Axioms.rocq_tactic_group;
 
 let effective_level_for_request = request =>
-  Axioms.export_level_for_rewrite(
-    ~requested_level=request.level,
-    request.source,
-    request.target,
-  );
+  effective_profile_for_request(request).level;
 
 let rocq_search_program = request => {
   let domain = domain_for_request(request);
-  let effective_level = effective_level_for_request(request);
+  let profile = effective_profile_for_request(request);
   let prelude =
     switch (domain) {
     | CoqExport.Reals => CoqProofExport.real_prelude
@@ -100,21 +88,18 @@ let rocq_search_program = request => {
     forall_str,
     source,
     target,
-    tactic_for_level(effective_level),
+    profile.rocq_tactic_group,
   );
 };
 
 let collapsed_macro_summary = request => {
-  let effective_level = effective_level_for_request(request);
+  let profile = effective_profile_for_request(request);
   let group_name =
-    switch (effective_level) {
-    | Axioms.Arithmetic => Some("arithmetic")
-    | Algebra => Some("algebra")
-    | FunctionsAndLists => Some("functions/lists")
-    | Trigonometry => Some("trigonometry")
-    | Calculus => Some("calculus")
+    switch (List.rev(profile.groups)) {
+    | [group, ..._] => Some(group.name)
+    | [] => None
     };
-  let rule_id = macro_rule_id_for_level(effective_level);
+  let rule_id = profile.rocq_macro_rule_id;
   let step =
     RewriteChecker.{
       origin: Normalization,
@@ -124,7 +109,7 @@ let collapsed_macro_summary = request => {
       before_exp: request.source,
       after_exp: request.target,
       occurrence: 1,
-      detail: Some(macro_detail_for_level(effective_level)),
+      detail: Some(macro_detail_for_profile(profile)),
     };
   RewriteChecker.{
     justification: "Rocq tactic search",

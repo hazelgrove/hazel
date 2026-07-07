@@ -1406,16 +1406,21 @@ module View = {
           | _ => []
           };
         let mode_issue =
-          AxiomSearch.unsupported_constructs_message(
+          AxiomSearch.unsupported_constructs_message_for_rewrite(
             ~level=rewrite_level,
-            [unboxed_selected_exp, unboxed_cached_exp],
+            ~source=unboxed_selected_exp,
+            ~target=unboxed_cached_exp,
           );
         let mode_issue_view = message =>
           div_c("proof-mode-warning", [Node.text(message)]);
-        let mode_issue_overlay = (editor: CodeWithStatics.Model.t, exps) =>
-          switch (
-            AxiomSearch.unsupported_construct_ids(~level=rewrite_level, exps)
-          ) {
+        let mode_issue_ids =
+          AxiomSearch.unsupported_construct_ids_for_rewrite(
+            ~level=rewrite_level,
+            ~source=unboxed_selected_exp,
+            ~target=unboxed_cached_exp,
+          );
+        let mode_issue_overlay = (editor: CodeWithStatics.Model.t) =>
+          switch (mode_issue_ids) {
           | [] => []
           | unsupported_ids => [
               Arms.Errors.of_ids(
@@ -1432,10 +1437,8 @@ module View = {
             ~parenthesization=Haz3lcore.ExpToSegment.Settings.Defensive,
             unboxed_selected_exp,
           );
-        let source_mode_issue_overlay =
-          mode_issue_overlay(source_editor, [unboxed_selected_exp]);
-        let target_mode_issue_overlay =
-          mode_issue_overlay(editor, [unboxed_cached_exp]);
+        let source_mode_issue_overlay = mode_issue_overlay(source_editor);
+        let target_mode_issue_overlay = mode_issue_overlay(editor);
         [
           // one element list with a div
           // with a list containing two elements

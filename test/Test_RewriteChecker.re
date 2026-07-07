@@ -1007,6 +1007,120 @@ let tests = (
       },
     ),
     test_case(
+      "math profiles parameterize Rocq tactic search",
+      `Quick,
+      () => {
+        let arithmetic_profile = Axioms.math_profile(Arithmetic);
+        check(
+          string,
+          "arithmetic macro rule",
+          "rocq.arithmetic_tactic_search",
+          arithmetic_profile.Axioms.rocq_macro_rule_id,
+        );
+        check(
+          string,
+          "arithmetic tactic group",
+          "hazel_arithmetic",
+          arithmetic_profile.rocq_tactic_group,
+        );
+        check(
+          list(string),
+          "arithmetic profile groups",
+          ["arithmetic"],
+          arithmetic_profile.groups |> List.map(rewrite_group_name),
+        );
+
+        let algebra_profile = Axioms.math_profile(Algebra);
+        check(
+          string,
+          "algebra macro rule",
+          "rocq.algebra_tactic_search",
+          algebra_profile.rocq_macro_rule_id,
+        );
+        check(
+          string,
+          "algebra tactic group",
+          "hazel_algebra",
+          algebra_profile.rocq_tactic_group,
+        );
+        check(
+          list(string),
+          "algebra profile groups",
+          ["arithmetic", "algebra"],
+          algebra_profile.groups |> List.map(rewrite_group_name),
+        );
+
+        let trig_profile = Axioms.math_profile(Trigonometry);
+        check(
+          string,
+          "trig macro rule",
+          "rocq.trigonometry_tactic_search",
+          trig_profile.rocq_macro_rule_id,
+        );
+        check(
+          string,
+          "trig tactic group",
+          "hazel_trigonometry",
+          trig_profile.rocq_tactic_group,
+        );
+        check(
+          bool,
+          "macro lookup",
+          true,
+          Axioms.rocq_tactic_group_for_macro_rule_id(
+            "rocq.algebra_tactic_search",
+          )
+          == Some("hazel_algebra"),
+        );
+      },
+    ),
+    test_case(
+      "effective math profile lowers preserved trig rewrites",
+      `Quick,
+      () => {
+        let x = Exp.var("x");
+        let quotient_square =
+          divide(
+            minus(Exp.int(1), builtin_cos(times(Exp.int(2), x))),
+            Exp.int(2),
+          );
+        let profile =
+          Axioms.effective_profile_for_rewrite(
+            ~requested_level=Trigonometry,
+            power(quotient_square, Exp.int(2)),
+            times(quotient_square, quotient_square),
+          );
+        check(
+          string,
+          "preserved trig lowers to algebra tactic",
+          "hazel_algebra",
+          profile.Axioms.rocq_tactic_group,
+        );
+        check(
+          string,
+          "preserved trig lowers to algebra macro",
+          "rocq.algebra_tactic_search",
+          profile.rocq_macro_rule_id,
+        );
+
+        let trig_profile =
+          Axioms.effective_profile_for_rewrite(
+            ~requested_level=Trigonometry,
+            plus(
+              power(builtin_sin(x), Exp.int(2)),
+              power(builtin_cos(x), Exp.int(2)),
+            ),
+            Exp.int(1),
+          );
+        check(
+          string,
+          "changed trig stays trig tactic",
+          "hazel_trigonometry",
+          trig_profile.rocq_tactic_group,
+        );
+      },
+    ),
+    test_case(
       "algebrite suggestion serializes trig power expression",
       `Quick,
       () => {
@@ -1381,6 +1495,140 @@ let tests = (
         ),
         None,
       )
+    ),
+    test_case(
+      "scope experiment: arithmetic does not collect opaque trig factors",
+      `Quick,
+      () => {
+        let x = Exp.var("x");
+        let cos_x = builtin_cos(x);
+        check_written_result_at_level(
+          "arithmetic keeps trig applications out of affine collection",
+          Arithmetic,
+          plus(times(Exp.int(2), cos_x), times(Exp.int(3), cos_x)),
+          times(Exp.int(5), cos_x),
+          None,
+        );
+      },
+    ),
+    test_case(
+      "scope experiment: algebra distributes across preserved trig calls",
+      `Quick,
+      () => {
+        let x = Exp.var("x");
+        let source = times(Exp.int(2), plus(builtin_cos(x), Exp.int(1)));
+        let target =
+          plus(
+            times(Exp.int(2), builtin_cos(x)),
+            times(Exp.int(2), Exp.int(1)),
+          );
+        check(
+          bool,
+          "arithmetic cannot distribute over an unchanged trig call",
+          true,
+          Web.RewriteChecker.check_single_step_trace_at_level(
+            ~level=Arithmetic,
+            ~settings,
+            ~env,
+            source,
+            target,
+          )
+          |> Option.is_none,
+        );
+        check(
+          option(string),
+          "local algebra treats preserved trig calls as opaque terms",
+          Some("algebra one step"),
+          Web.RewriteChecker.check_single_step_trace_at_level(
+            ~level=Algebra,
+            ~settings,
+            ~env,
+            source,
+            target,
+          )
+          |> Option.map((trace: Web.RewriteChecker.trace_summary) =>
+               trace.justification
+             ),
+        );
+        check(
+          option(string),
+          "rewrite-aware UI gate accepts preserved trig calls at algebra",
+          None,
+          Web.AxiomSearch.unsupported_constructs_message_for_rewrite(
+            ~level=Algebra,
+            ~source,
+            ~target,
+          ),
+        );
+        check(
+          option(string),
+          "arithmetic still rejects the same rewrite",
+          Some("Needs Trigonometry"),
+          Web.AxiomSearch.unsupported_constructs_message_for_rewrite(
+            ~level=Arithmetic,
+            ~source,
+            ~target,
+          ),
+        );
+        check(
+          bool,
+          "bounded axiom search can prove the algebra step",
+          true,
+          Web.AxiomSearch.search(
+            ~level=Algebra,
+            ~max_depth=1,
+            ~allowed_rule_ids=["alg.distribute_mul_add"],
+            ~log=false,
+            source,
+            target,
+          )
+          |> Option.is_some,
+        );
+        check(
+          bool,
+          "suggestion target is available at algebra",
+          true,
+          switch (Web.RewriteChecker.normalize_algebra_shape(source)) {
+          | Some((suggested, rule_ids)) =>
+            List.mem("alg.distribute_mul_add", rule_ids)
+            && Web.RewriteChecker.exp_same(suggested, target)
+          | None => false
+          },
+        );
+      },
+    ),
+    test_case(
+      "scope experiment: trig identity does not leak into arithmetic",
+      `Quick,
+      () => {
+        let x = Exp.var("x");
+        let source =
+          plus(
+            power(builtin_sin(x), Exp.int(2)),
+            power(builtin_cos(x), Exp.int(2)),
+          );
+        check_written_result_at_level(
+          "arithmetic cannot use pythagorean trig identity",
+          Arithmetic,
+          source,
+          Exp.int(1),
+          None,
+        );
+        check_written_result_at_level(
+          "algebra cannot use pythagorean trig identity",
+          Algebra,
+          source,
+          Exp.int(1),
+          None,
+        );
+        check_written_result_at_level(
+          "trigonometry can use pythagorean trig identity",
+          Trigonometry,
+          source,
+          Exp.int(1),
+          Some("trigonometry one step"),
+        );
+      },
     ),
     test_case(
       "algebra polynomial trace records expansion",

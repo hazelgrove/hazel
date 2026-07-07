@@ -1,3 +1,5 @@
+module Axioms = Language.Axioms;
+
 let tactic_for_axiom = name =>
   switch (name) {
   | "Iden(+)L" => "rewrite Z.add_0_l"
@@ -151,41 +153,44 @@ let tactic_script = tactics =>
 
 let cut_name = index => "H_hazel_step_" ++ string_of_int(index);
 
-let tactic_for_prover_step = (~domain, step: RewriteChecker.prover_step) =>
-  switch (step.rule_id) {
-  | "rocq.arithmetic_tactic_search" => tactic_script(["hazel_arithmetic"])
-  | "rocq.algebra_tactic_search" => tactic_script(["hazel_algebra"])
-  | "rocq.trigonometry_tactic_search" => tactic_script(["hazel_trigonometry"])
-  | "rocq.tactic_search" =>
-    tactic_script([
-      "first [hazel_power_normalize | hazel_rewrite_search 8%nat | hazel_mul_reorder | reflexivity]",
-    ])
-  | "trig.sin_double_sum_square" =>
-    tactic_script(["hazel_sin_double_sum_square"])
-  | "trig.sin_squared_double" => tactic_script(["hazel_sin_squared_double"])
-  | "trig.cos_squared_double" => tactic_script(["hazel_cos_squared_double"])
-  | "trig.sin_half_squared" => tactic_script(["hazel_sin_half_squared"])
-  | "trig.cos_half_squared" => tactic_script(["hazel_cos_half_squared"])
-  | "trig.cos_pi_sub" => tactic_script(["hazel_cos_pi_sub"])
-  | "arith.const_fold"
-  | "arith.mul_const" => tactic_script(["hazel_arithmetic"])
-  | "arith.reorder_add_terms" => tactic_script(["hazel_rewrite_search 8%nat"])
-  | "arith.reorder_mul_factors" => tactic_script(["hazel_mul_reorder"])
-  | "arith.simplify_scalar_products" => tactic_script(["hazel_algebra"])
-  | "arith.collect_like_terms"
-  | "alg.distribute_mul_add"
-  | "alg.factor_common"
-  | "alg.expand_polynomial"
-  | "alg.collect_like_terms"
-  | "alg.cancel_common_add" =>
-    tactic_script([
-      "first [hazel_algebra | hazel_rewrite_search 10%nat | reflexivity]",
-    ])
-  | _ =>
-    rewrite_tactics_for_rule_id(~domain, step.rule_id)
-    @ ["cbn", "reflexivity"]
-    |> tactic_script
+let tactic_for_prover_step = (~domain, step: RewriteChecker.prover_step) => {
+  switch (Axioms.rocq_tactic_group_for_macro_rule_id(step.rule_id)) {
+  | Some(tactic_group) => tactic_script([tactic_group])
+  | None =>
+    switch (step.rule_id) {
+    | "rocq.tactic_search" =>
+      tactic_script([
+        "first [hazel_power_normalize | hazel_rewrite_search 8%nat | hazel_mul_reorder | reflexivity]",
+      ])
+    | "trig.sin_double_sum_square" =>
+      tactic_script(["hazel_sin_double_sum_square"])
+    | "trig.sin_squared_double" => tactic_script(["hazel_sin_squared_double"])
+    | "trig.cos_squared_double" => tactic_script(["hazel_cos_squared_double"])
+    | "trig.sin_half_squared" => tactic_script(["hazel_sin_half_squared"])
+    | "trig.cos_half_squared" => tactic_script(["hazel_cos_half_squared"])
+    | "trig.cos_pi_sub" => tactic_script(["hazel_cos_pi_sub"])
+    | "arith.const_fold"
+    | "arith.mul_const" => tactic_script(["hazel_arithmetic"])
+    | "arith.reorder_add_terms" =>
+      tactic_script(["hazel_rewrite_search 8%nat"])
+    | "arith.reorder_mul_factors" => tactic_script(["hazel_mul_reorder"])
+    | "arith.simplify_scalar_products" => tactic_script(["hazel_algebra"])
+    | "arith.collect_like_terms"
+    | "alg.distribute_mul_add"
+    | "alg.factor_common"
+    | "alg.expand_polynomial"
+    | "alg.collect_like_terms"
+    | "alg.cancel_common_add" =>
+      tactic_script([
+        "first [hazel_algebra | hazel_rewrite_search 10%nat | reflexivity]",
+      ])
+    | _ =>
+      rewrite_tactics_for_rule_id(~domain, step.rule_id)
+      @ ["cbn", "reflexivity"]
+      |> tactic_script
+    }
   };
+};
 
 let assertion_replay_script =
     (~domain, steps: list(RewriteChecker.prover_step)) => {
@@ -229,28 +234,24 @@ let domain_for_summary = (summary: RewriteChecker.trace_summary) =>
     ? CoqExport.Reals : CoqExport.Integers;
 
 let tactic_group_for_summary = (summary: RewriteChecker.trace_summary) =>
-  if (List.mem("rocq.trigonometry_tactic_search", summary.rule_ids)) {
-    Some("hazel_trigonometry");
-  } else if (List.mem("rocq.algebra_tactic_search", summary.rule_ids)) {
-    Some("hazel_algebra");
-  } else if (List.mem("rocq.arithmetic_tactic_search", summary.rule_ids)) {
-    Some("hazel_arithmetic");
-  } else {
+  switch (
+    summary.rule_ids
+    |> List.filter_map(Axioms.rocq_tactic_group_for_macro_rule_id)
+  ) {
+  | [tactic_group, ..._] => Some(tactic_group)
+  | [] =>
     switch (summary.group_name) {
-    | Some("trigonometry") => Some("hazel_trigonometry")
-    | Some("algebra") => Some("hazel_algebra")
-    | Some("arithmetic") => Some("hazel_arithmetic")
-    | _ => None
-    };
+    | Some(group_name) =>
+      Axioms.math_profile_for_group_name(group_name)
+      |> Option.map(profile => profile.Axioms.rocq_tactic_group)
+    | None => None
+    }
   };
 
 let is_rocq_tactic_search_rule_id =
   fun
-  | "rocq.arithmetic_tactic_search"
-  | "rocq.algebra_tactic_search"
-  | "rocq.trigonometry_tactic_search"
   | "rocq.tactic_search" => true
-  | _ => false;
+  | rule_id => Axioms.is_rocq_macro_rule_id(rule_id);
 
 let summary_uses_rocq_tactic_search = (summary: RewriteChecker.trace_summary) =>
   summary.rule_ids

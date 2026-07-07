@@ -139,11 +139,19 @@ module View = {
       |> List.concat_map((group: Axioms.rewrite_group) => group.rules)
       |> List.map((rule: Axioms.rewrite_rule) => rule.id)
       |> List.filter(TrigRewrite.is_trig_rule_id);
+    let rewrite_allowed = (rewrite: TrigRewrite.rewrite) =>
+      AxiomSearch.unsupported_constructs_for_rewrite(
+        ~level=rewrite_level,
+        ~source=selected_exp,
+        ~target=rewrite.after_exp,
+      )
+      == [];
     let trig_actions =
       TrigRewrite.applicable_at_root(selected_exp)
       |> List.filter((rewrite: TrigRewrite.rewrite) =>
            List.mem(rewrite.rule_id, allowed_trig_rule_ids)
          )
+      |> List.filter(rewrite_allowed)
       |> (
         filter == ""
           ? x => x
@@ -170,6 +178,7 @@ module View = {
           ? TrigRewrite.scalar_product_simplifications_at_root(selected_exp)
           : []
       )
+      |> List.filter(rewrite_allowed)
       |> filter_rewrites;
     let algebra_shape_label = rule_ids =>
       if (List.mem("alg.distribute_mul_add", rule_ids)) {
@@ -200,23 +209,30 @@ module View = {
             }
           : []
       )
+      |> List.filter(rewrite_allowed)
       |> filter_rewrites;
     let selected_exp_idx =
       try(ProofHacks.exp_idx(selected_exp, full_exp)) {
       | _ => 0
       };
     let mode_warning =
-      switch (
-        AxiomSearch.unsupported_constructs_message(
-          ~level=rewrite_level,
-          [selected_exp],
-        )
-      ) {
-      | Some(message) => [
-          div_c("proof-mode-warning", [Node.text(message)]),
-        ]
-      | None => []
-      };
+      algebra_shape_actions != []
+      || simplification_actions != []
+      || trig_actions != []
+        ? []
+        : (
+          switch (
+            AxiomSearch.unsupported_constructs_message(
+              ~level=rewrite_level,
+              [selected_exp],
+            )
+          ) {
+          | Some(message) => [
+              div_c("proof-mode-warning", [Node.text(message)]),
+            ]
+          | None => []
+          }
+        );
     let trace_summary_for_trig = (rewrite: TrigRewrite.rewrite) =>
       RewriteChecker.{
         justification: "trigonometry one step",

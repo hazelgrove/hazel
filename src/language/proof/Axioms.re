@@ -31,6 +31,22 @@ type rewrite_group = {
   rules: list(rewrite_rule),
 };
 
+type rocq_domain_policy =
+  | IntegersByDefault
+  | RealsByDefault;
+
+type math_profile = {
+  level: rewrite_level,
+  rank: int,
+  label: string,
+  detail: string,
+  enabled: bool,
+  groups: list(rewrite_group),
+  rocq_macro_rule_id: string,
+  rocq_tactic_group: string,
+  rocq_domain_policy,
+};
+
 let rewrite_levels = [
   Arithmetic,
   Algebra,
@@ -216,6 +232,30 @@ let unsupported_constructs_message = (~level, exps) => {
   };
 };
 
+let unsupported_constructs_message_from_requirements = requirements => {
+  let max_requirement =
+    requirements
+    |> List.fold_left(
+         (highest, requirement) =>
+           switch (highest) {
+           | None => Some(requirement)
+           | Some(highest) =>
+             rewrite_level_rank(requirement.required_level)
+             > rewrite_level_rank(highest.required_level)
+               ? Some(requirement) : Some(highest)
+           },
+         None,
+       );
+  switch (requirements) {
+  | [] => None
+  | _ =>
+    max_requirement
+    |> Option.map(requirement =>
+         "Needs " ++ rewrite_level_label(requirement.required_level)
+       )
+  };
+};
+
 let operation_fingerprint = op => Operators.bin_op_to_string(op);
 
 let application_direction_fingerprint = dir =>
@@ -299,6 +339,40 @@ let sorted_unique_strings = values =>
 let trig_applications_preserved = (source, target) =>
   sorted_unique_strings(trig_application_fingerprints(source))
   == sorted_unique_strings(trig_application_fingerprints(target));
+
+let is_trig_construct_requirement = requirement =>
+  is_trig_builtin(requirement.construct);
+
+let can_treat_trig_applications_as_opaque = (~level, source, target) =>
+  rewrite_level_rank(level) >= rewrite_level_rank(Algebra)
+  && trig_applications_preserved(source, target);
+
+let unsupported_construct_requirements_for_rewrite =
+    (~level, ~source, ~target) => {
+  let unsupported = unsupported_constructs(~level, [source, target]);
+  can_treat_trig_applications_as_opaque(~level, source, target)
+    ? unsupported
+      |> List.filter(requirement =>
+           !is_trig_construct_requirement(requirement)
+         )
+    : unsupported;
+};
+
+let unsupported_constructs_for_rewrite = unsupported_construct_requirements_for_rewrite;
+
+let unsupported_construct_ids_for_rewrite = (~level, ~source, ~target) =>
+  unsupported_construct_requirements_for_rewrite(~level, ~source, ~target)
+  |> List.fold_left(
+       (acc, requirement) =>
+         List.mem(requirement.exp_id, acc)
+           ? acc : [requirement.exp_id, ...acc],
+       [],
+     )
+  |> List.rev;
+
+let unsupported_constructs_message_for_rewrite = (~level, ~source, ~target) =>
+  unsupported_construct_requirements_for_rewrite(~level, ~source, ~target)
+  |> unsupported_constructs_message_from_requirements;
 
 let export_level_for_rewrite = (~requested_level, source, target) =>
   switch (requested_level) {
@@ -558,8 +632,78 @@ let rewrite_groups = [
 
 let allowed_groups = level => {
   let max_rank = rewrite_level_rank(level);
-  rewrite_groups |> List.filter(group => group.rank <= max_rank);
+  rewrite_groups
+  |> List.filter((group: rewrite_group) => group.rank <= max_rank);
 };
+
+let math_profile = level => {
+  let rocq_config =
+    switch (level) {
+    | Arithmetic => (
+        "rocq.arithmetic_tactic_search",
+        "hazel_arithmetic",
+        IntegersByDefault,
+      )
+    | Algebra => (
+        "rocq.algebra_tactic_search",
+        "hazel_algebra",
+        IntegersByDefault,
+      )
+    | Trigonometry => (
+        "rocq.trigonometry_tactic_search",
+        "hazel_trigonometry",
+        RealsByDefault,
+      )
+    | FunctionsAndLists => (
+        "rocq.functions_tactic_search",
+        "hazel_functions",
+        IntegersByDefault,
+      )
+    | Calculus => (
+        "rocq.calculus_tactic_search",
+        "hazel_calculus",
+        RealsByDefault,
+      )
+    };
+  let (rocq_macro_rule_id, rocq_tactic_group, rocq_domain_policy) = rocq_config;
+  {
+    level,
+    rank: rewrite_level_rank(level),
+    label: rewrite_level_label(level),
+    detail: rewrite_level_detail(level),
+    enabled: rewrite_level_enabled(level),
+    groups: allowed_groups(level),
+    rocq_macro_rule_id,
+    rocq_tactic_group,
+    rocq_domain_policy,
+  };
+};
+
+let math_profiles = rewrite_levels |> List.map(math_profile);
+
+let math_profile_for_group_name = name =>
+  switch (name) {
+  | "arithmetic" => Some(math_profile(Arithmetic))
+  | "algebra" => Some(math_profile(Algebra))
+  | "trigonometry" => Some(math_profile(Trigonometry))
+  | "functions/lists" => Some(math_profile(FunctionsAndLists))
+  | "calculus" => Some(math_profile(Calculus))
+  | _ => None
+  };
+
+let math_profile_for_macro_rule_id = rule_id =>
+  math_profiles
+  |> List.find_opt(profile => profile.rocq_macro_rule_id == rule_id);
+
+let is_rocq_macro_rule_id = rule_id =>
+  math_profile_for_macro_rule_id(rule_id) |> Option.is_some;
+
+let rocq_tactic_group_for_macro_rule_id = rule_id =>
+  math_profile_for_macro_rule_id(rule_id)
+  |> Option.map(profile => profile.rocq_tactic_group);
+
+let effective_profile_for_rewrite = (~requested_level, source, target) =>
+  math_profile(export_level_for_rewrite(~requested_level, source, target));
 
 let rewrite_group_by_name = name =>
   rewrite_groups |> List.find_opt(group => group.name == name);

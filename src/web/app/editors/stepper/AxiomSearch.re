@@ -666,6 +666,12 @@ let unsupported_construct_ids = Axioms.unsupported_construct_ids;
 
 let unsupported_constructs_message = Axioms.unsupported_constructs_message;
 
+let unsupported_constructs_for_rewrite = Axioms.unsupported_constructs_for_rewrite;
+
+let unsupported_construct_ids_for_rewrite = Axioms.unsupported_construct_ids_for_rewrite;
+
+let unsupported_constructs_message_for_rewrite = Axioms.unsupported_constructs_message_for_rewrite;
+
 let search =
     (
       ~level=Axioms.Arithmetic,
@@ -696,7 +702,7 @@ let search =
   let target = strip(target);
   if (has_hole(source)
       || has_hole(target)
-      || unsupported_constructs(~level, [source, target]) != []) {
+      || unsupported_constructs_for_rewrite(~level, ~source, ~target) != []) {
     None;
   } else {
     let targeted_reorder_from = exp =>
