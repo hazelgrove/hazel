@@ -1252,12 +1252,40 @@ f(2)",
     ~expected="let a = [1, 2] in if a == [] then 0 else 1",
     (),
   ),
-  /* canonicalize never invents spacing the user omitted (bare `,2`
-     stays; only runs are collapsed / tight-deleted) */
   test_respace(
-    ~name="bare junctions preserved as authored",
+    ~name="list separators: hug left, one space right",
     ~input="[ 1 ,2,  3 ]",
-    ~expected="[1,2, 3]",
+    ~expected="[1, 2, 3]",
+    (),
+  ),
+  test_respace(
+    ~name="application hugs the function",
+    ~input="f (x) + g  (y)",
+    ~expected="f(x) + g(y)",
+    (),
+  ),
+  test_respace(
+    ~name="curried application stays tight",
+    ~input="(compose(f)) (x)",
+    ~expected="(compose(f))(x)",
+    (),
+  ),
+  test_respace(
+    ~name="binary operators get one space around",
+    ~input="1+2 *  3",
+    ~expected="1 + 2 * 3",
+    (),
+  ),
+  test_respace(
+    ~name="parens operand after operator keeps its space",
+    ~input="1 + (2)",
+    ~expected="1 + (2)",
+    (),
+  ),
+  test_respace(
+    ~name="unary minus junction preserved as authored",
+    ~input="(-2, -  3)",
+    ~expected="(-2, - 3)",
     (),
   ),
 ];

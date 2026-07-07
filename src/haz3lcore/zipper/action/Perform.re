@@ -47,36 +47,6 @@ let space_put_down_boundary = (z: Zipper.t): Zipper.t => {
   };
 };
 
-/* Format the whole buffer as a segment via ~f, restoring the caret
-   through the indicated tile (formatting preserves tile IDs), falling
-   back to its statics ancestors — a vanished id must not dump the
-   caret at the document end. */
-let format_via_segment =
-    (~info_map, ~f: Segment.t => Segment.t, z: Zipper.t): Zipper.t => {
-  let anchors =
-    switch (Indicated.index(z)) {
-    | None => []
-    | Some(id) =>
-      [id]
-      @ (
-        switch (Id.Map.find_opt(id, info_map)) {
-        | Some(Language.Info.InfoExp({ancestors, _}))
-        | Some(InfoPat({ancestors, _})) => ancestors
-        | _ => []
-        }
-      )
-    };
-  let seg = Zipper.unselect_and_zip(z) |> f;
-  let z' = {
-    ...Zipper.unzip(seg),
-    refractors: z.refractors,
-  };
-  switch (Move.jump_to_first_indicated(z', anchors)) {
-  | Some(z'') => z''
-  | None => z'
-  };
-};
-
 let rec go =
         (
           ~settings: Language.CoreSettings.t,
@@ -179,11 +149,7 @@ let rec go =
        and comments untouched; caret restored as in Format(Pretty). */
     let z = AutoFormat.zipper(z);
     Some(
-      format_via_segment(
-        ~info_map=statics.info_map,
-        ~f=SpaceNormalize.go(~canonicalize=true),
-        z,
-      ),
+      CaretPreserving.transform(z, SpaceNormalize.go(~canonicalize=true)),
     )
     |> return(CantReparse);
   | Format(Pretty) =>
@@ -191,8 +157,7 @@ let rec go =
        can't contain bare glom junctions) but totalizes synthesized
        segments (agent/structural edits). */
     let f = seg => seg |> SpaceNormalize.go |> PrettySegment.prettify;
-    Some(format_via_segment(~info_map=statics.info_map, ~f, z))
-    |> return(CantReparse);
+    Some(CaretPreserving.transform(z, f)) |> return(CantReparse);
   | Buffer(a) =>
     Buffer.go(~ci=Indicated.ci_for_completion(z, statics.info_map), a, z)
   | Project(a) =>
