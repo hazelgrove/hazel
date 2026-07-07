@@ -406,10 +406,19 @@ module Update = {
 
   let calculate =
       (~schedule_action, ~is_edited, ~dynamics: bool, model: Model.t) => {
-    /* Gate worker wire benchmarking on the debug panel (the flag isn't
-       reachable at the WorkerClient.request call sites, which see only
-       settings.core). This runs before the modes below queue any request. */
-    WireMetrics.enabled := model.globals.settings.show_debug_panel;
+    /* Gate worker wire benchmarking on the Wire Metrics panel being visible:
+       the debug panel is on AND its section is expanded. The flag isn't
+       reachable at the WorkerClient.request call sites (which see only
+       settings.core), so we sync it here, before the modes below queue any
+       request. Skipping it while collapsed avoids the (potentially large)
+       per-request measurement cost when nothing is watching. */
+    WireMetrics.enabled :=
+      model.globals.settings.show_debug_panel
+      && !
+           SidebarModel.Settings.is_debug_collapsed(
+             DebugSidebar.wire_metrics_title,
+             model.globals.settings.sidebar,
+           );
     let editors =
       Editors.Update.calculate(
         ~settings=

@@ -798,8 +798,13 @@ let wm_record_rows = (r: WireMetrics.record): list(Node.t) => {
   @ response_rows;
 };
 
+/* Section title, shared with Page.Update.calculate: benchmarking is gated on
+   this section being both shown (debug panel on) and expanded, so a collapsed
+   section costs nothing. Collapse state is keyed by this exact string. */
+let wire_metrics_title = "Wire Metrics";
+
 let wire_metrics_view = (~globals): list(Node.t) =>
-  section(~globals, "Wire Metrics", () =>
+  section(~globals, wire_metrics_title, () =>
     switch (WireMetrics.history^) {
     | [] => [
         div(
