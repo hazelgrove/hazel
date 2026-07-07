@@ -2617,19 +2617,16 @@ let hoist_let_impl: impl = {
     switch (find_path(~hit=hit_let(target), program)) {
     | Some(path) =>
       switch (hoist_step(~fixup=true, path)) {
+      /* movement never parenthesizes, so no invocation oracle: the
+         whole-program reparse cost ~0.5s per press on a few-page
+         buffer. Reparse-safety is covered by the movement reparse
+         tests in Test_Refactor instead. */
       | Some((pnode, result, focus)) =>
-        switch (
-          rewrite_node(
-            ~hit=same_node(pnode),
-            ~rewrite=_ => Some((result, focus)),
-            program,
-          )
-        ) {
-        /* movement never parenthesizes: a reparse mismatch means
-           refuse, not repair */
-        | Some((prog, f)) when reparses_same(prog) => Some((prog, f))
-        | _ => None
-        }
+        rewrite_node(
+          ~hit=same_node(pnode),
+          ~rewrite=_ => Some((result, focus)),
+          program,
+        )
       | None => None
       }
     | None => None
@@ -2647,16 +2644,11 @@ let sink_let_impl: impl = {
     | Some(l) =>
       switch (sink_step(~fixup=true, l)) {
       | Some((result, focus)) =>
-        switch (
-          rewrite_node(
-            ~hit=same_node(l),
-            ~rewrite=_ => Some((result, focus)),
-            program,
-          )
-        ) {
-        | Some((prog, f)) when reparses_same(prog) => Some((prog, f))
-        | _ => None
-        }
+        rewrite_node(
+          ~hit=same_node(l),
+          ~rewrite=_ => Some((result, focus)),
+          program,
+        )
       | None => None
       }
     | None => None
@@ -3294,16 +3286,11 @@ let swap_params_impl = (i: int): impl => {
     | Some(l) =>
       switch (swap_params_rewrite(~fixup=true, i, l)) {
       | Some((result, focus)) =>
-        switch (
-          rewrite_node(
-            ~hit=same_node(l),
-            ~rewrite=_ => Some((result, focus)),
-            program,
-          )
-        ) {
-        | Some((prog, f)) when reparses_same(prog) => Some((prog, f))
-        | _ => None
-        }
+        rewrite_node(
+          ~hit=same_node(l),
+          ~rewrite=_ => Some((result, focus)),
+          program,
+        )
       | None => None
       }
     | None => None
@@ -3626,16 +3613,11 @@ let remove_param_impl: impl = {
     | Some(l) =>
       switch (remove_param_rewrite(~target, l)) {
       | Some((result, focus)) =>
-        switch (
-          rewrite_node(
-            ~hit=same_node(l),
-            ~rewrite=_ => Some((result, focus)),
-            program,
-          )
-        ) {
-        | Some((prog, f)) when reparses_same(prog) => Some((prog, f))
-        | _ => None
-        }
+        rewrite_node(
+          ~hit=same_node(l),
+          ~rewrite=_ => Some((result, focus)),
+          program,
+        )
       | None => None
       }
     | None => None
@@ -4020,20 +4002,24 @@ let menu_items =
   };
 
 let go =
-    (~info_map: Statics.Map.t, kind: Action.refactor, z: Zipper.t)
+    (
+      ~info_map: Statics.Map.t,
+      ~term: Exp.t,
+      kind: Action.refactor,
+      z: Zipper.t,
+    )
     : option(Zipper.t) =>
   switch (Indicated.index(z)) {
   | None => None
   | Some(target) =>
-    let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
     switch (impl(kind).prepare(~info_map, ~target, term)) {
     | None => None
     | Some((term', focus)) =>
       let seg =
         ExpToSegment.exp_to_segment(~settings=roundtrip_settings, term')
         |> SpaceNormalize.go;
-      let z' = {
-        ...Zipper.unzip(seg),
+      let mk = (zp: Zipper.t) => {
+        ...zp,
         refractors: z.refractors,
       };
       /* caret fallback chain: the transform's focus id, else where
@@ -4045,13 +4031,33 @@ let go =
         | Some(InfoPat({ancestors, _})) => ancestors
         | _ => []
         };
-      Some(
-        switch (
-          Move.jump_to_first_indicated(z', [focus, target] @ ancestors)
-        ) {
-        | Some(z'') => z''
-        | None => z'
-        },
-      );
-    };
+      /* structural caret placement (O(depth) splits); Move's token-walk
+         jump costs ~90ms on a few-page buffer, so it's only the last
+         resort */
+      let place = (id: Id.t): option(Zipper.t) => {
+        let try_side = side =>
+          switch (Zipper.unzip_to_id(~side, id, seg)) {
+          | Some(zp) =>
+            let zp = mk(zp);
+            Indicated.index(zp) == Some(id) ? Some(zp) : None;
+          | None => None
+          };
+        switch (try_side(Util.Direction.Left)) {
+        | Some(zp) => Some(zp)
+        | None => try_side(Util.Direction.Right)
+        };
+      };
+      let candidates = [focus, target] @ ancestors;
+      switch (List.find_map(place, candidates)) {
+      | Some(z'') => Some(z'')
+      | None =>
+        let z' = mk(Zipper.unzip(seg));
+        Some(
+          switch (Move.jump_to_first_indicated(z', candidates)) {
+          | Some(z'') => z''
+          | None => z'
+          },
+        );
+      };
+    }
   };

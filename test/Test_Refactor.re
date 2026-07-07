@@ -1547,6 +1547,146 @@ let move_tests = [
   ),
 ];
 
+/* Refuse-only transforms (hoist/sink/swap/remove-param) no longer run
+   the print->reparse oracle at invocation (~0.5s/press on a few-page
+   buffer). The property lives here instead: every successful prepare
+   survives print -> reparse unchanged. */
+let prepare_reparses = (~kind: Action.refactor, marked: string): unit => {
+  let z = Test_Editing.parse_zipper(marked);
+  let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
+  let info_map = info_map_of(z);
+  switch (Indicated.index(z)) {
+  | None => Alcotest.fail("no indication in: " ++ marked)
+  | Some(target) =>
+    switch (Refactor.impl(kind).prepare(~info_map, ~target, term)) {
+    | None => Alcotest.fail("did not apply: " ++ marked)
+    | Some((term', _)) =>
+      check(bool, marked, true, Refactor.reparses_same(term'))
+    }
+  };
+};
+
+let reparse_safety_tests = {
+  let case = (name, kind, marked) =>
+    test_case(name, `Quick, () => prepare_reparses(~kind, marked));
+  [
+    case("hoist chain", HoistLet, "let a = 1 in ¦let x = 2 in x + a"),
+    case(
+      "hoist multiline chain",
+      HoistLet,
+      "let a = 1 in\n¦let x = 2 in\nx + a",
+    ),
+    case("hoist out of lambda", HoistLet, "fun n -> ¦let x = 2 in x + n"),
+    case("hoist out of def", HoistLet, "let a = (¦let x = 2 in x) in a"),
+    case(
+      "hoist out of multiline def",
+      HoistLet,
+      "let d =\n  ¦let x = 1 in\n  f(x)\nin\nd",
+    ),
+    case(
+      "hoist out of case arm",
+      HoistLet,
+      "case m | 1 => ¦let x = 2 in x | _ => 0 end",
+    ),
+    case(
+      "hoist out of tight position",
+      HoistLet,
+      "g(¦let x = f(2) in x + 1)",
+    ),
+    case("sink chain", SinkLet, "¦let x = 2 in let a = 1 in x + a"),
+    case(
+      "sink into sole-using def",
+      SinkLet,
+      "¦let x = 2 in let y = x + 1 in y",
+    ),
+    case("sink into lambda", SinkLet, "¦let x = 2 in fun n -> x + n"),
+    case(
+      "sink into sole using arm",
+      SinkLet,
+      "¦let x = 2 in case m | 1 => x | _ => 0 end",
+    ),
+    case(
+      "sink multiline chain",
+      SinkLet,
+      "¦let x = 2 in\nlet a = 1 in\nx + a",
+    ),
+    case(
+      "swap params",
+      SwapParams(0),
+      "¦let f = fun (a, b) -> a - b in f(1, 2)",
+    ),
+    case(
+      "swap sugar params",
+      SwapParams(0),
+      "¦let f(a, b) = a - b in f(1, 2)",
+    ),
+    case(
+      "remove param",
+      RemoveParameter,
+      "let f = fun (a, ¦b) -> a in f(1, 2)",
+    ),
+    case(
+      "remove sugar param",
+      RemoveParameter,
+      "let f(a, ¦b) = a in f(1, 2)",
+    ),
+  ];
+};
+
+/* Fuzz the same property over generated terms: every applicable
+   movement prepare at every node preserves print->reparse identity.
+   Conditional on the baseline term itself roundtripping — generator
+   output isn't always editor-canonical, and that's not the
+   transform's fault. */
+let movement_reparse_fuzz = {
+  let all_ids = (term: Language.Exp.t): list(Id.t) => {
+    let acc = ref([]);
+    let _ =
+      Language.Exp.map_term(
+        ~f_exp=
+          (cont, e) => {
+            acc := [Language.Exp.rep_id(e), ...acc^];
+            cont(e);
+          },
+        term,
+      );
+    acc^;
+  };
+  QCheck.Test.make(
+    ~name="movement prepares preserve print->reparse identity",
+    ~count=30,
+    QCheck_Util.arb_exp(~minimal_idents=true, 10),
+    term =>
+    if (!Refactor.reparses_same(term)) {
+      true;
+    } else {
+      let kinds = [
+        Action.HoistLet,
+        Action.SinkLet,
+        Action.SwapParams(0),
+        Action.SwapParams(1),
+        Action.RemoveParameter,
+      ];
+      all_ids(term)
+      |> List.for_all(target =>
+           kinds
+           |> List.for_all(kind =>
+                switch (
+                  Refactor.impl(kind).prepare(
+                    ~info_map=Id.Map.empty,
+                    ~target,
+                    term,
+                  )
+                ) {
+                | None => true
+                | Some((term', _)) => Refactor.reparses_same(term')
+                }
+              )
+         );
+    }
+  );
+};
+
 let tests = [
   (
     "Refactor",
@@ -1563,6 +1703,11 @@ let tests = [
     @ remove_param_tests
     @ move_tests
     @ put_down_tests
-    @ more_tests,
+    @ more_tests
+    @ reparse_safety_tests,
+  ),
+  (
+    "Refactor Reparse Fuzz",
+    [QCheck_alcotest.to_alcotest(~speed_level=`Slow, movement_reparse_fuzz)],
   ),
 ];
