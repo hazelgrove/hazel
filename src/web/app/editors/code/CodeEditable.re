@@ -97,9 +97,9 @@ module Update = {
       if (settings.core.flip_animations && Action.should_animate(action)) {
         Animation.request([Animation.Actions.move("caret")]);
         switch (action) {
-        | Refactor(_) => GhostFlip.request(model.editor.syntax)
+        | Refactor(_) => CodeFlip.request(model.editor.syntax)
         | _ when settings.core.animate_all_edits && Action.is_edit(action) =>
-          GhostFlip.request(model.editor.syntax)
+          CodeFlip.request(model.editor.syntax)
         | _ => ()
         };
       };

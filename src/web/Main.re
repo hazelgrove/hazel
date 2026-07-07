@@ -207,10 +207,10 @@ let start = default_model => {
         FloatingElement.update_all();
         model.model.current.current.globals.settings.core.statics
           ? Animation.go() : ();
-        /* Play any pending code-movement ghosts (see GhostFlip.re) */
+        /* Play any pending code-movement ghosts (see CodeFlip.re) */
         try({
           let page = model.model.current.current;
-          GhostFlip.go(
+          CodeFlip.go(
             ~syntax=Page.Update.get_editor(page).editor.syntax,
             ~font_metrics=page.globals.font_metrics,
           );
