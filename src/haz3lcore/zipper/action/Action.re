@@ -142,8 +142,10 @@ type destruct =
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type format =
   | Indent
+  /* re-indent + canonicalize within-line spacing */
+  | Spacing
   | Pretty
-  /* the cmd+S binding: resolved by CoreSettings.format_shortcut_pretty */
+  /* the cmd+S binding: resolved by CoreSettings.format_shortcut */
   | Preferred;
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]

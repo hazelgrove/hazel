@@ -38,7 +38,7 @@ module Model = {
       probe_all: false,
       deep_reassociate: true,
       auto_reindent: true,
-      format_shortcut_pretty: true,
+      format_shortcut: Language.CoreSettings.FormatShortcut.Spaces,
       flip_animations: true,
       display_warnings: true,
       selection_chunkiness: false,
@@ -155,7 +155,7 @@ module Update = {
     | ProbeAll
     | DeepReassociate
     | AutoReindent
-    | FormatShortcutPretty
+    | FormatShortcut(Language.CoreSettings.FormatShortcut.t)
     | SelectionChunkiness
     | Assist
     | Elaborate
@@ -237,11 +237,11 @@ module Update = {
             auto_reindent: !settings.core.auto_reindent,
           },
         }
-      | FormatShortcutPretty => {
+      | FormatShortcut(fs) => {
           ...settings,
           core: {
             ...settings.core,
-            format_shortcut_pretty: !settings.core.format_shortcut_pretty,
+            format_shortcut: fs,
           },
         }
       | SelectionChunkiness => {
