@@ -159,6 +159,12 @@ module Settings = {
        field label. Persists across cursor moves so collapsing e.g. "ctx"
        keeps it collapsed regardless of the term under the cursor. */
     debug_collapsed: list(string),
+    /* Wire-protocol variants (by WorkerServer.WIRE name) the user has turned
+       off in the Wire Metrics panel; disabled variants are not benchmarked,
+       so e.g. the slow sexp variant can be skipped. Defaulted so existing
+       persisted settings (which lack this field) still load. */
+    [@sexp.default []] [@yojson.default []]
+    wire_disabled: list(string),
   };
 
   let is_debug_collapsed = (key: string, settings: t) =>
@@ -177,11 +183,28 @@ module Settings = {
       };
     };
 
+  let is_wire_disabled = (name: string, settings: t) =>
+    List.mem(name, settings.wire_disabled);
+
+  let toggle_wire_disabled = (name: string, settings: t): t =>
+    if (is_wire_disabled(name, settings)) {
+      {
+        ...settings,
+        wire_disabled: List.filter(n => n != name, settings.wire_disabled),
+      };
+    } else {
+      {
+        ...settings,
+        wire_disabled: [name, ...settings.wire_disabled],
+      };
+    };
+
   [@deriving (show({with_path: false}), sexp, yojson)]
   type action =
     | ToggleShow
     | SwitchPanel(panel)
     | Problems(problems_action)
     | ToggleDebugRaw
-    | ToggleDebugCollapsed(string);
+    | ToggleDebugCollapsed(string)
+    | ToggleWireDisabled(string);
 };

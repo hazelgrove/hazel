@@ -76,6 +76,7 @@ module Model = {
       },
       debug_show_raw: false,
       debug_collapsed: [],
+      wire_disabled: [],
     },
     autoprobe_mode: false,
     agent_globals: AgentGlobals.init(),
@@ -391,6 +392,14 @@ module Update = {
           sidebar:
             SidebarModel.Settings.toggle_debug_collapsed(
               key,
+              settings.sidebar,
+            ),
+        }
+      | Sidebar(ToggleWireDisabled(name)) => {
+          ...settings,
+          sidebar:
+            SidebarModel.Settings.toggle_wire_disabled(
+              name,
               settings.sidebar,
             ),
         }

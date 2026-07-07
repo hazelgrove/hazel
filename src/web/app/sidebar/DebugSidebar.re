@@ -803,38 +803,78 @@ let wm_record_rows = (r: WireMetrics.record): list(Node.t) => {
    section costs nothing. Collapse state is keyed by this exact string. */
 let wire_metrics_title = "Wire Metrics";
 
+let wire_names: list(string) =
+  List.map(
+    (wire: (module WorkerServer.WIRE)) => {
+      module M = (val wire);
+      M.name;
+    },
+    WorkerServer.all_wires,
+  );
+
+/* Per-variant on/off chip. A disabled variant is not benchmarked at all (so a
+   slow one like sexp can be skipped); state persists via sidebar settings. */
+let wire_toggle = (~globals: Globals.t, name: string): Node.t => {
+  let off =
+    SidebarModel.Settings.is_wire_disabled(name, globals.settings.sidebar);
+  div(
+    ~attrs=[
+      clss(["wm-toggle", off ? "off" : "on"]),
+      Attr.title(
+        (off ? "Enable" : "Disable")
+        ++ " benchmarking of the "
+        ++ name
+        ++ " wire",
+      ),
+      Attr.on_click(_ =>
+        globals.inject_global(Set(Sidebar(ToggleWireDisabled(name))))
+      ),
+    ],
+    [text((off ? {|☐|} : {|☑|}) ++ " " ++ name)],
+  );
+};
+
+let wire_toggles = (~globals): Node.t =>
+  div(
+    ~attrs=[clss(["wm-toggles"])],
+    List.map(wire_toggle(~globals), wire_names),
+  );
+
 let wire_metrics_view = (~globals): list(Node.t) =>
   section(~globals, wire_metrics_title, () =>
-    switch (WireMetrics.history^) {
-    | [] => [
-        div(
-          ~attrs=[clss(["wm-empty"])],
-          [text("No requests recorded yet — evaluate a program.")],
-        ),
-      ]
-    | records => [
-        div(
-          ~attrs=[clss(["wm-scroll"])],
-          [
-            Node.table(
-              ~attrs=[clss(["wire-metrics-table"])],
-              [
-                Node.tr([
-                  wm_head("wire"),
-                  wm_head("enc"),
-                  wm_head("clone"),
-                  wm_head("dec"),
-                  wm_head("total"),
-                  wm_head("size"),
-                  wm_head("ok?"),
-                ]),
-                ...List.concat_map(wm_record_rows, records),
-              ],
-            ),
-          ],
-        ),
-      ]
-    }
+    [wire_toggles(~globals)]
+    @ (
+      switch (WireMetrics.history^) {
+      | [] => [
+          div(
+            ~attrs=[clss(["wm-empty"])],
+            [text("No requests recorded yet — evaluate a program.")],
+          ),
+        ]
+      | records => [
+          div(
+            ~attrs=[clss(["wm-scroll"])],
+            [
+              Node.table(
+                ~attrs=[clss(["wire-metrics-table"])],
+                [
+                  Node.tr([
+                    wm_head("wire"),
+                    wm_head("enc"),
+                    wm_head("clone"),
+                    wm_head("dec"),
+                    wm_head("total"),
+                    wm_head("size"),
+                    wm_head("ok?"),
+                  ]),
+                  ...List.concat_map(wm_record_rows, records),
+                ],
+              ),
+            ],
+          ),
+        ]
+      }
+    )
   );
 
 let view = (~globals: Globals.t, ~cursor: Cursor.cursor(_)): Node.t => {

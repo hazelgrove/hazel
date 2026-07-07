@@ -15,6 +15,20 @@ open Js_of_ocaml;
 
 let enabled = ref(false);
 
+/* Wire names (WorkerServer.WIRE.name) the user has turned off in the panel;
+   synced from settings in Page.Update.calculate. A disabled variant is not
+   measured at all, so e.g. the slow sexp variant can be skipped. */
+let disabled_wires: ref(list(string)) = ref([]);
+
+let active_wires = (): list(module WorkerServer.WIRE) =>
+  List.filter(
+    (wire: (module WorkerServer.WIRE)) => {
+      module M = (val wire);
+      !List.mem(M.name, disabled_wires^);
+    },
+    WorkerServer.all_wires,
+  );
+
 type status =
   | Ok
   | Failed(string);
@@ -147,7 +161,7 @@ let record_request = (id: int, req: WorkerServer.Request.t): unit => {
           ~decode=M.decode_request,
         );
       },
-      WorkerServer.all_wires,
+      active_wires(),
     );
   push({
     id,
@@ -168,7 +182,7 @@ let record_response = (id: int, resp: WorkerServer.Response.t): unit => {
           ~decode=M.decode_response,
         );
       },
-      WorkerServer.all_wires,
+      active_wires(),
     );
   history :=
     List.map(

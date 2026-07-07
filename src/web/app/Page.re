@@ -419,6 +419,7 @@ module Update = {
              DebugSidebar.wire_metrics_title,
              model.globals.settings.sidebar,
            );
+    WireMetrics.disabled_wires := model.globals.settings.sidebar.wire_disabled;
     let editors =
       Editors.Update.calculate(
         ~settings=

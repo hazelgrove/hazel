@@ -663,8 +663,37 @@
   color: var(--BR4);
 }
 
-/* Wire Metrics section: all requests share one benchmark table so columns
-   align; requests are separated by styled group rows. */
+/* Wire Metrics section: per-variant on/off chips above the shared table. */
+#debug-sidebar .wm-toggles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3em;
+  margin: 0.3em 0;
+}
+
+#debug-sidebar .wm-toggle {
+  cursor: pointer;
+  user-select: none;
+  padding: 0.05em 0.35em;
+  border-radius: 3px;
+  white-space: nowrap;
+}
+
+#debug-sidebar .wm-toggle.on {
+  color: var(--BR4);
+}
+
+#debug-sidebar .wm-toggle.off {
+  opacity: 0.5;
+  text-decoration: line-through;
+}
+
+#debug-sidebar .wm-toggle:hover {
+  background: var(--T3);
+}
+
+/* All requests share one benchmark table so columns align; requests are
+   separated by styled group rows. */
 #debug-sidebar .wm-scroll {
   overflow-x: auto; /* wide numbers scroll rather than clip the status column */
   margin-top: 0.3em;
