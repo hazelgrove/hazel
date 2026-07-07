@@ -9,16 +9,16 @@ type state = {
 let return = (error: Action.Failure.t, z: option(Zipper.t)) =>
   Result.of_option(~error, z);
 
-let go =
-    (
-      ~settings: Language.CoreSettings.t,
-      ~statics: CachedStatics.t,
-      ~syntax: CachedSyntax.t,
-      ~root,
-      a: Action.t,
-      {zipper: z, col_target}: state,
-    )
-    : Action.Result.t(Zipper.t) => {
+let rec go =
+        (
+          ~settings: Language.CoreSettings.t,
+          ~statics: CachedStatics.t,
+          ~syntax: CachedSyntax.t,
+          ~root,
+          a: Action.t,
+          {zipper: z, col_target}: state,
+        )
+        : Action.Result.t(Zipper.t) => {
   let maybe_reassoc = settings.deep_reassociate ? Reassociate.go : Fun.id;
   /* Paste is a rare bulk edit that can leave incomplete delimiter forms
      anywhere in the pasted region, so it gets the thorough (full-relatives)
@@ -66,6 +66,18 @@ let go =
       Printer.of_zipper(~holes="", ~indent="", z),
     )
     |> return(CantReparse)
+  | Format(Preferred) =>
+    go(
+      ~settings,
+      ~statics,
+      ~syntax,
+      ~root,
+      Action.Format(settings.format_shortcut_pretty ? Pretty : Indent),
+      {
+        zipper: z,
+        col_target,
+      },
+    )
   | Format(Pretty) =>
     /* Restore the caret via the indicated tile (pretty-printing
        preserves tile IDs), falling back to its statics ancestors —

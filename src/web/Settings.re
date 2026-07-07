@@ -38,6 +38,7 @@ module Model = {
       probe_all: false,
       deep_reassociate: true,
       auto_reindent: true,
+      format_shortcut_pretty: true,
       flip_animations: true,
       display_warnings: true,
       selection_chunkiness: false,
@@ -154,6 +155,7 @@ module Update = {
     | ProbeAll
     | DeepReassociate
     | AutoReindent
+    | FormatShortcutPretty
     | SelectionChunkiness
     | Assist
     | Elaborate
@@ -233,6 +235,13 @@ module Update = {
           core: {
             ...settings.core,
             auto_reindent: !settings.core.auto_reindent,
+          },
+        }
+      | FormatShortcutPretty => {
+          ...settings,
+          core: {
+            ...settings.core,
+            format_shortcut_pretty: !settings.core.format_shortcut_pretty,
           },
         }
       | SelectionChunkiness => {
