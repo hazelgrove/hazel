@@ -754,6 +754,21 @@ let dedupe_ids = (e: Exp.t): Exp.t => {
   );
 };
 
+/* all node ids within an expression subtree */
+let exp_subtree_ids = (e: Exp.t): list(Id.t) => {
+  let acc = ref([]);
+  let _ =
+    Exp.map_term(
+      ~f_exp=
+        (cont, e: Exp.t) => {
+          acc := IdTagged.ids(e) @ acc^;
+          cont(e);
+        },
+      e,
+    );
+  acc^;
+};
+
 /* A let's target zone is its delimiters plus its pattern (not def or
  * body: those are their own expressions with their own menus) */
 let pat_subtree_ids = (p: Pat.t): list(Id.t) => {
@@ -879,6 +894,23 @@ let hit_fun = (target: Id.t, e: Exp.t): bool =>
   | _ => false
   };
 
+let find_hit = (~hit: Exp.t => bool, program: Exp.t): option(Exp.t) => {
+  let found = ref(None);
+  let _ =
+    Exp.map_term(
+      ~f_exp=
+        (cont, e: Exp.t) =>
+          if (found^ == None && hit(e)) {
+            found := Some(e);
+            e;
+          } else {
+            cont(e);
+          },
+      program,
+    );
+  found^;
+};
+
 /* an arm's pattern targets that arm (never the case delimiters:
  * which arm would they mean?) */
 let hit_match_pat = (target: Id.t, e: Exp.t): bool =>
@@ -998,7 +1030,7 @@ let reparses_region = (region: Exp.t): bool => {
 };
 
 let inline_let_impl: impl = {
-  label: "Inline Let",
+  label: "Inline",
   tooltip: "Replace this let by substituting its definition",
   /* also offered at occurrences of the bound var */
   prepare: (~info_map, ~target, program) => {
@@ -1156,7 +1188,7 @@ let pat_unused = (~info_map: Statics.Map.t, p: Pat.t): bool =>
   };
 
 let remove_unused_let_impl: impl = {
-  label: "Remove Unused Let",
+  label: "Remove unused",
   tooltip: "Delete this binding: its variable is never used",
   prepare: (~info_map, ~target, program) =>
     rewrite_let(
@@ -1179,7 +1211,7 @@ let exp_ty = (~info_map: Statics.Map.t, e: Exp.t): option(Typ.t) =>
   };
 
 let add_annotation_impl: impl = {
-  label: "Add Type Annotation",
+  label: "Annotate",
   tooltip: "Annotate this binding with its inferred type",
   prepare: (~info_map, ~target, program) => {
     /* a bare spliced type can change the reparse (a Prod's comma
@@ -1234,7 +1266,7 @@ let bool_pat = (p: Pat.t): option(bool) =>
   };
 
 let if_to_case_impl: impl = {
-  label: "Convert to Case",
+  label: "To case",
   tooltip: "Rewrite this if/then/else as a case on true and false",
   prepare: (~info_map as _, ~target, program) =>
     rewrite_node(
@@ -1278,7 +1310,7 @@ let if_to_case_impl: impl = {
 };
 
 let case_to_if_impl: impl = {
-  label: "Convert to If",
+  label: "To if",
   tooltip: "Rewrite this true/false case as if/then/else",
   prepare: (~info_map as _, ~target, program) =>
     rewrite_node(
@@ -1403,7 +1435,7 @@ let crossed_rec_binders = (line: Exp.t, path: list(Exp.t)): list(string) => {
 };
 
 let extract_let_impl: impl = {
-  label: "Extract to Let",
+  label: "Extract",
   tooltip: "Bind this expression to a fresh variable at the enclosing line",
   prepare: (~info_map as _, ~target, program) => {
     let x = fresh_name(program);
@@ -1427,13 +1459,14 @@ let extract_let_impl: impl = {
             extractable(e)
               ? {
                 let def = pad(e |> strip_leading |> strip_trailing);
-                let let_node =
-                  fresh(
-                    Let(pad(fresh_pat(Var(x))), def, fresh(Var(x))),
-                  );
+                /* focus the fresh binder: keeps the caret in the
+                   let's gesture zone (next Up = hoist) and ready for
+                   rename */
+                let xp = pad(fresh_pat(Var(x)));
+                let let_node = fresh(Let(xp, def, fresh(Var(x))));
                 Some((
                   parens ? fresh(Parens(let_node)) : let_node,
-                  Exp.rep_id(def),
+                  Pat.rep_id(xp),
                 ));
               }
               : None,
@@ -1461,11 +1494,11 @@ let extract_let_impl: impl = {
                   secondary: (sep @ b, a),
                 },
               };
-              let let_node =
-                fresh(Let(pad(fresh_pat(Var(x))), def, body));
+              let xp = pad(fresh_pat(Var(x)));
+              let let_node = fresh(Let(xp, def, body));
               Some((
                 parens ? fresh(Parens(let_node)) : let_node,
-                Exp.rep_id(def),
+                Pat.rep_id(xp),
               ));
             },
           program,
@@ -1516,7 +1549,7 @@ let eta_reduce_impl: impl = {
 };
 
 let negate_if_impl: impl = {
-  label: "Negate & Swap Branches",
+  label: "Flip branches",
   tooltip: "Flip this if: negate the condition, swap then/else",
   prepare: (~info_map as _, ~target, program) => {
     let attempt = (~parens: bool) =>
@@ -1610,7 +1643,7 @@ let pat_needs_parens = (p: Pat.t): bool =>
   };
 
 let add_case_arm_impl: impl = {
-  label: "Add Missing Case Arm",
+  label: "Add arm",
   tooltip: "Append an arm for an unhandled pattern",
   prepare: (~info_map, ~target, program) =>
     rewrite_node(
@@ -1917,7 +1950,7 @@ let add_param_rewrite = (~program: Exp.t, e: Exp.t): option((Exp.t, Id.t)) =>
   };
 
 let add_param_impl: impl = {
-  label: "Add Parameter",
+  label: "Add param",
   tooltip: "Extend this function with a parameter; call sites get a hole",
   prepare: (~info_map as _, ~target, program) =>
     rewrite_node(
@@ -2611,7 +2644,7 @@ let sink_step = (~fixup: bool, l: Exp.t): option((Exp.t, Id.t)) => {
 };
 
 let hoist_let_impl: impl = {
-  label: "Hoist Let",
+  label: "Hoist",
   tooltip: "Move this binding up one level",
   prepare: (~info_map as _, ~target, program) =>
     switch (find_path(~hit=hit_let(target), program)) {
@@ -2634,7 +2667,7 @@ let hoist_let_impl: impl = {
 };
 
 let sink_let_impl: impl = {
-  label: "Sink Let",
+  label: "Sink",
   tooltip: "Move this binding down into the scope that uses it",
   prepare: (~info_map as _, ~target, program) =>
     switch (
@@ -2823,7 +2856,7 @@ let space_commas = (e: Exp.t): Exp.t =>
   );
 
 let evaluate_in_place_impl: impl = {
-  label: "Evaluate in Place",
+  label: "Evaluate",
   tooltip: "Replace this expression with its value",
   prepare: (~info_map as _, ~target, program) => {
     let attempt = (~parens: bool) =>
@@ -2929,7 +2962,7 @@ let wildcard_expansion =
   };
 
 let expand_wildcard_impl: impl = {
-  label: "Expand Wildcard",
+  label: "Expand _",
   tooltip: "Replace this _ with the unhandled constructors",
   prepare: (~info_map, ~target, program) =>
     rewrite_node(
@@ -3275,28 +3308,6 @@ let swap_param_names = (e: Exp.t): list(string) => {
   };
 };
 
-let swap_params_impl = (i: int): impl => {
-  label: "Swap Params",
-  tooltip: "Swap these adjacent parameters at the definition and all call sites",
-  prepare: (~info_map as _, ~target, program) =>
-    switch (
-      find_path(~hit=hit_let(target), program)
-      |> Option.map(path => List.nth(path, List.length(path) - 1))
-    ) {
-    | Some(l) =>
-      switch (swap_params_rewrite(~fixup=true, i, l)) {
-      | Some((result, focus)) =>
-        rewrite_node(
-          ~hit=same_node(l),
-          ~rewrite=_ => Some((result, focus)),
-          program,
-        )
-      | None => None
-      }
-    | None => None
-    },
-};
-
 /* === Remove Unused Parameter ===
  * Targeted at the param var token itself (binder-token affordance,
  * like rename). Drops the param from the pattern (and the
@@ -3365,7 +3376,114 @@ let param_items = (e: Exp.t): list(Pat.t) => {
   };
 };
 
+/* === Swap Arms ===
+ * Swap adjacent case arms i, i+1 (pat and body move together; runs
+ * stay with POSITIONS, as in Swap Params). Only offered when the two
+ * patterns are provably disjoint: arm order is match priority, so
+ * reordering overlapping arms changes meaning. */
+
+let rec pats_disjoint = (a: Pat.t, b: Pat.t): bool => {
+  let rec strip = (p: Pat.t) =>
+    switch (IdTagged.term_of(p)) {
+    | Parens(inner) => strip(inner)
+    | _ => p
+    };
+  let (a, b) = (strip(a), strip(b));
+  let ctor_head = (p: Pat.t) =>
+    switch (IdTagged.term_of(p)) {
+    | Constructor(n, _) => Some((n, None))
+    | Ap(f, arg) =>
+      switch (IdTagged.term_of(f)) {
+      | Constructor(n, _) => Some((n, Some(arg)))
+      | _ => None
+      }
+    | _ => None
+    };
+  switch (IdTagged.term_of(a), IdTagged.term_of(b)) {
+  /* two distinct atoms (literals) can't match the same value */
+  | (Atom(x), Atom(y)) => x != y
+  | (Tuple(xs), Tuple(ys)) when List.length(xs) == List.length(ys) =>
+    List.exists2(pats_disjoint, xs, ys)
+  | _ =>
+    switch (ctor_head(a), ctor_head(b)) {
+    | (Some((n, _)), Some((m, _))) when n != m => true
+    | (Some((n, Some(x))), Some((m, Some(y)))) when n == m =>
+      pats_disjoint(x, y)
+    | _ => false
+    }
+  };
+};
+
+let swap_arms_rewrite =
+    (~target: Id.t, i: int, e: Exp.t): option((Exp.t, Id.t)) =>
+  switch (IdTagged.term_of(e)) {
+  | Match(scrut, rules) when i >= 0 && List.length(rules) > i + 1 =>
+    let (pa, ba) = List.nth(rules, i);
+    let (pb, bb) = List.nth(rules, i + 1);
+    if (pats_disjoint(pa, pb)) {
+      let pa' = with_secondary_pat(pa.annotation.secondary, pb);
+      let pb' = with_secondary_pat(pb.annotation.secondary, pa);
+      let ba' = with_secondary(ba.annotation.secondary, bb);
+      let bb' = with_secondary(bb.annotation.secondary, ba);
+      let rules' =
+        rules
+        |> List.mapi((j, r) =>
+             if (j == i) {
+               (pa', ba');
+             } else if (j == i + 1) {
+               (pb', bb');
+             } else {
+               r;
+             }
+           );
+      /* focus follows the arm the caret was on (pat ids survive) */
+      let focus =
+        List.mem(target, pat_subtree_ids(pa))
+        || List.mem(target, pat_subtree_ids(pb))
+          ? target : Pat.rep_id(pa);
+      Some((
+        {
+          ...e,
+          term: Match(scrut, rules'),
+        },
+        focus,
+      ));
+    } else {
+      None;
+    };
+  | _ => None
+  };
+
+/* index of the arm whose pattern subtree contains the target */
+let arm_index_at = (target: Id.t, e: Exp.t): option(int) =>
+  switch (IdTagged.term_of(e)) {
+  | Match(_, rules) =>
+    rules
+    |> List.mapi((j, (p, _)) => (j, p))
+    |> List.find_opt(((_, p)) => List.mem(target, pat_subtree_ids(p)))
+    |> Option.map(fst)
+  | _ => None
+  };
+
+let swap_arms_impl = (i: int): impl => {
+  label: "Move arm",
+  tooltip: "Swap this arm with its neighbor (patterns must not overlap)",
+  prepare: (~info_map as _, ~target, program) =>
+    rewrite_node(
+      ~hit=hit_match_pat(target),
+      ~rewrite=e => swap_arms_rewrite(~target, i, e),
+      program,
+    ),
+};
+
 /* the let is hit when the target is one of its param var tokens */
+/* index of the param var whose token is the target */
+let param_index_at = (target: Id.t, e: Exp.t): option(int) =>
+  param_items(e)
+  |> List.mapi((j, it) => (j, it))
+  |> List.find_opt(((_, it: Pat.t)) => List.mem(target, IdTagged.ids(it)))
+  |> Option.map(fst);
+
 let hit_param = (target: Id.t, e: Exp.t): bool =>
   param_items(e)
   |> List.exists((it: Pat.t) =>
@@ -3374,6 +3492,82 @@ let hit_param = (target: Id.t, e: Exp.t): bool =>
        | _ => false
        }
      );
+
+/* Resolve a swap/param target to its function's LET, from any of:
+ * the let's own zone, a param var in the def's fun pattern, or an
+ * argument at a call site (via the callee's binder). Also gives the
+ * param/arg index at the target when it names one. */
+let swap_site =
+    (~info_map: Statics.Map.t, ~target: Id.t, program: Exp.t)
+    : option((Exp.t, option(int))) => {
+  let let_of = (id: Id.t) => find_hit(~hit=hit_let(id), program);
+  switch (let_of(target)) {
+  | Some(l) => Some((l, param_index_at(target, l)))
+  | None =>
+    switch (find_hit(~hit=hit_param(target), program)) {
+    | Some(l) => Some((l, param_index_at(target, l)))
+    | None =>
+      /* call site: the argument's position within f(a, b, ...) */
+      let hit_call = (e: Exp.t) =>
+        switch (IdTagged.term_of(e)) {
+        | Ap(Forward, f, arg) =>
+          switch (IdTagged.term_of(f), IdTagged.term_of(arg)) {
+          | (Var(_), Tuple(items))
+          | (Var(_), Parens({term: Tuple(items), _})) =>
+            items |> List.exists(it => List.mem(target, exp_subtree_ids(it)))
+          | _ => false
+          }
+        | _ => false
+        };
+      switch (find_hit(~hit=hit_call, program)) {
+      | Some(ap) =>
+        switch (IdTagged.term_of(ap)) {
+        | Ap(Forward, f, arg) =>
+          let items =
+            switch (IdTagged.term_of(arg)) {
+            | Tuple(items) => items
+            | Parens({term: Tuple(items), _}) => items
+            | _ => []
+            };
+          let j =
+            items
+            |> List.mapi((k, it) => (k, it))
+            |> List.find_opt(((_, it)) =>
+                 List.mem(target, exp_subtree_ids(it))
+               )
+            |> Option.map(fst);
+          switch (
+            binder_of_occurrence(~info_map, ~target=Exp.rep_id(f), program)
+          ) {
+          | Some(binder) => let_of(binder) |> Option.map(l => (l, j))
+          | None => None
+          };
+        | _ => None
+        }
+      | None => None
+      };
+    }
+  };
+};
+
+let swap_params_impl = (i: int): impl => {
+  label: "Swap Params",
+  tooltip: "Swap these adjacent parameters at the definition and all call sites",
+  prepare: (~info_map, ~target, program) =>
+    switch (swap_site(~info_map, ~target, program)) {
+    | Some((l, _)) =>
+      switch (swap_params_rewrite(~fixup=true, i, l)) {
+      | Some((result, focus)) =>
+        rewrite_node(
+          ~hit=same_node(l),
+          ~rewrite=_ => Some((result, focus)),
+          program,
+        )
+      | None => None
+      }
+    | None => None
+    },
+};
 
 let drop_fun_pat = (i: int, fp: Pat.t): option(Pat.t) =>
   switch (IdTagged.term_of(fp)) {
@@ -3603,7 +3797,7 @@ let remove_param_rewrite = (~target: Id.t, e: Exp.t): option((Exp.t, Id.t)) =>
   };
 
 let remove_param_impl: impl = {
-  label: "Remove Unused Parameter",
+  label: "Remove param",
   tooltip: "Drop this parameter and its argument at every call site",
   prepare: (~info_map as _, ~target, program) =>
     switch (
@@ -3637,6 +3831,7 @@ let impl: Action.refactor => impl =
   | RemoveParameter => remove_param_impl
   | RenameFree(x, y) => rename_free_impl(x, y)
   | SwapParams(i) => swap_params_impl(i)
+  | SwapArms(i) => swap_arms_impl(i)
   | HoistLet => hoist_let_impl
   | SinkLet => sink_let_impl
   | IfToCase => if_to_case_impl
@@ -3670,23 +3865,6 @@ let all: list(Action.refactor) = [
  * oracle — that work happens in prepare, only on invocation. Keep in
  * sync with each impl's matching; drift is benign (a stale offer
  * no-ops via Cant_refactor) but gating is tested via offers(). */
-let find_hit = (~hit: Exp.t => bool, program: Exp.t): option(Exp.t) => {
-  let found = ref(None);
-  let _ =
-    Exp.map_term(
-      ~f_exp=
-        (cont, e: Exp.t) =>
-          if (found^ == None && hit(e)) {
-            found := Some(e);
-            e;
-          } else {
-            cont(e);
-          },
-      program,
-    );
-  found^;
-};
-
 let let_applies =
     (~pred: (Pat.t, Exp.t, Exp.t) => bool, target: Id.t, program: Exp.t): bool =>
   switch (find_hit(~hit=hit_let(target), program)) {
@@ -3766,8 +3944,14 @@ let applies =
     | None => false
     }
   | SwapParams(i) =>
-    switch (find_hit(~hit=hit_let(target), program)) {
-    | Some(l) => Option.is_some(swap_params_rewrite(~fixup=false, i, l))
+    switch (swap_site(~info_map, ~target, program)) {
+    | Some((l, _)) =>
+      Option.is_some(swap_params_rewrite(~fixup=false, i, l))
+    | None => false
+    }
+  | SwapArms(i) =>
+    switch (find_hit(~hit=hit_match_pat(target), program)) {
+    | Some(m) => Option.is_some(swap_arms_rewrite(~target, i, m))
     | None => false
     }
   | HoistLet =>
@@ -3900,7 +4084,7 @@ let label_override =
                  wildify(w),
                ),
              );
-           "Add Arm | " ++ text;
+           "Add arm | " ++ text;
          })
     | None => None
     }
@@ -3931,7 +4115,7 @@ let label_override =
           | None => let_head_name(p)
           }
         )
-        |> Option.map(f => "Add Parameter to " ++ f)
+        |> Option.map(f => "Add param to " ++ f)
       | _ => None
       }
     | None => None
@@ -3979,8 +4163,8 @@ let menu_items =
            };
          });
     let swaps =
-      switch (find_hit(~hit=hit_let(target), term)) {
-      | Some(l) =>
+      switch (swap_site(~info_map, ~target, term)) {
+      | Some((l, _)) =>
         let names = swap_param_names(l);
         List.init(max(List.length(names) - 1, 0), i => i)
         |> List.filter(i =>
@@ -3991,14 +4175,138 @@ let menu_items =
                Action.SwapParams(i),
                "Swap "
                ++ List.nth(names, i)
-               ++ " and "
+               ++ " ↔ "
                ++ List.nth(names, i + 1),
                "Swap these parameters at the definition and all call sites",
              )
            );
       | None => []
       };
-    static @ rename_items(~info_map, ~target, term) @ swaps;
+    let arms =
+      switch (find_hit(~hit=hit_match_pat(target), term)) {
+      | Some(m) =>
+        switch (arm_index_at(target, m)) {
+        | Some(j) =>
+          let mk = (i, label) =>
+            Option.is_some(swap_arms_rewrite(~target, i, m))
+              ? [
+                (
+                  Action.SwapArms(i),
+                  label,
+                  "Swap this arm with its neighbor (order-safe: patterns are disjoint)",
+                ),
+              ]
+              : [];
+          mk(j - 1, "Move arm up") @ mk(j, "Move arm down");
+        | None => []
+        }
+      | None => []
+      };
+    static @ rename_items(~info_map, ~target, term) @ swaps @ arms;
+  };
+
+/* === Directional gestures ===
+ * Resolve (caret target zone, direction) to a refactor, first match
+ * wins; None = dead press (visibly inert, never plain caret motion).
+ * Vertical = movement across line slots/scopes (the elevator:
+ * extract/hoist/sink/inline); horizontal = movement across comma
+ * siblings (params/args) plus wildcard expansion. A matched zone with
+ * a gated transform is DEAD - no fall-through - so gestures stay
+ * predictable. */
+let gesture =
+    (~info_map: Statics.Map.t, ~term: Exp.t, g: Action.Gesture.t, z: Zipper.t)
+    : option(Action.refactor) =>
+  switch (Indicated.index(z)) {
+  | None => None
+  | Some(target) =>
+    let shard = Indicated.shard_index(z);
+    let app = (k: Action.refactor) =>
+      applies(k, ~info_map, ~target, term) ? Some(k) : None;
+    /* arm reorder: delta -1 = up, +1 = down */
+    let arm_swap = (delta: int) =>
+      switch (find_hit(~hit=hit_match_pat(target), term)) {
+      | Some(m) =>
+        switch (arm_index_at(target, m)) {
+        | Some(j) =>
+          let i = delta < 0 ? j - 1 : j;
+          Option.is_some(swap_arms_rewrite(~target, i, m))
+            ? Some(Action.SwapArms(i)) : None;
+        | None => None
+        }
+      | None => None
+      };
+    let in_arm_zone =
+      Option.is_some(find_hit(~hit=hit_match_pat(target), term));
+    let in_let_zone = Option.is_some(find_hit(~hit=hit_let(target), term));
+    let node_is = (pred: Exp.t => bool) =>
+      switch (find_hit(~hit=hit_node(target), term)) {
+      | Some(e) => pred(e)
+      | None => false
+      };
+    let is_if =
+      node_is(e =>
+        switch (IdTagged.term_of(e)) {
+        | If(_) => true
+        | _ => false
+        }
+      );
+    let is_case =
+      node_is(e =>
+        switch (IdTagged.term_of(e)) {
+        | Match(_) => true
+        | _ => false
+        }
+      );
+    let param_swap = (delta: int) =>
+      switch (swap_site(~info_map, ~target, term)) {
+      | Some((l, Some(j))) =>
+        let i = delta < 0 ? j - 1 : j;
+        i >= 0 && Option.is_some(swap_params_rewrite(~fixup=false, i, l))
+          ? Some(Action.SwapParams(i)) : None;
+      | _ => None
+      };
+    switch (g) {
+    | Up =>
+      if (in_arm_zone) {
+        arm_swap(-1);
+      } else if (in_let_zone) {
+        app(HoistLet);
+      } else if (is_if && shard == Some(2)) {
+        app(
+          NegateIf /* the else-arm moves up */
+        );
+      } else {
+        app(ExtractLet);
+      }
+    | Down =>
+      if (in_arm_zone) {
+        arm_swap(1);
+      } else if (in_let_zone) {
+        /* the elevator's bottom: sink until seated, then dissolve */
+        switch (app(SinkLet)) {
+        | Some(k) => Some(k)
+        | None => app(InlineLet)
+        };
+      } else if (is_if && shard == Some(1)) {
+        app(
+          NegateIf /* the then-arm moves down */
+        );
+      } else if (is_case && shard == Some(1)) {
+        app(
+          AddCaseArm /* grow the sequence at its `end` */
+        );
+      } else {
+        app(
+          InlineLet /* at an occurrence: the definition falls in */
+        );
+      }
+    | Left => param_swap(-1)
+    | Right =>
+      switch (param_swap(1)) {
+      | Some(k) => Some(k)
+      | None => in_arm_zone ? app(ExpandWildcard) : None
+      }
+    };
   };
 
 let go =

@@ -284,6 +284,15 @@ let rec go =
   | Refactor(k) =>
     Refactor.go(~info_map=statics.info_map, ~term=statics.term, k, z)
     |> return(Cant_refactor)
+  | RefactorGesture(g) =>
+    switch (
+      Refactor.gesture(~info_map=statics.info_map, ~term=statics.term, g, z)
+    ) {
+    | Some(k) =>
+      Refactor.go(~info_map=statics.info_map, ~term=statics.term, k, z)
+      |> return(Cant_refactor)
+    | None => Error(Cant_refactor)
+    }
   | Put_down =>
     let before = LocalReformat.snapshot(~enabled=settings.auto_reindent, z);
     Zipper.put_down(z, ~root)

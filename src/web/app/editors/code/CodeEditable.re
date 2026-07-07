@@ -81,6 +81,7 @@ module Update = {
              | Reparse
              | Introduce
              | Refactor(_)
+             | RefactorGesture(_)
              | Probe(StepInto(_))
              | Format(_)
              | Dump
@@ -97,7 +98,8 @@ module Update = {
       if (settings.core.flip_animations && Action.should_animate(action)) {
         Animation.request([Animation.Actions.move("caret")]);
         switch (action) {
-        | Refactor(_) => CodeFlip.request(model.editor.syntax)
+        | Refactor(_)
+        | RefactorGesture(_) => CodeFlip.request(model.editor.syntax)
         | _ when settings.core.animate_all_edits && Action.is_edit(action) =>
           CodeFlip.request(model.editor.syntax)
         | _ => ()

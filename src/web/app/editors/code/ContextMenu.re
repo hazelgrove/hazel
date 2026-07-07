@@ -150,12 +150,34 @@ let jump_to_binding_data =
   | _ => []
   };
 
+/* Gesture-bound refactorings show their chord (see Refactor.gesture) */
+let gesture_hint = (kind: Action.refactor, label: string): option(string) => {
+  let g = glyph => Some((Os.is_mac^ ? "⌘⌃" : "Ctrl+Alt+") ++ glyph);
+  switch (kind) {
+  | HoistLet
+  | ExtractLet => g("↑")
+  | SinkLet
+  | InlineLet
+  | AddCaseArm => g("↓")
+  | SwapParams(_) => g("↔")
+  | NegateIf => g("↕")
+  | SwapArms(_) => g(label == "Move arm up" ? "↑" : "↓")
+  | ExpandWildcard => g("→")
+  | _ => None
+  };
+};
+
 let refactor_data =
     (~info_map: Language.Statics.Map.t, ~term: Language.Exp.t, z: Zipper.t)
     : list(Menu.item(Action.t)) =>
   Refactor.menu_items(~info_map, ~term, z)
   |> List.map(((kind, label, tooltip)) =>
-       action_item(~tooltip, label, Action.Refactor(kind))
+       action_item(
+         ~shortcut=?gesture_hint(kind, label),
+         ~tooltip,
+         label,
+         Action.Refactor(kind),
+       )
      );
 
 let introduce_data =

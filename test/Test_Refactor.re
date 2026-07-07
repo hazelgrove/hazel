@@ -280,10 +280,10 @@ let case_arm_tests = [
   test_case("case arm label names the witness", `Quick, () =>
     check(
       bool,
-      "Add Arm | false",
+      "Add arm | false",
       true,
       List.mem(
-        "Add Arm | false",
+        "Add arm | false",
         labels_at("let b : Bool = ? in ¦case b | true => 1 end"),
       ),
     )
@@ -291,12 +291,9 @@ let case_arm_tests = [
   test_case("add parameter label names the fn", `Quick, () =>
     check(
       bool,
-      "Add Parameter to f",
+      "Add param to f",
       true,
-      List.mem(
-        "Add Parameter to f",
-        labels_at("¦let f = fun x -> x in f(1)"),
-      ),
+      List.mem("Add param to f", labels_at("¦let f = fun x -> x in f(1)")),
     )
   ),
   test_case(
@@ -688,10 +685,10 @@ let swap_tests = [
   test_case("swap menu names params", `Quick, () =>
     check(
       bool,
-      "Swap a and b",
+      "Swap a ↔ b",
       true,
       List.mem(
-        "Swap a and b",
+        "Swap a ↔ b",
         labels_at("¦let f = fun (a, b) -> a in f(1, 2)"),
       ),
     )
@@ -1630,6 +1627,7 @@ let reparse_safety_tests = {
       RemoveParameter,
       "let f(a, ¦b) = a in f(1, 2)",
     ),
+    case("swap arms", SwapArms(0), "case c\n| 1 => 11\n| ¦2 => 22\nend"),
   ];
 };
 
@@ -1665,6 +1663,8 @@ let movement_reparse_fuzz = {
         Action.SinkLet,
         Action.SwapParams(0),
         Action.SwapParams(1),
+        Action.SwapArms(0),
+        Action.SwapArms(1),
         Action.RemoveParameter,
       ];
       all_ids(term)
@@ -1687,6 +1687,146 @@ let movement_reparse_fuzz = {
   );
 };
 
+/* === Swap Arms + gestures === */
+
+let gesture_kind =
+    (g: Action.Gesture.t, marked: string): option(Action.refactor) => {
+  let z = Test_Editing.parse_zipper(marked);
+  let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
+  Refactor.gesture(~info_map=info_map_of(z), ~term, g, z);
+};
+
+let check_gesture = (name, g, marked, expected: option(Action.refactor)) =>
+  test_case(name, `Quick, () =>
+    check(bool, name, true, gesture_kind(g, marked) == expected)
+  );
+
+let arm_tests = [
+  test_case(
+    "swap arms: inline",
+    `Quick,
+    () => {
+      let got =
+        inline(~kind=SwapArms(0), "case c | ¦1 => 11 | 2 => 22 end")
+        |> text_of;
+      check(string, "swapped", "case c | 2 => 22 | 1 => 11 end", got);
+    },
+  ),
+  test_case(
+    "swap arms keeps multiline layout",
+    `Quick,
+    () => {
+      let got =
+        inline(~kind=SwapArms(0), "case c\n| 1 => 11\n| ¦2 => 22\nend")
+        |> text_of;
+      check(string, "swapped", "case c\n| 2 => 22\n| 1 => 11\nend", got);
+    },
+  ),
+  test_case("swap arms gated on overlap (wildcard)", `Quick, () =>
+    check(
+      bool,
+      "not offered",
+      false,
+      offers(SwapArms(0), "case c | ¦1 => 11 | _ => 22 end"),
+    )
+  ),
+  test_case("swap arms offered for distinct ctors", `Quick, () =>
+    check(
+      bool,
+      "offered",
+      true,
+      offers(SwapArms(0), "case c | Red => 1 | ¦Green => 2 end"),
+    )
+  ),
+];
+
+let gesture_tests = [
+  check_gesture(
+    "up on mid-chain let = hoist",
+    Up,
+    "let a = 1 in ¦let x = 2 in x + a",
+    Some(HoistLet),
+  ),
+  check_gesture(
+    "up on top let is dead (no extract fall-through)",
+    Up,
+    "¦let a = 1 in a",
+    None,
+  ),
+  check_gesture(
+    "up on expression = extract",
+    Up,
+    "let y = f(1 ¦+ 2) in y",
+    Some(ExtractLet),
+  ),
+  check_gesture(
+    "down on chain head = sink",
+    Down,
+    "¦let x = 2 in let a = 1 in x + a",
+    Some(SinkLet),
+  ),
+  check_gesture(
+    "down when sink exhausted = inline (elevator bottom)",
+    Down,
+    "¦let x = 2 in x + x",
+    Some(InlineLet),
+  ),
+  check_gesture(
+    "down at occurrence = inline",
+    Down,
+    "let x = 2 in x + ¦x",
+    Some(InlineLet),
+  ),
+  check_gesture(
+    "right on param = swap with right neighbor",
+    Right,
+    "let f = fun (¦a, b) -> a - b in f(1, 2)",
+    Some(SwapParams(0)),
+  ),
+  check_gesture(
+    "left on second param = swap with left neighbor",
+    Left,
+    "let f = fun (a, ¦b) -> a - b in f(1, 2)",
+    Some(SwapParams(0)),
+  ),
+  check_gesture(
+    "left on first param is dead",
+    Left,
+    "let f = fun (¦a, b) -> a - b in f(1, 2)",
+    None,
+  ),
+  check_gesture(
+    "right on call-site argument = swap",
+    Right,
+    "let f = fun (a, b) -> a - b in f(¦1, 2)",
+    Some(SwapParams(0)),
+  ),
+  check_gesture(
+    "up on second arm = reorder up",
+    Up,
+    "case c | 1 => 11 | ¦2 => 22 end",
+    Some(SwapArms(0)),
+  ),
+  check_gesture(
+    "down on first arm = reorder down",
+    Down,
+    "case c | ¦1 => 11 | 2 => 22 end",
+    Some(SwapArms(0)),
+  ),
+  check_gesture(
+    "up on first arm is dead",
+    Up,
+    "case c | ¦1 => 11 | 2 => 22 end",
+    None,
+  ),
+  check_gesture(
+    "down on overlapping arm is dead",
+    Down,
+    "case c | ¦1 => 11 | _ => 22 end",
+    None,
+  ),
+];
+
 let tests = [
   (
     "Refactor",
@@ -1704,6 +1844,8 @@ let tests = [
     @ move_tests
     @ put_down_tests
     @ more_tests
+    @ arm_tests
+    @ gesture_tests
     @ reparse_safety_tests,
   ),
   (
