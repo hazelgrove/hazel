@@ -698,6 +698,26 @@ let swap_tests = [
   ),
 ];
 
+let put_down_tests = [
+  test_case(
+    "put_down spaces the lexer-impossible junction (end|in)",
+    `Quick,
+    () => {
+      let z = Test_RoundtripFuzz.type_string("let x = case 1 end");
+      let z = Test_RoundtripFuzz.apply(z, Put_down);
+      let got = text_of(z);
+      let contains = (needle, hay) => {
+        let n = String.length(needle);
+        let h = String.length(hay);
+        let rec go = i =>
+          i + n <= h && (String.sub(hay, i, n) == needle || go(i + 1));
+        go(0);
+      };
+      check(bool, "no endin in: " ++ got, false, contains("endin", got));
+    },
+  ),
+];
+
 let more_tests = [
   test_case(
     "multiline if converts to case, end on its own line",
@@ -1542,6 +1562,7 @@ let tests = [
     @ swap_tests
     @ remove_param_tests
     @ move_tests
+    @ put_down_tests
     @ more_tests,
   ),
 ];
