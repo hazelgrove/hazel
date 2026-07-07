@@ -681,3 +681,17 @@ svg:has(.child-line) {
   background: var(--menu-outline);
   margin: 6px 0.5em;
 }
+
+/* FLIP ghosts for code movement (GhostFlip.re): transient spans that
+ * fly moved code from its old grid position to its new one */
+.flip-ghost {
+  pointer-events: none;
+  white-space: pre;
+  line-height: var(--line-height);
+  font-family: var(--code-font);
+  font-size: var(--base-font-size);
+  font-weight: normal;
+  color: inherit;
+  background-color: var(--cell-active);
+  z-index: 15; /* above code text (10), below caret (20) */
+}

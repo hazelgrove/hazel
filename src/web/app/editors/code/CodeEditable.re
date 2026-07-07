@@ -94,9 +94,13 @@ module Update = {
          );
     switch (action) {
     | Perform(action) =>
-      settings.core.flip_animations && Action.should_animate(action)
-        ? Animation.request([Animation.Actions.move("caret")]) : ();
-
+      if (settings.core.flip_animations && Action.should_animate(action)) {
+        Animation.request([Animation.Actions.move("caret")]);
+        switch (action) {
+        | Refactor(_) => GhostFlip.request(model.editor.syntax)
+        | _ => ()
+        };
+      };
       perform(action, model);
     | DebugConsole(key) =>
       DebugConsole.print(~settings, model, key);
