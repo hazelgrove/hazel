@@ -20,14 +20,23 @@ let space_put_down_boundary = (z: Zipper.t): Zipper.t => {
     | _ => false
     };
   let (pre, suf) = z.relatives.siblings;
-  /* left junction only: the right side (dropped shard abutting a
+  /* The drop may have REASSEMBLED into its tile, making the junction
+     interior (def-child `end` vs the tile's own `in` shard) —
+     normalize_piece fixes child<->shard junctions; grout/holes have
+     no token so hole-adjacent layouts are untouched. Left junction
+     only at top level: the right side (dropped shard abutting a
      following keyword) is a transient wrap state whose glued form is
-     load-bearing for existing flows */
+     load-bearing for existing flows. */
   let pre =
     switch (List.rev(pre)) {
-    | [last, prev, ...rest] when needs(prev, last) =>
-      List.rev([last, SpaceNormalize.space(), prev, ...rest])
-    | _ => pre
+    | [last, ...rest] =>
+      let last = SpaceNormalize.normalize_piece(last);
+      switch (rest) {
+      | [prev, ...rest'] when needs(prev, last) =>
+        List.rev([last, SpaceNormalize.space(), prev, ...rest'])
+      | _ => List.rev([last, ...rest])
+      };
+    | [] => pre
     };
   {
     ...z,
