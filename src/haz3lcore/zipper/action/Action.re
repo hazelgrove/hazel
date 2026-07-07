@@ -142,7 +142,9 @@ type destruct =
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type format =
   | Indent
-  | Pretty;
+  | Pretty
+  /* the cmd+S binding: resolved by CoreSettings.format_shortcut_pretty */
+  | Preferred;
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type t =

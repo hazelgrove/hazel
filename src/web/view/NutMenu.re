@@ -203,6 +203,13 @@ let dev_group = (~globals: Globals.t) => {
           ),
       },
       {
+        name: "Cmd+S Pretty Prints",
+        active: globals.settings.core.format_shortcut_pretty,
+        setting: FormatShortcutPretty,
+        tooltip:
+          Some("Format shortcut pretty-prints; when off, it only re-indents"),
+      },
+      {
         name: "Character-level mouse",
         active: globals.settings.core.selection_chunkiness,
         setting: SelectionChunkiness,
