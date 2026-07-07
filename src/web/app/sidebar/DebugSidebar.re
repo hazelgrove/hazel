@@ -718,10 +718,17 @@ let toggle_bar = (~globals: Globals.t): Node.t => {
 };
 
 /* ---- Wire Metrics: per-request benchmarks of the worker wire protocols ----
-   (WireMetrics), populated only while the debug panel is open. Correlated by
-   request id, one table per direction (request/response), a row per variant. */
+   (WireMetrics), populated only while the debug panel is open. All requests
+   share one table so columns line up across them; each request is separated
+   by a bold `#N` group row (request) and a lighter `response` sub-row, a row
+   per variant under each. Correlated by request id. */
 
-let ms_str = (f: float): string => Printf.sprintf("%.2f", f);
+/* Adaptive precision so a slow variant's wide milliseconds (e.g. sexp at
+   ~17000ms) don't blow out the column: drop decimals as the value grows. */
+let ms_str = (f: float): string =>
+  f >= 100.
+    ? Printf.sprintf("%.0f", f)
+    : f >= 10. ? Printf.sprintf("%.1f", f) : Printf.sprintf("%.2f", f);
 
 let size_str = (bytes: int): string =>
   bytes >= 1024 * 1024
@@ -733,12 +740,23 @@ let size_str = (bytes: int): string =>
 let wm_head = (label: string): Node.t =>
   Node.td(~attrs=[clss(["wm-head"])], [text(label)]);
 
+/* A full-width label row separating request groups within the shared table. */
+let wm_group_row = (~cls: string, label: string): Node.t =>
+  Node.tr([
+    Node.td(
+      ~attrs=[Attr.create("colspan", "7"), clss(["wm-group", cls])],
+      [text(label)],
+    ),
+  ]);
+
 let wm_metric_row = (m: WireMetrics.dir_metric): Node.t => {
   let total = m.encode_ms +. m.clone_ms +. m.decode_ms;
-  let (status_text, status_cls) =
+  /* Compact glyph keeps the column narrow; the full message (e.g. the
+     overflow exception for a failed variant) is on the cell's tooltip. */
+  let (status_glyph, status_cls, status_title) =
     switch (m.status) {
-    | Ok => ("ok", "wm-ok")
-    | Failed(e) => (e, "wm-fail")
+    | Ok => ({|✓|}, "wm-ok", "ok")
+    | Failed(e) => ({|✕|}, "wm-fail", e)
     };
   Node.tr([
     Node.td(~attrs=[clss(["wm-wire"])], [text(m.wire)]),
@@ -748,62 +766,36 @@ let wm_metric_row = (m: WireMetrics.dir_metric): Node.t => {
     Node.td(~attrs=[clss(["wm-total"])], [text(ms_str(total))]),
     Node.td([text(size_str(m.size_bytes))]),
     Node.td(
-      ~attrs=[clss([status_cls]), Attr.title(status_text)],
-      [text(status_text)],
+      ~attrs=[clss([status_cls]), Attr.title(status_title)],
+      [text(status_glyph)],
     ),
   ]);
 };
 
-let wm_direction_table =
-    (label: string, rows: list(WireMetrics.dir_metric)): Node.t =>
-  Node.table(
-    ~attrs=[clss(["wire-metrics-table"])],
-    [
-      Node.tr([
-        Node.td(
-          ~attrs=[Attr.create("colspan", "7"), clss(["wm-caption"])],
-          [text(label)],
-        ),
-      ]),
-      Node.tr([
-        wm_head("wire"),
-        wm_head("enc"),
-        wm_head("clone"),
-        wm_head("dec"),
-        wm_head("total"),
-        wm_head("size"),
-        wm_head("status"),
-      ]),
-      ...List.map(wm_metric_row, rows),
-    ],
-  );
-
-let wm_record_view = (r: WireMetrics.record): Node.t => {
-  let title =
+/* The rows contributed by one request: a request group header (which also
+   starts the visual separation from the previous request), its variant rows,
+   then a lighter response sub-header and its rows. */
+let wm_record_rows = (r: WireMetrics.record): list(Node.t) => {
+  let req_label =
     Printf.sprintf(
-      "#%d · %d %s",
+      "#%d · %d %s · request",
       r.id,
       r.entries,
       r.entries == 1 ? "entry" : "entries",
     );
-  let response_table =
+  let response_rows =
     switch (r.response) {
-    | [] => [
-        div(
-          ~attrs=[clss(["wm-pending"])],
-          [text("response pending / timed out")],
-        ),
+    | [] => [wm_group_row(~cls="wm-note", "response pending / timed out")]
+    | rows => [
+        wm_group_row(~cls="wm-resp", "response"),
+        ...List.map(wm_metric_row, rows),
       ]
-    | rows => [wm_direction_table("response", rows)]
     };
-  div(
-    ~attrs=[clss(["wm-record"])],
-    [
-      div(~attrs=[clss(["wm-record-title"])], [text(title)]),
-      wm_direction_table("request", r.request),
-    ]
-    @ response_table,
-  );
+  [
+    wm_group_row(~cls="wm-req", req_label),
+    ...List.map(wm_metric_row, r.request),
+  ]
+  @ response_rows;
 };
 
 let wire_metrics_view = (~globals): list(Node.t) =>
@@ -815,7 +807,28 @@ let wire_metrics_view = (~globals): list(Node.t) =>
           [text("No requests recorded yet — evaluate a program.")],
         ),
       ]
-    | records => List.map(wm_record_view, records)
+    | records => [
+        div(
+          ~attrs=[clss(["wm-scroll"])],
+          [
+            Node.table(
+              ~attrs=[clss(["wire-metrics-table"])],
+              [
+                Node.tr([
+                  wm_head("wire"),
+                  wm_head("enc"),
+                  wm_head("clone"),
+                  wm_head("dec"),
+                  wm_head("total"),
+                  wm_head("size"),
+                  wm_head("ok?"),
+                ]),
+                ...List.concat_map(wm_record_rows, records),
+              ],
+            ),
+          ],
+        ),
+      ]
     }
   );
 
