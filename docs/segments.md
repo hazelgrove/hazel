@@ -365,8 +365,12 @@ Not for ids: measured on the action fuzzer (5 seeds, 290 passing
 states, 2026-07-07), when grout placement matches, ids almost always
 match too — synthesized completion grout derives its ids from the
 tile id, and printed holes carry the term's rep id, which descends
-from the buffer grout (4/290 id-only diffs, from rep-id-stamped
-multihole gaps). The quotient earns its keep on *placement*: ~23% of
+from the buffer grout. The 4/290 id-only diffs traced to `pad_ids`
+minting fresh ids when a multihole's recorded op ids came up one
+short of its printed gap count; padding is now derived from the rep
+id, so printing is a pure function of the term (the buffer grout id
+still isn't recovered — nothing anchors to it). The quotient earns
+its keep on *placement*: ~23% of
 reachable states park grout where the parsed term doesn't reproduce
 it (dangling boundary grout around linebreaks, stray convex grout
 glommed through MakeTerm — `?()` prints back as `()` — typ-side
