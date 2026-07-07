@@ -359,6 +359,22 @@ The roundtrip is the identity on text and on the piece sequence
 choices; it is enforced by a corpus plus an editor-action fuzzer in
 `test/Test_ExpToSegment.re` and `test/Test_RoundtripFuzz.re`.
 
+### Why grout is quotiented
+
+Not for ids: measured on the action fuzzer (5 seeds, 290 passing
+states, 2026-07-07), when grout placement matches, ids almost always
+match too — synthesized completion grout derives its ids from the
+tile id, and printed holes carry the term's rep id, which descends
+from the buffer grout (4/290 id-only diffs, from rep-id-stamped
+multihole gaps). The quotient earns its keep on *placement*: ~23% of
+reachable states park grout where the parsed term doesn't reproduce
+it (dangling boundary grout around linebreaks, stray convex grout
+glommed through MakeTerm — `?()` prints back as `()` — typ-side
+postfix parens, multihole gap counts). Grout placement is
+re-derivable state, and deriving it for real (the virtual-grout
+branch, #2165) removes it from the stored segment entirely, which
+retires this quotient by construction rather than by tolerance.
+
 ### Why mold sorts are quotiented
 
 A stored mold sort is the editor's *local* guess at typing time; a
