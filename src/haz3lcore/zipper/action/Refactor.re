@@ -2450,85 +2450,6 @@ let sink_let_impl: impl = {
     },
 };
 
-/* the pre-`=` run lives on the removed type's trail; the head pat
- * inherits it (else `let x= 1`) */
-let remove_annotation_build =
-    (~target: Id.t, program: Exp.t): option((Exp.t, Id.t, Id.t)) => {
-  let def_id = ref(None);
-  let result =
-    rewrite_node(
-      ~hit=hit_let(target),
-      ~rewrite=
-        e =>
-          switch (IdTagged.term_of(e)) {
-          | Let(p, def, body) =>
-            switch (IdTagged.term_of(p)) {
-            | Asc(inner, ann) =>
-              def_id := Some(Exp.rep_id(def));
-              let (ab, aa) = p.annotation.secondary;
-              let (ib, ia) = inner.annotation.secondary;
-              let (_, ann_after) = ann.annotation.secondary;
-              let after =
-                switch (ann_after @ aa, ia) {
-                | ([_, ..._] as run, _) => run
-                | ([], [_, ..._]) => ia
-                | ([], []) => space()
-                };
-              let p': Pat.t = {
-                ...inner,
-                annotation: {
-                  ...inner.annotation,
-                  secondary: (ab @ ib, after),
-                },
-              };
-              Some((
-                {
-                  ...e,
-                  term: Let(p', def, body),
-                },
-                Pat.rep_id(p'),
-              ));
-            | _ => None
-            }
-          | _ => None
-          },
-      program,
-    );
-  switch (result, def_id^) {
-  | (Some((prog, f)), Some(d)) => Some((prog, f, d))
-  | _ => None
-  };
-};
-
-/* only offer removal when Add could restore it: statics on the
- * POST-removal program (the in-place def ty is analysis-driven by the
- * annotation, so it can't answer this). A statics run here is fine:
- * applies now fires only at menu-open, behind the annotated-let hit
- * gate. */
-let annotation_recoverable = (program': Exp.t, def_id: Id.t): bool => {
-  let statics =
-    CachedStatics.init_from_term(
-      ~settings=CoreSettings.on,
-      ~is_dynamic_term=false,
-      program',
-    );
-  switch (Id.Map.find_opt(def_id, statics.info_map)) {
-  | Some(InfoExp({ty, _})) => typ_known(ty)
-  | _ => false
-  };
-};
-
-let remove_annotation_impl: impl = {
-  label: "Remove Type Annotation",
-  tooltip: "Drop this binding's type annotation",
-  prepare: (~info_map as _, ~target, program) =>
-    switch (remove_annotation_build(~target, program)) {
-    | Some((prog, f, d)) when annotation_recoverable(prog, d) =>
-      Some((prog, f))
-    | _ => None
-    },
-};
-
 let fresh_names = (k: int, program: Exp.t): list(string) => {
   let used = ref(used_names(program));
   List.init(
@@ -3176,17 +3097,349 @@ let swap_params_impl = (i: int): impl => {
     },
 };
 
+/* === Remove Unused Parameter ===
+ * Targeted at the param var token itself (binder-token affordance,
+ * like rename). Drops the param from the pattern (and the
+ * annotation's arrow Prod) and the argument at that position from
+ * every call site. Gated: param unused in the body (syntactic
+ * free_in — Hazel infers nothing from usage, so this is exact),
+ * n >= 2 params, every call a matching-width tuple, no bare uses. */
+
+let drop_exp_item = (i: int, items: list(Exp.t)): list(Exp.t) => {
+  let items = items |> List.filteri((j, _) => j != i);
+  /* a new first element takes over the old tight-lead slot */
+  i == 0
+    ? switch (items) {
+      | [x, ...rest] => [with_secondary(([], []), x), ...rest]
+      | [] => []
+      }
+    : items;
+};
+
+let drop_pat_item = (i: int, items: list(Pat.t)): list(Pat.t) => {
+  let items = items |> List.filteri((j, _) => j != i);
+  i == 0
+    ? switch (items) {
+      | [x, ...rest] => [with_secondary_pat(([], []), x), ...rest]
+      | [] => []
+      }
+    : items;
+};
+
+let drop_typ_item = (i: int, items: list(Typ.t)): list(Typ.t) => {
+  let items = items |> List.filteri((j, _) => j != i);
+  i == 0
+    ? switch (items) {
+      | [x, ...rest] => [with_secondary_typ(([], []), x), ...rest]
+      | [] => []
+      }
+    : items;
+};
+
+/* param items of a let-bound fn (sugar arg or fun pat), through
+ * parens/ascriptions */
+let param_items = (e: Exp.t): list(Pat.t) => {
+  let tuple_items = (p: Pat.t): list(Pat.t) => {
+    let rec go = (p: Pat.t) =>
+      switch (IdTagged.term_of(p)) {
+      | Parens(inner) => go(inner)
+      | Tuple(items) => items
+      | _ => []
+      };
+    go(p);
+  };
+  switch (IdTagged.term_of(e)) {
+  | Let(p, def, _) =>
+    let rec sugar = (p: Pat.t) =>
+      switch (IdTagged.term_of(p)) {
+      | Ap(_, argp) => tuple_items(argp)
+      | Asc(inner, _) => sugar(inner)
+      | _ => []
+      };
+    switch (sugar(p), IdTagged.term_of(def)) {
+    | ([_, ..._] as xs, _) => xs
+    | ([], Fun(fp, _, _, _)) => tuple_items(fp)
+    | _ => []
+    };
+  | _ => []
+  };
+};
+
+/* the let is hit when the target is one of its param var tokens */
+let hit_param = (target: Id.t, e: Exp.t): bool =>
+  param_items(e)
+  |> List.exists((it: Pat.t) =>
+       switch (IdTagged.term_of(it)) {
+       | Var(_) => List.mem(target, IdTagged.ids(it))
+       | _ => false
+       }
+     );
+
+let drop_fun_pat = (i: int, fp: Pat.t): option(Pat.t) =>
+  switch (IdTagged.term_of(fp)) {
+  | Parens(inner) =>
+    switch (IdTagged.term_of(inner)) {
+    | Tuple(items) when List.length(items) > 1 =>
+      switch (drop_pat_item(i, items)) {
+      | [single] => Some(pad(with_secondary_pat(([], []), single)))
+      | items' =>
+        Some({
+          ...fp,
+          term:
+            Parens({
+              ...inner,
+              term: Tuple(items'),
+            }),
+        })
+      }
+    | _ => None
+    }
+  | _ => None
+  };
+
+let drop_arrow_ann = (i: int, ann: Typ.t): option(Typ.t) =>
+  switch (IdTagged.term_of(ann)) {
+  | Arrow(a, b) =>
+    let dropped: option(Typ.t) =
+      switch (IdTagged.term_of(a)) {
+      | Parens(inner) =>
+        switch (IdTagged.term_of(inner)) {
+        | Prod(items) when List.length(items) > 1 =>
+          switch (drop_typ_item(i, items)) {
+          | [single] =>
+            let (b_, a_) = a.annotation.secondary;
+            Some(
+              with_secondary_typ(
+                (b_, a_),
+                with_secondary_typ(([], []), single) |> (x => x),
+              ),
+            );
+          | items' =>
+            Some({
+              ...a,
+              term:
+                Parens({
+                  ...inner,
+                  term: Prod(items'),
+                }),
+            })
+          }
+        | _ => None
+        }
+      | _ => None
+      };
+    dropped
+    |> Option.map((a': Typ.t): Typ.t =>
+         {
+           ...ann,
+           term: Arrow(a', b),
+         }
+       );
+  | _ => None
+  };
+
+/* drop the i-th arg at every unshadowed call of x */
+let drop_call_args =
+    (~bare_use: ref(bool), ~ok: ref(bool), i: int, x: string, e: Exp.t)
+    : Exp.t =>
+  map_unshadowed(
+    ~skip=x,
+    ~f_var=
+      e' =>
+        switch (IdTagged.term_of(e')) {
+        | Var(z) when z == x =>
+          bare_use := true;
+          Some(e');
+        | _ => None
+        },
+    ~f_ap=
+      (ap, fn, arg, go) =>
+        if (is_var_named(x, fn)) {
+          switch (IdTagged.term_of(arg)) {
+          | Tuple(items) when List.length(items) > i =>
+            let items = items |> List.map(go);
+            let arg': Exp.t =
+              switch (drop_exp_item(i, items)) {
+              | [single] => single
+              | items' => {
+                  ...arg,
+                  term: Tuple(items'),
+                }
+              };
+            Some({
+              ...ap,
+              term: Ap(Forward, fn, arg'),
+            });
+          | _ =>
+            ok := false;
+            Some(ap);
+          };
+        } else {
+          None;
+        },
+    e,
+  );
+
+let remove_param_rewrite = (~target: Id.t, e: Exp.t): option((Exp.t, Id.t)) =>
+  switch (IdTagged.term_of(e)) {
+  | Let(p, def, body) =>
+    let items = param_items(e);
+    let idx =
+      items
+      |> List.mapi((i, it) => (i, it))
+      |> List.find_opt(((_, it: Pat.t)) =>
+           switch (IdTagged.term_of(it)) {
+           | Var(_) => List.mem(target, IdTagged.ids(it))
+           | _ => false
+           }
+         );
+    switch (idx) {
+    | Some((i, item)) when List.length(items) >= 2 =>
+      let name = Option.get(var_pat_name(item));
+      let bare_use = ref(false);
+      let ok = ref(true);
+      let pieces: option((string, Pat.t, Exp.t)) =
+        switch (sugar_fn_name(p)) {
+        | Some(f) =>
+          !free_in(name, def)
+            ? {
+              let rec drop_in_pat = (p: Pat.t): option(Pat.t) =>
+                switch (IdTagged.term_of(p)) {
+                | Ap(fv, argp) =>
+                  switch (IdTagged.term_of(argp)) {
+                  | Tuple(its) when List.length(its) > 1 =>
+                    switch (drop_pat_item(i, its)) {
+                    | [single] =>
+                      Some({
+                        ...p,
+                        term: Ap(fv, with_secondary_pat(([], []), single)),
+                      })
+                    | its' =>
+                      Some({
+                        ...p,
+                        term:
+                          Ap(
+                            fv,
+                            {
+                              ...argp,
+                              term: Tuple(its'),
+                            },
+                          ),
+                      })
+                    }
+                  | _ => None
+                  }
+                | Asc(inner, ann) =>
+                  drop_in_pat(inner)
+                  |> Option.map((inner': Pat.t): Pat.t =>
+                       {
+                         ...p,
+                         term: Asc(inner', ann),
+                       }
+                     )
+                | _ => None
+                };
+              drop_in_pat(p)
+              |> Option.map(p' =>
+                   (f, p', drop_call_args(~bare_use, ~ok, i, f, def))
+                 );
+            }
+            : None
+        | None =>
+          switch (let_head_name(p), IdTagged.term_of(def)) {
+          | (Some(f), Fun(fp, fbody, ft, fn)) =>
+            !free_in(name, fbody)
+              ? {
+                let p': option(Pat.t) =
+                  switch (IdTagged.term_of(p)) {
+                  | Var(_) => Some(p)
+                  | Asc(inner, ann) =>
+                    drop_arrow_ann(i, ann)
+                    |> Option.map((ann': Typ.t): Pat.t =>
+                         {
+                           ...p,
+                           term: Asc(inner, ann'),
+                         }
+                       )
+                  | _ => None
+                  };
+                switch (p', drop_fun_pat(i, fp)) {
+                | (Some(p'), Some(fp')) =>
+                  let fbody' =
+                    binds(f, fp)
+                      ? fbody : drop_call_args(~bare_use, ~ok, i, f, fbody);
+                  Some((
+                    f,
+                    p',
+                    {
+                      ...def,
+                      term: Fun(fp', fbody', ft, fn),
+                    },
+                  ));
+                | _ => None
+                };
+              }
+              : None
+          | _ => None
+          }
+        };
+      switch (pieces) {
+      | Some((f, p', def')) =>
+        let body' = drop_call_args(~bare_use, ~ok, i, f, body);
+        ok^ && ! bare_use^
+          ? Some((
+              {
+                ...e,
+                term: Let(p', def', body'),
+              },
+              Exp.rep_id(e),
+            ))
+          : None;
+      | None => None
+      };
+    | _ => None
+    };
+  | _ => None
+  };
+
+let remove_param_impl: impl = {
+  label: "Remove Unused Parameter",
+  tooltip: "Drop this parameter and its argument at every call site",
+  prepare: (~info_map as _, ~target, program) =>
+    switch (
+      find_path(~hit=hit_param(target), program)
+      |> Option.map(path => List.nth(path, List.length(path) - 1))
+    ) {
+    | Some(l) =>
+      switch (remove_param_rewrite(~target, l)) {
+      | Some((result, focus)) =>
+        switch (
+          rewrite_node(
+            ~hit=same_node(l),
+            ~rewrite=_ => Some((result, focus)),
+            program,
+          )
+        ) {
+        | Some((prog, f)) when reparses_same(prog) => Some((prog, f))
+        | _ => None
+        }
+      | None => None
+      }
+    | None => None
+    },
+};
+
 let impl: Action.refactor => impl =
   fun
   | InlineLet => inline_let_impl
   | RemoveUnusedLet => remove_unused_let_impl
   | AddTypeAnnotation => add_annotation_impl
-  | RemoveTypeAnnotation => remove_annotation_impl
   | EtaExpand => eta_expand_impl
   | EvaluateInPlace => evaluate_in_place_impl
   | AddCaseArm => add_case_arm_impl
   | ExpandWildcard => expand_wildcard_impl
   | AddParameter => add_param_impl
+  | RemoveParameter => remove_param_impl
   | RenameFree(x, y) => rename_free_impl(x, y)
   | SwapParams(i) => swap_params_impl(i)
   | HoistLet => hoist_let_impl
@@ -3201,12 +3454,12 @@ let all: list(Action.refactor) = [
   InlineLet,
   RemoveUnusedLet,
   AddTypeAnnotation,
-  RemoveTypeAnnotation,
   EtaExpand,
   EvaluateInPlace,
   AddCaseArm,
   ExpandWildcard,
   AddParameter,
+  RemoveParameter,
   HoistLet,
   SinkLet,
   ExtractLet,
@@ -3307,6 +3560,11 @@ let applies =
     | Some(e) => Option.is_some(add_param_rewrite(~program, e))
     | None => false
     }
+  | RemoveParameter =>
+    switch (find_hit(~hit=hit_param(target), program)) {
+    | Some(l) => Option.is_some(remove_param_rewrite(~target, l))
+    | None => false
+    }
   | RenameFree(x, y) =>
     switch (find_hit(~hit=hit_rename(target), program)) {
     | Some(e) => rename_pairs(~info_map, ~target, e) |> List.mem((x, y))
@@ -3325,11 +3583,6 @@ let applies =
   | SinkLet =>
     switch (find_hit(~hit=hit_let(target), program)) {
     | Some(l) => Option.is_some(sink_step(~fixup=false, l))
-    | None => false
-    }
-  | RemoveTypeAnnotation =>
-    switch (remove_annotation_build(~target, program)) {
-    | Some((prog, _, d)) => annotation_recoverable(prog, d)
     | None => false
     }
   | EtaExpand =>
@@ -3454,6 +3707,22 @@ let label_override =
              );
            "Add Arm | " ++ text;
          })
+    | None => None
+    }
+  | RemoveParameter =>
+    switch (find_hit(~hit=hit_param(target), term)) {
+    | Some(l) =>
+      param_items(l)
+      |> List.find_opt((it: Pat.t) => List.mem(target, IdTagged.ids(it)))
+      |> Option.map((it: Pat.t) =>
+           "Remove Parameter"
+           ++ (
+             switch (var_pat_name(it)) {
+             | Some(n) => " " ++ n
+             | None => ""
+             }
+           )
+         )
     | None => None
     }
   | AddParameter =>

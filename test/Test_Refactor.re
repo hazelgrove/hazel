@@ -399,49 +399,11 @@ let annotation_tests = [
 
 let wave_tests = [
   test_case(
-    "remove annotation keeps the pre-= space (tight colon)",
-    `Quick,
-    () => {
-      let got =
-        inline(~kind=RemoveTypeAnnotation, "¦let x: Int = 1 in x") |> text_of;
-      check(string, "spaced", "let x = 1 in x", got);
-    },
-  ),
-  test_case("remove gated when add couldn't restore", `Quick, () =>
-    check(
-      bool,
-      "lambda annotation is one-way",
-      false,
-      offers(
-        RemoveTypeAnnotation,
-        "¦let f : Int -> Int = fun x -> x + 1 in f(1)",
-      ),
-    )
-  ),
-  test_case("remove offered when restorable", `Quick, () =>
-    check(
-      bool,
-      "tuple restores",
-      true,
-      offers(RemoveTypeAnnotation, "¦let p : (Int, Bool) = (1, true) in p"),
-    )
-  ),
-  test_case(
     "negate is self-inverse",
     `Quick,
     () => {
       let got = inline(~kind=NegateIf, "¦if !a then 1 else 2") |> text_of;
       check(string, "unwrapped", "if a then 2 else 1", got);
-    },
-  ),
-  test_case(
-    "remove type annotation",
-    `Quick,
-    () => {
-      let got =
-        inline(~kind=RemoveTypeAnnotation, "¦let x : Int = 1 in x")
-        |> text_of;
-      check(string, "annotation dropped", "let x = 1 in x", got);
     },
   ),
   test_case(
@@ -565,6 +527,74 @@ let wave2_tests = [
       offers(
         ExpandWildcard,
         "type C = A + B in let c : C = ? in case c | A => 1 | B => 2 | ¦_ => 0 end",
+      ),
+    )
+  ),
+];
+
+let remove_param_tests = [
+  test_case(
+    "remove unused parameter: def and call sites",
+    `Quick,
+    () => {
+      let got =
+        inline(
+          ~kind=RemoveParameter,
+          "let f = fun (a, ¦b) -> a + 1 in f(1, 2) + f(3, 4)",
+        )
+        |> text_of;
+      check(
+        string,
+        "dropped everywhere",
+        "let f = fun a -> a + 1 in f(1) + f(3)",
+        got,
+      );
+    },
+  ),
+  test_case(
+    "remove unused parameter on sugar def",
+    `Quick,
+    () => {
+      let got =
+        inline(~kind=RemoveParameter, "let f(a, ¦b) = a in f(1, 2)")
+        |> text_of;
+      check(string, "sugar", "let f(a) = a in f(1)", got);
+    },
+  ),
+  test_case(
+    "remove parameter drops the annotation column",
+    `Quick,
+    () => {
+      let got =
+        inline(
+          ~kind=RemoveParameter,
+          "let f : (Int, Bool) -> Int = fun (a, ¦b) -> a in f(1, true)",
+        )
+        |> text_of;
+      check(
+        string,
+        "prod dropped",
+        "let f : Int -> Int = fun a -> a in f(1)",
+        got,
+      );
+    },
+  ),
+  test_case("remove parameter gated when used", `Quick, () =>
+    check(
+      bool,
+      "b is used",
+      false,
+      offers(RemoveParameter, "let f = fun (a, ¦b) -> a + b in f(1, 2)"),
+    )
+  ),
+  test_case("remove parameter labeled with its name", `Quick, () =>
+    check(
+      bool,
+      "named",
+      true,
+      List.mem(
+        "Remove Parameter b",
+        labels_at("let f = fun (a, ¦b) -> a in f(1, 2)"),
       ),
     )
   ),
@@ -1448,6 +1478,7 @@ let tests = [
     @ wave_tests
     @ wave2_tests
     @ swap_tests
+    @ remove_param_tests
     @ move_tests
     @ more_tests,
   ),

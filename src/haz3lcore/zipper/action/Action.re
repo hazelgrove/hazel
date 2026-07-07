@@ -144,12 +144,12 @@ type refactor =
   | InlineLet
   | RemoveUnusedLet
   | AddTypeAnnotation
-  | RemoveTypeAnnotation
   | EtaExpand
   | EvaluateInPlace
   | AddCaseArm
   | ExpandWildcard
   | AddParameter
+  | RemoveParameter
   | RenameFree(string, string)
   | SwapParams(int)
   | HoistLet
