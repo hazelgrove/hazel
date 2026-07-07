@@ -135,6 +135,40 @@ let animate_node =
   };
 };
 
+/* Transforms are silently ignored on non-replaced inline boxes: such
+ * an element "animates" without rendering any motion (this bit us
+ * twice: vdom clobbering an inline display style, then comment spans
+ * missing the stylesheet rule). Warn so the next uncovered element
+ * kind is loud instead of a mystery snap. SVG is replaced content —
+ * transformable even when display:inline. */
+let warn_invisible = (node: Js.t(Dom.node)): unit =>
+  switch (
+    {
+      let name =
+        Js.to_string(Js.Unsafe.get(node, "nodeName"))
+        |> String.lowercase_ascii;
+      let display =
+        Js.Unsafe.meth_call(
+          Js.Unsafe.global##.window,
+          "getComputedStyle",
+          [|Js.Unsafe.inject(node)|],
+        )
+        |> (cs => Js.to_string(Js.Unsafe.get(cs, "display")));
+      name != "svg" && display == "inline"
+        ? Some(Js.to_string(Js.Unsafe.get(node, "className"))) : None;
+    }
+  ) {
+  | exception _ => ()
+  | None => ()
+  | Some(cls) =>
+    print_endline(
+      "CodeFlip: element '"
+      ++ cls
+      ++ "' is display:inline; its movement animation will not render"
+      ++ " (add it to the .code inline-block rule in editor.css)",
+    )
+  };
+
 let pending: ref(option(Measured.t)) = ref(None);
 
 /* Call during the MVU update, before the edit applies */
@@ -192,6 +226,11 @@ let go = (~syntax: CachedSyntax.t, ~font_metrics: FontMetrics.t): unit =>
                     |> List.iter(((node, o, n)) =>
                          animate_node(~font_metrics, node, o, n)
                        );
+                    /* one guard probe per batch is plenty */
+                    switch (moved) {
+                    | [(node, _, _), ..._] => warn_invisible(node)
+                    | [] => ()
+                    };
                   };
                 };
               },
