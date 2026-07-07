@@ -2292,6 +2292,32 @@ let sink_step = (~fixup: bool, l: Exp.t): option((Exp.t, Id.t)) => {
           },
         );
       Some((m', Exp.rep_id(l)));
+    | Let(mp, mdef, mbody)
+        when
+          disjoint_names(l_names, pat_var_names(mp))
+          && names_mentioned(l_names, mdef)
+          && !names_mentioned(l_names, mbody) =>
+      /* into the def that solely uses it: pure scope-minimization
+         (same evaluation, narrower scope) — the missing edge of the
+         region graph; inverse of hoist-out-of-def */
+      let (d_lead, mdef') = take_lead(mdef);
+      let l': Exp.t =
+        with_secondary(
+          (d_lead, []),
+          {
+            ...l,
+            term: Let(lp, ldef, mdef'),
+          },
+        );
+      let m': Exp.t =
+        with_secondary(
+          l.annotation.secondary,
+          {
+            ...lbody,
+            term: Let(mp, l', mbody),
+          },
+        );
+      Some((m', Exp.rep_id(l)));
     | Fun(fp, fbody, ft, fn)
         when
           disjoint_names(l_names, pat_var_names(fp))

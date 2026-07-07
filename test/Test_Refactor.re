@@ -1362,6 +1362,23 @@ let move_tests = [
     },
   ),
   test_case(
+    "sink into the def that solely uses it",
+    `Quick,
+    () => {
+      let got =
+        inline(~kind=SinkLet, "¦let x = 2 in let y = x + 1 in y") |> text_of;
+      check(string, "scope narrowed", "let y = let x = 2 in x + 1 in y", got);
+    },
+  ),
+  test_case("def-sink gated when body also uses it", `Quick, () =>
+    check(
+      bool,
+      "used in both",
+      false,
+      offers(SinkLet, "¦let x = 2 in let y = x + 1 in y + x"),
+    )
+  ),
+  test_case(
     "sink into a lambda",
     `Quick,
     () => {
