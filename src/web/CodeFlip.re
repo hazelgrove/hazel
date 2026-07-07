@@ -14,9 +14,10 @@ open Haz3lcore;
  * come from diffing Measured maps — pure arithmetic, no layout reads.
  * Companion to Animation.re (the caret's DOM-box FLIP). */
 
-/* Slowed for evaluation; production more like 160 / easeOutExpo */
-let duration = 560;
-let easing = "ease-in-out";
+/* Slightly statelier than the caret's 125ms (code moves farther);
+ * for slow-motion debugging use ~560 / "ease-in-out" */
+let duration = 180;
+let easing = Animation.easeOutExpo;
 
 /* perf guard: a transition that moves this much is better skipped */
 let max_moved = 1500;
