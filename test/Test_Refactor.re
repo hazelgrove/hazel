@@ -1941,6 +1941,70 @@ let arm_tests = [
   ),
 ];
 
+/* place the caret on the first arm's pattern */
+let caretize = (src: string): string => {
+  let idx =
+    switch (String.index_opt(src, 'L')) {
+    | Some(i) => i
+    | None => 0
+    };
+  String.sub(src, 0, idx)
+  ++ "¦"
+  ++ String.sub(src, idx, String.length(src) - idx);
+};
+
+let arm_roundtrip_tests = [
+  test_case(
+    "arm swap twice restores exact text (inline arm)",
+    `Quick,
+    () => {
+      let src = "case e\n| Lam(x, body) => Ok(x)\n| Var(n) =>\n    Error(\"free\")\nend";
+      let z1 = inline(~kind=SwapArms(0), caretize(src));
+      let z2 = Test_Editing.perform(z1, [Action.Refactor(SwapArms(0))]);
+      check(string, "round trip", src, text_of(z2));
+    },
+  ),
+  test_case(
+    "arm swap twice restores exact text (multiline arms)",
+    `Quick,
+    () => {
+      let src = "case e\n| Lam(x, body) =>       Ok(x)\n| Var(n) =>\n    Error(\"free\")\n| Ap(f, a) => No\nend";
+      let z1 = inline(~kind=SwapArms(0), caretize(src));
+      let z2 = Test_Editing.perform(z1, [Action.Refactor(SwapArms(0))]);
+      check(string, "round trip", src, text_of(z2));
+    },
+  ),
+  test_case(
+    "single arm swap output",
+    `Quick,
+    () => {
+      let src = "case e\n| Lam(x, body) => Ok(x)\n| Var(n) =>\n    Error(\"free\")\nend";
+      let got = inline(~kind=SwapArms(0), caretize(src)) |> text_of;
+      Printf.printf("\nSWAP1: %s\n", String.escaped(got));
+      check(bool, "printed", true, true);
+    },
+  ),
+];
+
+let arm_travel_tests = [
+  test_case(
+    "arm travels down twice and back up: exact text restored",
+    `Quick,
+    () => {
+      let src = "case e\n| Lam(x, body) => Ok(x)\n| Var(n) =>\n    Error(\"free\")\n| Ap(f, a) => case go(f)\n    | Ok(g) => No\n    | _ => Maybe\n    end\nend";
+      let z1 = inline(~kind=SwapArms(0), caretize(src));
+      Printf.printf("\nT1: %s\n", String.escaped(text_of(z1)));
+      let z2 = Test_Editing.perform(z1, [Action.Refactor(SwapArms(1))]);
+      Printf.printf("T2: %s\n", String.escaped(text_of(z2)));
+      let z3 = Test_Editing.perform(z2, [Action.Refactor(SwapArms(1))]);
+      Printf.printf("T3: %s\n", String.escaped(text_of(z3)));
+      let z4 = Test_Editing.perform(z3, [Action.Refactor(SwapArms(0))]);
+      Printf.printf("T4: %s\n", String.escaped(text_of(z4)));
+      check(string, "round trip", src, text_of(z4));
+    },
+  ),
+];
+
 let gesture_tests = [
   check_gesture(
     "up on mid-chain let = hoist",
@@ -2058,6 +2122,8 @@ let tests = [
     @ put_down_tests
     @ more_tests
     @ arm_tests
+    @ arm_roundtrip_tests
+    @ arm_travel_tests
     @ gesture_tests
     @ caret_tests
     @ binding_tests

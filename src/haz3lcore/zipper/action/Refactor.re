@@ -3512,10 +3512,19 @@ let swap_arms_rewrite =
     let (pa, ba) = List.nth(rules, i);
     let (pb, bb) = List.nth(rules, i + 1);
     if (pats_disjoint(pa, pb)) {
+      /* boundary runs belong to SLOTS, and they may be stored
+         node-level OR leaf-deep (mixed storage doubled a lead here
+         once): exchange bodies via the textual Slot ops — each slot
+         keeps its own lead/trail, content swaps stripped */
+      let sa = Slot.of_exp(ba);
+      let sb = Slot.of_exp(bb);
+      let ba' = Slot.give(sa, Slot.drop(sb, bb));
+      let bb' = Slot.give(sb, Slot.drop(sa, ba));
+      /* arm pats: node-level exchange suffices (parsed pats keep
+         their runs on leaves; no transform synthesizes node-level
+         pat runs yet) */
       let pa' = with_secondary_pat(pa.annotation.secondary, pb);
       let pb' = with_secondary_pat(pb.annotation.secondary, pa);
-      let ba' = with_secondary(ba.annotation.secondary, bb);
-      let bb' = with_secondary(bb.annotation.secondary, ba);
       let rules' =
         rules
         |> List.mapi((j, r) =>
