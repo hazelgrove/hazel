@@ -1105,14 +1105,14 @@ let format_tests = [
     ~acts=
       mk({|let x = 1¦
   in x|})
-      @ [Insert(" "), Move(Local(Right, ByChar)), Format],
+      @ [Insert(" "), Move(Local(Right, ByChar)), Format(Indent)],
     ~goal={|let x = 1
 ¦  in x|} /* Trailing space removed, cursor moves */
   ),
   test(
     ~name="Format fixes indentation",
     ~acts=mk({|let x = 1
-¦in x|}) @ [Format],
+¦in x|}) @ [Format(Indent)],
     ~goal={|let x = 1
 ¦in x|} /* `in` at column 0 is the body, no indentation needed */
   ),
@@ -1174,7 +1174,7 @@ let nested_case_tests = [
   | X => 1
   end
 end¦|},
-    ~acts=[Action.Format],
+    ~acts=[Action.Format(Indent)],
     ~goal={|case 1
 | A =>
   case 2

@@ -43,7 +43,7 @@ let test_indent_after_format = (~name, ~init, ~goal): test_case(_) => {
       goal,
       goal,
       string_to_ltr_actions(init)
-      @ [Action.Format]
+      @ [Action.Format(Indent)]
       |> perform(Zipper.init())
       |> Printer.of_zipper(~holes=convex_char, ~concave_holes=concave_char),
     )

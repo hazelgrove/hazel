@@ -66,27 +66,35 @@ let go =
       Printer.of_zipper(~holes="", ~indent="", z),
     )
     |> return(CantReparse)
-  | PrettyPrint =>
-    /* Remember which tile the caret was on so we can restore the
-       caret position after prettifying. Pretty-printing preserves
-       tile IDs (it only rearranges whitespace), so the same piece
-       can be located in the new segment. Falls back to the default
-       caret position (end of document) if there is no indicated
-       tile or the ID can't be located. */
-    let prev_id = Indicated.index(z);
-    let seg = Zipper.unselect_and_zip(z);
+  | Format(Pretty) =>
+    /* Restore the caret via the indicated tile (pretty-printing
+       preserves tile IDs), falling back to its statics ancestors —
+       a vanished id must not dump the caret at the document end.
+       SpaceNormalize first: a no-op on parsed buffers (they can't
+       contain bare glom junctions) but totalizes synthesized
+       segments (agent/structural edits). */
+    let anchors =
+      switch (Indicated.index(z)) {
+      | None => []
+      | Some(id) =>
+        [id]
+        @ (
+          switch (Id.Map.find_opt(id, statics.info_map)) {
+          | Some(InfoExp({ancestors, _}))
+          | Some(InfoPat({ancestors, _})) => ancestors
+          | _ => []
+          }
+        )
+      };
+    let seg = Zipper.unselect_and_zip(z) |> SpaceNormalize.go;
     let pretty = PrettySegment.prettify(seg);
     let z = {
       ...Zipper.unzip(pretty),
       refractors: z.refractors,
     };
     let z =
-      switch (prev_id) {
-      | Some(id) =>
-        switch (Move.jump_to_id_indicated(z, id)) {
-        | Some(z') => z'
-        | None => z
-        }
+      switch (Move.jump_to_first_indicated(z, anchors)) {
+      | Some(z') => z'
       | None => z
       };
     Some(z) |> return(CantReparse);
@@ -232,7 +240,7 @@ let go =
     |> Option.map(LocalReformat.go(~before))
     |> return(Cant_put_down);
   | Probe(a) => Ok(ProbePerform.go(~statics, ~syntax, a, z))
-  | Format => Ok(AutoFormat.zipper(z))
+  | Format(Indent) => Ok(AutoFormat.zipper(z))
   | Dump =>
     /* Experimental: Use CanonicalCompletion instead of Dump */
     let seg =

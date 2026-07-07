@@ -161,6 +161,11 @@ type refactor =
   | NegateIf;
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
+type format =
+  | Indent
+  | Pretty;
+
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type t =
   | Reparse
   | Buffer(buffer)
@@ -177,8 +182,7 @@ type t =
   | Introduce
   | Refactor(refactor)
   | Probe(probe)
-  | Format
-  | PrettyPrint
+  | Format(format)
   | Dump
   | ToggleLineComment
   | Structural(Structural.t);
@@ -220,9 +224,8 @@ let is_edit: t => bool =
   | Put_down
   | Introduce
   | Refactor(_)
-  | PrettyPrint
   | Buffer(Accept | Clear | Set(_))
-  | Format
+  | Format(_)
   | Structural(_)
   | Dump
   | ToggleLineComment => true
@@ -259,8 +262,7 @@ let is_historic: t => bool =
   | Put_down
   | Introduce
   | Refactor(_)
-  | Format
-  | PrettyPrint
+  | Format(_)
   | Structural(_)
   | Dump
   | ToggleLineComment => true
@@ -292,8 +294,7 @@ let prevent_in_read_only_editor = (a: t) =>
   | Put_down
   | Introduce
   | Refactor(_)
-  | Format
-  | PrettyPrint
+  | Format(_)
   | Structural(_)
   | Dump
   | ToggleLineComment => true
@@ -338,8 +339,7 @@ let should_animate: t => bool =
   | Structural(_)
   | Probe(_)
   | Refactor(_)
-  | Format
-  | PrettyPrint
+  | Format(_)
   | Dump
   | ToggleLineComment => true
   | Project(p) =>

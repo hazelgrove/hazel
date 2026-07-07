@@ -81,9 +81,8 @@ module Update = {
              | Reparse
              | Introduce
              | Refactor(_)
-             | PrettyPrint
              | Probe(StepInto(_))
-             | Format
+             | Format(_)
              | Dump
              | ToggleLineComment => true
              | Project(_)
@@ -305,15 +304,14 @@ module Selection = {
            mk(
              ~mdIcon="format_indent_increase",
              ~section="Formatting",
-             ~hotkey=meta ++ "+s",
-             ~action=action(Format),
+             ~action=action(Format(Indent)),
              "Re-indent",
            ),
            mk(
              ~mdIcon="format_align_left",
              ~section="Formatting",
-             ~hotkey="shift+" ++ meta ++ "+s",
-             ~action=action(PrettyPrint),
+             ~hotkey=meta ++ "+s",
+             ~action=action(Format(Pretty)),
              "Pretty Print",
            ),
          ],
