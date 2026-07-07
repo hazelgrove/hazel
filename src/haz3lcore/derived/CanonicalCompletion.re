@@ -50,19 +50,140 @@ type completion_result = {
   insertions: list(insertion) /* For visualization: where and what to insert */
 };
 
-/* Get trailing missing shard indices for a tile */
-let trailing_shards = (t: Tile.t): list(Piece.t) =>
-  Tile.right_missing_shards(t)
-  |> List.map(s => Piece.Tile(Tile.shard_of(t, Tile.r_shard(s))));
-
-/* Create shard pieces from incomplete tiles.
- * Takes tiles in left-to-right order, returns shards inner-first (reversed). */
-let shards_from_incomplete = (incomplete: list(Tile.t)): list(Piece.t) =>
-  List.rev(incomplete) |> List.concat_map(trailing_shards);
-
 /* Leading missing shard pieces for a tile (openers), natural order */
 let leading_shards = (t: Tile.t): list(Piece.t) =>
   Tile.left_missing_shards(t) |> List.map(st => Piece.Tile(st));
+
+/* === Sort-fit (form table) ===
+ * "Can this piece inhabit sort S" judged from the FORM TABLE (possible
+ * molds by label), NOT the piece's current mold — label-level sort
+ * inventories are edit-stable, so mid-edit remolding can't destabilize
+ * placement decisions built on this. No-evidence cases (secondary,
+ * grout, undefined tokens) fit everything: absence of a mold table
+ * entry must never trigger clipping. */
+let sort_fits = (out: Sort.t, s: Sort.t): bool =>
+  out == s || out == Sort.Any || s == Sort.Any;
+
+/* Monotone possible-sorts frontier scan: a tile fits if some
+ * form-table mold outs at a sort in the current set, and fitting
+ * molds' concave-right sorts JOIN the set — `x : ...` in a Pat slot
+ * legally continues with Typ material after the ascription. The set
+ * only grows, so the scan is permissive rightward: over-absorbing
+ * falls back to the status quo (no clip), never to a wrong clip.
+ * Returns the index (relative to the given pieces) of the first
+ * unfittable tile, or None. */
+let scan_frontier = (~start: Sort.t, pieces: list(Piece.t)): option(int) => {
+  let rec go = (j, sorts: list(Sort.t), ps) =>
+    switch (ps) {
+    | [] => None
+    | [pc, ...rest] =>
+      switch ((pc: Piece.t)) {
+      | Secondary(_)
+      | Grout(_)
+      | Projector(_) => go(j + 1, sorts, rest)
+      | Tile(t) =>
+        switch (Form.Molds.get_base(t.label)) {
+        | [] => go(j + 1, sorts, rest) /* no evidence: don't clip */
+        | molds =>
+          let fitting =
+            molds
+            |> List.filter((m: Mold.t) =>
+                 List.exists(sr => sort_fits(m.out, sr), sorts)
+               );
+          if (fitting == []) {
+            Some(j);
+          } else {
+            let opened =
+              fitting
+              |> List.filter_map((m: Mold.t) => {
+                   let (_, r) =
+                     Mold.nibs(~index=List.length(t.label) - 1, m);
+                   switch (r.shape) {
+                   | Concave(_) => Some(r.sort)
+                   | Convex => None
+                   };
+                 });
+            let sorts =
+              List.fold_left(
+                (acc, sr) => List.mem(sr, acc) ? acc : [sr, ...acc],
+                sorts,
+                opened,
+              );
+            go(j + 1, sorts, rest);
+          };
+        }
+      }
+    };
+  go(0, [start], pieces);
+};
+
+/* A whole span can inhabit a slot if the frontier scan never fires */
+let span_fits_sort = (ps: Segment.t, s: Sort.t): bool =>
+  scan_frontier(~start=s, ps) == None;
+
+/* Only non-Exp slots clip: nearly every label has an Exp mold, so an
+ * Exp frontier is vacuous. Rul defers to the case-wrap machinery. */
+let clippable_sort = (s: Sort.t): bool =>
+  switch (s) {
+  | Pat
+  | TPat
+  | Typ => true
+  | _ => false
+  };
+
+/* === Junction drop (middle shards) ===
+ * When exactly one interior shard is missing and the displaced child
+ * contains exactly ONE sort-legal concave-grout junction, the child
+ * splits there: `let x 1 in x` -> `let x = 1 in x` (the junction marks
+ * where the deleted delimiter sat, its operands left juxtaposed).
+ * Multiple legal junctions mean the deletion site is ambiguous
+ * (`let x y 1 in`) — fall back to the stable everything-left
+ * completion rather than guess. */
+let middle_split_plan = (t: Tile.t): option((int, Segment.t, Segment.t)) => {
+  let lo = Tile.l_shard(t);
+  let hi = Tile.r_shard(t);
+  let missing =
+    List.init(max(hi - lo + 1, 0), i => lo + i)
+    |> List.filter(i => !List.mem(i, t.shards));
+  switch (missing) {
+  | [m] when m > lo && m < hi =>
+    let k = List.length(List.filter(sh => sh < m, t.shards)) - 1;
+    switch (List.nth_opt(t.children, k)) {
+    | None => None
+    | Some(child) =>
+      let (l_nib, r_nib) = Mold.nibs(~index=m, t.mold);
+      let has_content =
+        List.exists(
+          fun
+          | Piece.Tile(_) => true
+          | _ => false,
+        );
+      let legal = (j: int): option((Segment.t, Segment.t)) => {
+        let (left, rest) = ListUtil.split_n(j, child);
+        let right = List.tl(rest);
+        has_content(left)
+        && has_content(right)
+        && span_fits_sort(left, l_nib.sort)
+        && span_fits_sort(right, r_nib.sort)
+          ? Some((left, right)) : None;
+      };
+      let candidates =
+        child
+        |> List.mapi((j, pc) => (j, pc))
+        |> List.filter_map(((j, pc): (int, Piece.t)) =>
+             switch (pc) {
+             | Grout({shape: Concave, _}) => legal(j)
+             | _ => None
+             }
+           );
+      switch (candidates) {
+      | [(left, right)] => Some((m, left, right))
+      | _ => None
+      };
+    };
+  | _ => None
+  };
+};
 
 /* Middle-missing shards (`let x in 2`, `if true else 2` — targeted
  * put-down can strand an interior delimiter in the backpack). The
@@ -87,23 +208,29 @@ let complete_middle_shards = (t: Tile.t): Tile.t => {
         };
       go(0, t.shards);
     };
+    let plan = middle_split_plan(t);
     let slot_id = ref(t.id);
     let children =
       List.init(
         hi - lo,
         j => {
           let slot_lo = lo + j;
-          switch (index_in_shards(slot_lo)) {
-          | Some(k) when k < List.length(t.children) =>
-            List.nth(t.children, k)
+          switch (plan) {
+          | Some((m, left, _)) when slot_lo == m - 1 => left
+          | Some((m, _, right)) when slot_lo == m => right
           | _ =>
-            slot_id := Id.next(slot_id^);
-            [
-              Piece.Grout({
-                id: slot_id^,
-                shape: Convex,
-              }),
-            ];
+            switch (index_in_shards(slot_lo)) {
+            | Some(k) when k < List.length(t.children) =>
+              List.nth(t.children, k)
+            | _ =>
+              slot_id := Id.next(slot_id^);
+              [
+                Piece.Grout({
+                  id: slot_id^,
+                  shape: Convex,
+                }),
+              ];
+            }
           };
         },
       );
@@ -273,24 +400,6 @@ let shard_needs_hole = (t: Tile.t, shard_idx: int): bool => {
   };
 };
 
-/* Get delimiter info for missing shards of incomplete tiles.
- * For visualization: shows what text will be inserted and whether holes needed.
- * Takes tiles inner-first (reversed from left-to-right order). */
-let delimiters_from_incomplete =
-    (incomplete: list(Tile.t)): list(delimiter_info) =>
-  List.rev(incomplete)
-  |> List.concat_map((t: Tile.t) => {
-       let label = t.label;
-       Tile.right_missing_shards(t)
-       |> List.map((s: Tile.t) => {
-            let shard_idx = List.hd(s.shards);
-            {
-              text: List.nth(label, shard_idx),
-              needs_hole: shard_needs_hole(t, shard_idx),
-            };
-          });
-     });
-
 /* Viz records for leading openers: anchored Left of the piece at the
  * computed insertion index. Openers absorb existing content rightward,
  * so no hole follows. */
@@ -323,15 +432,16 @@ let middle_insertions = (incomplete: list(Tile.t)): list(insertion) =>
   |> List.concat_map((t: Tile.t) => {
        let lo = Tile.l_shard(t);
        let hi = Tile.r_shard(t);
+       let plan = middle_split_plan(t);
        let interior =
          List.init(hi - lo + 1, i => lo + i)
          |> List.filter(i => !List.mem(i, t.shards));
        interior
        |> List.filter_map(m => {
-            let k = List.length(List.filter(sh => sh < m, t.shards)) - 1;
-            switch (List.nth_opt(t.children, k)) {
-            | Some(child) =>
-              ListUtil.last_opt(child)
+            switch (plan) {
+            | Some((pm, left, _)) when pm == m =>
+              /* junction drop: shard lands inside the child, no hole */
+              ListUtil.last_opt(left)
               |> Option.map(p =>
                    {
                      adjacent_id: Piece.id(p),
@@ -339,13 +449,31 @@ let middle_insertions = (incomplete: list(Tile.t)): list(insertion) =>
                      delimiters: [
                        {
                          text: List.nth(t.label, m),
-                         needs_hole: shard_needs_hole(t, m),
+                         needs_hole: false,
                        },
                      ],
                    }
                  )
-            | None => None
-            };
+            | _ =>
+              let k = List.length(List.filter(sh => sh < m, t.shards)) - 1;
+              switch (List.nth_opt(t.children, k)) {
+              | Some(child) =>
+                ListUtil.last_opt(child)
+                |> Option.map(p =>
+                     {
+                       adjacent_id: Piece.id(p),
+                       side: Direction.Right,
+                       delimiters: [
+                         {
+                           text: List.nth(t.label, m),
+                           needs_hole: shard_needs_hole(t, m),
+                         },
+                       ],
+                     }
+                   )
+              | None => None
+              };
+            }
           });
      });
 
@@ -616,6 +744,147 @@ let drop_dangling_grout = (subseg: Segment.t): Segment.t => {
   subseg |> drop_edge |> List.rev |> drop_edge |> List.rev;
 };
 
+/* === Trailing-shard placement (sort-frontier clipping) ===
+ * A missing trailing delimiter closes a specific child slot (the
+ * shard's left-nib sort). For clippable (non-Exp) slots, the shard
+ * lands at the frontier: before the first following top-level piece
+ * that cannot inhabit that sort — `fun x` followed by a `let` line
+ * completes `fun x -> let ...`, not by absorbing the let into the
+ * pattern. When everything fits (or the slot is Exp-like), degrades
+ * to the partition-end append. Tiles process inner-first, preserving
+ * the old nesting order; an inner tile's own label rarely fits an
+ * outer non-Exp slot, so outer shards naturally clip before inner
+ * tiles. Returns viz records: clipped shards anchor at the piece
+ * before their landing site; unclipped ones aggregate at the
+ * partition's last piece as before. */
+let place_trailing_shards =
+    (~aggregate_anchor: option(Piece.t), seg: Segment.t, incomplete)
+    : (Segment.t, list(insertion)) => {
+  let insert_at = (i: int, pc: Piece.t, seg: Segment.t) => {
+    let (a, b) = ListUtil.split_n(i, seg);
+    a @ [pc] @ b;
+  };
+  let clip_position = (seg: Segment.t, ~from: int, slot: Sort.t): option(int) => {
+    let n = List.length(seg);
+    if (from >= n) {
+      None;
+    } else {
+      let (_, tail) = ListUtil.split_n(from, seg);
+      scan_frontier(~start=slot, tail) |> Option.map(j => from + j);
+    };
+  };
+  /* back over whitespace and junction grout so the shard lands
+     against the content it closes (concave grout at the boundary is
+     junction debris the final regrout re-derives; convex grout is a
+     real operand and stays absorbed) */
+  let rec back_over_boundary = (seg, j, floor) =>
+    if (j > floor) {
+      switch (List.nth_opt(seg, j - 1)) {
+      | Some(Piece.Secondary(_))
+      | Some(Piece.Grout({shape: Concave, _})) =>
+        back_over_boundary(seg, j - 1, floor)
+      | _ => j
+      };
+    } else {
+      j;
+    };
+  let place_one = ((seg, ins, agg), t: Tile.t) => {
+    let entries =
+      Tile.right_missing_shards(t)
+      |> List.map((sh: Tile.t) => {
+           let i = Tile.r_shard(sh);
+           (i, Piece.Tile(Tile.shard_of(t, i)));
+         });
+    let rec find_pos = (j, ps) =>
+      switch (ps) {
+      | [] => None
+      | [pc, ...rest] =>
+        Piece.id(pc) == t.id ? Some(j) : find_pos(j + 1, rest)
+      };
+    switch (find_pos(0, seg)) {
+    | None => (
+        seg @ List.map(snd, entries),
+        ins,
+        agg
+        @ List.map(
+            ((i, _)) =>
+              {
+                text: List.nth(t.label, i),
+                needs_hole: shard_needs_hole(t, i),
+              },
+            entries,
+          ),
+      )
+    | Some(pos) =>
+      let (seg, ins, agg, _) =
+        List.fold_left(
+          ((seg, ins, agg, cursor), (i, piece)) => {
+            let (l_nib, _) = Mold.nibs(~index=i, t.mold);
+            let clip =
+              clippable_sort(l_nib.sort)
+                ? clip_position(seg, ~from=cursor, l_nib.sort) : None;
+            switch (clip) {
+            | Some(stop) =>
+              let stop = back_over_boundary(seg, stop, cursor);
+              let anchor = stop > 0 ? List.nth_opt(seg, stop - 1) : None;
+              let seg = insert_at(stop, piece, seg);
+              let ins =
+                switch (anchor) {
+                | Some(a) => [
+                    {
+                      adjacent_id: Piece.id(a),
+                      side: Direction.Right,
+                      delimiters: [
+                        {
+                          text: List.nth(t.label, i),
+                          needs_hole: false,
+                        },
+                      ],
+                    },
+                    ...ins,
+                  ]
+                | None => ins
+                };
+              (seg, ins, agg, stop + 1);
+            | None => (
+                seg @ [piece],
+                ins,
+                agg
+                @ [
+                  {
+                    text: List.nth(t.label, i),
+                    needs_hole: shard_needs_hole(t, i),
+                  },
+                ],
+                List.length(seg) + 1,
+              )
+            };
+          },
+          (seg, ins, agg, pos + 1),
+          entries,
+        );
+      (seg, ins, agg);
+    };
+  };
+  let (seg, ins, agg) =
+    List.fold_left(place_one, (seg, [], []), List.rev(incomplete));
+  let ins =
+    switch (agg, aggregate_anchor) {
+    | ([], _)
+    | (_, None) => ins
+    | (delimiters, Some(pc)) =>
+      ins
+      @ [
+        {
+          adjacent_id: Piece.id(pc),
+          side: Direction.Right,
+          delimiters,
+        },
+      ]
+    };
+  (seg, ins);
+};
+
 let complete_segment =
     (~use_indent_heuristic=true, sort: Sort.t, seg: Segment.t)
     : completion_result => {
@@ -681,29 +950,14 @@ let complete_segment =
       insertions: [],
     };
   } else {
-    /* Compute insertions: for each partition with incomplete tiles,
-     * record the adjacent piece ID for later position lookup */
-    let insertions =
+    /* Per partition, one pass: phase-1 shard splicing AND the viz
+     * records (trailing placement computes clip positions used by
+     * both). Wraps splice first, interior gaps fill in place, openers
+     * land at their computed indices, then trailing shards place at
+     * their sort frontiers or the partition end. */
+    let completed_parts =
       partitioned
-      |> List.concat_map(((subseg, incomplete, wraps)) => {
-           /* trailing closers: offside at the partition's last piece.
-              Skip when there are none (a middle-only-missing tile is
-              incomplete but appends nothing — no spurious record). */
-           let trailing =
-             switch (
-               delimiters_from_incomplete(incomplete),
-               last_piece_for_insertion(subseg),
-             ) {
-             | ([], _)
-             | (_, None) => []
-             | (delimiters, Some(last_p)) => [
-                 {
-                   adjacent_id: Piece.id(last_p),
-                   side: Direction.Right,
-                   delimiters,
-                 },
-               ]
-             };
+      |> List.map(((subseg, incomplete, wraps)) => {
            let wrap_ins =
              wraps
              |> List.concat_map(((l_idx, r_idx, _)) =>
@@ -736,18 +990,11 @@ let complete_segment =
                   | _ => []
                   }
                 );
-           trailing
-           @ leading_insertions(subseg, incomplete)
-           @ middle_insertions(incomplete)
-           @ wrap_ins;
-         });
-
-    /* Phase 1: splice wrap shards (case/end around each rule-chain
-       span) and missing openers at their computed indices, fill interior
-       gaps in place, and append missing closers at the partition end */
-    let seg_with_shards =
-      partitioned
-      |> List.concat_map(((subseg, incomplete, wraps)) => {
+           let static_ins =
+             leading_insertions(subseg, incomplete)
+             @ middle_insertions(incomplete)
+             @ wrap_ins;
+           let aggregate_anchor = last_piece_for_insertion(subseg);
            let wrap_inserts =
              wraps
              |> List.concat_map(((l_idx, r_idx, id)) => {
@@ -765,9 +1012,13 @@ let complete_segment =
                   | pc => pc
                   }
                 );
-           insert_openers(subseg, incomplete)
-           @ shards_from_incomplete(incomplete);
+           let subseg = insert_openers(subseg, incomplete);
+           let (subseg, trail_ins) =
+             place_trailing_shards(~aggregate_anchor, subseg, incomplete);
+           (subseg, trail_ins @ static_ins);
          });
+    let insertions = List.concat_map(snd, completed_parts);
+    let seg_with_shards = List.concat_map(fst, completed_parts);
 
     /* Phase 2: Regrout to make segment well-formed for reassemble */
     let regrouted =
