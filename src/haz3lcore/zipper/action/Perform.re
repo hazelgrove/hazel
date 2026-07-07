@@ -9,6 +9,35 @@ type state = {
 let return = (error: Action.Failure.t, z: option(Zipper.t)) =>
   Result.of_option(~error, z);
 
+/* Put_down splices complete shard pieces without lexing, so it can
+   create bare glom junctions the lexer could never produce (dropping
+   `in` after `end` gives end|in). Insert the space the lexer would
+   have forced, on both sides of the drop. */
+let space_put_down_boundary = (z: Zipper.t): Zipper.t => {
+  let needs = (l: Piece.t, r: Piece.t) =>
+    switch (SpaceNormalize.last_token(l), SpaceNormalize.first_token(r)) {
+    | (Some(a), Some(b)) => SpaceNormalize.needs_space(a, b)
+    | _ => false
+    };
+  let (pre, suf) = z.relatives.siblings;
+  /* left junction only: the right side (dropped shard abutting a
+     following keyword) is a transient wrap state whose glued form is
+     load-bearing for existing flows */
+  let pre =
+    switch (List.rev(pre)) {
+    | [last, prev, ...rest] when needs(prev, last) =>
+      List.rev([last, SpaceNormalize.space(), prev, ...rest])
+    | _ => pre
+    };
+  {
+    ...z,
+    relatives: {
+      ...z.relatives,
+      siblings: (pre, suf),
+    },
+  };
+};
+
 let rec go =
         (
           ~settings: Language.CoreSettings.t,
@@ -248,6 +277,7 @@ let rec go =
   | Put_down =>
     let before = LocalReformat.snapshot(~enabled=settings.auto_reindent, z);
     Zipper.put_down(z, ~root)
+    |> Option.map(space_put_down_boundary)
     |> Option.map(maybe_reassoc)
     |> Option.map(LocalReformat.go(~before))
     |> return(Cant_put_down);
