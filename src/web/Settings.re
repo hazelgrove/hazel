@@ -81,7 +81,7 @@ module Model = {
       debug_show_raw: false,
       debug_collapsed: [],
     },
-    quiver: true, /* Enable by default for now, can change later */
+    quiver: false, /* Off by default; toggle via command palette */
     backpack: true, /* Show backpack by default */
     autoprobe_mode: false,
     agent_globals: AgentGlobals.init(),
