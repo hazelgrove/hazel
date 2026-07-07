@@ -308,9 +308,15 @@ module Selection = {
              "Re-indent",
            ),
            mk(
+             ~mdIcon="space_bar",
+             ~section="Formatting",
+             ~action=action(Format(Spacing)),
+             "Normalize Spacing",
+           ),
+           mk(
              ~mdIcon="format_align_left",
              ~section="Formatting",
-             ~hotkey=meta ++ "+s",
+             ~hotkey=meta ++ "+shift+s",
              ~action=action(Format(Pretty)),
              "Pretty Print",
            ),

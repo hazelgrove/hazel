@@ -36,6 +36,17 @@ module Evaluation = {
   };
 };
 
+module FormatShortcut = {
+  /* What cmd/ctrl+S does. Cumulative ladder: each level includes the
+   * previous. Cmd+Shift+S is always Breaks regardless. */
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t =
+    | Nothing /* no formatting */
+    | Indent /* re-indent only */
+    | Spaces /* re-indent + canonicalize within-line spacing */
+    | Breaks; /* full pretty print (may change linebreaks) */
+};
+
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
   statics: bool,
@@ -46,8 +57,7 @@ type t = {
   deep_reassociate: bool,
   /* Completion-triggered local re-indentation (experimental) */
   auto_reindent: bool,
-  /* cmd+S: full pretty print (true) or conservative re-indent (false) */
-  format_shortcut_pretty: bool,
+  format_shortcut: FormatShortcut.t,
   flip_animations: bool,
   display_warnings: bool,
   /* "Character-level mouse". When false (default), a mouse drag does
@@ -67,7 +77,7 @@ let off: t = {
   probe_all: false,
   deep_reassociate: false,
   auto_reindent: false,
-  format_shortcut_pretty: true,
+  format_shortcut: FormatShortcut.Spaces,
   flip_animations: false,
   display_warnings: false,
   selection_chunkiness: false,
@@ -82,7 +92,7 @@ let on: t = {
   probe_all: false, /* Off by default even in "on" config - opt-in feature */
   deep_reassociate: false,
   auto_reindent: true,
-  format_shortcut_pretty: true,
+  format_shortcut: FormatShortcut.Spaces,
   flip_animations: true,
   display_warnings: true,
   selection_chunkiness: false,

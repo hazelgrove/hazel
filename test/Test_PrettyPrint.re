@@ -1188,6 +1188,80 @@ else 3|},
   ),
 ];
 
+/* === SpaceNormalize canonicalize (Format(Spacing) backend) === */
+
+let respace = (input: string): string =>
+  switch (Parser.to_segment(input, ~root=Exp)) {
+  | Some(seg) =>
+    Printer.of_segment(
+      ~holes="?",
+      SpaceNormalize.go(~canonicalize=true, seg),
+    )
+  | None => failwith("Failed to parse: " ++ input)
+  };
+
+let test_respace = (~name, ~input, ~expected, ()): test_case(_) =>
+  test_case(name, `Quick, () =>
+    check(string, name, expected, respace(input))
+  );
+
+let respace_tests = [
+  test_respace(
+    ~name="run collapses to one space",
+    ~input="1  +   2",
+    ~expected="1 + 2",
+    (),
+  ),
+  test_respace(
+    ~name="space after comma survives, padding inside parens dies",
+    ~input="f( x ,  y )",
+    ~expected="f(x, y)",
+    (),
+  ),
+  test_respace(
+    ~name="alignment spacing collapses",
+    ~input="let x    = 1 in
+let yy   = 2 in
+x + yy",
+    ~expected="let x = 1 in
+let yy = 2 in
+x + yy",
+    (),
+  ),
+  test_respace(
+    ~name="indentation untouched",
+    ~input="let f =
+  fun q ->
+    q  +  1 in
+f(2)",
+    ~expected="let f =
+  fun q ->
+    q + 1 in
+f(2)",
+    (),
+  ),
+  test_respace(
+    ~name="comment-adjacent runs untouched",
+    ~input="1 + 2   # note #",
+    ~expected="1 + 2   # note #",
+    (),
+  ),
+  test_respace(
+    ~name="single spaces are a fixpoint",
+    ~input="let a = [1, 2] in if a == [] then 0 else 1",
+    ~expected="let a = [1, 2] in if a == [] then 0 else 1",
+    (),
+  ),
+  /* canonicalize never invents spacing the user omitted (bare `,2`
+     stays; only runs are collapsed / tight-deleted) */
+  test_respace(
+    ~name="bare junctions preserved as authored",
+    ~input="[ 1 ,2,  3 ]",
+    ~expected="[1,2, 3]",
+    (),
+  ),
+];
+
 let tests = [
   ("PrettyPrint.TrailingHoles", trailing_hole_tests),
   ("PrettyPrint.BlockFormBody", block_form_body_tests),
@@ -1204,4 +1278,5 @@ let tests = [
   ("PrettyPrint.Forms", form_tests),
   ("PrettyPrint.Composition", composition_tests),
   ("PrettyPrint.LabeledTuple", labeled_tuple_tests),
+  ("PrettyPrint.Respace", respace_tests),
 ];
