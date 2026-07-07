@@ -1342,14 +1342,21 @@ let negate_if_impl: impl = {
                  post-`if` lead (it now sits after `!`). Parens by
                  reparse oracle; the If node keeps its id. */
               let c = c |> strip_leading |> strip_trailing;
-              let c = parens ? fresh(Parens(c)) : c;
-              let cond = {
-                ...fresh(UnOp(Bool(Not), c)),
-                annotation: {
-                  ...IdTagged.IdTag.mk_internal([Id.mk()]),
-                  secondary: (space(), []),
-                },
-              };
+              /* self-inverse: negating a negation unwraps it */
+              let cond =
+                switch (IdTagged.term_of(c)) {
+                | UnOp(Bool(Not), inner) =>
+                  with_secondary((space(), []), strip_boundaries(inner))
+                | _ =>
+                  let c = parens ? fresh(Parens(c)) : c;
+                  {
+                    ...fresh(UnOp(Bool(Not), c)),
+                    annotation: {
+                      ...IdTagged.IdTag.mk_internal([Id.mk()]),
+                      secondary: (space(), []),
+                    },
+                  };
+                };
               let boundary = Slot.trail_of(t);
               Some((
                 {
@@ -2443,10 +2450,12 @@ let sink_let_impl: impl = {
     },
 };
 
-let remove_annotation_impl: impl = {
-  label: "Remove Type Annotation",
-  tooltip: "Drop this binding's type annotation",
-  prepare: (~info_map as _, ~target, program) =>
+/* the pre-`=` run lives on the removed type's trail; the head pat
+ * inherits it (else `let x= 1`) */
+let remove_annotation_build =
+    (~target: Id.t, program: Exp.t): option((Exp.t, Id.t, Id.t)) => {
+  let def_id = ref(None);
+  let result =
     rewrite_node(
       ~hit=hit_let(target),
       ~rewrite=
@@ -2454,15 +2463,22 @@ let remove_annotation_impl: impl = {
           switch (IdTagged.term_of(e)) {
           | Let(p, def, body) =>
             switch (IdTagged.term_of(p)) {
-            | Asc(inner, _) =>
-              /* inner takes over the Asc node's outer runs */
+            | Asc(inner, ann) =>
+              def_id := Some(Exp.rep_id(def));
               let (ab, aa) = p.annotation.secondary;
               let (ib, ia) = inner.annotation.secondary;
+              let (_, ann_after) = ann.annotation.secondary;
+              let after =
+                switch (ann_after @ aa, ia) {
+                | ([_, ..._] as run, _) => run
+                | ([], [_, ..._]) => ia
+                | ([], []) => space()
+                };
               let p': Pat.t = {
                 ...inner,
                 annotation: {
                   ...inner.annotation,
-                  secondary: (ab @ ib, ia @ aa),
+                  secondary: (ab @ ib, after),
                 },
               };
               Some((
@@ -2477,7 +2493,40 @@ let remove_annotation_impl: impl = {
           | _ => None
           },
       program,
-    ),
+    );
+  switch (result, def_id^) {
+  | (Some((prog, f)), Some(d)) => Some((prog, f, d))
+  | _ => None
+  };
+};
+
+/* only offer removal when Add could restore it: statics on the
+ * POST-removal program (the in-place def ty is analysis-driven by the
+ * annotation, so it can't answer this). A statics run here is fine:
+ * applies now fires only at menu-open, behind the annotated-let hit
+ * gate. */
+let annotation_recoverable = (program': Exp.t, def_id: Id.t): bool => {
+  let statics =
+    CachedStatics.init_from_term(
+      ~settings=CoreSettings.on,
+      ~is_dynamic_term=false,
+      program',
+    );
+  switch (Id.Map.find_opt(def_id, statics.info_map)) {
+  | Some(InfoExp({ty, _})) => typ_known(ty)
+  | _ => false
+  };
+};
+
+let remove_annotation_impl: impl = {
+  label: "Remove Type Annotation",
+  tooltip: "Drop this binding's type annotation",
+  prepare: (~info_map as _, ~target, program) =>
+    switch (remove_annotation_build(~target, program)) {
+    | Some((prog, f, d)) when annotation_recoverable(prog, d) =>
+      Some((prog, f))
+    | _ => None
+    },
 };
 
 let fresh_names = (k: int, program: Exp.t): list(string) => {
@@ -3279,16 +3328,10 @@ let applies =
     | None => false
     }
   | RemoveTypeAnnotation =>
-    let_applies(
-      ~pred=
-        (p, _, _) =>
-          switch (IdTagged.term_of(p)) {
-          | Asc(_) => true
-          | _ => false
-          },
-      target,
-      program,
-    )
+    switch (remove_annotation_build(~target, program)) {
+    | Some((prog, _, d)) => annotation_recoverable(prog, d)
+    | None => false
+    }
   | EtaExpand =>
     switch (find_hit(~hit=hit_node(target), program)) {
     | Some(e) =>

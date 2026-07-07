@@ -399,6 +399,42 @@ let annotation_tests = [
 
 let wave_tests = [
   test_case(
+    "remove annotation keeps the pre-= space (tight colon)",
+    `Quick,
+    () => {
+      let got =
+        inline(~kind=RemoveTypeAnnotation, "¦let x: Int = 1 in x") |> text_of;
+      check(string, "spaced", "let x = 1 in x", got);
+    },
+  ),
+  test_case("remove gated when add couldn't restore", `Quick, () =>
+    check(
+      bool,
+      "lambda annotation is one-way",
+      false,
+      offers(
+        RemoveTypeAnnotation,
+        "¦let f : Int -> Int = fun x -> x + 1 in f(1)",
+      ),
+    )
+  ),
+  test_case("remove offered when restorable", `Quick, () =>
+    check(
+      bool,
+      "tuple restores",
+      true,
+      offers(RemoveTypeAnnotation, "¦let p : (Int, Bool) = (1, true) in p"),
+    )
+  ),
+  test_case(
+    "negate is self-inverse",
+    `Quick,
+    () => {
+      let got = inline(~kind=NegateIf, "¦if !a then 1 else 2") |> text_of;
+      check(string, "unwrapped", "if a then 2 else 1", got);
+    },
+  ),
+  test_case(
     "remove type annotation",
     `Quick,
     () => {
