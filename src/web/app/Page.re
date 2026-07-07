@@ -406,6 +406,10 @@ module Update = {
 
   let calculate =
       (~schedule_action, ~is_edited, ~dynamics: bool, model: Model.t) => {
+    /* Gate worker wire benchmarking on the debug panel (the flag isn't
+       reachable at the WorkerClient.request call sites, which see only
+       settings.core). This runs before the modes below queue any request. */
+    WireMetrics.enabled := model.globals.settings.show_debug_panel;
     let editors =
       Editors.Update.calculate(
         ~settings=

@@ -1,15 +1,49 @@
 /**
- * Round-trip tests for the eval-worker wire protocol (issue #2368).
+ * Round-trip tests for the eval-worker wire protocols (issue #2368).
  *
- * These run under js_of_ocaml (node), so they exercise jsoo's real Marshal —
- * iterative, so it doesn't stack-overflow on deep structures. They guard the
- * encoding, not Chrome's structured-clone limit (which the string sidesteps and
- * node doesn't reproduce).
+ * Each WorkerServer.WIRE variant is exercised through the same battery: a
+ * payload is encoded, optionally run through structuredClone (the same
+ * serializer postMessage hands payloads to — so this is the real boundary),
+ * then decoded. These run under js_of_ocaml (node); node's test stack is 8MB,
+ * so the deep cases guard the encoding and round-trip fidelity rather than
+ * Chrome's smaller clone-stack limit.
+ *
+ * Coverage is per variant by what each can safely carry:
+ *   - columnar (Wire) and marshal are depth-proof — deep + wide + shallow.
+ *   - direct, array, sexp only get shallow/narrow payloads. Their failure on
+ *     deep input is NOT asserted here: raw structuredClone on a deep graph
+ *     overflows V8's *native* stack, which segfaults node uncatchably (in a
+ *     browser it throws a catchable RangeError — that asymmetry is exactly why
+ *     the app wraps the metrics path in try/catch). Verified manually in-browser.
  */
 open Alcotest;
 open Language;
 
 module Wire = WorkerServer.Wire;
+
+/* The same serializer postMessage applies to its argument. */
+let structured_clone: 'a. 'a => 'a =
+  x =>
+    Js_of_ocaml.Js.Unsafe.fun_call(
+      Js_of_ocaml.Js.Unsafe.pure_js_expr(
+        "(function (x) { return structuredClone(x); })",
+      ),
+      [|Js_of_ocaml.Js.Unsafe.inject(x)|],
+    );
+
+/* A round-trip driver for one wire variant: encode -> (clone?) -> decode.
+ * The abstract wire type stays inside the closure (only Response.t escapes),
+ * so this composes over all variants uniformly. */
+let rt_of_wire =
+    (wire: (module WorkerServer.WIRE))
+    : ((~clone: bool, WorkerServer.Response.t) => WorkerServer.Response.t) => {
+  module M = (val wire);
+  (~clone, resp) => {
+    let w = M.encode_response(resp);
+    let w = clone ? structured_clone(w) : w;
+    M.decode_response(w);
+  };
+};
 
 /* Build a `Parens`-nested expression `depth` levels deep, iteratively so that
  * constructing the fixture does not itself recurse `depth` frames deep. */
@@ -25,12 +59,13 @@ let response_of_exp = (e: Exp.t): WorkerServer.Response.t => [
   ("cell", Ok((e, EvaluatorState.init))),
 ];
 
-/* Reaching decode without raising is the Stack_overflow guard. For correctness
- * we compare marshaled bytes of the public Response.t (Marshal is
- * deterministic) rather than the values, whose polymorphic `=` would itself
- * recurse `depth` deep. */
-let assert_marshal_round_trips = (resp: WorkerServer.Response.t): unit => {
-  let restored = Wire.decode_response(Wire.encode_response(resp));
+/* Reaching decode without raising is the Stack_overflow guard. For
+ * correctness we compare marshaled bytes of the public Response.t (test-only;
+ * jsoo's Marshal is iterative and deterministic) rather than the values,
+ * whose polymorphic `=` would itself recurse `depth` deep. */
+let assert_round_trips =
+    (~rt, ~clone: bool, resp: WorkerServer.Response.t): unit => {
+  let restored = rt(~clone, resp);
   check(
     string,
     "round-trips to identical bytes",
@@ -39,9 +74,21 @@ let assert_marshal_round_trips = (resp: WorkerServer.Response.t): unit => {
   );
 };
 
-let test_deep_round_trip = (~name: string, ~depth: int): test_case(_) =>
+let test_deep_round_trip =
+    (~rt, ~name: string, ~clone: bool, ~depth: int): test_case(_) =>
   test_case(name, `Quick, () =>
-    assert_marshal_round_trips(response_of_exp(deep_exp(depth)))
+    assert_round_trips(~rt, ~clone, response_of_exp(deep_exp(depth)))
+  );
+
+let test_wide_list_round_trip = (~rt, ~name: string, ~n: int): test_case(_) =>
+  test_case(name, `Quick, () =>
+    assert_round_trips(
+      ~rt,
+      ~clone=true,
+      response_of_exp(
+        Exp.fresh(ListLit(List.init(n, i => Exp.fresh(Atom(SInt(i)))))),
+      ),
+    )
   );
 
 let parse = (s: string): Exp.t =>
@@ -52,14 +99,14 @@ let parse = (s: string): Exp.t =>
 
 /* A normal (shallow) program still round-trips, and the decoded expression is
  * equal to the original — the protocol change touches every evaluation. */
-let test_realistic_round_trip = (~name: string, ~code: string): test_case(_) =>
+let test_realistic_round_trip =
+    (~rt, ~name: string, ~code: string): test_case(_) =>
   test_case(
     name,
     `Quick,
     () => {
       let e = parse(code);
-      let resp = response_of_exp(e);
-      let restored = Wire.decode_response(Wire.encode_response(resp));
+      let restored = rt(~clone=true, response_of_exp(e));
       switch (restored) {
       | [("cell", Ok((e', _))), ..._] =>
         check(
@@ -73,21 +120,137 @@ let test_realistic_round_trip = (~name: string, ~code: string): test_case(_) =>
     },
   );
 
+/* A block reaching the boundary twice must decode as one block referenced
+ * twice, not two copies — otherwise DAG-shaped payloads (e.g. IncrEval.prev)
+ * expand on the way across. Every variant preserves sharing: columnar numbers
+ * blocks by identity, marshal/sexp record sharing, and structuredClone (direct,
+ * array) preserves aliasing. */
+let test_sharing_preserved = (~rt): test_case(_) =>
+  test_case(
+    "Sharing preserved",
+    `Quick,
+    () => {
+      let shared = parse("[1, 2, 3]");
+      let resp: WorkerServer.Response.t = [
+        ("a", Ok((shared, EvaluatorState.init))),
+        ("b", Ok((shared, EvaluatorState.init))),
+      ];
+      switch (rt(~clone=true, resp)) {
+      | [("a", Ok((a, _))), ("b", Ok((b, _)))] =>
+        check(bool, "decoded occurrences are physically equal", true, a === b)
+      | _ => fail("round-trip did not preserve response shape")
+      };
+    },
+  );
+
+/* Shared battery every variant must pass. Sharing preservation is asserted
+ * per group (below) rather than here: it holds for all variants except sexp,
+ * which is a tree serialization and legitimately duplicates shared structure. */
+let shallow_tests = (~rt): list(test_case(_)) => [
+  test_realistic_round_trip(
+    ~rt,
+    ~name="Let with list",
+    ~code="let x = [1, 2, 3] in x",
+  ),
+  test_realistic_round_trip(
+    ~rt,
+    ~name="Factorial",
+    ~code=
+      "let fact = fun n -> if n <= 0 then 1 else n * fact(n - 1) in fact(5)",
+  ),
+];
+
+let columnar = rt_of_wire((module WorkerServer.Wire));
+let marshal = rt_of_wire((module WorkerServer.MarshalWire));
+let sexp = rt_of_wire((module WorkerServer.SexpWire));
+let direct = rt_of_wire((module WorkerServer.DirectWire));
+let array = rt_of_wire((module WorkerServer.ArrayWire));
+
 let tests = [
   (
     "WorkerServer.Wire",
     [
-      test_deep_round_trip(~name="Deep expression (1k)", ~depth=1000),
-      test_deep_round_trip(~name="Deep expression (20k)", ~depth=20000),
-      test_realistic_round_trip(
-        ~name="Let with list",
-        ~code="let x = [1, 2, 3] in x",
+      test_deep_round_trip(
+        ~rt=columnar,
+        ~name="Deep (1k)",
+        ~clone=false,
+        ~depth=1000,
       ),
-      test_realistic_round_trip(
-        ~name="Factorial",
-        ~code=
-          "let fact = fun n -> if n <= 0 then 1 else n * fact(n - 1) in fact(5)",
+      test_deep_round_trip(
+        ~rt=columnar,
+        ~name="Deep (20k)",
+        ~clone=false,
+        ~depth=20000,
       ),
-    ],
+      test_deep_round_trip(
+        ~rt=columnar,
+        ~name="Deep through structuredClone (20k)",
+        ~clone=true,
+        ~depth=20000,
+      ),
+      test_wide_list_round_trip(
+        ~rt=columnar,
+        ~name="Wide list through structuredClone (10k)",
+        ~n=10_000,
+      ),
+    ]
+    @ shallow_tests(~rt=columnar)
+    @ [test_sharing_preserved(~rt=columnar)],
+  ),
+  (
+    /* Marshal is iterative, so also depth- and width-proof. */
+    "WorkerServer.MarshalWire",
+    [
+      test_deep_round_trip(
+        ~rt=marshal,
+        ~name="Deep through structuredClone (20k)",
+        ~clone=true,
+        ~depth=20000,
+      ),
+      test_wide_list_round_trip(
+        ~rt=marshal,
+        ~name="Wide list through structuredClone (10k)",
+        ~n=10_000,
+      ),
+    ]
+    @ shallow_tests(~rt=marshal)
+    @ [test_sharing_preserved(~rt=marshal)],
+  ),
+  (
+    /* Direct = identity. clone=false is a trivial identity round-trip; deep
+     * clone=true is the #2368 crash and deliberately not exercised (see file
+     * header). Sharing + shallow still validate the identity path. */
+    "WorkerServer.DirectWire",
+    [
+      test_deep_round_trip(
+        ~rt=direct,
+        ~name="Deep identity (20k)",
+        ~clone=false,
+        ~depth=20000,
+      ),
+    ]
+    @ shallow_tests(~rt=direct)
+    @ [test_sharing_preserved(~rt=direct)],
+  ),
+  (
+    /* Sexp converters recurse per level, so deep payloads are out of scope.
+     * No sharing assertion: sexp is a tree format and legitimately duplicates
+     * shared sub-structure (the derived converters don't record DAG sharing). */
+    "WorkerServer.SexpWire",
+    shallow_tests(~rt=sexp),
+  ),
+  (
+    /* ArrayWire flattens only the top-level spine; the list inside a single
+     * entry crosses raw, so keep the wide case at 1k. */
+    "WorkerServer.ArrayWire",
+    [
+      test_wide_list_round_trip(
+        ~rt=array,
+        ~name="Wide list through structuredClone (1k)",
+        ~n=1_000,
+      ),
+    ]
+    @ shallow_tests(~rt=array)
+    @ [test_sharing_preserved(~rt=array)],
   ),
 ];

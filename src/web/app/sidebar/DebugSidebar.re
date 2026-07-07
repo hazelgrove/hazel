@@ -717,6 +717,108 @@ let toggle_bar = (~globals: Globals.t): Node.t => {
   );
 };
 
+/* ---- Wire Metrics: per-request benchmarks of the worker wire protocols ----
+   (WireMetrics), populated only while the debug panel is open. Correlated by
+   request id, one table per direction (request/response), a row per variant. */
+
+let ms_str = (f: float): string => Printf.sprintf("%.2f", f);
+
+let size_str = (bytes: int): string =>
+  bytes >= 1024 * 1024
+    ? Printf.sprintf("%.1fM", float_of_int(bytes) /. 1024. /. 1024.)
+    : bytes >= 1024
+        ? Printf.sprintf("%.1fK", float_of_int(bytes) /. 1024.)
+        : string_of_int(bytes) ++ "B";
+
+let wm_head = (label: string): Node.t =>
+  Node.td(~attrs=[clss(["wm-head"])], [text(label)]);
+
+let wm_metric_row = (m: WireMetrics.dir_metric): Node.t => {
+  let total = m.encode_ms +. m.clone_ms +. m.decode_ms;
+  let (status_text, status_cls) =
+    switch (m.status) {
+    | Ok => ("ok", "wm-ok")
+    | Failed(e) => (e, "wm-fail")
+    };
+  Node.tr([
+    Node.td(~attrs=[clss(["wm-wire"])], [text(m.wire)]),
+    Node.td([text(ms_str(m.encode_ms))]),
+    Node.td([text(ms_str(m.clone_ms))]),
+    Node.td([text(ms_str(m.decode_ms))]),
+    Node.td(~attrs=[clss(["wm-total"])], [text(ms_str(total))]),
+    Node.td([text(size_str(m.size_bytes))]),
+    Node.td(
+      ~attrs=[clss([status_cls]), Attr.title(status_text)],
+      [text(status_text)],
+    ),
+  ]);
+};
+
+let wm_direction_table =
+    (label: string, rows: list(WireMetrics.dir_metric)): Node.t =>
+  Node.table(
+    ~attrs=[clss(["wire-metrics-table"])],
+    [
+      Node.tr([
+        Node.td(
+          ~attrs=[Attr.create("colspan", "7"), clss(["wm-caption"])],
+          [text(label)],
+        ),
+      ]),
+      Node.tr([
+        wm_head("wire"),
+        wm_head("enc"),
+        wm_head("clone"),
+        wm_head("dec"),
+        wm_head("total"),
+        wm_head("size"),
+        wm_head("status"),
+      ]),
+      ...List.map(wm_metric_row, rows),
+    ],
+  );
+
+let wm_record_view = (r: WireMetrics.record): Node.t => {
+  let title =
+    Printf.sprintf(
+      "#%d · %d %s",
+      r.id,
+      r.entries,
+      r.entries == 1 ? "entry" : "entries",
+    );
+  let response_table =
+    switch (r.response) {
+    | [] => [
+        div(
+          ~attrs=[clss(["wm-pending"])],
+          [text("response pending / timed out")],
+        ),
+      ]
+    | rows => [wm_direction_table("response", rows)]
+    };
+  div(
+    ~attrs=[clss(["wm-record"])],
+    [
+      div(~attrs=[clss(["wm-record-title"])], [text(title)]),
+      wm_direction_table("request", r.request),
+    ]
+    @ response_table,
+  );
+};
+
+let wire_metrics_view = (~globals): list(Node.t) =>
+  section(~globals, "Wire Metrics", () =>
+    switch (WireMetrics.history^) {
+    | [] => [
+        div(
+          ~attrs=[clss(["wm-empty"])],
+          [text("No requests recorded yet — evaluate a program.")],
+        ),
+      ]
+    | records => List.map(wm_record_view, records)
+    }
+  );
+
 let view = (~globals: Globals.t, ~cursor: Cursor.cursor(_)): Node.t => {
   let raw = globals.settings.sidebar.debug_show_raw;
   div(
@@ -736,10 +838,13 @@ let view = (~globals: Globals.t, ~cursor: Cursor.cursor(_)): Node.t => {
             | Some(ci) => info_view(~globals, ~raw, ci)
             };
           let syntax_sections = syntax_view(~globals, ~cursor);
-          switch (info_sections, syntax_sections) {
-          | ([], []) => [text("No info at cursor.")]
-          | _ => info_sections @ syntax_sections
-          };
+          let cursor_sections =
+            switch (info_sections, syntax_sections) {
+            | ([], []) => [text("No info at cursor.")]
+            | _ => info_sections @ syntax_sections
+            };
+          /* Metrics render regardless of cursor state. */
+          cursor_sections @ wire_metrics_view(~globals);
         },
       ),
     ],

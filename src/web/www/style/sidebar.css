@@ -662,3 +662,68 @@
   gap: 0.3em;
   color: var(--BR4);
 }
+
+/* Wire Metrics section: per-request wire-protocol benchmark tables. */
+#debug-sidebar .wm-record {
+  margin: 0.4em 0 0.8em;
+}
+
+#debug-sidebar .wm-record-title {
+  font-weight: 600;
+  color: var(--BR4);
+  margin: 0.5em 0 0.2em;
+}
+
+#debug-sidebar .wire-metrics-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+  margin-bottom: 0.3em;
+}
+
+#debug-sidebar .wire-metrics-table td {
+  padding: 0.1em 0.3em;
+  text-align: right;
+  white-space: nowrap;
+}
+
+#debug-sidebar .wire-metrics-table .wm-caption {
+  text-align: left;
+  font-style: italic;
+  opacity: 0.7;
+  padding-top: 0.3em;
+}
+
+#debug-sidebar .wire-metrics-table .wm-head {
+  font-weight: 600;
+  color: var(--BR3);
+  border-bottom: 1px solid var(--BR1);
+}
+
+#debug-sidebar .wire-metrics-table .wm-wire {
+  text-align: left;
+  font-weight: 600;
+}
+
+#debug-sidebar .wire-metrics-table .wm-total {
+  font-weight: 600;
+}
+
+#debug-sidebar .wire-metrics-table .wm-ok {
+  color: var(--G0);
+}
+
+#debug-sidebar .wire-metrics-table .wm-fail {
+  color: var(--R2);
+  text-align: left;
+  max-width: 8em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+#debug-sidebar .wm-empty,
+#debug-sidebar .wm-pending {
+  opacity: 0.6;
+  font-style: italic;
+  margin: 0.3em 0;
+}
