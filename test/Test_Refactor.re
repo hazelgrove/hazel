@@ -191,6 +191,19 @@ let refactor_tests = [
     },
   ),
   test_case(
+    "inline parens are per-occurrence, not all-or-nothing",
+    `Quick,
+    () => {
+      let got = inline("¦let x = 1 + 2 in f(x + 3, 3 - x)") |> text_of;
+      check(
+        string,
+        "first bare, second parenthesized",
+        "f(1 + 2 + 3, 3 - (1 + 2))",
+        got,
+      );
+    },
+  ),
+  test_case(
     "compound def parenthesized when reparse differs",
     `Quick,
     () => {
@@ -775,6 +788,21 @@ let more_tests = [
         string,
         "own line, chain order",
         "let a = 1 in\nlet x = f(2) in\ng(x)",
+        got,
+      );
+    },
+  ),
+  test_case(
+    "extract does not duplicate a preceding comment block",
+    `Quick,
+    () => {
+      let got =
+        inline(~kind=ExtractLet, "# note #\nlet a = 1 in\ng(f¦(2))")
+        |> text_of;
+      check(
+        string,
+        "comment kept once",
+        "# note #\nlet a = 1 in\nlet x = f(2) in\ng(x)",
         got,
       );
     },

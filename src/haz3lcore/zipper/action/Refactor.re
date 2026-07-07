@@ -139,6 +139,34 @@ let space = (): list(Secondary.t) => [
   },
 ];
 
+/* a fresh separator copying a run's LINE SHAPE only: newline + the
+ * indentation after its last linebreak. Never copies comments — lead
+ * runs include them, and copy_runs once duplicated a comment block
+ * above an extraction site. */
+let sep_like = (run: list(Secondary.t)): list(Secondary.t) => {
+  let text =
+    run
+    |> List.filter_map((w: Secondary.t) =>
+         switch (w.content) {
+         | Whitespace(s) => Some(s)
+         | _ => None
+         }
+       )
+    |> String.concat("");
+  switch (String.rindex_opt(text, '\n')) {
+  | Some(i) => [
+      {
+        id: Id.mk(),
+        content:
+          Whitespace(
+            "\n" ++ String.sub(text, i + 1, String.length(text) - i - 1),
+          ),
+      },
+    ]
+  | None => space()
+  };
+};
+
 let newline = (): list(Secondary.t) => [
   {
     id: Id.mk(),
@@ -546,7 +574,7 @@ let rename_syntactic = (y: string, y': string, e: Exp.t): Exp.t =>
  * variable of def (~avoid) are renamed to a fresh name first. */
 let rec subst =
         (
-          ~bare: bool,
+          ~parens_for: Exp.t => bool,
           ~avoid: list(string),
           ~used: ref(list(string)),
           x: string,
@@ -554,7 +582,7 @@ let rec subst =
           e: Exp.t,
         )
         : Exp.t => {
-  let go = subst(~bare, ~avoid, ~used, x, def);
+  let go = subst(~parens_for, ~avoid, ~used, x, def);
   /* rename p's avoid-colliding binders in p + the given scopes */
   let freshen = (p: Pat.t, scopes: list(Exp.t)): (Pat.t, list(Exp.t)) =>
     pat_var_names(p)
@@ -577,8 +605,7 @@ let rec subst =
        );
   let (term, rewrap) = Exp.unwrap(e);
   switch (term) {
-  | Var(y) when y == x =>
-    inserted(~parens=!bare && needs_parens(def), def, e)
+  | Var(y) when y == x => inserted(~parens=parens_for(e), def, e)
   | Let(p, d, body) =>
     let recursive =
       switch (IdTagged.term_of(d)) {
@@ -883,12 +910,99 @@ let rewrite_let =
     program,
   );
 
+/* root-to-node path to the first node matched by ~hit */
+let rec find_path = (~hit: Exp.t => bool, e: Exp.t): option(list(Exp.t)) =>
+  if (hit(e)) {
+    Some([e]);
+  } else {
+    children_of(e)
+    |> List.find_map(c => find_path(~hit, c))
+    |> Option.map(rest => [e, ...rest]);
+  };
+
+let same_node = (a: Exp.t, b: Exp.t): bool =>
+  Exp.rep_id(a) == Exp.rep_id(b);
+
+let replace_node = (~at: Id.t, ~with_: Exp.t, e: Exp.t): Exp.t => {
+  let done_ = ref(false);
+  Exp.map_term(
+    ~f_exp=
+      (cont, e': Exp.t) =>
+        if (! done_^ && Exp.rep_id(e') == at) {
+          done_ := true;
+          with_;
+        } else {
+          cont(e');
+        },
+    e,
+  );
+};
+
+/* unshadowed occurrences of x (the nodes themselves) */
+let occurrences_of = (x: string, e: Exp.t): list(Exp.t) => {
+  let acc = ref([]);
+  let _ =
+    map_unshadowed(
+      ~skip=x,
+      ~f_var=
+        e' => {
+          switch (IdTagged.term_of(e')) {
+          | Var(z) when z == x => acc := [e', ...acc^]
+          | _ => ()
+          };
+          None;
+        },
+      e,
+    );
+  acc^;
+};
+
+/* The smallest delimiter-bounded region containing the node: a slot
+ * whose extent is closed by its parent tile's shards (a def, parens
+ * or ap-arg interior, a then-branch, a scrutinee, a list element).
+ * Extent effects cannot cross shards, so a reparse check of this
+ * region alone is sound — and cheap, unlike reparsing the program. */
+let bounded_region = (occ_id: Id.t, program: Exp.t): Exp.t => {
+  let bounded = (parent: Exp.t, child: Exp.t): bool =>
+    switch (IdTagged.term_of(parent)) {
+    | Let(_, d, _) => same_node(d, child)
+    | Parens(inner) => same_node(inner, child)
+    | Ap(Forward, _, arg) => same_node(arg, child)
+    | If(_, t, _) => same_node(t, child)
+    | Match(scrut, _) => same_node(scrut, child)
+    | ListLit(items) => items |> List.exists(it => same_node(it, child))
+    | _ => false
+    };
+  switch (find_path(~hit=e => Exp.rep_id(e) == occ_id, program)) {
+  | None => program
+  | Some(path) =>
+    let rec lowest = (region: Exp.t, path: list(Exp.t)): Exp.t =>
+      switch (path) {
+      | [parent, child, ...rest] =>
+        lowest(bounded(parent, child) ? child : region, [child, ...rest])
+      | _ => region
+      };
+    lowest(program, path);
+  };
+};
+
+let reparses_region = (region: Exp.t): bool => {
+  let seg =
+    ExpToSegment.exp_to_segment(~settings=roundtrip_settings, region)
+    |> SpaceNormalize.go;
+  let text = Printer.of_segment(~holes="?", ~refractors=[], seg);
+  switch (Parser.to_segment(text, ~root=Exp)) {
+  | None => false
+  | Some(seg2) => Exp.fast_equal(MakeTerm.go(seg2).term, region)
+  };
+};
+
 let inline_let_impl: impl = {
   label: "Inline Let",
   tooltip: "Replace this let by substituting its definition",
   /* also offered at occurrences of the bound var */
   prepare: (~info_map, ~target, program) => {
-    let attempt_with = (~bare, target) =>
+    let attempt = target =>
       rewrite_let(
         ~target,
         ~matches=
@@ -968,8 +1082,6 @@ let inline_let_impl: impl = {
                   | _ => pad(argp)
                   };
                 let lam = fresh(Fun(param, def, None, None));
-                /* a ret annotation makes the binder ? -> Ret exactly:
-                   the param side was always unknown (andrew) */
                 switch (IdTagged.term_of(p)) {
                 | Asc(_, ret) =>
                   let arrow =
@@ -991,17 +1103,33 @@ let inline_let_impl: impl = {
               };
             let avoid = vars_of(def) |> List.filter(v => free_in(v, def));
             let used = ref(used_names(program));
-            (subst(~bare, ~avoid, ~used, x, def, body), Exp.rep_id(def));
+            /* Per-occurrence parens: an occurrence goes bare iff its
+               smallest delimiter-bounded region reparses identically
+               with the bare def spliced in. */
+            let bare_ids =
+              needs_parens(def)
+                ? occurrences_of(x, body)
+                  |> List.filter_map(occ => {
+                       let region = bounded_region(Exp.rep_id(occ), program);
+                       let candidate =
+                         replace_node(
+                           ~at=Exp.rep_id(occ),
+                           ~with_=inserted(~parens=false, def, occ),
+                           region,
+                         );
+                       reparses_region(candidate)
+                         ? Some(Exp.rep_id(occ)) : None;
+                     })
+                : occurrences_of(x, body) |> List.map(Exp.rep_id);
+            let parens_for = occ =>
+              needs_parens(def) && !List.mem(Exp.rep_id(occ), bare_ids);
+            let body' = subst(~parens_for, ~avoid, ~used, x, def, body);
+            /* caret stays at the edit site (the vacated line) rather
+               than jumping to whichever copy kept the original ids */
+            (body', Exp.rep_id(body'));
           },
         program,
       );
-    /* parens only where the reparse oracle proves them necessary */
-    let attempt = target =>
-      switch (attempt_with(~bare=true, target)) {
-      | Some((cand, f)) when reparses_same(cand) => Some((cand, f))
-      | Some(_) => attempt_with(~bare=false, target)
-      | None => None
-      };
     switch (attempt(target)) {
     | Some(r) => Some(r)
     | None =>
@@ -1223,19 +1351,6 @@ let copy_runs = (ws: list(Secondary.t)): list(Secondary.t) =>
  * escapes a binder (the recursive-let def is the one exception,
  * checked explicitly). */
 
-/* root-to-node path to the first node matched by ~hit */
-let rec find_path = (~hit: Exp.t => bool, e: Exp.t): option(list(Exp.t)) =>
-  if (hit(e)) {
-    Some([e]);
-  } else {
-    children_of(e)
-    |> List.find_map(c => find_path(~hit, c))
-    |> Option.map(rest => [e, ...rest]);
-  };
-
-let same_node = (a: Exp.t, b: Exp.t): bool =>
-  Exp.rep_id(a) == Exp.rep_id(b);
-
 let line_child = (parent: Exp.t, child: Exp.t): bool =>
   switch (IdTagged.term_of(parent)) {
   | Let(_, _, body) => same_node(body, child)
@@ -1287,21 +1402,6 @@ let crossed_rec_binders = (line: Exp.t, path: list(Exp.t)): list(string) => {
   go(false, path);
 };
 
-let replace_node = (~at: Id.t, ~with_: Exp.t, e: Exp.t): Exp.t => {
-  let done_ = ref(false);
-  Exp.map_term(
-    ~f_exp=
-      (cont, e': Exp.t) =>
-        if (! done_^ && Exp.rep_id(e') == at) {
-          done_ := true;
-          with_;
-        } else {
-          cont(e');
-        },
-    e,
-  );
-};
-
 let extract_let_impl: impl = {
   label: "Extract to Let",
   tooltip: "Bind this expression to a fresh variable at the enclosing line",
@@ -1346,11 +1446,7 @@ let extract_let_impl: impl = {
       let s = Slot.of_exp(t);
       let def = pad(Slot.drop(s, t));
       let use = Slot.give(s, fresh(Var(x)));
-      let sep =
-        switch (Slot.of_exp(line).lead) {
-        | [] => space()
-        | runs => copy_runs(runs)
-        };
+      let sep = sep_like(Slot.of_exp(line).lead);
       let build = (~parens: bool) =>
         rewrite_node(
           ~hit=same_node(line),
@@ -1463,7 +1559,7 @@ let negate_if_impl: impl = {
                       Slot.drop(boundary, t),
                     ),
                 },
-                Exp.rep_id(c),
+                Exp.rep_id(cond),
               ));
             | _ => None
             },
@@ -1531,11 +1627,7 @@ let add_case_arm_impl: impl = {
               /* the last body's trailing run stays put, becoming the
                  separator before the new |; the new body gets a fresh
                  copy so end keeps its position style */
-              let sep =
-                switch (Slot.trail_of(last_body).trail) {
-                | [] => space()
-                | runs => copy_runs(runs)
-                };
+              let sep = sep_like(Slot.trail_of(last_body).trail);
               let body = {
                 ...fresh(EmptyHole),
                 annotation: {
@@ -2170,7 +2262,7 @@ let hoist_step =
             has_newline(l_lead)
             || has_newline(fst(lbody.annotation.secondary));
           switch (p_lead) {
-          | [_, ..._] => copy_runs(p_lead)
+          | [_, ..._] => sep_like(p_lead)
           | [] => multiline ? newline() : []
           };
         };
@@ -2281,7 +2373,7 @@ let hoist_step =
             has_newline(l_lead)
             || has_newline(fst(lbody.annotation.secondary));
           switch (p_lead) {
-          | [_, ..._] => copy_runs(p_lead)
+          | [_, ..._] => sep_like(p_lead)
           | [] => multiline ? newline() : []
           };
         };
@@ -3944,8 +4036,28 @@ let go =
         ...Zipper.unzip(seg),
         refractors: z.refractors,
       };
+      /* caret fallback chain: the transform's focus id, else where
+         the user was (target), else its statics ancestors — a
+         vanished focus must not dump the caret at the document end */
+      let ancestors =
+        switch (Id.Map.find_opt(target, info_map)) {
+        | Some(InfoExp({ancestors, _}))
+        | Some(InfoPat({ancestors, _})) => ancestors
+        | _ => []
+        };
+      let z'' =
+        [focus, target]
+        @ ancestors
+        |> List.fold_left(
+             (acc, id) =>
+               switch (acc) {
+               | Some(_) => acc
+               | None => Move.jump_to_id_indicated(z', id)
+               },
+             None,
+           );
       Some(
-        switch (Move.jump_to_id_indicated(z', focus)) {
+        switch (z'') {
         | Some(z'') => z''
         | None => z'
         },
