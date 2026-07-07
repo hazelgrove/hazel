@@ -3496,6 +3496,15 @@ let rec pats_disjoint = (a: Pat.t, b: Pat.t): bool => {
   };
 };
 
+/* the arm's slot |/=> delimiter ids: Match.ids = [case/end tile id,
+ * ...rule tile ids], tail-aligned with the rules (MakeTerm's "Match
+ * absorption"). Positional — delimiters belong to slots, not arms. */
+let arm_slot_ids = (e: Exp.t): list(Id.t) =>
+  switch (e.annotation.ids) {
+  | [_case_end, ...rule_ids] => rule_ids
+  | [] => []
+  };
+
 let swap_arms_rewrite =
     (~target: Id.t, i: int, e: Exp.t): option((Exp.t, Id.t)) =>
   switch (IdTagged.term_of(e)) {
@@ -3518,11 +3527,22 @@ let swap_arms_rewrite =
                r;
              }
            );
-      /* focus follows the arm the caret was on (pat ids survive) */
+      /* focus follows the arm the caret was on: pat ids travel with
+         the content; slot delimiter ids stay put, so a delimiter
+         invocation hops to the neighboring slot's delimiter */
+      let slots = arm_slot_ids(e);
+      let slot = j => List.nth_opt(slots, j);
       let focus =
-        List.mem(target, pat_subtree_ids(pa))
-        || List.mem(target, pat_subtree_ids(pb))
-          ? target : Pat.rep_id(pa);
+        if (List.mem(target, pat_subtree_ids(pa))
+            || List.mem(target, pat_subtree_ids(pb))) {
+          target;
+        } else if (slot(i) == Some(target)) {
+          Option.value(slot(i + 1), ~default=target);
+        } else if (slot(i + 1) == Some(target)) {
+          Option.value(slot(i), ~default=target);
+        } else {
+          Pat.rep_id(pa);
+        };
       Some((
         {
           ...e,
@@ -3537,22 +3557,35 @@ let swap_arms_rewrite =
   };
 
 /* index of the arm whose pattern subtree contains the target */
+/* an arm is targetable at its pattern or its slot's |/=> delimiters */
 let arm_index_at = (target: Id.t, e: Exp.t): option(int) =>
   switch (IdTagged.term_of(e)) {
   | Match(_, rules) =>
-    rules
-    |> List.mapi((j, (p, _)) => (j, p))
-    |> List.find_opt(((_, p)) => List.mem(target, pat_subtree_ids(p)))
-    |> Option.map(fst)
+    let by_pat =
+      rules
+      |> List.mapi((j, (p, _)) => (j, p))
+      |> List.find_opt(((_, p)) => List.mem(target, pat_subtree_ids(p)))
+      |> Option.map(fst);
+    switch (by_pat) {
+    | Some(_) => by_pat
+    | None =>
+      arm_slot_ids(e)
+      |> List.mapi((j, id) => (j, id))
+      |> List.find_opt(((j, id)) => id == target && j < List.length(rules))
+      |> Option.map(fst)
+    };
   | _ => None
   };
+
+let hit_arm = (target: Id.t, e: Exp.t): bool =>
+  arm_index_at(target, e) != None;
 
 let swap_arms_impl = (i: int): impl => {
   label: "Move arm",
   tooltip: "Swap this arm with its neighbor (patterns must not overlap)",
   prepare: (~info_map as _, ~target, program) =>
     rewrite_node(
-      ~hit=hit_match_pat(target),
+      ~hit=hit_arm(target),
       ~rewrite=e => swap_arms_rewrite(~target, i, e),
       program,
     ),
@@ -4032,7 +4065,7 @@ let applies =
     | None => false
     }
   | SwapArms(i) =>
-    switch (find_hit(~hit=hit_match_pat(target), program)) {
+    switch (find_hit(~hit=hit_arm(target), program)) {
     | Some(m) => Option.is_some(swap_arms_rewrite(~target, i, m))
     | None => false
     }
@@ -4265,7 +4298,7 @@ let menu_items =
       | None => []
       };
     let arms =
-      switch (find_hit(~hit=hit_match_pat(target), term)) {
+      switch (find_hit(~hit=hit_arm(target), term)) {
       | Some(m) =>
         switch (arm_index_at(target, m)) {
         | Some(j) =>
@@ -4306,7 +4339,7 @@ let gesture =
       applies(k, ~info_map, ~target, term) ? Some(k) : None;
     /* arm reorder: delta -1 = up, +1 = down */
     let arm_swap = (delta: int) =>
-      switch (find_hit(~hit=hit_match_pat(target), term)) {
+      switch (find_hit(~hit=hit_arm(target), term)) {
       | Some(m) =>
         switch (arm_index_at(target, m)) {
         | Some(j) =>
@@ -4317,8 +4350,7 @@ let gesture =
         }
       | None => None
       };
-    let in_arm_zone =
-      Option.is_some(find_hit(~hit=hit_match_pat(target), term));
+    let in_arm_zone = Option.is_some(find_hit(~hit=hit_arm(target), term));
     let in_let_zone = Option.is_some(find_hit(~hit=hit_let(target), term));
     let node_is = (pred: Exp.t => bool) =>
       switch (find_hit(~hit=hit_node(target), term)) {

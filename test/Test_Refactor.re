@@ -1909,6 +1909,36 @@ let arm_tests = [
       offers(SwapArms(0), "case c | Red => 1 | ¦Green => 2 end"),
     )
   ),
+  test_case("swap arms offered at the | delimiter", `Quick, () =>
+    check(
+      bool,
+      "offered",
+      true,
+      offers(SwapArms(0), "case c | Red => 1 ¦| Green => 2 end"),
+    )
+  ),
+  test_case("swap arms offered at the => delimiter", `Quick, () =>
+    check(
+      bool,
+      "offered",
+      true,
+      offers(SwapArms(0), "case c | Red => 1 | Green =¦> 2 end"),
+    )
+  ),
+  test_case(
+    "delimiter-invoked reorder swaps and caret follows the arm",
+    `Quick,
+    () => {
+      let z =
+        inline(~kind=SwapArms(0), "case c ¦| Red => 1 | Green => 2 end");
+      check(
+        string,
+        "swapped, caret at the arm's new slot: " ++ caret_text(z),
+        "case c | Green => 2 ¦| Red => 1 end",
+        caret_text(z),
+      );
+    },
+  ),
 ];
 
 let gesture_tests = [
@@ -1995,6 +2025,18 @@ let gesture_tests = [
     Down,
     "case c | ¦1 => 11 | _ => 22 end",
     None,
+  ),
+  check_gesture(
+    "down on the | delimiter = reorder down",
+    Down,
+    "case c ¦| 1 => 11 | 2 => 22 end",
+    Some(SwapArms(0)),
+  ),
+  check_gesture(
+    "up on the second arm's => = reorder up",
+    Up,
+    "case c | 1 => 11 | 2 =¦> 22 end",
+    Some(SwapArms(0)),
   ),
 ];
 
