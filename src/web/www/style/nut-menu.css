@@ -339,11 +339,9 @@
 }
 #top-bar .submenu .group .contents .segmented-setting .segmented-name {
   white-space: nowrap;
-  font-size: 0.9em;
 }
 #top-bar .submenu .group .contents .segmented-setting .segmented-control {
   display: flex;
-  flex: 1;
   border: 1px solid var(--BR1);
   border-radius: 4px;
   overflow: hidden;

@@ -44,6 +44,68 @@ let spaced = (t: Token.t): bool =>
 let tight_junction = (prev: Token.t, next: Token.t): bool =>
   List.mem(prev, tight_after) || List.mem(next, tight_before);
 
+/* An application/indexing opener: a `(`/`[` tile that takes a left
+ * operand (concave left nib) hugs that operand: `f (x)` -> `f(x)`.
+ * Safe because spacing is transparent to molding — the mold already
+ * decided this is an Ap, so tightening can't change the parse. */
+let is_ap_open = (p: Piece.t): bool =>
+  switch (p) {
+  | Tile(t) =>
+    switch (Tile.effective_label(t)) {
+    | ["(" | "[", ..._] =>
+      switch (fst(Tile.nibs(t)).shape) {
+      | Concave(_) => true
+      | Convex => false
+      }
+    | _ => false
+    }
+  | _ => false
+  };
+
+/* Comma/semicolon tiles hug their left operand and take one space on
+ * the right */
+let is_list_separator = (p: Piece.t): bool =>
+  switch (p) {
+  | Tile(t) =>
+    switch (Tile.effective_label(t)) {
+    | [","]
+    | [";"] => true
+    | _ => false
+    }
+  | _ => false
+  };
+
+/* Binary operators (concave on both sides) get one space around */
+let is_infix_op = (p: Piece.t): bool =>
+  switch (p) {
+  | Tile(t) =>
+    let (l, r) = Tile.nibs(t);
+    switch (l.shape, r.shape) {
+    | (Concave(_), Concave(_)) => true
+    | _ => false
+    };
+  | _ => false
+  };
+
+/* Canonical spacing for a token junction, where the policy is
+ * confident; None = preserve what the user authored (collapse runs
+ * to one). */
+let canonical_sep =
+    (p1: Piece.t, a: Token.t, p2: Piece.t, b: Token.t): option(bool) =>
+  if (tight_junction(a, b)) {
+    Some(false);
+  } else if (is_ap_open(p2)) {
+    Some(false);
+  } else if (is_list_separator(p1)) {
+    Some(true);
+  } else if (spaced(a) || spaced(b)) {
+    Some(true);
+  } else if (is_infix_op(p1) || is_infix_op(p2)) {
+    Some(true);
+  } else {
+    None;
+  };
+
 let needs_space = (prev: Token.t, next: Token.t): bool =>
   if (List.mem(prev, tight_after) || List.mem(next, tight_before)) {
     false;
@@ -111,13 +173,22 @@ let rec go = (~canonicalize=false, seg: Segment.t): Segment.t =>
     | (Some(a), [p2, ..._]) =>
       switch (first_token(p2)) {
       | Some(b) =>
-        /* an existing run collapses to one space (zero only at tight
-           junctions); a bare junction gains a space only where the
-           tokens would glom */
+        /* canonicalize: policy-confident junctions get exactly their
+           canonical spacing (inserting or deleting); elsewhere an
+           existing run collapses to one space and a bare junction is
+           preserved as authored (gaining a space only for glom
+           repair). Repair mode (run always []) only ever inserts. */
         let sep =
-          switch (run) {
-          | [] => needs_space(a, b) ? [space()] : []
-          | [first, ..._] => tight_junction(a, b) ? [] : [first]
+          if (canonicalize) {
+            switch (canonical_sep(p1, a, p2, b), run) {
+            | (Some(true), []) => [space()]
+            | (Some(true), [first, ..._]) => [first]
+            | (Some(false), _) => []
+            | (None, []) => needs_space(a, b) ? [space()] : []
+            | (None, [first, ..._]) => [first]
+            };
+          } else {
+            needs_space(a, b) ? [space()] : [];
           };
         [p1] @ sep @ go(~canonicalize, rest);
       | None => [p1] @ run @ go(~canonicalize, rest)

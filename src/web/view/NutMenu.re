@@ -182,17 +182,6 @@ let format_shortcut_control = (~globals: Globals.t) => {
     ~attrs=[clss(["segmented-setting"])],
     [
       div(
-        ~attrs=[
-          clss(["segmented-name"]),
-          Attr.title(
-            "What the format shortcut does. "
-            ++ (Util.Os.is_mac^ ? "Cmd" : "Ctrl")
-            ++ "+Shift+S always pretty-prints.",
-          ),
-        ],
-        [text((Util.Os.is_mac^ ? {js|⌘S|js} : "Ctrl+S") ++ " Format")],
-      ),
-      div(
         ~attrs=[clss(["segmented-control"])],
         [
           segment("None", "Do not format", FS.Nothing),
@@ -208,6 +197,19 @@ let format_shortcut_control = (~globals: Globals.t) => {
             FS.Breaks,
           ),
         ],
+      ),
+      div(
+        ~attrs=[
+          clss(["segmented-name"]),
+          Attr.title(
+            "What the format shortcut ("
+            ++ (Util.Os.is_mac^ ? "Cmd" : "Ctrl")
+            ++ "+S) does. "
+            ++ (Util.Os.is_mac^ ? "Cmd" : "Ctrl")
+            ++ "+Shift+S always pretty-prints.",
+          ),
+        ],
+        [text("Format")],
       ),
     ],
   );
