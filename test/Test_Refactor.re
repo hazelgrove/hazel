@@ -1548,6 +1548,34 @@ let move_tests = [
    the print->reparse oracle at invocation (~0.5s/press on a few-page
    buffer). The property lives here instead: every successful prepare
    survives print -> reparse unchanged. */
+/* every whitespace Secondary must be atomic (" " or "\n"): the
+   renderer's Code.of_secondary crashes on anything else (andrew hit
+   Failure("Code: Unrecognized Secondary") extracting at an indented
+   arm — sep_like used to synthesize a compound "\n    " piece) */
+let secondaries_atomic = (term: Language.Exp.t): bool => {
+  let ok = ref(true);
+  let check_run = (ws: list(Secondary.t)) =>
+    ws
+    |> List.iter((w: Secondary.t) =>
+         switch (w.content) {
+         | Whitespace(s) when s != " " && s != "\n" => ok := false
+         | _ => ()
+         }
+       );
+  let _ =
+    Language.Exp.map_term(
+      ~f_exp=
+        (cont, e: Language.Exp.t) => {
+          let (b, a) = e.annotation.secondary;
+          check_run(b);
+          check_run(a);
+          cont(e);
+        },
+      term,
+    );
+  ok^;
+};
+
 let prepare_reparses = (~kind: Action.refactor, marked: string): unit => {
   let z = Test_Editing.parse_zipper(marked);
   let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
@@ -1558,7 +1586,13 @@ let prepare_reparses = (~kind: Action.refactor, marked: string): unit => {
     switch (Refactor.impl(kind).prepare(~info_map, ~target, term)) {
     | None => Alcotest.fail("did not apply: " ++ marked)
     | Some((term', _)) =>
-      check(bool, marked, true, Refactor.reparses_same(term'))
+      check(bool, marked, true, Refactor.reparses_same(term'));
+      check(
+        bool,
+        "atomic secondaries: " ++ marked,
+        true,
+        secondaries_atomic(term'),
+      );
     }
   };
 };
@@ -1655,6 +1689,11 @@ let reparse_safety_tests = {
       "¦let p = (1, true) in p",
     ),
     case("negate compound cond", NegateIf, "¦if a && b then 1 else 2"),
+    case(
+      "extract at indented arm body (compound-secondary repro)",
+      ExtractLet,
+      "let f =\n    fun v ->\n        case v\n        | Lam(x, body) =>\n            Lam(x, g¦(v, body))\n        end in f",
+    ),
   ];
 };
 
@@ -1713,6 +1752,7 @@ let movement_reparse_fuzz = {
                 | None => true
                 | Some((term', _)) =>
                   Refactor.reparses_same(term')
+                  && secondaries_atomic(term')
                   || {
                     Printf.printf(
                       "\nFUZZ TERM %s\n",

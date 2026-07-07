@@ -154,15 +154,22 @@ let sep_like = (run: list(Secondary.t)): list(Secondary.t) => {
        )
     |> String.concat("");
   switch (String.rindex_opt(text, '\n')) {
-  | Some(i) => [
+  | Some(i) =>
+    /* atomic pieces only: the renderer accepts exactly " " or "\n"
+       per Secondary (a compound "\n    " crashes Code.of_secondary) */
+    let indent = String.length(text) - i - 1;
+    [
       {
-        id: Id.mk(),
-        content:
-          Whitespace(
-            "\n" ++ String.sub(text, i + 1, String.length(text) - i - 1),
-          ),
+        Secondary.id: Id.mk(),
+        content: Whitespace("\n"),
       },
     ]
+    @ List.init(indent, _ =>
+        {
+          Secondary.id: Id.mk(),
+          content: Secondary.Whitespace(" "),
+        }
+      );
   | None => space()
   };
 };
