@@ -683,23 +683,10 @@ svg:has(.child-line) {
 }
 
 /* FLIP ghosts for code movement (GhostFlip.re): transient spans that
- * fly moved code from its old grid position to its new one */
+ * fly moved code from its old grid position to its new one. The
+ * container carries .code so its .token children pick up the normal
+ * syntax styling; no background — ghosts are transparent copies. */
 .flip-ghost {
   pointer-events: none;
-  white-space: pre;
-  line-height: var(--line-height);
-  font-family: var(--code-font);
-  font-size: var(--base-font-size);
-  font-weight: normal;
-  color: inherit;
-  background-color: var(--cell-active);
   z-index: 15; /* above code text (10), below caret (20) */
-}
-
-.flip-ghost-cover {
-  /* landing-zone mask: hides the already-rendered destination text
-   * until its flying ghost arrives */
-  pointer-events: none;
-  z-index: 14;
-  background-color: var(--cell-active);
 }

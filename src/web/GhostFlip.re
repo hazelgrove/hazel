@@ -18,6 +18,9 @@ type leaf = {
   id: Id.t,
   index: int, /* shard index within its tile; 0 for secondaries */
   text: string,
+  /* token classes for syntax styling (mirrors Code.of_delim', minus
+   * the statics-dependent bits); None = bare text (whitespace) */
+  cls: option(list(string)),
 };
 
 let rec leaves_of_segment = (seg: Segment.t): list(leaf) =>
@@ -27,29 +30,42 @@ let rec leaves_of_segment = (seg: Segment.t): list(leaf) =>
        | Tile(t) =>
          Aba.mk(t.shards, t.children)
          |> Aba.join(
-              i =>
+              i => {
+                let text = List.nth(t.label, i);
+                let base_cls =
+                  switch (text) {
+                  | _ when !Tile.is_complete(t) => "incomplete"
+                  | _ when Token.is_explicit_hole(text) => "explicit-hole"
+                  | _ when Token.is_string(text) => "string-lit"
+                  | _ => Sort.class_of(t.mold.out)
+                  };
+                let plurality = List.length(t.label) == 1 ? "mono" : "poly";
+                let keyword = Token.is_keyword(text) ? ["keyword"] : [];
                 [
                   {
                     id: t.id,
                     index: i,
-                    text: List.nth(t.label, i),
+                    text,
+                    cls: Some(["token", base_cls, plurality] @ keyword),
                   },
-                ],
+                ];
+              },
               leaves_of_segment,
             )
          |> List.concat
        | Secondary(s) when Secondary.is_linebreak(s) => []
        | Secondary(s) =>
-         let text =
+         let (text, cls) =
            switch (s.content) {
-           | Whitespace(str)
-           | Comment(str) => str
+           | Whitespace(str) => (str, None)
+           | Comment(str) => (str, Some(["comment"]))
            };
          [
            {
              id: s.id,
              index: 0,
              text,
+             cls,
            },
          ];
        | Grout(_)
@@ -66,7 +82,7 @@ let find_meas =
 
 /* a run of textually adjacent leaves sharing one movement vector */
 type run = {
-  text: string,
+  pieces: list((string, option(list(string)))), /* (text, classes) */
   origin: Point.t, /* new position (grid) */
   d: Point.t /* movement: new - old */
 };
@@ -97,7 +113,20 @@ let moved_runs =
   if (List.length(moves) > max_moved_leaves) {
     [];
   } else {
-    /* accumulate runs; cur = (text, old_row, old_end_col, new_origin, d) */
+    /* accumulate runs; cur = (rev_pieces, old_row, old_end_col,
+       new_origin, d) */
+    let flush = (cur, runs) =>
+      switch (cur) {
+      | Some((rev_pieces, _, _, origin, d)) => [
+          {
+            pieces: List.rev(rev_pieces),
+            origin,
+            d,
+          },
+          ...runs,
+        ]
+      | None => runs
+      };
     let (runs, cur) =
       moves
       |> List.fold_left(
@@ -111,44 +140,35 @@ let moved_runs =
                  col: n.origin.col - o.origin.col,
                };
              switch (cur) {
-             | Some((text, old_row, old_end, origin, d'))
+             | Some((rev_pieces, old_row, old_end, origin, d'))
                  when
                    d == d'
                    && o.origin.row == old_row
                    && o.origin.col == old_end => (
                  runs,
-                 Some((text ++ l.text, old_row, o.last.col, origin, d)),
+                 Some((
+                   [(l.text, l.cls), ...rev_pieces],
+                   old_row,
+                   o.last.col,
+                   origin,
+                   d,
+                 )),
                )
-             | _ =>
-               let runs =
-                 switch (cur) {
-                 | Some((text, _, _, origin, d)) => [
-                     {
-                       text,
-                       origin,
-                       d,
-                     },
-                     ...runs,
-                   ]
-                 | None => runs
-                 };
-               (runs, Some((l.text, o.origin.row, o.last.col, n.origin, d)));
+             | _ => (
+                 flush(cur, runs),
+                 Some((
+                   [(l.text, l.cls)],
+                   o.origin.row,
+                   o.last.col,
+                   n.origin,
+                   d,
+                 )),
+               )
              };
            },
            ([], None),
          );
-    let runs =
-      switch (cur) {
-      | Some((text, _, _, origin, d)) => [
-          {
-            text,
-            origin,
-            d,
-          },
-          ...runs,
-        ]
-      | None => runs
-      };
+    let runs = flush(cur, runs);
     List.length(runs) > max_runs ? [] : List.rev(runs);
   };
 };
@@ -173,31 +193,27 @@ let request = (syntax: CachedSyntax.t): unit =>
 let duration = 800;
 let easing = "ease-in-out";
 
-/* Each run gets a flying span (text over cell background) plus a
- * static cover over its landing zone: the real view already shows the
- * post-edit text at the destination, and an uncovered destination
- * plus a converging copy reads as a flicker/double-image. The flyer
- * lands exactly on the cover; removing both reveals the real text. */
+/* The flyer carries the run's tokens as .code-styled child spans so
+ * syntax styling (sort colors, keyword bolding) survives the flight;
+ * no background and no landing cover — the moving copies simply
+ * converge on the (already-rendered) destination text. */
 let spawn = (~font_metrics: FontMetrics.t, parent, r: run): unit => {
   let doc = Dom_html.document;
   let left = float_of_int(r.origin.col) *. font_metrics.col_width;
   let top = float_of_int(r.origin.row) *. font_metrics.row_height;
-  let width = float_of_int(String.length(r.text)) *. font_metrics.col_width;
-  let cover = Dom_html.createSpan(doc);
-  cover##.className := Js.string("flip-ghost flip-ghost-cover");
-  cover##.style##.cssText :=
-    Js.string(
-      Printf.sprintf(
-        "position:absolute;left:%fpx;top:%fpx;width:%fpx;height:%fpx;",
-        left,
-        top,
-        width,
-        font_metrics.row_height,
-      ),
-    );
   let sp = Dom_html.createSpan(doc);
-  sp##.className := Js.string("flip-ghost");
-  sp##.textContent := Js.some(Js.string(r.text));
+  sp##.className := Js.string("code flip-ghost");
+  r.pieces
+  |> List.iter(((text, cls)) =>
+       switch (cls) {
+       | Some(cs) =>
+         let tok = Dom_html.createSpan(doc);
+         tok##.className := Js.string(String.concat(" ", cs));
+         tok##.textContent := Js.some(Js.string(text));
+         Dom.appendChild(sp, tok);
+       | None => Dom.appendChild(sp, doc##createTextNode(Js.string(text)))
+       }
+     );
   sp##.style##.cssText :=
     Js.string(
       Printf.sprintf(
@@ -207,12 +223,8 @@ let spawn = (~font_metrics: FontMetrics.t, parent, r: run): unit => {
         font_metrics.row_height,
       ),
     );
-  Dom.appendChild(parent, cover);
   Dom.appendChild(parent, sp);
-  let remove = () => {
-    Js.Unsafe.meth_call(sp, "remove", [||]) |> ignore;
-    Js.Unsafe.meth_call(cover, "remove", [||]) |> ignore;
-  };
+  let remove = () => Js.Unsafe.meth_call(sp, "remove", [||]) |> ignore;
   /* FLIP: place at the new position, animate the inverted delta to 0 */
   let keyframes =
     Animation.Js.keyframes_unsafe([
