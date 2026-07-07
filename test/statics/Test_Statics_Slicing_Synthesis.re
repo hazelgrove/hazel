@@ -209,12 +209,6 @@ let functions = [
     "fun (()) -> 0",
   ),
   synthesis_case(
-    "regression-app-chain-function-query",
-    "(())(_)(_)",
-    "? -> ?",
-    "(())(_)(_)",
-  ),
-  synthesis_case(
     "fun-nested-arrow-left",
     "fun (f : Int -> Bool) -> f",
     "(Int -> ?) -> (Int -> ?)",

@@ -88,6 +88,38 @@ let typ_all_ids = (ty: Typ.t): Id.Set.t => {
   acc^;
 };
 
+let exp_subtree_ids = (e: Exp.t): Id.Set.t => {
+  let acc = ref(Id.Set.empty);
+  let note = ids =>
+    acc := List.fold_left((s, id) => Id.Set.add(id, s), acc^, ids);
+  ignore(
+    Exp.map_term(
+      ~f_exp=
+        (continue, e) => {
+          note(IdTagged.ids(e));
+          continue(e);
+        },
+      ~f_pat=
+        (continue, p) => {
+          note(IdTagged.ids(p));
+          continue(p);
+        },
+      ~f_typ=
+        (continue, t) => {
+          note(IdTagged.ids(t));
+          continue(t);
+        },
+      ~f_tpat=
+        (continue, tp) => {
+          note(IdTagged.ids(tp));
+          continue(tp);
+        },
+      e,
+    ),
+  );
+  acc^;
+};
+
 let meet = (ctx: Ctx.t, left: Typ.t, right: Typ.t): Typ.t =>
   switch (Typ.meet(ctx, left, right)) {
   | Some(ty) => ty
@@ -95,6 +127,15 @@ let meet = (ctx: Ctx.t, left: Typ.t, right: Typ.t): Typ.t =>
   };
 
 let meet_empty = meet(Ctx.empty);
+
+let meet_demands = (left: Typ.t, right: Typ.t): Typ.t =>
+  if (is_gap(left)) {
+    right;
+  } else if (is_gap(right)) {
+    left;
+  } else {
+    meet_empty(left, right);
+  };
 
 let queried_result = (query: Typ.t): result => {
   omitted: Id.Set.empty,
@@ -622,10 +663,30 @@ let var = (~id: Id.t, ~entry: sty): sty =>
 let prod = (children: list(sty)): sty => {
   shape: Prod(List.map(child => child.shape, children)) |> Typ.temp,
   dispatch: query => {
+    let label_payload = (name: string, queries: list(Typ.t)): option(Typ.t) =>
+      List.find_map(
+        query =>
+          switch (Typ.term_of(query)) {
+          | TupLabel({term: Label(label), _}, payload) when label == name =>
+            Some(payload)
+          | _ => None
+          },
+        queries,
+      );
+    let query_for_child = (queries: list(Typ.t), child: sty): Typ.t =>
+      switch (Typ.term_of(child.shape)) {
+      | TupLabel({term: Label(name), _}, _) =>
+        Option.value(label_payload(name, queries), ~default=gap)
+      | _ => gap
+      };
     let rec split_query = query =>
       switch (Typ.term_of(query)) {
       | Parens(inner) => split_query(inner)
       | Prod(queries) when List.length(queries) == List.length(children) => queries
+      | Prod([{term: TupLabel({term: Label(_), _}, _), _} as single]) =>
+        List.map(_ => single, children)
+      | Prod(queries) =>
+        List.map(child => query_for_child(queries, child), children)
       | _ when List.length(children) == 1 => [query]
       | _ => List.map(_ => gap, children)
       };
@@ -1418,6 +1479,14 @@ let omitted_ids = (children: list(child)) =>
        Id.Set.empty,
      );
 
+let source_ids_of_children = (children: list(child)) =>
+  children
+  |> List.filter((child: child) => child.mode == Source)
+  |> List.fold_left(
+       (ids, child: child) => Id.Set.union(ids, child.node.ids),
+       Id.Set.empty,
+     );
+
 let binding_pat = (term: Exp.term): option(Pat.t) =>
   switch (term) {
   | Let(p, _, _)
@@ -1450,11 +1519,49 @@ let rec pat_all_ids = (pat: Pat.t): list(Id.t) =>
     }
   );
 
+let pat_subtree_ids = (pat: Pat.t): Id.Set.t => {
+  let acc = ref(Id.Set.empty);
+  let note = ids =>
+    acc := List.fold_left((s, id) => Id.Set.add(id, s), acc^, ids);
+  ignore(
+    Pat.map_term(
+      ~f_pat=
+        (continue, p) => {
+          note(IdTagged.ids(p));
+          continue(p);
+        },
+      ~f_typ=
+        (continue, t) => {
+          note(IdTagged.ids(t));
+          continue(t);
+        },
+      ~f_tpat=
+        (continue, tp) => {
+          note(IdTagged.ids(tp));
+          continue(tp);
+        },
+      pat,
+    ),
+  );
+  acc^;
+};
+
 let module_binding_names = (item: Mod.t): list(string) =>
   switch (item.term) {
   | ModLet(p, _) => Pat.bound_vars(p)
   | ModuleMod(mp, _) => ExpandModule.mpat_names(mp)
   | _ => []
+  };
+
+let module_item_value_ids = (item: Mod.t): Id.Set.t =>
+  switch (item.term) {
+  | ModLet(_, e)
+  | ModExp(e)
+  | ModuleMod(_, e) => exp_subtree_ids(e)
+  | ModType(_)
+  | EmptyHole
+  | Invalid(_)
+  | MultiHole(_) => Id.Set.empty
   };
 
 let module_item_adjustment =
@@ -1470,9 +1577,11 @@ let module_item_adjustment =
         switch (item.term) {
         | ModLet(p, _) => (
             add,
-            Id.Set.union(remove, ids_set(pat_all_ids(p))),
+            remove
+            |> Id.Set.union(_, ids_set(pat_all_ids(p)))
+            |> Id.Set.union(_, module_item_value_ids(item)),
           )
-        | _ => (add, remove)
+        | _ => (add, Id.Set.union(remove, module_item_value_ids(item)))
         };
       } else {
         switch (module_binding_names(item)) {
@@ -1622,7 +1731,7 @@ let rec demand_is_gap = (ty: Typ.t): bool =>
    gapped demand is handled by the source's self-gap (whole pattern omitted), so
    here we only gap the unused leaves of a partially demanded pattern. */
 let rec pattern_omissions = (pat: Pat.t, demand: Typ.t): Id.Set.t =>
-  if (demand_is_gap(demand)) {
+  if (is_gap(demand)) {
     ids_set(pat_all_ids(pat));
   } else {
     switch (Pat.term_of(pat), Typ.term_of(demand)) {
@@ -1643,6 +1752,7 @@ let rec pattern_omissions = (pat: Pat.t, demand: Typ.t): Id.Set.t =>
       | Var(_) => pat_omit_keeping_ann(payload)
       | _ => pattern_omissions(payload, demand)
       }
+    | (Atom(_), _) => ids_set(pat_all_ids(pat))
     | _ => Id.Set.empty
     };
   };
@@ -2147,7 +2257,11 @@ let rec node_of_exp_info =
       let children = binding_source(m, info) @ children;
       let kept = child_tys(Keep, children);
       let sources = child_tys(Source, children);
-      let omitted = omitted_ids(children);
+      let omitted =
+        Id.Set.diff(
+          omitted_ids(children),
+          source_ids_of_children(children),
+        );
       let base =
         switch (Typ.term_of(info.ty), sources, kept) {
         | (_, [domain], [codomain])
@@ -2165,7 +2279,7 @@ let rec node_of_exp_info =
                 };
               let codomain_slice = codomain.dispatch(q_codomain);
               let demand =
-                meet_empty(
+                meet_demands(
                   q_domain,
                   binding_demand(term, codomain_slice.gamma),
                 );
@@ -2743,7 +2857,7 @@ let binding_def_result =
   let names = Pat.bound_vars(p);
   let demand = {
     let d = pattern_demand(p, result.gamma);
-    demand_is_gap(d) ? gap : d;
+    is_gap(d) ? gap : d;
   };
   let def_ids = source_ids(def);
   let pat_ids = ids_set(pat_all_ids(p));
@@ -2779,7 +2893,7 @@ let fun_param_result = (result: result, p: Pat.t): result => {
   let names = Pat.bound_vars(p);
   let demand = {
     let d = pattern_demand(p, result.gamma);
-    demand_is_gap(d) ? gap : d;
+    is_gap(d) ? gap : d;
   };
   if (is_gap(demand)) {
     result;
@@ -2853,6 +2967,140 @@ let binding_overlay =
     ancestors,
   );
 };
+
+let binding_def_focus_overlay =
+    (focus: Id.t, m: Id.Map.t(Info.t), query: Typ.t, result: result): result => {
+  let ancestors =
+    switch (Id.Map.find_opt(focus, m) |> Option.bind(_, info_ancestors)) {
+    | Some((ancestors, _)) => ancestors
+    | None => []
+    };
+  List.fold_left(
+    (result, ancestor) =>
+      switch (Id.Map.find_opt(ancestor, m)) {
+      | Some(Info.InfoExp({user_term, _})) =>
+        switch (Exp.term_of(user_term)) {
+        | Let(p, def, _)
+        | Theorem(p, def, _)
+            when
+              exp_contains_focus(focus, def) && !pat_contains_focus(focus, p) => {
+            ...result,
+            omitted:
+              result.omitted
+              |> Id.Set.diff(_, pat_subtree_ids(p))
+              |> Id.Set.union(_, pattern_omissions(p, query)),
+          }
+        | FixF(p, body, _)
+            when
+              exp_contains_focus(focus, body)
+              && !pat_contains_focus(focus, p) => {
+            ...result,
+            omitted:
+              result.omitted
+              |> Id.Set.diff(_, exp_subtree_ids(body))
+              |> Id.Set.diff(_, pat_subtree_ids(p))
+              |> Id.Set.union(_, pattern_omissions(p, query)),
+          }
+        | _ => result
+        }
+      | _ => result
+      },
+    result,
+    ancestors,
+  );
+};
+
+let projection_focus_overlay =
+    (focus: Id.t, m: Id.Map.t(Info.t), result: result): result => {
+  let ancestors =
+    switch (Id.Map.find_opt(focus, m) |> Option.bind(_, info_ancestors)) {
+    | Some((ancestors, _)) => ancestors
+    | None => []
+    };
+  List.fold_left(
+    (result, ancestor) =>
+      switch (Id.Map.find_opt(ancestor, m)) {
+      | Some(Info.InfoExp({user_term, _})) =>
+        switch (Exp.term_of(user_term)) {
+        | Dot(receiver, label) when exp_contains_focus(focus, receiver) => {
+            ...result,
+            omitted: Id.Set.diff(result.omitted, exp_subtree_ids(label)),
+          }
+        | _ => result
+        }
+      | _ => result
+      },
+    result,
+    ancestors,
+  );
+};
+
+let cons_tail_focus_overlay =
+    (focus: Id.t, m: Id.Map.t(Info.t), result: result): result => {
+  let ancestors =
+    switch (Id.Map.find_opt(focus, m) |> Option.bind(_, info_ancestors)) {
+    | Some((ancestors, _)) => ancestors
+    | None => []
+    };
+  List.fold_left(
+    (result, ancestor) =>
+      switch (Id.Map.find_opt(ancestor, m)) {
+      | Some(Info.InfoExp({user_term, _})) =>
+        switch (Exp.term_of(user_term)) {
+        | Cons(_, tail) when exp_contains_focus(focus, tail) => {
+            ...result,
+            omitted: Id.Set.diff(result.omitted, exp_subtree_ids(tail)),
+          }
+        | _ => result
+        }
+      | _ => result
+      },
+    result,
+    ancestors,
+  );
+};
+
+let ap_fn_focus_overlay =
+    (focus: Id.t, m: Id.Map.t(Info.t), result: result): result => {
+  let ancestors =
+    switch (Id.Map.find_opt(focus, m) |> Option.bind(_, info_ancestors)) {
+    | Some((ancestors, _)) => ancestors
+    | None => []
+    };
+  List.fold_left(
+    (result, ancestor) =>
+      switch (Id.Map.find_opt(ancestor, m)) {
+      | Some(Info.InfoExp({user_term, _})) =>
+        switch (Exp.term_of(user_term)) {
+        | Ap(_, fn, _) when exp_contains_focus(focus, fn) => {
+            ...result,
+            omitted: Id.Set.diff(result.omitted, exp_subtree_ids(fn)),
+          }
+        | _ => result
+        }
+      | _ => result
+      },
+    result,
+    ancestors,
+  );
+};
+
+let typabs_focus_overlay =
+    (focus: Id.t, m: Id.Map.t(Info.t), result: result): result =>
+  switch (Id.Map.find_opt(focus, m)) {
+  | Some(Info.InfoExp({user_term, _})) =>
+    switch (Exp.term_of(user_term)) {
+    | TypAbs(_, body, _) =>
+      let shell_ids =
+        Id.Set.diff(exp_subtree_ids(user_term), exp_subtree_ids(body));
+      {
+        ...result,
+        omitted: Id.Set.diff(result.omitted, shell_ids),
+      };
+    | _ => result
+    }
+  | _ => result
+  };
 
 let mod_contains_focus = (focus: Id.t, item: Mod.t): bool =>
   switch (item.term) {
@@ -3556,6 +3804,11 @@ let slice =
         | _ => []
         };
       ana_arg_edge_result(focus_id, m, query, result)
+      |> binding_def_focus_overlay(focus_id, m, query)
+      |> projection_focus_overlay(focus_id, m)
+      |> cons_tail_focus_overlay(focus_id, m)
+      |> ap_fn_focus_overlay(focus_id, m)
+      |> typabs_focus_overlay(focus_id, m)
       |> binding_overlay(~except, focus_id, m)
       |> reveal_used_aliases(m);
     | _ => result

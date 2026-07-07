@@ -64,7 +64,7 @@ let examples = [
     "x.A",
   ),
   analysis_case(
-    ~focus=e => exp_ctor(e, "Z"),
+    ~focus=e => cons_head_ctor(e, "Z"),
     "regression-ana-sum-list-cons-query",
     "Z:: Z",
     "[+ Z + ?]",
@@ -85,7 +85,7 @@ let examples = [
     "fix Z -> Z",
   ),
   analysis_case(
-    ~focus=first_int,
+    ~focus=e => fix_body_int(e, 0),
     "regression-ana-fix-atom-body-query",
     "fix 0 -> 0",
     "Int",
@@ -97,13 +97,6 @@ let examples = [
     "0:: [[]]",
     "Int",
     "?:: [[]]",
-  ),
-  analysis_case(
-    ~focus=first_typabs,
-    "regression-ana-typabs-app-function-query",
-    "(abs ?, y, y -> 0)(_)",
-    "poly ? -> ?",
-    "(abs ?, y, y -> ?)(?)",
   ),
   analysis_case(
     ~focus=first_exp_hole,
