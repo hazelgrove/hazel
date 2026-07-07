@@ -695,3 +695,11 @@ svg:has(.child-line) {
   background-color: var(--cell-active);
   z-index: 15; /* above code text (10), below caret (20) */
 }
+
+.flip-ghost-cover {
+  /* landing-zone mask: hides the already-rendered destination text
+   * until its flying ghost arrives */
+  pointer-events: none;
+  z-index: 14;
+  background-color: var(--cell-active);
+}

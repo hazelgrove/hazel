@@ -49,6 +49,9 @@ type t = {
   /* cmd+S: full pretty print (true) or conservative re-indent (false) */
   format_shortcut_pretty: bool,
   flip_animations: bool,
+  /* Experimental: FLIP-ghost every edit's code movement, not just
+   * refactor invocations (see GhostFlip.re) */
+  animate_all_edits: bool,
   display_warnings: bool,
   /* "Character-level mouse". When false (default), a mouse drag does
    * smart-rounded selection (char inside the starting token, whole-token
@@ -69,6 +72,7 @@ let off: t = {
   auto_reindent: false,
   format_shortcut_pretty: true,
   flip_animations: false,
+  animate_all_edits: false,
   display_warnings: false,
   selection_chunkiness: false,
   evaluation: Evaluation.init,
@@ -84,6 +88,7 @@ let on: t = {
   auto_reindent: true,
   format_shortcut_pretty: true,
   flip_animations: true,
+  animate_all_edits: false,
   display_warnings: true,
   selection_chunkiness: false,
   evaluation: Evaluation.init,

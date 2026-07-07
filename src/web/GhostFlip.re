@@ -168,8 +168,33 @@ let request = (syntax: CachedSyntax.t): unit =>
       old_measured: syntax.measured,
     });
 
+/* Slowed way down for evaluation; production values more like
+ * duration 160 with Animation.easeOutExpo */
+let duration = 800;
+let easing = "ease-in-out";
+
+/* Each run gets a flying span (text over cell background) plus a
+ * static cover over its landing zone: the real view already shows the
+ * post-edit text at the destination, and an uncovered destination
+ * plus a converging copy reads as a flicker/double-image. The flyer
+ * lands exactly on the cover; removing both reveals the real text. */
 let spawn = (~font_metrics: FontMetrics.t, parent, r: run): unit => {
   let doc = Dom_html.document;
+  let left = float_of_int(r.origin.col) *. font_metrics.col_width;
+  let top = float_of_int(r.origin.row) *. font_metrics.row_height;
+  let width = float_of_int(String.length(r.text)) *. font_metrics.col_width;
+  let cover = Dom_html.createSpan(doc);
+  cover##.className := Js.string("flip-ghost flip-ghost-cover");
+  cover##.style##.cssText :=
+    Js.string(
+      Printf.sprintf(
+        "position:absolute;left:%fpx;top:%fpx;width:%fpx;height:%fpx;",
+        left,
+        top,
+        width,
+        font_metrics.row_height,
+      ),
+    );
   let sp = Dom_html.createSpan(doc);
   sp##.className := Js.string("flip-ghost");
   sp##.textContent := Js.some(Js.string(r.text));
@@ -177,13 +202,17 @@ let spawn = (~font_metrics: FontMetrics.t, parent, r: run): unit => {
     Js.string(
       Printf.sprintf(
         "position:absolute;left:%fpx;top:%fpx;height:%fpx;",
-        float_of_int(r.origin.col) *. font_metrics.col_width,
-        float_of_int(r.origin.row) *. font_metrics.row_height,
+        left,
+        top,
         font_metrics.row_height,
       ),
     );
+  Dom.appendChild(parent, cover);
   Dom.appendChild(parent, sp);
-  let remove = () => Js.Unsafe.meth_call(sp, "remove", [||]) |> ignore;
+  let remove = () => {
+    Js.Unsafe.meth_call(sp, "remove", [||]) |> ignore;
+    Js.Unsafe.meth_call(cover, "remove", [||]) |> ignore;
+  };
   /* FLIP: place at the new position, animate the inverted delta to 0 */
   let keyframes =
     Animation.Js.keyframes_unsafe([
@@ -199,8 +228,8 @@ let spawn = (~font_metrics: FontMetrics.t, parent, r: run): unit => {
     ]);
   let options =
     Animation.Js.options_unsafe({
-      duration: 160,
-      easing: Animation.easeOutExpo,
+      duration,
+      easing,
     });
   switch (
     Js.Unsafe.meth_call(
@@ -213,9 +242,22 @@ let spawn = (~font_metrics: FontMetrics.t, parent, r: run): unit => {
   | anim =>
     Js.Unsafe.set(anim, "onfinish", Js.wrap_callback(_ => remove()));
     /* safety net: never leave a stale ghost */
-    Dom_html.window##setTimeout(Js.wrap_callback(() => remove()), 1000.)
+    Dom_html.window##setTimeout(
+      Js.wrap_callback(() => remove()),
+      float_of_int(duration + 400),
+    )
     |> ignore;
   };
+};
+
+/* A fresh batch obsoletes any still-flying ghosts (relevant when
+ * animating every edit: generations would otherwise stack up) */
+let clear_stale = (): unit => {
+  let stale = Dom_html.document##querySelectorAll(Js.string(".flip-ghost"));
+  List.init(stale##.length, i => stale##item(i))
+  |> List.iter(n =>
+       Js.Opt.iter(n, n => Js.Unsafe.meth_call(n, "remove", [||]) |> ignore)
+     );
 };
 
 /* Call after render; ghosts join the caret's coordinate frame */
@@ -231,8 +273,9 @@ let go = (~syntax: CachedSyntax.t, ~font_metrics: FontMetrics.t): unit =>
     | ([], _)
     | (_, None) => ()
     | (runs, Some(caret)) =>
+      clear_stale();
       Js.Opt.iter(caret##.parentNode, parent =>
         runs |> List.iter(spawn(~font_metrics, parent))
-      )
+      );
     };
   };

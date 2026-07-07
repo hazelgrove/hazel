@@ -98,6 +98,8 @@ module Update = {
         Animation.request([Animation.Actions.move("caret")]);
         switch (action) {
         | Refactor(_) => GhostFlip.request(model.editor.syntax)
+        | _ when settings.core.animate_all_edits && Action.is_edit(action) =>
+          GhostFlip.request(model.editor.syntax)
         | _ => ()
         };
       };
