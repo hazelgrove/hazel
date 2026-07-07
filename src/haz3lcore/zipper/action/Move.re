@@ -155,7 +155,19 @@ let canonicalize_inner_unselect =
  * then checks if it's indicated. If not, move one token
  * to the right. I believe but have not proved this
  * always results in the token being indicated  */
-let jump_to_id_indicated = (z: t, id: Id.t): option(t) => {
+/* first anchor that resolves wins; callers pass the preferred id
+   followed by fallbacks (e.g. its statics ancestors) so a vanished
+   id can never dump the caret at the document default */
+let rec jump_to_first_indicated = (z: t, ids: list(Id.t)): option(t) =>
+  switch (ids) {
+  | [] => None
+  | [id, ...rest] =>
+    switch (jump_to_id_indicated(z, id)) {
+    | Some(z') => Some(z')
+    | None => jump_to_first_indicated(z, rest)
+    }
+  }
+and jump_to_id_indicated = (z: t, id: Id.t): option(t) => {
   let* z_l = jump_to_side_of_id(Left, z, id);
   let* indicated_id = Indicated.index(z_l);
   if (id == indicated_id) {

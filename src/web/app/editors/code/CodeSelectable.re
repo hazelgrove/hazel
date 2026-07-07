@@ -50,8 +50,7 @@ module Update = {
         Project(_) |
         Structural(_) |
         Probe(_) |
-        Format |
-        PrettyPrint |
+        Format(_) |
         Dump |
         Introduce |
         ToggleLineComment,

@@ -140,6 +140,11 @@ type destruct =
   | Line(Direction.t);
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
+type format =
+  | Indent
+  | Pretty;
+
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type t =
   | Reparse
   | Buffer(buffer)
@@ -155,8 +160,7 @@ type t =
   | Put_down
   | Introduce
   | Probe(probe)
-  | Format
-  | PrettyPrint
+  | Format(format)
   | Dump
   | ToggleLineComment
   | Structural(Structural.t);
@@ -196,9 +200,8 @@ let is_edit: t => bool =
   | Destruct(_)
   | Put_down
   | Introduce
-  | PrettyPrint
   | Buffer(Accept | Clear | Set(_))
-  | Format
+  | Format(_)
   | Structural(_)
   | Dump
   | ToggleLineComment => true
@@ -234,8 +237,7 @@ let is_historic: t => bool =
   | Destruct(_)
   | Put_down
   | Introduce
-  | Format
-  | PrettyPrint
+  | Format(_)
   | Structural(_)
   | Dump
   | ToggleLineComment => true
@@ -266,8 +268,7 @@ let prevent_in_read_only_editor = (a: t) =>
   | Insert(_)
   | Put_down
   | Introduce
-  | Format
-  | PrettyPrint
+  | Format(_)
   | Structural(_)
   | Dump
   | ToggleLineComment => true
@@ -311,8 +312,7 @@ let should_animate: t => bool =
   | Move(_)
   | Structural(_)
   | Probe(_)
-  | Format
-  | PrettyPrint
+  | Format(_)
   | Dump
   | ToggleLineComment => true
   | Project(p) =>
