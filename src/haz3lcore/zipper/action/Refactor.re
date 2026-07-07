@@ -4045,19 +4045,10 @@ let go =
         | Some(InfoPat({ancestors, _})) => ancestors
         | _ => []
         };
-      let z'' =
-        [focus, target]
-        @ ancestors
-        |> List.fold_left(
-             (acc, id) =>
-               switch (acc) {
-               | Some(_) => acc
-               | None => Move.jump_to_id_indicated(z', id)
-               },
-             None,
-           );
       Some(
-        switch (z'') {
+        switch (
+          Move.jump_to_first_indicated(z', [focus, target] @ ancestors)
+        ) {
         | Some(z'') => z''
         | None => z'
         },
