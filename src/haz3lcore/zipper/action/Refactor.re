@@ -165,6 +165,37 @@ let pad = (e: IdTagged.t('a)): IdTagged.t('a) => {
   },
 };
 
+/* deliberately monomorphic (also _pat/_typ below): a generic
+ * IdTagged.t('a) version breaks constructor disambiguation at inline
+ * record-build call sites — same reason fresh/fresh_pat/fresh_typ
+ * stay separate */
+let with_secondary =
+    (secondary: (list(Secondary.t), list(Secondary.t)), e: Exp.t): Exp.t => {
+  ...e,
+  annotation: {
+    ...e.annotation,
+    secondary,
+  },
+};
+
+let with_secondary_pat =
+    (secondary: (list(Secondary.t), list(Secondary.t)), p: Pat.t): Pat.t => {
+  ...p,
+  annotation: {
+    ...p.annotation,
+    secondary,
+  },
+};
+
+let with_secondary_typ =
+    (secondary: (list(Secondary.t), list(Secondary.t)), t: Typ.t): Typ.t => {
+  ...t,
+  annotation: {
+    ...t.annotation,
+    secondary,
+  },
+};
+
 let fresh = (term): Exp.t => {
   annotation: IdTagged.IdTag.mk_internal([Id.mk()]),
   term,
@@ -355,29 +386,27 @@ let rename_pat_var = (y: string, y': string, p: Pat.t): Pat.t =>
     p,
   );
 
-/* rename occurrences of y bound at this scope (skipping inner
- * rebindings of y); syntactic sibling of rename_free_in */
-let rec rename_syntactic = (y: string, y': string, e: Exp.t): Exp.t => {
-  let go = rename_syntactic(y, y');
-  let (term, rewrap) = Exp.unwrap(e);
-  switch (term) {
-  | Var(z) when z == y => {
-      ...e,
-      term: Var(y'),
-    }
-  | Let(p, d, body) =>
-    rewrap(Let(p, go(d), binds(y, p) ? body : go(body)))
-  | Fun(p, body, t, n) when binds(y, p) => rewrap(Fun(p, body, t, n))
-  | FixF(p, body, env) when binds(y, p) => rewrap(FixF(p, body, env))
-  | Match(scrut, rules) =>
-    rewrap(
-      Match(
-        go(scrut),
-        rules
-        |> List.map(((p, body)) => (p, binds(y, p) ? body : go(body))),
-      ),
-    )
-  | _ =>
+/* One shadow-aware traversal: descends everything except scopes that
+ * rebind ~skip; ~f_var fires on every Var node (hook filters names),
+ * ~f_ap on forward applications before generic descent (None falls
+ * through). patch_calls/swap_call_args/rename_* are instances; subst
+ * stays bespoke (it also freshens colliding binders). */
+let rec map_unshadowed =
+        (
+          ~skip: string,
+          ~f_var: Exp.t => option(Exp.t),
+          ~f_ap: (Exp.t, Exp.t, Exp.t, Exp.t => Exp.t) => option(Exp.t)=(
+                                                                    _,
+                                                                    _,
+                                                                    _,
+                                                                    _,
+                                                                    ) =>
+                                                                    None,
+          e: Exp.t,
+        )
+        : Exp.t => {
+  let go = map_unshadowed(~skip, ~f_var, ~f_ap);
+  let descend = e =>
     Exp.map_term(
       ~f_exp={
         let entered = ref(false);
@@ -390,9 +419,48 @@ let rec rename_syntactic = (y: string, y': string, e: Exp.t): Exp.t => {
           };
       },
       e,
+    );
+  let (term, rewrap) = Exp.unwrap(e);
+  switch (term) {
+  | Var(_) => f_var(e) |> Option.value(~default=e)
+  | Ap(Forward, fn, arg) =>
+    switch (f_ap(e, fn, arg, go)) {
+    | Some(e') => e'
+    | None => descend(e)
+    }
+  | Let(p, d, body) =>
+    rewrap(Let(p, go(d), binds(skip, p) ? body : go(body)))
+  | Fun(p, body, t, n) when binds(skip, p) => rewrap(Fun(p, body, t, n))
+  | FixF(p, body, env) when binds(skip, p) => rewrap(FixF(p, body, env))
+  | Match(scrut, rules) =>
+    rewrap(
+      Match(
+        go(scrut),
+        rules
+        |> List.map(((p, body)) => (p, binds(skip, p) ? body : go(body))),
+      ),
     )
+  | _ => descend(e)
   };
 };
+
+/* rename occurrences of y bound at this scope (skipping inner
+ * rebindings of y) */
+let rename_syntactic = (y: string, y': string, e: Exp.t): Exp.t =>
+  map_unshadowed(
+    ~skip=y,
+    ~f_var=
+      e' =>
+        switch (IdTagged.term_of(e')) {
+        | Var(z) when z == y =>
+          Some({
+            ...e',
+            term: Var(y'),
+          })
+        | _ => None
+        },
+    e,
+  );
 
 /* Shadow-aware, capture-avoiding substitution of def for x, preserving
  * each occurrence's whitespace slot. Binders that would capture a free
@@ -862,15 +930,6 @@ let refresh_typ_ids = (t: Typ.t): Typ.t =>
 let fresh_typ = (term): Typ.t => {
   annotation: IdTagged.IdTag.mk_internal([Id.mk()]),
   term,
-};
-
-let with_secondary_typ =
-    (secondary: (list(Secondary.t), list(Secondary.t)), t: Typ.t): Typ.t => {
-  ...t,
-  annotation: {
-    ...t.annotation,
-    secondary,
-  },
 };
 
 let typ_known = (t: Typ.t): bool => {
@@ -1406,58 +1465,44 @@ let is_var_named = (x: string, e: Exp.t): bool =>
 /* Patch every unshadowed application of x: f(a) -> f(a, ?). A bare
  * (non-applied) use sets ~bare_use — arity extension can't fix a
  * function passed as a value, so callers gate on it. */
-let rec patch_calls = (~bare_use: ref(bool), x: string, e: Exp.t): Exp.t => {
-  let go = patch_calls(~bare_use, x);
-  let (term, rewrap) = Exp.unwrap(e);
-  switch (term) {
-  | Ap(Forward, fn, arg) when is_var_named(x, fn) =>
-    let hole = {
-      ...fresh(EmptyHole),
-      annotation: {
-        ...IdTagged.IdTag.mk_internal([Id.mk()]),
-        secondary: (space(), []),
-      },
-    };
-    let arg': Exp.t =
-      switch (IdTagged.term_of(arg)) {
-      | Tuple(items) => {
-          ...arg,
-          term: Tuple(List.map(go, items) @ [hole]),
-        }
-      | _ => fresh(Tuple([go(arg), hole]))
-      };
-    rewrap(Ap(Forward, fn, arg'));
-  | Var(y) when y == x =>
-    bare_use := true;
-    e;
-  | Let(p, d, body) =>
-    rewrap(Let(p, go(d), binds(x, p) ? body : go(body)))
-  | Fun(p, body, t, n) when binds(x, p) => rewrap(Fun(p, body, t, n))
-  | FixF(p, body, env) when binds(x, p) => rewrap(FixF(p, body, env))
-  | Match(scrut, rules) =>
-    rewrap(
-      Match(
-        go(scrut),
-        rules
-        |> List.map(((p, body)) => (p, binds(x, p) ? body : go(body))),
-      ),
-    )
-  | _ =>
-    Exp.map_term(
-      ~f_exp={
-        let entered = ref(false);
-        (cont, e': Exp.t) =>
-          if (entered^) {
-            go(e');
-          } else {
-            entered := true;
-            cont(e');
+let patch_calls = (~bare_use: ref(bool), x: string, e: Exp.t): Exp.t =>
+  map_unshadowed(
+    ~skip=x,
+    ~f_var=
+      e' =>
+        switch (IdTagged.term_of(e')) {
+        | Var(z) when z == x =>
+          bare_use := true;
+          Some(e');
+        | _ => None
+        },
+    ~f_ap=
+      (ap, fn, arg, go) =>
+        if (is_var_named(x, fn)) {
+          let hole = {
+            ...fresh(EmptyHole),
+            annotation: {
+              ...IdTagged.IdTag.mk_internal([Id.mk()]),
+              secondary: (space(), []),
+            },
           };
-      },
-      e,
-    )
-  };
-};
+          let arg': Exp.t =
+            switch (IdTagged.term_of(arg)) {
+            | Tuple(items) => {
+                ...arg,
+                term: Tuple(List.map(go, items) @ [hole]),
+              }
+            | _ => fresh(Tuple([go(arg), hole]))
+            };
+          Some({
+            ...ap,
+            term: Ap(Forward, fn, arg'),
+          });
+        } else {
+          None;
+        },
+    e,
+  );
 
 /* Extend a fun's parameter (pattern) with a fresh trailing var */
 let extended_pat = (p: Pat.t, name: string): (Pat.t, Id.t) => {
@@ -1835,55 +1880,33 @@ let rename_pairs =
 /* rewrite free occurrences of x to y, skipping scopes where y is
  * rebound (they'd capture to the wrong binder); bound x's are already
  * excluded by the Free-mark filter */
-let rec rename_free_in =
-        (
-          ~info_map: Statics.Map.t,
-          ~count: ref(int),
-          x: string,
-          y: string,
-          e: Exp.t,
-        )
-        : Exp.t => {
-  let go = rename_free_in(~info_map, ~count, x, y);
-  let (term, rewrap) = Exp.unwrap(e);
-  switch (term) {
-  | Var(z) when z == x && free_marked(~info_map, e) =>
-    count := count^ + 1;
-    {
-      annotation: {
-        ...e.annotation,
-        lexeme: None,
-      },
-      term: Var(y),
-    };
-  | Let(p, _, _) when binds(y, p) => e
-  | Let(p, d, body) => rewrap(Let(p, go(d), go(body)))
-  | Fun(p, body, t, n) when binds(y, p) => rewrap(Fun(p, body, t, n))
-  | FixF(p, body, env) when binds(y, p) => rewrap(FixF(p, body, env))
-  | Match(scrut, rules) =>
-    rewrap(
-      Match(
-        go(scrut),
-        rules
-        |> List.map(((p, body)) => (p, binds(y, p) ? body : go(body))),
-      ),
+let rename_free_in =
+    (
+      ~info_map: Statics.Map.t,
+      ~count: ref(int),
+      x: string,
+      y: string,
+      e: Exp.t,
     )
-  | _ =>
-    Exp.map_term(
-      ~f_exp={
-        let entered = ref(false);
-        (cont, e': Exp.t) =>
-          if (entered^) {
-            go(e');
-          } else {
-            entered := true;
-            cont(e');
-          };
-      },
-      e,
-    )
-  };
-};
+    : Exp.t =>
+  map_unshadowed(
+    ~skip=y,
+    ~f_var=
+      e' =>
+        switch (IdTagged.term_of(e')) {
+        | Var(z) when z == x && free_marked(~info_map, e') =>
+          count := count^ + 1;
+          Some({
+            annotation: {
+              ...e'.annotation,
+              lexeme: None,
+            },
+            term: Var(y),
+          });
+        | _ => None
+        },
+    e,
+  );
 
 let rename_free_impl = (x: string, y: string): impl => {
   label: "Rename " ++ x ++ " to " ++ y,
@@ -1953,24 +1976,6 @@ let names_mentioned = (names: list(string), e: Exp.t): bool =>
 
 let disjoint_names = (a: list(string), b: list(string)): bool =>
   !(a |> List.exists(n => List.mem(n, b)));
-
-let with_secondary_pat =
-    (secondary: (list(Secondary.t), list(Secondary.t)), p: Pat.t): Pat.t => {
-  ...p,
-  annotation: {
-    ...p.annotation,
-    secondary,
-  },
-};
-
-let with_secondary =
-    (secondary: (list(Secondary.t), list(Secondary.t)), e: Exp.t): Exp.t => {
-  ...e,
-  annotation: {
-    ...e.annotation,
-    secondary,
-  },
-};
 
 /* one hoist step for the let at the end of ~path; returns the parent
  * node to rewrite, its replacement, and a focus id. ~fixup as in
@@ -2866,63 +2871,49 @@ let swap_typ_items = (i: int, items: list(Typ.t)): list(Typ.t) => {
 
 /* swap args at every unshadowed call of x; a bare use or a call whose
  * arg isn't a wide-enough tuple defeats the transform */
-let rec swap_call_args =
-        (
-          ~fixup: bool,
-          ~bare_use: ref(bool),
-          ~ok: ref(bool),
-          i: int,
-          x: string,
-          e: Exp.t,
-        )
-        : Exp.t => {
-  let go = swap_call_args(~fixup, ~bare_use, ~ok, i, x);
-  let (term, rewrap) = Exp.unwrap(e);
-  switch (term) {
-  | Ap(Forward, fn, arg) when is_var_named(x, fn) =>
-    switch (IdTagged.term_of(arg)) {
-    | Tuple(items) when List.length(items) > i + 1 =>
-      let items = items |> List.map(go);
-      let arg': Exp.t = {
-        ...arg,
-        term: Tuple(swap_exp_items(~fixup, i, items)),
-      };
-      rewrap(Ap(Forward, fn, arg'));
-    | _ =>
-      ok := false;
-      e;
-    }
-  | Var(y) when y == x =>
-    bare_use := true;
-    e;
-  | Let(p, d, body) =>
-    rewrap(Let(p, go(d), binds(x, p) ? body : go(body)))
-  | Fun(p, body, t, n) when binds(x, p) => rewrap(Fun(p, body, t, n))
-  | FixF(p, body, env) when binds(x, p) => rewrap(FixF(p, body, env))
-  | Match(scrut, rules) =>
-    rewrap(
-      Match(
-        go(scrut),
-        rules
-        |> List.map(((p, body)) => (p, binds(x, p) ? body : go(body))),
-      ),
+let swap_call_args =
+    (
+      ~fixup: bool,
+      ~bare_use: ref(bool),
+      ~ok: ref(bool),
+      i: int,
+      x: string,
+      e: Exp.t,
     )
-  | _ =>
-    Exp.map_term(
-      ~f_exp={
-        let entered = ref(false);
-        (cont, e': Exp.t) =>
-          if (entered^) {
-            go(e');
-          } else {
-            entered := true;
-            cont(e');
+    : Exp.t =>
+  map_unshadowed(
+    ~skip=x,
+    ~f_var=
+      e' =>
+        switch (IdTagged.term_of(e')) {
+        | Var(z) when z == x =>
+          bare_use := true;
+          Some(e');
+        | _ => None
+        },
+    ~f_ap=
+      (ap, fn, arg, go) =>
+        if (is_var_named(x, fn)) {
+          switch (IdTagged.term_of(arg)) {
+          | Tuple(items) when List.length(items) > i + 1 =>
+            let items = items |> List.map(go);
+            let arg': Exp.t = {
+              ...arg,
+              term: Tuple(swap_exp_items(~fixup, i, items)),
+            };
+            Some({
+              ...ap,
+              term: Ap(Forward, fn, arg'),
+            });
+          | _ =>
+            ok := false;
+            Some(ap);
           };
-      },
-      e,
-    )
-  };
-};
+        } else {
+          None;
+        },
+    e,
+  );
 
 let swap_fun_pat = (i: int, fp: Pat.t): option(Pat.t) =>
   switch (IdTagged.term_of(fp)) {
