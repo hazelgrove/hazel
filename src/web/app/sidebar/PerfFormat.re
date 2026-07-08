@@ -64,14 +64,26 @@ let max_span =
     spans,
   );
 
+/* Below this a timing reads as instant (no tint), so fast frames stay pale no
+   matter how they compare to each other. */
+let heat_floor_ms = 0.5;
+/* The red end of the scale never anchors below this, so as long as everything
+   is under ~100ms nothing goes deep red; once something is slower, the anchor
+   stretches out to the visible max. */
+let heat_ceil_ms = 100.0;
+
 /* Flame-graph tint: an inline red background whose opacity scales with the
-   span relative to `max` — transparent (untinted) for quick, red for slow. An
-   alpha overlay (rather than a solid color) keeps text legible in both the
-   light and dark sidebar themes. */
+   span, pale (untinted) for quick and red for slow. Rather than scaling purely
+   relative to `max` (which makes the slowest cell fully red even when it's
+   fast), map the span into [floor, anchor] where anchor = max(max, ceiling):
+   below the floor is untinted, and the red end holds at a fixed frame-time
+   ceiling until something exceeds it, then stretches to it. An alpha overlay
+   (not a solid color) keeps text legible in both light and dark themes. */
 let heat_style = (~max: Core.Time_ns.Span.t, s: Core.Time_ns.Span.t): string => {
   let m = Core.Time_ns.Span.to_ms(max);
   let v = Core.Time_ns.Span.to_ms(s);
-  let frac = m <= 0.0 ? 0.0 : v /. m;
+  let anchor = m > heat_ceil_ms ? m : heat_ceil_ms;
+  let frac = (v -. heat_floor_ms) /. (anchor -. heat_floor_ms);
   let frac = frac < 0.0 ? 0.0 : frac > 1.0 ? 1.0 : frac;
   Printf.sprintf("background-color: rgba(210, 45, 45, %.3f)", frac *. 0.8);
 };
