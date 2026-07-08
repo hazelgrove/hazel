@@ -560,22 +560,23 @@ y|},
 y|},
   ),
   /* === Zero-indent: indented content does NOT partition === */
-  /* Linebreak followed by spaces then content - no partition.
-   * Grout is inserted because shapes need it. */
+  /* Linebreak followed by spaces then content - no partition. The
+   * missing delimiter junction-drops at the unique concave-grout
+   * junction (def=1, body=y) instead of absorbing y as a multihole. */
   test(
     ~name="let then linebreak then indented var - no partition",
     ~input={|let x = 1
   y|},
     ~expected={|let x = 1
-  ~yin?|},
+  iny|},
   ),
-  /* fun with indented body - grout inserted for shape */
+  /* fun with indented body - arrow junction-drops before it */
   test(
     ~name="fun then linebreak then indented var - no partition",
     ~input={|fun x
   y|},
     ~expected={|fun x
-  ~y->?|},
+  ->y|},
   ),
   /* Mixed: some indented, some at column 0.
    * body is indented (no partition there), next is at col 0 (partition) */
@@ -585,7 +586,7 @@ y|},
   body
 next|},
     ~expected={|let f = fun x
-  ~body->?in
+  ->bodyin
 next|},
   ),
   /* === Blank line tests (existing behavior preserved) === */
@@ -945,10 +946,51 @@ let frontier_tests = [
     ~expected_no_sep="type T = Intin\n  2",
   ),
   test_sep(
-    ~name="exp slots never clip (let in appends)",
+    ~name="exp slots never clip; junction drop still applies",
     ~input="let x = 1\n  2",
-    ~expected="let x = 1\n  2 in ?",
-    ~expected_no_sep="let x = 1\n  ~2in?",
+    ~expected="let x = 1\n  in 2",
+    ~expected_no_sep="let x = 1\n  in2",
+  ),
+];
+
+/* === Trailing junction drops (concave-right shards fill unique
+   sort-legal junctions; closers excluded; ambiguity falls back) === */
+let trailing_junction_tests = [
+  test_sep(
+    ~name="deleted else restored at junction",
+    ~input="if true then 1 2",
+    ~expected="if true then 1 else 2",
+    ~expected_no_sep="if true then 1 else2",
+  ),
+  test_sep(
+    ~name="deleted in restored at junction",
+    ~input="let x = 1 2",
+    ~expected="let x = 1 in 2",
+    ~expected_no_sep="let x = 1 in2",
+  ),
+  test_sep(
+    ~name="then drops at unique junction, else still appends",
+    ~input="if true 1",
+    ~expected="if true then 1 else ?",
+    ~expected_no_sep="if true then1else?",
+  ),
+  test_sep(
+    ~name="ambiguous junctions: no drop",
+    ~input="if true then 1 2 3",
+    ~expected="if true then 1 2 3 else ?",
+    ~expected_no_sep="if true then 1 ~2 ~3else?",
+  ),
+  test_sep(
+    ~name="closers never junction-drop",
+    ~input="[1 2",
+    ~expected="[1 2]",
+    ~expected_no_sep="[1 ~2]",
+  ),
+  test_sep(
+    ~name="junction drop across linebreak",
+    ~input="let x = 1\n2",
+    ~expected="let x = 1 in\n2",
+    ~expected_no_sep="let x = 1in\n2",
   ),
 ];
 
@@ -972,6 +1014,10 @@ let tests: list((string, list(Alcotest.test_case(unit)))) = [
   ("CanonicalCompletion: middle", run_completion_tests(middle_tests)),
   ("CanonicalCompletion: junction", run_completion_tests(junction_tests)),
   ("CanonicalCompletion: frontier", run_completion_tests(frontier_tests)),
+  (
+    "CanonicalCompletion: trailing-junction",
+    run_completion_tests(trailing_junction_tests),
+  ),
   ("CanonicalCompletion: wraps", run_completion_tests(wrap_tests)),
   ("CanonicalCompletion: wraps (edit-derived)", run_wrap_seg_tests),
   ("CanonicalCompletion: linebreaks", run_completion_tests(linebreak_tests)),
