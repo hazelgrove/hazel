@@ -1,6 +1,4 @@
 open Virtual_dom.Vdom;
-open Node;
-open Util.WebUtil;
 
 /* The "Frame Timing" debug sidebar section: the per-keystroke timeline. One row
    per recent frame — the edit action's perform (update phase) then the
@@ -12,55 +10,64 @@ open Util.WebUtil;
 
 let title = "Frame Timing";
 
-let row = (f: PerfMetrics.frame): Node.t =>
+/* All cells share one scale (the peak total across frames), so a stage as red
+   as the total means it dominates that frame, and darker rows are slower
+   frames overall. */
+let row = (~max: Core.Time_ns.Span.t, f: PerfMetrics.frame): Node.t =>
   Node.tr([
     PerfFormat.action_cell(PerfFormat.action_of(f.perform)),
-    PerfFormat.span_cell(f.perform |> Option.map(snd)),
-    PerfFormat.span_cell(f.statics),
-    PerfFormat.span_cell(f.syntax),
-    PerfFormat.span_cell(f.cursor_info),
-    PerfFormat.span_cell(f.color_map),
-    Node.td(
-      ~attrs=[clss(["perf-total"])],
-      [text(PerfFormat.span_str(f.total))],
-    ),
+    PerfFormat.heat_cell(~max, f.perform |> Option.map(snd)),
+    PerfFormat.heat_cell(~max, f.statics),
+    PerfFormat.heat_cell(~max, f.syntax),
+    PerfFormat.heat_cell(~max, f.cursor_info),
+    PerfFormat.heat_cell(~max, f.color_map),
+    PerfFormat.heat_cell(~max, ~cls=["perf-total"], f.total),
   ]);
-
-/* Rolling max of the total across the recorded frames. */
-let max_total =
-    (frames: list(PerfMetrics.frame)): option(Core.Time_ns.Span.t) => {
-  let step =
-      (acc: option(Core.Time_ns.Span.t), f: PerfMetrics.frame)
-      : option(Core.Time_ns.Span.t) =>
-    switch (acc, f.total) {
-    | (None, t) => t
-    | (Some(_) as a, None) => a
-    | (Some(m), Some(t)) =>
-      Some(Core.Time_ns.Span.compare(t, m) > 0 ? t : m)
-    };
-  List.fold_left(step, None, frames);
-};
 
 let view = (~globals as _: Globals.t): list(Node.t) =>
   switch (PerfMetrics.frames^) {
   | [] => [
       PerfFormat.empty("No frames recorded yet — type in the editor."),
     ]
-  | frames => [
+  | frames =>
+    /* One scale for the whole table: the peak total across frames. */
+    let max =
+      PerfFormat.max_span(
+        List.map((f: PerfMetrics.frame) => f.total, frames),
+      );
+    [
       PerfFormat.note(
-        "max total: " ++ PerfFormat.span_str(max_total(frames)),
+        "max total: " ++ PerfFormat.span(max) ++ " · redder = slower",
       ),
       PerfFormat.table([
         PerfFormat.head_row([
-          "action",
-          "perform",
-          "statics",
-          "syntax",
-          "cursor",
-          "colors",
-          "total",
+          ("action", "The edit action that triggered this frame."),
+          (
+            "perform",
+            "Update phase: applying the edit action to the zipper (Perform.go).",
+          ),
+          (
+            "statics",
+            "Calculate phase: statics + elaboration recompute (— when deferred/cached).",
+          ),
+          (
+            "syntax",
+            "Calculate phase: syntax-cache rebuild (MakeTerm + Measured).",
+          ),
+          (
+            "cursor",
+            "Calculate phase: computing cursor info for the sidebar and decorations.",
+          ),
+          (
+            "colors",
+            "Calculate phase: building the ExplainThis color-highlight map.",
+          ),
+          (
+            "total",
+            "Whole keystroke: perform (update phase) + the entire calculate phase.",
+          ),
         ]),
-        ...List.map(row, frames),
+        ...List.map(row(~max), frames),
       ]),
-    ]
+    ];
   };

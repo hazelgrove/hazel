@@ -795,17 +795,7 @@
   font-weight: 600;
   color: var(--BR3);
   border-bottom: 1px solid var(--BR1);
-}
-
-/* Label : value rows (Statics, Editor & Memory). */
-#debug-sidebar .perf-table .perf-k {
-  text-align: left;
-  color: var(--BR3);
-  padding-right: 0.8em;
-}
-
-#debug-sidebar .perf-table .perf-v {
-  font-weight: 600;
+  cursor: help; /* signals the hover-text explanation on each column */
 }
 
 #debug-sidebar .perf-table .perf-total {

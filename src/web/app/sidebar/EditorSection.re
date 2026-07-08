@@ -1,6 +1,4 @@
 open Virtual_dom.Vdom;
-open Node;
-open Util.WebUtil;
 
 /* The "Editor & Memory" debug sidebar section: a per-frame history of the
    syntax-cache rebuild (MakeTerm + Measured) — how long each took and the
@@ -13,13 +11,10 @@ open Util.WebUtil;
 
 let title = "Editor & Memory";
 
-let row = (f: PerfMetrics.frame): Node.t =>
+let row = (~max: Core.Time_ns.Span.t, f: PerfMetrics.frame): Node.t =>
   Node.tr([
     PerfFormat.action_cell(PerfFormat.action_of(f.perform)),
-    Node.td(
-      ~attrs=[clss(["perf-total"])],
-      [text(PerfFormat.span_str(f.syntax))],
-    ),
+    PerfFormat.heat_cell(~max, ~cls=["perf-total"], f.syntax),
     PerfFormat.int_cell(f.segment_tokens),
     PerfFormat.int_cell(f.tiles),
     PerfFormat.int_cell(f.rows),
@@ -42,19 +37,27 @@ let view = (~globals as _: Globals.t): list(Node.t) => {
       undo_redo,
       PerfFormat.empty("No edits recorded yet — type in the editor."),
     ]
-  | frames => [
+  | frames =>
+    let max =
+      PerfFormat.max_span(
+        List.map((f: PerfMetrics.frame) => f.syntax, frames),
+      );
+    [
       undo_redo,
       PerfFormat.table([
         PerfFormat.head_row([
-          "action",
-          "rebuild",
-          "tokens",
-          "tiles",
-          "rows",
-          "proj",
+          ("action", "The edit action that triggered this frame."),
+          (
+            "rebuild",
+            "Time to rebuild the syntax cache: MakeTerm (segment → term) + Measured (layout).",
+          ),
+          ("tokens", "Number of pieces (tokens) in the editor segment."),
+          ("tiles", "Number of distinct tiles in the measured layout."),
+          ("rows", "Number of rendered rows in the measured layout."),
+          ("proj", "Number of projectors in the segment."),
         ]),
-        ...List.map(row, frames),
+        ...List.map(row(~max), frames),
       ]),
-    ]
+    ];
   };
 };

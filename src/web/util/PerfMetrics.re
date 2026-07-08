@@ -136,10 +136,17 @@ let begin_calc = (): unit =>
     building.color_map = None;
   };
 
-/* Commit the frame with its measured total (snapshotting the counts recorded
- * during this frame's editor calculate), then clear perform for the next. */
-let end_calc = (~total: Core.Time_ns.Span.t): unit =>
+/* Commit the frame (snapshotting the counts recorded during this frame's editor
+ * calculate), then clear perform for the next. `calc` is the calculate-phase
+ * wall clock; the reported total is perform + calc, since the edit action's
+ * perform runs in the earlier update phase — so total is always >= perform. */
+let end_calc = (~calc: Core.Time_ns.Span.t): unit =>
   if (enabled^) {
+    let total =
+      switch (building.perform) {
+      | Some((_, p)) => Core.Time_ns.Span.(p + calc)
+      | None => calc
+      };
     let f = {
       perform: building.perform,
       statics: building.statics,

@@ -488,7 +488,7 @@ module Update = {
       );
     let globals = Globals.Update.calculate(color_highlights, model.globals);
     PerfMetrics.end_calc(
-      ~total=
+      ~calc=
         Core.Time_ns.Span.of_ms(
           Util.JsUtil.precise_timestamp() -. calc_start,
         ),
