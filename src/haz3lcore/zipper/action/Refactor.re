@@ -1386,7 +1386,11 @@ let case_to_if_impl: impl = {
 
 let extractable = (e: Exp.t): bool =>
   switch (IdTagged.term_of(e)) {
+  /* bare references extract to a pointless alias; constructors are
+     morally variables here. (Literals stay extractable: naming a
+     magic number is a real refactoring.) */
   | Var(_)
+  | Constructor(_)
   | EmptyHole
   | Let(_)
   | Seq(_)
@@ -1396,6 +1400,47 @@ let extractable = (e: Exp.t): bool =>
      (e.g. a Dot's lhs) */
   | Parens(_) => false
   | _ => true
+  };
+
+/* Resolve an extraction target. A bare var/ctor HEAD of an
+ * application retargets to the whole application: the head is how
+ * people refer to the call, the caret lands there naturally
+ * (`Â¦f(x)` indicates f), and a bare head is otherwise a dead
+ * press. Also home to the shared gates: extractable + no Dot/
+ * MultiHole ancestors (a bare use-var as a Dot-rhs reparses as a
+ * projection label). Returns the effective path. */
+let extract_path = (~target: Id.t, program: Exp.t): option(list(Exp.t)) =>
+  switch (find_path(~hit=hit_node(target), program)) {
+  | None => None
+  | Some(path) =>
+    let n = List.length(path);
+    let t = List.nth(path, n - 1);
+    let head_of_ap =
+      n >= 2
+      && (
+        switch (IdTagged.term_of(t)) {
+        | Var(_)
+        | Constructor(_) =>
+          switch (IdTagged.term_of(List.nth(path, n - 2))) {
+          | Ap(Forward, f, _) => same_node(f, t)
+          | _ => false
+          }
+        | _ => false
+        }
+      );
+    let path = head_of_ap ? List.filteri((i, _) => i < n - 1, path) : path;
+    let t = List.nth(path, List.length(path) - 1);
+    let blocked_ancestor =
+      path
+      |> List.filteri((i, _) => i < List.length(path) - 1)
+      |> List.exists((a: Exp.t) =>
+           switch (IdTagged.term_of(a)) {
+           | Dot(_)
+           | MultiHole(_) => true
+           | _ => false
+           }
+         );
+    extractable(t) && !blocked_ancestor ? Some(path) : None;
   };
 
 /* unshadowed-use check is conservative: any occurrence counts */
@@ -1499,25 +1544,24 @@ let extract_let_impl: impl = {
        an arbitrary (possibly comma/operand) position, so it takes
        parens. */
     /* fallback, and the degenerate case of extracting a whole line */
-    let in_place = (~parens: bool) =>
+    /* t is the extract_path-resolved node (which may be the whole
+       application when invoked from its head) */
+    let in_place = (~parens: bool, t: Exp.t) =>
       rewrite_node(
-        ~hit=hit_node(target),
+        ~hit=same_node(t),
         ~rewrite=
-          e =>
-            extractable(e)
-              ? {
-                let def = pad(e |> strip_leading |> strip_trailing);
-                /* focus the fresh binder: keeps the caret in the
-                   let's gesture zone (next Up = hoist) and ready for
-                   rename */
-                let xp = pad(fresh_pat(Var(x)));
-                let let_node = fresh(Let(xp, def, fresh(Var(x))));
-                Some((
-                  parens ? fresh(Parens(let_node)) : let_node,
-                  Pat.rep_id(xp),
-                ));
-              }
-              : None,
+          e => {
+            let def = pad(e |> strip_leading |> strip_trailing);
+            /* focus the fresh binder: keeps the caret in the
+               let's gesture zone (next Up = hoist) and ready for
+               rename */
+            let xp = pad(fresh_pat(Var(x)));
+            let let_node = fresh(Let(xp, def, fresh(Var(x))));
+            Some((
+              parens ? fresh(Parens(let_node)) : let_node,
+              Pat.rep_id(xp),
+            ));
+          },
         program,
       );
     /* the new binding lands at the nearest enclosing line; the use
@@ -1553,32 +1597,15 @@ let extract_let_impl: impl = {
         );
       build(~parens=false);
     };
-    switch (find_path(~hit=hit_node(target), program)) {
+    switch (extract_path(~target, program)) {
     | None => None
     | Some(path) =>
       let t = List.nth(path, List.length(path) - 1);
-      /* no extraction from under a Dot (access-path components: a
-         bare use-var in rhs position reparses as a projection label)
-         or a MultiHole (invalid-syntax region) */
-      let blocked_ancestor =
-        path
-        |> List.filteri((i, _) => i < List.length(path) - 1)
-        |> List.exists((a: Exp.t) =>
-             switch (IdTagged.term_of(a)) {
-             | Dot(_)
-             | MultiHole(_) => true
-             | _ => false
-             }
-           );
-      if (extractable(t) && !blocked_ancestor) {
-        let line = lowest_line(path);
-        let blocked =
-          crossed_rec_binders(line, path) |> List.exists(n => mentions(n, t));
-        !blocked && !same_node(line, t)
-          ? to_block(line, t) : in_place(~parens=!same_node(line, t));
-      } else {
-        None;
-      };
+      let line = lowest_line(path);
+      let blocked =
+        crossed_rec_binders(line, path) |> List.exists(n => mentions(n, t));
+      !blocked && !same_node(line, t)
+        ? to_block(line, t) : in_place(~parens=!same_node(line, t), t);
     };
   },
 };
@@ -4140,11 +4167,7 @@ let applies =
     | Some(e) => Option.is_some(wildcard_expansion(~info_map, ~target, e))
     | None => false
     }
-  | ExtractLet =>
-    switch (find_hit(~hit=hit_node(target), program)) {
-    | Some(e) => extractable(e)
-    | None => false
-    }
+  | ExtractLet => Option.is_some(extract_path(~target, program))
   | EtaReduce =>
     switch (find_hit(~hit=hit_node(target), program)) {
     | Some(e) =>

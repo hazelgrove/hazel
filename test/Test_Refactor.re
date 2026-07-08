@@ -1875,6 +1875,55 @@ let caret_audit_tests = [
   caret_at(~kind=AddParameter, "¦let f = fun (a) -> a in f(1)", ", ¦"),
 ];
 
+let extract_target_tests = [
+  test_case("bare constructor is not extractable", `Quick, () =>
+    check(
+      bool,
+      "not offered",
+      false,
+      offers(ExtractLet, "let y = f(¦None) in y"),
+    )
+  ),
+  test_case("literal stays extractable (name the magic number)", `Quick, () =>
+    check(bool, "offered", true, offers(ExtractLet, "let y = f(¦5) in y"))
+  ),
+  test_case(
+    "caret on a ctor head extracts the whole application",
+    `Quick,
+    () => {
+      let got =
+        inline(~kind=ExtractLet, "let y = f(¦Error(e)) in y") |> text_of;
+      check(
+        string,
+        "application extracted",
+        "let x = Error(e) in let y = f(x) in y",
+        got,
+      );
+    },
+  ),
+  test_case(
+    "caret on a fn-var head extracts the whole application",
+    `Quick,
+    () => {
+      let got = inline(~kind=ExtractLet, "let y = h(¦g(2)) in y") |> text_of;
+      check(
+        string,
+        "application extracted",
+        "let x = g(2) in let y = h(x) in y",
+        got,
+      );
+    },
+  ),
+  test_case("bare var still not extractable", `Quick, () =>
+    check(
+      bool,
+      "not offered",
+      false,
+      offers(ExtractLet, "let y = ¦q + 1 in y"),
+    )
+  ),
+];
+
 let binding_tests = [
   test_case("arm hoist gated on pattern-bound var in def", `Quick, () =>
     check(
@@ -2166,6 +2215,7 @@ let tests = [
     @ gesture_tests
     @ caret_tests
     @ caret_audit_tests
+    @ extract_target_tests
     @ binding_tests
     @ reparse_safety_tests,
   ),
