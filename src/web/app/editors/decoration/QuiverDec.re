@@ -39,15 +39,34 @@ let resolve_position =
     });
   };
 
-/* Compute display text for delimiters with their holes */
-let format_delimiters =
-    (delimiters: list(CanonicalCompletion.delimiter_info)): string =>
+/* Display nodes for delimiters with their holes. A delimiter
+   completing a prefix-token witness renders its typed prefix bold and
+   the completed remainder faded. */
+let delimiter_nodes =
+    (delimiters: list(CanonicalCompletion.delimiter_info)): list(Node.t) =>
   delimiters
-  |> List.map((d: CanonicalCompletion.delimiter_info) => {
-       let suffix = d.needs_hole ? " ?" : "";
-       d.text ++ suffix;
+  |> List.mapi((k, d: CanonicalCompletion.delimiter_info) => {
+       let sep = k > 0 ? [Node.text(" ")] : [];
+       let body =
+         switch (d.typed_len) {
+         | Some(n) when n > 0 && n < String.length(d.text) => [
+             Node.span(
+               ~attrs=[Attr.classes(["quiver-typed"])],
+               [Node.text(String.sub(d.text, 0, n))],
+             ),
+             Node.span(
+               ~attrs=[Attr.classes(["quiver-completed"])],
+               [
+                 Node.text(String.sub(d.text, n, String.length(d.text) - n)),
+               ],
+             ),
+           ]
+         | _ => [Node.text(d.text)]
+         };
+       let suffix = d.needs_hole ? [Node.text(" ?")] : [];
+       sep @ body @ suffix;
      })
-  |> String.concat(" ");
+  |> List.concat;
 
 /* Offset from end of line content to offside display (in characters) */
 let offside_offset = 8;
@@ -87,9 +106,9 @@ let arrow_view = (~font_metrics: FontMetrics.t, ~row: int, ~col: int): Node.t =>
   );
 };
 
-/* Render an offside box showing delimiter text */
+/* Render an offside box showing delimiter content */
 let offside_view =
-    (~font_metrics: FontMetrics.t, ~row: int, ~left: int, text: string)
+    (~font_metrics: FontMetrics.t, ~row: int, ~left: int, body: list(Node.t))
     : Node.t =>
   div(
     ~attrs=[
@@ -103,8 +122,18 @@ let offside_view =
         ),
       ),
     ],
-    [Node.text(text)],
+    body,
   );
+
+/* Plain-text length of the delimiter display (for box layout) */
+let delimiters_len =
+    (delimiters: list(CanonicalCompletion.delimiter_info)): int =>
+  delimiters
+  |> List.map((d: CanonicalCompletion.delimiter_info) =>
+       String.length(d.text) + (d.needs_hole ? 2 : 0)
+     )
+  |> List.fold_left((+), 0)
+  |> (n => n + max(0, List.length(delimiters) - 1));
 
 /* Get the rightmost column of a row (for offside positioning) */
 let row_max_col = (row: int, measured: Measured.t): int =>
@@ -156,15 +185,17 @@ let view =
             | None => row_max_col(ins.row, measured) + offside_offset
             };
 
-          /* Get delimiter text */
-          let text = format_delimiters(ins.delimiters);
-
           /* Render offside box */
           let offside =
-            offside_view(~font_metrics, ~row=ins.row, ~left=base_left, text);
+            offside_view(
+              ~font_metrics,
+              ~row=ins.row,
+              ~left=base_left,
+              delimiter_nodes(ins.delimiters),
+            );
 
           /* Update row offset for next box on same row */
-          let text_width = String.length(text) + 2; /* +2 for padding */
+          let text_width = delimiters_len(ins.delimiters) + 2; /* +2 padding */
           let new_offsets =
             IntMap.add(ins.row, base_left + text_width, row_offsets);
 

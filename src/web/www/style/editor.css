@@ -681,3 +681,11 @@ svg:has(.child-line) {
   background: var(--menu-outline);
   margin: 6px 0.5em;
 }
+
+/* Prefix-witness completion: typed prefix vs completed remainder */
+.quiver-offside .quiver-typed {
+  font-weight: bold;
+}
+.quiver-offside .quiver-completed {
+  opacity: 0.45;
+}
