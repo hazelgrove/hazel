@@ -1052,15 +1052,15 @@ let case_repair_edit_tests = [
     ~acts=Test_Editing.mk("case go(e1)¦ | 1 => 2 end") @ [destruct_l],
     ~expected="case go(e1) | 1 => 2 end",
   ),
-  /* TODO: ideal is `case x | 1 => 2 | 3 => 4 end` — the bar's
-     pattern spilled left of `=>` and only the grout junction marks
-     the arm boundary; restoring it needs LEADING-shard junction
-     drops (deferred with leading witnesses). Pins current
-     placement so changes surface. */
   edit_case(
-    ~name="deleted second bar: current placement (suboptimal, pinned)",
+    ~name="deleted second bar restored at its junction",
     ~acts=Test_Editing.mk("case x | 1 => 2 |¦ 3 => 4 end") @ [destruct_l],
-    ~expected="case x | 1 =>?| 2 ~ 3 => 4 end",
+    ~expected="case x | 1 => 2 | 3 => 4 end",
+  ),
+  edit_case(
+    ~name="deleted first bar restored at scrutinee junction",
+    ~acts=Test_Editing.mk("case x |¦ 1 => 2 end") @ [destruct_l],
+    ~expected="case x | 1 => 2 end",
   ),
 ];
 
