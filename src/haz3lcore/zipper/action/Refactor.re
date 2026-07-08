@@ -132,6 +132,32 @@ let strip_boundaries = (e: Exp.t): Exp.t => Slot.(drop(of_exp(e), e));
 let strip_leading = (e: Exp.t): Exp.t => Slot.(drop(lead_of(e), e));
 let strip_trailing = (e: Exp.t): Exp.t => Slot.(drop(trail_of(e), e));
 
+let is_comment_piece = (w: Secondary.t): bool =>
+  switch (w.content) {
+  | Comment(_) => true
+  | _ => false
+  };
+
+/* strip only the WHITESPACE pieces of a run, leaving comments where
+   they live (P4: prose is content with a place, not spacing) */
+let ws_of_slot = (s: Slot.t): Slot.t => {
+  lead: s.lead |> List.filter(w => !is_comment_piece(w)),
+  trail: s.trail |> List.filter(w => !is_comment_piece(w)),
+};
+let strip_boundaries_keep_comments = (e: Exp.t): Exp.t =>
+  Slot.(drop(ws_of_slot(of_exp(e)), e));
+let strip_leading_keep_comments = (e: Exp.t): Exp.t =>
+  Slot.(drop(ws_of_slot(lead_of(e)), e));
+let strip_trailing_keep_comments = (e: Exp.t): Exp.t =>
+  Slot.(drop(ws_of_slot(trail_of(e)), e));
+
+/* the comment pieces of a node's boundary runs (for re-homing when
+   the node's line dissolves, e.g. inline) */
+let boundary_comments = (e: Exp.t): list(Secondary.t) =>
+  Slot.of_exp(e).lead
+  @ Slot.of_exp(e).trail
+  |> List.filter(is_comment_piece);
+
 /* strip a plain-whitespace lead; a lead containing COMMENTS is user
    content and stays put (RemoveUnusedLet once ate the next line's
    comment block via a bare strip) */
@@ -1189,6 +1215,23 @@ let inline_let_impl: impl = {
             let parens_for = occ =>
               needs_parens(def) && !List.mem(Exp.rep_id(occ), bare_ids);
             let body' = subst(~parens_for, ~avoid, ~used, x, def, body);
+            /* the def's BOUNDARY comments stay at the vacated line
+               (andrew: comments live where they live) — the copies
+               are stripped of them (never duplicate prose), so
+               re-home them above the surviving body */
+            let body' =
+              switch (boundary_comments(def)) {
+              | [] => body'
+              | comments =>
+                let (b, a) = body'.annotation.secondary;
+                {
+                  ...body',
+                  annotation: {
+                    ...body'.annotation,
+                    secondary: (comments @ newline() @ b, a),
+                  },
+                };
+              };
             /* caret follows the substituted copy: the one at the
                invoking occurrence, else the first occurrence (copy
                roots adopt occurrence ids — see `inserted`) */
@@ -1383,12 +1426,12 @@ let case_to_if_impl: impl = {
             switch (bool_pat(p1), bool_pat(p2)) {
             | (Some(true), Some(false)) =>
               Some((
-                fresh(If(scrut, e1, strip_trailing(e2))),
+                fresh(If(scrut, e1, strip_trailing_keep_comments(e2))),
                 Exp.rep_id(scrut),
               ))
             | (Some(false), Some(true)) =>
               Some((
-                fresh(If(scrut, e2, strip_trailing(e1))),
+                fresh(If(scrut, e2, strip_trailing_keep_comments(e1))),
                 Exp.rep_id(scrut),
               ))
             | _ => None
@@ -1683,12 +1726,18 @@ let negate_if_impl: impl = {
                  then-arm takes it over. The condition sheds its
                  post-`if` lead (it now sits after `!`). Parens by
                  reparse oracle; the If node keeps its id. */
-              let c = c |> strip_leading |> strip_trailing;
+              let c =
+                c
+                |> strip_leading_keep_comments
+                |> strip_trailing_keep_comments;
               /* self-inverse: negating a negation unwraps it */
               let cond =
                 switch (IdTagged.term_of(c)) {
                 | UnOp(Bool(Not), inner) =>
-                  with_secondary((space(), []), strip_boundaries(inner))
+                  with_secondary(
+                    (space(), []),
+                    strip_boundaries_keep_comments(inner),
+                  )
                 | _ =>
                   let c = parens ? fresh(Parens(c)) : c;
                   {
@@ -2956,7 +3005,7 @@ let eta_expand_impl: impl = {
                         ),
                       )
                     };
-                  let fn = strip_boundaries(e);
+                  let fn = strip_boundaries_keep_comments(e);
                   let fn = needs_parens(fn) ? fresh(Parens(fn)) : fn;
                   let body = {
                     ...fresh(Ap(Forward, fn, args)),
@@ -3868,7 +3917,9 @@ let hit_param = (target: Id.t, e: Exp.t): bool =>
   param_items(e)
   |> List.exists((it: Pat.t) =>
        switch (IdTagged.term_of(it)) {
-       | Var(_) => List.mem(target, IdTagged.ids(it))
+       | Var(_)
+       | EmptyHole
+       | Wild => List.mem(target, IdTagged.ids(it))
        | _ => false
        }
      );
@@ -4071,7 +4122,9 @@ let remove_param_target = (~target: Id.t, e: Exp.t): option(Id.t) =>
       switch (List.rev(param_items(e))) {
       | [last, ..._] =>
         switch (IdTagged.term_of(last)) {
-        | Var(_) => Some(Pat.rep_id(last))
+        | Var(_)
+        | EmptyHole
+        | Wild => Some(Pat.rep_id(last))
         | _ => None
         }
       | [] => None
@@ -4089,19 +4142,26 @@ let remove_param_rewrite = (~target: Id.t, e: Exp.t): option((Exp.t, Id.t)) =>
       |> List.mapi((i, it) => (i, it))
       |> List.find_opt(((_, it: Pat.t)) =>
            switch (IdTagged.term_of(it)) {
-           | Var(_) => List.mem(target, IdTagged.ids(it))
+           /* a hole/wild param binds nothing — trivially removable */
+           | Var(_)
+           | EmptyHole
+           | Wild => List.mem(target, IdTagged.ids(it))
            | _ => false
            }
          );
     switch (idx) {
     | Some((i, item)) when List.length(items) >= 2 =>
-      let name = Option.get(var_pat_name(item));
+      let used_in = (e: Exp.t) =>
+        switch (var_pat_name(item)) {
+        | Some(n) => free_in(n, e)
+        | None => false
+        };
       let bare_use = ref(false);
       let ok = ref(true);
       let pieces: option((string, Pat.t, Exp.t)) =
         switch (sugar_fn_name(p)) {
         | Some(f) =>
-          !free_in(name, def)
+          !used_in(def)
             ? {
               let rec drop_in_pat = (p: Pat.t): option(Pat.t) =>
                 switch (IdTagged.term_of(p)) {
@@ -4148,7 +4208,7 @@ let remove_param_rewrite = (~target: Id.t, e: Exp.t): option((Exp.t, Id.t)) =>
         | None =>
           switch (let_head_name(p), IdTagged.term_of(def)) {
           | (Some(f), Fun(fp, fbody, ft, fn)) =>
-            !free_in(name, fbody)
+            !used_in(fbody)
               ? {
                 let p': option(Pat.t) =
                   switch (IdTagged.term_of(p)) {

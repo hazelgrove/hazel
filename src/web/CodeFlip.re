@@ -103,6 +103,29 @@ let cancel_active = (): unit => {
   active := [];
 };
 
+/* EXPERIMENT (andrew): newly created elements fade in (they used to
+ * pop). Exit animation is structurally out of reach here: removed
+ * elements are already gone from the DOM when go() runs. */
+let animate_enter = (node: Js.t(Dom.node)): unit => {
+  let keyframes =
+    Animation.Js.keyframes_unsafe([("opacity", "0"), ("opacity", "1")]);
+  let options =
+    Animation.Js.options_unsafe({
+      duration,
+      easing,
+    });
+  switch (
+    Js.Unsafe.meth_call(
+      node,
+      "animate",
+      [|Js.Unsafe.inject(keyframes), Js.Unsafe.inject(options)|],
+    )
+  ) {
+  | exception _ => ()
+  | anim => active := [anim, ...active^]
+  };
+};
+
 let animate_node =
     (
       ~font_metrics: FontMetrics.t,
@@ -225,12 +248,23 @@ let go = (~syntax: CachedSyntax.t, ~font_metrics: FontMetrics.t): unit =>
                          | _ => None
                          }
                        );
-                  if (moved != [] && List.length(moved) <= max_moved) {
+                  let entered =
+                    pairs
+                    |> List.filter_map(((k, node)) =>
+                         switch (find_meas(old_m, k), find_meas(new_m, k)) {
+                         | (None, Some(_)) => Some(node)
+                         | _ => None
+                         }
+                       );
+                  if ((moved != [] || entered != [])
+                      && List.length(moved)
+                      + List.length(entered) <= max_moved) {
                     cancel_active();
                     moved
                     |> List.iter(((node, o, n)) =>
                          animate_node(~font_metrics, node, o, n)
                        );
+                    entered |> List.iter(animate_enter);
                     moved
                     |> List.iter(((node, _, _)) => warn_invisible(node));
                   };

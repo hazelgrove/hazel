@@ -2403,6 +2403,64 @@ let policy_tests = [
   ),
 ];
 
+let audit_round_tests = [
+  /* P2: the last unasserted caret placements */
+  caret_at(~kind=EvaluateInPlace, "let y = 1 ¦+ 2 in y", "¦3"),
+  caret_at(
+    ~kind=RemoveParameter,
+    "let f = fun (a, ¦b) -> a in f(1, 2)",
+    "¦",
+  ),
+  caret_at(~kind=RenameFree("x", "y"), "let ¦y = 1 in x + 1", "¦y"),
+  /* P4: comments survive in-place strips and inline re-homing */
+  test_case(
+    "negate keeps a comment attached to the condition",
+    `Quick,
+    () => {
+      let got =
+        inline(~kind=NegateIf, "¦if # why # a && b then 1 else 2") |> text_of;
+      check(
+        bool,
+        "comment survives: " ++ got,
+        true,
+        has_sub(got, "# why #"),
+      );
+    },
+  ),
+  test_case(
+    "inline re-homes a def-boundary comment to the vacated line",
+    `Quick,
+    () => {
+      let got = inline("¦let x = # note # 5 in x + x") |> text_of;
+      check(
+        bool,
+        "comment kept exactly once: " ++ got,
+        true,
+        has_sub(got, "# note #")
+        && !has_sub(got, "# note # 5")
+        && has_sub(got, "5 + 5"),
+      );
+    },
+  ),
+  /* hole params are trivially removable */
+  test_case(
+    "hole param removable",
+    `Quick,
+    () => {
+      let got =
+        inline(~kind=RemoveParameter, "let f = fun (a, ¦?) -> a in f(1, 2)")
+        |> text_of;
+      check(string, "removed", "let f = fun a -> a in f(1)", got);
+    },
+  ),
+  check_gesture(
+    "left at closing paren sheds a trailing hole param",
+    Left,
+    "let f = fun (a, ?)¦ -> a in f(1, 2)",
+    Some(RemoveParameter),
+  ),
+];
+
 let tests = [
   (
     "Refactor",
@@ -2430,6 +2488,7 @@ let tests = [
     @ paren_gesture_tests
     @ tuple_swap_tests
     @ policy_tests
+    @ audit_round_tests
     @ binding_tests
     @ reparse_safety_tests,
   ),
