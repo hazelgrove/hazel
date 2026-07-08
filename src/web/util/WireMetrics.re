@@ -1,13 +1,15 @@
 open Js_of_ocaml;
 
-/* Per-request benchmarking of the worker wire protocols (WorkerServer.WIRE).
+/* Data for the "Worker Messaging" debug panel: how the main thread talks to
+ * the eval Web Worker. Per-request benchmarking of the candidate wire
+ * protocols (WorkerServer.WIRE) that encode payloads across the boundary.
  *
  * For every variant in WorkerServer.all_wires we encode the real payload,
  * run it through the browser's structuredClone (the same serializer
  * postMessage uses, so an encoding that overflows the clone stack — e.g.
  * DirectWire on a deep result, #2368 — surfaces here as a caught exception),
  * then decode, timing each stage and approximating the wire size. Results
- * feed the Wire Metrics table in DebugSidebar.
+ * feed the Worker Messaging table in DebugSidebar.
  *
  * Everything runs on the main thread; nothing crosses to the worker. Gated by
  * `enabled` (synced from show_debug_panel in Page.Update.calculate) so normal

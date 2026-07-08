@@ -160,7 +160,7 @@ module Settings = {
        keeps it collapsed regardless of the term under the cursor. */
     debug_collapsed: list(string),
     /* Wire-protocol variants (by WorkerServer.WIRE name) the user has turned
-       off in the Wire Metrics panel; disabled variants are not benchmarked,
+       off in the Worker Messaging panel; disabled variants are not benchmarked,
        so e.g. the slow sexp variant can be skipped. Defaulted so existing
        persisted settings (which lack this field) still load. */
     [@sexp.default []] [@yojson.default []]

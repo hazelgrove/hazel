@@ -40,7 +40,7 @@ module Response = {
  * live Request.t/Response.t into some `request`/`response` form crossing the
  * worker boundary. The forms are abstract so only encode/decode can produce
  * them and the two directions can't be swapped. `name` labels the variant in
- * the Wire Metrics debug panel. Several implementations follow; the one wired
+ * the Worker Messaging debug panel. Several implementations follow; the one wired
  * into WorkerClient/on_request is the active protocol, the rest exist to be
  * benchmarked against it (see WireMetrics). */
 module type WIRE = {

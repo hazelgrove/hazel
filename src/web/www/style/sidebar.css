@@ -663,7 +663,7 @@
   color: var(--BR4);
 }
 
-/* Wire Metrics section: per-variant on/off chips above the shared table. */
+/* Worker Messaging section: per-variant on/off chips above the shared table. */
 #debug-sidebar .wm-toggles {
   display: flex;
   flex-wrap: wrap;
@@ -763,4 +763,11 @@
   opacity: 0.6;
   font-style: italic;
   margin: 0.3em 0;
+}
+
+/* Units legend above the shared table. */
+#debug-sidebar .wm-legend {
+  opacity: 0.6;
+  font-style: italic;
+  margin: 0.2em 0;
 }

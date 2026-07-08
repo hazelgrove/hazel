@@ -717,11 +717,13 @@ let toggle_bar = (~globals: Globals.t): Node.t => {
   );
 };
 
-/* ---- Wire Metrics: per-request benchmarks of the worker wire protocols ----
-   (WireMetrics), populated only while the debug panel is open. All requests
-   share one table so columns line up across them; each request is separated
-   by a bold `#N` group row (request) and a lighter `response` sub-row, a row
-   per variant under each. Correlated by request id. */
+/* ---- Worker Messaging: how the main thread talks to the eval Web Worker ----
+   Per-request benchmarks of the candidate wire protocols (WireMetrics) that
+   encode payloads crossing the main-thread <-> Web Worker boundary, populated
+   only while the debug panel is open. All requests share one table so columns
+   line up across them; each request is separated by a bold `#N` group row
+   (request) and a lighter `response` sub-row, a row per variant under each.
+   Correlated by request id. */
 
 /* Adaptive precision so a slow variant's wide milliseconds (e.g. sexp at
    ~17000ms) don't blow out the column: drop decimals as the value grows. */
@@ -801,7 +803,7 @@ let wm_record_rows = (r: WireMetrics.record): list(Node.t) => {
 /* Section title, shared with Page.Update.calculate: benchmarking is gated on
    this section being both shown (debug panel on) and expanded, so a collapsed
    section costs nothing. Collapse state is keyed by this exact string. */
-let wire_metrics_title = "Wire Metrics";
+let worker_messaging_title = "Worker Messaging";
 
 let wire_names: list(string) =
   List.map(
@@ -840,8 +842,20 @@ let wire_toggles = (~globals): Node.t =>
     List.map(wire_toggle(~globals), wire_names),
   );
 
-let wire_metrics_view = (~globals): list(Node.t) =>
-  section(~globals, wire_metrics_title, () =>
+/* Column-unit legend: the time columns carry no per-cell suffix, so state the
+   unit (ms) and expand the abbreviations. Size shows its own B/K/M suffix. */
+let wm_legend: Node.t =
+  div(
+    ~attrs=[clss(["wm-legend"])],
+    [
+      text(
+        "Times in ms (encode / structuredClone / decode / total); size approximate.",
+      ),
+    ],
+  );
+
+let worker_messaging_view = (~globals): list(Node.t) =>
+  section(~globals, worker_messaging_title, () =>
     [wire_toggles(~globals)]
     @ (
       switch (WireMetrics.history^) {
@@ -852,6 +866,7 @@ let wire_metrics_view = (~globals): list(Node.t) =>
           ),
         ]
       | records => [
+          wm_legend,
           div(
             ~attrs=[clss(["wm-scroll"])],
             [
@@ -902,7 +917,7 @@ let view = (~globals: Globals.t, ~cursor: Cursor.cursor(_)): Node.t => {
             | _ => info_sections @ syntax_sections
             };
           /* Metrics render regardless of cursor state. */
-          cursor_sections @ wire_metrics_view(~globals);
+          cursor_sections @ worker_messaging_view(~globals);
         },
       ),
     ],
