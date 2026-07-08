@@ -5099,6 +5099,123 @@ let gesture =
     };
   };
 
+/* === Drag candidates (pointer front-end to the gesture system) ===
+ * For each direction, resolve the gesture at the caret, prepare it,
+ * and measure the result — measures only, no statics/eval/view
+ * (dragology's isTracking, done with Measured). Each candidate
+ * defines a TRACK from the anchor's current position to its position
+ * in the candidate. Anchors are (from, to) id pairs: the grabbed
+ * construct for movement kinds; def -> fed occurrence for feeds (the
+ * value travels, the binding doesn't). Degenerate tracks (anchor
+ * doesn't move) are dropped — that transform stays arrows/menu-only.
+ * Coincident targets keep the first in direction order (ambiguity
+ * policy v1). */
+
+module DragCandidate = {
+  type t = {
+    dir: Action.Gesture.t,
+    kind: Action.refactor,
+    current: Measured.Point.t, /* track start (live layout) */
+    target: Measured.Point.t, /* track end (candidate layout) */
+    term: Exp.t,
+    focus: Id.t,
+    segment: Segment.t,
+    measured: Measured.t,
+  };
+};
+
+/* (from, to) anchor ids for a kind's track */
+let drag_anchor =
+    (~info_map, ~target: Id.t, kind: Action.refactor, term: Exp.t)
+    : option((Id.t, Id.t)) =>
+  switch (kind) {
+  | FeedLet =>
+    switch (feed_site(~info_map, ~target, term)) {
+    | Some((l, x, occ_pref)) =>
+      switch (IdTagged.term_of(l)) {
+      | Let(_, def, body) =>
+        let occ =
+          switch (occ_pref) {
+          | Some(oid) =>
+            occurrences_of(x, body)
+            |> List.find_opt((o: Exp.t) => List.mem(oid, IdTagged.ids(o)))
+          | None => first_occurrence(x, body)
+          };
+        occ |> Option.map(o => (Exp.rep_id(def), Exp.rep_id(o)));
+      | _ => None
+      }
+    | None => None
+    }
+  | _ => Some((target, target))
+  };
+
+let drag_candidates =
+    (
+      ~info_map: Statics.Map.t,
+      ~term: Exp.t,
+      ~measured: Measured.t,
+      z: Zipper.t,
+    )
+    : list(DragCandidate.t) =>
+  switch (Indicated.index(z)) {
+  | None => []
+  | Some(target) =>
+    let mk = (dir: Action.Gesture.t): option(DragCandidate.t) =>
+      switch (gesture(~info_map, ~term, dir, z)) {
+      | None => None
+      | Some(kind) =>
+        switch (impl(kind).prepare(~info_map, ~target, term)) {
+        | None => None
+        | Some((term', focus)) =>
+          let segment =
+            ExpToSegment.exp_to_segment(~settings=roundtrip_settings, term')
+            |> SpaceNormalize.go;
+          let cand_measured =
+            Measured.of_segment(
+              segment,
+              ProjectorCore.Shape.Map.empty,
+              Id.Map.empty,
+            );
+          let (from_id, to_id) =
+            drag_anchor(~info_map, ~target, kind, term)
+            |> Option.value(~default=(target, target));
+          let to_pos = (id: Id.t) =>
+            Measured.find_by_id(id, cand_measured)
+            |> Option.map((m: Measured.measurement) => m.origin);
+          switch (
+            Measured.find_by_id(from_id, measured),
+            /* the grabbed id can vanish in a candidate (rare); the
+               focus is the moved content's id — try it second */
+            switch (to_pos(to_id)) {
+            | Some(p) => Some(p)
+            | None => to_pos(focus)
+            },
+          ) {
+          | (Some(cur), Some(tgt)) when cur.origin != tgt =>
+            Some({
+              DragCandidate.dir,
+              kind,
+              current: cur.origin,
+              target: tgt,
+              term: term',
+              focus,
+              segment,
+              measured: cand_measured,
+            })
+          | _ => None
+          };
+        }
+      };
+    [Action.Gesture.Up, Down, Left, Right]
+    |> List.filter_map(mk)
+    |> List.fold_left(
+         (acc, c: DragCandidate.t) =>
+           List.exists((c': DragCandidate.t) => c'.target == c.target, acc)
+             ? acc : acc @ [c],
+         [],
+       );
+  };
+
 let go =
     (
       ~info_map: Statics.Map.t,

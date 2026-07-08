@@ -45,6 +45,23 @@ let kinds_at = (marked: string): list(Action.refactor) => {
 
 let offers = (kind, marked) => List.mem(kind, kinds_at(marked));
 
+let drag_cands = (marked: string): list(Refactor.DragCandidate.t) => {
+  let z = Test_Editing.parse_zipper(marked);
+  let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
+  let measured =
+    Measured.of_segment(
+      Zipper.unselect_and_zip(z),
+      ProjectorCore.Shape.Map.empty,
+      Id.Map.empty,
+    );
+  Refactor.drag_candidates(~info_map=info_map_of(z), ~term, ~measured, z);
+};
+
+let track_of = (c: Refactor.DragCandidate.t) => (
+  (c.current.row, c.current.col),
+  (c.target.row, c.target.col),
+);
+
 let labels_at = (marked: string): list(string) => {
   let z = Test_Editing.parse_zipper(marked);
   let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
@@ -1708,6 +1725,108 @@ let sink_layout_tests = [
   ),
 ];
 
+let drag_tests = [
+  test_case(
+    "drag candidates: one-line chain sink is a rightward track",
+    `Quick,
+    () => {
+      let cs = drag_cands("¦let x = 2 in let a = 1 in x + a");
+      check(int, "one candidate", 1, List.length(cs));
+      let c = List.hd(cs);
+      check(bool, "sink", true, c.kind == SinkLet);
+      let ((r0, c0), (r1, c1)) = track_of(c);
+      check(bool, "same row", true, r0 == r1);
+      check(bool, "moves right", true, c1 > c0);
+    },
+  ),
+  test_case(
+    "drag candidates: multiline chain sink is a downward track",
+    `Quick,
+    () => {
+      let cs = drag_cands("¦let x = 2 in\nlet a = 1 in\nx + a");
+      check(int, "one candidate", 1, List.length(cs));
+      let ((r0, _), (r1, _)) = track_of(List.hd(cs));
+      check(bool, "one row down", true, r1 == r0 + 1);
+    },
+  ),
+  test_case(
+    "drag candidates: mid-chain offers hoist up and feed down",
+    `Quick,
+    () => {
+      let cs = drag_cands("let a = 1 in\n¦let x = 2 in\nx + a");
+      let kinds = cs |> List.map((c: Refactor.DragCandidate.t) => c.kind);
+      check(bool, "hoist", true, List.mem(Action.HoistLet, kinds));
+      check(bool, "feed", true, List.mem(Action.FeedLet, kinds));
+      let hoist =
+        cs |> List.find((c: Refactor.DragCandidate.t) => c.kind == HoistLet);
+      let ((r0, _), (r1, _)) = track_of(hoist);
+      check(bool, "hoist goes up", true, r1 == r0 - 1);
+    },
+  ),
+  test_case(
+    "drag candidates: extract tracks the grabbed expression upward",
+    `Quick,
+    () => {
+      let cs = drag_cands("let y = f(1 ¦+ 2) in y");
+      let ext =
+        cs
+        |> List.find_opt((c: Refactor.DragCandidate.t) =>
+             c.kind == ExtractLet
+           );
+      check(bool, "extract present", true, ext != None);
+      switch (ext) {
+      | Some(c) =>
+        let ((r0, _), (r1, _)) = track_of(c);
+        check(bool, "lands on the line above", true, r1 <= r0);
+      | None => ()
+      };
+    },
+  ),
+  test_case(
+    "drag candidates: param swap tracks sideways, both directions",
+    `Quick,
+    () => {
+      let cs = drag_cands("let f = fun (a, ¦b, c) -> a in f(1, 2, 3)");
+      let dirs = cs |> List.map((c: Refactor.DragCandidate.t) => c.dir);
+      check(
+        bool,
+        "left and right",
+        true,
+        List.mem(Action.Gesture.Left, dirs)
+        && List.mem(Action.Gesture.Right, dirs),
+      );
+      cs
+      |> List.iter((c: Refactor.DragCandidate.t) => {
+           let ((r0, c0), (r1, c1)) = track_of(c);
+           check(bool, "same row", true, r0 == r1);
+           check(
+             bool,
+             "direction matches",
+             true,
+             c.dir == Left ? c1 < c0 : c1 > c0,
+           );
+         });
+    },
+  ),
+  test_case(
+    "drag candidates: feed track runs def -> use",
+    `Quick,
+    () => {
+      let cs = drag_cands("¦let k = 3 in k + k");
+      let feed =
+        cs
+        |> List.find_opt((c: Refactor.DragCandidate.t) => c.kind == FeedLet);
+      check(bool, "feed present", true, feed != None);
+      switch (feed) {
+      | Some(c) =>
+        let ((_, c0), (_, c1)) = track_of(c);
+        check(bool, "moves toward the use", true, c1 > c0);
+      | None => ()
+      };
+    },
+  ),
+];
+
 let reparse_safety_tests = {
   let case = (name, kind, marked) =>
     test_case(name, `Quick, () => prepare_reparses(~kind, marked));
@@ -2672,6 +2791,7 @@ let tests = [
     @ binding_tests
     @ sink_layout_tests
     @ feed_tests
+    @ drag_tests
     @ reparse_safety_tests,
   ),
   (
