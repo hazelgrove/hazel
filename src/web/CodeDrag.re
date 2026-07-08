@@ -19,6 +19,11 @@ open Haz3lcore;
 let snap_radius = 14.; /* px: reaching a target commits (chain) */
 let snap_dwell = 120.; /* ms inside the radius before the commit fires */
 let snap_min_t = 0.7; /* progress required before a snap is armed */
+/* TEMPORARY (andrew): mid-drag commits confuse while feeling out the
+   basics — with chaining off, reaching a target just holds the full
+   preview and RELEASE commits; flip back on to ride multiple rungs
+   in one drag */
+let chaining = false;
 let when_far = 56.; /* px: farther than this from every track = no winner */
 let stickiness = 10.; /* px bonus for the incumbent track */
 let commit_t = 0.55; /* release past this progress commits the winner */
@@ -294,7 +299,7 @@ let resolve = (s: session, p: vec): unit => {
     /* snap: linger at the target (dwell) with real progress — then
        commit and chain */
     let d = sqrt((p.x -. c.tgt.x) ** 2. +. (p.y -. c.tgt.y) ** 2.);
-    if (d <= snap_radius && t >= snap_min_t) {
+    if (chaining && d <= snap_radius && t >= snap_min_t) {
       switch (s.snap_hover) {
       | Some((j, since)) when j == i =>
         if (now_ms() -. since >= snap_dwell) {
