@@ -1064,6 +1064,30 @@ let case_repair_edit_tests = [
   ),
 ];
 
+/* === Entry experience (typed through the edit pipeline) ===
+   The motivating flows for trailing completion: adding a new let
+   between existing definitions, and starting a definition inside a
+   function body. Enter auto-indents the following line, so the new
+   let absorbs it as body (the designed wrapping read) and its `in`
+   junction-drops at the chain boundary — `let x = 3 in let b = ...`.
+   Guards the entry experience against heuristic additions. */
+let entry_experience_tests = [
+  edit_case(
+    ~name="new let typed between existing definitions",
+    ~acts=
+      Test_Editing.mk("let a = 1 in\n¦let b = 2 in\nb")
+      @ Test_Editing.string_to_ltr_actions("let x = 3\n"),
+    ~expected="let a = 1 in\nlet x = 3\n  inlet b = 2 in\nb",
+  ),
+  edit_case(
+    ~name="new let typed at start of fun body",
+    ~acts=
+      Test_Editing.mk("let f = fun q ->\n  ¦q * 2 in\nf(1)")
+      @ Test_Editing.string_to_ltr_actions("let y = 1\n"),
+    ~expected="let f = fun q ->\n    let y = 1in\n    q * 2 in\nf(1)",
+  ),
+];
+
 let tests: list((string, list(Alcotest.test_case(unit)))) = [
   /* Debug test - run first to isolate crash */
   ("CanonicalCompletion: regrout-debug", regrout_debug_tests),
@@ -1097,6 +1121,7 @@ let tests: list((string, list(Alcotest.test_case(unit)))) = [
     run_completion_tests(case_repair_tests),
   ),
   ("CanonicalCompletion: case-repair (edit-derived)", case_repair_edit_tests),
+  ("CanonicalCompletion: entry-experience", entry_experience_tests),
   ("CanonicalCompletion: wraps", run_completion_tests(wrap_tests)),
   ("CanonicalCompletion: wraps (edit-derived)", run_wrap_seg_tests),
   ("CanonicalCompletion: linebreaks", run_completion_tests(linebreak_tests)),
