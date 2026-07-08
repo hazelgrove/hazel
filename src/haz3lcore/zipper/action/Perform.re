@@ -105,49 +105,59 @@ let rec go =
     )
     |> return(CantReparse)
   | Format(Preferred) =>
-    go(
-      ~settings,
-      ~statics,
-      ~syntax,
-      ~root,
-      Action.Format(settings.format_shortcut_pretty ? Pretty : Indent),
-      {
-        zipper: z,
-        col_target,
-      },
+    switch (settings.format_shortcut) {
+    | Language.CoreSettings.FormatShortcut.Nothing => Ok(z)
+    | Language.CoreSettings.FormatShortcut.Indent =>
+      go(
+        ~settings,
+        ~statics,
+        ~syntax,
+        ~root,
+        Action.Format(Indent),
+        {
+          zipper: z,
+          col_target,
+        },
+      )
+    | Language.CoreSettings.FormatShortcut.Spaces =>
+      go(
+        ~settings,
+        ~statics,
+        ~syntax,
+        ~root,
+        Action.Format(Spacing),
+        {
+          zipper: z,
+          col_target,
+        },
+      )
+    | Language.CoreSettings.FormatShortcut.Breaks =>
+      go(
+        ~settings,
+        ~statics,
+        ~syntax,
+        ~root,
+        Action.Format(Pretty),
+        {
+          zipper: z,
+          col_target,
+        },
+      )
+    }
+  | Format(Spacing) =>
+    /* Re-indent, then canonicalize within-line spacing. Linebreaks
+       and comments untouched; caret restored as in Format(Pretty). */
+    let z = AutoFormat.zipper(z);
+    Some(
+      CaretPreserving.transform(z, SpaceNormalize.go(~canonicalize=true)),
     )
+    |> return(CantReparse);
   | Format(Pretty) =>
-    /* Restore the caret via the indicated tile (pretty-printing
-       preserves tile IDs), falling back to its statics ancestors —
-       a vanished id must not dump the caret at the document end.
-       SpaceNormalize first: a no-op on parsed buffers (they can't
-       contain bare glom junctions) but totalizes synthesized
+    /* SpaceNormalize first: a repair no-op on parsed buffers (they
+       can't contain bare glom junctions) but totalizes synthesized
        segments (agent/structural edits). */
-    let anchors =
-      switch (Indicated.index(z)) {
-      | None => []
-      | Some(id) =>
-        [id]
-        @ (
-          switch (Id.Map.find_opt(id, statics.info_map)) {
-          | Some(InfoExp({ancestors, _}))
-          | Some(InfoPat({ancestors, _})) => ancestors
-          | _ => []
-          }
-        )
-      };
-    let seg = Zipper.unselect_and_zip(z) |> SpaceNormalize.go;
-    let pretty = PrettySegment.prettify(seg);
-    let z = {
-      ...Zipper.unzip(pretty),
-      refractors: z.refractors,
-    };
-    let z =
-      switch (Move.jump_to_first_indicated(z, anchors)) {
-      | Some(z') => z'
-      | None => z
-      };
-    Some(z) |> return(CantReparse);
+    let f = seg => seg |> SpaceNormalize.go |> PrettySegment.prettify;
+    Some(CaretPreserving.transform(z, f)) |> return(CantReparse);
   | Buffer(a) =>
     Buffer.go(~ci=Indicated.ci_for_completion(z, statics.info_map), a, z)
   | Project(a) =>

@@ -560,22 +560,23 @@ y|},
 y|},
   ),
   /* === Zero-indent: indented content does NOT partition === */
-  /* Linebreak followed by spaces then content - no partition.
-   * Grout is inserted because shapes need it. */
+  /* Linebreak followed by spaces then content - no partition. The
+   * missing delimiter junction-drops at the unique concave-grout
+   * junction (def=1, body=y) instead of absorbing y as a multihole. */
   test(
     ~name="let then linebreak then indented var - no partition",
     ~input={|let x = 1
   y|},
     ~expected={|let x = 1
-  ~yin?|},
+  iny|},
   ),
-  /* fun with indented body - grout inserted for shape */
+  /* fun with indented body - arrow junction-drops before it */
   test(
     ~name="fun then linebreak then indented var - no partition",
     ~input={|fun x
   y|},
     ~expected={|fun x
-  ~y->?|},
+  ->y|},
   ),
   /* Mixed: some indented, some at column 0.
    * body is indented (no partition there), next is at col 0 (partition) */
@@ -585,7 +586,7 @@ y|},
   body
 next|},
     ~expected={|let f = fun x
-  ~body->?in
+  ->bodyin
 next|},
   ),
   /* === Blank line tests (existing behavior preserved) === */
@@ -903,6 +904,190 @@ let wrap_tests = [
   ),
 ];
 
+/* === Junction drops (middle shards) + sort-frontier clipping === */
+let junction_tests = [
+  test_sep(
+    ~name="let missing equals drops at junction",
+    ~input="let x 1 in 2",
+    ~expected="let x = 1 in 2",
+    ~expected_no_sep="let x =1 in 2",
+  ),
+  test_sep(
+    ~name="if missing then drops at junction",
+    ~input="if true 1 else 2",
+    ~expected="if true then 1 else 2",
+    ~expected_no_sep="if true then1 else 2",
+  ),
+  test_sep(
+    ~name="ambiguous junctions fall back to everything-left",
+    ~input="let x y 1 in 2",
+    ~expected="let x y 1 = ? in 2",
+    ~expected_no_sep="let x ~y ~1 =?in 2",
+  ),
+];
+
+let frontier_tests = [
+  test_sep(
+    ~name="fun arrow clips before let (inline)",
+    ~input="fun x let y = 1 in y",
+    ~expected="fun x -> let y = 1 in y",
+    ~expected_no_sep="fun x-> let y = 1 in y",
+  ),
+  test_sep(
+    ~name="fun arrow clips before indented let line",
+    ~input="fun x\n  let y = 1 in y",
+    ~expected="fun x ->\n  let y = 1 in y",
+    ~expected_no_sep="fun x->\n  let y = 1 in y",
+  ),
+  test_sep(
+    ~name="type in clips at typ frontier",
+    ~input="type T = Int\n  2",
+    ~expected="type T = Int in\n  2",
+    ~expected_no_sep="type T = Intin\n  2",
+  ),
+  test_sep(
+    ~name="exp slots never clip; junction drop still applies",
+    ~input="let x = 1\n  2",
+    ~expected="let x = 1\n  in 2",
+    ~expected_no_sep="let x = 1\n  in2",
+  ),
+];
+
+/* === Trailing junction drops (concave-right shards fill unique
+   sort-legal junctions; closers excluded; ambiguity falls back) === */
+let trailing_junction_tests = [
+  test_sep(
+    ~name="deleted else restored at junction",
+    ~input="if true then 1 2",
+    ~expected="if true then 1 else 2",
+    ~expected_no_sep="if true then 1 else2",
+  ),
+  test_sep(
+    ~name="deleted in restored at junction",
+    ~input="let x = 1 2",
+    ~expected="let x = 1 in 2",
+    ~expected_no_sep="let x = 1 in2",
+  ),
+  test_sep(
+    ~name="then drops at unique junction, else still appends",
+    ~input="if true 1",
+    ~expected="if true then 1 else ?",
+    ~expected_no_sep="if true then1else?",
+  ),
+  test_sep(
+    ~name="ambiguous junctions: no drop",
+    ~input="if true then 1 2 3",
+    ~expected="if true then 1 2 3 else ?",
+    ~expected_no_sep="if true then 1 ~2 ~3else?",
+  ),
+  test_sep(
+    ~name="closers never junction-drop",
+    ~input="[1 2",
+    ~expected="[1 2]",
+    ~expected_no_sep="[1 ~2]",
+  ),
+  test_sep(
+    ~name="junction drop across linebreak",
+    ~input="let x = 1\n2",
+    ~expected="let x = 1 in\n2",
+    ~expected_no_sep="let x = 1in\n2",
+  ),
+];
+
+/* === Prefix-token witnesses (backspaced delimiters) === */
+let prefix_witness_tests = [
+  test_sep(
+    ~name="i in operator position completes to in",
+    ~input="let x = 1 i 2",
+    ~expected="let x = 1 in 2",
+    ~expected_no_sep="let x = 1 in 2",
+  ),
+  test_sep(
+    ~name="e in operator position completes to else",
+    ~input="if true then 1 e 2",
+    ~expected="if true then 1 else 2",
+    ~expected_no_sep="if true then 1 else 2",
+  ),
+  test_sep(
+    ~name="non-matching prefix is not a witness",
+    ~input="let x = 1 e 2",
+    ~expected="let x = 1 e 2 in ?",
+    ~expected_no_sep="let x = 1 e 2in?",
+  ),
+];
+
+/* === Case arbitration + rule walls ===
+   Edit-derived states (deleting delimiter chars in the editor differs
+   from text-parse: an unclosed paren ABSORBS following rules at parse
+   time, while editor deletion leaves them as siblings). */
+let destruct_l = Action.Destruct(Local(Left, ByChar));
+let edit_complete = (acts: list(Action.t)): string => {
+  let z = Test_Editing.perform(Zipper.init(), acts);
+  let seg = Zipper.unselect_and_zip(~erase_buffer=true, z);
+  let result = CanonicalCompletion.complete_segment_deep(~sort=Sort.Exp, seg);
+  print_seg(result.completed_seg);
+};
+let edit_case = (~name, ~acts, ~expected) =>
+  test_case(name, `Quick, () =>
+    check(string_testable, name, expected, edit_complete(acts))
+  );
+
+let case_repair_tests = [
+  test_sep(
+    ~name="deleted end: single case, no wrap double-fire",
+    ~input="case x | 1 => 2",
+    ~expected="case x | 1 => 2 end",
+    ~expected_no_sep="case x | 1 => 2end",
+  ),
+];
+
+let case_repair_edit_tests = [
+  edit_case(
+    ~name="broken case head: orphan end adopts rules, one case only",
+    ~acts=Test_Editing.mk("case¦ x | 1 => 2 end") @ [destruct_l],
+    ~expected="casecas~ x | 1 => 2 end",
+  ),
+  edit_case(
+    ~name="deleted closer stops at rule wall",
+    ~acts=Test_Editing.mk("case go(e1)¦ | 1 => 2 end") @ [destruct_l],
+    ~expected="case go(e1) | 1 => 2 end",
+  ),
+  edit_case(
+    ~name="deleted second bar restored at its junction",
+    ~acts=Test_Editing.mk("case x | 1 => 2 |¦ 3 => 4 end") @ [destruct_l],
+    ~expected="case x | 1 => 2 | 3 => 4 end",
+  ),
+  edit_case(
+    ~name="deleted first bar restored at scrutinee junction",
+    ~acts=Test_Editing.mk("case x |¦ 1 => 2 end") @ [destruct_l],
+    ~expected="case x | 1 => 2 end",
+  ),
+];
+
+/* === Entry experience (typed through the edit pipeline) ===
+   The motivating flows for trailing completion: adding a new let
+   between existing definitions, and starting a definition inside a
+   function body. Enter auto-indents the following line, so the new
+   let absorbs it as body (the designed wrapping read) and its `in`
+   junction-drops at the chain boundary — `let x = 3 in let b = ...`.
+   Guards the entry experience against heuristic additions. */
+let entry_experience_tests = [
+  edit_case(
+    ~name="new let typed between existing definitions",
+    ~acts=
+      Test_Editing.mk("let a = 1 in\n¦let b = 2 in\nb")
+      @ Test_Editing.string_to_ltr_actions("let x = 3\n"),
+    ~expected="let a = 1 in\nlet x = 3\n  inlet b = 2 in\nb",
+  ),
+  edit_case(
+    ~name="new let typed at start of fun body",
+    ~acts=
+      Test_Editing.mk("let f = fun q ->\n  ¦q * 2 in\nf(1)")
+      @ Test_Editing.string_to_ltr_actions("let y = 1\n"),
+    ~expected="let f = fun q ->\n    let y = 1in\n    q * 2 in\nf(1)",
+  ),
+];
+
 let tests: list((string, list(Alcotest.test_case(unit)))) = [
   /* Debug test - run first to isolate crash */
   ("CanonicalCompletion: regrout-debug", regrout_debug_tests),
@@ -921,6 +1106,22 @@ let tests: list((string, list(Alcotest.test_case(unit)))) = [
   ),
   ("CanonicalCompletion: leading", run_completion_tests(leading_tests)),
   ("CanonicalCompletion: middle", run_completion_tests(middle_tests)),
+  ("CanonicalCompletion: junction", run_completion_tests(junction_tests)),
+  ("CanonicalCompletion: frontier", run_completion_tests(frontier_tests)),
+  (
+    "CanonicalCompletion: trailing-junction",
+    run_completion_tests(trailing_junction_tests),
+  ),
+  (
+    "CanonicalCompletion: prefix-witness",
+    run_completion_tests(prefix_witness_tests),
+  ),
+  (
+    "CanonicalCompletion: case-repair",
+    run_completion_tests(case_repair_tests),
+  ),
+  ("CanonicalCompletion: case-repair (edit-derived)", case_repair_edit_tests),
+  ("CanonicalCompletion: entry-experience", entry_experience_tests),
   ("CanonicalCompletion: wraps", run_completion_tests(wrap_tests)),
   ("CanonicalCompletion: wraps (edit-derived)", run_wrap_seg_tests),
   ("CanonicalCompletion: linebreaks", run_completion_tests(linebreak_tests)),

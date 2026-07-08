@@ -238,10 +238,27 @@ let rec go =
         : Id.Map.t(int) => {
   let complete_trimmed_seg = complete_segment(trim_non_content(seg));
   let context = compute_context(complete_trimmed_seg);
+  /* Mark pieces whose immediate predecessor (in the trimmed segment)
+     is a linebreak: a run of linebreaks must share one indent, not
+     staircase (each one's EFFECTIVE prev is still the incrementor) */
+  let prev_is_lb = {
+    let is_lb = (pc: Piece.t) =>
+      switch (pc) {
+      | Secondary(w) => Secondary.is_linebreak(w)
+      | _ => false
+      };
+    let rec mark = (flag, xs) =>
+      switch (xs) {
+      | [] => []
+      | [x, ...rest] => [flag, ...mark(is_lb(x), rest)]
+      };
+    mark(false, complete_trimmed_seg);
+  };
+  let context = List.combine(context, prev_is_lb);
   let (_, map) =
     List.fold_left2(
       ((level: int, map: Id.Map.t(int)), p: Piece.t, ctx) => {
-        let (prev, next, effective_next) = ctx;
+        let ((prev, next, effective_next), prev_is_lb) = ctx;
         switch (p) {
         | Secondary(w) when Secondary.is_linebreak(w) =>
           let indent =
@@ -255,7 +272,10 @@ let rec go =
             /* After a complete case rule WITH a body, we expect the next
              * rule at the same level. Don't indent for "next rule" position. */
             | (Some(prev), _) when is_complete_case_rule_with_body(prev) => base
-            | (Some(prev), _) when is_incrementor(prev) => level + 2
+            /* only the FIRST linebreak after an incrementor takes
+               the +2; consecutive linebreaks inherit its level */
+            | (Some(prev), _) when is_incrementor(prev) =>
+              prev_is_lb ? level : level + 2
             | (None, _) when not_top => base + 2
             /* Check effective_next (skipping linebreaks) for case rule */
             | _ when Option.map(is_case_rule, effective_next) == Some(true) => base

@@ -396,18 +396,15 @@ let tests = (
         let result =
           CanonicalCompletion.complete_segment_deep(~sort=Sort.Exp, seg);
         let masks =
-          result.shard_records
-          |> List.fold_left(
-               (m, r: CanonicalCompletion.shard_record) =>
-                 Id.Map.add(r.tile_id, r.original_shards, m),
-               Id.Map.empty,
-             );
+          CanonicalCompletion.masks_of_records(result.shard_records);
         let term = MakeTerm.go_impl(~masks, result.completed_seg).term;
         /* The completed root should be a Let whose annotation records
            the let tile with originally-present shards [0, 1] */
         let found =
           term.annotation.incomplete
-          |> List.exists(((_, shards)) => shards == [0, 1]);
+          |> List.exists(((_, mask: IdTagged.IdTag.incomplete_mask)) =>
+               mask.present == [0, 1]
+             );
         check(bool, "let tile provenance recorded", true, found);
       }
     }),
@@ -1307,13 +1304,7 @@ let roundtrip_grout_text_test = (name: string, input: string) =>
    Text compared with grout hidden on both sides (regrout normalizes). */
 let check_incomplete_roundtrip = (seg: Segment.t): unit => {
   let result = CanonicalCompletion.complete_segment_deep(~sort=Sort.Exp, seg);
-  let masks =
-    result.shard_records
-    |> List.fold_left(
-         (m, r: CanonicalCompletion.shard_record) =>
-           Id.Map.add(r.tile_id, r.original_shards, m),
-         Id.Map.empty,
-       );
+  let masks = CanonicalCompletion.masks_of_records(result.shard_records);
   let term = MakeTerm.go_impl(~masks, result.completed_seg).term;
   let seg2 = exp_to_segment_roundtrip(term);
   let print_g =
@@ -1671,8 +1662,63 @@ let property_tests = (
   ],
 );
 
+/* pad_ids: padding/replacement ids must be derived, not minted —
+   printing is a pure function of the term */
+let pad_ids_tests = (
+  "ExpToSegment.PadIds",
+  [
+    Alcotest.test_case(
+      "padding is deterministic",
+      `Quick,
+      () => {
+        let base = Id.mk();
+        Alcotest.(check(bool))(
+          "two pads agree",
+          true,
+          ExpToSegment.pad_ids(3, [base])
+          == ExpToSegment.pad_ids(3, [base]),
+        );
+      },
+    ),
+    Alcotest.test_case(
+      "duplicate replacement is deterministic and distinct",
+      `Quick,
+      () => {
+        let base = Id.mk();
+        let a = ExpToSegment.pad_ids(2, [base, base]);
+        let b = ExpToSegment.pad_ids(2, [base, base]);
+        Alcotest.(check(bool))("stable", true, a == b);
+        Alcotest.(check(bool))(
+          "no dups",
+          true,
+          List.length(List.sort_uniq(Id.compare, a)) == 2,
+        );
+      },
+    ),
+    Alcotest.test_case(
+      "derived stream avoids Id.next chains",
+      `Quick,
+      () => {
+        let base = Id.mk();
+        let padded = ExpToSegment.pad_ids(4, [base]) |> List.tl;
+        let nexts = [
+          Id.next(base),
+          Id.next(Id.next(base)),
+          Id.next(Id.next(Id.next(base))),
+        ];
+        Alcotest.(check(bool))(
+          "disjoint from next chain",
+          true,
+          List.for_all(id => !List.mem(id, nexts), padded),
+        );
+      },
+    ),
+  ],
+);
+
 let all = [
   tests,
+  pad_ids_tests,
   roundtrip_tests,
   roundtrip_incomplete_tests,
   roundtrip_defensive_paren_tests,

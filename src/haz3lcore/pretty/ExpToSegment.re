@@ -1240,13 +1240,36 @@ let mk_form =
 
    To prevent that, pad_ids now also ensures the returned list has:
    1. no duplicates within itself;
-   2. no id equal to any id in [~forbidden]. */
+   2. no id equal to any id in [~forbidden].
+
+   Padding and replacement ids are DERIVED (hash of ~base + counter),
+   not minted: printing must be a pure function of the term. Fresh ids
+   here made double-prints of the same term differ. ~base defaults to
+   the first id; pass it explicitly where ids can be empty. */
 let pad_ids =
-    (~forbidden: list(Id.t)=[], n: int, ids: list(Id.t)): list(Id.t) => {
+    (
+      ~forbidden: list(Id.t)=[],
+      ~base: option(Id.t)=?,
+      n: int,
+      ids: list(Id.t),
+    )
+    : list(Id.t) => {
+  let base =
+    switch (base, ids) {
+    | (Some(b), _) => b
+    | (None, [id, ..._]) => id
+    | (None, []) => Id.invalid
+    };
+  let counter = ref(0);
   let forbidden_set = ref(Id.Set.of_list(forbidden));
+  let rec derived = () => {
+    incr(counter);
+    let cand = Id.derive(~salt="pad" ++ string_of_int(counter^), base);
+    Id.Set.mem(cand, forbidden_set^) ? derived() : cand;
+  };
   let replace = id =>
     if (Id.Set.mem(id, forbidden_set^)) {
-      let fresh = Id.mk();
+      let fresh = derived();
       forbidden_set := Id.Set.add(fresh, forbidden_set^);
       fresh;
     } else {
@@ -1255,7 +1278,7 @@ let pad_ids =
     };
   let truncated =
     if (List.length(ids) < n) {
-      ids @ List.init(n - List.length(ids), _ => Id.mk());
+      ids @ List.init(n - List.length(ids), _ => derived());
     } else {
       ListUtil.split_n(n, ids) |> fst;
     };
@@ -1408,7 +1431,10 @@ let rec drv_exp_to_pretty =
       let* x = go(x, ~sort=Prop)
       and* xs = xs |> List.map(go(~sort=Prop)) |> all;
       let ids =
-        syntax |> IdTagged.ids |> List.tl |> pad_ids(List.length(xs));
+        syntax
+        |> IdTagged.ids
+        |> List.tl
+        |> pad_ids(~base=id, List.length(xs));
       let map2_safe = (f, l1, l2) =>
         List.length(l1) == List.length(l2)
           ? List.map2(f, l1, l2) : raise(Invalid_argument("map2_safe"));
@@ -3425,7 +3451,8 @@ and label_to_pretty =
    V1 limitations: masks on Drv terms are not collected (drv has its own
    traversal machinery), and projector-internal syntax is left alone. */
 
-let collect_shard_masks = (any: Any.t): Id.Map.t(list(int)) => {
+let collect_shard_masks =
+    (any: Any.t): Id.Map.t(IdTagged.IdTag.incomplete_mask) => {
   let acc = ref(Id.Map.empty);
   let record = (ann: IdTagged.IdTag.t) =>
     List.iter(
@@ -3452,7 +3479,8 @@ let collect_shard_masks = (any: Any.t): Id.Map.t(list(int)) => {
 };
 
 let rec strip_synthesized_shards =
-        (masks: Id.Map.t(list(int)), seg: Segment.t): Segment.t =>
+        (masks: Id.Map.t(IdTagged.IdTag.incomplete_mask), seg: Segment.t)
+        : Segment.t =>
   seg
   |> List.concat_map((p: Piece.t) =>
        switch (p) {
@@ -3466,31 +3494,61 @@ let rec strip_synthesized_shards =
            | ([x, ...xs'], [y, ...ys']) =>
              x == y ? is_subsequence(xs', ys') : is_subsequence(xs, ys')
            };
-         let slice = (lo: int, hi: int, xs: list('a)): list('a) =>
-           xs |> List.filteri((i, _) => i >= lo && i < hi);
          switch (Id.Map.find_opt(t.id, masks)) {
-         | Some([]) =>
+         | Some({present: [], _}) =>
            /* Fully synthetic tile (e.g. the case/end wrapped around an
               orphaned rule chain): drop it, splice out all children */
            List.concat(children)
-         | Some(orig) when orig != t.shards && is_subsequence(orig, t.shards) =>
+         | Some({present: orig, prefixes})
+             when orig != t.shards && is_subsequence(orig, t.shards) =>
            /* General mask (prefix = trailing completion, suffix = leading,
               subsequence = middle): keep the originally-present shards.
               The printed tile is complete, so child i sits between shards
-              i and i+1; children between consecutive kept shards merge
-              into the truncated tile's child slots, and children outside
-              the kept span splice out on the matching side. Plain list
-              ops throughout — the file-level @ is AutoFormat concat,
-              which would insert heuristic spaces. */
+              i and i+1 (shard j sits between children j-1 and j); children
+              between consecutive kept shards merge into the truncated
+              tile's child slots, and children outside the kept span splice
+              out on the matching side. A dropped shard recorded as
+              PARTIALLY TYPED re-emits its original prefix token at its
+              boundary (`i` where the completed `in` sat). Plain list ops
+              throughout — the file-level @ is AutoFormat concat, which
+              would insert heuristic spaces. */
+           let tok = (j: int): list(Piece.t) =>
+             switch (
+               List.find_opt(
+                 (sp: IdTagged.IdTag.shard_prefix) => sp.shard == j,
+                 prefixes,
+               )
+             ) {
+             | None => []
+             | Some(sp) => [
+                 Piece.Tile({
+                   id: sp.token_id,
+                   label: [String.sub(List.nth(t.label, j), 0, sp.len)],
+                   mold: Mold.mk_bin(Precedence.concave_grout, Exp, []),
+                   shards: [0],
+                   children: [],
+                 }),
+               ]
+             };
+           let child = i => List.nth(children, i);
+           /* children a..b-1 with prefix tokens at interior dropped-
+              shard boundaries; ~end_tok also emits the token for
+              shard b (used past the last kept shard) */
+           let span = (~end_tok, a: int, b: int): list(Piece.t) =>
+             List.init(b - a, k => a + k)
+             |> List.concat_map(i =>
+                  child(i) @ (i + 1 < b || end_tok ? tok(i + 1) : [])
+                );
            let first = List.hd(orig);
            let last = List.nth(orig, List.length(orig) - 1);
-           let before = List.concat(slice(0, first, children));
-           let after =
-             List.concat(slice(last, List.length(children), children));
+           let before =
+             List.init(first, i => i)
+             |> List.concat_map(i => tok(i) @ child(i));
+           let after = span(~end_tok=true, last, List.length(children));
            let rec kept_slots = m =>
              switch (m) {
              | [a, b, ...rest] => [
-                 List.concat(slice(a, b, children)),
+                 span(~end_tok=false, a, b),
                  ...kept_slots([b, ...rest]),
                ]
              | _ => []

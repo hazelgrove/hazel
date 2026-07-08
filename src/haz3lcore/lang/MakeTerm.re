@@ -210,10 +210,12 @@ let get_secondary = (ids: list(Id.t)): IdTagged.IdTag.secondary_runs =>
   | [] => IdTagged.IdTag.empty_secondary
   };
 
-/* Shard provenance from canonical completion: tile id -> shard indices
- * physically present in the visible segment. Empty unless parsing a
- * canonically completed segment (see go_impl / from_zip_for_sem). */
-let shard_masks: ref(Id.Map.t(list(int))) = ref(Id.Map.empty);
+/* Shard provenance from canonical completion: tile id -> shard mask
+ * (physically present indices + partially-typed prefixes). Empty
+ * unless parsing a canonically completed segment (see go_impl /
+ * from_zip_for_sem). */
+let shard_masks: ref(Id.Map.t(IdTagged.IdTag.incomplete_mask)) =
+  ref(Id.Map.empty);
 
 /* The subset of this term's tiles that were completed, with their
  * originally-present shards, for the annotation. */
@@ -223,7 +225,7 @@ let get_incomplete = (ids: list(Id.t)): IdTagged.IdTag.incomplete_tiles =>
     : ids
       |> List.filter_map(id =>
            Id.Map.find_opt(id, shard_masks^)
-           |> Option.map(shards => (id, shards))
+           |> Option.map(mask => (id, mask))
          );
 
 /* Surface spelling of the token a *_term branch just parsed, when its
@@ -1959,7 +1961,8 @@ let consolidate_adopted = (): unit => {
  * completion (tile id -> originally-present shard indices); it cannot be
  * folded into a segment-keyed memo because the same completed segment can
  * arise from different visible segments with different masks. */
-let go_impl = (~masks: Id.Map.t(list(int))=Id.Map.empty, seg) => {
+let go_impl =
+    (~masks: Id.Map.t(IdTagged.IdTag.incomplete_mask)=Id.Map.empty, seg) => {
   map := TermMap.empty;
   term_data := Id.Map.empty;
   projectors := Id.Map.empty;
@@ -2056,13 +2059,7 @@ let from_zip_for_sem = (z: Zipper.t, ~root: Sort.t) => {
     |> Zipper.clear_unparsed_buffer
     |> Zipper.unselect_and_zip(~erase_buffer=true);
   let result = CanonicalCompletion.complete_segment_deep(~sort=Sort.Exp, seg);
-  let masks =
-    result.shard_records
-    |> List.fold_left(
-         (m, r: CanonicalCompletion.shard_record) =>
-           Id.Map.add(r.tile_id, r.original_shards, m),
-         Id.Map.empty,
-       );
+  let masks = CanonicalCompletion.masks_of_records(result.shard_records);
   go_impl(~masks, result.completed_seg);
 };
 
