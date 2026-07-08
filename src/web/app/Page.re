@@ -632,7 +632,10 @@ module Selection = {
 module View = {
   let handlers = (~inject: Update.t => Ui_effect.t(unit), model: Model.t) => {
     let handle_key_event = (key: Key.t): Effect.t(unit) => {
-      let meta_down = key.meta == Down;
+      /* bare cmd only: chords (cmd+ctrl gestures etc.) must not light
+         up the ref-jump underline affordance */
+      let meta_down =
+        key.meta == Down && key.ctrl == Up && key.alt == Up && key.shift == Up;
       let meta_effects =
         model.globals.meta_down == meta_down
           ? [] : [inject(Globals(SetMetaDown(meta_down)))];

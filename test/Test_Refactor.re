@@ -1670,6 +1670,44 @@ let feed_tests = [
   ),
 ];
 
+let sink_layout_tests = [
+  test_case(
+    "sink into a multiline block: each let keeps its own line",
+    `Quick,
+    () => {
+      let got =
+        inline(
+          ~kind=SinkLet,
+          "¦let scale = 10 in\nlet big =\n  let base = 4 in\n  base * scale\nin\n1",
+        )
+        |> text_of;
+      check(
+        string,
+        "own lines",
+        "let big =\n  let scale = 10 in\n  let base = 4 in\n  base * scale\nin\n1",
+        got,
+      );
+    },
+  ),
+  test_case(
+    "hoist/sink round trip is layout-stable (no oscillation)",
+    `Quick,
+    () => {
+      let z1 =
+        Test_Editing.parse_zipper(
+          "¦let scale = 10 in\nlet big =\n  let base = 4 in\n  base * scale\nin\n1",
+        );
+      let sunk = Test_Editing.perform(z1, [Action.Refactor(SinkLet)]);
+      let cycled =
+        Test_Editing.perform(
+          sunk,
+          [Action.Refactor(HoistLet), Action.Refactor(SinkLet)],
+        );
+      check(string, "fixed point", text_of(sunk), text_of(cycled));
+    },
+  ),
+];
+
 let reparse_safety_tests = {
   let case = (name, kind, marked) =>
     test_case(name, `Quick, () => prepare_reparses(~kind, marked));
@@ -2632,6 +2670,7 @@ let tests = [
     @ audit_round_tests
     @ round3_tests
     @ binding_tests
+    @ sink_layout_tests
     @ feed_tests
     @ reparse_safety_tests,
   ),

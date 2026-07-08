@@ -2952,6 +2952,18 @@ let sink_step = (~fixup: bool, l: Exp.t): option((Exp.t, Id.t)) => {
               secondary: (host_sep() @ space() @ space() @ b, a),
             },
           };
+        } else if (fixup && has_newline(d_lead)) {
+          /* multiline block: the lead moved to the sunk let, so the
+             displaced first line gets a fresh copy — else both lets
+             land on one line and hoist/sink layouts oscillate */
+          let (b, a) = mdef'.annotation.secondary;
+          {
+            ...mdef',
+            annotation: {
+              ...mdef'.annotation,
+              secondary: (sep_like(d_lead) @ b, a),
+            },
+          };
         } else {
           mdef';
         };
