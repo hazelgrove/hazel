@@ -136,13 +136,17 @@ let animate_enter = (node: Js.t(Dom.node)): unit => {
 let animate_node =
     (
       ~font_metrics: FontMetrics.t,
+      ~extra: (float, float)=(0., 0.),
       node: Js.t(Dom.node),
       o: Point.t,
       n: Point.t,
     )
     : unit => {
-  let dx = float_of_int(o.col - n.col) *. font_metrics.col_width;
-  let dy = float_of_int(o.row - n.row) *. font_metrics.row_height;
+  /* extra: a px offset already applied to the element visually (a
+     drag scrub) — the flight continues from there, never restarts */
+  let (ex, ey) = extra;
+  let dx = float_of_int(o.col - n.col) *. font_metrics.col_width +. ex;
+  let dy = float_of_int(o.row - n.row) *. font_metrics.row_height +. ey;
   let keyframes =
     Animation.Js.keyframes_unsafe([
       ("transform", Printf.sprintf("translate(%fpx, %fpx)", dx, dy)),
@@ -210,6 +214,18 @@ let pending: ref(option(Measured.t)) = ref(None);
 let request = (syntax: CachedSyntax.t): unit =>
   pending := Some(syntax.measured);
 
+/* Drag handoff (CodeDrag): visual px offsets tokens already carry
+   from the scrub, keyed like the measured diff; consumed by the next
+   go() so each flight starts from the scrubbed position. */
+let drag_offsets: ref(list((key, (float, float)))) = ref([]);
+let set_drag_offsets = (l: list((key, (float, float)))): unit =>
+  drag_offsets := l;
+
+/* Adopt foreign animations (the drag's scrub transforms) into the
+   active set: the next go() cancels them at the exact moment the
+   commit's own flights take over the same elements. */
+let adopt = (anims: list(Js.Unsafe.any)): unit => active := anims @ active^;
+
 /* Call after render. The active editor's .code-text is located via
  * the caret: caret lives in .code-container > .code-deco, a sibling
  * of .code > .code-text (the scoped selector avoids matching code
@@ -219,6 +235,12 @@ let go = (~syntax: CachedSyntax.t, ~font_metrics: FontMetrics.t): unit =>
   | None => ()
   | Some(old_m) =>
     pending := None;
+    /* stale animations — including adopted drag scrubs (fill:both,
+       they'd re-assert after any new flight ends) — must not outlive
+       the render they were staged against */
+    cancel_active();
+    let offsets = drag_offsets^;
+    drag_offsets := [];
     let new_m = syntax.measured;
     switch (JsUtil.get_elem_by_id_opt("caret")) {
     | None => ()
@@ -251,7 +273,7 @@ let go = (~syntax: CachedSyntax.t, ~font_metrics: FontMetrics.t): unit =>
                                o.origin != n.origin
                                && o.origin.row == o.last.row
                                && n.origin.row == n.last.row =>
-                           Some((node, o.origin, n.origin))
+                           Some((k, node, o.origin, n.origin))
                          | _ => None
                          }
                        );
@@ -266,14 +288,21 @@ let go = (~syntax: CachedSyntax.t, ~font_metrics: FontMetrics.t): unit =>
                   if ((moved != [] || entered != [])
                       && List.length(moved)
                       + List.length(entered) <= max_moved) {
-                    cancel_active();
                     moved
-                    |> List.iter(((node, o, n)) =>
-                         animate_node(~font_metrics, node, o, n)
+                    |> List.iter(((k, node, o, n)) =>
+                         animate_node(
+                           ~font_metrics,
+                           ~extra=
+                             List.assoc_opt(k, offsets)
+                             |> Option.value(~default=(0., 0.)),
+                           node,
+                           o,
+                           n,
+                         )
                        );
                     entered |> List.iter(animate_enter);
                     moved
-                    |> List.iter(((node, _, _)) => warn_invisible(node));
+                    |> List.iter(((_, node, _, _)) => warn_invisible(node));
                   };
                 };
               },

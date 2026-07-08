@@ -1809,6 +1809,15 @@ let drag_tests = [
     },
   ),
   test_case(
+    "drag candidates: no feed track when grabbed at the use",
+    `Quick,
+    () => {
+      let cs = drag_cands("let x = 2 in x + ¦x");
+      let kinds = cs |> List.map((c: Refactor.DragCandidate.t) => c.kind);
+      check(bool, "no feed", false, List.mem(Action.FeedLet, kinds));
+    },
+  ),
+  test_case(
     "drag candidates: feed track runs def -> use",
     `Quick,
     () => {

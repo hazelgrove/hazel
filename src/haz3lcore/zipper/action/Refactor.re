@@ -5132,17 +5132,16 @@ let drag_anchor =
   switch (kind) {
   | FeedLet =>
     switch (feed_site(~info_map, ~target, term)) {
-    | Some((l, x, occ_pref)) =>
+    /* grabbed AT the use: a def->use track would start at its end
+       (the pointer begins at t~1 and release commits instantly) —
+       no track; the default (target, target) pair degenerates and
+       the candidate drops. Feeds drag from the binding side. */
+    | Some((_, _, Some(_))) => Some((target, target))
+    | Some((l, x, None)) =>
       switch (IdTagged.term_of(l)) {
       | Let(_, def, body) =>
-        let occ =
-          switch (occ_pref) {
-          | Some(oid) =>
-            occurrences_of(x, body)
-            |> List.find_opt((o: Exp.t) => List.mem(oid, IdTagged.ids(o)))
-          | None => first_occurrence(x, body)
-          };
-        occ |> Option.map(o => (Exp.rep_id(def), Exp.rep_id(o)));
+        first_occurrence(x, body)
+        |> Option.map(o => (Exp.rep_id(def), Exp.rep_id(o)))
       | _ => None
       }
     | None => None

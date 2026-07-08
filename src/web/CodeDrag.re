@@ -42,7 +42,7 @@ type cand = {
   tgt: vec,
   /* whole-buffer scrub: tokens displaced by this candidate, with
      their px deltas (built at compute; animations made lazily) */
-  moved: list((Js.t(Dom.node), float, float)),
+  moved: list((CodeFlip.key, Js.t(Dom.node), float, float)),
 };
 
 /* Candidate enumeration must wait for the model to settle: on arm,
@@ -186,7 +186,7 @@ let scrub_clear = (s: session): unit => {
 
 let make_anims = (c: cand): list(Js.Unsafe.any) =>
   c.moved
-  |> List.filter_map(((node, dx, dy)) => {
+  |> List.filter_map(((_, node, dx, dy)) => {
        let keyframes =
          Js.Unsafe.obj([|
            (
@@ -225,6 +225,60 @@ let make_anims = (c: cand): list(Js.Unsafe.any) =>
        };
      });
 
+/* read a paused scrub animation's progress (0..1) */
+let anim_t = (anims: list(Js.Unsafe.any)): float =>
+  switch (anims) {
+  | [] => 0.
+  | [a, ..._] =>
+    switch (Js.Unsafe.get(a, "currentTime")) {
+    | exception _ => 0.
+    | ct => Js.float_of_number(Js.Unsafe.coerce(ct)) /. scrub_duration
+    }
+  };
+
+/* ease displaced tokens back to their natural positions from the
+   scrub offset they currently carry — release/cancel/track-switch
+   must CONTINUE motion, never restart it */
+let relax_from = (c: cand, t: float): unit =>
+  if (t > 0.01) {
+    c.moved
+    |> List.iter(((_, node, dx, dy)) => {
+         let keyframes =
+           Js.Unsafe.obj([|
+             (
+               "transform",
+               Js.Unsafe.inject(
+                 Js.array([|
+                   Js.string(
+                     Printf.sprintf(
+                       "translate(%fpx, %fpx)",
+                       dx *. t,
+                       dy *. t,
+                     ),
+                   ),
+                   Js.string("translate(0px, 0px)"),
+                 |]),
+               ),
+             ),
+           |]);
+         let options =
+           Js.Unsafe.obj([|
+             ("duration", Js.Unsafe.inject(Js.number_of_float(150.))),
+             ("easing", Js.Unsafe.inject(Js.string("ease-out"))),
+           |]);
+         switch (
+           Js.Unsafe.meth_call(
+             node,
+             "animate",
+             [|Js.Unsafe.inject(keyframes), Js.Unsafe.inject(options)|],
+           )
+         ) {
+         | exception _ => ()
+         | _ => ()
+         };
+       });
+  };
+
 /* drive the winner's scrub to progress t; other tracks rest at 0 */
 let scrub_to = (s: session, winner: option(int), t: float): unit => {
   switch (s.scrub_active, winner) {
@@ -232,7 +286,11 @@ let scrub_to = (s: session, winner: option(int), t: float): unit => {
   | (Some(prev), _) =>
     switch (List.assoc_opt(prev, s.scrub_anims)) {
     | Some(anims) =>
-      anims |> List.iter(a => Js.Unsafe.set(a, "currentTime", 0.))
+      switch (List.nth_opt(s.cands, prev)) {
+      | Some(c) => relax_from(c, anim_t(anims))
+      | None => ()
+      };
+      anims |> List.iter(a => Js.Unsafe.set(a, "currentTime", 0.));
     | None => ()
     }
   | (None, _) => ()
@@ -303,11 +361,16 @@ let resolve = (s: session, p: vec): unit => {
       switch (s.snap_hover) {
       | Some((j, since)) when j == i =>
         if (now_ms() -. since >= snap_dwell) {
+          CodeFlip.set_drag_offsets(
+            c.moved |> List.map(((k, _, dx, dy)) => (k, (dx, dy))),
+          );
+          CodeFlip.adopt(s.scrub_anims |> List.concat_map(snd));
+          s.scrub_anims = [];
+          s.scrub_active = None;
           s.winner = None;
           s.t = 0.;
           s.cands = [];
           s.snap_hover = None;
-          scrub_clear(s);
           s.pending = AwaitChange(s.last_z, s.last_term);
           s.commit(c.dir);
         }
@@ -329,6 +392,14 @@ let resolve = (s: session, p: vec): unit => {
 let end_session = () => {
   switch (session^) {
   | Some(s) =>
+    switch (s.scrub_active) {
+    | Some(w) =>
+      switch (List.assoc_opt(w, s.scrub_anims), List.nth_opt(s.cands, w)) {
+      | (Some(anims), Some(c)) => relax_from(c, anim_t(anims))
+      | _ => ()
+      }
+    | None => ()
+    };
     scrub_clear(s);
     s.listeners |> List.iter(Dom.removeEventListener);
   | None => ()
@@ -373,6 +444,16 @@ let on_up = (_e: Js.t(Dom_html.event)): unit =>
     switch (s.winner) {
     | Some(i) when s.t >= commit_t =>
       let c = List.nth(s.cands, i);
+      /* handoff: the commit's FLIP starts each token from its
+         scrubbed offset; the scrub animations are adopted so they
+         die exactly when the flights take over */
+      CodeFlip.set_drag_offsets(
+        c.moved
+        |> List.map(((k, _, dx, dy)) => (k, (dx *. s.t, dy *. s.t))),
+      );
+      CodeFlip.adopt(s.scrub_anims |> List.concat_map(snd));
+      s.scrub_anims = [];
+      s.scrub_active = None;
       s.commit(c.dir);
     | _ => ()
     };
@@ -509,7 +590,7 @@ let sync =
                let dy =
                  float_of_int(n.origin.row - o.origin.row)
                  *. font_metrics.row_height;
-               Some((node, dx, dy));
+               Some((k, node, dx, dy));
              | _ => None
              }
            );
