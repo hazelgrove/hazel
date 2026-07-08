@@ -76,20 +76,37 @@ let rec go =
        )
     |> return(CantIntroduce)
   | Paste(clipboard) =>
+    /* pasted material can complete enclosing tiles (the completion
+       trigger) AND carries its source indentation (the region
+       trigger re-indents the pasted lines themselves) */
+    let before = LocalReformat.snapshot(~enabled=settings.auto_reindent, z);
+    let before_pieces =
+      LocalReformat.snapshot_pieces(~enabled=settings.auto_reindent, z);
+    let finish = z =>
+      z
+      |> maybe_reassoc_thorough
+      |> LocalReformat.go(~before)
+      |> LocalReformat.go_region(~before_pieces);
     switch (Parser.try_segment_paste(clipboard, z, ~root)) {
-    | Some(z) => Ok(maybe_reassoc_thorough(z))
+    | Some(z) => Ok(finish(z))
     | None =>
       (
         Parser.can_fast_paste(clipboard, z, ~root)
           ? Parser.fast_paste(clipboard, z, ~root)
           : Parser.to_zipper(~root, ~zipper_init=z, clipboard)
       )
-      |> Option.map(maybe_reassoc_thorough)
+      |> Option.map(finish)
       |> return(CantPaste)
-    }
+    };
   | Cut =>
-    /* System clipboard handling is done in Page.view handlers */
-    Destruct.go(Local(Left, ByChar), z, ~root) |> return(Cant_destruct)
+    /* System clipboard handling is done in Page.view handlers.
+       Deletion can COMPLETE a tile (removing junk between split
+       shards lets reassembly merge them), so the completion trigger
+       applies; ordinary un-settling deletions leave it silent. */
+    let before = LocalReformat.snapshot(~enabled=settings.auto_reindent, z);
+    Destruct.go(Local(Left, ByChar), z, ~root)
+    |> Option.map(LocalReformat.go(~before))
+    |> return(Cant_destruct);
   | Copy =>
     /* System clipboard handling itself is done in Page.view handlers.
      * This doesn't change state but is included here for logging purposes */
@@ -159,7 +176,15 @@ let rec go =
     let f = seg => seg |> SpaceNormalize.go |> PrettySegment.prettify;
     Some(CaretPreserving.transform(z, f)) |> return(CantReparse);
   | Buffer(a) =>
-    Buffer.go(~ci=Indicated.ci_for_completion(z, statics.info_map), a, z)
+    /* accepting a TyDi suggestion inserts delimiter text like typing
+       it, but via a separate path from the Insert arm */
+    let before = LocalReformat.snapshot(~enabled=settings.auto_reindent, z);
+    switch (
+      Buffer.go(~ci=Indicated.ci_for_completion(z, statics.info_map), a, z)
+    ) {
+    | Ok(z) => Ok(LocalReformat.go(~before, z))
+    | Error(_) as e => e
+    };
   | Project(a) =>
     let refractor_list =
       List.map(fst, z.refractors.manuals)
@@ -276,9 +301,12 @@ let rec go =
   | Select(ToggleFocus) => Ok(Zipper.toggle_focus(z))
   | Select(SetFocus(d)) => Ok(Zipper.set_focus(z, d))
   | Destruct(d) =>
+    /* see Cut: fires only on completion-by-deletion */
+    let before = LocalReformat.snapshot(~enabled=settings.auto_reindent, z);
     Destruct.go(d, z, ~root)
     |> Option.map(maybe_reassoc)
-    |> return(Cant_destruct)
+    |> Option.map(LocalReformat.go(~before))
+    |> return(Cant_destruct);
   | Insert(char) =>
     let before = LocalReformat.snapshot(~enabled=settings.auto_reindent, z);
     z
@@ -318,8 +346,12 @@ let rec go =
       refractors: z.refractors,
     });
   | ToggleLineComment =>
+    /* uncommenting can restore delimiters that complete enclosing
+       forms; the comment-out direction leaves the trigger silent */
+    let before = LocalReformat.snapshot(~enabled=settings.auto_reindent, z);
     Comment.go(~deep_reassociate=settings.deep_reassociate, z, ~root)
-    |> return(Cant_destruct)
+    |> Option.map(LocalReformat.go(~before))
+    |> return(Cant_destruct);
   | Structural(a) => CompositionGo.Public.go(~syntax, ~z, ~a, ~return)
   };
 };
