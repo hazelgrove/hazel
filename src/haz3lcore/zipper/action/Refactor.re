@@ -3616,8 +3616,11 @@ let arm_slot_ids = (e: Exp.t): list(Id.t) =>
   | [] => []
   };
 
+/* ~fixup as in swap_exp_items: gating passes false (the Slot ops
+   PRINT the bodies, and nothing in the gating path may print — this
+   ran per render before the flag) */
 let swap_arms_rewrite =
-    (~target: Id.t, i: int, e: Exp.t): option((Exp.t, Id.t)) =>
+    (~fixup: bool, ~target: Id.t, i: int, e: Exp.t): option((Exp.t, Id.t)) =>
   switch (IdTagged.term_of(e)) {
   | Match(scrut, rules) when i >= 0 && List.length(rules) > i + 1 =>
     let (pa, ba) = List.nth(rules, i);
@@ -3627,10 +3630,20 @@ let swap_arms_rewrite =
          node-level OR leaf-deep (mixed storage doubled a lead here
          once): exchange bodies via the textual Slot ops — each slot
          keeps its own lead/trail, content swaps stripped */
-      let sa = Slot.of_exp(ba);
-      let sb = Slot.of_exp(bb);
-      let ba' = Slot.give(sa, Slot.drop(sb, bb));
-      let bb' = Slot.give(sb, Slot.drop(sa, ba));
+      let (ba', bb') =
+        if (fixup) {
+          let sa = Slot.of_exp(ba);
+          let sb = Slot.of_exp(bb);
+          (
+            Slot.give(sa, Slot.drop(sb, bb)),
+            Slot.give(sb, Slot.drop(sa, ba)),
+          );
+        } else {
+          (
+            with_secondary(ba.annotation.secondary, bb),
+            with_secondary(bb.annotation.secondary, ba),
+          );
+        };
       /* arm pats: node-level exchange suffices (parsed pats keep
          their runs on leaves; no transform synthesizes node-level
          pat runs yet) */
@@ -3838,7 +3851,7 @@ let swap_arms_impl = (i: int): impl => {
   prepare: (~info_map as _, ~target, program) =>
     rewrite_node(
       ~hit=hit_arm(target),
-      ~rewrite=e => swap_arms_rewrite(~target, i, e),
+      ~rewrite=e => swap_arms_rewrite(~fixup=true, ~target, i, e),
       program,
     ),
 };
@@ -4357,7 +4370,8 @@ let applies =
     }
   | SwapArms(i) =>
     switch (find_hit(~hit=hit_arm(target), program)) {
-    | Some(m) => Option.is_some(swap_arms_rewrite(~target, i, m))
+    | Some(m) =>
+      Option.is_some(swap_arms_rewrite(~fixup=false, ~target, i, m))
     | None => false
     }
   | SwapTuplePat(i) =>
@@ -4596,7 +4610,7 @@ let menu_items =
         switch (arm_index_at(target, m)) {
         | Some(j) =>
           let mk = (i, label) =>
-            Option.is_some(swap_arms_rewrite(~target, i, m))
+            Option.is_some(swap_arms_rewrite(~fixup=false, ~target, i, m))
               ? [
                 (
                   Action.SwapArms(i),
@@ -4669,7 +4683,7 @@ let gesture =
         switch (arm_index_at(target, m)) {
         | Some(j) =>
           let i = delta < 0 ? j - 1 : j;
-          Option.is_some(swap_arms_rewrite(~target, i, m))
+          Option.is_some(swap_arms_rewrite(~fixup=false, ~target, i, m))
             ? Some(Action.SwapArms(i)) : None;
         | None => None
         }
