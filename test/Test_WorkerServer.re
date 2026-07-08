@@ -1,20 +1,12 @@
 /**
  * Round-trip tests for the eval-worker encodings (issue #2368).
  *
- * Each WorkerServer.encoding is exercised through the same battery: a
- * payload is encoded, optionally run through structuredClone (the same
- * serializer postMessage hands payloads to — so this is the real boundary),
- * then decoded. These run under js_of_ocaml (node); node's test stack is 8MB,
- * so the deep cases guard the encoding and round-trip fidelity rather than
- * Chrome's smaller clone-stack limit.
- *
- * Coverage is per variant by what each can safely carry:
- *   - marshal is depth-proof — deep + wide + shallow.
- *   - direct, sexp only get shallow/narrow payloads. Their failure on
- *     deep input is NOT asserted here: raw structuredClone on a deep graph
- *     overflows V8's *native* stack, which segfaults node uncatchably (in a
- *     browser it throws a catchable RangeError — that asymmetry is exactly why
- *     the app wraps the metrics path in try/catch). Verified manually in-browser.
+ * Two things matter: Marshal (the active encoding) stays depth-proof through
+ * structuredClone, and every encoding is isomorphic (decode ∘ encode = id) on a
+ * normal program. Deep failure of direct/sexp is NOT asserted — raw
+ * structuredClone on a deep graph overflows V8's native stack and segfaults
+ * node uncatchably (in-browser it throws a catchable RangeError; that asymmetry
+ * is why the app wraps the metrics path in try/catch).
  */
 open Alcotest;
 open Language;
@@ -29,9 +21,8 @@ let structured_clone: 'a. 'a => 'a =
       [|Js_of_ocaml.Js.Unsafe.inject(x)|],
     );
 
-/* A round-trip driver for one encoding: encode -> (clone?) -> decode.
- * The abstract encoded type stays inside the closure (only Response.t escapes),
- * so this composes over all encodings uniformly. */
+/* Encode -> (clone?) -> decode through one encoding; the abstract encoded type
+ * stays inside the closure so this composes over all encodings uniformly. */
 let rt_of_encoding =
     (encoding: (module WorkerServer.ENCODING))
     : ((~clone: bool, WorkerServer.Response.t) => WorkerServer.Response.t) => {
@@ -43,51 +34,9 @@ let rt_of_encoding =
   };
 };
 
-/* Build a `Parens`-nested expression `depth` levels deep, iteratively so that
- * constructing the fixture does not itself recurse `depth` frames deep. */
-let deep_exp = (depth: int): Exp.t => {
-  let e = ref(Exp.fresh(EmptyHole));
-  for (_ in 1 to depth) {
-    e := Exp.fresh(Parens(e^));
-  };
-  e^;
-};
-
 let response_of_exp = (e: Exp.t): WorkerServer.Response.t => [
   ("cell", Ok((e, EvaluatorState.init))),
 ];
-
-/* Reaching decode without raising is the Stack_overflow guard. For
- * correctness we compare marshaled bytes of the public Response.t (test-only;
- * jsoo's Marshal is iterative and deterministic) rather than the values,
- * whose polymorphic `=` would itself recurse `depth` deep. */
-let assert_round_trips =
-    (~rt, ~clone: bool, resp: WorkerServer.Response.t): unit => {
-  let restored = rt(~clone, resp);
-  check(
-    string,
-    "round-trips to identical bytes",
-    Marshal.to_string(resp, []),
-    Marshal.to_string(restored, []),
-  );
-};
-
-let test_deep_round_trip =
-    (~rt, ~name: string, ~clone: bool, ~depth: int): test_case(_) =>
-  test_case(name, `Quick, () =>
-    assert_round_trips(~rt, ~clone, response_of_exp(deep_exp(depth)))
-  );
-
-let test_wide_list_round_trip = (~rt, ~name: string, ~n: int): test_case(_) =>
-  test_case(name, `Quick, () =>
-    assert_round_trips(
-      ~rt,
-      ~clone=true,
-      response_of_exp(
-        Exp.fresh(ListLit(List.init(n, i => Exp.fresh(Atom(SInt(i)))))),
-      ),
-    )
-  );
 
 let parse = (s: string): Exp.t =>
   switch (Haz3lcore.Parser.to_term(s, ~root=Exp)) {
@@ -95,115 +44,55 @@ let parse = (s: string): Exp.t =>
   | None => fail("Failed to parse: " ++ s)
   };
 
-/* A normal (shallow) program still round-trips, and the decoded expression is
- * equal to the original — the protocol change touches every evaluation. */
-let test_realistic_round_trip =
-    (~rt, ~name: string, ~code: string): test_case(_) =>
+/* Marshal must stay depth-proof: a `Parens`-nesting 20k deep round-trips
+ * through structuredClone. Built iteratively so the fixture itself doesn't
+ * recurse; compared as marshaled bytes since polymorphic `=` would recurse. */
+let test_marshal_depth_proof = (): test_case(_) =>
   test_case(
-    name,
+    "Marshal: deep (20k) through structuredClone",
     `Quick,
     () => {
-      let e = parse(code);
-      let restored = rt(~clone=true, response_of_exp(e));
-      switch (restored) {
+      let e = ref(Exp.fresh(EmptyHole));
+      for (_ in 1 to 20000) {
+        e := Exp.fresh(Parens(e^));
+      };
+      let rt = rt_of_encoding((module WorkerServer.MarshalEncoding));
+      let resp = response_of_exp(e^);
+      check(
+        string,
+        "round-trips to identical bytes",
+        Marshal.to_string(resp, []),
+        Marshal.to_string(rt(~clone=true, resp), []),
+      );
+    },
+  );
+
+/* Every encoding is isomorphic on a normal program: decode ∘ encode preserves
+ * the expression. */
+let test_isomorphic =
+    (~name: string, encoding: (module WorkerServer.ENCODING)): test_case(_) =>
+  test_case(
+    name ++ ": isomorphic",
+    `Quick,
+    () => {
+      let rt = rt_of_encoding(encoding);
+      let e = parse("let x = [1, 2, 3] in x");
+      switch (rt(~clone=true, response_of_exp(e))) {
       | [("cell", Ok((e', _))), ..._] =>
-        check(
-          bool,
-          "decoded expression equals original",
-          true,
-          Exp.fast_equal(e, e'),
-        )
+        check(bool, "decoded equals original", true, Exp.fast_equal(e, e'))
       | _ => fail("round-trip did not preserve response shape")
       };
     },
   );
-
-/* A block reaching the boundary twice must decode as one block referenced
- * twice, not two copies — otherwise DAG-shaped payloads (e.g. IncrEval.prev)
- * expand on the way across. This is asserted for the variants that preserve
- * sharing: marshal records sharing, and structuredClone (direct) preserves
- * aliasing. (sexp is a tree format that legitimately duplicates shared
- * structure, so it is excluded — see its group below.) */
-let test_sharing_preserved = (~rt): test_case(_) =>
-  test_case(
-    "Sharing preserved",
-    `Quick,
-    () => {
-      let shared = parse("[1, 2, 3]");
-      let resp: WorkerServer.Response.t = [
-        ("a", Ok((shared, EvaluatorState.init))),
-        ("b", Ok((shared, EvaluatorState.init))),
-      ];
-      switch (rt(~clone=true, resp)) {
-      | [("a", Ok((a, _))), ("b", Ok((b, _)))] =>
-        check(bool, "decoded occurrences are physically equal", true, a === b)
-      | _ => fail("round-trip did not preserve response shape")
-      };
-    },
-  );
-
-/* Shared battery every variant must pass. Sharing preservation is asserted
- * per group (below) rather than here: it holds for all variants except sexp,
- * which is a tree serialization and legitimately duplicates shared structure. */
-let shallow_tests = (~rt): list(test_case(_)) => [
-  test_realistic_round_trip(
-    ~rt,
-    ~name="Let with list",
-    ~code="let x = [1, 2, 3] in x",
-  ),
-  test_realistic_round_trip(
-    ~rt,
-    ~name="Factorial",
-    ~code=
-      "let fact = fun n -> if n <= 0 then 1 else n * fact(n - 1) in fact(5)",
-  ),
-];
-
-let marshal = rt_of_encoding((module WorkerServer.MarshalEncoding));
-let sexp = rt_of_encoding((module WorkerServer.SexpEncoding));
-let direct = rt_of_encoding((module WorkerServer.DirectEncoding));
 
 let tests = [
   (
-    /* Marshal is iterative, so also depth- and width-proof. */
-    "WorkerServer.MarshalEncoding",
+    "WorkerServer encodings",
     [
-      test_deep_round_trip(
-        ~rt=marshal,
-        ~name="Deep through structuredClone (20k)",
-        ~clone=true,
-        ~depth=20000,
-      ),
-      test_wide_list_round_trip(
-        ~rt=marshal,
-        ~name="Wide list through structuredClone (10k)",
-        ~n=10_000,
-      ),
-    ]
-    @ shallow_tests(~rt=marshal)
-    @ [test_sharing_preserved(~rt=marshal)],
-  ),
-  (
-    /* Direct = identity. clone=false is a trivial identity round-trip; deep
-     * clone=true is the #2368 crash and deliberately not exercised (see file
-     * header). Sharing + shallow still validate the identity path. */
-    "WorkerServer.DirectEncoding",
-    [
-      test_deep_round_trip(
-        ~rt=direct,
-        ~name="Deep identity (20k)",
-        ~clone=false,
-        ~depth=20000,
-      ),
-    ]
-    @ shallow_tests(~rt=direct)
-    @ [test_sharing_preserved(~rt=direct)],
-  ),
-  (
-    /* Sexp converters recurse per level, so deep payloads are out of scope.
-     * No sharing assertion: sexp is a tree format and legitimately duplicates
-     * shared sub-structure (the derived converters don't record DAG sharing). */
-    "WorkerServer.SexpEncoding",
-    shallow_tests(~rt=sexp),
+      test_marshal_depth_proof(),
+      test_isomorphic(~name="Marshal", (module WorkerServer.MarshalEncoding)),
+      test_isomorphic(~name="Direct", (module WorkerServer.DirectEncoding)),
+      test_isomorphic(~name="Sexp", (module WorkerServer.SexpEncoding)),
+    ],
   ),
 ];

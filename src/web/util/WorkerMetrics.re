@@ -7,20 +7,29 @@ open Js_of_ocaml;
  * For every enabled encoding we encode the real payload, run it through the
  * browser's structuredClone (the same serializer postMessage uses, so an
  * encoding that overflows the clone stack — e.g. Direct on a deep result,
- * #2368 — surfaces here as a caught exception), then decode, timing each stage
- * and approximating the encoded size. Results feed the Worker Messaging table
- * in DebugSidebar.
+ * #2368 — surfaces here as a caught exception), then decode, timing each stage;
+ * the encoded size is reported by the encoding itself. Results feed the Worker
+ * Messaging table in DebugSidebar.
  *
  * Everything runs on the main thread; nothing crosses to the worker. Gated by
- * `enabled` (synced from show_debug_panel in Page.Update.calculate) so normal
- * editing pays nothing. */
+ * `enabled` (synced from settings in Page.Update.calculate via `sync`) so
+ * normal editing pays nothing. */
 
 let enabled = ref(false);
 
-/* Encodings the user has turned on in the panel (WorkerServer.encoding);
-   synced from settings in Page.Update.calculate. Only enabled encodings are
-   measured, so e.g. the slow sexp encoding can be skipped. */
+/* Encodings the user has turned on in the panel (WorkerServer.encoding). Only
+   enabled encodings are measured, so e.g. the slow sexp encoding can be
+   skipped. */
 let enabled_encodings: ref(list(WorkerServer.encoding)) = ref([]);
+
+/* Sync the gating flags from settings; called once per update cycle from
+   Page.Update.calculate (the only place with the full app settings in scope). */
+let sync =
+    (~enabled as is_enabled: bool, ~encodings: list(WorkerServer.encoding))
+    : unit => {
+  enabled := is_enabled;
+  enabled_encodings := encodings;
+};
 
 let active_encodings = (): list(WorkerServer.encoding) =>
   List.filter(
@@ -28,18 +37,16 @@ let active_encodings = (): list(WorkerServer.encoding) =>
     WorkerServer.all_of_encoding,
   );
 
-type status =
-  | Ok
-  | Failed(string);
-
-/* One encoding measured in one direction. */
+/* One encoding measured in one direction. A stage's duration/size is None if it
+ * didn't complete; `error` holds the message of the stage that threw (if any),
+ * so a failure reads as an absence rather than a misleading 0. */
 type dir_metric = {
   encoding: WorkerServer.encoding,
-  encode_ms: float,
-  clone_ms: float,
-  decode_ms: float,
-  size_bytes: int,
-  status,
+  encode: option(Core.Time_ns.Span.t),
+  clone: option(Core.Time_ns.Span.t),
+  decode: option(Core.Time_ns.Span.t),
+  size: option(Core.Byte_units.t),
+  error: option(string),
 };
 
 type record = {
@@ -64,86 +71,54 @@ let clone_fn =
 let structured_clone: 'a. 'a => 'a =
   x => Js.Unsafe.fun_call(clone_fn, [|Js.Unsafe.inject(x)|]);
 
-/* Approximate in-memory footprint of an arbitrary wire form (string, OCaml
- * value graph, plain object, or typed arrays), by an iterative walk with a
- * visited set so shared/DAG structure isn't double-counted. Numbers 8B,
- * strings by length, typed arrays by byteLength, object/array headers ~8B per
- * slot. Only a relative measure across variants, not an exact byte count. */
-let size_fn =
-  Js.Unsafe.pure_js_expr(
-    {|(function (root) {
-         var seen = new Set(), stack = [root], total = 0;
-         while (stack.length) {
-           var v = stack.pop();
-           if (v === null || v === undefined) continue;
-           var t = typeof v;
-           if (t === 'number') { total += 8; }
-           else if (t === 'string') { total += v.length; }
-           else if (t === 'boolean') { total += 4; }
-           else if (t === 'object') {
-             if (seen.has(v)) continue;
-             seen.add(v);
-             if (ArrayBuffer.isView(v)) { total += v.byteLength; }
-             else if (Array.isArray(v)) {
-               total += 8 * v.length;
-               for (var i = 0; i < v.length; i++) stack.push(v[i]);
-             } else {
-               var ks = Object.keys(v);
-               for (var i = 0; i < ks.length; i++) {
-                 total += ks[i].length + 8;
-                 stack.push(v[ks[i]]);
-               }
-             }
-           }
-         }
-         return total;
-       })|},
-  );
-let size_bytes: 'a. 'a => int =
-  x => Js.Unsafe.fun_call(size_fn, [|Js.Unsafe.inject(x)|]);
-
-let timed: 'a. (unit => 'a) => (float, 'a) =
+let timed: 'a. (unit => 'a) => (Core.Time_ns.Span.t, 'a) =
   f => {
     let t0 = Util.JsUtil.precise_timestamp();
     let x = f();
-    (Util.JsUtil.precise_timestamp() -. t0, x);
+    (Core.Time_ns.Span.of_ms(Util.JsUtil.precise_timestamp() -. t0), x);
   };
 
-/* Measure encode -> structuredClone -> decode for one wire direction. Each
- * stage that runs before an exception keeps its timing; the first stage to
- * throw sets status to Failed and stops (later stages stay 0). */
+/* Measure encode -> size -> structuredClone -> decode for one direction. Each
+ * stage that completes records its value; the first stage to throw sets `error`
+ * and leaves it and later stages None (never a misleading 0). Size is asked of
+ * the encoding via `size`. */
 let measure:
   'w 'a.
-  (~encoding: WorkerServer.encoding, ~encode: unit => 'w, ~decode: 'w => 'a) =>
+  (
+    ~encoding: WorkerServer.encoding,
+    ~encode: unit => 'w,
+    ~size: 'w => Core.Byte_units.t,
+    ~decode: 'w => 'a
+  ) =>
   dir_metric
  =
-  (~encoding, ~encode, ~decode) => {
-    let enc = ref(0.)
-    and cln = ref(0.)
-    and dec = ref(0.)
-    and sz = ref(0);
-    let status =
+  (~encoding, ~encode, ~size, ~decode) => {
+    let enc = ref(None)
+    and cln = ref(None)
+    and dec = ref(None)
+    and sz = ref(None);
+    let error =
       switch (
         {
           let (e, encoded) = timed(encode);
-          enc := e;
+          enc := Some(e);
+          sz := Some(size(encoded));
           let (c, cloned) = timed(() => structured_clone(encoded));
-          cln := c;
-          sz := size_bytes(cloned);
+          cln := Some(c);
           let (d, _) = timed(() => decode(cloned));
-          dec := d;
+          dec := Some(d);
         }
       ) {
-      | () => Ok
-      | exception exn => Failed(Printexc.to_string(exn))
+      | () => None
+      | exception exn => Some(Printexc.to_string(exn))
       };
     {
       encoding,
-      encode_ms: enc^,
-      clone_ms: cln^,
-      decode_ms: dec^,
-      size_bytes: sz^,
-      status,
+      encode: enc^,
+      clone: cln^,
+      decode: dec^,
+      size: sz^,
+      error,
     };
   };
 
@@ -158,6 +133,7 @@ let record_request = (id: int, req: WorkerServer.Request.t): unit => {
         measure(
           ~encoding=e,
           ~encode=() => M.encode_request(req),
+          ~size=M.size_request,
           ~decode=M.decode_request,
         );
       },
@@ -179,6 +155,7 @@ let record_response = (id: int, resp: WorkerServer.Response.t): unit => {
         measure(
           ~encoding=e,
           ~encode=() => M.encode_response(resp),
+          ~size=M.size_response,
           ~decode=M.decode_response,
         );
       },

@@ -77,7 +77,7 @@ module Model = {
       debug_show_raw: false,
       /* Start the Worker Messaging benchmark section collapsed so it doesn't
          run by default (benchmarking is gated on the section being expanded).
-         Must match DebugSidebar.worker_messaging_title. */
+         Must match WorkerMessagingSection.title. */
       debug_collapsed: ["Worker Messaging"],
       /* Only the active encoding (Marshal) is benchmarked by default; Direct
          and Sexp start unchecked. */

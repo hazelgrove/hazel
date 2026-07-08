@@ -412,15 +412,16 @@ module Update = {
        settings.core), so we sync it here, before the modes below queue any
        request. Skipping it while collapsed avoids the (potentially large)
        per-request measurement cost when nothing is watching. */
-    WorkerMetrics.enabled :=
-      model.globals.settings.show_debug_panel
-      && !
-           SidebarModel.Settings.is_debug_collapsed(
-             DebugSidebar.worker_messaging_title,
-             model.globals.settings.sidebar,
-           );
-    WorkerMetrics.enabled_encodings :=
-      model.globals.settings.sidebar.worker_encodings;
+    WorkerMetrics.sync(
+      ~enabled=
+        model.globals.settings.show_debug_panel
+        && !
+             SidebarModel.Settings.is_debug_collapsed(
+               WorkerMessagingSection.title,
+               model.globals.settings.sidebar,
+             ),
+      ~encodings=model.globals.settings.sidebar.worker_encodings,
+    );
     let editors =
       Editors.Update.calculate(
         ~settings=

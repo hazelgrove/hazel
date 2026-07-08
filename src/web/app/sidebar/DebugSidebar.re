@@ -717,175 +717,10 @@ let toggle_bar = (~globals: Globals.t): Node.t => {
   );
 };
 
-/* ---- Worker Messaging: how the main thread talks to the eval Web Worker ----
-   Per-request benchmarks of the candidate encodings (WorkerMetrics) that
-   pack payloads crossing the main-thread <-> Web Worker boundary, populated
-   only while the debug panel is open. All requests share one table so columns
-   line up across them; each request is separated by a bold `#N` group row
-   (request) and a lighter `response` sub-row, a row per variant under each.
-   Correlated by request id. */
-
-/* Adaptive precision so a slow variant's wide milliseconds (e.g. sexp at
-   ~17000ms) don't blow out the column: drop decimals as the value grows. */
-let ms_str = (f: float): string =>
-  f >= 100.
-    ? Printf.sprintf("%.0f", f)
-    : f >= 10. ? Printf.sprintf("%.1f", f) : Printf.sprintf("%.2f", f);
-
-let size_str = (bytes: int): string =>
-  bytes >= 1024 * 1024
-    ? Printf.sprintf("%.1fM", float_of_int(bytes) /. 1024. /. 1024.)
-    : bytes >= 1024
-        ? Printf.sprintf("%.1fK", float_of_int(bytes) /. 1024.)
-        : string_of_int(bytes) ++ "B";
-
-let wm_head = (label: string): Node.t =>
-  Node.td(~attrs=[clss(["wm-head"])], [text(label)]);
-
-/* A full-width label row separating request groups within the shared table. */
-let wm_group_row = (~cls: string, label: string): Node.t =>
-  Node.tr([
-    Node.td(
-      ~attrs=[Attr.create("colspan", "7"), clss(["wm-group", cls])],
-      [text(label)],
-    ),
-  ]);
-
-let wm_metric_row = (m: WorkerMetrics.dir_metric): Node.t => {
-  let total = m.encode_ms +. m.clone_ms +. m.decode_ms;
-  /* Compact glyph keeps the column narrow; the full message (e.g. the
-     overflow exception for a failed encoding) is on the cell's tooltip. */
-  let (status_glyph, status_cls, status_title) =
-    switch (m.status) {
-    | Ok => ({|✓|}, "wm-ok", "ok")
-    | Failed(e) => ({|✕|}, "wm-fail", e)
-    };
-  Node.tr([
-    Node.td(
-      ~attrs=[clss(["wm-wire"])],
-      [text(WorkerServer.show_encoding(m.encoding))],
-    ),
-    Node.td([text(ms_str(m.encode_ms))]),
-    Node.td([text(ms_str(m.clone_ms))]),
-    Node.td([text(ms_str(m.decode_ms))]),
-    Node.td(~attrs=[clss(["wm-total"])], [text(ms_str(total))]),
-    Node.td([text(size_str(m.size_bytes))]),
-    Node.td(
-      ~attrs=[clss([status_cls]), Attr.title(status_title)],
-      [text(status_glyph)],
-    ),
-  ]);
-};
-
-/* The rows contributed by one request: a request group header (which also
-   starts the visual separation from the previous request), its variant rows,
-   then a lighter response sub-header and its rows. */
-let wm_record_rows = (r: WorkerMetrics.record): list(Node.t) => {
-  let req_label =
-    Printf.sprintf(
-      "#%d · %d %s · request",
-      r.id,
-      r.entries,
-      r.entries == 1 ? "entry" : "entries",
-    );
-  let response_rows =
-    switch (r.response) {
-    | [] => [wm_group_row(~cls="wm-note", "response pending / timed out")]
-    | rows => [
-        wm_group_row(~cls="wm-resp", "response"),
-        ...List.map(wm_metric_row, rows),
-      ]
-    };
-  [
-    wm_group_row(~cls="wm-req", req_label),
-    ...List.map(wm_metric_row, r.request),
-  ]
-  @ response_rows;
-};
-
-/* Section title, shared with Page.Update.calculate: benchmarking is gated on
-   this section being both shown (debug panel on) and expanded, so a collapsed
-   section costs nothing. Collapse state is keyed by this exact string. */
-let worker_messaging_title = "Worker Messaging";
-
-/* Per-encoding on/off chip. Only enabled encodings are benchmarked (so a slow
-   one like Sexp can be skipped); state persists via sidebar settings. */
-let encoding_toggle = (~globals: Globals.t, e: WorkerServer.encoding): Node.t => {
-  let on =
-    SidebarModel.Settings.is_encoding_enabled(e, globals.settings.sidebar);
-  let name = WorkerServer.show_encoding(e);
-  div(
-    ~attrs=[
-      clss(["wm-toggle", on ? "on" : "off"]),
-      Attr.title(
-        (on ? "Disable" : "Enable")
-        ++ " benchmarking of the "
-        ++ name
-        ++ " encoding",
-      ),
-      Attr.on_click(_ =>
-        globals.inject_global(Set(Sidebar(ToggleWorkerEncoding(e))))
-      ),
-    ],
-    [text((on ? {|☑|} : {|☐|}) ++ " " ++ name)],
-  );
-};
-
-let encoding_toggles = (~globals): Node.t =>
-  div(
-    ~attrs=[clss(["wm-toggles"])],
-    List.map(encoding_toggle(~globals), WorkerServer.all_of_encoding),
-  );
-
-/* Column-unit legend: the time columns carry no per-cell suffix, so state the
-   unit (ms) and expand the abbreviations. Size shows its own B/K/M suffix. */
-let wm_legend: Node.t =
-  div(
-    ~attrs=[clss(["wm-legend"])],
-    [
-      text(
-        "Times in ms (encode / structuredClone / decode / total); size approximate.",
-      ),
-    ],
-  );
-
-let worker_messaging_view = (~globals): list(Node.t) =>
-  section(~globals, worker_messaging_title, () =>
-    [encoding_toggles(~globals)]
-    @ (
-      switch (WorkerMetrics.history^) {
-      | [] => [
-          div(
-            ~attrs=[clss(["wm-empty"])],
-            [text("No requests recorded yet — evaluate a program.")],
-          ),
-        ]
-      | records => [
-          wm_legend,
-          div(
-            ~attrs=[clss(["wm-scroll"])],
-            [
-              Node.table(
-                ~attrs=[clss(["wire-metrics-table"])],
-                [
-                  Node.tr([
-                    wm_head("encoding"),
-                    wm_head("enc"),
-                    wm_head("clone"),
-                    wm_head("dec"),
-                    wm_head("total"),
-                    wm_head("size"),
-                    wm_head("ok?"),
-                  ]),
-                  ...List.concat_map(wm_record_rows, records),
-                ],
-              ),
-            ],
-          ),
-        ]
-      }
-    )
-  );
+/* Render a debug section (DebugSection.S) inside the collapsible `section`
+   wrapper, so a section module only provides its title + body. */
+let render_section = (module S: DebugSection.S, ~globals): list(Node.t) =>
+  section(~globals, S.title, () => S.view(~globals));
 
 let view = (~globals: Globals.t, ~cursor: Cursor.cursor(_)): Node.t => {
   let raw = globals.settings.sidebar.debug_show_raw;
@@ -912,7 +747,8 @@ let view = (~globals: Globals.t, ~cursor: Cursor.cursor(_)): Node.t => {
             | _ => info_sections @ syntax_sections
             };
           /* Metrics render regardless of cursor state. */
-          cursor_sections @ worker_messaging_view(~globals);
+          cursor_sections
+          @ render_section((module WorkerMessagingSection), ~globals);
         },
       ),
     ],
