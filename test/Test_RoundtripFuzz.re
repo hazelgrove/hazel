@@ -100,13 +100,7 @@ let print_g =
 
 let roundtrips = (seg: Segment.t): bool => {
   let result = CanonicalCompletion.complete_segment_deep(~sort=Sort.Exp, seg);
-  let masks =
-    result.shard_records
-    |> List.fold_left(
-         (m, r: CanonicalCompletion.shard_record) =>
-           Id.Map.add(r.tile_id, r.original_shards, m),
-         Id.Map.empty,
-       );
+  let masks = CanonicalCompletion.masks_of_records(result.shard_records);
   let term = MakeTerm.go_impl(~masks, result.completed_seg).term;
   let seg2 = Test_ExpToSegment.exp_to_segment_roundtrip(term);
   let ok =
@@ -201,6 +195,8 @@ let typed_regressions = (
     typed_case("line-initial prefix minus", "(\n\n-?"),
     typed_case("typ-side incomplete paren", "?:?("),
     typed_case("orphan closer under incomplete parens", "(?\n(]"),
+    typed_case("prefix witness: i completes to in", "let x = 1 i 2"),
+    typed_case("prefix witness: e completes to else", "if true then 1 e 2"),
   ],
 );
 
