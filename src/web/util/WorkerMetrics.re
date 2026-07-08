@@ -1,15 +1,15 @@
 open Js_of_ocaml;
 
 /* Data for the "Worker Messaging" debug panel: how the main thread talks to
- * the eval Web Worker. Per-request benchmarking of the candidate wire
- * protocols (WorkerServer.WIRE) that encode payloads across the boundary.
+ * the eval Web Worker. Per-request benchmarking of the candidate encodings
+ * (WorkerServer.encoding / ENCODING) that pack payloads across the boundary.
  *
- * For every variant in WorkerServer.all_wires we encode the real payload,
- * run it through the browser's structuredClone (the same serializer
- * postMessage uses, so an encoding that overflows the clone stack — e.g.
- * DirectWire on a deep result, #2368 — surfaces here as a caught exception),
- * then decode, timing each stage and approximating the wire size. Results
- * feed the Worker Messaging table in DebugSidebar.
+ * For every enabled encoding we encode the real payload, run it through the
+ * browser's structuredClone (the same serializer postMessage uses, so an
+ * encoding that overflows the clone stack — e.g. Direct on a deep result,
+ * #2368 — surfaces here as a caught exception), then decode, timing each stage
+ * and approximating the encoded size. Results feed the Worker Messaging table
+ * in DebugSidebar.
  *
  * Everything runs on the main thread; nothing crosses to the worker. Gated by
  * `enabled` (synced from show_debug_panel in Page.Update.calculate) so normal
@@ -17,27 +17,24 @@ open Js_of_ocaml;
 
 let enabled = ref(false);
 
-/* Wire names (WorkerServer.WIRE.name) the user has turned off in the panel;
-   synced from settings in Page.Update.calculate. A disabled variant is not
-   measured at all, so e.g. the slow sexp variant can be skipped. */
-let disabled_wires: ref(list(string)) = ref([]);
+/* Encodings the user has turned on in the panel (WorkerServer.encoding);
+   synced from settings in Page.Update.calculate. Only enabled encodings are
+   measured, so e.g. the slow sexp encoding can be skipped. */
+let enabled_encodings: ref(list(WorkerServer.encoding)) = ref([]);
 
-let active_wires = (): list(module WorkerServer.WIRE) =>
+let active_encodings = (): list(WorkerServer.encoding) =>
   List.filter(
-    (wire: (module WorkerServer.WIRE)) => {
-      module M = (val wire);
-      !List.mem(M.name, disabled_wires^);
-    },
-    WorkerServer.all_wires,
+    e => List.mem(e, enabled_encodings^),
+    WorkerServer.all_of_encoding,
   );
 
 type status =
   | Ok
   | Failed(string);
 
-/* One wire variant measured in one direction. */
+/* One encoding measured in one direction. */
 type dir_metric = {
-  wire: string,
+  encoding: WorkerServer.encoding,
   encode_ms: float,
   clone_ms: float,
   decode_ms: float,
@@ -117,9 +114,10 @@ let timed: 'a. (unit => 'a) => (float, 'a) =
  * throw sets status to Failed and stops (later stages stay 0). */
 let measure:
   'w 'a.
-  (~name: string, ~encode: unit => 'w, ~decode: 'w => 'a) => dir_metric
+  (~encoding: WorkerServer.encoding, ~encode: unit => 'w, ~decode: 'w => 'a) =>
+  dir_metric
  =
-  (~name, ~encode, ~decode) => {
+  (~encoding, ~encode, ~decode) => {
     let enc = ref(0.)
     and cln = ref(0.)
     and dec = ref(0.)
@@ -140,7 +138,7 @@ let measure:
       | exception exn => Failed(Printexc.to_string(exn))
       };
     {
-      wire: name,
+      encoding,
       encode_ms: enc^,
       clone_ms: cln^,
       decode_ms: dec^,
@@ -155,15 +153,15 @@ let push = (r: record): unit =>
 let record_request = (id: int, req: WorkerServer.Request.t): unit => {
   let request =
     List.map(
-      (wire: (module WorkerServer.WIRE)) => {
-        module M = (val wire);
+      (e: WorkerServer.encoding) => {
+        module M = (val WorkerServer.module_of_encoding(e));
         measure(
-          ~name=M.name,
+          ~encoding=e,
           ~encode=() => M.encode_request(req),
           ~decode=M.decode_request,
         );
       },
-      active_wires(),
+      active_encodings(),
     );
   push({
     id,
@@ -176,15 +174,15 @@ let record_request = (id: int, req: WorkerServer.Request.t): unit => {
 let record_response = (id: int, resp: WorkerServer.Response.t): unit => {
   let response =
     List.map(
-      (wire: (module WorkerServer.WIRE)) => {
-        module M = (val wire);
+      (e: WorkerServer.encoding) => {
+        module M = (val WorkerServer.module_of_encoding(e));
         measure(
-          ~name=M.name,
+          ~encoding=e,
           ~encode=() => M.encode_response(resp),
           ~decode=M.decode_response,
         );
       },
-      active_wires(),
+      active_encodings(),
     );
   history :=
     List.map(

@@ -75,8 +75,13 @@ module Model = {
         expanded: [],
       },
       debug_show_raw: false,
-      debug_collapsed: [],
-      wire_disabled: [],
+      /* Start the Worker Messaging benchmark section collapsed so it doesn't
+         run by default (benchmarking is gated on the section being expanded).
+         Must match DebugSidebar.worker_messaging_title. */
+      debug_collapsed: ["Worker Messaging"],
+      /* Only the active encoding (Marshal) is benchmarked by default; Direct
+         and Sexp start unchecked. */
+      worker_encodings: [WorkerServer.Marshal],
     },
     autoprobe_mode: false,
     agent_globals: AgentGlobals.init(),
@@ -395,13 +400,9 @@ module Update = {
               settings.sidebar,
             ),
         }
-      | Sidebar(ToggleWireDisabled(name)) => {
+      | Sidebar(ToggleWorkerEncoding(e)) => {
           ...settings,
-          sidebar:
-            SidebarModel.Settings.toggle_wire_disabled(
-              name,
-              settings.sidebar,
-            ),
+          sidebar: SidebarModel.Settings.toggle_encoding(e, settings.sidebar),
         }
       | ExplainThis(ToggleShowFeedback) => {
           ...settings,

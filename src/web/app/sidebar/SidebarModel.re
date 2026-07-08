@@ -159,12 +159,14 @@ module Settings = {
        field label. Persists across cursor moves so collapsing e.g. "ctx"
        keeps it collapsed regardless of the term under the cursor. */
     debug_collapsed: list(string),
-    /* Wire-protocol variants (by WorkerServer.WIRE name) the user has turned
-       off in the Worker Messaging panel; disabled variants are not benchmarked,
-       so e.g. the slow sexp variant can be skipped. Defaulted so existing
-       persisted settings (which lack this field) still load. */
-    [@sexp.default []] [@yojson.default []]
-    wire_disabled: list(string),
+    /* Encodings (WorkerServer.encoding) enabled in the Worker Messaging panel;
+       only these are benchmarked. Defaults to just the active encoding
+       (Marshal) — Direct and Sexp start off — and is defaulted on load so
+       existing persisted settings (which lack this field) still load. */
+    [@sexp.default [WorkerServer.Marshal]] [@yojson.default
+                                              [WorkerServer.Marshal]
+                                            ]
+    worker_encodings: list(WorkerServer.encoding),
   };
 
   let is_debug_collapsed = (key: string, settings: t) =>
@@ -183,19 +185,19 @@ module Settings = {
       };
     };
 
-  let is_wire_disabled = (name: string, settings: t) =>
-    List.mem(name, settings.wire_disabled);
+  let is_encoding_enabled = (e: WorkerServer.encoding, settings: t) =>
+    List.mem(e, settings.worker_encodings);
 
-  let toggle_wire_disabled = (name: string, settings: t): t =>
-    if (is_wire_disabled(name, settings)) {
+  let toggle_encoding = (e: WorkerServer.encoding, settings: t): t =>
+    if (is_encoding_enabled(e, settings)) {
       {
         ...settings,
-        wire_disabled: List.filter(n => n != name, settings.wire_disabled),
+        worker_encodings: List.filter(x => x != e, settings.worker_encodings),
       };
     } else {
       {
         ...settings,
-        wire_disabled: [name, ...settings.wire_disabled],
+        worker_encodings: [e, ...settings.worker_encodings],
       };
     };
 
@@ -206,5 +208,5 @@ module Settings = {
     | Problems(problems_action)
     | ToggleDebugRaw
     | ToggleDebugCollapsed(string)
-    | ToggleWireDisabled(string);
+    | ToggleWorkerEncoding(WorkerServer.encoding);
 };

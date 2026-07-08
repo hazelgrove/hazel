@@ -718,8 +718,8 @@ let toggle_bar = (~globals: Globals.t): Node.t => {
 };
 
 /* ---- Worker Messaging: how the main thread talks to the eval Web Worker ----
-   Per-request benchmarks of the candidate wire protocols (WireMetrics) that
-   encode payloads crossing the main-thread <-> Web Worker boundary, populated
+   Per-request benchmarks of the candidate encodings (WorkerMetrics) that
+   pack payloads crossing the main-thread <-> Web Worker boundary, populated
    only while the debug panel is open. All requests share one table so columns
    line up across them; each request is separated by a bold `#N` group row
    (request) and a lighter `response` sub-row, a row per variant under each.
@@ -751,17 +751,20 @@ let wm_group_row = (~cls: string, label: string): Node.t =>
     ),
   ]);
 
-let wm_metric_row = (m: WireMetrics.dir_metric): Node.t => {
+let wm_metric_row = (m: WorkerMetrics.dir_metric): Node.t => {
   let total = m.encode_ms +. m.clone_ms +. m.decode_ms;
   /* Compact glyph keeps the column narrow; the full message (e.g. the
-     overflow exception for a failed variant) is on the cell's tooltip. */
+     overflow exception for a failed encoding) is on the cell's tooltip. */
   let (status_glyph, status_cls, status_title) =
     switch (m.status) {
     | Ok => ({|✓|}, "wm-ok", "ok")
     | Failed(e) => ({|✕|}, "wm-fail", e)
     };
   Node.tr([
-    Node.td(~attrs=[clss(["wm-wire"])], [text(m.wire)]),
+    Node.td(
+      ~attrs=[clss(["wm-wire"])],
+      [text(WorkerServer.show_encoding(m.encoding))],
+    ),
     Node.td([text(ms_str(m.encode_ms))]),
     Node.td([text(ms_str(m.clone_ms))]),
     Node.td([text(ms_str(m.decode_ms))]),
@@ -777,7 +780,7 @@ let wm_metric_row = (m: WireMetrics.dir_metric): Node.t => {
 /* The rows contributed by one request: a request group header (which also
    starts the visual separation from the previous request), its variant rows,
    then a lighter response sub-header and its rows. */
-let wm_record_rows = (r: WireMetrics.record): list(Node.t) => {
+let wm_record_rows = (r: WorkerMetrics.record): list(Node.t) => {
   let req_label =
     Printf.sprintf(
       "#%d · %d %s · request",
@@ -805,41 +808,33 @@ let wm_record_rows = (r: WireMetrics.record): list(Node.t) => {
    section costs nothing. Collapse state is keyed by this exact string. */
 let worker_messaging_title = "Worker Messaging";
 
-let wire_names: list(string) =
-  List.map(
-    (wire: (module WorkerServer.WIRE)) => {
-      module M = (val wire);
-      M.name;
-    },
-    WorkerServer.all_wires,
-  );
-
-/* Per-variant on/off chip. A disabled variant is not benchmarked at all (so a
-   slow one like sexp can be skipped); state persists via sidebar settings. */
-let wire_toggle = (~globals: Globals.t, name: string): Node.t => {
-  let off =
-    SidebarModel.Settings.is_wire_disabled(name, globals.settings.sidebar);
+/* Per-encoding on/off chip. Only enabled encodings are benchmarked (so a slow
+   one like Sexp can be skipped); state persists via sidebar settings. */
+let encoding_toggle = (~globals: Globals.t, e: WorkerServer.encoding): Node.t => {
+  let on =
+    SidebarModel.Settings.is_encoding_enabled(e, globals.settings.sidebar);
+  let name = WorkerServer.show_encoding(e);
   div(
     ~attrs=[
-      clss(["wm-toggle", off ? "off" : "on"]),
+      clss(["wm-toggle", on ? "on" : "off"]),
       Attr.title(
-        (off ? "Enable" : "Disable")
+        (on ? "Disable" : "Enable")
         ++ " benchmarking of the "
         ++ name
-        ++ " wire",
+        ++ " encoding",
       ),
       Attr.on_click(_ =>
-        globals.inject_global(Set(Sidebar(ToggleWireDisabled(name))))
+        globals.inject_global(Set(Sidebar(ToggleWorkerEncoding(e))))
       ),
     ],
-    [text((off ? {|☐|} : {|☑|}) ++ " " ++ name)],
+    [text((on ? {|☑|} : {|☐|}) ++ " " ++ name)],
   );
 };
 
-let wire_toggles = (~globals): Node.t =>
+let encoding_toggles = (~globals): Node.t =>
   div(
     ~attrs=[clss(["wm-toggles"])],
-    List.map(wire_toggle(~globals), wire_names),
+    List.map(encoding_toggle(~globals), WorkerServer.all_of_encoding),
   );
 
 /* Column-unit legend: the time columns carry no per-cell suffix, so state the
@@ -856,9 +851,9 @@ let wm_legend: Node.t =
 
 let worker_messaging_view = (~globals): list(Node.t) =>
   section(~globals, worker_messaging_title, () =>
-    [wire_toggles(~globals)]
+    [encoding_toggles(~globals)]
     @ (
-      switch (WireMetrics.history^) {
+      switch (WorkerMetrics.history^) {
       | [] => [
           div(
             ~attrs=[clss(["wm-empty"])],
@@ -874,7 +869,7 @@ let worker_messaging_view = (~globals): list(Node.t) =>
                 ~attrs=[clss(["wire-metrics-table"])],
                 [
                   Node.tr([
-                    wm_head("wire"),
+                    wm_head("encoding"),
                     wm_head("enc"),
                     wm_head("clone"),
                     wm_head("dec"),

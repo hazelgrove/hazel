@@ -36,15 +36,22 @@ module Response = {
     Util.StructureShareSexp.structure_share_in(sexp_of_t, t_of_sexp);
 };
 
-/* A wire protocol is an encode/decode pair for each direction that turns a
- * live Request.t/Response.t into some `request`/`response` form crossing the
- * worker boundary. The forms are abstract so only encode/decode can produce
- * them and the two directions can't be swapped. `name` labels the variant in
- * the Worker Messaging debug panel. Several implementations follow; the one wired
- * into WorkerClient/on_request is the active protocol, the rest exist to be
- * benchmarked against it (see WireMetrics). */
-module type WIRE = {
-  let name: string;
+/* The candidate encodings for the worker payloads. `Marshal` is the active one
+ * (see `Active`); the others are benchmarked against it in the Worker Messaging
+ * debug panel (see WorkerMetrics). Display and persistence strings are
+ * ppx-derived (show/sexp/yojson), and `enumerate` gives `all_of_encoding`, so
+ * there are no hand-maintained name lists. */
+[@deriving (show({with_path: false}), sexp, yojson, enumerate)]
+type encoding =
+  | Direct
+  | Marshal
+  | Sexp;
+
+/* An encoding is an encode/decode pair for each direction that turns a live
+ * Request.t/Response.t into some `request`/`response` form crossing the worker
+ * boundary. The forms are abstract so only encode/decode can produce them and
+ * the two directions can't be swapped. */
+module type ENCODING = {
   type request;
   type response;
   let encode_request: Request.t => request;
@@ -55,10 +62,9 @@ module type WIRE = {
 
 /* Post the live value graph unchanged — the pre-#2368 behavior. Chrome's
  * structured-clone serializer is recursive and overflows on deep payloads, so
- * this is unsafe as an active protocol; it's kept as the baseline the metrics
+ * this is unsafe as the active encoding; it's kept as the baseline the metrics
  * path exercises (the overflow surfaces as a caught exception there). */
-module DirectWire: WIRE = {
-  let name = "direct";
+module DirectEncoding: ENCODING = {
   type request = Request.t;
   type response = Response.t;
   let encode_request = Fun.id;
@@ -68,10 +74,9 @@ module DirectWire: WIRE = {
 };
 
 /* Serialize with jsoo's Marshal (iterative, so depth-safe) to a flat string
- * that structured clone copies without recursing. This is the active protocol
- * (see `Wire` below) and the #2368 fix. */
-module MarshalWire: WIRE = {
-  let name = "marshal";
+ * that structured clone copies without recursing. This is the active encoding
+ * (see `Active`) and the #2368 fix. */
+module MarshalEncoding: ENCODING = {
   type request = string;
   type response = string;
   let encode_request = (req: Request.t): request =>
@@ -85,9 +90,8 @@ module MarshalWire: WIRE = {
 
 /* Serialize via the derived sexp converters to a string. Measures the general
  * sexp layer; its converters recurse per AST level, so deep expressions
- * overflow (a known limitation, not exercised as an active protocol). */
-module SexpWire: WIRE = {
-  let name = "sexp";
+ * overflow (a known limitation, not exercised as the active encoding). */
+module SexpEncoding: ENCODING = {
   type request = string;
   type response = string;
   let encode_request = (req: Request.t): request =>
@@ -100,16 +104,18 @@ module SexpWire: WIRE = {
     Response.t_of_sexp(Sexplib.Sexp.of_string(w));
 };
 
-/* The active protocol crossing the worker boundary (WorkerClient / on_request).
- * Swap this alias to change it; the panel benchmarks every entry in all_wires. */
-module Wire = MarshalWire;
+/* Behavior for an encoding tag. Exhaustive, so adding a variant is a compile
+ * error until it's wired up here. */
+let module_of_encoding = (e: encoding): (module ENCODING) =>
+  switch (e) {
+  | Direct => (module DirectEncoding)
+  | Marshal => (module MarshalEncoding)
+  | Sexp => (module SexpEncoding)
+  };
 
-/* All wire variants, for the metrics benchmark loop (WireMetrics). */
-let all_wires: list(module WIRE) = [
-  (module DirectWire),
-  (module MarshalWire),
-  (module SexpWire),
-];
+/* The active encoding crossing the worker boundary (WorkerClient / on_request).
+ * Swap this alias to change it; the panel benchmarks every encoding. */
+module Active = MarshalEncoding;
 
 let work = (req_value: Request.value): Response.value => {
   let Request.{expr, targets, eval_info_map, prev} = req_value;
@@ -135,10 +141,10 @@ let work = (req_value: Request.value): Response.value => {
   };
 };
 
-let on_request = (req: Wire.request): unit => {
+let on_request = (req: Active.request): unit => {
   let resp: Response.t =
-    Wire.decode_request(req) |> List.map(((k, v)) => (k, work(v)));
-  Js_of_ocaml.Worker.post_message(Wire.encode_response(resp));
+    Active.decode_request(req) |> List.map(((k, v)) => (k, work(v)));
+  Js_of_ocaml.Worker.post_message(Active.encode_response(resp));
 };
 
 let start = () => Js_of_ocaml.Worker.set_onmessage(on_request);

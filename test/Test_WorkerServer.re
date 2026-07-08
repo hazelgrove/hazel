@@ -1,7 +1,7 @@
 /**
- * Round-trip tests for the eval-worker wire protocols (issue #2368).
+ * Round-trip tests for the eval-worker encodings (issue #2368).
  *
- * Each WorkerServer.WIRE variant is exercised through the same battery: a
+ * Each WorkerServer.encoding is exercised through the same battery: a
  * payload is encoded, optionally run through structuredClone (the same
  * serializer postMessage hands payloads to — so this is the real boundary),
  * then decoded. These run under js_of_ocaml (node); node's test stack is 8MB,
@@ -29,13 +29,13 @@ let structured_clone: 'a. 'a => 'a =
       [|Js_of_ocaml.Js.Unsafe.inject(x)|],
     );
 
-/* A round-trip driver for one wire variant: encode -> (clone?) -> decode.
- * The abstract wire type stays inside the closure (only Response.t escapes),
- * so this composes over all variants uniformly. */
-let rt_of_wire =
-    (wire: (module WorkerServer.WIRE))
+/* A round-trip driver for one encoding: encode -> (clone?) -> decode.
+ * The abstract encoded type stays inside the closure (only Response.t escapes),
+ * so this composes over all encodings uniformly. */
+let rt_of_encoding =
+    (encoding: (module WorkerServer.ENCODING))
     : ((~clone: bool, WorkerServer.Response.t) => WorkerServer.Response.t) => {
-  module M = (val wire);
+  module M = (val encoding);
   (~clone, resp) => {
     let w = M.encode_response(resp);
     let w = clone ? structured_clone(w) : w;
@@ -159,14 +159,14 @@ let shallow_tests = (~rt): list(test_case(_)) => [
   ),
 ];
 
-let marshal = rt_of_wire((module WorkerServer.MarshalWire));
-let sexp = rt_of_wire((module WorkerServer.SexpWire));
-let direct = rt_of_wire((module WorkerServer.DirectWire));
+let marshal = rt_of_encoding((module WorkerServer.MarshalEncoding));
+let sexp = rt_of_encoding((module WorkerServer.SexpEncoding));
+let direct = rt_of_encoding((module WorkerServer.DirectEncoding));
 
 let tests = [
   (
     /* Marshal is iterative, so also depth- and width-proof. */
-    "WorkerServer.MarshalWire",
+    "WorkerServer.MarshalEncoding",
     [
       test_deep_round_trip(
         ~rt=marshal,
@@ -187,7 +187,7 @@ let tests = [
     /* Direct = identity. clone=false is a trivial identity round-trip; deep
      * clone=true is the #2368 crash and deliberately not exercised (see file
      * header). Sharing + shallow still validate the identity path. */
-    "WorkerServer.DirectWire",
+    "WorkerServer.DirectEncoding",
     [
       test_deep_round_trip(
         ~rt=direct,
@@ -203,7 +203,7 @@ let tests = [
     /* Sexp converters recurse per level, so deep payloads are out of scope.
      * No sharing assertion: sexp is a tree format and legitimately duplicates
      * shared sub-structure (the derived converters don't record DAG sharing). */
-    "WorkerServer.SexpWire",
+    "WorkerServer.SexpEncoding",
     shallow_tests(~rt=sexp),
   ),
 ];
