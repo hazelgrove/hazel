@@ -4,12 +4,9 @@ open WorkerServer;
 let name = "worker.js"; // Worker file name
 let timeoutDuration = 20000; // Worker timeout in ms
 
-/* Worker exchanges Active-encoding payloads (a flat string produced by jsoo's
- * iterative Marshal, which structured clone copies without recursing), not live
- * values, to dodge the structured-clone stack overflow on deep results (#2368;
- * see WorkerServer.Active). Callers still deal in Request.t/Response.t. When the
- * debug panel is on, WorkerMetrics benchmarks the other encodings locally on
- * the side. */
+/* Worker exchanges Active-encoding payloads, not live values, to dodge the
+ * structured-clone overflow on deep results (#2368; see WorkerServer.Active).
+ * Callers still deal in Request.t/Response.t. */
 let initWorker: unit => Js.t(Worker.worker(Active.request, Active.response)) =
   () => Worker.create(name);
 

@@ -11,22 +11,17 @@ open Util.WebUtil;
 
 let title = "Worker Messaging";
 
-/* Durations are Core.Time_ns.Span, sizes Core.Byte_units — each formatted via
-   its own to_string_hum, so the value carries its unit. A None field (a stage
-   that didn't complete) renders as an em dash rather than a misleading 0. */
-let dash = {|—|};
-
-let span_str = (s: option(Core.Time_ns.Span.t)): string =>
-  switch (s) {
-  | None => dash
-  | Some(s) => Core.Time_ns.Span.to_string_hum(~decimals=2, s)
+/* Format an optional metric, showing an em dash for a stage that didn't
+   complete rather than a misleading 0. Durations are Core.Time_ns.Span and
+   sizes Core.Byte_units, each carrying its own unit via to_string_hum. */
+let opt_str = (to_string: 'a => string, x: option('a)): string =>
+  switch (x) {
+  | None => {|—|}
+  | Some(x) => to_string(x)
   };
 
-let bytes_str = (b: option(Core.Byte_units.t)): string =>
-  switch (b) {
-  | None => dash
-  | Some(b) => Core.Byte_units.to_string_hum(b)
-  };
+let span_str = opt_str(s => Core.Time_ns.Span.to_string_hum(~decimals=2, s));
+let bytes_str = opt_str(b => Core.Byte_units.to_string_hum(b));
 
 let wm_head = (label: string): Node.t =>
   Node.td(~attrs=[clss(["wm-head"])], [text(label)]);

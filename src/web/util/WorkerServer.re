@@ -36,21 +36,17 @@ module Response = {
     Util.StructureShareSexp.structure_share_in(sexp_of_t, t_of_sexp);
 };
 
-/* The candidate encodings for the worker payloads. `Marshal` is the active one
- * (see `Active`); the others are benchmarked against it in the Worker Messaging
- * debug panel (see WorkerMetrics). Display and persistence strings are
- * ppx-derived (show/sexp/yojson), and `enumerate` gives `all_of_encoding`, so
- * there are no hand-maintained name lists. */
+/* Candidate encodings for the worker payloads; `Marshal` is active (see
+ * `Active`), the rest are benchmarked against it (WorkerMetrics). Strings and
+ * `all_of_encoding` are ppx-derived — no hand-maintained name lists. */
 [@deriving (show({with_path: false}), sexp, yojson, enumerate)]
 type encoding =
   | Direct
   | Marshal
   | Sexp;
 
-/* An encoding is an encode/decode pair for each direction that turns a live
- * Request.t/Response.t into some `request`/`response` form crossing the worker
- * boundary. The forms are abstract so only encode/decode can produce them and
- * the two directions can't be swapped. */
+/* An encode/decode pair per direction; the forms are abstract so only
+ * encode/decode can cross the boundary and the directions can't be swapped. */
 module type ENCODING = {
   type request;
   type response;
@@ -58,17 +54,15 @@ module type ENCODING = {
   let decode_request: request => Request.t;
   let encode_response: Response.t => response;
   let decode_response: response => Response.t;
-  /* Size of the encoded form, reported by each encoding since only it knows its
-   * representation (exact for the string encodings, an in-memory-footprint
-   * estimate for the identity one). Used by WorkerMetrics. */
+  /* Size of the encoded form (exact for the string encodings, an estimate for
+   * the identity one), reported here since only the encoding knows its form. */
   let size_request: request => Core.Byte_units.t;
   let size_response: response => Core.Byte_units.t;
 };
 
-/* Post the live value graph unchanged — the pre-#2368 behavior. Chrome's
- * structured-clone serializer is recursive and overflows on deep payloads, so
- * this is unsafe as the active encoding; it's kept as the baseline the metrics
- * path exercises (the overflow surfaces as a caught exception there). */
+/* Post the live value graph unchanged (pre-#2368 behavior): unsafe as the
+ * active encoding since Chrome's clone overflows on deep payloads, kept as the
+ * benchmark baseline (the overflow surfaces there as a caught exception). */
 module DirectEncoding: ENCODING = {
   open Js_of_ocaml;
   type request = Request.t;
@@ -77,9 +71,8 @@ module DirectEncoding: ENCODING = {
   let decode_request = Fun.id;
   let encode_response = Fun.id;
   let decode_response = Fun.id;
-  /* No serialized form, so approximate the in-memory footprint by an iterative
-   * walk with a visited set (shared/DAG structure isn't double-counted). Only a
-   * relative measure against the string encodings, not an exact byte count. */
+  /* No serialized form, so estimate the in-memory footprint by an iterative
+   * walk with a visited set (a relative measure, not exact bytes). */
   let size_fn =
     Js.Unsafe.pure_js_expr(
       {|(function (root) {
@@ -119,9 +112,8 @@ module DirectEncoding: ENCODING = {
   let size_response = (r: response) => size(r);
 };
 
-/* Serialize with jsoo's Marshal (iterative, so depth-safe) to a flat string
- * that structured clone copies without recursing. This is the active encoding
- * (see `Active`) and the #2368 fix. */
+/* jsoo Marshal (iterative → depth-safe) to a flat string clone copies without
+ * recursing. The active encoding and the #2368 fix. */
 module MarshalEncoding: ENCODING = {
   type request = string;
   type response = string;
@@ -138,9 +130,8 @@ module MarshalEncoding: ENCODING = {
     Core.Byte_units.of_bytes_int(String.length(w));
 };
 
-/* Serialize via the derived sexp converters to a string. Measures the general
- * sexp layer; its converters recurse per AST level, so deep expressions
- * overflow (a known limitation, not exercised as the active encoding). */
+/* Serialize via the derived sexp converters; recurses per AST level, so deep
+ * expressions overflow — a benchmark comparison only. */
 module SexpEncoding: ENCODING = {
   type request = string;
   type response = string;
@@ -158,8 +149,7 @@ module SexpEncoding: ENCODING = {
     Core.Byte_units.of_bytes_int(String.length(w));
 };
 
-/* Behavior for an encoding tag. Exhaustive, so adding a variant is a compile
- * error until it's wired up here. */
+/* Behavior for an encoding tag (exhaustive — a new variant must be added). */
 let module_of_encoding = (e: encoding): (module ENCODING) =>
   switch (e) {
   | Direct => (module DirectEncoding)
@@ -167,8 +157,8 @@ let module_of_encoding = (e: encoding): (module ENCODING) =>
   | Sexp => (module SexpEncoding)
   };
 
-/* The active encoding crossing the worker boundary (WorkerClient / on_request).
- * Swap this alias to change it; the panel benchmarks every encoding. */
+/* The active encoding on the boundary (WorkerClient / on_request); swap to
+ * change it. */
 module Active = MarshalEncoding;
 
 let work = (req_value: Request.value): Response.value => {

@@ -406,12 +406,8 @@ module Update = {
 
   let calculate =
       (~schedule_action, ~is_edited, ~dynamics: bool, model: Model.t) => {
-    /* Gate worker-messaging benchmarking on the Worker Messaging panel being
-       visible: the debug panel is on AND its section is expanded. The flag
-       isn't reachable at the WorkerClient.request call sites (which see only
-       settings.core), so we sync it here, before the modes below queue any
-       request. Skipping it while collapsed avoids the (potentially large)
-       per-request measurement cost when nothing is watching. */
+    /* Sync worker-messaging benchmark gating here (settings aren't reachable at
+       the WorkerClient.request call sites); only run when the panel is open. */
     WorkerMetrics.sync(
       ~enabled=
         model.globals.settings.show_debug_panel
