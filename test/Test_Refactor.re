@@ -2461,6 +2461,62 @@ let audit_round_tests = [
   ),
 ];
 
+let round3_tests = [
+  check_gesture(
+    "up at `end` is dead (case-specific vocation)",
+    Up,
+    "case b | true => 0 end¦",
+    None,
+  ),
+  check_gesture(
+    "up at `case` kw still extracts the whole case",
+    Up,
+    "let y = f(¦case b | true => 0 end) in y",
+    Some(ExtractLet),
+  ),
+  test_case(
+    "negate keeps a multiline if's line breaks",
+    `Quick,
+    () => {
+      let got =
+        inline(~kind=NegateIf, "¦if a && b\nthen 1\nelse 2") |> text_of;
+      check(string, "layout survives", "if !(a && b)\nthen 2\nelse 1", got);
+    },
+  ),
+  test_case(
+    "negate gesture toggles: else-Up then then-Down restores",
+    `Quick,
+    () => {
+      let src = "if a && b then 1 els¦e 2";
+      let z0 = Test_Editing.parse_zipper(src);
+      let z1 = Test_Editing.perform(z0, [Action.RefactorGesture(Up)]);
+      check(
+        bool,
+        "caret lands at then: " ++ caret_text(z1),
+        true,
+        has_sub(caret_text(z1), "¦then"),
+      );
+      let z2 = Test_Editing.perform(z1, [Action.RefactorGesture(Down)]);
+      check(string, "toggled back", "if a && b then 1 else 2", text_of(z2));
+    },
+  ),
+  test_case(
+    "sink into an inline def nests with line breaks",
+    `Quick,
+    () => {
+      let got =
+        inline(~kind=SinkLet, "¦let x1 = 3 in\nlet hw = x * x1 in\n1")
+        |> text_of;
+      check(
+        string,
+        "nested multiline",
+        "let hw =\n  let x1 = 3 in\n  x * x1 in\n1",
+        got,
+      );
+    },
+  ),
+];
+
 let tests = [
   (
     "Refactor",
@@ -2489,6 +2545,7 @@ let tests = [
     @ tuple_swap_tests
     @ policy_tests
     @ audit_round_tests
+    @ round3_tests
     @ binding_tests
     @ reparse_safety_tests,
   ),

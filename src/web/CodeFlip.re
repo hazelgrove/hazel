@@ -106,24 +106,31 @@ let cancel_active = (): unit => {
 /* EXPERIMENT (andrew): newly created elements fade in (they used to
  * pop). Exit animation is structurally out of reach here: removed
  * elements are already gone from the DOM when go() runs. */
+let enter_duration = 320; /* slower than movement so it registers */
+
 let animate_enter = (node: Js.t(Dom.node)): unit => {
-  let keyframes =
-    Animation.Js.keyframes_unsafe([("opacity", "0"), ("opacity", "1")]);
-  let options =
-    Animation.Js.options_unsafe({
-      duration,
-      easing,
-    });
-  switch (
-    Js.Unsafe.meth_call(
-      node,
-      "animate",
-      [|Js.Unsafe.inject(keyframes), Js.Unsafe.inject(options)|],
-    )
-  ) {
-  | exception _ => ()
-  | anim => active := [anim, ...active^]
+  let run = keyframes => {
+    let options =
+      Animation.Js.options_unsafe({
+        duration: enter_duration,
+        easing,
+      });
+    switch (
+      Js.Unsafe.meth_call(
+        node,
+        "animate",
+        [|
+          Js.Unsafe.inject(Animation.Js.keyframes_unsafe(keyframes)),
+          Js.Unsafe.inject(options),
+        |],
+      )
+    ) {
+    | exception _ => ()
+    | anim => active := [anim, ...active^]
+    };
   };
+  run([("opacity", "0"), ("opacity", "1")]);
+  run([("transform", "scale(0.3)"), ("transform", "scale(1)")]);
 };
 
 let animate_node =

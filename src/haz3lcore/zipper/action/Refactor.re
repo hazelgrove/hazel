@@ -1726,25 +1726,33 @@ let negate_if_impl: impl = {
                  then-arm takes it over. The condition sheds its
                  post-`if` lead (it now sits after `!`). Parens by
                  reparse oracle; the If node keeps its id. */
-              let c =
-                c
-                |> strip_leading_keep_comments
-                |> strip_trailing_keep_comments;
+              /* the run between the condition and `then` belongs to
+                 the SLOT: capture it and re-give it to the new
+                 condition so a multiline if keeps its line breaks */
+              let old_trail = Slot.trail_of(c).trail;
+              let c = c |> strip_leading_keep_comments |> strip_trailing;
               /* self-inverse: negating a negation unwraps it */
               let cond =
                 switch (IdTagged.term_of(c)) {
                 | UnOp(Bool(Not), inner) =>
+                  /* also shed the negation's own parens: the cond
+                     slot is bidelimited, bare is always safe */
+                  let inner =
+                    switch (IdTagged.term_of(inner)) {
+                    | Parens(q) => q
+                    | _ => inner
+                    };
                   with_secondary(
-                    (space(), []),
+                    (space(), old_trail),
                     strip_boundaries_keep_comments(inner),
-                  )
+                  );
                 | _ =>
                   let c = parens ? fresh(Parens(c)) : c;
                   {
                     ...fresh(UnOp(Bool(Not), c)),
                     annotation: {
                       ...IdTagged.IdTag.mk_internal([Id.mk()]),
-                      secondary: (space(), []),
+                      secondary: (space(), old_trail),
                     },
                   };
                 };
@@ -2751,9 +2759,27 @@ let sink_step = (~fixup: bool, l: Exp.t): option((Exp.t, Id.t)) => {
          (same evaluation, narrower scope) — the missing edge of the
          region graph; inverse of hoist-out-of-def */
       let (d_lead, mdef') = take_lead(mdef);
+      /* a def gaining an internal let goes multiline (andrew): break
+         before the sunk let and after its `in`, indented past the
+         host line — unless the def already had its own layout */
+      let host_sep = () => fixup ? sep_like(Slot.lead_of(lbody).lead) : [];
+      let nesting = fixup && !has_newline(d_lead) && has_newline(host_sep());
+      let mdef' =
+        if (nesting) {
+          let (b, a) = mdef'.annotation.secondary;
+          {
+            ...mdef',
+            annotation: {
+              ...mdef'.annotation,
+              secondary: (host_sep() @ space() @ space() @ b, a),
+            },
+          };
+        } else {
+          mdef';
+        };
       let l': Exp.t =
         with_secondary(
-          (d_lead, []),
+          (nesting ? host_sep() @ space() @ space() : d_lead, []),
           {
             ...l,
             term: Let(lp, ldef, mdef'),
@@ -4818,6 +4844,11 @@ let gesture =
         app(
           NegateIf /* the else-arm moves up */
         );
+      } else if (is_case && shard == Some(1)) {
+        None;
+            /* `end` has a case-specific vocation (add-arm below); a
+               whole-case extract firing from it reads as an accident —
+               extract stays on the `case` kw and in the menu */
       } else {
         app(ExtractLet);
       }
