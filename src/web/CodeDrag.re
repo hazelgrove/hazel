@@ -564,8 +564,10 @@ let sync =
   | None => ()
   | Some(s) =>
     let compute = () => {
+      /* track anchors at the CENTER of the anchor's first character
+         cell (andrew: reads better than the left-edge midpoint) */
       let px = (p: Measured.Point.t): vec => {
-        x: float_of_int(p.col) *. font_metrics.col_width,
+        x: (float_of_int(p.col) +. 0.5) *. font_metrics.col_width,
         y: (float_of_int(p.row) +. 0.5) *. font_metrics.row_height,
       };
       scrub_clear(s);
