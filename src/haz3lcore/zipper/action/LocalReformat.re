@@ -190,6 +190,109 @@ let apply_plans =
        }
      );
 
+/* === Region re-indent (paste-like insertions) ===
+   Trigger: linebreaks present after the action but absent before —
+   the inserted material's own lines (copied pieces re-mint ids on
+   paste; text paste mints fresh ids). Policy unchanged from the
+   completion trigger: buffer settled -> exact canonical per new
+   line; unsettled -> uniform clamp-guarded shift anchored at the
+   first new line (whitespace stays load-bearing for completion).
+   Caveat: a caret sitting inside a new line's indentation run splits
+   it across zipper sub-segments; the remainder is left alone. */
+
+let rec all_piece_ids = (acc: Id.Map.t(unit), seg: Segment.t) =>
+  List.fold_left(
+    (acc, p: Piece.t) =>
+      switch (p) {
+      | Tile(t) =>
+        List.fold_left(all_piece_ids, Id.Map.add(t.id, (), acc), t.children)
+      | p => Id.Map.add(Piece.id(p), (), acc)
+      },
+    acc,
+    seg,
+  );
+
+let snapshot_pieces = (~enabled: bool, z: Zipper.t): option(Id.Map.t(unit)) =>
+  enabled
+    ? Some(all_piece_ids(Id.Map.empty, Zipper.unselect_and_zip(z))) : None;
+
+let rec collect_lb_indents = (seg: Segment.t): list((Id.t, int)) =>
+  switch (seg) {
+  | [] => []
+  | [Piece.Secondary(w), ...rest] when Secondary.is_linebreak(w) =>
+    let (spaces, rest) = split_spaces(rest);
+    [(w.id, List.length(spaces)), ...collect_lb_indents(rest)];
+  | [Tile(t), ...rest] =>
+    List.concat_map(collect_lb_indents, t.children)
+    @ collect_lb_indents(rest)
+  | [_, ...rest] => collect_lb_indents(rest)
+  };
+
+let rec set_lb_indents = (targets: Id.Map.t(int), seg: Segment.t): Segment.t =>
+  switch (seg) {
+  | [] => []
+  | [Piece.Secondary(w) as p, ...rest] when Secondary.is_linebreak(w) =>
+    let (spaces, rest) = split_spaces(rest);
+    let spaces =
+      switch (Id.Map.find_opt(w.id, targets)) {
+      | None => spaces
+      | Some(n) =>
+        List.length(spaces) >= n
+          ? spaces |> List.filteri((i, _) => i < n)
+          : spaces
+            @ List.init(n - List.length(spaces), _ =>
+                Piece.Secondary(Secondary.mk_space(Id.mk()))
+              )
+      };
+    [p] @ spaces @ set_lb_indents(targets, rest);
+  | [Piece.Tile(t), ...rest] => [
+      Piece.Tile({
+        ...t,
+        children: List.map(set_lb_indents(targets), t.children),
+      }),
+      ...set_lb_indents(targets, rest),
+    ]
+  | [p, ...rest] => [p, ...set_lb_indents(targets, rest)]
+  };
+
+let go_region =
+    (~before_pieces: option(Id.Map.t(unit)), z: Zipper.t): Zipper.t =>
+  switch (before_pieces) {
+  | None => z
+  | Some(before) =>
+    let full = Zipper.unselect_and_zip(z);
+    let new_lbs =
+      collect_lb_indents(full)
+      |> List.filter(((id, _)) => !Id.Map.mem(id, before));
+    switch (new_lbs) {
+    | [] => z
+    | [(first_id, first_cur), ..._] =>
+      let indent_map = Indentation.level_map(full);
+      let settled = Id.Map.is_empty(incomplete_ids(Id.Map.empty, full));
+      let targets =
+        settled
+          ? new_lbs
+            |> List.filter_map(((id, _)) =>
+                 Id.Map.find_opt(id, indent_map) |> Option.map(l => (id, l))
+               )
+          : {
+            let canonical =
+              Id.Map.find_opt(first_id, indent_map)
+              |> Option.value(~default=first_cur);
+            let delta = canonical - first_cur;
+            delta == 0
+            || List.exists(((_, cur)) => cur + delta < 0, new_lbs)
+              ? [] : new_lbs |> List.map(((id, cur)) => (id, cur + delta));
+          };
+      targets == []
+        ? z
+        : ZipperBase.MapSegment.go(
+            set_lb_indents(targets |> List.to_seq |> Id.Map.of_seq),
+            z,
+          );
+    };
+  };
+
 let go = (~before: option(Id.Map.t(unit)), z: Zipper.t): Zipper.t =>
   switch (before) {
   | None => z
