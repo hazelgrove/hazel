@@ -51,6 +51,19 @@ let test_indent_after_format = (~name, ~init, ~goal): test_case(_) => {
 };
 
 let indentation_tests = [
+  /* Consecutive linebreaks after an indenting form share one level —
+     each Enter must not staircase (regression: level+2 compounded per
+     blank line) */
+  test_indent(
+    ~name="blank lines after fun arrow don't staircase",
+    ~init="fun z ->\n\n\nz",
+    ~goal="fun z ->\n\n\n  z",
+  ),
+  test_indent_after_format(
+    ~name="blank lines after fun arrow don't staircase (format)",
+    ~init="fun z ->\n\n\nz",
+    ~goal="fun z ->\n\n\n  z",
+  ),
   /* INDENTATION OF COMPLETE SYNTAX */
   test_indent(
     ~name="Top level doesn't auto indent",
