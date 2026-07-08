@@ -58,15 +58,34 @@ let with_latest = (request_id, f) =>
 
 /* Both directions cross postMessage in the Active encoding, not as live
  * values, to dodge the structured-clone overflow on deep results (#2368;
- * see WorkerServer.Active). Callers still deal in Request.t/Response.t. */
-let post_evaluate = (worker, request: Request.t) =>
-  worker##postMessage(
-    Active.encode_request(ClientMessage.Evaluate(request)),
-  );
+ * see WorkerServer.Active). Callers still deal in Request.t/Response.t.
+ *
+ * Encodes once: the Evaluation panel needs the posted byte length, and its
+ * latency clock must start as close to the post as possible (excluding any
+ * Worker Messaging benchmarking done earlier by record_request). */
+let post_evaluate =
+    (~metrics_id: option(int)=None, worker, request: Request.t) => {
+  let encoded = Active.encode_request(ClientMessage.Evaluate(request));
+  switch (metrics_id) {
+  | Some(id) when EvalMetrics.enabled^ =>
+    EvalMetrics.record_sent(
+      ~id,
+      ~entries=List.length(request.batch),
+      ~sent_at=Util.JsUtil.precise_timestamp(),
+      ~req_bytes=Active.size_request(encoded),
+    )
+  | _ => ()
+  };
+  worker##postMessage(encoded);
+};
 
 let fail_latest = latest => {
   clear_timeouts();
   latest_request := None;
+  switch (latest.metrics_id) {
+  | Some(id) when EvalMetrics.enabled^ => EvalMetrics.record_timeout(~id)
+  | _ => ()
+  };
   latest.callbacks.on_timeout(latest.request.batch);
 };
 
@@ -83,6 +102,8 @@ let cancel = (): unit => {
 let setup_worker_message_handler = worker => {
   worker##.onmessage :=
     Dom.handler(evt => {
+      /* Stop the latency clock first thing, before any decode/benchmark. */
+      let now = Util.JsUtil.precise_timestamp();
       switch (Active.decode_response(evt##.data)) {
       | ServerMessage.Ack({request_id}) =>
         /* Liveness only — reuse tinting arrives next via ReusePlan. */
@@ -103,8 +124,29 @@ let setup_worker_message_handler = worker => {
              * can take tens of ms and must not delay evaluation latency. */
             latest.callbacks.on_result(response);
             switch (latest.metrics_id) {
-            | Some(id) => WorkerMetrics.record_response(id, msg)
             | None => ()
+            | Some(id) =>
+              if (WorkerMetrics.enabled^) {
+                WorkerMetrics.record_response(id, msg);
+              };
+              if (EvalMetrics.enabled^) {
+                let status =
+                  List.for_all(
+                    ((_, v)) =>
+                      switch (v) {
+                      | Ok(_) => true
+                      | Error(_) => false
+                      },
+                    response,
+                  )
+                    ? EvalMetrics.Ok : EvalMetrics.Fail;
+                EvalMetrics.record_done(
+                  ~id,
+                  ~now,
+                  ~status,
+                  ~resp_bytes=Active.size_response(evt##.data),
+                );
+              };
             };
           },
         )
@@ -123,6 +165,9 @@ let init_worker: unit => Js.t(Worker.worker(Active.request, Active.response)) =
 let worker_ref = ref(init_worker());
 
 let restart_worker = (): unit => {
+  if (EvalMetrics.enabled^) {
+    EvalMetrics.incr_restarts();
+  };
   worker_ref.contents##terminate;
   worker_ref.contents = init_worker();
 };
@@ -191,22 +236,23 @@ let request =
   | _ =>
     clear_timeouts();
     next_request_id := next_request_id^ + 1;
-    /* When metrics are on, tag this request so the response can be
-     * correlated, and benchmark the request-side encodings before posting. */
+    /* One id per request, shared by the Worker Messaging and Evaluation panels
+     * so their rows correlate. record_request does the (heavy) per-encoding
+     * benchmarking, so it stays gated on Worker Messaging alone. */
     let metrics_id =
-      if (WorkerMetrics.enabled^) {
-        let id = WorkerMetrics.next_id();
-        WorkerMetrics.record_request(
-          id,
-          ClientMessage.Evaluate({
-            request_id: next_request_id^,
-            batch,
-          }),
-        );
-        Some(id);
-      } else {
-        None;
-      };
+      WorkerMetrics.enabled^ || EvalMetrics.enabled^
+        ? Some(WorkerMetrics.next_id()) : None;
+    switch (metrics_id) {
+    | Some(id) when WorkerMetrics.enabled^ =>
+      WorkerMetrics.record_request(
+        id,
+        ClientMessage.Evaluate({
+          request_id: next_request_id^,
+          batch,
+        }),
+      )
+    | _ => ()
+    };
     let latest = {
       request: {
         request_id: next_request_id^,
@@ -222,7 +268,7 @@ let request =
       metrics_id,
     };
     latest_request := Some(latest);
-    post_evaluate(worker_ref.contents, latest.request);
+    post_evaluate(~metrics_id, worker_ref.contents, latest.request);
     start_eval_timeout(latest);
     start_ack_timeout(~cold_start=false, latest);
   };

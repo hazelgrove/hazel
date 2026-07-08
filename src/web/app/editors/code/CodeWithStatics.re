@@ -155,28 +155,55 @@ module Update = {
     /* Throttle gate: decide whether to do a full statics recompute this
      * frame. When we reuse, `statics` keeps its ref — CachedSyntax.calculate
      * then skips the shape pass via phys-eq on info_map/elaborated. */
+    let recompute =
+      statics_mode == StaticsForce || is_edited && statics_mode != StaticsDefer;
     let statics =
-      statics_mode == StaticsForce || is_edited && statics_mode != StaticsDefer
-        ? CachedStatics.init(
-            ~settings,
-            ~stitch,
-            ~ctx?,
-            ~ana?,
-            ~is_dynamic_term,
-            ~root=editor.root,
-            editor.state.zipper,
+      recompute
+        ? PerfMetrics.stage(PerfMetrics.record_statics, () =>
+            CachedStatics.init(
+              ~settings,
+              ~stitch,
+              ~ctx?,
+              ~ana?,
+              ~is_dynamic_term,
+              ~root=editor.root,
+              editor.state.zipper,
+            )
           )
         : statics;
+    if (PerfMetrics.enabled^) {
+      PerfMetrics.record_statics_counts(
+        ~info_map_entries=Id.Map.cardinal(statics.info_map),
+        ~error_count=List.length(statics.error_ids),
+        ~warning_count=List.length(statics.warning_ids),
+        ~statics_mode=
+          recompute
+            ? statics_mode == StaticsForce ? "forced" : "recompute"
+            : statics_mode == StaticsDefer ? "deferred" : "cached",
+      );
+    };
 
     let editor =
-      Editor.Update.calculate(
-        ~settings,
-        ~autoprobe_mode,
-        ~is_edited,
-        statics,
-        dynamics,
-        editor,
+      PerfMetrics.stage(PerfMetrics.record_syntax, () =>
+        Editor.Update.calculate(
+          ~settings,
+          ~autoprobe_mode,
+          ~is_edited,
+          statics,
+          dynamics,
+          editor,
+        )
       );
+    if (PerfMetrics.enabled^) {
+      let syn = editor.syntax;
+      PerfMetrics.record_editor_counts(
+        ~segment_tokens=List.length(syn.segment),
+        ~tiles=Id.Map.cardinal(syn.measured.tiles),
+        ~rows=Measured.Rows.cardinal(syn.measured.rows),
+        ~projectors=List.length(syn.projector_list),
+        ~backpack=List.length(syn.cached_backpack),
+      );
+    };
 
     /* Refresh `statics.targets` against the post-probe-effects refractors.
      * Cheap O(|probe_ids|) fold; only this field depends on refractors, so

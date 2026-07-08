@@ -406,18 +406,26 @@ module Update = {
 
   let calculate =
       (~schedule_action, ~is_edited, ~dynamics: bool, model: Model.t) => {
-    /* Sync worker-messaging benchmark gating here (settings aren't reachable at
-       the WorkerClient.request call sites); only run when the panel is open. */
+    /* Sync debug-panel gating here (settings aren't reachable at the
+       WorkerClient.request call sites nor the per-frame instrumentation sites);
+       each collector only runs while its panel is open. */
+    let sidebar = model.globals.settings.sidebar;
+    let panel_open = title =>
+      model.globals.settings.show_debug_panel
+      && !SidebarModel.Settings.is_debug_collapsed(title, sidebar);
     WorkerMetrics.sync(
-      ~enabled=
-        model.globals.settings.show_debug_panel
-        && !
-             SidebarModel.Settings.is_debug_collapsed(
-               WorkerMessagingSection.title,
-               model.globals.settings.sidebar,
-             ),
-      ~encodings=model.globals.settings.sidebar.worker_encodings,
+      ~enabled=panel_open(WorkerMessagingSection.title),
+      ~encodings=sidebar.worker_encodings,
     );
+    EvalMetrics.sync(~enabled=panel_open(EvaluationSection.title));
+    PerfMetrics.sync(
+      ~enabled=
+        panel_open(StaticsSection.title)
+        || panel_open(EditorSection.title)
+        || panel_open(FrameSection.title),
+    );
+    PerfMetrics.begin_calc();
+    let calc_start = Util.JsUtil.precise_timestamp();
     let editors =
       Editors.Update.calculate(
         ~settings=
@@ -439,39 +447,52 @@ module Update = {
        and yield the wrong ExplainThis highlights for a click/move-only
        action, which doesn't trigger a full statics rebuild. */
     let cursor_info =
-      Editors.Selection.get_cursor_info(
-        ~inject=_ => Ui_effect.Ignore,
-        ~selection=model.selection,
-        editors,
-      );
-    let color_highlights =
-      ExplainThis.get_color_map(
-        ~globals=model.globals,
-        ~explainThisModel=model.explain_this,
-        cursor_info.info,
-      );
-    /* When the user's cursor is inside a derivation tree cell, the
-       deduction-specific highlight map takes precedence over the generic
-       ExplainThis one. We consult the live selection here (rather than
-       Editors.Model.get_derivation_info, which reads the stale `model.pos`
-       inside DerivationExerciseMode) so that focus on Prelude/Setup doesn't
-       get misclassified as focus on the derivation. */
-    let derivation_info =
-      Editors.Selection.get_derivation_info(
-        ~selection=model.selection,
-        editors,
-      );
-    let color_highlights =
-      switch (derivation_info) {
-      | Some(_) =>
-        ExplainThis.get_color_map_deduction(
-          ~globals=model.globals,
-          ~explainThisModel=model.explain_this,
-          derivation_info,
+      PerfMetrics.stage(PerfMetrics.record_cursor, () =>
+        Editors.Selection.get_cursor_info(
+          ~inject=_ => Ui_effect.Ignore,
+          ~selection=model.selection,
+          editors,
         )
-      | None => color_highlights
-      };
+      );
+    let color_highlights =
+      PerfMetrics.stage(
+        PerfMetrics.record_colors,
+        () => {
+          let color_highlights =
+            ExplainThis.get_color_map(
+              ~globals=model.globals,
+              ~explainThisModel=model.explain_this,
+              cursor_info.info,
+            );
+          /* When the user's cursor is inside a derivation tree cell, the
+             deduction-specific highlight map takes precedence over the generic
+             ExplainThis one. We consult the live selection here (rather than
+             Editors.Model.get_derivation_info, which reads the stale `model.pos`
+             inside DerivationExerciseMode) so that focus on Prelude/Setup doesn't
+             get misclassified as focus on the derivation. */
+          let derivation_info =
+            Editors.Selection.get_derivation_info(
+              ~selection=model.selection,
+              editors,
+            );
+          switch (derivation_info) {
+          | Some(_) =>
+            ExplainThis.get_color_map_deduction(
+              ~globals=model.globals,
+              ~explainThisModel=model.explain_this,
+              derivation_info,
+            )
+          | None => color_highlights
+          };
+        },
+      );
     let globals = Globals.Update.calculate(color_highlights, model.globals);
+    PerfMetrics.end_calc(
+      ~total=
+        Core.Time_ns.Span.of_ms(
+          Util.JsUtil.precise_timestamp() -. calc_start,
+        ),
+    );
     {
       ...model,
       globals,

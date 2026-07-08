@@ -71,12 +71,7 @@ let clone_fn =
 let structured_clone: 'a. 'a => 'a =
   x => Js.Unsafe.fun_call(clone_fn, [|Js.Unsafe.inject(x)|]);
 
-let timed: 'a. (unit => 'a) => (Core.Time_ns.Span.t, 'a) =
-  f => {
-    let t0 = Util.JsUtil.precise_timestamp();
-    let x = f();
-    (Core.Time_ns.Span.of_ms(Util.JsUtil.precise_timestamp() -. t0), x);
-  };
+let timed = Util.TimeUtil.timed;
 
 /* Measure encode -> size -> structuredClone -> decode for one direction. Each
  * stage that completes records its value; the first stage to throw sets `error`

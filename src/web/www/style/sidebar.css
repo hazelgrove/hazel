@@ -771,3 +771,72 @@
   font-style: italic;
   margin: 0.2em 0;
 }
+
+/* Profiling sections (Evaluation / Statics / Editor & Memory / Frame Timing):
+   shared kv- and metric-table styling, mirroring the Worker Messaging table. */
+#debug-sidebar .perf-scroll {
+  overflow-x: auto; /* wide numbers scroll rather than clip */
+  margin-top: 0.3em;
+}
+
+#debug-sidebar .perf-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+
+#debug-sidebar .perf-table td {
+  padding: 0.1em 0.25em;
+  text-align: right;
+  white-space: nowrap;
+}
+
+#debug-sidebar .perf-table .perf-head {
+  font-weight: 600;
+  color: var(--BR3);
+  border-bottom: 1px solid var(--BR1);
+}
+
+/* Label : value rows (Statics, Editor & Memory). */
+#debug-sidebar .perf-table .perf-k {
+  text-align: left;
+  color: var(--BR3);
+  padding-right: 0.8em;
+}
+
+#debug-sidebar .perf-table .perf-v {
+  font-weight: 600;
+}
+
+#debug-sidebar .perf-table .perf-total {
+  font-weight: 600;
+  color: var(--BR4);
+}
+
+/* Edit-action label column (Frame Timing): left-aligned, truncated. */
+#debug-sidebar .perf-table .perf-action {
+  text-align: left;
+  max-width: 9em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+#debug-sidebar .perf-table .perf-ok {
+  color: var(--G0);
+}
+
+#debug-sidebar .perf-table .perf-fail {
+  color: var(--R2);
+}
+
+#debug-sidebar .perf-table .perf-pending {
+  opacity: 0.6;
+  font-style: italic;
+}
+
+#debug-sidebar .perf-empty,
+#debug-sidebar .perf-note {
+  opacity: 0.6;
+  font-style: italic;
+  margin: 0.3em 0;
+}
