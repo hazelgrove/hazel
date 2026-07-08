@@ -157,7 +157,7 @@ let gesture_hint = (kind: Action.refactor, label: string): option(string) => {
   | HoistLet
   | ExtractLet => g("↑")
   | SinkLet
-  | InlineLet
+  | FeedLet
   | AddCaseArm => g("↓")
   | SwapParams(_)
   | SwapTuplePat(_) => g("↔")

@@ -1260,6 +1260,166 @@ let inline_let_impl: impl = {
   },
 };
 
+/* === Feed (per-occurrence inline) ===
+ * Down's value-flow move (D2 locality): substitute the definition
+ * into ONE use — the nearest below the def, or the invoked
+ * occurrence — keeping the binding while other uses remain; the last
+ * feed consumes it (delegates to full inline). The binder never
+ * moves, so no scope gate is needed; capture of the def's free vars
+ * by binders over the target occurrence is GATED (dead press) rather
+ * than repaired — renames would be a distant surprise. */
+
+/* the textually-first unshadowed occurrence (pre-order; children_of
+ * yields children left-to-right) */
+let first_occurrence = (x: string, body: Exp.t): option(Exp.t) => {
+  let unshadowed = occurrences_of(x, body) |> List.map(Exp.rep_id);
+  let rec go = (e: Exp.t): option(Exp.t) =>
+    List.mem(Exp.rep_id(e), unshadowed)
+      ? Some(e) : children_of(e) |> List.find_map(go);
+  go(body);
+};
+
+/* names bound between the body root and the occurrence (conservative:
+ * every binder on the path counts) */
+let binders_over = (occ_id: Id.t, body: Exp.t): list(string) =>
+  switch (find_path(~hit=e => Exp.rep_id(e) == occ_id, body)) {
+  | None => []
+  | Some(path) =>
+    path
+    |> List.concat_map((e: Exp.t) =>
+         switch (IdTagged.term_of(e)) {
+         | Let(p, _, _)
+         | Fun(p, _, _, _)
+         | FixF(p, _, _) => pat_var_names(p)
+         | Match(_, rules) =>
+           rules |> List.concat_map(((rp, _)) => pat_var_names(rp))
+         | _ => []
+         }
+       )
+  };
+
+/* resolve a feed: the let, its bound name, and the occurrence to
+ * feed (None = nearest) */
+let feed_site =
+    (~info_map: Statics.Map.t, ~target: Id.t, program: Exp.t)
+    : option((Exp.t, string, option(Id.t))) => {
+  let of_let = (l: Exp.t, occ: option(Id.t)) =>
+    switch (IdTagged.term_of(l)) {
+    | Let(p, _, _) => let_head_name(p) |> Option.map(x => (l, x, occ))
+    | _ => None
+    };
+  switch (find_hit(~hit=hit_let(target), program)) {
+  | Some(l) => of_let(l, None)
+  | None =>
+    switch (binder_of_occurrence(~info_map, ~target, program)) {
+    | Some(binder) =>
+      switch (find_hit(~hit=hit_let(binder), program)) {
+      | Some(l) => of_let(l, Some(target))
+      | None => None
+      }
+    | None => None
+    }
+  };
+};
+
+/* the plan (print-free): which occurrence a feed would hit, or that
+ * the sole remaining use consumes the binding */
+type feed_plan =
+  | Consume /* last use: full inline */
+  | Feed(Exp.t, Exp.t, Exp.t) /* let, def, occurrence */;
+
+let feed_plan =
+    (~info_map: Statics.Map.t, ~target: Id.t, program: Exp.t)
+    : option(feed_plan) =>
+  switch (feed_site(~info_map, ~target, program)) {
+  | None => None
+  | Some((l, x, occ_pref)) =>
+    switch (IdTagged.term_of(l)) {
+    | Let(_, def, body) =>
+      let occs = occurrences_of(x, body);
+      switch (occs) {
+      | [] => None
+      | [_] => Some(Consume)
+      | _ =>
+        let occ =
+          switch (occ_pref) {
+          | Some(oid) =>
+            occs
+            |> List.find_opt((o: Exp.t) => List.mem(oid, IdTagged.ids(o)))
+          | None => first_occurrence(x, body)
+          };
+        switch (occ) {
+        | None => None
+        | Some(occ) =>
+          let free = vars_of(def) |> List.filter(v => free_in(v, def));
+          let captured =
+            binders_over(Exp.rep_id(occ), body)
+            |> List.exists(b => List.mem(b, free));
+          captured ? None : Some(Feed(l, def, occ));
+        };
+      };
+    | _ => None
+    }
+  };
+
+let feed_let_impl: impl = {
+  label: "Inline next use",
+  tooltip: "Substitute the definition into its nearest use; the last use consumes the binding",
+  prepare: (~info_map, ~target, program) =>
+    switch (feed_plan(~info_map, ~target, program)) {
+    | None => None
+    | Some(Consume) => inline_let_impl.prepare(~info_map, ~target, program)
+    | Some(Feed(l, def, occ)) =>
+      /* parens: the same per-occurrence policy as inline */
+      let parens =
+        needs_parens(def)
+        && {
+          let region = bounded_region(Exp.rep_id(occ), program);
+          same_node(region, program)
+            ? true
+            : !{
+                let candidate =
+                  replace_node(
+                    ~at=Exp.rep_id(occ),
+                    ~with_=inserted(~parens=false, def, occ),
+                    region,
+                  );
+                reparses_region(candidate);
+              };
+        };
+      /* the def survives, so the copy needs fresh interior ids */
+      let copy = inserted(~parens, refresh_ids(def), occ);
+      let at_use =
+        occ |> IdTagged.ids |> List.mem(target) ? Some(target) : None;
+      let focus =
+        switch (at_use) {
+        /* invoked at the use: caret follows the copy */
+        | Some(oid) => oid
+        /* invoked at the let: caret stays for the next feed */
+        | None => Exp.rep_id(l)
+        };
+      rewrite_node(
+        ~hit=same_node(l),
+        ~rewrite=
+          e =>
+            switch (IdTagged.term_of(e)) {
+            | Let(p', def', body') =>
+              let body'' =
+                replace_node(~at=Exp.rep_id(occ), ~with_=copy, body');
+              Some((
+                {
+                  ...e,
+                  term: Let(p', def', body''),
+                },
+                focus,
+              ));
+            | _ => None
+            },
+        program,
+      );
+    },
+};
+
 /* Statics-gated: the binding's pattern var carries an UnusedVar
  * warning (co-ctx says the body never uses it) */
 let pat_unused = (~info_map: Statics.Map.t, p: Pat.t): bool =>
@@ -2701,6 +2861,24 @@ let hoist_step =
  * ~fixup: move the target region's TEXTUAL lead (which lives on
  * leaves) onto the inserted let — prints, so gating passes false and
  * discards the runs */
+/* a def is a PROPER BLOCK iff its root (Parens-transparent) has line
+   slots to descend into: internal let lines, a fun (params are
+   morally a binder line; the body is a line slot), or a case/if
+   (arm/branch bodies are line slots). Sinking steps INTO blocky defs
+   (incremental descent); bare expressions have no rungs — Down feeds
+   or inlines directly, restoring the one-press extract/inline
+   inverse (andrew's bare-vs-blocky criterion, which extract's
+   line-slot landing already encoded going up). */
+let rec is_proper_block = (e: Exp.t): bool =>
+  switch (IdTagged.term_of(e)) {
+  | Parens(inner) => is_proper_block(inner)
+  | Let(_)
+  | Fun(_)
+  | Match(_)
+  | If(_) => true
+  | _ => false
+  };
+
 /* the destination slot is EXACTLY a bare use of the binding: sinking
    there yields the pure wrapper `let x = d in x` — inline territory,
    so the sink yields (keeps Up/Down inverses at the elevator's
@@ -2754,7 +2932,7 @@ let sink_step = (~fixup: bool, l: Exp.t): option((Exp.t, Id.t)) => {
           disjoint_names(l_names, pat_var_names(mp))
           && names_mentioned(l_names, mdef)
           && !names_mentioned(l_names, mbody)
-          && !is_bare_use(l_names, mdef) =>
+          && is_proper_block(mdef) =>
       /* into the def that solely uses it: pure scope-minimization
          (same evaluation, narrower scope) — the missing edge of the
          region graph; inverse of hoist-out-of-def */
@@ -4319,6 +4497,7 @@ let remove_param_impl: impl = {
 let impl: Action.refactor => impl =
   fun
   | InlineLet => inline_let_impl
+  | FeedLet => feed_let_impl
   | RemoveUnusedLet => remove_unused_let_impl
   | AddTypeAnnotation => add_annotation_impl
   | EtaExpand => eta_expand_impl
@@ -4341,6 +4520,7 @@ let impl: Action.refactor => impl =
 
 let all: list(Action.refactor) = [
   InlineLet,
+  FeedLet,
   RemoveUnusedLet,
   AddTypeAnnotation,
   EtaExpand,
@@ -4402,6 +4582,7 @@ let applies =
       | None => false
       }
     );
+  | FeedLet => Option.is_some(feed_plan(~info_map, ~target, program))
   | RemoveUnusedLet =>
     let_applies(
       ~pred=
@@ -4856,10 +5037,11 @@ let gesture =
       if (in_arm_zone) {
         arm_swap(1);
       } else if (in_let_zone) {
-        /* the elevator's bottom: sink until seated, then dissolve */
+        /* movement rung if one exists, else the value flows: feed the
+           nearest use (the last feed consumes the let) */
         switch (app(SinkLet)) {
         | Some(k) => Some(k)
-        | None => app(InlineLet)
+        | None => app(FeedLet)
         };
       } else if (is_if && shard == Some(1)) {
         app(
@@ -4871,7 +5053,7 @@ let gesture =
         );
       } else {
         app(
-          InlineLet /* at an occurrence: the definition falls in */
+          FeedLet /* at an occurrence: the definition feeds THIS use */
         );
       }
     | Left =>

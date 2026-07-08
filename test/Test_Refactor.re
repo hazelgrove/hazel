@@ -1424,13 +1424,30 @@ let move_tests = [
     },
   ),
   test_case(
-    "sink into the def that solely uses it",
+    "sink into the blocky def that solely uses it",
     `Quick,
     () => {
       let got =
-        inline(~kind=SinkLet, "¦let x = 2 in let y = x + 1 in y") |> text_of;
-      check(string, "scope narrowed", "let y = let x = 2 in x + 1 in y", got);
+        inline(
+          ~kind=SinkLet,
+          "¦let x = 2 in let y = let a = 1 in x + a in y",
+        )
+        |> text_of;
+      check(
+        string,
+        "scope narrowed",
+        "let y = let x = 2 in let a = 1 in x + a in y",
+        got,
+      );
     },
+  ),
+  test_case("def-sink gated on a bare def (feed territory)", `Quick, () =>
+    check(
+      bool,
+      "no rung into x + 1",
+      false,
+      offers(SinkLet, "¦let x = 2 in let y = x + 1 in y"),
+    )
   ),
   test_case("def-sink gated when body also uses it", `Quick, () =>
     check(
@@ -1600,6 +1617,59 @@ let prepare_reparses = (~kind: Action.refactor, marked: string): unit => {
   };
 };
 
+let feed_tests = [
+  test_case(
+    "feeding chain: nearest first, last feed consumes",
+    `Quick,
+    () => {
+      let z1 = Test_Editing.parse_zipper("¦let k = 3 in\nk * k + k");
+      let z2 = Test_Editing.perform(z1, [Action.RefactorGesture(Down)]);
+      check(string, "fed nearest", "let k = 3 in\n3 * k + k", text_of(z2));
+      let z3 = Test_Editing.perform(z2, [Action.RefactorGesture(Down)]);
+      check(string, "fed next", "let k = 3 in\n3 * 3 + k", text_of(z3));
+      let z4 = Test_Editing.perform(z3, [Action.RefactorGesture(Down)]);
+      check(string, "last feed consumes", "3 * 3 + 3", text_of(z4));
+    },
+  ),
+  test_case(
+    "feed at occurrence hits that use, parenthesized",
+    `Quick,
+    () => {
+      let got = inline(~kind=FeedLet, "let x = 1 + 2 in x + ¦x") |> text_of;
+      check(string, "this use", "let x = 1 + 2 in x + (1 + 2)", got);
+    },
+  ),
+  test_case(
+    "one-press inverse: down inlines a bare def outright",
+    `Quick,
+    () => {
+      let z1 =
+        Test_Editing.parse_zipper("¦let x1 = 3 in\nlet hw = x * x1 in\n1");
+      let z2 = Test_Editing.perform(z1, [Action.RefactorGesture(Down)]);
+      check(
+        string,
+        "no intermediate seat",
+        "let hw = x * 3 in\n1",
+        text_of(z2),
+      );
+    },
+  ),
+  test_case("feed gated on capture by a crossed binder", `Quick, () =>
+    check(
+      bool,
+      "y would capture",
+      false,
+      offers(FeedLet, "¦let k = y + 1 in fun y -> k + k"),
+    )
+  ),
+  test_case("feed offered on a multi-use let", `Quick, () =>
+    check(bool, "two uses", true, offers(FeedLet, "¦let k = 3 in k + k"))
+  ),
+  test_case("feed not offered without uses", `Quick, () =>
+    check(bool, "no uses", false, offers(FeedLet, "¦let k = 3 in 1"))
+  ),
+];
+
 let reparse_safety_tests = {
   let case = (name, kind, marked) =>
     test_case(name, `Quick, () => prepare_reparses(~kind, marked));
@@ -1629,10 +1699,13 @@ let reparse_safety_tests = {
     ),
     case("sink chain", SinkLet, "¦let x = 2 in let a = 1 in x + a"),
     case(
-      "sink into sole-using def",
+      "sink into sole-using blocky def",
       SinkLet,
-      "¦let x = 2 in let y = x + 1 in y",
+      "¦let x = 2 in let y = let a = 1 in x + a in y",
     ),
+    case("feed nearest use", FeedLet, "¦let k = 3 in k + k"),
+    case("feed at occurrence", FeedLet, "let x = 1 + 2 in x + ¦x"),
+    case("feed nearest multiline", FeedLet, "¦let k = 3 in\nk * k + k"),
     case("sink into lambda", SinkLet, "¦let x = 2 in fun n -> x + n"),
     case(
       "sink into sole using arm",
@@ -1739,6 +1812,7 @@ let movement_reparse_fuzz = {
         Action.RemoveParameter,
         Action.ExtractLet,
         Action.InlineLet,
+        Action.FeedLet,
         Action.NegateIf,
         Action.IfToCase,
         Action.CaseToIf,
@@ -1857,6 +1931,8 @@ let caret_at = (~kind: Action.refactor, marked: string, expected_sub: string) =>
   );
 
 let caret_audit_tests = [
+  caret_at(~kind=FeedLet, "¦let k = 3 in k + k", "¦let k = 3 in 3 + k"),
+  caret_at(~kind=FeedLet, "let x = 2 in x + ¦x", "+ ¦2"),
   caret_at(
     ~kind=SwapParams(1),
     "let f = fun (a, ¦b, c) -> a in f(1, 2, 3)",
@@ -2124,16 +2200,16 @@ let gesture_tests = [
     Some(SinkLet),
   ),
   check_gesture(
-    "down when sink exhausted = inline (elevator bottom)",
+    "down when no rung = feed (elevator bottom)",
     Down,
     "¦let x = 2 in x + x",
-    Some(InlineLet),
+    Some(FeedLet),
   ),
   check_gesture(
-    "down at occurrence = inline",
+    "down at occurrence = feed this use",
     Down,
     "let x = 2 in x + ¦x",
-    Some(InlineLet),
+    Some(FeedLet),
   ),
   check_gesture(
     "right on param = swap with right neighbor",
@@ -2384,22 +2460,28 @@ let policy_tests = [
     Some(ExtractLet),
   ),
   check_gesture(
-    "down yields to inline when the sole use is the whole def",
+    "down feeds when the sole use is the whole def",
     Down,
     "¦let x = 2 in let y = x in y",
-    Some(InlineLet),
+    Some(FeedLet),
   ),
   check_gesture(
-    "down still sinks when the use is nested in the def",
+    "down feeds a bare def (no rung to step into)",
     Down,
     "¦let x = 2 in let y = x + 1 in y",
+    Some(FeedLet),
+  ),
+  check_gesture(
+    "down sinks into a blocky def",
+    Down,
+    "¦let x = 2 in let y = let a = 1 in x + a in y",
     Some(SinkLet),
   ),
   check_gesture(
-    "down yields to inline when the sole arm body is the bare use",
+    "down feeds when the sole arm body is the bare use",
     Down,
     "¦let x = 2 in case m | 1 => x | _ => 0 end",
-    Some(InlineLet),
+    Some(FeedLet),
   ),
 ];
 
@@ -2505,12 +2587,15 @@ let round3_tests = [
     `Quick,
     () => {
       let got =
-        inline(~kind=SinkLet, "¦let x1 = 3 in\nlet hw = x * x1 in\n1")
+        inline(
+          ~kind=SinkLet,
+          "¦let x1 = 3 in\nlet hw = let a = 1 in a * x1 in\n1",
+        )
         |> text_of;
       check(
         string,
         "nested multiline",
-        "let hw =\n  let x1 = 3 in\n  x * x1 in\n1",
+        "let hw =\n  let x1 = 3 in\n  let a = 1 in a * x1 in\n1",
         got,
       );
     },
@@ -2547,6 +2632,7 @@ let tests = [
     @ audit_round_tests
     @ round3_tests
     @ binding_tests
+    @ feed_tests
     @ reparse_safety_tests,
   ),
   (
