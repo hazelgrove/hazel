@@ -642,6 +642,7 @@ module View = {
         ~info_map=model.statics.info_map,
         ~term=model.statics.term,
         ~measured=model.editor.syntax.measured,
+        ~segment=model.editor.syntax.segment,
         ~font_metrics=globals.font_metrics,
         model.editor.state.zipper,
       );
@@ -814,10 +815,11 @@ module View = {
             ),
           ),
         ]);
-      | {button: Left, sys: Mac, meta: Down, ctrl: Down, _}
-      | {button: Left, sys: PC, ctrl: Down, alt: Down, _} =>
-        /* drag-to-refactor quasimode (same chord as the arrow
-           gestures); candidates are enumerated by CodeDrag.sync once
+      | {button: Left, shift: Up, meta: Up, ctrl: Up, alt: Up, _}
+          when globals.settings.core.drag_refactor =>
+        /* modal drag-to-refactor (Settings > Drag Refactoring): a
+           plain drag pulls the grabbed construct along candidate
+           tracks; candidates are enumerated by CodeDrag.sync once
            the caret lands at the grab point */
         CodeDrag.arm(
           ~commit=

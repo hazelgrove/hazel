@@ -62,6 +62,9 @@ type t = {
   /* Experimental: FLIP-ghost every edit's code movement, not just
    * refactor invocations (see GhostFlip.re) */
   animate_all_edits: bool,
+  /* Modal drag-to-refactor: plain drag on a token pulls it along
+   * candidate transform tracks (CodeDrag.re) */
+  drag_refactor: bool,
   display_warnings: bool,
   /* "Character-level mouse". When false (default), a mouse drag does
    * smart-rounded selection (char inside the starting token, whole-token
@@ -83,6 +86,7 @@ let off: t = {
   format_shortcut: FormatShortcut.Spaces,
   flip_animations: false,
   animate_all_edits: false,
+  drag_refactor: false,
   display_warnings: false,
   selection_chunkiness: false,
   evaluation: Evaluation.init,
@@ -99,6 +103,7 @@ let on: t = {
   format_shortcut: FormatShortcut.Spaces,
   flip_animations: true,
   animate_all_edits: false,
+  drag_refactor: false,
   display_warnings: true,
   selection_chunkiness: false,
   evaluation: Evaluation.init,

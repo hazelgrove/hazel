@@ -181,6 +181,10 @@
   cursor: pointer;
 }
 
+.code-container.drag-refactor-mode .code-text .token {
+  cursor: grab;
+}
+
 .code-container.meta-down .token.ref:hover {
   text-decoration: underline;
   text-decoration-style: solid;

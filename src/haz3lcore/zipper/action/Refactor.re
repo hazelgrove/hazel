@@ -5115,6 +5115,7 @@ module DragCandidate = {
   type t = {
     dir: Action.Gesture.t,
     kind: Action.refactor,
+    label: string,
     current: Measured.Point.t, /* track start (live layout) */
     target: Measured.Point.t, /* track end (candidate layout) */
     term: Exp.t,
@@ -5195,6 +5196,7 @@ let drag_candidates =
             Some({
               DragCandidate.dir,
               kind,
+              label: impl(kind).label,
               current: cur.origin,
               target: tgt,
               term: term',

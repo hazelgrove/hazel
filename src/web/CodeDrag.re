@@ -1,3 +1,4 @@
+open Util;
 open Js_of_ocaml;
 open Haz3lcore;
 
@@ -16,6 +17,8 @@ open Haz3lcore;
 
 /* tuning */
 let snap_radius = 14.; /* px: reaching a target commits (chain) */
+let snap_dwell = 120.; /* ms inside the radius before the commit fires */
+let snap_min_t = 0.7; /* progress required before a snap is armed */
 let when_far = 56.; /* px: farther than this from every track = no winner */
 let stickiness = 10.; /* px bonus for the incumbent track */
 let commit_t = 0.55; /* release past this progress commits the winner */
@@ -29,8 +32,12 @@ type vec = {
 type cand = {
   dir: Action.Gesture.t,
   kind: Action.refactor,
+  label: string,
   cur: vec, /* text-box-local px */
   tgt: vec,
+  /* whole-buffer scrub: tokens displaced by this candidate, with
+     their px deltas (built at compute; animations made lazily) */
+  moved: list((Js.t(Dom.node), float, float)),
 };
 
 /* Candidate enumeration must wait for the model to settle: on arm,
@@ -55,6 +62,14 @@ type session = {
   mutable last_term: option(Language.Exp.t),
   mutable down_at: vec,
   mutable listeners: list(Dom.event_listener_id),
+  /* paused WAAPI animations per candidate index, scrubbed by track
+     progress (the pointer drives currentTime — lerpViews restricted
+     to translation) */
+  mutable scrub_anims: list((int, list(Js.Unsafe.any))),
+  mutable scrub_active: option(int),
+  /* dwell: (candidate index, entered-at ms) — a commit needs the
+     pointer to LINGER in the snap radius, not just graze it */
+  mutable snap_hover: option((int, float)),
 };
 
 let session: ref(option(session)) = ref(None);
@@ -98,13 +113,6 @@ let box_origin = (s: session): vec => {
   };
 };
 
-let dir_name: Action.Gesture.t => string =
-  fun
-  | Up => "up"
-  | Down => "down"
-  | Left => "left"
-  | Right => "right";
-
 let draw = (s: session, pointer: option(vec)) => {
   let o = box_origin(s);
   let seg = (i, c: cand) => {
@@ -128,7 +136,7 @@ let draw = (s: session, pointer: option(vec)) => {
       o.x +. c.tgt.x +. 7.,
       o.y +. c.tgt.y -. 4.,
       color,
-      dir_name(c.dir),
+      c.label,
     );
   };
   let ptr =
@@ -148,6 +156,101 @@ let draw = (s: session, pointer: option(vec)) => {
       ptr,
     );
   overlay_el()##.innerHTML := Js.string(svg);
+};
+
+/* === scrub (pointer-driven whole-buffer preview) === */
+
+let scrub_duration = 1000.; /* virtual ms; currentTime = t * this */
+
+let now_ms = (): float => Js.Unsafe.global##.performance##now();
+
+let cancel_anims = (anims: list(Js.Unsafe.any)): unit =>
+  anims
+  |> List.iter(a =>
+       switch (Js.Unsafe.meth_call(a, "cancel", [||])) {
+       | exception _ => ()
+       | _ => ()
+       }
+     );
+
+let scrub_clear = (s: session): unit => {
+  s.scrub_anims |> List.iter(((_, anims)) => cancel_anims(anims));
+  s.scrub_anims = [];
+  s.scrub_active = None;
+};
+
+let make_anims = (c: cand): list(Js.Unsafe.any) =>
+  c.moved
+  |> List.filter_map(((node, dx, dy)) => {
+       let keyframes =
+         Js.Unsafe.obj([|
+           (
+             "transform",
+             Js.Unsafe.inject(
+               Js.array([|
+                 Js.string("translate(0px, 0px)"),
+                 Js.string(Printf.sprintf("translate(%fpx, %fpx)", dx, dy)),
+               |]),
+             ),
+           ),
+         |]);
+       let options =
+         Js.Unsafe.obj([|
+           (
+             "duration",
+             Js.Unsafe.inject(Js.number_of_float(scrub_duration)),
+           ),
+           ("fill", Js.Unsafe.inject(Js.string("both"))),
+           ("easing", Js.Unsafe.inject(Js.string("linear"))),
+         |]);
+       switch (
+         Js.Unsafe.meth_call(
+           node,
+           "animate",
+           [|Js.Unsafe.inject(keyframes), Js.Unsafe.inject(options)|],
+         )
+       ) {
+       | exception _ => None
+       | anim =>
+         switch (Js.Unsafe.meth_call(anim, "pause", [||])) {
+         | exception _ => ()
+         | _ => ()
+         };
+         Some(anim);
+       };
+     });
+
+/* drive the winner's scrub to progress t; other tracks rest at 0 */
+let scrub_to = (s: session, winner: option(int), t: float): unit => {
+  switch (s.scrub_active, winner) {
+  | (Some(prev), Some(w)) when prev == w => ()
+  | (Some(prev), _) =>
+    switch (List.assoc_opt(prev, s.scrub_anims)) {
+    | Some(anims) =>
+      anims |> List.iter(a => Js.Unsafe.set(a, "currentTime", 0.))
+    | None => ()
+    }
+  | (None, _) => ()
+  };
+  switch (winner) {
+  | None => s.scrub_active = None
+  | Some(w) =>
+    let anims =
+      switch (List.assoc_opt(w, s.scrub_anims)) {
+      | Some(anims) => anims
+      | None =>
+        let anims =
+          switch (List.nth_opt(s.cands, w)) {
+          | Some(c) => make_anims(c)
+          | None => []
+          };
+        s.scrub_anims = [(w, anims), ...s.scrub_anims];
+        anims;
+      };
+    let time = t *. scrub_duration;
+    anims |> List.iter(a => Js.Unsafe.set(a, "currentTime", time));
+    s.scrub_active = Some(w);
+  };
 };
 
 /* === geometry === */
@@ -187,18 +290,32 @@ let resolve = (s: session, p: vec): unit => {
   | Some((i, c, t, gap)) when gap <= when_far =>
     s.winner = Some(i);
     s.t = t;
-    /* snap: reached the target — commit and chain */
+    scrub_to(s, Some(i), t);
+    /* snap: linger at the target (dwell) with real progress — then
+       commit and chain */
     let d = sqrt((p.x -. c.tgt.x) ** 2. +. (p.y -. c.tgt.y) ** 2.);
-    if (d <= snap_radius) {
-      s.winner = None;
-      s.t = 0.;
-      s.cands = [];
-      s.pending = AwaitChange(s.last_z, s.last_term);
-      s.commit(c.dir);
+    if (d <= snap_radius && t >= snap_min_t) {
+      switch (s.snap_hover) {
+      | Some((j, since)) when j == i =>
+        if (now_ms() -. since >= snap_dwell) {
+          s.winner = None;
+          s.t = 0.;
+          s.cands = [];
+          s.snap_hover = None;
+          scrub_clear(s);
+          s.pending = AwaitChange(s.last_z, s.last_term);
+          s.commit(c.dir);
+        }
+      | _ => s.snap_hover = Some((i, now_ms()))
+      };
+    } else {
+      s.snap_hover = None;
     };
   | _ =>
     s.winner = None;
     s.t = 0.;
+    s.snap_hover = None;
+    scrub_to(s, None, 0.);
   };
 };
 
@@ -206,9 +323,12 @@ let resolve = (s: session, p: vec): unit => {
 
 let end_session = () => {
   switch (session^) {
-  | Some(s) => s.listeners |> List.iter(Dom.removeEventListener)
+  | Some(s) =>
+    scrub_clear(s);
+    s.listeners |> List.iter(Dom.removeEventListener);
   | None => ()
   };
+  Dom_html.document##.body##.style##.cursor := Js.string("");
   remove_overlay();
   session := None;
 };
@@ -232,6 +352,7 @@ let on_move = (e: Js.t(Dom_html.event)): unit =>
       let d = sqrt((p.x -. s.down_at.x) ** 2. +. (p.y -. s.down_at.y) ** 2.);
       if (d > slop) {
         s.began = true;
+        Dom_html.document##.body##.style##.cursor := Js.string("grabbing");
       };
     };
     if (s.began && s.pending == Idle) {
@@ -285,6 +406,9 @@ let arm =
     pending: AwaitGoal(goal, None),
     last_z: None,
     last_term: None,
+    scrub_anims: [],
+    scrub_active: None,
+    snap_hover: None,
     down_at: {
       x: cx -. r##.left,
       y: cy -. r##.top,
@@ -308,11 +432,44 @@ let arm =
    needs candidates (just armed, or just committed a chain step),
    enumerate them from the CURRENT model. Runs at most once per
    armed/committed state — not per frame. */
+/* The live editor's .code-text children, paired with the segment's
+   emission order (CodeFlip's correlation); located via the caret,
+   which sits in the dragged editor during a session */
+let live_pairs = (segment: Segment.t): list((CodeFlip.key, Js.t(Dom.node))) =>
+  switch (JsUtil.get_elem_by_id_opt("caret")) {
+  | None => []
+  | Some(caret) =>
+    switch (
+      Js.Opt.to_option(caret##.parentNode)
+      |> Option.map(deco => Js.Opt.to_option(deco##.parentNode))
+      |> Option.join
+    ) {
+    | None => []
+    | Some(container) =>
+      let ct =
+        Js.Unsafe.meth_call(
+          container,
+          "querySelector",
+          [|Js.Unsafe.inject(Js.string(":scope > .code > .code-text"))|],
+        );
+      switch (Js.Opt.to_option(ct)) {
+      | None => []
+      | Some(ct) =>
+        let nodes = Dom.list_of_nodeList(ct##.childNodes);
+        switch (CodeFlip.pair(CodeFlip.entries_of_segment(segment), nodes)) {
+        | Some(pairs) => pairs
+        | None => []
+        };
+      };
+    }
+  };
+
 let sync =
     (
       ~info_map: Language.Statics.Map.t,
       ~term: Language.Exp.t,
       ~measured: Measured.t,
+      ~segment: Segment.t,
       ~font_metrics: FontMetrics.t,
       z: Zipper.t,
     )
@@ -325,14 +482,42 @@ let sync =
         x: float_of_int(p.col) *. font_metrics.col_width,
         y: (float_of_int(p.row) +. 0.5) *. font_metrics.row_height,
       };
+      scrub_clear(s);
+      let pairs = live_pairs(segment);
+      /* tokens this candidate displaces, in px (single-row tokens
+         only, matching CodeFlip's guard) */
+      let moved_for = (cand_m: Measured.t) =>
+        pairs
+        |> List.filter_map(((k, node)) =>
+             switch (
+               CodeFlip.find_meas(measured, k),
+               CodeFlip.find_meas(cand_m, k),
+             ) {
+             | (Some(o), Some(n))
+                 when
+                   o.origin != n.origin
+                   && o.origin.row == o.last.row
+                   && n.origin.row == n.last.row =>
+               let dx =
+                 float_of_int(n.origin.col - o.origin.col)
+                 *. font_metrics.col_width;
+               let dy =
+                 float_of_int(n.origin.row - o.origin.row)
+                 *. font_metrics.row_height;
+               Some((node, dx, dy));
+             | _ => None
+             }
+           );
       let cands =
         Refactor.drag_candidates(~info_map, ~term, ~measured, z)
         |> List.map((c: Refactor.DragCandidate.t) =>
              {
                dir: c.dir,
                kind: c.kind,
+               label: c.label,
                cur: px(c.current),
                tgt: px(c.target),
+               moved: moved_for(c.measured),
              }
            );
       s.cands = cands;

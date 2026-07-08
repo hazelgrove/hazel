@@ -337,6 +337,13 @@ let code_display_group = (~globals: Globals.t) => {
           Some("Experimental: ghost-animate code movement on every edit"),
       },
       {
+        name: "Drag Refactoring",
+        active: globals.settings.core.drag_refactor,
+        setting: DragRefactor,
+        tooltip:
+          Some("Modal: drag a token to pull it along refactoring tracks"),
+      },
+      {
         name: "Line Numbers",
         active: globals.settings.line_numbers,
         setting: ToggleLineNumbers,

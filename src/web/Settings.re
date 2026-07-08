@@ -41,6 +41,7 @@ module Model = {
       format_shortcut: Language.CoreSettings.FormatShortcut.Spaces,
       flip_animations: true,
       animate_all_edits: false,
+      drag_refactor: false,
       display_warnings: true,
       selection_chunkiness: false,
       evaluation: {
@@ -171,6 +172,7 @@ module Update = {
     | DisplayWarnings
     | FlipAnimations
     | AnimateAllEdits
+    | DragRefactor
     | Quiver
     | Backpack
     | AutoprobeMode
@@ -273,6 +275,13 @@ module Update = {
           core: {
             ...settings.core,
             animate_all_edits: !settings.core.animate_all_edits,
+          },
+        }
+      | DragRefactor => {
+          ...settings,
+          core: {
+            ...settings.core,
+            drag_refactor: !settings.core.drag_refactor,
           },
         }
       | DisplayWarnings => {
