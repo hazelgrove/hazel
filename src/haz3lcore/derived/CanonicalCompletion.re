@@ -819,15 +819,59 @@ let place_trailing_shards =
       let (seg, ins, agg, _) =
         List.fold_left(
           ((seg, ins, agg, cursor), (i, piece)) => {
-            let (l_nib, _) = Mold.nibs(~index=i, t.mold);
+            let (l_nib, r_nib) = Mold.nibs(~index=i, t.mold);
             let clip =
               clippable_sort(l_nib.sort)
                 ? clip_position(seg, ~from=cursor, l_nib.sort) : None;
-            switch (clip) {
-            | Some(stop) =>
-              let stop = back_over_boundary(seg, stop, cursor);
-              let anchor = stop > 0 ? List.nth_opt(seg, stop - 1) : None;
-              let seg = insert_at(stop, piece, seg);
+            /* junction drop: a concave-right shard (one that FILLS an
+               operator-position hole; closers only relocate it) lands
+               at a unique sort-legal concave-grout junction within the
+               legal span, taking precedence over clip/append */
+            let region_end =
+              switch (clip) {
+              | Some(stop) => stop
+              | None => List.length(seg)
+              };
+            let slice = (a, b, sg) =>
+              ListUtil.split_n(b, sg) |> fst |> ListUtil.split_n(a) |> snd;
+            let has_content =
+              List.exists(
+                fun
+                | Piece.Tile(_) => true
+                | _ => false,
+              );
+            let junction =
+              switch (r_nib.shape) {
+              | Convex => None
+              | Concave(_) =>
+                let legal =
+                  List.init(max(region_end - cursor, 0), k => cursor + k)
+                  |> List.filter(j =>
+                       switch (List.nth(seg, j)) {
+                       | Piece.Grout({shape: Concave, _}) => true
+                       | _ => false
+                       }
+                     )
+                  |> List.filter(j => {
+                       let left = slice(cursor, j, seg);
+                       let right = slice(j + 1, region_end, seg);
+                       has_content(left)
+                       && has_content(right)
+                       && span_fits_sort(left, l_nib.sort)
+                       && span_fits_sort(right, r_nib.sort);
+                     });
+                switch (legal) {
+                | [j] => Some(j)
+                | _ => None
+                };
+              };
+            switch (junction) {
+            | Some(j) =>
+              /* the shard replaces the junction grout in place,
+                 inheriting its spacing */
+              let (before, after) = ListUtil.split_n(j, seg);
+              let anchor = j > 0 ? List.nth_opt(seg, j - 1) : None;
+              let seg = before @ [piece] @ List.tl(after);
               let ins =
                 switch (anchor) {
                 | Some(a) => [
@@ -845,19 +889,44 @@ let place_trailing_shards =
                   ]
                 | None => ins
                 };
-              (seg, ins, agg, stop + 1);
-            | None => (
-                seg @ [piece],
-                ins,
-                agg
-                @ [
-                  {
-                    text: List.nth(t.label, i),
-                    needs_hole: shard_needs_hole(t, i),
-                  },
-                ],
-                List.length(seg) + 1,
-              )
+              (seg, ins, agg, j + 1);
+            | None =>
+              switch (clip) {
+              | Some(stop) =>
+                let stop = back_over_boundary(seg, stop, cursor);
+                let anchor = stop > 0 ? List.nth_opt(seg, stop - 1) : None;
+                let seg = insert_at(stop, piece, seg);
+                let ins =
+                  switch (anchor) {
+                  | Some(a) => [
+                      {
+                        adjacent_id: Piece.id(a),
+                        side: Direction.Right,
+                        delimiters: [
+                          {
+                            text: List.nth(t.label, i),
+                            needs_hole: false,
+                          },
+                        ],
+                      },
+                      ...ins,
+                    ]
+                  | None => ins
+                  };
+                (seg, ins, agg, stop + 1);
+              | None => (
+                  seg @ [piece],
+                  ins,
+                  agg
+                  @ [
+                    {
+                      text: List.nth(t.label, i),
+                      needs_hole: shard_needs_hole(t, i),
+                    },
+                  ],
+                  List.length(seg) + 1,
+                )
+              }
             };
           },
           (seg, ins, agg, pos + 1),

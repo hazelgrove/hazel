@@ -218,9 +218,9 @@ let indent_tests = [
     ~name="let with indented body",
     ~input={|let x = 1
   y|},
-    /* The y becomes part of the let, grout inserted, then in ? at end */
+    /* The in junction-drops before y (def=1, body=y), no hole */
     ~expected={|let x = 1
-  y·    // in ?|},
+  ·y    // in|},
   ),
   /* Same-indent triggers partition. */
   test(
