@@ -3770,9 +3770,7 @@ let used_term_constructors =
   );
 
 let reveal_used_aliases = (m: Id.Map.t(Info.t), result: result): result => {
-  let used =
-    used_constructors(result.context)
-    @ used_term_constructors(m, result.omitted);
+  let used = used_term_constructors(m, result.omitted);
   let omitted =
     Id.Map.fold(
       (_, info, omitted) =>
@@ -3782,26 +3780,32 @@ let reveal_used_aliases = (m: Id.Map.t(Info.t), result: result): result => {
           | TyAlias(typat, utyp, _) =>
             let names = alias_constructors(utyp);
             let alias_id = Exp.rep_id(user_term);
+            let variant_used = List.exists(n => List.mem(n, used), names);
             let ctor_live =
-              List.exists(n => List.mem(n, used), names)
-              && !alias_shadowed(m, alias_id, names);
+              variant_used && !alias_shadowed(m, alias_id, names);
             let name_ref =
               switch (TPat.tyvar_of_utpat(typat)) {
               | Some(n) => alias_name_referenced(m, omitted, n)
               | None => false
               };
-            ctor_live || name_ref
-              ? omitted
-                |> Id.Set.diff(
-                     _,
-                     Id.Set.union(
-                       ids_set(IdTagged.ids(typat)),
-                       typ_all_ids(utyp),
-                     ),
-                   )
-                |> Id.Set.union(_, unused_variant_ids(used, utyp))
-                |> Id.Set.union(_, unused_binder_ids(used, utyp))
-              : omitted;
+            if (ctor_live || variant_used && name_ref) {
+              omitted
+              |> Id.Set.diff(
+                   _,
+                   Id.Set.union(
+                     ids_set(IdTagged.ids(typat)),
+                     typ_all_ids(utyp),
+                   ),
+                 )
+              |> Id.Set.union(_, unused_variant_ids(used, utyp))
+              |> Id.Set.union(_, unused_binder_ids(used, utyp));
+            } else if (name_ref) {
+              omitted
+              |> Id.Set.diff(_, ids_set(IdTagged.ids(typat)))
+              |> Id.Set.union(_, typ_all_ids(utyp));
+            } else {
+              omitted;
+            };
           | _ => omitted
           }
         | _ => omitted
@@ -3859,23 +3863,101 @@ let binding_def_of = (m: Id.Map.t(Info.t), name: string): option(Exp.t) =>
     None,
   );
 
-let rec nth_param_annotation = (n: int, def: Exp.t): option(Typ.t) =>
+let rec def_value_params = (def: Exp.t): list(Pat.t) =>
   switch (Exp.term_of(def)) {
-  | TypAbs(_, body, _) => nth_param_annotation(n, body)
-  | Parens(e) => nth_param_annotation(n, e)
-  | Fun(p, body, _, _) =>
-    n == 0 ? pat_annotation(p) : nth_param_annotation(n - 1, body)
-  | _ => None
+  | TypAbs(_, body, _) => def_value_params(body)
+  | Parens(e) => def_value_params(e)
+  | Fun(p, body, _, _) => [p, ...def_value_params(body)]
+  | _ => []
   };
 
-let def_param_annotation_omissions =
+let rec def_typabs_binders = (def: Exp.t): list(TPat.t) =>
+  switch (Exp.term_of(def)) {
+  | TypAbs(tpat, body, _) => [tpat, ...def_typabs_binders(body)]
+  | Parens(e) => def_typabs_binders(e)
+  | _ => []
+  };
+
+let rec def_body = (def: Exp.t): Exp.t =>
+  switch (Exp.term_of(def)) {
+  | TypAbs(_, body, _)
+  | Fun(_, body, _, _)
+  | Parens(body) => def_body(body)
+  | _ => def
+  };
+
+let kept_ann_type_vars = (ann: Typ.t, query: Typ.t): list(string) => {
+  let omit = typ_omissions(ann, query);
+  let cover = ref(omit);
+  ignore(
+    Typ.map_term(
+      ~f_typ=
+        (continue, t) => {
+          if (Id.Set.mem(Typ.rep_id(t), omit)) {
+            cover := Id.Set.union(cover^, typ_all_ids(t));
+          };
+          continue(t);
+        },
+      ann,
+    ),
+  );
+  let acc = ref([]);
+  ignore(
+    Typ.map_term(
+      ~f_typ=
+        (continue, t) => {
+          switch (Typ.term_of(t)) {
+          | Var(name) when !Id.Set.mem(Typ.rep_id(t), cover^) =>
+            acc := [name, ...acc^]
+          | _ => ()
+          };
+          continue(t);
+        },
+      ann,
+    ),
+  );
+  acc^;
+};
+
+let def_minimal_omissions =
     (m: Id.Map.t(Info.t), head: Exp.t, slot: int, query: Typ.t): Id.Set.t =>
   switch (head_var(head) |> Option.bind(_, binding_def_of(m))) {
   | Some(def) =>
-    switch (nth_param_annotation(slot, def)) {
-    | Some(annotation) => typ_omissions(annotation, query)
-    | None => Id.Set.empty
-    }
+    let params = def_value_params(def);
+    let focus_ann =
+      List.nth_opt(params, slot) |> Option.bind(_, pat_annotation);
+    let slot_omit =
+      switch (focus_ann) {
+      | Some(ann) => typ_omissions(ann, query)
+      | None => Id.Set.empty
+      };
+    let kept_vars =
+      switch (focus_ann) {
+      | Some(ann) => kept_ann_type_vars(ann, query)
+      | None => []
+      };
+    let other_params_omit =
+      params
+      |> List.mapi((i, p) =>
+           i == slot
+             ? Id.Set.empty
+             : Id.Set.union(pat_subtree_ids(p), annotation_ids(p))
+         )
+      |> List.fold_left(Id.Set.union, Id.Set.empty);
+    let binder_omit =
+      def_typabs_binders(def)
+      |> List.filter(b =>
+           switch (TPat.tyvar_of_utpat(b)) {
+           | Some(name) => !List.mem(name, kept_vars)
+           | None => true
+           }
+         )
+      |> List.map(b => ids_set(IdTagged.ids(b)))
+      |> List.fold_left(Id.Set.union, Id.Set.empty);
+    slot_omit
+    |> Id.Set.union(_, other_params_omit)
+    |> Id.Set.union(_, binder_omit)
+    |> Id.Set.union(_, source_ids(def_body(def)));
   | None => Id.Set.empty
   };
 
@@ -3905,10 +3987,6 @@ let ana_arg_edge_result =
         },
       ancestors,
     );
-  let spine_heads =
-    arg_fns
-    |> List.map(source_ids)
-    |> List.fold_left(Id.Set.union, Id.Set.empty);
   switch (arg_fns) {
   | [fn, ..._] =>
     let (head, _) = ap_spine(fn);
@@ -3923,7 +4001,6 @@ let ana_arg_edge_result =
       omitted:
         result.omitted
         |> Id.Set.diff(_, source_ids(fn))
-        |> Id.Set.diff(_, spine_heads)
         |> Id.Set.union(_, fn_slice.omitted)
         |> Id.Set.union(_, unused_type_arg_ids(head, query)),
       gamma: gamma_join(result.gamma, fn_slice.gamma),
@@ -3963,12 +4040,7 @@ let ana_param_annotation_overlay =
       omitted:
         Id.Set.union(
           result.omitted,
-          def_param_annotation_omissions(
-            m,
-            head,
-            List.length(before),
-            query,
-          ),
+          def_minimal_omissions(m, head, List.length(before), query),
         ),
     };
   | None => result
@@ -4188,13 +4260,23 @@ let slice =
           ]
         | _ => []
         };
-      ana_arg_edge_result(focus_id, m, query, result)
+      let focus_is_exp =
+        switch (Id.Map.find_opt(focus_id, m)) {
+        | Some(Info.InfoExp(_)) => true
+        | _ => false
+        };
+      let arg_edge = r =>
+        focus_is_exp ? ana_arg_edge_result(focus_id, m, query, r) : r;
+      let param_edge = r =>
+        focus_is_exp
+          ? ana_param_annotation_overlay(focus_id, m, query, r) : r;
+      arg_edge(result)
       |> binding_def_focus_overlay(focus_id, m, query)
       |> projection_focus_overlay(focus_id, m)
       |> cons_tail_focus_overlay(focus_id, m)
       |> typabs_focus_overlay(focus_id, m)
       |> binding_overlay(~except, focus_id, m)
-      |> ana_param_annotation_overlay(focus_id, m, query)
+      |> param_edge
       |> reveal_used_aliases(m);
     | _ => result
     };
