@@ -315,7 +315,7 @@ let typaps = [
   ),
   synthesis_case(
     ~ctx=prelude_ctx("type Option = typfun A -> None + Some(A) in"),
-    ~aliases=[("Option", "typfun A -> ? + Some(A)")],
+    ~aliases=[("Option", "typfun A -> ? + Some(?)")],
     "implicit-param-option",
     "Some(1)",
     "Option(Int)",
@@ -397,7 +397,7 @@ let typaps = [
   ),
   synthesis_case(
     ~ctx=prelude_ctx("type Option = typfun A -> None + Some(A) in"),
-    ~aliases=[("Option", "typfun A -> ? + Some(A)")],
+    ~aliases=[("Option", "typfun A -> ? + Some(?)")],
     "param-option-annotation",
     "(Some(1) : Option(Int))",
     "Option(Int)",
@@ -408,7 +408,7 @@ let typaps = [
       prelude_ctx(
         "type Either = typfun A -> typfun B -> Left(A) + Right(B) in",
       ),
-    ~aliases=[("Either", "typfun A -> typfun B -> ? + Right(B)")],
+    ~aliases=[("Either", "typfun A -> typfun B -> ? + Right(?)")],
     "param-either-annotation",
     "(Right(true) : Either(Int, Bool))",
     "Either(?, Bool)",
@@ -468,7 +468,7 @@ let control = [
     "match-focused-in-let-def",
     "type Option = typfun A -> None + Some(A) in type Digit = Zero + One in let parse_digit = fun s : String -> case s | \"0\" => Some(Zero) | \"1\" => Some(One) | _ => None end in parse_digit(\"5\")",
     "Option(Digit)",
-    "type Option = typfun A -> ? + Some(A) in type ? = ? in let ? = fun ? -> case ? | ? => ? | ? => Some(?) | ? => ? end in ?",
+    "type Option = typfun ? -> ? + Some(?) in type ? = ? in let ? = fun ? -> case ? | ? => ? | ? => Some(?) | ? => ? end in ?",
   ),
   synthesis_case("use-nat-lit", "use Nat in 1", "Nat", "use Nat in 1"),
   synthesis_case(

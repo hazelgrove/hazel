@@ -49,7 +49,7 @@ let parse_digit_examples = [
     "ex1-parse-digit-syn",
     ex1_src,
     "String -> Option(Digit)",
-    "type Option = typfun A -> ? + Some(A) in type ? = ? in let parse_digit = fun ? : String -> case ? | ? => Some(?) | ? => ? | ? => ? | ? => ? | ? => ? | ? => ? | ? => ? | ? => ? | ? => ? | ? => ? | ? => ? end in parse_digit(?)",
+    "type Option = typfun ? -> ? + Some(?) in type ? = ? in let parse_digit = fun ? : String -> case ? | ? => Some(?) | ? => ? | ? => ? | ? => ? | ? => ? | ? => ? | ? => ? | ? => ? | ? => ? | ? => ? | ? => ? end in parse_digit(?)",
   ),
   analysis_case(
     ~focus=str_lit("5"),
@@ -68,7 +68,7 @@ let seq_pin_examples = [
     "ex2-seq-error-syn",
     ex2_src,
     "Digit -> String -> Option((String, Pin))",
-    "type Option = typfun A -> ? + Some(A) in type Digit = ? in type ? = ? in let ? = ? in let ? = ? in let ? = fun ? -> ?(fun ? -> ?(fun (? : Digit) -> fun (? : String) -> Some(?))(?))(?) in ?",
+    "type Option = typfun ? -> ? + Some(?) in type Digit = ? in type ? = ? in let ? = ? in let ? = ? in let ? = fun ? -> ?(fun ? -> ?(fun (? : Digit) -> fun (? : String) -> Some(?))(?))(?) in ?",
   ),
   synthesis_case(
     ~focus=fun_binding("d2"),
@@ -82,14 +82,14 @@ let seq_pin_examples = [
     "ex2-seq-error-ana",
     ex2_src,
     "Digit -> Option((String, Pin))",
-    "type Option = ? in type Digit = ? in type Pin = ? in let seq = abs A -> abs B -> fun ? -> fun (? : A -> Option((String, B))) -> fun ? -> ? in let ? = ? in let ? = fun ? -> ?(fun ? -> seq@<Digit, Pin>(?)(?)(?))(?) in ?",
+    "type Option = ? in type Digit = ? in type Pin = ? in let seq = abs A -> abs B -> fun ? -> fun (? : A -> Option((String, B))) -> ? in let ? = ? in let ? = fun ? -> ?(fun ? -> seq@<Digit, Pin>(?)(?)(?))(?) in ?",
   ),
   analysis_case(
     ~focus=fun_binding("d2"),
     "ex2-seq-error-ana-refined",
     ex2_src,
     "? -> Option(?)",
-    "type Option = ? in type ? = ? in type ? = ? in let seq = abs ? -> abs ? -> fun ? -> fun (? : ? -> Option(?)) -> fun ? -> ? in let ? = ? in let ? = fun ? -> ?(fun ? -> seq@<?, ?>(?)(?)(?))(?) in ?",
+    "type Option = ? in type ? = ? in type ? = ? in let seq = abs ? -> abs ? -> fun ? -> fun (? : ? -> Option(?)) -> ? in let ? = ? in let ? = fun ? -> ?(fun ? -> seq@<?, ?>(?)(?)(?))(?) in ?",
   ),
 ];
 
@@ -157,7 +157,7 @@ let demo_examples = [
   demo_syn_case(
     ~focus=ctor_arg_ap("Five"),
     "demo-focus-some-five",
-    "type Option = typfun A -> ? + Some(A) in type ? = ? in type ? = ? in let ? = fun ? -> case ? | ? => ? | ? => ? | ? => ? | ? => ? | ? => ? | ? => Some(?) | ? => ? | ? => ? | ? => ? | ? => ? | ? => ? end in ?",
+    "type Option = typfun ? -> ? + Some(?) in type ? = ? in type ? = ? in let ? = fun ? -> case ? | ? => ? | ? => ? | ? => ? | ? => ? | ? => ? | ? => Some(?) | ? => ? | ? => ? | ? => ? | ? => ? | ? => ? end in ?",
   ),
   demo_syn_case(
     ~focus=e => exp_var(e, "seq"),
@@ -177,37 +177,37 @@ let demo_examples = [
   demo_syn_case(
     ~focus=errfn,
     "demo-focus-errfn-syn",
-    "type Option = typfun A -> ? + Some(A) in type Digit = ? in type ? = ? in let ? = ? in let ? = ? in let ? = ? in let ? = fun ? -> ?(fun ? -> ?(fun ? -> ?(fun ? -> ?(fun (? : Digit) -> fun (? : String) -> Some(?))(?))(?))(?))(?) in ?",
+    "type Option = typfun ? -> ? + Some(?) in type Digit = ? in type ? = ? in let ? = ? in let ? = ? in let ? = ? in let ? = fun ? -> ?(fun ? -> ?(fun ? -> ?(fun ? -> ?(fun (? : Digit) -> fun (? : String) -> Some(?))(?))(?))(?))(?) in ?",
   ),
   demo_ana_case(
     ~focus=errfn,
     ~query="Digit -> Option((String, Pin))",
     "demo-focus-errfn-ana-full",
-    "type Option = ? in type Digit = ? in type Pin = ? in let ? = ? in let seq = abs A -> abs B -> fun ? -> fun (? : A -> Option((String, B))) -> fun ? -> ? in let ? = ? in let ? = fun ? -> ?(fun ? -> ?(fun ? -> ?(fun ? -> seq@<Digit>@<Pin>(?)(?)(?))(?))(?))(?) in ?",
+    "type Option = ? in type Digit = ? in type Pin = ? in let ? = ? in let seq = abs A -> abs B -> fun ? -> fun (? : A -> Option((String, B))) -> ? in let ? = ? in let ? = fun ? -> ?(fun ? -> ?(fun ? -> ?(fun ? -> seq@<Digit>@<Pin>(?)(?)(?))(?))(?))(?) in ?",
   ),
   demo_ana_case(
     ~focus=errfn,
     ~query="? -> Option((String, Pin))",
     "demo-focus-errfn-ana-fold-digit",
-    "type Option = ? in type ? = ? in type Pin = ? in let ? = ? in let seq = abs ? -> abs B -> fun ? -> fun (? : ? -> Option((String, B))) -> fun ? -> ? in let ? = ? in let ? = fun ? -> ?(fun ? -> ?(fun ? -> ?(fun ? -> seq@<?>@<Pin>(?)(?)(?))(?))(?))(?) in ?",
+    "type Option = ? in type ? = ? in type Pin = ? in let ? = ? in let seq = abs ? -> abs B -> fun ? -> fun (? : ? -> Option((String, B))) -> ? in let ? = ? in let ? = fun ? -> ?(fun ? -> ?(fun ? -> ?(fun ? -> seq@<?>@<Pin>(?)(?)(?))(?))(?))(?) in ?",
   ),
   demo_ana_case(
     ~focus=errfn,
     ~query="Digit -> Option((?, Pin))",
     "demo-focus-errfn-ana-fold-string",
-    "type Option = ? in type Digit = ? in type Pin = ? in let ? = ? in let seq = abs A -> abs B -> fun ? -> fun (? : A -> Option((?, B))) -> fun ? -> ? in let ? = ? in let ? = fun ? -> ?(fun ? -> ?(fun ? -> ?(fun ? -> seq@<Digit>@<Pin>(?)(?)(?))(?))(?))(?) in ?",
+    "type Option = ? in type Digit = ? in type Pin = ? in let ? = ? in let seq = abs A -> abs B -> fun ? -> fun (? : A -> Option((?, B))) -> ? in let ? = ? in let ? = fun ? -> ?(fun ? -> ?(fun ? -> ?(fun ? -> seq@<Digit>@<Pin>(?)(?)(?))(?))(?))(?) in ?",
   ),
   demo_ana_case(
     ~focus=errfn,
     ~query="Digit -> Option((String, ?))",
     "demo-focus-errfn-ana-fold-pin",
-    "type Option = ? in type Digit = ? in type ? = ? in let ? = ? in let seq = abs A -> abs ? -> fun ? -> fun (? : A -> Option((String, ?))) -> fun ? -> ? in let ? = ? in let ? = fun ? -> ?(fun ? -> ?(fun ? -> ?(fun ? -> seq@<Digit>@<?>(?)(?)(?))(?))(?))(?) in ?",
+    "type Option = ? in type Digit = ? in type ? = ? in let ? = ? in let seq = abs A -> abs ? -> fun ? -> fun (? : A -> Option((String, ?))) -> ? in let ? = ? in let ? = fun ? -> ?(fun ? -> ?(fun ? -> ?(fun ? -> seq@<Digit>@<?>(?)(?)(?))(?))(?))(?) in ?",
   ),
   demo_ana_case(
     ~focus=errfn,
     ~query="?",
     "demo-focus-errfn-ana-gap",
-    "type ? = ? in type ? = ? in type ? = ? in let ? = ? in let seq = abs ? -> abs ? -> fun ? -> fun (? : ?) -> fun ? -> ? in let ? = ? in let ? = fun ? -> ?(fun ? -> ?(fun ? -> ?(fun ? -> seq@<?>@<?>(?)(?)(?))(?))(?))(?) in ?",
+    "type ? = ? in type ? = ? in type ? = ? in let ? = ? in let seq = abs ? -> abs ? -> fun ? -> fun (? : ?) -> ? in let ? = ? in let ? = fun ? -> ?(fun ? -> ?(fun ? -> ?(fun ? -> seq@<?>@<?>(?)(?)(?))(?))(?))(?) in ?",
   ),
   demo_ana_case(
     ~focus=e => pat_var(e, "d1"),

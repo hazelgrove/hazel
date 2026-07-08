@@ -764,16 +764,25 @@ module ProgramFolds = {
       };
     } else {
       let syntax = model.editor.syntax;
+      let foldable = (sort: Sort.t, seg: Segment.t): bool =>
+        switch (ProjectorPerform.init_as(~sort, ProjectorCore.Kind.Fold, seg)) {
+        | Some(_) => true
+        | None => false
+        | exception _ => false
+        };
       let target_candidates =
         Id.Set.fold(
           (id, targets) =>
             switch (TermData.segment(id, syntax.term_data)) {
             | Some(seg) =>
               switch (Id.Map.find_opt(id, syntax.term_data)) {
-              | Some(TermData.{root_piece, sort, _}) => [
-                  (id, Piece.id(root_piece), sort, seg, List.length(seg)),
-                  ...targets,
-                ]
+              | Some(TermData.{root_piece, sort, _}) =>
+                foldable(sort, seg)
+                  ? [
+                    (id, Piece.id(root_piece), sort, seg, List.length(seg)),
+                    ...targets,
+                  ]
+                  : targets
               | None => targets
               }
             | None => targets

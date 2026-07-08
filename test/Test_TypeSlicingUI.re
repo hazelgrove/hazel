@@ -261,7 +261,8 @@ let ana_slicing_model = (~typed=false, focus: Id.t, query: string): CI.Model.t =
 };
 
 let fold_slice_dir =
-    (~typed=false, ~ana=false, ~focus, ~query, src: string): string => {
+    (~typed=false, ~ana=false, ~focus, ~query, src: string)
+    : Web.CodeEditable.Model.t => {
   let code = code_model(src);
   let focus = focus(code);
   let cursor_inspector =
@@ -275,10 +276,30 @@ let fold_slice_dir =
       ~cursor_inspector,
       code,
     );
-  render_folded(result.model);
+  result.model;
 };
 
+let render_slice_dir = (~typed=false, ~ana=false, ~focus, ~query, src) =>
+  fold_slice_dir(~typed, ~ana, ~focus, ~query, src) |> render_folded;
+
+let fold_projector_error_statuses =
+    (model: Web.CodeEditable.Model.t): list(bool) =>
+  Web.ProjectorView.Model.mk(
+    ~syntax=model.editor.syntax,
+    ~indicated=Indicated.for_decoration(model.editor.state.zipper),
+    ~statics=model.statics.info_map,
+    ~dynamics=model.dynamics,
+    ~sample_focus=model.editor.state.zipper.refractors.sample_focus,
+    ~editor_active=true,
+  )
+  |> List.filter_map((data: Web.ProjectorView.Model.projector_data) =>
+       data.status.kind == ProjectorCore.Kind.Fold
+         ? Some(data.status.error) : None
+     );
+
 let demo_src = "type Option = typfun A -> None + Some(A) in type Digit = Zero + One + Two + Three + Four + Five + Six + Seven + Eight + Nine in type Pin = (Digit, Digit, Digit, Digit) in let parse_digit = fun c : String -> case c | \"0\" => Some(Zero) | \"1\" => Some(One) | \"2\" => Some(Two) | \"3\" => Some(Three) | \"4\" => Some(Four) | \"5\" => Some(Five) | \"6\" => Some(Six) | \"7\" => Some(Seven) | \"8\" => Some(Eight) | \"9\" => Some(Nine) | _ => None end in let seq = abs A -> abs B -> fun (p : String -> Option((String, A))) -> fun (f : A -> Option((String, B))) -> fun (s : String) -> case p(s) | None => None | Some((s2, a)) => f(a) end in let digit_parser = fun (s : String) -> case parse_digit(s) | Some(d) => Some((s, d)) | None => None end in let parse_pin = fun (s : String) -> seq@<Digit, Pin>(digit_parser)(fun (d1 : Digit) -> seq@<Digit, Pin>(digit_parser)(fun (d2 : Digit) -> seq@<Digit, Pin>(digit_parser)(fun (d3 : Digit) -> seq@<Digit, Pin>(digit_parser)(fun (d4 : Digit) -> fun (s2 : String) -> Some((s2, (d1, d2, d3, d4))))(s))(s))(s))(s) in parse_pin(\"1234\")";
+
+let demo_src_unparenthesized_some = "type Option = typfun A -> None + Some(A) in type Digit = Zero + One + Two + Three + Four + Five + Six + Seven + Eight + Nine in type Pin = (Digit, Digit, Digit, Digit) in let parse_digit = fun c : String -> case c | \"0\" => Some@<Digit>(Zero) | \"1\" => Some(One) | \"2\" => Some(Two) | \"3\" => Some(Three) | \"4\" => Some(Four) | \"5\" => Some(Five) | \"6\" => Some(Six) | \"7\" => Some(Seven) | \"8\" => Some(Eight) | \"9\" => Some(Nine) | _ => None end in let seq = abs A -> abs B -> fun (p : String -> Option((String, A))) -> fun (f : A -> Option((String, B))) -> fun (s : String) -> case p(s) | None => None | Some(s2, a) => f(a) end in let digit_parser = fun (s : String) -> case parse_digit(s) | Some(d) => Some((s, d)) | None => None end in let parse_pin = fun (s : String) -> seq@<Digit>@<Pin>(digit_parser)(fun (d1 : Digit) -> seq@<Digit>@<Pin>(digit_parser)(fun (d2 : Digit) -> seq@<Digit>@<Pin>(digit_parser)(fun (d3 : Digit) -> seq@<Digit>@<Pin>(digit_parser)(fun (d4 : Digit) -> fun (s2 : String) -> Some(s2, (d1, d2, d3, d4)))(s))(s))(s))(s) in parse_pin(\"1234\")";
 
 let temp_probe = (~ana=false, ~focus, ~query, name) =>
   test_case(
@@ -289,7 +310,7 @@ let temp_probe = (~ana=false, ~focus, ~query, name) =>
         "PROBE "
         ++ name
         ++ ": "
-        ++ fold_slice_dir(~typed=true, ~ana, ~focus, ~query, demo_src),
+        ++ render_slice_dir(~typed=true, ~ana, ~focus, ~query, demo_src),
       );
       check(bool, "probe", true, true);
     },
@@ -417,6 +438,42 @@ let tests = (
   [temp_direct, temp_explain, ...temp_probes]
   @ [
     test_case(
+      "pin d4 synthesis slice folds unparenthesized Some",
+      `Quick,
+      () => {
+        let folded =
+          render_slice_dir(
+            ~typed=true,
+            ~focus=fun_binding_id("d4"),
+            ~query="Digit -> String -> Option((String, Pin))",
+            demo_src_unparenthesized_some,
+          );
+        check(bool, "slice renders", true, String.length(folded) > 0);
+      },
+    ),
+    test_case(
+      "analysis slice preserves folded error status",
+      `Quick,
+      () => {
+        let model =
+          fold_slice_dir(
+            ~typed=true,
+            ~ana=true,
+            ~focus=fun_binding_id("d4"),
+            ~query="Digit -> Option((String, Pin))",
+            demo_src_unparenthesized_some,
+          );
+        let statuses = fold_projector_error_statuses(model);
+        check(bool, "has fold projectors", true, statuses != []);
+        check(
+          bool,
+          "some fold projector is erroneous",
+          true,
+          List.exists(x => x, statuses),
+        );
+      },
+    ),
+    test_case(
       "selection root anchors the selected term",
       `Quick,
       () => {
@@ -515,7 +572,7 @@ let tests = (
       ~focus=ctor_arg_ap_id("One"),
       ~query="None + Some(Digit)",
       ~expected=
-        "type Option = typfun A -> ? + Some(A) in type ? = ? in let ? = fun ? -> case ? | ? => ? | ? => Some(?) | ? => ? end in ?",
+        "type Option = typfun A -> ? + Some(?) in type ? = ? in let ? = fun ? -> case ? | ? => ? | ? => Some(?) | ? => ? end in ?",
     ),
     case(
       ~name="gap query on focused branch keeps context",

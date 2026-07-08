@@ -76,11 +76,13 @@ let typ_all_ids = (ty: Typ.t): Id.Set.t => {
       ~f_typ=
         (continue, t) => {
           note(IdTagged.ids(t));
+          note([Typ.rep_id(t)]);
           continue(t);
         },
       ~f_tpat=
         (continue, tp) => {
           note(IdTagged.ids(tp));
+          note([TPat.rep_id(tp)]);
           continue(tp);
         },
       ty,
@@ -503,7 +505,7 @@ let rec minimal_sum_for_constructor =
   | Rec(_, body) =>
     minimal_sum_for_constructor(~preserve_payload, ~name, body)
   | TypFun(binder, body) =>
-    switch (minimal_sum_for_constructor(~preserve_payload=true, ~name, body)) {
+    switch (minimal_sum_for_constructor(~preserve_payload, ~name, body)) {
     | Some(body) => Some(TypFun(binder, body) |> Typ.temp)
     | None => None
     }
@@ -574,10 +576,21 @@ let alias_context_for_constructor =
   };
 };
 
-let context_for_constructor =
-    (ctx: Ctx.t, name: string, shape: Typ.t, query: Typ.t): Ctx.t => {
-  let ctor_ctx =
-    switch (Ctx.lookup_ctr_for_ana(ctx, name, Some(query))) {
+let constructor_entry_context =
+    (ctx: Ctx.t, name: string, query: Typ.t): Ctx.t =>
+  switch (Ctx.lookup_ctr_for_ana(ctx, name, Some(query))) {
+  | Some(entry) =>
+    let typ =
+      query_constructor_head(query) == Some(name) ? entry.typ : query;
+    Ctx.extend(
+      Ctx.empty,
+      Ctx.ConstructorEntry({
+        ...entry,
+        typ,
+      }),
+    );
+  | None =>
+    switch (Ctx.lookup_var(ctx, name)) {
     | Some(entry) =>
       let typ =
         query_constructor_head(query) == Some(name) ? entry.typ : query;
@@ -589,34 +602,58 @@ let context_for_constructor =
         }),
       );
     | None =>
-      switch (Ctx.lookup_var(ctx, name)) {
-      | Some(entry) =>
-        let typ =
-          query_constructor_head(query) == Some(name) ? entry.typ : query;
-        Ctx.extend(
-          Ctx.empty,
-          Ctx.ConstructorEntry({
-            ...entry,
-            typ,
-          }),
-        );
-      | None =>
-        Ctx.extend(
-          Ctx.empty,
-          Ctx.ConstructorEntry({
-            name,
-            id: Id.invalid,
-            typ: query,
-            custom_statics: None,
-          }),
-        )
-      }
-    };
+      Ctx.extend(
+        Ctx.empty,
+        Ctx.ConstructorEntry({
+          name,
+          id: Id.invalid,
+          typ: query,
+          custom_statics: None,
+        }),
+      )
+    }
+  };
+
+let context_for_constructor =
+    (ctx: Ctx.t, name: string, shape: Typ.t, query: Typ.t, alias_query: Typ.t)
+    : Ctx.t => {
+  let ctor_ctx = constructor_entry_context(ctx, name, query);
   context_join_all([
-    alias_context_for_constructor(ctx, name, query, shape),
+    alias_context_for_constructor(ctx, name, alias_query, shape),
     ctor_ctx,
   ]);
 };
+
+let explicit_constructor_alias_context = (ctx: Ctx.t, name: string): Ctx.t =>
+  ctx.entries
+  |> List.find_map(
+       fun
+       | Ctx.TVarEntry({name: alias, kind: Ctx.Singleton(alias_shape), _})
+           when
+             minimal_sum_for_constructor(
+               ~preserve_payload=true,
+               ~name,
+               alias_shape,
+             )
+             != None =>
+         Some((alias, alias_shape))
+       | _ => None,
+     )
+  |> (
+    fun
+    | Some((alias, alias_shape)) =>
+      switch (
+        minimal_sum_for_constructor(
+          ~preserve_payload=true,
+          ~name,
+          alias_shape,
+        )
+      ) {
+      | Some(ty) => Ctx.extend_alias(Ctx.empty, alias, Id.invalid, ty)
+      | None => Ctx.empty
+      }
+    | None => Ctx.empty
+  );
 
 let assume = (ctx: Ctx.t, name: string, shape: Typ.t): sty => {
   shape,
@@ -642,7 +679,8 @@ let constructor = (ctx: Ctx.t, name: string, shape: Typ.t): sty =>
           omitted: Id.Set.empty,
           gamma: VarMap.empty,
           psi: query,
-          context: context_for_constructor(ctx, name, shape, context_query),
+          context:
+            context_for_constructor(ctx, name, shape, context_query, query),
           ana: query,
         };
       },
@@ -1154,9 +1192,23 @@ let typ_ap = (~ctx: Ctx.t, ~shape: Typ.t, ~term: Exp.term, fn: sty): sty => {
       | TypAp(_, args) => omitted_type_args(args, query)
       | _ => Id.Set.empty
       };
+    let context =
+      switch (term) {
+      | TypAp(fn_exp, _) when !is_gap(query) =>
+        switch (Exp.term_of(fn_exp)) {
+        | Constructor(name, _) =>
+          context_join(
+            slice.context,
+            explicit_constructor_alias_context(ctx, name),
+          )
+        | _ => slice.context
+        }
+      | _ => slice.context
+      };
     {
       ...slice,
       omitted: Id.Set.union(slice.omitted, omitted),
+      context,
     };
   },
   finalize: () => empty_result,
@@ -1974,6 +2026,41 @@ let rec typ_free_vars = (ty: Typ.t): list(string) =>
   | _ => []
   };
 
+let rec typ_var_ids = (name: string, ty: Typ.t): Id.Set.t =>
+  switch (Typ.term_of(ty)) {
+  | Var(n) when n == name => Id.Set.singleton(Typ.rep_id(ty))
+  | TypFun(binder, _) when TPat.tyvar_of_utpat(binder) == Some(name) => Id.Set.empty
+  | Parens(t)
+  | List(t)
+  | TupLabel(_, t)
+  | TypFun(_, t)
+  | Poly(_, t)
+  | Rec(_, t) => typ_var_ids(name, t)
+  | Arrow(a, b)
+  | TypParamAp(a, b) =>
+    Id.Set.union(typ_var_ids(name, a), typ_var_ids(name, b))
+  | Prod(ts)
+  | TypTuple(ts) =>
+    List.fold_left(
+      (acc, t) => Id.Set.union(acc, typ_var_ids(name, t)),
+      Id.Set.empty,
+      ts,
+    )
+  | Sum(variants) =>
+    List.fold_left(
+      (acc, variant) =>
+        switch (variant) {
+        | ConstructorMap.Variant(_, _, Some(p))
+        | ConstructorMap.BadEntry(p) =>
+          Id.Set.union(acc, typ_var_ids(name, p))
+        | ConstructorMap.Variant(_, _, None) => acc
+        },
+      Id.Set.empty,
+      variants,
+    )
+  | _ => Id.Set.empty
+  };
+
 /* Type variables referenced by the still-used (kept) sum variants. */
 let rec kept_variant_tyvars = (used: list(string), ty: Typ.t): list(string) =>
   switch (Typ.term_of(ty)) {
@@ -2003,7 +2090,57 @@ let rec unused_binder_ids = (used: list(string), ty: Typ.t): Id.Set.t =>
     let rest = unused_binder_ids(used, body);
     switch (TPat.tyvar_of_utpat(binder)) {
     | Some(name) when !List.mem(name, kept_variant_tyvars(used, ty)) =>
-      Id.Set.union(ids_set(IdTagged.ids(binder)), rest)
+      rest
+      |> Id.Set.union(_, ids_set(IdTagged.ids(binder)))
+      |> Id.Set.add(TPat.rep_id(binder), _)
+      |> Id.Set.union(_, typ_var_ids(name, body))
+    | _ => rest
+    };
+  | _ => Id.Set.empty
+  };
+
+let rec unused_binder_names = (used: list(string), ty: Typ.t): list(string) =>
+  switch (Typ.term_of(ty)) {
+  | Parens(t)
+  | Rec(_, t)
+  | Poly(_, t) => unused_binder_names(used, t)
+  | TypFun(binder, body) =>
+    let rest = unused_binder_names(used, body);
+    switch (TPat.tyvar_of_utpat(binder)) {
+    | Some(name) when !List.mem(name, kept_variant_tyvars(used, ty)) => [
+        name,
+        ...rest,
+      ]
+    | _ => rest
+    };
+  | _ => []
+  };
+
+let unused_binder_occurrence_ids =
+    (used: list(string), demand: Typ.t, original: Typ.t): Id.Set.t =>
+  unused_binder_names(used, demand)
+  |> List.fold_left(
+       (acc, name) => Id.Set.union(acc, typ_var_ids(name, original)),
+       Id.Set.empty,
+     );
+
+let rec omitted_binder_occurrence_ids =
+        (omitted: Id.Set.t, ty: Typ.t): Id.Set.t =>
+  switch (Typ.term_of(ty)) {
+  | Parens(t)
+  | Rec(_, t)
+  | Poly(_, t) => omitted_binder_occurrence_ids(omitted, t)
+  | TypFun(binder, body) =>
+    let rest = omitted_binder_occurrence_ids(omitted, body);
+    switch (TPat.tyvar_of_utpat(binder)) {
+    | Some(name)
+        when
+          Id.Set.mem(TPat.rep_id(binder), omitted)
+          || List.exists(
+               id => Id.Set.mem(id, omitted),
+               IdTagged.ids(binder),
+             ) =>
+      Id.Set.union(rest, typ_var_ids(name, body))
     | _ => rest
     };
   | _ => Id.Set.empty
@@ -2042,12 +2179,27 @@ let ty_alias = (~shape: Typ.t, ~term: Exp.term, body: sty): sty => {
   dispatch: query => {
     let slice = body.dispatch(query);
     switch (term) {
-    | TyAlias(_, utyp, _) =>
+    | TyAlias(typat, utyp, _) =>
       let used = used_constructors(slice.context);
+      let binder_demand =
+        switch (TPat.tyvar_of_utpat(typat)) {
+        | Some(alias) =>
+          switch (Ctx.lookup_alias(slice.context, alias)) {
+          | Some(ty) => ty
+          | None => utyp
+          }
+        | None => utyp
+        };
       let omit =
         Id.Set.union(
           unused_variant_ids(used, utyp),
-          unused_binder_ids(used, utyp),
+          Id.Set.union(
+            Id.Set.union(
+              unused_binder_ids(used, binder_demand),
+              unused_binder_occurrence_ids(used, binder_demand, utyp),
+            ),
+            omitted_binder_occurrence_ids(slice.omitted, utyp),
+          ),
         );
       {
         ...slice,
@@ -2122,6 +2274,23 @@ let omit_unused_aliases = (m: Id.Map.t(Info.t), omitted: Id.Set.t): Id.Set.t =>
                 ids_set(IdTagged.ids(typat) @ IdTagged.ids(utyp)),
               )
             : acc;
+        | _ => acc
+        }
+      | _ => acc
+      },
+    m,
+    omitted,
+  );
+
+let close_omitted_alias_binders =
+    (m: Id.Map.t(Info.t), omitted: Id.Set.t): Id.Set.t =>
+  Id.Map.fold(
+    (_, info, acc) =>
+      switch (info) {
+      | Info.InfoExp({user_term, _}) =>
+        switch (Exp.term_of(user_term)) {
+        | TyAlias(_, utyp, _) =>
+          Id.Set.union(acc, omitted_binder_occurrence_ids(acc, utyp))
         | _ => acc
         }
       | _ => acc
@@ -2264,6 +2433,12 @@ let source_ids = (e: Exp.t): Id.Set.t => {
       collect(IdTagged.ids(term));
       continue(term);
     };
+  let collect_tpat: (TPat.t => TPat.t, TPat.t) => TPat.t =
+    (continue, tp) => {
+      collect(IdTagged.ids(tp));
+      collect([TPat.rep_id(tp)]);
+      continue(tp);
+    };
   let collect_exp: (Exp.t => Exp.t, Exp.t) => Exp.t =
     (continue, exp) => {
       collect(IdTagged.ids(exp));
@@ -2277,6 +2452,7 @@ let source_ids = (e: Exp.t): Id.Set.t => {
   let collect_typ: (Typ.t => Typ.t, Typ.t) => Typ.t =
     (continue, typ) => {
       collect(IdTagged.ids(typ));
+      collect([Typ.rep_id(typ)]);
       switch (Typ.term_of(typ)) {
       | Sig(items) => List.iter(collect_sig_roots, items)
       | _ => ()
@@ -2304,7 +2480,7 @@ let source_ids = (e: Exp.t): Id.Set.t => {
       ~f_exp=collect_exp,
       ~f_pat=collect_term,
       ~f_typ=collect_typ,
-      ~f_tpat=collect_term,
+      ~f_tpat=collect_tpat,
       ~f_rul=collect_term,
       ~f_any=collect_any,
       e,
@@ -3788,6 +3964,15 @@ let reveal_used_aliases = (m: Id.Map.t(Info.t), result: result): result => {
               | Some(n) => alias_name_referenced(m, omitted, n)
               | None => false
               };
+            let binder_demand =
+              switch (TPat.tyvar_of_utpat(typat)) {
+              | Some(alias) =>
+                switch (Ctx.lookup_alias(result.context, alias)) {
+                | Some(ty) => ty
+                | None => utyp
+                }
+              | None => utyp
+              };
             if (ctor_live || variant_used && name_ref) {
               omitted
               |> Id.Set.diff(
@@ -3798,7 +3983,15 @@ let reveal_used_aliases = (m: Id.Map.t(Info.t), result: result): result => {
                    ),
                  )
               |> Id.Set.union(_, unused_variant_ids(used, utyp))
-              |> Id.Set.union(_, unused_binder_ids(used, utyp));
+              |> Id.Set.union(_, unused_binder_ids(used, binder_demand))
+              |> Id.Set.union(
+                   _,
+                   unused_binder_occurrence_ids(used, binder_demand, utyp),
+                 )
+              |> Id.Set.union(
+                   _,
+                   omitted_binder_occurrence_ids(omitted, utyp),
+                 );
             } else if (name_ref) {
               omitted
               |> Id.Set.diff(_, ids_set(IdTagged.ids(typat)))
@@ -3871,6 +4064,14 @@ let rec def_value_params = (def: Exp.t): list(Pat.t) =>
   | _ => []
   };
 
+let rec def_value_param_nodes = (def: Exp.t): list((Pat.t, Exp.t)) =>
+  switch (Exp.term_of(def)) {
+  | TypAbs(_, body, _) => def_value_param_nodes(body)
+  | Parens(e) => def_value_param_nodes(e)
+  | Fun(p, body, _, _) => [(p, def), ...def_value_param_nodes(body)]
+  | _ => []
+  };
+
 let rec def_typabs_binders = (def: Exp.t): list(TPat.t) =>
   switch (Exp.term_of(def)) {
   | TypAbs(tpat, body, _) => [tpat, ...def_typabs_binders(body)]
@@ -3923,7 +4124,8 @@ let def_minimal_omissions =
     (m: Id.Map.t(Info.t), head: Exp.t, slot: int, query: Typ.t): Id.Set.t =>
   switch (head_var(head) |> Option.bind(_, binding_def_of(m))) {
   | Some(def) =>
-    let params = def_value_params(def);
+    let param_nodes = def_value_param_nodes(def);
+    let params = List.map(fst, param_nodes);
     let focus_ann =
       List.nth_opt(params, slot) |> Option.bind(_, pat_annotation);
     let slot_omit =
@@ -3937,11 +4139,15 @@ let def_minimal_omissions =
       | None => []
       };
     let other_params_omit =
-      params
-      |> List.mapi((i, p) =>
-           i == slot
-             ? Id.Set.empty
-             : Id.Set.union(pat_subtree_ids(p), annotation_ids(p))
+      param_nodes
+      |> List.mapi((i, (p, fn)) =>
+           if (i == slot) {
+             Id.Set.empty;
+           } else if (i > slot) {
+             source_ids(fn);
+           } else {
+             Id.Set.union(pat_subtree_ids(p), annotation_ids(p));
+           }
          )
       |> List.fold_left(Id.Set.union, Id.Set.empty);
     let binder_omit =
@@ -4287,7 +4493,11 @@ let slice =
   };
   let result = {
     ...result,
-    omitted: omit_unused_aliases_fix(result.omitted),
+    omitted:
+      close_omitted_alias_binders(
+        m,
+        omit_unused_aliases_fix(result.omitted),
+      ),
   };
   let result = {
     ...result,
