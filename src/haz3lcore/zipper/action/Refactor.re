@@ -1980,6 +1980,43 @@ let extended_ap_pat = (p: Pat.t, name: string): option((Pat.t, Id.t)) => {
  * can afford the full build; rewrite_node adds the slot takeover on
  * invocation only). Shapes: let f = fun ...; let f : A -> B = fun ...
  * (annotation's arrow rewritten); let f(x) = ... (opt : Ret). */
+/* the Parens pat wrapping a function's parameters, both shapes */
+let param_paren = (e: Exp.t): option(Pat.t) =>
+  switch (IdTagged.term_of(e)) {
+  | Let(p, def, _) =>
+    let rec of_sugar = (p: Pat.t): option(Pat.t) =>
+      switch (IdTagged.term_of(p)) {
+      /* the sugar form's (...) are the Ap tile's own delimiters */
+      | Ap(_, _) => Some(p)
+      | Asc(inner, _) => of_sugar(inner)
+      | _ => None
+      };
+    switch (of_sugar(p)) {
+    | Some(_) as r => r
+    | None =>
+      switch (IdTagged.term_of(def)) {
+      | Fun(fp, _, _, _) =>
+        switch (IdTagged.term_of(fp)) {
+        | Parens(_) => Some(fp)
+        | _ => None
+        }
+      | _ => None
+      }
+    };
+  | _ => None
+  };
+
+/* AddParameter is targetable from the let zone or the param parens
+ * (the fun-shape's parens live in the def, outside hit_let) */
+let hit_add_param = (target: Id.t, e: Exp.t): bool =>
+  hit_let(target, e)
+  || (
+    switch (param_paren(e)) {
+    | Some(paren) => List.mem(target, IdTagged.ids(paren))
+    | None => false
+    }
+  );
+
 let add_param_rewrite = (~program: Exp.t, e: Exp.t): option((Exp.t, Id.t)) =>
   switch (IdTagged.term_of(e)) {
   | Let(p, def, body) =>
@@ -2049,7 +2086,7 @@ let add_param_impl: impl = {
   tooltip: "Extend this function with a parameter; call sites get a hole",
   prepare: (~info_map as _, ~target, program) =>
     rewrite_node(
-      ~hit=hit_let(target),
+      ~hit=hit_add_param(target),
       ~rewrite=add_param_rewrite(~program),
       program,
     ),
@@ -4085,7 +4122,7 @@ let applies =
       program,
     )
   | AddParameter =>
-    switch (find_hit(~hit=hit_let(target), program)) {
+    switch (find_hit(~hit=hit_add_param(target), program)) {
     | Some(e) => Option.is_some(add_param_rewrite(~program, e))
     | None => false
     }
@@ -4453,10 +4490,31 @@ let gesture =
       }
     | Left => param_swap(-1)
     | Right =>
+      /* the closing param paren grows the sequence (append); the
+         opening paren stays dead (prepend, someday) */
+      let at_closing_param_paren =
+        shard == Some(1)
+        && (
+          switch (find_hit(~hit=hit_add_param(target), term)) {
+          | Some(l) =>
+            switch (param_paren(l)) {
+            | Some(paren) => List.mem(target, IdTagged.ids(paren))
+            | None => false
+            }
+          | None => false
+          }
+        );
       switch (param_swap(1)) {
       | Some(k) => Some(k)
-      | None => in_arm_zone ? app(ExpandWildcard) : None
-      }
+      | None =>
+        if (at_closing_param_paren) {
+          app(AddParameter);
+        } else if (in_arm_zone) {
+          app(ExpandWildcard);
+        } else {
+          None;
+        }
+      };
     };
   };
 

@@ -2192,6 +2192,60 @@ let gesture_tests = [
   ),
 ];
 
+let paren_gesture_tests = [
+  check_gesture(
+    "right at fun-shape closing param paren = add param",
+    Right,
+    "let f = fun (a, b)¦ -> a in f(1, 2)",
+    Some(AddParameter),
+  ),
+  check_gesture(
+    "right at sugar closing param paren = add param",
+    Right,
+    "let f(a, b)¦ = a in f(1, 2)",
+    Some(AddParameter),
+  ),
+  check_gesture(
+    "right at opening param paren is dead",
+    Right,
+    "let f = fun ¦(a, b) -> a in f(1, 2)",
+    None,
+  ),
+  test_case(
+    "negate keeps the If node's id (probes survive)",
+    `Quick,
+    () => {
+      let z = Test_Editing.parse_zipper("¦if a && b then 1 else 2");
+      let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
+      let if_id =
+        switch (term.term) {
+        | If(_) => Language.Exp.rep_id(term)
+        | _ => Alcotest.fail("expected an if")
+        };
+      switch (Indicated.index(z)) {
+      | None => Alcotest.fail("no indication")
+      | Some(target) =>
+        switch (
+          Refactor.impl(NegateIf).prepare(
+            ~info_map=Id.Map.empty,
+            ~target,
+            term,
+          )
+        ) {
+        | Some((term', _)) =>
+          check(
+            bool,
+            "id preserved",
+            true,
+            Language.Exp.rep_id(term') == if_id,
+          )
+        | None => Alcotest.fail("did not apply")
+        }
+      };
+    },
+  ),
+];
+
 let tests = [
   (
     "Refactor",
@@ -2216,6 +2270,7 @@ let tests = [
     @ caret_tests
     @ caret_audit_tests
     @ extract_target_tests
+    @ paren_gesture_tests
     @ binding_tests
     @ reparse_safety_tests,
   ),

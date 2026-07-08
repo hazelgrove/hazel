@@ -141,6 +141,9 @@ let animate_node =
  * missing the stylesheet rule). Warn so the next uncovered element
  * kind is loud instead of a mystery snap. SVG is replaced content —
  * transformable even when display:inline. */
+/* warn once per class: a batch may mix covered and uncovered kinds */
+let warned: ref(list(string)) = ref([]);
+
 let warn_invisible = (node: Js.t(Dom.node)): unit =>
   switch (
     {
@@ -160,13 +163,15 @@ let warn_invisible = (node: Js.t(Dom.node)): unit =>
   ) {
   | exception _ => ()
   | None => ()
+  | Some(cls) when List.mem(cls, warned^) => ()
   | Some(cls) =>
+    warned := [cls, ...warned^];
     print_endline(
       "CodeFlip: element '"
       ++ cls
       ++ "' is display:inline; its movement animation will not render"
       ++ " (add it to the .code inline-block rule in editor.css)",
-    )
+    );
   };
 
 let pending: ref(option(Measured.t)) = ref(None);
@@ -226,11 +231,8 @@ let go = (~syntax: CachedSyntax.t, ~font_metrics: FontMetrics.t): unit =>
                     |> List.iter(((node, o, n)) =>
                          animate_node(~font_metrics, node, o, n)
                        );
-                    /* one guard probe per batch is plenty */
-                    switch (moved) {
-                    | [(node, _, _), ..._] => warn_invisible(node)
-                    | [] => ()
-                    };
+                    moved
+                    |> List.iter(((node, _, _)) => warn_invisible(node));
                   };
                 };
               },
