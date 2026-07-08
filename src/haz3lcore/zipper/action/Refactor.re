@@ -3669,6 +3669,16 @@ let tuple_pat_items = (p: Pat.t): list(Pat.t) => {
   go(p);
 };
 
+let tuple_def_items = (d: Exp.t): list(Exp.t) => {
+  let rec go = (d: Exp.t) =>
+    switch (IdTagged.term_of(d)) {
+    | Parens(inner) => go(inner)
+    | Tuple(items) => items
+    | _ => []
+    };
+  go(d);
+};
+
 let swap_tuple_pat_rewrite =
     (~fixup: bool, ~target: Id.t, i: int, e: Exp.t): option((Exp.t, Id.t)) =>
   switch (IdTagged.term_of(e)) {
@@ -3710,11 +3720,15 @@ let swap_tuple_pat_rewrite =
       };
     switch (swap_in_pat(p), swap_in_def(def)) {
     | (Some(p'), Some(def')) =>
-      let items = tuple_pat_items(p);
+      let pitems = tuple_pat_items(p);
+      let ditems = tuple_def_items(def);
       let in_swapped = (j: int) =>
-        j < List.length(items)
-        && List.mem(target, pat_subtree_ids(List.nth(items, j)));
-      /* caret follows the component it was on (pat ids travel) */
+        j < List.length(pitems)
+        && List.mem(target, pat_subtree_ids(List.nth(pitems, j)))
+        || j < List.length(ditems)
+        && List.mem(target, exp_subtree_ids(List.nth(ditems, j)));
+      /* caret follows the component it was on (ids travel through
+         the swap, either side) */
       let focus =
         in_swapped(i) || in_swapped(i + 1) ? target : Exp.rep_id(e);
       Some((
@@ -3729,15 +3743,35 @@ let swap_tuple_pat_rewrite =
   | _ => None
   };
 
-/* index of the tuple-pat component whose subtree contains target */
+/* index of the component whose subtree contains target — on either
+ * side: the pattern or the definition tuple */
 let tuple_pat_index_at = (target: Id.t, e: Exp.t): option(int) =>
   switch (IdTagged.term_of(e)) {
-  | Let(p, _, _) =>
-    tuple_pat_items(p)
-    |> List.mapi((j, it) => (j, it))
-    |> List.find_opt(((_, it)) => List.mem(target, pat_subtree_ids(it)))
-    |> Option.map(fst)
+  | Let(p, def, _) =>
+    let by_pat =
+      tuple_pat_items(p)
+      |> List.mapi((j, it) => (j, it))
+      |> List.find_opt(((_, it)) => List.mem(target, pat_subtree_ids(it)))
+      |> Option.map(fst);
+    switch (by_pat) {
+    | Some(_) => by_pat
+    | None =>
+      tuple_pat_items(p) == []
+        ? None
+        : tuple_def_items(def)
+          |> List.mapi((j, it) => (j, it))
+          |> List.find_opt(((_, it)) =>
+               List.mem(target, exp_subtree_ids(it))
+             )
+          |> Option.map(fst)
+    };
   | _ => None
+  };
+
+let hit_tuple_swap = (target: Id.t, e: Exp.t): bool =>
+  switch (IdTagged.term_of(e)) {
+  | Let(_) => hit_let(target, e) || tuple_pat_index_at(target, e) != None
+  | _ => false
   };
 
 let swap_tuple_pat_impl = (i: int): impl => {
@@ -3745,7 +3779,7 @@ let swap_tuple_pat_impl = (i: int): impl => {
   tooltip: "Swap these tuple components in the pattern and the definition",
   prepare: (~info_map as _, ~target, program) =>
     rewrite_node(
-      ~hit=hit_let(target),
+      ~hit=hit_tuple_swap(target),
       ~rewrite=e => swap_tuple_pat_rewrite(~fixup=true, ~target, i, e),
       program,
     ),
@@ -3965,6 +3999,27 @@ let drop_call_args =
     e,
   );
 
+/* Resolve a RemoveParameter target: a param var directly, or the
+ * param parens meaning "the last parameter" (the Left-at-`)` gesture
+ * mirrors Right-at-`)` = append; move a param right, then shed it) */
+let remove_param_target = (~target: Id.t, e: Exp.t): option(Id.t) =>
+  if (hit_param(target, e)) {
+    Some(target);
+  } else {
+    switch (param_paren(e)) {
+    | Some(paren) when List.mem(target, IdTagged.ids(paren)) =>
+      switch (List.rev(param_items(e))) {
+      | [last, ..._] =>
+        switch (IdTagged.term_of(last)) {
+        | Var(_) => Some(Pat.rep_id(last))
+        | _ => None
+        }
+      | [] => None
+      }
+    | _ => None
+    };
+  };
+
 let remove_param_rewrite = (~target: Id.t, e: Exp.t): option((Exp.t, Id.t)) =>
   switch (IdTagged.term_of(e)) {
   | Let(p, def, body) =>
@@ -4092,11 +4147,17 @@ let remove_param_impl: impl = {
   tooltip: "Drop this parameter and its argument at every call site",
   prepare: (~info_map as _, ~target, program) =>
     switch (
-      find_path(~hit=hit_param(target), program)
+      find_path(~hit=e => remove_param_target(~target, e) != None, program)
       |> Option.map(path => List.nth(path, List.length(path) - 1))
     ) {
     | Some(l) =>
-      switch (remove_param_rewrite(~target, l)) {
+      switch (
+        remove_param_rewrite(
+          ~target=
+            remove_param_target(~target, l) |> Option.value(~default=target),
+          l,
+        )
+      ) {
       | Some((result, focus)) =>
         rewrite_node(
           ~hit=same_node(l),
@@ -4226,8 +4287,14 @@ let applies =
     | None => false
     }
   | RemoveParameter =>
-    switch (find_hit(~hit=hit_param(target), program)) {
-    | Some(l) => Option.is_some(remove_param_rewrite(~target, l))
+    switch (
+      find_hit(~hit=e => remove_param_target(~target, e) != None, program)
+    ) {
+    | Some(l) =>
+      switch (remove_param_target(~target, l)) {
+      | Some(t) => Option.is_some(remove_param_rewrite(~target=t, l))
+      | None => false
+      }
     | None => false
     }
   | RenameFree(x, y) =>
@@ -4247,7 +4314,7 @@ let applies =
     | None => false
     }
   | SwapTuplePat(i) =>
-    switch (find_hit(~hit=hit_let(target), program)) {
+    switch (find_hit(~hit=hit_tuple_swap(target), program)) {
     | Some(l) =>
       Option.is_some(swap_tuple_pat_rewrite(~fixup=false, ~target, i, l))
     | None => false
@@ -4497,7 +4564,7 @@ let menu_items =
       | None => []
       };
     let tuple_swaps =
-      switch (find_hit(~hit=hit_let(target), term)) {
+      switch (find_hit(~hit=hit_tuple_swap(target), term)) {
       | Some(l) =>
         let items =
           switch (IdTagged.term_of(l)) {
@@ -4590,8 +4657,23 @@ let gesture =
           ? Some(Action.SwapParams(i)) : None;
       | _ => None
       };
+    /* the closing param paren: Right grows the sequence (append),
+       Left sheds the last param; the opening paren stays dead
+       (prepend, someday) */
+    let at_closing_param_paren = (target: Id.t) =>
+      shard == Some(1)
+      && (
+        switch (find_hit(~hit=hit_add_param(target), term)) {
+        | Some(l) =>
+          switch (param_paren(l)) {
+          | Some(paren) => List.mem(target, IdTagged.ids(paren))
+          | None => false
+          }
+        | None => false
+        }
+      );
     let tuple_swap = (delta: int) =>
-      switch (find_hit(~hit=hit_let(target), term)) {
+      switch (find_hit(~hit=hit_tuple_swap(target), term)) {
       | Some(l) =>
         switch (tuple_pat_index_at(target, l)) {
         | Some(j) =>
@@ -4643,30 +4725,23 @@ let gesture =
     | Left =>
       switch (param_swap(-1)) {
       | Some(k) => Some(k)
-      | None => tuple_swap(-1)
+      | None =>
+        switch (tuple_swap(-1)) {
+        | Some(k) => Some(k)
+        | None =>
+          /* inverse of Right-at-`)` (append): shed the last param,
+             gated on it being unused */
+          at_closing_param_paren(target) ? app(RemoveParameter) : None
+        }
       }
     | Right =>
-      /* the closing param paren grows the sequence (append); the
-         opening paren stays dead (prepend, someday) */
-      let at_closing_param_paren =
-        shard == Some(1)
-        && (
-          switch (find_hit(~hit=hit_add_param(target), term)) {
-          | Some(l) =>
-            switch (param_paren(l)) {
-            | Some(paren) => List.mem(target, IdTagged.ids(paren))
-            | None => false
-            }
-          | None => false
-          }
-        );
       switch (param_swap(1)) {
       | Some(k) => Some(k)
       | None =>
         switch (tuple_swap(1)) {
         | Some(k) => Some(k)
         | None =>
-          if (at_closing_param_paren) {
+          if (at_closing_param_paren(target)) {
             app(AddParameter);
           } else if (in_arm_zone) {
             app(ExpandWildcard);
@@ -4674,7 +4749,7 @@ let gesture =
             None;
           }
         }
-      };
+      }
     };
   };
 

@@ -2304,6 +2304,49 @@ let tuple_swap_tests = [
       check(string, "round trip", src, text_of(z2));
     },
   ),
+  test_case(
+    "tuple swap also targetable from the definition side",
+    `Quick,
+    () => {
+      let got =
+        inline(~kind=SwapTuplePat(0), "let (lo, hi) = (¦0, 100) in lo")
+        |> text_of;
+      check(string, "both sides", "let (hi, lo) = (100, 0) in lo", got);
+    },
+  ),
+  check_gesture(
+    "right on a def tuple component = swap both sides",
+    Right,
+    "let (lo, hi) = (¦0, 100) in lo",
+    Some(SwapTuplePat(0)),
+  ),
+  caret_at(
+    ~kind=SwapTuplePat(0),
+    "let (lo, hi) = (¦0, 100) in lo",
+    "(100, ¦0)",
+  ),
+  check_gesture(
+    "left at closing param paren = remove last (unused) param",
+    Left,
+    "let f = fun (a, b)¦ -> a in f(1, 2)",
+    Some(RemoveParameter),
+  ),
+  check_gesture(
+    "left at closing paren dead when last param is used",
+    Left,
+    "let f = fun (a, b)¦ -> a + b in f(1, 2)",
+    None,
+  ),
+  test_case(
+    "paren-invoked removal drops the last param",
+    `Quick,
+    () => {
+      let got =
+        inline(~kind=RemoveParameter, "let f = fun (a, b)¦ -> a in f(1, 2)")
+        |> text_of;
+      check(string, "removed", "let f = fun a -> a in f(1)", got);
+    },
+  ),
 ];
 
 let tests = [

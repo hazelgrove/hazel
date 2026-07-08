@@ -159,7 +159,9 @@ let gesture_hint = (kind: Action.refactor, label: string): option(string) => {
   | SinkLet
   | InlineLet
   | AddCaseArm => g("↓")
-  | SwapParams(_) => g("↔")
+  | SwapParams(_)
+  | SwapTuplePat(_) => g("↔")
+  | RemoveParameter => g("←")
   | NegateIf => g("↕")
   | SwapArms(_) => g(label == "Move arm up" ? "↑" : "↓")
   | ExpandWildcard => g("→")
@@ -169,8 +171,15 @@ let gesture_hint = (kind: Action.refactor, label: string): option(string) => {
 
 let refactor_data =
     (~info_map: Language.Statics.Map.t, ~term: Language.Exp.t, z: Zipper.t)
-    : list(Menu.item(Action.t)) =>
-  Refactor.menu_items(~info_map, ~term, z)
+    : list(Menu.item(Action.t)) => {
+  /* gesture-bound entries gather at the top (stable within groups) */
+  let (spatial, rest) =
+    Refactor.menu_items(~info_map, ~term, z)
+    |> List.partition(((kind, label, _)) =>
+         gesture_hint(kind, label) != None
+       );
+  spatial
+  @ rest
   |> List.map(((kind, label, tooltip)) =>
        action_item(
          ~shortcut=?gesture_hint(kind, label),
@@ -179,6 +188,7 @@ let refactor_data =
          Action.Refactor(kind),
        )
      );
+};
 
 let introduce_data =
     (ci: option(Language.Info.t)): list(Menu.item(Action.t)) =>
