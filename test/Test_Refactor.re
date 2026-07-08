@@ -1454,12 +1454,15 @@ let move_tests = [
     `Quick,
     () => {
       let got =
-        inline(~kind=SinkLet, "¦let x = 2 in case m | 1 => x | _ => 0 end")
+        inline(
+          ~kind=SinkLet,
+          "¦let x = 2 in case m | 1 => x + 1 | _ => 0 end",
+        )
         |> text_of;
       check(
         string,
         "conditional now",
-        "case m | 1 => let x = 2 in x | _ => 0 end",
+        "case m | 1 => let x = 2 in x + 1 | _ => 0 end",
         got,
       );
     },
@@ -1634,7 +1637,7 @@ let reparse_safety_tests = {
     case(
       "sink into sole using arm",
       SinkLet,
-      "¦let x = 2 in case m | 1 => x | _ => 0 end",
+      "¦let x = 2 in case m | 1 => x + 1 | _ => 0 end",
     ),
     case(
       "sink multiline chain",
@@ -2349,6 +2352,57 @@ let tuple_swap_tests = [
   ),
 ];
 
+let policy_tests = [
+  test_case(
+    "remove-unused keeps comments on both sides",
+    `Quick,
+    () => {
+      let got =
+        inline(
+          ~kind=RemoveUnusedLet,
+          "# about unused #\n¦let unused_demo = 123 in\n\n# about extract #\nlet extract_demo = g(2) in\n1",
+        )
+        |> text_of;
+      check(
+        bool,
+        "both comments survive: " ++ got,
+        true,
+        has_sub(got, "# about unused #") && has_sub(got, "# about extract #"),
+      );
+    },
+  ),
+  check_gesture(
+    "up on a let's whole def is dead (alias rule)",
+    Up,
+    "let speed = velocity ¦+ velocity in 1",
+    None,
+  ),
+  check_gesture(
+    "up on a nested subexpression of a def still extracts",
+    Up,
+    "let speed = g(velocity ¦+ velocity) in 1",
+    Some(ExtractLet),
+  ),
+  check_gesture(
+    "down yields to inline when the sole use is the whole def",
+    Down,
+    "¦let x = 2 in let y = x in y",
+    Some(InlineLet),
+  ),
+  check_gesture(
+    "down still sinks when the use is nested in the def",
+    Down,
+    "¦let x = 2 in let y = x + 1 in y",
+    Some(SinkLet),
+  ),
+  check_gesture(
+    "down yields to inline when the sole arm body is the bare use",
+    Down,
+    "¦let x = 2 in case m | 1 => x | _ => 0 end",
+    Some(InlineLet),
+  ),
+];
+
 let tests = [
   (
     "Refactor",
@@ -2375,6 +2429,7 @@ let tests = [
     @ extract_target_tests
     @ paren_gesture_tests
     @ tuple_swap_tests
+    @ policy_tests
     @ binding_tests
     @ reparse_safety_tests,
   ),

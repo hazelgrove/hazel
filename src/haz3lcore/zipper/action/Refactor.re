@@ -132,6 +132,21 @@ let strip_boundaries = (e: Exp.t): Exp.t => Slot.(drop(of_exp(e), e));
 let strip_leading = (e: Exp.t): Exp.t => Slot.(drop(lead_of(e), e));
 let strip_trailing = (e: Exp.t): Exp.t => Slot.(drop(trail_of(e), e));
 
+/* strip a plain-whitespace lead; a lead containing COMMENTS is user
+   content and stays put (RemoveUnusedLet once ate the next line's
+   comment block via a bare strip) */
+let strip_leading_ws = (e: Exp.t): Exp.t => {
+  let has_comment =
+    Slot.lead_of(e).lead
+    |> List.exists((w: Secondary.t) =>
+         switch (w.content) {
+         | Comment(_) => true
+         | _ => false
+         }
+       );
+  has_comment ? e : strip_leading(e);
+};
+
 let space = (): list(Secondary.t) => [
   {
     id: Id.mk(),
@@ -947,7 +962,7 @@ let rewrite_let =
         switch (IdTagged.term_of(e)) {
         | Let(p, def, body) when matches(p, def, body) =>
           let (result, f) = rewrite(p, def, body);
-          Some((strip_leading(result), f));
+          Some((strip_leading_ws(result), f));
         | _ => None
         },
     program,
@@ -1430,6 +1445,21 @@ let extract_path = (~target: Id.t, program: Exp.t): option(list(Exp.t)) =>
       );
     let path = head_of_ap ? List.filteri((i, _) => i < n - 1, path) : path;
     let t = List.nth(path, List.length(path) - 1);
+    /* extracting a let's ENTIRE def just manufactures an alias pair
+       (`let x = def in let orig = x`) — the whole-reference rule
+       again. Parens wrappers are transparent for this check. */
+    let whole_def = {
+      let rec check = (k: int, child: Exp.t) =>
+        k >= 0
+        && (
+          switch (IdTagged.term_of(List.nth(path, k))) {
+          | Let(_, def, _) => same_node(def, child)
+          | Parens(_) => check(k - 1, List.nth(path, k))
+          | _ => false
+          }
+        );
+      check(List.length(path) - 2, t);
+    };
     let blocked_ancestor =
       path
       |> List.filteri((i, _) => i < List.length(path) - 1)
@@ -1440,7 +1470,7 @@ let extract_path = (~target: Id.t, program: Exp.t): option(list(Exp.t)) =>
            | _ => false
            }
          );
-    extractable(t) && !blocked_ancestor ? Some(path) : None;
+    extractable(t) && !blocked_ancestor && !whole_def ? Some(path) : None;
   };
 
 /* unshadowed-use check is conservative: any occurrence counts */
@@ -2614,6 +2644,17 @@ let hoist_step =
  * ~fixup: move the target region's TEXTUAL lead (which lives on
  * leaves) onto the inserted let — prints, so gating passes false and
  * discards the runs */
+/* the destination slot is EXACTLY a bare use of the binding: sinking
+   there yields the pure wrapper `let x = d in x` — inline territory,
+   so the sink yields (keeps Up/Down inverses at the elevator's
+   bottom). Structural check only — no printing in gating paths. */
+let rec is_bare_use = (names: list(string), e: Exp.t): bool =>
+  switch (IdTagged.term_of(e)) {
+  | Var(y) => List.mem(y, names)
+  | Parens(inner) => is_bare_use(names, inner)
+  | _ => false
+  };
+
 let sink_step = (~fixup: bool, l: Exp.t): option((Exp.t, Id.t)) => {
   let take_lead = (region: Exp.t): (list(Secondary.t), Exp.t) =>
     if (fixup) {
@@ -2655,7 +2696,8 @@ let sink_step = (~fixup: bool, l: Exp.t): option((Exp.t, Id.t)) => {
         when
           disjoint_names(l_names, pat_var_names(mp))
           && names_mentioned(l_names, mdef)
-          && !names_mentioned(l_names, mbody) =>
+          && !names_mentioned(l_names, mbody)
+          && !is_bare_use(l_names, mdef) =>
       /* into the def that solely uses it: pure scope-minimization
          (same evaluation, narrower scope) — the missing edge of the
          region graph; inverse of hoist-out-of-def */
@@ -2680,7 +2722,8 @@ let sink_step = (~fixup: bool, l: Exp.t): option((Exp.t, Id.t)) => {
     | Fun(fp, fbody, ft, fn)
         when
           disjoint_names(l_names, pat_var_names(fp))
-          && !names_mentioned(pat_var_names(fp), ldef) =>
+          && !names_mentioned(pat_var_names(fp), ldef)
+          && !is_bare_use(l_names, fbody) =>
       /* into a lambda: evaluates per call */
       let (fb_lead, fbody') = take_lead(fbody);
       let l': Exp.t =
@@ -2710,7 +2753,8 @@ let sink_step = (~fixup: bool, l: Exp.t): option((Exp.t, Id.t)) => {
       | [(i, (rp, rb))]
           when
             disjoint_names(l_names, pat_var_names(rp))
-            && !names_mentioned(pat_var_names(rp), ldef) =>
+            && !names_mentioned(pat_var_names(rp), ldef)
+            && !is_bare_use(l_names, rb) =>
         let (rb_lead, rb') = take_lead(rb);
         let l': Exp.t =
           with_secondary(
@@ -2733,8 +2777,11 @@ let sink_step = (~fixup: bool, l: Exp.t): option((Exp.t, Id.t)) => {
       | _ => None
       }
     | If(c, t, alt) when !names_mentioned(l_names, c) =>
-      switch (names_mentioned(l_names, t), names_mentioned(l_names, alt)) {
-      | (true, false) =>
+      switch (
+        names_mentioned(l_names, t) && !is_bare_use(l_names, t),
+        names_mentioned(l_names, alt) && !is_bare_use(l_names, alt),
+      ) {
+      | (true, false) when !names_mentioned(l_names, alt) =>
         let (t_lead, t') = take_lead(t);
         let l': Exp.t =
           with_secondary(
@@ -2754,7 +2801,7 @@ let sink_step = (~fixup: bool, l: Exp.t): option((Exp.t, Id.t)) => {
           ),
           Exp.rep_id(l),
         ));
-      | (false, true) =>
+      | (false, true) when !names_mentioned(l_names, t) =>
         let (a_lead, alt') = take_lead(alt);
         let l': Exp.t =
           with_secondary(
