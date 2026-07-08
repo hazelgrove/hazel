@@ -130,7 +130,7 @@ let animate_enter = (node: Js.t(Dom.node)): unit => {
     };
   };
   run([("opacity", "0"), ("opacity", "1")]);
-  run([("transform", "scale(0.3)"), ("transform", "scale(1)")]);
+  run([("transform", "scale(0.1)"), ("transform", "scale(1)")]);
 };
 
 let animate_node =
