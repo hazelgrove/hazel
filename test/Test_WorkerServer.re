@@ -9,8 +9,8 @@
  * Chrome's smaller clone-stack limit.
  *
  * Coverage is per variant by what each can safely carry:
- *   - columnar (Wire) and marshal are depth-proof — deep + wide + shallow.
- *   - direct, array, sexp only get shallow/narrow payloads. Their failure on
+ *   - marshal is depth-proof — deep + wide + shallow.
+ *   - direct, sexp only get shallow/narrow payloads. Their failure on
  *     deep input is NOT asserted here: raw structuredClone on a deep graph
  *     overflows V8's *native* stack, which segfaults node uncatchably (in a
  *     browser it throws a catchable RangeError — that asymmetry is exactly why
@@ -18,8 +18,6 @@
  */
 open Alcotest;
 open Language;
-
-module Wire = WorkerServer.Wire;
 
 /* The same serializer postMessage applies to its argument. */
 let structured_clone: 'a. 'a => 'a =
@@ -122,9 +120,10 @@ let test_realistic_round_trip =
 
 /* A block reaching the boundary twice must decode as one block referenced
  * twice, not two copies — otherwise DAG-shaped payloads (e.g. IncrEval.prev)
- * expand on the way across. Every variant preserves sharing: columnar numbers
- * blocks by identity, marshal/sexp record sharing, and structuredClone (direct,
- * array) preserves aliasing. */
+ * expand on the way across. This is asserted for the variants that preserve
+ * sharing: marshal records sharing, and structuredClone (direct) preserves
+ * aliasing. (sexp is a tree format that legitimately duplicates shared
+ * structure, so it is excluded — see its group below.) */
 let test_sharing_preserved = (~rt): test_case(_) =>
   test_case(
     "Sharing preserved",
@@ -160,43 +159,11 @@ let shallow_tests = (~rt): list(test_case(_)) => [
   ),
 ];
 
-let columnar = rt_of_wire((module WorkerServer.Wire));
 let marshal = rt_of_wire((module WorkerServer.MarshalWire));
 let sexp = rt_of_wire((module WorkerServer.SexpWire));
 let direct = rt_of_wire((module WorkerServer.DirectWire));
-let array = rt_of_wire((module WorkerServer.ArrayWire));
 
 let tests = [
-  (
-    "WorkerServer.Wire",
-    [
-      test_deep_round_trip(
-        ~rt=columnar,
-        ~name="Deep (1k)",
-        ~clone=false,
-        ~depth=1000,
-      ),
-      test_deep_round_trip(
-        ~rt=columnar,
-        ~name="Deep (20k)",
-        ~clone=false,
-        ~depth=20000,
-      ),
-      test_deep_round_trip(
-        ~rt=columnar,
-        ~name="Deep through structuredClone (20k)",
-        ~clone=true,
-        ~depth=20000,
-      ),
-      test_wide_list_round_trip(
-        ~rt=columnar,
-        ~name="Wide list through structuredClone (10k)",
-        ~n=10_000,
-      ),
-    ]
-    @ shallow_tests(~rt=columnar)
-    @ [test_sharing_preserved(~rt=columnar)],
-  ),
   (
     /* Marshal is iterative, so also depth- and width-proof. */
     "WorkerServer.MarshalWire",
@@ -238,19 +205,5 @@ let tests = [
      * shared sub-structure (the derived converters don't record DAG sharing). */
     "WorkerServer.SexpWire",
     shallow_tests(~rt=sexp),
-  ),
-  (
-    /* ArrayWire flattens only the top-level spine; the list inside a single
-     * entry crosses raw, so keep the wide case at 1k. */
-    "WorkerServer.ArrayWire",
-    [
-      test_wide_list_round_trip(
-        ~rt=array,
-        ~name="Wide list through structuredClone (1k)",
-        ~n=1_000,
-      ),
-    ]
-    @ shallow_tests(~rt=array)
-    @ [test_sharing_preserved(~rt=array)],
   ),
 ];

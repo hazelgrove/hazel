@@ -4,11 +4,12 @@ open WorkerServer;
 let name = "worker.js"; // Worker file name
 let timeoutDuration = 20000; // Worker timeout in ms
 
-/* Worker exchanges columnar Wire payloads (flat typed arrays), not live
- * values, to dodge the structured-clone stack overflow on deep results
- * (#2368; see WorkerServer.Wire). Callers still deal in Request.t/Response.t.
- * When the debug panel is on, WireMetrics benchmarks the other variants
- * locally on the side. */
+/* Worker exchanges Wire payloads (a flat string produced by jsoo's iterative
+ * Marshal, which structured clone copies without recursing), not live values,
+ * to dodge the structured-clone stack overflow on deep results (#2368; see
+ * WorkerServer.Wire). Callers still deal in Request.t/Response.t. When the
+ * debug panel is on, WireMetrics benchmarks the other variants locally on the
+ * side. */
 let initWorker: unit => Js.t(Worker.worker(Wire.request, Wire.response)) =
   () => Worker.create(name);
 
