@@ -50,7 +50,11 @@ let masks_of_records =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type delimiter_info = {
   text: string, /* The delimiter token (e.g., "in", "->", ")") */
-  needs_hole: bool /* Whether a "?" follows this delimiter */
+  needs_hole: bool, /* Whether a "?" follows this delimiter */
+  /* When completing a prefix-token witness: how many chars of the
+     delimiter the user already typed (viz bolds the typed prefix and
+     fades the completed remainder) */
+  typed_len: option(int),
 };
 
 /* Information about a single insertion point for visualization.
@@ -483,6 +487,7 @@ let leading_insertions =
                      {
                        text: List.nth(t.label, List.hd(sh.shards)),
                        needs_hole: false,
+                       typed_len: None,
                      }
                    ),
             }
@@ -504,8 +509,9 @@ let middle_insertions = (incomplete: list(Tile.t)): list(insertion) =>
        interior
        |> List.filter_map(m => {
             switch (plan) {
-            | Some((pm, left, _, _)) when pm == m =>
-              /* junction drop: shard lands inside the child, no hole */
+            | Some((pm, left, _, psp)) when pm == m =>
+              /* junction/witness drop: shard lands inside the child,
+                 no hole */
               ListUtil.last_opt(left)
               |> Option.map(p =>
                    {
@@ -515,6 +521,12 @@ let middle_insertions = (incomplete: list(Tile.t)): list(insertion) =>
                        {
                          text: List.nth(t.label, m),
                          needs_hole: false,
+                         typed_len:
+                           Option.map(
+                             (sp: Language.IdTagged.IdTag.shard_prefix) =>
+                               sp.len,
+                             psp,
+                           ),
                        },
                      ],
                    }
@@ -532,6 +544,7 @@ let middle_insertions = (incomplete: list(Tile.t)): list(insertion) =>
                          {
                            text: List.nth(t.label, m),
                            needs_hole: shard_needs_hole(t, m),
+                           typed_len: None,
                          },
                        ],
                      }
@@ -880,6 +893,7 @@ let place_trailing_shards =
               {
                 text: List.nth(t.label, i),
                 needs_hole: shard_needs_hole(t, i),
+                typed_len: None,
               },
             entries,
           ),
@@ -971,10 +985,15 @@ let place_trailing_shards =
               let (before, after) = ListUtil.split_n(j, seg);
               let anchor = j > 0 ? List.nth_opt(seg, j - 1) : None;
               let seg = before @ [piece] @ List.tl(after);
+              let witness_prefix =
+                switch (witness) {
+                | Some(_) => prefix_of_witness(site, i)
+                | None => None
+                };
               let abs =
-                switch (witness, prefix_of_witness(site, i)) {
-                | (Some(_), Some(sp)) => [(t.id, sp), ...abs]
-                | _ => abs
+                switch (witness_prefix) {
+                | Some(sp) => [(t.id, sp), ...abs]
+                | None => abs
                 };
               let ins =
                 switch (anchor) {
@@ -986,6 +1005,12 @@ let place_trailing_shards =
                         {
                           text: List.nth(t.label, i),
                           needs_hole: false,
+                          typed_len:
+                            Option.map(
+                              (sp: Language.IdTagged.IdTag.shard_prefix) =>
+                                sp.len,
+                              witness_prefix,
+                            ),
                         },
                       ],
                     },
@@ -1010,6 +1035,7 @@ let place_trailing_shards =
                           {
                             text: List.nth(t.label, i),
                             needs_hole: false,
+                            typed_len: None,
                           },
                         ],
                       },
@@ -1026,6 +1052,7 @@ let place_trailing_shards =
                     {
                       text: List.nth(t.label, i),
                       needs_hole: shard_needs_hole(t, i),
+                      typed_len: None,
                     },
                   ],
                   abs,
@@ -1149,6 +1176,7 @@ let complete_segment =
                           {
                             text: "case",
                             needs_hole: false,
+                            typed_len: None,
                           },
                         ],
                       },
@@ -1159,6 +1187,7 @@ let complete_segment =
                           {
                             text: "end",
                             needs_hole: false,
+                            typed_len: None,
                           },
                         ],
                       },
