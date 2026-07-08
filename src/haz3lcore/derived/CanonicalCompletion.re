@@ -376,8 +376,10 @@ let rec opener_insertion_index = (sk: Skel.t, idx: int): option(int) => {
  * Ties: later tile (later closer) first at the same index = outermost. */
 /* Per leading-incomplete tile: (insertion index, closer index, tile),
  * position asc, same-position ties later-closer-first (outermost). */
+/* (position, tile index, tile, is_junction_replacement) */
 let opener_schedule =
-    (subseg: Segment.t, incomplete: list(Tile.t)): list((int, int, Tile.t)) => {
+    (subseg: Segment.t, incomplete: list(Tile.t))
+    : list((int, int, Tile.t, bool)) => {
   let leading_incomplete =
     incomplete |> List.filter((t: Tile.t) => Tile.l_shard(t) > 0);
   if (leading_incomplete == []) {
@@ -428,14 +430,62 @@ let opener_schedule =
         : rule_walls
           |> List.filter(w => w >= at && w < idx)
           |> List.fold_left((acc, w) => max(acc, w + 1), at);
+    /* Leading junction drops: a CONCAVE-LEFT leading shard (rules —
+       bin-molded tiles) is shape-qualified to fill an operator hole,
+       so it takes a unique sort-legal junction within its span over
+       maximal-left placement. Convex-left openers ((, [, case) can't
+       fill operator holes; maximal-left is correct for them
+       (`let a = 1,2]` -> `[1,2]`). */
+    let junction_for = (t: Tile.t, at: int, idx: int): option(int) =>
+      if (Tile.l_shard(t) != 1) {
+        None; /* exactly one missing leading shard */
+      } else {
+        let (l_nib, r_nib) = Mold.nibs(~index=0, t.mold);
+        switch (l_nib.shape) {
+        | Convex => None
+        | Concave(_) =>
+          let slice = (a, b) =>
+            ListUtil.split_n(b, subseg) |> fst |> ListUtil.split_n(a) |> snd;
+          let has_content =
+            List.exists(
+              fun
+              | Piece.Tile(_) => true
+              | _ => false,
+            );
+          let candidates =
+            List.init(max(idx - at, 0), k => at + k)
+            |> List.filter(j =>
+                 switch (List.nth(subseg, j)) {
+                 | Piece.Grout({shape: Concave, _}) => true
+                 | _ => false
+                 }
+               )
+            |> List.filter(j => {
+                 let left = slice(at, j);
+                 let right = slice(j + 1, idx);
+                 has_content(left)
+                 && has_content(right)
+                 && span_fits_sort(left, l_nib.sort)
+                 && span_fits_sort(right, r_nib.sort);
+               });
+          switch (candidates) {
+          | [j] => Some(j)
+          | _ => None
+          };
+        };
+      };
     leading_incomplete
     |> List.filter_map(t =>
          index_of(t)
-         |> Option.map(idx =>
-              (clamp(clamp_walls(t, at_of(idx), idx), idx), idx, t)
-            )
+         |> Option.map(idx => {
+              let at = clamp(clamp_walls(t, at_of(idx), idx), idx);
+              switch (junction_for(t, at, idx)) {
+              | Some(j) => (j, idx, t, true)
+              | None => (at, idx, t, false)
+              };
+            })
        )
-    |> List.sort(((a1, i1, _), (a2, i2, _)) =>
+    |> List.sort(((a1, i1, _, _), (a2, i2, _, _)) =>
          a1 == a2 ? compare(i2, i1) : compare(a1, a2)
        );
   };
@@ -444,15 +494,21 @@ let opener_schedule =
 let insert_openers = (subseg: Segment.t, incomplete: list(Tile.t)): Segment.t => {
   let scheduled =
     opener_schedule(subseg, incomplete)
-    |> List.map(((at, idx, t)) => (at, idx, leading_shards(t)));
+    |> List.map(((at, idx, t, repl)) => (at, idx, leading_shards(t), repl));
   let rec splice = (i, ps, sched) =>
     switch (sched) {
     | [] => ps
-    | [(at, _, openers), ...rest] when at == i =>
+    | [(at, _, openers, true), ...rest] when at == i =>
+      /* junction drop: the opener replaces the grout in place */
+      switch (ps) {
+      | [_, ...ptl] => openers @ splice(i + 1, ptl, rest)
+      | [] => openers @ splice(i, ps, rest)
+      }
+    | [(at, _, openers, false), ...rest] when at == i =>
       openers @ splice(i, ps, rest)
     | _ =>
       switch (ps) {
-      | [] => List.concat_map(((_, _, o)) => o, sched)
+      | [] => List.concat_map(((_, _, o, _)) => o, sched)
       | [p, ...ptl] => [p, ...splice(i + 1, ptl, sched)]
       }
     };
@@ -498,7 +554,7 @@ let shard_needs_hole = (t: Tile.t, shard_idx: int): bool => {
 let leading_insertions =
     (subseg: Segment.t, incomplete: list(Tile.t)): list(insertion) =>
   opener_schedule(subseg, incomplete)
-  |> List.filter_map(((at, _, t: Tile.t)) =>
+  |> List.filter_map(((at, _, t: Tile.t, _)) =>
        List.nth_opt(subseg, at)
        |> Option.map(p =>
             {
