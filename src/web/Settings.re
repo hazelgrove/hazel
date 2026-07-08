@@ -40,6 +40,7 @@ module Model = {
       auto_reindent: true,
       format_shortcut: Language.CoreSettings.FormatShortcut.Spaces,
       flip_animations: true,
+      animate_all_edits: false,
       display_warnings: true,
       selection_chunkiness: false,
       evaluation: {
@@ -169,6 +170,7 @@ module Update = {
     | ExplainThis(ExplainThisModel.Settings.action)
     | DisplayWarnings
     | FlipAnimations
+    | AnimateAllEdits
     | Quiver
     | Backpack
     | AutoprobeMode
@@ -264,6 +266,13 @@ module Update = {
           core: {
             ...settings.core,
             flip_animations: !settings.core.flip_animations,
+          },
+        }
+      | AnimateAllEdits => {
+          ...settings,
+          core: {
+            ...settings.core,
+            animate_all_edits: !settings.core.animate_all_edits,
           },
         }
       | DisplayWarnings => {

@@ -168,14 +168,38 @@ let rec jump_to_first_indicated = (z: t, ids: list(Id.t)): option(t) =>
     }
   }
 and jump_to_id_indicated = (z: t, id: Id.t): option(t) => {
-  let* z_l = jump_to_side_of_id(Left, z, id);
-  let* indicated_id = Indicated.index(z_l);
-  if (id == indicated_id) {
-    Some(z_l);
-  } else {
-    let* z_r = jump_to_side_of_id(Right, z, id);
-    let* indicated_id = Indicated.index(z_r);
-    id == indicated_id ? Some(z_r) : None;
+  /* structural fast path: place the caret directly instead of
+     token-walking from a buffer extreme (~90ms on a few-page buffer
+     for F12 / problem nav). The walk below remains as fallback. */
+  let structural = {
+    let seg = Zipper.unselect_and_zip(z);
+    let try_side = side =>
+      switch (Zipper.unzip_to_id(~side, id, seg)) {
+      | Some(zp) =>
+        let zp = {
+          ...zp,
+          refractors: z.refractors,
+        };
+        Indicated.index(zp) == Some(id) ? Some(zp) : None;
+      | None => None
+      };
+    switch (try_side(Direction.Left)) {
+    | Some(_) as r => r
+    | None => try_side(Direction.Right)
+    };
+  };
+  switch (structural) {
+  | Some(_) as r => r
+  | None =>
+    let* z_l = jump_to_side_of_id(Left, z, id);
+    let* indicated_id = Indicated.index(z_l);
+    if (id == indicated_id) {
+      Some(z_l);
+    } else {
+      let* z_r = jump_to_side_of_id(Right, z, id);
+      let* indicated_id = Indicated.index(z_r);
+      id == indicated_id ? Some(z_r) : None;
+    };
   };
 };
 

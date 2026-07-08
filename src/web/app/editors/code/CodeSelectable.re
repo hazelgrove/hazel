@@ -52,6 +52,7 @@ module Update = {
         Probe(_) |
         Format(_) |
         Refactor(_) |
+        RefactorGesture(_) |
         Dump |
         Introduce |
         ToggleLineComment,

@@ -142,6 +142,7 @@ type destruct =
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type refactor =
   | InlineLet
+  | FeedLet
   | RemoveUnusedLet
   | AddTypeAnnotation
   | EtaExpand
@@ -152,6 +153,8 @@ type refactor =
   | RemoveParameter
   | RenameFree(string, string)
   | SwapParams(int)
+  | SwapArms(int)
+  | SwapTuplePat(int)
   | HoistLet
   | SinkLet
   | IfToCase
@@ -159,6 +162,18 @@ type refactor =
   | ExtractLet
   | EtaReduce
   | NegateIf;
+
+/* Directional refactor gestures (see Refactor.gesture): the caret's
+ * target zone plus a direction resolves to a refactor, or a dead
+ * press */
+module Gesture = {
+  [@deriving (show({with_path: false}), sexp, yojson, eq)]
+  type t =
+    | Up
+    | Down
+    | Left
+    | Right;
+};
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type format =
@@ -185,6 +200,7 @@ type t =
   | Put_down
   | Introduce
   | Refactor(refactor)
+  | RefactorGesture(Gesture.t)
   | Probe(probe)
   | Format(format)
   | Dump
@@ -228,6 +244,7 @@ let is_edit: t => bool =
   | Put_down
   | Introduce
   | Refactor(_)
+  | RefactorGesture(_)
   | Buffer(Accept | Clear | Set(_))
   | Format(_)
   | Structural(_)
@@ -266,6 +283,7 @@ let is_historic: t => bool =
   | Put_down
   | Introduce
   | Refactor(_)
+  | RefactorGesture(_)
   | Format(_)
   | Structural(_)
   | Dump
@@ -298,6 +316,7 @@ let prevent_in_read_only_editor = (a: t) =>
   | Put_down
   | Introduce
   | Refactor(_)
+  | RefactorGesture(_)
   | Format(_)
   | Structural(_)
   | Dump
@@ -343,6 +362,7 @@ let should_animate: t => bool =
   | Structural(_)
   | Probe(_)
   | Refactor(_)
+  | RefactorGesture(_)
   | Format(_)
   | Dump
   | ToggleLineComment => true

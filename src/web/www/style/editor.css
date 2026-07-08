@@ -26,6 +26,18 @@
   font-size: var(--base-font-size);
 }
 
+/* inline-block so CSS transforms apply (CodeFlip.re animates these
+ * in place; transforms are ignored on plain inline boxes — a plain
+ * inline element here animates invisibly, i.e. snaps). Covers every
+ * element kind Code.re emits and CodeFlip animates: tokens, comments
+ * (incl. buffer styling). Layout is unchanged: all are single-line
+ * and never wrap internally. */
+.code .token,
+.code .comment,
+.code .in-unparsed-buffer {
+  display: inline-block;
+}
+
 .code-text {
   position: relative;
   z-index: var(--code-text-z);
@@ -654,6 +666,7 @@ svg:has(.child-line) {
   color: var(--menu-item-text);
   cursor: pointer;
   gap: 0.5em;
+  white-space: nowrap;
 }
 .context-menu .group .contents .named-menu-item {
   padding: 0.05em 0.5em 0.05em 0.7em;

@@ -81,6 +81,7 @@ module Update = {
              | Reparse
              | Introduce
              | Refactor(_)
+             | RefactorGesture(_)
              | Probe(StepInto(_))
              | Format(_)
              | Dump
@@ -94,9 +95,26 @@ module Update = {
          );
     switch (action) {
     | Perform(action) =>
-      settings.core.flip_animations && Action.should_animate(action)
-        ? Animation.request([Animation.Actions.move("caret")]) : ();
-
+      if (settings.core.flip_animations && Action.should_animate(action)) {
+        /* the indication backing FLIPs by id like the caret; ids only
+           survive the action when the same construct stays indicated
+           (focus-follows-content), which is exactly when motion makes
+           sense — otherwise the request drops out harmlessly */
+        Animation.request(
+          [Animation.Actions.move("caret")]
+          @ (
+            JsUtil.ids_with_prefix("indication-")
+            |> List.map(Animation.Actions.move)
+          ),
+        );
+        switch (action) {
+        | Refactor(_)
+        | RefactorGesture(_) => CodeFlip.request(model.editor.syntax)
+        | _ when settings.core.animate_all_edits && Action.is_edit(action) =>
+          CodeFlip.request(model.editor.syntax)
+        | _ => ()
+        };
+      };
       perform(action, model);
     | DebugConsole(key) =>
       DebugConsole.print(~settings, model, key);

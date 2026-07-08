@@ -330,6 +330,13 @@ let code_display_group = (~globals: Globals.t) => {
         tooltip: Some("Enable flip animations for code changes"),
       },
       {
+        name: "Animate All Edits",
+        active: globals.settings.core.animate_all_edits,
+        setting: AnimateAllEdits,
+        tooltip:
+          Some("Experimental: ghost-animate code movement on every edit"),
+      },
+      {
         name: "Line Numbers",
         active: globals.settings.line_numbers,
         setting: ToggleLineNumbers,
