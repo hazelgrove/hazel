@@ -88,6 +88,23 @@ let typ_all_ids = (ty: Typ.t): Id.Set.t => {
   acc^;
 };
 
+let meet = (ctx: Ctx.t, left: Typ.t, right: Typ.t): Typ.t =>
+  switch (Typ.meet(ctx, left, right)) {
+  | Some(ty) => ty
+  | None => left
+  };
+
+let meet_empty = meet(Ctx.empty);
+
+let meet_demands = (left: Typ.t, right: Typ.t): Typ.t =>
+  if (is_gap(left)) {
+    right;
+  } else if (is_gap(right)) {
+    left;
+  } else {
+    meet_empty(left, right);
+  };
+
 let exp_subtree_ids = (e: Exp.t): Id.Set.t => {
   let acc = ref(Id.Set.empty);
   let note = ids =>
@@ -119,23 +136,6 @@ let exp_subtree_ids = (e: Exp.t): Id.Set.t => {
   );
   acc^;
 };
-
-let meet = (ctx: Ctx.t, left: Typ.t, right: Typ.t): Typ.t =>
-  switch (Typ.meet(ctx, left, right)) {
-  | Some(ty) => ty
-  | None => left
-  };
-
-let meet_empty = meet(Ctx.empty);
-
-let meet_demands = (left: Typ.t, right: Typ.t): Typ.t =>
-  if (is_gap(left)) {
-    right;
-  } else if (is_gap(right)) {
-    left;
-  } else {
-    meet_empty(left, right);
-  };
 
 let queried_result = (query: Typ.t): result => {
   omitted: Id.Set.empty,
@@ -1252,6 +1252,15 @@ let rec branch_query_all_gap = (ty: Typ.t): bool =>
     | TypTuple(ts) => ts != [] && List.for_all(branch_query_all_gap, ts)
     | Arrow(a, b) => branch_query_all_gap(a) && branch_query_all_gap(b)
     | TypParamAp(_, args) => branch_query_all_gap(args)
+    | Sum(variants) =>
+      variants != []
+      && List.for_all(
+           fun
+           | ConstructorMap.Variant(_, _, None) => false
+           | ConstructorMap.Variant(_, _, Some(t)) => branch_query_all_gap(t)
+           | ConstructorMap.BadEntry(t) => branch_query_all_gap(t),
+           variants,
+         )
     | _ => false
     }
   );
@@ -1274,6 +1283,12 @@ let rebuild_typ_param_ap = (head: Typ.t, args: list(Typ.t)): Typ.t =>
   switch (args) {
   | [arg] => TypParamAp(head, arg) |> Typ.temp
   | _ => TypParamAp(head, TypTuple(args) |> Typ.temp) |> Typ.temp
+  };
+
+let typ_constructor_head = (ty: Typ.t): option(string) =>
+  switch (typ_param_ap_parts(ty)) {
+  | Some(({term: Var(name), _}, _)) => Some(name)
+  | _ => None
   };
 
 let rec split_branch_query = (supplied: Typ.t, query: Typ.t): (Typ.t, Typ.t) =>
@@ -1299,6 +1314,15 @@ let rec split_branch_query = (supplied: Typ.t, query: Typ.t): (Typ.t, Typ.t) =>
       (taken, residual);
     | _ =>
       switch (Typ.term_of(supplied), Typ.term_of(query)) {
+      | (_, Sum(variants)) =>
+        switch (typ_constructor_head(supplied)) {
+        | Some(name) =>
+          switch (split_sum_variant_query(name, supplied, variants)) {
+          | Some(split) => split
+          | None => (query, gap)
+          }
+        | None => (query, gap)
+        }
       | (Poly(_, _), _) =>
         let (_, body) = leading_poly_shape(supplied);
         split_branch_query(body, query);
@@ -1339,13 +1363,99 @@ and split_branch_query_list =
     collapse_gap_query(rebuild(List.map(fst, pairs))),
     collapse_gap_query(rebuild(List.map(snd, pairs))),
   );
+}
+and split_sum_variant_query =
+    (
+      name: string,
+      supplied: Typ.t,
+      variants: list(ConstructorMap.variant(Typ.t)),
+    )
+    : option((Typ.t, Typ.t)) => {
+  let entries =
+    List.map(
+      variant =>
+        switch (variant) {
+        | ConstructorMap.Variant(ctr, ann, Some(payload)) when ctr == name =>
+          let (taken, residual) = split_branch_query(supplied, payload);
+          (
+            true,
+            branch_query_all_gap(taken)
+              ? ConstructorMap.BadEntry(gap)
+              : ConstructorMap.Variant(ctr, ann, Some(taken)),
+            branch_query_all_gap(residual)
+              ? ConstructorMap.BadEntry(gap)
+              : ConstructorMap.Variant(ctr, ann, Some(residual)),
+          );
+        | ConstructorMap.Variant(ctr, _, None) when ctr == name => (
+            true,
+            variant,
+            ConstructorMap.BadEntry(gap),
+          )
+        | ConstructorMap.Variant(_)
+        | ConstructorMap.BadEntry(_) => (
+            false,
+            ConstructorMap.BadEntry(gap),
+            variant,
+          )
+        },
+      variants,
+    );
+  List.exists(((matched, _, _)) => matched, entries)
+    ? Some((
+        collapse_gap_query(
+          Sum(List.map(((_, taken, _)) => taken, entries)) |> Typ.temp,
+        ),
+        collapse_gap_query(
+          Sum(List.map(((_, _, residual)) => residual, entries))
+          |> Typ.temp,
+        ),
+      ))
+    : None;
 };
 
-let branch_queries = (branches: list(sty), query: Typ.t): list(Typ.t) => {
+let constructors_in_context = (ctx: Ctx.t): list(string) =>
+  List.filter_map(
+    fun
+    | Ctx.ConstructorEntry({name, _}) => Some(name)
+    | _ => None,
+    ctx.entries,
+  );
+
+let branch_sum_query =
+    (branch: sty, variants: list(ConstructorMap.variant(Typ.t)))
+    : option((Typ.t, Typ.t)) =>
+  switch (
+    branch.dispatch(Sum(variants) |> Typ.temp).context
+    |> constructors_in_context
+  ) {
+  | [name] =>
+    switch (split_sum_variant_query(name, branch.shape, variants)) {
+    | Some(split) => Some(split)
+    | None => Some((gap, Sum(variants) |> Typ.temp))
+    }
+  | _ => None
+  };
+
+let split_branch_sty_query = (branch: sty, query: Typ.t): (Typ.t, Typ.t) =>
+  switch (Typ.term_of(query)) {
+  | Sum(variants) =>
+    switch (branch_sum_query(branch, variants)) {
+    | Some(split) => split
+    | None => split_branch_query(branch.shape, query)
+    }
+  | _ => split_branch_query(branch.shape, query)
+  };
+
+let branch_queries =
+    (~sum_split=false, branches: list(sty), query: Typ.t): list(Typ.t) => {
+  let split = (branch: sty, residual) =>
+    sum_split
+      ? split_branch_sty_query(branch, residual)
+      : split_branch_query(branch.shape, residual);
   let (taken_rev, _) =
     List.fold_left(
       ((acc, residual), branch: sty) => {
-        let (taken, rest) = split_branch_query(branch.shape, residual);
+        let (taken, rest) = split(branch, residual);
         ([taken, ...acc], rest);
       },
       ([], query),
@@ -1389,7 +1499,7 @@ let if_ = (~shape: Typ.t, children: list(sty)): sty => {
         ...List.map2(
              (branch: sty, branch_query) => branch.dispatch(branch_query),
              branches,
-             branch_queries(branches, query),
+             branch_queries(~sum_split=true, branches, query),
            ),
       ])
     | _ => empty_result
@@ -1555,9 +1665,9 @@ let module_binding_names = (item: Mod.t): list(string) =>
 
 let module_item_value_ids = (item: Mod.t): Id.Set.t =>
   switch (item.term) {
-  | ModLet(_, e)
   | ModExp(e)
   | ModuleMod(_, e) => exp_subtree_ids(e)
+  | ModLet(_, _)
   | ModType(_)
   | EmptyHole
   | Invalid(_)
@@ -1577,9 +1687,7 @@ let module_item_adjustment =
         switch (item.term) {
         | ModLet(p, _) => (
             add,
-            remove
-            |> Id.Set.union(_, ids_set(pat_all_ids(p)))
-            |> Id.Set.union(_, module_item_value_ids(item)),
+            Id.Set.union(remove, ids_set(pat_all_ids(p))),
           )
         | _ => (add, Id.Set.union(remove, module_item_value_ids(item)))
         };
@@ -2205,6 +2313,42 @@ let source_ids = (e: Exp.t): Id.Set.t => {
   acc^;
 };
 
+let rec unused_binder_name_ids = (used: string => bool, p: Pat.t): Id.Set.t =>
+  switch (Pat.term_of(p)) {
+  | Parens(inner)
+  | Asc(inner, _) => unused_binder_name_ids(used, inner)
+  | Var(name) => used(name) ? Id.Set.empty : ids_set(IdTagged.ids(p))
+  | Tuple(ps)
+  | ListLit(ps) =>
+    List.fold_left(
+      (acc, p) => Id.Set.union(acc, unused_binder_name_ids(used, p)),
+      Id.Set.empty,
+      ps,
+    )
+  | TupLabel(_, p) => unused_binder_name_ids(used, p)
+  | Cons(hd, tl) =>
+    Id.Set.union(
+      unused_binder_name_ids(used, hd),
+      unused_binder_name_ids(used, tl),
+    )
+  | Ap(_, payload) => unused_binder_name_ids(used, payload)
+  | _ => Id.Set.empty
+  };
+
+let unreferenced_param_ids = (term: Exp.term, gamma: gamma): Id.Set.t =>
+  switch (binding_pat(term)) {
+  | Some(p) =>
+    unused_binder_name_ids(
+      name =>
+        switch (VarMap.lookup(gamma, name)) {
+        | Some(ty) => !is_gap(ty)
+        | None => false
+        },
+      p,
+    )
+  | None => Id.Set.empty
+  };
+
 let rec node_of_exp_info =
         (~seen=Id.Set.empty, m: Id.Map.t(Info.t), info: Info.exp): node => {
   let id = Exp.rep_id(info.user_term);
@@ -2283,7 +2427,17 @@ let rec node_of_exp_info =
                   q_domain,
                   binding_demand(term, codomain_slice.gamma),
                 );
-              let domain_slice = domain.dispatch(demand);
+              let domain_slice = {
+                let slice = domain.dispatch(demand);
+                {
+                  ...slice,
+                  omitted:
+                    Id.Set.union(
+                      slice.omitted,
+                      unreferenced_param_ids(term, codomain_slice.gamma),
+                    ),
+                };
+              };
               let psi =
                 is_gap(query)
                   ? gap
@@ -2852,6 +3006,18 @@ let match_focus_scrut_result =
   );
 };
 
+let annotation_ids = (p: Pat.t): Id.Set.t =>
+  switch (pat_annotation(p)) {
+  | Some(ty) => typ_all_ids(ty)
+  | None => Id.Set.empty
+  };
+
+let annotation_omissions = (p: Pat.t, demand: Typ.t): Id.Set.t =>
+  switch (pat_annotation(p)) {
+  | Some(ty) => typ_omissions(ty, demand)
+  | None => Id.Set.empty
+  };
+
 let binding_def_result =
     (m: Id.Map.t(Info.t), result: result, p: Pat.t, def: Exp.t): result => {
   let names = Pat.bound_vars(p);
@@ -2878,8 +3044,10 @@ let binding_def_result =
         result.omitted
         |> Id.Set.diff(_, def_ids)
         |> Id.Set.diff(_, pat_ids)
+        |> Id.Set.diff(_, annotation_ids(p))
         |> Id.Set.union(_, def_slice.omitted)
-        |> Id.Set.union(_, pattern_omissions(p, demand)),
+        |> Id.Set.union(_, pattern_omissions(p, demand))
+        |> Id.Set.union(_, annotation_omissions(p, demand)),
       gamma:
         gamma_join(gamma_discharge(result.gamma, names), def_slice.gamma),
       context: context_join(result.context, def_slice.context),
@@ -2898,18 +3066,14 @@ let fun_param_result = (result: result, p: Pat.t): result => {
   if (is_gap(demand)) {
     result;
   } else {
-    let ann_omitted =
-      switch (pat_annotation(p)) {
-      | Some(actual) => typ_omissions(actual, demand)
-      | None => Id.Set.empty
-      };
     {
       ...result,
       omitted:
         result.omitted
         |> Id.Set.diff(_, ids_set(pat_all_ids(p)))
+        |> Id.Set.diff(_, annotation_ids(p))
         |> Id.Set.union(_, pattern_omissions(p, demand))
-        |> Id.Set.union(_, ann_omitted),
+        |> Id.Set.union(_, annotation_omissions(p, demand)),
       gamma: gamma_discharge(result.gamma, names),
     };
   };
@@ -2968,6 +3132,71 @@ let binding_overlay =
   );
 };
 
+let rec pattern_binder_ids = (keep: string => bool, p: Pat.t): Id.Set.t =>
+  switch (Pat.term_of(p)) {
+  | Parens(inner)
+  | Asc(inner, _) => pattern_binder_ids(keep, inner)
+  | Var(name) => keep(name) ? ids_set(IdTagged.ids(p)) : Id.Set.empty
+  | Tuple(ps)
+  | ListLit(ps) =>
+    List.fold_left(
+      (acc, p) => Id.Set.union(acc, pattern_binder_ids(keep, p)),
+      Id.Set.empty,
+      ps,
+    )
+  | TupLabel(_, p) => pattern_binder_ids(keep, p)
+  | Cons(hd, tl) =>
+    Id.Set.union(pattern_binder_ids(keep, hd), pattern_binder_ids(keep, tl))
+  | Ap(_, payload) => pattern_binder_ids(keep, payload)
+  | _ => Id.Set.empty
+  };
+
+let pat_type_ids = (pat: Pat.t): Id.Set.t => {
+  let acc = ref(Id.Set.empty);
+  let note = ids =>
+    acc := List.fold_left((s, id) => Id.Set.add(id, s), acc^, ids);
+  ignore(
+    Pat.map_term(
+      ~f_typ=
+        (continue, t) => {
+          note(IdTagged.ids(t));
+          continue(t);
+        },
+      ~f_tpat=
+        (continue, tp) => {
+          note(IdTagged.ids(tp));
+          continue(tp);
+        },
+      pat,
+    ),
+  );
+  acc^;
+};
+
+let def_referenced_names =
+    (def: Exp.t, bound: list(string), omitted: Id.Set.t): list(string) => {
+  let acc = ref([]);
+  ignore(
+    Exp.map_term(
+      ~f_exp=
+        (continue, e) => {
+          switch (Exp.term_of(e)) {
+          | Var(name)
+              when
+                List.mem(name, bound)
+                && !Id.Set.mem(Exp.rep_id(e), omitted)
+                && !List.mem(name, acc^) =>
+            acc := [name, ...acc^]
+          | _ => ()
+          };
+          continue(e);
+        },
+      def,
+    ),
+  );
+  acc^;
+};
+
 let binding_def_focus_overlay =
     (focus: Id.t, m: Id.Map.t(Info.t), query: Typ.t, result: result): result => {
   let ancestors =
@@ -2983,13 +3212,20 @@ let binding_def_focus_overlay =
         | Let(p, def, _)
         | Theorem(p, def, _)
             when
-              exp_contains_focus(focus, def) && !pat_contains_focus(focus, p) => {
+              exp_contains_focus(focus, def) && !pat_contains_focus(focus, p) =>
+          let referenced =
+            def_referenced_names(def, Pat.bound_vars(p), result.omitted);
+          let reveal =
+            pat_subtree_ids(p)
+            |> Id.Set.diff(_, pat_type_ids(p))
+            |> Id.Set.diff(
+                 _,
+                 pattern_binder_ids(name => !List.mem(name, referenced), p),
+               );
+          {
             ...result,
-            omitted:
-              result.omitted
-              |> Id.Set.diff(_, pat_subtree_ids(p))
-              |> Id.Set.union(_, pattern_omissions(p, query)),
-          }
+            omitted: Id.Set.diff(result.omitted, reveal),
+          };
         | FixF(p, body, _)
             when
               exp_contains_focus(focus, body)
@@ -3060,31 +3296,6 @@ let cons_tail_focus_overlay =
   );
 };
 
-let ap_fn_focus_overlay =
-    (focus: Id.t, m: Id.Map.t(Info.t), result: result): result => {
-  let ancestors =
-    switch (Id.Map.find_opt(focus, m) |> Option.bind(_, info_ancestors)) {
-    | Some((ancestors, _)) => ancestors
-    | None => []
-    };
-  List.fold_left(
-    (result, ancestor) =>
-      switch (Id.Map.find_opt(ancestor, m)) {
-      | Some(Info.InfoExp({user_term, _})) =>
-        switch (Exp.term_of(user_term)) {
-        | Ap(_, fn, _) when exp_contains_focus(focus, fn) => {
-            ...result,
-            omitted: Id.Set.diff(result.omitted, exp_subtree_ids(fn)),
-          }
-        | _ => result
-        }
-      | _ => result
-      },
-    result,
-    ancestors,
-  );
-};
-
 let typabs_focus_overlay =
     (focus: Id.t, m: Id.Map.t(Info.t), result: result): result =>
   switch (Id.Map.find_opt(focus, m)) {
@@ -3101,6 +3312,61 @@ let typabs_focus_overlay =
     }
   | _ => result
   };
+
+let referenced_type_vars = (omitted: Id.Set.t, e: Exp.t): list(string) => {
+  let acc = ref([]);
+  ignore(
+    Exp.map_term(
+      ~f_typ=
+        (continue, t) => {
+          switch (Typ.term_of(t)) {
+          | Var(name) when !Id.Set.mem(Typ.rep_id(t), omitted) =>
+            acc := [name, ...acc^]
+          | _ => ()
+          };
+          continue(t);
+        },
+      e,
+    ),
+  );
+  acc^;
+};
+
+let typabs_binder_overlay =
+    (focus: Id.t, m: Id.Map.t(Info.t), root: Exp.t, result: result): result => {
+  let refs = referenced_type_vars(result.omitted, root);
+  let ancestors =
+    switch (Id.Map.find_opt(focus, m) |> Option.bind(_, info_ancestors)) {
+    | Some((ancestors, _)) => ancestors
+    | None => []
+    };
+  List.fold_left(
+    (result, ancestor) =>
+      switch (Id.Map.find_opt(ancestor, m)) {
+      | Some(Info.InfoExp({user_term, _})) =>
+        switch (Exp.term_of(user_term)) {
+        | TypAbs(tpat, body, _) when exp_contains_focus(focus, body) =>
+          switch (TPat.head_name_of(tpat)) {
+          | Some(name) when List.mem(name, refs) =>
+            let shell_ids =
+              Id.Set.diff(
+                exp_subtree_ids(user_term),
+                exp_subtree_ids(body),
+              );
+            {
+              ...result,
+              omitted: Id.Set.diff(result.omitted, shell_ids),
+            };
+          | _ => result
+          }
+        | _ => result
+        }
+      | _ => result
+      },
+    result,
+    ancestors,
+  );
+};
 
 let mod_contains_focus = (focus: Id.t, item: Mod.t): bool =>
   switch (item.term) {
@@ -3549,6 +3815,76 @@ let reveal_used_aliases = (m: Id.Map.t(Info.t), result: result): result => {
   };
 };
 
+let rec ap_spine = (e: Exp.t): (Exp.t, list(Exp.t)) =>
+  switch (Exp.term_of(e)) {
+  | Ap(_, fn, arg) =>
+    let (head, args) = ap_spine(fn);
+    (head, args @ [arg]);
+  | _ => (e, [])
+  };
+
+let rec head_type_args = (e: Exp.t): list(Typ.t) =>
+  switch (Exp.term_of(e)) {
+  | TypAp(fn, args) => head_type_args(fn) @ typ_args(args)
+  | Ap(_, fn, _) => head_type_args(fn)
+  | _ => []
+  };
+
+let rec head_var = (e: Exp.t): option(string) =>
+  switch (Exp.term_of(e)) {
+  | Var(name) => Some(name)
+  | TypAp(fn, _)
+  | Ap(_, fn, _)
+  | Parens(fn) => head_var(fn)
+  | _ => None
+  };
+
+let binding_def_of = (m: Id.Map.t(Info.t), name: string): option(Exp.t) =>
+  Id.Map.fold(
+    (_, info, acc) =>
+      switch (acc) {
+      | Some(_) => acc
+      | None =>
+        switch (info) {
+        | Info.InfoExp({user_term, _}) =>
+          switch (Exp.term_of(user_term)) {
+          | Let(p, def, _) when List.mem(name, Pat.bound_vars(p)) =>
+            Some(def)
+          | _ => None
+          }
+        | _ => None
+        }
+      },
+    m,
+    None,
+  );
+
+let rec nth_param_annotation = (n: int, def: Exp.t): option(Typ.t) =>
+  switch (Exp.term_of(def)) {
+  | TypAbs(_, body, _) => nth_param_annotation(n, body)
+  | Parens(e) => nth_param_annotation(n, e)
+  | Fun(p, body, _, _) =>
+    n == 0 ? pat_annotation(p) : nth_param_annotation(n - 1, body)
+  | _ => None
+  };
+
+let def_param_annotation_omissions =
+    (m: Id.Map.t(Info.t), head: Exp.t, slot: int, query: Typ.t): Id.Set.t =>
+  switch (head_var(head) |> Option.bind(_, binding_def_of(m))) {
+  | Some(def) =>
+    switch (nth_param_annotation(slot, def)) {
+    | Some(annotation) => typ_omissions(annotation, query)
+    | None => Id.Set.empty
+    }
+  | None => Id.Set.empty
+  };
+
+let unused_type_arg_ids = (head: Exp.t, query: Typ.t): Id.Set.t =>
+  head_type_args(head)
+  |> List.filter(arg => !typ_contains(arg, query))
+  |> List.map(arg => typ_all_ids(arg))
+  |> List.fold_left(Id.Set.union, Id.Set.empty);
+
 let ana_arg_edge_result =
     (focus: Id.t, m: Id.Map.t(Info.t), query: Typ.t, result: result): result => {
   let ancestors =
@@ -3556,20 +3892,26 @@ let ana_arg_edge_result =
     | Some((ancestors, _)) => ancestors
     | None => []
     };
-  let nearest_ap =
-    List.find_map(
+  let arg_fns =
+    List.filter_map(
       ancestor =>
         switch (Id.Map.find_opt(ancestor, m)) {
-        | Some(Info.InfoExp({user_term: {term: Ap(_, fn, arg), _}, _})) =>
-          Some((fn, arg))
+        | Some(Info.InfoExp({user_term: {term: Ap(_, fn, arg), _}, _}))
+            when
+              Id.equal(Exp.rep_id(arg), focus)
+              || exp_contains_focus(focus, arg) =>
+          Some(fn)
         | _ => None
         },
       ancestors,
     );
-  switch (nearest_ap) {
-  | Some((fn, arg))
-      when
-        Id.equal(Exp.rep_id(arg), focus) || exp_contains_focus(focus, arg) =>
+  let spine_heads =
+    arg_fns
+    |> List.map(source_ids)
+    |> List.fold_left(Id.Set.union, Id.Set.empty);
+  switch (arg_fns) {
+  | [fn, ..._] =>
+    let (head, _) = ap_spine(fn);
     let fn_slice =
       switch (
         dispatch_focus(m, Exp.rep_id(fn), Arrow(query, gap) |> Typ.temp)
@@ -3581,13 +3923,55 @@ let ana_arg_edge_result =
       omitted:
         result.omitted
         |> Id.Set.diff(_, source_ids(fn))
-        |> Id.Set.union(_, fn_slice.omitted),
+        |> Id.Set.diff(_, spine_heads)
+        |> Id.Set.union(_, fn_slice.omitted)
+        |> Id.Set.union(_, unused_type_arg_ids(head, query)),
       gamma: gamma_join(result.gamma, fn_slice.gamma),
       context: context_join(result.context, fn_slice.context),
       psi: result.psi,
       ana: result.ana,
     };
-  | _ => result
+  | [] => result
+  };
+};
+
+let ana_param_annotation_overlay =
+    (focus: Id.t, m: Id.Map.t(Info.t), query: Typ.t, result: result): result => {
+  let ancestors =
+    switch (Id.Map.find_opt(focus, m) |> Option.bind(_, info_ancestors)) {
+    | Some((ancestors, _)) => ancestors
+    | None => []
+    };
+  let nearest_fn =
+    List.find_map(
+      ancestor =>
+        switch (Id.Map.find_opt(ancestor, m)) {
+        | Some(Info.InfoExp({user_term: {term: Ap(_, fn, arg), _}, _}))
+            when
+              Id.equal(Exp.rep_id(arg), focus)
+              || exp_contains_focus(focus, arg) =>
+          Some(fn)
+        | _ => None
+        },
+      ancestors,
+    );
+  switch (nearest_fn) {
+  | Some(fn) =>
+    let (head, before) = ap_spine(fn);
+    {
+      ...result,
+      omitted:
+        Id.Set.union(
+          result.omitted,
+          def_param_annotation_omissions(
+            m,
+            head,
+            List.length(before),
+            query,
+          ),
+        ),
+    };
+  | None => result
   };
 };
 
@@ -3721,7 +4105,7 @@ let slice =
     | None => true
     | Some(id) => Id.equal(id, Exp.rep_id(root_info.user_term))
     };
-  let root_query = direction == `Ana && !whole_focus ? gap : query;
+  let root_query = whole_focus ? query : gap;
   let result = dispatch(root, root_query);
   let result =
     switch (focus) {
@@ -3781,6 +4165,7 @@ let slice =
         },
       )
       |> binding_overlay(focus_id, m)
+      |> typabs_binder_overlay(focus_id, m, root_info.user_term)
       |> reveal_used_aliases(m);
     | _ => result
     };
@@ -3807,9 +4192,9 @@ let slice =
       |> binding_def_focus_overlay(focus_id, m, query)
       |> projection_focus_overlay(focus_id, m)
       |> cons_tail_focus_overlay(focus_id, m)
-      |> ap_fn_focus_overlay(focus_id, m)
       |> typabs_focus_overlay(focus_id, m)
       |> binding_overlay(~except, focus_id, m)
+      |> ana_param_annotation_overlay(focus_id, m, query)
       |> reveal_used_aliases(m);
     | _ => result
     };

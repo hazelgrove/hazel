@@ -212,6 +212,7 @@ module ErrorSlicing = {
     | Arrow(a, b) => Typ.fresh(Arrow(fold(a), fold(b)))
     | Prod(ts) => Typ.fresh(Prod(List.map(fold, ts)))
     | List(t) => Typ.fresh(List(fold(t)))
+    | TypParamAp(fn, args) => Typ.fresh(TypParamAp(fn, fold(args)))
     | _ => typ
     };
   };
@@ -268,6 +269,36 @@ module ErrorSlicing = {
           Some((Typ.fresh(List(qs)), Typ.fresh(List(qa))))
         | None => Some((shell(syn), shell(ana)))
         }
+      | (TypParamAp(sf, sa), TypParamAp(af, aa))
+          when Typ.fast_equal(sf, af) =>
+        switch (queries(ctx, sa, aa)) {
+        | Some((qs, qa)) =>
+          Some((
+            Typ.fresh(TypParamAp(sf, qs)),
+            Typ.fresh(TypParamAp(af, qa)),
+          ))
+        | None => Some((shell(syn), shell(ana)))
+        }
+      | (TypTuple(ss), TypTuple(aas))
+          when List.length(ss) == List.length(aas) =>
+        let rec first_clash = (i, ss', aas') =>
+          switch (ss', aas') {
+          | ([s, ...srest], [a, ...arest]) =>
+            switch (queries(ctx, s, a)) {
+            | Some(q) => Some((i, q))
+            | None => first_clash(i + 1, srest, arest)
+            }
+          | _ => None
+          };
+        switch (first_clash(0, ss, aas)) {
+        | Some((i, (qs, qa))) =>
+          let wrap = (tys, q) =>
+            Typ.fresh(
+              TypTuple(List.mapi((j, t) => j == i ? q : fold(t), tys)),
+            );
+          Some((wrap(ss, qs), wrap(aas, qa)));
+        | None => Some((shell(syn), shell(ana)))
+        };
       | _ => Some((shell(syn), shell(ana)))
       }
     };
@@ -573,23 +604,31 @@ module TypeSlicing = {
           | Synthesizing => `Syn
           | Analyzing => `Ana
           };
-        try(
-          Some(
-            Id.Set.diff(
-              Statics.slice(
-                ~ctx=Info.ctx_of(ci),
-                ~focus=Some(Info.id_of(ci)),
-                ~direction,
-                root_exp,
-                query,
-              ).
-                omitted,
-              protected_ids(~info_map, ci),
-            ),
-          )
-        ) {
-        | _ => Some(Id.Set.empty)
+        let omitted =
+          Statics.slice(
+            ~ctx=Info.ctx_of(ci),
+            ~focus=Some(Info.id_of(ci)),
+            ~direction,
+            root_exp,
+            query,
+          ).
+            omitted;
+        if (DebugConsole.slice_reconstruction_logging^) {
+          let reconstruction =
+            Language.SliceReconstruct.reconstruct(omitted, root_exp)
+            |> ExpToSegment.exp_to_segment(
+                 ~settings=ExpToSegment.Settings.editable(~inline=true),
+                 _,
+               )
+            |> Printer.of_segment(~holes="?", _);
+          print_endline(
+            "SLICE "
+            ++ (direction == `Syn ? "syn" : "ana")
+            ++ " reconstruction: "
+            ++ reconstruction,
+          );
         };
+        Some(Id.Set.diff(omitted, protected_ids(~info_map, ci)));
       };
     };
 

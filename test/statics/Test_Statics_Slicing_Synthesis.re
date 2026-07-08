@@ -148,6 +148,30 @@ let products = [
 
 let functions = [
   synthesis_case(
+    "fun-binder-omit-unused",
+    "fun x : String -> 0",
+    "String -> Int",
+    "fun ? : String -> 0",
+  ),
+  synthesis_case(
+    "fun-binder-omit-annotated",
+    "fun (x : Int) -> 0",
+    "Int -> Int",
+    "fun (? : Int) -> 0",
+  ),
+  synthesis_case(
+    "fun-binder-keep-used",
+    "fun (x : Int) -> x",
+    "Int -> Int",
+    "fun (x : Int) -> x",
+  ),
+  synthesis_case(
+    "fun-binder-partial-use",
+    "fun (x : Int) -> fun (y : Int) -> x",
+    "Int -> Int -> Int",
+    "fun (x : Int) -> fun (? : Int) -> x",
+  ),
+  synthesis_case(
     "fun-full",
     "fun (x : Int) -> x",
     "Int -> Int",
@@ -163,13 +187,13 @@ let functions = [
     "fun-domain-only",
     "fun (x : Int) -> 1",
     "Int -> ?",
-    "fun (x : Int) -> ?",
+    "fun (? : Int) -> ?",
   ),
   synthesis_case(
     "fun-sugar-domain-only",
     "fun x : String -> 1 + 2",
     "String -> ?",
-    "fun x : String -> ?",
+    "fun ? : String -> ?",
   ),
   synthesis_case(
     ~focus=first_binop,
@@ -444,7 +468,7 @@ let control = [
     "match-focused-in-let-def",
     "type Option = typfun A -> None + Some(A) in type Digit = Zero + One in let parse_digit = fun s : String -> case s | \"0\" => Some(Zero) | \"1\" => Some(One) | _ => None end in parse_digit(\"5\")",
     "Option(Digit)",
-    "type Option = typfun A -> ? + Some(A) in type ? = ? in let parse_digit = fun ? -> case ? | ? => ? | ? => Some(?) | ? => ? end in parse_digit(?)",
+    "type Option = typfun A -> ? + Some(A) in type ? = ? in let ? = fun ? -> case ? | ? => ? | ? => Some(?) | ? => ? end in ?",
   ),
   synthesis_case("use-nat-lit", "use Nat in 1", "Nat", "use Nat in 1"),
   synthesis_case(

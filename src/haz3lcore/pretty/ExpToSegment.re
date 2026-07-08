@@ -2833,6 +2833,11 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
     wrap(typ, [mk_form(TypFun, id, [tp])] @ t);
   | TypParamAp(t1, t2) =>
     let id = typ |> Typ.rep_id;
+    let t2 =
+      switch (Typ.term_of(t2)) {
+      | Prod(_) => Parens(t2) |> Typ.temp
+      | _ => t2
+      };
     let+ t1 = go(t1)
     and+ t2 = go(t2);
     wrap(typ, t1 @ [mk_form(ApTyp, id, [t2])]);

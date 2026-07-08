@@ -235,9 +235,187 @@ let select_term = (id: Id.t, code: Web.CodeEditable.Model.t): Zipper.t =>
   | None => fail("could not select term")
   };
 
+let fun_binding_id = (name: string, model: Web.CodeEditable.Model.t): Id.t =>
+  info_exp_id(model, e =>
+    switch (Exp.term_of(e)) {
+    | Fun(p, _, _, _) => List.mem(name, Pat.bound_vars(p))
+    | _ => false
+    }
+  );
+
+let exp_var_id = (name: string, model: Web.CodeEditable.Model.t): Id.t =>
+  info_exp_id(model, e =>
+    switch (Exp.term_of(e)) {
+    | Var(v) => v == name
+    | _ => false
+    }
+  );
+
+let ana_slicing_model = (~typed=false, focus: Id.t, query: string): CI.Model.t => {
+  syn: CI.Model.empty_row,
+  ana: query_row(~typed, focus, query),
+  menu: CI.Model.NoMenu,
+  anchor: CI.Model.OptionalId.SomeId(focus),
+  anchor_caret: CI.Model.NoCaret,
+  focus_target: CI.Model.Main,
+};
+
+let fold_slice_dir =
+    (~typed=false, ~ana=false, ~focus, ~query, src: string): string => {
+  let code = code_model(src);
+  let focus = focus(code);
+  let cursor_inspector =
+    ana
+      ? ana_slicing_model(~typed, focus, query)
+      : slicing_model(~typed, focus, query);
+  let result =
+    CI.ProgramFolds.apply_type_slice(
+      ~info_map=code.statics.info_map,
+      ~fallback_ci=None,
+      ~cursor_inspector,
+      code,
+    );
+  render_folded(result.model);
+};
+
+let demo_src = "type Option = typfun A -> None + Some(A) in type Digit = Zero + One + Two + Three + Four + Five + Six + Seven + Eight + Nine in type Pin = (Digit, Digit, Digit, Digit) in let parse_digit = fun c : String -> case c | \"0\" => Some(Zero) | \"1\" => Some(One) | \"2\" => Some(Two) | \"3\" => Some(Three) | \"4\" => Some(Four) | \"5\" => Some(Five) | \"6\" => Some(Six) | \"7\" => Some(Seven) | \"8\" => Some(Eight) | \"9\" => Some(Nine) | _ => None end in let seq = abs A -> abs B -> fun (p : String -> Option((String, A))) -> fun (f : A -> Option((String, B))) -> fun (s : String) -> case p(s) | None => None | Some((s2, a)) => f(a) end in let digit_parser = fun (s : String) -> case parse_digit(s) | Some(d) => Some((s, d)) | None => None end in let parse_pin = fun (s : String) -> seq@<Digit, Pin>(digit_parser)(fun (d1 : Digit) -> seq@<Digit, Pin>(digit_parser)(fun (d2 : Digit) -> seq@<Digit, Pin>(digit_parser)(fun (d3 : Digit) -> seq@<Digit, Pin>(digit_parser)(fun (d4 : Digit) -> fun (s2 : String) -> Some((s2, (d1, d2, d3, d4))))(s))(s))(s))(s) in parse_pin(\"1234\")";
+
+let temp_probe = (~ana=false, ~focus, ~query, name) =>
+  test_case(
+    "PROBE " ++ name,
+    `Quick,
+    () => {
+      print_endline(
+        "PROBE "
+        ++ name
+        ++ ": "
+        ++ fold_slice_dir(~typed=true, ~ana, ~focus, ~query, demo_src),
+      );
+      check(bool, "probe", true, true);
+    },
+  );
+
+let temp_probes = [
+  temp_probe(
+    ~focus=fun_binding_id("d4"),
+    ~query="Digit -> String -> Option((String, Pin))",
+    "syn-err",
+  ),
+  temp_probe(
+    ~ana=true,
+    ~focus=fun_binding_id("d4"),
+    ~query="Digit -> Option((String, Pin))",
+    "ana-err",
+  ),
+  temp_probe(
+    ~focus=exp_var_id("parse_pin"),
+    ~query="String -> Option((String, Pin))",
+    "syn-parse-pin",
+  ),
+  temp_probe(
+    ~focus=exp_var_id("parse_digit"),
+    ~query="String -> Option(Digit)",
+    "syn-parse-digit",
+  ),
+];
+
+let temp_direct =
+  test_case(
+    "PROBE direct",
+    `Quick,
+    () => {
+      let code = code_model(demo_src);
+      let focus = exp_var_id("parse_pin", code);
+      let ci = Id.Map.find(focus, code.statics.info_map);
+      let root_exp =
+        switch (CI.ProgramFolds.root_exp(code)) {
+        | Some(root_exp) => root_exp
+        | None => fail("root_exp failed")
+        };
+      let result =
+        Statics.slice(
+          ~ctx=Info.ctx_of(ci),
+          ~focus=Some(focus),
+          ~direction=`Syn,
+          root_exp,
+          parse_typ("String -> Option((String, Pin))"),
+        );
+      print_endline(
+        "PROBE direct omitted count: "
+        ++ string_of_int(Id.Set.cardinal(result.omitted)),
+      );
+      let row =
+        slicing_model(~typed=true, focus, "String -> Option((String, Pin))").
+          syn;
+      switch (CI.TypeSlicing.query_of_row(row)) {
+      | Some(q) => print_endline("PROBE query_of_row: " ++ render_typ(q))
+      | None => print_endline("PROBE query_of_row: NONE")
+      };
+      switch (
+        CI.TypeSlicing.slice_for_target(
+          ~root_exp,
+          ~info_map=code.statics.info_map,
+          ~ci,
+          CI.TypeTarget.Synthesizing,
+          row,
+        )
+      ) {
+      | Some(ids) =>
+        print_endline(
+          "PROBE slice_for_target count: "
+          ++ string_of_int(Id.Set.cardinal(ids)),
+        )
+      | None => print_endline("PROBE slice_for_target: NONE")
+      };
+      let unprotected =
+        Statics.slice(
+          ~ctx=Info.ctx_of(ci),
+          ~focus=Some(focus),
+          ~direction=`Syn,
+          root_exp,
+          parse_typ("String -> Option((String, Pin))"),
+        ).
+          omitted;
+      print_endline(
+        "PROBE protected overlap: "
+        ++ string_of_int(
+             Id.Set.cardinal(
+               Id.Set.inter(
+                 unprotected,
+                 CI.TypeSlicing.protected_ids(
+                   ~info_map=code.statics.info_map,
+                   ci,
+                 ),
+               ),
+             ),
+           ),
+      );
+      check(bool, "probe", true, true);
+    },
+  );
+
+let temp_explain =
+  test_case(
+    "PROBE explain",
+    `Quick,
+    () => {
+      let code = code_model(demo_src);
+      let focus = fun_binding_id("d4", code);
+      let ci = Id.Map.find(focus, code.statics.info_map);
+      switch (CI.ErrorSlicing.for_info(ci)) {
+      | Some((qs, qa)) =>
+        print_endline("PROBE explain syn: " ++ render_typ(qs));
+        print_endline("PROBE explain ana: " ++ render_typ(qa));
+      | None => print_endline("PROBE explain: NONE")
+      };
+      check(bool, "probe", true, true);
+    },
+  );
+
 let tests = (
   "TypeSlicing.UI",
-  [
+  [temp_direct, temp_explain, ...temp_probes]
+  @ [
     test_case(
       "selection root anchors the selected term",
       `Quick,
@@ -337,7 +515,7 @@ let tests = (
       ~focus=ctor_arg_ap_id("One"),
       ~query="None + Some(Digit)",
       ~expected=
-        "type Option = typfun A -> ? + Some(A) in type ? = ? in let parse_digit = fun ? -> case ? | ? => ? | ? => Some(?) | ? => ? end in parse_digit(?)",
+        "type Option = typfun A -> ? + Some(A) in type ? = ? in let ? = fun ? -> case ? | ? => ? | ? => Some(?) | ? => ? end in ?",
     ),
     case(
       ~name="gap query on focused branch keeps context",
