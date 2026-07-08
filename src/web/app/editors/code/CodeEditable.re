@@ -104,6 +104,7 @@ module Update = {
           [Animation.Actions.move("caret")]
           @ (
             JsUtil.ids_with_prefix("indication-")
+            @ JsUtil.ids_with_prefix("varhl-")
             |> List.map(Animation.Actions.move)
           ),
         );

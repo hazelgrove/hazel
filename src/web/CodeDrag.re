@@ -40,9 +40,12 @@ type cand = {
   label: string,
   cur: vec, /* text-box-local px */
   tgt: vec,
+  scroll_rows: int, /* commit-time scroll bump (pinned extract) */
   /* whole-buffer scrub: tokens displaced by this candidate, with
      their px deltas (built at compute; animations made lazily) */
   moved: list((CodeFlip.key, Js.t(Dom.node), float, float)),
+  /* anchored decorations riding their tokens (var highlights etc.) */
+  moved_decos: list((Js.t(Dom.node), float, float)),
 };
 
 /* Candidate enumeration must wait for the model to settle: on arm,
@@ -185,8 +188,9 @@ let scrub_clear = (s: session): unit => {
 };
 
 let make_anims = (c: cand): list(Js.Unsafe.any) =>
-  c.moved
-  |> List.filter_map(((_, node, dx, dy)) => {
+  (c.moved |> List.map(((_, node, dx, dy)) => (node, dx, dy)))
+  @ c.moved_decos
+  |> List.filter_map(((node, dx, dy)) => {
        let keyframes =
          Js.Unsafe.obj([|
            (
@@ -241,8 +245,9 @@ let anim_t = (anims: list(Js.Unsafe.any)): float =>
    must CONTINUE motion, never restart it */
 let relax_from = (c: cand, t: float): unit =>
   if (t > 0.01) {
-    c.moved
-    |> List.iter(((_, node, dx, dy)) => {
+    (c.moved |> List.map(((_, node, dx, dy)) => (node, dx, dy)))
+    @ c.moved_decos
+    |> List.iter(((node, dx, dy)) => {
          let keyframes =
            Js.Unsafe.obj([|
              (
@@ -405,6 +410,7 @@ let end_session = () => {
   | None => ()
   };
   Dom_html.document##.body##.style##.cursor := Js.string("");
+  Dom_html.document##.body##.classList##remove(Js.string("code-dragging"));
   remove_overlay();
   session := None;
 };
@@ -429,6 +435,9 @@ let on_move = (e: Js.t(Dom_html.event)): unit =>
       if (d > slop) {
         s.began = true;
         Dom_html.document##.body##.style##.cursor := Js.string("grabbing");
+        Dom_html.document##.body##.classList##add(
+          Js.string("code-dragging"),
+        );
       };
     };
     if (s.began && s.pending == Idle) {
@@ -451,6 +460,9 @@ let on_up = (_e: Js.t(Dom_html.event)): unit =>
         c.moved
         |> List.map(((k, _, dx, dy)) => (k, (dx *. s.t, dy *. s.t))),
       );
+      if (c.scroll_rows > 0) {
+        CodeFlip.set_scroll_bump(~rows=c.scroll_rows, ~near=s.text_box);
+      };
       CodeFlip.adopt(s.scrub_anims |> List.concat_map(snd));
       s.scrub_anims = [];
       s.scrub_active = None;
@@ -573,8 +585,10 @@ let sync =
       scrub_clear(s);
       let pairs = live_pairs(segment);
       /* tokens this candidate displaces, in px (single-row tokens
-         only, matching CodeFlip's guard) */
-      let moved_for = (cand_m: Measured.t) =>
+         only, matching CodeFlip's guard); candidate positions read
+         through the kind's screen frame */
+      let moved_for =
+          (frame: Refactor.DragCandidate.frame, cand_m: Measured.t) =>
         pairs
         |> List.filter_map(((k, node)) =>
              switch (
@@ -582,17 +596,47 @@ let sync =
                CodeFlip.find_meas(cand_m, k),
              ) {
              | (Some(o), Some(n))
-                 when
-                   o.origin != n.origin
-                   && o.origin.row == o.last.row
-                   && n.origin.row == n.last.row =>
-               let dx =
-                 float_of_int(n.origin.col - o.origin.col)
-                 *. font_metrics.col_width;
-               let dy =
-                 float_of_int(n.origin.row - o.origin.row)
-                 *. font_metrics.row_height;
-               Some((k, node, dx, dy));
+                 when o.origin.row == o.last.row && n.origin.row == n.last.row =>
+               let n_origin =
+                 Refactor.DragCandidate.frame_point(frame, n.origin);
+               if (o.origin == n_origin) {
+                 None;
+               } else {
+                 let dx =
+                   float_of_int(n_origin.col - o.origin.col)
+                   *. font_metrics.col_width;
+                 let dy =
+                   float_of_int(n_origin.row - o.origin.row)
+                   *. font_metrics.row_height;
+                 Some((k, node, dx, dy));
+               };
+             | _ => None
+             }
+           );
+      /* anchored decorations (DOM id "varhl-<uuid>" etc.): same
+         deltas as their anchor tokens, found by id in both frames */
+      let decos_for =
+          (frame: Refactor.DragCandidate.frame, cand_m: Measured.t) =>
+        CodeFlip.anchored_decos()
+        |> List.filter_map(((id, node)) =>
+             switch (
+               Measured.find_by_id(id, measured),
+               Measured.find_by_id(id, cand_m),
+             ) {
+             | (Some(o), Some(n)) =>
+               let n_origin =
+                 Refactor.DragCandidate.frame_point(frame, n.origin);
+               if (o.origin == n_origin) {
+                 None;
+               } else {
+                 let dx =
+                   float_of_int(n_origin.col - o.origin.col)
+                   *. font_metrics.col_width;
+                 let dy =
+                   float_of_int(n_origin.row - o.origin.row)
+                   *. font_metrics.row_height;
+                 Some((node, dx, dy));
+               };
              | _ => None
              }
            );
@@ -605,7 +649,9 @@ let sync =
                label: c.label,
                cur: px(c.current),
                tgt: px(c.target),
-               moved: moved_for(c.measured),
+               scroll_rows: c.frame.scroll_rows,
+               moved: moved_for(c.frame, c.measured),
+               moved_decos: decos_for(c.frame, c.measured),
              }
            );
       s.cands = cands;

@@ -5112,18 +5112,51 @@ let gesture =
  * policy v1). */
 
 module DragCandidate = {
+  /* how the candidate layout maps onto the screen during the drag
+     (the space-duality rule): candidate rows >= shift_from move by
+     shift_rows; scroll_rows bumps the scroller at commit.
+     - remove-kinds (feed): +N below the vacated line — bystanders
+       and the target hold their LIVE positions; the blank persists
+       until release (two-stage).
+     - add-kinds (extract): global -N + a commit scroll bump — the
+       origin line stays pinned while space opens above it. */
+  type frame = {
+    shift_from: int,
+    shift_rows: int,
+    scroll_rows: int,
+  };
+  let no_frame = {
+    shift_from: 0,
+    shift_rows: 0,
+    scroll_rows: 0,
+  };
+  let frame_point = (f: frame, p: Measured.Point.t): Measured.Point.t =>
+    p.row >= f.shift_from
+      ? {
+        ...p,
+        row: p.row + f.shift_rows,
+      }
+      : p;
+
   type t = {
     dir: Action.Gesture.t,
     kind: Action.refactor,
     label: string,
     current: Measured.Point.t, /* track start (live layout) */
-    target: Measured.Point.t, /* track end (candidate layout) */
+    target: Measured.Point.t, /* track end (screen frame) */
+    frame,
     term: Exp.t,
     focus: Id.t,
     segment: Segment.t,
     measured: Measured.t,
   };
 };
+
+let total_rows = (m: Measured.t): int =>
+  switch (Measured.Rows.max_binding_opt(m.rows)) {
+  | Some((r, _)) => r + 1
+  | None => 0
+  };
 
 /* (from, to) anchor ids for a kind's track */
 let drag_anchor =
@@ -5191,18 +5224,45 @@ let drag_candidates =
             | None => to_pos(focus)
             },
           ) {
-          | (Some(cur), Some(tgt)) when cur.origin != tgt =>
-            Some({
-              DragCandidate.dir,
-              kind,
-              label: impl(kind).label,
-              current: cur.origin,
-              target: tgt,
-              term: term',
-              focus,
-              segment,
-              measured: cand_measured,
-            })
+          | (Some(cur), Some(tgt)) =>
+            let live_rows = total_rows(measured);
+            let cand_rows = total_rows(cand_measured);
+            let frame =
+              switch (kind) {
+              | FeedLet when live_rows > cand_rows =>
+                /* two-stage: the vacated lines persist as blank
+                   until release; everything at/below them holds its
+                   live position */
+                {
+                  DragCandidate.shift_from: cur.origin.row,
+                  shift_rows: live_rows - cand_rows,
+                  scroll_rows: 0,
+                }
+              | ExtractLet when cand_rows > live_rows =>
+                /* pinned origin: space opens above the grabbed line;
+                   above-content slides up; commit bumps the scroll */
+                {
+                  DragCandidate.shift_from: 0,
+                  shift_rows: live_rows - cand_rows,
+                  scroll_rows: cand_rows - live_rows,
+                }
+              | _ => DragCandidate.no_frame
+              };
+            let tgt = DragCandidate.frame_point(frame, tgt);
+            cur.origin != tgt
+              ? Some({
+                  DragCandidate.dir,
+                  kind,
+                  label: impl(kind).label,
+                  current: cur.origin,
+                  target: tgt,
+                  frame,
+                  term: term',
+                  focus,
+                  segment,
+                  measured: cand_measured,
+                })
+              : None;
           | _ => None
           };
         }

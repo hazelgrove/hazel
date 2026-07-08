@@ -1818,6 +1818,45 @@ let drag_tests = [
     },
   ),
   test_case(
+    "drag candidates: two-stage feed targets the LIVE use position",
+    `Quick,
+    () => {
+      let cs = drag_cands("¦let x = 2 in\nx + a");
+      let feed =
+        cs
+        |> List.find_opt((c: Refactor.DragCandidate.t) => c.kind == FeedLet);
+      check(bool, "feed present", true, feed != None);
+      switch (feed) {
+      | Some(c) =>
+        /* consuming the let removes a line; the use holds its live
+           row (row 1) — the blank persists until release */
+        check(int, "live use row", 1, c.target.row);
+        check(int, "no scroll bump", 0, c.frame.scroll_rows);
+      | None => ()
+      };
+    },
+  ),
+  test_case(
+    "drag candidates: pinned extract targets one row up + scroll bump",
+    `Quick,
+    () => {
+      let cs = drag_cands("let a = 1 in\nlet y = f(1 ¦+ 2) in\ny");
+      let ext =
+        cs
+        |> List.find_opt((c: Refactor.DragCandidate.t) =>
+             c.kind == ExtractLet
+           );
+      check(bool, "extract present", true, ext != None);
+      switch (ext) {
+      | Some(c) =>
+        check(int, "grabbed on row 1", 1, c.current.row);
+        check(int, "target one row up", 0, c.target.row);
+        check(int, "one-line scroll bump", 1, c.frame.scroll_rows);
+      | None => ()
+      };
+    },
+  ),
+  test_case(
     "drag candidates: feed track runs def -> use",
     `Quick,
     () => {

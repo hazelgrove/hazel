@@ -226,6 +226,61 @@ let set_drag_offsets = (l: list((key, (float, float)))): unit =>
    commit's own flights take over the same elements. */
 let adopt = (anims: list(Js.Unsafe.any)): unit => active := anims @ active^;
 
+/* Anchored decorations: elements whose DOM id is "<prefix><uuid>"
+   ride the token with that id — one rail for the drag scrub and the
+   commit flights (a deco missing an anchor just doesn't move). */
+let deco_prefixes = ["varhl-"];
+
+let anchored_decos = (): list((Id.t, Js.t(Dom.node))) =>
+  deco_prefixes
+  |> List.concat_map(prefix =>
+       JsUtil.ids_with_prefix(prefix)
+       |> List.filter_map(dom_id =>
+            switch (
+              Id.of_string(
+                String.sub(
+                  dom_id,
+                  String.length(prefix),
+                  String.length(dom_id) - String.length(prefix),
+                ),
+              )
+            ) {
+            | exception _ => None
+            | None => None
+            | Some(id) =>
+              JsUtil.get_elem_by_id_opt(dom_id)
+              |> Option.map(el => (id, (el :> Js.t(Dom.node))))
+            }
+          )
+     );
+
+/* Commit-time scroll bump (pinned-frame extract): applied when the
+   flights start — same frame as the layout change, after the patch —
+   so nothing visibly moves; every flight offset gets the bump added
+   since document coordinates shifted under the pinned content. */
+let scroll_bump: ref(option((Js.t(Dom_html.element), int))) = ref(None);
+
+let set_scroll_bump = (~rows: int, ~near: Js.t(Dom_html.element)): unit => {
+  /* nearest scrollable ancestor */
+  let rec scroller = (el: Js.t(Dom_html.element)) =>
+    if (el##.scrollHeight > el##.clientHeight) {
+      Some(el);
+    } else {
+      switch (Js.Opt.to_option(el##.parentNode)) {
+      | Some(p) =>
+        switch (Js.Opt.to_option(Dom_html.CoerceTo.element(p))) {
+        | Some(p) => scroller(p)
+        | None => None
+        }
+      | None => None
+      };
+    };
+  switch (scroller(near)) {
+  | Some(el) => scroll_bump := Some((el, rows))
+  | None => scroll_bump := None
+  };
+};
+
 /* Call after render. The active editor's .code-text is located via
  * the caret: caret lives in .code-container > .code-deco, a sibling
  * of .code > .code-text (the scoped selector avoids matching code
@@ -241,6 +296,15 @@ let go = (~syntax: CachedSyntax.t, ~font_metrics: FontMetrics.t): unit =>
     cancel_active();
     let offsets = drag_offsets^;
     drag_offsets := [];
+    let bump_y =
+      switch (scroll_bump^) {
+      | Some((el, rows)) =>
+        let px = float_of_int(rows) *. font_metrics.row_height;
+        el##.scrollTop :=  el##.scrollTop + int_of_float(px);
+        px;
+      | None => 0.
+      };
+    scroll_bump := None;
     let new_m = syntax.measured;
     switch (JsUtil.get_elem_by_id_opt("caret")) {
     | None => ()
@@ -289,16 +353,49 @@ let go = (~syntax: CachedSyntax.t, ~font_metrics: FontMetrics.t): unit =>
                       && List.length(moved)
                       + List.length(entered) <= max_moved) {
                     moved
-                    |> List.iter(((k, node, o, n)) =>
+                    |> List.iter(((k, node, o, n)) => {
+                         let (ex, ey) =
+                           List.assoc_opt(k, offsets)
+                           |> Option.value(~default=(0., 0.));
                          animate_node(
                            ~font_metrics,
-                           ~extra=
-                             List.assoc_opt(k, offsets)
-                             |> Option.value(~default=(0., 0.)),
+                           ~extra=(ex, ey +. bump_y),
                            node,
                            o,
                            n,
-                         )
+                         );
+                       });
+                    /* anchored decorations fly with their tokens;
+                       elements re-found post-render (vdom may have
+                       replaced them), offsets looked up by the
+                       anchor's shard keys */
+                    anchored_decos()
+                    |> List.iter(((id, node)) =>
+                         switch (
+                           Measured.find_by_id(id, old_m),
+                           Measured.find_by_id(id, new_m),
+                         ) {
+                         | (Some(o), Some(n)) when o.origin != n.origin =>
+                           let (ex, ey) =
+                             offsets
+                             |> List.find_opt(((k, _)) =>
+                                  switch (k) {
+                                  | Shard(kid, _)
+                                  | GroutK(kid)
+                                  | CommentK(kid) => kid == id
+                                  }
+                                )
+                             |> Option.map(snd)
+                             |> Option.value(~default=(0., 0.));
+                           animate_node(
+                             ~font_metrics,
+                             ~extra=(ex, ey +. bump_y),
+                             node,
+                             o.origin,
+                             n.origin,
+                           );
+                         | _ => ()
+                         }
                        );
                     entered |> List.iter(animate_enter);
                     moved

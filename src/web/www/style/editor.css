@@ -185,6 +185,11 @@
   cursor: grab;
 }
 
+/* mid-drag the pointer is the locus; the parked caret only distracts */
+body.code-dragging #caret {
+  visibility: hidden;
+}
+
 .code-container.meta-down .token.ref:hover {
   text-decoration: underline;
   text-decoration-style: solid;
