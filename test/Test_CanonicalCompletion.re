@@ -1016,6 +1016,54 @@ let prefix_witness_tests = [
   ),
 ];
 
+/* === Case arbitration + rule walls ===
+   Edit-derived states (deleting delimiter chars in the editor differs
+   from text-parse: an unclosed paren ABSORBS following rules at parse
+   time, while editor deletion leaves them as siblings). */
+let destruct_l = Action.Destruct(Local(Left, ByChar));
+let edit_complete = (acts: list(Action.t)): string => {
+  let z = Test_Editing.perform(Zipper.init(), acts);
+  let seg = Zipper.unselect_and_zip(~erase_buffer=true, z);
+  let result = CanonicalCompletion.complete_segment_deep(~sort=Sort.Exp, seg);
+  print_seg(result.completed_seg);
+};
+let edit_case = (~name, ~acts, ~expected) =>
+  test_case(name, `Quick, () =>
+    check(string_testable, name, expected, edit_complete(acts))
+  );
+
+let case_repair_tests = [
+  test_sep(
+    ~name="deleted end: single case, no wrap double-fire",
+    ~input="case x | 1 => 2",
+    ~expected="case x | 1 => 2 end",
+    ~expected_no_sep="case x | 1 => 2end",
+  ),
+];
+
+let case_repair_edit_tests = [
+  edit_case(
+    ~name="broken case head: orphan end adopts rules, one case only",
+    ~acts=Test_Editing.mk("case¦ x | 1 => 2 end") @ [destruct_l],
+    ~expected="casecas~ x | 1 => 2 end",
+  ),
+  edit_case(
+    ~name="deleted closer stops at rule wall",
+    ~acts=Test_Editing.mk("case go(e1)¦ | 1 => 2 end") @ [destruct_l],
+    ~expected="case go(e1) | 1 => 2 end",
+  ),
+  /* TODO: ideal is `case x | 1 => 2 | 3 => 4 end` — the bar's
+     pattern spilled left of `=>` and only the grout junction marks
+     the arm boundary; restoring it needs LEADING-shard junction
+     drops (deferred with leading witnesses). Pins current
+     placement so changes surface. */
+  edit_case(
+    ~name="deleted second bar: current placement (suboptimal, pinned)",
+    ~acts=Test_Editing.mk("case x | 1 => 2 |¦ 3 => 4 end") @ [destruct_l],
+    ~expected="case x | 1 =>?| 2 ~ 3 => 4 end",
+  ),
+];
+
 let tests: list((string, list(Alcotest.test_case(unit)))) = [
   /* Debug test - run first to isolate crash */
   ("CanonicalCompletion: regrout-debug", regrout_debug_tests),
@@ -1044,6 +1092,11 @@ let tests: list((string, list(Alcotest.test_case(unit)))) = [
     "CanonicalCompletion: prefix-witness",
     run_completion_tests(prefix_witness_tests),
   ),
+  (
+    "CanonicalCompletion: case-repair",
+    run_completion_tests(case_repair_tests),
+  ),
+  ("CanonicalCompletion: case-repair (edit-derived)", case_repair_edit_tests),
   ("CanonicalCompletion: wraps", run_completion_tests(wrap_tests)),
   ("CanonicalCompletion: wraps (edit-derived)", run_wrap_seg_tests),
   ("CanonicalCompletion: linebreaks", run_completion_tests(linebreak_tests)),

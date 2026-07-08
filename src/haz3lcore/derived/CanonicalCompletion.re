@@ -408,9 +408,32 @@ let opener_schedule =
       trailing_positions
       |> List.filter(p => p < idx)
       |> List.fold_left((acc, p) => max(acc, p + 1), at);
+    /* Rule walls: an opener span must not absorb across a naked rule
+       tile (a `|` for a later rule stops after the previous rule; a
+       stray opener can't swallow an arm) — except case's own opener,
+       whose whole job is to adopt the rule chain. */
+    let rule_walls =
+      subseg
+      |> List.mapi((i, p: Piece.t) => (i, p))
+      |> List.filter_map(((i, p)) =>
+           switch (p) {
+           | Piece.Tile(t) when t.mold.out == Sort.Rul => Some(i)
+           | _ => None
+           }
+         );
+    let case_label = Form.get(Case).label;
+    let clamp_walls = (t: Tile.t, at, idx) =>
+      t.label == case_label
+        ? at
+        : rule_walls
+          |> List.filter(w => w >= at && w < idx)
+          |> List.fold_left((acc, w) => max(acc, w + 1), at);
     leading_incomplete
     |> List.filter_map(t =>
-         index_of(t) |> Option.map(idx => (clamp(at_of(idx), idx), idx, t))
+         index_of(t)
+         |> Option.map(idx =>
+              (clamp(clamp_walls(t, at_of(idx), idx), idx), idx, t)
+            )
        )
     |> List.sort(((a1, i1, _), (a2, i2, _)) =>
          a1 == a2 ? compare(i2, i1) : compare(a1, a2)
@@ -870,6 +893,28 @@ let place_trailing_shards =
     } else {
       j;
     };
+  /* A NAKED rule tile at placement level marks broken case
+     structure (healthy rules live inside their case tile's child).
+     Rules wall off placement for any shard whose slot isn't
+     Rul-sorted — a `)` must not absorb a rule chain — while case's
+     own `end` (Rul slot) absorbs rules as its content. */
+  let is_rule_piece = (p: Piece.t): bool =>
+    switch (p) {
+    | Tile(t) => t.mold.out == Sort.Rul
+    | _ => false
+    };
+  let wall_position = (seg: Segment.t, ~from: int): option(int) => {
+    let n = List.length(seg);
+    let rec go = j =>
+      if (j >= n) {
+        None;
+      } else if (is_rule_piece(List.nth(seg, j))) {
+        Some(j);
+      } else {
+        go(j + 1);
+      };
+    go(from);
+  };
   let place_one = ((seg, ins, agg, abs), t: Tile.t) => {
     let entries =
       Tile.right_missing_shards(t)
@@ -904,9 +949,19 @@ let place_trailing_shards =
         List.fold_left(
           ((seg, ins, agg, abs, cursor), (i, piece)) => {
             let (l_nib, r_nib) = Mold.nibs(~index=i, t.mold);
-            let clip =
-              clippable_sort(l_nib.sort)
-                ? clip_position(seg, ~from=cursor, l_nib.sort) : None;
+            let clip = {
+              let sort_clip =
+                clippable_sort(l_nib.sort)
+                  ? clip_position(seg, ~from=cursor, l_nib.sort) : None;
+              let wall =
+                l_nib.sort == Sort.Rul
+                  ? None : wall_position(seg, ~from=cursor);
+              switch (sort_clip, wall) {
+              | (Some(a), Some(b)) => Some(min(a, b))
+              | (Some(a), None) => Some(a)
+              | (None, w) => w
+              };
+            };
             /* junction drop: a concave-right shard (one that FILLS an
                operator-position hole; closers only relocate it) lands
                at a unique sort-legal concave-grout junction within the
@@ -1112,9 +1167,18 @@ let complete_segment =
     };
   let partitioned =
     partitioned
-    |> List.map(((subseg, incomplete)) =>
-         (subseg, incomplete, wraps_of(subseg))
-       );
+    |> List.map(((subseg, incomplete)) => {
+         /* Arbitration: an incomplete case tile in this partition
+            (orphan end / broken case) will absorb the rule chain
+            through its own opener/closer completion — wrapping the
+            same rules would double-complete (two cases + stray
+            end). The wrap machinery is for TRULY orphaned rules
+            (case AND end both gone). */
+         let case_label = Form.get(Case).label;
+         let has_incomplete_case =
+           List.exists((t: Tile.t) => t.label == case_label, incomplete);
+         (subseg, incomplete, has_incomplete_case ? [] : wraps_of(subseg));
+       });
 
   /* Extract all incomplete tiles for shard_records */
   let all_incomplete = List.concat_map(((_, inc, _)) => inc, partitioned);
