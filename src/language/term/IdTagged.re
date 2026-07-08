@@ -13,8 +13,25 @@ module IdTag = {
      that was completed, the shard indices physically present in the visible
      segment (missing shards were synthesized). Empty for fully-typed terms.
      Printing emits only the listed shards; see ExpToSegment. */
+  /* A partially-typed shard: the user's token witnesses the first
+     `len` chars of the shard's text (`i` for `in`); token_id is the
+     original token piece's id so printing reconstructs that exact
+     piece (roundtrip). */
   [@deriving (show({with_path: false}), sexp, yojson, eq)]
-  type incomplete_tiles = list((Id.t, list(int)));
+  type shard_prefix = {
+    shard: int,
+    len: int,
+    token_id: Id.t,
+  };
+
+  [@deriving (show({with_path: false}), sexp, yojson, eq)]
+  type incomplete_mask = {
+    present: list(int),
+    prefixes: list(shard_prefix),
+  };
+
+  [@deriving (show({with_path: false}), sexp, yojson, eq)]
+  type incomplete_tiles = list((Id.t, incomplete_mask));
 
   /* Copy semantics: every field must declare what happens under the
      copy/re-id operations (fast_copy, Exp.replace_all_ids, replace_temp).

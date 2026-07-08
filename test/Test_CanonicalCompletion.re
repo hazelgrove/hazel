@@ -994,6 +994,28 @@ let trailing_junction_tests = [
   ),
 ];
 
+/* === Prefix-token witnesses (backspaced delimiters) === */
+let prefix_witness_tests = [
+  test_sep(
+    ~name="i in operator position completes to in",
+    ~input="let x = 1 i 2",
+    ~expected="let x = 1 in 2",
+    ~expected_no_sep="let x = 1 in 2",
+  ),
+  test_sep(
+    ~name="e in operator position completes to else",
+    ~input="if true then 1 e 2",
+    ~expected="if true then 1 else 2",
+    ~expected_no_sep="if true then 1 else 2",
+  ),
+  test_sep(
+    ~name="non-matching prefix is not a witness",
+    ~input="let x = 1 e 2",
+    ~expected="let x = 1 e 2 in ?",
+    ~expected_no_sep="let x = 1 e 2in?",
+  ),
+];
+
 let tests: list((string, list(Alcotest.test_case(unit)))) = [
   /* Debug test - run first to isolate crash */
   ("CanonicalCompletion: regrout-debug", regrout_debug_tests),
@@ -1017,6 +1039,10 @@ let tests: list((string, list(Alcotest.test_case(unit)))) = [
   (
     "CanonicalCompletion: trailing-junction",
     run_completion_tests(trailing_junction_tests),
+  ),
+  (
+    "CanonicalCompletion: prefix-witness",
+    run_completion_tests(prefix_witness_tests),
   ),
   ("CanonicalCompletion: wraps", run_completion_tests(wrap_tests)),
   ("CanonicalCompletion: wraps (edit-derived)", run_wrap_seg_tests),
