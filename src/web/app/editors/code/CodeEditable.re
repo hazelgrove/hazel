@@ -637,6 +637,15 @@ module View = {
           ),
       (),
     );
+    if (selected) {
+      CodeDrag.sync(
+        ~info_map=model.statics.info_map,
+        ~term=model.statics.term,
+        ~measured=model.editor.syntax.measured,
+        ~font_metrics=globals.font_metrics,
+        model.editor.state.zipper,
+      );
+    };
     let edit_decos =
       selected
         ? deco(
@@ -804,6 +813,28 @@ module View = {
               ),
             ),
           ),
+        ]);
+      | {button: Left, sys: Mac, meta: Down, ctrl: Down, _}
+      | {button: Left, sys: PC, ctrl: Down, alt: Down, _} =>
+        /* drag-to-refactor quasimode (same chord as the arrow
+           gestures); candidates are enumerated by CodeDrag.sync once
+           the caret lands at the grab point */
+        CodeDrag.arm(
+          ~commit=
+            g =>
+              Bonsai.Effect.Expert.handle(
+                inject(Perform(RefactorGesture(g))),
+              ),
+          ~text_box=container_target(mouse.current_target),
+          ~client=(
+            float_of_int(mouse.loc.col),
+            float_of_int(mouse.loc.row),
+          ),
+          ~goal=loc(mouse),
+        );
+        Effect.Many([
+          signal(MakeActive),
+          inject(Perform(Move(Point(loc(mouse), None)))),
         ]);
       | {button: Left, sys: PC, ctrl: Down, _}
       | {button: Left, sys: Mac, meta: Down, _} =>
