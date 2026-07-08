@@ -3653,6 +3653,104 @@ let arm_index_at = (target: Id.t, e: Exp.t): option(int) =>
 let hit_arm = (target: Id.t, e: Exp.t): bool =>
   arm_index_at(target, e) != None;
 
+/* === Swap tuple-pattern components ===
+ * `let (lo, hi) = (0, 100)` + swap => `let (hi, lo) = (100, 0)`:
+ * pattern components and the MATCHING definition components rotate
+ * together, so every binding keeps its value. Gated on the def being
+ * a (possibly parenthesized) literal tuple of matching arity. Never
+ * collides with Swap Params: a tuple pat can't be a fn binding. */
+let tuple_pat_items = (p: Pat.t): list(Pat.t) => {
+  let rec go = (p: Pat.t) =>
+    switch (IdTagged.term_of(p)) {
+    | Parens(inner) => go(inner)
+    | Tuple(items) => items
+    | _ => []
+    };
+  go(p);
+};
+
+let swap_tuple_pat_rewrite =
+    (~fixup: bool, ~target: Id.t, i: int, e: Exp.t): option((Exp.t, Id.t)) =>
+  switch (IdTagged.term_of(e)) {
+  | Let(p, def, body) =>
+    let rec swap_in_pat = (p: Pat.t): option(Pat.t) =>
+      switch (IdTagged.term_of(p)) {
+      | Parens(inner) =>
+        swap_in_pat(inner)
+        |> Option.map((inner': Pat.t): Pat.t =>
+             {
+               ...p,
+               term: Parens(inner'),
+             }
+           )
+      | Tuple(items) when i >= 0 && List.length(items) > i + 1 =>
+        Some({
+          ...p,
+          term: Tuple(swap_pat_items(i, items)),
+        })
+      | _ => None
+      };
+    let rec swap_in_def = (d: Exp.t): option(Exp.t) =>
+      switch (IdTagged.term_of(d)) {
+      | Parens(inner) =>
+        swap_in_def(inner)
+        |> Option.map((inner': Exp.t): Exp.t =>
+             {
+               ...d,
+               term: Parens(inner'),
+             }
+           )
+      | Tuple(items)
+          when List.length(items) == List.length(tuple_pat_items(p)) =>
+        Some({
+          ...d,
+          term: Tuple(swap_exp_items(~fixup, i, items)),
+        })
+      | _ => None
+      };
+    switch (swap_in_pat(p), swap_in_def(def)) {
+    | (Some(p'), Some(def')) =>
+      let items = tuple_pat_items(p);
+      let in_swapped = (j: int) =>
+        j < List.length(items)
+        && List.mem(target, pat_subtree_ids(List.nth(items, j)));
+      /* caret follows the component it was on (pat ids travel) */
+      let focus =
+        in_swapped(i) || in_swapped(i + 1) ? target : Exp.rep_id(e);
+      Some((
+        {
+          ...e,
+          term: Let(p', def', body),
+        },
+        focus,
+      ));
+    | _ => None
+    };
+  | _ => None
+  };
+
+/* index of the tuple-pat component whose subtree contains target */
+let tuple_pat_index_at = (target: Id.t, e: Exp.t): option(int) =>
+  switch (IdTagged.term_of(e)) {
+  | Let(p, _, _) =>
+    tuple_pat_items(p)
+    |> List.mapi((j, it) => (j, it))
+    |> List.find_opt(((_, it)) => List.mem(target, pat_subtree_ids(it)))
+    |> Option.map(fst)
+  | _ => None
+  };
+
+let swap_tuple_pat_impl = (i: int): impl => {
+  label: "Swap components",
+  tooltip: "Swap these tuple components in the pattern and the definition",
+  prepare: (~info_map as _, ~target, program) =>
+    rewrite_node(
+      ~hit=hit_let(target),
+      ~rewrite=e => swap_tuple_pat_rewrite(~fixup=true, ~target, i, e),
+      program,
+    ),
+};
+
 let swap_arms_impl = (i: int): impl => {
   label: "Move arm",
   tooltip: "Swap this arm with its neighbor (patterns must not overlap)",
@@ -4025,6 +4123,7 @@ let impl: Action.refactor => impl =
   | RenameFree(x, y) => rename_free_impl(x, y)
   | SwapParams(i) => swap_params_impl(i)
   | SwapArms(i) => swap_arms_impl(i)
+  | SwapTuplePat(i) => swap_tuple_pat_impl(i)
   | HoistLet => hoist_let_impl
   | SinkLet => sink_let_impl
   | IfToCase => if_to_case_impl
@@ -4145,6 +4244,12 @@ let applies =
   | SwapArms(i) =>
     switch (find_hit(~hit=hit_arm(target), program)) {
     | Some(m) => Option.is_some(swap_arms_rewrite(~target, i, m))
+    | None => false
+    }
+  | SwapTuplePat(i) =>
+    switch (find_hit(~hit=hit_let(target), program)) {
+    | Some(l) =>
+      Option.is_some(swap_tuple_pat_rewrite(~fixup=false, ~target, i, l))
     | None => false
     }
   | HoistLet =>
@@ -4391,7 +4496,39 @@ let menu_items =
         }
       | None => []
       };
-    static @ rename_items(~info_map, ~target, term) @ swaps @ arms;
+    let tuple_swaps =
+      switch (find_hit(~hit=hit_let(target), term)) {
+      | Some(l) =>
+        let items =
+          switch (IdTagged.term_of(l)) {
+          | Let(p, _, _) => tuple_pat_items(p)
+          | _ => []
+          };
+        let name = (j: int) =>
+          switch (var_pat_name(List.nth(items, j))) {
+          | Some(n) => n
+          | None => "#" ++ string_of_int(j + 1)
+          };
+        List.init(max(List.length(items) - 1, 0), i => i)
+        |> List.filter(i =>
+             Option.is_some(
+               swap_tuple_pat_rewrite(~fixup=false, ~target, i, l),
+             )
+           )
+        |> List.map(i =>
+             (
+               Action.SwapTuplePat(i),
+               "Swap " ++ name(i) ++ " ↔ " ++ name(i + 1),
+               "Swap these tuple components in the pattern and the definition",
+             )
+           );
+      | None => []
+      };
+    static
+    @ rename_items(~info_map, ~target, term)
+    @ swaps
+    @ tuple_swaps
+    @ arms;
   };
 
 /* === Directional gestures ===
@@ -4453,6 +4590,21 @@ let gesture =
           ? Some(Action.SwapParams(i)) : None;
       | _ => None
       };
+    let tuple_swap = (delta: int) =>
+      switch (find_hit(~hit=hit_let(target), term)) {
+      | Some(l) =>
+        switch (tuple_pat_index_at(target, l)) {
+        | Some(j) =>
+          let i = delta < 0 ? j - 1 : j;
+          i >= 0
+          && Option.is_some(
+               swap_tuple_pat_rewrite(~fixup=false, ~target, i, l),
+             )
+            ? Some(Action.SwapTuplePat(i)) : None;
+        | None => None
+        }
+      | None => None
+      };
     switch (g) {
     | Up =>
       if (in_arm_zone) {
@@ -4488,7 +4640,11 @@ let gesture =
           InlineLet /* at an occurrence: the definition falls in */
         );
       }
-    | Left => param_swap(-1)
+    | Left =>
+      switch (param_swap(-1)) {
+      | Some(k) => Some(k)
+      | None => tuple_swap(-1)
+      }
     | Right =>
       /* the closing param paren grows the sequence (append); the
          opening paren stays dead (prepend, someday) */
@@ -4507,12 +4663,16 @@ let gesture =
       switch (param_swap(1)) {
       | Some(k) => Some(k)
       | None =>
-        if (at_closing_param_paren) {
-          app(AddParameter);
-        } else if (in_arm_zone) {
-          app(ExpandWildcard);
-        } else {
-          None;
+        switch (tuple_swap(1)) {
+        | Some(k) => Some(k)
+        | None =>
+          if (at_closing_param_paren) {
+            app(AddParameter);
+          } else if (in_arm_zone) {
+            app(ExpandWildcard);
+          } else {
+            None;
+          }
         }
       };
     };

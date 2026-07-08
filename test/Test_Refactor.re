@@ -1731,6 +1731,8 @@ let movement_reparse_fuzz = {
         Action.SwapParams(1),
         Action.SwapArms(0),
         Action.SwapArms(1),
+        Action.SwapTuplePat(0),
+        Action.SwapTuplePat(1),
         Action.RemoveParameter,
         Action.ExtractLet,
         Action.InlineLet,
@@ -2246,6 +2248,64 @@ let paren_gesture_tests = [
   ),
 ];
 
+let tuple_swap_tests = [
+  test_case(
+    "tuple-pat swap rotates both sides",
+    `Quick,
+    () => {
+      let got =
+        inline(~kind=SwapTuplePat(0), "let (¦lo, hi) = (0, 100) in lo")
+        |> text_of;
+      check(string, "both sides", "let (hi, lo) = (100, 0) in lo", got);
+    },
+  ),
+  test_case("tuple-pat swap gated on non-tuple def", `Quick, () =>
+    check(
+      bool,
+      "not offered",
+      false,
+      offers(SwapTuplePat(0), "let (¦lo, hi) = p in lo"),
+    )
+  ),
+  test_case("tuple-pat swap gated on arity mismatch", `Quick, () =>
+    check(
+      bool,
+      "not offered",
+      false,
+      offers(SwapTuplePat(0), "let (¦lo, hi) = (1, 2, 3) in lo"),
+    )
+  ),
+  check_gesture(
+    "right on tuple-pat component = swap both sides",
+    Right,
+    "let (¦lo, hi) = (0, 100) in lo",
+    Some(SwapTuplePat(0)),
+  ),
+  check_gesture(
+    "left on second tuple-pat component = swap",
+    Left,
+    "let (lo, ¦hi) = (0, 100) in lo",
+    Some(SwapTuplePat(0)),
+  ),
+  caret_at(
+    ~kind=SwapTuplePat(0),
+    "let (¦lo, hi) = (0, 100) in lo",
+    "(hi, ¦lo)",
+  ),
+  test_case(
+    "tuple-pat swap twice restores exact text",
+    `Quick,
+    () => {
+      let src = "let (lo, hi) = (0,   100) in lo";
+      let z1 =
+        inline(~kind=SwapTuplePat(0), "let (¦lo, hi) = (0,   100) in lo");
+      let z2 =
+        Test_Editing.perform(z1, [Action.Refactor(SwapTuplePat(0))]);
+      check(string, "round trip", src, text_of(z2));
+    },
+  ),
+];
+
 let tests = [
   (
     "Refactor",
@@ -2271,6 +2331,7 @@ let tests = [
     @ caret_audit_tests
     @ extract_target_tests
     @ paren_gesture_tests
+    @ tuple_swap_tests
     @ binding_tests
     @ reparse_safety_tests,
   ),

@@ -153,6 +153,7 @@ type refactor =
   | RenameFree(string, string)
   | SwapParams(int)
   | SwapArms(int)
+  | SwapTuplePat(int)
   | HoistLet
   | SinkLet
   | IfToCase
