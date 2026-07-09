@@ -337,35 +337,92 @@ let anchor_meas =
    shards (they exist and carry DOM ids whenever something is
    indicated) so a gated gesture visibly registers instead of
    silently doing nothing. Falls back to the caret. */
-let shake_dead_press = (): unit => {
+let shake_dead_press = (~syntax: option(CachedSyntax.t)=?, ()): unit => {
   let ids = JsUtil.ids_with_prefix("indication-");
-  let targets =
+  /* the indicated construct's TEXT shakes with its backing: pair the
+     segment against .code-text and take the tokens whose tile is an
+     indication anchor (backing-only reads as nothing — andrew) */
+  let indicated_uuids =
+    ids
+    |> List.filter_map(dom_id =>
+         String.length(dom_id) > 47
+           ? Some(String.sub(dom_id, 11, 36)) : None
+       );
+  let text_nodes =
+    switch (syntax) {
+    | Some(syntax) when indicated_uuids != [] =>
+      switch (JsUtil.get_elem_by_id_opt("caret")) {
+      | None => []
+      | Some(caret) =>
+        switch (
+          Js.Opt.to_option(caret##.parentNode)
+          |> Option.map(deco => Js.Opt.to_option(deco##.parentNode))
+          |> Option.join
+        ) {
+        | None => []
+        | Some(container) =>
+          let ct =
+            Js.Unsafe.meth_call(
+              container,
+              "querySelector",
+              [|
+                Js.Unsafe.inject(Js.string(":scope > .code > .code-text")),
+              |],
+            );
+          switch (Js.Opt.to_option(ct)) {
+          | None => []
+          | Some(ct) =>
+            let nodes = Dom.list_of_nodeList(ct##.childNodes);
+            switch (pair(entries_of_segment(syntax.segment), nodes)) {
+            | None => []
+            | Some(pairs) =>
+              pairs
+              |> List.filter_map(((k, node)) =>
+                   switch (k) {
+                   | Shard(id, _)
+                       when List.mem(Id.to_string(id), indicated_uuids) =>
+                     Some(node)
+                   | _ => None
+                   }
+                 )
+            };
+          };
+        }
+      }
+    | _ => []
+    };
+  let backing =
     switch (ids) {
     | [] =>
       switch (JsUtil.get_elem_by_id_opt("caret")) {
-      | Some(el) => [el]
+      | Some(el) => [(el :> Js.t(Dom.node))]
       | None => []
       }
-    | ids => ids |> List.filter_map(JsUtil.get_elem_by_id_opt)
+    | ids =>
+      ids
+      |> List.filter_map(JsUtil.get_elem_by_id_opt)
+      |> List.map(el => (el :> Js.t(Dom.node)))
     };
-  targets
-  |> List.iter(el => {
+  backing
+  @ text_nodes
+  |> List.iter(node => {
        let keyframes =
          Animation.Js.keyframes_unsafe([
            ("transform", "translateX(0px)"),
-           ("transform", "translateX(-2px)"),
+           ("transform", "translateX(-4px)"),
+           ("transform", "translateX(4px)"),
+           ("transform", "translateX(-3px)"),
            ("transform", "translateX(2px)"),
-           ("transform", "translateX(-2px)"),
            ("transform", "translateX(0px)"),
          ]);
        let options =
          Animation.Js.options_unsafe({
-           duration: 160,
+           duration: 280,
            easing: "ease-in-out",
          });
        switch (
          Js.Unsafe.meth_call(
-           el,
+           node,
            "animate",
            [|Js.Unsafe.inject(keyframes), Js.Unsafe.inject(options)|],
          )

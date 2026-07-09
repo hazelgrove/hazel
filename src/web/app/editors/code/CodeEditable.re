@@ -50,7 +50,7 @@ module Update = {
         | Error(Action.Failure.Cant_refactor) => {
             /* dead press: gated-not-fall-through is the rule, but
                silence read as breakage — make the refusal visible */
-            CodeFlip.shake_dead_press();
+            CodeFlip.shake_dead_press(~syntax=model.editor.syntax, ());
             Model.{
               editor: model.editor,
               statics: model.statics,

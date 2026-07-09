@@ -5389,12 +5389,12 @@ let drag_candidates =
                    (the slot starts a line) opens space at-or-above
                    the origin — pin the origin, slide above-content
                    up, bump the scroll at commit. A SUB-SLOT extract
-                   (inline fun/arm/chain body) keeps the origin line
-                   head and breaks the displaced body DOWN — pin
-                   everything through the origin row and let the
-                   below-content drop at commit (consequence-space
-                   opens on release, the dual of inline's deferred
-                   collapse). */
+                   (inline fun/arm/chain body) lands the binding
+                   WHERE THE DISPLACED BODY SITS — that content's
+                   departure IS the target-space opening (duality
+                   rule), so it moves WITH the pull: plain candidate
+                   frame. (Pinning it overlapped the flyer with the
+                   pinned body mid-drag — andrew.) */
                 let takeover =
                   switch (extract_path(~target, term)) {
                   | Some(path) =>
@@ -5410,11 +5410,7 @@ let drag_candidates =
                     scroll_rows: cand_rows - live_rows,
                   };
                 } else {
-                  {
-                    DragCandidate.shift_from: cur.origin.row + 1,
-                    shift_rows: live_rows - cand_rows,
-                    scroll_rows: 0,
-                  };
+                  DragCandidate.no_frame;
                 };
               | _ => DragCandidate.no_frame
               };
