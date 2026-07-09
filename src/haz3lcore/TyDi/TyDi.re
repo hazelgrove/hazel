@@ -6,23 +6,37 @@ open Language;
  * Adjust this value to control when suggestions first appear. */
 let min_prefix_len = 2;
 
-/* Suggest the next missing shard, if we can put it down */
-let suggest_missing_shard = (z: Zipper.t): list(t) => {
-  /* Note: Sort check unnecessary here as wouldn't be able to put down */
-  switch (Zipper.local_missing_shards(z)) {
-  | [] => []
-  | [t, ..._] =>
-    switch (t) {
-    | {label, shards: [idx], _} when Zipper.can_put_down(z) => [
-        {
-          content: List.nth(label, idx),
-          strategy: Any(FromMissingShards),
-        },
-      ]
-    | _ => []
-    }
+/* Delimiter suggestions come from the COMPLETION ENGINE: an
+   insertion whose arrow anchors at the token left of the caret with
+   a typed prefix recorded is the engine recognizing that token as a
+   WITNESS of the delimiter it completes. Single recognition source —
+   the ghost and the quiver agree by construction, and symbolic
+   (- -> ->, = -> =>) and non-head obligations are covered. Purely
+   syntax-derived: needs no statics.
+   (Replaces the old head-of-local-missing-shards suggestion, whose
+   plain starts_with matching was both narrower — head only — and
+   looser — no witness gates — than the engine's recognition.) */
+let suggest_witnesses = (z: Zipper.t): list(t) =>
+  switch (z.caret, z.relatives.siblings |> fst |> List.rev) {
+  | (Outer, [Tile({label: [tok], id, _}), ..._]) =>
+    let seg = Zipper.unselect_and_zip(~erase_buffer=true, z);
+    let result = CanonicalCompletion.for_editor(seg);
+    result.insertions
+    |> List.filter_map((i: CanonicalCompletion.insertion) =>
+         Id.equal(i.adjacent_id, id) && i.side == Util.Direction.Right
+           ? switch (i.delimiters) {
+             | [{typed_len: Some(n), text, _}, ..._]
+                 when n == Token.length(tok) =>
+               Some({
+                 content: text,
+                 strategy: Any(FromMissingShards),
+               })
+             | _ => None
+             }
+           : None
+       );
+  | _ => []
   };
-};
 
 /* Check if the expected type is unknown (no type annotation context) */
 let has_unknown_expectation = (ci: Info.t): bool =>
@@ -89,10 +103,10 @@ let suggest = (ci: Info.t, z: Zipper.t): list(t) => {
       TyDiForms.suggest_operator(ci) |> List.sort(TyDiSuggestion.compare);
     if (has_unknown_expectation(ci)) {
       /* Unknown type: keywords first, then context, then operators */
-      suggest_missing_shard(z) @ forms @ ctx_suggestions @ operators;
+      suggest_witnesses(z) @ forms @ ctx_suggestions @ operators;
     } else {
       /* Known type: context variables first (type-directed), then forms */
-      suggest_missing_shard(z) @ ctx_suggestions @ forms @ operators;
+      suggest_witnesses(z) @ ctx_suggestions @ forms @ operators;
     };
   };
 };
@@ -161,7 +175,7 @@ let set_buffer = (~ci: option(Info.t), z: Zipper.t): option(Zipper.t) => {
   let suggestions =
     switch (ci) {
     | Some(ci) => suggest(ci, z)
-    | None => suggest_missing_shard(z)
+    | None => suggest_witnesses(z)
     };
   let suggestions =
     suggestions

@@ -1487,6 +1487,14 @@ let tydi_probe_tests = [
     ~expected="tok:- | ci:NONE | buf:>",
   ),
   tydi_case(
+    ~name="non-head obligation suggests (en inside open paren)",
+    /* the old head-only path could never suggest this: the paren's )
+       is the nearest obligation, the case's end is deeper — the
+       witness route matches by anchor, not stack position */
+    ~acts=Test_Editing.mk("(case x | 1 => 2 en¦"),
+    ~expected="tok:en | ci:NONE | buf:d",
+  ),
+  tydi_case(
     ~name="1-char ctx prefix stays gated (noise guard)",
     /* no expectation in play: the length gate still blocks 1-char
        context-variable suggestions */
