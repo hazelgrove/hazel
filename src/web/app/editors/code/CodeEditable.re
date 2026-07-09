@@ -84,6 +84,7 @@ module Update = {
              | RefactorGesture(_)
              | Probe(StepInto(_))
              | Format(_)
+             | AdjustIndent(_, _)
              | Dump
              | ToggleLineComment => true
              | Project(_)

@@ -47,6 +47,158 @@ let space_put_down_boundary = (z: Zipper.t): Zipper.t => {
   };
 };
 
+/* Caret sits at its line's leading-whitespace boundary: everything
+   left of it at its level, up to a linebreak (or buffer start), is
+   spaces. True at first-content and inside the indentation run. */
+let at_line_leading_whitespace = (z: Zipper.t): bool =>
+  z.caret == Outer
+  && z.selection.content == []
+  && {
+    let rec all_white = (ps: list(Piece.t)) =>
+      switch (ps) {
+      | [] => z.relatives.ancestors == []
+      | [Piece.Secondary(s), ...rest] =>
+        Secondary.is_space(s) ? all_white(rest) : Secondary.is_linebreak(s)
+      | _ => false
+      };
+    all_white(List.rev(fst(z.relatives.siblings)));
+  };
+
+/* Backspace inverts enter: when the caret sits at first-content (or a
+   blank line's position) with [linebreak ++ spaces*] immediately left
+   of it at its own level, return the space count — one keystroke then
+   removes the whole indentation AND its linebreak. */
+let indent_join_run = (z: Zipper.t): option(int) =>
+  if (z.caret != Outer || z.selection.content != []) {
+    None;
+  } else {
+    let right_is_space =
+      switch (z.relatives.siblings) {
+      | (_, [Piece.Secondary(w), ..._]) => Secondary.is_space(w)
+      | _ => false
+      };
+    if (right_is_space) {
+      None; /* inside the run: normal char-delete */
+    } else {
+      let rec scan = (n, ps: list(Piece.t)) =>
+        switch (ps) {
+        | [Piece.Secondary(s), ...rest] when Secondary.is_space(s) =>
+          scan(n + 1, rest)
+        | [Piece.Secondary(s), ..._] when Secondary.is_linebreak(s) =>
+          Some(n)
+        | _ => None
+        };
+      scan(0, List.rev(fst(z.relatives.siblings)));
+    };
+  };
+
+/* Last linebreak (textual order) within a segment, deep */
+let rec last_lb_in_seg = (seg: Segment.t): option(Id.t) =>
+  List.fold_left(
+    (acc, p: Piece.t) =>
+      switch (p) {
+      | Secondary(w) when Secondary.is_linebreak(w) => Some(w.id)
+      | Tile(t) =>
+        switch (
+          List.fold_left(
+            (a, ch) =>
+              switch (last_lb_in_seg(ch)) {
+              | Some(id) => Some(id)
+              | None => a
+              },
+            None,
+            t.children,
+          )
+        ) {
+        | Some(id) => Some(id)
+        | None => acc
+        }
+      | _ => acc
+      },
+    None,
+    seg,
+  );
+
+let rec all_lbs_in_seg = (seg: Segment.t): list(Id.t) =>
+  List.concat_map(
+    (p: Piece.t) =>
+      switch (p) {
+      | Secondary(w) when Secondary.is_linebreak(w) => [w.id]
+      | Tile(t) => List.concat_map(all_lbs_in_seg, t.children)
+      | _ => []
+      },
+    seg,
+  );
+
+/* Linebreak governing the caret's line: nearest textually-preceding
+   linebreak (current level, then ancestor left segments outward);
+   None = the buffer's first line. */
+let governing_lb = (z: Zipper.t): option(Id.t) =>
+  switch (last_lb_in_seg(fst(z.relatives.siblings))) {
+  | Some(id) => Some(id)
+  | None =>
+    List.fold_left(
+      (acc, (_, sibs): Ancestors.generation) =>
+        acc != None ? acc : last_lb_in_seg(fst(sibs)),
+      None,
+      z.relatives.ancestors,
+    )
+  };
+
+/* Indent/dedent one level (2 spaces) for the caret's line, or every
+   line intersecting the selection; dedent clamps at column 0. */
+let adjust_indent = (d: Direction.t, z: Zipper.t): Zipper.t => {
+  let first_line_lb = governing_lb(z);
+  let affected =
+    (
+      switch (first_line_lb) {
+      | Some(id) => [id]
+      | None => []
+      }
+    )
+    @ all_lbs_in_seg(z.selection.content)
+    |> List.to_seq
+    |> Id.Set.of_seq;
+  let line0 = first_line_lb == None;
+  let indent = d == Direction.Right;
+  let adjust_run = (seg: Segment.t): Segment.t =>
+    if (indent) {
+      [
+        Piece.secondary(Secondary.mk_space(Id.mk())),
+        Piece.secondary(Secondary.mk_space(Id.mk())),
+        ...seg,
+      ];
+    } else {
+      let rec drop = (k, sg: Segment.t) =>
+        switch (sg) {
+        | [Piece.Secondary(w), ...rest] when k > 0 && Secondary.is_space(w) =>
+          drop(k - 1, rest)
+        | _ => sg
+        };
+      drop(2, seg);
+    };
+  let rec walk = (seg: Segment.t): Segment.t =>
+    switch (seg) {
+    | [] => []
+    | [Piece.Secondary(w) as p, ...rest]
+        when Secondary.is_linebreak(w) && Id.Set.mem(w.id, affected) => [
+        p,
+        ...walk(adjust_run(rest)),
+      ]
+    | [Piece.Tile(t), ...rest] => [
+        Piece.Tile({
+          ...t,
+          children: List.map(walk, t.children),
+        }),
+        ...walk(rest),
+      ]
+    | [p, ...rest] => [p, ...walk(rest)]
+    };
+  CaretPreserving.transform(z, seg =>
+    (line0 ? adjust_run(seg) : seg) |> walk
+  );
+};
+
 let rec go =
         (
           ~settings: Language.CoreSettings.t,
@@ -198,6 +350,24 @@ let rec go =
       ~elaborated=statics.elaborated,
       ~root,
     );
+  | AdjustIndent(d, gate) =>
+    if (gate == Action.AtBoundary && !at_line_leading_whitespace(z)) {
+      /* a held shift during ordinary corrections must not dedent:
+         fall through to plain backspace */
+      go(
+        ~settings,
+        ~statics,
+        ~syntax,
+        ~root,
+        Action.Destruct(Local(Left, ByChar)),
+        {
+          zipper: z,
+          col_target,
+        },
+      );
+    } else {
+      Ok(adjust_indent(d, z));
+    }
   | Move(d) =>
     Move.go(
       ~statics=statics.info_map,
@@ -217,6 +387,18 @@ let rec go =
       d,
       z,
     )
+    |> Option.map(z' =>
+         !settings.indentation_ux
+           ? z'
+           : (
+             switch (d) {
+             | Local(dir, ByChar) => Move.skip_indent(dir, z')
+             | Vertical(_, ByChar)
+             | Line(Left) => Move.skip_indent(Direction.Right, z')
+             | _ => z'
+             }
+           )
+       )
     |> return(Cant_move)
   | Unselect(Some(d)) => Ok(Zipper.directional_unselect(d, z))
   | Unselect(None) => Ok(Zipper.unselect(z))
@@ -303,10 +485,47 @@ let rec go =
   | Destruct(d) =>
     /* see Cut: fires only on completion-by-deletion */
     let before = LocalReformat.snapshot(~enabled=settings.auto_reindent, z);
-    Destruct.go(d, z, ~root)
-    |> Option.map(maybe_reassoc)
-    |> Option.map(LocalReformat.go(~before))
-    |> return(Cant_destruct);
+    let join =
+      switch (d) {
+      | Local(Left, ByChar) when settings.indentation_ux =>
+        indent_join_run(z)
+      | _ => None
+      };
+    switch (join) {
+    | Some(_) =>
+      /* backspace inverts enter: delete indentation + linebreak as a
+         single action (one undo step). Adaptive: destruct's own
+         whitespace cleanup can consume more than one piece per call,
+         so re-inspect the left neighbor each step instead of
+         counting. */
+      let left_neighbor = (z: Zipper.t) =>
+        switch (fst(z.relatives.siblings) |> List.rev) {
+        | [Piece.Secondary(w), ..._] =>
+          Secondary.is_space(w)
+            ? `Space : Secondary.is_linebreak(w) ? `Linebreak : `Other
+        | _ => `Other
+        };
+      let rec del_run = (~fuel=10000, z) =>
+        fuel <= 0
+          ? Some(z)
+          : (
+            switch (left_neighbor(z)) {
+            | `Space =>
+              Option.bind(Destruct.go(d, z, ~root), del_run(~fuel=fuel - 1))
+            | `Linebreak => Destruct.go(d, z, ~root)
+            | `Other => Some(z)
+            }
+          );
+      del_run(z)
+      |> Option.map(maybe_reassoc)
+      |> Option.map(LocalReformat.go(~before))
+      |> return(Cant_destruct);
+    | None =>
+      Destruct.go(d, z, ~root)
+      |> Option.map(maybe_reassoc)
+      |> Option.map(LocalReformat.go(~before))
+      |> return(Cant_destruct)
+    };
   | Insert(char) =>
     let before = LocalReformat.snapshot(~enabled=settings.auto_reindent, z);
     z
