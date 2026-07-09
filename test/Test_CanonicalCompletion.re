@@ -1223,15 +1223,14 @@ let continuation_tests = [
   ),
 ];
 
-/* === Joint satisfiability (KNOWN-BAD, andrew 2026-07-08) ===
-   Two co-broken tiles complete INDEPENDENTLY against the raw buffer,
-   so their placements can be mutually incompatible: deleting a
-   case's end AND its enclosing let's in, the in is walled by the
-   now-naked rules (drops after the scrutinee, severing them) while
-   the end appends past the trailing content — accepting both yields
-   nothing coherent. The old backpack path couldn't express this:
-   consecutive put-downs forced stack (nesting) order by
-   construction. Pinned until sequential materialization lands. */
+/* === Joint satisfiability (andrew 2026-07-08) ===
+   Deleting a case's end AND its enclosing let's in used to complete
+   incompatibly (the in walled by the naked rules, severing them; the
+   end appended past the body). Sequential materialization: the in's
+   deletion-debris junction is strongest, it materializes first, and
+   the end then completes INSIDE the definition child — exact token
+   restoration (endin adjacency is print glue, the shards are
+   correctly ordered/nested). */
 let dbl_del_inline =
   Test_Editing.mk("let f = case x | 1 => 2 | 3 => 4 end in¦ f")
   @ [destruct_l, destruct_l]
@@ -1241,7 +1240,7 @@ let joint_tests = [
   edit_case(
     ~name="end+in double deletion: placements incompatible (KNOWN-BAD)",
     ~acts=dbl_del_inline,
-    ~expected="let f = case xin? | 1 => 2 | 3 => 4 ~  fend",
+    ~expected="let f = case x | 1 => 2 | 3 => 4 endin  f",
   ),
   /* control: in alone (end intact) — its deletion-debris junction
      should restore it in place */
