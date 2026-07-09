@@ -118,7 +118,7 @@ module Update = {
     | TAB =>
       /* Attempt to act intelligently when TAB is pressed.
        * TODO: Consider more advanced TAB logic. Instead
-       * of simply moving to next hole, if the backpack is non-empty
+       * of simply moving to next hole, if shards are missing
        * but can't immediately put down, move to next position of
        * interest, which is closet of: nearest position where can
        * put down, farthest position where can put down, next hole */
@@ -539,7 +539,7 @@ module View = {
           Backpack.view(
             ~font_metrics=globals.font_metrics,
             ~measured=syntax.measured,
-            ~cached_backpack=syntax.cached_backpack,
+            ~missing_shards=syntax.missing_shards,
             z,
           ),
         ]

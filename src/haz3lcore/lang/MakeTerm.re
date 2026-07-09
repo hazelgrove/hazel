@@ -2051,7 +2051,7 @@ let for_projection =
 let from_zip_for_sem = (z: Zipper.t, ~root: Sort.t) => {
   /* Semantic terms come from the canonical completion of the visible
    * segment (caret-independent, provenance-recorded), replacing the
-   * old caret-sensitive backpack dump. The ~root parameter matches the
+   * old caret-sensitive missing-shard dump. The ~root parameter matches the
    * dev signature; completion is invoked at Exp. */
   let _ = root;
   let seg =

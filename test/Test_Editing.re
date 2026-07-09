@@ -2798,7 +2798,7 @@ let module_tests = [
  * A non-empty backpack after entering what should be a complete program
  * indicates structural breakage. */
 let zip_backpack_empty = (z: Zipper.t): bool =>
-  Zipper.local_backpack(z) == [];
+  Zipper.local_missing_shards(z) == [];
 
 let shard_theft_tests = [
   /* Baseline: typing `let y = 2 in let x = 1 in x` left-to-right
@@ -2874,7 +2874,7 @@ let shard_theft_tests = [
           (z, c) => {
             let z' = perform(z, [Action.Insert(c)]);
             let text = printer(z');
-            let bp = Zipper.local_backpack(z');
+            let bp = Zipper.local_missing_shards(z');
             let bp_labels =
               bp
               |> List.map((t: Tile.t) => String.concat(",", t.label))
@@ -4101,7 +4101,7 @@ let char_selection_tests = [
       let actual = printer(z);
       let expected = {|fu¦n x -> x|};
       /* Verify text round-trips AND internal state is clean */
-      let bp = Zipper.local_backpack(z);
+      let bp = Zipper.local_missing_shards(z);
       let inc = Segment.incomplete_tiles(snd(z.relatives.siblings));
       check(testable(Fmt.string, String.equal), "text", expected, actual);
       check(Alcotest.int, "backpack empty", 0, List.length(bp));
@@ -4116,7 +4116,7 @@ let char_selection_tests = [
       let z = perform(z, [Destruct(Local(Right, ByChar)), Paste("fu")]);
       let actual = printer(z);
       let expected = {|fu¦n x -> x|};
-      let bp = Zipper.local_backpack(z);
+      let bp = Zipper.local_missing_shards(z);
       let inc = Segment.incomplete_tiles(snd(z.relatives.siblings));
       check(testable(Fmt.string, String.equal), "text", expected, actual);
       check(Alcotest.int, "backpack empty", 0, List.length(bp));
@@ -4311,7 +4311,7 @@ let test_caret_and_backpack = (~name, ~acts, ~goal): test_case(_) =>
       let z = acts |> perform(Zipper.init());
       let actual = printer(z);
       check(testable(Fmt.string, String.equal), "caret", goal, actual);
-      let bp = Zipper.local_backpack(z);
+      let bp = Zipper.local_missing_shards(z);
       check(
         Alcotest.int,
         "backpack empty (labels: "
@@ -4459,7 +4459,7 @@ let test_cut_paste =
             chars |> List.filter(c => c != selection_char) |> Token.of_list;
           clean;
         };
-      let bp = Zipper.local_backpack(z);
+      let bp = Zipper.local_missing_shards(z);
       let inc =
         Segment.incomplete_tiles(snd(z.relatives.siblings))
         @ Segment.incomplete_tiles(fst(z.relatives.siblings));

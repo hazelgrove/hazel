@@ -265,7 +265,7 @@ let rec go =
   | Reparse =>
     /* This serializes the current editor to text, resets the current
        editor, and then deserializes. It is intended as a (tactical)
-       nuclear option for weird backpack states */
+       nuclear option for weird missing-shard states */
     Parser.to_zipper(
       ~root,
       ~zipper_init=Zipper.init(),
