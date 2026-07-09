@@ -194,6 +194,13 @@
     var(--light-page-color) 78%,
     var(--token-incomplete)
   );
+  /* on the subdued dim background the live fade disappears; dim
+     chips fade DARKER instead (toward the token color) */
+  --quiver-chip-text-faded-dim: color-mix(
+    in srgb,
+    var(--token-incomplete) 62%,
+    var(--light-page-color)
+  );
 
   /* PROJECTORS */
   --textarea-indicated: var(--SAND);

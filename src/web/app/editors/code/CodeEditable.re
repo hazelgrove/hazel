@@ -551,6 +551,10 @@ module View = {
           QuiverDec.view(
             ~measured=syntax.measured,
             ~font_metrics=globals.font_metrics,
+            ~caret_pos={
+              let p = Zipper.Caret.point(syntax.measured, z);
+              Some((p.row, p.col));
+            },
             ~droppable=
               z.caret == Outer
                 ? Zipper.missing_shards_hd(z)
