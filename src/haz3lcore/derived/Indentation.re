@@ -36,7 +36,11 @@ let trim_non_content: Segment.t => Segment.t =
   );
 
 /* Compute context (effective_prev, next, effective_next) for each piece in one pass.
- * - effective_prev: skips convex grout and linebreaks to find last contentful piece
+ * - effective_prev: skips linebreaks to find the last contentful piece.
+ *   Convex grout COUNTS as content (an atom, like a literal): a hole
+ *   filling a branch must anchor the next line's indentation exactly
+ *   as a literal would, else the incrementor/child rules re-fire and
+ *   every hole-bearing line drifts deeper (empty if/then branches).
  * - next: immediate next piece (raw)
  * - effective_next: skips linebreaks to find next contentful piece */
 let compute_context =
@@ -66,9 +70,8 @@ let compute_context =
       let effective_next = find_effective_next(rest);
       let new_last_contentful =
         switch (x) {
-        | Grout({shape: Convex, _}) => last_contentful /* Skip grout */
         | Secondary(s) when Secondary.is_linebreak(s) => last_contentful /* Skip linebreaks */
-        | _ => Some(x) /* Update for contentful pieces */
+        | _ => Some(x) /* Update for contentful pieces (incl. grout) */
         };
       [
         (effective_prev, next, effective_next),

@@ -1056,9 +1056,29 @@ let indent_ux_tests = [
   ),
 ];
 
+/* Convex grout anchors indentation like a literal atom: empty
+   branches must not push following lines deeper (regression: holes
+   were skipped by effective_prev, re-firing incrementor/child rules
+   so else/in drifted right). The two cases mirror each other. */
+let grout_indent_tests = [
+  test_indent_after_format(
+    ~name="hole branches indent like literal branches",
+    ~init="let f =\nfun x ->\nlet x =\nif x < 0 then\nelse\nin\nf(3)",
+    ~goal=
+      "let f =\n  fun x ->\n    let x =\n      if x < 0 then?\n      else?\n    in\n  f(3)",
+  ),
+  test_indent_after_format(
+    ~name="literal branches (mirror of the hole case)",
+    ~init="let f =\nfun x ->\nlet x =\nif x < 0 then\n1\nelse 2\nin\nf(3)",
+    ~goal=
+      "let f =\n  fun x ->\n    let x =\n      if x < 0 then\n        1\n      else 2\n    in\n  f(3)",
+  ),
+];
+
 let tests = [
   ("Editing.Indentation", indentation_tests),
   ("Editing.IndentationUX", indent_ux_tests),
+  ("Editing.GroutIndent", grout_indent_tests),
   ("Editing.SelectiveReindent", selective_reindent_tests),
   ("Editing.Indentation.Modules", module_indentation_tests),
 ];

@@ -1313,12 +1313,14 @@ end|} /* Should be at case level, not indented */
     ~goal={|[
   ¦1, 2]|} /* Content indented inside list */
   ),
-  /* Scenario: Enter in empty parens - creates a hole */
+  /* Scenario: Enter in empty parens - creates a hole. The hole
+     anchors indentation like a literal atom (enter after `(1` also
+     gives column 0), so the closer lands unindented. */
   test(
     ~name="Enter in empty parens",
     ~acts=mk({|(¦)|}) @ [Action.Insert("\n")],
     ~goal={|(?
-  ¦)|} /* Hole appears, content indented inside parens */
+¦)|},
   ),
   /* Scenario: Two consecutive Enters after case rule */
   test(
