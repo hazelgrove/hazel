@@ -46,6 +46,11 @@ type cand = {
   moved: list((CodeFlip.key, Js.t(Dom.node), float, float)),
   /* anchored decorations riding their tokens (var highlights etc.) */
   moved_decos: list((Js.t(Dom.node), float, float)),
+  /* tokens absent in the candidate: they dissolve (scale+fade) in
+     proportion to the pull — the let/=/in shell, the binder, the
+     replaced use (andrew's shrink sketch; lerpViews' unmatched-key
+     fade, pointer-driven) */
+  exits: list(Js.t(Dom.node)),
 };
 
 /* Candidate enumeration must wait for the model to settle: on arm,
@@ -187,47 +192,79 @@ let scrub_clear = (s: session): unit => {
   s.scrub_active = None;
 };
 
-let make_anims = (c: cand): list(Js.Unsafe.any) =>
-  (c.moved |> List.map(((_, node, dx, dy)) => (node, dx, dy)))
-  @ c.moved_decos
-  |> List.filter_map(((node, dx, dy)) => {
-       let keyframes =
-         Js.Unsafe.obj([|
-           (
-             "transform",
-             Js.Unsafe.inject(
-               Js.array([|
-                 Js.string("translate(0px, 0px)"),
-                 Js.string(Printf.sprintf("translate(%fpx, %fpx)", dx, dy)),
-               |]),
-             ),
-           ),
-         |]);
-       let options =
-         Js.Unsafe.obj([|
-           (
-             "duration",
-             Js.Unsafe.inject(Js.number_of_float(scrub_duration)),
-           ),
-           ("fill", Js.Unsafe.inject(Js.string("both"))),
-           ("easing", Js.Unsafe.inject(Js.string("linear"))),
-         |]);
-       switch (
-         Js.Unsafe.meth_call(
+let paused_anim =
+    (node: Js.t(Dom.node), keyframes: Js.Unsafe.any): option(Js.Unsafe.any) => {
+  let options =
+    Js.Unsafe.obj([|
+      ("duration", Js.Unsafe.inject(Js.number_of_float(scrub_duration))),
+      ("fill", Js.Unsafe.inject(Js.string("both"))),
+      ("easing", Js.Unsafe.inject(Js.string("linear"))),
+    |]);
+  switch (
+    Js.Unsafe.meth_call(
+      node,
+      "animate",
+      [|Js.Unsafe.inject(keyframes), Js.Unsafe.inject(options)|],
+    )
+  ) {
+  | exception _ => None
+  | anim =>
+    switch (Js.Unsafe.meth_call(anim, "pause", [||])) {
+    | exception _ => ()
+    | _ => ()
+    };
+    Some(anim);
+  };
+};
+
+let make_anims = (c: cand): list(Js.Unsafe.any) => {
+  let moves =
+    (c.moved |> List.map(((_, node, dx, dy)) => (node, dx, dy)))
+    @ c.moved_decos
+    |> List.filter_map(((node, dx, dy)) =>
+         paused_anim(
            node,
-           "animate",
-           [|Js.Unsafe.inject(keyframes), Js.Unsafe.inject(options)|],
+           Js.Unsafe.obj([|
+             (
+               "transform",
+               Js.Unsafe.inject(
+                 Js.array([|
+                   Js.string("translate(0px, 0px)"),
+                   Js.string(
+                     Printf.sprintf("translate(%fpx, %fpx)", dx, dy),
+                   ),
+                 |]),
+               ),
+             ),
+           |]),
          )
-       ) {
-       | exception _ => None
-       | anim =>
-         switch (Js.Unsafe.meth_call(anim, "pause", [||])) {
-         | exception _ => ()
-         | _ => ()
-         };
-         Some(anim);
-       };
-     });
+       );
+  let fades =
+    c.exits
+    |> List.filter_map(node =>
+         paused_anim(
+           node,
+           Js.Unsafe.obj([|
+             (
+               "opacity",
+               Js.Unsafe.inject(
+                 Js.array([|Js.string("1"), Js.string("0")|]),
+               ),
+             ),
+             (
+               "transform",
+               Js.Unsafe.inject(
+                 Js.array([|
+                   Js.string("scale(1)"),
+                   Js.string("scale(0.25)"),
+                 |]),
+               ),
+             ),
+           |]),
+         )
+       );
+  moves @ fades;
+};
 
 /* read a paused scrub animation's progress (0..1) */
 let anim_t = (anims: list(Js.Unsafe.any)): float =>
@@ -243,8 +280,50 @@ let anim_t = (anims: list(Js.Unsafe.any)): float =>
 /* ease displaced tokens back to their natural positions from the
    scrub offset they currently carry — release/cancel/track-switch
    must CONTINUE motion, never restart it */
+let relax_exits = (c: cand, t: float): unit =>
+  c.exits
+  |> List.iter(node => {
+       let keyframes =
+         Js.Unsafe.obj([|
+           (
+             "opacity",
+             Js.Unsafe.inject(
+               Js.array([|
+                 Js.string(Printf.sprintf("%f", 1. -. t)),
+                 Js.string("1"),
+               |]),
+             ),
+           ),
+           (
+             "transform",
+             Js.Unsafe.inject(
+               Js.array([|
+                 Js.string(Printf.sprintf("scale(%f)", 1. -. 0.75 *. t)),
+                 Js.string("scale(1)"),
+               |]),
+             ),
+           ),
+         |]);
+       let options =
+         Js.Unsafe.obj([|
+           ("duration", Js.Unsafe.inject(Js.number_of_float(150.))),
+           ("easing", Js.Unsafe.inject(Js.string("ease-out"))),
+         |]);
+       switch (
+         Js.Unsafe.meth_call(
+           node,
+           "animate",
+           [|Js.Unsafe.inject(keyframes), Js.Unsafe.inject(options)|],
+         )
+       ) {
+       | exception _ => ()
+       | _ => ()
+       };
+     });
+
 let relax_from = (c: cand, t: float): unit =>
   if (t > 0.01) {
+    relax_exits(c, t);
     (c.moved |> List.map(((_, node, dx, dy)) => (node, dx, dy)))
     @ c.moved_decos
     |> List.iter(((node, dx, dy)) => {
@@ -613,6 +692,18 @@ let sync =
              | _ => None
              }
            );
+      /* tokens present live but absent in the candidate */
+      let exits_for = (cand_m: Measured.t) =>
+        pairs
+        |> List.filter_map(((k, node)) =>
+             switch (
+               CodeFlip.find_meas(measured, k),
+               CodeFlip.find_meas(cand_m, k),
+             ) {
+             | (Some(_), None) => Some(node)
+             | _ => None
+             }
+           );
       /* anchored decorations (DOM id "varhl-<uuid>" etc.): same
          deltas as their anchor tokens, found by id in both frames */
       let decos_for =
@@ -652,6 +743,7 @@ let sync =
                scroll_rows: c.frame.scroll_rows,
                moved: moved_for(c.frame, c.measured),
                moved_decos: decos_for(c.frame, c.measured),
+               exits: exits_for(c.measured),
              }
            );
       s.cands = cands;

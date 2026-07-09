@@ -366,13 +366,21 @@ let strip_typ_boundaries = (t: Typ.t): Typ.t => {
 /* The copy's root adopts the replaced occurrence's ids: the
  * occurrence id stays valid post-substitution (unique — the original
  * node is gone), giving inline a stable focus target */
-let inserted = (~parens: bool, def: Exp.t, at: Exp.t): Exp.t => {
+/* keep_ids: the copy keeps the def's ids (P7 identity — the def IS
+   the moved construct when the binding dissolves, so it must keep
+   its identity for animation continuity); default adopts the
+   occurrence's ids (multi-copy inline needs per-site identity). */
+let inserted =
+    (~parens: bool, ~keep_ids: bool=false, def: Exp.t, at: Exp.t): Exp.t => {
   let secondary = at.annotation.secondary;
   let def = strip_boundaries(def);
   if (parens) {
     {
       annotation: {
-        ...IdTagged.IdTag.mk_internal(at.annotation.ids),
+        ...
+          IdTagged.IdTag.mk_internal(
+            keep_ids ? [Id.mk()] : at.annotation.ids,
+          ),
         secondary,
       },
       term: Parens(def),
@@ -384,7 +392,7 @@ let inserted = (~parens: bool, def: Exp.t, at: Exp.t): Exp.t => {
       ...def,
       annotation: {
         ...def.annotation,
-        ids: at.annotation.ids,
+        ids: keep_ids ? def.annotation.ids : at.annotation.ids,
         secondary: (def_before @ before, def_after @ after),
       },
     };
@@ -627,6 +635,7 @@ let rename_syntactic = (y: string, y': string, e: Exp.t): Exp.t =>
 let rec subst =
         (
           ~parens_for: Exp.t => bool,
+          ~keep_ids: bool=false,
           ~avoid: list(string),
           ~used: ref(list(string)),
           x: string,
@@ -634,7 +643,7 @@ let rec subst =
           e: Exp.t,
         )
         : Exp.t => {
-  let go = subst(~parens_for, ~avoid, ~used, x, def);
+  let go = subst(~parens_for, ~keep_ids, ~avoid, ~used, x, def);
   /* rename p's avoid-colliding binders in p + the given scopes */
   let freshen = (p: Pat.t, scopes: list(Exp.t)): (Pat.t, list(Exp.t)) =>
     pat_var_names(p)
@@ -657,7 +666,7 @@ let rec subst =
        );
   let (term, rewrap) = Exp.unwrap(e);
   switch (term) {
-  | Var(y) when y == x => inserted(~parens=parens_for(e), def, e)
+  | Var(y) when y == x => inserted(~parens=parens_for(e), ~keep_ids, def, e)
   | Let(p, d, body) =>
     let recursive =
       switch (IdTagged.term_of(d)) {
@@ -1214,7 +1223,12 @@ let inline_let_impl: impl = {
                 : occurrences_of(x, body) |> List.map(Exp.rep_id);
             let parens_for = occ =>
               needs_parens(def) && !List.mem(Exp.rep_id(occ), bare_ids);
-            let body' = subst(~parens_for, ~avoid, ~used, x, def, body);
+            /* sole use: the def keeps its identity into the copy —
+               the binding dissolves and the value MOVES (P7);
+               multiple copies each adopt their occurrence's ids */
+            let sole = List.length(occurrences_of(x, body)) == 1;
+            let body' =
+              subst(~parens_for, ~keep_ids=sole, ~avoid, ~used, x, def, body);
             /* the def's BOUNDARY comments stay at the vacated line
                (andrew: comments live where they live) — the copies
                are stripped of them (never duplicate prose), so
@@ -1232,12 +1246,15 @@ let inline_let_impl: impl = {
                   },
                 };
               };
-            /* caret follows the substituted copy: the one at the
-               invoking occurrence, else the first occurrence (copy
-               roots adopt occurrence ids — see `inserted`) */
+            /* caret follows the substituted copy. Sole use: the
+               copy kept the DEF's ids, so focus is the def's rep
+               (P2: focus follows the moved content). Multiple: copy
+               roots adopt occurrence ids — see `inserted`. */
             let occs = occurrences_of(x, body) |> List.map(Exp.rep_id);
             let focus =
-              if (List.mem(target, occs)) {
+              if (sole) {
+                Exp.rep_id(def);
+              } else if (List.mem(target, occs)) {
                 target;
               } else {
                 switch (occs) {
@@ -1308,6 +1325,27 @@ let feed_site =
     | Let(p, _, _) => let_head_name(p) |> Option.map(x => (l, x, occ))
     | _ => None
     };
+  /* the innermost let whose DEF subtree holds the target: grabbing
+     the value itself feeds it (the def is the persistent element —
+     the D2-conformant handle); resolution order keeps occurrence
+     targeting first so feed-at-use semantics are unchanged */
+  let def_host = (): option(Exp.t) =>
+    switch (find_path(~hit=hit_node(target), program)) {
+    | None => None
+    | Some(path) =>
+      let rec scan = (best, path: list(Exp.t)) =>
+        switch (path) {
+        | [parent, child, ...rest] =>
+          let best =
+            switch (IdTagged.term_of(parent)) {
+            | Let(_, def, _) when same_node(def, child) => Some(parent)
+            | _ => best
+            };
+          scan(best, [child, ...rest]);
+        | _ => best
+        };
+      scan(None, path);
+    };
   switch (find_hit(~hit=hit_let(target), program)) {
   | Some(l) => of_let(l, None)
   | None =>
@@ -1317,7 +1355,11 @@ let feed_site =
       | Some(l) => of_let(l, Some(target))
       | None => None
       }
-    | None => None
+    | None =>
+      switch (def_host()) {
+      | Some(l) => of_let(l, None)
+      | None => None
+      }
     }
   };
 };
@@ -1325,7 +1367,7 @@ let feed_site =
 /* the plan (print-free): which occurrence a feed would hit, or that
  * the sole remaining use consumes the binding */
 type feed_plan =
-  | Consume /* last use: full inline */
+  | Consume(Exp.t) /* last use: full inline (of this let) */
   | Feed(Exp.t, Exp.t, Exp.t) /* let, def, occurrence */;
 
 let feed_plan =
@@ -1339,7 +1381,7 @@ let feed_plan =
       let occs = occurrences_of(x, body);
       switch (occs) {
       | [] => None
-      | [_] => Some(Consume)
+      | [_] => Some(Consume(l))
       | _ =>
         let occ =
           switch (occ_pref) {
@@ -1368,7 +1410,10 @@ let feed_let_impl: impl = {
   prepare: (~info_map, ~target, program) =>
     switch (feed_plan(~info_map, ~target, program)) {
     | None => None
-    | Some(Consume) => inline_let_impl.prepare(~info_map, ~target, program)
+    | Some(Consume(l)) =>
+      /* delegate at the LET, not the raw target — a def-interior
+         grab resolves here but not in inline's own targeting */
+      inline_let_impl.prepare(~info_map, ~target=Exp.rep_id(l), program)
     | Some(Feed(l, def, occ)) =>
       /* parens: the same per-occurrence policy as inline */
       let parens =

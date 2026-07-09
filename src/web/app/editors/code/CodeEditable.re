@@ -105,6 +105,8 @@ module Update = {
           @ (
             JsUtil.ids_with_prefix("indication-")
             @ JsUtil.ids_with_prefix("varhl-")
+            @ JsUtil.ids_with_prefix("errdec-")
+            @ JsUtil.ids_with_prefix("warndec-")
             |> List.map(Animation.Actions.move)
           ),
         );

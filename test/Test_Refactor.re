@@ -1875,6 +1875,63 @@ let drag_tests = [
   ),
 ];
 
+let identity_tests = [
+  test_case(
+    "sole-use inline: the def keeps its identity into the copy (P7)",
+    `Quick,
+    () => {
+      let z = Test_Editing.parse_zipper("¦let x = 1 + 2 in x");
+      let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
+      let def_rep =
+        switch (Language.IdTagged.term_of(term)) {
+        | Let(_, def, _) => Language.Exp.rep_id(def)
+        | _ => failwith("fixture is a let")
+        };
+      switch (
+        Refactor.impl(InlineLet).prepare(
+          ~info_map=info_map_of(z),
+          ~target=Language.Exp.rep_id(term),
+          term,
+        )
+      ) {
+      | Some((_, focus)) =>
+        check(
+          bool,
+          "focus is the def's rep (copy kept def ids)",
+          true,
+          focus == def_rep,
+        )
+      | None => failwith("inline applies")
+      };
+    },
+  ),
+  test_case("down inside the def feeds (grab the value itself)", `Quick, () =>
+    check(
+      bool,
+      "def-interior feed",
+      true,
+      offers(FeedLet, "let x = 2 ¦+ 3 in x + 1"),
+    )
+  ),
+  test_case(
+    "drag from inside the def offers the feed track",
+    `Quick,
+    () => {
+      let cs = drag_cands("let x = 2 ¦+ 3 in x + 1");
+      let kinds = cs |> List.map((c: Refactor.DragCandidate.t) => c.kind);
+      check(bool, "feed", true, List.mem(Action.FeedLet, kinds));
+    },
+  ),
+  test_case(
+    "def-interior feed behaves like let-zone feed",
+    `Quick,
+    () => {
+      let got = inline(~kind=FeedLet, "let x = 2 ¦+ 3 in x + 1") |> text_of;
+      check(string, "fed", "(2 + 3) + 1", got);
+    },
+  ),
+];
+
 let reparse_safety_tests = {
   let case = (name, kind, marked) =>
     test_case(name, `Quick, () => prepare_reparses(~kind, marked));
@@ -2838,6 +2895,7 @@ let tests = [
     @ round3_tests
     @ binding_tests
     @ sink_layout_tests
+    @ identity_tests
     @ feed_tests
     @ drag_tests
     @ reparse_safety_tests,

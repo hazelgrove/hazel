@@ -113,7 +113,10 @@ let animate_enter = (node: Js.t(Dom.node)): unit => {
     let options =
       Animation.Js.options_unsafe({
         duration: enter_duration,
-        easing,
+        /* NOT easeOutExpo: it front-loads so hard the entrance reads
+           as a pop (91% visible at t=120ms); linear lets the grow
+           register (andrew kept missing it) */
+        easing: "linear",
       });
     switch (
       Js.Unsafe.meth_call(
@@ -229,29 +232,31 @@ let adopt = (anims: list(Js.Unsafe.any)): unit => active := anims @ active^;
 /* Anchored decorations: elements whose DOM id is "<prefix><uuid>"
    ride the token with that id — one rail for the drag scrub and the
    commit flights (a deco missing an anchor just doesn't move). */
-let deco_prefixes = ["varhl-"];
+let deco_prefixes = ["varhl-", "errdec-", "warndec-", "indication-"];
 
 let anchored_decos = (): list((Id.t, Js.t(Dom.node))) =>
   deco_prefixes
   |> List.concat_map(prefix =>
        JsUtil.ids_with_prefix(prefix)
-       |> List.filter_map(dom_id =>
-            switch (
-              Id.of_string(
-                String.sub(
-                  dom_id,
-                  String.length(prefix),
-                  String.length(dom_id) - String.length(prefix),
-                ),
-              )
-            ) {
+       |> List.filter_map(dom_id => {
+            let rest =
+              String.sub(
+                dom_id,
+                String.length(prefix),
+                String.length(dom_id) - String.length(prefix),
+              );
+            /* indication ids carry a -<shard> suffix; a uuid is
+               36 chars */
+            let uuid =
+              String.length(rest) > 36 ? String.sub(rest, 0, 36) : rest;
+            switch (Id.of_string(uuid)) {
             | exception _ => None
             | None => None
             | Some(id) =>
               JsUtil.get_elem_by_id_opt(dom_id)
               |> Option.map(el => (id, (el :> Js.t(Dom.node))))
-            }
-          )
+            };
+          })
      );
 
 /* Commit-time scroll bump (pinned-frame extract): applied when the
