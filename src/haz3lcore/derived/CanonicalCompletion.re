@@ -520,6 +520,74 @@ let opener_schedule =
         : rule_walls
           |> List.filter(w => w >= at && w < idx)
           |> List.fold_left((acc, w) => max(acc, w + 1), at);
+    /* Line walls: a synthesized opener must not hoist above a line
+       that STARTS with a complete prefix-form tile (multi-shard,
+       convex-left, concave-right — a statement-shaped definition
+       like a complete let/type/if, not an operand). Deleting a
+       mid-program form head must not absorb the definitions above
+       it; skel maximal-left can't see this because the whole
+       sequential chain is one operand. A wall only applies when a
+       LINEBREAK separates it from the broken tile — inline
+       absorption (`(let a = 1 in a)`-style wrapping) keeps its
+       maximal reading; sequential DEFINITIONS live on their own
+       lines. */
+    let line_walls: list(int) = {
+      let rec go = (i, ps, after_lb, acc) =>
+        switch (ps) {
+        | [] => acc
+        | [p, ...rest] =>
+          switch ((p: Piece.t)) {
+          | Secondary(sec) =>
+            go(i + 1, rest, after_lb || Secondary.is_linebreak(sec), acc)
+          | Grout(_)
+          | Projector(_) => go(i + 1, rest, after_lb, acc)
+          | Tile(t) =>
+            let wall =
+              after_lb
+              && List.length(t.label) > 1
+              && Tile.is_complete(t)
+              && (
+                switch (Tile.nibs(t)) {
+                | ({shape: Nib.Shape.Convex, _}, {shape: Concave(_), _}) =>
+                  true
+                | _ => false
+                }
+              );
+            go(i + 1, rest, false, wall ? [i, ...acc] : acc);
+          }
+        };
+      go(0, subseg, true, []);
+    };
+    let lb_between = (a, b) => {
+      let rec go = j =>
+        j < b
+        && (
+          switch (List.nth_opt(subseg, j)) {
+          | Some(Piece.Secondary(sec)) when Secondary.is_linebreak(sec) =>
+            true
+          | _ => go(j + 1)
+          }
+        );
+      go(a + 1);
+    };
+    let clamp_lines = (at, idx) =>
+      switch (
+        line_walls
+        |> List.filter(w => w >= at && w < idx && lb_between(w, idx))
+      ) {
+      | [] => at
+      | walls =>
+        /* land at the first content after the last wall tile */
+        let w = List.fold_left(max, at, walls) + 1;
+        let rec skip = j =>
+          j < idx
+            ? switch (List.nth_opt(subseg, j)) {
+              | Some(Piece.Secondary(_)) => skip(j + 1)
+              | _ => j
+              }
+            : j;
+        skip(w);
+      };
     /* Leading junction drops: a CONCAVE-LEFT leading shard (rules —
        bin-molded tiles) is shape-qualified to fill an operator hole,
        so it takes a unique sort-legal junction within its span over
@@ -655,7 +723,11 @@ let opener_schedule =
     |> List.filter_map(t =>
          index_of(t)
          |> Option.map(idx => {
-              let at = clamp(clamp_walls(t, at_of(idx), idx), idx);
+              let at =
+                clamp(
+                  clamp_lines(clamp_walls(t, at_of(idx), idx), idx),
+                  idx,
+                );
               switch (witness_for(t, at, idx)) {
               | Some((j, sp)) => (j, idx, t, ReplaceWitness(sp))
               | None =>

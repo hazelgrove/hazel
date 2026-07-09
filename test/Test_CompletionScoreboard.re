@@ -422,13 +422,18 @@ let pair_tests =
    update deliberately when heuristics (or delete semantics) change.
    `destroyed` = the edit merged tokens; not a completion miss. */
 let pins = [
-  ("let-chain", "5/0/6", "4/0/4"),
+  ("let-chain", "6/0/6", "4/0/4"),
   ("fun-ap", "6/2/9", "4/0/4"),
-  ("if-else-inline", "5/0/6", "5/0/5"),
-  ("if-else-multiline", "5/0/6", "5/0/5"),
-  ("case-multiline", "8/0/9", "6/0/6"),
-  ("type-adt", "12/2/16", "8/0/8"),
-  ("tuple-list", "8/0/10", "4/0/4"),
+  ("if-else-inline", "6/0/6", "5/0/5"),
+  ("if-else-multiline", "6/0/6", "5/0/5"),
+  ("case-multiline", "9/0/9", "6/0/6"),
+  ("type-adt", "14/2/16", "8/0/8"),
+  /* the tuple-list full miss: deleting the first let's = leaves
+     `let p (1, 2 + 3) in` — p(1, 2+3) reads as a legitimate
+     ap-PATTERN (self-healed adjacency, no junction debris), so the
+     everything-left completion is correct for the visible state.
+     Accepted-inherent, same class as fun-ap's paren. */
+  ("tuple-list", "9/0/10", "4/0/4"),
   ("case-def-inline", "9/0/9", "6/0/6"),
   ("case-def-multiline", "9/0/9", "6/0/6"),
 ];
