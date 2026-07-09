@@ -522,6 +522,9 @@ let resolve = (s: session, p: vec): unit => {
           CodeFlip.set_drag_offsets(
             c.moved |> List.map(((k, _, dx, dy)) => (k, (dx, dy))),
           );
+          if (c.enters != []) {
+            CodeFlip.set_drag_enter(1.0);
+          };
           CodeFlip.adopt(s.scrub_anims |> List.concat_map(snd));
           s.scrub_anims = [];
           s.scrub_active = None;
@@ -616,6 +619,9 @@ let on_up = (_e: Js.t(Dom_html.event)): unit =>
       );
       if (c.scroll_rows > 0) {
         CodeFlip.set_scroll_bump(~rows=c.scroll_rows, ~near=s.text_box);
+      };
+      if (c.enters != []) {
+        CodeFlip.set_drag_enter(s.t);
       };
       CodeFlip.adopt(s.scrub_anims |> List.concat_map(snd));
       s.scrub_anims = [];

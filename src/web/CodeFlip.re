@@ -108,7 +108,13 @@ let cancel_active = (): unit => {
  * elements are already gone from the DOM when go() runs. */
 let enter_duration = 320; /* slower than movement so it registers */
 
-let animate_enter = (node: Js.t(Dom.node)): unit => {
+/* drag handoff: the ghost previewed the entrance at opacity = pull
+   progress — the real tokens CONTINUE from there (no scale pop: the
+   ghost was full-size), same continuation rule as movement */
+let drag_enter_from: ref(option(float)) = ref(None);
+let set_drag_enter = (t: float): unit => drag_enter_from := Some(t);
+
+let animate_enter = (~from: option(float)=?, node: Js.t(Dom.node)): unit => {
   let run = keyframes => {
     let options =
       Animation.Js.options_unsafe({
@@ -132,8 +138,13 @@ let animate_enter = (node: Js.t(Dom.node)): unit => {
     | anim => active := [anim, ...active^]
     };
   };
-  run([("opacity", "0"), ("opacity", "1")]);
-  run([("transform", "scale(0.1)"), ("transform", "scale(1)")]);
+  switch (from) {
+  | Some(t0) =>
+    run([("opacity", Printf.sprintf("%f", t0)), ("opacity", "1")])
+  | None =>
+    run([("opacity", "0"), ("opacity", "1")]);
+    run([("transform", "scale(0.1)"), ("transform", "scale(1)")]);
+  };
 };
 
 let animate_node =
@@ -330,6 +341,8 @@ let go = (~syntax: CachedSyntax.t, ~font_metrics: FontMetrics.t): unit =>
     cancel_active();
     let offsets = drag_offsets^;
     drag_offsets := [];
+    let enter_from = drag_enter_from^;
+    drag_enter_from := None;
     let bump_y =
       switch (scroll_bump^) {
       | Some((el, rows)) =>
@@ -431,7 +444,7 @@ let go = (~syntax: CachedSyntax.t, ~font_metrics: FontMetrics.t): unit =>
                          | _ => ()
                          }
                        );
-                    entered |> List.iter(animate_enter);
+                    entered |> List.iter(animate_enter(~from=?enter_from));
                     moved
                     |> List.iter(((_, node, _, _)) => warn_invisible(node));
                   };
