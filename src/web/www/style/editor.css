@@ -600,10 +600,12 @@ svg:has(.child-line) {
   color: var(--quiver-chip-text-faded-dim);
 }
 
-/* the caret exactly on a chip's pin: the signpost becomes the caret —
-   whole decoration in caret red, the caret glyph itself hidden */
-.quiver-chip.chip-at-caret {
-  --quiver-chip: var(--caret-color);
+/* the caret in a chip's tolerance zone (separated from the pin only
+   by grout/whitespace): the POLE takes the caret's red — the bubble
+   keeps the incomplete gold, so typing doesn't flip the label's
+   color as regrout holes pop in and out beside the caret */
+.quiver-chip.chip-near-caret .quiver-chip-pole {
+  background: var(--caret-color);
 }
 
 /* visibility (not display): the scroll-to-caret machinery reads
@@ -613,11 +615,20 @@ svg:has(.child-line) {
   visibility: hidden;
 }
 
-/* on the red at-caret chip the gold fade reads as white: fade toward
-   the caret color instead (rose) */
-.quiver-chip.chip-at-caret .chip-frac-typed,
-.quiver-chip.chip-at-caret .chip-seg-later {
-  color: var(--quiver-chip-text-faded-caret);
+/* bubbles settle in after their content stops changing: the keyed
+   remount restarts this delayed appear, so mid-burst labels stay
+   hidden while the pole remains as a stable, minimal pin */
+.quiver-chip-body {
+  animation: quiver-chip-appear 0.12s ease-out 0.4s backwards;
+}
+
+@keyframes quiver-chip-appear {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 .quiver-chip .empty-hole {
