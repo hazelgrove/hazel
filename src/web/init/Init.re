@@ -21,8 +21,21 @@ let documentation_slides: list((string, PersistentSegment.t)) =
     Cards.out,
     Probes.out,
     Livelits.out,
+    FisheriesCaseStudy.out,
   ]
   @ B2t2.Slides.all_slides;
+
+/* Index of the slide initially selected in Documentation mode. */
+let default_documentation_slide: int = {
+  let found =
+    documentation_slides
+    |> List.mapi((i, (name, _)) => (i, name))
+    |> List.find_opt(((_, name)) => name == "Fisheries Case Study");
+  switch (found) {
+  | Some((i, _)) => i
+  | None => 0
+  };
+};
 
 let startup: PersistentData.t = {
   scratch: (
@@ -30,7 +43,7 @@ let startup: PersistentData.t = {
     [("Scratchpad 1", empty_cell_editor_persistent(~root=Exp))],
   ),
   documentation: (
-    0,
+    default_documentation_slide,
     documentation_slides
     |> List.map(((name, content: PersistentSegment.t)) =>
          (
