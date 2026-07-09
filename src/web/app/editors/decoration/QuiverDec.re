@@ -20,9 +20,47 @@ type positioned_insertion = {
   delimiters: list(CanonicalCompletion.delimiter_info),
 };
 
-/* Resolve an insertion's position by looking up adjacent_id in Measured */
+let rec find_piece_deep = (sg: Segment.t, id: Id.t): option(Piece.t) =>
+  List.fold_left(
+    (acc, p: Piece.t) =>
+      switch (acc) {
+      | Some(_) => acc
+      | None =>
+        if (Id.equal(Piece.id(p), id)) {
+          Some(p);
+        } else {
+          switch (p) {
+          | Tile(t) =>
+            List.fold_left(
+              (acc, ch) =>
+                switch (acc) {
+                | Some(_) => acc
+                | None => find_piece_deep(ch, id)
+                },
+              None,
+              t.children,
+            )
+          | _ => None
+          };
+        }
+      },
+    None,
+    sg,
+  );
+
+/* Resolve an insertion's position by looking up adjacent_id in
+   Measured. A right-side anchor whose delimiter would be
+   space-separated from the anchor token (SpaceNormalize inserts one
+   at materialization) shifts one column to the space side, so the
+   arrow sits where the delimiter actually lands instead of flush
+   against the existing token. Witness arrows (typed_len set) never
+   shift: the completion continues the typed prefix directly. */
 let resolve_position =
-    (measured: Measured.t, ins: CanonicalCompletion.insertion)
+    (
+      ~seg: Segment.t,
+      measured: Measured.t,
+      ins: CanonicalCompletion.insertion,
+    )
     : option(positioned_insertion) =>
   switch (Measured.find_by_id(ins.adjacent_id, measured)) {
   | None => None
@@ -31,6 +69,21 @@ let resolve_position =
       switch (ins.side) {
       | Right => (m.last.row, m.last.col)
       | Left => (m.origin.row, m.origin.col)
+      };
+    let col =
+      switch (ins.side, ins.delimiters) {
+      | (Right, [{typed_len: None, text, _}, ..._]) =>
+        let sep =
+          switch (find_piece_deep(seg, ins.adjacent_id)) {
+          | Some(p) =>
+            switch (SpaceNormalize.last_token(p)) {
+            | Some(a) => SpaceNormalize.needs_space(a, text)
+            | None => false
+            }
+          | None => false
+          };
+        col + (sep ? 1 : 0);
+      | _ => col
       };
     Some({
       row,
@@ -43,7 +96,11 @@ let resolve_position =
    completing a prefix-token witness renders its typed prefix bold and
    the completed remainder faded. */
 let delimiter_nodes =
-    (delimiters: list(CanonicalCompletion.delimiter_info)): list(Node.t) =>
+    (
+      ~font_metrics: FontMetrics.t,
+      delimiters: list(CanonicalCompletion.delimiter_info),
+    )
+    : list(Node.t) =>
   delimiters
   |> List.mapi((k, d: CanonicalCompletion.delimiter_info) => {
        let sep = k > 0 ? [Node.text(" ")] : [];
@@ -63,7 +120,13 @@ let delimiter_nodes =
            ]
          | _ => [Node.text(d.text)]
          };
-       let suffix = d.needs_hole ? [Node.text(" ?")] : [];
+       let suffix =
+         d.needs_hole
+           ? [
+             Node.text(" "),
+             EmptyHoleDec.view(font_metrics, Grout.Convex),
+           ]
+           : [];
        sep @ body @ suffix;
      })
   |> List.concat;
@@ -156,7 +219,8 @@ let view =
     div([]);
   } else {
     /* Resolve positions for all insertions */
-    let positioned = List.filter_map(resolve_position(measured), insertions);
+    let positioned =
+      List.filter_map(resolve_position(~seg, measured), insertions);
 
     /* Sort by row then column for consistent rendering */
     let sorted =
@@ -194,7 +258,7 @@ let view =
               ~font_metrics,
               ~row=ins.row,
               ~left=base_left,
-              delimiter_nodes(ins.delimiters),
+              delimiter_nodes(~font_metrics, ins.delimiters),
             );
 
           /* Update row offset for next box on same row, and publish

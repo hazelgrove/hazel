@@ -688,6 +688,11 @@ svg:has(.child-line) {
 }
 
 /* Prefix-witness completion: typed prefix vs completed remainder */
+.quiver-offside .empty-hole {
+  display: inline-block;
+  vertical-align: middle;
+}
+
 .quiver-offside .quiver-typed {
   font-weight: bold;
 }
