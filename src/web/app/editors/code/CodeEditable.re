@@ -667,6 +667,7 @@ module View = {
         ~term=model.statics.term,
         ~measured=model.editor.syntax.measured,
         ~segment=model.editor.syntax.segment,
+        ~shape_map=model.editor.syntax.shape_map,
         ~font_metrics=globals.font_metrics,
         model.editor.state.zipper,
       );

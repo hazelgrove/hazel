@@ -766,6 +766,7 @@ let sync =
       ~term: Language.Exp.t,
       ~measured: Measured.t,
       ~segment: Segment.t,
+      ~shape_map: Id.Map.t(ProjectorCore.Shape.t),
       ~font_metrics: FontMetrics.t,
       z: Zipper.t,
     )
@@ -922,7 +923,7 @@ let sync =
         | _ => None
         };
       let cands =
-        Refactor.drag_candidates(~info_map, ~term, ~measured, z)
+        Refactor.drag_candidates(~info_map, ~term, ~measured, ~shape_map, z)
         |> List.map((c: Refactor.DragCandidate.t) =>
              {
                dir: c.dir,

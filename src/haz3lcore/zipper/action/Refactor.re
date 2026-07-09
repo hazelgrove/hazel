@@ -5362,6 +5362,11 @@ let drag_candidates =
       ~info_map: Statics.Map.t,
       ~term: Exp.t,
       ~measured: Measured.t,
+      /* the LIVE projector shapes: projector ids survive transforms,
+         so candidate layouts must reserve the same rendered widths —
+         measuring with an empty map squeezed sliders to their token
+         text and every tween target sat in the wrong geometry */
+      ~shape_map: Id.Map.t(ProjectorCore.Shape.t)=Id.Map.empty,
       z: Zipper.t,
     )
     : list(DragCandidate.t) =>
@@ -5397,11 +5402,7 @@ let drag_candidates =
             ExpToSegment.exp_to_segment(~settings=roundtrip_settings, term')
             |> SpaceNormalize.go;
           let cand_measured =
-            Measured.of_segment(
-              segment,
-              ProjectorCore.Shape.Map.empty,
-              Id.Map.empty,
-            );
+            Measured.of_segment(segment, shape_map, Id.Map.empty);
           let (from_id, to_id) =
             drag_anchor(~info_map, ~target, kind, term)
             |> Option.value(~default=(target, target));
