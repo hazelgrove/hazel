@@ -5583,20 +5583,16 @@ let drag_candidates =
           };
         };
       };
+    /* NO def-host retry (reverted): the commit dispatches the plain
+       RefactorGesture, which RE-RESOLVES the position with default
+       preferences — a candidate prepared with ~prefer_def_host
+       previews a transform the commit then contradicts (andrew hit
+       it: preview moved y's def, release fed a's binding).
+       INVARIANT: enumeration must stay within what the gesture
+       dispatch re-derives. The occurrence-inside-def spot is dead
+       for drag until the commit path can carry a resolution. */
     [Action.Gesture.Up, Down, Left, Right]
-    |> List.filter_map(dir =>
-         switch (mk(dir)) {
-         | Some(c) => Some(c)
-         | None when dir == Down =>
-           /* a token can be BOTH an outer binder's occurrence and
-              part of an enclosing def: the at-use feed track
-              degenerates (the value lands where you grabbed), so
-              retry preferring the def-host reading — grabbing the
-              value moves the value */
-           mk(~feed_pref=true, dir)
-         | None => None
-         }
-       )
+    |> List.filter_map(dir => mk(dir))
     |> List.fold_left(
          (acc, c: DragCandidate.t) =>
            List.exists((c': DragCandidate.t) => c'.target == c.target, acc)

@@ -1982,24 +1982,15 @@ let regression_tests = [
 
 let shard_anchor_tests = [
   test_case(
-    "drag: occurrence-inside-a-def retries as def-host feed",
+    "drag: occurrence-inside-a-def offers NO feed (preview==commit)",
     `Quick,
     () => {
-      /* `a` (multi-use) is an occurrence of the outer binder AND
-         inside y's def: the at-use feed spawns its clone exactly at
-         the grab (zero track, dropped); the retry feeds Y's value to
-         y's use instead — grabbing the value moves the value */
+      /* dead by design: the commit re-resolves the gesture with
+         default preferences, so a def-host candidate here would
+         preview a transform the release contradicts */
       let cs = drag_cands("let a = 1 in\nlet y = ¦a + 5 in\nf(a + y)");
       let kinds = cs |> List.map((c: Refactor.DragCandidate.t) => c.kind);
-      check(bool, "feed offered", true, List.mem(Action.FeedLet, kinds));
-      let feed =
-        cs |> List.find((c: Refactor.DragCandidate.t) => c.kind == FeedLet);
-      check(
-        bool,
-        "def-host track heads down to y's use",
-        true,
-        feed.target.row > feed.current.row,
-      );
+      check(bool, "no feed", false, List.mem(Action.FeedLet, kinds));
     },
   ),
   test_case(
