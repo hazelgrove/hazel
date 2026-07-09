@@ -1307,6 +1307,78 @@ let dbl_del_inline =
   @ [destruct_l, destruct_l]
   @ Test_Editing.mv_l(1)
   @ [destruct_l, destruct_l, destruct_l];
+let probe_raw = (acts: list(Action.t)): string => {
+  let z = Test_Editing.perform(Zipper.init(), acts);
+  let seg = Zipper.unselect_and_zip(~erase_buffer=true, z);
+  let inc = Segment.incomplete_tiles_deep(seg);
+  let tiles =
+    List.filter_map(
+      (pc: Piece.t) =>
+        switch (pc) {
+        | Tile(t) =>
+          Some(
+            Printf.sprintf(
+              "%s[%s]",
+              String.concat("", Tile.effective_label(t)),
+              String.concat(",", List.map(string_of_int, t.shards)),
+            ),
+          )
+        | Grout(g) => Some(g.shape == Convex ? "?" : "~")
+        | _ => None
+        },
+      seg,
+    );
+  Printf.sprintf(
+    "%s | top: %s | inc: %d",
+    print_seg(seg),
+    String.concat(" ", tiles),
+    List.length(inc),
+  );
+};
+let probe_case = (~name, ~acts, ~expected) =>
+  test_case(name, `Quick, () =>
+    check(string_testable, name, expected, probe_raw(acts))
+  );
+/* KNOWN-BAD (andrew 2026-07-09): delete + retype the l of a let that
+   is NOT the first thing in the program — the retyped let stays a
+   lone shard-0 remnant and never reassociates with its orphaned
+   =/in (two incomplete tiles; text prints identically, structure is
+   broken). First-let control pairs correctly. Reassociation bug
+   (Reassociate.go family, position-dependent), not completion. */
+let probe_tests = [
+  probe_case(
+    ~name="second-let delete+retype l fails to reassociate (KNOWN-BAD)",
+    ~acts=
+      Test_Editing.mk("let f = 1 in\nl¦et g = 2 in\nf + g")
+      @ [destruct_l, Action.Insert("l")],
+    ~expected=
+      "let f = 1 in\nlet g = 2 in\nf + g | top: let=in[0,1,2] let[0] g[0] =in[1,2] f[0] +[0] g[0] | inc: 2",
+  ),
+  probe_case(
+    ~name="first-let delete+retype l reassociates (control)",
+    ~acts=
+      Test_Editing.mk("l¦et f = 1 in\nf + 1")
+      @ [destruct_l, Action.Insert("l")],
+    ~expected=
+      "let f = 1 in\nf + 1 | top: let=in[0,1,2] f[0] +[0] 1[0] | inc: 0",
+  ),
+];
+/* KNOWN-SUBOPTIMAL (andrew 2026-07-09): deleting a test's end in a
+   semicolon-separated cluster appends it AFTER the trailing ; with a
+   synthesized hole inside the test body (1 == 1; ?) — indeterminate
+   test. Stopping before the ; creates ZERO synthesized holes (the ;
+   takes the next line's test as operand). Candidate fix on the
+   docket: hole-minimizing closer placement (strict reduction only,
+   ties keep current behavior). */
+let probe2_tests = [
+  edit_case(
+    ~name="deleted test-end lands after the semicolon (KNOWN-SUBOPTIMAL)",
+    ~acts=
+      Test_Editing.mk("test 1 == 1 end¦;\ntest 2 == 2 end;\n3")
+      @ [destruct_l, destruct_l, destruct_l],
+    ~expected="test 1 == 1 ;?end~\ntest 2 == 2 end;\n3",
+  ),
+];
 let joint_tests = [
   edit_case(
     ~name="end+in double deletion: placements incompatible (KNOWN-BAD)",
@@ -1325,6 +1397,11 @@ let joint_tests = [
 ];
 
 let tests: list((string, list(Alcotest.test_case(unit)))) = [
+  ("CanonicalCompletion: reassociation (known-bad)", probe_tests),
+  (
+    "CanonicalCompletion: closer-vs-separator (known-suboptimal)",
+    probe2_tests,
+  ),
   ("CanonicalCompletion: joint-satisfiability", joint_tests),
   /* Debug test - run first to isolate crash */
   ("CanonicalCompletion: regrout-debug", regrout_debug_tests),
