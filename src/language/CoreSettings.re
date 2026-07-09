@@ -100,7 +100,7 @@ let on: t = {
   assist: true,
   dynamics: true,
   probe_all: false, /* Off by default even in "on" config - opt-in feature */
-  deep_reassociate: false,
+  deep_reassociate: true, /* matches the product (web Settings.re) */
   auto_reindent: true,
   format_shortcut: FormatShortcut.Spaces,
   indentation_ux: true,

@@ -1307,15 +1307,8 @@ let dbl_del_inline =
   @ [destruct_l, destruct_l]
   @ Test_Editing.mv_l(1)
   @ [destruct_l, destruct_l, destruct_l];
-/* deep_reassociate ON: these pin the LIVE editor's reassociation
-   path (the harness default leaves it off) */
-let reassoc_settings = {
-  ...Test_Editing.default_settings,
-  deep_reassociate: true,
-};
 let probe_raw = (acts: list(Action.t)): string => {
-  let z =
-    Test_Editing.perform(~settings=reassoc_settings, Zipper.init(), acts);
+  let z = Test_Editing.perform(Zipper.init(), acts);
   let seg = Zipper.unselect_and_zip(~erase_buffer=true, z);
   let inc = Segment.incomplete_tiles_deep(seg);
   let tiles =
