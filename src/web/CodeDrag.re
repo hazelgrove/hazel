@@ -95,6 +95,7 @@ type session = {
   mutable t: float,
   mutable began: bool,
   mutable had_cands: bool,
+  mutable segment: option(Segment.t), /* for the dead-press shake */
   mutable pending,
   mutable last_z: option(Zipper.t),
   mutable last_term: option(Language.Exp.t),
@@ -621,7 +622,7 @@ let on_up = (_e: Js.t(Dom_html.event)): unit =>
   | Some(s) =>
     /* dragged something undraggable: make the refusal visible */
     if (s.began && !s.had_cands) {
-      CodeFlip.shake_dead_press();
+      CodeFlip.shake_dead_press(~segment=?s.segment, ());
     };
     switch (
       s.winner |> Option.map(i => List.nth_opt(s.cands, i)) |> Option.join
@@ -698,6 +699,7 @@ let arm =
     t: 0.,
     began: false,
     had_cands: false,
+    segment: None,
     pending: AwaitGoal(goal, None),
     last_z: None,
     last_term: None,
@@ -779,6 +781,7 @@ let sync =
         y: (float_of_int(p.row) +. 0.5) *. font_metrics.row_height,
       };
       scrub_clear(s);
+      s.segment = Some(segment);
       let pairs = live_pairs(segment);
       /* tokens this candidate displaces, in px (single-row tokens
          only, matching CodeFlip's guard); candidate positions read

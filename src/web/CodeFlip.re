@@ -337,7 +337,16 @@ let anchor_meas =
    shards (they exist and carry DOM ids whenever something is
    indicated) so a gated gesture visibly registers instead of
    silently doing nothing. Falls back to the caret. */
-let shake_dead_press = (~syntax: option(CachedSyntax.t)=?, ()): unit => {
+let shake_dead_press =
+    (
+      ~segment: option(Segment.t)=?,
+      ~axis: [
+         | `X
+         | `Y
+       ]=`X,
+      (),
+    )
+    : unit => {
   let ids = JsUtil.ids_with_prefix("indication-");
   /* the indicated construct's TEXT shakes with its backing: pair the
      segment against .code-text and take the tokens whose tile is an
@@ -349,8 +358,8 @@ let shake_dead_press = (~syntax: option(CachedSyntax.t)=?, ()): unit => {
            ? Some(String.sub(dom_id, 11, 36)) : None
        );
   let text_nodes =
-    switch (syntax) {
-    | Some(syntax) when indicated_uuids != [] =>
+    switch (segment) {
+    | Some(segment) when indicated_uuids != [] =>
       switch (JsUtil.get_elem_by_id_opt("caret")) {
       | None => []
       | Some(caret) =>
@@ -373,7 +382,7 @@ let shake_dead_press = (~syntax: option(CachedSyntax.t)=?, ()): unit => {
           | None => []
           | Some(ct) =>
             let nodes = Dom.list_of_nodeList(ct##.childNodes);
-            switch (pair(entries_of_segment(syntax.segment), nodes)) {
+            switch (pair(entries_of_segment(segment), nodes)) {
             | None => []
             | Some(pairs) =>
               pairs
@@ -403,17 +412,24 @@ let shake_dead_press = (~syntax: option(CachedSyntax.t)=?, ()): unit => {
       |> List.filter_map(JsUtil.get_elem_by_id_opt)
       |> List.map(el => (el :> Js.t(Dom.node)))
     };
+  /* wiggle along the attempted direction: a refused vertical move
+     shakes vertically */
+  let tr = (px: int) =>
+    switch (axis) {
+    | `X => Printf.sprintf("translateX(%dpx)", px)
+    | `Y => Printf.sprintf("translateY(%dpx)", px)
+    };
   backing
   @ text_nodes
   |> List.iter(node => {
        let keyframes =
          Animation.Js.keyframes_unsafe([
-           ("transform", "translateX(0px)"),
-           ("transform", "translateX(-4px)"),
-           ("transform", "translateX(4px)"),
-           ("transform", "translateX(-3px)"),
-           ("transform", "translateX(2px)"),
-           ("transform", "translateX(0px)"),
+           ("transform", tr(0)),
+           ("transform", tr(-4)),
+           ("transform", tr(4)),
+           ("transform", tr(-3)),
+           ("transform", tr(2)),
+           ("transform", tr(0)),
          ]);
        let options =
          Animation.Js.options_unsafe({
