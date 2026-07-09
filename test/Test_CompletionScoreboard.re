@@ -130,7 +130,32 @@ let completed_tokens = (z: Zipper.t): list(string) => {
 
 type outcome = {
   restored: int,
+  destroyed: int, /* the EDIT destroyed the evidence (token merge) */
   total: int,
+};
+
+/* Did the deletion leave the token stream = original minus (or with a
+   prefix of) the deleted shard? If not, the edit itself merged or
+   reshaped tokens — no visible-state completion can restore, and the
+   miss belongs to the editor's delete semantics, not the heuristics. */
+let evidence_intact =
+    (~replacement: option(string), original, mutated, tok): bool => {
+  let rec go = (pre, rest) =>
+    switch (rest) {
+    | [] => false
+    | [x, ...tl] =>
+      x == tok
+      && List.rev_append(
+           pre,
+           switch (replacement) {
+           | None => tl
+           | Some(r) => [r, ...tl]
+           },
+         )
+      == mutated
+      || go([x, ...pre], tl)
+    };
+  go([], original);
 };
 
 let run_class = (~prefix_only: bool, name: string, text: string): outcome => {
@@ -163,45 +188,72 @@ let run_class = (~prefix_only: bool, name: string, text: string): outcome => {
           total: acc.total + 1,
         };
       | Some(z') =>
-        let got = completed_tokens(z');
-        let ok = got == original;
-        if (!ok) {
+        let mutated =
+          tokens(Zipper.unselect_and_zip(~erase_buffer=true, z'));
+        let replacement =
+          prefix_only
+            ? Some(String.sub(tok, 0, Token.length(tok) - 1)) : None;
+        if (!evidence_intact(~replacement, original, mutated, tok)) {
           print_endline(
             Printf.sprintf(
-              "[%s/%s] MISS %s at %d:%d -> %s",
+              "[%s/%s] DESTROYED %s at %d:%d -> %s",
               name,
               prefix_only ? "prefix" : "full",
               tok,
               pt.row,
               pt.col,
-              String.concat(" ", got),
+              String.concat(" ", mutated),
             ),
           );
-        };
-        {
-          restored: acc.restored + (ok ? 1 : 0),
-          total: acc.total + 1,
+          {
+            ...acc,
+            destroyed: acc.destroyed + 1,
+            total: acc.total + 1,
+          };
+        } else {
+          let got = completed_tokens(z');
+          let ok = got == original;
+          if (!ok) {
+            print_endline(
+              Printf.sprintf(
+                "[%s/%s] MISS %s at %d:%d -> %s",
+                name,
+                prefix_only ? "prefix" : "full",
+                tok,
+                pt.row,
+                pt.col,
+                String.concat(" ", got),
+              ),
+            );
+          };
+          {
+            ...acc,
+            restored: acc.restored + (ok ? 1 : 0),
+            total: acc.total + 1,
+          };
         };
       };
     },
     {
       restored: 0,
+      destroyed: 0,
       total: 0,
     },
     shards,
   );
 };
 
-/* (program, full (restored, total), prefix (restored, total)) —
-   PINNED: update deliberately when heuristics change. */
+/* (program, full "restored/destroyed/total", prefix same) — PINNED:
+   update deliberately when heuristics (or delete semantics) change.
+   `destroyed` = the edit merged tokens; not a completion miss. */
 let pins = [
-  ("let-chain", (5, 6), (2, 4)),
-  ("fun-ap", (6, 9), (1, 4)),
-  ("if-else-inline", (5, 6), (3, 5)),
-  ("if-else-multiline", (5, 6), (2, 5)),
-  ("case-multiline", (7, 9), (1, 6)),
-  ("type-adt", (11, 16), (2, 8)),
-  ("tuple-list", (8, 10), (2, 4)),
+  ("let-chain", "5/0/6", "2/0/4"),
+  ("fun-ap", "6/2/9", "1/0/4"),
+  ("if-else-inline", "5/0/6", "3/0/5"),
+  ("if-else-multiline", "5/0/6", "2/0/5"),
+  ("case-multiline", "7/0/9", "1/0/6"),
+  ("type-adt", "11/2/16", "2/0/8"),
+  ("tuple-list", "8/0/10", "2/0/4"),
 ];
 
 let scoreboard_tests =
@@ -214,28 +266,18 @@ let scoreboard_tests =
            let text = List.assoc(name, corpus);
            let full = run_class(~prefix_only=false, name, text);
            let prefix = run_class(~prefix_only=true, name, text);
+           let show = o =>
+             Printf.sprintf("%d/%d/%d", o.restored, o.destroyed, o.total);
            print_endline(
              Printf.sprintf(
-               "SCORE %s: full %d/%d, prefix %d/%d",
+               "SCORE %s: full %s, prefix %s",
                name,
-               full.restored,
-               full.total,
-               prefix.restored,
-               prefix.total,
+               show(full),
+               show(prefix),
              ),
            );
-           check(
-             pair(int, int),
-             name ++ " full",
-             full_pin,
-             (full.restored, full.total),
-           );
-           check(
-             pair(int, int),
-             name ++ " prefix",
-             prefix_pin,
-             (prefix.restored, prefix.total),
-           );
+           check(string, name ++ " full", full_pin, show(full));
+           check(string, name ++ " prefix", prefix_pin, show(prefix));
          },
        )
      );
