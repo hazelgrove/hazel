@@ -567,14 +567,12 @@ svg:has(.child-line) {
   white-space: nowrap;
 }
 
-/* the bar is the caret: same path, same metrics, chip-colored */
-.quiver-chip-bar {
+/* the pole is the caret's silhouette as a plain div: same coordinate
+   context as the bubble, so no sub-pixel drift between flag and pole */
+.quiver-chip-pole {
+  position: absolute;
+  background: var(--quiver-chip);
   z-index: 14;
-}
-
-.quiver-chip-bar-path {
-  fill: var(--quiver-chip);
-  stroke: none;
 }
 
 /* tab emphasis: the chip whose first delimiter tab would put down is
@@ -608,8 +606,18 @@ svg:has(.child-line) {
   --quiver-chip: var(--caret-color);
 }
 
+/* visibility (not display): the scroll-to-caret machinery reads
+   #caret's geometry every update — display:none zeroes it and the
+   scroll jumps wildly */
 .code-container:has(.chip-at-caret) #caret {
-  display: none;
+  visibility: hidden;
+}
+
+/* on the red at-caret chip the gold fade reads as white: fade toward
+   the caret color instead (rose) */
+.quiver-chip.chip-at-caret .chip-frac-typed,
+.quiver-chip.chip-at-caret .chip-seg-later {
+  color: var(--quiver-chip-text-faded-caret);
 }
 
 .quiver-chip .empty-hole {
