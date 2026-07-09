@@ -68,8 +68,9 @@ let delimiter_nodes =
      })
   |> List.concat;
 
-/* Offset from end of line content to offside display (in characters) */
-let offside_offset = 8;
+/* Offset from end of line content to offside display (in characters)
+   — the standard offside offset shared with probes (ProjectorView) */
+let offside_offset = 4;
 
 /* Render a small downward-pointing triangle at an insertion point.
  * Positioned at the top of the text line, between characters. */
@@ -171,6 +172,8 @@ let view =
         positioned,
       );
 
+    /* claims from the previous render must not accumulate */
+    RowOffsets.reset();
     /* Track offside positions per row to place boxes side by side */
     let (arrows, offsides, _) =
       List.fold_left(
@@ -194,8 +197,11 @@ let view =
               delimiter_nodes(ins.delimiters),
             );
 
-          /* Update row offset for next box on same row */
+          /* Update row offset for next box on same row, and publish
+             the claimed extent so probe offside displays stack after
+             the quiver instead of overlapping it */
           let text_width = delimiters_len(ins.delimiters) + 2; /* +2 padding */
+          RowOffsets.claim(~row=ins.row, ~until_col=base_left + text_width);
           let new_offsets =
             IntMap.add(ins.row, base_left + text_width, row_offsets);
 

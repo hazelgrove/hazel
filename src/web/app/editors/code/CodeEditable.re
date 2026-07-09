@@ -554,7 +554,12 @@ module View = {
             syntax.segment,
           ),
         ]
-        : []
+        /* quiver off: clear stale claims so probes don't stack
+           against phantom boxes (QuiverDec.view resets on entry) */
+        : {
+          RowOffsets.reset();
+          [];
+        }
     );
 
   let view =
