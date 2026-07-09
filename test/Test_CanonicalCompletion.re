@@ -1223,7 +1223,39 @@ let continuation_tests = [
   ),
 ];
 
+/* === Joint satisfiability (KNOWN-BAD, andrew 2026-07-08) ===
+   Two co-broken tiles complete INDEPENDENTLY against the raw buffer,
+   so their placements can be mutually incompatible: deleting a
+   case's end AND its enclosing let's in, the in is walled by the
+   now-naked rules (drops after the scrutinee, severing them) while
+   the end appends past the trailing content — accepting both yields
+   nothing coherent. The old backpack path couldn't express this:
+   consecutive put-downs forced stack (nesting) order by
+   construction. Pinned until sequential materialization lands. */
+let dbl_del_inline =
+  Test_Editing.mk("let f = case x | 1 => 2 | 3 => 4 end in¦ f")
+  @ [destruct_l, destruct_l]
+  @ Test_Editing.mv_l(1)
+  @ [destruct_l, destruct_l, destruct_l];
+let joint_tests = [
+  edit_case(
+    ~name="end+in double deletion: placements incompatible (KNOWN-BAD)",
+    ~acts=dbl_del_inline,
+    ~expected="let f = case xin? | 1 => 2 | 3 => 4 ~  fend",
+  ),
+  /* control: in alone (end intact) — its deletion-debris junction
+     should restore it in place */
+  edit_case(
+    ~name="in alone: junction restores in place",
+    ~acts=
+      Test_Editing.mk("let f = case x | 1 => 2 | 3 => 4 end in¦ f")
+      @ [destruct_l, destruct_l],
+    ~expected="let f = case x | 1 => 2 | 3 => 4 end in f",
+  ),
+];
+
 let tests: list((string, list(Alcotest.test_case(unit)))) = [
+  ("CanonicalCompletion: joint-satisfiability", joint_tests),
   /* Debug test - run first to isolate crash */
   ("CanonicalCompletion: regrout-debug", regrout_debug_tests),
   /* Building block tests - verify Segment.reassemble and regrout behavior */

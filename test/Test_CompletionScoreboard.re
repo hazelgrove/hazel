@@ -32,6 +32,13 @@ let corpus: list((string, string)) = [
     "type Shape = Circle + Square(Int) in\nlet s = Circle in\ncase s\n| Circle => 0\n| Square(n) => n\nend",
   ),
   ("tuple-list", "let p = (1, 2 + 3) in\nlet l = [4, 5, 6] in\np"),
+  /* case in the let's DEFINITION slot (andrew's end+in repro shape;
+     the body-slot case-multiline never exercises it) */
+  ("case-def-inline", "let f = case x | 1 => 2 | 3 => 4 end in f"),
+  (
+    "case-def-multiline",
+    "let f =\n  case x\n  | 1 => 2\n  | 3 => 4\n  end in\nf",
+  ),
 ];
 
 let build = (text: string): Zipper.t =>
@@ -243,6 +250,168 @@ let run_class = (~prefix_only: bool, name: string, text: string): outcome => {
   );
 };
 
+/* === Pair-deletion class (joint satisfiability instrument) ===
+   Delete the CLOSING shard of two different tiles (rightmost first,
+   so the left target's coordinates stay valid), complete jointly,
+   and check (a) restoration and (b) andrew's property: the joint
+   result is delimiter-complete (no incomplete tiles survive).
+   Measures the compatibility of co-broken completions — the class
+   the single-deletion scoreboard can't see. */
+
+let closer_targets = (z: Zipper.t): list((Token.t, Point.t)) => {
+  let measured = CachedSyntax.init(z).measured;
+  let acc = ref([]);
+  let rec walk = (sg: Segment.t) =>
+    List.iter(
+      (p: Piece.t) =>
+        switch (p) {
+        | Tile(t) =>
+          List.iter(walk, t.children);
+          let n = List.length(t.label);
+          if (n > 1) {
+            switch (Measured.find_shards(~msg="scoreboard", t, measured)) {
+            | shards =>
+              List.iter(
+                ((i, m: Measured.measurement)) =>
+                  if (i == n - 1) {
+                    acc := [(List.nth(t.label, i), m.last), ...acc^];
+                  },
+                shards,
+              )
+            | exception _ => ()
+            };
+          };
+        | _ => ()
+        },
+      sg,
+    );
+  walk(Zipper.unselect_and_zip(z));
+  List.rev(acc^);
+};
+
+type joint_outcome = {
+  j_restored: int,
+  j_incomplete: int, /* joint result NOT delimiter-complete */
+  j_total: int,
+};
+
+let run_pairs = (name: string, text: string): joint_outcome => {
+  let z0 = build(text);
+  let original = tokens(Zipper.unselect_and_zip(z0));
+  let closers = closer_targets(z0);
+  let lt = (a: Point.t, b: Point.t) =>
+    a.row < b.row || a.row == b.row && a.col < b.col;
+  let pairs =
+    closers
+    |> List.concat_map(((t1, p1)) =>
+         closers
+         |> List.filter_map(((t2, p2)) =>
+              lt(p1, p2) ? Some(((t1, p1), (t2, p2))) : None
+            )
+       );
+  List.fold_left(
+    (acc, ((tok_l, pt_l: Point.t), (tok_r, pt_r: Point.t))) => {
+      let del = tok =>
+        List.init(Token.length(tok), _ =>
+          Action.Destruct(Action.Local(Left, ByChar))
+        );
+      let acts =
+        [Action.Move(Point(pt_r, None))]
+        @ del(tok_r)
+        @ [Action.Move(Point(pt_l, None))]
+        @ del(tok_l);
+      let where =
+        Printf.sprintf(
+          "%s@%d:%d + %s@%d:%d",
+          tok_l,
+          pt_l.row,
+          pt_l.col,
+          tok_r,
+          pt_r.row,
+          pt_r.col,
+        );
+      switch (perform_soft(z0, acts)) {
+      | None =>
+        print_endline(
+          Printf.sprintf("[%s/pair] INAPPLICABLE %s", name, where),
+        );
+        {
+          ...acc,
+          j_total: acc.j_total + 1,
+        };
+      | Some(z') =>
+        let seg =
+          z'
+          |> Zipper.clear_unparsed_buffer
+          |> Zipper.unselect_and_zip(~erase_buffer=true);
+        let result =
+          CanonicalCompletion.complete_segment_deep(~sort=Sort.Exp, seg);
+        let got = tokens(result.completed_seg);
+        let ok = got == original;
+        let inc =
+          Segment.incomplete_tiles_deep(result.completed_seg) |> List.length;
+        if (!ok || inc > 0) {
+          print_endline(
+            Printf.sprintf(
+              "[%s/pair] %s %s -> %s",
+              name,
+              inc > 0 ? "INCOMPLETE" : "MISS",
+              where,
+              String.concat(" ", got),
+            ),
+          );
+        };
+        {
+          j_restored: acc.j_restored + (ok ? 1 : 0),
+          j_incomplete: acc.j_incomplete + (inc > 0 ? 1 : 0),
+          j_total: acc.j_total + 1,
+        };
+      };
+    },
+    {
+      j_restored: 0,
+      j_incomplete: 0,
+      j_total: 0,
+    },
+    pairs,
+  );
+};
+
+/* (program, "restored/incomplete/total") — PINNED like the others */
+let pair_pins = [
+  ("let-chain", "1/0/1"),
+  ("fun-ap", "3/0/6"), /* all 3 inherit the known )@f(3 single miss */
+  ("if-else-inline", "1/0/1"),
+  ("if-else-multiline", "1/0/1"),
+  ("case-multiline", "6/0/6"),
+  ("type-adt", "20/1/21"), /* the 1: => drops inside Square(n's parens */
+  ("tuple-list", "6/0/6"),
+  ("case-def-inline", "5/1/6"), /* the 1: end+in, the andrew repro */
+  ("case-def-multiline", "5/1/6"),
+];
+
+let pair_tests =
+  pair_pins
+  |> List.map(((name, pin)) =>
+       test_case(
+         name ++ " pairs",
+         `Slow,
+         () => {
+           let text = List.assoc(name, corpus);
+           let o = run_pairs(name, text);
+           let shown =
+             Printf.sprintf(
+               "%d/%d/%d",
+               o.j_restored,
+               o.j_incomplete,
+               o.j_total,
+             );
+           print_endline(Printf.sprintf("SCORE %s pairs: %s", name, shown));
+           check(string, name ++ " pairs", pin, shown);
+         },
+       )
+     );
+
 /* (program, full "restored/destroyed/total", prefix same) — PINNED:
    update deliberately when heuristics (or delete semantics) change.
    `destroyed` = the edit merged tokens; not a completion miss. */
@@ -254,6 +423,8 @@ let pins = [
   ("case-multiline", "8/0/9", "4/0/6"),
   ("type-adt", "12/2/16", "6/0/8"),
   ("tuple-list", "8/0/10", "4/0/4"),
+  ("case-def-inline", "9/0/9", "4/0/6"),
+  ("case-def-multiline", "9/0/9", "4/0/6"),
 ];
 
 let scoreboard_tests =
@@ -282,4 +453,4 @@ let scoreboard_tests =
        )
      );
 
-let tests = [("CompletionScoreboard", scoreboard_tests)];
+let tests = [("CompletionScoreboard", scoreboard_tests @ pair_tests)];
