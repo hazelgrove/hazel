@@ -250,11 +250,15 @@ let warn_invisible = (node: Js.t(Dom.node)): unit =>
     );
   };
 
-let pending: ref(option(Measured.t)) = ref(None);
+/* (pre-edit measured, enters allowed): grow-ins are reserved for
+   refactorings — under animate-all-edits every typed character and
+   TyDi completion re-animating its entrance is nauseating (andrew).
+   Movement FLIP stays for all edits. */
+let pending: ref(option((Measured.t, bool))) = ref(None);
 
 /* Call during the MVU update, before the edit applies */
-let request = (syntax: CachedSyntax.t): unit =>
-  pending := Some(syntax.measured);
+let request = (~enters: bool=true, syntax: CachedSyntax.t): unit =>
+  pending := Some((syntax.measured, enters));
 
 /* Drag handoff (CodeDrag): visual px offsets tokens already carry
    from the scrub, keyed like the measured diff; consumed by the next
@@ -483,7 +487,7 @@ let set_scroll_bump = (~rows: int, ~near: Js.t(Dom_html.element)): unit => {
 let go = (~syntax: CachedSyntax.t, ~font_metrics: FontMetrics.t): unit =>
   switch (pending^) {
   | None => ()
-  | Some(old_m) =>
+  | Some((old_m, enters_ok)) =>
     pending := None;
     /* stale animations — including adopted drag scrubs (fill:both,
        they'd re-assert after any new flight ends) — must not outlive
@@ -541,13 +545,18 @@ let go = (~syntax: CachedSyntax.t, ~font_metrics: FontMetrics.t): unit =>
                          }
                        );
                   let entered =
-                    pairs
-                    |> List.filter_map(((k, node)) =>
-                         switch (find_meas(old_m, k), find_meas(new_m, k)) {
-                         | (None, Some(_)) => Some((k, node))
-                         | _ => None
-                         }
-                       );
+                    !enters_ok
+                      ? []
+                      : pairs
+                        |> List.filter_map(((k, node)) =>
+                             switch (
+                               find_meas(old_m, k),
+                               find_meas(new_m, k),
+                             ) {
+                             | (None, Some(_)) => Some((k, node))
+                             | _ => None
+                             }
+                           );
                   if ((moved != [] || entered != [])
                       && List.length(moved)
                       + List.length(entered) <= max_moved) {

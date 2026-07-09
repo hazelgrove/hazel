@@ -133,7 +133,9 @@ module Update = {
         | Refactor(_)
         | RefactorGesture(_) => CodeFlip.request(model.editor.syntax)
         | _ when settings.core.animate_all_edits && Action.is_edit(action) =>
-          CodeFlip.request(model.editor.syntax)
+          /* movement only: grow-ins on every keystroke/completion
+             re-animate constantly and read as churn */
+          CodeFlip.request(~enters=false, model.editor.syntax)
         | _ => ()
         };
       };
