@@ -6,17 +6,17 @@ open Language;
  * Adjust this value to control when suggestions first appear. */
 let min_prefix_len = 2;
 
-/* Suggest the token at the top of the backpack, if we can put it down */
-let suggest_backpack = (z: Zipper.t): list(t) => {
+/* Suggest the next missing shard, if we can put it down */
+let suggest_missing_shard = (z: Zipper.t): list(t) => {
   /* Note: Sort check unnecessary here as wouldn't be able to put down */
-  switch (Zipper.local_backpack(z)) {
+  switch (Zipper.local_missing_shards(z)) {
   | [] => []
   | [t, ..._] =>
     switch (t) {
     | {label, shards: [idx], _} when Zipper.can_put_down(z) => [
         {
           content: List.nth(label, idx),
-          strategy: Any(FromBackpack),
+          strategy: Any(FromMissingShards),
         },
       ]
     | _ => []
@@ -89,10 +89,10 @@ let suggest = (ci: Info.t, z: Zipper.t): list(t) => {
       TyDiForms.suggest_operator(ci) |> List.sort(TyDiSuggestion.compare);
     if (has_unknown_expectation(ci)) {
       /* Unknown type: keywords first, then context, then operators */
-      suggest_backpack(z) @ forms @ ctx_suggestions @ operators;
+      suggest_missing_shard(z) @ forms @ ctx_suggestions @ operators;
     } else {
       /* Known type: context variables first (type-directed), then forms */
-      suggest_backpack(z) @ ctx_suggestions @ forms @ operators;
+      suggest_missing_shard(z) @ ctx_suggestions @ forms @ operators;
     };
   };
 };

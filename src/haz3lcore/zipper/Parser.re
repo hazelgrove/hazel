@@ -78,7 +78,7 @@ let is_split_point = (c: string, z: Zipper.t): bool =>
   Token.is_secondary(c)
   && z.caret == Outer
   && z.relatives.ancestors == []
-  && Zipper.local_backpack(z) == [];
+  && Zipper.local_missing_shards(z) == [];
 
 /* Strip trailing convex grout from a segment. This grout is the
    artifact of Zipper.init()'s initial placeholder that was never
@@ -186,7 +186,7 @@ let can_fast_paste = (clipboard: string, z: Zipper.t, ~root): bool => {
   len > 0
   && z.caret == Outer
   && z.relatives.ancestors == []
-  && Zipper.local_backpack(z) == []
+  && Zipper.local_missing_shards(z) == []
   && Relatives.sort(~root, z.relatives) == Sort.Exp
   && has_balanced_delimiters(clipboard)
   && {

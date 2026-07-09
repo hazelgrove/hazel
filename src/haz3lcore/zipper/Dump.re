@@ -51,7 +51,7 @@ let to_zipper = (z: Zipper.t, ~root) =>
       let z_can = Zipper.can_put_down(z) ? z : move_until_can_put_down(z);
       let z_cant = move_until_cant_put_down(z_can, z_can);
       let z = put_down_as_much_as_possible(z_cant);
-      if (Zipper.local_backpack(z) == []) {
+      if (Zipper.local_missing_shards(z) == []) {
         z;
       } else {
         go(z);

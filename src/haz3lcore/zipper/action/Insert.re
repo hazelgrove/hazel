@@ -135,9 +135,9 @@ let insert_shard =
       ~root,
     )
     : t =>
-  if (Zipper.backpack_find(t, z) != None) {
+  if (Zipper.find_missing_shard(t, z) != None) {
     let z = destroy_selection(z);
-    let target = Zipper.backpack_find(t, z) |> Option.get;
+    let target = Zipper.find_missing_shard(t, z) |> Option.get;
     Zipper.put_down_target(d, target, z, ~root);
   } else {
     insert_shard_core(

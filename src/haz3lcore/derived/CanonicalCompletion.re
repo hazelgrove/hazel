@@ -11,8 +11,8 @@
  * 4. Regrout the whole segment to fix shape inconsistencies
  * 5. Reassemble to combine same-ID shards into complete tiles
  *
- * Performance note: The syntax cache tracks global_missing_shards (cached_backpack).
- * If cached_backpack is empty, we can skip completion entirely since there are
+ * Performance note: The syntax cache tracks global_missing_shards
+ * (CachedSyntax.missing_shards). If it is empty, completion can be skipped since there are
  * no incomplete tiles. This check should be done at the call site (e.g., MakeTerm)
  * before invoking completion.
  */
@@ -332,7 +332,7 @@ let middle_split_plan =
 };
 
 /* Middle-missing shards (`let x in 2`, `if true else 2` — targeted
- * put-down can strand an interior delimiter in the backpack). The
+ * put-down can leave an interior delimiter still missing). The
  * missing shard cannot be appended to the segment like leading/trailing
  * ones: reassemble requires shard order. Instead the tile is completed
  * in place — each original child stays in the slot opening at its
@@ -1723,8 +1723,8 @@ let verify_holes =
 
 /* SEQUENTIAL MATERIALIZATION (plan item 0): complete ONE tile per
    partition per pass — strongest evidence first (witness > junction >
-   fallback), weak ties broken innermost-first (= the old backpack
-   stack order) — materialize it, then recurse on the result. The
+   fallback), weak ties broken innermost-first (= the old put-down
+   LIFO discipline) — materialize it, then recurse on the result. The
    suggestion set is the trace of the loop, so joint application
    reproduces the computed result by construction: once a form is
    materialized, remnants it absorbed sit in its children and complete
