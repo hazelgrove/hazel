@@ -4,10 +4,13 @@ open WorkerServer;
 let name = "worker.js"; // Worker file name
 let timeoutDuration = 20000; // Worker timeout in ms
 
-let initWorker: unit => Js.t(Worker.worker(Request.t, Response.t)) =
+/* Worker exchanges Active-encoding payloads, not live values, to dodge the
+ * structured-clone overflow on deep results (#2368; see WorkerServer.Active).
+ * Callers still deal in Request.t/Response.t. */
+let initWorker: unit => Js.t(Worker.worker(Active.request, Active.response)) =
   () => Worker.create(name);
 
-let workerRef: ref(Js.t(Worker.worker(Request.t, Response.t))) =
+let workerRef: ref(Js.t(Worker.worker(Active.request, Active.response))) =
   ref(initWorker());
 
 let timeoutId = ref(None);
@@ -24,6 +27,16 @@ let request =
       ~timeout: Request.t => unit,
     )
     : unit => {
+  /* When metrics are on, tag this request so the response can be correlated,
+   * and benchmark the request-side encodings before posting. */
+  let metrics_id =
+    if (WorkerMetrics.enabled^) {
+      let id = WorkerMetrics.next_id();
+      WorkerMetrics.record_request(id, req);
+      Some(id);
+    } else {
+      None;
+    };
   let setupWorkerMessageHandler = worker => {
     worker##.onmessage :=
       Dom.handler(evt => {
@@ -32,7 +45,14 @@ let request =
         | None => ()
         };
         timeoutId.contents = None; /* Clear timeout after response */
-        evt##.data |> handler;
+        let resp = Active.decode_response(evt##.data);
+        /* Hand the result off first; benchmarking the other variants can take
+         * tens of ms and must not delay evaluation latency. */
+        handler(resp);
+        switch (metrics_id) {
+        | Some(id) => WorkerMetrics.record_response(id, resp)
+        | None => ()
+        };
         Js._true;
       });
   };
@@ -47,7 +67,7 @@ let request =
 
   setupWorkerMessageHandler(workerRef.contents);
 
-  workerRef.contents##postMessage(req);
+  workerRef.contents##postMessage(Active.encode_request(req));
 
   let onTimeout = (): unit => {
     restart_worker();
