@@ -2724,10 +2724,18 @@ let hoist_step =
                same_node(rb, c)
                  ? (rp, occupy(l.annotation.secondary, lbody)) : (rp, rb)
              );
-        let match': Exp.t = {
-          ...p,
-          term: Match(scrut, rules'),
-        };
+        /* the hoisted let takes the match's slot secondary; the
+           match (now the let's body) gets a FRESH COPY of the lead —
+           sharing the same secondary pieces in two nodes drops one
+           copy downstream (duplicate piece ids) */
+        let match': Exp.t =
+          with_secondary(
+            (sep_like(fst(p.annotation.secondary)), []),
+            {
+              ...p,
+              term: Match(scrut, rules'),
+            },
+          );
         let l': Exp.t =
           with_secondary(
             p.annotation.secondary,
@@ -2901,6 +2909,41 @@ let sink_step = (~fixup: bool, l: Exp.t): option((Exp.t, Id.t)) => {
         with_secondary(([], snd(region.annotation.secondary)), region),
       );
     };
+  /* LANDING-BLOCK (andrew): displaced slot content keeps — or gets —
+     its own line, so Down keeps pointing down through every
+     intermediate state. Taken lead had a newline: re-give a copy
+     (the displaced first line keeps its line). Taken lead was
+     inline: SYNTHESIZE a break at the sinking let's line indent + 2
+     — but only in multiline contexts; one-line programs stay one
+     line. The inverse on exit is automatic: hoist's occupy gives
+     the vacated slot the departing let's own lead, so an
+     inline-headed let's body rejoins the host line (bystander
+     breaks belong to other constructs' leads and are never
+     touched). */
+  let relead = (taken: list(Secondary.t), region: Exp.t): Exp.t =>
+    if (!fixup) {
+      region;
+    } else {
+      let sep =
+        has_newline(taken)
+          ? sep_like(taken)
+          : {
+            let hs = sep_like(fst(l.annotation.secondary));
+            has_newline(hs) ? hs @ space() @ space() : [];
+          };
+      if (sep == []) {
+        region;
+      } else {
+        let (b, a) = region.annotation.secondary;
+        {
+          ...region,
+          annotation: {
+            ...region.annotation,
+            secondary: (sep @ b, a),
+          },
+        };
+      };
+    };
   switch (IdTagged.term_of(l)) {
   | Let(lp, ldef, lbody) =>
     let l_names = pat_var_names(lp);
@@ -2991,6 +3034,7 @@ let sink_step = (~fixup: bool, l: Exp.t): option((Exp.t, Id.t)) => {
           && !is_bare_use(l_names, fbody) =>
       /* into a lambda: evaluates per call */
       let (fb_lead, fbody') = take_lead(fbody);
+      let fbody' = relead(fb_lead, fbody');
       let l': Exp.t =
         with_secondary(
           (fb_lead, []),
@@ -3021,6 +3065,7 @@ let sink_step = (~fixup: bool, l: Exp.t): option((Exp.t, Id.t)) => {
             && !names_mentioned(pat_var_names(rp), ldef)
             && !is_bare_use(l_names, rb) =>
         let (rb_lead, rb') = take_lead(rb);
+        let rb' = relead(rb_lead, rb');
         let l': Exp.t =
           with_secondary(
             (rb_lead, []),
@@ -3048,6 +3093,7 @@ let sink_step = (~fixup: bool, l: Exp.t): option((Exp.t, Id.t)) => {
       ) {
       | (true, false) when !names_mentioned(l_names, alt) =>
         let (t_lead, t') = take_lead(t);
+        let t' = relead(t_lead, t');
         let l': Exp.t =
           with_secondary(
             (t_lead, []),
@@ -3068,6 +3114,7 @@ let sink_step = (~fixup: bool, l: Exp.t): option((Exp.t, Id.t)) => {
         ));
       | (false, true) when !names_mentioned(l_names, t) =>
         let (a_lead, alt') = take_lead(alt);
+        let alt' = relead(a_lead, alt');
         let l': Exp.t =
           with_secondary(
             (a_lead, []),
