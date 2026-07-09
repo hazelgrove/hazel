@@ -1098,6 +1098,23 @@ let leading_witness_tests = [
     ~acts=Test_Editing.mk("type¦ T = Int in 2") @ [destruct_l],
     ~expected="type T = Int in 2",
   ),
+  /* REGRESSION GUARD (andrew report): the witness must fire with
+     complete definitions ABOVE the broken one — the opener span is
+     maximal-left, so a first-piece-only check missed the witness and
+     spliced the opener at program start, absorbing everything */
+  edit_case(
+    ~name="second let's witness fires past the first definition",
+    ~acts=
+      Test_Editing.mk("let a = 1 in\nlet¦ b = a + 2 in\na + b")
+      @ [destruct_l],
+    ~expected="let a = 1 in\nlet b = a + 2 in\na + b",
+  ),
+  edit_case(
+    ~name="type below a let witnesses in place",
+    ~acts=
+      Test_Editing.mk("let a = 1 in\ntype¦ T = Int in\na") @ [destruct_l],
+    ~expected="let a = 1 in\ntype T = Int in\na",
+  ),
   edit_case(
     ~name="le witnesses let",
     ~acts=Test_Editing.mk("let¦ x = 1 in x") @ [destruct_l],
