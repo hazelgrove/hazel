@@ -4081,7 +4081,16 @@ let swap_tuple_pat_rewrite =
              }
            )
       | Tuple(items)
-          when List.length(items) == List.length(tuple_pat_items(p)) =>
+          when
+            i >= 0
+            && List.length(items) > i
+            + 1
+            && List.length(items) == List.length(tuple_pat_items(p)) =>
+        /* the bounds guard matters even though the PATTERN side is
+           guarded: this pair-component is evaluated eagerly, so an
+           unguarded nth here crashed before the match saw the
+           pattern side's None (drag probes all four directions, so
+           Right-on-the-last-component hit this every time) */
         Some({
           ...d,
           term: Tuple(swap_exp_items(~fixup, i, items)),
@@ -5208,6 +5217,23 @@ let drag_anchor =
     (~info_map, ~target: Id.t, kind: Action.refactor, term: Exp.t)
     : option((Id.t, Id.t)) =>
   switch (kind) {
+  | SwapArms(i) =>
+    /* rule delimiters (| and =>) live in Match.ids, not the Measured
+       maps — anchor at the MOVED arm's pattern so grabbing the bar
+       works like grabbing the pattern */
+    switch (find_hit(~hit=hit_arm(target), term)) {
+    | Some(m) =>
+      switch (IdTagged.term_of(m), arm_index_at(target, m)) {
+      | (Match(_, rules), Some(j)) when j < List.length(rules) =>
+        let (rp, _) = List.nth(rules, j);
+        /* the grabbed arm is index j; it swaps with i/i+1 — anchor
+           the arm the user grabbed either way */
+        ignore(i);
+        Some((Pat.rep_id(rp), Pat.rep_id(rp)));
+      | _ => None
+      }
+    | None => None
+    }
   | FeedLet =>
     switch (feed_site(~info_map, ~target, term)) {
     /* grabbed AT the use: a def->use track would start at its end

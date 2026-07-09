@@ -1932,6 +1932,49 @@ let identity_tests = [
   ),
 ];
 
+let regression_tests = [
+  test_case(
+    "no crash enumerating drag at the last tuple component",
+    `Quick,
+    () => {
+      /* Right on the last component asks for swap(i=1) on a 2-tuple;
+         the def-side nth used to fail before the guard could refuse */
+      let cs = drag_cands("let (h, w) = (9, ¦16) in h * w");
+      check(bool, "enumerates", true, List.length(cs) >= 1);
+      let dirs = cs |> List.map((c: Refactor.DragCandidate.t) => c.dir);
+      check(
+        bool,
+        "left swap offered",
+        true,
+        List.mem(Action.Gesture.Left, dirs),
+      );
+    },
+  ),
+  test_case(
+    "arm swap draggable from the rule delimiter",
+    `Quick,
+    () => {
+      /* grabbing | or => anchors at the arm's pattern (delimiter ids
+         aren't measurable) */
+      let cs = drag_cands("case c ¦| 1 => 11 | 2 => 22 end");
+      let kinds = cs |> List.map((c: Refactor.DragCandidate.t) => c.kind);
+      check(
+        bool,
+        "swap-arms track from the bar",
+        true,
+        List.exists(
+          k =>
+            switch (k) {
+            | Action.SwapArms(_) => true
+            | _ => false
+            },
+          kinds,
+        ),
+      );
+    },
+  ),
+];
+
 let reparse_safety_tests = {
   let case = (name, kind, marked) =>
     test_case(name, `Quick, () => prepare_reparses(~kind, marked));
@@ -2896,6 +2939,7 @@ let tests = [
     @ binding_tests
     @ sink_layout_tests
     @ identity_tests
+    @ regression_tests
     @ feed_tests
     @ drag_tests
     @ reparse_safety_tests,
