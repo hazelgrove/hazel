@@ -1510,21 +1510,21 @@ let move_tests = [
     },
   ),
   test_case(
-    "sink into a multiline lambda keeps the body line",
+    "sink into a multiline lambda: displaced body keeps its line",
     `Quick,
     () => {
       let got =
         inline(~kind=SinkLet, "¦let x = 2 in\nfun n ->\n  x + n") |> text_of;
       check(
         string,
-        "let joins the body line",
-        "fun n ->\n  let x = 2 in x + n",
+        "break after the in",
+        "fun n ->\n  let x = 2 in\n  x + n",
         got,
       );
     },
   ),
   test_case(
-    "sink into a multiline arm keeps the body line",
+    "sink into a multiline arm: displaced body keeps its line",
     `Quick,
     () => {
       let got =
@@ -1535,8 +1535,8 @@ let move_tests = [
         |> text_of;
       check(
         string,
-        "let joins the arm line",
-        "case m\n| 1 =>\n  let x = 2 in f(x)\n| _ => 0\nend",
+        "break after the in",
+        "case m\n| 1 =>\n  let x = 2 in\n  f(x)\n| _ => 0\nend",
         got,
       );
     },
@@ -2640,6 +2640,101 @@ let round3_tests = [
   ),
 ];
 
+let landing_block_tests = [
+  test_case(
+    "feed-consume of an inline-headed let rejoins the host line",
+    `Quick,
+    () => {
+      let got =
+        inline(
+          ~kind=FeedLet,
+          "case m | 1 => let x = 2 in\n  f(¦x) | _ => 0 end",
+        )
+        |> text_of;
+      check(string, "rejoined", "case m | 1 => f(2) | _ => 0 end", got);
+    },
+  ),
+  test_case(
+    "sink into an inline arm body breaks after the in",
+    `Quick,
+    () => {
+      let got =
+        inline(
+          ~kind=SinkLet,
+          "let a = 1 in\n¦let x = 2 in\ncase m\n| 1 => f(x)\n| _ => 0\nend",
+        )
+        |> text_of;
+      check(
+        string,
+        "landing block",
+        "let a = 1 in\ncase m\n| 1 => let x = 2 in\n  f(x)\n| _ => 0\nend",
+        got,
+      );
+    },
+  ),
+  test_case(
+    "sink into an inline lambda body breaks after the in",
+    `Quick,
+    () => {
+      let got =
+        inline(
+          ~kind=SinkLet,
+          "let a = 1 in\n¦let x = 2 in\nfun n -> n * (x + 1)",
+        )
+        |> text_of;
+      check(
+        string,
+        "landing block",
+        "let a = 1 in\nfun n -> let x = 2 in\n  n * (x + 1)",
+        got,
+      );
+    },
+  ),
+  test_case(
+    "arm landing round-trips byte-identical (enter then leave)",
+    `Quick,
+    () => {
+      let z1 =
+        Test_Editing.parse_zipper(
+          "let a = 1 in\n¦let x = 2 in\ncase m\n| 1 => f(x)\n| _ => 0\nend",
+        );
+      let z2 =
+        Test_Editing.perform(
+          z1,
+          [Action.Refactor(SinkLet), Action.Refactor(HoistLet)],
+        );
+      check(
+        string,
+        "identity",
+        "let a = 1 in\nlet x = 2 in\ncase m\n| 1 => f(x)\n| _ => 0\nend",
+        text_of(z2),
+      );
+    },
+  ),
+  test_case(
+    "pass-through preserves bystander breaks (andrew's objection)",
+    `Quick,
+    () => {
+      let src = "let q = 1 in\n¦let x = 2 in\ncase m\n| 1 => let y = 1 in\n  y + f(x)\n| _ => 0\nend";
+      let z1 = Test_Editing.parse_zipper(src);
+      let sunk = Test_Editing.perform(z1, [Action.Refactor(SinkLet)]);
+      check(
+        string,
+        "x joins the arm head, y keeps its line",
+        "let q = 1 in\ncase m\n| 1 => let x = 2 in\n  let y = 1 in\n  y + f(x)\n| _ => 0\nend",
+        text_of(sunk),
+      );
+      let back = Test_Editing.perform(sunk, [Action.Refactor(HoistLet)]);
+      check(
+        string,
+        "round trip identity",
+        "let q = 1 in\nlet x = 2 in\ncase m\n| 1 => let y = 1 in\n  y + f(x)\n| _ => 0\nend",
+        text_of(back),
+      );
+    },
+  ),
+];
+
 let tests = [
   (
     "Refactor",
@@ -2671,6 +2766,7 @@ let tests = [
     @ round3_tests
     @ binding_tests
     @ sink_layout_tests
+    @ landing_block_tests
     @ feed_tests
     @ reparse_safety_tests,
   ),
