@@ -48,8 +48,12 @@ type cand = {
   /* whole-buffer scrub: tokens displaced by this candidate, with
      their px deltas (built at compute; animations made lazily) */
   moved: list((CodeFlip.key, Js.t(Dom.node), float, float)),
-  /* anchored decorations riding their tokens (var highlights etc.) */
-  moved_decos: list((Js.t(Dom.node), float, float)),
+  /* anchored-deco delta by (anchor id, shard). Deco ELEMENTS are
+     resolved at ACTIVATION, not compute: compute runs during view
+     construction (pre-patch DOM), so elements collected there can be
+     re-purposed by the patch (indication hopping tiles on the
+     caret-placing click) and would ride stale deltas. */
+  deco_delta: ((Id.t, option(int))) => option((float, float)),
   /* tokens absent in the candidate: they dissolve (scale+fade) in
      proportion to the pull — the let/=/in shell, the binder, the
      replaced use (andrew's shrink sketch; lerpViews' unmatched-key
@@ -221,10 +225,18 @@ let paused_anim =
   };
 };
 
+/* decos re-queried fresh from the (post-patch) DOM */
+let deco_moves = (c: cand): list((Js.t(Dom.node), float, float)) =>
+  CodeFlip.anchored_decos()
+  |> List.filter_map(((id, shard, node)) =>
+       c.deco_delta((id, shard))
+       |> Option.map(((dx, dy)) => (node, dx, dy))
+     );
+
 let make_anims = (c: cand): list(Js.Unsafe.any) => {
   let moves =
     (c.moved |> List.map(((_, node, dx, dy)) => (node, dx, dy)))
-    @ c.moved_decos
+    @ deco_moves(c)
     |> List.filter_map(((node, dx, dy)) =>
          paused_anim(
            node,
@@ -329,7 +341,7 @@ let relax_from = (c: cand, t: float): unit =>
   if (t > 0.01) {
     relax_exits(c, t);
     (c.moved |> List.map(((_, node, dx, dy)) => (node, dx, dy)))
-    @ c.moved_decos
+    @ deco_moves(c)
     |> List.iter(((node, dx, dy)) => {
          let keyframes =
            Js.Unsafe.obj([|
@@ -372,13 +384,20 @@ let scrub_to = (s: session, winner: option(int), t: float): unit => {
   switch (s.scrub_active, winner) {
   | (Some(prev), Some(w)) when prev == w => ()
   | (Some(prev), _) =>
+    /* CANCEL the outgoing track's animations (don't park them at 0:
+       a paused fill-both animation at t=0 is an ACTIVE identity
+       transform, and later-created animations win compositing — so
+       revisiting a track left the shared tokens frozen under the
+       other track's identity). Exactly one track's animations exist
+       at any time; the relax bridges the visual gap. */
     switch (List.assoc_opt(prev, s.scrub_anims)) {
     | Some(anims) =>
       switch (List.nth_opt(s.cands, prev)) {
       | Some(c) => relax_from(c, anim_t(anims))
       | None => ()
       };
-      anims |> List.iter(a => Js.Unsafe.set(a, "currentTime", 0.));
+      cancel_anims(anims);
+      s.scrub_anims = List.remove_assoc(prev, s.scrub_anims);
     | None => ()
     }
   | (None, _) => ()
@@ -716,33 +735,34 @@ let sync =
              | _ => None
              }
            );
-      /* anchored decorations (DOM id "varhl-<uuid>" etc.): same
-         deltas as their anchor tokens, found by id in both frames */
-      let decos_for =
-          (frame: Refactor.DragCandidate.frame, cand_m: Measured.t) =>
-        CodeFlip.anchored_decos()
-        |> List.filter_map(((id, shard, node)) =>
-             switch (
-               CodeFlip.anchor_meas(measured, id, shard),
-               CodeFlip.anchor_meas(cand_m, id, shard),
-             ) {
-             | (Some(o), Some(n)) =>
-               let n_origin =
-                 Refactor.DragCandidate.frame_point(frame, n.origin);
-               if (o.origin == n_origin) {
-                 None;
-               } else {
-                 let dx =
-                   float_of_int(n_origin.col - o.origin.col)
-                   *. font_metrics.col_width;
-                 let dy =
-                   float_of_int(n_origin.row - o.origin.row)
-                   *. font_metrics.row_height;
-                 Some((node, dx, dy));
-               };
-             | _ => None
-             }
-           );
+      /* anchored-deco delta closure: same deltas as the anchor
+         tokens, read from the two measured maps on demand */
+      let deco_delta_for =
+          (
+            frame: Refactor.DragCandidate.frame,
+            cand_m: Measured.t,
+            (id, shard): (Id.t, option(int)),
+          )
+          : option((float, float)) =>
+        switch (
+          CodeFlip.anchor_meas(measured, id, shard),
+          CodeFlip.anchor_meas(cand_m, id, shard),
+        ) {
+        | (Some(o), Some(n)) =>
+          let n_origin = Refactor.DragCandidate.frame_point(frame, n.origin);
+          if (o.origin == n_origin) {
+            None;
+          } else {
+            let dx =
+              float_of_int(n_origin.col - o.origin.col)
+              *. font_metrics.col_width;
+            let dy =
+              float_of_int(n_origin.row - o.origin.row)
+              *. font_metrics.row_height;
+            Some((dx, dy));
+          };
+        | _ => None
+        };
       let cands =
         Refactor.drag_candidates(~info_map, ~term, ~measured, z)
         |> List.map((c: Refactor.DragCandidate.t) =>
@@ -754,7 +774,7 @@ let sync =
                tgt: px(c.target),
                scroll_rows: c.frame.scroll_rows,
                moved: moved_for(c.frame, c.measured),
-               moved_decos: decos_for(c.frame, c.measured),
+               deco_delta: deco_delta_for(c.frame, c.measured),
                exits: exits_for(c.measured),
              }
            );

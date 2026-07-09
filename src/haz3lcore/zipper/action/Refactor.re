@@ -3980,26 +3980,42 @@ let swap_arms_rewrite =
                r;
              }
            );
-      /* focus follows the arm the caret was on: pat ids travel with
-         the content; slot delimiter ids stay put, so a delimiter
-         invocation hops to the neighboring slot's delimiter */
-      let slots = arm_slot_ids(e);
-      let slot = j => List.nth_opt(slots, j);
+      /* the RULE is the persistent element: its |/=> delimiter ids
+         TRAVEL with the arm (andrew), so the delimiter tokens and
+         their decorations animate as part of the move, and a caret
+         on a delimiter follows its arm with no explicit hop */
+      let ids' =
+        switch (e.annotation.ids) {
+        | [head, ...slot_ids] =>
+          let swapped =
+            slot_ids
+            |> List.mapi((j, id) =>
+                 if (j == i) {
+                   List.nth_opt(slot_ids, i + 1) |> Option.value(~default=id);
+                 } else if (j == i + 1) {
+                   List.nth_opt(slot_ids, i) |> Option.value(~default=id);
+                 } else {
+                   id;
+                 }
+               );
+          [head, ...swapped];
+        | [] => []
+        };
       let focus =
         if (List.mem(target, pat_subtree_ids(pa))
-            || List.mem(target, pat_subtree_ids(pb))) {
+            || List.mem(target, pat_subtree_ids(pb))
+            || List.mem(target, arm_slot_ids(e))) {
           target;
-        } else if (slot(i) == Some(target)) {
-          Option.value(slot(i + 1), ~default=target);
-        } else if (slot(i + 1) == Some(target)) {
-          Option.value(slot(i), ~default=target);
         } else {
           Pat.rep_id(pa);
         };
       Some((
         {
-          ...e,
           term: Match(scrut, rules'),
+          annotation: {
+            ...e.annotation,
+            ids: ids',
+          },
         },
         focus,
       ));
