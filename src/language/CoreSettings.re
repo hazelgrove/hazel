@@ -58,6 +58,11 @@ type t = {
   /* Completion-triggered local re-indentation (experimental) */
   auto_reindent: bool,
   format_shortcut: FormatShortcut.t,
+  /* Indentation-transparent editing: arrow movement skips leading
+     whitespace and backspace at first-content joins lines (deletes
+     indentation + linebreak). Off keeps char-exact caret behavior
+     (test harnesses position carets by counted moves). */
+  indentation_ux: bool,
   flip_animations: bool,
   display_warnings: bool,
   /* "Character-level mouse". When false (default), a mouse drag does
@@ -78,6 +83,7 @@ let off: t = {
   deep_reassociate: false,
   auto_reindent: false,
   format_shortcut: FormatShortcut.Spaces,
+  indentation_ux: false,
   flip_animations: false,
   display_warnings: false,
   selection_chunkiness: false,
@@ -93,6 +99,7 @@ let on: t = {
   deep_reassociate: false,
   auto_reindent: true,
   format_shortcut: FormatShortcut.Spaces,
+  indentation_ux: true,
   flip_animations: true,
   display_warnings: true,
   selection_chunkiness: false,

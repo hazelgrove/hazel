@@ -82,6 +82,7 @@ module Update = {
              | Introduce
              | Probe(StepInto(_))
              | Format(_)
+             | AdjustIndent(_, _)
              | Dump
              | ToggleLineComment => true
              | Project(_)

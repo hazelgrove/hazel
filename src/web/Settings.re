@@ -39,6 +39,7 @@ module Model = {
       deep_reassociate: true,
       auto_reindent: true,
       format_shortcut: Language.CoreSettings.FormatShortcut.Spaces,
+      indentation_ux: true,
       flip_animations: true,
       display_warnings: true,
       selection_chunkiness: false,

@@ -51,6 +51,7 @@ module Update = {
         Structural(_) |
         Probe(_) |
         Format(_) |
+        AdjustIndent(_, _) |
         Dump |
         Introduce |
         ToggleLineComment,
