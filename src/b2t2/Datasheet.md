@@ -4,32 +4,32 @@
 > (Feel free to link to multiple kinds of artifacts: repositories, papers, videos, etc.
 > Please also include version information where applicable.)
 
-- **Website**: http://hazel.org  
+- **Website**: http://hazel.org
 - **Source Code**: https://github.com/hazelgrove/hazel
-- **App**: https://hazel.org/build/dev/  
+- **App**: https://hazel.org/build/dev/
 
 > Q. What is the URL of the version of the benchmark being used?
-https://github.com/brownplt/B2T2/blob/fd227efadf532a20aefd25c7a8580978c2d684a2/Datasheet.md  
+https://github.com/brownplt/B2T2/blob/fd227efadf532a20aefd25c7a8580978c2d684a2/Datasheet.md
 
 
 > Q. On what date was this version of the datasheet last updated?
-2025-11-05
+2026-07-09
 
 > Q. If you are not using the latest benchmark available on that date, please explain why not.
-Yes
+We are using the latest version of the benchmark available on that date.
 
 ## Example Tables
 
 > Q. Do tables express heterogeneous data, or must data be homogenized?
-  Hazel tables are represented as *lists of labeled tuples*.  
-  - Columns may be heterogeneously typed.   
+  Hazel tables are represented as *lists of labeled tuples*.
+  - Columns may be heterogeneously typed.
   - Rows must be homogeneously typed.
     - The unknown type allows some degree of heterogenous rows.
 
 > Q. Do tables capture missing data and, if so, how? Do missing values affect the output constraints of any operations,
   for example `groupBy`?
-  - Represented via `Option` types (`Some` / `None`)  
-  - Incomplete programs can use expression holes (holes are not programmatically discernible)  
+  - Represented via `Option` types (`Some` / `None`)
+  - Incomplete programs can use expression holes (holes are not programmatically discernible)
   - No special handling in operations — `Option` values are ordinary
 
 > Q. Are mutable tables supported? Are there any limitations?
@@ -41,24 +41,24 @@ Mutable tables are not supported
 
 None — all tables can be expressed using `Option` types for missing data
 
-> Q. Which tables are only partially expressible? Why, and what’s missing?
+> Q. Which tables are only partially expressible? Why, and what's missing?
 
 N/A
 
-> Q. Which tables’ expressibility is unknown? Why?
+> Q. Which tables' expressibility is unknown? Why?
 
 N/A
 
 > Q. Which tables can be expressed more precisely than in the benchmark? How?
 
-None - hazel represents the tables as precisely as the benchmark. Once again explicit option types make optional 
+None - hazel represents the tables as precisely as the benchmark. Once again explicit option types make optional
 columns explicit.
 
-> Q. How direct is the mapping from the tables in the benchmark to representations in your system? How complex 
+> Q. How direct is the mapping from the tables in the benchmark to representations in your system? How complex
 is the encoding?
 
-  - Very direct  
-  - Benchmark tables map naturally to Hazel's `List of Labeled Tuples`  
+  - Very direct
+  - Benchmark tables map naturally to Hazel's `List of Labeled Tuples`
   - Missing values use `Option`
   - Nested tables use nested labeled tuples or lists
 
@@ -67,25 +67,43 @@ is the encoding?
 > Q. Are there consistent changes made to the way the operations are represented?
 The operations are mostly presented as depicted, but here are a few variations:
 - Some operations utilize explicity polymorphism in Hazel using the `typfun` keyword to require explicit type
-  application as implicit polymorphism has not been added to Hazel as of 2025-07-08
+  application as implicit polymorphism has not been added to Hazel as of 2026-07-09
 - Hazel tables are represented using lists of labeled tuples so there is no runtime schema available for operations.
   For certain operations, such as `leftJoin`, this requires looking at the head element to determine the schema and
   give some behavior in the event no such element exists.
 - Certain operations have been made to return an optional value rather than an error
 - Hazel does not have first-class labels, and therefore uses strings for columns for some of the operations.
   If the operation was done inline primitive operators could be used to recover typesafety.
+- Of the label operations this work adds, the benchmark-style implementations need only
+  `to_lvs`/`from_lvs`. The other operations (`select_labels`, `omit_labels`, `project_labels`,
+  `group_by_label`, `omit_all_labels`) are each expressible in terms of `to_lvs`/`from_lvs` — with fewer
+  static guarantees — and appear only in supplementary idiomatic variants and example programs.
+- Each operation documents its B2T2 `requires`/`ensures` constraints in the source as
+  `(enforced=(“static”|“live”|“no”), “...”)` entries recording per-constraint enforcement:
+  - `“static”` — enforced by Hazel's type system on the operation as written.
+  - `“live”` — enforced only under *live typing*: if the operation is applied to a table of one explicit,
+    concrete schema type, all within a single closure, and the program is run to completion, live typing
+    gives the finished result a concrete labeled-tuple type, so postconditions about the result's
+    schema/header/column sorts become checkable against the expected schema even where the dynamic
+    `to_lvs`/`from_lvs` implementation erased it to `?` statically. `“live”` is never used on a
+    `requires` constraint.
+  - `“no”` — not enforced either way. Cardinality constraints (row counts, lengths, ranges,
+    no-duplicates) are always `“no”`, since the type system tracks no length information.
+
+  Across the benchmark-style implementations, 5/72 requires are enforced statically; 38/142 ensures are
+  enforced statically, rising to 96/142 under live typing (see `SUMMARY.md` for the per-operation tables).
 
 > Q. Which operations are entirely inexpressible? Why?
 All the operations are at least partially expressible.
 
-> Q. Which operations are only partially expressible? Why, and what’s missing?
+> Q. Which operations are only partially expressible? Why, and what's missing?
 - `leftJoin` can only build the resulting columns if both tables have at least one row to determine the schema
 - Various operations only work if there's at least one row to determine the schema
   - ncols, header
 - `dropna` only works if every column in a table is optional since there's no way to dynamically dispatch based off of
    column sort.
 
-> Q. Which operations’ expressibility is unknown? Why?
+> Q. Which operations' expressibility is unknown? Why?
 N/A
 
 > Q. Which operations can be expressed more precisely than in the benchmark? How?
@@ -99,7 +117,7 @@ N/A
 - sampleRows is inexpressible as Hazel is pure
 
 
-> Q. Which examples’ expressibility is unknown? Why?
+> Q. Which examples' expressibility is unknown? Why?
 N/A
 
 > Q. Which examples, or aspects thereof, can be expressed especially precisely? How?
@@ -113,37 +131,37 @@ The examples are expressed as precisely as the benchmark
 ## Errors
 
 > There are (at least) two parts to errors: representing the source program that causes the error, and generating output
-> that explains it. The term “error situation” refers to a representation of the cause of the error in the program 
+> that explains it. The term “error situation” refers to a representation of the cause of the error in the program
 > source.
-> 
+>
 > For each error situation it may be that the language:
-> 
-> - isn’t expressive enough to capture it
+>
+> - isn't expressive enough to capture it
 > - can at least partially express the situation
 > - prevents the program from being constructed
-> 
+>
 > Expressiveness, in turn, can be for multiple artifacts:
-> 
+>
 > - the buggy versions of the programs
 > - the correct variants of the programs
-> - the type system’s representation of the constraints
-> - the type system’s reporting of the violation
+> - the type system's representation of the constraints
+> - the type system's reporting of the violation
 
 > Q. Which error situations are known to be inexpressible? Why?
 Many of the programs require explicit parametric polymorphism and the higher-order function versions of the TableAPI
-operations to get the best feedback. 
+operations to get the best feedback.
 
 * `getOnlyRow` provides no feedback on the error as we do not currently track table size information statically
 
 
-> Q. Which error situations are only partially expressible? Why, and what’s missing?
+> Q. Which error situations are only partially expressible? Why, and what's missing?
 * Two versions of `brownJellybeans` are implemented with tradeoffs on expressibility:
-  * The first version takes a string column name and uses our more dynamic operations to select the column. 
+  * The first version takes a string column name and uses our more dynamic operations to select the column.
     This provides no feedback on the error but more closely matches the implementation in the benchmark.
-  * The second version takes a function that selects the column and uses our more type-safe operations to select the 
+  * The second version takes a function that selects the column and uses our more type-safe operations to select the
     column. This correctly localizes the error to the column selection.
 
-> Q. Which error situations’ expressibility is unknown? Why?
+> Q. Which error situations' expressibility is unknown? Why?
 None
 
 > Q. Which error situations can be expressed more precisely than in the benchmark? How?
@@ -158,21 +176,26 @@ None
     visible in the editor and can be filled in by the programmer.
   * For tables where the schema is the incorrect length static errors are added onto each row showing the type
     inconsistency between the schema type and the row type.
-    * If extraneous columns are present, the error is localized to the column label and an error is placed 
+    * If extraneous columns are present, the error is localized to the column label and an error is placed
       * e.g. `favorite color is not part of expected labels: name, age`.
-    * If there is a cell of the wrong type, the error is localized to the cell and an inconsistent type error is placed 
+    * If there is a cell of the wrong type, the error is localized to the cell and an inconsistent type error is placed
       * e.g. `String inconsistent with expected type Int for label age`
 
-Note that in the following programs the errors are partially localized based off of the chosen explicit type 
+Note that in the following programs the errors are partially localized based off of the chosen explicit type
 application. Using different type-hole inference or choices for parametric type application would change the error
 localization and message.
+
+Live typing also extends feedback to the dynamic string-column variants: constraints marked
+`enforced=(“live”)` in the TableAPI sources are checked once the operation is applied to a table of a
+concrete schema type and the program is run to completion, so schema/header/column-sort violations
+surface against the expected result type even where no static error is reported as written.
 
 * `midFinal`
   * Localizes the error to the column selection `mid` in the editor.
   * Message: `Label mid not found in tuple's labels: name age quiz1 quiz2 midterm quiz3 quiz4 final`
 * `blackAndWhite`
   * Localizes the error to the column selection `black and white` in the editor.
-  * Message: 
+  * Message:
 ```Label `black and white` not found in tuple's labels: get_acne red black white green yellow brown orange pink purple```
 * `pieCount`
   * Localizes the error to the column selection `true` and `get_count` in the editor.`
