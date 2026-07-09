@@ -234,7 +234,11 @@ let adopt = (anims: list(Js.Unsafe.any)): unit => active := anims @ active^;
    commit flights (a deco missing an anchor just doesn't move). */
 let deco_prefixes = ["varhl-", "errdec-", "warndec-", "indication-"];
 
-let anchored_decos = (): list((Id.t, Js.t(Dom.node))) =>
+/* anchors are PER-SHARD where the id encodes one (indication-
+   <uuid>-<k>): delimiters of one tile don't move rigidly (case vs
+   end), so a tile-level delta smears — each deco rides exactly its
+   own token */
+let anchored_decos = (): list((Id.t, option(int), Js.t(Dom.node))) =>
   deco_prefixes
   |> List.concat_map(prefix =>
        JsUtil.ids_with_prefix(prefix)
@@ -245,19 +249,44 @@ let anchored_decos = (): list((Id.t, Js.t(Dom.node))) =>
                 String.length(prefix),
                 String.length(dom_id) - String.length(prefix),
               );
-            /* indication ids carry a -<shard> suffix; a uuid is
-               36 chars */
+            /* a uuid is 36 chars; an optional -<shard> follows */
             let uuid =
               String.length(rest) > 36 ? String.sub(rest, 0, 36) : rest;
+            let shard =
+              if (String.length(rest) > 37) {
+                switch (
+                  int_of_string_opt(
+                    String.sub(rest, 37, String.length(rest) - 37),
+                  )
+                ) {
+                | s => s
+                | exception _ => None
+                };
+              } else {
+                None;
+              };
             switch (Id.of_string(uuid)) {
             | exception _ => None
             | None => None
             | Some(id) =>
               JsUtil.get_elem_by_id_opt(dom_id)
-              |> Option.map(el => (id, (el :> Js.t(Dom.node))))
+              |> Option.map(el => (id, shard, (el :> Js.t(Dom.node))))
             };
           })
      );
+
+/* a deco anchor's measurement: its exact shard when known */
+let anchor_meas =
+    (m: Measured.t, id: Id.t, shard: option(int))
+    : option(Measured.measurement) =>
+  switch (shard) {
+  | Some(k) =>
+    switch (find_meas(m, Shard(id, k))) {
+    | Some(meas) => Some(meas)
+    | None => Measured.find_by_id(id, m)
+    }
+  | None => Measured.find_by_id(id, m)
+  };
 
 /* Commit-time scroll bump (pinned-frame extract): applied when the
    flights start — same frame as the layout change, after the patch —
@@ -375,10 +404,10 @@ let go = (~syntax: CachedSyntax.t, ~font_metrics: FontMetrics.t): unit =>
                        replaced them), offsets looked up by the
                        anchor's shard keys */
                     anchored_decos()
-                    |> List.iter(((id, node)) =>
+                    |> List.iter(((id, shard, node)) =>
                          switch (
-                           Measured.find_by_id(id, old_m),
-                           Measured.find_by_id(id, new_m),
+                           anchor_meas(old_m, id, shard),
+                           anchor_meas(new_m, id, shard),
                          ) {
                          | (Some(o), Some(n)) when o.origin != n.origin =>
                            let (ex, ey) =

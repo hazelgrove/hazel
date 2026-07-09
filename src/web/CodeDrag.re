@@ -25,7 +25,11 @@ let snap_min_t = 0.7; /* progress required before a snap is armed */
    in one drag */
 let chaining = false;
 let when_far = 56.; /* px: farther than this from every track = no winner */
-let stickiness = 10.; /* px bonus for the incumbent track */
+let stickiness = 6.; /* px bonus for the incumbent track */
+let direction_pull = 8.; /* px bonus for tracks aligned with the pull —
+   near the shared origin, nearly-parallel tracks (extract vs swap at
+   an acute angle) are indistinguishable by gap alone */
+
 let commit_t = 0.55; /* release past this progress commits the winner */
 let slop = 4.; /* px before the drag counts as begun */
 
@@ -418,7 +422,14 @@ let resolve = (s: session, p: vec): unit => {
     let px = ax +. t *. dx
     and py = ay +. t *. dy;
     let gap = sqrt((p.x -. px) ** 2. +. (p.y -. py) ** 2.);
-    (t, gap);
+    /* pull-direction affinity: cosine between (pointer - start) and
+       the track direction */
+    let plen = sqrt((p.x -. ax) ** 2. +. (p.y -. ay) ** 2.);
+    let tlen = sqrt(len2);
+    let cos_sim =
+      plen < 6. || tlen == 0.
+        ? 0. : ((p.x -. ax) *. dx +. (p.y -. ay) *. dy) /. (plen *. tlen);
+    (t, gap -. direction_pull *. max(0., cos_sim));
   };
   let scored = s.cands |> List.mapi((i, c) => (i, c, track(c)));
   let best =
@@ -710,10 +721,10 @@ let sync =
       let decos_for =
           (frame: Refactor.DragCandidate.frame, cand_m: Measured.t) =>
         CodeFlip.anchored_decos()
-        |> List.filter_map(((id, node)) =>
+        |> List.filter_map(((id, shard, node)) =>
              switch (
-               Measured.find_by_id(id, measured),
-               Measured.find_by_id(id, cand_m),
+               CodeFlip.anchor_meas(measured, id, shard),
+               CodeFlip.anchor_meas(cand_m, id, shard),
              ) {
              | (Some(o), Some(n)) =>
                let n_origin =

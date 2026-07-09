@@ -1980,6 +1980,20 @@ let regression_tests = [
   ),
 ];
 
+let shard_anchor_tests = [
+  test_case(
+    "add-arm draggable from the end shard (per-shard anchor)",
+    `Quick,
+    () => {
+      /* end drops a row when an arm is appended — a real track; the
+         tile-level anchor showed zero travel and dropped it */
+      let cs = drag_cands("let b : Bool = true in case b | true => 1 ¦end");
+      let kinds = cs |> List.map((c: Refactor.DragCandidate.t) => c.kind);
+      check(bool, "add-arm track", true, List.mem(Action.AddCaseArm, kinds));
+    },
+  ),
+];
+
 let reparse_safety_tests = {
   let case = (name, kind, marked) =>
     test_case(name, `Quick, () => prepare_reparses(~kind, marked));
@@ -2944,6 +2958,7 @@ let tests = [
     @ binding_tests
     @ sink_layout_tests
     @ identity_tests
+    @ shard_anchor_tests
     @ regression_tests
     @ feed_tests
     @ drag_tests

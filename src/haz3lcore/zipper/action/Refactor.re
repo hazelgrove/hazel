@@ -5274,6 +5274,24 @@ let drag_candidates =
   switch (Indicated.index(z)) {
   | None => []
   | Some(target) =>
+    /* the grabbed SHARD anchors the track when known: a tile's
+       delimiters don't move rigidly (case stays, end drops a row on
+       add-arm), so tile-level lookup shows zero travel for real
+       moves */
+    let grab_shard = Indicated.shard_index(z);
+    let shard_meas = (id: Id.t, m: Measured.t) =>
+      switch (grab_shard) {
+      | Some(k) when id == target =>
+        switch (Id.Map.find_opt(id, m.tiles)) {
+        | Some(shards) =>
+          switch (List.assoc_opt(k, shards)) {
+          | Some(meas) => Some(meas)
+          | None => Measured.find_by_id(id, m)
+          }
+        | None => Measured.find_by_id(id, m)
+        }
+      | _ => Measured.find_by_id(id, m)
+      };
     let mk = (dir: Action.Gesture.t): option(DragCandidate.t) =>
       switch (gesture(~info_map, ~term, dir, z)) {
       | None => None
@@ -5294,10 +5312,10 @@ let drag_candidates =
             drag_anchor(~info_map, ~target, kind, term)
             |> Option.value(~default=(target, target));
           let to_pos = (id: Id.t) =>
-            Measured.find_by_id(id, cand_measured)
+            shard_meas(id, cand_measured)
             |> Option.map((m: Measured.measurement) => m.origin);
           switch (
-            Measured.find_by_id(from_id, measured),
+            shard_meas(from_id, measured),
             /* the grabbed id can vanish in a candidate (rare); the
                focus is the moved content's id — try it second */
             switch (to_pos(to_id)) {
