@@ -546,14 +546,19 @@ svg:has(.child-line) {
   stroke: none;
 }
 
+/* Styled like the backpack selection (same yellow backing/token
+   colors), minus the joiner/connector apparatus */
 .quiver-offside {
   font-family: var(--code-font);
   font-size: var(--base-font-size);
-  color: var(--quiver-offside-text);
-  background-color: var(--quiver-offside-bg);
-  padding: 0 4px;
-  border-radius: 2px;
+  color: var(--token-incomplete);
+  background-color: var(--backpack-selection);
+  outline: 1px solid var(--backpack-selection-outline);
+  font-weight: bold;
+  padding: 0 0.2em;
+  border-radius: 0.2em;
   white-space: nowrap;
+  width: fit-content;
   line-height: var(--line-height);
 }
 
@@ -688,4 +693,5 @@ svg:has(.child-line) {
 }
 .quiver-offside .quiver-completed {
   opacity: 0.45;
+  font-weight: normal;
 }

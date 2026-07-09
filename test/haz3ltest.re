@@ -44,6 +44,7 @@ let (suite, _) =
     @ [Test_SampleSelection.tests]
     @ Test_Indentation.tests
     @ Test_CanonicalCompletion.tests
+    @ Test_CompletionScoreboard.tests
     @ Test_CompletionVisualization.tests
     @ [Test_Coverage.tests, Test_Unboxing.tests]
     @ Test_ProblemCollection.tests

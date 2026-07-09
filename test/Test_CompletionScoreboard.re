@@ -1,0 +1,243 @@
+open Util;
+open Alcotest;
+open Haz3lcore;
+
+/* === Deletion-inverse scoreboard ===
+   (plans/completion-heuristics.md, "Scoreboard v2 spec")
+
+   For each corpus program: delete each delimiter shard through the
+   real edit pipeline — fully (repair states) and, for multi-char
+   delimiters, its last char only (prefix-witness states) — then
+   canonically complete and check whether the completion restores the
+   original token stream (whitespace/grout-insensitive: restoration
+   means the delimiter lands back at its original position among the
+   tokens).
+
+   Scores are pinned EXACTLY per program and class: any heuristic
+   change that moves a score must update the pin deliberately, and
+   the per-failure log (in the alcotest output file) shows which
+   states changed. 100% is not the goal — the pins are a ratchet and
+   a map of where the heuristics stop. */
+
+let settings = Test_Editing.default_settings; /* ux off: deterministic */
+
+let corpus: list((string, string)) = [
+  ("let-chain", "let a = 1 in\nlet b = a + 2 in\na + b"),
+  ("fun-ap", "let f = fun x -> x * 2 in\nf(3) + f(4)"),
+  ("if-else-inline", "let a = 1 in\nif a < 2 then a else a + 1"),
+  ("if-else-multiline", "let a = 1 in\nif a < 2 then a\nelse a + 1"),
+  ("case-multiline", "let t = 1 in\ncase t\n| 1 => 2\n| _ => 3\nend"),
+  (
+    "type-adt",
+    "type Shape = Circle + Square(Int) in\nlet s = Circle in\ncase s\n| Circle => 0\n| Square(n) => n\nend",
+  ),
+  ("tuple-list", "let p = (1, 2 + 3) in\nlet l = [4, 5, 6] in\np"),
+];
+
+let build = (text: string): Zipper.t =>
+  switch (Parser.to_zipper(~root=Sort.Exp, text)) {
+  | Some(z) => z
+  | None => fail("corpus does not parse: " ++ text)
+  };
+
+/* Token stream, whitespace/grout-insensitive, shards in place */
+let rec tokens = (seg: Segment.t): list(string) =>
+  List.concat_map(
+    (p: Piece.t) =>
+      switch (p) {
+      | Secondary(_)
+      | Grout(_)
+      | Projector(_) => []
+      | Tile(t) =>
+        let rec interleave = (ls, chs) =>
+          switch (ls, chs) {
+          | ([], _) => []
+          | ([l, ...ls], []) => [l, ...interleave(ls, [])]
+          | ([l, ...ls], [c, ...chs]) =>
+            [l, ...tokens(c)] @ interleave(ls, chs)
+          };
+        interleave(Tile.effective_label(t), t.children);
+      },
+    seg,
+  );
+
+/* Delimiter-shard targets: every shard of every multi-token tile,
+   with the caret point just after its last char */
+let targets = (z: Zipper.t): list((Token.t, Point.t)) => {
+  let measured = CachedSyntax.init(z).measured;
+  let acc = ref([]);
+  let rec walk = (sg: Segment.t) =>
+    List.iter(
+      (p: Piece.t) =>
+        switch (p) {
+        | Tile(t) =>
+          List.iter(walk, t.children);
+          if (List.length(t.label) > 1) {
+            switch (Measured.find_shards(~msg="scoreboard", t, measured)) {
+            | shards =>
+              List.iter(
+                ((i, m: Measured.measurement)) =>
+                  acc := [(List.nth(t.label, i), m.last), ...acc^],
+                shards,
+              )
+            | exception _ => ()
+            };
+          };
+        | _ => ()
+        },
+      sg,
+    );
+  walk(Zipper.unselect_and_zip(z));
+  List.rev(acc^);
+};
+
+/* Error-tolerant perform: a failed action makes the mutation
+   inapplicable rather than failing the suite */
+let perform_soft = (z: Zipper.t, acts: list(Action.t)): option(Zipper.t) => {
+  let step = (z: Zipper.t, a: Action.t) => {
+    let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
+    let statics =
+      CachedStatics.init_from_term(~settings, ~is_dynamic_term=true, term);
+    switch (
+      Perform.go(
+        ~settings,
+        ~statics,
+        ~syntax=CachedSyntax.init(z),
+        a,
+        {
+          zipper: z,
+          col_target: None,
+        },
+        ~root=Sort.Exp,
+      )
+    ) {
+    | Ok(z) => Some(z)
+    | Error(_) => None
+    | exception _ => None
+    };
+  };
+  List.fold_left((z, a) => Option.bind(z, z => step(z, a)), Some(z), acts);
+};
+
+let completed_tokens = (z: Zipper.t): list(string) => {
+  let seg =
+    z
+    |> Zipper.clear_unparsed_buffer
+    |> Zipper.unselect_and_zip(~erase_buffer=true);
+  let result = CanonicalCompletion.complete_segment_deep(~sort=Sort.Exp, seg);
+  tokens(result.completed_seg);
+};
+
+type outcome = {
+  restored: int,
+  total: int,
+};
+
+let run_class = (~prefix_only: bool, name: string, text: string): outcome => {
+  let z0 = build(text);
+  let original = tokens(Zipper.unselect_and_zip(z0));
+  let shards = targets(z0);
+  let shards =
+    prefix_only
+      ? List.filter(((tok, _)) => Token.length(tok) > 1, shards) : shards;
+  List.fold_left(
+    (acc, (tok, pt: Point.t)) => {
+      let k = prefix_only ? 1 : Token.length(tok);
+      let acts =
+        [Action.Move(Point(pt, None))]
+        @ List.init(k, _ => Action.Destruct(Local(Left, ByChar)));
+      switch (perform_soft(z0, acts)) {
+      | None =>
+        print_endline(
+          Printf.sprintf(
+            "[%s/%s] INAPPLICABLE %s at %d:%d",
+            name,
+            prefix_only ? "prefix" : "full",
+            tok,
+            pt.row,
+            pt.col,
+          ),
+        );
+        {
+          ...acc,
+          total: acc.total + 1,
+        };
+      | Some(z') =>
+        let got = completed_tokens(z');
+        let ok = got == original;
+        if (!ok) {
+          print_endline(
+            Printf.sprintf(
+              "[%s/%s] MISS %s at %d:%d -> %s",
+              name,
+              prefix_only ? "prefix" : "full",
+              tok,
+              pt.row,
+              pt.col,
+              String.concat(" ", got),
+            ),
+          );
+        };
+        {
+          restored: acc.restored + (ok ? 1 : 0),
+          total: acc.total + 1,
+        };
+      };
+    },
+    {
+      restored: 0,
+      total: 0,
+    },
+    shards,
+  );
+};
+
+/* (program, full (restored, total), prefix (restored, total)) —
+   PINNED: update deliberately when heuristics change. */
+let pins = [
+  ("let-chain", (5, 6), (2, 4)),
+  ("fun-ap", (6, 9), (1, 4)),
+  ("if-else-inline", (5, 6), (3, 5)),
+  ("if-else-multiline", (5, 6), (2, 5)),
+  ("case-multiline", (7, 9), (1, 6)),
+  ("type-adt", (11, 16), (2, 8)),
+  ("tuple-list", (8, 10), (2, 4)),
+];
+
+let scoreboard_tests =
+  pins
+  |> List.map(((name, full_pin, prefix_pin)) =>
+       test_case(
+         name,
+         `Slow,
+         () => {
+           let text = List.assoc(name, corpus);
+           let full = run_class(~prefix_only=false, name, text);
+           let prefix = run_class(~prefix_only=true, name, text);
+           print_endline(
+             Printf.sprintf(
+               "SCORE %s: full %d/%d, prefix %d/%d",
+               name,
+               full.restored,
+               full.total,
+               prefix.restored,
+               prefix.total,
+             ),
+           );
+           check(
+             pair(int, int),
+             name ++ " full",
+             full_pin,
+             (full.restored, full.total),
+           );
+           check(
+             pair(int, int),
+             name ++ " prefix",
+             prefix_pin,
+             (prefix.restored, prefix.total),
+           );
+         },
+       )
+     );
+
+let tests = [("CompletionScoreboard", scoreboard_tests)];
