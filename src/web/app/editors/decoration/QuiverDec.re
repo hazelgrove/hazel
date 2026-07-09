@@ -188,23 +188,29 @@ let chip_view =
     : Node.t => {
   let x = float_of_int(col) *. font_metrics.col_width;
   let y = float_of_int(row) *. font_metrics.row_height;
-  let bar =
-    DecUtil.code_svg(
-      ~font_metrics,
-      ~origin={
-        row,
-        col,
-      },
-      ~base_cls=["quiver-chip-bar"],
-      ~path_cls=["quiver-chip-bar-path"],
-      ~scale=1.0,
-      ~height_fudge=ShardDec.shadow_dy *. font_metrics.row_height,
-      CaretDec.caret_base_path(Direction.Right, None),
-    );
-  /* flagpole: the bubble's left edge lines up exactly with the
-     caret bar's left edge (straight caret spans +-half caret_width
-     around the column boundary) */
+  /* flagpole: pole and bubble are sibling divs in the same anchor,
+     sharing the SAME left offset float — one layout-rounding path,
+     so their left edges align exactly (the SVG bar rounded on a
+     different path and jittered a fraction of a pixel either way).
+     Pole dimensions replicate the straight caret: caret_width wide
+     centered on the column boundary, row height + shadow reach. */
   let body_left = -. (0.5 *. CaretDec.caret_width *. font_metrics.col_width);
+  let pole =
+    div(
+      ~attrs=[
+        Attr.classes(["quiver-chip-pole"]),
+        Attr.create(
+          "style",
+          Printf.sprintf(
+            "left: %fpx; top: 0px; width: %fpx; height: %fpx;",
+            body_left,
+            CaretDec.caret_width *. font_metrics.col_width,
+            font_metrics.row_height *. (1.0 +. ShardDec.shadow_dy),
+          ),
+        ),
+      ],
+      [],
+    );
   div(
     ~attrs=[
       Attr.classes(
@@ -213,7 +219,6 @@ let chip_view =
       ),
     ],
     [
-      bar,
       div(
         ~attrs=[
           Attr.classes(["quiver-chip-anchor"]),
@@ -223,6 +228,7 @@ let chip_view =
           ),
         ],
         [
+          pole,
           div(
             ~attrs=[
               Attr.classes(["quiver-chip-body"]),
