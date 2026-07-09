@@ -688,6 +688,12 @@ svg:has(.child-line) {
 }
 
 /* Prefix-witness completion: typed prefix vs completed remainder */
+/* Tab emphasis: the entry tab would put down right now is live;
+   the rest sit slightly dimmed (backpack-graying parity) */
+.quiver-offside.tab-dim {
+  opacity: 0.55;
+}
+
 .quiver-offside .empty-hole {
   display: inline-block;
   vertical-align: middle;

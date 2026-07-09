@@ -551,6 +551,13 @@ module View = {
           QuiverDec.view(
             ~measured=syntax.measured,
             ~font_metrics=globals.font_metrics,
+            ~droppable=
+              z.caret == Outer
+                ? Zipper.missing_shards_hd(z)
+                  |> Option.map((t: Haz3lcore.Tile.t) =>
+                       (t.id, Haz3lcore.Tile.l_shard(t))
+                     )
+                : None,
             syntax.segment,
           ),
         ]
