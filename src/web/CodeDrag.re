@@ -59,10 +59,12 @@ type cand = {
      replaced use (andrew's shrink sketch; lerpViews' unmatched-key
      fade, pointer-driven) */
   exits: list(Js.t(Dom.node)),
-  /* tokens absent LIVE: ghost text at candidate positions, opacity
-     scrubbed by t (the incoming let shell, the appended arm) — the
-     dual of exits; the commit's real enter-fade takes over */
-  enters: list((string, vec)),
+  /* tokens absent LIVE: synthetic "before" versions of the REAL
+     tokens (dragology's createSyntheticBefore) at their candidate
+     positions, running THE grow-in (scale+fade) scrubbed by t; the
+     commit's enter animation continues from the same opacity+scale.
+     (text, token classes, position) */
+  enters: list((string, string, vec)),
 };
 
 /* Candidate enumeration must wait for the model to settle: on arm,
@@ -86,7 +88,6 @@ type session = {
   mutable last_z: option(Zipper.t),
   mutable last_term: option(Language.Exp.t),
   mutable down_at: vec,
-  mutable font: (string, string), /* family, size — for ghost text */
   mutable listeners: list(Dom.event_listener_id),
   /* paused WAAPI animations per candidate index, scrubbed by track
      progress (the pointer drives currentTime — lerpViews restricted
@@ -188,39 +189,44 @@ let draw = (s: session, pointer: option(vec)) => {
        )
     |> List.of_seq
     |> String.concat("");
-  /* incoming tokens ghost in at their destinations, opacity = pull
-     progress (only for the active track) */
+  /* incoming tokens: REAL-styled token spans (same classes as
+     Code.view emits, inside a .code wrapper so the whole stylesheet
+     pipeline applies) running the standard grow-in, scrubbed by t */
   let ghosts =
     switch (s.winner) {
     | Some(w) when s.t > 0.02 =>
       switch (List.nth_opt(s.cands, w)) {
-      | Some(c) =>
-        let (family, size) = s.font;
-        c.enters
-        |> List.map(((text, v)) =>
-             Printf.sprintf(
-               {|<text x="%f" y="%f" font-family="%s" font-size="%s" fill="#777" opacity="%f">%s</text>|},
-               o.x +. v.x,
-               o.y +. v.y,
-               family,
-               size,
-               s.t,
-               xml_escape(text),
+      | Some(c) when c.enters != [] =>
+        let scale = 0.1 +. 0.9 *. s.t;
+        let spans =
+          c.enters
+          |> List.map(((text, cls, v)) =>
+               Printf.sprintf(
+                 {|<span class="%s" style="position:absolute;left:%fpx;top:%fpx;opacity:%f;transform:scale(%f)">%s</span>|},
+                 cls,
+                 o.x +. v.x,
+                 o.y +. v.y,
+                 s.t,
+                 scale,
+                 xml_escape(text),
+               )
              )
-           )
-        |> String.concat("\n");
-      | None => ""
+          |> String.concat("");
+        Printf.sprintf(
+          {|<div class="code" style="position:fixed;inset:0;pointer-events:none">%s</div>|},
+          spans,
+        );
+      | _ => ""
       }
     | _ => ""
     };
   let svg =
     Printf.sprintf(
-      {|<svg width="100%%" height="100%%">%s%s%s</svg>|},
+      {|<svg width="100%%" height="100%%">%s%s</svg>|},
       s.cands |> List.mapi(seg) |> String.concat("\n"),
-      ghosts,
       ptr,
     );
-  overlay_el()##.innerHTML := Js.string(svg);
+  overlay_el()##.innerHTML := Js.string(svg ++ ghosts);
 };
 
 /* === scrub (pointer-driven whole-buffer preview) === */
@@ -671,28 +677,6 @@ let arm =
       x: cx -. r##.left,
       y: cy -. r##.top,
     },
-    font: {
-      let ct =
-        Js.Unsafe.meth_call(
-          text_box,
-          "querySelector",
-          [|Js.Unsafe.inject(Js.string(".code-text"))|],
-        );
-      switch (Js.Opt.to_option(ct)) {
-      | Some(ct) =>
-        let style =
-          Js.Unsafe.meth_call(
-            Dom_html.window,
-            "getComputedStyle",
-            [|Js.Unsafe.inject(ct)|],
-          );
-        (
-          Js.to_string(Js.Unsafe.get(style, "fontFamily")),
-          Js.to_string(Js.Unsafe.get(style, "fontSize")),
-        );
-      | None => ("monospace", "16px")
-      };
-    },
     listeners: [],
   };
   s.listeners = [
@@ -796,21 +780,29 @@ let sync =
              }
            );
       /* candidate token texts by key (order irrelevant: keyed) */
-      let rec token_texts = (seg: Segment.t): list((CodeFlip.key, string)) =>
+      let rec token_texts =
+              (seg: Segment.t): list((CodeFlip.key, string, string)) =>
         seg
         |> List.concat_map((piece: Piece.t) =>
              switch (piece) {
              | Tile(t) =>
+               let plurality = List.length(t.label) == 1 ? "mono" : "poly";
+               let sort_cls = Sort.class_of(t.mold.out);
                (
                  t.shards
                  |> List.filter_map(i =>
                       switch (List.nth_opt(t.label, i)) {
-                      | Some(txt) => Some((CodeFlip.Shard(t.id, i), txt))
+                      | Some(txt) =>
+                        let cls =
+                          ["token", sort_cls, plurality]
+                          @ (Token.is_keyword(txt) ? ["keyword"] : [])
+                          |> String.concat(" ");
+                        Some((CodeFlip.Shard(t.id, i), txt, cls));
                       | None => None
                       }
                     )
                )
-               @ List.concat_map(token_texts, t.children)
+               @ List.concat_map(token_texts, t.children);
              | Grout(_)
              | Secondary(_)
              | Projector(_) => []
@@ -825,7 +817,7 @@ let sync =
             cand_m: Measured.t,
           ) =>
         token_texts(cand_seg)
-        |> List.filter_map(((k, text)) =>
+        |> List.filter_map(((k, text, cls)) =>
              switch (
                CodeFlip.find_meas(measured, k),
                CodeFlip.find_meas(cand_m, k),
@@ -834,9 +826,10 @@ let sync =
                let p = Refactor.DragCandidate.frame_point(frame, n.origin);
                Some((
                  text,
+                 cls,
                  {
                    x: float_of_int(p.col) *. font_metrics.col_width,
-                   y: (float_of_int(p.row) +. 0.8) *. font_metrics.row_height,
+                   y: float_of_int(p.row) *. font_metrics.row_height,
                  },
                ));
              | _ => None

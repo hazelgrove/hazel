@@ -140,7 +140,13 @@ let animate_enter = (~from: option(float)=?, node: Js.t(Dom.node)): unit => {
   };
   switch (from) {
   | Some(t0) =>
-    run([("opacity", Printf.sprintf("%f", t0)), ("opacity", "1")])
+    /* the ghost carried the entrance to (opacity t0, scale
+       0.1+0.9*t0) — continue, don't restart */
+    run([("opacity", Printf.sprintf("%f", t0)), ("opacity", "1")]);
+    run([
+      ("transform", Printf.sprintf("scale(%f)", 0.1 +. 0.9 *. t0)),
+      ("transform", "scale(1)"),
+    ]);
   | None =>
     run([("opacity", "0"), ("opacity", "1")]);
     run([("transform", "scale(0.1)"), ("transform", "scale(1)")]);
