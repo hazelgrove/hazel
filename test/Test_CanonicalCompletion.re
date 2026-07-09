@@ -1419,6 +1419,86 @@ let ordering_tests = [
     ~expected="end+in",
   ),
 ];
+/* TyDi delimiter-suffix gates (andrew's e/el/els matrix, FIXED
+   2026-07-10): ci is None on exactly these states — canonical
+   completion CONSUMES the prefix token when building the semantics
+   term, so no info exists at its id — so set_buffer now falls back
+   to the ci-free, expectation-backed missing-shard suggestion, and
+   1-char prefixes bypass the length gate when expectation-backed
+   (symbolic - and = get arrow completions for the first time).
+   Probes replicate Editor.calculate's exact call. */
+let probe_tydi = (acts: list(Action.t)): string => {
+  let z = Test_Editing.perform(Zipper.init(), acts);
+  let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
+  let statics =
+    CachedStatics.init_from_term(
+      ~settings=Test_Editing.default_settings,
+      ~is_dynamic_term=true,
+      term,
+    );
+  let ci = Indicated.ci_for_completion(z, statics.info_map);
+  let tok =
+    switch (TyDi.token_to_left(z)) {
+    | None => "tok:NONE"
+    | Some(t) => "tok:" ++ t
+    };
+  let ci_s =
+    switch (ci) {
+    | None => "ci:NONE"
+    | Some(i) => "ci:" ++ (Language.Info.cls_of(i) |> Language.Cls.show)
+    };
+  let buf =
+    switch (TyDi.set_buffer(~ci, z)) {
+    | None => "buf:NONE"
+    | Some(z') =>
+      switch (TyDi.get_unparsed_buffer(z')) {
+      | None => "buf:???"
+      | Some(t) => "buf:" ++ t
+      }
+    };
+  String.concat(" | ", [tok, ci_s, buf]);
+};
+let tydi_case = (~name, ~acts, ~expected) =>
+  test_case(name, `Quick, () =>
+    check(string_testable, name, expected, probe_tydi(acts))
+  );
+let tydi_probe_tests = [
+  tydi_case(
+    ~name="els suggests remainder e",
+    ~acts=Test_Editing.mk("if 1 < 2 then 3 else¦ 4") @ [destruct_l],
+    ~expected="tok:els | ci:NONE | buf:e",
+  ),
+  tydi_case(
+    ~name="el suggests remainder se",
+    ~acts=
+      Test_Editing.mk("if 1 < 2 then 3 else¦ 4") @ [destruct_l, destruct_l],
+    ~expected="tok:el | ci:NONE | buf:se",
+  ),
+  tydi_case(
+    ~name="e suggests remainder lse (expectation bypasses length gate)",
+    ~acts=
+      Test_Editing.mk("if 1 < 2 then 3 else¦ 4")
+      @ [destruct_l, destruct_l, destruct_l],
+    ~expected="tok:e | ci:NONE | buf:lse",
+  ),
+  tydi_case(
+    ~name="dash suggests arrow remainder",
+    ~acts=Test_Editing.mk("fun x ->¦ x * 2") @ [destruct_l],
+    ~expected="tok:- | ci:NONE | buf:>",
+  ),
+  tydi_case(
+    ~name="1-char ctx prefix stays gated (noise guard)",
+    /* no expectation in play: the length gate still blocks 1-char
+       context-variable suggestions */
+    ~acts=Test_Editing.mk("let ee = 7 in e¦"),
+    ~expected="tok:e | ci:Variable reference | buf:NONE",
+  ),
+  tydi_case(
+    ~name="equals suggests rule-arrow remainder",
+    ~acts=Test_Editing.mk("case x | 1 =>¦ 2 end") @ [destruct_l],
+    ~expected="tok:= | ci:NONE | buf:>",
+  ),
+];
 let joint_tests = [
   edit_case(
     ~name="end+in double deletion: placements incompatible (KNOWN-BAD)",
@@ -1439,6 +1519,7 @@ let joint_tests = [
 let tests: list((string, list(Alcotest.test_case(unit)))) = [
   ("CanonicalCompletion: reassociation-guards", probe_tests),
   ("CanonicalCompletion: closer-vs-separator", probe2_tests),
+  ("CanonicalCompletion: tydi-gates", tydi_probe_tests),
   ("CanonicalCompletion: insertion-ordering", ordering_tests),
   ("CanonicalCompletion: joint-satisfiability", joint_tests),
   /* Debug test - run first to isolate crash */

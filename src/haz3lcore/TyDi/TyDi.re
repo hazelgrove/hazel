@@ -144,7 +144,6 @@ let get_unparsed_buffer = (z: Zipper.t): option(Token.t) =>
 
 /* Populates the suggestion buffer with a type-directed suggestion */
 let set_buffer = (~ci: option(Info.t), z: Zipper.t): option(Zipper.t) => {
-  let* ci = ci;
   let* _ =
     switch (z.selection.mode) {
     /* Make sure not to populate the completion buffer if there is a non-empty
@@ -154,14 +153,35 @@ let set_buffer = (~ci: option(Info.t), z: Zipper.t): option(Zipper.t) => {
     | Normal => None
     };
   let* tok_to_left = token_to_left(z);
-  /* Only show completions after typing enough characters */
-  let* _ = String.length(tok_to_left) >= min_prefix_len ? Some() : None;
-  let suggestions = suggest(ci, z);
+  /* The missing-shard suggestion is derived from the SYNTAX alone —
+     no statics needed. This matters because ci is often None on
+     exactly the delimiter-prefix states it serves: canonical
+     completion CONSUMES the prefix token (els, -, =) when building
+     the semantics term, so no info exists at its id. */
+  let suggestions =
+    switch (ci) {
+    | Some(ci) => suggest(ci, z)
+    | None => suggest_missing_shard(z)
+    };
   let suggestions =
     suggestions
     |> List.filter(({content, _}: TyDiSuggestion.t) =>
          String.starts_with(~prefix=tok_to_left, content)
        );
+  /* Short prefixes are noisy for the open-ended sources (ctx vars,
+     forms), but a 1-char prefix of a delimiter the syntax already
+     EXPECTS (the missing-shard suggestion: - for a fun's ->, = for a
+     rule's =>, e for a deleted else) is high-signal — expectation
+     bounds it, so it bypasses the length gate. */
+  let expectation_backed =
+    List.exists(
+      ({strategy, _}: TyDiSuggestion.t) =>
+        strategy == Any(FromMissingShards),
+      suggestions,
+    );
+  let* _ =
+    String.length(tok_to_left) >= min_prefix_len || expectation_backed
+      ? Some() : None;
   /* If any suggestion is an exact match for the current token, suppress
    * all suggestions. This check must scan the full list, not just the
    * top suggestion, because exact-match variables and keyword suggestions
