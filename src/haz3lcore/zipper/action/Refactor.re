@@ -3072,6 +3072,22 @@ let sink_step = (~fixup: bool, l: Exp.t): option((Exp.t, Id.t)) => {
           && !is_bare_use(l_names, fbody) =>
       /* into a lambda: evaluates per call */
       let (fb_lead, fbody') = take_lead(fbody);
+      /* multiline body: the lead moved to the sunk let, so the
+         displaced first line gets a fresh copy (same convention as
+         into-def — else both land on one line) */
+      let fbody' =
+        if (fixup && has_newline(fb_lead)) {
+          let (b, a) = fbody'.annotation.secondary;
+          {
+            ...fbody',
+            annotation: {
+              ...fbody'.annotation,
+              secondary: (sep_like(fb_lead) @ b, a),
+            },
+          };
+        } else {
+          fbody';
+        };
       let l': Exp.t =
         with_secondary(
           (fb_lead, []),
@@ -3102,6 +3118,19 @@ let sink_step = (~fixup: bool, l: Exp.t): option((Exp.t, Id.t)) => {
             && !names_mentioned(pat_var_names(rp), ldef)
             && !is_bare_use(l_names, rb) =>
         let (rb_lead, rb') = take_lead(rb);
+        let rb' =
+          if (fixup && has_newline(rb_lead)) {
+            let (b, a) = rb'.annotation.secondary;
+            {
+              ...rb',
+              annotation: {
+                ...rb'.annotation,
+                secondary: (sep_like(rb_lead) @ b, a),
+              },
+            };
+          } else {
+            rb';
+          };
         let l': Exp.t =
           with_secondary(
             (rb_lead, []),

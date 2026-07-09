@@ -1532,21 +1532,21 @@ let move_tests = [
     },
   ),
   test_case(
-    "sink into a multiline lambda keeps the body line",
+    "sink into a multiline lambda: displaced body keeps its line",
     `Quick,
     () => {
       let got =
         inline(~kind=SinkLet, "¦let x = 2 in\nfun n ->\n  x + n") |> text_of;
       check(
         string,
-        "let joins the body line",
-        "fun n ->\n  let x = 2 in x + n",
+        "break after the in",
+        "fun n ->\n  let x = 2 in\n  x + n",
         got,
       );
     },
   ),
   test_case(
-    "sink into a multiline arm keeps the body line",
+    "sink into a multiline arm: displaced body keeps its line",
     `Quick,
     () => {
       let got =
@@ -1557,8 +1557,8 @@ let move_tests = [
         |> text_of;
       check(
         string,
-        "let joins the arm line",
-        "case m\n| 1 =>\n  let x = 2 in f(x)\n| _ => 0\nend",
+        "break after the in",
+        "case m\n| 1 =>\n  let x = 2 in\n  f(x)\n| _ => 0\nend",
         got,
       );
     },
