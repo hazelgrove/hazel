@@ -567,7 +567,9 @@ svg:has(.child-line) {
   position: absolute;
   transform: translateY(-50%);
   padding: 0px 4px 1px 4px;
-  border-radius: 4px;
+  /* square bottom-left: the bubble's left edge is flagpole-aligned
+     with the caret bar, and a radius there leaves a divot beside it */
+  border-radius: 4px 4px 4px 0;
   background: var(--quiver-chip);
   color: var(--quiver-chip-text);
   font-family: var(--code-font);
@@ -599,10 +601,27 @@ svg:has(.child-line) {
 }
 
 /* remainder at full contrast; the typed prefix (visible in the code
-   an em away) and later coalesced segments fade toward the chip */
+   an em away) and later coalesced segments fade toward the chip.
+   Dim chips need their own blend: the live fade is invisible against
+   the subdued background */
 .quiver-chip .chip-frac-typed,
 .quiver-chip .chip-seg-later {
   color: var(--quiver-chip-text-faded);
+}
+
+.quiver-chip.chip-dim .chip-frac-typed,
+.quiver-chip.chip-dim .chip-seg-later {
+  color: var(--quiver-chip-text-faded-dim);
+}
+
+/* the caret exactly on a chip's pin: the signpost becomes the caret —
+   whole decoration in caret red, the caret glyph itself hidden */
+.quiver-chip.chip-at-caret {
+  --quiver-chip: var(--caret-color);
+}
+
+.code-container:has(.chip-at-caret) #caret {
+  display: none;
 }
 
 .quiver-chip .empty-hole {

@@ -13,15 +13,10 @@ open Node;
 open Haz3lcore;
 open Util;
 
-/* An insertion with its resolved position. side/shape drive the
-   caret-shaped bar: the bar IS the caret — same path, same metrics —
-   so when the real caret sits at the insertion point they coincide
-   exactly. */
+/* An insertion with its resolved position */
 type positioned_insertion = {
   row: int,
   col: int,
-  side: Direction.t,
-  shape: option(Direction.t),
   delimiters: list(CanonicalCompletion.delimiter_info),
 };
 
@@ -116,16 +111,9 @@ let resolve_position =
         col + (sep ? 1 : 0);
       | _ => col
       };
-    let shape =
-      switch (find_piece_deep(seg, ins.adjacent_id)) {
-      | Some(p) => Segment.edge_direction_of(ins.side, [p])
-      | None => None
-      };
     Some({
       row,
       col,
-      side: ins.side,
-      shape,
       delimiters: ins.delimiters,
     });
   };
@@ -181,18 +169,20 @@ let delimiter_nodes =
   |> List.concat;
 
 /* One interline chip: a solid speech-bubble centered on the line
-   boundary above the insertion point, its first character centered
-   over the insertion column, overlapping the top of a caret-shaped
-   bar — the SAME path the real caret draws at that position, so
-   caret and bar coincide exactly when the caret is there. */
+   boundary above the insertion point, flagpole-aligned with a
+   STRAIGHT caret bar — the same path/metrics the real caret draws,
+   shape deliberately not shown (a remnant token's nib shapes are
+   incidental: le's convex right stops existing once the t arrives).
+   When the real caret sits exactly on the pin, the chip takes the
+   caret's color and the caret glyph hides (CSS :has) — the signpost
+   IS the caret there. */
 let chip_view =
     (
       ~font_metrics: FontMetrics.t,
       ~row: int,
       ~col: int,
-      ~side: Direction.t,
-      ~shape: option(Direction.t),
       ~live: bool,
+      ~at_caret: bool,
       body: list(Node.t),
     )
     : Node.t => {
@@ -209,13 +199,19 @@ let chip_view =
       ~path_cls=["quiver-chip-bar-path"],
       ~scale=1.0,
       ~height_fudge=ShardDec.shadow_dy *. font_metrics.row_height,
-      CaretDec.caret_base_path(side, shape),
+      CaretDec.caret_base_path(Direction.Right, None),
     );
-  /* first character of the chip text sits centered over the
-     insertion column: padding (4px) + half a chip-scaled char */
-  let body_left = -. (4.0 +. 0.5 *. chip_font_scale *. font_metrics.col_width);
+  /* flagpole: the bubble's left edge lines up exactly with the
+     caret bar's left edge (straight caret spans +-half caret_width
+     around the column boundary) */
+  let body_left = -. (0.5 *. CaretDec.caret_width *. font_metrics.col_width);
   div(
-    ~attrs=[Attr.classes(["quiver-chip", live ? "chip-live" : "chip-dim"])],
+    ~attrs=[
+      Attr.classes(
+        ["quiver-chip", live ? "chip-live" : "chip-dim"]
+        @ (at_caret ? ["chip-at-caret"] : []),
+      ),
+    ],
     [
       bar,
       div(
@@ -291,6 +287,7 @@ let view =
       ~measured: Measured.t,
       ~font_metrics: FontMetrics.t,
       ~droppable: option((Id.t, int))=None,
+      ~caret_pos: option((int, int))=None,
       seg: Segment.t,
     )
     : Node.t => {
@@ -327,9 +324,8 @@ let view =
              ~font_metrics,
              ~row=ins.row,
              ~col=ins.col,
-             ~side=ins.side,
-             ~shape=ins.shape,
              ~live=matches_droppable(droppable, ins.delimiters),
+             ~at_caret=caret_pos == Some((ins.row, ins.col)),
              delimiter_nodes(~font_metrics, ins.delimiters),
            )
          );
