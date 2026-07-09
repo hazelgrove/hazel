@@ -5278,6 +5278,36 @@ let gesture =
     };
   };
 
+/* the def subtree a FeedLet would clone: the emergeFrom source (D2's
+   emergeMode=clone — the copy departs the source full-size at full
+   opacity; a split, not a growth). Ids here are the LIVE def's;
+   correlation with the commit's fresh clone ids happens positionally
+   at flight time, because clone ids are minted per prepare run and
+   are not stable across speculative/commit runs. */
+let emerge_source =
+    (~info_map, ~target, kind: Action.refactor, term): list(Id.t) =>
+  kind == FeedLet
+    ? switch (feed_plan(~info_map, ~target, term)) {
+      | Some(Feed(_, def, _)) => exp_subtree_ids(def)
+      | _ => []
+      }
+    : [];
+
+let gesture_emerge_source =
+    (~info_map, ~term, g: Action.Gesture.t, z: Zipper.t): list(Id.t) =>
+  switch (Indicated.index(z), gesture(~info_map, ~term, g, z)) {
+  | (Some(target), Some(kind)) =>
+    emerge_source(~info_map, ~target, kind, term)
+  | _ => []
+  };
+
+let refactor_emerge_source =
+    (~info_map, ~term, kind: Action.refactor, z: Zipper.t): list(Id.t) =>
+  switch (Indicated.index(z)) {
+  | Some(target) => emerge_source(~info_map, ~target, kind, term)
+  | None => []
+  };
+
 /* === Drag candidates (pointer front-end to the gesture system) ===
  * For each direction, resolve the gesture at the caret, prepare it,
  * and measure the result — measures only, no statics/eval/view
@@ -5543,11 +5573,32 @@ let drag_candidates =
                       |> List.filter(id => !List.mem(id, live));
                     let d = exp_subtree_ids(def);
                     /* combine raises on length mismatch — guard FIRST
-                       (the eager-evaluation gotcha); a parenthesized
-                       clone has one extra id and falls back to
-                       grow-in-place */
-                    List.length(fresh) == List.length(d)
-                      ? List.combine(fresh, d) : [];
+                       (the eager-evaluation gotcha) */
+                    let zip = ids =>
+                      List.length(ids) == List.length(d)
+                        ? List.combine(ids, d) : [];
+                    switch (zip(fresh)) {
+                    | [] =>
+                      /* reparse demanded a paren wrapper: the parens
+                         are genuinely NEW material (no source) — pair
+                         the inner clone, found structurally */
+                      let fresh_parens = (e: Exp.t) =>
+                        switch (IdTagged.term_of(e)) {
+                        | Parens(_) =>
+                          IdTagged.ids(e)
+                          |> List.exists(id => List.mem(id, fresh))
+                        | _ => false
+                        };
+                      switch (find_hit(~hit=fresh_parens, term')) {
+                      | Some(p) =>
+                        switch (IdTagged.term_of(p)) {
+                        | Parens(inner) => zip(exp_subtree_ids(inner))
+                        | _ => []
+                        }
+                      | None => []
+                      };
+                    | pairs => pairs
+                    };
                   | _ => []
                   }
                 | _ => []

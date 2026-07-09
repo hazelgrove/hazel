@@ -185,9 +185,19 @@
   cursor: grab;
 }
 
-/* mid-drag the pointer is the locus; the parked caret only distracts */
+/* mid-drag the caret RIDES the grabbed token's scrub (CodeDrag adds
+   #caret to the winner's paused animations); kill the blink so it
+   reads as solid cargo, not an active insertion point (pausing
+   could freeze it at the invisible phase) */
 body.code-dragging #caret {
-  visibility: hidden;
+  animation: none;
+}
+
+/* scroll-past-end: room below the last line, VS Code style — also
+   gives downward drags near the buffer end somewhere to breathe */
+#main.Scratch,
+#main.Documentation {
+  padding-bottom: 45vh;
 }
 
 /* shape-dependent connector lines can't ride tokens honestly —

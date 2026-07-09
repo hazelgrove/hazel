@@ -108,25 +108,65 @@ let cancel_active = (): unit => {
  * elements are already gone from the DOM when go() runs. */
 let enter_duration = 320; /* slower than movement so it registers */
 
-/* drag handoff: the ghost previewed the entrance at opacity = pull
-   progress — the real tokens CONTINUE from there (no scale pop: the
-   ghost was full-size), same continuation rule as movement */
+/* drag handoff: the ghost previewed the entrance at progress = pull
+   t — the real tokens CONTINUE from there, same continuation rule as
+   movement (grow-ins continue opacity+scale; emerge flights continue
+   position) */
 let drag_enter_from: ref(option(float)) = ref(None);
 let set_drag_enter = (t: float): unit => drag_enter_from := Some(t);
 
-/* traveling enters (emergeFrom): remaining px offset from the
-   ghost's mid-flight position to the destination, by key */
-let drag_enter_offsets: ref(list((key, (float, float)))) = ref([]);
-let set_drag_enter_offsets = (l: list((key, (float, float)))): unit =>
-  drag_enter_offsets := l;
+/* emergeFrom sources (D2 emergeMode=clone): the LIVE ids of the def
+   subtree a feed clones. Consumed by go(): entered tokens are zipped
+   POSITIONALLY against these keys in the old segment (fresh clone ids
+   are minted per prepare run — id-keyed correlation silently misses
+   across the speculative/commit boundary; position + kind is the
+   stable correlate). Matched enters FLY full-size from the source —
+   a split, not a growth. */
+let emerge_src: ref(list(Id.t)) = ref([]);
+let set_emerge_src = (ids: list(Id.t)): unit => emerge_src := ids;
 
-let animate_enter =
-    (
-      ~from: option(float)=?,
-      ~extra: (float, float)=(0., 0.),
-      node: Js.t(Dom.node),
-    )
-    : unit => {
+let key_kind_match = (a: key, b: key): bool =>
+  switch (a, b) {
+  | (Shard(_, i), Shard(_, j)) => i == j
+  | (GroutK(_), GroutK(_))
+  | (CommentK(_), CommentK(_)) => true
+  | _ => false
+  };
+
+/* (key, token text) for the given ids' tokens, in traversal order —
+   the emerge source's identity card (text disambiguates windows;
+   grout carries none = wildcard) */
+let rec keyed_tokens_of_segment =
+        (ids: list(Id.t), seg: Segment.t): list((key, string)) =>
+  seg
+  |> List.concat_map((p: Piece.t) =>
+       switch (p) {
+       | Tile(t) =>
+         Aba.mk(t.shards, t.children)
+         |> Aba.join(
+              i =>
+                List.mem(t.id, ids)
+                  ? [
+                    (
+                      Shard(t.id, i),
+                      List.nth_opt(t.label, i) |> Option.value(~default=""),
+                    ),
+                  ]
+                  : [],
+              keyed_tokens_of_segment(ids),
+            )
+         |> List.concat
+       | Grout(g) => List.mem(g.id, ids) ? [(GroutK(g.id), "")] : []
+       | Secondary(s) =>
+         switch (s.content) {
+         | Comment(c) when List.mem(s.id, ids) => [(CommentK(s.id), c)]
+         | _ => []
+         }
+       | Projector(_) => []
+       }
+     );
+
+let animate_enter = (~from: option(float)=?, node: Js.t(Dom.node)): unit => {
   let run = keyframes => {
     let options =
       Animation.Js.options_unsafe({
@@ -150,28 +190,61 @@ let animate_enter =
     | anim => active := [anim, ...active^]
     };
   };
-  let (ex, ey) = extra;
   switch (from) {
   | Some(t0) =>
     /* the ghost carried the entrance to (opacity t0, scale
-       0.1+0.9*t0) at its mid-flight position — continue all three,
-       don't restart */
+       0.1+0.9*t0) — continue both, don't restart */
     run([("opacity", Printf.sprintf("%f", t0)), ("opacity", "1")]);
     run([
-      (
-        "transform",
-        Printf.sprintf(
-          "translate(%fpx, %fpx) scale(%f)",
-          ex,
-          ey,
-          0.1 +. 0.9 *. t0,
-        ),
-      ),
-      ("transform", "translate(0px, 0px) scale(1)"),
+      ("transform", Printf.sprintf("scale(%f)", 0.1 +. 0.9 *. t0)),
+      ("transform", "scale(1)"),
     ]);
   | None =>
     run([("opacity", "0"), ("opacity", "1")]);
     run([("transform", "scale(0.1)"), ("transform", "scale(1)")]);
+  };
+};
+
+/* emergeFrom flight (D2 emergeMode=clone): a spawned copy departs its
+ * source full-size at full opacity — position is the ONLY animated
+ * channel (scaling is the vocabulary of appearing; a clone already
+ * exists at the source, it splits off). ~from: the drag ghost carried
+ * the flight to t — continue the remaining fraction. Movement
+ * duration/easing: flights are flights. */
+let animate_emerge =
+    (
+      ~font_metrics: FontMetrics.t,
+      ~from: option(float)=?,
+      ~bump: float=0.,
+      node: Js.t(Dom.node),
+      o: Point.t,
+      n: Point.t,
+    )
+    : unit => {
+  let remaining = 1. -. Option.value(from, ~default=0.);
+  let dx = float_of_int(o.col - n.col) *. font_metrics.col_width *. remaining;
+  let dy =
+    (float_of_int(o.row - n.row) *. font_metrics.row_height +. bump)
+    *. remaining;
+  let keyframes =
+    Animation.Js.keyframes_unsafe([
+      ("transform", Printf.sprintf("translate(%fpx, %fpx)", dx, dy)),
+      ("transform", "translate(0px, 0px)"),
+    ]);
+  let options =
+    Animation.Js.options_unsafe({
+      duration,
+      easing,
+    });
+  switch (
+    Js.Unsafe.meth_call(
+      node,
+      "animate",
+      [|Js.Unsafe.inject(keyframes), Js.Unsafe.inject(options)|],
+    )
+  ) {
+  | exception _ => ()
+  | anim => active := [anim, ...active^]
   };
 };
 
@@ -254,11 +327,11 @@ let warn_invisible = (node: Js.t(Dom.node)): unit =>
    refactorings — under animate-all-edits every typed character and
    TyDi completion re-animating its entrance is nauseating (andrew).
    Movement FLIP stays for all edits. */
-let pending: ref(option((Measured.t, bool))) = ref(None);
+let pending: ref(option((Measured.t, Segment.t, bool))) = ref(None);
 
 /* Call during the MVU update, before the edit applies */
 let request = (~enters: bool=true, syntax: CachedSyntax.t): unit =>
-  pending := Some((syntax.measured, enters));
+  pending := Some((syntax.measured, syntax.segment, enters));
 
 /* Drag handoff (CodeDrag): visual px offsets tokens already carry
    from the scrub, keyed like the measured diff; consumed by the next
@@ -487,7 +560,7 @@ let set_scroll_bump = (~rows: int, ~near: Js.t(Dom_html.element)): unit => {
 let go = (~syntax: CachedSyntax.t, ~font_metrics: FontMetrics.t): unit =>
   switch (pending^) {
   | None => ()
-  | Some((old_m, enters_ok)) =>
+  | Some((old_m, old_seg, enters_ok)) =>
     pending := None;
     /* stale animations — including adopted drag scrubs (fill:both,
        they'd re-assert after any new flight ends) — must not outlive
@@ -497,8 +570,8 @@ let go = (~syntax: CachedSyntax.t, ~font_metrics: FontMetrics.t): unit =>
     drag_offsets := [];
     let enter_from = drag_enter_from^;
     drag_enter_from := None;
-    let enter_offsets = drag_enter_offsets^;
-    drag_enter_offsets := [];
+    let emerge = emerge_src^;
+    emerge_src := [];
     let bump_y =
       switch (scroll_bump^) {
       | Some((el, rows)) =>
@@ -531,6 +604,9 @@ let go = (~syntax: CachedSyntax.t, ~font_metrics: FontMetrics.t): unit =>
                 switch (pair(entries_of_segment(syntax.segment), nodes)) {
                 | None => ()
                 | Some(pairs) =>
+                  /* pair() builds by prepending — restore traversal
+                     order (the emerge zip is positional) */
+                  let pairs = List.rev(pairs);
                   let moved =
                     pairs
                     |> List.filter_map(((k, node)) =>
@@ -605,16 +681,88 @@ let go = (~syntax: CachedSyntax.t, ~font_metrics: FontMetrics.t): unit =>
                          | _ => ()
                          }
                        );
-                    entered
-                    |> List.iter(((k, node)) =>
-                         animate_enter(
-                           ~from=?enter_from,
-                           ~extra=
-                             List.assoc_opt(k, enter_offsets)
-                             |> Option.value(~default=(0., 0.)),
-                           node,
-                         )
-                       );
+                    /* emergeFrom: the clone is a CONTIGUOUS run of
+                       entered keys whose (kind, text) sequence
+                       matches the source's tokens in the OLD
+                       segment. Entered ⊃ clone is normal on stale
+                       buffers: rewrite_node's dedupe_ids heals
+                       duplicate ids program-wide at commit, so
+                       unrelated re-minted subtrees enter alongside
+                       the clone — they grow in place while the
+                       clone still flies. Exactly one matching
+                       window flies; zero or several (ambiguous) →
+                       all grow (never guess). */
+                    let srcs =
+                      emerge == []
+                        ? [] : keyed_tokens_of_segment(emerge, old_seg);
+                    let node_text = (node: Js.t(Dom.node)): string =>
+                      switch (
+                        Js.Opt.to_option(Js.Unsafe.get(node, "textContent"))
+                      ) {
+                      | Some(s) => Js.to_string(s)
+                      | None => ""
+                      | exception _ => ""
+                      };
+                    let ents = Array.of_list(entered);
+                    let n_src = List.length(srcs);
+                    let windows =
+                      n_src == 0 || Array.length(ents) < n_src
+                        ? []
+                        : List.init(Array.length(ents) - n_src + 1, i => i)
+                          |> List.filter(i =>
+                               srcs
+                               |> List.mapi((j, s) => (j, s))
+                               |> List.for_all(((j, (sk, stext))) => {
+                                    let (ek, enode) = ents[i + j];
+                                    key_kind_match(sk, ek)
+                                    && (
+                                      stext == "" || stext == node_text(enode)
+                                    );
+                                  })
+                             );
+                    switch (windows) {
+                    | [w] =>
+                      List.iteri(
+                        (j, (sk, _)) => {
+                          let (k, node) = ents[w + j];
+                          switch (find_meas(old_m, sk), find_meas(new_m, k)) {
+                          | (Some(o), Some(n))
+                              when
+                                o.origin.row == o.last.row
+                                && n.origin.row == n.last.row =>
+                            animate_emerge(
+                              ~font_metrics,
+                              ~from=?enter_from,
+                              ~bump=bump_y,
+                              node,
+                              o.origin,
+                              n.origin,
+                            )
+                          | _ => animate_enter(node)
+                          };
+                        },
+                        srcs,
+                      );
+                      ents
+                      |> Array.iteri((i, (_, node)) =>
+                           i >= w && i < w + n_src ? () : animate_enter(node)
+                         );
+                    | _ =>
+                      if (emerge != [] && entered != []) {
+                        print_endline(
+                          Printf.sprintf(
+                            "CodeFlip: emerge staged (%d source tokens) but %s clone window among %d entered — grow-in fallback",
+                            n_src,
+                            windows == [] ? "no" : "no unique",
+                            List.length(entered),
+                          ),
+                        );
+                      };
+                      entered
+                      |> List.iter(((_, node)) =>
+                           animate_enter(~from=?enter_from, node)
+                         );
+                    };
                     moved
                     |> List.iter(((_, node, _, _)) => warn_invisible(node));
                   };

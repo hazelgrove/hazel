@@ -2006,6 +2006,54 @@ let shard_anchor_tests = [
   ),
 ];
 
+/* emergeFrom sources (D2 emergeMode=clone): a multi-use feed reports
+   the LIVE def subtree its clone splits off; consume (the def MOVES,
+   same ids) and non-feed kinds report none */
+let emerge_src_n = (dir, marked): int => {
+  let z = Test_Editing.parse_zipper(marked);
+  let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
+  Refactor.gesture_emerge_source(~info_map=info_map_of(z), ~term, dir, z)
+  |> List.length;
+};
+
+let emerge_tests = [
+  test_case(
+    "multi-token def: drag feed candidate carries emerge",
+    `Quick,
+    () => {
+      let cs = drag_cands("let total = rate ¦* 24 in total + total");
+      let feed =
+        cs
+        |> List.find_opt((c: Refactor.DragCandidate.t) =>
+             c.kind == Action.FeedLet
+           );
+      let n =
+        switch (feed) {
+        | Some(c) => List.length(c.emerge)
+        | None => (-1)
+        };
+      check(int, "emerge pairs", 3, n);
+    },
+  ),
+  test_case("feed at binder: def is the emerge source", `Quick, () =>
+    check(bool, "src", true, emerge_src_n(Down, "let ¦k = 3 in k + k") > 0)
+  ),
+  test_case("feed at a use: same source (clone flies here)", `Quick, () =>
+    check(bool, "src", true, emerge_src_n(Down, "let k = 3 in ¦k + k") > 0)
+  ),
+  test_case("consume: the def moves, nothing emerges", `Quick, () =>
+    check(int, "none", 0, emerge_src_n(Down, "let k = 3 in ¦k"))
+  ),
+  test_case("hoist: not a feed, nothing emerges", `Quick, () =>
+    check(
+      int,
+      "none",
+      0,
+      emerge_src_n(Up, "let a = 1 in\n¦let x = 2 in\nx + a"),
+    )
+  ),
+];
+
 let landing_block_tests = [
   test_case(
     "feed-consume of an inline-headed let rejoins the host line",
@@ -3070,6 +3118,7 @@ let tests = [
     @ regression_tests
     @ feed_tests
     @ drag_tests
+    @ emerge_tests
     @ reparse_safety_tests,
   ),
   (

@@ -131,7 +131,25 @@ module Update = {
         );
         switch (action) {
         | Refactor(_)
-        | RefactorGesture(_) => CodeFlip.request(model.editor.syntax)
+        | RefactorGesture(_) =>
+          /* feed's clone flies from the def it splits off (D2
+             emergeMode=clone) — stage the source ids for the flight
+             pairing; non-feed kinds stage [] (no-op) */
+          {
+            let z = model.editor.state.zipper;
+            let info_map = model.statics.info_map;
+            let term = model.statics.term;
+            CodeFlip.set_emerge_src(
+              switch (action) {
+              | RefactorGesture(g) =>
+                Refactor.gesture_emerge_source(~info_map, ~term, g, z)
+              | Refactor(kind) =>
+                Refactor.refactor_emerge_source(~info_map, ~term, kind, z)
+              | _ => []
+              },
+            );
+          };
+          CodeFlip.request(model.editor.syntax);
         | _ when settings.core.animate_all_edits && Action.is_edit(action) =>
           /* movement only: grow-ins on every keystroke/completion
              re-animate constantly and read as churn */

@@ -31,7 +31,18 @@ let snap_min_t = 0.7;
    mechanically but surfaces caret/handoff complexities — parked low
    on the ledger; one commit per drag until then. */
 let chaining = false;
-let when_far = 56.; /* px: farther than this from every track = no winner */
+/* NO when_far radius (removed): the old 56px perimeter around tracks
+   was a DISTANCE cliff — pulling past a track's end eventually
+   dropped the winner and popped the whole preview home (andrew:
+   sudden, disorienting). The partition is now purely DIRECTIONAL
+   (the cos gate below): pull along a track and it stays engaged
+   forever, the give absorbing everything past the end; the only
+   discontinuities left are genuine direction changes, bridged by
+   the relax. This is also closer to D2, whose drop rule is closest-
+   state-by-pointer-distance — a Voronoi over states with no dead
+   ring (andrew's recollection was right). Consequence: releasing
+   far past an end still COMMITS (t=1); abort = swing off-axis or
+   Esc. */
 let stickiness = 6.; /* px bonus for the incumbent track */
 let direction_pull = 8.; /* px bonus for tracks aligned with the pull —
    near the shared origin, nearly-parallel tracks (extract vs swap at
@@ -39,6 +50,30 @@ let direction_pull = 8.; /* px bonus for tracks aligned with the pull —
 
 let commit_t = 0.55; /* release past this progress commits the winner */
 let slop = 4.; /* px before the drag counts as begun */
+/* overshoot feedback past a track's end: `false` = the grabbed token
+   itself gives a few damped px (it clearly wants to stay); `true` =
+   the whole text box stretches (parked: fun but likely too
+   disorienting — andrew). D2 has no resistance concept: their
+   dragged element FOLLOWS the pointer freely and the model snaps
+   (switchToStateAndFollow); elasticity there is a drop-settle easing
+   (withDropTransition elastic-out). A free-following token would
+   shred text readability — damped, track-bound give is the text
+   adaptation (incidental drift, recorded). */
+let overshoot_global = false;
+/* response curve on the winner's track progress — D2's between(...,
+   {sharpness}): weights are raised to this power and renormalized,
+   which for a two-state track is t^k / (t^k + (1-t)^k). 1.0 =
+   linear (off); >1 hugs the endpoints and snaps through the middle
+   (Josh's switch-with-sharpness study demo). Wired for trying, not
+   yet a conviction. */
+let sharpness = 1.0;
+let sharpen = (t: float): float =>
+  sharpness == 1.0
+    ? t
+    : {
+      let a = t ** sharpness;
+      a /. (a +. (1. -. t) ** sharpness);
+    };
 
 type vec = {
   x: float,
@@ -68,13 +103,19 @@ type cand = {
   exits: list(Js.t(Dom.node)),
   /* tokens absent LIVE: synthetic "before" versions of the REAL
      tokens (dragology's createSyntheticBefore) at their candidate
-     positions, running THE grow-in (scale+fade) scrubbed by t; the
-     commit's enter animation continues from the same opacity+scale.
-     (text, token classes, destination, emerge-origin). With an
-     origin (feed's copy emerging from the surviving def), the ghost
-     TRAVELS origin->destination while growing — dragology's
-     emergeFrom; without, it grows in place. */
+     positions. (text, token classes, destination, emerge-origin).
+     With an origin (feed's copy splitting off the surviving def) the
+     ghost TRAVELS origin->destination full-size at full opacity — D2
+     emergeMode=clone; without, it grows in place (scale+fade)
+     scrubbed by t. The commit continues each from the same state. */
   enters: list((CodeFlip.key, string, string, vec, option(vec))),
+  /* LIVE ids of the emerge source (the cloned def subtree) — handed
+     to CodeFlip at commit for the positional flight pairing */
+  emerge_src: list(Id.t),
+  /* the grabbed token's own displacement in this candidate — the
+     caret rides it (movement kinds); None = the caret stays (feeds:
+     the binder exits, focus stays for the next feed) */
+  caret_delta: option((float, float)),
 };
 
 /* Candidate enumeration must wait for the model to settle: on arm,
@@ -100,6 +141,17 @@ type session = {
   mutable last_z: option(Zipper.t),
   mutable last_term: option(Language.Exp.t),
   mutable down_at: vec,
+  /* elastic overshoot currently applied to the text box (pulling
+     past a track's end gives instead of going dead) */
+  mutable give: vec,
+  /* the grabbed token: its live DOM node, its (tile, shard) for
+     resolving companion decorations, the lean animations (one per
+     leaning node — token + backings + caret, composite:add over any
+     scrub), and the current lean vector (for the release rebound) */
+  mutable grab_node: option(Js.t(Dom.node)),
+  mutable grab_ids: option((Id.t, option(int))),
+  mutable local_give: list(Js.Unsafe.any),
+  mutable local_give_g: vec,
   mutable listeners: list(Dom.event_listener_id),
   /* paused WAAPI animations per candidate index, scrubbed by track
      progress (the pointer drives currentTime — lerpViews restricted
@@ -114,34 +166,95 @@ let active = () => session^ != None;
 /* === overlay (owned element under body; never vdom-managed) === */
 
 let overlay_id = "code-drag-overlay";
+let overlay_under_id = "code-drag-overlay-under";
 
-let overlay_el = (): Js.t(Dom_html.element) =>
+let overlay_named =
+    (~parent: Js.t(Dom_html.element), id: string, z: string)
+    : Js.t(Dom_html.element) =>
   switch (
-    Js.Opt.to_option(
-      Dom_html.document##getElementById(Js.string(overlay_id)),
-    )
+    Js.Opt.to_option(Dom_html.document##getElementById(Js.string(id)))
   ) {
   | Some(el) => el
   | None =>
     let el = Dom_html.createDiv(Dom_html.document);
-    el##.id := Js.string(overlay_id);
+    el##.id := Js.string(id);
     el##.style##.cssText :=
-      Js.string("position:fixed;inset:0;pointer-events:none;z-index:999999;");
-    Dom.appendChild(Dom_html.document##.body, el);
+      Js.string(
+        Printf.sprintf(
+          "position:fixed;inset:0;pointer-events:none;z-index:%s;",
+          z,
+        ),
+      );
+    Dom.appendChild(parent, el);
     el;
   };
 
-let remove_overlay = () =>
-  switch (
-    Js.Opt.to_option(
-      Dom_html.document##getElementById(Js.string(overlay_id)),
-    )
-  ) {
-  | Some(el) => Js.Opt.iter(el##.parentNode, p => Dom.removeChild(p, el))
-  | None => ()
+/* the code layers (backings z 2-4, text z 10) resolve their z inside
+   the app's position:fixed wrapper — FIXED CREATES A STACKING
+   CONTEXT, so a body-level layer can never slot between them (bit
+   us: tracks painted over text everywhere while computed z's looked
+   right). The under-layer must mount INSIDE that wrapper; fixed
+   positioning still anchors to the viewport, so geometry is
+   unchanged. */
+let fixed_wrapper = (from: Js.t(Dom_html.element)): Js.t(Dom_html.element) => {
+  let rec up = (el: Js.t(Dom_html.element)) => {
+    let pos =
+      Js.to_string(
+        Js.Unsafe.get(
+          Js.Unsafe.meth_call(
+            Js.Unsafe.global##.window,
+            "getComputedStyle",
+            [|Js.Unsafe.inject(el)|],
+          ),
+          "position",
+        ),
+      );
+    if (pos == "fixed") {
+      el;
+    } else {
+      switch (Js.Opt.to_option(el##.parentNode)) {
+      | Some(p) when Js.Opt.test(Dom_html.CoerceTo.element(p)) =>
+        switch (Js.Opt.to_option(Dom_html.CoerceTo.element(p))) {
+        | Some(pe) => up(pe)
+        | None => Dom_html.document##.body
+        }
+      | _ => Dom_html.document##.body
+      };
+    };
   };
+  switch (up(from)) {
+  | el => el
+  | exception _ => Dom_html.document##.body
+  };
+};
 
-let box_origin = (s: session): vec => {
+/* labels + ghost tokens float over everything; tracks/targets sit
+   UNDER the code text but over shard backings (the z table's
+   --drag-track-z) — lines through token glyphs read as clutter,
+   under them they read as terrain (andrew) */
+let overlay_el = (): Js.t(Dom_html.element) =>
+  overlay_named(~parent=Dom_html.document##.body, overlay_id, "999999");
+let overlay_under_el = (s: session): Js.t(Dom_html.element) =>
+  overlay_named(
+    ~parent=fixed_wrapper(s.text_box),
+    overlay_under_id,
+    "var(--drag-track-z)",
+  );
+
+let remove_overlay = () =>
+  [overlay_id, overlay_under_id]
+  |> List.iter(id =>
+       switch (
+         Js.Opt.to_option(Dom_html.document##getElementById(Js.string(id)))
+       ) {
+       | Some(el) => Js.Opt.iter(el##.parentNode, p => Dom.removeChild(p, el))
+       | None => ()
+       }
+     );
+
+/* the box's on-screen origin, INCLUDING any give transform — what
+   the overlay draws against (tracks/ghosts move with the give) */
+let box_origin_raw = (s: session): vec => {
   let r = s.text_box##getBoundingClientRect;
   {
     x: r##.left,
@@ -149,42 +262,302 @@ let box_origin = (s: session): vec => {
   };
 };
 
-let draw = (s: session, pointer: option(vec)) => {
-  let o = box_origin(s);
-  let seg = (i, c: cand) => {
-    let win = s.winner == Some(i);
-    let color = win ? "#e33" : "#59f";
-    let width = win ? "2.5" : "1.5";
-    Printf.sprintf(
-      {|<line x1="%f" y1="%f" x2="%f" y2="%f" stroke="%s" stroke-width="%s" stroke-dasharray="%s"/>
-        <circle cx="%f" cy="%f" r="5" fill="%s" fill-opacity="0.8"/>
-        <text x="%f" y="%f" font-size="10" fill="%s">%s</text>|},
-      o.x +. c.cur.x,
-      o.y +. c.cur.y,
-      o.x +. c.tgt.x,
-      o.y +. c.tgt.y,
-      color,
-      width,
-      win ? "" : "4 3",
-      o.x +. c.tgt.x,
-      o.y +. c.tgt.y,
-      color,
-      o.x +. c.tgt.x +. 7.,
-      o.y +. c.tgt.y -. 4.,
-      color,
-      c.label,
+/* give-corrected origin for GEOMETRY: pointer projection must not
+   see the elastic shift (feedback: give moves the box, which moves
+   the projection, which moves the give) */
+let box_origin = (s: session): vec => {
+  let r = box_origin_raw(s);
+  {
+    x: r.x -. s.give.x,
+    y: r.y -. s.give.y,
+  };
+};
+
+let apply_give = (s: session, g: vec): unit => {
+  s.give = g;
+  s.text_box##.style##.transform :=
+    Js.string(
+      g.x == 0. && g.y == 0.
+        ? "" : Printf.sprintf("translate(%fpx, %fpx)", g.x, g.y),
+    );
+};
+
+/* local give: the grabbed token leans toward the hand — a paused
+   single-keyframe composite:add animation stacks the give on the
+   token's scrub transform (inline styles lose to active animations;
+   add-composited animations don't). Clearing a nonzero lean plays a
+   springy REBOUND (back-out bezier — kin to D2's elastic-out drop
+   settle) instead of snapping: the snap-back read as nothing. */
+let give_damp = (dist: float): float =>
+  12. *. (1. -. 1. /. (1. +. dist /. 28.));
+
+let rebound = (node: Js.t(Dom.node), from: vec): unit => {
+  let keyframes =
+    Js.Unsafe.obj([|
+      (
+        "transform",
+        Js.Unsafe.inject(
+          Js.array([|
+            Js.string(
+              Printf.sprintf("translate(%fpx, %fpx)", from.x, from.y),
+            ),
+            Js.string("translate(0px, 0px)"),
+          |]),
+        ),
+      ),
+    |]);
+  let options =
+    Js.Unsafe.obj([|
+      ("duration", Js.Unsafe.inject(Js.number_of_float(180.))),
+      ("composite", Js.Unsafe.inject(Js.string("add"))),
+      (
+        "easing",
+        Js.Unsafe.inject(Js.string("cubic-bezier(0.34, 1.56, 0.64, 1)")),
+      ),
+    |]);
+  switch (
+    Js.Unsafe.meth_call(
+      node,
+      "animate",
+      [|Js.Unsafe.inject(keyframes), Js.Unsafe.inject(options)|],
+    )
+  ) {
+  | exception _ => ()
+  | _ => ()
+  };
+};
+
+/* the lean moves the WHOLE thing in hand: the token's text, its
+   anchored decorations (shard backing, error underlays...), and the
+   caret sitting on it — text-only lean read as a glitch (andrew).
+   Decos resolve fresh per call (activation-time rule: vdom patches
+   re-purpose elements). */
+let lean_nodes = (s: session): list(Js.t(Dom.node)) => {
+  let decos =
+    switch (s.grab_ids) {
+    | None => []
+    | Some((tid, shard)) =>
+      CodeFlip.anchored_decos()
+      |> List.filter_map(((id, sh, node)) =>
+           id == tid && (shard == None || sh == None || sh == shard)
+             ? Some(node) : None
+         )
+    };
+  let caret =
+    switch (JsUtil.get_elem_by_id_opt("caret")) {
+    | Some(el) => [(el :> Js.t(Dom.node))]
+    | None => []
+    };
+  (
+    switch (s.grab_node) {
+    | Some(n) => [n]
+    | None => []
+    }
+  )
+  @ decos
+  @ caret;
+};
+
+let apply_local_give = (s: session, g: vec): unit => {
+  s.local_give
+  |> List.iter(anim =>
+       switch (Js.Unsafe.meth_call(anim, "cancel", [||])) {
+       | exception _ => ()
+       | _ => ()
+       }
+     );
+  s.local_give = [];
+  if (g.x == 0. && g.y == 0.) {
+    let prev = s.local_give_g;
+    if (!(prev.x == 0. && prev.y == 0.)) {
+      lean_nodes(s) |> List.iter(node => rebound(node, prev));
+    };
+  };
+  s.local_give_g = g;
+  if (!(g.x == 0. && g.y == 0.)) {
+    lean_nodes(s)
+    |> List.iter(node => {
+         let keyframes =
+           Js.Unsafe.obj([|
+             (
+               "transform",
+               Js.Unsafe.inject(
+                 Js.array([|
+                   Js.string(
+                     Printf.sprintf("translate(%fpx, %fpx)", g.x, g.y),
+                   ),
+                 |]),
+               ),
+             ),
+           |]);
+         let options =
+           Js.Unsafe.obj([|
+             ("duration", Js.Unsafe.inject(Js.number_of_float(1.))),
+             ("fill", Js.Unsafe.inject(Js.string("both"))),
+             ("composite", Js.Unsafe.inject(Js.string("add"))),
+           |]);
+         switch (
+           Js.Unsafe.meth_call(
+             node,
+             "animate",
+             [|Js.Unsafe.inject(keyframes), Js.Unsafe.inject(options)|],
+           )
+         ) {
+         | exception _ => ()
+         | anim =>
+           switch (Js.Unsafe.meth_call(anim, "pause", [||])) {
+           | exception _ => ()
+           | _ => ()
+           };
+           /* park at the END of the (1ms) timeline: a single keyframe
+              sits at offset 1, so a pause at time 0 renders the
+              implicit start = NO offset (the lean was invisible during
+              the drag and flashed in only at the release rebound) */
+           Js.Unsafe.set(anim, "currentTime", Js.number_of_float(1.));
+           s.local_give = [anim, ...s.local_give];
+         };
+       });
+  };
+};
+
+/* overlay palette: warm vermillion winner + muted slate idle, both
+   cased in the page cream so tracks read over code without shouting */
+let ov_accent = "#c2483b";
+let ov_idle = "#8a94a2";
+let ov_casing = "#fffdf4";
+
+/* one-shot console diagnostic (andrew sees tracks OVER text; a clean
+   test profile shows them under — suspect profile-level styles):
+   prints the under-layer's computed z + any stacking contexts on
+   .code-text's ancestor chain, at draw time when overlays exist */
+let stacking_diag_done = ref(false);
+let stacking_diag = (): unit =>
+  if (! stacking_diag_done^) {
+    stacking_diag_done := true;
+    ignore(
+      Js.Unsafe.eval_string(
+        {|(function(){try{
+  var u = document.getElementById('code-drag-overlay-under');
+  var t = document.querySelector('.code-text');
+  var el = t, cs = [];
+  while (el && el !== document.documentElement) {
+    var s = getComputedStyle(el);
+    var ctx = s.transform!=='none'||s.filter!=='none'||parseFloat(s.opacity)<1
+      ||s.isolation==='isolate'||s.position==='sticky'||s.position==='fixed'
+      ||((s.willChange||'').match(/transform|opacity|filter/))
+      ||((s.contain||'').match(/paint|layout|strict|content/))
+      ||(s.position!=='static'&&s.zIndex!=='auto');
+    if (ctx) cs.push(el.tagName+'.'+String(el.className).slice(0,40)
+      +' ['+s.position+'/z:'+s.zIndex
+      +(s.transform!=='none'?'/tf':'')+(s.filter!=='none'?'/filter':'')
+      +(parseFloat(s.opacity)<1?'/op':'')+']');
+    el = el.parentElement;
+  }
+  console.log('CodeDrag stacking diag: under-z='
+    +(u?getComputedStyle(u).zIndex:'MISSING')
+    +' text-z='+(t?getComputedStyle(t).zIndex:'?')
+    +' ancestor-contexts='+JSON.stringify(cs));
+}catch(e){console.log('CodeDrag stacking diag failed: '+e)}})()|},
+      ),
     );
   };
-  let ptr =
-    switch (pointer) {
-    | Some(p) =>
+
+let draw = (s: session, pointer: option(vec)) => {
+  ignore(pointer); /* the grabbing cursor is the pointer's own mark */
+  stacking_diag();
+  let o = box_origin_raw(s);
+  /* slim pill, text filling most of its height; sits BETWEEN text
+     lines rather than lapping the lower one (andrew: they intersected
+     more at the bottom than the top) */
+  let label_pill = (~win: bool, x: float, y: float, label: string) => {
+    let w = float_of_int(String.length(label)) *. 5.8 +. 9.;
+    Printf.sprintf(
+      {|<rect x="%f" y="%f" width="%f" height="13" rx="6.5" fill="%s" stroke="%s" stroke-width="%s" opacity="%s"/>
+        <text x="%f" y="%f" style="font-family:var(--code-font);font-size:9.5px" fill="%s" opacity="%s">%s</text>|},
+      x,
+      y -. 14.,
+      w,
+      win ? ov_accent : "rgba(255,253,244,0.92)",
+      win ? ov_accent : ov_idle,
+      win ? "0" : "0.75",
+      win ? "1" : "0.85",
+      x +. 4.5,
+      y -. 4.2,
+      win ? ov_casing : ov_idle,
+      win ? "1" : "0.95",
+      label,
+    );
+  };
+  let seg = (i, c: cand) => {
+    let win = s.winner == Some(i);
+    let x1 = o.x +. c.cur.x
+    and y1 = o.y +. c.cur.y;
+    let x2 = o.x +. c.tgt.x
+    and y2 = o.y +. c.tgt.y;
+    /* cream casing lifts every track off the code */
+    let casing =
       Printf.sprintf(
-        {|<circle cx="%f" cy="%f" r="3" fill="#333"/>|},
-        p.x +. o.x,
-        p.y +. o.y,
-      )
-    | None => ""
+        {|<line x1="%f" y1="%f" x2="%f" y2="%f" stroke="%s" stroke-width="%s" stroke-linecap="round" opacity="0.85"/>|},
+        x1,
+        y1,
+        x2,
+        y2,
+        ov_casing,
+        win ? "6" : "5",
+      );
+    if (win) {
+      /* traveled reads solid, remaining dotted — the pull's progress
+         is on the track itself */
+      let mx = x1 +. (x2 -. x1) *. s.t
+      and my = y1 +. (y2 -. y1) *. s.t;
+      (
+        casing
+        ++ Printf.sprintf(
+             {|<line x1="%f" y1="%f" x2="%f" y2="%f" stroke="%s" stroke-width="2" stroke-dasharray="0.1 6" stroke-linecap="round" opacity="0.9"/>
+             <line x1="%f" y1="%f" x2="%f" y2="%f" stroke="%s" stroke-width="2.5" stroke-linecap="round"/>
+             <circle cx="%f" cy="%f" r="8.5" fill="%s" opacity="0.16"/>
+             <circle cx="%f" cy="%f" r="4" fill="%s" stroke="%s" stroke-width="1.5"/>|},
+             mx,
+             my,
+             x2,
+             y2,
+             ov_accent,
+             x1,
+             y1,
+             mx,
+             my,
+             ov_accent,
+             x2,
+             y2,
+             ov_accent,
+             x2,
+             y2,
+             ov_accent,
+             ov_casing,
+           ),
+        label_pill(~win=true, x2 +. 12., y2 -. 4., c.label),
+      );
+    } else {
+      (
+        casing
+        ++ Printf.sprintf(
+             {|<line x1="%f" y1="%f" x2="%f" y2="%f" stroke="%s" stroke-width="1.5" stroke-dasharray="0.1 5" stroke-linecap="round" opacity="0.65"/>
+             <circle cx="%f" cy="%f" r="3.5" fill="%s" stroke="%s" stroke-width="1.5" opacity="0.8"/>|},
+             x1,
+             y1,
+             x2,
+             y2,
+             ov_idle,
+             x2,
+             y2,
+             ov_casing,
+             ov_idle,
+           ),
+        label_pill(~win=false, x2 +. 12., y2 -. 4., c.label),
+      );
     };
+  };
+  let ptr = "";
   let xml_escape = (t: string): string =>
     t
     |> String.to_seq
@@ -206,24 +579,32 @@ let draw = (s: session, pointer: option(vec)) => {
     | Some(w) when s.t > 0.02 =>
       switch (List.nth_opt(s.cands, w)) {
       | Some(c) when c.enters != [] =>
-        let scale = 0.1 +. 0.9 *. s.t;
         let spans =
           c.enters
           |> List.map(((_, text, cls, dest, origin)) => {
-               let pos =
+               /* with an origin: a CLONE splitting off its source —
+                  full-size, full-opacity, position-only (D2
+                  emergeMode=clone; the copy already "exists" under
+                  the source at t=0). Without: genuinely new material
+                  growing in place, scrubbed by t. */
+               let (pos, op, scale) =
                  switch (origin) {
-                 | Some(from) => {
-                     x: from.x +. (dest.x -. from.x) *. s.t,
-                     y: from.y +. (dest.y -. from.y) *. s.t,
-                   }
-                 | None => dest
+                 | Some(from) => (
+                     {
+                       x: from.x +. (dest.x -. from.x) *. s.t,
+                       y: from.y +. (dest.y -. from.y) *. s.t,
+                     },
+                     1.,
+                     1.,
+                   )
+                 | None => (dest, s.t, 0.1 +. 0.9 *. s.t)
                  };
                Printf.sprintf(
                  {|<span class="%s" style="position:absolute;left:%fpx;top:%fpx;opacity:%f;transform:scale(%f)">%s</span>|},
                  cls,
                  o.x +. pos.x,
                  o.y +. pos.y,
-                 s.t,
+                 op,
                  scale,
                  xml_escape(text),
                );
@@ -237,13 +618,13 @@ let draw = (s: session, pointer: option(vec)) => {
       }
     | _ => ""
     };
-  let svg =
-    Printf.sprintf(
-      {|<svg width="100%%" height="100%%">%s%s</svg>|},
-      s.cands |> List.mapi(seg) |> String.concat("\n"),
-      ptr,
-    );
-  overlay_el()##.innerHTML := Js.string(svg ++ ghosts);
+  let parts = s.cands |> List.mapi(seg);
+  let mk_svg = body =>
+    Printf.sprintf({|<svg width="100%%" height="100%%">%s</svg>|}, body);
+  let tracks = parts |> List.map(fst) |> String.concat("\n");
+  let labels = parts |> List.map(snd) |> String.concat("\n");
+  overlay_under_el(s)##.innerHTML := Js.string(mk_svg(tracks));
+  overlay_el()##.innerHTML := Js.string(mk_svg(labels ++ ptr) ++ ghosts);
 };
 
 /* === scrub (pointer-driven whole-buffer preview) === */
@@ -300,10 +681,19 @@ let deco_moves = (c: cand): list((Js.t(Dom.node), float, float)) =>
        |> Option.map(((dx, dy)) => (node, dx, dy))
      );
 
+/* the caret rides the grabbed token's scrub (movement kinds only —
+   caret_delta is None when the caret logically stays put) */
+let caret_moves = (c: cand): list((Js.t(Dom.node), float, float)) =>
+  switch (c.caret_delta, JsUtil.get_elem_by_id_opt("caret")) {
+  | (Some((dx, dy)), Some(el)) => [((el :> Js.t(Dom.node)), dx, dy)]
+  | _ => []
+  };
+
 let make_anims = (c: cand): list(Js.Unsafe.any) => {
   let moves =
     (c.moved |> List.map(((_, node, dx, dy)) => (node, dx, dy)))
     @ deco_moves(c)
+    @ caret_moves(c)
     |> List.filter_map(((node, dx, dy)) =>
          paused_anim(
            node,
@@ -409,6 +799,7 @@ let relax_from = (c: cand, t: float): unit =>
     relax_exits(c, t);
     (c.moved |> List.map(((_, node, dx, dy)) => (node, dx, dy)))
     @ deco_moves(c)
+    @ caret_moves(c)
     |> List.iter(((node, dx, dy)) => {
          let keyframes =
            Js.Unsafe.obj([|
@@ -494,12 +885,16 @@ let scrub_to = (s: session, winner: option(int), t: float): unit => {
 
 let resolve = (s: session, p: vec): unit => {
   let track = (c: cand) => {
-    let ax = c.cur.x
-    and ay = c.cur.y;
-    let bx = c.tgt.x
-    and by = c.tgt.y;
-    let dx = bx -. ax
-    and dy = by -. ay;
+    /* PULL-RELATIVE frame: the track starts where the HAND grabbed,
+       not at the token's cell center — anchoring at the center made
+       the grab offset count as phantom progress (t != 0 at rest:
+       the scrub twitched along the track before any pull, and the
+       lean's residual pointed off-hand). Direction and length come
+       from the candidate; the origin is the grab point. */
+    let ax = s.down_at.x
+    and ay = s.down_at.y;
+    let dx = c.tgt.x -. c.cur.x
+    and dy = c.tgt.y -. c.cur.y;
     let len2 = dx *. dx +. dy *. dy;
     let t =
       len2 == 0.
@@ -515,30 +910,95 @@ let resolve = (s: session, p: vec): unit => {
     let cos_sim =
       plen < 6. || tlen == 0.
         ? 0. : ((p.x -. ax) *. dx +. (p.y -. ay) *. dy) /. (plen *. tlen);
-    (t, gap -. direction_pull *. max(0., cos_sim));
+    (t, gap -. direction_pull *. max(0., cos_sim), cos_sim);
   };
   let scored = s.cands |> List.mapi((i, c) => (i, c, track(c)));
   let best =
     scored
     |> List.fold_left(
-         (acc, (i, c, (t, gap))) => {
+         (acc, (i, c, (t, gap, cos))) => {
            let bonus = s.winner == Some(i) ? stickiness : 0.;
-           switch (acc) {
-           | Some((_, _, _, best_gap)) when gap -. bonus >= best_gap => acc
-           | _ => Some((i, c, t, gap -. bonus))
+           /* ALIGNMENT GATE: a track engages only when the pull
+              points along it (andrew: pulling away from the sole
+              track still scrubbed it — initial jitter projected
+              onto short tracks visibly). cos == 0 while the pull is
+              too short to have a direction, so nothing engages
+              before ~6px — the lean covers that. */
+           if (cos <= 0.25) {
+             acc;
+           } else {
+             switch (acc) {
+             | Some((_, _, _, best_gap)) when gap -. bonus >= best_gap => acc
+             | _ => Some((i, c, t, gap -. bonus))
+             };
            };
          },
          None,
        );
   switch (best) {
-  | Some((i, c, t, gap)) when gap <= when_far =>
+  | Some((i, c, t, _)) =>
+    let t = sharpen(t);
     s.winner = Some(i);
     s.t = t;
     scrub_to(s, Some(i), t);
+    if (overshoot_global) {
+      /* parked global variant: pulling PAST the track's end
+         stretches the whole text box elastically along the track —
+         geometry reads the give-corrected origin, so no feedback */
+      let dx = c.tgt.x -. c.cur.x
+      and dy = c.tgt.y -. c.cur.y;
+      let len2 = dx *. dx +. dy *. dy;
+      let tlen = sqrt(len2);
+      let tau =
+        len2 == 0.
+          ? 0. : ((p.x -. c.cur.x) *. dx +. (p.y -. c.cur.y) *. dy) /. len2;
+      let over = max(0., (tau -. 1.) *. tlen);
+      let mag = 16. *. (1. -. 1. /. (1. +. over /. 60.));
+      apply_give(
+        s,
+        tlen == 0. || mag < 0.5
+          ? {
+            x: 0.,
+            y: 0.,
+          }
+          : {
+            x: dx /. tlen *. mag,
+            y: dy /. tlen *. mag,
+          },
+      );
+    } else {
+      /* local give = damped UNCONSUMED pull: pointer travel minus
+         what the scrub absorbed. Covers every refusal at once —
+         backwards (t pinned at 0), past the end (t pinned at 1),
+         perpendicular wander, and short tracks — the token leans a
+         few px toward the hand, clearly wanting to stay. */
+      let rx = p.x -. s.down_at.x -. t *. (c.tgt.x -. c.cur.x)
+      and ry = p.y -. s.down_at.y -. t *. (c.tgt.y -. c.cur.y);
+      let dist = sqrt(rx *. rx +. ry *. ry);
+      let mag = 8. *. (1. -. 1. /. (1. +. dist /. 40.));
+      apply_local_give(
+        s,
+        dist < 1. || mag < 0.5
+          ? {
+            x: 0.,
+            y: 0.,
+          }
+          : {
+            x: rx /. dist *. mag,
+            y: ry /. dist *. mag,
+          },
+      );
+    };
     /* snap (dragology's withSnapRadius(chain:true), radius-only and
        INSTANT — no dwell): reaching the target via the track commits
        and re-enumerates */
-    let d = sqrt((p.x -. c.tgt.x) ** 2. +. (p.y -. c.tgt.y) ** 2.);
+    let d =
+      sqrt(
+        (p.x -. s.down_at.x -. (c.tgt.x -. c.cur.x))
+        ** 2.
+        +. (p.y -. s.down_at.y -. (c.tgt.y -. c.cur.y))
+        ** 2.,
+      );
     if (chaining && d <= snap_radius && t >= snap_min_t) {
       CodeFlip.set_drag_offsets(
         c.moved |> List.map(((k, _, dx, dy)) => (k, (dx, dy))),
@@ -546,6 +1006,7 @@ let resolve = (s: session, p: vec): unit => {
       if (c.enters != []) {
         CodeFlip.set_drag_enter(1.0);
       };
+      CodeFlip.set_emerge_src(c.emerge_src);
       CodeFlip.adopt(s.scrub_anims |> List.concat_map(snd));
       s.scrub_anims = [];
       s.scrub_active = None;
@@ -559,6 +1020,34 @@ let resolve = (s: session, p: vec): unit => {
     s.winner = None;
     s.t = 0.;
     scrub_to(s, None, 0.);
+    apply_give(
+      s,
+      {
+        x: 0.,
+        y: 0.,
+      },
+    );
+    /* dead-direction give: no track wants this pull, but the token
+       leans a few damped px toward the pointer — draggable-but-
+       refusing (the release shake still lands). Past-a-track's-end
+       give lives in the winner arm. */
+
+    let ddx = p.x -. s.down_at.x
+    and ddy = p.y -. s.down_at.y;
+    let dist = sqrt(ddx *. ddx +. ddy *. ddy);
+    let mag = give_damp(dist);
+    apply_local_give(
+      s,
+      dist < 1. || mag < 0.5
+        ? {
+          x: 0.,
+          y: 0.,
+        }
+        : {
+          x: ddx /. dist *. mag,
+          y: ddy /. dist *. mag,
+        },
+    );
   };
 };
 
@@ -575,6 +1064,20 @@ let end_session = () => {
       }
     | None => ()
     };
+    apply_give(
+      s,
+      {
+        x: 0.,
+        y: 0.,
+      },
+    );
+    apply_local_give(
+      s,
+      {
+        x: 0.,
+        y: 0.,
+      },
+    );
     scrub_clear(s);
     s.listeners |> List.iter(Dom.removeEventListener);
   | None => ()
@@ -613,6 +1116,27 @@ let on_move = (e: Js.t(Dom_html.event)): unit =>
     if (s.began && s.pending == Idle) {
       resolve(s, p);
       draw(s, Some(p));
+    } else if (s.began) {
+      /* nothing draggable here (zero candidates park the session in
+         AwaitChange, so resolve never runs) — the token still leans
+         toward the hand: refusal you can FEEL before the release
+         shake */
+      let ddx = p.x -. s.down_at.x
+      and ddy = p.y -. s.down_at.y;
+      let dist = sqrt(ddx *. ddx +. ddy *. ddy);
+      let mag = give_damp(dist);
+      apply_local_give(
+        s,
+        dist < 1. || mag < 0.5
+          ? {
+            x: 0.,
+            y: 0.,
+          }
+          : {
+            x: ddx /. dist *. mag,
+            y: ddy /. dist *. mag,
+          },
+      );
     };
   };
 
@@ -641,25 +1165,13 @@ let on_up = (_e: Js.t(Dom_html.event)): unit =>
       if (c.enters != []) {
         CodeFlip.set_drag_enter(s.t);
       };
-      /* traveling enters: the real tokens continue POSITIONALLY from
-         the ghost's spot — the remaining travel goes through the
-         offsets map like every other continuation */
-      CodeFlip.set_drag_enter_offsets(
-        c.enters
-        |> List.filter_map(((k, _, _, dest, origin)) =>
-             switch (origin) {
-             | Some(from) =>
-               Some((
-                 k,
-                 (
-                   (from.x -. dest.x) *. (1. -. s.t),
-                   (from.y -. dest.y) *. (1. -. s.t),
-                 ),
-               ))
-             | None => None
-             }
-           ),
-      );
+      /* emerge flights: hand over the SOURCE ids, not offsets keyed
+         by candidate clone ids — the commit re-runs prepare and
+         mints different fresh ids, so an id-keyed map silently
+         misses (it did). CodeFlip re-derives the pairing
+         positionally against the post-commit segment and continues
+         the remaining (1 - t) of each flight. */
+      CodeFlip.set_emerge_src(c.emerge_src);
       CodeFlip.adopt(s.scrub_anims |> List.concat_map(snd));
       s.scrub_anims = [];
       s.scrub_active = None;
@@ -709,8 +1221,26 @@ let arm =
       x: cx -. r##.left,
       y: cy -. r##.top,
     },
+    give: {
+      x: 0.,
+      y: 0.,
+    },
+    grab_node: None,
+    grab_ids: None,
+    local_give: [],
+    local_give_g: {
+      x: 0.,
+      y: 0.,
+    },
     listeners: [],
   };
+  /* the give tracks the pointer through a short ease — elastic lag
+     on the way out, smooth snap-back on release */
+  Js.Unsafe.set(
+    text_box##.style,
+    "transition",
+    Js.string("transform 70ms ease-out"),
+  );
   s.listeners = [
     listen("pointermove", on_move),
     listen("pointerup", on_up),
@@ -922,9 +1452,54 @@ let sync =
           };
         | _ => None
         };
+      let grab_id = Indicated.index(z);
+      let grab_shard = Indicated.shard_index(z);
+      s.grab_ids = (
+        switch (grab_id) {
+        | Some(tid) => Some((tid, grab_shard))
+        | None => None
+        }
+      );
+      s.grab_node = (
+        switch (grab_id) {
+        | None => None
+        | Some(tid) =>
+          let find = exact =>
+            pairs
+            |> List.find_map(((k, n)) =>
+                 switch (k) {
+                 | CodeFlip.Shard(id, i)
+                     when id == tid && (!exact || Some(i) == grab_shard) =>
+                   Some(n)
+                 | _ => None
+                 }
+               );
+          switch (find(true)) {
+          | Some(n) => Some(n)
+          | None => find(false)
+          };
+        }
+      );
+      let caret_delta_of =
+          (moved: list((CodeFlip.key, Js.t(Dom.node), float, float))) =>
+        switch (grab_id) {
+        | None => None
+        | Some(tid) =>
+          let of_key = (want_exact: bool, (k, _, dx, dy)) =>
+            switch (k) {
+            | CodeFlip.Shard(id, i) when id == tid =>
+              !want_exact || Some(i) == grab_shard ? Some((dx, dy)) : None
+            | _ => None
+            };
+          switch (moved |> List.find_map(of_key(true))) {
+          | Some(d) => Some(d)
+          | None => moved |> List.find_map(of_key(false))
+          };
+        };
       let cands =
         Refactor.drag_candidates(~info_map, ~term, ~measured, ~shape_map, z)
-        |> List.map((c: Refactor.DragCandidate.t) =>
+        |> List.map((c: Refactor.DragCandidate.t) => {
+             let moved = moved_for(c.frame, c.measured);
              {
                dir: c.dir,
                kind: c.kind,
@@ -932,12 +1507,14 @@ let sync =
                cur: px(c.current),
                tgt: px(c.target),
                scroll_rows: c.frame.scroll_rows,
-               moved: moved_for(c.frame, c.measured),
+               moved,
                deco_delta: deco_delta_for(c.frame, c.measured),
                exits: exits_for(c.measured),
                enters: enters_for(c.frame, c.emerge, c.segment, c.measured),
-             }
-           );
+               emerge_src: c.emerge |> List.map(snd),
+               caret_delta: caret_delta_of(moved),
+             };
+           });
       s.cands = cands;
       s.last_z = Some(z);
       s.last_term = Some(term);
