@@ -11,9 +11,10 @@ open Haz3lcore;
    the arrow key would — then re-enumerate from the new state so a
    held drag chains rung to rung.
 
-   v0 shows tracks/targets in a body-level overlay (vdom-free) and
-   commits on snap or release; the scrubbed whole-buffer preview
-   layers on next. */
+   Tracks/targets render on an under-text overlay inside the app's
+   fixed wrapper; labels + ghosts float above; the whole buffer
+   scrubs with the pull, refusals lean, releases commit past
+   commit_t. */
 
 /* tuning */
 let snap_radius = 14.; /* px: reaching a target commits (chain) */
@@ -50,16 +51,6 @@ let direction_pull = 8.; /* px bonus for tracks aligned with the pull —
 
 let commit_t = 0.55; /* release past this progress commits the winner */
 let slop = 4.; /* px before the drag counts as begun */
-/* overshoot feedback past a track's end: `false` = the grabbed token
-   itself gives a few damped px (it clearly wants to stay); `true` =
-   the whole text box stretches (parked: fun but likely too
-   disorienting — andrew). D2 has no resistance concept: their
-   dragged element FOLLOWS the pointer freely and the model snaps
-   (switchToStateAndFollow); elasticity there is a drop-settle easing
-   (withDropTransition elastic-out). A free-following token would
-   shred text readability — damped, track-bound give is the text
-   adaptation (incidental drift, recorded). */
-let overshoot_global = false;
 /* response curve on the winner's track progress — D2's between(...,
    {sharpness}): weights are raised to this power and renormalized,
    which for a two-state track is t^k / (t^k + (1-t)^k). 1.0 =
@@ -141,9 +132,6 @@ type session = {
   mutable last_z: option(Zipper.t),
   mutable last_term: option(Language.Exp.t),
   mutable down_at: vec,
-  /* elastic overshoot currently applied to the text box (pulling
-     past a track's end gives instead of going dead) */
-  mutable give: vec,
   /* the grabbed token: its live DOM node, its (tile, shard) for
      resolving companion decorations, the lean animations (one per
      leaning node — token + backings + caret, composite:add over any
@@ -252,34 +240,12 @@ let remove_overlay = () =>
        }
      );
 
-/* the box's on-screen origin, INCLUDING any give transform — what
-   the overlay draws against (tracks/ghosts move with the give) */
-let box_origin_raw = (s: session): vec => {
+let box_origin = (s: session): vec => {
   let r = s.text_box##getBoundingClientRect;
   {
     x: r##.left,
     y: r##.top,
   };
-};
-
-/* give-corrected origin for GEOMETRY: pointer projection must not
-   see the elastic shift (feedback: give moves the box, which moves
-   the projection, which moves the give) */
-let box_origin = (s: session): vec => {
-  let r = box_origin_raw(s);
-  {
-    x: r.x -. s.give.x,
-    y: r.y -. s.give.y,
-  };
-};
-
-let apply_give = (s: session, g: vec): unit => {
-  s.give = g;
-  s.text_box##.style##.transform :=
-    Js.string(
-      g.x == 0. && g.y == 0.
-        ? "" : Printf.sprintf("translate(%fpx, %fpx)", g.x, g.y),
-    );
 };
 
 /* local give: the grabbed token leans toward the hand — a paused
@@ -426,46 +392,8 @@ let ov_accent = "#c2483b";
 let ov_idle = "#8a94a2";
 let ov_casing = "#fffdf4";
 
-/* one-shot console diagnostic (andrew sees tracks OVER text; a clean
-   test profile shows them under — suspect profile-level styles):
-   prints the under-layer's computed z + any stacking contexts on
-   .code-text's ancestor chain, at draw time when overlays exist */
-let stacking_diag_done = ref(false);
-let stacking_diag = (): unit =>
-  if (! stacking_diag_done^) {
-    stacking_diag_done := true;
-    ignore(
-      Js.Unsafe.eval_string(
-        {|(function(){try{
-  var u = document.getElementById('code-drag-overlay-under');
-  var t = document.querySelector('.code-text');
-  var el = t, cs = [];
-  while (el && el !== document.documentElement) {
-    var s = getComputedStyle(el);
-    var ctx = s.transform!=='none'||s.filter!=='none'||parseFloat(s.opacity)<1
-      ||s.isolation==='isolate'||s.position==='sticky'||s.position==='fixed'
-      ||((s.willChange||'').match(/transform|opacity|filter/))
-      ||((s.contain||'').match(/paint|layout|strict|content/))
-      ||(s.position!=='static'&&s.zIndex!=='auto');
-    if (ctx) cs.push(el.tagName+'.'+String(el.className).slice(0,40)
-      +' ['+s.position+'/z:'+s.zIndex
-      +(s.transform!=='none'?'/tf':'')+(s.filter!=='none'?'/filter':'')
-      +(parseFloat(s.opacity)<1?'/op':'')+']');
-    el = el.parentElement;
-  }
-  console.log('CodeDrag stacking diag: under-z='
-    +(u?getComputedStyle(u).zIndex:'MISSING')
-    +' text-z='+(t?getComputedStyle(t).zIndex:'?')
-    +' ancestor-contexts='+JSON.stringify(cs));
-}catch(e){console.log('CodeDrag stacking diag failed: '+e)}})()|},
-      ),
-    );
-  };
-
-let draw = (s: session, pointer: option(vec)) => {
-  ignore(pointer); /* the grabbing cursor is the pointer's own mark */
-  stacking_diag();
-  let o = box_origin_raw(s);
+let draw = (s: session) => {
+  let o = box_origin(s);
   /* slim pill, text filling most of its height; sits BETWEEN text
      lines rather than lapping the lower one (andrew: they intersected
      more at the bottom than the top) */
@@ -557,7 +485,6 @@ let draw = (s: session, pointer: option(vec)) => {
       );
     };
   };
-  let ptr = "";
   let xml_escape = (t: string): string =>
     t
     |> String.to_seq
@@ -624,7 +551,7 @@ let draw = (s: session, pointer: option(vec)) => {
   let tracks = parts |> List.map(fst) |> String.concat("\n");
   let labels = parts |> List.map(snd) |> String.concat("\n");
   overlay_under_el(s)##.innerHTML := Js.string(mk_svg(tracks));
-  overlay_el()##.innerHTML := Js.string(mk_svg(labels ++ ptr) ++ ghosts);
+  overlay_el()##.innerHTML := Js.string(mk_svg(labels) ++ ghosts);
 };
 
 /* === scrub (pointer-driven whole-buffer preview) === */
@@ -941,41 +868,16 @@ let resolve = (s: session, p: vec): unit => {
     s.winner = Some(i);
     s.t = t;
     scrub_to(s, Some(i), t);
-    if (overshoot_global) {
-      /* parked global variant: pulling PAST the track's end
-         stretches the whole text box elastically along the track —
-         geometry reads the give-corrected origin, so no feedback */
-      let dx = c.tgt.x -. c.cur.x
-      and dy = c.tgt.y -. c.cur.y;
-      let len2 = dx *. dx +. dy *. dy;
-      let tlen = sqrt(len2);
-      let tau =
-        len2 == 0.
-          ? 0. : ((p.x -. c.cur.x) *. dx +. (p.y -. c.cur.y) *. dy) /. len2;
-      let over = max(0., (tau -. 1.) *. tlen);
-      let mag = 16. *. (1. -. 1. /. (1. +. over /. 60.));
-      apply_give(
-        s,
-        tlen == 0. || mag < 0.5
-          ? {
-            x: 0.,
-            y: 0.,
-          }
-          : {
-            x: dx /. tlen *. mag,
-            y: dy /. tlen *. mag,
-          },
-      );
-    } else {
-      /* local give = damped UNCONSUMED pull: pointer travel minus
-         what the scrub absorbed. Covers every refusal at once —
-         backwards (t pinned at 0), past the end (t pinned at 1),
-         perpendicular wander, and short tracks — the token leans a
-         few px toward the hand, clearly wanting to stay. */
+    {
+      /* give = damped UNCONSUMED pull: pointer travel minus what the
+         scrub absorbed. Covers every refusal at once — backwards (t
+         pinned at 0), past the end (t pinned at 1), perpendicular
+         wander, and short tracks — the grabbed unit leans a few px
+         toward the hand, clearly wanting to stay. */
       let rx = p.x -. s.down_at.x -. t *. (c.tgt.x -. c.cur.x)
       and ry = p.y -. s.down_at.y -. t *. (c.tgt.y -. c.cur.y);
       let dist = sqrt(rx *. rx +. ry *. ry);
-      let mag = 8. *. (1. -. 1. /. (1. +. dist /. 40.));
+      let mag = give_damp(dist);
       apply_local_give(
         s,
         dist < 1. || mag < 0.5
@@ -1020,13 +922,6 @@ let resolve = (s: session, p: vec): unit => {
     s.winner = None;
     s.t = 0.;
     scrub_to(s, None, 0.);
-    apply_give(
-      s,
-      {
-        x: 0.,
-        y: 0.,
-      },
-    );
     /* dead-direction give: no track wants this pull, but the token
        leans a few damped px toward the pointer — draggable-but-
        refusing (the release shake still lands). Past-a-track's-end
@@ -1064,13 +959,6 @@ let end_session = () => {
       }
     | None => ()
     };
-    apply_give(
-      s,
-      {
-        x: 0.,
-        y: 0.,
-      },
-    );
     apply_local_give(
       s,
       {
@@ -1115,7 +1003,7 @@ let on_move = (e: Js.t(Dom_html.event)): unit =>
     };
     if (s.began && s.pending == Idle) {
       resolve(s, p);
-      draw(s, Some(p));
+      draw(s);
     } else if (s.began) {
       /* nothing draggable here (zero candidates park the session in
          AwaitChange, so resolve never runs) — the token still leans
@@ -1221,10 +1109,6 @@ let arm =
       x: cx -. r##.left,
       y: cy -. r##.top,
     },
-    give: {
-      x: 0.,
-      y: 0.,
-    },
     grab_node: None,
     grab_ids: None,
     local_give: [],
@@ -1234,13 +1118,6 @@ let arm =
     },
     listeners: [],
   };
-  /* the give tracks the pointer through a short ease — elastic lag
-     on the way out, smooth snap-back on release */
-  Js.Unsafe.set(
-    text_box##.style,
-    "transition",
-    Js.string("transform 70ms ease-out"),
-  );
   s.listeners = [
     listen("pointermove", on_move),
     listen("pointerup", on_up),
@@ -1527,7 +1404,7 @@ let sync =
       } else {
         s.had_cands = true;
         s.pending = Idle;
-        draw(s, None);
+        draw(s);
       };
     };
     switch (s.pending) {
