@@ -20,6 +20,7 @@ module Model = {
     cached_settings: Calc.saved(CoreSettings.t),
     elab: Calc.saved(Exp.t),
     cached_targets: Calc.saved(Sample.targets), /* Input targets for cache invalidation */
+    cached_lt_ids: Calc.saved(Id.Map.t(unit)), /* Live-typing target ids for incr-eval invalidation */
     result: Calc.t(ProgramResult.t(ProgramResult.inner)),
     incr_eval: Calc.saved(IncrEval.t),
     display,
@@ -36,6 +37,7 @@ module Model = {
     cached_settings: Calc.Pending,
     elab: Calc.Pending,
     cached_targets: Calc.Pending,
+    cached_lt_ids: Calc.Pending,
     result: Calc.NewValue(ProgramResult.ResultPending),
     incr_eval: Calc.Pending,
     display: Evaluation(Calc.Pending),
@@ -58,6 +60,7 @@ module Model = {
         cached_settings: Calc.Pending,
         elab: Calc.Pending,
         cached_targets: Calc.Pending,
+        cached_lt_ids: Calc.Pending,
         result: Calc.NewValue(ProgramResult.ResultPending),
         incr_eval: Calc.Pending,
         display: Stepper(StepperView.Model.unpersist(stepper)),
@@ -203,6 +206,7 @@ module Update = {
           cached_settings,
           elab,
           cached_targets,
+          cached_lt_ids,
           result,
           incr_eval,
           display,
@@ -221,10 +225,28 @@ module Update = {
         cached_targets,
       );
 
+    /* Live-typing targets are sampled via `targets` but are invisible to
+     * IncrEval.reuse_check: eval_info_map's per-node probe_targets only
+     * cover placed probes (probe_all is handled separately, via None). If
+     * the live-typing target set changes while the elab does not (e.g.
+     * toggling live typing on), every cached slice passes reuse_check and
+     * the new targets are never sampled — the live-typing analogue of
+     * #2323. Drop the incremental cache in that case; when the elab did
+     * change, the affected subtrees re-evaluate anyway. */
+    let lt_ids = {
+      let s: CoreSettings.t = Calc.get_value(settings);
+      s.live_typing && !s.probe_all
+        ? Haz3lcore.CachedStatics.ids_with_unknown_types(statics.info_map)
+        : Id.Map.empty;
+    };
+    let lt_ids = Calc.set(~eq=Id.Map.equal((==)), lt_ids, cached_lt_ids);
+
     /* Previous incremental map, if the last evaluation produced one. Pull
      * from the saved field so it survives intermediate pending states
      * (during which `result` itself is ResultPending). */
-    let prev_incr = incr_eval |> Calc.get_saved(IncrEval.empty);
+    let prev_incr =
+      Calc.is_new(lt_ids) && !Calc.is_new(elab)
+        ? IncrEval.empty : incr_eval |> Calc.get_saved(IncrEval.empty);
     /* Project statics to the serializable slice the incremental evaluator
      * needs. The raw info_map can't cross postMessage because LivelitCtx
      * entries contain OCaml closures. */
@@ -363,6 +385,7 @@ module Update = {
         cached_settings: settings |> Calc.save,
         elab: elab |> Calc.save,
         cached_targets: targets |> Calc.save,
+        cached_lt_ids: lt_ids |> Calc.save,
         result: result |> Calc.make_old,
         incr_eval: incr_eval |> Calc.save,
         display,
