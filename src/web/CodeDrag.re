@@ -17,12 +17,17 @@ open Haz3lcore;
 
 /* tuning */
 let snap_radius = 14.; /* px: reaching a target commits (chain) */
-let snap_dwell = 120.; /* ms inside the radius before the commit fires */
-let snap_min_t = 0.7; /* progress required before a snap is armed */
-/* Chaining: linger at a target (snap radius + dwell, with real
-   progress) to COMMIT mid-drag and re-enumerate from the new state —
-   multiple rungs in one hold. Re-enabled once the base settled
-   (continuation, frames, exits/enters all in). */
+/* snap_min_t: the radius alone is a disc AROUND the endpoint — other
+   tracks' paths can pass through it, and near-parallel targets sit a
+   row apart. Requiring travel along the track first makes a snap
+   mean "arrived VIA this track", not "happened near its endpoint".
+   (Dragology's withSnapRadius is radius-only; their diagrams have
+   sparser targets — recorded as incidental drift.) */
+let snap_min_t = 0.7;
+/* Chaining: reaching a target via its track (radius + min progress)
+   COMMITS mid-drag and re-enumerates from the new state — multiple
+   rungs in one hold. Instant on arrival, like dragology's
+   withSnapRadius(chain:true). */
 let chaining = true;
 let when_far = 56.; /* px: farther than this from every track = no winner */
 let stickiness = 6.; /* px bonus for the incumbent track */
@@ -97,13 +102,6 @@ type session = {
      to translation) */
   mutable scrub_anims: list((int, list(Js.Unsafe.any))),
   mutable scrub_active: option(int),
-  /* dwell: (candidate index, entered-at ms) — a commit needs the
-     pointer to LINGER in the snap radius, not just graze it */
-  mutable snap_hover: option((int, float)),
-  /* dwell must fire for a STILL pointer too — resolve only runs on
-     pointermove, so arming the hover schedules a re-check */
-  mutable last_p: vec,
-  mutable dwell_timer: option(Dom_html.timeout_id_safe),
 };
 
 let session: ref(option(session)) = ref(None);
@@ -490,8 +488,7 @@ let scrub_to = (s: session, winner: option(int), t: float): unit => {
 
 /* === geometry === */
 
-let rec resolve = (s: session, p: vec): unit => {
-  s.last_p = p;
+let resolve = (s: session, p: vec): unit => {
   let track = (c: cand) => {
     let ax = c.cur.x
     and ay = c.cur.y;
@@ -534,55 +531,29 @@ let rec resolve = (s: session, p: vec): unit => {
     s.winner = Some(i);
     s.t = t;
     scrub_to(s, Some(i), t);
-    /* snap: linger at the target (dwell) with real progress — then
-       commit and chain */
+    /* snap (dragology's withSnapRadius(chain:true), radius-only and
+       INSTANT — no dwell): reaching the target via the track commits
+       and re-enumerates */
     let d = sqrt((p.x -. c.tgt.x) ** 2. +. (p.y -. c.tgt.y) ** 2.);
     if (chaining && d <= snap_radius && t >= snap_min_t) {
-      switch (s.snap_hover) {
-      | Some((j, since)) when j == i =>
-        if (now_ms() -. since >= snap_dwell) {
-          CodeFlip.set_drag_offsets(
-            c.moved |> List.map(((k, _, dx, dy)) => (k, (dx, dy))),
-          );
-          if (c.enters != []) {
-            CodeFlip.set_drag_enter(1.0);
-          };
-          CodeFlip.adopt(s.scrub_anims |> List.concat_map(snd));
-          s.scrub_anims = [];
-          s.scrub_active = None;
-          s.winner = None;
-          s.t = 0.;
-          s.cands = [];
-          s.snap_hover = None;
-          s.pending = AwaitChange(s.last_z, s.last_term);
-          s.commit(c.dir);
-        }
-      | _ =>
-        s.snap_hover = Some((i, now_ms()));
-        /* re-check after the dwell even if the pointer holds still */
-        switch (s.dwell_timer) {
-        | Some(id) => Dom_html.clearTimeout(id)
-        | None => ()
-        };
-        s.dwell_timer =
-          Some(
-            Dom_html.setTimeout(
-              () =>
-                switch (session^) {
-                | Some(s') when s' === s => resolve(s', s'.last_p)
-                | _ => ()
-                },
-              snap_dwell +. 20.,
-            ),
-          );
+      CodeFlip.set_drag_offsets(
+        c.moved |> List.map(((k, _, dx, dy)) => (k, (dx, dy))),
+      );
+      if (c.enters != []) {
+        CodeFlip.set_drag_enter(1.0);
       };
-    } else {
-      s.snap_hover = None;
+      CodeFlip.adopt(s.scrub_anims |> List.concat_map(snd));
+      s.scrub_anims = [];
+      s.scrub_active = None;
+      s.winner = None;
+      s.t = 0.;
+      s.cands = [];
+      s.pending = AwaitChange(s.last_z, s.last_term);
+      s.commit(c.dir);
     };
   | _ =>
     s.winner = None;
     s.t = 0.;
-    s.snap_hover = None;
     scrub_to(s, None, 0.);
   };
 };
@@ -592,10 +563,6 @@ let rec resolve = (s: session, p: vec): unit => {
 let end_session = () => {
   switch (session^) {
   | Some(s) =>
-    switch (s.dwell_timer) {
-    | Some(id) => Dom_html.clearTimeout(id)
-    | None => ()
-    };
     switch (s.scrub_active) {
     | Some(w) =>
       switch (List.assoc_opt(w, s.scrub_anims), List.nth_opt(s.cands, w)) {
@@ -728,12 +695,6 @@ let arm =
     last_term: None,
     scrub_anims: [],
     scrub_active: None,
-    snap_hover: None,
-    last_p: {
-      x: 0.,
-      y: 0.,
-    },
-    dwell_timer: None,
     down_at: {
       x: cx -. r##.left,
       y: cy -. r##.top,
