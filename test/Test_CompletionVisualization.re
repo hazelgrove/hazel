@@ -163,7 +163,8 @@ let multiline_tests = [
     ~name="let then column-0 content",
     ~input={|let a = 1
 a|},
-    ~expected={|let a = 1·    // in ?
+    /* y follows: the completed in meets real body content, no hole */
+    ~expected={|let a = 1·    // in
 a|},
   ),
   /* Two lets on separate lines */
@@ -171,7 +172,7 @@ a|},
     ~name="two lets on separate lines",
     ~input={|let x = 1
 let y = 2|},
-    ~expected={|let x = 1·    // in ?
+    ~expected={|let x = 1·    // in
 let y = 2·    // in ?|},
   ),
   /* Blank line partition - dot goes on the blank line */
@@ -181,7 +182,7 @@ let y = 2·    // in ?|},
 
 y|},
     ~expected={|let x = 1
-·    // in ?
+·    // in
 y|},
   ),
   /* Multiple blank line partitions */
@@ -192,11 +193,12 @@ y|},
 let b = 2
 
 let c = 3|},
+    /* only the last let is at the true end: its in leaves a hole */
     ~expected=
       {|let a = 1
-·    // in ?
+·    // in
 let b = 2
-·    // in ?
+·    // in
 let c = 3·    // in ?|},
   ),
   /* Mixed: complete let followed by incomplete */
@@ -228,8 +230,9 @@ let indent_tests = [
     ~input={|fun x ->
     let
     y|},
+    /* the = hole is real (no definition); the in meets y, no hole */
     ~expected={|fun x ->
-    let·    // = ? in ?
+    let·    // = ? in
     y|},
   ),
   /* Inside complete fun body.
@@ -241,7 +244,7 @@ let indent_tests = [
   body
 in f(1)|},
     ~expected={|let f = fun x ->
-  fun y·    // -> ?
+  fun y·    // ->
   body
 in f(1)|},
   ),

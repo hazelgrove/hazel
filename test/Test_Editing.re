@@ -345,7 +345,8 @@ let basic_tests = [
   test(
     ~name="Paste splitting text into token at Inner caret",
     ~acts=mk("hel¦lo") @ [Paste("a b")],
-    ~goal="hela~¦blo",
+    /* Caret lands after the pasted text (at the end of "b"), not before it */
+    ~goal="hela~b¦lo",
   ),
   test(
     ~name="Paste into token inside let expression",
@@ -444,6 +445,16 @@ let insertion_tests = [
     ~name="Insert char at start of token",
     ~acts=mk({|¦oo|}) @ [Insert("f")],
     ~goal={|f¦oo|},
+  ),
+  test(
+    ~name="Insert char at start of token inside function application",
+    ~acts=mk({|length(¦oo)|}) @ [Insert("f")],
+    ~goal={|length(f¦oo)|},
+  ),
+  test(
+    ~name="Insert char at start of token in let body",
+    ~acts=mk({|let x = 1 in ¦oo|}) @ [Insert("f")],
+    ~goal={|let x = 1 in f¦oo|},
   ),
   test(
     ~name="Insert char inside token",
@@ -1313,12 +1324,14 @@ end|} /* Should be at case level, not indented */
     ~goal={|[
   ¦1, 2]|} /* Content indented inside list */
   ),
-  /* Scenario: Enter in empty parens - creates a hole */
+  /* Scenario: Enter in empty parens - creates a hole. The hole
+     anchors indentation like a literal atom (enter after `(1` also
+     gives column 0), so the closer lands unindented. */
   test(
     ~name="Enter in empty parens",
     ~acts=mk({|(¦)|}) @ [Action.Insert("\n")],
     ~goal={|(?
-  ¦)|} /* Hole appears, content indented inside parens */
+¦)|},
   ),
   /* Scenario: Two consecutive Enters after case rule */
   test(
@@ -2785,7 +2798,7 @@ let module_tests = [
  * A non-empty backpack after entering what should be a complete program
  * indicates structural breakage. */
 let zip_backpack_empty = (z: Zipper.t): bool =>
-  Zipper.local_backpack(z) == [];
+  Zipper.local_missing_shards(z) == [];
 
 let shard_theft_tests = [
   /* Baseline: typing `let y = 2 in let x = 1 in x` left-to-right
@@ -2861,7 +2874,7 @@ let shard_theft_tests = [
           (z, c) => {
             let z' = perform(z, [Action.Insert(c)]);
             let text = printer(z');
-            let bp = Zipper.local_backpack(z');
+            let bp = Zipper.local_missing_shards(z');
             let bp_labels =
               bp
               |> List.map((t: Tile.t) => String.concat(",", t.label))
@@ -4088,7 +4101,7 @@ let char_selection_tests = [
       let actual = printer(z);
       let expected = {|fu¦n x -> x|};
       /* Verify text round-trips AND internal state is clean */
-      let bp = Zipper.local_backpack(z);
+      let bp = Zipper.local_missing_shards(z);
       let inc = Segment.incomplete_tiles(snd(z.relatives.siblings));
       check(testable(Fmt.string, String.equal), "text", expected, actual);
       check(Alcotest.int, "backpack empty", 0, List.length(bp));
@@ -4103,7 +4116,7 @@ let char_selection_tests = [
       let z = perform(z, [Destruct(Local(Right, ByChar)), Paste("fu")]);
       let actual = printer(z);
       let expected = {|fu¦n x -> x|};
-      let bp = Zipper.local_backpack(z);
+      let bp = Zipper.local_missing_shards(z);
       let inc = Segment.incomplete_tiles(snd(z.relatives.siblings));
       check(testable(Fmt.string, String.equal), "text", expected, actual);
       check(Alcotest.int, "backpack empty", 0, List.length(bp));
@@ -4298,7 +4311,7 @@ let test_caret_and_backpack = (~name, ~acts, ~goal): test_case(_) =>
       let z = acts |> perform(Zipper.init());
       let actual = printer(z);
       check(testable(Fmt.string, String.equal), "caret", goal, actual);
-      let bp = Zipper.local_backpack(z);
+      let bp = Zipper.local_missing_shards(z);
       check(
         Alcotest.int,
         "backpack empty (labels: "
@@ -4446,7 +4459,7 @@ let test_cut_paste =
             chars |> List.filter(c => c != selection_char) |> Token.of_list;
           clean;
         };
-      let bp = Zipper.local_backpack(z);
+      let bp = Zipper.local_missing_shards(z);
       let inc =
         Segment.incomplete_tiles(snd(z.relatives.siblings))
         @ Segment.incomplete_tiles(fst(z.relatives.siblings));

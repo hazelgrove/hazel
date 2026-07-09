@@ -6,23 +6,37 @@ open Language;
  * Adjust this value to control when suggestions first appear. */
 let min_prefix_len = 2;
 
-/* Suggest the token at the top of the backpack, if we can put it down */
-let suggest_backpack = (z: Zipper.t): list(t) => {
-  /* Note: Sort check unnecessary here as wouldn't be able to put down */
-  switch (Zipper.local_backpack(z)) {
-  | [] => []
-  | [t, ..._] =>
-    switch (t) {
-    | {label, shards: [idx], _} when Zipper.can_put_down(z) => [
-        {
-          content: List.nth(label, idx),
-          strategy: Any(FromBackpack),
-        },
-      ]
-    | _ => []
-    }
+/* Delimiter suggestions come from the COMPLETION ENGINE: an
+   insertion whose arrow anchors at the token left of the caret with
+   a typed prefix recorded is the engine recognizing that token as a
+   WITNESS of the delimiter it completes. Single recognition source —
+   the ghost and the quiver agree by construction, and symbolic
+   (- -> ->, = -> =>) and non-head obligations are covered. Purely
+   syntax-derived: needs no statics.
+   (Replaces the old head-of-local-missing-shards suggestion, whose
+   plain starts_with matching was both narrower — head only — and
+   looser — no witness gates — than the engine's recognition.) */
+let suggest_witnesses = (z: Zipper.t): list(t) =>
+  switch (z.caret, z.relatives.siblings |> fst |> List.rev) {
+  | (Outer, [Tile({label: [tok], id, _}), ..._]) =>
+    let seg = Zipper.unselect_and_zip(~erase_buffer=true, z);
+    let result = CanonicalCompletion.for_editor(seg);
+    result.insertions
+    |> List.filter_map((i: CanonicalCompletion.insertion) =>
+         Id.equal(i.adjacent_id, id) && i.side == Util.Direction.Right
+           ? switch (i.delimiters) {
+             | [{typed_len: Some(n), text, _}, ..._]
+                 when n == Token.length(tok) =>
+               Some({
+                 content: text,
+                 strategy: Any(FromMissingShards),
+               })
+             | _ => None
+             }
+           : None
+       );
+  | _ => []
   };
-};
 
 /* Check if the expected type is unknown (no type annotation context) */
 let has_unknown_expectation = (ci: Info.t): bool =>
@@ -89,10 +103,10 @@ let suggest = (ci: Info.t, z: Zipper.t): list(t) => {
       TyDiForms.suggest_operator(ci) |> List.sort(TyDiSuggestion.compare);
     if (has_unknown_expectation(ci)) {
       /* Unknown type: keywords first, then context, then operators */
-      suggest_backpack(z) @ forms @ ctx_suggestions @ operators;
+      suggest_witnesses(z) @ forms @ ctx_suggestions @ operators;
     } else {
       /* Known type: context variables first (type-directed), then forms */
-      suggest_backpack(z) @ ctx_suggestions @ forms @ operators;
+      suggest_witnesses(z) @ ctx_suggestions @ forms @ operators;
     };
   };
 };
@@ -144,7 +158,6 @@ let get_unparsed_buffer = (z: Zipper.t): option(Token.t) =>
 
 /* Populates the suggestion buffer with a type-directed suggestion */
 let set_buffer = (~ci: option(Info.t), z: Zipper.t): option(Zipper.t) => {
-  let* ci = ci;
   let* _ =
     switch (z.selection.mode) {
     /* Make sure not to populate the completion buffer if there is a non-empty
@@ -154,14 +167,35 @@ let set_buffer = (~ci: option(Info.t), z: Zipper.t): option(Zipper.t) => {
     | Normal => None
     };
   let* tok_to_left = token_to_left(z);
-  /* Only show completions after typing enough characters */
-  let* _ = String.length(tok_to_left) >= min_prefix_len ? Some() : None;
-  let suggestions = suggest(ci, z);
+  /* The missing-shard suggestion is derived from the SYNTAX alone —
+     no statics needed. This matters because ci is often None on
+     exactly the delimiter-prefix states it serves: canonical
+     completion CONSUMES the prefix token (els, -, =) when building
+     the semantics term, so no info exists at its id. */
+  let suggestions =
+    switch (ci) {
+    | Some(ci) => suggest(ci, z)
+    | None => suggest_witnesses(z)
+    };
   let suggestions =
     suggestions
     |> List.filter(({content, _}: TyDiSuggestion.t) =>
          String.starts_with(~prefix=tok_to_left, content)
        );
+  /* Short prefixes are noisy for the open-ended sources (ctx vars,
+     forms), but a 1-char prefix of a delimiter the syntax already
+     EXPECTS (the missing-shard suggestion: - for a fun's ->, = for a
+     rule's =>, e for a deleted else) is high-signal — expectation
+     bounds it, so it bypasses the length gate. */
+  let expectation_backed =
+    List.exists(
+      ({strategy, _}: TyDiSuggestion.t) =>
+        strategy == Any(FromMissingShards),
+      suggestions,
+    );
+  let* _ =
+    String.length(tok_to_left) >= min_prefix_len || expectation_backed
+      ? Some() : None;
   /* If any suggestion is an exact match for the current token, suppress
    * all suggestions. This check must scan the full list, not just the
    * top suggestion, because exact-match variables and keyword suggestions

@@ -49,6 +49,35 @@ let by_token = (d: Direction.t, z: t): option(t) =>
     };
   };
 
+/* === Indentation-transparent caret movement ===
+   Arrow movement never RESTS inside leading whitespace: a position is
+   skippable iff everything left of it at its level, up to a linebreak
+   (or buffer start at top level), is spaces AND its right neighbor is
+   a space. Kept positions: first content (right = content), line ends
+   (right = linebreak / nothing), and a blank line's single position —
+   every line keeps at least one reachable position. Clicks (Point
+   moves) and selection resizing are exempt: click into indentation
+   and movement is normal until the caret exits the run. */
+let in_skippable_indent = (z: t): bool =>
+  z.caret == Outer
+  && z.selection.content == []
+  && (
+    switch (z.relatives.siblings) {
+    | (l, [Piece.Secondary(w), ..._]) when Secondary.is_space(w) =>
+      let rec all_white = (ps: list(Piece.t)) =>
+        /* scanning right-to-left from the caret */
+        switch (ps) {
+        | [] => z.relatives.ancestors == [] /* buffer start */
+        | [Piece.Secondary(s), ...rest] =>
+          Secondary.is_space(s)
+            ? all_white(rest) : Secondary.is_linebreak(s)
+        | _ => false
+        };
+      all_white(List.rev(l));
+    | _ => false
+    }
+  );
+
 let local = (chunkiness: Action.chunkiness, d: Direction.t, z: t): option(t) => {
   let z = unselect(z);
   switch (chunkiness) {
@@ -362,6 +391,16 @@ let pre_unselect = (a: Action.move, z: t): t => {
   let z = Zipper.directional_unselect(d, z);
   canonicalize_inner_unselect(~locator, ~target_caret, z);
 };
+let rec skip_indent = (~fuel=10000, d: Direction.t, z: t): t =>
+  if (fuel <= 0 || !in_skippable_indent(z)) {
+    z;
+  } else {
+    switch (local(ByChar, d, z)) {
+    | Some(z) => skip_indent(~fuel=fuel - 1, d, z)
+    | None => z
+    };
+  };
+
 let go =
     (
       ~statics: Language.Statics.Map.t,

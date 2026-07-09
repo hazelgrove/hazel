@@ -53,6 +53,7 @@ module Update = {
         Format(_) |
         Refactor(_) |
         RefactorGesture(_) |
+        AdjustIndent(_, _) |
         Dump |
         Introduce |
         ToggleLineComment,

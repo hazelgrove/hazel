@@ -272,6 +272,16 @@ let ci_for_completion =
     : option(Language.Statics.Info.t) =>
   switch (Siblings.neighbor(Left, z.relatives.siblings)) {
   | Some(p) when !Piece.is_secondary(p) && !Piece.is_grout(p) =>
-    Id.Map.find_opt(Piece.id(p), info_map)
+    switch (Id.Map.find_opt(Piece.id(p), info_map)) {
+    | Some(_) as ci => ci
+    /* the neighbor token may have been CONSUMED when the semantics
+       term was built: canonical completion replaces a witness prefix
+       (els, -, =) with the delimiter it evidences, so no info exists
+       at the token's id. Fall back to the caret's indicated info so
+       suggestions — notably the expectation-backed missing-shard
+       one — still fire on exactly the states where completion
+       recognized a partial delimiter. */
+    | None => ci_of(z, info_map)
+    }
   | _ => ci_of(z, info_map)
   };

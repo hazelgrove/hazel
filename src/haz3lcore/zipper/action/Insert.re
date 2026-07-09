@@ -135,9 +135,9 @@ let insert_shard =
       ~root,
     )
     : t =>
-  if (Zipper.backpack_find(t, z) != None) {
+  if (Zipper.find_missing_shard(t, z) != None) {
     let z = destroy_selection(z);
-    let target = Zipper.backpack_find(t, z) |> Option.get;
+    let target = Zipper.find_missing_shard(t, z) |> Option.get;
     Zipper.put_down_target(d, target, z, ~root);
   } else {
     insert_shard_core(
@@ -211,6 +211,14 @@ let replace_shard_inplace =
     insert_shard_inplace(~id, t, z, ~root);
   };
 };
+
+/* True unless the caret is at a bare segment edge (no left neighbor, no
+ * ancestor). At a bare edge, a token-merge may need the reassemble/rescan
+ * that the general insert path provides; everywhere else the merged token
+ * has an enclosing tile/form the caret must not escape. */
+let keep_caret_inside_on_append = (z: t): bool =>
+  Siblings.neighbor(Left, z.relatives.siblings) != None
+  || z.relatives.ancestors != [];
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type appendability = option((Direction.t, Token.t));
@@ -395,29 +403,50 @@ let adjust_caret_pos = (~z_final: t, ~z_init: t): t => {
   };
 };
 
-/* If char can be appended to either sibling token, do it,
- * otherwise insert a new `char` token */
+/* Append char to a neighboring token if possible (biasing left, see
+ * sibling_appendability), else insert it as a new token. */
 let insert_or_append =
-    (~auto_indent: bool, char: string, z: t, ~root): option(t) => {
-  let+ z_init =
-    switch (sibling_appendability(char, z)) {
-    | None =>
-      let (id, z) = preserve_grout_id(char, z);
-      let z =
-        switch (Grout.redeem_space(id)) {
-        | Some(w) => Zipper.put_down_seg(Left, [Secondary(w)], z)
-        | None => z
-        };
-      Some(insert_shard(~auto_indent, ~id, ~d=Left, char, z, ~root));
-    | Some((d, t)) => replace_shard(~auto_indent, d, t, z, ~root)
-    };
-  let z_final =
-    z_init
-    |> move_into_string_or_comment(char)
-    |> remold_regrout(Left, ~root)
-    |> merge_or_noop(~root);
-  adjust_caret_pos(~z_final, ~z_init);
-};
+    (~auto_indent: bool, char: string, z: t, ~root): option(t) =>
+  switch (sibling_appendability(char, z)) {
+  | Some((Right, t))
+      when
+        Zipper.adjacent_monotile_id(Right, z) != None
+        && keep_caret_inside_on_append(z) =>
+    /* Prepend to a right monotile, keeping the caret Inner(0) inside the
+     * merged token. The in-place insert skips adj_pos, whose move(Left)
+     * would escape the enclosing tile/form (e.g. length(¦oo) + f). */
+    Caret.set(Inner(0), z)
+    |> replace_shard_inplace(Right, t, ~root)
+    |> Option.map(remold_regrout(Right, ~root))
+  | appendability =>
+    let z =
+      Caret.set(
+        switch (appendability) {
+        | Some((Right, _)) => Inner(0)
+        | None
+        | Some((Left, _)) => Outer
+        },
+        z,
+      );
+    let+ z_init =
+      switch (appendability) {
+      | None =>
+        let (id, z) = preserve_grout_id(char, z);
+        let z =
+          switch (Grout.redeem_space(id)) {
+          | Some(w) => Zipper.put_down_seg(Left, [Secondary(w)], z)
+          | None => z
+          };
+        Some(insert_shard(~auto_indent, ~id, ~d=Left, char, z, ~root));
+      | Some((d, t)) => replace_shard(~auto_indent, d, t, z, ~root)
+      };
+    let z_final =
+      z_init
+      |> move_into_string_or_comment(char)
+      |> remold_regrout(Left, ~root)
+      |> merge_or_noop(~root);
+    adjust_caret_pos(~z_final, ~z_init);
+  };
 
 /* === SELECTION WRAPPING ===
  * When the user types an opening delimiter with an active selection,
@@ -440,7 +469,7 @@ let delimiter_label = (char: string): Label.t =>
 
 /* Wrap selection in balanced delimiters. Creates the wrapping tile
  * as an ancestor with the content inside, retaining the selection. */
-let wrap_balanced = (~deep_reassociate=false, char: string, z: t, ~root): t => {
+let wrap_balanced = (char: string, z: t, ~root): t => {
   let content = z.selection.content;
   let sort = Relatives.sort(~root, z.relatives);
   let (left_sibs, right_sibs) = z.relatives.siblings;
@@ -486,7 +515,7 @@ let wrap_balanced = (~deep_reassociate=false, char: string, z: t, ~root): t => {
     },
   };
   let z = remold_regrout(Right, z, ~root);
-  let z = deep_reassociate ? Reassociate.go(z) : z;
+  let z = Reassociate.go(z);
   let right = snd(z.relatives.siblings);
   {
     ...z,
@@ -544,23 +573,19 @@ let wrap_quote = (char: string, z: t, ~root): option(t) => {
 
 /* Try to wrap selection in a delimiter. Returns Some if wrapping
  * occurred, None to fall through to normal insert behavior. */
-let try_wrap_selection =
-    (~deep_reassociate=false, char: string, z: t, ~root): option(t) =>
+let try_wrap_selection = (char: string, z: t, ~root): option(t) =>
   if (is_opening_delimiter(char)) {
-    Some(wrap_balanced(~deep_reassociate, char, z, ~root));
+    Some(wrap_balanced(char, z, ~root));
   } else if (Token.is_string_or_comment_delim(char)) {
     wrap_quote(char, z, ~root);
   } else {
     None;
   };
 
-let go =
-    (~auto_indent: bool, ~deep_reassociate=false, char: string, z: t, ~root)
-    : option(t) => {
+let go = (~auto_indent: bool, char: string, z: t, ~root): option(t) => {
   /* If there's a selection, try wrapping before falling through */
   switch (
-    z.selection.content != []
-      ? try_wrap_selection(~deep_reassociate, char, z, ~root) : None
+    z.selection.content != [] ? try_wrap_selection(char, z, ~root) : None
   ) {
   | Some(z) => Some(z)
   | None =>
@@ -590,17 +615,7 @@ let go =
              )
         : split(~auto_indent, z, char, idx, t, ~root);
     | (Inner(_), (_, None)) => None
-    | (Outer, _) =>
-      let z =
-        Caret.set(
-          switch (sibling_appendability(char, z)) {
-          | Some((Right, _)) => Inner(0)
-          | None
-          | Some((Left, _)) => Outer
-          },
-          z,
-        );
-      insert_or_append(~auto_indent, char, z, ~root);
+    | (Outer, _) => insert_or_append(~auto_indent, char, z, ~root)
     };
   };
 };
@@ -613,14 +628,13 @@ let go_inner = go;
 let go =
     (
       ~auto_indent: bool=true,
-      ~deep_reassociate=false,
       ~ci: option(Language.Info.t)=None,
       char: string,
       z: t,
       ~root,
     )
     : option(t) => {
-  let+ z = go(~auto_indent, ~deep_reassociate, char, z, ~root);
+  let+ z = go(~auto_indent, char, z, ~root);
   let z = Triggers.insert(~ci, z);
   let z =
     switch (z.caret) {

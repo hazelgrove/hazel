@@ -92,4 +92,52 @@ let reformat_tests = [
   ),
 ];
 
-let tests = [("LocalReformat", reformat_tests)];
+/* === Region trigger: pasted lines re-indent === */
+let paste_tests = [
+  test_case(
+    "pasted flat lines re-indent to target depth (settled)",
+    `Quick,
+    () => {
+      /* complete parens context; paste flat continuation lines */
+      let got =
+        run(Test_Editing.mk("(\n  1¦)") @ [Action.Paste("\n+ 2\n+ 3")]);
+      check(
+        string,
+        "pasted lines at continuation indent",
+        "(\n  1\n  + 2\n  + 3)",
+        got,
+      );
+    },
+  ),
+  test_case(
+    "pasted lines uniform-shift when buffer unsettled",
+    `Quick,
+    () => {
+      /* parens never closed: unsettled, so pasted lines shift
+         uniformly rather than being re-derived exactly */
+      /* typing the linebreak auto-indents, so no literal spaces */
+      let got = run(Test_Editing.mk("(\n1¦") @ [Action.Paste("\n+ 2")]);
+      check(string, "shifted to match", "(\n  1\n  + 2", got);
+    },
+  ),
+  test_case(
+    "paste that completes a tile re-indents its contents",
+    `Quick,
+    () => {
+      /* flat-typed multiline parens completed by PASTING the closer:
+         the completion trigger fires exactly as if it were typed */
+      let got = run(type_all("(\n1\n+ 2") @ [Action.Paste(")")]);
+      check(
+        string,
+        "children re-indented on completion-by-paste",
+        "(\n  1\n  + 2)",
+        got,
+      );
+    },
+  ),
+];
+
+let tests = [
+  ("LocalReformat", reformat_tests),
+  ("LocalReformat.Paste", paste_tests),
+];

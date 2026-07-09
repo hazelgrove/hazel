@@ -578,25 +578,113 @@ svg:has(.child-line) {
   pointer-events: none;
 }
 
-.quiver-arrow {
-  z-index: var(--select-z);
+.quiver-chip {
+  pointer-events: none;
 }
 
-.quiver-arrow-path {
-  fill: var(--quiver-arrow);
+/* the anchor pins the insertion point; the bubble hangs off it,
+   vertically CENTERED on the line boundary (translateY(-50%)), its
+   first character centered over the insertion column (inline left).
+   The bubble deliberately overlaps the top of the caret-shaped bar —
+   the caret reaches up between lines; the overlap is the join. */
+.quiver-chip-anchor {
+  position: absolute;
+  z-index: 15; /* above code text, below the caret */
+}
+
+.quiver-chip-body {
+  position: absolute;
+  transform: translateY(-50%);
+  padding: 0px 4px 1px 4px;
+  /* square bottom-left: the bubble's left edge is flagpole-aligned
+     with the caret bar, and a radius there leaves a divot beside it */
+  border-radius: 4px 4px 4px 0;
+  background: var(--quiver-chip);
+  color: var(--quiver-chip-text);
+  font-family: var(--code-font);
+  font-size: 0.72em;
+  line-height: 1.25;
+  font-weight: bold;
+  white-space: nowrap;
+}
+
+/* the pole is the caret's silhouette as a plain div: same coordinate
+   context as the bubble, so no sub-pixel drift between flag and pole */
+.quiver-chip-pole {
+  position: absolute;
+  background: var(--quiver-chip);
+  z-index: 14;
+}
+
+/* tab emphasis: the chip whose first delimiter tab would put down is
+   live; the rest use an opaque subdued blend (chips overlay text, so
+   translucency would let code bleed through the knockout text) */
+.quiver-chip.chip-live {
+  --quiver-chip: var(--token-incomplete);
+}
+
+.quiver-chip.chip-dim {
+  --quiver-chip: var(--quiver-chip-subdued);
+}
+
+/* remainder at full contrast; the typed prefix (visible in the code
+   an em away) and later coalesced segments fade toward the chip.
+   Dim chips need their own blend: the live fade is invisible against
+   the subdued background */
+.quiver-chip .chip-frac-typed,
+.quiver-chip .chip-seg-later {
+  color: var(--quiver-chip-text-faded);
+}
+
+.quiver-chip.chip-dim .chip-frac-typed,
+.quiver-chip.chip-dim .chip-seg-later {
+  color: var(--quiver-chip-text-faded-dim);
+}
+
+/* the caret in a chip's tolerance zone (separated from the pin only
+   by grout/whitespace): the POLE takes the caret's red — the bubble
+   keeps the incomplete gold, so typing doesn't flip the label's
+   color as regrout holes pop in and out beside the caret */
+.quiver-chip.chip-near-caret .quiver-chip-pole {
+  background: var(--caret-color);
+}
+
+/* visibility (not display): the scroll-to-caret machinery reads
+   #caret's geometry every update — display:none zeroes it and the
+   scroll jumps wildly */
+.code-container:has(.chip-at-caret) #caret {
+  visibility: hidden;
+}
+
+/* bubbles settle in after their content stops changing: the keyed
+   remount restarts this delayed appear, so mid-burst labels stay
+   hidden while the pole remains as a stable, minimal pin */
+.quiver-chip-body {
+  animation: quiver-chip-appear 0.12s ease-out 0.4s backwards;
+}
+
+@keyframes quiver-chip-appear {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.quiver-chip .empty-hole {
+  display: inline-block;
+  vertical-align: middle;
+}
+
+/* the hole's hairline stroke reads as blur at chip scale */
+.quiver-chip .empty-hole > path {
   stroke: none;
 }
 
-.quiver-offside {
-  font-family: var(--code-font);
-  font-size: var(--base-font-size);
-  color: var(--quiver-offside-text);
-  background-color: var(--quiver-offside-bg);
-  padding: 0 4px;
-  border-radius: 2px;
-  white-space: nowrap;
-  line-height: var(--line-height);
-}
+
+
+
 
 /* Invisible backdrop to capture clicks outside context menu */
 .context-menu-backdrop {
@@ -725,9 +813,5 @@ svg:has(.child-line) {
 }
 
 /* Prefix-witness completion: typed prefix vs completed remainder */
-.quiver-offside .quiver-typed {
-  font-weight: bold;
-}
-.quiver-offside .quiver-completed {
-  opacity: 0.45;
-}
+
+

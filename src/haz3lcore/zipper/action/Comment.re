@@ -171,8 +171,8 @@ let reselect_lines = (z: t, num_newlines: int): t => {
 /* Toggle comment for multiple lines spanned by the current selection.
  * Extends selection to cover full lines, then processes each line
  * individually from top to bottom. Result remains selected. */
-let toggle_multi = (~deep_reassociate=false, z: t, ~root): option(t) => {
-  let maybe_reassoc = deep_reassociate ? Reassociate.go : Fun.id;
+let toggle_multi = (z: t, ~root): option(t) => {
+  let maybe_reassoc = Reassociate.go;
   /* Extend selection to cover full lines.
    * Must set focus to match the extension direction,
    * since to_linebreak moves the focus end. */
@@ -224,9 +224,9 @@ let toggle_multi = (~deep_reassociate=false, z: t, ~root): option(t) => {
 /* Main entry point: toggle line comment.
  * No selection → toggle current line.
  * With selection → toggle all lines the selection spans. */
-let go = (~deep_reassociate=false, z: t, ~root): option(t) =>
+let go = (z: t, ~root): option(t) =>
   if (z.selection.content != []) {
-    toggle_multi(~deep_reassociate, z, ~root);
+    toggle_multi(z, ~root);
   } else {
     toggle_single(z, ~root);
   };

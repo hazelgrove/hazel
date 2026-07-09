@@ -139,6 +139,15 @@ type destruct =
   | Local(Direction.t, chunkiness)
   | Line(Direction.t);
 
+/* Shift+Backspace acts as dedent only at a line's leading-whitespace
+   boundary, falling through to plain backspace elsewhere (a held
+   shift during ordinary corrections must not dedent); Cmd+[/] are
+   position-independent. */
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
+type indent_gate =
+  | Always
+  | AtBoundary;
+
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type refactor =
   | InlineLet
@@ -203,6 +212,8 @@ type t =
   | RefactorGesture(Gesture.t)
   | Probe(probe)
   | Format(format)
+  /* indent/dedent the caret's line (or all selected lines) one level */
+  | AdjustIndent(Direction.t, indent_gate)
   | Dump
   | ToggleLineComment
   | Structural(Structural.t);
@@ -247,6 +258,7 @@ let is_edit: t => bool =
   | RefactorGesture(_)
   | Buffer(Accept | Clear | Set(_))
   | Format(_)
+  | AdjustIndent(_, _)
   | Structural(_)
   | Dump
   | ToggleLineComment => true
@@ -285,6 +297,7 @@ let is_historic: t => bool =
   | Refactor(_)
   | RefactorGesture(_)
   | Format(_)
+  | AdjustIndent(_, _)
   | Structural(_)
   | Dump
   | ToggleLineComment => true
@@ -318,6 +331,7 @@ let prevent_in_read_only_editor = (a: t) =>
   | Refactor(_)
   | RefactorGesture(_)
   | Format(_)
+  | AdjustIndent(_, _)
   | Structural(_)
   | Dump
   | ToggleLineComment => true
@@ -364,6 +378,7 @@ let should_animate: t => bool =
   | Refactor(_)
   | RefactorGesture(_)
   | Format(_)
+  | AdjustIndent(_, _)
   | Dump
   | ToggleLineComment => true
   | Project(p) =>

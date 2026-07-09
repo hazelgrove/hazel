@@ -11,7 +11,6 @@ let default_settings = {
   ...Language.CoreSettings.off,
   statics: true,
   assist: true,
-  deep_reassociate: true,
 };
 
 /* Simulate the web editor's full update+calculate cycle by driving the

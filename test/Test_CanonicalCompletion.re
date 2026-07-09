@@ -1043,9 +1043,9 @@ let case_repair_tests = [
 
 let case_repair_edit_tests = [
   edit_case(
-    ~name="broken case head: orphan end adopts rules, one case only",
+    ~name="broken case head: cas witnesses case, exact restore",
     ~acts=Test_Editing.mk("case¦ x | 1 => 2 end") @ [destruct_l],
-    ~expected="casecas~ x | 1 => 2 end",
+    ~expected="case x | 1 => 2 end",
   ),
   edit_case(
     ~name="deleted closer stops at rule wall",
@@ -1088,7 +1088,448 @@ let entry_experience_tests = [
   ),
 ];
 
+/* === Leading witnesses: a >=2-char token at the opener position of
+   a tile expecting that opener completes in place (the tile's
+   surviving shards carry the expectation; no mold gate exists in
+   operand position, so length >= 2 is the residual protection) === */
+/* Sort-aware symbolic witnesses: `-`/`=` have no legitimate
+   non-label mold at the slot's sort, so they can only be broken
+   `->`/`=>` prefixes there */
+let symbolic_witness_tests = [
+  edit_case(
+    ~name="deleted > of ->: dash witnesses arrow in Pat slot",
+    ~acts=Test_Editing.mk("let f = fun x ->¦ x * 2 in f(3)") @ [destruct_l],
+    ~expected="let f = fun x -> x * 2 in f(3)",
+  ),
+  edit_case(
+    ~name="deleted > of =>: equals witnesses rule arrow",
+    ~acts=Test_Editing.mk("case x | 1 =>¦ 2 end") @ [destruct_l],
+    ~expected="case x | 1 => 2 end",
+  ),
+  edit_case(
+    ~name="genuine minus beyond the frontier is not eaten",
+    /* the Pat frontier fires AT the broken dash, so the body's real
+       minus sits outside the witness region — uniqueness holds */
+    ~acts=Test_Editing.mk("let f = fun x ->¦ x - 2 in f(1)") @ [destruct_l],
+    ~expected="let f = fun x -> x - 2 in f(1)",
+  ),
+  /* OUT OF SCOPE: the Typ arrow `->` is a single-token operator
+     form, not a shard of a multi-token tile — no remnant exists to
+     EXPECT it, and witnesses are expectation-gated by design.
+     Broken operators are TyDi/backpack territory. */
+];
+
+/* Opener line-walls: a synthesized opener must not hoist above a
+   line starting with a complete prefix-form tile (statement-shaped
+   definitions stay unabsorbed); walls need a linebreak between them
+   and the broken tile, so inline wrapping keeps its maximal reading.
+   Expecteds are raw prints: the spliced opener glues to the next
+   token (` letb`) — the editor's materialization path space-
+   normalizes synthesized junctions; token stream is what's pinned. */
+let opener_wall_tests = [
+  edit_case(
+    ~name="fully-deleted second let stays on its line",
+    ~acts=
+      Test_Editing.mk("let a = 1 in\nlet¦ b = a + 2 in\na + b")
+      @ [destruct_l, destruct_l, destruct_l],
+    ~expected="let a = 1 in\n letb = a + 2 in\na + b",
+  ),
+  edit_case(
+    ~name="fully-deleted if below a let stays on its line",
+    ~acts=
+      Test_Editing.mk("let a = 1 in\nif¦ a < 2 then a else a + 1")
+      @ [destruct_l, destruct_l],
+    ~expected="let a = 1 in\n ifa < 2 then a else a + 1",
+  ),
+  edit_case(
+    ~name="fully-deleted case below a let stays on its line",
+    ~acts=
+      Test_Editing.mk("let t = 1 in\ncase¦ t\n| 1 => 2\n| _ => 3\nend")
+      @ [destruct_l, destruct_l, destruct_l, destruct_l],
+    ~expected="let t = 1 in\n caset\n| 1 => 2\n| _ => 3\nend",
+  ),
+  edit_case(
+    ~name="multiline bracket absorption is not walled",
+    /* line 2 starts with an operand, not a prefix form: the opener
+       keeps its maximal-left span across the linebreak */
+    ~acts=Test_Editing.mk("[¦1 +\n2]") @ [destruct_l],
+    ~expected="[1+\n  2]",
+  ),
+  edit_case(
+    ~name="inline paren around a let keeps its maximal reading",
+    /* no linebreak between the let and the broken paren: no wall */
+    ~acts=Test_Editing.mk("(¦let a = 1 in a)") @ [destruct_l],
+    ~expected="(let a = 1 in a)",
+  ),
+];
+
+let leading_witness_tests = [
+  edit_case(
+    ~name="typ witnesses type",
+    ~acts=Test_Editing.mk("type¦ T = Int in 2") @ [destruct_l],
+    ~expected="type T = Int in 2",
+  ),
+  /* REGRESSION GUARD (andrew report): the witness must fire with
+     complete definitions ABOVE the broken one — the opener span is
+     maximal-left, so a first-piece-only check missed the witness and
+     spliced the opener at program start, absorbing everything */
+  edit_case(
+    ~name="second let's witness fires past the first definition",
+    ~acts=
+      Test_Editing.mk("let a = 1 in\nlet¦ b = a + 2 in\na + b")
+      @ [destruct_l],
+    ~expected="let a = 1 in\nlet b = a + 2 in\na + b",
+  ),
+  edit_case(
+    ~name="type below a let witnesses in place",
+    ~acts=
+      Test_Editing.mk("let a = 1 in\ntype¦ T = Int in\na") @ [destruct_l],
+    ~expected="let a = 1 in\ntype T = Int in\na",
+  ),
+  edit_case(
+    ~name="le witnesses let",
+    ~acts=Test_Editing.mk("let¦ x = 1 in x") @ [destruct_l],
+    ~expected="let x = 1 in x",
+  ),
+  edit_case(
+    ~name="fu witnesses fun",
+    ~acts=Test_Editing.mk("fun¦ q -> q") @ [destruct_l],
+    ~expected="fun q -> q",
+  ),
+  /* REGRESSION GUARD: a condition variable named i must not be eaten
+     as an if-witness when the whole `if` is deleted (length gate) */
+  edit_case(
+    ~name="single-char var i survives a deleted if",
+    ~acts=Test_Editing.mk("if¦ i then 1 else 2") @ [destruct_l, destruct_l],
+    ~expected=" ifi then 1 else 2",
+  ),
+  /* REGRESSION GUARD: the witness is the broken keyword, never the
+     following content, even when both share letters. Exact since the
+     prefix-mold table was restricted to non-leading delimiters (`c`
+     no longer molds as an operator in the broken buffer). */
+  edit_case(
+    ~name="scrutinee starting with same letters is preserved",
+    ~acts=Test_Editing.mk("case¦ c | 1 => 2 end") @ [destruct_l],
+    ~expected="case c | 1 => 2 end",
+  ),
+  /* (A) corroborated single-char witness: deleting the f of if
+     leaves i AGAINST JUNCTION DEBRIS — absorbed, exact restore */
+  edit_case(
+    ~name="corroborated i witnesses if",
+    ~acts=Test_Editing.mk("if¦ x < 3 then 1 else 2") @ [destruct_l],
+    ~expected="if x < 3 then 1 else 2",
+  ),
+  /* fresh prefix with NO expecting tile: completion stays silent
+     (materializing a whole form from a token is TyDi's job) */
+  edit_case(
+    ~name="fresh cas conjures nothing",
+    ~acts=Test_Editing.string_to_ltr_actions("cas 1"),
+    ~expected="cas ~1",
+  ),
+];
+
+/* Provenance: leading-prefix masks REPRINT the typed prefix token +
+   its junction debris — but with a KNOWN one-space layout gap: the
+   buffer has [tok][grout][sp] while the reprint produces
+   [tok][sp][grout][sp] (the shard-boundary secondary run lands
+   before the re-emitted debris). Strict roundtrip is therefore OPEN
+   for leading-witness states (plans/completion-heuristics.md); these
+   pins surface any movement in either direction. */
+let leading_witness_roundtrip_tests = [
+  Alcotest.test_case(
+    "broken type head: reprint text (KNOWN one-space gap)",
+    `Quick,
+    () => {
+      let z =
+        Test_Editing.perform(
+          Zipper.init(),
+          Test_Editing.mk("type¦ T = Int in 2") @ [destruct_l],
+        );
+      let seg = Zipper.unselect_and_zip(~erase_buffer=true, z);
+      let result =
+        CanonicalCompletion.complete_segment_deep(~sort=Sort.Exp, seg);
+      let masks = CanonicalCompletion.masks_of_records(result.shard_records);
+      let term = MakeTerm.go_impl(~masks, result.completed_seg).term;
+      let seg2 = Test_ExpToSegment.exp_to_segment_roundtrip(term);
+      check(string_testable, "buffer", "typ~ T = Int in 2", print_seg(seg));
+      check(
+        string_testable,
+        "reprint (one extra space: OPEN)",
+        "typ ~ T = Int in 2",
+        print_seg(seg2),
+      );
+    },
+  ),
+];
+
+/* === Continuation lines + closer witnesses (multiline case/if) === */
+let continuation_tests = [
+  edit_case(
+    ~name="deleted d of multiline end: en witnesses past the rules",
+    ~acts=
+      Test_Editing.mk("let t = 1 in\ncase t\n| 1 => 2\n| _ => 3\nend¦")
+      @ [destruct_l],
+    ~expected="let t = 1 in\ncase t\n| 1 => 2\n| _ => 3\nend",
+  ),
+  /* no witness left: end appends after the rules (the emptied last
+     line's linebreak partitions off; splice-glue cosmetics) */
+  edit_case(
+    ~name="fully deleted multiline end appends after the rules",
+    ~acts=
+      Test_Editing.mk("let t = 1 in\ncase t\n| 1 => 2\n| _ => 3\nend¦")
+      @ [destruct_l, destruct_l, destruct_l],
+    ~expected="let t = 1 in\ncase t\n| 1 => 2\n| _ => 3end\n",
+  ),
+  edit_case(
+    ~name="multiline els witnesses else",
+    ~acts=
+      Test_Editing.mk("let a = 1 in\nif a < 2 then a\nelse¦ a + 1")
+      @ [destruct_l],
+    ~expected="let a = 1 in\nif a < 2 then a\nelse a + 1",
+  ),
+  edit_case(
+    ~name="inline en witnesses end",
+    ~acts=Test_Editing.mk("case t | 1 => 2 end¦") @ [destruct_l],
+    ~expected="case t | 1 => 2 end",
+  ),
+];
+
+/* === Joint satisfiability (andrew 2026-07-08) ===
+   Deleting a case's end AND its enclosing let's in used to complete
+   incompatibly (the in walled by the naked rules, severing them; the
+   end appended past the body). Sequential materialization: the in's
+   deletion-debris junction is strongest, it materializes first, and
+   the end then completes INSIDE the definition child — exact token
+   restoration (endin adjacency is print glue, the shards are
+   correctly ordered/nested). */
+let dbl_del_inline =
+  Test_Editing.mk("let f = case x | 1 => 2 | 3 => 4 end in¦ f")
+  @ [destruct_l, destruct_l]
+  @ Test_Editing.mv_l(1)
+  @ [destruct_l, destruct_l, destruct_l];
+let probe_raw = (acts: list(Action.t)): string => {
+  let z = Test_Editing.perform(Zipper.init(), acts);
+  let seg = Zipper.unselect_and_zip(~erase_buffer=true, z);
+  let inc = Segment.incomplete_tiles_deep(seg);
+  let tiles =
+    List.filter_map(
+      (pc: Piece.t) =>
+        switch (pc) {
+        | Tile(t) =>
+          Some(
+            Printf.sprintf(
+              "%s[%s]",
+              String.concat("", Tile.effective_label(t)),
+              String.concat(",", List.map(string_of_int, t.shards)),
+            ),
+          )
+        | Grout(g) => Some(g.shape == Convex ? "?" : "~")
+        | _ => None
+        },
+      seg,
+    );
+  Printf.sprintf(
+    "%s | top: %s | inc: %d",
+    print_seg(seg),
+    String.concat(" ", tiles),
+    List.length(inc),
+  );
+};
+let probe_case = (~name, ~acts, ~expected) =>
+  test_case(name, `Quick, () =>
+    check(string_testable, name, expected, probe_raw(acts))
+  );
+/* Reassociation regression guards (andrew 2026-07-09, FIXED same
+   day): delete + retype the l of a NON-FIRST let left the retyped
+   let unpaired with its orphaned =/in — rescan only matches
+   SINGLETON pieces so the two-shard remnant could never pair, and
+   flatten_and_repair started at depth 1, skipping the sibling scope
+   (the only scope, at top level). Fixed: explode incomplete
+   multitiles in the gated fallback's crack + ascend from depth 0. */
+let probe_tests = [
+  probe_case(
+    ~name="second-let delete+retype l reassociates",
+    ~acts=
+      Test_Editing.mk("let f = 1 in\nl¦et g = 2 in\nf + g")
+      @ [destruct_l, Action.Insert("l")],
+    ~expected=
+      "let f = 1 in\nlet g = 2 in\nf + g | top: let=in[0,1,2] let=in[0,1,2] f[0] +[0] g[0] | inc: 0",
+  ),
+  probe_case(
+    ~name="first-let delete+retype l reassociates (control)",
+    ~acts=
+      Test_Editing.mk("l¦et f = 1 in\nf + 1")
+      @ [destruct_l, Action.Insert("l")],
+    ~expected=
+      "let f = 1 in\nf + 1 | top: let=in[0,1,2] f[0] +[0] 1[0] | inc: 0",
+  ),
+];
+/* Hole-minimizing append (andrew's test-end report): a convex-right
+   closer appended after a span-final trailing operator would sever
+   its operand into a hole (`test 1 == 1 ; ? end` = indeterminate
+   test); with content following the partition, stopping before the
+   operator creates ZERO holes — strictly fewer, so the closer backs
+   over it. Concave-right shards and no-content-after ties keep
+   maximal absorption. */
+let probe2_tests = [
+  edit_case(
+    ~name="deleted test-end stops before the semicolon",
+    ~acts=
+      Test_Editing.mk("test 1 == 1 end¦;\ntest 2 == 2 end;\n3")
+      @ [destruct_l, destruct_l, destruct_l],
+    ~expected="test 1 == 1end ;\ntest 2 == 2 end;\n3",
+  ),
+];
+/* Print the insertion list: delimiters per record (+-joined) in list
+   order, |-separated across records — coalescing and ordering are
+   what these pin */
+let probe_ins = (acts: list(Action.t)): string => {
+  let z = Test_Editing.perform(Zipper.init(), acts);
+  let seg = Zipper.unselect_and_zip(~erase_buffer=true, z);
+  let r = CanonicalCompletion.complete_segment_deep(~sort=Sort.Exp, seg);
+  r.insertions
+  |> List.map((i: CanonicalCompletion.insertion) =>
+       i.delimiters
+       |> List.map((d: CanonicalCompletion.delimiter_info) => d.text)
+       |> String.concat("+")
+     )
+  |> String.concat(" | ");
+};
+let ins_case = (~name, ~acts, ~expected) =>
+  test_case(name, `Quick, () =>
+    check(string_testable, name, expected, probe_ins(acts))
+  );
+let ordering_tests = [
+  ins_case(
+    ~name="end witness + in coalesce in nesting order",
+    /* backspace the in, then the d of end: the en witness completes
+       first and the in must anchor AT the en (alias), coalescing
+       into one record reading end-then-in (andrew: it displayed
+       'in end') */
+    ~acts=
+      Test_Editing.mk("let arm_adt = case c | Red => 1 end in¦ 2")
+      @ [destruct_l, destruct_l, destruct_l, destruct_l],
+    ~expected="end | in",
+  ),
+  ins_case(
+    ~name="line-final: end witness + in coalesce (andrew repro)",
+    ~acts=
+      Test_Editing.mk("let arm_adt = case c | Red => 1 end in¦")
+      @ [destruct_l, destruct_l, destruct_l, destruct_l],
+    ~expected="end+in",
+  ),
+];
+/* TyDi delimiter-suffix gates (andrew's e/el/els matrix, FIXED
+   2026-07-10): ci is None on exactly these states — canonical
+   completion CONSUMES the prefix token when building the semantics
+   term, so no info exists at its id — so set_buffer now falls back
+   to the ci-free, expectation-backed missing-shard suggestion, and
+   1-char prefixes bypass the length gate when expectation-backed
+   (symbolic - and = get arrow completions for the first time).
+   Probes replicate Editor.calculate's exact call. */
+let probe_tydi = (acts: list(Action.t)): string => {
+  let z = Test_Editing.perform(Zipper.init(), acts);
+  let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
+  let statics =
+    CachedStatics.init_from_term(
+      ~settings=Test_Editing.default_settings,
+      ~is_dynamic_term=true,
+      term,
+    );
+  let ci = Indicated.ci_for_completion(z, statics.info_map);
+  let tok =
+    switch (TyDi.token_to_left(z)) {
+    | None => "tok:NONE"
+    | Some(t) => "tok:" ++ t
+    };
+  let ci_s =
+    switch (ci) {
+    | None => "ci:NONE"
+    | Some(i) => "ci:" ++ (Language.Info.cls_of(i) |> Language.Cls.show)
+    };
+  let buf =
+    switch (TyDi.set_buffer(~ci, z)) {
+    | None => "buf:NONE"
+    | Some(z') =>
+      switch (TyDi.get_unparsed_buffer(z')) {
+      | None => "buf:???"
+      | Some(t) => "buf:" ++ t
+      }
+    };
+  String.concat(" | ", [tok, ci_s, buf]);
+};
+let tydi_case = (~name, ~acts, ~expected) =>
+  test_case(name, `Quick, () =>
+    check(string_testable, name, expected, probe_tydi(acts))
+  );
+let tydi_probe_tests = [
+  tydi_case(
+    ~name="els suggests remainder e",
+    ~acts=Test_Editing.mk("if 1 < 2 then 3 else¦ 4") @ [destruct_l],
+    ~expected="tok:els | ci:NONE | buf:e",
+  ),
+  tydi_case(
+    ~name="el suggests remainder se",
+    ~acts=
+      Test_Editing.mk("if 1 < 2 then 3 else¦ 4") @ [destruct_l, destruct_l],
+    ~expected="tok:el | ci:NONE | buf:se",
+  ),
+  tydi_case(
+    ~name="e suggests remainder lse (expectation bypasses length gate)",
+    ~acts=
+      Test_Editing.mk("if 1 < 2 then 3 else¦ 4")
+      @ [destruct_l, destruct_l, destruct_l],
+    ~expected="tok:e | ci:NONE | buf:lse",
+  ),
+  tydi_case(
+    ~name="dash suggests arrow remainder",
+    ~acts=Test_Editing.mk("fun x ->¦ x * 2") @ [destruct_l],
+    ~expected="tok:- | ci:NONE | buf:>",
+  ),
+  tydi_case(
+    ~name="non-head obligation suggests (en inside open paren)",
+    /* the old head-only path could never suggest this: the paren's )
+       is the nearest obligation, the case's end is deeper — the
+       witness route matches by anchor, not stack position */
+    ~acts=Test_Editing.mk("(case x | 1 => 2 en¦"),
+    ~expected="tok:en | ci:NONE | buf:d",
+  ),
+  tydi_case(
+    ~name="1-char ctx prefix stays gated (noise guard)",
+    /* no expectation in play: the length gate still blocks 1-char
+       context-variable suggestions */
+    ~acts=Test_Editing.mk("let ee = 7 in e¦"),
+    ~expected="tok:e | ci:Variable reference | buf:NONE",
+  ),
+  tydi_case(
+    ~name="equals suggests rule-arrow remainder",
+    ~acts=Test_Editing.mk("case x | 1 =>¦ 2 end") @ [destruct_l],
+    ~expected="tok:= | ci:NONE | buf:>",
+  ),
+];
+let joint_tests = [
+  edit_case(
+    ~name="end+in double deletion: placements incompatible (KNOWN-BAD)",
+    ~acts=dbl_del_inline,
+    ~expected="let f = case x | 1 => 2 | 3 => 4 endin  f",
+  ),
+  /* control: in alone (end intact) — its deletion-debris junction
+     should restore it in place */
+  edit_case(
+    ~name="in alone: junction restores in place",
+    ~acts=
+      Test_Editing.mk("let f = case x | 1 => 2 | 3 => 4 end in¦ f")
+      @ [destruct_l, destruct_l],
+    ~expected="let f = case x | 1 => 2 | 3 => 4 end in f",
+  ),
+];
+
 let tests: list((string, list(Alcotest.test_case(unit)))) = [
+  ("CanonicalCompletion: reassociation-guards", probe_tests),
+  ("CanonicalCompletion: closer-vs-separator", probe2_tests),
+  ("CanonicalCompletion: tydi-gates", tydi_probe_tests),
+  ("CanonicalCompletion: insertion-ordering", ordering_tests),
+  ("CanonicalCompletion: joint-satisfiability", joint_tests),
   /* Debug test - run first to isolate crash */
   ("CanonicalCompletion: regrout-debug", regrout_debug_tests),
   /* Building block tests - verify Segment.reassemble and regrout behavior */
@@ -1122,6 +1563,14 @@ let tests: list((string, list(Alcotest.test_case(unit)))) = [
   ),
   ("CanonicalCompletion: case-repair (edit-derived)", case_repair_edit_tests),
   ("CanonicalCompletion: entry-experience", entry_experience_tests),
+  ("CanonicalCompletion: leading-witness", leading_witness_tests),
+  ("CanonicalCompletion: symbolic-witness", symbolic_witness_tests),
+  ("CanonicalCompletion: opener-walls", opener_wall_tests),
+  ("CanonicalCompletion: continuation", continuation_tests),
+  (
+    "CanonicalCompletion: leading-witness-roundtrip",
+    leading_witness_roundtrip_tests,
+  ),
   ("CanonicalCompletion: wraps", run_completion_tests(wrap_tests)),
   ("CanonicalCompletion: wraps (edit-derived)", run_wrap_seg_tests),
   ("CanonicalCompletion: linebreaks", run_completion_tests(linebreak_tests)),

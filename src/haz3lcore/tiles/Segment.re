@@ -1089,7 +1089,7 @@ let rescan = (seg: t): t => {
   if (!has_incomplete) {
     seg;
   } else {
-    /* Walk left-to-right with a STACK of backpack frames.
+    /* Walk left-to-right with a STACK of expectation frames.
      * Each incomplete tile pushes a new frame with its missing shards.
      * Only the TOP frame is checked for matching.
      * When a match exhausts the top frame, pop to the previous one.

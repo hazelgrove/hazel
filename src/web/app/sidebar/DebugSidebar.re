@@ -615,7 +615,7 @@ let indicated_piece_fields = (p: Haz3lcore.Piece.t): list(Node.t) =>
 /* Caret, selection, and backpack from the editor's zipper. */
 let zipper_fields = (z: Haz3lcore.Zipper.t): list(Node.t) => {
   let sel = z.selection;
-  let backpack = Haz3lcore.Zipper.local_backpack(z);
+  let backpack = Haz3lcore.Zipper.local_missing_shards(z);
   [
     field_str("caret", Haz3lcore.CaretBase.show(z.caret)),
     field_str("selection.focus", Util.Direction.show(sel.focus)),
@@ -661,7 +661,7 @@ let editor_fields = (editor: Haz3lcore.Editor.t): list(Node.t) => {
     ),
     field_str(
       "backpack (cached)",
-      string_of_int(List.length(syntax.cached_backpack)) ++ " tile(s)",
+      string_of_int(List.length(syntax.missing_shards)) ++ " tile(s)",
     ),
   ];
 };

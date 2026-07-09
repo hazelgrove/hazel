@@ -2,10 +2,9 @@ open Alcotest;
 open Haz3lcore;
 open Action;
 
-let deep_reassociate_settings = {
-  ...Test_Editing.default_settings,
-  deep_reassociate: true,
-};
+/* reassociation is unconditional now; the binding survives only to
+   keep the many call sites unchanged */
+let deep_reassociate_settings = Test_Editing.default_settings;
 
 let deep_reassociate_tests = [
   test_case(

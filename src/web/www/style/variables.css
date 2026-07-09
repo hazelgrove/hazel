@@ -178,9 +178,29 @@
 
   /* QUIVER DECO (completion visualization) */
 
-  --quiver-arrow: #e74c3c;
-  --quiver-offside-text: #7f8c8d;
-  --quiver-offside-bg: rgba(127, 140, 141, 0.15);
+  /* matches the quiver box token color (= incomplete delimiters) so
+     arrow, preview, and incomplete tokens read as one system */
+  --quiver-chip: var(--token-incomplete);
+  /* opaque subdued blend for chips out of tab range (chips overlay
+     text; translucency would bleed code through the knockout) */
+  --quiver-chip-subdued: color-mix(
+    in srgb,
+    var(--token-incomplete) 32%,
+    var(--light-page-color)
+  );
+  --quiver-chip-text: var(--light-page-color);
+  --quiver-chip-text-faded: color-mix(
+    in srgb,
+    var(--light-page-color) 78%,
+    var(--token-incomplete)
+  );
+  /* on the subdued dim background the live fade disappears; dim
+     chips fade DARKER instead (toward the token color) */
+  --quiver-chip-text-faded-dim: color-mix(
+    in srgb,
+    var(--token-incomplete) 62%,
+    var(--light-page-color)
+  );
 
   /* PROJECTORS */
   --textarea-indicated: var(--SAND);

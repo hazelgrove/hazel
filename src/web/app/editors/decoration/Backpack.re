@@ -208,7 +208,7 @@ let view =
     (
       ~font_metrics: FontMetrics.t,
       ~measured: Haz3lcore.Measured.t,
-      ~cached_backpack: list(Haz3lcore.Tile.t),
+      ~missing_shards: list(Haz3lcore.Tile.t),
       z: Haz3lcore.Zipper.t,
     )
     : Node.t => {
@@ -221,8 +221,8 @@ let view =
       Selection.is_empty(z.selection) || Selection.is_buffer(z.selection)
         ? {
           let contents =
-            Zipper.local_backpack(z)
-            @ cached_backpack
+            Zipper.local_missing_shards(z)
+            @ missing_shards
             |> ListUtil.dedup
             |> List.map(Tile.effective_label)
             |> List.map(List.hd);

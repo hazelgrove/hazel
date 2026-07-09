@@ -962,8 +962,123 @@ m.x|},
   ),
 ];
 
+/* === Indentation UX: skip-movement, backspace-join, indent commands
+   (plans/indentation-ux.md) === */
+let ux_settings = {
+  ...Test_Editing.default_settings,
+  Language.CoreSettings.indentation_ux: true,
+};
+
+let ux_text = (acts: list(Action.t)): string =>
+  Printer.of_segment(
+    ~holes="?",
+    ~refractors=[],
+    Zipper.unselect_and_zip(
+      perform(~settings=ux_settings, Zipper.init(), acts),
+    ),
+  );
+
+let ux_case = (~name, ~acts, ~expected) =>
+  test_case(name, `Quick, () =>
+    check(string, name, expected, ux_text(acts))
+  );
+
+let bsp = Action.Destruct(Local(Left, ByChar));
+
+let indent_ux_tests = [
+  ux_case(
+    ~name="backspace at line start inverts enter (indent + linebreak)",
+    ~acts=string_to_ltr_actions("fun q ->\n") @ [bsp],
+    ~expected="fun q ->?",
+  ),
+  ux_case(
+    ~name="backspace deletes a blank line in one keystroke",
+    ~acts=string_to_ltr_actions("fun q ->\n\n") @ [bsp],
+    ~expected="fun q ->\n  ?",
+  ),
+  ux_case(
+    ~name="shift+backspace dedents at first-content",
+    ~acts=
+      string_to_ltr_actions("fun q ->\nx")
+      @ mv_l(1)
+      @ [Action.AdjustIndent(Left, AtBoundary)],
+    ~expected="fun q ->\nx",
+  ),
+  ux_case(
+    ~name="shift+backspace mid-content falls through to backspace",
+    ~acts=
+      string_to_ltr_actions("fun q ->\nx")
+      @ [Action.AdjustIndent(Left, AtBoundary)],
+    ~expected="fun q ->\n  ?",
+  ),
+  ux_case(
+    ~name="indent line from any caret position",
+    ~acts=
+      string_to_ltr_actions("fun q ->\nx")
+      @ [Action.AdjustIndent(Right, Always)],
+    ~expected="fun q ->\n    x",
+  ),
+  ux_case(
+    ~name="dedent clamps and works on the first line",
+    ~acts=
+      string_to_ltr_actions("  x") @ [Action.AdjustIndent(Left, Always)],
+    ~expected="x",
+  ),
+  ux_case(
+    ~name="left from first-content lands at previous line end",
+    ~acts=
+      string_to_ltr_actions("fun q ->\nx") @ mv_l(2) @ [Action.Insert("2")],
+    ~expected="fun q ->2 \n  x",
+  ),
+  ux_case(
+    ~name="right from line end skips indentation to first content",
+    ~acts=
+      string_to_ltr_actions("fun q ->\nx")
+      @ mv_l(2)
+      @ mv_r(1)
+      @ [Action.Insert("+")],
+    ~expected="fun q ->\n  ?+x",
+  ),
+  ux_case(
+    ~name="blank lines keep one reachable position (their end)",
+    ~acts=
+      string_to_ltr_actions("fun q ->\n\nx")
+      @ mv_l(2)
+      @ [Action.Insert("1")],
+    ~expected="fun q ->\n  1 \n  x",
+  ),
+  ux_case(
+    ~name="home is smart: lands at first content",
+    ~acts=
+      string_to_ltr_actions("fun q ->\nx")
+      @ [Action.Move(Line(Left)), Action.Insert("+")],
+    ~expected="fun q ->\n  ?+x",
+  ),
+];
+
+/* Convex grout anchors indentation like a literal atom: empty
+   branches must not push following lines deeper (regression: holes
+   were skipped by effective_prev, re-firing incrementor/child rules
+   so else/in drifted right). The two cases mirror each other. */
+let grout_indent_tests = [
+  test_indent_after_format(
+    ~name="hole branches indent like literal branches",
+    ~init="let f =\nfun x ->\nlet x =\nif x < 0 then\nelse\nin\nf(3)",
+    ~goal=
+      "let f =\n  fun x ->\n    let x =\n      if x < 0 then?\n      else?\n    in\n  f(3)",
+  ),
+  test_indent_after_format(
+    ~name="literal branches (mirror of the hole case)",
+    ~init="let f =\nfun x ->\nlet x =\nif x < 0 then\n1\nelse 2\nin\nf(3)",
+    ~goal=
+      "let f =\n  fun x ->\n    let x =\n      if x < 0 then\n        1\n      else 2\n    in\n  f(3)",
+  ),
+];
+
 let tests = [
   ("Editing.Indentation", indentation_tests),
+  ("Editing.IndentationUX", indent_ux_tests),
+  ("Editing.GroutIndent", grout_indent_tests),
   ("Editing.SelectiveReindent", selective_reindent_tests),
   ("Editing.Indentation.Modules", module_indentation_tests),
 ];

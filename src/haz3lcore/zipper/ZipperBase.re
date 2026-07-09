@@ -8,7 +8,8 @@ type caret = CaretBase.t;
 /* Refractor state extracted to Refractors.re - see state location docs there */
 module Refractor = Refractors;
 
-// assuming single backpack, shards may appear in selection, backpack, or siblings
+// shards may appear in the selection or siblings; "missing" shards
+// (the derived backpack) are those an incomplete tile still lacks
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type t = {
   selection: Selection.t,

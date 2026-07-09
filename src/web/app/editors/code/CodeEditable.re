@@ -103,6 +103,7 @@ module Update = {
              | RefactorGesture(_)
              | Probe(StepInto(_))
              | Format(_)
+             | AdjustIndent(_, _)
              | Dump
              | ToggleLineComment => true
              | Project(_)
@@ -178,7 +179,7 @@ module Update = {
     | TAB =>
       /* Attempt to act intelligently when TAB is pressed.
        * TODO: Consider more advanced TAB logic. Instead
-       * of simply moving to next hole, if the backpack is non-empty
+       * of simply moving to next hole, if shards are missing
        * but can't immediately put down, move to next position of
        * interest, which is closet of: nearest position where can
        * put down, farthest position where can put down, next hole */
@@ -618,7 +619,7 @@ module View = {
           Backpack.view(
             ~font_metrics=globals.font_metrics,
             ~measured=syntax.measured,
-            ~cached_backpack=syntax.cached_backpack,
+            ~missing_shards=syntax.missing_shards,
             z,
           ),
         ]
@@ -630,10 +631,26 @@ module View = {
           QuiverDec.view(
             ~measured=syntax.measured,
             ~font_metrics=globals.font_metrics,
+            ~caret_pos={
+              let p = Zipper.Caret.point(syntax.measured, z);
+              Some((p.row, p.col));
+            },
+            ~droppable=
+              z.caret == Outer
+                ? Zipper.missing_shards_hd(z)
+                  |> Option.map((t: Haz3lcore.Tile.t) =>
+                       (t.id, Haz3lcore.Tile.l_shard(t))
+                     )
+                : None,
             syntax.segment,
           ),
         ]
-        : []
+        /* quiver off: clear stale claims so probes don't stack
+           against phantom boxes (QuiverDec.view resets on entry) */
+        : {
+          RowOffsets.reset();
+          [];
+        }
     );
 
   let view =

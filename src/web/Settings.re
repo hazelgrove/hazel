@@ -36,9 +36,9 @@ module Model = {
       assist: true,
       dynamics: true,
       probe_all: false,
-      deep_reassociate: true,
       auto_reindent: true,
       format_shortcut: Language.CoreSettings.FormatShortcut.Spaces,
+      indentation_ux: true,
       flip_animations: true,
       animate_all_edits: false,
       drag_refactor: false,
@@ -83,8 +83,8 @@ module Model = {
       debug_show_raw: false,
       debug_collapsed: [],
     },
-    quiver: false, /* Off by default; toggle via command palette */
-    backpack: true, /* Show backpack by default */
+    quiver: true, /* On by default (andrew 2026-07-09) */
+    backpack: false, /* Off for now — quiver is the completion display (andrew 2026-07-09) */
     autoprobe_mode: false,
     agent_globals: AgentGlobals.init(),
     line_numbers: false,
@@ -155,7 +155,6 @@ module Update = {
     | Statics
     | Dynamics
     | ProbeAll
-    | DeepReassociate
     | AutoReindent
     | FormatShortcut(Language.CoreSettings.FormatShortcut.t)
     | SelectionChunkiness
@@ -225,13 +224,6 @@ module Update = {
             dynamics: !settings.core.probe_all || settings.core.dynamics,
             statics: !settings.core.probe_all || settings.core.statics,
             probe_all: !settings.core.probe_all,
-          },
-        }
-      | DeepReassociate => {
-          ...settings,
-          core: {
-            ...settings.core,
-            deep_reassociate: !settings.core.deep_reassociate,
           },
         }
       | AutoReindent => {
