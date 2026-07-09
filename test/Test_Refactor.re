@@ -1982,6 +1982,27 @@ let regression_tests = [
 
 let shard_anchor_tests = [
   test_case(
+    "drag: occurrence-inside-a-def retries as def-host feed",
+    `Quick,
+    () => {
+      /* `a` (multi-use) is an occurrence of the outer binder AND
+         inside y's def: the at-use feed spawns its clone exactly at
+         the grab (zero track, dropped); the retry feeds Y's value to
+         y's use instead — grabbing the value moves the value */
+      let cs = drag_cands("let a = 1 in\nlet y = ¦a + 5 in\nf(a + y)");
+      let kinds = cs |> List.map((c: Refactor.DragCandidate.t) => c.kind);
+      check(bool, "feed offered", true, List.mem(Action.FeedLet, kinds));
+      let feed =
+        cs |> List.find((c: Refactor.DragCandidate.t) => c.kind == FeedLet);
+      check(
+        bool,
+        "def-host track heads down to y's use",
+        true,
+        feed.target.row > feed.current.row,
+      );
+    },
+  ),
+  test_case(
     "add-arm draggable from the end shard (per-shard anchor)",
     `Quick,
     () => {
@@ -1995,6 +2016,19 @@ let shard_anchor_tests = [
 ];
 
 let landing_block_tests = [
+  test_case(
+    "feed-consume of an inline-headed let rejoins the host line",
+    `Quick,
+    () => {
+      let got =
+        inline(
+          ~kind=FeedLet,
+          "case m | 1 => let x = 2 in\n  f(¦x) | _ => 0 end",
+        )
+        |> text_of;
+      check(string, "rejoined", "case m | 1 => f(2) | _ => 0 end", got);
+    },
+  ),
   test_case(
     "sink into an inline arm body breaks after the in",
     `Quick,
