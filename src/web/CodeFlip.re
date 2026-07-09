@@ -114,7 +114,19 @@ let enter_duration = 320; /* slower than movement so it registers */
 let drag_enter_from: ref(option(float)) = ref(None);
 let set_drag_enter = (t: float): unit => drag_enter_from := Some(t);
 
-let animate_enter = (~from: option(float)=?, node: Js.t(Dom.node)): unit => {
+/* traveling enters (emergeFrom): remaining px offset from the
+   ghost's mid-flight position to the destination, by key */
+let drag_enter_offsets: ref(list((key, (float, float)))) = ref([]);
+let set_drag_enter_offsets = (l: list((key, (float, float)))): unit =>
+  drag_enter_offsets := l;
+
+let animate_enter =
+    (
+      ~from: option(float)=?,
+      ~extra: (float, float)=(0., 0.),
+      node: Js.t(Dom.node),
+    )
+    : unit => {
   let run = keyframes => {
     let options =
       Animation.Js.options_unsafe({
@@ -138,14 +150,24 @@ let animate_enter = (~from: option(float)=?, node: Js.t(Dom.node)): unit => {
     | anim => active := [anim, ...active^]
     };
   };
+  let (ex, ey) = extra;
   switch (from) {
   | Some(t0) =>
     /* the ghost carried the entrance to (opacity t0, scale
-       0.1+0.9*t0) — continue, don't restart */
+       0.1+0.9*t0) at its mid-flight position — continue all three,
+       don't restart */
     run([("opacity", Printf.sprintf("%f", t0)), ("opacity", "1")]);
     run([
-      ("transform", Printf.sprintf("scale(%f)", 0.1 +. 0.9 *. t0)),
-      ("transform", "scale(1)"),
+      (
+        "transform",
+        Printf.sprintf(
+          "translate(%fpx, %fpx) scale(%f)",
+          ex,
+          ey,
+          0.1 +. 0.9 *. t0,
+        ),
+      ),
+      ("transform", "translate(0px, 0px) scale(1)"),
     ]);
   | None =>
     run([("opacity", "0"), ("opacity", "1")]);
@@ -349,6 +371,8 @@ let go = (~syntax: CachedSyntax.t, ~font_metrics: FontMetrics.t): unit =>
     drag_offsets := [];
     let enter_from = drag_enter_from^;
     drag_enter_from := None;
+    let enter_offsets = drag_enter_offsets^;
+    drag_enter_offsets := [];
     let bump_y =
       switch (scroll_bump^) {
       | Some((el, rows)) =>
@@ -398,7 +422,7 @@ let go = (~syntax: CachedSyntax.t, ~font_metrics: FontMetrics.t): unit =>
                     pairs
                     |> List.filter_map(((k, node)) =>
                          switch (find_meas(old_m, k), find_meas(new_m, k)) {
-                         | (None, Some(_)) => Some(node)
+                         | (None, Some(_)) => Some((k, node))
                          | _ => None
                          }
                        );
@@ -450,7 +474,16 @@ let go = (~syntax: CachedSyntax.t, ~font_metrics: FontMetrics.t): unit =>
                          | _ => ()
                          }
                        );
-                    entered |> List.iter(animate_enter(~from=?enter_from));
+                    entered
+                    |> List.iter(((k, node)) =>
+                         animate_enter(
+                           ~from=?enter_from,
+                           ~extra=
+                             List.assoc_opt(k, enter_offsets)
+                             |> Option.value(~default=(0., 0.)),
+                           node,
+                         )
+                       );
                     moved
                     |> List.iter(((_, node, _, _)) => warn_invisible(node));
                   };

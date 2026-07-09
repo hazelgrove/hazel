@@ -1432,17 +1432,20 @@ let feed_let_impl: impl = {
                 reparses_region(candidate);
               };
         };
-      /* the def survives, so the copy needs fresh interior ids */
-      let copy = inserted(~parens, refresh_ids(def), occ);
-      let at_use =
-        occ |> IdTagged.ids |> List.mem(target) ? Some(target) : None;
+      /* the copy is a SPAWNED CLONE (dragology's fruit-bowl: the def
+         survives, so the copy is wholly new — fresh ids throughout,
+         keep_ids so the root doesn't adopt the occurrence's). The
+         occurrence properly EXITS; the clone's own identity is what
+         emerge animation correlates on. */
+      let copy = inserted(~parens, ~keep_ids=true, refresh_ids(def), occ);
+      let at_use = occ |> IdTagged.ids |> List.mem(target);
       let focus =
-        switch (at_use) {
-        /* invoked at the use: caret follows the copy */
-        | Some(oid) => oid
-        /* invoked at the let: caret stays for the next feed */
-        | None => Exp.rep_id(l)
-        };
+        at_use
+          /* invoked at the use: caret follows the clone (the
+             occurrence's ids are gone) */
+          ? Exp.rep_id(copy)
+          /* invoked at the let: caret stays for the next feed */
+          : Exp.rep_id(l);
       rewrite_node(
         ~hit=same_node(l),
         ~rewrite=
@@ -5225,6 +5228,11 @@ module DragCandidate = {
     current: Measured.Point.t, /* track start (live layout) */
     target: Measured.Point.t, /* track end (screen frame) */
     frame,
+    /* entering-token ORIGINS (dragology's emergeFrom): a transform
+       that DUPLICATES content (feed with surviving uses) maps each
+       fresh copy id to the live id it emerges from — the ghost
+       travels from the source instead of growing in place */
+    emerge: list((Id.t, Id.t)),
     term: Exp.t,
     focus: Id.t,
     segment: Segment.t,
@@ -5364,6 +5372,41 @@ let drag_candidates =
               | _ => DragCandidate.no_frame
               };
             let tgt = DragCandidate.frame_point(frame, tgt);
+            /* emerge map (dragology's emergeFrom): the spawned clone's
+               ids are exactly the FRESH ids of the candidate; both
+               walks share traversal order, so they zip against the
+               def's ids positionally — no clone lookup needed */
+            let emerge =
+              switch (kind) {
+              | FeedLet =>
+                switch (feed_plan(~info_map, ~target, term)) {
+                | Some(Feed(_, def, _)) =>
+                  let live = exp_subtree_ids(term);
+                  let fresh =
+                    exp_subtree_ids(term')
+                    |> List.filter(id => !List.mem(id, live));
+                  let d = exp_subtree_ids(def);
+                  /* combine raises on length mismatch — guard FIRST
+                     (the eager-evaluation gotcha); a parenthesized
+                     clone has one extra id and falls back to
+                     grow-in-place */
+                  List.length(fresh) == List.length(d)
+                    ? List.combine(fresh, d) : [];
+                | _ => []
+                }
+              | _ => []
+              };
+            /* a spawned clone's track ends at the CLONE (the
+               occurrence's ids no longer exist in the candidate) */
+            let tgt =
+              switch (emerge |> List.find_opt(((_, d)) => d == from_id)) {
+              | Some((clone_id, _)) =>
+                switch (to_pos(clone_id)) {
+                | Some(p) => DragCandidate.frame_point(frame, p)
+                | None => tgt
+                }
+              | None => tgt
+              };
             cur.origin != tgt
               ? Some({
                   DragCandidate.dir,
@@ -5372,6 +5415,7 @@ let drag_candidates =
                   current: cur.origin,
                   target: tgt,
                   frame,
+                  emerge,
                   term: term',
                   focus,
                   segment,

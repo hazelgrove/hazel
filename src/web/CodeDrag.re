@@ -63,8 +63,11 @@ type cand = {
      tokens (dragology's createSyntheticBefore) at their candidate
      positions, running THE grow-in (scale+fade) scrubbed by t; the
      commit's enter animation continues from the same opacity+scale.
-     (text, token classes, position) */
-  enters: list((string, string, vec)),
+     (text, token classes, destination, emerge-origin). With an
+     origin (feed's copy emerging from the surviving def), the ghost
+     TRAVELS origin->destination while growing — dragology's
+     emergeFrom; without, it grows in place. */
+  enters: list((CodeFlip.key, string, string, vec, option(vec))),
 };
 
 /* Candidate enumeration must wait for the model to settle: on arm,
@@ -200,17 +203,25 @@ let draw = (s: session, pointer: option(vec)) => {
         let scale = 0.1 +. 0.9 *. s.t;
         let spans =
           c.enters
-          |> List.map(((text, cls, v)) =>
+          |> List.map(((_, text, cls, dest, origin)) => {
+               let pos =
+                 switch (origin) {
+                 | Some(from) => {
+                     x: from.x +. (dest.x -. from.x) *. s.t,
+                     y: from.y +. (dest.y -. from.y) *. s.t,
+                   }
+                 | None => dest
+                 };
                Printf.sprintf(
                  {|<span class="%s" style="position:absolute;left:%fpx;top:%fpx;opacity:%f;transform:scale(%f)">%s</span>|},
                  cls,
-                 o.x +. v.x,
-                 o.y +. v.y,
+                 o.x +. pos.x,
+                 o.y +. pos.y,
                  s.t,
                  scale,
                  xml_escape(text),
-               )
-             )
+               );
+             })
           |> String.concat("");
         Printf.sprintf(
           {|<div class="code" style="position:fixed;inset:0;pointer-events:none">%s</div>|},
@@ -629,6 +640,25 @@ let on_up = (_e: Js.t(Dom_html.event)): unit =>
       if (c.enters != []) {
         CodeFlip.set_drag_enter(s.t);
       };
+      /* traveling enters: the real tokens continue POSITIONALLY from
+         the ghost's spot — the remaining travel goes through the
+         offsets map like every other continuation */
+      CodeFlip.set_drag_enter_offsets(
+        c.enters
+        |> List.filter_map(((k, _, _, dest, origin)) =>
+             switch (origin) {
+             | Some(from) =>
+               Some((
+                 k,
+                 (
+                   (from.x -. dest.x) *. (1. -. s.t),
+                   (from.y -. dest.y) *. (1. -. s.t),
+                 ),
+               ))
+             | None => None
+             }
+           ),
+      );
       CodeFlip.adopt(s.scrub_anims |> List.concat_map(snd));
       s.scrub_anims = [];
       s.scrub_active = None;
@@ -813,6 +843,7 @@ let sync =
       let enters_for =
           (
             frame: Refactor.DragCandidate.frame,
+            emerge: list((Id.t, Id.t)),
             cand_seg: Segment.t,
             cand_m: Measured.t,
           ) =>
@@ -824,14 +855,26 @@ let sync =
              ) {
              | (None, Some(n)) =>
                let p = Refactor.DragCandidate.frame_point(frame, n.origin);
-               Some((
-                 text,
-                 cls,
-                 {
-                   x: float_of_int(p.col) *. font_metrics.col_width,
-                   y: float_of_int(p.row) *. font_metrics.row_height,
-                 },
-               ));
+               let px_of = (pt: Measured.Point.t) => {
+                 x: float_of_int(pt.col) *. font_metrics.col_width,
+                 y: float_of_int(pt.row) *. font_metrics.row_height,
+               };
+               /* emerge origin: the live token this copy grows out
+                  of (same shard index on the paired live tile) */
+               let origin =
+                 switch (k) {
+                 | Shard(kid, i) =>
+                   switch (List.assoc_opt(kid, emerge)) {
+                   | Some(from_id) =>
+                     CodeFlip.find_meas(measured, Shard(from_id, i))
+                     |> Option.map((m: Measured.measurement) =>
+                          px_of(m.origin)
+                        )
+                   | None => None
+                   }
+                 | _ => None
+                 };
+               Some((k, text, cls, px_of(p), origin));
              | _ => None
              }
            );
@@ -888,7 +931,7 @@ let sync =
                moved: moved_for(c.frame, c.measured),
                deco_delta: deco_delta_for(c.frame, c.measured),
                exits: exits_for(c.measured),
-               enters: enters_for(c.frame, c.segment, c.measured),
+               enters: enters_for(c.frame, c.emerge, c.segment, c.measured),
              }
            );
       s.cands = cands;
