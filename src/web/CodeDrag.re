@@ -94,6 +94,7 @@ type session = {
   mutable winner: option(int),
   mutable t: float,
   mutable began: bool,
+  mutable had_cands: bool,
   mutable pending,
   mutable last_z: option(Zipper.t),
   mutable last_term: option(Language.Exp.t),
@@ -618,6 +619,10 @@ let on_up = (_e: Js.t(Dom_html.event)): unit =>
   switch (session^) {
   | None => ()
   | Some(s) =>
+    /* dragged something undraggable: make the refusal visible */
+    if (s.began && !s.had_cands) {
+      CodeFlip.shake_dead_press();
+    };
     switch (
       s.winner |> Option.map(i => List.nth_opt(s.cands, i)) |> Option.join
     ) {
@@ -692,6 +697,7 @@ let arm =
     winner: None,
     t: 0.,
     began: false,
+    had_cands: false,
     pending: AwaitGoal(goal, None),
     last_z: None,
     last_term: None,
@@ -938,6 +944,7 @@ let sync =
         s.pending = AwaitChange(Some(z), Some(term));
         remove_overlay();
       } else {
+        s.had_cands = true;
         s.pending = Idle;
         draw(s, None);
       };

@@ -1848,20 +1848,43 @@ let extract_let_impl: impl = {
     /* the new binding lands at the nearest enclosing line; the use
        site takes over the extracted node's whitespace slot, and the
        line keeps its layout via a fresh copy of its leading run */
-    let to_block = (line: Exp.t, t: Exp.t) => {
+    let to_block = (path: list(Exp.t), line: Exp.t, t: Exp.t) => {
       let s = Slot.of_exp(t);
       let def = pad(Slot.drop(s, t));
       let use = Slot.give(s, fresh(Var(x)));
-      /* an introduced let gets its own line at the ROOT line even in
-         a one-liner (andrew: extract's directionality only holds if
-         the binding actually goes above — the post-inline one-liner
-         case). Inline sub-slots (fun/arm bodies, chain body slots)
-         keep their one-line layout for now: breaking there needs
-         indent synthesis, and the pinned frame assumes new lines
-         open at-or-above the origin. */
+      /* an introduced let ALWAYS gets its own line (andrew: extract's
+         directionality only holds if the displaced content actually
+         moves). Line slots that already start a line keep their lead
+         shape; INLINE sub-slots (fun/arm bodies, chain body slots)
+         synthesize a break with the nearest enclosing line's indent
+         + 2 — the ancestor path supplies the indent. */
       let sep = {
         let s = sep_like(Slot.of_exp(line).lead);
-        has_newline(s) || !same_node(line, program) ? s : newline();
+        if (has_newline(s)) {
+          s;
+        } else {
+          /* nearest ancestor (deepest-first, above the line) whose
+             slot starts a line: copy its break + indent, plus 2 */
+          let rec prefix_to = (acc, path: list(Exp.t)) =>
+            switch (path) {
+            | [] => acc
+            | [n, ..._] when same_node(n, line) => acc
+            | [n, ...rest] => prefix_to([n, ...acc], rest)
+            };
+          let ancestor_sep =
+            prefix_to([], path)
+            |> List.find_map((a: Exp.t) => {
+                 let al = sep_like(Slot.of_exp(a).lead);
+                 has_newline(al) ? Some(al) : None;
+               });
+          switch (ancestor_sep) {
+          | _ when same_node(line, program) =>
+            /* root line: column 0, no indent */
+            newline()
+          | Some(al) => al @ space() @ space()
+          | None => newline() @ space() @ space()
+          };
+        };
       };
       let build = (~parens: bool) =>
         rewrite_node(
@@ -1896,7 +1919,7 @@ let extract_let_impl: impl = {
       let blocked =
         crossed_rec_binders(line, path) |> List.exists(n => mentions(n, t));
       !blocked && !same_node(line, t)
-        ? to_block(line, t) : in_place(~parens=!same_node(line, t), t);
+        ? to_block(path, line, t) : in_place(~parens=!same_node(line, t), t);
     };
   },
 };
@@ -5362,13 +5385,37 @@ let drag_candidates =
                   scroll_rows: 0,
                 }
               | ExtractLet when cand_rows > live_rows =>
-                /* pinned origin: space opens above the grabbed line;
-                   above-content slides up; commit bumps the scroll */
-                {
-                  DragCandidate.shift_from: 0,
-                  shift_rows: live_rows - cand_rows,
-                  scroll_rows: cand_rows - live_rows,
-                }
+                /* two insertion geometries: a LINE-TAKEOVER extract
+                   (the slot starts a line) opens space at-or-above
+                   the origin — pin the origin, slide above-content
+                   up, bump the scroll at commit. A SUB-SLOT extract
+                   (inline fun/arm/chain body) keeps the origin line
+                   head and breaks the displaced body DOWN — pin
+                   everything through the origin row and let the
+                   below-content drop at commit (consequence-space
+                   opens on release, the dual of inline's deferred
+                   collapse). */
+                let takeover =
+                  switch (extract_path(~target, term)) {
+                  | Some(path) =>
+                    let line = lowest_line(path);
+                    same_node(line, term)
+                    || has_newline(sep_like(Slot.of_exp(line).lead));
+                  | None => true
+                  };
+                if (takeover) {
+                  {
+                    DragCandidate.shift_from: 0,
+                    shift_rows: live_rows - cand_rows,
+                    scroll_rows: cand_rows - live_rows,
+                  };
+                } else {
+                  {
+                    DragCandidate.shift_from: cur.origin.row + 1,
+                    shift_rows: live_rows - cand_rows,
+                    scroll_rows: 0,
+                  };
+                };
               | _ => DragCandidate.no_frame
               };
             let tgt = DragCandidate.frame_point(frame, tgt);

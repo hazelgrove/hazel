@@ -47,6 +47,17 @@ module Update = {
             dynamics: model.dynamics,
             context_menu: None,
           }
+        | Error(Action.Failure.Cant_refactor) => {
+            /* dead press: gated-not-fall-through is the rule, but
+               silence read as breakage — make the refusal visible */
+            CodeFlip.shake_dead_press();
+            Model.{
+              editor: model.editor,
+              statics: model.statics,
+              dynamics: model.dynamics,
+              context_menu: model.context_menu,
+            };
+          }
         | Error(err) => raise(Action.Failure.Exception(err))
       )
       |> Updated.return(

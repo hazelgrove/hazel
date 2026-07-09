@@ -271,7 +271,13 @@ let adopt = (anims: list(Js.Unsafe.any)): unit => active := anims @ active^;
 /* Anchored decorations: elements whose DOM id is "<prefix><uuid>"
    ride the token with that id — one rail for the drag scrub and the
    commit flights (a deco missing an anchor just doesn't move). */
-let deco_prefixes = ["varhl-", "errdec-", "warndec-", "indication-"];
+let deco_prefixes = [
+  "varhl-",
+  "errdec-",
+  "warndec-",
+  "indication-",
+  "projdec-",
+];
 
 /* anchors are PER-SHARD where the id encodes one (indication-
    <uuid>-<k>): delimiters of one tile don't move rigidly (case vs
@@ -326,6 +332,49 @@ let anchor_meas =
     }
   | None => Measured.find_by_id(id, m)
   };
+
+/* Dead-press feedback: shake the indicated construct's backing
+   shards (they exist and carry DOM ids whenever something is
+   indicated) so a gated gesture visibly registers instead of
+   silently doing nothing. Falls back to the caret. */
+let shake_dead_press = (): unit => {
+  let ids = JsUtil.ids_with_prefix("indication-");
+  let targets =
+    switch (ids) {
+    | [] =>
+      switch (JsUtil.get_elem_by_id_opt("caret")) {
+      | Some(el) => [el]
+      | None => []
+      }
+    | ids => ids |> List.filter_map(JsUtil.get_elem_by_id_opt)
+    };
+  targets
+  |> List.iter(el => {
+       let keyframes =
+         Animation.Js.keyframes_unsafe([
+           ("transform", "translateX(0px)"),
+           ("transform", "translateX(-2px)"),
+           ("transform", "translateX(2px)"),
+           ("transform", "translateX(-2px)"),
+           ("transform", "translateX(0px)"),
+         ]);
+       let options =
+         Animation.Js.options_unsafe({
+           duration: 160,
+           easing: "ease-in-out",
+         });
+       switch (
+         Js.Unsafe.meth_call(
+           el,
+           "animate",
+           [|Js.Unsafe.inject(keyframes), Js.Unsafe.inject(options)|],
+         )
+       ) {
+       | exception _ => ()
+       | _ => ()
+       };
+     });
+};
 
 /* Commit-time scroll bump (pinned-frame extract): applied when the
    flights start — same frame as the layout change, after the patch —

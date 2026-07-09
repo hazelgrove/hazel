@@ -763,8 +763,8 @@ let more_tests = [
         inline(~kind=ExtractLet, "let x = 1 in x * f¦(x)") |> text_of;
       check(
         string,
-        "fresh x1, hoisted to chain",
-        "let x = 1 in let x1 = f(x) in x * x1",
+        "fresh x1, own line",
+        "let x = 1 in let x1 = f(x) in\n  x * x1",
         got,
       );
     },
@@ -867,8 +867,8 @@ let more_tests = [
       let got = inline(~kind=ExtractLet, "fun n -> g(f¦(2))") |> text_of;
       check(
         string,
-        "fun body is the line",
-        "fun n -> let x = f(2) in g(x)",
+        "fun body breaks to its own line",
+        "fun n -> let x = f(2) in\n  g(x)",
         got,
       );
     },
@@ -882,8 +882,8 @@ let more_tests = [
         |> text_of;
       check(
         string,
-        "arm body is the line",
-        "case a | 1 => let x = f(2) in g(x) | _ => 0 end",
+        "arm body breaks to its own line",
+        "case a | 1 => let x = f(2) in\n  g(x) | _ => 0 end",
         got,
       );
     },
@@ -897,8 +897,8 @@ let more_tests = [
         |> text_of;
       check(
         string,
-        "case is the line",
-        "let a = 1 in let x = f(2) in case x | _ => 0 end",
+        "case line breaks down",
+        "let a = 1 in let x = f(2) in\n  case x | _ => 0 end",
         got,
       );
     },
