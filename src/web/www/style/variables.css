@@ -180,9 +180,20 @@
 
   /* matches the quiver box token color (= incomplete delimiters) so
      arrow, preview, and incomplete tokens read as one system */
-  --quiver-arrow: var(--token-incomplete);
-  --quiver-offside-text: #7f8c8d;
-  --quiver-offside-bg: rgba(127, 140, 141, 0.15);
+  --quiver-chip: var(--token-incomplete);
+  /* opaque subdued blend for chips out of tab range (chips overlay
+     text; translucency would bleed code through the knockout) */
+  --quiver-chip-subdued: color-mix(
+    in srgb,
+    var(--token-incomplete) 50%,
+    var(--light-page-color)
+  );
+  --quiver-chip-text: var(--light-page-color);
+  --quiver-chip-text-faded: color-mix(
+    in srgb,
+    var(--light-page-color) 55%,
+    var(--token-incomplete)
+  );
 
   /* PROJECTORS */
   --textarea-indicated: var(--SAND);

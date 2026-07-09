@@ -549,30 +549,86 @@ svg:has(.child-line) {
   pointer-events: none;
 }
 
-.quiver-arrow {
-  z-index: var(--select-z);
-}
-
-.quiver-arrow-path {
-  fill: var(--quiver-arrow);
-  stroke: none;
-}
-
-/* Styled like the backpack selection (same yellow backing/token
-   colors), minus the joiner/connector apparatus */
-.quiver-offside {
+.quiver-chip {
+  position: absolute;
+  z-index: 15; /* above code text, below the caret */
+  pointer-events: none;
+  font-size: 0.72em;
+  line-height: 1.25;
   font-family: var(--code-font);
-  font-size: var(--base-font-size);
-  color: var(--token-incomplete);
-  background-color: var(--backpack-selection);
-  outline: 1px solid var(--backpack-selection-outline);
-  font-weight: bold;
-  padding: 0 0.2em;
-  border-radius: 0.2em;
-  white-space: nowrap;
-  width: fit-content;
-  line-height: var(--line-height);
 }
+
+/* body sits ABOVE the anchor point (the interline gap), left edge at
+   the insertion column; tail + bar descend from the anchor */
+.quiver-chip-body {
+  position: absolute;
+  bottom: 3px;
+  left: -2px;
+  padding: 0px 4px 1px 4px;
+  border-radius: 4px;
+  background: var(--quiver-chip);
+  color: var(--quiver-chip-text);
+  font-weight: bold;
+  white-space: nowrap;
+}
+
+.quiver-chip-tail {
+  position: absolute;
+  bottom: -2px;
+  left: 0px;
+  width: 0;
+  height: 0;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-top: 5px solid var(--quiver-chip);
+}
+
+.quiver-chip-bar {
+  position: absolute;
+  top: 2px;
+  left: 3px;
+  width: 1.5px;
+  background: var(--quiver-chip);
+}
+
+/* mirrored mini-tail at the bar's foot */
+.quiver-chip-cap {
+  position: absolute;
+  bottom: -1px;
+  left: -3.25px;
+  width: 0;
+  height: 0;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-bottom: 4px solid var(--quiver-chip);
+}
+
+/* tab emphasis: the chip whose first delimiter tab would put down is
+   live; the rest use an opaque subdued blend (chips overlay text, so
+   translucency would let code bleed through the knockout text) */
+.quiver-chip.chip-live {
+  --quiver-chip: var(--token-incomplete);
+}
+
+.quiver-chip.chip-dim {
+  --quiver-chip: var(--quiver-chip-subdued);
+}
+
+/* remainder at full contrast; the typed prefix (visible in the code
+   an em away) and later coalesced segments fade toward the chip */
+.quiver-chip .chip-frac-typed,
+.quiver-chip .chip-seg-later {
+  color: var(--quiver-chip-text-faded);
+}
+
+.quiver-chip .empty-hole {
+  display: inline-block;
+  vertical-align: middle;
+}
+
+
+
+
 
 /* Invisible backdrop to capture clicks outside context menu */
 .context-menu-backdrop {
@@ -701,21 +757,5 @@ svg:has(.child-line) {
 }
 
 /* Prefix-witness completion: typed prefix vs completed remainder */
-/* Tab emphasis: the entry tab would put down right now is live;
-   the rest sit slightly dimmed (backpack-graying parity) */
-.quiver-offside.tab-dim {
-  opacity: 0.55;
-}
 
-.quiver-offside .empty-hole {
-  display: inline-block;
-  vertical-align: middle;
-}
 
-.quiver-offside .quiver-typed {
-  font-weight: bold;
-}
-.quiver-offside .quiver-completed {
-  opacity: 0.45;
-  font-weight: normal;
-}
