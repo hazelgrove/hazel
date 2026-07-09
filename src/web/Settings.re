@@ -36,7 +36,6 @@ module Model = {
       assist: true,
       dynamics: true,
       probe_all: false,
-      deep_reassociate: true,
       auto_reindent: true,
       format_shortcut: Language.CoreSettings.FormatShortcut.Spaces,
       indentation_ux: true,
@@ -154,7 +153,6 @@ module Update = {
     | Statics
     | Dynamics
     | ProbeAll
-    | DeepReassociate
     | AutoReindent
     | FormatShortcut(Language.CoreSettings.FormatShortcut.t)
     | SelectionChunkiness
@@ -222,13 +220,6 @@ module Update = {
             dynamics: !settings.core.probe_all || settings.core.dynamics,
             statics: !settings.core.probe_all || settings.core.statics,
             probe_all: !settings.core.probe_all,
-          },
-        }
-      | DeepReassociate => {
-          ...settings,
-          core: {
-            ...settings.core,
-            deep_reassociate: !settings.core.deep_reassociate,
           },
         }
       | AutoReindent => {

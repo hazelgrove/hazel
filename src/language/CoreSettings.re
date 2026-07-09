@@ -54,7 +54,6 @@ type t = {
   assist: bool,
   dynamics: bool,
   probe_all: bool,
-  deep_reassociate: bool,
   /* Completion-triggered local re-indentation (experimental) */
   auto_reindent: bool,
   format_shortcut: FormatShortcut.t,
@@ -80,7 +79,6 @@ let off: t = {
   assist: false,
   dynamics: false,
   probe_all: false,
-  deep_reassociate: false,
   auto_reindent: false,
   format_shortcut: FormatShortcut.Spaces,
   indentation_ux: false,
@@ -96,7 +94,6 @@ let on: t = {
   assist: true,
   dynamics: true,
   probe_all: false, /* Off by default even in "on" config - opt-in feature */
-  deep_reassociate: true, /* matches the product (web Settings.re) */
   auto_reindent: true,
   format_shortcut: FormatShortcut.Spaces,
   indentation_ux: true,
