@@ -35,10 +35,7 @@ let mv_l = (n: int): list(Action.t) =>
 let perform = (zip: Zipper.t, actions: list(Action.t)): Zipper.t => {
   let perform = (a: Action.t, z: Zipper.t) =>
     Perform.go(
-      ~settings={
-        ...Language.CoreSettings.off,
-        deep_reassociate: true,
-      },
+      ~settings=Language.CoreSettings.off,
       ~statics=CachedStatics.empty,
       ~syntax=CachedSyntax.init(z),
       ~root=Exp,

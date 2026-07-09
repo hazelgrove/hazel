@@ -469,7 +469,7 @@ let delimiter_label = (char: string): Label.t =>
 
 /* Wrap selection in balanced delimiters. Creates the wrapping tile
  * as an ancestor with the content inside, retaining the selection. */
-let wrap_balanced = (~deep_reassociate=false, char: string, z: t, ~root): t => {
+let wrap_balanced = (char: string, z: t, ~root): t => {
   let content = z.selection.content;
   let sort = Relatives.sort(~root, z.relatives);
   let (left_sibs, right_sibs) = z.relatives.siblings;
@@ -515,7 +515,7 @@ let wrap_balanced = (~deep_reassociate=false, char: string, z: t, ~root): t => {
     },
   };
   let z = remold_regrout(Right, z, ~root);
-  let z = deep_reassociate ? Reassociate.go(z) : z;
+  let z = Reassociate.go(z);
   let right = snd(z.relatives.siblings);
   {
     ...z,
@@ -573,23 +573,19 @@ let wrap_quote = (char: string, z: t, ~root): option(t) => {
 
 /* Try to wrap selection in a delimiter. Returns Some if wrapping
  * occurred, None to fall through to normal insert behavior. */
-let try_wrap_selection =
-    (~deep_reassociate=false, char: string, z: t, ~root): option(t) =>
+let try_wrap_selection = (char: string, z: t, ~root): option(t) =>
   if (is_opening_delimiter(char)) {
-    Some(wrap_balanced(~deep_reassociate, char, z, ~root));
+    Some(wrap_balanced(char, z, ~root));
   } else if (Token.is_string_or_comment_delim(char)) {
     wrap_quote(char, z, ~root);
   } else {
     None;
   };
 
-let go =
-    (~auto_indent: bool, ~deep_reassociate=false, char: string, z: t, ~root)
-    : option(t) => {
+let go = (~auto_indent: bool, char: string, z: t, ~root): option(t) => {
   /* If there's a selection, try wrapping before falling through */
   switch (
-    z.selection.content != []
-      ? try_wrap_selection(~deep_reassociate, char, z, ~root) : None
+    z.selection.content != [] ? try_wrap_selection(char, z, ~root) : None
   ) {
   | Some(z) => Some(z)
   | None =>
@@ -632,14 +628,13 @@ let go_inner = go;
 let go =
     (
       ~auto_indent: bool=true,
-      ~deep_reassociate=false,
       ~ci: option(Language.Info.t)=None,
       char: string,
       z: t,
       ~root,
     )
     : option(t) => {
-  let+ z = go(~auto_indent, ~deep_reassociate, char, z, ~root);
+  let+ z = go(~auto_indent, char, z, ~root);
   let z = Triggers.insert(~ci, z);
   let z =
     switch (z.caret) {

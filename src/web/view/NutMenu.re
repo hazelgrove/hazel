@@ -267,12 +267,6 @@ let dev_group = (~globals: Globals.t) => {
         tooltip: Some("Enable probes on all top-level definitions"),
       },
       {
-        name: "Deep Reassociate",
-        active: globals.settings.core.deep_reassociate,
-        setting: DeepReassociate,
-        tooltip: Some("Enable deep reassociation of syntax"),
-      },
-      {
         name: "Cap Undo Stack",
         active: globals.settings.cap_undo_stack,
         setting: CapUndoStack,

@@ -209,12 +209,11 @@ let rec go =
           {zipper: z, col_target}: state,
         )
         : Action.Result.t(Zipper.t) => {
-  let maybe_reassoc = settings.deep_reassociate ? Reassociate.go : Fun.id;
+  let maybe_reassoc = Reassociate.go;
   /* Paste is a rare bulk edit that can leave incomplete delimiter forms
      anywhere in the pasted region, so it gets the thorough (full-relatives)
      reassociation guard rather than the cheap caret-local one. */
-  let maybe_reassoc_thorough =
-    settings.deep_reassociate ? Reassociate.go_thorough : Fun.id;
+  let maybe_reassoc_thorough = Reassociate.go_thorough;
   switch (a) {
   | Introduce =>
     Select.current_term(
@@ -529,12 +528,7 @@ let rec go =
   | Insert(char) =>
     let before = LocalReformat.snapshot(~enabled=settings.auto_reindent, z);
     z
-    |> Insert.go(
-         ~deep_reassociate=settings.deep_reassociate,
-         char,
-         ~ci=Indicated.ci_of(z, statics.info_map),
-         ~root,
-       )
+    |> Insert.go(char, ~ci=Indicated.ci_of(z, statics.info_map), ~root)
     |> Option.map(maybe_reassoc)
     |> Option.map(LocalReformat.go(~before))
     |> return(Cant_insert);
@@ -596,7 +590,7 @@ let rec go =
     /* uncommenting can restore delimiters that complete enclosing
        forms; the comment-out direction leaves the trigger silent */
     let before = LocalReformat.snapshot(~enabled=settings.auto_reindent, z);
-    Comment.go(~deep_reassociate=settings.deep_reassociate, z, ~root)
+    Comment.go(z, ~root)
     |> Option.map(LocalReformat.go(~before))
     |> return(Cant_destruct);
   | Structural(a) => CompositionGo.Public.go(~syntax, ~z, ~a, ~return)
