@@ -384,10 +384,10 @@ let pair_pins = [
   ("if-else-inline", "1/0/1"),
   ("if-else-multiline", "1/0/1"),
   ("case-multiline", "6/0/6"),
-  ("type-adt", "20/1/21"), /* the 1: => drops inside Square(n's parens */
+  ("type-adt", "21/0/21"),
   ("tuple-list", "6/0/6"),
-  ("case-def-inline", "5/1/6"), /* the 1: end+in, the andrew repro */
-  ("case-def-multiline", "5/1/6"),
+  ("case-def-inline", "6/0/6"), /* end+in restores exactly */
+  ("case-def-multiline", "6/0/6"),
 ];
 
 let pair_tests =
