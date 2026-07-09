@@ -32,6 +32,10 @@ let printer = (z: Zipper.t): string => {
 let default_settings = {
   ...Language.CoreSettings.off,
   statics: true,
+  /* the live editor runs with reassociation on (web Settings.re);
+     harnesses must match or reassociation bugs hide behind the flag
+     (andrew 2026-07-09) */
+  deep_reassociate: true,
 };
 
 let perform =
