@@ -214,6 +214,12 @@ let view =
   let result = CanonicalCompletion.for_editor(seg);
   let insertions = result.insertions;
 
+  /* claims from the previous render must not accumulate — reset even
+     when there is nothing to draw, else a vanished quiver leaves its
+     stale claims and probe offsides stay displaced until some other
+     quiver render happens to reset */
+  RowOffsets.reset();
+
   if (List.length(insertions) == 0) {
     /* No completions needed */
     div([]);
@@ -236,8 +242,6 @@ let view =
         positioned,
       );
 
-    /* claims from the previous render must not accumulate */
-    RowOffsets.reset();
     /* Track offside positions per row to place boxes side by side */
     let (arrows, offsides, _) =
       List.fold_left(

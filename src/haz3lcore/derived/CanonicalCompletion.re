@@ -1342,7 +1342,12 @@ let find_trailing_site =
 };
 
 let place_trailing_shards =
-    (~aggregate_anchor: option(Piece.t), seg: Segment.t, incomplete)
+    (
+      ~aggregate_anchor: option(Piece.t),
+      ~content_follows: bool=false,
+      seg: Segment.t,
+      incomplete,
+    )
     : (
         Segment.t,
         list(insertion),
@@ -1432,7 +1437,7 @@ let place_trailing_shards =
       let (seg, ins, agg, abs, _) =
         List.fold_left(
           ((seg, ins, agg, abs, cursor), (i, piece)) => {
-            let (l_nib, _) = Mold.nibs(~index=i, t.mold);
+            let (l_nib, r_nib) = Mold.nibs(~index=i, t.mold);
             let clip = {
               let sort_clip =
                 clippable_sort(l_nib.sort)
@@ -1522,21 +1527,86 @@ let place_trailing_shards =
                   | None => ins
                   };
                 (seg, ins, agg, abs, stop + 1);
-              | None => (
-                  seg @ [piece],
-                  ins,
-                  agg
-                  @ [
-                    {
-                      text: List.nth(t.label, i),
-                      needs_hole: shard_needs_hole(t, i),
-                      typed_len: None,
-                      of_shard: Some((t.id, i)),
-                    },
-                  ],
-                  abs,
-                  List.length(seg) + 1,
-                )
+              | None =>
+                /* HOLE-MINIMIZING APPEND: a convex-right closer
+                   appended after a span-final trailing operator
+                   severs that operator's right operand into a hole
+                   (`test 1 == 1 ; end` -> hole inside the test).
+                   When content FOLLOWS this partition, stopping
+                   before the operator leaves it its operand —
+                   strictly fewer holes. Concave-right shards tie
+                   (their own body hole trades places) and incomplete
+                   tiles never back — both keep maximal absorption. */
+                let hole_min_stop = {
+                  let is_trailing_op = (p: Piece.t) =>
+                    switch (p) {
+                    | Tile(tt) =>
+                      Tile.is_complete(tt)
+                      && (
+                        switch (snd(Tile.nibs(tt)).shape) {
+                        | Concave(_) => true
+                        | Convex => false
+                        }
+                      )
+                    | _ => false
+                    };
+                  let convex_right =
+                    switch (r_nib.shape) {
+                    | Convex => true
+                    | Concave(_) => false
+                    };
+                  if (content_follows && convex_right) {
+                    let rec shrink = j => {
+                      let j' = back_over_boundary(seg, j, cursor);
+                      j' > cursor && is_trailing_op(List.nth(seg, j' - 1))
+                        ? shrink(j' - 1) : j';
+                    };
+                    let stop = shrink(List.length(seg));
+                    stop < List.length(seg) ? Some(stop) : None;
+                  } else {
+                    None;
+                  };
+                };
+                switch (hole_min_stop) {
+                | Some(stop) =>
+                  let anchor = stop > 0 ? List.nth_opt(seg, stop - 1) : None;
+                  let seg = insert_at(stop, piece, seg);
+                  let ins =
+                    switch (anchor) {
+                    | Some(a) => [
+                        {
+                          adjacent_id: Piece.id(a),
+                          side: Direction.Right,
+                          delimiters: [
+                            {
+                              text: List.nth(t.label, i),
+                              needs_hole: false,
+                              typed_len: None,
+                              of_shard: Some((t.id, i)),
+                            },
+                          ],
+                        },
+                        ...ins,
+                      ]
+                    | None => ins
+                    };
+                  (seg, ins, agg, abs, stop + 1);
+                | None => (
+                    seg @ [piece],
+                    ins,
+                    agg
+                    @ [
+                      {
+                        text: List.nth(t.label, i),
+                        needs_hole: shard_needs_hole(t, i),
+                        typed_len: None,
+                        of_shard: Some((t.id, i)),
+                      },
+                    ],
+                    abs,
+                    List.length(seg) + 1,
+                  )
+                };
               }
             };
           },
@@ -1793,9 +1863,19 @@ let rec complete_segment =
      * openers land at their computed indices, and its trailing shards
      * place at their sites. Remaining tiles complete in later passes
      * against the materialized result. */
+    let has_content = sg =>
+      List.exists(
+        fun
+        | Piece.Tile(_) => true
+        | _ => false,
+        sg,
+      );
     let completed_parts =
       partitioned
-      |> List.map(((subseg, incomplete, wraps)) => {
+      |> List.mapi((pi, (subseg, incomplete, wraps)) => {
+           let content_follows =
+             List.filteri((qi, _) => qi > pi, partitioned)
+             |> List.exists(((sg, _, _)) => has_content(sg));
            let chosen =
              wraps != [] ? [] : choose(subseg, incomplete) |> Option.to_list;
            let chosen_id =
@@ -1871,7 +1951,12 @@ let rec complete_segment =
                ? (subseg, [])
                : insert_openers(subseg, ~only=chosen_id, incomplete);
            let (subseg, trail_ins, abs) =
-             place_trailing_shards(~aggregate_anchor, subseg, chosen);
+             place_trailing_shards(
+               ~aggregate_anchor,
+               ~content_follows,
+               subseg,
+               chosen,
+             );
            (subseg, trail_ins @ static_ins, opener_abs @ abs, chosen);
          });
     let insertions =
@@ -1996,11 +2081,31 @@ let rec complete_segment =
           };
         let measurable = (~right: bool, id: Id.t) =>
           List.exists(Id.equal(id), all_ids) && edge_ok(~right, id);
+        /* a consumed witness token is the visible ALIAS of the shard
+           that replaced it: emit it beside its tile in the traversal
+           orders so later-pass anchors resolve to the witness (e.g.
+           the in appended after a case completed via its en witness
+           must anchor at the en, not walk back to the rule body —
+           that reorders the display) */
+        let alias = (~last: bool, tid: Id.t): list(Id.t) =>
+          shard_records
+          |> List.concat_map((r: shard_record) =>
+               Id.equal(r.tile_id, tid)
+                 ? r.prefixes
+                   |> List.filter_map(
+                        (sp: Language.IdTagged.IdTag.shard_prefix) =>
+                        last == (sp.shard > 0) ? Some(sp.token_id) : None
+                      )
+                 : []
+             );
         let rec post = (sg: Segment.t) =>
           List.concat_map(
             (p: Piece.t) =>
               switch (p) {
-              | Tile(t) => List.concat_map(post, t.children) @ [t.id]
+              | Tile(t) =>
+                List.concat_map(post, t.children)
+                @ alias(~last=true, t.id)
+                @ [t.id]
               | p => [Piece.id(p)]
               },
             sg,
@@ -2009,7 +2114,10 @@ let rec complete_segment =
           List.concat_map(
             (p: Piece.t) =>
               switch (p) {
-              | Tile(t) => [t.id, ...List.concat_map(pre, t.children)]
+              | Tile(t) =>
+                [t.id]
+                @ alias(~last=false, t.id)
+                @ List.concat_map(pre, t.children)
               | p => [Piece.id(p)]
               },
             sg,
