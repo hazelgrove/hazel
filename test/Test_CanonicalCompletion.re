@@ -1307,8 +1307,15 @@ let dbl_del_inline =
   @ [destruct_l, destruct_l]
   @ Test_Editing.mv_l(1)
   @ [destruct_l, destruct_l, destruct_l];
+/* deep_reassociate ON: these pin the LIVE editor's reassociation
+   path (the harness default leaves it off) */
+let reassoc_settings = {
+  ...Test_Editing.default_settings,
+  deep_reassociate: true,
+};
 let probe_raw = (acts: list(Action.t)): string => {
-  let z = Test_Editing.perform(Zipper.init(), acts);
+  let z =
+    Test_Editing.perform(~settings=reassoc_settings, Zipper.init(), acts);
   let seg = Zipper.unselect_and_zip(~erase_buffer=true, z);
   let inc = Segment.incomplete_tiles_deep(seg);
   let tiles =
@@ -1339,20 +1346,21 @@ let probe_case = (~name, ~acts, ~expected) =>
   test_case(name, `Quick, () =>
     check(string_testable, name, expected, probe_raw(acts))
   );
-/* KNOWN-BAD (andrew 2026-07-09): delete + retype the l of a let that
-   is NOT the first thing in the program — the retyped let stays a
-   lone shard-0 remnant and never reassociates with its orphaned
-   =/in (two incomplete tiles; text prints identically, structure is
-   broken). First-let control pairs correctly. Reassociation bug
-   (Reassociate.go family, position-dependent), not completion. */
+/* Reassociation regression guards (andrew 2026-07-09, FIXED same
+   day): delete + retype the l of a NON-FIRST let left the retyped
+   let unpaired with its orphaned =/in — rescan only matches
+   SINGLETON pieces so the two-shard remnant could never pair, and
+   flatten_and_repair started at depth 1, skipping the sibling scope
+   (the only scope, at top level). Fixed: explode incomplete
+   multitiles in the gated fallback's crack + ascend from depth 0. */
 let probe_tests = [
   probe_case(
-    ~name="second-let delete+retype l fails to reassociate (KNOWN-BAD)",
+    ~name="second-let delete+retype l reassociates",
     ~acts=
       Test_Editing.mk("let f = 1 in\nl¦et g = 2 in\nf + g")
       @ [destruct_l, Action.Insert("l")],
     ~expected=
-      "let f = 1 in\nlet g = 2 in\nf + g | top: let=in[0,1,2] let[0] g[0] =in[1,2] f[0] +[0] g[0] | inc: 2",
+      "let f = 1 in\nlet g = 2 in\nf + g | top: let=in[0,1,2] let=in[0,1,2] f[0] +[0] g[0] | inc: 0",
   ),
   probe_case(
     ~name="first-let delete+retype l reassociates (control)",
@@ -1436,7 +1444,7 @@ let joint_tests = [
 ];
 
 let tests: list((string, list(Alcotest.test_case(unit)))) = [
-  ("CanonicalCompletion: reassociation (known-bad)", probe_tests),
+  ("CanonicalCompletion: reassociation-guards", probe_tests),
   ("CanonicalCompletion: closer-vs-separator", probe2_tests),
   ("CanonicalCompletion: insertion-ordering", ordering_tests),
   ("CanonicalCompletion: joint-satisfiability", joint_tests),
