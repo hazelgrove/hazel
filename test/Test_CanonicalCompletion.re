@@ -1363,20 +1363,59 @@ let probe_tests = [
       "let f = 1 in\nf + 1 | top: let=in[0,1,2] f[0] +[0] 1[0] | inc: 0",
   ),
 ];
-/* KNOWN-SUBOPTIMAL (andrew 2026-07-09): deleting a test's end in a
-   semicolon-separated cluster appends it AFTER the trailing ; with a
-   synthesized hole inside the test body (1 == 1; ?) — indeterminate
-   test. Stopping before the ; creates ZERO synthesized holes (the ;
-   takes the next line's test as operand). Candidate fix on the
-   docket: hole-minimizing closer placement (strict reduction only,
-   ties keep current behavior). */
+/* Hole-minimizing append (andrew's test-end report): a convex-right
+   closer appended after a span-final trailing operator would sever
+   its operand into a hole (`test 1 == 1 ; ? end` = indeterminate
+   test); with content following the partition, stopping before the
+   operator creates ZERO holes — strictly fewer, so the closer backs
+   over it. Concave-right shards and no-content-after ties keep
+   maximal absorption. */
 let probe2_tests = [
   edit_case(
-    ~name="deleted test-end lands after the semicolon (KNOWN-SUBOPTIMAL)",
+    ~name="deleted test-end stops before the semicolon",
     ~acts=
       Test_Editing.mk("test 1 == 1 end¦;\ntest 2 == 2 end;\n3")
       @ [destruct_l, destruct_l, destruct_l],
-    ~expected="test 1 == 1 ;?end~\ntest 2 == 2 end;\n3",
+    ~expected="test 1 == 1end ;\ntest 2 == 2 end;\n3",
+  ),
+];
+/* Print the insertion list: delimiters per record (+-joined) in list
+   order, |-separated across records — coalescing and ordering are
+   what these pin */
+let probe_ins = (acts: list(Action.t)): string => {
+  let z = Test_Editing.perform(Zipper.init(), acts);
+  let seg = Zipper.unselect_and_zip(~erase_buffer=true, z);
+  let r = CanonicalCompletion.complete_segment_deep(~sort=Sort.Exp, seg);
+  r.insertions
+  |> List.map((i: CanonicalCompletion.insertion) =>
+       i.delimiters
+       |> List.map((d: CanonicalCompletion.delimiter_info) => d.text)
+       |> String.concat("+")
+     )
+  |> String.concat(" | ");
+};
+let ins_case = (~name, ~acts, ~expected) =>
+  test_case(name, `Quick, () =>
+    check(string_testable, name, expected, probe_ins(acts))
+  );
+let ordering_tests = [
+  ins_case(
+    ~name="end witness + in coalesce in nesting order",
+    /* backspace the in, then the d of end: the en witness completes
+       first and the in must anchor AT the en (alias), coalescing
+       into one record reading end-then-in (andrew: it displayed
+       'in end') */
+    ~acts=
+      Test_Editing.mk("let arm_adt = case c | Red => 1 end in¦ 2")
+      @ [destruct_l, destruct_l, destruct_l, destruct_l],
+    ~expected="end | in",
+  ),
+  ins_case(
+    ~name="line-final: end witness + in coalesce (andrew repro)",
+    ~acts=
+      Test_Editing.mk("let arm_adt = case c | Red => 1 end in¦")
+      @ [destruct_l, destruct_l, destruct_l, destruct_l],
+    ~expected="end+in",
   ),
 ];
 let joint_tests = [
@@ -1398,10 +1437,8 @@ let joint_tests = [
 
 let tests: list((string, list(Alcotest.test_case(unit)))) = [
   ("CanonicalCompletion: reassociation (known-bad)", probe_tests),
-  (
-    "CanonicalCompletion: closer-vs-separator (known-suboptimal)",
-    probe2_tests,
-  ),
+  ("CanonicalCompletion: closer-vs-separator", probe2_tests),
+  ("CanonicalCompletion: insertion-ordering", ordering_tests),
   ("CanonicalCompletion: joint-satisfiability", joint_tests),
   /* Debug test - run first to isolate crash */
   ("CanonicalCompletion: regrout-debug", regrout_debug_tests),
