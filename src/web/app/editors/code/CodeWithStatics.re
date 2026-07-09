@@ -174,8 +174,6 @@ module Update = {
       )
       : Model.t => {
     let dynamics_map = Calc.map(dynamics, (d: Dynamics.t) => d.probe_map);
-    /* Capture ephemerals before editor calculation to detect auto probe changes */
-    let old_ephemerals = editor.state.zipper.refractors.multis.ephemerals;
 
     let editor =
       Editor.Update.calculate(
@@ -187,24 +185,23 @@ module Update = {
         editor,
       );
 
-    /* Ephemerals can change without an explicit edit in several cases:
-     * (1) cursor movement in autoprobe mode (cursor crosses into a new
-     *     top-level definition), and
-     * (2) on reload, when add_ids_from_multi_term rebuilds ephemerals
-     *     from persisted multis.ids once the info_map becomes available.
-     * In both cases we must recalculate statics so probe targets match
-     * the new ephemerals and the evaluator collects samples for them. */
+    /* Bypass the statics debounce when the zipper carries a probe id that
+     * statics has no target for (new manual probe, autoprobe placement, or
+     * first load where statics is still empty). Otherwise the eval_info_map's
+     * stale probe_targets let IncrEval.reuse_check reuse a sample-less slice
+     * and the probe shows ∅ until the next refresh (#2323). Subset, not
+     * equality: probe_all / live_typing extend targets beyond zipper probes. */
     let probes_changed =
       !
-        Id.Map.equal(
-          Refractors.equal_entry,
-          old_ephemerals,
-          editor.state.zipper.refractors.multis.ephemerals,
+        Id.Map.for_all(
+          (id, _) => Id.Map.mem(id, statics.targets),
+          CachedStatics.probe_ids_of_zipper(editor.state.zipper),
         );
 
     let statics =
       statics_mode == StaticsForce
-      || (is_edited || probes_changed)
+      || probes_changed
+      || is_edited
       && statics_mode != StaticsDefer
         ? CachedStatics.init(
             ~settings,
