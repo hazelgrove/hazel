@@ -173,21 +173,61 @@ let scan_frontier = (~start: Sort.t, pieces: list(Piece.t)): option(int) => {
   go(0, [start], pieces);
 };
 
-/* A prefix-token witness for a missing shard: a token molded as an
- * infix-delimiter prefix (operator position — a genuine variable in
- * operand position molds Var and never qualifies) whose text is a
- * proper prefix of the expected shard's text. The tile independently
- * EXPECTS the delimiter; the token only witnesses WHERE. */
-let is_prefix_witness = (p: Piece.t, shard_text: Token.t): bool =>
-  Piece.is_infix_delimiter_op_prefix(p)
-  && (
-    switch (p) {
-    | Tile({label: [tok], _}) =>
-      Token.length(tok) < Token.length(shard_text)
-      && String.sub(shard_text, 0, Token.length(tok)) == tok
-    | _ => false
-    }
-  );
+/* A prefix-token witness for a missing shard: a token whose text is
+ * a proper prefix of the expected shard's text, qualified by one of
+ * two routes. (1) Molded as an infix-delimiter prefix (operator
+ * position — a genuine variable in operand position molds Var and
+ * never qualifies). (2) SORT-AWARE SYMBOLIC: a symbolic token with
+ * no legitimate form-table mold at the slot's sort can only be a
+ * broken delimiter — `-` molds only at Exp, so in a Pat or Typ slot
+ * it must be a broken `->`. Label-precedence molds don't block: the
+ * tuple-label `=` is a legitimate infix at every sort, but the
+ * incomplete tile EXPECTS its delimiter, the label reading is exotic
+ * where a rule's `=>` is mandatory, and the witness is virtual and
+ * self-correcting (typing the `>` settles it — next-keystroke
+ * convergent either way). Wordish tokens never take route 2: a
+ * variable is legitimate content in any slot.
+ * The tile independently EXPECTS the delimiter; the token only
+ * witnesses WHERE. */
+let is_symbolic_token = (tok: Token.t): bool => {
+  let n = String.length(tok);
+  let rec go = k =>
+    k >= n
+    || (
+      switch (tok.[k]) {
+      | 'a' .. 'z'
+      | 'A' .. 'Z'
+      | '0' .. '9'
+      | '_' => false
+      | _ => go(k + 1)
+      }
+    );
+  n > 0 && go(0);
+};
+
+let is_prefix_witness = (~slot: Sort.t, p: Piece.t, shard_text: Token.t): bool =>
+  switch (p) {
+  | Tile({label: [tok], _}) =>
+    Token.length(tok) < Token.length(shard_text)
+    && String.sub(shard_text, 0, Token.length(tok)) == tok
+    && (
+      Piece.is_infix_delimiter_op_prefix(p)
+      || is_symbolic_token(tok)
+      && !
+           List.exists(
+             (m: Mold.t) =>
+               sort_fits(m.out, slot)
+               && (
+                 switch (fst(m.nibs).shape) {
+                 | Concave(prec) => prec != Precedence.lab
+                 | Convex => true
+                 }
+               ),
+             Form.Molds.get_base([tok]),
+           )
+    )
+  | _ => false
+  };
 
 let prefix_of_witness =
     (p: Piece.t, shard: int): option(Language.IdTagged.IdTag.shard_prefix) =>
@@ -265,7 +305,7 @@ let middle_split_plan =
       let token_sites =
         indexed
         |> List.filter_map(((j, pc): (int, Piece.t)) =>
-             is_prefix_witness(pc, List.nth(t.label, m))
+             is_prefix_witness(~slot=l_nib.sort, pc, List.nth(t.label, m))
                ? legal(j) |> Option.map(lr => (pc, lr)) : None
            );
       let junctions =
@@ -1161,9 +1201,15 @@ let find_trailing_site =
       | _ => false,
     );
   let shard_text = List.nth(t.label, i);
+  /* the witness region includes the frontier piece itself: a symbolic
+     token with no mold at the slot's sort fires the frontier AT its
+     own position — exactly where a broken delimiter prefix sits */
+  let witness_end = min(strong_end + 1, n);
   let witness_sites =
-    List.init(max(strong_end - cursor, 0), k => cursor + k)
-    |> List.filter(j => is_prefix_witness(List.nth(seg, j), shard_text));
+    List.init(max(witness_end - cursor, 0), k => cursor + k)
+    |> List.filter(j =>
+         is_prefix_witness(~slot=l_nib.sort, List.nth(seg, j), shard_text)
+       );
   switch (witness_sites) {
   | [j] => Some(TrailWitness(j))
   | _ =>

@@ -1092,6 +1092,33 @@ let entry_experience_tests = [
    a tile expecting that opener completes in place (the tile's
    surviving shards carry the expectation; no mold gate exists in
    operand position, so length >= 2 is the residual protection) === */
+/* Sort-aware symbolic witnesses: `-`/`=` have no legitimate
+   non-label mold at the slot's sort, so they can only be broken
+   `->`/`=>` prefixes there */
+let symbolic_witness_tests = [
+  edit_case(
+    ~name="deleted > of ->: dash witnesses arrow in Pat slot",
+    ~acts=Test_Editing.mk("let f = fun x ->¦ x * 2 in f(3)") @ [destruct_l],
+    ~expected="let f = fun x -> x * 2 in f(3)",
+  ),
+  edit_case(
+    ~name="deleted > of =>: equals witnesses rule arrow",
+    ~acts=Test_Editing.mk("case x | 1 =>¦ 2 end") @ [destruct_l],
+    ~expected="case x | 1 => 2 end",
+  ),
+  edit_case(
+    ~name="genuine minus beyond the frontier is not eaten",
+    /* the Pat frontier fires AT the broken dash, so the body's real
+       minus sits outside the witness region — uniqueness holds */
+    ~acts=Test_Editing.mk("let f = fun x ->¦ x - 2 in f(1)") @ [destruct_l],
+    ~expected="let f = fun x -> x - 2 in f(1)",
+  ),
+  /* OUT OF SCOPE: the Typ arrow `->` is a single-token operator
+     form, not a shard of a multi-token tile — no remnant exists to
+     EXPECT it, and witnesses are expectation-gated by design.
+     Broken operators are TyDi/backpack territory. */
+];
+
 let leading_witness_tests = [
   edit_case(
     ~name="typ witnesses type",
@@ -1289,6 +1316,7 @@ let tests: list((string, list(Alcotest.test_case(unit)))) = [
   ("CanonicalCompletion: case-repair (edit-derived)", case_repair_edit_tests),
   ("CanonicalCompletion: entry-experience", entry_experience_tests),
   ("CanonicalCompletion: leading-witness", leading_witness_tests),
+  ("CanonicalCompletion: symbolic-witness", symbolic_witness_tests),
   ("CanonicalCompletion: continuation", continuation_tests),
   (
     "CanonicalCompletion: leading-witness-roundtrip",
