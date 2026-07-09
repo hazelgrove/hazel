@@ -115,9 +115,13 @@ let resolve_position =
     });
   };
 
-/* Display nodes for delimiters with their holes. A delimiter
-   completing a prefix-token witness renders its typed prefix bold and
-   the completed remainder faded. */
+/* Chip segment rendering. EMPHASIS INVERSION vs the old offside
+   boxes (andrew): the chip sits AT the token, so its payload is what
+   REMAINS — the yet-to-type remainder renders at full contrast and
+   the already-typed prefix fades toward the chip color (it is
+   visible in the code an em away). Later segments of a coalesced
+   chip fade the same way: only the first is where tab acts, and
+   only its position survives its own application. */
 let delimiter_nodes =
     (
       ~font_metrics: FontMetrics.t,
@@ -127,15 +131,16 @@ let delimiter_nodes =
   delimiters
   |> List.mapi((k, d: CanonicalCompletion.delimiter_info) => {
        let sep = k > 0 ? [Node.text(" ")] : [];
+       let seg_cls = k > 0 ? ["chip-seg", "chip-seg-later"] : ["chip-seg"];
        let body =
          switch (d.typed_len) {
          | Some(n) when n > 0 && n < String.length(d.text) => [
              Node.span(
-               ~attrs=[Attr.classes(["quiver-typed"])],
+               ~attrs=[Attr.classes(["chip-frac-typed"])],
                [Node.text(String.sub(d.text, 0, n))],
              ),
              Node.span(
-               ~attrs=[Attr.classes(["quiver-completed"])],
+               ~attrs=[Attr.classes(["chip-frac-rest"])],
                [
                  Node.text(String.sub(d.text, n, String.length(d.text) - n)),
                ],
@@ -150,75 +155,54 @@ let delimiter_nodes =
              EmptyHoleDec.view(font_metrics, Grout.Convex),
            ]
            : [];
-       sep @ body @ suffix;
+       sep @ [Node.span(~attrs=[Attr.classes(seg_cls)], body)] @ suffix;
      })
   |> List.concat;
 
-/* Offset from end of line content to offside display (in characters)
-   — the standard offside offset shared with probes (ProjectorView) */
-let offside_offset = 4;
+/* Estimated chip text width in code-font columns (chip font is
+   scaled by chip_font_scale) — used only for overlap coalescing */
+let chip_font_scale = 0.72;
 
-/* Render a small downward-pointing triangle at an insertion point.
- * Positioned at the top of the text line, between characters. */
-let arrow_view = (~font_metrics: FontMetrics.t, ~row: int, ~col: int): Node.t => {
-  /* Triangle pointing down, shorter (1/3 height), same width */
-  let triangle_path =
-    SvgUtil.Path.[
-      M({
-        x: 0.0,
-        y: 0.0,
-      }), /* Top left */
-      L({
-        x: 0.4,
-        y: 0.0,
-      }), /* Top right */
-      L({
-        x: 0.2,
-        y: 0.13,
-      }), /* Bottom center (tip) */
-      Z,
-    ];
-  DecUtil.code_svg(
-    ~font_metrics,
-    ~origin={
-      row,
-      col,
-    },
-    ~base_cls=["quiver-arrow"],
-    ~path_cls=["quiver-arrow-path"],
-    ~scale=0.4,
-    /* Position at top of row - arrow tip points down to insertion point */
-    ~height_fudge=0.85 *. font_metrics.row_height,
-    triangle_path,
-  );
-};
-
-/* Render an offside box showing delimiter content */
-let offside_view =
+/* One interline chip: a solid speech-bubble in the incomplete-
+   delimiter color, centered on the boundary above its insertion row,
+   tail pointing down, with a thin bar descending to the insertion
+   point and a small mirrored cap — a signpost planted where the
+   delimiters land. Bars keep the association exact when chips get
+   nudged or coalesced, so displacement never degrades meaning. */
+let chip_view =
     (
       ~font_metrics: FontMetrics.t,
       ~row: int,
-      ~left: int,
+      ~col: int,
       ~live: bool,
       body: list(Node.t),
     )
-    : Node.t =>
+    : Node.t => {
+  let x = float_of_int(col) *. font_metrics.col_width;
+  let y = float_of_int(row) *. font_metrics.row_height;
   div(
     ~attrs=[
-      Attr.classes(["quiver-offside", live ? "tab-live" : "tab-dim"]),
-      Attr.create(
-        "style",
-        Printf.sprintf(
-          "position: absolute; top: %fpx; left: %fpx;",
-          float_of_int(row) *. font_metrics.row_height,
-          float_of_int(left) *. font_metrics.col_width,
-        ),
+      Attr.classes(["quiver-chip", live ? "chip-live" : "chip-dim"]),
+      Attr.create("style", Printf.sprintf("left: %fpx; top: %fpx;", x, y)),
+    ],
+    [
+      div(~attrs=[Attr.classes(["quiver-chip-body"])], body),
+      div(~attrs=[Attr.classes(["quiver-chip-tail"])], []),
+      div(
+        ~attrs=[
+          Attr.classes(["quiver-chip-bar"]),
+          Attr.create(
+            "style",
+            Printf.sprintf("height: %fpx;", 0.8 *. font_metrics.row_height),
+          ),
+        ],
+        [div(~attrs=[Attr.classes(["quiver-chip-cap"])], [])],
       ),
     ],
-    body,
   );
+};
 
-/* Plain-text length of the delimiter display (for box layout) */
+/* Plain-text length of a chip's delimiters (for overlap coalescing) */
 let delimiters_len =
     (delimiters: list(CanonicalCompletion.delimiter_info)): int =>
   delimiters
@@ -228,12 +212,40 @@ let delimiters_len =
   |> List.fold_left((+), 0)
   |> (n => n + max(0, List.length(delimiters) - 1));
 
-/* Get the rightmost column of a row (for offside positioning) */
-let row_max_col = (row: int, measured: Measured.t): int =>
-  switch (IntMap.find_opt(row, measured.rows)) {
-  | None => 0
-  | Some({max_col, _}) => max_col
-  };
+/* Coalesce chips that would overlap on the same interline: the later
+   one's delimiters join the earlier chip (in column order). Only the
+   first chip keeps its bar — after the first insertion is applied
+   the flow changes, so later positions are not truthful anyway. */
+let coalesce_overlaps =
+    (~font_metrics: FontMetrics.t, chips: list(positioned_insertion))
+    : list(positioned_insertion) => {
+  let chip_w = (c: positioned_insertion) =>
+    float_of_int(delimiters_len(c.delimiters) + 2)
+    *. font_metrics.col_width
+    *. chip_font_scale;
+  let rec go = (acc, rest) =>
+    switch (acc, rest) {
+    | (_, []) => List.rev(acc)
+    | ([], [c, ...tl]) => go([c], tl)
+    | ([prev, ...acc_tl], [c, ...tl]) =>
+      let prev_right =
+        float_of_int(prev.col) *. font_metrics.col_width +. chip_w(prev);
+      let c_left = float_of_int(c.col) *. font_metrics.col_width;
+      prev.row == c.row && c_left < prev_right +. 4.
+        ? go(
+            [
+              {
+                ...prev,
+                delimiters: prev.delimiters @ c.delimiters,
+              },
+              ...acc_tl,
+            ],
+            tl,
+          )
+        : go([c, ...acc], tl);
+    };
+  go([], chips);
+};
 
 /* Main view function: renders quiver decorations for a segment */
 let view =
@@ -251,72 +263,36 @@ let view =
   /* claims from the previous render must not accumulate — reset even
      when there is nothing to draw, else a vanished quiver leaves its
      stale claims and probe offsides stay displaced until some other
-     quiver render happens to reset */
+     quiver render happens to reset. (Chips are interline overlays and
+     claim no line-end space themselves, so reset is all that is
+     needed: probes sit at the standard offset again.) */
   RowOffsets.reset();
 
   if (List.length(insertions) == 0) {
     /* No completions needed */
     div([]);
   } else {
-    /* Resolve positions for all insertions */
     let positioned =
       List.filter_map(resolve_position(~seg, measured), insertions);
-
-    /* Sort by row then column for consistent rendering */
     let sorted =
       List.sort(
         (a, b) => {
           let row_cmp = Int.compare(a.row, b.row);
-          if (row_cmp != 0) {
-            row_cmp;
-          } else {
-            Int.compare(a.col, b.col);
-          };
+          row_cmp != 0 ? row_cmp : Int.compare(a.col, b.col);
         },
         positioned,
       );
-
-    /* Track offside positions per row to place boxes side by side */
-    let (arrows, offsides, _) =
-      List.fold_left(
-        ((arrows_acc, offsides_acc, row_offsets), ins) => {
-          /* Render arrow */
-          let arrow = arrow_view(~font_metrics, ~row=ins.row, ~col=ins.col);
-
-          /* Compute offside position */
-          let base_left =
-            switch (IntMap.find_opt(ins.row, row_offsets)) {
-            | Some(offset) => offset + 0 /* 0 char gap between boxes */
-            | None => row_max_col(ins.row, measured) + offside_offset
-            };
-
-          /* Render offside box */
-          let offside =
-            offside_view(
-              ~font_metrics,
-              ~row=ins.row,
-              ~left=base_left,
-              ~live=matches_droppable(droppable, ins.delimiters),
-              delimiter_nodes(~font_metrics, ins.delimiters),
-            );
-
-          /* Update row offset for next box on same row, and publish
-             the claimed extent so probe offside displays stack after
-             the quiver instead of overlapping it */
-          let text_width = delimiters_len(ins.delimiters) + 2; /* +2 padding */
-          RowOffsets.claim(~row=ins.row, ~until_col=base_left + text_width);
-          let new_offsets =
-            IntMap.add(ins.row, base_left + text_width, row_offsets);
-
-          ([arrow, ...arrows_acc], [offside, ...offsides_acc], new_offsets);
-        },
-        ([], [], IntMap.empty),
-        sorted,
-      );
-
-    div(
-      ~attrs=[Attr.classes(["quiver-decorations"])],
-      List.rev(arrows) @ List.rev(offsides),
-    );
+    let chips =
+      coalesce_overlaps(~font_metrics, sorted)
+      |> List.map((ins: positioned_insertion) =>
+           chip_view(
+             ~font_metrics,
+             ~row=ins.row,
+             ~col=ins.col,
+             ~live=matches_droppable(droppable, ins.delimiters),
+             delimiter_nodes(~font_metrics, ins.delimiters),
+           )
+         );
+    div(~attrs=[Attr.classes(["quiver-decorations"])], chips);
   };
 };
