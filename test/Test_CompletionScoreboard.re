@@ -247,13 +247,13 @@ let run_class = (~prefix_only: bool, name: string, text: string): outcome => {
    update deliberately when heuristics (or delete semantics) change.
    `destroyed` = the edit merged tokens; not a completion miss. */
 let pins = [
-  ("let-chain", "5/0/6", "3/0/4"),
+  ("let-chain", "5/0/6", "4/0/4"),
   ("fun-ap", "6/2/9", "3/0/4"),
-  ("if-else-inline", "5/0/6", "4/0/5"),
-  ("if-else-multiline", "5/0/6", "4/0/5"),
-  ("case-multiline", "8/0/9", "3/0/6"),
-  ("type-adt", "12/2/16", "4/0/8"),
-  ("tuple-list", "8/0/10", "3/0/4"),
+  ("if-else-inline", "5/0/6", "5/0/5"),
+  ("if-else-multiline", "5/0/6", "5/0/5"),
+  ("case-multiline", "8/0/9", "4/0/6"),
+  ("type-adt", "12/2/16", "6/0/8"),
+  ("tuple-list", "8/0/10", "4/0/4"),
 ];
 
 let scoreboard_tests =

@@ -497,16 +497,20 @@ let opener_schedule =
         None;
       } else {
         let opener_text = List.nth(t.label, 0);
-        let rec first_content = (j: int) =>
-          j >= idx
-            ? None
-            : (
-              switch (List.nth(subseg, j)) {
-              | Piece.Secondary(_)
-              | Piece.Grout(_) => first_content(j + 1)
-              | pc => Some((j, pc))
-              }
-            );
+        /* search the whole span, not just its first piece: the span
+           is maximal-left, so with definitions above the broken form
+           it starts far away from the witness (deleting the t of a
+           second let must not absorb the first) — the uniqueness
+           gate does the disambiguation */
+        let candidates =
+          List.init(max(idx - at, 0), k => at + k)
+          |> List.filter_map(j =>
+               switch (List.nth(subseg, j)) {
+               | Piece.Tile({label: [_], children: [], _}) as pc =>
+                 Some((j, pc))
+               | _ => None
+               }
+             );
         /* single-char candidates need CORROBORATION: a broken keyword
            leaves junction debris (its former neighbors juxtaposed) or
            sits against a hole, while a genuine variable filling the
@@ -532,12 +536,21 @@ let opener_schedule =
           | _ => false
           };
         };
-        switch (first_content(at)) {
-        | Some((j, Piece.Tile({label: [tok], id, children: [], _})))
-            when
-              (Token.length(tok) >= 2 || corroborated(j))
-              && Token.length(tok) < Token.length(opener_text)
-              && String.sub(opener_text, 0, Token.length(tok)) == tok =>
+        let matches =
+          candidates
+          |> List.filter_map(((j, pc)) =>
+               switch (pc) {
+               | Piece.Tile({label: [tok], id, children: [], _})
+                   when
+                     (Token.length(tok) >= 2 || corroborated(j))
+                     && Token.length(tok) < Token.length(opener_text)
+                     && String.sub(opener_text, 0, Token.length(tok)) == tok =>
+                 Some((j, tok, id))
+               | _ => None
+               }
+             );
+        switch (matches) {
+        | [(j, tok, id)] =>
           let debris =
             switch (List.nth_opt(subseg, j + 1)) {
             | Some(Piece.Grout({id, shape: Concave})) => Some(id)
