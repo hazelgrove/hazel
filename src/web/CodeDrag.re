@@ -529,9 +529,10 @@ let on_up = (_e: Js.t(Dom_html.event)): unit =>
   switch (session^) {
   | None => ()
   | Some(s) =>
-    switch (s.winner) {
-    | Some(i) when s.t >= commit_t =>
-      let c = List.nth(s.cands, i);
+    switch (
+      s.winner |> Option.map(i => List.nth_opt(s.cands, i)) |> Option.join
+    ) {
+    | Some(c) when s.t >= commit_t =>
       /* handoff: the commit's FLIP starts each token from its
          scrubbed offset; the scrub animations are adopted so they
          die exactly when the flights take over */
