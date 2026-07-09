@@ -13,10 +13,15 @@ open Node;
 open Haz3lcore;
 open Util;
 
-/* An insertion with its resolved position */
+/* An insertion with its resolved position. side/shape drive the
+   caret-shaped bar: the bar IS the caret — same path, same metrics —
+   so when the real caret sits at the insertion point they coincide
+   exactly. */
 type positioned_insertion = {
   row: int,
   col: int,
+  side: Direction.t,
+  shape: option(Direction.t),
   delimiters: list(CanonicalCompletion.delimiter_info),
 };
 
@@ -25,6 +30,9 @@ type positioned_insertion = {
    shards, caret Outer — renders at full emphasis; everything else is
    slightly dimmed (the same signal the backpack display carried via
    its graying). Matching is by (tile id, shard index) provenance. */
+/* Chip text scale relative to the code font */
+let chip_font_scale = 0.72;
+
 let matches_droppable =
     (
       droppable: option((Id.t, int)),
@@ -108,9 +116,16 @@ let resolve_position =
         col + (sep ? 1 : 0);
       | _ => col
       };
+    let shape =
+      switch (find_piece_deep(seg, ins.adjacent_id)) {
+      | Some(p) => Segment.edge_direction_of(ins.side, [p])
+      | None => None
+      };
     Some({
       row,
       col,
+      side: ins.side,
+      shape,
       delimiters: ins.delimiters,
     });
   };
@@ -152,51 +167,74 @@ let delimiter_nodes =
          d.needs_hole
            ? [
              Node.text(" "),
-             EmptyHoleDec.view(font_metrics, Grout.Convex),
+             EmptyHoleDec.view(
+               FontMetrics.{
+                 col_width: font_metrics.col_width *. chip_font_scale,
+                 row_height: font_metrics.row_height *. chip_font_scale,
+               },
+               Grout.Convex,
+             ),
            ]
            : [];
        sep @ [Node.span(~attrs=[Attr.classes(seg_cls)], body)] @ suffix;
      })
   |> List.concat;
 
-/* Estimated chip text width in code-font columns (chip font is
-   scaled by chip_font_scale) — used only for overlap coalescing */
-let chip_font_scale = 0.72;
-
-/* One interline chip: a solid speech-bubble in the incomplete-
-   delimiter color, centered on the boundary above its insertion row,
-   tail pointing down, with a thin bar descending to the insertion
-   point and a small mirrored cap — a signpost planted where the
-   delimiters land. Bars keep the association exact when chips get
-   nudged or coalesced, so displacement never degrades meaning. */
+/* One interline chip: a solid speech-bubble centered on the line
+   boundary above the insertion point, its first character centered
+   over the insertion column, overlapping the top of a caret-shaped
+   bar — the SAME path the real caret draws at that position, so
+   caret and bar coincide exactly when the caret is there. */
 let chip_view =
     (
       ~font_metrics: FontMetrics.t,
       ~row: int,
       ~col: int,
+      ~side: Direction.t,
+      ~shape: option(Direction.t),
       ~live: bool,
       body: list(Node.t),
     )
     : Node.t => {
   let x = float_of_int(col) *. font_metrics.col_width;
   let y = float_of_int(row) *. font_metrics.row_height;
+  let bar =
+    DecUtil.code_svg(
+      ~font_metrics,
+      ~origin={
+        row,
+        col,
+      },
+      ~base_cls=["quiver-chip-bar"],
+      ~path_cls=["quiver-chip-bar-path"],
+      ~scale=1.0,
+      ~height_fudge=ShardDec.shadow_dy *. font_metrics.row_height,
+      CaretDec.caret_base_path(side, shape),
+    );
+  /* first character of the chip text sits centered over the
+     insertion column: padding (4px) + half a chip-scaled char */
+  let body_left = -. (4.0 +. 0.5 *. chip_font_scale *. font_metrics.col_width);
   div(
-    ~attrs=[
-      Attr.classes(["quiver-chip", live ? "chip-live" : "chip-dim"]),
-      Attr.create("style", Printf.sprintf("left: %fpx; top: %fpx;", x, y)),
-    ],
+    ~attrs=[Attr.classes(["quiver-chip", live ? "chip-live" : "chip-dim"])],
     [
-      div(~attrs=[Attr.classes(["quiver-chip-body"])], body),
-      div(~attrs=[Attr.classes(["quiver-chip-tail"])], []),
+      bar,
       div(
         ~attrs=[
-          Attr.classes(["quiver-chip-bar"]),
+          Attr.classes(["quiver-chip-anchor"]),
           Attr.create(
             "style",
-            Printf.sprintf("height: %fpx;", 0.8 *. font_metrics.row_height),
+            Printf.sprintf("left: %fpx; top: %fpx;", x, y),
           ),
         ],
-        [div(~attrs=[Attr.classes(["quiver-chip-cap"])], [])],
+        [
+          div(
+            ~attrs=[
+              Attr.classes(["quiver-chip-body"]),
+              Attr.create("style", Printf.sprintf("left: %fpx;", body_left)),
+            ],
+            body,
+          ),
+        ],
       ),
     ],
   );
@@ -289,6 +327,8 @@ let view =
              ~font_metrics,
              ~row=ins.row,
              ~col=ins.col,
+             ~side=ins.side,
+             ~shape=ins.shape,
              ~live=matches_droppable(droppable, ins.delimiters),
              delimiter_nodes(~font_metrics, ins.delimiters),
            )

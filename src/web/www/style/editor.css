@@ -550,57 +550,41 @@ svg:has(.child-line) {
 }
 
 .quiver-chip {
-  position: absolute;
-  z-index: 15; /* above code text, below the caret */
   pointer-events: none;
-  font-size: 0.72em;
-  line-height: 1.25;
-  font-family: var(--code-font);
 }
 
-/* body sits ABOVE the anchor point (the interline gap), left edge at
-   the insertion column; tail + bar descend from the anchor */
+/* the anchor pins the insertion point; the bubble hangs off it,
+   vertically CENTERED on the line boundary (translateY(-50%)), its
+   first character centered over the insertion column (inline left).
+   The bubble deliberately overlaps the top of the caret-shaped bar —
+   the caret reaches up between lines; the overlap is the join. */
+.quiver-chip-anchor {
+  position: absolute;
+  z-index: 15; /* above code text, below the caret */
+}
+
 .quiver-chip-body {
   position: absolute;
-  bottom: 3px;
-  left: -2px;
+  transform: translateY(-50%);
   padding: 0px 4px 1px 4px;
   border-radius: 4px;
   background: var(--quiver-chip);
   color: var(--quiver-chip-text);
+  font-family: var(--code-font);
+  font-size: 0.72em;
+  line-height: 1.25;
   font-weight: bold;
   white-space: nowrap;
 }
 
-.quiver-chip-tail {
-  position: absolute;
-  bottom: -2px;
-  left: 0px;
-  width: 0;
-  height: 0;
-  border-left: 4px solid transparent;
-  border-right: 4px solid transparent;
-  border-top: 5px solid var(--quiver-chip);
-}
-
+/* the bar is the caret: same path, same metrics, chip-colored */
 .quiver-chip-bar {
-  position: absolute;
-  top: 2px;
-  left: 3px;
-  width: 1.5px;
-  background: var(--quiver-chip);
+  z-index: 14;
 }
 
-/* mirrored mini-tail at the bar's foot */
-.quiver-chip-cap {
-  position: absolute;
-  bottom: -1px;
-  left: -3.25px;
-  width: 0;
-  height: 0;
-  border-left: 4px solid transparent;
-  border-right: 4px solid transparent;
-  border-bottom: 4px solid var(--quiver-chip);
+.quiver-chip-bar-path {
+  fill: var(--quiver-chip);
+  stroke: none;
 }
 
 /* tab emphasis: the chip whose first delimiter tab would put down is
@@ -624,6 +608,11 @@ svg:has(.child-line) {
 .quiver-chip .empty-hole {
   display: inline-block;
   vertical-align: middle;
+}
+
+/* the hole's hairline stroke reads as blur at chip scale */
+.quiver-chip .empty-hole > path {
+  stroke: none;
 }
 
 
