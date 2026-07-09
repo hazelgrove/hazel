@@ -50,11 +50,15 @@ let masks_of_records =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type delimiter_info = {
   text: string, /* The delimiter token (e.g., "in", "->", ")") */
-  needs_hole: bool, /* Whether a "?" follows this delimiter */
+  needs_hole: bool, /* Whether a hole follows this delimiter */
   /* When completing a prefix-token witness: how many chars of the
      delimiter the user already typed (viz bolds the typed prefix and
      fades the completed remainder) */
   typed_len: option(int),
+  /* (tile id, shard index) — lets the driver verify needs_hole
+     against the MATERIALIZED completion instead of trusting the
+     nib-shape prediction */
+  of_shard: option((Id.t, int)),
 };
 
 /* Information about a single insertion point for visualization.
@@ -836,7 +840,14 @@ let leading_insertions =
        |> Option.map(p =>
             {
               adjacent_id: Piece.id(p),
-              side: Direction.Left,
+              /* a witness arrow sits at the END of the typed prefix
+                 (the continuation point); splices/junctions point at
+                 the position itself */
+              side:
+                switch (act) {
+                | ReplaceWitness(_) => Direction.Right
+                | _ => Direction.Left
+                },
               delimiters:
                 Tile.left_missing_shards(t)
                 |> List.map((sh: Tile.t) => {
@@ -850,6 +861,7 @@ let leading_insertions =
                            Some(sp.len)
                          | _ => None
                          },
+                       of_shard: None,
                      };
                    }),
             }
@@ -871,14 +883,29 @@ let middle_insertions = (incomplete: list(Tile.t)): list(insertion) =>
        interior
        |> List.filter_map(m => {
             switch (plan) {
-            | Some((pm, left, _, psp)) when pm == m =>
+            | Some((pm, left, right, psp)) when pm == m =>
               /* junction/witness drop: shard lands inside the child,
-                 no hole */
-              ListUtil.last_opt(left)
-              |> Option.map(p =>
+                 no hole. A witness arrow anchors at the END of its
+                 typed token; a junction arrow at the head of the
+                 right span (the space side, where the shard actually
+                 materializes) rather than flush against the left
+                 content */
+              let anchor =
+                switch (psp) {
+                | Some(sp) => Some((sp.token_id, Direction.Right))
+                | None =>
+                  switch (right) {
+                  | [rp, ..._] => Some((Piece.id(rp), Direction.Left))
+                  | [] =>
+                    ListUtil.last_opt(left)
+                    |> Option.map(p => (Piece.id(p), Direction.Right))
+                  }
+                };
+              anchor
+              |> Option.map(((aid, aside)) =>
                    {
-                     adjacent_id: Piece.id(p),
-                     side: Direction.Right,
+                     adjacent_id: aid,
+                     side: aside,
                      delimiters: [
                        {
                          text: List.nth(t.label, m),
@@ -889,10 +916,11 @@ let middle_insertions = (incomplete: list(Tile.t)): list(insertion) =>
                                sp.len,
                              psp,
                            ),
+                         of_shard: None,
                        },
                      ],
                    }
-                 )
+                 );
             | _ =>
               let k = List.length(List.filter(sh => sh < m, t.shards)) - 1;
               switch (List.nth_opt(t.children, k)) {
@@ -907,6 +935,7 @@ let middle_insertions = (incomplete: list(Tile.t)): list(insertion) =>
                            text: List.nth(t.label, m),
                            needs_hole: shard_needs_hole(t, m),
                            typed_len: None,
+                           of_shard: Some((t.id, m)),
                          },
                        ],
                      }
@@ -1393,6 +1422,7 @@ let place_trailing_shards =
                 text: List.nth(t.label, i),
                 needs_hole: shard_needs_hole(t, i),
                 typed_len: None,
+                of_shard: Some((t.id, i)),
               },
             entries,
           ),
@@ -1424,10 +1454,15 @@ let place_trailing_shards =
                 | TrailJunction(j) => (j, false)
                 };
               /* the shard replaces the site piece (junction grout or
-                 witness token) in place, inheriting its spacing */
+                 witness token) in place, inheriting its spacing. The
+                 arrow anchors at the SITE itself: end of the typed
+                 prefix for a witness (the continuation point), origin
+                 of the debris grout for a junction (the actual drop
+                 position, space-side) */
               let site = List.nth(seg, j);
               let (before, after) = ListUtil.split_n(j, seg);
-              let anchor = j > 0 ? List.nth_opt(seg, j - 1) : None;
+              let anchor = Some(site);
+              let anchor_side = is_witness ? Direction.Right : Direction.Left;
               let seg = before @ [piece] @ List.tl(after);
               let witness_prefix =
                 is_witness ? prefix_of_witness(site, i) : None;
@@ -1441,7 +1476,7 @@ let place_trailing_shards =
                 | Some(a) => [
                     {
                       adjacent_id: Piece.id(a),
-                      side: Direction.Right,
+                      side: anchor_side,
                       delimiters: [
                         {
                           text: List.nth(t.label, i),
@@ -1452,6 +1487,7 @@ let place_trailing_shards =
                                 sp.len,
                               witness_prefix,
                             ),
+                          of_shard: None,
                         },
                       ],
                     },
@@ -1477,6 +1513,7 @@ let place_trailing_shards =
                             text: List.nth(t.label, i),
                             needs_hole: false,
                             typed_len: None,
+                            of_shard: None,
                           },
                         ],
                       },
@@ -1494,6 +1531,7 @@ let place_trailing_shards =
                       text: List.nth(t.label, i),
                       needs_hole: shard_needs_hole(t, i),
                       typed_len: None,
+                      of_shard: Some((t.id, i)),
                     },
                   ],
                   abs,
@@ -1525,6 +1563,92 @@ let place_trailing_shards =
       ]
     };
   (seg, ins, abs);
+};
+
+/* === Materialized-truth holes ===
+   A delimiter's trailing hole displays only if completing actually
+   leaves a SYNTHESIZED hole after that shard — a concave-right shard
+   that meets existing content (the next line's body, a following
+   definition) needs none. Verified against the completed segment
+   rather than predicted from nib shapes. */
+let rec segment_ids_deep = (sg: Segment.t): list(Id.t) =>
+  List.concat_map(
+    (p: Piece.t) =>
+      switch (p) {
+      | Tile(t) => [t.id, ...List.concat_map(segment_ids_deep, t.children)]
+      | p => [Piece.id(p)]
+      },
+    sg,
+  );
+
+let verify_holes =
+    (~input: Segment.t, ~completed: Segment.t, ins: list(insertion))
+    : list(insertion) => {
+  let input_ids = segment_ids_deep(input);
+  let fresh = id => !List.exists(Id.equal(id), input_ids);
+  let rec find = (sg: Segment.t, id: Id.t): option((Segment.t, int, Tile.t)) => {
+    let rec go = (i, ps) =>
+      switch (ps) {
+      | [] => None
+      | [Piece.Tile(t), ...rest] =>
+        if (Id.equal(t.id, id)) {
+          Some((sg, i, t));
+        } else {
+          let in_children =
+            List.fold_left(
+              (acc, ch) =>
+                switch (acc) {
+                | Some(_) => acc
+                | None => find(ch, id)
+                },
+              None,
+              t.children,
+            );
+          switch (in_children) {
+          | Some(r) => Some(r)
+          | None => go(i + 1, rest)
+          };
+        }
+      | [_, ...rest] => go(i + 1, rest)
+      };
+    go(0, sg);
+  };
+  let rec first_content = (ps: list(Piece.t)) =>
+    switch (ps) {
+    | [] => None
+    | [Piece.Secondary(_), ...rest] => first_content(rest)
+    | [p, ..._] => Some(p)
+    };
+  let hole_after = (tid: Id.t, k: int): bool =>
+    switch (find(completed, tid)) {
+    | None => false
+    | Some((sg, i, t)) =>
+      let probe =
+        k >= List.length(t.label) - 1
+          ? first_content(ListUtil.split_n(i + 1, sg) |> snd)
+          : Option.bind(List.nth_opt(t.children, k), ch => first_content(ch));
+      switch (probe) {
+      | Some(Piece.Grout({shape: Convex, id, _})) => fresh(id)
+      | _ => false
+      };
+    };
+  ins
+  |> List.map((i: insertion) =>
+       {
+         ...i,
+         delimiters:
+           i.delimiters
+           |> List.map((d: delimiter_info) =>
+                switch (d.needs_hole, d.of_shard) {
+                | (true, Some((tid, k))) => {
+                    ...d,
+                    needs_hole: hole_after(tid, k),
+                  }
+                | _ => d
+                }
+              ),
+       }
+     );
 };
 
 /* SEQUENTIAL MATERIALIZATION (plan item 0): complete ONE tile per
@@ -1695,6 +1819,7 @@ let rec complete_segment =
                             text: "case",
                             needs_hole: false,
                             typed_len: None,
+                            of_shard: None,
                           },
                         ],
                       },
@@ -1706,6 +1831,7 @@ let rec complete_segment =
                             text: "end",
                             needs_hole: false,
                             typed_len: None,
+                            of_shard: None,
                           },
                         ],
                       },
@@ -1821,6 +1947,8 @@ let rec complete_segment =
         reassembled,
       );
 
+    let insertions =
+      verify_holes(~input=seg, ~completed=completed_seg, insertions);
     /* Materialization can capture still-broken remnants into the new
        tile's children (the case remnant rides into the let's
        definition slot) and leaves un-chosen tiles for later passes:
