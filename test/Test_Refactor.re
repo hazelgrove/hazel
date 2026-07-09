@@ -809,7 +809,12 @@ let more_tests = [
     `Quick,
     () => {
       let got = inline(~kind=ExtractLet, "f¦(2), 3") |> text_of;
-      check(string, "let covers the tuple line", "let x = f(2) in x, 3", got);
+      check(
+        string,
+        "binding takes its own line",
+        "let x = f(2) in\nx, 3",
+        got,
+      );
     },
   ),
   test_case(
@@ -849,8 +854,8 @@ let more_tests = [
         inline(~kind=ExtractLet, "let a = g(f¦(2)) in a + 1") |> text_of;
       check(
         string,
-        "above the def line",
-        "let x = f(2) in let a = g(x) in a + 1",
+        "above the def line, own line",
+        "let x = f(2) in\nlet a = g(x) in a + 1",
         got,
       );
     },
@@ -2282,7 +2287,7 @@ let extract_target_tests = [
       check(
         string,
         "application extracted",
-        "let x = Error(e) in let y = f(x) in y",
+        "let x = Error(e) in\nlet y = f(x) in y",
         got,
       );
     },
@@ -2295,7 +2300,7 @@ let extract_target_tests = [
       check(
         string,
         "application extracted",
-        "let x = g(2) in let y = h(x) in y",
+        "let x = g(2) in\nlet y = h(x) in y",
         got,
       );
     },

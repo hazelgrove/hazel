@@ -1849,7 +1849,17 @@ let extract_let_impl: impl = {
       let s = Slot.of_exp(t);
       let def = pad(Slot.drop(s, t));
       let use = Slot.give(s, fresh(Var(x)));
-      let sep = sep_like(Slot.of_exp(line).lead);
+      /* an introduced let gets its own line at the ROOT line even in
+         a one-liner (andrew: extract's directionality only holds if
+         the binding actually goes above — the post-inline one-liner
+         case). Inline sub-slots (fun/arm bodies, chain body slots)
+         keep their one-line layout for now: breaking there needs
+         indent synthesis, and the pinned frame assumes new lines
+         open at-or-above the origin. */
+      let sep = {
+        let s = sep_like(Slot.of_exp(line).lead);
+        has_newline(s) || !same_node(line, program) ? s : newline();
+      };
       let build = (~parens: bool) =>
         rewrite_node(
           ~hit=same_node(line),

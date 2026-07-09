@@ -412,7 +412,9 @@ module Errors = {
         ~syntax: CachedSyntax.t,
         id: Id.t,
       ) =>
-    div_c(
+    div_id_c(
+      /* anchor id: rides the token in drag scrubs + commit flights */
+      (is_warning ? "warndec-" : "errdec-") ++ Id.to_string(id),
       is_warning ? "warnings-piece" : "errors-piece",
       switch (Id.Map.find_opt(id, syntax.projectors)) {
       | Some(p) =>
