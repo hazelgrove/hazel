@@ -1043,9 +1043,9 @@ let case_repair_tests = [
 
 let case_repair_edit_tests = [
   edit_case(
-    ~name="broken case head: orphan end adopts rules, one case only",
+    ~name="broken case head: cas witnesses case, exact restore",
     ~acts=Test_Editing.mk("case¦ x | 1 => 2 end") @ [destruct_l],
-    ~expected="casecas~ x | 1 => 2 end",
+    ~expected="case x | 1 => 2 end",
   ),
   edit_case(
     ~name="deleted closer stops at rule wall",
@@ -1088,6 +1088,92 @@ let entry_experience_tests = [
   ),
 ];
 
+/* === Leading witnesses: a >=2-char token at the opener position of
+   a tile expecting that opener completes in place (the tile's
+   surviving shards carry the expectation; no mold gate exists in
+   operand position, so length >= 2 is the residual protection) === */
+let leading_witness_tests = [
+  edit_case(
+    ~name="typ witnesses type",
+    ~acts=Test_Editing.mk("type¦ T = Int in 2") @ [destruct_l],
+    ~expected="type T = Int in 2",
+  ),
+  edit_case(
+    ~name="le witnesses let",
+    ~acts=Test_Editing.mk("let¦ x = 1 in x") @ [destruct_l],
+    ~expected="let x = 1 in x",
+  ),
+  edit_case(
+    ~name="fu witnesses fun",
+    ~acts=Test_Editing.mk("fun¦ q -> q") @ [destruct_l],
+    ~expected="fun q -> q",
+  ),
+  /* REGRESSION GUARD: a condition variable named i must not be eaten
+     as an if-witness when the whole `if` is deleted (length gate) */
+  edit_case(
+    ~name="single-char var i survives a deleted if",
+    ~acts=Test_Editing.mk("if¦ i then 1 else 2") @ [destruct_l, destruct_l],
+    ~expected=" ifi then 1 else 2",
+  ),
+  /* REGRESSION GUARD: the witness is the broken keyword, never the
+     following content, even when both share letters. The extra holes
+     are editor-state, not completion's doing: `c` itself prefixes
+     "case", so the InfixDelimiterPrefix mold grabs it as an operator
+     in the broken buffer (`cas c? |`) — the round-9 mold-liberality
+     concern, concretely. c survives; that's what this guards. */
+  edit_case(
+    ~name="scrutinee starting with same letters is preserved",
+    ~acts=Test_Editing.mk("case¦ c | 1 => 2 end") @ [destruct_l],
+    ~expected="case? c? | 1 => 2 end",
+  ),
+  /* fresh prefix with NO expecting tile: completion stays silent
+     (materializing a whole form from a token is TyDi's job) */
+  edit_case(
+    ~name="fresh cas conjures nothing",
+    ~acts=Test_Editing.string_to_ltr_actions("cas 1"),
+    ~expected="cas ~1",
+  ),
+];
+
+/* Provenance: leading-prefix masks roundtrip (the printer re-emits
+   the typed prefix token, exact id, at the leading boundary) */
+let leading_witness_roundtrip_tests = [
+  Alcotest.test_case(
+    "broken type head roundtrips through completion",
+    `Quick,
+    () => {
+      let z =
+        Test_Editing.perform(
+          Zipper.init(),
+          Test_Editing.mk("type¦ T = Int in 2") @ [destruct_l],
+        );
+      let seg = Zipper.unselect_and_zip(~erase_buffer=true, z);
+      Alcotest.(check(bool))(
+        "roundtrips",
+        true,
+        Test_RoundtripFuzz.roundtrips(seg),
+      );
+    },
+  ),
+  Alcotest.test_case(
+    "broken case head roundtrips through completion",
+    `Quick,
+    () => {
+      let z =
+        Test_Editing.perform(
+          Zipper.init(),
+          Test_Editing.mk("case¦ x | 1 => 2 end") @ [destruct_l],
+        );
+      let seg = Zipper.unselect_and_zip(~erase_buffer=true, z);
+      Alcotest.(check(bool))(
+        "roundtrips",
+        true,
+        Test_RoundtripFuzz.roundtrips(seg),
+      );
+    },
+  ),
+];
+
 let tests: list((string, list(Alcotest.test_case(unit)))) = [
   /* Debug test - run first to isolate crash */
   ("CanonicalCompletion: regrout-debug", regrout_debug_tests),
@@ -1122,6 +1208,11 @@ let tests: list((string, list(Alcotest.test_case(unit)))) = [
   ),
   ("CanonicalCompletion: case-repair (edit-derived)", case_repair_edit_tests),
   ("CanonicalCompletion: entry-experience", entry_experience_tests),
+  ("CanonicalCompletion: leading-witness", leading_witness_tests),
+  (
+    "CanonicalCompletion: leading-witness-roundtrip",
+    leading_witness_roundtrip_tests,
+  ),
   ("CanonicalCompletion: wraps", run_completion_tests(wrap_tests)),
   ("CanonicalCompletion: wraps (edit-derived)", run_wrap_seg_tests),
   ("CanonicalCompletion: linebreaks", run_completion_tests(linebreak_tests)),

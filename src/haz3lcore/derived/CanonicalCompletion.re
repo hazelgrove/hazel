@@ -376,10 +376,16 @@ let rec opener_insertion_index = (sk: Skel.t, idx: int): option(int) => {
  * Ties: later tile (later closer) first at the same index = outermost. */
 /* Per leading-incomplete tile: (insertion index, closer index, tile),
  * position asc, same-position ties later-closer-first (outermost). */
-/* (position, tile index, tile, is_junction_replacement) */
+/* How a scheduled opener lands at its position */
+type opener_action =
+  | Splice /* insert before the piece at the position (default) */
+  | ReplaceJunction /* replace the junction grout in place */
+  | ReplaceWitness(Language.IdTagged.IdTag.shard_prefix); /* complete a prefix token */
+
+/* (position, tile index, tile, action) */
 let opener_schedule =
     (subseg: Segment.t, incomplete: list(Tile.t))
-    : list((int, int, Tile.t, bool)) => {
+    : list((int, int, Tile.t, opener_action)) => {
   let leading_incomplete =
     incomplete |> List.filter((t: Tile.t) => Tile.l_shard(t) > 0);
   if (leading_incomplete == []) {
@@ -474,14 +480,61 @@ let opener_schedule =
           };
         };
       };
+    /* Leading witness: the first content piece of the opener span is
+       a bare token that proper-prefixes the missing opener (`cas` for
+       a broken case whose end survived; `typ`, `le`, `fu` likewise) —
+       complete the token in place. No mold gate exists in operand
+       position, so the residual protections are: the tile's own
+       EXPECTATION (we're completing this tile's opener), the token
+       sitting at the opener's own position, and PREFIX LENGTH >= 2 —
+       single chars are overwhelmingly genuine operands (`if i then`:
+       a condition named i must not be eaten as an if-witness). */
+    let witness_for =
+        (t: Tile.t, at: int, idx: int)
+        : option((int, Language.IdTagged.IdTag.shard_prefix)) =>
+      if (Tile.l_shard(t) != 1) {
+        None;
+      } else {
+        let opener_text = List.nth(t.label, 0);
+        let rec first_content = (j: int) =>
+          j >= idx
+            ? None
+            : (
+              switch (List.nth(subseg, j)) {
+              | Piece.Secondary(_)
+              | Piece.Grout(_) => first_content(j + 1)
+              | pc => Some((j, pc))
+              }
+            );
+        switch (first_content(at)) {
+        | Some((j, Piece.Tile({label: [tok], id, children: [], _})))
+            when
+              Token.length(tok) >= 2
+              && Token.length(tok) < Token.length(opener_text)
+              && String.sub(opener_text, 0, Token.length(tok)) == tok =>
+          Some((
+            j,
+            {
+              shard: 0,
+              len: Token.length(tok),
+              token_id: id,
+            },
+          ))
+        | _ => None
+        };
+      };
     leading_incomplete
     |> List.filter_map(t =>
          index_of(t)
          |> Option.map(idx => {
               let at = clamp(clamp_walls(t, at_of(idx), idx), idx);
-              switch (junction_for(t, at, idx)) {
-              | Some(j) => (j, idx, t, true)
-              | None => (at, idx, t, false)
+              switch (witness_for(t, at, idx)) {
+              | Some((j, sp)) => (j, idx, t, ReplaceWitness(sp))
+              | None =>
+                switch (junction_for(t, at, idx)) {
+                | Some(j) => (j, idx, t, ReplaceJunction)
+                | None => (at, idx, t, Splice)
+                }
               };
             })
        )
@@ -491,28 +544,47 @@ let opener_schedule =
   };
 };
 
-let insert_openers = (subseg: Segment.t, incomplete: list(Tile.t)): Segment.t => {
+let insert_openers =
+    (subseg: Segment.t, incomplete: list(Tile.t))
+    : (Segment.t, list((Id.t, Language.IdTagged.IdTag.shard_prefix))) => {
   let scheduled =
     opener_schedule(subseg, incomplete)
-    |> List.map(((at, idx, t, repl)) => (at, idx, leading_shards(t), repl));
+    |> List.map(((at, idx, t: Tile.t, act)) =>
+         (at, idx, leading_shards(t), t.id, act)
+       );
+  let absorbed = ref([]);
   let rec splice = (i, ps, sched) =>
     switch (sched) {
     | [] => ps
-    | [(at, _, openers, true), ...rest] when at == i =>
-      /* junction drop: the opener replaces the grout in place */
-      switch (ps) {
-      | [_, ...ptl] => openers @ splice(i + 1, ptl, rest)
-      | [] => openers @ splice(i, ps, rest)
+    | [(at, _, openers, tid, act), ...rest] when at == i =>
+      switch (act) {
+      | ReplaceJunction
+      | ReplaceWitness(_) =>
+        /* the opener replaces the site piece in place (junction grout
+           or the prefix token it completes); a witness also consumes
+           the concave junction debris its brokenness left against the
+           following content (`cas ~ c`), which would otherwise
+           confuse the final regrout */
+        switch (act) {
+        | ReplaceWitness(sp) => absorbed := [(tid, sp), ...absorbed^]
+        | _ => ()
+        };
+        switch (act, ps) {
+        | (ReplaceWitness(_), [_, Piece.Grout({shape: Concave, _}), ...ptl]) =>
+          openers @ splice(i + 2, ptl, rest)
+        | (_, [_, ...ptl]) => openers @ splice(i + 1, ptl, rest)
+        | (_, []) => openers @ splice(i, ps, rest)
+        };
+      | Splice => openers @ splice(i, ps, rest)
       }
-    | [(at, _, openers, false), ...rest] when at == i =>
-      openers @ splice(i, ps, rest)
     | _ =>
       switch (ps) {
-      | [] => List.concat_map(((_, _, o, _)) => o, sched)
+      | [] => List.concat_map(((_, _, o, _, _)) => o, sched)
       | [p, ...ptl] => [p, ...splice(i + 1, ptl, sched)]
       }
     };
-  splice(0, subseg, scheduled);
+  let seg = splice(0, subseg, scheduled);
+  (seg, absorbed^);
 };
 
 /* Check if a shard needs a hole after it (has concave right side).
@@ -554,7 +626,7 @@ let shard_needs_hole = (t: Tile.t, shard_idx: int): bool => {
 let leading_insertions =
     (subseg: Segment.t, incomplete: list(Tile.t)): list(insertion) =>
   opener_schedule(subseg, incomplete)
-  |> List.filter_map(((at, _, t: Tile.t, _)) =>
+  |> List.filter_map(((at, _, t: Tile.t, act)) =>
        List.nth_opt(subseg, at)
        |> Option.map(p =>
             {
@@ -562,13 +634,19 @@ let leading_insertions =
               side: Direction.Left,
               delimiters:
                 Tile.left_missing_shards(t)
-                |> List.map((sh: Tile.t) =>
+                |> List.map((sh: Tile.t) => {
+                     let i = List.hd(sh.shards);
                      {
-                       text: List.nth(t.label, List.hd(sh.shards)),
+                       text: List.nth(t.label, i),
                        needs_hole: false,
-                       typed_len: None,
-                     }
-                   ),
+                       typed_len:
+                         switch (act) {
+                         | ReplaceWitness(sp) when sp.shard == i =>
+                           Some(sp.len)
+                         | _ => None
+                         },
+                     };
+                   }),
             }
           )
      );
@@ -1340,10 +1418,10 @@ let complete_segment =
                   | pc => pc
                   }
                 );
-           let subseg = insert_openers(subseg, incomplete);
+           let (subseg, opener_abs) = insert_openers(subseg, incomplete);
            let (subseg, trail_ins, abs) =
              place_trailing_shards(~aggregate_anchor, subseg, incomplete);
-           (subseg, trail_ins @ static_ins, abs);
+           (subseg, trail_ins @ static_ins, opener_abs @ abs);
          });
     let insertions = List.concat_map(((_, ins, _)) => ins, completed_parts);
     let seg_with_shards =
