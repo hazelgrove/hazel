@@ -1119,6 +1119,50 @@ let symbolic_witness_tests = [
      Broken operators are TyDi/backpack territory. */
 ];
 
+/* Opener line-walls: a synthesized opener must not hoist above a
+   line starting with a complete prefix-form tile (statement-shaped
+   definitions stay unabsorbed); walls need a linebreak between them
+   and the broken tile, so inline wrapping keeps its maximal reading.
+   Expecteds are raw prints: the spliced opener glues to the next
+   token (` letb`) — the editor's materialization path space-
+   normalizes synthesized junctions; token stream is what's pinned. */
+let opener_wall_tests = [
+  edit_case(
+    ~name="fully-deleted second let stays on its line",
+    ~acts=
+      Test_Editing.mk("let a = 1 in\nlet¦ b = a + 2 in\na + b")
+      @ [destruct_l, destruct_l, destruct_l],
+    ~expected="let a = 1 in\n letb = a + 2 in\na + b",
+  ),
+  edit_case(
+    ~name="fully-deleted if below a let stays on its line",
+    ~acts=
+      Test_Editing.mk("let a = 1 in\nif¦ a < 2 then a else a + 1")
+      @ [destruct_l, destruct_l],
+    ~expected="let a = 1 in\n ifa < 2 then a else a + 1",
+  ),
+  edit_case(
+    ~name="fully-deleted case below a let stays on its line",
+    ~acts=
+      Test_Editing.mk("let t = 1 in\ncase¦ t\n| 1 => 2\n| _ => 3\nend")
+      @ [destruct_l, destruct_l, destruct_l, destruct_l],
+    ~expected="let t = 1 in\n caset\n| 1 => 2\n| _ => 3\nend",
+  ),
+  edit_case(
+    ~name="multiline bracket absorption is not walled",
+    /* line 2 starts with an operand, not a prefix form: the opener
+       keeps its maximal-left span across the linebreak */
+    ~acts=Test_Editing.mk("[¦1 +\n2]") @ [destruct_l],
+    ~expected="[1+\n  2]",
+  ),
+  edit_case(
+    ~name="inline paren around a let keeps its maximal reading",
+    /* no linebreak between the let and the broken paren: no wall */
+    ~acts=Test_Editing.mk("(¦let a = 1 in a)") @ [destruct_l],
+    ~expected="(let a = 1 in a)",
+  ),
+];
+
 let leading_witness_tests = [
   edit_case(
     ~name="typ witnesses type",
@@ -1317,6 +1361,7 @@ let tests: list((string, list(Alcotest.test_case(unit)))) = [
   ("CanonicalCompletion: entry-experience", entry_experience_tests),
   ("CanonicalCompletion: leading-witness", leading_witness_tests),
   ("CanonicalCompletion: symbolic-witness", symbolic_witness_tests),
+  ("CanonicalCompletion: opener-walls", opener_wall_tests),
   ("CanonicalCompletion: continuation", continuation_tests),
   (
     "CanonicalCompletion: leading-witness-roundtrip",
