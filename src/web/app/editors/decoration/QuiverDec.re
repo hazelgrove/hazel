@@ -20,6 +20,29 @@ type positioned_insertion = {
   delimiters: list(CanonicalCompletion.delimiter_info),
 };
 
+/* Two-state tab emphasis (backpack-parity): the entry whose shard is
+   what tab would put down RIGHT NOW — the head of the local missing
+   shards, caret Outer — renders at full emphasis; everything else is
+   slightly dimmed (the same signal the backpack display carried via
+   its graying). Matching is by (tile id, shard index) provenance. */
+let matches_droppable =
+    (
+      droppable: option((Id.t, int)),
+      delimiters: list(CanonicalCompletion.delimiter_info),
+    )
+    : bool =>
+  switch (droppable) {
+  | None => false
+  | Some((tid, k)) =>
+    delimiters
+    |> List.exists((d: CanonicalCompletion.delimiter_info) =>
+         switch (d.of_shard) {
+         | Some((tid', k')) => Id.equal(tid, tid') && k == k'
+         | None => false
+         }
+       )
+  };
+
 let rec find_piece_deep = (sg: Segment.t, id: Id.t): option(Piece.t) =>
   List.fold_left(
     (acc, p: Piece.t) =>
@@ -172,11 +195,17 @@ let arrow_view = (~font_metrics: FontMetrics.t, ~row: int, ~col: int): Node.t =>
 
 /* Render an offside box showing delimiter content */
 let offside_view =
-    (~font_metrics: FontMetrics.t, ~row: int, ~left: int, body: list(Node.t))
+    (
+      ~font_metrics: FontMetrics.t,
+      ~row: int,
+      ~left: int,
+      ~live: bool,
+      body: list(Node.t),
+    )
     : Node.t =>
   div(
     ~attrs=[
-      Attr.classes(["quiver-offside"]),
+      Attr.classes(["quiver-offside", live ? "tab-live" : "tab-dim"]),
       Attr.create(
         "style",
         Printf.sprintf(
@@ -208,7 +237,12 @@ let row_max_col = (row: int, measured: Measured.t): int =>
 
 /* Main view function: renders quiver decorations for a segment */
 let view =
-    (~measured: Measured.t, ~font_metrics: FontMetrics.t, seg: Segment.t)
+    (
+      ~measured: Measured.t,
+      ~font_metrics: FontMetrics.t,
+      ~droppable: option((Id.t, int))=None,
+      seg: Segment.t,
+    )
     : Node.t => {
   /* Get completion result with insertions */
   let result = CanonicalCompletion.for_editor(seg);
@@ -262,6 +296,7 @@ let view =
               ~font_metrics,
               ~row=ins.row,
               ~left=base_left,
+              ~live=matches_droppable(droppable, ins.delimiters),
               delimiter_nodes(~font_metrics, ins.delimiters),
             );
 

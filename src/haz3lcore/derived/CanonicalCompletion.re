@@ -861,7 +861,7 @@ let leading_insertions =
                            Some(sp.len)
                          | _ => None
                          },
-                       of_shard: None,
+                       of_shard: Some((t.id, i)),
                      };
                    }),
             }
@@ -916,7 +916,7 @@ let middle_insertions = (incomplete: list(Tile.t)): list(insertion) =>
                                sp.len,
                              psp,
                            ),
-                         of_shard: None,
+                         of_shard: Some((t.id, m)),
                        },
                      ],
                    }
@@ -1492,7 +1492,7 @@ let place_trailing_shards =
                                 sp.len,
                               witness_prefix,
                             ),
-                          of_shard: None,
+                          of_shard: Some((t.id, i)),
                         },
                       ],
                     },
@@ -1518,7 +1518,7 @@ let place_trailing_shards =
                             text: List.nth(t.label, i),
                             needs_hole: false,
                             typed_len: None,
-                            of_shard: None,
+                            of_shard: Some((t.id, i)),
                           },
                         ],
                       },
@@ -1885,7 +1885,7 @@ let rec complete_segment =
              };
            let wrap_ins =
              wraps
-             |> List.concat_map(((l_idx, r_idx, _)) =>
+             |> List.concat_map(((l_idx, r_idx, wrap_id)) =>
                   switch (
                     List.nth_opt(subseg, l_idx),
                     List.nth_opt(subseg, r_idx),
@@ -1899,7 +1899,7 @@ let rec complete_segment =
                             text: "case",
                             needs_hole: false,
                             typed_len: None,
-                            of_shard: None,
+                            of_shard: Some((wrap_id, 0)),
                           },
                         ],
                       },
@@ -1911,7 +1911,7 @@ let rec complete_segment =
                             text: "end",
                             needs_hole: false,
                             typed_len: None,
-                            of_shard: None,
+                            of_shard: Some((wrap_id, 1)),
                           },
                         ],
                       },
