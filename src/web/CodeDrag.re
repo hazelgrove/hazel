@@ -27,8 +27,10 @@ let snap_min_t = 0.7;
 /* Chaining: reaching a target via its track (radius + min progress)
    COMMITS mid-drag and re-enumerates from the new state — multiple
    rungs in one hold. Instant on arrival, like dragology's
-   withSnapRadius(chain:true). */
-let chaining = true;
+   withSnapRadius(chain:true). OFF (andrew, 2nd time): works
+   mechanically but surfaces caret/handoff complexities — parked low
+   on the ledger; one commit per drag until then. */
+let chaining = false;
 let when_far = 56.; /* px: farther than this from every track = no winner */
 let stickiness = 6.; /* px bonus for the incumbent track */
 let direction_pull = 8.; /* px bonus for tracks aligned with the pull —
