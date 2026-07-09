@@ -13,15 +13,10 @@ open Node;
 open Haz3lcore;
 open Util;
 
-/* An insertion with its resolved position. tolerant_col = the right
-   edge of the last CONTENT piece left of the pin: a caret anywhere in
-   (tolerant_col..col] on the same row is separated from the pin only
-   by grout/whitespace — the regrout hole that pops in and out beside
-   the caret during entry must not flip the chip's caret association. */
+/* An insertion with its resolved position */
 type positioned_insertion = {
   row: int,
   col: int,
-  tolerant_col: int,
   delimiters: list(CanonicalCompletion.delimiter_info),
 };
 
@@ -87,13 +82,13 @@ let rec find_piece_ctx =
 let find_piece_deep = (sg: Segment.t, id: Id.t): option(Piece.t) =>
   find_piece_ctx(sg, id) |> Option.map(((_, _, p)) => p);
 
-/* Resolve an insertion's position by looking up adjacent_id in
-   Measured. A right-side anchor whose delimiter would be
-   space-separated from the anchor token (SpaceNormalize inserts one
-   at materialization) shifts one column to the space side, so the
-   arrow sits where the delimiter actually lands instead of flush
-   against the existing token. Witness arrows (typed_len set) never
-   shift: the completion continues the typed prefix directly. */
+/* Resolve an insertion's position. COINCIDENCE-FIRST placement: the
+   pin snaps LEFT across grout/whitespace to the right edge of the
+   previous content piece — during entry, regrout pops holes in and
+   out beside the caret and the raw anchor lands beyond them, putting
+   a second caret-like pole one or two columns from the real caret.
+   Snapping makes pin and typing caret coincide, so there is ONE
+   caret-like thing (the takeover handles it) instead of two. */
 let resolve_position =
     (
       ~seg: Segment.t,
@@ -109,24 +104,7 @@ let resolve_position =
       | Right => (m.last.row, m.last.col)
       | Left => (m.origin.row, m.origin.col)
       };
-    let col =
-      switch (ins.side, ins.delimiters) {
-      | (Right, [{typed_len: None, text, _}, ..._]) =>
-        let sep =
-          switch (find_piece_deep(seg, ins.adjacent_id)) {
-          | Some(p) =>
-            switch (SpaceNormalize.last_token(p)) {
-            | Some(a) => SpaceNormalize.needs_space(a, text)
-            | None => false
-            }
-          | None => false
-          };
-        col + (sep ? 1 : 0);
-      | _ => col
-      };
-    /* walk left from the anchor over grout/secondary to the previous
-       content piece: its right edge starts the tolerance interval */
-    let tolerant_col = {
+    let col = {
       let rec prev_content = (sg: Segment.t, i: int): option(Piece.t) =>
         i <= 0
           ? None
@@ -139,19 +117,19 @@ let resolve_position =
           );
       switch (find_piece_ctx(seg, ins.adjacent_id)) {
       | Some((sg, i, p)) =>
-        let start: option(Piece.t) =
+        let content_edge =
           switch ((p: Piece.t)) {
           | Grout(_)
           | Secondary(_) => prev_content(sg, i)
           | _ => Some(p)
           };
-        switch (start) {
+        switch (content_edge) {
         | Some(q) =>
           switch (Measured.find_by_id(Piece.id(q), measured)) {
-          | Some(qm) => qm.last.row == row ? qm.last.col : col
-          | None => col
+          | Some(qm) when qm.last.row == row => min(qm.last.col, col)
+          | _ => col
           }
-        | None => 0
+        | None => col
         };
       | None => col
       };
@@ -159,7 +137,6 @@ let resolve_position =
     Some({
       row,
       col,
-      tolerant_col: min(tolerant_col, col),
       delimiters: ins.delimiters,
     });
   };
@@ -229,8 +206,6 @@ let chip_view =
       ~col: int,
       ~live: bool,
       ~at_caret: bool,
-      ~near_caret: bool,
-      ~body_key: string,
       body: list(Node.t),
     )
     : Node.t => {
@@ -263,7 +238,6 @@ let chip_view =
     ~attrs=[
       Attr.classes(
         ["quiver-chip", live ? "chip-live" : "chip-dim"]
-        @ (near_caret ? ["chip-near-caret"] : [])
         @ (at_caret ? ["chip-at-caret"] : []),
       ),
     ],
@@ -278,12 +252,7 @@ let chip_view =
         ],
         [
           pole,
-          /* keyed: any content/position change remounts the bubble,
-             restarting its delayed-appear animation — mid-burst the
-             label stays hidden and settles ~0.4s after the last
-             change; the pole is always immediate */
           div(
-            ~key=body_key,
             ~attrs=[
               Attr.classes(["quiver-chip-body"]),
               Attr.create("style", Printf.sprintf("left: %fpx;", body_left)),
@@ -386,28 +355,6 @@ let view =
              ~col=ins.col,
              ~live=matches_droppable(droppable, ins.delimiters),
              ~at_caret=caret_pos == Some((ins.row, ins.col)),
-             ~near_caret=
-               switch (caret_pos) {
-               | Some((r, c)) =>
-                 r == ins.row && c >= ins.tolerant_col && c <= ins.col
-               | None => false
-               },
-             ~body_key=
-               Printf.sprintf(
-                 "%d:%d:%s",
-                 ins.row,
-                 ins.col,
-                 ins.delimiters
-                 |> List.map((d: CanonicalCompletion.delimiter_info) =>
-                      Printf.sprintf(
-                        "%s/%d/%b",
-                        d.text,
-                        Option.value(~default=0, d.typed_len),
-                        d.needs_hole,
-                      )
-                    )
-                 |> String.concat("|"),
-               ),
              delimiter_nodes(~font_metrics, ins.delimiters),
            )
          );
