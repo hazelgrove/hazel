@@ -380,7 +380,13 @@ let run_pairs = (name: string, text: string): joint_outcome => {
 /* (program, "restored/incomplete/total") — PINNED like the others */
 let pair_pins = [
   ("let-chain", "1/0/1"),
-  ("fun-ap", "3/0/6"), /* all 3 inherit the known )@f(3 single miss */
+  /* the 3 misses inherit the )@f(3 single: deleting that ) leaves
+     `f(3 + f(4)` — NO grout, NO junction, byte-identical to freshly
+     typing an ap-paren spanning the rest. Structural evidence
+     destroyed; the wide completion IS correct for the visible state
+     (entry/trajectory stability), so this is accepted-inherent like
+     merge-on-delete, not a placement miss. */
+  ("fun-ap", "3/0/6"),
   ("if-else-inline", "1/0/1"),
   ("if-else-multiline", "1/0/1"),
   ("case-multiline", "6/0/6"),
@@ -417,14 +423,14 @@ let pair_tests =
    `destroyed` = the edit merged tokens; not a completion miss. */
 let pins = [
   ("let-chain", "5/0/6", "4/0/4"),
-  ("fun-ap", "6/2/9", "3/0/4"),
+  ("fun-ap", "6/2/9", "4/0/4"),
   ("if-else-inline", "5/0/6", "5/0/5"),
   ("if-else-multiline", "5/0/6", "5/0/5"),
-  ("case-multiline", "8/0/9", "4/0/6"),
-  ("type-adt", "12/2/16", "6/0/8"),
+  ("case-multiline", "8/0/9", "6/0/6"),
+  ("type-adt", "12/2/16", "8/0/8"),
   ("tuple-list", "8/0/10", "4/0/4"),
-  ("case-def-inline", "9/0/9", "4/0/6"),
-  ("case-def-multiline", "9/0/9", "4/0/6"),
+  ("case-def-inline", "9/0/9", "6/0/6"),
+  ("case-def-multiline", "9/0/9", "6/0/6"),
 ];
 
 let scoreboard_tests =
