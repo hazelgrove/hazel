@@ -19,11 +19,11 @@ open Haz3lcore;
 let snap_radius = 14.; /* px: reaching a target commits (chain) */
 let snap_dwell = 120.; /* ms inside the radius before the commit fires */
 let snap_min_t = 0.7; /* progress required before a snap is armed */
-/* TEMPORARY (andrew): mid-drag commits confuse while feeling out the
-   basics — with chaining off, reaching a target just holds the full
-   preview and RELEASE commits; flip back on to ride multiple rungs
-   in one drag */
-let chaining = false;
+/* Chaining: linger at a target (snap radius + dwell, with real
+   progress) to COMMIT mid-drag and re-enumerate from the new state —
+   multiple rungs in one hold. Re-enabled once the base settled
+   (continuation, frames, exits/enters all in). */
+let chaining = true;
 let when_far = 56.; /* px: farther than this from every track = no winner */
 let stickiness = 6.; /* px bonus for the incumbent track */
 let direction_pull = 8.; /* px bonus for tracks aligned with the pull —
@@ -100,6 +100,10 @@ type session = {
   /* dwell: (candidate index, entered-at ms) — a commit needs the
      pointer to LINGER in the snap radius, not just graze it */
   mutable snap_hover: option((int, float)),
+  /* dwell must fire for a STILL pointer too — resolve only runs on
+     pointermove, so arming the hover schedules a re-check */
+  mutable last_p: vec,
+  mutable dwell_timer: option(Dom_html.timeout_id_safe),
 };
 
 let session: ref(option(session)) = ref(None);
@@ -486,7 +490,8 @@ let scrub_to = (s: session, winner: option(int), t: float): unit => {
 
 /* === geometry === */
 
-let resolve = (s: session, p: vec): unit => {
+let rec resolve = (s: session, p: vec): unit => {
+  s.last_p = p;
   let track = (c: cand) => {
     let ax = c.cur.x
     and ay = c.cur.y;
@@ -552,7 +557,24 @@ let resolve = (s: session, p: vec): unit => {
           s.pending = AwaitChange(s.last_z, s.last_term);
           s.commit(c.dir);
         }
-      | _ => s.snap_hover = Some((i, now_ms()))
+      | _ =>
+        s.snap_hover = Some((i, now_ms()));
+        /* re-check after the dwell even if the pointer holds still */
+        switch (s.dwell_timer) {
+        | Some(id) => Dom_html.clearTimeout(id)
+        | None => ()
+        };
+        s.dwell_timer =
+          Some(
+            Dom_html.setTimeout(
+              () =>
+                switch (session^) {
+                | Some(s') when s' === s => resolve(s', s'.last_p)
+                | _ => ()
+                },
+              snap_dwell +. 20.,
+            ),
+          );
       };
     } else {
       s.snap_hover = None;
@@ -570,6 +592,10 @@ let resolve = (s: session, p: vec): unit => {
 let end_session = () => {
   switch (session^) {
   | Some(s) =>
+    switch (s.dwell_timer) {
+    | Some(id) => Dom_html.clearTimeout(id)
+    | None => ()
+    };
     switch (s.scrub_active) {
     | Some(w) =>
       switch (List.assoc_opt(w, s.scrub_anims), List.nth_opt(s.cands, w)) {
@@ -703,6 +729,11 @@ let arm =
     scrub_anims: [],
     scrub_active: None,
     snap_hover: None,
+    last_p: {
+      x: 0.,
+      y: 0.,
+    },
+    dwell_timer: None,
     down_at: {
       x: cx -. r##.left,
       y: cy -. r##.top,
@@ -963,9 +994,16 @@ let sync =
         s.pending = AwaitGoal(goal, Some(z));
       };
     | AwaitChange(z0, t0) =>
+      /* BOTH must have changed: after a commit the first render has
+         the new zipper with the STALE statics term (statics lag one
+         render). Computing there yields plausible-but-stale
+         candidates — transforms prepared against the old structure
+         whose tracks degenerate against the new live measured
+         (everything but feed vanished on chain rung 2). Wait for the
+         term to catch up. */
       let changed =
         switch (z0, t0) {
-        | (Some(z0), Some(t0)) => !(z0 === z) || !(t0 === term)
+        | (Some(z0), Some(t0)) => !(z0 === z) && !(t0 === term)
         | (Some(z0), None) => !(z0 === z)
         | (None, _) => true
         };
