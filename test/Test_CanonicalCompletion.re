@@ -1174,6 +1174,38 @@ let leading_witness_roundtrip_tests = [
   ),
 ];
 
+/* === Continuation lines + closer witnesses (multiline case/if) === */
+let continuation_tests = [
+  edit_case(
+    ~name="deleted d of multiline end: en witnesses past the rules",
+    ~acts=
+      Test_Editing.mk("let t = 1 in\ncase t\n| 1 => 2\n| _ => 3\nend¦")
+      @ [destruct_l],
+    ~expected="let t = 1 in\ncase t\n| 1 => 2\n| _ => 3\nend",
+  ),
+  /* no witness left: end appends after the rules (the emptied last
+     line's linebreak partitions off; splice-glue cosmetics) */
+  edit_case(
+    ~name="fully deleted multiline end appends after the rules",
+    ~acts=
+      Test_Editing.mk("let t = 1 in\ncase t\n| 1 => 2\n| _ => 3\nend¦")
+      @ [destruct_l, destruct_l, destruct_l],
+    ~expected="let t = 1 in\ncase t\n| 1 => 2\n| _ => 3end\n",
+  ),
+  edit_case(
+    ~name="multiline els witnesses else",
+    ~acts=
+      Test_Editing.mk("let a = 1 in\nif a < 2 then a\nelse¦ a + 1")
+      @ [destruct_l],
+    ~expected="let a = 1 in\nif a < 2 then a\nelse a + 1",
+  ),
+  edit_case(
+    ~name="inline en witnesses end",
+    ~acts=Test_Editing.mk("case t | 1 => 2 end¦") @ [destruct_l],
+    ~expected="case t | 1 => 2 end",
+  ),
+];
+
 let tests: list((string, list(Alcotest.test_case(unit)))) = [
   /* Debug test - run first to isolate crash */
   ("CanonicalCompletion: regrout-debug", regrout_debug_tests),
@@ -1209,6 +1241,7 @@ let tests: list((string, list(Alcotest.test_case(unit)))) = [
   ("CanonicalCompletion: case-repair (edit-derived)", case_repair_edit_tests),
   ("CanonicalCompletion: entry-experience", entry_experience_tests),
   ("CanonicalCompletion: leading-witness", leading_witness_tests),
+  ("CanonicalCompletion: continuation", continuation_tests),
   (
     "CanonicalCompletion: leading-witness-roundtrip",
     leading_witness_roundtrip_tests,

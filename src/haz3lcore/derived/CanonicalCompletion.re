@@ -775,6 +775,41 @@ let count_leading_spaces = (seg: Segment.t): int => {
  *
  * This should be disabled for indentation calculation to avoid circular
  * dependency (indentation uses completion, completion uses indentation). */
+/* Continuation lines: the indent heuristic reads same-indent as
+   "not mine", but broken multiline forms put their own material at
+   the head indent. Evidence-gated exceptions (neither can occur in
+   healthy code): a line whose first content piece is (a) a NAKED
+   rule tile (healthy rules live inside their case tile), or (b) a
+   bare token proper-prefixing a delimiter some incomplete tile of
+   this partition still expects (`en` under a case missing its end,
+   `els` under an if missing its else) continues the partition. */
+let continuation_line = (incomplete_acc: list(Tile.t), rest: Segment.t): bool => {
+  let rec first_content = (sg: Segment.t) =>
+    switch (sg) {
+    | [Piece.Secondary(s), ...tl] when Secondary.is_space(s) =>
+      first_content(tl)
+    | [p, ..._] => Some(p)
+    | [] => None
+    };
+  switch (first_content(rest)) {
+  | Some(Tile(t)) when t.mold.out == Sort.Rul => true
+  | Some(Tile({label: [tok], children: [], _})) =>
+    incomplete_acc
+    |> List.exists((it: Tile.t) => {
+         let missing =
+           List.init(List.length(it.label), i => i)
+           |> List.filter(i => !List.mem(i, it.shards))
+           |> List.map(List.nth(it.label));
+         missing
+         |> List.exists(dt =>
+              Token.length(tok) < Token.length(dt)
+              && String.sub(dt, 0, Token.length(tok)) == tok
+            );
+       })
+  | _ => false
+  };
+};
+
 let partition_segment =
     (~use_indent_heuristic=true, seg: Segment.t)
     : list((Segment.t, list(Tile.t))) => {
@@ -822,7 +857,11 @@ let partition_segment =
         when use_indent_heuristic && Secondary.is_linebreak(w) =>
       let spaces_after = count_leading_spaces(rest);
       switch (incomplete_indent) {
-      | Some(inc_ind) when incomplete_before && spaces_after <= inc_ind =>
+      | Some(inc_ind)
+          when
+            incomplete_before
+            && spaces_after <= inc_ind
+            && !continuation_line(incomplete_acc, rest) =>
         /* Partition: content at same/lesser indent than incomplete tile */
         let current = List.rev(acc);
         let current_incomplete = List.rev(incomplete_acc);
@@ -1151,33 +1190,24 @@ let place_trailing_shards =
               );
             /* a prefix-token witness (backspaced `in` leaving `i` in
                operator position) outranks a bare junction: it names
-               the delimiter, not just the position */
-            let witness =
-              switch (r_nib.shape) {
-              | Convex => None
-              | Concave(_) =>
-                let shard_text = List.nth(t.label, i);
-                let sites =
-                  List.init(max(region_end - cursor, 0), k => cursor + k)
-                  |> List.filter(j =>
-                       is_prefix_witness(List.nth(seg, j), shard_text)
-                     )
-                  |> List.filter(j => {
-                       let left = slice(cursor, j, seg);
-                       let right = slice(j + 1, region_end, seg);
-                       /* no has_content(right): the witness names the
-                          delimiter, and line-final witnesses (`let a =
-                          1 i` — in-prefixes end let-chain lines) have
-                          their content in the next partition */
-                       has_content(left)
-                       && span_fits_sort(left, l_nib.sort)
-                       && span_fits_sort(right, r_nib.sort);
-                     });
-                switch (sites) {
-                | [j] => Some(j)
-                | _ => None
-                };
+               the delimiter, not just the position. No shape or sort
+               gates: unlike a junction drop, the witness only decides
+               WHERE the shard lands (at its own token) — the absorbed
+               content is exactly what the partition-end fallback
+               would absorb anyway. This lets closers witness too
+               (`en` -> `end` past a Rul-sorted span). */
+            let witness = {
+              let shard_text = List.nth(t.label, i);
+              let sites =
+                List.init(max(region_end - cursor, 0), k => cursor + k)
+                |> List.filter(j =>
+                     is_prefix_witness(List.nth(seg, j), shard_text)
+                   );
+              switch (sites) {
+              | [j] => Some(j)
+              | _ => None
               };
+            };
             let junction =
               switch (r_nib.shape) {
               | Convex => None
