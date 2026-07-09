@@ -1051,8 +1051,11 @@ let place_trailing_shards =
                   |> List.filter(j => {
                        let left = slice(cursor, j, seg);
                        let right = slice(j + 1, region_end, seg);
+                       /* no has_content(right): the witness names the
+                          delimiter, and line-final witnesses (`let a =
+                          1 i` — in-prefixes end let-chain lines) have
+                          their content in the next partition */
                        has_content(left)
-                       && has_content(right)
                        && span_fits_sort(left, l_nib.sort)
                        && span_fits_sort(right, r_nib.sort);
                      });
