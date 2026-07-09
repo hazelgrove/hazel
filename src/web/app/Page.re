@@ -629,16 +629,58 @@ module Selection = {
   };
 };
 
+/* Bare-cmd tracking must not depend on events reaching the page's
+   bubble-phase listener — the editor stops propagation on keys it
+   handles, stranding the meta-down flag (stuck ref-underlines).
+   A document-level CAPTURE listener sees every key first. */
+module MetaListener = {
+  open Js_of_ocaml;
+  let dispatch: ref(bool => unit) = ref(_ => ());
+  let installed = ref(false);
+  let state = ref(false);
+  let on_key = (e: Js.t(Dom_html.event)): unit => {
+    let coerced = Js.Unsafe.coerce(e);
+    let bare_meta =
+      Js.to_bool(coerced##.metaKey)
+      && !Js.to_bool(coerced##.ctrlKey)
+      && !Js.to_bool(coerced##.altKey)
+      && !Js.to_bool(coerced##.shiftKey);
+    if (bare_meta != state^) {
+      state := bare_meta;
+      dispatch^(bare_meta);
+    };
+  };
+  let sync = (set: bool => unit): unit => {
+    dispatch := set;
+    if (! installed^) {
+      installed := true;
+      ["keydown", "keyup"]
+      |> List.iter(name => {
+           let _ =
+             Dom_html.addEventListener(
+               Dom_html.document,
+               Dom.Event.make(name),
+               Dom_html.handler(e => {
+                 on_key(e);
+                 Js._true;
+               }),
+               Js._true /* capture */,
+             );
+           ();
+         });
+    };
+  };
+};
+
 module View = {
   let handlers = (~inject: Update.t => Ui_effect.t(unit), model: Model.t) => {
+    MetaListener.sync(down =>
+      Bonsai.Effect.Expert.handle(inject(Globals(SetMetaDown(down))))
+    );
     let handle_key_event = (key: Key.t): Effect.t(unit) => {
-      /* bare cmd only: chords (cmd+ctrl gestures etc.) must not light
-         up the ref-jump underline affordance */
-      let meta_down =
-        key.meta == Down && key.ctrl == Up && key.alt == Up && key.shift == Up;
-      let meta_effects =
-        model.globals.meta_down == meta_down
-          ? [] : [inject(Globals(SetMetaDown(meta_down)))];
+      /* meta state is maintained by MetaListener (document capture);
+         the page's bubble listener misses keys the editor consumes */
+      let meta_effects = [];
       /* Page-level keys only. Editor-specific keys are handled by
        * each editor's own Key.handler and won't bubble here
        * (they call Stop_propagation). */
