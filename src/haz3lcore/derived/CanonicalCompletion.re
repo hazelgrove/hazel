@@ -165,6 +165,7 @@ let prefix_of_witness =
       shard,
       len: Token.length(tok),
       token_id: id,
+      debris: None,
     })
   | _ => None
   };
@@ -506,20 +507,51 @@ let opener_schedule =
               | pc => Some((j, pc))
               }
             );
+        /* single-char candidates need CORROBORATION: a broken keyword
+           leaves junction debris (its former neighbors juxtaposed) or
+           sits against a hole, while a genuine variable filling the
+           slot cleanly has structure, not grout, beside it. So
+           deleting the f of `if x < 3 then` (i next to the junction)
+           absorbs, while `i then v else x` from a whole-if deletion
+           (clean single operand) is preserved as the condition.
+           Accepted trade (pinned in tests): whole-form deletion where
+           the slot held a multihole CONTAINING a var named like the
+           prefix eats the var. */
+        let corroborated = (j: int) => {
+          let rec next_content = k =>
+            k >= idx
+              ? None
+              : (
+                switch (List.nth(subseg, k)) {
+                | Piece.Secondary(_) => next_content(k + 1)
+                | pc => Some(pc)
+                }
+              );
+          switch (next_content(j + 1)) {
+          | Some(Piece.Grout(_)) => true
+          | _ => false
+          };
+        };
         switch (first_content(at)) {
         | Some((j, Piece.Tile({label: [tok], id, children: [], _})))
             when
-              Token.length(tok) >= 2
+              (Token.length(tok) >= 2 || corroborated(j))
               && Token.length(tok) < Token.length(opener_text)
               && String.sub(opener_text, 0, Token.length(tok)) == tok =>
+          let debris =
+            switch (List.nth_opt(subseg, j + 1)) {
+            | Some(Piece.Grout({id, shape: Concave})) => Some(id)
+            | _ => None
+            };
           Some((
             j,
             {
               shard: 0,
               len: Token.length(tok),
               token_id: id,
+              debris,
             },
-          ))
+          ));
         | _ => None
         };
       };
@@ -561,16 +593,20 @@ let insert_openers =
       | ReplaceJunction
       | ReplaceWitness(_) =>
         /* the opener replaces the site piece in place (junction grout
-           or the prefix token it completes); a witness also consumes
-           the concave junction debris its brokenness left against the
-           following content (`cas ~ c`), which would otherwise
-           confuse the final regrout */
+           or the prefix token it completes). A witness also consumes
+           the adjacent concave junction debris its brokenness left —
+           RECORDED in the prefix mask (debris id), so the reprint
+           reproduces the buffer's exact layout while the completed
+           form stays clean. */
         switch (act) {
         | ReplaceWitness(sp) => absorbed := [(tid, sp), ...absorbed^]
         | _ => ()
         };
         switch (act, ps) {
-        | (ReplaceWitness(_), [_, Piece.Grout({shape: Concave, _}), ...ptl]) =>
+        | (
+            ReplaceWitness({debris: Some(_), _}),
+            [_, Piece.Grout({shape: Concave, _}), ...ptl],
+          ) =>
           openers @ splice(i + 2, ptl, rest)
         | (_, [_, ...ptl]) => openers @ splice(i + 1, ptl, rest)
         | (_, []) => openers @ splice(i, ps, rest)

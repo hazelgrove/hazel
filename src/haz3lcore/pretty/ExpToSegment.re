@@ -3520,7 +3520,8 @@ let rec strip_synthesized_shards =
                )
              ) {
              | None => []
-             | Some(sp) => [
+             | Some(sp) =>
+               [
                  Piece.Tile({
                    id: sp.token_id,
                    label: [String.sub(List.nth(t.label, j), 0, sp.len)],
@@ -3529,6 +3530,17 @@ let rec strip_synthesized_shards =
                    children: [],
                  }),
                ]
+               @ (
+                 switch (sp.debris) {
+                 | Some(id) => [
+                     Piece.Grout({
+                       id,
+                       shape: Concave,
+                     }),
+                   ]
+                 | None => []
+                 }
+               )
              };
            let child = i => List.nth(children, i);
            /* children a..b-1 with prefix tokens at interior dropped-

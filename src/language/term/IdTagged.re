@@ -22,6 +22,11 @@ module IdTag = {
     shard: int,
     len: int,
     token_id: Id.t,
+    /* concave junction grout adjacent to the witness token in the
+       buffer (leading witnesses sit in operand position, so their
+       brokenness leaves real grout): recorded so the reprint
+       reproduces the buffer's layout exactly */
+    debris: option(Id.t),
   };
 
   [@deriving (show({with_path: false}), sexp, yojson, eq)]
