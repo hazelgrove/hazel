@@ -59,6 +59,10 @@ type cand = {
      replaced use (andrew's shrink sketch; lerpViews' unmatched-key
      fade, pointer-driven) */
   exits: list(Js.t(Dom.node)),
+  /* tokens absent LIVE: ghost text at candidate positions, opacity
+     scrubbed by t (the incoming let shell, the appended arm) — the
+     dual of exits; the commit's real enter-fade takes over */
+  enters: list((string, vec)),
 };
 
 /* Candidate enumeration must wait for the model to settle: on arm,
@@ -82,6 +86,7 @@ type session = {
   mutable last_z: option(Zipper.t),
   mutable last_term: option(Language.Exp.t),
   mutable down_at: vec,
+  mutable font: (string, string), /* family, size — for ghost text */
   mutable listeners: list(Dom.event_listener_id),
   /* paused WAAPI animations per candidate index, scrubbed by track
      progress (the pointer drives currentTime — lerpViews restricted
@@ -170,10 +175,49 @@ let draw = (s: session, pointer: option(vec)) => {
       )
     | None => ""
     };
+  let xml_escape = (t: string): string =>
+    t
+    |> String.to_seq
+    |> Seq.map(c =>
+         switch (c) {
+         | '&' => "&amp;"
+         | '<' => "&lt;"
+         | '>' => "&gt;"
+         | c => String.make(1, c)
+         }
+       )
+    |> List.of_seq
+    |> String.concat("");
+  /* incoming tokens ghost in at their destinations, opacity = pull
+     progress (only for the active track) */
+  let ghosts =
+    switch (s.winner) {
+    | Some(w) when s.t > 0.02 =>
+      switch (List.nth_opt(s.cands, w)) {
+      | Some(c) =>
+        let (family, size) = s.font;
+        c.enters
+        |> List.map(((text, v)) =>
+             Printf.sprintf(
+               {|<text x="%f" y="%f" font-family="%s" font-size="%s" fill="#777" opacity="%f">%s</text>|},
+               o.x +. v.x,
+               o.y +. v.y,
+               family,
+               size,
+               s.t,
+               xml_escape(text),
+             )
+           )
+        |> String.concat("\n");
+      | None => ""
+      }
+    | _ => ""
+    };
   let svg =
     Printf.sprintf(
-      {|<svg width="100%%" height="100%%">%s%s</svg>|},
+      {|<svg width="100%%" height="100%%">%s%s%s</svg>|},
       s.cands |> List.mapi(seg) |> String.concat("\n"),
+      ghosts,
       ptr,
     );
   overlay_el()##.innerHTML := Js.string(svg);
@@ -621,6 +665,28 @@ let arm =
       x: cx -. r##.left,
       y: cy -. r##.top,
     },
+    font: {
+      let ct =
+        Js.Unsafe.meth_call(
+          text_box,
+          "querySelector",
+          [|Js.Unsafe.inject(Js.string(".code-text"))|],
+        );
+      switch (Js.Opt.to_option(ct)) {
+      | Some(ct) =>
+        let style =
+          Js.Unsafe.meth_call(
+            Dom_html.window,
+            "getComputedStyle",
+            [|Js.Unsafe.inject(ct)|],
+          );
+        (
+          Js.to_string(Js.Unsafe.get(style, "fontFamily")),
+          Js.to_string(Js.Unsafe.get(style, "fontSize")),
+        );
+      | None => ("monospace", "16px")
+      };
+    },
     listeners: [],
   };
   s.listeners = [
@@ -723,6 +789,53 @@ let sync =
              | _ => None
              }
            );
+      /* candidate token texts by key (order irrelevant: keyed) */
+      let rec token_texts = (seg: Segment.t): list((CodeFlip.key, string)) =>
+        seg
+        |> List.concat_map((piece: Piece.t) =>
+             switch (piece) {
+             | Tile(t) =>
+               (
+                 t.shards
+                 |> List.filter_map(i =>
+                      switch (List.nth_opt(t.label, i)) {
+                      | Some(txt) => Some((CodeFlip.Shard(t.id, i), txt))
+                      | None => None
+                      }
+                    )
+               )
+               @ List.concat_map(token_texts, t.children)
+             | Grout(_)
+             | Secondary(_)
+             | Projector(_) => []
+             }
+           );
+      /* tokens absent live: ghost text at their (frame-adjusted)
+         candidate positions */
+      let enters_for =
+          (
+            frame: Refactor.DragCandidate.frame,
+            cand_seg: Segment.t,
+            cand_m: Measured.t,
+          ) =>
+        token_texts(cand_seg)
+        |> List.filter_map(((k, text)) =>
+             switch (
+               CodeFlip.find_meas(measured, k),
+               CodeFlip.find_meas(cand_m, k),
+             ) {
+             | (None, Some(n)) =>
+               let p = Refactor.DragCandidate.frame_point(frame, n.origin);
+               Some((
+                 text,
+                 {
+                   x: float_of_int(p.col) *. font_metrics.col_width,
+                   y: (float_of_int(p.row) +. 0.8) *. font_metrics.row_height,
+                 },
+               ));
+             | _ => None
+             }
+           );
       /* tokens present live but absent in the candidate */
       let exits_for = (cand_m: Measured.t) =>
         pairs
@@ -776,6 +889,7 @@ let sync =
                moved: moved_for(c.frame, c.measured),
                deco_delta: deco_delta_for(c.frame, c.measured),
                exits: exits_for(c.measured),
+               enters: enters_for(c.frame, c.segment, c.measured),
              }
            );
       s.cands = cands;

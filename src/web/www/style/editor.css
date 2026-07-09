@@ -190,6 +190,16 @@ body.code-dragging #caret {
   visibility: hidden;
 }
 
+/* shape-dependent connector lines can't ride tokens honestly —
+   fade them out for the drag, back in after (the backing shards DO
+   ride, per-piece) */
+.code-deco .child-line {
+  transition: opacity 120ms ease-out;
+}
+body.code-dragging .code-deco .child-line {
+  opacity: 0;
+}
+
 .code-container.meta-down .token.ref:hover {
   text-decoration: underline;
   text-decoration-style: solid;
