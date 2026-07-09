@@ -178,7 +178,9 @@
 
   /* QUIVER DECO (completion visualization) */
 
-  --quiver-arrow: #e74c3c;
+  /* matches the quiver box token color (= incomplete delimiters) so
+     arrow, preview, and incomplete tokens read as one system */
+  --quiver-arrow: var(--token-incomplete);
   --quiver-offside-text: #7f8c8d;
   --quiver-offside-bg: rgba(127, 140, 141, 0.15);
 
