@@ -82,8 +82,8 @@ module Model = {
       debug_show_raw: false,
       debug_collapsed: [],
     },
-    quiver: false, /* Off by default; toggle via command palette */
-    backpack: true, /* Show backpack by default */
+    quiver: true, /* On by default (andrew 2026-07-09) */
+    backpack: false, /* Off for now — quiver is the completion display (andrew 2026-07-09) */
     autoprobe_mode: false,
     agent_globals: AgentGlobals.init(),
     line_numbers: false,
