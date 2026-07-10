@@ -2288,10 +2288,17 @@ let materialize_all = (~sort: Sort.t, seg: Segment.t): Segment.t =>
 
 let materialize_one =
     (~sort: Sort.t, seg: Segment.t, id: Id.t): option(Segment.t) => {
-  let result = complete_segment_deep(~sort, ~only_tile=Some(id), seg);
-  Segment.incomplete_tiles_deep(result.completed_seg)
-  |> List.exists((t: Tile.t) => Id.equal(t.id, id))
-    ? None : Some(result.completed_seg);
+  let is_obligation =
+    Segment.incomplete_tiles_deep(seg)
+    |> List.exists((t: Tile.t) => Id.equal(t.id, id));
+  if (!is_obligation) {
+    None; /* not an incomplete tile here — nothing to discharge */
+  } else {
+    let result = complete_segment_deep(~sort, ~only_tile=Some(id), seg);
+    Segment.incomplete_tiles_deep(result.completed_seg)
+    |> List.exists((t: Tile.t) => Id.equal(t.id, id))
+      ? None : Some(result.completed_seg);
+  };
 };
 
 /* === Integration Points === */
