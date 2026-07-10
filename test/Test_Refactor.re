@@ -507,7 +507,7 @@ let wave_tests = [
       check(
         string,
         "expanded",
-        "let f : Int -> Int = fun y -> y in (fun x -> f(x))",
+        "let f : Int -> Int = fun y -> y in (fun foo -> f(foo))",
         got,
       );
     },
@@ -525,7 +525,7 @@ let wave_tests = [
       check(
         string,
         "two params",
-        "let f : (Int, Bool) -> Int = fun (a, b) -> a in (fun (x, x1) -> f(x, x1))",
+        "let f : (Int, Bool) -> Int = fun (a, b) -> a in (fun (foo, bar) -> f(foo, bar))",
         got,
       );
     },
@@ -799,7 +799,7 @@ let more_tests = [
     `Quick,
     () => {
       let got = inline(~kind=ExtractLet, "1 ¦+ 2") |> text_of;
-      check(string, "extracted", "let x = 1 + 2 in x", got);
+      check(string, "extracted", "let foo = 1 + 2 in foo", got);
     },
   ),
   test_case(
@@ -811,7 +811,7 @@ let more_tests = [
       check(
         string,
         "fresh x1, own line",
-        "let x = 1 in let x1 = f(x) in\n  x * x1",
+        "let x = 1 in let foo = f(x) in\n  x * foo",
         got,
       );
     },
@@ -859,7 +859,7 @@ let more_tests = [
       check(
         string,
         "binding takes its own line",
-        "let x = f(2) in\nx, 3",
+        "let foo = f(2) in\nx, 3",
         got,
       );
     },
@@ -873,7 +873,7 @@ let more_tests = [
       check(
         string,
         "own line, chain order",
-        "let a = 1 in\nlet x = f(2) in\ng(x)",
+        "let a = 1 in\nlet foo = f(2) in\ng(foo)",
         got,
       );
     },
@@ -888,7 +888,7 @@ let more_tests = [
       check(
         string,
         "comment kept once",
-        "# note #\nlet a = 1 in\nlet x = f(2) in\ng(x)",
+        "# note #\nlet a = 1 in\nlet foo = f(2) in\ng(foo)",
         got,
       );
     },
@@ -902,7 +902,7 @@ let more_tests = [
       check(
         string,
         "above the def line, own line",
-        "let x = f(2) in\nlet a = g(x) in a + 1",
+        "let foo = f(2) in\nlet a = g(foo) in a + 1",
         got,
       );
     },
@@ -915,7 +915,7 @@ let more_tests = [
       check(
         string,
         "fun body breaks to its own line",
-        "fun n -> let x = f(2) in\n  g(x)",
+        "fun n -> let foo = f(2) in\n  g(foo)",
         got,
       );
     },
@@ -930,7 +930,7 @@ let more_tests = [
       check(
         string,
         "arm body breaks to its own line",
-        "case a | 1 => let x = f(2) in\n  g(x) | _ => 0 end",
+        "case a | 1 => let foo = f(2) in\n  g(foo) | _ => 0 end",
         got,
       );
     },
@@ -945,7 +945,7 @@ let more_tests = [
       check(
         string,
         "case line breaks down",
-        "let a = 1 in let x = f(2) in\n  case x | _ => 0 end",
+        "let a = 1 in let foo = f(2) in\n  case foo | _ => 0 end",
         got,
       );
     },
@@ -963,7 +963,7 @@ let param_tests = [
       check(
         string,
         "param + hole arg",
-        "let f = fun (x, x1) -> x + 1 in f(2, ?)",
+        "let f = fun (x, foo) -> x + 1 in f(2, ?)",
         got,
       );
     },
@@ -978,7 +978,7 @@ let param_tests = [
       check(
         string,
         "third param",
-        "let f = fun (a, b, x) -> a in f(1, 2, ?)",
+        "let f = fun (a, b, foo) -> a in f(1, 2, ?)",
         got,
       );
     },
@@ -993,7 +993,7 @@ let param_tests = [
       check(
         string,
         "both sites",
-        "let f = fun (x, x1) -> f(x, ?) in f(1, ?)",
+        "let f = fun (x, foo) -> f(x, ?) in f(1, ?)",
         got,
       );
     },
@@ -1023,7 +1023,7 @@ let param_tests = [
       check(
         string,
         "sugar pat + call",
-        "let f(x, x1) = x + 1 in f(2, ?)",
+        "let f(x, foo) = x + 1 in f(2, ?)",
         got,
       );
     },
@@ -1034,7 +1034,7 @@ let param_tests = [
     () => {
       let got =
         inline(~kind=AddParameter, "¦let f(a, b) = a in f(1, 2)") |> text_of;
-      check(string, "third", "let f(a, b, x) = a in f(1, 2, ?)", got);
+      check(string, "third", "let f(a, b, foo) = a in f(1, 2, ?)", got);
     },
   ),
   test_case(
@@ -1050,7 +1050,7 @@ let param_tests = [
       check(
         string,
         "arrow arg extended",
-        "let f : (Int, ?) -> Int = fun (x, x1) -> x in f(1, ?)",
+        "let f : (Int, ?) -> Int = fun (x, foo) -> x in f(1, ?)",
         got,
       );
     },
@@ -1068,7 +1068,7 @@ let param_tests = [
       check(
         string,
         "prod extended",
-        "let f : (Int, Bool, ?) -> Int = fun (a, b, x) -> a in f(1, true, ?)",
+        "let f : (Int, Bool, ?) -> Int = fun (a, b, foo) -> a in f(1, true, ?)",
         got,
       );
     },
@@ -1105,7 +1105,7 @@ let param_tests = [
       check(
         string,
         "inner f kept",
-        "let f = fun (x, x1) -> x in let f = fun y -> y in f(1)",
+        "let f = fun (x, foo) -> x in let f = fun y -> y in f(1)",
         got,
       );
     },
@@ -2312,7 +2312,7 @@ let caret_tests = [
         bool,
         "caret at binder: " ++ caret_text(z),
         true,
-        has_sub(caret_text(z), "let ¦x = 1 + 2"),
+        has_sub(caret_text(z), "let ¦foo = 1 + 2"),
       );
     },
   ),
@@ -2408,7 +2408,7 @@ let extract_target_tests = [
       check(
         string,
         "application extracted",
-        "let x = Error(e) in\nlet y = f(x) in y",
+        "let foo = Error(e) in\nlet y = f(foo) in y",
         got,
       );
     },
@@ -2421,7 +2421,7 @@ let extract_target_tests = [
       check(
         string,
         "application extracted",
-        "let x = g(2) in\nlet y = h(x) in y",
+        "let foo = g(2) in\nlet y = h(foo) in y",
         got,
       );
     },
@@ -3782,7 +3782,7 @@ let tyalias_tests = [
       check(
         string,
         "extract",
-        "let k = 1 in\ntype t = Int in\nlet x = 2 in\nk + x * 3",
+        "let k = 1 in\ntype t = Int in\nlet foo = 2 in\nk + foo * 3",
         z,
       );
     },
@@ -4017,7 +4017,7 @@ let def_line_tests = [
       check(
         string,
         "extract",
-        "let k = 1 in\n1 + 1;\nlet x = 2 in\nk + x * 3",
+        "let k = 1 in\n1 + 1;\nlet foo = 2 in\nk + foo * 3",
         z,
       );
     },

@@ -688,14 +688,22 @@ let used_names = (program: Exp.t): list(string) => {
   names^;
 };
 
-let fresh_name = (program: Exp.t): string => {
-  let used = used_names(program);
-  let rec pick = n => {
-    let cand = "x" ++ string_of_int(n);
-    List.mem(cand, used) ? pick(n + 1) : cand;
+/* minted binder names come from the nonsense pool (obviously
+   placeholders — see PlaceholderNames.re); numbered fallback only
+   when the pool is exhausted */
+let pick_placeholder = (used: list(string)): string =>
+  switch (PlaceholderNames.pool |> List.find_opt(n => !List.mem(n, used))) {
+  | Some(n) => n
+  | None =>
+    let rec pick = n => {
+      let cand = "x" ++ string_of_int(n);
+      List.mem(cand, used) ? pick(n + 1) : cand;
+    };
+    pick(1);
   };
-  List.mem("x", used) ? pick(1) : "x";
-};
+
+let fresh_name = (program: Exp.t): string =>
+  pick_placeholder(used_names(program));
 
 let rename_pat_var = (y: string, y': string, p: Pat.t): Pat.t =>
   Pat.map_term(
@@ -3874,11 +3882,7 @@ let fresh_names = (k: int, program: Exp.t): list(string) => {
   List.init(
     k,
     _ => {
-      let rec pick = n => {
-        let c = n == 0 ? "x" : "x" ++ string_of_int(n);
-        List.mem(c, used^) ? pick(n + 1) : c;
-      };
-      let c = pick(0);
+      let c = pick_placeholder(used^);
       used := [c, ...used^];
       c;
     },
