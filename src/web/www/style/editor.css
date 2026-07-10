@@ -532,6 +532,10 @@ svg:has(.child-line) {
 .quiver-chip-body {
   position: absolute;
   transform: translateY(-50%);
+  /* chips accept double-click to complete; everything else in the
+     decoration stays click-transparent */
+  pointer-events: auto;
+  cursor: pointer;
   padding: 0px 4px 1px 4px;
   border-radius: 4px;
   background: var(--quiver-chip);

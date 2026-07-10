@@ -495,6 +495,7 @@ module View = {
         ~syntax: CachedSyntax.t,
         ~info_map: Language.Statics.Map.t,
         ~globals: Globals.t,
+        ~on_apply: option(Id.t => Ui_effect.t(unit))=None,
         z: Zipper.t,
       ) =>
     [
@@ -545,6 +546,7 @@ module View = {
             },
             ~caret_form=
               Some((CaretDec.side_of(z), Zipper.Caret.direction(z))),
+            ~on_apply,
             ~droppable=
               z.caret == Outer
                 ? Zipper.missing_shards_hd(z)
@@ -612,6 +614,8 @@ module View = {
             ~syntax=model.editor.syntax,
             ~info_map=model.statics.info_map,
             ~globals,
+            ~on_apply=
+              Some(id => inject(Perform(ApplyCompletion(One(id))))),
             model.editor.state.zipper,
           )
           @ [

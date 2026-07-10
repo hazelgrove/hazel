@@ -223,6 +223,7 @@ let resolve_position =
 let delimiter_nodes =
     (
       ~font_metrics: FontMetrics.t,
+      ~on_apply: option(Id.t => Ui_effect.t(unit)),
       delimiters: list(CanonicalCompletion.delimiter_info),
     )
     : list(Node.t) =>
@@ -230,6 +231,17 @@ let delimiter_nodes =
   |> List.mapi((k, d: CanonicalCompletion.delimiter_info) => {
        let sep = k > 0 ? [Node.text(" ")] : [];
        let seg_cls = k > 0 ? ["chip-seg", "chip-seg-later"] : ["chip-seg"];
+       /* each delimiter of a coalesced chip is its own double-click
+          target, discharging exactly its tile's obligation */
+       let apply_attrs =
+         switch (on_apply, d.of_shard) {
+         | (Some(f), Some((tid, _))) => [
+             Attr.on_double_click(_ =>
+               Effect.Many([Effect.Stop_propagation, f(tid)])
+             ),
+           ]
+         | _ => []
+         };
        let body =
          switch (d.typed_len) {
          | Some(n) when n > 0 && n < String.length(d.text) => [
@@ -259,7 +271,9 @@ let delimiter_nodes =
              ),
            ]
            : [];
-       sep @ [Node.span(~attrs=[Attr.classes(seg_cls)], body)] @ suffix;
+       sep
+       @ [Node.span(~attrs=[Attr.classes(seg_cls)] @ apply_attrs, body)]
+       @ suffix;
      })
   |> List.concat;
 
@@ -409,6 +423,7 @@ let view =
       ~droppable: option((Id.t, int))=None,
       ~caret_pos: option((int, int))=None,
       ~caret_form: option((Direction.t, option(Direction.t)))=None,
+      ~on_apply: option(Id.t => Ui_effect.t(unit))=None,
       seg: Segment.t,
     )
     : Node.t => {
@@ -452,7 +467,7 @@ let view =
              ~caret_form,
              ~live=matches_droppable(droppable, ins.delimiters),
              ~at_caret=caret_pos == Some((ins.row, ins.col)),
-             delimiter_nodes(~font_metrics, ins.delimiters),
+             delimiter_nodes(~font_metrics, ~on_apply, ins.delimiters),
            )
          );
     div(~attrs=[Attr.classes(["quiver-decorations"])], chips);
