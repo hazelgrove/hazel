@@ -603,34 +603,61 @@ svg:has(.child-line) {
   z-index: 14;
 }
 
-/* remainder at full contrast; the typed prefix (visible in the code
-   an em away) and later coalesced segments fade toward the chip */
-.quiver-chip .chip-frac-typed,
-.quiver-chip .chip-seg-later {
-  color: var(--quiver-chip-text-faded);
-}
-
-/* the caret on a chip's pin: the POLE takes the caret's red — the
-   bubble keeps the incomplete gold, so labels never flip color. The
-   inset shadow paints a pole-width red stripe inside the bubble's
-   left edge (zero layout impact, follows the top-left radius), so
-   pole and bubble join as one continuous caret-colored line. */
-.quiver-chip.chip-at-caret .quiver-chip-pole {
-  background: var(--caret-color);
-}
-
-/* at-caret the bubble takes the classic backpack colorway: pale
-   selection backing with the incomplete-delimiter gold as TEXT;
-   resting chips keep the solid-gold/knockout scheme */
-.quiver-chip.chip-at-caret .quiver-chip-body {
-  box-shadow: inset var(--pole-w) 0 0 var(--caret-color);
+/* colorways. DEFAULT (obligation in another segment — error-like,
+   keep it loud): solid gold, knockout text. LIVE (the caret is
+   somewhere this shard would pair — tab territory): the backpack
+   scheme, pale selection backing with gold text. AT-CARET adds the
+   red pole/stripe on top of LIVE. */
+.quiver-chip.chip-live .quiver-chip-body {
   background: var(--backpack-selection);
   color: var(--token-incomplete);
 }
 
-.quiver-chip.chip-at-caret .chip-frac-typed,
-.quiver-chip.chip-at-caret .chip-seg-later {
+/* the typed prefix is CUT OUT — white on every scheme; the remainder
+   carries the scheme's text color. Later coalesced segments fade. */
+.quiver-chip .chip-frac-typed {
+  color: white;
+}
+
+.quiver-chip .chip-seg-later {
+  color: var(--quiver-chip-text-faded);
+}
+
+.quiver-chip.chip-live .chip-seg-later {
   color: var(--quiver-chip-text-faded-atcaret);
+}
+
+.quiver-chip.chip-at-caret .quiver-chip-pole {
+  animation: 1s quiver-pole-blink step-end infinite;
+}
+
+@keyframes quiver-pole-blink {
+  from,
+  to {
+    background: var(--caret-color);
+  }
+
+  50% {
+    background: var(--quiver-chip);
+  }
+}
+
+/* at-caret: red pole + stripe over the LIVE scheme, blinking in sync
+   with (and in place of) the caret — the red beats back to each
+   part's regular color at the caret's own frequency */
+.quiver-chip.chip-at-caret .quiver-chip-body {
+  animation: 1s quiver-stripe-blink step-end infinite;
+}
+
+@keyframes quiver-stripe-blink {
+  from,
+  to {
+    box-shadow: inset var(--pole-w) 0 0 var(--caret-color);
+  }
+
+  50% {
+    box-shadow: inset var(--pole-w) 0 0 transparent;
+  }
 }
 
 /* visibility (not display): the scroll-to-caret machinery reads
