@@ -361,6 +361,12 @@ let chip_view =
             ~attrs=[
               Attr.classes(["quiver-chip-body"]),
               Attr.create("style", Printf.sprintf("left: %fpx;", body_left)),
+              /* swallow the single clicks too: a double-click's two
+                 mousedowns would otherwise reach the editor, move
+                 the caret, and the zone-following slides the bubble
+                 out from under the second click */
+              Attr.on_mousedown(_ => Effect.Stop_propagation),
+              Attr.on_click(_ => Effect.Stop_propagation),
             ],
             body,
           ),
