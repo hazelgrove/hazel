@@ -11,8 +11,8 @@ type t = {
    * the missing shards at their canonical placements), which is what
    * lets cursorinfo/completion work on incomplete programs.
    *
-   * NOTE the "backpack" is no longer a store: it is DERIVED — a
-   * search for missing shards over the syntax, local
+   * NOTE what old papers call the "backpack" is not a store: it is
+   * DERIVED — a search for missing shards over the syntax, local
    * (Relatives.local_missing_shards; feeds tab put-down) or global
    * (Segment.global_missing_shards; feeds the display). Completion
    * can add/remove grout relative to the visible buffer, so ids may

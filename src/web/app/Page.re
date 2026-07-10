@@ -615,12 +615,6 @@ module Selection = {
            ~action=inject(Globals(Set(Quiver))),
            "Toggle Quiver (Completion Preview)",
          ),
-         mk(
-           ~section="Settings",
-           ~mdIcon="backpack",
-           ~action=inject(Globals(Set(Backpack))),
-           "Toggle Backpack Display",
-         ),
          /* Export / Diagnostics */
          mk(
            ~mdIcon="download",

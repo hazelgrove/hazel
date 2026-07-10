@@ -54,7 +54,7 @@ module Update = {
         Refactor(_) |
         RefactorGesture(_) |
         AdjustIndent(_, _) |
-        Dump |
+        ApplyCompletion(_) |
         Introduce |
         ToggleLineComment,
       )

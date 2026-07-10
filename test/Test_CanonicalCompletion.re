@@ -1507,6 +1507,125 @@ let tydi_probe_tests = [
     ~expected="tok:= | ci:NONE | buf:>",
   ),
 ];
+/* Trajectory stability for mid-entry case rules (andrew 2026-07-11):
+   from the first bar onward, the case's end sits AFTER the growing
+   rule and never retreats — hole-min must not treat a rule as a
+   severable trailing operator (it is case-content). Pins probe the
+   full entry sequence; expecteds are raw prints. */
+/* Triple-click a rule delimiter: the selection covers the whole rule
+   and stops at the body's last content piece — no trailing linebreak
+   or indentation (andrew 2026-07-11: auto-indent exposed a shrink
+   loop that removed exactly one trailing piece) */
+let sel_case = (~name, ~acts, ~expected) =>
+  test_case(
+    name,
+    `Quick,
+    () => {
+      let z = Test_Editing.perform(Zipper.init(), acts);
+      check(string_testable, name, expected, print_seg(z.selection.content));
+    },
+  );
+let rule_selection_tests = [
+  sel_case(
+    ~name="triple-click mid rule selects rule sans trailing whitespace",
+    ~acts=
+      Test_Editing.mk("case x\n| 1 =>¦ 2\n| 3 => 4\nend")
+      @ [Select(Smart(2)), Select(Smart(3))],
+    ~expected="| 1 => 2",
+  ),
+  sel_case(
+    ~name="triple-click last rule stops at body end",
+    ~acts=
+      Test_Editing.mk("case x\n| 1 => 2\n| 3 =>¦ 4\nend")
+      @ [Select(Smart(2)), Select(Smart(3))],
+    ~expected="| 3 => 4",
+  ),
+];
+
+/* Materialization: the virtual reading committed to the buffer.
+   ALL swaps in the engine's joint result; ONE discharges a single
+   tile's obligation and moves nothing else. */
+let materialize_tests = [
+  test_case(
+    "materialize all commits the joint completion",
+    `Quick,
+    () => {
+      let z =
+        Test_Editing.perform(Zipper.init(), Test_Editing.mk("let x = 1¦"));
+      let z = Test_Editing.perform(z, [ApplyCompletion(All)]);
+      check(
+        string_testable,
+        "all",
+        "let x = 1in?",
+        print_seg(Zipper.unselect_and_zip(~erase_buffer=true, z)),
+      );
+    },
+  ),
+  test_case(
+    "materialize one discharges only that tile",
+    `Quick,
+    () => {
+      let z =
+        Test_Editing.perform(
+          Zipper.init(),
+          Test_Editing.mk("(case x | 1 => 2¦"),
+        );
+      let seg = Zipper.unselect_and_zip(~erase_buffer=true, z);
+      let case_id =
+        Segment.incomplete_tiles_deep(seg)
+        |> List.find((t: Tile.t) => List.mem("case", t.label))
+        |> ((t: Tile.t) => t.id);
+      let z = Test_Editing.perform(z, [ApplyCompletion(One(case_id))]);
+      check(
+        string_testable,
+        "one",
+        "(case x | 1 => 2end",
+        print_seg(Zipper.unselect_and_zip(~erase_buffer=true, z)),
+      );
+    },
+  ),
+];
+
+let bogus_materialize_test =
+  test_case(
+    "materialize one refuses a non-obligation id",
+    `Quick,
+    () => {
+      let z =
+        Test_Editing.perform(Zipper.init(), Test_Editing.mk("let x = 1¦"));
+      let seg = Zipper.unselect_and_zip(~erase_buffer=true, z);
+      check(
+        Alcotest.bool,
+        "bogus id",
+        true,
+        CanonicalCompletion.materialize_one(~sort=Sort.Exp, seg, Id.mk())
+        == None,
+      );
+    },
+  );
+
+let entry_stability_tests = [
+  edit_case(
+    ~name="bar alone: end stays after the rule",
+    ~acts=Test_Editing.mk("let new_fun =\nfun foo ->\ncase foo\n|¦\n2"),
+    ~expected=
+      "let new_fun =\n  fun foo ->\n    case foo\n    |\n    2=>?endin?",
+  ),
+  edit_case(
+    ~name="bar pattern arrow: end stays after the rule",
+    ~acts=Test_Editing.mk("let new_fun =\nfun foo ->\ncase foo\n| 1 =>¦\n2"),
+    ~expected=
+      "let new_fun =\n  fun foo ->\n    case foo\n    | 1 =>\n      2endin?",
+  ),
+  edit_case(
+    ~name="complete rule: end after the rule body",
+    ~acts=
+      Test_Editing.mk("let new_fun =\nfun foo ->\ncase foo\n| 1 => 2¦\n3"),
+    ~expected=
+      "let new_fun =\n  fun foo ->\n    case foo\n    | 1 => 2end\n    in3",
+  ),
+];
+
 let joint_tests = [
   edit_case(
     ~name="end+in double deletion: placements incompatible (KNOWN-BAD)",
@@ -1529,6 +1648,12 @@ let tests: list((string, list(Alcotest.test_case(unit)))) = [
   ("CanonicalCompletion: closer-vs-separator", probe2_tests),
   ("CanonicalCompletion: tydi-gates", tydi_probe_tests),
   ("CanonicalCompletion: insertion-ordering", ordering_tests),
+  ("CanonicalCompletion: rule-selection", rule_selection_tests),
+  (
+    "CanonicalCompletion: materialize",
+    materialize_tests @ [bogus_materialize_test],
+  ),
+  ("CanonicalCompletion: entry-stability", entry_stability_tests),
   ("CanonicalCompletion: joint-satisfiability", joint_tests),
   /* Debug test - run first to isolate crash */
   ("CanonicalCompletion: regrout-debug", regrout_debug_tests),

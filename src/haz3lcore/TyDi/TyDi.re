@@ -55,7 +55,7 @@ let suggest = (ci: Info.t, z: Zipper.t): list(t) => {
    * we won't suggest extending it, but straight-up lexical sorting
    * may not be desirable in other ways, for example maybe we want
    * recency bias in ctx. Revisit this later. I'm sorting before
-   * combination because we want backpack candidates to show up first */
+   * combination because we want missing-shard suggestions to show up first */
   switch (ci) {
   | InfoExp({dot_labels, _}) when dot_labels != [] =>
     List.map(

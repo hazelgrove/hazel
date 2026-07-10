@@ -591,7 +591,7 @@ module Local = {
     let res =
       try(
         switch (composition_dispatch(a, syntax, z, mk_statics, return)) {
-        | Ok(new_z) => Ok(Dump.to_zipper(new_z, ~root=Exp))
+        | Ok(new_z) => Ok(Materialize.all(new_z, ~root=Exp))
         | Error(e) => Error(e)
         }
       ) {

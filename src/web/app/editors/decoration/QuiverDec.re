@@ -5,7 +5,7 @@
  *   - Small triangles at insertion points (below text baseline)
  *   - Offside boxes showing what delimiters will be inserted
  *
- * Named to complement "Backpack" - the quiver holds completion arrows.
+ * The quiver holds completion arrows.
  */
 
 open Virtual_dom.Vdom;
@@ -13,15 +13,15 @@ open Node;
 open Haz3lcore;
 open Util;
 
-/* An insertion with its resolved position. tolerant_col = the right
-   edge of the last CONTENT piece left of the pin: a caret anywhere in
-   (tolerant_col..col] on the same row is separated from the pin only
-   by grout/whitespace — the regrout hole that pops in and out beside
-   the caret during entry must not flip the chip's caret association. */
+/* An insertion with its resolved position. shape = the caret shape
+   at the pin (the pole renders as a GHOST CARET: exactly what the
+   real caret will look like if you move there — truthful by
+   construction, and it nests against the shard decorations the way
+   a straight bar cannot). */
 type positioned_insertion = {
   row: int,
   col: int,
-  tolerant_col: int,
+  shape: option(Util.Direction.t),
   delimiters: list(CanonicalCompletion.delimiter_info),
 };
 
@@ -87,16 +87,21 @@ let rec find_piece_ctx =
 let find_piece_deep = (sg: Segment.t, id: Id.t): option(Piece.t) =>
   find_piece_ctx(sg, id) |> Option.map(((_, _, p)) => p);
 
-/* Resolve an insertion's position by looking up adjacent_id in
-   Measured. A right-side anchor whose delimiter would be
-   space-separated from the anchor token (SpaceNormalize inserts one
-   at materialization) shifts one column to the space side, so the
-   arrow sits where the delimiter actually lands instead of flush
-   against the existing token. Witness arrows (typed_len set) never
-   shift: the completion continues the typed prefix directly. */
+/* Resolve an insertion's position. COINCIDENCE-FIRST placement: a
+   pin's exact position within a run of grout/whitespace — LINEBREAKS
+   INCLUDED — is semantically free: the material drop is structural,
+   so `let x = 1 in\nbody` and `let x = 1\nin body` are the same
+   program. The pin's free zone is the whole inter-content whitespace
+   region around its anchor; when the caret is inside it the pin
+   FOLLOWS the caret exactly (one caret-like object via the
+   takeover). Otherwise it RESTS at the engine's spot (left content
+   edge of the same-line run) — the resting position stays
+   layout-faithful to the engine's partition-aware choice; only the
+   following crosses lines. */
 let resolve_position =
     (
       ~seg: Segment.t,
+      ~caret_pos: option((int, int)),
       measured: Measured.t,
       ins: CanonicalCompletion.insertion,
     )
@@ -109,59 +114,103 @@ let resolve_position =
       | Right => (m.last.row, m.last.col)
       | Left => (m.origin.row, m.origin.col)
       };
-    let col =
-      switch (ins.side, ins.delimiters) {
-      | (Right, [{typed_len: None, text, _}, ..._]) =>
-        let sep =
-          switch (find_piece_deep(seg, ins.adjacent_id)) {
-          | Some(p) =>
-            switch (SpaceNormalize.last_token(p)) {
-            | Some(a) => SpaceNormalize.needs_space(a, text)
-            | None => false
-            }
-          | None => false
-          };
-        col + (sep ? 1 : 0);
-      | _ => col
+    let is_free = (p: Piece.t) =>
+      switch (p) {
+      | Grout(_)
+      | Secondary(_) => true
+      | _ => false
       };
-    /* walk left from the anchor over grout/secondary to the previous
-       content piece: its right edge starts the tolerance interval */
-    let tolerant_col = {
-      let rec prev_content = (sg: Segment.t, i: int): option(Piece.t) =>
-        i <= 0
+    let leq = ((r1, c1), (r2, c2)) => r1 < r2 || r1 == r2 && c1 <= c2;
+    switch (find_piece_ctx(seg, ins.adjacent_id)) {
+    | None =>
+      Some({
+        row,
+        col,
+        shape: None,
+        delimiters: ins.delimiters,
+      })
+    | Some((sg, i, p)) =>
+      let rec prev_content = (j: int): option(Piece.t) =>
+        j <= 0
           ? None
           : (
-            switch (List.nth(sg, i - 1)) {
-            | Piece.Grout(_)
-            | Piece.Secondary(_) => prev_content(sg, i - 1)
-            | p => Some(p)
+            switch (List.nth(sg, j - 1)) {
+            | q when is_free(q) => prev_content(j - 1)
+            | q => Some(q)
             }
           );
-      switch (find_piece_ctx(seg, ins.adjacent_id)) {
-      | Some((sg, i, p)) =>
-        let start: option(Piece.t) =
-          switch ((p: Piece.t)) {
-          | Grout(_)
-          | Secondary(_) => prev_content(sg, i)
-          | _ => Some(p)
-          };
-        switch (start) {
-        | Some(q) =>
-          switch (Measured.find_by_id(Piece.id(q), measured)) {
-          | Some(qm) => qm.last.row == row ? qm.last.col : col
-          | None => col
-          }
-        | None => 0
+      let n = List.length(sg);
+      let rec next_content = (j: int): option(Piece.t) =>
+        j >= n
+          ? None
+          : (
+            switch (List.nth(sg, j)) {
+            | q when is_free(q) => next_content(j + 1)
+            | q => Some(q)
+            }
+          );
+      let measure_last = (q: Piece.t) =>
+        Measured.find_by_id(Piece.id(q), measured)
+        |> Option.map((qm: Measured.measurement) =>
+             (qm.last.row, qm.last.col)
+           );
+      let measure_origin = (q: Piece.t) =>
+        Measured.find_by_id(Piece.id(q), measured)
+        |> Option.map((qm: Measured.measurement) =>
+             (qm.origin.row, qm.origin.col)
+           );
+      /* zone bounds: previous/next content around the anchor's
+         whitespace run (whole-document edges when absent) */
+      let left_bound =
+        switch (is_free(p) ? prev_content(i) : Some(p)) {
+        | Some(q) => measure_last(q)
+        | None => Some((0, 0))
         };
-      | None => col
+      let right_bound =
+        switch (next_content(is_free(p) ? i : i + 1)) {
+        | Some(q) => measure_origin(q)
+        | None => None /* unbounded to the segment end */
+        };
+      /* resting spot: the left content edge when it shares the pin's
+         line (the round-6 snap); the raw anchor position otherwise */
+      let rest =
+        switch (left_bound) {
+        | Some((lr, lc)) when lr == row => (row, min(lc, col))
+        | _ => (row, col)
+        };
+      let (row, col) =
+        switch (caret_pos, left_bound) {
+        | (Some((r, c)), Some(left))
+            when
+              leq(left, (r, c))
+              && (
+                switch (right_bound) {
+                | Some(right) => leq((r, c), right)
+                | None => true
+                }
+              ) => (
+            r,
+            c,
+          )
+        | _ => rest
+        };
+      /* ghost-caret shape at the pin: the shared-nib facing between
+         the pieces around the insertion point, mirroring
+         Siblings.direction_between (right neighborhood first) */
+      let shape = {
+        let (before, after) = Util.ListUtil.split_n(i + 1, sg);
+        switch (Segment.edge_direction_of(Left, after)) {
+        | None => Segment.edge_direction_of(Right, before)
+        | d => d
+        };
       };
+      Some({
+        row,
+        col,
+        shape,
+        delimiters: ins.delimiters,
+      });
     };
-    Some({
-      row,
-      col,
-      tolerant_col: min(tolerant_col, col),
-      delimiters: ins.delimiters,
-    });
   };
 
 /* Chip segment rendering. EMPHASIS INVERSION vs the old offside
@@ -227,47 +276,64 @@ let chip_view =
       ~font_metrics: FontMetrics.t,
       ~row: int,
       ~col: int,
+      ~shape: option(Direction.t),
+      ~caret_form: option((Direction.t, option(Direction.t))),
       ~live: bool,
       ~at_caret: bool,
-      ~near_caret: bool,
-      ~body_key: string,
       body: list(Node.t),
     )
     : Node.t => {
   let x = float_of_int(col) *. font_metrics.col_width;
   let y = float_of_int(row) *. font_metrics.row_height;
-  /* flagpole: pole and bubble are sibling divs in the same anchor,
-     sharing the SAME left offset float — one layout-rounding path,
-     so their left edges align exactly (the SVG bar rounded on a
-     different path and jittered a fraction of a pixel either way).
-     Pole dimensions replicate the straight caret: caret_width wide
-     centered on the column boundary, row height + shadow reach. */
-  let body_left = -. (0.5 *. CaretDec.caret_width *. font_metrics.col_width);
+  /* the pole is a GHOST CARET: the same path the real caret draws at
+     this position, so it nests against the shard decorations. Hidden
+     at coincidence (the real caret takes over). */
   let pole =
-    div(
-      ~attrs=[
-        Attr.classes(["quiver-chip-pole"]),
-        Attr.create(
-          "style",
-          Printf.sprintf(
-            "left: %fpx; top: 0px; width: %fpx; height: %fpx;",
-            body_left,
-            CaretDec.caret_width *. font_metrics.col_width,
-            font_metrics.row_height *. (1.0 +. ShardDec.shadow_dy),
-          ),
-        ),
-      ],
-      [],
+    DecUtil.code_svg(
+      ~font_metrics,
+      ~origin={
+        row,
+        col,
+      },
+      ~base_cls=["quiver-chip-pole"],
+      ~path_cls=["quiver-chip-pole-path"],
+      ~scale=1.0,
+      ~height_fudge=ShardDec.shadow_dy *. font_metrics.row_height,
+      CaretDec.caret_base_path(Direction.Right, shape),
     );
+  /* the flag's left edge kisses the top-left corner of whichever
+     caret stands at its foot: the ghost pole at rest, the REAL caret
+     at coincidence — same top-edge geometry, x =
+     -(shape_adjust + caret_width/2) */
+  let (dock_side, dock_shape) =
+    switch (at_caret, caret_form) {
+    | (true, Some((cs, csh))) => (cs, csh)
+    | _ => (Direction.Right, shape)
+    };
+  let body_left =
+    -. (
+      ShardDec.shape_adjust(dock_side, dock_shape)
+      +. 0.5
+      *. CaretDec.caret_width
+    )
+    *. font_metrics.col_width;
   div(
     ~attrs=[
       Attr.classes(
-        ["quiver-chip", live ? "chip-live" : "chip-dim"]
-        @ (near_caret ? ["chip-near-caret"] : [])
+        ["quiver-chip"]
+        @ (
+          switch (dock_shape) {
+          | Some(Direction.Left) => ["chip-bend-left"]
+          | Some(Right) => ["chip-bend-right"]
+          | None => ["chip-straight"]
+          }
+        )
+        @ (live ? ["chip-live"] : [])
         @ (at_caret ? ["chip-at-caret"] : []),
       ),
     ],
     [
+      pole,
       div(
         ~attrs=[
           Attr.classes(["quiver-chip-anchor"]),
@@ -277,13 +343,7 @@ let chip_view =
           ),
         ],
         [
-          pole,
-          /* keyed: any content/position change remounts the bubble,
-             restarting its delayed-appear animation — mid-burst the
-             label stays hidden and settles ~0.4s after the last
-             change; the pole is always immediate */
           div(
-            ~key=body_key,
             ~attrs=[
               Attr.classes(["quiver-chip-body"]),
               Attr.create("style", Printf.sprintf("left: %fpx;", body_left)),
@@ -348,6 +408,7 @@ let view =
       ~font_metrics: FontMetrics.t,
       ~droppable: option((Id.t, int))=None,
       ~caret_pos: option((int, int))=None,
+      ~caret_form: option((Direction.t, option(Direction.t)))=None,
       seg: Segment.t,
     )
     : Node.t => {
@@ -368,7 +429,10 @@ let view =
     div([]);
   } else {
     let positioned =
-      List.filter_map(resolve_position(~seg, measured), insertions);
+      List.filter_map(
+        resolve_position(~seg, ~caret_pos, measured),
+        insertions,
+      );
     let sorted =
       List.sort(
         (a, b) => {
@@ -384,30 +448,10 @@ let view =
              ~font_metrics,
              ~row=ins.row,
              ~col=ins.col,
+             ~shape=ins.shape,
+             ~caret_form,
              ~live=matches_droppable(droppable, ins.delimiters),
              ~at_caret=caret_pos == Some((ins.row, ins.col)),
-             ~near_caret=
-               switch (caret_pos) {
-               | Some((r, c)) =>
-                 r == ins.row && c >= ins.tolerant_col && c <= ins.col
-               | None => false
-               },
-             ~body_key=
-               Printf.sprintf(
-                 "%d:%d:%s",
-                 ins.row,
-                 ins.col,
-                 ins.delimiters
-                 |> List.map((d: CanonicalCompletion.delimiter_info) =>
-                      Printf.sprintf(
-                        "%s/%d/%b",
-                        d.text,
-                        Option.value(~default=0, d.typed_len),
-                        d.needs_hole,
-                      )
-                    )
-                 |> String.concat("|"),
-               ),
              delimiter_nodes(~font_metrics, ins.delimiters),
            )
          );

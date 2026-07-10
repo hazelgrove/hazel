@@ -177,7 +177,7 @@ let indicated =
 };
 
 /* For visual decoration (caret side, arms, projector/refractor highlighting).
-   Ignores secondary. Used by CaretDec, Arms, CodeEditable, Backpack. */
+   Ignores secondary. Used by CaretDec, Arms, CodeEditable. */
 let for_decoration = indicated(~no_ws=true, ~ign=Piece.is_secondary);
 
 /* For identity/direction queries that always need an answer, even in

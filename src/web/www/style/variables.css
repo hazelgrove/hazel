@@ -168,12 +168,7 @@
   --hole-fill: oklch(92% 0.04 250);
   --hole-active: oklch(50% 0.2 250);
 
-  /* BACKPACK DECO */
 
-  --backpack-selection: var(--shard-selected);
-  --backpack-joiner: var(--backpack-selection);
-  --backpack-genie: var(--backpack-selection);
-  --backpack-selection-outline: var(--light-page-color);
   --backback-targets: var(--Y3);
 
   /* QUIVER DECO (completion visualization) */
@@ -181,13 +176,6 @@
   /* matches the quiver box token color (= incomplete delimiters) so
      arrow, preview, and incomplete tokens read as one system */
   --quiver-chip: var(--token-incomplete);
-  /* opaque subdued blend for chips out of tab range (chips overlay
-     text; translucency would bleed code through the knockout) */
-  --quiver-chip-subdued: color-mix(
-    in srgb,
-    var(--token-incomplete) 32%,
-    var(--light-page-color)
-  );
   --quiver-chip-text: var(--light-page-color);
   --quiver-chip-text-faded: color-mix(
     in srgb,
@@ -196,10 +184,12 @@
   );
   /* on the subdued dim background the live fade disappears; dim
      chips fade DARKER instead (toward the token color) */
-  --quiver-chip-text-faded-dim: color-mix(
+  /* at-caret colorway: gold text on the shard-selected backing;
+     its fade mixes toward that backing */
+  --quiver-chip-text-faded-atcaret: color-mix(
     in srgb,
-    var(--token-incomplete) 62%,
-    var(--light-page-color)
+    var(--token-incomplete) 45%,
+    var(--shard-selected)
   );
 
   /* PROJECTORS */
@@ -287,7 +277,6 @@
   --projector-z: 10;
 
   /* ABOVE CODE LEVEL */
-  --backpack-targets-z: 11;
   --projector-indicated-z: 11;
   --projector-hover-z: 12;
   --caret-z: 20;
@@ -300,7 +289,6 @@
   --bottom-bar-z: 31;
   --top-bar-z: 31;
   --explainthis-expander-z: 31;
-  --backpack-z: 32;
   --top-bar-hover-z: 33;
 
   /* HACKS */

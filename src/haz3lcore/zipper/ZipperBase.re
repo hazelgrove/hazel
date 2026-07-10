@@ -9,7 +9,7 @@ type caret = CaretBase.t;
 module Refractor = Refractors;
 
 // shards may appear in the selection or siblings; "missing" shards
-// (the derived backpack) are those an incomplete tile still lacks
+// (the derived missing-shard set) are those an incomplete tile still lacks
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type t = {
   selection: Selection.t,

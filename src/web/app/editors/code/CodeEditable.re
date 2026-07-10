@@ -104,7 +104,7 @@ module Update = {
              | Probe(StepInto(_))
              | Format(_)
              | AdjustIndent(_, _)
-             | Dump
+             | ApplyCompletion(_)
              | ToggleLineComment => true
              | Project(_)
              | Unselect(_)
@@ -614,18 +614,6 @@ module View = {
       ),
     ]
     @ (
-      globals.settings.backpack
-        ? [
-          Backpack.view(
-            ~font_metrics=globals.font_metrics,
-            ~measured=syntax.measured,
-            ~missing_shards=syntax.missing_shards,
-            z,
-          ),
-        ]
-        : []
-    )
-    @ (
       globals.settings.quiver
         ? [
           QuiverDec.view(
@@ -635,6 +623,8 @@ module View = {
               let p = Zipper.Caret.point(syntax.measured, z);
               Some((p.row, p.col));
             },
+            ~caret_form=
+              Some((CaretDec.side_of(z), Zipper.Caret.direction(z))),
             ~droppable=
               z.caret == Outer
                 ? Zipper.missing_shards_hd(z)
