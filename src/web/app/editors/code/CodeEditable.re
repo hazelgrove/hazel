@@ -593,6 +593,7 @@ module View = {
               let p = Zipper.Caret.point(syntax.measured, z);
               Some((p.row, p.col));
             },
+            ~caret_inner=z.caret != Outer,
             ~droppable=
               z.caret == Outer
                 ? Zipper.missing_shards_hd(z)

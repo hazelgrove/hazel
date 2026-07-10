@@ -551,6 +551,22 @@ svg:has(.child-line) {
 
 .quiver-chip {
   pointer-events: none;
+  --quiver-chip: var(--token-incomplete);
+}
+
+/* the truthful completion spot, marked while its chip rides the
+   caret elsewhere: a small wedge above the line boundary */
+.quiver-rest-marker {
+  position: absolute;
+  z-index: 14;
+  width: 0;
+  height: 0;
+  margin-left: -4px;
+  margin-top: -5px;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-top: 5px solid var(--token-incomplete);
+  pointer-events: none;
 }
 
 /* the anchor pins the insertion point; the bubble hangs off it,
@@ -587,29 +603,11 @@ svg:has(.child-line) {
   z-index: 14;
 }
 
-/* tab emphasis: the chip whose first delimiter tab would put down is
-   live; the rest use an opaque subdued blend (chips overlay text, so
-   translucency would let code bleed through the knockout text) */
-.quiver-chip.chip-live {
-  --quiver-chip: var(--token-incomplete);
-}
-
-.quiver-chip.chip-dim {
-  --quiver-chip: var(--quiver-chip-subdued);
-}
-
 /* remainder at full contrast; the typed prefix (visible in the code
-   an em away) and later coalesced segments fade toward the chip.
-   Dim chips need their own blend: the live fade is invisible against
-   the subdued background */
+   an em away) and later coalesced segments fade toward the chip */
 .quiver-chip .chip-frac-typed,
 .quiver-chip .chip-seg-later {
   color: var(--quiver-chip-text-faded);
-}
-
-.quiver-chip.chip-dim .chip-frac-typed,
-.quiver-chip.chip-dim .chip-seg-later {
-  color: var(--quiver-chip-text-faded-dim);
 }
 
 /* the caret on a chip's pin: the POLE takes the caret's red — the

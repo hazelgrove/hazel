@@ -28,6 +28,15 @@ type positioned_insertion = {
 /* Chip text scale relative to the code font */
 let chip_font_scale = 0.72;
 
+/* THE RIDER: the chip whose shard is the current tab target RIDES
+   the caret — the backpack's following, reborn. While the caret is
+   INSIDE a token (no valid drop anywhere), the last rider keeps
+   following in the resting colorway (passing); on reaching a
+   position with no target at Outer, it returns to rest. Persisted
+   across renders so passing through a token doesn't bounce the chip
+   home and back. */
+let last_rider = ref(None: option((Id.t, int)));
+
 let matches_droppable =
     (
       droppable: option((Id.t, int)),
@@ -82,21 +91,13 @@ let rec find_piece_ctx =
 let find_piece_deep = (sg: Segment.t, id: Id.t): option(Piece.t) =>
   find_piece_ctx(sg, id) |> Option.map(((_, _, p)) => p);
 
-/* Resolve an insertion's position. COINCIDENCE-FIRST placement: a
-   pin's exact position within a run of grout/whitespace — LINEBREAKS
-   INCLUDED — is semantically free: the material drop is structural,
-   so `let x = 1 in\nbody` and `let x = 1\nin body` are the same
-   program. The pin's free zone is the whole inter-content whitespace
-   region around its anchor; when the caret is inside it the pin
-   FOLLOWS the caret exactly (one caret-like object via the
-   takeover). Otherwise it RESTS at the engine's spot (left content
-   edge of the same-line run) — the resting position stays
-   layout-faithful to the engine's partition-aware choice; only the
-   following crosses lines. */
+/* Resolve an insertion's REST position: the engine's spot, with the
+   pin snapped left across same-line grout/whitespace to the previous
+   content edge (display-only freedom). Caret-following is handled by
+   the RIDER above, not per-chip zones. */
 let resolve_position =
     (
       ~seg: Segment.t,
-      ~caret_pos: option((int, int)),
       measured: Measured.t,
       ins: CanonicalCompletion.insertion,
     )
@@ -109,91 +110,39 @@ let resolve_position =
       | Right => (m.last.row, m.last.col)
       | Left => (m.origin.row, m.origin.col)
       };
-    let is_free = (p: Piece.t) =>
-      switch (p) {
-      | Grout(_)
-      | Secondary(_) => true
-      | _ => false
-      };
-    let leq = ((r1, c1), (r2, c2)) => r1 < r2 || r1 == r2 && c1 <= c2;
-    switch (find_piece_ctx(seg, ins.adjacent_id)) {
-    | None =>
-      Some({
-        row,
-        col,
-        delimiters: ins.delimiters,
-      })
-    | Some((sg, i, p)) =>
-      let rec prev_content = (j: int): option(Piece.t) =>
-        j <= 0
-          ? None
-          : (
-            switch (List.nth(sg, j - 1)) {
-            | q when is_free(q) => prev_content(j - 1)
-            | q => Some(q)
-            }
-          );
-      let n = List.length(sg);
-      let rec next_content = (j: int): option(Piece.t) =>
-        j >= n
-          ? None
-          : (
-            switch (List.nth(sg, j)) {
-            | q when is_free(q) => next_content(j + 1)
-            | q => Some(q)
-            }
-          );
-      let measure_last = (q: Piece.t) =>
-        Measured.find_by_id(Piece.id(q), measured)
-        |> Option.map((qm: Measured.measurement) =>
-             (qm.last.row, qm.last.col)
-           );
-      let measure_origin = (q: Piece.t) =>
-        Measured.find_by_id(Piece.id(q), measured)
-        |> Option.map((qm: Measured.measurement) =>
-             (qm.origin.row, qm.origin.col)
-           );
-      /* zone bounds: previous/next content around the anchor's
-         whitespace run (whole-document edges when absent) */
-      let left_bound =
+    let col =
+      switch (find_piece_ctx(seg, ins.adjacent_id)) {
+      | None => col
+      | Some((sg, i, p)) =>
+        let is_free = (q: Piece.t) =>
+          switch (q) {
+          | Grout(_) => true
+          | Secondary(sec) => !Secondary.is_linebreak(sec)
+          | _ => false
+          };
+        let rec prev_content = (j: int): option(Piece.t) =>
+          j <= 0
+            ? None
+            : (
+              switch (List.nth(sg, j - 1)) {
+              | q when is_free(q) => prev_content(j - 1)
+              | q => Some(q)
+              }
+            );
         switch (is_free(p) ? prev_content(i) : Some(p)) {
-        | Some(q) => measure_last(q)
-        | None => Some((0, 0))
+        | Some(q) =>
+          switch (Measured.find_by_id(Piece.id(q), measured)) {
+          | Some(qm) when qm.last.row == row => min(qm.last.col, col)
+          | _ => col
+          }
+        | None => col
         };
-      let right_bound =
-        switch (next_content(is_free(p) ? i : i + 1)) {
-        | Some(q) => measure_origin(q)
-        | None => None /* unbounded to the segment end */
-        };
-      /* resting spot: the left content edge when it shares the pin's
-         line (the round-6 snap); the raw anchor position otherwise */
-      let rest =
-        switch (left_bound) {
-        | Some((lr, lc)) when lr == row => (row, min(lc, col))
-        | _ => (row, col)
-        };
-      let (row, col) =
-        switch (caret_pos, left_bound) {
-        | (Some((r, c)), Some(left))
-            when
-              leq(left, (r, c))
-              && (
-                switch (right_bound) {
-                | Some(right) => leq((r, c), right)
-                | None => true
-                }
-              ) => (
-            r,
-            c,
-          )
-        | _ => rest
-        };
-      Some({
-        row,
-        col,
-        delimiters: ins.delimiters,
-      });
-    };
+      };
+    Some({
+      row,
+      col,
+      delimiters: ins.delimiters,
+    });
   };
 
 /* Chip segment rendering. EMPHASIS INVERSION vs the old offside
@@ -259,20 +208,25 @@ let chip_view =
       ~font_metrics: FontMetrics.t,
       ~row: int,
       ~col: int,
-      ~live: bool,
-      ~at_caret: bool,
+      ~riding: [
+         | `Active
+         | `Passing
+         | `No
+       ],
       body: list(Node.t),
     )
     : Node.t => {
   let x = float_of_int(col) *. font_metrics.col_width;
   let y = float_of_int(row) *. font_metrics.row_height;
-  /* flagpole: pole and bubble are sibling divs in the same anchor,
-     sharing the SAME left offset float — one layout-rounding path,
-     so their left edges align exactly (the SVG bar rounded on a
-     different path and jittered a fraction of a pixel either way).
-     Pole dimensions replicate the straight caret: caret_width wide
-     centered on the column boundary, row height + shadow reach. */
-  let body_left = -. (0.5 *. CaretDec.caret_width *. font_metrics.col_width);
+  /* whole device pixels: the pole div, the bubble's inset stripe and
+     their shared left offset must round identically or the stripe
+     renders a hair thicker than the pole */
+  let pole_w =
+    Float.max(
+      1.0,
+      Float.round(CaretDec.caret_width *. font_metrics.col_width),
+    );
+  let body_left = -. (0.5 *. pole_w);
   let pole =
     div(
       ~attrs=[
@@ -282,7 +236,7 @@ let chip_view =
           Printf.sprintf(
             "left: %fpx; top: 0px; width: %fpx; height: %fpx;",
             body_left,
-            CaretDec.caret_width *. font_metrics.col_width,
+            pole_w,
             font_metrics.row_height *. (1.0 +. ShardDec.shadow_dy),
           ),
         ),
@@ -292,8 +246,14 @@ let chip_view =
   div(
     ~attrs=[
       Attr.classes(
-        ["quiver-chip", live ? "chip-live" : "chip-dim"]
-        @ (at_caret ? ["chip-at-caret"] : []),
+        ["quiver-chip"]
+        @ (
+          switch (riding) {
+          | `Active => ["chip-riding", "chip-at-caret"]
+          | `Passing => ["chip-riding"]
+          | `No => []
+          }
+        ),
       ),
     ],
     [
@@ -306,7 +266,7 @@ let chip_view =
               "left: %fpx; top: %fpx; --pole-w: %fpx;",
               x,
               y,
-              CaretDec.caret_width *. font_metrics.col_width,
+              pole_w,
             ),
           ),
         ],
@@ -324,6 +284,26 @@ let chip_view =
     ],
   );
 };
+
+/* Small wedge at the canonical completion spot while its chip is
+   riding elsewhere — the truthful placement stays indicated,
+   unobtrusively */
+let rest_marker_view =
+    (~font_metrics: FontMetrics.t, ~row: int, ~col: int): Node.t =>
+  div(
+    ~attrs=[
+      Attr.classes(["quiver-rest-marker"]),
+      Attr.create(
+        "style",
+        Printf.sprintf(
+          "left: %fpx; top: %fpx;",
+          float_of_int(col) *. font_metrics.col_width,
+          float_of_int(row) *. font_metrics.row_height,
+        ),
+      ),
+    ],
+    [],
+  );
 
 /* Plain-text length of a chip's delimiters (for overlap coalescing) */
 let delimiters_len =
@@ -377,6 +357,7 @@ let view =
       ~font_metrics: FontMetrics.t,
       ~droppable: option((Id.t, int))=None,
       ~caret_pos: option((int, int))=None,
+      ~caret_inner: bool=false,
       seg: Segment.t,
     )
     : Node.t => {
@@ -393,14 +374,11 @@ let view =
   RowOffsets.reset();
 
   if (List.length(insertions) == 0) {
-    /* No completions needed */
+    last_rider := None;
     div([]);
   } else {
     let positioned =
-      List.filter_map(
-        resolve_position(~seg, ~caret_pos, measured),
-        insertions,
-      );
+      List.filter_map(resolve_position(~seg, measured), insertions);
     let sorted =
       List.sort(
         (a, b) => {
@@ -409,18 +387,49 @@ let view =
         },
         positioned,
       );
+    let coalesced = coalesce_overlaps(~font_metrics, sorted);
+    /* rider selection: the current tab target rides Active; while the
+       caret is inside a token the previous rider keeps following as
+       Passing; anywhere else everything rests */
+    let riding_of = (ins: positioned_insertion) =>
+      switch (droppable) {
+      | Some(_) when matches_droppable(droppable, ins.delimiters) =>
+        last_rider := droppable;
+        `Active;
+      | Some(_) => `No
+      | None =>
+        caret_inner && matches_droppable(last_rider^, ins.delimiters)
+          ? `Passing : `No
+      };
+    if (!caret_inner && droppable == None) {
+      last_rider := None;
+    };
     let chips =
-      coalesce_overlaps(~font_metrics, sorted)
-      |> List.map((ins: positioned_insertion) =>
-           chip_view(
-             ~font_metrics,
-             ~row=ins.row,
-             ~col=ins.col,
-             ~live=matches_droppable(droppable, ins.delimiters),
-             ~at_caret=caret_pos == Some((ins.row, ins.col)),
-             delimiter_nodes(~font_metrics, ins.delimiters),
-           )
-         );
+      coalesced
+      |> List.concat_map((ins: positioned_insertion) => {
+           let riding = riding_of(ins);
+           let (row, col) =
+             switch (riding, caret_pos) {
+             | (`Active | `Passing, Some((r, c))) => (r, c)
+             | _ => (ins.row, ins.col)
+             };
+           let chip =
+             chip_view(
+               ~font_metrics,
+               ~row,
+               ~col,
+               ~riding,
+               delimiter_nodes(~font_metrics, ins.delimiters),
+             );
+           /* while riding away from home, keep the truthful spot
+              marked */
+           riding != `No && (row, col) != (ins.row, ins.col)
+             ? [
+               chip,
+               rest_marker_view(~font_metrics, ~row=ins.row, ~col=ins.col),
+             ]
+             : [chip];
+         });
     div(~attrs=[Attr.classes(["quiver-decorations"])], chips);
   };
 };
