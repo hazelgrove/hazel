@@ -613,10 +613,22 @@ svg:has(.child-line) {
   color: var(--token-incomplete);
 }
 
+/* pole and flag stay one color per scheme (the at-caret blink
+   overrides the pole with red) */
+.quiver-chip.chip-live .quiver-chip-pole {
+  background: var(--backpack-selection);
+}
+
 /* the typed prefix is CUT OUT — white on every scheme; the remainder
-   carries the scheme's text color. Later coalesced segments fade. */
+   takes the OPPOSITE pole of the scheme (brown on pale chips via the
+   body color; pale yellow on gold chips) so partial completion reads
+   on both. Later coalesced segments fade. */
 .quiver-chip .chip-frac-typed {
   color: white;
+}
+
+.quiver-chip:not(.chip-live) .chip-frac-rest {
+  color: var(--backpack-selection);
 }
 
 .quiver-chip .chip-seg-later {
@@ -638,7 +650,7 @@ svg:has(.child-line) {
   }
 
   50% {
-    background: var(--quiver-chip);
+    background: var(--backpack-selection);
   }
 }
 
