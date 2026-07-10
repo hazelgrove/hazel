@@ -82,16 +82,18 @@ let rec find_piece_ctx =
 let find_piece_deep = (sg: Segment.t, id: Id.t): option(Piece.t) =>
   find_piece_ctx(sg, id) |> Option.map(((_, _, p)) => p);
 
-/* Resolve an insertion's position. COINCIDENCE-FIRST placement: the
-   pin snaps LEFT across grout/whitespace to the right edge of the
-   previous content piece — during entry, regrout pops holes in and
-   out beside the caret and the raw anchor lands beyond them, putting
-   a second caret-like pole one or two columns from the real caret.
-   Snapping makes pin and typing caret coincide, so there is ONE
-   caret-like thing (the takeover handles it) instead of two. */
+/* Resolve an insertion's position. COINCIDENCE-FIRST placement: a
+   pin's exact position within a run of grout/whitespace is
+   semantically free — materialization doesn't care — so spend the
+   freedom on caret alignment. The pin's free zone spans the
+   same-line grout/whitespace run around its anchor (bounded by the
+   surrounding content pieces); when the caret is inside the zone the
+   pin FOLLOWS it exactly (the takeover then shows one caret-like
+   object); otherwise it rests at the zone's left content edge. */
 let resolve_position =
     (
       ~seg: Segment.t,
+      ~caret_pos: option((int, int)),
       measured: Measured.t,
       ins: CanonicalCompletion.insertion,
     )
@@ -104,36 +106,75 @@ let resolve_position =
       | Right => (m.last.row, m.last.col)
       | Left => (m.origin.row, m.origin.col)
       };
-    let col = {
-      let rec prev_content = (sg: Segment.t, i: int): option(Piece.t) =>
-        i <= 0
-          ? None
-          : (
-            switch (List.nth(sg, i - 1)) {
-            | Piece.Grout(_)
-            | Piece.Secondary(_) => prev_content(sg, i - 1)
-            | p => Some(p)
-            }
-          );
-      switch (find_piece_ctx(seg, ins.adjacent_id)) {
-      | Some((sg, i, p)) =>
-        let content_edge =
-          switch ((p: Piece.t)) {
-          | Grout(_)
-          | Secondary(_) => prev_content(sg, i)
-          | _ => Some(p)
-          };
-        switch (content_edge) {
-        | Some(q) =>
-          switch (Measured.find_by_id(Piece.id(q), measured)) {
-          | Some(qm) when qm.last.row == row => min(qm.last.col, col)
-          | _ => col
-          }
-        | None => col
-        };
-      | None => col
+    let is_free = (p: Piece.t) =>
+      switch (p) {
+      | Grout(_) => true
+      | Secondary(sec) => !Secondary.is_linebreak(sec)
+      | _ => false
       };
-    };
+    let col =
+      switch (find_piece_ctx(seg, ins.adjacent_id)) {
+      | None => col
+      | Some((sg, i, p)) =>
+        /* zone left bound: right edge of the previous content piece */
+        let rec prev_content = (j: int): option(Piece.t) =>
+          j <= 0
+            ? None
+            : (
+              switch (List.nth(sg, j - 1)) {
+              | q when is_free(q) => prev_content(j - 1)
+              | q => Some(q)
+              }
+            );
+        let left_edge =
+          switch (is_free(p) ? prev_content(i) : Some(p)) {
+          | Some(q) =>
+            switch (Measured.find_by_id(Piece.id(q), measured)) {
+            | Some(qm) when qm.last.row == row => Some(qm.last.col)
+            | _ => None
+            }
+          | None => Some(0)
+          };
+        /* zone right bound: left edge of the next content piece on
+           the same line; an unbounded line end follows any column */
+        let n = List.length(sg);
+        let rec next_content = (j: int): option(Piece.t) =>
+          j >= n
+            ? None
+            : (
+              switch (List.nth(sg, j)) {
+              | q when is_free(q) => next_content(j + 1)
+              | Piece.Secondary(_) => None /* linebreak ends the zone */
+              | q => Some(q)
+              }
+            );
+        let right_edge =
+          switch (next_content(is_free(p) ? i : i + 1)) {
+          | Some(q) =>
+            switch (Measured.find_by_id(Piece.id(q), measured)) {
+            | Some(qm) when qm.origin.row == row => Some(qm.origin.col)
+            | _ => Some(col)
+            }
+          | None => None /* unbounded to the line end */
+          };
+        switch (left_edge) {
+        | None => col
+        | Some(left) =>
+          switch (caret_pos) {
+          | Some((r, c))
+              when
+                r == row
+                && c >= left
+                && (
+                  switch (right_edge) {
+                  | Some(right) => c <= right
+                  | None => true
+                  }
+                ) => c
+          | _ => min(left, col)
+          }
+        };
+      };
     Some({
       row,
       col,
@@ -337,7 +378,10 @@ let view =
     div([]);
   } else {
     let positioned =
-      List.filter_map(resolve_position(~seg, measured), insertions);
+      List.filter_map(
+        resolve_position(~seg, ~caret_pos, measured),
+        insertions,
+      );
     let sorted =
       List.sort(
         (a, b) => {
