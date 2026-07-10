@@ -859,7 +859,7 @@ let more_tests = [
       check(
         string,
         "binding takes its own line",
-        "let foo = f(2) in\nx, 3",
+        "let foo = f(2) in\nfoo, 3",
         got,
       );
     },
