@@ -1119,13 +1119,8 @@ let symbolic_witness_tests = [
      Broken operators are TyDi/backpack territory. */
 ];
 
-/* Opener line-walls: a synthesized opener must not hoist above a
-   line starting with a complete prefix-form tile (statement-shaped
-   definitions stay unabsorbed); walls need a linebreak between them
-   and the broken tile, so inline wrapping keeps its maximal reading.
-   Expecteds are raw prints: the spliced opener glues to the next
-   token (` letb`) — the editor's materialization path space-
-   normalizes synthesized junctions; token stream is what's pinned. */
+/* Opener line-walls: deleted form heads stay on their line.
+   Expecteds are raw prints (spliced openers glue: ` letb`). */
 let opener_wall_tests = [
   edit_case(
     ~name="fully-deleted second let stays on its line",
@@ -1294,14 +1289,8 @@ let continuation_tests = [
   ),
 ];
 
-/* === Joint satisfiability (andrew 2026-07-08) ===
-   Deleting a case's end AND its enclosing let's in used to complete
-   incompatibly (the in walled by the naked rules, severing them; the
-   end appended past the body). Sequential materialization: the in's
-   deletion-debris junction is strongest, it materializes first, and
-   the end then completes INSIDE the definition child — exact token
-   restoration (endin adjacency is print glue, the shards are
-   correctly ordered/nested). */
+/* Joint satisfiability: end+in double deletion restores exactly
+   (endin adjacency is print glue). */
 let dbl_del_inline =
   Test_Editing.mk("let f = case x | 1 => 2 | 3 => 4 end in¦ f")
   @ [destruct_l, destruct_l]
@@ -1339,13 +1328,9 @@ let probe_case = (~name, ~acts, ~expected) =>
   test_case(name, `Quick, () =>
     check(string_testable, name, expected, probe_raw(acts))
   );
-/* Reassociation regression guards (andrew 2026-07-09, FIXED same
-   day): delete + retype the l of a NON-FIRST let left the retyped
-   let unpaired with its orphaned =/in — rescan only matches
-   SINGLETON pieces so the two-shard remnant could never pair, and
-   flatten_and_repair started at depth 1, skipping the sibling scope
-   (the only scope, at top level). Fixed: explode incomplete
-   multitiles in the gated fallback's crack + ascend from depth 0. */
+/* Reassociation guards: delete + retype the l of a NON-FIRST let
+   must re-pair with its orphaned =/in (rescan matches singletons
+   only; the fallback must try the sibling scope). */
 let probe_tests = [
   probe_case(
     ~name="second-let delete+retype l reassociates",
@@ -1364,13 +1349,8 @@ let probe_tests = [
       "let f = 1 in\nf + 1 | top: let=in[0,1,2] f[0] +[0] 1[0] | inc: 0",
   ),
 ];
-/* Hole-minimizing append (andrew's test-end report): a convex-right
-   closer appended after a span-final trailing operator would sever
-   its operand into a hole (`test 1 == 1 ; ? end` = indeterminate
-   test); with content following the partition, stopping before the
-   operator creates ZERO holes — strictly fewer, so the closer backs
-   over it. Concave-right shards and no-content-after ties keep
-   maximal absorption. */
+/* Hole-minimizing append: a closer stops before a span-final
+   trailing operator when that is strictly fewer holes. */
 let probe2_tests = [
   edit_case(
     ~name="deleted test-end stops before the semicolon",
@@ -1419,14 +1399,10 @@ let ordering_tests = [
     ~expected="end+in",
   ),
 ];
-/* TyDi delimiter-suffix gates (andrew's e/el/els matrix, FIXED
-   2026-07-10): ci is None on exactly these states — canonical
-   completion CONSUMES the prefix token when building the semantics
-   term, so no info exists at its id — so set_buffer now falls back
-   to the ci-free, expectation-backed missing-shard suggestion, and
-   1-char prefixes bypass the length gate when expectation-backed
-   (symbolic - and = get arrow completions for the first time).
-   Probes replicate Editor.calculate's exact call. */
+/* TyDi delimiter-suffix gates (the e/el/els matrix): ci is None on
+   these states (completion consumed the prefix token) — suggestions
+   must survive via the ci-free witness route. Probes replicate
+   Editor.calculate's exact call. */
 let probe_tydi = (acts: list(Action.t)): string => {
   let z = Test_Editing.perform(Zipper.init(), acts);
   let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
@@ -1507,15 +1483,10 @@ let tydi_probe_tests = [
     ~expected="tok:= | ci:NONE | buf:>",
   ),
 ];
-/* Trajectory stability for mid-entry case rules (andrew 2026-07-11):
-   from the first bar onward, the case's end sits AFTER the growing
-   rule and never retreats — hole-min must not treat a rule as a
-   severable trailing operator (it is case-content). Pins probe the
-   full entry sequence; expecteds are raw prints. */
-/* Triple-click a rule delimiter: the selection covers the whole rule
-   and stops at the body's last content piece — no trailing linebreak
-   or indentation (andrew 2026-07-11: auto-indent exposed a shrink
-   loop that removed exactly one trailing piece) */
+/* Mid-entry case rules: the end sits AFTER the growing rule from
+   the first bar onward and never retreats. Raw-print pins. */
+/* Triple-click a rule: selection stops at the body's last content
+   piece — no trailing linebreak or indentation. */
 let sel_case = (~name, ~acts, ~expected) =>
   test_case(
     name,
@@ -1542,9 +1513,8 @@ let rule_selection_tests = [
   ),
 ];
 
-/* Materialization: the virtual reading committed to the buffer.
-   ALL swaps in the engine's joint result; ONE discharges a single
-   tile's obligation and moves nothing else. */
+/* Materialization: ALL = the joint result; ONE discharges a single
+   tile and moves nothing else. */
 let materialize_tests = [
   test_case(
     "materialize all commits the joint completion",

@@ -212,14 +212,11 @@ let rec flatten_tiles_with_incomplete = (seg: Segment.t): Segment.t =>
 let crack_siblings = ((pre, suf): Siblings.t): Siblings.t =>
   TupleUtil.map2(flatten_tiles_with_incomplete, (pre, suf));
 
-/* Repair-scope crack: ALSO explode incomplete multi-delimiter tiles
-   themselves into shard singletons (children interleaved in place),
-   so sibling-level scattering can rescan back together — rescan can
-   only match SINGLETON pieces against an open frame, so a two-shard
-   remnant (the =/in left by deleting a let's l) can never pair with
-   its retyped keyword without this. Only used by the gated fallback
-   (flatten_and_repair): exploding on the per-keystroke fast path
-   would make every mid-entry state pay a rescan. */
+/* Repair-scope crack: also explode incomplete multi-delimiter tiles
+   into shard singletons (children interleaved) — rescan only matches
+   singletons, so a two-shard remnant can never pair otherwise. Gated
+   fallback only: exploding on the fast path would make every
+   mid-entry state pay a rescan. */
 let rec explode_incomplete = (seg: Segment.t): Segment.t =>
   List.concat_map(
     fun
@@ -637,9 +634,8 @@ let flatten_and_repair = (z: t): t => {
         );
       result !== z ? result : ascend(depth + 1);
     };
-  /* depth 0 = the sibling scope itself: an orphaned remnant's match
-     can be a SIBLING (retyped keyword beside its scattered =/in at
-     the top level, where there are no ancestors to flatten at all) */
+  /* depth 0 = the sibling scope: the orphan's match can be a sibling
+     (top level has no ancestors to flatten) */
   ascend(0);
 };
 
