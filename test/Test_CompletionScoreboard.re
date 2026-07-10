@@ -250,13 +250,9 @@ let run_class = (~prefix_only: bool, name: string, text: string): outcome => {
   );
 };
 
-/* === Pair-deletion class (joint satisfiability instrument) ===
-   Delete the CLOSING shard of two different tiles (rightmost first,
-   so the left target's coordinates stay valid), complete jointly,
-   and check (a) restoration and (b) andrew's property: the joint
-   result is delimiter-complete (no incomplete tiles survive).
-   Measures the compatibility of co-broken completions — the class
-   the single-deletion scoreboard can't see. */
+/* Pair-deletion class: delete two tiles' closing shards (rightmost
+   first), complete jointly; check restoration AND that the joint
+   result is delimiter-complete. */
 
 let closer_targets = (z: Zipper.t): list((Token.t, Point.t)) => {
   let measured = CachedSyntax.init(z).measured;
@@ -377,15 +373,238 @@ let run_pairs = (name: string, text: string): joint_outcome => {
   );
 };
 
+/* Acceptance stability: applying One(tile) must not move the
+   surviving entries — keyed by (anchor id, side, text); needs_hole
+   excluded (truthful holes flip with context). Plus reverse-trace
+   full sequences vs materialize-all. Pins:
+   "stable/shifted/failed of applies | reverse converged/seqs". */
+
+type accept_outcome = {
+  a_stable: int,
+  a_shifted: int,
+  a_failed: int,
+  a_total: int,
+  r_converged: int,
+  r_seqs: int,
+};
+
+let entries_of =
+    (seg: Segment.t): list((Id.t, Util.Direction.t, string, Id.t)) =>
+  CanonicalCompletion.for_editor(seg).insertions
+  |> List.concat_map((i: CanonicalCompletion.insertion) =>
+       i.delimiters
+       |> List.filter_map((d: CanonicalCompletion.delimiter_info) =>
+            switch (d.of_shard) {
+            | Some((tid, _)) => Some((i.adjacent_id, i.side, d.text, tid))
+            | None => None
+            }
+          )
+     );
+
+let run_accept = (name: string, text: string): accept_outcome => {
+  let z0 = build(text);
+  let closers = closer_targets(z0);
+  let lt = (a: Point.t, b: Point.t) =>
+    a.row < b.row || a.row == b.row && a.col < b.col;
+  let pairs =
+    closers
+    |> List.concat_map(((t1, p1)) =>
+         closers
+         |> List.filter_map(((t2, p2)) =>
+              lt(p1, p2) ? Some(((t1, p1), (t2, p2))) : None
+            )
+       );
+  let del = tok =>
+    List.init(Token.length(tok), _ =>
+      Action.Destruct(Action.Local(Left, ByChar))
+    );
+  List.fold_left(
+    (acc, ((tok_l, pt_l: Point.t), (tok_r, pt_r: Point.t))) => {
+      let acts =
+        [Action.Move(Point(pt_r, None))]
+        @ del(tok_r)
+        @ [Action.Move(Point(pt_l, None))]
+        @ del(tok_l);
+      switch (perform_soft(z0, acts)) {
+      | None => acc
+      | Some(z') =>
+        let seg =
+          z'
+          |> Zipper.clear_unparsed_buffer
+          |> Zipper.unselect_and_zip(~erase_buffer=true);
+        let entries = entries_of(seg);
+        let tiles =
+          entries
+          |> List.map(((_, _, _, tid)) => tid)
+          |> List.sort_uniq(compare);
+        List.length(tiles) < 2
+          ? acc
+          /* per-tile single acceptance */
+          : {
+            let acc =
+              List.fold_left(
+                (acc, tid) =>
+                  switch (
+                    perform_soft(z', [Action.ApplyCompletion(One(tid))])
+                  ) {
+                  | None => {
+                      ...acc,
+                      a_failed: acc.a_failed + 1,
+                      a_total: acc.a_total + 1,
+                    }
+                  | Some(z2) =>
+                    let entries2 =
+                      entries_of(
+                        z2
+                        |> Zipper.clear_unparsed_buffer
+                        |> Zipper.unselect_and_zip(~erase_buffer=true),
+                      );
+                    let survivors =
+                      entries
+                      |> List.filter(((_, _, _, t)) => !Id.equal(t, tid));
+                    let ok =
+                      survivors
+                      |> List.for_all(((a, sd, tx, _)) =>
+                           entries2
+                           |> List.exists(((a', sd', tx', _)) =>
+                                Id.equal(a, a') && sd == sd' && tx == tx'
+                              )
+                         );
+                    if (!ok) {
+                      print_endline(
+                        Printf.sprintf(
+                          "[%s/accept] SHIFTED applying %s at %d:%d+%d:%d",
+                          name,
+                          Id.to_string(tid) |> String.sub(_, 0, 8),
+                          pt_l.row,
+                          pt_l.col,
+                          pt_r.row,
+                          pt_r.col,
+                        ),
+                      );
+                    };
+                    {
+                      ...acc,
+                      a_stable: acc.a_stable + (ok ? 1 : 0),
+                      a_shifted: acc.a_shifted + (ok ? 0 : 1),
+                      a_total: acc.a_total + 1,
+                    };
+                  },
+                acc,
+                tiles,
+              );
+            /* reverse-trace full sequence: accept in reverse insertion
+               order, compare against materialize-all */
+            let joint =
+              tokens(
+                CanonicalCompletion.materialize_all(~sort=Sort.Exp, seg),
+              );
+            let order =
+              entries
+              |> List.map(((_, _, _, tid)) => tid)
+              |> List.fold_left(
+                   (seen, t) => List.mem(t, seen) ? seen : seen @ [t],
+                   [],
+                 )
+              |> List.rev;
+            let final =
+              List.fold_left(
+                (zo, tid) =>
+                  switch (zo) {
+                  | None => None
+                  | Some(z) =>
+                    switch (
+                      perform_soft(z, [Action.ApplyCompletion(One(tid))])
+                    ) {
+                    | Some(z2) => Some(z2)
+                    | None => Some(z) /* already discharged en route */
+                    }
+                  },
+                Some(z'),
+                order,
+              );
+            let converged =
+              switch (final) {
+              | Some(zf) =>
+                tokens(Zipper.unselect_and_zip(~erase_buffer=true, zf))
+                == joint
+              | None => false
+              };
+            if (!converged) {
+              print_endline(
+                Printf.sprintf(
+                  "[%s/accept] DIVERGED reverse-seq at %d:%d+%d:%d",
+                  name,
+                  pt_l.row,
+                  pt_l.col,
+                  pt_r.row,
+                  pt_r.col,
+                ),
+              );
+            };
+            {
+              ...acc,
+              r_converged: acc.r_converged + (converged ? 1 : 0),
+              r_seqs: acc.r_seqs + 1,
+            };
+          };
+      };
+    },
+    {
+      a_stable: 0,
+      a_shifted: 0,
+      a_failed: 0,
+      a_total: 0,
+      r_converged: 0,
+      r_seqs: 0,
+    },
+    pairs,
+  );
+};
+
+/* Instabilities = the known jointly-interacting states only
+   (end+in definition slot; fun-ap's paren). */
+let accept_pins = [
+  ("let-chain", "2/0/0 of 2 | reverse 1/1"),
+  ("fun-ap", "10/2/0 of 12 | reverse 5/6"),
+  ("case-multiline", "12/0/0 of 12 | reverse 6/6"),
+  ("type-adt", "40/2/0 of 42 | reverse 20/21"),
+  ("tuple-list", "10/2/0 of 12 | reverse 6/6"),
+  ("case-def-inline", "11/1/0 of 12 | reverse 5/6"),
+  ("case-def-multiline", "11/1/0 of 12 | reverse 5/6"),
+];
+
+let accept_tests =
+  accept_pins
+  |> List.map(((name, pin)) =>
+       test_case(
+         name ++ " accept",
+         `Slow,
+         () => {
+           let text = List.assoc(name, corpus);
+           let o = run_accept(name, text);
+           let shown =
+             Printf.sprintf(
+               "%d/%d/%d of %d | reverse %d/%d",
+               o.a_stable,
+               o.a_shifted,
+               o.a_failed,
+               o.a_total,
+               o.r_converged,
+               o.r_seqs,
+             );
+           print_endline(Printf.sprintf("SCORE %s accept: %s", name, shown));
+           check(string, name ++ " accept", pin, shown);
+         },
+       )
+     );
+
 /* (program, "restored/incomplete/total") — PINNED like the others */
 let pair_pins = [
   ("let-chain", "1/0/1"),
-  /* the 3 misses inherit the )@f(3 single: deleting that ) leaves
-     `f(3 + f(4)` — NO grout, NO junction, byte-identical to freshly
-     typing an ap-paren spanning the rest. Structural evidence
-     destroyed; the wide completion IS correct for the visible state
-     (entry/trajectory stability), so this is accepted-inherent like
-     merge-on-delete, not a placement miss. */
+  /* the 3 misses inherit the )@f(3 single: `f(3 + f(4)` is
+     byte-identical to a freshly typed wide ap-paren — structural
+     evidence destroyed, accepted-inherent */
   ("fun-ap", "3/0/6"),
   ("if-else-inline", "1/0/1"),
   ("if-else-multiline", "1/0/1"),
@@ -428,11 +647,8 @@ let pins = [
   ("if-else-multiline", "6/0/6", "5/0/5"),
   ("case-multiline", "9/0/9", "6/0/6"),
   ("type-adt", "14/2/16", "8/0/8"),
-  /* the tuple-list full miss: deleting the first let's = leaves
-     `let p (1, 2 + 3) in` — p(1, 2+3) reads as a legitimate
-     ap-PATTERN (self-healed adjacency, no junction debris), so the
-     everything-left completion is correct for the visible state.
-     Accepted-inherent, same class as fun-ap's paren. */
+  /* tuple-list's = miss: `let p (1, 2+3) in` reads as a legitimate
+     ap-pattern — accepted-inherent, like fun-ap's paren */
   ("tuple-list", "9/0/10", "4/0/4"),
   ("case-def-inline", "9/0/9", "6/0/6"),
   ("case-def-multiline", "9/0/9", "6/0/6"),
@@ -464,4 +680,6 @@ let scoreboard_tests =
        )
      );
 
-let tests = [("CompletionScoreboard", scoreboard_tests @ pair_tests)];
+let tests = [
+  ("CompletionScoreboard", scoreboard_tests @ pair_tests @ accept_tests),
+];

@@ -177,7 +177,7 @@ let indicated =
 };
 
 /* For visual decoration (caret side, arms, projector/refractor highlighting).
-   Ignores secondary. Used by CaretDec, Arms, CodeEditable, Backpack. */
+   Ignores secondary. Used by CaretDec, Arms, CodeEditable. */
 let for_decoration = indicated(~no_ws=true, ~ign=Piece.is_secondary);
 
 /* For identity/direction queries that always need an answer, even in
@@ -274,13 +274,8 @@ let ci_for_completion =
   | Some(p) when !Piece.is_secondary(p) && !Piece.is_grout(p) =>
     switch (Id.Map.find_opt(Piece.id(p), info_map)) {
     | Some(_) as ci => ci
-    /* the neighbor token may have been CONSUMED when the semantics
-       term was built: canonical completion replaces a witness prefix
-       (els, -, =) with the delimiter it evidences, so no info exists
-       at the token's id. Fall back to the caret's indicated info so
-       suggestions — notably the expectation-backed missing-shard
-       one — still fire on exactly the states where completion
-       recognized a partial delimiter. */
+    /* completion may have consumed the neighbor token (witness
+       prefix), leaving no info at its id — fall back to indication */
     | None => ci_of(z, info_map)
     }
   | _ => ci_of(z, info_map)

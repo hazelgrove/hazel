@@ -5,7 +5,7 @@
  *   - Small triangles at insertion points (below text baseline)
  *   - Offside boxes showing what delimiters will be inserted
  *
- * Named to complement "Backpack" - the quiver holds completion arrows.
+ * The quiver holds completion arrows.
  */
 
 open Virtual_dom.Vdom;
@@ -13,23 +13,16 @@ open Node;
 open Haz3lcore;
 open Util;
 
-/* An insertion with its resolved position. tolerant_col = the right
-   edge of the last CONTENT piece left of the pin: a caret anywhere in
-   (tolerant_col..col] on the same row is separated from the pin only
-   by grout/whitespace — the regrout hole that pops in and out beside
-   the caret during entry must not flip the chip's caret association. */
+/* An insertion with its resolved position; shape = the caret shape
+   at the pin (the pole is a ghost caret). */
 type positioned_insertion = {
   row: int,
   col: int,
-  tolerant_col: int,
+  shape: option(Util.Direction.t),
   delimiters: list(CanonicalCompletion.delimiter_info),
 };
 
-/* Two-state tab emphasis (backpack-parity): the entry whose shard is
-   what tab would put down RIGHT NOW — the head of the local missing
-   shards, caret Outer — renders at full emphasis; everything else is
-   slightly dimmed (the same signal the backpack display carried via
-   its graying). Matching is by (tile id, shard index) provenance. */
+/* Does this chip hold the shard tab would put down right now? */
 /* Chip text scale relative to the code font */
 let chip_font_scale = 0.72;
 
@@ -87,16 +80,14 @@ let rec find_piece_ctx =
 let find_piece_deep = (sg: Segment.t, id: Id.t): option(Piece.t) =>
   find_piece_ctx(sg, id) |> Option.map(((_, _, p)) => p);
 
-/* Resolve an insertion's position by looking up adjacent_id in
-   Measured. A right-side anchor whose delimiter would be
-   space-separated from the anchor token (SpaceNormalize inserts one
-   at materialization) shifts one column to the space side, so the
-   arrow sits where the delimiter actually lands instead of flush
-   against the existing token. Witness arrows (typed_len set) never
-   shift: the completion continues the typed prefix directly. */
+/* Coincidence-first placement: a pin's position within its
+   inter-content whitespace region (linebreaks included) is
+   semantically free, so it FOLLOWS the caret inside that zone and
+   RESTS at the engine's spot otherwise. */
 let resolve_position =
     (
       ~seg: Segment.t,
+      ~caret_pos: option((int, int)),
       measured: Measured.t,
       ins: CanonicalCompletion.insertion,
     )
@@ -109,71 +100,111 @@ let resolve_position =
       | Right => (m.last.row, m.last.col)
       | Left => (m.origin.row, m.origin.col)
       };
-    let col =
-      switch (ins.side, ins.delimiters) {
-      | (Right, [{typed_len: None, text, _}, ..._]) =>
-        let sep =
-          switch (find_piece_deep(seg, ins.adjacent_id)) {
-          | Some(p) =>
-            switch (SpaceNormalize.last_token(p)) {
-            | Some(a) => SpaceNormalize.needs_space(a, text)
-            | None => false
-            }
-          | None => false
-          };
-        col + (sep ? 1 : 0);
-      | _ => col
+    let is_free = (p: Piece.t) =>
+      switch (p) {
+      | Grout(_)
+      | Secondary(_) => true
+      | _ => false
       };
-    /* walk left from the anchor over grout/secondary to the previous
-       content piece: its right edge starts the tolerance interval */
-    let tolerant_col = {
-      let rec prev_content = (sg: Segment.t, i: int): option(Piece.t) =>
-        i <= 0
+    let leq = ((r1, c1), (r2, c2)) => r1 < r2 || r1 == r2 && c1 <= c2;
+    switch (find_piece_ctx(seg, ins.adjacent_id)) {
+    | None =>
+      Some({
+        row,
+        col,
+        shape: None,
+        delimiters: ins.delimiters,
+      })
+    | Some((sg, i, p)) =>
+      let rec prev_content = (j: int): option(Piece.t) =>
+        j <= 0
           ? None
           : (
-            switch (List.nth(sg, i - 1)) {
-            | Piece.Grout(_)
-            | Piece.Secondary(_) => prev_content(sg, i - 1)
-            | p => Some(p)
+            switch (List.nth(sg, j - 1)) {
+            | q when is_free(q) => prev_content(j - 1)
+            | q => Some(q)
             }
           );
-      switch (find_piece_ctx(seg, ins.adjacent_id)) {
-      | Some((sg, i, p)) =>
-        let start: option(Piece.t) =
-          switch ((p: Piece.t)) {
-          | Grout(_)
-          | Secondary(_) => prev_content(sg, i)
-          | _ => Some(p)
-          };
-        switch (start) {
-        | Some(q) =>
-          switch (Measured.find_by_id(Piece.id(q), measured)) {
-          | Some(qm) => qm.last.row == row ? qm.last.col : col
-          | None => col
-          }
-        | None => 0
+      let n = List.length(sg);
+      let rec next_content = (j: int): option(Piece.t) =>
+        j >= n
+          ? None
+          : (
+            switch (List.nth(sg, j)) {
+            | q when is_free(q) => next_content(j + 1)
+            | q => Some(q)
+            }
+          );
+      let measure_last = (q: Piece.t) =>
+        Measured.find_by_id(Piece.id(q), measured)
+        |> Option.map((qm: Measured.measurement) =>
+             (qm.last.row, qm.last.col)
+           );
+      let measure_origin = (q: Piece.t) =>
+        Measured.find_by_id(Piece.id(q), measured)
+        |> Option.map((qm: Measured.measurement) =>
+             (qm.origin.row, qm.origin.col)
+           );
+      /* zone bounds: previous/next content around the anchor's
+         whitespace run (whole-document edges when absent) */
+      let left_bound =
+        switch (is_free(p) ? prev_content(i) : Some(p)) {
+        | Some(q) => measure_last(q)
+        | None => Some((0, 0))
         };
-      | None => col
+      let right_bound =
+        switch (next_content(is_free(p) ? i : i + 1)) {
+        | Some(q) => measure_origin(q)
+        | None => None /* unbounded to the segment end */
+        };
+      /* resting spot: the left content edge when it shares the pin's
+         line (the round-6 snap); the raw anchor position otherwise */
+      let rest =
+        switch (left_bound) {
+        | Some((lr, lc)) when lr == row => (row, min(lc, col))
+        | _ => (row, col)
+        };
+      let (row, col) =
+        switch (caret_pos, left_bound) {
+        | (Some((r, c)), Some(left))
+            when
+              leq(left, (r, c))
+              && (
+                switch (right_bound) {
+                | Some(right) => leq((r, c), right)
+                | None => true
+                }
+              ) => (
+            r,
+            c,
+          )
+        | _ => rest
+        };
+      /* ghost-caret shape at the pin: the shared-nib facing between
+         the pieces around the insertion point, mirroring
+         Siblings.direction_between (right neighborhood first) */
+      let shape = {
+        let (before, after) = Util.ListUtil.split_n(i + 1, sg);
+        switch (Segment.edge_direction_of(Left, after)) {
+        | None => Segment.edge_direction_of(Right, before)
+        | d => d
+        };
       };
+      Some({
+        row,
+        col,
+        shape,
+        delimiters: ins.delimiters,
+      });
     };
-    Some({
-      row,
-      col,
-      tolerant_col: min(tolerant_col, col),
-      delimiters: ins.delimiters,
-    });
   };
 
-/* Chip segment rendering. EMPHASIS INVERSION vs the old offside
-   boxes (andrew): the chip sits AT the token, so its payload is what
-   REMAINS — the yet-to-type remainder renders at full contrast and
-   the already-typed prefix fades toward the chip color (it is
-   visible in the code an em away). Later segments of a coalesced
-   chip fade the same way: only the first is where tab acts, and
-   only its position survives its own application. */
+/* Chip segments: the remainder is the payload (full contrast); the
+   typed prefix and later coalesced segments fade. */
 let delimiter_nodes =
     (
       ~font_metrics: FontMetrics.t,
+      ~on_apply: option(Id.t => Ui_effect.t(unit)),
       delimiters: list(CanonicalCompletion.delimiter_info),
     )
     : list(Node.t) =>
@@ -181,6 +212,24 @@ let delimiter_nodes =
   |> List.mapi((k, d: CanonicalCompletion.delimiter_info) => {
        let sep = k > 0 ? [Node.text(" ")] : [];
        let seg_cls = k > 0 ? ["chip-seg", "chip-seg-later"] : ["chip-seg"];
+       /* modifier-click completes this delimiter's tile; unmodified
+          pointer events fall through to the editor */
+       let apply_attrs =
+         switch (on_apply, d.of_shard) {
+         | (Some(f), Some((tid, _))) => [
+             Attr.on_pointerdown(evt =>
+               Js_of_ocaml.Js.to_bool(evt##.metaKey)
+               || Js_of_ocaml.Js.to_bool(evt##.ctrlKey)
+                 ? Effect.Many([
+                     Effect.Stop_propagation,
+                     Effect.Prevent_default,
+                     f(tid),
+                   ])
+                 : Effect.Ignore
+             ),
+           ]
+         | _ => []
+         };
        let body =
          switch (d.typed_len) {
          | Some(n) when n > 0 && n < String.length(d.text) => [
@@ -210,64 +259,74 @@ let delimiter_nodes =
              ),
            ]
            : [];
-       sep @ [Node.span(~attrs=[Attr.classes(seg_cls)], body)] @ suffix;
+       sep
+       @ [Node.span(~attrs=[Attr.classes(seg_cls)] @ apply_attrs, body)]
+       @ suffix;
      })
   |> List.concat;
 
-/* One interline chip: a solid speech-bubble centered on the line
-   boundary above the insertion point, flagpole-aligned with a
-   STRAIGHT caret bar — the same path/metrics the real caret draws,
-   shape deliberately not shown (a remnant token's nib shapes are
-   incidental: le's convex right stops existing once the t arrives).
-   When the real caret sits exactly on the pin, the chip takes the
-   caret's color and the caret glyph hides (CSS :has) — the signpost
-   IS the caret there. */
+/* One interline chip: bubble centered on the line boundary above
+   the insertion point, pole below. */
 let chip_view =
     (
       ~font_metrics: FontMetrics.t,
       ~row: int,
       ~col: int,
+      ~shape: option(Direction.t),
+      ~caret_form: option((Direction.t, option(Direction.t))),
       ~live: bool,
       ~at_caret: bool,
-      ~near_caret: bool,
-      ~body_key: string,
       body: list(Node.t),
     )
     : Node.t => {
   let x = float_of_int(col) *. font_metrics.col_width;
   let y = float_of_int(row) *. font_metrics.row_height;
-  /* flagpole: pole and bubble are sibling divs in the same anchor,
-     sharing the SAME left offset float — one layout-rounding path,
-     so their left edges align exactly (the SVG bar rounded on a
-     different path and jittered a fraction of a pixel either way).
-     Pole dimensions replicate the straight caret: caret_width wide
-     centered on the column boundary, row height + shadow reach. */
-  let body_left = -. (0.5 *. CaretDec.caret_width *. font_metrics.col_width);
+  /* the pole is a ghost caret: the path the real caret would draw
+     here; hidden at coincidence */
   let pole =
-    div(
-      ~attrs=[
-        Attr.classes(["quiver-chip-pole"]),
-        Attr.create(
-          "style",
-          Printf.sprintf(
-            "left: %fpx; top: 0px; width: %fpx; height: %fpx;",
-            body_left,
-            CaretDec.caret_width *. font_metrics.col_width,
-            font_metrics.row_height *. (1.0 +. ShardDec.shadow_dy),
-          ),
-        ),
-      ],
-      [],
+    DecUtil.code_svg(
+      ~font_metrics,
+      ~origin={
+        row,
+        col,
+      },
+      ~base_cls=["quiver-chip-pole"],
+      ~path_cls=["quiver-chip-pole-path"],
+      ~scale=1.0,
+      ~height_fudge=ShardDec.shadow_dy *. font_metrics.row_height,
+      CaretDec.caret_base_path(Direction.Right, shape),
     );
+  /* flag left edge = top-left corner of whichever caret stands at
+     its foot: x = -(shape_adjust + caret_width/2) */
+  let (dock_side, dock_shape) =
+    switch (at_caret, caret_form) {
+    | (true, Some((cs, csh))) => (cs, csh)
+    | _ => (Direction.Right, shape)
+    };
+  let body_left =
+    -. (
+      ShardDec.shape_adjust(dock_side, dock_shape)
+      +. 0.5
+      *. CaretDec.caret_width
+    )
+    *. font_metrics.col_width;
   div(
     ~attrs=[
       Attr.classes(
-        ["quiver-chip", live ? "chip-live" : "chip-dim"]
-        @ (near_caret ? ["chip-near-caret"] : [])
+        ["quiver-chip"]
+        @ (
+          switch (dock_shape) {
+          | Some(Direction.Left) => ["chip-bend-left"]
+          | Some(Right) => ["chip-bend-right"]
+          | None => ["chip-straight"]
+          }
+        )
+        @ (live ? ["chip-live"] : [])
         @ (at_caret ? ["chip-at-caret"] : []),
       ),
     ],
     [
+      pole,
       div(
         ~attrs=[
           Attr.classes(["quiver-chip-anchor"]),
@@ -277,13 +336,7 @@ let chip_view =
           ),
         ],
         [
-          pole,
-          /* keyed: any content/position change remounts the bubble,
-             restarting its delayed-appear animation — mid-burst the
-             label stays hidden and settles ~0.4s after the last
-             change; the pole is always immediate */
           div(
-            ~key=body_key,
             ~attrs=[
               Attr.classes(["quiver-chip-body"]),
               Attr.create("style", Printf.sprintf("left: %fpx;", body_left)),
@@ -306,10 +359,8 @@ let delimiters_len =
   |> List.fold_left((+), 0)
   |> (n => n + max(0, List.length(delimiters) - 1));
 
-/* Coalesce chips that would overlap on the same interline: the later
-   one's delimiters join the earlier chip (in column order). Only the
-   first chip keeps its bar — after the first insertion is applied
-   the flow changes, so later positions are not truthful anyway. */
+/* Overlapping same-row chips coalesce into the earlier one — only
+   the first position survives its own application anyway. */
 let coalesce_overlaps =
     (~font_metrics: FontMetrics.t, chips: list(positioned_insertion))
     : list(positioned_insertion) => {
@@ -348,6 +399,8 @@ let view =
       ~font_metrics: FontMetrics.t,
       ~droppable: option((Id.t, int))=None,
       ~caret_pos: option((int, int))=None,
+      ~caret_form: option((Direction.t, option(Direction.t)))=None,
+      ~on_apply: option(Id.t => Ui_effect.t(unit))=None,
       seg: Segment.t,
     )
     : Node.t => {
@@ -355,12 +408,8 @@ let view =
   let result = CanonicalCompletion.for_editor(seg);
   let insertions = result.insertions;
 
-  /* claims from the previous render must not accumulate — reset even
-     when there is nothing to draw, else a vanished quiver leaves its
-     stale claims and probe offsides stay displaced until some other
-     quiver render happens to reset. (Chips are interline overlays and
-     claim no line-end space themselves, so reset is all that is
-     needed: probes sit at the standard offset again.) */
+  /* reset even when nothing draws: a vanished quiver must not leave
+     stale row claims displacing probe offsides */
   RowOffsets.reset();
 
   if (List.length(insertions) == 0) {
@@ -368,7 +417,10 @@ let view =
     div([]);
   } else {
     let positioned =
-      List.filter_map(resolve_position(~seg, measured), insertions);
+      List.filter_map(
+        resolve_position(~seg, ~caret_pos, measured),
+        insertions,
+      );
     let sorted =
       List.sort(
         (a, b) => {
@@ -384,31 +436,11 @@ let view =
              ~font_metrics,
              ~row=ins.row,
              ~col=ins.col,
+             ~shape=ins.shape,
+             ~caret_form,
              ~live=matches_droppable(droppable, ins.delimiters),
              ~at_caret=caret_pos == Some((ins.row, ins.col)),
-             ~near_caret=
-               switch (caret_pos) {
-               | Some((r, c)) =>
-                 r == ins.row && c >= ins.tolerant_col && c <= ins.col
-               | None => false
-               },
-             ~body_key=
-               Printf.sprintf(
-                 "%d:%d:%s",
-                 ins.row,
-                 ins.col,
-                 ins.delimiters
-                 |> List.map((d: CanonicalCompletion.delimiter_info) =>
-                      Printf.sprintf(
-                        "%s/%d/%b",
-                        d.text,
-                        Option.value(~default=0, d.typed_len),
-                        d.needs_hole,
-                      )
-                    )
-                 |> String.concat("|"),
-               ),
-             delimiter_nodes(~font_metrics, ins.delimiters),
+             delimiter_nodes(~font_metrics, ~on_apply, ins.delimiters),
            )
          );
     div(~attrs=[Attr.classes(["quiver-decorations"])], chips);

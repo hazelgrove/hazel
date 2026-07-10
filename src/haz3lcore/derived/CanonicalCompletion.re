@@ -153,10 +153,8 @@ let scan_frontier = (~start: Sort.t, pieces: list(Piece.t)): option(int) => {
             let opened =
               fitting
               |> List.filter_map((m: Mold.t) => {
-                   /* the frontier a tile opens rightward is its last
-                      PRESENT shard's (a case remnant opens Rul at its
-                      `case`, not the missing end's convex); complete
-                      tiles read the same either way */
+                   /* frontier = the LAST PRESENT shard's (a case
+                      remnant opens Rul); same for complete tiles */
                    let (_, r) = Mold.nibs(~index=Tile.r_shard(t), m);
                    switch (r.shape) {
                    | Concave(_) => Some(r.sort)
@@ -178,21 +176,12 @@ let scan_frontier = (~start: Sort.t, pieces: list(Piece.t)): option(int) => {
 };
 
 /* A prefix-token witness for a missing shard: a token whose text is
- * a proper prefix of the expected shard's text, qualified by one of
- * two routes. (1) Molded as an infix-delimiter prefix (operator
- * position — a genuine variable in operand position molds Var and
- * never qualifies). (2) SORT-AWARE SYMBOLIC: a symbolic token with
- * no legitimate form-table mold at the slot's sort can only be a
- * broken delimiter — `-` molds only at Exp, so in a Pat or Typ slot
- * it must be a broken `->`. Label-precedence molds don't block: the
- * tuple-label `=` is a legitimate infix at every sort, but the
- * incomplete tile EXPECTS its delimiter, the label reading is exotic
- * where a rule's `=>` is mandatory, and the witness is virtual and
- * self-correcting (typing the `>` settles it — next-keystroke
- * convergent either way). Wordish tokens never take route 2: a
- * variable is legitimate content in any slot.
- * The tile independently EXPECTS the delimiter; the token only
- * witnesses WHERE. */
+ * a proper prefix of the expected shard's text: (1) molded as an
+ * infix-delimiter prefix, or (2) symbolic with no legitimate
+ * non-label mold at the slot's sort (`-` molds only at Exp, so after
+ * a Pat it must be a broken `->`; label-precedence molds don't
+ * block). The tile independently EXPECTS the delimiter; the token
+ * only witnesses WHERE. */
 let is_symbolic_token = (tok: Token.t): bool => {
   let n = String.length(tok);
   let rec go = k =>
@@ -524,17 +513,10 @@ let opener_schedule =
         : rule_walls
           |> List.filter(w => w >= at && w < idx)
           |> List.fold_left((acc, w) => max(acc, w + 1), at);
-    /* Line walls: a synthesized opener must not hoist above a line
-       that STARTS with a complete prefix-form tile (multi-shard,
-       convex-left, concave-right — a statement-shaped definition
-       like a complete let/type/if, not an operand). Deleting a
-       mid-program form head must not absorb the definitions above
-       it; skel maximal-left can't see this because the whole
-       sequential chain is one operand. A wall only applies when a
-       LINEBREAK separates it from the broken tile — inline
-       absorption (`(let a = 1 in a)`-style wrapping) keeps its
-       maximal reading; sequential DEFINITIONS live on their own
-       lines. */
+    /* Line walls: an opener must not hoist above a line starting
+       with a complete prefix-form tile (statement-shaped: convex-
+       left, concave-right, multi-shard). Applies only across a
+       linebreak, so inline wrapping keeps its maximal reading. */
     let line_walls: list(int) = {
       let rec go = (i, ps, after_lb, acc) =>
         switch (ps) {
@@ -1266,15 +1248,9 @@ let drop_dangling_grout = (subseg: Segment.t): Segment.t => {
  * before their landing site; unclipped ones aggregate at the
  * partition's last piece as before. */
 /* Strong-evidence site for trailing shard i of tile t: a unique
-   prefix-token witness (names the delimiter, not just the position;
-   no shape/sort gates — it only decides WHERE the shard lands, the
-   absorbed span equals the fallback's) or, for concave-right shards,
-   a unique shape/sort-legal concave-grout junction. Searched over the
-   sort-clipped span WITHOUT wall bounds: witnesses and junctions
-   outrank walls in the evidence hierarchy, so a wall may bound only
-   the fallback placement, never hide a stronger site (deleting a
-   case's end AND its let's in: the naked rules must not hide the
-   in's own deletion-debris junction). */
+   prefix-token witness, or (concave-right shards) a unique legal
+   junction. Searched WITHOUT wall bounds — walls rank below both and
+   may only bound the fallback. */
 type trailing_site =
   | TrailWitness(int)
   | TrailJunction(int);
@@ -1302,9 +1278,8 @@ let find_trailing_site =
       | _ => false,
     );
   let shard_text = List.nth(t.label, i);
-  /* the witness region includes the frontier piece itself: a symbolic
-     token with no mold at the slot's sort fires the frontier AT its
-     own position — exactly where a broken delimiter prefix sits */
+  /* region includes the frontier piece: an eligible symbolic token
+     fires the frontier at its own position */
   let witness_end = min(strong_end + 1, n);
   let witness_sites =
     List.init(max(witness_end - cursor, 0), k => cursor + k)
@@ -1528,20 +1503,20 @@ let place_trailing_shards =
                   };
                 (seg, ins, agg, abs, stop + 1);
               | None =>
-                /* HOLE-MINIMIZING APPEND: a convex-right closer
-                   appended after a span-final trailing operator
-                   severs that operator's right operand into a hole
-                   (`test 1 == 1 ; end` -> hole inside the test).
-                   When content FOLLOWS this partition, stopping
-                   before the operator leaves it its operand —
-                   strictly fewer holes. Concave-right shards tie
-                   (their own body hole trades places) and incomplete
-                   tiles never back — both keep maximal absorption. */
+                /* hole-minimizing append: a convex-right closer
+                   after a span-final trailing operator severs its
+                   operand into a hole; when content follows the
+                   partition, stopping before it is strictly fewer
+                   holes. Concave-right shards tie: keep maximal. */
                 let hole_min_stop = {
                   let is_trailing_op = (p: Piece.t) =>
                     switch (p) {
                     | Tile(tt) =>
                       Tile.is_complete(tt)
+                      /* rules are case-content, never severable:
+                         mid-entry `case foo |` keeps its end after
+                         the growing rule */
+                      && tt.mold.out != Sort.Rul
                       && (
                         switch (snd(Tile.nibs(tt)).shape) {
                         | Concave(_) => true
@@ -1635,12 +1610,9 @@ let place_trailing_shards =
   (seg, ins, abs);
 };
 
-/* === Materialized-truth holes ===
-   A delimiter's trailing hole displays only if completing actually
-   leaves a SYNTHESIZED hole after that shard — a concave-right shard
-   that meets existing content (the next line's body, a following
-   definition) needs none. Verified against the completed segment
-   rather than predicted from nib shapes. */
+/* A delimiter's hole displays only if completion actually leaves a
+   SYNTHESIZED hole after that shard — verified against the completed
+   segment, not predicted from nib shapes. */
 let rec segment_ids_deep = (sg: Segment.t): list(Id.t) =>
   List.concat_map(
     (p: Piece.t) =>
@@ -1721,19 +1693,20 @@ let verify_holes =
      );
 };
 
-/* SEQUENTIAL MATERIALIZATION (plan item 0): complete ONE tile per
-   partition per pass — strongest evidence first (witness > junction >
-   fallback), weak ties broken innermost-first (= the old put-down
-   LIFO discipline) — materialize it, then recurse on the result. The
-   suggestion set is the trace of the loop, so joint application
-   reproduces the computed result by construction: once a form is
-   materialized, remnants it absorbed sit in its children and complete
-   within them (nesting by containment, not by checks), and each pass
-   closes exactly one form per partition (completeness is monotone).
-   Fuel bounds the recursion; the incomplete-tile count strictly
-   decreases per pass, so it never binds in practice. */
+/* SEQUENTIAL MATERIALIZATION: complete ONE tile per partition per
+   pass — strongest evidence first (witness > junction > fallback),
+   weak ties innermost-first — then recurse on the result. The
+   suggestion set is the trace, so joint application reproduces the
+   computed result by construction; fuel never binds (the incomplete
+   count strictly decreases). */
 let rec complete_segment =
-        (~use_indent_heuristic=true, ~fuel=24, sort: Sort.t, seg: Segment.t)
+        (
+          ~use_indent_heuristic=true,
+          ~fuel=24,
+          ~only_tile: option(Id.t)=None,
+          sort: Sort.t,
+          seg: Segment.t,
+        )
         : completion_result => {
   /* Single pass: partition AND collect incomplete tiles */
   let partitioned = partition_segment(~use_indent_heuristic, seg);
@@ -1768,7 +1741,11 @@ let rec complete_segment =
          let case_label = Form.get(Case).label;
          let has_incomplete_case =
            List.exists((t: Tile.t) => t.label == case_label, incomplete);
-         (subseg, incomplete, has_incomplete_case ? [] : wraps_of(subseg));
+         (
+           subseg,
+           incomplete,
+           has_incomplete_case || only_tile != None ? [] : wraps_of(subseg),
+         );
        });
 
   /* Extract all incomplete tiles for the fast-path check */
@@ -1856,13 +1833,8 @@ let rec complete_segment =
            None,
          )
       |> Option.map(((_, _, t)) => t);
-    /* Per partition, one pass, ONE tile (or the wraps): phase-1 shard
-     * splicing AND the viz records. A wraps pass materializes only the
-     * wraps (packaging orphan rules before anything can absorb them);
-     * otherwise the chosen tile's interior gaps fill in place, its
-     * openers land at their computed indices, and its trailing shards
-     * place at their sites. Remaining tiles complete in later passes
-     * against the materialized result. */
+    /* per partition: ONE tile (or the wraps) per pass; remaining
+     * tiles complete in later passes against the materialized result */
     let has_content = sg =>
       List.exists(
         fun
@@ -1877,7 +1849,12 @@ let rec complete_segment =
              List.filteri((qi, _) => qi > pi, partitioned)
              |> List.exists(((sg, _, _)) => has_content(sg));
            let chosen =
-             wraps != [] ? [] : choose(subseg, incomplete) |> Option.to_list;
+             switch (only_tile) {
+             | Some(id) =>
+               incomplete |> List.filter((t: Tile.t) => Id.equal(t.id, id))
+             | None =>
+               wraps != [] ? [] : choose(subseg, incomplete) |> Option.to_list
+             };
            let chosen_id =
              switch (chosen) {
              | [t] => Some(t.id)
@@ -2034,11 +2011,11 @@ let rec complete_segment =
 
     let insertions =
       verify_holes(~input=seg, ~completed=completed_seg, insertions);
-    /* Materialization can capture still-broken remnants into the new
-       tile's children (the case remnant rides into the let's
-       definition slot) and leaves un-chosen tiles for later passes:
-       recurse on the result until nothing incomplete remains. */
-    if (fuel > 0 && Segment.incomplete_tiles_deep(completed_seg) != []) {
+    /* materialization can capture still-broken remnants into the new
+       tile's children; recurse until nothing incomplete remains */
+    if (only_tile == None
+        && fuel > 0
+        && Segment.incomplete_tiles_deep(completed_seg) != []) {
       let rest =
         complete_segment_deep(
           ~use_indent_heuristic,
@@ -2046,13 +2023,9 @@ let rec complete_segment =
           ~sort,
           completed_seg,
         );
-      /* Later-pass insertion anchors reference INTERMEDIATE material:
-         synthesized shards/grout the visible buffer can't measure, or
-         tiles completed during earlier passes whose visible extent is
-         only the remnant shard. Project each onto the nearest
-         measurable piece — post-order nearest-at-or-before for Right
-         anchors (a completed tile's right edge = its rightmost
-         visible descendant), pre-order nearest-at-or-after for Left. */
+      /* later-pass anchors reference intermediate material the buffer
+         can't measure: project onto the nearest measurable piece
+         (post-order backward for Right, pre-order forward for Left) */
       let rest_insertions = {
         let rec ids_deep = (sg: Segment.t) =>
           List.concat_map(
@@ -2063,10 +2036,8 @@ let rec complete_segment =
               },
             sg,
           );
-        /* A tile completed during the passes measures as its visible
-           REMNANT: usable as an anchor only from the side where its
-           visible shard actually sits (a `]` remnant IS the right
-           edge of the completed span; a `(` remnant is not) */
+        /* a completed tile measures as its visible remnant: anchor
+           from it only on the side where its visible shard sits */
         let was_incomplete = Segment.incomplete_tiles_deep(seg);
         let all_ids = ids_deep(seg);
         let edge_ok = (~right: bool, id: Id.t) =>
@@ -2081,12 +2052,9 @@ let rec complete_segment =
           };
         let measurable = (~right: bool, id: Id.t) =>
           List.exists(Id.equal(id), all_ids) && edge_ok(~right, id);
-        /* a consumed witness token is the visible ALIAS of the shard
-           that replaced it: emit it beside its tile in the traversal
-           orders so later-pass anchors resolve to the witness (e.g.
-           the in appended after a case completed via its en witness
-           must anchor at the en, not walk back to the rule body —
-           that reorders the display) */
+        /* a consumed witness token is the visible alias of the shard
+           that replaced it — emit it beside its tile so later-pass
+           anchors resolve there */
         let alias = (~last: bool, tid: Id.t): list(Id.t) =>
           shard_records
           |> List.concat_map((r: shard_record) =>
@@ -2176,7 +2144,13 @@ let rec complete_segment =
 /* Complete a segment recursively (descends into tile children).
  * Collects insertions from all levels for visualization. */
 and complete_segment_deep =
-    (~use_indent_heuristic=true, ~fuel=24, ~sort, seg: Segment.t)
+    (
+      ~use_indent_heuristic=true,
+      ~fuel=24,
+      ~only_tile: option(Id.t)=None,
+      ~sort,
+      seg: Segment.t,
+    )
     : completion_result => {
   /* Helper: complete all children of a tile, collecting insertions
      and shard_records */
@@ -2189,6 +2163,7 @@ and complete_segment_deep =
              complete_segment_deep(
                ~use_indent_heuristic,
                ~fuel,
+               ~only_tile,
                ~sort=child_sort,
                child,
              );
@@ -2231,6 +2206,7 @@ and complete_segment_deep =
     complete_segment(
       ~use_indent_heuristic,
       ~fuel,
+      ~only_tile,
       sort,
       seg_with_completed_children,
     );
@@ -2240,6 +2216,27 @@ and complete_segment_deep =
     ...top_result,
     insertions: child_insertions @ top_result.insertions,
     shard_records: child_records @ top_result.shard_records,
+  };
+};
+
+/* Materialization: the virtual reading, committed. ALL = the joint
+   result verbatim; ONE = a single pass pinned to the given tile.
+   None when the obligation could not be discharged. */
+let materialize_all = (~sort: Sort.t, seg: Segment.t): Segment.t =>
+  complete_segment_deep(~sort, seg).completed_seg;
+
+let materialize_one =
+    (~sort: Sort.t, seg: Segment.t, id: Id.t): option(Segment.t) => {
+  let is_obligation =
+    Segment.incomplete_tiles_deep(seg)
+    |> List.exists((t: Tile.t) => Id.equal(t.id, id));
+  if (!is_obligation) {
+    None; /* not an incomplete tile here — nothing to discharge */
+  } else {
+    let result = complete_segment_deep(~sort, ~only_tile=Some(id), seg);
+    Segment.incomplete_tiles_deep(result.completed_seg)
+    |> List.exists((t: Tile.t) => Id.equal(t.id, id))
+      ? None : Some(result.completed_seg);
   };
 };
 

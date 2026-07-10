@@ -179,7 +179,7 @@ let handle_key_event = (k: Key.t): option(Action.t) => {
     /* † is what holding option turns t into on Mac */
     Some(Project(SetIndicated(ChooseLivelit)))
   | {key: D("µ"), sys: Mac, shift: Up, meta: Up, ctrl: Up, alt: Down, _} =>
-    Some(Dump)
+    Some(ApplyCompletion(All))
   | {key: D(key), sys: _, shift: Up, meta: Up, ctrl: Up, alt: Down, _} =>
     switch (key) {
     | "Backspace" => now(Destruct(Local(Left, ByToken)))
