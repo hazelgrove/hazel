@@ -516,8 +516,7 @@ svg:has(.child-line) {
   --quiver-chip: var(--token-incomplete);
 }
 
-/* the truthful completion spot, marked while its chip rides the
-   caret elsewhere: a small wedge above the line boundary */
+/* wedge at the canonical spot while its chip is elsewhere */
 .quiver-rest-marker {
   position: absolute;
   z-index: 14;
@@ -531,11 +530,7 @@ svg:has(.child-line) {
   pointer-events: none;
 }
 
-/* the anchor pins the insertion point; the bubble hangs off it,
-   vertically CENTERED on the line boundary (translateY(-50%)), its
-   first character centered over the insertion column (inline left).
-   The bubble deliberately overlaps the top of the caret-shaped bar —
-   the caret reaches up between lines; the overlap is the join. */
+/* bubble centered on the line boundary, overlapping the pole's top */
 .quiver-chip-anchor {
   position: absolute;
   z-index: 15; /* above code text, below the caret */
@@ -544,15 +539,12 @@ svg:has(.child-line) {
 .quiver-chip-body {
   position: absolute;
   transform: translateY(-50%);
-  /* chips receive pointer events only to test for the modifier —
-     unmodified clicks fall through to the editor (Effect.Ignore
-     still bubbles), so the caret places through the bubble */
+  /* pointer events only to test the modifier; unmodified clicks
+     bubble through to the editor */
   pointer-events: auto;
 }
 
-/* the affordance shows only while it exists: meta held (the same
-   state that lights ref underlines) puts the pointer cursor on
-   chip segments */
+/* pointer cursor only while meta is held (the ref-underline state) */
 .code-container.meta-down .quiver-chip-body .chip-seg {
   cursor: pointer;
   padding: 0px 4px 1px 4px;
@@ -586,11 +578,8 @@ svg:has(.child-line) {
   fill: var(--shard-selected);
 }
 
-/* colorways. DEFAULT (obligation in another segment — error-like,
-   keep it loud): solid gold, knockout text. LIVE (the caret is
-   somewhere this shard would pair — tab territory): the classic pale
-   scheme, pale selection backing with gold text. AT-CARET adds the
-   red pole/stripe on top of LIVE. */
+/* colorways: DEFAULT (other segment, loud) = solid gold/knockout;
+   LIVE (caret where this shard pairs) = pale backing, gold text */
 .quiver-chip.chip-live .quiver-chip-body {
   background: var(--shard-selected);
   color: var(--token-incomplete);
@@ -598,10 +587,8 @@ svg:has(.child-line) {
 
 
 
-/* the typed prefix is CUT OUT — white on every scheme; the remainder
-   takes the OPPOSITE pole of the scheme (brown on pale chips via the
-   body color; pale yellow on gold chips) so partial completion reads
-   on both. Later coalesced segments fade. */
+/* typed prefix cut-out white on every scheme; remainder takes the
+   scheme's opposite pole */
 .quiver-chip .chip-frac-typed {
   color: white;
 }
@@ -622,11 +609,8 @@ svg:has(.child-line) {
   display: none;
 }
 
-/* at-caret the REAL caret is authoritative — true shape against the
-   shard decorations, stock blink and restart — and the chip's own
-   pole steps aside; the pale flag simply docks above the caret. No
-   takeover, no separate red, no phase-sync problem: at-caret IS a
-   live chip with the caret standing at its foot. */
+/* at-caret the real caret is authoritative; the chip's pole steps
+   aside and the flag docks above it */
 
 
 

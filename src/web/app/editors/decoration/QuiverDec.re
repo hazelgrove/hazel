@@ -13,11 +13,8 @@ open Node;
 open Haz3lcore;
 open Util;
 
-/* An insertion with its resolved position. shape = the caret shape
-   at the pin (the pole renders as a GHOST CARET: exactly what the
-   real caret will look like if you move there — truthful by
-   construction, and it nests against the shard decorations the way
-   a straight bar cannot). */
+/* An insertion with its resolved position; shape = the caret shape
+   at the pin (the pole is a ghost caret). */
 type positioned_insertion = {
   row: int,
   col: int,
@@ -25,11 +22,7 @@ type positioned_insertion = {
   delimiters: list(CanonicalCompletion.delimiter_info),
 };
 
-/* Two-state tab emphasis (backpack-parity): the entry whose shard is
-   what tab would put down RIGHT NOW — the head of the local missing
-   shards, caret Outer — renders at full emphasis; everything else is
-   slightly dimmed (the same signal the backpack display carried via
-   its graying). Matching is by (tile id, shard index) provenance. */
+/* Does this chip hold the shard tab would put down right now? */
 /* Chip text scale relative to the code font */
 let chip_font_scale = 0.72;
 
@@ -87,17 +80,10 @@ let rec find_piece_ctx =
 let find_piece_deep = (sg: Segment.t, id: Id.t): option(Piece.t) =>
   find_piece_ctx(sg, id) |> Option.map(((_, _, p)) => p);
 
-/* Resolve an insertion's position. COINCIDENCE-FIRST placement: a
-   pin's exact position within a run of grout/whitespace — LINEBREAKS
-   INCLUDED — is semantically free: the material drop is structural,
-   so `let x = 1 in\nbody` and `let x = 1\nin body` are the same
-   program. The pin's free zone is the whole inter-content whitespace
-   region around its anchor; when the caret is inside it the pin
-   FOLLOWS the caret exactly (one caret-like object via the
-   takeover). Otherwise it RESTS at the engine's spot (left content
-   edge of the same-line run) — the resting position stays
-   layout-faithful to the engine's partition-aware choice; only the
-   following crosses lines. */
+/* Coincidence-first placement: a pin's position within its
+   inter-content whitespace region (linebreaks included) is
+   semantically free, so it FOLLOWS the caret inside that zone and
+   RESTS at the engine's spot otherwise. */
 let resolve_position =
     (
       ~seg: Segment.t,
@@ -213,13 +199,8 @@ let resolve_position =
     };
   };
 
-/* Chip segment rendering. EMPHASIS INVERSION vs the old offside
-   boxes (andrew): the chip sits AT the token, so its payload is what
-   REMAINS — the yet-to-type remainder renders at full contrast and
-   the already-typed prefix fades toward the chip color (it is
-   visible in the code an em away). Later segments of a coalesced
-   chip fade the same way: only the first is where tab acts, and
-   only its position survives its own application. */
+/* Chip segments: the remainder is the payload (full contrast); the
+   typed prefix and later coalesced segments fade. */
 let delimiter_nodes =
     (
       ~font_metrics: FontMetrics.t,
@@ -231,10 +212,8 @@ let delimiter_nodes =
   |> List.mapi((k, d: CanonicalCompletion.delimiter_info) => {
        let sep = k > 0 ? [Node.text(" ")] : [];
        let seg_cls = k > 0 ? ["chip-seg", "chip-seg-later"] : ["chip-seg"];
-       /* MODIFIER-click to complete (cmd on Mac / ctrl elsewhere),
-          per delimiter — coalesced segments individually. Unmodified
-          pointer events fall through untouched: the editor places
-          the caret on pointerdown as if the chip were not there. */
+       /* modifier-click completes this delimiter's tile; unmodified
+          pointer events fall through to the editor */
        let apply_attrs =
          switch (on_apply, d.of_shard) {
          | (Some(f), Some((tid, _))) => [
@@ -286,14 +265,8 @@ let delimiter_nodes =
      })
   |> List.concat;
 
-/* One interline chip: a solid speech-bubble centered on the line
-   boundary above the insertion point, flagpole-aligned with a
-   STRAIGHT caret bar — the same path/metrics the real caret draws,
-   shape deliberately not shown (a remnant token's nib shapes are
-   incidental: le's convex right stops existing once the t arrives).
-   When the real caret sits exactly on the pin, the chip takes the
-   caret's color and the caret glyph hides (CSS :has) — the signpost
-   IS the caret there. */
+/* One interline chip: bubble centered on the line boundary above
+   the insertion point, pole below. */
 let chip_view =
     (
       ~font_metrics: FontMetrics.t,
@@ -308,9 +281,8 @@ let chip_view =
     : Node.t => {
   let x = float_of_int(col) *. font_metrics.col_width;
   let y = float_of_int(row) *. font_metrics.row_height;
-  /* the pole is a GHOST CARET: the same path the real caret draws at
-     this position, so it nests against the shard decorations. Hidden
-     at coincidence (the real caret takes over). */
+  /* the pole is a ghost caret: the path the real caret would draw
+     here; hidden at coincidence */
   let pole =
     DecUtil.code_svg(
       ~font_metrics,
@@ -324,10 +296,8 @@ let chip_view =
       ~height_fudge=ShardDec.shadow_dy *. font_metrics.row_height,
       CaretDec.caret_base_path(Direction.Right, shape),
     );
-  /* the flag's left edge kisses the top-left corner of whichever
-     caret stands at its foot: the ghost pole at rest, the REAL caret
-     at coincidence — same top-edge geometry, x =
-     -(shape_adjust + caret_width/2) */
+  /* flag left edge = top-left corner of whichever caret stands at
+     its foot: x = -(shape_adjust + caret_width/2) */
   let (dock_side, dock_shape) =
     switch (at_caret, caret_form) {
     | (true, Some((cs, csh))) => (cs, csh)
@@ -389,10 +359,8 @@ let delimiters_len =
   |> List.fold_left((+), 0)
   |> (n => n + max(0, List.length(delimiters) - 1));
 
-/* Coalesce chips that would overlap on the same interline: the later
-   one's delimiters join the earlier chip (in column order). Only the
-   first chip keeps its bar — after the first insertion is applied
-   the flow changes, so later positions are not truthful anyway. */
+/* Overlapping same-row chips coalesce into the earlier one — only
+   the first position survives its own application anyway. */
 let coalesce_overlaps =
     (~font_metrics: FontMetrics.t, chips: list(positioned_insertion))
     : list(positioned_insertion) => {
@@ -440,12 +408,8 @@ let view =
   let result = CanonicalCompletion.for_editor(seg);
   let insertions = result.insertions;
 
-  /* claims from the previous render must not accumulate — reset even
-     when there is nothing to draw, else a vanished quiver leaves its
-     stale claims and probe offsides stay displaced until some other
-     quiver render happens to reset. (Chips are interline overlays and
-     claim no line-end space themselves, so reset is all that is
-     needed: probes sit at the standard offset again.) */
+  /* reset even when nothing draws: a vanished quiver must not leave
+     stale row claims displacing probe offsides */
   RowOffsets.reset();
 
   if (List.length(insertions) == 0) {

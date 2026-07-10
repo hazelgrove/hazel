@@ -3,20 +3,10 @@ type t = {
   segment: Segment.t,
   measured: Measured.t,
   selection_ids: list(Id.t),
-  /* The term-derived data structured below may differ from the term
-   * used for semantics. These terms are identical when no delimiter
-   * shards are missing (no incomplete tiles). When shards ARE
-   * missing, the term for semantics is built from the canonically
-   * COMPLETED segment (CanonicalCompletion.for_make_term synthesizes
-   * the missing shards at their canonical placements), which is what
-   * lets cursorinfo/completion work on incomplete programs.
-   *
-   * NOTE what old papers call the "backpack" is not a store: it is
-   * DERIVED — a search for missing shards over the syntax, local
-   * (Relatives.local_missing_shards; feeds tab put-down) or global
-   * (Segment.global_missing_shards; feeds the display). Completion
-   * can add/remove grout relative to the visible buffer, so ids may
-   * be present/absent between the two views. */
+  /* May differ from the term used for semantics: with shards missing,
+   * that term is built from the canonically COMPLETED segment
+   * (CanonicalCompletion.for_make_term), so ids may be present/absent
+   * between the two views. */
   term_data: TermData.t,
   terms: TermMap.t,
   /* A list of projector IDs in the order they appear in the segment

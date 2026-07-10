@@ -250,13 +250,9 @@ let run_class = (~prefix_only: bool, name: string, text: string): outcome => {
   );
 };
 
-/* === Pair-deletion class (joint satisfiability instrument) ===
-   Delete the CLOSING shard of two different tiles (rightmost first,
-   so the left target's coordinates stay valid), complete jointly,
-   and check (a) restoration and (b) andrew's property: the joint
-   result is delimiter-complete (no incomplete tiles survive).
-   Measures the compatibility of co-broken completions — the class
-   the single-deletion scoreboard can't see. */
+/* Pair-deletion class: delete two tiles' closing shards (rightmost
+   first), complete jointly; check restoration AND that the joint
+   result is delimiter-complete. */
 
 let closer_targets = (z: Zipper.t): list((Token.t, Point.t)) => {
   let measured = CachedSyntax.init(z).measured;
@@ -377,19 +373,11 @@ let run_pairs = (name: string, text: string): joint_outcome => {
   );
 };
 
-/* === Acceptance stability ===
-   Accepting one displayed suggestion must not move the others. For
-   each pair-deletion state with >=2 distinct obligations: apply
-   ApplyCompletion(One(tile)) through the real pipeline for each
-   tile and check every SURVIVING delimiter entry keeps its key —
-   (anchor id, side, text); anchor identity, not (row,col), since
-   absolute positions legitimately shift, and needs_hole excluded
-   since truthful holes flip with context. Also the reverse-trace
-   full sequence: accepting everything outermost-first must converge
-   to the same program materialize-all produces (trace order has a
-   construction guarantee; reverse order is the exposed direction).
-   Pinned per program: "stable/shifted/failed of applies | reverse
-   converged/sequences". */
+/* Acceptance stability: applying One(tile) must not move the
+   surviving entries — keyed by (anchor id, side, text); needs_hole
+   excluded (truthful holes flip with context). Plus reverse-trace
+   full sequences vs materialize-all. Pins:
+   "stable/shifted/failed of applies | reverse converged/seqs". */
 
 type accept_outcome = {
   a_stable: int,
@@ -574,11 +562,8 @@ let run_accept = (name: string, text: string): accept_outcome => {
   );
 };
 
-/* Instabilities cluster on the KNOWN jointly-interacting states:
-   the end+in definition-slot pair (applying one re-plans the other)
-   and fun-ap's accepted-inherent paren (context-sensitive by
-   design). ~92% stable overall — clicking is safe; the rare shifts
-   read as the display re-planning, not corruption. */
+/* Instabilities = the known jointly-interacting states only
+   (end+in definition slot; fun-ap's paren). */
 let accept_pins = [
   ("let-chain", "2/0/0 of 2 | reverse 1/1"),
   ("fun-ap", "10/2/0 of 12 | reverse 5/6"),
@@ -617,12 +602,9 @@ let accept_tests =
 /* (program, "restored/incomplete/total") — PINNED like the others */
 let pair_pins = [
   ("let-chain", "1/0/1"),
-  /* the 3 misses inherit the )@f(3 single: deleting that ) leaves
-     `f(3 + f(4)` — NO grout, NO junction, byte-identical to freshly
-     typing an ap-paren spanning the rest. Structural evidence
-     destroyed; the wide completion IS correct for the visible state
-     (entry/trajectory stability), so this is accepted-inherent like
-     merge-on-delete, not a placement miss. */
+  /* the 3 misses inherit the )@f(3 single: `f(3 + f(4)` is
+     byte-identical to a freshly typed wide ap-paren — structural
+     evidence destroyed, accepted-inherent */
   ("fun-ap", "3/0/6"),
   ("if-else-inline", "1/0/1"),
   ("if-else-multiline", "1/0/1"),
@@ -665,11 +647,8 @@ let pins = [
   ("if-else-multiline", "6/0/6", "5/0/5"),
   ("case-multiline", "9/0/9", "6/0/6"),
   ("type-adt", "14/2/16", "8/0/8"),
-  /* the tuple-list full miss: deleting the first let's = leaves
-     `let p (1, 2 + 3) in` — p(1, 2+3) reads as a legitimate
-     ap-PATTERN (self-healed adjacency, no junction debris), so the
-     everything-left completion is correct for the visible state.
-     Accepted-inherent, same class as fun-ap's paren. */
+  /* tuple-list's = miss: `let p (1, 2+3) in` reads as a legitimate
+     ap-pattern — accepted-inherent, like fun-ap's paren */
   ("tuple-list", "9/0/10", "4/0/4"),
   ("case-def-inline", "9/0/9", "6/0/6"),
   ("case-def-multiline", "9/0/9", "6/0/6"),
