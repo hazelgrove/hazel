@@ -1,0 +1,199 @@
+open Alcotest;
+open Haz3lcore;
+open Language;
+
+/* T1 semantic obligations: tuple-shape deficits derived from types.
+   Derivation is term-based and caret-free — states are built by
+   typing (¦ = caret), but the result must not depend on where the
+   caret ends up (pinned by the caret-invariance case below). */
+
+let string_testable = testable(Fmt.string, String.equal);
+
+let derive = (code: string): string => {
+  let z = Test_Editing.perform(Zipper.init(), Test_Editing.mk(code));
+  let MakeTerm.{term, _} = MakeTerm.from_zip_for_sem(z, ~root=Sort.Exp);
+  let (info_map, _) =
+    Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
+  switch (TypeObligations.derive(info_map)) {
+  | [] => "none"
+  | obs =>
+    obs
+    |> List.map((ob: TypeObligations.t) =>
+         Printf.sprintf(
+           "%d/%d owes %s",
+           ob.present,
+           ob.expected,
+           ob.remaining_tys
+           |> List.map(Typ.pretty_print)
+           |> String.concat(","),
+         )
+       )
+    |> List.sort(compare)
+    |> String.concat(" | ")
+  };
+};
+
+let ob_case = (~name, ~code, ~expected) =>
+  test_case(name, `Quick, () =>
+    check(string_testable, name, expected, derive(code))
+  );
+
+let f2 = "let f : (Int, String) -> Int = fun x -> 1 in ";
+let g3 = "let g : (Int, String, Bool) -> Int = fun x -> 1 in ";
+
+/* Reification: with obligations spliced into the sem term, the arity
+   inconsistency disappears and elements get per-element ana. */
+let statics_of = (code: string, ~reify: bool) => {
+  let z = Test_Editing.perform(Zipper.init(), Test_Editing.mk(code));
+  let mk = term =>
+    Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
+  let MakeTerm.{term, _} = MakeTerm.from_zip_for_sem(z, ~root=Sort.Exp);
+  let (info_map, _) = mk(term);
+  if (reify) {
+    switch (TypeObligations.derive(info_map)) {
+    | [] => info_map
+    | obs =>
+      let MakeTerm.{term, _} =
+        MakeTerm.from_zip_for_sem_spliced(
+          z,
+          ~root=Sort.Exp,
+          ~splice=TypeObligations.reify(obs),
+        );
+      fst(mk(term));
+    };
+  } else {
+    info_map;
+  };
+};
+
+let error_count = (code, ~reify) =>
+  statics_of(code, ~reify) |> Statics.Map.error_ids |> List.length;
+
+let reify_case = (~name, ~code, ~raw, ~reified) =>
+  test_case(
+    name,
+    `Quick,
+    () => {
+      check(
+        testable(Fmt.int, Int.equal),
+        name ++ " raw",
+        raw,
+        error_count(code, ~reify=false),
+      );
+      check(
+        testable(Fmt.int, Int.equal),
+        name ++ " reified",
+        reified,
+        error_count(code, ~reify=true),
+      );
+    },
+  );
+
+let error_clses = (code, ~reify) =>
+  statics_of(code, ~reify)
+  |> (im => (im, Statics.Map.error_ids(im)))
+  |> (
+    ((im, ids)) =>
+      ids
+      |> List.map(id =>
+           switch (Id.Map.find_opt(id, im)) {
+           | Some(info) => Info.cls_of(info) |> Cls.show
+           | None => "?"
+           }
+         )
+      |> String.concat(" | ")
+  );
+
+let reify_tests = [
+  /* the reified term errors exactly as the hand-typed equivalent
+     f(true, ?) would: precise element error + hazel's normal tuple
+     cascade — NOT the raw state's one vague arity error. Reified
+     statics == statics of the materialized program. */
+  test_case("genuine error localizes to element + tuple cascade", `Quick, () =>
+    check(
+      string_testable,
+      "sites",
+      "Boolean literal | Tuple literal",
+      error_clses(f2 ++ "f(true¦", ~reify=true),
+    )
+  ),
+  reify_case(
+    ~name="arity error absorbed by reification",
+    ~code=f2 ++ "f(1¦",
+    ~raw=1,
+    ~reified=0,
+  ),
+  reify_case(
+    ~name="genuine element type error survives reification",
+    ~code=f2 ++ "f(true¦",
+    ~raw=1,
+    ~reified=2,
+  ),
+  reify_case(
+    ~name="three-arity two owed absorbed",
+    ~code=g3 ++ "g(1¦",
+    ~raw=1,
+    ~reified=0,
+  ),
+];
+
+let tests = [
+  ("TypeObligations: reification", reify_tests),
+  (
+    "TypeObligations: derivation",
+    [
+      ob_case(
+        ~name="one arg of two",
+        ~code=f2 ++ "f(1¦",
+        ~expected="1/2 owes String",
+      ),
+      ob_case(
+        ~name="one arg of three",
+        ~code=g3 ++ "g(1¦",
+        ~expected="1/3 owes String,Bool",
+      ),
+      ob_case(
+        ~name="two args of three",
+        ~code=g3 ++ "g(1, \"a\"¦",
+        ~expected="2/3 owes Bool",
+      ),
+      ob_case(
+        ~name="complete call: no obligation",
+        ~code=f2 ++ "f(1, \"a\")¦",
+        ~expected="none",
+      ),
+      ob_case(
+        ~name="tuple-typed var defeats the presumption",
+        ~code=
+          "let f : (Int, String) -> Int = fun x -> 1 in let p : (Int, String) = (1, \"a\") in f(p¦",
+        ~expected="none",
+      ),
+      ob_case(
+        ~name="wrong-arity tuple var does not defeat",
+        ~code=
+          "let g : (Int, String, Bool) -> Int = fun x -> 1 in let p : (Int, String) = (1, \"a\") in g(p¦",
+        ~expected="1/3 owes String,Bool",
+      ),
+      ob_case(
+        ~name="explicit tuple parens under annotation",
+        ~code="let t : (Int, Bool) = (1¦",
+        ~expected="1/2 owes Bool",
+      ),
+      ob_case(
+        ~name="nested tuple: inner and outer both owe",
+        ~code="let h : ((Int, Bool), String) -> Int = fun x -> 1 in h((1¦",
+        ~expected="1/2 owes Bool | 1/2 owes String",
+      ),
+      ob_case(
+        ~name="caret-invariance: same state, caret at program start",
+        ~code="¦" ++ f2 ++ "f(1",
+        ~expected="1/2 owes String",
+      ),
+      ob_case(
+        ~name="unknown fn type: no obligation",
+        ~code="q(1¦",
+        ~expected="none",
+      ),
+    ],
+  ),
+];

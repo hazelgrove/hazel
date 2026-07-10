@@ -129,12 +129,18 @@ module Update = {
           : (
             /* caret pinned to a quiver chip: Tab dispatches that
                obligation, whether or not an inline buffer is showing
-               (buffers only appear on edits; the chip is always live) */
-            switch (CanonicalCompletion.obligation_at_caret(z)) {
-            | Some(tid) => ApplyCompletion(One(tid))
+               (buffers only appear on edits; the chip is always
+               live). Type-shape chunks (owed commas) order before
+               the closer in the chip, so they dispatch first. */
+            switch (TypeObligations.at_caret(z, model.statics.obligations)) {
+            | Some(_) => Paste(", ")
             | None =>
-              Zipper.can_put_down(z)
-                ? Put_down : Move(Goal(NextProblem(Right)))
+              switch (CanonicalCompletion.obligation_at_caret(z)) {
+              | Some(tid) => ApplyCompletion(One(tid))
+              | None =>
+                Zipper.can_put_down(z)
+                  ? Put_down : Move(Goal(NextProblem(Right)))
+              }
             }
           );
       perform(action, model);
@@ -503,6 +509,7 @@ module View = {
         ~expand_selection=false,
         ~syntax: CachedSyntax.t,
         ~info_map: Language.Statics.Map.t,
+        ~obligations: list(Haz3lcore.TypeObligations.t)=[],
         ~globals: Globals.t,
         ~on_apply: option(Id.t => Ui_effect.t(unit))=None,
         z: Zipper.t,
@@ -549,6 +556,7 @@ module View = {
           QuiverDec.view(
             ~measured=syntax.measured,
             ~font_metrics=globals.font_metrics,
+            ~obligations,
             ~caret_pos={
               let p = Zipper.Caret.point(syntax.measured, z);
               Some((p.row, p.col));
@@ -622,6 +630,7 @@ module View = {
             ~expand_selection?,
             ~syntax=model.editor.syntax,
             ~info_map=model.statics.info_map,
+            ~obligations=model.statics.obligations,
             ~globals,
             ~on_apply=
               Some(id => inject(Perform(ApplyCompletion(One(id))))),

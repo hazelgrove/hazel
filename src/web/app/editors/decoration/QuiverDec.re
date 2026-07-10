@@ -401,12 +401,19 @@ let view =
       ~caret_pos: option((int, int))=None,
       ~caret_form: option((Direction.t, option(Direction.t)))=None,
       ~on_apply: option(Id.t => Ui_effect.t(unit))=None,
+      ~obligations: list(TypeObligations.t)=[],
       seg: Segment.t,
     )
     : Node.t => {
   /* Get completion result with insertions */
   let result = CanonicalCompletion.for_editor(seg);
   let insertions = result.insertions;
+  /* T1 tuple-shape obligations join the same chip stream: merged
+     into the site's closer chip when it exists, else fresh. They
+     arrive from CachedStatics (pass-1 derivation) — with
+     reification on, the live info_map no longer shows the deficit */
+  let insertions =
+    TypeObligations.as_insertions(~seg, ~existing=insertions, obligations);
 
   /* reset even when nothing draws: a vanished quiver must not leave
      stale row claims displacing probe offsides */
