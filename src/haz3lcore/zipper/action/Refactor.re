@@ -3491,52 +3491,67 @@ let space_commas = (e: Exp.t): Exp.t =>
     e,
   );
 
+let reduce_prepare =
+    (~hit: Exp.t => bool, ~build: Exp.t => option((Exp.t, Id.t)), program) =>
+  switch (find_hit(~hit, program)) {
+  | None => None
+  | Some(e) =>
+    let parens = {
+      /* region == program is fine: the oracle runs on the whole
+         program (blanket parens here wrapped every tail-position
+         reduction and compounded per step) */
+      let region = bounded_region(Exp.rep_id(e), program);
+      switch (build(e)) {
+      | Some((bare, _)) =>
+        let candidate = replace_node(~at=Exp.rep_id(e), ~with_=bare, region);
+        !reparses_region(candidate);
+      | None => true
+      };
+    };
+    rewrite_node(
+      ~hit,
+      ~rewrite=
+        e =>
+          build(e)
+          |> Option.map(((built, focus)) =>
+               (parens ? fresh(Parens(built)) : built, focus)
+             ),
+      program,
+    );
+  };
+
 let evaluate_in_place_impl: impl = {
   label: "Evaluate",
   tooltip: "Replace this expression with its value",
   prepare: (~info_map as _, ~target, program) => {
-    let attempt = (~parens: bool) =>
-      rewrite_node(
-        ~hit=hit_node(target),
-        ~rewrite=
-          e =>
-            if (is_value_literal(e)) {
-              None;
-            } else {
-              /* elaborate the subterm standalone: free vars elaborate
-                 to holes, evaluate to indet, and fail the value gate —
-                 so closedness needs no separate check here */
-              let elab =
-                CachedStatics.init_from_term(
-                  ~settings=CoreSettings.on,
-                  ~is_dynamic_term=false,
-                  e,
-                ).
-                  elaborated;
-              switch (
-                Evaluator.evaluate_and_limit(
-                  ~step_limit=10000,
-                  ~env=Builtins.env_init,
-                  elab,
-                )
-              ) {
-              | Completed((v, _)) when is_value_literal(v) =>
-                let v = space_commas(v);
-                let v = parens ? fresh(Parens(v)) : v;
-                Some((v, Exp.rep_id(v)));
-              | _ => None
-              };
-            },
-        program,
-      );
-    /* static: bare iff delimiter-bounded (see eta-expand) */
-    let bounded =
-      switch (find_hit(~hit=hit_node(target), program)) {
-      | Some(e) =>
-        !same_node(bounded_region(Exp.rep_id(e), program), program)
-      | None => false
+    let hit = (e: Exp.t) => hit_node(target, e) && !is_value_literal(e);
+    let build = (e: Exp.t) => {
+      /* elaborate the subterm standalone: free vars elaborate to
+         holes, evaluate to indet, and fail the value gate — so
+         closedness needs no separate check here */
+      let elab =
+        CachedStatics.init_from_term(
+          ~settings=CoreSettings.on,
+          ~is_dynamic_term=false,
+          e,
+        ).
+          elaborated;
+      switch (
+        Evaluator.evaluate_and_limit(
+          ~step_limit=10000,
+          ~env=Builtins.env_init,
+          elab,
+        )
+      ) {
+      | Completed((v, _)) when is_value_literal(v) =>
+        let v = space_commas(v);
+        Some((v, Exp.rep_id(v)));
+      | _ => None
       };
-    attempt(~parens=!bounded);
+    };
+    /* parens via the reparse oracle (the old static boundedness rule
+       didn't know if-cond and similar slots — `if (false) then`) */
+    reduce_prepare(~hit, ~build, program);
   },
 };
 
@@ -3793,35 +3808,6 @@ let rec wrap_bindings = (bs: list((Pat.t, Exp.t)), body: Exp.t): Exp.t =>
 
 /* shared scaffold: replace `e` with `built` under the feed parens
    policy (region-scoped reparse; conservative at an unbounded root) */
-let reduce_prepare =
-    (~hit: Exp.t => bool, ~build: Exp.t => option((Exp.t, Id.t)), program) =>
-  switch (find_hit(~hit, program)) {
-  | None => None
-  | Some(e) =>
-    let parens = {
-      /* region == program is fine: the oracle runs on the whole
-         program (blanket parens here wrapped every tail-position
-         reduction and compounded per step) */
-      let region = bounded_region(Exp.rep_id(e), program);
-      switch (build(e)) {
-      | Some((bare, _)) =>
-        let candidate = replace_node(~at=Exp.rep_id(e), ~with_=bare, region);
-        !reparses_region(candidate);
-      | None => true
-      };
-    };
-    rewrite_node(
-      ~hit,
-      ~rewrite=
-        e =>
-          build(e)
-          |> Option.map(((built, focus)) =>
-               (parens ? fresh(Parens(built)) : built, focus)
-             ),
-      program,
-    );
-  };
-
 let reduce_if_impl: impl = {
   label: "Take branch",
   tooltip: "The condition is decided: replace the if with the live branch",
